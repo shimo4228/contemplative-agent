@@ -18,6 +18,8 @@ from .config import (
     VALID_SUBMOLT_PATTERN,
 )
 
+VALID_AGENT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
+
 logger = logging.getLogger(__name__)
 
 MAX_RETRY_AFTER = 300  # 5 minutes hard cap
@@ -189,6 +191,9 @@ class MoltbookClient:
 
     def follow_agent(self, agent_name: str) -> bool:
         """Follow an agent by name. Returns True on success."""
+        if not VALID_AGENT_NAME_PATTERN.match(agent_name):
+            logger.warning("Invalid agent_name rejected: %.50r", agent_name)
+            return False
         try:
             resp = self.post(f"/agents/{agent_name}/follow")
             data = resp.json()

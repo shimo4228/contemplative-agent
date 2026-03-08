@@ -44,6 +44,16 @@ from .verification import (
 
 logger = logging.getLogger(__name__)
 
+# Notification types that warrant a reply
+_REPLY_TYPES = frozenset({
+    "reply", "comment",
+    "post_comment", "comment_reply",
+    "mention",
+})
+
+# Cache TTL for feed: fetching from N submolts is expensive; posts don't change quickly
+_FEED_CACHE_TTL = 600.0
+
 
 class AutonomyLevel(str, enum.Enum):
     APPROVE = "approve"
@@ -90,8 +100,10 @@ class Agent:
             self._own_agent_id = agent_data.get("id", "")
             if self._own_agent_id:
                 logger.info("Own agent ID: %s", self._own_agent_id[:12])
-        except MoltbookClientError as exc:
+        except (MoltbookClientError, ValueError) as exc:
             logger.warning("Failed to fetch own agent ID: %s", exc)
+        if not self._own_agent_id:
+            logger.warning("Self-reply protection DEGRADED: own agent ID unknown")
 
     def _ensure_subscriptions(self, client: MoltbookClient) -> None:
         """Subscribe to all configured submolts (idempotent)."""
@@ -238,7 +250,7 @@ class Agent:
                       len(posts), len(self._domain.subscribed_submolts))
         return posts
 
-    def _get_feed(self, max_age: float = 600.0) -> List[dict]:
+    def _get_feed(self, max_age: float = _FEED_CACHE_TTL) -> List[dict]:
         """Return cached feed if fresh, otherwise fetch anew."""
         if time.time() - self._feed_fetched_at < max_age and self._cached_feed:
             return self._cached_feed
@@ -314,7 +326,6 @@ class Agent:
 
         score = score_relevance(post_text)
         # Lower threshold for agents we've previously interacted with
-        author_id = (post.get("author") or {}).get("id", "")
         threshold = (
             self._domain.known_agent_threshold
             if author_id and self._memory.has_interacted_with(author_id)
@@ -551,12 +562,6 @@ class Agent:
             fields = self._extract_notification_fields(notif)
             notif_type = fields["type"]
 
-            # Map API notification types to our internal categories
-            _REPLY_TYPES = frozenset({
-                "reply", "comment",
-                "post_comment", "comment_reply",
-                "mention",
-            })
             if notif_type not in _REPLY_TYPES:
                 logger.debug(
                     "Notification[%d] skipped: type=%r not actionable",

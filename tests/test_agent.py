@@ -1273,6 +1273,185 @@ class TestExtractAgentFields:
         assert result["content"] == "hello"
 
 
+class TestFetchOwnAgentId:
+    """Tests for _fetch_own_agent_id: success, error, and JSON decode failure."""
+
+    def test_success_sets_agent_id(self, tmp_path):
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        mock_client = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"agent": {"id": "agent-123", "name": "bot"}}
+        mock_client.get.return_value = mock_resp
+
+        agent._fetch_own_agent_id(mock_client)
+        assert agent._own_agent_id == "agent-123"
+
+    def test_error_leaves_id_empty(self, tmp_path):
+        from contemplative_moltbook.client import MoltbookClientError as MCE
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        mock_client = MagicMock()
+        mock_client.get.side_effect = MCE("Network error")
+
+        agent._fetch_own_agent_id(mock_client)
+        assert agent._own_agent_id == ""
+
+    def test_json_decode_error_caught(self, tmp_path):
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        mock_client = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.json.side_effect = ValueError("Invalid JSON")
+        mock_client.get.return_value = mock_resp
+
+        agent._fetch_own_agent_id(mock_client)
+        assert agent._own_agent_id == ""
+
+    def test_unexpected_shape(self, tmp_path):
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        mock_client = MagicMock()
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"error": "unauthorized"}
+        mock_client.get.return_value = mock_resp
+
+        agent._fetch_own_agent_id(mock_client)
+        assert agent._own_agent_id == ""
+
+
+class TestSelfPostSkip:
+    """Skips posts authored by the agent itself."""
+
+    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.95)
+    def test_skips_own_post(self, mock_score, tmp_path):
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        agent._client = MagicMock()
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_comment.return_value = True
+        agent._own_agent_id = "my-agent-id"
+
+        post = {
+            "content": "Some post",
+            "id": "post1",
+            "author": {"id": "my-agent-id", "name": "self"},
+        }
+        result = agent._engage_with_post(post)
+        assert result is False
+        mock_score.assert_not_called()
+
+    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.95)
+    def test_allows_other_agent_post(self, mock_score, tmp_path):
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        agent._client = MagicMock()
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_comment.return_value = True
+        agent._content = MagicMock()
+        agent._content.create_comment.return_value = None
+        agent._own_agent_id = "my-agent-id"
+
+        post = {
+            "content": "Some post",
+            "id": "post1",
+            "author": {"id": "other-agent", "name": "other"},
+        }
+        agent._engage_with_post(post)
+        mock_score.assert_called_once()
+
+
+class TestSubmoltFilter:
+    """Skips posts from non-subscribed submolts."""
+
+    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.95)
+    def test_skips_unsubscribed_submolt(self, mock_score, tmp_path):
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        agent._client = MagicMock()
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_comment.return_value = True
+
+        post = {
+            "content": "Some post",
+            "id": "post1",
+            "submolt_name": "unsubscribed-submolt",
+        }
+        result = agent._engage_with_post(post)
+        assert result is False
+        mock_score.assert_not_called()
+
+    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.95)
+    def test_allows_post_without_submolt(self, mock_score, tmp_path):
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        agent._client = MagicMock()
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_comment.return_value = True
+        agent._content = MagicMock()
+        agent._content.create_comment.return_value = None
+
+        post = {"content": "Some post", "id": "post1"}
+        agent._engage_with_post(post)
+        mock_score.assert_called_once()
+
+
+class TestSelfReplySkip:
+    """Skips own comments in notification reply cycle."""
+
+    def _make_agent(self, tmp_path):
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        agent._client = MagicMock()
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_comment.return_value = True
+        agent._own_agent_id = "my-agent-id"
+        return agent
+
+    @patch("contemplative_moltbook.agent.generate_reply", return_value="Thanks!")
+    def test_skips_own_notification(self, mock_reply, tmp_path):
+        agent = self._make_agent(tmp_path)
+        agent._client.get_notifications.return_value = [
+            {
+                "type": "reply",
+                "post_id": "p1",
+                "id": "n1",
+                "content": "Hello",
+                "agent_id": "my-agent-id",
+                "agent_name": "self",
+            }
+        ]
+        agent._client.get_post_comments.return_value = []
+
+        agent._run_reply_cycle(
+            agent._client, agent._scheduler, time.time() + 3600
+        )
+        mock_reply.assert_not_called()
+
+    @patch("contemplative_moltbook.agent.generate_reply", return_value="Thanks!")
+    def test_skips_own_comment_in_handle_post_comments(self, mock_reply, tmp_path):
+        agent = self._make_agent(tmp_path)
+        agent._client.get_post_comments.return_value = [
+            {
+                "id": "c1",
+                "content": "My own comment",
+                "agent_id": "my-agent-id",
+                "agent_name": "self",
+            }
+        ]
+
+        agent._handle_post_comments(
+            agent._client, agent._scheduler, "post1", time.time() + 3600
+        )
+        mock_reply.assert_not_called()
+
+
+class TestNotificationRelatedPostId:
+    """Tests relatedPostId fallback in _extract_notification_fields."""
+
+    def test_related_post_id_fallback(self):
+        notif = {
+            "type": "mention",
+            "relatedPostId": "related-1",
+            "content": "hey",
+            "agent_id": "a1",
+            "agent_name": "Bot",
+        }
+        fields = Agent._extract_notification_fields(notif)
+        assert fields["post_id"] == "related-1"
+
+
 class TestFeedCache:
     """Phase 3A: Feed caching to avoid double-fetch."""
 

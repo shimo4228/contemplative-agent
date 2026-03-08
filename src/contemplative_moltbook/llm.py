@@ -222,11 +222,11 @@ def score_relevance(post_text: str) -> float:
     domain = get_domain_config()
     resolved = resolve_prompt(RELEVANCE_PROMPT, domain)
     prompt = resolved.format(post_content=_wrap_untrusted_content(post_text))
-    result = generate(prompt, max_length=200)
+    result = generate(prompt, max_length=50)
     if result is None:
         return 0.0
 
-    match = re.search(r"(0?\.\d+|1\.0|[01])", result)
+    match = re.search(r"(\d+(?:\.\d+)?)", result)
     if match:
         score = float(match.group(1))
         return max(0.0, min(1.0, score))
@@ -284,7 +284,9 @@ def generate_reply(
             f"- {h}" for h in conversation_history[-5:]
         )
         history_section = (
-            f"\nPrevious exchanges with this agent:\n{history_lines}\n"
+            "\nPrevious exchanges with this agent:\n"
+            + _wrap_untrusted_content(history_lines)
+            + "\n"
         )
 
     knowledge_section = ""

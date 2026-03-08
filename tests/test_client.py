@@ -235,3 +235,41 @@ class TestUnsubscribeSubmolt:
 
         with patch.object(client._session, "request", return_value=mock_response):
             assert client.unsubscribe_submolt("philosophy") is False
+
+
+class TestFollowAgentValidation:
+    """FINDING-1: agent_name must be validated before URL interpolation."""
+
+    def test_rejects_path_traversal(self):
+        client = MoltbookClient(api_key="test-key")
+        assert client.follow_agent("../../admin/delete") is False
+
+    def test_rejects_empty_name(self):
+        client = MoltbookClient(api_key="test-key")
+        assert client.follow_agent("") is False
+
+    def test_rejects_spaces(self):
+        client = MoltbookClient(api_key="test-key")
+        assert client.follow_agent("agent name") is False
+
+    def test_rejects_too_long_name(self):
+        client = MoltbookClient(api_key="test-key")
+        assert client.follow_agent("a" * 65) is False
+
+    def test_accepts_valid_name(self):
+        client = MoltbookClient(api_key="test-key")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
+        mock_response.json.return_value = {"action": "followed"}
+        with patch.object(client._session, "request", return_value=mock_response):
+            assert client.follow_agent("contemplative-bot_1") is True
+
+    def test_accepts_max_length_name(self):
+        client = MoltbookClient(api_key="test-key")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
+        mock_response.json.return_value = {"action": "followed"}
+        with patch.object(client._session, "request", return_value=mock_response):
+            assert client.follow_agent("a" * 64) is True
