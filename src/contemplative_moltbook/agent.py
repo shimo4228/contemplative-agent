@@ -80,6 +80,18 @@ class Agent:
         self._shutdown_requested: bool = False
         self._cached_feed: List[dict] = []
         self._feed_fetched_at: float = 0.0
+        self._own_agent_id: str = ""
+
+    def _fetch_own_agent_id(self, client: MoltbookClient) -> None:
+        """Fetch and cache our own agent ID to avoid self-replies."""
+        try:
+            resp = client.get("/agents/me")
+            agent_data = resp.json().get("agent", {})
+            self._own_agent_id = agent_data.get("id", "")
+            if self._own_agent_id:
+                logger.info("Own agent ID: %s", self._own_agent_id[:12])
+        except MoltbookClientError as exc:
+            logger.warning("Failed to fetch own agent ID: %s", exc)
 
     def _ensure_subscriptions(self, client: MoltbookClient) -> None:
         """Subscribe to all configured submolts (idempotent)."""
@@ -208,16 +220,25 @@ class Agent:
         return answer
 
     def _fetch_feed(self) -> List[dict]:
-        """Fetch recent posts from the global feed."""
+        """Fetch recent posts from subscribed submolt feeds."""
         client = self._ensure_client()
-        try:
-            resp = client.get("/feed")
-            return resp.json().get("posts", [])
-        except MoltbookClientError as exc:
-            logger.warning("Failed to fetch feed: %s", exc)
-            return []
+        seen_ids: set[str] = set()
+        posts: List[dict] = []
+        for submolt in self._domain.subscribed_submolts:
+            try:
+                resp = client.get(f"/submolts/{submolt}/feed")
+                for post in resp.json().get("posts", []):
+                    pid = post.get("id", "")
+                    if pid and pid not in seen_ids:
+                        seen_ids.add(pid)
+                        posts.append(post)
+            except MoltbookClientError as exc:
+                logger.warning("Failed to fetch feed for %s: %s", submolt, exc)
+        logger.debug("Fetched %d posts from %d submolt feeds",
+                      len(posts), len(self._domain.subscribed_submolts))
+        return posts
 
-    def _get_feed(self, max_age: float = 30.0) -> List[dict]:
+    def _get_feed(self, max_age: float = 600.0) -> List[dict]:
         """Return cached feed if fresh, otherwise fetch anew."""
         if time.time() - self._feed_fetched_at < max_age and self._cached_feed:
             return self._cached_feed
@@ -267,9 +288,23 @@ class Agent:
         if not post_text or not post_id:
             return False
 
+        # Skip our own posts
+        author_id = (post.get("author") or {}).get("id", "")
+        if self._own_agent_id and author_id == self._own_agent_id:
+            return False
+
         # Validate post_id to prevent path traversal
         if not VALID_ID_PATTERN.match(post_id):
             logger.warning("Invalid post_id format: %s", post_id[:50])
+            return False
+
+        # Skip posts from submolts we're not subscribed to
+        post_submolt = post.get("submolt_name", "")
+        if post_submolt and post_submolt not in self._domain.subscribed_submolts:
+            logger.debug(
+                "Post %s in submolt %r not in subscribed list, skipping",
+                post_id[:12], post_submolt,
+            )
             return False
 
         # Skip posts we already commented on (session + cross-session)
@@ -288,6 +323,7 @@ class Agent:
         if score < threshold:
             logger.debug("Post %s relevance %.2f below threshold %.2f", post_id, score, threshold)
             return False
+        logger.info("Post %s relevance %.2f passed threshold %.2f", post_id, score, threshold)
 
         if not scheduler.can_comment():
             logger.info("Comment rate limit reached")
@@ -385,6 +421,7 @@ class Agent:
 
         try:
             try:
+                self._fetch_own_agent_id(client)
                 self._ensure_subscriptions(client)
                 self._auto_follow(client)
             except Exception:
@@ -473,6 +510,7 @@ class Agent:
             "post_id": (
                 notif.get("post_id")
                 or notif.get("postId")
+                or notif.get("relatedPostId")
                 or notif.get("target_id", "")
             ),
             "post_content": (
@@ -513,9 +551,15 @@ class Agent:
             fields = self._extract_notification_fields(notif)
             notif_type = fields["type"]
 
-            if notif_type not in ("reply", "comment"):
+            # Map API notification types to our internal categories
+            _REPLY_TYPES = frozenset({
+                "reply", "comment",
+                "post_comment", "comment_reply",
+                "mention",
+            })
+            if notif_type not in _REPLY_TYPES:
                 logger.debug(
-                    "Notification[%d] skipped: type=%r not in (reply, comment)",
+                    "Notification[%d] skipped: type=%r not actionable",
                     i,
                     notif_type,
                 )
@@ -540,12 +584,30 @@ class Agent:
 
             their_content = fields["content"]
             original_post = fields["post_content"]
+
+            # If notification lacks comment body (e.g. post_comment type),
+            # fetch comments from the post and process unhandled ones
+            if not their_content and post_id:
+                logger.debug(
+                    "Notification[%d] has no content; fetching comments for %s",
+                    i, post_id[:12],
+                )
+                self._handle_post_comments(
+                    client, scheduler, post_id, end_time
+                )
+                continue
+
             if not their_content:
                 logger.debug("Notification[%d] skipped: empty content", i)
                 continue
 
             replier_id = fields["agent_id"]
             replier_name = fields["agent_name"]
+
+            # Skip our own comments to avoid self-reply loops
+            if self._own_agent_id and replier_id == self._own_agent_id:
+                logger.debug("Notification[%d] skipped: own comment", i)
+                continue
 
             self._process_reply(
                 client=client,
@@ -634,6 +696,48 @@ class Agent:
             if exc.status_code == 429:
                 self._rate_limited = True
 
+    def _handle_post_comments(
+        self,
+        client: MoltbookClient,
+        scheduler: Scheduler,
+        post_id: str,
+        end_time: float,
+    ) -> None:
+        """Fetch comments on a post and reply to unhandled ones."""
+        comments = client.get_post_comments(post_id)
+        logger.debug(
+            "Post %s has %d comment(s)", post_id[:12], len(comments)
+        )
+
+        for comment in comments:
+            if time.time() >= end_time or self._rate_limited:
+                break
+            if not scheduler.can_comment():
+                break
+
+            fields = self._extract_agent_fields(comment)
+            reply_key = f"reply:{post_id}:{fields['id']}"
+            if reply_key in self._commented_posts:
+                continue
+
+            # Skip our own comments to avoid self-reply loops
+            if self._own_agent_id and fields["agent_id"] == self._own_agent_id:
+                continue
+
+            if not fields["content"]:
+                continue
+
+            self._process_reply(
+                client=client,
+                scheduler=scheduler,
+                post_id=post_id,
+                reply_key=reply_key,
+                their_content=fields["content"],
+                original_post="",
+                replier_id=fields["agent_id"],
+                replier_name=fields["agent_name"],
+            )
+
     def _check_own_post_comments(
         self,
         client: MoltbookClient,
@@ -651,35 +755,7 @@ class Agent:
             if not scheduler.can_comment():
                 break
 
-            comments = client.get_post_comments(post_id)
-            logger.debug(
-                "Own post %s has %d comment(s)", post_id[:12], len(comments)
-            )
-
-            for comment in comments:
-                if time.time() >= end_time or self._rate_limited:
-                    break
-                if not scheduler.can_comment():
-                    break
-
-                fields = self._extract_agent_fields(comment)
-                reply_key = f"reply:{post_id}:{fields['id']}"
-                if reply_key in self._commented_posts:
-                    continue
-
-                if not fields["content"]:
-                    continue
-
-                self._process_reply(
-                    client=client,
-                    scheduler=scheduler,
-                    post_id=post_id,
-                    reply_key=reply_key,
-                    their_content=fields["content"],
-                    original_post="",  # We don't re-fetch our own post content
-                    replier_id=fields["agent_id"],
-                    replier_name=fields["agent_name"],
-                )
+            self._handle_post_comments(client, scheduler, post_id, end_time)
 
     def _run_feed_cycle(
         self,

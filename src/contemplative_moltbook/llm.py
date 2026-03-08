@@ -222,11 +222,11 @@ def score_relevance(post_text: str) -> float:
     domain = get_domain_config()
     resolved = resolve_prompt(RELEVANCE_PROMPT, domain)
     prompt = resolved.format(post_content=_wrap_untrusted_content(post_text))
-    result = generate(prompt, max_length=50)
+    result = generate(prompt, max_length=200)
     if result is None:
         return 0.0
 
-    match = re.search(r"(\d+\.?\d*)", result)
+    match = re.search(r"(0?\.\d+|1\.0|[01])", result)
     if match:
         score = float(match.group(1))
         return max(0.0, min(1.0, score))

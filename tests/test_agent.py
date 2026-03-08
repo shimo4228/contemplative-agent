@@ -293,8 +293,10 @@ class TestFetchFeed:
         agent._client.get.return_value = resp_mock
 
         posts = agent._fetch_feed()
-        assert len(posts) == 2
-        agent._client.get.assert_called_once_with("/feed")
+        # Fetches from each subscribed submolt feed
+        assert len(posts) >= 2
+        calls = agent._client.get.call_args_list
+        assert any("/submolts/" in str(c) and "/feed" in str(c) for c in calls)
 
     def test_fetch_error(self):
         from contemplative_moltbook.client import MoltbookClientError
@@ -1281,14 +1283,15 @@ class TestFeedCache:
         mock_resp.json.return_value = {"posts": [{"id": "p1"}]}
         agent._client.get.return_value = mock_resp
 
-        # First call fetches
+        # First call fetches from all subscribed submolt feeds
         result1 = agent._get_feed()
-        assert len(result1) == 1
+        assert len(result1) >= 1
+        first_call_count = agent._client.get.call_count
 
-        # Second call within max_age returns cached
+        # Second call within max_age returns cached (no new API calls)
         result2 = agent._get_feed()
         assert result2 is result1
-        assert agent._client.get.call_count == 1
+        assert agent._client.get.call_count == first_call_count
 
     def test_get_feed_expires(self, tmp_path):
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
@@ -1298,7 +1301,9 @@ class TestFeedCache:
         agent._client.get.return_value = mock_resp
 
         agent._get_feed()
+        first_call_count = agent._client.get.call_count
         # Simulate cache expiry
         agent._feed_fetched_at = 0.0
         agent._get_feed()
-        assert agent._client.get.call_count == 2
+        # Should have fetched again (doubled the call count)
+        assert agent._client.get.call_count == first_call_count * 2
