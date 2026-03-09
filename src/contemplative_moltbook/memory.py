@@ -232,6 +232,15 @@ class KnowledgeStore:
     def add_learned_pattern(self, pattern: str) -> None:
         self._learned_patterns.append(pattern)
 
+    def replace_learned_pattern(self, index: int, pattern: str) -> None:
+        """Replace an existing learned pattern at the given index."""
+        if 0 <= index < len(self._learned_patterns):
+            self._learned_patterns[index] = pattern
+
+    def get_learned_patterns(self) -> List[str]:
+        """Return a copy of the learned patterns list."""
+        return list(self._learned_patterns)
+
     def get_context_string(self) -> str:
         """Return a summary string for LLM context injection (max 500 chars)."""
         parts = []
