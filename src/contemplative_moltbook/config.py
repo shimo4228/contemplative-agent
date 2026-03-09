@@ -1,5 +1,6 @@
 """Constants and configuration for the Moltbook agent."""
 
+import os
 import re
 from dataclasses import dataclass
 from pathlib import Path
@@ -11,7 +12,9 @@ VALID_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 BASE_URL = "https://www.moltbook.com/api/v1"
 ALLOWED_DOMAIN = "www.moltbook.com"
 
-MOLTBOOK_DATA_DIR = Path.home() / ".config" / "moltbook"
+MOLTBOOK_DATA_DIR = Path(
+    os.environ.get("MOLTBOOK_HOME", str(Path.home() / ".config" / "moltbook"))
+)
 CREDENTIALS_PATH = MOLTBOOK_DATA_DIR / "credentials.json"
 RATE_STATE_PATH = MOLTBOOK_DATA_DIR / "rate_state.json"
 IDENTITY_PATH = MOLTBOOK_DATA_DIR / "identity.md"
@@ -24,19 +27,10 @@ EPISODE_RETENTION_DAYS = 30
 COMMENT_PACING_MIN_SECONDS = 60
 COMMENT_PACING_MAX_SECONDS = 180
 
-SUBSCRIBED_SUBMOLTS: Tuple[str, ...] = (
-    "alignment", "philosophy", "consciousness", "coordination",
-    "ponderings", "memories", "agent-rights",
-)
-DEFAULT_POST_SUBMOLT = "alignment"
 VALID_SUBMOLT_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,49}$")
-RELEVANCE_THRESHOLD = 0.82
-KNOWN_AGENT_THRESHOLD = 0.65
 
 OLLAMA_BASE_URL = "http://localhost:11434"
 OLLAMA_MODEL = "qwen3.5:9b"
-
-GITHUB_REPO_URL = "https://github.com/shimo4228/contemplative-agent-rules"
 
 MAX_VERIFICATION_FAILURES = 7
 MAX_RETRY_ON_429 = 3

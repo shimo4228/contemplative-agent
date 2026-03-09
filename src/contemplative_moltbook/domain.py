@@ -58,6 +58,8 @@ class PromptTemplates:
     topic_summary: str
     submolt_selection: str
     session_insight: str
+    distill: str
+    eval: str
 
 
 @dataclass(frozen=True)
@@ -156,6 +158,8 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         topic_summary=_read_md_file(directory / "topic_summary.md"),
         submolt_selection=_read_md_file(directory / "submolt_selection.md"),
         session_insight=_read_md_file(directory / "session_insight.md"),
+        distill=_read_md_file(directory / "distill.md"),
+        eval=_read_md_file(directory / "eval.md"),
     )
 
 

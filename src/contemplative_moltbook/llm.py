@@ -20,7 +20,6 @@ from .config import (
     MAX_POST_LENGTH,
     OLLAMA_BASE_URL,
     OLLAMA_MODEL,
-    SUBSCRIBED_SUBMOLTS,
 )
 from .domain import get_domain_config, resolve_prompt
 from .prompts import (
@@ -364,7 +363,7 @@ def summarize_post_topic(content: str) -> str:
 
 
 def select_submolt(
-    content: str, submolts: tuple[str, ...] = SUBSCRIBED_SUBMOLTS
+    content: str, submolts: tuple[str, ...],
 ) -> Optional[str]:
     """Ask LLM to select the best submolt for a post. Returns None if invalid."""
     submolt_list = ", ".join(submolts)

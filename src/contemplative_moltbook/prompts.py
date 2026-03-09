@@ -31,6 +31,8 @@ class _LazyPrompts:
         "TOPIC_SUMMARY_PROMPT": "topic_summary",
         "SUBMOLT_SELECTION_PROMPT": "submolt_selection",
         "SESSION_INSIGHT_PROMPT": "session_insight",
+        "DISTILL_PROMPT": "distill",
+        "EVAL_PROMPT": "eval",
     }
 
     def __getattr__(self, name: str) -> str:

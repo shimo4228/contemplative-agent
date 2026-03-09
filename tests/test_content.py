@@ -2,8 +2,6 @@
 
 from unittest.mock import patch
 
-import pytest
-
 from contemplative_moltbook.content import (
     AXIOM_TEMPLATES,
     INTRODUCTION_TEMPLATE,
@@ -31,30 +29,6 @@ class TestContentManager:
         mgr = ContentManager()
         mgr.get_introduction()
         assert mgr.get_introduction() is None
-
-    def test_get_axiom_post(self):
-        mgr = ContentManager()
-        for name in mgr.get_axiom_names():
-            result = mgr.get_axiom_post(name)
-            assert result is not None
-            assert len(result) > 100
-
-    def test_get_axiom_post_duplicate(self):
-        mgr = ContentManager()
-        mgr.get_axiom_post("mindfulness")
-        assert mgr.get_axiom_post("mindfulness") is None
-
-    def test_get_axiom_post_unknown(self):
-        mgr = ContentManager()
-        assert mgr.get_axiom_post("nonexistent") is None
-
-    def test_axiom_names(self):
-        mgr = ContentManager()
-        names = mgr.get_axiom_names()
-        assert "mindfulness" in names
-        assert "emptiness" in names
-        assert "non_duality" in names
-        assert "boundless_care" in names
 
     @patch("contemplative_moltbook.content.generate_comment")
     def test_create_comment(self, mock_gen):

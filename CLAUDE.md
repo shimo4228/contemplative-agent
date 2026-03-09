@@ -10,7 +10,8 @@ config/                         # 外部化された設定・テンプレート
   prompts/                      # プロンプトテンプレート (.md, ドメイン非依存)
     system.md, relevance.md, comment.md, cooperation_post.md,
     reply.md, post_title.md, topic_extraction.md, topic_novelty.md,
-    topic_summary.md, submolt_selection.md, session_insight.md
+    topic_summary.md, submolt_selection.md, session_insight.md,
+    distill.md, eval.md
   rules/contemplative/          # ドメイン固有コンテンツ (.md)
     introduction.md, mindfulness.md, emptiness.md,
     non-duality.md, boundless-care.md
@@ -55,11 +56,12 @@ contemplative-moltbook --domain-config path/to/domain.json --rules-dir path/to/r
 - Python 3.9+ (venv は 3.13.5)
 - 依存: requests のみ。LLM は Ollama (qwen3.5:9b, localhost)
 - ビルド: hatch
-- 14 モジュール、~3460 LOC
+- 14 モジュール、~3700 LOC
 
 ## セキュリティ方針
 
-- API key: env var > `~/.config/moltbook/credentials.json` (0600)。ログには `_mask_key()` のみ
+- データディレクトリ: `MOLTBOOK_HOME` 環境変数でカスタマイズ可 (デフォルト: `~/.config/moltbook`)
+- API key: env var > `$MOLTBOOK_HOME/credentials.json` (0600)。ログには `_mask_key()` のみ
 - HTTP: `allow_redirects=False`、ドメイン `www.moltbook.com` のみ、Retry-After 300s キャップ
 - LLM: Ollama localhost のみ許可。出力は `re.IGNORECASE` で禁止パターン除去。外部コンテンツ・knowledge context は `<untrusted_content>` タグでラップ。identity.md は forbidden pattern 検証済み
 - post_id: `[A-Za-z0-9_-]+` バリデーション
@@ -67,7 +69,7 @@ contemplative-moltbook --domain-config path/to/domain.json --rules-dir path/to/r
 
 ## テスト
 
-403件全パス (2026-03-08)。
+443件全パス (2026-03-09)。
 distill 94%, memory 93%, verification 94%, agent 90%, scheduler 88%, content 87%, llm 80%, client 79%, cli 75%, auth 75%, domain (新規), prompts, config。
 
 ## メモリアーキテクチャ (3層)
@@ -86,4 +88,4 @@ distill 94%, memory 93%, verification 94%, agent 90%, scheduler 88%, content 87%
 Laukkonen, R. et al. (2025). Contemplative Artificial Intelligence. arXiv:2504.15125
 
 # currentDate
-Today's date is 2026-03-08.
+Today's date is 2026-03-09.

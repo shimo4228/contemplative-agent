@@ -347,28 +347,33 @@ class TestExtractTopics:
 
 
 class TestSelectSubmolt:
+    _DEFAULT_SUBMOLTS = (
+        "alignment", "philosophy", "consciousness", "coordination",
+        "ponderings", "memories", "agent-rights",
+    )
+
     @patch("contemplative_moltbook.llm.generate")
     def test_exact_match(self, mock_gen):
         mock_gen.return_value = "philosophy"
-        result = select_submolt("A post about Plato")
+        result = select_submolt("A post about Plato", self._DEFAULT_SUBMOLTS)
         assert result == "philosophy"
 
     @patch("contemplative_moltbook.llm.generate")
     def test_match_within_text(self, mock_gen):
         mock_gen.return_value = "I think consciousness would be best"
-        result = select_submolt("A post about qualia")
+        result = select_submolt("A post about qualia", self._DEFAULT_SUBMOLTS)
         assert result == "consciousness"
 
     @patch("contemplative_moltbook.llm.generate")
     def test_none_on_failure(self, mock_gen):
         mock_gen.return_value = None
-        result = select_submolt("some post")
+        result = select_submolt("some post", self._DEFAULT_SUBMOLTS)
         assert result is None
 
     @patch("contemplative_moltbook.llm.generate")
     def test_none_on_unrecognized(self, mock_gen):
         mock_gen.return_value = "sports"
-        result = select_submolt("some post")
+        result = select_submolt("some post", self._DEFAULT_SUBMOLTS)
         assert result is None
 
     @patch("contemplative_moltbook.llm.generate")

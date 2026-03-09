@@ -3,7 +3,7 @@
 import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, List, Optional, Set
+from typing import Dict, Optional, Set
 
 from .domain import DomainConfig, RulesContent, get_domain_config, get_rules, resolve_prompt
 from .llm import generate_comment, generate_cooperation_post
@@ -124,20 +124,6 @@ class ContentManager:
             return None
         self._post_count += 1
         return self._introduction
-
-    def get_axiom_post(self, axiom: str) -> Optional[str]:
-        template = self._axiom_templates.get(axiom)
-        if template is None:
-            logger.warning("Unknown axiom: %s", axiom)
-            return None
-        if self._is_duplicate(template):
-            logger.info("Axiom post '%s' already posted", axiom)
-            return None
-        self._post_count += 1
-        return template
-
-    def get_axiom_names(self) -> List[str]:
-        return list(self._axiom_templates.keys())
 
     def create_comment(self, post_text: str) -> Optional[str]:
         comment = generate_comment(post_text)
