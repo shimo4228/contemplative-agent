@@ -1305,6 +1305,31 @@ class TestFetchOwnAgentId:
         agent._fetch_own_agent_id(mock_client)
         assert agent._own_agent_id == ""
 
+    def test_401_logs_critical_warning(self, tmp_path):
+        from contemplative_moltbook.client import MoltbookClientError as MCE
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        mock_client = MagicMock()
+        exc = MCE("Unauthorized", status_code=401)
+        mock_client.get.side_effect = exc
+
+        import logging
+        with patch("contemplative_moltbook.agent.logger") as mock_logger:
+            agent._fetch_own_agent_id(mock_client)
+            mock_logger.critical.assert_called_once()
+            assert "revoked" in mock_logger.critical.call_args[0][0].lower() or \
+                   "compromised" in mock_logger.critical.call_args[0][0].lower()
+
+    def test_403_logs_critical_warning(self, tmp_path):
+        from contemplative_moltbook.client import MoltbookClientError as MCE
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        mock_client = MagicMock()
+        exc = MCE("Forbidden", status_code=403)
+        mock_client.get.side_effect = exc
+
+        with patch("contemplative_moltbook.agent.logger") as mock_logger:
+            agent._fetch_own_agent_id(mock_client)
+            mock_logger.critical.assert_called_once()
+
     def test_unexpected_shape(self, tmp_path):
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         mock_client = MagicMock()

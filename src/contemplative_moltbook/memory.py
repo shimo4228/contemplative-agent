@@ -22,6 +22,7 @@ from .config import (
     COMMENTED_CACHE_PATH,
     EPISODE_LOG_DIR,
     EPISODE_RETENTION_DAYS,
+    FORBIDDEN_SUBSTRING_PATTERNS,
     KNOWLEDGE_PATH,
     LEGACY_MEMORY_PATH,
 )
@@ -248,7 +249,12 @@ class KnowledgeStore:
         return result[:KNOWLEDGE_CONTEXT_MAX]
 
     def load(self) -> None:
-        """Load knowledge from Markdown file."""
+        """Load knowledge from Markdown file.
+
+        Validates content against forbidden patterns to detect
+        tainted data that may have been injected via compromised
+        external content during distillation.
+        """
         if not self._path.exists():
             logger.debug("No knowledge file at %s", self._path)
             return
@@ -257,6 +263,18 @@ class KnowledgeStore:
         except OSError as exc:
             logger.warning("Failed to read knowledge file: %s", exc)
             return
+
+        # Validate against forbidden patterns (same as identity.md)
+        text_lower = text.lower()
+        for pattern in FORBIDDEN_SUBSTRING_PATTERNS:
+            if pattern.lower() in text_lower:
+                logger.warning(
+                    "Knowledge file contains forbidden pattern: %s — "
+                    "file may be tainted, skipping load",
+                    pattern,
+                )
+                return
+
         self._parse_markdown(text)
 
     def save(self) -> None:

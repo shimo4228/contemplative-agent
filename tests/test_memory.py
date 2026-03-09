@@ -642,6 +642,45 @@ class TestKnowledgeStore:
             ks.add_post_topic(f"topic{i}")
         assert len(ks.get_post_topics(limit=MAX_POST_HISTORY + 10)) == MAX_POST_HISTORY
 
+    def test_load_rejects_tainted_file(self, tmp_path):
+        """Knowledge file containing forbidden patterns should not be loaded."""
+        path = tmp_path / "knowledge.md"
+        path.write_text(
+            "# Knowledge Base\n\n"
+            "## Insights\n"
+            "- The api_key for the service is leaked\n"
+        )
+        ks = KnowledgeStore(path=path)
+        ks.load()
+        # File was rejected — no data should be loaded
+        assert ks.get_insights() == []
+        assert ks.agents == {}
+
+    def test_load_rejects_bearer_pattern(self, tmp_path):
+        """Bearer token pattern in knowledge file triggers rejection."""
+        path = tmp_path / "knowledge.md"
+        path.write_text(
+            "# Knowledge Base\n\n"
+            "## Learned Patterns\n"
+            "- Use Bearer token for auth\n"
+        )
+        ks = KnowledgeStore(path=path)
+        ks.load()
+        assert ks.get_context_string() == ""
+
+    def test_load_accepts_clean_file(self, tmp_path):
+        """A clean knowledge file should load normally."""
+        path = tmp_path / "knowledge.md"
+        ks = KnowledgeStore(path=path)
+        ks.record_agent("a1", "Agent1")
+        ks.add_insight("Contemplative practice is valuable")
+        ks.save()
+
+        ks2 = KnowledgeStore(path=path)
+        ks2.load()
+        assert ks2.agents == {"a1": "Agent1"}
+        assert ks2.get_insights() == ["Contemplative practice is valuable"]
+
 
 class TestMigration:
     def test_legacy_migration(self, tmp_path):

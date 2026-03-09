@@ -93,15 +93,29 @@ class Agent:
         self._own_agent_id: str = ""
 
     def _fetch_own_agent_id(self, client: MoltbookClient) -> None:
-        """Fetch and cache our own agent ID to avoid self-replies."""
+        """Fetch and cache our own agent ID to avoid self-replies.
+
+        Also serves as an API key validity check at session start.
+        Logs a critical warning if the key appears revoked or invalid
+        (e.g. after a Moltbook DB breach / credential rotation).
+        """
         try:
             resp = client.get("/agents/me")
             agent_data = resp.json().get("agent", {})
             self._own_agent_id = agent_data.get("id", "")
             if self._own_agent_id:
                 logger.info("Own agent ID: %s", self._own_agent_id[:12])
-        except (MoltbookClientError, ValueError) as exc:
-            logger.warning("Failed to fetch own agent ID: %s", exc)
+        except MoltbookClientError as exc:
+            if exc.status_code in (401, 403):
+                logger.critical(
+                    "API key rejected (HTTP %d). Key may be revoked or "
+                    "compromised. Rotate credentials immediately.",
+                    exc.status_code,
+                )
+            else:
+                logger.warning("Failed to fetch own agent ID: %s", exc)
+        except ValueError as exc:
+            logger.warning("Failed to parse /agents/me response: %s", exc)
         if not self._own_agent_id:
             logger.warning("Self-reply protection DEGRADED: own agent ID unknown")
 
