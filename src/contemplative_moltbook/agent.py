@@ -11,19 +11,10 @@ import time
 from datetime import datetime, timezone
 from typing import List, Optional, Set
 
-from .auth import check_claim_status, load_credentials, register_agent
-from .client import MoltbookClient, MoltbookClientError
-from .config import (
-    COMMENT_PACING_MAX_SECONDS,
-    COMMENT_PACING_MIN_SECONDS,
-    FORBIDDEN_SUBSTRING_PATTERNS,
-    FORBIDDEN_WORD_PATTERNS,
-    MAX_POST_LENGTH,
-    VALID_ID_PATTERN,
-)
-from .content import ContentManager
-from .domain import DomainConfig, get_domain_config
-from .llm import (
+from .adapters.moltbook.auth import check_claim_status, load_credentials, register_agent
+from .adapters.moltbook.client import MoltbookClient, MoltbookClientError
+from .adapters.moltbook.content import ContentManager
+from .adapters.moltbook.llm_functions import (
     check_topic_novelty,
     extract_topics,
     generate_post_title,
@@ -33,13 +24,22 @@ from .llm import (
     select_submolt,
     summarize_post_topic,
 )
-from .memory import MemoryStore
-from .scheduler import Scheduler
-from .verification import (
+from .adapters.moltbook.verification import (
     VerificationTracker,
     solve_challenge,
     submit_verification,
 )
+from .config import (
+    COMMENT_PACING_MAX_SECONDS,
+    COMMENT_PACING_MIN_SECONDS,
+    FORBIDDEN_SUBSTRING_PATTERNS,
+    FORBIDDEN_WORD_PATTERNS,
+    MAX_POST_LENGTH,
+    VALID_ID_PATTERN,
+)
+from .core.memory import MemoryStore
+from .core.scheduler import Scheduler
+from .domain import DomainConfig, get_domain_config
 
 logger = logging.getLogger(__name__)
 

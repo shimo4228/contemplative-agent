@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from contemplative_moltbook.memory import (
+from contemplative_moltbook.core.memory import (
     MAX_INTERACTIONS,
     MAX_INSIGHTS,
     MAX_POST_HISTORY,

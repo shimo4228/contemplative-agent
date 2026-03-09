@@ -4,7 +4,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from contemplative_moltbook.client import MoltbookClient, MoltbookClientError
+from contemplative_moltbook.adapters.moltbook.client import MoltbookClient, MoltbookClientError
 
 
 class TestMoltbookClient:
@@ -62,7 +62,7 @@ class TestMoltbookClient:
             call_kwargs = mock_req.call_args[1]
             assert call_kwargs["allow_redirects"] is False
 
-    @patch("contemplative_moltbook.client.requests.Session")
+    @patch("contemplative_moltbook.adapters.moltbook.client.requests.Session")
     def test_retry_on_429(self, mock_session_cls):
         mock_session = MagicMock()
         mock_session_cls.return_value = mock_session
@@ -83,7 +83,7 @@ class TestMoltbookClient:
         assert result.status_code == 200
         assert mock_session.request.call_count == 2
 
-    @patch("contemplative_moltbook.client.requests.Session")
+    @patch("contemplative_moltbook.adapters.moltbook.client.requests.Session")
     def test_retry_after_capped(self, mock_session_cls):
         mock_session = MagicMock()
         mock_session_cls.return_value = mock_session
@@ -100,7 +100,7 @@ class TestMoltbookClient:
 
         client = MoltbookClient(api_key="test-key")
         # Patch sleep to verify the capped value
-        with patch("contemplative_moltbook.client.time.sleep") as mock_sleep:
+        with patch("contemplative_moltbook.adapters.moltbook.client.time.sleep") as mock_sleep:
             client.get("/test")
             mock_sleep.assert_called_once_with(300)  # MAX_RETRY_AFTER
 

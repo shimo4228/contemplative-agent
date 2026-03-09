@@ -9,7 +9,7 @@ import pytest
 
 from contemplative_moltbook.agent import Agent, AutonomyLevel
 from contemplative_moltbook.config import VALID_ID_PATTERN
-from contemplative_moltbook.memory import MemoryStore
+from contemplative_moltbook.core.memory import MemoryStore
 
 
 def _make_clean_memory(tmp_path: Path) -> MemoryStore:
@@ -255,7 +255,7 @@ class TestDoIntroduce:
         assert result is None
 
     def test_introduce_client_error(self):
-        from contemplative_moltbook.client import MoltbookClientError
+        from contemplative_moltbook.adapters.moltbook.client import MoltbookClientError
 
         agent = Agent(autonomy=AutonomyLevel.AUTO)
         agent._content = MagicMock()
@@ -294,7 +294,7 @@ class TestFetchFeed:
         assert any("/submolts/" in str(c) and "/feed" in str(c) for c in calls)
 
     def test_fetch_error(self):
-        from contemplative_moltbook.client import MoltbookClientError
+        from contemplative_moltbook.adapters.moltbook.client import MoltbookClientError
 
         agent = Agent()
         agent._client = MagicMock()
@@ -354,7 +354,7 @@ class TestHandleVerification:
     @patch("contemplative_moltbook.agent.submit_verification")
     @patch("contemplative_moltbook.agent.solve_challenge", return_value="answer")
     def test_submit_client_error(self, mock_solve, mock_submit):
-        from contemplative_moltbook.client import MoltbookClientError
+        from contemplative_moltbook.adapters.moltbook.client import MoltbookClientError
 
         mock_submit.side_effect = MoltbookClientError("fail")
         agent = Agent()
@@ -426,7 +426,7 @@ class TestEngageWithPost:
 
     @patch("contemplative_moltbook.agent.score_relevance", return_value=0.95)
     def test_comment_client_error(self, mock_score, tmp_path):
-        from contemplative_moltbook.client import MoltbookClientError
+        from contemplative_moltbook.adapters.moltbook.client import MoltbookClientError
 
         agent = self._make_agent(tmp_path)
         agent._content.create_comment.return_value = "Great insight"
@@ -521,7 +521,7 @@ class TestRunPostCycle:
     @patch("contemplative_moltbook.agent.generate_post_title", return_value="Title")
     @patch("contemplative_moltbook.agent.extract_topics", return_value="topics")
     def test_post_client_error(self, mock_topics, mock_title, mock_novelty):
-        from contemplative_moltbook.client import MoltbookClientError
+        from contemplative_moltbook.adapters.moltbook.client import MoltbookClientError
 
         agent = Agent(autonomy=AutonomyLevel.AUTO)
         agent._client = MagicMock()
@@ -1248,7 +1248,7 @@ class TestFetchOwnAgentId:
         assert agent._own_agent_id == "agent-123"
 
     def test_error_leaves_id_empty(self, tmp_path):
-        from contemplative_moltbook.client import MoltbookClientError as MCE
+        from contemplative_moltbook.adapters.moltbook.client import MoltbookClientError as MCE
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         mock_client = MagicMock()
         mock_client.get.side_effect = MCE("Network error")
@@ -1267,7 +1267,7 @@ class TestFetchOwnAgentId:
         assert agent._own_agent_id == ""
 
     def test_401_logs_critical_warning(self, tmp_path):
-        from contemplative_moltbook.client import MoltbookClientError as MCE
+        from contemplative_moltbook.adapters.moltbook.client import MoltbookClientError as MCE
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         mock_client = MagicMock()
         exc = MCE("Unauthorized", status_code=401)
@@ -1280,7 +1280,7 @@ class TestFetchOwnAgentId:
                    "compromised" in mock_logger.critical.call_args[0][0].lower()
 
     def test_403_logs_critical_warning(self, tmp_path):
-        from contemplative_moltbook.client import MoltbookClientError as MCE
+        from contemplative_moltbook.adapters.moltbook.client import MoltbookClientError as MCE
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         mock_client = MagicMock()
         exc = MCE("Forbidden", status_code=403)

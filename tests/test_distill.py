@@ -2,18 +2,18 @@
 
 from unittest.mock import patch
 
-from contemplative_moltbook.distill import (
+from contemplative_moltbook.core.distill import (
     _evaluate_pattern,
     _format_numbered_knowledge,
     _parse_eval_verdict,
     _summarize_record,
     distill,
 )
-from contemplative_moltbook.memory import EpisodeLog, KnowledgeStore
+from contemplative_moltbook.core.memory import EpisodeLog, KnowledgeStore
 
 
 class TestDistill:
-    @patch("contemplative_moltbook.distill.generate")
+    @patch("contemplative_moltbook.core.distill.generate")
     def test_basic_distillation(self, mock_generate, tmp_path):
         # First call: distill prompt; subsequent calls: eval prompts
         mock_generate.side_effect = [
@@ -41,7 +41,7 @@ class TestDistill:
         assert "Pattern one" in ks2._learned_patterns
         assert "Pattern two" in ks2._learned_patterns
 
-    @patch("contemplative_moltbook.distill.generate")
+    @patch("contemplative_moltbook.core.distill.generate")
     def test_dry_run_does_not_write(self, mock_generate, tmp_path):
         mock_generate.side_effect = [
             "- Dry pattern",
@@ -68,7 +68,7 @@ class TestDistill:
         result = distill(days=1, episode_log=log, knowledge_store=ks)
         assert "No episodes" in result
 
-    @patch("contemplative_moltbook.distill.generate", return_value=None)
+    @patch("contemplative_moltbook.core.distill.generate", return_value=None)
     def test_llm_failure(self, mock_generate, tmp_path):
         log = EpisodeLog(log_dir=tmp_path / "logs")
         log.append("interaction", {"direction": "sent", "agent_name": "Alice",
@@ -78,7 +78,7 @@ class TestDistill:
         result = distill(days=1, episode_log=log, knowledge_store=ks)
         assert "failed" in result.lower()
 
-    @patch("contemplative_moltbook.distill.generate")
+    @patch("contemplative_moltbook.core.distill.generate")
     def test_drop_verdict_skips_pattern(self, mock_generate, tmp_path):
         mock_generate.side_effect = [
             "- Vague pattern",
@@ -95,7 +95,7 @@ class TestDistill:
         # Knowledge file should NOT be created (no patterns saved)
         assert not (tmp_path / "knowledge.md").exists()
 
-    @patch("contemplative_moltbook.distill.generate")
+    @patch("contemplative_moltbook.core.distill.generate")
     def test_absorb_merges_pattern(self, mock_generate, tmp_path):
         # Set up existing knowledge with a pattern (write to file, then use fresh instance)
         ks_setup = KnowledgeStore(path=tmp_path / "knowledge.md")
@@ -121,7 +121,7 @@ class TestDistill:
         assert len(ks2._learned_patterns) == 1
         assert "Philosophy posts drive high engagement" in ks2._learned_patterns[0]
 
-    @patch("contemplative_moltbook.distill.generate")
+    @patch("contemplative_moltbook.core.distill.generate")
     def test_mixed_verdicts(self, mock_generate, tmp_path):
         """Test a mix of SAVE, ABSORB, and DROP in one distill run."""
         ks_setup = KnowledgeStore(path=tmp_path / "knowledge.md")
@@ -209,7 +209,7 @@ class TestParseEvalVerdict:
 
 
 class TestEvaluatePattern:
-    @patch("contemplative_moltbook.distill.generate")
+    @patch("contemplative_moltbook.core.distill.generate")
     def test_save_verdict(self, mock_generate):
         mock_generate.return_value = "VERDICT: SAVE"
         ks = KnowledgeStore.__new__(KnowledgeStore)
@@ -218,7 +218,7 @@ class TestEvaluatePattern:
         verdict = _evaluate_pattern("New pattern", ks)
         assert verdict.action == "SAVE"
 
-    @patch("contemplative_moltbook.distill.generate")
+    @patch("contemplative_moltbook.core.distill.generate")
     def test_fallback_on_llm_failure(self, mock_generate):
         mock_generate.return_value = None
         ks = KnowledgeStore.__new__(KnowledgeStore)
@@ -227,7 +227,7 @@ class TestEvaluatePattern:
         verdict = _evaluate_pattern("Pattern", ks)
         assert verdict.action == "SAVE"
 
-    @patch("contemplative_moltbook.distill.generate")
+    @patch("contemplative_moltbook.core.distill.generate")
     def test_fallback_on_parse_failure(self, mock_generate):
         mock_generate.return_value = "I don't understand the question"
         ks = KnowledgeStore.__new__(KnowledgeStore)
@@ -236,7 +236,7 @@ class TestEvaluatePattern:
         verdict = _evaluate_pattern("Pattern", ks)
         assert verdict.action == "SAVE"
 
-    @patch("contemplative_moltbook.distill.generate")
+    @patch("contemplative_moltbook.core.distill.generate")
     def test_absorb_out_of_range_falls_back(self, mock_generate):
         mock_generate.return_value = "VERDICT: ABSORB\nTARGET: 5\nMERGED: merged"
         ks = KnowledgeStore.__new__(KnowledgeStore)
@@ -245,7 +245,7 @@ class TestEvaluatePattern:
         verdict = _evaluate_pattern("Pattern", ks)
         assert verdict.action == "SAVE"  # fallback
 
-    @patch("contemplative_moltbook.distill.generate")
+    @patch("contemplative_moltbook.core.distill.generate")
     def test_eval_prompt_includes_numbered_knowledge(self, mock_generate):
         mock_generate.return_value = "VERDICT: SAVE"
         ks = KnowledgeStore.__new__(KnowledgeStore)

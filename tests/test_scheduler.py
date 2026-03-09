@@ -4,14 +4,14 @@ import time
 
 import pytest
 
-from contemplative_moltbook.scheduler import Scheduler
+from contemplative_moltbook.core.scheduler import Scheduler
 
 
 @pytest.fixture(autouse=True)
 def _isolate_state(tmp_path, monkeypatch):
     """Prevent tests from reading/writing the real rate state file."""
     monkeypatch.setattr(
-        "contemplative_moltbook.scheduler.RATE_STATE_PATH",
+        "contemplative_moltbook.core.scheduler.RATE_STATE_PATH",
         tmp_path / "rate_state.json",
     )
 

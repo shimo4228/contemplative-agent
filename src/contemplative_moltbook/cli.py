@@ -10,7 +10,7 @@ from pathlib import Path
 from .agent import Agent, AutonomyLevel
 from .config import IDENTITY_PATH, KNOWLEDGE_PATH, MOLTBOOK_DATA_DIR
 from .domain import load_domain_config, reset_caches
-from .llm import DEFAULT_SYSTEM_PROMPT
+from .core.llm import DEFAULT_SYSTEM_PROMPT
 
 
 def _setup_logging(verbose: bool = False) -> None:
@@ -151,7 +151,7 @@ def main() -> None:
         return
 
     if args.command == "distill":
-        from .distill import distill
+        from .core.distill import distill
 
         result = distill(days=args.days, dry_run=args.dry_run)
         print(result)

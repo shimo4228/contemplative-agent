@@ -2,7 +2,7 @@
 
 from unittest.mock import patch
 
-from contemplative_moltbook.content import (
+from contemplative_moltbook.adapters.moltbook.content import (
     AXIOM_TEMPLATES,
     INTRODUCTION_TEMPLATE,
     ContentManager,
@@ -30,7 +30,7 @@ class TestContentManager:
         mgr.get_introduction()
         assert mgr.get_introduction() is None
 
-    @patch("contemplative_moltbook.content.generate_comment")
+    @patch("contemplative_moltbook.adapters.moltbook.content.generate_comment")
     def test_create_comment(self, mock_gen):
         mock_gen.return_value = "Great insight about alignment!"
         mgr = ContentManager()
@@ -38,7 +38,7 @@ class TestContentManager:
         assert result == "Great insight about alignment!"
         assert mgr._comment_count == 1
 
-    @patch("contemplative_moltbook.content.generate_comment")
+    @patch("contemplative_moltbook.adapters.moltbook.content.generate_comment")
     def test_create_comment_duplicate(self, mock_gen):
         mock_gen.return_value = "Same comment"
         mgr = ContentManager()
@@ -46,7 +46,7 @@ class TestContentManager:
         result = mgr.create_comment("Post B")
         assert result is None
 
-    @patch("contemplative_moltbook.content.generate_comment")
+    @patch("contemplative_moltbook.adapters.moltbook.content.generate_comment")
     def test_create_comment_llm_failure(self, mock_gen):
         mock_gen.return_value = None
         mgr = ContentManager()

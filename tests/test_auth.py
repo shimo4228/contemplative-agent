@@ -3,7 +3,7 @@
 import json
 from unittest.mock import patch
 
-from contemplative_moltbook.auth import (
+from contemplative_moltbook.adapters.moltbook.auth import (
     _mask_key,
     load_credentials,
     save_credentials,
@@ -29,7 +29,7 @@ class TestLoadCredentials:
 
     def test_no_credentials(self, monkeypatch, tmp_path):
         monkeypatch.delenv("MOLTBOOK_API_KEY", raising=False)
-        with patch("contemplative_moltbook.auth.CREDENTIALS_PATH", tmp_path / "nope.json"):
+        with patch("contemplative_moltbook.adapters.moltbook.auth.CREDENTIALS_PATH", tmp_path / "nope.json"):
             result = load_credentials()
             assert result is None
 
@@ -37,7 +37,7 @@ class TestLoadCredentials:
         monkeypatch.delenv("MOLTBOOK_API_KEY", raising=False)
         cred_file = tmp_path / "credentials.json"
         cred_file.write_text(json.dumps({"api_key": "file-key-5678"}))
-        with patch("contemplative_moltbook.auth.CREDENTIALS_PATH", cred_file):
+        with patch("contemplative_moltbook.adapters.moltbook.auth.CREDENTIALS_PATH", cred_file):
             result = load_credentials()
             assert result == "file-key-5678"
 
@@ -45,7 +45,7 @@ class TestLoadCredentials:
         monkeypatch.delenv("MOLTBOOK_API_KEY", raising=False)
         cred_file = tmp_path / "credentials.json"
         cred_file.write_text("not json")
-        with patch("contemplative_moltbook.auth.CREDENTIALS_PATH", cred_file):
+        with patch("contemplative_moltbook.adapters.moltbook.auth.CREDENTIALS_PATH", cred_file):
             result = load_credentials()
             assert result is None
 
@@ -53,7 +53,7 @@ class TestLoadCredentials:
 class TestSaveCredentials:
     def test_saves_with_permissions(self, tmp_path):
         cred_file = tmp_path / "config" / "moltbook" / "credentials.json"
-        with patch("contemplative_moltbook.auth.CREDENTIALS_PATH", cred_file):
+        with patch("contemplative_moltbook.adapters.moltbook.auth.CREDENTIALS_PATH", cred_file):
             save_credentials("test-key-abcd", agent_id="agent-123")
 
         assert cred_file.exists()
@@ -64,7 +64,7 @@ class TestSaveCredentials:
 
     def test_saves_without_agent_id(self, tmp_path):
         cred_file = tmp_path / "credentials.json"
-        with patch("contemplative_moltbook.auth.CREDENTIALS_PATH", cred_file):
+        with patch("contemplative_moltbook.adapters.moltbook.auth.CREDENTIALS_PATH", cred_file):
             save_credentials("test-key-only")
 
         data = json.loads(cred_file.read_text())

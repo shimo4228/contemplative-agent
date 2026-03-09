@@ -5,18 +5,20 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from contemplative_moltbook.llm import (
-    _get_model,
-    _get_ollama_url,
-    _sanitize_output,
-    _wrap_untrusted_content,
+from contemplative_moltbook.adapters.moltbook.llm_functions import (
     extract_topics,
-    generate,
     generate_comment,
     generate_cooperation_post,
     generate_reply,
     score_relevance,
     select_submolt,
+)
+from contemplative_moltbook.core.llm import (
+    _get_model,
+    _get_ollama_url,
+    _sanitize_output,
+    _wrap_untrusted_content,
+    generate,
 )
 
 
@@ -137,42 +139,42 @@ class TestSanitizeWordBoundary:
 class TestScoreRelevanceParsing:
     """Test robust parsing of LLM relevance score output."""
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_clean_number(self, mock_generate):
         mock_generate.return_value = "0.75"
         assert score_relevance("test post") == 0.75
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_number_with_trailing_text(self, mock_generate):
         mock_generate.return_value = "0.7\n\nThis post discusses"
         assert score_relevance("test post") == 0.7
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_number_with_leading_text(self, mock_generate):
         mock_generate.return_value = "The score is 0.8"
         assert score_relevance("test post") == 0.8
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_no_number_returns_zero(self, mock_generate):
         mock_generate.return_value = "This is not relevant"
         assert score_relevance("test post") == 0.0
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_none_returns_zero(self, mock_generate):
         mock_generate.return_value = None
         assert score_relevance("test post") == 0.0
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_score_clamped_to_max_1(self, mock_generate):
         mock_generate.return_value = "1.5"
         assert score_relevance("test post") == 1.0
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_integer_score(self, mock_generate):
         mock_generate.return_value = "1"
         assert score_relevance("test post") == 1.0
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_chinese_text_with_number(self, mock_generate):
         mock_generate.return_value = "0.6 该内容讨论了冥想"
         assert score_relevance("test post") == 0.6
@@ -189,7 +191,7 @@ class TestGetModel:
 
 
 class TestGenerate:
-    @patch("contemplative_moltbook.llm.requests.post")
+    @patch("contemplative_moltbook.core.llm.requests.post")
     def test_successful_generation(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "Hello world"}
@@ -200,7 +202,7 @@ class TestGenerate:
         assert result == "Hello world"
         mock_post.assert_called_once()
 
-    @patch("contemplative_moltbook.llm.requests.post")
+    @patch("contemplative_moltbook.core.llm.requests.post")
     def test_custom_system_prompt(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "custom response"}
@@ -211,12 +213,12 @@ class TestGenerate:
         payload = mock_post.call_args[1]["json"]
         assert payload["system"] == "custom system"
 
-    @patch("contemplative_moltbook.llm.requests.post")
+    @patch("contemplative_moltbook.core.llm.requests.post")
     def test_request_exception_returns_none(self, mock_post):
         mock_post.side_effect = requests.RequestException("connection error")
         assert generate("test") is None
 
-    @patch("contemplative_moltbook.llm.requests.post")
+    @patch("contemplative_moltbook.core.llm.requests.post")
     def test_json_decode_error_returns_none(self, mock_post):
         import json as json_mod
 
@@ -227,7 +229,7 @@ class TestGenerate:
 
         assert generate("test") is None
 
-    @patch("contemplative_moltbook.llm.requests.post")
+    @patch("contemplative_moltbook.core.llm.requests.post")
     def test_empty_response_returns_none(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "   "}
@@ -236,7 +238,7 @@ class TestGenerate:
 
         assert generate("test") is None
 
-    @patch("contemplative_moltbook.llm.requests.post")
+    @patch("contemplative_moltbook.core.llm.requests.post")
     def test_sanitizes_output(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "my api_key is leaked"}
@@ -247,7 +249,7 @@ class TestGenerate:
         assert "api_key" not in result
         assert "[REDACTED]" in result
 
-    @patch("contemplative_moltbook.llm.requests.post")
+    @patch("contemplative_moltbook.core.llm.requests.post")
     def test_respects_max_length(self, mock_post):
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "a" * 200}
@@ -259,39 +261,39 @@ class TestGenerate:
 
 
 class TestGenerateComment:
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_returns_generated_text(self, mock_gen):
         mock_gen.return_value = "Interesting take on cooperation."
         result = generate_comment("a post about AI cooperation")
         assert result == "Interesting take on cooperation."
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_returns_none_on_failure(self, mock_gen):
         mock_gen.return_value = None
         assert generate_comment("some post") is None
 
 
 class TestGenerateCooperationPost:
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_returns_generated_post(self, mock_gen):
         mock_gen.return_value = "A post about cooperation trends."
         result = generate_cooperation_post("alignment, safety, cooperation")
         assert result == "A post about cooperation trends."
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_returns_none_on_failure(self, mock_gen):
         mock_gen.return_value = None
         assert generate_cooperation_post("topics") is None
 
 
 class TestGenerateReply:
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_basic_reply(self, mock_gen):
         mock_gen.return_value = "I agree, that's a great point."
         result = generate_reply("original post", "their comment")
         assert result == "I agree, that's a great point."
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_reply_with_history(self, mock_gen):
         mock_gen.return_value = "Building on our earlier discussion..."
         result = generate_reply(
@@ -304,21 +306,21 @@ class TestGenerateReply:
         assert "prev exchange 1" in prompt
         assert "prev exchange 2" in prompt
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_reply_without_history(self, mock_gen):
         mock_gen.return_value = "response"
         generate_reply("post", "comment", conversation_history=None)
         prompt = mock_gen.call_args[0][0]
         assert "Previous exchanges" not in prompt
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_returns_none_on_failure(self, mock_gen):
         mock_gen.return_value = None
         assert generate_reply("post", "comment") is None
 
 
 class TestExtractTopics:
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_extracts_from_posts(self, mock_gen):
         mock_gen.return_value = "alignment\nsafety\ncooperation"
         posts = [
@@ -331,12 +333,12 @@ class TestExtractTopics:
     def test_empty_posts_returns_none(self):
         assert extract_topics([]) is None
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_generate_failure_returns_none(self, mock_gen):
         mock_gen.return_value = None
         assert extract_topics([{"title": "T", "content": "C"}]) is None
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_limits_to_10_posts(self, mock_gen):
         mock_gen.return_value = "topics"
         posts = [{"title": f"Post {i}", "content": f"Content {i}"} for i in range(20)]
@@ -352,31 +354,31 @@ class TestSelectSubmolt:
         "ponderings", "memories", "agent-rights",
     )
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_exact_match(self, mock_gen):
         mock_gen.return_value = "philosophy"
         result = select_submolt("A post about Plato", self._DEFAULT_SUBMOLTS)
         assert result == "philosophy"
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_match_within_text(self, mock_gen):
         mock_gen.return_value = "I think consciousness would be best"
         result = select_submolt("A post about qualia", self._DEFAULT_SUBMOLTS)
         assert result == "consciousness"
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_none_on_failure(self, mock_gen):
         mock_gen.return_value = None
         result = select_submolt("some post", self._DEFAULT_SUBMOLTS)
         assert result is None
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_none_on_unrecognized(self, mock_gen):
         mock_gen.return_value = "sports"
         result = select_submolt("some post", self._DEFAULT_SUBMOLTS)
         assert result is None
 
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_custom_submolts(self, mock_gen):
         mock_gen.return_value = "ethics"
         result = select_submolt("post", submolts=("ethics", "logic"))
@@ -384,7 +386,7 @@ class TestSelectSubmolt:
 
 
 class TestBroadenedRelevancePrompt:
-    @patch("contemplative_moltbook.llm.generate")
+    @patch("contemplative_moltbook.adapters.moltbook.llm_functions.generate")
     def test_prompt_includes_broad_topics(self, mock_gen):
         mock_gen.return_value = "0.9"
         score_relevance("test post")
@@ -400,21 +402,21 @@ class TestCircuitBreaker:
 
     def setup_method(self):
         """Reset global circuit breaker before each test."""
-        from contemplative_moltbook.llm import _circuit
+        from contemplative_moltbook.core.llm import _circuit
         _circuit.record_success()  # Reset state
 
     def test_circuit_closed_initially(self):
-        from contemplative_moltbook.llm import _circuit
+        from contemplative_moltbook.core.llm import _circuit
         assert _circuit.is_open is False
 
     def test_circuit_opens_after_threshold(self):
-        from contemplative_moltbook.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
+        from contemplative_moltbook.core.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             _circuit.record_failure()
         assert _circuit.is_open is True
 
     def test_circuit_resets_on_success(self):
-        from contemplative_moltbook.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
+        from contemplative_moltbook.core.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             _circuit.record_failure()
         assert _circuit.is_open is True
@@ -422,7 +424,7 @@ class TestCircuitBreaker:
         assert _circuit.is_open is False
 
     def test_circuit_recovers_after_cooldown(self):
-        from contemplative_moltbook.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
+        from contemplative_moltbook.core.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             _circuit.record_failure()
         assert _circuit.is_open is True
@@ -430,9 +432,9 @@ class TestCircuitBreaker:
         _circuit._opened_at = 0.0
         assert _circuit.is_open is False
 
-    @patch("contemplative_moltbook.llm.requests.post")
+    @patch("contemplative_moltbook.core.llm.requests.post")
     def test_generate_returns_none_when_open(self, mock_post):
-        from contemplative_moltbook.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
+        from contemplative_moltbook.core.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             _circuit.record_failure()
 
@@ -440,18 +442,18 @@ class TestCircuitBreaker:
         assert result is None
         mock_post.assert_not_called()
 
-    @patch("contemplative_moltbook.llm.requests.post")
+    @patch("contemplative_moltbook.core.llm.requests.post")
     def test_generate_records_failure(self, mock_post):
-        from contemplative_moltbook.llm import _circuit
+        from contemplative_moltbook.core.llm import _circuit
         mock_post.side_effect = requests.ConnectionError("refused")
 
         result = generate("test prompt")
         assert result is None
         assert _circuit._consecutive_failures == 1
 
-    @patch("contemplative_moltbook.llm.requests.post")
+    @patch("contemplative_moltbook.core.llm.requests.post")
     def test_generate_records_success(self, mock_post):
-        from contemplative_moltbook.llm import _circuit
+        from contemplative_moltbook.core.llm import _circuit
         _circuit.record_failure()  # Pre-set one failure
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "Hello world"}
