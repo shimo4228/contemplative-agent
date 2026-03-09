@@ -143,9 +143,8 @@ def main() -> None:
     if args.domain_config is not None:
         domain_config = load_domain_config(args.domain_config)
     if args.rules_dir is not None:
-        from .domain import load_rules
-        import contemplative_moltbook.domain as _domain_mod
-        _domain_mod._cached_rules = load_rules(args.rules_dir)
+        from .domain import load_rules, set_rules_cache
+        set_rules_cache(load_rules(args.rules_dir))
 
     if args.command == "init":
         _do_init()

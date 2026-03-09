@@ -252,8 +252,11 @@ def distill(
             knowledge.add_learned_pattern(candidate)
             saved += 1
             logger.info("SAVE: %s", candidate)
-        elif verdict.action == "ABSORB" and verdict.merged_text is not None:
-            assert verdict.target_index is not None
+        elif (
+            verdict.action == "ABSORB"
+            and verdict.merged_text is not None
+            and verdict.target_index is not None
+        ):
             knowledge.replace_learned_pattern(verdict.target_index, verdict.merged_text)
             absorbed += 1
             logger.info(

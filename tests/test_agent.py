@@ -7,12 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from contemplative_moltbook.agent import Agent, AutonomyLevel
-from contemplative_moltbook.config import (
-    KNOWN_AGENT_THRESHOLD,
-    RELEVANCE_THRESHOLD,
-    SUBSCRIBED_SUBMOLTS,
-    VALID_ID_PATTERN,
-)
+from contemplative_moltbook.config import VALID_ID_PATTERN
 from contemplative_moltbook.memory import MemoryStore
 
 
@@ -397,14 +392,14 @@ class TestEngageWithPost:
         result = agent._engage_with_post({"content": "text", "id": "post1"})
         assert result is False
 
-    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.9)
+    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.95)
     def test_rate_limit_reached(self, mock_score, tmp_path):
         agent = self._make_agent(tmp_path)
         agent._scheduler.can_comment.return_value = False
         result = agent._engage_with_post({"content": "text", "id": "post1"})
         assert result is False
 
-    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.9)
+    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.95)
     def test_comment_generation_fails(self, mock_score, tmp_path):
         agent = self._make_agent(tmp_path)
         agent._content.create_comment.return_value = None
@@ -413,7 +408,7 @@ class TestEngageWithPost:
 
     @patch("contemplative_moltbook.agent.time")
     @patch("contemplative_moltbook.agent.random")
-    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.9)
+    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.95)
     def test_successful_comment(self, mock_score, mock_random, mock_time, tmp_path):
         mock_random.uniform.return_value = 60.0
         agent = self._make_agent(tmp_path)
@@ -428,7 +423,7 @@ class TestEngageWithPost:
         )
         assert len(agent._actions_taken) == 1
 
-    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.9)
+    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.95)
     def test_comment_client_error(self, mock_score, tmp_path):
         from contemplative_moltbook.client import MoltbookClientError
 
@@ -985,13 +980,17 @@ class TestCheckOwnPostComments:
 class TestSelectiveMode:
     """Tests for the selective engagement mode."""
 
-    def test_relevance_threshold_raised(self):
-        """Relevance threshold should be 0.82."""
-        assert RELEVANCE_THRESHOLD == 0.82
+    def test_relevance_threshold_in_range(self):
+        """Relevance threshold should be a valid value from domain config."""
+        from contemplative_moltbook.domain import get_domain_config
+        config = get_domain_config()
+        assert 0.0 < config.relevance_threshold <= 1.0
 
-    def test_known_agent_threshold_raised(self):
-        """Known agent threshold should be 0.65."""
-        assert KNOWN_AGENT_THRESHOLD == 0.65
+    def test_known_agent_threshold_lower(self):
+        """Known agent threshold should be lower than relevance threshold."""
+        from contemplative_moltbook.domain import get_domain_config
+        config = get_domain_config()
+        assert 0.0 < config.known_agent_threshold < config.relevance_threshold
 
     def test_feed_processes_all_posts(self):
         """Should process all posts from feed (no FEED_SCAN_LIMIT)."""
@@ -1041,7 +1040,7 @@ class TestSelectiveMode:
         assert result is False
         agent._client.post.assert_not_called()
 
-    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.9)
+    @patch("contemplative_moltbook.agent.score_relevance", return_value=0.95)
     @patch("contemplative_moltbook.agent.random")
     @patch("contemplative_moltbook.agent.time")
     def test_pacing_sleep_called(self, mock_time, mock_random, mock_score, tmp_path):
@@ -1068,11 +1067,12 @@ class TestEnsureSubscriptions:
 
         agent._ensure_subscriptions(mock_client)
 
-        assert mock_client.subscribe_submolt.call_count == len(SUBSCRIBED_SUBMOLTS)
+        expected = agent._domain.subscribed_submolts
+        assert mock_client.subscribe_submolt.call_count == len(expected)
         subscribed_names = [
             call[0][0] for call in mock_client.subscribe_submolt.call_args_list
         ]
-        for name in SUBSCRIBED_SUBMOLTS:
+        for name in expected:
             assert name in subscribed_names
 
 

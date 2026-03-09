@@ -442,17 +442,17 @@ class MemoryStore:
                     self._interactions.append(interaction)
                     self._interacted_ids.add(interaction.agent_id)
                 except TypeError:
-                    pass
+                    logger.warning("Skipping malformed interaction in episode log")
             elif record_type == "post":
                 try:
                     self._post_history.append(PostRecord(**data))
                 except TypeError:
-                    pass
+                    logger.warning("Skipping malformed post record in episode log")
             elif record_type == "insight":
                 try:
                     self._insights_list.append(Insight(**data))
                 except TypeError:
-                    pass
+                    logger.warning("Skipping malformed insight in episode log")
 
     def _migrate_legacy(self) -> None:
         """Migrate legacy memory.json to 3-layer format."""

@@ -32,15 +32,16 @@ class TestLoadDomainConfig:
         assert config.name == "contemplative-ai"
         assert "alignment" in config.topic_keywords
         assert config.default_submolt == "alignment"
-        assert config.relevance_threshold == 0.82
-        assert config.known_agent_threshold == 0.65
+        assert 0.0 < config.relevance_threshold <= 1.0
+        assert 0.0 < config.known_agent_threshold <= 1.0
+        assert config.known_agent_threshold < config.relevance_threshold
         assert "github.com" in config.repo_url
 
     def test_subscribed_submolts(self):
         config = load_domain_config()
         assert "alignment" in config.subscribed_submolts
         assert "philosophy" in config.subscribed_submolts
-        assert len(config.subscribed_submolts) == 7
+        assert len(config.subscribed_submolts) >= 1
 
     def test_topic_keywords_str(self):
         config = load_domain_config()

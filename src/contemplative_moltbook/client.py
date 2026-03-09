@@ -69,11 +69,17 @@ class MoltbookClient:
         """Extract rate limit info from response headers."""
         remaining = response.headers.get("X-RateLimit-Remaining")
         if remaining is not None:
-            self._rate_limit_remaining = max(0, int(remaining))
+            try:
+                self._rate_limit_remaining = max(0, int(remaining))
+            except (ValueError, TypeError):
+                logger.debug("Malformed X-RateLimit-Remaining header: %r", remaining)
 
         reset = response.headers.get("X-RateLimit-Reset")
         if reset is not None:
-            self._rate_limit_reset = max(0.0, float(reset))
+            try:
+                self._rate_limit_reset = max(0.0, float(reset))
+            except (ValueError, TypeError):
+                logger.debug("Malformed X-RateLimit-Reset header: %r", reset)
 
     @property
     def rate_limit_remaining(self) -> Optional[int]:
@@ -111,10 +117,13 @@ class MoltbookClient:
             if "limit reached" in body_text.lower():
                 logger.warning("Hard rate limit reached (429). Not retrying.")
             elif retries < MAX_RETRY_ON_429:
-                retry_after = min(
-                    float(response.headers.get("Retry-After", 60)),
-                    MAX_RETRY_AFTER,
-                )
+                try:
+                    retry_after = min(
+                        float(response.headers.get("Retry-After", 60)),
+                        MAX_RETRY_AFTER,
+                    )
+                except (ValueError, TypeError):
+                    retry_after = 60.0
                 logger.warning(
                     "Rate limited (429). Retrying in %.0fs (attempt %d/%d)",
                     retry_after,

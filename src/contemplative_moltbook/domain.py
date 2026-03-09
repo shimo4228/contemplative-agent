@@ -261,6 +261,12 @@ def get_rules(rules_dir: Optional[Path] = None) -> RulesContent:
     return _cached_rules
 
 
+def set_rules_cache(rules: RulesContent) -> None:
+    """Set the cached rules directly. Used by CLI for --rules-dir override."""
+    global _cached_rules
+    _cached_rules = rules
+
+
 def reset_caches() -> None:
     """Reset all cached singletons. Useful for testing."""
     global _cached_domain_config, _cached_prompt_templates, _cached_rules

@@ -279,6 +279,11 @@ class Agent:
         challenge_text = challenge.get("text", "")
         challenge_id = challenge.get("id", "")
 
+        if not challenge_id or not VALID_ID_PATTERN.match(challenge_id):
+            logger.warning("Invalid challenge_id format, skipping: %r", challenge_id[:50])
+            self._verification.record_failure()
+            return False
+
         answer = solve_challenge(challenge_text)
         if answer is None:
             self._verification.record_failure()
