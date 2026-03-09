@@ -1273,7 +1273,6 @@ class TestFetchOwnAgentId:
         exc = MCE("Unauthorized", status_code=401)
         mock_client.get.side_effect = exc
 
-        import logging
         with patch("contemplative_moltbook.agent.logger") as mock_logger:
             agent._fetch_own_agent_id(mock_client)
             mock_logger.critical.assert_called_once()
