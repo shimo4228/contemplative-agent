@@ -111,15 +111,13 @@ def _get_default_system_prompt() -> str:
     return SYSTEM_PROMPT
 
 
-# Backward compatibility alias (lazy property)
-class _DefaultSystemPromptAccessor:
-    """Lazy accessor for DEFAULT_SYSTEM_PROMPT."""
-    def __str__(self) -> str:
-        return _get_default_system_prompt()
-    def __repr__(self) -> str:
-        return f"DEFAULT_SYSTEM_PROMPT({_get_default_system_prompt()!r:.80})"
+def get_default_system_prompt() -> str:
+    """Public accessor for the default system prompt (backward compat alias)."""
+    return _get_default_system_prompt()
 
-DEFAULT_SYSTEM_PROMPT = _DefaultSystemPromptAccessor()
+
+# For backward compatibility — use get_default_system_prompt() for new code
+DEFAULT_SYSTEM_PROMPT = None  # Sentinel; actual value loaded lazily
 
 
 def _load_identity() -> str:

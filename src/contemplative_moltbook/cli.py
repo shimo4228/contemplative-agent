@@ -10,7 +10,7 @@ from pathlib import Path
 from .adapters.moltbook.agent import Agent, AutonomyLevel
 from .adapters.moltbook.config import IDENTITY_PATH, KNOWLEDGE_PATH, MOLTBOOK_DATA_DIR
 from .core.domain import load_domain_config, reset_caches
-from .core.llm import DEFAULT_SYSTEM_PROMPT
+from .core.llm import get_default_system_prompt
 
 
 def _setup_logging(verbose: bool = False) -> None:
@@ -29,7 +29,7 @@ def _do_init() -> None:
     if IDENTITY_PATH.exists():
         print(f"Identity file already exists: {IDENTITY_PATH}")
     else:
-        IDENTITY_PATH.write_text(DEFAULT_SYSTEM_PROMPT, encoding="utf-8")
+        IDENTITY_PATH.write_text(get_default_system_prompt(), encoding="utf-8")
         os.chmod(IDENTITY_PATH, stat.S_IRUSR | stat.S_IWUSR)
         print(f"Created identity file: {IDENTITY_PATH}")
 

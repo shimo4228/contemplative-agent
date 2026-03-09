@@ -471,6 +471,8 @@ class MemoryStore:
 
     def _migrate_legacy(self) -> None:
         """Migrate legacy memory.json to 3-layer format."""
+        if self._legacy_path is None:
+            return
         logger.info("Migrating legacy memory.json to 3-layer format")
         try:
             raw = json.loads(self._legacy_path.read_text(encoding="utf-8"))
