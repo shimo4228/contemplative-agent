@@ -468,10 +468,10 @@ class TestRunFeedCycle:
 
 
 class TestRunPostCycle:
-    @patch("contemplative_agent.adapters.moltbook.agent.summarize_post_topic", return_value="test topic")
-    @patch("contemplative_agent.adapters.moltbook.agent.check_topic_novelty", return_value=True)
-    @patch("contemplative_agent.adapters.moltbook.agent.generate_post_title", return_value="Test Title")
-    @patch("contemplative_agent.adapters.moltbook.agent.extract_topics", return_value="topic1\ntopic2")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="test topic")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Test Title")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topic1\ntopic2")
     def test_posts_dynamic(self, mock_topics, mock_title, mock_novelty, mock_summarize):
         agent = Agent(autonomy=AutonomyLevel.AUTO)
         agent._client = MagicMock()
@@ -500,8 +500,8 @@ class TestRunPostCycle:
         agent._run_post_cycle(agent._client, agent._scheduler)
         agent._client.post.assert_not_called()
 
-    @patch("contemplative_agent.adapters.moltbook.agent.check_topic_novelty", return_value=True)
-    @patch("contemplative_agent.adapters.moltbook.agent.extract_topics", return_value="topics")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
     def test_skips_none_content(self, mock_topics, mock_novelty):
         agent = Agent(autonomy=AutonomyLevel.AUTO)
         agent._client = MagicMock()
@@ -517,9 +517,9 @@ class TestRunPostCycle:
         agent._run_post_cycle(agent._client, agent._scheduler)
         agent._client.post.assert_not_called()
 
-    @patch("contemplative_agent.adapters.moltbook.agent.check_topic_novelty", return_value=True)
-    @patch("contemplative_agent.adapters.moltbook.agent.generate_post_title", return_value="Title")
-    @patch("contemplative_agent.adapters.moltbook.agent.extract_topics", return_value="topics")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
     def test_post_client_error(self, mock_topics, mock_title, mock_novelty):
         from contemplative_agent.adapters.moltbook.client import MoltbookClientError
 
@@ -728,9 +728,9 @@ class TestOwnPostIdTracking:
         assert result is None
         assert len(agent._own_post_ids) == 0
 
-    @patch("contemplative_agent.adapters.moltbook.agent.generate_post_title", return_value="Title")
-    @patch("contemplative_agent.adapters.moltbook.agent.check_topic_novelty", return_value=True)
-    @patch("contemplative_agent.adapters.moltbook.agent.extract_topics", return_value="topics")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
     def test_dynamic_post_captures_post_id(self, mock_topics, mock_novelty, mock_title, tmp_path):
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         agent._client = MagicMock()
@@ -765,7 +765,7 @@ class TestRunReplyCycle:
         agent._scheduler.can_comment.return_value = True
         return agent
 
-    @patch("contemplative_agent.adapters.moltbook.agent.generate_reply", return_value="My reply")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="My reply")
     def test_processes_standard_notification(self, mock_reply, tmp_path):
         agent = self._make_agent(tmp_path)
         before_count = agent._memory.interaction_count()
@@ -791,7 +791,7 @@ class TestRunReplyCycle:
         # Both received + sent should be recorded
         assert agent._memory.interaction_count() - before_count == 2
 
-    @patch("contemplative_agent.adapters.moltbook.agent.generate_reply", return_value="My reply")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="My reply")
     def test_processes_camelcase_notification(self, mock_reply):
         agent = self._make_agent()
         agent._client.get_notifications.return_value = [
@@ -873,7 +873,7 @@ class TestCheckOwnPostComments:
         agent._scheduler.can_comment.return_value = True
         return agent
 
-    @patch("contemplative_agent.adapters.moltbook.agent.generate_reply", return_value="Thanks!")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="Thanks!")
     def test_replies_to_comment_on_own_post(self, mock_reply, tmp_path):
         agent = self._make_agent(tmp_path)
         before_count = agent._memory.interaction_count()
@@ -926,7 +926,7 @@ class TestCheckOwnPostComments:
 
         agent._client.post.assert_not_called()
 
-    @patch("contemplative_agent.adapters.moltbook.agent.generate_reply", return_value="Thanks!")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="Thanks!")
     def test_handles_nested_author_in_comments(self, mock_reply):
         agent = self._make_agent()
         agent._own_post_ids.add("my-post-1")
@@ -1078,11 +1078,11 @@ class TestEnsureSubscriptions:
 
 
 class TestDynamicPostSubmolt:
-    @patch("contemplative_agent.adapters.moltbook.agent.select_submolt", return_value="philosophy")
-    @patch("contemplative_agent.adapters.moltbook.agent.summarize_post_topic", return_value="topic")
-    @patch("contemplative_agent.adapters.moltbook.agent.generate_post_title", return_value="Title")
-    @patch("contemplative_agent.adapters.moltbook.agent.check_topic_novelty", return_value=True)
-    @patch("contemplative_agent.adapters.moltbook.agent.extract_topics", return_value="topics")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="topic")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
     def test_uses_selected_submolt(
         self, mock_topics, mock_novelty, mock_title, mock_summarize,
         mock_select, tmp_path,
@@ -1104,11 +1104,11 @@ class TestDynamicPostSubmolt:
         call_kwargs = agent._client.post.call_args[1]
         assert call_kwargs["json"]["submolt"] == "philosophy"
 
-    @patch("contemplative_agent.adapters.moltbook.agent.select_submolt", return_value=None)
-    @patch("contemplative_agent.adapters.moltbook.agent.summarize_post_topic", return_value="topic")
-    @patch("contemplative_agent.adapters.moltbook.agent.generate_post_title", return_value="Title")
-    @patch("contemplative_agent.adapters.moltbook.agent.check_topic_novelty", return_value=True)
-    @patch("contemplative_agent.adapters.moltbook.agent.extract_topics", return_value="topics")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value=None)
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="topic")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
     def test_falls_back_to_default(
         self, mock_topics, mock_novelty, mock_title, mock_summarize,
         mock_select, tmp_path,
@@ -1384,7 +1384,7 @@ class TestSelfReplySkip:
         agent._own_agent_id = "my-agent-id"
         return agent
 
-    @patch("contemplative_agent.adapters.moltbook.agent.generate_reply", return_value="Thanks!")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="Thanks!")
     def test_skips_own_notification(self, mock_reply, tmp_path):
         agent = self._make_agent(tmp_path)
         agent._client.get_notifications.return_value = [
@@ -1404,7 +1404,7 @@ class TestSelfReplySkip:
         )
         mock_reply.assert_not_called()
 
-    @patch("contemplative_agent.adapters.moltbook.agent.generate_reply", return_value="Thanks!")
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="Thanks!")
     def test_skips_own_comment_in_handle_post_comments(self, mock_reply, tmp_path):
         agent = self._make_agent(tmp_path)
         agent._client.get_post_comments.return_value = [

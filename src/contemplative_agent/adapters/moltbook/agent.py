@@ -1,7 +1,6 @@
 """Main orchestrator for the Contemplative Moltbook Agent."""
 
 import enum
-import json
 import logging
 import random
 import re
@@ -25,16 +24,13 @@ from .config import (
     RATE_LIMITS,
     RATE_STATE_PATH,
 )
-from .content import ContentManager, _content_hash
-from .llm_functions import (
-    check_topic_novelty,
-    extract_topics,
-    generate_post_title,
-    generate_reply,
-    generate_session_insight,
-    score_relevance,
-    select_submolt,
-    summarize_post_topic,
+from .content import ContentManager
+from .llm_functions import score_relevance
+from .post_pipeline import PostPipeline
+from .reply_handler import (
+    ReplyHandler,
+    extract_agent_fields,
+    extract_notification_fields,
 )
 from .verification import (
     VerificationTracker,
@@ -46,7 +42,6 @@ from ...core.config import (
     FORBIDDEN_WORD_PATTERNS,
     MAX_POST_LENGTH,
     VALID_ID_PATTERN,
-    VALID_SUBMOLT_PATTERN,
 )
 from ...core.domain import DomainConfig, get_domain_config
 from ...core.llm import configure as configure_llm
@@ -54,13 +49,6 @@ from ...core.memory import MemoryStore
 from ...core.scheduler import Scheduler
 
 logger = logging.getLogger(__name__)
-
-# Notification types that warrant a reply
-_REPLY_TYPES = frozenset({
-    "reply", "comment",
-    "post_comment", "comment_reply",
-    "mention",
-})
 
 # Cache TTL for feed: fetching from N submolts is expensive; posts don't change quickly
 _FEED_CACHE_TTL = 600.0
@@ -80,6 +68,9 @@ class Agent:
 
     Manages the autonomous loop: read feed -> judge relevance ->
     comment/post -> respect rate limits -> report.
+
+    Delegates reply handling to ReplyHandler and post generation
+    to PostPipeline to keep this file focused on orchestration.
     """
 
     def __init__(
@@ -115,13 +106,16 @@ class Agent:
         self._feed_fetched_at: float = 0.0
         self._own_agent_id: str = ""
 
-    def _fetch_own_agent_id(self, client: MoltbookClient) -> None:
-        """Fetch and cache our own agent ID to avoid self-replies.
+        # Collaborators
+        self._reply_handler = ReplyHandler(self)
+        self._post_pipeline = PostPipeline(self)
 
-        Also serves as an API key validity check at session start.
-        Logs a critical warning if the key appears revoked or invalid
-        (e.g. after a Moltbook DB breach / credential rotation).
-        """
+    # ------------------------------------------------------------------
+    # Client / scheduler lifecycle
+    # ------------------------------------------------------------------
+
+    def _fetch_own_agent_id(self, client: MoltbookClient) -> None:
+        """Fetch and cache our own agent ID to avoid self-replies."""
         try:
             resp = client.get("/agents/me")
             agent_data = resp.json().get("agent", {})
@@ -170,12 +164,13 @@ class Agent:
             raise RuntimeError("Scheduler not initialized. Call _ensure_client() first.")
         return self._scheduler
 
+    # ------------------------------------------------------------------
+    # Content filters and confirmation
+    # ------------------------------------------------------------------
+
     @staticmethod
     def _passes_content_filter(content: str) -> bool:
-        """Check content against safety filters for GUARDED mode.
-
-        Returns True if content passes all filters.
-        """
+        """Check content against safety filters for GUARDED mode."""
         if len(content) > MAX_POST_LENGTH:
             logger.warning("Content exceeds max length (%d > %d)", len(content), MAX_POST_LENGTH)
             return False
@@ -211,6 +206,10 @@ class Agent:
         print("---")
         response = input("Post this? [y/N]: ").strip().lower()
         return response == "y"
+
+    # ------------------------------------------------------------------
+    # CLI commands
+    # ------------------------------------------------------------------
 
     def do_register(self) -> dict:
         """Register a new agent on Moltbook."""
@@ -271,6 +270,10 @@ class Agent:
             print("Failed to solve challenge.")
         return answer
 
+    # ------------------------------------------------------------------
+    # Feed management
+    # ------------------------------------------------------------------
+
     def _fetch_feed(self) -> List[dict]:
         """Fetch recent posts from subscribed submolt feeds."""
         client = self._ensure_client()
@@ -297,6 +300,10 @@ class Agent:
         self._cached_feed = self._fetch_feed()
         self._feed_fetched_at = time.time()
         return self._cached_feed
+
+    # ------------------------------------------------------------------
+    # Verification
+    # ------------------------------------------------------------------
 
     def _handle_verification(self, challenge: dict) -> bool:
         """Solve and submit a verification challenge."""
@@ -329,6 +336,10 @@ class Agent:
             logger.error("Verification submission failed: %s", exc)
             self._verification.record_failure()
             return False
+
+    # ------------------------------------------------------------------
+    # Feed engagement
+    # ------------------------------------------------------------------
 
     def _engage_with_post(self, post: dict) -> bool:
         """Score and potentially comment on a post."""
@@ -443,6 +454,10 @@ class Agent:
                     "action": "follow", "target_agent": agent_name,
                 })
 
+    # ------------------------------------------------------------------
+    # Session loop
+    # ------------------------------------------------------------------
+
     def run_session(self, duration_minutes: int = 60) -> List[str]:
         """Run an autonomous engagement session."""
         client = self._ensure_client()
@@ -516,60 +531,19 @@ class Agent:
 
         return list(self._actions_taken)
 
+    # ------------------------------------------------------------------
+    # Backward-compatible delegation methods (used by tests)
+    # ------------------------------------------------------------------
+
     @staticmethod
     def _extract_agent_fields(data: dict) -> dict:
-        """Extract agent identity and content fields with API format fallbacks.
-
-        Shared by notification processing and own-post comment handling.
-        """
-        return {
-            "id": (
-                data.get("id")
-                or data.get("notification_id")
-                or data.get("comment_id", "")
-            ),
-            "content": (
-                data.get("content")
-                or data.get("body")
-                or data.get("text", "")
-            ),
-            "agent_id": (
-                data.get("agent_id")
-                or data.get("agentId")
-                or (data.get("author") or {}).get("id")
-                or (data.get("sender") or {}).get("id", "unknown")
-            ),
-            "agent_name": (
-                data.get("agent_name")
-                or data.get("agentName")
-                or (data.get("author") or {}).get("name")
-                or (data.get("sender") or {}).get("name", "unknown")
-            ),
-        }
+        """Delegate to reply_handler.extract_agent_fields."""
+        return extract_agent_fields(data)
 
     @staticmethod
     def _extract_notification_fields(notif: dict) -> dict:
-        """Extract notification fields with fallback for different API formats."""
-        fields = Agent._extract_agent_fields(notif)
-        fields.update({
-            "type": (
-                notif.get("type")
-                or notif.get("kind")
-                or notif.get("event_type", "")
-            ),
-            "post_id": (
-                notif.get("post_id")
-                or notif.get("postId")
-                or notif.get("relatedPostId")
-                or notif.get("target_id", "")
-            ),
-            "post_content": (
-                notif.get("post_content")
-                or notif.get("postContent")
-                or notif.get("original_content", "")
-            ),
-        })
-        return fields
+        """Delegate to reply_handler.extract_notification_fields."""
+        return extract_notification_fields(notif)
 
     def _run_reply_cycle(
         self,
@@ -577,168 +551,17 @@ class Agent:
         scheduler: Scheduler,
         end_time: float,
     ) -> None:
-        """Check for and respond to replies on our posts/comments."""
-        if not scheduler.can_comment():
-            return
+        """Delegate to ReplyHandler.run_cycle."""
+        self._reply_handler.run_cycle(client, scheduler, end_time)
 
-        notifications = client.get_notifications()
-        logger.debug(
-            "Fetched %d notification(s) from API", len(notifications)
-        )
-
-        for i, notif in enumerate(notifications):
-            logger.debug(
-                "Notification[%d] raw: %.200s",
-                i,
-                json.dumps(notif, ensure_ascii=False, default=str),
-            )
-
-            if time.time() >= end_time or self._rate_limited:
-                break
-            if not scheduler.can_comment():
-                break
-
-            fields = self._extract_notification_fields(notif)
-            notif_type = fields["type"]
-
-            if notif_type not in _REPLY_TYPES:
-                logger.debug(
-                    "Notification[%d] skipped: type=%r not actionable",
-                    i,
-                    notif_type,
-                )
-                continue
-
-            post_id = fields["post_id"]
-            if not post_id or not VALID_ID_PATTERN.match(post_id):
-                logger.debug(
-                    "Notification[%d] skipped: invalid post_id=%r", i, post_id
-                )
-                continue
-
-            # Skip if already handled this session
-            reply_key = f"reply:{post_id}:{fields['id']}"
-            if reply_key in self._commented_posts:
-                logger.debug(
-                    "Notification[%d] skipped: already handled key=%s",
-                    i,
-                    reply_key,
-                )
-                continue
-
-            their_content = fields["content"]
-            original_post = fields["post_content"]
-
-            # If notification lacks comment body (e.g. post_comment type),
-            # fetch comments from the post and process unhandled ones
-            if not their_content and post_id:
-                logger.debug(
-                    "Notification[%d] has no content; fetching comments for %s",
-                    i, post_id[:12],
-                )
-                self._handle_post_comments(
-                    client, scheduler, post_id, end_time
-                )
-                continue
-
-            if not their_content:
-                logger.debug("Notification[%d] skipped: empty content", i)
-                continue
-
-            replier_id = fields["agent_id"]
-            replier_name = fields["agent_name"]
-
-            # Skip our own comments to avoid self-reply loops
-            if self._own_agent_id and replier_id == self._own_agent_id:
-                logger.debug("Notification[%d] skipped: own comment", i)
-                continue
-
-            self._process_reply(
-                client=client,
-                scheduler=scheduler,
-                post_id=post_id,
-                reply_key=reply_key,
-                their_content=their_content,
-                original_post=original_post,
-                replier_id=replier_id,
-                replier_name=replier_name,
-            )
-
-        # Fallback: check comments on our own posts directly
-        self._check_own_post_comments(client, scheduler, end_time)
-
-    def _process_reply(
+    def _check_own_post_comments(
         self,
         client: MoltbookClient,
         scheduler: Scheduler,
-        post_id: str,
-        reply_key: str,
-        their_content: str,
-        original_post: str,
-        replier_id: str,
-        replier_name: str,
+        end_time: float,
     ) -> None:
-        """Generate and send a reply to a comment, recording interactions."""
-        history = self._memory.get_history_with(replier_id, limit=5)
-        history_summaries = [h.content_summary for h in history]
-        knowledge_ctx = self._memory.knowledge.get_context_string() or None
-
-        reply = generate_reply(
-            original_post=original_post,
-            their_comment=their_content,
-            conversation_history=history_summaries,
-            knowledge_context=knowledge_ctx,
-        )
-        if reply is None:
-            return
-
-        if not self._confirm_action(
-            f"Reply to {replier_name} on post {post_id}", reply
-        ):
-            return
-
-        # Record the incoming comment first (chronological order)
-        self._memory.record_interaction(
-            timestamp=datetime.now(timezone.utc).isoformat(),
-            agent_id=replier_id,
-            agent_name=replier_name,
-            post_id=post_id,
-            direction="received",
-            content=their_content,
-            interaction_type="reply",
-        )
-
-        scheduler.wait_for_comment()
-        try:
-            client.post(
-                f"/posts/{post_id}/comments",
-                json={"content": reply},
-            )
-            scheduler.record_comment()
-            self._commented_posts.add(reply_key)
-            self._actions_taken.append(
-                f"Replied to {replier_name} on {post_id}"
-            )
-            logger.info(
-                ">> Reply to %s on %s:\n%s", replier_name, post_id[:12], reply
-            )
-            self._memory.episodes.append("activity", {
-                "action": "reply", "post_id": post_id,
-                "content": reply[:200], "target_agent": replier_name,
-            })
-            self._memory.record_interaction(
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                agent_id=replier_id,
-                agent_name=replier_name,
-                post_id=post_id,
-                direction="sent",
-                content=reply,
-                interaction_type="reply",
-            )
-        except MoltbookClientError as exc:
-            logger.error("Failed to reply on %s: %s", post_id, exc)
-            if exc.status_code == 429:
-                self._rate_limited = True
+        """Delegate to ReplyHandler.check_own_post_comments."""
+        self._reply_handler.check_own_post_comments(client, scheduler, end_time)
 
     def _handle_post_comments(
         self,
@@ -747,64 +570,34 @@ class Agent:
         post_id: str,
         end_time: float,
     ) -> None:
-        """Fetch comments on a post and reply to unhandled ones."""
-        comments = client.get_post_comments(post_id)
-        logger.debug(
-            "Post %s has %d comment(s)", post_id[:12], len(comments)
-        )
+        """Delegate to ReplyHandler._handle_post_comments."""
+        self._reply_handler._handle_post_comments(client, scheduler, post_id, end_time)
 
-        for comment in comments:
-            if time.time() >= end_time or self._rate_limited:
-                break
-            if not scheduler.can_comment():
-                break
-
-            fields = self._extract_agent_fields(comment)
-            reply_key = f"reply:{post_id}:{fields['id']}"
-            if reply_key in self._commented_posts:
-                continue
-
-            # Skip our own comments to avoid self-reply loops
-            if self._own_agent_id and fields["agent_id"] == self._own_agent_id:
-                continue
-
-            if not fields["content"]:
-                continue
-
-            self._process_reply(
-                client=client,
-                scheduler=scheduler,
-                post_id=post_id,
-                reply_key=reply_key,
-                their_content=fields["content"],
-                original_post="",
-                replier_id=fields["agent_id"],
-                replier_name=fields["agent_name"],
-            )
-
-    def _check_own_post_comments(
+    def _run_post_cycle(
         self,
         client: MoltbookClient,
         scheduler: Scheduler,
-        end_time: float,
     ) -> None:
-        """Fallback: fetch comments on our own posts and reply to new ones."""
-        if not self._own_post_ids:
-            logger.debug("No own post IDs tracked; skipping comment check")
-            return
+        """Delegate to PostPipeline.run_cycle."""
+        self._post_pipeline.run_cycle(client, scheduler)
 
-        for post_id in list(self._own_post_ids):
-            if time.time() >= end_time or self._rate_limited:
-                break
-            if not scheduler.can_comment():
-                break
-
-            self._handle_post_comments(client, scheduler, post_id, end_time)
-
-    def _run_feed_cycle(
+    def _run_dynamic_post(
         self,
-        end_time: float,
+        client: MoltbookClient,
+        scheduler: Scheduler,
     ) -> None:
+        """Delegate to PostPipeline._run_dynamic_post."""
+        self._post_pipeline._run_dynamic_post(client, scheduler)
+
+    def _generate_session_insights(self) -> None:
+        """Delegate to PostPipeline.generate_session_insights."""
+        self._post_pipeline.generate_session_insights()
+
+    # ------------------------------------------------------------------
+    # Cycle helpers
+    # ------------------------------------------------------------------
+
+    def _run_feed_cycle(self, end_time: float) -> None:
         """Fetch and engage with posts from the feed."""
         posts = self._get_feed()
         for post in posts:
@@ -815,116 +608,6 @@ class Agent:
                 self._handle_verification(challenge)
                 continue
             self._engage_with_post(post)
-
-    def _run_post_cycle(
-        self,
-        client: MoltbookClient,
-        scheduler: Scheduler,
-    ) -> None:
-        """Post new content if rate limit allows."""
-        if not scheduler.can_post():
-            return
-
-        self._run_dynamic_post(client, scheduler)
-
-    def _run_dynamic_post(
-        self,
-        client: MoltbookClient,
-        scheduler: Scheduler,
-    ) -> None:
-        """Generate and publish a post based on current feed topics."""
-        posts = self._get_feed()
-        topics = extract_topics(posts)
-        if not topics:
-            return
-
-        # Check novelty against recent post topics
-        recent_topics = self._memory.get_recent_post_topics(limit=5)
-        if not check_topic_novelty(topics, recent_topics):
-            logger.info("Topics not novel enough, skipping post")
-            return
-
-        recent_insights = self._memory.get_recent_insights(limit=3)
-        knowledge_ctx = self._memory.knowledge.get_context_string() or None
-        content = self._content.create_cooperation_post(
-            topics, recent_insights=recent_insights or None,
-            knowledge_context=knowledge_ctx,
-        )
-        if content is None:
-            return
-
-        title = generate_post_title(topics) or f"Contemplative Note — {topics[:40]}"
-
-        if not self._confirm_action(f"Dynamic Post: {title}", content):
-            return
-
-        # Re-check rate limit right before posting (another session may have posted)
-        if not scheduler.can_post():
-            logger.info("Post rate limit hit after content generation (concurrent session?)")
-            return
-
-        selected = select_submolt(content, self._domain.subscribed_submolts)
-        if selected and not VALID_SUBMOLT_PATTERN.match(selected):
-            logger.warning("select_submolt returned invalid name %r, using default", selected)
-            selected = None
-        submolt = selected or self._domain.default_submolt
-
-        scheduler.wait_for_post()
-        try:
-            resp = client.post(
-                "/posts",
-                json={
-                    "title": title,
-                    "content": content,
-                    "submolt": submolt,
-                },
-            )
-            scheduler.record_post()
-            post_id = resp.json().get("id", "")
-            if post_id:
-                self._own_post_ids.add(post_id)
-            self._actions_taken.append(f"Posted: {title}")
-            logger.info(">> New post [%s] (id=%s):\n%s", title, post_id, content)
-            self._memory.episodes.append("activity", {
-                "action": "post", "post_id": post_id,
-                "content": content[:200], "title": title,
-            })
-
-            # Record post in memory
-            topic_summary = summarize_post_topic(content) or title
-            content_hash = _content_hash(content)
-            self._memory.record_post(
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                post_id=post_id,
-                title=title,
-                topic_summary=topic_summary,
-                content_hash=content_hash,
-            )
-        except MoltbookClientError as exc:
-            logger.error("Failed to post dynamic content: %s", exc)
-
-    def _generate_session_insights(self) -> None:
-        """Generate and record insights at the end of a session."""
-        if not self._actions_taken:
-            return
-
-        recent_topics = self._memory.get_recent_post_topics(limit=5)
-
-        # Check if topics were repetitive among recent posts
-        post_actions = [a for a in self._actions_taken if a.startswith("Posted:")]
-        insight_type = "topic_saturation" if len(post_actions) == 0 else "session_summary"
-
-        observation = generate_session_insight(
-            actions=self._actions_taken,
-            recent_topics=recent_topics,
-        )
-        if observation:
-            self._memory.record_insight(
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                observation=observation,
-                insight_type=insight_type,
-            )
-            logger.info("Session insight recorded: %s", observation)
 
     def _print_report(self) -> None:
         """Print session summary."""
