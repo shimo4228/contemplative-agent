@@ -12,7 +12,6 @@ import json
 import logging
 import os
 import re
-import stat
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -68,9 +67,16 @@ def _truncate(text: str, max_length: int = SUMMARY_MAX_LENGTH) -> str:
     return text[: max_length - 3] + "..."
 
 
-def _set_file_permissions(path: Path) -> None:
-    """Set file permissions to 0600 (owner read/write only)."""
-    os.chmod(path, stat.S_IRUSR | stat.S_IWUSR)
+def _write_restricted(path: Path, content: str) -> None:
+    """Write content to a file with 0600 permissions from creation.
+
+    Uses umask to ensure the file is never world-readable, even briefly.
+    """
+    old_umask = os.umask(0o177)
+    try:
+        path.write_text(content, encoding="utf-8")
+    finally:
+        os.umask(old_umask)
 
 
 # ---------------------------------------------------------------------------
@@ -111,9 +117,12 @@ class EpisodeLog:
         if path is None:
             return
         try:
-            with path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-            _set_file_permissions(path)
+            old_umask = os.umask(0o177)
+            try:
+                with path.open("a", encoding="utf-8") as f:
+                    f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            finally:
+                os.umask(old_umask)
         except OSError as exc:
             logger.warning("Failed to write episode log: %s", exc)
 
@@ -320,11 +329,10 @@ class KnowledgeStore:
         content = "\n".join(lines) + "\n"
         tmp_path = self._path.with_suffix(".md.tmp")
         try:
-            tmp_path.write_text(content, encoding="utf-8")
-            _set_file_permissions(tmp_path)
+            _write_restricted(tmp_path, content)
             os.replace(str(tmp_path), str(self._path))
-        except OSError:
-            # Clean up temp file on failure
+        except OSError as exc:
+            logger.error("Failed to save knowledge file: %s", exc)
             tmp_path.unlink(missing_ok=True)
             raise
 
@@ -704,11 +712,10 @@ class MemoryStore:
         self._commented_cache_path.parent.mkdir(parents=True, exist_ok=True)
         tmp_path = self._commented_cache_path.with_suffix(".json.tmp")
         try:
-            tmp_path.write_text(
+            _write_restricted(
+                tmp_path,
                 json.dumps(sorted(self._commented_cache), ensure_ascii=False),
-                encoding="utf-8",
             )
-            _set_file_permissions(tmp_path)
             os.replace(str(tmp_path), str(self._commented_cache_path))
         except OSError as exc:
             logger.warning("Failed to save commented cache: %s", exc)

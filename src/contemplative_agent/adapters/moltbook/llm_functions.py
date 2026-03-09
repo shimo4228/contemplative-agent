@@ -58,8 +58,9 @@ def generate_cooperation_post(
     if recent_insights:
         lines = "\n".join(f"- {i}" for i in recent_insights)
         insights_section = (
-            f"\n\nPrevious insights from your sessions:\n{lines}\n"
-            "Take these into account when writing.\n"
+            "\n\nPrevious insights from your sessions:\n"
+            + _wrap_untrusted_content(lines)
+            + "\nTake these into account when writing.\n"
         )
 
     knowledge_section = ""
@@ -150,7 +151,7 @@ def check_topic_novelty(
 
     recent_lines = "\n".join(f"- {t}" for t in recent_topics)
     prompt = TOPIC_NOVELTY_PROMPT.format(
-        recent_topics=recent_lines,
+        recent_topics=_wrap_untrusted_content(recent_lines),
         current_topics=_wrap_untrusted_content(current_topics),
     )
     result = generate(prompt, max_length=50)
@@ -210,8 +211,8 @@ def generate_session_insight(
         "\n".join(f"- {t}" for t in recent_topics) if recent_topics else "None"
     )
     prompt = SESSION_INSIGHT_PROMPT.format(
-        actions_text=actions_text,
-        topics_text=topics_text,
+        actions_text=_wrap_untrusted_content(actions_text),
+        topics_text=_wrap_untrusted_content(topics_text),
     )
     result = generate(prompt, max_length=200)
     if result:

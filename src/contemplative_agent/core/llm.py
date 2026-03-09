@@ -60,6 +60,16 @@ def configure(
         _default_system_prompt = default_system_prompt
 
 
+def reset_llm_config() -> None:
+    """Reset module-level LLM config and circuit breaker to defaults. Useful for testing."""
+    global _identity_path, _ollama_base_url, _ollama_model, _default_system_prompt
+    _identity_path = None
+    _ollama_base_url = _DEFAULT_OLLAMA_URL
+    _ollama_model = _DEFAULT_OLLAMA_MODEL
+    _default_system_prompt = None
+    _circuit.reset()
+
+
 class _CircuitBreaker:
     """Simple circuit breaker for LLM requests.
 
@@ -98,6 +108,11 @@ class _CircuitBreaker:
         self._consecutive_failures = 0
         self._opened_at = 0.0
 
+    def reset(self) -> None:
+        """Reset circuit breaker state. Useful for testing."""
+        self._consecutive_failures = 0
+        self._opened_at = 0.0
+
 
 _circuit = _CircuitBreaker()
 
@@ -114,10 +129,6 @@ def _get_default_system_prompt() -> str:
 def get_default_system_prompt() -> str:
     """Public accessor for the default system prompt (backward compat alias)."""
     return _get_default_system_prompt()
-
-
-# For backward compatibility — use get_default_system_prompt() for new code
-DEFAULT_SYSTEM_PROMPT = None  # Sentinel; actual value loaded lazily
 
 
 def _load_identity() -> str:
@@ -138,6 +149,18 @@ def _load_identity() -> str:
                     if pattern.lower() in content_lower:
                         logger.warning(
                             "Identity file contains forbidden pattern: %s, "
+                            "using default",
+                            pattern,
+                        )
+                        return _get_default_system_prompt()
+                for pattern in FORBIDDEN_WORD_PATTERNS:
+                    if re.search(
+                        r"\b" + re.escape(pattern) + r"\b",
+                        content,
+                        re.IGNORECASE,
+                    ):
+                        logger.warning(
+                            "Identity file contains forbidden word: %s, "
                             "using default",
                             pattern,
                         )
@@ -197,7 +220,14 @@ def generate(
         logger.debug("Circuit breaker open — skipping LLM request")
         return None
 
-    url = f"{_get_ollama_url()}/api/generate"
+    try:
+        base_url = _get_ollama_url()
+    except ValueError as exc:
+        logger.error("Invalid Ollama URL: %s", exc)
+        _circuit.record_failure()
+        return None
+
+    url = f"{base_url}/api/generate"
     payload = {
         "model": _get_model(),
         "prompt": prompt,

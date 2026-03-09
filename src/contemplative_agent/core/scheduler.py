@@ -2,11 +2,23 @@
 
 import json
 import logging
+import os
 import time
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Protocol
 
 logger = logging.getLogger(__name__)
+
+
+class RateLimitsProtocol(Protocol):
+    """Expected interface for rate limit configuration objects."""
+
+    @property
+    def post_interval_seconds(self) -> int: ...
+    @property
+    def comment_interval_seconds(self) -> int: ...
+    @property
+    def comments_per_day(self) -> int: ...
 
 
 class Scheduler:
@@ -24,11 +36,11 @@ class Scheduler:
     def __init__(
         self,
         state_path: Optional[Path] = None,
-        limits: Optional[object] = None,
+        limits: Optional[RateLimitsProtocol] = None,
         is_new_agent: bool = False,
     ) -> None:
         self._state_path = state_path
-        self._limits = limits or _InMemoryLimits(is_new_agent=is_new_agent)
+        self._limits: RateLimitsProtocol = limits or _InMemoryLimits(is_new_agent=is_new_agent)
         self._last_post_time: float = 0.0
         self._last_comment_time: float = 0.0
         self._comments_today: int = 0
@@ -57,10 +69,15 @@ class Scheduler:
             "comments_today": self._comments_today,
             "day_start": self._day_start,
         }
-        self._state_path.write_text(
-            json.dumps(data, indent=2) + "\n", encoding="utf-8"
-        )
-        self._state_path.chmod(0o600)
+        tmp_path = self._state_path.with_suffix(".json.tmp")
+        old_umask = os.umask(0o177)
+        try:
+            tmp_path.write_text(
+                json.dumps(data, indent=2) + "\n", encoding="utf-8"
+            )
+        finally:
+            os.umask(old_umask)
+        os.replace(str(tmp_path), str(self._state_path))
 
     def _reset_daily_if_needed(self) -> None:
         now = time.time()
@@ -132,6 +149,10 @@ class Scheduler:
 
 class _InMemoryLimits:
     """Fallback rate limits when no adapter config is provided."""
+
+    post_interval_seconds: int
+    comment_interval_seconds: int
+    comments_per_day: int
 
     def __init__(self, is_new_agent: bool = False) -> None:
         if is_new_agent:

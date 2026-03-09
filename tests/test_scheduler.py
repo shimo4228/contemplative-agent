@@ -2,8 +2,6 @@
 
 import time
 
-import pytest
-
 from contemplative_agent.core.scheduler import Scheduler
 
 

@@ -450,7 +450,7 @@ class TestRunFeedCycle:
         with patch.object(agent, "_fetch_feed", return_value=posts), \
              patch.object(agent, "_handle_verification") as mock_verify, \
              patch.object(agent, "_engage_with_post") as mock_engage:
-            agent._run_feed_cycle(agent._client, agent._scheduler, time.time() + 3600)
+            agent._run_feed_cycle(time.time() + 3600)
 
         mock_engage.assert_called_once()
         mock_verify.assert_called_once()
@@ -462,7 +462,7 @@ class TestRunFeedCycle:
 
         with patch.object(agent, "_fetch_feed", return_value=[{"content": "x", "id": "1"}]), \
              patch.object(agent, "_engage_with_post") as mock_engage:
-            agent._run_feed_cycle(agent._client, agent._scheduler, time.time() - 1)
+            agent._run_feed_cycle(time.time() - 1)
 
         mock_engage.assert_not_called()
 
@@ -487,7 +487,7 @@ class TestRunPostCycle:
         agent._client.get.return_value = feed_resp
         agent._client.post.return_value = post_resp
 
-        agent._run_post_cycle(agent._client, agent._scheduler, time.time() + 3600)
+        agent._run_post_cycle(agent._client, agent._scheduler)
         agent._client.post.assert_called_once()
         assert any("Posted: Test Title" in a for a in agent._actions_taken)
 
@@ -497,7 +497,7 @@ class TestRunPostCycle:
         agent._scheduler = MagicMock()
         agent._scheduler.can_post.return_value = False
 
-        agent._run_post_cycle(agent._client, agent._scheduler, time.time() + 3600)
+        agent._run_post_cycle(agent._client, agent._scheduler)
         agent._client.post.assert_not_called()
 
     @patch("contemplative_agent.adapters.moltbook.agent.check_topic_novelty", return_value=True)
@@ -514,7 +514,7 @@ class TestRunPostCycle:
         feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
         agent._client.get.return_value = feed_resp
 
-        agent._run_post_cycle(agent._client, agent._scheduler, time.time() + 3600)
+        agent._run_post_cycle(agent._client, agent._scheduler)
         agent._client.post.assert_not_called()
 
     @patch("contemplative_agent.adapters.moltbook.agent.check_topic_novelty", return_value=True)
@@ -535,7 +535,7 @@ class TestRunPostCycle:
         agent._client.get.return_value = feed_resp
         agent._client.post.side_effect = MoltbookClientError("fail")
 
-        agent._run_post_cycle(agent._client, agent._scheduler, time.time() + 3600)
+        agent._run_post_cycle(agent._client, agent._scheduler)
         # Should not raise
 
 
@@ -1003,7 +1003,7 @@ class TestSelectiveMode:
 
         with patch.object(agent, "_fetch_feed", return_value=posts), \
              patch.object(agent, "_engage_with_post") as mock_engage:
-            agent._run_feed_cycle(agent._client, agent._scheduler, time.time() + 3600)
+            agent._run_feed_cycle(time.time() + 3600)
 
         assert mock_engage.call_count == 20
 

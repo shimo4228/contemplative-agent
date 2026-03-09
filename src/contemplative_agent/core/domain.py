@@ -265,6 +265,12 @@ def get_rules(rules_dir: Optional[Path] = None) -> RulesContent:
     return _cached_rules
 
 
+def set_domain_config_cache(config: DomainConfig) -> None:
+    """Set the cached domain config directly. Used by CLI for --domain-config override."""
+    global _cached_domain_config
+    _cached_domain_config = config
+
+
 def set_rules_cache(rules: RulesContent) -> None:
     """Set the cached rules directly. Used by CLI for --rules-dir override."""
     global _cached_rules

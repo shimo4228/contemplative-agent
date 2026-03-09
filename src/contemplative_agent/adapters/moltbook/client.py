@@ -213,7 +213,7 @@ class MoltbookClient:
                 logger.info("Now following %s", agent_name)
                 return True
             logger.debug("Follow %s: action=%s", agent_name, action)
-            return action in ("followed", "already_following")
+            return action == "already_following"
         except MoltbookClientError as exc:
             logger.warning("Failed to follow %s: %s", agent_name, exc)
             return False

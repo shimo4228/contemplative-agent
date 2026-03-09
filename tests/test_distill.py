@@ -113,7 +113,7 @@ class TestDistill:
 
         # Fresh instance — distill will call load() on this
         ks = KnowledgeStore(path=tmp_path / "knowledge.md")
-        result = distill(days=1, episode_log=log, knowledge_store=ks)
+        distill(days=1, episode_log=log, knowledge_store=ks)
 
         # Reload and check the pattern was replaced
         ks2 = KnowledgeStore(path=tmp_path / "knowledge.md")

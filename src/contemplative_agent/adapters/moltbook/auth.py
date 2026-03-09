@@ -51,17 +51,25 @@ def load_credentials() -> Optional[str]:
 
 
 def save_credentials(api_key: str, agent_id: Optional[str] = None) -> None:
-    """Save API key to credentials file with restricted permissions."""
+    """Save API key to credentials file with restricted permissions.
+
+    Uses atomic write (tmp + rename) with umask to prevent race window
+    where credentials could be world-readable.
+    """
     CREDENTIALS_PATH.parent.mkdir(parents=True, exist_ok=True)
 
     data = {"api_key": api_key}
     if agent_id:
         data["agent_id"] = agent_id
 
-    CREDENTIALS_PATH.write_text(
-        json.dumps(data, indent=2) + "\n", encoding="utf-8"
-    )
-    CREDENTIALS_PATH.chmod(0o600)
+    content = json.dumps(data, indent=2) + "\n"
+    tmp_path = CREDENTIALS_PATH.with_suffix(".json.tmp")
+    old_umask = os.umask(0o177)
+    try:
+        tmp_path.write_text(content, encoding="utf-8")
+    finally:
+        os.umask(old_umask)
+    os.replace(str(tmp_path), str(CREDENTIALS_PATH))
     logger.info(
         "Credentials saved to %s (%s)",
         CREDENTIALS_PATH,

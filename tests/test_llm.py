@@ -128,6 +128,7 @@ class TestSanitizeWordBoundary:
     def test_secret_sharing_passes(self):
         result = _sanitize_output("secret-sharing protocol", 1000)
         # "secret" is at a word boundary here, should be caught
+        assert "[REDACTED]" in result
         result2 = _sanitize_output("secretarial work", 1000)
         assert "secretarial" in result2
 

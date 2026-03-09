@@ -1,7 +1,6 @@
 """Main orchestrator for the Contemplative Moltbook Agent."""
 
 import enum
-import hashlib
 import json
 import logging
 import random
@@ -14,10 +13,19 @@ from typing import List, Optional, Set
 from .auth import check_claim_status, load_credentials, register_agent
 from .client import MoltbookClient, MoltbookClientError
 from .config import (
+    COMMENTED_CACHE_PATH,
     COMMENT_PACING_MAX_SECONDS,
     COMMENT_PACING_MIN_SECONDS,
+    EPISODE_LOG_DIR,
+    IDENTITY_PATH,
+    KNOWLEDGE_PATH,
+    LEGACY_MEMORY_PATH,
+    OLLAMA_BASE_URL,
+    OLLAMA_MODEL,
+    RATE_LIMITS,
+    RATE_STATE_PATH,
 )
-from .content import ContentManager
+from .content import ContentManager, _content_hash
 from .llm_functions import (
     check_topic_novelty,
     extract_topics,
@@ -38,8 +46,10 @@ from ...core.config import (
     FORBIDDEN_WORD_PATTERNS,
     MAX_POST_LENGTH,
     VALID_ID_PATTERN,
+    VALID_SUBMOLT_PATTERN,
 )
 from ...core.domain import DomainConfig, get_domain_config
+from ...core.llm import configure as configure_llm
 from ...core.memory import MemoryStore
 from ...core.scheduler import Scheduler
 
@@ -54,6 +64,9 @@ _REPLY_TYPES = frozenset({
 
 # Cache TTL for feed: fetching from N submolts is expensive; posts don't change quickly
 _FEED_CACHE_TTL = 600.0
+
+# ANSI escape sequence pattern for terminal output sanitization
+_ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
 
 class AutonomyLevel(str, enum.Enum):
@@ -85,7 +98,17 @@ class Agent:
         self._commented_posts: Set[str] = set()
         self._own_post_ids: Set[str] = set()
         self._rate_limited: bool = False
-        self._memory = memory or MemoryStore()
+        self._memory = memory or MemoryStore(
+            path=LEGACY_MEMORY_PATH,
+            log_dir=EPISODE_LOG_DIR,
+            knowledge_path=KNOWLEDGE_PATH,
+            commented_cache_path=COMMENTED_CACHE_PATH,
+        )
+        configure_llm(
+            identity_path=IDENTITY_PATH,
+            ollama_base_url=OLLAMA_BASE_URL,
+            ollama_model=OLLAMA_MODEL,
+        )
         self._memory.load()
         self._shutdown_requested: bool = False
         self._cached_feed: List[dict] = []
@@ -135,7 +158,10 @@ class Agent:
                 "No API key found. Run 'contemplative-agent register' first."
             )
         self._client = MoltbookClient(api_key)
-        self._scheduler = Scheduler()
+        self._scheduler = Scheduler(
+            state_path=RATE_STATE_PATH,
+            limits=RATE_LIMITS,
+        )
         return self._client
 
     def _get_scheduler(self) -> Scheduler:
@@ -179,7 +205,7 @@ class Agent:
 
         # APPROVE mode: interactive confirmation
         print(f"\n--- {description} ---")
-        print(content[:500])
+        print(_ANSI_ESCAPE.sub("", content[:500]))
         if len(content) > 500:
             print(f"... ({len(content)} chars total)")
         print("---")
@@ -462,8 +488,8 @@ class Agent:
 
                 try:
                     self._run_reply_cycle(client, scheduler, end_time)
-                    self._run_feed_cycle(client, scheduler, end_time)
-                    self._run_post_cycle(client, scheduler, end_time)
+                    self._run_feed_cycle(end_time)
+                    self._run_post_cycle(client, scheduler)
                 except Exception:
                     logger.exception("Error in session cycle, continuing...")
 
@@ -777,8 +803,6 @@ class Agent:
 
     def _run_feed_cycle(
         self,
-        _client: MoltbookClient,
-        _scheduler: Scheduler,
         end_time: float,
     ) -> None:
         """Fetch and engage with posts from the feed."""
@@ -796,7 +820,6 @@ class Agent:
         self,
         client: MoltbookClient,
         scheduler: Scheduler,
-        _end_time: float,
     ) -> None:
         """Post new content if rate limit allows."""
         if not scheduler.can_post():
@@ -840,7 +863,6 @@ class Agent:
             logger.info("Post rate limit hit after content generation (concurrent session?)")
             return
 
-        from ...core.config import VALID_SUBMOLT_PATTERN
         selected = select_submolt(content, self._domain.subscribed_submolts)
         if selected and not VALID_SUBMOLT_PATTERN.match(selected):
             logger.warning("select_submolt returned invalid name %r, using default", selected)
@@ -870,7 +892,7 @@ class Agent:
 
             # Record post in memory
             topic_summary = summarize_post_topic(content) or title
-            content_hash = hashlib.sha256(content.encode("utf-8")).hexdigest()[:16]
+            content_hash = _content_hash(content)
             self._memory.record_post(
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 post_id=post_id,

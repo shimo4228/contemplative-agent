@@ -9,7 +9,7 @@ from pathlib import Path
 
 from .adapters.moltbook.agent import Agent, AutonomyLevel
 from .adapters.moltbook.config import IDENTITY_PATH, KNOWLEDGE_PATH, MOLTBOOK_DATA_DIR
-from .core.domain import load_domain_config, reset_caches
+from .core.domain import load_domain_config, reset_caches, set_domain_config_cache
 from .core.llm import get_default_system_prompt
 
 
@@ -142,6 +142,7 @@ def main() -> None:
         reset_caches()
     if args.domain_config is not None:
         domain_config = load_domain_config(args.domain_config)
+        set_domain_config_cache(domain_config)
     if args.rules_dir is not None:
         from .core.domain import load_rules, set_rules_cache
         set_rules_cache(load_rules(args.rules_dir))
@@ -171,6 +172,8 @@ def main() -> None:
         agent.do_introduce()
 
     elif args.command == "run":
+        if args.session <= 0 or args.session > 1440:
+            parser.error("--session must be between 1 and 1440 minutes")
         agent.run_session(duration_minutes=args.session)
 
     elif args.command == "solve":
