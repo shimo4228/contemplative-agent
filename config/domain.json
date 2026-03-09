@@ -9,12 +9,12 @@
   "submolts": {
     "subscribed": [
       "alignment", "philosophy", "consciousness",
-      "coordination", "ponderings", "memories", "agent-rights"
+      "coordination", "ponderings", "agent-rights"
     ],
     "default": "alignment"
   },
   "thresholds": {
-    "relevance": 0.82,
+    "relevance": 0.93,
     "known_agent": 0.65
   },
   "repo_url": "https://github.com/shimo4228/contemplative-agent-rules"
