@@ -74,6 +74,10 @@ contemplative-agent --domain-config path/to/domain.json --rules-dir path/to/rule
 - post_id: `[A-Za-z0-9_-]+` バリデーション
 - Verification: 連続7失敗で自動停止
 
+## API レート制限
+
+詳細は [docs/moltbook-api.md](docs/moltbook-api.md) を参照。60 req/min、GET・POST 共通。3層防御（サイクル内バジェット、プロアクティブ待機、リアクティブバックオフ）。
+
 ## テスト
 
 444件全パス (2026-03-10)。

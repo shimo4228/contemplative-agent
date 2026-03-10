@@ -57,6 +57,7 @@ class MoltbookClient:
         self._base_url = BASE_URL
         self._rate_limit_remaining: Optional[int] = None
         self._rate_limit_reset: Optional[float] = None
+        self._recent_429_count: int = 0
 
     def _validate_url(self, url: str) -> None:
         """Ensure the URL points to the allowed domain only."""
@@ -91,6 +92,25 @@ class MoltbookClient:
     def rate_limit_reset(self) -> Optional[float]:
         return self._rate_limit_reset
 
+    @property
+    def recent_429_count(self) -> int:
+        """Number of 429 responses since last reset."""
+        return self._recent_429_count
+
+    def reset_429_count(self) -> None:
+        """Reset the 429 counter (called after each cycle)."""
+        self._recent_429_count = 0
+
+    def has_budget(self, reserve: int = 5) -> bool:
+        """Check if enough rate limit budget remains for more requests.
+
+        Returns True if remaining is unknown (headers not yet received)
+        or if remaining > reserve.
+        """
+        if self._rate_limit_remaining is None:
+            return True
+        return self._rate_limit_remaining > reserve
+
     def _request(
         self,
         method: str,
@@ -114,6 +134,7 @@ class MoltbookClient:
         self._parse_rate_headers(response)
 
         if response.status_code == 429:
+            self._recent_429_count += 1
             # Don't retry hourly/daily limits — they won't clear soon
             body_text = response.text[:500]
             if "limit reached" in body_text.lower():

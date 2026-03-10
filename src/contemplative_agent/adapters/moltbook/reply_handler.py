@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from .client import MoltbookClient, MoltbookClientError
+from .config import ADAPTIVE_BACKOFF
 from .llm_functions import generate_reply
 from ...core.config import VALID_ID_PATTERN
 from ...core.scheduler import Scheduler
@@ -116,6 +117,9 @@ class ReplyHandler:
             if time.time() >= end_time or self._agent._rate_limited:
                 break
             if not scheduler.can_comment():
+                break
+            if not client.has_budget(ADAPTIVE_BACKOFF.cycle_budget_reserve):
+                logger.info("Rate limit budget low, pausing reply processing")
                 break
 
             fields = extract_notification_fields(notif)
@@ -279,6 +283,9 @@ class ReplyHandler:
                 break
             if not scheduler.can_comment():
                 break
+            if not client.has_budget(ADAPTIVE_BACKOFF.cycle_budget_reserve):
+                logger.info("Rate limit budget low, pausing comment processing")
+                break
 
             fields = extract_agent_fields(comment)
             reply_key = f"reply:{post_id}:{fields['id']}"
@@ -318,6 +325,9 @@ class ReplyHandler:
             if time.time() >= end_time or self._agent._rate_limited:
                 break
             if not scheduler.can_comment():
+                break
+            if not client.has_budget(ADAPTIVE_BACKOFF.cycle_budget_reserve):
+                logger.info("Rate limit budget low, pausing own post comment check")
                 break
 
             self._handle_post_comments(client, scheduler, post_id, end_time)

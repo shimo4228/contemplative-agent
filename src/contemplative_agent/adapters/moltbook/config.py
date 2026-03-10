@@ -60,3 +60,23 @@ class NewAgentRateLimits:
 
 RATE_LIMITS = RateLimits()
 NEW_AGENT_RATE_LIMITS = NewAgentRateLimits()
+
+
+@dataclass(frozen=True)
+class AdaptiveBackoffConfig:
+    """Adaptive backoff parameters for API rate limit management.
+
+    The API allows 60 req/min (GET+POST shared quota).
+    One cycle consumes ~8 requests (1 notification + 6 feed + 1 post).
+    """
+
+    base_cycle_wait: float = 60.0         # Normal cycle interval (seconds)
+    max_cycle_wait: float = 600.0         # Maximum backoff (10 minutes)
+    backoff_multiplier: float = 2.0       # Exponential backoff multiplier
+    decay_factor: float = 0.5             # Shrink factor on clean cycle
+    remaining_threshold: int = 10         # Start slowing when <= 10 remaining
+    cycle_budget_reserve: int = 5         # In-cycle: stop processing when <= 5 remaining
+    proactive_wait_seconds: float = 120.0  # Default wait when reset time unknown
+
+
+ADAPTIVE_BACKOFF = AdaptiveBackoffConfig()

@@ -543,8 +543,9 @@ class TestRunSession:
     @patch("contemplative_agent.adapters.moltbook.agent.time")
     @patch("contemplative_agent.adapters.moltbook.agent.load_credentials", return_value="key")
     def test_session_ends_by_time(self, mock_creds, mock_time):
-        # Simulate: first call sets end_time, second call is past end_time
-        mock_time.time.side_effect = [100.0, 100.0, 200.0]  # init, while check, in loop
+        # Simulate: end_time=160, first loop runs, then time passes end_time
+        # Calls: end_time calc, while check, adaptive_wait clamp, while re-check
+        mock_time.time.side_effect = [100.0, 100.0, 200.0, 200.0]
 
         agent = Agent(autonomy=AutonomyLevel.AUTO)
 
@@ -1147,6 +1148,9 @@ class TestGracefulShutdown:
         mock_client.subscribe_submolt.return_value = True
         mock_client.get_notifications.return_value = []
         mock_client.get.return_value = MagicMock(json=MagicMock(return_value={"posts": []}))
+        mock_client.recent_429_count = 0
+        mock_client.rate_limit_remaining = None
+        mock_client.has_budget.return_value = True
         mock_client_cls.return_value = mock_client
 
         mock_sched = MagicMock()
@@ -1180,6 +1184,9 @@ class TestGracefulShutdown:
         agent._shutdown_requested = True
         agent._client = MagicMock()
         agent._client.subscribe_submolt.return_value = True
+        agent._client.recent_429_count = 0
+        agent._client.rate_limit_remaining = None
+        agent._client.has_budget.return_value = True
         agent._scheduler = MagicMock()
         agent._scheduler.seconds_until_comment.return_value = 0
         agent._scheduler.seconds_until_post.return_value = 0
@@ -1471,3 +1478,84 @@ class TestFeedCache:
         agent._get_feed()
         # Should have fetched again (doubled the call count)
         assert agent._client.get.call_count == first_call_count * 2
+
+
+class TestAdaptiveCycleWait:
+    """Tests for _adaptive_cycle_wait backoff/decay logic."""
+
+    def _make_agent_with_client(self):
+        agent = Agent(autonomy=AutonomyLevel.AUTO)
+        mock_client = MagicMock()
+        mock_client.recent_429_count = 0
+        mock_client.rate_limit_remaining = None
+        mock_client.rate_limit_reset = None
+        mock_client.has_budget.return_value = True
+        agent._client = mock_client
+        return agent
+
+    def test_clean_cycle_returns_base_wait(self):
+        agent = self._make_agent_with_client()
+        wait = agent._adaptive_cycle_wait()
+        assert wait == 60.0
+
+    def test_429_triggers_backoff(self):
+        agent = self._make_agent_with_client()
+        agent._client.recent_429_count = 2
+        wait = agent._adaptive_cycle_wait()
+        assert wait == 120.0  # 60 * 2.0
+
+    def test_consecutive_429_doubles_again(self):
+        agent = self._make_agent_with_client()
+        agent._client.recent_429_count = 1
+        agent._adaptive_cycle_wait()  # 60 -> 120
+
+        agent._client.recent_429_count = 1
+        wait = agent._adaptive_cycle_wait()
+        assert wait == 240.0  # 120 * 2.0
+
+    def test_backoff_caps_at_max(self):
+        agent = self._make_agent_with_client()
+        agent._cycle_wait = 400.0
+        agent._client.recent_429_count = 1
+        wait = agent._adaptive_cycle_wait()
+        assert wait == 600.0  # max_cycle_wait
+
+    def test_clean_cycle_decays_after_backoff(self):
+        agent = self._make_agent_with_client()
+        agent._cycle_wait = 240.0
+        agent._consecutive_429_cycles = 2
+        # Clean cycle
+        agent._client.recent_429_count = 0
+        wait = agent._adaptive_cycle_wait()
+        assert wait == 120.0  # 240 * 0.5
+
+    def test_decay_floors_at_base(self):
+        agent = self._make_agent_with_client()
+        agent._cycle_wait = 60.0
+        agent._client.recent_429_count = 0
+        wait = agent._adaptive_cycle_wait()
+        assert wait == 60.0  # Can't go below base
+
+    @patch("contemplative_agent.adapters.moltbook.agent.time")
+    def test_proactive_wait_on_low_remaining(self, mock_time):
+        mock_time.time.return_value = 1000.0
+        agent = self._make_agent_with_client()
+        agent._client.recent_429_count = 0
+        agent._client.rate_limit_remaining = 5  # Below threshold of 10
+        agent._client.rate_limit_reset = 1080.0  # 80s from now
+        wait = agent._adaptive_cycle_wait()
+        assert wait == 80.0  # Reset is 80s away
+
+    def test_proactive_wait_default_when_no_reset_time(self):
+        agent = self._make_agent_with_client()
+        agent._client.recent_429_count = 0
+        agent._client.rate_limit_remaining = 3
+        agent._client.rate_limit_reset = None
+        wait = agent._adaptive_cycle_wait()
+        assert wait == 120.0  # proactive_wait_seconds default
+
+    def test_resets_429_counter_after_check(self):
+        agent = self._make_agent_with_client()
+        agent._client.recent_429_count = 3
+        agent._adaptive_cycle_wait()
+        agent._client.reset_429_count.assert_called_once()

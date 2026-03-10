@@ -273,3 +273,61 @@ class TestFollowAgentValidation:
         mock_response.json.return_value = {"action": "followed"}
         with patch.object(client._session, "request", return_value=mock_response):
             assert client.follow_agent("a" * 64) is True
+
+
+class TestRateLimitBudget:
+    """Tests for 429 counter and budget checking."""
+
+    def test_429_counter_increments_on_429(self):
+        client = MoltbookClient(api_key="test-key")
+        assert client.recent_429_count == 0
+
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        mock_response.headers = {"Retry-After": "1"}
+        mock_response.text = "rate limited"
+
+        with patch.object(client._session, "request", return_value=mock_response):
+            with pytest.raises(MoltbookClientError):
+                client.get("/test")
+
+        assert client.recent_429_count > 0
+
+    def test_429_counter_resets(self):
+        client = MoltbookClient(api_key="test-key")
+        client._recent_429_count = 5
+        client.reset_429_count()
+        assert client.recent_429_count == 0
+
+    def test_429_counter_increments_on_hard_limit(self):
+        client = MoltbookClient(api_key="test-key")
+        mock_response = MagicMock()
+        mock_response.status_code = 429
+        mock_response.headers = {}
+        mock_response.text = "Limit reached for today"
+
+        with patch.object(client._session, "request", return_value=mock_response):
+            with pytest.raises(MoltbookClientError):
+                client.get("/test")
+
+        assert client.recent_429_count == 1
+
+    def test_has_budget_true_when_remaining_unknown(self):
+        client = MoltbookClient(api_key="test-key")
+        assert client.rate_limit_remaining is None
+        assert client.has_budget(reserve=5) is True
+
+    def test_has_budget_true_when_remaining_above_reserve(self):
+        client = MoltbookClient(api_key="test-key")
+        client._rate_limit_remaining = 20
+        assert client.has_budget(reserve=5) is True
+
+    def test_has_budget_false_when_remaining_at_reserve(self):
+        client = MoltbookClient(api_key="test-key")
+        client._rate_limit_remaining = 5
+        assert client.has_budget(reserve=5) is False
+
+    def test_has_budget_false_when_remaining_below_reserve(self):
+        client = MoltbookClient(api_key="test-key")
+        client._rate_limit_remaining = 3
+        assert client.has_budget(reserve=5) is False

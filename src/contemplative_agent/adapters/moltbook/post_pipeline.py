@@ -7,6 +7,7 @@ from datetime import datetime, timezone
 from typing import TYPE_CHECKING
 
 from .client import MoltbookClient, MoltbookClientError
+from .config import ADAPTIVE_BACKOFF
 from .content import _content_hash
 from .llm_functions import (
     check_topic_novelty,
@@ -42,6 +43,9 @@ class PostPipeline:
     ) -> None:
         """Post new content if rate limit allows."""
         if not scheduler.can_post():
+            return
+        if not client.has_budget(reserve=ADAPTIVE_BACKOFF.cycle_budget_reserve):
+            logger.info("Rate limit budget low, skipping post cycle")
             return
         self._run_dynamic_post(client, scheduler)
 

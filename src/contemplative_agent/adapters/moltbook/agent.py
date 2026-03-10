@@ -12,6 +12,7 @@ from typing import List, Optional, Set
 from .auth import check_claim_status, load_credentials, register_agent
 from .client import MoltbookClient, MoltbookClientError
 from .config import (
+    ADAPTIVE_BACKOFF,
     COMMENTED_CACHE_PATH,
     COMMENT_PACING_MAX_SECONDS,
     COMMENT_PACING_MIN_SECONDS,
@@ -105,6 +106,8 @@ class Agent:
         self._cached_feed: List[dict] = []
         self._feed_fetched_at: float = 0.0
         self._own_agent_id: str = ""
+        self._cycle_wait: float = ADAPTIVE_BACKOFF.base_cycle_wait
+        self._consecutive_429_cycles: int = 0
 
         # Collaborators
         self._reply_handler = ReplyHandler(self)
@@ -163,6 +166,62 @@ class Agent:
         if self._scheduler is None:
             raise RuntimeError("Scheduler not initialized. Call _ensure_client() first.")
         return self._scheduler
+
+    # ------------------------------------------------------------------
+    # Adaptive backoff
+    # ------------------------------------------------------------------
+
+    def _adaptive_cycle_wait(self) -> float:
+        """Compute the next cycle wait based on rate limit state.
+
+        Three-layer defense:
+        1. Exponential backoff on 429 responses (reactive)
+        2. Decay toward base_cycle_wait on clean cycles
+        3. Proactive wait when remaining quota is low
+        """
+        client = self._ensure_client()
+        cfg = ADAPTIVE_BACKOFF
+
+        # Layer 1 & 2: backoff or decay based on recent 429s
+        if client.recent_429_count > 0:
+            self._consecutive_429_cycles += 1
+            self._cycle_wait = min(
+                self._cycle_wait * cfg.backoff_multiplier,
+                cfg.max_cycle_wait,
+            )
+            logger.warning(
+                "429 detected (%d this cycle). Backing off: next cycle in %.0fs",
+                client.recent_429_count,
+                self._cycle_wait,
+            )
+        else:
+            if self._consecutive_429_cycles > 0:
+                self._consecutive_429_cycles = 0
+            self._cycle_wait = max(
+                self._cycle_wait * cfg.decay_factor,
+                cfg.base_cycle_wait,
+            )
+
+        wait = self._cycle_wait
+
+        # Layer 3: proactive wait when remaining quota is low
+        remaining = client.rate_limit_remaining
+        if remaining is not None and remaining <= cfg.remaining_threshold:
+            reset_at = client.rate_limit_reset
+            if reset_at is not None and reset_at > time.time():
+                proactive = reset_at - time.time()
+            else:
+                proactive = cfg.proactive_wait_seconds
+            wait = max(wait, proactive)
+            logger.info(
+                "Rate limit remaining=%d <= %d. Proactive wait: %.0fs",
+                remaining,
+                cfg.remaining_threshold,
+                wait,
+            )
+
+        client.reset_429_count()
+        return wait
 
     # ------------------------------------------------------------------
     # Content filters and confirmation
@@ -508,12 +567,13 @@ class Agent:
                 except Exception:
                     logger.exception("Error in session cycle, continuing...")
 
-                # Wait before next cycle
-                wait = min(
-                    scheduler.seconds_until_comment(),
-                    scheduler.seconds_until_post(),
-                    60.0,
+                # Wait before next cycle: respect both scheduler and adaptive backoff
+                adaptive_wait = self._adaptive_cycle_wait()
+                wait = max(
+                    min(scheduler.seconds_until_comment(), scheduler.seconds_until_post()),
+                    adaptive_wait,
                 )
+                wait = min(wait, max(0.0, end_time - time.time()))
                 if wait > 0 and time.time() + wait < end_time and not self._shutdown_requested:
                     logger.info("Next cycle in %.0fs", wait)
                     time.sleep(wait)
@@ -599,9 +659,13 @@ class Agent:
 
     def _run_feed_cycle(self, end_time: float) -> None:
         """Fetch and engage with posts from the feed."""
+        client = self._ensure_client()
         posts = self._get_feed()
         for post in posts:
             if time.time() >= end_time or self._rate_limited:
+                break
+            if not client.has_budget(ADAPTIVE_BACKOFF.cycle_budget_reserve):
+                logger.info("Rate limit budget low, pausing feed engagement")
                 break
             challenge = post.get("verification_challenge")
             if challenge:
