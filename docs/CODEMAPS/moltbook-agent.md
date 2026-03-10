@@ -1,60 +1,71 @@
-<!-- Generated: 2026-03-08 | Files scanned: 14 | Token estimate: ~1100 -->
+<!-- Generated: 2026-03-10 | Files scanned: 20 | Token estimate: ~1200 -->
 # Moltbook Agent Codemap
 
 ## Module Dependency Graph
 
 ```
-cli.py (178L)
- -> agent.py (825L)
-     -> auth.py (103L)         -- load/save credentials, register
-     -> client.py (218L)       -- HTTP client (auth, domain lock, retry, submolt subscribe)
-     -> config.py (82L)        -- constants, rate limits, security patterns
-     -> content.py (169L)      -- rules-based content, dedup, LLM generation
-     -> domain.py (270L)       -- domain config + prompt/rules loader (DomainConfig, PromptTemplates, RulesContent)
-     -> llm.py (410L)          -- Ollama interface, circuit breaker, sanitization
-     -> prompts.py (51L)       -- lazy-loading proxy to config/prompts/*.md
-     -> memory.py (678L)       -- 3-layer memory (EpisodeLog + KnowledgeStore + facade)
-     -> scheduler.py (120L)    -- rate limit scheduling, persistence
-     -> verification.py (236L) -- obfuscated math challenge solver
- -> distill.py (126L)          -- sleep-time memory distillation
+cli.py (184L)  -- composition root
+ -> core/
+ |    config.py (26L)       -- security constants (FORBIDDEN_*, VALID_*, MAX_*)
+ |    domain.py (285L)      -- domain config + prompt/rules loader
+ |    prompts.py (51L)      -- lazy-loading proxy to config/prompts/*.md
+ |    llm.py (278L)         -- Ollama interface, circuit breaker, sanitization
+ |    memory.py (722L)      -- 3-layer memory (EpisodeLog + KnowledgeStore + facade)
+ |    scheduler.py (165L)   -- rate limit scheduling, persistence
+ |    distill.py (250L)     -- sleep-time memory distillation
+ |
+ -> adapters/moltbook/
+      config.py (62L)          -- URLs, paths, timeouts, rate limits
+      agent.py (623L)          -- session orchestrator (feed/reply/post cycles)
+      reply_handler.py (323L)  -- notification reply processing
+      post_pipeline.py (147L)  -- dynamic post generation pipeline
+      client.py (234L)         -- HTTP client (auth, domain lock, retry)
+      auth.py (111L)           -- credential management, register
+      content.py (154L)        -- rules-based content, dedup, LLM generation
+      llm_functions.py (220L)  -- Moltbook-specific LLM functions
+      verification.py (236L)   -- obfuscated math challenge solver
 
 config/                        -- externalized templates (domain-swappable)
   domain.json                  -- submolts, thresholds, topic keywords
-  prompts/*.md (11 files)      -- LLM prompt templates with {placeholders}
+  prompts/*.md (13 files)      -- LLM prompt templates with {placeholders}
   rules/contemplative/*.md     -- domain-specific content (4 axioms + intro)
 ```
+
+**Total: 20 modules, ~4077 LOC**
 
 ## Key Classes
 
 | Class | File | Role |
 |-------|------|------|
-| `Agent` | agent.py:57 | Session orchestrator (feed/reply/post cycles) |
-| `MoltbookClient` | client.py:33 | HTTP client with auth/domain/retry |
-| `MoltbookClientError` | client.py:25 | Error with `status_code` attribute |
-| `EpisodeLog` | memory.py:82 | Append-only daily JSONL log |
-| `KnowledgeStore` | memory.py:173 | Distilled knowledge as Markdown |
-| `MemoryStore` | memory.py:334 | Facade over EpisodeLog + KnowledgeStore |
-| `Interaction` | memory.py:37 | Frozen dataclass (Literal direction/type) |
-| `PostRecord` | memory.py:49 | Frozen dataclass for post history |
-| `Insight` | memory.py:59 | Frozen dataclass for session reflections |
-| `DomainConfig` | domain.py:28 | Frozen dataclass: domain settings from JSON |
-| `PromptTemplates` | domain.py:47 | Frozen dataclass: all prompt templates |
-| `RulesContent` | domain.py:64 | Frozen dataclass: introduction + axiom templates |
-| `ContentManager` | content.py:83 | Rules-based content with dedup |
-| `Scheduler` | scheduler.py:16 | Persistent rate limit enforcement |
-| `VerificationTracker` | verification.py:215 | Failure counting, auto-stop |
-| `AutonomyLevel` | agent.py:51 | Enum: APPROVE / GUARDED / AUTO |
+| `Agent` | adapters/moltbook/agent.py | Session orchestrator (feed/reply/post cycles) |
+| `ReplyHandler` | adapters/moltbook/reply_handler.py | Notification reply processing |
+| `PostPipeline` | adapters/moltbook/post_pipeline.py | Dynamic post generation pipeline |
+| `MoltbookClient` | adapters/moltbook/client.py | HTTP client with auth/domain/retry |
+| `MoltbookClientError` | adapters/moltbook/client.py | Error with `status_code` attribute |
+| `EpisodeLog` | core/memory.py | Append-only daily JSONL log |
+| `KnowledgeStore` | core/memory.py | Distilled knowledge as Markdown |
+| `MemoryStore` | core/memory.py | Facade over EpisodeLog + KnowledgeStore |
+| `Interaction` | core/memory.py | Frozen dataclass (Literal direction/type) |
+| `PostRecord` | core/memory.py | Frozen dataclass for post history |
+| `Insight` | core/memory.py | Frozen dataclass for session reflections |
+| `DomainConfig` | core/domain.py | Frozen dataclass: domain settings from JSON |
+| `PromptTemplates` | core/domain.py | Frozen dataclass: all prompt templates |
+| `RulesContent` | core/domain.py | Frozen dataclass: introduction + axiom templates |
+| `ContentManager` | adapters/moltbook/content.py | Rules-based content with dedup |
+| `Scheduler` | core/scheduler.py | Persistent rate limit enforcement |
+| `VerificationTracker` | adapters/moltbook/verification.py | Failure counting, auto-stop |
+| `AutonomyLevel` | adapters/moltbook/agent.py | Enum: APPROVE / GUARDED / AUTO |
 
 ## CLI Commands
 
 ```
-contemplative-moltbook init                -> _do_init() (identity.md + knowledge.md)
-contemplative-moltbook register            -> Agent.do_register()
-contemplative-moltbook status              -> Agent.do_status()
-contemplative-moltbook introduce           -> Agent.do_introduce()
-contemplative-moltbook run [--session N]   -> Agent.run_session(N)
-contemplative-moltbook distill [--days N] [--dry-run] -> distill(days, dry_run)
-contemplative-moltbook solve TEXT          -> Agent.do_solve(TEXT)
+contemplative-agent init                -> _do_init() (identity.md + knowledge.md)
+contemplative-agent register            -> Agent.do_register()
+contemplative-agent status              -> Agent.do_status()
+contemplative-agent introduce           -> Agent.do_introduce()
+contemplative-agent run [--session N]   -> Agent.run_session(N)
+contemplative-agent distill [--days N] [--dry-run] -> distill(days, dry_run)
+contemplative-agent solve TEXT          -> Agent.do_solve(TEXT)
 
 Global flags:
   --domain-config PATH           Custom domain.json
@@ -62,7 +73,9 @@ Global flags:
   --approve / --guarded / --auto Autonomy level
 ```
 
-## LLM Functions (llm.py)
+## LLM Functions
+
+### core/llm.py (platform-independent)
 
 | Function | Input | Output |
 |----------|-------|--------|
@@ -75,8 +88,13 @@ Global flags:
 | `extract_topics(posts)` | feed posts | topic summary |
 | `check_topic_novelty(current, recent)` | topic strings | bool |
 | `summarize_post_topic(content)` | post content | 1-line summary (≤100 chars) |
-| `select_submolt(content, submolts)` | post content + submolt list | submolt name or None |
 | `generate_session_insight(actions, topics)` | session data | insight string |
+
+### adapters/moltbook/llm_functions.py (Moltbook-specific)
+
+| Function | Input | Output |
+|----------|-------|--------|
+| `select_submolt(content, submolts)` | post content + submolt list | submolt name or None |
 
 All outputs pass through `_sanitize_output()` (forbidden pattern removal + length cap)
 and inputs through `_wrap_untrusted_content()` (prompt injection mitigation).
@@ -85,7 +103,7 @@ Circuit breaker (`_CircuitBreaker`) opens after 5 consecutive failures, 120s coo
 
 ## Prompt Templates (config/prompts/ + domain.py)
 
-11 templates in `config/prompts/*.md`, lazy-loaded via `prompts.py` -> `domain.get_prompt_templates()`.
+13 templates in `config/prompts/*.md`, lazy-loaded via `prompts.py` → `domain.get_prompt_templates()`.
 3 templates use domain placeholders (`{topic_keywords}`, `{domain_name}`) resolved at runtime via `domain.resolve_prompt()`.
 Backward-compatible module constants (e.g. `SYSTEM_PROMPT`) available via `prompts.__getattr__`.
 
@@ -108,8 +126,8 @@ loaded via `domain.load_rules()` with `{repo_url}` placeholder resolved from `do
 
 ```
 Layer 1: EpisodeLog (append-only)
-  logs/2026-03-08.jsonl  <- immediate write on every action
-  logs/2026-03-07.jsonl
+  logs/2026-03-10.jsonl  <- immediate write on every action
+  logs/2026-03-09.jsonl
   ...
 
 Layer 2: KnowledgeStore (distilled)
@@ -128,13 +146,13 @@ Layer 3: Identity (static)
 ```
 External Input          Validation
 --------------          ----------
-post_id                 VALID_ID_PATTERN (config.py)
+post_id                 VALID_ID_PATTERN (core/config.py)
 LLM output              _sanitize_output() substring + word boundary
 Feed content            _wrap_untrusted_content() + 1000 char cap
 Knowledge context       _wrap_untrusted_content() wrapping
 Identity file           FORBIDDEN_SUBSTRING_PATTERNS check
 domain.json             FORBIDDEN_SUBSTRING_PATTERNS check on raw JSON
 HTTP redirects          allow_redirects=False
-API domain              ALLOWED_DOMAIN check
+API domain              ALLOWED_DOMAIN check (adapters/moltbook/config.py)
 Ollama URL              localhost-only validation
 ```

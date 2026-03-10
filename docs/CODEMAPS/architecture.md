@@ -1,31 +1,50 @@
-<!-- Generated: 2026-03-08 | Files scanned: 21 | Token estimate: ~650 -->
+<!-- Generated: 2026-03-10 | Files scanned: 21 | Token estimate: ~650 -->
 # Architecture
 
 ## Project Type
-Monorepo: alignment rules + 2 Python applications (agent + benchmark)
+Python application: Contemplative AI agent with core/adapter separation
 
 ## System Diagram
 
 ```
-                    contemplative-agent-rules
-                    ========================
-  rules/contemplative/     prompts/      adapters/
-  (4 axiom .md files)      (full.md)     (cursor/copilot/generic)
+                    contemplative-agent
+                    ===================
+  config/
+    domain.json           prompts/*.md (13)    rules/contemplative/*.md (5)
          |
          v
-  +-----------------+     +-------------------------+
-  | moltbook-agent  |     | benchmarks/prisoners-   |
-  | (Python 3.9+)   |     | dilemma (Python 3.9+)   |
-  | 14 modules      |     | 6 modules               |
-  | ~3460 LOC       |     |                         |
-  +-----------------+     +-------------------------+
-         |                          |
-    Moltbook API              Ollama (local)
-    (www.moltbook.com)        qwen3.5:9b
-         |                          |
-    Ollama (local) <----------------+
-    qwen3.5:9b
+  +-------------------------------------------+
+  | src/contemplative_agent/                   |
+  |                                            |
+  |  core/  (platform-independent)             |
+  |    config.py  domain.py  prompts.py        |
+  |    llm.py  memory.py  distill.py           |
+  |    scheduler.py                            |
+  |                                            |
+  |  adapters/moltbook/  (platform-specific)   |
+  |    agent.py  client.py  auth.py            |
+  |    llm_functions.py  content.py            |
+  |    reply_handler.py  post_pipeline.py      |
+  |    verification.py  config.py              |
+  |                                            |
+  |  cli.py  (composition root)                |
+  +-------------------------------------------+
+         |                    |
+    Moltbook API         Ollama (local)
+    (www.moltbook.com)   qwen3.5:9b
 ```
+
+## Import Rule
+
+```
+core/  <--  adapters/moltbook/  <--  cli.py (composition root)
+  ^              ^                      |
+  |              |                      |
+  +--------------+--- imports from -----+
+```
+
+- **core/ は adapters/ を import しない** (依存方向: adapters → core)
+- cli.py は唯一の例外: core/ と adapters/ の両方を import
 
 ## Data Flow — Moltbook Agent
 
@@ -35,9 +54,9 @@ CLI (argparse)
  v
 Agent.run_session()
  |
- +-> _run_reply_cycle()  -- notifications -> generate_reply -> post comment
- +-> _run_feed_cycle()   -- feed -> score_relevance -> generate_comment -> post
- +-> _run_post_cycle()   -- extract_topics -> check_novelty -> dynamic post
+ +-> ReplyHandler._run_reply_cycle()  -- notifications -> generate_reply -> post comment
+ +-> Agent._run_feed_cycle()          -- feed -> score_relevance -> generate_comment -> post
+ +-> PostPipeline._run_post_cycle()   -- extract_topics -> check_novelty -> dynamic post
  |
  +-> MemoryStore (facade)
  |    +-> EpisodeLog     -- append-only JSONL (~/.config/moltbook/logs/)
@@ -53,7 +72,7 @@ Agent.run_session()
 ## Data Flow — Distillation (offline)
 
 ```
-CLI: contemplative-moltbook distill --days N
+CLI: contemplative-agent distill --days N
  |
  v
 distill()
@@ -64,20 +83,5 @@ distill()
  +-> EpisodeLog.cleanup()       -- remove logs older than 30 days
 ```
 
-## Data Flow — IPD Benchmark
-
-```
-CLI (argparse)
- |
- v
-run_benchmark()
- +-> play_match(LLMPlayer(baseline), opponent)
- +-> play_match(LLMPlayer(contemplative), opponent)
- |
- v
-cohens_d() -> format_report() -> save_results()
-```
-
 ## Entry Points
-- `contemplative-moltbook` -> `contemplative_moltbook.cli:main`
-- `ipd-benchmark` -> `ipd.cli:main`
+- `contemplative-agent` → `contemplative_agent.cli:main`

@@ -63,7 +63,7 @@ contemplative-agent --domain-config path/to/domain.json --rules-dir path/to/rule
 - Python 3.9+ (venv は 3.13.5)
 - 依存: requests のみ。LLM は Ollama (qwen3.5:9b, localhost)
 - ビルド: hatch
-- 15 モジュール、~3700 LOC
+- 20 モジュール、~4077 LOC
 
 ## セキュリティ方針
 
