@@ -8,9 +8,9 @@ from __future__ import annotations
 
 import json
 import logging
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Tuple
+from typing import Optional, Tuple
 
 from .config import FORBIDDEN_SUBSTRING_PATTERNS
 
@@ -67,7 +67,7 @@ class RulesContent:
     """Domain-specific rule/content templates loaded from rules directory."""
 
     introduction: str
-    axiom_templates: Dict[str, str] = field(default_factory=dict)
+    constitutional_clauses: str = ""
 
 
 def load_domain_config(path: Optional[Path] = None) -> DomainConfig:
@@ -188,19 +188,23 @@ def load_rules(rules_dir: Optional[Path] = None) -> RulesContent:
     if introduction_path.exists():
         introduction = introduction_path.read_text(encoding="utf-8").strip()
 
-    axiom_templates: Dict[str, str] = {}
-    for md_file in sorted(directory.glob("*.md")):
-        if md_file.name == "introduction.md":
-            continue
-        # Convert filename to key: "non-duality.md" -> "non_duality"
-        key = md_file.stem.replace("-", "_")
-        content = md_file.read_text(encoding="utf-8").strip()
-        if content:
-            axiom_templates[key] = content
+    # Load CCAI constitutional clauses (Appendix C) with forbidden-pattern validation
+    clauses = ""
+    clauses_path = directory / "contemplative-axioms.md"
+    if clauses_path.exists():
+        raw = clauses_path.read_text(encoding="utf-8").strip()
+        if raw:
+            raw_lower = raw.lower()
+            for pattern in FORBIDDEN_SUBSTRING_PATTERNS:
+                if pattern.lower() in raw_lower:
+                    raise ValueError(
+                        f"Constitutional clauses contain forbidden pattern: {pattern}"
+                    )
+            clauses = raw
 
     return RulesContent(
         introduction=introduction,
-        axiom_templates=axiom_templates,
+        constitutional_clauses=clauses,
     )
 
 

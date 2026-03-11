@@ -3,9 +3,9 @@
 import hashlib
 import logging
 from pathlib import Path
-from typing import Dict, Optional, Set
+from typing import Optional, Set
 
-from ...core.domain import DomainConfig, RulesContent, get_domain_config, get_rules, resolve_prompt
+from ...core.domain import DomainConfig, get_domain_config, get_rules, resolve_prompt
 from .llm_functions import generate_comment, generate_cooperation_post
 
 logger = logging.getLogger(__name__)
@@ -16,48 +16,33 @@ def _content_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
-def _resolve_rules_content(
-    rules: RulesContent, domain_config: DomainConfig
-) -> tuple[str, Dict[str, str]]:
-    """Resolve placeholders in rules content, returning (introduction, axioms)."""
-    introduction = resolve_prompt(rules.introduction, domain_config)
-    axiom_templates = {
-        key: resolve_prompt(template, domain_config)
-        for key, template in rules.axiom_templates.items()
-    }
-    return introduction, axiom_templates
+def _resolve_introduction(domain_config: DomainConfig) -> str:
+    """Resolve placeholders in the introduction template."""
+    rules = get_rules()
+    return resolve_prompt(rules.introduction, domain_config)
 
 
 # ---------------------------------------------------------------------------
-# Backward-compatible module-level constants (lazy-loaded)
+# Backward-compatible module-level constant (lazy-loaded)
 # ---------------------------------------------------------------------------
 
 class _LazyContent:
-    """Lazy proxy for INTRODUCTION_TEMPLATE and AXIOM_TEMPLATES."""
+    """Lazy proxy for INTRODUCTION_TEMPLATE."""
 
     def __init__(self) -> None:
         self._loaded = False
         self._introduction: str = ""
-        self._axiom_templates: Dict[str, str] = {}
 
     def _ensure_loaded(self) -> None:
         if not self._loaded:
-            rules = get_rules()
             domain_config = get_domain_config()
-            self._introduction, self._axiom_templates = _resolve_rules_content(
-                rules, domain_config
-            )
+            self._introduction = _resolve_introduction(domain_config)
             self._loaded = True
 
     @property
     def introduction(self) -> str:
         self._ensure_loaded()
         return self._introduction
-
-    @property
-    def axiom_templates(self) -> Dict[str, str]:
-        self._ensure_loaded()
-        return self._axiom_templates
 
 
 _lazy_content = _LazyContent()
@@ -67,16 +52,10 @@ def _get_introduction_template() -> str:
     return _lazy_content.introduction
 
 
-def _get_axiom_templates() -> Dict[str, str]:
-    return _lazy_content.axiom_templates
-
-
 # Module-level backward-compatible access
 def __getattr__(name: str) -> object:
     if name == "INTRODUCTION_TEMPLATE":
         return _get_introduction_template()
-    if name == "AXIOM_TEMPLATES":
-        return _get_axiom_templates()
     raise AttributeError(f"module 'content' has no attribute {name!r}")
 
 
@@ -92,18 +71,15 @@ class ContentManager:
         self._comment_count = 0
         self._post_count = 0
 
-        # Load rules and resolve placeholders
+        # Load rules and resolve introduction
         if rules_dir is not None or domain_config is not None:
             from ...core.domain import load_rules
 
             rules = load_rules(rules_dir) if rules_dir else get_rules()
             config = domain_config or get_domain_config()
-            self._introduction, self._axiom_templates = _resolve_rules_content(
-                rules, config
-            )
+            self._introduction = resolve_prompt(rules.introduction, config)
         else:
             self._introduction = _get_introduction_template()
-            self._axiom_templates = _get_axiom_templates()
 
     @property
     def comment_to_post_ratio(self) -> float:

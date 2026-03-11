@@ -3,7 +3,6 @@
 from unittest.mock import patch
 
 from contemplative_agent.adapters.moltbook.content import (
-    AXIOM_TEMPLATES,
     INTRODUCTION_TEMPLATE,
     ContentManager,
     _content_hash,
@@ -63,7 +62,5 @@ class TestContentManager:
         mgr._comment_count = 5
         assert mgr.comment_to_post_ratio == 5.0
 
-    def test_templates_contain_github_url(self):
+    def test_introduction_contains_github_url(self):
         assert "github.com" in INTRODUCTION_TEMPLATE
-        for template in AXIOM_TEMPLATES.values():
-            assert "github.com" in template

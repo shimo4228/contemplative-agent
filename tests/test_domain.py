@@ -142,19 +142,17 @@ class TestLoadRules:
     def test_loads_contemplative_rules(self):
         rules = load_rules()
         assert "contemplative" in rules.introduction.lower()
-        assert "mindfulness" in rules.axiom_templates
-        assert "emptiness" in rules.axiom_templates
-        assert "non_duality" in rules.axiom_templates
-        assert "boundless_care" in rules.axiom_templates
+
+    def test_loads_constitutional_clauses(self):
+        rules = load_rules()
+        assert "Emptiness" in rules.constitutional_clauses
+        assert "Non-Duality" in rules.constitutional_clauses
+        assert "Mindfulness" in rules.constitutional_clauses
+        assert "Boundless Care" in rules.constitutional_clauses
 
     def test_introduction_has_repo_placeholder(self):
         rules = load_rules()
         assert "{repo_url}" in rules.introduction
-
-    def test_axiom_templates_have_repo_placeholder(self):
-        rules = load_rules()
-        for key, template in rules.axiom_templates.items():
-            assert "{repo_url}" in template, f"{key} missing {{repo_url}}"
 
     def test_directory_not_found(self, tmp_path):
         with pytest.raises(FileNotFoundError):
@@ -165,27 +163,16 @@ class TestLoadRules:
         rules_dir.mkdir()
         rules = load_rules(rules_dir)
         assert rules.introduction == ""
-        assert rules.axiom_templates == {}
+        assert rules.constitutional_clauses == ""
 
-    def test_custom_rules(self, tmp_path):
+    def test_custom_rules_with_clauses(self, tmp_path):
         rules_dir = tmp_path / "rules"
         rules_dir.mkdir()
         (rules_dir / "introduction.md").write_text("Hello from custom domain")
-        (rules_dir / "topic-a.md").write_text("Topic A content")
-        (rules_dir / "topic-b.md").write_text("Topic B content")
+        (rules_dir / "contemplative-axioms.md").write_text("Test clauses")
         rules = load_rules(rules_dir)
         assert rules.introduction == "Hello from custom domain"
-        assert "topic_a" in rules.axiom_templates
-        assert "topic_b" in rules.axiom_templates
-
-    def test_filename_to_key_conversion(self, tmp_path):
-        rules_dir = tmp_path / "rules"
-        rules_dir.mkdir()
-        (rules_dir / "non-duality.md").write_text("content")
-        (rules_dir / "boundless-care.md").write_text("content")
-        rules = load_rules(rules_dir)
-        assert "non_duality" in rules.axiom_templates
-        assert "boundless_care" in rules.axiom_templates
+        assert rules.constitutional_clauses == "Test clauses"
 
 
 class TestResolvePrompt:
@@ -301,10 +288,7 @@ class TestEndToEndIntegration:
         assert "github.com" in resolved_intro
         assert "{repo_url}" not in resolved_intro
 
-    def test_axiom_templates_resolved(self):
-        config = load_domain_config()
+    def test_constitutional_clauses_loaded(self):
         rules = load_rules()
-        for key, template in rules.axiom_templates.items():
-            resolved = resolve_prompt(template, config)
-            assert "{repo_url}" not in resolved, f"{key} still has unresolved {{repo_url}}"
-            assert "github.com" in resolved, f"{key} missing repo URL"
+        assert rules.constitutional_clauses  # non-empty
+        assert "suffering" in rules.constitutional_clauses.lower()

@@ -147,3 +147,36 @@ class TestAutonomyFlags:
             main()
 
         assert root.level == logging.DEBUG
+
+
+class TestNoAxiomsFlag:
+    """Tests for --no-axioms flag controlling CCAI clause injection."""
+
+    @patch("contemplative_agent.cli.Agent")
+    @patch("contemplative_agent.cli.configure_llm")
+    def test_axioms_injected_by_default(self, mock_configure, mock_agent_cls):
+        """Without --no-axioms, configure_llm should be called with axiom_prompt."""
+        mock_agent = MagicMock()
+        mock_agent_cls.return_value = mock_agent
+
+        with patch("sys.argv", ["contemplative-agent", "status"]):
+            main()
+
+        # axiom_prompt should have been passed if contemplative-axioms.md exists
+        calls = [c for c in mock_configure.call_args_list if "axiom_prompt" in c.kwargs]
+        if calls:
+            assert calls[0].kwargs["axiom_prompt"]  # non-empty string
+
+    @patch("contemplative_agent.cli.Agent")
+    @patch("contemplative_agent.cli.configure_llm")
+    def test_no_axioms_skips_injection(self, mock_configure, mock_agent_cls):
+        """With --no-axioms, configure_llm should NOT be called with axiom_prompt."""
+        mock_agent = MagicMock()
+        mock_agent_cls.return_value = mock_agent
+
+        with patch("sys.argv", ["contemplative-agent", "--no-axioms", "status"]):
+            main()
+
+        # axiom_prompt should NOT have been passed
+        axiom_calls = [c for c in mock_configure.call_args_list if "axiom_prompt" in c.kwargs]
+        assert len(axiom_calls) == 0

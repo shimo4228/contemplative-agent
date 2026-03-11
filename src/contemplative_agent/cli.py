@@ -9,8 +9,15 @@ from pathlib import Path
 
 from .adapters.moltbook.agent import Agent, AutonomyLevel
 from .adapters.moltbook.config import IDENTITY_PATH, KNOWLEDGE_PATH, MOLTBOOK_DATA_DIR
-from .core.domain import load_domain_config, reset_caches, set_domain_config_cache
-from .core.llm import get_default_system_prompt
+from .core.domain import (
+    get_rules,
+    load_domain_config,
+    load_rules,
+    reset_caches,
+    set_domain_config_cache,
+    set_rules_cache,
+)
+from .core.llm import configure as configure_llm, get_default_system_prompt
 
 
 def _setup_logging(verbose: bool = False) -> None:
@@ -62,6 +69,13 @@ def main() -> None:
         type=Path,
         default=None,
         help="Path to domain.json configuration file",
+    )
+
+    # Contemplative axioms (CCAI) flag
+    parser.add_argument(
+        "--no-axioms",
+        action="store_true",
+        help="Disable contemplative axiom injection (CCAI clauses) for A/B testing",
     )
 
     # Autonomy level flags (mutually exclusive)
@@ -144,8 +158,13 @@ def main() -> None:
         domain_config = load_domain_config(args.domain_config)
         set_domain_config_cache(domain_config)
     if args.rules_dir is not None:
-        from .core.domain import load_rules, set_rules_cache
         set_rules_cache(load_rules(args.rules_dir))
+
+    # Load and inject CCAI constitutional clauses unless --no-axioms is set
+    if not args.no_axioms:
+        clauses = get_rules().constitutional_clauses
+        if clauses:
+            configure_llm(axiom_prompt=clauses)
 
     if args.command == "init":
         _do_init()
