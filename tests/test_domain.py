@@ -134,7 +134,6 @@ class TestLoadPromptTemplates:
     def test_domain_placeholders_in_templates(self):
         templates = load_prompt_templates()
         assert "{topic_keywords}" in templates.relevance
-        assert "{domain_name}" in templates.cooperation_post
         assert "{domain_name}" in templates.post_title
 
 
@@ -150,9 +149,10 @@ class TestLoadRules:
         assert "Mindfulness" in rules.constitutional_clauses
         assert "Boundless Care" in rules.constitutional_clauses
 
-    def test_introduction_has_repo_placeholder(self):
+    def test_introduction_no_push_links(self):
         rules = load_rules()
-        assert "{repo_url}" in rules.introduction
+        assert "{repo_url}" not in rules.introduction
+        assert "http" not in rules.introduction.lower()
 
     def test_directory_not_found(self, tmp_path):
         with pytest.raises(FileNotFoundError):
@@ -278,14 +278,13 @@ class TestEndToEndIntegration:
         config = load_domain_config()
         templates = load_prompt_templates()
         resolved = resolve_prompt(templates.cooperation_post, config)
-        assert "contemplative-ai" in resolved
         assert "{feed_topics}" in resolved
 
-    def test_rules_resolved_with_repo_url(self):
+    def test_rules_resolved_introduction(self):
         config = load_domain_config()
         rules = load_rules()
         resolved_intro = resolve_prompt(rules.introduction, config)
-        assert "github.com" in resolved_intro
+        assert "contemplative" in resolved_intro.lower()
         assert "{repo_url}" not in resolved_intro
 
     def test_constitutional_clauses_loaded(self):

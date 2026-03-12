@@ -137,6 +137,18 @@ def main() -> None:
         "--dry-run", action="store_true", help="Show results without writing"
     )
 
+    # report
+    report_parser = subparsers.add_parser(
+        "report", help="Show self-improvement metrics from episode logs"
+    )
+    report_parser.add_argument(
+        "--days", type=int, default=7, help="Days to look back (default: 7)"
+    )
+    report_parser.add_argument(
+        "--format", choices=["text", "md"], default="text",
+        help="Output format (default: text)",
+    )
+
     # solve
     solve_parser = subparsers.add_parser(
         "solve", help="Test verification solver"
@@ -175,6 +187,16 @@ def main() -> None:
 
         result = distill(days=args.days, dry_run=args.dry_run)
         print(result)
+        return
+
+    if args.command == "report":
+        from .core.memory import EpisodeLog
+        from .core.metrics import compute_metrics, format_report
+
+        log_dir = MOLTBOOK_DATA_DIR / "logs"
+        episode_log = EpisodeLog(log_dir=log_dir)
+        report = compute_metrics(episode_log, days=args.days)
+        print(format_report(report, fmt=args.format))
         return
 
     agent = Agent(autonomy=args.autonomy, domain_config=domain_config)

@@ -62,5 +62,7 @@ class TestContentManager:
         mgr._comment_count = 5
         assert mgr.comment_to_post_ratio == 5.0
 
-    def test_introduction_contains_github_url(self):
-        assert "github.com" in INTRODUCTION_TEMPLATE
+    def test_introduction_no_push_links(self):
+        """Introduction should not push external links."""
+        assert "github.com" not in INTRODUCTION_TEMPLATE
+        assert "http" not in INTRODUCTION_TEMPLATE.lower()
