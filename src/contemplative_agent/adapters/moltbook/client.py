@@ -425,8 +425,18 @@ class MoltbookClient:
             logger.warning("Failed to unfollow %s: %s", agent_name, exc)
             return False
 
+    _ALLOWED_PROFILE_FIELDS = frozenset({"description", "metadata"})
+
     def update_profile(self, **fields: Any) -> bool:
-        """PATCH /agents/me — update agent profile fields."""
+        """PATCH /agents/me — update agent profile fields.
+
+        Only 'description' and 'metadata' are accepted per the API spec.
+        Raises ValueError for unknown fields.
+        """
+        unknown = set(fields) - self._ALLOWED_PROFILE_FIELDS
+        if unknown:
+            logger.warning("Rejected unknown profile fields: %s", unknown)
+            return False
         try:
             self.patch("/agents/me", json=fields)
             logger.info("Profile updated: %s", list(fields.keys()))

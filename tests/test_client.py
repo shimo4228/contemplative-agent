@@ -623,6 +623,22 @@ class TestUpdateProfile:
         with patch.object(client._session, "request", return_value=mock_response):
             assert client.update_profile(description="New bio") is False
 
+    def test_rejects_unknown_fields(self):
+        client = MoltbookClient(api_key="test-key")
+        assert client.update_profile(api_key="stolen") is False
+
+    def test_rejects_mixed_known_and_unknown(self):
+        client = MoltbookClient(api_key="test-key")
+        assert client.update_profile(description="ok", evil="bad") is False
+
+    def test_allows_metadata_field(self):
+        client = MoltbookClient(api_key="test-key")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
+        with patch.object(client._session, "request", return_value=mock_response):
+            assert client.update_profile(metadata={"key": "val"}) is True
+
 
 class TestPatchMethod:
     def test_patch_request(self):

@@ -89,7 +89,7 @@ class Agent:
         self._actions_taken: List[str] = []
         self._commented_posts: Set[str] = set()
         self._own_post_ids: Set[str] = set()
-        self._rate_limited: bool = False
+        self._rate_limited: bool = False  # use set_rate_limited() from collaborators
         self._memory = memory or MemoryStore(
             path=LEGACY_MEMORY_PATH,
             log_dir=EPISODE_LOG_DIR,
@@ -114,6 +114,18 @@ class Agent:
         # Collaborators
         self._reply_handler = ReplyHandler(self)
         self._post_pipeline = PostPipeline(self)
+
+    # ------------------------------------------------------------------
+    # Public interface for collaborators
+    # ------------------------------------------------------------------
+
+    @property
+    def is_rate_limited(self) -> bool:
+        return self._rate_limited
+
+    def set_rate_limited(self) -> None:
+        """Signal that a 429 was received. Called by collaborators."""
+        self._rate_limited = True
 
     # ------------------------------------------------------------------
     # Client / scheduler lifecycle

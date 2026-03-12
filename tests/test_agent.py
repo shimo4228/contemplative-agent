@@ -1312,6 +1312,136 @@ class TestFetchHomeData:
         assert agent._home_data["activity_on_your_posts"] == activity
 
 
+class TestRunCycleFromHome:
+    """Tests for ReplyHandler.run_cycle_from_home()."""
+
+    def _make_agent_and_handler(self, tmp_path):
+        from contemplative_agent.adapters.moltbook.reply_handler import ReplyHandler
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        agent._own_agent_id = "me-123"
+        handler = ReplyHandler(agent)
+        return agent, handler
+
+    def test_skips_items_with_zero_notification_count(self, tmp_path):
+        agent, handler = self._make_agent_and_handler(tmp_path)
+        mock_client = MagicMock()
+        mock_client.has_write_budget.return_value = True
+        scheduler = MagicMock()
+        scheduler.can_comment.return_value = True
+
+        home_data = {
+            "activity_on_your_posts": [
+                {"post_id": "p1", "new_notification_count": 0},
+            ],
+        }
+        handler.run_cycle_from_home(
+            mock_client, scheduler, time.time() + 60, home_data,
+        )
+        mock_client.get_post_comments.assert_not_called()
+
+    def test_processes_items_with_new_notifications(self, tmp_path):
+        agent, handler = self._make_agent_and_handler(tmp_path)
+        mock_client = MagicMock()
+        mock_client.has_write_budget.return_value = True
+        mock_client.get_post_comments.return_value = []
+        mock_client.mark_notifications_read_by_post.return_value = True
+        scheduler = MagicMock()
+        scheduler.can_comment.return_value = True
+
+        home_data = {
+            "activity_on_your_posts": [
+                {"post_id": "valid-post-1", "new_notification_count": 3},
+            ],
+        }
+        handler.run_cycle_from_home(
+            mock_client, scheduler, time.time() + 60, home_data,
+        )
+        mock_client.get_post_comments.assert_called_once_with("valid-post-1")
+        mock_client.mark_notifications_read_by_post.assert_called_once_with("valid-post-1")
+
+    def test_invalid_post_id_is_skipped(self, tmp_path):
+        agent, handler = self._make_agent_and_handler(tmp_path)
+        mock_client = MagicMock()
+        mock_client.has_write_budget.return_value = True
+        scheduler = MagicMock()
+        scheduler.can_comment.return_value = True
+
+        home_data = {
+            "activity_on_your_posts": [
+                {"post_id": "../hack", "new_notification_count": 5},
+            ],
+        }
+        handler.run_cycle_from_home(
+            mock_client, scheduler, time.time() + 60, home_data,
+        )
+        mock_client.get_post_comments.assert_not_called()
+
+    def test_marks_notifications_read_after_processing(self, tmp_path):
+        agent, handler = self._make_agent_and_handler(tmp_path)
+        mock_client = MagicMock()
+        mock_client.has_write_budget.return_value = True
+        mock_client.get_post_comments.return_value = []
+        mock_client.mark_notifications_read_by_post.return_value = True
+        scheduler = MagicMock()
+        scheduler.can_comment.return_value = True
+
+        home_data = {
+            "activity_on_your_posts": [
+                {"post_id": "p1", "new_notification_count": 2},
+                {"post_id": "p2", "new_notification_count": 1},
+            ],
+        }
+        handler.run_cycle_from_home(
+            mock_client, scheduler, time.time() + 60, home_data,
+        )
+        assert mock_client.mark_notifications_read_by_post.call_count == 2
+
+    def test_respects_end_time(self, tmp_path):
+        agent, handler = self._make_agent_and_handler(tmp_path)
+        mock_client = MagicMock()
+        mock_client.has_write_budget.return_value = True
+        scheduler = MagicMock()
+        scheduler.can_comment.return_value = True
+
+        home_data = {
+            "activity_on_your_posts": [
+                {"post_id": "p1", "new_notification_count": 5},
+            ],
+        }
+        # end_time in the past
+        handler.run_cycle_from_home(
+            mock_client, scheduler, time.time() - 10, home_data,
+        )
+        mock_client.get_post_comments.assert_not_called()
+
+    def test_respects_write_budget(self, tmp_path):
+        agent, handler = self._make_agent_and_handler(tmp_path)
+        mock_client = MagicMock()
+        mock_client.has_write_budget.return_value = False
+        scheduler = MagicMock()
+        scheduler.can_comment.return_value = True
+
+        home_data = {
+            "activity_on_your_posts": [
+                {"post_id": "p1", "new_notification_count": 3},
+            ],
+        }
+        handler.run_cycle_from_home(
+            mock_client, scheduler, time.time() + 60, home_data,
+        )
+        mock_client.get_post_comments.assert_not_called()
+
+    def test_empty_activity_is_noop(self, tmp_path):
+        agent, handler = self._make_agent_and_handler(tmp_path)
+        mock_client = MagicMock()
+        scheduler = MagicMock()
+
+        handler.run_cycle_from_home(
+            mock_client, scheduler, time.time() + 60, {},
+        )
+        mock_client.get_post_comments.assert_not_called()
+
+
 class TestSelfPostSkip:
     """Skips posts authored by the agent itself."""
 

@@ -114,7 +114,7 @@ class ReplyHandler:
                 json.dumps(notif, ensure_ascii=False, default=str),
             )
 
-            if time.time() >= end_time or self._agent._rate_limited:
+            if time.time() >= end_time or self._agent.is_rate_limited:
                 break
             if not scheduler.can_comment():
                 break
@@ -269,7 +269,7 @@ class ReplyHandler:
         except MoltbookClientError as exc:
             logger.error("Failed to reply on %s: %s", post_id, exc)
             if exc.status_code == 429:
-                agent._rate_limited = True
+                agent.set_rate_limited()
 
     def _handle_post_comments(
         self,
@@ -285,7 +285,7 @@ class ReplyHandler:
         )
 
         for comment in comments:
-            if time.time() >= end_time or self._agent._rate_limited:
+            if time.time() >= end_time or self._agent.is_rate_limited:
                 break
             if not scheduler.can_comment():
                 break
@@ -334,7 +334,7 @@ class ReplyHandler:
             return
 
         for item in activity:
-            if time.time() >= end_time or self._agent._rate_limited:
+            if time.time() >= end_time or self._agent.is_rate_limited:
                 break
             if not scheduler.can_comment():
                 break
@@ -368,7 +368,7 @@ class ReplyHandler:
             return
 
         for post_id in list(self._agent._own_post_ids):
-            if time.time() >= end_time or self._agent._rate_limited:
+            if time.time() >= end_time or self._agent.is_rate_limited:
                 break
             if not scheduler.can_comment():
                 break
