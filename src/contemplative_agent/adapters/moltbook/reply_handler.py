@@ -6,16 +6,14 @@ import json
 import logging
 import time
 from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from typing import Callable
 
 from .client import MoltbookClient, MoltbookClientError
 from .config import ADAPTIVE_BACKOFF
 from .llm_functions import generate_reply
+from .session_context import SessionContext
 from ...core.config import VALID_ID_PATTERN
 from ...core.scheduler import Scheduler
-
-if TYPE_CHECKING:
-    from .agent import Agent
 
 logger = logging.getLogger(__name__)
 
@@ -89,8 +87,13 @@ class ReplyHandler:
     deduplication across the session.
     """
 
-    def __init__(self, agent: Agent) -> None:
-        self._agent = agent
+    def __init__(
+        self,
+        ctx: SessionContext,
+        confirm_action: Callable[[str, str], bool],
+    ) -> None:
+        self._ctx = ctx
+        self._confirm_action = confirm_action
 
     def run_cycle(
         self,
@@ -114,7 +117,7 @@ class ReplyHandler:
                 json.dumps(notif, ensure_ascii=False, default=str),
             )
 
-            if time.time() >= end_time or self._agent.is_rate_limited:
+            if time.time() >= end_time or self._ctx.is_rate_limited:
                 break
             if not scheduler.can_comment():
                 break
@@ -142,7 +145,7 @@ class ReplyHandler:
 
             # Skip if already handled this session
             reply_key = f"reply:{post_id}:{fields['id']}"
-            if reply_key in self._agent._commented_posts:
+            if reply_key in self._ctx.commented_posts:
                 logger.debug(
                     "Notification[%d] skipped: already handled key=%s",
                     i,
@@ -173,7 +176,7 @@ class ReplyHandler:
             replier_name = fields["agent_name"]
 
             # Skip our own comments to avoid self-reply loops
-            if self._agent._own_agent_id and replier_id == self._agent._own_agent_id:
+            if self._ctx.own_agent_id and replier_id == self._ctx.own_agent_id:
                 logger.debug("Notification[%d] skipped: own comment", i)
                 continue
 
@@ -203,10 +206,10 @@ class ReplyHandler:
         replier_name: str,
     ) -> None:
         """Generate and send a reply to a comment, recording interactions."""
-        agent = self._agent
-        history = agent._memory.get_history_with(replier_id, limit=5)
+        ctx = self._ctx
+        history = ctx.memory.get_history_with(replier_id, limit=5)
         history_summaries = [h.content_summary for h in history]
-        knowledge_ctx = agent._memory.knowledge.get_context_string() or None
+        knowledge_ctx = ctx.memory.knowledge.get_context_string() or None
 
         reply = generate_reply(
             original_post=original_post,
@@ -217,13 +220,13 @@ class ReplyHandler:
         if reply is None:
             return
 
-        if not agent._confirm_action(
+        if not self._confirm_action(
             f"Reply to {replier_name} on post {post_id}", reply
         ):
             return
 
         # Record the incoming comment first (chronological order)
-        agent._memory.record_interaction(
+        ctx.memory.record_interaction(
             timestamp=datetime.now(timezone.utc).isoformat(),
             agent_id=replier_id,
             agent_name=replier_name,
@@ -240,18 +243,18 @@ class ReplyHandler:
                 json={"content": reply},
             )
             scheduler.record_comment()
-            agent._commented_posts.add(reply_key)
-            agent._actions_taken.append(
+            ctx.commented_posts.add(reply_key)
+            ctx.actions_taken.append(
                 f"Replied to {replier_name} on {post_id}"
             )
             logger.info(
                 ">> Reply to %s on %s:\n%s", replier_name, post_id[:12], reply
             )
-            agent._memory.episodes.append("activity", {
+            ctx.memory.episodes.append("activity", {
                 "action": "reply", "post_id": post_id,
                 "content": reply[:200], "target_agent": replier_name,
             })
-            agent._memory.record_interaction(
+            ctx.memory.record_interaction(
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 agent_id=replier_id,
                 agent_name=replier_name,
@@ -269,7 +272,7 @@ class ReplyHandler:
         except MoltbookClientError as exc:
             logger.error("Failed to reply on %s: %s", post_id, exc)
             if exc.status_code == 429:
-                agent.set_rate_limited()
+                ctx.set_rate_limited()
 
     def _handle_post_comments(
         self,
@@ -285,7 +288,7 @@ class ReplyHandler:
         )
 
         for comment in comments:
-            if time.time() >= end_time or self._agent.is_rate_limited:
+            if time.time() >= end_time or self._ctx.is_rate_limited:
                 break
             if not scheduler.can_comment():
                 break
@@ -295,11 +298,11 @@ class ReplyHandler:
 
             fields = extract_agent_fields(comment)
             reply_key = f"reply:{post_id}:{fields['id']}"
-            if reply_key in self._agent._commented_posts:
+            if reply_key in self._ctx.commented_posts:
                 continue
 
             # Skip our own comments to avoid self-reply loops
-            if self._agent._own_agent_id and fields["agent_id"] == self._agent._own_agent_id:
+            if self._ctx.own_agent_id and fields["agent_id"] == self._ctx.own_agent_id:
                 continue
 
             if not fields["content"]:
@@ -334,7 +337,7 @@ class ReplyHandler:
             return
 
         for item in activity:
-            if time.time() >= end_time or self._agent.is_rate_limited:
+            if time.time() >= end_time or self._ctx.is_rate_limited:
                 break
             if not scheduler.can_comment():
                 break
@@ -363,12 +366,12 @@ class ReplyHandler:
         end_time: float,
     ) -> None:
         """Fallback: fetch comments on our own posts and reply to new ones."""
-        if not self._agent._own_post_ids:
+        if not self._ctx.own_post_ids:
             logger.debug("No own post IDs tracked; skipping comment check")
             return
 
-        for post_id in list(self._agent._own_post_ids):
-            if time.time() >= end_time or self._agent.is_rate_limited:
+        for post_id in list(self._ctx.own_post_ids):
+            if time.time() >= end_time or self._ctx.is_rate_limited:
                 break
             if not scheduler.can_comment():
                 break

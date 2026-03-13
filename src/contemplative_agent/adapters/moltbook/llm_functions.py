@@ -20,7 +20,7 @@ from ...core.prompts import (
     TOPIC_NOVELTY_PROMPT,
     TOPIC_SUMMARY_PROMPT,
 )
-from ...core.llm import _wrap_untrusted_content, generate
+from ...core.llm import generate, wrap_untrusted_content
 
 logger = logging.getLogger(__name__)
 
@@ -29,7 +29,7 @@ def score_relevance(post_text: str) -> float:
     """Score a post's relevance to domain topics (0.0 to 1.0)."""
     domain = get_domain_config()
     resolved = resolve_prompt(RELEVANCE_PROMPT, domain)
-    prompt = resolved.format(post_content=_wrap_untrusted_content(post_text))
+    prompt = resolved.format(post_content=wrap_untrusted_content(post_text))
     result = generate(prompt, max_length=50)
     if result is None:
         return 0.0
@@ -44,7 +44,7 @@ def score_relevance(post_text: str) -> float:
 
 def generate_comment(post_text: str) -> Optional[str]:
     """Generate a contextual comment for a post."""
-    prompt = COMMENT_PROMPT.format(post_content=_wrap_untrusted_content(post_text))
+    prompt = COMMENT_PROMPT.format(post_content=wrap_untrusted_content(post_text))
     return generate(prompt, max_length=MAX_COMMENT_LENGTH)
 
 
@@ -59,7 +59,7 @@ def generate_cooperation_post(
         lines = "\n".join(f"- {i}" for i in recent_insights)
         insights_section = (
             "\n\nPrevious insights from your sessions:\n"
-            + _wrap_untrusted_content(lines)
+            + wrap_untrusted_content(lines)
             + "\nTake these into account when writing.\n"
         )
 
@@ -67,13 +67,13 @@ def generate_cooperation_post(
     if knowledge_context:
         knowledge_section = (
             "\n\nYour accumulated knowledge:\n"
-            + _wrap_untrusted_content(knowledge_context)
+            + wrap_untrusted_content(knowledge_context)
         )
 
     domain = get_domain_config()
     resolved = resolve_prompt(COOPERATION_POST_PROMPT, domain)
     prompt = resolved.format(
-        feed_topics=_wrap_untrusted_content(feed_topics),
+        feed_topics=wrap_untrusted_content(feed_topics),
         insights_section=insights_section,
         knowledge_section=knowledge_section,
     )
@@ -94,7 +94,7 @@ def generate_reply(
         )
         history_section = (
             "\nPrevious exchanges with this agent:\n"
-            + _wrap_untrusted_content(history_lines)
+            + wrap_untrusted_content(history_lines)
             + "\n"
         )
 
@@ -102,15 +102,15 @@ def generate_reply(
     if knowledge_context:
         knowledge_section = (
             "\nYour accumulated knowledge:\n"
-            + _wrap_untrusted_content(knowledge_context)
+            + wrap_untrusted_content(knowledge_context)
             + "\n"
         )
 
     prompt = REPLY_PROMPT.format(
         history_section=history_section,
         knowledge_section=knowledge_section,
-        original_post=_wrap_untrusted_content(original_post),
-        their_comment=_wrap_untrusted_content(their_comment),
+        original_post=wrap_untrusted_content(original_post),
+        their_comment=wrap_untrusted_content(their_comment),
     )
     return generate(prompt, max_length=MAX_COMMENT_LENGTH)
 
@@ -120,7 +120,7 @@ def generate_post_title(feed_topics: str) -> Optional[str]:
     domain = get_domain_config()
     resolved = resolve_prompt(POST_TITLE_PROMPT, domain)
     prompt = resolved.format(
-        feed_topics=_wrap_untrusted_content(feed_topics),
+        feed_topics=wrap_untrusted_content(feed_topics),
     )
     result = generate(prompt, max_length=100)
     if result:
@@ -137,7 +137,7 @@ def extract_topics(posts: list[dict]) -> Optional[str]:
     if not combined.strip():
         return None
     prompt = TOPIC_EXTRACTION_PROMPT.format(
-        combined_posts=_wrap_untrusted_content(combined),
+        combined_posts=wrap_untrusted_content(combined),
     )
     return generate(prompt, max_length=500)
 
@@ -151,8 +151,8 @@ def check_topic_novelty(
 
     recent_lines = "\n".join(f"- {t}" for t in recent_topics)
     prompt = TOPIC_NOVELTY_PROMPT.format(
-        recent_topics=_wrap_untrusted_content(recent_lines),
-        current_topics=_wrap_untrusted_content(current_topics),
+        recent_topics=wrap_untrusted_content(recent_lines),
+        current_topics=wrap_untrusted_content(current_topics),
     )
     result = generate(prompt, max_length=50)
     if result is None:
@@ -164,7 +164,7 @@ def check_topic_novelty(
 def summarize_post_topic(content: str) -> str:
     """Generate a 1-line topic summary for storage in memory."""
     prompt = TOPIC_SUMMARY_PROMPT.format(
-        post_content=_wrap_untrusted_content(content),
+        post_content=wrap_untrusted_content(content),
     )
     result = generate(prompt, max_length=120)
     if result:
@@ -179,7 +179,7 @@ def select_submolt(
     submolt_list = ", ".join(submolts)
     prompt = SUBMOLT_SELECTION_PROMPT.format(
         submolt_list=submolt_list,
-        post_content=_wrap_untrusted_content(content),
+        post_content=wrap_untrusted_content(content),
     )
     result = generate(prompt, max_length=50)
     if result is None:
@@ -211,8 +211,8 @@ def generate_session_insight(
         "\n".join(f"- {t}" for t in recent_topics) if recent_topics else "None"
     )
     prompt = SESSION_INSIGHT_PROMPT.format(
-        actions_text=_wrap_untrusted_content(actions_text),
-        topics_text=_wrap_untrusted_content(topics_text),
+        actions_text=wrap_untrusted_content(actions_text),
+        topics_text=wrap_untrusted_content(topics_text),
     )
     result = generate(prompt, max_length=200)
     if result:

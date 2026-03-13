@@ -23,13 +23,15 @@ src/contemplative_agent/
   adapters/
     moltbook/                           # Moltbook プラットフォーム固有
       config.py                         # URL, パス, タイムアウト, レート制限
-      agent.py                          # セッション管理・オーケストレータ
+      agent.py                          # セッション管理・オーケストレータ (570行)
+      session_context.py                # 共有セッション状態 (協力者間の明示的コントラクト)
+      feed_manager.py                   # フィード取得・スコアリング・エンゲージメント
       client.py                         # HTTP クライアント
       auth.py                           # クレデンシャル管理
       content.py                        # コンテンツテンプレート
       llm_functions.py                  # Moltbook 固有 LLM 関数
-      reply_handler.py                  # 通知返信処理
-      post_pipeline.py                  # 動的投稿生成パイプライン
+      reply_handler.py                  # 通知返信処理 (SessionContext 依存)
+      post_pipeline.py                  # 動的投稿生成パイプライン (SessionContext 依存)
       verification.py                   # 認証チャレンジソルバー
 tests/                                  # テストスイート
 ```
@@ -40,6 +42,7 @@ tests/                                  # テストスイート
 - cli.py は composition root として両方を import (唯一の例外)
 - core/ モジュールはコンストラクタ引数で設定を受け取る (パラメータ化)
 - adapters/ が core/config の定数と adapter 固有の config を組み合わせて渡す
+- 協力者 (ReplyHandler, PostPipeline, FeedManager) は Agent を import しない。SessionContext + Callable で依存注入
 
 ## 開発環境
 
@@ -65,7 +68,7 @@ contemplative-agent --domain-config path/to/domain.json --rules-dir path/to/rule
 - Python 3.9+ (venv は 3.13.5)
 - 依存: requests のみ。LLM は Ollama (qwen3.5:9b, localhost)
 - ビルド: hatch
-- 21 モジュール、~4220 LOC
+- 23 モジュール、~4560 LOC (agent.py 780→570行、session_context.py/feed_manager.py 新規)
 
 ## セキュリティ方針
 
@@ -82,7 +85,7 @@ contemplative-agent --domain-config path/to/domain.json --rules-dir path/to/rule
 
 ## テスト
 
-510件全パス (2026-03-12)。
+520件全パス (2026-03-14)。
 distill 94%, memory 93%, verification 94%, agent 90%, scheduler 88%, content 87%, llm 80%, client 79%, cli 75%, auth 75%, domain, prompts, config (core/adapters 分割済み)。
 
 ## メモリアーキテクチャ (3層)

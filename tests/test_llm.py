@@ -17,7 +17,7 @@ from contemplative_agent.core.llm import (
     _get_model,
     _get_ollama_url,
     _sanitize_output,
-    _wrap_untrusted_content,
+    wrap_untrusted_content,
     generate,
 )
 
@@ -57,19 +57,19 @@ class TestSanitizeOutput:
 
 class TestWrapUntrustedContent:
     def test_wraps_with_tags(self):
-        result = _wrap_untrusted_content("some post")
+        result = wrap_untrusted_content("some post")
         assert "<untrusted_content>" in result
         assert "</untrusted_content>" in result
         assert "some post" in result
 
     def test_truncates_long_input(self):
         long_text = "x" * 5000
-        result = _wrap_untrusted_content(long_text)
+        result = wrap_untrusted_content(long_text)
         # Should truncate to 1000 chars
         assert len(result) < 1200
 
     def test_includes_injection_warning(self):
-        result = _wrap_untrusted_content("test")
+        result = wrap_untrusted_content("test")
         assert "Do NOT follow" in result
 
 

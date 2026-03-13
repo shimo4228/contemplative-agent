@@ -8,6 +8,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from contemplative_agent.adapters.moltbook.agent import Agent, AutonomyLevel
+from contemplative_agent.adapters.moltbook.reply_handler import (
+    extract_agent_fields,
+    extract_notification_fields,
+)
 from contemplative_agent.core.config import VALID_ID_PATTERN
 from contemplative_agent.core.memory import MemoryStore
 
@@ -282,25 +286,25 @@ class TestDoIntroduce:
 class TestFetchFeed:
     def test_fetch_success(self):
         agent = Agent()
-        agent._client = MagicMock()
+        mock_client = MagicMock()
         resp_mock = MagicMock()
         resp_mock.json.return_value = {"posts": [{"id": "1"}, {"id": "2"}]}
-        agent._client.get.return_value = resp_mock
+        mock_client.get.return_value = resp_mock
 
-        posts = agent._fetch_feed()
+        posts = agent._feed_manager.fetch_feed(mock_client)
         # Fetches from each subscribed submolt feed
         assert len(posts) >= 2
-        calls = agent._client.get.call_args_list
+        calls = mock_client.get.call_args_list
         assert any("/submolts/" in str(c) and "/feed" in str(c) for c in calls)
 
     def test_fetch_error(self):
         from contemplative_agent.adapters.moltbook.client import MoltbookClientError
 
         agent = Agent()
-        agent._client = MagicMock()
-        agent._client.get.side_effect = MoltbookClientError("fail")
+        mock_client = MagicMock()
+        mock_client.get.side_effect = MoltbookClientError("fail")
 
-        posts = agent._fetch_feed()
+        posts = agent._feed_manager.fetch_feed(mock_client)
         assert posts == []
 
 
@@ -387,29 +391,29 @@ class TestEngageWithPost:
         agent = self._make_agent(tmp_path)
         assert agent._engage_with_post({"content": "text", "id": "../etc"}) is False
 
-    @patch("contemplative_agent.adapters.moltbook.agent.score_relevance", return_value=0.3)
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.3)
     def test_below_threshold(self, mock_score, tmp_path):
         agent = self._make_agent(tmp_path)
         result = agent._engage_with_post({"content": "text", "id": "post1"})
         assert result is False
 
-    @patch("contemplative_agent.adapters.moltbook.agent.score_relevance", return_value=0.95)
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_rate_limit_reached(self, mock_score, tmp_path):
         agent = self._make_agent(tmp_path)
         agent._scheduler.can_comment.return_value = False
         result = agent._engage_with_post({"content": "text", "id": "post1"})
         assert result is False
 
-    @patch("contemplative_agent.adapters.moltbook.agent.score_relevance", return_value=0.95)
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_comment_generation_fails(self, mock_score, tmp_path):
         agent = self._make_agent(tmp_path)
         agent._content.create_comment.return_value = None
         result = agent._engage_with_post({"content": "text", "id": "post1"})
         assert result is False
 
-    @patch("contemplative_agent.adapters.moltbook.agent.time")
-    @patch("contemplative_agent.adapters.moltbook.agent.random")
-    @patch("contemplative_agent.adapters.moltbook.agent.score_relevance", return_value=0.95)
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_successful_comment(self, mock_score, mock_random, mock_time, tmp_path):
         mock_random.uniform.return_value = 60.0
         agent = self._make_agent(tmp_path)
@@ -424,7 +428,7 @@ class TestEngageWithPost:
         )
         assert len(agent._actions_taken) == 1
 
-    @patch("contemplative_agent.adapters.moltbook.agent.score_relevance", return_value=0.95)
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_comment_client_error(self, mock_score, tmp_path):
         from contemplative_agent.adapters.moltbook.client import MoltbookClientError
 
@@ -440,16 +444,19 @@ class TestRunFeedCycle:
     def test_processes_posts(self):
         agent = Agent(autonomy=AutonomyLevel.AUTO)
         agent._client = MagicMock()
+        agent._client.has_read_budget.return_value = True
+        agent._client.get_following_feed.return_value = []
         agent._scheduler = MagicMock()
+        fm = agent._feed_manager
 
         posts = [
             {"content": "post1", "id": "p1"},
             {"content": "post2", "id": "p2", "verification_challenge": {"text": "v", "id": "vc1"}},
         ]
 
-        with patch.object(agent, "_fetch_feed", return_value=posts), \
+        with patch.object(fm, "get_feed", return_value=posts), \
              patch.object(agent, "_handle_verification") as mock_verify, \
-             patch.object(agent, "_engage_with_post") as mock_engage:
+             patch.object(fm, "engage_with_post") as mock_engage:
             agent._run_feed_cycle(time.time() + 3600)
 
         mock_engage.assert_called_once()
@@ -458,10 +465,13 @@ class TestRunFeedCycle:
     def test_respects_end_time(self):
         agent = Agent(autonomy=AutonomyLevel.AUTO)
         agent._client = MagicMock()
+        agent._client.has_read_budget.return_value = True
+        agent._client.get_following_feed.return_value = []
         agent._scheduler = MagicMock()
+        fm = agent._feed_manager
 
-        with patch.object(agent, "_fetch_feed", return_value=[{"content": "x", "id": "1"}]), \
-             patch.object(agent, "_engage_with_post") as mock_engage:
+        with patch.object(fm, "get_feed", return_value=[{"content": "x", "id": "1"}]), \
+             patch.object(fm, "engage_with_post") as mock_engage:
             agent._run_feed_cycle(time.time() - 1)
 
         mock_engage.assert_not_called()
@@ -487,7 +497,7 @@ class TestRunPostCycle:
         agent._client.get.return_value = feed_resp
         agent._client.post.return_value = post_resp
 
-        agent._run_post_cycle(agent._client, agent._scheduler)
+        agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
         agent._client.post.assert_called_once()
         assert any("Posted: Test Title" in a for a in agent._actions_taken)
 
@@ -497,7 +507,7 @@ class TestRunPostCycle:
         agent._scheduler = MagicMock()
         agent._scheduler.can_post.return_value = False
 
-        agent._run_post_cycle(agent._client, agent._scheduler)
+        agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
         agent._client.post.assert_not_called()
 
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
@@ -514,7 +524,7 @@ class TestRunPostCycle:
         feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
         agent._client.get.return_value = feed_resp
 
-        agent._run_post_cycle(agent._client, agent._scheduler)
+        agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
         agent._client.post.assert_not_called()
 
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
@@ -535,7 +545,7 @@ class TestRunPostCycle:
         agent._client.get.return_value = feed_resp
         agent._client.post.side_effect = MoltbookClientError("fail")
 
-        agent._run_post_cycle(agent._client, agent._scheduler)
+        agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
         # Should not raise
 
 
@@ -550,7 +560,7 @@ class TestRunSession:
         agent = Agent(autonomy=AutonomyLevel.AUTO)
 
         with patch.object(agent, "_run_feed_cycle"), \
-             patch.object(agent, "_run_post_cycle"), \
+             patch.object(agent._post_pipeline, "run_cycle"), \
              patch.object(agent, "_print_report"):
             result = agent.run_session(duration_minutes=1)
 
@@ -574,7 +584,7 @@ class TestRunSession:
 class TestPrintReport:
     def test_print_report(self, capsys):
         agent = Agent()
-        agent._actions_taken = ["Action 1", "Action 2"]
+        agent._ctx.actions_taken.extend(["Action 1", "Action 2"])
         agent._scheduler = MagicMock()
         agent._scheduler.comments_remaining_today = 48
         agent._content = MagicMock()
@@ -588,7 +598,7 @@ class TestPrintReport:
 
     def test_print_report_no_scheduler(self, capsys):
         agent = Agent()
-        agent._actions_taken = []
+        agent._ctx.actions_taken.clear()
         agent._content = MagicMock()
         agent._content.comment_to_post_ratio = 0.0
 
@@ -610,7 +620,7 @@ class TestExtractNotificationFields:
             "agent_id": "a1",
             "agent_name": "Alice",
         }
-        fields = Agent._extract_notification_fields(notif)
+        fields = extract_notification_fields(notif)
         assert fields["type"] == "reply"
         assert fields["id"] == "n1"
         assert fields["post_id"] == "p1"
@@ -629,7 +639,7 @@ class TestExtractNotificationFields:
             "agentId": "a2",
             "agentName": "Bob",
         }
-        fields = Agent._extract_notification_fields(notif)
+        fields = extract_notification_fields(notif)
         assert fields["type"] == "comment"
         assert fields["id"] == "n2"
         assert fields["post_id"] == "p2"
@@ -647,7 +657,7 @@ class TestExtractNotificationFields:
             "original_content": "orig",
             "author": {"id": "a3", "name": "Carol"},
         }
-        fields = Agent._extract_notification_fields(notif)
+        fields = extract_notification_fields(notif)
         assert fields["type"] == "reply"
         assert fields["post_id"] == "p3"
         assert fields["content"] == "nested test"
@@ -663,12 +673,12 @@ class TestExtractNotificationFields:
             "content": "sender test",
             "sender": {"id": "a4", "name": "Dave"},
         }
-        fields = Agent._extract_notification_fields(notif)
+        fields = extract_notification_fields(notif)
         assert fields["agent_id"] == "a4"
         assert fields["agent_name"] == "Dave"
 
     def test_empty_notification(self):
-        fields = Agent._extract_notification_fields({})
+        fields = extract_notification_fields({})
         assert fields["type"] == ""
         assert fields["id"] == ""
         assert fields["post_id"] == ""
@@ -689,7 +699,7 @@ class TestExtractNotificationFields:
             "agent_id": "std-agent",
             "agentId": "camel-agent",
         }
-        fields = Agent._extract_notification_fields(notif)
+        fields = extract_notification_fields(notif)
         assert fields["type"] == "reply"
         assert fields["post_id"] == "standard"
         assert fields["content"] == "standard-content"
@@ -747,7 +757,7 @@ class TestOwnPostIdTracking:
         agent._client.get.return_value = feed_resp
         agent._client.post.return_value = post_resp
 
-        agent._run_dynamic_post(agent._client, agent._scheduler)
+        agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
         assert "dyn-post-1" in agent._own_post_ids
 
     def test_init_has_empty_own_post_ids(self):
@@ -783,7 +793,7 @@ class TestRunReplyCycle:
         ]
         agent._client.get_post_comments.return_value = []
 
-        agent._run_reply_cycle(agent._client, agent._scheduler, time.time() + 3600)
+        agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
         agent._client.post.assert_called_once_with(
             "/posts/p1/comments", json={"content": "My reply"}
@@ -807,7 +817,7 @@ class TestRunReplyCycle:
         ]
         agent._client.get_post_comments.return_value = []
 
-        agent._run_reply_cycle(agent._client, agent._scheduler, time.time() + 3600)
+        agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
         agent._client.post.assert_called_once_with(
             "/posts/p2/comments", json={"content": "My reply"}
@@ -821,7 +831,7 @@ class TestRunReplyCycle:
         ]
         agent._client.get_post_comments.return_value = []
 
-        agent._run_reply_cycle(agent._client, agent._scheduler, time.time() + 3600)
+        agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
         agent._client.post.assert_not_called()
 
@@ -839,7 +849,7 @@ class TestRunReplyCycle:
         ]
         agent._client.get_post_comments.return_value = []
 
-        agent._run_reply_cycle(agent._client, agent._scheduler, time.time() + 3600)
+        agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
         agent._client.post.assert_not_called()
 
@@ -858,7 +868,7 @@ class TestRunReplyCycle:
         ]
         agent._client.get_post_comments.return_value = []
 
-        agent._run_reply_cycle(agent._client, agent._scheduler, time.time() + 3600)
+        agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
         agent._client.post.assert_not_called()
 
@@ -888,7 +898,7 @@ class TestCheckOwnPostComments:
             }
         ]
 
-        agent._check_own_post_comments(
+        agent._reply_handler.check_own_post_comments(
             agent._client, agent._scheduler, time.time() + 3600
         )
 
@@ -902,7 +912,7 @@ class TestCheckOwnPostComments:
         agent = self._make_agent()
         assert len(agent._own_post_ids) == 0
 
-        agent._check_own_post_comments(
+        agent._reply_handler.check_own_post_comments(
             agent._client, agent._scheduler, time.time() + 3600
         )
 
@@ -921,7 +931,7 @@ class TestCheckOwnPostComments:
             }
         ]
 
-        agent._check_own_post_comments(
+        agent._reply_handler.check_own_post_comments(
             agent._client, agent._scheduler, time.time() + 3600
         )
 
@@ -939,7 +949,7 @@ class TestCheckOwnPostComments:
             }
         ]
 
-        agent._check_own_post_comments(
+        agent._reply_handler.check_own_post_comments(
             agent._client, agent._scheduler, time.time() + 3600
         )
 
@@ -950,7 +960,7 @@ class TestCheckOwnPostComments:
         agent = self._make_agent()
         agent._own_post_ids.add("my-post-1")
 
-        agent._check_own_post_comments(
+        agent._reply_handler.check_own_post_comments(
             agent._client, agent._scheduler, time.time() - 1
         )
 
@@ -961,7 +971,7 @@ class TestCheckOwnPostComments:
         agent._own_post_ids.add("my-post-1")
         agent._rate_limited = True
 
-        agent._check_own_post_comments(
+        agent._reply_handler.check_own_post_comments(
             agent._client, agent._scheduler, time.time() + 3600
         )
 
@@ -972,7 +982,7 @@ class TestCheckOwnPostComments:
         agent._own_post_ids.add("my-post-1")
         agent._scheduler.can_comment.return_value = False
 
-        agent._check_own_post_comments(
+        agent._reply_handler.check_own_post_comments(
             agent._client, agent._scheduler, time.time() + 3600
         )
 
@@ -998,17 +1008,20 @@ class TestSelectiveMode:
         """Should process all posts from feed (no FEED_SCAN_LIMIT)."""
         agent = Agent(autonomy=AutonomyLevel.AUTO)
         agent._client = MagicMock()
+        agent._client.has_read_budget.return_value = True
+        agent._client.get_following_feed.return_value = []
         agent._scheduler = MagicMock()
+        fm = agent._feed_manager
 
         posts = [{"content": f"post{i}", "id": f"p{i}"} for i in range(20)]
 
-        with patch.object(agent, "_fetch_feed", return_value=posts), \
-             patch.object(agent, "_engage_with_post") as mock_engage:
+        with patch.object(fm, "get_feed", return_value=posts), \
+             patch.object(fm, "engage_with_post") as mock_engage:
             agent._run_feed_cycle(time.time() + 3600)
 
         assert mock_engage.call_count == 20
 
-    @patch("contemplative_agent.adapters.moltbook.agent.score_relevance", return_value=0.6)
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.6)
     def test_relevance_below_new_threshold(self, mock_score, tmp_path):
         """Score 0.6 should be rejected (below threshold 0.82)."""
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
@@ -1021,8 +1034,8 @@ class TestSelectiveMode:
         assert result is False
         agent._content.create_comment.assert_not_called()
 
-    @patch("contemplative_agent.adapters.moltbook.agent.score_relevance", return_value=0.9)
-    @patch("contemplative_agent.adapters.moltbook.agent.time")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.9)
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
     def test_cross_session_dedup(self, mock_time, mock_score, tmp_path):
         """Should skip posts that were commented on in previous sessions."""
         mock_time.time.return_value = 1000.0
@@ -1042,9 +1055,9 @@ class TestSelectiveMode:
         assert result is False
         agent._client.post.assert_not_called()
 
-    @patch("contemplative_agent.adapters.moltbook.agent.score_relevance", return_value=0.95)
-    @patch("contemplative_agent.adapters.moltbook.agent.random")
-    @patch("contemplative_agent.adapters.moltbook.agent.time")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
     def test_pacing_sleep_called(self, mock_time, mock_random, mock_score, tmp_path):
         """Should call time.sleep for pacing after successful comment."""
         mock_time.time.return_value = 1000.0
@@ -1099,7 +1112,7 @@ class TestDynamicPostSubmolt:
         mock_resp.json.return_value = {"id": "new-post-1"}
         agent._client.post.return_value = mock_resp
 
-        agent._run_dynamic_post(agent._client, agent._scheduler)
+        agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
 
         # Verify the submolt in the post request
         call_kwargs = agent._client.post.call_args[1]
@@ -1125,7 +1138,7 @@ class TestDynamicPostSubmolt:
         mock_resp.json.return_value = {"id": "new-post-2"}
         agent._client.post.return_value = mock_resp
 
-        agent._run_dynamic_post(agent._client, agent._scheduler)
+        agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
 
         call_kwargs = agent._client.post.call_args[1]
         assert call_kwargs["json"]["submolt"] == "alignment"
@@ -1209,7 +1222,7 @@ class TestExtractAgentFields:
 
     def test_basic_fields(self):
         data = {"id": "c1", "content": "hello", "agent_id": "a1", "agent_name": "Bot"}
-        result = Agent._extract_agent_fields(data)
+        result = extract_agent_fields(data)
         assert result["id"] == "c1"
         assert result["content"] == "hello"
         assert result["agent_id"] == "a1"
@@ -1217,7 +1230,7 @@ class TestExtractAgentFields:
 
     def test_fallback_fields(self):
         data = {"comment_id": "c2", "body": "hi", "agentId": "a2", "agentName": "Bot2"}
-        result = Agent._extract_agent_fields(data)
+        result = extract_agent_fields(data)
         assert result["id"] == "c2"
         assert result["content"] == "hi"
         assert result["agent_id"] == "a2"
@@ -1225,13 +1238,13 @@ class TestExtractAgentFields:
 
     def test_nested_author(self):
         data = {"author": {"id": "a3", "name": "Bot3"}, "text": "yo"}
-        result = Agent._extract_agent_fields(data)
+        result = extract_agent_fields(data)
         assert result["agent_id"] == "a3"
         assert result["agent_name"] == "Bot3"
         assert result["content"] == "yo"
 
     def test_empty_data_defaults(self):
-        result = Agent._extract_agent_fields({})
+        result = extract_agent_fields({})
         assert result["id"] == ""
         assert result["content"] == ""
         assert result["agent_id"] == "unknown"
@@ -1242,7 +1255,7 @@ class TestExtractAgentFields:
             "type": "reply", "post_id": "p1", "content": "hello",
             "agent_id": "a1", "agent_name": "Bot",
         }
-        result = Agent._extract_notification_fields(notif)
+        result = extract_notification_fields(notif)
         assert result["type"] == "reply"
         assert result["post_id"] == "p1"
         assert result["agent_id"] == "a1"
@@ -1316,11 +1329,9 @@ class TestRunCycleFromHome:
     """Tests for ReplyHandler.run_cycle_from_home()."""
 
     def _make_agent_and_handler(self, tmp_path):
-        from contemplative_agent.adapters.moltbook.reply_handler import ReplyHandler
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         agent._own_agent_id = "me-123"
-        handler = ReplyHandler(agent)
-        return agent, handler
+        return agent, agent._reply_handler
 
     def test_skips_items_with_zero_notification_count(self, tmp_path):
         agent, handler = self._make_agent_and_handler(tmp_path)
@@ -1445,7 +1456,7 @@ class TestRunCycleFromHome:
 class TestSelfPostSkip:
     """Skips posts authored by the agent itself."""
 
-    @patch("contemplative_agent.adapters.moltbook.agent.score_relevance", return_value=0.95)
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_skips_own_post(self, mock_score, tmp_path):
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         agent._client = MagicMock()
@@ -1462,7 +1473,7 @@ class TestSelfPostSkip:
         assert result is False
         mock_score.assert_not_called()
 
-    @patch("contemplative_agent.adapters.moltbook.agent.score_relevance", return_value=0.95)
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_allows_other_agent_post(self, mock_score, tmp_path):
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         agent._client = MagicMock()
@@ -1484,7 +1495,7 @@ class TestSelfPostSkip:
 class TestSubmoltFilter:
     """Skips posts from non-subscribed submolts."""
 
-    @patch("contemplative_agent.adapters.moltbook.agent.score_relevance", return_value=0.95)
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_skips_unsubscribed_submolt(self, mock_score, tmp_path):
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         agent._client = MagicMock()
@@ -1500,7 +1511,7 @@ class TestSubmoltFilter:
         assert result is False
         mock_score.assert_not_called()
 
-    @patch("contemplative_agent.adapters.moltbook.agent.score_relevance", return_value=0.95)
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_allows_post_without_submolt(self, mock_score, tmp_path):
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         agent._client = MagicMock()
@@ -1540,7 +1551,7 @@ class TestSelfReplySkip:
         ]
         agent._client.get_post_comments.return_value = []
 
-        agent._run_reply_cycle(
+        agent._reply_handler.run_cycle(
             agent._client, agent._scheduler, time.time() + 3600
         )
         mock_reply.assert_not_called()
@@ -1557,7 +1568,7 @@ class TestSelfReplySkip:
             }
         ]
 
-        agent._handle_post_comments(
+        agent._reply_handler._handle_post_comments(
             agent._client, agent._scheduler, "post1", time.time() + 3600
         )
         mock_reply.assert_not_called()
@@ -1574,7 +1585,7 @@ class TestNotificationRelatedPostId:
             "agent_id": "a1",
             "agent_name": "Bot",
         }
-        fields = Agent._extract_notification_fields(notif)
+        fields = extract_notification_fields(notif)
         assert fields["post_id"] == "related-1"
 
 
@@ -1608,7 +1619,7 @@ class TestFeedCache:
         agent._get_feed()
         first_call_count = agent._client.get.call_count
         # Simulate cache expiry
-        agent._feed_fetched_at = 0.0
+        agent._feed_manager._feed_fetched_at = 0.0
         agent._get_feed()
         # Should have fetched again (doubled the call count)
         assert agent._client.get.call_count == first_call_count * 2
