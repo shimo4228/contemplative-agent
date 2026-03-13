@@ -17,7 +17,9 @@ src/contemplative_agent/
     domain.py                           # ドメイン設定・テンプレートローダー
     prompts.py                          # プロンプトテンプレート遅延ロード
     llm.py                              # Ollama LLM インターフェース (パラメータ化, サーキットブレーカー)
-    memory.py                           # 3層メモリ (パラメータ化, パス注入)
+    episode_log.py                      # Layer 1: append-only JSONL ログ + 共有ユーティリティ
+    knowledge_store.py                  # Layer 2: 蒸留された知識 (Markdown 永続化)
+    memory.py                           # Layer 3: MemoryStore ファサード + dataclass + re-export
     distill.py                          # スリープタイム記憶蒸留
     scheduler.py                        # レート制限スケジューラ (パラメータ化)
   adapters/
@@ -68,7 +70,7 @@ contemplative-agent --domain-config path/to/domain.json --rules-dir path/to/rule
 - Python 3.9+ (venv は 3.13.5)
 - 依存: requests のみ。LLM は Ollama (qwen3.5:9b, localhost)
 - ビルド: hatch
-- 23 モジュール、~4560 LOC (agent.py 780→570行、session_context.py/feed_manager.py 新規)
+- 25 モジュール、~4940 LOC (memory.py 722行→3分割、llm_functions.py ヘルパー統一済み)
 
 ## セキュリティ方針
 
@@ -104,4 +106,4 @@ distill 94%, memory 93%, verification 94%, agent 90%, scheduler 88%, content 87%
 Laukkonen, R. et al. (2025). Contemplative Artificial Intelligence. arXiv:2504.15125
 
 # currentDate
-Today's date is 2026-03-12.
+Today's date is 2026-03-14.

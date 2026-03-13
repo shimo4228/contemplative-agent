@@ -25,11 +25,33 @@ from ...core.llm import generate, wrap_untrusted_content
 logger = logging.getLogger(__name__)
 
 
+def _resolve_domain_prompt(template: str) -> str:
+    """Resolve a prompt template with the current domain config."""
+    domain = get_domain_config()
+    return resolve_prompt(template, domain)
+
+
+def _build_context_section(
+    items: Optional[list[str]],
+    header: str,
+    limit: Optional[int] = None,
+) -> str:
+    """Build an optional context section from a list of items.
+
+    Returns empty string if items is None/empty.
+    """
+    if not items:
+        return ""
+    entries = items[-limit:] if limit else items
+    lines = "\n".join(f"- {item}" for item in entries)
+    return f"\n{header}:\n{wrap_untrusted_content(lines)}\n"
+
+
 def score_relevance(post_text: str) -> float:
     """Score a post's relevance to domain topics (0.0 to 1.0)."""
-    domain = get_domain_config()
-    resolved = resolve_prompt(RELEVANCE_PROMPT, domain)
-    prompt = resolved.format(post_content=wrap_untrusted_content(post_text))
+    prompt = _resolve_domain_prompt(RELEVANCE_PROMPT).format(
+        post_content=wrap_untrusted_content(post_text),
+    )
     result = generate(prompt, max_length=50)
     if result is None:
         return 0.0
@@ -54,14 +76,11 @@ def generate_cooperation_post(
     knowledge_context: Optional[str] = None,
 ) -> Optional[str]:
     """Generate a post that connects feed trends to contemplative axioms."""
-    insights_section = ""
-    if recent_insights:
-        lines = "\n".join(f"- {i}" for i in recent_insights)
-        insights_section = (
-            "\n\nPrevious insights from your sessions:\n"
-            + wrap_untrusted_content(lines)
-            + "\nTake these into account when writing.\n"
-        )
+    insights_section = _build_context_section(
+        recent_insights, "\nPrevious insights from your sessions",
+    )
+    if insights_section:
+        insights_section += "Take these into account when writing.\n"
 
     knowledge_section = ""
     if knowledge_context:
@@ -70,9 +89,7 @@ def generate_cooperation_post(
             + wrap_untrusted_content(knowledge_context)
         )
 
-    domain = get_domain_config()
-    resolved = resolve_prompt(COOPERATION_POST_PROMPT, domain)
-    prompt = resolved.format(
+    prompt = _resolve_domain_prompt(COOPERATION_POST_PROMPT).format(
         feed_topics=wrap_untrusted_content(feed_topics),
         insights_section=insights_section,
         knowledge_section=knowledge_section,
@@ -87,16 +104,9 @@ def generate_reply(
     knowledge_context: Optional[str] = None,
 ) -> Optional[str]:
     """Generate a reply that continues a conversation thread."""
-    history_section = ""
-    if conversation_history:
-        history_lines = "\n".join(
-            f"- {h}" for h in conversation_history[-5:]
-        )
-        history_section = (
-            "\nPrevious exchanges with this agent:\n"
-            + wrap_untrusted_content(history_lines)
-            + "\n"
-        )
+    history_section = _build_context_section(
+        conversation_history, "Previous exchanges with this agent", limit=5,
+    )
 
     knowledge_section = ""
     if knowledge_context:
@@ -117,9 +127,7 @@ def generate_reply(
 
 def generate_post_title(feed_topics: str) -> Optional[str]:
     """Generate a unique, specific post title from current feed topics."""
-    domain = get_domain_config()
-    resolved = resolve_prompt(POST_TITLE_PROMPT, domain)
-    prompt = resolved.format(
+    prompt = _resolve_domain_prompt(POST_TITLE_PROMPT).format(
         feed_topics=wrap_untrusted_content(feed_topics),
     )
     result = generate(prompt, max_length=100)
