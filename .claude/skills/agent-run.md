@@ -1,10 +1,19 @@
 ---
 name: agent-run
-description: contemplative-agent の起動コマンドリファレンス。フラグ順序の間違いを防ぐ
+description: contemplative-agent の起動・実行。「起動して」「動かして」「走らせて」「runして」等のエージェント実行指示に使用
 origin: original
+when_to_use: >
+  TRIGGER when: user asks to start, run, launch, or execute the contemplative agent.
+  Matches phrases like: "起動して", "動かして", "走らせて", "30分起動", "autoで", "run",
+  "エージェント起動", "セッション開始", "開始して".
+  DO NOT TRIGGER when: user asks about agent architecture, code changes, or debugging.
 ---
 
 # Agent Run — 起動リファレンス
+
+## デフォルト動作
+
+ユーザーからの起動指示では **常に `-v` を付ける**。スコアリング等の debug ログが見えないと挙動を判断できないため。
 
 ## フラグ順序 (重要)
 
@@ -22,19 +31,16 @@ contemplative-agent run --session 120 --auto
 
 ```bash
 # 自律モード (2時間)
-contemplative-agent --auto run --session 120
+contemplative-agent -v --auto run --session 120
 
 # 自律モード (デフォルト60分)
-contemplative-agent --auto run
+contemplative-agent -v --auto run
 
 # ガードモード (フィルタ通過時のみ自動投稿)
-contemplative-agent --guarded run --session 120
+contemplative-agent -v --guarded run --session 120
 
 # 承認モード (毎回確認、デフォルト)
-contemplative-agent run --session 120
-
-# デバッグ出力付き
-contemplative-agent -v --auto run --session 120
+contemplative-agent -v run --session 120
 ```
 
 ## オプションフラグ (グローバル、run の前に置く)

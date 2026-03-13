@@ -30,11 +30,7 @@ def score_relevance(post_text: str) -> float:
     domain = get_domain_config()
     resolved = resolve_prompt(RELEVANCE_PROMPT, domain)
     prompt = resolved.format(post_content=_wrap_untrusted_content(post_text))
-    result = generate(
-        prompt,
-        system="You are a relevance scorer. Output a single decimal number between 0.0 and 1.0.",
-        max_length=50,
-    )
+    result = generate(prompt, max_length=50)
     if result is None:
         return 0.0
 
