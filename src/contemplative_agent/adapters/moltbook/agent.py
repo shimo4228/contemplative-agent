@@ -493,13 +493,13 @@ class Agent:
         )
 
         # Log session start with configuration metadata
-        start_data: Dict[str, Any] = {
+        # Internal fields are applied last to prevent caller from overwriting them
+        start_data: Dict[str, Any] = dict(session_meta) if session_meta else {}
+        start_data.update({
             "event": "start",
             "duration_minutes": duration_minutes,
             "autonomy": self._autonomy.value,
-        }
-        if session_meta:
-            start_data.update(session_meta)
+        })
         self._memory.episodes.append("session", start_data)
 
         try:

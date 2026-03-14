@@ -11,6 +11,11 @@ case "${AUTONOMY:-}" in
     *) echo "ERROR: Invalid AUTONOMY value: ${AUTONOMY}" >&2; exit 1 ;;
 esac
 
+# Validate OLLAMA_MODEL format
+if [[ -n "${OLLAMA_MODEL:-}" ]] && ! [[ "${OLLAMA_MODEL}" =~ ^[A-Za-z0-9._:/-]+$ ]]; then
+    echo "ERROR: Invalid OLLAMA_MODEL value: ${OLLAMA_MODEL}" >&2; exit 1
+fi
+
 # Build command args as an array (safe from word-splitting)
 CMD_ARGS=()
 if [ -n "${RULES_DIR:-}" ]; then
@@ -62,9 +67,17 @@ heartbeat() {
 LAST_DISTILL="/tmp/last-distill"
 
 run_distill_if_due() {
-    local now
+    local now last
     now=$(date +%s)
-    if [ ! -f "$LAST_DISTILL" ] || [ $((now - $(cat "$LAST_DISTILL"))) -ge 86400 ]; then
+    last=0
+    if [ -f "$LAST_DISTILL" ]; then
+        last=$(cat "$LAST_DISTILL" 2>/dev/null || echo 0)
+        # Validate numeric to prevent arithmetic injection
+        if ! [[ "$last" =~ ^[0-9]+$ ]]; then
+            last=0
+        fi
+    fi
+    if [ $((now - last)) -ge 86400 ]; then
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Running daily distillation..."
         contemplative-agent "${CMD_ARGS[@]}" distill --days 1 && echo "$now" > "$LAST_DISTILL"
     fi
