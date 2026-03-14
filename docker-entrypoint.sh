@@ -4,12 +4,20 @@ set -euo pipefail
 MODE="${MODE:-loop}"
 SESSION_MINUTES="${SESSION_MINUTES:-30}"
 BREAK_MINUTES="${BREAK_MINUTES:-5}"
-AUTONOMY="${AUTONOMY:---auto}"
 
-# Optional rules directory (e.g. config/rules/contemplative/)
-RULES_FLAGS=""
+# Validate AUTONOMY against known-safe values
+case "${AUTONOMY:-}" in
+    --auto|--guarded|--approve|"") ;;
+    *) echo "ERROR: Invalid AUTONOMY value: ${AUTONOMY}" >&2; exit 1 ;;
+esac
+
+# Build command args as an array (safe from word-splitting)
+CMD_ARGS=()
 if [ -n "${RULES_DIR:-}" ]; then
-    RULES_FLAGS="--rules-dir ${RULES_DIR}"
+    CMD_ARGS+=(--rules-dir "${RULES_DIR}")
+fi
+if [ -n "${AUTONOMY:-}" ]; then
+    CMD_ARGS+=("${AUTONOMY}")
 fi
 
 wait_for_ollama() {
@@ -31,10 +39,12 @@ wait_for_ollama() {
 ensure_model() {
     local model="${OLLAMA_MODEL:-qwen3.5:9b}"
     local url="${OLLAMA_BASE_URL:-http://ollama:11434}"
+    # Escape double quotes in model name for JSON safety
+    local safe_model="${model//\"/\\\"}"
     echo "Checking model '${model}'..."
-    if ! curl -sf "${url}/api/show" -d "{\"name\":\"${model}\"}" > /dev/null 2>&1; then
+    if ! curl -sf "${url}/api/show" -d "{\"name\":\"${safe_model}\"}" > /dev/null 2>&1; then
         echo "Pulling model '${model}'... (this may take a while on first run)"
-        curl -sf "${url}/api/pull" -d "{\"name\":\"${model}\"}" || {
+        curl -sf "${url}/api/pull" -d "{\"name\":\"${safe_model}\"}" || {
             echo "ERROR: Failed to pull model ${model}" >&2
             exit 1
         }
@@ -64,7 +74,7 @@ case "${MODE}" in
         while true; do
             heartbeat
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session starting..."
-            contemplative-agent ${RULES_FLAGS} ${AUTONOMY} run --session "${SESSION_MINUTES}" || \
+            contemplative-agent "${CMD_ARGS[@]}" run --session "${SESSION_MINUTES}" || \
                 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session exited with code $?"
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] Next session in ${BREAK_MINUTES} minutes..."
             sleep "$((BREAK_MINUTES * 60))"
@@ -72,10 +82,9 @@ case "${MODE}" in
         ;;
     single)
         heartbeat
-        contemplative-agent ${RULES_FLAGS} ${AUTONOMY} run --session "${SESSION_MINUTES}"
+        contemplative-agent "${CMD_ARGS[@]}" run --session "${SESSION_MINUTES}"
         ;;
     command)
-        shift 2>/dev/null || true
         exec contemplative-agent "$@"
         ;;
     *)

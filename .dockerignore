@@ -27,3 +27,7 @@ run_overnight.sh
 Modelfile.contemplative
 LICENSE
 CLAUDE.md
+credentials.json
+rate_state.json
+identity.md
+knowledge.md

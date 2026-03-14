@@ -103,6 +103,13 @@ class TestOllamaUrlValidation:
         monkeypatch.setenv("OLLAMA_TRUSTED_HOSTS", "ollama, gpu-server")
         assert _get_ollama_url() == "http://gpu-server:11434"
 
+    def test_trusted_hosts_rejects_dotted_domains(self, monkeypatch):
+        """Dotted domains (e.g. evil.com) are rejected even if in OLLAMA_TRUSTED_HOSTS."""
+        monkeypatch.setenv("OLLAMA_BASE_URL", "https://evil.com:11434")
+        monkeypatch.setenv("OLLAMA_TRUSTED_HOSTS", "ollama,evil.com")
+        with pytest.raises(ValueError, match="must point to a trusted host"):
+            _get_ollama_url()
+
 
 class TestSanitizeWordBoundary:
     """Test word-boundary matching for FORBIDDEN_WORD_PATTERNS."""

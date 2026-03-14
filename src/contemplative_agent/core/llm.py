@@ -193,12 +193,32 @@ def _load_identity() -> str:
     return base_prompt
 
 
+# Unqualified hostname pattern: Docker service names like "ollama", no dots allowed.
+# This prevents adding public domains (e.g. "evil.com") to the trusted list.
+_SIMPLE_HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9\-]{0,62}$")
+
+
+def _parse_trusted_hosts(raw: str) -> frozenset:
+    """Parse OLLAMA_TRUSTED_HOSTS, accepting only simple unqualified hostnames."""
+    hosts: set = set()
+    for h in raw.split(","):
+        h = h.strip()
+        if h and _SIMPLE_HOSTNAME_RE.match(h) and "." not in h:
+            hosts.add(h)
+        elif h:
+            logger.warning("Ignoring invalid OLLAMA_TRUSTED_HOSTS entry: %s", h)
+    return frozenset(hosts)
+
+
 def _get_ollama_url() -> str:
     url = os.environ.get("OLLAMA_BASE_URL", _ollama_base_url)
     parsed = urlparse(url)
+    # OLLAMA_TRUSTED_HOSTS is a trust-escalation mechanism: it extends the
+    # localhost-only default to allow Docker service names (e.g. "ollama").
+    # Only unqualified hostnames (no dots) are accepted to prevent adding
+    # arbitrary public domains. Set only in controlled environments.
     trusted_raw = os.environ.get("OLLAMA_TRUSTED_HOSTS", "")
-    trusted_extra = frozenset(h.strip() for h in trusted_raw.split(",") if h.strip())
-    allowed = LOCALHOST_HOSTS | trusted_extra
+    allowed = LOCALHOST_HOSTS | _parse_trusted_hosts(trusted_raw)
     if parsed.hostname not in allowed:
         raise ValueError(
             f"OLLAMA_BASE_URL must point to a trusted host "
