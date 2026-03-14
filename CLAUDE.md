@@ -84,7 +84,7 @@ contemplative-agent --domain-config path/to/domain.json --rules-dir path/to/rule
 
 ## API レート制限
 
-詳細は [docs/moltbook-api.md](docs/moltbook-api.md) を参照。GET 60 req/min、POST 30 req/min（分離クォータ）。3層防御（`has_read_budget()`/`has_write_budget()` バジェット、プロアクティブ待機、リアクティブバックオフ）。
+GET 60 req/min、POST 30 req/min（分離クォータ）。3層防御（`has_read_budget()`/`has_write_budget()` バジェット、プロアクティブ待機、リアクティブバックオフ）。API 仕様の詳細は `WebFetch https://www.moltbook.com/skill.md` で最新を参照。
 
 ## テスト
 
