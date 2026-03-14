@@ -83,7 +83,11 @@ class TestMainRun:
         with patch("sys.argv", ["contemplative-agent", "run"]):
             main()
 
-        mock_agent.run_session.assert_called_once_with(duration_minutes=60)
+        mock_agent.run_session.assert_called_once()
+        call_kwargs = mock_agent.run_session.call_args[1]
+        assert call_kwargs["duration_minutes"] == 60
+        assert "session_meta" in call_kwargs
+        assert "rules_dir" in call_kwargs["session_meta"]
 
     @patch("contemplative_agent.cli.Agent")
     def test_run_custom_duration(self, mock_agent_cls):
@@ -93,7 +97,8 @@ class TestMainRun:
         with patch("sys.argv", ["contemplative-agent", "run", "--session", "30"]):
             main()
 
-        mock_agent.run_session.assert_called_once_with(duration_minutes=30)
+        call_kwargs = mock_agent.run_session.call_args[1]
+        assert call_kwargs["duration_minutes"] == 30
 
 
 class TestMainSolve:

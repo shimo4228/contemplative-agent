@@ -11,6 +11,21 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
+def _extract_session_meta(jsonl_path: Path) -> Optional[Dict[str, Any]]:
+    """Extract the last session_start metadata from a JSONL file."""
+    meta: Optional[Dict[str, Any]] = None
+    for line in jsonl_path.read_text(encoding="utf-8").splitlines():
+        if not line.strip():
+            continue
+        try:
+            entry = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        if entry.get("type") == "session" and entry.get("data", {}).get("event") == "start":
+            meta = entry.get("data", {})
+    return meta
+
+
 def _extract_entries(
     jsonl_path: Path,
 ) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
@@ -69,9 +84,18 @@ def _build_report(
     comments: List[Dict[str, Any]],
     replies: List[Dict[str, Any]],
     posts: List[Dict[str, Any]],
+    session_meta: Optional[Dict[str, Any]] = None,
 ) -> str:
     """Build Markdown report content."""
     lines: List[str] = [f"# Moltbook Activity Report — {date}", ""]
+
+    if session_meta:
+        rules = session_meta.get("rules_dir", "unknown")
+        domain = session_meta.get("domain", "unknown")
+        axioms = "enabled" if session_meta.get("axioms_enabled") else "disabled"
+        model = session_meta.get("ollama_model", "unknown")
+        lines.append(f"**Configuration**: rules={rules}, domain={domain}, axioms={axioms}, model={model}")
+        lines.append("")
 
     if comments:
         lines.append(f"## Comments ({len(comments)} total)")
@@ -178,9 +202,13 @@ def generate_report(
         logger.info("No activity entries for %s", date)
         return None
 
+    session_meta = _extract_session_meta(jsonl_path)
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / f"comment-report-{date}.md"
-    report_path.write_text(_build_report(date, comments, replies, posts), encoding="utf-8")
+    report_path.write_text(
+        _build_report(date, comments, replies, posts, session_meta=session_meta),
+        encoding="utf-8",
+    )
 
     logger.info(
         "Report generated: %s (%d comments, %d replies, %d posts)",

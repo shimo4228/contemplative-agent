@@ -63,6 +63,17 @@ heartbeat() {
     touch /tmp/healthcheck
 }
 
+LAST_DISTILL="/tmp/last-distill"
+
+run_distill_if_due() {
+    local now
+    now=$(date +%s)
+    if [ ! -f "$LAST_DISTILL" ] || [ $((now - $(cat "$LAST_DISTILL"))) -ge 86400 ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Running daily distillation..."
+        contemplative-agent "${CMD_ARGS[@]}" distill --days 1 && echo "$now" > "$LAST_DISTILL"
+    fi
+}
+
 # --- Main ---
 wait_for_ollama
 ensure_model
@@ -76,6 +87,7 @@ case "${MODE}" in
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session starting..."
             contemplative-agent "${CMD_ARGS[@]}" run --session "${SESSION_MINUTES}" || \
                 echo "[$(date '+%Y-%m-%d %H:%M:%S')] Session exited with code $?"
+            run_distill_if_due
             echo "[$(date '+%Y-%m-%d %H:%M:%S')] Next session in ${BREAK_MINUTES} minutes..."
             sleep "$((BREAK_MINUTES * 60))"
         done

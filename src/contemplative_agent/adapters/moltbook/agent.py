@@ -2,11 +2,12 @@
 
 import enum
 import logging
+import os
 import re
 import signal
 import time
 from pathlib import Path
-from typing import List, Optional, Set
+from typing import Any, Dict, List, Optional, Set
 
 from .auth import check_claim_status, load_credentials, register_agent
 from .client import MoltbookClient, MoltbookClientError
@@ -461,7 +462,11 @@ class Agent:
     # Session loop
     # ------------------------------------------------------------------
 
-    def run_session(self, duration_minutes: int = 60) -> List[str]:
+    def run_session(
+        self,
+        duration_minutes: int = 60,
+        session_meta: Optional[Dict[str, Any]] = None,
+    ) -> List[str]:
         """Run an autonomous engagement session."""
         client = self._ensure_client()
         scheduler = self._get_scheduler()
@@ -486,6 +491,16 @@ class Agent:
             duration_minutes,
             self._autonomy.value,
         )
+
+        # Log session start with configuration metadata
+        start_data: Dict[str, Any] = {
+            "event": "start",
+            "duration_minutes": duration_minutes,
+            "autonomy": self._autonomy.value,
+        }
+        if session_meta:
+            start_data.update(session_meta)
+        self._memory.episodes.append("session", start_data)
 
         try:
             try:
@@ -534,6 +549,18 @@ class Agent:
             if self._shutdown_requested:
                 logger.info("Graceful shutdown: saving memory before exit")
 
+            # Log session end with action counts
+            actions = self._ctx.actions_taken
+            self._memory.episodes.append("session", {
+                "event": "end",
+                "duration_minutes": duration_minutes,
+                "actions_count": len(actions),
+                "comments": sum(1 for a in actions if a.startswith("Commented")),
+                "replies": sum(1 for a in actions if a.startswith("Replied")),
+                "posts": sum(1 for a in actions if a.startswith("Posted")),
+                "follows": sum(1 for a in actions if a.startswith("Followed")),
+            })
+
             self._post_pipeline.generate_session_insights()
             self._memory.save()
             self._generate_activity_report()
@@ -563,7 +590,8 @@ class Agent:
         try:
             from ...core.report import generate_report
 
-            project_root = Path(__file__).resolve().parents[4]
+            config_dir = os.environ.get("CONTEMPLATIVE_CONFIG_DIR")
+            project_root = Path(config_dir).parent if config_dir else Path(__file__).resolve().parents[4]
             output_dir = project_root / "reports" / "comment-reports"
             result = generate_report(
                 log_dir=EPISODE_LOG_DIR,

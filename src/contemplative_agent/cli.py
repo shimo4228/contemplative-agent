@@ -12,6 +12,8 @@ from xml.sax.saxutils import escape as xml_escape
 from .adapters.moltbook.agent import Agent, AutonomyLevel
 from .adapters.moltbook.config import IDENTITY_PATH, KNOWLEDGE_PATH, MOLTBOOK_DATA_DIR
 from .core.domain import (
+    DEFAULT_RULES_DIR,
+    get_domain_config,
     get_rules,
     load_domain_config,
     load_rules,
@@ -383,7 +385,14 @@ def main() -> None:
     elif args.command == "run":
         if args.session <= 0 or args.session > 1440:
             parser.error("--session must be between 1 and 1440 minutes")
-        agent.run_session(duration_minutes=args.session)
+        dc = domain_config or get_domain_config()
+        session_meta = {
+            "rules_dir": str(args.rules_dir or DEFAULT_RULES_DIR),
+            "axioms_enabled": not args.no_axioms,
+            "domain": dc.name,
+            "ollama_model": os.environ.get("OLLAMA_MODEL", "qwen3.5:9b"),
+        }
+        agent.run_session(duration_minutes=args.session, session_meta=session_meta)
 
     elif args.command == "solve":
         agent.do_solve(args.text)
