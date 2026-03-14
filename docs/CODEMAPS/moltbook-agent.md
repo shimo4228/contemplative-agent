@@ -74,6 +74,8 @@ contemplative-agent introduce           -> Agent.do_introduce()
 contemplative-agent run [--session N]   -> Agent.run_session(N)
 contemplative-agent distill [--days N] [--dry-run] -> distill(days, dry_run)
 contemplative-agent solve TEXT          -> Agent.do_solve(TEXT)
+contemplative-agent install-schedule [--interval H] [--session M] [--uninstall]
+                                       -> _do_install_schedule() / _do_uninstall_schedule()
 
 Global flags:
   --domain-config PATH           Custom domain.json

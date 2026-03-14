@@ -4,8 +4,10 @@ import argparse
 import logging
 import os
 import stat
+import subprocess
 import sys
 from pathlib import Path
+from xml.sax.saxutils import escape as xml_escape
 
 from .adapters.moltbook.agent import Agent, AutonomyLevel
 from .adapters.moltbook.config import IDENTITY_PATH, KNOWLEDGE_PATH, MOLTBOOK_DATA_DIR
@@ -27,6 +29,103 @@ def _setup_logging(verbose: bool = False) -> None:
         format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
         datefmt="%H:%M:%S",
     )
+
+
+LAUNCHD_LABEL = "com.moltbook.agent"
+LAUNCHD_PLIST_DIR = Path.home() / "Library" / "LaunchAgents"
+LAUNCHD_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_LABEL}.plist"
+
+
+def _build_calendar_intervals(interval_hours: int) -> str:
+    """Build StartCalendarInterval XML entries for given hour interval."""
+    entries = []
+    for hour in range(0, 24, interval_hours):
+        entries.append(
+            f"\t\t<dict>"
+            f"<key>Hour</key><integer>{hour}</integer>"
+            f"<key>Minute</key><integer>0</integer>"
+            f"</dict>"
+        )
+    return "\n".join(entries)
+
+
+def _do_install_schedule(interval: int, session: int) -> None:
+    """Install launchd plist for periodic agent sessions (macOS only)."""
+    if sys.platform != "darwin":
+        print("Error: install-schedule is only supported on macOS (launchd).", file=sys.stderr)
+        sys.exit(1)
+
+    project_root = Path(__file__).resolve().parents[2]
+    template_path = project_root / "config" / "launchd" / "com.moltbook.agent.plist"
+
+    if not template_path.exists():
+        print(f"Error: Template not found: {template_path}", file=sys.stderr)
+        sys.exit(1)
+
+    venv_bin = project_root / ".venv" / "bin"
+    if not venv_bin.exists():
+        print(f"Error: venv not found: {venv_bin}", file=sys.stderr)
+        sys.exit(1)
+
+    log_path = MOLTBOOK_DATA_DIR / "logs" / "agent-launchd.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    template = template_path.read_text(encoding="utf-8")
+    plist_content = (
+        template
+        .replace("{{VENV_BIN}}", xml_escape(str(venv_bin)))
+        .replace("{{PROJECT_ROOT}}", xml_escape(str(project_root)))
+        .replace("{{SESSION_MINUTES}}", str(session))  # int — safe as-is
+        .replace("{{LOG_PATH}}", xml_escape(str(log_path)))
+        .replace("{{CALENDAR_INTERVALS}}", _build_calendar_intervals(interval))
+    )
+
+    LAUNCHD_PLIST_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Unload existing job if present
+    if LAUNCHD_PLIST_PATH.exists():
+        result = subprocess.run(
+            ["launchctl", "unload", str(LAUNCHD_PLIST_PATH)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(f"Warning: launchctl unload: {result.stderr.strip()}", file=sys.stderr)
+
+    LAUNCHD_PLIST_PATH.write_text(plist_content, encoding="utf-8")
+    os.chmod(LAUNCHD_PLIST_PATH, stat.S_IRUSR | stat.S_IWUSR)
+
+    result = subprocess.run(
+        ["launchctl", "load", str(LAUNCHD_PLIST_PATH)],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"Error: launchctl load failed: {result.stderr}", file=sys.stderr)
+        sys.exit(1)
+
+    hours = list(range(0, 24, interval))
+    schedule_str = ", ".join(f"{h:02d}:00" for h in hours)
+    print(f"Installed: {LAUNCHD_PLIST_PATH}")
+    print(f"Schedule: every {interval}h ({schedule_str}), {session}min sessions")
+    print(f"Logs: {log_path}")
+
+
+def _do_uninstall_schedule() -> None:
+    """Uninstall launchd plist."""
+    if not LAUNCHD_PLIST_PATH.exists():
+        print("No schedule installed.")
+        return
+
+    result = subprocess.run(
+        ["launchctl", "unload", str(LAUNCHD_PLIST_PATH)],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"Warning: launchctl unload: {result.stderr.strip()}", file=sys.stderr)
+    LAUNCHD_PLIST_PATH.unlink()
+    print(f"Removed: {LAUNCHD_PLIST_PATH}")
 
 
 def _do_init() -> None:
@@ -162,6 +261,23 @@ def main() -> None:
         help="Generate reports for all available log dates",
     )
 
+    # install-schedule
+    schedule_parser = subparsers.add_parser(
+        "install-schedule", help="Install/uninstall launchd schedule for periodic sessions"
+    )
+    schedule_parser.add_argument(
+        "--interval", type=int, default=6,
+        help="Hours between sessions (default: 6)",
+    )
+    schedule_parser.add_argument(
+        "--session", type=int, default=120,
+        help="Session duration in minutes (default: 120)",
+    )
+    schedule_parser.add_argument(
+        "--uninstall", action="store_true",
+        help="Remove installed schedule",
+    )
+
     # solve
     solve_parser = subparsers.add_parser(
         "solve", help="Test verification solver"
@@ -174,6 +290,18 @@ def main() -> None:
     if args.command is None:
         parser.print_help()
         sys.exit(1)
+
+    # Commands that don't need LLM or domain config — handle before loading
+    if args.command == "install-schedule":
+        if args.uninstall:
+            _do_uninstall_schedule()
+        else:
+            if args.interval < 1 or args.interval > 24 or 24 % args.interval != 0:
+                parser.error("--interval must evenly divide 24 (1, 2, 3, 4, 6, 8, 12, 24)")
+            if args.session < 1 or args.session > 1440:
+                parser.error("--session must be between 1 and 1440 minutes")
+            _do_install_schedule(interval=args.interval, session=args.session)
+        return
 
     # Load domain config and rules if custom paths specified
     domain_config = None

@@ -63,6 +63,8 @@ contemplative-agent init                          # identity.md + knowledge.md �
 contemplative-agent distill --dry-run             # 記憶蒸留 (dry run)
 contemplative-agent distill --days 3              # 3日分を蒸留
 contemplative-agent solve "ttwweennttyy pplluuss ffiivvee"
+contemplative-agent install-schedule              # launchd 定期起動 (6h毎, 120分)
+contemplative-agent install-schedule --uninstall  # スケジュール削除
 
 # ドメイン切替
 contemplative-agent --domain-config path/to/domain.json --rules-dir path/to/rules/ run --session 30

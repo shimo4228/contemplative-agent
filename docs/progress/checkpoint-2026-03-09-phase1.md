@@ -16,7 +16,7 @@
 
 ### 残りの作業 (Phase 2-4)
 - [ ] Phase 2: conftest.py + test_integration.py + pyproject.toml marker
-- [ ] Phase 3: --install-schedule サブコマンド + launchd plist + OPERATIONS.md
+- [x] Phase 3: install-schedule サブコマンド + launchd plist テンプレート
 - [ ] Phase 4: CLAUDE.md + MEMORY.md 更新
 - [ ] コードレビュー（Phase 1 の品質確認 + mock 有効性検証）
 

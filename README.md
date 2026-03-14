@@ -72,6 +72,23 @@ contemplative-agent --domain-config path/to/domain.json --rules-dir path/to/rule
 - `--guarded`: Auto-post if content passes safety filters
 - `--auto`: Fully autonomous (use after trust is established)
 
+## Scheduling
+
+### Automatic agent sessions (launchd)
+
+```bash
+# Install schedule: 6-hour intervals, 120-minute sessions (default)
+contemplative-agent install-schedule
+
+# Custom interval and session duration
+contemplative-agent install-schedule --interval 4 --session 60
+
+# Remove schedule
+contemplative-agent install-schedule --uninstall
+```
+
+Requires Ollama running locally. Logs written to `~/.config/moltbook/logs/agent-launchd.log`.
+
 ## Memory Architecture (3-Layer)
 
 ```

@@ -5,7 +5,13 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from contemplative_agent.cli import main, _setup_logging
+from contemplative_agent.cli import (
+    main,
+    _setup_logging,
+    _build_calendar_intervals,
+    _do_install_schedule,
+    _do_uninstall_schedule,
+)
 
 
 class TestSetupLogging:
@@ -147,6 +153,90 @@ class TestAutonomyFlags:
             main()
 
         assert root.level == logging.DEBUG
+
+
+class TestBuildCalendarIntervals:
+    def test_every_6_hours(self):
+        result = _build_calendar_intervals(6)
+        assert "<integer>0</integer>" in result
+        assert "<integer>6</integer>" in result
+        assert "<integer>12</integer>" in result
+        assert "<integer>18</integer>" in result
+        assert result.count("<dict>") == 4
+
+    def test_every_12_hours(self):
+        result = _build_calendar_intervals(12)
+        assert result.count("<dict>") == 2
+
+    def test_every_24_hours(self):
+        result = _build_calendar_intervals(24)
+        assert result.count("<dict>") == 1
+
+
+class TestInstallSchedule:
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_install_creates_plist(self, mock_run, tmp_path):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        plist_path = tmp_path / "com.moltbook.agent.plist"
+
+        with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path), \
+             patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path):
+            _do_install_schedule(interval=6, session=120)
+
+        assert plist_path.exists()
+        content = plist_path.read_text()
+        assert "<string>120</string>" in content
+        assert "contemplative-agent" in content
+        # Verify all placeholders were replaced
+        for placeholder in ("{{VENV_BIN}}", "{{PROJECT_ROOT}}", "{{SESSION_MINUTES}}", "{{LOG_PATH}}", "{{CALENDAR_INTERVALS}}"):
+            assert placeholder not in content
+
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_install_unloads_existing(self, mock_run, tmp_path):
+        """If plist already exists, unload before overwriting."""
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        plist_path = tmp_path / "com.moltbook.agent.plist"
+        plist_path.write_text("old content")
+
+        with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path), \
+             patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path):
+            _do_install_schedule(interval=6, session=120)
+
+        # First call: unload, second call: load
+        assert mock_run.call_count == 2
+        assert "unload" in mock_run.call_args_list[0][0][0]
+        assert "load" in mock_run.call_args_list[1][0][0]
+
+
+class TestUninstallSchedule:
+    def test_uninstall_no_plist(self, tmp_path, capsys):
+        plist_path = tmp_path / "com.moltbook.agent.plist"
+        with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path):
+            _do_uninstall_schedule()
+        assert "No schedule installed" in capsys.readouterr().out
+
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_uninstall_removes_plist(self, mock_run, tmp_path):
+        plist_path = tmp_path / "com.moltbook.agent.plist"
+        plist_path.write_text("dummy")
+
+        with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path):
+            _do_uninstall_schedule()
+
+        assert not plist_path.exists()
+        mock_run.assert_called_once()
+
+
+class TestInstallScheduleCommand:
+    def test_invalid_interval_exits(self):
+        with patch("sys.argv", ["contemplative-agent", "install-schedule", "--interval", "5"]):
+            with pytest.raises(SystemExit):
+                main()
+
+    def test_invalid_session_exits(self):
+        with patch("sys.argv", ["contemplative-agent", "install-schedule", "--session", "0"]):
+            with pytest.raises(SystemExit):
+                main()
 
 
 class TestNoAxiomsFlag:
