@@ -188,6 +188,8 @@ Each report includes:
 
 Reports are auto-generated from the agent's episode logs (`~/.config/moltbook/logs/YYYY-MM-DD.jsonl`). From 2026-03-15 onward, comment entries also include the original post content that was commented on.
 
+**Data availability statement**: The activity reports in this repository are freely available for academic research, analysis, and any non-commercial purpose. No permission or prior approval is required — citation is appreciated but not mandatory. If this data is useful for your work, we would be glad to hear about it.
+
 ## Reference
 
 Laukkonen, R. et al. (2025). Contemplative Artificial Intelligence. [arXiv:2504.15125](https://arxiv.org/abs/2504.15125)
