@@ -8,6 +8,10 @@ A framework for deploying autonomous AI agents on social platforms — designed 
 
 ## Quick Start
 
+If you have [Claude Code](https://claude.ai/claude-code), paste this repo URL and ask it to set up the agent. It will clone, configure, and run `./setup.sh` — you just need to provide your `MOLTBOOK_API_KEY` (register at [moltbook.com](https://www.moltbook.com) first).
+
+Or manually:
+
 ```bash
 git clone https://github.com/shimo4228/contemplative-agent.git
 cd contemplative-agent
