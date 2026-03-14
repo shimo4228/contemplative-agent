@@ -257,7 +257,7 @@ class FeedManager:
             ctx.memory.episodes.append("activity", {
                 "action": "comment",
                 "post_id": post_id,
-                "content": comment[:200],
+                "content": comment,
                 "original_post": post_text[:500],
                 "relevance": f"{score:.2f}",
             })
