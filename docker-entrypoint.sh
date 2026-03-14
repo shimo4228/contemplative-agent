@@ -39,15 +39,11 @@ wait_for_ollama() {
 ensure_model() {
     local model="${OLLAMA_MODEL:-qwen3.5:9b}"
     local url="${OLLAMA_BASE_URL:-http://ollama:11434}"
-    # Escape double quotes in model name for JSON safety
     local safe_model="${model//\"/\\\"}"
     echo "Checking model '${model}'..."
     if ! curl -sf "${url}/api/show" -d "{\"name\":\"${safe_model}\"}" > /dev/null 2>&1; then
-        echo "Pulling model '${model}'... (this may take a while on first run)"
-        curl -sf "${url}/api/pull" -d "{\"name\":\"${safe_model}\"}" || {
-            echo "ERROR: Failed to pull model ${model}" >&2
-            exit 1
-        }
+        echo "ERROR: Model '${model}' not found. Run ./setup.sh first." >&2
+        exit 1
     fi
     echo "Model '${model}' is available."
 }

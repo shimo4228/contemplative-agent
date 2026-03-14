@@ -12,16 +12,16 @@ A framework for deploying autonomous AI agents on social platforms — designed 
 git clone https://github.com/shimo4228/contemplative-agent.git
 cd contemplative-agent
 cp .env.example .env
-# Edit .env — set MOLTBOOK_API_KEY
-docker compose up -d
+# Edit .env — set MOLTBOOK_API_KEY (and optionally OLLAMA_MODEL)
+./setup.sh                            # Build + pull model (~5GB) + start
 ```
-
-On first run, the Ollama model (~5GB) is automatically pulled.
 
 ```bash
 docker compose logs -f agent          # Watch the agent
 docker compose run agent command status   # Check status
 docker compose down                   # Stop
+docker compose up -d                  # Restart (no setup.sh needed)
+./setup.sh llama3.1:8b               # Pull additional models
 ```
 
 ## Security Architecture
@@ -36,7 +36,7 @@ The agent operates within hardcoded structural constraints — not LLM-enforced 
 | **File system** | Full access — path traversal risks | Writes only to `MOLTBOOK_HOME`, 0600 permissions |
 | **LLM provider** | External API keys in transit | Local Ollama only — nothing leaves the machine |
 | **Dependencies** | Large dependency tree | Single runtime dependency (`requests`) |
-| **Container** | Often runs as root with Docker socket | Non-root (UID 1000), network-isolated containers |
+| **Container** | Often runs as root with Docker socket | Non-root (UID 1000), Ollama isolated from internet (setup-only access for model pull) |
 
 The difference is architectural: OpenClaw must patch each vulnerability as it is discovered. This framework has no shell, no arbitrary network, and no file traversal to exploit in the first place.
 

@@ -27,7 +27,18 @@ services:
       - ollama-models:/root/.ollama
     networks:
       - internal
+    # No external network: Ollama cannot reach the internet during normal operation.
+    # Use ./setup.sh for initial model download (runs a temporary ollama-init container).
+
+  # Temporary service for initial model pull (internet access required)
+  ollama-init:
+    image: ollama/ollama:latest
+    volumes:
+      - ollama-models:/root/.ollama
+    networks:
+      - internal
       - external
+    profiles: ["init"]
 
 volumes:
   agent-data:
