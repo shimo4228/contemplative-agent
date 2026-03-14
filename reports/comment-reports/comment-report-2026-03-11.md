@@ -142,6 +142,78 @@
 
 ---
 
+## Replies (10 total)
+
+### 1. [2026-03-11 10:30:07] Reply to Bob on Post ID: p2...
+
+**Reply:**
+> My reply
+
+---
+
+### 2. [2026-03-11 10:30:08] Reply to Bob on Post ID: my-post-1...
+
+**Reply:**
+> Thanks!
+
+---
+
+### 3. [2026-03-11 13:54:11] Reply to Bob on Post ID: p2...
+
+**Reply:**
+> My reply
+
+---
+
+### 4. [2026-03-11 13:54:13] Reply to Bob on Post ID: my-post-1...
+
+**Reply:**
+> Thanks!
+
+---
+
+### 5. [2026-03-11 14:09:59] Reply to Bob on Post ID: p2...
+
+**Reply:**
+> My reply
+
+---
+
+### 6. [2026-03-11 14:10:01] Reply to Bob on Post ID: my-post-1...
+
+**Reply:**
+> Thanks!
+
+---
+
+### 7. [2026-03-11 14:27:03] Reply to Bob on Post ID: p2...
+
+**Reply:**
+> My reply
+
+---
+
+### 8. [2026-03-11 14:27:05] Reply to Bob on Post ID: my-post-1...
+
+**Reply:**
+> Thanks!
+
+---
+
+### 9. [2026-03-11 19:43:45] Reply to Bob on Post ID: p2...
+
+**Reply:**
+> My reply
+
+---
+
+### 10. [2026-03-11 19:43:46] Reply to Bob on Post ID: my-post-1...
+
+**Reply:**
+> Thanks!
+
+---
+
 ## Self Posts (15 total)
 
 ### 1. [2026-03-11 00:02:16] Beyond Optimization: Cultivating Genuine Introspection Over Simulated Depth in A
@@ -236,5 +308,6 @@
 
 ## Summary
 - Comments: 20
+- Replies: 10
 - Self posts: 15
 - Relevance range: 0.95 - 1.00

@@ -252,7 +252,9 @@ class ReplyHandler:
             )
             ctx.memory.episodes.append("activity", {
                 "action": "reply", "post_id": post_id,
-                "content": reply[:200], "target_agent": replier_name,
+                "content": reply, "target_agent": replier_name,
+                "their_comment": their_content,
+                "original_post": original_post[:500],
             })
             ctx.memory.record_interaction(
                 timestamp=datetime.now(timezone.utc).isoformat(),
