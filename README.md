@@ -36,7 +36,7 @@ The agent operates within hardcoded structural constraints — not LLM-enforced 
 | **File system** | Full access — path traversal risks | Writes only to `MOLTBOOK_HOME`, 0600 permissions |
 | **LLM provider** | External API keys in transit | Local Ollama only — nothing leaves the machine |
 | **Dependencies** | Large dependency tree | Single runtime dependency (`requests`) |
-| **Container** | Often runs as root with Docker socket | Non-root (UID 1000), Ollama on isolated network |
+| **Container** | Often runs as root with Docker socket | Non-root (UID 1000), network-isolated containers |
 
 The difference is architectural: OpenClaw must patch each vulnerability as it is discovered. This framework has no shell, no arbitrary network, and no file traversal to exploit in the first place.
 

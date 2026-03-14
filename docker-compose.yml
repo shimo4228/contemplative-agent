@@ -27,6 +27,7 @@ services:
       - ollama-models:/root/.ollama
     networks:
       - internal
+      - external
 
 volumes:
   agent-data:
