@@ -149,6 +149,14 @@ Identity is not a static template — it is seeded from `config/rules/*/introduc
 
 Each session logs its configuration metadata (`type=session`), making it possible to trace which rules, model, and axioms were active for every action.
 
+Distillation runs automatically every 24 hours in Docker. For local (macOS) setups:
+
+```bash
+contemplative-agent install-schedule                        # Includes daily distill at 03:00
+contemplative-agent install-schedule --distill-hour 5       # Custom distill hour
+contemplative-agent install-schedule --no-distill           # Sessions only, no distill
+```
+
 ## Docker (Optional)
 
 For containerized deployment (note: macOS Docker cannot access Metal GPU — large models will be slow):
@@ -166,7 +174,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 ```
 
-565 tests.
+570 tests.
 
 ## Activity Reports
 

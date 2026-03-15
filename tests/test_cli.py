@@ -10,6 +10,7 @@ from contemplative_agent.cli import (
     _setup_logging,
     _build_calendar_intervals,
     _do_install_schedule,
+    _do_install_distill_schedule,
     _do_uninstall_schedule,
 )
 
@@ -230,6 +231,80 @@ class TestUninstallSchedule:
 
         assert not plist_path.exists()
         mock_run.assert_called_once()
+
+
+class TestInstallDistillSchedule:
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_install_creates_distill_plist(self, mock_run, tmp_path):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        plist_path = tmp_path / "com.moltbook.distill.plist"
+
+        with patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", plist_path), \
+             patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path):
+            _do_install_distill_schedule(distill_hour=3)
+
+        assert plist_path.exists()
+        content = plist_path.read_text()
+        assert "distill" in content
+        assert "--identity" in content
+        assert "<integer>3</integer>" in content
+        # Verify all placeholders were replaced
+        for placeholder in ("{{VENV_BIN}}", "{{PROJECT_ROOT}}", "{{DISTILL_HOUR}}", "{{LOG_PATH}}"):
+            assert placeholder not in content
+
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_install_distill_custom_hour(self, mock_run, tmp_path):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        plist_path = tmp_path / "com.moltbook.distill.plist"
+
+        with patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", plist_path), \
+             patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path):
+            _do_install_distill_schedule(distill_hour=5)
+
+        content = plist_path.read_text()
+        assert "<integer>5</integer>" in content
+
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_install_distill_unloads_existing(self, mock_run, tmp_path):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        plist_path = tmp_path / "com.moltbook.distill.plist"
+        plist_path.write_text("old content")
+
+        with patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", plist_path), \
+             patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path):
+            _do_install_distill_schedule(distill_hour=3)
+
+        assert mock_run.call_count == 2
+        assert "unload" in mock_run.call_args_list[0][0][0]
+        assert "load" in mock_run.call_args_list[1][0][0]
+
+
+class TestUninstallScheduleBoth:
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_uninstall_removes_both_plists(self, mock_run, tmp_path):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        agent_plist = tmp_path / "com.moltbook.agent.plist"
+        distill_plist = tmp_path / "com.moltbook.distill.plist"
+        agent_plist.write_text("dummy")
+        distill_plist.write_text("dummy")
+
+        with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", agent_plist), \
+             patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist):
+            _do_uninstall_schedule()
+
+        assert not agent_plist.exists()
+        assert not distill_plist.exists()
+        assert mock_run.call_count == 2
+
+    def test_uninstall_no_plists(self, tmp_path, capsys):
+        agent_plist = tmp_path / "com.moltbook.agent.plist"
+        distill_plist = tmp_path / "com.moltbook.distill.plist"
+
+        with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", agent_plist), \
+             patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist):
+            _do_uninstall_schedule()
+
+        assert "No schedule installed" in capsys.readouterr().out
 
 
 class TestInstallScheduleCommand:

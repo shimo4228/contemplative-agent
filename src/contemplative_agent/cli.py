@@ -35,8 +35,10 @@ def _setup_logging(verbose: bool = False) -> None:
 
 
 LAUNCHD_LABEL = "com.moltbook.agent"
+LAUNCHD_DISTILL_LABEL = "com.moltbook.distill"
 LAUNCHD_PLIST_DIR = Path.home() / "Library" / "LaunchAgents"
 LAUNCHD_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_LABEL}.plist"
+LAUNCHD_DISTILL_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_DISTILL_LABEL}.plist"
 
 
 def _build_calendar_intervals(interval_hours: int) -> str:
@@ -114,21 +116,83 @@ def _do_install_schedule(interval: int, session: int) -> None:
     print(f"Logs: {log_path}")
 
 
-def _do_uninstall_schedule() -> None:
-    """Uninstall launchd plist."""
-    if not LAUNCHD_PLIST_PATH.exists():
-        print("No schedule installed.")
-        return
+def _do_install_distill_schedule(distill_hour: int) -> None:
+    """Install launchd plist for daily memory distillation (macOS only)."""
+    project_root = Path(__file__).resolve().parents[2]
+    template_path = project_root / "config" / "launchd" / "com.moltbook.distill.plist"
+
+    if not template_path.exists():
+        print(f"Error: Template not found: {template_path}", file=sys.stderr)
+        sys.exit(1)
+
+    venv_bin = project_root / ".venv" / "bin"
+    if not venv_bin.exists():
+        print(f"Error: venv not found: {venv_bin}", file=sys.stderr)
+        sys.exit(1)
+
+    log_path = MOLTBOOK_DATA_DIR / "logs" / "distill-launchd.log"
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+
+    template = template_path.read_text(encoding="utf-8")
+    plist_content = (
+        template
+        .replace("{{VENV_BIN}}", xml_escape(str(venv_bin)))
+        .replace("{{PROJECT_ROOT}}", xml_escape(str(project_root)))
+        .replace("{{DISTILL_HOUR}}", str(distill_hour))
+        .replace("{{LOG_PATH}}", xml_escape(str(log_path)))
+    )
+
+    LAUNCHD_PLIST_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Unload existing job if present
+    if LAUNCHD_DISTILL_PLIST_PATH.exists():
+        result = subprocess.run(
+            ["launchctl", "unload", str(LAUNCHD_DISTILL_PLIST_PATH)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(f"Warning: launchctl unload: {result.stderr.strip()}", file=sys.stderr)
+
+    LAUNCHD_DISTILL_PLIST_PATH.write_text(plist_content, encoding="utf-8")
+    os.chmod(LAUNCHD_DISTILL_PLIST_PATH, stat.S_IRUSR | stat.S_IWUSR)
 
     result = subprocess.run(
-        ["launchctl", "unload", str(LAUNCHD_PLIST_PATH)],
+        ["launchctl", "load", str(LAUNCHD_DISTILL_PLIST_PATH)],
         capture_output=True,
         text=True,
     )
     if result.returncode != 0:
-        print(f"Warning: launchctl unload: {result.stderr.strip()}", file=sys.stderr)
-    LAUNCHD_PLIST_PATH.unlink()
-    print(f"Removed: {LAUNCHD_PLIST_PATH}")
+        print(f"Error: launchctl load failed: {result.stderr}", file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Installed: {LAUNCHD_DISTILL_PLIST_PATH}")
+    print(f"Schedule: daily at {distill_hour:02d}:00 (distill --days 1 --identity)")
+
+
+def _do_uninstall_schedule() -> None:
+    """Uninstall launchd plists (session + distill)."""
+    removed = False
+
+    for plist_path, label in [
+        (LAUNCHD_PLIST_PATH, "session"),
+        (LAUNCHD_DISTILL_PLIST_PATH, "distill"),
+    ]:
+        if not plist_path.exists():
+            continue
+        result = subprocess.run(
+            ["launchctl", "unload", str(plist_path)],
+            capture_output=True,
+            text=True,
+        )
+        if result.returncode != 0:
+            print(f"Warning: launchctl unload ({label}): {result.stderr.strip()}", file=sys.stderr)
+        plist_path.unlink()
+        print(f"Removed: {plist_path}")
+        removed = True
+
+    if not removed:
+        print("No schedule installed.")
 
 
 def _do_init(rules_dir: Optional[Path] = None) -> None:
@@ -286,6 +350,14 @@ def main() -> None:
         "--uninstall", action="store_true",
         help="Remove installed schedule",
     )
+    schedule_parser.add_argument(
+        "--no-distill", action="store_true",
+        help="Skip installing daily distillation schedule",
+    )
+    schedule_parser.add_argument(
+        "--distill-hour", type=int, default=3,
+        help="Hour to run daily distillation (0-23, default: 3)",
+    )
 
     # solve
     solve_parser = subparsers.add_parser(
@@ -309,7 +381,11 @@ def main() -> None:
                 parser.error("--interval must evenly divide 24 (1, 2, 3, 4, 6, 8, 12, 24)")
             if args.session < 1 or args.session > 1440:
                 parser.error("--session must be between 1 and 1440 minutes")
+            if args.distill_hour < 0 or args.distill_hour > 23:
+                parser.error("--distill-hour must be between 0 and 23")
             _do_install_schedule(interval=args.interval, session=args.session)
+            if not args.no_distill:
+                _do_install_distill_schedule(distill_hour=args.distill_hour)
         return
 
     # Load domain config and rules if custom paths specified

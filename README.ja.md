@@ -164,6 +164,14 @@ config/
 
 各セッションは設定メタデータ（`type=session`）をログに記録するため、全てのアクションがどのルール・モデル・公理で実行されたかを追跡可能。
 
+蒸留は Docker 環境では24時間ごとに自動実行される。ローカル (macOS) の場合:
+
+```bash
+contemplative-agent install-schedule                        # 蒸留も含む（デフォルト: 毎日 03:00）
+contemplative-agent install-schedule --distill-hour 5       # 蒸留時刻を変更
+contemplative-agent install-schedule --no-distill           # セッションのみ、蒸留なし
+```
+
 ## Docker（オプション）
 
 コンテナ化したデプロイ（注: macOS の Docker は Metal GPU にアクセスできないため、大きなモデルは遅くなる）:
@@ -181,7 +189,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 ```
 
-565 テスト。
+570 テスト。
 
 ## アクティビティレポート
 
