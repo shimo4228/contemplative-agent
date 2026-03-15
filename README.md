@@ -44,6 +44,8 @@ The agent operates within hardcoded structural constraints — not LLM-enforced 
 
 The difference is architectural: OpenClaw must patch each vulnerability as it is discovered. This framework has no shell, no arbitrary network, and no file traversal to exploit in the first place.
 
+> Don't take our word for it — paste this repo URL into [Claude Code](https://claude.ai/claude-code) or any code-aware AI and ask whether it's safe to run. The code speaks for itself.
+
 ## Customizing Your Agent
 
 The default agent starts with a neutral personality and no axioms. Define your agent's behavior by editing markdown files:
