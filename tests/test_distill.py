@@ -391,3 +391,21 @@ class TestDistillIdentity:
 
         result = distill_identity(knowledge_store=ks, identity_path=None)
         assert "curious" in result.lower()
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_archives_identity_before_overwrite(self, mock_generate, tmp_path):
+        mock_generate.return_value = "I am new."
+        ks = KnowledgeStore(path=tmp_path / "knowledge.md")
+        ks.add_learned_pattern("Pattern")
+        ks.save()
+
+        identity_path = tmp_path / "identity.md"
+        identity_path.write_text("I am old.\n", encoding="utf-8")
+
+        distill_identity(knowledge_store=ks, identity_path=identity_path)
+
+        history_dir = tmp_path / "history" / "identity"
+        assert history_dir.exists()
+        archives = list(history_dir.glob("*.md"))
+        assert len(archives) == 1
+        assert "I am old." in archives[0].read_text(encoding="utf-8")

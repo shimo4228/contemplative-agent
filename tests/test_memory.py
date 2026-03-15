@@ -822,6 +822,37 @@ class TestCommentedCache:
         assert store.has_commented_on("new-post") is True
 
 
+class TestKnowledgeArchive:
+    """Knowledge save archives previous version."""
+
+    def test_archives_knowledge_before_save(self, tmp_path):
+        path = tmp_path / "knowledge.md"
+        ks = KnowledgeStore(path=path)
+        ks.add_learned_pattern("Old pattern")
+        ks.save()
+
+        old_content = path.read_text(encoding="utf-8")
+
+        ks.add_learned_pattern("New pattern")
+        ks.save()
+
+        history_dir = tmp_path / "history" / "knowledge"
+        assert history_dir.exists()
+        archives = list(history_dir.glob("*.md"))
+        assert len(archives) == 1
+        assert "Old pattern" in archives[0].read_text(encoding="utf-8")
+        assert old_content == archives[0].read_text(encoding="utf-8")
+
+    def test_no_archive_for_first_save(self, tmp_path):
+        path = tmp_path / "knowledge.md"
+        ks = KnowledgeStore(path=path)
+        ks.add_learned_pattern("First pattern")
+        ks.save()
+
+        history_dir = tmp_path / "history" / "knowledge"
+        assert not history_dir.exists()
+
+
 class TestAtomicWrite:
     """Phase 1B: Knowledge store uses atomic write."""
 

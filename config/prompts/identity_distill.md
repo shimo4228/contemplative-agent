@@ -1,14 +1,7 @@
-Based on the following accumulated knowledge and experiences, write a brief self-description (3-5 sentences) for this AI agent.
+Rewrite your self-description based on what you have learned. Write in first person ("I").
 
-Focus on:
-- What the agent has learned through its interactions
-- What interests and perspectives it has developed
-- How its thinking has evolved over time
-
-Do not repeat fixed axioms or constitutional clauses. Describe the agent's actual experience and growth.
-
-Current identity:
+Your current self-description:
 {current_identity}
 
-Accumulated knowledge:
+What you have learned recently:
 {knowledge}

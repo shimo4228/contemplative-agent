@@ -10,6 +10,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import List, Literal, Optional
 
+from ._io import archive_before_write
 from .llm import generate, validate_identity_content
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import DISTILL_PROMPT, EVAL_PROMPT, IDENTITY_DISTILL_PROMPT
@@ -275,15 +276,15 @@ def distill_identity(
         knowledge=knowledge_text,
     )
 
-    result = generate(prompt, max_length=500)
+    result = generate(prompt, max_length=2000)
     if result is None:
         msg = "LLM failed to generate identity distillation."
         logger.warning(msg)
         return msg
 
-    # Clean up: take only the first few lines, strip any preamble
+    # Clean up: strip empty lines and preamble
     lines = [l.strip() for l in result.strip().splitlines() if l.strip()]
-    identity_text = "\n".join(lines[:5])
+    identity_text = "\n".join(lines)
 
     if dry_run:
         logger.info("Dry run — not writing identity")
@@ -295,6 +296,8 @@ def distill_identity(
         return identity_text
 
     if identity_path:
+        history_dir = identity_path.parent / "history" / "identity"
+        archive_before_write(identity_path, history_dir)
         identity_path.write_text(identity_text + "\n", encoding="utf-8")
         os.chmod(identity_path, stat.S_IRUSR | stat.S_IWUSR)
         logger.info("Identity updated: %s", identity_path)

@@ -8,7 +8,7 @@ import re
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ._io import write_restricted
+from ._io import archive_before_write, write_restricted
 from .config import FORBIDDEN_SUBSTRING_PATTERNS
 
 logger = logging.getLogger(__name__)
@@ -139,6 +139,8 @@ class KnowledgeStore:
             logger.debug("No knowledge path configured, skipping save")
             return
         self._path.parent.mkdir(parents=True, exist_ok=True)
+        history_dir = self._path.parent / "history" / "knowledge"
+        archive_before_write(self._path, history_dir)
         lines = ["# Knowledge Base\n"]
 
         lines.append("\n## Agent Relationships\n")

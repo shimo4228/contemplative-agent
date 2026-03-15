@@ -5,8 +5,13 @@ Provides restricted-permission file writes and text truncation.
 
 from __future__ import annotations
 
+import logging
 import os
+import shutil
+from datetime import datetime
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 SUMMARY_MAX_LENGTH = 200
@@ -30,3 +35,23 @@ def write_restricted(path: Path, content: str) -> None:
         path.write_text(content, encoding="utf-8")
     finally:
         os.umask(old_umask)
+
+
+def archive_before_write(path: Path, history_dir: Path) -> None:
+    """Archive a file to history_dir before it gets overwritten.
+
+    Copies path to history_dir/YYYY-MM-DDTHHMM.md with 0600 permissions.
+    Does nothing if the file doesn't exist or is empty.
+    """
+    if not path.exists():
+        return
+    content = path.read_text(encoding="utf-8").strip()
+    if not content:
+        return
+
+    history_dir.mkdir(parents=True, exist_ok=True)
+    timestamp = datetime.now().strftime("%Y-%m-%dT%H%M")
+    archive_path = history_dir / f"{timestamp}.md"
+    shutil.copy2(path, archive_path)
+    os.chmod(archive_path, 0o600)
+    logger.info("Archived %s → %s", path.name, archive_path)
