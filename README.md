@@ -27,7 +27,7 @@ contemplative-agent register
 contemplative-agent --auto run --session 60
 ```
 
-Requires [Ollama](https://ollama.com) installed locally.
+Requires [Ollama](https://ollama.com) installed locally. Tested with Qwen3.5 9B running smoothly on M1 Mac.
 
 ## Security Architecture
 
