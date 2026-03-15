@@ -10,25 +10,24 @@ Language: [English](README.md) | 日本語
 
 ## クイックスタート
 
-[Claude Code](https://claude.ai/claude-code) をお持ちなら、このリポジトリの URL を貼り付けてセットアップを依頼するだけ。clone、設定、`./setup.sh` の実行まで全て行ってくれる。必要なのは `MOLTBOOK_API_KEY` の提供のみ（先に [moltbook.com](https://www.moltbook.com) で登録が必要）。
+[Claude Code](https://claude.ai/claude-code) をお持ちなら、このリポジトリの URL を貼り付けてセットアップを依頼するだけ。clone、インストール、設定まで全て行ってくれる。必要なのは `MOLTBOOK_API_KEY` の提供のみ（先に [moltbook.com](https://www.moltbook.com) で登録が必要）。
 
 手動の場合:
 
 ```bash
 git clone https://github.com/shimo4228/contemplative-agent.git
 cd contemplative-agent
+uv venv .venv && source .venv/bin/activate
+uv pip install -e .
+ollama pull qwen3.5:9b
 cp .env.example .env
-# .env を編集 — MOLTBOOK_API_KEY を設定（任意で OLLAMA_MODEL も）
-./setup.sh                            # ビルド + モデル DL (~5GB) + 起動
+# .env を編集 — MOLTBOOK_API_KEY を設定
+contemplative-agent init
+contemplative-agent register
+contemplative-agent --auto run --session 60
 ```
 
-```bash
-docker compose logs -f agent          # ログを監視
-docker compose run agent command status   # ステータス確認
-docker compose down                   # 停止
-docker compose up -d                  # 再起動（setup.sh 不要）
-./setup.sh llama3.1:8b               # 追加モデルの DL
-```
+[Ollama](https://ollama.com) のローカルインストールが必要。
 
 ## セキュリティアーキテクチャ
 
@@ -40,9 +39,8 @@ docker compose up -d                  # 再起動（setup.sh 不要）
 | **ネットワークアクセス** | 任意 — [SSRF 脆弱性](https://www.tenable.com/plugins/nessus/299798) | `moltbook.com` + localhost Ollama にドメインロック |
 | **ローカルゲートウェイ** | localhost の WebSocket — [ClawJacked 乗っ取り](https://www.oasis.security/blog/openclaw-vulnerability) | リスニングサービスなし |
 | **ファイルシステム** | フルアクセス — パストラバーサルリスク | `MOLTBOOK_HOME` のみに書き込み、0600 パーミッション |
-| **LLM プロバイダ** | 外部 API キーが通信中に漏洩リスク | ローカル Ollama のみ（v0.18.0 固定）— データはマシンの外に出ない |
+| **LLM プロバイダ** | 外部 API キーが通信中に漏洩リスク | ローカル Ollama のみ — データはマシンの外に出ない |
 | **依存関係** | 大規模な依存ツリー | ランタイム依存は `requests` のみ |
-| **コンテナ** | root で実行、Docker ソケット付きの場合も | 非 root (UID 1000)、Ollama はインターネットから隔離（セットアップ時のみモデル DL 用に接続） |
 
 違いはアーキテクチャレベル: OpenClaw は発見された脆弱性をその都度パッチする必要がある。本フレームワークには悪用すべきシェル、任意のネットワーク、ファイルトラバーサルがそもそも存在しない。
 
@@ -165,6 +163,16 @@ config/
 アイデンティティは静的なテンプレートではない — `config/rules/*/introduction.md` から初期化され、エージェントの経験を通じて動的に更新される。エージェントの自己概念は、ハードコードされた定義ではなく、インタラクションを通じて進化する。
 
 各セッションは設定メタデータ（`type=session`）をログに記録するため、全てのアクションがどのルール・モデル・公理で実行されたかを追跡可能。
+
+## Docker（オプション）
+
+コンテナ化したデプロイ（注: macOS の Docker は Metal GPU にアクセスできないため、大きなモデルは遅くなる）:
+
+```bash
+./setup.sh                            # ビルド + モデル DL + 起動
+docker compose up -d                  # 2回目以降の起動
+docker compose logs -f agent          # ログを監視
+```
 
 ## テスト
 
