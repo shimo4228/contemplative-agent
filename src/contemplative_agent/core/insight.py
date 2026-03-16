@@ -326,6 +326,9 @@ def extract_insight(
 
     skills_dir.mkdir(parents=True, exist_ok=True)
     slug = _slugify(candidate.title)
+    if not slug:
+        logger.warning("Skill title produced empty slug, dropping candidate")
+        return "Generated skill title produced no valid slug. Skipping."
     today = date.today().isoformat()
     filename = f"{today}-{slug}.md"
     file_path = skills_dir / filename
