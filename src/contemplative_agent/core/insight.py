@@ -94,9 +94,10 @@ def _slugify(title: str) -> str:
 
 def _render_skill_file(skill: SkillFile) -> str:
     """Render a SkillFile as YAML frontmatter + Markdown body."""
+    safe_axiom = skill.axiom.replace('"', "'")
     return (
         f"---\n"
-        f'axiom: "{skill.axiom}"\n'
+        f'axiom: "{safe_axiom}"\n'
         f"confidence: {skill.confidence}\n"
         f'extracted: "{skill.extracted}"\n'
         f"source_patterns: {skill.source_patterns}\n"
@@ -200,6 +201,10 @@ def extract_insight(
     slug = _slugify(title)
     filename = f"{today}-{slug}.md"
     file_path = skills_dir / filename
+
+    if not file_path.resolve().is_relative_to(skills_dir.resolve()):
+        logger.error("Skill path escape attempt: %s", file_path)
+        return "Internal error: invalid skill path."
 
     write_restricted(file_path, rendered)
     logger.info("Skill written: %s", file_path)
