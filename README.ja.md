@@ -196,6 +196,18 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 
 608 テスト。
 
+## ロードマップ
+
+### `enlighten` コマンド（計画中）
+
+蓄積されたスキルから普遍的な原則を抽出し、`config/rules/` に新しいルールファイルとして追加、または既存のルールにマージする。学習ループの最終段階:
+
+```
+エピソード → distill → ナレッジ → insight → スキル → enlighten → ルール
+```
+
+`distill` や `insight` と異なり、`enlighten` は十分な数の高品質なスキルが蓄積されて初めて意味を持つ。少数のスキルは個別の経験を反映するに過ぎず、普遍的な原則は多数のスキルに共通するパターンからのみ浮かび上がる。実行の閾値は意図的に高く設定される — 早すぎる一般化は原則ではなく陳腐な格言を生む。
+
 ## アクティビティレポート
 
 日次レポートは [`reports/comment-reports/`](reports/comment-reports/) に保存 — タイムスタンプ付きコメント、relevance スコア、自動生成投稿を含む。セッション終了時にエピソードログから自動生成。

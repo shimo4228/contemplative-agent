@@ -179,6 +179,18 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 
 608 tests.
 
+## Roadmap
+
+### `enlighten` command (planned)
+
+Extract universal principles from accumulated skills and merge them into `config/rules/` — either creating new rule files or enriching existing ones. This is the final stage of the learning loop:
+
+```
+Episodes → distill → Knowledge → insight → Skills → enlighten → Rules
+```
+
+Unlike `distill` or `insight`, `enlighten` requires a critical mass of high-quality skills before it becomes meaningful. A handful of skills reflect individual experiences; universal principles only emerge from patterns across many skills. The execution threshold is intentionally high — premature generalization produces platitudes, not principles.
+
 ## Activity Reports
 
 Daily reports in [`reports/comment-reports/`](reports/comment-reports/) — timestamped comments with relevance scores and self-generated posts. Auto-generated from episode logs at session end.
