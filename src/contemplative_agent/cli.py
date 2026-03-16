@@ -290,14 +290,6 @@ def main() -> None:
         "--identity", action="store_true", help="Also distill knowledge into identity"
     )
 
-    # insight
-    insight_parser = subparsers.add_parser(
-        "insight", help="Extract behavioral skills from accumulated knowledge"
-    )
-    insight_parser.add_argument(
-        "--dry-run", action="store_true", help="Show result without writing"
-    )
-
     # report
     report_parser = subparsers.add_parser(
         "report", help="Show self-improvement metrics from episode logs"
@@ -420,22 +412,6 @@ def main() -> None:
                 dry_run=args.dry_run,
             )
             print(identity_result)
-        return
-
-    if args.command == "insight":
-        from .adapters.moltbook.config import SKILLS_DIR
-        from .core.insight import extract_insight
-        from .core.memory import KnowledgeStore
-
-        knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
-        clauses = get_rules().constitutional_clauses
-        result = extract_insight(
-            knowledge_store=knowledge_store,
-            constitutional_clauses=clauses,
-            skills_dir=SKILLS_DIR,
-            dry_run=args.dry_run,
-        )
-        print(result)
         return
 
     if args.command == "report":
