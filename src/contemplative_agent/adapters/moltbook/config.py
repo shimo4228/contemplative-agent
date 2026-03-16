@@ -18,7 +18,7 @@ MOLTBOOK_DATA_DIR = Path(
 CREDENTIALS_PATH = MOLTBOOK_DATA_DIR / "credentials.json"
 RATE_STATE_PATH = MOLTBOOK_DATA_DIR / "rate_state.json"
 EPISODE_LOG_DIR = MOLTBOOK_DATA_DIR / "logs"
-LEGACY_MEMORY_PATH = MOLTBOOK_DATA_DIR / "memory.json"
+
 COMMENTED_CACHE_PATH = MOLTBOOK_DATA_DIR / "commented_cache.json"
 
 # --- Learning artifacts (in config/, not runtime data) ---

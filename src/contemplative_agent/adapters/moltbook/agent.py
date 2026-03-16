@@ -17,7 +17,6 @@ from .config import (
     EPISODE_LOG_DIR,
     IDENTITY_PATH,
     KNOWLEDGE_PATH,
-    LEGACY_MEMORY_PATH,
     OLLAMA_BASE_URL,
     OLLAMA_MODEL,
     RATE_LIMITS,
@@ -79,7 +78,6 @@ class Agent:
         self._client: Optional[MoltbookClient] = None
         self._scheduler: Optional[Scheduler] = None
         self._memory = memory or MemoryStore(
-            path=LEGACY_MEMORY_PATH,
             log_dir=EPISODE_LOG_DIR,
             knowledge_path=KNOWLEDGE_PATH,
             commented_cache_path=COMMENTED_CACHE_PATH,

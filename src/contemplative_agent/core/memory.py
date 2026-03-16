@@ -16,7 +16,7 @@ from pathlib import Path
 from typing import Dict, List, Literal, Optional, Tuple
 
 from ._io import SUMMARY_MAX_LENGTH, truncate, write_restricted
-from .config import FORBIDDEN_SUBSTRING_PATTERNS
+
 from .episode_log import EpisodeLog
 from .knowledge_store import (
     KNOWLEDGE_CONTEXT_MAX,
@@ -101,12 +101,9 @@ class MemoryStore:
         # When path is given (e.g. tests), derive sibling paths from it
         if path is not None:
             base_dir = path.parent
-            self._legacy_path = path
             log_dir = log_dir or base_dir / "logs"
             knowledge_path = knowledge_path or base_dir / "knowledge.md"
             commented_cache_path = commented_cache_path or base_dir / "commented_cache.json"
-        else:
-            self._legacy_path = None
         self._episodes = EpisodeLog(log_dir=log_dir)
         self._knowledge = KnowledgeStore(path=knowledge_path)
         self._commented_cache_path = commented_cache_path
@@ -133,22 +130,10 @@ class MemoryStore:
         return self._knowledge
 
     def load(self) -> None:
-        """Load memory: try new format first, fall back to legacy migration."""
-        knowledge_exists = self._knowledge.has_persisted_file()
-
-        if (
-            self._legacy_path is not None
-            and self._legacy_path.exists()
-            and not knowledge_exists
-        ):
-            # Legacy file exists but no knowledge.md yet — migrate
-            # Migration already populates in-memory lists, so skip episode loading
-            self._migrate_legacy()
-        else:
-            if knowledge_exists:
-                self._knowledge.load()
-            # Load recent episodes into in-memory interactions for backward compat
-            self._load_episodes_into_memory()
+        """Load memory from knowledge store and episode logs."""
+        if self._knowledge.has_persisted_file():
+            self._knowledge.load()
+        self._load_episodes_into_memory()
 
         logger.info(
             "Loaded memory: %d interactions, %d known agents, "
@@ -182,71 +167,6 @@ class MemoryStore:
                     self._insights_list.append(Insight(**data))
                 except TypeError:
                     logger.warning("Skipping malformed insight in episode log")
-
-    def _migrate_legacy(self) -> None:
-        """Migrate legacy memory.json to 3-layer format."""
-        if self._legacy_path is None:
-            return
-        logger.info("Migrating legacy memory.json to 3-layer format")
-        try:
-            raw_text = self._legacy_path.read_text(encoding="utf-8")
-            raw = json.loads(raw_text)
-        except (json.JSONDecodeError, OSError) as exc:
-            logger.warning("Failed to read legacy memory for migration: %s", exc)
-            return
-
-        # Validate legacy content against forbidden patterns
-        raw_lower = raw_text.lower()
-        for pattern in FORBIDDEN_SUBSTRING_PATTERNS:
-            if pattern.lower() in raw_lower:
-                logger.warning(
-                    "Legacy memory contains forbidden pattern: %s — "
-                    "skipping migration",
-                    pattern,
-                )
-                return
-
-        # Migrate known_agents and followed_agents to KnowledgeStore
-        for agent_id, name in raw.get("known_agents", {}).items():
-            self._knowledge.record_agent(agent_id, name)
-        for agent_name in raw.get("followed_agents", []):
-            self._knowledge.record_follow(agent_name)
-
-        # Migrate interactions to episode log
-        for item in raw.get("interactions", []):
-            try:
-                interaction = Interaction(**item)
-                self._episodes.append("interaction", asdict(interaction))
-                self._interactions.append(interaction)
-                self._interacted_ids.add(interaction.agent_id)
-            except TypeError:
-                logger.warning("Skipping malformed interaction during migration")
-
-        # Migrate post_history
-        for item in raw.get("post_history", []):
-            try:
-                record = PostRecord(**item)
-                self._episodes.append("post", asdict(record))
-                self._post_history.append(record)
-                self._knowledge.add_post_topic(record.topic_summary)
-            except TypeError:
-                logger.warning("Skipping malformed post record during migration")
-
-        # Migrate insights
-        for item in raw.get("insights", []):
-            try:
-                insight = Insight(**item)
-                self._episodes.append("insight", asdict(insight))
-                self._insights_list.append(insight)
-                self._knowledge.add_insight(insight.observation)
-            except TypeError:
-                logger.warning("Skipping malformed insight during migration")
-
-        # Save knowledge and rename legacy file
-        self._knowledge.save()
-        backup_path = self._legacy_path.with_suffix(".json.bak")
-        self._legacy_path.rename(backup_path)
-        logger.info("Legacy migration complete. Backup at %s", backup_path)
 
     def save(self) -> None:
         """Persist knowledge store and commented cache. Episodes are saved on append."""

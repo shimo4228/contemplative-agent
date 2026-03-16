@@ -225,30 +225,6 @@ class TestMemoryPersistence:
         store.load()  # Should not raise
         assert store.interaction_count() == 0
 
-    def test_load_malformed_interaction(self, tmp_path):
-        path = tmp_path / "memory.json"
-        data = {
-            "interactions": [
-                {"agent_id": "a1"},  # missing required fields
-                {
-                    "timestamp": "t1",
-                    "agent_id": "a2",
-                    "agent_name": "Agent2",
-                    "post_id": "p1",
-                    "direction": "sent",
-                    "content_summary": "hi",
-                    "interaction_type": "comment",
-                },
-            ],
-            "known_agents": {},
-        }
-        path.write_text(json.dumps(data))
-        store = MemoryStore(path=path)
-        store.load()
-        # Should skip malformed, load valid
-        assert store.interaction_count() == 1
-        assert store.interactions[0].agent_id == "a2"
-
     def test_creates_parent_directories(self, tmp_path):
         path = tmp_path / "deep" / "nested" / "memory.json"
         store = MemoryStore(path=path)
@@ -461,39 +437,6 @@ class TestPostHistoryPersistence:
         assert len(store2.get_recent_post_topics()) == 1
         assert len(store2.get_recent_insights()) == 1
 
-    def test_load_malformed_post_record(self, tmp_path):
-        path = tmp_path / "memory.json"
-        data = {
-            "interactions": [],
-            "known_agents": {},
-            "followed_agents": [],
-            "post_history": [
-                {"post_id": "p1"},  # missing required fields
-                {
-                    "timestamp": "t1",
-                    "post_id": "p2",
-                    "title": "Good Post",
-                    "topic_summary": "topic",
-                    "content_hash": "hash123",
-                },
-            ],
-            "insights": [
-                {"observation": "incomplete"},  # missing required fields
-                {
-                    "timestamp": "t2",
-                    "observation": "Good insight",
-                    "insight_type": "session_summary",
-                },
-            ],
-        }
-        path.write_text(json.dumps(data))
-        store = MemoryStore(path=path)
-        store.load()
-        assert len(store.get_recent_post_topics()) == 1
-        assert store.get_recent_post_topics()[0] == "topic"
-        assert len(store.get_recent_insights()) == 1
-        assert store.get_recent_insights()[0] == "Good insight"
-
     def test_empty_post_topics_returns_empty(self):
         store = MemoryStore()
         assert store.get_recent_post_topics() == []
@@ -682,87 +625,6 @@ class TestKnowledgeStore:
         assert ks2.get_insights() == ["Contemplative practice is valuable"]
 
 
-class TestMigration:
-    def test_legacy_migration(self, tmp_path):
-        """Test migration from memory.json to 3-layer format."""
-        legacy_path = tmp_path / "memory.json"
-        data = {
-            "interactions": [
-                {
-                    "timestamp": "t1",
-                    "agent_id": "a1",
-                    "agent_name": "Agent1",
-                    "post_id": "p1",
-                    "direction": "sent",
-                    "content_summary": "hi",
-                    "interaction_type": "comment",
-                },
-            ],
-            "known_agents": {"a1": "Agent1", "a2": "Agent2"},
-            "followed_agents": ["Agent1"],
-            "post_history": [
-                {
-                    "timestamp": "t2",
-                    "post_id": "p2",
-                    "title": "Post1",
-                    "topic_summary": "topic1",
-                    "content_hash": "hash123",
-                },
-            ],
-            "insights": [
-                {
-                    "timestamp": "t3",
-                    "observation": "Good session",
-                    "insight_type": "session_summary",
-                },
-            ],
-        }
-        legacy_path.write_text(json.dumps(data))
-
-        store = MemoryStore(path=legacy_path)
-        store.load()
-
-        # Data should be migrated
-        assert store.interaction_count() == 1
-        assert store.unique_agent_count() == 2
-        assert store.is_followed("Agent1")
-        assert not store.is_followed("Agent2")
-        assert store.get_recent_post_topics() == ["topic1"]
-        assert store.get_recent_insights() == ["Good session"]
-
-        # Legacy file should be renamed
-        assert not legacy_path.exists()
-        assert (tmp_path / "memory.json.bak").exists()
-
-        # Knowledge file should exist
-        assert (tmp_path / "knowledge.md").exists()
-
-        # Episode log should have records
-        log_dir = tmp_path / "logs"
-        assert log_dir.exists()
-
-    def test_no_migration_if_knowledge_exists(self, tmp_path):
-        """If knowledge.md already exists, don't re-migrate."""
-        legacy_path = tmp_path / "memory.json"
-        knowledge_path = tmp_path / "knowledge.md"
-        legacy_path.write_text(json.dumps({"interactions": [], "known_agents": {}}))
-        knowledge_path.write_text("# Knowledge Base\n")
-
-        store = MemoryStore(path=legacy_path)
-        store.load()
-
-        # Legacy should NOT be renamed
-        assert legacy_path.exists()
-
-    def test_migration_handles_corrupted_legacy(self, tmp_path):
-        legacy_path = tmp_path / "memory.json"
-        legacy_path.write_text("not json")
-
-        store = MemoryStore(path=legacy_path)
-        store.load()  # Should not raise
-        assert store.interaction_count() == 0
-
-
 class TestCommentedCache:
     """Tests for cross-session comment deduplication."""
 
@@ -921,24 +783,6 @@ class TestInteractedIdsSet:
         store2.load()
         assert store2.has_interacted_with("a1") is True
         assert store2.has_interacted_with("a2") is False
-
-    def test_has_interacted_with_after_migration(self, tmp_path):
-        legacy_path = tmp_path / "memory.json"
-        data = {
-            "interactions": [{
-                "timestamp": "t1", "agent_id": "a1", "agent_name": "Agent1",
-                "post_id": "p1", "direction": "sent",
-                "content_summary": "hi", "interaction_type": "comment",
-            }],
-            "known_agents": {"a1": "Agent1"},
-            "followed_agents": [],
-            "post_history": [], "insights": [],
-        }
-        legacy_path.write_text(json.dumps(data))
-
-        store = MemoryStore(path=legacy_path)
-        store.load()
-        assert store.has_interacted_with("a1") is True
 
 
 class TestCommentedCachePersistence:
