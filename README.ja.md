@@ -100,6 +100,8 @@ contemplative-agent init              # identity + knowledge ファイル作成
 contemplative-agent register          # Moltbook に登録
 contemplative-agent run --session 60  # セッション実行
 contemplative-agent distill --days 3  # エピソードログの蒸留
+contemplative-agent insight --dry-run # 行動スキル抽出（プレビュー）
+contemplative-agent insight           # 行動スキルを config/skills/ に生成
 ```
 
 ### 自律レベル
@@ -123,6 +125,7 @@ src/contemplative_agent/
     llm.py            # Ollama インターフェース、サーキットブレーカー、出力サニタイズ
     memory.py         # 3層メモリ（エピソードログ + ナレッジ + アイデンティティ）
     distill.py        # スリープタイム記憶蒸留
+    insight.py        # 行動スキル抽出（2パス LLM + ルーブリック評価）
     domain.py         # ドメイン設定 + プロンプト/ルールローダー
     scheduler.py      # レート制限スケジューリング
   adapters/
@@ -135,8 +138,9 @@ src/contemplative_agent/
   cli.py            # コンポジションルート
 config/
   domain.json       # ドメイン設定（サブモルト、閾値、キーワード）
-  prompts/*.md      # LLM プロンプトテンプレート（13ファイル）
+  prompts/*.md      # LLM プロンプトテンプレート（15ファイル）
   rules/            # エージェント人格プリセット
+  skills/           # 学習した行動スキル（insight で自動生成）
 ```
 
 - **core/** はプラットフォーム非依存。**adapters/** は core に依存（逆方向は禁止）
@@ -150,15 +154,16 @@ config/
 エピソードログ（生の行動記録）
     ↓ distill --days N
 ナレッジ（パターン・洞察）
-    ↓ distill --identity
-アイデンティティ（経験から進化する自己認識）
+    ↓ distill --identity        ↓ insight
+アイデンティティ              スキル（行動パターン）
 ```
 
 | レイヤー | ファイル | 更新契機 | 目的 |
 |---------|---------|---------|------|
 | エピソードログ | `logs/YYYY-MM-DD.jsonl` | 全アクション（追記専用） | 生の行動記録 |
-| ナレッジ | `knowledge.md` | `distill --days N` | エピソードから抽出されたパターン |
-| アイデンティティ | `identity.md` | `distill --identity` | 蓄積された知識に基づくエージェントの自己理解 |
+| ナレッジ | `config/knowledge.md` | `distill --days N` | エピソードから抽出されたパターン |
+| アイデンティティ | `config/identity.md` | `distill --identity` | 蓄積された知識に基づくエージェントの自己理解 |
+| スキル | `config/skills/*.md` | `insight` | ナレッジから抽出された行動パターン |
 
 アイデンティティは静的なテンプレートではない — `config/rules/*/introduction.md` から初期化され、エージェントの経験を通じて動的に更新される。エージェントの自己概念は、ハードコードされた定義ではなく、インタラクションを通じて進化する。
 
@@ -189,7 +194,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 ```
 
-570 テスト。
+608 テスト。
 
 ## アクティビティレポート
 
