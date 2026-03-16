@@ -13,7 +13,7 @@ import unicodedata
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import List, Optional
 
 from ._io import write_restricted
 from .llm import generate, validate_identity_content
@@ -148,10 +148,18 @@ def _slugify(title: str) -> str:
     return slug[:MAX_SLUG_LENGTH]
 
 
-def _render_skill_file(candidate: SkillCandidate, score: RubricScore) -> str:
+def _yaml_safe(text: str, max_len: int) -> str:
+    """Sanitize text for YAML quoted values: strip newlines and double quotes."""
+    return text.replace("\r", "").replace("\n", " ").replace('"', "'")[:max_len]
+
+
+def _render_skill_file(
+    candidate: SkillCandidate, score: RubricScore, source_patterns: int
+) -> str:
     """Render a SkillCandidate + RubricScore as YAML frontmatter + Markdown."""
-    safe_name = candidate.title.lower().replace(" ", "-").replace('"', "'")[:50]
-    safe_desc = candidate.context.replace('"', "'")[:130]
+    safe_name = _slugify(candidate.title)
+    safe_desc = _yaml_safe(candidate.context, 130)
+    safe_title = candidate.title.replace("\r", "").replace("\n", " ")
     return (
         f"---\n"
         f'name: "{safe_name}"\n'
@@ -159,9 +167,9 @@ def _render_skill_file(candidate: SkillCandidate, score: RubricScore) -> str:
         f"origin: auto-extracted\n"
         f"confidence: {score.confidence:.2f}\n"
         f'extracted: "{date.today().isoformat()}"\n'
-        f"source_patterns: {{source_patterns}}\n"
+        f"source_patterns: {source_patterns}\n"
         f"---\n"
-        f"# {candidate.title}\n"
+        f"# {safe_title}\n"
         f"\n"
         f"**Context:** {candidate.context}\n"
         f"\n"
@@ -223,13 +231,13 @@ def _evaluate_skill(candidate: SkillCandidate) -> RubricScore:
 
     result = generate(prompt, max_length=500)
     if result is None:
-        logger.warning("LLM failed to evaluate skill — using default scores.")
+        logger.warning("LLM failed to evaluate skill — dropping candidate (fail-safe).")
         return RubricScore(
-            specificity=PASS_THRESHOLD,
-            actionability=PASS_THRESHOLD,
-            scope_fit=PASS_THRESHOLD,
-            non_redundancy=PASS_THRESHOLD,
-            coverage=PASS_THRESHOLD,
+            specificity=MIN_SCORE,
+            actionability=MIN_SCORE,
+            scope_fit=MIN_SCORE,
+            non_redundancy=MIN_SCORE,
+            coverage=MIN_SCORE,
         )
 
     return _parse_rubric_response(result)
@@ -296,9 +304,7 @@ def extract_insight(
             f"Evidence: {candidate.evidence}"
         )
 
-    rendered = _render_skill_file(candidate, score).format(
-        source_patterns=len(patterns)
-    )
+    rendered = _render_skill_file(candidate, score, source_patterns=len(patterns))
 
     if dry_run:
         logger.info("Dry run — not writing skill file")

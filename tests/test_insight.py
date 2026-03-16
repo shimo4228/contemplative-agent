@@ -9,7 +9,6 @@ import pytest
 
 from contemplative_agent.core.insight import (
     MAX_FIELD_LENGTH,
-    MIN_PATTERNS_REQUIRED,
     PASS_THRESHOLD,
     RubricScore,
     SkillCandidate,
@@ -218,13 +217,32 @@ class TestHelpers:
             evidence="TDD patterns",
         )
         score = RubricScore(4, 4, 3, 3, 3)
-        rendered = _render_skill_file(candidate, score)
-        # source_patterns is a placeholder
-        rendered = rendered.format(source_patterns=5)
+        rendered = _render_skill_file(candidate, score, source_patterns=5)
         assert "# Test Skill" in rendered
         assert "confidence: 0.68" in rendered
         assert "origin: auto-extracted" in rendered
         assert "source_patterns: 5" in rendered
+
+    def test_render_skill_file_newline_injection(self) -> None:
+        """YAML frontmatter must not contain raw newlines that break YAML structure."""
+        candidate = SkillCandidate(
+            title="Skill\nmalicious_key: injected",
+            context="Context\nfoo: bar",
+            problem="prob",
+            behavior="beh",
+            evidence="evi",
+        )
+        score = RubricScore(3, 3, 3, 3, 3)
+        rendered = _render_skill_file(candidate, score, source_patterns=1)
+        frontmatter = rendered.split("---")[1]
+        # Newlines should be replaced with spaces (then hyphens in name).
+        # Values stay inside double quotes, so no YAML key injection.
+        assert "\nmalicious_key:" not in frontmatter
+        assert "\nfoo:" not in frontmatter
+        # Description is quoted: 'description: "Context foo: bar"' — safe
+        assert 'description: "Context foo: bar"' in frontmatter
+        # Title heading should have newline replaced with space
+        assert "# Skill malicious_key: injected" in rendered
 
     def test_render_score_table(self) -> None:
         score = RubricScore(4, 3, 5, 2, 4)
@@ -274,12 +292,13 @@ class TestEvaluateSkill:
         assert score.passed is True
 
     @patch("contemplative_agent.core.insight.generate")
-    def test_llm_failure_returns_defaults(self, mock_generate) -> None:
+    def test_llm_failure_drops_candidate(self, mock_generate) -> None:
+        """LLM failure should fail-safe to DROP, not pass."""
         mock_generate.return_value = None
         candidate = SkillCandidate("t", "c", "p", "b", "e")
         score = _evaluate_skill(candidate)
-        assert score.total == PASS_THRESHOLD * 5
-        assert score.passed is True
+        assert score.total == 5  # MIN_SCORE * 5
+        assert score.passed is False
 
 
 # ---------------------------------------------------------------------------
@@ -333,6 +352,7 @@ class TestExtractInsight:
         )
         assert "# Ask before reacting" in result
         assert "Score" in result
+        assert "{source_patterns}" not in result
 
     @patch("contemplative_agent.core.insight.generate")
     def test_save_to_file(
@@ -373,10 +393,12 @@ class TestExtractInsight:
         mock_generate.side_effect = [evil_response, GOOD_EVAL_RESPONSE]
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
-        result = extract_insight(
+        extract_insight(
             knowledge_store=knowledge_store,
             skills_dir=skills_dir,
         )
-        # _slugify sanitizes the path — the slug becomes "etc-passwd" which is safe
-        # So this should succeed normally (slugify removes the ../)
-        assert "# ../../etc/passwd" in result or "Skill" in result or "etc-passwd" in result
+        # _slugify strips path separators: "../../etc/passwd" → "etc-passwd"
+        files = list(skills_dir.glob("*.md"))
+        assert len(files) == 1
+        assert "etc-passwd" in files[0].name
+        assert ".." not in files[0].name
