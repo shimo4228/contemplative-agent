@@ -432,10 +432,9 @@ def main() -> None:
         from .core.memory import KnowledgeStore
 
         knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
-        skills_dir = SKILLS_DIR
         result = extract_insight(
             knowledge_store=knowledge_store,
-            skills_dir=skills_dir,
+            skills_dir=SKILLS_DIR,
             dry_run=args.dry_run,
         )
         print(result)

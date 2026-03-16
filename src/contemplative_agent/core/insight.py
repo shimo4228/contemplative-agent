@@ -138,8 +138,8 @@ def _parse_rubric_response(response: str) -> RubricScore:
         if match:
             scores[dim] = _clamp(int(match.group(1)), MIN_SCORE, MAX_SCORE)
         else:
-            logger.warning("Failed to parse rubric dimension %s, defaulting to %d", dim, PASS_THRESHOLD)
-            scores[dim] = PASS_THRESHOLD
+            logger.warning("Failed to parse rubric dimension %s, defaulting to %d (fail-safe)", dim, MIN_SCORE)
+            scores[dim] = MIN_SCORE
 
     return RubricScore(
         specificity=scores["SPECIFICITY"],

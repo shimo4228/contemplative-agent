@@ -16,7 +16,6 @@ from pathlib import Path
 from typing import Dict, List, Literal, Optional, Tuple
 
 from ._io import SUMMARY_MAX_LENGTH, truncate, write_restricted
-
 from .episode_log import EpisodeLog
 from .knowledge_store import (
     KNOWLEDGE_CONTEXT_MAX,

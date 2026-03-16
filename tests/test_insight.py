@@ -9,7 +9,6 @@ import pytest
 
 from contemplative_agent.core.insight import (
     MAX_FIELD_LENGTH,
-    PASS_THRESHOLD,
     RubricScore,
     SkillCandidate,
     _clamp,
@@ -145,23 +144,26 @@ class TestParseRubricResponse:
         assert score.non_redundancy == 5
         assert score.coverage == 3
 
-    def test_negative_value_defaults(self) -> None:
-        """Negative numbers don't match \\d+ regex, so default to PASS_THRESHOLD."""
+    def test_negative_value_defaults_to_min(self) -> None:
+        """Negative numbers don't match \\d+ regex, so default to MIN_SCORE (fail-safe)."""
         response = "SPECIFICITY: -1\nACTIONABILITY: 4\n"
         score = _parse_rubric_response(response)
-        assert score.specificity == PASS_THRESHOLD
+        assert score.specificity == 1
         assert score.actionability == 4
 
-    def test_missing_dimension_defaults(self) -> None:
+    def test_missing_dimension_defaults_to_min(self) -> None:
+        """Missing dimensions default to MIN_SCORE (fail-safe)."""
         response = "SPECIFICITY: 4\n"
         score = _parse_rubric_response(response)
         assert score.specificity == 4
-        assert score.actionability == PASS_THRESHOLD
-        assert score.scope_fit == PASS_THRESHOLD
+        assert score.actionability == 1
+        assert score.scope_fit == 1
 
-    def test_unparseable_defaults_all(self) -> None:
+    def test_unparseable_drops_candidate(self) -> None:
+        """Fully unparseable response should fail the quality gate."""
         score = _parse_rubric_response("garbage output")
-        assert score.total == PASS_THRESHOLD * 5
+        assert score.total == 5  # MIN_SCORE * 5
+        assert score.passed is False
 
     def test_table_format(self) -> None:
         """Qwen sometimes responds with Markdown table format."""
