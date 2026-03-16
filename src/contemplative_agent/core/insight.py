@@ -119,12 +119,21 @@ def _parse_skill_response(response: str) -> Optional[SkillCandidate]:
 def _parse_rubric_response(response: str) -> RubricScore:
     """Parse rubric scores from LLM response.
 
+    Handles multiple output formats from Qwen:
+    - Standard: "SPECIFICITY: 3"
+    - Markdown bold: "**SPECIFICITY**: 3"
+    - Table: "| SPECIFICITY | 3 |"
+    - Inline: "SPECIFICITY: 3 (because...)"
+
     Returns default score (3 for each dimension) on parse failure.
     """
     scores = {}
     for dim in RUBRIC_DIMENSIONS:
+        # Try multiple patterns: standard, markdown bold, table format
         match = re.search(
-            rf"^{dim}:\s*(\d+)", response, re.MULTILINE | re.IGNORECASE
+            rf"(?:^|\|)\s*\**{dim}\**[:\s|]+(\d+)",
+            response,
+            re.MULTILINE | re.IGNORECASE,
         )
         if match:
             scores[dim] = _clamp(int(match.group(1)), MIN_SCORE, MAX_SCORE)
@@ -230,6 +239,7 @@ def _evaluate_skill(candidate: SkillCandidate) -> RubricScore:
     )
 
     result = generate(prompt, max_length=500)
+    logger.debug("Eval raw output: %s", result)
     if result is None:
         logger.warning("LLM failed to evaluate skill — dropping candidate (fail-safe).")
         return RubricScore(

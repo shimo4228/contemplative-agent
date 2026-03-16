@@ -163,6 +163,36 @@ class TestParseRubricResponse:
         score = _parse_rubric_response("garbage output")
         assert score.total == PASS_THRESHOLD * 5
 
+    def test_table_format(self) -> None:
+        """Qwen sometimes responds with Markdown table format."""
+        response = (
+            "| SPECIFICITY | 4 |\n"
+            "| ACTIONABILITY | 3 |\n"
+            "| SCOPE_FIT | 5 |\n"
+            "| NON_REDUNDANCY | 2 |\n"
+            "| COVERAGE | 3 |\n"
+        )
+        score = _parse_rubric_response(response)
+        assert score.specificity == 4
+        assert score.actionability == 3
+        assert score.scope_fit == 5
+        assert score.non_redundancy == 2
+        assert score.coverage == 3
+
+    def test_markdown_bold_format(self) -> None:
+        """Qwen sometimes wraps dimension names in bold."""
+        response = (
+            "**SPECIFICITY**: 4\n"
+            "**ACTIONABILITY**: 5\n"
+            "**SCOPE_FIT**: 3\n"
+            "**NON_REDUNDANCY**: 3\n"
+            "**COVERAGE**: 4\n"
+        )
+        score = _parse_rubric_response(response)
+        assert score.specificity == 4
+        assert score.actionability == 5
+        assert score.coverage == 4
+
 
 # ---------------------------------------------------------------------------
 # Unit: RubricScore
