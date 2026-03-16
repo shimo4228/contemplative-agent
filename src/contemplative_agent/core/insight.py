@@ -20,6 +20,7 @@ logger = logging.getLogger(__name__)
 MIN_PATTERNS_REQUIRED = 3
 MAX_FIELD_LENGTH = 200
 MAX_SLUG_LENGTH = 50
+INITIAL_CONFIDENCE = 0.5  # Seed value before skill-stocktake evaluation
 
 
 @dataclass(frozen=True)
@@ -68,15 +69,15 @@ def _match_axiom(content: str, clauses: str) -> str:
     best_clause = ""
     best_overlap = 0
 
-    for line in clauses.splitlines():
-        line = line.strip()
-        if not line or line.startswith("#"):
+    for raw_line in clauses.splitlines():
+        stripped = raw_line.strip()
+        if not stripped or stripped.startswith("#"):
             continue
-        clause_words = set(re.findall(r"[a-z]{4,}", line.lower()))
+        clause_words = set(re.findall(r"[a-z]{4,}", stripped.lower()))
         overlap = len(content_words & clause_words)
         if overlap > best_overlap:
             best_overlap = overlap
-            best_clause = line
+            best_clause = stripped
 
     if best_overlap < 2:
         return "none"
@@ -161,7 +162,7 @@ def extract_insight(
     if parsed is None:
         msg = "Failed to parse LLM output into skill format."
         logger.warning(msg)
-        logger.debug("Raw LLM output: %s", result)
+        logger.debug("Raw LLM output (first 200 chars): %.200s", result)
         return msg
 
     title, context, behavior, evidence = parsed
@@ -182,7 +183,7 @@ def extract_insight(
         behavior=behavior,
         evidence=evidence,
         axiom=axiom,
-        confidence=0.5,
+        confidence=INITIAL_CONFIDENCE,
         extracted=today,
         source_patterns=len(patterns),
     )
