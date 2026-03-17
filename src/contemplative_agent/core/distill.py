@@ -6,7 +6,7 @@ import logging
 import os
 import stat
 from pathlib import Path
-from typing import List, Optional
+from typing import Dict, List, Optional
 
 from ._io import archive_before_write
 from .llm import generate, validate_identity_content
@@ -21,6 +21,7 @@ def distill(
     dry_run: bool = False,
     episode_log: Optional[EpisodeLog] = None,
     knowledge_store: Optional[KnowledgeStore] = None,
+    log_files: Optional[List[Path]] = None,
 ) -> str:
     """Distill recent episodes into learned patterns.
 
@@ -32,6 +33,7 @@ def distill(
         dry_run: If True, return results without writing.
         episode_log: EpisodeLog instance (uses default if None).
         knowledge_store: KnowledgeStore instance (uses default if None).
+        log_files: Explicit JSONL file paths to process (overrides days).
 
     Returns:
         The distilled patterns as a string.
@@ -40,7 +42,12 @@ def distill(
     knowledge = knowledge_store or KnowledgeStore()
     knowledge.load()
 
-    records = episodes.read_range(days=days)
+    if log_files:
+        records: List[Dict] = []
+        for path in log_files:
+            records.extend(EpisodeLog._read_file(path))
+    else:
+        records = episodes.read_range(days=days)
     if not records:
         msg = "No episodes found for distillation."
         logger.info(msg)

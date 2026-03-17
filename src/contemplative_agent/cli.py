@@ -296,6 +296,10 @@ def main() -> None:
     distill_parser.add_argument(
         "--identity", action="store_true", help="Also distill knowledge into identity"
     )
+    distill_parser.add_argument(
+        "--file", type=Path, nargs="+", dest="log_files",
+        help="Explicit JSONL log file(s) to process (overrides --days)"
+    )
 
     # report
     report_parser = subparsers.add_parser(
@@ -421,6 +425,7 @@ def main() -> None:
             dry_run=args.dry_run,
             episode_log=episode_log,
             knowledge_store=knowledge_store,
+            log_files=args.log_files,
         )
         print(result)
 
