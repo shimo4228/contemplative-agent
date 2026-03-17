@@ -17,6 +17,7 @@ from typing import List, Optional
 
 from ._io import write_restricted
 from .llm import generate, validate_identity_content
+from .episode_log import EpisodeLog
 from .memory import KnowledgeStore
 from .prompts import INSIGHT_EXTRACTION_PROMPT, INSIGHT_EVAL_PROMPT
 
@@ -257,7 +258,7 @@ def extract_insight(
     knowledge_store: Optional[KnowledgeStore] = None,
     skills_dir: Optional[Path] = None,
     dry_run: bool = False,
-    episode_log: object = None,
+    episode_log: Optional[EpisodeLog] = None,
 ) -> str:
     """Extract a behavioral skill from accumulated knowledge.
 

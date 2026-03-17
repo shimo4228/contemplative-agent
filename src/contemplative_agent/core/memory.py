@@ -191,8 +191,9 @@ class MemoryStore:
             write_restricted(tmp_path, content)
             os.replace(str(tmp_path), str(self._agents_path))
         except OSError as exc:
-            logger.warning("Failed to save agents.json: %s", exc)
+            logger.error("Failed to save agents.json: %s", exc)
             tmp_path.unlink(missing_ok=True)
+            raise
 
     def _load_episodes_into_memory(self) -> None:
         """Load recent episode log entries into in-memory lists."""

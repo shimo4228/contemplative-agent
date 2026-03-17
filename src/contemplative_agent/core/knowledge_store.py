@@ -14,6 +14,7 @@ from .config import FORBIDDEN_SUBSTRING_PATTERNS
 
 logger = logging.getLogger(__name__)
 
+
 class KnowledgeStore:
     """Manages distilled learned patterns as a JSON file.
 
@@ -47,11 +48,16 @@ class KnowledgeStore:
         """Return a copy of the learned patterns (text only)."""
         return [p["pattern"] for p in self._learned_patterns]
 
-    def get_context_string(self) -> str:
-        """Return all learned patterns as a bullet list for LLM context injection."""
+    def get_context_string(self, limit: int = 100) -> str:
+        """Return learned patterns as a bullet list for LLM context injection.
+
+        Returns up to `limit` most-recent patterns. Default 100 is generous
+        for qwen3.5:9b's 32k context but prevents unbounded growth.
+        """
         if not self._learned_patterns:
             return ""
-        return "\n".join(f"- {p['pattern']}" for p in self._learned_patterns)
+        patterns = self._learned_patterns[-limit:]
+        return "\n".join(f"- {p['pattern']}" for p in patterns)
 
     def load(self) -> None:
         """Load knowledge from JSON file.

@@ -58,7 +58,7 @@ class EpisodeLog:
     def read_today(self) -> List[Dict[str, Any]]:
         """Read all records from today's log."""
         path = self._today_path()
-        return self._read_file(path) if path is not None else []
+        return self.read_file(path) if path is not None else []
 
     def read_range(
         self, days: int = 1, record_type: Optional[str] = None
@@ -78,7 +78,7 @@ class EpisodeLog:
             date_str = (now - timedelta(days=i)).strftime("%Y-%m-%d")
             path = self._path_for_date(date_str)
             if path is not None:
-                records.extend(self._read_file(path))
+                records.extend(self.read_file(path))
         if record_type is not None:
             records = [r for r in records if r.get("type") == record_type]
         return records
@@ -107,8 +107,8 @@ class EpisodeLog:
         return deleted
 
     @staticmethod
-    def _read_file(path: Path) -> List[Dict[str, Any]]:
-        """Read all JSON lines from a single file."""
+    def read_file(path: Path) -> List[Dict[str, Any]]:
+        """Read all JSON lines from a single JSONL file."""
         if not path.exists():
             return []
         records = []

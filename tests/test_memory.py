@@ -683,6 +683,25 @@ class TestFollowedAgents:
         store.record_follow("B")
         assert store.get_followed_agents() == {"A", "B"}
 
+    def test_agents_json_rejects_tainted_file(self, tmp_path):
+        """agents.json containing forbidden patterns should not be loaded."""
+        agents_path = tmp_path / "agents.json"
+        agents_path.write_text(json.dumps({"followed": ["api_key_leak"]}))
+
+        store = MemoryStore(path=tmp_path / "memory.json")
+        store.load()
+        assert store.is_followed("api_key_leak") is False
+        assert store.get_followed_agents() == set()
+
+    def test_agents_json_file_permissions(self, tmp_path):
+        store = MemoryStore(path=tmp_path / "memory.json")
+        store.record_follow("Agent1")
+        store.save()
+        agents_path = tmp_path / "agents.json"
+        mode = os.stat(agents_path).st_mode
+        assert mode & stat.S_IRWXG == 0
+        assert mode & stat.S_IRWXO == 0
+
 
 class TestKnownAgentsFromJSONL:
     """Tests that known agents are populated from JSONL interactions."""

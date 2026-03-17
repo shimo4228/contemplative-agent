@@ -418,6 +418,13 @@ def main() -> None:
         from .core.memory import EpisodeLog, KnowledgeStore
 
         log_dir = MOLTBOOK_DATA_DIR / "logs"
+        log_files = args.log_files
+        if log_files:
+            for f in log_files:
+                if not f.exists():
+                    parser.error(f"File not found: {f}")
+                if f.suffix != ".jsonl":
+                    parser.error(f"Not a JSONL file: {f}")
         episode_log = EpisodeLog(log_dir=log_dir)
         knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
         result = distill(
@@ -425,7 +432,7 @@ def main() -> None:
             dry_run=args.dry_run,
             episode_log=episode_log,
             knowledge_store=knowledge_store,
-            log_files=args.log_files,
+            log_files=log_files,
         )
         print(result)
 

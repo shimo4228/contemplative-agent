@@ -104,6 +104,29 @@ class TestDistill:
         assert not (tmp_path / "knowledge.json").exists()
 
 
+    @patch("contemplative_agent.core.distill.generate")
+    def test_log_files_override_days(self, mock_generate, tmp_path):
+        """--file option reads from explicit files, ignoring days."""
+        mock_generate.return_value = "- Pattern from explicit file"
+
+        # Write a JSONL file manually
+        log_file = tmp_path / "custom.jsonl"
+        import json
+        record = {"ts": "2026-03-07T00:00:00", "type": "interaction",
+                  "data": {"direction": "sent", "agent_name": "Alice",
+                           "content_summary": "Hi", "agent_id": "a1"}}
+        log_file.write_text(json.dumps(record) + "\n")
+
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        result = distill(days=1, episode_log=EpisodeLog(), knowledge_store=ks,
+                         log_files=[log_file])
+        assert "Pattern from explicit file" in result
+
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        assert "Pattern from explicit file" in ks2.get_learned_patterns()
+
+
 class TestSummarizeRecord:
     def test_interaction(self):
         result = _summarize_record("interaction", {

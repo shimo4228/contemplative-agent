@@ -45,7 +45,7 @@ def distill(
     if log_files:
         records: List[Dict] = []
         for path in log_files:
-            records.extend(EpisodeLog._read_file(path))
+            records.extend(EpisodeLog.read_file(path))
     else:
         records = episodes.read_range(days=days)
     if not records:
@@ -89,7 +89,7 @@ def distill(
                 patterns.append(pattern)
 
     if dry_run:
-        logger.info("Dry run — not writing patterns")
+        logger.info("Dry run — %d patterns found, not writing", len(patterns))
         return result
 
     for pattern in patterns:
