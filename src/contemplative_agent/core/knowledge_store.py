@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from datetime import date
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -35,7 +35,7 @@ class KnowledgeStore:
     def add_learned_pattern(self, pattern: str, distilled: Optional[str] = None) -> None:
         self._learned_patterns.append({
             "pattern": pattern,
-            "distilled": distilled or date.today().isoformat(),
+            "distilled": distilled or datetime.now(timezone.utc).isoformat(timespec="minutes"),
         })
 
     def replace_learned_pattern(self, index: int, pattern: str) -> None:
@@ -43,7 +43,7 @@ class KnowledgeStore:
         if 0 <= index < len(self._learned_patterns):
             self._learned_patterns[index] = {
                 "pattern": pattern,
-                "distilled": date.today().isoformat(),
+                "distilled": datetime.now(timezone.utc).isoformat(timespec="minutes"),
             }
 
     def get_learned_patterns(self) -> List[str]:
