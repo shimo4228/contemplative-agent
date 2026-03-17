@@ -24,7 +24,7 @@ Good example: "Posts about memory architecture consistently get deeper threads t
 
 ## Output
 
-Reply with 1-3 patterns as bullet points, one per line, starting with "- ".
+Reply with bullet points, one per line, starting with "- ". Extract as many patterns as the data supports.
 Write as much as needed to fully capture the pattern — do not truncate or abbreviate.
 
 Current knowledge:
