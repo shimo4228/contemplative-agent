@@ -12,7 +12,6 @@ from xml.sax.saxutils import escape as xml_escape
 
 from .adapters.moltbook.agent import Agent, AutonomyLevel
 from .adapters.moltbook.config import (
-    AGENTS_PATH,
     IDENTITY_PATH,
     KNOWLEDGE_PATH,
     MOLTBOOK_DATA_DIR,
@@ -206,71 +205,6 @@ def _do_init(rules_dir: Optional[Path] = None) -> None:
         print(f"Created knowledge file: {KNOWLEDGE_PATH}")
 
 
-def _do_migrate() -> None:
-    """Migrate legacy knowledge.md to knowledge.json + agents.json."""
-    import json as _json
-    import re as _re
-    from datetime import date
-
-    # Look for legacy knowledge.md in the config dir
-    legacy_path = KNOWLEDGE_PATH.parent / "knowledge.md"
-    if not legacy_path.exists():
-        print(f"No legacy knowledge.md found at {legacy_path}")
-        return
-
-    text = legacy_path.read_text(encoding="utf-8")
-    current_section = ""
-    patterns: list[str] = []
-    followed: list[str] = []
-
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("## "):
-            current_section = stripped[3:].strip()
-            continue
-        if not stripped.startswith("- "):
-            continue
-        item = stripped[2:].strip()
-        if not item:
-            continue
-
-        if current_section == "Learned Patterns":
-            patterns.append(item)
-        elif current_section == "Agent Relationships":
-            if item.endswith("[followed]"):
-                # Extract name before the (uuid) part
-                clean = item[: -len("[followed]")].strip()
-                match = _re.match(r"^(.+?)\s*\([^)]+\)$", clean)
-                if match:
-                    followed.append(match.group(1).strip())
-
-    # Write knowledge.json
-    today = date.today().isoformat()
-    knowledge_data = [
-        {"pattern": p, "distilled": today} for p in patterns
-    ]
-    KNOWLEDGE_PATH.parent.mkdir(parents=True, exist_ok=True)
-    KNOWLEDGE_PATH.write_text(
-        _json.dumps(knowledge_data, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    os.chmod(KNOWLEDGE_PATH, stat.S_IRUSR | stat.S_IWUSR)
-    print(f"Migrated {len(patterns)} patterns to {KNOWLEDGE_PATH}")
-
-    # Write agents.json
-    agents_data = {"followed": sorted(followed)}
-    AGENTS_PATH.parent.mkdir(parents=True, exist_ok=True)
-    AGENTS_PATH.write_text(
-        _json.dumps(agents_data, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
-    )
-    os.chmod(AGENTS_PATH, stat.S_IRUSR | stat.S_IWUSR)
-    print(f"Migrated {len(followed)} followed agents to {AGENTS_PATH}")
-
-    print(f"\nLegacy file preserved at: {legacy_path}")
-    print("You can safely delete it after verifying the migration.")
-
-
 def main() -> None:
     parser = argparse.ArgumentParser(
         prog="contemplative-agent",
@@ -421,11 +355,6 @@ def main() -> None:
         "--dry-run", action="store_true", help="Show result without writing"
     )
 
-    # migrate
-    subparsers.add_parser(
-        "migrate", help="Migrate knowledge.md to knowledge.json + agents.json"
-    )
-
     # solve
     solve_parser = subparsers.add_parser(
         "solve", help="Test verification solver"
@@ -478,10 +407,6 @@ def main() -> None:
 
     if args.command == "init":
         _do_init(rules_dir=args.rules_dir)
-        return
-
-    if args.command == "migrate":
-        _do_migrate()
         return
 
     if args.command == "distill":

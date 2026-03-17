@@ -71,7 +71,6 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 # CLI
 contemplative-agent --help
 contemplative-agent init                          # identity.md + knowledge.json 作成
-contemplative-agent migrate                       # knowledge.md → knowledge.json + agents.json 移行
 contemplative-agent distill --dry-run             # 記憶蒸留 (dry run)
 contemplative-agent distill --days 3              # 3日分を蒸留
 contemplative-agent insight --dry-run             # 行動スキル抽出 (dry run)
