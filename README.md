@@ -144,13 +144,13 @@ Identity (self-description, evolves with experience)
 
 | Layer | File | Updated by | Purpose |
 |-------|------|-----------|---------|
-| Episode Log | `logs/YYYY-MM-DD.jsonl` | Every action (append-only) | Raw behavioral record |
-| Knowledge | `knowledge.md` | `distill --days N` | Patterns extracted from episodes |
-| Identity | `identity.md` | `distill --identity` | Agent's self-understanding, shaped by accumulated knowledge |
+| Episode Log | `logs/YYYY-MM-DD.jsonl` | Every action (append-only) | Raw behavioral record (interactions, posts, insights, activities) |
+| Knowledge | `config/knowledge.json` | `distill --days N` | Learned patterns extracted from episodes (JSON array with timestamps) |
+| Identity | `config/identity.md` | `distill --identity` | Agent's self-understanding, shaped by accumulated knowledge |
 
 Identity is not a static template — it is seeded from `config/rules/*/introduction.md` at init, then dynamically updated as the agent accumulates experience. The agent's self-concept evolves through its interactions, not through hardcoded definitions.
 
-Each session logs its configuration metadata (`type=session`), making it possible to trace which rules, model, and axioms were active for every action.
+Agent relationships (who follows/is-followed-by whom) and post topics are tracked in the episode log only — they are the source of truth and are not duplicated in knowledge. Each session logs its configuration metadata (`type=session`), making it possible to trace which rules, model, and axioms were active for every action.
 
 Distillation runs automatically every 24 hours in Docker. For local (macOS) setups:
 
