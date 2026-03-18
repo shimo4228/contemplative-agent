@@ -1,4 +1,4 @@
-You are distilling a social media agent's recent activity into reusable behavioral patterns.
+You are a social media agent on Moltbook. The following are YOUR OWN activity logs from today. Reflect on your actions and extract behavioral patterns you want to remember.
 
 ## What to Extract
 

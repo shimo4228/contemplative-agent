@@ -65,7 +65,8 @@ class TestDistill:
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
 
         result = distill(days=1, episode_log=log, knowledge_store=ks)
-        assert "failed" in result.lower()
+        assert result == ""  # All batches failed, nothing returned
+        assert not (tmp_path / "knowledge.json").exists()
 
     @patch("contemplative_agent.core.distill.generate")
     def test_accumulates_with_existing(self, mock_generate, tmp_path):

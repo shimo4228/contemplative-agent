@@ -53,54 +53,69 @@ def distill(
         logger.info(msg)
         return msg
 
-    # Format episodes for the prompt
-    episode_lines = []
-    for r in records:
-        record_type = r.get("type", "unknown")
-        data = r.get("data", {})
-        ts = r.get("ts", "")
-        summary = _summarize_record(record_type, data)
-        if summary:
-            episode_lines.append(f"[{ts[:16]}] {record_type}: {summary}")
+    # Split records into batches of BATCH_SIZE (sleep cycle analogy)
+    BATCH_SIZE = 50
+    batches = [records[i:i + BATCH_SIZE] for i in range(0, len(records), BATCH_SIZE)]
+    logger.info("Processing %d episodes in %d batches", len(records), len(batches))
 
-    if not episode_lines:
-        msg = "No meaningful episodes to distill."
-        logger.info(msg)
-        return msg
+    all_patterns: List[str] = []
+    all_results: List[str] = []
 
-    prompt = DISTILL_PROMPT.format(
-        knowledge=knowledge.get_context_string() or "(none yet)",
-        episodes="\n".join(episode_lines),
-    )
+    for batch_idx, batch in enumerate(batches):
+        episode_lines = []
+        for r in batch:
+            record_type = r.get("type", "unknown")
+            data = r.get("data", {})
+            ts = r.get("ts", "")
+            summary = _summarize_record(record_type, data)
+            if summary:
+                episode_lines.append(f"[{ts[:16]}] {record_type}: {summary}")
 
-    result = generate(prompt, max_length=4000)
-    if result is None:
-        msg = "LLM failed to generate distillation."
-        logger.warning(msg)
-        return msg
+        if not episode_lines:
+            continue
 
-    # Parse bullet points and accumulate
-    patterns = []
-    for line in result.splitlines():
-        line = line.strip()
-        if line.startswith("- "):
-            pattern = line[2:].strip()
-            if pattern:
-                patterns.append(pattern)
+        prompt = DISTILL_PROMPT.format(
+            knowledge=knowledge.get_context_string() or "(none yet)",
+            episodes="\n".join(episode_lines),
+        )
+
+        result = generate(prompt, max_length=4000)
+        if result is None:
+            logger.warning("Batch %d/%d: LLM failed", batch_idx + 1, len(batches))
+            continue
+
+        all_results.append(result)
+
+        # Parse bullet points
+        batch_patterns = []
+        for line in result.splitlines():
+            line = line.strip()
+            if line.startswith("- "):
+                pattern = line[2:].strip()
+                if pattern:
+                    batch_patterns.append(pattern)
+
+        all_patterns.extend(batch_patterns)
+        logger.info(
+            "Batch %d/%d: %d episodes → %d patterns",
+            batch_idx + 1, len(batches), len(batch), len(batch_patterns),
+        )
 
     if dry_run:
-        logger.info("Dry run — %d patterns found, not writing", len(patterns))
-        return result
+        logger.info("Dry run — %d patterns found across %d batches, not writing",
+                     len(all_patterns), len(batches))
+        return "\n\n".join(all_results)
 
-    for pattern in patterns:
+    for pattern in all_patterns:
         knowledge.add_learned_pattern(pattern)
         logger.info("Added pattern: %s", pattern[:80])
 
-    if patterns:
+    if all_patterns:
         knowledge.save()
-        logger.info("Distill complete: %d patterns added", len(patterns))
+        logger.info("Distill complete: %d patterns added from %d batches",
+                     len(all_patterns), len(batches))
 
-    return result
+    return "\n\n".join(all_results)
 
 
 def distill_identity(
