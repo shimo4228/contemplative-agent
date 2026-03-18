@@ -105,8 +105,14 @@ def distill(
                      len(all_patterns), len(batches))
         return "\n\n".join(all_results)
 
+    # Determine source date range from records
+    timestamps = [r.get("ts", "")[:10] for r in records if r.get("ts")]
+    source_date = timestamps[0] if timestamps else None
+    if timestamps and timestamps[0] != timestamps[-1]:
+        source_date = f"{timestamps[0]}~{timestamps[-1]}"
+
     for pattern in all_patterns:
-        knowledge.add_learned_pattern(pattern)
+        knowledge.add_learned_pattern(pattern, source=source_date)
         logger.info("Added pattern: %s", pattern[:80])
 
     if all_patterns:

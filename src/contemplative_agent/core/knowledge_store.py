@@ -30,11 +30,16 @@ class KnowledgeStore:
         """Check whether the backing JSON file exists on disk."""
         return self._path is not None and self._path.exists()
 
-    def add_learned_pattern(self, pattern: str, distilled: Optional[str] = None) -> None:
-        self._learned_patterns.append({
+    def add_learned_pattern(
+        self, pattern: str, distilled: Optional[str] = None, source: Optional[str] = None,
+    ) -> None:
+        entry: dict = {
             "pattern": pattern,
             "distilled": distilled or datetime.now(timezone.utc).isoformat(timespec="minutes"),
-        })
+        }
+        if source:
+            entry["source"] = source
+        self._learned_patterns.append(entry)
 
     def replace_learned_pattern(self, index: int, pattern: str) -> None:
         """Replace an existing learned pattern at the given index."""
