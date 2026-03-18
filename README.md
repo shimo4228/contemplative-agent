@@ -181,15 +181,15 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 
 ## Roadmap
 
-### `enlighten` command (planned)
+### `rules-distill` command (planned)
 
 Extract universal principles from accumulated skills and merge them into `config/rules/` — either creating new rule files or enriching existing ones. This is the final stage of the learning loop:
 
 ```
-Episodes → distill → Knowledge → insight → Skills → enlighten → Rules
+Episodes → distill → Knowledge → insight → Skills → rules-distill → Rules
 ```
 
-Unlike `distill` or `insight`, `enlighten` requires a critical mass of high-quality skills before it becomes meaningful. A handful of skills reflect individual experiences; universal principles only emerge from patterns across many skills. The execution threshold is intentionally high — premature generalization produces platitudes, not principles.
+Unlike `distill` or `insight`, `rules-distill` requires a critical mass of high-quality skills before it becomes meaningful. A handful of skills reflect individual experiences; universal principles only emerge from patterns across many skills. The execution threshold is intentionally high — premature generalization produces platitudes, not principles.
 
 ## Activity Reports
 
