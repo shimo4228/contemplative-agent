@@ -1,7 +1,14 @@
-Rewrite your self-description based on what you have learned. Write in first person ("I").
+Update your persona.
 
-Your current self-description:
+Rules:
+- Describe who you are
+- Write in first person ("I")
+- 3-5 short paragraphs, plain text
+
+Your current persona:
 {current_identity}
 
-What you have learned recently:
+What you've learned from recent experience:
 {knowledge}
+
+Write your updated persona:
