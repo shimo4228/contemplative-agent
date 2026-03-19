@@ -1,21 +1,12 @@
-Evaluate the quality of the following behavioral skill extracted from experience.
-Score each dimension from 1 to 5.
+Evaluate the quality of the following skill. Consider these dimensions:
 
-Rubric:
-| Dimension | 1 | 3 | 5 |
-|-----------|---|---|---|
-| SPECIFICITY | Abstract principles only | Representative example present | Rich examples covering all patterns |
-| ACTIONABILITY | Unclear what to do | Main steps understandable | Immediately actionable |
-| SCOPE_FIT | Too broad or too narrow | Mostly appropriate | Name, trigger, and content perfectly aligned |
-| NON_REDUNDANCY | Nearly identical to common knowledge | Some overlap but unique perspective | Completely unique value |
-| COVERAGE | Covers only a fraction | Main cases covered | Main cases, edge cases, and pitfalls covered |
+- **Specificity**: Does it include concrete examples, not just abstract principles?
+- **Actionability**: Can you immediately act on it?
+- **Scope Fit**: Are the name, trigger, and content aligned?
+- **Non-redundancy**: Does it offer unique value beyond common knowledge?
+- **Coverage**: Does it cover main cases and edge cases?
 
-Reply in EXACTLY this format (one score per line, integer only):
-SPECIFICITY: <1-5>
-ACTIONABILITY: <1-5>
-SCOPE_FIT: <1-5>
-NON_REDUNDANCY: <1-5>
-COVERAGE: <1-5>
+Reply with EXACTLY one word: Save or Drop
 
 Skill to evaluate:
 {skill_text}

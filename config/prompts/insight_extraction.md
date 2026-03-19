@@ -23,7 +23,6 @@ origin: auto-extracted
 
 # [Descriptive Pattern Name]
 
-**Extracted:** [today's date]
 **Context:** [Brief description of when this applies]
 
 ## Problem

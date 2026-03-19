@@ -2,7 +2,7 @@
 
 Uses a two-pass LLM approach:
 1. Extract a skill from accumulated knowledge patterns (free-form Markdown).
-2. Evaluate the skill with a rubric (5 dimensions × 1-5 score).
+2. Evaluate the skill with a rubric-guided LLM verdict (Save/Drop).
 """
 
 from __future__ import annotations
@@ -10,7 +10,7 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
-from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 from typing import List, Optional
 
@@ -26,61 +26,6 @@ MIN_PATTERNS_REQUIRED = 3
 MAX_SLUG_LENGTH = 50
 BATCH_SIZE = 30
 
-RUBRIC_DIMENSIONS = (
-    "SPECIFICITY",
-    "ACTIONABILITY",
-    "SCOPE_FIT",
-    "NON_REDUNDANCY",
-    "COVERAGE",
-)
-MIN_SCORE = 1
-MAX_SCORE = 5
-PASS_THRESHOLD = 3  # Every dimension must be >= this to pass
-
-
-@dataclass(frozen=True)
-class RubricScore:
-    """Rubric evaluation result (5 dimensions × 1-5)."""
-
-    specificity: int
-    actionability: int
-    scope_fit: int
-    non_redundancy: int
-    coverage: int
-
-    @property
-    def total(self) -> int:
-        return (
-            self.specificity
-            + self.actionability
-            + self.scope_fit
-            + self.non_redundancy
-            + self.coverage
-        )
-
-    @property
-    def passed(self) -> bool:
-        """All dimensions must be >= PASS_THRESHOLD."""
-        return all(
-            s >= PASS_THRESHOLD
-            for s in (
-                self.specificity,
-                self.actionability,
-                self.scope_fit,
-                self.non_redundancy,
-                self.coverage,
-            )
-        )
-
-    @property
-    def confidence(self) -> float:
-        """Normalize total to 0.0-1.0."""
-        return self.total / (MAX_SCORE * len(RUBRIC_DIMENSIONS))
-
-
-def _clamp(value: int, lo: int, hi: int) -> int:
-    return max(lo, min(hi, value))
-
 
 def _slugify(title: str) -> str:
     """Convert a title to a filesystem-safe slug."""
@@ -95,54 +40,6 @@ def _extract_title(skill_text: str) -> Optional[str]:
         if line.startswith("# "):
             return line[2:].strip()
     return None
-
-
-def _parse_rubric_response(response: str) -> RubricScore:
-    """Parse rubric scores from LLM response.
-
-    Handles multiple output formats from Qwen:
-    - Standard: "SPECIFICITY: 3"
-    - Markdown bold: "**SPECIFICITY**: 3"
-    - Table: "| SPECIFICITY | 3 |"
-    - Inline: "SPECIFICITY: 3 (because...)"
-
-    Returns minimum scores on parse failure (fail-closed).
-    """
-    scores = {}
-    for dim in RUBRIC_DIMENSIONS:
-        # Try multiple patterns: standard, markdown bold, table format
-        match = re.search(
-            rf"(?:^|\|)\s*\**{dim}\**[:\s|]+(\d+)",
-            response,
-            re.MULTILINE | re.IGNORECASE,
-        )
-        if match:
-            scores[dim] = _clamp(int(match.group(1)), MIN_SCORE, MAX_SCORE)
-        else:
-            logger.warning("Failed to parse rubric dimension %s, defaulting to %d (fail-safe)", dim, MIN_SCORE)
-            scores[dim] = MIN_SCORE
-
-    return RubricScore(
-        specificity=scores["SPECIFICITY"],
-        actionability=scores["ACTIONABILITY"],
-        scope_fit=scores["SCOPE_FIT"],
-        non_redundancy=scores["NON_REDUNDANCY"],
-        coverage=scores["COVERAGE"],
-    )
-
-
-def _render_score_table(score: RubricScore) -> str:
-    """Render rubric scores as a Markdown table."""
-    rows = [
-        f"| Specificity | {score.specificity}/5 |",
-        f"| Actionability | {score.actionability}/5 |",
-        f"| Scope Fit | {score.scope_fit}/5 |",
-        f"| Non-redundancy | {score.non_redundancy}/5 |",
-        f"| Coverage | {score.coverage}/5 |",
-        f"| **Total** | **{score.total}/25** |",
-    ]
-    header = "| Dimension | Score |\n|-----------|-------|\n"
-    return header + "\n".join(rows)
 
 
 def _extract_skill(
@@ -171,23 +68,22 @@ def _extract_skill(
     return result
 
 
-def _evaluate_skill(skill_text: str) -> RubricScore:
-    """LLM call 2: Evaluate a skill with the rubric."""
+def _evaluate_skill(skill_text: str) -> bool:
+    """LLM call 2: Evaluate a skill with rubric-guided verdict.
+
+    Returns True (Save) or False (Drop). Fail-closed: unknown output = Drop.
+    """
     prompt = INSIGHT_EVAL_PROMPT.format(skill_text=skill_text)
 
-    result = generate(prompt, max_length=500)
+    result = generate(prompt, max_length=100)
     logger.debug("Eval raw output: %s", result)
     if result is None:
-        logger.warning("LLM failed to evaluate skill — dropping candidate (fail-safe).")
-        return RubricScore(
-            specificity=MIN_SCORE,
-            actionability=MIN_SCORE,
-            scope_fit=MIN_SCORE,
-            non_redundancy=MIN_SCORE,
-            coverage=MIN_SCORE,
-        )
+        logger.warning("LLM failed to evaluate skill — dropping (fail-closed).")
+        return False
 
-    return _parse_rubric_response(result)
+    verdict = result.strip().lower().split()[0] if result.strip() else ""
+    logger.info("Eval verdict: %s", verdict)
+    return verdict == "save"
 
 
 def extract_insight(
@@ -200,7 +96,7 @@ def extract_insight(
 
     Two-pass LLM approach per batch:
     1. Extract skill (free-form Markdown) from patterns + insights.
-    2. Evaluate with rubric. Save if all dimensions >= 3, else drop.
+    2. Evaluate with rubric-guided verdict. Save or Drop.
 
     Args:
         knowledge_store: KnowledgeStore with learned patterns.
@@ -209,7 +105,7 @@ def extract_insight(
         episode_log: EpisodeLog for reading recent insights.
 
     Returns:
-        The skill contents, score tables, and summary.
+        The skill contents and summary.
     """
     if knowledge_store is None:
         return "No knowledge store provided."
@@ -270,14 +166,12 @@ def extract_insight(
             continue
 
         # Pass 2: Evaluate
-        score = _evaluate_skill(skill_text)
-        score_table = _render_score_table(score)
+        should_save = _evaluate_skill(skill_text)
 
-        if not score.passed:
+        if not should_save:
             title = _extract_title(skill_text) or "(untitled)"
             all_results.append(
-                f"Batch {batch_idx + 1}: did not pass quality gate\n"
-                f"Title: {title}\n{score_table}"
+                f"Batch {batch_idx + 1}: dropped\nTitle: {title}"
             )
             dropped_count += 1
             continue
@@ -290,7 +184,8 @@ def extract_insight(
                 logger.warning("Batch %d/%d: empty slug, dropping", batch_idx + 1, len(batches))
                 dropped_count += 1
                 continue
-            filename = f"{slug}.md"
+            today = date.today().strftime("%Y%m%d")
+            filename = f"{slug}-{today}.md"
             file_path = skills_dir / filename
 
             if not file_path.resolve().is_relative_to(skills_dir.resolve()):
@@ -301,7 +196,7 @@ def extract_insight(
             write_restricted(file_path, skill_text)
             logger.info("Skill written: %s", file_path)
 
-        all_results.append(f"{skill_text}\n\n{score_table}")
+        all_results.append(skill_text)
         saved_count += 1
 
     if not all_results:
