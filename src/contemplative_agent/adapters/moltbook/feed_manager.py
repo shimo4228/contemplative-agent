@@ -272,7 +272,7 @@ class FeedManager:
                 "action": "comment",
                 "post_id": post_id,
                 "content": comment,
-                "original_post": post_text[:500],
+                "original_post": post_text,
                 "relevance": f"{score:.2f}",
             })
             # Record interaction in memory

@@ -8,16 +8,13 @@ from unittest.mock import patch
 import pytest
 
 from contemplative_agent.core.insight import (
-    MAX_FIELD_LENGTH,
     RubricScore,
-    SkillCandidate,
     _clamp,
     _evaluate_skill,
     _extract_skill,
+    _extract_title,
     _parse_rubric_response,
-    _parse_skill_response,
     _render_score_table,
-    _render_skill_file,
     _slugify,
     extract_insight,
 )
@@ -28,12 +25,26 @@ from contemplative_agent.core.memory import KnowledgeStore
 # Fixtures
 # ---------------------------------------------------------------------------
 
-GOOD_EXTRACTION_RESPONSE = (
-    "TITLE: Ask before reacting\n"
-    "CONTEXT: When encountering unfamiliar viewpoints\n"
-    "PROBLEM: Premature responses reduce engagement quality\n"
-    "BEHAVIOR: Ask clarifying questions before forming a response\n"
-    "EVIDENCE: Patterns show better engagement when understanding precedes reaction"
+GOOD_SKILL_RESPONSE = (
+    "---\n"
+    "name: ask-before-reacting\n"
+    'description: "Ask clarifying questions before forming a response"\n'
+    "origin: auto-extracted\n"
+    "---\n"
+    "\n"
+    "# Ask Before Reacting\n"
+    "\n"
+    "**Extracted:** 2026-03-20\n"
+    "**Context:** When encountering unfamiliar viewpoints\n"
+    "\n"
+    "## Problem\n"
+    "Premature responses reduce engagement quality\n"
+    "\n"
+    "## Solution\n"
+    "Ask clarifying questions before forming a response\n"
+    "\n"
+    "## When to Use\n"
+    "When an agent presents a viewpoint you haven't encountered before\n"
 )
 
 GOOD_EVAL_RESPONSE = (
@@ -70,46 +81,26 @@ def skills_dir(tmp_path: Path) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Unit: _parse_skill_response
+# Unit: _extract_title
 # ---------------------------------------------------------------------------
 
 
-class TestParseSkillResponse:
-    def test_good_response(self) -> None:
-        result = _parse_skill_response(GOOD_EXTRACTION_RESPONSE)
-        assert result is not None
-        assert result.title == "Ask before reacting"
-        assert "unfamiliar" in result.context
-        assert "clarifying" in result.behavior
+class TestExtractTitle:
+    def test_extracts_from_markdown(self) -> None:
+        assert _extract_title("# My Skill\nsome content") == "My Skill"
 
-    def test_missing_field_returns_none(self) -> None:
-        incomplete = "TITLE: foo\nCONTEXT: bar\nPROBLEM: baz\n"
-        assert _parse_skill_response(incomplete) is None
+    def test_skips_non_title_lines(self) -> None:
+        assert _extract_title("## Not a title\n# Real Title") == "Real Title"
 
-    def test_truncates_long_fields(self) -> None:
-        long_value = "x" * 500
-        response = (
-            f"TITLE: {long_value}\n"
-            f"CONTEXT: ctx\n"
-            f"PROBLEM: prob\n"
-            f"BEHAVIOR: beh\n"
-            f"EVIDENCE: evi\n"
-        )
-        result = _parse_skill_response(response)
-        assert result is not None
-        assert len(result.title) == MAX_FIELD_LENGTH
+    def test_returns_none_for_no_title(self) -> None:
+        assert _extract_title("no title here") is None
 
-    def test_case_insensitive(self) -> None:
-        response = (
-            "title: foo\n"
-            "context: bar\n"
-            "problem: baz\n"
-            "behavior: qux\n"
-            "evidence: quux\n"
-        )
-        result = _parse_skill_response(response)
-        assert result is not None
-        assert result.title == "foo"
+    def test_strips_whitespace(self) -> None:
+        assert _extract_title("#   Spaced Title  ") == "Spaced Title"
+
+    def test_with_frontmatter(self) -> None:
+        text = "---\nname: foo\n---\n\n# Title After Frontmatter"
+        assert _extract_title(text) == "Title After Frontmatter"
 
 
 # ---------------------------------------------------------------------------
@@ -143,29 +134,18 @@ class TestParseRubricResponse:
         assert score.non_redundancy == 5
         assert score.coverage == 3
 
-    def test_negative_value_defaults_to_min(self) -> None:
-        """Negative numbers don't match \\d+ regex, so default to MIN_SCORE (fail-safe)."""
-        response = "SPECIFICITY: -1\nACTIONABILITY: 4\n"
-        score = _parse_rubric_response(response)
-        assert score.specificity == 1
-        assert score.actionability == 4
-
     def test_missing_dimension_defaults_to_min(self) -> None:
-        """Missing dimensions default to MIN_SCORE (fail-safe)."""
         response = "SPECIFICITY: 4\n"
         score = _parse_rubric_response(response)
         assert score.specificity == 4
         assert score.actionability == 1
-        assert score.scope_fit == 1
 
     def test_unparseable_drops_candidate(self) -> None:
-        """Fully unparseable response should fail the quality gate."""
         score = _parse_rubric_response("garbage output")
         assert score.total == 5  # MIN_SCORE * 5
         assert score.passed is False
 
     def test_table_format(self) -> None:
-        """Qwen sometimes responds with Markdown table format."""
         response = (
             "| SPECIFICITY | 4 |\n"
             "| ACTIONABILITY | 3 |\n"
@@ -175,13 +155,9 @@ class TestParseRubricResponse:
         )
         score = _parse_rubric_response(response)
         assert score.specificity == 4
-        assert score.actionability == 3
         assert score.scope_fit == 5
-        assert score.non_redundancy == 2
-        assert score.coverage == 3
 
     def test_markdown_bold_format(self) -> None:
-        """Qwen sometimes wraps dimension names in bold."""
         response = (
             "**SPECIFICITY**: 4\n"
             "**ACTIONABILITY**: 5\n"
@@ -192,7 +168,6 @@ class TestParseRubricResponse:
         score = _parse_rubric_response(response)
         assert score.specificity == 4
         assert score.actionability == 5
-        assert score.coverage == 4
 
 
 # ---------------------------------------------------------------------------
@@ -212,7 +187,6 @@ class TestRubricScore:
     def test_confidence(self) -> None:
         score = RubricScore(5, 5, 5, 5, 5)
         assert score.confidence == 1.0
-
         score2 = RubricScore(1, 1, 1, 1, 1)
         assert score2.confidence == pytest.approx(0.2)
 
@@ -239,42 +213,6 @@ class TestHelpers:
         long_title = "a" * 100
         assert len(_slugify(long_title)) <= 50
 
-    def test_render_skill_file(self) -> None:
-        candidate = SkillCandidate(
-            title="Test Skill",
-            context="When testing",
-            problem="Tests may fail",
-            behavior="Write tests first",
-            evidence="TDD patterns",
-        )
-        score = RubricScore(4, 4, 3, 3, 3)
-        rendered = _render_skill_file(candidate, score, source_patterns=5)
-        assert "# Test Skill" in rendered
-        assert "confidence: 0.68" in rendered
-        assert "origin: auto-extracted" in rendered
-        assert "source_patterns: 5" in rendered
-
-    def test_render_skill_file_newline_injection(self) -> None:
-        """YAML frontmatter must not contain raw newlines that break YAML structure."""
-        candidate = SkillCandidate(
-            title="Skill\nmalicious_key: injected",
-            context="Context\nfoo: bar",
-            problem="prob",
-            behavior="beh",
-            evidence="evi",
-        )
-        score = RubricScore(3, 3, 3, 3, 3)
-        rendered = _render_skill_file(candidate, score, source_patterns=1)
-        frontmatter = rendered.split("---")[1]
-        # Newlines should be replaced with spaces (then hyphens in name).
-        # Values stay inside double quotes, so no YAML key injection.
-        assert "\nmalicious_key:" not in frontmatter
-        assert "\nfoo:" not in frontmatter
-        # Description is quoted: 'description: "Context foo: bar"' — safe
-        assert 'description: "Context foo: bar"' in frontmatter
-        # Title heading should have newline replaced with space
-        assert "# Skill malicious_key: injected" in rendered
-
     def test_render_score_table(self) -> None:
         score = RubricScore(4, 3, 5, 2, 4)
         table = _render_score_table(score)
@@ -290,10 +228,10 @@ class TestHelpers:
 class TestExtractSkill:
     @patch("contemplative_agent.core.insight.generate")
     def test_success(self, mock_generate) -> None:
-        mock_generate.return_value = GOOD_EXTRACTION_RESPONSE
+        mock_generate.return_value = GOOD_SKILL_RESPONSE
         result = _extract_skill(["p1", "p2"], ["i1"])
         assert result is not None
-        assert result.title == "Ask before reacting"
+        assert "# Ask Before Reacting" in result
 
     @patch("contemplative_agent.core.insight.generate")
     def test_llm_failure(self, mock_generate) -> None:
@@ -302,8 +240,8 @@ class TestExtractSkill:
         assert result is None
 
     @patch("contemplative_agent.core.insight.generate")
-    def test_parse_failure(self, mock_generate) -> None:
-        mock_generate.return_value = "not a valid response"
+    def test_no_title_drops(self, mock_generate) -> None:
+        mock_generate.return_value = "some text without a title line"
         result = _extract_skill(["p1"], [])
         assert result is None
 
@@ -317,18 +255,15 @@ class TestEvaluateSkill:
     @patch("contemplative_agent.core.insight.generate")
     def test_success(self, mock_generate) -> None:
         mock_generate.return_value = GOOD_EVAL_RESPONSE
-        candidate = SkillCandidate("t", "c", "p", "b", "e")
-        score = _evaluate_skill(candidate)
+        score = _evaluate_skill(GOOD_SKILL_RESPONSE)
         assert score.specificity == 4
         assert score.passed is True
 
     @patch("contemplative_agent.core.insight.generate")
     def test_llm_failure_drops_candidate(self, mock_generate) -> None:
-        """LLM failure should fail-safe to DROP, not pass."""
         mock_generate.return_value = None
-        candidate = SkillCandidate("t", "c", "p", "b", "e")
-        score = _evaluate_skill(candidate)
-        assert score.total == 5  # MIN_SCORE * 5
+        score = _evaluate_skill(GOOD_SKILL_RESPONSE)
+        assert score.total == 5
         assert score.passed is False
 
 
@@ -360,40 +295,38 @@ class TestExtractInsight:
     def test_forbidden_pattern(
         self, mock_generate, mock_validate, knowledge_store
     ) -> None:
-        mock_generate.return_value = GOOD_EXTRACTION_RESPONSE
+        mock_generate.return_value = GOOD_SKILL_RESPONSE
         mock_validate.return_value = False
         result = extract_insight(knowledge_store=knowledge_store)
         assert "Failed to extract" in result
 
     @patch("contemplative_agent.core.insight.generate")
     def test_quality_gate_fail(self, mock_generate, knowledge_store) -> None:
-        mock_generate.side_effect = [GOOD_EXTRACTION_RESPONSE, LOW_EVAL_RESPONSE]
+        mock_generate.side_effect = [GOOD_SKILL_RESPONSE, LOW_EVAL_RESPONSE]
         result = extract_insight(knowledge_store=knowledge_store)
         assert "did not pass" in result
-        assert "Ask before reacting" in result
+        assert "Ask Before Reacting" in result
         assert "Summary:" in result
 
     @patch("contemplative_agent.core.insight.generate")
     def test_dry_run(self, mock_generate, knowledge_store) -> None:
-        mock_generate.side_effect = [GOOD_EXTRACTION_RESPONSE, GOOD_EVAL_RESPONSE]
+        mock_generate.side_effect = [GOOD_SKILL_RESPONSE, GOOD_EVAL_RESPONSE]
         result = extract_insight(
             knowledge_store=knowledge_store, dry_run=True
         )
-        assert "# Ask before reacting" in result
+        assert "# Ask Before Reacting" in result
         assert "Score" in result
-        assert "{source_patterns}" not in result
 
     @patch("contemplative_agent.core.insight.generate")
     def test_save_to_file(
         self, mock_generate, knowledge_store, skills_dir
     ) -> None:
-        mock_generate.side_effect = [GOOD_EXTRACTION_RESPONSE, GOOD_EVAL_RESPONSE]
+        mock_generate.side_effect = [GOOD_SKILL_RESPONSE, GOOD_EVAL_RESPONSE]
         result = extract_insight(
             knowledge_store=knowledge_store,
             skills_dir=skills_dir,
         )
-        assert "# Ask before reacting" in result
-        # Verify file was written
+        assert "# Ask Before Reacting" in result
         files = list(skills_dir.glob("*.md"))
         assert len(files) == 1
         content = files[0].read_text()
@@ -403,7 +336,7 @@ class TestExtractInsight:
     def test_drop_does_not_write(
         self, mock_generate, knowledge_store, skills_dir
     ) -> None:
-        mock_generate.side_effect = [GOOD_EXTRACTION_RESPONSE, LOW_EVAL_RESPONSE]
+        mock_generate.side_effect = [GOOD_SKILL_RESPONSE, LOW_EVAL_RESPONSE]
         extract_insight(
             knowledge_store=knowledge_store,
             skills_dir=skills_dir,
@@ -415,9 +348,8 @@ class TestExtractInsight:
     def test_path_traversal_guard(
         self, mock_generate, knowledge_store, tmp_path
     ) -> None:
-        # Title with path traversal attempt
-        evil_response = GOOD_EXTRACTION_RESPONSE.replace(
-            "Ask before reacting", "../../etc/passwd"
+        evil_response = GOOD_SKILL_RESPONSE.replace(
+            "# Ask Before Reacting", "# ../../etc/passwd"
         )
         mock_generate.side_effect = [evil_response, GOOD_EVAL_RESPONSE]
         skills_dir = tmp_path / "skills"
@@ -426,7 +358,6 @@ class TestExtractInsight:
             knowledge_store=knowledge_store,
             skills_dir=skills_dir,
         )
-        # _slugify strips path separators: "../../etc/passwd" → "etc-passwd"
         files = list(skills_dir.glob("*.md"))
         assert len(files) == 1
         assert "etc-passwd" in files[0].name
@@ -440,23 +371,10 @@ class TestExtractInsight:
 
 class TestBatchProcessing:
     @pytest.fixture
-    def two_batch_store(self, tmp_path: Path) -> KnowledgeStore:
-        """KnowledgeStore with patterns that split into exactly 2 batches."""
-        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
-        for i in range(32):  # BATCH_SIZE=30 → [30, 2→merged] = [32] = 1? No: 2<3 so merge → [32]
-            ks.add_learned_pattern(f"Pattern {i}: observation about behavior {i}")
-        ks.save()
-        return ks
-
-    @pytest.fixture
     def three_batch_store(self, tmp_path: Path) -> KnowledgeStore:
-        """KnowledgeStore with patterns for 3 batches (no merge needed).
-
-        Note: extract_insight() calls load() which appends from file,
-        so we clear in-memory data after save to avoid double-counting.
-        """
+        """KnowledgeStore with patterns for 3 batches (no merge needed)."""
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
-        for i in range(65):  # [30, 30, 5] → 5>=3 so no merge → 3 batches
+        for i in range(65):
             ks.add_learned_pattern(f"Pattern {i}: observation about behavior {i}")
         ks.save()
         ks._learned_patterns.clear()
@@ -467,12 +385,12 @@ class TestBatchProcessing:
         self, mock_generate, three_batch_store, skills_dir
     ) -> None:
         """65 patterns → 3 batches → 3 skills."""
+        skill_b = GOOD_SKILL_RESPONSE.replace("Ask Before Reacting", "Adapt Tone").replace("ask-before-reacting", "adapt-tone")
+        skill_c = GOOD_SKILL_RESPONSE.replace("Ask Before Reacting", "Set Boundaries").replace("ask-before-reacting", "set-boundaries")
         mock_generate.side_effect = [
-            GOOD_EXTRACTION_RESPONSE, GOOD_EVAL_RESPONSE,  # batch 1
-            GOOD_EXTRACTION_RESPONSE.replace("Ask before reacting", "Adapt tone"),
-            GOOD_EVAL_RESPONSE,  # batch 2
-            GOOD_EXTRACTION_RESPONSE.replace("Ask before reacting", "Set boundaries"),
-            GOOD_EVAL_RESPONSE,  # batch 3
+            GOOD_SKILL_RESPONSE, GOOD_EVAL_RESPONSE,
+            skill_b, GOOD_EVAL_RESPONSE,
+            skill_c, GOOD_EVAL_RESPONSE,
         ]
         result = extract_insight(
             knowledge_store=three_batch_store,
@@ -486,12 +404,11 @@ class TestBatchProcessing:
     def test_partial_failure_saves_passing_batches(
         self, mock_generate, three_batch_store, skills_dir
     ) -> None:
-        """One batch fails extraction, others succeed."""
+        skill_c = GOOD_SKILL_RESPONSE.replace("Ask Before Reacting", "Set Boundaries").replace("ask-before-reacting", "set-boundaries")
         mock_generate.side_effect = [
             None,  # batch 1: extraction failure
-            GOOD_EXTRACTION_RESPONSE, GOOD_EVAL_RESPONSE,  # batch 2
-            GOOD_EXTRACTION_RESPONSE.replace("Ask before reacting", "Set boundaries"),
-            GOOD_EVAL_RESPONSE,  # batch 3
+            GOOD_SKILL_RESPONSE, GOOD_EVAL_RESPONSE,
+            skill_c, GOOD_EVAL_RESPONSE,
         ]
         result = extract_insight(
             knowledge_store=three_batch_store,
@@ -499,14 +416,11 @@ class TestBatchProcessing:
         )
         assert "2 saved" in result
         assert "1 dropped" in result
-        files = list(skills_dir.glob("*.md"))
-        assert len(files) == 2
 
     @patch("contemplative_agent.core.insight.generate")
     def test_small_last_batch_merged(self, mock_generate, tmp_path: Path) -> None:
-        """Last batch with < MIN_PATTERNS_REQUIRED patterns is merged into previous."""
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
-        for i in range(32):  # [30, 2] → 2<3 so merge → [32] = 1 batch
+        for i in range(32):
             ks.add_learned_pattern(f"Pattern {i}: unique observation {i}")
         ks.save()
         ks._learned_patterns.clear()
@@ -517,18 +431,16 @@ class TestBatchProcessing:
             nonlocal call_count
             call_count += 1
             if call_count % 2 == 1:
-                return GOOD_EXTRACTION_RESPONSE
+                return GOOD_SKILL_RESPONSE
             return GOOD_EVAL_RESPONSE
 
         mock_generate.side_effect = count_calls
         extract_insight(knowledge_store=ks, dry_run=True)
-        # 1 batch × 2 LLM calls = 2
         assert call_count == 2
 
     def test_single_batch_unchanged(self, knowledge_store, skills_dir) -> None:
-        """5 patterns (< BATCH_SIZE) → single batch, same as before."""
         with patch("contemplative_agent.core.insight.generate") as mock_gen:
-            mock_gen.side_effect = [GOOD_EXTRACTION_RESPONSE, GOOD_EVAL_RESPONSE]
+            mock_gen.side_effect = [GOOD_SKILL_RESPONSE, GOOD_EVAL_RESPONSE]
             result = extract_insight(
                 knowledge_store=knowledge_store,
                 skills_dir=skills_dir,

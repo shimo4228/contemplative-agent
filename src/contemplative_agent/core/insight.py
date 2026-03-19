@@ -1,8 +1,8 @@
 """Insight extraction: synthesize learned patterns into behavioral skills.
 
 Uses a two-pass LLM approach:
-1. Extract a skill candidate from accumulated knowledge patterns.
-2. Evaluate the candidate with a rubric (5 dimensions × 1-5 score).
+1. Extract a skill from accumulated knowledge patterns (free-form Markdown).
+2. Evaluate the skill with a rubric (5 dimensions × 1-5 score).
 """
 
 from __future__ import annotations
@@ -11,7 +11,6 @@ import logging
 import re
 import unicodedata
 from dataclasses import dataclass
-from datetime import date
 from pathlib import Path
 from typing import List, Optional
 
@@ -24,7 +23,6 @@ from .prompts import INSIGHT_EXTRACTION_PROMPT, INSIGHT_EVAL_PROMPT
 logger = logging.getLogger(__name__)
 
 MIN_PATTERNS_REQUIRED = 3
-MAX_FIELD_LENGTH = 200
 MAX_SLUG_LENGTH = 50
 BATCH_SIZE = 30
 
@@ -38,17 +36,6 @@ RUBRIC_DIMENSIONS = (
 MIN_SCORE = 1
 MAX_SCORE = 5
 PASS_THRESHOLD = 3  # Every dimension must be >= this to pass
-
-
-@dataclass(frozen=True)
-class SkillCandidate:
-    """Parsed skill extracted from accumulated knowledge."""
-
-    title: str
-    context: str
-    problem: str
-    behavior: str
-    evidence: str
 
 
 @dataclass(frozen=True)
@@ -95,27 +82,19 @@ def _clamp(value: int, lo: int, hi: int) -> int:
     return max(lo, min(hi, value))
 
 
-def _parse_skill_response(response: str) -> Optional[SkillCandidate]:
-    """Parse LLM response into a SkillCandidate.
+def _slugify(title: str) -> str:
+    """Convert a title to a filesystem-safe slug."""
+    normalized = unicodedata.normalize("NFKD", title)
+    slug = re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-")
+    return slug[:MAX_SLUG_LENGTH]
 
-    Returns None if any required field is missing.
-    """
-    fields = {}
-    for field in ("TITLE", "CONTEXT", "PROBLEM", "BEHAVIOR", "EVIDENCE"):
-        match = re.search(
-            rf"^{field}:\s*(.+?)$", response, re.MULTILINE | re.IGNORECASE
-        )
-        if not match:
-            return None
-        fields[field] = match.group(1).strip()[:MAX_FIELD_LENGTH]
 
-    return SkillCandidate(
-        title=fields["TITLE"],
-        context=fields["CONTEXT"],
-        problem=fields["PROBLEM"],
-        behavior=fields["BEHAVIOR"],
-        evidence=fields["EVIDENCE"],
-    )
+def _extract_title(skill_text: str) -> Optional[str]:
+    """Extract title from the first '# ' line in skill text."""
+    for line in skill_text.splitlines():
+        if line.startswith("# "):
+            return line[2:].strip()
+    return None
 
 
 def _parse_rubric_response(response: str) -> RubricScore:
@@ -127,7 +106,7 @@ def _parse_rubric_response(response: str) -> RubricScore:
     - Table: "| SPECIFICITY | 3 |"
     - Inline: "SPECIFICITY: 3 (because...)"
 
-    Returns default score (3 for each dimension) on parse failure.
+    Returns minimum scores on parse failure (fail-closed).
     """
     scores = {}
     for dim in RUBRIC_DIMENSIONS:
@@ -152,49 +131,6 @@ def _parse_rubric_response(response: str) -> RubricScore:
     )
 
 
-def _slugify(title: str) -> str:
-    """Convert a title to a filesystem-safe slug."""
-    normalized = unicodedata.normalize("NFKD", title)
-    slug = re.sub(r"[^a-z0-9]+", "-", normalized.lower()).strip("-")
-    return slug[:MAX_SLUG_LENGTH]
-
-
-def _yaml_safe(text: str, max_len: int) -> str:
-    """Sanitize text for YAML quoted values: strip newlines and double quotes."""
-    return text.replace("\r", "").replace("\n", " ").replace('"', "'")[:max_len]
-
-
-def _render_skill_file(
-    candidate: SkillCandidate, score: RubricScore, source_patterns: int
-) -> str:
-    """Render a SkillCandidate + RubricScore as YAML frontmatter + Markdown."""
-    safe_name = _slugify(candidate.title)
-    safe_desc = _yaml_safe(candidate.context, 130)
-    safe_title = candidate.title.replace("\r", "").replace("\n", " ")
-    return (
-        f"---\n"
-        f'name: "{safe_name}"\n'
-        f'description: "{safe_desc}"\n'
-        f"origin: auto-extracted\n"
-        f"confidence: {score.confidence:.2f}\n"
-        f'extracted: "{date.today().isoformat()}"\n'
-        f"source_patterns: {source_patterns}\n"
-        f"---\n"
-        f"# {safe_title}\n"
-        f"\n"
-        f"**Context:** {candidate.context}\n"
-        f"\n"
-        f"## Problem\n"
-        f"{candidate.problem}\n"
-        f"\n"
-        f"## Behavior\n"
-        f"{candidate.behavior}\n"
-        f"\n"
-        f"## Evidence\n"
-        f"{candidate.evidence}\n"
-    )
-
-
 def _render_score_table(score: RubricScore) -> str:
     """Render rubric scores as a Markdown table."""
     rows = [
@@ -211,34 +147,33 @@ def _render_score_table(score: RubricScore) -> str:
 
 def _extract_skill(
     patterns: List[str], insights: List[str]
-) -> Optional[SkillCandidate]:
-    """LLM call 1: Extract a skill candidate from patterns and insights."""
+) -> Optional[str]:
+    """LLM call 1: Extract a skill from patterns and insights.
+
+    Returns the raw Markdown skill text, or None on failure.
+    """
     prompt = INSIGHT_EXTRACTION_PROMPT.format(
         patterns="\n".join(f"- {p}" for p in patterns),
         insights="\n".join(f"- {i}" for i in insights) if insights else "(none)",
     )
 
-    result = generate(prompt, max_length=1500)
+    result = generate(prompt, max_length=3000)
     if result is None:
         logger.warning("LLM failed to generate skill extraction.")
         return None
 
-    candidate = _parse_skill_response(result)
-    if candidate is None:
-        logger.warning("Failed to parse skill extraction response.")
+    # Basic validation: must contain a title line
+    if _extract_title(result) is None:
+        logger.warning("Skill extraction has no title (# line). Dropping.")
         logger.debug("Raw LLM output (first 200 chars): %.200s", result)
-    return candidate
+        return None
+
+    return result
 
 
-def _evaluate_skill(candidate: SkillCandidate) -> RubricScore:
-    """LLM call 2: Evaluate a skill candidate with the rubric."""
-    prompt = INSIGHT_EVAL_PROMPT.format(
-        title=candidate.title,
-        context=candidate.context,
-        problem=candidate.problem,
-        behavior=candidate.behavior,
-        evidence=candidate.evidence,
-    )
+def _evaluate_skill(skill_text: str) -> RubricScore:
+    """LLM call 2: Evaluate a skill with the rubric."""
+    prompt = INSIGHT_EVAL_PROMPT.format(skill_text=skill_text)
 
     result = generate(prompt, max_length=500)
     logger.debug("Eval raw output: %s", result)
@@ -261,10 +196,10 @@ def extract_insight(
     dry_run: bool = False,
     episode_log: Optional[EpisodeLog] = None,
 ) -> str:
-    """Extract a behavioral skill from accumulated knowledge.
+    """Extract behavioral skills from accumulated knowledge.
 
-    Two-pass LLM approach:
-    1. Extract skill candidate from patterns + insights.
+    Two-pass LLM approach per batch:
+    1. Extract skill (free-form Markdown) from patterns + insights.
     2. Evaluate with rubric. Save if all dimensions >= 3, else drop.
 
     Args:
@@ -274,7 +209,7 @@ def extract_insight(
         episode_log: EpisodeLog for reading recent insights.
 
     Returns:
-        The rendered skill file content, score table, or an error message.
+        The skill contents, score tables, and summary.
     """
     if knowledge_store is None:
         return "No knowledge store provided."
@@ -322,39 +257,35 @@ def extract_insight(
         )
 
         # Pass 1: Extract
-        candidate = _extract_skill(batch, insights)
-        if candidate is None:
+        skill_text = _extract_skill(batch, insights)
+        if skill_text is None:
             logger.warning("Batch %d/%d: extraction failed", batch_idx + 1, len(batches))
             dropped_count += 1
             continue
 
         # Validate against forbidden patterns
-        combined = (
-            f"{candidate.title} {candidate.context} "
-            f"{candidate.problem} {candidate.behavior} {candidate.evidence}"
-        )
-        if not validate_identity_content(combined):
+        if not validate_identity_content(skill_text):
             logger.warning("Batch %d/%d: forbidden pattern detected", batch_idx + 1, len(batches))
             dropped_count += 1
             continue
 
         # Pass 2: Evaluate
-        score = _evaluate_skill(candidate)
+        score = _evaluate_skill(skill_text)
         score_table = _render_score_table(score)
 
         if not score.passed:
+            title = _extract_title(skill_text) or "(untitled)"
             all_results.append(
                 f"Batch {batch_idx + 1}: did not pass quality gate\n"
-                f"Title: {candidate.title}\n{score_table}"
+                f"Title: {title}\n{score_table}"
             )
             dropped_count += 1
             continue
 
-        rendered = _render_skill_file(candidate, score, source_patterns=len(batch))
-
         if not dry_run and skills_dir is not None:
             skills_dir.mkdir(parents=True, exist_ok=True)
-            slug = _slugify(candidate.title)
+            title = _extract_title(skill_text) or ""
+            slug = _slugify(title)
             if not slug:
                 logger.warning("Batch %d/%d: empty slug, dropping", batch_idx + 1, len(batches))
                 dropped_count += 1
@@ -367,10 +298,10 @@ def extract_insight(
                 dropped_count += 1
                 continue
 
-            write_restricted(file_path, rendered)
+            write_restricted(file_path, skill_text)
             logger.info("Skill written: %s", file_path)
 
-        all_results.append(f"{rendered}\n{score_table}")
+        all_results.append(f"{skill_text}\n\n{score_table}")
         saved_count += 1
 
     if not all_results:

@@ -18,8 +18,4 @@ NON_REDUNDANCY: <1-5>
 COVERAGE: <1-5>
 
 Skill to evaluate:
-Title: {title}
-Context: {context}
-Problem: {problem}
-Behavior: {behavior}
-Evidence: {evidence}
+{skill_text}

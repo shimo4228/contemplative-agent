@@ -120,7 +120,7 @@ class PostPipeline:
             logger.info(">> New post [%s] (id=%s):\n%s", title, post_id, content)
             ctx.memory.episodes.append("activity", {
                 "action": "post", "post_id": post_id,
-                "content": content[:200], "title": title,
+                "content": content, "title": title,
             })
 
             # Record post in memory
