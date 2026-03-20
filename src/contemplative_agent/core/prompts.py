@@ -34,6 +34,7 @@ class _LazyPrompts:
         "DISTILL_PROMPT": "distill",
         "IDENTITY_DISTILL_PROMPT": "identity_distill",
         "INSIGHT_EXTRACTION_PROMPT": "insight_extraction",
+        "MEDITATION_INTERPRET_PROMPT": "meditation_interpret",
     }
 
     def __getattr__(self, name: str) -> str:

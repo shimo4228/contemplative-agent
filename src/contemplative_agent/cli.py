@@ -362,6 +362,23 @@ def main() -> None:
         "--full", action="store_true", help="Process all patterns (default: new only)"
     )
 
+    # meditate
+    meditate_parser = subparsers.add_parser(
+        "meditate", help="Run active inference meditation on episode history"
+    )
+    meditate_parser.add_argument(
+        "--days", type=int, default=7,
+        help="Days of episodes to build POMDP from (default: 7)",
+    )
+    meditate_parser.add_argument(
+        "--cycles", type=int, default=50,
+        help="Number of meditation cycles (default: 50)",
+    )
+    meditate_parser.add_argument(
+        "--dry-run", action="store_true",
+        help="Show results without writing to knowledge store",
+    )
+
     # solve
     solve_parser = subparsers.add_parser(
         "solve", help="Test verification solver"
@@ -491,6 +508,26 @@ def main() -> None:
                 print(f"Report generated: {result}")
             else:
                 print("No log data found for the specified date.")
+        return
+
+    if args.command == "meditate":
+        from .adapters.meditation.config import MeditationConfig
+        from .adapters.meditation.meditate import meditate as run_meditate
+        from .adapters.meditation.pomdp import build_matrices
+        from .adapters.meditation.report import interpret_and_store
+        from .core.memory import EpisodeLog, KnowledgeStore
+
+        log_dir = MOLTBOOK_DATA_DIR / "logs"
+        episode_log = EpisodeLog(log_dir=log_dir)
+        knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
+
+        config = MeditationConfig(meditation_cycles=args.cycles)
+        matrices = build_matrices(episode_log, days=args.days, config=config)
+        result = run_meditate(matrices, config=config)
+        output = interpret_and_store(
+            result, knowledge_store, dry_run=args.dry_run,
+        )
+        print(output)
         return
 
     agent = Agent(autonomy=args.autonomy, domain_config=domain_config)
