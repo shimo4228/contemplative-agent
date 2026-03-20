@@ -514,18 +514,19 @@ def main() -> None:
         from .adapters.meditation.config import MeditationConfig
         from .adapters.meditation.meditate import meditate as run_meditate
         from .adapters.meditation.pomdp import build_matrices
-        from .adapters.meditation.report import interpret_and_store
-        from .core.memory import EpisodeLog, KnowledgeStore
+        from .adapters.meditation.report import interpret_and_save
+        from .core.domain import DEFAULT_CONFIG_DIR
+        from .core.memory import EpisodeLog
 
         log_dir = MOLTBOOK_DATA_DIR / "logs"
         episode_log = EpisodeLog(log_dir=log_dir)
-        knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
+        results_path = DEFAULT_CONFIG_DIR / "meditation" / "results.json"
 
         config = MeditationConfig(meditation_cycles=args.cycles)
         matrices = build_matrices(episode_log, days=args.days, config=config)
         result = run_meditate(matrices, config=config)
-        output = interpret_and_store(
-            result, knowledge_store, dry_run=args.dry_run,
+        output = interpret_and_save(
+            result, results_path, dry_run=args.dry_run,
         )
         print(output)
         return

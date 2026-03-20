@@ -1,11 +1,16 @@
-"""Interpret meditation results and store as learned patterns."""
+"""Interpret meditation results and save to config/meditation/."""
 
 from __future__ import annotations
 
+import json
 import logging
-from typing import Optional
+import os
+from dataclasses import asdict
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import List, Optional
 
-from ...core.knowledge_store import KnowledgeStore
+from ...core._io import write_restricted
 from ...core.llm import generate
 from .config import ACTION_STATES, CONTEXT_STATES
 from .meditate import MeditationResult
@@ -45,18 +50,46 @@ def format_meditation_summary(result: MeditationResult) -> str:
     return "\n".join(lines)
 
 
-def interpret_and_store(
+def _save_result(result: MeditationResult, results_path: Path) -> None:
+    """Append meditation result to results.json."""
+    results_path.parent.mkdir(parents=True, exist_ok=True)
+
+    existing: List[dict] = []
+    if results_path.exists():
+        try:
+            existing = json.loads(results_path.read_text(encoding="utf-8"))
+            if not isinstance(existing, list):
+                existing = []
+        except (json.JSONDecodeError, OSError):
+            existing = []
+
+    entry = {
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        **asdict(result),
+    }
+    existing.append(entry)
+
+    content = json.dumps(existing, ensure_ascii=False, indent=2) + "\n"
+    tmp_path = results_path.with_suffix(".json.tmp")
+    try:
+        write_restricted(tmp_path, content)
+        os.replace(str(tmp_path), str(results_path))
+    except OSError as exc:
+        logger.error("Failed to save meditation results: %s", exc)
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
+def interpret_and_save(
     result: MeditationResult,
-    knowledge_store: KnowledgeStore,
+    results_path: Path,
     dry_run: bool = False,
     prompt_template: Optional[str] = None,
 ) -> str:
-    """Use LLM to interpret belief changes, store as learned patterns.
+    """Interpret meditation results via LLM and save raw data to results.json.
 
-    1. Format the MeditationResult into a structured summary
-    2. Send to LLM with meditation_interpret prompt
-    3. Parse LLM output as bullet-point patterns
-    4. Write patterns to KnowledgeStore with source="meditation"
+    LLM interpretation is for human-readable output only.
+    Only the raw MeditationResult is persisted (no LLM text).
 
     Returns:
         Human-readable output string.
@@ -66,7 +99,12 @@ def interpret_and_store(
     if result.cycles_run == 0:
         return f"{summary}\n\nNo meditation cycles run — nothing to interpret."
 
-    # Load prompt template
+    # Save raw result (not LLM interpretation)
+    if not dry_run:
+        _save_result(result, results_path)
+        logger.info("Meditation result saved to %s", results_path)
+
+    # Load prompt template for human-readable interpretation
     if prompt_template is None:
         try:
             from ...core import prompts
@@ -75,14 +113,15 @@ def interpret_and_store(
             prompt_template = None
 
     if not prompt_template:
-        # Fallback: return summary without LLM interpretation
-        return f"{summary}\n\n(No meditation_interpret prompt template found — showing raw results.)"
+        save_msg = f"(Result saved to {results_path})" if not dry_run else "(dry run)"
+        return f"{summary}\n\n{save_msg}"
 
     prompt = prompt_template.replace("{meditation_summary}", summary)
     llm_output = generate(prompt, max_length=1000)
 
     if not llm_output:
-        return f"{summary}\n\n(LLM returned no output for interpretation.)"
+        save_msg = f"(Result saved to {results_path})" if not dry_run else "(dry run)"
+        return f"{summary}\n\n(LLM returned no output for interpretation.)\n{save_msg}"
 
     # Parse bullet points from LLM output
     patterns = []
@@ -96,17 +135,12 @@ def interpret_and_store(
     if patterns:
         for p in patterns:
             output_lines.append(f"- {p}")
-
-        if not dry_run:
-            for p in patterns:
-                knowledge_store.add_learned_pattern(
-                    pattern=p, source="meditation",
-                )
-            knowledge_store.save()
-            output_lines.append(f"\n({len(patterns)} patterns saved to knowledge store)")
-        else:
-            output_lines.append(f"\n(dry run — {len(patterns)} patterns not saved)")
     else:
         output_lines.append("(No actionable patterns extracted)")
+
+    if not dry_run:
+        output_lines.append(f"\n(Result saved to {results_path})")
+    else:
+        output_lines.append("\n(dry run — result not saved)")
 
     return "\n".join(output_lines)
