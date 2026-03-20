@@ -53,6 +53,13 @@ class KnowledgeStore:
         """Return a copy of the learned patterns (text only)."""
         return [p["pattern"] for p in self._learned_patterns]
 
+    def get_learned_patterns_since(self, since: str) -> List[str]:
+        """Return patterns distilled after the given ISO timestamp."""
+        return [
+            p["pattern"] for p in self._learned_patterns
+            if p.get("distilled", "") > since
+        ]
+
     def get_context_string(self, limit: int = 100) -> str:
         """Return learned patterns as a bullet list for LLM context injection.
 

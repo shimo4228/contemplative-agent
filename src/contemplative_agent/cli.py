@@ -358,6 +358,9 @@ def main() -> None:
     insight_parser.add_argument(
         "--dry-run", action="store_true", help="Show result without writing"
     )
+    insight_parser.add_argument(
+        "--full", action="store_true", help="Process all patterns (default: new only)"
+    )
 
     # solve
     solve_parser = subparsers.add_parser(
@@ -457,6 +460,7 @@ def main() -> None:
             skills_dir=SKILLS_DIR,
             dry_run=args.dry_run,
             episode_log=_EL(log_dir=log_dir),
+            full=args.full,
         )
         print(result)
         return

@@ -46,6 +46,7 @@ Modelfile.contemplative
 # Generated
 results*.json
 *.bak
+.last_insight
 
 # Claude Code
 .claude/*

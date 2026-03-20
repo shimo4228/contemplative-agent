@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import List, Optional
 
@@ -66,22 +66,47 @@ def _extract_skill(
     return result
 
 
+def _read_last_insight(skills_dir: Optional[Path]) -> Optional[str]:
+    """Read the timestamp of the last insight run."""
+    if skills_dir is None:
+        return None
+    marker = skills_dir / ".last_insight"
+    if marker.exists():
+        return marker.read_text(encoding="utf-8").strip()
+    return None
+
+
+def _write_last_insight(skills_dir: Path) -> None:
+    """Record the current timestamp as the last insight run."""
+    skills_dir.mkdir(parents=True, exist_ok=True)
+    marker = skills_dir / ".last_insight"
+    marker.write_text(
+        datetime.now(timezone.utc).isoformat(timespec="minutes") + "\n",
+        encoding="utf-8",
+    )
+
+
 def extract_insight(
     knowledge_store: Optional[KnowledgeStore] = None,
     skills_dir: Optional[Path] = None,
     dry_run: bool = False,
     episode_log: Optional[EpisodeLog] = None,
+    full: bool = False,
 ) -> str:
     """Extract behavioral skills from accumulated knowledge.
 
     Single-pass per batch: extract skill, validate, save.
     Quality control is deferred to skill-stocktake.
 
+    By default, only processes patterns added since the last insight run.
+    Use full=True to process all patterns.
+
     Args:
         knowledge_store: KnowledgeStore with learned patterns.
         skills_dir: Directory to write skill files. Created if needed.
         dry_run: If True, show result without writing.
         episode_log: EpisodeLog for reading recent insights.
+        full: If True, process all patterns instead of only new ones.
 
     Returns:
         The skill contents and summary.
@@ -90,7 +115,17 @@ def extract_insight(
         return "No knowledge store provided."
 
     knowledge_store.load()
-    patterns: List[str] = list(knowledge_store.get_learned_patterns())
+
+    if full:
+        patterns: List[str] = list(knowledge_store.get_learned_patterns())
+    else:
+        last_run = _read_last_insight(skills_dir)
+        if last_run:
+            patterns = list(knowledge_store.get_learned_patterns_since(last_run))
+            logger.info("Incremental mode: %d new patterns since %s", len(patterns), last_run)
+        else:
+            patterns = list(knowledge_store.get_learned_patterns())
+            logger.info("No previous insight run found, processing all %d patterns", len(patterns))
 
     insights: List[str] = []
     if episode_log is not None:
@@ -164,6 +199,10 @@ def extract_insight(
 
     if not all_results:
         return "Failed to extract skill from knowledge."
+
+    # Record last insight run (skip for dry-run)
+    if not dry_run and skills_dir is not None and saved_count > 0:
+        _write_last_insight(skills_dir)
 
     summary = f"\n--- Summary: {saved_count} saved, {dropped_count} dropped ---"
     return "\n\n".join(all_results) + summary
