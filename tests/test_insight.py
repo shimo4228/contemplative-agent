@@ -1,4 +1,4 @@
-"""Tests for core.insight — behavioral skill extraction with LLM verdict."""
+"""Tests for core.insight — behavioral skill extraction."""
 
 from __future__ import annotations
 
@@ -9,7 +9,6 @@ from unittest.mock import patch
 import pytest
 
 from contemplative_agent.core.insight import (
-    _evaluate_skill,
     _extract_skill,
     _extract_title,
     _slugify,
@@ -127,43 +126,6 @@ class TestExtractSkill:
 
 
 # ---------------------------------------------------------------------------
-# Integration: _evaluate_skill
-# ---------------------------------------------------------------------------
-
-
-class TestEvaluateSkill:
-    @patch("contemplative_agent.core.insight.generate")
-    def test_save(self, mock_generate) -> None:
-        mock_generate.return_value = "Save"
-        assert _evaluate_skill(GOOD_SKILL_RESPONSE) is True
-
-    @patch("contemplative_agent.core.insight.generate")
-    def test_drop(self, mock_generate) -> None:
-        mock_generate.return_value = "Drop"
-        assert _evaluate_skill(GOOD_SKILL_RESPONSE) is False
-
-    @patch("contemplative_agent.core.insight.generate")
-    def test_save_with_explanation(self, mock_generate) -> None:
-        mock_generate.return_value = "Save because it is specific and actionable"
-        assert _evaluate_skill(GOOD_SKILL_RESPONSE) is True
-
-    @patch("contemplative_agent.core.insight.generate")
-    def test_llm_failure_drops(self, mock_generate) -> None:
-        mock_generate.return_value = None
-        assert _evaluate_skill(GOOD_SKILL_RESPONSE) is False
-
-    @patch("contemplative_agent.core.insight.generate")
-    def test_garbage_output_drops(self, mock_generate) -> None:
-        mock_generate.return_value = "I think this skill is great!"
-        assert _evaluate_skill(GOOD_SKILL_RESPONSE) is False
-
-    @patch("contemplative_agent.core.insight.generate")
-    def test_empty_output_drops(self, mock_generate) -> None:
-        mock_generate.return_value = ""
-        assert _evaluate_skill(GOOD_SKILL_RESPONSE) is False
-
-
-# ---------------------------------------------------------------------------
 # Integration: extract_insight (orchestrator)
 # ---------------------------------------------------------------------------
 
@@ -197,25 +159,19 @@ class TestExtractInsight:
         assert "Failed to extract" in result
 
     @patch("contemplative_agent.core.insight.generate")
-    def test_verdict_drop(self, mock_generate, knowledge_store) -> None:
-        mock_generate.side_effect = [GOOD_SKILL_RESPONSE, "Drop"]
-        result = extract_insight(knowledge_store=knowledge_store)
-        assert "dropped" in result
-        assert "Summary:" in result
-
-    @patch("contemplative_agent.core.insight.generate")
     def test_dry_run(self, mock_generate, knowledge_store) -> None:
-        mock_generate.side_effect = [GOOD_SKILL_RESPONSE, "Save"]
+        mock_generate.return_value = GOOD_SKILL_RESPONSE
         result = extract_insight(
             knowledge_store=knowledge_store, dry_run=True
         )
         assert "# Ask Before Reacting" in result
+        assert "1 saved" in result
 
     @patch("contemplative_agent.core.insight.generate")
     def test_save_to_file(
         self, mock_generate, knowledge_store, skills_dir
     ) -> None:
-        mock_generate.side_effect = [GOOD_SKILL_RESPONSE, "Save"]
+        mock_generate.return_value = GOOD_SKILL_RESPONSE
         result = extract_insight(
             knowledge_store=knowledge_store,
             skills_dir=skills_dir,
@@ -225,20 +181,6 @@ class TestExtractInsight:
         assert len(files) == 1
         today = date.today().strftime("%Y%m%d")
         assert files[0].name == f"ask-before-reacting-{today}.md"
-        content = files[0].read_text()
-        assert "auto-extracted" in content
-
-    @patch("contemplative_agent.core.insight.generate")
-    def test_drop_does_not_write(
-        self, mock_generate, knowledge_store, skills_dir
-    ) -> None:
-        mock_generate.side_effect = [GOOD_SKILL_RESPONSE, "Drop"]
-        extract_insight(
-            knowledge_store=knowledge_store,
-            skills_dir=skills_dir,
-        )
-        files = list(skills_dir.glob("*.md"))
-        assert len(files) == 0
 
     @patch("contemplative_agent.core.insight.generate")
     def test_path_traversal_guard(
@@ -247,7 +189,7 @@ class TestExtractInsight:
         evil_response = GOOD_SKILL_RESPONSE.replace(
             "# Ask Before Reacting", "# ../../etc/passwd"
         )
-        mock_generate.side_effect = [evil_response, "Save"]
+        mock_generate.return_value = evil_response
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         extract_insight(
@@ -281,11 +223,7 @@ class TestBatchProcessing:
     ) -> None:
         skill_b = GOOD_SKILL_RESPONSE.replace("Ask Before Reacting", "Adapt Tone").replace("ask-before-reacting", "adapt-tone")
         skill_c = GOOD_SKILL_RESPONSE.replace("Ask Before Reacting", "Set Boundaries").replace("ask-before-reacting", "set-boundaries")
-        mock_generate.side_effect = [
-            GOOD_SKILL_RESPONSE, "Save",
-            skill_b, "Save",
-            skill_c, "Save",
-        ]
+        mock_generate.side_effect = [GOOD_SKILL_RESPONSE, skill_b, skill_c]
         result = extract_insight(
             knowledge_store=three_batch_store,
             skills_dir=skills_dir,
@@ -299,11 +237,7 @@ class TestBatchProcessing:
         self, mock_generate, three_batch_store, skills_dir
     ) -> None:
         skill_c = GOOD_SKILL_RESPONSE.replace("Ask Before Reacting", "Set Boundaries").replace("ask-before-reacting", "set-boundaries")
-        mock_generate.side_effect = [
-            None,  # batch 1: extraction failure
-            GOOD_SKILL_RESPONSE, "Save",
-            skill_c, "Save",
-        ]
+        mock_generate.side_effect = [None, GOOD_SKILL_RESPONSE, skill_c]
         result = extract_insight(
             knowledge_store=three_batch_store,
             skills_dir=skills_dir,
@@ -319,22 +253,13 @@ class TestBatchProcessing:
         ks.save()
         ks._learned_patterns.clear()
 
-        call_count = 0
-
-        def count_calls(*_args, **_kwargs):
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                return GOOD_SKILL_RESPONSE
-            return "Save"
-
-        mock_generate.side_effect = count_calls
+        mock_generate.return_value = GOOD_SKILL_RESPONSE
         extract_insight(knowledge_store=ks, dry_run=True)
-        assert call_count == 2
+        assert mock_generate.call_count == 1  # 1 batch, 1 LLM call
 
     def test_single_batch(self, knowledge_store, skills_dir) -> None:
         with patch("contemplative_agent.core.insight.generate") as mock_gen:
-            mock_gen.side_effect = [GOOD_SKILL_RESPONSE, "Save"]
+            mock_gen.return_value = GOOD_SKILL_RESPONSE
             result = extract_insight(
                 knowledge_store=knowledge_store,
                 skills_dir=skills_dir,

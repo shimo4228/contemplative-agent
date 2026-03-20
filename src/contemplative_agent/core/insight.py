@@ -1,8 +1,7 @@
 """Insight extraction: synthesize learned patterns into behavioral skills.
 
-Uses a two-pass LLM approach:
-1. Extract a skill from accumulated knowledge patterns (free-form Markdown).
-2. Evaluate the skill with a rubric-guided LLM verdict (Save/Drop).
+Single-pass LLM: extract a skill from each batch of knowledge patterns.
+Quality control is deferred to skill-stocktake (external).
 """
 
 from __future__ import annotations
@@ -18,7 +17,7 @@ from ._io import write_restricted
 from .llm import generate, validate_identity_content
 from .episode_log import EpisodeLog
 from .memory import KnowledgeStore
-from .prompts import INSIGHT_EXTRACTION_PROMPT, INSIGHT_EVAL_PROMPT
+from .prompts import INSIGHT_EXTRACTION_PROMPT
 
 logger = logging.getLogger(__name__)
 
@@ -45,7 +44,7 @@ def _extract_title(skill_text: str) -> Optional[str]:
 def _extract_skill(
     patterns: List[str], insights: List[str]
 ) -> Optional[str]:
-    """LLM call 1: Extract a skill from patterns and insights.
+    """Extract a skill from patterns and insights via LLM.
 
     Returns the raw Markdown skill text, or None on failure.
     """
@@ -59,31 +58,12 @@ def _extract_skill(
         logger.warning("LLM failed to generate skill extraction.")
         return None
 
-    # Basic validation: must contain a title line
     if _extract_title(result) is None:
         logger.warning("Skill extraction has no title (# line). Dropping.")
         logger.debug("Raw LLM output (first 200 chars): %.200s", result)
         return None
 
     return result
-
-
-def _evaluate_skill(skill_text: str) -> bool:
-    """LLM call 2: Evaluate a skill with rubric-guided verdict.
-
-    Returns True (Save) or False (Drop). Fail-closed: unknown output = Drop.
-    """
-    prompt = INSIGHT_EVAL_PROMPT.format(skill_text=skill_text)
-
-    result = generate(prompt, max_length=100)
-    logger.debug("Eval raw output: %s", result)
-    if result is None:
-        logger.warning("LLM failed to evaluate skill — dropping (fail-closed).")
-        return False
-
-    verdict = result.strip().lower().split()[0] if result.strip() else ""
-    logger.info("Eval verdict: %s", verdict)
-    return verdict == "save"
 
 
 def extract_insight(
@@ -94,9 +74,8 @@ def extract_insight(
 ) -> str:
     """Extract behavioral skills from accumulated knowledge.
 
-    Two-pass LLM approach per batch:
-    1. Extract skill (free-form Markdown) from patterns + insights.
-    2. Evaluate with rubric-guided verdict. Save or Drop.
+    Single-pass per batch: extract skill, validate, save.
+    Quality control is deferred to skill-stocktake.
 
     Args:
         knowledge_store: KnowledgeStore with learned patterns.
@@ -113,7 +92,6 @@ def extract_insight(
     knowledge_store.load()
     patterns: List[str] = list(knowledge_store.get_learned_patterns())
 
-    # Get recent insights from JSONL episode log
     insights: List[str] = []
     if episode_log is not None:
         insight_records = episode_log.read_range(days=30, record_type="insight")
@@ -129,12 +107,10 @@ def extract_insight(
             f"Run more sessions and distill first."
         )
 
-    # Split patterns into batches (same approach as distill)
     batches = [
         patterns[i : i + BATCH_SIZE]
         for i in range(0, len(patterns), BATCH_SIZE)
     ]
-    # Merge last batch into previous if too small
     if len(batches) > 1 and len(batches[-1]) < MIN_PATTERNS_REQUIRED:
         batches[-2].extend(batches[-1])
         batches.pop()
@@ -152,27 +128,14 @@ def extract_insight(
             "Batch %d/%d: %d patterns", batch_idx + 1, len(batches), len(batch)
         )
 
-        # Pass 1: Extract
         skill_text = _extract_skill(batch, insights)
         if skill_text is None:
             logger.warning("Batch %d/%d: extraction failed", batch_idx + 1, len(batches))
             dropped_count += 1
             continue
 
-        # Validate against forbidden patterns
         if not validate_identity_content(skill_text):
             logger.warning("Batch %d/%d: forbidden pattern detected", batch_idx + 1, len(batches))
-            dropped_count += 1
-            continue
-
-        # Pass 2: Evaluate
-        should_save = _evaluate_skill(skill_text)
-
-        if not should_save:
-            title = _extract_title(skill_text) or "(untitled)"
-            all_results.append(
-                f"Batch {batch_idx + 1}: dropped\nTitle: {title}"
-            )
             dropped_count += 1
             continue
 
