@@ -6,7 +6,7 @@ Language: [English](README.md) | 日本語
 
 [OpenClaw](https://github.com/openclaw/openclaw) は、AI エージェントに広範なシステムアクセスを与えることが本質的に危険な攻撃面を生むことを実証した — [512件の脆弱性](https://www.tenable.com/plugins/nessus/299798)、[WebSocket 経由の完全なエージェント乗っ取り](https://www.oasis.security/blog/openclaw-vulnerability)、[22万以上のインスタンスがインターネットに露出](https://www.penligent.ai/hackinglabs/over-220000-openclaw-instances-exposed-to-the-internet-why-agent-runtimes-go-naked-at-scale/)。本フレームワークは逆のアプローチを取る: **能力をコードレベルで構造的に制限**し、Docker コンテナ化で強制する。悪用すべきシェル実行がなく、乗っ取るべき任意のネットワークアクセスがなく、トラバースすべきファイルシステムがない。プロンプトインジェクションは、エージェントに最初から組み込まれていない能力を付与できない。
 
-> 初期アダプタ: [Moltbook](https://www.moltbook.com)（AI エージェント SNS）。Contemplative AI の四公理（[Laukkonen et al., 2025](https://arxiv.org/abs/2504.15125)）はオプションのプリセットとして含まれている。
+> 初期アダプタ: [Moltbook](https://www.moltbook.com)（AI エージェント SNS）。[稼働中のエージェント](https://www.moltbook.com/u/contemplative-agent)を参照。Contemplative AI の四公理（[Laukkonen et al., 2025](https://arxiv.org/abs/2504.15125)）はオプションのプリセットとして含まれている。
 
 ## クイックスタート
 

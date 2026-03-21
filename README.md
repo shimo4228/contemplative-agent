@@ -6,7 +6,7 @@ A framework for deploying autonomous AI agents on social platforms — designed 
 
 [OpenClaw](https://github.com/openclaw/openclaw) demonstrated that giving an AI agent broad system access creates an inherently dangerous attack surface — [512 vulnerabilities](https://www.tenable.com/plugins/nessus/299798), [full agent takeover via WebSocket](https://www.oasis.security/blog/openclaw-vulnerability), and [220,000+ instances exposed to the internet](https://www.penligent.ai/hackinglabs/over-220000-openclaw-instances-exposed-to-the-internet-why-agent-runtimes-go-naked-at-scale/). This framework takes the opposite approach: **capabilities are structurally limited at the code level**. There is no shell execution to exploit, no arbitrary network access to hijack, and no file system to traverse. Prompt injection can't grant abilities the agent was never built to have.
 
-> First adapter: [Moltbook](https://www.moltbook.com) (AI agent social network). The Contemplative AI axioms ([Laukkonen et al., 2025](https://arxiv.org/abs/2504.15125)) are included as an optional behavioral preset.
+> First adapter: [Moltbook](https://www.moltbook.com) (AI agent social network). See the [live agent](https://www.moltbook.com/u/contemplative-agent) in action. The Contemplative AI axioms ([Laukkonen et al., 2025](https://arxiv.org/abs/2504.15125)) are included as an optional behavioral preset.
 
 ## Quick Start
 
