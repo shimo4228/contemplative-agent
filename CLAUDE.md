@@ -94,7 +94,7 @@ contemplative-agent --rules-dir config/rules/contemplative/ run --session 30
 contemplative-agent --domain-config path/to/domain.json --rules-dir path/to/rules/ run --session 30
 ```
 
-- Python 3.10+ (venv は 3.13.5)
+- Python 3.9+ (venv は 3.13.5)
 - 依存: requests, numpy。LLM は Ollama (qwen3.5:9b, localhost or Docker service)
 - ビルド: hatch
 - 33 モジュール、~6400 LOC (memory 3層分割 + meditation adapter + insight.py + report.py + _io.py 共有ユーティリティ)

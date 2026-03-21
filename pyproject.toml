@@ -2,7 +2,7 @@
 name = "contemplative-agent"
 version = "0.1.0"
 description = "Contemplative AI agent for Moltbook — promoting alignment through the four axioms"
-requires-python = ">=3.10"
+requires-python = ">=3.9"
 license = {text = "MIT"}
 dependencies = ["requests>=2.28.0", "numpy>=1.24.0"]
 
