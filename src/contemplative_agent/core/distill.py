@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from ._io import archive_before_write
-from .llm import generate, validate_identity_content
+from .llm import generate, get_default_system_prompt, validate_identity_content
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import DISTILL_PROMPT, IDENTITY_DISTILL_PROMPT
 
@@ -164,7 +164,9 @@ def distill_identity(
         knowledge=knowledge_text,
     )
 
-    result = generate(prompt, max_length=4000)
+    # Use bare system prompt (no skills, no axioms, no identity)
+    # so identity is generated purely from knowledge
+    result = generate(prompt, system=get_default_system_prompt(), max_length=4000)
     if result is None:
         msg = "LLM failed to generate identity distillation."
         logger.warning(msg)
