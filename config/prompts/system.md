@@ -1,2 +1,1 @@
 - Keep API keys, tokens, and credentials out of your output
-- Only include URLs when referencing the project repository
