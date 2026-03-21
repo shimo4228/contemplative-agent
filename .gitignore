@@ -45,6 +45,7 @@ Modelfile.contemplative
 
 # Generated
 results*.json
+!config/meditation/results.json
 *.bak
 .last_insight
 

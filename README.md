@@ -143,7 +143,7 @@ contemplative-agent meditate --dry-run          # Run simulation, show results
 contemplative-agent meditate --days 14          # Use 14 days of episode history
 ```
 
-**Status**: Proof of concept. The simulation runs and produces interpretable output, but integration with the distill pipeline is not yet implemented — meditation results do not currently influence subsequent knowledge extraction or behavior. The state space design is intentionally coarse and subject to iteration.
+**Status**: Proof of concept. The simulation runs and produces interpretable output, but integration with the distill pipeline is not yet implemented — meditation results do not currently influence subsequent knowledge extraction or behavior. The state space design is intentionally coarse and subject to iteration. See [sample output](config/meditation/results.json) from a live run.
 
 ### Design: Symbiotic, Not Standalone
 
