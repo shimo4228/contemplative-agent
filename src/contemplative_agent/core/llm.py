@@ -149,6 +149,18 @@ def get_default_system_prompt() -> str:
     return _get_default_system_prompt()
 
 
+def get_rules_system_prompt() -> str:
+    """System prompt with rules/axioms but without identity or skills.
+
+    Used by distill to ground pattern extraction in values
+    without circular identity reference.
+    """
+    base = _get_default_system_prompt()
+    if _axiom_prompt:
+        base = base + "\n\n---\n\n" + _axiom_prompt
+    return base
+
+
 def validate_identity_content(content: str) -> bool:
     """Return True if content passes all forbidden pattern checks."""
     content_lower = content.lower()

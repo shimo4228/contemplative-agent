@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from ._io import archive_before_write
-from .llm import generate, get_default_system_prompt, validate_identity_content
+from .llm import generate, get_default_system_prompt, get_rules_system_prompt, validate_identity_content
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import (
     DISTILL_PROMPT,
@@ -84,8 +84,8 @@ def distill(
             episodes="\n".join(episode_lines),
         )
 
-        # Step 1: Extract — free-form output, no format constraint
-        result = generate(prompt, max_length=4000)
+        # Step 1: Extract — free-form output, with rules/axioms as lens
+        result = generate(prompt, system=get_rules_system_prompt(), max_length=4000)
         if result is None:
             logger.warning("Batch %d/%d: step 1 (extract) failed", batch_idx + 1, len(batches))
             continue
@@ -189,9 +189,9 @@ def distill_identity(
         knowledge=knowledge_text,
     )
 
-    # Step 1: Free-form self-analysis (bare system prompt to avoid
-    # injecting current identity twice — it's already in the prompt)
-    result = generate(prompt, system=get_default_system_prompt(), max_length=4000)
+    # Step 1: Free-form self-analysis (rules/axioms for value grounding,
+    # but no identity — it's already in the prompt via {current_identity})
+    result = generate(prompt, system=get_rules_system_prompt(), max_length=4000)
     if result is None:
         msg = "LLM failed at step 1 (self-analysis)."
         logger.warning(msg)
