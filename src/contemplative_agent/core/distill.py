@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json as json_mod
 import logging
 import os
 import stat
@@ -13,17 +12,6 @@ from ._io import archive_before_write
 from .llm import generate, get_default_system_prompt, validate_identity_content
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import DISTILL_PROMPT, IDENTITY_DISTILL_PROMPT
-
-DISTILL_FORMAT: Dict = {
-    "type": "object",
-    "properties": {
-        "patterns": {
-            "type": "array",
-            "items": {"type": "string"},
-        }
-    },
-    "required": ["patterns"],
-}
 
 logger = logging.getLogger(__name__)
 
@@ -90,35 +78,30 @@ def distill(
             episodes="\n".join(episode_lines),
         )
 
-        result = generate(prompt, max_length=4000, format=DISTILL_FORMAT)
+        result = generate(prompt, max_length=4000)
         if result is None:
             logger.warning("Batch %d/%d: LLM failed", batch_idx + 1, len(batches))
             continue
 
         all_results.append(result)
 
-        # Parse structured JSON output
-        batch_patterns = []
-        try:
-            parsed = json_mod.loads(result)
-            for p in parsed.get("patterns", []):
-                p = p.strip()
-                if p:
-                    batch_patterns.append(p)
-        except (json_mod.JSONDecodeError, TypeError):
-            logger.warning("Batch %d/%d: failed to parse JSON, falling back to bullet parse",
-                           batch_idx + 1, len(batches))
-            for line in result.splitlines():
-                line = line.strip()
-                if line.startswith("- "):
-                    pattern = line[2:].strip()
-                    if pattern:
-                        batch_patterns.append(pattern)
+        # Parse bullet points
+        raw_patterns = []
+        for line in result.splitlines():
+            line = line.strip()
+            if line.startswith("- "):
+                pattern = line[2:].strip()
+                if pattern:
+                    raw_patterns.append(pattern)
+
+        # Decision gate: reject low-quality patterns
+        batch_patterns = [p for p in raw_patterns if _is_valid_pattern(p)]
+        rejected = len(raw_patterns) - len(batch_patterns)
 
         all_patterns.extend(batch_patterns)
         logger.info(
-            "Batch %d/%d: %d episodes → %d patterns",
-            batch_idx + 1, len(batches), len(batch), len(batch_patterns),
+            "Batch %d/%d: %d episodes → %d patterns (%d rejected)",
+            batch_idx + 1, len(batches), len(batch), len(batch_patterns), rejected,
         )
 
     if dry_run:
@@ -214,6 +197,18 @@ def distill_identity(
         logger.info("Identity updated: %s", identity_path)
 
     return identity_text
+
+
+def _is_valid_pattern(pattern: str) -> bool:
+    """Decision gate: is this pattern worth storing?
+
+    Rejects labels, keywords, and fragments that aren't actionable patterns.
+    """
+    if len(pattern) < 30:
+        return False
+    if pattern.count(" ") < 3:
+        return False
+    return True
 
 
 def summarize_record(record_type: str, data: dict) -> str:

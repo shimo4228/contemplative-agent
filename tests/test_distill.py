@@ -7,6 +7,7 @@ from contemplative_agent.core.distill import (
     summarize_record,
     distill,
     distill_identity,
+    _is_valid_pattern,
 )
 from contemplative_agent.core.memory import EpisodeLog, KnowledgeStore
 
@@ -14,7 +15,10 @@ from contemplative_agent.core.memory import EpisodeLog, KnowledgeStore
 class TestDistill:
     @patch("contemplative_agent.core.distill.generate")
     def test_basic_distillation(self, mock_generate, tmp_path):
-        mock_generate.return_value = json.dumps({"patterns": ["Pattern one", "Pattern two"]})
+        mock_generate.return_value = (
+            "- Pattern one shows that quoting specific details improves engagement\n"
+            "- Pattern two reveals that generic replies stall conversations quickly"
+        )
 
         log = EpisodeLog(log_dir=tmp_path / "logs")
         log.append("interaction", {
@@ -32,12 +36,13 @@ class TestDistill:
         # Patterns should be saved to knowledge store
         ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks2.load()
-        assert "Pattern one" in ks2.get_learned_patterns()
-        assert "Pattern two" in ks2.get_learned_patterns()
+        patterns = ks2.get_learned_patterns()
+        assert any("Pattern one" in p for p in patterns)
+        assert any("Pattern two" in p for p in patterns)
 
     @patch("contemplative_agent.core.distill.generate")
     def test_dry_run_does_not_write(self, mock_generate, tmp_path):
-        mock_generate.return_value = json.dumps({"patterns": ["Dry pattern"]})
+        mock_generate.return_value = "- Dry pattern that explains how quoting specific details works better"
 
         log = EpisodeLog(log_dir=tmp_path / "logs")
         log.append("interaction", {"direction": "sent", "agent_name": "Bob",
@@ -76,7 +81,7 @@ class TestDistill:
         ks_setup.add_learned_pattern("Existing pattern")
         ks_setup.save()
 
-        mock_generate.return_value = json.dumps({"patterns": ["New pattern from today"]})
+        mock_generate.return_value = "- New pattern from today shows concrete improvement in engagement"
 
         log = EpisodeLog(log_dir=tmp_path / "logs")
         log.append("interaction", {"direction": "sent", "agent_name": "Alice",
@@ -90,12 +95,35 @@ class TestDistill:
         patterns = ks2.get_learned_patterns()
         assert len(patterns) == 2
         assert "Existing pattern" in patterns
-        assert "New pattern from today" in patterns
+        assert any("New pattern from today" in p for p in patterns)
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_rejects_low_quality_patterns(self, mock_generate, tmp_path):
+        """Short labels and keywords are rejected by quality gate."""
+        mock_generate.return_value = (
+            "- user interaction\n"
+            "- activity: upvote\n"
+            "- sentiment_analysis\n"
+            "- Replies that quote specific points from other posts get more follow-up replies than generic agreement."
+        )
+
+        log = EpisodeLog(log_dir=tmp_path / "logs")
+        log.append("interaction", {"direction": "sent", "agent_name": "Alice",
+                                    "content_summary": "Hi", "agent_id": "a1"})
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+
+        distill(days=1, episode_log=log, knowledge_store=ks)
+
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        patterns = ks2.get_learned_patterns()
+        assert len(patterns) == 1
+        assert "Replies that quote" in patterns[0]
 
     @patch("contemplative_agent.core.distill.generate")
     def test_empty_patterns_no_save(self, mock_generate, tmp_path):
         """LLM response with empty patterns array should not save anything."""
-        mock_generate.return_value = json.dumps({"patterns": []})
+        mock_generate.return_value = "No clear patterns found in this session."
 
         log = EpisodeLog(log_dir=tmp_path / "logs")
         log.append("interaction", {"direction": "sent", "agent_name": "Alice",
@@ -109,7 +137,7 @@ class TestDistill:
     @patch("contemplative_agent.core.distill.generate")
     def test_log_files_override_days(self, mock_generate, tmp_path):
         """--file option reads from explicit files, ignoring days."""
-        mock_generate.return_value = json.dumps({"patterns": ["Pattern from explicit file"]})
+        mock_generate.return_value = "- Pattern from explicit file shows quoting drives engagement"
 
         # Write a JSONL file manually
         log_file = tmp_path / "custom.jsonl"
@@ -123,9 +151,34 @@ class TestDistill:
                          log_files=[log_file])
         assert "Pattern from explicit file" in result
 
+
         ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks2.load()
-        assert "Pattern from explicit file" in ks2.get_learned_patterns()
+        assert any("Pattern from explicit file" in p for p in ks2.get_learned_patterns())
+
+
+class TestIsValidPattern:
+    def test_rejects_short_label(self):
+        assert not _is_valid_pattern("user interaction")
+
+    def test_rejects_single_word(self):
+        assert not _is_valid_pattern("upvote")
+
+    def test_rejects_keyword_pair(self):
+        assert not _is_valid_pattern("sentiment_analysis")
+
+    def test_accepts_full_sentence(self):
+        assert _is_valid_pattern(
+            "Replies that quote specific points get more follow-up replies than generic agreement."
+        )
+
+    def test_rejects_few_words(self):
+        assert not _is_valid_pattern("activity: upvote comment")
+
+    def test_accepts_actionable_pattern(self):
+        assert _is_valid_pattern(
+            "Unfollowing agents who posted repetitive frameworks reduced feed noise."
+        )
 
 
 class TestSummarizeRecord:
