@@ -200,8 +200,8 @@ def distill_identity(
         knowledge=knowledge_text,
     )
 
-    # Step 1: Free-form self-analysis (no format constraints)
-    result = generate(prompt, system=get_default_system_prompt(), max_length=4000)
+    # Step 1: Free-form self-analysis (with rules/axioms for value grounding)
+    result = generate(prompt, max_length=4000)
     if result is None:
         msg = "LLM failed at step 1 (self-analysis)."
         logger.warning(msg)
