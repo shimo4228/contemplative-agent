@@ -171,6 +171,7 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         insight_extraction=_read_md_file(directory / "insight_extraction.md", required=False),
         insight_eval=_read_md_file(directory / "insight_eval.md", required=False),
         meditation_interpret=_read_md_file(directory / "meditation_interpret.md", required=False),
+        distill_refine=_read_md_file(directory / "distill_refine.md", required=False),
     )
 
 

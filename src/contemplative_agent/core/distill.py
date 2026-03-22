@@ -66,7 +66,7 @@ def distill(
         return msg
 
     # Split records into batches of BATCH_SIZE (sleep cycle analogy)
-    BATCH_SIZE = 50
+    BATCH_SIZE = 30
     batches = [records[i:i + BATCH_SIZE] for i in range(0, len(records), BATCH_SIZE)]
     logger.info("Processing %d episodes in %d batches", len(records), len(batches))
 
@@ -96,9 +96,9 @@ def distill(
             logger.warning("Batch %d/%d: step 1 (extract) failed", batch_idx + 1, len(batches))
             continue
 
-        # Step 2: Refine — summarize + structure via format constraint
+        # Step 2: Refine — summarize + structure (LLM produces JSON naturally)
         refine_prompt = DISTILL_REFINE_PROMPT.format(raw_output=result)
-        refined = generate(refine_prompt, max_length=4000, format=DISTILL_FORMAT)
+        refined = generate(refine_prompt, max_length=4000)
         if refined is None:
             logger.warning("Batch %d/%d: step 2 (refine) failed", batch_idx + 1, len(batches))
             continue
@@ -113,7 +113,13 @@ def distill(
                 if p:
                     raw_patterns.append(p)
         except (json_mod.JSONDecodeError, TypeError):
-            logger.warning("Batch %d/%d: failed to parse refined JSON", batch_idx + 1, len(batches))
+            # Fallback: bullet-point parsing
+            for line in refined.splitlines():
+                line = line.strip()
+                if line.startswith("- "):
+                    pattern = line[2:].strip()
+                    if pattern:
+                        raw_patterns.append(pattern)
 
         # Decision gate: reject low-quality patterns
         batch_patterns = [p for p in raw_patterns if _is_valid_pattern(p)]
