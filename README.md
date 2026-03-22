@@ -202,13 +202,24 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 
 ### `rules-distill` command (planned)
 
-Extract universal principles from accumulated skills and merge them into `config/rules/` — either creating new rule files or enriching existing ones. This is the final stage of the learning loop:
+Extract universal principles from accumulated knowledge and merge them into `config/rules/` — either creating new rule files or enriching existing ones. Knowledge feeds two independent outputs:
 
 ```
-Episodes → distill → Knowledge → insight → Skills → rules-distill → Rules
+                                  ┌→ insight → Skills
+Episodes → distill → Knowledge ───┤
+                                  └→ rules-distill → Rules
 ```
 
-Unlike `distill` or `insight`, `rules-distill` requires a critical mass of high-quality skills before it becomes meaningful. A handful of skills reflect individual experiences; universal principles only emerge from patterns across many skills. The execution threshold is intentionally high — premature generalization produces platitudes, not principles.
+Unlike `distill` or `insight`, `rules-distill` requires a critical mass of knowledge patterns before it becomes meaningful. A handful of patterns reflect individual experiences; universal principles only emerge from convergence across many patterns. The execution threshold is intentionally high — premature generalization produces platitudes, not principles.
+
+### Axiom / Skill separation (under consideration)
+
+Currently, axioms (Contemplative AI constitutional clauses) and skills/rules live together under `config/rules/`. We are considering separating them into two independent routes:
+
+- **Ethics route** — axioms as constitutional constraints on agent behavior
+- **Skill route** — learned skills and distilled rules as operational capabilities
+
+This would allow any command to opt into either route independently (e.g., `--axioms`, `--skills`), aligning better with practical agent workflows like Claude Code where operational rules matter more than ethical axioms. The relationship between identity (`config/identity.md`) and axioms — whether they should be integrated or remain separate — is also under consideration.
 
 ## Activity Reports
 
