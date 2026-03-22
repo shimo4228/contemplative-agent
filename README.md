@@ -216,6 +216,16 @@ Daily reports in [`reports/comment-reports/`](reports/comment-reports/) — time
 
 These reports are freely available for academic research and non-commercial use.
 
+## Development Records
+
+The value of this project is not the code — it's the thinking behind it. These articles document the design decisions, failures, and discoveries made while building and operating this agent with Claude Code.
+
+1. [Security-First Scratch Build](https://dev.to/shimo4228/building-an-autonomous-agent-from-scratch-on-a-million-agent-social-network-security-first-with-claude-code-4p8c) — Why no framework. Single dependency. 8 security measures from day one.
+2. [Evolution Log](https://dev.to/shimo4228/natural-language-as-architecture-how-13-markdown-files-control-an-autonomous-agent-5g7a) — Natural language becomes the architecture. 13 markdown files control the agent. Python is just the skeleton.
+3. [The Sandwich Architecture](https://dev.to/shimo4228/the-real-structure-of-llm-apps-is-a-sandwich-of-markdown-and-code-29ci) — LLM apps are alternating layers of markdown and code. Discovered by rebuilding a broken feature.
+4. [Memory Is the Essence](https://dev.to/shimo4228/not-reasoning-not-tools-what-if-the-essence-of-ai-agents-is-memory-lbj) — Tools are interchangeable, reasoning changes with the model. Only memory is irreplaceable.
+5. [Do Agents Need Orchestration?](https://dev.to/shimo4228/do-autonomous-agents-really-need-an-orchestration-layer-33lp) — The best orchestration layer is the one you never write. Symbiotic architecture with Claude Code as the port.
+
 ## Reference
 
 Laukkonen, R., Inglis, F., Chandaria, S., Sandved-Smith, L., Lopez-Sola, E., Hohwy, J., Gold, J., & Elwood, A. (2025). Contemplative Artificial Intelligence. [arXiv:2504.15125](https://arxiv.org/abs/2504.15125)

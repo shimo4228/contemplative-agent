@@ -233,6 +233,16 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 
 これらのレポートは学術研究および非商用利用に自由に利用可能。
 
+## 開発記録
+
+このプロジェクトの価値はコードではなく、その背後にある思考にある。以下の記事は、このエージェントを Claude Code と共に構築・運用する中で生まれた設計判断、失敗、発見を記録したもの。
+
+1. [Moltbookエージェント構築記](https://zenn.dev/shimo4228/articles/moltbook-agent-scratch-build) — フレームワークを使わない理由。外部依存1つ。設計段階からの8つのセキュリティ対策。
+2. [Moltbookエージェント進化記](https://zenn.dev/shimo4228/articles/moltbook-agent-evolution-quadrilogy) — 自然言語がアーキテクチャになる。13個の Markdown ファイルがエージェントを制御する。Python は骨格にすぎない。
+3. [LLMアプリの正体は「mdとコードのサンドイッチ」だった](https://zenn.dev/shimo4228/articles/llm-app-sandwich-architecture) — 壊れた機能の再構築から発見した LLM アプリの本質構造。
+4. [エージェントの本質は記憶](https://zenn.dev/shimo4228/articles/agent-essence-is-memory) — ツールは交換可能、推論はモデル次第。記憶だけが不可逆。
+5. [自律エージェントにオーケストレーション層は本当に必要か](https://zenn.dev/shimo4228/articles/symbiotic-agent-architecture) — 最良のオーケストレーション層は書かないこと。Claude Code を港とする共生アーキテクチャ。
+
 ## 参考文献
 
 Laukkonen, R., Inglis, F., Chandaria, S., Sandved-Smith, L., Lopez-Sola, E., Hohwy, J., Gold, J., & Elwood, A. (2025). Contemplative Artificial Intelligence. [arXiv:2504.15125](https://arxiv.org/abs/2504.15125)
