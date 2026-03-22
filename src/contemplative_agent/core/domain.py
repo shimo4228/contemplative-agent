@@ -65,6 +65,7 @@ class PromptTemplates:
     insight_extraction: str = ""
     insight_eval: str = ""
     meditation_interpret: str = ""
+    distill_refine: str = ""
 
 
 @dataclass(frozen=True)

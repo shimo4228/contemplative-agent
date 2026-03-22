@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json as json_mod
 import logging
 import os
 import stat
@@ -11,9 +12,20 @@ from typing import Dict, List, Optional
 from ._io import archive_before_write
 from .llm import generate, get_default_system_prompt, validate_identity_content
 from .memory import EpisodeLog, KnowledgeStore
-from .prompts import DISTILL_PROMPT, IDENTITY_DISTILL_PROMPT
+from .prompts import DISTILL_PROMPT, DISTILL_REFINE_PROMPT, IDENTITY_DISTILL_PROMPT
 
 logger = logging.getLogger(__name__)
+
+DISTILL_FORMAT: Dict = {
+    "type": "object",
+    "properties": {
+        "patterns": {
+            "type": "array",
+            "items": {"type": "string"},
+        }
+    },
+    "required": ["patterns"],
+}
 
 
 def distill(
@@ -78,21 +90,30 @@ def distill(
             episodes="\n".join(episode_lines),
         )
 
+        # Step 1: Extract — free-form output, no format constraint
         result = generate(prompt, max_length=4000)
         if result is None:
-            logger.warning("Batch %d/%d: LLM failed", batch_idx + 1, len(batches))
+            logger.warning("Batch %d/%d: step 1 (extract) failed", batch_idx + 1, len(batches))
             continue
 
-        all_results.append(result)
+        # Step 2: Refine — summarize + structure via format constraint
+        refine_prompt = DISTILL_REFINE_PROMPT.format(raw_output=result)
+        refined = generate(refine_prompt, max_length=4000, format=DISTILL_FORMAT)
+        if refined is None:
+            logger.warning("Batch %d/%d: step 2 (refine) failed", batch_idx + 1, len(batches))
+            continue
 
-        # Parse bullet points
+        all_results.append(refined)
+
         raw_patterns = []
-        for line in result.splitlines():
-            line = line.strip()
-            if line.startswith("- "):
-                pattern = line[2:].strip()
-                if pattern:
-                    raw_patterns.append(pattern)
+        try:
+            parsed = json_mod.loads(refined)
+            for p in parsed.get("patterns", []):
+                p = p.strip()
+                if p:
+                    raw_patterns.append(p)
+        except (json_mod.JSONDecodeError, TypeError):
+            logger.warning("Batch %d/%d: failed to parse refined JSON", batch_idx + 1, len(batches))
 
         # Decision gate: reject low-quality patterns
         batch_patterns = [p for p in raw_patterns if _is_valid_pattern(p)]

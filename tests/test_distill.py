@@ -15,10 +15,13 @@ from contemplative_agent.core.memory import EpisodeLog, KnowledgeStore
 class TestDistill:
     @patch("contemplative_agent.core.distill.generate")
     def test_basic_distillation(self, mock_generate, tmp_path):
-        mock_generate.return_value = (
-            "- Pattern one shows that quoting specific details improves engagement\n"
-            "- Pattern two reveals that generic replies stall conversations quickly"
-        )
+        mock_generate.side_effect = [
+            "Some free-form analysis of patterns from the episode logs.",
+            json.dumps({"patterns": [
+                "Pattern one shows that quoting specific details improves engagement",
+                "Pattern two reveals that generic replies stall conversations quickly",
+            ]}),
+        ]
 
         log = EpisodeLog(log_dir=tmp_path / "logs")
         log.append("interaction", {
@@ -42,7 +45,10 @@ class TestDistill:
 
     @patch("contemplative_agent.core.distill.generate")
     def test_dry_run_does_not_write(self, mock_generate, tmp_path):
-        mock_generate.return_value = "- Dry pattern that explains how quoting specific details works better"
+        mock_generate.side_effect = [
+            "Some analysis.",
+            json.dumps({"patterns": ["Dry pattern that explains how quoting specific details works better"]}),
+        ]
 
         log = EpisodeLog(log_dir=tmp_path / "logs")
         log.append("interaction", {"direction": "sent", "agent_name": "Bob",
@@ -81,7 +87,10 @@ class TestDistill:
         ks_setup.add_learned_pattern("Existing pattern")
         ks_setup.save()
 
-        mock_generate.return_value = "- New pattern from today shows concrete improvement in engagement"
+        mock_generate.side_effect = [
+            "Some analysis.",
+            json.dumps({"patterns": ["New pattern from today shows concrete improvement in engagement"]}),
+        ]
 
         log = EpisodeLog(log_dir=tmp_path / "logs")
         log.append("interaction", {"direction": "sent", "agent_name": "Alice",
@@ -100,12 +109,15 @@ class TestDistill:
     @patch("contemplative_agent.core.distill.generate")
     def test_rejects_low_quality_patterns(self, mock_generate, tmp_path):
         """Short labels and keywords are rejected by quality gate."""
-        mock_generate.return_value = (
-            "- user interaction\n"
-            "- activity: upvote\n"
-            "- sentiment_analysis\n"
-            "- Replies that quote specific points from other posts get more follow-up replies than generic agreement."
-        )
+        mock_generate.side_effect = [
+            "Some analysis.",
+            json.dumps({"patterns": [
+                "user interaction",
+                "activity: upvote",
+                "sentiment_analysis",
+                "Replies that quote specific points from other posts get more follow-up replies than generic agreement.",
+            ]}),
+        ]
 
         log = EpisodeLog(log_dir=tmp_path / "logs")
         log.append("interaction", {"direction": "sent", "agent_name": "Alice",
@@ -123,7 +135,10 @@ class TestDistill:
     @patch("contemplative_agent.core.distill.generate")
     def test_empty_patterns_no_save(self, mock_generate, tmp_path):
         """LLM response with empty patterns array should not save anything."""
-        mock_generate.return_value = "No clear patterns found in this session."
+        mock_generate.side_effect = [
+            "No clear patterns found.",
+            json.dumps({"patterns": []}),
+        ]
 
         log = EpisodeLog(log_dir=tmp_path / "logs")
         log.append("interaction", {"direction": "sent", "agent_name": "Alice",
@@ -137,7 +152,10 @@ class TestDistill:
     @patch("contemplative_agent.core.distill.generate")
     def test_log_files_override_days(self, mock_generate, tmp_path):
         """--file option reads from explicit files, ignoring days."""
-        mock_generate.return_value = "- Pattern from explicit file shows quoting drives engagement"
+        mock_generate.side_effect = [
+            "Some analysis.",
+            json.dumps({"patterns": ["Pattern from explicit file shows quoting drives engagement"]}),
+        ]
 
         # Write a JSONL file manually
         log_file = tmp_path / "custom.jsonl"
