@@ -21,17 +21,6 @@ from .prompts import (
 
 logger = logging.getLogger(__name__)
 
-DISTILL_FORMAT: Dict = {
-    "type": "object",
-    "properties": {
-        "patterns": {
-            "type": "array",
-            "items": {"type": "string"},
-        }
-    },
-    "required": ["patterns"],
-}
-
 
 def distill(
     days: int = 1,
@@ -105,8 +94,8 @@ def distill(
         refine_prompt = DISTILL_REFINE_PROMPT.format(raw_output=result)
         refined = generate(refine_prompt, max_length=4000)
         if refined is None:
-            logger.warning("Batch %d/%d: step 2 (refine) failed", batch_idx + 1, len(batches))
-            continue
+            logger.warning("Batch %d/%d: step 2 (refine) failed, using step 1 output", batch_idx + 1, len(batches))
+            refined = result
 
         all_results.append(refined)
 
@@ -200,8 +189,9 @@ def distill_identity(
         knowledge=knowledge_text,
     )
 
-    # Step 1: Free-form self-analysis (with rules/axioms for value grounding)
-    result = generate(prompt, max_length=4000)
+    # Step 1: Free-form self-analysis (bare system prompt to avoid
+    # injecting current identity twice — it's already in the prompt)
+    result = generate(prompt, system=get_default_system_prompt(), max_length=4000)
     if result is None:
         msg = "LLM failed at step 1 (self-analysis)."
         logger.warning(msg)
