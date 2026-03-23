@@ -31,11 +31,16 @@ class KnowledgeStore:
         return self._path is not None and self._path.exists()
 
     def add_learned_pattern(
-        self, pattern: str, distilled: Optional[str] = None, source: Optional[str] = None,
+        self,
+        pattern: str,
+        distilled: Optional[str] = None,
+        source: Optional[str] = None,
+        importance: float = 0.5,
     ) -> None:
         entry: dict = {
             "pattern": pattern,
             "distilled": distilled or datetime.now(timezone.utc).isoformat(timespec="minutes"),
+            "importance": importance,
         }
         if source:
             entry["source"] = source
@@ -47,6 +52,7 @@ class KnowledgeStore:
             self._learned_patterns[index] = {
                 "pattern": pattern,
                 "distilled": datetime.now(timezone.utc).isoformat(timespec="minutes"),
+                "importance": 0.5,
             }
 
     def get_learned_patterns(self) -> List[str]:
@@ -60,16 +66,41 @@ class KnowledgeStore:
             if p.get("distilled", "") > since
         ]
 
-    def get_context_string(self, limit: int = 100) -> str:
+    def _effective_importance(self, p: dict) -> float:
+        """Compute importance with time decay: importance * 0.95^days_elapsed."""
+        base = p.get("importance", 0.5)
+        distilled = p.get("distilled", "")
+        if not distilled or distilled == "unknown":
+            return base * 0.1  # Unknown timestamp → heavy penalty
+        try:
+            dt = datetime.fromisoformat(distilled)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            days = (datetime.now(timezone.utc) - dt).total_seconds() / 86400.0
+            days = max(0.0, days)
+        except (ValueError, TypeError):
+            return base * 0.1
+        return max(0.0, min(1.0, base * (0.95 ** days)))
+
+    def get_context_string(self, limit: int = 50) -> str:
         """Return learned patterns as a bullet list for LLM context injection.
 
-        Returns up to `limit` most-recent patterns. Default 100 is generous
-        for qwen3.5:9b's 32k context but prevents unbounded growth.
+        Returns top `limit` patterns sorted by effective importance
+        (base importance with time decay). Default 50 balances signal
+        quality with coverage for qwen3.5:9b's 32k context.
         """
         if not self._learned_patterns:
             return ""
-        patterns = self._learned_patterns[-limit:]
-        return "\n".join(f"- {p['pattern']}" for p in patterns)
+        scored = sorted(
+            self._learned_patterns,
+            key=self._effective_importance,
+            reverse=True,
+        )
+        selected = scored[:limit]
+        now = datetime.now(timezone.utc).isoformat(timespec="minutes")
+        for p in selected:
+            p["last_accessed"] = now
+        return "\n".join(f"- {p['pattern']}" for p in selected)
 
     def load(self) -> None:
         """Load knowledge from JSON file.
@@ -135,15 +166,22 @@ class KnowledgeStore:
             return
         for item in data:
             if isinstance(item, dict) and isinstance(item.get("pattern"), str):
-                self._learned_patterns.append({
+                entry: dict = {
                     "pattern": item["pattern"],
                     "distilled": item.get("distilled", "unknown"),
-                })
+                    "importance": item.get("importance", 0.5),
+                }
+                if item.get("source") is not None:
+                    entry["source"] = item["source"]
+                if item.get("last_accessed") is not None:
+                    entry["last_accessed"] = item["last_accessed"]
+                self._learned_patterns.append(entry)
             elif isinstance(item, str):
                 # Bare string — legacy format
                 self._learned_patterns.append({
                     "pattern": item,
                     "distilled": "unknown",
+                    "importance": 0.5,
                 })
 
     def _parse_legacy_markdown(self, text: str) -> None:
@@ -160,4 +198,5 @@ class KnowledgeStore:
                     self._learned_patterns.append({
                         "pattern": item,
                         "distilled": "unknown",
+                        "importance": 0.5,
                     })

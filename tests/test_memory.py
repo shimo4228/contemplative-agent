@@ -643,6 +643,115 @@ class TestKnowledgeStore:
         ks.replace_learned_pattern(0, "Replaced")
         assert ks.get_learned_patterns() == ["Replaced"]
 
+    # --- Importance score tests ---
+
+    def test_importance_default_on_load(self, tmp_path):
+        """Patterns without importance field get default 0.5 on load."""
+        path = tmp_path / "knowledge.json"
+        path.write_text(json.dumps([
+            {"pattern": "Old pattern without importance", "distilled": "2026-03-20T12:00+00:00"}
+        ]))
+        ks = KnowledgeStore(path=path)
+        ks.load()
+        assert ks._learned_patterns[0]["importance"] == 0.5
+
+    def test_importance_preserved_on_roundtrip(self, tmp_path):
+        """Importance value survives save/load cycle."""
+        path = tmp_path / "knowledge.json"
+        ks = KnowledgeStore(path=path)
+        ks.add_learned_pattern("High importance pattern", importance=0.9)
+        ks.save()
+
+        ks2 = KnowledgeStore(path=path)
+        ks2.load()
+        assert ks2._learned_patterns[0]["importance"] == 0.9
+
+    def test_source_preserved_on_roundtrip(self, tmp_path):
+        """Source field survives save/load cycle (regression: _parse_json was dropping it)."""
+        path = tmp_path / "knowledge.json"
+        ks = KnowledgeStore(path=path)
+        ks.add_learned_pattern("Pattern with source", source="2026-03-18~2026-03-19")
+        ks.save()
+
+        ks2 = KnowledgeStore(path=path)
+        ks2.load()
+        assert ks2._learned_patterns[0].get("source") == "2026-03-18~2026-03-19"
+
+    def test_add_learned_pattern_default_importance(self, tmp_path):
+        """add_learned_pattern without importance arg uses 0.5."""
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern("Some pattern")
+        assert ks._learned_patterns[0]["importance"] == 0.5
+
+    def test_get_context_string_sorts_by_importance(self, tmp_path):
+        """Patterns are sorted by effective importance, not insertion order."""
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        now = datetime.now(timezone.utc).isoformat(timespec="minutes")
+        ks.add_learned_pattern("Low importance pattern", distilled=now, importance=0.1)
+        ks.add_learned_pattern("High importance pattern", distilled=now, importance=0.9)
+        ks.add_learned_pattern("Mid importance pattern", distilled=now, importance=0.5)
+
+        ctx = ks.get_context_string(limit=3)
+        lines = ctx.strip().split("\n")
+        assert "High importance" in lines[0]
+        assert "Mid importance" in lines[1]
+        assert "Low importance" in lines[2]
+
+    def test_get_context_string_default_limit_50(self, tmp_path):
+        """Default limit is 50, not 100."""
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        now = datetime.now(timezone.utc).isoformat(timespec="minutes")
+        for i in range(60):
+            ks.add_learned_pattern(f"Pattern number {i:03d} with enough words to pass", distilled=now)
+        ctx = ks.get_context_string()
+        lines = [l for l in ctx.split("\n") if l.strip()]
+        assert len(lines) == 50
+
+    def test_effective_importance_decay(self, tmp_path):
+        """Patterns distilled 30 days ago have decayed importance."""
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        old_date = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(timespec="minutes")
+        now = datetime.now(timezone.utc).isoformat(timespec="minutes")
+        # Old pattern with high base importance
+        ks.add_learned_pattern("Old but important pattern", distilled=old_date, importance=1.0)
+        # New pattern with low base importance
+        ks.add_learned_pattern("New but less important pattern", distilled=now, importance=0.3)
+
+        # Effective: old = 1.0 * 0.95^30 ≈ 0.215, new = 0.3 * 0.95^0 = 0.3
+        # New should rank higher despite lower base importance
+        ctx = ks.get_context_string(limit=2)
+        lines = ctx.strip().split("\n")
+        assert "New but less important" in lines[0]
+        assert "Old but important" in lines[1]
+
+    def test_last_accessed_updated_on_get_context(self, tmp_path):
+        """get_context_string() sets last_accessed on selected patterns."""
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern("Pattern to access")
+        assert ks._learned_patterns[0].get("last_accessed") is None
+
+        ks.get_context_string()
+        assert ks._learned_patterns[0].get("last_accessed") is not None
+
+    def test_legacy_markdown_gets_default_importance(self, tmp_path):
+        """Legacy markdown patterns get importance 0.5."""
+        path = tmp_path / "knowledge.json"
+        path.write_text(
+            "# Knowledge\n\n"
+            "## Learned Patterns\n"
+            "- Legacy pattern from markdown\n"
+        )
+        ks = KnowledgeStore(path=path)
+        ks.load()
+        assert ks._learned_patterns[0]["importance"] == 0.5
+
+    def test_replace_learned_pattern_has_importance(self, tmp_path):
+        """Replaced patterns include importance field."""
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern("Original", importance=0.8)
+        ks.replace_learned_pattern(0, "Replaced")
+        assert "importance" in ks._learned_patterns[0]
+
 
 class TestFollowedAgents:
     """Tests for agents.json follow/unfollow persistence."""

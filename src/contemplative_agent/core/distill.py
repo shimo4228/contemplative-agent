@@ -65,6 +65,7 @@ def distill(
     logger.info("Processing %d episodes in %d batches", len(records), len(batches))
 
     all_patterns: List[str] = []
+    all_importances: List[float] = []
     all_results: List[str] = []
 
     for batch_idx, batch in enumerate(batches):
@@ -99,13 +100,27 @@ def distill(
 
         all_results.append(refined)
 
-        raw_patterns = []
+        raw_patterns: List[str] = []
+        raw_importances: List[float] = []
         try:
             parsed = json_mod.loads(refined)
-            for p in parsed.get("patterns", []):
-                p = p.strip()
-                if p:
-                    raw_patterns.append(p)
+            for item in parsed.get("patterns", []):
+                if isinstance(item, dict):
+                    text = item.get("text", "").strip()
+                    imp_raw = item.get("importance", 5)
+                    try:
+                        imp_raw = int(imp_raw)
+                    except (ValueError, TypeError):
+                        imp_raw = 5
+                    imp = max(1, min(10, imp_raw)) / 10.0
+                    if text:
+                        raw_patterns.append(text)
+                        raw_importances.append(imp)
+                elif isinstance(item, str):
+                    text = item.strip()
+                    if text:
+                        raw_patterns.append(text)
+                        raw_importances.append(0.5)
         except (json_mod.JSONDecodeError, TypeError):
             # Fallback: bullet-point parsing
             for line in refined.splitlines():
@@ -114,12 +129,19 @@ def distill(
                     pattern = line[2:].strip()
                     if pattern:
                         raw_patterns.append(pattern)
+                        raw_importances.append(0.5)
 
         # Decision gate: reject low-quality patterns
-        batch_patterns = [p for p in raw_patterns if _is_valid_pattern(p)]
+        batch_patterns = []
+        batch_importances = []
+        for p, imp in zip(raw_patterns, raw_importances):
+            if _is_valid_pattern(p):
+                batch_patterns.append(p)
+                batch_importances.append(imp)
         rejected = len(raw_patterns) - len(batch_patterns)
 
         all_patterns.extend(batch_patterns)
+        all_importances.extend(batch_importances)
         logger.info(
             "Batch %d/%d: %d episodes → %d patterns (%d rejected)",
             batch_idx + 1, len(batches), len(batch), len(batch_patterns), rejected,
@@ -136,9 +158,9 @@ def distill(
     if timestamps and timestamps[0] != timestamps[-1]:
         source_date = f"{timestamps[0]}~{timestamps[-1]}"
 
-    for pattern in all_patterns:
-        knowledge.add_learned_pattern(pattern, source=source_date)
-        logger.info("Added pattern: %s", pattern[:80])
+    for pattern, importance in zip(all_patterns, all_importances):
+        knowledge.add_learned_pattern(pattern, source=source_date, importance=importance)
+        logger.info("Added pattern (importance=%.1f): %s", importance, pattern[:80])
 
     if all_patterns:
         knowledge.save()

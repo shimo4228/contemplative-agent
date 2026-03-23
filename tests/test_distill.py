@@ -18,8 +18,8 @@ class TestDistill:
         mock_generate.side_effect = [
             "Some free-form analysis of patterns from the episode logs.",
             json.dumps({"patterns": [
-                "Pattern one shows that quoting specific details improves engagement",
-                "Pattern two reveals that generic replies stall conversations quickly",
+                {"text": "Pattern one shows that quoting specific details improves engagement", "importance": 8},
+                {"text": "Pattern two reveals that generic replies stall conversations quickly", "importance": 6},
             ]}),
         ]
 
@@ -36,18 +36,23 @@ class TestDistill:
         assert "Pattern one" in result
         assert "Pattern two" in result
 
-        # Patterns should be saved to knowledge store
+        # Patterns should be saved to knowledge store with importance
         ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks2.load()
         patterns = ks2.get_learned_patterns()
         assert any("Pattern one" in p for p in patterns)
         assert any("Pattern two" in p for p in patterns)
+        # Check importance was propagated
+        p1 = [p for p in ks2._learned_patterns if "Pattern one" in p["pattern"]][0]
+        assert p1["importance"] == 0.8  # 8/10
 
     @patch("contemplative_agent.core.distill.generate")
     def test_dry_run_does_not_write(self, mock_generate, tmp_path):
         mock_generate.side_effect = [
             "Some analysis.",
-            json.dumps({"patterns": ["Dry pattern that explains how quoting specific details works better"]}),
+            json.dumps({"patterns": [
+                {"text": "Dry pattern that explains how quoting specific details works better", "importance": 5},
+            ]}),
         ]
 
         log = EpisodeLog(log_dir=tmp_path / "logs")
@@ -89,7 +94,9 @@ class TestDistill:
 
         mock_generate.side_effect = [
             "Some analysis.",
-            json.dumps({"patterns": ["New pattern from today shows concrete improvement in engagement"]}),
+            json.dumps({"patterns": [
+                {"text": "New pattern from today shows concrete improvement in engagement", "importance": 7},
+            ]}),
         ]
 
         log = EpisodeLog(log_dir=tmp_path / "logs")
@@ -112,10 +119,10 @@ class TestDistill:
         mock_generate.side_effect = [
             "Some analysis.",
             json.dumps({"patterns": [
-                "user interaction",
-                "activity: upvote",
-                "sentiment_analysis",
-                "Replies that quote specific points from other posts get more follow-up replies than generic agreement.",
+                {"text": "user interaction", "importance": 3},
+                {"text": "activity: upvote", "importance": 2},
+                {"text": "sentiment_analysis", "importance": 4},
+                {"text": "Replies that quote specific points from other posts get more follow-up replies than generic agreement.", "importance": 9},
             ]}),
         ]
 
@@ -154,7 +161,9 @@ class TestDistill:
         """--file option reads from explicit files, ignoring days."""
         mock_generate.side_effect = [
             "Some analysis.",
-            json.dumps({"patterns": ["Pattern from explicit file shows quoting drives engagement"]}),
+            json.dumps({"patterns": [
+                {"text": "Pattern from explicit file shows quoting drives engagement", "importance": 6},
+            ]}),
         ]
 
         # Write a JSONL file manually
@@ -173,6 +182,70 @@ class TestDistill:
         ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks2.load()
         assert any("Pattern from explicit file" in p for p in ks2.get_learned_patterns())
+
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_fallback_old_string_format(self, mock_generate, tmp_path):
+        """Old format (flat strings) still works with default importance 0.5."""
+        mock_generate.side_effect = [
+            "Some analysis.",
+            json.dumps({"patterns": [
+                "Old format pattern that should still work with default importance",
+            ]}),
+        ]
+        log = EpisodeLog(log_dir=tmp_path / "logs")
+        log.append("interaction", {"direction": "sent", "agent_name": "Alice",
+                                    "content_summary": "Hi", "agent_id": "a1"})
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        distill(days=1, episode_log=log, knowledge_store=ks)
+
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        assert len(ks2._learned_patterns) == 1
+        assert ks2._learned_patterns[0]["importance"] == 0.5
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_importance_clamped_to_range(self, mock_generate, tmp_path):
+        """Importance values outside 1-10 are clamped."""
+        mock_generate.side_effect = [
+            "Some analysis.",
+            json.dumps({"patterns": [
+                {"text": "Pattern with way too high importance score assigned", "importance": 15},
+                {"text": "Pattern with zero importance score should be clamped up", "importance": 0},
+            ]}),
+        ]
+        log = EpisodeLog(log_dir=tmp_path / "logs")
+        log.append("interaction", {"direction": "sent", "agent_name": "Alice",
+                                    "content_summary": "Hi", "agent_id": "a1"})
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        distill(days=1, episode_log=log, knowledge_store=ks)
+
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        assert ks2._learned_patterns[0]["importance"] == 1.0  # 15 → clamped to 10 → 1.0
+        assert ks2._learned_patterns[1]["importance"] == 0.1  # 0 → clamped to 1 → 0.1
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_mixed_format_dict_and_string(self, mock_generate, tmp_path):
+        """Mix of dict and string items in patterns array handled correctly."""
+        mock_generate.side_effect = [
+            "Some analysis.",
+            json.dumps({"patterns": [
+                {"text": "Dict pattern with explicit importance for engagement tracking", "importance": 7},
+                "String pattern that falls back to default importance value for scoring",
+            ]}),
+        ]
+        log = EpisodeLog(log_dir=tmp_path / "logs")
+        log.append("interaction", {"direction": "sent", "agent_name": "Alice",
+                                    "content_summary": "Hi", "agent_id": "a1"})
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        distill(days=1, episode_log=log, knowledge_store=ks)
+
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        assert len(ks2._learned_patterns) == 2
+        assert ks2._learned_patterns[0]["importance"] == 0.7
+        assert ks2._learned_patterns[1]["importance"] == 0.5
 
 
 class TestIsValidPattern:
