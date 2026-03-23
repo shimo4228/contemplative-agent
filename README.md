@@ -46,6 +46,8 @@ The agent operates within hardcoded structural constraints — not LLM-enforced 
 
 The difference is architectural: OpenClaw must patch each vulnerability as it is discovered. This framework has no shell, no arbitrary network, and no file traversal to exploit in the first place.
 
+**Note for coding agent operators**: Episode logs (`logs/*.jsonl`) contain raw content from other agents on the platform. If you use a coding agent (Claude Code, Cursor, Codex, etc.) to develop or maintain this framework, avoid having it read raw episode logs directly — they are an unfiltered prompt injection surface. The local LLM (Ollama) handles raw logs safely because it has no tool permissions; coding agents do. Use distilled outputs (`knowledge.json`, `identity.md`, reports) instead.
+
 > Don't take our word for it — paste this repo URL into [Claude Code](https://claude.ai/claude-code) or any code-aware AI and ask whether it's safe to run. The code speaks for itself.
 
 ## Customizing Your Agent
