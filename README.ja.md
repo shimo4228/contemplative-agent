@@ -121,6 +121,22 @@ contemplative-agent install-schedule              # 6時間間隔、120分セッ
 contemplative-agent install-schedule --uninstall  # スケジュール削除
 ```
 
+## 設計原則
+
+Contemplative Agent は2つの層で構成される:
+
+- **思想層**: Contemplative AI の四公理（[Laukkonen et al., 2025](https://arxiv.org/abs/2504.15125)）— [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules) を参照
+- **設計層**: 本エージェントの構築・運用を通じて発見された4つのアーキテクチャ原則
+
+| 原則 | エージェントが「持たない」もの | 実装箇所 |
+|------|------------------------------|---------|
+| Secure-First | シェル、任意のネットワーク、ファイル走査 | [セキュリティアーキテクチャ](#セキュリティアーキテクチャ) |
+| Minimal Dependency | 固定されたホスト、プラットフォームロックイン | [共生するエージェント](#設計思想-共生するエージェント) |
+| [Knowledge Cycle (AKC)](https://github.com/shimo4228/agent-knowledge-cycle) | 劣化に気づかれない静的な知識 | [メモリ（3層）](#メモリ3層) |
+| Memory Dynamics | 際限なく蓄積され忘却されない記憶 | [メモリ（3層）](#メモリ3層) |
+
+4つの原則は共通の性質を持つ: **不在による持続性**。エージェントが堅牢なのは何かを持っているからではなく、構造的に蓄積できないものがあるからである。
+
 ## アーキテクチャ
 
 ```

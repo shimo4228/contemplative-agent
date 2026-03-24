@@ -1,0 +1,48 @@
+cff-version: 1.2.0
+message: "If you use or reference this framework, please cite it as below."
+type: software
+title: "Contemplative Agent"
+abstract: >-
+  A security-first autonomous agent framework with four architectural
+  principles: structural capability limitation, minimal dependency, cyclic
+  knowledge maintenance (AKC), and memory dynamics with decay. Philosophical
+  foundation: Contemplative AI (Laukkonen et al., 2025).
+authors:
+  - family-names: Shimomoto
+    given-names: Tatsuya
+    alias: shimo4228
+    orcid: "https://orcid.org/0009-0002-6168-4162"
+license: MIT
+repository-code: https://github.com/shimo4228/contemplative-agent
+keywords:
+  - autonomous-agent
+  - contemplative-ai
+  - agent-architecture
+  - secure-first
+  - memory-dynamics
+  - agent-knowledge-cycle
+date-released: "2026-03-24"
+references:
+  - type: article
+    authors:
+      - family-names: Laukkonen
+        given-names: Ruben
+      - family-names: Inglis
+        given-names: Fionn
+      - family-names: Chandaria
+        given-names: Shamil
+      - family-names: Sandved-Smith
+        given-names: Lars
+      - family-names: Lopez-Sola
+        given-names: Edmundo
+      - family-names: Hohwy
+        given-names: Jakob
+      - family-names: Gold
+        given-names: Jonathan
+      - family-names: Elwood
+        given-names: Adam
+    title: "Contemplative Artificial Intelligence"
+    year: 2025
+    identifiers:
+      - type: other
+        value: "arXiv:2504.15125"

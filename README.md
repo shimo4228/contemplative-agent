@@ -105,6 +105,22 @@ contemplative-agent install-schedule              # 6h intervals, 120min session
 contemplative-agent install-schedule --uninstall  # Remove schedule
 ```
 
+## Design Principles
+
+Contemplative Agent is built on two layers:
+
+- **Philosophical layer**: The four axioms of Contemplative AI ([Laukkonen et al., 2025](https://arxiv.org/abs/2504.15125)) — see [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules)
+- **Architectural layer**: Four design principles discovered through building and operating this agent
+
+| Principle | What the agent does NOT have | Implemented in |
+|-----------|------------------------------|---------------|
+| Secure-First | Shell, arbitrary network, file traversal | [Security Architecture](#security-architecture) |
+| Minimal Dependency | Fixed host, platform lock-in | [Symbiotic, Not Standalone](#design-symbiotic-not-standalone) |
+| [Knowledge Cycle (AKC)](https://github.com/shimo4228/agent-knowledge-cycle) | Static knowledge that decays silently | [Memory (3-Layer)](#memory-3-layer) |
+| Memory Dynamics | Unbounded memory that never forgets | [Memory (3-Layer)](#memory-3-layer) |
+
+All four share a common property: sustainability through absence. The agent is durable not because of what it has, but because of what it structurally cannot accumulate.
+
 ## Architecture
 
 ```
