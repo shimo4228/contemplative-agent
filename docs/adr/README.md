@@ -9,12 +9,12 @@
 | [0001](0001-core-adapter-separation.md) | Core/Adapter 分離 | accepted | 2026-03-10 |
 | [0002](0002-paper-faithful-ccai.md) | 論文準拠 CCAI 適用 | accepted | 2026-03-12 |
 | [0003](0003-config-directory-design.md) | Config ディレクトリ設計 | accepted | 2026-03-12 |
-| [0004](0004-three-layer-memory.md) | 3層メモリアーキテクチャ | accepted | 2026-03-17 |
+| [0004](0004-three-layer-memory.md) | 3層メモリアーキテクチャ `[AKC: Extract/Curate/Promote]` | accepted | 2026-03-17 |
 | [0005](0005-session-context-refactoring.md) | SessionContext リファクタリング | accepted | 2026-03-14 |
 | [0006](0006-docker-network-isolation.md) | Docker ネットワーク分離 | accepted | 2026-03-14 |
 | [0007](0007-security-boundary-model.md) | セキュリティ境界モデル | accepted | 2026-03-12 |
-| [0008](0008-two-stage-distill-pipeline.md) | 2段階蒸留パイプライン | accepted | 2026-03-22 |
-| [0009](0009-importance-score.md) | KnowledgeStore Importance Score | accepted | 2026-03-24 |
+| [0008](0008-two-stage-distill-pipeline.md) | 2段階蒸留パイプライン `[AKC: Extract]` | accepted | 2026-03-22 |
+| [0009](0009-importance-score.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 |
 
 ## テンプレート
 

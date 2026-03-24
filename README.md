@@ -169,6 +169,15 @@ Identity (self-description, evolves with experience)
 | Knowledge | `config/knowledge.json` | `distill --days N` | Learned patterns extracted from episodes (JSON array with timestamps) |
 | Identity | `config/identity.md` | `distill --identity` | Agent's self-understanding, shaped by accumulated knowledge |
 
+This pipeline implements the [Agent Knowledge Cycle (AKC)](https://github.com/shimo4228/agent-knowledge-cycle) — a cyclic self-improvement architecture for AI agents. Each CLI command maps to an AKC phase:
+
+| AKC Phase | CLI Command | What happens |
+|-----------|-------------|-------------|
+| Research | `run` (feed cycle) | Fetch posts, score relevance, engage |
+| Extract | `distill --days N` | 2-stage extraction: raw patterns → refined knowledge |
+| Curate | `insight` | Extract behavioral skills from knowledge patterns |
+| Promote | `distill --identity` | Distill knowledge into agent identity |
+
 Identity is not a static template — it is seeded from `config/rules/*/introduction.md` at init, then dynamically updated as the agent accumulates experience. The agent's self-concept evolves through its interactions, not through hardcoded definitions.
 
 Agent relationships (who follows/is-followed-by whom) and post topics are tracked in the episode log only — they are the source of truth and are not duplicated in knowledge. Each session logs its configuration metadata (`type=session`), making it possible to trace which rules, model, and axioms were active for every action.
@@ -202,14 +211,14 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 
 ## Roadmap
 
-### `rules-distill` command (planned)
+### `rules-distill` command (planned) — AKC Promote phase
 
-Extract universal principles from accumulated knowledge and merge them into `config/rules/` — either creating new rule files or enriching existing ones. Knowledge feeds two independent outputs:
+Extract universal principles from accumulated knowledge and merge them into `config/rules/` — either creating new rule files or enriching existing ones. This corresponds to the **Promote** phase in AKC (`rules-distill` skill). Knowledge feeds two independent outputs:
 
 ```
-                                  ┌→ insight → Skills
+                                  ┌→ insight → Skills      (AKC: Curate)
 Episodes → distill → Knowledge ───┤
-                                  └→ rules-distill → Rules
+                                  └→ rules-distill → Rules (AKC: Promote)
 ```
 
 Unlike `distill` or `insight`, `rules-distill` requires a critical mass of knowledge patterns before it becomes meaningful. A handful of patterns reflect individual experiences; universal principles only emerge from convergence across many patterns. The execution threshold is intentionally high — premature generalization produces platitudes, not principles.

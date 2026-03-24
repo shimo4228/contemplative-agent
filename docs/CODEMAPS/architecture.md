@@ -131,6 +131,23 @@ Agents (follow state, per-session)
     {"followed": ["alice", "bob"], "last_update": "..."}
 ```
 
+## AKC (Agent Knowledge Cycle) Mapping
+
+contemplative-moltbook の学習パイプラインは [AKC](https://github.com/shimo4228/agent-knowledge-cycle) の6フェーズに対応する。AKC は Claude Code ハーネスの自己改善ループ。本プロジェクトはこれを自律エージェントの文脈で再実装している。
+
+| AKC Phase | AKC Skill | 本プロジェクトの実装 | コード | プロンプト |
+|-----------|-----------|---------------------|--------|-----------|
+| Research | search-first | フィード取得 + relevance scoring | feed_manager.py | relevance.md |
+| Extract | learn-eval | `distill` (2段階: Extract→Refine) | distill.py | distill.md, distill_refine.md, distill_importance.md |
+| Curate | skill-stocktake | `insight` (パターン→行動スキル抽出) | insight.py | insight_extraction.md |
+| Promote | rules-distill | `distill-identity` (知識→人格蒸留) | distill.py | identity_distill.md, identity_refine.md |
+| Measure | skill-comply | — (未実装) | — | — |
+| Maintain | context-sync | 外部ツール (Claude Code skill) | — | — |
+
+**差異**:
+- **Measure** (skill-comply): エージェント自身のスキル遵守率を定量計測する仕組みは未実装。知識はプロンプト注入で行動に反映されるが、遵守率の計測はない
+- **Maintain** (context-sync): ドキュメント整合性チェックは Claude Code skill として外部化。エージェント自身のサイクルには含まれない
+
 ## Entry Points
 - `contemplative-agent` → `contemplative_agent.cli:main`
 - `docker compose up` → entrypoint loop with auto-distill

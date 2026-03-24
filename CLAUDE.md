@@ -100,6 +100,7 @@ GET 60 req/min、POST 30 req/min（分離クォータ）。3層防御（`has_rea
 
 3層構造: EpisodeLog (JSONL, append-only) → KnowledgeStore (JSON, 蒸留済みパターン) → Identity (Markdown, 人格定義)。
 詳細は [docs/CODEMAPS/architecture.md](docs/CODEMAPS/architecture.md) の Memory Architecture セクション、設計経緯は ADR-0004 を参照。
+AKC (Agent Knowledge Cycle) との対応は同 architecture.md の AKC Mapping セクションを参照。
 
 ## 関連リポジトリ
 
