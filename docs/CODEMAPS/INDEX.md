@@ -2,7 +2,7 @@
 # Codemaps Index
 
 Comprehensive architectural documentation for contemplative-moltbook project.
-**Last Updated**: 2026-03-25 | **Codebase**: 30 modules, ~6900 LOC, 685 tests
+**Last Updated**: 2026-03-25 | **Codebase**: 30 modules, ~6900 LOC, 684 tests
 
 ---
 

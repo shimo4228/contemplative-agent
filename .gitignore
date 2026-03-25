@@ -43,9 +43,6 @@ logs/
 docs/*
 !docs/adr/
 !docs/CODEMAPS/
-!docs/research/
-!docs/progress/
-!docs/ROADMAP.md
 Modelfile.contemplative
 
 # Runtime data (lives in MOLTBOOK_HOME, not in git)

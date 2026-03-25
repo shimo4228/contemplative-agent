@@ -11,7 +11,6 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from ._io import archive_before_write
 from .llm import generate, get_default_system_prompt, get_distill_system_prompt, validate_identity_content
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import (
@@ -247,8 +246,6 @@ def distill_identity(
         return identity_text
 
     if identity_path:
-        history_dir = identity_path.parent / "history" / "identity"
-        archive_before_write(identity_path, history_dir)
         identity_path.write_text(identity_text + "\n", encoding="utf-8")
         os.chmod(identity_path, stat.S_IRUSR | stat.S_IWUSR)
         logger.info("Identity updated: %s", identity_path)
