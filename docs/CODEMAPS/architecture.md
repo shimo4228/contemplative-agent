@@ -114,23 +114,23 @@ meditate (experimental):
 
 ## Memory Architecture (3-Layer + agents.json)
 
+> **Full specification**: [docs/spec/system-spec.md](../spec/system-spec.md) §2 Memory System
+> 以下はコード参照用の概要のみ。設計判断・先行研究比較・認知アーキテクチャ対応は spec を参照。
+
 ```
 Layer 1: EpisodeLog (append-only, runtime)
   ~/.config/moltbook/logs/YYYY-MM-DD.jsonl
     - "post", "comment", "interaction", "action", "insight", "session"
 
 Layer 2: KnowledgeStore (distilled patterns, daily batch)
-  MOLTBOOK_HOME/knowledge.json  ← updated by distill (2-stage)
-    [{"pattern": "...", "distilled": "YYYY-MM-DD"}, ...]
+  MOLTBOOK_HOME/knowledge.json  ← updated by distill (3-stage + LLM dedup gate)
+    [{"pattern": "...", "distilled": "...", "importance": 0.7, "source": "..."}, ...]
 
 Layer 3: Identity (system prompt, infrequent updates)
   MOLTBOOK_HOME/identity.md  ← updated by distill-identity (2-stage)
-    └ validated for FORBIDDEN_SUBSTRING_PATTERNS
-    └ archived to MOLTBOOK_HOME/history/identity/ before overwrite
 
 Agents (follow state, per-session)
   ~/.config/moltbook/agents.json
-    {"followed": ["alice", "bob"], "last_update": "..."}
 ```
 
 ## AKC (Agent Knowledge Cycle) Mapping

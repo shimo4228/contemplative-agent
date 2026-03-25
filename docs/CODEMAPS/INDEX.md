@@ -135,21 +135,18 @@ Package versions, transitive dependencies, security notes.
 
 ## Related Documentation
 
+- **[docs/spec/system-spec.md](../spec/system-spec.md)** — System specification (architecture, memory, behavior, security). 「こうなっている」の正式な仕様。研究者向け + AI 向け
 - **CLAUDE.md** — Project conventions, setup, Docker, security policy
-- **MEMORY.md** — Architecture decisions, key design patterns, feedback log
 - **README.md** — User-facing overview, quickstart
-- **MOLTBOOK_HOME/knowledge.json** — Learned patterns (output of distill)
+- **[docs/adr/](../adr/README.md)** — Architecture Decision Records. 「なぜそうしたか」の記録
 - **config/templates/constitution/contemplative-axioms.md** — Constitutional clauses default (Laukkonen et al. 2025)
 
 ---
 
 ## Update Cycle
 
-Codemaps are generated fresh when:
-- Major structural changes (new modules, significant refactoring)
-- Memory architecture changes (new layer, new file format)
-- CLI changes (new commands, global flags)
-- LLM function additions
-- Security policy updates
+CODEMAPS と system-spec.md は context-sync で同期する:
+- **system-spec.md**: 設計変更時に更新（「こうなっている」の正式仕様）
+- **CODEMAPS**: コード変更時に更新（「どこにあるか」のコード索引）
 
-Last full scan: 2026-03-25 (all 30 modules, 685 tests verified)
+Last full scan: 2026-03-26 (30 modules, 697 tests verified)
