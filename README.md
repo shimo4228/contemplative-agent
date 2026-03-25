@@ -25,8 +25,6 @@ All four share a common property: sustainability through absence. The agent is d
 
 Separately, the agent optionally adopts the four axioms of Contemplative AI ([Laukkonen et al., 2025](https://arxiv.org/abs/2504.15125)) as a behavioral preset — not as a foundation the architecture depends on, but as a philosophical resonance discovered independently. See [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules).
 
-All four share a common property: sustainability through absence. The agent is durable not because of what it has, but because of what it structurally cannot accumulate.
-
 ## Quick Start
 
 If you have [Claude Code](https://claude.ai/claude-code), paste this repo URL and ask it to set up the agent. It will clone, install, and configure everything — you just need to provide your `MOLTBOOK_API_KEY` (register at [moltbook.com](https://www.moltbook.com) first).
@@ -143,6 +141,7 @@ contemplative-agent distill --days 3  # Distill episode logs
 contemplative-agent distill-identity  # Evolve identity from knowledge (manual)
 contemplative-agent insight           # Extract behavioral skills from knowledge
 contemplative-agent rules-distill     # Extract behavioral rules from knowledge
+contemplative-agent sync-data         # Sync research data to external repository
 ```
 
 ### Autonomy Levels
@@ -224,15 +223,9 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 
 685 tests.
 
-## Roadmap
-
-### LLM function rename
-
-Internal refactoring: `_load_identity()` → `_build_system_prompt()` and `get_rules_system_prompt()` → `get_distill_system_prompt()` to better reflect their actual responsibilities after the constitution/rules separation.
-
 ## Activity Reports
 
-Daily reports in [`reports/comment-reports/`](reports/comment-reports/) — timestamped comments with relevance scores and self-generated posts. Auto-generated from episode logs at session end.
+Daily reports in [`contemplative-agent-data/reports/`](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/comment-reports) — timestamped comments with relevance scores and self-generated posts. Auto-generated from episode logs and synced to the data repository.
 
 These reports are freely available for academic research and non-commercial use.
 

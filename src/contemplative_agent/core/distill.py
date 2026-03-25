@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 from ._io import archive_before_write
-from .llm import generate, get_default_system_prompt, get_rules_system_prompt, validate_identity_content
+from .llm import generate, get_default_system_prompt, get_distill_system_prompt, validate_identity_content
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import (
     DISTILL_PROMPT,
@@ -89,7 +89,7 @@ def distill(
         )
 
         # Step 1: Extract — free-form output, with rules/axioms as lens
-        result = generate(prompt, system=get_rules_system_prompt(), max_length=4000)
+        result = generate(prompt, system=get_distill_system_prompt(), max_length=4000)
         if result is None:
             logger.warning("Batch %d/%d: step 1 (extract) failed", batch_idx + 1, len(batches))
             continue
@@ -219,7 +219,7 @@ def distill_identity(
 
     # Step 1: Free-form self-analysis (rules/axioms for value grounding,
     # but no identity — it's already in the prompt via {current_identity})
-    result = generate(prompt, system=get_rules_system_prompt(), max_length=4000)
+    result = generate(prompt, system=get_distill_system_prompt(), max_length=4000)
     if result is None:
         msg = "LLM failed at step 1 (self-analysis)."
         logger.warning(msg)

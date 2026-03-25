@@ -156,7 +156,7 @@ def get_default_system_prompt() -> str:
     return _get_default_system_prompt()
 
 
-def get_rules_system_prompt() -> str:
+def get_distill_system_prompt() -> str:
     """System prompt with rules/axioms but without identity or skills.
 
     Used by distill to ground pattern extraction in values
@@ -215,7 +215,7 @@ def _load_md_files(directory: Optional[Path], label: str) -> str:
     return "\n\n".join(items)
 
 
-def _load_identity() -> str:
+def _build_system_prompt() -> str:
     """Load identity from file, falling back to default system prompt.
 
     Validates the file content against forbidden patterns to prevent
@@ -341,7 +341,7 @@ def generate(
     payload = {
         "model": _get_model(),
         "prompt": prompt,
-        "system": system or _load_identity(),
+        "system": system or _build_system_prompt(),
         "stream": False,
         "options": {
             "temperature": 1.0,

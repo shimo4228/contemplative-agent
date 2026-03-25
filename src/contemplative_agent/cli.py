@@ -16,6 +16,7 @@ from .adapters.moltbook.config import (
     KNOWLEDGE_PATH,
     MEDITATION_DIR,
     MOLTBOOK_DATA_DIR,
+    REPORTS_DIR,
     RULES_DIR,
     SKILLS_DIR,
 )
@@ -565,8 +566,7 @@ def main() -> None:
         from .core.report import generate_all_reports, generate_report
 
         log_dir = MOLTBOOK_DATA_DIR / "logs"
-        project_root = Path(__file__).resolve().parents[2]
-        output_dir = project_root / "reports" / "comment-reports"
+        output_dir = REPORTS_DIR
 
         if args.all_dates:
             results = generate_all_reports(log_dir, output_dir)

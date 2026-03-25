@@ -13,7 +13,7 @@ from typing import List, Optional
 
 from ._io import write_restricted
 from .insight import _extract_title, _slugify
-from .llm import generate, get_rules_system_prompt, validate_identity_content
+from .llm import generate, get_distill_system_prompt, validate_identity_content
 from .memory import KnowledgeStore
 from .prompts import RULES_DISTILL_PROMPT, RULES_DISTILL_REFINE_PROMPT
 
@@ -33,7 +33,7 @@ def _extract_rules(patterns: List[str]) -> Optional[str]:
         patterns="\n".join(f"- {p}" for p in patterns),
     )
 
-    raw = generate(prompt, system=get_rules_system_prompt(), max_length=4000)
+    raw = generate(prompt, system=get_distill_system_prompt(), max_length=4000)
     if raw is None:
         logger.warning("Stage 1 (extraction) failed.")
         return None

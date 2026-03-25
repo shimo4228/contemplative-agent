@@ -530,21 +530,21 @@ class TestLoadSkills:
         assert "Bad Skill" not in result
 
     def test_skills_injected_into_identity(self, tmp_path):
-        from contemplative_agent.core.llm import configure, _load_identity
+        from contemplative_agent.core.llm import configure, _build_system_prompt
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "skill.md").write_text("# Test Skill\nDo this")
         configure(skills_dir=skills_dir)
-        identity = _load_identity()
+        identity = _build_system_prompt()
         assert "Learned behavioral skills:" in identity
         assert "# Test Skill" in identity
 
     def test_no_skills_no_injection(self, tmp_path):
-        from contemplative_agent.core.llm import configure, _load_identity
+        from contemplative_agent.core.llm import configure, _build_system_prompt
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         configure(skills_dir=skills_dir)
-        identity = _load_identity()
+        identity = _build_system_prompt()
         assert "Learned behavioral skills:" not in identity
 
     def test_skills_sorted_alphabetically(self, tmp_path):

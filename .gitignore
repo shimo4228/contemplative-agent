@@ -58,6 +58,7 @@ config/history/
 config/constitution/
 config/launchd/
 config/meditation/
+reports/
 
 # Generated
 results*.json

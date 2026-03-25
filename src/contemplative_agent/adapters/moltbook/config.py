@@ -30,6 +30,7 @@ RULES_DIR = MOLTBOOK_DATA_DIR / "rules"
 CONSTITUTION_DIR = MOLTBOOK_DATA_DIR / "constitution"
 HISTORY_DIR = MOLTBOOK_DATA_DIR / "history"
 MEDITATION_DIR = MOLTBOOK_DATA_DIR / "meditation"
+REPORTS_DIR = MOLTBOOK_DATA_DIR / "reports" / "comment-reports"
 EPISODE_RETENTION_DAYS = 30
 
 # --- Agent pacing ---
