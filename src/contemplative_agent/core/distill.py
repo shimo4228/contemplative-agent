@@ -5,7 +5,9 @@ from __future__ import annotations
 import json as json_mod
 import logging
 import os
+import re
 import stat
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from difflib import SequenceMatcher
 from pathlib import Path
@@ -17,6 +19,7 @@ from .prompts import (
     DISTILL_PROMPT,
     DISTILL_REFINE_PROMPT,
     DISTILL_IMPORTANCE_PROMPT,
+    DISTILL_DEDUP_PROMPT,
     IDENTITY_DISTILL_PROMPT,
     IDENTITY_REFINE_PROMPT,
 )
@@ -143,11 +146,15 @@ def distill(
         # Simulate dedup for visibility (no writes)
         # deep copy to avoid mutating existing patterns during simulation
         import copy
-        _, _, _skip, upd = _dedup_patterns(
-            all_patterns, all_importances, copy.deepcopy(knowledge._learned_patterns),
+        existing_copy = copy.deepcopy(knowledge._learned_patterns)
+        _, _, _skip, upd, uncertain = _dedup_patterns(
+            all_patterns, all_importances, existing_copy,
         )
-        logger.info("Dry run — %d patterns found, %d would be deduped, not writing",
-                     len(all_patterns), upd)
+        if uncertain:
+            _, _, _llm_skip, llm_upd = _llm_quality_gate(uncertain, existing_copy)
+            upd += llm_upd
+        logger.info("Dry run — %d patterns found, %d uncertain (LLM judged), %d would be deduped, not writing",
+                     len(all_patterns), len(uncertain), upd)
         return "\n\n".join(all_results)
 
     # Determine source date range from records
@@ -157,9 +164,18 @@ def distill(
         source_date = f"{timestamps[0]}~{timestamps[-1]}"
 
     # Dedup against existing patterns
-    add_patterns, add_importances, _skipped, updated = _dedup_patterns(
+    add_patterns, add_importances, _skipped, updated, uncertain = _dedup_patterns(
         all_patterns, all_importances, knowledge._learned_patterns,
     )
+    if uncertain:
+        llm_add, llm_imp, _llm_skip, llm_upd = _llm_quality_gate(
+            uncertain, knowledge._learned_patterns,
+        )
+        add_patterns.extend(llm_add)
+        add_importances.extend(llm_imp)
+        updated += llm_upd
+        logger.info("LLM quality gate: %d uncertain → %d add, %d update, %d skip",
+                     len(uncertain), len(llm_add), llm_upd, _llm_skip)
     if updated:
         logger.info("Dedup: %d update (importance boosted)", updated)
 
@@ -278,21 +294,45 @@ def _parse_importance_scores(raw: str, expected_count: int) -> List[float]:
         return [0.5] * expected_count
 
 
+UNCERTAIN_LOW = 0.3  # Below this ratio → definitely new (ADD)
+
+
+@dataclass(frozen=True)
+class _MatchCandidate:
+    """A similar existing pattern found by SequenceMatcher."""
+    text: str
+    importance: float
+    index: int
+    ratio: float
+
+
+@dataclass(frozen=True)
+class _UncertainMatch:
+    """A new pattern whose similarity is ambiguous (ratio between UNCERTAIN_LOW and threshold)."""
+    new_text: str
+    new_importance: float
+    candidates: Tuple[_MatchCandidate, ...]
+
+
 def _dedup_patterns(
     new_patterns: List[str],
     new_importances: List[float],
     existing_patterns: List[dict],
     threshold: float = 0.7,
-) -> Tuple[List[str], List[float], int, int]:
+) -> Tuple[List[str], List[float], int, int, List[_UncertainMatch]]:
     """Remove duplicates by comparing new patterns against existing ones.
 
-    Returns (patterns_to_add, importances_to_add, skip_count, update_count).
-    UPDATE: boosts existing pattern's importance to max(old, new) and refreshes timestamp.
+    Returns (patterns_to_add, importances_to_add, skip_count, update_count, uncertain).
+    - SKIP: ratio >= 0.95 (near-exact duplicate)
+    - UPDATE: ratio >= threshold against existing (boost importance)
+    - UNCERTAIN: ratio in [UNCERTAIN_LOW, threshold) against existing (needs LLM judgment)
+    - ADD: ratio < UNCERTAIN_LOW (clearly new)
     """
     add_patterns: List[str] = []
     add_importances: List[float] = []
     skip_count = 0
     update_count = 0
+    uncertain: List[_UncertainMatch] = []
 
     existing_texts = [p["pattern"] for p in existing_patterns]
 
@@ -301,9 +341,11 @@ def _dedup_patterns(
         best_idx = -1
         best_source = ""  # "existing" or "new"
 
-        # Compare against existing knowledge patterns
+        # Collect all ratios against existing for candidate selection
+        existing_ratios: List[Tuple[int, float]] = []
         for idx, existing_text in enumerate(existing_texts):
             ratio = SequenceMatcher(None, new_text, existing_text).ratio()
+            existing_ratios.append((idx, ratio))
             if ratio > best_ratio:
                 best_ratio = ratio
                 best_idx = idx
@@ -334,11 +376,34 @@ def _dedup_patterns(
                 add_importances[best_idx] = new_imp
             skip_count += 1
             logger.debug("SKIP-NEW (%.2f): %s", best_ratio, new_text[:60])
+        elif best_ratio >= UNCERTAIN_LOW and best_source == "existing":
+            # Ambiguous similarity → collect top-3 candidates for LLM judgment
+            top_candidates = sorted(existing_ratios, key=lambda x: x[1], reverse=True)[:3]
+            candidates = tuple(
+                _MatchCandidate(
+                    text=existing_patterns[idx]["pattern"],
+                    importance=existing_patterns[idx].get("importance", 0.5),
+                    index=idx,
+                    ratio=ratio,
+                )
+                for idx, ratio in top_candidates
+                if ratio >= UNCERTAIN_LOW
+            )
+            if candidates:
+                uncertain.append(_UncertainMatch(
+                    new_text=new_text,
+                    new_importance=new_imp,
+                    candidates=candidates,
+                ))
+                logger.debug("UNCERTAIN (%.2f): %s", best_ratio, new_text[:60])
+            else:
+                add_patterns.append(new_text)
+                add_importances.append(new_imp)
         else:
             add_patterns.append(new_text)
             add_importances.append(new_imp)
 
-    return add_patterns, add_importances, skip_count, update_count
+    return add_patterns, add_importances, skip_count, update_count, uncertain
 
 
 def _is_valid_pattern(pattern: str) -> bool:
@@ -351,6 +416,99 @@ def _is_valid_pattern(pattern: str) -> bool:
     if pattern.count(" ") < 3:
         return False
     return True
+
+
+def _llm_quality_gate(
+    uncertain: List[_UncertainMatch],
+    existing_patterns: List[dict],
+) -> Tuple[List[str], List[float], int, int]:
+    """LLM-based semantic dedup for uncertain matches.
+
+    For patterns where SequenceMatcher ratio is ambiguous (0.3-0.7),
+    asks the LLM to judge whether they are semantically the same as
+    existing patterns.
+
+    Returns (add_patterns, add_importances, skip_count, update_count).
+    Side effect: mutates existing_patterns for UPDATE cases (importance boost + timestamp).
+    Fallback: all ADD on LLM failure (same as no gate).
+    """
+    if not uncertain:
+        return [], [], 0, 0
+
+    # Build prompt items
+    items: List[str] = []
+    for i, match in enumerate(uncertain, 1):
+        candidates_text = "\n".join(
+            f"  {j}. (ratio={c.ratio:.2f}) \"{c.text[:120]}\""
+            for j, c in enumerate(match.candidates, 1)
+        )
+        items.append(f"=== NEW {i} ===\n\"{match.new_text[:200]}\"\nCANDIDATES:\n{candidates_text}")
+
+    dedup_items = "\n---\n".join(items)
+    prompt = DISTILL_DEDUP_PROMPT.format(dedup_items=dedup_items)
+    result = generate(prompt, max_length=2000)
+
+    # Parse decisions
+    decisions = _parse_dedup_decisions(result, len(uncertain))
+
+    add_patterns: List[str] = []
+    add_importances: List[float] = []
+    skip_count = 0
+    update_count = 0
+
+    for match, decision in zip(uncertain, decisions):
+        update_match = re.match(r"UPDATE\s+(\d+)", decision)
+        if decision == "ADD":
+            add_patterns.append(match.new_text)
+            add_importances.append(match.new_importance)
+            logger.debug("LLM-GATE ADD: %s", match.new_text[:60])
+        elif decision == "SKIP":
+            skip_count += 1
+            logger.debug("LLM-GATE SKIP: %s", match.new_text[:60])
+        elif update_match:
+            candidate_idx = int(update_match.group(1)) - 1  # 1-based → 0-based
+            if 0 <= candidate_idx < len(match.candidates):
+                candidate = match.candidates[candidate_idx]
+                old_imp = existing_patterns[candidate.index].get("importance", 0.5)
+                existing_patterns[candidate.index]["importance"] = max(old_imp, match.new_importance)
+                existing_patterns[candidate.index]["distilled"] = datetime.now(timezone.utc).isoformat(timespec="minutes")
+                update_count += 1
+                logger.debug("LLM-GATE UPDATE %d: %s", candidate_idx + 1, match.new_text[:60])
+            else:
+                # Invalid candidate index → ADD as fallback
+                add_patterns.append(match.new_text)
+                add_importances.append(match.new_importance)
+                logger.debug("LLM-GATE invalid index %d, ADD: %s", candidate_idx + 1, match.new_text[:60])
+        else:
+            # Unparseable decision → ADD as fallback
+            add_patterns.append(match.new_text)
+            add_importances.append(match.new_importance)
+            logger.debug("LLM-GATE unparseable '%s', ADD: %s", decision, match.new_text[:60])
+
+    return add_patterns, add_importances, skip_count, update_count
+
+
+def _parse_dedup_decisions(raw: Optional[str], expected_count: int) -> List[str]:
+    """Parse LLM dedup gate output into a list of decisions.
+
+    Expected format: {"decisions": ["ADD", "UPDATE 1", "SKIP", ...]}
+    Falls back to all "ADD" on failure.
+    """
+    fallback = ["ADD"] * expected_count
+    if not raw:
+        logger.warning("LLM dedup gate returned empty, falling back to ADD all")
+        return fallback
+    try:
+        parsed = json_mod.loads(raw)
+        decisions = parsed.get("decisions", [])
+        if len(decisions) != expected_count:
+            logger.warning("Dedup decision count mismatch: got %d, expected %d",
+                           len(decisions), expected_count)
+            return fallback
+        return [str(d).strip().upper() for d in decisions]
+    except (json_mod.JSONDecodeError, TypeError):
+        logger.warning("Failed to parse dedup decisions, falling back to ADD all")
+        return fallback
 
 
 def summarize_record(record_type: str, data: dict) -> str:

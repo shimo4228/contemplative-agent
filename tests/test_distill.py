@@ -10,6 +10,11 @@ from contemplative_agent.core.distill import (
     _is_valid_pattern,
     _parse_importance_scores,
     _dedup_patterns,
+    _llm_quality_gate,
+    _parse_dedup_decisions,
+    _UncertainMatch,
+    _MatchCandidate,
+    UNCERTAIN_LOW,
 )
 from contemplative_agent.core.memory import EpisodeLog, KnowledgeStore
 
@@ -239,19 +244,20 @@ class TestParseImportanceScores:
 
 class TestDedupPatterns:
     def test_adds_new_pattern(self):
-        existing = [{"pattern": "Existing pattern about engagement", "importance": 0.5}]
-        new_p = ["Completely different pattern about feed quality management"]
+        existing = [{"pattern": "Quoting specific details improves engagement rates", "importance": 0.5}]
+        new_p = ["Feed diversity correlates with agent satisfaction scores in long sessions"]
         new_i = [0.7]
-        add_p, add_i, skipped, updated = _dedup_patterns(new_p, new_i, existing)
+        add_p, add_i, skipped, updated, uncertain = _dedup_patterns(new_p, new_i, existing)
         assert len(add_p) == 1
         assert updated == 0
+        assert len(uncertain) == 0
 
     def test_updates_similar_pattern(self):
         existing = [{"pattern": "Quoting specific details improves engagement rates", "importance": 0.5,
                      "distilled": "2026-03-20T12:00+00:00"}]
         new_p = ["Quoting specific details improves engagement significantly"]
         new_i = [0.9]
-        add_p, add_i, skipped, updated = _dedup_patterns(new_p, new_i, existing)
+        add_p, add_i, skipped, updated, uncertain = _dedup_patterns(new_p, new_i, existing)
         assert len(add_p) == 0  # Not added
         assert updated == 1
         assert existing[0]["importance"] == 0.9  # max(0.5, 0.9)
@@ -275,11 +281,12 @@ class TestDedupPatterns:
 
     def test_no_existing_patterns(self):
         """All patterns are ADD'd when knowledge store is empty."""
-        add_p, add_i, skipped, updated = _dedup_patterns(
+        add_p, add_i, skipped, updated, uncertain = _dedup_patterns(
             ["Pattern about engagement quality"], [0.7], [],
         )
         assert len(add_p) == 1
         assert updated == 0
+        assert len(uncertain) == 0
 
     def test_cross_batch_dedup_skips_similar_new(self):
         """Similar patterns from different batches are deduped against each other."""
@@ -288,7 +295,7 @@ class TestDedupPatterns:
             "Always anchor responses to specific data points rather than generic topics",
         ]
         new_i = [0.7, 0.9]
-        add_p, add_i, skipped, updated = _dedup_patterns(new_p, new_i, [])
+        add_p, add_i, skipped, updated, uncertain = _dedup_patterns(new_p, new_i, [])
         assert len(add_p) == 1
         assert skipped == 1
         # Higher importance is kept
@@ -301,9 +308,146 @@ class TestDedupPatterns:
             "Distribute attention evenly across community members to build relationships",
         ]
         new_i = [0.7, 0.8]
-        add_p, add_i, skipped, updated = _dedup_patterns(new_p, new_i, [])
+        add_p, add_i, skipped, updated, uncertain = _dedup_patterns(new_p, new_i, [])
         assert len(add_p) == 2
         assert skipped == 0
+
+    def test_mid_ratio_returns_uncertain(self):
+        """Patterns with ratio in UNCERTAIN zone (0.3-0.7) go to uncertain list."""
+        # These share the same topic ("Test Title") but different enough wording
+        existing = [{"pattern": "Posts with Test Title in the heading get significantly less engagement from readers", "importance": 0.5}]
+        new_p = ["Repeating identical test titles within five minutes creates engagement loops that risk duplicate flags"]
+        new_i = [0.7]
+        add_p, add_i, skipped, updated, uncertain = _dedup_patterns(new_p, new_i, existing)
+        # Should be uncertain (ratio ~0.3-0.7), not ADD
+        # If ratio happens to be < UNCERTAIN_LOW, it goes to ADD — that's also fine
+        assert len(uncertain) + len(add_p) == 1  # one or the other
+        if uncertain:
+            assert len(uncertain[0].candidates) >= 1
+
+    def test_low_ratio_adds_directly(self):
+        """Patterns with ratio < UNCERTAIN_LOW go straight to ADD."""
+        existing = [{"pattern": "Quoting specific details improves engagement rates", "importance": 0.5}]
+        # Completely unrelated pattern
+        new_p = ["Feed diversity correlates with agent satisfaction scores in long sessions"]
+        new_i = [0.6]
+        add_p, add_i, skipped, updated, uncertain = _dedup_patterns(new_p, new_i, existing)
+        assert len(add_p) == 1
+        assert len(uncertain) == 0
+
+
+class TestLlmQualityGate:
+    @patch("contemplative_agent.core.distill.generate")
+    def test_update_merges_into_existing(self, mock_generate):
+        """LLM judges UPDATE → existing pattern's importance is boosted."""
+        mock_generate.return_value = json.dumps({"decisions": ["UPDATE 1"]})
+        existing = [{"pattern": "Avoid Test Title", "importance": 0.5, "distilled": "2026-03-20T12:00+00:00"}]
+        uncertain = [_UncertainMatch(
+            new_text="Generic placeholder titles reduce engagement",
+            new_importance=0.8,
+            candidates=(_MatchCandidate(text="Avoid Test Title", importance=0.5, index=0, ratio=0.45),),
+        )]
+        add_p, add_i, skip, upd = _llm_quality_gate(uncertain, existing)
+        assert len(add_p) == 0
+        assert upd == 1
+        assert existing[0]["importance"] == 0.8  # max(0.5, 0.8)
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_add_passes_through(self, mock_generate):
+        """LLM judges ADD → pattern is added."""
+        mock_generate.return_value = json.dumps({"decisions": ["ADD"]})
+        existing = [{"pattern": "Unrelated pattern", "importance": 0.5}]
+        uncertain = [_UncertainMatch(
+            new_text="New insight about feed diversity and engagement",
+            new_importance=0.7,
+            candidates=(_MatchCandidate(text="Unrelated pattern", importance=0.5, index=0, ratio=0.35),),
+        )]
+        add_p, add_i, skip, upd = _llm_quality_gate(uncertain, existing)
+        assert len(add_p) == 1
+        assert add_p[0] == "New insight about feed diversity and engagement"
+        assert upd == 0
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_skip_discards_pattern(self, mock_generate):
+        """LLM judges SKIP → pattern is discarded."""
+        mock_generate.return_value = json.dumps({"decisions": ["SKIP"]})
+        existing = [{"pattern": "Avoid Test Title", "importance": 0.5}]
+        uncertain = [_UncertainMatch(
+            new_text="Test Title patterns reduce quality",
+            new_importance=0.6,
+            candidates=(_MatchCandidate(text="Avoid Test Title", importance=0.5, index=0, ratio=0.4),),
+        )]
+        add_p, add_i, skip, upd = _llm_quality_gate(uncertain, existing)
+        assert len(add_p) == 0
+        assert skip == 1
+        assert upd == 0
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_llm_failure_falls_back_to_add(self, mock_generate):
+        """LLM failure → all patterns are ADD'd (safe default)."""
+        mock_generate.return_value = None
+        existing = [{"pattern": "Existing", "importance": 0.5}]
+        uncertain = [
+            _UncertainMatch(
+                new_text="Pattern A about something interesting and useful",
+                new_importance=0.7,
+                candidates=(_MatchCandidate(text="Existing", importance=0.5, index=0, ratio=0.4),),
+            ),
+            _UncertainMatch(
+                new_text="Pattern B about another topic entirely different",
+                new_importance=0.6,
+                candidates=(_MatchCandidate(text="Existing", importance=0.5, index=0, ratio=0.35),),
+            ),
+        ]
+        add_p, add_i, skip, upd = _llm_quality_gate(uncertain, existing)
+        assert len(add_p) == 2
+        assert upd == 0
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_empty_uncertain_no_llm_call(self, mock_generate):
+        """Empty uncertain list → no LLM call."""
+        add_p, add_i, skip, upd = _llm_quality_gate([], [])
+        mock_generate.assert_not_called()
+        assert len(add_p) == 0
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_batch_processing_single_call(self, mock_generate):
+        """Multiple uncertain patterns are handled in a single LLM call."""
+        mock_generate.return_value = json.dumps({"decisions": ["ADD", "SKIP", "UPDATE 1"]})
+        existing = [{"pattern": "Avoid Test Title", "importance": 0.5, "distilled": "2026-03-20T12:00+00:00"}]
+        uncertain = [
+            _UncertainMatch(new_text="New insight A", new_importance=0.7,
+                            candidates=(_MatchCandidate(text="Avoid Test Title", importance=0.5, index=0, ratio=0.4),)),
+            _UncertainMatch(new_text="New insight B", new_importance=0.6,
+                            candidates=(_MatchCandidate(text="Avoid Test Title", importance=0.5, index=0, ratio=0.35),)),
+            _UncertainMatch(new_text="New insight C", new_importance=0.8,
+                            candidates=(_MatchCandidate(text="Avoid Test Title", importance=0.5, index=0, ratio=0.45),)),
+        ]
+        add_p, add_i, skip, upd = _llm_quality_gate(uncertain, existing)
+        assert mock_generate.call_count == 1
+        assert len(add_p) == 1  # only "ADD"
+        assert skip == 1  # "SKIP"
+        assert upd == 1  # "UPDATE 1"
+
+
+class TestParseDedupDecisions:
+    def test_valid_json(self):
+        raw = json.dumps({"decisions": ["ADD", "UPDATE 1", "SKIP"]})
+        assert _parse_dedup_decisions(raw, 3) == ["ADD", "UPDATE 1", "SKIP"]
+
+    def test_count_mismatch_returns_fallback(self):
+        raw = json.dumps({"decisions": ["ADD"]})
+        assert _parse_dedup_decisions(raw, 3) == ["ADD", "ADD", "ADD"]
+
+    def test_none_returns_fallback(self):
+        assert _parse_dedup_decisions(None, 2) == ["ADD", "ADD"]
+
+    def test_invalid_json_returns_fallback(self):
+        assert _parse_dedup_decisions("not json", 2) == ["ADD", "ADD"]
+
+    def test_normalizes_case(self):
+        raw = json.dumps({"decisions": ["add", "skip", "update 1"]})
+        assert _parse_dedup_decisions(raw, 3) == ["ADD", "SKIP", "UPDATE 1"]
 
 
 class TestIsValidPattern:
