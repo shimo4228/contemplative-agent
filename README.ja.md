@@ -78,7 +78,7 @@ contemplative-agent --auto run --session 60
 | Research | `run` (フィードサイクル) | 投稿を取得、relevance をスコアリング、エンゲージ |
 | Extract | `distill --days N` | 2段階抽出: 生パターン → 精製されたナレッジ |
 | Curate | `insight` | ナレッジパターンから行動スキルを抽出 |
-| Promote | `distill --identity` | ナレッジをエージェントのアイデンティティに蒸留 |
+| Promote | `distill-identity` | ナレッジをエージェントのアイデンティティに蒸留（手動） |
 
 蒸留は Docker 環境では24時間ごとに自動実行される。ローカル (macOS) の場合:
 
@@ -96,48 +96,33 @@ contemplative-agent install-schedule --no-distill           # セッションの
 エピソードログ（生の行動記録）
     ↓ distill --days N
 ナレッジ（パターン・洞察）
-    ↓ distill --identity        ↓ insight
-アイデンティティ              スキル（行動パターン）
+    ↓ distill-identity    ↓ insight         ↓ rules-distill
+アイデンティティ          スキル（行動パターン）  ルール（原則）
 ```
 
 | レイヤー | ファイル | 更新契機 | 目的 |
 |---------|---------|---------|------|
-| エピソードログ | `logs/YYYY-MM-DD.jsonl` | 全アクション（追記専用） | 生の行動記録（インタラクション、投稿、インサイト、アクティビティ） |
-| ナレッジ | `config/knowledge.json` | `distill --days N` | エピソードから抽出されたパターン（タイムスタンプ付き JSON 配列） |
-| アイデンティティ | `config/identity.md` | `distill --identity` | 蓄積された知識に基づくエージェントの自己理解 |
-| スキル | `config/skills/*.md` | `insight` | ナレッジから抽出された行動パターン |
+| エピソードログ | `MOLTBOOK_HOME/logs/YYYY-MM-DD.jsonl` | 全アクション（追記専用） | 生の行動記録 |
+| ナレッジ | `MOLTBOOK_HOME/knowledge.json` | `distill --days N` | エピソードから抽出されたパターン |
+| アイデンティティ | `MOLTBOOK_HOME/identity.md` | `distill-identity` | 蓄積された知識に基づくエージェントの自己理解 |
 
-アイデンティティは静的なテンプレートではない — `config/rules/*/introduction.md` から初期化され、エージェントの経験を通じて動的に更新される。エージェントの自己概念は、ハードコードされた定義ではなく、インタラクションを通じて進化する。
+アイデンティティは init 時に空で始まり、`distill-identity` を通じて経験とともに進化する。手動シード用のテンプレートは `config/templates/` に用意されている。エージェントの自己概念は、ハードコードされた定義ではなく、インタラクションを通じて形作られる。
 
-エージェント関係（フォロー/被フォロー状態）とポストトピックはエピソードログのみで管理される — これが正史であり、ナレッジには重複保存されない。各セッションは設定メタデータ（`type=session`）をログに記録するため、全てのアクションがどのルール・モデル・公理で実行されたかを追跡可能。
+エージェント関係（フォロー/被フォロー状態）とポストトピックはエピソードログのみで管理される — これが正史であり、ナレッジには重複保存されない。各セッションは設定メタデータ（`type=session`）をログに記録するため、全てのアクションがどのモデル・公理で実行されたかを追跡可能。
 
 ## エージェントのカスタマイズ
 
-デフォルトのエージェントはニュートラルな人格で、公理なしで起動する。Markdown ファイルを編集してエージェントの振る舞いを定義:
+デフォルトのエージェントはニュートラルな人格で、公理なしで起動する。2つの独立したメカニズムで振る舞いを変更できる:
 
-```
-config/rules/
-  default/              # ニュートラル（デフォルトで有効）
-    introduction.md       # Moltbook での自己紹介
-  contemplative/        # Contemplative AI プリセット（四公理）
-    introduction.md
-    contemplative-axioms.md
-  your-agent/           # 自分で作成
-    introduction.md
-    contemplative-axioms.md  # 任意: 憲法条項
-```
-
-環境変数または CLI フラグでプリセットを選択:
+- **Constitution** (`MOLTBOOK_HOME/constitution/`) — 認知レンズとして注入される倫理原則（例: Contemplative AI 四公理）。`init` 時に `config/templates/constitution/` からデフォルトがコピーされる。`--constitution-dir` で差し替え可能。
+- **Rules** (`MOLTBOOK_HOME/rules/`) — `rules-distill` により蓄積されたナレッジから生成される行動ルール。スキルとともに LLM システムプロンプトに注入される。
 
 ```bash
-# Docker (.env)
-RULES_DIR=config/rules/contemplative/
-
-# CLI
-contemplative-agent --rules-dir config/rules/contemplative/ run --session 60
+# 別の倫理フレームワークを使用
+contemplative-agent --constitution-dir path/to/your/constitution/ run --session 60
+# 公理を完全に無効化（A/B テスト用）
+contemplative-agent --no-axioms run --session 60
 ```
-
-詳細は [`config/rules/README.md`](config/rules/README.md) を参照。
 
 ## 設定
 
@@ -145,28 +130,18 @@ contemplative-agent --rules-dir config/rules/contemplative/ run --session 60
 |------|-----------|------|
 | `MOLTBOOK_API_KEY` | (必須) | Moltbook API キー |
 | `OLLAMA_MODEL` | `qwen3.5:9b` | Ollama モデル名 |
-| `SESSION_MINUTES` | `30` | セッション時間（分） |
-| `BREAK_MINUTES` | `5` | セッション間の休憩（分） |
-| `MODE` | `loop` | `loop`, `single`, `command` |
-| `RULES_DIR` | (ニュートラル) | ルールディレクトリのパス |
 
-## ローカルセットアップ
-
-Docker なしでの開発:
-
-```bash
-uv venv .venv && source .venv/bin/activate
-uv pip install -e ".[dev]"
-ollama serve && ollama pull qwen3.5:9b
-```
+## 使い方
 
 ```bash
 contemplative-agent init              # identity + knowledge ファイル作成
 contemplative-agent register          # Moltbook に登録
 contemplative-agent run --session 60  # セッション実行
 contemplative-agent distill --days 3  # エピソードログの蒸留
-contemplative-agent insight --dry-run # 行動スキル抽出（プレビュー）
-contemplative-agent insight           # 行動スキルを config/skills/ に生成
+contemplative-agent distill-identity  # ナレッジからアイデンティティを蒸留（手動）
+contemplative-agent insight           # ナレッジから行動スキルを抽出
+contemplative-agent rules-distill     # ナレッジから行動ルールを抽出
+contemplative-agent sync-data         # 研究データを外部リポジトリに同期
 ```
 
 ### 自律レベル
@@ -189,9 +164,9 @@ src/contemplative_agent/
   core/             # プラットフォーム非依存
     llm.py            # Ollama インターフェース、サーキットブレーカー、出力サニタイズ
     memory.py         # 3層メモリ（エピソードログ + ナレッジ + アイデンティティ）
-    distill.py        # スリープタイム記憶蒸留
+    distill.py        # スリープタイム記憶蒸留 + アイデンティティ進化
     insight.py        # 行動スキル抽出（2パス LLM + ルーブリック評価）
-    domain.py         # ドメイン設定 + プロンプト/ルールローダー
+    domain.py         # ドメイン設定 + プロンプト/constitution ローダー
     scheduler.py      # レート制限スケジューリング
   adapters/
     moltbook/       # Moltbook 固有（初期アダプタ）
@@ -201,11 +176,16 @@ src/contemplative_agent/
       post_pipeline.py  # 動的投稿生成
       client.py         # ドメインロック HTTP クライアント
   cli.py            # コンポジションルート
-config/
+config/               # テンプレートのみ（git 管理）
   domain.json       # ドメイン設定（サブモルト、閾値、キーワード）
   prompts/*.md      # LLM プロンプトテンプレート
-  rules/            # エージェント人格プリセット
-  skills/           # 学習した行動スキル（insight で自動生成）
+  templates/        # identity シード + constitution デフォルト
+~/.config/moltbook/   # ランタイムデータ（MOLTBOOK_HOME、ユーザー固有）
+  identity.md       # エージェントのアイデンティティ（distill-identity 出力）
+  knowledge.json    # 学習パターン（distill 出力）
+  constitution/     # 倫理原則（CCAI 公理、オプション）
+  skills/           # 学習した行動スキル（insight 出力）
+  rules/            # 学習した行動ルール（rules-distill 出力）
 ```
 
 - **core/** はプラットフォーム非依存。**adapters/** は core に依存（逆方向は禁止）
@@ -222,7 +202,7 @@ contemplative-agent meditate --dry-run          # シミュレーション実行
 contemplative-agent meditate --days 14          # 14日分のエピソード履歴を使用
 ```
 
-**ステータス**: 概念実証。シミュレーションは動作し解釈可能な出力を生成するが、distill パイプラインとの統合は未実装 — 瞑想結果が知識抽出や行動に影響を与える仕組みはまだない。状態空間の設計は意図的に粗く、今後の改善対象。[実行結果のサンプル](config/meditation/results.json)を参照。
+**ステータス**: 概念実証。シミュレーションは動作し解釈可能な出力を生成するが、distill パイプラインとの統合は未実装 — 瞑想結果が知識抽出や行動に影響を与える仕組みはまだない。状態空間の設計は意図的に粗く、今後の改善対象。
 
 ## Docker（オプション）
 
@@ -241,34 +221,11 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 ```
 
-673 テスト。
-
-## ロードマップ
-
-### `rules-distill` コマンド（計画中） — AKC Promote フェーズ
-
-蓄積されたナレッジから普遍的な原則を抽出し、`config/rules/` に新しいルールファイルとして追加、または既存のルールにマージする。AKC の **Promote** フェーズ（`rules-distill` スキル）に対応する。ナレッジは2つの独立した出力に分岐する:
-
-```
-                                    ┌→ insight → スキル         (AKC: Curate)
-エピソード → distill → ナレッジ ───┤
-                                    └→ rules-distill → ルール  (AKC: Promote)
-```
-
-`distill` や `insight` と異なり、`rules-distill` は十分な数のナレッジパターンが蓄積されて初めて意味を持つ。少数のパターンは個別の経験を反映するに過ぎず、普遍的な原則は多数のパターンの収束からのみ浮かび上がる。実行の閾値は意図的に高く設定される — 早すぎる一般化は原則ではなく陳腐な格言を生む。
-
-### 公理 / スキルの分離（検討中）
-
-現在、公理（Contemplative AI 憲法条項）とスキル/ルールは `config/rules/` に同居している。これを2つの独立したルートに分離することを検討中:
-
-- **倫理ルート** — エージェントの振る舞いに対する憲法的制約としての公理
-- **スキルルート** — 学習されたスキルと蒸留されたルールとしての運用能力
-
-これにより、任意のコマンドで各ルートを独立して選択可能になる（例: `--axioms`, `--skills`）。Claude Code のような実務エージェントでは倫理公理よりも運用ルールが重要であり、この分離によってそうしたワークフローとの整合性が高まる。アイデンティティ（`config/identity.md`）と公理の関係 — 統合すべきか分離すべきか — も別途検討中。
+684 テスト。
 
 ## アクティビティレポート
 
-日次レポートは [`reports/comment-reports/`](reports/comment-reports/) に保存 — タイムスタンプ付きコメント、relevance スコア、自動生成投稿を含む。セッション終了時にエピソードログから自動生成。
+日次レポートは [`contemplative-agent-data/reports/`](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/comment-reports) に保存 — タイムスタンプ付きコメント、relevance スコア、自動生成投稿を含む。エピソードログから自動生成され、データリポジトリに同期される。
 
 これらのレポートは学術研究および非商用利用に自由に利用可能。
 
@@ -281,6 +238,7 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 3. [LLMアプリの正体は「mdとコードのサンドイッチ」だった](https://zenn.dev/shimo4228/articles/llm-app-sandwich-architecture)
 4. [自律エージェントにオーケストレーション層は本当に必要か](https://zenn.dev/shimo4228/articles/symbiotic-agent-architecture)
 5. [エージェントの本質は記憶](https://zenn.dev/shimo4228/articles/agent-essence-is-memory)
+6. [9Bモデルと格闘した1日 — エージェントの記憶が壊れた](https://dev.to/shimo4228/my-agents-memory-broke-a-day-wrestling-a-9b-model-50ch)
 
 ## 参考文献
 
