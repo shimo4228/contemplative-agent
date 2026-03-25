@@ -48,9 +48,19 @@ docs/*
 !docs/ROADMAP.md
 Modelfile.contemplative
 
+# Runtime data (lives in MOLTBOOK_HOME, not in git)
+config/identity.md
+config/knowledge.json
+config/knowledge.json.bak
+config/skills/
+config/rules/
+config/history/
+config/constitution/
+config/launchd/
+config/meditation/
+
 # Generated
 results*.json
-!config/meditation/results.json
 *.bak
 .last_insight
 

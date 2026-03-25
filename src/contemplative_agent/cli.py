@@ -11,9 +11,12 @@ from xml.sax.saxutils import escape as xml_escape
 
 from .adapters.moltbook.agent import Agent, AutonomyLevel
 from .adapters.moltbook.config import (
+    CONSTITUTION_DIR,
     IDENTITY_PATH,
     KNOWLEDGE_PATH,
+    MEDITATION_DIR,
     MOLTBOOK_DATA_DIR,
+    RULES_DIR,
     SKILLS_DIR,
 )
 from .core.domain import (
@@ -177,9 +180,30 @@ def _do_uninstall_schedule() -> None:
         print("No schedule installed.")
 
 
+def _run_sync() -> None:
+    """Run research data sync script (best-effort)."""
+    script = Path(__file__).resolve().parents[2] / "scripts" / "sync-research-data.sh"
+    if not script.exists():
+        return
+    result = subprocess.run(
+        ["bash", str(script)],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode == 0:
+        if result.stdout.strip():
+            print(result.stdout.strip())
+    else:
+        print(f"Warning: sync failed: {result.stderr.strip()}", file=sys.stderr)
+
+
 def _do_init() -> None:
-    """Initialize identity.md and knowledge.json files."""
+    """Initialize runtime data files in MOLTBOOK_HOME."""
+    import shutil
+
     MOLTBOOK_DATA_DIR.mkdir(parents=True, exist_ok=True)
+    project_root = Path(__file__).resolve().parents[2]
+    templates_dir = project_root / "config" / "templates"
 
     if IDENTITY_PATH.exists():
         print(f"Identity file already exists: {IDENTITY_PATH}")
@@ -188,7 +212,7 @@ def _do_init() -> None:
         IDENTITY_PATH.write_text("\n", encoding="utf-8")
         os.chmod(IDENTITY_PATH, stat.S_IRUSR | stat.S_IWUSR)
         print(f"Created identity file: {IDENTITY_PATH}")
-        print("Tip: copy a template from config/templates/ to seed your identity")
+        print(f"Tip: copy a template from {templates_dir}/ to seed your identity")
 
     if KNOWLEDGE_PATH.exists():
         print(f"Knowledge file already exists: {KNOWLEDGE_PATH}")
@@ -198,6 +222,17 @@ def _do_init() -> None:
         KNOWLEDGE_PATH.write_text(_json.dumps([], ensure_ascii=False) + "\n", encoding="utf-8")
         os.chmod(KNOWLEDGE_PATH, stat.S_IRUSR | stat.S_IWUSR)
         print(f"Created knowledge file: {KNOWLEDGE_PATH}")
+
+    # Copy default constitution if not already present
+    src_constitution = templates_dir / "constitution"
+    if CONSTITUTION_DIR.exists():
+        print(f"Constitution already exists: {CONSTITUTION_DIR}")
+    elif src_constitution.is_dir():
+        shutil.copytree(src_constitution, CONSTITUTION_DIR)
+        print(f"Copied default constitution: {CONSTITUTION_DIR}")
+    else:
+        CONSTITUTION_DIR.mkdir(parents=True, exist_ok=True)
+        print(f"Created empty constitution dir: {CONSTITUTION_DIR}")
 
 
 def main() -> None:
@@ -387,6 +422,9 @@ def main() -> None:
         help="Show results without writing to knowledge store",
     )
 
+    # sync-data
+    subparsers.add_parser("sync-data", help="Sync research data to external git repository")
+
     # solve
     solve_parser = subparsers.add_parser(
         "solve", help="Test verification solver"
@@ -416,6 +454,10 @@ def main() -> None:
                 _do_install_distill_schedule(distill_hour=args.distill_hour)
         return
 
+    if args.command == "sync-data":
+        _run_sync()
+        return
+
     # Load domain config if custom path specified
     domain_config = None
     if args.domain_config is not None:
@@ -425,7 +467,7 @@ def main() -> None:
 
     # Load and inject CCAI constitutional clauses unless --no-axioms is set
     if not args.no_axioms:
-        clauses = load_constitution(args.constitution_dir)
+        clauses = load_constitution(args.constitution_dir or CONSTITUTION_DIR)
         if clauses:
             configure_llm(axiom_prompt=clauses)
 
@@ -433,7 +475,6 @@ def main() -> None:
     skills_dir = SKILLS_DIR
     if skills_dir.is_dir():
         configure_llm(skills_dir=skills_dir)
-    from .adapters.moltbook.config import RULES_DIR
     if RULES_DIR.is_dir():
         configure_llm(rules_dir=RULES_DIR)
 
@@ -463,6 +504,8 @@ def main() -> None:
             log_files=log_files,
         )
         print(result)
+        if not args.dry_run:
+            _run_sync()
         return
 
     if args.command == "distill-identity":
@@ -495,7 +538,6 @@ def main() -> None:
         return
 
     if args.command == "rules-distill":
-        from .adapters.moltbook.config import RULES_DIR
         from .core.memory import KnowledgeStore
         from .core.rules_distill import distill_rules
 
@@ -542,12 +584,11 @@ def main() -> None:
         from .adapters.meditation.meditate import meditate as run_meditate
         from .adapters.meditation.pomdp import build_matrices
         from .adapters.meditation.report import interpret_and_save
-        from .core.domain import DEFAULT_CONFIG_DIR
         from .core.memory import EpisodeLog
 
         log_dir = MOLTBOOK_DATA_DIR / "logs"
         episode_log = EpisodeLog(log_dir=log_dir)
-        results_path = DEFAULT_CONFIG_DIR / "meditation" / "results.json"
+        results_path = MEDITATION_DIR / "results.json"
 
         config = MeditationConfig(meditation_cycles=args.cycles)
         matrices = build_matrices(episode_log, days=args.days, config=config)

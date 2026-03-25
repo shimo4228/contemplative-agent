@@ -31,3 +31,12 @@ setup.sh
 credentials.json
 rate_state.json
 identity.md
+config/identity.md
+config/knowledge.json
+config/knowledge.json.bak
+config/skills/
+config/rules/
+config/history/
+config/constitution/
+config/launchd/
+config/meditation/

@@ -18,7 +18,8 @@ RUN groupadd -g 1000 agent && \
 # Install the package from build stage
 COPY --from=builder /install /usr/local
 
-# Copy config (not included in wheel)
+# Copy config templates only (prompts, domain.json, templates/).
+# Runtime data (identity, knowledge, constitution, ...) lives in /data (MOLTBOOK_HOME).
 COPY config/ /app/config/
 
 # Entrypoint script

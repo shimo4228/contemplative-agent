@@ -17,13 +17,14 @@ from .config import FORBIDDEN_SUBSTRING_PATTERNS
 
 logger = logging.getLogger(__name__)
 
-# Default config directory relative to the package root (overridable via env var)
+# Default config directory relative to the package root (overridable via env var).
+# config/ holds templates only (prompts, domain.json, templates/).
+# Runtime data (identity, knowledge, constitution, ...) lives in MOLTBOOK_HOME.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _CONFIG_DIR_OVERRIDE = os.environ.get("CONTEMPLATIVE_CONFIG_DIR")
 DEFAULT_CONFIG_DIR = Path(_CONFIG_DIR_OVERRIDE) if _CONFIG_DIR_OVERRIDE else _PROJECT_ROOT / "config"
 DEFAULT_DOMAIN_CONFIG_PATH = DEFAULT_CONFIG_DIR / "domain.json"
 DEFAULT_PROMPTS_DIR = DEFAULT_CONFIG_DIR / "prompts"
-DEFAULT_CONSTITUTION_DIR = DEFAULT_CONFIG_DIR / "constitution"
 
 
 @dataclass(frozen=True)
@@ -185,7 +186,7 @@ def load_constitution(constitution_dir: Optional[Path] = None) -> str:
 
     Args:
         constitution_dir: Directory containing constitution .md files.
-                         Defaults to config/constitution/.
+                         No default — caller must provide the path.
 
     Returns:
         Constitutional clauses as a string (empty if not found).
@@ -193,7 +194,9 @@ def load_constitution(constitution_dir: Optional[Path] = None) -> str:
     Raises:
         ValueError: If clauses contain forbidden patterns.
     """
-    directory = constitution_dir or DEFAULT_CONSTITUTION_DIR
+    if constitution_dir is None:
+        return ""
+    directory = constitution_dir
     if not directory.is_dir():
         return ""
 

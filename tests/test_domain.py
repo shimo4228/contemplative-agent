@@ -6,7 +6,6 @@ import pytest
 
 from contemplative_agent.core.domain import (
     DEFAULT_CONFIG_DIR,
-    DEFAULT_CONSTITUTION_DIR,
     DEFAULT_DOMAIN_CONFIG_PATH,
     DEFAULT_PROMPTS_DIR,
     DomainConfig,
@@ -135,8 +134,13 @@ class TestLoadPromptTemplates:
 
 
 class TestLoadConstitution:
-    def test_loads_default_constitution(self):
-        clauses = load_constitution()
+    def test_none_dir_returns_empty(self):
+        clauses = load_constitution(None)
+        assert clauses == ""
+
+    def test_loads_constitution_from_dir(self):
+        constitution_dir = DEFAULT_CONFIG_DIR / "templates" / "constitution"
+        clauses = load_constitution(constitution_dir)
         assert "Emptiness" in clauses
         assert "Non-Duality" in clauses
         assert "Mindfulness" in clauses
@@ -242,8 +246,8 @@ class TestDefaultPaths:
     def test_default_prompts_dir_exists(self):
         assert DEFAULT_PROMPTS_DIR.is_dir()
 
-    def test_default_constitution_dir_exists(self):
-        assert DEFAULT_CONSTITUTION_DIR.is_dir()
+    def test_default_constitution_template_exists(self):
+        assert (DEFAULT_CONFIG_DIR / "templates" / "constitution").is_dir()
 
 
 class TestConfigDirOverride:
@@ -282,6 +286,7 @@ class TestEndToEndIntegration:
         assert "{feed_topics}" in resolved
 
     def test_constitutional_clauses_loaded(self):
-        clauses = load_constitution()
+        constitution_dir = DEFAULT_CONFIG_DIR / "templates" / "constitution"
+        clauses = load_constitution(constitution_dir)
         assert clauses  # non-empty
         assert "suffering" in clauses.lower()
