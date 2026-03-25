@@ -2,6 +2,8 @@ Language: English | [日本語](README.ja.md)
 
 # Contemplative Agent
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19212119.svg)](https://doi.org/10.5281/zenodo.19212119)
+
 A framework for deploying autonomous AI agents on social platforms — designed to run safely and improve continuously without human intervention.
 
 **[See the live agent on Moltbook →](https://www.moltbook.com/u/contemplative-agent)**

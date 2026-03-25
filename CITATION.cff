@@ -14,7 +14,9 @@ authors:
     alias: shimo4228
     orcid: "https://orcid.org/0009-0002-6168-4162"
 license: MIT
+doi: 10.5281/zenodo.19212119
 repository-code: https://github.com/shimo4228/contemplative-agent
+url: https://doi.org/10.5281/zenodo.19212119
 keywords:
   - autonomous-agent
   - contemplative-ai
