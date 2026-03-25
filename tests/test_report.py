@@ -4,9 +4,8 @@ import json
 
 from contemplative_agent.core.report import (
     _build_report,
-    _extract_entries,
-    _extract_session_meta,
     _format_ts,
+    _parse_log,
     generate_all_reports,
     generate_report,
 )
@@ -30,7 +29,7 @@ class TestExtractEntries:
         ]
         jsonl.write_text("\n".join(lines), encoding="utf-8")
 
-        comments, replies, posts = _extract_entries(jsonl)
+        _, comments, replies, posts = _parse_log(jsonl)
         assert len(comments) == 1
         assert len(replies) == 1
         assert len(posts) == 1
@@ -42,14 +41,14 @@ class TestExtractEntries:
         jsonl = tmp_path / "test.jsonl"
         jsonl.write_text('not valid json\n{"ts":"t","type":"activity","data":{"action":"comment","post_id":"p1","content":"ok"}}\n', encoding="utf-8")
 
-        comments, replies, posts = _extract_entries(jsonl)
+        _, comments, replies, posts = _parse_log(jsonl)
         assert len(comments) == 1
 
     def test_empty_file(self, tmp_path):
         jsonl = tmp_path / "test.jsonl"
         jsonl.write_text("", encoding="utf-8")
 
-        comments, replies, posts = _extract_entries(jsonl)
+        _, comments, replies, posts = _parse_log(jsonl)
         assert comments == []
         assert replies == []
         assert posts == []
@@ -58,7 +57,7 @@ class TestExtractEntries:
         jsonl = tmp_path / "test.jsonl"
         jsonl.write_text('\n\n{"ts":"t","type":"activity","data":{"action":"post","post_id":"p1","title":"T","content":"C"}}\n\n', encoding="utf-8")
 
-        _, _, posts = _extract_entries(jsonl)
+        _, _, _, posts = _parse_log(jsonl)
         assert len(posts) == 1
 
 
@@ -72,26 +71,28 @@ class TestExtractSessionMeta:
         ]
         jsonl.write_text("\n".join(lines), encoding="utf-8")
 
-        meta = _extract_session_meta(jsonl)
+        meta, _, _, _ = _parse_log(jsonl)
         assert meta["domain"] == "test2"
 
     def test_returns_none_when_no_session(self, tmp_path):
         jsonl = tmp_path / "test.jsonl"
         jsonl.write_text('{"type": "activity", "data": {"action": "comment"}}\n', encoding="utf-8")
 
-        assert _extract_session_meta(jsonl) is None
+        meta, _, _, _ = _parse_log(jsonl)
+        assert meta is None
 
     def test_ignores_session_end(self, tmp_path):
         jsonl = tmp_path / "test.jsonl"
         jsonl.write_text('{"type": "session", "data": {"event": "end", "actions_count": 5}}\n', encoding="utf-8")
 
-        assert _extract_session_meta(jsonl) is None
+        meta, _, _, _ = _parse_log(jsonl)
+        assert meta is None
 
     def test_skips_malformed_json(self, tmp_path):
         jsonl = tmp_path / "test.jsonl"
         jsonl.write_text('bad json\n{"type": "session", "data": {"event": "start", "domain": "ok"}}\n', encoding="utf-8")
 
-        meta = _extract_session_meta(jsonl)
+        meta, _, _, _ = _parse_log(jsonl)
         assert meta["domain"] == "ok"
 
 

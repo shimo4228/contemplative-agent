@@ -216,15 +216,10 @@ def _load_md_files(directory: Optional[Path], label: str) -> str:
 
 
 def _build_system_prompt() -> str:
-    """Load identity from file, falling back to default system prompt.
+    """Build the full system prompt from identity, axioms, skills, and rules.
 
-    Validates the file content against forbidden patterns to prevent
-    prompt injection via tampered identity files.
-    Falls back to config/prompts/system.md via the domain module.
-
-    If axiom_prompt is configured (CCAI clauses from Appendix C),
-    it is appended to the identity with a separator.
-    Learned skills are appended after axioms.
+    Layers: default prompt (or identity.md if valid) + axioms + skills + rules.
+    Identity content is validated against forbidden patterns.
     """
     base_prompt = _get_default_system_prompt()
     identity = _identity_path

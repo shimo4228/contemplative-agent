@@ -11,25 +11,19 @@ from typing import Any, Dict, List, Optional
 logger = logging.getLogger(__name__)
 
 
-def _extract_session_meta(jsonl_path: Path) -> Optional[Dict[str, Any]]:
-    """Extract the last session_start metadata from a JSONL file."""
-    meta: Optional[Dict[str, Any]] = None
-    for line in jsonl_path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if entry.get("type") == "session" and entry.get("data", {}).get("event") == "start":
-            meta = entry.get("data", {})
-    return meta
-
-
-def _extract_entries(
+def _parse_log(
     jsonl_path: Path,
-) -> tuple[List[Dict[str, Any]], List[Dict[str, Any]], List[Dict[str, Any]]]:
-    """Extract comment, reply, and post entries from a JSONL file."""
+) -> tuple[
+    Optional[Dict[str, Any]],
+    List[Dict[str, Any]],
+    List[Dict[str, Any]],
+    List[Dict[str, Any]],
+]:
+    """Parse a JSONL log file in a single pass.
+
+    Returns (session_meta, comments, replies, posts).
+    """
+    meta: Optional[Dict[str, Any]] = None
     comments: List[Dict[str, Any]] = []
     replies: List[Dict[str, Any]] = []
     posts: List[Dict[str, Any]] = []
@@ -40,6 +34,10 @@ def _extract_entries(
         try:
             entry = json.loads(line)
         except json.JSONDecodeError:
+            continue
+
+        if entry.get("type") == "session" and entry.get("data", {}).get("event") == "start":
+            meta = entry.get("data", {})
             continue
 
         data = entry.get("data", {})
@@ -71,7 +69,7 @@ def _extract_entries(
                 "submolt": data.get("submolt", ""),
             })
 
-    return comments, replies, posts
+    return meta, comments, replies, posts
 
 
 def _format_ts(ts: str) -> str:
@@ -196,12 +194,10 @@ def generate_report(
         logger.info("No log file for %s", date)
         return None
 
-    comments, replies, posts = _extract_entries(jsonl_path)
+    session_meta, comments, replies, posts = _parse_log(jsonl_path)
     if not comments and not replies and not posts:
         logger.info("No activity entries for %s", date)
         return None
-
-    session_meta = _extract_session_meta(jsonl_path)
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / f"comment-report-{date}.md"
     report_path.write_text(
