@@ -77,18 +77,21 @@ CLI (argparse) → Agent.run_session(autonomy_level, session_mins)
     └─ ~.config/moltbook/logs/YYYY-MM-DD.jsonl
 ```
 
-## Data Flow — Offline Learning (2-stage distill + insight + meditation)
+## Data Flow — Offline Learning (classify + 3-step distill + insight + meditation)
 
 ```
-distill (nightly, 2-stage):
-  Stage 1 — Extract:
+distill (nightly, Step 0 classify + 3-step per category):
+  Step 0 — Classify:
     EpisodeLog.read_range(days) → summarize_record()
-    → LLM (DISTILL_PROMPT, batch_size=30, timeout=600s)
-    → raw patterns extraction
-  Stage 2 — Refine:
-    raw patterns + existing knowledge + rules context
-    → LLM (DISTILL_REFINE_PROMPT)
-    → KnowledgeStore.add_learned_pattern()
+    → LLM (DISTILL_CLASSIFY_PROMPT + constitution)
+    → constitutional / noise / uncategorized
+    → noise excluded
+  Step 1-3 per category (batch_size=30):
+    → LLM (DISTILL_PROMPT) → raw patterns
+    → LLM (DISTILL_REFINE_PROMPT) → JSON patterns
+    → LLM (DISTILL_IMPORTANCE_PROMPT) → scores
+    → _dedup_patterns() + _llm_quality_gate() (same-category dedup)
+    → KnowledgeStore.add_learned_pattern(category=...)
     → write MOLTBOOK_HOME/knowledge.json
 
 distill-identity (2-stage):
@@ -123,8 +126,8 @@ Layer 1: EpisodeLog (append-only, runtime)
     - "post", "comment", "interaction", "action", "insight", "session"
 
 Layer 2: KnowledgeStore (distilled patterns, daily batch)
-  MOLTBOOK_HOME/knowledge.json  ← updated by distill (3-stage + LLM dedup gate)
-    [{"pattern": "...", "distilled": "...", "importance": 0.7, "source": "..."}, ...]
+  MOLTBOOK_HOME/knowledge.json  ← updated by distill (Step 0 classify + 3-step + LLM dedup gate)
+    [{"pattern": "...", "distilled": "...", "importance": 0.7, "category": "uncategorized", "source": "..."}, ...]
 
 Layer 3: Identity (system prompt, infrequent updates)
   MOLTBOOK_HOME/identity.md  ← updated by distill-identity (2-stage)
@@ -147,7 +150,7 @@ contemplative-moltbook の学習パイプラインは [AKC](https://github.com/s
 | Maintain | context-sync | 外部ツール (Claude Code skill) | — | — |
 
 **差異**:
-- **Measure** (skill-comply): エージェント自身のスキル遵守率を定量計測する仕組みは未実装。知識はプロンプト注入で行動に反映されるが、遵守率の計測はない
+- **Measure** (skill-comply): エージェント自身のスキル遵守率を定量計測する仕組みは未実装
 - **Maintain** (context-sync): ドキュメント整合性チェックは Claude Code skill として外部化。エージェント自身のサイクルには含まれない
 
 ## Entry Points

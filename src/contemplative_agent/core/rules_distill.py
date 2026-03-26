@@ -99,14 +99,14 @@ def distill_rules(
     knowledge_store.load()
 
     if full:
-        patterns: List[str] = list(knowledge_store.get_learned_patterns())
+        patterns: List[str] = list(knowledge_store.get_learned_patterns(category="uncategorized"))
     else:
         last_run = _read_last_run(rules_dir)
         if last_run:
-            patterns = list(knowledge_store.get_learned_patterns_since(last_run))
+            patterns = list(knowledge_store.get_learned_patterns_since(last_run, category="uncategorized"))
             logger.info("Incremental mode: %d new patterns since %s", len(patterns), last_run)
         else:
-            patterns = list(knowledge_store.get_learned_patterns())
+            patterns = list(knowledge_store.get_learned_patterns(category="uncategorized"))
             logger.info("No previous rules-distill run found, processing all %d patterns", len(patterns))
 
     if len(patterns) < MIN_PATTERNS_REQUIRED:

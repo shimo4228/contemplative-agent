@@ -127,7 +127,7 @@ Package versions, transitive dependencies, security notes.
 | Meditation adapter modules | 4 |
 | Dataclasses | 3 (Interaction, PostRecord, Insight) |
 | CLI commands | 12 (init, register, status, run, distill, distill-identity, insight, generate-report, solve, meditate, install-schedule, rules-distill) |
-| Prompt templates | 17 |
+| Prompt templates | 22 |
 | Config templates | 2 (config/templates/constitution/) |
 | Rate limit budgets | 2 (GET 60/min, POST 30/min) |
 
@@ -149,4 +149,4 @@ CODEMAPS と system-spec.md は context-sync で同期する:
 - **system-spec.md**: 設計変更時に更新（「こうなっている」の正式仕様）
 - **CODEMAPS**: コード変更時に更新（「どこにあるか」のコード索引）
 
-Last full scan: 2026-03-26 (30 modules, 697 tests verified)
+Last full scan: 2026-03-26 (30 modules, 720 tests verified)

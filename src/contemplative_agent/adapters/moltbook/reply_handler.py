@@ -209,13 +209,11 @@ class ReplyHandler:
         ctx = self._ctx
         history = ctx.memory.get_history_with(replier_id, limit=5)
         history_summaries = [h.content_summary for h in history]
-        knowledge_ctx = ctx.memory.knowledge.get_context_string() or None
 
         reply = generate_reply(
             original_post=original_post,
             their_comment=their_content,
             conversation_history=history_summaries,
-            knowledge_context=knowledge_ctx,
         )
         if reply is None:
             return

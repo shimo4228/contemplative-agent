@@ -41,6 +41,7 @@ class _LazyPrompts:
         "RULES_DISTILL_PROMPT": "rules_distill",
         "RULES_DISTILL_REFINE_PROMPT": "rules_distill_refine",
         "DISTILL_DEDUP_PROMPT": "distill_dedup",
+        "DISTILL_CLASSIFY_PROMPT": "distill_classify",
     }
 
     def __getattr__(self, name: str) -> str:

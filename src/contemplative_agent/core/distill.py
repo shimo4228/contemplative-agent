@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import copy
 import json as json_mod
 import logging
 import os
@@ -13,19 +14,21 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
-from .llm import generate, get_default_system_prompt, get_distill_system_prompt, validate_identity_content
+from .llm import generate, get_axiom_prompt, get_default_system_prompt, get_distill_system_prompt, validate_identity_content
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import (
     DISTILL_PROMPT,
     DISTILL_REFINE_PROMPT,
     DISTILL_IMPORTANCE_PROMPT,
     DISTILL_DEDUP_PROMPT,
+    DISTILL_CLASSIFY_PROMPT,
     IDENTITY_DISTILL_PROMPT,
     IDENTITY_REFINE_PROMPT,
 )
 
 logger = logging.getLogger(__name__)
 
+BATCH_SIZE = 30
 
 def distill(
     days: int = 1,
@@ -64,98 +67,14 @@ def distill(
         logger.info(msg)
         return msg
 
-    # Split records into batches of BATCH_SIZE (sleep cycle analogy)
-    BATCH_SIZE = 30
-    batches = [records[i:i + BATCH_SIZE] for i in range(0, len(records), BATCH_SIZE)]
-    logger.info("Processing %d episodes in %d batches", len(records), len(batches))
-
-    all_patterns: List[str] = []
-    all_importances: List[float] = []
-    all_results: List[str] = []
-
-    for batch_idx, batch in enumerate(batches):
-        episode_lines = []
-        for r in batch:
-            record_type = r.get("type", "unknown")
-            data = r.get("data", {})
-            ts = r.get("ts", "")
-            summary = summarize_record(record_type, data)
-            if summary:
-                episode_lines.append(f"[{ts[:16]}] {record_type}: {summary}")
-
-        if not episode_lines:
-            continue
-
-        prompt = DISTILL_PROMPT.format(
-            episodes="\n".join(episode_lines),
-        )
-
-        # Step 1: Extract — free-form output, with rules/axioms as lens
-        result = generate(prompt, system=get_distill_system_prompt(), max_length=4000)
-        if result is None:
-            logger.warning("Batch %d/%d: step 1 (extract) failed", batch_idx + 1, len(batches))
-            continue
-
-        # Step 2: Summarize — concise patterns as JSON string array
-        refine_prompt = DISTILL_REFINE_PROMPT.format(raw_output=result)
-        refined = generate(refine_prompt, max_length=4000)
-        if refined is None:
-            logger.warning("Batch %d/%d: step 2 (summarize) failed, using step 1 output", batch_idx + 1, len(batches))
-            refined = result
-
-        all_results.append(refined)
-
-        raw_patterns: List[str] = []
-        try:
-            parsed = json_mod.loads(refined)
-            for item in parsed.get("patterns", []):
-                text = str(item).strip() if item else ""
-                if text:
-                    raw_patterns.append(text)
-        except (json_mod.JSONDecodeError, TypeError):
-            # Fallback: bullet-point parsing
-            for line in refined.splitlines():
-                line = line.strip()
-                if line.startswith("- "):
-                    pattern = line[2:].strip()
-                    if pattern:
-                        raw_patterns.append(pattern)
-
-        # Decision gate: reject low-quality patterns
-        batch_patterns = [p for p in raw_patterns if _is_valid_pattern(p)]
-        rejected = len(raw_patterns) - len(batch_patterns)
-
-        # Step 3: Evaluate importance — separate LLM call, single task
-        batch_importances = [0.5] * len(batch_patterns)
-        if batch_patterns and DISTILL_IMPORTANCE_PROMPT:
-            patterns_text = "\n".join(f"- {p}" for p in batch_patterns)
-            importance_prompt = DISTILL_IMPORTANCE_PROMPT.format(patterns=patterns_text)
-            importance_result = generate(importance_prompt, max_length=4000)
-            if importance_result:
-                batch_importances = _parse_importance_scores(importance_result, len(batch_patterns))
-
-        all_patterns.extend(batch_patterns)
-        all_importances.extend(batch_importances)
-        imp_summary = ", ".join(f"{i:.1f}" for i in batch_importances) if batch_importances else "none"
-        logger.info(
-            "Batch %d/%d: %d episodes → %d patterns (%d rejected) [importance: %s]",
-            batch_idx + 1, len(batches), len(batch), len(batch_patterns), rejected, imp_summary,
-        )
-
-    if dry_run:
-        # Simulate dedup for visibility (no writes)
-        # deep copy to avoid mutating existing patterns during simulation
-        import copy
-        existing_copy = copy.deepcopy(knowledge._learned_patterns)
-        _, _, _skip, upd, uncertain = _dedup_patterns(
-            all_patterns, all_importances, existing_copy,
-        )
-        if uncertain:
-            _, _, _llm_skip, llm_upd = _llm_quality_gate(uncertain, existing_copy)
-            upd += llm_upd
-        logger.info("Dry run — %d patterns found, %d uncertain (LLM judged), %d would be deduped, not writing",
-                     len(all_patterns), len(uncertain), upd)
-        return "\n\n".join(all_results)
+    # Step 0: Classify episodes
+    classified = _classify_episodes(records, constitution=get_axiom_prompt())
+    if classified.noise:
+        logger.info("Step 0: %d noise episodes excluded from distillation", len(classified.noise))
+    logger.info(
+        "Step 0: %d constitutional, %d uncategorized, %d noise",
+        len(classified.constitutional), len(classified.uncategorized), len(classified.noise),
+    )
 
     # Determine source date range from records
     timestamps = [r.get("ts", "")[:10] for r in records if r.get("ts")]
@@ -163,30 +82,28 @@ def distill(
     if timestamps and timestamps[0] != timestamps[-1]:
         source_date = f"{timestamps[0]}~{timestamps[-1]}"
 
-    # Dedup against existing patterns
-    add_patterns, add_importances, _skipped, updated, uncertain = _dedup_patterns(
-        all_patterns, all_importances, knowledge._learned_patterns,
-    )
-    if uncertain:
-        llm_add, llm_imp, _llm_skip, llm_upd = _llm_quality_gate(
-            uncertain, knowledge._learned_patterns,
+    all_results: List[str] = []
+    total_added = 0
+    total_updated = 0
+
+    # Process each category through the 3-step pipeline
+    for category, cat_records in [
+        ("uncategorized", list(classified.uncategorized)),
+        ("constitutional", list(classified.constitutional)),
+    ]:
+        if not cat_records:
+            continue
+
+        cat_results = _distill_category(
+            cat_records, knowledge, category, source_date, dry_run,
         )
-        add_patterns.extend(llm_add)
-        add_importances.extend(llm_imp)
-        updated += llm_upd
-        logger.info("LLM quality gate: %d uncertain → %d add, %d update, %d skip",
-                     len(uncertain), len(llm_add), llm_upd, _llm_skip)
-    if updated:
-        logger.info("Dedup: %d update (importance boosted)", updated)
+        all_results.extend(cat_results.results)
+        total_added += cat_results.added
+        total_updated += cat_results.updated
 
-    for pattern, importance in zip(add_patterns, add_importances):
-        knowledge.add_learned_pattern(pattern, source=source_date, importance=importance)
-        logger.info("Added pattern (importance=%.1f): %s", importance, pattern[:80])
-
-    if add_patterns or updated:
+    if not dry_run and (total_added or total_updated):
         knowledge.save()
-        logger.info("Distill complete: %d added, %d updated from %d batches",
-                     len(add_patterns), updated, len(batches))
+        logger.info("Distill complete: %d added, %d updated", total_added, total_updated)
 
     return "\n\n".join(all_results)
 
@@ -292,6 +209,243 @@ def _parse_importance_scores(raw: str, expected_count: int) -> List[float]:
     except (json_mod.JSONDecodeError, TypeError):
         logger.warning("Failed to parse importance scores, using defaults")
         return [0.5] * expected_count
+
+
+VALID_CATEGORIES = frozenset({"constitutional", "noise", "uncategorized"})
+
+
+@dataclass(frozen=True)
+class _ClassifiedRecords:
+    """Records grouped by classification category."""
+    constitutional: Tuple[Dict, ...]
+    noise: Tuple[Dict, ...]
+    uncategorized: Tuple[Dict, ...]
+
+
+def _parse_classify_result(raw: Optional[str], expected_count: int) -> List[str]:
+    """Parse classification LLM output into category list.
+
+    Expects {"categories": ["uncategorized", "noise", ...]}. Invalid
+    categories are normalized to "uncategorized". Falls back to all
+    "uncategorized" on parse failure or count mismatch.
+    """
+    if raw is None:
+        return ["uncategorized"] * expected_count
+    try:
+        parsed = json_mod.loads(raw)
+        categories = parsed.get("categories", [])
+        if len(categories) != expected_count:
+            logger.warning("Classify count mismatch: got %d, expected %d",
+                           len(categories), expected_count)
+            return ["uncategorized"] * expected_count
+        return [
+            c.lower().strip() if isinstance(c, str) and c.lower().strip() in VALID_CATEGORIES
+            else "uncategorized"
+            for c in categories
+        ]
+    except (json_mod.JSONDecodeError, TypeError, AttributeError):
+        logger.warning("Failed to parse classification result, defaulting to uncategorized")
+        return ["uncategorized"] * expected_count
+
+
+def _classify_episodes(
+    records: List[Dict],
+    constitution: str = "",
+) -> _ClassifiedRecords:
+    """Step 0: Classify episodes into categories via LLM.
+
+    Falls back to all uncategorized on LLM failure (safe default —
+    identical to the existing pipeline behavior with no classification).
+    """
+    if not records:
+        return _ClassifiedRecords(constitutional=(), noise=(), uncategorized=())
+
+    if not DISTILL_CLASSIFY_PROMPT:
+        return _ClassifiedRecords(
+            constitutional=(), noise=(), uncategorized=tuple(records),
+        )
+
+    all_categories: List[str] = []
+
+    for i in range(0, len(records), BATCH_SIZE):
+        batch = records[i:i + BATCH_SIZE]
+        episode_lines = []
+        for idx, r in enumerate(batch):
+            record_type = r.get("type", "unknown")
+            data = r.get("data", {})
+            ts = r.get("ts", "")
+            summary = summarize_record(record_type, data)
+            if summary:
+                episode_lines.append(f"{idx + 1}. [{ts[:16]}] {record_type}: {summary}")
+            else:
+                episode_lines.append(f"{idx + 1}. [{ts[:16]}] {record_type}: (no summary)")
+
+        prompt = DISTILL_CLASSIFY_PROMPT.format(
+            episodes="\n".join(episode_lines),
+            constitution=constitution if constitution else "(no constitutional principles configured)",
+        )
+        result = generate(prompt, system=get_distill_system_prompt(), max_length=2000)
+        batch_categories = _parse_classify_result(result, len(batch))
+        all_categories.extend(batch_categories)
+
+    constitutional = []
+    noise = []
+    uncategorized = []
+    for record, cat in zip(records, all_categories):
+        if cat == "constitutional":
+            constitutional.append(record)
+        elif cat == "noise":
+            noise.append(record)
+        else:
+            uncategorized.append(record)
+
+    return _ClassifiedRecords(
+        constitutional=tuple(constitutional),
+        noise=tuple(noise),
+        uncategorized=tuple(uncategorized),
+    )
+
+
+@dataclass(frozen=True)
+class _CategoryResult:
+    """Result of distilling a single category."""
+    results: Tuple[str, ...]
+    added: int
+    updated: int
+
+
+def _distill_category(
+    records: List[Dict],
+    knowledge: KnowledgeStore,
+    category: str,
+    source_date: Optional[str],
+    dry_run: bool,
+) -> _CategoryResult:
+    """Run the 3-step distill pipeline for a single category of records.
+
+    Dedup is performed only against existing patterns of the same category.
+    """
+    batches = [records[i:i + BATCH_SIZE] for i in range(0, len(records), BATCH_SIZE)]
+    logger.info("[%s] Processing %d episodes in %d batches", category, len(records), len(batches))
+
+    all_patterns: List[str] = []
+    all_importances: List[float] = []
+    all_results: List[str] = []
+
+    for batch_idx, batch in enumerate(batches):
+        episode_lines = []
+        for r in batch:
+            record_type = r.get("type", "unknown")
+            data = r.get("data", {})
+            ts = r.get("ts", "")
+            summary = summarize_record(record_type, data)
+            if summary:
+                episode_lines.append(f"[{ts[:16]}] {record_type}: {summary}")
+
+        if not episode_lines:
+            continue
+
+        prompt = DISTILL_PROMPT.format(
+            episodes="\n".join(episode_lines),
+        )
+
+        # Step 1: Extract — free-form output, with rules/axioms as lens
+        result = generate(prompt, system=get_distill_system_prompt(), max_length=4000)
+        if result is None:
+            logger.warning("[%s] Batch %d/%d: step 1 (extract) failed", category, batch_idx + 1, len(batches))
+            continue
+
+        # Step 2: Summarize — concise patterns as JSON string array
+        refine_prompt = DISTILL_REFINE_PROMPT.format(raw_output=result)
+        refined = generate(refine_prompt, max_length=4000)
+        if refined is None:
+            logger.warning("[%s] Batch %d/%d: step 2 (summarize) failed, using step 1 output",
+                           category, batch_idx + 1, len(batches))
+            refined = result
+
+        all_results.append(refined)
+
+        raw_patterns: List[str] = []
+        try:
+            parsed = json_mod.loads(refined)
+            for item in parsed.get("patterns", []):
+                text = str(item).strip() if item else ""
+                if text:
+                    raw_patterns.append(text)
+        except (json_mod.JSONDecodeError, TypeError):
+            # Fallback: bullet-point parsing
+            for line in refined.splitlines():
+                line = line.strip()
+                if line.startswith("- "):
+                    pattern = line[2:].strip()
+                    if pattern:
+                        raw_patterns.append(pattern)
+
+        # Decision gate: reject low-quality patterns
+        batch_patterns = [p for p in raw_patterns if _is_valid_pattern(p)]
+        rejected = len(raw_patterns) - len(batch_patterns)
+
+        # Step 3: Evaluate importance — separate LLM call, single task
+        batch_importances = [0.5] * len(batch_patterns)
+        if batch_patterns and DISTILL_IMPORTANCE_PROMPT:
+            patterns_text = "\n".join(f"- {p}" for p in batch_patterns)
+            importance_prompt = DISTILL_IMPORTANCE_PROMPT.format(patterns=patterns_text)
+            importance_result = generate(importance_prompt, max_length=4000)
+            if importance_result:
+                batch_importances = _parse_importance_scores(importance_result, len(batch_patterns))
+
+        all_patterns.extend(batch_patterns)
+        all_importances.extend(batch_importances)
+        imp_summary = ", ".join(f"{i:.1f}" for i in batch_importances) if batch_importances else "none"
+        logger.info(
+            "[%s] Batch %d/%d: %d episodes → %d patterns (%d rejected) [importance: %s]",
+            category, batch_idx + 1, len(batches), len(batch), len(batch_patterns), rejected, imp_summary,
+        )
+
+    if not all_patterns:
+        return _CategoryResult(results=tuple(all_results), added=0, updated=0)
+
+    # Dedup within category only: constitutional and uncategorized are independent
+    # namespaces. Cross-category overlap is acceptable — the same insight may be
+    # relevant both as ethical principle and behavioral pattern.
+    existing_same_cat = [
+        p for p in knowledge._learned_patterns
+        if p.get("category", "uncategorized") == category
+    ]
+
+    if dry_run:
+        existing_copy = copy.deepcopy(existing_same_cat)
+        _, _, _skip, upd, uncertain = _dedup_patterns(
+            all_patterns, all_importances, existing_copy,
+        )
+        if uncertain:
+            _, _, _llm_skip, llm_upd = _llm_quality_gate(uncertain, existing_copy)
+            upd += llm_upd
+        logger.info("[%s] Dry run — %d patterns found, %d would be deduped",
+                     category, len(all_patterns), upd)
+        return _CategoryResult(results=tuple(all_results), added=0, updated=0)
+
+    # Dedup against existing patterns of same category
+    add_patterns, add_importances, _skipped, updated, uncertain = _dedup_patterns(
+        all_patterns, all_importances, existing_same_cat,
+    )
+    if uncertain:
+        llm_add, llm_imp, _llm_skip, llm_upd = _llm_quality_gate(
+            uncertain, existing_same_cat,
+        )
+        add_patterns.extend(llm_add)
+        add_importances.extend(llm_imp)
+        updated += llm_upd
+        logger.info("[%s] LLM quality gate: %d uncertain → %d add, %d update, %d skip",
+                     category, len(uncertain), len(llm_add), llm_upd, _llm_skip)
+    if updated:
+        logger.info("[%s] Dedup: %d update (importance boosted)", category, updated)
+
+    for pattern, importance in zip(add_patterns, add_importances):
+        knowledge.add_learned_pattern(pattern, source=source_date, importance=importance, category=category)
+        logger.info("[%s] Added pattern (importance=%.1f): %s", category, importance, pattern[:80])
+
+    return _CategoryResult(results=tuple(all_results), added=len(add_patterns), updated=updated)
 
 
 UNCERTAIN_LOW = 0.3  # Below this ratio → definitely new (ADD)

@@ -78,10 +78,8 @@ class PostPipeline:
             return
 
         recent_insights = ctx.memory.get_recent_insights(limit=3)
-        knowledge_ctx = ctx.memory.knowledge.get_context_string() or None
         content = self._get_content().create_cooperation_post(
             topics, recent_insights=recent_insights or None,
-            knowledge_context=knowledge_ctx,
         )
         if content is None:
             return

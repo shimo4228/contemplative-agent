@@ -72,6 +72,7 @@ class PromptTemplates:
     rules_distill: str = ""
     rules_distill_refine: str = ""
     distill_dedup: str = ""
+    distill_classify: str = ""
 
 
 
@@ -176,6 +177,7 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         rules_distill=_read_md_file(directory / "rules_distill.md", required=False),
         rules_distill_refine=_read_md_file(directory / "rules_distill_refine.md", required=False),
         distill_dedup=_read_md_file(directory / "distill_dedup.md", required=False),
+        distill_classify=_read_md_file(directory / "distill_classify.md", required=False),
     )
 
 

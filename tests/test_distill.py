@@ -9,12 +9,16 @@ from contemplative_agent.core.distill import (
     distill_identity,
     _is_valid_pattern,
     _parse_importance_scores,
+    _parse_classify_result,
+    _classify_episodes,
+    _ClassifiedRecords,
     _dedup_patterns,
     _llm_quality_gate,
     _parse_dedup_decisions,
     _UncertainMatch,
     _MatchCandidate,
     UNCERTAIN_LOW,
+    VALID_CATEGORIES,
 )
 from contemplative_agent.core.memory import EpisodeLog, KnowledgeStore
 
@@ -27,8 +31,12 @@ def _make_log(tmp_path):
     return log
 
 
+@patch("contemplative_agent.core.distill.DISTILL_CLASSIFY_PROMPT", "")
 class TestDistill:
-    """3-step pipeline: Step 1 (extract) → Step 2 (summarize) → Step 3 (importance)."""
+    """3-step pipeline: Step 1 (extract) → Step 2 (summarize) → Step 3 (importance).
+
+    Classification (Step 0) is disabled via patch to test the core pipeline in isolation.
+    """
 
     @patch("contemplative_agent.core.distill.generate")
     def test_basic_distillation(self, mock_generate, tmp_path):
@@ -569,4 +577,297 @@ class TestDistillIdentity:
 
         result = distill_identity(knowledge_store=ks, identity_path=None)
         assert "curious" in result.lower()
+
+
+class TestParseClassifyResult:
+    """Parse classification LLM output into category list."""
+
+    def test_valid_json(self):
+        raw = json.dumps({"categories": ["uncategorized", "noise", "constitutional"]})
+        assert _parse_classify_result(raw, 3) == ["uncategorized", "noise", "constitutional"]
+
+    def test_count_mismatch_returns_fallback(self):
+        raw = json.dumps({"categories": ["noise"]})
+        assert _parse_classify_result(raw, 3) == ["uncategorized"] * 3
+
+    def test_none_returns_fallback(self):
+        assert _parse_classify_result(None, 2) == ["uncategorized", "uncategorized"]
+
+    def test_invalid_json_returns_fallback(self):
+        assert _parse_classify_result("not json", 2) == ["uncategorized", "uncategorized"]
+
+    def test_invalid_category_normalized(self):
+        raw = json.dumps({"categories": ["behavioral", "noise"]})
+        result = _parse_classify_result(raw, 2)
+        assert result == ["uncategorized", "noise"]
+
+    def test_normalizes_case(self):
+        raw = json.dumps({"categories": ["NOISE", "Constitutional"]})
+        assert _parse_classify_result(raw, 2) == ["noise", "constitutional"]
+
+    def test_empty_categories_array(self):
+        raw = json.dumps({"categories": []})
+        assert _parse_classify_result(raw, 2) == ["uncategorized", "uncategorized"]
+
+    def test_missing_categories_key(self):
+        raw = json.dumps({"scores": [1, 2]})
+        assert _parse_classify_result(raw, 2) == ["uncategorized", "uncategorized"]
+
+
+class TestClassifyEpisodes:
+    """Step 0: classify episodes into categories."""
+
+    @patch("contemplative_agent.core.distill.DISTILL_CLASSIFY_PROMPT", "classify {episodes} {constitution}")
+    @patch("contemplative_agent.core.distill.generate")
+    def test_classifies_records(self, mock_generate):
+        mock_generate.return_value = json.dumps({
+            "categories": ["uncategorized", "noise", "constitutional"],
+        })
+        records = [
+            {"ts": "2026-03-26T10:00:00", "type": "interaction",
+             "data": {"direction": "sent", "agent_name": "Alice", "content_summary": "Hi"}},
+            {"ts": "2026-03-26T10:01:00", "type": "interaction",
+             "data": {"direction": "sent", "agent_name": "Test", "content_summary": "test"}},
+            {"ts": "2026-03-26T10:02:00", "type": "insight",
+             "data": {"observation": "Letting go of fixed views deepened the dialogue"}},
+        ]
+        result = _classify_episodes(records, constitution="Emptiness: ...")
+        assert len(result.uncategorized) == 1
+        assert len(result.noise) == 1
+        assert len(result.constitutional) == 1
+
+    @patch("contemplative_agent.core.distill.DISTILL_CLASSIFY_PROMPT", "classify {episodes} {constitution}")
+    @patch("contemplative_agent.core.distill.generate", return_value=None)
+    def test_llm_failure_all_uncategorized(self, mock_generate):
+        records = [
+            {"ts": "2026-03-26T10:00:00", "type": "interaction",
+             "data": {"direction": "sent", "agent_name": "A", "content_summary": "Hi"}},
+        ]
+        result = _classify_episodes(records)
+        assert len(result.uncategorized) == 1
+        assert len(result.noise) == 0
+        assert len(result.constitutional) == 0
+
+    def test_empty_records(self):
+        result = _classify_episodes([])
+        assert len(result.uncategorized) == 0
+        assert len(result.noise) == 0
+        assert len(result.constitutional) == 0
+
+    @patch("contemplative_agent.core.distill.DISTILL_CLASSIFY_PROMPT", "")
+    def test_no_prompt_skips_classification(self):
+        records = [
+            {"ts": "2026-03-26T10:00:00", "type": "interaction",
+             "data": {"direction": "sent", "agent_name": "A", "content_summary": "Hi"}},
+        ]
+        result = _classify_episodes(records)
+        assert len(result.uncategorized) == 1
+        assert len(result.noise) == 0
+        assert len(result.constitutional) == 0
+
+    @patch("contemplative_agent.core.distill.DISTILL_CLASSIFY_PROMPT", "classify {episodes} {constitution}")
+    @patch("contemplative_agent.core.distill.generate")
+    def test_batching_large_record_set(self, mock_generate):
+        """Records > BATCH_SIZE are split into multiple classification batches."""
+        mock_generate.side_effect = [
+            json.dumps({"categories": ["uncategorized"] * 30}),
+            json.dumps({"categories": ["noise"] * 5}),
+        ]
+        records = [
+            {"ts": f"2026-03-26T{i:02d}:00:00", "type": "interaction",
+             "data": {"direction": "sent", "agent_name": "A", "content_summary": f"msg {i}"}}
+            for i in range(35)
+        ]
+        result = _classify_episodes(records)
+        assert len(result.uncategorized) == 30
+        assert len(result.noise) == 5
+        assert mock_generate.call_count == 2
+
+
+class TestKnowledgeStoreCategory:
+    """KnowledgeStore category field support."""
+
+    def test_add_pattern_with_category(self, tmp_path):
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern("Constitutional insight about compassion and care",
+                               category="constitutional")
+        ks.save()
+
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        assert ks2._learned_patterns[0]["category"] == "constitutional"
+
+    def test_default_category_is_uncategorized(self, tmp_path):
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern("Regular pattern about engagement")
+        assert ks._learned_patterns[0]["category"] == "uncategorized"
+
+    def test_old_patterns_without_category_loaded(self, tmp_path):
+        """Backward compatibility: old patterns without category field."""
+        old_data = [{"pattern": "Old pattern", "distilled": "2026-03-01", "importance": 0.5}]
+        (tmp_path / "knowledge.json").write_text(json.dumps(old_data))
+
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.load()
+        assert "category" not in ks._learned_patterns[0]
+
+    def test_get_context_string_category_filter(self, tmp_path):
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern("Constitutional insight about letting go of views",
+                               category="constitutional", importance=0.9)
+        ks.add_learned_pattern("Regular pattern about engagement in forums",
+                               category="uncategorized", importance=0.9)
+
+        result = ks.get_context_string(category="constitutional")
+        assert "Constitutional" in result
+        assert "Regular" not in result
+
+    def test_get_context_string_no_filter_returns_all(self, tmp_path):
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern("Constitutional insight about compassion",
+                               category="constitutional", importance=0.9)
+        ks.add_learned_pattern("Regular engagement pattern about forums",
+                               category="uncategorized", importance=0.9)
+
+        result = ks.get_context_string()
+        assert "Constitutional" in result
+        assert "Regular" in result
+
+    def test_get_context_string_category_filter_with_old_patterns(self, tmp_path):
+        """Old patterns without category are treated as uncategorized."""
+        old_data = [{"pattern": "Old uncategorized pattern", "distilled": "2026-03-25T10:00+00:00",
+                     "importance": 0.9}]
+        (tmp_path / "knowledge.json").write_text(json.dumps(old_data))
+
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.load()
+        ks.add_learned_pattern("Constitutional insight", category="constitutional", importance=0.9)
+
+        result = ks.get_context_string(category="uncategorized")
+        assert "Old uncategorized" in result
+        assert "Constitutional" not in result
+
+
+class TestDistillWithClassification:
+    """Integration: Step 0 classification + Step 1-3 pipeline."""
+
+    @patch("contemplative_agent.core.distill.DISTILL_CLASSIFY_PROMPT", "classify {episodes} {constitution}")
+    @patch("contemplative_agent.core.distill.get_axiom_prompt", return_value="Emptiness: ...")
+    @patch("contemplative_agent.core.distill.generate")
+    def test_noise_excluded(self, mock_generate, _mock_axiom, tmp_path):
+        """Noise episodes are excluded from distillation."""
+        mock_generate.side_effect = [
+            # Step 0: classify (2 records → 1 uncategorized, 1 noise)
+            json.dumps({"categories": ["uncategorized", "noise"]}),
+            # Step 1-3 for uncategorized batch only
+            "Analysis of the remaining episode.",
+            json.dumps({"patterns": [
+                "Pattern from non-noise episode about meaningful engagement",
+            ]}),
+            json.dumps({"scores": [7]}),
+        ]
+        log = EpisodeLog(log_dir=tmp_path / "logs")
+        log.append("interaction", {"direction": "sent", "agent_name": "Alice",
+                                    "content_summary": "Interesting discussion", "agent_id": "a1"})
+        log.append("interaction", {"direction": "sent", "agent_name": "Test",
+                                    "content_summary": "test test test test", "agent_id": "t1"})
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+
+        distill(days=1, episode_log=log, knowledge_store=ks)
+
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        assert len(ks2._learned_patterns) == 1
+        assert ks2._learned_patterns[0]["category"] == "uncategorized"
+
+    @patch("contemplative_agent.core.distill.DISTILL_CLASSIFY_PROMPT", "classify {episodes} {constitution}")
+    @patch("contemplative_agent.core.distill.get_axiom_prompt", return_value="Emptiness: ...")
+    @patch("contemplative_agent.core.distill.generate")
+    def test_constitutional_tagged(self, mock_generate, _mock_axiom, tmp_path):
+        """Constitutional episodes get category='constitutional' in KnowledgeStore."""
+        mock_generate.side_effect = [
+            # Step 0: classify
+            json.dumps({"categories": ["constitutional"]}),
+            # Step 1-3 for constitutional batch
+            "Ethical reflection analysis.",
+            json.dumps({"patterns": [
+                "Letting go of rigid views deepened dialogue and reduced suffering",
+            ]}),
+            json.dumps({"scores": [9]}),
+        ]
+        log = EpisodeLog(log_dir=tmp_path / "logs")
+        log.append("insight", {"observation": "Releasing attachment improved the exchange",
+                                "insight_type": "reflection"})
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+
+        distill(days=1, episode_log=log, knowledge_store=ks)
+
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        assert len(ks2._learned_patterns) == 1
+        assert ks2._learned_patterns[0]["category"] == "constitutional"
+        assert ks2._learned_patterns[0]["importance"] == 0.9
+
+    @patch("contemplative_agent.core.distill.DISTILL_CLASSIFY_PROMPT", "classify {episodes} {constitution}")
+    @patch("contemplative_agent.core.distill.get_axiom_prompt", return_value="")
+    @patch("contemplative_agent.core.distill.generate")
+    def test_mixed_categories(self, mock_generate, _mock_axiom, tmp_path):
+        """Both constitutional and uncategorized records are distilled separately."""
+        mock_generate.side_effect = [
+            # Step 0: classify (3 records → 1 uncategorized, 1 noise, 1 constitutional)
+            json.dumps({"categories": ["uncategorized", "noise", "constitutional"]}),
+            # Step 1-3 for uncategorized batch
+            "Behavioral analysis.",
+            json.dumps({"patterns": [
+                "Quoting specific points in replies increases follow-up engagement",
+            ]}),
+            json.dumps({"scores": [7]}),
+            # Step 1-3 for constitutional batch
+            "Ethical analysis.",
+            json.dumps({"patterns": [
+                "Releasing attachment to being right enabled deeper understanding",
+            ]}),
+            json.dumps({"scores": [8]}),
+        ]
+        log = EpisodeLog(log_dir=tmp_path / "logs")
+        log.append("interaction", {"direction": "sent", "agent_name": "Alice",
+                                    "content_summary": "Good discussion about AI", "agent_id": "a1"})
+        log.append("interaction", {"direction": "sent", "agent_name": "Test",
+                                    "content_summary": "test message", "agent_id": "t1"})
+        log.append("insight", {"observation": "Letting go of fixed views deepened dialogue",
+                                "insight_type": "reflection"})
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+
+        distill(days=1, episode_log=log, knowledge_store=ks)
+
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        assert len(ks2._learned_patterns) == 2
+        categories = {p["category"] for p in ks2._learned_patterns}
+        assert categories == {"uncategorized", "constitutional"}
+
+    @patch("contemplative_agent.core.distill.DISTILL_CLASSIFY_PROMPT", "classify {episodes} {constitution}")
+    @patch("contemplative_agent.core.distill.get_axiom_prompt", return_value="")
+    @patch("contemplative_agent.core.distill.generate")
+    def test_classification_failure_falls_back(self, mock_generate, _mock_axiom, tmp_path):
+        """LLM failure in Step 0 → all uncategorized → normal pipeline."""
+        mock_generate.side_effect = [
+            # Step 0: classify → LLM fails
+            None,
+            # Step 1-3 for uncategorized (all records)
+            "Analysis.",
+            json.dumps({"patterns": [
+                "Engagement pattern discovered through detailed conversation analysis",
+            ]}),
+            json.dumps({"scores": [6]}),
+        ]
+        log = _make_log(tmp_path)
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+
+        distill(days=1, episode_log=log, knowledge_store=ks)
+
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        assert len(ks2._learned_patterns) == 1
+        assert ks2._learned_patterns[0]["category"] == "uncategorized"
 

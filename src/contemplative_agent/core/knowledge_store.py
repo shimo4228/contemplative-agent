@@ -36,11 +36,13 @@ class KnowledgeStore:
         distilled: Optional[str] = None,
         source: Optional[str] = None,
         importance: float = 0.5,
+        category: str = "uncategorized",
     ) -> None:
         entry: dict = {
             "pattern": pattern,
             "distilled": distilled or datetime.now(timezone.utc).isoformat(timespec="minutes"),
             "importance": importance,
+            "category": category,
         }
         if source:
             entry["source"] = source
@@ -49,20 +51,38 @@ class KnowledgeStore:
     def replace_learned_pattern(self, index: int, pattern: str) -> None:
         """Replace an existing learned pattern at the given index."""
         if 0 <= index < len(self._learned_patterns):
+            old = self._learned_patterns[index]
             self._learned_patterns[index] = {
                 "pattern": pattern,
                 "distilled": datetime.now(timezone.utc).isoformat(timespec="minutes"),
                 "importance": 0.5,
+                "category": old.get("category", "uncategorized"),
             }
 
-    def get_learned_patterns(self) -> List[str]:
-        """Return a copy of the learned patterns (text only)."""
-        return [p["pattern"] for p in self._learned_patterns]
+    def get_learned_patterns(self, category: Optional[str] = None) -> List[str]:
+        """Return a copy of the learned patterns (text only).
 
-    def get_learned_patterns_since(self, since: str) -> List[str]:
-        """Return patterns distilled after the given ISO timestamp."""
+        Args:
+            category: If provided, only return patterns matching this category.
+                      Patterns without a category field are treated as "uncategorized".
+        """
+        pool = self._learned_patterns
+        if category is not None:
+            pool = [p for p in pool if p.get("category", "uncategorized") == category]
+        return [p["pattern"] for p in pool]
+
+    def get_learned_patterns_since(self, since: str, category: Optional[str] = None) -> List[str]:
+        """Return patterns distilled after the given ISO timestamp.
+
+        Args:
+            since: ISO timestamp cutoff.
+            category: If provided, only return patterns matching this category.
+        """
+        pool = self._learned_patterns
+        if category is not None:
+            pool = [p for p in pool if p.get("category", "uncategorized") == category]
         return [
-            p["pattern"] for p in self._learned_patterns
+            p["pattern"] for p in pool
             if p.get("distilled", "") > since
         ]
 
@@ -82,17 +102,27 @@ class KnowledgeStore:
             return base * 0.1
         return max(0.0, min(1.0, base * (0.95 ** days)))
 
-    def get_context_string(self, limit: int = 50) -> str:
+    def get_context_string(self, limit: int = 50, category: Optional[str] = None) -> str:
         """Return learned patterns as a bullet list for LLM context injection.
 
         Returns top `limit` patterns sorted by effective importance
         (base importance with time decay). Default 50 balances signal
         quality with coverage for qwen3.5:9b's 32k context.
+
+        Args:
+            limit: Maximum number of patterns to return.
+            category: If provided, only return patterns matching this category.
+                      Patterns without a category field are treated as "uncategorized".
         """
         if not self._learned_patterns:
             return ""
+        pool = self._learned_patterns
+        if category is not None:
+            pool = [p for p in pool if p.get("category", "uncategorized") == category]
+        if not pool:
+            return ""
         scored = sorted(
-            self._learned_patterns,
+            pool,
             key=self._effective_importance,
             reverse=True,
         )
@@ -175,6 +205,8 @@ class KnowledgeStore:
                     entry["source"] = item["source"]
                 if item.get("last_accessed") is not None:
                     entry["last_accessed"] = item["last_accessed"]
+                if item.get("category") is not None:
+                    entry["category"] = item["category"]
                 self._learned_patterns.append(entry)
             elif isinstance(item, str):
                 # Bare string — legacy format

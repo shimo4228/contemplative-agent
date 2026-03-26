@@ -52,19 +52,6 @@ def _build_context_section(
     return section
 
 
-def _build_knowledge_section(knowledge_context: Optional[str]) -> str:
-    """Build the accumulated knowledge section for LLM prompts.
-
-    Returns empty string if knowledge_context is None/empty.
-    """
-    if not knowledge_context:
-        return ""
-    return (
-        "\n\nYour accumulated knowledge:\n"
-        + wrap_untrusted_content(knowledge_context)
-        + "\n"
-    )
-
 
 def score_relevance(post_text: str) -> float:
     """Score a post's relevance to domain topics (0.0 to 1.0)."""
@@ -92,7 +79,6 @@ def generate_comment(post_text: str) -> Optional[str]:
 def generate_cooperation_post(
     feed_topics: str,
     recent_insights: Optional[list[str]] = None,
-    knowledge_context: Optional[str] = None,
 ) -> Optional[str]:
     """Generate a post that connects feed trends to contemplative axioms."""
     insights_section = _build_context_section(
@@ -101,12 +87,10 @@ def generate_cooperation_post(
         footer="Take these into account when writing.",
     )
 
-    knowledge_section = _build_knowledge_section(knowledge_context)
-
     prompt = _resolve_domain_prompt(COOPERATION_POST_PROMPT).format(
         feed_topics=wrap_untrusted_content(feed_topics),
         insights_section=insights_section,
-        knowledge_section=knowledge_section,
+        knowledge_section="",
     )
     return generate(prompt, max_length=MAX_POST_LENGTH)
 
@@ -115,18 +99,15 @@ def generate_reply(
     original_post: str,
     their_comment: str,
     conversation_history: Optional[list[str]] = None,
-    knowledge_context: Optional[str] = None,
 ) -> Optional[str]:
     """Generate a reply that continues a conversation thread."""
     history_section = _build_context_section(
         conversation_history, "Previous exchanges with this agent", limit=5,
     )
 
-    knowledge_section = _build_knowledge_section(knowledge_context)
-
     prompt = REPLY_PROMPT.format(
         history_section=history_section,
-        knowledge_section=knowledge_section,
+        knowledge_section="",
         original_post=wrap_untrusted_content(original_post),
         their_comment=wrap_untrusted_content(their_comment),
     )

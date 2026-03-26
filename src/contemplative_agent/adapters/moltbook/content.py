@@ -49,11 +49,9 @@ class ContentManager:
         self,
         feed_topics: str,
         recent_insights: Optional[list[str]] = None,
-        knowledge_context: Optional[str] = None,
     ) -> Optional[str]:
         post = generate_cooperation_post(
             feed_topics, recent_insights=recent_insights,
-            knowledge_context=knowledge_context,
         )
         if post is None:
             return None
