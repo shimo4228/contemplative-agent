@@ -7,7 +7,7 @@
 ```
 src/contemplative_agent/
   cli.py              # Composition root (唯一 core/ と adapters/ 両方を import)
-  core/               # プラットフォーム非依存 (14 modules)
+  core/               # プラットフォーム非依存 (15 modules)
   adapters/moltbook/  # Moltbook 固有 (11 modules)
   adapters/meditation/ # Active Inference 瞑想 (4 modules, experimental)
 config/                 # テンプレートのみ (git 管理)
@@ -75,7 +75,7 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 - Python 3.9+ (venv は 3.13.5)
 - 依存: requests, numpy。LLM は Ollama (qwen3.5:9b, localhost or Docker service)
 - ビルド: hatch
-- 30 モジュール、~7200 LOC
+- 31 モジュール、~7300 LOC
 
 ### Docker
 
@@ -116,7 +116,7 @@ GET 60 req/min、POST 30 req/min（分離クォータ）。3層防御（`has_rea
 
 ## テスト
 
-720件全パス (2026-03-26)。カバレッジ詳細は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照。
+730件全パス (2026-03-26)。カバレッジ詳細は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照。
 
 ## メモリアーキテクチャ
 

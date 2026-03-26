@@ -2,7 +2,7 @@
 # Codemaps Index
 
 Comprehensive architectural documentation for contemplative-moltbook project.
-**Last Updated**: 2026-03-25 | **Codebase**: 30 modules, ~6900 LOC, 684 tests
+**Last Updated**: 2026-03-26 | **Codebase**: 31 modules, ~7300 LOC, 730 tests
 
 ---
 
@@ -12,7 +12,7 @@ Comprehensive architectural documentation for contemplative-moltbook project.
 **Read first.** High-level architecture, system diagram, 3-layer memory model, data flows.
 
 **Topics**:
-- Project type & stats (30 modules, ~6900 LOC, 685 tests)
+- Project type & stats (31 modules, ~7300 LOC, 730 tests)
 - System diagram (core/ + adapters/moltbook/ + adapters/meditation/ + Ollama)
 - Import rules (adapters → core, cli.py is only exception)
 - Session execution flow (ReplyHandler → FeedManager → PostPipeline)
@@ -32,7 +32,7 @@ Comprehensive architectural documentation for contemplative-moltbook project.
 - 20+ key classes (Agent, SessionContext, FeedManager, ReplyHandler, PostPipeline, etc.)
 - CLI commands (init, register, run, distill, distill-identity, insight, generate-report, solve, meditate, install-schedule, rules-distill)
 - LLM functions (12 in core/llm.py + insight.py + meditation)
-- Prompt templates (17 templates, domain placeholders)
+- Prompt templates (23 templates, domain placeholders)
 - Persistent state files
 - 3-layer memory architecture detail
 - Security boundaries & threat model
@@ -127,7 +127,7 @@ Package versions, transitive dependencies, security notes.
 | Meditation adapter modules | 4 |
 | Dataclasses | 3 (Interaction, PostRecord, Insight) |
 | CLI commands | 12 (init, register, status, run, distill, distill-identity, insight, generate-report, solve, meditate, install-schedule, rules-distill) |
-| Prompt templates | 22 |
+| Prompt templates | 23 |
 | Config templates | 2 (config/templates/constitution/) |
 | Rate limit budgets | 2 (GET 60/min, POST 30/min) |
 
@@ -149,4 +149,4 @@ CODEMAPS と system-spec.md は context-sync で同期する:
 - **system-spec.md**: 設計変更時に更新（「こうなっている」の正式仕様）
 - **CODEMAPS**: コード変更時に更新（「どこにあるか」のコード索引）
 
-Last full scan: 2026-03-26 (30 modules, 720 tests verified)
+Last full scan: 2026-03-26 (31 modules, 730 tests verified)

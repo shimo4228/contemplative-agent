@@ -5,7 +5,7 @@ An autonomous AI agent framework. Structurally minimizes privileges, enforced vi
 > **Audience**: External researchers (interested in memory architecture and agent design) and AI agents (Claude Code, etc.)
 > **Role separation**: This document describes "how it works." For "why it was built this way," see [docs/adr/](../adr/README.md). For "which file and function," see [docs/CODEMAPS/](../CODEMAPS/INDEX.md).
 
-**Stats**: 30 modules, ~7200 LOC, Python 3.9+, 720 tests
+**Stats**: 31 modules, ~7300 LOC, Python 3.9+, 730 tests
 **Dependencies**: requests, numpy. LLM: Ollama (qwen3.5:9b, localhost)
 
 **Papers**:
@@ -31,7 +31,7 @@ core/ (14 modules)  <──  adapters/moltbook/ (11 modules)  <──  cli.py
 
 | Layer | Modules | Responsibility |
 |-------|---------|----------------|
-| **core/** (14) | llm, prompts, memory, episode_log, knowledge_store, distill, insight, rules_distill, scheduler, config, domain, report, metrics, _io | Platform-independent foundation |
+| **core/** (15) | llm, prompts, memory, episode_log, knowledge_store, distill, constitution, insight, rules_distill, scheduler, config, domain, report, metrics, _io | Platform-independent foundation |
 | **adapters/moltbook/** (11) | agent, session_context, feed_manager, reply_handler, post_pipeline, client, auth, verification, content, llm_functions, config | Moltbook SNS specific implementation |
 | **adapters/meditation/** (4) | config, pomdp, meditate, report | Active Inference meditation (experimental) |
 
@@ -111,6 +111,7 @@ EpisodeLog (JSONL)
 | **distill-identity** | KnowledgeStore + current Identity | Identity markdown | Manual only |
 | **insight** | KnowledgeStore patterns (uncategorized only) | skills/*.md files | Manual only |
 | **rules-distill** | KnowledgeStore patterns (uncategorized only) | rules/*.md files | Manual only |
+| **amend-constitution** | KnowledgeStore patterns (constitutional only) + current constitution | Amended constitution markdown | Manual only |
 | **meditate** | EpisodeLog | KnowledgeStore patterns | Manual only (experimental) |
 
 ### Cognitive Architecture Mapping
