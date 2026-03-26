@@ -104,6 +104,12 @@ docker compose down                                     # 停止
 
 セキュリティモデルの詳細は ADR-0007、Docker 分離は ADR-0006 を参照。
 
+## ドキュメント言語方針
+
+- `docs/spec/system-spec.md` は英語で記述する（外部研究者向け）
+- CLAUDE.md、docs/adr/、docs/CODEMAPS/ は日本語
+- README.md は英語（README.ja.md が日本語版）
+
 ## API レート制限
 
 GET 60 req/min、POST 30 req/min（分離クォータ）。3層防御（`has_read_budget()`/`has_write_budget()` バジェット、プロアクティブ待機、リアクティブバックオフ）。API 仕様の詳細は `WebFetch https://www.moltbook.com/skill.md` で最新を参照。
