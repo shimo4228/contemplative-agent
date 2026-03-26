@@ -57,6 +57,8 @@ contemplative-agent insight --dry-run             # 行動スキル抽出 (dry r
 contemplative-agent insight                       # 行動スキルを skills/ に生成
 contemplative-agent rules-distill --dry-run       # 行動ルール蒸留 (dry run, 手動のみ)
 contemplative-agent rules-distill --full          # 全パターンからルール蒸留
+contemplative-agent amend-constitution --dry-run  # 憲法改正案を起草 (dry run, 手動のみ)
+contemplative-agent amend-constitution            # 憲法改正を実行
 contemplative-agent solve "ttwweennttyy pplluuss ffiivvee"
 contemplative-agent generate-report               # 本日のアクティビティレポート生成
 contemplative-agent generate-report --all          # 全日分を生成
