@@ -345,6 +345,14 @@ def main() -> None:
         "--full", action="store_true", help="Process all patterns (not just new ones)"
     )
 
+    # amend-constitution
+    amend_parser = subparsers.add_parser(
+        "amend-constitution", help="Propose amendments to the constitution from accumulated ethical experience"
+    )
+    amend_parser.add_argument(
+        "--dry-run", action="store_true", help="Show proposed amendments without writing"
+    )
+
     # report
     report_parser = subparsers.add_parser(
         "report", help="Show self-improvement metrics from episode logs"
@@ -550,6 +558,22 @@ def main() -> None:
             full=args.full,
         )
         print(result)
+        return
+
+    if args.command == "amend-constitution":
+        from .core.constitution import amend_constitution
+        from .core.memory import KnowledgeStore
+
+        knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
+        constitution_dir = args.constitution_dir or CONSTITUTION_DIR
+        result = amend_constitution(
+            knowledge_store=knowledge_store,
+            constitution_dir=constitution_dir,
+            dry_run=args.dry_run,
+        )
+        print(result)
+        if not args.dry_run:
+            _run_sync()
         return
 
     if args.command == "report":
