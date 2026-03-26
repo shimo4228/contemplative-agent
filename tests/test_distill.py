@@ -88,6 +88,24 @@ class TestDistill:
         assert "Dry pattern" in result
         assert not (tmp_path / "knowledge.json").exists()
 
+    @patch("contemplative_agent.core.distill.generate")
+    def test_code_fenced_json_parsed(self, mock_generate, tmp_path):
+        """JSON wrapped in markdown code fences is parsed correctly."""
+        mock_generate.side_effect = [
+            "Some analysis.",
+            '```json\n{"patterns": ["Fenced pattern about recurring behavior in conversations"]}\n```',
+            json.dumps({"scores": [7]}),
+        ]
+        log = _make_log(tmp_path)
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+
+        result = distill(days=1, episode_log=log, knowledge_store=ks)
+        assert "Fenced pattern" in result
+
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        assert any("Fenced pattern" in p for p in ks2.get_learned_patterns())
+
     def test_empty_episodes(self, tmp_path):
         log = EpisodeLog(log_dir=tmp_path / "logs")
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")

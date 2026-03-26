@@ -361,8 +361,15 @@ def _distill_category(
         all_results.append(refined)
 
         raw_patterns: List[str] = []
+        # Strip markdown code fences before JSON parsing
+        json_text = refined.strip()
+        if json_text.startswith("```"):
+            lines = json_text.splitlines()
+            # Remove first line (```json) and last line (```)
+            lines = [l for l in lines if not l.strip().startswith("```")]
+            json_text = "\n".join(lines)
         try:
-            parsed = json_mod.loads(refined)
+            parsed = json_mod.loads(json_text)
             for item in parsed.get("patterns", []):
                 text = str(item).strip() if item else ""
                 if text:
