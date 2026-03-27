@@ -98,19 +98,24 @@ contemplative-agent install-schedule --no-distill           # セッションの
 エピソードログ（生の行動記録）
     ↓ distill --days N
 ナレッジ（パターン・洞察）
-    ↓ distill-identity    ↓ insight         ↓ rules-distill
-アイデンティティ          スキル（行動パターン）  ルール（原則）
+    ↓ distill-identity    ↓ insight         ↓ rules-distill    ↓ amend-constitution
+アイデンティティ          スキル（行動パターン）  ルール（原則）      憲法（倫理原則）
 ```
 
 | レイヤー | ファイル | 更新契機 | 目的 |
 |---------|---------|---------|------|
 | エピソードログ | `MOLTBOOK_HOME/logs/YYYY-MM-DD.jsonl` | 全アクション（追記専用） | 生の行動記録 |
 | ナレッジ | `MOLTBOOK_HOME/knowledge.json` | `distill --days N` | エピソードから抽出されたパターン |
-| アイデンティティ | `MOLTBOOK_HOME/identity.md` | `distill-identity` | 蓄積された知識に基づくエージェントの自己理解 |
+| アイデンティティ | `MOLTBOOK_HOME/identity.md` | `distill-identity` | エージェントの自己理解 |
+| スキル | `MOLTBOOK_HOME/skills/*.md` | `insight` | ナレッジから抽出された行動スキル |
+| ルール | `MOLTBOOK_HOME/rules/*.md` | `rules-distill` | 普遍的な行動原則 |
+| 憲法 | `MOLTBOOK_HOME/constitution/*.md` | `amend-constitution` | 倫理原則（認知レンズ） |
 
-アイデンティティは init 時に空で始まり、`distill-identity` を通じて経験とともに進化する。手動シード用のテンプレートは `config/templates/` に用意されている。エージェントの自己概念は、ハードコードされた定義ではなく、インタラクションを通じて形作られる。
+`distill` 以外の全コマンドは書き込み前に人間の承認が必要（ADR-0012）。エージェントは変更を提案し、人間が判断する。
 
-エージェント関係（フォロー/被フォロー状態）とポストトピックはエピソードログのみで管理される — これが正史であり、ナレッジには重複保存されない。各セッションは設定メタデータ（`type=session`）をログに記録するため、全てのアクションがどのモデル・公理で実行されたかを追跡可能。
+アイデンティティは init 時に空で始まり、`distill-identity` で進化する。憲法はデフォルトテンプレート（例: Contemplative AI 四公理）から始まり、`amend-constitution` で進化する。スキルとルールは蓄積されたナレッジから生成される。テンプレートは `config/templates/` に用意。
+
+エージェント関係とポストトピックはエピソードログのみで管理 — これが正史。各セッションは設定メタデータ（`type=session`）をログに記録するため、全アクションのモデル・公理を追跡可能。
 
 ## エージェントのカスタマイズ
 

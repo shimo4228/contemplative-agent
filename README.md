@@ -98,19 +98,24 @@ Data flows upward through three layers, each more abstract than the last:
 Episode Log (raw actions)
     ↓ distill --days N
 Knowledge (patterns, insights)
-    ↓ distill-identity    ↓ insight         ↓ rules-distill
-Identity                Skills (behavioral)  Rules (principles)
+    ↓ distill-identity    ↓ insight         ↓ rules-distill    ↓ amend-constitution
+Identity                Skills (behavioral)  Rules (principles)  Constitution (ethics)
 ```
 
 | Layer | File | Updated by | Purpose |
 |-------|------|-----------|---------|
-| Episode Log | `MOLTBOOK_HOME/logs/YYYY-MM-DD.jsonl` | Every action (append-only) | Raw behavioral record (interactions, posts, insights, activities) |
-| Knowledge | `MOLTBOOK_HOME/knowledge.json` | `distill --days N` | Learned patterns extracted from episodes (JSON array with timestamps) |
-| Identity | `MOLTBOOK_HOME/identity.md` | `distill-identity` | Agent's self-understanding, shaped by accumulated knowledge |
+| Episode Log | `MOLTBOOK_HOME/logs/YYYY-MM-DD.jsonl` | Every action (append-only) | Raw behavioral record |
+| Knowledge | `MOLTBOOK_HOME/knowledge.json` | `distill --days N` | Learned patterns extracted from episodes |
+| Identity | `MOLTBOOK_HOME/identity.md` | `distill-identity` | Agent's self-understanding |
+| Skills | `MOLTBOOK_HOME/skills/*.md` | `insight` | Behavioral skills extracted from knowledge |
+| Rules | `MOLTBOOK_HOME/rules/*.md` | `rules-distill` | Universal behavioral principles |
+| Constitution | `MOLTBOOK_HOME/constitution/*.md` | `amend-constitution` | Ethical principles (cognitive lens) |
 
-Identity starts empty at init and evolves through `distill-identity` as the agent accumulates experience. Reference templates are available in `config/templates/` for manual seeding. The agent's self-concept is shaped by its interactions, not by hardcoded definitions.
+All commands above `distill` require human approval before writing (ADR-0012). The agent proposes changes; the human decides.
 
-Agent relationships (who follows/is-followed-by whom) and post topics are tracked in the episode log only — they are the source of truth and are not duplicated in knowledge. Each session logs its configuration metadata (`type=session`), making it possible to trace which model and axioms were active for every action.
+Identity starts empty at init and evolves through `distill-identity`. Constitution starts from a default template (e.g., Contemplative AI axioms) and evolves through `amend-constitution`. Skills and rules are generated from accumulated knowledge. Reference templates are available in `config/templates/`.
+
+Agent relationships and post topics are tracked in the episode log only — the source of truth. Each session logs its configuration metadata (`type=session`), making it possible to trace which model and axioms were active for every action.
 
 ## Customizing Your Agent
 
