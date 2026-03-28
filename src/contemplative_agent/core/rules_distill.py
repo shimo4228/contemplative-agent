@@ -116,6 +116,37 @@ def _extract_rules(skill_texts: List[str]) -> Optional[str]:
     return result
 
 
+def _split_rules(text: str) -> List[str]:
+    """Split a multi-rule document into individual rule texts.
+
+    The LLM produces output like:
+        # Rule Set Title
+        ## Rule 1: Name
+        **When:** ...
+        ## Rule 2: Name
+        **When:** ...
+
+    This splits on ``## Rule`` boundaries and gives each chunk
+    a ``# Rule: {name}`` title for independent use.
+    """
+    import re
+
+    parts = re.split(r"(?=^## Rule \d+)", text, flags=re.MULTILINE)
+    rules: List[str] = []
+    for part in parts:
+        part = part.strip()
+        if not part or not part.startswith("## Rule"):
+            continue
+        # Extract rule name from "## Rule N: Name"
+        match = re.match(r"^## Rule \d+:\s*(.+)", part)
+        name = match.group(1).strip() if match else "Untitled Rule"
+        # Replace ## with # for standalone title
+        rule_text = f"# {name}\n\n" + re.sub(r"^## Rule \d+:.*\n*", "", part, count=1).strip()
+        if rule_text.strip():
+            rules.append(rule_text)
+    return rules
+
+
 def _read_last_run(rules_dir: Optional[Path]) -> Optional[str]:
     """Read the timestamp of the last rules-distill run."""
     if rules_dir is None:
@@ -202,35 +233,41 @@ def distill_rules(
             dropped_count += 1
             continue
 
-        if not validate_identity_content(rules_text):
-            logger.warning("Batch %d/%d: forbidden pattern detected", batch_idx + 1, len(batches))
-            dropped_count += 1
-            continue
-
-        title = _extract_title(rules_text) or ""
-        slug = _slugify(title)
-        if not slug:
-            logger.warning("Batch %d/%d: empty slug, dropping", batch_idx + 1, len(batches))
-            dropped_count += 1
-            continue
+        individual_rules = _split_rules(rules_text)
+        if not individual_rules:
+            # Fallback: treat entire text as single rule if split fails
+            individual_rules = [rules_text]
 
         today = date.today().strftime("%Y%m%d")
-        filename = f"{slug}-{today}.md"
-
-        if rules_dir is not None:
-            file_path = rules_dir / filename
-            if not file_path.resolve().is_relative_to(rules_dir.resolve()):
-                logger.error("Rule path escape attempt: %s", file_path)
+        for rule_text in individual_rules:
+            if not validate_identity_content(rule_text):
+                logger.warning("Batch %d/%d: forbidden pattern in rule, dropping", batch_idx + 1, len(batches))
                 dropped_count += 1
                 continue
-        else:
-            file_path = Path(filename)
 
-        rule_results.append(RuleResult(
-            text=rules_text,
-            filename=filename,
-            target_path=file_path,
-        ))
+            title = _extract_title(rule_text) or ""
+            slug = _slugify(title)
+            if not slug:
+                logger.warning("Batch %d/%d: empty slug, dropping", batch_idx + 1, len(batches))
+                dropped_count += 1
+                continue
+
+            filename = f"{slug}-{today}.md"
+
+            if rules_dir is not None:
+                file_path = rules_dir / filename
+                if not file_path.resolve().is_relative_to(rules_dir.resolve()):
+                    logger.error("Rule path escape attempt: %s", file_path)
+                    dropped_count += 1
+                    continue
+            else:
+                file_path = Path(filename)
+
+            rule_results.append(RuleResult(
+                text=rule_text,
+                filename=filename,
+                target_path=file_path,
+            ))
 
     if not rule_results:
         return "Failed to extract rules from skills."

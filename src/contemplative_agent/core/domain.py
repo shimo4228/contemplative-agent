@@ -75,6 +75,8 @@ class PromptTemplates:
     distill_classify: str = ""
     distill_constitutional: str = ""
     constitution_amend: str = ""
+    stocktake_skills: str = ""
+    stocktake_rules: str = ""
 
 
 

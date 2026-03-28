@@ -14,6 +14,7 @@ from contemplative_agent.core.rules_distill import (
     RulesDistillResult,
     _extract_rules,
     _read_skills,
+    _split_rules,
     _strip_frontmatter,
     distill_rules,
 )
@@ -35,6 +36,12 @@ GOOD_RULES_RESPONSE_STAGE2 = (
     "**When:** Encountering unfamiliar viewpoints\n"
     "**Do:** Ask clarifying questions before forming a response\n"
     "**Why:** Premature responses reduce engagement quality\n"
+    "\n"
+    "## Rule 2: Listen First\n"
+    "\n"
+    "**When:** New information arrives from an external source\n"
+    "**Do:** Process and reflect before generating output\n"
+    "**Why:** Hasty responses often miss important nuances\n"
 )
 
 SKILL_WITH_FRONTMATTER = """\
@@ -181,6 +188,38 @@ class TestExtractTitle:
         assert _extract_title("No title here") is None
 
 
+class TestSplitRules:
+    def test_splits_multiple_rules(self):
+        text = (
+            "# Rule Set\n\n"
+            "## Rule 1: First Rule\n\n**When:** A\n**Do:** B\n\n"
+            "## Rule 2: Second Rule\n\n**When:** C\n**Do:** D\n"
+        )
+        rules = _split_rules(text)
+        assert len(rules) == 2
+        assert "# First Rule" in rules[0]
+        assert "# Second Rule" in rules[1]
+
+    def test_single_rule(self):
+        text = "# Title\n\n## Rule 1: Only Rule\n\n**When:** X\n**Do:** Y\n"
+        rules = _split_rules(text)
+        assert len(rules) == 1
+        assert "# Only Rule" in rules[0]
+
+    def test_no_rules_returns_empty(self):
+        text = "# Just a title\n\nSome content without rule markers."
+        rules = _split_rules(text)
+        assert rules == []
+
+    def test_preserves_content(self):
+        text = "## Rule 1: Test\n\n**When:** trigger\n**Do:** action\n**Why:** reason\n"
+        rules = _split_rules(text)
+        assert len(rules) == 1
+        assert "**When:** trigger" in rules[0]
+        assert "**Do:** action" in rules[0]
+        assert "**Why:** reason" in rules[0]
+
+
 class TestExtractRules:
     @patch("contemplative_agent.core.rules_distill.generate")
     def test_success(self, mock_generate):
@@ -258,11 +297,12 @@ class TestDistillRules:
         rules_dir = tmp_path / "rules"
         result = distill_rules(skills_dir=skills_dir, rules_dir=rules_dir)
         assert isinstance(result, RulesDistillResult)
-        assert len(result.rules) == 1
-        assert "Engagement Rules" in result.rules[0].text
+        assert len(result.rules) == 2  # Split into 2 individual rules
+        assert "Ask Before Reacting" in result.rules[0].text
+        assert "Listen First" in result.rules[1].text
         today = date.today().strftime("%Y%m%d")
-        assert result.rules[0].filename == f"engagement-rules-{today}.md"
-        assert result.rules[0].target_path == rules_dir / f"engagement-rules-{today}.md"
+        assert result.rules[0].filename == f"ask-before-reacting-{today}.md"
+        assert result.rules[1].filename == f"listen-first-{today}.md"
         # Core function does not write — caller's responsibility
         assert not rules_dir.exists()
 
@@ -353,7 +393,7 @@ class TestIncrementalMode:
             skills_dir=skills_dir, rules_dir=rules_dir, full=True,
         )
         assert isinstance(result, RulesDistillResult)
-        assert "Engagement Rules" in result.rules[0].text
+        assert "Ask Before Reacting" in result.rules[0].text
 
     @patch("contemplative_agent.core.rules_distill.generate")
     def test_incremental_filters_old_skills(self, mock_generate, tmp_path):

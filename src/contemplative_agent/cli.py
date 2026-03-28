@@ -514,6 +514,12 @@ def main() -> None:
         help="Show results without writing to knowledge store",
     )
 
+    # skill-stocktake
+    subparsers.add_parser("skill-stocktake", help="Audit skills for duplicates and quality issues")
+
+    # rules-stocktake
+    subparsers.add_parser("rules-stocktake", help="Audit rules for duplicates and quality issues")
+
     # sync-data
     subparsers.add_parser("sync-data", help="Sync research data to external git repository")
 
@@ -544,6 +550,20 @@ def main() -> None:
             _do_install_schedule(interval=args.interval, session=args.session)
             if not args.no_distill:
                 _do_install_distill_schedule(distill_hour=args.distill_hour)
+        return
+
+    if args.command == "skill-stocktake":
+        from .core.stocktake import format_report, run_skill_stocktake
+
+        result = run_skill_stocktake(skills_dir=SKILLS_DIR)
+        print(format_report(result, "Skill"))
+        return
+
+    if args.command == "rules-stocktake":
+        from .core.stocktake import format_report, run_rules_stocktake
+
+        result = run_rules_stocktake(rules_dir=RULES_DIR)
+        print(format_report(result, "Rules"))
         return
 
     if args.command == "sync-data":

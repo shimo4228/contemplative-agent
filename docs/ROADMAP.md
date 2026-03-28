@@ -4,6 +4,12 @@
 
 ## Next
 
+### コーディングエージェント用メンテナンススキル
+
+insight, rules-distill, distill-identity, amend-constitution の処理をコーディングエージェント（Claude Code 等）が直接実行するスキルを作成。9B モデルの多段パイプラインではなく、Opus クラスの推論能力で knowledge.json を読み、skills/rules/identity/constitution を生成・更新する。`--stage` フラグは「オーケストレーターなしの自律運用」用に残す。
+
+**distill（エピソード → knowledge）はコーディングエージェントに委任してはならない。** エピソードログはプロンプトインジェクション経路（ADR-0007）。ツール権限を持つコーディングエージェントが生ログを読むと、注入されたプロンプトが実行される。distill は必ずツール権限なしのローカル LLM（9B）が処理し、サニタイズ済み knowledge.json を出力する。コーディングエージェントは knowledge.json から先のみ操作可能。
+
 ### Dedup スケーラビリティ
 
 パターン数が増えると dedup の品質・性能が劣化する問題。現在は全既存パターンと SequenceMatcher で総当たり比較しており、グレーゾーン（ratio 0.3-0.7）は LLM 判定に回される。パターン数が数百を超えると:
@@ -31,12 +37,9 @@ constitutional パターンの importance scoring で LLM が `{"scores": [...]}
 - 対応案: コードフェンス除去（026a26c と同様）、2段階化（自由記述→JSON整形）、またはプロンプト改善
 - 推定 ~50-100 LOC
 
-### Skill Stocktake（スキル棚卸し）
+### Skill/Rules Stocktake 強化
 
-skills/ 内のスキルを棚卸しし、重複・矛盾・陳腐化を検出。マージや引退を提案。insight.py の docstring にも「Quality control is deferred to skill-stocktake (external)」と明記されており、スキル層の品質管理メカニズムが未実装。
-
-- `core/stocktake.py` 新規 + CLI コマンド
-- 推定 ~200-300 LOC
+skill-stocktake / rules-stocktake は LLM 一括判定で重複グループを検出するが、マージ統合案の自動生成は未実装。検出されたグループに対して統合案を生成し `--stage` で staging する機能を追加する。
 
 ### 承認監査ログ（Audit Log）
 

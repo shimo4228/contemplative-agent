@@ -44,6 +44,8 @@ class _LazyPrompts:
         "DISTILL_CLASSIFY_PROMPT": "distill_classify",
         "DISTILL_CONSTITUTIONAL_PROMPT": "distill_constitutional",
         "CONSTITUTION_AMEND_PROMPT": "constitution_amend",
+        "STOCKTAKE_SKILLS_PROMPT": "stocktake_skills",
+        "STOCKTAKE_RULES_PROMPT": "stocktake_rules",
     }
 
     def __getattr__(self, name: str) -> str:
