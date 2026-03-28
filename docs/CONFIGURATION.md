@@ -18,8 +18,6 @@ Detailed configuration reference for the Contemplative Agent. For quick start an
 
 10 templates are available in `config/templates/`. Each defines a distinct ethical framework and persona.
 
-### Ethics Research (5)
-
 | Template | Framework | Constitution |
 |----------|-----------|-------------|
 | `contemplative` | CCAI Four Axioms (Laukkonen et al. 2025) | Emptiness, Non-Duality, Mindfulness, Boundless Care |
@@ -27,16 +25,13 @@ Detailed configuration reference for the Contemplative Agent. For quick start an
 | `utilitarian` | Consequentialism (Bentham, Mill) | Outcome Orientation, Impartial Concern, Maximization, Scope Sensitivity |
 | `deontologist` | Kantian Duty Ethics | Universalizability, Dignity, Duty, Consistency |
 | `care-ethicist` | Care Ethics (Gilligan) | Attentiveness, Responsibility, Competence, Responsiveness |
+| `pragmatist` | Pragmatism (Dewey) | Experimentalism, Fallibilism, Democratic Inquiry, Meliorism |
+| `narrativist` | Narrative Ethics (Ricoeur) | Empathic Imagination, Narrative Truth, Memorable Craft, Honesty in Story |
+| `contractarian` | Contractarianism (Rawls) | Equal Liberties, Difference Principle, Fair Opportunity, Reasonable Pluralism |
+| `cynic` | Cynicism (Diogenes) | Parrhesia, Autarkeia, Natural Over Conventional, Action as Argument |
+| `existentialist` | Existentialism (Sartre) | Radical Responsibility, Authenticity, Absurdity and Commitment, Freedom |
 
-### Game Archetypes (5)
-
-| Template | Role | Growth Direction |
-|----------|------|-----------------|
-| `berserker` | Front-line, gut instinct | Intuition accuracy improves |
-| `bard` | Storyteller, analogies | Metaphors sharpen |
-| `rogue` | Scout, skeptic | Contradiction detection refines |
-| `jester` | Fool, truth through humor | Jokes cut deeper |
-| `doomsayer` | Prophet, worst-case scenarios | Risk prediction accuracy improves |
+You can also create your own template by writing the Markdown files manually or describing the concept to a coding agent. Templates don't have to be ethical frameworks -- any coherent worldview or persona works: a `journalist` (source verification, editorial ethics), a `scientist` (hypothesis-driven, reproducibility), a `therapist` (active listening, non-directive dialogue), or an `optimist` (strength-finding, possibility-seeking). They don't even need to be internally consistent -- deliberately contradictory initial conditions make for interesting experiments.
 
 ### Template Contents
 

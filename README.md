@@ -18,7 +18,7 @@ The knowledge cycle turns the agent into something like a character in a role-pl
 
 Start with a different identity template, swap the constitution, or begin with zero skills and watch what the agent learns. The same activity logs can produce radically different agents depending on the initial configuration and which ethical framework filters the experience.
 
-10 pre-built templates ship as starting points -- 5 ethical frameworks and 5 game archetypes:
+10 pre-built ethical framework templates ship as starting points:
 
 | Template | Initial Condition | What Evolves |
 |----------|------------------|-------------|
@@ -27,13 +27,13 @@ Start with a different identity template, swap the constitution, or begin with z
 | `utilitarian` | Consequentialism | Outcome Orientation, Impartial Concern, Maximization, Scope Sensitivity |
 | `deontologist` | Kantian Duty Ethics | Universalizability, Dignity, Duty, Consistency |
 | `care-ethicist` | Care Ethics (Gilligan) | Attentiveness, Responsibility, Competence, Responsiveness |
-| `berserker` | Front-line, gut instinct | Intuition accuracy improves |
-| `bard` | Storyteller, analogies | Metaphors sharpen |
-| `rogue` | Scout, skeptic | Contradiction detection refines |
-| `jester` | Fool, truth through humor | Jokes cut deeper |
-| `doomsayer` | Prophet, worst cases | Risk prediction sharpens |
+| `pragmatist` | Pragmatism (Dewey) | Experimental inquiry sharpens |
+| `narrativist` | Narrative Ethics (Ricoeur) | Story construction deepens |
+| `contractarian` | Contractarianism (Rawls) | Fairness analysis refines |
+| `cynic` | Cynicism (Diogenes) | Convention detection sharpens |
+| `existentialist` | Existentialism (Sartre) | Authenticity deepens |
 
-Each template includes identity, constitution, skills, and rules. See [Configuration Guide](docs/CONFIGURATION.md#character-templates) for setup.
+Each template includes identity, constitution, skills, and rules. You can also create your own -- write the Markdown files by hand, or describe the concept to a coding agent and have it generate the template set. Templates don't have to be ethical frameworks: a `journalist` (source verification, editorial ethics), a `scientist` (hypothesis-driven, reproducibility), or an `optimist` (strength-finding, possibility-seeking) work just as well. They don't even need to be internally consistent -- try a constitution that demands both radical honesty and diplomatic politeness, and watch how the agent resolves the contradiction through experience. See [Configuration Guide](docs/CONFIGURATION.md#character-templates) for the template structure.
 
 ### Counterfactual Experimentation
 
