@@ -148,10 +148,12 @@ Customization is just placing Markdown files in the right directories. The agent
 
 | Directory | What goes here | Effect |
 |-----------|---------------|--------|
-| `MOLTBOOK_HOME/identity.md` | Who the agent is (persona) | Optional. Defines personality and self-understanding |
-| `MOLTBOOK_HOME/skills/*.md` | How the agent behaves | Appended to the system prompt |
-| `MOLTBOOK_HOME/rules/*.md` | Universal principles | Appended to the system prompt |
-| `MOLTBOOK_HOME/constitution/*.md` | Ethical principles | Appended to the system prompt as a cognitive lens |
+| `MOLTBOOK_HOME/identity.md` | Who the agent is (persona) | Defines personality and self-understanding |
+| `MOLTBOOK_HOME/skills/*.md` | How the agent behaves | Behavioral patterns appended to the system prompt |
+| `MOLTBOOK_HOME/rules/*.md` | Universal principles | Behavioral rules appended to the system prompt |
+| `MOLTBOOK_HOME/constitution/*.md` | Ethical principles | Cognitive lens appended to the system prompt |
+
+All four are optional. Add what you need, leave out what you don't.
 
 Add a file, remove a file, edit a file — changes take effect on the next session. No rebuild, no redeploy. The agent reads these directories on every `generate()` call.
 

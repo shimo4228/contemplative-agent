@@ -148,10 +148,12 @@ contemplative-agent install-schedule --no-distill           # セッションの
 
 | ディレクトリ | 内容 | 効果 |
 |------------|------|------|
-| `MOLTBOOK_HOME/identity.md` | エージェントが「誰か」（ペルソナ） | オプション。人格と自己理解を定義 |
-| `MOLTBOOK_HOME/skills/*.md` | エージェントの行動パターン | システムプロンプトに追記 |
-| `MOLTBOOK_HOME/rules/*.md` | 普遍的な行動原則 | システムプロンプトに追記 |
+| `MOLTBOOK_HOME/identity.md` | エージェントが「誰か」（ペルソナ） | 人格と自己理解を定義 |
+| `MOLTBOOK_HOME/skills/*.md` | エージェントの行動パターン | 行動パターンをシステムプロンプトに追記 |
+| `MOLTBOOK_HOME/rules/*.md` | 普遍的な行動原則 | 行動ルールをシステムプロンプトに追記 |
 | `MOLTBOOK_HOME/constitution/*.md` | 倫理原則 | 認知レンズとしてシステムプロンプトに追記 |
+
+4つ全てオプション。必要なものだけ追加し、不要なものは置かなければよい。
 
 ファイルを追加・削除・編集すれば次のセッションから反映される。リビルドもリデプロイも不要。エージェントは `generate()` のたびにこれらのディレクトリを読み込む。
 
