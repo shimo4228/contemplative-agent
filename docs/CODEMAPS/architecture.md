@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-24 | Files scanned: 34 | Token estimate: ~850 -->
+<!-- Generated: 2026-03-28 | Files scanned: 36 | Token estimate: ~850 -->
 # Architecture
 
 ## Project Type
@@ -12,7 +12,7 @@ Python application: Contemplative AI agent with core/adapter separation + 3-laye
                     contemplative-agent v0.2.0
                     ==========================
   config/ (templates only, git-managed)
-    domain.json       prompts/*.md (17)  templates/constitution/*.md
+    domain.json       prompts/*.md (24)  templates/constitution/*.md
   ~/.config/moltbook/ (MOLTBOOK_HOME, runtime data)
     knowledge.json   (learned patterns)
     identity.md      (system prompt, readonly)
@@ -23,10 +23,11 @@ Python application: Contemplative AI agent with core/adapter separation + 3-laye
   +-----------------------------------------------------+
   | src/contemplative_agent/                             |
   |                                                      |
-  |  core/  (platform-independent, 14 modules)          |
+  |  core/  (platform-independent, 15 modules)          |
   |    _io.py  config.py  domain.py  prompts.py         |
   |    llm.py  episode_log.py  knowledge_store.py       |
   |    memory.py  distill.py  insight.py                |
+  |    constitution.py  rules_distill.py                |
   |    report.py  scheduler.py  metrics.py              |
   |                                                      |
   |  adapters/moltbook/  (platform-specific, 11 modules)|
@@ -38,7 +39,7 @@ Python application: Contemplative AI agent with core/adapter separation + 3-laye
   |  adapters/meditation/  (experimental, 4 modules)    |
   |    config.py  pomdp.py  meditate.py  report.py      |
   |                                                      |
-  |  cli.py  (composition root, 585L)                   |
+  |  cli.py  (composition root, 738L)                   |
   +-----------------------------------------------------+
          |                              |
     Moltbook API                   Ollama (local)
@@ -104,10 +105,20 @@ distill-identity (2-stage):
     → LLM (IDENTITY_REFINE_PROMPT)
     → update MOLTBOOK_HOME/identity.md (with archive)
 
-insight (optional):
-  EpisodeLog.read_range(days, record_type="action")
-  → extract behavior patterns
+insight (manual, approval gate):
+  KnowledgeStore (uncategorized patterns)
+  → LLM (INSIGHT_EXTRACTION_PROMPT) → behavior skills
   → generate MOLTBOOK_HOME/skills/*.md
+
+rules-distill (manual, approval gate):
+  skills/*.md → LLM (RULES_DISTILL_PROMPT) → principles
+  → LLM (RULES_DISTILL_REFINE_PROMPT) → structured rules
+  → generate MOLTBOOK_HOME/rules/*.md
+
+amend-constitution (manual, approval gate):
+  KnowledgeStore (constitutional patterns) + current constitution
+  → LLM (CONSTITUTION_AMEND_PROMPT) → amended constitution
+  → update MOLTBOOK_HOME/constitution/*.md
 
 meditate (experimental):
   EpisodeLog → POMDP matrices (A/B/C/D)
@@ -143,15 +154,17 @@ contemplative-moltbook の学習パイプラインは [AKC](https://github.com/s
 | AKC Phase | AKC Skill | 本プロジェクトの実装 | コード | プロンプト |
 |-----------|-----------|---------------------|--------|-----------|
 | Research | search-first | フィード取得 + relevance scoring | feed_manager.py | relevance.md |
-| Extract | learn-eval | `distill` (2段階: Extract→Refine) | distill.py | distill.md, distill_refine.md, distill_importance.md |
-| Curate | skill-stocktake | `insight` (パターン→行動スキル抽出) | insight.py | insight_extraction.md |
-| Promote | rules-distill | `distill-identity` (知識→人格蒸留) | distill.py | identity_distill.md, identity_refine.md |
+| Extract | learn-eval | `distill` (Step 0 classify + 3-step + LLM dedup gate) | distill.py | distill.md, distill_refine.md, distill_importance.md |
+| Curate | skill-stocktake | `insight` (knowledge → skills) | insight.py | insight_extraction.md |
+| Curate | rules-distill | `rules-distill` (skills → rules) | rules_distill.py | rules_distill.md, rules_distill_refine.md |
+| Curate | — | `amend-constitution` (constitutional patterns → ethics) | constitution.py | constitution_amend.md |
+| Promote | — | `distill-identity` (knowledge → persona) | distill.py | identity_distill.md, identity_refine.md |
 | Measure | skill-comply | — (未実装) | — | — |
-| Maintain | context-sync | 外部ツール (Claude Code skill) | — | — |
+| Maintain | context-sync | 外部ツール (Claude Code skill) + sync-data | — | — |
 
 **差異**:
 - **Measure** (skill-comply): エージェント自身のスキル遵守率を定量計測する仕組みは未実装
-- **Maintain** (context-sync): ドキュメント整合性チェックは Claude Code skill として外部化。エージェント自身のサイクルには含まれない
+- **Maintain** (context-sync): ドキュメント整合性チェックは Claude Code skill として外部化。sync-data でランタイムデータを研究リポジトリに同期
 
 ## Entry Points
 - `contemplative-agent` → `contemplative_agent.cli:main`

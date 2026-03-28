@@ -122,12 +122,12 @@ Package versions, transitive dependencies, security notes.
 | LOC | ~7500 |
 | Test files | 17 |
 | Test count | 726 |
-| Core modules | 14 (platform-independent) |
+| Core modules | 15 (platform-independent) |
 | Moltbook adapter modules | 11 |
 | Meditation adapter modules | 4 |
 | Dataclasses | 3 (Interaction, PostRecord, Insight) |
 | CLI commands | 16 (init, register, status, run, distill, distill-identity, insight, rules-distill, amend-constitution, report, generate-report, solve, meditate, install-schedule, sync-data, + 1) |
-| Prompt templates | 23 |
+| Prompt templates | 24 |
 | Config templates | 2 (config/templates/constitution/) |
 | Rate limit budgets | 2 (GET 60/min, POST 30/min) |
 

@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-22 | Files scanned: 14 core modules | Token estimate: ~1000 -->
+<!-- Generated: 2026-03-28 | Files scanned: 15 core modules | Token estimate: ~1000 -->
 # Core Modules Codemap
 
 Platform-independent foundation (no Moltbook dependencies). All imports flow: adapters → core.
@@ -7,23 +7,23 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
-| `_io.py` | 57 | write_restricted(path, mode, content), truncate(path), archive_before_write(path, history_dir) |
+| `_io.py` | 37 | write_restricted(path, mode, content), truncate(path), archive_before_write(path, history_dir) |
 | `config.py` | 26 | FORBIDDEN_SUBSTRING_PATTERNS, VALID_ID_PATTERN, MAX_COMMENT_LENGTH |
-| `domain.py` | 303 | DomainConfig, PromptTemplates, constitution loader |
-| `prompts.py` | 55 | Lazy-load proxy to config/prompts/*.md (17 templates) + placeholder resolution |
-| `llm.py` | 367 | Ollama interface, LLM functions, circuit breaker, sanitization |
+| `domain.py` | 290 | DomainConfig, PromptTemplates, constitution loader |
+| `prompts.py` | 62 | Lazy-load proxy to config/prompts/*.md (24 templates) + placeholder resolution |
+| `llm.py` | 390 | Ollama interface, LLM functions, circuit breaker, sanitization |
 | `episode_log.py` | 127 | EpisodeLog (append-only JSONL, read_range with record_type filter) |
-| `knowledge_store.py` | 163 | KnowledgeStore (patterns JSON, learned pattern add/retrieve) |
-| `memory.py` | 443 | MemoryStore facade, Interaction/PostRecord/Insight dataclasses |
+| `knowledge_store.py` | 234 | KnowledgeStore (patterns JSON, learned pattern add/retrieve) |
+| `memory.py` | 430 | MemoryStore facade, Interaction/PostRecord/Insight dataclasses |
 | `scheduler.py` | 165 | Scheduler (rate limit state, has_read/write_budget, persistence) |
-| `constitution.py` | 105 | amend_constitution() → AmendmentResult |
-| `distill.py` | 430 | distill(), distill_identity() → IdentityResult, episode classification |
-| `insight.py` | 226 | extract_insight() → InsightResult (SkillResult per batch) |
-| `rules_distill.py` | 200 | distill_rules() → RulesDistillResult (RuleResult per batch) |
-| `report.py` | 228 | generate_report() JSONL → Markdown activity summary |
+| `constitution.py` | 104 | amend_constitution() → AmendmentResult |
+| `distill.py` | 686 | distill(), distill_identity() → IdentityResult, episode classification + dedup |
+| `insight.py` | 225 | extract_insight() → InsightResult (SkillResult per batch). Input: KnowledgeStore (uncategorized) |
+| `rules_distill.py` | 242 | distill_rules() → RulesDistillResult (RuleResult per batch). Input: skills/*.md |
+| `report.py` | 223 | generate_report() JSONL → Markdown activity summary |
 | `metrics.py` | 160 | Session metrics aggregation (actions, topics, engagement) |
 
-**Total: ~3400 LOC (16 modules)**
+**Total: ~3400 LOC (15 modules)**
 
 ## Key Dataclasses
 
@@ -62,7 +62,7 @@ File: `config/knowledge.json`
 ```
 **Key invariant**: Patterns only. Agents, topics, insights live in JSONL.
 
-## LLM Functions (core/llm.py, 367L)
+## LLM Functions (core/llm.py, 390L)
 
 **Configuration**:
 ```python
@@ -87,7 +87,7 @@ llm = LLM(identity_path=..., ollama_url="http://localhost:11434",
 
 All output passes `_sanitize_output()`. All external inputs → `wrap_untrusted_content()`.
 
-## Distill Pipeline (core/distill.py, 430L)
+## Distill Pipeline (core/distill.py, 686L)
 
 ### Knowledge Distill (`distill()`)
 
@@ -118,7 +118,7 @@ Step 2: LLM(IDENTITY_REFINE_PROMPT) → 簡潔なペルソナ
 → validate_identity_content() → IdentityResult（書き込みは cli.py が承認後に実行）
 ```
 
-## Insight Pipeline (core/insight.py, 226L)
+## Insight Pipeline (core/insight.py, 225L)
 
 `extract_insight() → InsightResult`
 
@@ -127,11 +127,11 @@ Step 2: LLM(IDENTITY_REFINE_PROMPT) → 簡潔なペルソナ
 3. validate + slugify → SkillResult のリスト
 4. 書き込みは cli.py が個別承認後に実行
 
-## Rules Distill Pipeline (core/rules_distill.py, 200L)
+## Rules Distill Pipeline (core/rules_distill.py, 242L)
 
-`distill_rules() → RulesDistillResult`
+`distill_rules(skills_dir) → RulesDistillResult`
 
-2段 LLM パイプライン（抽出 → 構造化 Markdown）。insight と同構造だが閾値が高い（10パターン以上必要）。
+skills/*.md を読み込み、YAML frontmatter をスキップして Markdown 本文を抽出。2段 LLM パイプライン（抽出 → 構造化 Markdown）。MIN_SKILLS_REQUIRED=3、BATCH_SIZE=10。incremental モードは skill ファイルの mtime で判定。
 
 ## Constitution Amendment (core/constitution.py, 105L)
 
@@ -143,7 +143,7 @@ constitutional カテゴリのパターンが3件以上蓄積されたら、現�
 
 `generate_report(date)` → Markdown summary from JSONL entries.
 
-## Domain Configuration (core/domain.py, 303L)
+## Domain Configuration (core/domain.py, 290L)
 
 ```python
 domain = DomainConfig.from_json(Path("config/domain.json"))
