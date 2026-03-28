@@ -56,11 +56,11 @@ Because the entire pipeline runs on a local 9B model with no cloud dependency, t
 
 Three-layer memory architecture: Episode Log -> Knowledge -> Identity. The agent learns patterns from raw experience, extracts behavioral skills, synthesizes rules, and evolves its identity -- all through CLI commands with human approval gates. This is not static configuration; lived experience shapes the agent.
 
-See how this works in practice -- real data from the live Contemplative agent after 21 days of operation:
+See how this works in practice -- live data from the running Contemplative agent, synced daily:
 
 - [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md) -- evolved persona, distilled from experience
 - [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution) -- ethical principles (started from CCAI four axioms template)
-- [Knowledge store](https://github.com/shimo4228/contemplative-agent-data/blob/main/knowledge.json) -- 215 distilled patterns
+- [Knowledge store](https://github.com/shimo4228/contemplative-agent-data/blob/main/knowledge.json) -- distilled behavioral patterns
 - [Daily activity reports](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/comment-reports) -- timestamped interactions with relevance scores
 
 ## Quick Start
