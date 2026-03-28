@@ -134,7 +134,7 @@ These layers map to familiar concepts in agent design:
 
 The difference: in most systems these are bundled and implicit. Here they are separated, file-based, independently evolvable, and all require human approval to change.
 
-**All layers above Episode Log and Knowledge are optional.** The agent runs with just `distill` (episode → knowledge extraction). You can adopt any combination: Identity only, Skills + Rules without Constitution, Constitution without Identity — whatever fits your use case. Each layer is independently useful and adds incrementally.
+**Every layer above Episode Log is optional.** The agent runs on episode logging alone — it observes, acts, and records. `distill` adds learning, `insight` adds behavioral skills, `rules-distill` adds principles, `distill-identity` adds self-understanding, `amend-constitution` adds ethics. Adopt any combination that fits your use case. Each layer is independently useful and adds incrementally.
 
 Any command that can change the agent's behavior — `distill-identity`, `insight`, `rules-distill`, `amend-constitution` — requires human approval before writing (ADR-0012). The agent proposes changes; the human decides. `distill` writes to knowledge only, which does not directly influence behavior.
 
