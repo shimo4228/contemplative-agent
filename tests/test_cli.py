@@ -1,6 +1,8 @@
 """Tests for the CLI entry point."""
 
+import json
 import logging
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -12,6 +14,7 @@ from contemplative_agent.cli import (
     _do_install_schedule,
     _do_install_distill_schedule,
     _do_uninstall_schedule,
+    _stage_results,
 )
 
 
@@ -341,3 +344,46 @@ class TestNoAxiomsFlag:
         # axiom_prompt should NOT have been passed
         axiom_calls = [c for c in mock_configure.call_args_list if "axiom_prompt" in c.kwargs]
         assert len(axiom_calls) == 0
+
+
+class TestStageResults:
+    """Tests for _stage_results() staging helper."""
+
+    def test_stages_files_with_meta(self, tmp_path):
+        staged_dir = tmp_path / ".staged"
+        target = tmp_path / "skills" / "test-skill.md"
+        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
+             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path):
+            _stage_results(
+                [("test-skill.md", "# Test Skill\nContent", target)],
+                command="insight",
+            )
+        assert (staged_dir / "test-skill.md").exists()
+        assert "# Test Skill" in (staged_dir / "test-skill.md").read_text()
+        meta = json.loads((staged_dir / "test-skill.md.meta.json").read_text())
+        assert meta["target"] == str(target)
+        assert meta["command"] == "insight"
+
+    def test_stages_multiple_files(self, tmp_path):
+        staged_dir = tmp_path / ".staged"
+        items = [
+            ("a.md", "# A", tmp_path / "skills" / "a.md"),
+            ("b.md", "# B", tmp_path / "skills" / "b.md"),
+        ]
+        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
+             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path):
+            _stage_results(items, command="insight")
+        assert (staged_dir / "a.md").exists()
+        assert (staged_dir / "b.md").exists()
+
+    def test_rejects_path_traversal(self, tmp_path, capsys):
+        staged_dir = tmp_path / ".staged"
+        evil_target = Path("/tmp/evil.md")
+        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
+             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path):
+            _stage_results(
+                [("evil.md", "pwned", evil_target)],
+                command="insight",
+            )
+        assert not (staged_dir / "evil.md").exists()
+        assert "escapes MOLTBOOK_HOME" in capsys.readouterr().err

@@ -19,6 +19,7 @@ from .adapters.moltbook.config import (
     REPORTS_DIR,
     RULES_DIR,
     SKILLS_DIR,
+    STAGED_DIR,
 )
 from .core.domain import (
     get_domain_config,
@@ -215,6 +216,42 @@ def _warn_dry_run_deprecated(args: argparse.Namespace) -> None:
     )
 
 
+def _stage_results(
+    items: list[tuple[str, str, Path]],
+    command: str,
+) -> None:
+    """Write generated results to the staging directory for external approval.
+
+    Each item is (filename, text, target_path). Creates the staging dir,
+    writes each file, and prints paths for the calling agent to read.
+
+    Args:
+        items: List of (filename, content, target_path) tuples.
+        command: The command name (e.g. "insight", "rules-distill").
+    """
+    import json
+
+    STAGED_DIR.mkdir(parents=True, exist_ok=True)
+    staged_paths = []
+    for filename, text, target_path in items:
+        if not target_path.resolve().is_relative_to(MOLTBOOK_DATA_DIR.resolve()):
+            print(f"Error: target path escapes MOLTBOOK_HOME: {target_path}", file=sys.stderr)
+            continue
+        staged_file = STAGED_DIR / filename
+        staged_file.write_text(text + "\n", encoding="utf-8")
+        meta = {
+            "target": str(target_path),
+            "command": command,
+        }
+        meta_file = STAGED_DIR / f"{filename}.meta.json"
+        meta_file.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
+        staged_paths.append((staged_file, target_path))
+
+    print(f"Staged {len(staged_paths)} file(s) in {STAGED_DIR}/")
+    for staged, target in staged_paths:
+        print(f"  {staged} → {target}")
+
+
 def _run_sync() -> None:
     """Run research data sync script (best-effort)."""
     script = Path(__file__).resolve().parents[2] / "scripts" / "sync-research-data.sh"
@@ -367,6 +404,9 @@ def main() -> None:
     distill_id_parser.add_argument(
         "--dry-run", action="store_true", help="[deprecated] Show results without writing (use approval gate instead)"
     )
+    distill_id_parser.add_argument(
+        "--stage", action="store_true", help="Write to staging dir instead of interactive approval (for coding agents)"
+    )
 
     # rules-distill
     rules_distill_parser = subparsers.add_parser(
@@ -378,6 +418,9 @@ def main() -> None:
     rules_distill_parser.add_argument(
         "--full", action="store_true", help="Process all patterns (not just new ones)"
     )
+    rules_distill_parser.add_argument(
+        "--stage", action="store_true", help="Write to staging dir instead of interactive approval (for coding agents)"
+    )
 
     # amend-constitution
     amend_parser = subparsers.add_parser(
@@ -385,6 +428,9 @@ def main() -> None:
     )
     amend_parser.add_argument(
         "--dry-run", action="store_true", help="[deprecated] Show proposed amendments without writing (use approval gate instead)"
+    )
+    amend_parser.add_argument(
+        "--stage", action="store_true", help="Write to staging dir instead of interactive approval (for coding agents)"
     )
 
     # report
@@ -446,6 +492,9 @@ def main() -> None:
     )
     insight_parser.add_argument(
         "--full", action="store_true", help="Process all patterns (default: new only)"
+    )
+    insight_parser.add_argument(
+        "--stage", action="store_true", help="Write to staging dir instead of interactive approval (for coding agents)"
     )
 
     # meditate
@@ -563,6 +612,12 @@ def main() -> None:
             print(result)
             return
         print(result.text)
+        if getattr(args, "stage", False):
+            _stage_results(
+                [("identity.md", result.text, result.target_path)],
+                command="distill-identity",
+            )
+            return
         if _is_dry_run(args) or not _approve_write(result.target_path):
             if not _is_dry_run(args):
                 print("Discarded.")
@@ -587,6 +642,12 @@ def main() -> None:
         )
         if isinstance(result, str):
             print(result)
+            return
+        if getattr(args, "stage", False):
+            _stage_results(
+                [(s.filename, s.text, s.target_path) for s in result.skills],
+                command="insight",
+            )
             return
         written = 0
         for i, skill in enumerate(result.skills, 1):
@@ -616,6 +677,12 @@ def main() -> None:
         )
         if isinstance(result, str):
             print(result)
+            return
+        if getattr(args, "stage", False):
+            _stage_results(
+                [(r.filename, r.text, r.target_path) for r in result.rules],
+                command="rules-distill",
+            )
             return
         written = 0
         for i, rule in enumerate(result.rules, 1):
@@ -648,6 +715,12 @@ def main() -> None:
             print(result)
             return
         print(result.text)
+        if getattr(args, "stage", False):
+            _stage_results(
+                [(result.target_path.name, result.text, result.target_path)],
+                command="amend-constitution",
+            )
+            return
         if _is_dry_run(args) or not _approve_write(result.target_path):
             if not _is_dry_run(args):
                 print("Discarded.")

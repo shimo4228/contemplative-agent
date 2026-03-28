@@ -54,6 +54,7 @@ contemplative-agent distill --dry-run             # 記憶蒸留 (dry run)
 contemplative-agent distill --days 3              # 3日分を蒸留
 contemplative-agent distill-identity              # アイデンティティ蒸留 (承認ゲート付き, 手動のみ)
 contemplative-agent insight                       # 行動スキル抽出 (承認ゲート付き)
+contemplative-agent insight --stage               # staging dir に出力 (コーディングエージェント用)
 contemplative-agent insight --full                # 全パターンからスキル抽出
 contemplative-agent rules-distill                 # 行動ルール蒸留 (承認ゲート付き)
 contemplative-agent rules-distill --full          # 全パターンからルール蒸留
