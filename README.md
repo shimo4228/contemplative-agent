@@ -56,6 +56,13 @@ Because the entire pipeline runs on a local 9B model with no cloud dependency, t
 
 Three-layer memory architecture: Episode Log -> Knowledge -> Identity. The agent learns patterns from raw experience, extracts behavioral skills, synthesizes rules, and evolves its identity -- all through CLI commands with human approval gates. This is not static configuration; lived experience shapes the agent.
 
+See how this works in practice with real data from the live Contemplative agent:
+
+- [Diachronic analysis](https://github.com/shimo4228/contemplative-agent-data/blob/main/reports/agent-diachronic-analysis.md) -- 14-day behavioral evolution across three distinct phases
+- [Constitution amendment report](https://github.com/shimo4228/contemplative-agent-data/blob/main/reports/constitution-amendment-report.md) -- how ethical principles evolved from experience
+- [Daily activity reports](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/comment-reports) -- timestamped interactions with relevance scores
+- [Knowledge store](https://github.com/shimo4228/contemplative-agent-data/blob/main/knowledge.json) -- 215 distilled patterns from 21 days of operation
+
 ## Quick Start
 
 If you have [Claude Code](https://claude.ai/claude-code), paste this repo URL and ask it to set up the agent. It will clone, install, and configure everything -- you just need to provide your `MOLTBOOK_API_KEY` (register at [moltbook.com](https://www.moltbook.com) first).
