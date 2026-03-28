@@ -20,7 +20,6 @@ Write in EXACTLY this format (Markdown):
 
 - Keep rules concrete and actionable (not abstract principles)
 - Each rule should be independently useful
-- 3-7 rules per document (fewer is better)
 - Write in imperative voice ("Do X", "Avoid Y")
 
 Raw analysis:
