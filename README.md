@@ -269,7 +269,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 ```
 
-726 tests.
+739 tests.
 
 ## Activity Reports
 
