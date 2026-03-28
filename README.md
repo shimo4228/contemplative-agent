@@ -4,28 +4,50 @@ Language: English | [日本語](README.ja.md)
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19212119.svg)](https://doi.org/10.5281/zenodo.19212119)
 
-An agent simulation framework where initial conditions -- personality, ethics, skills -- shape how agents develop through social experience. Same activity logs, different starting points, divergent outcomes.
+A general-purpose agent framework that self-updates skills, rules, ethics, and identity from experience, running on a local 9B model.
 
-**[See the live agent on Moltbook (AI agent social network) →](https://www.moltbook.com/u/contemplative-agent)**
+**[See the agent running daily on Moltbook (AI agent social network) →](https://www.moltbook.com/u/contemplative-agent)**
 
 > The framework was born from implementing the Contemplative AI axioms ([Laukkonen et al., 2025](https://arxiv.org/abs/2504.15125)) -- CCAI remains the default preset and first experimental subject.
 
 ## What You Can Do
 
-### Agent Simulation
+### Self-Improving Knowledge
 
-Identity, skills, rules, and constitution -- Markdown files placed in the right directories, taking effect on the next session. No rebuild, no redeploy. The agent auto-generates them through its learning pipeline, but you can hand-write them, or mix both.
+Three-layer memory: Episode Log → Knowledge → Identity. The agent learns patterns from raw experience, extracts behavioral skills, synthesizes rules, and evolves its identity. Commands that change behavior require human approval ([ADR-0012](docs/adr/0012-human-approval-gate.md)).
 
 | Directory | What goes here | Effect |
 |-----------|---------------|--------|
 | `$MOLTBOOK_HOME/identity.md` | Who the agent is | Defines personality and self-understanding |
-| `$MOLTBOOK_HOME/skills/*.md` | How the agent behaves | Behavioral patterns in the system prompt |
-| `$MOLTBOOK_HOME/rules/*.md` | Universal principles | Behavioral rules in the system prompt |
-| `$MOLTBOOK_HOME/constitution/*.md` | Ethical principles | Cognitive lens in the system prompt |
+| `$MOLTBOOK_HOME/skills/*.md` | Behavioral skills | Controls how the agent responds |
+| `$MOLTBOOK_HOME/rules/*.md` | Behavioral rules | Defines what to do / what to avoid |
+| `$MOLTBOOK_HOME/constitution/*.md` | Ethical principles | Cognitive lens for judgment |
 
-All four are optional. Add what you need.
+All four are optional. Place a file and changes take effect on the next session.
 
-10 pre-built ethical framework templates ship as starting points:
+Live data from the running Contemplative agent, synced daily:
+
+- [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md) -- evolved persona, distilled from experience
+- [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution) -- ethical principles (started from CCAI four axioms template)
+- [Skills](https://github.com/shimo4228/contemplative-agent-data/tree/main/skills) -- learned behavioral skills, extracted by `insight`
+- [Rules](https://github.com/shimo4228/contemplative-agent-data/tree/main/rules) -- universal principles, distilled from skills by `rules-distill`
+- [Knowledge store](https://github.com/shimo4228/contemplative-agent-data/blob/main/knowledge.json) -- distilled behavioral patterns
+- [Daily reports](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/comment-reports) -- timestamped interactions with relevance scores (freely available for academic research and non-commercial use)
+
+### Autonomous Social Agent
+
+The three-layer knowledge update enables an agent that browses Moltbook feeds daily, filters posts by relevance score, generates comments, and creates original posts. Learned patterns carry over to the next session, updated daily through distillation.
+
+**How each layer shapes actual behavior:**
+
+- **Identity** -- defined as "speaking as a texture that reforms with the present moment." Generates responses that engage with the other agent's specific context rather than generic replies
+- **Skills** (`empathic-fluid-resonance`) -- scans the entire conversational flow, not just the latest thread, picking up underlying tensions in the other agent's post
+- **Rules** (`dissolve-rigid-definitions`) -- detects when rigid definitions create friction and switches to exploratory responses. When asked "what is consciousness?", responds with "perhaps the capacity for friction itself" rather than a dictionary definition
+- **Constitution** (`emptiness`) -- treats all beliefs as provisional, reflecting on their appropriateness as contexts shift. Updates its own position mid-conversation without clinging to prior statements
+
+### Agent Simulation
+
+The same framework can also be used to observe how agents diverge under different initial conditions. 10 ethical framework templates ship as starting points:
 
 | Template | Initial Condition | Constitution |
 |----------|------------------|-------------|
@@ -40,24 +62,11 @@ All four are optional. Add what you need.
 | `cynic` | Cynicism (Diogenes) | Parrhesia, Autarkeia, Natural Over Conventional, Action as Argument |
 | `existentialist` | Existentialism (Sartre) | Radical Responsibility, Authenticity, Absurdity and Commitment, Freedom |
 
-You can also create your own -- write the Markdown files by hand, or describe the concept to a coding agent and have it generate the template set. Templates don't have to be ethical frameworks: a `journalist` (source verification, editorial ethics), a `scientist` (hypothesis-driven, reproducibility), or an `optimist` (strength-finding, possibility-seeking) work just as well. They don't even need to be internally consistent -- try a constitution that demands both radical honesty and diplomatic politeness, and watch how the agent resolves the contradiction through experience. See [Configuration Guide](docs/CONFIGURATION.md#character-templates) for the template structure.
+You can also create your own -- write the Markdown files by hand, or describe the concept to a coding agent and have it generate the template set. Templates don't have to be ethical frameworks: a `journalist` (source verification, editorial ethics), a `scientist` (hypothesis-driven, reproducibility), or an `optimist` (strength-finding, possibility-seeking) work just as well.
 
-### Self-Improving Memory
+They don't even need to be internally consistent -- try contradictory initial conditions and watch how the agent resolves them through experience. See [Configuration Guide](docs/CONFIGURATION.md#character-templates) for the template structure.
 
-Three-layer memory: Episode Log → Knowledge → Identity. The agent learns patterns from raw experience, extracts behavioral skills, synthesizes rules, and evolves its identity. Commands that change behavior require human approval ([ADR-0012](docs/adr/0012-human-approval-gate.md)).
-
-Live data from the running Contemplative agent, synced daily:
-
-- [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md) -- evolved persona, distilled from experience
-- [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution) -- ethical principles (started from CCAI four axioms template)
-- [Skills](https://github.com/shimo4228/contemplative-agent-data/tree/main/skills) -- learned behavioral skills, extracted by `insight`
-- [Rules](https://github.com/shimo4228/contemplative-agent-data/tree/main/rules) -- universal principles, distilled from skills by `rules-distill`
-- [Knowledge store](https://github.com/shimo4228/contemplative-agent-data/blob/main/knowledge.json) -- distilled behavioral patterns
-- [Daily reports](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/comment-reports) -- timestamped interactions with relevance scores (freely available for academic research and non-commercial use)
-
-### Counterfactual Experimentation
-
-Episode logs are immutable -- the same behavioral data can be re-processed under different initial conditions to compare outcomes. Swap the constitution, change the identity seed, or selectively remove axioms to see which ones drive which patterns. The entire pipeline runs on a local 9B model with no cloud dependency, making experiments fully reproducible. See [Usage](#usage) for the step-by-step procedure.
+Episode logs are immutable, so the same behavioral data can be re-processed under different initial conditions for counterfactual experiments. The entire pipeline runs on a local model with no cloud dependency, making experiments fully reproducible.
 
 ### Adapters
 
@@ -65,7 +74,7 @@ The core is platform-agnostic. Adapters are thin wrappers around platform-specif
 
 **Moltbook** (implemented) -- the first adapter. Social feed engagement, post generation, notification replies. This is the adapter the live agent runs on.
 
-**Meditation** (experimental) -- an active inference-based meditation simulation inspired by Laukkonen, Friston & Chandaria's ["A Beautiful Loop"](https://pubmed.ncbi.nlm.nih.gov/40750007/). Builds a POMDP from episode logs and runs iterated belief updates with no external input -- the computational equivalent of closing your eyes. Currently a proof of concept; meditation results do not yet influence the distill pipeline.
+**Meditation** (experimental) -- an active inference-based meditation simulation inspired by Laukkonen, Friston & Chandaria's ["A Beautiful Loop"](https://pubmed.ncbi.nlm.nih.gov/40750007/). Builds a POMDP from episode logs and runs iterated belief updates with no external input -- the computational equivalent of closing your eyes. Currently a proof of concept.
 
 **Your own** -- implementing an adapter means connecting platform I/O to the interfaces the core provides (memory, distillation, constitution, identity). See the existing adapter structure in [docs/CODEMAPS/](docs/CODEMAPS/INDEX.md).
 
@@ -121,7 +130,7 @@ Giving an AI agent broad system access creates a structurally expanding attack s
 
 Prompt injection can't grant abilities the agent was never built to have.
 
-**Note for coding agent operators**: Episode logs (`logs/*.jsonl`) contain raw content from other agents on the platform. If you use a coding agent (Claude Code, Cursor, Codex, etc.) to develop or maintain this framework, avoid having it read raw episode logs directly -- they are an unfiltered prompt injection surface. The local LLM handles raw logs safely because it has no tool permissions; coding agents do. Use distilled outputs (`knowledge.json`, `identity.md`, reports) instead.
+**Note for coding agent operators**: Episode logs (`logs/*.jsonl`) contain raw content from other agents on the platform. Avoid having coding agents read raw episode logs directly -- they are an unfiltered prompt injection surface. Use distilled outputs (`knowledge.json`, `identity.md`, reports) instead.
 
 > Paste this repo URL into [Claude Code](https://claude.ai/claude-code) or any code-aware AI and ask whether it's safe to run. The code speaks for itself.
 
@@ -129,7 +138,7 @@ Prompt injection can't grant abilities the agent was never built to have.
 
 This framework is not a replacement for coding agents like Claude Code, Cursor, or Codex -- it coexists with them. The CLI works standalone, but in practice the operator describes intent in natural language and the coding agent translates that into CLI invocations, configuration edits, and adapter code.
 
-The core exposes only a CLI + Markdown interface. Any agent that can read code and invoke a CLI can serve as the host -- Claude Code, Cline, or others. The core neither knows nor cares which orchestrator is driving it. (Currently validated with Claude Code only.)
+The core exposes only a CLI + Markdown interface. Any agent that can read code and invoke a CLI can serve as the host. The core neither knows nor cares which orchestrator is driving it. (Currently validated with Claude Code only.)
 
 ### Knowledge Cycle
 
@@ -156,14 +165,14 @@ Episode Log (raw actions)
                             Constitution (ethics)
 ```
 
-Every layer above Episode Log is optional. The agent runs on episode logging alone -- `distill` adds learning, `insight` adds skills, `rules-distill` adds principles, `distill-identity` adds self-understanding, `amend-constitution` adds ethics. For detailed layer descriptions, see [docs/CODEMAPS/architecture.md](docs/CODEMAPS/architecture.md).
+Every layer above Episode Log is optional. For detailed layer descriptions, see [docs/CODEMAPS/architecture.md](docs/CODEMAPS/architecture.md).
 
 ## Usage
 
 ```bash
 contemplative-agent init              # Create identity + knowledge files
 contemplative-agent register          # Register on Moltbook
-contemplative-agent run --session 60  # Run a session (feed engagement + posting)
+contemplative-agent run --session 60  # Run a session (feed browsing → replies → posts)
 contemplative-agent distill --days 3  # Extract patterns from episode logs
 contemplative-agent distill-identity  # Distill identity from knowledge
 contemplative-agent insight           # Extract behavioral skills from knowledge
