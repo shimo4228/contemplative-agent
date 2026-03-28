@@ -2,7 +2,7 @@
 # Codemaps Index
 
 Comprehensive architectural documentation for contemplative-moltbook project.
-**Last Updated**: 2026-03-28 | **Codebase**: 36 modules, ~7500 LOC, 774 tests
+**Last Updated**: 2026-03-28 | **Codebase**: 37 modules, ~8000 LOC, 776 tests
 
 ---
 
@@ -12,7 +12,7 @@ Comprehensive architectural documentation for contemplative-moltbook project.
 **Read first.** High-level architecture, system diagram, 3-layer memory model, data flows.
 
 **Topics**:
-- Project type & stats (36 modules, ~7500 LOC, 774 tests)
+- Project type & stats (37 modules, ~8000 LOC, 776 tests)
 - System diagram (core/ + adapters/moltbook/ + adapters/meditation/ + Ollama)
 - Import rules (adapters → core, cli.py is only exception)
 - Session execution flow (ReplyHandler → FeedManager → PostPipeline)
@@ -46,7 +46,7 @@ Comprehensive architectural documentation for contemplative-moltbook project.
 **Platform-independent foundation.** 14 modules providing base functionality.
 
 **Topics**:
-- 15 core modules (~2900 LOC): _io, config, domain, prompts, llm, episode_log, knowledge_store, memory, scheduler, distill (2-stage + identity), insight, constitution, rules_distill, report, metrics
+- 16 core modules (~3700 LOC): _io, config, domain, prompts, llm, episode_log, knowledge_store, memory, scheduler, distill (2-stage + identity), insight, constitution, rules_distill, stocktake, report, metrics
 - 2-stage distill pipeline (extract → refine, identity update integrated)
 - Dependency flow diagram
 - 3 frozen dataclasses (Interaction, PostRecord, Insight)
@@ -118,11 +118,11 @@ Package versions, transitive dependencies, security notes.
 
 | Metric | Value |
 |--------|-------|
-| Total modules | 36 (15 core + 11 adapters/moltbook + 4 adapters/meditation + cli + 5 other) |
-| LOC | ~7500 |
-| Test files | 17 |
-| Test count | 726 |
-| Core modules | 15 (platform-independent) |
+| Total modules | 37 (16 core + 11 adapters/moltbook + 4 adapters/meditation + cli + 5 other) |
+| LOC | ~8000 |
+| Test files | 20 |
+| Test count | 776 |
+| Core modules | 16 (platform-independent) |
 | Moltbook adapter modules | 11 |
 | Meditation adapter modules | 4 |
 | Dataclasses | 3 (Interaction, PostRecord, Insight) |
@@ -149,4 +149,4 @@ CODEMAPS と system-spec.md は context-sync で同期する:
 - **system-spec.md**: 設計変更時に更新（「こうなっている」の正式仕様）
 - **CODEMAPS**: コード変更時に更新（「どこにあるか」のコード索引）
 
-Last full scan: 2026-03-28 (36 modules, 774 tests verified)
+Last full scan: 2026-03-28 (37 modules, 776 tests verified)

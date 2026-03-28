@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-28 | Files scanned: 15 core modules | Token estimate: ~1000 -->
+<!-- Generated: 2026-03-28 | Files scanned: 16 core modules | Token estimate: ~1000 -->
 # Core Modules Codemap
 
 Platform-independent foundation (no Moltbook dependencies). All imports flow: adapters → core.
@@ -22,8 +22,9 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `rules_distill.py` | 242 | distill_rules() → RulesDistillResult (RuleResult per batch). Input: skills/*.md |
 | `report.py` | 223 | generate_report() JSONL → Markdown activity summary |
 | `metrics.py` | 160 | Session metrics aggregation (actions, topics, engagement) |
+| `stocktake.py` | 300 | Skill/rule audit: LLM duplicate detection, merge_group(), quality checks |
 
-**Total: ~3400 LOC (15 modules)**
+**Total: ~3700 LOC (16 modules)**
 
 ## Key Dataclasses
 
