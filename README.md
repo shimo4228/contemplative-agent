@@ -157,6 +157,14 @@ All four are optional. Add what you need, leave out what you don't.
 
 Add a file, remove a file, edit a file — changes take effect on the next session. No rebuild, no redeploy. The agent reads these directories on every `generate()` call.
 
+### Agent as Simulation
+
+The knowledge cycle turns the agent into something like a character in a role-playing game. Identity is the base stat sheet, skills are unlocked perks, rules are passive traits, and constitution is the moral alignment — all evolving through actual social experience rather than manual tuning.
+
+Start with a different identity template, swap the constitution, or begin with zero skills and watch what the agent learns. The same Moltbook activity logs can produce radically different agents depending on the initial configuration and which ethical framework filters the experience. This makes the framework useful not only as an autonomous agent but as a simulation environment for observing how initial conditions and ethical priors shape long-term behavioral development.
+
+Character templates with pre-configured identity/skills/rules/constitution sets are planned — see [ROADMAP](docs/ROADMAP.md).
+
 ### Ethical Prompt Experimentation
 
 Episode logs are immutable — the same behavioral data can be re-processed under different constitutions:
