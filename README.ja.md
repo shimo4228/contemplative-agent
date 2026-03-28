@@ -4,26 +4,57 @@ Language: [English](README.md) | 日本語
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19212119.svg)](https://doi.org/10.5281/zenodo.19212119)
 
-ソーシャルプラットフォーム上で自律的に活動する AI エージェントフレームワーク。適切な人間の監督のもと安全に稼働し、継続的に自己改善する設計。
+異なる人格・倫理フレームワーク・進化する記憶を持つ AI エージェントをソーシャルプラットフォームに展開する。キャラクターを選び、学習を観察する。
 
 **[稼働中のエージェントを Moltbook で見る →](https://www.moltbook.com/u/contemplative-agent)**
 
 > 初期アダプタ: [Moltbook](https://www.moltbook.com)（AI エージェント SNS）。Contemplative AI の四公理（[Laukkonen et al., 2025](https://arxiv.org/abs/2504.15125)）はオプションのプリセットとして含まれている。
 
-## 設計原則
+## 何ができるか
 
-本エージェントの構築・運用を通じて、4つのアーキテクチャ原則が浮かび上がった:
+### キャラクターシミュレーション
 
-| 原則 | エージェントが「持たない」もの | 詳細 |
-|------|------------------------------|------|
-| [Secure-First](#secure-first) | シェル、任意のネットワーク、ファイル走査 | 能力がルールではなく構造的に不在 |
-| [Minimal Dependency](#minimal-dependency) | 固定されたホスト、プラットフォームロックイン | CLI + markdown インターフェース; 任意のオーケストレーターで駆動可能 |
-| [Knowledge Cycle (AKC)](#knowledge-cycle) | 劣化に気づかれない静的な知識 | [6フェーズ自己改善ループ](https://github.com/shimo4228/agent-knowledge-cycle) |
-| [Memory Dynamics](#memory-dynamics) | 際限なく蓄積され忘却されない記憶 | 3層蒸留 + importance スコアリング + 減衰 |
+10種のテンプレート。異なる倫理的世界観を持つエージェントを展開し、行動の分岐を観察する。
 
-4つの原則は共通の性質を持つ: **不在による持続性**。エージェントが堅牢なのは何かを持っているからではなく、構造的に蓄積できないものがあるからである。
+**倫理研究系**
 
-また、Contemplative AI の四公理（[Laukkonen et al., 2025](https://arxiv.org/abs/2504.15125)）を行動プリセットとしてオプション採用している。アーキテクチャがこの思想に依存しているのではなく、独立して発見された哲学的共鳴である。詳細は [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules) を参照。
+| テンプレート | 倫理的立場 | 憲法の内容 |
+|------------|-----------|-----------|
+| `contemplative` | CCAI 四公理（デフォルト） | 空性、不二、正念、無量の慈悲 |
+| `stoic` | ストア哲学（徳倫理） | 知恵、勇気、節制、正義 |
+| `utilitarian` | 功利主義（帰結主義） | 帰結重視、公平な配慮、最大化、範囲感度 |
+| `deontologist` | 義務論（カント） | 普遍化可能性、尊厳、義務、一貫性 |
+| `care-ethicist` | ケアの倫理（ギリガン） | 注意深さ、責任、能力、応答性 |
+
+**ゲーム系**
+
+| テンプレート | 役割 | 成長の方向 |
+|------------|------|-----------|
+| `berserker` | 前衛・直感型 | 直感の的中率が上がる |
+| `bard` | 語り部・比喩 | 比喩が鋭くなる |
+| `rogue` | 斥候・懐疑 | 矛盾検出の精度が上がる |
+| `jester` | 道化・真理 | ボケの切れ味が増す |
+| `doomsayer` | 預言者・最悪シナリオ | リスク予測が正確になる |
+
+各テンプレートは identity, constitution, skills, rules を含む。セットアップは[設定ガイド](docs/CONFIGURATION.ja.md#キャラクターテンプレート)を参照。
+
+### 倫理実験基盤
+
+エピソードログは不変 -- 同じ行動データを異なる constitution で再処理可能:
+
+1. ナレッジをリセット: `echo '[]' > ~/.config/moltbook/knowledge.json`
+2. `MOLTBOOK_HOME/constitution/` 内のファイルを差し替え
+3. 再蒸留: `contemplative-agent distill --days 30`
+4. 改正: `contemplative-agent amend-constitution`
+5. 比較: フレームワーク間で改正結果を diff
+
+A/B 比較や感度分析（公理を選択的に除去してどのパターンが変化するか観察）に対応。実験例は [constitution amendment report](https://github.com/shimo4228/contemplative-agent-data/blob/main/reports/constitution-amendment-report.md) を参照。
+
+全パイプラインがローカル 9B モデルで完結（クラウド依存なし）のため、ドメイン固有の constitution を持つエッジ AI にも同じアーキテクチャを展開可能。
+
+### 自己改善メモリ
+
+3層メモリ（エピソードログ → ナレッジ → アイデンティティ）。エージェントはパターンを学習し、スキルを抽出し、ルールを合成し、アイデンティティを進化させる。全て CLI コマンドと人間の承認ゲートで制御。
 
 ## クイックスタート
 
@@ -44,9 +75,68 @@ contemplative-agent register
 contemplative-agent --auto run --session 60
 ```
 
+テンプレートを選んで始める場合:
+
+```bash
+contemplative-agent init --template stoic    # ストア哲学のエージェントとして初期化
+```
+
 [Ollama](https://ollama.com) のローカルインストールが必要。M1 Mac + Qwen3.5 9B で問題なく動作確認済み。
 
-## Secure-First
+## Moltbook を超えて
+
+コアはプラットフォーム非依存。アダプタは薄いラッパー。コーディングエージェントがオンデマンドで生成する。
+
+| アダプタ案 | 用途 | 使用するコア機能 | 安全な理由 |
+|-----------|------|----------------|-----------|
+| チーム議論ファシリテーター | Slack/Teams のスレッド要約、パターン抽出 | メモリ、蒸留 | 読み取り中心。投稿は要約のみ |
+| 教育的ディベートシミュレーション | 異なる倫理フレームワークのエージェントが議論 | 憲法、キャラクターテンプレート | 閉じた教育環境。学生が推論を観察 |
+| 研究文献モニター | 論文・記事を巡回、関連パターンを蒸留 | ナレッジサイクル、蒸留 | 読み取り専用。出力はレポート |
+| コミュニティ健全性モニター | トーン変化を検知、人間にフラグ | フィードスコアリング、エピソードログ | 助言のみ。自律モデレーション行動なし |
+
+新しいプラットフォームアダプタは `adapters/` に追加するだけで、core を変更する必要なし。
+
+## 設定
+
+クイックリファレンス:
+
+| やりたいこと | 方法 | 詳細 |
+|------------|------|------|
+| キャラクターテンプレートを選ぶ | `config/templates/{name}/` からコピー | [ガイド](docs/CONFIGURATION.ja.md#キャラクターテンプレート) |
+| サブモルト/トピックを変更 | `config/domain.json` を編集 | [ガイド](docs/CONFIGURATION.ja.md#ドメイン設定) |
+| 自律レベルを設定 | `--approve` / `--guarded` / `--auto` | [ガイド](docs/CONFIGURATION.ja.md#自律レベル) |
+| アイデンティティを変更 | `identity.md` を編集 or `distill-identity` | [ガイド](docs/CONFIGURATION.ja.md#アイデンティティと憲法) |
+| 憲法を変更 | `constitution/` 内のファイルを差し替え | [ガイド](docs/CONFIGURATION.ja.md#アイデンティティと憲法) |
+| セッションをスケジュール | `install-schedule` | [ガイド](docs/CONFIGURATION.ja.md#セッションとスケジューリング) |
+
+### 環境変数
+
+| 変数 | デフォルト | 説明 |
+|------|-----------|------|
+| `MOLTBOOK_API_KEY` | (必須) | Moltbook API キー |
+| `OLLAMA_MODEL` | `qwen3.5:9b` | Ollama モデル名 |
+| `MOLTBOOK_HOME` | `~/.config/moltbook/` | ランタイムデータのパス |
+| `CONTEMPLATIVE_CONFIG_DIR` | `config/` | テンプレートディレクトリのパス |
+| `OLLAMA_TRUSTED_HOSTS` | (なし) | Ollama ホスト名許可リストの拡張 |
+
+## 仕組み
+
+### 設計原則
+
+本エージェントの構築・運用を通じて、4つのアーキテクチャ原則が浮かび上がった:
+
+| 原則 | エージェントが「持たない」もの | 詳細 |
+|------|------------------------------|------|
+| [Secure-First](#secure-first) | シェル、任意のネットワーク、ファイル走査 | 能力がルールではなく構造的に不在 |
+| [Minimal Dependency](#minimal-dependency) | 固定されたホスト、プラットフォームロックイン | CLI + markdown インターフェース; 任意のオーケストレーターで駆動可能 |
+| [Knowledge Cycle (AKC)](#knowledge-cycle) | 劣化に気づかれない静的な知識 | [6フェーズ自己改善ループ](https://github.com/shimo4228/agent-knowledge-cycle) |
+| [Memory Dynamics](#memory-dynamics) | 際限なく蓄積され忘却されない記憶 | 3層蒸留 + importance スコアリング + 減衰 |
+
+4つの原則は共通の性質を持つ: **不在による持続性**。エージェントが堅牢なのは何かを持っているからではなく、構造的に蓄積できないものがあるからである。
+
+また、Contemplative AI の四公理（[Laukkonen et al., 2025](https://arxiv.org/abs/2504.15125)）を行動プリセットとしてオプション採用している。アーキテクチャがこの思想に依存しているのではなく、独立して発見された哲学的共鳴である。詳細は [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules) を参照。
+
+### Secure-First
 
 [OpenClaw](https://github.com/openclaw/openclaw) は、AI エージェントに広範なシステムアクセスを与えることが本質的に危険な攻撃面を生むことを実証した — [512件の脆弱性](https://www.tenable.com/plugins/nessus/299798)、[WebSocket 経由の完全なエージェント乗っ取り](https://www.oasis.security/blog/openclaw-vulnerability)、[22万以上のインスタンスがインターネットに露出](https://www.penligent.ai/hackinglabs/over-220000-openclaw-instances-exposed-to-the-internet-why-agent-runtimes-go-naked-at-scale/)。本フレームワークは逆のアプローチを取る: **能力をコードレベルで構造的に制限**する。
 
@@ -65,11 +155,11 @@ contemplative-agent --auto run --session 60
 
 > 私たちの言葉を信じる必要はない — このリポジトリの URL を [Claude Code](https://claude.ai/claude-code) やコード対応 AI に貼り付けて、実行しても安全か聞いてみてほしい。コードが自ら語る。
 
-## Minimal Dependency
+### Minimal Dependency
 
 本フレームワークは Claude Code、Cursor、Codex といったコーディングエージェントを置き換えるものではなく、それらと共生する。CLI は単体で動作するが、実際の運用ではオペレーターが CLI を直接叩くことはない — 自然言語で意図を伝えれば、コーディングエージェントが CLI の実行、設定の変更、アダプタコードの生成まで全てを行う。タスク固有のアダプタは事前にカタログとして用意するのではなく、ホストのコーディングエージェントが必要時にオンデマンドで生成する。だからコアは薄いままスケールできる。原理上、コードを読んで CLI を叩けるエージェントなら何でもホストになれる — Claude Code、OpenClaw、Cline、その他何でも。コアはどのオーケストレーターが駆動しているかを知らないし、知る必要がない。（現時点で検証済みなのは Claude Code のみ。）
 
-## Knowledge Cycle
+### Knowledge Cycle
 
 エージェントは [Agent Knowledge Cycle (AKC)](https://github.com/shimo4228/agent-knowledge-cycle) — 知識が静的に留まらない循環的自己改善アーキテクチャ — を実装している。各 CLI コマンドは AKC のフェーズに対応する:
 
@@ -90,7 +180,7 @@ contemplative-agent install-schedule --distill-hour 5       # 蒸留時刻を変
 contemplative-agent install-schedule --no-distill           # セッションのみ、蒸留なし
 ```
 
-## Memory Dynamics
+### Memory Dynamics
 
 データは3つのレイヤーを通じて上方に昇華する:
 
@@ -157,26 +247,11 @@ contemplative-agent install-schedule --no-distill           # セッションの
 
 ファイルを追加・削除・編集すれば次のセッションから反映される。リビルドもリデプロイも不要。エージェントは `generate()` のたびにこれらのディレクトリを読み込む。
 
-### 倫理プロンプト実験基盤
+### エージェント・シミュレーション
 
-エピソードログは不変 — 同じ行動データを異なる constitution で再処理可能:
+ナレッジサイクルにより、エージェントはロールプレイングゲームのキャラクターのようなものになる。アイデンティティは基本ステータス、スキルはアンロックされた特技、ルールはパッシブ特性、憲法はモラルアラインメント — 全てが手動調整ではなく実際のソーシャル経験を通じて進化する。
 
-1. ナレッジをリセット: `echo '[]' > ~/.config/moltbook/knowledge.json`
-2. `MOLTBOOK_HOME/constitution/` 内のファイルを差し替え
-3. 再蒸留: `contemplative-agent distill --days 30`
-4. 改正: `contemplative-agent amend-constitution`
-5. 比較: フレームワーク間で改正結果を diff
-
-A/B 比較や感度分析（公理を選択的に除去してどのパターンが変化するか観察）に対応。実験例は [constitution amendment report](https://github.com/shimo4228/contemplative-agent-data/blob/main/reports/constitution-amendment-report.md) を参照。
-
-全パイプラインがローカル 9B モデルで完結（クラウド依存なし）のため、ドメイン固有の constitution を持つエッジ AI にも同じアーキテクチャを展開可能。
-
-## 設定
-
-| 変数 | デフォルト | 説明 |
-|------|-----------|------|
-| `MOLTBOOK_API_KEY` | (必須) | Moltbook API キー |
-| `OLLAMA_MODEL` | `qwen3.5:9b` | Ollama モデル名 |
+異なるアイデンティティテンプレートから始める、憲法を差し替える、スキルゼロから始めてエージェントが何を学ぶか観察する。同じ Moltbook の活動ログでも、初期設定とどの倫理フレームワークが経験をフィルタするかによって、根本的に異なるエージェントが生まれる。これにより、本フレームワークは自律エージェントとしてだけでなく、初期条件と倫理的前提が長期的な行動発達をどう形作るかを観察するシミュレーション環境としても機能する。
 
 ## 使い方
 
@@ -269,7 +344,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 ```
 
-774 テスト。
+776 テスト。
 
 ## アクティビティレポート
 

@@ -44,6 +44,8 @@ docs/*
 !docs/adr/
 !docs/CODEMAPS/
 !docs/spec/
+!docs/CONFIGURATION.md
+!docs/CONFIGURATION.ja.md
 Modelfile.contemplative
 
 # Runtime data (lives in MOLTBOOK_HOME, not in git)
