@@ -300,7 +300,7 @@ def _do_init() -> None:
         print(f"Created knowledge file: {KNOWLEDGE_PATH}")
 
     # Copy default constitution if not already present
-    src_constitution = templates_dir / "constitution"
+    src_constitution = templates_dir / "contemplative" / "constitution"
     if CONSTITUTION_DIR.exists():
         print(f"Constitution already exists: {CONSTITUTION_DIR}")
     elif src_constitution.is_dir():

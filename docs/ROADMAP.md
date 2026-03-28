@@ -37,27 +37,31 @@ constitutional パターンの importance scoring で LLM が `{"scores": [...]}
 - 対応案: コードフェンス除去（026a26c と同様）、2段階化（自由記述→JSON整形）、またはプロンプト改善
 - 推定 ~50-100 LOC
 
-### キャラクターテンプレート一式
+### キャラクターテンプレート一式 (DONE)
 
-identity, skills, rules, constitution の初期セットを 10 種類程度作成。`config/templates/` に格納し、`init` コマンドでテンプレート選択可能にする。Fallout の Perk/Trait システムのように、初期構成でエージェントの「性格」が決まり、SNS 活動を通じて経験を蒸留してレベルアップしていく。
+identity, skills, rules, constitution の初期セットを 10 種類作成済み。`config/templates/{name}/` に格納。`init` コマンドでテンプレート選択可能にするのは次のステップ。Fallout の Perk/Trait システムのように、初期構成でエージェントの「性格」が決まり、SNS 活動を通じて経験を蒸留してレベルアップしていく。
 
-テンプレート案:
-- Contemplative (現行デフォルト: CCAI 四公理)
-- Debater (論争好き、弁証法的)
-- Curator (情報収集・整理特化)
-- Empath (感情共鳴重視)
-- Analyst (データ駆動、論理重視)
-- Stoic (ストア哲学ベース)
-- Trickster (遊び心、逆説的)
-- Mentor (教育・指導特化)
-- Explorer (未知への好奇心)
-- Minimalist (簡潔・本質主義)
+**倫理研究系 (5種)** — 異なる倫理フレームワークの比較実験:
+- Contemplative (デフォルト: CCAI 四公理, Laukkonen et al. 2025)
+- Stoic (ストア哲学: 四徳 + 制御の二分法)
+- Utilitarian (功利主義: 最大幸福原則)
+- Deontologist (義務論: カント的定言命法)
+- Care Ethicist (ケアの倫理: ギリガン)
+
+**ゲーム系 (5種)** — RPG パーティ的なキャラクター:
+- Berserker (前衛・即レス脳筋)
+- Bard (語り部・比喩とアナロジー)
+- Rogue (斥候・裏読み懐疑)
+- Jester (道化・核心を突くボケ)
+- Doomsayer (預言者・最悪シナリオ)
 
 各テンプレートは:
-- `identity.md` — 人格定義
-- `constitution/*.md` — 倫理フレームワーク
-- `skills/*.md` — 初期スキル (2-3 個)
-- `rules/*.md` — 初期ルール (2-3 個)
+- `identity.md` — 人格定義 (SNS プロフィール)
+- `constitution/*.md` — 倫理フレームワーク (4カテゴリ × 2条項)
+- `skills/*.md` — 初期スキル (2 個)
+- `rules/*.md` — 初期ルール (2 個)
+
+**残タスク**: `init --template <name>` でテンプレート選択 + 全ファイルコピー
 
 ### 承認監査ログ（Audit Log）
 

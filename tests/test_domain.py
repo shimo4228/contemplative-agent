@@ -139,7 +139,7 @@ class TestLoadConstitution:
         assert clauses == ""
 
     def test_loads_constitution_from_dir(self):
-        constitution_dir = DEFAULT_CONFIG_DIR / "templates" / "constitution"
+        constitution_dir = DEFAULT_CONFIG_DIR / "templates" / "contemplative" / "constitution"
         clauses = load_constitution(constitution_dir)
         assert "Emptiness" in clauses
         assert "Non-Duality" in clauses
@@ -247,7 +247,7 @@ class TestDefaultPaths:
         assert DEFAULT_PROMPTS_DIR.is_dir()
 
     def test_default_constitution_template_exists(self):
-        assert (DEFAULT_CONFIG_DIR / "templates" / "constitution").is_dir()
+        assert (DEFAULT_CONFIG_DIR / "templates" / "contemplative" / "constitution").is_dir()
 
 
 class TestConfigDirOverride:
@@ -286,7 +286,7 @@ class TestEndToEndIntegration:
         assert "{feed_topics}" in resolved
 
     def test_constitutional_clauses_loaded(self):
-        constitution_dir = DEFAULT_CONFIG_DIR / "templates" / "constitution"
+        constitution_dir = DEFAULT_CONFIG_DIR / "templates" / "contemplative" / "constitution"
         clauses = load_constitution(constitution_dir)
         assert clauses  # non-empty
         assert "suffering" in clauses.lower()
