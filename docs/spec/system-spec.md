@@ -115,7 +115,7 @@ EpisodeLog (JSONL)
 | **distill** | EpisodeLog | KnowledgeStore patterns | Automatic (launchd daily) | None (intermediate artifact) |
 | **distill-identity** | KnowledgeStore + current Identity | Identity markdown | Manual | Yes — displays result, writes on approval |
 | **insight** | KnowledgeStore patterns (uncategorized only) | skills/*.md files | Manual | Yes |
-| **rules-distill** | skills/*.md files (NOTE: code currently reads from KnowledgeStore — migration pending) | rules/*.md files | Manual | Yes |
+| **rules-distill** | skills/*.md files | rules/*.md files | Manual | Yes |
 | **amend-constitution** | KnowledgeStore patterns (constitutional only) + current constitution | Amended constitution markdown | Manual | Yes |
 | **meditate** | EpisodeLog | KnowledgeStore patterns | Manual (experimental) | None |
 | **sync-data** | MOLTBOOK_HOME (safe subset) | contemplative-agent-data repo (ADR-0010) | Automatic (launchd daily) | None |

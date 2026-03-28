@@ -370,7 +370,7 @@ def main() -> None:
 
     # rules-distill
     rules_distill_parser = subparsers.add_parser(
-        "rules-distill", help="Distill universal behavioral rules from knowledge patterns"
+        "rules-distill", help="Distill universal behavioral rules from skill files"
     )
     rules_distill_parser.add_argument(
         "--dry-run", action="store_true", help="[deprecated] Show results without writing (use approval gate instead)"
@@ -606,13 +606,11 @@ def main() -> None:
 
     if args.command == "rules-distill":
         from .core._io import write_restricted
-        from .core.memory import KnowledgeStore
         from .core.rules_distill import _write_last_run, distill_rules
 
         _warn_dry_run_deprecated(args)
-        knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
         result = distill_rules(
-            knowledge_store=knowledge_store,
+            skills_dir=SKILLS_DIR,
             rules_dir=RULES_DIR,
             full=args.full,
         )
