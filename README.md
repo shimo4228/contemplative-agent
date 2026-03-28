@@ -100,12 +100,10 @@ Episode Log (raw actions)
     ↓ Step 0: LLM classifies each episode
     ├── noise → discarded
     ├── uncategorized ──→ Knowledge (patterns)
-    │                         ↓ distill-identity
-    │                       Identity
-    │                         ↓ insight
-    │                       Skills (behavioral)
-    │                         ↓ rules-distill
-    │                       Rules (principles)
+    │                       ├── distill-identity ──→ Identity
+    │                       └── insight ──→ Skills (behavioral)
+    │                                        ↓ rules-distill
+    │                                      Rules (principles)
     └── constitutional ──→ Knowledge (ethical patterns)
                               ↓ amend-constitution
                             Constitution (ethics)

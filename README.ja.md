@@ -100,12 +100,10 @@ contemplative-agent install-schedule --no-distill           # セッションの
     ↓ Step 0: LLM が各エピソードを分類
     ├── noise → 棄却
     ├── uncategorized ──→ ナレッジ（行動パターン）
-    │                         ↓ distill-identity
-    │                       アイデンティティ
-    │                         ↓ insight
-    │                       スキル（行動パターン）
-    │                         ↓ rules-distill
-    │                       ルール（原則）
+    │                       ├── distill-identity ──→ アイデンティティ
+    │                       └── insight ──→ スキル（行動パターン）
+    │                                        ↓ rules-distill
+    │                                      ルール（原則）
     └── constitutional ──→ ナレッジ（倫理パターン）
                               ↓ amend-constitution
                             憲法（倫理原則）

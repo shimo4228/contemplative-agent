@@ -47,9 +47,9 @@ Layer 1: EpisodeLog     ── append-only JSONL, daily files
     ↓ Step 0: LLM classifies each episode
     ├── noise → discarded (active forgetting)
     ├── uncategorized ──→ Layer 2: KnowledgeStore (behavioral patterns)
-    │                         ↓ distill-identity → Layer 3: Identity
-    │                         ↓ insight → skills/*.md
-    │                              ↓ rules-distill → rules/*.md
+    │                       ├── distill-identity → Layer 3: Identity
+    │                       └── insight → skills/*.md
+    │                                      ↓ rules-distill → rules/*.md
     └── constitutional ──→ Layer 2: KnowledgeStore (ethical patterns)
                               ↓ amend-constitution → constitution/*.md
 ```
