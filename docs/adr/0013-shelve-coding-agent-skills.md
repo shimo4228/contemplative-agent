@@ -47,6 +47,18 @@ The approval gate (ADR-0012) remains in effect for the 9B pipeline. The key diff
 
 4. **Use coding agent for generation, 9B for refinement**: Inverts the quality relationship. Does not solve the core problem. → Rejected
 
+## Observations
+
+This ADR captures a broader phenomenon beyond the specific -ca skills:
+
+1. **Quality–independence trade-off**: Higher-capability models produce better text but are more responsive to conversational context. Lower-capability models produce rougher output but are structurally independent. For self-referential artifacts (identity, values, behavioral patterns), independence may matter more than quality
+
+2. **Observer effect in runtime distillation**: The presence of a user during generation changes what is generated — analogous to the observer effect. This is a known phenomenon in RLHF (over-optimization toward user preferences), but here it manifests at runtime in a self-improvement pipeline, not during training
+
+3. **Inverse relationship between capability and autonomy**: A 9B model's limited ability to accommodate real-time feedback is precisely what preserves the authenticity of its output. The "weakness" of the small model is a structural advantage for this specific use case
+
+These observations may generalize to any AI agent self-improvement loop where behavioral artifacts are generated in the presence of a human overseer.
+
 ## Consequences
 
 **Positive outcomes**:
