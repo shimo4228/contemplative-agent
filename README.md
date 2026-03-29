@@ -183,6 +183,24 @@ contemplative-agent sync-data         # Sync research data to external repositor
 contemplative-agent install-schedule  # Set up scheduled execution (6h intervals + daily distill)
 ```
 
+### Coding Agent Skills
+
+If you open this repository in [Claude Code](https://claude.ai/claude-code) (or any coding agent that reads `.claude/skills/`), five slash commands become available. These use the coding agent's own reasoning (Opus-class) to maintain the agent's behavioral artifacts -- replacing the 9B multi-stage pipeline with holistic judgment.
+
+| Command | AKC Phase | What it does |
+|---------|-----------|--------------|
+| `/insight-ca` | Extract/Curate | knowledge.json (uncategorized) → skills/*.md |
+| `/skill-stocktake-ca` | Curate | Audit skills/ + rules/ for duplicates, staleness |
+| `/rules-distill-ca` | Promote | skills/*.md → rules/*.md (cross-cutting principles) |
+| `/amend-constitution-ca` | Promote | knowledge.json (constitutional) → constitution/*.md |
+| `/distill-identity-ca` | Promote | knowledge.json + identity.md → updated identity.md |
+
+All commands require human approval before writing. The `-ca` suffix distinguishes these from the coding agent's own maintenance skills (learn-eval, skill-stocktake, rules-distill).
+
+**Security**: These commands read only `knowledge.json` (sanitized). They never read raw episode logs (`logs/*.jsonl`) -- see [ADR-0007](docs/adr/0007-security-boundary-model.md).
+
+**Prerequisite**: Run `contemplative-agent distill` first to populate `knowledge.json` from episode logs.
+
 ### Autonomy Levels
 
 - `--approve` (default): Every post requires y/n confirmation
