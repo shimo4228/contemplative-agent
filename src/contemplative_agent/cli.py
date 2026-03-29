@@ -1,13 +1,18 @@
 """CLI entry point for the Contemplative Agent."""
 
 import argparse
+import hashlib
+import json as json_mod
 import logging
 import os
 import stat
 import subprocess
 import sys
+from datetime import datetime, timezone
 from pathlib import Path
 from xml.sax.saxutils import escape as xml_escape
+
+logger = logging.getLogger(__name__)
 
 from .adapters.moltbook.agent import Agent, AutonomyLevel
 from .adapters.moltbook.config import (
@@ -22,6 +27,7 @@ from .adapters.moltbook.config import (
     STAGED_DIR,
 )
 from .core.domain import (
+    DEFAULT_CONFIG_DIR,
     get_domain_config,
     load_constitution,
     load_domain_config,
@@ -187,6 +193,26 @@ _APPROVAL_GATE_COMMANDS = frozenset({
 })
 
 
+AUDIT_LOG_PATH = MOLTBOOK_DATA_DIR / "logs" / "audit.jsonl"
+
+
+def _log_approval(command: str, path: Path, approved: bool, content: str) -> None:
+    """Append approval decision to audit log."""
+    record = {
+        "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        "command": command,
+        "path": str(path),
+        "decision": "approved" if approved else "rejected",
+        "content_hash": hashlib.sha256(content.encode()).hexdigest()[:16],
+    }
+    try:
+        AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as f:
+            f.write(json_mod.dumps(record, ensure_ascii=False) + "\n")
+    except OSError:
+        logger.warning("Failed to write audit log: %s", AUDIT_LOG_PATH)
+
+
 def _approve_write(path: Path) -> bool:
     """Prompt user for write approval. Default is N (safe side)."""
     print(f"\nWrite to {path}? [y/N] ", end="", flush=True)
@@ -273,42 +299,64 @@ def _run_sync() -> None:
         print(f"Warning: sync failed: {result.stderr.strip()}", file=sys.stderr)
 
 
-def _do_init() -> None:
+def _list_templates() -> list[str]:
+    """Return sorted list of available template names."""
+    templates_dir = DEFAULT_CONFIG_DIR / "templates"
+    if not templates_dir.is_dir():
+        return []
+    return sorted(
+        d.name for d in templates_dir.iterdir()
+        if d.is_dir() and (d / "identity.md").exists()
+    )
+
+
+def _do_init(template_name: str = "contemplative") -> None:
     """Initialize runtime data files in MOLTBOOK_HOME."""
     import shutil
 
-    MOLTBOOK_DATA_DIR.mkdir(parents=True, exist_ok=True)
-    project_root = Path(__file__).resolve().parents[2]
-    templates_dir = project_root / "config" / "templates"
+    templates_dir = DEFAULT_CONFIG_DIR / "templates"
+    template_dir = templates_dir / template_name
+    if not template_dir.is_dir():
+        available = ", ".join(_list_templates())
+        print(f"Unknown template: {template_name}", file=sys.stderr)
+        print(f"Available templates: {available}", file=sys.stderr)
+        sys.exit(1)
 
+    MOLTBOOK_DATA_DIR.mkdir(parents=True, exist_ok=True)
+
+    # Identity
+    src_identity = template_dir / "identity.md"
     if IDENTITY_PATH.exists():
         print(f"Identity file already exists: {IDENTITY_PATH}")
-    else:
+    elif src_identity.exists():
         IDENTITY_PATH.parent.mkdir(parents=True, exist_ok=True)
-        IDENTITY_PATH.write_text("\n", encoding="utf-8")
+        shutil.copy2(src_identity, IDENTITY_PATH)
         os.chmod(IDENTITY_PATH, stat.S_IRUSR | stat.S_IWUSR)
-        print(f"Created identity file: {IDENTITY_PATH}")
-        print(f"Tip: copy a template from {templates_dir}/ to seed your identity")
+        print(f"Created identity file: {IDENTITY_PATH} (from {template_name})")
 
+    # Knowledge (always empty, not template-specific)
     if KNOWLEDGE_PATH.exists():
         print(f"Knowledge file already exists: {KNOWLEDGE_PATH}")
     else:
-        import json as _json
         KNOWLEDGE_PATH.parent.mkdir(parents=True, exist_ok=True)
-        KNOWLEDGE_PATH.write_text(_json.dumps([], ensure_ascii=False) + "\n", encoding="utf-8")
+        KNOWLEDGE_PATH.write_text(json_mod.dumps([], ensure_ascii=False) + "\n", encoding="utf-8")
         os.chmod(KNOWLEDGE_PATH, stat.S_IRUSR | stat.S_IWUSR)
         print(f"Created knowledge file: {KNOWLEDGE_PATH}")
 
-    # Copy default constitution if not already present
-    src_constitution = templates_dir / "contemplative" / "constitution"
-    if CONSTITUTION_DIR.exists():
-        print(f"Constitution already exists: {CONSTITUTION_DIR}")
-    elif src_constitution.is_dir():
-        shutil.copytree(src_constitution, CONSTITUTION_DIR)
-        print(f"Copied default constitution: {CONSTITUTION_DIR}")
-    else:
-        CONSTITUTION_DIR.mkdir(parents=True, exist_ok=True)
-        print(f"Created empty constitution dir: {CONSTITUTION_DIR}")
+    # Copy directories from template (constitution, skills, rules)
+    for src_dir, dst_dir, label in [
+        (template_dir / "constitution", CONSTITUTION_DIR, "Constitution"),
+        (template_dir / "skills", SKILLS_DIR, "Skills"),
+        (template_dir / "rules", RULES_DIR, "Rules"),
+    ]:
+        if dst_dir.exists():
+            print(f"{label} already exists: {dst_dir}")
+        elif src_dir.is_dir():
+            shutil.copytree(src_dir, dst_dir)
+            print(f"Copied {label.lower()}: {dst_dir} (from {template_name})")
+        else:
+            dst_dir.mkdir(parents=True, exist_ok=True)
+            print(f"Created empty {label.lower()} dir: {dst_dir}")
 
 
 def main() -> None:
@@ -384,7 +432,11 @@ def main() -> None:
     )
 
     # init
-    subparsers.add_parser("init", help="Initialize identity and knowledge files")
+    init_parser = subparsers.add_parser("init", help="Initialize identity and knowledge files")
+    init_parser.add_argument(
+        "--template", type=str, default="contemplative",
+        help="Character template to use (default: contemplative)",
+    )
 
     # distill
     distill_parser = subparsers.add_parser(
@@ -663,7 +715,7 @@ def main() -> None:
         configure_llm(rules_dir=RULES_DIR)
 
     if args.command == "init":
-        _do_init()
+        _do_init(template_name=args.template)
         return
 
     if args.command == "distill":
@@ -710,9 +762,12 @@ def main() -> None:
                 command="distill-identity",
             )
             return
-        if _is_dry_run(args) or not _approve_write(result.target_path):
-            if not _is_dry_run(args):
-                print("Discarded.")
+        if _is_dry_run(args):
+            return
+        approved = _approve_write(result.target_path)
+        _log_approval("distill-identity", result.target_path, approved, result.text)
+        if not approved:
+            print("Discarded.")
             return
         result.target_path.write_text(result.text + "\n", encoding="utf-8")
         os.chmod(result.target_path, stat.S_IRUSR | stat.S_IWUSR)
@@ -746,11 +801,15 @@ def main() -> None:
             print(f"\n{'='*60}")
             print(f"[{i}/{len(result.skills)}] {skill.filename}")
             print(skill.text)
-            if not _is_dry_run(args) and _approve_write(skill.target_path):
+            if _is_dry_run(args):
+                continue
+            approved = _approve_write(skill.target_path)
+            _log_approval("insight", skill.target_path, approved, skill.text)
+            if approved:
                 SKILLS_DIR.mkdir(parents=True, exist_ok=True)
                 write_restricted(skill.target_path, skill.text)
                 written += 1
-            elif not _is_dry_run(args):
+            else:
                 print("Skipped.")
         if written > 0:
             _write_last_insight(SKILLS_DIR)
@@ -781,11 +840,15 @@ def main() -> None:
             print(f"\n{'='*60}")
             print(f"[{i}/{len(result.rules)}] {rule.filename}")
             print(rule.text)
-            if not _is_dry_run(args) and _approve_write(rule.target_path):
+            if _is_dry_run(args):
+                continue
+            approved = _approve_write(rule.target_path)
+            _log_approval("rules-distill", rule.target_path, approved, rule.text)
+            if approved:
                 RULES_DIR.mkdir(parents=True, exist_ok=True)
                 write_restricted(rule.target_path, rule.text)
                 written += 1
-            elif not _is_dry_run(args):
+            else:
                 print("Skipped.")
         if written > 0:
             _write_last_run(RULES_DIR)
@@ -813,9 +876,12 @@ def main() -> None:
                 command="amend-constitution",
             )
             return
-        if _is_dry_run(args) or not _approve_write(result.target_path):
-            if not _is_dry_run(args):
-                print("Discarded.")
+        if _is_dry_run(args):
+            return
+        approved = _approve_write(result.target_path)
+        _log_approval("amend-constitution", result.target_path, approved, result.text)
+        if not approved:
+            print("Discarded.")
             return
         from datetime import datetime, timezone
         result.target_path.write_text(result.text + "\n", encoding="utf-8")

@@ -11,9 +11,12 @@ from contemplative_agent.cli import (
     main,
     _setup_logging,
     _build_calendar_intervals,
+    _do_init,
     _do_install_schedule,
     _do_install_distill_schedule,
     _do_uninstall_schedule,
+    _list_templates,
+    _log_approval,
     _stage_results,
 )
 
@@ -344,6 +347,121 @@ class TestNoAxiomsFlag:
         # axiom_prompt should NOT have been passed
         axiom_calls = [c for c in mock_configure.call_args_list if "axiom_prompt" in c.kwargs]
         assert len(axiom_calls) == 0
+
+
+class TestListTemplates:
+    def test_lists_available_templates(self):
+        templates = _list_templates()
+        assert "contemplative" in templates
+        assert "stoic" in templates
+        assert len(templates) >= 2
+
+    def test_returns_sorted(self):
+        templates = _list_templates()
+        assert templates == sorted(templates)
+
+
+class TestDoInit:
+    def test_default_template(self, tmp_path):
+        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.IDENTITY_PATH", tmp_path / "identity.md"), \
+             patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"), \
+             patch("contemplative_agent.cli.CONSTITUTION_DIR", tmp_path / "constitution"), \
+             patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"), \
+             patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"):
+            _do_init()
+
+        assert (tmp_path / "identity.md").exists()
+        assert (tmp_path / "knowledge.json").exists()
+        assert (tmp_path / "constitution").is_dir()
+        assert (tmp_path / "skills").is_dir()
+        assert (tmp_path / "rules").is_dir()
+        # Knowledge is always empty array
+        assert json.loads((tmp_path / "knowledge.json").read_text()) == []
+
+    def test_custom_template(self, tmp_path):
+        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.IDENTITY_PATH", tmp_path / "identity.md"), \
+             patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"), \
+             patch("contemplative_agent.cli.CONSTITUTION_DIR", tmp_path / "constitution"), \
+             patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"), \
+             patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"):
+            _do_init(template_name="stoic")
+
+        identity = (tmp_path / "identity.md").read_text()
+        assert len(identity) > 1  # Not empty — copied from template
+
+    def test_invalid_template(self, tmp_path):
+        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.IDENTITY_PATH", tmp_path / "identity.md"), \
+             patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"), \
+             patch("contemplative_agent.cli.CONSTITUTION_DIR", tmp_path / "constitution"), \
+             patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"), \
+             patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"):
+            with pytest.raises(SystemExit):
+                _do_init(template_name="nonexistent")
+
+    def test_skips_existing(self, tmp_path, capsys):
+        identity = tmp_path / "identity.md"
+        identity.write_text("existing identity")
+        constitution = tmp_path / "constitution"
+        constitution.mkdir()
+
+        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.IDENTITY_PATH", identity), \
+             patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"), \
+             patch("contemplative_agent.cli.CONSTITUTION_DIR", constitution), \
+             patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"), \
+             patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"):
+            _do_init()
+
+        # Identity should not be overwritten
+        assert identity.read_text() == "existing identity"
+        out = capsys.readouterr().out
+        assert "already exists" in out
+
+
+class TestLogApproval:
+    def test_creates_audit_log(self, tmp_path):
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+            _log_approval("insight", Path("skills/foo.md"), True, "# Skill content")
+
+        assert audit_path.exists()
+        record = json.loads(audit_path.read_text().strip())
+        assert record["command"] == "insight"
+        assert record["decision"] == "approved"
+        assert record["path"] == "skills/foo.md"
+        assert len(record["content_hash"]) == 16
+        assert "ts" in record
+
+    def test_logs_rejection(self, tmp_path):
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+            _log_approval("rules-distill", Path("rules/bar.md"), False, "content")
+
+        record = json.loads(audit_path.read_text().strip())
+        assert record["decision"] == "rejected"
+
+    def test_appends_multiple(self, tmp_path):
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+            _log_approval("insight", Path("a.md"), True, "a")
+            _log_approval("insight", Path("b.md"), False, "b")
+
+        lines = audit_path.read_text().strip().splitlines()
+        assert len(lines) == 2
+
+    def test_different_content_different_hash(self, tmp_path):
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+            _log_approval("insight", Path("a.md"), True, "content A")
+            _log_approval("insight", Path("a.md"), True, "content B")
+
+        lines = audit_path.read_text().strip().splitlines()
+        h1 = json.loads(lines[0])["content_hash"]
+        h2 = json.loads(lines[1])["content_hash"]
+        assert h1 != h2
 
 
 class TestStageResults:

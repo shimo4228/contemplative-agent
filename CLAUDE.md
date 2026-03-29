@@ -49,7 +49,8 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 
 # CLI
 contemplative-agent --help
-contemplative-agent init                          # MOLTBOOK_HOME に identity, knowledge, constitution 作成
+contemplative-agent init                          # MOLTBOOK_HOME に identity, knowledge, constitution, skills, rules 作成
+contemplative-agent init --template stoic          # テンプレートを指定して初期化
 contemplative-agent distill --dry-run             # 記憶蒸留 (dry run)
 contemplative-agent distill --days 3              # 3日分を蒸留
 contemplative-agent distill-identity              # アイデンティティ蒸留 (承認ゲート付き, 手動のみ)
@@ -121,7 +122,7 @@ GET 60 req/min、POST 30 req/min（分離クォータ）。3層防御（`has_rea
 
 ## テスト
 
-776 tests 全パス (2026-03-28)。カバレッジ詳細は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照。
+789 tests 全パス (2026-03-29)。カバレッジ詳細は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照。
 
 ## メモリアーキテクチャ
 

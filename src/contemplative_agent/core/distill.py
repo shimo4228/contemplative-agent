@@ -187,29 +187,49 @@ def distill_identity(
     return IdentityResult(text=identity_text, target_path=identity_path)
 
 
+def _strip_code_fence(text: str) -> str:
+    """Remove markdown code fences (```json ... ```) from LLM output."""
+    text = text.strip()
+    if text.startswith("```"):
+        lines = [l for l in text.splitlines() if not l.strip().startswith("```")]
+        text = "\n".join(lines).strip()
+    return text
+
+
 def _parse_importance_scores(raw: str, expected_count: int) -> List[float]:
     """Parse {"scores": [8, 5, ...]} into [0.8, 0.5, ...].
 
-    Falls back to 0.5 for all if parsing fails or count mismatches.
+    Falls back to comma-separated integers, then 0.5 defaults.
     """
+    defaults = [0.5] * expected_count
+    text = _strip_code_fence(raw)
+
+    # Try JSON parse
+    scores_raw: list = []
     try:
-        parsed = json_mod.loads(raw)
+        parsed = json_mod.loads(text)
         scores_raw = parsed.get("scores", [])
-        if len(scores_raw) != expected_count:
-            logger.warning("Importance count mismatch: got %d, expected %d",
-                           len(scores_raw), expected_count)
-            return [0.5] * expected_count
-        result = []
-        for s in scores_raw:
-            try:
-                val = int(s)
-            except (ValueError, TypeError):
-                val = 5
-            result.append(max(1, min(10, val)) / 10.0)
-        return result
-    except (json_mod.JSONDecodeError, TypeError):
-        logger.warning("Failed to parse importance scores, using defaults")
-        return [0.5] * expected_count
+    except (json_mod.JSONDecodeError, TypeError, AttributeError):
+        # Fallback: try comma-separated integers (e.g., "8, 5, 9, 7")
+        try:
+            scores_raw = [int(x.strip()) for x in text.split(",") if x.strip()]
+        except ValueError:
+            logger.warning("Failed to parse importance scores: %s", text[:200])
+            return defaults
+
+    if len(scores_raw) != expected_count:
+        logger.warning("Importance count mismatch: got %d, expected %d",
+                       len(scores_raw), expected_count)
+        return defaults
+
+    result = []
+    for s in scores_raw:
+        try:
+            val = int(s)
+        except (ValueError, TypeError):
+            val = 5
+        result.append(max(1, min(10, val)) / 10.0)
+    return result
 
 
 VALID_CATEGORIES = frozenset({"constitutional", "noise", "uncategorized"})
@@ -361,13 +381,7 @@ def _distill_category(
         all_results.append(refined)
 
         raw_patterns: List[str] = []
-        # Strip markdown code fences before JSON parsing
-        json_text = refined.strip()
-        if json_text.startswith("```"):
-            lines = json_text.splitlines()
-            # Remove first line (```json) and last line (```)
-            lines = [l for l in lines if not l.strip().startswith("```")]
-            json_text = "\n".join(lines)
+        json_text = _strip_code_fence(refined)
         try:
             parsed = json_mod.loads(json_text)
             for item in parsed.get("patterns", []):

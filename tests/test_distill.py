@@ -1,6 +1,7 @@
 """Tests for sleep-time memory distillation."""
 
 import json
+import logging
 from unittest.mock import patch
 
 from contemplative_agent.core.distill import (
@@ -267,6 +268,20 @@ class TestParseImportanceScores:
         raw = json.dumps({"scores": ["high", None, 7]})
         result = _parse_importance_scores(raw, 3)
         assert result == [0.5, 0.5, 0.7]
+
+    def test_code_fence_wrapped(self):
+        raw = '```json\n{"scores": [8, 5, 9]}\n```'
+        assert _parse_importance_scores(raw, 3) == [0.8, 0.5, 0.9]
+
+    def test_comma_separated_fallback(self):
+        raw = "8, 5, 9"
+        assert _parse_importance_scores(raw, 3) == [0.8, 0.5, 0.9]
+
+    def test_unparseable_logs_warning(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            result = _parse_importance_scores("totally broken output", 2)
+        assert result == [0.5, 0.5]
+        assert "Failed to parse importance" in caplog.text
 
 
 class TestDedupPatterns:
