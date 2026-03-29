@@ -4,6 +4,12 @@
 
 ## Next
 
+### コーディングエージェント用メンテナンススキル
+
+insight, rules-distill, distill-identity, amend-constitution の処理をコーディングエージェント（Claude Code 等）が直接実行するスキルを作成。9B モデルの多段パイプラインではなく、Opus クラスの推論能力で knowledge.json を読み、skills/rules/identity/constitution を生成・更新する。`--stage` フラグは「オーケストレーターなしの自律運用」用に残す。
+
+**distill（エピソード → knowledge）はコーディングエージェントに委任してはならない。** エピソードログはプロンプトインジェクション経路（ADR-0007）。ツール権限を持つコーディングエージェントが生ログを読むと、注入されたプロンプトが実行される。distill は必ずツール権限なしのローカル LLM（9B）が処理し、サニタイズ済み knowledge.json を出力する。コーディングエージェントは knowledge.json から先のみ操作可能。
+
 ### Dedup スケーラビリティ
 
 パターン数が増えると dedup の品質・性能が劣化する問題。現在は全既存パターンと SequenceMatcher で総当たり比較しており、グレーゾーン（ratio 0.3-0.7）は LLM 判定に回される。パターン数が数百を超えると:
@@ -121,13 +127,6 @@ ADR-0011 で knowledge 直接注入を廃止したため、「大量パターン
 
 ## Done
 
-### コーディングエージェント用メンテナンススキル (2026-03-29)
-
-`.claude/skills/` に `-ca` サフィックス付き5スキルを追加。Opus クラスのコーディングエージェントが knowledge.json を直接読み、ホリスティック判断で skills/rules/identity/constitution を生成・更新する。9B 多段パイプラインの代替。distill（episodes → knowledge）はセキュリティ上コーディングエージェントに委任しない（ADR-0007）。
-
-- insight-ca, skill-stocktake-ca, rules-distill-ca, amend-constitution-ca, distill-identity-ca
-- README（英語・日本語）、CONFIGURATION（英語・日本語）に使い方を記載
-
 ### Glossary (2026-03-29)
 
 `docs/glossary.md` に用語定義（14項目）と先行研究対応表（7論文）を追加。外部研究者・AI エージェント向けの単一参照点。
@@ -174,4 +173,4 @@ Step 0 で LLM がエピソードを3カテゴリ（constitutional / noise / unc
 
 ---
 
-*Last updated: 2026-03-29*
+*Last updated: 2026-03-29 (glossary + devlog closure)*

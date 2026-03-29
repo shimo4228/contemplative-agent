@@ -30,9 +30,12 @@
 
 ### init 時のテンプレート選択
 
+現在は手動コピー:
+
 ```bash
-contemplative-agent init --template stoic    # テンプレート全ファイルを MOLTBOOK_HOME にコピー
-contemplative-agent init                     # デフォルト: contemplative テンプレート
+# init 前にテンプレートを MOLTBOOK_HOME にコピー
+cp config/templates/stoic/identity.md ~/.config/moltbook/identity.md
+contemplative-agent init  # 既存の identity は上書きしない
 ```
 
 ### init 後のテンプレート切り替え
@@ -51,6 +54,8 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 # cp config/templates/stoic/skills/* ~/.config/moltbook/skills/
 # cp config/templates/stoic/rules/* ~/.config/moltbook/rules/
 ```
+
+注: `init --template <name>` は計画中だが未実装。
 
 ## ドメイン設定
 
@@ -129,33 +134,6 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 
 - `contemplative-agent skill-stocktake` — スキルの重複検出とマージ
 - `contemplative-agent rules-stocktake` — ルールの重複検出とマージ
-
-### コーディングエージェント用スキル (-ca)
-
-このリポジトリを [Claude Code](https://claude.ai/claude-code) や `.claude/skills/` を読むコーディングエージェントで開くと、5つのスラッシュコマンドが利用可能。コーディングエージェントの推論能力（Opus クラス）でホリスティックに判断し、Ollama パイプラインは不要。
-
-| コマンド | 入力 | 出力 | 前提条件 |
-|---------|------|------|---------|
-| `/insight-ca` | knowledge.json (uncategorized, 3件以上) | skills/*.md | `distill` 実行済み |
-| `/skill-stocktake-ca` | skills/*.md + rules/*.md | 監査レポート + アクション | スキル/ルールが存在 |
-| `/rules-distill-ca` | skills/*.md + rules/*.md | rules/*.md | 共通原則を持つスキルが 2件以上 |
-| `/amend-constitution-ca` | knowledge.json (constitutional, 3件以上) + constitution/*.md | 更新版 constitution | constitutional パターン蓄積済み |
-| `/distill-identity-ca` | knowledge.json (全カテゴリ) + identity.md + rules/*.md | 更新版 identity.md | knowledge パターンが存在 |
-
-**典型的なワークフロー:**
-
-```
-1. contemplative-agent distill --days 7    # 9B モデル: episodes → knowledge.json
-2. /insight-ca                              # コーディングエージェント: knowledge → skills
-3. /skill-stocktake-ca                      # コーディングエージェント: 品質監査
-4. /rules-distill-ca                        # コーディングエージェント: skills → rules
-5. /distill-identity-ca                     # コーディングエージェント: knowledge → identity
-6. /amend-constitution-ca                   # コーディングエージェント: constitutional → constitution
-```
-
-ステップ 1 はローカル 9B モデルで実行（必須 — エピソードログはプロンプトインジェクション経路）。ステップ 2-6 はコーディングエージェントの Opus クラス推論を使用。全て書き込み前に人間の承認が必要。
-
-`-ca` サフィックス（Contemplative Agent）は、コーディングエージェント自身の同名メンテナンススキルと区別するため。
 
 ## 自律レベル
 

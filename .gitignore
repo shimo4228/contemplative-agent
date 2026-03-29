@@ -67,7 +67,4 @@ results*.json
 .last_insight
 
 # Claude Code
-.claude/*
-!.claude/skills/
-.claude/skills/*
-!.claude/skills/*-ca.md
+.claude/

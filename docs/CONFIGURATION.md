@@ -44,10 +44,15 @@ Each template directory contains:
 
 ### Selecting a Template at Init
 
+Currently requires manual copy before running `init`:
+
 ```bash
-contemplative-agent init --template stoic    # Copy all template files to MOLTBOOK_HOME
-contemplative-agent init                     # Default: contemplative template
+# Copy desired template to MOLTBOOK_HOME before init
+cp config/templates/stoic/identity.md ~/.config/moltbook/identity.md
+contemplative-agent init  # Won't overwrite existing identity
 ```
+
+> `init --template <name>` is planned but not yet implemented.
 
 ### Switching Templates After Init
 
@@ -175,33 +180,6 @@ You can also hand-write rule files and place them in the directory.
 contemplative-agent skill-stocktake      # Detect and merge duplicate skills
 contemplative-agent rules-stocktake      # Detect and merge duplicate rules
 ```
-
-### Coding Agent Skills (-ca)
-
-When this repository is opened in [Claude Code](https://claude.ai/claude-code) or any coding agent that reads `.claude/skills/`, five slash commands are available for maintaining behavioral artifacts using the coding agent's own reasoning (Opus-class holistic judgment, no Ollama pipeline needed).
-
-| Command | Input | Output | Prerequisite |
-|---------|-------|--------|-------------|
-| `/insight-ca` | knowledge.json (uncategorized, 3+ patterns) | skills/*.md | `distill` run |
-| `/skill-stocktake-ca` | skills/*.md + rules/*.md | Audit report + actions | Skills/rules exist |
-| `/rules-distill-ca` | skills/*.md + rules/*.md | rules/*.md | 2+ skills with shared principles |
-| `/amend-constitution-ca` | knowledge.json (constitutional, 3+ patterns) + constitution/*.md | Updated constitution | Constitutional patterns accumulated |
-| `/distill-identity-ca` | knowledge.json (all) + identity.md + rules/*.md | Updated identity.md | Knowledge patterns exist |
-
-**Typical workflow:**
-
-```
-1. contemplative-agent distill --days 7    # 9B model: episodes → knowledge.json
-2. /insight-ca                              # Coding agent: knowledge → skills
-3. /skill-stocktake-ca                      # Coding agent: audit quality
-4. /rules-distill-ca                        # Coding agent: skills → rules
-5. /distill-identity-ca                     # Coding agent: knowledge → identity
-6. /amend-constitution-ca                   # Coding agent: constitutional patterns → constitution
-```
-
-Step 1 uses the local 9B model (mandatory -- episode logs are an untrusted prompt injection surface). Steps 2-6 use the coding agent's Opus-class reasoning. All steps 2-6 require human approval before writing.
-
-The `-ca` suffix (Contemplative Agent) distinguishes these from the coding agent's own maintenance skills with the same base names.
 
 ---
 
