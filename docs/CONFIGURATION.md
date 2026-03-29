@@ -44,15 +44,10 @@ Each template directory contains:
 
 ### Selecting a Template at Init
 
-Currently requires manual copy before running `init`:
-
 ```bash
-# Copy desired template to MOLTBOOK_HOME before init
-cp config/templates/stoic/identity.md ~/.config/moltbook/identity.md
-contemplative-agent init  # Won't overwrite existing identity
+contemplative-agent init --template stoic    # Copy all template files to MOLTBOOK_HOME
+contemplative-agent init                     # Default: contemplative template
 ```
-
-> `init --template <name>` is planned but not yet implemented.
 
 ### Switching Templates After Init
 
@@ -180,6 +175,18 @@ You can also hand-write rule files and place them in the directory.
 contemplative-agent skill-stocktake      # Detect and merge duplicate skills
 contemplative-agent rules-stocktake      # Detect and merge duplicate rules
 ```
+
+### Coding Agent Skills (-ca)
+
+Five maintenance skills are available in [`integrations/`](../integrations/README.md) for coding agents (Claude Code, Cursor, OpenAI Codex). These use the coding agent's own reasoning (Opus-class holistic judgment) instead of the 9B pipeline.
+
+```bash
+bash integrations/claude-code/install.sh   # Claude Code: copies to .claude/skills/
+bash integrations/cursor/install.sh        # Cursor: converts to .cursor/rules/*.mdc
+bash integrations/codex/install.sh         # Codex: appends to AGENTS.md
+```
+
+See [integrations/README.md](../integrations/README.md) for the full workflow and security notes.
 
 ---
 

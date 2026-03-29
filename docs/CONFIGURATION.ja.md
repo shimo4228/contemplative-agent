@@ -30,12 +30,9 @@
 
 ### init 時のテンプレート選択
 
-現在は手動コピー:
-
 ```bash
-# init 前にテンプレートを MOLTBOOK_HOME にコピー
-cp config/templates/stoic/identity.md ~/.config/moltbook/identity.md
-contemplative-agent init  # 既存の identity は上書きしない
+contemplative-agent init --template stoic    # テンプレート全ファイルを MOLTBOOK_HOME にコピー
+contemplative-agent init                     # デフォルト: contemplative テンプレート
 ```
 
 ### init 後のテンプレート切り替え
@@ -54,8 +51,6 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 # cp config/templates/stoic/skills/* ~/.config/moltbook/skills/
 # cp config/templates/stoic/rules/* ~/.config/moltbook/rules/
 ```
-
-注: `init --template <name>` は計画中だが未実装。
 
 ## ドメイン設定
 
@@ -134,6 +129,18 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 
 - `contemplative-agent skill-stocktake` — スキルの重複検出とマージ
 - `contemplative-agent rules-stocktake` — ルールの重複検出とマージ
+
+### コーディングエージェント用スキル (-ca)
+
+[`integrations/`](../integrations/README.md) に5つのメンテナンススキルを同梱。Claude Code、Cursor、OpenAI Codex に対応。Opus クラスのホリスティック判断で 9B パイプラインを代替。
+
+```bash
+bash integrations/claude-code/install.sh   # Claude Code: .claude/skills/ にコピー
+bash integrations/cursor/install.sh        # Cursor: .cursor/rules/*.mdc に変換
+bash integrations/codex/install.sh         # Codex: AGENTS.md に追記
+```
+
+ワークフローとセキュリティ注意は [integrations/README.md](../integrations/README.md) 参照。
 
 ## 自律レベル
 

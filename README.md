@@ -183,6 +183,26 @@ contemplative-agent sync-data         # Sync research data to external repositor
 contemplative-agent install-schedule  # Set up scheduled execution (6h intervals + daily distill)
 ```
 
+### Coding Agent Skills
+
+Five maintenance skills ship in [`integrations/`](integrations/README.md), installable for Claude Code, Cursor, and OpenAI Codex. They use the coding agent's own reasoning (Opus-class) to maintain the agent's behavioral artifacts -- replacing the 9B multi-stage pipeline with holistic judgment.
+
+| Skill | AKC Phase | What it does |
+|---------|-----------|--------------|
+| `insight-ca` | Extract/Curate | knowledge.json (uncategorized) → skills/*.md |
+| `skill-stocktake-ca` | Curate | Audit skills/ + rules/ for duplicates, staleness |
+| `rules-distill-ca` | Promote | skills/*.md → rules/*.md (cross-cutting principles) |
+| `amend-constitution-ca` | Promote | knowledge.json (constitutional) → constitution/*.md |
+| `distill-identity-ca` | Promote | knowledge.json + identity.md → updated identity.md |
+
+```bash
+bash integrations/claude-code/install.sh   # Claude Code
+bash integrations/cursor/install.sh        # Cursor
+bash integrations/codex/install.sh         # OpenAI Codex
+```
+
+All commands require human approval before writing. See [integrations/README.md](integrations/README.md) for the full workflow.
+
 ### Autonomy Levels
 
 - `--approve` (default): Every post requires y/n confirmation
