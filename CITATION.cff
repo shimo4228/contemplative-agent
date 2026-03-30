@@ -49,3 +49,16 @@ references:
     identifiers:
       - type: other
         value: "arXiv:2504.15125"
+  - type: article
+    authors:
+      - family-names: Laukkonen
+        given-names: Ruben
+      - family-names: Friston
+        given-names: Karl
+      - family-names: Chandaria
+        given-names: Shamil
+    title: "A Beautiful Loop: The Neurophenomenology of Active Inference, Meditation, and Psychedelics"
+    year: 2025
+    identifiers:
+      - type: other
+        value: "PubMed:40750007"
