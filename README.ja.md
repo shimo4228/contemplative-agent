@@ -259,6 +259,29 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 5. [エージェントの本質は記憶](https://zenn.dev/shimo4228/articles/agent-essence-is-memory)
 6. [9Bモデルと格闘した1日 — エージェントの記憶が壊れた](https://zenn.dev/shimo4228/articles/agent-memory-broke-9b-model)
 
+## 引用
+
+このフレームワークを使用・参照する場合は、以下の形式で引用してください:
+
+```
+Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/10.5281/zenodo.19212119
+```
+
+<details>
+<summary>BibTeX</summary>
+
+```bibtex
+@software{shimomoto2026contemplative,
+  author       = {Shimomoto, Tatsuya},
+  title        = {Contemplative Agent},
+  year         = {2026},
+  doi          = {10.5281/zenodo.19212119},
+  url          = {https://github.com/shimo4228/contemplative-agent},
+}
+```
+
+</details>
+
 ## 参考文献
 
 Laukkonen, R., Inglis, F., Chandaria, S., Sandved-Smith, L., Lopez-Sola, E., Hohwy, J., Gold, J., & Elwood, A. (2025). Contemplative Artificial Intelligence. [arXiv:2504.15125](https://arxiv.org/abs/2504.15125)

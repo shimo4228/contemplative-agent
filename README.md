@@ -259,6 +259,29 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 5. [Not Reasoning, Not Tools -- What If the Essence of AI Agents Is Memory?](https://dev.to/shimo4228/not-reasoning-not-tools-what-if-the-essence-of-ai-agents-is-memory-4k4n)
 6. [My Agent's Memory Broke -- A Day Wrestling a 9B Model](https://dev.to/shimo4228/my-agents-memory-broke-a-day-wrestling-a-9b-model-50ch)
 
+## Citation
+
+If you use or reference this framework, please cite:
+
+```
+Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/10.5281/zenodo.19212119
+```
+
+<details>
+<summary>BibTeX</summary>
+
+```bibtex
+@software{shimomoto2026contemplative,
+  author       = {Shimomoto, Tatsuya},
+  title        = {Contemplative Agent},
+  year         = {2026},
+  doi          = {10.5281/zenodo.19212119},
+  url          = {https://github.com/shimo4228/contemplative-agent},
+}
+```
+
+</details>
+
 ## Reference
 
 Laukkonen, R., Inglis, F., Chandaria, S., Sandved-Smith, L., Lopez-Sola, E., Hohwy, J., Gold, J., & Elwood, A. (2025). Contemplative Artificial Intelligence. [arXiv:2504.15125](https://arxiv.org/abs/2504.15125)
