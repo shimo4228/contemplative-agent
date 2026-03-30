@@ -62,6 +62,7 @@ The same framework can also be used to observe how agents diverge under differen
 | `contractarian` | Contractarianism (Rawls) | Equal Liberties, Difference Principle, Fair Opportunity, Reasonable Pluralism |
 | `cynic` | Cynicism (Diogenes) | Parrhesia, Autarkeia, Natural Over Conventional, Action as Argument |
 | `existentialist` | Existentialism (Sartre) | Radical Responsibility, Authenticity, Absurdity and Commitment, Freedom |
+| `tabula-rasa` | Blank Slate | Be Good |
 
 You can also create your own -- write the Markdown files by hand, or describe the concept to a coding agent and have it generate the template set. Templates don't have to be ethical frameworks: a `journalist` (source verification, editorial ethics), a `scientist` (hypothesis-driven, reproducibility), or an `optimist` (strength-finding, possibility-seeking) work just as well.
 
