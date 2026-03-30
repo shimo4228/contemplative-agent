@@ -20,8 +20,10 @@ from contemplative_agent.core.distill import (
     _UncertainMatch,
     _MatchCandidate,
     UNCERTAIN_LOW,
+    DEDUP_IMPORTANCE_FLOOR,
     VALID_CATEGORIES,
 )
+from contemplative_agent.core.knowledge_store import effective_importance
 from contemplative_agent.core.memory import EpisodeLog, KnowledgeStore
 
 
@@ -901,4 +903,94 @@ class TestDistillWithClassification:
         ks2.load()
         assert len(ks2._learned_patterns) == 1
         assert ks2._learned_patterns[0]["category"] == "uncategorized"
+
+
+class TestEffectiveImportanceModuleLevel:
+    """Tests for the module-level effective_importance function."""
+
+    def test_recent_pattern(self):
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).isoformat()
+        p = {"importance": 0.8, "distilled": now}
+        result = effective_importance(p)
+        assert 0.75 <= result <= 0.8
+
+    def test_old_pattern_below_floor(self):
+        from datetime import datetime, timezone, timedelta
+        old = (datetime.now(timezone.utc) - timedelta(days=90)).isoformat()
+        p = {"importance": 0.5, "distilled": old}
+        result = effective_importance(p)
+        assert result < DEDUP_IMPORTANCE_FLOOR
+
+    def test_high_base_survives_30_days(self):
+        from datetime import datetime, timezone, timedelta
+        old = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        p = {"importance": 1.0, "distilled": old}
+        result = effective_importance(p)
+        assert result >= DEDUP_IMPORTANCE_FLOOR
+
+    def test_unknown_timestamp(self):
+        p = {"importance": 0.8, "distilled": "unknown"}
+        assert effective_importance(p) == 0.8 * 0.1
+
+
+class TestParseDedupDecisionsRobust:
+    """Tests for code-fence and regex extraction in _parse_dedup_decisions."""
+
+    def test_code_fence_wrapped(self):
+        raw = '```json\n{"decisions": ["ADD", "SKIP"]}\n```'
+        assert _parse_dedup_decisions(raw, 2) == ["ADD", "SKIP"]
+
+    def test_surrounding_text_regex(self):
+        raw = 'Here is the result:\n{"decisions": ["ADD", "UPDATE 1"]}\nDone.'
+        assert _parse_dedup_decisions(raw, 2) == ["ADD", "UPDATE 1"]
+
+    def test_code_fence_with_surrounding_text(self):
+        raw = '```json\n{"decisions": ["SKIP"]}\n```\nExplanation: pattern is duplicate.'
+        assert _parse_dedup_decisions(raw, 1) == ["SKIP"]
+
+    def test_parse_failure_logs_raw(self, caplog):
+        with caplog.at_level(logging.WARNING):
+            result = _parse_dedup_decisions("totally invalid {{{", 2)
+        assert result == ["ADD", "ADD"]
+        assert "totally invalid" in caplog.text
+
+    def test_nested_braces_fallback(self):
+        raw = '{"outer": {"decisions": ["ADD"]}}'
+        result = _parse_dedup_decisions(raw, 1)
+        assert result == ["ADD"]
+
+
+class TestDedupImportanceFloorFiltering:
+    """Test that low-importance patterns are excluded from dedup scope."""
+
+    def test_old_pattern_not_used_for_dedup(self, tmp_path):
+        """A pattern old enough to be below DEDUP_IMPORTANCE_FLOOR should not
+        prevent a similar new pattern from being ADD'd."""
+        from datetime import datetime, timezone, timedelta
+
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        old_date = (datetime.now(timezone.utc) - timedelta(days=120)).isoformat()
+        ks.add_learned_pattern(
+            "Cooperation between agents builds long-term trust",
+            distilled=old_date, importance=0.3, category="uncategorized",
+        )
+        ks.save()
+
+        old_p = ks._learned_patterns[0]
+        assert effective_importance(old_p) < DEDUP_IMPORTANCE_FLOOR
+
+        new_patterns = ["Cooperation between agents builds lasting trust"]
+        new_importances = [0.7]
+        existing_filtered = [
+            p for p in ks._learned_patterns
+            if effective_importance(p) >= DEDUP_IMPORTANCE_FLOOR
+        ]
+        assert len(existing_filtered) == 0
+
+        add, add_imp, skip, update, uncertain = _dedup_patterns(
+            new_patterns, new_importances, existing_filtered,
+        )
+        assert len(add) == 1
+        assert update == 0
 

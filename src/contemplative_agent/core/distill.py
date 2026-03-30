@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
 from .llm import generate, get_axiom_prompt, get_default_system_prompt, get_distill_system_prompt, validate_identity_content
+from .knowledge_store import effective_importance
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import (
     DISTILL_PROMPT,
@@ -428,6 +429,14 @@ def _distill_category(
         p for p in knowledge._learned_patterns
         if p.get("category", "uncategorized") == category
     ]
+    pre_filter = len(existing_same_cat)
+    existing_same_cat = [
+        p for p in existing_same_cat
+        if effective_importance(p) >= DEDUP_IMPORTANCE_FLOOR
+    ]
+    if pre_filter > len(existing_same_cat):
+        logger.info("[%s] Dedup scope: %d/%d patterns (importance floor %.2f)",
+                    category, len(existing_same_cat), pre_filter, DEDUP_IMPORTANCE_FLOOR)
 
     if dry_run:
         existing_copy = copy.deepcopy(existing_same_cat)
@@ -464,6 +473,7 @@ def _distill_category(
     return _CategoryResult(results=tuple(all_results), added=len(add_patterns), updated=updated)
 
 
+DEDUP_IMPORTANCE_FLOOR = 0.05  # Patterns below this effective importance are excluded from dedup
 UNCERTAIN_LOW = 0.3  # Below this ratio → definitely new (ADD)
 
 
@@ -662,23 +672,41 @@ def _parse_dedup_decisions(raw: Optional[str], expected_count: int) -> List[str]
     """Parse LLM dedup gate output into a list of decisions.
 
     Expected format: {"decisions": ["ADD", "UPDATE 1", "SKIP", ...]}
+    Handles code-fence wrapping and surrounding text from small models.
     Falls back to all "ADD" on failure.
     """
     fallback = ["ADD"] * expected_count
     if not raw:
         logger.warning("LLM dedup gate returned empty, falling back to ADD all")
         return fallback
+
+    text = _strip_code_fence(raw)
+
+    # Try direct JSON parse
     try:
-        parsed = json_mod.loads(raw)
+        parsed = json_mod.loads(text)
         decisions = parsed.get("decisions", [])
-        if len(decisions) != expected_count:
-            logger.warning("Dedup decision count mismatch: got %d, expected %d",
-                           len(decisions), expected_count)
-            return fallback
-        return [str(d).strip().upper() for d in decisions]
-    except (json_mod.JSONDecodeError, TypeError):
-        logger.warning("Failed to parse dedup decisions, falling back to ADD all")
+        if len(decisions) == expected_count:
+            return [str(d).strip().upper() for d in decisions]
+        logger.warning("Dedup decision count mismatch: got %d, expected %d",
+                       len(decisions), expected_count)
         return fallback
+    except (json_mod.JSONDecodeError, TypeError, AttributeError):
+        pass
+
+    # Regex: extract {"decisions": [...]} from surrounding text
+    match = re.search(r'\{[^{}]*"decisions"\s*:\s*\[.*?\]\s*\}', text, re.DOTALL)
+    if match:
+        try:
+            parsed = json_mod.loads(match.group())
+            decisions = parsed.get("decisions", [])
+            if len(decisions) == expected_count:
+                return [str(d).strip().upper() for d in decisions]
+        except (json_mod.JSONDecodeError, TypeError, AttributeError):
+            pass
+
+    logger.warning("Failed to parse dedup decisions, raw: %s", raw[:300])
+    return fallback
 
 
 def summarize_record(record_type: str, data: dict) -> str:

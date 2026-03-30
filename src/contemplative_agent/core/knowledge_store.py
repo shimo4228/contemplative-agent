@@ -15,6 +15,23 @@ from .config import FORBIDDEN_SUBSTRING_PATTERNS
 logger = logging.getLogger(__name__)
 
 
+def effective_importance(p: dict) -> float:
+    """Compute importance with time decay: importance * 0.95^days_elapsed."""
+    base = p.get("importance", 0.5)
+    distilled = p.get("distilled", "")
+    if not distilled or distilled == "unknown":
+        return base * 0.1  # Unknown timestamp → heavy penalty
+    try:
+        dt = datetime.fromisoformat(distilled)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        days = (datetime.now(timezone.utc) - dt).total_seconds() / 86400.0
+        days = max(0.0, days)
+    except (ValueError, TypeError):
+        return base * 0.1
+    return max(0.0, min(1.0, base * (0.95 ** days)))
+
+
 class KnowledgeStore:
     """Manages distilled learned patterns as a JSON file.
 
@@ -87,20 +104,7 @@ class KnowledgeStore:
         ]
 
     def _effective_importance(self, p: dict) -> float:
-        """Compute importance with time decay: importance * 0.95^days_elapsed."""
-        base = p.get("importance", 0.5)
-        distilled = p.get("distilled", "")
-        if not distilled or distilled == "unknown":
-            return base * 0.1  # Unknown timestamp → heavy penalty
-        try:
-            dt = datetime.fromisoformat(distilled)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            days = (datetime.now(timezone.utc) - dt).total_seconds() / 86400.0
-            days = max(0.0, days)
-        except (ValueError, TypeError):
-            return base * 0.1
-        return max(0.0, min(1.0, base * (0.95 ** days)))
+        return effective_importance(p)
 
     def get_context_string(self, limit: int = 50, category: Optional[str] = None) -> str:
         """Return learned patterns as a bullet list for LLM context injection.
