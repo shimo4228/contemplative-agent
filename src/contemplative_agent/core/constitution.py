@@ -39,7 +39,7 @@ def amend_constitution(
 
     Args:
         knowledge_store: KnowledgeStore with learned patterns.
-        constitution_dir: Directory containing contemplative-axioms.md.
+        constitution_dir: Directory containing constitution .md files.
 
     Returns:
         AmendmentResult on success, or error message string.
@@ -68,12 +68,14 @@ def amend_constitution(
         logger.warning(msg)
         return msg
 
-    axioms_path = constitution_dir / "contemplative-axioms.md"
-    if not axioms_path.exists():
-        msg = f"No constitution file found at {axioms_path}"
+    axiom_files = sorted(constitution_dir.glob("*.md"))
+    if not axiom_files:
+        msg = f"No constitution files found in {constitution_dir}"
         logger.warning(msg)
         return msg
 
+    # Use the first (or only) .md file as the constitution source
+    axioms_path = axiom_files[0]
     current_constitution = axioms_path.read_text(encoding="utf-8").strip()
     if not current_constitution:
         msg = "Constitution file is empty."

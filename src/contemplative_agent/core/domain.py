@@ -194,7 +194,7 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
 def load_constitution(constitution_dir: Optional[Path] = None) -> str:
     """Load constitutional clauses from a constitution directory.
 
-    Loads contemplative-axioms.md (CCAI Appendix C) with forbidden-pattern
+    Loads all .md files from the constitution directory with forbidden-pattern
     validation. Constitution is separate from rules: rules are behavioral
     and measurable; constitution is attitudinal and provides a cognitive lens.
 
@@ -214,11 +214,15 @@ def load_constitution(constitution_dir: Optional[Path] = None) -> str:
     if not directory.is_dir():
         return ""
 
-    clauses_path = directory / "contemplative-axioms.md"
-    if not clauses_path.exists():
+    axiom_files = sorted(directory.glob("*.md"))
+    if not axiom_files:
         return ""
 
-    raw = clauses_path.read_text(encoding="utf-8").strip()
+    raw = "\n\n".join(
+        f.read_text(encoding="utf-8").strip()
+        for f in axiom_files
+        if f.read_text(encoding="utf-8").strip()
+    )
     if not raw:
         return ""
 
