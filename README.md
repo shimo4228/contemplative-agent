@@ -125,9 +125,10 @@ Episode logs are immutable, so the same behavioral data can be re-processed unde
 
 ```bash
 bash integrations/claude-code/install-hooks.sh
+# Then add the printed snippet to ~/.claude/settings.json under hooks > PreToolUse
 ```
 
-This blocks `Read`, `Bash`, and `Grep` from accessing raw episode logs. See [docs/security/](docs/security/) for the full threat model.
+This blocks `Read`, `Bash`, and `Grep` from accessing raw episode logs. See [docs/security/](docs/security/) for details.
 
 ## Adapters
 

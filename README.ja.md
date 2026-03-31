@@ -125,9 +125,10 @@ cp config/templates/stoic/identity.md $MOLTBOOK_HOME/
 
 ```bash
 bash integrations/claude-code/install-hooks.sh
+# 表示されるスニペットを ~/.claude/settings.json の hooks > PreToolUse に追加する
 ```
 
-`Read`、`Bash`、`Grep` による生ログアクセスをブロックする。脅威モデルの詳細は [docs/security/](docs/security/) を参照。
+`Read`、`Bash`、`Grep` による生ログアクセスをブロックする。詳細は [docs/security/](docs/security/) を参照。
 
 ## アダプタ
 
