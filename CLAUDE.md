@@ -69,6 +69,7 @@ contemplative-agent meditate --dry-run             # 瞑想シミュレーショ
 contemplative-agent meditate --days 14 --cycles 100  # 14日分、100サイクル
 contemplative-agent sync-data                     # 研究データを別リポジトリに同期
 contemplative-agent install-schedule              # launchd 定期起動 (6h毎, 120分)
+contemplative-agent install-schedule --weekly-analysis  # 週次分析レポートも追加 (毎週月曜 09:00)
 contemplative-agent install-schedule --uninstall  # スケジュール削除
 
 # カスタム constitution (別の倫理フレームワーク)
@@ -80,7 +81,7 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 - Python 3.9+ (venv は 3.13.5)
 - 依存: requests, numpy。LLM は Ollama (qwen3.5:9b, localhost or Docker service)
 - ビルド: hatch
-- 37 モジュール、~8000 LOC
+- 37 モジュール、~9300 LOC
 
 ### Docker
 
@@ -122,7 +123,7 @@ GET 60 req/min、POST 30 req/min（分離クォータ）。3層防御（`has_rea
 
 ## テスト
 
-799 tests 全パス (2026-03-31)。カバレッジ詳細は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照。
+794 tests 全パス (2026-04-01)。カバレッジ詳細は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照。
 
 ## メモリアーキテクチャ
 
@@ -142,4 +143,4 @@ Laukkonen, R., Inglis, F., Chandaria, S., Sandved-Smith, L., Lopez-Sola, E., Hoh
 Laukkonen, R., Friston, K., & Chandaria, S. (2025). A Beautiful Loop. Neuroscience & Biobehavioral Reviews. (瞑想の計算モデル — meditation adapter の理論的基盤)
 
 # currentDate
-Today's date is 2026-03-31.
+Today's date is 2026-04-01.

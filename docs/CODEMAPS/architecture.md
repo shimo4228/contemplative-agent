@@ -1,10 +1,10 @@
-<!-- Generated: 2026-03-28 | Files scanned: 37 | Token estimate: ~850 -->
+<!-- Generated: 2026-04-01 | Files scanned: 37 | Token estimate: ~850 -->
 # Architecture
 
 ## Project Type
 Python application: Contemplative AI agent with core/adapter separation + 3-layer memory
 
-**Stats**: 37 modules, ~8000 LOC, 776 tests (20 test files)
+**Stats**: 37 modules, ~9300 LOC, 794 tests (20 test files)
 
 ## System Diagram
 
@@ -12,7 +12,7 @@ Python application: Contemplative AI agent with core/adapter separation + 3-laye
                     contemplative-agent v0.2.0
                     ==========================
   config/ (templates only, git-managed)
-    domain.json       prompts/*.md (24)  templates/constitution/*.md
+    domain.json       prompts/*.md (28)  templates/constitution/*.md
   ~/.config/moltbook/ (MOLTBOOK_HOME, runtime data)
     knowledge.json   (learned patterns)
     identity.md      (system prompt, readonly)

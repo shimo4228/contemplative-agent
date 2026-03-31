@@ -5,7 +5,7 @@ An autonomous AI agent framework. Structurally minimizes privileges, enforced vi
 > **Audience**: External researchers (interested in memory architecture and agent design) and AI agents (Claude Code, etc.)
 > **Role separation**: This document describes "how it works." For "why it was built this way," see [docs/adr/](../adr/README.md). For "which file and function," see [docs/CODEMAPS/](../CODEMAPS/INDEX.md).
 
-**Stats**: 36 modules, ~7500 LOC, Python 3.9+, 774 tests
+**Stats**: 37 modules, ~9300 LOC, Python 3.9+, 794 tests
 **Dependencies**: requests, numpy. LLM: Ollama (qwen3.5:9b, localhost)
 
 **Papers**:

@@ -52,9 +52,11 @@ def _setup_logging(verbose: bool = False) -> None:
 
 LAUNCHD_LABEL = "com.moltbook.agent"
 LAUNCHD_DISTILL_LABEL = "com.moltbook.distill"
+LAUNCHD_WEEKLY_ANALYSIS_LABEL = "com.moltbook.weekly-analysis"
 LAUNCHD_PLIST_DIR = Path.home() / "Library" / "LaunchAgents"
 LAUNCHD_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_LABEL}.plist"
 LAUNCHD_DISTILL_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_DISTILL_LABEL}.plist"
+LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_WEEKLY_ANALYSIS_LABEL}.plist"
 
 
 def _build_calendar_intervals(interval_hours: int) -> str:
@@ -167,13 +169,31 @@ def _do_install_distill_schedule(distill_hour: int) -> None:
     print(f"Schedule: daily at {distill_hour:02d}:00 (distill --days 1)")
 
 
+def _do_install_weekly_analysis_schedule(weekday: int, hour: int) -> None:
+    """Install launchd plist for weekly analysis report (macOS only)."""
+    _install_plist(
+        template_name="com.moltbook.weekly-analysis.plist",
+        plist_path=LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH,
+        log_name="weekly-analysis-launchd.log",
+        substitutions={
+            "{{WEEKDAY}}": str(weekday),
+            "{{HOUR}}": str(hour),
+        },
+    )
+
+    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    print(f"Installed: {LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH}")
+    print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly analysis)")
+
+
 def _do_uninstall_schedule() -> None:
-    """Uninstall launchd plists (session + distill)."""
+    """Uninstall launchd plists (session + distill + weekly-analysis)."""
     removed = False
 
     for plist_path, label in [
         (LAUNCHD_PLIST_PATH, "session"),
         (LAUNCHD_DISTILL_PLIST_PATH, "distill"),
+        (LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH, "weekly-analysis"),
     ]:
         if not plist_path.exists():
             continue
@@ -407,6 +427,15 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
         _do_install_schedule(interval=args.interval, session=args.session)
         if not args.no_distill:
             _do_install_distill_schedule(distill_hour=args.distill_hour)
+        if args.weekly_analysis:
+            if args.weekly_analysis_day < 0 or args.weekly_analysis_day > 6:
+                parser.error("--weekly-analysis-day must be 0 (Sun) to 6 (Sat)")
+            if args.weekly_analysis_hour < 0 or args.weekly_analysis_hour > 23:
+                parser.error("--weekly-analysis-hour must be between 0 and 23")
+            _do_install_weekly_analysis_schedule(
+                weekday=args.weekly_analysis_day,
+                hour=args.weekly_analysis_hour,
+            )
 
 
 def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
@@ -926,6 +955,18 @@ def main() -> None:
     schedule_parser.add_argument(
         "--distill-hour", type=int, default=3,
         help="Hour to run daily distillation (0-23, default: 3)",
+    )
+    schedule_parser.add_argument(
+        "--weekly-analysis", action="store_true",
+        help="Also install weekly analysis report schedule",
+    )
+    schedule_parser.add_argument(
+        "--weekly-analysis-day", type=int, default=1,
+        help="Day of week for weekly analysis (0=Sun..6=Sat, default: 1=Mon)",
+    )
+    schedule_parser.add_argument(
+        "--weekly-analysis-hour", type=int, default=9,
+        help="Hour to run weekly analysis (0-23, default: 9)",
     )
 
     # insight
