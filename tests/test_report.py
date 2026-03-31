@@ -62,31 +62,34 @@ class TestExtractEntries:
 
 
 class TestExtractSessionMeta:
-    def test_returns_last_session_start(self, tmp_path):
+    def test_merges_session_starts_first_value_wins(self, tmp_path):
+        """First-seen session meta values are kept; later sessions only fill gaps."""
         jsonl = tmp_path / "test.jsonl"
         lines = [
-            json.dumps({"type": "session", "data": {"event": "start", "domain": "test"}}),
+            json.dumps({"type": "session", "data": {"event": "start", "domain": "first", "model": "a"}}),
             json.dumps({"type": "activity", "data": {"action": "comment"}}),
-            json.dumps({"type": "session", "data": {"event": "start", "domain": "test2"}}),
+            json.dumps({"type": "session", "data": {"event": "start", "domain": "second", "extra": "new"}}),
         ]
         jsonl.write_text("\n".join(lines), encoding="utf-8")
 
         meta, _, _, _ = _parse_log(jsonl)
-        assert meta["domain"] == "test2"
+        assert meta["domain"] == "first"
+        assert meta["model"] == "a"
+        assert meta["extra"] == "new"
 
-    def test_returns_none_when_no_session(self, tmp_path):
+    def test_returns_empty_when_no_session(self, tmp_path):
         jsonl = tmp_path / "test.jsonl"
         jsonl.write_text('{"type": "activity", "data": {"action": "comment"}}\n', encoding="utf-8")
 
         meta, _, _, _ = _parse_log(jsonl)
-        assert meta is None
+        assert meta == {}
 
     def test_ignores_session_end(self, tmp_path):
         jsonl = tmp_path / "test.jsonl"
         jsonl.write_text('{"type": "session", "data": {"event": "end", "actions_count": 5}}\n', encoding="utf-8")
 
         meta, _, _, _ = _parse_log(jsonl)
-        assert meta is None
+        assert meta == {}
 
     def test_skips_malformed_json(self, tmp_path):
         jsonl = tmp_path / "test.jsonl"

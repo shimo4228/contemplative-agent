@@ -16,7 +16,7 @@ logger = logging.getLogger(__name__)
 def _parse_log(
     jsonl_path: Path,
 ) -> tuple[
-    Optional[Dict[str, Any]],
+    Dict[str, Any],
     List[Dict[str, Any]],
     List[Dict[str, Any]],
     List[Dict[str, Any]],
@@ -25,7 +25,7 @@ def _parse_log(
 
     Returns (session_meta, comments, replies, posts).
     """
-    meta: Optional[Dict[str, Any]] = None
+    meta: Dict[str, Any] = {}
     comments: List[Dict[str, Any]] = []
     replies: List[Dict[str, Any]] = []
     posts: List[Dict[str, Any]] = []
@@ -39,7 +39,10 @@ def _parse_log(
             continue
 
         if entry.get("type") == "session" and entry.get("data", {}).get("event") == "start":
-            meta = entry.get("data", {})
+            # Merge: keep first-seen values, fill in missing keys from later sessions
+            for k, v in entry.get("data", {}).items():
+                if k not in meta:
+                    meta[k] = v
             continue
 
         data = entry.get("data", {})
