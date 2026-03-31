@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import logging
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -77,6 +78,33 @@ def _parse_log(
     return meta, comments, replies, posts
 
 
+_SAFE_DOMAINS = frozenset({"moltbook.com", "www.moltbook.com"})
+
+_URL_RE = re.compile(r"https?://[^\s)\]>\"']+")
+
+
+def _defang_urls(text: str) -> str:
+    """Defang URLs to prevent accidental clicks on external links.
+
+    Transforms ``https://example.com`` → ``hxxps://example[.]com``.
+    URLs pointing to safe domains (moltbook.com) are left intact.
+    """
+    def _defang(match: re.Match[str]) -> str:
+        url = match.group(0)
+        try:
+            # Extract domain (between :// and first /)
+            domain = url.split("://", 1)[1].split("/", 1)[0].split(":", 1)[0]
+        except IndexError:
+            domain = ""
+        if domain in _SAFE_DOMAINS:
+            return url
+        defanged = url.replace("https://", "hxxps://").replace("http://", "hxxp://")
+        defanged = defanged.replace(".", "[.]", 1)
+        return defanged
+
+    return _URL_RE.sub(_defang, text)
+
+
 def _format_ts(ts: str) -> str:
     """Format ISO timestamp to 'YYYY-MM-DD HH:MM:SS'."""
     return ts[:19].replace("T", " ") if ts else ""
@@ -105,7 +133,7 @@ def _build_report(
         for i, c in enumerate(comments, 1):
             pid = c.get("post_id", "")[:12]
             rel = c.get("relevance", "N/A")
-            original = c.get("original_post", "")
+            original = _defang_urls(c.get("original_post", ""))
             lines.append(
                 f"### {i}. [{_format_ts(c['ts'])}] "
                 f"Post ID: {pid}... (relevance: {rel})"
@@ -116,7 +144,7 @@ def _build_report(
                 lines.append(original)
                 lines.append("")
             lines.append("**Comment:**")
-            lines.append(c.get("content", ""))
+            lines.append(_defang_urls(c.get("content", "")))
             lines.append("")
             lines.append("---")
             lines.append("")
@@ -127,8 +155,8 @@ def _build_report(
         for i, r in enumerate(replies, 1):
             pid = r.get("post_id", "")[:12]
             target = r.get("target_agent", "unknown")
-            original = r.get("original_post", "")
-            their = r.get("their_comment", "")
+            original = _defang_urls(r.get("original_post", ""))
+            their = _defang_urls(r.get("their_comment", ""))
             lines.append(
                 f"### {i}. [{_format_ts(r['ts'])}] "
                 f"Reply to {target} on Post ID: {pid}..."
@@ -143,7 +171,7 @@ def _build_report(
                 lines.append(their)
                 lines.append("")
             lines.append("**Reply:**")
-            lines.append(r.get("content", ""))
+            lines.append(_defang_urls(r.get("content", "")))
             lines.append("")
             lines.append("---")
             lines.append("")
@@ -158,7 +186,7 @@ def _build_report(
             if submolt:
                 lines.append(f"Submolt: {submolt}")
             lines.append("")
-            lines.append(p.get("content", ""))
+            lines.append(_defang_urls(p.get("content", "")))
             lines.append("")
             lines.append("---")
             lines.append("")

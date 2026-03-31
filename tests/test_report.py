@@ -4,6 +4,7 @@ import json
 
 from contemplative_agent.core.report import (
     _build_report,
+    _defang_urls,
     _format_ts,
     _parse_log,
     generate_all_reports,
@@ -99,6 +100,30 @@ class TestExtractSessionMeta:
         assert meta["domain"] == "ok"
 
 
+class TestDefangUrls:
+    def test_defangs_https(self):
+        assert _defang_urls("Visit https://evil.com/phish") == "Visit hxxps://evil[.]com/phish"
+
+    def test_defangs_http(self):
+        assert _defang_urls("Go to http://bad.org/x") == "Go to hxxp://bad[.]org/x"
+
+    def test_preserves_moltbook_urls(self):
+        text = "See https://www.moltbook.com/u/agent and https://moltbook.com/skill.md"
+        assert _defang_urls(text) == text
+
+    def test_mixed_safe_and_unsafe(self):
+        text = "Link: https://www.moltbook.com/u/x and https://inbed.ai/agents"
+        result = _defang_urls(text)
+        assert "https://www.moltbook.com/u/x" in result
+        assert "hxxps://inbed[.]ai/agents" in result
+
+    def test_no_urls(self):
+        assert _defang_urls("No links here") == "No links here"
+
+    def test_empty_string(self):
+        assert _defang_urls("") == ""
+
+
 class TestBuildReport:
     def test_includes_session_meta(self):
         meta = {"domain": "contemplative-ai", "axioms_enabled": True, "ollama_model": "qwen3.5:9b"}
@@ -144,6 +169,18 @@ class TestBuildReport:
         report = _build_report("2026-03-14", [], [], [])
         assert "# Moltbook Activity Report — 2026-03-14" in report
         assert "Comments: 0" in report
+
+    def test_defangs_urls_in_all_sections(self):
+        comments = [{"ts": "t", "post_id": "p", "content": "See https://evil.com", "relevance": "0.9", "original_post": "Visit https://phish.io"}]
+        replies = [{"ts": "t", "post_id": "p", "content": "Reply https://bad.org", "target_agent": "a", "their_comment": "Check https://spam.net", "original_post": ""}]
+        posts = [{"ts": "t", "post_id": "p", "title": "T", "content": "Post https://malware.xyz", "submolt": ""}]
+        report = _build_report("2026-03-14", comments, replies, posts)
+        assert "https://evil.com" not in report
+        assert "hxxps://evil[.]com" in report
+        assert "hxxps://phish[.]io" in report
+        assert "hxxps://bad[.]org" in report
+        assert "hxxps://spam[.]net" in report
+        assert "hxxps://malware[.]xyz" in report
 
 
 class TestGenerateReport:
