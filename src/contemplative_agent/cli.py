@@ -207,8 +207,12 @@ def _log_approval(command: str, path: Path, approved: bool, content: str) -> Non
     }
     try:
         AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
-        with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as f:
-            f.write(json_mod.dumps(record, ensure_ascii=False) + "\n")
+        old_umask = os.umask(0o177)
+        try:
+            with open(AUDIT_LOG_PATH, "a", encoding="utf-8") as f:
+                f.write(json_mod.dumps(record, ensure_ascii=False) + "\n")
+        finally:
+            os.umask(old_umask)
     except OSError:
         logger.warning("Failed to write audit log: %s", AUDIT_LOG_PATH)
 
@@ -769,8 +773,8 @@ def main() -> None:
         if not approved:
             print("Discarded.")
             return
-        result.target_path.write_text(result.text + "\n", encoding="utf-8")
-        os.chmod(result.target_path, stat.S_IRUSR | stat.S_IWUSR)
+        from .core._io import write_restricted as _wr
+        _wr(result.target_path, result.text + "\n")
         return
 
     if args.command == "insight":
@@ -884,8 +888,8 @@ def main() -> None:
             print("Discarded.")
             return
         from datetime import datetime, timezone
-        result.target_path.write_text(result.text + "\n", encoding="utf-8")
-        os.chmod(result.target_path, stat.S_IRUSR | stat.S_IWUSR)
+        from .core._io import write_restricted as _wr
+        _wr(result.target_path, result.text + "\n")
         marker = result.marker_dir / ".last_constitution_amend"
         marker.write_text(
             datetime.now(timezone.utc).isoformat(timespec="minutes") + "\n",

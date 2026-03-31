@@ -122,7 +122,7 @@ GET 60 req/min、POST 30 req/min（分離クォータ）。3層防御（`has_rea
 
 ## テスト
 
-789 tests 全パス (2026-03-29)。カバレッジ詳細は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照。
+799 tests 全パス (2026-03-31)。カバレッジ詳細は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照。
 
 ## メモリアーキテクチャ
 
@@ -142,4 +142,4 @@ Laukkonen, R., Inglis, F., Chandaria, S., Sandved-Smith, L., Lopez-Sola, E., Hoh
 Laukkonen, R., Friston, K., & Chandaria, S. (2025). A Beautiful Loop. Neuroscience & Biobehavioral Reviews. (瞑想の計算モデル — meditation adapter の理論的基盤)
 
 # currentDate
-Today's date is 2026-03-28.
+Today's date is 2026-03-31.

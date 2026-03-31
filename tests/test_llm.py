@@ -536,7 +536,7 @@ class TestLoadSkills:
         (skills_dir / "skill.md").write_text("# Test Skill\nDo this")
         configure(skills_dir=skills_dir)
         identity = _build_system_prompt()
-        assert "Learned behavioral skills:" in identity
+        assert "<learned_skills>" in identity
         assert "# Test Skill" in identity
 
     def test_no_skills_no_injection(self, tmp_path):
@@ -545,7 +545,7 @@ class TestLoadSkills:
         skills_dir.mkdir()
         configure(skills_dir=skills_dir)
         identity = _build_system_prompt()
-        assert "Learned behavioral skills:" not in identity
+        assert "<learned_skills>" not in identity
 
     def test_skills_sorted_alphabetically(self, tmp_path):
         from contemplative_agent.core.llm import _load_md_files

@@ -139,18 +139,6 @@ class TestMemoryStore:
         # Should be the most recent 3
         assert history[0].post_id == "p7"
 
-    def test_get_recent(self):
-        store = MemoryStore()
-        for i in range(5):
-            store.record_interaction(
-                timestamp=f"t{i}", agent_id=f"a{i}", agent_name=f"Agent{i}",
-                post_id=f"p{i}", direction="sent", content=f"msg{i}",
-                interaction_type="comment",
-            )
-        recent = store.get_recent(limit=3)
-        assert len(recent) == 3
-        assert recent[0].post_id == "p2"
-
     def test_content_truncated(self):
         store = MemoryStore()
         long_content = "x" * 500
@@ -447,21 +435,6 @@ class TestPostHistoryPersistence:
 
 
 class TestEpisodeLog:
-    def test_append_and_read_today(self, tmp_path):
-        log = EpisodeLog(log_dir=tmp_path / "logs")
-        log.append("interaction", {"agent_id": "a1", "content": "hello"})
-        log.append("post", {"post_id": "p1", "title": "Test"})
-
-        records = log.read_today()
-        assert len(records) == 2
-        assert records[0]["type"] == "interaction"
-        assert records[0]["data"]["agent_id"] == "a1"
-        assert records[1]["type"] == "post"
-
-    def test_read_today_empty(self, tmp_path):
-        log = EpisodeLog(log_dir=tmp_path / "logs")
-        assert log.read_today() == []
-
     def test_read_range(self, tmp_path):
         log = EpisodeLog(log_dir=tmp_path / "logs")
         log.append("interaction", {"msg": "today"})
@@ -495,28 +468,6 @@ class TestEpisodeLog:
         assert mode & stat.S_IRWXG == 0
         assert mode & stat.S_IRWXO == 0
 
-    def test_cleanup(self, tmp_path):
-        log_dir = tmp_path / "logs"
-        log_dir.mkdir(parents=True)
-        # Create an old log file
-        old_date = (datetime.now(timezone.utc) - timedelta(days=60)).strftime("%Y-%m-%d")
-        old_file = log_dir / f"{old_date}.jsonl"
-        old_file.write_text('{"ts": "old", "type": "test", "data": {}}\n')
-        # Create a recent log file
-        recent_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
-        recent_file = log_dir / f"{recent_date}.jsonl"
-        recent_file.write_text('{"ts": "recent", "type": "test", "data": {}}\n')
-
-        log = EpisodeLog(log_dir=log_dir)
-        deleted = log.cleanup(retention_days=30)
-        assert deleted == 1
-        assert not old_file.exists()
-        assert recent_file.exists()
-
-    def test_cleanup_no_dir(self, tmp_path):
-        log = EpisodeLog(log_dir=tmp_path / "nonexistent")
-        assert log.cleanup() == 0
-
     def test_malformed_lines_skipped(self, tmp_path):
         log_dir = tmp_path / "logs"
         log_dir.mkdir(parents=True)
@@ -528,7 +479,7 @@ class TestEpisodeLog:
             '{"ts": "t2", "type": "ok2", "data": {}}\n'
         )
         log = EpisodeLog(log_dir=log_dir)
-        records = log.read_today()
+        records = log.read_range(days=1)
         assert len(records) == 2
 
 
@@ -636,13 +587,6 @@ class TestKnowledgeStore:
         assert "Pattern from legacy" in patterns
         assert "Another pattern" in patterns
 
-    def test_replace_learned_pattern(self, tmp_path):
-        path = tmp_path / "knowledge.json"
-        ks = KnowledgeStore(path=path)
-        ks.add_learned_pattern("Original")
-        ks.replace_learned_pattern(0, "Replaced")
-        assert ks.get_learned_patterns() == ["Replaced"]
-
     # --- Importance score tests ---
 
     def test_importance_default_on_load(self, tmp_path):
@@ -745,13 +689,6 @@ class TestKnowledgeStore:
         ks.load()
         assert ks._learned_patterns[0]["importance"] == 0.5
 
-    def test_replace_learned_pattern_has_importance(self, tmp_path):
-        """Replaced patterns include importance field."""
-        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
-        ks.add_learned_pattern("Original", importance=0.8)
-        ks.replace_learned_pattern(0, "Replaced")
-        assert "importance" in ks._learned_patterns[0]
-
 
 class TestFollowedAgents:
     """Tests for agents.json follow/unfollow persistence."""
@@ -837,25 +774,6 @@ class TestKnownAgentsFromJSONL:
         store2 = MemoryStore(path=path)
         store2.load()
         assert store2.known_agents == {"a1": "Agent1"}
-
-
-class TestGetRecentPosts:
-    """Tests for get_recent_posts returning PostRecord objects."""
-
-    def test_get_recent_posts(self):
-        store = MemoryStore()
-        store.record_post(
-            timestamp="t1", post_id="p1", title="Title1",
-            topic_summary="topic1", content_hash="hash1",
-        )
-        store.record_post(
-            timestamp="t2", post_id="p2", title="Title2",
-            topic_summary="topic2", content_hash="hash2",
-        )
-        posts = store.get_recent_posts(limit=1)
-        assert len(posts) == 1
-        assert posts[0].title == "Title2"
-        assert isinstance(posts[0], PostRecord)
 
 
 class TestCommentedCache:

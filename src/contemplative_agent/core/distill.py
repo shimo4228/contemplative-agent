@@ -12,7 +12,7 @@ from difflib import SequenceMatcher
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-from .llm import generate, get_axiom_prompt, get_default_system_prompt, get_distill_system_prompt, validate_identity_content
+from .llm import generate, get_axiom_prompt, _get_default_system_prompt, get_distill_system_prompt, validate_identity_content
 from .knowledge_store import effective_importance
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import (
@@ -29,6 +29,22 @@ from .prompts import (
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 30
+
+# JSON Schemas for constrained decoding (Ollama v0.5+ format parameter)
+CLASSIFY_SCHEMA: Dict = {
+    "type": "string",
+    "enum": ["constitutional", "noise", "uncategorized"],
+}
+IMPORTANCE_SCHEMA: Dict = {
+    "type": "object",
+    "properties": {"scores": {"type": "array", "items": {"type": "integer"}}},
+    "required": ["scores"],
+}
+DEDUP_SCHEMA: Dict = {
+    "type": "object",
+    "properties": {"decisions": {"type": "array", "items": {"type": "string"}}},
+    "required": ["decisions"],
+}
 
 def distill(
     days: int = 1,
@@ -167,14 +183,14 @@ def distill_identity(
 
     # Step 2: Refine into simple persona
     refine_prompt = IDENTITY_REFINE_PROMPT.format(raw_output=result)
-    refined = generate(refine_prompt, system=get_default_system_prompt(), max_length=4000)
+    refined = generate(refine_prompt, system=_get_default_system_prompt(), max_length=4000)
     if refined is None:
         msg = "LLM failed at step 2 (refine). Using step 1 output."
         logger.warning(msg)
         refined = result
 
     # Clean up: strip empty lines and preamble
-    lines = [l.strip() for l in refined.strip().splitlines() if l.strip()]
+    lines = [line.strip() for line in refined.strip().splitlines() if line.strip()]
     identity_text = "\n".join(lines)
 
     # Validate against forbidden patterns before returning
@@ -192,7 +208,7 @@ def _strip_code_fence(text: str) -> str:
     """Remove markdown code fences (```json ... ```) from LLM output."""
     text = text.strip()
     if text.startswith("```"):
-        lines = [l for l in text.splitlines() if not l.strip().startswith("```")]
+        lines = [line for line in text.splitlines() if not line.strip().startswith("```")]
         text = "\n".join(lines).strip()
     return text
 
@@ -301,7 +317,7 @@ def _classify_episodes(
             episode=episode_line,
             constitution=const_text,
         )
-        result = generate(prompt, system=get_distill_system_prompt(), max_length=20)
+        result = generate(prompt, system=get_distill_system_prompt(), max_length=20, format=CLASSIFY_SCHEMA)
         cat = _parse_classify_result(result)
 
         if cat == "constitutional":
@@ -407,7 +423,7 @@ def _distill_category(
         if batch_patterns and DISTILL_IMPORTANCE_PROMPT:
             patterns_text = "\n".join(f"- {p}" for p in batch_patterns)
             importance_prompt = DISTILL_IMPORTANCE_PROMPT.format(patterns=patterns_text)
-            importance_result = generate(importance_prompt, max_length=4000)
+            importance_result = generate(importance_prompt, max_length=4000, format=IMPORTANCE_SCHEMA)
             if importance_result:
                 batch_importances = _parse_importance_scores(importance_result, len(batch_patterns))
 
@@ -426,7 +442,7 @@ def _distill_category(
     # namespaces. Cross-category overlap is acceptable — the same insight may be
     # relevant both as ethical principle and behavioral pattern.
     existing_same_cat = [
-        p for p in knowledge._learned_patterns
+        p for p in knowledge.get_raw_patterns()
         if p.get("category", "uncategorized") == category
     ]
     pre_filter = len(existing_same_cat)
@@ -626,7 +642,7 @@ def _llm_quality_gate(
 
     dedup_items = "\n---\n".join(items)
     prompt = DISTILL_DEDUP_PROMPT.format(dedup_items=dedup_items)
-    result = generate(prompt, max_length=2000)
+    result = generate(prompt, max_length=2000, format=DEDUP_SCHEMA)
 
     # Parse decisions
     decisions = _parse_dedup_decisions(result, len(uncertain))

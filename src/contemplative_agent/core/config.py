@@ -16,6 +16,8 @@ FORBIDDEN_SUBSTRING_PATTERNS: Tuple[str, ...] = (
     "Bearer ",
     "auth_token",
     "access_token",
+    "private_key",
+    "-----BEGIN",
 )
 FORBIDDEN_WORD_PATTERNS: Tuple[str, ...] = (
     "password",

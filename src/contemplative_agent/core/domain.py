@@ -64,7 +64,6 @@ class PromptTemplates:
     distill: str
     identity_distill: str = ""
     insight_extraction: str = ""
-    insight_eval: str = ""
     meditation_interpret: str = ""
     distill_refine: str = ""
     distill_importance: str = ""
@@ -174,7 +173,6 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         distill=_read_md_file(directory / "distill.md"),
         identity_distill=_read_md_file(directory / "identity_distill.md", required=False),
         insight_extraction=_read_md_file(directory / "insight_extraction.md", required=False),
-        insight_eval=_read_md_file(directory / "insight_eval.md", required=False),
         meditation_interpret=_read_md_file(directory / "meditation_interpret.md", required=False),
         distill_refine=_read_md_file(directory / "distill_refine.md", required=False),
         distill_importance=_read_md_file(directory / "distill_importance.md", required=False),
@@ -218,11 +216,8 @@ def load_constitution(constitution_dir: Optional[Path] = None) -> str:
     if not axiom_files:
         return ""
 
-    raw = "\n\n".join(
-        f.read_text(encoding="utf-8").strip()
-        for f in axiom_files
-        if f.read_text(encoding="utf-8").strip()
-    )
+    contents = [f.read_text(encoding="utf-8").strip() for f in axiom_files]
+    raw = "\n\n".join(c for c in contents if c)
     if not raw:
         return ""
 

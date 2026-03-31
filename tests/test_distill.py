@@ -21,6 +21,9 @@ from contemplative_agent.core.distill import (
     _MatchCandidate,
     UNCERTAIN_LOW,
     DEDUP_IMPORTANCE_FLOOR,
+    CLASSIFY_SCHEMA,
+    IMPORTANCE_SCHEMA,
+    DEDUP_SCHEMA,
     VALID_CATEGORIES,
 )
 from contemplative_agent.core.knowledge_store import effective_importance
@@ -993,4 +996,63 @@ class TestDedupImportanceFloorFiltering:
         )
         assert len(add) == 1
         assert update == 0
+
+
+class TestConstrainedDecoding:
+    """Verify that constrained decoding schemas are passed to generate()."""
+
+    @patch("contemplative_agent.core.distill.DISTILL_IMPORTANCE_PROMPT", "Score these patterns: {patterns}")
+    @patch("contemplative_agent.core.distill.generate")
+    def test_importance_scoring_passes_format(self, mock_generate):
+        """Importance scoring generate() call includes JSON Schema format."""
+        # _distill_category calls: extract, refine, importance (no classify)
+        mock_generate.side_effect = [
+            "Raw analysis of episodes",  # step 1 extract
+            json.dumps({"patterns": ["A pattern that is long enough to pass validation gate easily"]}),  # step 2 refine
+            json.dumps({"scores": [7]}),  # step 3 importance (should have format)
+        ]
+
+        from contemplative_agent.core.distill import _distill_category
+        from contemplative_agent.core.memory import KnowledgeStore
+        ks = KnowledgeStore()
+        ks.load()
+
+        records = [{"ts": "2026-03-01T09:00:00Z", "type": "insight",
+                     "data": {"observation": "Test observation for importance scoring validation"}}]
+        _distill_category(records, ks, "uncategorized", "2026-03-01", dry_run=True)
+
+        assert mock_generate.call_count == 3
+        _, kwargs = mock_generate.call_args_list[2]
+        assert kwargs.get("format") is IMPORTANCE_SCHEMA
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_dedup_quality_gate_passes_format(self, mock_generate):
+        """Dedup quality gate generate() call includes JSON Schema format."""
+        mock_generate.return_value = json.dumps({"decisions": ["ADD"]})
+
+        existing = [{"pattern": "Existing pattern about something", "importance": 0.5}]
+        uncertain = [_UncertainMatch(
+            new_text="New pattern about something slightly different but related",
+            new_importance=0.7,
+            candidates=(_MatchCandidate(text="Existing pattern about something", importance=0.5, index=0, ratio=0.45),),
+        )]
+        _llm_quality_gate(uncertain, existing)
+
+        assert mock_generate.call_count == 1
+        _, kwargs = mock_generate.call_args
+        assert kwargs.get("format") is DEDUP_SCHEMA
+
+    @patch("contemplative_agent.core.distill.DISTILL_CLASSIFY_PROMPT", "Classify: {episode} {constitution}")
+    @patch("contemplative_agent.core.distill.generate")
+    def test_classify_passes_format(self, mock_generate):
+        """Episode classification generate() call includes enum schema."""
+        mock_generate.return_value = "uncategorized"
+
+        records = [{"ts": "2026-03-01T09:00:00Z", "type": "insight",
+                     "data": {"observation": "Test observation"}}]
+        _classify_episodes(records, constitution="test")
+
+        assert mock_generate.call_count == 1
+        _, kwargs = mock_generate.call_args
+        assert kwargs.get("format") is CLASSIFY_SCHEMA
 

@@ -151,11 +151,6 @@ def _get_default_system_prompt() -> str:
     return SYSTEM_PROMPT
 
 
-def get_default_system_prompt() -> str:
-    """Public accessor for the default system prompt (backward compat alias)."""
-    return _get_default_system_prompt()
-
-
 def get_axiom_prompt() -> str:
     """Return the loaded constitutional axioms text (empty if not configured)."""
     return _axiom_prompt or ""
@@ -240,14 +235,22 @@ def _build_system_prompt() -> str:
     if _axiom_prompt:
         base_prompt = base_prompt + "\n\n---\n\n" + _axiom_prompt
 
-    # Append learned skills and rules if available
+    # Append learned skills and rules if available (treated as untrusted —
+    # distilled LLM output that passed forbidden-pattern checks but could
+    # still contain behavioral manipulation)
     skills = _load_md_files(_skills_dir, "Skill")
     if skills:
-        base_prompt = base_prompt + "\n\n---\n\nLearned behavioral skills:\n\n" + skills
+        base_prompt = (
+            base_prompt + "\n\n---\n\n"
+            "<learned_skills>\n" + skills + "\n</learned_skills>"
+        )
 
     rules = _load_md_files(_rules_dir, "Rule")
     if rules:
-        base_prompt = base_prompt + "\n\n---\n\nLearned behavioral rules:\n\n" + rules
+        base_prompt = (
+            base_prompt + "\n\n---\n\n"
+            "<learned_rules>\n" + rules + "\n</learned_rules>"
+        )
 
     return base_prompt
 
@@ -355,7 +358,7 @@ def generate(
         payload["format"] = format
 
     try:
-        response = requests.post(url, json=payload, timeout=600)
+        response = requests.post(url, json=payload, timeout=(30, 600))
         response.raise_for_status()
     except requests.RequestException as exc:
         logger.error("Ollama request failed: %s", exc)
@@ -379,9 +382,19 @@ def generate(
     return _sanitize_output(raw_text, max_length)
 
 
+_INJECTION_TOKENS = (
+    "</untrusted_content>",
+    "<|im_start|>",
+    "<|im_end|>",
+    "<|endoftext|>",
+)
+
+
 def wrap_untrusted_content(post_text: str) -> str:
     """Wrap external content with prompt injection mitigation."""
     truncated = post_text[:1000]
+    for token in _INJECTION_TOKENS:
+        truncated = truncated.replace(token, "")
     return (
         "<untrusted_content>\n"
         f"{truncated}\n"

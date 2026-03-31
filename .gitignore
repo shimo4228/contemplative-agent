@@ -63,6 +63,9 @@ scripts/
 
 # Generated
 results*.json
+
+# Benchmark results (local accumulation, not tracked)
+tests/fixtures/benchmark/results/
 *.bak
 .last_insight
 

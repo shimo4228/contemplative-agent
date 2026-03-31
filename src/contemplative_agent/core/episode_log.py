@@ -5,7 +5,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
@@ -55,11 +54,6 @@ class EpisodeLog:
         except OSError as exc:
             logger.warning("Failed to write episode log: %s", exc)
 
-    def read_today(self) -> List[Dict[str, Any]]:
-        """Read all records from today's log."""
-        path = self._today_path()
-        return self.read_file(path) if path is not None else []
-
     def read_range(
         self, days: int = 1, record_type: Optional[str] = None
     ) -> List[Dict[str, Any]]:
@@ -82,29 +76,6 @@ class EpisodeLog:
         if record_type is not None:
             records = [r for r in records if r.get("type") == record_type]
         return records
-
-    def cleanup(self, retention_days: Optional[int] = None) -> int:
-        """Delete log files older than retention_days. Returns count deleted."""
-        retention = retention_days if retention_days is not None else 30
-        if self._log_dir is None or not self._log_dir.exists():
-            return 0
-        cutoff = datetime.now(timezone.utc) - timedelta(days=retention)
-        deleted = 0
-        for path in self._log_dir.glob("*.jsonl"):
-            match = re.match(r"(\d{4}-\d{2}-\d{2})\.jsonl", path.name)
-            if not match:
-                continue
-            try:
-                file_date = datetime.strptime(match.group(1), "%Y-%m-%d").replace(
-                    tzinfo=timezone.utc
-                )
-                if file_date < cutoff:
-                    path.unlink()
-                    deleted += 1
-                    logger.debug("Deleted old log: %s", path.name)
-            except ValueError:
-                continue
-        return deleted
 
     @staticmethod
     def read_file(path: Path) -> List[Dict[str, Any]]:

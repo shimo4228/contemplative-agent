@@ -267,10 +267,6 @@ class MemoryStore:
         matches = [i for i in self._interactions if i.agent_id == agent_id]
         return matches[-limit:]
 
-    def get_recent(self, limit: int = 50) -> List[Interaction]:
-        """Get most recent interactions across all agents."""
-        return self._interactions[-limit:]
-
     def has_interacted_with(self, agent_id: str) -> bool:
         """Check if we have any history with this agent (O(1) lookup)."""
         return agent_id in self._interacted_ids
@@ -367,10 +363,6 @@ class MemoryStore:
     def get_recent_post_topics(self, limit: int = 5) -> List[str]:
         """Return topic_summaries of recent posts."""
         return [p.topic_summary for p in self._post_history[-limit:]]
-
-    def get_recent_posts(self, limit: int = 5) -> List[PostRecord]:
-        """Return recent PostRecord objects."""
-        return list(self._post_history[-limit:])
 
     def get_recent_insights(self, limit: int = 3) -> List[str]:
         """Return observation strings of recent insights."""

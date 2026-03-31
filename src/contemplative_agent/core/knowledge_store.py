@@ -65,16 +65,9 @@ class KnowledgeStore:
             entry["source"] = source
         self._learned_patterns.append(entry)
 
-    def replace_learned_pattern(self, index: int, pattern: str) -> None:
-        """Replace an existing learned pattern at the given index."""
-        if 0 <= index < len(self._learned_patterns):
-            old = self._learned_patterns[index]
-            self._learned_patterns[index] = {
-                "pattern": pattern,
-                "distilled": datetime.now(timezone.utc).isoformat(timespec="minutes"),
-                "importance": 0.5,
-                "category": old.get("category", "uncategorized"),
-            }
+    def get_raw_patterns(self) -> List[dict]:
+        """Return a copy of all pattern dicts (for analysis/dedup)."""
+        return list(self._learned_patterns)
 
     def get_learned_patterns(self, category: Optional[str] = None) -> List[str]:
         """Return a copy of the learned patterns (text only).
@@ -98,10 +91,21 @@ class KnowledgeStore:
         pool = self._learned_patterns
         if category is not None:
             pool = [p for p in pool if p.get("category", "uncategorized") == category]
-        return [
-            p["pattern"] for p in pool
-            if p.get("distilled", "") > since
-        ]
+        try:
+            since_dt = datetime.fromisoformat(since)
+        except (ValueError, TypeError):
+            return [p["pattern"] for p in pool]
+        result = []
+        for p in pool:
+            distilled = p.get("distilled", "")
+            if not distilled or distilled == "unknown":
+                continue
+            try:
+                if datetime.fromisoformat(distilled) > since_dt:
+                    result.append(p["pattern"])
+            except (ValueError, TypeError):
+                continue
+        return result
 
     def _effective_importance(self, p: dict) -> float:
         return effective_importance(p)

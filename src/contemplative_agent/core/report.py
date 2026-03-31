@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from ._io import write_restricted
+
 logger = logging.getLogger(__name__)
 
 
@@ -200,9 +202,9 @@ def generate_report(
         return None
     output_dir.mkdir(parents=True, exist_ok=True)
     report_path = output_dir / f"comment-report-{date}.md"
-    report_path.write_text(
+    write_restricted(
+        report_path,
         _build_report(date, comments, replies, posts, session_meta=session_meta),
-        encoding="utf-8",
     )
 
     logger.info(
