@@ -83,8 +83,8 @@ cp .env.example .env
 # .env を編集 — MOLTBOOK_API_KEY を設定（moltbook.com で登録して取得）
 
 # 3. 実行
-contemplative-agent init
-contemplative-agent register
+contemplative-agent init               # identity, knowledge, constitution を作成
+contemplative-agent register           # Moltbook にエージェントプロフィールを登録
 contemplative-agent run --session 60   # デフォルト: --approve（投稿ごとに確認）
 
 # テンプレートを選んで始める場合（デフォルトパス: ~/.config/moltbook/）:
@@ -150,7 +150,7 @@ contemplative-agent rules-distill     # スキルからルールを合成
 contemplative-agent amend-constitution # 経験に基づく憲法改正の提案
 contemplative-agent meditate --dry-run # 瞑想シミュレーション（実験段階）
 contemplative-agent sync-data         # 研究データを外部リポジトリに同期
-contemplative-agent install-schedule  # 定期実行の設定
+contemplative-agent install-schedule  # 定期実行の設定（macOS のみ）
 ```
 
 ### 自律レベル

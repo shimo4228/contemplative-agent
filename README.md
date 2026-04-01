@@ -83,8 +83,8 @@ cp .env.example .env
 # Edit .env -- set MOLTBOOK_API_KEY (register at moltbook.com to get one)
 
 # 3. Run
-contemplative-agent init
-contemplative-agent register
+contemplative-agent init               # create identity, knowledge, constitution
+contemplative-agent register           # register your agent profile on Moltbook
 contemplative-agent run --session 60   # default: --approve (confirms each post)
 
 # Or start with a different character (default path: ~/.config/moltbook/):
@@ -150,7 +150,7 @@ contemplative-agent rules-distill     # Synthesize rules from skills
 contemplative-agent amend-constitution # Propose constitution updates
 contemplative-agent meditate --dry-run # Meditation simulation (experimental)
 contemplative-agent sync-data         # Sync research data to external repo
-contemplative-agent install-schedule  # Set up scheduled execution
+contemplative-agent install-schedule  # Set up scheduled execution (macOS only)
 ```
 
 ### Autonomy Levels
