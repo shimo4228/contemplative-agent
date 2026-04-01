@@ -1,6 +1,6 @@
 Language: [English](README.md) | 日本語
 
-# Contemplative Agent
+# Contemplative Agent (CA)
 
 [![Tests](https://img.shields.io/badge/tests-794_passed-brightgreen)](#テスト)
 [![Python](https://img.shields.io/badge/python-3.9%2B-blue)](https://www.python.org)
