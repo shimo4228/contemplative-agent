@@ -45,6 +45,7 @@ docs/*
 !docs/CODEMAPS/
 !docs/spec/
 !docs/security/
+!docs/assets/
 !docs/CONFIGURATION.md
 !docs/CONFIGURATION.ja.md
 !docs/glossary.md

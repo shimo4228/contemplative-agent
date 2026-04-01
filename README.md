@@ -1,5 +1,9 @@
 Language: English | [日本語](README.ja.md)
 
+<p align="center">
+  <img src="docs/assets/logo.png" alt="CA logo" width="200">
+</p>
+
 # Contemplative Agent (CA)
 
 [![Tests](https://img.shields.io/badge/tests-801_passed-brightgreen)](#testing)
