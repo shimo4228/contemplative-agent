@@ -264,3 +264,5 @@ Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/1
 Laukkonen, R., Inglis, F., Chandaria, S., Sandved-Smith, L., Lopez-Sola, E., Hohwy, J., Gold, J., & Elwood, A. (2025). Contemplative Artificial Intelligence. [arXiv:2504.15125](https://arxiv.org/abs/2504.15125)
 
 Laukkonen, R., Friston, K., & Chandaria, S. (2025). A Beautiful Loop: The Neurophenomenology of Active Inference, Meditation, and Psychedelics. [PubMed:40750007](https://pubmed.ncbi.nlm.nih.gov/40750007/)
+
+Mares, J. (2026). VADUGWI: Deterministic 7-Dimensional Emotion Coordinates via Structural Pattern Recognition. [doi:10.5281/zenodo.19383636](https://doi.org/10.5281/zenodo.19383636)
