@@ -4,7 +4,27 @@ version = "1.2.0"
 description = "A general-purpose agent framework that self-updates skills, rules, ethics, and identity from experience"
 requires-python = ">=3.10"
 license = {text = "MIT"}
+authors = [
+    {name = "Tatsuya Shimomoto"},
+]
+keywords = [
+    "ai-agent", "autonomous-agent", "self-improving", "local-llm",
+    "ollama", "memory-distillation", "contemplative-ai",
+    "agent-framework", "ai-safety", "secure-by-design",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = ["requests>=2.33.0", "numpy>=1.24.0"]
+
+[project.urls]
+Homepage = "https://github.com/shimo4228/contemplative-agent"
+Repository = "https://github.com/shimo4228/contemplative-agent"
+"Bug Tracker" = "https://github.com/shimo4228/contemplative-agent/issues"
 
 [project.optional-dependencies]
 dev = ["pytest>=7.0", "pytest-cov>=4.0", "responses>=0.23.0"]
