@@ -26,14 +26,16 @@ On top of that secure foundation, the agent **learns from its own experience**: 
 
 ```mermaid
 graph LR
-    A["Episode Log<br/><i>raw actions (immutable)</i>"] -->|distill| B["Knowledge<br/><i>behavioral patterns</i>"]
+    A["Episode Log<br/><i>raw actions (immutable)</i>"] -->|distill| B["Knowledge: behavioral<br/><i>behavioral patterns</i>"]
+    A -->|"distill (constitutional)"| G["Knowledge: constitutional<br/><i>ethical patterns</i>"]
     B -->|distill-identity| C["Identity<br/><i>who the agent is</i>"]
     B -->|insight| D["Skills<br/><i>how to behave</i>"]
     D -->|rules-distill| E["Rules<br/><i>universal principles</i>"]
-    A -->|"constitutional episodes"| F["Constitution<br/><i>ethical principles</i>"]
+    G -->|amend| F["Constitution<br/><i>ethical principles</i>"]
 
     style A fill:#1a1a2e,stroke:#e94560,color:#eee
     style B fill:#1a1a2e,stroke:#0f3460,color:#eee
+    style G fill:#1a1a2e,stroke:#e94560,color:#eee
     style C fill:#16213e,stroke:#e94560,color:#eee
     style D fill:#16213e,stroke:#0f3460,color:#eee
     style E fill:#16213e,stroke:#0f3460,color:#eee

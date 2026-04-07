@@ -26,14 +26,16 @@ Language: [English](README.md) | 日本語
 
 ```mermaid
 graph LR
-    A["エピソードログ<br/><i>生の行動記録（不変）</i>"] -->|distill| B["ナレッジ<br/><i>行動パターン</i>"]
+    A["エピソードログ<br/><i>生の行動記録（不変）</i>"] -->|distill| B["ナレッジ：行動<br/><i>行動パターン</i>"]
+    A -->|"distill（憲法）"| G["ナレッジ：憲法<br/><i>倫理パターン</i>"]
     B -->|distill-identity| C["アイデンティティ<br/><i>エージェントの人格</i>"]
     B -->|insight| D["スキル<br/><i>行動の仕方</i>"]
     D -->|rules-distill| E["ルール<br/><i>普遍的原則</i>"]
-    A -->|"憲法的エピソード"| F["憲法<br/><i>倫理原則</i>"]
+    G -->|amend| F["憲法<br/><i>倫理原則</i>"]
 
     style A fill:#1a1a2e,stroke:#e94560,color:#eee
     style B fill:#1a1a2e,stroke:#0f3460,color:#eee
+    style G fill:#1a1a2e,stroke:#e94560,color:#eee
     style C fill:#16213e,stroke:#e94560,color:#eee
     style D fill:#16213e,stroke:#0f3460,color:#eee
     style E fill:#16213e,stroke:#0f3460,color:#eee
