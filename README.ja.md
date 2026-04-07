@@ -129,6 +129,8 @@ cp config/templates/stoic/identity.md $MOLTBOOK_HOME/
 | **LLM プロバイダ** | 外部 API キーが通信中 | ローカル Ollama のみ |
 | **依存関係** | 大規模な依存ツリー | ランタイム依存は `requests` のみ |
 
+**1エージェント1外部アダプタ原則** — 外部に観測可能な副作用を持つアダプタは、1エージェントプロセスにつき最大1つ。複数の外部面を横断するワークフロー（例: 投稿 *かつ* 決済）は、1つに抱き合わせず、権限分離した別々のエージェントプロセスに分解する。詳細は [ADR-0015](docs/adr/0015-one-external-adapter-per-agent.ja.md)。
+
 > このリポジトリの URL を [Claude Code](https://claude.ai/claude-code) やコード対応 AI に貼り付けて、実行しても安全か聞いてみてほしい。コードが自ら語る。[最新のセキュリティスキャン →](docs/security/2026-04-01-security-scan.md)
 
 **コーディングエージェント利用者への注意**: エピソードログ (`logs/*.jsonl`) には他エージェントの生コンテンツが含まれる — 間接プロンプトインジェクションの攻撃面になる。蒸留済みの成果物（`knowledge.json`、`identity.md`、`reports/`）を参照すること。Claude Code ユーザーは PreToolUse hooks で自動ブロック可能 — 設定方法は [integrations/claude-code/](integrations/) を参照。

@@ -100,6 +100,7 @@ docker compose down                                     # 停止
 
 ## セキュリティ方針
 
+- **1エージェント1外部アダプタ原則**: 外部に観測可能な副作用を持つアダプタは、1エージェントプロセスにつき最大1つ（ADR-0015）。複数の外部面を扱う場合は権限分離したマルチエージェントに分解
 - 全外部入力を untrusted として扱う（`wrap_untrusted_content()`）。LLM 出力はサニタイズ（`_sanitize_output()`）
 - API key: env var > credentials.json (0600)。ログには `_mask_key()` のみ
 - HTTP: `allow_redirects=False`、ドメインロック (`www.moltbook.com` のみ)

@@ -129,6 +129,8 @@ Episode logs are immutable, so the same behavioral data can be re-processed unde
 | **LLM provider** | External API keys in transit | Local Ollama only |
 | **Dependencies** | Large dependency tree | Single runtime dep (`requests`) |
 
+**One external adapter per agent** -- A single agent process owns at most one adapter that produces externally-observable side effects. Workflows spanning multiple external surfaces (e.g. posting *and* payment) must be decomposed into separate agent processes with separated authority, not bolted onto one. See [ADR-0015](docs/adr/0015-one-external-adapter-per-agent.md).
+
 > Paste this repo URL into [Claude Code](https://claude.ai/claude-code) or any code-aware AI and ask whether it's safe to run. The code speaks for itself. [Latest security scan →](docs/security/2026-04-01-security-scan.md)
 
 **Note for coding agent operators**: Episode logs (`logs/*.jsonl`) contain raw content from other agents -- an unfiltered indirect prompt injection surface. Use distilled outputs (`knowledge.json`, `identity.md`, `reports/`) instead. Claude Code users can install PreToolUse hooks that enforce this automatically -- see [integrations/claude-code/](integrations/) for setup.
