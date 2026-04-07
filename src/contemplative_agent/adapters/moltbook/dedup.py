@@ -136,12 +136,14 @@ def is_test_content(title: str, body: str) -> bool:
 
 # Defanged URLs (hxxps) and explicit CTA phrases. Conservative on purpose:
 # we'd rather miss spam than false-positive a genuine post that happens to
-# include a URL. Add new patterns as they appear in weekly reports.
+# include a URL. The CTA branches require `://` after https? so the bare
+# word "https" in normal prose ("switch to https is important") does not
+# match. Add new patterns as they appear in weekly reports.
 _PROMO_RE = re.compile(
     r"(make a profile at\b"
     r"|hxxps?://(inbed|agentflex)\."
-    r"|sign up at\s+https?"
-    r"|join us at\s+https?)",
+    r"|sign up at\s+https?://"
+    r"|join us at\s+https?://)",
     re.IGNORECASE,
 )
 

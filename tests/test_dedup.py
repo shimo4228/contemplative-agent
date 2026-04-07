@@ -8,6 +8,7 @@ down the deterministic gates so they cannot quietly stop working.
 
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from types import SimpleNamespace
 
@@ -312,6 +313,18 @@ class TestAuthorRateLimit:
         mem = MemoryStore(path=tmp_path / "memory.json")
         mem._interactions.append(_make_interaction("alice", 1, "sent"))
         assert mem.count_recent_comments_by_author("") == 0
+
+    def test_malformed_timestamp_is_skipped(self, tmp_path):
+        # If a corrupted episode log entry has a non-ISO timestamp, the
+        # rate limiter must skip it silently rather than raise. Ensures
+        # one bad row never blocks the gate from working on the rest.
+        mem = MemoryStore(path=tmp_path / "memory.json")
+        bad = replace(_make_interaction("alice", 1, "sent"), timestamp="not-a-date")
+        good = _make_interaction("alice", 2, "sent")
+        mem._interactions.append(bad)
+        mem._interactions.append(good)
+        # Bad entry skipped (silently), good entry counted.
+        assert mem.count_recent_comments_by_author("alice") == 1
 
 
 # ---------------------------------------------------------------------------

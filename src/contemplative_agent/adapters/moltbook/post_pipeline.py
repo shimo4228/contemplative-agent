@@ -103,13 +103,18 @@ class PostPipeline:
 
         # Jaccard self-post dedup gate: token-set similarity over
         # (title ∪ topic_summary) against the past ~50 self-posts.
+        # draft_summary is reused below at record_post time to avoid a
+        # second LLM call on the same content.
         draft_summary = summarize_post_topic(content)
         recent_posts = ctx.memory.get_recent_posts(limit=50)
         is_dup, sim, prior_title = is_duplicate_title(
             title, draft_summary, recent_posts,
         )
         if is_dup:
-            logger.warning(
+            # INFO, not WARNING — this is steady-state behavior of the
+            # gate (its whole purpose). WARNING is reserved for the
+            # test-content gate above, which fires only on anomalies.
+            logger.info(
                 "Blocked duplicate self-post (jaccard=%.2f vs %r): %r",
                 sim, prior_title, title,
             )
@@ -150,8 +155,10 @@ class PostPipeline:
                 "content": content, "title": title,
             })
 
-            # Record post in memory
-            topic_summary = summarize_post_topic(content) or title
+            # Record post in memory. Reuse draft_summary computed for the
+            # dedup gate above instead of calling summarize_post_topic
+            # twice on the same content.
+            topic_summary = draft_summary or title
             content_hash = _content_hash(content)
             ctx.memory.record_post(
                 timestamp=datetime.now(timezone.utc).isoformat(),

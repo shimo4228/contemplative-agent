@@ -288,14 +288,21 @@ class TestInstallDistillSchedule:
 class TestUninstallScheduleBoth:
     @patch("contemplative_agent.cli.subprocess.run")
     def test_uninstall_removes_both_plists(self, mock_run, tmp_path):
+        # NOTE: All THREE plist paths must be patched (session, distill,
+        # weekly-analysis), otherwise the unpatched one falls through to
+        # the user's real ~/Library/LaunchAgents/. The weekly tmp path is
+        # left intentionally non-existent so the uninstall walker skips
+        # it, keeping the mock_run.call_count expectation at 2.
         mock_run.return_value = MagicMock(returncode=0, stderr="")
         agent_plist = tmp_path / "com.moltbook.agent.plist"
         distill_plist = tmp_path / "com.moltbook.distill.plist"
+        weekly_plist = tmp_path / "com.moltbook.weekly-analysis.plist"
         agent_plist.write_text("dummy")
         distill_plist.write_text("dummy")
 
         with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", agent_plist), \
-             patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist):
+             patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist), \
+             patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist):
             _do_uninstall_schedule()
 
         assert not agent_plist.exists()
@@ -305,9 +312,11 @@ class TestUninstallScheduleBoth:
     def test_uninstall_no_plists(self, tmp_path, capsys):
         agent_plist = tmp_path / "com.moltbook.agent.plist"
         distill_plist = tmp_path / "com.moltbook.distill.plist"
+        weekly_plist = tmp_path / "com.moltbook.weekly-analysis.plist"
 
         with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", agent_plist), \
-             patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist):
+             patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist), \
+             patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist):
             _do_uninstall_schedule()
 
         assert "No schedule installed" in capsys.readouterr().out
