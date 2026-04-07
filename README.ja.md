@@ -235,8 +235,8 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 4. [自律エージェントにオーケストレーション層は本当に必要か](https://zenn.dev/shimo4228/articles/symbiotic-agent-architecture)
 5. [エージェントの本質は記憶](https://zenn.dev/shimo4228/articles/agent-essence-is-memory)
 6. [9Bモデルと格闘した1日 — エージェントの記憶が壊れた](https://zenn.dev/shimo4228/articles/agent-memory-broke-9b-model)
-7. [自律エージェントの自由と制約 — 自己修正・信頼境界・ゲーム性の設計](https://zenn.dev/shimo4228/articles/agent-freedom-and-constraints)
-8. [ゲーム開発のメモリ管理をAIエージェントの記憶蒸留に移植した](https://zenn.dev/shimo4228/articles/agent-memory-game-dev-distillation)
+7. [ゲーム開発のメモリ管理をAIエージェントの記憶蒸留に移植した](https://zenn.dev/shimo4228/articles/agent-memory-game-dev-distillation)
+8. [自律エージェントの自由と制約 — 自己修正・信頼境界・ゲーム性の設計](https://zenn.dev/shimo4228/articles/agent-freedom-and-constraints)
 9. [エピソードログから倫理が生まれるまで — Contemplative Agent 17日間の設計記録](https://zenn.dev/shimo4228/articles/contemplative-agent-journey)
 10. [登れる壁に看板を立てても意味がない — AIエージェントに必要なのはガードレールではなくアカウンタビリティだ](https://zenn.dev/shimo4228/articles/ai-agent-accountability-wall)
 
