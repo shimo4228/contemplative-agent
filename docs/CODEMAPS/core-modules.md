@@ -1,4 +1,4 @@
-<!-- Generated: 2026-03-28 | Files scanned: 16 core modules | Token estimate: ~1000 -->
+<!-- Generated: 2026-04-08 | Files scanned: 16 core modules | Token estimate: ~1000 -->
 # Core Modules Codemap
 
 Platform-independent foundation (no Moltbook dependencies). All imports flow: adapters → core.
@@ -14,7 +14,7 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `llm.py` | 390 | Ollama interface, LLM functions, circuit breaker, sanitization |
 | `episode_log.py` | 127 | EpisodeLog (append-only JSONL, read_range with record_type filter) |
 | `knowledge_store.py` | 234 | KnowledgeStore (patterns JSON, learned pattern add/retrieve) |
-| `memory.py` | 430 | MemoryStore facade, Interaction/PostRecord/Insight dataclasses |
+| `memory.py` | 460 | MemoryStore facade, Interaction/PostRecord/Insight dataclasses, recent-post + per-author-comment query helpers |
 | `scheduler.py` | 165 | Scheduler (rate limit state, has_read/write_budget, persistence) |
 | `constitution.py` | 104 | amend_constitution() → AmendmentResult |
 | `distill.py` | 686 | distill(), distill_identity() → IdentityResult, episode classification + dedup |

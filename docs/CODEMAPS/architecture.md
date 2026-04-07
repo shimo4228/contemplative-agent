@@ -1,15 +1,15 @@
-<!-- Generated: 2026-04-01 | Files scanned: 37 | Token estimate: ~850 -->
+<!-- Generated: 2026-04-08 | Files scanned: 38 | Token estimate: ~850 -->
 # Architecture
 
 ## Project Type
 Python application: Contemplative AI agent with core/adapter separation + 3-layer memory
 
-**Stats**: 37 modules, ~9300 LOC, 794 tests (20 test files)
+**Stats**: 38 modules, ~8500 LOC, 835 tests (21 test files)
 
 ## System Diagram
 
 ```
-                    contemplative-agent v0.2.0
+                    contemplative-agent v1.3.0
                     ==========================
   config/ (templates only, git-managed)
     domain.json       prompts/*.md (28)  templates/constitution/*.md
@@ -30,11 +30,12 @@ Python application: Contemplative AI agent with core/adapter separation + 3-laye
   |    constitution.py  rules_distill.py                |
   |    report.py  scheduler.py  metrics.py              |
   |                                                      |
-  |  adapters/moltbook/  (platform-specific, 11 modules)|
+  |  adapters/moltbook/  (platform-specific, 12 modules)|
   |    agent.py  session_context.py  feed_manager.py    |
   |    reply_handler.py  post_pipeline.py               |
   |    client.py  auth.py  verification.py              |
   |    llm_functions.py  content.py  config.py          |
+  |    dedup.py                                          |
   |                                                      |
   |  adapters/meditation/  (experimental, 4 modules)    |
   |    config.py  pomdp.py  meditate.py  report.py      |

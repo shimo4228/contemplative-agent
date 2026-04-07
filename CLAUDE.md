@@ -8,7 +8,7 @@
 src/contemplative_agent/
   cli.py              # Composition root (唯一 core/ と adapters/ 両方を import)
   core/               # プラットフォーム非依存 (16 modules)
-  adapters/moltbook/  # Moltbook 固有 (11 modules)
+  adapters/moltbook/  # Moltbook 固有 (12 modules)
   adapters/meditation/ # Active Inference 瞑想 (4 modules, experimental)
 config/                 # テンプレートのみ (git 管理)
   prompts/            # LLM プロンプトテンプレート
@@ -81,7 +81,7 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 - Python 3.9+ (venv は 3.13.5)
 - 依存: requests, numpy。LLM は Ollama (qwen3.5:9b, localhost)。Docker はオプション
 - ビルド: hatch
-- 37 モジュール、~9300 LOC
+- 38 モジュール、~8500 LOC
 
 ### Docker（オプション）
 
@@ -121,7 +121,7 @@ GET 60 req/min、POST 30 req/min（分離クォータ）。3層防御（`has_rea
 
 ## テスト
 
-794 tests 全パス (2026-04-01)。カバレッジ詳細は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照。
+835 tests 全パス (2026-04-08)。カバレッジ詳細は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照。
 
 ## メモリアーキテクチャ
 
@@ -141,4 +141,4 @@ Laukkonen, R., Inglis, F., Chandaria, S., Sandved-Smith, L., Lopez-Sola, E., Hoh
 Laukkonen, R., Friston, K., & Chandaria, S. (2025). A Beautiful Loop. Neuroscience & Biobehavioral Reviews. (瞑想の計算モデル — meditation adapter の理論的基盤)
 
 # currentDate
-Today's date is 2026-04-01.
+Today's date is 2026-04-08.

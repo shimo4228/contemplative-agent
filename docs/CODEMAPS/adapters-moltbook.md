@@ -1,23 +1,24 @@
-<!-- Generated: 2026-03-22 | Files scanned: 15 adapter modules | Token estimate: ~1100 -->
+<!-- Generated: 2026-04-08 | Files scanned: 16 adapter modules | Token estimate: ~1200 -->
 # Adapters Codemap
 
 Platform-specific implementations. Dependency: adapters → core.
 
-## Moltbook Adapter (11 modules, ~2800 LOC)
+## Moltbook Adapter (12 modules, ~3000 LOC)
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
 | `config.py` | 91 | URLs, paths, timeouts, rate limits, constants |
 | `agent.py` | 653 | Session orchestrator (feed/reply/post cycles, AutonomyLevel) |
 | `session_context.py` | 53 | Shared mutable state (memory, rate_limited, actions) |
-| `feed_manager.py` | 304 | Feed fetch, relevance scoring, engagement tracking, dedup |
+| `feed_manager.py` | 326 | Feed fetch, relevance scoring, engagement, ID dedup, promo filter, per-author rate limit |
 | `reply_handler.py` | 384 | Notification handling, reply generation, posting |
-| `post_pipeline.py` | 161 | Topic extraction, novelty check, dynamic post gen |
+| `post_pipeline.py` | 195 | Topic extraction, novelty check, test-content gate, Jaccard dedup, dynamic post gen |
 | `client.py` | 446 | HTTP client (auth, domain lock, retry/429-backoff) |
 | `auth.py` | 111 | Credential management, agent registration |
 | `verification.py` | 236 | Math challenge solver, failure tracking, auto-stop |
 | `content.py` | 130 | Rules-based content, dedup, axiom intro injection |
 | `llm_functions.py` | 236 | Moltbook-specific LLM (select_submolt, context builders) |
+| `dedup.py` | 154 | Deterministic gates: prefix-5 stem + Jaccard, test-content blocklist, promotional URL regex |
 
 ## Session Orchestration (agent.py, 653L)
 
@@ -48,20 +49,26 @@ class SessionContext:
 
 **Invariant**: All collaborators depend only on SessionContext, not on Agent directly.
 
-## FeedManager (feed_manager.py, 304L)
+## FeedManager (feed_manager.py, 326L)
 
-Fetch → score → dedup → comment → record.
+Fetch → promotional filter → ID dedup → per-author 24h rate limit → score → comment → record.
 Rate limiting: proactive wait via `scheduler.has_read_budget()`.
+Per-author cap: max 3 sent comments per agent_id in any 24h window
+(prevents engagement-farming loops on identical reposts).
 
 ## ReplyHandler (reply_handler.py, 384L)
 
 Notifications → context → reply → post → record.
 Verification fallback: `VerificationTracker.solve()` on challenge.
 
-## PostPipeline (post_pipeline.py, 161L)
+## PostPipeline (post_pipeline.py, 195L)
 
-Topics → novelty check → generate → select submolt → post.
-Dedup: tracks own_post_ids.
+Topics → LLM novelty check → test-content gate → Jaccard dedup gate → generate → select submolt → post.
+Two-stage dedup: existing LLM-based `check_topic_novelty` (probabilistic) is
+backed by a deterministic Jaccard gate over (title ∪ topic_summary) tokens
+against the past ~50 self-posts. Both gates are silent: blocks return without
+retry so the agent cannot evade by synonym-swapping. Also tracks own_post_ids
+for ID-level dedup.
 
 ## MoltbookClient (client.py, 446L)
 
@@ -115,4 +122,4 @@ EpisodeLog (JSONL) → pomdp.build_matrices()
 - `patch('contemplative_agent.adapters.moltbook.reply_handler.LLM')`
 - `patch('contemplative_agent.adapters.moltbook.post_pipeline.Scheduler')`
 
-**Test count**: 651 tests, 17 test files.
+**Test count**: 835 tests, 21 test files.
