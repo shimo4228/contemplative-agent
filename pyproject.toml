@@ -1,6 +1,6 @@
 [project]
 name = "contemplative-agent"
-version = "1.3.0"
+version = "1.3.1"
 description = "A general-purpose agent framework that self-updates skills, rules, ethics, and identity from experience"
 requires-python = ">=3.10"
 license = {text = "MIT"}
