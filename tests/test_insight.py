@@ -370,10 +370,9 @@ class TestSubcategoryBatches:
                 patterns.append(self._make_pattern(f"{sub}-{i}", subcategory=sub))
         batches = _build_subcategory_batches(patterns, batch_size=30)
         assert len(batches) == 3
-        # Each batch should be homogeneous
-        for batch in batches:
-            subs = {text.split("-")[0] for text in batch}
-            assert len(subs) == 1
+        # Each batch is labeled with its subcategory
+        names = {name for name, _ in batches}
+        assert names == {"communication", "reasoning", "social"}
 
     def test_rarity_priority_within_subcategory(self) -> None:
         """Higher rarity patterns come first within a batch."""
@@ -384,16 +383,19 @@ class TestSubcategoryBatches:
         ]
         batches = _build_subcategory_batches(patterns, batch_size=30)
         assert len(batches) == 1
-        assert batches[0] == ["high", "mid", "low"]
+        name, texts = batches[0]
+        assert name == "technical"
+        assert texts == ["high", "mid", "low"]
 
     def test_batch_size_caps_per_subcategory(self) -> None:
         """Each subcategory is capped at batch_size patterns."""
         patterns = [self._make_pattern(f"p{i}", subcategory="content", rarity=float(i)) for i in range(10)]
         batches = _build_subcategory_batches(patterns, batch_size=5)
         assert len(batches) == 1
-        assert len(batches[0]) == 5
+        _, texts = batches[0]
+        assert len(texts) == 5
         # Highest rarity first (9, 8, 7, 6, 5)
-        assert batches[0][0] == "p9"
+        assert texts[0] == "p9"
 
     def test_small_subcategories_merged(self) -> None:
         """Subcategories below min_batch_size are merged into one mixed batch."""
@@ -406,18 +408,18 @@ class TestSubcategoryBatches:
         ]
         batches = _build_subcategory_batches(patterns, batch_size=30, min_batch_size=3)
         assert len(batches) == 2
-        # reasoning gets its own batch; comm(2) + tech(1) merged into mixed
-        reason_batch = [b for b in batches if b[0].startswith("reason")][0]
-        mixed_batch = [b for b in batches if not b[0].startswith("reason")][0]
-        assert len(reason_batch) == 5
-        assert len(mixed_batch) == 3
+        batch_dict = {name: texts for name, texts in batches}
+        assert len(batch_dict["reasoning"]) == 5
+        assert len(batch_dict["mixed"]) == 3
 
     def test_fallback_no_subcategory(self) -> None:
         """Patterns without subcategory all land in 'other' group."""
         patterns = [self._make_pattern(f"p{i}") for i in range(10)]
         batches = _build_subcategory_batches(patterns, batch_size=30)
         assert len(batches) == 1
-        assert len(batches[0]) == 10
+        name, texts = batches[0]
+        assert name == "other"
+        assert len(texts) == 10
 
     def test_small_merged_into_last_when_below_min(self) -> None:
         """If merged small patterns are still below min, append to last batch."""
@@ -428,4 +430,5 @@ class TestSubcategoryBatches:
         batches = _build_subcategory_batches(patterns, batch_size=30, min_batch_size=3)
         # social(1) < min_batch_size, merged into reasoning batch
         assert len(batches) == 1
-        assert len(batches[0]) == 6
+        _, texts = batches[0]
+        assert len(texts) == 6

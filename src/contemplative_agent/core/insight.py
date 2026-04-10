@@ -63,13 +63,14 @@ def _extract_title(skill_text: str) -> Optional[str]:
 
 
 def _extract_skill(
-    patterns: List[str], insights: List[str]
+    patterns: List[str], insights: List[str], subcategory: str = "mixed"
 ) -> Optional[str]:
     """Extract a skill from patterns and insights via LLM.
 
     Returns the raw Markdown skill text, or None on failure.
     """
     prompt = INSIGHT_EXTRACTION_PROMPT.format(
+        subcategory=subcategory,
         patterns="\n".join(f"- {p}" for p in patterns),
         insights="\n".join(f"- {i}" for i in insights) if insights else "(none)",
     )
@@ -91,7 +92,7 @@ def _build_subcategory_batches(
     raw_patterns: List[dict],
     batch_size: int = BATCH_SIZE,
     min_batch_size: int = MIN_PATTERNS_REQUIRED,
-) -> List[List[str]]:
+) -> List[Tuple[str, List[str]]]:
     """Build one batch per subcategory, prioritizing high rarity within each.
 
     Each batch contains patterns from a single subcategory so the LLM can
@@ -104,13 +105,16 @@ def _build_subcategory_batches(
 
     Falls back gracefully when subcategory/rarity are missing (enrich not run):
     all patterns land in "other" group.
+
+    Returns:
+        List of (subcategory_name, pattern_texts) tuples.
     """
     groups: dict[str, list[dict]] = defaultdict(list)
     for p in raw_patterns:
         sub = p.get("subcategory", _FALLBACK_SUBCATEGORY) or _FALLBACK_SUBCATEGORY
         groups[sub].append(p)
 
-    batches: List[List[str]] = []
+    batches: List[Tuple[str, List[str]]] = []
     small: List[str] = []
 
     for key in sorted(groups.keys()):
@@ -120,14 +124,15 @@ def _build_subcategory_batches(
         if len(texts) < min_batch_size:
             small.extend(texts)
         else:
-            batches.append(texts)
+            batches.append((key, texts))
 
     # Merge small subcategories into one mixed batch
     if small:
         if len(small) >= min_batch_size:
-            batches.append(small)
+            batches.append(("mixed", small))
         elif batches:
-            batches[-1].extend(small)
+            name, texts = batches[-1]
+            batches[-1] = (name, texts + small)
 
     return batches
 
@@ -217,12 +222,13 @@ def extract_insight(
     skill_results: List[SkillResult] = []
     dropped_count = 0
 
-    for batch_idx, batch in enumerate(batches):
+    for batch_idx, (subcategory, batch) in enumerate(batches):
         logger.info(
-            "Batch %d/%d: %d patterns", batch_idx + 1, len(batches), len(batch)
+            "Batch %d/%d [%s]: %d patterns",
+            batch_idx + 1, len(batches), subcategory, len(batch),
         )
 
-        skill_text = _extract_skill(batch, insights)
+        skill_text = _extract_skill(batch, insights, subcategory=subcategory)
         if skill_text is None:
             logger.warning("Batch %d/%d: extraction failed", batch_idx + 1, len(batches))
             dropped_count += 1

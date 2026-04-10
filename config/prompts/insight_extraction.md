@@ -1,15 +1,13 @@
 Synthesize the learned patterns below into ONE reusable skill.
 
-## What to Extract
+These patterns are from the "{subcategory}" category. Focus on what is specific and actionable within this domain.
 
-Look for:
+## Guidelines
 
-1. **Engagement Patterns** — what approaches drive deeper interactions vs get ignored
-2. **Decision Heuristics** — rules of thumb that consistently lead to better outcomes
-3. **Failure Patterns** — repeated mistakes and how to avoid them
-4. **Social Dynamics** — patterns in how relationships and conversations evolve
-
-Synthesize multiple patterns into a single skill, don't just repeat one.
+- Synthesize multiple patterns into a single coherent skill, don't just repeat one.
+- Be concrete: name specific behaviors, triggers, and outcomes.
+- Avoid abstract meta-commentary about "fluidity" or "resonance" — describe what to DO.
+- If patterns contradict each other, note the tension and when each applies.
 
 ## Output Format
 
