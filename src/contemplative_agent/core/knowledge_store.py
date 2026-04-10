@@ -71,9 +71,13 @@ class KnowledgeStore:
             entry["rarity"] = rarity
         self._learned_patterns.append(entry)
 
-    def get_raw_patterns(self) -> List[dict]:
-        """Return a copy of all pattern dicts (for analysis/dedup)."""
-        return list(self._learned_patterns)
+    def get_raw_patterns(self, category: Optional[str] = None) -> List[dict]:
+        """Return a copy of pattern dicts (for analysis/dedup).
+
+        Args:
+            category: If provided, only return patterns matching this category.
+        """
+        return list(self._filtered_pool(category))
 
     def get_learned_patterns(self, category: Optional[str] = None) -> List[str]:
         """Return a copy of the learned patterns (text only).
@@ -82,10 +86,7 @@ class KnowledgeStore:
             category: If provided, only return patterns matching this category.
                       Patterns without a category field are treated as "uncategorized".
         """
-        pool = self._learned_patterns
-        if category is not None:
-            pool = [p for p in pool if p.get("category", "uncategorized") == category]
-        return [p["pattern"] for p in pool]
+        return [p["pattern"] for p in self._filtered_pool(category)]
 
     def get_learned_patterns_by_subcategory(self, subcategory: str) -> List[dict]:
         """Return raw pattern dicts for a specific subcategory (uncategorized only)."""
@@ -95,20 +96,18 @@ class KnowledgeStore:
             and p.get("subcategory") == subcategory
         ]
 
-    def get_learned_patterns_since(self, since: str, category: Optional[str] = None) -> List[str]:
-        """Return patterns distilled after the given ISO timestamp.
+    def _filtered_pool(self, category: Optional[str]) -> List[dict]:
+        """Return patterns filtered by category (None = all)."""
+        if category is None:
+            return self._learned_patterns
+        return [p for p in self._learned_patterns if p.get("category", "uncategorized") == category]
 
-        Args:
-            since: ISO timestamp cutoff.
-            category: If provided, only return patterns matching this category.
-        """
-        pool = self._learned_patterns
-        if category is not None:
-            pool = [p for p in pool if p.get("category", "uncategorized") == category]
+    def _filter_since(self, since: str, pool: List[dict]) -> List[dict]:
+        """Return dicts from pool distilled after since. Returns all on bad timestamp."""
         try:
             since_dt = datetime.fromisoformat(since)
         except (ValueError, TypeError):
-            return [p["pattern"] for p in pool]
+            return list(pool)
         result = []
         for p in pool:
             distilled = p.get("distilled", "")
@@ -116,10 +115,26 @@ class KnowledgeStore:
                 continue
             try:
                 if datetime.fromisoformat(distilled) > since_dt:
-                    result.append(p["pattern"])
+                    result.append(p)
             except (ValueError, TypeError):
                 continue
         return result
+
+    def get_learned_patterns_since(self, since: str, category: Optional[str] = None) -> List[str]:
+        """Return patterns distilled after the given ISO timestamp.
+
+        Args:
+            since: ISO timestamp cutoff.
+            category: If provided, only return patterns matching this category.
+        """
+        return [p["pattern"] for p in self._filter_since(since, self._filtered_pool(category))]
+
+    def get_raw_patterns_since(self, since: str, category: Optional[str] = None) -> List[dict]:
+        """Return raw pattern dicts distilled after the given ISO timestamp.
+
+        Like get_learned_patterns_since but returns full dicts (with subcategory, rarity).
+        """
+        return self._filter_since(since, self._filtered_pool(category))
 
     def _effective_importance(self, p: dict) -> float:
         return effective_importance(p)
@@ -136,11 +151,7 @@ class KnowledgeStore:
             category: If provided, only return patterns matching this category.
                       Patterns without a category field are treated as "uncategorized".
         """
-        if not self._learned_patterns:
-            return ""
-        pool = self._learned_patterns
-        if category is not None:
-            pool = [p for p in pool if p.get("category", "uncategorized") == category]
+        pool = self._filtered_pool(category)
         if not pool:
             return ""
         scored = sorted(

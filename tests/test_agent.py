@@ -414,11 +414,12 @@ class TestRunFeedCycle:
 
 
 class TestRunPostCycle:
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.is_duplicate_title", return_value=(False, 0.0, None))
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="reflection on alignment")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Reflective Note")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topic1\ntopic2")
-    def test_posts_dynamic(self, mock_topics, mock_title, mock_novelty, mock_summarize):
+    def test_posts_dynamic(self, mock_topics, mock_title, mock_novelty, mock_summarize, mock_dedup):
         # NOTE: title and body must avoid the literals "Test Title" /
         # "Dynamic content" — those are caught by the test-content gate
         # in dedup.is_test_content (intentionally — they leaked to the

@@ -9,6 +9,7 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
+from collections import defaultdict
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from pathlib import Path
@@ -24,6 +25,8 @@ logger = logging.getLogger(__name__)
 MIN_PATTERNS_REQUIRED = 3
 MAX_SLUG_LENGTH = 50
 BATCH_SIZE = 30
+_FALLBACK_SUBCATEGORY = "other"
+_FALLBACK_RARITY = 5.0
 
 
 @dataclass(frozen=True)
@@ -84,6 +87,52 @@ def _extract_skill(
     return result
 
 
+def _build_stratified_batches(
+    raw_patterns: List[dict],
+    batch_size: int = BATCH_SIZE,
+    min_batch_size: int = MIN_PATTERNS_REQUIRED,
+) -> List[List[str]]:
+    """Build batches with diverse subcategory mix, prioritizing high rarity.
+
+    Round-robin deals patterns from each subcategory group (sorted by rarity
+    descending) into batches, ensuring each batch contains a mix of topics.
+
+    Falls back gracefully when subcategory/rarity are missing (enrich not run):
+    all patterns land in "other" group, sorted by neutral rarity.
+    """
+    groups: dict[str, list[dict]] = defaultdict(list)
+    for p in raw_patterns:
+        sub = p.get("subcategory", _FALLBACK_SUBCATEGORY) or _FALLBACK_SUBCATEGORY
+        groups[sub].append(p)
+
+    sorted_keys = sorted(groups.keys())
+    for key in sorted_keys:
+        groups[key].sort(key=lambda pat: pat.get("rarity", _FALLBACK_RARITY), reverse=True)
+
+    queues: List[List[dict]] = [groups[k] for k in sorted_keys]
+
+    batches: List[List[str]] = []
+    current_batch: List[str] = []
+
+    while queues:
+        for q in queues:
+            p = q.pop(0)
+            current_batch.append(p["pattern"])
+            if len(current_batch) >= batch_size:
+                batches.append(current_batch)
+                current_batch = []
+        queues = [q for q in queues if q]
+
+    if current_batch:
+        batches.append(current_batch)
+
+    if len(batches) > 1 and len(batches[-1]) < min_batch_size:
+        batches[-2].extend(batches[-1])
+        batches.pop()
+
+    return batches
+
+
 def _read_last_insight(skills_dir: Optional[Path]) -> Optional[str]:
     """Read the timestamp of the last insight run."""
     if skills_dir is None:
@@ -134,15 +183,15 @@ def extract_insight(
     knowledge_store.load()
 
     if full:
-        patterns: List[str] = list(knowledge_store.get_learned_patterns(category="uncategorized"))
+        raw_patterns = knowledge_store.get_raw_patterns(category="uncategorized")
     else:
         last_run = _read_last_insight(skills_dir)
         if last_run:
-            patterns = list(knowledge_store.get_learned_patterns_since(last_run, category="uncategorized"))
-            logger.info("Incremental mode: %d new patterns since %s", len(patterns), last_run)
+            raw_patterns = knowledge_store.get_raw_patterns_since(last_run, category="uncategorized")
+            logger.info("Incremental mode: %d new patterns since %s", len(raw_patterns), last_run)
         else:
-            patterns = list(knowledge_store.get_learned_patterns(category="uncategorized"))
-            logger.info("No previous insight run found, processing all %d patterns", len(patterns))
+            raw_patterns = knowledge_store.get_raw_patterns(category="uncategorized")
+            logger.info("No previous insight run found, processing all %d patterns", len(raw_patterns))
 
     insights: List[str] = []
     if episode_log is not None:
@@ -153,22 +202,17 @@ def extract_insight(
             if r.get("data", {}).get("observation")
         ]
 
-    if len(patterns) < MIN_PATTERNS_REQUIRED:
+    if len(raw_patterns) < MIN_PATTERNS_REQUIRED:
         return (
-            f"Insufficient patterns ({len(patterns)}/{MIN_PATTERNS_REQUIRED}). "
+            f"Insufficient patterns ({len(raw_patterns)}/{MIN_PATTERNS_REQUIRED}). "
             f"Run more sessions and distill first."
         )
 
-    batches = [
-        patterns[i : i + BATCH_SIZE]
-        for i in range(0, len(patterns), BATCH_SIZE)
-    ]
-    if len(batches) > 1 and len(batches[-1]) < MIN_PATTERNS_REQUIRED:
-        batches[-2].extend(batches[-1])
-        batches.pop()
+    batches = _build_stratified_batches(raw_patterns)
 
     logger.info(
-        "Processing %d patterns in %d batches", len(patterns), len(batches)
+        "Processing %d patterns in %d batches (stratified)",
+        len(raw_patterns), len(batches),
     )
 
     skill_results: List[SkillResult] = []
