@@ -81,7 +81,7 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 - Python 3.9+ (venv は 3.13.5)
 - 依存: requests, numpy。LLM は Ollama (qwen3.5:9b, localhost)。Docker はオプション
 - ビルド: hatch
-- 38 モジュール、~8500 LOC
+- 38 モジュール、~8800 LOC
 
 ### Docker（オプション）
 
@@ -122,7 +122,7 @@ GET 60 req/min、POST 30 req/min（分離クォータ）。3層防御（`has_rea
 
 ## テスト
 
-835 tests 全パス (2026-04-08)。カバレッジ詳細は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照。
+855 tests 全パス (2026-04-10)。カバレッジ詳細は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照。
 
 ## メモリアーキテクチャ
 

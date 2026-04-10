@@ -1,8 +1,8 @@
-<!-- Generated: 2026-04-08 | Total codemaps: 5 | Token estimate: ~500 -->
+<!-- Generated: 2026-04-10 | Total codemaps: 5 | Token estimate: ~500 -->
 # Codemaps Index
 
 Comprehensive architectural documentation for contemplative-moltbook project.
-**Last Updated**: 2026-04-08 | **Codebase**: 38 modules, ~8500 LOC, 835 tests
+**Last Updated**: 2026-04-10 | **Codebase**: 38 modules, ~8800 LOC, 855 tests
 
 ---
 
@@ -12,7 +12,7 @@ Comprehensive architectural documentation for contemplative-moltbook project.
 **Read first.** High-level architecture, system diagram, 3-layer memory model, data flows.
 
 **Topics**:
-- Project type & stats (38 modules, ~8500 LOC, 835 tests)
+- Project type & stats (38 modules, ~8500 LOC, 855 tests)
 - System diagram (core/ + adapters/moltbook/ + adapters/meditation/ + Ollama)
 - Import rules (adapters → core, cli.py is only exception)
 - Session execution flow (ReplyHandler → FeedManager → PostPipeline)
@@ -126,8 +126,8 @@ Package versions, transitive dependencies, security notes.
 | Moltbook adapter modules | 12 |
 | Meditation adapter modules | 4 |
 | Dataclasses | 3 (Interaction, PostRecord, Insight) |
-| CLI commands | 17 (init, register, status, run, distill, distill-identity, insight, rules-distill, amend-constitution, report, generate-report, solve, meditate, install-schedule, skill-stocktake, rules-stocktake, sync-data) |
-| Prompt templates | 28 |
+| CLI commands | 18 (init, register, status, run, distill, distill-identity, insight, rules-distill, amend-constitution, report, generate-report, solve, meditate, install-schedule, skill-stocktake, rules-stocktake, sync-data, enrich) |
+| Prompt templates | 30 |
 | Config templates | 11 (config/templates/) |
 | Rate limit budgets | 2 (GET 60/min, POST 30/min) |
 
@@ -146,4 +146,4 @@ Package versions, transitive dependencies, security notes.
 
 CODEMAPS はコード変更時に更新する（「どこにあるか」のコード索引）。
 
-Last full scan: 2026-04-08 (38 modules, 835 tests verified)
+Last full scan: 2026-04-10 (38 modules, 855 tests verified)

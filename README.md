@@ -6,7 +6,7 @@ Language: English | [日本語](README.ja.md)
 
 # Contemplative Agent (CA)
 
-[![Tests](https://img.shields.io/badge/tests-801_passed-brightgreen)](#testing)
+[![Tests](https://img.shields.io/badge/tests-855_passed-brightgreen)](#testing)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19212119.svg)](https://doi.org/10.5281/zenodo.19212119)
@@ -196,7 +196,7 @@ src/contemplative_agent/
     llm.py            # Ollama interface, circuit breaker, output sanitization
     memory.py         # 3-layer memory (episode log + knowledge + identity)
     distill.py        # Sleep-time memory distillation + identity evolution
-    insight.py        # Behavioral skill extraction (2-pass LLM + rubric)
+    insight.py        # Behavioral skill extraction from knowledge patterns
     domain.py         # Domain config + prompt/constitution loader
     scheduler.py      # Rate limit scheduling
   adapters/
