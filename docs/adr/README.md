@@ -24,6 +24,22 @@ Records of key design decisions for this project.
 | [0016](0016-insight-narrow-stocktake-broad.md) | Insight as Narrow Generator, Stocktake as Broad Consolidator `[AKC: Extract/Curate]` | accepted | 2026-04-11 |
 | [0017](0017-yogacara-eight-consciousness-frame.md) | Yogācāra Eight-Consciousness Model as Architectural Frame | accepted | 2026-04-11 |
 
+## ADR Types
+
+ADRs in this project fall into two categories with different editability rules:
+
+**Problem-solving ADRs (emergent)**
+Record reactive design decisions triggered by a concrete issue. Most ADRs in this index are of this type. They can be superseded by later ADRs that offer a better solution for the same problem.
+
+Examples: ADR-0005 (SessionContext refactoring), ADR-0008 (two-stage distill pipeline), ADR-0009 (importance score), ADR-0016 (insight narrow / stocktake broad).
+
+**Worldview ADRs (axiomatic)**
+Record the mental models and philosophical frames that the project operates under from the start. These are *not* reactive — they are the prerequisite under which problem-solving ADRs are even formulated. Changing a worldview ADR is not the same as fixing a bug; it is altering the project's identity and requires a different kind of judgment.
+
+Examples: ADR-0002 (paper-faithful CCAI), ADR-0007 (security boundary model), ADR-0017 (Yogācāra eight-consciousness frame).
+
+**Rule of thumb**: If the ADR could have been written differently under a different project with the same problem, it is problem-solving. If the ADR describes a frame under which the project's problems become legible at all, it is worldview. Worldview ADRs are downstream-of-nothing; problem-solving ADRs are downstream of a worldview (even if unnamed).
+
 ## Template
 
 When adding a new ADR, follow this format:

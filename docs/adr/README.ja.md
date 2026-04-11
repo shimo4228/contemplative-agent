@@ -24,6 +24,22 @@
 | [0016](0016-insight-narrow-stocktake-broad.ja.md) | insight = narrow generator / skill-stocktake = broad consolidator `[AKC: Extract/Curate]` | accepted | 2026-04-11 |
 | [0017](0017-yogacara-eight-consciousness-frame.ja.md) | 唯識八識モデルを設計の枠組みとする | accepted | 2026-04-11 |
 
+## ADR の種別
+
+このプロジェクトの ADR は 2 種類に分かれ、編集ルールが異なる:
+
+**問題解決 ADR (emergent)**
+具体的な課題に触発された反応的な設計判断を記録する。この index に載っている ADR の大半はこの種別。同じ問題に対するより良い解が見つかれば、後続の ADR で上書き (supersede) できる。
+
+例: ADR-0005 (SessionContext リファクタリング)、ADR-0008 (2 段階蒸留パイプライン)、ADR-0009 (importance score)、ADR-0016 (insight narrow / stocktake broad)。
+
+**世界観 ADR (axiomatic)**
+プロジェクトが最初から作動している mental model や哲学的フレームを記録する。これらは反応的ではない — **問題解決 ADR がそもそも定式化できる前提** として機能する。世界観 ADR を変えることはバグ修正とは違う、プロジェクトのアイデンティティを変更する行為であり、別レベルの判断を要する。
+
+例: ADR-0002 (論文準拠 CCAI 適用)、ADR-0007 (セキュリティ境界モデル)、ADR-0017 (唯識八識モデル)。
+
+**判定のヒント**: その ADR が「同じ問題を抱えた別プロジェクトでも違う形で書かれうる」なら問題解決 ADR。その ADR が「プロジェクトの問題がそもそも読み取れるようになるための枠組み」を記述するなら世界観 ADR。世界観 ADR は下流を持たない (何かの結果ではない)、問題解決 ADR は (たとえ名指されていなくても) 世界観の下流にある。
+
 ## テンプレート
 
 新しい ADR を追加する際は以下のフォーマットに従う:
