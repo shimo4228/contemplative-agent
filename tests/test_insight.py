@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 from datetime import date
 from pathlib import Path
 from unittest.mock import patch
@@ -11,11 +10,10 @@ import pytest
 
 from contemplative_agent.core.insight import (
     InsightResult,
-    _GROUP_SKIP_THRESHOLD,
+    SELF_REFLECTION_SUBCATEGORY,
     _build_subcategory_batches,
     _extract_skill,
     _extract_title,
-    _group_patterns,
     _slugify,
     extract_insight,
 )
@@ -137,66 +135,6 @@ class TestExtractSkill:
 
 
 # ---------------------------------------------------------------------------
-# Unit: _group_patterns
-# ---------------------------------------------------------------------------
-
-
-class TestGroupPatterns:
-    def test_small_batch_skips_grouping(self) -> None:
-        """Batches smaller than threshold return as single group."""
-        patterns = ["p1", "p2", "p3"]
-        assert len(patterns) < _GROUP_SKIP_THRESHOLD
-        result = _group_patterns(patterns)
-        assert result == [patterns]
-
-    @patch("contemplative_agent.core.insight.generate")
-    def test_valid_json_grouping(self, mock_generate) -> None:
-        mock_generate.return_value = json.dumps(
-            {"groups": {"theme_a": [1, 3, 5, 7, 9], "theme_b": [2, 4, 6, 8, 10]}}
-        )
-        patterns = [f"p{i}" for i in range(10)]
-        result = _group_patterns(patterns)
-        assert len(result) == 2
-        assert result[0] == ["p0", "p2", "p4", "p6", "p8"]
-        assert result[1] == ["p1", "p3", "p5", "p7", "p9"]
-
-    @patch("contemplative_agent.core.insight.generate")
-    def test_llm_failure_fallback(self, mock_generate) -> None:
-        mock_generate.return_value = None
-        patterns = [f"p{i}" for i in range(10)]
-        result = _group_patterns(patterns)
-        assert result == [patterns]
-
-    @patch("contemplative_agent.core.insight.generate")
-    def test_invalid_json_fallback(self, mock_generate) -> None:
-        mock_generate.return_value = "not json at all"
-        patterns = [f"p{i}" for i in range(10)]
-        result = _group_patterns(patterns)
-        assert result == [patterns]
-
-    @patch("contemplative_agent.core.insight.generate")
-    def test_out_of_range_indices_ignored(self, mock_generate) -> None:
-        mock_generate.return_value = json.dumps(
-            {"groups": {"a": [1, 99], "b": [2, -1]}}
-        )
-        patterns = [f"p{i}" for i in range(10)]
-        result = _group_patterns(patterns)
-        assert len(result) == 2
-        assert result[0] == ["p0"]
-        assert result[1] == ["p1"]
-
-    @patch("contemplative_agent.core.insight.generate")
-    def test_empty_groups_dropped(self, mock_generate) -> None:
-        mock_generate.return_value = json.dumps(
-            {"groups": {"a": [99, 100], "b": [1, 2]}}
-        )
-        patterns = [f"p{i}" for i in range(10)]
-        result = _group_patterns(patterns)
-        assert len(result) == 1
-        assert result[0] == ["p0", "p1"]
-
-
-# ---------------------------------------------------------------------------
 # Integration: extract_insight (orchestrator)
 # ---------------------------------------------------------------------------
 
@@ -216,9 +154,7 @@ class TestExtractInsight:
         assert "Insufficient patterns" in result
 
     @patch("contemplative_agent.core.insight._extract_skill")
-    @patch("contemplative_agent.core.insight._group_patterns")
-    def test_extraction_failure(self, mock_group, mock_skill, knowledge_store) -> None:
-        mock_group.side_effect = lambda pats: [pats]
+    def test_extraction_failure(self, mock_skill, knowledge_store) -> None:
         mock_skill.return_value = None
         result = extract_insight(knowledge_store=knowledge_store)
         assert isinstance(result, str)
@@ -226,11 +162,9 @@ class TestExtractInsight:
 
     @patch("contemplative_agent.core.insight.validate_identity_content")
     @patch("contemplative_agent.core.insight._extract_skill")
-    @patch("contemplative_agent.core.insight._group_patterns")
     def test_forbidden_pattern(
-        self, mock_group, mock_skill, mock_validate, knowledge_store
+        self, mock_skill, mock_validate, knowledge_store
     ) -> None:
-        mock_group.side_effect = lambda pats: [pats]
         mock_skill.return_value = GOOD_SKILL_RESPONSE
         mock_validate.return_value = False
         result = extract_insight(knowledge_store=knowledge_store)
@@ -238,9 +172,7 @@ class TestExtractInsight:
         assert "Failed to extract" in result
 
     @patch("contemplative_agent.core.insight._extract_skill")
-    @patch("contemplative_agent.core.insight._group_patterns")
-    def test_returns_insight_result(self, mock_group, mock_skill, knowledge_store) -> None:
-        mock_group.side_effect = lambda pats: [pats]
+    def test_returns_insight_result(self, mock_skill, knowledge_store) -> None:
         mock_skill.return_value = GOOD_SKILL_RESPONSE
         result = extract_insight(knowledge_store=knowledge_store)
         assert isinstance(result, InsightResult)
@@ -250,11 +182,9 @@ class TestExtractInsight:
         assert result.skills[0].filename == f"ask-before-reacting-{today}.md"
 
     @patch("contemplative_agent.core.insight._extract_skill")
-    @patch("contemplative_agent.core.insight._group_patterns")
     def test_result_has_target_path(
-        self, mock_group, mock_skill, knowledge_store, skills_dir
+        self, mock_skill, knowledge_store, skills_dir
     ) -> None:
-        mock_group.side_effect = lambda pats: [pats]
         mock_skill.return_value = GOOD_SKILL_RESPONSE
         result = extract_insight(
             knowledge_store=knowledge_store,
@@ -267,14 +197,12 @@ class TestExtractInsight:
         assert len(list(skills_dir.glob("*.md"))) == 0
 
     @patch("contemplative_agent.core.insight._extract_skill")
-    @patch("contemplative_agent.core.insight._group_patterns")
     def test_path_traversal_guard(
-        self, mock_group, mock_skill, knowledge_store, tmp_path
+        self, mock_skill, knowledge_store, tmp_path
     ) -> None:
         evil_response = GOOD_SKILL_RESPONSE.replace(
             "# Ask Before Reacting", "# ../../etc/passwd"
         )
-        mock_group.side_effect = lambda pats: [pats]
         mock_skill.return_value = evil_response
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
@@ -286,6 +214,55 @@ class TestExtractInsight:
         assert isinstance(result, InsightResult)
         assert "etc-passwd" in result.skills[0].filename
         assert ".." not in result.skills[0].filename
+
+    @patch("contemplative_agent.core.insight._extract_skill")
+    def test_self_reflection_excluded(self, mock_skill, tmp_path: Path) -> None:
+        """self-reflection patterns are routed to distill_identity, not insight."""
+        ks = KnowledgeStore(path=tmp_path / "k.json")
+        # 3 self-reflection patterns — should be filtered out
+        for i in range(3):
+            ks.add_learned_pattern(
+                f"Self-reflection pattern {i}",
+                subcategory=SELF_REFLECTION_SUBCATEGORY,
+            )
+        ks.save()
+        ks._learned_patterns.clear()
+
+        mock_skill.return_value = GOOD_SKILL_RESPONSE
+        result = extract_insight(knowledge_store=ks)
+        # After exclusion, zero patterns remain → Insufficient message
+        assert isinstance(result, str)
+        assert "Insufficient patterns" in result
+        mock_skill.assert_not_called()
+
+    @patch("contemplative_agent.core.insight._extract_skill")
+    def test_mixed_subcategories_self_reflection_filtered(
+        self, mock_skill, tmp_path: Path
+    ) -> None:
+        """Only non-self-reflection patterns are used for skill extraction."""
+        ks = KnowledgeStore(path=tmp_path / "k.json")
+        # 3 self-reflection (excluded) + 3 technical (kept)
+        for i in range(3):
+            ks.add_learned_pattern(
+                f"Self-reflection {i}",
+                subcategory=SELF_REFLECTION_SUBCATEGORY,
+            )
+        for i in range(3):
+            ks.add_learned_pattern(
+                f"Technical observation {i}",
+                subcategory="technical",
+            )
+        ks.save()
+        ks._learned_patterns.clear()
+
+        mock_skill.return_value = GOOD_SKILL_RESPONSE
+        result = extract_insight(knowledge_store=ks)
+        assert isinstance(result, InsightResult)
+        assert len(result.skills) == 1
+        # _extract_skill should be called with only the 3 technical patterns
+        (batch, _insights), kwargs = mock_skill.call_args
+        assert all("Technical" in text for text in batch)
+        assert kwargs["subcategory"] == "technical"
 
 
 # ---------------------------------------------------------------------------
@@ -308,12 +285,10 @@ class TestBatchProcessing:
         return ks
 
     @patch("contemplative_agent.core.insight._extract_skill")
-    @patch("contemplative_agent.core.insight._group_patterns")
     def test_multiple_batches(
-        self, mock_group, mock_skill, three_batch_store, skills_dir
+        self, mock_skill, three_batch_store, skills_dir
     ) -> None:
-        # Each batch returns a single group (pass-through)
-        mock_group.side_effect = lambda pats: [pats]
+        """One batch per subcategory → one skill per subcategory."""
         skill_a = GOOD_SKILL_RESPONSE
         skill_b = GOOD_SKILL_RESPONSE.replace("Ask Before Reacting", "Adapt Tone").replace("ask-before-reacting", "adapt-tone")
         skill_c = GOOD_SKILL_RESPONSE.replace("Ask Before Reacting", "Set Boundaries").replace("ask-before-reacting", "set-boundaries")
@@ -326,11 +301,9 @@ class TestBatchProcessing:
         assert len(result.skills) == 3
 
     @patch("contemplative_agent.core.insight._extract_skill")
-    @patch("contemplative_agent.core.insight._group_patterns")
     def test_partial_failure(
-        self, mock_group, mock_skill, three_batch_store, skills_dir
+        self, mock_skill, three_batch_store, skills_dir
     ) -> None:
-        mock_group.side_effect = lambda pats: [pats]
         skill_c = GOOD_SKILL_RESPONSE.replace("Ask Before Reacting", "Set Boundaries").replace("ask-before-reacting", "set-boundaries")
         mock_skill.side_effect = [None, GOOD_SKILL_RESPONSE, skill_c]
         result = extract_insight(
@@ -342,46 +315,19 @@ class TestBatchProcessing:
         assert result.dropped_count == 1
 
     @patch("contemplative_agent.core.insight._extract_skill")
-    @patch("contemplative_agent.core.insight._group_patterns")
-    def test_grouping_produces_multiple_skills(
-        self, mock_group, mock_skill, three_batch_store, skills_dir
-    ) -> None:
-        """One batch can produce multiple skills via grouping."""
-        mock_group.side_effect = [
-            [["p1", "p2"], ["p3", "p4"]],  # batch 1: 2 groups
-            [["p5"]],                        # batch 2: 1 group
-            [["p6"]],                        # batch 3: 1 group
-        ]
-        skill_a = GOOD_SKILL_RESPONSE
-        skill_b = GOOD_SKILL_RESPONSE.replace("Ask Before Reacting", "Adapt Tone").replace("ask-before-reacting", "adapt-tone")
-        skill_c = GOOD_SKILL_RESPONSE.replace("Ask Before Reacting", "Set Boundaries").replace("ask-before-reacting", "set-boundaries")
-        skill_d = GOOD_SKILL_RESPONSE.replace("Ask Before Reacting", "Deep Listening").replace("ask-before-reacting", "deep-listening")
-        mock_skill.side_effect = [skill_a, skill_b, skill_c, skill_d]
-        result = extract_insight(
-            knowledge_store=three_batch_store,
-            skills_dir=skills_dir,
-        )
-        assert isinstance(result, InsightResult)
-        assert len(result.skills) == 4
-
-    @patch("contemplative_agent.core.insight._extract_skill")
-    @patch("contemplative_agent.core.insight._group_patterns")
-    def test_small_last_batch_merged(self, mock_group, mock_skill, tmp_path: Path) -> None:
+    def test_small_last_batch_merged(self, mock_skill, tmp_path: Path) -> None:
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
         for i in range(32):
             ks.add_learned_pattern(f"Pattern {i}: unique observation {i}")
         ks.save()
         ks._learned_patterns.clear()
 
-        mock_group.side_effect = lambda pats: [pats]
         mock_skill.return_value = GOOD_SKILL_RESPONSE
         extract_insight(knowledge_store=ks)
-        assert mock_skill.call_count == 1  # 1 batch, 1 group, 1 skill
+        assert mock_skill.call_count == 1  # 1 batch → 1 skill
 
     def test_single_batch(self, knowledge_store, skills_dir) -> None:
-        with patch("contemplative_agent.core.insight._group_patterns") as mock_group, \
-             patch("contemplative_agent.core.insight._extract_skill") as mock_skill:
-            mock_group.side_effect = lambda pats: [pats]
+        with patch("contemplative_agent.core.insight._extract_skill") as mock_skill:
             mock_skill.return_value = GOOD_SKILL_RESPONSE
             result = extract_insight(
                 knowledge_store=knowledge_store,
@@ -398,12 +344,10 @@ class TestBatchProcessing:
 
 class TestIncrementalMode:
     @patch("contemplative_agent.core.insight._extract_skill")
-    @patch("contemplative_agent.core.insight._group_patterns")
     def test_no_marker_written_by_core(
-        self, mock_group, mock_skill, knowledge_store, skills_dir
+        self, mock_skill, knowledge_store, skills_dir
     ) -> None:
         """Core function does not write marker — caller's responsibility."""
-        mock_group.side_effect = lambda pats: [pats]
         mock_skill.return_value = GOOD_SKILL_RESPONSE
         result = extract_insight(
             knowledge_store=knowledge_store,
@@ -435,13 +379,11 @@ class TestIncrementalMode:
         assert "Insufficient patterns (1/3)" in result
 
     @patch("contemplative_agent.core.insight._extract_skill")
-    @patch("contemplative_agent.core.insight._group_patterns")
     def test_full_ignores_marker(
-        self, mock_group, mock_skill, knowledge_store, skills_dir
+        self, mock_skill, knowledge_store, skills_dir
     ) -> None:
         """--full processes all patterns regardless of marker."""
         (skills_dir / ".last_insight").write_text("2099-01-01T00:00+00:00\n")
-        mock_group.side_effect = lambda pats: [pats]
         mock_skill.return_value = GOOD_SKILL_RESPONSE
         result = extract_insight(
             knowledge_store=knowledge_store,

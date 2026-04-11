@@ -558,7 +558,11 @@ class TestDistillIdentity:
             "I am an agent who learned about cooperation.",
         ]
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
-        ks.add_learned_pattern("Cooperation increases with trust")
+        ks.add_learned_pattern(
+            "Cooperation increases with trust",
+            category="uncategorized",
+            subcategory="self-reflection",
+        )
         ks.save()
 
         identity_path = tmp_path / "identity.md"
@@ -574,13 +578,31 @@ class TestDistillIdentity:
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
         result = distill_identity(knowledge_store=ks)
         assert isinstance(result, str)
-        assert "No knowledge" in result
+        assert "No self-reflection" in result
+
+    def test_no_self_reflection_patterns_returns_early(self, tmp_path):
+        """Patterns without self-reflection subcategory are ignored."""
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern(
+            "Technical observation",
+            category="uncategorized",
+            subcategory="technical",
+        )
+        ks.save()
+
+        result = distill_identity(knowledge_store=ks)
+        assert isinstance(result, str)
+        assert "No self-reflection" in result
 
     @patch("contemplative_agent.core.distill.generate")
     def test_llm_failure_returns_message(self, mock_generate, tmp_path):
         mock_generate.return_value = None
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
-        ks.add_learned_pattern("Pattern")
+        ks.add_learned_pattern(
+            "Pattern",
+            category="uncategorized",
+            subcategory="self-reflection",
+        )
         ks.save()
 
         result = distill_identity(knowledge_store=ks)
@@ -591,7 +613,11 @@ class TestDistillIdentity:
     def test_forbidden_pattern_returns_string(self, mock_generate, tmp_path):
         mock_generate.side_effect = ["Some analysis.", "My api_key is secret."]
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
-        ks.add_learned_pattern("Pattern")
+        ks.add_learned_pattern(
+            "Pattern",
+            category="uncategorized",
+            subcategory="self-reflection",
+        )
         ks.save()
 
         identity_path = tmp_path / "identity.md"
@@ -606,7 +632,11 @@ class TestDistillIdentity:
     def test_identity_path_none(self, mock_generate, tmp_path):
         mock_generate.side_effect = ["Some analysis.", "I am curious."]
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
-        ks.add_learned_pattern("Pattern")
+        ks.add_learned_pattern(
+            "Pattern",
+            category="uncategorized",
+            subcategory="self-reflection",
+        )
         ks.save()
 
         result = distill_identity(knowledge_store=ks, identity_path=None)
@@ -766,6 +796,40 @@ class TestKnowledgeStoreCategory:
         result = ks.get_context_string()
         assert "Constitutional" in result
         assert "Regular" in result
+
+    def test_get_context_string_subcategory_filter(self, tmp_path):
+        """subcategory filter applies after category filter."""
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern(
+            "Self reflection on inner clarity",
+            category="uncategorized",
+            subcategory="self-reflection",
+            importance=0.9,
+        )
+        ks.add_learned_pattern(
+            "Technical note about rate limits",
+            category="uncategorized",
+            subcategory="technical",
+            importance=0.9,
+        )
+
+        result = ks.get_context_string(
+            category="uncategorized",
+            subcategory="self-reflection",
+        )
+        assert "Self reflection" in result
+        assert "Technical" not in result
+
+    def test_get_context_string_subcategory_no_match_returns_empty(self, tmp_path):
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern(
+            "Technical note",
+            category="uncategorized",
+            subcategory="technical",
+        )
+
+        result = ks.get_context_string(subcategory="self-reflection")
+        assert result == ""
 
     def test_get_context_string_category_filter_with_old_patterns(self, tmp_path):
         """Old patterns without category are treated as uncategorized."""

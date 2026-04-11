@@ -136,7 +136,12 @@ class KnowledgeStore:
     def _effective_importance(self, p: dict) -> float:
         return effective_importance(p)
 
-    def get_context_string(self, limit: int = 50, category: Optional[str] = None) -> str:
+    def get_context_string(
+        self,
+        limit: int = 50,
+        category: Optional[str] = None,
+        subcategory: Optional[str] = None,
+    ) -> str:
         """Return learned patterns as a bullet list for LLM context injection.
 
         Returns top `limit` patterns sorted by effective importance
@@ -147,8 +152,12 @@ class KnowledgeStore:
             limit: Maximum number of patterns to return.
             category: If provided, only return patterns matching this category.
                       Patterns without a category field are treated as "uncategorized".
+            subcategory: If provided, only return patterns matching this subcategory
+                         (applied after category filter).
         """
         pool = self._filtered_pool(category)
+        if subcategory is not None:
+            pool = [p for p in pool if p.get("subcategory") == subcategory]
         if not pool:
             return ""
         scored = sorted(

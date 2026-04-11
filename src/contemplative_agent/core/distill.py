@@ -187,9 +187,17 @@ def distill_identity(
     knowledge = knowledge_store or KnowledgeStore()
     knowledge.load()
 
-    knowledge_text = knowledge.get_context_string()
+    # Identity is distilled from self-reflection patterns only. Other
+    # subcategories feed into skill extraction via the insight command.
+    # Rationale: self-reflection captures internal states; mixing behavioral
+    # norms into identity dilutes persona specificity via the Emptiness axiom.
+    knowledge_text = knowledge.get_context_string(
+        category="uncategorized",
+        subcategory="self-reflection",
+        limit=50,
+    )
     if not knowledge_text:
-        msg = "No knowledge available for identity distillation."
+        msg = "No self-reflection patterns available for identity distillation."
         logger.info(msg)
         return msg
 

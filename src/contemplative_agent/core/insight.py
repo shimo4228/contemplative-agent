@@ -1,12 +1,12 @@
 """Insight extraction: synthesize learned patterns into behavioral skills.
 
-Single-pass LLM: extract a skill from each batch of knowledge patterns.
-Quality control is deferred to skill-stocktake (external).
+Single-pass LLM: extract one skill per subcategory from the top-N most
+important patterns. Cross-subcategory synthesis and quality control are
+deferred to skill-stocktake (external).
 """
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 import unicodedata
@@ -19,14 +19,15 @@ from typing import List, Optional, Tuple, Union
 from .llm import generate, validate_identity_content
 from .episode_log import EpisodeLog
 from .memory import KnowledgeStore
-from .prompts import INSIGHT_EXTRACTION_PROMPT, INSIGHT_GROUP_PROMPT
+from .prompts import INSIGHT_EXTRACTION_PROMPT
 
 logger = logging.getLogger(__name__)
 
 MIN_PATTERNS_REQUIRED = 3
 MAX_SLUG_LENGTH = 50
-BATCH_SIZE = 30
+BATCH_SIZE = 10  # top-N per subcategory → 1 skill per subcategory
 _FALLBACK_SUBCATEGORY = "other"
+SELF_REFLECTION_SUBCATEGORY = "self-reflection"  # routed to distill_identity
 
 
 @dataclass(frozen=True)
@@ -62,14 +63,6 @@ def _extract_title(skill_text: str) -> Optional[str]:
     return None
 
 
-_GROUP_SKIP_THRESHOLD = 10
-_GROUP_SCHEMA = {
-    "type": "object",
-    "properties": {"groups": {"type": "object"}},
-    "required": ["groups"],
-}
-
-
 def _extract_skill(
     patterns: List[str], insights: List[str], subcategory: str = "mixed"
 ) -> Optional[str]:
@@ -95,51 +88,6 @@ def _extract_skill(
         return None
 
     return text
-
-
-def _group_patterns(patterns: List[str]) -> List[List[str]]:
-    """Group patterns by theme via LLM. Returns list of pattern groups.
-
-    Skips grouping for small batches (< _GROUP_SKIP_THRESHOLD).
-    Falls back to a single group containing all patterns on parse failure.
-    """
-    if len(patterns) < _GROUP_SKIP_THRESHOLD:
-        return [patterns]
-
-    prompt = INSIGHT_GROUP_PROMPT.format(
-        patterns="\n".join(f"{i+1}. {p}" for i, p in enumerate(patterns)),
-    )
-
-    result = generate(
-        prompt,
-        max_length=1000,
-        format=_GROUP_SCHEMA,
-    )
-    if result is None:
-        logger.warning("Grouping LLM call failed, using single group fallback.")
-        return [patterns]
-
-    try:
-        parsed = json.loads(result)
-        groups_dict = parsed["groups"]
-    except (json.JSONDecodeError, KeyError, TypeError):
-        logger.warning("Failed to parse grouping JSON, using single group fallback.")
-        return [patterns]
-
-    grouped: List[List[str]] = []
-    for indices in groups_dict.values():
-        group = []
-        for idx in indices:
-            if isinstance(idx, int) and 1 <= idx <= len(patterns):
-                group.append(patterns[idx - 1])
-        if group:
-            grouped.append(group)
-
-    if not grouped:
-        logger.warning("Grouping produced no valid groups, using single group fallback.")
-        return [patterns]
-
-    return grouped
 
 
 def _build_subcategory_batches(
@@ -254,6 +202,12 @@ def extract_insight(
             raw_patterns = knowledge_store.get_raw_patterns(category="uncategorized")
             logger.info("No previous insight run found, processing all %d patterns", len(raw_patterns))
 
+    # self-reflection patterns are routed to distill_identity, not skill extraction.
+    raw_patterns = [
+        p for p in raw_patterns
+        if p.get("subcategory") != SELF_REFLECTION_SUBCATEGORY
+    ]
+
     insights: List[str] = []
     if episode_log is not None:
         insight_records = episode_log.read_range(days=30, record_type="insight")
@@ -287,50 +241,49 @@ def extract_insight(
             batch_idx + 1, len(batches), subcategory, len(batch),
         )
 
-        groups = _group_patterns(batch)
-        logger.info(
-            "Batch %d/%d: %d groups from %d patterns",
-            batch_idx + 1, len(batches), len(groups), len(batch),
-        )
+        skill_text = _extract_skill(batch, insights, subcategory=subcategory)
+        if skill_text is None:
+            logger.warning(
+                "Batch %d/%d [%s]: extraction failed",
+                batch_idx + 1, len(batches), subcategory,
+            )
+            dropped_count += 1
+            continue
 
-        for group_idx, group in enumerate(groups):
-            skill_text = _extract_skill(group, insights, subcategory=subcategory)
-            if skill_text is None:
-                logger.warning(
-                    "Batch %d/%d group %d: extraction failed",
-                    batch_idx + 1, len(batches), group_idx + 1,
-                )
+        if not validate_identity_content(skill_text):
+            logger.warning(
+                "Batch %d/%d [%s]: forbidden pattern detected",
+                batch_idx + 1, len(batches), subcategory,
+            )
+            dropped_count += 1
+            continue
+
+        title = _extract_title(skill_text) or ""
+        slug = _slugify(title)
+        if not slug:
+            logger.warning(
+                "Batch %d/%d [%s]: empty slug, dropping",
+                batch_idx + 1, len(batches), subcategory,
+            )
+            dropped_count += 1
+            continue
+
+        filename = f"{slug}-{today}.md"
+
+        if skills_dir is not None:
+            file_path = skills_dir / filename
+            if not file_path.resolve().is_relative_to(skills_dir.resolve()):
+                logger.error("Skill path escape attempt: %s", file_path)
                 dropped_count += 1
                 continue
+        else:
+            file_path = Path(filename)
 
-            if not validate_identity_content(skill_text):
-                logger.warning("Batch %d/%d group %d: forbidden pattern detected", batch_idx + 1, len(batches), group_idx + 1)
-                dropped_count += 1
-                continue
-
-            title = _extract_title(skill_text) or ""
-            slug = _slugify(title)
-            if not slug:
-                logger.warning("Batch %d/%d group %d: empty slug, dropping", batch_idx + 1, len(batches), group_idx + 1)
-                dropped_count += 1
-                continue
-
-            filename = f"{slug}-{today}.md"
-
-            if skills_dir is not None:
-                file_path = skills_dir / filename
-                if not file_path.resolve().is_relative_to(skills_dir.resolve()):
-                    logger.error("Skill path escape attempt: %s", file_path)
-                    dropped_count += 1
-                    continue
-            else:
-                file_path = Path(filename)
-
-            skill_results.append(SkillResult(
-                text=skill_text,
-                filename=filename,
-                target_path=file_path,
-            ))
+        skill_results.append(SkillResult(
+            text=skill_text,
+            filename=filename,
+            target_path=file_path,
+        ))
 
     if not skill_results:
         return "Failed to extract skill from knowledge."
