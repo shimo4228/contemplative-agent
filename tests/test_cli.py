@@ -10,6 +10,7 @@ import pytest
 from contemplative_agent.cli import (
     main,
     _handle_adopt_staged,
+    _handle_skill_stocktake,
     _setup_logging,
     _build_calendar_intervals,
     _do_init,
@@ -745,3 +746,158 @@ class TestAdoptStaged:
         self._run_adopt(tmp_path, staged, inputs=["y"])
         assert target.exists()
         assert victim.exists()  # traversal blocked
+
+    def test_adopt_preserves_target_when_source_name_matches(self, tmp_path):
+        """Regression: when a merged target has the same basename as one of
+        its sources (e.g. merged title slugifies back to the dominant
+        original's filename), the delete loop must skip that source so the
+        freshly-written merge survives."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        # Two original skills; the merged target name matches the first one
+        (skills_dir / "a.md").write_text("# A original")
+        (skills_dir / "b.md").write_text("# B original")
+
+        target = skills_dir / "a.md"  # collides with sources[0]
+        staged = self._stage_one(
+            tmp_path,
+            filename="a.md",
+            text="# Merged\n\nnew body",
+            target=target,
+            command="skill-stocktake",
+            sources=["a.md", "b.md"],
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        # Merged file survived (guard worked)
+        assert target.exists(), "merged target deleted by self-delete bug"
+        assert "Merged" in target.read_text()
+        # The other (non-colliding) source is deleted
+        assert not (skills_dir / "b.md").exists()
+
+
+class TestSkillStocktakeDirectMerge:
+    """Tests for `skill-stocktake` direct-mode merge (no --stage).
+
+    Regression guard: the direct branch must call `_log_approval` so that
+    both accepted and rejected merges are recorded in audit.jsonl, matching
+    distill-identity / insight / rules-distill / amend-constitution.
+    """
+
+    def _make_result(self, filenames, text="# Merged skill body"):
+        from contemplative_agent.core.stocktake import (
+            MergeGroup,
+            StocktakeResult,
+        )
+
+        return StocktakeResult(
+            merge_groups=(MergeGroup(filenames=tuple(filenames), reason="dup"),),
+            quality_issues=(),
+            total_files=len(filenames),
+            items=tuple((name, text) for name in filenames),
+        )
+
+    def _run_direct(self, tmp_path, inputs, *, merged_text="# Merged\n\nBody"):
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "a.md").write_text("# A")
+        (skills_dir / "b.md").write_text("# B")
+        audit = tmp_path / "logs" / "audit.jsonl"
+
+        args = MagicMock()
+        args.stage = False
+
+        fake_result = self._make_result(["a.md", "b.md"])
+        with patch(
+            "contemplative_agent.core.stocktake.run_skill_stocktake",
+            return_value=fake_result,
+        ), patch(
+            "contemplative_agent.core.stocktake.merge_group",
+            return_value=merged_text,
+        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
+            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
+        ), patch("builtins.input", side_effect=inputs):
+            _handle_skill_stocktake(args, MagicMock())
+
+        return skills_dir, audit
+
+    def test_direct_approved_merge_logs_audit(self, tmp_path):
+        skills_dir, audit = self._run_direct(tmp_path, inputs=["y"])
+        assert audit.exists()
+        record = json.loads(audit.read_text().strip())
+        assert record["command"] == "skill-stocktake"
+        assert record["decision"] == "approved"
+        assert record["source"] == "direct"
+        # Merged file written, originals deleted
+        assert not (skills_dir / "a.md").exists()
+        assert not (skills_dir / "b.md").exists()
+
+    def test_direct_rejected_merge_logs_audit(self, tmp_path):
+        skills_dir, audit = self._run_direct(tmp_path, inputs=["n"])
+        assert audit.exists()
+        record = json.loads(audit.read_text().strip())
+        assert record["command"] == "skill-stocktake"
+        assert record["decision"] == "rejected"
+        assert record["source"] == "direct"
+        # Nothing deleted on rejection
+        assert (skills_dir / "a.md").exists()
+        assert (skills_dir / "b.md").exists()
+
+    def test_direct_merge_preserves_target_when_name_collides_with_source(
+        self, tmp_path
+    ):
+        """Regression: when LLM's merged title slugifies to an existing source
+        filename, target_path == sources[0]. The delete loop must not unlink
+        the file we just wrote. Previously this caused total loss of merge
+        output (observed 2026-04-11 during resonant-fluidity merge)."""
+        from contemplative_agent.core.stocktake import MergeGroup, StocktakeResult
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "a.md").write_text("# A original")
+        (skills_dir / "b.md").write_text("# B original")
+        audit = tmp_path / "logs" / "audit.jsonl"
+
+        args = MagicMock()
+        args.stage = False
+
+        # LLM returns "# A" as title -> slug "a" -> target collides with a.md
+        # The date suffix forces filename to f"a-{YYYYMMDD}.md" though, so to
+        # reproduce the exact collision we patch the filename derivation via
+        # the original being named identically to today's slug. Easier: use a
+        # source filename that matches what slugify(title) + today produces.
+        from datetime import date
+
+        today = date.today().strftime("%Y%m%d")
+        colliding = f"merged-skill-{today}.md"
+        (skills_dir / colliding).write_text("# pre-existing content at collision path")
+
+        fake_result = StocktakeResult(
+            merge_groups=(
+                MergeGroup(filenames=(colliding, "b.md"), reason="dup"),
+            ),
+            quality_issues=(),
+            total_files=2,
+            items=((colliding, "# X"), ("b.md", "# Y")),
+        )
+        # merged_text has no title -> _extract_title returns None -> slug falls
+        # back to "merged-skill" -> filename becomes merged-skill-{today}.md
+        # which matches `colliding`.
+        merged_text = "No title here, just body prose.\n\nMore body."
+
+        with patch(
+            "contemplative_agent.core.stocktake.run_skill_stocktake",
+            return_value=fake_result,
+        ), patch(
+            "contemplative_agent.core.stocktake.merge_group",
+            return_value=merged_text,
+        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
+            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
+        ), patch("builtins.input", side_effect=["y"]):
+            _handle_skill_stocktake(args, MagicMock())
+
+        target = skills_dir / colliding
+        # Merged output survives (guard worked)
+        assert target.exists(), "merge output was deleted by self-delete bug"
+        assert merged_text in target.read_text()
+        # Non-colliding source still deleted
+        assert not (skills_dir / "b.md").exists()

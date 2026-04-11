@@ -541,11 +541,28 @@ def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.Argument
                     sources=list(group.filenames),
                 )
             )
-        elif _approve_write(target_path):
+            continue
+
+        approved = _approve_write(target_path)
+        _log_approval("skill-stocktake", target_path, approved, merged_text)
+        if approved:
             SKILLS_DIR.mkdir(parents=True, exist_ok=True)
             write_restricted(target_path, merged_text)
+            # Guard: when the merged title slugifies to one of the source
+            # filenames, target_path collides with an original. Skip the
+            # matching name so we don't delete the file we just wrote.
+            try:
+                target_resolved = target_path.resolve()
+            except OSError:
+                target_resolved = target_path
             for name in group.filenames:
                 original = SKILLS_DIR / name
+                try:
+                    same_as_target = original.resolve() == target_resolved
+                except OSError:
+                    same_as_target = original == target_path
+                if same_as_target:
+                    continue
                 if original.exists():
                     original.unlink()
                     print(f"  Deleted {name}")
@@ -648,6 +665,10 @@ def _handle_adopt_staged(_args: argparse.Namespace, _parser: argparse.ArgumentPa
             # skill-stocktake merges pass the original filenames in `sources`
             # so they get deleted once the merged result is adopted.
             target_parent = target.parent.resolve()
+            try:
+                target_resolved = target.resolve()
+            except OSError:
+                target_resolved = target
             for src_name in sources:
                 src_path = (target.parent / src_name).resolve()
                 try:
@@ -658,6 +679,11 @@ def _handle_adopt_staged(_args: argparse.Namespace, _parser: argparse.ArgumentPa
                     print(
                         f"  Skipped source delete (outside target dir): {src_name}"
                     )
+                    continue
+                # Guard: when the merged title collides with an original
+                # filename, src_path == target. Skip so we don't delete
+                # the file we just wrote.
+                if src_path == target_resolved:
                     continue
                 if src_path.exists():
                     src_path.unlink()
