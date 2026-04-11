@@ -10,6 +10,7 @@ import pytest
 from contemplative_agent.cli import (
     main,
     _handle_adopt_staged,
+    _handle_rules_stocktake,
     _handle_skill_stocktake,
     _setup_logging,
     _build_calendar_intervals,
@@ -901,3 +902,121 @@ class TestSkillStocktakeDirectMerge:
         assert merged_text in target.read_text()
         # Non-colliding source still deleted
         assert not (skills_dir / "b.md").exists()
+
+
+class TestRulesStocktakeDirectMerge:
+    """Tests for `rules-stocktake` direct-mode merge (no --stage).
+
+    Mirrors TestSkillStocktakeDirectMerge. rules-stocktake previously had
+    no merge implementation (only report). This class exists as both a
+    feature test and regression guard against future divergence from
+    skill-stocktake's merge semantics (audit logging + self-delete guard).
+    """
+
+    def _make_result(self, filenames, text="# Merged rule body"):
+        from contemplative_agent.core.stocktake import (
+            MergeGroup,
+            StocktakeResult,
+        )
+
+        return StocktakeResult(
+            merge_groups=(MergeGroup(filenames=tuple(filenames), reason="dup"),),
+            quality_issues=(),
+            total_files=len(filenames),
+            items=tuple((name, text) for name in filenames),
+        )
+
+    def _run_direct(self, tmp_path, inputs, *, merged_text="# Merged\n\nbody"):
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        (rules_dir / "a.md").write_text("# A")
+        (rules_dir / "b.md").write_text("# B")
+        audit = tmp_path / "logs" / "audit.jsonl"
+
+        args = MagicMock()
+        args.stage = False
+
+        fake_result = self._make_result(["a.md", "b.md"])
+        with patch(
+            "contemplative_agent.core.stocktake.run_rules_stocktake",
+            return_value=fake_result,
+        ), patch(
+            "contemplative_agent.core.stocktake.merge_group",
+            return_value=merged_text,
+        ), patch("contemplative_agent.cli.RULES_DIR", rules_dir), patch(
+            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
+        ), patch("builtins.input", side_effect=inputs):
+            _handle_rules_stocktake(args, MagicMock())
+
+        return rules_dir, audit
+
+    def test_direct_approved_merge_logs_audit(self, tmp_path):
+        rules_dir, audit = self._run_direct(tmp_path, inputs=["y"])
+        assert audit.exists()
+        record = json.loads(audit.read_text().strip())
+        assert record["command"] == "rules-stocktake"
+        assert record["decision"] == "approved"
+        assert record["source"] == "direct"
+        assert not (rules_dir / "a.md").exists()
+        assert not (rules_dir / "b.md").exists()
+
+    def test_direct_rejected_merge_logs_audit(self, tmp_path):
+        rules_dir, audit = self._run_direct(tmp_path, inputs=["n"])
+        assert audit.exists()
+        record = json.loads(audit.read_text().strip())
+        assert record["command"] == "rules-stocktake"
+        assert record["decision"] == "rejected"
+        assert record["source"] == "direct"
+        # Nothing deleted on rejection
+        assert (rules_dir / "a.md").exists()
+        assert (rules_dir / "b.md").exists()
+
+    def test_direct_merge_preserves_target_when_name_collides_with_source(
+        self, tmp_path
+    ):
+        """Regression: same self-delete bug that hit skill-stocktake
+        (commit 542f0b2). When the merged rule title slugifies to the
+        name of one of the source rules, the delete loop must not unlink
+        the file we just wrote."""
+        from contemplative_agent.core.stocktake import MergeGroup, StocktakeResult
+        from datetime import date
+
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        audit = tmp_path / "logs" / "audit.jsonl"
+
+        today = date.today().strftime("%Y%m%d")
+        colliding = f"merged-rule-{today}.md"
+        (rules_dir / colliding).write_text("# pre-existing content")
+        (rules_dir / "b.md").write_text("# B original")
+
+        args = MagicMock()
+        args.stage = False
+
+        fake_result = StocktakeResult(
+            merge_groups=(
+                MergeGroup(filenames=(colliding, "b.md"), reason="dup"),
+            ),
+            quality_issues=(),
+            total_files=2,
+            items=((colliding, "# X"), ("b.md", "# Y")),
+        )
+        # No title in merged_text -> _extract_title returns None ->
+        # slug falls back to "merged-rule" -> filename matches `colliding`.
+        merged_text = "No title here, just rule body prose.\n\nMore body."
+
+        with patch(
+            "contemplative_agent.core.stocktake.run_rules_stocktake",
+            return_value=fake_result,
+        ), patch(
+            "contemplative_agent.core.stocktake.merge_group",
+            return_value=merged_text,
+        ), patch("contemplative_agent.cli.RULES_DIR", rules_dir), patch(
+            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
+        ), patch("builtins.input", side_effect=["y"]):
+            _handle_rules_stocktake(args, MagicMock())
+
+        target = rules_dir / colliding
+        assert target.exists(), "merge output was deleted by self-delete bug"
+        assert merged_text in target.read_text()
+        assert not (rules_dir / "b.md").exists()

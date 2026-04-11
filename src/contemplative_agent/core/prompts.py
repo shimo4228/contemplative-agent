@@ -47,6 +47,7 @@ class _LazyPrompts:
         "STOCKTAKE_SKILLS_PROMPT": "stocktake_skills",
         "STOCKTAKE_RULES_PROMPT": "stocktake_rules",
         "STOCKTAKE_MERGE_PROMPT": "stocktake_merge",
+        "STOCKTAKE_MERGE_RULES_PROMPT": "stocktake_merge_rules",
         "DISTILL_SUBCATEGORIZE_PROMPT": "distill_subcategorize",
     }
 

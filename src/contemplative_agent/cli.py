@@ -576,11 +576,106 @@ def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.Argument
         print(f"\n--- Summary: {merged} merged, {len(result.merge_groups) - merged} skipped ---")
 
 
-def _handle_rules_stocktake(_args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
-    from .core.stocktake import format_report, run_rules_stocktake
+def _handle_rules_stocktake(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
+    """Audit rules and merge duplicates. Mirrors _handle_skill_stocktake.
+
+    Uses STOCKTAKE_MERGE_RULES_PROMPT (When/Do/Why structure) instead of
+    the skill-oriented STOCKTAKE_MERGE_PROMPT. Shares approval gate,
+    audit logging, self-delete guard, and staging support with the skill
+    variant — see commit 542f0b2 for the bug history the guard protects.
+    """
+    from .core.insight import _extract_title, _slugify
+    from .core.stocktake import format_report, merge_group, run_rules_stocktake
 
     result = run_rules_stocktake(rules_dir=RULES_DIR)
     print(format_report(result, "Rules"))
+
+    if not result.merge_groups:
+        return
+
+    from datetime import date
+
+    from .core import prompts
+    from .core._io import write_restricted
+
+    items_dict = dict(result.items)
+    stage = getattr(args, "stage", False)
+
+    print(f"\n{'='*60}")
+    print(f"Merging {len(result.merge_groups)} group(s)...")
+
+    stage_items: list[StageItem] = []
+    merged = 0
+    for i, group in enumerate(result.merge_groups, 1):
+        group_items = [
+            (name, items_dict[name])
+            for name in group.filenames
+            if name in items_dict
+        ]
+        if len(group_items) < 2:
+            continue
+
+        print(f"\n{'='*60}")
+        print(f"[Group {i}/{len(result.merge_groups)}] {', '.join(group.filenames)}")
+        print(f"  Reason: {group.reason}")
+
+        merged_text = merge_group(group_items, prompts.STOCKTAKE_MERGE_RULES_PROMPT)
+        if merged_text is None:
+            print("  Merge failed (LLM error). Skipping.")
+            continue
+
+        print(merged_text)
+
+        title = _extract_title(merged_text) or "merged-rule"
+        slug = _slugify(title)
+        if not slug:
+            slug = "merged-rule"
+        filename = f"{slug}-{date.today().strftime('%Y%m%d')}.md"
+        target_path = RULES_DIR / filename
+
+        if stage:
+            stage_items.append(
+                StageItem(
+                    filename=filename,
+                    text=merged_text,
+                    target_path=target_path,
+                    sources=list(group.filenames),
+                )
+            )
+            continue
+
+        approved = _approve_write(target_path)
+        _log_approval("rules-stocktake", target_path, approved, merged_text)
+        if approved:
+            RULES_DIR.mkdir(parents=True, exist_ok=True)
+            write_restricted(target_path, merged_text)
+            # Self-delete guard: when the merged title slugifies to one of
+            # the source filenames, target_path collides with an original.
+            # Skip the matching name so we don't delete the file we just
+            # wrote. See commit 542f0b2 for the bug history.
+            try:
+                target_resolved = target_path.resolve()
+            except OSError:
+                target_resolved = target_path
+            for name in group.filenames:
+                original = RULES_DIR / name
+                try:
+                    same_as_target = original.resolve() == target_resolved
+                except OSError:
+                    same_as_target = original == target_path
+                if same_as_target:
+                    continue
+                if original.exists():
+                    original.unlink()
+                    print(f"  Deleted {name}")
+            merged += 1
+        else:
+            print("  Skipped.")
+
+    if stage and stage_items:
+        _stage_results(stage_items, command="rules-stocktake")
+    elif not stage:
+        print(f"\n--- Summary: {merged} merged, {len(result.merge_groups) - merged} skipped ---")
 
 
 def _handle_sync_data(_args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
@@ -1201,7 +1296,14 @@ def main() -> None:
     )
 
     # rules-stocktake
-    subparsers.add_parser("rules-stocktake", help="Audit rules for duplicates and quality issues")
+    rules_stocktake_parser = subparsers.add_parser(
+        "rules-stocktake", help="Audit rules for duplicates and quality issues"
+    )
+    rules_stocktake_parser.add_argument(
+        "--stage",
+        action="store_true",
+        help="Write merged rules to staging dir instead of interactive approval",
+    )
 
     # enrich
     enrich_parser = subparsers.add_parser(
