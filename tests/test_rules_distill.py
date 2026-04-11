@@ -10,11 +10,14 @@ import pytest
 
 from contemplative_agent.core.insight import _extract_title, _slugify
 from contemplative_agent.core.rules_distill import (
+    MAX_RULES_PER_BATCH,
     MIN_SKILLS_REQUIRED,
     RulesDistillResult,
     _extract_rules,
+    _NO_RULES_MARKER,
     _read_skills,
     _split_rules,
+    _STAGE2_MAX_LENGTH,
     _strip_frontmatter,
     distill_rules,
 )
@@ -249,6 +252,124 @@ class TestExtractRules:
         mock_generate.side_effect = ["Stage 1 result", "No title here"]
         result = _extract_rules(["# Skill 1\nContent"])
         assert result is None
+
+    @patch("contemplative_agent.core.rules_distill.generate")
+    def test_stage2_uses_configured_max_length(self, mock_generate):
+        """Regression: Stage 2 must request _STAGE2_MAX_LENGTH chars so the
+        LLM output doesn't get silently truncated by _sanitize_output's
+        [:max_length] slice. Previously hard-coded to 3000 which lost
+        rules mid-sentence in production (2026-04-11 incident)."""
+        mock_generate.side_effect = [
+            GOOD_RULES_RESPONSE_STAGE1,
+            GOOD_RULES_RESPONSE_STAGE2,
+        ]
+        _extract_rules(["# Skill 1\nContent"])
+        # Stage 2 is the second call; inspect its max_length kwarg
+        _, stage2_kwargs = mock_generate.call_args_list[1]
+        assert stage2_kwargs["max_length"] == _STAGE2_MAX_LENGTH
+
+    @patch("contemplative_agent.core.rules_distill.generate")
+    def test_truncation_warning_fires_near_cap(self, mock_generate, caplog):
+        """When Stage 2 output length is within _STAGE2_TRUNCATION_MARGIN
+        of _STAGE2_MAX_LENGTH, a warning must be logged so humans notice
+        the output probably got cut off."""
+        import logging
+
+        # Build a response that's within the margin of the cap and has a
+        # title line so _extract_title() passes.
+        big_body = "x" * (_STAGE2_MAX_LENGTH - 50)
+        near_cap = f"# Big Rule Set\n{big_body}"
+        mock_generate.side_effect = [GOOD_RULES_RESPONSE_STAGE1, near_cap]
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.rules_distill"):
+            _extract_rules(["# Skill 1\nContent"])
+        assert any(
+            "likely truncated" in rec.message for rec in caplog.records
+        ), "expected truncation warning for near-cap Stage 2 output"
+
+    @patch("contemplative_agent.core.rules_distill.generate")
+    def test_no_universal_rules_marker_is_valid(self, mock_generate):
+        """Stage 2 outputting the '# No Universal Rules Found' marker is a
+        valid empty outcome, not a failure. _extract_rules returns the
+        marker verbatim and callers must recognize it."""
+        mock_generate.side_effect = [
+            GOOD_RULES_RESPONSE_STAGE1,
+            "# No Universal Rules Found",
+        ]
+        result = _extract_rules(["# Skill 1\nContent"])
+        assert result == _NO_RULES_MARKER
+
+
+class TestSplitRulesEnforcesMaxPerBatch:
+    """_split_rules must cap at MAX_RULES_PER_BATCH even if the LLM
+    ignores the prompt constraint and returns more rules."""
+
+    def test_caps_rule_count_at_max(self, caplog):
+        import logging
+
+        # Build a response with MAX_RULES_PER_BATCH + 2 rules
+        over = MAX_RULES_PER_BATCH + 2
+        body = "# Big Set\n\n"
+        for i in range(1, over + 1):
+            body += (
+                f"## Rule {i}: Rule Number {i}\n\n"
+                f"**When:** trigger {i}\n"
+                f"**Do:** action {i}\n"
+                f"**Why:** reason {i}\n\n"
+            )
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.rules_distill"):
+            rules = _split_rules(body)
+        assert len(rules) == MAX_RULES_PER_BATCH
+        assert any(
+            "exceeding MAX_RULES_PER_BATCH" in rec.message for rec in caplog.records
+        )
+
+    def test_under_cap_keeps_all(self):
+        body = (
+            "# Set\n\n"
+            "## Rule 1: Only\n\n**When:** X\n**Do:** Y\n**Why:** Z\n"
+        )
+        assert len(_split_rules(body)) == 1
+
+
+class TestDistillRulesRespectsNoRulesMarker:
+    """When a batch returns the no-rules marker, distill_rules must skip
+    that batch silently (not as a failure) and distinguish 'valid empty'
+    from 'LLM error' in the final message."""
+
+    @patch("contemplative_agent.core.rules_distill.generate")
+    def test_all_empty_batches_returns_valid_empty_message(
+        self, mock_generate, tmp_path
+    ):
+        """When every batch returns the no-rules marker (and no batch
+        actually failed), the final message must NOT say 'Failed to
+        extract' — that would mislead the user into thinking the LLM
+        broke, when in fact it correctly judged 'no universal principle'."""
+        mock_generate.side_effect = [
+            GOOD_RULES_RESPONSE_STAGE1,
+            "# No Universal Rules Found",
+        ]
+        skills_dir = _make_skills_dir(tmp_path, n=5)
+        result = distill_rules(
+            skills_dir=skills_dir, rules_dir=tmp_path / "rules"
+        )
+        assert isinstance(result, str)
+        assert "No universal rules extracted" in result
+        assert "Failed to extract" not in result
+
+    @patch("contemplative_agent.core.rules_distill.generate")
+    def test_actual_failure_still_says_failed(
+        self, mock_generate, tmp_path
+    ):
+        """When Stage 1 actually fails (LLM returns None), the final
+        message must preserve the 'Failed to extract' wording so the
+        user knows something broke."""
+        mock_generate.return_value = None
+        skills_dir = _make_skills_dir(tmp_path, n=5)
+        result = distill_rules(
+            skills_dir=skills_dir, rules_dir=tmp_path / "rules"
+        )
+        assert isinstance(result, str)
+        assert "Failed to extract" in result
 
 
 # ---------------------------------------------------------------------------

@@ -20,7 +20,15 @@ from .prompts import RULES_DISTILL_PROMPT, RULES_DISTILL_REFINE_PROMPT
 logger = logging.getLogger(__name__)
 
 MIN_SKILLS_REQUIRED = 3
-BATCH_SIZE = 10
+# Number of skill files passed to one LLM extraction call. This is NOT the
+# same as insight's BATCH_SIZE (patterns per subcategory) — here it's the
+# breadth of input across which the LLM searches for cross-cutting universal
+# principles. Renamed from BATCH_SIZE to avoid confusion with insight.py.
+SKILLS_PER_BATCH = 10
+# Cap on rules produced per batch. Enforced via prompt ("at most 2") plus
+# post-filter in _split_rules. Keeping this tight is a deliberate Emptiness-
+# axiom constraint: prefer 0 weak rules over many trivial ones.
+MAX_RULES_PER_BATCH = 2
 
 
 @dataclass(frozen=True)
@@ -87,11 +95,31 @@ def _read_skills(skills_dir: Path, since: Optional[str] = None) -> List[str]:
     return skills
 
 
+# Stage 2 generates a multi-rule Markdown doc: set title + up to
+# MAX_RULES_PER_BATCH rules (each ~800-900 chars) + section headers.
+# Previously 3000 which silently truncated the last rule's Why section
+# mid-sentence (observed 2026-04-11 with 4 rules / 8 skills — root cause
+# was _sanitize_output in llm.py slicing with [:max_length]). 10000 gives
+# comfortable headroom even if the LLM disregards MAX_RULES_PER_BATCH.
+_STAGE2_MAX_LENGTH = 10000
+# Warn when Stage 2 output is within this many chars of the cap — likely
+# truncated. _sanitize_output's slice is silent otherwise.
+_STAGE2_TRUNCATION_MARGIN = 200
+
+# Marker the refine prompt emits when Stage 1 analysis found 0 passing
+# principles. Treated as a valid (empty) result rather than an error.
+_NO_RULES_MARKER = "# No Universal Rules Found"
+
+
 def _extract_rules(skill_texts: List[str]) -> Optional[str]:
     """Extract behavioral rules from skill texts via 2-stage LLM pipeline.
 
     Stage 1: Free-form extraction with distill system prompt as lens.
     Stage 2: Refine into structured Markdown.
+
+    Returns the Stage 2 Markdown, or None on LLM failure / invalid output.
+    An empty-but-valid result (no universal rules in this batch) returns
+    the ``_NO_RULES_MARKER`` string which callers should recognize.
     """
     prompt = RULES_DISTILL_PROMPT.format(
         patterns="\n\n---\n\n".join(skill_texts),
@@ -103,10 +131,27 @@ def _extract_rules(skill_texts: List[str]) -> Optional[str]:
         return None
 
     refine_prompt = RULES_DISTILL_REFINE_PROMPT.format(raw_output=raw)
-    result = generate(refine_prompt, max_length=3000)
+    result = generate(refine_prompt, max_length=_STAGE2_MAX_LENGTH)
     if result is None:
         logger.warning("Stage 2 (refinement) failed.")
         return None
+
+    if len(result) >= _STAGE2_MAX_LENGTH - _STAGE2_TRUNCATION_MARGIN:
+        logger.warning(
+            "Stage 2 output length %d is within %d chars of the %d cap — "
+            "likely truncated. Increase _STAGE2_MAX_LENGTH or reduce "
+            "SKILLS_PER_BATCH / MAX_RULES_PER_BATCH.",
+            len(result),
+            _STAGE2_TRUNCATION_MARGIN,
+            _STAGE2_MAX_LENGTH,
+        )
+
+    # "No Universal Rules Found" is a valid outcome — the Stage 1 analysis
+    # concluded that no candidate principle passed all four universality
+    # tests for this batch. Propagate as-is so the caller records 0 rules.
+    if result.strip().startswith(_NO_RULES_MARKER):
+        logger.info("Stage 2: no universal rules passed for this batch.")
+        return _NO_RULES_MARKER
 
     if _extract_title(result) is None:
         logger.warning("Rules extraction has no title (# line). Dropping.")
@@ -128,6 +173,11 @@ def _split_rules(text: str) -> List[str]:
 
     This splits on ``## Rule`` boundaries and gives each chunk
     a ``# Rule: {name}`` title for independent use.
+
+    Enforces ``MAX_RULES_PER_BATCH`` as a hard cap: if the LLM disregards
+    the prompt constraint and returns more rules, only the first N are
+    kept and a warning is logged. This preserves the narrow-generation
+    discipline regardless of model compliance.
     """
     import re
 
@@ -144,6 +194,17 @@ def _split_rules(text: str) -> List[str]:
         rule_text = f"# {name}\n\n" + re.sub(r"^## Rule \d+:.*\n*", "", part, count=1).strip()
         if rule_text.strip():
             rules.append(rule_text)
+
+    if len(rules) > MAX_RULES_PER_BATCH:
+        logger.warning(
+            "LLM returned %d rules, exceeding MAX_RULES_PER_BATCH=%d. "
+            "Keeping only the first %d.",
+            len(rules),
+            MAX_RULES_PER_BATCH,
+            MAX_RULES_PER_BATCH,
+        )
+        rules = rules[:MAX_RULES_PER_BATCH]
+
     return rules
 
 
@@ -208,8 +269,8 @@ def distill_rules(
         )
 
     batches = [
-        skill_texts[i : i + BATCH_SIZE]
-        for i in range(0, len(skill_texts), BATCH_SIZE)
+        skill_texts[i : i + SKILLS_PER_BATCH]
+        for i in range(0, len(skill_texts), SKILLS_PER_BATCH)
     ]
     if len(batches) > 1 and len(batches[-1]) < MIN_SKILLS_REQUIRED:
         batches[-2].extend(batches[-1])
@@ -221,6 +282,7 @@ def distill_rules(
 
     rule_results: List[RuleResult] = []
     dropped_count = 0
+    empty_batches = 0  # Batches that correctly returned "no universal rules"
 
     for batch_idx, batch in enumerate(batches):
         logger.info(
@@ -231,6 +293,17 @@ def distill_rules(
         if rules_text is None:
             logger.warning("Batch %d/%d: extraction failed", batch_idx + 1, len(batches))
             dropped_count += 1
+            continue
+
+        # Valid empty outcome: Stage 2 found no principle worth keeping.
+        # Not an error, just nothing to persist for this batch.
+        if rules_text == _NO_RULES_MARKER:
+            logger.info(
+                "Batch %d/%d: no universal rules (by design)",
+                batch_idx + 1,
+                len(batches),
+            )
+            empty_batches += 1
             continue
 
         individual_rules = _split_rules(rules_text)
@@ -270,6 +343,17 @@ def distill_rules(
             ))
 
     if not rule_results:
+        # Distinguish "LLM failed to produce anything" from "LLM correctly
+        # judged that no universal principle exists in this set of skills".
+        # Both result in 0 rules, but the meaning (and what the user should
+        # do next) is very different.
+        if empty_batches == len(batches) and dropped_count == 0:
+            return (
+                f"No universal rules extracted. All {empty_batches} batch(es) "
+                f"determined that no principle passes the four universality "
+                f"tests for the current skill set. This is a valid outcome; "
+                f"accumulate more diverse skills and try again."
+            )
         return "Failed to extract rules from skills."
 
     return RulesDistillResult(
