@@ -9,6 +9,7 @@ import pytest
 
 from contemplative_agent.cli import (
     main,
+    _handle_adopt_staged,
     _setup_logging,
     _build_calendar_intervals,
     _do_init,
@@ -18,6 +19,7 @@ from contemplative_agent.cli import (
     _list_templates,
     _log_approval,
     _stage_results,
+    StageItem,
 )
 
 
@@ -481,6 +483,34 @@ class TestLogApproval:
         h2 = json.loads(lines[1])["content_hash"]
         assert h1 != h2
 
+    def test_default_source_is_direct(self, tmp_path):
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+            _log_approval("insight", Path("a.md"), True, "content")
+        record = json.loads(audit_path.read_text().strip())
+        assert record["source"] == "direct"
+
+    def test_source_stage_adopted(self, tmp_path):
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+            _log_approval(
+                "insight", Path("a.md"), True, "content", source="stage-adopted"
+            )
+        record = json.loads(audit_path.read_text().strip())
+        assert record["source"] == "stage-adopted"
+        assert record["decision"] == "approved"
+
+    def test_staged_decision_for_none_approval(self, tmp_path):
+        """approved=None should map to decision='staged'."""
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+            _log_approval(
+                "insight", Path("a.md"), None, "content", source="stage"
+            )
+        record = json.loads(audit_path.read_text().strip())
+        assert record["decision"] == "staged"
+        assert record["source"] == "stage"
+
 
 class TestStageResults:
     """Tests for _stage_results() staging helper."""
@@ -488,10 +518,12 @@ class TestStageResults:
     def test_stages_files_with_meta(self, tmp_path):
         staged_dir = tmp_path / ".staged"
         target = tmp_path / "skills" / "test-skill.md"
+        audit = tmp_path / "logs" / "audit.jsonl"
         with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path):
+             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
             _stage_results(
-                [("test-skill.md", "# Test Skill\nContent", target)],
+                [StageItem("test-skill.md", "# Test Skill\nContent", target)],
                 command="insight",
             )
         assert (staged_dir / "test-skill.md").exists()
@@ -499,27 +531,217 @@ class TestStageResults:
         meta = json.loads((staged_dir / "test-skill.md.meta.json").read_text())
         assert meta["target"] == str(target)
         assert meta["command"] == "insight"
+        assert "sources" not in meta  # empty -> field omitted
 
     def test_stages_multiple_files(self, tmp_path):
         staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
         items = [
-            ("a.md", "# A", tmp_path / "skills" / "a.md"),
-            ("b.md", "# B", tmp_path / "skills" / "b.md"),
+            StageItem("a.md", "# A", tmp_path / "skills" / "a.md"),
+            StageItem("b.md", "# B", tmp_path / "skills" / "b.md"),
         ]
         with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path):
+             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
             _stage_results(items, command="insight")
         assert (staged_dir / "a.md").exists()
         assert (staged_dir / "b.md").exists()
 
     def test_rejects_path_traversal(self, tmp_path, capsys):
         staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
         evil_target = Path("/tmp/evil.md")
         with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path):
+             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
             _stage_results(
-                [("evil.md", "pwned", evil_target)],
+                [StageItem("evil.md", "pwned", evil_target)],
                 command="insight",
             )
         assert not (staged_dir / "evil.md").exists()
         assert "escapes MOLTBOOK_HOME" in capsys.readouterr().err
+
+    def test_records_stage_audit_entry(self, tmp_path):
+        """_stage_results should log 'staged' entries to the audit log."""
+        staged_dir = tmp_path / ".staged"
+        target = tmp_path / "skills" / "a.md"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
+             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+            _stage_results(
+                [StageItem("a.md", "# A", target)],
+                command="insight",
+            )
+        assert audit.exists()
+        record = json.loads(audit.read_text().strip())
+        assert record["command"] == "insight"
+        assert record["decision"] == "staged"
+        assert record["source"] == "stage"
+        assert record["path"] == str(target)
+
+    def test_records_sources_in_meta(self, tmp_path):
+        """When sources is provided (skill-stocktake merge), it lands in meta.json."""
+        staged_dir = tmp_path / ".staged"
+        target = tmp_path / "skills" / "merged.md"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
+             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+            _stage_results(
+                [
+                    StageItem(
+                        "merged.md",
+                        "# Merged",
+                        target,
+                        sources=["orig1.md", "orig2.md"],
+                    )
+                ],
+                command="skill-stocktake",
+            )
+        meta = json.loads((staged_dir / "merged.md.meta.json").read_text())
+        assert meta["sources"] == ["orig1.md", "orig2.md"]
+
+
+class TestAdoptStaged:
+    """Tests for `adopt-staged` CLI command (_handle_adopt_staged)."""
+
+    def _stage_one(
+        self,
+        tmp_path,
+        *,
+        filename: str,
+        text: str,
+        target: Path,
+        command: str = "insight",
+        sources: list[str] | None = None,
+    ) -> Path:
+        """Write one staged file + meta.json for the adopt-staged tests."""
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        item = StageItem(filename, text, target, sources=list(sources or []))
+        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
+             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+            _stage_results([item], command=command)
+        return staged_dir
+
+    def _run_adopt(self, tmp_path, staged_dir, *, inputs: list[str]):
+        audit = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
+             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit), \
+             patch("builtins.input", side_effect=inputs):
+            _handle_adopt_staged(MagicMock(), MagicMock())
+
+    def test_empty_staging_dir_is_noop(self, tmp_path, capsys):
+        staged_dir = tmp_path / ".staged"
+        staged_dir.mkdir()
+        self._run_adopt(tmp_path, staged_dir, inputs=[])
+        out = capsys.readouterr().out
+        assert "No staged files." in out
+
+    def test_missing_staging_dir_is_noop(self, tmp_path, capsys):
+        staged_dir = tmp_path / ".staged"  # does not exist
+        self._run_adopt(tmp_path, staged_dir, inputs=[])
+        out = capsys.readouterr().out
+        assert "No staging directory." in out
+
+    def test_approve_writes_target_and_clears_staging(self, tmp_path):
+        target = tmp_path / "skills" / "a.md"
+        staged = self._stage_one(
+            tmp_path, filename="a.md", text="# A", target=target
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        assert target.exists()
+        assert target.read_text().startswith("# A")
+        # staging cleared
+        assert not (staged / "a.md").exists()
+        assert not (staged / "a.md.meta.json").exists()
+
+    def test_reject_does_not_write_and_clears_staging(self, tmp_path):
+        target = tmp_path / "skills" / "a.md"
+        staged = self._stage_one(
+            tmp_path, filename="a.md", text="# A", target=target
+        )
+        self._run_adopt(tmp_path, staged, inputs=["n"])
+        assert not target.exists()
+        # rejected items are also cleared from staging
+        assert not (staged / "a.md").exists()
+        assert not (staged / "a.md.meta.json").exists()
+
+    def test_adopt_logs_audit_entry(self, tmp_path):
+        target = tmp_path / "skills" / "a.md"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        staged = self._stage_one(
+            tmp_path, filename="a.md", text="# A", target=target
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        lines = audit.read_text().strip().splitlines()
+        # stage + stage-adopted, so >= 2 entries
+        decisions = [json.loads(line) for line in lines]
+        sources = [d["source"] for d in decisions]
+        assert "stage" in sources
+        assert "stage-adopted" in sources
+        adopted = [d for d in decisions if d["source"] == "stage-adopted"]
+        assert adopted[-1]["decision"] == "approved"
+
+    def test_adopt_deletes_merge_sources(self, tmp_path):
+        """skill-stocktake merge: adopting should delete the original files."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        orig1 = skills_dir / "orig1.md"
+        orig2 = skills_dir / "orig2.md"
+        orig1.write_text("# orig1")
+        orig2.write_text("# orig2")
+
+        target = skills_dir / "merged.md"
+        staged = self._stage_one(
+            tmp_path,
+            filename="merged.md",
+            text="# merged",
+            target=target,
+            command="skill-stocktake",
+            sources=["orig1.md", "orig2.md"],
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        assert target.exists()
+        assert not orig1.exists()
+        assert not orig2.exists()
+
+    def test_adopt_rejects_escaping_target(self, tmp_path, capsys):
+        """Tampered meta.json pointing outside MOLTBOOK_HOME must be rejected."""
+        staged_dir = tmp_path / ".staged"
+        staged_dir.mkdir()
+        (staged_dir / "evil.md").write_text("pwned\n")
+        (staged_dir / "evil.md.meta.json").write_text(
+            json.dumps({"target": "/tmp/evil-adopted.md", "command": "insight"})
+        )
+        self._run_adopt(tmp_path, staged_dir, inputs=[])
+        assert not Path("/tmp/evil-adopted.md").exists()
+        captured = capsys.readouterr()
+        assert "escapes MOLTBOOK_HOME" in captured.err
+        # staging entries remain (skipped, not cleared)
+        assert (staged_dir / "evil.md").exists()
+        assert (staged_dir / "evil.md.meta.json").exists()
+
+    def test_adopt_blocks_source_path_traversal(self, tmp_path):
+        """Suspicious source filenames in meta.json must not delete arbitrary files."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        # victim file outside skills/ that should NOT be deleted
+        victim = tmp_path / "victim.md"
+        victim.write_text("keep me")
+
+        target = skills_dir / "merged.md"
+        staged = self._stage_one(
+            tmp_path,
+            filename="merged.md",
+            text="# merged",
+            target=target,
+            command="skill-stocktake",
+            sources=["../victim.md"],
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        assert target.exists()
+        assert victim.exists()  # traversal blocked

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 from collections.abc import Callable
+from dataclasses import dataclass, field
 import hashlib
 import json as json_mod
 import logging
@@ -13,6 +14,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 from xml.sax.saxutils import escape as xml_escape
 
 from .adapters.moltbook.agent import Agent, AutonomyLevel
@@ -220,13 +222,41 @@ _APPROVAL_GATE_COMMANDS = frozenset({
 AUDIT_LOG_PATH = MOLTBOOK_DATA_DIR / "logs" / "audit.jsonl"
 
 
-def _log_approval(command: str, path: Path, approved: bool, content: str) -> None:
-    """Append approval decision to audit log."""
+AuditSource = Literal["direct", "stage", "stage-adopted"]
+
+
+def _log_approval(
+    command: str,
+    path: Path,
+    approved: bool | None,
+    content: str,
+    *,
+    source: AuditSource = "direct",
+) -> None:
+    """Append approval decision to audit log.
+
+    Args:
+        command: The CLI subcommand name (e.g. "insight", "rules-distill").
+        path: Final target path for the generated content.
+        approved: True = accepted, False = rejected, None = staged (not yet decided).
+        content: Full text of the generated artifact (for hashing).
+        source: Execution path identifier.
+            - "direct": approval gate was invoked inline during the command run.
+            - "stage": written to staging dir (decision deferred).
+            - "stage-adopted": adopted from staging via `adopt-staged` command.
+    """
+    if approved is None:
+        decision = "staged"
+    elif approved:
+        decision = "approved"
+    else:
+        decision = "rejected"
     record = {
         "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "command": command,
         "path": str(path),
-        "decision": "approved" if approved else "rejected",
+        "decision": decision,
+        "source": source,
         "content_hash": hashlib.sha256(content.encode()).hexdigest()[:16],
     }
     try:
@@ -270,40 +300,53 @@ def _warn_dry_run_deprecated(args: argparse.Namespace) -> None:
     )
 
 
-def _stage_results(
-    items: list[tuple[str, str, Path]],
-    command: str,
-) -> None:
+@dataclass(frozen=True)
+class StageItem:
+    """One artifact pending external approval in the staging dir.
+
+    `sources` is only set by skill-stocktake merges: it lists original
+    skill filenames that `adopt-staged` should delete when the merged
+    result is accepted. All other commands leave it empty.
+    """
+
+    filename: str
+    text: str
+    target_path: Path
+    sources: list[str] = field(default_factory=list)
+
+
+def _stage_results(items: list[StageItem], command: str) -> None:
     """Write generated results to the staging directory for external approval.
 
-    Each item is (filename, text, target_path). Creates the staging dir,
-    writes each file, and prints paths for the calling agent to read.
-
-    Args:
-        items: List of (filename, content, target_path) tuples.
-        command: The command name (e.g. "insight", "rules-distill").
+    Creates the staging dir, writes each file plus a sidecar `*.meta.json`,
+    records a 'staged' entry in the audit log, and prints paths for the
+    calling agent to read.
     """
-    import json
-
     STAGED_DIR.mkdir(parents=True, exist_ok=True)
-    # Clear stale files from previous runs
     for old_file in STAGED_DIR.iterdir():
         if old_file.is_file():
             old_file.unlink()
     staged_paths = []
-    for filename, text, target_path in items:
-        if not target_path.resolve().is_relative_to(MOLTBOOK_DATA_DIR.resolve()):
-            print(f"Error: target path escapes MOLTBOOK_HOME: {target_path}", file=sys.stderr)
+    data_root = MOLTBOOK_DATA_DIR.resolve()
+    for item in items:
+        if not item.target_path.resolve().is_relative_to(data_root):
+            print(
+                f"Error: target path escapes MOLTBOOK_HOME: {item.target_path}",
+                file=sys.stderr,
+            )
             continue
-        staged_file = STAGED_DIR / filename
-        staged_file.write_text(text + "\n", encoding="utf-8")
-        meta = {
-            "target": str(target_path),
+        staged_file = STAGED_DIR / item.filename
+        staged_file.write_text(item.text + "\n", encoding="utf-8")
+        meta: dict[str, object] = {
+            "target": str(item.target_path),
             "command": command,
         }
-        meta_file = STAGED_DIR / f"{filename}.meta.json"
-        meta_file.write_text(json.dumps(meta, indent=2) + "\n", encoding="utf-8")
-        staged_paths.append((staged_file, target_path))
+        if item.sources:
+            meta["sources"] = list(item.sources)
+        meta_file = STAGED_DIR / f"{item.filename}.meta.json"
+        meta_file.write_text(json_mod.dumps(meta, indent=2) + "\n", encoding="utf-8")
+        staged_paths.append((staged_file, item.target_path))
+        _log_approval(command, item.target_path, None, item.text, source="stage")
 
     print(f"Staged {len(staged_paths)} file(s) in {STAGED_DIR}/")
     for staged, target in staged_paths:
@@ -459,7 +502,7 @@ def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.Argument
     print(f"\n{'='*60}")
     print(f"Merging {len(result.merge_groups)} group(s)...")
 
-    stage_items: list[tuple[str, str, Path]] = []
+    stage_items: list[StageItem] = []
     merged = 0
     for i, group in enumerate(result.merge_groups, 1):
         group_items = [
@@ -489,7 +532,15 @@ def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.Argument
         target_path = SKILLS_DIR / filename
 
         if stage:
-            stage_items.append((filename, merged_text, target_path))
+            # Record original filenames so adopt-staged can delete them on approval.
+            stage_items.append(
+                StageItem(
+                    filename=filename,
+                    text=merged_text,
+                    target_path=target_path,
+                    sources=list(group.filenames),
+                )
+            )
         elif _approve_write(target_path):
             SKILLS_DIR.mkdir(parents=True, exist_ok=True)
             write_restricted(target_path, merged_text)
@@ -517,6 +568,112 @@ def _handle_rules_stocktake(_args: argparse.Namespace, _parser: argparse.Argumen
 
 def _handle_sync_data(_args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     _run_sync()
+
+
+def _handle_adopt_staged(_args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
+    """Walk the staging dir, run each staged file through the approval gate,
+    and write accepted files to their target paths. Rejected and accepted
+    items are both removed from staging to avoid repeated prompts on rerun.
+    """
+    from .core._io import write_restricted
+
+    if not STAGED_DIR.exists():
+        print("No staging directory.")
+        return
+
+    meta_files = sorted(STAGED_DIR.glob("*.meta.json"))
+    if not meta_files:
+        print("No staged files.")
+        return
+
+    adopted = 0
+    rejected = 0
+    skipped = 0
+    data_root = MOLTBOOK_DATA_DIR.resolve()
+    for meta_file in meta_files:
+        try:
+            meta = json_mod.loads(meta_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError) as err:
+            print(f"  Skipped (meta read error): {meta_file.name}: {err}")
+            skipped += 1
+            continue
+
+        target_str = meta.get("target")
+        command = meta.get("command")
+        sources = meta.get("sources") or []
+        if not target_str or not command:
+            print(f"  Skipped (invalid meta): {meta_file.name}")
+            skipped += 1
+            continue
+
+        target = Path(target_str)
+        # Defense in depth: the meta.json is user-writable between stage and
+        # adopt, so re-verify the target still lives inside MOLTBOOK_HOME.
+        try:
+            inside = target.resolve().is_relative_to(data_root)
+        except OSError:
+            inside = False
+        if not inside:
+            print(
+                f"Error: staged target escapes MOLTBOOK_HOME: {target}",
+                file=sys.stderr,
+            )
+            skipped += 1
+            continue
+
+        content_file = meta_file.parent / meta_file.name[: -len(".meta.json")]
+        if not content_file.exists():
+            print(f"  Skipped (content missing): {content_file.name}")
+            skipped += 1
+            continue
+
+        try:
+            text = content_file.read_text(encoding="utf-8")
+        except OSError as err:
+            print(f"  Skipped (content read error): {content_file.name}: {err}")
+            skipped += 1
+            continue
+
+        print(f"\n{'='*60}")
+        print(f"[{command}] {content_file.name} -> {target}")
+        print(text)
+
+        approved = _approve_write(target)
+        _log_approval(command, target, approved, text, source="stage-adopted")
+
+        if approved:
+            target.parent.mkdir(parents=True, exist_ok=True)
+            to_write = text if text.endswith("\n") else text + "\n"
+            write_restricted(target, to_write)
+            # skill-stocktake merges pass the original filenames in `sources`
+            # so they get deleted once the merged result is adopted.
+            target_parent = target.parent.resolve()
+            for src_name in sources:
+                src_path = (target.parent / src_name).resolve()
+                try:
+                    same_dir = src_path.parent == target_parent
+                except OSError:
+                    same_dir = False
+                if not same_dir:
+                    print(
+                        f"  Skipped source delete (outside target dir): {src_name}"
+                    )
+                    continue
+                if src_path.exists():
+                    src_path.unlink()
+                    print(f"  Deleted {src_name}")
+            adopted += 1
+        else:
+            print("Skipped.")
+            rejected += 1
+
+        content_file.unlink(missing_ok=True)
+        meta_file.unlink(missing_ok=True)
+
+    print(
+        f"\n--- Summary: {adopted} adopted, {rejected} rejected, "
+        f"{skipped} skipped ---"
+    )
 
 
 # --- Tier 2: LLM config needed ---
@@ -577,7 +734,7 @@ def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.Argumen
     print(result.text)
     if getattr(args, "stage", False):
         _stage_results(
-            [("identity.md", result.text, result.target_path)],
+            [StageItem("identity.md", result.text, result.target_path)],
             command="distill-identity",
         )
         return
@@ -611,7 +768,7 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         return
     if getattr(args, "stage", False):
         _stage_results(
-            [(s.filename, s.text, s.target_path) for s in result.skills],
+            [StageItem(s.filename, s.text, s.target_path) for s in result.skills],
             command="insight",
         )
         return
@@ -650,7 +807,7 @@ def _handle_rules_distill(args: argparse.Namespace, _parser: argparse.ArgumentPa
         return
     if getattr(args, "stage", False):
         _stage_results(
-            [(r.filename, r.text, r.target_path) for r in result.rules],
+            [StageItem(r.filename, r.text, r.target_path) for r in result.rules],
             command="rules-distill",
         )
         return
@@ -691,7 +848,7 @@ def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.Argum
     print(result.text)
     if getattr(args, "stage", False):
         _stage_results(
-            [(result.target_path.name, result.text, result.target_path)],
+            [StageItem(result.target_path.name, result.text, result.target_path)],
             command="amend-constitution",
         )
         return
@@ -1031,6 +1188,12 @@ def main() -> None:
     # sync-data
     subparsers.add_parser("sync-data", help="Sync research data to external git repository")
 
+    # adopt-staged
+    subparsers.add_parser(
+        "adopt-staged",
+        help="Review files in the staging dir through the approval gate and adopt accepted ones",
+    )
+
     # solve
     solve_parser = subparsers.add_parser(
         "solve", help="Test verification solver"
@@ -1050,6 +1213,7 @@ def main() -> None:
         "skill-stocktake": _handle_skill_stocktake,
         "rules-stocktake": _handle_rules_stocktake,
         "sync-data": _handle_sync_data,
+        "adopt-staged": _handle_adopt_staged,
     }
     handler = no_llm_handlers.get(args.command)
     if handler:
