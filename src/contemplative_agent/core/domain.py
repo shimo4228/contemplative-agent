@@ -77,7 +77,6 @@ class PromptTemplates:
     stocktake_rules: str = ""
     stocktake_merge: str = ""
     stocktake_merge_rules: str = ""
-    skill_reflect: str = ""
 
 
 
@@ -254,7 +253,6 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         stocktake_rules=read("stocktake_rules.md", required=False),
         stocktake_merge=read("stocktake_merge.md", required=False),
         stocktake_merge_rules=read("stocktake_merge_rules.md", required=False),
-        skill_reflect=read("skill_reflect.md", required=False),
     )
 
 

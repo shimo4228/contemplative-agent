@@ -15,7 +15,6 @@ from .llm_functions import generate_reply
 from .session_context import SessionContext
 from ...core.config import VALID_ID_PATTERN
 from ...core.scheduler import Scheduler
-from ...core.skill_router import context_hash
 
 logger = logging.getLogger(__name__)
 
@@ -223,12 +222,6 @@ class ReplyHandler:
         history = ctx.memory.get_history_with(replier_id, limit=5)
         history_summaries = [h.content_summary for h in history]
 
-        router = ctx.skill_router
-        action_id = None
-        if router is not None:
-            action_id = context_hash(their_content)
-            router.select(their_content, top_k=3, action_id=action_id)
-
         reply = generate_reply(
             original_post=original_post,
             their_comment=their_content,
@@ -282,8 +275,6 @@ class ReplyHandler:
                 content=reply,
                 interaction_type="reply",
             )
-            if router is not None and action_id is not None:
-                router.record_outcome(action_id, "success")
             # Upvote their comment as a courtesy
             comment_id = (
                 reply_key.split(":")[-1] if reply_key else ""
@@ -292,10 +283,6 @@ class ReplyHandler:
                 client.upvote_comment(comment_id)
         except MoltbookClientError as exc:
             logger.error("Failed to reply on %s: %s", post_id, exc)
-            if router is not None and action_id is not None:
-                router.record_outcome(
-                    action_id, "failure", note=str(exc)[:200],
-                )
             if exc.status_code == 429:
                 ctx.set_rate_limited()
 

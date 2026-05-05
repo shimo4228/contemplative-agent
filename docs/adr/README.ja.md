@@ -28,7 +28,7 @@
 | [0020](0020-pivot-snapshots-for-replayability.ja.md) | Pivot スナップショットで再現可能性確保 `[AKC: Curate]` | accepted | 2026-04-16 |
 | [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.ja.md) | Pattern スキーマ拡張 — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028 | 2026-04-16 |
 | [0022](0022-memory-evolution-and-hybrid-retrieval.ja.md) | Memory Evolution + Hybrid Retrieval (BM25) | withdrawn-by 0034 | 2026-04-16 |
-| [0023](0023-skill-as-memory-loop.ja.md) | Skill-as-Memory ループ — Router / Usage Log / Reflective Write | proposed | 2026-04-16 |
+| [0023](0023-skill-as-memory-loop.ja.md) | Skill-as-Memory ループ — Router / Usage Log / Reflective Write | superseded-by 0036 | 2026-04-16 |
 | [0024](0024-identity-block-separation.ja.md) | Identity Block Separation — Frontmatter で addressing する persona ブロック | proposed | 2026-04-16 |
 | [0025](0025-identity-history-and-migrate-cli.ja.md) | Identity History ログ配線 + migrate-identity CLI | proposed | 2026-04-16 |
 | [0028](0028-retire-pattern-level-forgetting-feedback.ja.md) | pattern 層の forgetting と feedback を撤回 — 記憶動的層は skill 層にある | proposed | 2026-04-18 |
@@ -38,6 +38,8 @@
 | [0032](0032-runtime-agent-stance.ja.md) | Stance — Contemplative Agent はランタイムエージェントである | withdrawn — contemplative axioms (ADR-0002) との tension | 2026-04-27 |
 | [0033](0033-aap-quadrant-lens-usage-note.ja.md) | Note — AAP の 4 象限レンズを usage description として借用 | accepted (note) | 2026-05-01 |
 | [0034](0034-withdraw-memory-evolution-and-hybrid-retrieval.ja.md) | Memory Evolution と BM25 Hybrid Retrieval の撤回 — コストに対し効果が見えない | accepted — ADR-0022 を supersede | 2026-05-05 |
+| [0035](0035-sunset-migration-surface-and-consolidate-artifact-extraction.ja.md) | ADR-0019 Migration Surface の sunset と artifact extraction の統合 | accepted | 2026-05-05 |
+| [0036](0036-sunset-skill-as-memory-loop.ja.md) | Skill-as-Memory ループの sunset — Router / Usage Log / Reflect の撤回 | accepted — ADR-0023 を supersede | 2026-05-05 |
 
 ## ADR の種別
 

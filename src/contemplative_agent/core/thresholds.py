@@ -88,24 +88,3 @@ audit; we want only confidently-redundant pairs to surface as merge
 candidates.
 """
 
-# --- Skill router (ADR-0023) -----------------------------------------------
-
-SKILL_ROUTER_DEFAULT: float = 0.45
-"""Default cosine cutoff for the skill router's top-K selection
-(ADR-0023). Skills below this score are not injected, regardless of
-rank, to avoid surfacing weakly-related skills as if they were
-authoritative.
-"""
-
-MIN_FAILURES_FOR_REFLECT: int = 2
-"""Minimum failure count before a skill becomes ``skill-reflect``
-eligible. Pairs with ``FAILURE_RATE_FOR_REFLECT`` so a one-off failure
-on a low-usage skill does not trigger a revision.
-"""
-
-FAILURE_RATE_FOR_REFLECT: float = 0.3
-"""Minimum failure-rate (failures / selections) for ``skill-reflect``
-eligibility. With ``MIN_FAILURES_FOR_REFLECT=2`` this gates revisions
-to skills that fail at least 30% of the time over at least 2 logged
-failures.
-"""

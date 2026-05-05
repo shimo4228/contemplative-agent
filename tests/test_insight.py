@@ -160,33 +160,6 @@ class TestExtractInsight:
         assert result.skills[0].filename == f"ask-before-reacting-{today}.md"
 
     @patch("contemplative_agent.core.insight._extract_skill")
-    def test_skill_text_has_adr0023_frontmatter(
-        self, mock_skill, knowledge_store,
-    ) -> None:
-        """ADR-0023: insight-emitted skills carry router metadata,
-        merged into the LLM's legacy frontmatter block (not stacked)."""
-        from contemplative_agent.core.skill_frontmatter import parse
-
-        mock_skill.return_value = GOOD_SKILL_RESPONSE
-        result = extract_insight(knowledge_store=knowledge_store)
-        assert isinstance(result, InsightResult)
-        skill_text = result.skills[0].text
-
-        # Single frontmatter block (no stacked ---\n---\n)
-        assert skill_text.startswith("---\n")
-        assert skill_text.count("\n---\n") == 1
-
-        meta, body = parse(skill_text)
-        assert meta.last_reflected_at is None
-        assert meta.success_count == 0
-        assert meta.failure_count == 0
-        # Legacy LLM fields preserved in extra
-        assert meta.extra.get("name") == "ask-before-reacting"
-        assert meta.extra.get("origin") == "auto-extracted"
-        # Body starts with the title, not the legacy frontmatter remnants
-        assert body.lstrip().startswith("# Ask Before Reacting")
-
-    @patch("contemplative_agent.core.insight._extract_skill")
     def test_gated_patterns_excluded(self, mock_skill, tmp_path) -> None:
         """gated=True (noise) patterns must not reach the LLM."""
         ks = KnowledgeStore(path=tmp_path / "k.json")

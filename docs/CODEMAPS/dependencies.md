@@ -1,4 +1,4 @@
-<!-- Generated: 2026-04-21 | Files scanned: 1 pyproject.toml | Token estimate: ~270 -->
+<!-- Generated: 2026-05-05 | Files scanned: 1 pyproject.toml | Token estimate: ~270 -->
 # Dependencies
 
 ## Runtime

@@ -109,8 +109,7 @@ class KnowledgeStore:
 
         ADR-0028: pattern-layer forgetting (``last_accessed_at`` /
         ``access_count``) and feedback (``success_count`` /
-        ``failure_count``) fields have been retired. Memory-dynamics live
-        at the skill layer (ADR-0023).
+        ``failure_count``) fields have been retired.
         """
         ts = now_iso()
         distilled_value = distilled or ts

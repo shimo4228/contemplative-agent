@@ -5,17 +5,13 @@ the same chain: ``extract_title → slugify → path-escape guard``. This
 module hosts that chain so a fix (for example, tightening the path
 guard) only needs to land in one place.
 
-``skill-reflect`` deliberately does **not** use this helper. Its
-filename comes from the existing skill file (``stats.name``), not from
-the LLM body, so the title/slug step does not apply.
-
 ADR-0035 PR3a explicitly rejects a base-class framing for the broader
 "extract → validate → stage" loop. The LLM call, the marker semantics
-(``_NO_CHANGE`` / ``_NO_RULES_MARKER``), the multi-output split, and the
-frontmatter merge differ enough across the three callers that pulling
-them into a parent re-creates the ADR-0024/0025 overgeneralization that
-ADR-0030 had to withdraw. The helper here is scoped tightly to the
-genuinely shared step.
+(``_NO_RULES_MARKER``), the multi-output split, and the frontmatter
+merge differ enough across the callers that pulling them into a parent
+re-creates the ADR-0024/0025 overgeneralization that ADR-0030 had to
+withdraw. The helper here is scoped tightly to the genuinely shared
+step.
 """
 
 from __future__ import annotations

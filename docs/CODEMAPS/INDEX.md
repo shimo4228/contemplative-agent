@@ -2,7 +2,7 @@
 # Codemaps Index
 
 Comprehensive architectural documentation for contemplative-moltbook project.
-**Last Updated**: 2026-04-21 | **Codebase**: 51 modules, ~13400 LOC
+**Last Updated**: 2026-05-05 | **Codebase**: 43 modules, ~11400 LOC
 
 ---
 
@@ -12,7 +12,7 @@ Comprehensive architectural documentation for contemplative-moltbook project.
 **Read first.** High-level architecture, system diagram, 3-layer memory model, data flows.
 
 **Topics**:
-- Project type & stats (51 modules, ~13400 LOC)
+- Project type & stats (43 modules, ~11400 LOC)
 - System diagram (core/ + adapters/moltbook/ + adapters/meditation/ + adapters/dialogue/ + Ollama / pluggable backend)
 - Import rules (adapters → core, cli.py is only exception)
 - Session execution flow (ReplyHandler → FeedManager → PostPipeline)
@@ -30,9 +30,9 @@ Comprehensive architectural documentation for contemplative-moltbook project.
 **Most comprehensive.** Module dependency graph, CLI commands, LLM functions, security boundaries.
 
 **Topics**:
-- Full module dependency graph with line counts (49 modules)
+- Full module dependency graph with line counts (43 modules)
 - 20+ key classes (Agent, SessionContext, FeedManager, ReplyHandler, PostPipeline, etc.)
-- CLI commands (init, register, run, distill, distill-identity, insight, skill-reflect, rules-distill, adopt-staged, skill-stocktake, rules-stocktake, generate-report, solve, meditate, install-schedule, ...)
+- CLI commands (init, register, run, distill, distill-identity, insight, rules-distill, adopt-staged, skill-stocktake, rules-stocktake, generate-report, solve, meditate, install-schedule, ...)
 - LLM functions (12 in core/llm.py + insight.py + meditation)
 - Prompt templates (32 templates, domain placeholders)
 - Persistent state files
@@ -45,10 +45,10 @@ Comprehensive architectural documentation for contemplative-moltbook project.
 ---
 
 ### 3. [core-modules.md](core-modules.md) — Core Layer Deep Dive
-**Platform-independent foundation.** 26 modules providing base functionality.
+**Platform-independent foundation.** 25 modules providing base functionality.
 
 **Topics**:
-- 27 core modules: _io, config, domain, prompts, llm (includes `LLMBackend` Protocol), embeddings, episode_embeddings, episode_log, knowledge_store, memory, scheduler, distill, insight, constitution, rules_distill, stocktake, views, snapshot, migration, report, metrics, forgetting (ADR-0021), skill_frontmatter (ADR-0023), skill_router (ADR-0023), skill_reflect (ADR-0023), clustering (ADR-0019 companion)
+- 24 core modules: _io, config, domain, prompts, llm (includes `LLMBackend` Protocol), embeddings, episode_embeddings, episode_log, knowledge_store, memory, scheduler, distill, insight, constitution, rules_distill, stocktake, views, snapshot, report, metrics, forgetting (ADR-0021), clustering (ADR-0019 companion)
 - 2-stage distill pipeline (extract → refine, identity update integrated)
 - Dependency flow diagram
 - 3 frozen dataclasses (Interaction, PostRecord, Insight)
@@ -129,8 +129,8 @@ Package versions, transitive dependencies, security notes.
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |
 | Dataclasses | 3 (Interaction, PostRecord, Insight) + result types (see core-modules.md) |
-| CLI commands | 22 (init, register, status, run, distill, distill-identity, insight, skill-reflect, adopt-staged, remove-skill, rules-distill, amend-constitution, report, generate-report, solve, meditate, install-schedule, skill-stocktake, rules-stocktake, sync-data, prune-skill-usage, enrich) |
-| Prompt templates | 31 (added: skill_reflect) |
+| CLI commands | 20 (init, register, status, run, distill, distill-identity, insight, adopt-staged, remove-skill, rules-distill, amend-constitution, report, generate-report, solve, meditate, install-schedule, skill-stocktake, rules-stocktake, sync-data, enrich) |
+| Prompt templates | 30 |
 | Config templates | 11 (config/templates/) |
 | Rate limit budgets | 2 (GET 60/min, POST 30/min) |
 
@@ -152,4 +152,4 @@ Package versions, transitive dependencies, security notes.
 
 CODEMAPS はコード変更時に更新する（「どこにあるか」のコード索引）。
 
-Last full scan: 2026-04-21 (51 modules verified, v2.1.0 release prep — LLMBackend Protocol, dialogue adapter, init-time copy)
+Last full scan: 2026-05-05 (43 modules verified, post-ADR-0036 sunset of skill-as-memory loop)

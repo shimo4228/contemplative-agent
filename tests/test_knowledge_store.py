@@ -2,8 +2,7 @@
 
 ADR-0028 retired the pattern-level forgetting (access_count /
 last_accessed_at / strength) and feedback (success_count / failure_count)
-fields. Their tests are removed from this file; memory dynamics now live
-at the skill layer (ADR-0023).
+fields. Their tests are removed from this file.
 """
 
 from __future__ import annotations

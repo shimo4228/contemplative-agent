@@ -8,8 +8,8 @@ updating any language version of `README.md`.
 This glossary is aligned with the upstream [AKC glossary](https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/glossary.md):
 AKC-shared terms (cycle, phase names, `signal-first`, `harness`, the six
 cycle skills) are kept identical. Terms specific to Contemplative Agent
-(security by absence, Yogācāra frame, `distill` / `insight` /
-`skill-reflect` CLI commands, pivot snapshots, etc.) are added below.
+(security by absence, Yogācāra frame, `distill` / `insight` CLI
+commands, pivot snapshots, etc.) are added below.
 
 ## Translation policy
 
@@ -106,7 +106,6 @@ wrapped in local punctuation when embedded in a translated sentence.
   「security by absence（不在的安全）」.
 - **one external adapter per agent** — ADR-0015 principle.
 - **noise as seed** — ADR-0027 retention policy.
-- **skill-as-memory loop** — ADR-0023 architecture.
 - **pivot snapshots** — ADR-0020 replay mechanism.
 
 ### AAP four-quadrant lens (Keep original)
@@ -120,7 +119,7 @@ project as a usage-description aid, not as a category claim (ADR-0033).
 - **Algorithmic Search** — deterministic, exploratory-input quadrant.
 - **LLM Workflow** — semantic-judgement, defined-input quadrant.
 - **Autonomous Agentic Loop** — semantic-judgement, exploratory-input quadrant.
-- **Phase-crossing observation** — work that originates in operation phase but revises design-phase artifacts (skills, rules, identity). Not a quadrant; an orthogonal observation. In-repo anchors: ADR-0016, ADR-0023.
+- **Phase-crossing observation** — work that originates in operation phase but revises design-phase artifacts (skills, rules, identity). Not a quadrant; an orthogonal observation. In-repo anchor: ADR-0016.
 - **quadrant lens** — the borrowed routing diagnostic itself. Bilingual gloss "象限レンズ / 象限診断" allowed on first use in JA.
 
 ### AKC phase → CLI mapping (English only)
@@ -128,7 +127,6 @@ project as a usage-description aid, not as a category claim (ADR-0033).
 - `distill` — Extract (behavioral / constitutional knowledge)
 - `distill-identity` — Promote (whole-file identity)
 - `insight` — Curate (extract skills from patterns)
-- `skill-reflect` — Measure (skill outcome feedback, ADR-0023)
 - `rules-distill` — Promote (skills → rules)
 - `amend-constitution` — Curate (constitutional knowledge → constitution)
 - `adopt-staged` — Promote (staging → active)

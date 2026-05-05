@@ -28,7 +28,7 @@ Records of key design decisions for this project.
 | [0020](0020-pivot-snapshots-for-replayability.md) | Pivot Snapshots for Replayability `[AKC: Curate]` | accepted | 2026-04-16 |
 | [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.md) | Pattern Schema Extension — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028, 0029 | 2026-04-16 |
 | [0022](0022-memory-evolution-and-hybrid-retrieval.md) | Memory Evolution + Hybrid Retrieval (BM25) | withdrawn-by 0034 | 2026-04-16 |
-| [0023](0023-skill-as-memory-loop.md) | Skill-as-Memory Loop — Router, Usage Log, Reflective Write | accepted | 2026-04-16 |
+| [0023](0023-skill-as-memory-loop.md) | Skill-as-Memory Loop — Router, Usage Log, Reflective Write | superseded-by 0036 | 2026-04-16 |
 | [0024](0024-identity-block-separation.md) | Identity Block Separation — Frontmatter-Addressed Persona Blocks | superseded-by 0030 | 2026-04-16 |
 | [0025](0025-identity-history-and-migrate-cli.md) | Identity History Log Wiring + migrate-identity CLI | superseded-by 0030 | 2026-04-16 |
 | [0026](0026-retire-discrete-categories.md) | Retire Discrete Categories (Phase-3 Completion of ADR-0019) | accepted | 2026-04-16 |
@@ -41,6 +41,7 @@ Records of key design decisions for this project.
 | [0033](0033-aap-quadrant-lens-usage-note.md) | Note — Borrowing AAP's Four-Quadrant Lens as a Usage-Description Aid | accepted (note) | 2026-05-01 |
 | [0034](0034-withdraw-memory-evolution-and-hybrid-retrieval.md) | Withdraw Memory Evolution and BM25 Hybrid Retrieval — Cost Without Benefit | accepted — supersedes 0022 | 2026-05-05 |
 | [0035](0035-sunset-migration-surface-and-consolidate-artifact-extraction.md) | Sunset ADR-0019 Migration Surface and Consolidate Artifact Extraction | accepted | 2026-05-05 |
+| [0036](0036-sunset-skill-as-memory-loop.md) | Sunset Skill-as-Memory Loop — Retire Router, Usage Log, and Reflect | accepted — supersedes 0023 | 2026-05-05 |
 
 ## ADR Types
 

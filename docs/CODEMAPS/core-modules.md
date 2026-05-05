@@ -1,4 +1,4 @@
-<!-- Generated: 2026-04-21 | Files scanned: 28 core modules | Token estimate: ~1400 -->
+<!-- Generated: 2026-05-05 | Files scanned: 25 core modules | Token estimate: ~1400 -->
 # Core Modules Codemap
 
 Platform-independent foundation (no Moltbook dependencies). All imports flow: adapters → core.
@@ -21,19 +21,16 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `views.py` | 396 | `ViewRegistry` — seed-text views with `seed_from` + `${VAR}` substitution, lazy centroid cache, hybrid cosine + BM25 scoring (ADR-0022) |
 | `snapshot.py` | 178 | `write_snapshot()` + `collect_thresholds()` — pivot snapshots per ADR-0020 |
 | `forgetting.py` | 30 | Retrieval gate (ADR-0021 IV-2/IV-7 + ADR-0028 retirement): `TRUST_FLOOR`, `is_live(pattern)` — bitemporal + trust floor only. Ebbinghaus strength and mark_accessed were retired by ADR-0028. |
-| `skill_frontmatter.py` | 205 | YAML-subset parser/renderer for skill-file metadata (`last_reflected_at`, `success_count`, `failure_count`, ADR-0023) |
-| `skill_router.py` | 432 | Context-conditioned skill router (ADR-0023): cosine top-K over `(title+body)` embedding, no-inject fallback, usage log, `record_outcome`, `aggregate_usage`, `needs_reflection` |
-| `skill_reflect.py` | 133 | `reflect_skills() → ReflectResult` (ADR-0023): usage window → eligible skills → LLM revises body → `last_reflected_at` frontmatter update; `NO_CHANGE` output is counted separately |
 | `scheduler.py` | 165 | Rate limit state, `has_read_budget`/`has_write_budget`, persistence |
 | `constitution.py` | 106 | `amend_constitution()` → `AmendmentResult` |
 | `distill.py` | 846 | `distill()` w/ embedding centroid classify (ADR-0019) + provenance/trust/bitemporal write (ADR-0021); `distill_identity()` reads/writes identity.md as a single text blob (legacy whole-file path restored by ADR-0030). Memory evolution pass (ADR-0022) was withdrawn by ADR-0034 |
-| `insight.py` | 319 | `extract_insight()` → `InsightResult`; view-driven batch building. Emits ADR-0023 frontmatter on generated skills, pulls live-only patterns via `KnowledgeStore.get_live_patterns`, and ranks batches by `effective_importance` (importance × trust × 0.95^days; strength factor retired by ADR-0028) |
+| `insight.py` | 319 | `extract_insight()` → `InsightResult`; view-driven batch building. Pulls live-only patterns via `KnowledgeStore.get_live_patterns` and ranks batches by `effective_importance` (importance × trust × 0.95^days; strength factor retired by ADR-0028) |
 | `rules_distill.py` | 322 | `distill_rules()` → `RulesDistillResult`; Practice/Rationale B-layer format |
 | `stocktake.py` | 363 | Skill/rule audit: embedding-only clustering at `SIM_CLUSTER_THRESHOLD=0.80`, `merge_group()` with `CANNOT_MERGE` reject |
 | `report.py` | 256 | `generate_report()` JSONL → Markdown activity summary |
 | `metrics.py` | 160 | Session metrics aggregation (actions, topics, engagement) |
 
-**Total: ~7400 LOC (28 modules)**
+**Total: ~6700 LOC (25 modules)**
 
 ## Key Dataclasses
 
@@ -50,18 +47,10 @@ Insight(timestamp, observation, insight_type)
 ```python
 AmendmentResult(text, target_path, marker_dir)           # constitution.py
 IdentityResult(text, target_path)                        # distill.py (whole-file, restored by ADR-0030)
-SkillResult(text, filename, target_path)                 # insight.py (reused by skill_reflect.py)
+SkillResult(text, filename, target_path)                 # insight.py
 InsightResult(skills, dropped_count, skills_dir)
-ReflectResult(skills, eligible, no_change_count, skills_dir)  # skill_reflect.py (ADR-0023)
 RuleResult(text, filename, target_path)                  # rules_distill.py
 RulesDistillResult(rules, dropped_count, rules_dir)
-```
-
-**ADR-0023 skill frontmatter** — dataclasses under `skill_frontmatter.py`:
-```python
-SkillMeta(last_reflected_at, success_count, failure_count, extra)   # skill_frontmatter.py
-SkillMatch(name, path, body, score, meta)                           # skill_router.py
-SkillUsageStats(name, selections, successes, failures, partials, failure_contexts)  # skill_router.py
 ```
 
 ## EpisodeLog Schema (JSONL)
@@ -101,7 +90,7 @@ File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0021):
 - `gated` is behavioural (skipped in distill dedup); `last_view_matches` is read-only telemetry (ADR-0020 — never branch on it).
 - `valid_until=None` means live; superseded rows keep the timestamp (bitemporal soft-invalidate, ADR-0021). Retrieval must filter via `forgetting.is_live(p)`.
 - `effective_importance = importance × trust_score × 0.95^days_since_distilled` — see `knowledge_store.effective_importance` (ADR-0021 + ADR-0028 strength-factor retirement).
-- `last_accessed_at` / `access_count` / `success_count` / `failure_count` fields retired by ADR-0028. Memory dynamics at skill layer (ADR-0023).
+- `last_accessed_at` / `access_count` / `success_count` / `failure_count` fields retired by ADR-0028.
 - `provenance.sanitized` flag + `source_type=user_input|external_post` retired by ADR-0029 (dormant at landing; MINJA defense is structurally quarantine at `summarize_record`, not trust-weighting).
 - `category` field removed by ADR-0026. Legacy `category` keys are silently dropped on the next save; the `migrate-categories` rewrite command was retired (ADR-0035) once active deployments finished migrating. Legacy `category == "noise"` is preserved as `gated = True` only for stores that already ran the migration on a v2.0.x release tag.
 
@@ -199,27 +188,6 @@ View-driven batching (ADR-0019):
 6. Writes gated by cli.py per-file approval.
 
 Cross-view merge / dedup is delegated to `skill-stocktake` (insight = narrow generator, stocktake = broad consolidator; ADR-0016).
-
-## Skill Reflect Pipeline (core/skill_reflect.py, ADR-0023)
-
-`reflect_skills(skills_dir, skill_router, *, days=14, generate_fn=generate) → ReflectResult`
-
-Closes the skill-as-memory loop started by `skill_router`:
-
-```
-SkillRouter.load_usage(days)
-  → aggregate_usage(records)                 # pure, joins selection ↔ outcome by action_id
-  → filter(needs_reflection)                 # failures ≥ 2 AND failure_rate ≥ 0.3
-  → for each eligible skill:
-       read body + current frontmatter
-       LLM(SKILL_REFLECT_PROMPT) with failure_contexts
-       NO_CHANGE → count separately
-       revised  → validate_identity_content → update_meta(last_reflected_at=now)
-                → render + SkillResult
-  → ReflectResult(skills, eligible, no_change_count, skills_dir)
-```
-
-Writes are gated by `cli.py` (`--stage` for non-interactive / coding-agent use). `last_reflected_at` feeds `SkillRouter.select`'s tie-breaker ordering so recently-revised skills are preferred on cosine ties.
 
 ## Rules Distill Pipeline (core/rules_distill.py)
 

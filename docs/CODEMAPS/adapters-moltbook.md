@@ -1,4 +1,4 @@
-<!-- Generated: 2026-04-21 | Files scanned: 17 adapter modules | Token estimate: ~1300 -->
+<!-- Generated: 2026-05-05 | Files scanned: 17 adapter modules | Token estimate: ~1300 -->
 # Adapters Codemap
 
 Platform-specific implementations. Dependency: adapters → core.

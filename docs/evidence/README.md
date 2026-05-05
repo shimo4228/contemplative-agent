@@ -14,7 +14,6 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 |---|---|---|
 | `adr-0009/` | Importance scoring + embedding dedup calibration | ADR-0009 |
 | `adr-0021/` | Pattern schema extension phases + post-landing audit | ADR-0021 / 0028 / 0029 |
-| `adr-0023/` | Cluster threshold calibration + skill baseline | ADR-0023 |
 | `adr-0029/` | Smoke-test derived observations | ADR-0029 |
 | `adr-0030/` | Withdrawn approach handoff (archived) | ADR-0030 |
 

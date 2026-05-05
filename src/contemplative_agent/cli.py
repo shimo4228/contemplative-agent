@@ -784,77 +784,6 @@ def _handle_sync_data(_args: argparse.Namespace, _parser: argparse.ArgumentParse
     _run_sync()
 
 
-def _handle_prune_skill_usage(
-    args: argparse.Namespace, _parser: argparse.ArgumentParser
-) -> None:
-    """Delete skill-usage-YYYY-MM-DD.jsonl files older than N days.
-
-    Rotation is not automatic (ADR-0023: append-only). This CLI lets
-    operators trim old daily logs manually. --dry-run lists targets
-    without deleting so the cutoff can be sanity-checked first.
-    """
-    import re as _re
-    from datetime import date, datetime as _dt, timedelta as _td, timezone as _tz
-
-    older_than = args.older_than
-    if older_than <= 0:
-        print("--older-than must be a positive integer", file=sys.stderr)
-        sys.exit(1)
-
-    log_dir = EPISODE_LOG_DIR
-    if not log_dir.is_dir():
-        print(f"No log directory at {log_dir}")
-        return
-
-    today = _dt.now(_tz.utc).date()
-    cutoff = today - _td(days=older_than)
-    name_re = _re.compile(r"^skill-usage-(\d{4}-\d{2}-\d{2})\.jsonl$")
-
-    candidates: list[tuple[Path, date]] = []
-    skipped: list[str] = []
-    for p in sorted(log_dir.glob("skill-usage-*.jsonl")):
-        m = name_re.match(p.name)
-        if not m:
-            skipped.append(p.name)
-            continue
-        try:
-            file_date = _dt.strptime(m.group(1), "%Y-%m-%d").date()
-        except ValueError:
-            skipped.append(p.name)
-            continue
-        if file_date < cutoff:
-            candidates.append((p, file_date))
-
-    print()
-    print(
-        f"=== prune-skill-usage (older than {older_than} days, "
-        f"cutoff {cutoff.isoformat()}) ==="
-    )
-    if not candidates:
-        print("  No files to delete.")
-        if skipped:
-            print(f"  Skipped {len(skipped)} file(s) with unparseable name")
-        return
-
-    dry_run = _is_dry_run(args)
-    verb = "Would delete" if dry_run else "Deleted"
-    deleted = 0
-    for p, file_date in candidates:
-        if not dry_run:
-            try:
-                p.unlink()
-            except OSError as exc:
-                print(f"  Failed to delete {p.name}: {exc}", file=sys.stderr)
-                continue
-        deleted += 1
-        print(f"  {verb}: {p.name} ({file_date.isoformat()})")
-
-    suffix = " (dry-run)" if dry_run else ""
-    print(f"  Total: {deleted} file(s){suffix}")
-    if skipped:
-        print(f"  Skipped {len(skipped)} file(s) with unparseable name")
-
-
 def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     """Walk the staging dir, run each staged file through the approval gate,
     and write accepted files to their target paths. Rejected and accepted
@@ -1249,44 +1178,6 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
     if written > 0:
         write_last_insight(SKILLS_DIR)
     print(f"\n--- Summary: {written} written, {len(result.skills) - written} skipped, {result.dropped_count} dropped ---")
-
-
-def _handle_skill_reflect(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
-    from .core.embeddings import embed_texts
-    from .core.skill_reflect import reflect_skills
-    from .core.skill_router import DEFAULT_USAGE_WINDOW_DAYS, SkillRouter
-
-    log_dir = MOLTBOOK_DATA_DIR / "logs"
-    router = SkillRouter(
-        skills_dir=SKILLS_DIR,
-        embed_fn=embed_texts,
-        log_dir=log_dir,
-    )
-    days = getattr(args, "days", DEFAULT_USAGE_WINDOW_DAYS)
-    result = reflect_skills(
-        skills_dir=SKILLS_DIR,
-        skill_router=router,
-        days=days,
-    )
-    if isinstance(result, str):
-        print(result)
-        return
-    if getattr(args, "stage", False):
-        _stage_results(
-            [StageItem(s.filename, s.text, s.target_path) for s in result.skills],
-            command="skill-reflect",
-        )
-        return
-    written = _run_approval_loop(
-        result.skills,
-        command="skill-reflect",
-        target_dir=SKILLS_DIR,
-    )
-    dropped = result.eligible - written - result.no_change_count - (len(result.skills) - written)
-    print(
-        f"\n--- Summary: {written} revised, {result.no_change_count} NO_CHANGE, "
-        f"{max(0, dropped)} dropped (eligible={result.eligible}) ---"
-    )
 
 
 def _handle_rules_distill(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
@@ -1811,20 +1702,6 @@ def main() -> None:
         help="Short label for stderr traces",
     )
 
-    # skill-reflect
-    skill_reflect_parser = subparsers.add_parser(
-        "skill-reflect",
-        help="Revise skills using recent skill-usage outcomes (ADR-0023)",
-    )
-    skill_reflect_parser.add_argument(
-        "--days", type=int, default=14,
-        help="Aggregation window in days (default: 14)",
-    )
-    skill_reflect_parser.add_argument(
-        "--stage", action="store_true",
-        help="Write revisions to staging dir instead of interactive approval",
-    )
-
     # skill-stocktake
     skill_stocktake_parser = subparsers.add_parser("skill-stocktake", help="Audit skills for duplicates and quality issues")
     skill_stocktake_parser.add_argument(
@@ -1851,23 +1728,6 @@ def main() -> None:
 
     # sync-data
     subparsers.add_parser("sync-data", help="Sync research data to external git repository")
-
-    # prune-skill-usage (N11)
-    prune_usage_parser = subparsers.add_parser(
-        "prune-skill-usage",
-        help="Delete skill-usage-YYYY-MM-DD.jsonl files older than N days",
-    )
-    prune_usage_parser.add_argument(
-        "--older-than",
-        type=int,
-        required=True,
-        help="Delete files whose date is older than N days ago",
-    )
-    prune_usage_parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="List target files without deleting",
-    )
 
     # adopt-staged
     adopt_p = subparsers.add_parser(
@@ -1928,7 +1788,6 @@ def main() -> None:
         "skill-stocktake": _handle_skill_stocktake,
         "rules-stocktake": _handle_rules_stocktake,
         "sync-data": _handle_sync_data,
-        "prune-skill-usage": _handle_prune_skill_usage,
         "adopt-staged": _handle_adopt_staged,
         "remove-skill": _handle_remove_skill,
         "dialogue": _handle_dialogue,
@@ -1947,7 +1806,6 @@ def main() -> None:
         "enrich": _handle_enrich,
         "distill-identity": _handle_distill_identity,
         "insight": _handle_insight,
-        "skill-reflect": _handle_skill_reflect,
         "rules-distill": _handle_rules_distill,
         "amend-constitution": _handle_amend_constitution,
         "report": _handle_report,

@@ -1,4 +1,4 @@
-<!-- Generated: 2026-04-21 | Files scanned: 51 | Token estimate: ~1850 -->
+<!-- Generated: 2026-05-05 | Files scanned: 43 | Token estimate: ~1850 -->
 # Moltbook Agent Codemap
 
 Bird's-eye view of the entire codebase. For deep dives, see
@@ -7,8 +7,8 @@ Bird's-eye view of the entire codebase. For deep dives, see
 ## Module Dependency Graph
 
 ```
-cli.py (2164L)  -- composition root, only file importing both core/ and adapters/
- -> core/  (27 modules)
+cli.py (1826L)  -- composition root, only file importing both core/ and adapters/
+ -> core/  (25 modules)
  |    _io.py (46L)                -- file I/O (write_restricted, truncate, archive_before_write)
  |    config.py (28L)             -- security constants (FORBIDDEN_*, VALID_*, MAX_*)
  |    domain.py (295L)            -- DomainConfig + PromptTemplates + constitution loader
@@ -22,8 +22,6 @@ cli.py (2164L)  -- composition root, only file importing both core/ and adapters
  |    views.py (340L)             -- ViewRegistry (seed_from + ${VAR}, lazy centroid cache, cosine × trust ranking)
  |    snapshot.py (178L)          -- write_snapshot + collect_thresholds (pivot snapshots, ADR-0020)
  |    forgetting.py (30L)         -- is_live: bitemporal + trust floor retrieval gate (ADR-0021 + ADR-0028 retirement)
- |    skill_frontmatter.py (205L) -- stdlib YAML subset parser for skill metadata (ADR-0023)
- |    skill_router.py (432L)      -- cosine top-K skill selection + usage log + reflect prep (ADR-0023)
  |    scheduler.py (165L)         -- rate limit scheduling, persistence
  |    distill.py (846L)           -- embedding classify + 3-step distill + identity distill (whole-file legacy, restored by ADR-0030)
  |    insight.py (307L)           -- view-driven behavior pattern extraction (knowledge → skills)
@@ -80,7 +78,7 @@ config/                           -- externalized templates (domain-swappable, g
   commented_cache.json            -- post dedup cache (0600)
 ```
 
-**Total: 51 modules, ~13400 LOC** (test count: see [INDEX.md](INDEX.md))
+**Total: 43 modules, ~11400 LOC** (test count: see [INDEX.md](INDEX.md))
 
 ## Key Classes
 
@@ -117,7 +115,6 @@ contemplative-agent run [--session M] [--approve|--guarded|--auto]
 contemplative-agent distill [--days N] [--dry-run] [--no-axioms]
 contemplative-agent distill-identity [--days N] [--dry-run]
 contemplative-agent insight [--days N] [--stage] [--full]
-contemplative-agent skill-reflect [--days N] [--stage]      -- ADR-0023 skill self-revision via usage log
 contemplative-agent adopt-staged                            -- approve & adopt staged outputs (Tier 1, no LLM)
 contemplative-agent remove-skill <name> [--reason TEXT]     -- auditable skill deletion (gated)
 contemplative-agent rules-distill [--full]
@@ -142,7 +139,6 @@ contemplative-agent solve "TEXT"                          -- math challenge solv
 contemplative-agent meditate [--days N] [--cycles N] [--dry-run]
 contemplative-agent dialogue HOME_A HOME_B --seed "..." [--turns N]   -- local 2-agent dialogue (adapters/dialogue); production ~/.config/moltbook is structurally refused
 contemplative-agent sync-data                             -- sync to research repo
-contemplative-agent prune-skill-usage --older-than N [--dry-run]   -- delete old skill-usage JSONL
 contemplative-agent install-schedule [--interval H] [--session M]
                                      [--distill-hour H] [--no-distill]
                                      [--weekly-analysis] [--weekly-analysis-day D] [--weekly-analysis-hour H]
@@ -174,7 +170,6 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 **Audit**:
 - stocktake_skills, stocktake_rules, stocktake_merge, stocktake_merge_rules
-- skill_reflect (ADR-0023 — revise a skill given failure contexts; NO_CHANGE marker when failures don't indicate a real problem)
 
 **Reports / experimental**:
 - weekly-analysis (Claude Code via launchd)
@@ -221,7 +216,7 @@ Circuit breaker: 5 consecutive LLM failures → open for 120s.
 | `snapshots/{cmd}_{ts}/` | dir | `MOLTBOOK_HOME` | Pivot snapshots (ADR-0020: manifest + views + constitution + centroids.npz) |
 | `history/identity/` | Markdown | `MOLTBOOK_HOME` | Identity archives (timestamped) |
 | `logs/audit.jsonl` | JSONL | `MOLTBOOK_HOME` | Approval history + `snapshot_path` cross-refs |
-| `logs/skill-usage-YYYY-MM-DD.jsonl` | JSONL (0600) | `MOLTBOOK_HOME` | Per-day skill selection + outcome log (ADR-0023); consumed by `skill-reflect` aggregator |
+| `logs/skill-usage-YYYY-MM-DD.jsonl` | JSONL (0600) | `MOLTBOOK_HOME` | Historic skill selection + outcome log (ADR-0023, sunset by ADR-0036). Existing files preserved as observation evidence; no new files generated. |
 | `reports/comment-reports/*.md` | Markdown | `MOLTBOOK_HOME` | Daily activity reports |
 | `reports/analysis/weekly-*.md` | Markdown | `MOLTBOOK_HOME` | Weekly analysis (Claude Code via launchd) |
 | `knowledge.json.bak.*` | JSON | `MOLTBOOK_HOME` | Pre-migration backups left on disk by the retired migration commands (ADR-0035 sunset). Recovery path for a v1.x store. |

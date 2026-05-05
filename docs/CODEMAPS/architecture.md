@@ -1,10 +1,10 @@
-<!-- Generated: 2026-04-21 | Files scanned: 51 | Token estimate: ~950 -->
+<!-- Generated: 2026-05-05 | Files scanned: 43 | Token estimate: ~950 -->
 # Architecture
 
 ## Project Type
-Python application: Contemplative AI agent with core/adapter separation + 3-layer memory + embedding-based views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal/forgetting/feedback (ADR-0021) + skill-as-memory loop (ADR-0023). Identity stays monolithic; the block schema attempt (ADR-0024/0025) was withdrawn by ADR-0030; the memory evolution + BM25 hybrid retrieval attempt (ADR-0022) was withdrawn by ADR-0034. Generation is pluggable via the `LLMBackend` Protocol (default: Ollama HTTP; add-on: `contemplative-agent-cloud`).
+Python application: Contemplative AI agent with core/adapter separation + 3-layer memory + embedding-based views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal/forgetting/feedback (ADR-0021). Identity stays monolithic; the block schema attempt (ADR-0024/0025) was withdrawn by ADR-0030; the memory evolution + BM25 hybrid retrieval attempt (ADR-0022) was withdrawn by ADR-0034; the skill-as-memory loop (ADR-0023) was sunset by ADR-0036. Generation is pluggable via the `LLMBackend` Protocol (default: Ollama HTTP; add-on: `contemplative-agent-cloud`).
 
-**Stats**: 51 modules, ~13400 LOC (test count: see [INDEX.md](INDEX.md))
+**Stats**: 43 modules, ~11400 LOC (test count: see [INDEX.md](INDEX.md))
 
 ## System Diagram
 
@@ -30,17 +30,16 @@ Python application: Contemplative AI agent with core/adapter separation + 3-laye
   +-----------------------------------------------------+
   | src/contemplative_agent/                             |
   |                                                      |
-  |  core/  (platform-independent, 28 modules)          |
+  |  core/  (platform-independent, 25 modules)          |
   |    _io.py  config.py  domain.py  prompts.py         |
   |    llm.py (+ LLMBackend Protocol)  embeddings.py    |
   |    episode_embeddings.py  episode_log.py            |
   |    knowledge_store.py  memory.py                    |
-  |    views.py  migration.py  snapshot.py              |
+  |    views.py  snapshot.py                            |
   |    distill.py  insight.py  constitution.py          |
   |    rules_distill.py  stocktake.py  scheduler.py     |
   |    report.py  metrics.py  forgetting.py             |
-  |    skill_frontmatter.py                             |
-  |    skill_router.py  skill_reflect.py  clustering.py |
+  |    clustering.py                                     |
   |                                                      |
   |  adapters/moltbook/  (platform-specific, 12 modules)|
   |    agent.py  session_context.py  feed_manager.py    |
@@ -55,7 +54,7 @@ Python application: Contemplative AI agent with core/adapter separation + 3-laye
   |  adapters/dialogue/  (2-agent peer loop, 1 module)  |
   |    peer.py                                           |
   |                                                      |
-  |  cli.py  (composition root, ~2160L)                 |
+  |  cli.py  (composition root, ~1830L)                 |
   +-----------------------------------------------------+
          |                              |
     Moltbook API                   Ollama (local, default)

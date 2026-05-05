@@ -20,7 +20,6 @@ from .config import (
     OLLAMA_MODEL,
     RATE_LIMITS,
     RATE_STATE_PATH,
-    SKILLS_DIR,
 )
 from .content import ContentManager
 from .feed_manager import FeedManager
@@ -38,11 +37,9 @@ from ...core.config import (
     VALID_ID_PATTERN,
 )
 from ...core.domain import DomainConfig, get_domain_config
-from ...core.embeddings import embed_texts
 from ...core.llm import configure as configure_llm
 from ...core.memory import MemoryStore
 from ...core.scheduler import Scheduler
-from ...core.skill_router import DEFAULT_THRESHOLD, SkillRouter
 
 logger = logging.getLogger(__name__)
 
@@ -95,19 +92,8 @@ class Agent:
         self._cycle_wait: float = ADAPTIVE_BACKOFF.base_cycle_wait
         self._consecutive_429_cycles: int = 0
 
-        # ADR-0023: SkillRouter scores context → skills and logs usage to
-        # skill-usage-YYYY-MM-DD.jsonl for skill-reflect to consume.
-        self._skill_router = SkillRouter(
-            skills_dir=SKILLS_DIR,
-            embed_fn=embed_texts,
-            log_dir=EPISODE_LOG_DIR,
-            threshold=DEFAULT_THRESHOLD,
-        )
-
         # Shared session state for collaborators
-        self._ctx = SessionContext(
-            memory=self._memory, skill_router=self._skill_router,
-        )
+        self._ctx = SessionContext(memory=self._memory)
 
         # Collaborators — receive explicit context instead of Agent reference
         self._feed_manager = FeedManager(

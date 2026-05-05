@@ -213,7 +213,7 @@ class TestRankADR0021:
     # ADR-0028: mark_access / access_count tests removed. _rank is now a
     # pure read; the Ebbinghaus strength factor and usage tracking were
     # retired because the agent's hot path does not retrieve patterns
-    # per-turn. Live memory dynamics live at the skill layer (ADR-0023).
+    # per-turn.
 
     def test_high_trust_overcomes_low_cosine(self):
         # cosine 劣位 × high-trust が cosine 優位 × low-trust を逆転する。

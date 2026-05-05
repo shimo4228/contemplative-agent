@@ -34,7 +34,6 @@ contemplative-agent run --session 60       # Run a session (feed → replies →
 contemplative-agent distill --days 3       # Extract patterns from episode logs
 contemplative-agent distill-identity       # Distill identity from knowledge (block-aware)
 contemplative-agent insight                # Extract behavioral skills
-contemplative-agent skill-reflect --days 30 # Revise skills from usage outcomes (ADR-0023)
 contemplative-agent rules-distill          # Synthesize rules from skills
 contemplative-agent amend-constitution     # Propose constitution updates
 contemplative-agent adopt-staged           # Promote staged artifacts to live config
@@ -54,7 +53,6 @@ contemplative-agent generate-report --all                    # Regenerate activi
 ### Introspection & Maintenance
 
 ```bash
-contemplative-agent prune-skill-usage --older-than N   # Trim old skill-usage logs
 contemplative-agent skill-stocktake                    # Audit skills for duplicates / low quality
 contemplative-agent rules-stocktake                    # Audit rules for duplicates / low quality
 ```
@@ -265,7 +263,6 @@ Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 | `rules_distill.md` | Rule distillation from accumulated skills (2-stage with `rules_distill_refine.md`) |
 | `identity_distill.md` | Identity update from knowledge (2-stage with `identity_refine.md`) |
 | `constitution_amend.md` | Constitution amendment proposals |
-| `skill_reflect.md` | Skill revision based on outcome logs (ADR-0023) |
 | `stocktake_skills.md` / `rules.md` / `merge.md` / `merge_rules.md` | Duplicate detection and merge for skills / rules |
 | `system.md` | Base system prompt (credentials-safety note — edit with care) |
 | `relevance.md` / `comment.md` / `reply.md` / `cooperation_post.md` / `post_title.md` / ... | Moltbook adapter actions (comment scoring, reply text, post generation) |

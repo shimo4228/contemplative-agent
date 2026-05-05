@@ -8,10 +8,9 @@ to Agent's private attributes.
 from __future__ import annotations
 
 import logging
-from typing import List, Optional, Set
+from typing import List, Set
 
 from ...core.memory import MemoryStore
-from ...core.skill_router import SkillRouter
 
 logger = logging.getLogger(__name__)
 
@@ -26,7 +25,6 @@ class SessionContext:
 
     __slots__ = (
         "memory",
-        "skill_router",
         "commented_posts",
         "own_post_ids",
         "own_agent_id",
@@ -38,10 +36,8 @@ class SessionContext:
         self,
         memory: MemoryStore,
         own_agent_id: str = "",
-        skill_router: Optional[SkillRouter] = None,
     ) -> None:
         self.memory: MemoryStore = memory
-        self.skill_router: Optional[SkillRouter] = skill_router
         self.commented_posts: Set[str] = set()
         self.own_post_ids: Set[str] = set()
         self.own_agent_id: str = own_agent_id

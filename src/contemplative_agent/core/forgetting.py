@@ -5,8 +5,7 @@ current (``valid_until is None``) and its ``trust_score`` passes the
 trust floor. ADR-0021's additional Ebbinghaus ``strength`` factor and
 ``access_count`` / ``last_accessed_at`` usage tracking were retired by
 ADR-0028 — the agent's hot path does not retrieve patterns per-turn, so
-retrieval-frequency-based forgetting has no unit to accumulate. Live
-memory dynamics happen at the skill layer (ADR-0023) instead.
+retrieval-frequency-based forgetting has no unit to accumulate.
 """
 
 from __future__ import annotations

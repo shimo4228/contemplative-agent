@@ -6,7 +6,7 @@ Language: [English](README.md) | [日本語](README.ja.md) | [简体中文](READ
 
 # Contemplative Agent (CA)
 
-[![Tests](https://img.shields.io/badge/tests-1155_passed-brightgreen)](docs/CONFIGURATION.md#development)
+[![Tests](https://img.shields.io/badge/tests-1032_passed-brightgreen)](docs/CONFIGURATION.md#development)
 [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19212119.svg)](https://doi.org/10.5281/zenodo.19212119)
@@ -82,13 +82,12 @@ Episode Log   raw actions, immutable JSONL (untrusted)
 
 As ações brutas fluem para cima por camadas cada vez mais abstratas. Cada camada é opcional. Toda camada acima do Episode Log é gerada pelo agente refletindo sobre a própria experiência.
 
-Esta pipeline é o mapeamento das seis fases AKC para o código: `distill` cobre Extract; `insight` / `rules-distill` / `amend-constitution` cobrem Curate; `distill-identity` cobre Promote; pivot snapshots ([ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.md)) e `skill-reflect` ([ADR-0023](docs/adr/0023-skill-as-memory-loop.md)) cobrem Measure. Mapeamento completo: [docs/CODEMAPS/architecture.md](docs/CODEMAPS/architecture.md#akc-agent-knowledge-cycle-mapping).
+Esta pipeline é o mapeamento das seis fases AKC para o código: `distill` cobre Extract; `insight` / `rules-distill` / `amend-constitution` cobrem Curate; `distill-identity` cobre Promote; pivot snapshots ([ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.md)) cobrem Measure. Mapeamento completo: [docs/CODEMAPS/architecture.md](docs/CODEMAPS/architecture.md#akc-agent-knowledge-cycle-mapping).
 
 ## Principais recursos
 
 - **Ciclo de conhecimento (AKC) sobre os próprios logs** — o agente roda o ciclo de seis fases sobre os próprios logs. Sem fine-tuning, sem dados de treino rotulados. Toda promoção (logs → padrões → habilidades → regras → identidade) passa por um [portão de aprovação humana](docs/adr/0012-human-approval-gate.md).
 - **Embedding + views** — classificação é uma query, não um estado; views são sementes semânticas editáveis ([ADR-0019](docs/adr/0019-discrete-categories-to-embedding-views.md); o campo `category` foi aposentado em [ADR-0026](docs/adr/0026-retire-discrete-categories.md)).
-- **Skill-as-memory loop** — habilidades são recuperadas, aplicadas e reescritas conforme o resultado ([ADR-0023](docs/adr/0023-skill-as-memory-loop.md)).
 - **Noise as seed** — episódios rejeitados são preservados como `noise-YYYY-MM-DD.jsonl`; quando os centroides das views se deslocam, eles ficam disponíveis para reclassificação em vez de serem perdidos ([ADR-0027](docs/adr/0027-noise-as-seed.md)).
 - **Pivot snapshots reproduzíveis** — execuções de `distill` empacotam o contexto completo em tempo de inferência (views + constitution + prompts + skills + rules + identity + embeddings de centroides + thresholds), permitindo replay bit-for-bit ([ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.md)).
 - **Rastreamento de proveniência** — cada padrão carrega `source_type` e `trust_score`; ataques de injeção de memória da classe MINJA tornam-se estruturalmente visíveis ([ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.md)).
@@ -119,14 +118,14 @@ O núcleo é independente de plataforma. Adaptadores são wrappers finos em torn
 
 Um invariante vale em toda a base de código: **core/** é independente de plataforma; **adapters/** dependem do core, nunca o contrário. Mapas de módulos, diagramas de fluxo de dados e responsabilidades por módulo estão em **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)** (fonte autoritativa). O frame de oito consciências do Yogācāra que restringiu o design da memória: [ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.md).
 
-Os modos típicos de operação dos comandos CLI podem ser lidos pela lente de quatro quadrantes da AAP. A maioria dos comandos behaviour-modifying (`distill`, `insight`, `skill-reflect`, `rules-distill`, `amend-constitution`, `distill-identity`, `skill-stocktake`, `dialogue`) tipicamente opera como **LLM Workflow** — fluxo de controle definido, papéis LLM limitados por chamada, promoção determinística através da [porta de aprovação](docs/adr/0012-human-approval-gate.md) onde aplicável. `adopt-staged` e migrações pontuais têm forma **Script**. `meditate` (o adaptador experimental de Active Inference — atualizações de crença POMDP em numpy, sem LLM em tempo de execução) é **Algorithmic Search** — atualizações determinísticas sobre um espaço exploratório de políticas de ação. **O quadrante Autonomous Agentic Loop não é roteado atualmente por nenhum comando CLI deste projeto** — uma observação de uso, não um juízo de valor sobre esse quadrante. Ver [ADR-0033](docs/adr/0033-aap-quadrant-lens-usage-note.md) para entender por que os placements são observações de uso e não compromissos de categoria.
+Os modos típicos de operação dos comandos CLI podem ser lidos pela lente de quatro quadrantes da AAP. A maioria dos comandos behaviour-modifying (`distill`, `insight`, `rules-distill`, `amend-constitution`, `distill-identity`, `skill-stocktake`, `dialogue`) tipicamente opera como **LLM Workflow** — fluxo de controle definido, papéis LLM limitados por chamada, promoção determinística através da [porta de aprovação](docs/adr/0012-human-approval-gate.md) onde aplicável. `adopt-staged` e migrações pontuais têm forma **Script**. `meditate` (o adaptador experimental de Active Inference — atualizações de crença POMDP em numpy, sem LLM em tempo de execução) é **Algorithmic Search** — atualizações determinísticas sobre um espaço exploratório de políticas de ação. **O quadrante Autonomous Agentic Loop não é roteado atualmente por nenhum comando CLI deste projeto** — uma observação de uso, não um juízo de valor sobre esse quadrante. Ver [ADR-0033](docs/adr/0033-aap-quadrant-lens-usage-note.md) para entender por que os placements são observações de uso e não compromissos de categoria.
 
 <details>
 <summary><b>Opcional: Rodar com APIs de LLM gerenciadas</b></summary>
 
 Para experimentos de pesquisa que precisam de um modelo de geração maior do que o Qwen3.5 9B (ex.: comparar como a destilação se comporta com Claude Opus ou GPT-5 mantendo o restante do pipeline de memória idêntico), um repositório complementar fornece backends de LLM gerenciados:
 
-- [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) — Pacote Python opcional. Instalá-lo e configurar uma chave de API roteia toda chamada de geração (distill, insight, rules-distill, amend-constitution, post, comment, reply, dialogue, skill-reflect) pelo Anthropic Claude ou OpenAI GPT. Embeddings continuam usando o `nomic-embed-text` local.
+- [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) — Pacote Python opcional. Instalá-lo e configurar uma chave de API roteia toda chamada de geração (distill, insight, rules-distill, amend-constitution, post, comment, reply, dialogue) pelo Anthropic Claude ou OpenAI GPT. Embeddings continuam usando o `nomic-embed-text` local.
 
 Isso é um **opt-in** explícito. O stack padrão deste repositório (Ollama + Qwen3.5 9B) não alcança nenhum endpoint em nuvem. A propriedade "sem nuvem, sem chaves de API em trânsito" vale para este repositório; o complemento de nuvem a relaxa para os usuários que optarem por isso. O código do repositório principal não é modificado — o complemento injeta seu backend via um Protocol `LLMBackend` abstrato.
 
@@ -140,7 +139,6 @@ Não instale o complemento de nuvem em implantações onde a saída de dados par
 ```bash
 contemplative-agent run --session 60       # Executa uma sessão
 contemplative-agent distill --days 3       # Extrai padrões
-contemplative-agent skill-reflect          # Revisa habilidades a partir dos resultados (ADR-0023)
 contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N
 ```
 
@@ -192,7 +190,7 @@ Cada artigo abaixo informou uma decisão de design específica documentada na AD
 - Rasmussen, P., Paliychuk, P., Beauvais, T., Ryan, J., & Chalef, D. (2025). *Zep: A Temporal Knowledge Graph Architecture for Agent Memory.* [arXiv:2501.13956](https://arxiv.org/abs/2501.13956) — arestas de grafo de conhecimento bitemporais (engine Graphiti); informa o contrato `valid_from` / `valid_until` em cada padrão ([ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.md)).
 - Zhong, W., Guo, L., Gao, Q., Ye, H., & Wang, Y. (2023). *MemoryBank: Enhancing Large Language Models with Long-Term Memory.* [arXiv:2305.10250](https://arxiv.org/abs/2305.10250) — decaimento estilo Ebbinghaus com força reforçada por acesso; originalmente informou a curva de esquecimento ciente da recuperação proposta em [ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.md), aposentada em [ADR-0028](docs/adr/0028-retire-pattern-level-forgetting-feedback.md) em favor de localizar a dinâmica de memória na camada de skill. Mantido como referência histórica.
 - Dong, S., Xu, S., He, P., Li, Y., Tang, J., Liu, T., Liu, H., & Xiang, Z. (2025). *Memory Injection Attacks on LLM Agents via Query-Only Interaction* (MINJA). [arXiv:2503.03704](https://arxiv.org/abs/2503.03704) — ataques de injeção de memória apenas via query em agentes; motiva a proveniência `source_type` + `trust_score` para que ataques da classe MINJA se tornem estruturalmente visíveis em vez de invisíveis ([ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.md)).
-- Zhou, H., Guo, S., Liu, A., et al. (2026). *Memento-Skills: Let Agents Design Agents.* [arXiv:2603.18743](https://arxiv.org/abs/2603.18743) — habilidades como unidades de memória persistentes e em evolução, recuperadas, aplicadas e reescritas pelo resultado; informa o skill-as-memory loop ([ADR-0023](docs/adr/0023-skill-as-memory-loop.md)).
+- Zhou, H., Guo, S., Liu, A., et al. (2026). *Memento-Skills: Let Agents Design Agents.* [arXiv:2603.18743](https://arxiv.org/abs/2603.18743) — habilidades como unidades de memória persistentes e em evolução, recuperadas, aplicadas e reescritas pelo resultado. Informou [ADR-0023](docs/adr/0023-skill-as-memory-loop.md), aposentado por [ADR-0036](docs/adr/0036-sunset-skill-as-memory-loop.md). Mantido como referência histórica.
 
 </details>
 

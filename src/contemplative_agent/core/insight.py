@@ -25,7 +25,6 @@ from .llm import generate, validate_identity_content
 from .episode_log import EpisodeLog
 from .memory import KnowledgeStore
 from .prompts import INSIGHT_EXTRACTION_PROMPT
-from .skill_frontmatter import parse as parse_skill_frontmatter, render as render_skill_frontmatter
 from .text_utils import extract_title
 from .thresholds import CLUSTER_THRESHOLD_INSIGHT as CLUSTER_THRESHOLD, MAX_BATCH as BATCH_SIZE
 
@@ -267,12 +266,8 @@ def extract_insight(
             dropped_count += 1
             continue
 
-        # Merge ADR-0023 router fields into the LLM's legacy frontmatter block
-        # (stacking two blocks leaks legacy metadata into the router's body embed).
-        existing_meta, body = parse_skill_frontmatter(skill_text)
-        rendered = render_skill_frontmatter(existing_meta, body)
         skill_results.append(SkillResult(
-            text=rendered,
+            text=skill_text,
             filename=resolved.filename,
             target_path=resolved.target_path,
         ))

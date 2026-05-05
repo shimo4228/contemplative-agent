@@ -22,7 +22,6 @@ from .session_context import SessionContext
 from ...core.config import VALID_SUBMOLT_PATTERN
 from ...core.domain import DomainConfig
 from ...core.scheduler import Scheduler
-from ...core.skill_router import context_hash
 
 logger = logging.getLogger(__name__)
 
@@ -79,21 +78,11 @@ class PostPipeline:
             logger.info("Topics not novel enough, skipping post")
             return
 
-        router = ctx.skill_router
-        action_id = None
-        if router is not None:
-            action_id = context_hash(topics)
-            router.select(topics, top_k=3, action_id=action_id)
-
         recent_insights = ctx.memory.get_recent_insights(limit=3)
         content = self._get_content().create_cooperation_post(
             topics, recent_insights=recent_insights or None,
         )
         if content is None:
-            if router is not None and action_id is not None:
-                router.record_outcome(
-                    action_id, "partial", note="gated:no_content",
-                )
             return
 
         title = generate_post_title(topics) or f"Contemplative Note — {topics[:40]}"
@@ -110,10 +99,6 @@ class PostPipeline:
         # "Test Title" / "Dynamic content" that leaked in Mar 30–31.
         if is_test_content(title, content):
             logger.warning("Blocked test-content self-post: %r", title)
-            if router is not None and action_id is not None:
-                router.record_outcome(
-                    action_id, "partial", note="gated:test_content",
-                )
             return
 
         # Jaccard self-post dedup gate: token-set similarity over
@@ -133,10 +118,6 @@ class PostPipeline:
                 "Blocked duplicate self-post (jaccard=%.2f vs %r): %r",
                 sim, prior_title, title,
             )
-            if router is not None and action_id is not None:
-                router.record_outcome(
-                    action_id, "partial", note="gated:duplicate",
-                )
             return
 
         # Body-hash dedup gate (ADR-0018 amendment 2026-05-04):
@@ -150,26 +131,14 @@ class PostPipeline:
             logger.info(
                 "Blocked verbatim duplicate self-post by body hash: %r", title,
             )
-            if router is not None and action_id is not None:
-                router.record_outcome(
-                    action_id, "partial", note="gated:body_hash_dup",
-                )
             return
 
         if not self._confirm_action(f"Dynamic Post: {title}", content):
-            if router is not None and action_id is not None:
-                router.record_outcome(
-                    action_id, "partial", note="gated:not_confirmed",
-                )
             return
 
         # Re-check rate limit right before posting (another session may have posted)
         if not scheduler.can_post():
             logger.info("Post rate limit hit after content generation (concurrent session?)")
-            if router is not None and action_id is not None:
-                router.record_outcome(
-                    action_id, "partial", note="gated:rate_limit",
-                )
             return
 
         selected = select_submolt(content, self._domain.subscribed_submolts)
@@ -210,14 +179,8 @@ class PostPipeline:
                 topic_summary=topic_summary,
                 content_hash=content_hash,
             )
-            if router is not None and action_id is not None:
-                router.record_outcome(action_id, "success")
         except MoltbookClientError as exc:
             logger.error("Failed to post dynamic content: %s", exc)
-            if router is not None and action_id is not None:
-                router.record_outcome(
-                    action_id, "failure", note=str(exc)[:200],
-                )
 
     def generate_session_insights(self) -> None:
         """Generate and record insights at the end of a session."""

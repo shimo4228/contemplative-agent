@@ -13,7 +13,6 @@ from contemplative_agent.cli import (
     _approve_delete,
     _handle_adopt_staged,
     _handle_dialogue,
-    _handle_prune_skill_usage,
     _handle_remove_skill,
     _handle_rules_stocktake,
     _handle_skill_stocktake,
@@ -1854,80 +1853,6 @@ class TestStocktakeStageMergeAndDropCoexist:
         assert drop_meta["action"] == "drop"
         assert drop_meta["command"] == "rules-stocktake-drop"
 
-
-
-class TestPruneSkillUsage:
-    """Tests for `prune-skill-usage` CLI (N11, manual log cleanup)."""
-
-    def _args(self, *, older_than: int, dry_run: bool = False):
-        args = MagicMock()
-        args.older_than = older_than
-        args.dry_run = dry_run
-        return args
-
-    def test_missing_log_dir_noop(self, tmp_path, capsys):
-        log_dir = tmp_path / "logs"
-        with patch("contemplative_agent.cli.EPISODE_LOG_DIR", log_dir):
-            _handle_prune_skill_usage(self._args(older_than=7), MagicMock())
-        out = capsys.readouterr().out
-        assert "No log directory" in out
-
-    def test_dry_run_lists_without_deleting(self, tmp_path, capsys):
-        from datetime import date, timedelta
-        log_dir = tmp_path / "logs"
-        log_dir.mkdir()
-        old_date = (date.today() - timedelta(days=180)).isoformat()
-        old_file = log_dir / f"skill-usage-{old_date}.jsonl"
-        old_file.write_text('{"ts": "x"}\n')
-
-        with patch("contemplative_agent.cli.EPISODE_LOG_DIR", log_dir):
-            _handle_prune_skill_usage(
-                self._args(older_than=30, dry_run=True), MagicMock()
-            )
-        out = capsys.readouterr().out
-        assert "Would delete" in out
-        assert old_file.exists()
-        assert "(dry-run)" in out
-
-    def test_deletes_files_older_than_cutoff(self, tmp_path, capsys):
-        from datetime import date, timedelta
-        log_dir = tmp_path / "logs"
-        log_dir.mkdir()
-        today = date.today()
-        old = log_dir / f"skill-usage-{(today - timedelta(days=60)).isoformat()}.jsonl"
-        new = log_dir / f"skill-usage-{(today - timedelta(days=5)).isoformat()}.jsonl"
-        old.write_text('{"ts": "x"}\n')
-        new.write_text('{"ts": "y"}\n')
-
-        with patch("contemplative_agent.cli.EPISODE_LOG_DIR", log_dir):
-            _handle_prune_skill_usage(self._args(older_than=30), MagicMock())
-
-        out = capsys.readouterr().out
-        assert "Deleted" in out
-        assert not old.exists()
-        assert new.exists()
-
-    def test_skips_files_with_unparseable_name(self, tmp_path, capsys):
-        log_dir = tmp_path / "logs"
-        log_dir.mkdir()
-        weird = log_dir / "skill-usage-not-a-date.jsonl"
-        weird.write_text('{"ts": "x"}\n')
-
-        with patch("contemplative_agent.cli.EPISODE_LOG_DIR", log_dir):
-            _handle_prune_skill_usage(self._args(older_than=30), MagicMock())
-
-        out = capsys.readouterr().out
-        assert weird.exists()
-        assert "Skipped" in out
-
-    def test_rejects_non_positive_older_than(self, tmp_path, capsys):
-        log_dir = tmp_path / "logs"
-        log_dir.mkdir()
-        with patch("contemplative_agent.cli.EPISODE_LOG_DIR", log_dir):
-            with pytest.raises(SystemExit) as exc:
-                _handle_prune_skill_usage(self._args(older_than=0), MagicMock())
-        assert exc.value.code == 1
-        assert "positive" in capsys.readouterr().err
 
 
 class TestDialogueCommand:
