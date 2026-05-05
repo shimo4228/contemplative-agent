@@ -20,6 +20,7 @@ rsync -a --delete \
     --exclude='.git/' \
     --exclude='.gitignore' \
     --exclude='README.md' \
+    --exclude='llms.txt' \
     --exclude='logs/' \
     --exclude='agents.json' \
     --exclude='credentials.json' \
