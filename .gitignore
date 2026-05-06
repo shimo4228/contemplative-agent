@@ -80,5 +80,8 @@ tests/fixtures/benchmark/results/
 # Coding agent integrations — skills shelved (ADR-0013), hooks are active
 integrations/skills/
 
-# Claude Code
-.claude/
+# Claude Code: skills と commands だけ track、他はローカル限定
+.claude/*
+!.claude/skills/
+.claude/skills/silent-llm-calls-in-tests/
+!.claude/commands/
