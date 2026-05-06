@@ -7,6 +7,7 @@
 | Path | 種別 | 対象 |
 |---|---|---|
 | `rca/` | Post-mortem | 事故 / 想定外挙動の根本原因分析 |
+| `silent-llm-calls.md` | 診断ガイド | pytest 遅延の silent Ollama 呼び出し検出と `tests/conftest.py` による予防 |
 
 > Past migration guides (e.g. `adr-0019-migration.md`) were retired together
 > with their CLI subcommands once active deployments finished migrating.
