@@ -37,7 +37,6 @@ class _LazyPrompts:
         "MEDITATION_INTERPRET_PROMPT": "meditation_interpret",
         "DISTILL_REFINE_PROMPT": "distill_refine",
         "DISTILL_IMPORTANCE_PROMPT": "distill_importance",
-        "IDENTITY_REFINE_PROMPT": "identity_refine",
         "RULES_DISTILL_PROMPT": "rules_distill",
         "RULES_DISTILL_REFINE_PROMPT": "rules_distill_refine",
         "DISTILL_CLASSIFY_PROMPT": "distill_classify",

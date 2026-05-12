@@ -67,7 +67,6 @@ class PromptTemplates:
     meditation_interpret: str = ""
     distill_refine: str = ""
     distill_importance: str = ""
-    identity_refine: str = ""
     rules_distill: str = ""
     rules_distill_refine: str = ""
     distill_classify: str = ""
@@ -243,7 +242,6 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         meditation_interpret=read("meditation_interpret.md", required=False),
         distill_refine=read("distill_refine.md", required=False),
         distill_importance=read("distill_importance.md", required=False),
-        identity_refine=read("identity_refine.md", required=False),
         rules_distill=read("rules_distill.md", required=False),
         rules_distill_refine=read("rules_distill_refine.md", required=False),
         distill_classify=read("distill_classify.md", required=False),

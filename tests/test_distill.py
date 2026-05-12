@@ -424,7 +424,7 @@ class TestDistillIdentity:
 
     @patch("contemplative_agent.core.distill.generate")
     def test_full_path(self, mock_generate, tmp_path):
-        mock_generate.side_effect = ["raw analysis", "refined identity"]
+        mock_generate.return_value = "revised identity"
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks.add_learned_pattern("Self-reflection pattern about meta-cognition",
                                 embedding=[0.1, 0.2])
@@ -440,12 +440,13 @@ class TestDistillIdentity:
         result = distill_identity(knowledge_store=ks2, view_registry=registry,
                                    identity_path=tmp_path / "identity.md")
         assert isinstance(result, IdentityResult)
-        assert "refined identity" in result.text
+        assert "revised identity" in result.text
+        assert mock_generate.call_count == 1
 
     @patch("contemplative_agent.core.distill.generate")
     def test_legacy_file_stays_legacy(self, mock_generate, tmp_path):
         """ADR-0024: legacy plain-text identity roundtrips without gaining frontmatter."""
-        mock_generate.side_effect = ["raw analysis", "refined identity"]
+        mock_generate.return_value = "revised identity"
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks.add_learned_pattern("Self-reflection pattern", embedding=[0.1, 0.2])
         ks.save()
@@ -466,7 +467,8 @@ class TestDistillIdentity:
         assert isinstance(result, IdentityResult)
         assert "---" not in result.text
         assert "blocks:" not in result.text
-        assert "refined identity" in result.text
+        assert "revised identity" in result.text
+        assert mock_generate.call_count == 1
 
 
 class TestClassifyEpisodes:

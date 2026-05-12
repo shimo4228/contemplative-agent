@@ -27,14 +27,13 @@ from ._io import append_jsonl_restricted, now_iso, strip_code_fence
 from .embeddings import cosine, embed_texts
 from .forgetting import is_live
 from .knowledge_store import TRUST_BASE_BY_SOURCE, effective_importance
-from .llm import generate, _get_default_system_prompt, get_distill_system_prompt, validate_identity_content
+from .llm import generate, get_distill_system_prompt, validate_identity_content
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import (
     DISTILL_PROMPT,
     DISTILL_REFINE_PROMPT,
     DISTILL_IMPORTANCE_PROMPT,
     IDENTITY_DISTILL_PROMPT,
-    IDENTITY_REFINE_PROMPT,
 )
 from .views import ViewRegistry
 
@@ -227,24 +226,14 @@ def distill_identity(
         knowledge=knowledge_text,
     )
 
-    # Step 1: Free-form self-analysis (rules/axioms for value grounding,
-    # but no identity — it's already in the prompt via {current_identity})
     result = generate(prompt, system=get_distill_system_prompt(), num_predict=3000)
     if result is None:
-        msg = "LLM failed at step 1 (self-analysis)."
+        msg = "LLM failed to generate identity revision."
         logger.warning(msg)
         return msg
 
-    # Step 2: Refine into simple persona
-    refine_prompt = IDENTITY_REFINE_PROMPT.format(raw_output=result)
-    refined = generate(refine_prompt, system=_get_default_system_prompt(), num_predict=3000)
-    if refined is None:
-        msg = "LLM failed at step 2 (refine). Using step 1 output."
-        logger.warning(msg)
-        refined = result
-
     # Clean up: strip empty lines and preamble
-    lines = [line.strip() for line in refined.strip().splitlines() if line.strip()]
+    lines = [line.strip() for line in result.strip().splitlines() if line.strip()]
     new_identity = "\n".join(lines)
 
     # Validate against forbidden patterns before returning
