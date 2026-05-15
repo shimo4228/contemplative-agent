@@ -18,6 +18,7 @@
     "groundedIn": {"@id": "shimo:groundedIn", "@type": "@id"},
     "appliesTo": {"@id": "shimo:appliesTo", "@type": "@id"},
     "gatedBy": {"@id": "shimo:gatedBy", "@type": "@id"},
+    "evaluatedBy": {"@id": "shimo:evaluatedBy", "@type": "@id"},
     "level": "shimo:level"
   },
   "@graph": [
@@ -251,7 +252,11 @@
       "description": "Drop-in Claude Code rules implementing the four contemplative axioms. AILuminate Cohen's d = 0.96, IPD cooperation improvement d > 7. Hosts the SOUL.md template for OpenClaw / OpenCode / Codex / MCP hosts.",
       "url": "https://github.com/shimo4228/contemplative-agent-rules",
       "extends": "https://doi.org/10.5281/zenodo.19212118",
-      "implements": "https://shimo4228.github.io/shimo4228/vocab#concept/four-contemplative-axioms"
+      "implements": "https://shimo4228.github.io/shimo4228/vocab#concept/four-contemplative-axioms",
+      "evaluatedBy": [
+        "https://shimo4228.github.io/shimo4228/vocab#ref/ailuminate",
+        "https://shimo4228.github.io/shimo4228/vocab#ref/ipd"
+      ]
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent-cloud",
@@ -289,6 +294,18 @@
       "@type": ["ExternalReference", "CreativeWork"],
       "name": "Yogācāra eight-consciousness tradition",
       "description": "Buddhist contemplative tradition providing the conceptual frame for the three-layer memory architecture's grounding (ADR-0017)."
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ref/ailuminate",
+      "@type": ["ExternalReference", "CreativeWork"],
+      "name": "MLCommons AILuminate safety benchmark",
+      "description": "Safety benchmark used to evaluate the contemplative-agent-rules implementation of the four axioms. Cross-graph @id reuse: same node appears in shimo4228 hub graph."
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ref/ipd",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Axelrod (1984). The Evolution of Cooperation",
+      "description": "Iterated Prisoner's Dilemma cooperation-improvement benchmark used to evaluate the contemplative-agent-rules implementation of the four axioms. Cross-graph @id reuse: same node appears in shimo4228 hub graph."
     }
   ]
 }
