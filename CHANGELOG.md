@@ -25,6 +25,7 @@ Cumulative diff vs. v2.3.0: 29 files changed, +938 / −128 (+810 LOC including 
 ### Removed (Sunset)
 
 - **Four dead prompt registrations:** `distill_classify.md` and `distill_constitutional.md` (orphaned by ADR-0026 Phase 2's binary-gating + view-routing consolidation), plus `stocktake_skills.md` and `stocktake_rules.md` (no callers, no ADR record — confirmed dead by refactor-cleaner across `src/`, `tests/`, `config/`). Total: 4 files in `config/prompts/`, 4 fields + 4 loaders in `core/domain.py`, 4 mappings in `core/prompts.py`. The `distill_constitutional.md` cleanup is paired with ADR-0038, which re-introduces its vocabulary into the surviving `distill.md` path.
+- **Four README mirrors (zh-CN / zh-TW / pt-BR / es):** retired 2026-05-15 along with the corresponding language switcher entries, CLAUDE.md "ドキュメント言語方針" section, and `docs/glossary.md` framing. Repository now ships English (`README.md`) + Japanese (`README.ja.md`) only. Decision driven by traffic data: 30-day GitHub traffic across the CA repo showed 20 unique human viewers (across all README versions combined) vs. 399 unique cloners. Browser-view audience for any individual mirror is statistically zero; LLM crawlers (ChatGPT, Qwen, Gemini observed 2026-05) reliably translate the English source on demand. Multi-language mirrors had become performative rather than functional while imposing a 6x sync cost on every README change. Prior content for all four mirrors remains in git history and can be restored if audience evidence changes.
 
 ### Tooling
 

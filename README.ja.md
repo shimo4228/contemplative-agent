@@ -1,4 +1,4 @@
-Language: [English](README.md) | 日本語 | [简体中文](README.zh-CN.md) | [繁體中文](README.zh-TW.md) | [Português (Brasil)](README.pt-BR.md) | [Español](README.es.md)
+Language: [English](README.md) | 日本語
 
 <p align="center">
   <img src="docs/assets/logo.png" alt="CA logo" width="200">

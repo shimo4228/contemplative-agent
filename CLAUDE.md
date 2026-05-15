@@ -86,7 +86,7 @@ docker compose down                                     # 停止
 
 - CLAUDE.md、docs/CODEMAPS/ は日本語
 - docs/adr/ は英語（*.ja.md が日本語版）
-- README は 6 言語対応: `README.md`（英語=正本）、`README.ja.md`、`README.zh-CN.md`、`README.zh-TW.md`、`README.pt-BR.md`、`README.es.md`。訳語規約と固有名詞の keep-original ポリシーは [docs/glossary.md](docs/glossary.md)。README 本文に新しい project-coined term を入れる時は glossary も同 PR で更新する
+- README は 2 言語: `README.md`（英語=正本）、`README.ja.md`。zh-CN / zh-TW / pt-BR / es mirrors は **2026-05-15 に退役**（traffic data 上 unique human viewer が統計的にゼロ + LLM crawler が en source から多言語 answer 可能なため）。訳語規約と固有名詞の keep-original ポリシーは [docs/glossary.md](docs/glossary.md)。README 本文に新しい project-coined term を入れる時は glossary も同 PR で更新する。退役 mirror は git history に保存（audience 実証データが変われば復元可能）
 
 ## ドキュメント配置
 

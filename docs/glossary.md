@@ -1,9 +1,16 @@
 # Contemplative Agent Glossary
 
-Terminology mapping across the six languages supported by the README of
-this project (English / 日本語 / 简体中文 / 繁體中文 / Português (Brasil) /
-Español). Use this as the canonical reference when translating or
-updating any language version of `README.md`.
+Terminology mapping for the two languages supported by the README of
+this project (English primary + Japanese mirror). Use this as the
+canonical reference when translating or updating either version of
+`README.md`.
+
+(The 简体中文 / 繁體中文 / Português (Brasil) / Español mirrors were
+retired on 2026-05-15 after traffic data showed statistically zero
+unique human viewers; LLM crawlers translate from the English source
+on demand. Glossary entries that list those languages are preserved
+as historical reference for the original translation discipline and
+for any future re-introduction of mirrors.)
 
 This glossary is aligned with the upstream [AKC glossary](https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/glossary.md):
 AKC-shared terms (cycle, phase names, `signal-first`, `harness`, the six
@@ -190,10 +197,12 @@ Always in English: `source_type`, `trust_score`, `valid_from`,
   codebase it is a schema-level term with a specific operational meaning
   (editable semantic seeds that project embedding coordinates onto named
   classes); translating it loses the connection to the ADR.
-- **embedding** is kept as English loanword in zh-CN / zh-TW / ja
-  (*嵌入 / 埋め込み*) because readers routinely see the English term in
-  ML literature. Local renderings are listed so translators can choose
-  depending on audience.
+- **embedding** is kept as English loanword in ja (*埋め込み*) because
+  readers routinely see the English term in ML literature. Local
+  rendering listed so the translator can choose depending on audience.
+  (zh-CN / zh-TW renderings *嵌入* are preserved as historical
+  reference for the original translation discipline; the corresponding
+  README mirrors were retired 2026-05-15.)
 - **bitemporal / air-gapped** are kept in English when they appear as
   technical adjectives (security context). A local gloss may precede
   them on first use.
