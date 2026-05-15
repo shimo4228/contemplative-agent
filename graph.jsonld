@@ -10,11 +10,13 @@
     "Quadrant": "shimo:Quadrant",
     "Axiom": "shimo:Axiom",
     "MemoryLayer": "shimo:MemoryLayer",
+    "Phase": "shimo:Phase",
     "siblingOf": {"@id": "shimo:siblingOf", "@type": "@id"},
     "derivesFrom": {"@id": "shimo:derivesFrom", "@type": "@id"},
     "definesConcept": {"@id": "shimo:definesConcept", "@type": "@id"},
     "extends": {"@id": "shimo:extends", "@type": "@id"},
     "implements": {"@id": "shimo:implements", "@type": "@id"},
+    "implementedBy": {"@id": "shimo:implementedBy", "@type": "@id"},
     "groundedIn": {"@id": "shimo:groundedIn", "@type": "@id"},
     "appliesTo": {"@id": "shimo:appliesTo", "@type": "@id"},
     "gatedBy": {"@id": "shimo:gatedBy", "@type": "@id"},
@@ -24,7 +26,13 @@
     "withdrawnBy": {"@id": "shimo:withdrawnBy", "@type": "@id"},
     "partiallySupersededBy": {"@id": "shimo:partiallySupersededBy", "@type": "@id"},
     "embodiesAxiom": {"@id": "shimo:embodiesAxiom", "@type": "@id"},
-    "level": "shimo:level"
+    "partOf": {"@id": "shimo:partOf", "@type": "@id"},
+    "belongsToPhase": {"@id": "shimo:belongsToPhase", "@type": "@id"},
+    "realizedBy": {"@id": "shimo:realizedBy", "@type": "@id"},
+    "alignsWith": {"@id": "shimo:alignsWith", "@type": "@id"},
+    "referencedBy": {"@id": "shimo:referencedBy", "@type": "@id"},
+    "level": "shimo:level",
+    "order": "shimo:order"
   },
   "@graph": [
     {
@@ -508,7 +516,8 @@
       "identifier": "ADR-0038",
       "status": "accepted",
       "datePublished": "2026-05-13",
-      "description": "Extends the distill prompt's observation target to include first-person realization moments (`the agent caught itself doing X`, `an assumption no longer held`) alongside third-person observable facts. Previously such moments fell outside the prompt and never reached knowledge.json."
+      "description": "Extends the distill prompt's observation target to include first-person realization moments (`the agent caught itself doing X`, `an assumption no longer held`) alongside third-person observable facts. Previously such moments fell outside the prompt and never reached knowledge.json.",
+      "belongsToPhase": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/extract"
     },
 
     {
@@ -563,6 +572,170 @@
       ],
       "description": "Moltbook is the single pinned external SNS adapter for Contemplative Agent (ADR-0015). Domain-locked to www.moltbook.com with allow_redirects=False per ADR-0007's external-surface hardening rule. Moltbook refers exclusively to this adapter, never to the project as a whole."
     },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
+      "@type": ["Concept", "DefinedTerm"],
+      "name": "AKC six-phase loop",
+      "alternateName": [
+        {"@value": "AKC six-phase loop", "@language": "en"},
+        {"@value": "AKC 六相ループ", "@language": "ja"}
+      ],
+      "description": "The Agent Knowledge Cycle's six-phase loop: Research → Extract → Curate → Promote → Measure → Maintain. A reusable design-layer pattern realized by Contemplative Agent's distill / insight / promote / pivot pipelines. Originates from the agent-knowledge-cycle repository."
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/yogacara-aspect-split",
+      "@type": ["Concept", "DefinedTerm"],
+      "name": "Yogācāra aspect split (相分 / 見分)",
+      "alternateName": [
+        {"@value": "Yogācāra aspect split", "@language": "en"},
+        {"@value": "相分・見分の分離", "@language": "ja"}
+      ],
+      "description": "Architectural split between 相分 (image aspect — embedding vectors at the substrate) and 見分 (discriminating consciousness — view centroids computed at read time). Concretely realized by ADR-0019 / ADR-0031: classification is a query, not a stored category. Provides the Yogācāra grounding for `classification-as-query`.",
+      "alignsWith": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/yogacara-tradition",
+      "implementedBy": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0019-discrete-categories-to-embedding-views.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0031-classification-as-query.md"
+      ]
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/moment-of-recognition",
+      "@type": ["Concept", "DefinedTerm"],
+      "name": "moment of recognition",
+      "alternateName": [
+        {"@value": "moment of recognition", "@language": "en"},
+        {"@value": "気づきの瞬間", "@language": "ja"}
+      ],
+      "description": "First-person realization event during a session — the agent catching itself doing X, an assumption no longer holding, a self-defining episode. Distinct from third-person observable facts; added to the distill observation target by ADR-0038. Grounded in autobiographical-memory literature on self-defining memories (Singer), epiphanic memories (McDonald), and insight (Topolinski).",
+      "implementedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0038-moment-of-recognition-distill.md",
+      "groundedIn": [
+        "https://shimo4228.github.io/shimo4228/vocab#ca/ref/singer-sdm",
+        "https://shimo4228.github.io/shimo4228/vocab#ca/ref/mcdonald-epiphanic",
+        "https://shimo4228.github.io/shimo4228/vocab#ca/ref/topolinski-insight"
+      ]
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/worldview-integrity-check",
+      "@type": ["Concept", "DefinedTerm"],
+      "name": "worldview-integrity check",
+      "alternateName": [
+        {"@value": "worldview-integrity check", "@language": "en"},
+        {"@value": "世界観整合性チェック", "@language": "ja"}
+      ],
+      "description": "Forward-guidance meta-principle distilled from ADR-0037: before adopting paper-borrowed mechanisms in parallel within a single ADR Context, run a worldview-integrity check against established Yogācāra-aligned commitments. Prevents the kind of cognitive-bandwidth blind spot that produced the 2026-04 retirement series.",
+      "derivesFrom": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0037-memory-subsystem-yogacara-convergence.md"
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/phase-crossing-observation",
+      "@type": ["Concept", "DefinedTerm"],
+      "name": "phase-crossing observation",
+      "alternateName": [
+        {"@value": "phase-crossing observation", "@language": "en"},
+        {"@value": "相を跨ぐ観察", "@language": "ja"}
+      ],
+      "description": "Borrowed-lens concept from AAP: observations that cross the boundary between design-phase systems (LLM Workflow quadrant) and operation-phase systems (Autonomous Agentic Loop quadrant). Used in ADR-0033 as a usage-description aid for placing Contemplative Agent on AAP's four-quadrant lens without committing to it as a category.",
+      "appliesTo": [
+        "https://shimo4228.github.io/shimo4228/vocab#aap/quadrant/llm-workflow",
+        "https://shimo4228.github.io/shimo4228/vocab#aap/quadrant/autonomous-agentic-loop"
+      ]
+    },
+
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/research",
+      "@type": ["Phase", "DefinedTerm"],
+      "name": "Research Phase (AKC Phase 1)",
+      "alternateName": [
+        {"@value": "Research", "@language": "en"},
+        {"@value": "リサーチ", "@language": "ja"}
+      ],
+      "description": "AKC Phase 1. Live session cycles that produce raw episode logs. In Contemplative Agent, realized by feed_manager and post_pipeline driving the agent's interaction with the external surface.",
+      "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
+      "order": 1
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/extract",
+      "@type": ["Phase", "DefinedTerm"],
+      "name": "Extract Phase (AKC Phase 2)",
+      "alternateName": [
+        {"@value": "Extract", "@language": "en"},
+        {"@value": "抽出", "@language": "ja"}
+      ],
+      "description": "AKC Phase 2. Distillation of raw episodes into knowledge-layer patterns. In Contemplative Agent, the two-stage distill pipeline (free-form reasoning + structured JSON + importance scoring) plus the moment-of-recognition observation target introduced by ADR-0038.",
+      "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
+      "order": 2,
+      "realizedBy": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0008-two-stage-distill-pipeline.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0009-importance-score.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0035-sunset-migration-surface-and-consolidate-artifact-extraction.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0038-moment-of-recognition-distill.md"
+      ]
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/curate",
+      "@type": ["Phase", "DefinedTerm"],
+      "name": "Curate Phase (AKC Phase 3)",
+      "alternateName": [
+        {"@value": "Curate", "@language": "en"},
+        {"@value": "整理", "@language": "ja"}
+      ],
+      "description": "AKC Phase 3. Consolidation and re-organization of the accumulated knowledge layer. In Contemplative Agent, realized by insight (narrow generator), skill-stocktake / rules-distill (broad consolidator), amend-constitution, and the embedding + view substrate.",
+      "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
+      "order": 3,
+      "realizedBy": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0016-insight-narrow-stocktake-broad.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0018-per-caller-num-predict-embedding-stocktake.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0019-discrete-categories-to-embedding-views.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0026-retire-discrete-categories.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0027-noise-as-seed.md"
+      ]
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/promote",
+      "@type": ["Phase", "DefinedTerm"],
+      "name": "Promote Phase (AKC Phase 4)",
+      "alternateName": [
+        {"@value": "Promote", "@language": "en"},
+        {"@value": "昇格", "@language": "ja"}
+      ],
+      "description": "AKC Phase 4. Gated promotion of knowledge into the identity / skills / rules / constitution layers. In Contemplative Agent, the approval-gate chain (ADR-0012) controls every promotion that writes behavior-modifying content; distill-identity is the canonical Promote entrypoint.",
+      "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
+      "order": 4,
+      "realizedBy": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0011-knowledge-injection-to-skills.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md"
+      ]
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/measure",
+      "@type": ["Phase", "DefinedTerm"],
+      "name": "Measure Phase (AKC Phase 5)",
+      "alternateName": [
+        {"@value": "Measure", "@language": "en"},
+        {"@value": "計測", "@language": "ja"}
+      ],
+      "description": "AKC Phase 5. Replayability and outcome measurement. In Contemplative Agent, periodic immutable pivot snapshots (ADR-0020) enable replay of past distill outcomes and rollback after failed promotions.",
+      "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
+      "order": 5,
+      "realizedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0020-pivot-snapshots-for-replayability.md"
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/maintain",
+      "@type": ["Phase", "DefinedTerm"],
+      "name": "Maintain Phase (AKC Phase 6)",
+      "alternateName": [
+        {"@value": "Maintain", "@language": "en"},
+        {"@value": "保守", "@language": "ja"}
+      ],
+      "description": "AKC Phase 6. Ongoing skill / rule review cycles, retirement of paper-borrowed mechanisms that fail validation, and worldview-integrity maintenance. ADR-0037 is a Maintain-phase artifact: it institutionalizes the practice of retiring mechanisms that drift from the project's Yogācāra-aligned commitments.",
+      "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
+      "order": 6,
+      "realizedBy": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0028-retire-pattern-level-forgetting-feedback.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0029-retire-dormant-provenance-elements.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0034-withdraw-memory-evolution-and-hybrid-retrieval.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0036-sunset-skill-as-memory-loop.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0037-memory-subsystem-yogacara-convergence.md"
+      ]
+    },
 
     {
       "@id": "https://github.com/shimo4228/contemplative-agent-rules",
@@ -592,6 +765,19 @@
       "description": "Live agent identity, knowledge, and episode logs as an auto-synced public dataset for research. Snapshot of the running Contemplative Agent's three memory layers.",
       "url": "https://github.com/shimo4228/contemplative-agent-data",
       "extends": "https://doi.org/10.5281/zenodo.19212118"
+    },
+    {
+      "@id": "https://github.com/shimo4228/agent-knowledge-cycle",
+      "@type": ["EcosystemRepo", "SoftwareSourceCode"],
+      "name": "agent-knowledge-cycle (AKC)",
+      "alternateName": [
+        {"@value": "Agent Knowledge Cycle", "@language": "en"},
+        {"@value": "エージェント知識サイクル", "@language": "ja"}
+      ],
+      "description": "Design-layer specification of the six-phase knowledge cycle (Research → Extract → Curate → Promote → Measure → Maintain) used by autonomous agents. Independent repository; Contemplative Agent is one concrete implementation of AKC. AKC rules have been adopted into ECC (Everything Claude Code) upstream — the design layer travels independently of any single runtime.",
+      "url": "https://github.com/shimo4228/agent-knowledge-cycle",
+      "siblingOf": "https://doi.org/10.5281/zenodo.19212118",
+      "definesConcept": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop"
     },
 
     {
@@ -625,6 +811,57 @@
       "@type": ["ExternalReference", "ScholarlyArticle"],
       "name": "Axelrod (1984). The Evolution of Cooperation",
       "description": "Iterated Prisoner's Dilemma cooperation-improvement benchmark used to evaluate the contemplative-agent-rules implementation of the four axioms. Cross-graph @id reuse: same node appears in shimo4228 hub graph."
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/singer-sdm",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Singer (2004). Self-defining memories",
+      "description": "Autobiographical-memory research on self-defining memories — vivid, affectively charged, repeatedly recalled events that carry identity-relevant meaning. Cited by ADR-0038 as grounding for the moment-of-recognition observation target.",
+      "referencedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0038-moment-of-recognition-distill.md"
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/mcdonald-epiphanic",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "McDonald (2008). Epiphanic memories",
+      "description": "Phenomenological account of epiphanic memories — moments of sudden insight or recognition that reshape the self-narrative. Cited by ADR-0038 alongside Singer's self-defining-memory framework.",
+      "referencedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0038-moment-of-recognition-distill.md"
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/topolinski-insight",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Topolinski & Reber (2010). Insight (Aha experience)",
+      "description": "Cognitive-psychology account of the Aha experience — the affective signature of sudden solution-finding. Cited by ADR-0038 as the third grounding for the moment-of-recognition concept.",
+      "referencedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0038-moment-of-recognition-distill.md"
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/openclaw",
+      "@type": ["ExternalReference", "SoftwareApplication"],
+      "name": "OpenClaw (generic agent host runtime)",
+      "description": "Representative generic-host agent runtime invoked as a dual reference: (1) the bolt-on-security contrast for Contemplative Agent's security-by-absence stance, and (2) the originator of the soul-folder pattern (SOUL.md) that contemplative-agent-rules' template targets. ADR-0032 articulated and then withdrew a host-category framing built around runtimes like OpenClaw.",
+      "referencedBy": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0032-runtime-agent-stance.md",
+        "https://github.com/shimo4228/contemplative-agent-rules"
+      ]
+    },
+    {
+      "@id": "https://arxiv.org/abs/2603.18743",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Memento-Skills (2026). Skill-as-Memory architecture",
+      "identifier": "arXiv:2603.18743",
+      "url": "https://arxiv.org/abs/2603.18743",
+      "description": "Skill-as-memory router and reflective-write loop on the skill layer. Inspired ADR-0023; the mechanism was retired by ADR-0036 after no measurable behavior change was observed, and ADR-0037 records it as one of the paper-borrowed mechanisms that did not survive validation in Contemplative Agent's substrate.",
+      "referencedBy": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0023-skill-as-memory-loop.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0036-sunset-skill-as-memory-loop.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0037-memory-subsystem-yogacara-convergence.md"
+      ]
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/hermes",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Hermes (agent memory architecture)",
+      "description": "Independent agent-memory architecture cited alongside Memento and Contemplative Agent as a convergence point: three independent projects arriving at the same three-layer memory + skill-auto-generation attractor. Treated as evidence of mechanism commoditization rather than a borrowable mechanism.",
+      "referencedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0037-memory-subsystem-yogacara-convergence.md"
     }
   ]
 }
