@@ -1,0 +1,63 @@
+{
+  "upload_type": "software",
+  "title": "Contemplative Agent",
+  "creators": [
+    {
+      "name": "Shimomoto, Tatsuya",
+      "orcid": "0009-0002-6168-4162"
+    }
+  ],
+  "description": "A security-first autonomous AI agent (Python CLI program) with four architectural principles: structural capability limitation, minimal dependency, cyclic knowledge maintenance (AKC), and memory dynamics with decay. Optionally adopts Contemplative AI axioms (Laukkonen et al., 2025) — mindfulness, emptiness, non-duality, boundless care — as a behavioral preset that shifts alignment from external instruction toward internal disposition. Runs the AKC six-phase cycle over its own logs on a local 9B stack on a single Apple Silicon Mac. Asks whether an agent's alignment can come from what it is rather than what it is told.",
+  "access_right": "open",
+  "license": "MIT",
+  "keywords": [
+    "autonomous-agent",
+    "contemplative-ai",
+    "agent-architecture",
+    "secure-first",
+    "memory-dynamics",
+    "agent-knowledge-cycle",
+    "local-llm",
+    "apple-silicon",
+    "security-by-absence"
+  ],
+  "language": "eng",
+  "related_identifiers": [
+    {
+      "identifier": "10.5281/zenodo.19200726",
+      "relation": "references",
+      "resource_type": "software",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "10.5281/zenodo.19652013",
+      "relation": "isSourceOf",
+      "resource_type": "publication-other",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "arXiv:2504.15125",
+      "relation": "references",
+      "resource_type": "publication-article",
+      "scheme": "arxiv"
+    },
+    {
+      "identifier": "https://github.com/shimo4228/shimo4228",
+      "relation": "isPartOf",
+      "resource_type": "other",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://huggingface.co/datasets/Shimo4228/contemplative-agent",
+      "relation": "isVariantFormOf",
+      "resource_type": "dataset",
+      "scheme": "url"
+    },
+    {
+      "identifier": "https://raw.githubusercontent.com/shimo4228/shimo4228/main/graph.jsonld",
+      "relation": "isDocumentedBy",
+      "resource_type": "dataset",
+      "scheme": "url"
+    }
+  ]
+}
