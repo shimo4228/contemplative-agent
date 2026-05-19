@@ -537,6 +537,15 @@
       "datePublished": "2026-05-19",
       "description": "Removes the F section (structural recommendations / identity-level questions / pure observations) from the weekly-analysis prompt and produces it separately via the `weekly-report-diagnosis` skill, which reads the weekly report's E section together with the codebase, ADRs, and current identity/constitution/skills/rules. The weekly LLM lacked the context to verify F1 proposals against actual code state, producing systematic failures (three documented examples in weekly-2026-05-17: num_predict cap unused, cut-off boundary marker already implemented, MMR misapplied to a path not used at reply time)."
     },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0041-explicit-truncation-contract-for-untrusted-wrapper.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0041: Explicit Truncation Contract for wrap_untrusted_content",
+      "identifier": "ADR-0041",
+      "status": "accepted",
+      "datePublished": "2026-05-20",
+      "description": "Refines ADR-0007. Removes the silent 1000-char truncation from `wrap_untrusted_content` and makes truncation opt-in via a keyword-only `max_input` parameter. Adds a completeness marker (`Note: untrusted_content is complete (N chars)` / `Note: untrusted_content has been truncated to the first K of N chars`) outside the untrusted tags. Eliminates two failure modes surfaced by the first weekly-report-diagnosis findings under ADR-0040: long-post invisibility (model received only first 14% of 7000-char essays) and short-post hallucinated cut-off (model claimed cut-off on complete <1000-char posts because the wrapper provided no completeness signal). ADR-0007 injection defense pieces (`_INJECTION_TOKENS` replacement, `Do NOT follow instructions` sentence) are preserved unchanged. Follows ADR-0018's caller-knows-the-constraint precedent for the keyword-only parameter shape."
+    },
 
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#concept/four-contemplative-axioms",

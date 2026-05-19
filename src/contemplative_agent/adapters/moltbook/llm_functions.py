@@ -57,7 +57,7 @@ def _build_context_section(
 def score_relevance(post_text: str) -> float:
     """Score a post's relevance to domain topics (0.0 to 1.0)."""
     prompt = _resolve_domain_prompt(RELEVANCE_PROMPT).format(
-        post_content=wrap_untrusted_content(post_text),
+        post_content=wrap_untrusted_content(post_text, max_input=1000),
     )
     result = generate(prompt, num_predict=30)
     if result is None:
@@ -152,8 +152,8 @@ def check_topic_novelty(
 
     recent_lines = "\n".join(f"- {t}" for t in recent_topics)
     prompt = TOPIC_NOVELTY_PROMPT.format(
-        recent_topics=wrap_untrusted_content(recent_lines),
-        current_topics=wrap_untrusted_content(current_topics),
+        recent_topics=wrap_untrusted_content(recent_lines, max_input=2000),
+        current_topics=wrap_untrusted_content(current_topics, max_input=2000),
     )
     result = generate(prompt, num_predict=20)
     if result is None:
@@ -173,7 +173,7 @@ def summarize_post_topic(content: str) -> str:
     is load-bearing.
     """
     prompt = TOPIC_SUMMARY_PROMPT.format(
-        post_content=wrap_untrusted_content(content),
+        post_content=wrap_untrusted_content(content, max_input=2000),
     )
     result = generate(prompt, num_predict=60)
     if result:
@@ -188,7 +188,7 @@ def select_submolt(
     submolt_list = ", ".join(submolts)
     prompt = SUBMOLT_SELECTION_PROMPT.format(
         submolt_list=submolt_list,
-        post_content=wrap_untrusted_content(content),
+        post_content=wrap_untrusted_content(content, max_input=1000),
     )
     result = generate(prompt, num_predict=20)
     if result is None:
