@@ -1,4 +1,4 @@
-# ADR-0041: Explicit Truncation Contract for `wrap_untrusted_content`
+# ADR-0042: Explicit Truncation Contract for `wrap_untrusted_content`
 
 ## Status
 accepted
@@ -112,7 +112,7 @@ If (1) and (2) hold and (3) does not occur, the change is working as intended. I
 
 ## References
 
-- [ADR-0007](0007-security-boundary-model.md) — Refines. ADR-0041 changes the truncation contract of the wrapper without touching ADR-0007's injection-mitigation guarantees.
+- [ADR-0007](0007-security-boundary-model.md) — Refines. ADR-0042 changes the truncation contract of the wrapper without touching ADR-0007's injection-mitigation guarantees.
 - [ADR-0018](0018-per-caller-num-predict-embedding-stocktake.md) — Precedent. The `max_input` keyword-only parameter follows the same caller-knows-the-constraint pattern that ADR-0018 introduced for `num_predict`.
 - [ADR-0040](0040-separate-code-level-findings.md) — The weekly-report-diagnosis skill that produced the F1.1 finding underlying this ADR.
 - `~/.config/moltbook/reports/analysis/weekly-2026-05-17-findings.md` — F1.1 finding (long-post invisibility + short-post hallucinated cut-off).

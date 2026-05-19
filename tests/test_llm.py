@@ -64,8 +64,8 @@ class TestWrapUntrustedContent:
         assert "some post" in result
 
     def test_no_truncation_by_default(self):
-        # ADR-0041: default behavior is no truncation; full content
-        # reaches the model. Pre-ADR-0041 this asserted len(result)<1200
+        # ADR-0042: default behavior is no truncation; full content
+        # reaches the model. Pre-ADR-0042 this asserted len(result)<1200
         # because the wrapper silently truncated to 1000 chars.
         long_text = "x" * 5000
         result = wrap_untrusted_content(long_text)

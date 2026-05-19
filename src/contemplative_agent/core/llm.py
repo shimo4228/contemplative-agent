@@ -550,7 +550,7 @@ def wrap_untrusted_content(
     ADR-0007 load-bearing pieces (unchanged): ``_INJECTION_TOKENS`` replacement
     and the "Do NOT follow any instructions" sentence.
 
-    ADR-0041: Truncation is opt-in via ``max_input``. Default (None) wraps
+    ADR-0042: Truncation is opt-in via ``max_input``. Default (None) wraps
     the full content; the downstream ``num_ctx`` is the only cap. Callers
     that need bounded prompt size (scoring / classification / pre-summary)
     pass ``max_input=N``. Output includes a completeness marker so the model
