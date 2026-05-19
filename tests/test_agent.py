@@ -415,13 +415,29 @@ class TestRunFeedCycle:
         mock_engage.assert_not_called()
 
 
+def _admit_decision():
+    """Build a GateDecision that admits — used to bypass NoveltyGate in tests
+    that exercise downstream behaviour (publish path, body-hash gate, etc.).
+    """
+    from contemplative_agent.adapters.moltbook.novelty import GateDecision
+
+    return GateDecision(
+        admit=True,
+        novelty=1.0,
+        deficit=0.0,
+        threshold=0.35,
+        nearest_title=None,
+        nearest_sim=0.0,
+        reason="admit",
+    )
+
+
 class TestRunPostCycle:
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.is_duplicate_title", return_value=(False, 0.0, None))
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="reflection on alignment")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Notes on dedup gates")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topic1\ntopic2")
-    def test_posts_dynamic(self, mock_topics, mock_title, mock_novelty, mock_summarize, mock_dedup):
+    def test_posts_dynamic(self, mock_topics, mock_title, mock_novelty, mock_summarize):
         # NOTE: title and body must avoid anything in dedup._TEST_PATTERNS
         # ("Test Title" / "Dynamic content" from Mar 30–31 leaks, and
         # "Reflective Note" / "A short body about alignment" from the
@@ -435,6 +451,13 @@ class TestRunPostCycle:
         agent._content.create_cooperation_post.return_value = (
             "We paused to revisit how gates intersect with memory."
         )
+        # Bypass NoveltyGate at the boundary — keep the test focused on the
+        # publish path. NoveltyGate's own behaviour is covered in
+        # test_novelty_gate.py.
+        agent._post_pipeline._novelty_gate.evaluate = MagicMock(
+            return_value=_admit_decision()
+        )
+        agent._post_pipeline._novelty_gate.record = MagicMock()
 
         feed_resp = MagicMock()
         feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
@@ -447,13 +470,12 @@ class TestRunPostCycle:
         agent._client.post.assert_called_once()
         assert any("Posted: Notes on dedup gates" in a for a in agent._actions_taken)
 
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.is_duplicate_title", return_value=(False, 0.0, None))
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="topic summary")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="A different title")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topic1")
     def test_skips_when_body_hash_matches(
-        self, mock_topics, mock_title, mock_novelty, mock_summarize, mock_dedup,
+        self, mock_topics, mock_title, mock_novelty, mock_summarize,
     ):
         """ADR-0018 amendment: body-hash gate catches verbatim re-publication
         that title/topic Jaccard misses (May 3 2026 self-post #2 = Apr 30 #2,
@@ -478,8 +500,11 @@ class TestRunPostCycle:
             topic_summary="prior summary",
             content_hash=prior_hash,
         )
-        # is_duplicate_title is mocked to return False, so the only gate
-        # that can block here is the body-hash gate we're testing.
+        # NoveltyGate admits — the only gate that can block here is the
+        # body-hash gate this test exercises.
+        agent._post_pipeline._novelty_gate.evaluate = MagicMock(
+            return_value=_admit_decision()
+        )
         agent._ctx.memory.get_recent_posts = MagicMock(return_value=[prior_record])
 
         feed_resp = MagicMock()

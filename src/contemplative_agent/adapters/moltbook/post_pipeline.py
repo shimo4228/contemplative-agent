@@ -9,7 +9,7 @@ from typing import Callable, List
 from .client import MoltbookClient, MoltbookClientError
 from .config import ADAPTIVE_BACKOFF
 from .content import ContentManager, _content_hash
-from .dedup import is_duplicate_title, is_test_content
+from .dedup import is_test_content
 from .llm_functions import (
     check_topic_novelty,
     extract_topics,
@@ -18,6 +18,7 @@ from .llm_functions import (
     select_submolt,
     summarize_post_topic,
 )
+from .novelty import NoveltyGate, embedding_text
 from .session_context import SessionContext
 from ...core.config import VALID_SUBMOLT_PATTERN
 from ...core.domain import DomainConfig
@@ -40,12 +41,14 @@ class PostPipeline:
         get_content: Callable[[], ContentManager],
         get_feed: Callable[[], List[dict]],
         confirm_action: Callable[[str, str], bool],
+        novelty_gate: NoveltyGate,
     ) -> None:
         self._ctx = ctx
         self._domain = domain
         self._get_content = get_content
         self._get_feed = get_feed
         self._confirm_action = confirm_action
+        self._novelty_gate = novelty_gate
 
     def run_cycle(
         self,
@@ -101,22 +104,32 @@ class PostPipeline:
             logger.warning("Blocked test-content self-post: %r", title)
             return
 
-        # Jaccard self-post dedup gate: token-set similarity over
-        # (title ∪ topic_summary) against the past ~50 self-posts.
-        # draft_summary is reused below at record_post time to avoid a
-        # second LLM call on the same content.
+        # Continuous novelty gate (ADR-0039): embedding-cosine novelty with
+        # temporal decay, plus a rate-deficit Lagrangian term that loosens
+        # the threshold when the agent has been silent. Replaces the boolean
+        # Jaccard gate that drifted into silent failure (1 post/day) in
+        # May 2026. The retained Jaccard gate (dedup.is_duplicate_title) is
+        # exercised only by NoveltyGate's fallback path when Ollama embedding
+        # is unavailable. draft_summary is reused below at record_post time
+        # to avoid a second LLM call on the same content.
         draft_summary = summarize_post_topic(content)
         recent_posts = ctx.memory.get_recent_posts(limit=50)
-        is_dup, sim, prior_title = is_duplicate_title(
-            title, draft_summary, recent_posts,
+        decision = self._novelty_gate.evaluate(
+            title, draft_summary, content, recent_posts,
         )
-        if is_dup:
-            # INFO, not WARNING — this is steady-state behavior of the
-            # gate (its whole purpose). WARNING is reserved for the
-            # test-content gate above, which fires only on anomalies.
+        if not decision.admit:
+            # Outcome already logged inside the gate at INFO (admit) or
+            # WARNING (fallback). Caller-side log here adds the rejected
+            # title so operators can grep by it.
             logger.info(
-                "Blocked duplicate self-post (jaccard=%.2f vs %r): %r",
-                sim, prior_title, title,
+                "Blocked self-post by novelty gate (reason=%s, novelty=%.2f, "
+                "deficit=%.2f, nearest=%.2f vs %r): %r",
+                decision.reason,
+                decision.novelty,
+                decision.deficit,
+                decision.nearest_sim,
+                decision.nearest_title,
+                title,
             )
             return
 
@@ -169,16 +182,24 @@ class PostPipeline:
             })
 
             # Record post in memory. Reuse draft_summary and content_hash
-            # computed above (Jaccard gate / body-hash gate) instead of
+            # computed above (novelty gate / body-hash gate) instead of
             # recomputing.
             topic_summary = draft_summary or title
+            now_iso = datetime.now(timezone.utc).isoformat()
             ctx.memory.record_post(
-                timestamp=datetime.now(timezone.utc).isoformat(),
+                timestamp=now_iso,
                 post_id=post_id,
                 title=title,
                 topic_summary=topic_summary,
                 content_hash=content_hash,
             )
+            # Embed and persist this post for future novelty comparisons.
+            # Reuse the gate's canonical text shape so draft-side and
+            # history-side embeddings stay aligned.
+            if post_id:
+                self._novelty_gate.record(
+                    post_id, now_iso, embedding_text(title, topic_summary),
+                )
         except MoltbookClientError as exc:
             logger.error("Failed to post dynamic content: %s", exc)
 

@@ -383,6 +383,30 @@ class MemoryStore:
         """
         return list(self._post_history[-limit:])
 
+    def get_post_rate_7d(self) -> float:
+        """Self-post rate (posts/day) over a fixed 7-day trailing window.
+
+        Used by the rate-deficit Lagrangian term in NoveltyGate (ADR-0039):
+        when the rate falls below the target, the admit threshold is loosened
+        so the gate cannot silently silence the agent.
+
+        Fixed 7-day window (not "since first post") so the regulariser
+        semantics stay stable in the cold-start case. Malformed timestamps
+        are skipped (same pattern as count_recent_comments_by_author).
+        """
+        cutoff = datetime.now(timezone.utc) - timedelta(days=7)
+        n = 0
+        for p in self._post_history:
+            try:
+                ts = datetime.fromisoformat(p.timestamp)
+            except ValueError:
+                continue
+            if ts.tzinfo is None:
+                ts = ts.replace(tzinfo=timezone.utc)
+            if ts >= cutoff:
+                n += 1
+        return n / 7.0
+
     def count_recent_comments_by_author(
         self, agent_id: str, hours: int = 24
     ) -> int:

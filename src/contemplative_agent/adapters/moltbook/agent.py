@@ -13,6 +13,7 @@ from .config import (
     ADAPTIVE_BACKOFF,
     AGENTS_PATH,
     COMMENTED_CACHE_PATH,
+    EPISODE_EMBEDDINGS_PATH,
     EPISODE_LOG_DIR,
     IDENTITY_PATH,
     KNOWLEDGE_PATH,
@@ -23,6 +24,7 @@ from .config import (
 )
 from .content import ContentManager
 from .feed_manager import FeedManager
+from .novelty import NoveltyGate
 from .post_pipeline import PostPipeline
 from .reply_handler import ReplyHandler
 from .session_context import SessionContext
@@ -37,6 +39,7 @@ from ...core.config import (
     VALID_ID_PATTERN,
 )
 from ...core.domain import DomainConfig, get_domain_config
+from ...core.episode_embeddings import EpisodeEmbeddingStore
 from ...core.llm import configure as configure_llm
 from ...core.memory import MemoryStore
 from ...core.scheduler import Scheduler
@@ -106,12 +109,17 @@ class Agent:
             ctx=self._ctx,
             confirm_action=self._confirm_action,
         )
+        self._novelty_gate = NoveltyGate(
+            embed_store=EpisodeEmbeddingStore(EPISODE_EMBEDDINGS_PATH),
+            memory=self._memory,
+        )
         self._post_pipeline = PostPipeline(
             ctx=self._ctx,
             domain=self._domain,
             get_content=lambda: self._content,
             get_feed=lambda: self._feed_manager.get_feed(self._ensure_client()),
             confirm_action=self._confirm_action,
+            novelty_gate=self._novelty_gate,
         )
 
     # ------------------------------------------------------------------
