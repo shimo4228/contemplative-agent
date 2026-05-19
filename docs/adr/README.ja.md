@@ -40,6 +40,10 @@
 | [0034](0034-withdraw-memory-evolution-and-hybrid-retrieval.ja.md) | Memory Evolution と BM25 Hybrid Retrieval の撤回 — コストに対し効果が見えない | accepted — ADR-0022 を supersede | 2026-05-05 |
 | [0035](0035-sunset-migration-surface-and-consolidate-artifact-extraction.ja.md) | ADR-0019 Migration Surface の sunset と artifact extraction の統合 | accepted | 2026-05-05 |
 | [0036](0036-sunset-skill-as-memory-loop.ja.md) | Skill-as-Memory ループの sunset — Router / Usage Log / Reflect の撤回 | accepted — ADR-0023 を supersede | 2026-05-05 |
+| [0037](0037-memory-subsystem-yogacara-convergence.ja.md) | メモリ subsystem は唯識フレームに収束した — 論文借用機構の退役 | accepted | 2026-05-05 |
+| [0038](0038-moment-of-recognition-distill.ja.md) | Distill の観察対象に moments of recognition を再導入する `[AKC: Extract]` | accepted | 2026-05-13 |
+| [0039](0039-novelty-score-lagrangian-self-post-gate.ja.md) | self-post gate を連続値 novelty スコア + rate-deficit Lagrangian に置換 | proposed | 2026-05-19 |
+| [0040](0040-separate-code-level-findings.ja.md) | 週次自己内省レポートからのコード診断 findings の分離 | accepted | 2026-05-19 |
 
 ## ADR の種別
 

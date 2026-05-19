@@ -44,6 +44,8 @@ Records of key design decisions for this project.
 | [0036](0036-sunset-skill-as-memory-loop.md) | Sunset Skill-as-Memory Loop — Retire Router, Usage Log, and Reflect | accepted — supersedes 0023 | 2026-05-05 |
 | [0037](0037-memory-subsystem-yogacara-convergence.md) | Memory Subsystem Converges to Yogācāra Frame; Paper-Borrowed Mechanisms Retired | accepted | 2026-05-05 |
 | [0038](0038-moment-of-recognition-distill.md) | Re-introduce Moments of Recognition into the Distill Observation Target `[AKC: Extract]` | accepted | 2026-05-13 |
+| [0039](0039-novelty-score-lagrangian-self-post-gate.md) | Continuous Novelty Score with Rate-Deficit Lagrangian for Self-Post Gate | proposed | 2026-05-19 |
+| [0040](0040-separate-code-level-findings.md) | Separate Code-Level Findings from Weekly Self-Reflection Report | accepted | 2026-05-19 |
 
 ## ADR Types
 

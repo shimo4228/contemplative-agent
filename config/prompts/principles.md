@@ -1,7 +1,9 @@
-# Weekly Analysis Principles
+# Findings Methodology Principles
 
-The following are methodological principles for the weekly analysis. They override default
-recommendation patterns. Violations should self-correct before publication.
+The following are methodological principles applied by the `weekly-report-diagnosis` skill
+when generating code-level findings (F1 structural / F2 identity-level / F3 observations).
+Principle 3 (quote-based depth) also applies to the upstream `weekly-analysis` weekly report.
+Violations should self-correct before publication.
 
 ## Principle 1 — No post-generation filter as recommendation
 

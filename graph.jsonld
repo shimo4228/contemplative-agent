@@ -519,6 +519,24 @@
       "description": "Extends the distill prompt's observation target to include first-person realization moments (`the agent caught itself doing X`, `an assumption no longer held`) alongside third-person observable facts. Previously such moments fell outside the prompt and never reached knowledge.json.",
       "belongsToPhase": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/extract"
     },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0039-novelty-score-lagrangian-self-post-gate.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0039: Continuous Novelty Score with Rate-Deficit Lagrangian for Self-Post Gate",
+      "identifier": "ADR-0039",
+      "status": "proposed",
+      "datePublished": "2026-05-19",
+      "description": "Replaces ADR-0018's boolean Jaccard self-post gate with a continuous novelty score (embedding similarity with temporal decay) plus a rate-deficit Lagrangian term. Peer audit (2026-05-19) showed the fixed 0.25 Jaccard threshold was stricter than any successful Moltbook agent — production self-post rate had collapsed to ~1/day. Grounded in Novelty Search (Lehman & Stanley 2011), Generative Agents recency-decay (Park et al. 2023), and Constrained-MDP Lagrangian relaxation (Altman 1999)."
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0040-separate-code-level-findings.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0040: Separate Code-Level Findings from Weekly Self-Reflection Report",
+      "identifier": "ADR-0040",
+      "status": "accepted",
+      "datePublished": "2026-05-19",
+      "description": "Removes the F section (structural recommendations / identity-level questions / pure observations) from the weekly-analysis prompt and produces it separately via the `weekly-report-diagnosis` skill, which reads the weekly report's E section together with the codebase, ADRs, and current identity/constitution/skills/rules. The weekly LLM lacked the context to verify F1 proposals against actual code state, producing systematic failures (three documented examples in weekly-2026-05-17: num_predict cap unused, cut-off boundary marker already implemented, MMR misapplied to a path not used at reply time)."
+    },
 
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#concept/four-contemplative-axioms",
