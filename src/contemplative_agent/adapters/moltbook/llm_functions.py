@@ -85,7 +85,7 @@ def generate_cooperation_post(
     insights_section = _build_context_section(
         recent_insights,
         "\nPrevious insights from your sessions",
-        footer="Take these into account when writing.",
+        footer="Note as background context.",
     )
 
     prompt = _resolve_domain_prompt(COOPERATION_POST_PROMPT).format(
