@@ -119,7 +119,7 @@ in this module and apply uniformly. Used by the
 
 **Circuit breaker**: 5 consecutive failures → open for 120s.
 
-Reused surface exposed to adapters via `llm_functions.py`: `score_relevance`, `generate_comment`, `generate_reply`, `generate_cooperation_post`, `generate_post_title`, `extract_topics`, `check_topic_novelty`, `summarize_post_topic`, `generate_session_insight`, plus the generic `generate(prompt, system_prompt, …)` used by distill / insight / rules / constitution / stocktake.
+Reused surface exposed to adapters via `llm_functions.py`: `score_relevance`, `generate_comment`, `generate_reply`, `generate_cooperation_post` (post-ADR-0043 takes `feed_seeds: list[dict]`), `format_feed_seeds`, `generate_post_title`, `summarize_post_topic`, `select_submolt`, `generate_session_insight`, plus the generic `generate(prompt, system_prompt, …)` used by distill / insight / rules / constitution / stocktake. `extract_topics` and `check_topic_novelty` remain exported as orphaned helpers since ADR-0043 retired the self-post summary path.
 
 All output passes `_sanitize_output()`. All external inputs → `wrap_untrusted_content()`.
 

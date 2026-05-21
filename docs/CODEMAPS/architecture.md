@@ -1,10 +1,10 @@
-<!-- Generated: 2026-05-05 | Files scanned: 43 | Token estimate: ~950 -->
+<!-- Generated: 2026-05-22 | Files scanned: 51 | Token estimate: ~950 -->
 # Architecture
 
 ## Project Type
 Python application: Contemplative AI agent with core/adapter separation + 3-layer memory + embedding-based views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal/forgetting/feedback (ADR-0021). Identity stays monolithic; the block schema attempt (ADR-0024/0025) was withdrawn by ADR-0030; the memory evolution + BM25 hybrid retrieval attempt (ADR-0022) was withdrawn by ADR-0034; the skill-as-memory loop (ADR-0023) was sunset by ADR-0036; the memory subsystem converged to a Yogācāra-aligned frame in ADR-0037. Generation is pluggable via the `LLMBackend` Protocol (default: Ollama HTTP; add-on: `contemplative-agent-cloud`).
 
-**Stats**: 43 modules, ~11400 LOC, 1032 tests (test files: see [INDEX.md](INDEX.md))
+**Stats**: 51 modules, ~12000 LOC, 1068 tests (test files: see [INDEX.md](INDEX.md))
 
 ## System Diagram
 
@@ -30,7 +30,7 @@ Python application: Contemplative AI agent with core/adapter separation + 3-laye
   +-----------------------------------------------------+
   | src/contemplative_agent/                             |
   |                                                      |
-  |  core/  (platform-independent, 25 modules)          |
+  |  core/  (platform-independent, 26 modules)          |
   |    _io.py  config.py  domain.py  prompts.py         |
   |    llm.py (+ LLMBackend Protocol)  embeddings.py    |
   |    episode_embeddings.py  episode_log.py            |
@@ -43,14 +43,14 @@ Python application: Contemplative AI agent with core/adapter separation + 3-laye
   |    text_utils.py  thresholds.py                     |  (ADR-0035 PR2 helpers)
   |    artifact_extraction.py                           |  (ADR-0035 PR3a helper)
   |                                                      |
-  |  adapters/moltbook/  (platform-specific, 12 modules)|
+  |  adapters/moltbook/  (platform-specific, 15 modules)|
   |    agent.py  session_context.py  feed_manager.py    |
   |    reply_handler.py  post_pipeline.py               |
   |    client.py  auth.py  verification.py              |
   |    llm_functions.py  content.py  config.py          |
-  |    dedup.py                                          |
+  |    dedup.py  novelty.py  feed_seeder.py             |
   |                                                      |
-  |  adapters/meditation/  (experimental, 4 modules)    |
+  |  adapters/meditation/  (experimental, 5 modules)    |
   |    config.py  pomdp.py  meditate.py  report.py      |
   |                                                      |
   |  adapters/dialogue/  (2-agent peer loop, 1 module)  |

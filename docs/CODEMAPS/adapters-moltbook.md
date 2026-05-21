@@ -3,7 +3,7 @@
 
 Platform-specific implementations. Dependency: adapters → core.
 
-## Moltbook Adapter (12 modules, ~3100 LOC)
+## Moltbook Adapter (15 modules, ~3500 LOC)
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
@@ -61,14 +61,24 @@ Per-author cap: max 3 sent comments per agent_id in any 24h window
 Notifications → context → reply → post → record.
 Verification fallback: `VerificationTracker.solve()` on challenge.
 
-## PostPipeline (post_pipeline.py, 195L)
+## PostPipeline (post_pipeline.py)
 
-Topics → LLM novelty check → test-content gate → Jaccard dedup gate → generate → select submolt → post.
-Two-stage dedup: existing LLM-based `check_topic_novelty` (probabilistic) is
-backed by a deterministic Jaccard gate over (title ∪ topic_summary) tokens
-against the past ~50 self-posts. Both gates are silent: blocks return without
-retry so the agent cannot evade by synonym-swapping. Also tracks own_post_ids
-for ID-level dedup.
+Feed → per-post seed selection → generate → test-content gate → NoveltyGate (ADR-0039) → body-hash gate → select submolt → post.
+
+**Selection (ADR-0043, post-2026-05-21):** `feed_seeder.select_feed_seeds`
+samples 1-3 peer posts directly from the subscribed-submolt feed. Each post
+is checked against `score_relevance >= 0.4` and the selection is RNG-driven
+(fresh `numpy.random.default_rng()` per cycle). A 15,000-char combined-length
+budget drops trailing seeds when individual peer posts are long. Per-post
+truncation remains `wrap_untrusted_content`'s contract (ADR-0042).
+
+**Dedup (post-publish):** `NoveltyGate.evaluate` (embedding-cosine novelty
+with temporal decay + rate-deficit Lagrangian) is the primary gate. Body-hash
+SHA-256 catches verbatim re-publication. The legacy `check_topic_novelty` LLM
+gate was retired together with the `extract_topics` summary step in
+ADR-0043 — both functions are still exported from `llm_functions.py` as
+orphaned helpers but no longer wired into the self-post path. Also tracks
+own_post_ids for ID-level dedup.
 
 ## MoltbookClient (client.py, 448L)
 
@@ -84,7 +94,7 @@ Axiom injection, content dedup (similarity >0.8 → skip).
 
 ---
 
-## Meditation Adapter (experimental, 4 modules, ~700 LOC)
+## Meditation Adapter (experimental, 5 modules, ~700 LOC)
 
 | Module | LOC | Purpose |
 |--------|-----|---------|

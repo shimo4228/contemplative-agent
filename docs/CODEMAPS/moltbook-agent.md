@@ -188,12 +188,14 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 | `score_relevance(post)` | adapters/moltbook/llm_functions | FeedManager |
 | `generate_comment(post)` | adapters/moltbook/llm_functions | FeedManager |
 | `generate_reply(...)` | adapters/moltbook/llm_functions | ReplyHandler |
-| `generate_cooperation_post(...)` | adapters/moltbook/llm_functions | PostPipeline |
-| `generate_post_title(topics)` | adapters/moltbook/llm_functions | PostPipeline |
-| `extract_topics(posts)` | adapters/moltbook/llm_functions | PostPipeline |
-| `check_topic_novelty(...)` | adapters/moltbook/llm_functions | PostPipeline |
+| `generate_cooperation_post(feed_seeds, ...)` | adapters/moltbook/llm_functions | PostPipeline |
+| `format_feed_seeds(seeds)` | adapters/moltbook/llm_functions | PostPipeline (ADR-0043) |
+| `select_feed_seeds(posts, ...)` | adapters/moltbook/feed_seeder | PostPipeline (ADR-0043) |
+| `generate_post_title(seed_text)` | adapters/moltbook/llm_functions | PostPipeline |
 | `summarize_post_topic(content)` | adapters/moltbook/llm_functions | PostPipeline (dedup gate + record) |
 | `select_submolt(...)` | adapters/moltbook/llm_functions | PostPipeline |
+| ~~`extract_topics(posts)`~~ | adapters/moltbook/llm_functions | _orphaned helper since ADR-0043; still exported but no production caller_ |
+| ~~`check_topic_novelty(...)`~~ | adapters/moltbook/llm_functions | _orphaned helper since ADR-0043; structurally redundant with ADR-0039 NoveltyGate_ |
 | `generate_session_insight(...)` | adapters/moltbook/llm_functions | Agent |
 | `generate(prompt, system, ...)` | core/llm | distill, insight, rules, constitution, stocktake |
 
@@ -248,12 +250,18 @@ See ADR-0007 (security boundary model) for the full threat model.
 The agent has two layers of dedup against runaway self-similarity:
 
 **Self-post pipeline** (post_pipeline.py):
-1. Existing LLM `check_topic_novelty` (probabilistic)
-2. `is_test_content(title, body)` blocks `Test Title` / `Dynamic content` scaffold
-3. `is_duplicate_title(title, summary, recent_posts)` — Jaccard ≥ 0.25 over
-   prefix-5 stemmed tokens of `title ∪ topic_summary`, against the past
-   ~50 self-posts. Silent block (no retry) so the agent cannot evade by
-   synonym swap.
+1. `is_test_content(title, body)` blocks `Test Title` / `Dynamic content` scaffold
+2. `NoveltyGate.evaluate(...)` — ADR-0039 embedding-cosine novelty with
+   temporal decay + rate-deficit Lagrangian. Replaces the retired Jaccard
+   gate (`is_duplicate_title`, threshold 0.25), which is kept only as the
+   Ollama-outage fallback path.
+3. Body-hash gate (ADR-0018 amendment 2026-05-04): SHA-256 first 16 chars
+   against `recent_posts` content hashes — catches verbatim re-publication
+   that title/summary similarity would miss.
+
+(The LLM `check_topic_novelty` and `extract_topics` summary step were retired
+in ADR-0043; their function is now structurally covered by NoveltyGate +
+per-post seeding upstream.)
 
 **Comment pipeline** (feed_manager.py):
 1. `is_promotional(text)` regex blocks defanged URLs and CTA phrases

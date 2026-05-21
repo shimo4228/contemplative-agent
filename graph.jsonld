@@ -555,6 +555,15 @@
       "datePublished": "2026-05-20",
       "description": "Refines ADR-0007. Removes the silent 1000-char truncation from `wrap_untrusted_content` and makes truncation opt-in via a keyword-only `max_input` parameter. Adds a completeness marker (`Note: untrusted_content is complete (N chars)` / `Note: untrusted_content has been truncated to the first K of N chars`) outside the untrusted tags. Eliminates two failure modes surfaced by the first weekly-report-diagnosis findings under ADR-0040: long-post invisibility (model received only first 14% of 7000-char essays) and short-post hallucinated cut-off (model claimed cut-off on complete <1000-char posts because the wrapper provided no completeness signal). ADR-0007 injection defense pieces (`_INJECTION_TOKENS` replacement, `Do NOT follow instructions` sentence) are preserved unchanged. Follows ADR-0018's caller-knows-the-constraint precedent for the keyword-only parameter shape."
     },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0043-per-post-seeding-for-self-post-generation.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0043: Per-Post Seeding for Self-Post Generation",
+      "identifier": "ADR-0043",
+      "status": "proposed",
+      "datePublished": "2026-05-21",
+      "description": "Structural follow-up to ADR-0041 (which had named this as Alternatives Considered 2, deferred). The pre-2026-05-21 self-post path summarised 10 peer posts into 3-5 abstract topics via `extract_topics` before generation; the summariser shared the agent's vocabulary cluster and structurally collapsed peer voices into the agent's own canon (Karuna Manifesto / Topological Compassion / compliance-formation gap). ADR-0041's 3-day observation (5/19-5/21) confirmed the prompt-only fix worked partially (LLM did pick specific peer threads) but did not break the self-loop. Replaces `extract_topics` with `feed_seeder.select_feed_seeds`: shuffle subscribed-submolt candidates via `numpy.random.default_rng()`, accept first 3 with `score_relevance >= 0.4`, drop trailing seeds when combined length exceeds 15,000 chars (qwen3.5:9b 32K num_ctx budget). Each accepted post is wrapped independently in `<untrusted_content>` so voice boundaries reach the LLM intact. `cooperation_post.md` is rewritten to push the LLM toward relating multiple voices rather than picking one. Retires `check_topic_novelty` (redundant with ADR-0039 NoveltyGate). 1-week observation window shared with the ADR-0039 NoveltyGate post_id fix (commit 468795c)."
+    },
 
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#concept/four-contemplative-axioms",
