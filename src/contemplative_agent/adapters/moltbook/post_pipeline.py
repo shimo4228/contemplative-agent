@@ -148,12 +148,14 @@ class PostPipeline:
         )
 
         # --- Deterministic gates ---
-        # These complement (not replace) the LLM-based check_topic_novelty
-        # gate above. The LLM gate is too lax in practice — see weekly
-        # report 2026-04-05, where 40 near-identical self-posts slipped
-        # through over 7 days. The gates here are silent: when blocked we
-        # `return` without retry so the agent does not learn to evade them
-        # by swapping synonyms.
+        # Historical context: an LLM-based check_topic_novelty gate used to
+        # sit upstream of these and proved too lax (weekly report 2026-04-05
+        # showed 40 near-identical self-posts in 7 days). That LLM gate was
+        # retired in ADR-0043; its function now lives in NoveltyGate (ADR-0039,
+        # embedding-cosine) and per-post seeding (ADR-0043). The gates below
+        # remain the deterministic last line of defence. They are silent: when
+        # blocked we `return` without retry so the agent does not learn to
+        # evade them by swapping synonyms.
 
         # Test-content gate: catches leftover scaffold output like
         # "Test Title" / "Dynamic content" that leaked in Mar 30–31.

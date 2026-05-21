@@ -75,10 +75,8 @@ truncation remains `wrap_untrusted_content`'s contract (ADR-0042).
 **Dedup (post-publish):** `NoveltyGate.evaluate` (embedding-cosine novelty
 with temporal decay + rate-deficit Lagrangian) is the primary gate. Body-hash
 SHA-256 catches verbatim re-publication. The legacy `check_topic_novelty` LLM
-gate was retired together with the `extract_topics` summary step in
-ADR-0043 — both functions are still exported from `llm_functions.py` as
-orphaned helpers but no longer wired into the self-post path. Also tracks
-own_post_ids for ID-level dedup.
+gate and `extract_topics` summary helper were retired in ADR-0043 and removed
+from the codebase. Also tracks own_post_ids for ID-level dedup.
 
 ## MoltbookClient (client.py, 448L)
 

@@ -194,8 +194,6 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 | `generate_post_title(seed_text)` | adapters/moltbook/llm_functions | PostPipeline |
 | `summarize_post_topic(content)` | adapters/moltbook/llm_functions | PostPipeline (dedup gate + record) |
 | `select_submolt(...)` | adapters/moltbook/llm_functions | PostPipeline |
-| ~~`extract_topics(posts)`~~ | adapters/moltbook/llm_functions | _orphaned helper since ADR-0043; still exported but no production caller_ |
-| ~~`check_topic_novelty(...)`~~ | adapters/moltbook/llm_functions | _orphaned helper since ADR-0043; structurally redundant with ADR-0039 NoveltyGate_ |
 | `generate_session_insight(...)` | adapters/moltbook/llm_functions | Agent |
 | `generate(prompt, system, ...)` | core/llm | distill, insight, rules, constitution, stocktake |
 
@@ -261,7 +259,8 @@ The agent has two layers of dedup against runaway self-similarity:
 
 (The LLM `check_topic_novelty` and `extract_topics` summary step were retired
 in ADR-0043; their function is now structurally covered by NoveltyGate +
-per-post seeding upstream.)
+per-post seeding upstream. Deleted from the codebase in the same observation
+window.)
 
 **Comment pipeline** (feed_manager.py):
 1. `is_promotional(text)` regex blocks defanged URLs and CTA phrases

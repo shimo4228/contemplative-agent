@@ -104,8 +104,6 @@ class TestLoadPromptTemplates:
         assert "{feed_seeds}" in templates.cooperation_post
         assert "{original_post}" in templates.reply
         assert "{feed_topics}" in templates.post_title
-        assert "{combined_posts}" in templates.topic_extraction
-        assert "{recent_topics}" in templates.topic_novelty
         assert "{post_content}" in templates.topic_summary
         assert "{submolt_list}" in templates.submolt_selection
         assert "{actions_text}" in templates.session_insight

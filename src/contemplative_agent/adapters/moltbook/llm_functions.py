@@ -17,8 +17,6 @@ from ...core.prompts import (
     REPLY_PROMPT,
     SESSION_INSIGHT_PROMPT,
     SUBMOLT_SELECTION_PROMPT,
-    TOPIC_EXTRACTION_PROMPT,
-    TOPIC_NOVELTY_PROMPT,
     TOPIC_SUMMARY_PROMPT,
 )
 from ...core.llm import generate, generate_for_api, wrap_untrusted_content
@@ -155,37 +153,6 @@ def generate_post_title(feed_topics: str) -> Optional[str]:
     return None
 
 
-def extract_topics(posts: list[dict]) -> Optional[str]:
-    """Extract trending topics from recent feed posts."""
-    combined = "\n".join(
-        f"- {p.get('title', '')}: {p.get('content', '')[:200]}"
-        for p in posts[:10]
-    )
-    if not combined.strip():
-        return None
-    prompt = TOPIC_EXTRACTION_PROMPT.format(
-        combined_posts=wrap_untrusted_content(combined),
-    )
-    return generate(prompt, num_predict=250)
-
-
-def check_topic_novelty(
-    current_topics: str, recent_topics: list[str]
-) -> bool:
-    """Ask LLM if current topics are sufficiently different from recent posts."""
-    if not recent_topics:
-        return True
-
-    recent_lines = "\n".join(f"- {t}" for t in recent_topics)
-    prompt = TOPIC_NOVELTY_PROMPT.format(
-        recent_topics=wrap_untrusted_content(recent_lines, max_input=2000),
-        current_topics=wrap_untrusted_content(current_topics, max_input=2000),
-    )
-    result = generate(prompt, num_predict=20)
-    if result is None:
-        return True  # fail open — allow posting if LLM is down
-
-    return "YES" in result.upper()
 
 
 def summarize_post_topic(content: str) -> str:

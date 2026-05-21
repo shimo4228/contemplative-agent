@@ -6,7 +6,6 @@ import pytest
 import requests
 
 from contemplative_agent.adapters.moltbook.llm_functions import (
-    extract_topics,
     generate_comment,
     generate_cooperation_post,
     generate_reply,
@@ -533,35 +532,6 @@ class TestGeneratePostTitle:
         result = generate_post_title("topics")
         # 200 chars passes through (was previously truncated to 80)
         assert result == long_title
-
-
-class TestExtractTopics:
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_extracts_from_posts(self, mock_gen):
-        mock_gen.return_value = "alignment\nsafety\ncooperation"
-        posts = [
-            {"title": "AI Safety", "content": "Discussion about safety..."},
-            {"title": "Cooperation", "content": "How agents cooperate..."},
-        ]
-        result = extract_topics(posts)
-        assert result == "alignment\nsafety\ncooperation"
-
-    def test_empty_posts_returns_none(self):
-        assert extract_topics([]) is None
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_generate_failure_returns_none(self, mock_gen):
-        mock_gen.return_value = None
-        assert extract_topics([{"title": "T", "content": "C"}]) is None
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_limits_to_10_posts(self, mock_gen):
-        mock_gen.return_value = "topics"
-        posts = [{"title": f"Post {i}", "content": f"Content {i}"} for i in range(20)]
-        extract_topics(posts)
-        prompt = mock_gen.call_args[0][0]
-        assert "Post 9" in prompt
-        assert "Post 10" not in prompt
 
 
 class TestSelectSubmolt:

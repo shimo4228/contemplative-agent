@@ -26,8 +26,6 @@ class _LazyPrompts:
         "COOPERATION_POST_PROMPT": "cooperation_post",
         "REPLY_PROMPT": "reply",
         "POST_TITLE_PROMPT": "post_title",
-        "TOPIC_EXTRACTION_PROMPT": "topic_extraction",
-        "TOPIC_NOVELTY_PROMPT": "topic_novelty",
         "TOPIC_SUMMARY_PROMPT": "topic_summary",
         "SUBMOLT_SELECTION_PROMPT": "submolt_selection",
         "SESSION_INSIGHT_PROMPT": "session_insight",

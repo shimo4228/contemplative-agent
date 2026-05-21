@@ -56,8 +56,6 @@ class PromptTemplates:
     cooperation_post: str
     reply: str
     post_title: str
-    topic_extraction: str
-    topic_novelty: str
     topic_summary: str
     submolt_selection: str
     session_insight: str
@@ -227,8 +225,6 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         cooperation_post=read("cooperation_post.md"),
         reply=read("reply.md"),
         post_title=read("post_title.md"),
-        topic_extraction=read("topic_extraction.md"),
-        topic_novelty=read("topic_novelty.md"),
         topic_summary=read("topic_summary.md"),
         submolt_selection=read("submolt_selection.md"),
         session_insight=read("session_insight.md"),

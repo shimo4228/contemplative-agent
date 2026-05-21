@@ -1,9 +1,12 @@
 """Lightweight deterministic dedup gates for self-posts and comment targets.
 
-These gates exist because the LLM-based novelty checks (check_topic_novelty,
-relevance scorer) are probabilistic and have proven too lax in practice — see
+These gates exist because the LLM-based relevance scorer is probabilistic and
+has proven too lax in practice — see
 ~/.config/moltbook/reports/analysis/weekly-2026-04-05.md for the empirical
-case (40 near-identical self-posts in 7 days).
+case (40 near-identical self-posts in 7 days). The LLM-based
+``check_topic_novelty`` that historically sat alongside the relevance scorer
+was retired in ADR-0043 (its function is now structurally covered by
+``NoveltyGate`` ADR-0039 plus per-post seeding upstream).
 
 Design notes:
 - No new dependencies. Pure stdlib.
