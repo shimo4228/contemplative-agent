@@ -171,9 +171,28 @@ class PostPipeline:
                 },
             )
             scheduler.record_post()
-            post_id = resp.json().get("id", "")
+            # Moltbook wraps the created resource in a {"success", "post": {...}}
+            # envelope (skill.md AI Verification Challenges step 1; same shape
+            # as /agents/me and /agents/profile). The flat ``id`` fallback is
+            # kept defensively in case a trusted-bypass path returns the bare
+            # object — observed nowhere in production, but the cost is zero.
+            # ``or {}`` over ``get(_, {})`` handles a non-dict ``"post"`` value
+            # without raising, matching the style at feed_manager.py:179.
+            resp_json = resp.json()
+            post_data = resp_json.get("post") or {}
+            post_id = post_data.get("id") or resp_json.get("id", "")
             if post_id:
                 ctx.own_post_ids.add(post_id)
+            else:
+                # 17/17 self-posts silently dropped their id in May 2026 before
+                # this was caught — log loudly so any future regression in the
+                # response envelope is visible in agent-launchd.log instead of
+                # quietly disabling NoveltyGate again.
+                logger.warning(
+                    "create-post response missing id; NoveltyGate sidecar "
+                    "will miss this post (envelope keys=%s)",
+                    sorted(resp_json.keys()) if isinstance(resp_json, dict) else "<non-dict>",
+                )
             ctx.actions_taken.append(f"Posted: {title}")
             logger.info(">> New post [%s] (id=%s):\n%s", title, post_id, content)
             ctx.memory.episodes.append("activity", {

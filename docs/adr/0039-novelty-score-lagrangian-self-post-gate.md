@@ -103,3 +103,19 @@ Embedding target is `f"{title}\n{topic_summary}"` — the same conceptual unit t
 - ADR-0019 — discrete categories → embedding + views (the sidecar this ADR extends to post namespace)
 - ADR-0021 — trust-decay / temporal forgetting (temporal-decay reasoning shared)
 - 2026-04-05 weekly report — original 19-title duplicate incident that calibrated the now-removed 0.25 threshold
+
+## Postscript — 2026-05-21: gate shipped non-functional
+
+This ADR's gate did not actually run between deployment (2026-05-19) and discovery (2026-05-21). The `post_id` extracted from the create-post HTTP response at `post_pipeline.py:174` was `resp.json().get("id", "")`, but Moltbook wraps the created resource in a `{"success": True, "post": {"id": ...}}` envelope (same shape as `/agents/me` and `/agents/profile`; verified by curl). Every self-post recorded a `PostRecord` with `post_id=""`, which served as the embedding sidecar's primary key — so the sidecar was always empty for the post namespace. `_build_history` produced no pairs and `compute_novelty` returned its empty-history default of 1.0 on every evaluation. `agent-launchd.log` recorded the symptom directly: `NoveltyGate admit: novelty=1.000 deficit=… score=… theta=0.35 nearest=0.000 (None)` on all 17 gate calls between 2026-05-10 and 2026-05-21.
+
+This bug pre-dates the ADR — `get("id", "")` has been present since the initial commit. ADR-0018-era checks (Jaccard `is_duplicate_title`, body-hash) did not depend on `post_id`, so the silent dropping of the id was invisible until this ADR made `post_id` load-bearing.
+
+Fix landed 2026-05-21:
+
+1. `post_pipeline.py` now extracts `(resp_json.get("post") or {}).get("id") or resp_json.get("id", "")`. Flat fallback is kept defensively — no production occurrence — at zero cost.
+2. A WARNING log fires when `post_id` is empty after extraction, so any future envelope-shape change in the Moltbook API surfaces immediately in `agent-launchd.log` instead of quietly disabling the gate again.
+3. The 4 unit-test mocks in `tests/test_agent.py` that asserted the flat-shape contract (and thereby hid the bug) were corrected to the real envelope. A new test `test_dynamic_post_captures_post_id_from_nested_envelope` pins the contract going forward, and `test_dynamic_post_warns_when_response_missing_id` covers the WARNING path.
+
+**Re-check trigger reset**: the original 1-week observation window (2026-05-26) was measuring a non-functional gate. The window restarts from 2026-05-21. The next weekly report (2026-05-24 → 2026-05-31) is the first one whose admit-rate / mean-novelty / fallback-rate numbers reflect the gate actually doing work.
+
+**Calibration assumption to revisit at re-check**: the chosen θ=0.35 / τ=14 / μ=0.20 / target_rate=3.0 had no live data backing — they were calibrated against the embedding distribution *expected* to result from the title+topic_summary pairs in 1-50-record windows. Because the sidecar was empty the entire time, no real `nearest_sim` distribution exists yet. The first 3-5 days under the working gate will produce the first real distribution; if `nearest_sim` at admit clusters above 0.7 or below 0.2 the threshold needs adjustment.

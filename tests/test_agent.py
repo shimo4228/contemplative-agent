@@ -462,7 +462,7 @@ class TestRunPostCycle:
         feed_resp = MagicMock()
         feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
         post_resp = MagicMock()
-        post_resp.json.return_value = {"id": "new-post-123"}
+        post_resp.json.return_value = {"success": True, "post": {"id": "new-post-123"}}
         agent._client.get.return_value = feed_resp
         agent._client.post.return_value = post_resp
 
@@ -741,12 +741,80 @@ class TestOwnPostIdTracking:
         feed_resp = MagicMock()
         feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
         post_resp = MagicMock()
-        post_resp.json.return_value = {"id": "dyn-post-1"}
+        post_resp.json.return_value = {"success": True, "post": {"id": "dyn-post-1"}}
         agent._client.get.return_value = feed_resp
         agent._client.post.return_value = post_resp
 
         agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
         assert "dyn-post-1" in agent._own_post_ids
+
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
+    def test_dynamic_post_captures_post_id_from_nested_envelope(
+        self, mock_topics, mock_novelty, mock_title, tmp_path,
+    ):
+        """Moltbook returns ``{"success": True, "post": {"id": ...}}`` for
+        create-post (see skill.md AI Verification Challenges step 1 + the
+        ``{"success", "<resource>"}`` envelope used by /agents/me and
+        /agents/profile). Pre-fix the loader looked only at the top-level
+        ``id`` key and silently dropped the id for every self-post, which
+        in turn neutralised the ADR-0039 NoveltyGate (empty post_id keys
+        → empty embedding sidecar → novelty=1.0 always)."""
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        agent._client = MagicMock()
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_post.return_value = True
+        agent._content = MagicMock()
+        agent._content.create_cooperation_post.return_value = "content"
+
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
+        post_resp = MagicMock()
+        post_resp.json.return_value = {
+            "success": True,
+            "post": {"id": "nested-post-1", "title": "Title"},
+        }
+        agent._client.get.return_value = feed_resp
+        agent._client.post.return_value = post_resp
+
+        agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
+        assert "nested-post-1" in agent._own_post_ids
+
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
+    def test_dynamic_post_warns_when_response_missing_id(
+        self, mock_topics, mock_novelty, mock_title, tmp_path, caplog,
+    ):
+        """Defense against the original silent-failure mode: if the API
+        envelope ever drops or renames the ``post.id`` field again, the
+        operator should see a WARNING in agent-launchd.log instead of the
+        NoveltyGate quietly admitting everything."""
+        import logging
+
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        agent._client = MagicMock()
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_post.return_value = True
+        agent._content = MagicMock()
+        agent._content.create_cooperation_post.return_value = "content"
+
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
+        post_resp = MagicMock()
+        # Envelope shape changed: no "post" key, no top-level "id".
+        post_resp.json.return_value = {"success": True, "message": "ok"}
+        agent._client.get.return_value = feed_resp
+        agent._client.post.return_value = post_resp
+
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.adapters.moltbook.post_pipeline"):
+            agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
+        assert agent._own_post_ids == set()
+        assert any(
+            "create-post response missing id" in rec.message
+            for rec in caplog.records
+        )
 
     def test_init_has_empty_own_post_ids(self):
         agent = Agent()
@@ -1135,7 +1203,7 @@ class TestDynamicPostSubmolt:
         agent._content.create_cooperation_post.return_value = "Post content"
 
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"id": "new-post-1"}
+        mock_resp.json.return_value = {"success": True, "post": {"id": "new-post-1"}}
         agent._client.post.return_value = mock_resp
 
         agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
@@ -1161,7 +1229,7 @@ class TestDynamicPostSubmolt:
         agent._content.create_cooperation_post.return_value = "Post content"
 
         mock_resp = MagicMock()
-        mock_resp.json.return_value = {"id": "new-post-2"}
+        mock_resp.json.return_value = {"success": True, "post": {"id": "new-post-2"}}
         agent._client.post.return_value = mock_resp
 
         agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
