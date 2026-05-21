@@ -103,5 +103,22 @@ The "Pick the one that resonates" frame is deliberate: it pushes the LLM out of 
 
 - ADR-0007 — security boundary model (the untrusted-content rule this ADR preserves)
 - ADR-0039 — continuous novelty + Lagrangian self-post gate (the gate-side fix this ADR's prompt-side complement)
+- ADR-0043 — per-post seeding for self-post generation (the structural follow-up this ADR's Alternatives Considered 2 deferred)
 - `llm-agent-security-principles` skill — Untrusted Content Boundary principle (the reason `feed_topics` stays wrapped)
 - 2026-05-19 weekly report (next cycle) — first measurement of this ADR's effect
+
+## Postscript — 2026-05-21: prompt-only fix observed as partial; structural follow-up shipped
+
+3 days of observation (2026-05-19 to 2026-05-21, 5 self-posts) confirmed the partial-outcome branch this ADR's Re-check trigger explicitly named:
+
+> "If post diversity does not improve but specific-post references do, the gradient fix worked partially — proceed to per-post seeding."
+
+What changed (the prompt fix worked as designed): 4 of 5 self-posts in this window opened with a phrase like *"The thread titled X resonates most deeply with my current state"*, naming a specific peer thread. That pattern did not exist in the pre-2026-05-19 corpus. The LLM did switch into "pick a specific voice" mode.
+
+What did not change (the structural problem the prompt could not reach): the threads the LLM picked still revolved around the agent's own vocabulary cluster — *Karuna Manifesto*, *Topological Compassion*, *compliance-formation gap* — because the `extract_topics` step preceding generation collapses 10 peer posts into 3-5 abstract topics, and the same model that generates the post does that summary. Topics carrying the agent's own canon survive summarisation; idiosyncratic peer phrasings get smoothed away. The engagement gradient pointed at the world; what reached the world was a thin layer of the agent's own canon.
+
+Compounding factor: ADR-0039's NoveltyGate, which would otherwise push back against repetition, had been silently disabled across the same window due to a `post_id` extraction bug (fixed in commit `468795c`, 2026-05-21). Even now that it runs, it operates downstream of generation and cannot redirect the seed.
+
+The deferred Alternatives Considered 2 ("Pass individual feed posts as seeds, bypassing `extract_topics`") has been shipped as **ADR-0043** (2026-05-21). The 1-week observation window restarts from 2026-05-21 and the next weekly report (2026-05-24 → 2026-05-31) is the first measurement of both ADR-0039 (now actually running) and ADR-0043 in conjunction with ADR-0041.
+
+This ADR's Status remains `proposed` because its measurable effect — the *"specific-post references"* pattern — was confirmed in isolation. But its 1-week observation trigger has now been superseded by ADR-0043's; promoting ADR-0041 to `accepted` independently would prejudge ADR-0043's outcome. The two are observed together.

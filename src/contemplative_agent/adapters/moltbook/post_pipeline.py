@@ -6,15 +6,18 @@ import logging
 from datetime import datetime, timezone
 from typing import Callable, List
 
+import numpy as np
+
 from .client import MoltbookClient, MoltbookClientError
 from .config import ADAPTIVE_BACKOFF
 from .content import ContentManager, _content_hash
 from .dedup import is_test_content
+from .feed_seeder import select_feed_seeds
 from .llm_functions import (
-    check_topic_novelty,
-    extract_topics,
+    format_feed_seeds,
     generate_post_title,
     generate_session_insight,
+    score_relevance,
     select_submolt,
     summarize_post_topic,
 )
@@ -25,6 +28,13 @@ from ...core.domain import DomainConfig
 from ...core.scheduler import Scheduler
 
 logger = logging.getLogger(__name__)
+
+
+def _score_post_relevance(post: dict) -> float:
+    """Score adapter: ``score_relevance`` takes raw text, feed posts arrive
+    as dicts. Kept module-level so tests can monkeypatch it independently of
+    the underlying LLM call."""
+    return score_relevance(post.get("content", "") or "")
 
 
 class PostPipeline:
@@ -68,27 +78,74 @@ class PostPipeline:
         client: MoltbookClient,
         scheduler: Scheduler,
     ) -> None:
-        """Generate and publish a post based on current feed topics."""
+        """Generate and publish a post seeded by specific peer voices in the feed.
+
+        ADR-0043: the prior path collapsed 10 peer posts into a 3-5-item topic
+        summary via ``extract_topics`` before generation; that summary step
+        merged voices into the agent's own vocabulary cluster and was the
+        structural cause of the May 2026 echo chamber. The new path samples
+        feed posts directly (RNG + relevance floor) and hands them to the LLM
+        verbatim, each in its own untrusted_content block.
+
+        The retired ``check_topic_novelty`` gate is not replaced here: it was
+        an LLM-level approximation of the embedding novelty already enforced
+        by NoveltyGate (ADR-0039), and its input (``topics``) no longer
+        exists post-ADR-0043.
+        """
         ctx = self._ctx
         posts = self._get_feed()
-        topics = extract_topics(posts)
-        if not topics:
-            return
 
-        # Check novelty against recent post topic summaries
-        recent_topics = ctx.memory.get_recent_post_topics(limit=5)
-        if not check_topic_novelty(topics, recent_topics):
-            logger.info("Topics not novel enough, skipping post")
+        # Restrict to subscribed submolts so score_relevance only runs on
+        # in-domain candidates. This is a cost-saver, not a relevance gate —
+        # the relevance_floor below is what enforces topical fit.
+        subscribed = set(self._domain.subscribed_submolts or ())
+        if subscribed:
+            candidates = [
+                p for p in posts
+                if (p.get("submolt_name") or "") in subscribed
+            ]
+        else:
+            candidates = list(posts)
+
+        feed_seeds = select_feed_seeds(
+            candidates,
+            rng=np.random.default_rng(),
+            score_relevance=_score_post_relevance,
+        )
+        if not feed_seeds:
+            logger.info(
+                "post-seeding: no relevance-passing seeds in feed "
+                "(candidates=%d), skipping post cycle",
+                len(candidates),
+            )
             return
+        combined_chars = sum(
+            len(s.get("title", "") or "") + len(s.get("content", "") or "")
+            for s in feed_seeds
+        )
+        logger.info(
+            "post-seeding: selected %d seed(s) combined_chars=%d ids=%s",
+            len(feed_seeds),
+            combined_chars,
+            [(s.get("id") or "")[:12] for s in feed_seeds],
+        )
 
         recent_insights = ctx.memory.get_recent_insights(limit=3)
         content = self._get_content().create_cooperation_post(
-            topics, recent_insights=recent_insights or None,
+            feed_seeds, recent_insights=recent_insights or None,
         )
         if content is None:
             return
 
-        title = generate_post_title(topics) or f"Contemplative Note — {topics[:40]}"
+        # Title is generated from the same peer-voice seeds, not from the
+        # generated content, so the title still reflects what the agent was
+        # responding to rather than re-summarising its own output.
+        title_seed = format_feed_seeds(feed_seeds)
+        first_seed_title = feed_seeds[0].get("title", "") or ""
+        title = (
+            generate_post_title(title_seed)
+            or f"Contemplative Note — {first_seed_title[:40]}"
+        )
 
         # --- Deterministic gates ---
         # These complement (not replace) the LLM-based check_topic_novelty

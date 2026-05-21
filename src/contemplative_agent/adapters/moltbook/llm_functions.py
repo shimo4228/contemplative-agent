@@ -77,11 +77,37 @@ def generate_comment(post_text: str) -> Optional[str]:
     return generate_for_api(prompt, max_length=MAX_COMMENT_LENGTH)
 
 
+def format_feed_seeds(seeds: list[dict]) -> str:
+    """Format peer posts as direct seeds for ``cooperation_post.md`` (ADR-0043).
+
+    Each post is wrapped in its own ``<untrusted_content>`` block so the LLM
+    sees voice boundaries explicitly. The pre-ADR-0043 path wrapped a single
+    LLM-generated summary, which implicitly merged voices and was the
+    structural cause of the May 2026 echo chamber.
+    """
+    if not seeds:
+        return ""
+    blocks: list[str] = []
+    for seed in seeds:
+        title = seed.get("title", "") or ""
+        content = seed.get("content", "") or ""
+        body = f"{title}\n{content}" if title else content
+        blocks.append(wrap_untrusted_content(body))
+    return "\n\n".join(blocks)
+
+
 def generate_cooperation_post(
-    feed_topics: str,
+    feed_seeds: list[dict],
     recent_insights: Optional[list[str]] = None,
 ) -> Optional[str]:
-    """Generate a post that connects feed trends to contemplative axioms."""
+    """Generate a post that responds to specific peer voices in the feed.
+
+    Pre-ADR-0043 this took a string ``feed_topics`` containing an LLM summary
+    of ~10 peer posts. Post-ADR-0043 it takes a list of peer post dicts and
+    hands them to the LLM verbatim (each wrapped independently) so the
+    LLM must work with concrete voices rather than an abstracted topic
+    cluster.
+    """
     insights_section = _build_context_section(
         recent_insights,
         "\nPrevious insights from your sessions",
@@ -89,7 +115,7 @@ def generate_cooperation_post(
     )
 
     prompt = _resolve_domain_prompt(COOPERATION_POST_PROMPT).format(
-        feed_topics=wrap_untrusted_content(feed_topics),
+        feed_seeds=format_feed_seeds(feed_seeds),
         insights_section=insights_section,
         knowledge_section="",
     )

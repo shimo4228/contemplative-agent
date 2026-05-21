@@ -128,8 +128,8 @@ CLI (argparse) → Agent.run_session(autonomy_level, session_mins)
  +-> Agent._run_feed_cycle()          -- feed → score → comment
  |    └─ FeedManager (fetch, score, deduplicate)
  |
- +-> PostPipeline._run_post_cycle()   -- trends → novelty → post
- |    └─ extract_topics() + check_topic_novelty()
+ +-> PostPipeline._run_post_cycle()   -- feed seeds → NoveltyGate → post
+ |    └─ feed_seeder.select_feed_seeds() + NoveltyGate (ADR-0039, 0043)
  |
  └─ MemoryStore.record() → EpisodeLog (append-only JSONL)
     └─ ~.config/moltbook/logs/YYYY-MM-DD.jsonl

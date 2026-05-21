@@ -434,10 +434,9 @@ def _admit_decision():
 
 class TestRunPostCycle:
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="reflection on alignment")
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Notes on dedup gates")
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topic1\ntopic2")
-    def test_posts_dynamic(self, mock_topics, mock_title, mock_novelty, mock_summarize):
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_posts_dynamic(self, mock_score, mock_title, mock_summarize):
         # NOTE: title and body must avoid anything in dedup._TEST_PATTERNS
         # ("Test Title" / "Dynamic content" from Mar 30–31 leaks, and
         # "Reflective Note" / "A short body about alignment" from the
@@ -460,7 +459,7 @@ class TestRunPostCycle:
         agent._post_pipeline._novelty_gate.record = MagicMock()
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
         post_resp = MagicMock()
         post_resp.json.return_value = {"success": True, "post": {"id": "new-post-123"}}
         agent._client.get.return_value = feed_resp
@@ -471,11 +470,10 @@ class TestRunPostCycle:
         assert any("Posted: Notes on dedup gates" in a for a in agent._actions_taken)
 
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="topic summary")
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="A different title")
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topic1")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
     def test_skips_when_body_hash_matches(
-        self, mock_topics, mock_title, mock_novelty, mock_summarize,
+        self, mock_score, mock_title, mock_summarize,
     ):
         """ADR-0018 amendment: body-hash gate catches verbatim re-publication
         that title/topic Jaccard misses (May 3 2026 self-post #2 = Apr 30 #2,
@@ -508,7 +506,7 @@ class TestRunPostCycle:
         agent._ctx.memory.get_recent_posts = MagicMock(return_value=[prior_record])
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
         agent._client.get.return_value = feed_resp
 
         agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
@@ -524,9 +522,8 @@ class TestRunPostCycle:
         agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
         agent._client.post.assert_not_called()
 
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
-    def test_skips_none_content(self, mock_topics, mock_novelty):
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_skips_none_content(self, mock_score):
         agent = Agent(autonomy=AutonomyLevel.AUTO)
         agent._client = MagicMock()
         agent._scheduler = MagicMock()
@@ -535,16 +532,15 @@ class TestRunPostCycle:
         agent._content.create_cooperation_post.return_value = None
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
         agent._client.get.return_value = feed_resp
 
         agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
         agent._client.post.assert_not_called()
 
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
-    def test_post_client_error(self, mock_topics, mock_title, mock_novelty):
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_post_client_error(self, mock_score, mock_title):
         from contemplative_agent.adapters.moltbook.client import MoltbookClientError
 
         agent = Agent(autonomy=AutonomyLevel.AUTO)
@@ -555,7 +551,7 @@ class TestRunPostCycle:
         agent._content.create_cooperation_post.return_value = "content"
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
         agent._client.get.return_value = feed_resp
         agent._client.post.side_effect = MoltbookClientError("fail")
 
@@ -728,9 +724,8 @@ class TestOwnPostIdTracking:
     """Tests that own post IDs are captured from _run_dynamic_post."""
 
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
-    def test_dynamic_post_captures_post_id(self, mock_topics, mock_novelty, mock_title, tmp_path):
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_dynamic_post_captures_post_id(self, mock_score, mock_title, tmp_path):
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         agent._client = MagicMock()
         agent._scheduler = MagicMock()
@@ -739,7 +734,7 @@ class TestOwnPostIdTracking:
         agent._content.create_cooperation_post.return_value = "content"
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
         post_resp = MagicMock()
         post_resp.json.return_value = {"success": True, "post": {"id": "dyn-post-1"}}
         agent._client.get.return_value = feed_resp
@@ -749,10 +744,9 @@ class TestOwnPostIdTracking:
         assert "dyn-post-1" in agent._own_post_ids
 
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
     def test_dynamic_post_captures_post_id_from_nested_envelope(
-        self, mock_topics, mock_novelty, mock_title, tmp_path,
+        self, mock_score, mock_title, tmp_path,
     ):
         """Moltbook returns ``{"success": True, "post": {"id": ...}}`` for
         create-post (see skill.md AI Verification Challenges step 1 + the
@@ -769,7 +763,7 @@ class TestOwnPostIdTracking:
         agent._content.create_cooperation_post.return_value = "content"
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
         post_resp = MagicMock()
         post_resp.json.return_value = {
             "success": True,
@@ -782,10 +776,9 @@ class TestOwnPostIdTracking:
         assert "nested-post-1" in agent._own_post_ids
 
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
     def test_dynamic_post_warns_when_response_missing_id(
-        self, mock_topics, mock_novelty, mock_title, tmp_path, caplog,
+        self, mock_score, mock_title, tmp_path, caplog,
     ):
         """Defense against the original silent-failure mode: if the API
         envelope ever drops or renames the ``post.id`` field again, the
@@ -801,7 +794,7 @@ class TestOwnPostIdTracking:
         agent._content.create_cooperation_post.return_value = "content"
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
         post_resp = MagicMock()
         # Envelope shape changed: no "post" key, no top-level "id".
         post_resp.json.return_value = {"success": True, "message": "ok"}
@@ -1189,11 +1182,9 @@ class TestDynamicPostSubmolt:
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="topic")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
     def test_uses_selected_submolt(
-        self, mock_topics, mock_novelty, mock_title, mock_summarize,
-        mock_select, tmp_path,
+        self, mock_score, mock_title, mock_summarize, mock_select, tmp_path,
     ):
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         agent._client = MagicMock()
@@ -1202,6 +1193,9 @@ class TestDynamicPostSubmolt:
         agent._content = MagicMock()
         agent._content.create_cooperation_post.return_value = "Post content"
 
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
+        agent._client.get.return_value = feed_resp
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"success": True, "post": {"id": "new-post-1"}}
         agent._client.post.return_value = mock_resp
@@ -1215,11 +1209,9 @@ class TestDynamicPostSubmolt:
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value=None)
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="topic")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.check_topic_novelty", return_value=True)
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.extract_topics", return_value="topics")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
     def test_falls_back_to_default(
-        self, mock_topics, mock_novelty, mock_title, mock_summarize,
-        mock_select, tmp_path,
+        self, mock_score, mock_title, mock_summarize, mock_select, tmp_path,
     ):
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         agent._client = MagicMock()
@@ -1228,6 +1220,9 @@ class TestDynamicPostSubmolt:
         agent._content = MagicMock()
         agent._content.create_cooperation_post.return_value = "Post content"
 
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
+        agent._client.get.return_value = feed_resp
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"success": True, "post": {"id": "new-post-2"}}
         agent._client.post.return_value = mock_resp

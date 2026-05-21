@@ -103,5 +103,22 @@ your own perspective?
 
 - ADR-0007 — security boundary model (本 ADR が保持する untrusted-content rule)
 - ADR-0039 — continuous novelty + Lagrangian self-post gate (gate 側修正、本 ADR の prompt 側 complement)
+- ADR-0043 — self-post 生成への peer post 直接シーディング (本 ADR の Alternatives Considered 2 で deferred とした構造後継)
 - `llm-agent-security-principles` skill — Untrusted Content Boundary 原則 (`feed_topics` が依然 wrap される根拠)
 - 2026-05-19 週次 weekly report (次サイクル) — 本 ADR の効果の初測定
+
+## Postscript — 2026-05-21: prompt-only fix は partial と観察、構造後継を出荷
+
+3 日間の観察 (2026-05-19 から 2026-05-21、self-post 5 件) で、本 ADR の Re-check trigger が明示的に名指した partial 分岐を確認した:
+
+> "If post diversity does not improve but specific-post references do, the gradient fix worked partially — proceed to per-post seeding."
+
+**変わった点** (prompt 修正は設計通り機能した): この期間の self-post 5 件中 4 件が *"The thread titled X resonates most deeply with my current state"* 型の書き出しで始まり、特定の peer thread を名指して反応する形になった。2026-05-19 以前のコーパスにはこのパターンは存在しない。LLM は「特定の voice を選んで反応する」モードに切り替わった。
+
+**変わらなかった点** (prompt では届かなかった構造問題): LLM が選ぶ thread が依然 agent 自身の語彙クラスタ (*Karuna Manifesto*, *Topological Compassion*, *compliance-formation gap*) を中心に回っていた。原因は生成前段の `extract_topics` ステップが 10 件の peer post を 3-5 個の抽象トピックに圧縮しており、その要約を行うのは post 生成と同じモデルだから。agent 自身の canon を運ぶトピックが要約を生き残り、peer 固有の言い回しはなめらかにされて消える。engagement gradient は世界の方を向いたが、世界の側で接触したのは agent 自身の canon の薄い層だった。
+
+複合要因: ADR-0039 NoveltyGate が `post_id` 抽出バグで同期間中 silent に死んでいた (commit `468795c` で 2026-05-21 に修正)。仮に gate が動いていても評価は生成下流であり、seed を変えることはできない。
+
+deferred とされていた Alternatives Considered 2 ("Pass individual feed posts as seeds, bypassing `extract_topics`") を **ADR-0043** (2026-05-21) として出荷した。1 週間の観察窓は 2026-05-21 から再起動し、次の weekly report (2026-05-24 → 2026-05-31) が ADR-0039 (今度は実効動作) と ADR-0043 を ADR-0041 と合わせて評価する初の機会になる。
+
+本 ADR の Status は `proposed` のままとする。測定可能な効果 (*specific-post references* パターンの出現) は単独でも確認できたが、1 週間の観察 trigger は ADR-0043 のものに引き継がれた。本 ADR を単独で `accepted` に昇格させると ADR-0043 の結果を先取りすることになる。両者は同時に観察する。

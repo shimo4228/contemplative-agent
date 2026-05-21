@@ -435,22 +435,26 @@ class TestGenerateComment:
 
 
 class TestGenerateCooperationPost:
+    """Post-ADR-0043: takes list[dict] feed_seeds, not a flat topic string."""
+
+    _SEEDS = [{"title": "alignment", "content": "safety cooperation"}]
+
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_returns_generated_post(self, mock_gen):
         mock_gen.return_value = "A post about cooperation trends."
-        result = generate_cooperation_post("alignment, safety, cooperation")
+        result = generate_cooperation_post(self._SEEDS)
         assert result == "A post about cooperation trends."
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_returns_none_on_failure(self, mock_gen):
         mock_gen.return_value = None
-        assert generate_cooperation_post("topics") is None
+        assert generate_cooperation_post(self._SEEDS) is None
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_uses_generate_for_api_with_max_post_length(self, mock_gen):
         from contemplative_agent.core.config import MAX_POST_LENGTH
         mock_gen.return_value = "ok"
-        generate_cooperation_post("topics")
+        generate_cooperation_post(self._SEEDS)
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["max_length"] == MAX_POST_LENGTH
         assert "num_predict" not in kwargs

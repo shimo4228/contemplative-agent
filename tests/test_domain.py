@@ -101,7 +101,7 @@ class TestLoadPromptTemplates:
         assert "credentials" in templates.system
         assert "{post_content}" in templates.relevance
         assert "{post_content}" in templates.comment
-        assert "{feed_topics}" in templates.cooperation_post
+        assert "{feed_seeds}" in templates.cooperation_post
         assert "{original_post}" in templates.reply
         assert "{feed_topics}" in templates.post_title
         assert "{combined_posts}" in templates.topic_extraction
@@ -343,7 +343,7 @@ class TestEndToEndIntegration:
         config = load_domain_config()
         templates = load_prompt_templates()
         resolved = resolve_prompt(templates.cooperation_post, config)
-        assert "{feed_topics}" in resolved
+        assert "{feed_seeds}" in resolved
 
     def test_constitutional_clauses_loaded(self):
         constitution_dir = DEFAULT_CONFIG_DIR / "templates" / "contemplative" / "constitution"

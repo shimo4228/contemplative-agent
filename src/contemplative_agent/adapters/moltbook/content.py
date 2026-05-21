@@ -49,11 +49,11 @@ class ContentManager:
 
     def create_cooperation_post(
         self,
-        feed_topics: str,
+        feed_seeds: list[dict],
         recent_insights: Optional[list[str]] = None,
     ) -> Optional[str]:
         post = generate_cooperation_post(
-            feed_topics, recent_insights=recent_insights,
+            feed_seeds, recent_insights=recent_insights,
         )
         if post is None:
             return None
