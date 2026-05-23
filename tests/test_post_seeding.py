@@ -31,7 +31,7 @@ def _post(title: str, content: str, post_id: str = "p1") -> dict:
         "id": post_id,
         "title": title,
         "content": content,
-        "submolt_name": "alignment",
+        "submolt_name": "philosophy",
     }
 
 

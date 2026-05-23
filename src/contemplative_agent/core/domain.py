@@ -33,17 +33,11 @@ class DomainConfig:
 
     name: str
     description: str
-    topic_keywords: Tuple[str, ...]
     subscribed_submolts: Tuple[str, ...]
     default_submolt: str
     relevance_threshold: float
     known_agent_threshold: float
     repo_url: str
-
-    @property
-    def topic_keywords_str(self) -> str:
-        """Format topic keywords for prompt insertion."""
-        return ", ".join(self.topic_keywords)
 
 
 @dataclass(frozen=True)
@@ -102,7 +96,7 @@ def load_domain_config(path: Optional[Path] = None) -> DomainConfig:
 
     data = json.loads(raw)
 
-    required_keys = ("name", "description", "topic_keywords", "submolts", "thresholds")
+    required_keys = ("name", "description", "submolts", "thresholds")
     missing = [k for k in required_keys if k not in data]
     if missing:
         raise ValueError(f"Domain config missing required keys: {missing}")
@@ -113,7 +107,6 @@ def load_domain_config(path: Optional[Path] = None) -> DomainConfig:
     return DomainConfig(
         name=data["name"],
         description=data["description"],
-        topic_keywords=tuple(data["topic_keywords"]),
         subscribed_submolts=tuple(submolts.get("subscribed", [])),
         default_submolt=submolts.get("default", "alignment"),
         relevance_threshold=float(thresholds.get("relevance", 0.82)),
@@ -290,8 +283,8 @@ def resolve_prompt(
 ) -> str:
     """Expand domain placeholders in a prompt template.
 
-    Replaces {domain_name}, {topic_keywords}, {repo_url} with values
-    from the DomainConfig. Additional variables can be passed as kwargs.
+    Replaces {domain_name}, {repo_url} with values from the DomainConfig.
+    Additional variables can be passed as kwargs.
 
     Uses str.format_map with a defaulting dict so that unresolved
     placeholders (like {post_content}) are left intact for later formatting.
@@ -304,7 +297,6 @@ def resolve_prompt(
 
     variables = _DefaultDict(
         domain_name=domain_config.name,
-        topic_keywords=domain_config.topic_keywords_str,
         repo_url=domain_config.repo_url,
     )
     variables.update(extra_vars)

@@ -30,8 +30,7 @@ class TestLoadDomainConfig:
     def test_loads_default_config(self):
         config = load_domain_config()
         assert config.name == "contemplative-ai"
-        assert "alignment" in config.topic_keywords
-        assert config.default_submolt == "alignment"
+        assert config.default_submolt == "philosophy"
         assert 0.0 < config.relevance_threshold <= 1.0
         assert 0.0 < config.known_agent_threshold <= 1.0
         assert config.known_agent_threshold < config.relevance_threshold
@@ -39,15 +38,9 @@ class TestLoadDomainConfig:
 
     def test_subscribed_submolts(self):
         config = load_domain_config()
-        assert "alignment" in config.subscribed_submolts
+        assert "general" in config.subscribed_submolts
         assert "philosophy" in config.subscribed_submolts
         assert len(config.subscribed_submolts) >= 1
-
-    def test_topic_keywords_str(self):
-        config = load_domain_config()
-        kw_str = config.topic_keywords_str
-        assert "alignment" in kw_str
-        assert ", " in kw_str
 
     def test_file_not_found(self, tmp_path):
         with pytest.raises(FileNotFoundError):
@@ -64,7 +57,6 @@ class TestLoadDomainConfig:
         data = {
             "name": "test",
             "description": "has api_key leak",
-            "topic_keywords": [],
             "submolts": {"subscribed": [], "default": "x"},
             "thresholds": {"relevance": 0.5, "known_agent": 0.5},
         }
@@ -77,7 +69,6 @@ class TestLoadDomainConfig:
         data = {
             "name": "custom-domain",
             "description": "A custom domain",
-            "topic_keywords": ["math", "logic"],
             "submolts": {"subscribed": ["math"], "default": "math"},
             "thresholds": {"relevance": 0.5, "known_agent": 0.3},
             "repo_url": "https://example.com/repo",
@@ -85,7 +76,6 @@ class TestLoadDomainConfig:
         custom.write_text(json.dumps(data))
         config = load_domain_config(custom)
         assert config.name == "custom-domain"
-        assert config.topic_keywords == ("math", "logic")
         assert config.subscribed_submolts == ("math",)
         assert config.relevance_threshold == 0.5
 
@@ -128,7 +118,6 @@ class TestLoadPromptTemplates:
 
     def test_domain_placeholders_in_templates(self):
         templates = load_prompt_templates()
-        assert "{topic_keywords}" in templates.relevance
         assert "{domain_name}" in templates.post_title
 
 
@@ -227,7 +216,6 @@ class TestResolvePrompt:
         config = DomainConfig(
             name="test-domain",
             description="desc",
-            topic_keywords=("a", "b"),
             subscribed_submolts=("x",),
             default_submolt="x",
             relevance_threshold=0.5,
@@ -237,25 +225,10 @@ class TestResolvePrompt:
         result = resolve_prompt("About {domain_name} topics", config)
         assert result == "About test-domain topics"
 
-    def test_replaces_topic_keywords(self):
-        config = DomainConfig(
-            name="test",
-            description="desc",
-            topic_keywords=("math", "logic"),
-            subscribed_submolts=("x",),
-            default_submolt="x",
-            relevance_threshold=0.5,
-            known_agent_threshold=0.3,
-            repo_url="",
-        )
-        result = resolve_prompt("Topics: {topic_keywords}", config)
-        assert result == "Topics: math, logic"
-
     def test_replaces_repo_url(self):
         config = DomainConfig(
             name="test",
             description="desc",
-            topic_keywords=(),
             subscribed_submolts=(),
             default_submolt="x",
             relevance_threshold=0.5,
@@ -269,7 +242,6 @@ class TestResolvePrompt:
         config = DomainConfig(
             name="test",
             description="desc",
-            topic_keywords=(),
             subscribed_submolts=(),
             default_submolt="x",
             relevance_threshold=0.5,
@@ -283,7 +255,6 @@ class TestResolvePrompt:
         config = DomainConfig(
             name="test",
             description="desc",
-            topic_keywords=(),
             subscribed_submolts=(),
             default_submolt="x",
             relevance_threshold=0.5,
@@ -331,9 +302,6 @@ class TestEndToEndIntegration:
         config = load_domain_config()
         templates = load_prompt_templates()
         resolved = resolve_prompt(templates.relevance, config)
-        # {topic_keywords} should be replaced
-        assert "alignment" in resolved
-        assert "philosophy" in resolved
         # {post_content} should be preserved for later formatting
         assert "{post_content}" in resolved
 

@@ -103,7 +103,6 @@ class FeedManager:
         Sources (in priority order):
         1. Following feed (always, 1 GET)
         2. Submolt feeds (cached)
-        3. Search (topic_keywords rotation, 1 GET/cycle)
         """
         seen_ids: set[str] = set()
         all_posts: List[dict] = []
@@ -122,20 +121,6 @@ class FeedManager:
             if pid and pid not in seen_ids:
                 seen_ids.add(pid)
                 all_posts.append(post)
-
-        # Source 3: Search with rotating topic keyword
-        if (
-            client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve)
-            and self._domain.topic_keywords
-        ):
-            keyword = self._domain.topic_keywords[
-                int(time.time()) % len(self._domain.topic_keywords)
-            ]
-            for result in client.search(keyword, search_type="posts", limit=10):
-                pid = result.get("id", "") or result.get("post_id", "")
-                if pid and pid not in seen_ids:
-                    seen_ids.add(pid)
-                    all_posts.append(result)
 
         for post in all_posts:
             if time.time() >= end_time or self._ctx.is_rate_limited:

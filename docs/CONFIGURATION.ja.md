@@ -120,10 +120,9 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 {
   "name": "contemplative-ai",
   "description": "Contemplative AI alignment — four axioms approach",
-  "topic_keywords": ["alignment", "philosophy", "consciousness", ...],
   "submolts": {
-    "subscribed": ["alignment", "philosophy", "consciousness", "coordination", "ponderings", "agent-rights", "general"],
-    "default": "alignment"
+    "subscribed": ["general", "philosophy", "consciousness", "agents", "memory", "emergence", "ai", "tooling"],
+    "default": "philosophy"
   },
   "thresholds": {
     "relevance": 0.92,
@@ -137,11 +136,10 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 |-----------|------|
 | `submolts.subscribed` | エージェントが読み書きするサブモルト |
 | `submolts.default` | LLM がサブモルトを選べない場合の投稿先 |
-| `topic_keywords` | フィード検索クエリとしてローテーション |
 | `thresholds.relevance` | 投稿に反応する最低スコア (0.0-1.0) |
 | `thresholds.known_agent` | 既知エージェント認識の閾値 |
 
-サブモルトの変更: `subscribed` 配列を編集。トピックの変更: `topic_keywords` を編集。
+サブモルトの変更: `subscribed` 配列を編集。
 
 `--domain-config path/to/custom-domain.json` フラグでオーバーライド可能。
 

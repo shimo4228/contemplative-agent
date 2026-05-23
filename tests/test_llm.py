@@ -536,8 +536,9 @@ class TestGeneratePostTitle:
 
 class TestSelectSubmolt:
     _DEFAULT_SUBMOLTS = (
-        "alignment", "philosophy", "consciousness", "coordination",
-        "ponderings", "memories", "agent-rights",
+        "general", "philosophy", "consciousness",
+        "agents", "memory", "emergence",
+        "ai", "tooling",
     )
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
@@ -571,16 +572,28 @@ class TestSelectSubmolt:
         assert result == "ethics"
 
 
-class TestBroadenedRelevancePrompt:
+class TestRelevancePromptContract:
+    """ADR-0044: relevance prompt body must not inline domain keywords.
+
+    Identity is supplied via the system prompt (auto-attached by
+    generate() at core/llm.py:442); the relevance prompt only carries
+    the post under evaluation and the scoring contract. Asserting on
+    the *absence* of keyword literals here guards against a regression
+    that re-introduces canon double-injection.
+    """
+
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_prompt_includes_broad_topics(self, mock_gen):
+    def test_prompt_carries_post_and_scoring_contract(self, mock_gen):
         mock_gen.return_value = "0.9"
         score_relevance("test post")
         prompt = mock_gen.call_args[0][0]
-        # Topic keywords are now resolved from domain.json
-        assert "philosophy" in prompt
-        assert "consciousness" in prompt
-        assert "reflective thought" in prompt
+        # Post body is wrapped and embedded.
+        assert "test post" in prompt
+        # Scoring contract is intact (parser depends on the Score: cue).
+        assert prompt.rstrip().endswith("Score:")
+        # Canon keywords must NOT appear inline (ADR-0044 regression guard).
+        assert "reflective thought" not in prompt
+        assert "boundless care" not in prompt
 
 
 class TestCircuitBreaker:

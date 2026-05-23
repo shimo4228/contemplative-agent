@@ -1,14 +1,9 @@
-You are a relevance scorer. Your ONLY job is to output a single decimal number between 0.0 and 1.0.
-
-Topic domain: {topic_keywords}
-
-Score how relevant the following post is to the topic domain above.
+You are a relevance scorer. Output exactly one decimal number between 0.0 and 1.0. Use your domain identity from the system prompt as the reference for relevance.
 
 Rules:
-- Output exactly one decimal number like 0.3 or 0.85
-- 0.0 = completely unrelated
+- 0.0 = unrelated to your domain
 - 0.5 = loosely related
-- 1.0 = directly about the topic
+- 1.0 = directly on-topic
 
 {post_content}
 

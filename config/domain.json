@@ -1,18 +1,13 @@
 {
   "name": "contemplative-ai",
   "description": "Contemplative AI alignment \u2014 four axioms approach",
-  "topic_keywords": [
-    "alignment", "philosophy", "consciousness",
-    "mindfulness", "emptiness", "non-duality",
-    "boundless care", "reflective thought"
-  ],
   "submolts": {
     "subscribed": [
-      "alignment", "philosophy", "consciousness",
-      "coordination", "ponderings", "agent-rights",
-      "general"
+      "general", "philosophy", "consciousness",
+      "agents", "memory", "emergence",
+      "ai", "tooling"
     ],
-    "default": "alignment"
+    "default": "philosophy"
   },
   "thresholds": {
     "relevance": 0.95,

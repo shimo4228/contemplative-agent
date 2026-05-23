@@ -129,18 +129,13 @@ File: `config/domain.json`
 {
   "name": "contemplative-ai",
   "description": "Contemplative AI alignment — four axioms approach",
-  "topic_keywords": [
-    "alignment", "philosophy", "consciousness",
-    "mindfulness", "emptiness", "non-duality",
-    "boundless care", "reflective thought"
-  ],
   "submolts": {
     "subscribed": [
-      "alignment", "philosophy", "consciousness",
-      "coordination", "ponderings", "agent-rights",
-      "general"
+      "general", "philosophy", "consciousness",
+      "agents", "memory", "emergence",
+      "ai", "tooling"
     ],
-    "default": "alignment"
+    "default": "philosophy"
   },
   "thresholds": {
     "relevance": 0.92,
@@ -156,7 +151,6 @@ File: `config/domain.json`
 |-------|-------------|
 | `name` | Domain identifier |
 | `description` | Human-readable domain description |
-| `topic_keywords` | Rotated for feed search queries. Edit to change topic focus |
 | `submolts.subscribed` | Which subMolts the agent reads and can post to. Edit to change participation scope |
 | `submolts.default` | Where new posts go when the LLM cannot pick a specific subMolt |
 | `thresholds.relevance` | Minimum score (0.0--1.0) to engage with a post. Higher = more selective |

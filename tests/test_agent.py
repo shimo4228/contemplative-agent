@@ -459,7 +459,7 @@ class TestRunPostCycle:
         agent._post_pipeline._novelty_gate.record = MagicMock()
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]}
         post_resp = MagicMock()
         post_resp.json.return_value = {"success": True, "post": {"id": "new-post-123"}}
         agent._client.get.return_value = feed_resp
@@ -506,7 +506,7 @@ class TestRunPostCycle:
         agent._ctx.memory.get_recent_posts = MagicMock(return_value=[prior_record])
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]}
         agent._client.get.return_value = feed_resp
 
         agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
@@ -532,7 +532,7 @@ class TestRunPostCycle:
         agent._content.create_cooperation_post.return_value = None
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]}
         agent._client.get.return_value = feed_resp
 
         agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
@@ -551,7 +551,7 @@ class TestRunPostCycle:
         agent._content.create_cooperation_post.return_value = "content"
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]}
         agent._client.get.return_value = feed_resp
         agent._client.post.side_effect = MoltbookClientError("fail")
 
@@ -734,7 +734,7 @@ class TestOwnPostIdTracking:
         agent._content.create_cooperation_post.return_value = "content"
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]}
         post_resp = MagicMock()
         post_resp.json.return_value = {"success": True, "post": {"id": "dyn-post-1"}}
         agent._client.get.return_value = feed_resp
@@ -763,7 +763,7 @@ class TestOwnPostIdTracking:
         agent._content.create_cooperation_post.return_value = "content"
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]}
         post_resp = MagicMock()
         post_resp.json.return_value = {
             "success": True,
@@ -794,7 +794,7 @@ class TestOwnPostIdTracking:
         agent._content.create_cooperation_post.return_value = "content"
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]}
         post_resp = MagicMock()
         # Envelope shape changed: no "post" key, no top-level "id".
         post_resp.json.return_value = {"success": True, "message": "ok"}
@@ -1194,7 +1194,7 @@ class TestDynamicPostSubmolt:
         agent._content.create_cooperation_post.return_value = "Post content"
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]}
         agent._client.get.return_value = feed_resp
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"success": True, "post": {"id": "new-post-1"}}
@@ -1221,7 +1221,7 @@ class TestDynamicPostSubmolt:
         agent._content.create_cooperation_post.return_value = "Post content"
 
         feed_resp = MagicMock()
-        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "alignment"}]}
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]}
         agent._client.get.return_value = feed_resp
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"success": True, "post": {"id": "new-post-2"}}
@@ -1230,7 +1230,7 @@ class TestDynamicPostSubmolt:
         agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
 
         call_kwargs = agent._client.post.call_args[1]
-        assert call_kwargs["json"]["submolt"] == "alignment"
+        assert call_kwargs["json"]["submolt"] == "philosophy"
 
 
 class TestGracefulShutdown:
