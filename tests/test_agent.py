@@ -52,7 +52,7 @@ class TestAgentInit:
         agent = Agent()
         assert agent._client is None
         assert agent._scheduler is None
-        assert agent._actions_taken == []
+        assert agent._ctx.actions_taken == []
 
 
 class TestEnsureClient:
@@ -364,7 +364,7 @@ class TestEngageWithPost:
         agent._client.post.assert_called_once_with(
             "/posts/post1/comments", json={"content": "Great insight"}
         )
-        assert len(agent._actions_taken) == 1
+        assert len(agent._ctx.actions_taken) == 1
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_comment_client_error(self, mock_score, tmp_path):
@@ -467,7 +467,7 @@ class TestRunPostCycle:
 
         agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
         agent._client.post.assert_called_once()
-        assert any("Posted: Notes on dedup gates" in a for a in agent._actions_taken)
+        assert any("Posted: Notes on dedup gates" in a for a in agent._ctx.actions_taken)
 
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="topic summary")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="A different title")
@@ -741,7 +741,7 @@ class TestOwnPostIdTracking:
         agent._client.post.return_value = post_resp
 
         agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
-        assert "dyn-post-1" in agent._own_post_ids
+        assert "dyn-post-1" in agent._ctx.own_post_ids
 
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
@@ -773,7 +773,7 @@ class TestOwnPostIdTracking:
         agent._client.post.return_value = post_resp
 
         agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
-        assert "nested-post-1" in agent._own_post_ids
+        assert "nested-post-1" in agent._ctx.own_post_ids
 
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
@@ -803,7 +803,7 @@ class TestOwnPostIdTracking:
 
         with caplog.at_level(logging.WARNING, logger="contemplative_agent.adapters.moltbook.post_pipeline"):
             agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
-        assert agent._own_post_ids == set()
+        assert agent._ctx.own_post_ids == set()
         assert any(
             "create-post response missing id" in rec.message
             for rec in caplog.records
@@ -811,7 +811,7 @@ class TestOwnPostIdTracking:
 
     def test_init_has_empty_own_post_ids(self):
         agent = Agent()
-        assert agent._own_post_ids == set()
+        assert agent._ctx.own_post_ids == set()
 
 
 class TestRunReplyCycle:
@@ -847,7 +847,7 @@ class TestRunReplyCycle:
         agent._client.post.assert_called_once_with(
             "/posts/p1/comments", json={"content": "My reply"}
         )
-        assert "Replied to Alice on p1" in agent._actions_taken
+        assert "Replied to Alice on p1" in agent._ctx.actions_taken
         # Both received + sent should be recorded
         assert agent._memory.interaction_count() - before_count == 2
 
@@ -871,7 +871,7 @@ class TestRunReplyCycle:
         agent._client.post.assert_called_once_with(
             "/posts/p2/comments", json={"content": "My reply"}
         )
-        assert "Replied to Bob on p2" in agent._actions_taken
+        assert "Replied to Bob on p2" in agent._ctx.actions_taken
 
     def test_skips_non_reply_notification(self, tmp_path):
         agent = self._make_agent(tmp_path)
@@ -904,7 +904,7 @@ class TestRunReplyCycle:
 
     def test_skips_already_handled(self, tmp_path):
         agent = self._make_agent(tmp_path)
-        agent._commented_posts.add("reply:p1:n1")
+        agent._ctx.commented_posts.add("reply:p1:n1")
         agent._client.get_notifications.return_value = [
             {
                 "type": "comment",
@@ -975,7 +975,7 @@ class TestCheckOwnPostComments:
     def test_replies_to_comment_on_own_post(self, mock_reply, tmp_path):
         agent = self._make_agent(tmp_path)
         before_count = agent._memory.interaction_count()
-        agent._own_post_ids.add("my-post-1")
+        agent._ctx.own_post_ids.add("my-post-1")
         agent._client.get_post_comments.return_value = [
             {
                 "id": "c1",
@@ -992,12 +992,12 @@ class TestCheckOwnPostComments:
         agent._client.post.assert_called_once_with(
             "/posts/my-post-1/comments", json={"content": "Thanks!"}
         )
-        assert "Replied to Alice on my-post-1" in agent._actions_taken
+        assert "Replied to Alice on my-post-1" in agent._ctx.actions_taken
         assert agent._memory.interaction_count() - before_count == 2  # received + sent
 
     def test_skips_when_no_own_posts(self, tmp_path):
         agent = self._make_agent(tmp_path)
-        assert len(agent._own_post_ids) == 0
+        assert len(agent._ctx.own_post_ids) == 0
 
         agent._reply_handler.check_own_post_comments(
             agent._client, agent._scheduler, time.time() + 3600
@@ -1007,8 +1007,8 @@ class TestCheckOwnPostComments:
 
     def test_skips_already_replied_comment(self, tmp_path):
         agent = self._make_agent(tmp_path)
-        agent._own_post_ids.add("my-post-1")
-        agent._commented_posts.add("reply:my-post-1:c1")
+        agent._ctx.own_post_ids.add("my-post-1")
+        agent._ctx.commented_posts.add("reply:my-post-1:c1")
         agent._client.get_post_comments.return_value = [
             {
                 "id": "c1",
@@ -1027,7 +1027,7 @@ class TestCheckOwnPostComments:
     @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="Thanks!")
     def test_handles_nested_author_in_comments(self, mock_reply, tmp_path):
         agent = self._make_agent(tmp_path)
-        agent._own_post_ids.add("my-post-1")
+        agent._ctx.own_post_ids.add("my-post-1")
         agent._client.get_post_comments.return_value = [
             {
                 "id": "c2",
@@ -1041,11 +1041,11 @@ class TestCheckOwnPostComments:
         )
 
         agent._client.post.assert_called_once()
-        assert "Replied to Bob on my-post-1" in agent._actions_taken
+        assert "Replied to Bob on my-post-1" in agent._ctx.actions_taken
 
     def test_respects_end_time(self, tmp_path):
         agent = self._make_agent(tmp_path)
-        agent._own_post_ids.add("my-post-1")
+        agent._ctx.own_post_ids.add("my-post-1")
 
         agent._reply_handler.check_own_post_comments(
             agent._client, agent._scheduler, time.time() - 1
@@ -1055,8 +1055,8 @@ class TestCheckOwnPostComments:
 
     def test_respects_rate_limit(self, tmp_path):
         agent = self._make_agent(tmp_path)
-        agent._own_post_ids.add("my-post-1")
-        agent._rate_limited = True
+        agent._ctx.own_post_ids.add("my-post-1")
+        agent._ctx.set_rate_limited()
 
         agent._reply_handler.check_own_post_comments(
             agent._client, agent._scheduler, time.time() + 3600
@@ -1066,7 +1066,7 @@ class TestCheckOwnPostComments:
 
     def test_respects_scheduler_can_comment(self, tmp_path):
         agent = self._make_agent(tmp_path)
-        agent._own_post_ids.add("my-post-1")
+        agent._ctx.own_post_ids.add("my-post-1")
         agent._scheduler.can_comment.return_value = False
 
         agent._reply_handler.check_own_post_comments(
@@ -1376,7 +1376,7 @@ class TestFetchHomeData:
         }
 
         agent._fetch_home_data(mock_client)
-        assert agent._own_agent_id == "agent-123"
+        assert agent._ctx.own_agent_id == "agent-123"
         assert agent._home_data["your_account"]["name"] == "bot"
 
     def test_home_empty_falls_back_to_agents_me(self, tmp_path):
@@ -1388,7 +1388,7 @@ class TestFetchHomeData:
         mock_client.get.return_value = mock_resp
 
         agent._fetch_home_data(mock_client)
-        assert agent._own_agent_id == "fallback-456"
+        assert agent._ctx.own_agent_id == "fallback-456"
 
     def test_fallback_error_leaves_id_empty(self, tmp_path):
         from contemplative_agent.adapters.moltbook.client import MoltbookClientError as MCE
@@ -1398,7 +1398,7 @@ class TestFetchHomeData:
         mock_client.get.side_effect = MCE("Network error")
 
         agent._fetch_home_data(mock_client)
-        assert agent._own_agent_id == ""
+        assert agent._ctx.own_agent_id == ""
 
     def test_fallback_401_logs_critical(self, tmp_path):
         from contemplative_agent.adapters.moltbook.client import MoltbookClientError as MCE
@@ -1432,7 +1432,7 @@ class TestRunCycleFromHome:
 
     def _make_agent_and_handler(self, tmp_path):
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
-        agent._own_agent_id = "me-123"
+        agent._ctx.own_agent_id = "me-123"
         return agent, agent._reply_handler
 
     def test_skips_items_with_zero_notification_count(self, tmp_path):
@@ -1564,7 +1564,7 @@ class TestSelfPostSkip:
         agent._client = MagicMock()
         agent._scheduler = MagicMock()
         agent._scheduler.can_comment.return_value = True
-        agent._own_agent_id = "my-agent-id"
+        agent._ctx.own_agent_id = "my-agent-id"
 
         post = {
             "content": "Some post",
@@ -1583,7 +1583,7 @@ class TestSelfPostSkip:
         agent._scheduler.can_comment.return_value = True
         agent._content = MagicMock()
         agent._content.create_comment.return_value = None
-        agent._own_agent_id = "my-agent-id"
+        agent._ctx.own_agent_id = "my-agent-id"
 
         post = {
             "content": "Some post",
@@ -1635,7 +1635,7 @@ class TestSelfReplySkip:
         agent._client = MagicMock()
         agent._scheduler = MagicMock()
         agent._scheduler.can_comment.return_value = True
-        agent._own_agent_id = "my-agent-id"
+        agent._ctx.own_agent_id = "my-agent-id"
         return agent
 
     @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="Thanks!")

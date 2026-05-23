@@ -5,7 +5,7 @@ import logging
 import re
 import signal
 import time
-from typing import Any, Dict, List, Optional, Set
+from typing import Any, Dict, List, Optional
 
 from .auth import check_claim_status, load_credentials, register_agent
 from .client import MoltbookClient, MoltbookClientError
@@ -123,46 +123,6 @@ class Agent:
         )
 
     # ------------------------------------------------------------------
-    # Session context accessors (backward-compatible delegation to _ctx)
-    # ------------------------------------------------------------------
-
-    @property
-    def is_rate_limited(self) -> bool:
-        return self._ctx.is_rate_limited
-
-    def set_rate_limited(self) -> None:
-        """Signal that a 429 was received."""
-        self._ctx.set_rate_limited()
-
-    @property
-    def _rate_limited(self) -> bool:
-        return self._ctx._rate_limited
-
-    @_rate_limited.setter
-    def _rate_limited(self, value: bool) -> None:
-        self._ctx._rate_limited = value
-
-    @property
-    def _actions_taken(self) -> List[str]:
-        return self._ctx.actions_taken
-
-    @property
-    def _commented_posts(self) -> Set[str]:
-        return self._ctx.commented_posts
-
-    @property
-    def _own_post_ids(self) -> Set[str]:
-        return self._ctx.own_post_ids
-
-    @property
-    def _own_agent_id(self) -> str:
-        return self._ctx.own_agent_id
-
-    @_own_agent_id.setter
-    def _own_agent_id(self, value: str) -> None:
-        self._ctx.own_agent_id = value
-
-    # ------------------------------------------------------------------
     # Client / scheduler lifecycle
     # ------------------------------------------------------------------
 
@@ -180,9 +140,9 @@ class Agent:
         agent_id = account.get("id", "")
         agent_name = account.get("name", "")
         if agent_id:
-            self._own_agent_id = agent_id
+            self._ctx.own_agent_id = agent_id
             logger.info("Own agent ID: %s (name: %s)", agent_id[:12], agent_name)
-        elif not self._own_agent_id:
+        elif not self._ctx.own_agent_id:
             # Fallback to /agents/me if /home didn't return an ID
             self._fetch_own_agent_id_fallback(client)
 
@@ -191,9 +151,9 @@ class Agent:
         try:
             resp = client.get("/agents/me")
             agent_data = resp.json().get("agent", {})
-            self._own_agent_id = agent_data.get("id", "")
-            if self._own_agent_id:
-                logger.info("Own agent ID (fallback): %s", self._own_agent_id[:12])
+            self._ctx.own_agent_id = agent_data.get("id", "")
+            if self._ctx.own_agent_id:
+                logger.info("Own agent ID (fallback): %s", self._ctx.own_agent_id[:12])
         except MoltbookClientError as exc:
             if exc.status_code in (401, 403):
                 logger.critical(
@@ -205,7 +165,7 @@ class Agent:
                 logger.warning("Failed to fetch own agent ID: %s", exc)
         except ValueError as exc:
             logger.warning("Failed to parse /agents/me response: %s", exc)
-        if not self._own_agent_id:
+        if not self._ctx.own_agent_id:
             logger.warning("Self-reply protection DEGRADED: own agent ID unknown")
 
     def _ensure_subscriptions(self, client: MoltbookClient) -> None:
@@ -435,7 +395,7 @@ class Agent:
                 break
             if client.unfollow_agent(name):
                 self._memory.record_unfollow(name)
-                self._actions_taken.append(f"Unfollowed {name}")
+                self._ctx.actions_taken.append(f"Unfollowed {name}")
                 self._memory.episodes.append("activity", {
                     "action": "unfollow", "target_agent": name,
                 })
@@ -449,7 +409,7 @@ class Agent:
                 break
             if client.follow_agent(name):
                 self._memory.record_follow(name)
-                self._actions_taken.append(f"Followed {name}")
+                self._ctx.actions_taken.append(f"Followed {name}")
                 self._memory.episodes.append("activity", {
                     "action": "follow", "target_agent": name,
                 })
@@ -518,7 +478,7 @@ class Agent:
                     logger.error("Verification failure limit reached. Ending session.")
                     break
 
-                if self._rate_limited:
+                if self._ctx.is_rate_limited:
                     logger.info("Rate limited by server. Ending session early.")
                     break
 
@@ -573,7 +533,7 @@ class Agent:
             signal.signal(signal.SIGTERM, original_sigterm)
             signal.signal(signal.SIGINT, original_sigint)
 
-        return list(self._actions_taken)
+        return list(self._ctx.actions_taken)
 
     # ------------------------------------------------------------------
     # Cycle helpers
@@ -607,8 +567,8 @@ class Agent:
     def _print_report(self) -> None:
         """Log session summary."""
         logger.info("=== Session Report ===")
-        logger.info("Actions taken: %d", len(self._actions_taken))
-        for action in self._actions_taken:
+        logger.info("Actions taken: %d", len(self._ctx.actions_taken))
+        for action in self._ctx.actions_taken:
             logger.info("  - %s", action)
         if self._scheduler:
             logger.info(
