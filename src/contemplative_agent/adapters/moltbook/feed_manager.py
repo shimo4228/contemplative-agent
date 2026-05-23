@@ -182,7 +182,7 @@ class FeedManager:
 
         # Skip posts we already commented on (session + cross-session)
         if post_id in ctx.commented_posts or ctx.memory.has_commented_on(post_id):
-            logger.debug("Already commented on %s, skipping", post_id)
+            logger.debug("Already commented on %s, skipping", post_id[:12])
             return False
 
         # Same-author repeat-topic gate: even if the post_id is new and the
@@ -246,12 +246,12 @@ class FeedManager:
             else:
                 logger.debug(
                     "Post %s relevance %.2f below threshold %.2f",
-                    post_id, score, threshold,
+                    post_id[:12], score, threshold,
                 )
             return False
         logger.info(
             "Post %s relevance %.2f passed threshold %.2f",
-            post_id,
+            post_id[:12],
             score,
             threshold,
         )
@@ -327,7 +327,7 @@ class FeedManager:
             time.sleep(extra_wait)
             return True
         except MoltbookClientError as exc:
-            logger.error("Failed to comment on %s: %s", post_id, exc)
+            logger.error("Failed to comment on %s: %s", post_id[:12], exc)
             if exc.status_code == 429:
                 ctx.set_rate_limited()
             return False

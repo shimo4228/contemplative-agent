@@ -97,7 +97,13 @@ def is_duplicate_title(
         draft_topic_summary: Optional 1-line topic summary of the draft body.
         recent_records: Iterable of PostRecord-like objects with .title and
             .topic_summary attributes (duck-typed; works with dataclasses).
-        threshold: Minimum Jaccard score that counts as a duplicate.
+        threshold: Minimum Jaccard score that counts as a duplicate. The
+            0.25 default is calibrated for *title-only* Jaccard. Callers
+            that feed both title and topic_summary (e.g. NoveltyGate's
+            embedding-failure fallback, which uses 0.45) should pass a
+            higher threshold explicitly — token sets grow when the summary
+            is included and a fixed 0.25 then false-positives on unrelated
+            posts that share a few common stems.
 
     Returns:
         (is_duplicate, max_similarity_seen, prior_title_or_None).
