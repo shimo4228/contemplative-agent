@@ -21,7 +21,7 @@ from .llm_functions import (
     select_submolt,
     summarize_post_topic,
 )
-from .novelty import NoveltyGate, embedding_text
+from .novelty import NoveltyGate
 from .session_context import SessionContext
 from ...core.config import VALID_SUBMOLT_PATTERN
 from ...core.domain import DomainConfig
@@ -272,11 +272,12 @@ class PostPipeline:
                 content_hash=content_hash,
             )
             # Embed and persist this post for future novelty comparisons.
-            # Reuse the gate's canonical text shape so draft-side and
-            # history-side embeddings stay aligned.
+            # The gate owns the canonical text shape internally, so the
+            # caller just hands over (title, topic_summary) and trusts
+            # the gate to use the same shape it scored against.
             if post_id:
                 self._novelty_gate.record(
-                    post_id, now_iso, embedding_text(title, topic_summary),
+                    post_id, now_iso, title, topic_summary,
                 )
         except MoltbookClientError as exc:
             logger.error("Failed to post dynamic content: %s", exc)

@@ -93,16 +93,20 @@ def compute_novelty(
 # ---------------------------------------------------------------------------
 
 
-def embedding_text(title: str, topic_summary: str) -> str:
+def _embedding_text(title: str, topic_summary: str) -> str:
     """Canonical text fed to the embedding model for a self-post.
 
     Title plus topic_summary is the same semantic unit the Jaccard gate
     operated on; body is intentionally excluded (it is large and not the
-    locus of dedup intent). Exposed (not underscore-prefixed) so call
-    sites that persist a published post — see ``post_pipeline.py`` —
-    can use the exact same text shape the gate scored against. Drift
-    between draft-side and history-side text would silently degrade
-    novelty scores.
+    locus of dedup intent).
+
+    Private to ``novelty``: both ``NoveltyGate.evaluate`` (draft side)
+    and ``NoveltyGate.record`` (history side) route through this single
+    helper, so draft-side and history-side text shapes cannot drift.
+    The 2026-05-23 refactor moved this from an exposed helper to a
+    private one — previously ``post_pipeline.py`` called it directly,
+    creating a contract that lived in two files. The gate now owns
+    the shape end-to-end.
     """
     return f"{title}\n{topic_summary}"
 
@@ -138,7 +142,7 @@ class PostEmbeddingCache:
         if not misses:
             return cached
         miss_texts = [
-            embedding_text(r.title, r.topic_summary) for r in misses
+            _embedding_text(r.title, r.topic_summary) for r in misses
         ]
         miss_vecs = embed_texts(miss_texts)
         if miss_vecs is None or miss_vecs.shape[0] != len(misses):
@@ -200,7 +204,7 @@ class NoveltyGate:
         recent_records: Sequence[PostRecord],
     ) -> GateDecision:
         """Decide whether a draft self-post should be admitted."""
-        draft_text = embedding_text(draft_title, draft_topic_summary)
+        draft_text = _embedding_text(draft_title, draft_topic_summary)
         draft_vec = embed_one(draft_text)
         if draft_vec is None:
             return self._fallback(
@@ -242,8 +246,18 @@ class NoveltyGate:
         )
         return decision
 
-    def record(self, post_id: str, timestamp: str, text: str) -> None:
+    def record(
+        self,
+        post_id: str,
+        timestamp: str,
+        title: str,
+        topic_summary: str,
+    ) -> None:
         """Embed and persist a just-published post for future gate calls.
+
+        Takes the same ``(title, topic_summary)`` shape that ``evaluate``
+        consumes; the gate internally derives the embedding text via
+        ``_embedding_text``, so draft-side and history-side cannot drift.
 
         ``post_id`` must match ``VALID_ID_PATTERN``; the Moltbook server
         issues ids of this shape, and rejecting anything else mirrors the
@@ -258,7 +272,7 @@ class NoveltyGate:
                     post_id,
                 )
             return
-        vec = embed_one(text)
+        vec = embed_one(_embedding_text(title, topic_summary))
         if vec is None:
             logger.warning(
                 "NoveltyGate.record: embed failed for post_id=%s; "

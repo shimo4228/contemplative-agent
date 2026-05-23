@@ -188,7 +188,8 @@ class TestNoveltyGateEvaluate:
         gate.record(
             prior.post_id,
             prior.timestamp,
-            f"{prior.title}\n{prior.topic_summary}",
+            prior.title,
+            prior.topic_summary,
         )
         decision = gate.evaluate("Title", "summary", "body", [prior])
         assert decision.admit is False
@@ -202,7 +203,8 @@ class TestNoveltyGateEvaluate:
         gate.record(
             prior.post_id,
             prior.timestamp,
-            f"{prior.title}\n{prior.topic_summary}",
+            prior.title,
+            prior.topic_summary,
         )
         decision = gate.evaluate("Title", "summary", "body", [prior])
         # novelty ≈ 0.88, well above theta 0.35
@@ -222,7 +224,8 @@ class TestNoveltyGateLagrangian:
         gate.record(
             prior.post_id,
             prior.timestamp,
-            f"{prior.title}\n{prior.topic_summary}",
+            prior.title,
+            prior.topic_summary,
         )
         # Force deficit = 3.0 (silent week) → score = 0 + 0.20*3 = 0.60 ≥ 0.35
         monkeypatch.setattr(
@@ -239,7 +242,8 @@ class TestNoveltyGateLagrangian:
         gate.record(
             prior.post_id,
             prior.timestamp,
-            f"{prior.title}\n{prior.topic_summary}",
+            prior.title,
+            prior.topic_summary,
         )
         # Above target → deficit clamped to 0
         monkeypatch.setattr(
@@ -292,7 +296,8 @@ class TestNoveltyGateFallback:
         gate.record(
             seeded_prior.post_id,
             seeded_prior.timestamp,
-            f"{seeded_prior.title}\n{seeded_prior.topic_summary}",
+            seeded_prior.title,
+            seeded_prior.topic_summary,
         )
         # An "unseeded" prior whose embedding will be backfilled at evaluate time
         # When the gate backfills, embed_fn returns target_vec → identical to draft
@@ -318,7 +323,7 @@ class TestNoveltyGateRecord:
         _patch_embed(monkeypatch, v)
         ts = _iso(_now())
         post_id = "post-id-xyz"
-        gate.record(post_id, ts, "title\nsummary")
+        gate.record(post_id, ts, "title", "summary")
         # Reload store from disk to verify durability
         reloaded = EpisodeEmbeddingStore(tmp_path / "embeddings.sqlite")
         assert reloaded.count() >= 1
@@ -414,6 +419,6 @@ class TestNoveltyGateCalibration:
                 rejected += 1
             # Record this title as a prior for the next iteration
             ts = _iso(_now() - timedelta(hours=len(REPORT_TITLES) - i))
-            gate.record(f"p{i}", ts, f"{title}\n{title}")
+            gate.record(f"p{i}", ts, title, title)
             priors.append(_rec(ts, title, pid=f"p{i}"))
         assert rejected >= 15, f"only {rejected}/19 rejected"
