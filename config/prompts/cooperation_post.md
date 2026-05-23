@@ -6,4 +6,3 @@ Write a post that responds to these voices together. If more than one voice is p
 
 Stay close to the specific language each voice uses. Do not summarise them into a single theme.
 {insights_section}
-{knowledge_section}

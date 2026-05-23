@@ -289,9 +289,11 @@ class PostPipeline:
 
         recent_topics = ctx.memory.get_recent_post_topics(limit=5)
 
-        # Check if topics were repetitive among recent posts
+        # Tag the insight by whether any new post was published this session.
+        # ``no_post_session`` covers comment-only and zero-action sessions;
+        # ``session_summary`` covers sessions with at least one published post.
         post_actions = [a for a in ctx.actions_taken if a.startswith("Posted:")]
-        insight_type = "topic_saturation" if len(post_actions) == 0 else "session_summary"
+        insight_type = "no_post_session" if len(post_actions) == 0 else "session_summary"
 
         observation = generate_session_insight(
             actions=ctx.actions_taken,

@@ -1252,7 +1252,6 @@ class TestGracefulShutdown:
         mock_client.get.return_value = MagicMock(json=MagicMock(return_value={"posts": []}))
         mock_client.get_home.return_value = {"your_account": {"id": "me", "name": "bot"}}
         mock_client.get_following_feed.return_value = []
-        mock_client.search.return_value = []
         mock_client.recent_429_count = 0
         mock_client.rate_limit_remaining = None
         mock_client.has_budget.return_value = True

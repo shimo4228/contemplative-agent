@@ -80,7 +80,7 @@ class Insight:
 
     timestamp: str
     observation: str
-    insight_type: str  # "topic_saturation", "engagement_low", "new_direction", etc.
+    insight_type: str  # "no_post_session" or "session_summary" (emitted by PostPipeline).
 
 
 # ---------------------------------------------------------------------------

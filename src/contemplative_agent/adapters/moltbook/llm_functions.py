@@ -51,7 +51,6 @@ def _build_context_section(
     return section
 
 
-
 def score_relevance(post_text: str) -> float:
     """Score a post's relevance to domain topics (0.0 to 1.0)."""
     prompt = _resolve_domain_prompt(RELEVANCE_PROMPT).format(
@@ -100,11 +99,11 @@ def generate_cooperation_post(
 ) -> Optional[str]:
     """Generate a post that responds to specific peer voices in the feed.
 
-    Pre-ADR-0043 this took a string ``feed_topics`` containing an LLM summary
-    of ~10 peer posts. Post-ADR-0043 it takes a list of peer post dicts and
-    hands them to the LLM verbatim (each wrapped independently) so the
-    LLM must work with concrete voices rather than an abstracted topic
-    cluster.
+    Pre-ADR-0043 this took a single string containing an LLM-generated
+    summary of ~10 peer posts. Post-ADR-0043 it takes a list of peer post
+    dicts and hands them to the LLM verbatim (each wrapped independently)
+    so the LLM must work with concrete voices rather than an abstracted
+    topic cluster.
     """
     insights_section = _build_context_section(
         recent_insights,
@@ -115,7 +114,6 @@ def generate_cooperation_post(
     prompt = _resolve_domain_prompt(COOPERATION_POST_PROMPT).format(
         feed_seeds=format_feed_seeds(feed_seeds),
         insights_section=insights_section,
-        knowledge_section="",
     )
     return generate_for_api(prompt, max_length=MAX_POST_LENGTH)
 
@@ -132,17 +130,22 @@ def generate_reply(
 
     prompt = REPLY_PROMPT.format(
         history_section=history_section,
-        knowledge_section="",
         original_post=wrap_untrusted_content(original_post),
         their_comment=wrap_untrusted_content(their_comment),
     )
     return generate_for_api(prompt, max_length=MAX_COMMENT_LENGTH)
 
 
-def generate_post_title(feed_topics: str) -> Optional[str]:
-    """Generate a unique, specific post title from current feed topics."""
+def generate_post_title(feed_seed_text: str) -> Optional[str]:
+    """Generate a post title from peer-post voice blocks (ADR-0043).
+
+    ``feed_seed_text`` is the output of ``format_feed_seeds`` — concatenated
+    ``<untrusted_content>`` blocks, one per peer voice. Pre-ADR-0043 the
+    input was an LLM-generated topic summary string; the parameter was
+    renamed to reflect the post-ADR-0043 contract.
+    """
     prompt = _resolve_domain_prompt(POST_TITLE_PROMPT).format(
-        feed_topics=wrap_untrusted_content(feed_topics),
+        feed_seed_text=wrap_untrusted_content(feed_seed_text),
     )
     result = generate_for_api(prompt, max_length=MAX_POST_TITLE_LENGTH)
     if result:
@@ -151,8 +154,6 @@ def generate_post_title(feed_topics: str) -> Optional[str]:
         # API spec); the previous [:80] slice was an unrelated 3rd cap, removed.
         return result.strip().strip('"').strip("'")
     return None
-
-
 
 
 def summarize_post_topic(content: str) -> str:

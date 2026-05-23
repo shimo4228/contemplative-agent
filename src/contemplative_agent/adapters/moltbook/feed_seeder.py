@@ -1,9 +1,10 @@
 """Per-post seeding for self-post generation (ADR-0043).
 
-Replaces the ADR-0041 ``extract_topics`` LLM-summary step with direct sampling
-of peer posts. The summariser was implicitly merging individual voices into
-the agent's own vocabulary cluster (Karuna Manifesto / Topological Compassion
-canon, 2026-05-21), defeating the engagement-gradient repair in ADR-0041.
+Replaces the pre-ADR-0043 ``extract_topics`` LLM-summary step with direct
+sampling of peer posts. The summariser was implicitly merging individual
+voices into the agent's own vocabulary cluster (Karuna Manifesto /
+Topological Compassion canon, 2026-05-21), defeating the engagement-gradient
+repair in ADR-0041.
 
 Design:
 - Pure function. No I/O. ``score_relevance`` is injected so unit tests stay

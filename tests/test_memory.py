@@ -271,7 +271,7 @@ class TestInsight:
         i = Insight(
             timestamp="2026-03-06T00:00:00",
             observation="Topics were repetitive",
-            insight_type="topic_saturation",
+            insight_type="no_post_session",
         )
         with pytest.raises(AttributeError):
             i.observation = "changed"  # type: ignore[misc]
@@ -280,9 +280,9 @@ class TestInsight:
         i = Insight(
             timestamp="2026-03-06T00:00:00",
             observation="Topics were repetitive",
-            insight_type="topic_saturation",
+            insight_type="no_post_session",
         )
-        assert i.insight_type == "topic_saturation"
+        assert i.insight_type == "no_post_session"
 
 
 class TestPostHistoryAndInsights:
@@ -313,9 +313,9 @@ class TestPostHistoryAndInsights:
         i = store.record_insight(
             timestamp="2026-03-06T00:00:00",
             observation="Topics were repetitive this session",
-            insight_type="topic_saturation",
+            insight_type="no_post_session",
         )
-        assert i.insight_type == "topic_saturation"
+        assert i.insight_type == "no_post_session"
         assert len(store.get_recent_insights()) == 1
 
     def test_record_insight_truncates_observation(self):
@@ -404,7 +404,7 @@ class TestPostHistoryPersistence:
         store.record_insight(
             timestamp="2026-03-06T00:00:00",
             observation="Topics were repetitive",
-            insight_type="topic_saturation",
+            insight_type="no_post_session",
         )
         store.save()
 

@@ -9,9 +9,12 @@ from contemplative_agent.adapters.moltbook.llm_functions import (
     generate_comment,
     generate_cooperation_post,
     generate_reply,
+    generate_session_insight,
     score_relevance,
     select_submolt,
+    summarize_post_topic,
 )
+from contemplative_agent.core.memory import POST_TOPIC_SUMMARY_MAX
 from contemplative_agent.core.llm import (
     _get_model,
     _get_ollama_url,
@@ -570,6 +573,89 @@ class TestSelectSubmolt:
         mock_gen.return_value = "ethics"
         result = select_submolt("post", submolts=("ethics", "logic"))
         assert result == "ethics"
+
+
+class TestSummarizePostTopic:
+    """Topic summary is capped at POST_TOPIC_SUMMARY_MAX on both the LLM
+    success path and the fallback path (LLM returned None). The cap is
+    load-bearing for the dedup gate, which compares Jaccard on both sides
+    at the same length budget.
+    """
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_returns_stripped_llm_output(self, mock_gen):
+        mock_gen.return_value = "  a concise topic summary  "
+        result = summarize_post_topic("a long post about cooperation")
+        assert result == "a concise topic summary"
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_truncates_long_llm_output(self, mock_gen):
+        mock_gen.return_value = "x" * 500
+        result = summarize_post_topic("any post")
+        assert len(result) == POST_TOPIC_SUMMARY_MAX
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_falls_back_to_truncated_content_when_llm_none(self, mock_gen):
+        mock_gen.return_value = None
+        long_content = "y" * 500
+        result = summarize_post_topic(long_content)
+        # Fallback path takes the raw content prefix at the same cap.
+        assert result == long_content[:POST_TOPIC_SUMMARY_MAX]
+        assert len(result) == POST_TOPIC_SUMMARY_MAX
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_empty_content_fallback_is_empty(self, mock_gen):
+        mock_gen.return_value = None
+        assert summarize_post_topic("") == ""
+
+
+class TestGenerateSessionInsight:
+    """Session insight is owner of the *generation* step only — char cap is
+    enforced downstream by ``memory.record_insight`` (SUMMARY_MAX_LENGTH).
+    """
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_returns_none_when_no_actions(self, mock_gen):
+        # Short-circuit before any LLM call.
+        result = generate_session_insight(actions=[], recent_topics=["t1"])
+        assert result is None
+        mock_gen.assert_not_called()
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_returns_stripped_llm_output(self, mock_gen):
+        mock_gen.return_value = "  cooperation patterns held  \n"
+        result = generate_session_insight(
+            actions=["Posted: alignment", "Commented: ethics"],
+            recent_topics=["alignment", "ethics"],
+        )
+        assert result == "cooperation patterns held"
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_empty_recent_topics_renders_none_placeholder(self, mock_gen):
+        mock_gen.return_value = "observation"
+        generate_session_insight(actions=["Posted: x"], recent_topics=[])
+        prompt = mock_gen.call_args[0][0]
+        # When recent_topics is empty, the prompt slot is filled with "None".
+        assert "None" in prompt
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_returns_none_when_llm_returns_none(self, mock_gen):
+        mock_gen.return_value = None
+        result = generate_session_insight(
+            actions=["Posted: a"], recent_topics=["a"],
+        )
+        assert result is None
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_no_char_cap_at_this_layer(self, mock_gen):
+        # 400-char observation passes through unchanged; truncation belongs
+        # to ``memory.record_insight``, not to this generator.
+        long_obs = "z" * 400
+        mock_gen.return_value = long_obs
+        result = generate_session_insight(
+            actions=["Posted: a"], recent_topics=["a"],
+        )
+        assert result == long_obs
 
 
 class TestRelevancePromptContract:

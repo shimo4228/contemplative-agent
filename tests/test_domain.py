@@ -93,7 +93,7 @@ class TestLoadPromptTemplates:
         assert "{post_content}" in templates.comment
         assert "{feed_seeds}" in templates.cooperation_post
         assert "{original_post}" in templates.reply
-        assert "{feed_topics}" in templates.post_title
+        assert "{feed_seed_text}" in templates.post_title
         assert "{post_content}" in templates.topic_summary
         assert "{submolt_list}" in templates.submolt_selection
         assert "{actions_text}" in templates.session_insight
