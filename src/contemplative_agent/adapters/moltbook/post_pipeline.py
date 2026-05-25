@@ -15,6 +15,7 @@ from .dedup import is_test_content
 from .feed_seeder import select_feed_seeds
 from .llm_functions import (
     format_feed_seeds,
+    generate_internal_note,
     generate_post_title,
     generate_session_insight,
     score_relevance,
@@ -148,6 +149,19 @@ class PostPipeline:
             [(s.get("id") or "")[:12] for s in feed_seeds],
         )
 
+        # Pre-action reflection (ADR-0045): note what we noticed in the peer
+        # voices before composing a post in response to them. Pass raw seed
+        # text — not format_feed_seeds(), which already wraps each seed in
+        # <untrusted_content> — so the note prompt sees plain content rather
+        # than nested tags; generate_internal_note wraps it once itself. A
+        # downstream gate may still block the post and waste this call, which
+        # is acceptable: self-posts are rate-limited to ~1/session.
+        note_seed = "\n\n".join(
+            f"{s.get('title', '') or ''}\n{s.get('content', '') or ''}".strip()
+            for s in feed_seeds
+        )
+        note = generate_internal_note(note_seed)
+
         recent_insights = ctx.memory.get_recent_insights(limit=3)
         content = self._get_content().create_cooperation_post(
             feed_seeds, recent_insights=recent_insights or None,
@@ -275,6 +289,7 @@ class PostPipeline:
             ctx.memory.episodes.append("activity", {
                 "action": "post", "post_id": post_id,
                 "content": content, "title": title,
+                "internal_note": note,
             })
 
             # Record post in memory. Reuse draft_summary and content_hash

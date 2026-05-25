@@ -802,7 +802,13 @@ def summarize_record(record_type: str, data: dict) -> str:
     elif record_type == "activity":
         action = data.get("action", "unknown")
         target = data.get("target_agent", data.get("post_id", ""))
-        return f"{action} {target}".strip()
+        base = f"{action} {target}".strip()
+        # ADR-0045: the behavioural fact and the pre-action internal note
+        # coexist on one line so distill sees "what happened, and what was
+        # felt about it" — the dual register ADR-0038 designed for, now with
+        # real first-person supply instead of post-hoc reconstruction.
+        note = data.get("internal_note", "")
+        return f"{base} — noticed: {note}" if note else base
     elif record_type == "dialogue":
         role = data.get("role", "?")
         turn = data.get("turn", "?")

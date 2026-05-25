@@ -12,6 +12,7 @@ from ...core.memory import POST_TOPIC_SUMMARY_MAX
 from ...core.prompts import (
     COMMENT_PROMPT,
     COOPERATION_POST_PROMPT,
+    INTERNAL_NOTE_PROMPT,
     POST_TITLE_PROMPT,
     RELEVANCE_PROMPT,
     REPLY_PROMPT,
@@ -66,6 +67,24 @@ def score_relevance(post_text: str) -> float:
         return max(0.0, min(1.0, score))
     logger.warning("Could not parse relevance score: %s", result)
     return 0.0
+
+
+def generate_internal_note(content: str) -> str:
+    """Note what the agent noticed while reading ``content``, before it
+    decides how to act on it (pre-action reflection, ADR-0045).
+
+    A single-responsibility call: the note only, as plain text (no schema).
+    Kept separate from scoring/generation so the local model focuses on
+    noticing rather than juggling two tasks in one prompt. Returns "" on
+    failure — callers treat an empty note as "nothing recorded".
+    """
+    if not INTERNAL_NOTE_PROMPT:
+        return ""
+    prompt = INTERNAL_NOTE_PROMPT.format(
+        content=wrap_untrusted_content(content, max_input=1000),
+    )
+    result = generate(prompt)
+    return result.strip() if result else ""
 
 
 def generate_comment(post_text: str) -> Optional[str]:

@@ -379,6 +379,18 @@ class TestSummarizeRecord:
         s = summarize_record("insight", {"observation": "Something happened"})
         assert "Something happened" in s
 
+    def test_activity_without_note(self):
+        s = summarize_record("activity", {"action": "upvote", "post_id": "p1"})
+        assert s == "upvote p1"
+
+    def test_activity_with_note(self):
+        # ADR-0045: behavioural fact and pre-action note coexist on one line.
+        s = summarize_record("activity", {
+            "action": "comment", "post_id": "p1",
+            "internal_note": "the framing felt evasive",
+        })
+        assert s == "comment p1 — noticed: the framing felt evasive"
+
     def test_unknown_returns_empty(self):
         assert summarize_record("weird_type", {}) == ""
 

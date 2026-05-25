@@ -11,7 +11,7 @@ from typing import Callable
 from .client import MoltbookClient, MoltbookClientError
 from .config import ADAPTIVE_BACKOFF
 from .dedup import is_promotional
-from .llm_functions import generate_reply
+from .llm_functions import generate_internal_note, generate_reply
 from .session_context import SessionContext
 from ...core.config import VALID_ID_PATTERN
 from ...core.scheduler import Scheduler
@@ -222,6 +222,13 @@ class ReplyHandler:
         history = ctx.memory.get_history_with(replier_id, limit=5)
         history_summaries = [h.content_summary for h in history]
 
+        # Pre-action reflection (ADR-0045): note what we noticed in their
+        # comment (and the post it sits on) before composing a reply.
+        note_context = (
+            f"{original_post}\n\n{their_content}" if original_post else their_content
+        )
+        note = generate_internal_note(note_context)
+
         reply = generate_reply(
             original_post=original_post,
             their_comment=their_content,
@@ -265,6 +272,7 @@ class ReplyHandler:
                 "content": reply, "target_agent": replier_name,
                 "their_comment": their_content,
                 "original_post": original_post,
+                "internal_note": note,
             })
             ctx.memory.record_interaction(
                 timestamp=datetime.now(timezone.utc).isoformat(),

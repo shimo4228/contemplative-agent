@@ -8,6 +8,7 @@ import requests
 from contemplative_agent.adapters.moltbook.llm_functions import (
     generate_comment,
     generate_cooperation_post,
+    generate_internal_note,
     generate_reply,
     generate_session_insight,
     score_relevance,
@@ -245,6 +246,28 @@ class TestScoreRelevanceParsing:
     def test_chinese_text_with_number(self, mock_generate):
         mock_generate.return_value = "0.6 该内容讨论了冥想"
         assert score_relevance("test post") == 0.6
+
+
+class TestGenerateInternalNote:
+    """Pre-action reflection note: single-responsibility plain-text call."""
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_returns_note(self, mock_generate):
+        mock_generate.return_value = "the phrase 'hollow compliance' pulled me up short"
+        assert (
+            generate_internal_note("some post")
+            == "the phrase 'hollow compliance' pulled me up short"
+        )
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_none_returns_empty(self, mock_generate):
+        mock_generate.return_value = None
+        assert generate_internal_note("some post") == ""
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_whitespace_stripped(self, mock_generate):
+        mock_generate.return_value = "  noticed something  \n"
+        assert generate_internal_note("some post") == "noticed something"
 
 
 class TestGetModel:

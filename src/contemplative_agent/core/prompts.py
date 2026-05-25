@@ -22,6 +22,7 @@ class _LazyPrompts:
     _ATTR_MAP = {
         "SYSTEM_PROMPT": "system",
         "RELEVANCE_PROMPT": "relevance",
+        "INTERNAL_NOTE_PROMPT": "internal_note",
         "COMMENT_PROMPT": "comment",
         "COOPERATION_POST_PROMPT": "cooperation_post",
         "REPLY_PROMPT": "reply",

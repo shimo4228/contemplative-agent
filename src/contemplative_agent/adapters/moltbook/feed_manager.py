@@ -16,7 +16,7 @@ from .config import (
 )
 from .content import ContentManager
 from .dedup import is_promotional, is_repeat_target_for_author
-from .llm_functions import score_relevance
+from .llm_functions import generate_internal_note, score_relevance
 from .session_context import SessionContext
 from ...core.config import VALID_ID_PATTERN
 from ...core.domain import DomainConfig
@@ -227,6 +227,15 @@ class FeedManager:
             if author_id and ctx.memory.has_interacted_with(author_id)
             else self._domain.relevance_threshold
         )
+        # Pre-action reflection (ADR-0045): note what we noticed reading this
+        # post before acting. Generated once for any post we may engage with
+        # and shared across the upvote/comment episodes below. A separate,
+        # single-responsibility LLM call — not piggybacked on score_relevance.
+        note = (
+            generate_internal_note(post_text)
+            if score >= ADAPTIVE_BACKOFF.upvote_only_threshold
+            else ""
+        )
         if score < threshold:
             # Upvote-only for near-threshold posts
             if (
@@ -238,6 +247,7 @@ class FeedManager:
                     self._upvoted_posts.add(post_id)
                     ctx.memory.episodes.append("activity", {
                         "action": "upvote", "post_id": post_id,
+                        "internal_note": note,
                     })
                     logger.info(
                         "Upvoted post %s (relevance: %.2f, below comment threshold)",
@@ -266,6 +276,7 @@ class FeedManager:
                 ctx.memory.episodes.append("activity", {
                     "action": "upvote",
                     "post_id": post_id,
+                    "internal_note": note,
                 })
                 logger.info(
                     "Upvoted post %s (relevance: %.2f)", post_id[:12], score
@@ -307,6 +318,7 @@ class FeedManager:
                 "original_post": post_text,
                 "relevance": f"{score:.2f}",
                 "target_agent_id": agent_id,
+                "internal_note": note,
             })
             ctx.memory.record_interaction(
                 timestamp=datetime.now(timezone.utc).isoformat(),

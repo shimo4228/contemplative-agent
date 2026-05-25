@@ -377,6 +377,35 @@ class TestEngageWithPost:
         result = agent._engage_with_post({"content": "text", "id": "post1"})
         assert result is False
 
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
+    @patch(
+        "contemplative_agent.adapters.moltbook.feed_manager.generate_internal_note",
+        return_value="the melting metaphor felt forced, not earned",
+    )
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
+    def test_comment_records_internal_note(
+        self, mock_score, mock_note, mock_random, mock_time, tmp_path
+    ):
+        """A comment episode carries the pre-action internal_note (ADR-0045)."""
+        mock_random.uniform.return_value = 60.0
+        agent = self._make_agent(tmp_path)
+        agent._content.create_comment.return_value = "Great insight"
+        agent._client.post.return_value = MagicMock()
+
+        agent._engage_with_post({"content": "text", "id": "post1"})
+
+        comment_eps = [
+            r
+            for r in agent._ctx.memory.episodes.read_range(days=1, record_type="activity")
+            if r.get("data", {}).get("action") == "comment"
+        ]
+        assert comment_eps, "expected a comment activity episode"
+        assert (
+            comment_eps[0]["data"]["internal_note"]
+            == "the melting metaphor felt forced, not earned"
+        )
+
 
 class TestRunFeedCycle:
     def test_processes_posts(self):

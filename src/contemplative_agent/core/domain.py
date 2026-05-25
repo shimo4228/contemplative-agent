@@ -54,6 +54,7 @@ class PromptTemplates:
     submolt_selection: str
     session_insight: str
     distill: str
+    internal_note: str = ""
     identity_distill: str = ""
     insight_extraction: str = ""
     meditation_interpret: str = ""
@@ -222,6 +223,7 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         submolt_selection=read("submolt_selection.md"),
         session_insight=read("session_insight.md"),
         distill=read("distill.md"),
+        internal_note=read("internal_note.md", required=False),
         identity_distill=read("identity_distill.md", required=False),
         insight_extraction=read("insight_extraction.md", required=False),
         meditation_interpret=read("meditation_interpret.md", required=False),
