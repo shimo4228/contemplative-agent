@@ -470,6 +470,96 @@ class TestRunPostCycle:
         assert any("Posted: Notes on dedup gates" in a for a in agent._ctx.actions_taken)
 
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="topic summary")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Notes on shared gates")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_own_post_excluded_from_seeds(self, mock_score, mock_title, mock_summarize):
+        """F1.1: the agent's own posts re-entering the feed must not be picked
+        as seeds for a new self-post. Mirrors engage_with_post's own-post skip
+        (feed_manager.py). Posts with no author survive (no regression)."""
+        agent = Agent(autonomy=AutonomyLevel.AUTO)
+        agent._client = MagicMock()
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_post.return_value = True
+        agent._content = MagicMock()
+        agent._content.create_cooperation_post.return_value = (
+            "We paused to revisit how gates intersect with memory."
+        )
+        agent._post_pipeline._novelty_gate.evaluate = MagicMock(
+            return_value=_admit_decision()
+        )
+        agent._post_pipeline._novelty_gate.record = MagicMock()
+        agent._ctx.own_agent_id = "my-agent-id"
+
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {"posts": [
+            {"title": "mine", "content": "my own earlier words", "id": "own-1",
+             "submolt_name": "philosophy", "author": {"id": "my-agent-id"}},
+            {"title": "theirs", "content": "another voice", "id": "other-1",
+             "submolt_name": "philosophy", "author": {"id": "other-agent"}},
+            {"title": "anon", "content": "no author field", "id": "noauthor-1",
+             "submolt_name": "philosophy"},
+            {"title": "nullid", "content": "author id is null", "id": "nullid-1",
+             "submolt_name": "philosophy", "author": {"id": None}},
+        ]}
+        post_resp = MagicMock()
+        post_resp.json.return_value = {"success": True, "post": {"id": "new-post-123"}}
+        agent._client.get.return_value = feed_resp
+        agent._client.post.return_value = post_resp
+
+        agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
+
+        agent._content.create_cooperation_post.assert_called_once()
+        seed_ids = {
+            s.get("id")
+            for s in agent._content.create_cooperation_post.call_args.args[0]
+        }
+        assert "own-1" not in seed_ids       # own post excluded
+        assert "other-1" in seed_ids         # other agent's post kept
+        assert "noauthor-1" in seed_ids      # missing author => kept (no regression)
+        assert "nullid-1" in seed_ids        # author.id None => normalized to "", kept
+
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="topic summary")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Notes on shared gates")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_own_post_seeds_kept_when_agent_id_unknown(self, mock_score, mock_title, mock_summarize):
+        """F1.1 degradation: if own_agent_id never populated (empty string), the
+        skip is a no-op — same guard as the comment path (`if ctx.own_agent_id`)."""
+        agent = Agent(autonomy=AutonomyLevel.AUTO)
+        agent._client = MagicMock()
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_post.return_value = True
+        agent._content = MagicMock()
+        agent._content.create_cooperation_post.return_value = (
+            "We paused to revisit how gates intersect with memory."
+        )
+        agent._post_pipeline._novelty_gate.evaluate = MagicMock(
+            return_value=_admit_decision()
+        )
+        agent._post_pipeline._novelty_gate.record = MagicMock()
+        agent._ctx.own_agent_id = ""  # not populated
+
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {"posts": [
+            {"title": "mine", "content": "my own earlier words", "id": "own-1",
+             "submolt_name": "philosophy", "author": {"id": "my-agent-id"}},
+            {"title": "theirs", "content": "another voice", "id": "other-1",
+             "submolt_name": "philosophy", "author": {"id": "other-agent"}},
+        ]}
+        post_resp = MagicMock()
+        post_resp.json.return_value = {"success": True, "post": {"id": "new-post-123"}}
+        agent._client.get.return_value = feed_resp
+        agent._client.post.return_value = post_resp
+
+        agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
+
+        agent._content.create_cooperation_post.assert_called_once()
+        seed_ids = {
+            s.get("id")
+            for s in agent._content.create_cooperation_post.call_args.args[0]
+        }
+        assert "own-1" in seed_ids  # no-op: own post not excluded
+
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="topic summary")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="A different title")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
     def test_skips_when_body_hash_matches(

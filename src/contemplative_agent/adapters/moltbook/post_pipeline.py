@@ -107,6 +107,24 @@ class PostPipeline:
         else:
             candidates = list(posts)
 
+        # Skip our own posts (mirror engage_with_post, feed_manager.py): do not
+        # seed a new self-post from the agent's own earlier posts that have
+        # re-entered the feed. own_agent_id may be empty if /home + /agents/me
+        # both failed to populate it — then this is a no-op, same as the
+        # comment path's `if ctx.own_agent_id` guard.
+        if ctx.own_agent_id:
+            before = len(candidates)
+            candidates = [
+                p for p in candidates
+                if (p.get("author") or {}).get("id", "") != ctx.own_agent_id
+            ]
+            excluded = before - len(candidates)
+            if excluded:
+                logger.debug(
+                    "post-seeding: excluded %d own-authored candidate(s)",
+                    excluded,
+                )
+
         feed_seeds = select_feed_seeds(
             candidates,
             rng=np.random.default_rng(),
