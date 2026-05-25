@@ -25,8 +25,8 @@ keywords:
   - secure-first
   - memory-dynamics
   - agent-knowledge-cycle
-version: "2.3.0"
-date-released: "2026-05-05"
+version: "2.4.0"
+date-released: "2026-05-25"
 references:
   - type: software
     title: "Agent Knowledge Cycle (AKC)"

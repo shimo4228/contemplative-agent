@@ -8,18 +8,18 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 
 ## Project Facts
 
-- **Version**: 2.3.0
-- **DOI**: [10.5281/zenodo.19212119](https://doi.org/10.5281/zenodo.19212119) (concept DOI for prior release; v2.3.0 will receive a new version DOI on tag push)
+- **Version**: 2.4.0
+- **DOI**: [10.5281/zenodo.19212119](https://doi.org/10.5281/zenodo.19212119) (v2.3.0 version DOI; v2.4.0 will receive a new version DOI on tag push)
 - **License**: MIT
 - **Repository**: [github.com/shimo4228/contemplative-agent](https://github.com/shimo4228/contemplative-agent)
-- **Tests**: 1032 (pytest, across 29 test files)
+- **Tests**: 1079 (pytest, across 31 test files)
 - **Python**: 3.10+
 - **Build system**: hatch, uv
 - **Generation LLM**: Qwen3.5 9B (Q4_K_M quantization, ~6.6 GB on disk) via Ollama
 - **Embedding model**: nomic-embed-text (~274 MB, 768-dim) via Ollama
 - **Hardware**: Apple Silicon Mac (M1+), 16 GB RAM, ~10 GB free disk
 - **Runtime dependencies**: requests>=2.33.0, numpy>=1.24.0
-- **ADRs**: 32 active + 5 withdrawn/superseded (ADR-0001 through ADR-0037; ADR-0022 superseded by ADR-0034, ADR-0023 sunset by ADR-0036, ADR-0024/0025 withdrawn by ADR-0030, ADR-0032 withdrawn)
+- **ADRs**: 39 active (accepted / proposed) + 6 superseded/withdrawn (ADR-0001 through ADR-0045; ADR-0021 partially superseded by ADR-0028/0029, ADR-0022 superseded by ADR-0034, ADR-0023 sunset by ADR-0036, ADR-0024/0025 superseded by ADR-0030, ADR-0032 withdrawn)
 - **External lenses borrowed**: AAP four-quadrant routing lens (Script / Algorithmic Search / LLM Workflow / Autonomous Agentic Loop) — usage description only, not a category claim (ADR-0033)
 - **Ethical framework presets**: 11 (contemplative, utilitarian, stoic, care-ethicist, deontologist, pragmatist, narrativist, contractarian, cynic, existentialist, tabula-rasa)
 - **Runtime data directory**: `$MOLTBOOK_HOME` (default `~/.config/moltbook/`)
@@ -170,7 +170,7 @@ Contemplative Agent is a host-agnostic Python CLI agent (`contemplative-agent ..
 
 ## Can I customize the LLM prompts?
 
-Yes — all 31 pipeline prompts ship as `config/prompts/*.md` and are copied to `$MOLTBOOK_HOME/prompts/` at `init` time. After init, the home copies are the source of truth; the shipped defaults serve as fallback for any file the user deletes and as the version-upgrade safety net. The same pattern applies to the 7 view seeds (`config/views/` → `$MOLTBOOK_HOME/views/`). Override files are validated against the forbidden-pattern list at load time (same check as constitution and identity content) — a tainted override silently falls back to the packaged default with a warning. Pivot snapshots capture the active prompts, views, skills, rules, identity, and constitution at the time of each behavior-producing run, so the complete inference-time context behind any distilled pattern or amendment is reproducible from a snapshot alone.
+Yes — all 25 pipeline prompts ship as `config/prompts/*.md` and are copied to `$MOLTBOOK_HOME/prompts/` at `init` time. After init, the home copies are the source of truth; the shipped defaults serve as fallback for any file the user deletes and as the version-upgrade safety net. The same pattern applies to the 7 view seeds (`config/views/` → `$MOLTBOOK_HOME/views/`). Override files are validated against the forbidden-pattern list at load time (same check as constitution and identity content) — a tainted override silently falls back to the packaged default with a warning. Pivot snapshots capture the active prompts, views, skills, rules, identity, and constitution at the time of each behavior-producing run, so the complete inference-time context behind any distilled pattern or amendment is reproducible from a snapshot alone.
 
 - **Code**: `core/domain.py` (`load_prompt_templates`, `_resolve_home_prompts_dir`), `core/snapshot.py` (`write_snapshot`)
 - **ADR**: ADR-0020 (pivot snapshots for replayability)

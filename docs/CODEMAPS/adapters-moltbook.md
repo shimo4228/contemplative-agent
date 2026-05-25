@@ -1,9 +1,11 @@
-<!-- Generated: 2026-05-05 | Files scanned: 17 adapter modules | Token estimate: ~1300 -->
+<!-- Generated: 2026-05-25 | Files scanned: 19 adapter modules (14 moltbook + 4 meditation + 1 dialogue) | Token estimate: ~1250 -->
 # Adapters Codemap
 
 Platform-specific implementations. Dependency: adapters → core.
 
-## Moltbook Adapter (15 modules, ~3500 LOC)
+**Counting convention**: module counts = non-`__init__` `.py` files.
+
+## Moltbook Adapter (14 modules, ~3500 LOC)
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
@@ -12,15 +14,21 @@ Platform-specific implementations. Dependency: adapters → core.
 | `session_context.py` | ~55 | Shared mutable state (memory, rate_limited, actions) |
 | `feed_manager.py` | 348 | Feed fetch, relevance scoring, engagement, ID dedup, promo filter, per-author rate limit |
 | `reply_handler.py` | 394 | Notification handling, reply generation, posting |
-| `post_pipeline.py` | 207 | Topic extraction, novelty check, test-content gate, Jaccard dedup, dynamic post gen |
+| `post_pipeline.py` | 207 | Feed-seeder → NoveltyGate → test-content gate → body-hash gate → post |
 | `client.py` | 448 | HTTP client (auth, domain lock, retry/429-backoff) |
 | `auth.py` | ~110 | Credential management, agent registration |
 | `verification.py` | 236 | Math challenge solver, failure tracking, auto-stop |
 | `content.py` | ~65 | Rules-based content, dedup, axiom intro injection |
 | `llm_functions.py` | 231 | Moltbook-specific LLM (select_submolt, context builders) |
 | `dedup.py` | 213 | Deterministic gates: prefix-5 stem + Jaccard, test-content blocklist, promotional URL regex |
+| `novelty.py` | ~120 | `NoveltyGate`: embedding-cosine novelty score with temporal decay + rate-deficit Lagrangian for self-post gate (ADR-0039). Replaced the boolean Jaccard gate. |
+| `feed_seeder.py` | ~90 | `select_feed_seeds`: RNG sampling of 1-3 individual peer posts within subscribed submolts + relevance floor, each wrapped independently in `<untrusted_content>` (ADR-0043). Replaced the `extract_topics` peer-summary step. |
 
-## Session Orchestration (agent.py, 609L)
+**Retired (not in codebase)**:
+- `extract_topics` / `check_topic_novelty` — retired by ADR-0043; function covered by NoveltyGate + feed_seeder
+- `topic_keywords` config field + `feed_manager` search rotation — removed by ADR-0044
+
+## Session Orchestration (agent.py)
 
 **AutonomyLevel** enum: APPROVE / GUARDED / AUTO
 
@@ -34,7 +42,7 @@ Agent.run_session(session_mins=30, autonomy_level=AUTO)
   └─ _end_session() → Metrics + Insight + EpisodeLog record
 ```
 
-## SessionContext (session_context.py, 53L)
+## SessionContext (session_context.py)
 
 ```python
 @dataclass
@@ -49,50 +57,57 @@ class SessionContext:
 
 **Invariant**: All collaborators depend only on SessionContext, not on Agent directly.
 
-## FeedManager (feed_manager.py, 348L)
+## FeedManager (feed_manager.py)
 
 Fetch → promotional filter → ID dedup → per-author 24h rate limit → score → comment → record.
 Rate limiting: proactive wait via `scheduler.has_read_budget()`.
-Per-author cap: max 3 sent comments per agent_id in any 24h window
-(prevents engagement-farming loops on identical reposts).
+Per-author cap: max 3 sent comments per agent_id in any 24h window.
 
-## ReplyHandler (reply_handler.py, 394L)
+## ReplyHandler (reply_handler.py)
 
 Notifications → context → reply → post → record.
 Verification fallback: `VerificationTracker.solve()` on challenge.
+Pre-action `internal_note` recorded in episode log before reply is sent (ADR-0045).
 
 ## PostPipeline (post_pipeline.py)
 
-Feed → per-post seed selection → generate → test-content gate → NoveltyGate (ADR-0039) → body-hash gate → select submolt → post.
+Feed → `feed_seeder.select_feed_seeds` → NoveltyGate → test-content gate → body-hash gate → select submolt → post.
 
-**Selection (ADR-0043, post-2026-05-21):** `feed_seeder.select_feed_seeds`
-samples 1-3 peer posts directly from the subscribed-submolt feed. Each post
-is checked against `score_relevance >= 0.4` and the selection is RNG-driven
-(fresh `numpy.random.default_rng()` per cycle). A 15,000-char combined-length
-budget drops trailing seeds when individual peer posts are long. Per-post
-truncation remains `wrap_untrusted_content`'s contract (ADR-0042).
+**Seeding (ADR-0043):** `select_feed_seeds` samples 1-3 peer posts directly from
+subscribed-submolt feed. Each checked `score_relevance >= 0.4`, RNG-driven
+(`numpy.random.default_rng()` per cycle). 15,000-char combined-length budget
+drops trailing seeds. Each post wrapped independently in `<untrusted_content>`.
 
-**Dedup (post-publish):** `NoveltyGate.evaluate` (embedding-cosine novelty
-with temporal decay + rate-deficit Lagrangian) is the primary gate. Body-hash
-SHA-256 catches verbatim re-publication. The legacy `check_topic_novelty` LLM
-gate and `extract_topics` summary helper were retired in ADR-0043 and removed
-from the codebase. Also tracks own_post_ids for ID-level dedup.
+**Dedup gates**:
+1. `is_test_content(title, body)` — blocks scaffold content
+2. `NoveltyGate.evaluate(...)` — embedding-cosine novelty + temporal decay +
+   rate-deficit Lagrangian (ADR-0039). Primary gate. Jaccard fallback retained
+   for Ollama-outage path only.
+3. Body-hash SHA-256 (first 16 chars) — catches verbatim re-publication.
 
-## MoltbookClient (client.py, 448L)
+## NoveltyGate (novelty.py, ADR-0039)
 
-Domain lock (www.moltbook.com), `allow_redirects=False`, 429 backoff (cap 300s).
+Continuous novelty scoring replacing the retired boolean Jaccard gate:
+- Cosine distance against recent self-post embedding history
+- Temporal decay weights recent posts more heavily
+- Rate-deficit Lagrangian increases novelty threshold when posting rate is below target
+- `evaluate(title, body, own_agent_id) -> bool`
 
-## Verification (verification.py, 236L)
+## MoltbookClient (client.py)
+
+Domain lock (`www.moltbook.com`), `allow_redirects=False`, 429 backoff (cap 300s).
+
+## Verification (verification.py)
 
 Obfuscated math solver. 7 consecutive failures → auto-stop session.
 
-## ContentManager (content.py, 64L)
+## ContentManager (content.py)
 
 Axiom injection, content dedup (similarity >0.8 → skip).
 
 ---
 
-## Meditation Adapter (experimental, 5 modules, ~700 LOC)
+## Meditation Adapter (experimental, 4 modules, ~700 LOC)
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
@@ -126,14 +141,13 @@ EpisodeLog (JSONL) → pomdp.build_matrices()
 ```
 contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N
 ```
-- Spawns two independent peer processes, one per `MOLTBOOK_HOME`. Production home is rejected (must be distinct experiment homes).
+- Two independent peer processes, one per `MOLTBOOK_HOME`. Production home is rejected.
 - Each peer runs as its own agent — no parent orchestrator. The CLI only pipes stdin/stdout between them.
 
 **Wrapper CLI hook** (`cli._spawn_dialogue_peer`):
-- Env var `CONTEMPLATIVE_DIALOGUE_PEER_MODULE` (default: `contemplative_agent.cli`) lets an outer wrapper (e.g. a managed-LLM shim) route peers through its own entry module so the wrapper's setup — configured `LLMBackend`, credentials — runs in each peer process too.
-- Keeps the built-in path unchanged when unset.
+- Env var `CONTEMPLATIVE_DIALOGUE_PEER_MODULE` (default: `contemplative_agent.cli`) lets an outer wrapper route peers through its own entry module.
 
-**Security**: Terminology note — the two peers are *independent processes*, not "child processes" or "orchestrator/worker". Production `MOLTBOOK_HOME` is blocked to avoid polluting real memory.
+**Security**: The two peers are *independent processes*, not "child processes" or "orchestrator/worker". Production `MOLTBOOK_HOME` is blocked.
 
 ---
 
