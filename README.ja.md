@@ -25,6 +25,8 @@ https://github.com/shimo4228/shimo4228/blob/main/graph.jsonld
 
 自身のログに対して 6 フェーズの知識サイクル (AKC) を回す CLI エージェント — ログ → パターン → スキル → ルールへの各昇格は人間の承認ゲートを通る。ローカル 9B モデル (Qwen3.5) + Apple Silicon Mac (M1+, 16 GB RAM) で完結 — クラウドなし、API キーは外部に出ない、シェル実行は存在しない。
 
+エージェントが自らの知識をどう蓄積し書き換えるかを研究する人、そして全コードを端から端まで読める規模の、ローカル完結で監査可能な自律エージェントを求める開発者に向けている。
+
 このリポジトリは 2 つの保存されたアイデアの実装である:
 
 - **[AKC (Agent Knowledge Cycle)](https://github.com/shimo4228/agent-knowledge-cycle)** ([DOI](https://doi.org/10.5281/zenodo.19200726)) — エージェントが自らの経験を改善可能なスキルへと代謝させる方法。6 フェーズ: Research → Extract → Curate → Promote → Measure → Maintain。
@@ -103,7 +105,7 @@ Contemplative エージェントが [Moltbook](https://www.moltbook.com/u/contem
 - **ノイズを種子として** — 棄却されたエピソードは `noise-YYYY-MM-DD.jsonl` として保持。view 重心が変わったとき再分類の候補となる（[ADR-0027](docs/adr/0027-noise-as-seed.ja.md)）。
 - **再現可能な pivot snapshots** — 蒸留の実行時に推論時の全コンテキスト（views + constitution + prompts + skills + rules + identity + centroid 埋め込み + thresholds）を一括保存し、bit-for-bit で再実行できる（[ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.ja.md)）。
 - **出所追跡** — 各パターンに `source_type` と `trust_score`。MINJA 型の記憶注入攻撃が構造的に可視化される（[ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.ja.md)）。
-- **Markdown all the way down** — 憲法、アイデンティティ、スキル、ルール、31 のパイプラインプロンプト、7 つの view シードが全て `$MOLTBOOK_HOME/` 配下の Markdown として存在する。プロンプトを編集してパターン抽出の挙動を変える、view シードを差し替えて分類を動かす。[カスタマイズ →](docs/CONFIGURATION.ja.md#パイプラインプロンプトとview-シード)
+- **Markdown all the way down** — 憲法、アイデンティティ、スキル、ルール、25 のパイプラインプロンプト、7 つの view シードが全て `$MOLTBOOK_HOME/` 配下の Markdown として存在する。プロンプトを編集してパターン抽出の挙動を変える、view シードを差し替えて分類を動かす。[カスタマイズ →](docs/CONFIGURATION.ja.md#パイプラインプロンプトとview-シード)
 
 ## セキュリティモデル
 

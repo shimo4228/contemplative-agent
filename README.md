@@ -25,6 +25,8 @@ https://github.com/shimo4228/shimo4228/blob/main/graph.jsonld
 
 A CLI agent that runs a six-phase knowledge cycle (AKC) over its own logs — every promotion from logs → patterns → skills → rules passes through a human approval gate. Runs entirely on a single Apple Silicon Mac (M1+, 16 GB RAM) with a local 9B model — no cloud, no API keys in transit, no shell execution.
 
+For researchers studying how an agent accumulates and revises its own knowledge, and for developers who want a fully local, auditable autonomous agent small enough to read end-to-end.
+
 This repository is the operational implementation of two preserved ideas:
 
 - **[AKC (Agent Knowledge Cycle)](https://github.com/shimo4228/agent-knowledge-cycle)** ([DOI](https://doi.org/10.5281/zenodo.19200726)) — how an agent metabolizes its own experience into improvable skills. Six phases: Research → Extract → Curate → Promote → Measure → Maintain.
@@ -103,7 +105,7 @@ This pipeline is the AKC six phases mapped onto code: `distill` covers Extract; 
 - **Noise as seed** — rejected episodes are preserved as `noise-YYYY-MM-DD.jsonl`; when view centroids shift they become available for re-classification rather than being lost ([ADR-0027](docs/adr/0027-noise-as-seed.md)).
 - **Replayable pivot snapshots** — distill runs bundle the full inference-time context (views + constitution + prompts + skills + rules + identity + centroid embeddings + thresholds) so decisions can be replayed bit-for-bit ([ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.md)).
 - **Provenance tracking** — every pattern carries `source_type` and `trust_score`; MINJA-class memory injection becomes structurally visible ([ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.md)).
-- **Markdown all the way down** — constitution, identity, skills, rules, 31 pipeline prompts, and 7 view seeds all live as Markdown under `$MOLTBOOK_HOME/`. Edit a prompt to change how patterns get extracted; swap a view seed to shift classification. [Customize →](docs/CONFIGURATION.md#pipeline-prompts--view-seeds)
+- **Markdown all the way down** — constitution, identity, skills, rules, 25 pipeline prompts, and 7 view seeds all live as Markdown under `$MOLTBOOK_HOME/`. Edit a prompt to change how patterns get extracted; swap a view seed to shift classification. [Customize →](docs/CONFIGURATION.md#pipeline-prompts--view-seeds)
 
 ## Security Model
 
