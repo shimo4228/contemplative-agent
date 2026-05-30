@@ -29,7 +29,7 @@ cli.py (1826L)  -- composition root, only file importing both core/ and adapters
  |    insight.py (282L)           -- view-driven behavior pattern extraction (knowledge → skills)
  |    rules_distill.py (348L)     -- Practice/Rationale B-layer rules synthesis (skills → rules)
  |    constitution.py (130L)      -- constitutional amendment (constitutional view → ethics); ADR-0033 layer-separation framing
- |    stocktake.py (368L)         -- skill/rule audit: embedding clustering, merge/quality, CANNOT_MERGE
+ |    stocktake.py (362L)         -- skill/rule audit: LLM grouping (ADR-0046), merge/quality, CANNOT_MERGE
  |    report.py (256L)            -- activity report generation (JSONL → Markdown)
  |    metrics.py (160L)           -- session metrics aggregation
  |    text_utils.py (60L)         -- shared Markdown helpers (slugify / extract_title / _strip_frontmatter) [ADR-0035 PR2]
@@ -180,7 +180,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 - constitution_amend, principles
 
 **Audit**:
-- stocktake_merge, stocktake_merge_rules
+- stocktake_skills, stocktake_rules (LLM grouping, ADR-0046), stocktake_merge, stocktake_merge_rules
 
 **Reports / experimental**:
 - weekly-analysis (Claude Code via launchd)
@@ -189,7 +189,6 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 **Retired (files on disk but unreferenced)**:
 - `distill_classify.md`, `distill_subcategorize.md` — superseded by embedding classification (ADR-0019)
 - `topic_extraction.md`, `topic_novelty.md` — retired by ADR-0043 (NoveltyGate + feed_seeder cover their function)
-- `stocktake_skills.md`, `stocktake_rules.md` — removed in ADR-0038 cleanup
 
 ## LLM Function Surface
 

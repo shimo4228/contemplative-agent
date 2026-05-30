@@ -26,7 +26,7 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `distill.py` | 823 | `distill()` w/ embedding centroid classify (ADR-0019) + provenance/trust/bitemporal write (ADR-0021); `distill_identity()` reads/writes identity.md as a single text blob (ADR-0030). `memory_evolution` pass (ADR-0022) was removed by ADR-0034 |
 | `insight.py` | 282 | `extract_insight()` → `InsightResult`; view-driven batch building. Pulls live-only patterns via `KnowledgeStore.get_live_patterns` and ranks batches by `effective_importance`. Uses `text_utils` + `artifact_extraction` helpers (ADR-0035 PR2/PR3) |
 | `rules_distill.py` | 348 | `distill_rules()` → `RulesDistillResult`; Practice/Rationale B-layer format. Uses `text_utils` + `artifact_extraction` helpers (ADR-0035 PR2/PR3) |
-| `stocktake.py` | 368 | Skill/rule audit: embedding-only clustering at `SIM_CLUSTER_THRESHOLD=0.80`, `merge_group()` with `CANNOT_MERGE` reject. Uses `text_utils._strip_frontmatter` |
+| `stocktake.py` | 362 | Skill/rule audit: single-call LLM grouping (ADR-0046, returns `{groups:[...]}` via `_parse_groups`), `merge_group()` preserves the union of distinct patterns with `CANNOT_MERGE` reject. Uses `text_utils.strip_frontmatter` |
 | `report.py` | 256 | `generate_report()` JSONL → Markdown activity summary |
 | `metrics.py` | 160 | Session metrics aggregation (actions, topics, engagement) |
 | `text_utils.py` | 60 | Shared Markdown helpers (`slugify`, `extract_title`, `_strip_frontmatter`) — promoted from insight/rules_distill to break the stocktake → rules_distill edge (ADR-0035 PR2) |
