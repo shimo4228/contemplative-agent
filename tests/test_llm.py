@@ -393,6 +393,55 @@ class TestGenerate:
         payload = mock_post.call_args[1]["json"]
         assert payload["options"]["num_ctx"] == 32768
 
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_temperature_default_is_1_0(self, mock_post):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"response": "ok"}
+        mock_resp.raise_for_status.return_value = None
+        mock_post.return_value = mock_resp
+
+        generate("test")
+        payload = mock_post.call_args[1]["json"]
+        assert payload["options"]["temperature"] == 1.0
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_temperature_propagates(self, mock_post):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"response": "ok"}
+        mock_resp.raise_for_status.return_value = None
+        mock_post.return_value = mock_resp
+
+        generate("test", temperature=1.3)
+        payload = mock_post.call_args[1]["json"]
+        assert payload["options"]["temperature"] == 1.3
+
+
+class TestCommentTemperature:
+    """ADR-0047: outward reflective generation (comment/reply/post) uses a
+    higher temperature than the 1.0 default to break formulaic openings.
+    Scoring / title / distill paths keep the default 1.0."""
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_generate_comment_uses_comment_temperature(self, mock_api):
+        from contemplative_agent.adapters.moltbook.llm_functions import (
+            COMMENT_TEMPERATURE,
+        )
+
+        mock_api.return_value = "ok"
+        generate_comment("a post")
+        assert mock_api.call_args.kwargs["temperature"] == COMMENT_TEMPERATURE
+        assert COMMENT_TEMPERATURE == 1.3
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_generate_reply_uses_comment_temperature(self, mock_api):
+        from contemplative_agent.adapters.moltbook.llm_functions import (
+            COMMENT_TEMPERATURE,
+        )
+
+        mock_api.return_value = "ok"
+        generate_reply("post", "their comment")
+        assert mock_api.call_args.kwargs["temperature"] == COMMENT_TEMPERATURE
+
 
 class TestGenerateForApi:
     """ADR-0018 amendment: API 投稿系 caller は max_length のみ指定、
@@ -427,6 +476,20 @@ class TestGenerateForApi:
         generate_for_api("p", max_length=0)
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["num_predict"] == 50
+
+    @patch("contemplative_agent.core.llm.generate")
+    def test_temperature_defaults_to_1_0(self, mock_gen):
+        mock_gen.return_value = "ok"
+        generate_for_api("p", max_length=300)
+        kwargs = mock_gen.call_args.kwargs
+        assert kwargs["temperature"] == 1.0
+
+    @patch("contemplative_agent.core.llm.generate")
+    def test_temperature_propagates(self, mock_gen):
+        mock_gen.return_value = "ok"
+        generate_for_api("p", max_length=300, temperature=1.3)
+        kwargs = mock_gen.call_args.kwargs
+        assert kwargs["temperature"] == 1.3
 
     @patch("contemplative_agent.core.llm.generate")
     def test_passes_max_length_through(self, mock_gen):
@@ -478,10 +541,15 @@ class TestGenerateCooperationPost:
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_uses_generate_for_api_with_max_post_length(self, mock_gen):
         from contemplative_agent.core.config import MAX_POST_LENGTH
+        from contemplative_agent.adapters.moltbook.llm_functions import (
+            COMMENT_TEMPERATURE,
+        )
+
         mock_gen.return_value = "ok"
         generate_cooperation_post(self._SEEDS)
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["max_length"] == MAX_POST_LENGTH
+        assert kwargs["temperature"] == COMMENT_TEMPERATURE
         assert "num_predict" not in kwargs
 
 

@@ -50,6 +50,7 @@
 | [0044](0044-remove-topic-keywords.ja.md) | `topic_keywords` の全面削除 | accepted | 2026-05-23 |
 | [0045](0045-pre-action-internal-note.ja.md) | エピソード層での pre-action `internal_note` 記録（ADR-0038 の Gap 2 を閉じる） | accepted | 2026-05-25 |
 | [0046](0046-stocktake-llm-grouping-over-embedding-clustering.ja.md) | Stocktake の重複検出 — embedding クラスタリングではなく LLM グルーピング | accepted | 2026-05-30 |
+| [0047](0047-comment-sampling-temperature.ja.md) | 外向きコメント生成のサンプリング温度引き上げ | accepted | 2026-05-30 |
 
 ## ADR の種別
 

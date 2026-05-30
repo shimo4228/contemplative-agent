@@ -413,6 +413,7 @@ def generate(
     max_length: Optional[int] = None,
     num_predict: Optional[int] = None,
     format: Optional[Dict] = None,
+    temperature: float = 1.0,
 ) -> Optional[str]:
     """Generate text via the configured backend (default: local Ollama).
 
@@ -427,6 +428,11 @@ def generate(
             minutes at the default 8192). Falls back to 8192 if None.
         format: JSON Schema dict for structured output (Ollama v0.5+).
                 When set, output is constrained at the token level.
+        temperature: Ollama sampling temperature. Default 1.0 (production
+            baseline). Outward reflective generation (comment/reply/post)
+            raises it to break formulaic, RLHF-baked openings (ADR-0047);
+            scoring/distill paths keep 1.0. Ollama-path only — an injected
+            backend does not receive it (its protocol is unchanged).
 
     Returns sanitized output, or None on failure.
 
@@ -443,6 +449,12 @@ def generate(
     effective_num_predict = num_predict if num_predict is not None else 8192
 
     if _backend is not None:
+        if temperature != 1.0:
+            logger.debug(
+                "temperature=%.2f ignored: injected backend path does not "
+                "support it (Ollama-path only)",
+                temperature,
+            )
         try:
             raw_text = _backend.generate(prompt, system_prompt, effective_num_predict, format)
         except Exception as exc:  # backend may raise on unexpected failure
@@ -470,7 +482,7 @@ def generate(
         "system": system_prompt,
         "stream": False,
         "options": {
-            "temperature": 1.0,
+            "temperature": temperature,
             "top_p": 0.95,
             "top_k": 20,
             "num_predict": effective_num_predict,
@@ -511,6 +523,7 @@ def generate_for_api(
     max_length: int,
     *,
     system: Optional[str] = None,
+    temperature: float = 1.0,
 ) -> Optional[str]:
     """Generate text for an API publish path (post/comment/reply/title).
 
@@ -529,6 +542,7 @@ def generate_for_api(
         system=system,
         max_length=max_length,
         num_predict=estimated_num_predict,
+        temperature=temperature,
     )
 
 

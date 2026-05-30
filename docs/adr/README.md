@@ -52,6 +52,7 @@ Records of key design decisions for this project.
 | [0044](0044-remove-topic-keywords.md) | Remove `topic_keywords` End-to-End | accepted | 2026-05-23 |
 | [0045](0045-pre-action-internal-note.md) | Record Pre-Action `internal_note` at the Episode Layer | accepted | 2026-05-25 |
 | [0046](0046-stocktake-llm-grouping-over-embedding-clustering.md) | Stocktake Duplicate Detection — LLM Grouping over Embedding Clustering | accepted | 2026-05-30 |
+| [0047](0047-comment-sampling-temperature.md) | Higher Sampling Temperature for Outward Comment Generation | accepted | 2026-05-30 |
 
 ## ADR Types
 

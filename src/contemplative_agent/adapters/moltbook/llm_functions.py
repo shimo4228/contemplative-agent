@@ -24,6 +24,15 @@ from ...core.llm import generate, generate_for_api, wrap_untrusted_content
 
 logger = logging.getLogger(__name__)
 
+# ADR-0047: outward reflective generation (comment / reply / cooperation post)
+# raises temperature above the 1.0 production baseline to break formulaic,
+# RLHF-baked openings ("What a beautiful moment…"). Candidate-set pruning
+# (top_k/top_p/min_p) could not dislodge them; temperature 1.3 flattens the
+# mode-collapsed peak while top_k=20 (in core.llm) still caps runaway. Scoring,
+# title and distill paths keep the 1.0 default. Validated on comment/reply;
+# 1.5 was rejected for axiom-label collapse.
+COMMENT_TEMPERATURE = 1.3
+
 
 def _resolve_domain_prompt(template: str) -> str:
     """Resolve a prompt template with the current domain config."""
@@ -90,7 +99,9 @@ def generate_internal_note(content: str) -> str:
 def generate_comment(post_text: str) -> Optional[str]:
     """Generate a contextual comment for a post."""
     prompt = COMMENT_PROMPT.format(post_content=wrap_untrusted_content(post_text))
-    return generate_for_api(prompt, max_length=MAX_COMMENT_LENGTH)
+    return generate_for_api(
+        prompt, max_length=MAX_COMMENT_LENGTH, temperature=COMMENT_TEMPERATURE
+    )
 
 
 def format_feed_seeds(seeds: list[dict]) -> str:
@@ -134,7 +145,9 @@ def generate_cooperation_post(
         feed_seeds=format_feed_seeds(feed_seeds),
         insights_section=insights_section,
     )
-    return generate_for_api(prompt, max_length=MAX_POST_LENGTH)
+    return generate_for_api(
+        prompt, max_length=MAX_POST_LENGTH, temperature=COMMENT_TEMPERATURE
+    )
 
 
 def generate_reply(
@@ -152,7 +165,9 @@ def generate_reply(
         original_post=wrap_untrusted_content(original_post),
         their_comment=wrap_untrusted_content(their_comment),
     )
-    return generate_for_api(prompt, max_length=MAX_COMMENT_LENGTH)
+    return generate_for_api(
+        prompt, max_length=MAX_COMMENT_LENGTH, temperature=COMMENT_TEMPERATURE
+    )
 
 
 def generate_post_title(feed_seed_text: str) -> Optional[str]:
