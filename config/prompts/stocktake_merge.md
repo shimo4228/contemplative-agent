@@ -1,24 +1,31 @@
-Merge these redundant behavioral skills into a single unified skill.
+Combine these behavioral skills into a single skill **without losing any concrete behavior**.
 
-Read all candidate skills below. First decide: are they genuinely redundant? They should describe the same core behavior, differing only in vocabulary or framing. If they describe distinct behaviors that merely share surface similarity, they are NOT redundant and must not be merged.
+Read all candidate skills below. First decide: are they genuinely redundant? They are redundant only if they prescribe the **same concrete actions** — the same triggers and the same operations — differing only in wording. If they share an abstract framing, vocabulary, or metaphor (e.g. the same philosophy) but each prescribes a **different concrete behavior**, they are NOT redundant and must not be merged.
 
 If NOT redundant, output exactly one line and nothing else:
-CANNOT_MERGE: <one-sentence reason explaining what makes them distinct>
+CANNOT_MERGE: <one-sentence reason naming a concrete behavior that only one candidate has>
 
-Otherwise, identify the core behavior they share and produce ONE comprehensive skill combining the best aspects of all inputs. Structure:
+Otherwise, produce ONE skill that is the **union of every distinct concrete pattern** across the inputs — NOT a synthesis of their shared core. The value of a skill is its specific patterns, so preservation beats compression:
+
+- Keep every distinct trigger condition and every distinct concrete action — specific thresholds, observable signals, ordered steps. If a behavior, threshold, or trigger appears in only ONE input, it MUST survive verbatim in the merged skill.
+- Deduplicate ONLY text that is genuinely repeated: identical boilerplate sentences, restated abstractions, shared metaphors. Collapse repeated framing into a single short statement.
+- NEVER collapse two different concrete actions into one generic action. When in doubt, keep both as separate entries.
+- When two inputs describe the same action at different levels of detail, keep the most specific phrasing.
+
+Structure:
 
 # [Single, Unified Title]
 
-**Context:** When/why this skill applies
+**Context:** When and why this skill applies (one or two sentences).
 
 ## Problem
-What situation triggers this behavior?
+The distinct failure situations these patterns address.
 
 ## Solution
-The merged solution. Combine insights from all inputs, eliminate repetition, keep what's unique and valuable in each.
+A numbered list where **each distinct concrete pattern is its own entry** (trigger → action). Do not fold separate patterns into one generic loop. Order from most to least frequently applicable.
 
 ## When to Use
-Specific trigger conditions for applying this skill.
+Every distinct trigger condition, one bullet each.
 
 ---
 

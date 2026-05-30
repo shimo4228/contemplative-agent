@@ -28,6 +28,13 @@ logger = logging.getLogger(__name__)
 
 MIN_FILES_FOR_DEDUP = 2
 
+# Token budget per input file for a pattern-preserving merge. The merged
+# skill is the union of each input's distinct patterns, so the output scales
+# with group size. Used as ``min(8192, max(3000, _PER_FILE_MERGE_TOKENS * n))``
+# in ``merge_group`` — floor preserves prior small-group behavior, 8192
+# ceiling stays within the 32768 num_ctx headroom (see core/llm.generate).
+_PER_FILE_MERGE_TOKENS = 500
+
 # Embedding cosine threshold for clustering. Calibrated on real
 # auto-extracted skill bodies: the same attractor expressed with
 # different vocabulary (adaptive/fluid/dynamic) lands in the 0.86-0.94
@@ -220,7 +227,14 @@ def merge_group(
         Merged skill text (or CANNOT_MERGE response), None on LLM failure.
     """
     prompt = prompt_template.format(candidates=_format_items(items))
-    return generate(prompt, system="Merge redundant skills.", num_predict=3000)
+    # The merge prompt preserves the *union* of every distinct concrete
+    # pattern rather than synthesizing a shared core, so output length grows
+    # with the number of inputs. Scale the token budget with group size:
+    # a fixed cap would truncate large groups, silently dropping the very
+    # patterns this merge exists to preserve. Floor keeps small-group
+    # behavior unchanged; ceiling stays within the model's num_ctx headroom.
+    num_predict = min(8192, max(3000, _PER_FILE_MERGE_TOKENS * len(items)))
+    return generate(prompt, system="Merge skills, preserving every distinct concrete pattern.", num_predict=num_predict)
 
 
 def is_merge_rejected(merged_text: str) -> bool:

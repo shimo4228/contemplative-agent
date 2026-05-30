@@ -12,6 +12,7 @@ from contemplative_agent.core.stocktake import (
     MergeGroup,
     QualityIssue,
     StocktakeResult,
+    _PER_FILE_MERGE_TOKENS,
     _check_rule_quality,
     _check_skill_quality,
     _cluster_pairs,
@@ -410,6 +411,32 @@ class TestMergeGroup:
         result = merge_group(items, "merge {candidates}")
         assert result is not None
         assert result.startswith("CANNOT_MERGE:")
+
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_small_group_keeps_floor_budget(self, mock_generate):
+        """A 2-file merge keeps the 3000-token floor (prior behavior)."""
+        mock_generate.return_value = "# Merged\n\n## Problem\np\n\n## Solution\ns"
+        items = [("a.md", "x"), ("b.md", "y")]
+        merge_group(items, "merge {candidates}")
+        assert mock_generate.call_args.kwargs["num_predict"] == 3000
+
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_token_budget_scales_with_group_size(self, mock_generate):
+        """Pattern-preserving merge output grows with inputs, so the token
+        budget scales above the floor — preventing truncation that would
+        silently drop the distinct patterns the merge exists to preserve."""
+        mock_generate.return_value = "# Merged\n\n## Problem\np\n\n## Solution\ns"
+        items = [(f"f{i}.md", f"body {i}") for i in range(12)]
+        merge_group(items, "merge {candidates}")
+        assert mock_generate.call_args.kwargs["num_predict"] == _PER_FILE_MERGE_TOKENS * 12
+
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_token_budget_capped_at_ceiling(self, mock_generate):
+        """Very large groups are capped at 8192 (num_ctx headroom)."""
+        mock_generate.return_value = "# Merged\n\n## Problem\np\n\n## Solution\ns"
+        items = [(f"f{i}.md", f"body {i}") for i in range(40)]
+        merge_group(items, "merge {candidates}")
+        assert mock_generate.call_args.kwargs["num_predict"] == 8192
 
 
 class TestIsMergeRejected:
