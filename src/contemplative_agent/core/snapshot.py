@@ -62,7 +62,6 @@ def collect_thresholds() -> Dict[str, float]:
         "SIM_DUPLICATE": _t.SIM_DUPLICATE,
         "SIM_UPDATE": _t.SIM_UPDATE,
         "DEDUP_IMPORTANCE_FLOOR": _t.DEDUP_IMPORTANCE_FLOOR,
-        "SIM_CLUSTER_THRESHOLD": _t.SIM_CLUSTER_THRESHOLD,
     }
 
 

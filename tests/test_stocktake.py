@@ -2,23 +2,19 @@
 
 from __future__ import annotations
 
+import json
 from pathlib import Path
 from unittest.mock import patch
 
-import numpy as np
-
 from contemplative_agent.core.stocktake import (
-    SIM_CLUSTER_THRESHOLD,
     MergeGroup,
     QualityIssue,
     StocktakeResult,
     _PER_FILE_MERGE_TOKENS,
     _check_rule_quality,
     _check_skill_quality,
-    _cluster_pairs,
     _find_duplicate_groups,
-    _normalize_for_similarity,
-    _pairwise_similarity,
+    _parse_groups,
     _read_files,
     format_stocktake_report,
     is_merge_rejected,
@@ -111,6 +107,14 @@ MISSING_PRACTICE_RULE = """\
 More content here to ensure we exceed the minimum character threshold of two hundred chars for the quality check.
 """
 
+# LLM grouping responses (single-call duplicate detection)
+LLM_MERGE_RESPONSE = json.dumps({
+    "groups": [
+        {"files": ["skill-a.md", "skill-b.md"], "reason": "Both describe the same response loop"},
+    ]
+})
+LLM_NO_MERGE_RESPONSE = json.dumps({"groups": []})
+
 
 def _make_skills_dir(tmp_path: Path, skills: dict[str, str]) -> Path:
     skills_dir = tmp_path / "skills"
@@ -126,25 +130,6 @@ def _make_rules_dir(tmp_path: Path, rules: dict[str, str]) -> Path:
     for name, content in rules.items():
         (rules_dir / name).write_text(content, encoding="utf-8")
     return rules_dir
-
-
-def _vecs(*similarity_to_first: float) -> np.ndarray:
-    """Build mock embedding vectors with controlled cosines to vector 0.
-
-    Vector 0 is e_0 (all weight on first axis). Vector i is constructed so
-    that cosine(v_0, v_i) == similarity_to_first[i], with the residual on a
-    distinct axis per i (so non-first pairs have predictable similarity too).
-    """
-    n = len(similarity_to_first)
-    dim = max(n, 4)
-    vectors = np.zeros((n, dim), dtype=np.float32)
-    vectors[0, 0] = 1.0
-    for i in range(1, n):
-        s = similarity_to_first[i]
-        vectors[i, 0] = s
-        # Residual on a per-i axis so v_i are linearly independent
-        vectors[i, i] = float(np.sqrt(max(0.0, 1.0 - s * s)))
-    return vectors
 
 
 # ---------------------------------------------------------------------------
@@ -175,6 +160,41 @@ class TestReadFiles:
 
     def test_nonexistent_dir(self, tmp_path):
         assert _read_files(tmp_path / "nope") == []
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: _parse_groups
+# ---------------------------------------------------------------------------
+
+class TestParseGroups:
+    def test_valid_json(self):
+        groups = _parse_groups(LLM_MERGE_RESPONSE)
+        assert len(groups) == 1
+        assert groups[0].filenames == ("skill-a.md", "skill-b.md")
+
+    def test_empty_groups(self):
+        assert _parse_groups(LLM_NO_MERGE_RESPONSE) == []
+
+    def test_json_in_code_fence(self):
+        raw = f"```json\n{LLM_MERGE_RESPONSE}\n```"
+        groups = _parse_groups(raw)
+        assert len(groups) == 1
+
+    def test_json_embedded_in_prose(self):
+        raw = f"Here are the groups:\n{LLM_MERGE_RESPONSE}\nDone."
+        groups = _parse_groups(raw)
+        assert len(groups) == 1
+
+    def test_invalid_json(self):
+        assert _parse_groups("not json at all") == []
+
+    def test_single_file_group_ignored(self):
+        raw = json.dumps({"groups": [{"files": ["only-one.md"], "reason": "alone"}]})
+        assert _parse_groups(raw) == []
+
+    def test_group_without_reason_ignored(self):
+        raw = json.dumps({"groups": [{"files": ["a.md", "b.md"], "reason": ""}]})
+        assert _parse_groups(raw) == []
 
 
 # ---------------------------------------------------------------------------
@@ -219,169 +239,54 @@ class TestRuleQuality:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests: _normalize_for_similarity
-# ---------------------------------------------------------------------------
-
-class TestNormalizeForSimilarity:
-    def test_strips_markdown_headings(self):
-        body = "## Problem\nfoo\n## Solution\nbar"
-        out = _normalize_for_similarity(body)
-        assert "##" not in out
-        assert "foo" in out and "bar" in out
-
-    def test_collapses_whitespace(self):
-        body = "foo   bar\n\n\nbaz\t\tqux"
-        out = _normalize_for_similarity(body)
-        assert "  " not in out
-        assert "\n\n" not in out
-
-    def test_preserves_alphanumerics(self):
-        body = "## Header\nthe quick brown fox"
-        out = _normalize_for_similarity(body)
-        assert "quick brown fox" in out
-
-
-# ---------------------------------------------------------------------------
-# Unit tests: _pairwise_similarity
-# ---------------------------------------------------------------------------
-
-class TestPairwiseSimilarity:
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_identical_bodies_cosine_1(self, mock_embed):
-        mock_embed.return_value = _vecs(1.0, 1.0)
-        items = [("a.md", "alpha beta gamma"), ("b.md", "alpha beta gamma")]
-        pairs = _pairwise_similarity(items)
-        assert len(pairs) == 1
-        assert pairs[0][0] == 0 and pairs[0][1] == 1
-
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_distinct_bodies_low_cosine(self, mock_embed):
-        mock_embed.return_value = _vecs(1.0, 0.1)
-        items = [("a.md", "alpha"), ("b.md", "completely different")]
-        pairs = _pairwise_similarity(items)
-        assert pairs[0][2] < 0.6
-
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_n_choose_2_pairs(self, mock_embed):
-        mock_embed.return_value = _vecs(1.0, 0.5, 0.5, 0.5)
-        items = [(f"f{i}.md", f"content {i}") for i in range(4)]
-        pairs = _pairwise_similarity(items)
-        assert len(pairs) == 6  # C(4,2)
-
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_indices_are_i_lt_j(self, mock_embed):
-        mock_embed.return_value = _vecs(1.0, 0.5, 0.5)
-        items = [(f"f{i}.md", f"body {i}") for i in range(3)]
-        pairs = _pairwise_similarity(items)
-        for i, j, _ in pairs:
-            assert i < j
-
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_embedding_failure_returns_empty(self, mock_embed):
-        mock_embed.return_value = None
-        items = [("a.md", "x"), ("b.md", "y")]
-        assert _pairwise_similarity(items) == []
-
-
-# ---------------------------------------------------------------------------
-# Unit tests: _cluster_pairs (transitive closure / union-find)
-# ---------------------------------------------------------------------------
-
-class TestClusterPairs:
-    def test_transitive_closure(self):
-        # (0,1) and (1,2) should produce one cluster {0,1,2}
-        pairs = [(0, 1, 0.9), (1, 2, 0.9)]
-        clusters = _cluster_pairs(pairs, item_count=3)
-        assert len(clusters) == 1
-        assert clusters[0] == {0, 1, 2}
-
-    def test_disconnected_stays_separate(self):
-        pairs = [(0, 1, 0.9), (2, 3, 0.9)]
-        clusters = _cluster_pairs(pairs, item_count=4)
-        assert len(clusters) == 2
-        sets = sorted([sorted(c) for c in clusters])
-        assert sets == [[0, 1], [2, 3]]
-
-    def test_singleton_items_not_returned(self):
-        # Item 4 has no pair → should not appear as a cluster of size 1
-        pairs = [(0, 1, 0.9)]
-        clusters = _cluster_pairs(pairs, item_count=5)
-        assert len(clusters) == 1
-        assert clusters[0] == {0, 1}
-
-    def test_empty_pairs_returns_empty(self):
-        assert _cluster_pairs([], item_count=5) == []
-
-    def test_full_chain(self):
-        pairs = [(0, 1, 0.9), (1, 2, 0.9), (2, 3, 0.9), (3, 4, 0.9)]
-        clusters = _cluster_pairs(pairs, item_count=5)
-        assert len(clusters) == 1
-        assert clusters[0] == {0, 1, 2, 3, 4}
-
-
-# ---------------------------------------------------------------------------
-# Unit tests: _find_duplicate_groups (embedding-only clustering)
+# Unit tests: _find_duplicate_groups (single LLM grouping call)
 # ---------------------------------------------------------------------------
 
 class TestFindDuplicateGroups:
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_high_similarity_clusters(self, mock_embed):
-        # cosine 1.0 ≥ threshold → grouped
-        mock_embed.return_value = _vecs(1.0, 1.0)
-        items = [("a.md", "the same exact body"), ("b.md", "the same exact body")]
-        groups = _find_duplicate_groups(items)
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_returns_merge_groups(self, mock_generate):
+        mock_generate.return_value = LLM_MERGE_RESPONSE
+        items = [("a.md", "content a"), ("b.md", "content b")]
+        groups = _find_duplicate_groups(items, "prompt {items}")
         assert len(groups) == 1
-        assert set(groups[0].filenames) == {"a.md", "b.md"}
+        assert mock_generate.call_count == 1
 
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_threshold_boundary_inclusive(self, mock_embed):
-        # cosine == SIM_CLUSTER_THRESHOLD → included
-        mock_embed.return_value = _vecs(1.0, SIM_CLUSTER_THRESHOLD)
-        items = [("a.md", "a"), ("b.md", "b")]
-        groups = _find_duplicate_groups(items)
-        assert len(groups) == 1
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_no_duplicates_returns_empty(self, mock_generate):
+        mock_generate.return_value = LLM_NO_MERGE_RESPONSE
+        items = [("a.md", "content a"), ("b.md", "content b")]
+        assert _find_duplicate_groups(items, "prompt {items}") == []
 
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_below_threshold_excluded(self, mock_embed):
-        # cosine just below threshold → excluded
-        mock_embed.return_value = _vecs(1.0, SIM_CLUSTER_THRESHOLD - 0.05)
-        items = [("a.md", "a"), ("b.md", "b")]
-        assert _find_duplicate_groups(items) == []
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_multiple_groups_not_collapsed(self, mock_generate):
+        """Distinct families stay separate — the grouping call can return
+        several small groups rather than one over-merged blob."""
+        mock_generate.return_value = json.dumps({"groups": [
+            {"files": ["a.md", "b.md"], "reason": "family one"},
+            {"files": ["c.md", "d.md"], "reason": "family two"},
+        ]})
+        items = [(f"{c}.md", f"body {c}") for c in "abcd"]
+        groups = _find_duplicate_groups(items, "prompt {items}")
+        assert len(groups) == 2
 
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_distinct_skills_no_group(self, mock_embed):
-        # cosine 0.3 → well below threshold
-        mock_embed.return_value = _vecs(1.0, 0.3)
-        items = [("a.md", "body a"), ("b.md", "body b")]
-        assert _find_duplicate_groups(items) == []
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_llm_failure_returns_empty(self, mock_generate):
+        mock_generate.return_value = None
+        items = [("a.md", "content a"), ("b.md", "content b")]
+        assert _find_duplicate_groups(items, "prompt {items}") == []
 
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_embedding_failure_returns_empty(self, mock_embed):
-        mock_embed.return_value = None
+    def test_single_file_skips_llm(self):
+        items = [("a.md", "content a")]
+        assert _find_duplicate_groups(items, "prompt {items}") == []
+
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_grouping_token_budget_has_floor(self, mock_generate):
+        """Small stores still get a generous budget so the JSON is not
+        truncated (truncation would corrupt parsing and drop groups)."""
+        mock_generate.return_value = LLM_NO_MERGE_RESPONSE
         items = [("a.md", "x"), ("b.md", "y")]
-        assert _find_duplicate_groups(items) == []
-
-    def test_single_file_skips_pipeline(self):
-        items = [("a.md", "content")]
-        assert _find_duplicate_groups(items) == []
-
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_transitive_clustering_via_embedding(self, mock_embed):
-        """8 structurally-identical skills all share similarity >= threshold
-        with vector 0; union-find collapses them into ONE group."""
-        mock_embed.return_value = _vecs(1.0, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85, 0.85)
-        items = [(f"skill-{i}.md", f"body {i}") for i in range(8)]
-        groups = _find_duplicate_groups(items)
-        assert len(groups) == 1
-        assert len(groups[0].filenames) == 8
-
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_reason_includes_threshold_and_max_ratio(self, mock_embed):
-        mock_embed.return_value = _vecs(1.0, 0.95)
-        items = [("a.md", "x"), ("b.md", "y")]
-        groups = _find_duplicate_groups(items)
-        assert len(groups) == 1
-        assert "0.95" in groups[0].reason or "0.9" in groups[0].reason
+        _find_duplicate_groups(items, "prompt {items}")
+        assert mock_generate.call_args.kwargs["num_predict"] == 3000
 
 
 # ---------------------------------------------------------------------------
@@ -458,13 +363,14 @@ class TestIsMergeRejected:
 # ---------------------------------------------------------------------------
 
 class TestRunSkillStocktake:
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_detects_merges_and_quality(self, mock_embed, tmp_path):
-        # Three files: a/b cluster via cosine 1.0, short.md unrelated
-        mock_embed.return_value = _vecs(1.0, 1.0, 0.2)
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_detects_merges_and_quality(self, mock_generate, tmp_path):
+        mock_generate.return_value = json.dumps({
+            "groups": [{"files": ["a.md", "b.md"], "reason": "overlap"}]
+        })
         skills_dir = _make_skills_dir(tmp_path, {
             "a.md": GOOD_SKILL,
-            "b.md": GOOD_SKILL,
+            "b.md": GOOD_SKILL_NO_FRONTMATTER,
             "short.md": SHORT_SKILL,
         })
         result = run_skill_stocktake(skills_dir=skills_dir)
@@ -473,16 +379,16 @@ class TestRunSkillStocktake:
         assert len(result.quality_issues) >= 1  # short.md
         assert result.total_files == 3
 
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_no_issues(self, mock_embed, tmp_path):
-        # Single file: embedding not invoked (below MIN_FILES_FOR_DEDUP)
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_no_issues(self, mock_generate, tmp_path):
+        # Single file: below MIN_FILES_FOR_DEDUP, so grouping LLM not invoked
         skills_dir = _make_skills_dir(tmp_path, {
             "good.md": GOOD_SKILL,
         })
         result = run_skill_stocktake(skills_dir=skills_dir)
         assert result.merge_groups == ()
         assert result.quality_issues == ()
-        assert mock_embed.call_count == 0
+        assert mock_generate.call_count == 0
 
     def test_empty_dir(self, tmp_path):
         skills_dir = tmp_path / "skills"
@@ -500,7 +406,9 @@ class TestRunSkillStocktake:
 # ---------------------------------------------------------------------------
 
 class TestRunRulesStocktake:
-    def test_detects_quality_issue(self, tmp_path):
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_detects_quality_issue(self, mock_generate, tmp_path):
+        mock_generate.return_value = LLM_NO_MERGE_RESPONSE
         rules_dir = _make_rules_dir(tmp_path, {
             "good.md": GOOD_RULE,
             "bad.md": MISSING_PRACTICE_RULE,
@@ -521,8 +429,8 @@ class TestRunRulesStocktake:
 # ---------------------------------------------------------------------------
 
 class TestIndependence:
-    @patch("contemplative_agent.core.stocktake.embed_texts")
-    def test_skills_and_rules_do_not_mix(self, mock_embed, tmp_path):
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_skills_and_rules_do_not_mix(self, mock_generate, tmp_path):
         """Skill stocktake does not read rules, and vice versa."""
         skills_dir = _make_skills_dir(tmp_path, {"s.md": GOOD_SKILL})
         rules_dir = _make_rules_dir(tmp_path, {"r.md": GOOD_RULE})
@@ -532,8 +440,8 @@ class TestIndependence:
 
         assert skill_result.total_files == 1
         assert rule_result.total_files == 1
-        # Each only saw its own files; embedding skipped (below MIN_FILES_FOR_DEDUP)
-        assert mock_embed.call_count == 0
+        # Each only saw its own file; grouping skipped (below MIN_FILES_FOR_DEDUP)
+        assert mock_generate.call_count == 0
 
 
 # ---------------------------------------------------------------------------

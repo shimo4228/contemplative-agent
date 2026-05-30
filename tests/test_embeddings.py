@@ -1,7 +1,8 @@
 """Tests for embedding utility functions (cosine, find_similar, centroid, argmax_centroid).
 
-The Ollama HTTP path (embed_texts) is exercised in stocktake tests that
-already mock requests; these tests focus on the pure-numpy utilities.
+The Ollama HTTP path (embed_texts) is exercised indirectly by the modules
+that call it (distill, rules_distill, views, novelty) with requests mocked;
+these tests focus on the pure-numpy utilities.
 """
 
 from __future__ import annotations

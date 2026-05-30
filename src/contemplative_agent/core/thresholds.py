@@ -77,14 +77,9 @@ Used by both ``insight`` (``BATCH_SIZE``) and ``rules-distill``
 prompt-size budget.
 """
 
-# --- Stocktake clustering --------------------------------------------------
-
-SIM_CLUSTER_THRESHOLD: float = 0.80
-"""Pair similarity above which two skills are eligible to merge in
-``skill-stocktake`` (ADR-0016 broad consolidator role).
-
-Higher than ``CLUSTER_THRESHOLD_RULES`` because stocktake is a final
-audit; we want only confidently-redundant pairs to surface as merge
-candidates.
-"""
+# Note: stocktake no longer uses an embedding-cosine clustering threshold.
+# Duplicate detection reverted to a single LLM grouping call (see
+# core/stocktake._find_duplicate_groups), which discriminates on concrete
+# behavior instead of vapor-dominated cosine; the former
+# SIM_CLUSTER_THRESHOLD was removed with that change.
 

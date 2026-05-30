@@ -90,9 +90,6 @@ class TestCollectThresholds:
             assert k in t
             assert isinstance(t[k], float)
 
-    def test_includes_stocktake_constant(self):
-        assert "SIM_CLUSTER_THRESHOLD" in collect_thresholds()
-
 
 class TestCopyMarkdownTree:
     def test_copies_md_files(self, tmp_path):
