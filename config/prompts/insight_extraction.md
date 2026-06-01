@@ -25,7 +25,7 @@ origin: auto-extracted
 [The pattern/technique/workaround]
 
 ## When to Use
-[Trigger conditions]
+[Trigger conditions — write as RECURRING STRUCTURAL conditions. Generalize away transient identifiers: replace specific usernames with "a particular individual," specific post IDs with "a specific topic," single relevance scores with "high relevance," and timestamp windows with "similar contexts." The skill body may ground the trigger with a concrete example, but the trigger itself must be reusable across future episodes.]
 
 Learned patterns:
 {patterns}
