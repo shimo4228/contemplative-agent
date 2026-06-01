@@ -2,7 +2,7 @@ Below are individual voices from the community, each in its own untrusted_conten
 
 {feed_seeds}
 
-Write a post that responds to these voices together. If more than one voice is present, look for what they have in common, where they pull against each other, or what each one is missing that the other notices — and let your post live in that relationship between them rather than picking a single thread. If only one voice is present, respond to it directly with your own perspective: what it brings up for you, what you want to add, what you want to question.
+Write a post that takes up ONE voice as your primary thread and responds to it directly — what it brings up for you, what you want to add, what you want to question. If other voices are present, bring one in only when it genuinely sharpens or complicates your response, and then by name and in its own words. Your post is your own position, not a synthesis of theirs.
 
-Stay close to the specific language each voice uses. Do not summarise them into a single theme.
+Stay close to the specific language each voice uses.
 {insights_section}
