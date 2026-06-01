@@ -407,6 +407,117 @@ class TestEngageWithPost:
         )
 
 
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
+    @patch(
+        "contemplative_agent.adapters.moltbook.feed_manager.generate_internal_note",
+        return_value="note",
+    )
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
+    def test_truncated_post_fetches_full_body(
+        self, mock_score, mock_note, mock_random, mock_time, tmp_path
+    ):
+        """A 500-char (truncated) submolt post triggers get_post; the comment
+        and the recorded original_post use the full body."""
+        mock_random.uniform.return_value = 60.0
+        preview = "x" * 500
+        full = preview + " ...the rest the submolt feed truncated away."
+        agent = self._make_agent(tmp_path)
+        agent._client.has_read_budget.return_value = True
+        agent._client.get_post.return_value = {"id": "post1", "content": full}
+        agent._content.create_comment.return_value = "Great insight"
+        agent._client.post.return_value = MagicMock()
+
+        agent._engage_with_post({"content": preview, "id": "post1"})
+
+        agent._client.get_post.assert_called_once_with("post1")
+        agent._content.create_comment.assert_called_once_with(full)
+        comment_eps = [
+            r
+            for r in agent._ctx.memory.episodes.read_range(days=1, record_type="activity")
+            if r.get("data", {}).get("action") == "comment"
+        ]
+        assert comment_eps, "expected a comment activity episode"
+        assert comment_eps[0]["data"]["original_post"] == full
+
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
+    @patch(
+        "contemplative_agent.adapters.moltbook.feed_manager.generate_internal_note",
+        return_value="note",
+    )
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
+    def test_full_post_skips_fetch(
+        self, mock_score, mock_note, mock_random, mock_time, tmp_path
+    ):
+        """A post longer than the preview length is already full — no re-fetch."""
+        mock_random.uniform.return_value = 60.0
+        full = "y" * 1200  # > FEED_CONTENT_PREVIEW_LEN
+        agent = self._make_agent(tmp_path)
+        agent._content.create_comment.return_value = "Great insight"
+        agent._client.post.return_value = MagicMock()
+
+        agent._engage_with_post({"content": full, "id": "post1"})
+
+        agent._client.get_post.assert_not_called()
+        agent._content.create_comment.assert_called_once_with(full)
+
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
+    @patch(
+        "contemplative_agent.adapters.moltbook.feed_manager.generate_internal_note",
+        return_value="note",
+    )
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
+    def test_truncated_post_budget_low_uses_preview(
+        self, mock_score, mock_note, mock_random, mock_time, tmp_path
+    ):
+        """When read budget is exhausted, fall back to the 500-char preview
+        rather than blocking the comment."""
+        mock_random.uniform.return_value = 60.0
+        preview = "z" * 500
+        agent = self._make_agent(tmp_path)
+        agent._client.has_read_budget.return_value = False
+        agent._content.create_comment.return_value = "Great insight"
+        agent._client.post.return_value = MagicMock()
+
+        agent._engage_with_post({"content": preview, "id": "post1"})
+
+        agent._client.get_post.assert_not_called()
+        agent._content.create_comment.assert_called_once_with(preview)
+        comment_eps = [
+            r
+            for r in agent._ctx.memory.episodes.read_range(days=1, record_type="activity")
+            if r.get("data", {}).get("action") == "comment"
+        ]
+        assert comment_eps[0]["data"]["original_post"] == preview
+
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
+    @patch(
+        "contemplative_agent.adapters.moltbook.feed_manager.generate_internal_note",
+        return_value="note",
+    )
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
+    def test_truncated_post_refetch_not_longer_keeps_preview(
+        self, mock_score, mock_note, mock_random, mock_time, tmp_path
+    ):
+        """If get_post returns content no longer than the preview, keep the
+        preview (guards against re-fetching a genuinely 500-char post)."""
+        mock_random.uniform.return_value = 60.0
+        preview = "x" * 500
+        agent = self._make_agent(tmp_path)
+        agent._client.has_read_budget.return_value = True
+        agent._client.get_post.return_value = {"id": "post1", "content": "y" * 500}
+        agent._content.create_comment.return_value = "Great insight"
+        agent._client.post.return_value = MagicMock()
+
+        agent._engage_with_post({"content": preview, "id": "post1"})
+
+        agent._client.get_post.assert_called_once_with("post1")
+        agent._content.create_comment.assert_called_once_with(preview)
+
+
 class TestRunFeedCycle:
     def test_processes_posts(self):
         agent = Agent(autonomy=AutonomyLevel.AUTO)

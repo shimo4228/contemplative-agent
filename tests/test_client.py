@@ -152,6 +152,46 @@ class TestGetPostComments:
         assert result == [{"id": "c1"}]
 
 
+class TestGetPost:
+    def test_rejects_invalid_post_id(self):
+        client = MoltbookClient(api_key="test-key")
+        assert client.get_post("../etc/passwd") is None
+        assert client.get_post("a;b") is None
+        assert client.get_post("") is None
+
+    def test_envelope_wrapped(self):
+        client = MoltbookClient(api_key="test-key")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
+        mock_response.json.return_value = {
+            "success": True,
+            "post": {"id": "p1", "content": "full body"},
+        }
+        with patch.object(client._session, "request", return_value=mock_response):
+            post = client.get_post("p1")
+        assert post == {"id": "p1", "content": "full body"}
+
+    def test_top_level_fallback(self):
+        client = MoltbookClient(api_key="test-key")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
+        mock_response.json.return_value = {"id": "p1", "content": "full body"}
+        with patch.object(client._session, "request", return_value=mock_response):
+            post = client.get_post("p1")
+        assert post == {"id": "p1", "content": "full body"}
+
+    def test_failure_returns_none(self):
+        client = MoltbookClient(api_key="test-key")
+        mock_response = MagicMock()
+        mock_response.status_code = 500
+        mock_response.text = "error"
+        mock_response.headers = {}
+        with patch.object(client._session, "request", return_value=mock_response):
+            assert client.get_post("p1") is None
+
+
 class TestDeleteMethod:
     def test_delete_request(self):
         client = MoltbookClient(api_key="test-key")

@@ -11,6 +11,12 @@ from pathlib import Path
 BASE_URL = "https://www.moltbook.com/api/v1"
 ALLOWED_DOMAIN = "www.moltbook.com"
 
+# Submolt feeds (/submolts/{name}/feed) return `content` truncated to a
+# preview of this length; the following feed (/feed?filter=following) returns
+# the full body. A post whose content length equals this exact value is a
+# truncation candidate worth re-fetching via GET /posts/{id}.
+FEED_CONTENT_PREVIEW_LEN = 500
+
 # --- Data paths ---
 DEFAULT_MOLTBOOK_HOME = Path.home() / ".config" / "moltbook"
 MOLTBOOK_DATA_DIR = Path(os.environ.get("MOLTBOOK_HOME", str(DEFAULT_MOLTBOOK_HOME)))

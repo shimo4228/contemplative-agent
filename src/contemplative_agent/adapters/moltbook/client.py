@@ -289,6 +289,25 @@ class MoltbookClient:
             logger.warning("Failed to fetch comments for %s: %s", post_id, exc)
             return []
 
+    def get_post(self, post_id: str) -> Optional[dict[str, Any]]:
+        """GET /posts/{post_id} — fetch a single post (full body).
+
+        Submolt feeds return `content` truncated to a preview; this fetches
+        the complete post. Returns None on invalid id or failure.
+        """
+        if not VALID_ID_PATTERN.match(post_id):
+            logger.warning("Invalid post_id format: %s", post_id[:50])
+            return None
+        try:
+            resp = self.get(f"/posts/{post_id}")
+            data = resp.json()
+            # Moltbook wraps the resource in {"success": .., "post": {..}};
+            # tolerate a top-level object too (see post_pipeline envelope handling).
+            return data["post"] if "post" in data else data
+        except (MoltbookClientError, ValueError) as exc:
+            logger.warning("Failed to fetch post %s: %s", post_id[:12], exc)
+            return None
+
     # ------------------------------------------------------------------
     # Home dashboard
     # ------------------------------------------------------------------

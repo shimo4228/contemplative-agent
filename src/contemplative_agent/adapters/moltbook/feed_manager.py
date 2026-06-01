@@ -13,6 +13,7 @@ from .config import (
     ADAPTIVE_BACKOFF,
     COMMENT_PACING_MAX_SECONDS,
     COMMENT_PACING_MIN_SECONDS,
+    FEED_CONTENT_PREVIEW_LEN,
 )
 from .content import ContentManager
 from .dedup import is_promotional, is_repeat_target_for_author
@@ -286,6 +287,14 @@ class FeedManager:
             logger.info("Comment rate limit reached")
             return False
 
+        # Submolt feeds return content truncated to a preview. We only learn a
+        # post is comment-worthy after scoring, so fetch the full body here —
+        # right before the comment that gets posted publicly and recorded as
+        # original_post. Following-feed posts are already full (len != preview).
+        # Scoring and the internal note above ran on the preview by design
+        # (cheap, gate-first); only the comment and the record get the full body.
+        post_text = self._fetch_full_if_truncated(post, post_text, client)
+
         comment = self._get_content().create_comment(post_text)
         if comment is None:
             return False
@@ -343,3 +352,24 @@ class FeedManager:
             if exc.status_code == 429:
                 ctx.set_rate_limited()
             return False
+
+    def _fetch_full_if_truncated(
+        self, post: dict, post_text: str, client: MoltbookClient
+    ) -> str:
+        """Return the full post body when ``post_text`` looks truncated.
+
+        Submolt feeds clamp ``content`` to ``FEED_CONTENT_PREVIEW_LEN`` chars;
+        a body of exactly that length is a truncation candidate. Falls back to
+        the preview when read budget is low or the fetch yields nothing longer,
+        so engagement never stalls on this.
+        """
+        if len(post_text) != FEED_CONTENT_PREVIEW_LEN:
+            return post_text  # already full, or genuinely short
+        if not client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve):
+            return post_text  # budget low — keep the preview
+        full = client.get_post(post.get("id", ""))
+        if full:
+            full_text = full.get("content", "")
+            if len(full_text) > len(post_text):
+                return full_text
+        return post_text
