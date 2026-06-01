@@ -10,13 +10,16 @@ from contemplative_agent.core.stocktake import (
     MergeGroup,
     QualityIssue,
     StocktakeResult,
+    _CLEAN_TOKENS,
     _PER_FILE_MERGE_TOKENS,
     _check_rule_quality,
     _check_skill_quality,
     _find_duplicate_groups,
     _parse_groups,
     _read_files,
+    clean_skill_triggers,
     format_stocktake_report,
+    is_clean_noop,
     is_merge_rejected,
     merge_group,
     run_rules_stocktake,
@@ -356,6 +359,67 @@ class TestIsMergeRejected:
 
     def test_rejects_empty(self):
         assert is_merge_rejected("") is False
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: clean_skill_triggers + is_clean_noop (singleton trigger-altitude)
+# ---------------------------------------------------------------------------
+
+class TestCleanSkillTriggers:
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_returns_cleaned_text(self, mock_generate):
+        mock_generate.return_value = (
+            "# Skill\n\n## When to Use\nWhen a particular individual acts."
+        )
+        result = clean_skill_triggers(
+            ("solo.md", "# Skill\n\n## When to Use\nWhen Count1 acts at 09:35."),
+            "clean {skill}",
+        )
+        assert result is not None
+        assert "a particular individual" in result
+
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_llm_failure(self, mock_generate):
+        mock_generate.return_value = None
+        assert clean_skill_triggers(("solo.md", "body"), "clean {skill}") is None
+
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_noop_returned_for_caller_inspection(self, mock_generate):
+        """Already-clean skills get CLEAN_NOOP, returned as-is for the caller."""
+        mock_generate.return_value = "CLEAN_NOOP"
+        result = clean_skill_triggers(("solo.md", "body"), "clean {skill}")
+        assert result == "CLEAN_NOOP"
+
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_passes_skill_body_into_prompt(self, mock_generate):
+        """The {skill} placeholder receives the body; braces in the body are
+        safe (they are an argument, not part of the format template)."""
+        mock_generate.return_value = "CLEAN_NOOP"
+        clean_skill_triggers(("solo.md", "UNIQUE_BODY_MARKER {x}"), "clean: {skill}")
+        assert "UNIQUE_BODY_MARKER {x}" in mock_generate.call_args.args[0]
+
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_token_budget(self, mock_generate):
+        mock_generate.return_value = "CLEAN_NOOP"
+        clean_skill_triggers(("solo.md", "body"), "clean {skill}")
+        assert mock_generate.call_args.kwargs["num_predict"] == _CLEAN_TOKENS
+
+
+class TestIsCleanNoop:
+    def test_detects_plain(self):
+        assert is_clean_noop("CLEAN_NOOP") is True
+
+    def test_detects_with_leading_whitespace(self):
+        assert is_clean_noop("\n  CLEAN_NOOP") is True
+
+    def test_detects_with_trailing_whitespace(self):
+        assert is_clean_noop("CLEAN_NOOP\n") is True
+
+    def test_rejects_skill_output(self):
+        assert is_clean_noop("# Skill\n\n## When to Use\n...") is False
+
+    def test_rejects_empty(self):
+        assert is_clean_noop("") is False
 
 
 # ---------------------------------------------------------------------------

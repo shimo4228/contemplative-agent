@@ -576,6 +576,7 @@ def _handle_stocktake_result(
     merge_prompt: str,
     command_prefix: str,
     fallback_title: str,
+    clean_prompt: str | None = None,
 ) -> None:
     """Shared body for _handle_skill_stocktake and _handle_rules_stocktake.
 
@@ -601,17 +602,38 @@ def _handle_stocktake_result(
     from datetime import date
 
     from .core._io import write_restricted
-    from .core.stocktake import format_stocktake_report, is_merge_rejected, merge_group
-    from .core.text_utils import extract_title, slugify
+    from .core.stocktake import (
+        clean_skill_triggers,
+        format_stocktake_report,
+        is_clean_noop,
+        is_merge_rejected,
+        merge_group,
+    )
+    from .core.text_utils import (
+        extract_title,
+        slugify,
+        split_frontmatter,
+        synthesize_frontmatter,
+    )
 
     print(format_stocktake_report(result, label))
 
-    if not result.merge_groups and not result.quality_issues:
+    # With a clean_prompt (skills), the clean phase may rewrite singleton
+    # triggers even when there is nothing to merge or drop, so don't short-
+    # circuit. Rules pass no clean_prompt and keep the original early return.
+    if not result.merge_groups and not result.quality_issues and clean_prompt is None:
         return
 
     items_dict = dict(result.items)
     stage = getattr(args, "stage", False)
     drop_command = f"{command_prefix}-drop"
+
+    # Filenames consumed by a successful merge (their originals get deleted on
+    # adopt) and filenames flagged for drop. The clean phase skips both so it
+    # only rewrites surviving singletons: merged skills are already cleaned by
+    # the merge prompt, and dropped files don't need cleaning.
+    consumed_names: set[str] = set()
+    dropped_names = {issue.filename for issue in result.quality_issues}
 
     staged_batch: list[StageItem] = []
 
@@ -661,6 +683,7 @@ def _handle_stocktake_result(
                         sources=list(group.filenames),
                     )
                 )
+                consumed_names.update(group.filenames)
                 continue
 
             approved = _approve_write(target_path)
@@ -684,6 +707,7 @@ def _handle_stocktake_result(
                         original.unlink()
                         print(f"  Deleted {name}")
                 merged += 1
+                consumed_names.update(group.filenames)
             else:
                 print("  Skipped.")
 
@@ -737,6 +761,86 @@ def _handle_stocktake_result(
         if not stage:
             print(f"\n--- Drop summary: {dropped} deleted, {len(result.quality_issues) - dropped} kept ---")
 
+    # --- Clean singleton triggers (skills only) ---
+    # A merged skill is rewritten at structural altitude by the merge prompt,
+    # but a skill with no twin never goes through a merge and keeps its
+    # original episode-derived triggers (proper nouns, timestamp windows, the
+    # saturated relevance score). This pass cleans those survivors so every
+    # surviving skill ends up with reusable triggers. Files consumed by a
+    # merge or flagged for drop are excluded; CLEAN_NOOP keeps it idempotent.
+    if clean_prompt is not None:
+        clean_command = f"{command_prefix}-clean"
+        clean_targets = [
+            (name, body)
+            for name, body in result.items
+            if name not in consumed_names and name not in dropped_names
+        ]
+        if clean_targets:
+            print(f"\n{'='*60}")
+            print(f"Cleaning triggers for {len(clean_targets)} skill(s)...")
+
+        cleaned = 0
+        for name, body in clean_targets:
+            cleaned_text = clean_skill_triggers((name, body), clean_prompt)
+            if cleaned_text is None:
+                print(f"  Clean failed (LLM error): {name}")
+                continue
+            if is_clean_noop(cleaned_text):
+                continue  # triggers already at structural altitude
+
+            target_path = target_dir / name
+
+            # The cleaned body comes from a frontmatter-stripped source
+            # (result.items strips it), so re-attach the skill's original
+            # frontmatter — name / description / origin and any reflection
+            # bookkeeping — before writing. Without this, a cleaned singleton
+            # would silently lose its metadata. Legacy skills that predate
+            # frontmatter emission get a synthesized block instead.
+            try:
+                original = target_path.read_text(encoding="utf-8")
+            except OSError:
+                original = ""
+            _, cleaned_body = split_frontmatter(cleaned_text)
+            # split_frontmatter only lstrips the body when it consumed a
+            # frontmatter block; for the common frontmatter-less clean output
+            # a stray leading newline from the model would yield a triple-blank
+            # gap under the re-attached frontmatter, so strip it here.
+            cleaned_body = cleaned_body.lstrip("\n")
+            frontmatter, _ = split_frontmatter(original)
+            if not frontmatter:
+                frontmatter = synthesize_frontmatter(cleaned_body)
+            final_text = f"{frontmatter}\n\n{cleaned_body}"
+
+            print(f"\n{'='*60}")
+            print(f"[Clean] {name}")
+            print(final_text)
+
+            if stage:
+                staged_batch.append(
+                    StageItem(
+                        filename=name,
+                        text=final_text,
+                        target_path=target_path,
+                        command=clean_command,
+                    )
+                )
+                continue
+
+            approved = _approve_write(target_path)
+            _log_approval(clean_command, target_path, approved, final_text)
+            if approved:
+                write_restricted(target_path, final_text)
+                cleaned += 1
+                print(f"  Cleaned {name}")
+            else:
+                print("  Skipped.")
+
+        if not stage and clean_targets:
+            print(
+                f"\n--- Clean summary: {cleaned} cleaned, "
+                f"{len(clean_targets) - cleaned} unchanged/skipped ---"
+            )
+
     if stage and staged_batch:
         _stage_results(staged_batch, command=command_prefix)
 
@@ -755,6 +859,7 @@ def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.Argument
         merge_prompt=prompts.STOCKTAKE_MERGE_PROMPT,
         command_prefix="skill-stocktake",
         fallback_title="merged-skill",
+        clean_prompt=prompts.STOCKTAKE_CLEAN_PROMPT,
     )
 
 

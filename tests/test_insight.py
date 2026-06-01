@@ -83,6 +83,19 @@ class TestExtractTitle:
     def test_returns_none_for_no_title(self) -> None:
         assert extract_title("no title here") is None
 
+    def test_skips_leading_frontmatter(self) -> None:
+        # Merge/insight emit a `---` frontmatter block before the title;
+        # extract_title must return the heading, not a frontmatter line.
+        body = (
+            "---\n"
+            "name: my-skill\n"
+            'description: "x"\n'
+            "origin: auto-extracted\n"
+            "---\n\n"
+            "# My Skill\n\nbody"
+        )
+        assert extract_title(body) == "My Skill"
+
 
 class TestSlugify:
     def test_basic(self) -> None:

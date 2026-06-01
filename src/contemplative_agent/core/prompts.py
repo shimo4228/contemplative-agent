@@ -43,6 +43,7 @@ class _LazyPrompts:
         "STOCKTAKE_RULES_PROMPT": "stocktake_rules",
         "STOCKTAKE_MERGE_PROMPT": "stocktake_merge",
         "STOCKTAKE_MERGE_RULES_PROMPT": "stocktake_merge_rules",
+        "STOCKTAKE_CLEAN_PROMPT": "stocktake_clean",
     }
 
     def __getattr__(self, name: str) -> str:

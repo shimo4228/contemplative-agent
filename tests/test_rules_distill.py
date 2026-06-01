@@ -22,7 +22,9 @@ from contemplative_agent.core.rules_distill import (
 from contemplative_agent.core.text_utils import (
     extract_title,
     slugify,
+    split_frontmatter,
     strip_frontmatter,
+    synthesize_frontmatter,
 )
 
 
@@ -123,6 +125,105 @@ class TestStripFrontmatter:
 
     def test_empty(self):
         assert strip_frontmatter("") == ""
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: split_frontmatter
+# ---------------------------------------------------------------------------
+
+class TestSplitFrontmatter:
+    def test_with_frontmatter(self):
+        fm, body = split_frontmatter(SKILL_WITH_FRONTMATTER)
+        # Frontmatter block carries both delimiters and the inner keys.
+        assert fm.startswith("---")
+        assert fm.rstrip().endswith("---")
+        assert "name: engagement-rules" in fm
+        assert 'description: "Rules for engaging with other agents"' in fm
+        assert "origin: auto-extracted" in fm
+        # Body is the frontmatter-stripped remainder.
+        assert body.startswith("# Engagement Rules")
+        assert "---" not in body.split("\n")[0]
+
+    def test_body_matches_strip_frontmatter(self):
+        # split's body half must agree with strip_frontmatter for both shapes.
+        for text in (SKILL_WITH_FRONTMATTER, SKILL_WITHOUT_FRONTMATTER):
+            assert split_frontmatter(text)[1] == strip_frontmatter(text)
+
+    def test_without_frontmatter(self):
+        fm, body = split_frontmatter(SKILL_WITHOUT_FRONTMATTER)
+        assert fm == ""
+        assert body == SKILL_WITHOUT_FRONTMATTER
+
+    def test_unclosed_frontmatter(self):
+        text = "---\nname: test\nno closing delimiter"
+        fm, body = split_frontmatter(text)
+        assert fm == ""
+        assert body == text
+
+    def test_empty(self):
+        assert split_frontmatter("") == ("", "")
+
+    def test_horizontal_rule_in_body_is_not_frontmatter(self):
+        # A leading `---` is required; a `---` rule deeper in the body must
+        # not be mistaken for a frontmatter delimiter.
+        text = "# Title\n\nIntro.\n\n---\n\nMore body."
+        fm, body = split_frontmatter(text)
+        assert fm == ""
+        assert body == text
+
+    def test_frontmatter_only_consumes_first_block(self):
+        # When the body itself contains a `---` rule after real frontmatter,
+        # only the leading block is consumed; the rule stays in the body.
+        text = "---\nname: x\n---\n\n# Title\n\n---\n\nTail."
+        fm, body = split_frontmatter(text)
+        assert fm == "---\nname: x\n---"
+        assert body == "# Title\n\n---\n\nTail."
+        # Re-attaching reproduces the original (modulo the blank-line join).
+        assert f"{fm}\n\n{body}" == text
+
+
+# ---------------------------------------------------------------------------
+# Unit tests: synthesize_frontmatter
+# ---------------------------------------------------------------------------
+
+class TestSynthesizeFrontmatter:
+    def test_name_is_title_slug(self):
+        fm = synthesize_frontmatter("# My Cool Skill\n\nbody")
+        assert "name: my-cool-skill" in fm
+
+    def test_origin_is_auto_extracted(self):
+        fm = synthesize_frontmatter("# Skill\n\nbody")
+        assert "origin: auto-extracted" in fm
+
+    def test_description_from_context_first_sentence(self):
+        body = (
+            "# Skill\n\n"
+            "**Context:** Applies during high-density windows. Extra detail here.\n"
+        )
+        fm = synthesize_frontmatter(body)
+        assert 'description: "Applies during high-density windows."' in fm
+
+    def test_description_falls_back_to_title_when_no_context(self):
+        fm = synthesize_frontmatter("# Solo Skill\n\nno context line here")
+        assert 'description: "Solo Skill"' in fm
+
+    def test_description_sanitizes_double_quotes(self):
+        body = (
+            '# Skill\n\n'
+            '**Context:** Handles the "trembling reality" of context shifts.\n'
+        )
+        fm = synthesize_frontmatter(body)
+        # Only the wrapping pair of double quotes survives; inner ones become '.
+        assert fm.count('"') == 2
+        assert "'trembling reality'" in fm
+
+    def test_produces_a_parseable_frontmatter_block(self):
+        body = "# Title\n\n**Context:** When X occurs.\n\n## Solution\nDo Y."
+        fm = synthesize_frontmatter(body)
+        reattached = f"{fm}\n\n{body}"
+        parsed_fm, parsed_body = split_frontmatter(reattached)
+        assert parsed_fm == fm
+        assert parsed_body == body
 
 
 # ---------------------------------------------------------------------------

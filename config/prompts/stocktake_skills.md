@@ -22,4 +22,8 @@ Example:
 ]}}
 ```
 
-Only group skills that genuinely describe the same behavior. Skills that share vocabulary, metaphors, or an abstract framing but prescribe **distinct concrete behaviors** (different triggers, different actions) address different problems and must NOT be grouped. Prefer several small, coherent groups over one large catch-all group; leave a skill ungrouped if it has no genuine twin.
+Only group skills that genuinely describe the same behavior. Skills that share vocabulary, metaphors, or an abstract framing but prescribe **distinct concrete behaviors** (different triggers, different actions) address different problems and must NOT be grouped.
+
+Judge trigger redundancy at **structural altitude**: two triggers that differ only in transient surface identifiers (specific usernames, post IDs, timestamp windows, or saturated relevance scores like ">0.92") but express the same **behavioral SHAPE** are the SAME trigger and ARE evidence of redundancy — group them. Only genuinely distinct behavioral SHAPES stay ungrouped.
+
+Prefer several small, coherent groups over one large catch-all group; leave a skill ungrouped if it has no genuine twin.

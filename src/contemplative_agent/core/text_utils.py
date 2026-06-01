@@ -51,10 +51,69 @@ def strip_frontmatter(text: str) -> str:
     rules-distill (skill input parsing) and stocktake (skill body
     comparison).
     """
+    return split_frontmatter(text)[1]
+
+
+def split_frontmatter(text: str) -> tuple[str, str]:
+    """Split a leading YAML frontmatter block from the body.
+
+    Returns ``(frontmatter, body)`` where *frontmatter* is the full block
+    including both ``---`` delimiters (no trailing newline) and *body* is
+    the remainder — identical to what :func:`strip_frontmatter` returns.
+    When *text* has no leading frontmatter (or the block is never closed),
+    returns ``("", text)``.
+
+    Complements :func:`strip_frontmatter`: the stocktake clean phase needs
+    the frontmatter half so it can re-attach a singleton's original
+    metadata (``name`` / ``description`` / ``origin`` and any reflection
+    bookkeeping) after rewriting only the body's triggers.
+    """
     lines = text.split("\n")
     if not lines or lines[0].strip() != "---":
-        return text
+        return "", text
     for i, line in enumerate(lines[1:], start=1):
         if line.strip() == "---":
-            return "\n".join(lines[i + 1 :]).lstrip("\n")
-    return text
+            frontmatter = "\n".join(lines[: i + 1])
+            body = "\n".join(lines[i + 1 :]).lstrip("\n")
+            return frontmatter, body
+    return "", text
+
+
+_CONTEXT_RE = re.compile(r"^\s*\*\*Context:\*\*\s*(.+)$", re.MULTILINE)
+
+
+def _context_summary(body: str) -> Optional[str]:
+    """First sentence of the ``**Context:**`` line, or ``None`` when absent."""
+    match = _CONTEXT_RE.search(body)
+    if not match:
+        return None
+    text = match.group(1).strip()
+    # First sentence: up to the first ". " boundary, else the whole line.
+    head = re.split(r"(?<=\.)\s", text, maxsplit=1)[0].strip()
+    return head or None
+
+
+def synthesize_frontmatter(body: str, *, origin: str = "auto-extracted") -> str:
+    """Build a minimal YAML frontmatter block for a body that lacks one.
+
+    Used by the stocktake clean phase for legacy skills written before
+    merge emitted frontmatter. ``name`` is the title slug, ``description``
+    is the first sentence of the ``**Context:**`` line (falling back to the
+    title), and ``origin`` records the distillation source. The returned
+    block carries both ``---`` delimiters and no trailing newline, mirroring
+    :func:`split_frontmatter`, so a caller can re-attach it with
+    ``f"{block}\\n\\n{body}"``.
+    """
+    title = extract_title(body) or "skill"
+    name = slugify(title) or "skill"
+    description = _context_summary(body) or title
+    # YAML double-quoted scalar: collapse whitespace and neutralise inner
+    # double quotes so the synthesized line stays parseable.
+    description = " ".join(description.split()).replace('"', "'")
+    return (
+        "---\n"
+        f"name: {name}\n"
+        f'description: "{description}"\n'
+        f"origin: {origin}\n"
+        "---"
+    )

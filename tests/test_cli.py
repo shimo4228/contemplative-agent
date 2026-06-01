@@ -1142,6 +1142,346 @@ class TestSkillStocktakeDirectMerge:
         # Non-colliding source still deleted
         assert not (skills_dir / "b.md").exists()
 
+    def test_direct_merge_writes_frontmatter_bearing_output(self, tmp_path):
+        """Merge now emits a frontmatter block (mirroring insight). It is
+        written verbatim and the filename is still derived from the title
+        heading, since extract_title skips the frontmatter lines."""
+        from datetime import date
+
+        merged_text = (
+            "---\n"
+            "name: merged-pattern\n"
+            'description: "A unified pattern"\n'
+            "origin: auto-extracted\n"
+            "---\n\n"
+            "# Merged Pattern\n\n"
+            "**Context:** When two skills overlap.\n"
+        )
+        skills_dir, _ = self._run_direct(
+            tmp_path, inputs=["y"], merged_text=merged_text
+        )
+
+        today = date.today().strftime("%Y%m%d")
+        written = skills_dir / f"merged-pattern-{today}.md"
+        assert written.exists(), "filename should derive from the title heading"
+        content = written.read_text()
+        assert content.startswith("---")
+        assert "name: merged-pattern" in content
+        assert 'description: "A unified pattern"' in content
+        assert "# Merged Pattern" in content
+
+
+class TestSkillStocktakeCleanPhase:
+    """Clean phase: skills not consumed by a merge and not flagged for drop
+    get their triggers rewritten at structural altitude. Merged and dropped
+    files are excluded; rules-stocktake skips the phase entirely.
+    """
+
+    def test_singleton_cleaned_direct_mode(self, tmp_path):
+        from contemplative_agent.core.stocktake import StocktakeResult
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "solo.md").write_text("# Solo\n\noriginal")
+        audit = tmp_path / "logs" / "audit.jsonl"
+
+        args = MagicMock()
+        args.stage = False
+
+        # No merges, no drops -> only the clean phase runs.
+        fake_result = StocktakeResult(
+            merge_groups=(),
+            quality_issues=(),
+            total_files=1,
+            items=(("solo.md", "# Solo\n\noriginal"),),
+        )
+        cleaned = (
+            "# Solo\n\noriginal\n\n## When to Use\nWhen a particular individual acts."
+        )
+        with patch(
+            "contemplative_agent.core.stocktake.run_skill_stocktake",
+            return_value=fake_result,
+        ), patch(
+            "contemplative_agent.core.stocktake.clean_skill_triggers",
+            return_value=cleaned,
+        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
+            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
+        ), patch("builtins.input", side_effect=["y"]):
+            _handle_skill_stocktake(args, MagicMock())
+
+        body = (skills_dir / "solo.md").read_text()
+        assert "a particular individual" in body
+        # A frontmatter-less legacy skill gets a synthesized block so the
+        # cleaned file is never written without metadata.
+        assert body.startswith("---")
+        assert "name: solo" in body
+        assert "origin: auto-extracted" in body
+        record = json.loads(audit.read_text().strip())
+        assert record["command"] == "skill-stocktake-clean"
+        assert record["decision"] == "approved"
+
+    def test_singleton_frontmatter_preserved(self, tmp_path):
+        """A cleaned singleton keeps its original frontmatter verbatim —
+        name / description / origin and reflection bookkeeping survive the
+        body rewrite (regression: clean must not drop frontmatter)."""
+        from contemplative_agent.core.stocktake import StocktakeResult
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        original = (
+            "---\n"
+            "last_reflected_at: null\n"
+            "success_count: 3\n"
+            "failure_count: 1\n"
+            "name: solo-skill\n"
+            'description: "An existing description"\n'
+            "origin: auto-extracted\n"
+            "---\n\n"
+            "# Solo\n\n"
+            "**Context:** When user u_123 acts on post p_456.\n"
+        )
+        (skills_dir / "solo.md").write_text(original)
+        audit = tmp_path / "logs" / "audit.jsonl"
+
+        args = MagicMock()
+        args.stage = False
+
+        fake_result = StocktakeResult(
+            merge_groups=(),
+            quality_issues=(),
+            total_files=1,
+            items=(("solo.md", "# Solo\n\n**Context:** When user u_123 acts."),),
+        )
+        # clean_skill_triggers returns a frontmatter-stripped, rewritten body.
+        # Leading newline included on purpose: the re-attach must not leave a
+        # triple-blank gap under the frontmatter.
+        cleaned = (
+            "\n# Solo\n\n"
+            "**Context:** When a particular individual acts.\n\n"
+            "## When to Use\nWhen a particular individual acts on a specific topic."
+        )
+        with patch(
+            "contemplative_agent.core.stocktake.run_skill_stocktake",
+            return_value=fake_result,
+        ), patch(
+            "contemplative_agent.core.stocktake.clean_skill_triggers",
+            return_value=cleaned,
+        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
+            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
+        ), patch("builtins.input", side_effect=["y"]):
+            _handle_skill_stocktake(args, MagicMock())
+
+        body = (skills_dir / "solo.md").read_text()
+        # Original frontmatter preserved verbatim — description NOT regenerated.
+        assert body.startswith("---")
+        assert "success_count: 3" in body
+        assert "failure_count: 1" in body
+        assert "name: solo-skill" in body
+        assert 'description: "An existing description"' in body
+        assert "origin: auto-extracted" in body
+        # Cleaned body re-attached below the frontmatter.
+        assert "a particular individual" in body
+        # No triple-blank gap from a stray leading newline in the model output.
+        assert "\n\n\n" not in body
+
+    def test_frontmatter_less_singleton_synthesizes_description(self, tmp_path):
+        """A frontmatter-less legacy skill gets a synthesized block whose
+        description is the first sentence of its ``**Context:**`` line."""
+        from contemplative_agent.core.stocktake import StocktakeResult
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "solo.md").write_text(
+            "# Solo Pattern\n\n"
+            "**Context:** Applies when a particular individual acts. Extra detail.\n"
+        )
+        audit = tmp_path / "logs" / "audit.jsonl"
+
+        args = MagicMock()
+        args.stage = False
+
+        fake_result = StocktakeResult(
+            merge_groups=(),
+            quality_issues=(),
+            total_files=1,
+            items=(("solo.md", "# Solo Pattern\n\n**Context:** Applies when X acts."),),
+        )
+        cleaned = (
+            "# Solo Pattern\n\n"
+            "**Context:** Applies when a particular individual acts. Extra detail.\n\n"
+            "## When to Use\nWhen a particular individual acts."
+        )
+        with patch(
+            "contemplative_agent.core.stocktake.run_skill_stocktake",
+            return_value=fake_result,
+        ), patch(
+            "contemplative_agent.core.stocktake.clean_skill_triggers",
+            return_value=cleaned,
+        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
+            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
+        ), patch("builtins.input", side_effect=["y"]):
+            _handle_skill_stocktake(args, MagicMock())
+
+        body = (skills_dir / "solo.md").read_text()
+        assert body.startswith("---")
+        assert "name: solo-pattern" in body
+        assert "origin: auto-extracted" in body
+        assert 'description: "Applies when a particular individual acts."' in body
+        assert "a particular individual" in body
+
+    def test_noop_leaves_file_untouched(self, tmp_path):
+        from contemplative_agent.core.stocktake import StocktakeResult
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "solo.md").write_text("# Solo original")
+        audit = tmp_path / "logs" / "audit.jsonl"
+        args = MagicMock()
+        args.stage = False
+
+        fake_result = StocktakeResult(
+            merge_groups=(),
+            quality_issues=(),
+            total_files=1,
+            items=(("solo.md", "# Solo original"),),
+        )
+        with patch(
+            "contemplative_agent.core.stocktake.run_skill_stocktake",
+            return_value=fake_result,
+        ), patch(
+            "contemplative_agent.core.stocktake.clean_skill_triggers",
+            return_value="CLEAN_NOOP",
+        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
+            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
+        ), patch(
+            "builtins.input", side_effect=AssertionError("no approval prompt expected")
+        ):
+            _handle_skill_stocktake(args, MagicMock())
+
+        # CLEAN_NOOP -> no rewrite, no approval prompt, file unchanged.
+        assert (skills_dir / "solo.md").read_text() == "# Solo original"
+
+    def test_merged_and_dropped_excluded_from_clean(self, tmp_path):
+        """Files consumed by a merge or flagged for drop are not cleaned."""
+        from contemplative_agent.core.stocktake import (
+            MergeGroup,
+            QualityIssue,
+            StocktakeResult,
+        )
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        for n in ("a.md", "b.md", "bad.md", "solo.md"):
+            (skills_dir / n).write_text(f"# {n}")
+        audit = tmp_path / "logs" / "audit.jsonl"
+        args = MagicMock()
+        args.stage = False
+
+        fake_result = StocktakeResult(
+            merge_groups=(MergeGroup(filenames=("a.md", "b.md"), reason="dup"),),
+            quality_issues=(QualityIssue(filename="bad.md", reason="too short"),),
+            total_files=4,
+            items=(
+                ("a.md", "# a"),
+                ("b.md", "# b"),
+                ("bad.md", "# bad"),
+                ("solo.md", "# solo"),
+            ),
+        )
+        clean_calls: list[str] = []
+
+        def fake_clean(item, _prompt):
+            clean_calls.append(item[0])
+            return "CLEAN_NOOP"
+
+        with patch(
+            "contemplative_agent.core.stocktake.run_skill_stocktake",
+            return_value=fake_result,
+        ), patch(
+            "contemplative_agent.core.stocktake.merge_group",
+            return_value="# Merged\n\nBody",
+        ), patch(
+            "contemplative_agent.core.stocktake.clean_skill_triggers",
+            side_effect=fake_clean,
+        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
+            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
+        ), patch("builtins.input", side_effect=["y", "y"]):
+            _handle_skill_stocktake(args, MagicMock())
+
+        # a.md+b.md consumed by the merge, bad.md dropped -> only solo.md cleaned.
+        assert clean_calls == ["solo.md"]
+
+    def test_stage_mode_queues_clean_item(self, tmp_path):
+        """--stage queues a clean StageItem (no live write) tagged with the
+        skill-stocktake-clean command, leaving the live file untouched."""
+        from contemplative_agent.core.stocktake import StocktakeResult
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "solo.md").write_text("# Solo original")
+        staged = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+
+        args = MagicMock()
+        args.stage = True
+
+        fake_result = StocktakeResult(
+            merge_groups=(),
+            quality_issues=(),
+            total_files=1,
+            items=(("solo.md", "# Solo original"),),
+        )
+        cleaned = "# Solo\n\n## When to Use\nWhen a particular individual acts."
+        with patch(
+            "contemplative_agent.core.stocktake.run_skill_stocktake",
+            return_value=fake_result,
+        ), patch(
+            "contemplative_agent.core.stocktake.clean_skill_triggers",
+            return_value=cleaned,
+        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
+            "contemplative_agent.cli.STAGED_DIR", staged
+        ), patch(
+            "contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path
+        ), patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+            _handle_skill_stocktake(args, MagicMock())
+
+        # Live file untouched; staged copy + meta written under the clean command.
+        assert (skills_dir / "solo.md").read_text() == "# Solo original"
+        meta = json.loads((staged / "solo.md.meta.json").read_text())
+        assert meta["command"] == "skill-stocktake-clean"
+        staged_text = (staged / "solo.md").read_text()
+        # Synthesized frontmatter now leads the staged body.
+        assert staged_text.startswith("---")
+        assert "# Solo" in staged_text
+
+    def test_rules_stocktake_skips_clean(self, tmp_path):
+        from contemplative_agent.core.stocktake import StocktakeResult
+
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        (rules_dir / "r.md").write_text("# Rule")
+        audit = tmp_path / "logs" / "audit.jsonl"
+        args = MagicMock()
+        args.stage = False
+
+        fake_result = StocktakeResult(
+            merge_groups=(),
+            quality_issues=(),
+            total_files=1,
+            items=(("r.md", "# Rule"),),
+        )
+        with patch(
+            "contemplative_agent.core.stocktake.run_rules_stocktake",
+            return_value=fake_result,
+        ), patch(
+            "contemplative_agent.core.stocktake.clean_skill_triggers",
+        ) as mock_clean, patch(
+            "contemplative_agent.cli.RULES_DIR", rules_dir
+        ), patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+            _handle_rules_stocktake(args, MagicMock())
+
+        mock_clean.assert_not_called()
+
 
 class TestRulesStocktakeDirectMerge:
     """Tests for `rules-stocktake` direct-mode merge (no --stage).

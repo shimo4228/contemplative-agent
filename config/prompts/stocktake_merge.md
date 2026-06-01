@@ -7,12 +7,20 @@ CANNOT_MERGE: <one-sentence reason naming a concrete behavior that only one cand
 
 Otherwise, produce ONE skill that is the **union of every distinct concrete pattern** across the inputs — NOT a synthesis of their shared core. The value of a skill is its specific patterns, so preservation beats compression:
 
-- Keep every distinct trigger condition and every distinct concrete action — specific thresholds, observable signals, ordered steps. If a behavior, threshold, or trigger appears in only ONE input, it MUST survive verbatim in the merged skill.
+- Keep every distinct behavioral SHAPE and every distinct concrete action — specific thresholds, observable signals, ordered steps. If a behavior or action appears in only ONE input, it MUST survive in the merged skill.
+- Generalize transient surface identifiers in triggers: replace specific usernames with "a particular individual," specific post IDs with "a specific topic," single relevance scores with "high relevance," and timestamp windows with "similar contexts." Drop the numeric value entirely — write "high relevance," never "high relevance (>0.92)." KEEP genuine recurring numeric thresholds.
+- When generalizing collapses two triggers into an identical structural form, merge them into one trigger entry.
 - Deduplicate ONLY text that is genuinely repeated: identical boilerplate sentences, restated abstractions, shared metaphors. Collapse repeated framing into a single short statement.
 - NEVER collapse two different concrete actions into one generic action. When in doubt, keep both as separate entries.
 - When two inputs describe the same action at different levels of detail, keep the most specific phrasing.
 
-Structure:
+Structure (begin with a YAML frontmatter block, then the body):
+
+---
+name: [kebab-case-name]
+description: "[one line description of the unified skill]"
+origin: auto-extracted
+---
 
 # [Single, Unified Title]
 
@@ -25,7 +33,7 @@ The distinct failure situations these patterns address.
 A numbered list where **each distinct concrete pattern is its own entry** (trigger → action). Do not fold separate patterns into one generic loop. Order from most to least frequently applicable.
 
 ## When to Use
-Every distinct trigger condition, one bullet each.
+Every distinct trigger condition, expressed at structural altitude: generalized away from transient surface identifiers, one bullet each.
 
 ---
 

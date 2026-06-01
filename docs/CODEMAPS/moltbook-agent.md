@@ -29,10 +29,10 @@ cli.py (1826L)  -- composition root, only file importing both core/ and adapters
  |    insight.py (282L)           -- view-driven behavior pattern extraction (knowledge → skills)
  |    rules_distill.py (348L)     -- Practice/Rationale B-layer rules synthesis (skills → rules)
  |    constitution.py (130L)      -- constitutional amendment (constitutional view → ethics); ADR-0033 layer-separation framing
- |    stocktake.py (362L)         -- skill/rule audit: LLM grouping (ADR-0046), merge/quality, CANNOT_MERGE
+ |    stocktake.py (415L)         -- skill/rule audit: LLM grouping (ADR-0046), merge/quality, CANNOT_MERGE; singleton trigger-altitude clean (ADR-0048)
  |    report.py (256L)            -- activity report generation (JSONL → Markdown)
  |    metrics.py (160L)           -- session metrics aggregation
- |    text_utils.py (60L)         -- shared Markdown helpers (slugify / extract_title / _strip_frontmatter) [ADR-0035 PR2]
+ |    text_utils.py (119L)        -- shared Markdown helpers (slugify / extract_title / split_frontmatter / synthesize_frontmatter) [ADR-0035 PR2, ADR-0048]
  |    thresholds.py (90L)         -- centralized retrieval/classification thresholds with ADR + calibration annotations [ADR-0035 PR2]
  |    artifact_extraction.py (69L)-- shared extract_title → slugify → path-escape guard chain [ADR-0035 PR3a]
  |    clustering.py (~115L)       -- average-linkage cosine agglomerative clustering (ADR-0019 companion, numpy-only)
@@ -180,7 +180,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 - constitution_amend, principles
 
 **Audit**:
-- stocktake_skills, stocktake_rules (LLM grouping, ADR-0046), stocktake_merge, stocktake_merge_rules
+- stocktake_skills, stocktake_rules (LLM grouping, ADR-0046), stocktake_merge (frontmatter emission, ADR-0048), stocktake_merge_rules, stocktake_clean (singleton trigger-altitude, ADR-0048)
 
 **Reports / experimental**:
 - weekly-analysis (Claude Code via launchd)

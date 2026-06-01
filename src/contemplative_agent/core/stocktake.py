@@ -216,6 +216,59 @@ def is_merge_rejected(merged_text: str) -> bool:
     return _CANNOT_MERGE_RE.match(merged_text) is not None
 
 
+# Token budget for a single-skill trigger-clean rewrite. Output is one skill
+# of roughly the input's size (only the ``## When to Use`` triggers change),
+# so a flat budget suffices — distilled skills are short. The 3000 floor
+# matches merge_group's small-group budget, generous enough that a long skill
+# is never truncated mid-rewrite. Bump if truncation is ever observed.
+_CLEAN_TOKENS = 3000
+
+# CLEAN_NOOP sentinel: the cleaner emits this when a skill's triggers already
+# carry no transient surface identifiers, so there is nothing to generalize.
+# Callers skip re-staging the file, keeping stocktake idempotent across runs.
+# Start-anchored (like _CANNOT_MERGE_RE) so any trailing model chatter after
+# the sentinel still reads as a no-op.
+_CLEAN_NOOP_RE = re.compile(r"^\s*CLEAN_NOOP", re.IGNORECASE)
+
+
+def clean_skill_triggers(
+    item: Tuple[str, str],
+    prompt_template: str,
+) -> Optional[str]:
+    """Rewrite a single skill's triggers at structural altitude.
+
+    The prompt generalizes transient surface identifiers (usernames, post
+    IDs, timestamp windows, single relevance scores) in the ``## When to
+    Use`` section while keeping genuine recurring thresholds and preserving
+    every other section verbatim. When the triggers are already clean the
+    prompt emits ``CLEAN_NOOP`` — callers should detect that via
+    ``is_clean_noop`` and skip re-staging the file.
+
+    This is the singleton counterpart to ``merge_group``: a merged skill is
+    rewritten at altitude by the merge prompt, but a skill with no twin never
+    goes through a merge, so this pass cleans it directly.
+
+    Args:
+        item: (filename, body_text) of the skill to clean.
+        prompt_template: Prompt with a ``{skill}`` placeholder.
+
+    Returns:
+        Rewritten skill text (or the CLEAN_NOOP sentinel), None on LLM failure.
+    """
+    _, body = item
+    prompt = prompt_template.format(skill=body)
+    return generate(
+        prompt,
+        system="Rewrite only the trigger conditions; preserve all else.",
+        num_predict=_CLEAN_TOKENS,
+    )
+
+
+def is_clean_noop(text: str) -> bool:
+    """Check whether the cleaner found no transient identifiers to generalize."""
+    return _CLEAN_NOOP_RE.match(text) is not None
+
+
 def _check_skill_quality(filename: str, body: str) -> Optional[QualityIssue]:
     """Check a skill file for structural quality issues."""
     if len(body) < 200:
