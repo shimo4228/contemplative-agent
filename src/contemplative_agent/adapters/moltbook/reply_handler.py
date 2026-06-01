@@ -144,9 +144,16 @@ class ReplyHandler:
                 )
                 continue
 
-            # Skip if already handled this session
+            # Skip if already handled — this session (commented_posts) or a
+            # prior session (persistent commented cache). Mirrors the comment
+            # path's has_commented_on check (feed_manager.engage_with_post);
+            # commented_posts is rebuilt empty each session, so the persistent
+            # store is what dedups replies across sessions.
             reply_key = f"reply:{post_id}:{fields['id']}"
-            if reply_key in self._ctx.commented_posts:
+            if (
+                reply_key in self._ctx.commented_posts
+                or self._ctx.memory.has_commented_on(reply_key)
+            ):
                 logger.debug(
                     "Notification[%d] skipped: already handled key=%s",
                     i,
@@ -190,6 +197,7 @@ class ReplyHandler:
                 original_post=original_post,
                 replier_id=replier_id,
                 replier_name=replier_name,
+                comment_id="",  # notification payload has no comment id
             )
 
         # Fallback: check comments on our own posts directly
@@ -205,8 +213,15 @@ class ReplyHandler:
         original_post: str,
         replier_id: str,
         replier_name: str,
+        comment_id: str = "",
     ) -> None:
-        """Generate and send a reply to a comment, recording interactions."""
+        """Generate and send a reply to a comment, recording interactions.
+
+        ``comment_id`` is the id of the comment being replied to, when known
+        (the comment-scan path supplies it). The notification path passes ""
+        because the notification payload carries no comment id — see the
+        courtesy-upvote guard below.
+        """
         # Promotional gate. _handle_post_comments passes original_post=""
         # (no body fetched in that path) — guard against running the regex
         # on an empty string just to return False.
@@ -261,6 +276,12 @@ class ReplyHandler:
             )
             scheduler.record_comment()
             ctx.commented_posts.add(reply_key)
+            # Persist cross-session so a later session does not re-reply to the
+            # same target (mirrors feed_manager.engage_with_post's
+            # record_commented). Takes effect for replies made after this ships;
+            # the episode-scan fallback in _build_commented_cache stores post_ids,
+            # not reply keys, so it does not dedup against pre-change replies.
+            ctx.memory.record_commented(reply_key)
             ctx.actions_taken.append(
                 f"Replied to {replier_name} on {post_id}"
             )
@@ -283,10 +304,11 @@ class ReplyHandler:
                 content=reply,
                 interaction_type="reply",
             )
-            # Upvote their comment as a courtesy
-            comment_id = (
-                reply_key.split(":")[-1] if reply_key else ""
-            )
+            # Upvote their comment as a courtesy — only when we actually hold
+            # the comment id. The notification path keys reply_key on the
+            # notification id (not a comment id), so deriving the id from
+            # reply_key there upvotes the wrong target: a failing
+            # POST /comments/{notification_id}/upvote that wastes write budget.
             if comment_id and comment_id not in ("", "unknown"):
                 client.upvote_comment(comment_id)
         except MoltbookClientError as exc:
@@ -318,7 +340,10 @@ class ReplyHandler:
 
             fields = extract_agent_fields(comment)
             reply_key = f"reply:{post_id}:{fields['id']}"
-            if reply_key in self._ctx.commented_posts:
+            if (
+                reply_key in self._ctx.commented_posts
+                or self._ctx.memory.has_commented_on(reply_key)
+            ):
                 continue
 
             # Skip our own comments to avoid self-reply loops
@@ -337,6 +362,7 @@ class ReplyHandler:
                 original_post="",
                 replier_id=fields["agent_id"],
                 replier_name=fields["agent_name"],
+                comment_id=fields["id"],  # real comment id on this path
             )
 
     def run_cycle_from_home(

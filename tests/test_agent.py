@@ -1040,6 +1040,80 @@ class TestRunReplyCycle:
 
         agent._client.post.assert_not_called()
 
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="My reply")
+    def test_skips_when_replied_persisted_cross_session(self, mock_reply, tmp_path):
+        # Fresh session: commented_posts is empty, but a prior session
+        # persisted this reply via memory.record_commented. The notification
+        # gate must consult the persistent store, not only the session set
+        # (mirrors the comment path's has_commented_on check). generate_reply
+        # is mocked so the gate — not an unavailable LLM — is what blocks.
+        agent = self._make_agent(tmp_path)
+        agent._memory.record_commented("reply:p1:n1")
+        agent._client.get_notifications.return_value = [
+            {
+                "type": "comment",
+                "id": "n1",
+                "post_id": "p1",
+                "content": "Hello",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            }
+        ]
+        agent._client.get_post_comments.return_value = []
+
+        agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
+
+        agent._client.post.assert_not_called()
+
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="My reply")
+    def test_records_reply_persistently(self, mock_reply, tmp_path):
+        # After a successful reply, the reply key must be persisted so a
+        # later session's has_commented_on check skips it (cross-session dedup).
+        agent = self._make_agent(tmp_path)
+        agent._client.get_notifications.return_value = [
+            {
+                "type": "comment",
+                "id": "n1",
+                "post_id": "p1",
+                "content": "Nice post!",
+                "post_content": "Original content",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            }
+        ]
+        agent._client.get_post_comments.return_value = []
+
+        agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
+
+        assert agent._memory.has_commented_on("reply:p1:n1")
+
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="My reply")
+    def test_notification_reply_skips_upvote(self, mock_reply, tmp_path):
+        # The notification path keys reply_key on the notification id, not a
+        # comment id, so it must NOT issue a courtesy upvote — doing so upvotes
+        # the wrong target (a failing POST that wastes write budget). The
+        # payload carries no comment id to upvote.
+        agent = self._make_agent(tmp_path)
+        agent._client.get_notifications.return_value = [
+            {
+                "type": "comment",
+                "id": "n1",
+                "post_id": "p1",
+                "content": "Nice post!",
+                "post_content": "Original content",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            }
+        ]
+        agent._client.get_post_comments.return_value = []
+
+        agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
+
+        agent._client.post.assert_called_once_with(
+            "/posts/p1/comments", json={"content": "My reply"}
+        )
+        agent._client.upvote_comment.assert_not_called()
+
     def test_skips_promotional_their_comment(self, tmp_path):
         agent = self._make_agent(tmp_path)
         agent._client.get_notifications.return_value = [
@@ -1142,6 +1216,51 @@ class TestCheckOwnPostComments:
         )
 
         agent._client.post.assert_not_called()
+
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="Thanks!")
+    def test_skips_replied_comment_persisted_cross_session(self, mock_reply, tmp_path):
+        # Fresh session: commented_posts is empty, but a prior session
+        # persisted this reply via memory.record_commented. The comment-scan
+        # gate must consult the persistent store, not only the session set.
+        # generate_reply is mocked so the gate — not an unavailable LLM — blocks.
+        agent = self._make_agent(tmp_path)
+        agent._ctx.own_post_ids.add("my-post-1")
+        agent._memory.record_commented("reply:my-post-1:c1")
+        agent._client.get_post_comments.return_value = [
+            {
+                "id": "c1",
+                "content": "Great post!",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            }
+        ]
+
+        agent._reply_handler.check_own_post_comments(
+            agent._client, agent._scheduler, time.time() + 3600
+        )
+
+        agent._client.post.assert_not_called()
+
+    @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="Thanks!")
+    def test_comment_scan_upvotes_real_comment_id(self, mock_reply, tmp_path):
+        # The comment-scan path has the real comment id, so the courtesy
+        # upvote targets that comment (not a notification id).
+        agent = self._make_agent(tmp_path)
+        agent._ctx.own_post_ids.add("my-post-1")
+        agent._client.get_post_comments.return_value = [
+            {
+                "id": "c1",
+                "content": "Great post!",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            }
+        ]
+
+        agent._reply_handler.check_own_post_comments(
+            agent._client, agent._scheduler, time.time() + 3600
+        )
+
+        agent._client.upvote_comment.assert_called_once_with("c1")
 
     @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="Thanks!")
     def test_handles_nested_author_in_comments(self, mock_reply, tmp_path):
