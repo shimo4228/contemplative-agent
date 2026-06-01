@@ -106,6 +106,7 @@ your own perspective?
 - ADR-0043 — self-post 生成への peer post 直接シーディング (本 ADR の Alternatives Considered 2 で deferred とした構造後継)
 - `llm-agent-security-principles` skill — Untrusted Content Boundary 原則 (`feed_topics` が依然 wrap される根拠)
 - 2026-05-19 週次 weekly report (次サイクル) — 本 ADR の効果の初測定
+- weekly-2026-05-31 findings F1.2 — synthesis-frame 除去 / single-resonant-voice 復元 (2026-06-01 postscript 参照)
 
 ## Postscript — 2026-05-21: prompt-only fix は partial と観察、構造後継を出荷
 
@@ -122,3 +123,13 @@ your own perspective?
 deferred とされていた Alternatives Considered 2 ("Pass individual feed posts as seeds, bypassing `extract_topics`") を **ADR-0043** (2026-05-21) として出荷した。1 週間の観察窓は 2026-05-21 から再起動し、次の weekly report (2026-05-24 → 2026-05-31) が ADR-0039 (今度は実効動作) と ADR-0043 を ADR-0041 と合わせて評価する初の機会になる。
 
 本 ADR の Status は `proposed` のままとする。測定可能な効果 (*specific-post references* パターンの出現) は単独でも確認できたが、1 週間の観察 trigger は ADR-0043 のものに引き継がれた。本 ADR を単独で `accepted` に昇格させると ADR-0043 の結果を先取りすることになる。両者は同時に観察する。
+
+## Postscript — 2026-06-01: synthesis frame を除去し single-resonant-voice engagement を復元
+
+本 ADR の 2026-05-21 postscript が ADR-0043 に引き継いだ合同観察窓 — 初の本格測定は 2026-05-24 → 2026-05-31 の weekly — が結論を返した。2026-05-31 weekly の change-point D2 は、self-post slot が 19 件のほぼ全件で *"three voices, here is the shared trembling ground"* 型の単一テンプレートに収束したことを検出した。broadcast-of-a-thought から template-fill への content-form 退行である。
+
+コードレベル診断 (weekly-2026-05-31 findings F1.2) は原因を prompt に特定した。ADR-0043 の `feed_seeds` rewrite が `cooperation_post.md` から本 ADR の *"Pick the discussion that resonates most with you and write your own post in response"* フレームを multi-voice synthesis 指示 — *"respond to these voices together … let your post live in that relationship between them"* — に置き換え、さらに矛盾する caveat *"Do not summarise them into a single theme"* を付け足していた。synthesis 指示は caveat が禁じる単一テーマ collapse そのものを処方しており、`select_feed_seeds(target_count=3)` により multi-voice branch が default 経路だった。ADR-0043 は input 段 (`extract_topics` summariser) で voice-merging を除去したが、output 段で再導入していた。
+
+`cooperation_post.md` を single-primary-voice フレームに変更した (commit `cd8d27b`): 1 つの voice を直接取り上げ (何を喚起するか、何を加えたい / 問いたいか)、他の voice は応答を鋭くするときのみ名指しで持ち込み、*"your post is your own position, not a synthesis of theirs"* とする。本 ADR の specificity contract (*"Stay close to the specific language each voice uses"*) は保持。これにより、ADR-0043 の multi-voice rewrite が drift した先から、本 ADR が意図した single-resonant-voice engagement を復元する。本変更が `feed_seeds` prompt を部分的に supersede する ADR-0043 も参照。
+
+Status は `proposed` のまま: 変更は 1 週間前のもので、tri-voice テンプレートが再発しなくなるか・self-post が特定の voice 1 つに深く engage するかは次の weekly の測定対象。

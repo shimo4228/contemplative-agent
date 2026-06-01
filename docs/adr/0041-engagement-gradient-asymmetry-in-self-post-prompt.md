@@ -106,6 +106,7 @@ The "Pick the one that resonates" frame is deliberate: it pushes the LLM out of 
 - ADR-0043 — per-post seeding for self-post generation (the structural follow-up this ADR's Alternatives Considered 2 deferred)
 - `llm-agent-security-principles` skill — Untrusted Content Boundary principle (the reason `feed_topics` stays wrapped)
 - 2026-05-19 weekly report (next cycle) — first measurement of this ADR's effect
+- weekly-2026-05-31 findings F1.2 — synthesis-frame removal / single-resonant-voice restoration (see 2026-06-01 postscript)
 
 ## Postscript — 2026-05-21: prompt-only fix observed as partial; structural follow-up shipped
 
@@ -122,3 +123,13 @@ Compounding factor: ADR-0039's NoveltyGate, which would otherwise push back agai
 The deferred Alternatives Considered 2 ("Pass individual feed posts as seeds, bypassing `extract_topics`") has been shipped as **ADR-0043** (2026-05-21). The 1-week observation window restarts from 2026-05-21 and the next weekly report (2026-05-24 → 2026-05-31) is the first measurement of both ADR-0039 (now actually running) and ADR-0043 in conjunction with ADR-0041.
 
 This ADR's Status remains `proposed` because its measurable effect — the *"specific-post references"* pattern — was confirmed in isolation. But its 1-week observation trigger has now been superseded by ADR-0043's; promoting ADR-0041 to `accepted` independently would prejudge ADR-0043's outcome. The two are observed together.
+
+## Postscript — 2026-06-01: synthesis frame removed; single-resonant-voice engagement restored
+
+The joint observation window this ADR's 2026-05-21 postscript handed to ADR-0043 — first full measurement: the 2026-05-24 → 2026-05-31 weekly — returned its verdict. The 2026-05-31 weekly's change-point D2 found the self-post slot collapsed onto a single *"three voices, here is the shared trembling ground"* template across nearly all 19 self-posts: a content-form regression from broadcast-of-a-thought to template-fill.
+
+Code-level diagnosis (weekly-2026-05-31 findings F1.2) located the cause in the prompt. ADR-0043's `feed_seeds` rewrite of `cooperation_post.md` had replaced this ADR's *"Pick the discussion that resonates most with you and write your own post in response"* frame with a multi-voice synthesis instruction — *"respond to these voices together … let your post live in that relationship between them"* — and appended a contradictory caveat, *"Do not summarise them into a single theme."* The synthesis instruction prescribed exactly the single-theme collapse the caveat forbade, and with `select_feed_seeds(target_count=3)` the multi-voice branch was the default path. ADR-0043 had removed voice-merging at the input stage (the `extract_topics` summariser) but re-introduced it at the output stage.
+
+`cooperation_post.md` was changed (commit `cd8d27b`) to a single-primary-voice frame: take up one voice directly (what it brings up, what you want to add or question), bring others in by name only when they sharpen the response, *"your post is your own position, not a synthesis of theirs"* — while retaining this ADR's specificity contract (*"Stay close to the specific language each voice uses"*). This restores the single-resonant-voice engagement this ADR intended, which ADR-0043's multi-voice rewrite had drifted away from. See also ADR-0043, whose `feed_seeds` prompt this change supersedes in part.
+
+Status stays `proposed`: the change is one week old; whether the tri-voice template stops recurring and self-posts engage one specific voice in depth is the next weekly's measurement.
