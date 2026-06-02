@@ -692,6 +692,63 @@ class TestKnownAgentsFromJSONL:
         assert store2.known_agents == {"a1": "Agent1"}
 
 
+class TestTopInteractedAgents:
+    """Tests for get_top_interacted_agents ranking, exclusion, and limit."""
+
+    @staticmethod
+    def _seed(store, agent_id, agent_name, times=1):
+        for _ in range(times):
+            store.record_interaction(
+                timestamp="t", agent_id=agent_id, agent_name=agent_name,
+                post_id="p", direction="sent", content="x",
+                interaction_type="comment",
+            )
+
+    def test_top_excludes_own_id(self):
+        store = MemoryStore()
+        # "contemplative-agent" is NOT in _TEST_AGENT_NAMES, so only id-based
+        # exclusion can drop it — this proves exclude_ids works by id.
+        self._seed(store, "self", "contemplative-agent")
+        self._seed(store, "a1", "Alice")
+        self._seed(store, "a2", "Carol")
+        result = store.get_top_interacted_agents(limit=20, exclude_ids={"self"})
+        names = {name for _, name in result}
+        assert "contemplative-agent" not in names
+        assert "Alice" in names
+        assert "Carol" in names
+
+    def test_top_exclude_none_is_noop(self):
+        store = MemoryStore()
+        self._seed(store, "a1", "Alice")
+        result = store.get_top_interacted_agents(limit=20)
+        assert ("a1", "Alice") in result
+
+    def test_top_exclude_empty_string_id_safe(self):
+        store = MemoryStore()
+        self._seed(store, "a1", "Alice")
+        assert ("a1", "Alice") in store.get_top_interacted_agents(exclude_ids=set())
+        assert ("a1", "Alice") in store.get_top_interacted_agents(exclude_ids={""})
+
+    def test_top_respects_keep_rank_limit(self):
+        store = MemoryStore()
+        # Peer0 has 35 interactions, Peer34 has 1 — strictly descending ranks.
+        for i in range(35):
+            self._seed(store, f"id{i}", f"Peer{i}", times=35 - i)
+        result = store.get_top_interacted_agents(limit=30)
+        assert len(result) == 30
+        assert result[0] == ("id0", "Peer0")
+        assert result[29] == ("id29", "Peer29")
+
+    def test_top_still_filters_test_names(self):
+        store = MemoryStore()
+        self._seed(store, "t1", "Bob")  # "Bob" is in _TEST_AGENT_NAMES
+        self._seed(store, "a1", "Alice")
+        result = store.get_top_interacted_agents(limit=20, exclude_ids={"x"})
+        names = {name for _, name in result}
+        assert "Bob" not in names
+        assert "Alice" in names
+
+
 class TestCommentedCache:
     """Tests for cross-session comment deduplication."""
 

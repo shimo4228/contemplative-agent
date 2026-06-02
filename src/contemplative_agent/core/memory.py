@@ -14,7 +14,7 @@ import os
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import Dict, Iterable, List, Literal, Optional, Tuple
 
 from ._io import truncate, write_restricted
 from .episode_log import EpisodeLog
@@ -314,10 +314,21 @@ class MemoryStore:
         "Bob", "TestAgent", "unknown", "Agent1 Updated",
     })
 
-    def get_top_interacted_agents(self, limit: int = 20) -> List[Tuple[str, str]]:
-        """Return top N (agent_id, agent_name) pairs by interaction count."""
+    def get_top_interacted_agents(
+        self, limit: int = 20, exclude_ids: Optional[Iterable[str]] = None
+    ) -> List[Tuple[str, str]]:
+        """Return top N (agent_id, agent_name) pairs by interaction count.
+
+        ``exclude_ids`` drops specific agent ids before ranking (e.g. our own
+        agent id, so we never try to follow ourselves). Exclusion happens
+        before the limit slice, so excluding self never shrinks the returned
+        count below ``limit`` when enough other agents exist.
+        """
+        excluded = set(exclude_ids or ())
         ranked = []
         for agent_id, agent_name in self._known_agents.items():
+            if agent_id in excluded:
+                continue
             if agent_name in self._TEST_AGENT_NAMES:
                 continue
             count = self.interaction_count_with(agent_id)

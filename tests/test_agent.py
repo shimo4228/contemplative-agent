@@ -22,6 +22,115 @@ def _make_clean_memory(tmp_path: Path) -> MemoryStore:
     return MemoryStore(path=tmp_path / "memory.json")
 
 
+class TestAutoFollow:
+    """Tests for _auto_follow self-exclusion and churn hysteresis."""
+
+    @staticmethod
+    def _make_agent(tmp_path, top_agents, followed=(), own_id="self"):
+        """Build an Agent with a stubbed ranking.
+
+        top_agents: list of (id, name) in rank order, highest first.
+        The stubbed get_top_interacted_agents honors exclude_ids and limit
+        exactly like the real implementation, so passing own_id is verified.
+        """
+        agent = Agent()
+        mem = _make_clean_memory(tmp_path)
+        for name in followed:
+            mem.record_follow(name)
+
+        def fake_top(limit=20, exclude_ids=None):
+            excluded = set(exclude_ids or ())
+            ranked = [(aid, aname) for aid, aname in top_agents if aid not in excluded]
+            return ranked[:limit]
+
+        # Full method replacement (not autospec) is intentional: fake_top
+        # reproduces the real exclude_ids/limit contract so the test verifies
+        # _auto_follow passes own_id and slices ranks correctly.
+        mem.get_top_interacted_agents = fake_top  # type: ignore[method-assign]
+        agent._memory = mem
+        agent._ctx.memory = mem
+        agent._ctx.own_agent_id = own_id
+        return agent
+
+    def test_auto_follow_skips_self(self, tmp_path):
+        top = [("self", "contemplative-agent"), ("a1", "Alice"), ("a2", "Carol")]
+        agent = self._make_agent(tmp_path, top, followed=[], own_id="self")
+        client = MagicMock()
+        client.follow_agent.return_value = True
+        agent._auto_follow(client)
+        followed_names = [c.args[0] for c in client.follow_agent.call_args_list]
+        assert "contemplative-agent" not in followed_names
+        assert agent._memory.is_followed("contemplative-agent") is False
+        assert "Alice" in followed_names
+
+    def test_enters_top20_follows(self, tmp_path):
+        top = [(f"id{i}", f"Peer{i}") for i in range(30)]
+        agent = self._make_agent(tmp_path, top, followed=[])
+        client = MagicMock()
+        client.follow_agent.return_value = True
+        agent._auto_follow(client)
+        followed = [c.args[0] for c in client.follow_agent.call_args_list]
+        assert "Peer0" in followed  # rank 1 is a clear top-20 entrant
+
+    def test_grey_zone_agent_not_unfollowed(self, tmp_path):
+        # Peer24 (rank 25) sits in the grey zone (21-30) and must be kept.
+        top = [(f"id{i}", f"Peer{i}") for i in range(30)]
+        agent = self._make_agent(tmp_path, top, followed=["Peer24"])
+        client = MagicMock()
+        client.follow_agent.return_value = True
+        client.unfollow_agent.return_value = True
+        agent._auto_follow(client)
+        unfollowed = [c.args[0] for c in client.unfollow_agent.call_args_list]
+        assert "Peer24" not in unfollowed
+
+    def test_falls_past_keep_rank_unfollows(self, tmp_path):
+        # A followed agent absent from the top-30 (fell past KEEP_RANK).
+        top = [(f"id{i}", f"Peer{i}") for i in range(30)]
+        agent = self._make_agent(tmp_path, top, followed=["GoneAgent"])
+        client = MagicMock()
+        client.unfollow_agent.return_value = True
+        client.follow_agent.return_value = True
+        agent._auto_follow(client)
+        unfollowed = [c.args[0] for c in client.unfollow_agent.call_args_list]
+        assert "GoneAgent" in unfollowed
+
+    def test_grey_zone_newcomer_not_followed(self, tmp_path):
+        # All top-20 already followed; grey-zone (21-30) agents must not be
+        # newly followed, and nothing in the keep zone is unfollowed.
+        top = [(f"id{i}", f"Peer{i}") for i in range(30)]
+        followed = [f"Peer{i}" for i in range(20)]
+        agent = self._make_agent(tmp_path, top, followed=followed)
+        client = MagicMock()
+        client.follow_agent.return_value = True
+        client.unfollow_agent.return_value = True
+        agent._auto_follow(client)
+        followed_calls = [c.args[0] for c in client.follow_agent.call_args_list]
+        assert all(f"Peer{i}" not in followed_calls for i in range(20, 30))
+        assert client.unfollow_agent.call_count == 0
+
+    def test_no_churn_when_followed_set_stable(self, tmp_path):
+        # followed == top-30 set. Old single-threshold logic would unfollow
+        # ranks 21-30 every session; hysteresis keeps all → zero API churn.
+        top = [(f"id{i}", f"Peer{i}") for i in range(30)]
+        followed = [f"Peer{i}" for i in range(30)]
+        agent = self._make_agent(tmp_path, top, followed=followed)
+        client = MagicMock()
+        client.follow_agent.return_value = True
+        client.unfollow_agent.return_value = True
+        agent._auto_follow(client)
+        assert client.follow_agent.call_count == 0
+        assert client.unfollow_agent.call_count == 0
+
+    def test_max_changes_per_session_respected(self, tmp_path):
+        # 30 ranked, none followed → many top-20 candidates, capped at 3.
+        top = [(f"id{i}", f"Peer{i}") for i in range(30)]
+        agent = self._make_agent(tmp_path, top, followed=[])
+        client = MagicMock()
+        client.follow_agent.return_value = True
+        agent._auto_follow(client)
+        assert client.follow_agent.call_count == 3
+
+
 class TestAutonomyLevel:
     def test_values(self):
         assert AutonomyLevel.APPROVE == "approve"

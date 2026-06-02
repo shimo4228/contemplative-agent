@@ -379,16 +379,38 @@ class Agent:
         )
 
     def _auto_follow(self, client: MoltbookClient) -> None:
-        """Maintain top-20 following list based on interaction count."""
-        MAX_FOLLOWING = 20
+        """Maintain a stable following list based on interaction count.
+
+        Hysteresis: an agent is followed once it enters the top FOLLOW_RANK
+        and only unfollowed once it falls past KEEP_RANK. Agents we already
+        follow that sit in the grey zone (FOLLOW_RANK..KEEP_RANK) are kept, so
+        rank wobble around the boundary no longer causes follow/unfollow
+        churn. Follows are applied in rank order (most-interacted first) so
+        the limited per-session budget goes to the strongest relationships.
+        Our own agent is excluded so we never attempt to follow ourselves.
+        """
+        FOLLOW_RANK = 20
+        KEEP_RANK = 30
+        # Per-direction budget (not a shared total): up to 3 follows AND up to
+        # 3 unfollows per session. Hysteresis makes unfollows rare (only genuine
+        # drop-outs past KEEP_RANK), so the two budgets rarely both fire and the
+        # worst case stays well under the 30/min write limit.
         MAX_CHANGES_PER_SESSION = 3
 
-        top_agents = self._memory.get_top_interacted_agents(limit=MAX_FOLLOWING)
-        top_names = {name for _, name in top_agents}
+        own_id = self._ctx.own_agent_id
+        exclude_ids = {own_id} if own_id else set()
+        top_agents = self._memory.get_top_interacted_agents(
+            limit=KEEP_RANK, exclude_ids=exclude_ids
+        )
+        follow_ranked = [name for _, name in top_agents[:FOLLOW_RANK]]
+        keep_names = {name for _, name in top_agents}
         currently_followed = self._memory.get_followed_agents()
 
-        # Unfollow agents who dropped out of top 20
-        to_unfollow = currently_followed - top_names
+        # Unfollow agents who fell past the keep rank (out of the grey zone).
+        # These dropped out of the top-30 entirely, so no rank info remains to
+        # prioritise them; sorted() gives a stable, deterministic order and the
+        # per-session cap bounds the impact.
+        to_unfollow = sorted(currently_followed - keep_names)
         unfollowed = 0
         for name in to_unfollow:
             if unfollowed >= MAX_CHANGES_PER_SESSION:
@@ -401,12 +423,13 @@ class Agent:
                 })
                 unfollowed += 1
 
-        # Follow agents who entered top 20
-        to_follow = top_names - currently_followed
+        # Follow agents who entered the top FOLLOW_RANK, highest-ranked first.
         followed = 0
-        for name in to_follow:
+        for name in follow_ranked:
             if followed >= MAX_CHANGES_PER_SESSION:
                 break
+            if name in currently_followed:
+                continue
             if client.follow_agent(name):
                 self._memory.record_follow(name)
                 self._ctx.actions_taken.append(f"Followed {name}")
@@ -416,8 +439,8 @@ class Agent:
                 followed += 1
 
         logger.info(
-            "Auto-follow: top %d, followed %d, unfollowed %d (currently: %d)",
-            MAX_FOLLOWING, followed, unfollowed,
+            "Auto-follow: follow<=%d keep<=%d, followed %d, unfollowed %d (currently: %d)",
+            FOLLOW_RANK, KEEP_RANK, followed, unfollowed,
             len(currently_followed) - unfollowed + followed,
         )
 
