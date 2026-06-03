@@ -1,6 +1,14 @@
 """Core meditation loop — iterated belief update without external input.
 
-Implements the "Beautiful Loop" paper's concepts:
+Inspired by Laukkonen, Friston & Chandaria (2025) "A Beautiful Loop", but
+this does NOT implement that paper's model. The paper is conceptual — a
+precision-controlling hyper-model yielding epistemic depth — and contains
+none of the operations below. "Temporal flattening" and "counterfactual
+pruning" are local implementation labels for this generic single-level
+active-inference loop, not terms from the paper. A faithful port would
+follow Sandved-Smith et al. (2021)'s deep parametric active inference.
+
+Operations (local names):
 - Temporal flattening: blending posterior toward uniform each cycle
 - Counterfactual pruning: removing low-probability policies
 - Convergence detection: early stopping when beliefs stabilize

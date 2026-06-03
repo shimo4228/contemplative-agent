@@ -114,18 +114,18 @@ Axiom injection, content dedup (similarity >0.8 → skip).
 | `config.py` | 55 | State space definition, meditation parameters |
 | `pomdp.py` | 294 | Episode Log → POMDP matrices (A/B/C/D via numpy) |
 | `meditate.py` | 206 | Active Inference loop (temporal flattening + counterfactual pruning) |
-| `report.py` | 146 | Result interpretation → KnowledgeStore write |
+| `report.py` | 146 | Result interpretation (LLM, display-only) + save raw result → `config/meditation/results.json` (no KnowledgeStore write) |
 
 **Data flow**:
 ```
 EpisodeLog (JSONL) → pomdp.build_matrices()
   → A (observation), B (transition), C (preference), D (prior)
-  → meditate.run_cycles(matrices, n_cycles)
-  → temporal_flattening() + counterfactual_pruning()
-  → report.interpret_results() → KnowledgeStore.add_learned_pattern()
+  → meditate(matrices, config)   # inline temporal flattening + counterfactual pruning (local names)
+  → report.interpret_and_save()  → config/meditation/results.json
+    (LLM interpretation is display-only; not persisted, not written to KnowledgeStore)
 ```
 
-**Theory**: Based on Laukkonen, Friston & Chandaria (2025) "A Beautiful Loop" — computational model of contemplative states via Active Inference.
+**Theory**: Inspired by Laukkonen, Friston & Chandaria (2025) "A Beautiful Loop", but does **not** implement that paper's model (which is conceptual — a precision-controlling hyper-model + epistemic depth). This is a generic single-level active-inference loop; "temporal flattening" / "counterfactual pruning" are local implementation labels, not paper terms. A faithful port would follow Sandved-Smith et al. (2021)'s deep parametric model.
 
 **Dependencies**: numpy (for matrix operations).
 

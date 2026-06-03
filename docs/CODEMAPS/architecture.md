@@ -180,7 +180,7 @@ amend-constitution (manual, approval gate):
 meditate (experimental):
   EpisodeLog → POMDP matrices (A/B/C/D)
   → Active Inference cycles (temporal flattening + counterfactual pruning)
-  → KnowledgeStore write via meditation report
+  → save raw result to config/meditation/results.json (no KnowledgeStore write)
 ```
 
 ## Memory Architecture (3-Layer + Sidecars)

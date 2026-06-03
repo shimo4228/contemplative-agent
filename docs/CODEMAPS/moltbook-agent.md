@@ -57,7 +57,7 @@ cli.py (1826L)  -- composition root, only file importing both core/ and adapters
  |    config.py (55L)             -- state space definition, parameters
  |    pomdp.py (294L)             -- JSONL → POMDP matrices (numpy)
  |    meditate.py (206L)          -- Active Inference cycles (temporal flattening + counterfactual pruning)
- |    report.py (146L)            -- result interpretation → KnowledgeStore
+ |    report.py (146L)            -- result interpretation (display-only) → results.json
  |
  -> adapters/dialogue/  (1 module)
       peer.py (~140L)             -- 2-agent peer-to-peer dialogue loop (stdin/stdout between independent processes)
