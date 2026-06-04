@@ -416,6 +416,170 @@ class TestGenerate:
         assert payload["options"]["temperature"] == 1.3
 
 
+class TestEstimateTokens:
+    """_estimate_tokens: tokenizer-free char-class upper bound (audit C2).
+    ASCII at ~3 chars/tok (dense markdown/code tokenize denser than prose),
+    CJK at 1 tok/char — over-estimating is safe for a skip guard."""
+
+    def test_pure_ascii_three_chars_per_token(self):
+        from contemplative_agent.core.llm import _estimate_tokens
+        assert _estimate_tokens("a" * 300) == 100
+
+    def test_pure_cjk_one_token_per_char(self):
+        from contemplative_agent.core.llm import _estimate_tokens
+        assert _estimate_tokens("瞑" * 100) == 100
+
+    def test_mixed_sums_both_classes(self):
+        from contemplative_agent.core.llm import _estimate_tokens
+        assert _estimate_tokens("a" * 300 + "瞑" * 100) == 200
+
+    def test_empty_string_is_zero(self):
+        from contemplative_agent.core.llm import _estimate_tokens
+        assert _estimate_tokens("") == 0
+
+
+class TestGenerateBudgetGuard:
+    """generate() skips (returns None + WARNING) when estimated input +
+    num_predict would exceed NUM_CTX, instead of letting Ollama silently
+    front-truncate the system prompt's value layer (audit C2). Skip, don't
+    substitute — same idiom as the circuit breaker."""
+
+    def setup_method(self):
+        from contemplative_agent.core.llm import _circuit
+        _circuit.record_success()  # Reset state
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_over_budget_returns_none_and_warns(self, mock_post, caplog):
+        import logging
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.llm"
+        ):
+            result = generate("test", system="x" * 200000)
+        assert result is None
+        mock_post.assert_not_called()
+        assert "audit C2" in caplog.text
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_over_budget_does_not_record_circuit_failure(self, mock_post):
+        """Over-budget is caller-input pathology, not a backend failure —
+        recording it could spuriously open the breaker for a healthy Ollama."""
+        from contemplative_agent.core.llm import _circuit
+        generate("test", system="x" * 200000)
+        assert _circuit._consecutive_failures == 0
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_over_budget_via_huge_user_prompt(self, mock_post):
+        assert generate("x" * 200000, system="small system") is None
+        mock_post.assert_not_called()
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_under_budget_proceeds_to_request(self, mock_post):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"response": "ok"}
+        mock_resp.raise_for_status.return_value = None
+        mock_post.return_value = mock_resp
+
+        assert generate("test", system="small system") == "ok"
+        mock_post.assert_called_once()
+
+    def test_guard_not_applied_to_backend_path(self):
+        """The injected-backend path has an unknown context window; the
+        NUM_CTX guard is Ollama-only and must not block delegation."""
+        from contemplative_agent.core.llm import configure, reset_llm_config
+
+        calls = {}
+
+        class StubBackend:
+            def generate(self, prompt, system, num_predict, format):
+                calls["prompt_len"] = len(prompt)
+                return "delegated"
+
+        reset_llm_config()
+        configure(backend=StubBackend())
+        try:
+            assert generate("x" * 200000) == "delegated"
+            assert calls["prompt_len"] == 200000
+        finally:
+            reset_llm_config()
+
+
+class TestSilentTruncationDetector:
+    """generate() warns when Ollama's prompt_eval_count is anomalously small
+    for the chars sent — the silent front-truncation signal (audit C2).
+    Only meaningful for large prompts: a 12000-char floor removes the
+    false-positive class of small mechanical calls."""
+
+    @staticmethod
+    def _mock_resp(payload):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = payload
+        mock_resp.raise_for_status.return_value = None
+        return mock_resp
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_small_prompt_eval_count_warns(self, mock_post, caplog):
+        import logging
+        mock_post.return_value = self._mock_resp(
+            {"response": "ok", "prompt_eval_count": 500}
+        )
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.llm"
+        ):
+            # 20000 ascii chars ≈ 6667 est tokens — passes the budget guard,
+            # but 500 evaluated tokens < 20000 // 6 floor → truncated.
+            result = generate("a" * 20000, system="s")
+        assert result == "ok"
+        assert "front-truncation" in caplog.text
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_proportional_prompt_eval_count_no_warning(self, mock_post, caplog):
+        import logging
+        mock_post.return_value = self._mock_resp(
+            {"response": "ok", "prompt_eval_count": 6000}
+        )
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.llm"
+        ):
+            generate("a" * 20000, system="s")
+        assert "front-truncation" not in caplog.text
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_absent_prompt_eval_count_no_warning_no_crash(self, mock_post, caplog):
+        import logging
+        mock_post.return_value = self._mock_resp({"response": "ok"})
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.llm"
+        ):
+            assert generate("a" * 20000, system="s") == "ok"
+        assert "front-truncation" not in caplog.text
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_non_int_prompt_eval_count_no_warning_no_crash(self, mock_post, caplog):
+        """A proxy or future Ollama build returning a string value must not
+        TypeError — the detector runs outside the parse try/except."""
+        import logging
+        mock_post.return_value = self._mock_resp(
+            {"response": "ok", "prompt_eval_count": "500"}
+        )
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.llm"
+        ):
+            assert generate("a" * 20000, system="s") == "ok"
+        assert "front-truncation" not in caplog.text
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_small_prompt_below_floor_never_fires(self, mock_post, caplog):
+        import logging
+        mock_post.return_value = self._mock_resp(
+            {"response": "ok", "prompt_eval_count": 10}
+        )
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.llm"
+        ):
+            generate("a" * 600, system="s")
+        assert "front-truncation" not in caplog.text
+
+
 class TestCommentTemperature:
     """ADR-0047: outward reflective generation (comment/reply/post) uses a
     higher temperature than the 1.0 default to break formulaic openings.
@@ -522,6 +686,26 @@ class TestGenerateComment:
         assert "num_predict" not in kwargs
 
 
+class TestGenerateCommentMaxInput:
+    """audit C2: the comment path wraps the (fully fetched, up to 40K chars)
+    post body at max_input=8000 so the prompt stays inside num_ctx and the
+    front-loaded system prompt (identity/axioms) cannot be truncated away."""
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_long_post_truncated_to_8000(self, mock_gen):
+        mock_gen.return_value = "a comment"
+        generate_comment("p" * 9000)
+        prompt = mock_gen.call_args[0][0]
+        assert "truncated to the first 8000 of 9000 chars" in prompt
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_short_post_marked_complete(self, mock_gen):
+        mock_gen.return_value = "a comment"
+        generate_comment("short post")
+        prompt = mock_gen.call_args[0][0]
+        assert "is complete (" in prompt
+
+
 class TestGenerateCooperationPost:
     """Post-ADR-0043: takes list[dict] feed_seeds, not a flat topic string."""
 
@@ -593,6 +777,32 @@ class TestGenerateReply:
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["max_length"] == MAX_COMMENT_LENGTH
         assert "num_predict" not in kwargs
+
+
+class TestGenerateReplyMaxInput:
+    """audit C2: the reply path wraps both original_post and their_comment
+    at max_input=8000 — same prompt-size bound as the comment path."""
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_long_original_post_truncated(self, mock_gen):
+        mock_gen.return_value = "a reply"
+        generate_reply("p" * 9000, "their comment")
+        prompt = mock_gen.call_args[0][0]
+        assert "truncated to the first 8000 of 9000 chars" in prompt
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_long_their_comment_truncated(self, mock_gen):
+        mock_gen.return_value = "a reply"
+        generate_reply("post", "c" * 8500)
+        prompt = mock_gen.call_args[0][0]
+        assert "truncated to the first 8000 of 8500 chars" in prompt
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_short_inputs_marked_complete(self, mock_gen):
+        mock_gen.return_value = "a reply"
+        generate_reply("post", "comment")
+        prompt = mock_gen.call_args[0][0]
+        assert prompt.count("is complete (") == 2
 
 
 class TestGeneratePostTitle:

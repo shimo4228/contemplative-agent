@@ -97,8 +97,15 @@ def generate_internal_note(content: str) -> str:
 
 
 def generate_comment(post_text: str) -> Optional[str]:
-    """Generate a contextual comment for a post."""
-    prompt = COMMENT_PROMPT.format(post_content=wrap_untrusted_content(post_text))
+    """Generate a contextual comment for a post.
+
+    ``max_input=8000`` (audit C2): the post body is fully fetched (up to
+    40K chars) before commenting; unbounded, it could push the prompt past
+    num_ctx and silently front-truncate the system prompt's value layer.
+    """
+    prompt = COMMENT_PROMPT.format(
+        post_content=wrap_untrusted_content(post_text, max_input=8000)
+    )
     return generate_for_api(
         prompt, max_length=MAX_COMMENT_LENGTH, temperature=COMMENT_TEMPERATURE
     )
@@ -160,10 +167,12 @@ def generate_reply(
         conversation_history, "Previous exchanges with this agent", limit=5,
     )
 
+    # max_input=8000 on both (audit C2) — same prompt-size bound as the
+    # comment path, so num_ctx cannot overflow on long posts/comments.
     prompt = REPLY_PROMPT.format(
         history_section=history_section,
-        original_post=wrap_untrusted_content(original_post),
-        their_comment=wrap_untrusted_content(their_comment),
+        original_post=wrap_untrusted_content(original_post, max_input=8000),
+        their_comment=wrap_untrusted_content(their_comment, max_input=8000),
     )
     return generate_for_api(
         prompt, max_length=MAX_COMMENT_LENGTH, temperature=COMMENT_TEMPERATURE

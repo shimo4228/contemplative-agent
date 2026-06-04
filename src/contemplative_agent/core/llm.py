@@ -30,6 +30,8 @@ LOCALHOST_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 CIRCUIT_FAILURE_THRESHOLD = 5
 CIRCUIT_COOLDOWN_SECONDS = 120
 
+NUM_CTX = 32768  # Ollama context window (input + output share it). audit C2.
+
 
 @runtime_checkable
 class LLMBackend(Protocol):
@@ -407,6 +409,18 @@ def _sanitize_output(text: str, max_length: Optional[int] = None) -> str:
     return sanitized[:max_length]
 
 
+def _estimate_tokens(text: str) -> int:
+    """Approximate token count without a tokenizer dependency (audit C2).
+
+    Conservative upper bound: ASCII at ~3 chars/tok (dense markdown/code/URLs
+    tokenize denser than prose's ~4), CJK at 1 tok/char (real: 1.5-2). The
+    project ships only requests+numpy, so no real tokenizer is available;
+    this feeds an over-budget skip guard, where over-estimating is safe.
+    """
+    ascii_count = sum(1 for ch in text if ord(ch) < 128)
+    return math.ceil(ascii_count / 3) + (len(text) - ascii_count)
+
+
 def generate(
     prompt: str,
     system: Optional[str] = None,
@@ -434,7 +448,10 @@ def generate(
             scoring/distill paths keep 1.0. Ollama-path only — an injected
             backend does not receive it (its protocol is unchanged).
 
-    Returns sanitized output, or None on failure.
+    Returns sanitized output, or None on failure — including when the
+    estimated input + ``num_predict`` would exceed ``NUM_CTX`` on the
+    Ollama path (audit C2: skip rather than let Ollama silently
+    front-truncate the system prompt).
 
     If an ``LLMBackend`` was injected via ``configure(backend=...)``, the
     raw generation is delegated to it; otherwise the built-in Ollama HTTP
@@ -468,6 +485,28 @@ def generate(
         _circuit.record_success()
         return _sanitize_output(raw_text, max_length)
 
+    # Ollama-path token-budget pre-flight (audit C2). The injected-backend
+    # path above is excluded: its context window is unknown to this module.
+    # Over-budget input would be silently truncated from the FRONT, dropping
+    # the system prompt's value layer (identity/axioms) first — skip instead
+    # (all callers handle None by skipping; "skip, don't substitute"). Not a
+    # circuit failure: it is caller-input pathology, not a backend fault.
+    est_system = _estimate_tokens(system_prompt)
+    est_prompt = _estimate_tokens(prompt)
+    if est_system + est_prompt + effective_num_predict > NUM_CTX:
+        logger.warning(
+            "Skipping LLM call: estimated input %d tok (system≈%d + "
+            "prompt≈%d) + num_predict %d exceeds num_ctx %d; Ollama would "
+            "silently front-truncate the system prompt's value layer "
+            "(audit C2).",
+            est_system + est_prompt,
+            est_system,
+            est_prompt,
+            effective_num_predict,
+            NUM_CTX,
+        )
+        return None
+
     try:
         base_url = _get_ollama_url()
     except ValueError as exc:
@@ -486,7 +525,7 @@ def generate(
             "top_p": 0.95,
             "top_k": 20,
             "num_predict": effective_num_predict,
-            "num_ctx": 32768,
+            "num_ctx": NUM_CTX,
         },
         "think": False,
     }
@@ -513,6 +552,30 @@ def generate(
         logger.warning("Ollama returned empty response")
         _circuit.record_failure()
         return None
+
+    # Silent front-truncation detector (audit C2): if Ollama evaluated far
+    # fewer tokens than the chars sent could possibly compress to (~6
+    # chars/tok is a generous lower bound even for pure English), the input
+    # was cut. The 12000-char floor removes the false-positive class of
+    # small mechanical calls — truncation only matters for large prompts.
+    # isinstance check: this block runs outside the parse try/except, so a
+    # non-int value from a proxy or future Ollama build must not TypeError.
+    prompt_eval = data.get("prompt_eval_count")
+    sent_chars = len(system_prompt) + len(prompt)
+    if (
+        isinstance(prompt_eval, int)
+        and sent_chars > 12000
+        and prompt_eval < sent_chars // 6
+    ):
+        logger.warning(
+            "Possible silent front-truncation: prompt_eval_count=%d for "
+            "%d chars sent (system=%d + prompt=%d); the system prompt's "
+            "value layer may have been dropped (audit C2).",
+            prompt_eval,
+            sent_chars,
+            len(system_prompt),
+            len(prompt),
+        )
 
     _circuit.record_success()
     return _sanitize_output(raw_text, max_length)
