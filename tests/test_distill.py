@@ -157,6 +157,36 @@ class TestDistillJSONFallbackADR0021:
         assert "Second bullet pattern" in result
 
 
+class TestDistillStep2BatchSkipAuditM1:
+    """Audit M1: when step 2 (summarize) fails, the batch is skipped with a
+    WARNING instead of feeding step-1 prose to the JSON parser — prose that
+    happens to lack "- " bullets would otherwise silently yield 0 patterns
+    while looking like a processed batch."""
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_step2_none_skips_batch(self, mock_generate, tmp_path, caplog):
+        import logging
+        # Step-1 prose containing "- " lines: under the old fallthrough
+        # (refined = result) the bullet parser would harvest these as
+        # patterns; under batch skip they must NOT become patterns.
+        mock_generate.side_effect = [
+            "Some free-form analysis.\n"
+            "- This unrefined observation looks like a pattern to the parser\n"
+            "- Another raw step-one line that must not reach the store",
+            None,  # step 2 fails
+        ]
+        log = _make_log(tmp_path)
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.distill"
+        ):
+            distill(days=1, episode_log=log, knowledge_store=ks)
+        assert "step 2" in caplog.text
+        # Batch skipped: no step-3 importance call, nothing persisted.
+        assert mock_generate.call_count == 2
+        assert not (tmp_path / "knowledge.json").exists()
+
+
 class TestParseImportanceScores:
     def test_json_format(self):
         assert _parse_importance_scores('{"scores": [8, 5]}', 2) == [0.8, 0.5]

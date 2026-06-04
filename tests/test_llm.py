@@ -1,5 +1,6 @@
 """Tests for LLM interface and sanitization."""
 
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -504,7 +505,6 @@ class TestGenerateBudgetGuard:
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_over_budget_returns_none_and_warns(self, mock_post, caplog):
-        import logging
         with caplog.at_level(
             logging.WARNING, logger="contemplative_agent.core.llm"
         ):
@@ -572,7 +572,6 @@ class TestSilentTruncationDetector:
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_small_prompt_eval_count_warns(self, mock_post, caplog):
-        import logging
         mock_post.return_value = self._mock_resp(
             {"response": "ok", "prompt_eval_count": 500}
         )
@@ -587,7 +586,6 @@ class TestSilentTruncationDetector:
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_proportional_prompt_eval_count_no_warning(self, mock_post, caplog):
-        import logging
         mock_post.return_value = self._mock_resp(
             {"response": "ok", "prompt_eval_count": 6000}
         )
@@ -599,7 +597,6 @@ class TestSilentTruncationDetector:
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_absent_prompt_eval_count_no_warning_no_crash(self, mock_post, caplog):
-        import logging
         mock_post.return_value = self._mock_resp({"response": "ok"})
         with caplog.at_level(
             logging.WARNING, logger="contemplative_agent.core.llm"
@@ -611,7 +608,6 @@ class TestSilentTruncationDetector:
     def test_non_int_prompt_eval_count_no_warning_no_crash(self, mock_post, caplog):
         """A proxy or future Ollama build returning a string value must not
         TypeError — the detector runs outside the parse try/except."""
-        import logging
         mock_post.return_value = self._mock_resp(
             {"response": "ok", "prompt_eval_count": "500"}
         )
@@ -623,7 +619,6 @@ class TestSilentTruncationDetector:
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_small_prompt_below_floor_never_fires(self, mock_post, caplog):
-        import logging
         mock_post.return_value = self._mock_resp(
             {"response": "ok", "prompt_eval_count": 10}
         )
@@ -632,6 +627,114 @@ class TestSilentTruncationDetector:
         ):
             generate("a" * 600, system="s")
         assert "front-truncation" not in caplog.text
+
+
+class TestDoneReasonTruncation:
+    """generate() reads Ollama's done_reason (audit M2): "length" means the
+    output hit num_predict mid-generation. Default: WARNING only (internal
+    callers keep the partial text — distill has its own fallbacks).
+    drop_truncated=True: return None so external publish paths skip instead
+    of POSTing a mid-sentence cut ("skip, don't substitute")."""
+
+    @staticmethod
+    def _mock_resp(payload):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = payload
+        mock_resp.raise_for_status.return_value = None
+        return mock_resp
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_length_warns_but_returns_text_by_default(self, mock_post, caplog):
+        mock_post.return_value = self._mock_resp(
+            {"response": "cut off mid-", "done_reason": "length"}
+        )
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.llm"
+        ):
+            result = generate("test", system="s")
+        assert result == "cut off mid-"
+        assert "audit M2" in caplog.text
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_drop_truncated_returns_none_on_length(self, mock_post, caplog):
+        mock_post.return_value = self._mock_resp(
+            {"response": "cut off mid-", "done_reason": "length"}
+        )
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.llm"
+        ):
+            result = generate("test", system="s", drop_truncated=True)
+        assert result is None
+        assert "audit M2" in caplog.text
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_drop_truncated_does_not_record_circuit_failure(self, mock_post):
+        """Truncation is a budget artifact, not a backend fault — the
+        breaker must not creep toward open on healthy responses."""
+        from contemplative_agent.core.llm import _circuit
+        mock_post.return_value = self._mock_resp(
+            {"response": "cut", "done_reason": "length"}
+        )
+        generate("test", system="s", drop_truncated=True)
+        assert _circuit._consecutive_failures == 0
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_stop_done_reason_returns_text(self, mock_post, caplog):
+        mock_post.return_value = self._mock_resp(
+            {"response": "complete", "done_reason": "stop"}
+        )
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.llm"
+        ):
+            result = generate("test", system="s", drop_truncated=True)
+        assert result == "complete"
+        assert "audit M2" not in caplog.text
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_absent_done_reason_no_warning(self, mock_post, caplog):
+        mock_post.return_value = self._mock_resp({"response": "ok"})
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.llm"
+        ):
+            assert generate("test", system="s", drop_truncated=True) == "ok"
+        assert "audit M2" not in caplog.text
+
+
+class TestCjkCharsPerToken:
+    """Audit M2: comment/reply/title pass chars_per_token=1.5 (CJK output
+    runs 1.5-2 chars/tok; the /3 default under-budgets num_predict and
+    truncates Japanese mid-sentence). The post path keeps the /3 default:
+    at max_length=40000, /1.5 would leave only ~6K tokens of input headroom
+    and permanently trip the C2 budget guard."""
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_generate_comment_passes_cjk_ratio(self, mock_api):
+        mock_api.return_value = "ok"
+        generate_comment("a post")
+        assert mock_api.call_args.kwargs["chars_per_token"] == 1.5
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_generate_reply_passes_cjk_ratio(self, mock_api):
+        mock_api.return_value = "ok"
+        generate_reply("post", "their comment")
+        assert mock_api.call_args.kwargs["chars_per_token"] == 1.5
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_generate_post_title_passes_cjk_ratio(self, mock_api):
+        from contemplative_agent.adapters.moltbook.llm_functions import (
+            generate_post_title,
+        )
+        mock_api.return_value = "ok"
+        generate_post_title("seed text")
+        assert mock_api.call_args.kwargs["chars_per_token"] == 1.5
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_generate_cooperation_post_keeps_default_ratio(self, mock_api):
+        """max_length=40000 × /1.5 → num_predict 26717 → C2 guard input
+        headroom ~6K tok < full system prompt → permanent self-post skip."""
+        mock_api.return_value = "ok"
+        generate_cooperation_post([{"title": "t", "content": "c"}])
+        assert mock_api.call_args.kwargs.get("chars_per_token", 3.0) == 3.0
 
 
 class TestCommentTemperature:
@@ -715,6 +818,28 @@ class TestGenerateForApi:
         generate_for_api("p", max_length=300)
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["max_length"] == 300
+
+    @patch("contemplative_agent.core.llm.generate")
+    def test_chars_per_token_cjk_derives_to_6717(self, mock_gen):
+        """CJK callers (comment/reply/title) pass chars_per_token=1.5 —
+        ceil(10000/1.5) + 50 = 6717 (audit M2: the /3 default was the
+        truncation root cause for Japanese output)."""
+        mock_gen.return_value = "ok"
+        generate_for_api("p", max_length=10000, chars_per_token=1.5)
+        assert mock_gen.call_args.kwargs["num_predict"] == 6717
+
+    @patch("contemplative_agent.core.llm.generate")
+    def test_drop_truncated_propagates(self, mock_gen):
+        """API publish paths never emit a mid-sentence cut (audit M2)."""
+        mock_gen.return_value = "ok"
+        generate_for_api("p", max_length=300)
+        assert mock_gen.call_args.kwargs["drop_truncated"] is True
+
+    def test_non_positive_chars_per_token_raises(self):
+        """Fail fast at the boundary: 0 would ZeroDivisionError, negative
+        would silently feed a bad num_predict to Ollama."""
+        with pytest.raises(ValueError, match="chars_per_token"):
+            generate_for_api("p", max_length=300, chars_per_token=0)
 
 
 class TestGenerateComment:

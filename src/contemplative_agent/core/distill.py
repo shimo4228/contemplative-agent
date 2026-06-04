@@ -528,9 +528,16 @@ def _distill_category(
         refine_prompt = DISTILL_REFINE_PROMPT.format(raw_output=result)
         refined = generate(refine_prompt, num_predict=3000)
         if refined is None:
-            logger.warning("Batch %d/%d: step 2 (summarize) failed, using step 1 output",
-                           batch_idx + 1, len(batches))
-            refined = result
+            # Audit M1: skip the batch rather than feed step-1 prose to the
+            # JSON parser — the bullet fallback would either harvest raw
+            # unrefined lines as patterns or silently yield zero while
+            # looking like a processed batch.
+            logger.warning(
+                "Batch %d/%d: step 2 (summarize) failed, skipping batch "
+                "(audit M1)",
+                batch_idx + 1, len(batches),
+            )
+            continue
 
         all_results.append(refined)
 

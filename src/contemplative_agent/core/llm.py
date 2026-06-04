@@ -450,6 +450,7 @@ def generate(
     num_predict: Optional[int] = None,
     format: Optional[Dict] = None,
     temperature: float = 1.0,
+    drop_truncated: bool = False,
 ) -> Optional[str]:
     """Generate text via the configured backend (default: local Ollama).
 
@@ -469,6 +470,14 @@ def generate(
             raises it to break formulaic, RLHF-baked openings (ADR-0047);
             scoring/distill paths keep 1.0. Ollama-path only — an injected
             backend does not receive it (its protocol is unchanged).
+        drop_truncated: When True and Ollama reports ``done_reason ==
+            "length"`` (output hit ``num_predict`` mid-generation), return
+            None instead of the cut text — external publish paths must not
+            POST a mid-sentence fragment (audit M2; "skip, don't
+            substitute"). Default False: internal callers (distill/insight)
+            keep the partial text and rely on their own fallbacks; a
+            WARNING is logged either way. Ollama-path only — an injected
+            backend does not expose a truncation signal.
 
     Returns sanitized output, or None on failure — including when the
     estimated input + ``num_predict`` would exceed ``NUM_CTX`` on the
@@ -575,6 +584,26 @@ def generate(
         _circuit.record_failure()
         return None
 
+    # Output-truncation signal (audit M2): done_reason == "length" means the
+    # model hit num_predict mid-generation. Not a backend fault — the call
+    # succeeded — so the circuit breaker records success on the drop path.
+    if data.get("done_reason") == "length":
+        if drop_truncated:
+            logger.warning(
+                "Output truncated at num_predict=%d (done_reason=length); "
+                "dropping instead of publishing a mid-sentence cut "
+                "(audit M2).",
+                effective_num_predict,
+            )
+            _circuit.record_success()
+            return None
+        logger.warning(
+            "Output truncated at num_predict=%d (done_reason=length); "
+            "downstream consumers receive an incomplete generation "
+            "(audit M2).",
+            effective_num_predict,
+        )
+
     # Silent front-truncation detector (audit C2): if Ollama evaluated far
     # fewer tokens than the chars sent could possibly compress to (~6
     # chars/tok is a generous lower bound even for pure English), the input
@@ -609,25 +638,44 @@ def generate_for_api(
     *,
     system: Optional[str] = None,
     temperature: float = 1.0,
+    chars_per_token: float = 3.0,
 ) -> Optional[str]:
     """Generate text for an API publish path (post/comment/reply/title).
 
     Caller specifies only ``max_length`` (the API's char limit). ``num_predict``
-    is derived as ``ceil(max_length/3) + 50`` — 1 token ≈ 3 chars conservative
-    + 50 token margin (yields min 50 tokens at max_length=0).
+    is derived as ``ceil(max_length/chars_per_token) + 50`` (yields min 50
+    tokens at max_length=0).
 
     ADR-0018 amendment (2026-05-04): API caller per-caller ``num_predict``
     calibration is replaced by this single derivation, so callers specify
     one value (``max_length``) instead of two. Internal callers
     (distill/insight/etc) keep their ADR-0018 calibrated values.
+
+    Args:
+        chars_per_token: Output chars-per-token estimate. Default 3.0 is the
+            ASCII-conservative ratio; CJK output runs 1.5-2 chars/tok, so
+            comment/reply/title pass 1.5 — at the /3 default, Japanese
+            output hits num_predict early and is cut mid-sentence
+            (audit M2). The post path keeps 3.0: at max_length=40000, /1.5
+            would derive num_predict≈26.7K and leave only ~6K tokens of
+            input headroom inside NUM_CTX, permanently tripping the C2
+            budget guard with the full system prompt.
+
+    Truncated output (done_reason=length) is dropped, not published —
+    ``drop_truncated=True`` on every API path (audit M2).
     """
-    estimated_num_predict = math.ceil(max_length / 3) + 50
+    if chars_per_token <= 0:
+        raise ValueError(
+            f"chars_per_token must be positive, got {chars_per_token}"
+        )
+    estimated_num_predict = math.ceil(max_length / chars_per_token) + 50
     return generate(
         prompt,
         system=system,
         max_length=max_length,
         num_predict=estimated_num_predict,
         temperature=temperature,
+        drop_truncated=True,
     )
 
 

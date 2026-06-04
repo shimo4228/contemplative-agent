@@ -116,8 +116,13 @@ def generate_comment(post_text: str) -> Optional[str]:
     prompt = COMMENT_PROMPT.format(
         post_content=wrap_untrusted_content(post_text, max_input=8000)
     )
+    # chars_per_token=1.5 (audit M2): CJK output runs 1.5-2 chars/tok; the
+    # /3 default under-budgets num_predict and cuts Japanese mid-sentence.
     return generate_for_api(
-        prompt, max_length=MAX_COMMENT_LENGTH, temperature=COMMENT_TEMPERATURE
+        prompt,
+        max_length=MAX_COMMENT_LENGTH,
+        temperature=COMMENT_TEMPERATURE,
+        chars_per_token=1.5,
     )
 
 
@@ -162,6 +167,11 @@ def generate_cooperation_post(
         feed_seeds=format_feed_seeds(feed_seeds),
         insights_section=insights_section,
     )
+    # Deliberately keeps the chars_per_token=3.0 default (audit M2): at
+    # max_length=40000, the CJK-safe /1.5 would derive num_predict≈26.7K
+    # and leave only ~6K tokens of input headroom inside NUM_CTX — the C2
+    # budget guard would then skip every self-post under the full system
+    # prompt (10-21K tok). /3 ≈ 13.4K tok output is ample for posts.
     return generate_for_api(
         prompt, max_length=MAX_POST_LENGTH, temperature=COMMENT_TEMPERATURE
     )
@@ -184,8 +194,13 @@ def generate_reply(
         original_post=wrap_untrusted_content(original_post, max_input=8000),
         their_comment=wrap_untrusted_content(their_comment, max_input=8000),
     )
+    # chars_per_token=1.5 (audit M2): same CJK output budget as the comment
+    # path — see generate_comment.
     return generate_for_api(
-        prompt, max_length=MAX_COMMENT_LENGTH, temperature=COMMENT_TEMPERATURE
+        prompt,
+        max_length=MAX_COMMENT_LENGTH,
+        temperature=COMMENT_TEMPERATURE,
+        chars_per_token=1.5,
     )
 
 
@@ -200,7 +215,11 @@ def generate_post_title(feed_seed_text: str) -> Optional[str]:
     prompt = _resolve_domain_prompt(POST_TITLE_PROMPT).format(
         feed_seed_text=wrap_untrusted_content(feed_seed_text),
     )
-    result = generate_for_api(prompt, max_length=MAX_POST_TITLE_LENGTH)
+    # chars_per_token=1.5 (audit M2): CJK-safe output budget; at
+    # max_length=300 the cost is 250 vs 150 tokens — negligible.
+    result = generate_for_api(
+        prompt, max_length=MAX_POST_TITLE_LENGTH, chars_per_token=1.5
+    )
     if result:
         # Strip surrounding whitespace and quotes the LLM may add. Length is
         # already bounded by max_length=MAX_POST_TITLE_LENGTH (300 chars per
