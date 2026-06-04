@@ -255,7 +255,11 @@ class FeedManager:
                         post_id[:12], score,
                     )
             else:
-                logger.debug(
+                # INFO so skipped scores land in production logs: the relevance
+                # threshold retune (audit fix #2 follow-up) needs the FULL score
+                # distribution, not just the passing tail — debug was discarded
+                # at the production INFO level (censored-distribution trap).
+                logger.info(
                     "Post %s relevance %.2f below threshold %.2f",
                     post_id[:12], score, threshold,
                 )
