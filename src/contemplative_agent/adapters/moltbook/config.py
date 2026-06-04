@@ -22,6 +22,8 @@ DEFAULT_MOLTBOOK_HOME = Path.home() / ".config" / "moltbook"
 MOLTBOOK_DATA_DIR = Path(os.environ.get("MOLTBOOK_HOME", str(DEFAULT_MOLTBOOK_HOME)))
 CREDENTIALS_PATH = MOLTBOOK_DATA_DIR / "credentials.json"
 RATE_STATE_PATH = MOLTBOOK_DATA_DIR / "rate_state.json"
+# Process lock serialising the scheduled run/distill entry points (audit M5).
+RUN_LOCK_PATH = MOLTBOOK_DATA_DIR / ".run.lock"
 EPISODE_LOG_DIR = MOLTBOOK_DATA_DIR / "logs"
 
 COMMENTED_CACHE_PATH = MOLTBOOK_DATA_DIR / "commented_cache.json"

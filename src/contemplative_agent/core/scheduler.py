@@ -94,6 +94,10 @@ class Scheduler:
         return elapsed >= self._limits.post_interval_seconds
 
     def can_comment(self) -> bool:
+        # Re-read from disk to detect comments by other sessions (audit M5;
+        # symmetric with can_post). Load before the daily-reset check so the
+        # reset decision sees the latest persisted day_start/comments_today.
+        self._load_state()
         self._reset_daily_if_needed()
         now = time.time()
         elapsed = now - self._last_comment_time
@@ -131,6 +135,8 @@ class Scheduler:
 
     @property
     def comments_remaining_today(self) -> int:
+        # Same cross-session re-read as can_comment/can_post (audit M5).
+        self._load_state()
         self._reset_daily_if_needed()
         return max(0, self._limits.comments_per_day - self._comments_today)
 

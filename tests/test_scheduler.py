@@ -84,3 +84,33 @@ class TestScheduler:
         # New scheduler reads persisted state
         sched2 = Scheduler(state_path=state_path)
         assert not sched2.can_post()
+
+
+class TestCrossSessionCommentState:
+    """Audit M5: can_comment re-reads disk state (symmetric with can_post)
+    so a concurrent session's comments cannot double-spend the interval or
+    the daily cap."""
+
+    def test_can_comment_sees_other_sessions_comment(self, tmp_path):
+        state_path = tmp_path / "rate_state.json"
+        observer = Scheduler(state_path=state_path)
+        assert observer.can_comment()
+
+        # Another session records a comment to the shared state file.
+        other = Scheduler(state_path=state_path)
+        other.record_comment()
+
+        # The observer must see it on the next check (interval not elapsed).
+        assert not observer.can_comment()
+
+    def test_can_comment_sees_other_sessions_daily_count(self, tmp_path):
+        state_path = tmp_path / "rate_state.json"
+        observer = Scheduler(state_path=state_path)
+
+        other = Scheduler(state_path=state_path)
+        other._comments_today = other._limits.comments_per_day  # at cap
+        other._day_start = time.time()
+        other._last_comment_time = 0.0  # interval would pass
+        other._save_state()
+
+        assert not observer.can_comment()

@@ -31,12 +31,13 @@ from .adapters.moltbook.config import (
     PROMPTS_DIR,
     REPORTS_DIR,
     RULES_DIR,
+    RUN_LOCK_PATH,
     SKILLS_DIR,
     SNAPSHOTS_DIR,
     STAGED_DIR,
     VIEWS_DIR,
 )
-from .core._io import append_jsonl_restricted, now_iso
+from .core._io import acquire_run_lock, append_jsonl_restricted, now_iso
 from .core.domain import (
     DEFAULT_CONFIG_DIR,
     DomainConfig,
@@ -1125,21 +1126,29 @@ def _handle_distill(args: argparse.Namespace, parser: argparse.ArgumentParser) -
                 parser.error(f"File not found: {f}")
             if f.suffix != ".jsonl":
                 parser.error(f"Not a JSONL file: {f}")
-    episode_log = EpisodeLog(log_dir=log_dir)
-    knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
-    view_registry = _load_view_registry(args)
-    knowledge_store.load()
-    _take_snapshot(args, "distill", view_registry)
-    result = distill(
-        days=args.days,
-        dry_run=args.dry_run,
-        episode_log=episode_log,
-        knowledge_store=knowledge_store,
-        log_files=log_files,
-        view_registry=view_registry,
-        log_dir=log_dir,
-    )
-    print(result)
+    # Blocking lock (audit M5): wait for an active run session to finish
+    # rather than skip — a skipped daily distill loses its --days window
+    # (the next scheduled run reads a later window). Manual commands
+    # (meditate / dialogue / insight) are deliberately NOT lock-gated:
+    # they are operator-driven and making them queue behind a scheduled
+    # session would be surprising.
+    logger.info("Acquiring run lock (waits if a session is active)")
+    with acquire_run_lock(RUN_LOCK_PATH, blocking=True):
+        episode_log = EpisodeLog(log_dir=log_dir)
+        knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
+        view_registry = _load_view_registry(args)
+        knowledge_store.load()
+        _take_snapshot(args, "distill", view_registry)
+        result = distill(
+            days=args.days,
+            dry_run=args.dry_run,
+            episode_log=episode_log,
+            knowledge_store=knowledge_store,
+            log_files=log_files,
+            view_registry=view_registry,
+            log_dir=log_dir,
+        )
+        print(result)
 
 
 def _resolve_views_dir() -> Path:
@@ -1548,7 +1557,19 @@ def _handle_agent_command(
             "domain": dc.name,
             "ollama_model": os.environ.get("OLLAMA_MODEL", "qwen3.5:9b"),
         }
-        agent.run_session(duration_minutes=args.session, session_meta=session_meta)
+        # Non-blocking lock (audit M5): a second concurrent session would
+        # double-spend rate budgets and race knowledge.json — fail fast
+        # with a clear message instead of queueing behind it.
+        with acquire_run_lock(RUN_LOCK_PATH, blocking=False) as acquired:
+            if not acquired:
+                print(
+                    "Another run/distill process holds the run lock "
+                    f"({RUN_LOCK_PATH}); exiting."
+                )
+                return
+            agent.run_session(
+                duration_minutes=args.session, session_meta=session_meta
+            )
     elif args.command == "solve":
         agent.do_solve(args.text)
 

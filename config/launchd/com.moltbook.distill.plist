@@ -28,8 +28,10 @@
 	<dict>
 		<key>Hour</key>
 		<integer>{{DISTILL_HOUR}}</integer>
+		<!-- :30 offset (audit M5): the agent plist fires at HH:00; the
+		     offset keeps the two scheduled jobs out of the same minute. -->
 		<key>Minute</key>
-		<integer>0</integer>
+		<integer>30</integer>
 	</dict>
 
 	<key>StandardOutPath</key>

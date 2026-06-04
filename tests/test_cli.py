@@ -262,6 +262,9 @@ class TestInstallDistillSchedule:
         content = plist_path.read_text()
         assert "distill" in content
         assert "<integer>3</integer>" in content
+        # Audit M5: distill fires at :30, offset from the agent plist's
+        # HH:00, so the two scheduled jobs never start in the same minute.
+        assert "<integer>30</integer>" in content
         # Verify all placeholders were replaced
         for placeholder in ("{{VENV_BIN}}", "{{PROJECT_ROOT}}", "{{DISTILL_HOUR}}", "{{LOG_PATH}}"):
             assert placeholder not in content

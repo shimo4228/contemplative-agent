@@ -6,12 +6,14 @@ and text truncation helpers used across core / adapters.
 
 from __future__ import annotations
 
+import fcntl
 import json
 import logging
 import os
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict
+from typing import Any, Dict, Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -64,6 +66,34 @@ def append_jsonl_restricted(path: Path, record: Dict[str, Any]) -> None:
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
     finally:
         os.umask(old_umask)
+
+
+@contextmanager
+def acquire_run_lock(lock_path: Path, *, blocking: bool) -> Iterator[bool]:
+    """``fcntl.flock``-based process lock (audit M5).
+
+    Serialises the scheduled entry points (run / distill) that all mutate
+    ``knowledge.json`` and ``rate_state.json`` — without it, concurrent
+    launchd jobs are later-writer-wins. Yields True while the lock is
+    held; in non-blocking mode yields False instead of waiting when
+    another process holds it. The kernel releases the lock on process
+    death, so there is no stale-lock cleanup.
+    """
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    fd = os.open(str(lock_path), os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        flags = fcntl.LOCK_EX if blocking else fcntl.LOCK_EX | fcntl.LOCK_NB
+        try:
+            fcntl.flock(fd, flags)
+        except OSError:
+            yield False
+            return
+        try:
+            yield True
+        finally:
+            fcntl.flock(fd, fcntl.LOCK_UN)
+    finally:
+        os.close(fd)
 
 
 def now_iso(timespec: str = "minutes") -> str:
