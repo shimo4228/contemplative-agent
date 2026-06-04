@@ -270,10 +270,9 @@ class ReplyHandler:
 
         scheduler.wait_for_comment()
         try:
-            client.post(
-                f"/posts/{post_id}/comments",
-                json={"content": reply},
-            )
+            # post_comment verifies the response envelope (audit H2): a
+            # body-level failure raises and never reaches the records below.
+            client.post_comment(post_id, reply)
             scheduler.record_comment()
             ctx.commented_posts.add(reply_key)
             # Persist cross-session so a later session does not re-reply to the

@@ -310,10 +310,9 @@ class FeedManager:
 
         scheduler.wait_for_comment()
         try:
-            client.post(
-                f"/posts/{post_id}/comments",
-                json={"content": comment},
-            )
+            # post_comment verifies the response envelope (audit H2): a
+            # body-level failure raises and never reaches the records below.
+            client.post_comment(post_id, comment)
             scheduler.record_comment()
             ctx.commented_posts.add(post_id)
             ctx.memory.record_commented(post_id)

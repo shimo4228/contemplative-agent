@@ -1,5 +1,6 @@
 """Tests for the Moltbook HTTP client."""
 
+import logging
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -190,6 +191,111 @@ class TestGetPost:
         mock_response.headers = {}
         with patch.object(client._session, "request", return_value=mock_response):
             assert client.get_post("p1") is None
+
+
+class TestPostComment:
+    """Audit H2: HTTP 2xx alone is not success for comment creation —
+    post_comment verifies the response envelope. Explicit success:false
+    raises (caller treats it like an HTTP failure → no dedup/episode
+    record, stays retryable). Ambiguous bodies (non-JSON, missing keys)
+    are success-with-WARNING: a false negative would retry and post a
+    duplicate externally, worse than a stale dedup entry."""
+
+    @staticmethod
+    def _resp(payload, status=200):
+        mock_response = MagicMock()
+        mock_response.status_code = status
+        mock_response.headers = {}
+        if isinstance(payload, Exception):
+            mock_response.json.side_effect = payload
+        else:
+            mock_response.json.return_value = payload
+        return mock_response
+
+    def test_success_envelope_returns_comment_dict(self):
+        client = MoltbookClient(api_key="test-key")
+        resp = self._resp({"success": True, "comment": {"id": "c1"}})
+        with patch.object(client._session, "request", return_value=resp) as req:
+            result = client.post_comment("p1", "hello")
+        assert result == {"id": "c1"}
+        assert req.call_args.kwargs["json"] == {"content": "hello"}
+
+    def test_body_level_failure_raises(self):
+        client = MoltbookClient(api_key="test-key")
+        resp = self._resp({"success": False, "error": "invalid content"})
+        with patch.object(client._session, "request", return_value=resp):
+            with pytest.raises(MoltbookClientError, match="body level"):
+                client.post_comment("p1", "hello")
+
+    def test_missing_success_key_treated_as_success(self):
+        client = MoltbookClient(api_key="test-key")
+        resp = self._resp({"comment": {"id": "c1"}})
+        with patch.object(client._session, "request", return_value=resp):
+            assert client.post_comment("p1", "hello") == {"id": "c1"}
+
+    def test_non_json_body_warns_and_returns_empty(self, caplog):
+        client = MoltbookClient(api_key="test-key")
+        resp = self._resp(ValueError("not json"))
+        with patch.object(client._session, "request", return_value=resp):
+            with caplog.at_level(
+                logging.WARNING,
+                logger="contemplative_agent.adapters.moltbook.client",
+            ):
+                result = client.post_comment("p1", "hello")
+        assert result == {}
+        assert "not JSON" in caplog.text
+
+    def test_missing_id_warns_but_succeeds(self, caplog):
+        client = MoltbookClient(api_key="test-key")
+        resp = self._resp({"success": True})
+        with patch.object(client._session, "request", return_value=resp):
+            with caplog.at_level(
+                logging.WARNING,
+                logger="contemplative_agent.adapters.moltbook.client",
+            ):
+                result = client.post_comment("p1", "hello")
+        assert result == {}
+        assert "missing id" in caplog.text
+
+    def test_top_level_id_folded_in_no_warning(self, caplog):
+        """A bare top-level id (post-path fallback shape) is folded into
+        the returned dict so the contract holds for this envelope too."""
+        client = MoltbookClient(api_key="test-key")
+        resp = self._resp({"id": "c1"})
+        with patch.object(client._session, "request", return_value=resp):
+            with caplog.at_level(
+                logging.WARNING,
+                logger="contemplative_agent.adapters.moltbook.client",
+            ):
+                result = client.post_comment("p1", "hello")
+        assert result == {"id": "c1"}
+        assert "missing id" not in caplog.text
+
+    def test_error_message_strips_newlines(self):
+        """Log-injection guard: a hostile server cannot forge log lines via
+        \\n in the error field (single-line, unlike the HTTP body path)."""
+        client = MoltbookClient(api_key="test-key")
+        resp = self._resp(
+            {"success": False, "error": "bad\n[FAKE] forged log line"}
+        )
+        with patch.object(client._session, "request", return_value=resp):
+            with pytest.raises(MoltbookClientError) as exc_info:
+                client.post_comment("p1", "hello")
+        assert "\n" not in str(exc_info.value)
+        assert "forged log line" in str(exc_info.value)
+
+    def test_invalid_post_id_raises(self):
+        client = MoltbookClient(api_key="test-key")
+        with pytest.raises(MoltbookClientError, match="Invalid post_id"):
+            client.post_comment("../etc/passwd", "hello")
+
+    def test_http_error_still_raises(self):
+        client = MoltbookClient(api_key="test-key")
+        resp = self._resp({}, status=500)
+        resp.text = "Internal Server Error"
+        with patch.object(client._session, "request", return_value=resp):
+            with pytest.raises(MoltbookClientError, match="API error 500"):
+                client.post_comment("p1", "hello")
 
 
 class TestDeleteMethod:

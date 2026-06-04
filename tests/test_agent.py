@@ -8,6 +8,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from contemplative_agent.adapters.moltbook.client import (
+    MoltbookClientError,
+)
 from contemplative_agent.adapters.moltbook.agent import Agent, AutonomyLevel
 from contemplative_agent.adapters.moltbook.reply_handler import (
     extract_agent_fields,
@@ -345,8 +348,6 @@ class TestFetchFeed:
         assert any("/submolts/" in str(c) and "/feed" in str(c) for c in calls)
 
     def test_fetch_error(self):
-        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
-
         agent = Agent()
         mock_client = MagicMock()
         mock_client.get.side_effect = MoltbookClientError("fail")
@@ -405,8 +406,6 @@ class TestHandleVerification:
     @patch("contemplative_agent.adapters.moltbook.agent.submit_verification")
     @patch("contemplative_agent.adapters.moltbook.agent.solve_challenge", return_value="answer")
     def test_submit_client_error(self, mock_solve, mock_submit):
-        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
-
         mock_submit.side_effect = MoltbookClientError("fail")
         agent = Agent()
         agent._client = MagicMock()
@@ -465,26 +464,48 @@ class TestEngageWithPost:
         mock_random.uniform.return_value = 60.0
         agent = self._make_agent(tmp_path)
         agent._content.create_comment.return_value = "Great insight"
-        resp_mock = MagicMock()
-        agent._client.post.return_value = resp_mock
+        agent._client.post_comment.return_value = {"id": "c-new"}
 
         result = agent._engage_with_post({"content": "text", "id": "post1"})
         assert result is True
-        agent._client.post.assert_called_once_with(
-            "/posts/post1/comments", json={"content": "Great insight"}
+        agent._client.post_comment.assert_called_once_with(
+            "post1", "Great insight"
         )
         assert len(agent._ctx.actions_taken) == 1
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_comment_client_error(self, mock_score, tmp_path):
-        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
-
         agent = self._make_agent(tmp_path)
         agent._content.create_comment.return_value = "Great insight"
-        agent._client.post.side_effect = MoltbookClientError("fail")
+        agent._client.post_comment.side_effect = MoltbookClientError("fail")
 
         result = agent._engage_with_post({"content": "text", "id": "post1"})
         assert result is False
+
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
+    def test_body_level_failure_not_recorded(self, mock_score, tmp_path):
+        """Audit H2: a body-level failure (200 + success:false → raise from
+        post_comment) must not pollute the permanent dedup cache or the
+        episode log — the post stays retryable in a later session."""
+        agent = self._make_agent(tmp_path)
+        agent._content.create_comment.return_value = "Great insight"
+        agent._client.post_comment.side_effect = MoltbookClientError(
+            "Comment on post1 failed at body level (HTTP 200): nope",
+            status_code=200,
+        )
+
+        result = agent._engage_with_post({"content": "text", "id": "post1"})
+        assert result is False
+        assert not agent._ctx.memory.has_commented_on("post1")
+        assert agent._ctx.actions_taken == []
+        comment_eps = [
+            r
+            for r in agent._ctx.memory.episodes.read_range(
+                days=1, record_type="activity"
+            )
+            if r.get("data", {}).get("action") == "comment"
+        ]
+        assert comment_eps == []
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
     @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
@@ -500,7 +521,7 @@ class TestEngageWithPost:
         mock_random.uniform.return_value = 60.0
         agent = self._make_agent(tmp_path)
         agent._content.create_comment.return_value = "Great insight"
-        agent._client.post.return_value = MagicMock()
+        agent._client.post_comment.return_value = {"id": "c-new"}
 
         agent._engage_with_post({"content": "text", "id": "post1"})
 
@@ -535,7 +556,7 @@ class TestEngageWithPost:
         agent._client.has_read_budget.return_value = True
         agent._client.get_post.return_value = {"id": "post1", "content": full}
         agent._content.create_comment.return_value = "Great insight"
-        agent._client.post.return_value = MagicMock()
+        agent._client.post_comment.return_value = {"id": "c-new"}
 
         agent._engage_with_post({"content": preview, "id": "post1"})
 
@@ -564,7 +585,7 @@ class TestEngageWithPost:
         full = "y" * 1200  # > FEED_CONTENT_PREVIEW_LEN
         agent = self._make_agent(tmp_path)
         agent._content.create_comment.return_value = "Great insight"
-        agent._client.post.return_value = MagicMock()
+        agent._client.post_comment.return_value = {"id": "c-new"}
 
         agent._engage_with_post({"content": full, "id": "post1"})
 
@@ -588,7 +609,7 @@ class TestEngageWithPost:
         agent = self._make_agent(tmp_path)
         agent._client.has_read_budget.return_value = False
         agent._content.create_comment.return_value = "Great insight"
-        agent._client.post.return_value = MagicMock()
+        agent._client.post_comment.return_value = {"id": "c-new"}
 
         agent._engage_with_post({"content": preview, "id": "post1"})
 
@@ -619,7 +640,7 @@ class TestEngageWithPost:
         agent._client.has_read_budget.return_value = True
         agent._client.get_post.return_value = {"id": "post1", "content": "y" * 500}
         agent._content.create_comment.return_value = "Great insight"
-        agent._client.post.return_value = MagicMock()
+        agent._client.post_comment.return_value = {"id": "c-new"}
 
         agent._engage_with_post({"content": preview, "id": "post1"})
 
@@ -880,8 +901,6 @@ class TestRunPostCycle:
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
     def test_post_client_error(self, mock_score, mock_title):
-        from contemplative_agent.adapters.moltbook.client import MoltbookClientError
-
         agent = Agent(autonomy=AutonomyLevel.AUTO)
         agent._client = MagicMock()
         agent._scheduler = MagicMock()
@@ -1183,8 +1202,8 @@ class TestRunReplyCycle:
 
         agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
-        agent._client.post.assert_called_once_with(
-            "/posts/p1/comments", json={"content": "My reply"}
+        agent._client.post_comment.assert_called_once_with(
+            "p1", "My reply"
         )
         assert "Replied to Alice on p1" in agent._ctx.actions_taken
         # Both received + sent should be recorded
@@ -1207,8 +1226,8 @@ class TestRunReplyCycle:
 
         agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
-        agent._client.post.assert_called_once_with(
-            "/posts/p2/comments", json={"content": "My reply"}
+        agent._client.post_comment.assert_called_once_with(
+            "p2", "My reply"
         )
         assert "Replied to Bob on p2" in agent._ctx.actions_taken
 
@@ -1221,7 +1240,7 @@ class TestRunReplyCycle:
 
         agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
-        agent._client.post.assert_not_called()
+        agent._client.post_comment.assert_not_called()
 
     def test_skips_empty_content(self, tmp_path):
         agent = self._make_agent(tmp_path)
@@ -1239,7 +1258,7 @@ class TestRunReplyCycle:
 
         agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
-        agent._client.post.assert_not_called()
+        agent._client.post_comment.assert_not_called()
 
     def test_skips_already_handled(self, tmp_path):
         agent = self._make_agent(tmp_path)
@@ -1258,7 +1277,7 @@ class TestRunReplyCycle:
 
         agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
-        agent._client.post.assert_not_called()
+        agent._client.post_comment.assert_not_called()
 
     @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="My reply")
     def test_skips_when_replied_persisted_cross_session(self, mock_reply, tmp_path):
@@ -1283,7 +1302,7 @@ class TestRunReplyCycle:
 
         agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
-        agent._client.post.assert_not_called()
+        agent._client.post_comment.assert_not_called()
 
     @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="My reply")
     def test_records_reply_persistently(self, mock_reply, tmp_path):
@@ -1329,8 +1348,8 @@ class TestRunReplyCycle:
 
         agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
-        agent._client.post.assert_called_once_with(
-            "/posts/p1/comments", json={"content": "My reply"}
+        agent._client.post_comment.assert_called_once_with(
+            "p1", "My reply"
         )
         agent._client.upvote_comment.assert_not_called()
 
@@ -1351,7 +1370,7 @@ class TestRunReplyCycle:
 
         agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
-        agent._client.post.assert_not_called()
+        agent._client.post_comment.assert_not_called()
 
     def test_skips_promotional_original_post(self, tmp_path):
         agent = self._make_agent(tmp_path)
@@ -1370,7 +1389,7 @@ class TestRunReplyCycle:
 
         agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
-        agent._client.post.assert_not_called()
+        agent._client.post_comment.assert_not_called()
 
 
 class TestCheckOwnPostComments:
@@ -1402,8 +1421,8 @@ class TestCheckOwnPostComments:
             agent._client, agent._scheduler, time.time() + 3600
         )
 
-        agent._client.post.assert_called_once_with(
-            "/posts/my-post-1/comments", json={"content": "Thanks!"}
+        agent._client.post_comment.assert_called_once_with(
+            "my-post-1", "Thanks!"
         )
         assert "Replied to Alice on my-post-1" in agent._ctx.actions_taken
         assert agent._memory.interaction_count() - before_count == 2  # received + sent
@@ -1435,7 +1454,7 @@ class TestCheckOwnPostComments:
             agent._client, agent._scheduler, time.time() + 3600
         )
 
-        agent._client.post.assert_not_called()
+        agent._client.post_comment.assert_not_called()
 
     @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="Thanks!")
     def test_skips_replied_comment_persisted_cross_session(self, mock_reply, tmp_path):
@@ -1459,7 +1478,7 @@ class TestCheckOwnPostComments:
             agent._client, agent._scheduler, time.time() + 3600
         )
 
-        agent._client.post.assert_not_called()
+        agent._client.post_comment.assert_not_called()
 
     @patch("contemplative_agent.adapters.moltbook.reply_handler.generate_reply", return_value="Thanks!")
     def test_comment_scan_upvotes_real_comment_id(self, mock_reply, tmp_path):
@@ -1498,7 +1517,7 @@ class TestCheckOwnPostComments:
             agent._client, agent._scheduler, time.time() + 3600
         )
 
-        agent._client.post.assert_called_once()
+        agent._client.post_comment.assert_called_once()
         assert "Replied to Bob on my-post-1" in agent._ctx.actions_taken
 
     def test_respects_end_time(self, tmp_path):
@@ -1598,7 +1617,7 @@ class TestSelectiveMode:
 
         result = agent._engage_with_post({"content": "text", "id": "post1"})
         assert result is False
-        agent._client.post.assert_not_called()
+        agent._client.post_comment.assert_not_called()
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     @patch("contemplative_agent.adapters.moltbook.feed_manager.random")

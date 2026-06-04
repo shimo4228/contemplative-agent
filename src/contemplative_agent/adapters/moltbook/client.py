@@ -308,6 +308,78 @@ class MoltbookClient:
             logger.warning("Failed to fetch post %s: %s", post_id[:12], exc)
             return None
 
+    def post_comment(self, post_id: str, content: str) -> dict[str, Any]:
+        """POST /posts/{post_id}/comments — create a comment, verify the body.
+
+        HTTP 2xx alone is not success: Moltbook wraps created resources in a
+        ``{"success", "comment": {...}}`` envelope (same shape as the post
+        path, see post_pipeline envelope handling). An explicit
+        ``success: false`` raises ``MoltbookClientError`` so callers treat
+        it like an HTTP failure — no dedup/episode record, the post stays
+        retryable (audit H2: a 200 + body-level failure previously polluted
+        the permanent dedup cache and episode log, never to be retried).
+
+        Ambiguous bodies (non-JSON, missing ``success`` key, missing id)
+        are treated as success with a WARNING: the comment may well have
+        been created, and a false negative would retry and post a duplicate
+        externally — worse than a stale dedup entry.
+
+        Returns the created comment dict ({} when the envelope is
+        ambiguous; a bare top-level ``id`` is folded into the dict). The
+        dict is raw untrusted external data — callers must pass any string
+        field through ``wrap_untrusted_content`` before LLM-bound use.
+        """
+        if not VALID_ID_PATTERN.match(post_id):
+            raise MoltbookClientError(
+                f"Invalid post_id for comment: {post_id[:50]}"
+            )
+        resp = self.post(f"/posts/{post_id}/comments", json={"content": content})
+        try:
+            data = resp.json()
+        except ValueError:
+            logger.warning(
+                "Comment response for %s is not JSON (HTTP %d); assuming "
+                "success to avoid a duplicate-posting retry",
+                post_id[:12],
+                resp.status_code,
+            )
+            return {}
+        if not isinstance(data, dict):
+            logger.warning(
+                "Comment response for %s is not an object (%s); assuming "
+                "success to avoid a duplicate-posting retry",
+                post_id[:12],
+                type(data).__name__,
+            )
+            return {}
+        if "success" in data and not data["success"]:
+            # Unlike the multi-line HTTP body at the status>=400 path, the
+            # error field is single-line — strip \n too so a hostile server
+            # cannot forge log lines in agent-launchd.log (log injection).
+            safe_error = re.sub(
+                r"[^\x20-\x7E]", "", str(data.get("error", ""))[:200]
+            )
+            raise MoltbookClientError(
+                f"Comment on {post_id[:12]} failed at body level "
+                f"(HTTP {resp.status_code}): {safe_error}",
+                status_code=resp.status_code,
+            )
+        comment = data.get("comment")
+        if not isinstance(comment, dict):
+            comment = {}
+        if not comment.get("id") and data.get("id"):
+            # Bare top-level id (same defensive fallback as the post path,
+            # post_pipeline envelope handling) — fold it in so the contract
+            # "returns the created comment dict" holds for this shape too.
+            comment = {**comment, "id": data["id"]}
+        if not comment.get("id"):
+            logger.warning(
+                "Comment response for %s missing id (envelope keys=%s)",
+                post_id[:12],
+                sorted(data.keys()),
+            )
+        return comment
+
     # ------------------------------------------------------------------
     # Home dashboard
     # ------------------------------------------------------------------
