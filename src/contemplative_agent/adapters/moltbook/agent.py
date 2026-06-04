@@ -104,10 +104,12 @@ class Agent:
             domain=self._domain,
             get_content=lambda: self._content,
             confirm_action=self._confirm_action,
+            confirm_side_effect=self._confirm_side_effect,
         )
         self._reply_handler = ReplyHandler(
             ctx=self._ctx,
             confirm_action=self._confirm_action,
+            confirm_side_effect=self._confirm_side_effect,
         )
         self._novelty_gate = NoveltyGate(
             embed_store=EpisodeEmbeddingStore(EPISODE_EMBEDDINGS_PATH),
@@ -170,7 +172,14 @@ class Agent:
 
     def _ensure_subscriptions(self, client: MoltbookClient) -> None:
         """Subscribe to all configured submolts (idempotent)."""
-        results = [client.subscribe_submolt(name) for name in self._domain.subscribed_submolts]
+        names = [
+            name
+            for name in self._domain.subscribed_submolts
+            if self._confirm_side_effect(f"Subscribe to submolt {name}")
+        ]
+        if not names:
+            return
+        results = [client.subscribe_submolt(name) for name in names]
         if not any(results):
             logger.warning("All submolt subscription attempts failed")
 
@@ -288,13 +297,42 @@ class Agent:
                 return False
             return True
 
-        # APPROVE mode: interactive confirmation
-        print(f"\n--- {description} ---")
+        # APPROVE mode: interactive confirmation. The description embeds
+        # external data (post ids, agent names) — strip ANSI so a malicious
+        # account name cannot inject terminal escapes into the prompt.
+        print(f"\n--- {_ANSI_ESCAPE.sub('', description)} ---")
         print(_ANSI_ESCAPE.sub("", content[:500]))
         if len(content) > 500:
             print(f"... ({len(content)} chars total)")
         print("---")
-        response = input("Post this? [y/N]: ").strip().lower()
+        try:
+            response = input("Post this? [y/N]: ").strip().lower()
+        except EOFError:
+            # Non-TTY stdin: reject rather than crash the session.
+            return False
+        return response == "y"
+
+    def _confirm_side_effect(self, description: str) -> bool:
+        """Confirm a contentless external side effect (audit H1).
+
+        The approval gate was keyed on "produces text" (comment / reply /
+        post), not "produces an external side effect": upvote / follow /
+        unfollow / subscribe / mark-read bypassed APPROVE entirely.
+        APPROVE now confirms every external write. GUARDED deliberately
+        default-allows contentless actions — its content filter has
+        nothing to inspect, preserving pre-fix behavior. AUTO passes
+        everything through.
+        """
+        if self._autonomy is not AutonomyLevel.APPROVE:
+            return True
+        # Strip ANSI: description embeds external data (agent names from
+        # API responses) — block terminal escape injection into the prompt.
+        print(f"\n--- {_ANSI_ESCAPE.sub('', description)} ---")
+        try:
+            response = input("Proceed? [y/N]: ").strip().lower()
+        except EOFError:
+            # Non-TTY stdin: reject rather than act unsupervised.
+            return False
         return response == "y"
 
     # ------------------------------------------------------------------
@@ -357,6 +395,10 @@ class Agent:
 
         client = self._ensure_client()
         try:
+            # Deliberately NOT routed through _confirm_side_effect (audit
+            # H1): verification is a platform anti-bot handshake required
+            # for the session to function, not a social action — rejecting
+            # it would brick the session rather than supervise it.
             result = submit_verification(client, challenge_id, answer)
             if result.get("success"):
                 self._verification.record_success()
@@ -415,6 +457,8 @@ class Agent:
         for name in to_unfollow:
             if unfollowed >= MAX_CHANGES_PER_SESSION:
                 break
+            if not self._confirm_side_effect(f"Unfollow agent {name}"):
+                continue
             if client.unfollow_agent(name):
                 self._memory.record_unfollow(name)
                 self._ctx.actions_taken.append(f"Unfollowed {name}")
@@ -429,6 +473,8 @@ class Agent:
             if followed >= MAX_CHANGES_PER_SESSION:
                 break
             if name in currently_followed:
+                continue
+            if not self._confirm_side_effect(f"Follow agent {name}"):
                 continue
             if client.follow_agent(name):
                 self._memory.record_follow(name)

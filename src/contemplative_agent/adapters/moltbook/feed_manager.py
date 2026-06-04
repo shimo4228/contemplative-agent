@@ -42,11 +42,13 @@ class FeedManager:
         domain: DomainConfig,
         get_content: Callable[[], ContentManager],
         confirm_action: Callable[[str, str], bool],
+        confirm_side_effect: Callable[[str], bool],
     ) -> None:
         self._ctx = ctx
         self._domain = domain
         self._get_content = get_content
         self._confirm_action = confirm_action
+        self._confirm_side_effect = confirm_side_effect
         self._upvoted_posts: Set[str] = set()
         self._cached_feed: List[dict] = []
         self._feed_fetched_at: float = 0.0
@@ -243,6 +245,7 @@ class FeedManager:
                 score >= ADAPTIVE_BACKOFF.upvote_only_threshold
                 and post_id not in self._upvoted_posts
                 and client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve)
+                and self._confirm_side_effect(f"Upvote post {post_id}")
             ):
                 if client.upvote_post(post_id):
                     self._upvoted_posts.add(post_id)
@@ -275,6 +278,7 @@ class FeedManager:
         if (
             post_id not in self._upvoted_posts
             and client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve)
+            and self._confirm_side_effect(f"Upvote post {post_id}")
         ):
             if client.upvote_post(post_id):
                 self._upvoted_posts.add(post_id)

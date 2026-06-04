@@ -35,8 +35,10 @@ class TestAutoFollow:
         top_agents: list of (id, name) in rank order, highest first.
         The stubbed get_top_interacted_agents honors exclude_ids and limit
         exactly like the real implementation, so passing own_id is verified.
+        AUTO: follow/unfollow now route through the side-effect gate
+        (audit H1) and the default APPROVE would prompt interactively.
         """
-        agent = Agent()
+        agent = Agent(autonomy=AutonomyLevel.AUTO)
         mem = _make_clean_memory(tmp_path)
         for name in followed:
             mem.record_follow(name)
@@ -284,6 +286,177 @@ class TestConfirmAction:
         agent._confirm_action("test", long_content)
         captured = capsys.readouterr()
         assert "600 chars total" in captured.out
+
+
+class TestConfirmSideEffect:
+    """Audit H1: contentless external side effects (upvote / follow /
+    unfollow / subscribe / mark-read) route through _confirm_side_effect.
+    APPROVE confirms every external write; GUARDED deliberately
+    default-allows (its content filter has nothing to inspect — pre-fix
+    behavior preserved); AUTO passes everything through."""
+
+    def test_auto_allows(self):
+        agent = Agent(autonomy=AutonomyLevel.AUTO)
+        assert agent._confirm_side_effect("Upvote post p1") is True
+
+    def test_guarded_default_allows(self):
+        agent = Agent(autonomy=AutonomyLevel.GUARDED)
+        assert agent._confirm_side_effect("Upvote post p1") is True
+
+    @patch("builtins.input", return_value="y")
+    def test_approve_yes(self, mock_input):
+        agent = Agent(autonomy=AutonomyLevel.APPROVE)
+        assert agent._confirm_side_effect("Follow agent Alice") is True
+        mock_input.assert_called_once()
+
+    @patch("builtins.input", return_value="n")
+    def test_approve_no(self, mock_input):
+        agent = Agent(autonomy=AutonomyLevel.APPROVE)
+        assert agent._confirm_side_effect("Follow agent Alice") is False
+
+    @patch("builtins.input", return_value="")
+    def test_approve_empty_is_no(self, mock_input):
+        agent = Agent(autonomy=AutonomyLevel.APPROVE)
+        assert agent._confirm_side_effect("Follow agent Alice") is False
+
+    @patch("builtins.input", side_effect=EOFError)
+    def test_approve_non_tty_rejects(self, mock_input):
+        agent = Agent(autonomy=AutonomyLevel.APPROVE)
+        assert agent._confirm_side_effect("Follow agent Alice") is False
+
+
+class TestSideEffectGateWiring:
+    """Audit H1: all six contentless call sites route through the gate —
+    rejection blocks the client call entirely."""
+
+    @patch("builtins.input", return_value="n")
+    @patch(
+        "contemplative_agent.adapters.moltbook.feed_manager.score_relevance",
+        return_value=0.95,
+    )
+    def test_feed_upvote_rejected(self, mock_score, mock_input, tmp_path):
+        agent = Agent(
+            autonomy=AutonomyLevel.APPROVE, memory=_make_clean_memory(tmp_path)
+        )
+        agent._client = MagicMock()
+        # Explicit True: the gate sits after has_write_budget in the
+        # and-chain; don't rely on MagicMock truthiness to reach it.
+        agent._client.has_write_budget.return_value = True
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_comment.return_value = True
+        agent._content = MagicMock()
+        agent._content.create_comment.return_value = "Great"
+
+        agent._engage_with_post({"content": "text", "id": "post1"})
+        agent._client.upvote_post.assert_not_called()
+
+    @patch("builtins.input", return_value="n")
+    def test_follow_rejected(self, mock_input, tmp_path):
+        mem = _make_clean_memory(tmp_path)
+        mem.get_top_interacted_agents = (  # type: ignore[method-assign]
+            lambda limit=20, exclude_ids=None: [("a1", "Alice")]
+        )
+        agent = Agent(autonomy=AutonomyLevel.APPROVE, memory=mem)
+        client = MagicMock()
+
+        agent._auto_follow(client)
+        client.follow_agent.assert_not_called()
+
+    @patch("builtins.input", return_value="n")
+    def test_unfollow_rejected(self, mock_input, tmp_path):
+        mem = _make_clean_memory(tmp_path)
+        mem.record_follow("Bob")
+        mem.get_top_interacted_agents = (  # type: ignore[method-assign]
+            lambda limit=20, exclude_ids=None: []
+        )
+        agent = Agent(autonomy=AutonomyLevel.APPROVE, memory=mem)
+        client = MagicMock()
+
+        agent._auto_follow(client)
+        client.unfollow_agent.assert_not_called()
+
+    @patch("builtins.input", side_effect=["n", "n", "y"])
+    def test_rejection_does_not_consume_follow_budget(
+        self, mock_input, tmp_path
+    ):
+        """Rejected candidates must not count toward
+        MAX_CHANGES_PER_SESSION — the approval is checked before the
+        counter increments."""
+        mem = _make_clean_memory(tmp_path)
+        mem.get_top_interacted_agents = (  # type: ignore[method-assign]
+            lambda limit=20, exclude_ids=None: [
+                ("a1", "Alice"), ("a2", "Bob"), ("a3", "Carol"),
+            ]
+        )
+        agent = Agent(autonomy=AutonomyLevel.APPROVE, memory=mem)
+        client = MagicMock()
+        client.follow_agent.return_value = True
+
+        agent._auto_follow(client)
+        # First two rejected, third approved → exactly one follow.
+        client.follow_agent.assert_called_once_with("Carol")
+
+    @patch("builtins.input", return_value="n")
+    def test_subscribe_rejected(self, mock_input):
+        agent = Agent(autonomy=AutonomyLevel.APPROVE)
+        client = MagicMock()
+
+        agent._ensure_subscriptions(client)
+        client.subscribe_submolt.assert_not_called()
+
+    def test_courtesy_upvote_rejected(self, tmp_path):
+        """ReplyHandler-level: a rejecting gate blocks the courtesy upvote
+        while the reply itself (own content gate) still goes out."""
+        agent = Agent(
+            autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path)
+        )
+        agent._client = MagicMock()
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_comment.return_value = True
+        agent._reply_handler._confirm_side_effect = MagicMock(
+            return_value=False
+        )
+        agent._ctx.own_post_ids.add("my-post-1")
+        agent._client.get_post_comments.return_value = [
+            {
+                "id": "c1",
+                "content": "Great post!",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            }
+        ]
+        with patch(
+            "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+            return_value="Thanks!",
+        ):
+            agent._reply_handler.check_own_post_comments(
+                agent._client, agent._scheduler, time.time() + 3600
+            )
+        agent._client.post_comment.assert_called_once()
+        agent._client.upvote_comment.assert_not_called()
+
+    def test_mark_read_rejected(self, tmp_path):
+        agent = Agent(
+            autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path)
+        )
+        agent._reply_handler._confirm_side_effect = MagicMock(
+            return_value=False
+        )
+        mock_client = MagicMock()
+        mock_client.has_write_budget.return_value = True
+        mock_client.get_post_comments.return_value = []
+        scheduler = MagicMock()
+        scheduler.can_comment.return_value = True
+
+        home_data = {
+            "activity_on_your_posts": [
+                {"post_id": "valid-post-1", "new_notification_count": 3},
+            ],
+        }
+        agent._reply_handler.run_cycle_from_home(
+            mock_client, scheduler, time.time() + 60, home_data,
+        )
+        mock_client.mark_notifications_read_by_post.assert_not_called()
 
 
 class TestDoRegister:

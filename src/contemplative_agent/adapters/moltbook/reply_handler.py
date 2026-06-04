@@ -92,9 +92,11 @@ class ReplyHandler:
         self,
         ctx: SessionContext,
         confirm_action: Callable[[str, str], bool],
+        confirm_side_effect: Callable[[str], bool],
     ) -> None:
         self._ctx = ctx
         self._confirm_action = confirm_action
+        self._confirm_side_effect = confirm_side_effect
 
     def run_cycle(
         self,
@@ -308,7 +310,11 @@ class ReplyHandler:
             # notification id (not a comment id), so deriving the id from
             # reply_key there upvotes the wrong target: a failing
             # POST /comments/{notification_id}/upvote that wastes write budget.
-            if comment_id and comment_id not in ("", "unknown"):
+            if (
+                comment_id
+                and comment_id not in ("", "unknown")
+                and self._confirm_side_effect(f"Upvote comment {comment_id}")
+            ):
                 client.upvote_comment(comment_id)
         except MoltbookClientError as exc:
             logger.error("Failed to reply on %s: %s", post_id, exc)
@@ -402,7 +408,10 @@ class ReplyHandler:
             self._handle_post_comments(client, scheduler, post_id, end_time)
 
             # Mark notifications as read for this post
-            client.mark_notifications_read_by_post(post_id)
+            if self._confirm_side_effect(
+                f"Mark notifications read for post {post_id}"
+            ):
+                client.mark_notifications_read_by_post(post_id)
 
     def check_own_post_comments(
         self,
