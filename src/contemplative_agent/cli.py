@@ -177,7 +177,8 @@ def _do_install_distill_schedule(distill_hour: int) -> None:
     )
 
     print(f"Installed: {LAUNCHD_DISTILL_PLIST_PATH}")
-    print(f"Schedule: daily at {distill_hour:02d}:00 (distill --days 1)")
+    # :30 — the template offsets distill from the agent's HH:00 (audit M5).
+    print(f"Schedule: daily at {distill_hour:02d}:30 (distill --days 1)")
 
 
 def _do_install_weekly_analysis_schedule(weekday: int, hour: int) -> None:
