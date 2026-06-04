@@ -9,10 +9,11 @@ supplies a ``ViewRegistry`` and we retrieve patterns via
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional, Union
+from typing import Dict, Optional, Tuple, Union
 
+from .knowledge_store import epistemic_counts_for, pattern_id
 from .llm import generate, get_distill_system_prompt, validate_identity_content
 from .memory import KnowledgeStore
 from .prompts import CONSTITUTION_AMEND_PROMPT
@@ -25,11 +26,18 @@ MIN_PATTERNS_REQUIRED = 3
 
 @dataclass(frozen=True)
 class AmendmentResult:
-    """Result of a successful constitution amendment generation."""
+    """Result of a successful constitution amendment generation.
+
+    ADR-0050: ``pattern_ids`` carries the content-hash ids of the
+    view-matched input patterns; ``epistemic_counts`` their
+    observed/generated tally.
+    """
 
     text: str
     target_path: Path
     marker_dir: Path
+    pattern_ids: Tuple[str, ...] = ()
+    epistemic_counts: Dict[str, int] = field(default_factory=dict)
 
 
 def amend_constitution(
@@ -127,4 +135,6 @@ def amend_constitution(
         text=amended_text,
         target_path=axioms_path,
         marker_dir=constitution_dir,
+        pattern_ids=tuple(pattern_id(p) for p in matched),
+        epistemic_counts=epistemic_counts_for(matched),
     )

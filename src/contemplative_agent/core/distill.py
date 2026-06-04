@@ -16,7 +16,7 @@ from __future__ import annotations
 import hashlib
 import json as json_mod
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
@@ -26,7 +26,12 @@ import numpy as np
 from ._io import append_jsonl_restricted, now_iso, strip_code_fence
 from .embeddings import cosine, embed_texts
 from .forgetting import is_live
-from .knowledge_store import TRUST_BASE_BY_SOURCE, effective_importance
+from .knowledge_store import (
+    TRUST_BASE_BY_SOURCE,
+    effective_importance,
+    epistemic_counts_for,
+    pattern_id,
+)
 from .llm import generate, get_distill_system_prompt, validate_identity_content
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import (
@@ -161,10 +166,18 @@ def enrich(
 
 @dataclass(frozen=True)
 class IdentityResult:
-    """Result of a successful identity distillation."""
+    """Result of a successful identity distillation.
+
+    ADR-0050: ``pattern_ids`` carries the content-hash ids of the
+    view-matched input patterns; ``epistemic_counts`` their
+    observed/generated tally — the headline metric for how much of the
+    identity input is self-generated narrative.
+    """
 
     text: str
     target_path: Path
+    pattern_ids: Tuple[str, ...] = ()
+    epistemic_counts: Dict[str, int] = field(default_factory=dict)
 
 
 def distill_identity(
@@ -247,6 +260,8 @@ def distill_identity(
     return IdentityResult(
         text=new_identity,
         target_path=identity_path,
+        pattern_ids=tuple(pattern_id(p) for p in matched),
+        epistemic_counts=epistemic_counts_for(matched),
     )
 
 

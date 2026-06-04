@@ -219,3 +219,27 @@ class TestAmendConstitution:
         )
         assert isinstance(result, str)
         assert "Insufficient" in result
+
+
+class TestAmendConstitutionLineageADR0050:
+    @patch("contemplative_agent.core.constitution.generate")
+    def test_amendment_result_carries_lineage(self, mock_generate, tmp_path):
+        """pattern_ids + epistemic_counts come from the view-matched list."""
+        from contemplative_agent.core.knowledge_store import pattern_id
+
+        mock_generate.return_value = AMENDED_CONSTITUTION
+        ks = _make_constitutional_knowledge(tmp_path)
+        const_dir = _setup_constitution(tmp_path)
+
+        result = amend_constitution(
+            knowledge_store=ks, constitution_dir=const_dir,
+            view_registry=_matching_view_registry(),
+        )
+        assert isinstance(result, AmendmentResult)
+        ks.load()
+        live = ks.get_live_patterns()
+        assert set(result.pattern_ids) == {pattern_id(p) for p in live}
+        # Default provenance is unknown → everything tallies as unknown.
+        assert result.epistemic_counts == {
+            "observed": 0, "generated": 0, "unknown": len(live),
+        }

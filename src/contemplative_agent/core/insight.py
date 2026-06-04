@@ -13,14 +13,18 @@ from the embeddings themselves, not from predefined seed texts.
 from __future__ import annotations
 
 import logging
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union
 
 from ._io import now_iso
 from .artifact_extraction import resolve_artifact_path
 from .clustering import cluster_patterns
-from .knowledge_store import effective_importance
+from .knowledge_store import (
+    effective_importance,
+    epistemic_counts_for,
+    pattern_id,
+)
 from .llm import generate, get_distill_system_prompt, validate_identity_content
 from .episode_log import EpisodeLog
 from .memory import KnowledgeStore
@@ -35,11 +39,19 @@ MIN_PATTERNS_REQUIRED = 3
 
 @dataclass(frozen=True)
 class SkillResult:
-    """A single generated skill ready for approval."""
+    """A single generated skill ready for approval.
+
+    ADR-0050: ``pattern_ids`` carries the content-hash ids of the cluster
+    members actually passed to the LLM (kept members only), and
+    ``epistemic_counts`` their observed/generated tally — both flow into
+    the approval gate and audit.jsonl.
+    """
 
     text: str
     filename: str
     target_path: Path
+    pattern_ids: Tuple[str, ...] = ()
+    epistemic_counts: Dict[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -104,7 +116,7 @@ def _build_cluster_batches(
     threshold: float = CLUSTER_THRESHOLD,
     min_size: int = MIN_PATTERNS_REQUIRED,
     max_size: int = BATCH_SIZE,
-) -> List[Tuple[str, List[str]]]:
+) -> List[Tuple[str, List[str], Tuple[str, ...]]]:
     """Cluster patterns globally; every cluster ≥ ``min_size`` becomes a batch.
 
     ``gated`` patterns (noise per ADR-0026) are skipped before
@@ -121,9 +133,11 @@ def _build_cluster_batches(
     candidates first — an early LLM failure then costs less.
 
     Returns:
-        List of (topic, pattern_texts) tuples. Topic names are neutral
-        ``cluster-N`` identifiers; the LLM is expected to title each
-        skill from the content itself.
+        List of (topic, pattern_texts, pattern_ids) tuples. Topic names
+        are neutral ``cluster-N`` identifiers; the LLM is expected to
+        title each skill from the content itself. ``pattern_ids``
+        (ADR-0050) attribute only the kept members — the demoted tail
+        beyond ``max_size`` never reaches the LLM and is not attributed.
     """
     candidates = [p for p in raw_patterns if not p.get("gated")]
     if len(candidates) < min_size:
@@ -140,10 +154,14 @@ def _build_cluster_batches(
 
     clusters.sort(key=_cluster_score, reverse=True)
 
-    batches: List[Tuple[str, List[str]]] = []
+    batches: List[Tuple[str, List[str], Tuple[str, ...]]] = []
     for idx, cluster in enumerate(clusters, start=1):
         topic = f"cluster-{idx}"
-        batches.append((topic, [p["pattern"] for p in cluster]))
+        batches.append((
+            topic,
+            [p["pattern"] for p in cluster],
+            tuple(pattern_id(p) for p in cluster),
+        ))
     return batches
 
 
@@ -239,7 +257,16 @@ def extract_insight(
     skill_results: List[SkillResult] = []
     dropped_count = 0
 
-    for batch_idx, (topic, batch) in enumerate(batches):
+    # ADR-0050: id → pattern dict lookup for per-batch epistemic counts.
+    patterns_by_id = {pattern_id(p): p for p in raw_patterns}
+    if len(patterns_by_id) != len(raw_patterns):
+        logger.debug(
+            "pattern_id collision: %d patterns → %d unique ids "
+            "(identical distilled+text rows; counts may undercount)",
+            len(raw_patterns), len(patterns_by_id),
+        )
+
+    for batch_idx, (topic, batch, batch_pids) in enumerate(batches):
         logger.info(
             "Batch %d/%d [%s]: %d patterns",
             batch_idx + 1, len(batches), topic, len(batch),
@@ -275,6 +302,10 @@ def extract_insight(
             text=skill_text,
             filename=resolved.filename,
             target_path=resolved.target_path,
+            pattern_ids=batch_pids,
+            epistemic_counts=epistemic_counts_for(
+                [patterns_by_id[pid] for pid in batch_pids if pid in patterns_by_id]
+            ),
         ))
 
     if not skill_results:

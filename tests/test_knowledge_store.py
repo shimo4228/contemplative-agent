@@ -254,3 +254,85 @@ class TestFilterSinceBadTimestampADR0021:
         result = store.get_raw_patterns_since("2020-01-01T00:00:00+00:00")
         assert any("good pattern" in p["pattern"] for p in result)
         assert not any("broken record" in p["pattern"] for p in result)
+
+
+class TestPatternIdADR0050:
+    """ADR-0050 — computed content-hash identity, no persisted field."""
+
+    def test_stable_for_same_dict(self):
+        from contemplative_agent.core.knowledge_store import pattern_id
+
+        p = {"pattern": "observed a recurring greeting style", "distilled": "2026-06-05T10:00+00:00"}
+        assert pattern_id(p) == pattern_id(dict(p))
+
+    def test_twelve_hex_chars(self):
+        from contemplative_agent.core.knowledge_store import pattern_id
+
+        p = {"pattern": "some pattern text", "distilled": "2026-06-05T10:00+00:00"}
+        pid = pattern_id(p)
+        assert len(pid) == 12
+        assert all(c in "0123456789abcdef" for c in pid)
+
+    def test_differs_on_text_change(self):
+        """Bitemporal revision (ADR-0021 soft-invalidate + revised ADD) yields
+        a new row with different text — the revised row must get its own id."""
+        from contemplative_agent.core.knowledge_store import pattern_id
+
+        old = {"pattern": "agents prefer short replies", "distilled": "2026-06-05T10:00+00:00"}
+        revised = {"pattern": "agents prefer short replies in technical threads", "distilled": "2026-06-05T10:00+00:00"}
+        assert pattern_id(old) != pattern_id(revised)
+
+    def test_differs_on_timestamp_change(self):
+        from contemplative_agent.core.knowledge_store import pattern_id
+
+        a = {"pattern": "same text", "distilled": "2026-06-05T10:00+00:00"}
+        b = {"pattern": "same text", "distilled": "2026-06-05T10:01+00:00"}
+        assert pattern_id(a) != pattern_id(b)
+
+    def test_legacy_row_missing_fields_still_computes(self):
+        from contemplative_agent.core.knowledge_store import pattern_id
+
+        assert isinstance(pattern_id({}), str)
+        assert len(pattern_id({})) == 12
+
+
+class TestEpistemicKindForADR0050:
+    """ADR-0050 — 2-valued read-time derivation from provenance.source_type."""
+
+    @pytest.mark.parametrize("source_type,expected", [
+        ("self_reflection", "generated"),
+        ("mixed", "generated"),
+        ("external_reply", "observed"),
+        ("unknown", None),
+    ], ids=["self-reflection", "mixed", "external-reply", "unknown"])
+    def test_mapping(self, source_type, expected):
+        from contemplative_agent.core.knowledge_store import epistemic_kind_for
+
+        p = {"provenance": {"source_type": source_type}}
+        assert epistemic_kind_for(p) == expected
+
+    def test_missing_provenance_returns_none(self):
+        from contemplative_agent.core.knowledge_store import epistemic_kind_for
+
+        assert epistemic_kind_for({}) is None
+        assert epistemic_kind_for({"provenance": {}}) is None
+
+
+class TestEpistemicCountsForADR0050:
+    def test_counts_all_three_keys_always_present(self):
+        from contemplative_agent.core.knowledge_store import epistemic_counts_for
+
+        patterns = [
+            {"provenance": {"source_type": "self_reflection"}},
+            {"provenance": {"source_type": "self_reflection"}},
+            {"provenance": {"source_type": "external_reply"}},
+            {"provenance": {"source_type": "unknown"}},
+            {},  # legacy row without provenance
+        ]
+        counts = epistemic_counts_for(patterns)
+        assert counts == {"observed": 1, "generated": 2, "unknown": 2}
+
+    def test_empty_input(self):
+        from contemplative_agent.core.knowledge_store import epistemic_counts_for
+
+        assert epistemic_counts_for([]) == {"observed": 0, "generated": 0, "unknown": 0}

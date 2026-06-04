@@ -34,11 +34,18 @@ MIN_SKILLS_REQUIRED = 3
 
 @dataclass(frozen=True)
 class RuleResult:
-    """A single generated rule ready for approval."""
+    """A single generated rule ready for approval.
+
+    ADR-0050: ``source_ids`` carries the skill filenames of the batch
+    this rule was distilled from. Granularity is batch-level — one LLM
+    call distills one batch into one-or-more rules, so rule-to-skill
+    attribution is many-to-many and indivisible below the batch.
+    """
 
     text: str
     filename: str
     target_path: Path
+    source_ids: Tuple[str, ...] = ()
 
 
 @dataclass(frozen=True)
@@ -50,7 +57,9 @@ class RulesDistillResult:
     rules_dir: Path
 
 
-def _read_skills(skills_dir: Path, since: Optional[str] = None) -> List[str]:
+def _read_skills(
+    skills_dir: Path, since: Optional[str] = None
+) -> List[Tuple[str, str]]:
     """Read skill file contents from *skills_dir*.
 
     Args:
@@ -58,7 +67,9 @@ def _read_skills(skills_dir: Path, since: Optional[str] = None) -> List[str]:
         since: ISO timestamp — only include files modified after this time.
 
     Returns:
-        List of skill file body texts (frontmatter stripped).
+        List of (filename, body) pairs, frontmatter stripped. The
+        filename is the lineage key carried into RuleResult.source_ids
+        (ADR-0050).
     """
     if not skills_dir.is_dir():
         return []
@@ -70,7 +81,7 @@ def _read_skills(skills_dir: Path, since: Optional[str] = None) -> List[str]:
         except ValueError:
             logger.warning("Invalid since timestamp %r, reading all skills", since)
 
-    skills: List[str] = []
+    skills: List[Tuple[str, str]] = []
     for p in sorted(skills_dir.glob("*.md")):
         if p.name.startswith("."):
             continue
@@ -79,7 +90,7 @@ def _read_skills(skills_dir: Path, since: Optional[str] = None) -> List[str]:
         try:
             body = strip_frontmatter(p.read_text(encoding="utf-8")).strip()
             if body:
-                skills.append(body)
+                skills.append((p.name, body))
         except OSError:
             logger.warning("Could not read skill file %s", p)
     return skills
@@ -161,36 +172,44 @@ def _split_rules(text: str) -> List[str]:
     return rules
 
 
-def _build_skill_clusters(skill_texts: List[str]) -> List[List[str]]:
-    """Group skill texts by embedding cosine similarity.
+def _build_skill_clusters(
+    skill_items: List[Tuple[str, str]],
+) -> List[List[Tuple[str, str]]]:
+    """Group (filename, body) skill pairs by embedding cosine similarity.
 
     One Ollama ``embed_texts`` call; failures (None return) degrade to a
     single fallback batch so the pipeline still runs without embeddings.
     Clusters smaller than ``MIN_SKILLS_REQUIRED`` are merged into an
     ``other`` bucket rather than dropped — universal-rule synthesis
     benefits from breadth even when topics don't cluster cleanly.
+
+    Filenames ride through clustering inside the adapter dicts
+    (``cluster_patterns`` only reads embedding / importance / trust) so
+    each batch keeps its lineage keys (ADR-0050).
     """
-    if not skill_texts:
+    if not skill_items:
         return []
 
-    matrix = embed_texts(skill_texts)
-    if matrix is None or matrix.shape[0] != len(skill_texts):
+    texts = [text for _, text in skill_items]
+    matrix = embed_texts(texts)
+    if matrix is None or matrix.shape[0] != len(skill_items):
         logger.warning(
             "embed_texts returned %s — falling back to single batch",
-            "None" if matrix is None else f"{matrix.shape[0]} rows for {len(skill_texts)} inputs",
+            "None" if matrix is None else f"{matrix.shape[0]} rows for {len(skill_items)} inputs",
         )
-        return [skill_texts[:MAX_RULES_BATCH]]
+        return [skill_items[:MAX_RULES_BATCH]]
 
     # Adapter dicts for cluster_patterns; effective_importance stays neutral
     # because we don't want importance weighting on skill clusters.
     dicts = [
         {
             "pattern": text,
+            "filename": fname,
             "embedding": matrix[i].tolist(),
             "importance": 0.5,
             "trust_score": 1.0,
         }
-        for i, text in enumerate(skill_texts)
+        for i, (fname, text) in enumerate(skill_items)
     ]
     clusters, singletons = cluster_patterns(
         dicts,
@@ -198,11 +217,15 @@ def _build_skill_clusters(skill_texts: List[str]) -> List[List[str]]:
         min_size=MIN_SKILLS_REQUIRED,
         max_size=MAX_RULES_BATCH,
     )
-    batches: List[List[str]] = [[p["pattern"] for p in c] for c in clusters]
+    batches: List[List[Tuple[str, str]]] = [
+        [(p["filename"], p["pattern"]) for p in c] for c in clusters
+    ]
     # Singletons collectively form one "other" batch only if the pool is
     # large enough to attempt rule synthesis. Otherwise drop.
     if len(singletons) >= MIN_SKILLS_REQUIRED:
-        batches.append([p["pattern"] for p in singletons[:MAX_RULES_BATCH]])
+        batches.append(
+            [(p["filename"], p["pattern"]) for p in singletons[:MAX_RULES_BATCH]]
+        )
     return batches
 
 
@@ -252,27 +275,27 @@ def distill_rules(
         if since:
             logger.info("Incremental mode: reading skills modified since %s", since)
 
-    skill_texts = _read_skills(skills_dir, since=since)
+    skill_items = _read_skills(skills_dir, since=since)
 
     if not since and not full:
-        logger.info("No previous rules-distill run found, processing all %d skills", len(skill_texts))
+        logger.info("No previous rules-distill run found, processing all %d skills", len(skill_items))
 
-    if len(skill_texts) < MIN_SKILLS_REQUIRED:
+    if len(skill_items) < MIN_SKILLS_REQUIRED:
         return (
-            f"Insufficient skills ({len(skill_texts)}/{MIN_SKILLS_REQUIRED}). "
+            f"Insufficient skills ({len(skill_items)}/{MIN_SKILLS_REQUIRED}). "
             f"Universal principles require a critical mass of behavioral skills."
         )
 
-    batches = _build_skill_clusters(skill_texts)
+    batches = _build_skill_clusters(skill_items)
     if not batches:
         return (
-            f"No clusters formed from {len(skill_texts)} skills. "
+            f"No clusters formed from {len(skill_items)} skills. "
             f"Check that skill files are non-empty and embeddings are reachable."
         )
 
     logger.info(
         "Processing %d skills in %d cluster batches",
-        len(skill_texts), len(batches),
+        len(skill_items), len(batches),
     )
 
     rule_results: List[RuleResult] = []
@@ -284,7 +307,9 @@ def distill_rules(
             "Batch %d/%d: %d skills", batch_idx + 1, len(batches), len(batch)
         )
 
-        rules_text = _extract_rules(batch)
+        # ADR-0050: lineage key for every rule this batch produces.
+        batch_source_ids = tuple(fname for fname, _ in batch)
+        rules_text = _extract_rules([text for _, text in batch])
         if rules_text is None:
             logger.warning("Batch %d/%d: extraction failed", batch_idx + 1, len(batches))
             dropped_count += 1
@@ -325,6 +350,7 @@ def distill_rules(
                 text=rule_text,
                 filename=resolved.filename,
                 target_path=resolved.target_path,
+                source_ids=batch_source_ids,
             ))
 
     if not rule_results:

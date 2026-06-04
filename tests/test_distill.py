@@ -701,3 +701,36 @@ class TestEffectiveImportance:
         assert 0.6 < effective_importance(p) <= 0.7
 
 
+
+
+class TestDistillIdentityLineageADR0050:
+    @patch("contemplative_agent.core.distill.generate")
+    def test_identity_result_carries_lineage(self, mock_generate, tmp_path):
+        """pattern_ids + epistemic_counts come from the view-matched list."""
+        from contemplative_agent.core.knowledge_store import pattern_id
+
+        mock_generate.return_value = "revised identity"
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern("seed pattern", embedding=[0.1, 0.2])
+        ks.save()
+
+        matched = [
+            {"pattern": "self narrative pattern",
+             "distilled": "2026-06-05T10:00+00:00",
+             "provenance": {"source_type": "self_reflection"}},
+            {"pattern": "externally observed pattern",
+             "distilled": "2026-06-05T10:00+00:00",
+             "provenance": {"source_type": "external_reply"}},
+        ]
+        registry = MagicMock()
+        registry.find_by_view.return_value = matched
+
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        result = distill_identity(
+            knowledge_store=ks2, view_registry=registry,
+            identity_path=tmp_path / "identity.md",
+        )
+        assert isinstance(result, IdentityResult)
+        assert set(result.pattern_ids) == {pattern_id(p) for p in matched}
+        assert result.epistemic_counts == {"observed": 1, "generated": 1, "unknown": 0}

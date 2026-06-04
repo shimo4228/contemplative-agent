@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import os
@@ -65,6 +66,55 @@ def effective_importance(p: dict) -> float:
 
     trust = float(p.get("trust_score", 1.0))
     return max(0.0, min(1.0, legacy * trust))
+
+
+def pattern_id(p: dict) -> str:
+    """Computed content-hash identity for a pattern row (ADR-0050).
+
+    No persisted id field — ``distilled`` alone cannot serve (minute
+    precision collides within a batch), so the hash binds timestamp and
+    text. Bitemporal revision (ADR-0021 soft-invalidate + revised ADD)
+    yields a different text and therefore a distinct id, which is
+    lineage-correct: the revision is a different claim.
+    """
+    raw = f"{p.get('distilled', '')}|{p.get('pattern', '')}"
+    return hashlib.sha256(raw.encode()).hexdigest()[:12]
+
+
+# ADR-0050 read-time derivation: epistemic kind is a pure function of
+# source_type, never persisted. {observed, generated} only — "asserted"
+# was rejected (needs semantic judgment, not derivable from record type).
+_EPISTEMIC_KIND_BY_SOURCE: Dict[str, str] = {
+    "self_reflection": "generated",
+    "mixed": "generated",  # any self contribution taints the batch
+    "external_reply": "observed",
+}
+
+
+def epistemic_kind_for(p: dict) -> Optional[str]:
+    """Derive the epistemic kind of a pattern row (ADR-0050).
+
+    Returns ``"generated"`` for self-narrative provenance,
+    ``"observed"`` for externally received content, ``None`` when the
+    source is unknown or unrecorded (legacy rows included).
+    """
+    provenance = p.get("provenance") or {}
+    source_type = provenance.get("source_type", "")
+    return _EPISTEMIC_KIND_BY_SOURCE.get(source_type)
+
+
+def epistemic_counts_for(patterns: List[dict]) -> Dict[str, int]:
+    """Tally epistemic kinds over pattern rows (ADR-0050).
+
+    All three keys are always present so audit.jsonl records keep a
+    stable shape for offline analysis; ``None`` kinds count as
+    ``"unknown"``.
+    """
+    counts = {"observed": 0, "generated": 0, "unknown": 0}
+    for p in patterns:
+        kind = epistemic_kind_for(p)
+        counts[kind or "unknown"] += 1
+    return counts
 
 
 class KnowledgeStore:

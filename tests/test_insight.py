@@ -245,7 +245,7 @@ class TestBuildClusterBatches:
         axis_b = [self._pat(f"b-{i}", _unit_vec(8, 2)) for i in range(3)]
         batches = _build_cluster_batches(axis_a + axis_b, threshold=0.7)
         assert len(batches) == 2
-        names = {n for n, _ in batches}
+        names = {b[0] for b in batches}
         assert names == {"cluster-1", "cluster-2"}
 
     def test_gated_patterns_excluded_before_clustering(self) -> None:
@@ -256,7 +256,7 @@ class TestBuildClusterBatches:
         ]
         batches = _build_cluster_batches(clean + gated, threshold=0.7)
         assert len(batches) == 1
-        _, texts = batches[0]
+        _, texts, _ = batches[0]
         assert set(texts) == {"c-0", "c-1", "c-2"}
 
     def test_self_reflection_not_excluded(self) -> None:
@@ -268,7 +268,7 @@ class TestBuildClusterBatches:
         ]
         batches = _build_cluster_batches(reflect, threshold=0.7)
         assert len(batches) == 1
-        _, texts = batches[0]
+        _, texts, _ = batches[0]
         assert set(texts) == {"reflect-0", "reflect-1", "reflect-2"}
 
     def test_singletons_skipped(self) -> None:
@@ -307,7 +307,7 @@ class TestBuildClusterBatches:
             small_high + large_mid, threshold=0.7,
         )
         # large_mid: 6 × 0.5 = 3.0 > small_high: 3 × 0.9 = 2.7
-        _, first_texts = batches[0]
+        _, first_texts, _ = batches[0]
         assert any(t.startswith("lm-") for t in first_texts)
 
     def test_cluster_batches_respect_max_size(self) -> None:
@@ -319,7 +319,7 @@ class TestBuildClusterBatches:
             pats, threshold=0.7, min_size=3, max_size=10,
         )
         assert len(batches) == 1
-        _, texts = batches[0]
+        _, texts, _ = batches[0]
         assert len(texts) == 10
 
 
@@ -354,3 +354,100 @@ class TestExtractInsightSupersededExclusion:
         assert seen_batches, "expected _build_cluster_batches to be called"
         # Only live patterns reach batching.
         assert set(seen_batches[0]) == {"live-0", "live-1", "live-2"}
+
+
+# ---------------------------------------------------------------------------
+# ADR-0050: approval lineage plumbing
+# ---------------------------------------------------------------------------
+
+
+class TestBuildClusterBatchesLineageADR0050:
+    @staticmethod
+    def _pat(text: str, embedding: list, importance: float = 0.5) -> dict:
+        return {
+            "pattern": text,
+            "distilled": "2026-06-05T10:00+00:00",
+            "importance": importance,
+            "embedding": embedding,
+            "trust_score": 1.0,
+        }
+
+    def test_batches_carry_pattern_ids(self) -> None:
+        from contemplative_agent.core.knowledge_store import pattern_id
+
+        pats = [self._pat(f"p-{i}", _unit_vec(8, 1)) for i in range(3)]
+        batches = _build_cluster_batches(pats, threshold=0.7)
+        assert len(batches) == 1
+        _, texts, pids = batches[0]
+        assert len(pids) == len(texts) == 3
+        assert set(pids) == {pattern_id(p) for p in pats}
+
+    def test_pattern_ids_kept_members_only(self) -> None:
+        """Demoted tail beyond max_size must not be attributed."""
+        from contemplative_agent.core.knowledge_store import pattern_id
+
+        pats = [
+            self._pat(f"p-{i}", _unit_vec(8, 1), importance=0.9 - i * 0.05)
+            for i in range(15)
+        ]
+        batches = _build_cluster_batches(pats, threshold=0.7, min_size=3, max_size=10)
+        assert len(batches) == 1
+        _, texts, pids = batches[0]
+        assert len(pids) == len(texts) == 10
+        # Highest-importance 10 are kept; the 5 lowest are demoted.
+        kept_expected = {pattern_id(p) for p in pats[:10]}
+        assert set(pids) == kept_expected
+
+
+class TestExtractInsightLineageADR0050:
+    @patch("contemplative_agent.core.insight._extract_skill")
+    def test_skill_result_carries_pattern_ids(self, mock_skill, knowledge_store) -> None:
+        from contemplative_agent.core.knowledge_store import pattern_id
+
+        mock_skill.return_value = GOOD_SKILL_RESPONSE
+        result = extract_insight(knowledge_store=knowledge_store)
+        assert isinstance(result, InsightResult)
+        skill = result.skills[0]
+        expected = {pattern_id(p) for p in knowledge_store.get_raw_patterns()}
+        assert set(skill.pattern_ids) == expected
+
+    @patch("contemplative_agent.core.insight._extract_skill")
+    def test_skill_result_carries_epistemic_counts(self, mock_skill, tmp_path) -> None:
+        ks = KnowledgeStore(path=tmp_path / "k.json")
+        for i in range(2):
+            ks.add_learned_pattern(
+                f"self-{i}", embedding=_unit_vec(8, 1),
+                provenance={"source_type": "self_reflection"},
+            )
+        ks.add_learned_pattern(
+            "ext-0", embedding=_unit_vec(8, 1),
+            provenance={"source_type": "external_reply"},
+        )
+        ks.save()
+        mock_skill.return_value = GOOD_SKILL_RESPONSE
+
+        result = extract_insight(knowledge_store=ks)
+        assert isinstance(result, InsightResult)
+        counts = result.skills[0].epistemic_counts
+        assert counts == {"observed": 1, "generated": 2, "unknown": 0}
+
+    @patch("contemplative_agent.core.insight._extract_skill")
+    def test_incremental_mode_still_carries_ids(self, mock_skill, tmp_path) -> None:
+        """get_live_patterns_since path must plumb ids identically."""
+        from contemplative_agent.core.insight import write_last_insight
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        write_last_insight(skills_dir)  # marker in the past relative to adds below
+        ks = KnowledgeStore(path=tmp_path / "k.json")
+        for i in range(3):
+            ks.add_learned_pattern(
+                f"new-{i}", embedding=_unit_vec(8, 1),
+                distilled="2099-01-01T00:00+00:00",
+            )
+        ks.save()
+        mock_skill.return_value = GOOD_SKILL_RESPONSE
+
+        result = extract_insight(knowledge_store=ks, skills_dir=skills_dir)
+        assert isinstance(result, InsightResult)
+        assert len(result.skills[0].pattern_ids) == 3

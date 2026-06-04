@@ -246,6 +246,8 @@ def _log_approval(
     source: AuditSource = "direct",
     snapshot_path: Optional[Path] = None,
     reason: Optional[str] = None,
+    source_ids: Optional[Sequence[str]] = None,
+    epistemic_counts: Optional[dict[str, int]] = None,
 ) -> None:
     """Append approval decision to audit log.
 
@@ -267,6 +269,17 @@ def _log_approval(
         reason: Human-provided justification for the action. Required for
             ``remove-skill`` and other manual CRUD; the field is always
             present in the record (null when omitted) for forward compat.
+        source_ids: Lineage keys of the artifact's inputs (ADR-0050) —
+            pattern content-hash ids for insight / distill-identity /
+            amend-constitution, skill filenames for rules-distill. Always
+            present in the record (null when the command has no lineage).
+            Empty collections are deliberately normalized to null: every
+            lineage-tracked command has ≥1 input by construction, so
+            "tracked but empty" does not occur and null uniformly means
+            "no lineage attached".
+        epistemic_counts: Observed/generated tally of the artifact's input
+            patterns (ADR-0050). Always present in the record (null when
+            not applicable; empty dicts normalize to null, same rationale).
     """
     if approved is None:
         decision = "staged"
@@ -283,6 +296,8 @@ def _log_approval(
         "content_hash": hashlib.sha256(content.encode()).hexdigest()[:16],
         "snapshot_path": str(snapshot_path) if snapshot_path is not None else None,
         "reason": reason,
+        "source_ids": list(source_ids) if source_ids else None,
+        "epistemic_counts": dict(epistemic_counts) if epistemic_counts else None,
     }
     try:
         append_jsonl_restricted(AUDIT_LOG_PATH, record)
@@ -346,6 +361,14 @@ def _run_approval_loop(
             approved,
             item.text,
             snapshot_path=snapshot_path,
+            # ADR-0050: SkillResult carries pattern_ids, RuleResult carries
+            # source_ids (skill filenames); StageItem-shaped items carry
+            # neither here (staging logs lineage itself).
+            source_ids=(
+                getattr(item, "pattern_ids", None)
+                or getattr(item, "source_ids", None)
+            ),
+            epistemic_counts=getattr(item, "epistemic_counts", None),
         )
         if approved:
             target_dir.mkdir(parents=True, exist_ok=True)
@@ -376,6 +399,11 @@ class StageItem:
     ("skill-stocktake-drop") items in a single staging batch — needed
     because `_stage_results` wipes the staging dir on every call, so a
     second call would erase the first batch.
+
+    `source_ids` / `epistemic_counts` are ADR-0050 lineage metadata,
+    deliberately distinct from `sources` — `sources` has delete-on-adopt
+    semantics, lineage is record-only and rides through meta.json into
+    the adopt-time audit entry.
     """
 
     filename: str
@@ -384,6 +412,8 @@ class StageItem:
     sources: list[str] = field(default_factory=list)
     action: Literal["merge", "drop"] = "merge"
     command: str | None = None
+    source_ids: list[str] = field(default_factory=list)
+    epistemic_counts: dict[str, int] = field(default_factory=dict)
 
 
 def _stage_results(items: list[StageItem], command: str) -> None:
@@ -417,10 +447,20 @@ def _stage_results(items: list[StageItem], command: str) -> None:
             meta["sources"] = list(item.sources)
         if item.action != "merge":
             meta["action"] = item.action
+        # ADR-0050: lineage rides through meta.json so adopt-staged can
+        # attach it to the adopt-time audit entry.
+        if item.source_ids:
+            meta["source_ids"] = list(item.source_ids)
+        if item.epistemic_counts:
+            meta["epistemic_counts"] = dict(item.epistemic_counts)
         meta_file = STAGED_DIR / f"{item.filename}.meta.json"
         meta_file.write_text(json_mod.dumps(meta, indent=2) + "\n", encoding="utf-8")
         staged_paths.append((staged_file, item.target_path))
-        _log_approval(item_command, item.target_path, None, item.text, source="stage")
+        _log_approval(
+            item_command, item.target_path, None, item.text, source="stage",
+            source_ids=item.source_ids or None,
+            epistemic_counts=item.epistemic_counts or None,
+        )
 
     print(f"Staged {len(staged_paths)} file(s) in {STAGED_DIR}/")
     for staged, target in staged_paths:
@@ -937,6 +977,10 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         command = meta.get("command")
         sources = meta.get("sources") or []
         action = meta.get("action", "merge")
+        # ADR-0050: lineage staged alongside the artifact; attach it to
+        # the adopt-time audit entry so deferred approval keeps lineage.
+        staged_source_ids = meta.get("source_ids") or None
+        staged_epistemic_counts = meta.get("epistemic_counts") or None
         if not target_str or not command:
             print(f"  Skipped (invalid meta): {meta_file.name}")
             skipped += 1
@@ -976,7 +1020,11 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
 
         if action == "drop":
             approved = True if yes else _approve_delete(target)
-            _log_approval(command, target, approved, text, source=audit_source)
+            _log_approval(
+                command, target, approved, text, source=audit_source,
+                source_ids=staged_source_ids,
+                epistemic_counts=staged_epistemic_counts,
+            )
             if approved:
                 if target.exists():
                     target.unlink()
@@ -989,7 +1037,11 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
                 rejected += 1
         else:
             approved = True if yes else _approve_write(target)
-            _log_approval(command, target, approved, text, source=audit_source)
+            _log_approval(
+                command, target, approved, text, source=audit_source,
+                source_ids=staged_source_ids,
+                epistemic_counts=staged_epistemic_counts,
+            )
             if approved:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 to_write = text if text.endswith("\n") else text + "\n"
@@ -1244,7 +1296,11 @@ def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.Argumen
     print(result.text)
     if getattr(args, "stage", False):
         _stage_results(
-            [StageItem("identity.md", result.text, result.target_path)],
+            [StageItem(
+                "identity.md", result.text, result.target_path,
+                source_ids=list(result.pattern_ids),
+                epistemic_counts=dict(result.epistemic_counts),
+            )],
             command="distill-identity",
         )
         return
@@ -1252,6 +1308,8 @@ def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.Argumen
     _log_approval(
         "distill-identity", result.target_path, approved, result.text,
         snapshot_path=snapshot_path,
+        source_ids=result.pattern_ids,
+        epistemic_counts=result.epistemic_counts,
     )
     if not approved:
         print("Discarded.")
@@ -1280,7 +1338,11 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         return
     if getattr(args, "stage", False):
         _stage_results(
-            [StageItem(s.filename, s.text, s.target_path) for s in result.skills],
+            [StageItem(
+                s.filename, s.text, s.target_path,
+                source_ids=list(s.pattern_ids),
+                epistemic_counts=dict(s.epistemic_counts),
+            ) for s in result.skills],
             command="insight",
         )
         return
@@ -1309,7 +1371,10 @@ def _handle_rules_distill(args: argparse.Namespace, _parser: argparse.ArgumentPa
         return
     if getattr(args, "stage", False):
         _stage_results(
-            [StageItem(r.filename, r.text, r.target_path) for r in result.rules],
+            [StageItem(
+                r.filename, r.text, r.target_path,
+                source_ids=list(r.source_ids),
+            ) for r in result.rules],
             command="rules-distill",
         )
         return
@@ -1343,7 +1408,11 @@ def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.Argum
     print(result.text)
     if getattr(args, "stage", False):
         _stage_results(
-            [StageItem(result.target_path.name, result.text, result.target_path)],
+            [StageItem(
+                result.target_path.name, result.text, result.target_path,
+                source_ids=list(result.pattern_ids),
+                epistemic_counts=dict(result.epistemic_counts),
+            )],
             command="amend-constitution",
         )
         return
@@ -1351,6 +1420,8 @@ def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.Argum
     _log_approval(
         "amend-constitution", result.target_path, approved, result.text,
         snapshot_path=snapshot_path,
+        source_ids=result.pattern_ids,
+        epistemic_counts=result.epistemic_counts,
     )
     if not approved:
         print("Discarded.")

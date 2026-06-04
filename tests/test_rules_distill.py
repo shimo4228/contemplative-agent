@@ -242,8 +242,10 @@ class TestReadSkills:
         (skills_dir / "test.md").write_text(SKILL_WITH_FRONTMATTER)
         skills = _read_skills(skills_dir)
         assert len(skills) == 1
-        assert not skills[0].startswith("---")
-        assert "Engagement Rules" in skills[0]
+        fname, body = skills[0]
+        assert fname == "test.md"
+        assert not body.startswith("---")
+        assert "Engagement Rules" in body
 
     def test_skips_dotfiles(self, tmp_path):
         skills_dir = _make_skills_dir(tmp_path, n=2)
@@ -273,7 +275,7 @@ class TestReadSkills:
         since = datetime(2020, 1, 1, tzinfo=timezone.utc).isoformat()
         skills = _read_skills(skills_dir, since=since)
         assert len(skills) == 1
-        assert "New" in skills[0]
+        assert "New" in skills[0][1]
 
     def test_since_invalid_reads_all(self, tmp_path):
         skills_dir = _make_skills_dir(tmp_path, n=2)
@@ -517,7 +519,7 @@ class TestBuildSkillClusters:
 
     def test_single_cluster_when_embeddings_uniform(self):
         # autouse fixture returns uniform embeddings → 1 cluster.
-        skills = [f"# Skill {i}\ncontent {i}" for i in range(3)]
+        skills = [(f"s{i}.md", f"# Skill {i}\ncontent {i}") for i in range(3)]
         batches = _build_skill_clusters(skills)
         assert len(batches) == 1
         assert len(batches[0]) == 3
@@ -533,10 +535,10 @@ class TestBuildSkillClusters:
         monkeypatch.setattr(
             "contemplative_agent.core.rules_distill.embed_texts", _fake,
         )
-        skills = ["a1", "a2", "a3", "b1", "b2", "b3"]
+        skills = [(f"{t}.md", t) for t in ["a1", "a2", "a3", "b1", "b2", "b3"]]
         batches = _build_skill_clusters(skills)
         assert len(batches) == 2
-        flat = {t for b in batches for t in b}
+        flat = {item for b in batches for item in b}
         assert flat == set(skills)
 
     def test_fallback_when_embedding_fails(self, monkeypatch):
@@ -545,7 +547,7 @@ class TestBuildSkillClusters:
             "contemplative_agent.core.rules_distill.embed_texts",
             lambda texts: None,
         )
-        skills = [f"s-{i}" for i in range(15)]
+        skills = [(f"s-{i}.md", f"s-{i}") for i in range(15)]
         batches = _build_skill_clusters(skills)
         assert len(batches) == 1
         assert len(batches[0]) == 10  # MAX_RULES_BATCH
@@ -640,3 +642,48 @@ class TestIncrementalMode:
         call_args = mock_generate.call_args_list[0]
         prompt = call_args[0][0]
         assert "Old Skill" not in prompt
+
+
+# ---------------------------------------------------------------------------
+# ADR-0050: approval lineage plumbing (skill filename → rule)
+# ---------------------------------------------------------------------------
+
+
+class TestRulesLineageADR0050:
+    def test_read_skills_returns_filename_body_pairs(self, tmp_path):
+        skills_dir = _make_skills_dir(tmp_path, n=2)
+        items = _read_skills(skills_dir)
+        names = {fname for fname, _ in items}
+        assert names == {"skill-000.md", "skill-001.md"}
+        assert all(body.startswith("# Skill") for _, body in items)
+
+    def test_build_skill_clusters_carries_filenames(self, monkeypatch):
+        def _fake(texts):
+            out = np.zeros((len(texts), 8), dtype=np.float32)
+            for i, t in enumerate(texts):
+                axis = 1 if t.startswith("a") else 2
+                out[i, axis] = 1.0
+            return out
+        monkeypatch.setattr(
+            "contemplative_agent.core.rules_distill.embed_texts", _fake,
+        )
+        items = [(f"{t}.md", t) for t in ["a1", "a2", "a3", "b1", "b2", "b3"]]
+        batches = _build_skill_clusters(items)
+        assert len(batches) == 2
+        flat = {(fname, text) for b in batches for fname, text in b}
+        assert flat == set(items)
+
+    @patch("contemplative_agent.core.rules_distill.generate")
+    def test_rule_results_carry_source_ids(self, mock_generate, tmp_path):
+        """Every rule from a batch is attributed to the batch's skill files."""
+        skills_dir = _make_skills_dir(tmp_path, n=3)
+        mock_generate.side_effect = [
+            GOOD_RULES_RESPONSE_STAGE1,
+            GOOD_RULES_RESPONSE_STAGE2,
+        ]
+        result = distill_rules(skills_dir=skills_dir, rules_dir=tmp_path / "rules", full=True)
+        assert isinstance(result, RulesDistillResult)
+        assert len(result.rules) == 2  # GOOD_RULES_RESPONSE_STAGE2 has 2 rules
+        expected = {"skill-000.md", "skill-001.md", "skill-002.md"}
+        for rule in result.rules:
+            assert set(rule.source_ids) == expected

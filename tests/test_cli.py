@@ -2305,3 +2305,109 @@ class TestDialogueCommand:
             cmd = call.args[0]
             assert "some_wrapper_pkg.cli" in cmd
             assert "contemplative_agent.cli" not in cmd
+
+
+class TestApprovalLineageADR0050:
+    """ADR-0050: source_ids + epistemic_counts flow into audit.jsonl
+    through every approval path (direct loop, single approve, stage→adopt)."""
+
+    def test_log_approval_records_lineage_fields(self, tmp_path):
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+            _log_approval(
+                "insight", Path("skills/foo.md"), True, "# Skill",
+                source_ids=["abc123def456", "0123456789ab"],
+                epistemic_counts={"observed": 1, "generated": 2, "unknown": 0},
+            )
+        record = json.loads(audit_path.read_text().strip())
+        assert record["source_ids"] == ["abc123def456", "0123456789ab"]
+        assert record["epistemic_counts"] == {
+            "observed": 1, "generated": 2, "unknown": 0,
+        }
+
+    def test_log_approval_lineage_fields_always_present(self, tmp_path):
+        """Nullable but always present — stable record shape for analysis."""
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+            _log_approval("insight", Path("a.md"), True, "a")
+        record = json.loads(audit_path.read_text().strip())
+        assert "source_ids" in record and record["source_ids"] is None
+        assert "epistemic_counts" in record and record["epistemic_counts"] is None
+
+    def test_run_approval_loop_plumbs_skill_lineage(self, tmp_path):
+        from contemplative_agent.cli import _run_approval_loop
+        from contemplative_agent.core.insight import SkillResult
+
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        skills_dir = tmp_path / "skills"
+        item = SkillResult(
+            text="# S", filename="s.md", target_path=skills_dir / "s.md",
+            pattern_ids=("a1a1a1a1a1a1", "b2b2b2b2b2b2"),
+            epistemic_counts={"observed": 0, "generated": 2, "unknown": 0},
+        )
+        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path), \
+             patch("builtins.input", side_effect=["y"]):
+            _run_approval_loop([item], command="insight", target_dir=skills_dir)
+        record = json.loads(audit_path.read_text().strip())
+        assert record["source_ids"] == ["a1a1a1a1a1a1", "b2b2b2b2b2b2"]
+        assert record["epistemic_counts"] == {
+            "observed": 0, "generated": 2, "unknown": 0,
+        }
+
+    def test_run_approval_loop_plumbs_rule_source_ids(self, tmp_path):
+        """RuleResult exposes source_ids (skill filenames), not pattern_ids."""
+        from contemplative_agent.cli import _run_approval_loop
+        from contemplative_agent.core.rules_distill import RuleResult
+
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        rules_dir = tmp_path / "rules"
+        item = RuleResult(
+            text="# R", filename="r.md", target_path=rules_dir / "r.md",
+            source_ids=("skill-a.md", "skill-b.md"),
+        )
+        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path), \
+             patch("builtins.input", side_effect=["y"]):
+            _run_approval_loop([item], command="rules-distill", target_dir=rules_dir)
+        record = json.loads(audit_path.read_text().strip())
+        assert record["source_ids"] == ["skill-a.md", "skill-b.md"]
+
+    def test_stage_adopt_roundtrip_carries_lineage(self, tmp_path):
+        """The most leak-prone plumbing: stage meta.json → adopt → audit."""
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        target = tmp_path / "skills" / "a.md"
+        item = StageItem(
+            "a.md", "# A", target,
+            source_ids=["c3c3c3c3c3c3"],
+            epistemic_counts={"observed": 1, "generated": 0, "unknown": 0},
+        )
+        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
+             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+            _stage_results([item], command="insight")
+
+        meta = json.loads((staged_dir / "a.md.meta.json").read_text())
+        assert meta["source_ids"] == ["c3c3c3c3c3c3"]
+        assert meta["epistemic_counts"] == {
+            "observed": 1, "generated": 0, "unknown": 0,
+        }
+        # Stage-time audit record already carries lineage.
+        stage_record = json.loads(audit.read_text().strip().splitlines()[-1])
+        assert stage_record["decision"] == "staged"
+        assert stage_record["source_ids"] == ["c3c3c3c3c3c3"]
+
+        args = MagicMock()
+        args.yes = False
+        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
+             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit), \
+             patch("builtins.input", side_effect=["y"]):
+            _handle_adopt_staged(args, MagicMock())
+
+        adopted_record = json.loads(audit.read_text().strip().splitlines()[-1])
+        assert adopted_record["decision"] == "approved"
+        assert adopted_record["source"] == "stage-adopted"
+        assert adopted_record["source_ids"] == ["c3c3c3c3c3c3"]
+        assert adopted_record["epistemic_counts"] == {
+            "observed": 1, "generated": 0, "unknown": 0,
+        }
