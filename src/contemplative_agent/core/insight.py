@@ -21,7 +21,7 @@ from ._io import now_iso
 from .artifact_extraction import resolve_artifact_path
 from .clustering import cluster_patterns
 from .knowledge_store import effective_importance
-from .llm import generate, validate_identity_content
+from .llm import generate, get_distill_system_prompt, validate_identity_content
 from .episode_log import EpisodeLog
 from .memory import KnowledgeStore
 from .prompts import INSIGHT_EXTRACTION_PROMPT
@@ -67,7 +67,12 @@ def _extract_skill(
         insights="\n".join(f"- {i}" for i in insights) if insights else "(none)",
     )
 
-    result = generate(prompt, num_predict=3000)
+    # Axioms-only system (same as distill): skill generation must not be
+    # conditioned on the existing skill corpus, or each new skill inherits
+    # the vocabulary of the last (audit H6).
+    result = generate(
+        prompt, system=get_distill_system_prompt(), num_predict=3000
+    )
     if result is None:
         logger.warning("LLM failed to generate skill extraction.")
         return None

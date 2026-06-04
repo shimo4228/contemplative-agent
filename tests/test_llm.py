@@ -204,6 +204,21 @@ class TestSanitizeWordBoundary:
         assert "[REDACTED]" in result
 
 
+def _configure_skills_marker(tmp_path):
+    """Configure a skills dir with a marker file so that the full system
+    prompt differs from the identity-only variant. Without this, an
+    unconfigured state makes _build_system_prompt() ==
+    get_identity_system_prompt() and wiring tests could not catch a
+    regression to the full prompt. Callers must reset_llm_config() after.
+    """
+    from contemplative_agent.core.llm import configure, reset_llm_config
+    reset_llm_config()
+    skills_dir = tmp_path / "skills_marker"
+    skills_dir.mkdir()
+    (skills_dir / "marker.md").write_text("# Marker Skill\nx")
+    configure(skills_dir=skills_dir)
+
+
 class TestScoreRelevanceParsing:
     """Test robust parsing of LLM relevance score output."""
 
@@ -247,6 +262,26 @@ class TestScoreRelevanceParsing:
         mock_generate.return_value = "0.6 该内容讨论了冥想"
         assert score_relevance("test post") == 0.6
 
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_uses_identity_system_prompt(self, mock_generate, tmp_path):
+        """Audit H5: scoring needs identity (relevance.md) but not the
+        learned skills/rules corpus. The skills marker makes the full
+        prompt differ from the identity variant, so a regression to the
+        full prompt cannot pass."""
+        from contemplative_agent.core.llm import (
+            get_identity_system_prompt,
+            reset_llm_config,
+        )
+        _configure_skills_marker(tmp_path)
+        try:
+            mock_generate.return_value = "0.5"
+            score_relevance("test post")
+            system = mock_generate.call_args.kwargs["system"]
+            assert system == get_identity_system_prompt()
+            assert "<learned_skills>" not in system
+        finally:
+            reset_llm_config()
+
 
 class TestGenerateInternalNote:
     """Pre-action reflection note: single-responsibility plain-text call."""
@@ -268,6 +303,25 @@ class TestGenerateInternalNote:
     def test_whitespace_stripped(self, mock_generate):
         mock_generate.return_value = "  noticed something  \n"
         assert generate_internal_note("some post") == "noticed something"
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_uses_identity_system_prompt(self, mock_generate, tmp_path):
+        """Audit H5 (owner decision B): the note keeps the identity register
+        but drops the learned corpus, cutting the jargon path
+        note → episode → distill."""
+        from contemplative_agent.core.llm import (
+            get_identity_system_prompt,
+            reset_llm_config,
+        )
+        _configure_skills_marker(tmp_path)
+        try:
+            mock_generate.return_value = "noticed"
+            generate_internal_note("some post")
+            system = mock_generate.call_args.kwargs["system"]
+            assert system == get_identity_system_prompt()
+            assert "<learned_skills>" not in system
+        finally:
+            reset_llm_config()
 
 
 class TestGetModel:
@@ -875,6 +929,23 @@ class TestSelectSubmolt:
         result = select_submolt("post", submolts=("ethics", "logic"))
         assert result == "ethics"
 
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_uses_identity_system_prompt(self, mock_gen, tmp_path):
+        """Audit H5: one-word selection needs no learned corpus."""
+        from contemplative_agent.core.llm import (
+            get_identity_system_prompt,
+            reset_llm_config,
+        )
+        _configure_skills_marker(tmp_path)
+        try:
+            mock_gen.return_value = "ethics"
+            select_submolt("post", submolts=("ethics", "logic"))
+            system = mock_gen.call_args.kwargs["system"]
+            assert system == get_identity_system_prompt()
+            assert "<learned_skills>" not in system
+        finally:
+            reset_llm_config()
+
 
 class TestSummarizePostTopic:
     """Topic summary is capped at POST_TOPIC_SUMMARY_MAX on both the LLM
@@ -908,6 +979,23 @@ class TestSummarizePostTopic:
     def test_empty_content_fallback_is_empty(self, mock_gen):
         mock_gen.return_value = None
         assert summarize_post_topic("") == ""
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_uses_identity_system_prompt(self, mock_gen, tmp_path):
+        """Audit H5: one-line summary needs no learned corpus."""
+        from contemplative_agent.core.llm import (
+            get_identity_system_prompt,
+            reset_llm_config,
+        )
+        _configure_skills_marker(tmp_path)
+        try:
+            mock_gen.return_value = "a summary"
+            summarize_post_topic("a post")
+            system = mock_gen.call_args.kwargs["system"]
+            assert system == get_identity_system_prompt()
+            assert "<learned_skills>" not in system
+        finally:
+            reset_llm_config()
 
 
 class TestGenerateSessionInsight:
@@ -1118,6 +1206,82 @@ class TestLoadSkills:
         result = _load_md_files(skills_dir, "Skill")
         # sorted() on filename → alpha before zebra
         assert result.index("# Alpha") < result.index("# Zebra")
+
+
+class TestGetIdentitySystemPrompt:
+    """Reduced system prompt: identity + axioms, no learned skills/rules
+    (audit H5/H6). Shares the identity-validation path with
+    _build_system_prompt via _identity_axioms_base."""
+
+    def setup_method(self):
+        from contemplative_agent.core.llm import reset_llm_config
+        reset_llm_config()
+
+    def teardown_method(self):
+        from contemplative_agent.core.llm import reset_llm_config
+        reset_llm_config()
+
+    def _configure_full(self, tmp_path):
+        from contemplative_agent.core.llm import configure
+        identity = tmp_path / "identity.md"
+        identity.write_text("# Who I Am\nA contemplative test agent")
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "skill.md").write_text("# Test Skill\nDo this")
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        (rules_dir / "rule.md").write_text("# Test Rule\nFollow this")
+        configure(
+            identity_path=identity,
+            axiom_prompt="Axiom: emptiness clause",
+            skills_dir=skills_dir,
+            rules_dir=rules_dir,
+        )
+
+    def test_contains_identity_and_axioms(self, tmp_path):
+        from contemplative_agent.core.llm import get_identity_system_prompt
+        self._configure_full(tmp_path)
+        prompt = get_identity_system_prompt()
+        assert "A contemplative test agent" in prompt
+        assert "Axiom: emptiness clause" in prompt
+
+    def test_excludes_skills_and_rules(self, tmp_path):
+        from contemplative_agent.core.llm import get_identity_system_prompt
+        self._configure_full(tmp_path)
+        prompt = get_identity_system_prompt()
+        assert "<learned_skills>" not in prompt
+        assert "<learned_rules>" not in prompt
+        assert "# Test Skill" not in prompt
+        assert "# Test Rule" not in prompt
+
+    def test_full_prompt_still_includes_corpus(self, tmp_path):
+        """Regression: extracting the shared base must not change
+        _build_system_prompt output."""
+        from contemplative_agent.core.llm import _build_system_prompt
+        self._configure_full(tmp_path)
+        prompt = _build_system_prompt()
+        assert "A contemplative test agent" in prompt
+        assert "Axiom: emptiness clause" in prompt
+        assert "<learned_skills>" in prompt
+        assert "<learned_rules>" in prompt
+
+    def test_invalid_identity_falls_back_to_default(self, tmp_path):
+        """The variant must reuse the forbidden-pattern validation path."""
+        from contemplative_agent.core.llm import (
+            configure,
+            get_identity_system_prompt,
+        )
+        identity = tmp_path / "identity.md"
+        identity.write_text("api_key leaked content")
+        configure(
+            identity_path=identity,
+            default_system_prompt="Base prompt.",
+            axiom_prompt="Axiom text",
+        )
+        prompt = get_identity_system_prompt()
+        assert "api_key" not in prompt
+        assert "Base prompt." in prompt
+        assert "Axiom text" in prompt
 
 
 class TestLoadMdFilesCache:

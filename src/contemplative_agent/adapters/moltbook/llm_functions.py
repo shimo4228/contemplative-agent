@@ -20,7 +20,12 @@ from ...core.prompts import (
     SUBMOLT_SELECTION_PROMPT,
     TOPIC_SUMMARY_PROMPT,
 )
-from ...core.llm import generate, generate_for_api, wrap_untrusted_content
+from ...core.llm import (
+    generate,
+    generate_for_api,
+    get_identity_system_prompt,
+    wrap_untrusted_content,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -66,7 +71,9 @@ def score_relevance(post_text: str) -> float:
     prompt = _resolve_domain_prompt(RELEVANCE_PROMPT).format(
         post_content=wrap_untrusted_content(post_text, max_input=1000),
     )
-    result = generate(prompt, num_predict=30)
+    # Identity-only system: scoring needs the domain identity as its
+    # reference (relevance.md) but not the learned skills/rules corpus.
+    result = generate(prompt, system=get_identity_system_prompt(), num_predict=30)
     if result is None:
         return 0.0
 
@@ -92,7 +99,10 @@ def generate_internal_note(content: str) -> str:
     prompt = INTERNAL_NOTE_PROMPT.format(
         content=wrap_untrusted_content(content, max_input=1000),
     )
-    result = generate(prompt)
+    # Identity-only system: the note keeps the first-person register but
+    # not the learned corpus, cutting the vocabulary feedback path
+    # note → episode → distill.
+    result = generate(prompt, system=get_identity_system_prompt())
     return result.strip() if result else ""
 
 
@@ -212,7 +222,7 @@ def summarize_post_topic(content: str) -> str:
     prompt = TOPIC_SUMMARY_PROMPT.format(
         post_content=wrap_untrusted_content(content, max_input=2000),
     )
-    result = generate(prompt, num_predict=60)
+    result = generate(prompt, system=get_identity_system_prompt(), num_predict=60)
     if result:
         return result.strip()[:POST_TOPIC_SUMMARY_MAX]
     return content[:POST_TOPIC_SUMMARY_MAX]
@@ -227,7 +237,7 @@ def select_submolt(
         submolt_list=submolt_list,
         post_content=wrap_untrusted_content(content, max_input=1000),
     )
-    result = generate(prompt, num_predict=20)
+    result = generate(prompt, system=get_identity_system_prompt(), num_predict=20)
     if result is None:
         return None
 

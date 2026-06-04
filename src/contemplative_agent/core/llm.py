@@ -211,6 +211,18 @@ def get_distill_system_prompt() -> str:
     return base
 
 
+def get_identity_system_prompt() -> str:
+    """System prompt with identity + axioms but no learned skills/rules.
+
+    Used by mechanical calls (relevance scoring, submolt selection, topic
+    summary) and the pre-action internal note: identity supplies the lens
+    and the axioms the values, while the learned corpus stays out — it
+    distracts a small model from single-token tasks and feeds its own
+    vocabulary back into episodes (audit H5).
+    """
+    return _identity_axioms_base()
+
+
 def validate_identity_content(content: str) -> bool:
     """Return True if content passes all forbidden pattern checks."""
     content_lower = content.lower()
@@ -294,11 +306,11 @@ def _load_md_files(directory: Optional[Path], label: str) -> str:
     return result
 
 
-def _build_system_prompt() -> str:
-    """Build the full system prompt from identity, axioms, skills, and rules.
+def _identity_axioms_base() -> str:
+    """Identity (validated, or default prompt) plus CCAI axiom clauses.
 
-    Layers: default prompt (or identity.md if valid) + axioms + skills + rules.
-    Identity content is validated against forbidden patterns.
+    Shared base for ``get_identity_system_prompt`` and
+    ``_build_system_prompt`` so both use the same identity-validation path.
     """
     base_prompt = _get_default_system_prompt()
     identity = _identity_path
@@ -314,6 +326,16 @@ def _build_system_prompt() -> str:
     # Append CCAI axiom clauses if configured
     if _axiom_prompt:
         base_prompt = base_prompt + "\n\n---\n\n" + _axiom_prompt
+    return base_prompt
+
+
+def _build_system_prompt() -> str:
+    """Build the full system prompt from identity, axioms, skills, and rules.
+
+    Layers: default prompt (or identity.md if valid) + axioms + skills + rules.
+    Identity content is validated against forbidden patterns.
+    """
+    base_prompt = _identity_axioms_base()
 
     # Append learned skills and rules if available (treated as untrusted —
     # distilled LLM output that passed forbidden-pattern checks but could

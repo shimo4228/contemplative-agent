@@ -138,6 +138,34 @@ class TestExtractSkill:
         prompt_arg = mock_generate.call_args[0][0]
         assert "cluster-1" in prompt_arg
 
+    @patch("contemplative_agent.core.insight.generate")
+    def test_uses_distill_system_prompt(self, mock_generate, tmp_path) -> None:
+        """Audit H6: skill generation must not be conditioned on the existing
+        skill corpus nor identity — same anti-circularity grounding as
+        distill. Configure both so a regression to the full or identity
+        prompt cannot pass."""
+        from contemplative_agent.core.llm import (
+            configure,
+            get_distill_system_prompt,
+            reset_llm_config,
+        )
+        reset_llm_config()
+        identity = tmp_path / "identity.md"
+        identity.write_text("# Who I Am\nIDENTITY-MARKER-TEXT")
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "marker.md").write_text("# Marker Skill\nx")
+        configure(identity_path=identity, skills_dir=skills_dir)
+        try:
+            mock_generate.return_value = GOOD_SKILL_RESPONSE
+            _extract_skill(["p1"], ["i1"])
+            system = mock_generate.call_args.kwargs["system"]
+            assert system == get_distill_system_prompt()
+            assert "<learned_skills>" not in system
+            assert "IDENTITY-MARKER-TEXT" not in system
+        finally:
+            reset_llm_config()
+
 
 # ---------------------------------------------------------------------------
 # extract_insight (orchestrator)
