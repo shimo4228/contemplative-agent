@@ -77,6 +77,8 @@ AKC updates.
 | bitemporal | 時間妥当性 (bitemporal) | 双时态 (bitemporal) | 雙時態 (bitemporal) | bitemporal | bitemporal | partial |
 | approval gate | 承認ゲート | 审批闸门 | 審核閘門 | porta de aprovação | puerta de aprobación | |
 | human approval gate | 人間承認ゲート | 人类审批闸门 | 人類審核閘門 | porta de aprovação humana | puerta de aprobación humana | |
+| approval lineage | 承認系譜 | 审批谱系 | 審核譜系 | linhagem de aprovação | linaje de aprobación | ADR-0050 |
+| session insight | セッション洞察 | 会话洞察 | 會話洞察 | insight de sessão | insight de sesión | retired (ADR-0052); historical docs only |
 | self-improving | 自己改善 | 自我改进 | 自我改進 | auto-aperfeiçoamento | automejora | |
 | ethical framework | 倫理フレームワーク | 伦理框架 | 倫理框架 | estrutura ética | marco ético | |
 | character template | キャラクターテンプレート | 角色模板 | 角色模板 | modelo de personagem | plantilla de personaje | |
@@ -114,6 +116,10 @@ wrapped in local punctuation when embedded in a translated sentence.
 - **one external adapter per agent** — ADR-0015 principle.
 - **noise as seed** — ADR-0027 retention policy.
 - **pivot snapshots** — ADR-0020 replay mechanism.
+- **observability without steering** — ADR-0050 headline principle;
+  enforced by ADR-0051 (trust retirement) and ADR-0052 (session-insight
+  retirement). Bilingual first-use allowed: 「observability without
+  steering（操縦なき可観測性）」.
 
 ### AAP four-quadrant lens (Keep original)
 

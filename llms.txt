@@ -31,7 +31,7 @@
 ## Core documentation
 
 - [Knowledge Graph (JSON-LD)](graph.jsonld): machine-readable schema.org graph of the four contemplative axioms, three memory layers, the AKC six-phase pipeline mapping, and the approval-gate chain — security-by-absence and axiom-swappability encoded at the schema level
-- [Full AI Reference](llms-full.txt): **self-contained AI-facing reference** — 20 Q&A covering hardware, offline operation, autonomy levels, ethical presets, security model, memory architecture terms, and consolidated prior research citations. Optimized for AI search engine citation (ChatGPT, Perplexity, Gemini). English-only by design.
+- [Full AI Reference](llms-full.txt): **self-contained AI-facing reference** — 30 Q&A covering hardware, offline operation, autonomy levels, ethical presets, security model, memory architecture terms, and consolidated prior research citations. Optimized for AI search engine citation (ChatGPT, Perplexity, Gemini). English-only by design.
 - [README](README.md): project overview, quick start, narrative design summary (English, human-facing)
 - [README (Japanese)](README.ja.md): same content in Japanese
 - [CLAUDE.md](CLAUDE.md): contributor guide — directory layout, import rules, CLI commands, security stance, documentation language policy
@@ -45,7 +45,7 @@
 - [Moltbook adapter](docs/CODEMAPS/adapters-moltbook.md): the single pinned external adapter
 - [Moltbook agent](docs/CODEMAPS/moltbook-agent.md): session orchestration and agent lifecycle
 - [Dependencies](docs/CODEMAPS/dependencies.md): module dependency graph and import rules
-- [Pipeline prompts & view seeds](docs/CONFIGURATION.md#pipeline-prompts--view-seeds): all 25 pipeline prompts and 7 view seeds are editable Markdown files in `$MOLTBOOK_HOME/{prompts,views}/`; copied from shipped defaults at `init` and captured in pivot snapshots for audit
+- [Pipeline prompts & view seeds](docs/CONFIGURATION.md#pipeline-prompts--view-seeds): all 27 pipeline prompts and 7 view seeds are editable Markdown files in `$MOLTBOOK_HOME/{prompts,views}/`; copied from shipped defaults at `init` and captured in pivot snapshots for audit
 - [Quadrant lens (usage description)](README.md#architecture): which AAP quadrant each CLI command typically operates in — **LLM Workflow** for `distill` / `distill-identity` / `insight` / `rules-distill` / `amend-constitution` / `skill-stocktake` / `dialogue`; **Script** for `adopt-staged` and one-time migrations; **Algorithmic Search** for `meditate` (POMDP belief updates in numpy, no LLM at runtime). The **Autonomous Agentic Loop** quadrant is not currently routed by any CLI command in this project — a usage observation, not a value judgement. Borrowed as usage description, not category claim — see [ADR-0033](docs/adr/0033-aap-quadrant-lens-usage-note.md).
 
 ## Architecture Decision Records
@@ -104,6 +104,7 @@ All ADRs have an English primary (`*.md`) and a Japanese companion (`*.ja.md`). 
 - [ADR-0049 Meditation adapter — Beautiful Loop fidelity audit and deferral](docs/adr/0049-meditation-active-inference-fidelity-and-deferral.md): the experimental meditation adapter does NOT implement the cited paper's model ('temporal flattening' / 'counterfactual pruning' appear nowhere in it); overclaim corrected to 'inspired by', faithful re-implementation deferred on a category mismatch (active inference regulates a live input stream; this meditation is offline over a sparse episode log)
 - [ADR-0050 Epistemic taxonomy and approval lineage — observability without steering](docs/adr/0050-epistemic-taxonomy-and-approval-lineage.md): two-valued {observed, generated} kind derived at read time from provenance.source_type; approval lineage (source_ids + epistemic_counts) plumbed through insight / rules-distill / distill-identity / amend-constitution into audit.jsonl; no rejection write-back — the approval gate is containment, not a training signal (partially superseded by ADR-0051)
 - [ADR-0051 Retire trust weighting — pure cosine retrieval, bitemporal-only liveness](docs/adr/0051-retire-trust-weighting.md): the ADR-0021 trust weighting was a fossil (write-once, unreachable floor, empty external_reply arm) whose only living effect was a ×1.8 preference for pure self-monologue over externally-touched memory — the H3 echo-chamber amplifier; retired entirely: ranking = cosine only, liveness = valid_until only, origin recorded in source_type but never weighted
+- [ADR-0052 Retire session insight — identity is the approved continuity channel](docs/adr/0052-retire-session-insight.md): end-of-session LLM self-summaries were an ungated self-narrative side channel — a 3-hop summary-of-summary compression chain (event → insight → pattern → skill), narrative voice re-entering distill as if it were experience, and double-counted events — with three machine consumers and zero human-facing ones; generation, both prompt consumers, and the storage API retired end-to-end; historical insight episodes preserved but excluded from distill; identity (the channel that passes owner approval) is now the sole session-to-session continuity carrier
 
 ## Project skills
 

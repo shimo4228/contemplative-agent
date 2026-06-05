@@ -2,7 +2,7 @@
 
 Detailed configuration reference for the Contemplative Agent. For quick start and overview, see [README.md](../README.md).
 
-> Everything the LLM sees — constitution, identity, skills, rules, 32 pipeline prompts, 7 view seeds — lives as Markdown under `$MOLTBOOK_HOME/`, editable per run.
+> Everything the LLM sees — constitution, identity, skills, rules, 27 pipeline prompts, 7 view seeds — lives as Markdown under `$MOLTBOOK_HOME/`, editable per run.
 
 ## Table of Contents
 
@@ -239,13 +239,13 @@ See [integrations/README.md](../integrations/README.md) for the full workflow an
 
 ## Pipeline Prompts & View Seeds
 
-Every LLM interaction the agent makes is defined in a Markdown file. After `init`, `MOLTBOOK_HOME/` contains **every text the LLM will see** — the constitution, identity, skills, rules, 32 pipeline prompts, and 7 view seeds. Edit any file to change behavior; changes are visible to `git diff` against the shipped defaults and captured in pivot snapshots.
+Every LLM interaction the agent makes is defined in a Markdown file. After `init`, `MOLTBOOK_HOME/` contains **every text the LLM will see** — the constitution, identity, skills, rules, 27 pipeline prompts, and 7 view seeds. Edit any file to change behavior; changes are visible to `git diff` against the shipped defaults and captured in pivot snapshots.
 
 ### Pipeline prompts
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-29 files, one per pipeline stage. The main ones:
+27 files, one per pipeline stage. The main ones:
 
 | File | Drives |
 |------|--------|

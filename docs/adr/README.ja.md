@@ -55,6 +55,7 @@
 | [0049](0049-meditation-active-inference-fidelity-and-deferral.ja.md) | 瞑想アダプタ — Beautiful Loop 忠実性監査と忠実な再実装の保留 | accepted | 2026-06-03 |
 | [0050](0050-epistemic-taxonomy-and-approval-lineage.ja.md) | Epistemic taxonomy と承認系譜 — steering なしの可観測性 | partially-superseded-by 0051 | 2026-06-05 |
 | [0051](0051-retire-trust-weighting.ja.md) | trust 重みの全廃 — 純 cosine 検索と bitemporal のみの生死判定 | accepted | 2026-06-05 |
+| [0052](0052-retire-session-insight.ja.md) | セッション洞察生成の退役 — identity が承認済み継続性チャネルである | accepted | 2026-06-05 |
 
 ## ADR の種別
 

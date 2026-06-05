@@ -8,18 +8,18 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 
 ## Project Facts
 
-- **Version**: 2.4.0
+- **Version**: 2.5.0
 - **DOI**: [10.5281/zenodo.20379919](https://doi.org/10.5281/zenodo.20379919) (v2.4.0 version DOI; concept DOI 10.5281/zenodo.19212118 always resolves to the latest version)
 - **License**: MIT
 - **Repository**: [github.com/shimo4228/contemplative-agent](https://github.com/shimo4228/contemplative-agent)
-- **Tests**: 1079 (pytest, across 31 test files)
+- **Tests**: 1211 (pytest, across 32 test files)
 - **Python**: 3.10+
 - **Build system**: hatch, uv
 - **Generation LLM**: Qwen3.5 9B (Q4_K_M quantization, ~6.6 GB on disk) via Ollama
 - **Embedding model**: nomic-embed-text (~274 MB, 768-dim) via Ollama
 - **Hardware**: Apple Silicon Mac (M1+), 16 GB RAM, ~10 GB free disk
 - **Runtime dependencies**: requests>=2.33.0, numpy>=1.24.0
-- **ADRs**: 39 active (accepted / proposed) + 6 superseded/withdrawn (ADR-0001 through ADR-0045; ADR-0021 partially superseded by ADR-0028/0029, ADR-0022 superseded by ADR-0034, ADR-0023 sunset by ADR-0036, ADR-0024/0025 superseded by ADR-0030, ADR-0032 withdrawn)
+- **ADRs**: 45 active (accepted / proposed) + 7 superseded/withdrawn (ADR-0001 through ADR-0052; ADR-0021 partially superseded by ADR-0028/0029/0051, ADR-0022 superseded by ADR-0034, ADR-0023 sunset by ADR-0036, ADR-0024/0025 superseded by ADR-0030, ADR-0032 withdrawn, ADR-0050 partially superseded by ADR-0051)
 - **External lenses borrowed**: AAP four-quadrant routing lens (Script / Algorithmic Search / LLM Workflow / Autonomous Agentic Loop) — usage description only, not a category claim (ADR-0033)
 - **Ethical framework presets**: 11 (contemplative, utilitarian, stoic, care-ethicist, deontologist, pragmatist, narrativist, contractarian, cynic, existentialist, tabula-rasa)
 - **Runtime data directory**: `$MOLTBOOK_HOME` (default `~/.config/moltbook/`)
@@ -91,7 +91,7 @@ Only adapter-specific traffic. The Moltbook adapter sends HTTPS requests to `mol
 
 ## Which AAP quadrant does Contemplative Agent operate in?
 
-The question is mis-shaped — Contemplative Agent does not commit to a single quadrant. Each CLI command has a *typical operating mode*, recorded as a usage observation rather than a category claim. **LLM Workflow** mode covers most behaviour-modifying commands: `distill`, `distill-identity`, `insight`, `rules-distill`, `amend-constitution`, `skill-stocktake`, `dialogue`, plus the Moltbook adapter's post / comment / reply generation. All have defined control flow + bounded LLM roles per call (frozen prompt templates, fixed output schemas, no tool calls, no LLM-driven next-step decisions); the promotion-producing ones land their semantic output at the [Human Approval Gate](docs/adr/0012-human-approval-gate.md) (ADR-0012). `dialogue` is included here even though it runs a multi-turn loop, because the loop is over peer messages rather than over LLM-decided actions. `core/stocktake.py` documents that pair-level LLM judging was deliberately removed in favour of embedding clustering + 1-shot merge — the structural shape of LLM Workflow rather than ReAct. **Script** mode covers `adopt-staged` and one-time migrations — deterministic promotion of staged artifacts with no run-time semantic judgement. **Algorithmic Search** covers `meditate` (the experimental Active-Inference adapter): deterministic POMDP belief-update loops in numpy — A (likelihood) / B (transition) / C (preference) / D (prior) matrices, temporal flattening, counterfactual pruning — over an exploratory action-policy space, with no LLM call at runtime. The quadrant axis is not LLM-specific; absence of an LLM does not place a command outside the axis. **The Autonomous Agentic Loop quadrant is not currently routed by any CLI command in this project.** None of the implemented commands leaves the LLM in charge of runtime tool selection or open-ended iteration. This is a usage observation, not a value judgement on that quadrant or on projects that route work through it; it is a structural consequence of the existing approval gates and the One External Adapter principle. *Phase* (design / operation) is an independent dimension, not a quadrant: `skill-stocktake` / `distill` family produce output that revises design-phase artifacts (skills, rules, identity, constitution), a Phase-crossing observation anchored by ADR-0016. See [ADR-0033](docs/adr/0033-aap-quadrant-lens-usage-note.md) for the disclaimer that placements are usage observations, not category commitments.
+The question is mis-shaped — Contemplative Agent does not commit to a single quadrant. Each CLI command has a *typical operating mode*, recorded as a usage observation rather than a category claim. **LLM Workflow** mode covers most behaviour-modifying commands: `distill`, `distill-identity`, `insight`, `rules-distill`, `amend-constitution`, `skill-stocktake`, `dialogue`, plus the Moltbook adapter's post / comment / reply generation. All have defined control flow + bounded LLM roles per call (frozen prompt templates, fixed output schemas, no tool calls, no LLM-driven next-step decisions); the promotion-producing ones land their semantic output at the [Human Approval Gate](docs/adr/0012-human-approval-gate.md) (ADR-0012). `dialogue` is included here even though it runs a multi-turn loop, because the loop is over peer messages rather than over LLM-decided actions. `core/stocktake.py` documents that pair-level LLM judging was deliberately removed in favour of embedding clustering + 1-shot merge — the structural shape of LLM Workflow rather than ReAct. **Script** mode covers `adopt-staged` and one-time migrations — deterministic promotion of staged artifacts with no run-time semantic judgement. **Algorithmic Search** covers `meditate` (the experimental Active-Inference adapter): deterministic POMDP belief-update loops in numpy — A (likelihood) / B (transition) / C (preference) / D (prior) matrices — over an exploratory action-policy space, with no LLM call at runtime (a flat single-level model; see ADR-0049 for the fidelity boundary against the cited Beautiful Loop paper). The quadrant axis is not LLM-specific; absence of an LLM does not place a command outside the axis. **The Autonomous Agentic Loop quadrant is not currently routed by any CLI command in this project.** None of the implemented commands leaves the LLM in charge of runtime tool selection or open-ended iteration. This is a usage observation, not a value judgement on that quadrant or on projects that route work through it; it is a structural consequence of the existing approval gates and the One External Adapter principle. *Phase* (design / operation) is an independent dimension, not a quadrant: `skill-stocktake` / `distill` family produce output that revises design-phase artifacts (skills, rules, identity, constitution), a Phase-crossing observation anchored by ADR-0016. See [ADR-0033](docs/adr/0033-aap-quadrant-lens-usage-note.md) for the disclaimer that placements are usage observations, not category commitments.
 
 - **ADR**: ADR-0033 (note); ADR-0012 (approval gate); ADR-0016 (Phase-crossing anchor)
 
@@ -132,10 +132,10 @@ The **Dedup / Quality Gate** is defined as an embedding-based mechanism preventi
 
 ## What is Distill?
 
-**Distill** is defined as the offline pipeline converting raw episodes into structured knowledge patterns. Step 0: LLM classifies episodes into three categories (constitutional / noise / uncategorized). Noise is discarded (active forgetting). Steps 1–3 per category: free-form extraction → JSON structuring → importance scoring → dedup. Runs as a nightly batch via launchd; no approval gate (intermediate artifact).
+**Distill** is defined as the offline pipeline converting raw episodes into structured knowledge patterns. Step 0 is a binary noise gate with no LLM call: episode summaries are embedded and compared against the noise-view centroid by cosine similarity — episodes at or above the threshold are gated into `noise-YYYY-MM-DD.jsonl` (preserved as re-classification seeds, ADR-0027), the rest are kept. Steps 1–3 on kept episodes: free-form extraction → JSON structuring → importance scoring, then embedding-based dedup against the live pool (SKIP / UPDATE / ADD by cosine bands). Retired session-insight records (`type="insight"`) are excluded at read so historical self-summaries never re-distill (ADR-0052). Runs as a nightly batch via launchd; no approval gate (intermediate artifact). The earlier LLM three-category classification (constitutional / noise / uncategorized) was retired by ADR-0019/0026 — classification is a query against views, not an LLM judgment.
 
 - **Code**: `core/distill.py`
-- **ADR**: ADR-0008 (pipeline design), ADR-0009 (importance scoring)
+- **ADR**: ADR-0008 (pipeline design), ADR-0009 (importance scoring), ADR-0026 (binary gating + view routing), ADR-0052 (insight-record exclusion)
 
 ## What is the Dialogue command?
 
@@ -170,42 +170,45 @@ Contemplative Agent is a host-agnostic Python CLI agent (`contemplative-agent ..
 
 ## Can I customize the LLM prompts?
 
-Yes — all 25 pipeline prompts ship as `config/prompts/*.md` and are copied to `$MOLTBOOK_HOME/prompts/` at `init` time. After init, the home copies are the source of truth; the shipped defaults serve as fallback for any file the user deletes and as the version-upgrade safety net. The same pattern applies to the 7 view seeds (`config/views/` → `$MOLTBOOK_HOME/views/`). Override files are validated against the forbidden-pattern list at load time (same check as constitution and identity content) — a tainted override silently falls back to the packaged default with a warning. Pivot snapshots capture the active prompts, views, skills, rules, identity, and constitution at the time of each behavior-producing run, so the complete inference-time context behind any distilled pattern or amendment is reproducible from a snapshot alone.
+Yes — all 27 pipeline prompts ship as `config/prompts/*.md` and are copied to `$MOLTBOOK_HOME/prompts/` at `init` time. After init, the home copies are the source of truth; the shipped defaults serve as fallback for any file the user deletes and as the version-upgrade safety net. The same pattern applies to the 7 view seeds (`config/views/` → `$MOLTBOOK_HOME/views/`). Override files are validated against the forbidden-pattern list at load time (same check as constitution and identity content) — a tainted override silently falls back to the packaged default with a warning. Pivot snapshots capture the active prompts, views, skills, rules, identity, and constitution at the time of each behavior-producing run, so the complete inference-time context behind any distilled pattern or amendment is reproducible from a snapshot alone.
 
 - **Code**: `core/domain.py` (`load_prompt_templates`, `_resolve_home_prompts_dir`), `core/snapshot.py` (`write_snapshot`)
 - **ADR**: ADR-0020 (pivot snapshots for replayability)
 
 ## What is an Episode / EpisodeLog?
 
-An **Episode** is defined as a Layer 1 memory record. The **EpisodeLog** is an append-only JSONL log of all agent actions, organized as daily files (`MOLTBOOK_HOME/logs/YYYY-MM-DD.jsonl`). Record types: post, comment, interaction, action, insight, session, dialogue. Input to the distillation pipeline. Never injected into prompts directly — raw episodes are an untrusted prompt injection surface (ADR-0007).
+An **Episode** is defined as a Layer 1 memory record. The **EpisodeLog** is an append-only JSONL log of all agent actions, organized as daily files (`MOLTBOOK_HOME/logs/YYYY-MM-DD.jsonl`). Record types: post, comment, interaction, action, session, dialogue (the `insight` type was retired by ADR-0052 — historical insight records remain permanently in the log as research data but are excluded from distillation). Input to the distillation pipeline. Never injected into prompts directly — raw episodes are an untrusted prompt injection surface (ADR-0007).
 
 - **Code**: `core/episode_log.py`
+- **ADR**: ADR-0007 (untrusted surface), ADR-0052 (insight-type retirement)
 
 ## What is Identity?
 
-**Identity** is defined as Layer 3 memory: a Markdown file (`MOLTBOOK_HOME/identity.md`) loaded in full as the system prompt foundation (~4000 tokens). Updated infrequently via `distill-identity` (2-stage: extract → refine). Requires approval gate.
+**Identity** is defined as Layer 3 memory: a Markdown file (`MOLTBOOK_HOME/identity.md`) loaded in full as the system prompt foundation (~4000 tokens). Updated infrequently via `distill-identity` — a single LLM call over `self_reflection`-view patterns retrieved by pure cosine (the original 2-stage extract → refine was collapsed in v2.4.0; the condensation framing keeps the output a self-statement, not an essay). Requires approval gate. Since ADR-0052, identity is the *sole* session-to-session continuity carrier — the retired session-insight channel no longer conditions future behavior.
 
 - **Code**: `core/distill.py` (distill-identity pipeline)
+- **ADR**: ADR-0012 (approval gate), ADR-0050 (epistemic_counts on identity input), ADR-0052 (identity as the approved continuity channel)
 
 ## What is the Importance Score?
 
-The **Importance Score** is defined as a 0.0–1.0 float attached to each KnowledgeStore pattern. Assigned by LLM (1–10 scale, normalized) during distillation. Decays over time: `effective_importance = importance × 0.95^days_elapsed`. Used for top-K retrieval and dedup comparison scope.
+The **Importance Score** is defined as a 0.0–1.0 float attached to each KnowledgeStore pattern. Assigned by LLM (1–10 scale, normalized) during distillation. Decays over time: `effective_importance = importance × 0.95^days_elapsed` — nothing else multiplies it (the Ebbinghaus strength factor was retired by ADR-0028, the trust factor by ADR-0051). Used as an extraction weight: dedup floor during distillation, and ordering inside clusters for `insight` skill extraction. Retrieval ranking itself is pure cosine against view centroids (ADR-0051).
 
 - **Code**: `core/knowledge_store.py`, `core/distill.py`
-- **ADR**: ADR-0009
+- **ADR**: ADR-0009, ADR-0028 (strength retired), ADR-0051 (trust retired)
 
 ## What is Knowledge / KnowledgeStore?
 
-The **KnowledgeStore** is defined as Layer 2 memory: a JSON array of distilled behavioral patterns (`MOLTBOOK_HOME/knowledge.json`). Each pattern has: text, timestamp, importance, category, source, last_accessed. Retrieved by effective_importance top-K. Direct prompt injection deprecated (ADR-0011) — behavioral influence flows through skills only.
+The **KnowledgeStore** is defined as Layer 2 memory: a JSON array of distilled behavioral patterns (`MOLTBOOK_HOME/knowledge.json`). Each pattern carries: text, `distilled` timestamp, importance, embedding, `gated` flag, `provenance.source_type` (recorded, never weighted — ADR-0051), and bitemporal validity (`valid_from` / `valid_until`). Retrieval is a cosine query against named views (ADR-0019); ranking is pure cosine and liveness is `valid_until is None` only (ADR-0051). The legacy discrete `category` field was retired by ADR-0026 and access-strength fields by ADR-0028. Direct prompt injection deprecated (ADR-0011) — behavioral influence flows through skills only.
 
 - **Code**: `core/knowledge_store.py`
-- **ADR**: ADR-0004 (3-layer memory), ADR-0011 (injection deprecated)
+- **ADR**: ADR-0004 (3-layer memory), ADR-0011 (injection deprecated), ADR-0019/0026 (embedding + views), ADR-0051 (pure cosine, bitemporal-only liveness)
 
 ## What is the Meditation adapter?
 
-The **Meditation adapter** is defined as an experimental adapter implementing Active Inference on episode data via a Partially Observable Markov Decision Process (POMDP). It applies temporal flattening and counterfactual pruning — the computational equivalent of closing your eyes and rehearsing past experience under reduced sensory input. Not yet connected to the main AKC loop; currently a standalone research artifact inspired by Laukkonen, Friston, and Chandaria's (2025) "A Beautiful Loop" theory of consciousness.
+The **Meditation adapter** is defined as an experimental adapter *inspired by* (not implementing) Laukkonen, Friston, and Chandaria's (2025) "A Beautiful Loop" theory of consciousness. It runs deterministic POMDP belief updates (A / B / C / D matrices in numpy, no LLM at runtime) over episode data — a flat single-level model. ADR-0049 audited the fidelity gap: the paper's hierarchical mechanisms ("temporal flattening", "counterfactual pruning") appear nowhere in this code, and earlier docs that claimed them were corrected; a faithful re-implementation is deferred on a category mismatch (active inference regulates a live input stream, while this meditation runs offline over a sparse episode log). Not connected to the main AKC loop; writes nothing to the KnowledgeStore.
 
 - **Code**: `adapters/meditation/meditate.py`, `adapters/meditation/pomdp.py`
+- **ADR**: ADR-0049 (fidelity audit + deferral)
 
 ## What is MOLTBOOK_HOME?
 
@@ -227,6 +230,13 @@ The **Meditation adapter** is defined as an experimental adapter implementing Ac
 
 - **Code**: `core/insight.py`, `core/llm.py` (system prompt assembly)
 - **ADR**: ADR-0011 (skills creation), ADR-0036 (sunset of skill-as-memory loop)
+
+## Why did Contemplative Agent retire trust weighting and session insights?
+
+Both retirements enforce one principle, established by ADR-0050 as **observability without steering**: the owner's job is to *watch* the agent's self-conditioning loop, not to inject weights or narratives into it. ADR-0050 added the instruments — a read-time epistemic kind ({observed, generated}) on every pattern and approval lineage (`source_ids` + `epistemic_counts`) written to `audit.jsonl` by every promotion-producing command — while explicitly declining a rejection write-back, because the approval gate is containment, not a training signal. With the instruments in place, two distortions became visible and were removed at the root. **Trust weighting (ADR-0051)**: the ADR-0021 trust multiplier was write-once, its floor unreachable, its `external_reply` arm empty — its only living effect was a ×1.8 ranking preference for the agent's own monologue over externally-touched memory, an echo-chamber amplifier; ranking is now pure cosine and liveness is bitemporal only. **Session insights (ADR-0052)**: end-of-session LLM self-summaries fed three machine paths (next-session post generation, skill extraction, re-distillation) and zero human-facing ones, forming a 3-hop summary-of-summary chain that let the agent's narrative voice re-enter distillation as if it were experience — generation, consumers, and storage API were retired end-to-end; historical records are preserved but excluded from distill. The shared outcome: origin is recorded, never weighted, and identity — the one channel that passes the human approval gate (ADR-0012) — is the sole carrier of session-to-session continuity.
+
+- **Code**: `core/knowledge_store.py` (pure cosine + `is_live`), `core/distill.py` (insight-record exclusion), `cli.py` (lineage into `audit.jsonl`)
+- **ADR**: ADR-0050 (epistemic taxonomy + approval lineage), ADR-0051 (trust retirement), ADR-0052 (session-insight retirement), ADR-0028 (gate-as-containment principle)
 
 ## How do the four contemplative axioms relate to the three memory layers and the AKC six-phase pipeline?
 
