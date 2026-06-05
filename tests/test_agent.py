@@ -876,10 +876,11 @@ def _admit_decision():
 
 
 class TestRunPostCycle:
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="reflection on alignment")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Notes on dedup gates")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
-    def test_posts_dynamic(self, mock_score, mock_title, mock_summarize):
+    def test_posts_dynamic(self, mock_score, mock_title, mock_summarize, mock_submolt):
         # NOTE: title and body must avoid anything in dedup._TEST_PATTERNS
         # ("Test Title" / "Dynamic content" from Mar 30–31 leaks, and
         # "Reflective Note" / "A short body about alignment" from the
@@ -1254,9 +1255,10 @@ class TestExtractNotificationFields:
 class TestOwnPostIdTracking:
     """Tests that own post IDs are captured from _run_dynamic_post."""
 
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
-    def test_dynamic_post_captures_post_id(self, mock_score, mock_title, tmp_path):
+    def test_dynamic_post_captures_post_id(self, mock_score, mock_title, mock_select, tmp_path):
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         agent._client = MagicMock()
         agent._scheduler = MagicMock()
@@ -1274,10 +1276,11 @@ class TestOwnPostIdTracking:
         agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
         assert "dyn-post-1" in agent._ctx.own_post_ids
 
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
     def test_dynamic_post_captures_post_id_from_nested_envelope(
-        self, mock_score, mock_title, tmp_path,
+        self, mock_score, mock_title, mock_select, tmp_path,
     ):
         """Moltbook returns ``{"success": True, "post": {"id": ...}}`` for
         create-post (see skill.md AI Verification Challenges step 1 + the
@@ -1306,10 +1309,11 @@ class TestOwnPostIdTracking:
         agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
         assert "nested-post-1" in agent._ctx.own_post_ids
 
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
     def test_dynamic_post_warns_when_response_missing_id(
-        self, mock_score, mock_title, tmp_path, caplog,
+        self, mock_score, mock_title, mock_select, tmp_path, caplog,
     ):
         """Defense against the original silent-failure mode: if the API
         envelope ever drops or renames the ``post.id`` field again, the
@@ -1860,9 +1864,12 @@ class TestDynamicPostSubmolt:
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="topic")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
-    def test_falls_back_to_default(
+    def test_selection_failure_skips_post(
         self, mock_score, mock_title, mock_summarize, mock_select, tmp_path,
     ):
+        """Audit L5: select_submolt failure skips the post entirely (skip,
+        don't substitute — same idiom as the circuit breaker paths). The
+        old behavior published to the default submolt: fail-toward-acting."""
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         agent._client = MagicMock()
         agent._scheduler = MagicMock()
@@ -1873,14 +1880,33 @@ class TestDynamicPostSubmolt:
         feed_resp = MagicMock()
         feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]}
         agent._client.get.return_value = feed_resp
-        mock_resp = MagicMock()
-        mock_resp.json.return_value = {"success": True, "post": {"id": "new-post-2"}}
-        agent._client.post.return_value = mock_resp
 
         agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
 
-        call_kwargs = agent._client.post.call_args[1]
-        assert call_kwargs["json"]["submolt"] == "philosophy"
+        agent._client.post.assert_not_called()
+
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="General Topics!!")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="topic")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_invalid_name_skips_post(
+        self, mock_score, mock_title, mock_summarize, mock_select, tmp_path,
+    ):
+        """Audit L5: an invalid submolt name is the same failure as None."""
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        agent._client = MagicMock()
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_post.return_value = True
+        agent._content = MagicMock()
+        agent._content.create_cooperation_post.return_value = "Post content"
+
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]}
+        agent._client.get.return_value = feed_resp
+
+        agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
+
+        agent._client.post.assert_not_called()
 
 
 class TestGracefulShutdown:

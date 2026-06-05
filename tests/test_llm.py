@@ -267,9 +267,17 @@ class TestScoreRelevanceParsing:
         assert score_relevance("test post") == 0.0
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_score_clamped_to_max_1(self, mock_generate):
-        mock_generate.return_value = "1.5"
-        assert score_relevance("test post") == 1.0
+    @pytest.mark.parametrize("output", [
+        "1.5",
+        "I rate this topic 5 out of 10",
+        "8",
+    ], ids=["decimal-over-one", "wrong-scale-prose", "ten-scale-integer"])
+    def test_out_of_range_rejected_to_zero(self, mock_generate, output):
+        """Audit L2: a value outside the 0-1 contract is a wrong-scale
+        answer, not a high score. Clamping it to 1.0 failed toward acting;
+        reject toward not acting instead."""
+        mock_generate.return_value = output
+        assert score_relevance("test post") == 0.0
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
     def test_integer_score(self, mock_generate):
@@ -1034,6 +1042,34 @@ class TestGeneratePostTitle:
         # 200 chars passes through (was previously truncated to 80)
         assert result == long_title
 
+    # Audit L4: strip at most ONE balanced surrounding pair — the old
+    # chained .strip('"').strip("'") deleted every leading/trailing quote
+    # char, destroying titles that legitimately start or end with one.
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_preserves_unbalanced_leading_quote(self, mock_gen):
+        from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
+        mock_gen.return_value = '"Unbalanced opening stays'
+        assert generate_post_title("topics") == '"Unbalanced opening stays'
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_preserves_mixed_quote_ends(self, mock_gen):
+        from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
+        mock_gen.return_value = "\"mixed'"
+        assert generate_post_title("topics") == "\"mixed'"
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_strips_only_one_balanced_pair(self, mock_gen):
+        from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
+        mock_gen.return_value = "'\"Nested title\"'"
+        assert generate_post_title("topics") == '"Nested title"'
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_preserves_internal_quotes(self, mock_gen):
+        from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
+        mock_gen.return_value = 'On "emergence" and its limits'
+        assert generate_post_title("topics") == 'On "emergence" and its limits'
+
 
 class TestSelectSubmolt:
     _DEFAULT_SUBMOLTS = (
@@ -1091,10 +1127,11 @@ class TestSelectSubmolt:
 
 
 class TestSummarizePostTopic:
-    """Topic summary is capped at POST_TOPIC_SUMMARY_MAX on both the LLM
-    success path and the fallback path (LLM returned None). The cap is
-    load-bearing for the dedup gate, which compares Jaccard on both sides
-    at the same length budget.
+    """Topic summary is capped at POST_TOPIC_SUMMARY_MAX on the LLM success
+    path. The LLM-failure fallback returns "" (audit L7): returning raw
+    external content polluted the novelty/embedding store with prose
+    fragments; the caller's ``draft_summary or title`` idiom falls back to
+    the title instead.
     """
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
@@ -1110,13 +1147,12 @@ class TestSummarizePostTopic:
         assert len(result) == POST_TOPIC_SUMMARY_MAX
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_falls_back_to_truncated_content_when_llm_none(self, mock_gen):
+    def test_llm_failure_returns_empty_not_raw_content(self, mock_gen):
+        """Audit L7: raw external content must never become a stored
+        topic_summary."""
         mock_gen.return_value = None
-        long_content = "y" * 500
-        result = summarize_post_topic(long_content)
-        # Fallback path takes the raw content prefix at the same cap.
-        assert result == long_content[:POST_TOPIC_SUMMARY_MAX]
-        assert len(result) == POST_TOPIC_SUMMARY_MAX
+        result = summarize_post_topic("y" * 500)
+        assert result == ""
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
     def test_empty_content_fallback_is_empty(self, mock_gen):

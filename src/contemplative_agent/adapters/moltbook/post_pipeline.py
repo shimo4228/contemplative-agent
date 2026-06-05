@@ -242,10 +242,18 @@ class PostPipeline:
             return
 
         selected = select_submolt(content, self._domain.subscribed_submolts)
-        if selected and not VALID_SUBMOLT_PATTERN.match(selected):
-            logger.warning("select_submolt returned invalid name %r, using default", selected)
-            selected = None
-        submolt = selected or self._domain.default_submolt
+        if selected is None or not VALID_SUBMOLT_PATTERN.match(selected):
+            # Audit L5: skip, don't substitute — same idiom as the circuit
+            # breaker paths. The LLM did not choose a home for this post;
+            # publishing it to the default submolt anyway was
+            # fail-toward-acting.
+            logger.warning(
+                "select_submolt failed or returned invalid name %r — "
+                "skipping post (skip, don't substitute)",
+                selected,
+            )
+            return
+        submolt = selected
 
         scheduler.wait_for_post()
         try:

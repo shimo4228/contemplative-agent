@@ -79,7 +79,15 @@ def score_relevance(post_text: str) -> float:
     match = re.search(r"(\d+(?:\.\d+)?)", result)
     if match:
         score = float(match.group(1))
-        return max(0.0, min(1.0, score))
+        if score > 1.0:
+            # Audit L2: a value outside the 0-1 contract ("topic 5",
+            # "8/10") is a wrong-scale answer, not a high score. Clamping
+            # it to 1.0 failed toward acting; reject toward not acting.
+            logger.warning(
+                "Relevance score out of range, rejecting: %s", result[:80]
+            )
+            return 0.0
+        return max(0.0, score)
     logger.warning("Could not parse relevance score: %s", result)
     return 0.0
 
@@ -214,10 +222,15 @@ def generate_post_title(feed_seed_text: str) -> Optional[str]:
         prompt, max_length=MAX_POST_TITLE_LENGTH, chars_per_token=1.5
     )
     if result:
-        # Strip surrounding whitespace and quotes the LLM may add. Length is
-        # already bounded by max_length=MAX_POST_TITLE_LENGTH (300 chars per
-        # API spec); the previous [:80] slice was an unrelated 3rd cap, removed.
-        return result.strip().strip('"').strip("'")
+        # Strip surrounding whitespace, then at most ONE balanced quote
+        # pair the LLM may have added (audit L4: the old chained
+        # .strip('"').strip("'") deleted every leading/trailing quote
+        # char, destroying titles that legitimately start or end with a
+        # quotation). Length is already bounded by MAX_POST_TITLE_LENGTH.
+        title = result.strip()
+        if len(title) >= 2 and title[0] == title[-1] and title[0] in "\"'":
+            title = title[1:-1].strip()
+        return title
     return None
 
 
@@ -226,10 +239,7 @@ def summarize_post_topic(content: str) -> str:
 
     The output is truncated to POST_TOPIC_SUMMARY_MAX so the dedup gate
     (token-set Jaccard against memory-stored topic_summaries) sees both
-    sides at the same cap. Symmetry is largely preserved by prefix-5
-    stemming in dedup._tokens, but the LLM-failure fallback path falls
-    through to raw post content (potentially 40k chars), where the cap
-    is load-bearing.
+    sides at the same cap.
     """
     prompt = TOPIC_SUMMARY_PROMPT.format(
         post_content=wrap_untrusted_content(content, max_input=2000),
@@ -237,7 +247,11 @@ def summarize_post_topic(content: str) -> str:
     result = generate(prompt, system=get_identity_system_prompt(), num_predict=60)
     if result:
         return result.strip()[:POST_TOPIC_SUMMARY_MAX]
-    return content[:POST_TOPIC_SUMMARY_MAX]
+    # Audit L7: returning raw post content here stored external prose
+    # fragments as topic_summaries, polluting the novelty/embedding store.
+    # "" lets the caller's ``draft_summary or title`` idiom fall back to
+    # the title instead.
+    return ""
 
 
 def select_submolt(
