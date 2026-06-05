@@ -462,7 +462,7 @@ def _episode_source_kind(record: Dict) -> str:
     data = record.get("data", {}) or {}
     if record_type == "interaction":
         return "external" if data.get("direction") == "received" else "self"
-    if record_type in ("post", "insight", "activity"):
+    if record_type in ("post", "activity"):
         return "self"
     return "unknown"
 
@@ -822,8 +822,9 @@ def summarize_record(record_type: str, data: dict) -> str:
     elif record_type == "post":
         title = data.get("title", data.get("topic_summary", "untitled"))
         return f"posted: {title}"
-    elif record_type == "insight":
-        return data.get("observation", "")[:80]
+    # type="insight" has no branch: retired by ADR-0052 and filtered out at
+    # the distill read path; an insight record reaching here is a bug, and
+    # the "" fallthrough keeps it out of any prompt.
     elif record_type == "activity":
         action = data.get("action", "unknown")
         target = data.get("target_agent", data.get("post_id", ""))

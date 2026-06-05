@@ -9,10 +9,8 @@ import pytest
 
 from contemplative_agent.core.memory import (
     MAX_INTERACTIONS,
-    MAX_INSIGHTS,
     MAX_POST_HISTORY,
     EpisodeLog,
-    Insight,
     Interaction,
     KnowledgeStore,
     MemoryStore,
@@ -266,25 +264,6 @@ class TestPostRecord:
         assert r.content_hash == "abcdef1234567890"
 
 
-class TestInsight:
-    def test_frozen(self):
-        i = Insight(
-            timestamp="2026-03-06T00:00:00",
-            observation="Topics were repetitive",
-            insight_type="no_post_session",
-        )
-        with pytest.raises(AttributeError):
-            i.observation = "changed"  # type: ignore[misc]
-
-    def test_fields(self):
-        i = Insight(
-            timestamp="2026-03-06T00:00:00",
-            observation="Topics were repetitive",
-            insight_type="no_post_session",
-        )
-        assert i.insight_type == "no_post_session"
-
-
 class TestPostHistoryAndInsights:
     def test_record_post(self):
         store = MemoryStore()
@@ -308,30 +287,6 @@ class TestPostHistoryAndInsights:
         )
         assert len(r.topic_summary) <= 100
 
-    def test_record_insight(self):
-        store = MemoryStore()
-        i = store.record_insight(
-            timestamp="2026-03-06T00:00:00",
-            observation="Topics were repetitive this session",
-            insight_type="no_post_session",
-        )
-        assert i.insight_type == "no_post_session"
-        assert len(store.get_recent_insights()) == 1
-
-    def test_record_insight_truncates_observation(self):
-        # memory schema is the single source of truth for observation char
-        # cap (SUMMARY_MAX_LENGTH = 200). Adapters must not pre-truncate to
-        # a smaller value that would silently bypass this invariant.
-        store = MemoryStore()
-        long_obs = "x" * 400
-        i = store.record_insight(
-            timestamp="t1",
-            observation=long_obs,
-            insight_type="session_summary",
-        )
-        assert len(i.observation) <= 200
-        assert len(i.observation) > 150  # guard against historical [:150] slice
-
     def test_get_recent_post_topics(self):
         store = MemoryStore()
         for i in range(10):
@@ -343,18 +298,6 @@ class TestPostHistoryAndInsights:
         assert len(topics) == 3
         assert topics == ["topic7", "topic8", "topic9"]
 
-    def test_get_recent_insights(self):
-        store = MemoryStore()
-        for i in range(5):
-            store.record_insight(
-                timestamp=f"t{i}",
-                observation=f"insight{i}",
-                insight_type="session_summary",
-            )
-        insights = store.get_recent_insights(limit=2)
-        assert len(insights) == 2
-        assert insights == ["insight3", "insight4"]
-
     def test_post_history_trimmed(self):
         store = MemoryStore()
         for i in range(MAX_POST_HISTORY + 10):
@@ -365,18 +308,6 @@ class TestPostHistoryAndInsights:
         topics = store.get_recent_post_topics(limit=MAX_POST_HISTORY + 10)
         assert len(topics) == MAX_POST_HISTORY
         assert topics[0] == "topic10"
-
-    def test_insights_trimmed(self):
-        store = MemoryStore()
-        for i in range(MAX_INSIGHTS + 10):
-            store.record_insight(
-                timestamp=f"t{i}",
-                observation=f"insight{i}",
-                insight_type="session_summary",
-            )
-        insights = store.get_recent_insights(limit=MAX_INSIGHTS + 10)
-        assert len(insights) == MAX_INSIGHTS
-        assert insights[0] == "insight10"
 
 
 class TestPostHistoryPersistence:
@@ -398,22 +329,6 @@ class TestPostHistoryPersistence:
         assert len(topics) == 1
         assert topics[0] == "About testing"
 
-    def test_insight_roundtrip(self, tmp_path):
-        path = tmp_path / "memory.json"
-        store = MemoryStore(path=path)
-        store.record_insight(
-            timestamp="2026-03-06T00:00:00",
-            observation="Topics were repetitive",
-            insight_type="no_post_session",
-        )
-        store.save()
-
-        store2 = MemoryStore(path=path)
-        store2.load()
-        insights = store2.get_recent_insights()
-        assert len(insights) == 1
-        assert insights[0] == "Topics were repetitive"
-
     def test_combined_roundtrip(self, tmp_path):
         """Test that all data types persist together."""
         path = tmp_path / "memory.json"
@@ -427,25 +342,40 @@ class TestPostHistoryPersistence:
             timestamp="t2", post_id="p2", title="Post",
             topic_summary="topic", content_hash="hash123",
         )
-        store.record_insight(
-            timestamp="t3", observation="Good session",
-            insight_type="session_summary",
-        )
         store.save()
 
         store2 = MemoryStore(path=path)
         store2.load()
         assert store2.interaction_count() == 1
         assert len(store2.get_recent_post_topics()) == 1
-        assert len(store2.get_recent_insights()) == 1
+
+    def test_historical_insight_records_tolerated_on_load(self, tmp_path):
+        """ADR-0052: insight generation is retired, but historical
+        type="insight" records remain in the episode log permanently.
+        Loading a log that contains them must neither crash nor surface
+        them anywhere in memory."""
+        path = tmp_path / "memory.json"
+        store = MemoryStore(path=path)
+        store._episodes.append("insight", {
+            "timestamp": "t1",
+            "observation": "historical narrative",
+            "insight_type": "session_summary",
+        })
+        store.record_post(
+            timestamp="t2", post_id="p2", title="Post",
+            topic_summary="topic", content_hash="hash123",
+        )
+
+        store2 = MemoryStore(path=path)
+        store2.load()
+        assert len(store2.get_recent_post_topics()) == 1
+        # The historical record stays in the log untouched (research data).
+        records = store2.episodes.read_range(days=1)
+        assert any(r.get("type") == "insight" for r in records)
 
     def test_empty_post_topics_returns_empty(self):
         store = MemoryStore()
         assert store.get_recent_post_topics() == []
-
-    def test_empty_insights_returns_empty(self):
-        store = MemoryStore()
-        assert store.get_recent_insights() == []
 
 
 class TestEpisodeLog:

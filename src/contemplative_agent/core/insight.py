@@ -26,7 +26,6 @@ from .knowledge_store import (
     pattern_id,
 )
 from .llm import generate, get_distill_system_prompt, validate_identity_content
-from .episode_log import EpisodeLog
 from .memory import KnowledgeStore
 from .prompts import INSIGHT_EXTRACTION_PROMPT
 from .text_utils import extract_title
@@ -64,19 +63,20 @@ class InsightResult:
 
 
 def _extract_skill(
-    patterns: List[str], insights: List[str], topic: str = "mixed"
+    patterns: List[str], topic: str = "mixed"
 ) -> Optional[str]:
-    """Extract one skill from patterns and insights via LLM.
+    """Extract one skill from patterns via LLM.
 
     Returns valid Markdown skill text, or None on failure.
     """
     # The prompt template variable is still ``{subcategory}`` for backward
     # compatibility with the .md file; here we pass a topic label which
     # is a neutral cluster identifier, not a predefined view name.
+    # The session-insights input was retired by ADR-0052 — skill extraction
+    # works from patterns only, not from the agent's session narratives.
     prompt = INSIGHT_EXTRACTION_PROMPT.format(
         subcategory=topic,
         patterns="\n".join(f"- {p}" for p in patterns),
-        insights="\n".join(f"- {i}" for i in insights) if insights else "(none)",
     )
 
     # Axioms-only system (same as distill): skill generation must not be
@@ -185,7 +185,6 @@ def write_last_insight(skills_dir: Path) -> None:
 def extract_insight(
     knowledge_store: Optional[KnowledgeStore] = None,
     skills_dir: Optional[Path] = None,
-    episode_log: Optional[EpisodeLog] = None,
     full: bool = False,
 ) -> Union[str, InsightResult]:
     """Extract behavioral skills from accumulated knowledge.
@@ -200,7 +199,6 @@ def extract_insight(
     Args:
         knowledge_store: KnowledgeStore with learned patterns.
         skills_dir: Directory for skill files (used for incremental tracking).
-        episode_log: EpisodeLog for reading recent insights.
         full: If True, process all patterns instead of only new ones.
 
     Returns:
@@ -225,15 +223,6 @@ def extract_insight(
         else:
             raw_patterns = knowledge_store.get_live_patterns()
             logger.info("No previous insight run found, processing all %d patterns", len(raw_patterns))
-
-    insights: List[str] = []
-    if episode_log is not None:
-        insight_records = episode_log.read_range(days=30, record_type="insight")
-        insights = [
-            r.get("data", {}).get("observation", "")
-            for r in insight_records[-10:]
-            if r.get("data", {}).get("observation")
-        ]
 
     if len(raw_patterns) < MIN_PATTERNS_REQUIRED:
         return (
@@ -272,7 +261,7 @@ def extract_insight(
             batch_idx + 1, len(batches), topic, len(batch),
         )
 
-        skill_text = _extract_skill(batch, insights, topic=topic)
+        skill_text = _extract_skill(batch, topic=topic)
         if skill_text is None:
             logger.warning(
                 "Batch %d/%d [%s]: extraction failed",

@@ -87,10 +87,13 @@ session insight is an ungated self-continuity side channel with no human-facing 
    episode log are never re-distilled — needed for both `--full` and `log_files` paths
    even after generation stops.
 
-6. **Preserve all existing insight episodes and the data model for round-trip safety.**
-   Existing insight episodes remain permanently in the episode log (episodes are research
-   data, never deleted). The `Insight` dataclass and the `memory.json` load/save
-   round-trip are retained so that stored insights survive future saves without data loss.
+6. **Preserve all existing insight episodes.** Existing insight episodes remain
+   permanently in the episode log (episodes are research data, never deleted).
+   Implementation note (verified during retirement): insights were never persisted in
+   `memory.json` — the in-memory `_insights_list` was rebuilt from the episode log on
+   every load, and `save()` never wrote it. With all consumers removed, the `Insight`
+   dataclass, the episode-log loading branch, and `MAX_INSIGHTS` are dead code and are
+   removed as well. The episode log remains the sole — and untouched — storage.
 
 Session-to-session continuity is unified into the identity layer — the single channel
 that passes owner approval.
@@ -157,9 +160,10 @@ without any research value that could not be obtained from the raw episode log.
 - Existing insight episodes in the episode log are preserved and excluded from distill
   via the explicit filter (Decision 5). They remain accessible for offline research
   analysis; deletion is not a valid operation on episode data.
-- The `Insight` dataclass and round-trip load/save are retained (Decision 6) for storage
-  stability. A future cleanup ADR may elect to remove the dataclass once confirmed that
-  no log-reading tool depends on it, but that removal is out of scope here.
+- The `Insight` dataclass is removed together with its loading branch (Decision 6):
+  insights were episode-log-only data with no `memory.json` persistence, so dataclass
+  removal carries no data-loss risk. Raw insight records remain readable from the
+  episode log as plain JSONL.
 - `graph.jsonld` and CODEMAPS should be updated per the dual-update convention to reflect
   the removal of `generate_session_insight`, `record_insight`, and the two prompt
   placeholders. Not done in the initial commit.

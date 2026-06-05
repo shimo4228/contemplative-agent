@@ -1320,9 +1320,8 @@ def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.Argumen
 
 def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     from .core.insight import extract_insight, write_last_insight
-    from .core.memory import EpisodeLog, KnowledgeStore
+    from .core.memory import KnowledgeStore
 
-    log_dir = MOLTBOOK_DATA_DIR / "logs"
     knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
     view_registry = _load_view_registry(args)
     knowledge_store.load()
@@ -1330,7 +1329,6 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
     result = extract_insight(
         knowledge_store=knowledge_store,
         skills_dir=SKILLS_DIR,
-        episode_log=EpisodeLog(log_dir=log_dir),
         full=args.full,
     )
     if isinstance(result, str):

@@ -593,7 +593,6 @@ class Agent:
                 "follows": sum(1 for a in actions if a.startswith("Followed")),
             })
 
-            self._post_pipeline.generate_session_insights()
             self._memory.save()
             self._generate_activity_report()
             self._print_report()

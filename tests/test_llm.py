@@ -11,7 +11,6 @@ from contemplative_agent.adapters.moltbook.llm_functions import (
     generate_cooperation_post,
     generate_internal_note,
     generate_reply,
-    generate_session_insight,
     score_relevance,
     select_submolt,
     summarize_post_topic,
@@ -1123,53 +1122,22 @@ class TestSummarizePostTopic:
             reset_llm_config()
 
 
-class TestGenerateSessionInsight:
-    """Session insight is owner of the *generation* step only — char cap is
-    enforced downstream by ``memory.record_insight`` (SUMMARY_MAX_LENGTH).
-    """
+class TestCooperationPostADR0052:
+    """ADR-0052 retired session insight: the cooperation post prompt must
+    not carry a session-narrative section — ungated self-narrative must not
+    condition next-session generation."""
 
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_returns_none_when_no_actions(self, mock_gen):
-        # Short-circuit before any LLM call.
-        result = generate_session_insight(actions=[], recent_topics=["t1"])
-        assert result is None
-        mock_gen.assert_not_called()
+    def test_template_has_no_insights_placeholder(self):
+        from contemplative_agent.core.prompts import COOPERATION_POST_PROMPT
 
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_returns_stripped_llm_output(self, mock_gen):
-        mock_gen.return_value = "  cooperation patterns held  \n"
-        result = generate_session_insight(
-            actions=["Posted: alignment", "Commented: ethics"],
-            recent_topics=["alignment", "ethics"],
-        )
-        assert result == "cooperation patterns held"
+        assert "{insights_section}" not in COOPERATION_POST_PROMPT
 
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_empty_recent_topics_renders_none_placeholder(self, mock_gen):
-        mock_gen.return_value = "observation"
-        generate_session_insight(actions=["Posted: x"], recent_topics=[])
-        prompt = mock_gen.call_args[0][0]
-        # When recent_topics is empty, the prompt slot is filled with "None".
-        assert "None" in prompt
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_returns_none_when_llm_returns_none(self, mock_gen):
-        mock_gen.return_value = None
-        result = generate_session_insight(
-            actions=["Posted: a"], recent_topics=["a"],
-        )
-        assert result is None
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
-    def test_no_char_cap_at_this_layer(self, mock_gen):
-        # 400-char observation passes through unchanged; truncation belongs
-        # to ``memory.record_insight``, not to this generator.
-        long_obs = "z" * 400
-        mock_gen.return_value = long_obs
-        result = generate_session_insight(
-            actions=["Posted: a"], recent_topics=["a"],
-        )
-        assert result == long_obs
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_prompt_carries_no_insights_section(self, mock_api):
+        mock_api.return_value = "A post."
+        generate_cooperation_post([{"title": "t", "content": "c"}])
+        prompt = mock_api.call_args[0][0]
+        assert "Previous insights" not in prompt
 
 
 class TestRelevancePromptContract:

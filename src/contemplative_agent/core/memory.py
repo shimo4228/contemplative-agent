@@ -24,7 +24,6 @@ logger = logging.getLogger(__name__)
 
 MAX_INTERACTIONS = 1000
 MAX_POST_HISTORY = 50
-MAX_INSIGHTS = 30
 
 # Schema-level cap for PostRecord.topic_summary. The single source of truth
 # for the 100-char invariant; adapters that produce summaries normalize to
@@ -38,9 +37,7 @@ POST_TOPIC_SUMMARY_MAX = 100
 __all__ = [
     "EpisodeLog",
     "Interaction",
-    "Insight",
     "KnowledgeStore",
-    "MAX_INSIGHTS",
     "MAX_INTERACTIONS",
     "MAX_POST_HISTORY",
     "MemoryStore",
@@ -74,14 +71,11 @@ class PostRecord:
     content_hash: str  # first 16 chars of SHA-256
 
 
-@dataclass(frozen=True)
-class Insight:
-    """Session-end reflection."""
-
-    timestamp: str
-    observation: str
-    insight_type: str  # "no_post_session" or "session_summary" (emitted by PostPipeline).
-
+# Session insight (the ``Insight`` dataclass, type="insight" episodes) was
+# retired by ADR-0052: insights were LLM session summaries whose re-ingestion
+# created summary-of-summary patterns and an ungated self-continuity channel.
+# Historical insight records remain in the episode log as plain JSONL —
+# nothing loads them into memory anymore.
 
 # ---------------------------------------------------------------------------
 # Facade: MemoryStore — preserves original public API
@@ -116,7 +110,6 @@ class MemoryStore:
         self._interactions: List[Interaction] = []
         self._interacted_ids: set[str] = set()
         self._post_history: List[PostRecord] = []
-        self._insights_list: List[Insight] = []
         self._commented_cache: Optional[set] = None
         # Known agents: agent_id -> name (populated from JSONL)
         self._known_agents: Dict[str, str] = {}
@@ -147,12 +140,10 @@ class MemoryStore:
         self._load_episodes_into_memory()
 
         logger.info(
-            "Loaded memory: %d interactions, %d known agents, "
-            "%d post records, %d insights",
+            "Loaded memory: %d interactions, %d known agents, %d post records",
             len(self._interactions),
             len(self._known_agents),
             len(self._post_history),
-            len(self._insights_list),
         )
 
     def _load_agents_json(self) -> None:
@@ -225,11 +216,8 @@ class MemoryStore:
                     self._post_history.append(PostRecord(**data))
                 except TypeError:
                     logger.warning("Skipping malformed post record in episode log")
-            elif record_type == "insight":
-                try:
-                    self._insights_list.append(Insight(**data))
-                except TypeError:
-                    logger.warning("Skipping malformed insight in episode log")
+            # type="insight" records (retired by ADR-0052) are intentionally
+            # not loaded — they stay in the log as historical research data.
 
     def save(self) -> None:
         """Persist knowledge store, agents.json, and commented cache."""
@@ -361,26 +349,6 @@ class MemoryStore:
 
         return record
 
-    def record_insight(
-        self,
-        timestamp: str,
-        observation: str,
-        insight_type: str,
-    ) -> Insight:
-        """Record a session-end insight."""
-        insight = Insight(
-            timestamp=timestamp,
-            observation=truncate(observation),
-            insight_type=insight_type,
-        )
-        self._insights_list.append(insight)
-        self._episodes.append("insight", asdict(insight))
-
-        if len(self._insights_list) > MAX_INSIGHTS:
-            self._insights_list = self._insights_list[-MAX_INSIGHTS:]
-
-        return insight
-
     def get_recent_post_topics(self, limit: int = 5) -> List[str]:
         """Return topic_summaries of recent posts."""
         return [p.topic_summary for p in self._post_history[-limit:]]
@@ -475,10 +443,6 @@ class MemoryStore:
             if isinstance(op, str) and op:
                 targets.append(op)
         return targets[-limit:]
-
-    def get_recent_insights(self, limit: int = 3) -> List[str]:
-        """Return observation strings of recent insights."""
-        return [i.observation for i in self._insights_list[-limit:]]
 
     def has_commented_on(self, post_id: str) -> bool:
         """Check if we've commented on this post in the last 30 days."""

@@ -29,6 +29,3 @@ origin: auto-extracted
 
 Learned patterns:
 {patterns}
-
-Recent insights:
-{insights}

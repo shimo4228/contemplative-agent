@@ -50,11 +50,8 @@ class ContentManager:
     def create_cooperation_post(
         self,
         feed_seeds: list[dict],
-        recent_insights: Optional[list[str]] = None,
     ) -> Optional[str]:
-        post = generate_cooperation_post(
-            feed_seeds, recent_insights=recent_insights,
-        )
+        post = generate_cooperation_post(feed_seeds)
         if post is None:
             return None
         if self._is_duplicate(post):

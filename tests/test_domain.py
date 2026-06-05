@@ -96,7 +96,6 @@ class TestLoadPromptTemplates:
         assert "{feed_seed_text}" in templates.post_title
         assert "{post_content}" in templates.topic_summary
         assert "{submolt_list}" in templates.submolt_selection
-        assert "{actions_text}" in templates.session_insight
         assert "{episodes}" in templates.distill
 
     def test_directory_not_found(self, tmp_path):

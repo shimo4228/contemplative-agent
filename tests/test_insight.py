@@ -117,24 +117,24 @@ class TestExtractSkill:
     @patch("contemplative_agent.core.insight.generate")
     def test_returns_skill_text(self, mock_generate) -> None:
         mock_generate.return_value = GOOD_SKILL_RESPONSE
-        result = _extract_skill(["p1", "p2"], ["i1"])
+        result = _extract_skill(["p1", "p2"])
         assert result is not None
         assert "# Ask Before Reacting" in result
 
     @patch("contemplative_agent.core.insight.generate")
     def test_llm_failure(self, mock_generate) -> None:
         mock_generate.return_value = None
-        assert _extract_skill(["p1"], []) is None
+        assert _extract_skill(["p1"]) is None
 
     @patch("contemplative_agent.core.insight.generate")
     def test_no_title_returns_none(self, mock_generate) -> None:
         mock_generate.return_value = "some text without a title line"
-        assert _extract_skill(["p1"], []) is None
+        assert _extract_skill(["p1"]) is None
 
     @patch("contemplative_agent.core.insight.generate")
     def test_passes_topic_to_prompt(self, mock_generate) -> None:
         mock_generate.return_value = GOOD_SKILL_RESPONSE
-        _extract_skill(["p1"], [], topic="cluster-1")
+        _extract_skill(["p1"], topic="cluster-1")
         prompt_arg = mock_generate.call_args[0][0]
         assert "cluster-1" in prompt_arg
 
@@ -158,7 +158,7 @@ class TestExtractSkill:
         configure(identity_path=identity, skills_dir=skills_dir)
         try:
             mock_generate.return_value = GOOD_SKILL_RESPONSE
-            _extract_skill(["p1"], ["i1"])
+            _extract_skill(["p1"])
             system = mock_generate.call_args.kwargs["system"]
             assert system == get_distill_system_prompt()
             assert "<learned_skills>" not in system

@@ -29,7 +29,6 @@ class _LazyPrompts:
         "POST_TITLE_PROMPT": "post_title",
         "TOPIC_SUMMARY_PROMPT": "topic_summary",
         "SUBMOLT_SELECTION_PROMPT": "submolt_selection",
-        "SESSION_INSIGHT_PROMPT": "session_insight",
         "DISTILL_PROMPT": "distill",
         "IDENTITY_DISTILL_PROMPT": "identity_distill",
         "INSIGHT_EXTRACTION_PROMPT": "insight_extraction",

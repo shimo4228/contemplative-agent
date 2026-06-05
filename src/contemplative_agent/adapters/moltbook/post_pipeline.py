@@ -17,7 +17,6 @@ from .llm_functions import (
     format_feed_seeds,
     generate_internal_note,
     generate_post_title,
-    generate_session_insight,
     score_relevance,
     select_submolt,
     summarize_post_topic,
@@ -162,10 +161,7 @@ class PostPipeline:
         )
         note = generate_internal_note(note_seed)
 
-        recent_insights = ctx.memory.get_recent_insights(limit=3)
-        content = self._get_content().create_cooperation_post(
-            feed_seeds, recent_insights=recent_insights or None,
-        )
+        content = self._get_content().create_cooperation_post(feed_seeds)
         if content is None:
             return
 
@@ -314,29 +310,3 @@ class PostPipeline:
                 )
         except MoltbookClientError as exc:
             logger.error("Failed to post dynamic content: %s", exc)
-
-    def generate_session_insights(self) -> None:
-        """Generate and record insights at the end of a session."""
-        ctx = self._ctx
-        if not ctx.actions_taken:
-            return
-
-        recent_topics = ctx.memory.get_recent_post_topics(limit=5)
-
-        # Tag the insight by whether any new post was published this session.
-        # ``no_post_session`` covers comment-only and zero-action sessions;
-        # ``session_summary`` covers sessions with at least one published post.
-        post_actions = [a for a in ctx.actions_taken if a.startswith("Posted:")]
-        insight_type = "no_post_session" if len(post_actions) == 0 else "session_summary"
-
-        observation = generate_session_insight(
-            actions=ctx.actions_taken,
-            recent_topics=recent_topics,
-        )
-        if observation:
-            ctx.memory.record_insight(
-                timestamp=datetime.now(timezone.utc).isoformat(),
-                observation=observation,
-                insight_type=insight_type,
-            )
-            logger.info("Session insight recorded: %s", observation)

@@ -16,7 +16,6 @@ from ...core.prompts import (
     POST_TITLE_PROMPT,
     RELEVANCE_PROMPT,
     REPLY_PROMPT,
-    SESSION_INSIGHT_PROMPT,
     SUBMOLT_SELECTION_PROMPT,
     TOPIC_SUMMARY_PROMPT,
 )
@@ -147,7 +146,6 @@ def format_feed_seeds(seeds: list[dict]) -> str:
 
 def generate_cooperation_post(
     feed_seeds: list[dict],
-    recent_insights: Optional[list[str]] = None,
 ) -> Optional[str]:
     """Generate a post that responds to specific peer voices in the feed.
 
@@ -155,17 +153,12 @@ def generate_cooperation_post(
     summary of ~10 peer posts. Post-ADR-0043 it takes a list of peer post
     dicts and hands them to the LLM verbatim (each wrapped independently)
     so the LLM must work with concrete voices rather than an abstracted
-    topic cluster.
+    topic cluster. The session-insights context section was retired by
+    ADR-0052: ungated self-narrative must not condition next-session
+    generation — identity (approval-gated) is the continuity carrier.
     """
-    insights_section = _build_context_section(
-        recent_insights,
-        "\nPrevious insights from your sessions",
-        footer="Note as background context.",
-    )
-
     prompt = _resolve_domain_prompt(COOPERATION_POST_PROMPT).format(
         feed_seeds=format_feed_seeds(feed_seeds),
-        insights_section=insights_section,
     )
     # Deliberately keeps the chars_per_token=3.0 default (audit M2): at
     # max_length=40000, the CJK-safe /1.5 would derive num_predict≈26.7K
@@ -273,25 +266,3 @@ def select_submolt(
     logger.warning("LLM returned unrecognized submolt: %s", result)
     return None
 
-
-def generate_session_insight(
-    actions: list[str], recent_topics: list[str]
-) -> Optional[str]:
-    """Generate a brief insight about what worked/didn't work this session."""
-    if not actions:
-        return None
-
-    actions_text = "\n".join(f"- {a}" for a in actions)
-    topics_text = (
-        "\n".join(f"- {t}" for t in recent_topics) if recent_topics else "None"
-    )
-    prompt = SESSION_INSIGHT_PROMPT.format(
-        actions_text=wrap_untrusted_content(actions_text),
-        topics_text=wrap_untrusted_content(topics_text),
-    )
-    result = generate(prompt, num_predict=100)
-    if result:
-        # Char cap is owned by memory.record_insight(), which truncates to
-        # SUMMARY_MAX_LENGTH (200). Returning the full sanitized output here.
-        return result.strip()
-    return None

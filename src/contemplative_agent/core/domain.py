@@ -52,7 +52,6 @@ class PromptTemplates:
     post_title: str
     topic_summary: str
     submolt_selection: str
-    session_insight: str
     distill: str
     internal_note: str = ""
     identity_distill: str = ""
@@ -224,7 +223,6 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         post_title=read("post_title.md"),
         topic_summary=read("topic_summary.md"),
         submolt_selection=read("submolt_selection.md"),
-        session_insight=read("session_insight.md"),
         distill=read("distill.md"),
         internal_note=read("internal_note.md", required=False),
         identity_distill=read("identity_distill.md", required=False),

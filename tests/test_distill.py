@@ -346,11 +346,19 @@ class TestDeriveSourceTypeADR0021:
 
         records = [
             {"type": "post", "data": {}},
-            {"type": "insight", "data": {}},
             {"type": "interaction", "data": {"direction": "sent"}},
             {"type": "activity", "data": {}},
         ]
         assert _derive_source_type(records) == "self_reflection"
+
+    def test_insight_type_is_unknown_post_adr0052(self):
+        """ADR-0052 retired insight records; an (impossible in production)
+        insight record reaching source-kind derivation maps to unknown,
+        not self."""
+        from contemplative_agent.core.distill import _derive_source_type
+
+        records = [{"type": "insight", "data": {}}]
+        assert _derive_source_type(records) == "unknown"
 
     def test_all_external_is_external_reply(self):
         from contemplative_agent.core.distill import _derive_source_type
@@ -427,9 +435,11 @@ class TestSummarizeRecord:
         s = summarize_record("post", {"title": "My Post"})
         assert "posted: My Post" in s
 
-    def test_insight(self):
+    def test_insight_has_no_branch_post_adr0052(self):
+        """Retired record type falls through to "" so it can never enter
+        a distill prompt even if the upstream filter is bypassed."""
         s = summarize_record("insight", {"observation": "Something happened"})
-        assert "Something happened" in s
+        assert s == ""
 
     def test_activity_without_note(self):
         s = summarize_record("activity", {"action": "upvote", "post_id": "p1"})
@@ -691,7 +701,9 @@ class TestClassifyEpisodesNoiseLog:
         registry.get_centroid.return_value = np.array([1.0, 0.0], dtype=np.float32)
         registry.names.return_value = ["noise"]
         log = EpisodeLog(log_dir=tmp_path / "logs")
-        log.append("insight", {"observation": "noise sample"})
+        # activity, not insight: insight records are filtered before
+        # classification (ADR-0052) and would make this test vacuous.
+        log.append("activity", {"action": "upvote", "post_id": "p1"})
         knowledge = KnowledgeStore(path=tmp_path / "k.json")
         distill(
             days=1,
