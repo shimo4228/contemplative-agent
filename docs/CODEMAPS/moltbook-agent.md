@@ -155,7 +155,7 @@ Global flags: --config-dir PATH | --domain-config PATH | --constitution-dir PATH
 
 In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
-**Engagement & posting**: system, relevance, comment, reply, cooperation_post, post_title, topic_summary, session_insight, submolt_selection, internal_note (ADR-0045)
+**Engagement & posting**: system, relevance, comment, reply, cooperation_post, post_title, topic_summary, submolt_selection, internal_note (ADR-0045) — `session_insight` retired and deleted (ADR-0052)
 
 **Distillation**: distill, distill_dedup, distill_refine, distill_importance, identity_distill, identity_refine, insight_extraction, rules_distill, rules_distill_refine, constitution_amend, principles
 
@@ -178,7 +178,6 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 | `generate_post_title(seed_text)` | adapters/moltbook/llm_functions | PostPipeline |
 | `summarize_post_topic(content)` | adapters/moltbook/llm_functions | PostPipeline |
 | `select_submolt(...)` | adapters/moltbook/llm_functions | PostPipeline |
-| `generate_session_insight(...)` | adapters/moltbook/llm_functions | Agent |
 | `generate(prompt, system, ...)` | core/llm | distill, insight, rules, constitution, stocktake |
 
 ## Persistent State Files

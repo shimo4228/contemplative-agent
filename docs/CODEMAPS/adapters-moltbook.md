@@ -37,7 +37,7 @@ Agent.run_session(session_mins=30, autonomy_level=AUTO)
   ├─ _run_feed_cycle()   ← FeedManager (engagement)
   ├─ _run_post_cycle()   ← PostPipeline (organic posts)
   ├─ _check_time_budget() → loop until timeout
-  └─ _end_session() → Metrics + Insight + EpisodeLog record
+  └─ _end_session() → Metrics + EpisodeLog record  (session insight retired, ADR-0052)
 ```
 
 ## SessionContext (session_context.py)

@@ -2,7 +2,7 @@
 # Codemaps Index
 
 Comprehensive architectural documentation for the Contemplative Agent project.
-**Last Updated**: 2026-06-05 | **Codebase**: 44 non-`__init__` modules (51 total `.py`), ~12700 LOC, 1197 tests
+**Last Updated**: 2026-06-05 | **Codebase**: 44 non-`__init__` modules (51 total `.py`), ~12700 LOC, 1210 tests
 
 ---
 
@@ -12,7 +12,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 **Read first.** High-level architecture, system diagram, causal-chain data flows with gates and thresholds.
 
 **Topics**:
-- Project type & stats (44 non-`__init__` modules, ~12700 LOC, 1197 tests)
+- Project type & stats (44 non-`__init__` modules, ~12700 LOC, 1210 tests)
 - System diagram (core/ + adapters/moltbook/ + adapters/meditation/ + adapters/dialogue/)
 - Import rules (adapters → core, cli.py is only exception)
 - Session execution flow (ReplyHandler → FeedManager → PostPipeline) with gate thresholds
@@ -108,7 +108,7 @@ Package versions, external services, optional add-ons.
 |--------|-------|
 | Total `.py` files | 51 (44 non-`__init__` + 7 `__init__`) |
 | LOC | ~12700 |
-| Test files | 35 (1197 tests collected) |
+| Test files | 35 (1210 tests collected) |
 | Core modules | 24 (platform-independent; forgetting.py deleted ADR-0051) |
 | Moltbook adapter modules | 14 |
 | Meditation adapter modules | 4 |

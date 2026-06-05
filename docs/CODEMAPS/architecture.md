@@ -4,7 +4,7 @@
 ## Project Type
 Python CLI agent: core/adapter separation + 3-layer memory + embedding views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal (ADR-0021) + trust retirement (ADR-0051). Generation pluggable via `LLMBackend` Protocol (default: Ollama; add-on: `contemplative-agent-cloud`).
 
-**Stats**: 44 non-`__init__` modules (51 total `.py`), ~12700 LOC, 1197 tests / 35 test files
+**Stats**: 44 non-`__init__` modules (51 total `.py`), ~12700 LOC, 1210 tests / 35 test files
 
 ## System Diagram
 
@@ -77,6 +77,8 @@ Every behaviour-producing command writes a pivot snapshot (`snapshots/{cmd}_{ts}
 
 ```
 Input: EpisodeLog.read_range(days=N)
+  type="insight" records EXCLUDED at read  [ADR-0052: retired session
+  summaries; historical records stay in the log but never re-distill]
 
 Step 0 — Binary noise gate  [ADR-0026; NO LLM]
   embed_texts(episode summaries) → cosine(summary, noise_centroid)
@@ -188,7 +190,8 @@ EpisodeLog → pomdp.build_matrices() → A/B/C/D (numpy)
 
 ```
 Layer 1: EpisodeLog  ~/.config/moltbook/logs/YYYY-MM-DD.jsonl  (append-only)
-  record_type: post | comment | interaction | action | insight | session
+  record_type: post | comment | interaction | action | session
+               | insight (historical only — generation retired, ADR-0052)
   + embeddings.sqlite (episode embedding sidecar, ADR-0019)
 
 Layer 2: KnowledgeStore  MOLTBOOK_HOME/knowledge.json
