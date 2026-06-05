@@ -187,6 +187,52 @@ class TestDistillStep2BatchSkipAuditM1:
         assert not (tmp_path / "knowledge.json").exists()
 
 
+class TestInsightExclusionADR0052:
+    """Audit M4 / ADR-0052: insight records are LLM session summaries, not
+    observations. Re-distilling them creates summary-of-summary patterns,
+    so distill must exclude them at read time — including historical
+    records that remain in the log after generation was retired."""
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_insight_records_excluded_from_prompts(
+        self, mock_generate, mock_embed_distinct, tmp_path, caplog
+    ):
+        import logging
+        mock_generate.side_effect = [
+            "Some free-form analysis.",
+            json.dumps({"patterns": [
+                "Pattern about quoting specific details improving engagement",
+            ]}),
+            json.dumps({"scores": [7]}),
+        ]
+        log = _make_log(tmp_path)
+        log.append("insight", {
+            "observation": "UNIQUE_INSIGHT_MARKER self narrative summary",
+            "insight_type": "session_summary",
+        })
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        with caplog.at_level(
+            logging.INFO, logger="contemplative_agent.core.distill"
+        ):
+            distill(days=1, episode_log=log, knowledge_store=ks)
+        all_prompts = " ".join(
+            str(c.args[0]) for c in mock_generate.call_args_list
+        )
+        assert "UNIQUE_INSIGHT_MARKER" not in all_prompts
+        assert "Excluded 1 insight record" in caplog.text
+
+    def test_all_insight_log_yields_no_episodes(self, tmp_path):
+        log = EpisodeLog(log_dir=tmp_path / "logs")
+        log.append("insight", {
+            "observation": "Only self narrative here",
+            "insight_type": "no_post_session",
+        })
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        result = distill(days=1, episode_log=log, knowledge_store=ks)
+        assert "No episodes" in result
+        assert not (tmp_path / "knowledge.json").exists()
+
+
 class TestParseImportanceScores:
     def test_json_format(self):
         assert _parse_importance_scores('{"scores": [8, 5]}', 2) == [0.8, 0.5]

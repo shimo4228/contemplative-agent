@@ -102,6 +102,18 @@ def distill(
             records.extend(EpisodeLog.read_file(path))
     else:
         records = episodes.read_range(days=days)
+    # ADR-0052 (audit M4): insight records are LLM session summaries, not
+    # observations. Re-distilling them creates summary-of-summary patterns
+    # two hops from any observable fact. Generation was retired, but
+    # historical insight records remain in the log permanently (episodes
+    # are research data) — so the read path must exclude them explicitly.
+    pre_insight_filter = len(records)
+    records = [r for r in records if r.get("type") != "insight"]
+    if pre_insight_filter > len(records):
+        logger.info(
+            "Excluded %d insight records from distillation (ADR-0052)",
+            pre_insight_filter - len(records),
+        )
     if not records:
         msg = "No episodes found for distillation."
         logger.info(msg)
