@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0051 (Decision 2 "no trust change" retired 2026-06-05 — trust weighting removed entirely). The taxonomy, lineage plumbing, and no-write-back decisions remain in effect.
 
 ## Date
 

@@ -1,7 +1,7 @@
 # ADR-0021: Pattern Schema Extension — Provenance / Bitemporal / Forgetting / Feedback
 
 ## Status
-partially-superseded-by ADR-0028 (Forgetting IV-3 + Feedback IV-10 retired 2026-04-18) and ADR-0029 (dormant Provenance elements `user_input` / `external_post` / `sanitized` retired 2026-04-18). Bitemporal (IV-2) and the pruned Provenance (IV-7) surface remain in effect.
+partially-superseded-by ADR-0028 (Forgetting IV-3 + Feedback IV-10 retired 2026-04-18), ADR-0029 (dormant Provenance elements `user_input` / `external_post` / `sanitized` retired 2026-04-18), and ADR-0051 (trust weighting — `trust_score` / `TRUST_BASE_BY_SOURCE` / `TRUST_FLOOR` — retired 2026-06-05). Bitemporal (IV-2) and the `source_type` provenance surface remain in effect.
 
 ## Date
 2026-04-16

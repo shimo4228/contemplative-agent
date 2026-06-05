@@ -26,7 +26,7 @@
 | [0018](0018-per-caller-num-predict-embedding-stocktake.ja.md) | caller 別 num_predict + embedding-only stocktake | accepted | 2026-04-15 |
 | [0019](0019-discrete-categories-to-embedding-views.ja.md) | 離散カテゴリ廃止 → Embedding + Views `[AKC: Promote]` | accepted | 2026-04-15 |
 | [0020](0020-pivot-snapshots-for-replayability.ja.md) | Pivot スナップショットで再現可能性確保 `[AKC: Curate]` | accepted | 2026-04-16 |
-| [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.ja.md) | Pattern スキーマ拡張 — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028 | 2026-04-16 |
+| [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.ja.md) | Pattern スキーマ拡張 — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028, 0029, 0051 | 2026-04-16 |
 | [0022](0022-memory-evolution-and-hybrid-retrieval.ja.md) | Memory Evolution + Hybrid Retrieval (BM25) | withdrawn-by 0034 | 2026-04-16 |
 | [0023](0023-skill-as-memory-loop.ja.md) | Skill-as-Memory ループ — Router / Usage Log / Reflective Write | superseded-by 0036 | 2026-04-16 |
 | [0024](0024-identity-block-separation.ja.md) | Identity Block Separation — Frontmatter で addressing する persona ブロック | proposed | 2026-04-16 |
@@ -53,7 +53,8 @@
 | [0047](0047-comment-sampling-temperature.ja.md) | 外向きコメント生成のサンプリング温度引き上げ | accepted | 2026-05-30 |
 | [0048](0048-trigger-altitude-skill-lifecycle.ja.md) | スキルライフサイクル全体のトリガー高度化 | accepted | 2026-06-02 |
 | [0049](0049-meditation-active-inference-fidelity-and-deferral.ja.md) | 瞑想アダプタ — Beautiful Loop 忠実性監査と忠実な再実装の保留 | accepted | 2026-06-03 |
-| [0050](0050-epistemic-taxonomy-and-approval-lineage.ja.md) | Epistemic taxonomy と承認系譜 — steering なしの可観測性 | accepted | 2026-06-05 |
+| [0050](0050-epistemic-taxonomy-and-approval-lineage.ja.md) | Epistemic taxonomy と承認系譜 — steering なしの可観測性 | partially-superseded-by 0051 | 2026-06-05 |
+| [0051](0051-retire-trust-weighting.ja.md) | trust 重みの全廃 — 純 cosine 検索と bitemporal のみの生死判定 | accepted | 2026-06-05 |
 
 ## ADR の種別
 

@@ -1,7 +1,7 @@
 # ADR-0021: Pattern スキーマ拡張 — Provenance / Bitemporal / Forgetting / Feedback
 
 ## Status
-partially-superseded-by ADR-0028 (Forgetting IV-3 + Feedback IV-10 を 2026-04-18 に撤回) / ADR-0029 (dormant Provenance 要素 `user_input` / `external_post` / `sanitized` を 2026-04-18 に撤回)。Bitemporal (IV-2) と剪定後の Provenance (IV-7) 面は有効のまま。
+partially-superseded-by ADR-0028 (Forgetting IV-3 + Feedback IV-10 を 2026-04-18 に撤回) / ADR-0029 (dormant Provenance 要素 `user_input` / `external_post` / `sanitized` を 2026-04-18 に撤回) / ADR-0051 (trust 重み — `trust_score` / `TRUST_BASE_BY_SOURCE` / `TRUST_FLOOR` — を 2026-06-05 に撤回)。Bitemporal (IV-2) と `source_type` provenance 面は有効のまま。
 
 ## Date
 2026-04-16

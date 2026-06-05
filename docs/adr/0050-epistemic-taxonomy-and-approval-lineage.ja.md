@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0051 (Decision 2「trust は変更しない」を 2026-06-05 に撤回 — trust 重み自体を全廃)。taxonomy・系譜配管・write-back 不採用の決定は有効のまま。
 
 ## Date
 
