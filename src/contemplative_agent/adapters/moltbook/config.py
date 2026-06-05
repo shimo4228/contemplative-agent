@@ -86,7 +86,15 @@ class AdaptiveBackoffConfig:
     remaining_threshold: int = 10         # Start slowing when <= 10 remaining
     read_budget_reserve: int = 5          # In-cycle: stop GET when <= 5 remaining
     write_budget_reserve: int = 3         # In-cycle: stop POST when <= 3 remaining
-    upvote_only_threshold: float = 0.85   # Upvote without comment if relevance >= this
+    # Upvote without comment if relevance >= this (and < comment threshold).
+    # 0.70 since 2026-06-05: the identity-prompt scorer (audit fix #2) emits
+    # a coarse scale — 0.1 steps up to 0.80, then jumps to 1.00; nothing
+    # lands in 0.81-0.99. With the comment threshold at 0.80 (domain.json),
+    # 0.70 is the only populated "just below the bar" bucket; the previous
+    # 0.85 was a dead branch on this scale. Side effect: this value also
+    # gates pre-action internal-note generation (feed_manager), so notes now
+    # cover 0.70+ scores (~51% of scored posts vs ~15% before).
+    upvote_only_threshold: float = 0.70
     proactive_wait_seconds: float = 120.0  # Default wait when reset time unknown
 
 
