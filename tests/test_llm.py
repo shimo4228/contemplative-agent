@@ -209,7 +209,11 @@ class TestSanitizeWordBoundary:
         "my password = Tr0ub4dor&3",
         "the SECRET: deadbeef123",
         "secret=abc123 in config",
-    ], ids=["password-colon", "password-equals", "secret-upper", "secret-nospace"])
+        "password：hunter2",
+    ], ids=[
+        "password-colon", "password-equals", "secret-upper",
+        "secret-nospace", "password-fullwidth-colon",
+    ])
     def test_credential_assignment_redacted(self, text):
         result = _sanitize_output(text, 1000)
         assert "[REDACTED]" in result
@@ -266,12 +270,12 @@ class TestScoreRelevanceParsing:
         mock_generate.return_value = None
         assert score_relevance("test post") == 0.0
 
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
     @pytest.mark.parametrize("output", [
         "1.5",
         "I rate this topic 5 out of 10",
         "8",
     ], ids=["decimal-over-one", "wrong-scale-prose", "ten-scale-integer"])
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
     def test_out_of_range_rejected_to_zero(self, mock_generate, output):
         """Audit L2: a value outside the 0-1 contract is a wrong-scale
         answer, not a high score. Clamping it to 1.0 failed toward acting;

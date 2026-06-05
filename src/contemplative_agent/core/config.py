@@ -31,8 +31,10 @@ FORBIDDEN_WORD_PATTERNS: Tuple[str, ...] = (
 # validation and the GUARDED content filter — keep the stricter bare-word
 # check via FORBIDDEN_WORD_PATTERNS above: there a false positive blocks an
 # action instead of mutating it.
+# Separator class includes the fullwidth colon ： (CJK output path —
+# qwen3.5 emits it in Japanese text; security review 2026-06-05).
 FORBIDDEN_ASSIGNMENT_RE = re.compile(
-    r"\b(?:" + "|".join(FORBIDDEN_WORD_PATTERNS) + r")\s*[:=]\s*\S+",
+    r"\b(?:" + "|".join(FORBIDDEN_WORD_PATTERNS) + r")\s*[:=：]\s*\S+",
     re.IGNORECASE,
 )
 

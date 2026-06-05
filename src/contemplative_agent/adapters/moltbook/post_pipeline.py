@@ -1,4 +1,4 @@
-"""Post generation and session insight pipeline for the Moltbook Agent."""
+"""Post generation pipeline for the Moltbook Agent."""
 
 from __future__ import annotations
 
@@ -38,10 +38,11 @@ def _score_post_relevance(post: dict) -> float:
 
 
 class PostPipeline:
-    """Handles dynamic post creation and session insight generation.
+    """Handles dynamic post creation.
 
-    Extracts topics from the feed, checks novelty, generates content,
-    selects a submolt, and publishes. Also generates end-of-session insights.
+    Selects peer-post seeds from the feed, checks novelty, generates
+    content, selects a submolt, and publishes. (End-of-session insight
+    generation was retired by ADR-0052.)
     """
 
     def __init__(
