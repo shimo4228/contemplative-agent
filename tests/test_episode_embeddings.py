@@ -5,31 +5,12 @@ from __future__ import annotations
 import numpy as np
 import pytest
 
-from contemplative_agent.core.episode_embeddings import (
-    EpisodeEmbeddingStore,
-    episode_id_for,
-)
+from contemplative_agent.core.episode_embeddings import EpisodeEmbeddingStore
 
 
 @pytest.fixture
 def store(tmp_path):
     return EpisodeEmbeddingStore(db_path=tmp_path / "embeddings.sqlite")
-
-
-class TestEpisodeIdFor:
-    def test_stable_for_same_record(self):
-        record = {"ts": "2026-04-15T07:00:00Z", "type": "post", "data": {"title": "x"}}
-        assert episode_id_for(record) == episode_id_for(record)
-
-    def test_differs_when_data_differs(self):
-        a = {"ts": "2026-04-15T07:00:00Z", "type": "post", "data": {"title": "x"}}
-        b = {"ts": "2026-04-15T07:00:00Z", "type": "post", "data": {"title": "y"}}
-        assert episode_id_for(a) != episode_id_for(b)
-
-    def test_independent_of_dict_key_order(self):
-        a = {"ts": "2026-04-15T07:00:00Z", "type": "post", "data": {"a": 1, "b": 2}}
-        b = {"type": "post", "ts": "2026-04-15T07:00:00Z", "data": {"b": 2, "a": 1}}
-        assert episode_id_for(a) == episode_id_for(b)
 
 
 class TestUpsertAndGet:
@@ -87,11 +68,6 @@ class TestGetMany:
 
 
 class TestUtilities:
-    def test_has(self, store):
-        store.upsert("x", "2026-04-15T07:00:00Z", np.array([1.0], dtype=np.float32))
-        assert store.has("x") is True
-        assert store.has("y") is False
-
     def test_count_starts_at_zero(self, store):
         assert store.count() == 0
 

@@ -127,10 +127,6 @@ class MoltbookClient:
         """Reset the 429 counter (called after each cycle)."""
         self._recent_429_count = 0
 
-    def has_budget(self, reserve: int = 5) -> bool:
-        """Backward-compatible: True if both read and write have budget."""
-        return self.has_read_budget(reserve) and self.has_write_budget(reserve)
-
     def has_read_budget(self, reserve: int = 5) -> bool:
         """Check if enough read (GET) rate limit budget remains."""
         if self._read_remaining is None:
@@ -203,9 +199,6 @@ class MoltbookClient:
     def post(self, path: str, **kwargs: Any) -> requests.Response:
         return self._request("POST", path, **kwargs)
 
-    def patch(self, path: str, **kwargs: Any) -> requests.Response:
-        return self._request("PATCH", path, **kwargs)
-
     def delete(self, path: str, **kwargs: Any) -> requests.Response:
         return self._request("DELETE", path, **kwargs)
 
@@ -226,19 +219,6 @@ class MoltbookClient:
                 logger.warning("Subscribe %s returned 400 (may be already subscribed)", name)
                 return True
             logger.warning("Failed to subscribe to %s: %s", name, exc)
-            return False
-
-    def unsubscribe_submolt(self, name: str) -> bool:
-        """Unsubscribe from a submolt. Returns True on success."""
-        if not VALID_SUBMOLT_PATTERN.match(name):
-            logger.warning("Invalid submolt name: %s", name[:50])
-            return False
-        try:
-            self.delete(f"/submolts/{name}/subscribe")
-            logger.info("Unsubscribed from submolt: %s", name)
-            return True
-        except MoltbookClientError as exc:
-            logger.warning("Failed to unsubscribe from %s: %s", name, exc)
             return False
 
     def get_notifications(
@@ -412,15 +392,6 @@ class MoltbookClient:
             logger.warning("Failed to mark notifications read for %s: %s", post_id, exc)
             return False
 
-    def mark_all_notifications_read(self) -> bool:
-        """POST /notifications/read-all — mark all notifications as read."""
-        try:
-            self.post("/notifications/read-all")
-            return True
-        except MoltbookClientError as exc:
-            logger.warning("Failed to mark all notifications read: %s", exc)
-            return False
-
     # ------------------------------------------------------------------
     # Voting
     # ------------------------------------------------------------------
@@ -518,22 +489,7 @@ class MoltbookClient:
             logger.warning("Failed to unfollow %s: %s", agent_name, exc)
             return False
 
-    _ALLOWED_PROFILE_FIELDS = frozenset({"description", "metadata"})
-
-    def update_profile(self, **fields: Any) -> bool:
-        """PATCH /agents/me — update agent profile fields.
-
-        Only 'description' and 'metadata' are accepted per the API spec.
-        Raises ValueError for unknown fields.
-        """
-        unknown = set(fields) - self._ALLOWED_PROFILE_FIELDS
-        if unknown:
-            logger.warning("Rejected unknown profile fields: %s", unknown)
-            return False
-        try:
-            self.patch("/agents/me", json=fields)
-            logger.info("Profile updated: %s", list(fields.keys()))
-            return True
-        except MoltbookClientError as exc:
-            logger.warning("Failed to update profile: %s", exc)
-            return False
+    # update_profile / mark_all_notifications_read / unsubscribe_submolt /
+    # has_budget and the PATCH verb were removed as dead code: no production
+    # caller, and an unimplemented capability is a smaller attack surface
+    # than a guarded one (security by absence, ADR-0007).

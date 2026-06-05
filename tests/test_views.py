@@ -163,18 +163,6 @@ class TestRankAndQuery:
         assert c is not None
         np.testing.assert_array_almost_equal(c, [0.5, 0.5])
 
-    @patch("contemplative_agent.core.views.embed_one")
-    def test_find_by_seed_text(self, mock_embed, views_dir):
-        mock_embed.return_value = np.array([1.0, 0.0], dtype=np.float32)
-        reg = ViewRegistry(views_dir=views_dir)
-        candidates = [
-            {"pattern": "match", "embedding": [1.0, 0.0]},
-            {"pattern": "miss", "embedding": [0.0, 1.0]},
-        ]
-        result = reg.find_by_seed_text("ad-hoc seed", candidates, top_k=10, threshold=0.5)
-        assert [p["pattern"] for p in result] == ["match"]
-
-
 class TestRankPureCosineADR0051:
     """ADR-0051: _rank is pure cosine + bitemporal gate. Trust is gone."""
 

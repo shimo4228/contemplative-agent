@@ -358,31 +358,6 @@ class TestSubscribeSubmolt:
             assert client.subscribe_submolt("philosophy") is False
 
 
-class TestUnsubscribeSubmolt:
-    def test_success(self):
-        client = MoltbookClient(api_key="test-key")
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.headers = {}
-
-        with patch.object(client._session, "request", return_value=mock_response):
-            assert client.unsubscribe_submolt("philosophy") is True
-
-    def test_invalid_name_rejected(self):
-        client = MoltbookClient(api_key="test-key")
-        assert client.unsubscribe_submolt("../hack") is False
-
-    def test_server_error_returns_false(self):
-        client = MoltbookClient(api_key="test-key")
-        mock_response = MagicMock()
-        mock_response.status_code = 500
-        mock_response.text = "Internal Server Error"
-        mock_response.headers = {}
-
-        with patch.object(client._session, "request", return_value=mock_response):
-            assert client.unsubscribe_submolt("philosophy") is False
-
-
 class TestFollowAgentValidation:
     """FINDING-1: agent_name must be validated before URL interpolation."""
 
@@ -457,30 +432,6 @@ class TestRateLimitBudget:
                 client.get("/test")
 
         assert client.recent_429_count == 1
-
-    def test_has_budget_true_when_remaining_unknown(self):
-        client = MoltbookClient(api_key="test-key")
-        assert client.rate_limit_remaining is None
-        assert client.has_budget(reserve=5) is True
-
-    def test_has_budget_true_when_remaining_above_reserve(self):
-        client = MoltbookClient(api_key="test-key")
-        client._read_remaining = 20
-        client._write_remaining = 20
-        assert client.has_budget(reserve=5) is True
-
-    def test_has_budget_false_when_remaining_at_reserve(self):
-        client = MoltbookClient(api_key="test-key")
-        client._read_remaining = 5
-        client._write_remaining = 5
-        assert client.has_budget(reserve=5) is False
-
-    def test_has_budget_false_when_remaining_below_reserve(self):
-        client = MoltbookClient(api_key="test-key")
-        client._read_remaining = 3
-        client._write_remaining = 3
-        assert client.has_budget(reserve=5) is False
-
 
 class TestDualRateLimit:
     """Tests for GET/POST separated rate limiting."""
@@ -581,24 +532,6 @@ class TestMarkNotificationsRead:
     def test_mark_read_by_post_invalid_id(self):
         client = MoltbookClient(api_key="test-key")
         assert client.mark_notifications_read_by_post("../hack") is False
-
-    def test_mark_all_read_success(self):
-        client = MoltbookClient(api_key="test-key")
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.headers = {}
-        with patch.object(client._session, "request", return_value=mock_response):
-            assert client.mark_all_notifications_read() is True
-
-    def test_mark_all_read_failure(self):
-        client = MoltbookClient(api_key="test-key")
-        mock_response = MagicMock()
-        mock_response.status_code = 500
-        mock_response.text = "error"
-        mock_response.headers = {}
-        with patch.object(client._session, "request", return_value=mock_response):
-            assert client.mark_all_notifications_read() is False
-
 
 class TestUpvote:
     def test_upvote_post_success(self):
@@ -751,47 +684,6 @@ class TestUnfollowAgent:
             assert client.unfollow_agent("some-agent") is False
 
 
-class TestUpdateProfile:
-    def test_success(self):
-        client = MoltbookClient(api_key="test-key")
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.headers = {}
-        with patch.object(client._session, "request", return_value=mock_response):
-            assert client.update_profile(description="New bio") is True
-
-    def test_failure(self):
-        client = MoltbookClient(api_key="test-key")
-        mock_response = MagicMock()
-        mock_response.status_code = 403
-        mock_response.text = "forbidden"
-        mock_response.headers = {}
-        with patch.object(client._session, "request", return_value=mock_response):
-            assert client.update_profile(description="New bio") is False
-
-    def test_rejects_unknown_fields(self):
-        client = MoltbookClient(api_key="test-key")
-        assert client.update_profile(api_key="stolen") is False
-
-    def test_rejects_mixed_known_and_unknown(self):
-        client = MoltbookClient(api_key="test-key")
-        assert client.update_profile(description="ok", evil="bad") is False
-
-    def test_allows_metadata_field(self):
-        client = MoltbookClient(api_key="test-key")
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.headers = {}
-        with patch.object(client._session, "request", return_value=mock_response):
-            assert client.update_profile(metadata={"key": "val"}) is True
-
-
-class TestPatchMethod:
-    def test_patch_request(self):
-        client = MoltbookClient(api_key="test-key")
-        mock_response = MagicMock()
-        mock_response.status_code = 200
-        mock_response.headers = {}
-        with patch.object(client._session, "request", return_value=mock_response) as mock_req:
-            client.patch("/test", json={"key": "val"})
-            assert mock_req.call_args[0][0] == "PATCH"
+# TestUpdateProfile / TestPatchMethod / TestUnsubscribeSubmolt /
+# mark_all tests were removed together with the dead client capabilities
+# (no production caller; security by absence — see client.py note).

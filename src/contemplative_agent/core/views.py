@@ -264,19 +264,6 @@ class ViewRegistry:
             return []
         return self._rank(seed_emb, candidates, view.threshold, view.top_k)
 
-    def find_by_seed_text(
-        self,
-        seed: str,
-        candidates: List[Dict],
-        top_k: Optional[int] = None,
-        threshold: float = _DEFAULT_THRESHOLD,
-    ) -> List[Dict]:
-        """Ad-hoc seed query without registering a view file."""
-        seed_emb = embed_one(seed)
-        if seed_emb is None:
-            return []
-        return self._rank(seed_emb, candidates, threshold, top_k)
-
     @staticmethod
     def _rank(
         seed_emb: np.ndarray,

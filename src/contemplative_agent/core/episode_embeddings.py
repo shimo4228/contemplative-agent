@@ -12,8 +12,6 @@ renames and re-reads.
 
 from __future__ import annotations
 
-import hashlib
-import json
 import logging
 import os
 import sqlite3
@@ -26,18 +24,11 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
-def episode_id_for(record: Dict) -> str:
-    """Stable id for an episode record (first 16 chars of SHA-256)."""
-    payload = json.dumps(
-        {
-            "ts": record.get("ts", ""),
-            "type": record.get("type", ""),
-            "data": record.get("data", {}),
-        },
-        sort_keys=True,
-        ensure_ascii=False,
-    )
-    return hashlib.sha256(payload.encode("utf-8")).hexdigest()[:16]
+# episode_id_for() — the keying recipe for the ADR-0019 episode backfill —
+# was removed as dead code after ADR-0035 sunset the migration commands.
+# Recover it from git history (or a v2.0.x tag) if episode-keyed reads of
+# the sidecar ever return; the live writer (novelty.PostEmbeddingCache)
+# keys rows by post_id instead.
 
 
 class EpisodeEmbeddingStore:
@@ -151,9 +142,6 @@ class EpisodeEmbeddingStore:
                 ).fetchall()
                 result.update({eid: np.frombuffer(blob, dtype=np.float32) for eid, blob in rows})
         return result
-
-    def has(self, episode_id: str) -> bool:
-        return self.get(episode_id) is not None
 
     def count(self) -> int:
         self._ensure_initialized()

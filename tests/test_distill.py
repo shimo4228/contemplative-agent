@@ -84,7 +84,7 @@ class TestDistill:
 
         ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks2.load()
-        patterns = ks2.get_learned_patterns()
+        patterns = [p["pattern"] for p in ks2.get_raw_patterns()]
         assert any("Pattern one" in p for p in patterns)
         assert any("Pattern two" in p for p in patterns)
         # Importance from Step 3

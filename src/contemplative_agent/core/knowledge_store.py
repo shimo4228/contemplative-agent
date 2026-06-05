@@ -178,26 +178,6 @@ class KnowledgeStore:
         """
         return list(self._learned_patterns)
 
-    def replace_pattern(self, old_ref: dict, new_pattern: dict) -> bool:
-        """Replace a pattern by identity (``is``). Returns True if replaced.
-
-        Used by callers that construct a new dict representing a state
-        transition (e.g. bitemporal invalidation) and need to swap it in
-        without mutating the existing DTO.
-        """
-        for i, p in enumerate(self._learned_patterns):
-            if p is old_ref:
-                self._learned_patterns[i] = new_pattern
-                return True
-        return False
-
-    def get_learned_patterns(self) -> List[str]:
-        """Return a copy of the learned patterns (text only).
-
-        ADR-0026: the ``category`` filter has been retired.
-        """
-        return [p["pattern"] for p in self._learned_patterns]
-
     def _filter_since(self, since: str, pool: List[dict]) -> List[dict]:
         """Return dicts from pool distilled after since. Returns all on bad timestamp."""
         try:
@@ -215,10 +195,6 @@ class KnowledgeStore:
             except (ValueError, TypeError):
                 continue
         return result
-
-    def get_raw_patterns_since(self, since: str) -> List[dict]:
-        """Return raw pattern dicts distilled after the given ISO timestamp."""
-        return self._filter_since(since, self._learned_patterns)
 
     def get_live_patterns(self) -> List[dict]:
         """Return patterns that pass ``is_live`` (bitemporal gate)."""

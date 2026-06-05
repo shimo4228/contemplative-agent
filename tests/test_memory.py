@@ -500,7 +500,7 @@ class TestEpisodeLog:
 class TestKnowledgeStore:
     def test_empty_by_default(self, tmp_path):
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
-        assert ks.get_learned_patterns() == []
+        assert [p["pattern"] for p in ks.get_raw_patterns()] == []
 
     def test_add_and_save(self, tmp_path):
         path = tmp_path / "knowledge.json"
@@ -523,7 +523,7 @@ class TestKnowledgeStore:
 
         ks2 = KnowledgeStore(path=path)
         ks2.load()
-        assert ks2.get_learned_patterns() == ["Pattern1", "Pattern2"]
+        assert [p["pattern"] for p in ks2.get_raw_patterns()] == ["Pattern1", "Pattern2"]
 
     def test_file_permissions(self, tmp_path):
         path = tmp_path / "knowledge.json"
@@ -543,7 +543,7 @@ class TestKnowledgeStore:
         ks = KnowledgeStore(path=path)
         ks.load()
         # File was rejected — no data should be loaded
-        assert ks.get_learned_patterns() == []
+        assert [p["pattern"] for p in ks.get_raw_patterns()] == []
 
     def test_load_rejects_bearer_pattern(self, tmp_path):
         """Bearer token pattern in knowledge file triggers rejection."""
@@ -553,7 +553,7 @@ class TestKnowledgeStore:
         ]))
         ks = KnowledgeStore(path=path)
         ks.load()
-        assert ks.get_learned_patterns() == []
+        assert [p["pattern"] for p in ks.get_raw_patterns()] == []
 
     def test_load_accepts_clean_file(self, tmp_path):
         """A clean knowledge file should load normally."""
@@ -564,7 +564,7 @@ class TestKnowledgeStore:
 
         ks2 = KnowledgeStore(path=path)
         ks2.load()
-        assert ks2.get_learned_patterns() == ["Contemplative practice is valuable"]
+        assert [p["pattern"] for p in ks2.get_raw_patterns()] == ["Contemplative practice is valuable"]
 
     # --- Importance score tests ---
 

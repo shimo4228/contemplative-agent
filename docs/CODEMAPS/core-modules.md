@@ -13,12 +13,12 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `prompts.py` | ~70 | Lazy-load proxy to `config/prompts/*.md` + placeholder resolution |
 | `llm.py` | 553 | Ollama interface + `LLMBackend` Protocol (pluggable generation), circuit breaker, sanitization; `_build_system_prompt` reads identity.md as a single text blob (legacy whole-file path restored by ADR-0030) |
 | `clustering.py` | ~115 | Average-linkage cosine agglomerative clustering (ADR-0019 companion, numpy-only). Used by `insight` and `rules_distill` to bucket embedded corpus without a predefined view axis |
-| `embeddings.py` | 144 | Ollama `/api/embed` wrapper (nomic-embed-text), `cosine`, `embed_one`, `embed_texts` |
-| `episode_embeddings.py` | 174 | `EpisodeEmbeddingStore` — SQLite sidecar for episode vectors (ADR-0019) |
+| `embeddings.py` | 92 | Ollama `/api/embed` wrapper (nomic-embed-text), `cosine`, `embed_one`, `embed_texts` |
+| `episode_embeddings.py` | 162 | `EpisodeEmbeddingStore` — SQLite sidecar for episode vectors (ADR-0019) |
 | `episode_log.py` | ~100 | `EpisodeLog` (append-only JSONL, `read_range` with `record_type` filter) |
-| `knowledge_store.py` | 361 | `KnowledgeStore` — patterns JSON + provenance/bitemporal fields (ADR-0021; forgetting/feedback retired by ADR-0028, `provenance.sanitized` retired by ADR-0029, trust weighting retired by ADR-0051) + view telemetry (ADR-0020); `is_live()` (bitemporal-only gate, moved here from the deleted `forgetting.py`), `pattern_id()` / `epistemic_kind_for()` / `epistemic_counts_for()` (ADR-0050 lineage); `get_live_patterns()` / `get_live_patterns_since()` apply `is_live` at the API boundary |
+| `knowledge_store.py` | 337 | `KnowledgeStore` — patterns JSON + provenance/bitemporal fields (ADR-0021; forgetting/feedback retired by ADR-0028, `provenance.sanitized` retired by ADR-0029, trust weighting retired by ADR-0051) + view telemetry (ADR-0020); `is_live()` (bitemporal-only gate, moved here from the deleted `forgetting.py`), `pattern_id()` / `epistemic_kind_for()` / `epistemic_counts_for()` (ADR-0050 lineage); `get_live_patterns()` / `get_live_patterns_since()` apply `is_live` at the API boundary |
 | `memory.py` | 499 | `MemoryStore` facade, `Interaction`/`PostRecord`/`Insight` dataclasses, query helpers |
-| `views.py` | 309 | `ViewRegistry` — seed-text views with `seed_from` + `${VAR}` substitution, lazy centroid cache, embedding cosine ranking (BM25 hybrid retrieval was withdrawn by ADR-0034) |
+| `views.py` | 298 | `ViewRegistry` — seed-text views with `seed_from` + `${VAR}` substitution, lazy centroid cache, embedding cosine ranking (BM25 hybrid retrieval was withdrawn by ADR-0034) |
 | `snapshot.py` | 160 | `write_snapshot()` + `collect_thresholds()` — pivot snapshots per ADR-0020. Reads thresholds from `core/thresholds.py` registry |
 | `scheduler.py` | 165 | Rate limit state, `has_read_budget`/`has_write_budget`, persistence |
 | `constitution.py` | 130 | `amend_constitution()` → `AmendmentResult`. ADR-0033 layer-separation framing applied to amendment prompt |
