@@ -133,6 +133,15 @@ def generate_comment(post_text: str) -> Optional[str]:
     )
 
 
+# Audit L6: per-seed hard cap. The 15K combined budget in select_feed_seeds
+# is soft (binds only when >1 seed survives selection), so a single 40K-char
+# post passed through uncapped — enough to trip the C2 budget guard and
+# suppress the self-post entirely (action-suppression DoS). 5000 = the 15K
+# char budget over target_count=3 seeds; production p90 is 2,400 chars
+# (n=50, 2026-05-21), so the cap rarely binds on real posts.
+SEED_MAX_INPUT = 5000
+
+
 def format_feed_seeds(seeds: list[dict]) -> str:
     """Format peer posts as direct seeds for ``cooperation_post.md`` (ADR-0043).
 
@@ -148,7 +157,7 @@ def format_feed_seeds(seeds: list[dict]) -> str:
         title = seed.get("title", "") or ""
         content = seed.get("content", "") or ""
         body = f"{title}\n{content}" if title else content
-        blocks.append(wrap_untrusted_content(body))
+        blocks.append(wrap_untrusted_content(body, max_input=SEED_MAX_INPUT))
     return "\n\n".join(blocks)
 
 

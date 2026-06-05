@@ -64,6 +64,27 @@ class TestFormatFeedSeeds:
     def test_empty_seeds_returns_empty_string(self):
         assert format_feed_seeds([]) == ""
 
+    def test_per_seed_cap_bounds_single_oversized_post(self):
+        """Audit L6: the 15K combined budget in select_feed_seeds is soft
+        (binds only when >1 seed survives), so a single 40K-char post
+        passed through uncapped — an overflow → C2-guard-skip vector
+        (action-suppression). Each seed is now individually capped at
+        SEED_MAX_INPUT via wrap_untrusted_content, with the truncation
+        marker telling the LLM the content was cut."""
+        from contemplative_agent.adapters.moltbook.llm_functions import (
+            SEED_MAX_INPUT,
+        )
+
+        huge = "z" * 40000
+        out = format_feed_seeds([_post("Huge", huge)])
+        assert len(out) < SEED_MAX_INPUT + 1000  # wrapper overhead only
+        assert "truncated to the first" in out  # honest completeness marker
+
+    def test_per_seed_cap_leaves_normal_posts_untouched(self):
+        out = format_feed_seeds([_post("Normal", "n" * 2400)])  # p90 size
+        assert "n" * 2400 in out
+        assert "is complete" in out
+
 
 # ---------------------------------------------------------------------------
 # select_feed_seeds

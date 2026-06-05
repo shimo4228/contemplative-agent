@@ -13,8 +13,9 @@ Design:
   fresh draw per cycle while tests can pin a seed for determinism.
 - Combined-length budget is a *soft* fallback: the selector drops trailing
   posts until the sum fits, but never drops below one. Hard per-post
-  truncation is delegated to ``wrap_untrusted_content`` (ADR-0042), which is
-  the explicit truncation contract for the entire pipeline.
+  truncation lives in ``format_feed_seeds`` (``SEED_MAX_INPUT`` via
+  ``wrap_untrusted_content``, audit L6) — the explicit truncation contract
+  for the entire pipeline (ADR-0042).
 """
 
 from __future__ import annotations
@@ -45,11 +46,14 @@ def select_feed_seeds(
     drop below one.
 
     The 15,000-char default budget is derived from qwen3.5:9b's 32K-token
-    context window minus the prompt skeleton, insights footer, and output
-    budget (≈ 8K tokens reserved for non-feed content; 15K chars ≈ 4K tokens
-    in English). API spec allows 40,000-char posts, but the production
+    context window minus the prompt skeleton and output budget (≈ 8K tokens
+    reserved for non-feed content; 15K chars ≈ 4K tokens in English — the
+    session-insights footer was retired by ADR-0052, which only widens the
+    margin). API spec allows 40,000-char posts, but the production
     distribution (n=50 sample on 2026-05-21) shows p90 = 2,400 chars and
-    max = 3,857 chars — so in practice the budget rarely binds.
+    max = 3,857 chars — so in practice the budget rarely binds. This budget
+    is soft (binds only when >1 seed survives); the hard per-seed cap is
+    ``SEED_MAX_INPUT`` in ``format_feed_seeds`` (audit L6).
     """
     if not posts:
         return []
