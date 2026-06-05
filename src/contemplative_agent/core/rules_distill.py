@@ -207,7 +207,6 @@ def _build_skill_clusters(
             "filename": fname,
             "embedding": matrix[i].tolist(),
             "importance": 0.5,
-            "trust_score": 1.0,
         }
         for i, (fname, text) in enumerate(skill_items)
     ]

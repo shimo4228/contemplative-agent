@@ -15,7 +15,6 @@ def _pat(text: str, embedding: List[float], importance: float = 0.5) -> dict:
         "pattern": text,
         "embedding": list(embedding),
         "importance": importance,
-        "trust_score": 1.0,
     }
 
 
@@ -130,7 +129,6 @@ class TestEdgeCases:
             {
                 "pattern": "noemb",
                 "importance": 0.5,
-                "trust_score": 1.0,
             }
         ]
         clusters, singletons = cluster_patterns(

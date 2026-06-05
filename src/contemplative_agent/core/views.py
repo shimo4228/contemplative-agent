@@ -37,7 +37,7 @@ from typing import Dict, List, Mapping, Optional
 import numpy as np
 
 from .embeddings import cosine, embed_one
-from .forgetting import is_live
+from .knowledge_store import is_live
 
 logger = logging.getLogger(__name__)
 
@@ -249,7 +249,7 @@ class ViewRegistry:
         view_name: str,
         candidates: List[Dict],
     ) -> List[Dict]:
-        """Return patterns from ``candidates`` ranked by ``cosine × trust``.
+        """Return patterns from ``candidates`` ranked by cosine.
 
         ``candidates`` is a list of pattern dicts each containing an
         ``embedding`` field (List[float]). Patterns without embeddings
@@ -284,11 +284,14 @@ class ViewRegistry:
         threshold: float,
         top_k: Optional[int],
     ) -> List[Dict]:
-        """Rank candidates by ``cosine × trust``.
+        """Rank candidates by raw cosine similarity.
 
-        ADR-0021 introduced the trust multiplier on top of cosine.
-        ADR-0028 retired the Ebbinghaus ``strength`` factor and the
-        ``mark_access`` side-effect — ``_rank`` is a pure read.
+        Pure read, pure semantics: a candidate makes the cut iff it is
+        live (bitemporal), clears ``threshold``, and survives ``top_k``
+        by cosine rank. ADR-0028 retired the Ebbinghaus ``strength``
+        factor and the ``mark_access`` side-effect; ADR-0051 retired the
+        ADR-0021 trust multiplier (origin is recorded in provenance,
+        never weighted).
         """
         scored: List[tuple] = []
         for pat in candidates:
@@ -301,9 +304,8 @@ class ViewRegistry:
             sim = cosine(seed_emb, vec)
             if sim < threshold:
                 continue
-            trust = float(pat.get("trust_score", 1.0))
-            scored.append((sim * trust, sim, pat))
+            scored.append((sim, pat))
         scored.sort(key=lambda t: t[0], reverse=True)
         if top_k is not None:
             scored = scored[:top_k]
-        return [pat for _, _, pat in scored]
+        return [pat for _, pat in scored]

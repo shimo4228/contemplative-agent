@@ -25,11 +25,10 @@ import numpy as np
 
 from ._io import append_jsonl_restricted, now_iso, strip_code_fence
 from .embeddings import cosine, embed_texts
-from .forgetting import is_live
 from .knowledge_store import (
-    TRUST_BASE_BY_SOURCE,
     effective_importance,
     epistemic_counts_for,
+    is_live,
     pattern_id,
 )
 from .llm import generate, get_distill_system_prompt, validate_identity_content
@@ -459,9 +458,12 @@ def _episode_source_kind(record: Dict) -> str:
 def _derive_source_type(records: List[Dict]) -> str:
     """Map a batch of episodes to an ADR-0021 provenance.source_type value.
 
-    - All self-generated → self_reflection (high trust).
+    Pure origin record (ADR-0051 retired the trust weighting that used to
+    hang off it; ADR-0050's ``epistemic_kind_for`` derives from it):
+
+    - All self-generated → self_reflection.
     - All externally-sourced → external_reply.
-    - Mixed self + external → mixed (trust = min of the two bases).
+    - Mixed self + external → mixed.
     - Only unknown types → unknown.
     """
     kinds = {_episode_source_kind(r) for r in records}
@@ -473,16 +475,6 @@ def _derive_source_type(records: List[Dict]) -> str:
     if kinds == {"external"}:
         return "external_reply"
     return "mixed"
-
-
-def _trust_for_source(source_type: str) -> float:
-    """Base trust score for a given provenance source_type (ADR-0021).
-
-    ``mixed`` has its own entry in ``TRUST_BASE_BY_SOURCE``; falling back
-    to ``unknown`` (0.6) would rank mixed patterns above external_reply
-    (0.55), which contradicts the ordering intent.
-    """
-    return TRUST_BASE_BY_SOURCE.get(source_type, TRUST_BASE_BY_SOURCE["unknown"])
 
 
 @dataclass(frozen=True)
@@ -621,7 +613,7 @@ def _distill_category(
     # ADR-0026: dedup scope is the full live pool. Cross-axis overlap is
     # acceptable — the semantic coordinate is shared regardless of which
     # view a pattern is routed through at query time.
-    # is_live gate (valid_until + TRUST_FLOOR) is enforced inside
+    # is_live gate (valid_until, ADR-0051) is enforced inside
     # _dedup_patterns; this pre-filter exists for the importance-floor log.
     existing_patterns = list(knowledge.get_raw_patterns())
     pre_filter = len(existing_patterns)
@@ -674,7 +666,6 @@ def _distill_category(
             importance=importance,
             embedding=emb_list,
             provenance=provenance,
-            trust_score=_trust_for_source(source_type),
             valid_from=ts,
         )
         logger.info("Added pattern (importance=%.1f, source=%s): %s",
@@ -726,7 +717,7 @@ def _dedup_patterns(
     existing_with_emb: List[Tuple[Dict, np.ndarray]] = []
     for p in existing_patterns:
         if not is_live(p):
-            continue  # invalidated or below trust floor — ignore
+            continue  # bitemporally invalidated — ignore
         emb = p.get("embedding")
         if isinstance(emb, list):
             existing_with_emb.append((p, np.asarray(emb, dtype=np.float32)))

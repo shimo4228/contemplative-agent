@@ -211,8 +211,8 @@ def extract_insight(
 
     knowledge_store.load()
 
-    # ADR-0021: pull live-only patterns so bitemporally superseded /
-    # trust-floor entries never enter batching.
+    # ADR-0021/0051: pull live-only patterns so bitemporally superseded
+    # entries never enter batching.
     # ADR-0026: dropped category="uncategorized" gate; gated=True is the
     # only hard exclusion (handled by _build_cluster_batches).
     if full:

@@ -175,8 +175,8 @@ class TestRankAndQuery:
         assert [p["pattern"] for p in result] == ["match"]
 
 
-class TestRankADR0021:
-    """ADR-0021 trust/strength/bitemporal gating on retrieval."""
+class TestRankPureCosineADR0051:
+    """ADR-0051: _rank is pure cosine + bitemporal gate. Trust is gone."""
 
     def test_rank_skips_invalidated_patterns(self):
         seed = np.array([1.0, 0.0], dtype=np.float32)
@@ -191,62 +191,33 @@ class TestRankADR0021:
         result = ViewRegistry._rank(seed, candidates, threshold=0.0, top_k=None)
         assert [p["pattern"] for p in result] == ["alive"]
 
-    def test_rank_skips_low_trust(self):
+    def test_rank_includes_legacy_low_trust(self):
+        """A legacy trust_score, however low, no longer excludes a row."""
         seed = np.array([1.0, 0.0], dtype=np.float32)
         candidates = [
             {"pattern": "trusted", "embedding": [1.0, 0.0], "trust_score": 0.8},
             {"pattern": "untrusted", "embedding": [1.0, 0.0], "trust_score": 0.1},
         ]
         result = ViewRegistry._rank(seed, candidates, threshold=0.0, top_k=None)
-        assert [p["pattern"] for p in result] == ["trusted"]
+        assert {p["pattern"] for p in result} == {"trusted", "untrusted"}
 
-    def test_rank_orders_by_combined_score(self):
-        """Two patterns with equal cosine: higher trust wins."""
+    def test_rank_orders_by_cosine_only(self):
+        """Legacy trust must not reorder: higher cosine wins regardless."""
         seed = np.array([1.0, 0.0], dtype=np.float32)
         candidates = [
-            {"pattern": "low", "embedding": [1.0, 0.0], "trust_score": 0.4},
-            {"pattern": "high", "embedding": [1.0, 0.0], "trust_score": 0.9},
+            # lower cosine but high legacy trust — must NOT win
+            {"pattern": "cos_low_trust_high", "embedding": [0.5, 0.8660], "trust_score": 0.9},
+            # higher cosine with low legacy trust — must win
+            {"pattern": "cos_high_trust_low", "embedding": [0.9, 0.4359], "trust_score": 0.1},
         ]
         result = ViewRegistry._rank(seed, candidates, threshold=0.0, top_k=None)
-        assert [p["pattern"] for p in result] == ["high", "low"]
+        assert [p["pattern"] for p in result] == ["cos_high_trust_low", "cos_low_trust_high"]
 
     # ADR-0028: mark_access / access_count tests removed. _rank is now a
     # pure read; the Ebbinghaus strength factor and usage tracking were
     # retired because the agent's hot path does not retrieve patterns
-    # per-turn.
-
-    def test_high_trust_overcomes_low_cosine(self):
-        # cosine 劣位 × high-trust が cosine 優位 × low-trust を逆転する。
-        # 0.5 × 0.9 = 0.45  >  0.9 × 0.4 = 0.36
-        seed = np.array([1.0, 0.0], dtype=np.float32)
-        candidates = [
-            {"pattern": "cos_high_trust_low", "embedding": [0.9, 0.4359], "trust_score": 0.4},
-            {"pattern": "cos_low_trust_high", "embedding": [0.5, 0.8660], "trust_score": 0.9},
-        ]
-        result = ViewRegistry._rank(seed, candidates, threshold=0.0, top_k=None)
-        assert [p["pattern"] for p in result] == ["cos_low_trust_high", "cos_high_trust_low"]
-
-    def test_cosine_dominance_survives_trust_gap(self):
-        # cosine 差が大きいときは trust 差で逆転しない (trust が過剰に効いていないこと)。
-        # 0.9 × 0.7 = 0.63  >  0.4 × 0.9 = 0.36
-        seed = np.array([1.0, 0.0], dtype=np.float32)
-        candidates = [
-            {"pattern": "cos_high_trust_mid", "embedding": [0.9, 0.4359], "trust_score": 0.7},
-            {"pattern": "cos_low_trust_high", "embedding": [0.4, 0.9165], "trust_score": 0.9},
-        ]
-        result = ViewRegistry._rank(seed, candidates, threshold=0.0, top_k=None)
-        assert [p["pattern"] for p in result] == ["cos_high_trust_mid", "cos_low_trust_high"]
-
-    def test_rank_reversal_at_trust_floor_boundary(self):
-        # trust=0.3 (TRUST_FLOOR ちょうど = is_live を pass) は除外されず乗算因子として残る。
-        # 0.95 × 0.3 = 0.285  <  0.5 × 0.9 = 0.45
-        seed = np.array([1.0, 0.0], dtype=np.float32)
-        candidates = [
-            {"pattern": "boundary_trust", "embedding": [0.95, 0.3122], "trust_score": 0.3},
-            {"pattern": "mid_cos_high_trust", "embedding": [0.5, 0.8660], "trust_score": 0.9},
-        ]
-        result = ViewRegistry._rank(seed, candidates, threshold=0.0, top_k=None)
-        assert [p["pattern"] for p in result] == ["mid_cos_high_trust", "boundary_trust"]
+    # per-turn. ADR-0051: the cosine × trust combined-score tests were
+    # removed with the trust multiplier itself.
 
 
 class TestSeedFrom:

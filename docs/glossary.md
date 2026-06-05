@@ -73,7 +73,7 @@ AKC updates.
 | view / views | view / views | view / views | view / views | view / views | view / views | ✓ |
 | embedding | 埋め込み / embedding | 嵌入 / embedding | 嵌入 / embedding | embedding | embedding | partial |
 | provenance | 出所記録 | 出处记录 | 出處記錄 | proveniência | procedencia | |
-| trust score | 信頼度 | 可信度 | 可信度 | índice de confiança | puntuación de confianza | |
+| trust score | 信頼度 | 可信度 | 可信度 | índice de confiança | puntuación de confianza | retired (ADR-0051); historical docs only |
 | bitemporal | 時間妥当性 (bitemporal) | 双时态 (bitemporal) | 雙時態 (bitemporal) | bitemporal | bitemporal | partial |
 | approval gate | 承認ゲート | 审批闸门 | 審核閘門 | porta de aprovação | puerta de aprobación | |
 | human approval gate | 人間承認ゲート | 人类审批闸门 | 人類審核閘門 | porta de aprovação humana | puerta de aprobación humana | |
@@ -181,7 +181,7 @@ These are external project / product names. Keep them in English (or their canon
 
 ### Schema fields and binary names
 
-Always in English: `source_type`, `trust_score`, `valid_from`,
+Always in English: `source_type`, `valid_from`,
 `valid_until`, `category`, `MOLTBOOK_HOME`, `MOLTBOOK_API_KEY`,
 `contemplative-agent`, `contemplative-agent-cloud`, `qwen3.5:9b`,
 `nomic-embed-text`, `knowledge.json`, `identity.md`, `logs/*.jsonl`,

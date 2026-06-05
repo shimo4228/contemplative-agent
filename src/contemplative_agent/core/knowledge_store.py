@@ -15,44 +15,17 @@ from .config import FORBIDDEN_SUBSTRING_PATTERNS
 
 logger = logging.getLogger(__name__)
 
-# ADR-0021 source_type values. "unknown" is the migration default for
-# legacy patterns without recorded provenance. ADR-0029 retired
-# ``user_input`` (no producer; conflicted with ADR-0007 untrusted-input
-# boundary) and ``external_post`` (no producer; primary external-content
-# defense is quarantine at the summarize boundary, not trust-weighting).
-SOURCE_TYPES = (
-    "self_reflection",
-    "external_reply",
-    "mixed",
-    "unknown",
-)
-
-# ADR-0021 base trust by source. Applied at distill time; later adjusted
-# by approval-gate hooks. (Pattern-layer feedback nudges were retired by
-# ADR-0028; ``user_input`` / ``external_post`` rows were retired by
-# ADR-0029.)
-TRUST_BASE_BY_SOURCE: Dict[str, float] = {
-    "self_reflection": 0.9,
-    "unknown": 0.6,
-    "external_reply": 0.55,
-    "mixed": 0.5,  # overridden to min(inputs) when mixed sources are known
-}
-
-DEFAULT_TRUST = TRUST_BASE_BY_SOURCE["unknown"]
-
-
 def effective_importance(p: dict) -> float:
-    """Compute retrieval weight: importance × time decay × trust.
+    """Compute extraction weight: importance × time decay.
 
-    ``importance × 0.95^days_elapsed`` is the coarse aging signal; ADR-0021
-    augments it with trust (provenance quality). The Ebbinghaus ``strength``
-    factor was retired by ADR-0028. Patterns missing trust degrade to
-    legacy-only scoring.
+    ``importance × 0.95^days_elapsed`` — nothing else. The Ebbinghaus
+    ``strength`` factor was retired by ADR-0028; the trust factor was
+    retired by ADR-0051 (origin must be recorded, never weighted).
     """
     base = p.get("importance", 0.5)
     distilled = p.get("distilled", "")
     if not distilled or distilled == "unknown":
-        legacy = base * 0.1  # Unknown timestamp → heavy penalty
+        weight = base * 0.1  # Unknown timestamp → heavy penalty
     else:
         try:
             dt = datetime.fromisoformat(distilled)
@@ -60,12 +33,22 @@ def effective_importance(p: dict) -> float:
                 dt = dt.replace(tzinfo=timezone.utc)
             days = (datetime.now(timezone.utc) - dt).total_seconds() / 86400.0
             days = max(0.0, days)
-            legacy = base * (0.95 ** days)
+            weight = base * (0.95 ** days)
         except (ValueError, TypeError):
-            legacy = base * 0.1
+            weight = base * 0.1
 
-    trust = float(p.get("trust_score", 1.0))
-    return max(0.0, min(1.0, legacy * trust))
+    return max(0.0, min(1.0, weight))
+
+
+def is_live(pattern: Dict) -> bool:
+    """True if the pattern is currently retrievable (ADR-0051).
+
+    Bitemporal gate only: a pattern is live iff ``valid_until is None``
+    (current truth). The former trust floor (ADR-0021 IV-7) could never
+    fire — no assigned base trust was below it — and was retired together
+    with the rest of the trust weighting by ADR-0051.
+    """
+    return pattern.get("valid_until") is None
 
 
 def pattern_id(p: dict) -> str:
@@ -141,17 +124,16 @@ class KnowledgeStore:
         embedding: Optional[List[float]] = None,
         gated: Optional[bool] = None,
         provenance: Optional[Dict] = None,
-        trust_score: Optional[float] = None,
         valid_from: Optional[str] = None,
         valid_until: Optional[str] = None,
     ) -> None:
         """Append a new learned pattern dict.
 
-        ADR-0021 fields (provenance / trust_score / valid_from / valid_until)
-        are all optional. When omitted, sensible defaults are written so the
-        pattern is immediately usable: ``provenance.source_type = "unknown"``,
-        ``trust_score = DEFAULT_TRUST``, ``valid_from = distilled``,
-        ``valid_until = None`` (current truth).
+        ADR-0021 fields (provenance / valid_from / valid_until) are all
+        optional. When omitted, sensible defaults are written so the
+        pattern is immediately usable: ``provenance.source_type =
+        "unknown"``, ``valid_from = distilled``, ``valid_until = None``
+        (current truth).
 
         ADR-0026: ``category`` / ``subcategory`` are no longer written.
         Routing is query-time via ``ViewRegistry``; the ``gated`` flag
@@ -160,9 +142,12 @@ class KnowledgeStore:
         ADR-0028: pattern-layer forgetting (``last_accessed_at`` /
         ``access_count``) and feedback (``success_count`` /
         ``failure_count``) fields have been retired.
+
+        ADR-0051: ``trust_score`` / ``trust_updated_at`` are no longer
+        written. Origin lives in ``provenance.source_type`` (recorded,
+        never weighted).
         """
-        ts = now_iso()
-        distilled_value = distilled or ts
+        distilled_value = distilled or now_iso()
         entry: dict = {
             "pattern": pattern,
             "distilled": distilled_value,
@@ -175,12 +160,9 @@ class KnowledgeStore:
         if gated is not None:
             entry["gated"] = gated
 
-        # ADR-0021: provenance + trust
+        # ADR-0021: provenance (origin record; ADR-0050 derives the
+        # epistemic kind from it at read time)
         entry["provenance"] = provenance or {"source_type": "unknown"}
-        entry["trust_score"] = (
-            float(trust_score) if trust_score is not None else DEFAULT_TRUST
-        )
-        entry["trust_updated_at"] = ts
 
         # ADR-0021: bitemporal
         entry["valid_from"] = valid_from or distilled_value
@@ -239,22 +221,15 @@ class KnowledgeStore:
         return self._filter_since(since, self._learned_patterns)
 
     def get_live_patterns(self) -> List[dict]:
-        """Return patterns that pass ``is_live`` (bitemporal + trust)."""
-        from .forgetting import is_live
-
+        """Return patterns that pass ``is_live`` (bitemporal gate)."""
         return [p for p in self._learned_patterns if is_live(p)]
 
     def get_live_patterns_since(self, since: str) -> List[dict]:
         """Return live patterns distilled after the given ISO timestamp."""
-        from .forgetting import is_live
-
         return [
             p for p in self._filter_since(since, self._learned_patterns)
             if is_live(p)
         ]
-
-    def _effective_importance(self, p: dict) -> float:
-        return effective_importance(p)
 
     def load(self) -> None:
         """Load knowledge from JSON file.
@@ -355,15 +330,16 @@ class KnowledgeStore:
                 # whatever shape they have on disk (ADR-0035 retired the
                 # ``migrate-patterns`` rewrite command). ADR-0029: strip
                 # the retired ``sanitized`` flag at load time so saves
-                # are net-reductive on the next write-back.
+                # are net-reductive on the next write-back. ADR-0051:
+                # ``trust_score`` / ``trust_updated_at`` are no longer
+                # restored on read — legacy files load cleanly and the
+                # fields are silently dropped on the next save (every
+                # historical value is a pure function of
+                # ``provenance.source_type``).
                 if isinstance(item.get("provenance"), dict):
                     prov = dict(item["provenance"])
                     prov.pop("sanitized", None)
                     entry["provenance"] = prov
-                if isinstance(item.get("trust_score"), (int, float)):
-                    entry["trust_score"] = float(item["trust_score"])
-                if isinstance(item.get("trust_updated_at"), str):
-                    entry["trust_updated_at"] = item["trust_updated_at"]
                 if isinstance(item.get("valid_from"), str):
                     entry["valid_from"] = item["valid_from"]
                 if "valid_until" in item:

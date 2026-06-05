@@ -274,31 +274,15 @@ class TestDedupPatternsEmbedding:
     def test_thresholds_in_range(self):
         assert 0.0 < SIM_UPDATE < SIM_DUPLICATE < 1.0
 
-    def test_dedup_skips_low_trust_existing_patterns(self):
-        # F6: low-trust (trust < TRUST_FLOOR=0.3) existing は is_live が False
-        # → dedup pool から除外され、semantic 一致の new pattern も ADD される。
+    def test_dedup_ignores_legacy_trust_fields(self):
+        # ADR-0051: trust no longer gates liveness — a legacy row with an
+        # arbitrarily low trust_score stays in the dedup pool, so a
+        # semantically matching new pattern is SKIPped, not ADDed.
         existing = [{
             "pattern": "old noise",
             "importance": 0.6,
             "embedding": [1.0, 0.0, 0.0],
             "trust_score": 0.1,
-        }]
-        new_embs = [_embedding(0.99, 0.01, 0.0)]
-        add, _imp, _emb, _idx, skip, upd = _dedup_patterns(
-            ["fresh signal"], [0.7], new_embs, existing,
-        )
-        assert len(add) == 1
-        assert skip == 0
-        assert upd == 0
-
-    def test_dedup_keeps_trust_floor_boundary_in_pool(self):
-        # F6: trust=TRUST_FLOOR (0.3) ちょうどは is_live が True
-        # → dedup pool に残り、semantic 一致の new pattern は SKIP される。
-        existing = [{
-            "pattern": "boundary trust",
-            "importance": 0.6,
-            "embedding": [1.0, 0.0, 0.0],
-            "trust_score": 0.3,
         }]
         new_embs = [_embedding(0.99, 0.01, 0.0)]
         add, _imp, _emb, _idx, skip, upd = _dedup_patterns(
@@ -342,14 +326,6 @@ class TestDeriveSourceTypeADR0021:
 
         records = [{"type": "something_weird", "data": {}}]
         assert _derive_source_type(records) == "unknown"
-
-    def test_trust_for_source_maps_correctly(self):
-        from contemplative_agent.core.distill import _trust_for_source
-
-        assert _trust_for_source("self_reflection") > _trust_for_source("external_reply")
-        assert _trust_for_source("mixed") <= _trust_for_source("external_reply")
-        assert _trust_for_source("unknown") == 0.6
-
 
 class TestDedupSoftInvalidationADR0021:
     """ADR-0021: SIM_UPDATE path creates a new row + invalidates the old row."""

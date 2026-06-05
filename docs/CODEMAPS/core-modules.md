@@ -16,14 +16,13 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `embeddings.py` | 144 | Ollama `/api/embed` wrapper (nomic-embed-text), `cosine`, `embed_one`, `embed_texts` |
 | `episode_embeddings.py` | 174 | `EpisodeEmbeddingStore` — SQLite sidecar for episode vectors (ADR-0019) |
 | `episode_log.py` | ~100 | `EpisodeLog` (append-only JSONL, `read_range` with `record_type` filter) |
-| `knowledge_store.py` | 335 | `KnowledgeStore` — patterns JSON + provenance/trust/bitemporal fields (ADR-0021; forgetting/feedback retired by ADR-0028, `provenance.sanitized` retired by ADR-0029) + view telemetry (ADR-0020); `get_live_patterns()` / `get_live_patterns_since()` apply `is_live` filter at the API boundary |
+| `knowledge_store.py` | 361 | `KnowledgeStore` — patterns JSON + provenance/bitemporal fields (ADR-0021; forgetting/feedback retired by ADR-0028, `provenance.sanitized` retired by ADR-0029, trust weighting retired by ADR-0051) + view telemetry (ADR-0020); `is_live()` (bitemporal-only gate, moved here from the deleted `forgetting.py`), `pattern_id()` / `epistemic_kind_for()` / `epistemic_counts_for()` (ADR-0050 lineage); `get_live_patterns()` / `get_live_patterns_since()` apply `is_live` at the API boundary |
 | `memory.py` | 499 | `MemoryStore` facade, `Interaction`/`PostRecord`/`Insight` dataclasses, query helpers |
 | `views.py` | 309 | `ViewRegistry` — seed-text views with `seed_from` + `${VAR}` substitution, lazy centroid cache, embedding cosine ranking (BM25 hybrid retrieval was withdrawn by ADR-0034) |
 | `snapshot.py` | 160 | `write_snapshot()` + `collect_thresholds()` — pivot snapshots per ADR-0020. Reads thresholds from `core/thresholds.py` registry |
-| `forgetting.py` | 33 | Retrieval gate (ADR-0021 IV-2/IV-7 + ADR-0028 retirement): `TRUST_FLOOR`, `is_live(pattern)` — bitemporal + trust floor only. Ebbinghaus strength and mark_accessed were retired by ADR-0028. |
 | `scheduler.py` | 165 | Rate limit state, `has_read_budget`/`has_write_budget`, persistence |
 | `constitution.py` | 130 | `amend_constitution()` → `AmendmentResult`. ADR-0033 layer-separation framing applied to amendment prompt |
-| `distill.py` | 823 | `distill()` w/ embedding centroid classify (ADR-0019) + provenance/trust/bitemporal write (ADR-0021); `distill_identity()` reads/writes identity.md as a single text blob (ADR-0030). `memory_evolution` pass (ADR-0022) was removed by ADR-0034 |
+| `distill.py` | 831 | `distill()` w/ embedding centroid classify (ADR-0019) + provenance/bitemporal write (ADR-0021/0051); `distill_identity()` reads/writes identity.md as a single text blob (ADR-0030). `memory_evolution` pass (ADR-0022) was removed by ADR-0034 |
 | `insight.py` | 282 | `extract_insight()` → `InsightResult`; view-driven batch building. Pulls live-only patterns via `KnowledgeStore.get_live_patterns` and ranks batches by `effective_importance`. Uses `text_utils` + `artifact_extraction` helpers (ADR-0035 PR2/PR3) |
 | `rules_distill.py` | 348 | `distill_rules()` → `RulesDistillResult`; Practice/Rationale B-layer format. Uses `text_utils` + `artifact_extraction` helpers (ADR-0035 PR2/PR3) |
 | `stocktake.py` | 362 | Skill/rule audit: single-call LLM grouping (ADR-0046, returns `{groups:[...]}` via `_parse_groups`), `merge_group()` preserves the union of distinct patterns with `CANNOT_MERGE` reject. Uses `text_utils.strip_frontmatter` |
@@ -82,8 +81,6 @@ File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0021):
   "provenance": {"source_type": "self_reflection|external_reply|mixed|unknown",
                  "source_episode_ids": ["..."],
                  "pipeline_version": "distill@0.26"},
-  "trust_score": 0.9,
-  "trust_updated_at": "2026-04-16T…",
   "valid_from": "2026-04-16T…",
   "valid_until": null
 }
@@ -92,10 +89,11 @@ File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0021):
 - Patterns only; agents/topics/insights live in JSONL.
 - `gated` is behavioural (skipped in distill dedup); `last_view_matches` is read-only telemetry.
 - `valid_until=None` means live; superseded rows keep the timestamp (bitemporal soft-invalidate, ADR-0021).
-- `effective_importance = importance × trust_score × 0.95^days_since_distilled` (ADR-0021 + ADR-0028 strength-factor retirement).
+- `effective_importance = importance × 0.95^days_since_distilled` (ADR-0021 + ADR-0028 strength-factor retirement + ADR-0051 trust-factor retirement).
 - `last_accessed_at` / `access_count` / `success_count` / `failure_count` fields retired by ADR-0028.
 - `provenance.sanitized` flag retired by ADR-0029.
 - `category` field removed by ADR-0026.
+- `trust_score` / `trust_updated_at` retired by ADR-0051 (origin is recorded in `provenance.source_type`, never weighted; legacy rows shed the fields on next save).
 
 ## LLM Functions (core/llm.py)
 

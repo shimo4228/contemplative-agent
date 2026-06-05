@@ -237,7 +237,6 @@ class TestBuildClusterBatches:
             "pattern": text,
             "importance": importance,
             "embedding": embedding,
-            "trust_score": 1.0,
         }
 
     def test_two_clusters_produce_two_batches(self) -> None:
@@ -369,7 +368,6 @@ class TestBuildClusterBatchesLineageADR0050:
             "distilled": "2026-06-05T10:00+00:00",
             "importance": importance,
             "embedding": embedding,
-            "trust_score": 1.0,
         }
 
     def test_batches_carry_pattern_ids(self) -> None:

@@ -14,12 +14,10 @@ from pathlib import Path
 import pytest
 
 from contemplative_agent.core.knowledge_store import (
-    DEFAULT_TRUST,
-    TRUST_BASE_BY_SOURCE,
     KnowledgeStore,
     effective_importance,
+    is_live,
 )
-from contemplative_agent.core.forgetting import TRUST_FLOOR, is_live
 
 
 class TestLoadIdempotency:
@@ -68,7 +66,6 @@ class TestAddLearnedPatternADR0021:
         assert len(store.get_raw_patterns()) == 1
         p = store.get_raw_patterns()[0]
         assert p["provenance"] == {"source_type": "unknown"}
-        assert p["trust_score"] == DEFAULT_TRUST
         assert p["valid_until"] is None
         assert p["valid_from"] == p["distilled"]
         # ADR-0028: last_accessed_at / access_count / success_count /
@@ -77,6 +74,9 @@ class TestAddLearnedPatternADR0021:
         assert "last_accessed_at" not in p
         assert "success_count" not in p
         assert "failure_count" not in p
+        # ADR-0051: trust fields are no longer written.
+        assert "trust_score" not in p
+        assert "trust_updated_at" not in p
 
     def test_explicit_provenance_preserved(self, tmp_path: Path):
         store = KnowledgeStore(path=tmp_path / "k.json")
@@ -86,11 +86,10 @@ class TestAddLearnedPatternADR0021:
             "pipeline_version": "distill@0.21",
         }
         store.add_learned_pattern(
-            "reflective note on boundless care", provenance=prov, trust_score=0.88
+            "reflective note on boundless care", provenance=prov
         )
         p = store.get_raw_patterns()[0]
         assert p["provenance"] == prov
-        assert p["trust_score"] == pytest.approx(0.88)
 
 
 class TestRoundTripADR0021:
@@ -100,7 +99,6 @@ class TestRoundTripADR0021:
         store.add_learned_pattern(
             "long enough pattern to pass the valid pattern gate easily",
             provenance={"source_type": "external_reply"},
-            trust_score=0.42,
         )
         store.save()
 
@@ -109,7 +107,6 @@ class TestRoundTripADR0021:
         store2.load()
         p = store2.get_raw_patterns()[0]
         assert p["provenance"]["source_type"] == "external_reply"
-        assert p["trust_score"] == pytest.approx(0.42)
         assert p["valid_until"] is None
         # ADR-0028: retired fields never round-trip even if artificially
         # present in the on-disk JSON.
@@ -138,60 +135,75 @@ class TestRoundTripADR0021:
         assert "trust_score" not in p
         assert "valid_until" not in p
 
+    def test_legacy_trust_fields_load_cleanly_and_are_shed(self, tmp_path: Path):
+        """ADR-0051: rows carrying trust_score / trust_updated_at load
+        without error, the fields are not carried into memory, and the
+        next save writes them out of the file."""
+        path = tmp_path / "k.json"
+        legacy = [
+            {
+                "pattern": "legacy row with trust fields from the ADR-0021 era",
+                "distilled": "2026-04-16T00:00",
+                "importance": 0.7,
+                "provenance": {"source_type": "self_reflection"},
+                "trust_score": 0.9,
+                "trust_updated_at": "2026-04-16T00:00",
+                "valid_from": "2026-04-16T00:00",
+                "valid_until": None,
+            }
+        ]
+        path.write_text(json.dumps(legacy), encoding="utf-8")
+        store = KnowledgeStore(path=path)
+        store.load()
+        p = store.get_raw_patterns()[0]
+        assert "trust_score" not in p
+        assert "trust_updated_at" not in p
+        assert p["provenance"]["source_type"] == "self_reflection"
 
-class TestEffectiveImportanceADR0021:
-    def test_legacy_path_unaffected_without_fields(self):
-        """Patterns without trust/strength fields score as legacy importance × decay."""
+        store.save()
+        on_disk = json.loads(path.read_text(encoding="utf-8"))
+        assert "trust_score" not in on_disk[0]
+        assert "trust_updated_at" not in on_disk[0]
+
+
+class TestEffectiveImportance:
+    def test_fresh_pattern_scores_near_importance(self):
+        """importance × time-decay only (ADR-0051 retired the trust factor)."""
         now = datetime.now(timezone.utc)
         p = {"importance": 1.0, "distilled": now.isoformat(timespec="minutes")}
         # Fresh pattern at importance 1.0 → very close to 1.0
         score = effective_importance(p)
         assert 0.9 <= score <= 1.0
 
-    def test_low_trust_reduces_score(self):
+    def test_trust_score_is_ignored(self):
+        """ADR-0051: a legacy trust_score on the row must not move the score."""
         now = datetime.now(timezone.utc)
-        high_trust = {
-            "importance": 1.0,
-            "distilled": now.isoformat(timespec="minutes"),
-            "trust_score": 1.0,
-        }
-        low_trust = {**high_trust, "trust_score": 0.3}
-        assert effective_importance(low_trust) < effective_importance(high_trust)
-        # Ratio ≈ 0.3 (pure trust; strength multiplier retired by ADR-0028)
-        ratio = effective_importance(low_trust) / effective_importance(high_trust)
-        assert 0.25 <= ratio <= 0.35
+        plain = {"importance": 1.0, "distilled": now.isoformat(timespec="minutes")}
+        with_legacy_trust = {**plain, "trust_score": 0.3}
+        assert effective_importance(with_legacy_trust) == pytest.approx(
+            effective_importance(plain)
+        )
 
 
 class TestIsLive:
-    """ADR-0028: is_live gates on bitemporal + trust floor only."""
+    """ADR-0051: is_live gates on bitemporal only."""
 
     def test_is_live_rejects_invalidated(self):
-        p = {"valid_until": "2026-04-01T00:00", "trust_score": 1.0}
+        p = {"valid_until": "2026-04-01T00:00"}
         assert not is_live(p)
 
-    def test_is_live_rejects_low_trust(self):
-        p = {"valid_until": None, "trust_score": TRUST_FLOOR - 0.01}
-        assert not is_live(p)
+    def test_is_live_ignores_legacy_low_trust(self):
+        """ADR-0051: a legacy trust_score, however low, no longer gates."""
+        p = {"valid_until": None, "trust_score": 0.1}
+        assert is_live(p)
 
-    def test_is_live_accepts_current_trusted(self):
-        p = {"valid_until": None, "trust_score": 0.6}
+    def test_is_live_accepts_current(self):
+        p = {"valid_until": None}
         assert is_live(p)
 
     def test_is_live_tolerates_missing_fields(self):
-        # Pre-ADR-0021 legacy rows without trust_score / valid_until fall
-        # through to defaults (trust=1.0, current=True) and remain live.
+        # Pre-ADR-0021 legacy rows without valid_until remain live.
         assert is_live({"pattern": "legacy"})
-
-
-class TestTrustBaseBySource:
-    def test_self_reflection_highest(self):
-        assert TRUST_BASE_BY_SOURCE["self_reflection"] > TRUST_BASE_BY_SOURCE["external_reply"]
-        assert TRUST_BASE_BY_SOURCE["self_reflection"] > TRUST_BASE_BY_SOURCE["mixed"]
-        assert TRUST_BASE_BY_SOURCE["self_reflection"] > TRUST_BASE_BY_SOURCE["unknown"]
-
-    def test_all_within_range(self):
-        for name, value in TRUST_BASE_BY_SOURCE.items():
-            assert 0.0 <= value <= 1.0, f"{name}={value} out of range"
 
 
 class TestReplacePatternADR0021:
