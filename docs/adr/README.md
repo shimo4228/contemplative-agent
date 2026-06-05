@@ -57,6 +57,7 @@ Records of key design decisions for this project.
 | [0049](0049-meditation-active-inference-fidelity-and-deferral.md) | Meditation Adapter — Beautiful Loop Fidelity Audit and Deferral of Faithful Re-Implementation | accepted | 2026-06-03 |
 | [0050](0050-epistemic-taxonomy-and-approval-lineage.md) | Epistemic Taxonomy and Approval Lineage — Observability Without Steering | partially-superseded-by 0051 | 2026-06-05 |
 | [0051](0051-retire-trust-weighting.md) | Retire Trust Weighting — Pure Cosine Retrieval and Bitemporal-Only Liveness | accepted | 2026-06-05 |
+| [0052](0052-retire-session-insight.md) | Retire Session Insight Generation — Identity Is the Approved Continuity Channel | accepted | 2026-06-05 |
 
 ## ADR Types
 
