@@ -160,7 +160,7 @@ contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N
 ## 引用
 
 ```
-Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/10.5281/zenodo.20379919
+Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/10.5281/zenodo.20555864
 ```
 
 <details>
@@ -172,7 +172,7 @@ Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/1
   title        = {Contemplative Agent},
   year         = {2026},
   version      = {2.5.0},
-  doi          = {10.5281/zenodo.20379919},
+  doi          = {10.5281/zenodo.20555864},
   url          = {https://github.com/shimo4228/contemplative-agent},
 }
 ```

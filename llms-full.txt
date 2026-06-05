@@ -9,7 +9,7 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 ## Project Facts
 
 - **Version**: 2.5.0
-- **DOI**: [10.5281/zenodo.20379919](https://doi.org/10.5281/zenodo.20379919) (v2.4.0 version DOI; concept DOI 10.5281/zenodo.19212118 always resolves to the latest version)
+- **DOI**: [10.5281/zenodo.20555864](https://doi.org/10.5281/zenodo.20555864) (v2.5.0 version DOI; concept DOI 10.5281/zenodo.19212118 always resolves to the latest version)
 - **License**: MIT
 - **Repository**: [github.com/shimo4228/contemplative-agent](https://github.com/shimo4228/contemplative-agent)
 - **Tests**: 1211 (pytest, across 32 test files)
