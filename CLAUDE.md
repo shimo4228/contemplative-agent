@@ -11,6 +11,8 @@
 
 両者は重複せず相補的。同じ entity を別角度から見る（例: `Episode Log` は CODEMAPS では `core/episode_log.py` に住むモジュール、graph.jsonld では `MemoryLayer level=1` の concept node で `gatedBy` edges を持つ）。新規 ADR / Concept / Axiom 追加時は **両面で更新** する。役割境界の正本定義は `~/.claude/skills/jsonld-knowledge-graph/SKILL.md` の "CODEMAPS との関係" セクション参照。
 
+**鮮度規約（mechanism 層）**: パイプラインのゲート・式・閾値・段構成を変える変更（例: ランキング式、liveness 判定、distill のステップ、承認系譜のフィールド）は、[docs/CODEMAPS/architecture.md](docs/CODEMAPS/architecture.md) の Data Flow セクションを**同じ PR で更新**する。古い機構記述は無記述より有害（読んだ agent が誤った機構を掴む）。全面 refresh は `/update-codemaps`。
+
 Project の正式名は **Contemplative Agent** （`shimo4228/contemplative-agent`）。`Moltbook` は SNS adapter のみを指す名称として graph 内・CODEMAPS 内・README 内すべてで徹底する。
 
 ## 開発環境
@@ -84,7 +86,7 @@ docker compose down                                     # 停止
 
 ## ドキュメント言語方針
 
-- CLAUDE.md、docs/CODEMAPS/ は日本語
+- CLAUDE.md は日本語。docs/CODEMAPS/ は英語（agent 消費者向け、2026-05 以降の実態に合わせ 2026-06-05 に方針を訂正）
 - docs/adr/ は英語（*.ja.md が日本語版）
 - README は 2 言語: `README.md`（英語=正本）、`README.ja.md`。zh-CN / zh-TW / pt-BR / es mirrors は **2026-05-15 に退役**（traffic data 上 unique human viewer が統計的にゼロ + LLM crawler が en source から多言語 answer 可能なため）。訳語規約と固有名詞の keep-original ポリシーは [docs/glossary.md](docs/glossary.md)。README 本文に新しい project-coined term を入れる時は glossary も同 PR で更新する。退役 mirror は git history に保存（audience 実証データが変われば復元可能）
 

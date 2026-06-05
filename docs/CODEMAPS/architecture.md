@@ -1,264 +1,228 @@
-<!-- Generated: 2026-05-25 | Files scanned: 51 | Token estimate: ~950 -->
+<!-- Generated: 2026-06-05 | Files scanned: 44 | Token estimate: ~2575 -->
 # Architecture
 
 ## Project Type
-Python application: Contemplative AI agent with core/adapter separation + 3-layer memory + embedding-based views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal/forgetting/feedback (ADR-0021). Identity stays monolithic; the block schema attempt (ADR-0024/0025) was withdrawn by ADR-0030; the memory evolution + BM25 hybrid retrieval attempt (ADR-0022) was withdrawn by ADR-0034; the skill-as-memory loop (ADR-0023) was sunset by ADR-0036; the memory subsystem converged to a Yogācāra-aligned frame in ADR-0037. Generation is pluggable via the `LLMBackend` Protocol (default: Ollama HTTP; add-on: `contemplative-agent-cloud`).
+Python CLI agent: core/adapter separation + 3-layer memory + embedding views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal (ADR-0021) + trust retirement (ADR-0051). Generation pluggable via `LLMBackend` Protocol (default: Ollama; add-on: `contemplative-agent-cloud`).
 
-**Stats**: 45 non-`__init__` modules (51 total `.py`), ~12000 LOC, 1079 tests / 31 test files (see [INDEX.md](INDEX.md))
+**Stats**: 44 non-`__init__` modules (51 total `.py`), ~12700 LOC, 1197 tests / 35 test files
 
 ## System Diagram
 
 ```
-                    Contemplative Agent
-                    ===================
-  config/ (templates only, git-managed — seed for init)
-    domain.json       prompts/*.md           templates/constitution/*.md
-    views/*.md                                templates/<character>/*  (11 frameworks)
-  ~/.config/moltbook/ (MOLTBOOK_HOME, runtime data — user-owned)
-    knowledge.json     (learned patterns + embedding + gated + last_view_matches)
-    embeddings.sqlite  (episode embedding sidecar, ADR-0019)
-    identity.md        (system prompt, readonly)
-    constitution/      (ethical principles; init copies from template)
-    views/*.md         (user-editable seed views; init copies packaged default)
-    prompts/*.md       (user-editable prompt templates; init copies packaged default)
-    skills/*.md        (behavior patterns; init copies template, later insight-generated)
-    rules/*.md         (universal rules; init copies template, later rules-distill)
-    snapshots/*/       (pivot snapshots, ADR-0020 — manifest + full runtime context)
-    logs/              (episode JSONL + audit.jsonl)
+  config/ (templates, git-managed)       ~/.config/moltbook/ (MOLTBOOK_HOME, runtime)
+    domain.json  prompts/*.md              knowledge.json  embeddings.sqlite  identity.md
+    views/*.md   templates/<char>/11       constitution/  views/  prompts/  skills/  rules/
+                                           snapshots/  logs/  agents.json
          |
          v
-  +-----------------------------------------------------+
-  | src/contemplative_agent/                             |
-  |                                                      |
-  |  core/  (platform-independent, 25 modules)          |
-  |    _io.py  config.py  domain.py  prompts.py         |
-  |    llm.py (+ LLMBackend Protocol)  embeddings.py    |
-  |    episode_embeddings.py  episode_log.py            |
-  |    knowledge_store.py  memory.py                    |
-  |    views.py  snapshot.py                            |
-  |    distill.py  insight.py  constitution.py          |
-  |    rules_distill.py  stocktake.py  scheduler.py     |
-  |    report.py  metrics.py  forgetting.py             |
-  |    clustering.py                                     |
-  |    text_utils.py  thresholds.py                     |  (ADR-0035 PR2 helpers)
-  |    artifact_extraction.py                           |  (ADR-0035 PR3a helper)
-  |                                                      |
-  |  adapters/moltbook/  (platform-specific, 15 modules)|
-  |    agent.py  session_context.py  feed_manager.py    |
-  |    reply_handler.py  post_pipeline.py               |
-  |    client.py  auth.py  verification.py              |
-  |    llm_functions.py  content.py  config.py          |
-  |    dedup.py  novelty.py  feed_seeder.py             |
-  |                                                      |
-  |  adapters/meditation/  (experimental, 4 modules)    |
-  |    config.py  pomdp.py  meditate.py  report.py      |
-  |                                                      |
-  |  adapters/dialogue/  (2-agent peer loop, 1 module)  |
-  |    peer.py                                           |
-  |                                                      |
-  |  cli.py  (composition root, ~1826L)                 |
-  +-----------------------------------------------------+
-         |                              |
-    Moltbook API                   Ollama (local, default)
-    (www.moltbook.com)             qwen3.5:9b  (generation)
-    rate-limited (60GET/30POST)    nomic-embed-text  (embedding, 768-dim)
-                                   │
-                                   ╰─ Pluggable via LLMBackend Protocol
-                                      (contemplative-agent-cloud add-on)
+  src/contemplative_agent/
+    core/  (24 modules, platform-independent)
+      _io  config  domain  prompts  llm(+LLMBackend)  embeddings
+      episode_embeddings  episode_log  knowledge_store  memory
+      views  snapshot  scheduler  distill  insight  constitution
+      rules_distill  stocktake  report  metrics  clustering
+      text_utils  thresholds  artifact_extraction
+    adapters/moltbook/  (14 modules)
+      agent  session_context  feed_manager  reply_handler  post_pipeline
+      client  auth  verification  content  llm_functions  config
+      dedup  novelty  feed_seeder
+    adapters/meditation/  (4 modules, experimental)  config  pomdp  meditate  report
+    adapters/dialogue/  (1 module)  peer.py
+    cli.py  (composition root, 2024L)
+         |                       |
+    Moltbook API            Ollama (local default)
+    60GET/30POST/min        qwen3.5:9b + nomic-embed-text (768-dim)
 ```
 
 ## Import Rule
+`core/ ← adapters/ ← cli.py` (one direction). `cli.py` is the only file importing both. Meditation/dialogue adapters depend on core/ only; they do not import moltbook adapter.
 
-```
-core/ ←── adapters/moltbook/   ←── cli.py (composition root)
- ↑         adapters/meditation/      |
- |         adapters/dialogue/        |
- |                                   |
- +--- only composition root imports from both
-```
+## Init-Time Copy
+`contemplative-agent init [--template NAME]` copies every runtime Markdown from `config/` into `MOLTBOOK_HOME`. Template-derived: `constitution/`, `skills/`, `rules/`. Shared: `prompts/`, `views/`. Existing dirs never overwritten.
 
-- **core/ は adapters/ を import しない** (依存方向: adapters → core)
-- cli.py は唯一の例外: core/ と adapters/ の両方を import
-- meditation / dialogue adapter は core/ のみに依存 (moltbook adapter を import しない)
-- core/ モジュールはコンストラクタ引数で設定を受け取る (パラメータ化)
-- adapters/ が core/config の定数と adapter 固有の config を組み合わせて渡す
-- 協力者 (ReplyHandler, PostPipeline, FeedManager) は Agent を import しない。SessionContext + Callable で依存注入
-
-## Init-Time Copy Policy
-
-`contemplative-agent init [--template NAME]` copies *every* Markdown file the agent
-consults at runtime from `config/` into `MOLTBOOK_HOME`:
-
-- **Template-derived** (varies by `--template`): `constitution/`, `skills/`, `rules/`
-- **Shared runtime** (not template-specific): `prompts/`, `views/`
-
-User edits under `MOLTBOOK_HOME` surface via git-diff against `config/` and are
-captured in pivot snapshots (ADR-0020) for replayability. Existing directories
-are never overwritten; missing sources fall back to empty `mkdir`.
-
-See `cli._do_init` (`copy_or_create_dir` helper) for the single execution path.
-
-## LLM Backend Pluggability
-
-`core/llm.py` defines the `LLMBackend` Protocol (`runtime_checkable`) with a
-single `generate(prompt, system, num_predict, format, ...)` method. A single
-module-level `_backend` slot is populated via `configure(backend=...)`:
-
-- **Default** (`_backend = None`): built-in Ollama HTTP path.
-- **Add-on**: `contemplative-agent-cloud` injects a managed-LLM backend so the
-  same CLI works without a local Ollama.
-
-Sanitization (`_sanitize_output`), circuit breaker, and untrusted-content
-wrapping remain in `core/llm.py` and apply uniformly regardless of backend.
+## LLM Backend
+`core/llm.py` `LLMBackend` Protocol: `generate(prompt, system, num_predict, format, ...)`. Module-level `_backend` slot set via `configure(backend=...)`. Sanitization + circuit breaker apply uniformly.
 
 ## Immutability
+All DTOs `frozen=True`. Required by approval-gate diff pipeline and bitemporal invariants.
 
-- DTO とドメインオブジェクトは `frozen=True`。例外なし
-- accumulator パターンは reduce か一括生成で書く (mutation で書かない)
-- 蒸留パイプラインの原典保持、承認ゲートの diff 生成、bitemporal との整合のため
+---
 
 ## Data Flow — Session Execution
 
 ```
-CLI (argparse) → Agent.run_session(autonomy_level, session_mins)
- |
- +-> ReplyHandler._run_reply_cycle()  -- notifications → reply → post
- |    └─ SessionContext (shared state)
- |
- +-> Agent._run_feed_cycle()          -- feed → score → comment
- |    └─ FeedManager (fetch, score, deduplicate)
- |
- +-> PostPipeline._run_post_cycle()   -- feed seeds → NoveltyGate → post
- |    └─ feed_seeder.select_feed_seeds() + NoveltyGate (ADR-0039, 0043)
- |
+CLI → Agent.run_session(autonomy_level, session_mins)
+ ├─ ReplyHandler._run_reply_cycle()
+ │    internal_note (ADR-0045) → reply → post → EpisodeLog
+ ├─ Agent._run_feed_cycle()
+ │    fetch → promo filter → ID dedup → per-author cap (3/24h)
+ │    → score_relevance (LLM) → comment → Scheduler budget gate
+ ├─ PostPipeline._run_post_cycle()
+ │    feed_seeder.select_feed_seeds()        [ADR-0043]
+ │      relevance ≥ 0.4 | RNG 1-3 posts | 15000-char budget
+ │    → NoveltyGate.evaluate()               [ADR-0039]
+ │      cosine vs recent self-posts + temporal decay + rate-deficit Lagrangian
+ │    → is_test_content() → body-hash (SHA-256[:16])
+ │    → generate_cooperation_post → post
  └─ MemoryStore.record() → EpisodeLog (append-only JSONL)
-    └─ ~.config/moltbook/logs/YYYY-MM-DD.jsonl
 ```
 
-## Data Flow — Offline Learning (embedding classify + 3-step distill + insight + meditation)
+---
 
-Every behaviour-producing command below writes a pivot snapshot
-(`snapshots/{cmd}_{ts}/`) at run start via `core/snapshot.py` and threads
-its path into the `audit.jsonl` record (ADR-0020).
+## Data Flow — Offline Learning
 
-```
-distill (nightly — embedding classify + 3-step per category):
-  Step 0 — Embedding classify (ADR-0019, NO LLM call):
-    embed_texts(episode summaries) → cosine vs noise and constitutional view centroids
-    → noise | constitutional | uncategorized
-    → noise excluded
-  Step 1-3 per category (batch_size=30):
-    → LLM (DISTILL_PROMPT / DISTILL_CONSTITUTIONAL_PROMPT) → raw patterns
-    → LLM (DISTILL_REFINE_PROMPT) → JSON patterns
-    → LLM (DISTILL_IMPORTANCE_PROMPT) → scores
-    → _dedup_patterns() uses embedding cosine (SIM_DUPLICATE=0.92, SIM_UPDATE=0.80)
-    → KnowledgeStore.add_learned_pattern(... embedding=..., gated=...)
-    → write MOLTBOOK_HOME/knowledge.json
+Every behaviour-producing command writes a pivot snapshot (`snapshots/{cmd}_{ts}/`) at run start (ADR-0020) and threads its path into `audit.jsonl`.
 
-distill-identity (2-stage, view-driven input):
-  Input: patterns matching the self_reflection view (top 50 by importance).
-  Stage 1 — Extract:  LLM (IDENTITY_DISTILL_PROMPT) → raw identity material
-  Stage 2 — Refine:   LLM (IDENTITY_REFINE_PROMPT)  → concise persona
-  → update MOLTBOOK_HOME/identity.md (with archive, approval-gated)
-
-insight (manual, approval gate, view-driven batching):
-  For each loaded view (except noise / constitutional / self_reflection),
-    rank non-gated patterns by cosine vs view centroid, top-10 by importance
-    → LLM (INSIGHT_EXTRACTION_PROMPT) → one skill Markdown
-  → generate MOLTBOOK_HOME/skills/*.md (per-file approval)
-
-rules-distill (manual, approval gate, Practice/Rationale B-layer format):
-  skills/*.md → LLM (RULES_DISTILL_PROMPT)        → principles
-             → LLM (RULES_DISTILL_REFINE_PROMPT) → structured Markdown
-  → generate MOLTBOOK_HOME/rules/*.md
-
-amend-constitution (manual, approval gate):
-  Patterns matching the constitutional view + current constitution
-  → LLM (CONSTITUTION_AMEND_PROMPT) → amended clauses
-  → update MOLTBOOK_HOME/constitution/*.md
-
-meditate (experimental):
-  EpisodeLog → POMDP matrices (A/B/C/D)
-  → Active Inference cycles (temporal flattening + counterfactual pruning)
-  → save raw result to config/meditation/results.json (no KnowledgeStore write)
-```
-
-## Memory Architecture (3-Layer + Sidecars)
+### distill  [`core/distill.py`]
 
 ```
-Layer 1: EpisodeLog (append-only, runtime)
-  ~/.config/moltbook/logs/YYYY-MM-DD.jsonl
-    - "post", "comment", "interaction", "action", "insight", "session"
-  ~/.config/moltbook/embeddings.sqlite
-    - Episode summary embeddings (ADR-0019 sidecar for view queries)
+Input: EpisodeLog.read_range(days=N)
 
-Layer 2: KnowledgeStore (distilled patterns, daily batch)
-  MOLTBOOK_HOME/knowledge.json  ← updated by distill (embedding classify + 3-step + embedding dedup)
-    [{"pattern": "...", "distilled": "...", "importance": 0.7,
-      "embedding": [...], "gated": false,
-      "last_classified_at": "...", "last_view_matches": {...}  (ADR-0020 telemetry)}, ...]
+Step 0 — Binary noise gate  [ADR-0026; NO LLM]
+  embed_texts(episode summaries) → cosine(summary, noise_centroid)
+  ≥ NOISE_THRESHOLD (0.55)  →  gated (noise-*.jsonl, ADR-0027)
+  < NOISE_THRESHOLD          →  kept
 
-Layer 3: Identity (system prompt, infrequent updates)
-  MOLTBOOK_HOME/identity.md  ← updated by distill-identity (2-stage, self_reflection view)
+Step 1 — Extract  [batch_size=30]
+  kept → LLM(DISTILL_PROMPT) → raw patterns
 
-Pivot Snapshots (per behaviour-producing run, ADR-0020)
-  MOLTBOOK_HOME/snapshots/{cmd}_{ts}/
-    - manifest.json  (thresholds, model, view names)
-    - views/*.md     (lens definitions at run time)
-    - constitution/*.md  (seed_from source)
-    - centroids.npz  (7 × 768-dim float32 for replay)
+Step 2 — Refine
+  → LLM(DISTILL_REFINE_PROMPT) → JSON {"patterns":[...]}
 
-Agents (follow state, per-session)
-  ~/.config/moltbook/agents.json
+Step 3 — Score + persist
+  → LLM(DISTILL_IMPORTANCE_PROMPT, format=IMPORTANCE_SCHEMA)
+    {"scores":[1-10]} → importance = score/10
+  → embed_texts(new patterns)
+  → _dedup_patterns():
+      effective_importance = importance × 0.95^days   [ADR-0021, ADR-0051]
+      skip rows below DEDUP_IMPORTANCE_FLOOR (0.05)
+      cosine(new, existing):
+        ≥ SIM_DUPLICATE (0.90)  →  SKIP
+        ≥ SIM_UPDATE    (0.80)  →  UPDATE (soft-invalidate old, append revised)
+        < SIM_UPDATE             →  ADD
+  → KnowledgeStore.add_learned_pattern(..., embedding, gated=False)
+  → provenance.source_type recorded, NEVER weighted  [ADR-0051]
 ```
 
-## AKC (Agent Knowledge Cycle) Mapping
+Threshold canonical source: `core/thresholds.py` (read by `snapshot.collect_thresholds`).
 
-contemplative-moltbook の学習パイプラインは [AKC](https://github.com/shimo4228/agent-knowledge-cycle) の6フェーズに対応する。AKC は Claude Code ハーネスの自己改善ループ。本プロジェクトはこれを自律エージェントの文脈で再実装している。
+### distill-identity  [`core/distill.py: distill_identity()`]
 
-| AKC Phase | AKC Skill | 本プロジェクトの実装 | コード | プロンプト |
-|-----------|-----------|---------------------|--------|-----------|
-| Research | search-first | フィード取得 + relevance scoring | feed_manager.py | relevance.md |
-| Extract | learn-eval | `distill` (embedding classify + 3-step + embedding dedup) | distill.py, views.py | distill.md, distill_constitutional.md, distill_refine.md, distill_importance.md |
-| Curate | skill-stocktake | `insight` (view-driven knowledge → skills) | insight.py, views.py | insight_extraction.md |
-| Curate | rules-distill | `rules-distill` (skills → Practice/Rationale rules) | rules_distill.py | rules_distill.md, rules_distill_refine.md |
-| Curate | — | `amend-constitution` (constitutional view → ethics) | constitution.py | constitution_amend.md |
-| Promote | — | `distill-identity` (self_reflection view → persona) | distill.py, views.py | identity_distill.md, identity_refine.md |
-| Measure | skill-comply | pivot snapshots + per-pattern `last_view_matches` (replay foundation, ADR-0020) | snapshot.py | — |
-| Maintain | context-sync | 外部ツール (Claude Code skill) + sync-data | — | — |
+```
+ViewRegistry.find_by_view("self_reflection", get_raw_patterns())
+  cosine(pattern_emb, self_reflection_centroid)
+  threshold from view frontmatter | top_k=50   [PURE COSINE, no importance weight]
 
-**差異**:
-- **Measure** (skill-comply): エージェント自身のスキル遵守率を定量計測する仕組みは未実装
-- **Maintain** (context-sync): ドキュメント整合性チェックは Claude Code skill として外部化。sync-data でランタイムデータを研究リポジトリに同期
+Single LLM call: LLM(IDENTITY_DISTILL_PROMPT, current_identity + matched)
+→ validate_identity_content()
+→ IdentityResult(text, target_path, pattern_ids, epistemic_counts)  [ADR-0050]
+→ write gated by cli.py approval → MOLTBOOK_HOME/identity.md  [ADR-0012]
+```
 
-## Prior Art — Memory System Comparison
+No Stage 2 refine. No importance-ranked input. One LLM call only.
 
-| | Generative Agents | MemGPT/Letta | A-MEM | Mem0 | **This System** |
-|---|---|---|---|---|---|
-| **Retrieval** | 3-score (recency + importance + relevance) | LLM function call page-in | Embedding cosine similarity | Vector + graph | importance top-K |
-| **Distillation** | Reflection (automatic) | None | Memory evolution (LLM) | ADD/UPDATE/DELETE gate | 3-step + LLM dedup gate |
-| **Importance** | LLM 1-10 rating | None | None | None | LLM 1-10 + time decay (0.95^days) |
-| **In-session update** | Yes | Yes (function call) | Yes | Yes | No (intentional) |
-| **Dependencies** | GPT-4 | GPT-4 + DB | all-minilm-l6-v2 | Multiple VectorStore | Ollama (local, 9B) |
+### insight  [`core/insight.py: extract_insight()`]
 
-### Cognitive Architecture Mapping (TMLR 2024 survey)
+```
+Input: KnowledgeStore.get_live_patterns()   [is_live: valid_until is None]
+  gated=True excluded before clustering
 
-| Cognitive Architecture | This System | Notes |
-|------------------------|-------------|-------|
-| Working Memory | In-session MemoryStore | Lost on session end |
-| Episodic Memory | EpisodeLog (JSONL) | Permanently retained as research material |
-| Semantic Memory | KnowledgeStore (JSON) | importance + time decay + LLM quality gate |
-| Procedural Memory | skills/*.md, rules/*.md, prompts.py | Auto-generated via insight/rules-distill |
+GLOBAL embedding clustering  [NOT per-view; ADR-0026]
+  cluster_patterns(threshold=CLUSTER_THRESHOLD_INSIGHT=0.70)  [core/clustering.py]
+  cluster size ≥ MIN_PATTERNS_REQUIRED (3)  →  eligible
 
-### Paper References
+Ordering: cluster_size × mean(effective_importance)  descending
+  effective_importance = importance × 0.95^days   [knowledge_store.effective_importance]
+Slicing: each cluster → top MAX_BATCH (10) by effective_importance
 
-| Paper | Relation |
-|-------|----------|
-| Park et al. (2023) Generative Agents | 3-score retrieval. Reference for importance design |
-| Packer et al. (2023) MemGPT | Virtual memory approach. In-session updates deferred |
-| Xu et al. (2025) A-MEM | Zettelkasten style. Reference for Phase 4 (keywords) |
-| Choudhary et al. (2025) Mem0 | ADD/UPDATE/DELETE gate. Reference for quality gate |
-| Sumers et al. (2024) Cognitive Architectures | 4-type memory classification framework |
+Per cluster → LLM(INSIGHT_EXTRACTION_PROMPT, topic="cluster-N")
+  system = axioms-only (no skill corpus injected — audit H6 fix, a2bebfe)
+  → validate_identity_content()
+  → SkillResult(text, filename, target_path, pattern_ids, epistemic_counts)  [ADR-0050]
+
+→ InsightResult   →   write gated by cli.py per-file approval  [ADR-0012]
+```
+
+Views NOT used for batching. Every eligible cluster becomes a batch (no top-N cluster cap).
+
+### rules-distill  [`core/rules_distill.py: distill_rules()`]
+
+```
+skills/*.md (MIN=3) → embed_texts → cluster(CLUSTER_THRESHOLD_RULES=0.65)
+  → batches (MAX_BATCH=10)
+  → LLM(RULES_DISTILL_PROMPT) → LLM(RULES_DISTILL_REFINE_PROMPT)
+  → RuleResult(text, filename, target_path, source_ids)  [ADR-0050; source_ids=skill filenames]
+→ write gated  [ADR-0012]
+```
+
+### amend-constitution  [`core/constitution.py`]
+
+```
+ViewRegistry.find_by_view("constitutional", get_live_patterns())
+  MIN_PATTERNS_REQUIRED=3 gate
+→ LLM(CONSTITUTION_AMEND_PROMPT) → AmendmentResult(... pattern_ids, epistemic_counts)
+→ write gated  [ADR-0012]
+```
+
+### Approval lineage  [ADR-0050]
+
+`SkillResult` / `RuleResult` / `IdentityResult` / `AmendmentResult` all carry `source_ids` / `pattern_ids` + `epistemic_counts`. On approval: `audit.jsonl` record includes `source_ids + epistemic_counts` (always present, nullable). `staging/meta.json` carries them through `adopt-staged`.
+
+`epistemic_counts` = `{observed, generated, unknown}` tally; the kind is derived at read-time from `provenance.source_type` — never persisted. Caveat: `observed ≈ 0` is structural (pure-external distill batches don't occur at batch granularity), not "no external input" — external contact lives inside `mixed → generated`.
+
+### meditate  [`adapters/meditation/`]
+
+```
+EpisodeLog → pomdp.build_matrices() → A/B/C/D (numpy)
+→ meditate(matrices, config)
+  flat single-level POMDP; expected-free-energy policy selection
+  "temporal flattening" / "counterfactual pruning" = LOCAL LABELS, not paper terms
+  INSPIRED BY (not implementing) Laukkonen, Friston & Chandaria (2025)  [ADR-0049]
+→ report.interpret_and_save() → config/meditation/results.json
+  LLM interpretation display-only; NO KnowledgeStore write; deferred  [ADR-0049]
+```
+
+---
+
+## Memory Architecture (3-Layer)
+
+```
+Layer 1: EpisodeLog  ~/.config/moltbook/logs/YYYY-MM-DD.jsonl  (append-only)
+  record_type: post | comment | interaction | action | insight | session
+  + embeddings.sqlite (episode embedding sidecar, ADR-0019)
+
+Layer 2: KnowledgeStore  MOLTBOOK_HOME/knowledge.json
+  {pattern, distilled, importance, embedding[768], gated, last_view_matches,
+   provenance:{source_type, source_episode_ids, pipeline_version},
+   valid_from, valid_until}
+  effective_importance = importance × 0.95^days          [knowledge_store.effective_importance]
+  is_live             = valid_until is None ONLY          [knowledge_store.is_live, ADR-0051]
+  origin (source_type) = recorded, NEVER weighted         [ADR-0051]
+  pattern_id          = sha256(distilled|pattern)[:12]    [ADR-0050]
+
+Layer 3: Identity  MOLTBOOK_HOME/identity.md  (distill-identity, single-stage)
+
+Pivot Snapshots  MOLTBOOK_HOME/snapshots/{cmd}_{ts}/
+  manifest.json | views/*.md | constitution/*.md | centroids.npz  [ADR-0020]
+```
+
+**Deleted**: `forgetting.py` (ADR-0051) — `is_live` moved to `knowledge_store.py` (bitemporal-only, no trust floor).
+**Retired fields**: `trust_score`/`trust_updated_at` (ADR-0051), `last_accessed_at`/`access_count` (ADR-0028), `provenance.sanitized` (ADR-0029), `category` (ADR-0026).
+
+---
+
+## AKC Mapping
+
+| AKC Phase | Implementation | Code |
+|-----------|----------------|------|
+| Research | Feed fetch + relevance scoring | feed_manager.py |
+| Extract | `distill` (noise gate + 3-step + embedding dedup) | distill.py, views.py |
+| Curate | `insight` (global clustering → skills) | insight.py, clustering.py |
+| Curate | `rules-distill` (skills → Practice/Rationale rules) | rules_distill.py |
+| Curate | `amend-constitution` (constitutional view → ethics) | constitution.py |
+| Promote | `distill-identity` (self_reflection view → persona) | distill.py, views.py |
+| Measure | Pivot snapshots + `last_view_matches` telemetry | snapshot.py |
+| Maintain | `context-sync` (Claude Code skill) + sync-data | — |
 
 ## Entry Points
 - `contemplative-agent` → `contemplative_agent.cli:main`

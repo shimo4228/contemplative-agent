@@ -1,11 +1,11 @@
-<!-- Generated: 2026-05-25 | Files scanned: 19 adapter modules (14 moltbook + 4 meditation + 1 dialogue) | Token estimate: ~1250 -->
+<!-- Generated: 2026-06-05 | Files scanned: 19 adapter modules (14 moltbook + 4 meditation + 1 dialogue) | Token estimate: ~1551 -->
 # Adapters Codemap
 
 Platform-specific implementations. Dependency: adapters → core.
 
 **Counting convention**: module counts = non-`__init__` `.py` files.
 
-## Moltbook Adapter (14 modules, ~3500 LOC)
+## Moltbook Adapter (14 modules, ~3842 LOC)
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
@@ -13,20 +13,18 @@ Platform-specific implementations. Dependency: adapters → core.
 | `agent.py` | 619 | Session orchestrator (feed/reply/post cycles, AutonomyLevel) |
 | `session_context.py` | ~55 | Shared mutable state (memory, rate_limited, actions) |
 | `feed_manager.py` | 348 | Feed fetch, relevance scoring, engagement, ID dedup, promo filter, per-author rate limit |
-| `reply_handler.py` | 394 | Notification handling, reply generation, posting |
-| `post_pipeline.py` | 207 | Feed-seeder → NoveltyGate → test-content gate → body-hash gate → post |
-| `client.py` | 448 | HTTP client (auth, domain lock, retry/429-backoff) |
+| `reply_handler.py` | 394 | Notification handling, reply generation, posting; pre-action `internal_note` (ADR-0045) |
+| `post_pipeline.py` | 207 | feed-seeder → NoveltyGate → test-content gate → body-hash gate → post |
+| `client.py` | 448 | HTTP client (auth, domain lock, retry/429-backoff). No `has_budget`/`unsubscribe_submolt`/`mark_all_notifications_read`/`update_profile`/PATCH — removed. |
 | `auth.py` | ~110 | Credential management, agent registration |
-| `verification.py` | 236 | Math challenge solver, failure tracking, auto-stop |
+| `verification.py` | 236 | Obfuscated math challenge solver, failure tracking, auto-stop |
 | `content.py` | ~65 | Rules-based content, dedup, axiom intro injection |
 | `llm_functions.py` | 231 | Moltbook-specific LLM (select_submolt, context builders) |
 | `dedup.py` | 213 | Deterministic gates: prefix-5 stem + Jaccard, test-content blocklist, promotional URL regex |
-| `novelty.py` | ~120 | `NoveltyGate`: embedding-cosine novelty score with temporal decay + rate-deficit Lagrangian for self-post gate (ADR-0039). Replaced the boolean Jaccard gate. |
-| `feed_seeder.py` | ~90 | `select_feed_seeds`: RNG sampling of 1-3 individual peer posts within subscribed submolts + relevance floor, each wrapped independently in `<untrusted_content>` (ADR-0043). Replaced the `extract_topics` peer-summary step. |
+| `novelty.py` | ~120 | `NoveltyGate`: embedding-cosine novelty + temporal decay + rate-deficit Lagrangian (ADR-0039) |
+| `feed_seeder.py` | ~90 | `select_feed_seeds`: RNG sampling 1-3 peer posts per submolt, relevance floor 0.4, 15000-char budget (ADR-0043) |
 
-**Retired (not in codebase)**:
-- `extract_topics` / `check_topic_novelty` — retired by ADR-0043; function covered by NoveltyGate + feed_seeder
-- `topic_keywords` config field + `feed_manager` search rotation — removed by ADR-0044
+**Retired (not in codebase)**: `extract_topics` / `check_topic_novelty` (ADR-0043), `topic_keywords` config field (ADR-0044).
 
 ## Session Orchestration (agent.py)
 
@@ -65,33 +63,25 @@ Per-author cap: max 3 sent comments per agent_id in any 24h window.
 
 ## ReplyHandler (reply_handler.py)
 
-Notifications → context → reply → post → record.
+Notifications → context → `internal_note` (ADR-0045) → reply → post → record.
 Verification fallback: `VerificationTracker.solve()` on challenge.
-Pre-action `internal_note` recorded in episode log before reply is sent (ADR-0045).
 
 ## PostPipeline (post_pipeline.py)
 
-Feed → `feed_seeder.select_feed_seeds` → NoveltyGate → test-content gate → body-hash gate → select submolt → post.
+```
+select_feed_seeds(posts, agent_id, n=1-3)   [ADR-0043]
+  relevance floor 0.4 | RNG-driven | 15000-char combined budget
+  each post wrapped in <untrusted_content>
+  → NoveltyGate.evaluate(title, body, own_agent_id)  [ADR-0039]
+    embedding cosine vs recent self-post history + temporal decay
+    + rate-deficit Lagrangian (threshold rises when posting rate < target)
+    → bool
+  → is_test_content(title, body)   [dedup.py]
+  → body-hash SHA-256[:16]
+  → select_submolt → generate_cooperation_post → post
+```
 
-**Seeding (ADR-0043):** `select_feed_seeds` samples 1-3 peer posts directly from
-subscribed-submolt feed. Each checked `score_relevance >= 0.4`, RNG-driven
-(`numpy.random.default_rng()` per cycle). 15,000-char combined-length budget
-drops trailing seeds. Each post wrapped independently in `<untrusted_content>`.
-
-**Dedup gates**:
-1. `is_test_content(title, body)` — blocks scaffold content
-2. `NoveltyGate.evaluate(...)` — embedding-cosine novelty + temporal decay +
-   rate-deficit Lagrangian (ADR-0039). Primary gate. Jaccard fallback retained
-   for Ollama-outage path only.
-3. Body-hash SHA-256 (first 16 chars) — catches verbatim re-publication.
-
-## NoveltyGate (novelty.py, ADR-0039)
-
-Continuous novelty scoring replacing the retired boolean Jaccard gate:
-- Cosine distance against recent self-post embedding history
-- Temporal decay weights recent posts more heavily
-- Rate-deficit Lagrangian increases novelty threshold when posting rate is below target
-- `evaluate(title, body, own_agent_id) -> bool`
+Jaccard fallback retained for Ollama-outage path only.
 
 ## MoltbookClient (client.py)
 
@@ -99,61 +89,50 @@ Domain lock (`www.moltbook.com`), `allow_redirects=False`, 429 backoff (cap 300s
 
 ## Verification (verification.py)
 
-Obfuscated math solver. 7 consecutive failures → auto-stop session.
-
-## ContentManager (content.py)
-
-Axiom injection, content dedup (similarity >0.8 → skip).
+Obfuscated math solver. 7 consecutive failures → `SessionContext.rate_limited = True` → auto-stop session.
 
 ---
 
-## Meditation Adapter (experimental, 4 modules, ~700 LOC)
+## Meditation Adapter (experimental, 4 modules)
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
 | `config.py` | 55 | State space definition, meditation parameters |
-| `pomdp.py` | 294 | Episode Log → POMDP matrices (A/B/C/D via numpy) |
-| `meditate.py` | 206 | Active Inference loop (temporal flattening + counterfactual pruning) |
-| `report.py` | 146 | Result interpretation (LLM, display-only) + save raw result → `config/meditation/results.json` (no KnowledgeStore write) |
+| `pomdp.py` | 294 | EpisodeLog → POMDP matrices (A/B/C/D via numpy) |
+| `meditate.py` | 206 | Active Inference loop; "temporal flattening" / "counterfactual pruning" = local implementation labels, NOT paper terms (ADR-0049) |
+| `report.py` | 145 | Result interpretation (LLM, display-only) → `config/meditation/results.json` |
 
 **Data flow**:
 ```
-EpisodeLog (JSONL) → pomdp.build_matrices()
-  → A (observation), B (transition), C (preference), D (prior)
-  → meditate(matrices, config)   # inline temporal flattening + counterfactual pruning (local names)
-  → report.interpret_and_save()  → config/meditation/results.json
-    (LLM interpretation is display-only; not persisted, not written to KnowledgeStore)
+EpisodeLog → pomdp.build_matrices() → A/B/C/D
+  → meditate(matrices, config)
+    flat single-level POMDP; expected-free-energy policy selection
+    INSPIRED BY (not implementing) Laukkonen, Friston & Chandaria (2025)
+  → report.interpret_and_save() → config/meditation/results.json
+    (LLM interpretation display-only; no KnowledgeStore write, deferred per ADR-0049)
 ```
 
-**Theory**: Inspired by Laukkonen, Friston & Chandaria (2025) "A Beautiful Loop", but does **not** implement that paper's model (which is conceptual — a precision-controlling hyper-model + epistemic depth). This is a generic single-level active-inference loop; "temporal flattening" / "counterfactual pruning" are local implementation labels, not paper terms. A faithful port would follow Sandved-Smith et al. (2021)'s deep parametric model.
-
-**Dependencies**: numpy (for matrix operations).
+**Dependencies**: numpy only.
 
 ---
 
 ## Dialogue Adapter (1 module, ~140 LOC)
 
-| Module | LOC | Purpose |
-|--------|-----|---------|
-| `peer.py` | 140 | 2-agent peer-to-peer dialogue loop; LLM turn exchange over stdin/stdout between two independent agent processes |
+`peer.py` — 2-agent peer-to-peer dialogue loop. LLM turn exchange over stdin/stdout between two independent agent processes.
 
-**Invocation**:
 ```
 contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N
 ```
-- Two independent peer processes, one per `MOLTBOOK_HOME`. Production home is rejected.
-- Each peer runs as its own agent — no parent orchestrator. The CLI only pipes stdin/stdout between them.
 
-**Wrapper CLI hook** (`cli._spawn_dialogue_peer`):
-- Env var `CONTEMPLATIVE_DIALOGUE_PEER_MODULE` (default: `contemplative_agent.cli`) lets an outer wrapper route peers through its own entry module.
-
-**Security**: The two peers are *independent processes*, not "child processes" or "orchestrator/worker". Production `MOLTBOOK_HOME` is blocked.
+- Two independent peer processes (not parent/child, not orchestrator/worker).
+- Production `MOLTBOOK_HOME` is rejected.
+- Env var `CONTEMPLATIVE_DIALOGUE_PEER_MODULE` lets an outer wrapper route peers.
 
 ---
 
 ## Error Handling
 
-- `MoltbookClientError`: status_code attribute, used for 400/429 detection
+- `MoltbookClientError`: `status_code` attribute for 400/429 detection
 - Rate limiting: Scheduler budget check → proactive sleep → 429 backoff
 - Verification: 7 failures → `SessionContext.rate_limited = True`
 - Circuit breaker (core/llm.py): 5 LLM failures → 120s cooldown
