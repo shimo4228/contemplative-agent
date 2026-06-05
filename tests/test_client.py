@@ -683,6 +683,48 @@ class TestUnfollowAgent:
         with patch.object(client._session, "request", return_value=mock_response):
             assert client.unfollow_agent("some-agent") is False
 
+    # Audit L3: HTTP 2xx alone is not success — the DELETE body must be
+    # verified, mirroring follow_agent's action check and post_comment's
+    # ambiguous-body handling (audit H2). A silently failed unfollow is
+    # the code-level home of the known follow-list drift.
+
+    def _respond(self, body):
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
+        mock_response.json.return_value = body
+        return mock_response
+
+    def test_body_action_unfollowed(self):
+        client = MoltbookClient(api_key="test-key")
+        resp = self._respond({"action": "unfollowed"})
+        with patch.object(client._session, "request", return_value=resp):
+            assert client.unfollow_agent("some-agent") is True
+
+    def test_body_action_not_following_is_idempotent_success(self):
+        client = MoltbookClient(api_key="test-key")
+        resp = self._respond({"action": "not_following"})
+        with patch.object(client._session, "request", return_value=resp):
+            assert client.unfollow_agent("some-agent") is True
+
+    def test_body_success_false_returns_false(self):
+        client = MoltbookClient(api_key="test-key")
+        resp = self._respond({"success": False, "error": "not following"})
+        with patch.object(client._session, "request", return_value=resp):
+            assert client.unfollow_agent("some-agent") is False
+
+    def test_body_unexpected_action_returns_false(self):
+        client = MoltbookClient(api_key="test-key")
+        resp = self._respond({"action": "followed"})
+        with patch.object(client._session, "request", return_value=resp):
+            assert client.unfollow_agent("some-agent") is False
+
+    def test_ambiguous_empty_body_assumed_success(self):
+        client = MoltbookClient(api_key="test-key")
+        resp = self._respond({})
+        with patch.object(client._session, "request", return_value=resp):
+            assert client.unfollow_agent("some-agent") is True
+
 
 # TestUpdateProfile / TestPatchMethod / TestUnsubscribeSubmolt /
 # mark_all tests were removed together with the dead client capabilities

@@ -477,17 +477,66 @@ class MoltbookClient:
             return []
 
     def unfollow_agent(self, agent_name: str) -> bool:
-        """DELETE /agents/{name}/follow — unfollow an agent."""
+        """DELETE /agents/{name}/follow — unfollow an agent, verify the body.
+
+        HTTP 2xx alone is not success (audit L3, same defect class as the
+        comment path fixed in audit H2): an explicit ``success: false`` or
+        an unexpected ``action`` returns False so the caller does not treat
+        an unfollow that never happened as done — the code-level home of
+        the known follow-list drift. Ambiguous bodies (non-JSON, no
+        ``action``/``success`` keys) are treated as success with a WARNING,
+        mirroring ``post_comment``; ``not_following`` counts as idempotent
+        success, mirroring follow_agent's ``already_following``.
+        """
         if not VALID_AGENT_NAME_PATTERN.match(agent_name):
             logger.warning("Invalid agent_name rejected: %.50r", agent_name)
             return False
         try:
-            self.delete(f"/agents/{agent_name}/follow")
-            logger.info("Unfollowed %s", agent_name)
-            return True
+            resp = self.delete(f"/agents/{agent_name}/follow")
         except MoltbookClientError as exc:
             logger.warning("Failed to unfollow %s: %s", agent_name, exc)
             return False
+        try:
+            data = resp.json()
+        except ValueError:
+            data = None
+        if not isinstance(data, dict):
+            logger.warning(
+                "Unfollow response for %s has no JSON object body "
+                "(HTTP %d); assuming success",
+                agent_name,
+                resp.status_code,
+            )
+            return True
+        if "success" in data and not data["success"]:
+            # Single-line strip, same log-injection guard as post_comment.
+            safe_error = re.sub(
+                r"[^\x20-\x7E]", "", str(data.get("error", ""))[:200]
+            )
+            logger.warning(
+                "Unfollow %s failed at body level (HTTP %d): %s",
+                agent_name,
+                resp.status_code,
+                safe_error,
+            )
+            return False
+        action = data.get("action", "")
+        if action in ("unfollowed", "not_following"):
+            logger.info("Unfollowed %s", agent_name)
+            return True
+        if action:
+            safe_action = re.sub(r"[^\x20-\x7E]", "", str(action)[:50])
+            logger.warning(
+                "Unfollow %s: unexpected action=%r", agent_name, safe_action
+            )
+            return False
+        logger.warning(
+            "Unfollow response for %s missing action (envelope keys=%s); "
+            "assuming success",
+            agent_name,
+            sorted(data.keys()),
+        )
+        return True
 
     # update_profile / mark_all_notifications_read / unsubscribe_submolt /
     # has_budget and the PATCH verb were removed as dead code: no production
