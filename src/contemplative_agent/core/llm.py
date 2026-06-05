@@ -15,6 +15,7 @@ from urllib.parse import urlparse
 import requests
 
 from .config import (
+    FORBIDDEN_ASSIGNMENT_RE,
     FORBIDDEN_SUBSTRING_PATTERNS,
     FORBIDDEN_WORD_PATTERNS,
 )
@@ -421,11 +422,13 @@ def _sanitize_output(text: str, max_length: Optional[int] = None) -> str:
             sanitized = re.sub(
                 re.escape(pattern), "[REDACTED]", sanitized, flags=re.IGNORECASE
             )
-    for pattern in FORBIDDEN_WORD_PATTERNS:
-        word_re = re.compile(r"\b" + re.escape(pattern) + r"\b", re.IGNORECASE)
-        if word_re.search(sanitized):
-            logger.warning("Removed forbidden pattern from LLM output: %s", pattern)
-            sanitized = word_re.sub("[REDACTED]", sanitized)
+    # Audit L1: redact credential-assignment forms only — bare "password" /
+    # "secret" words are legitimate prose and must not be corrupted before
+    # external POST. The bare-word check lives on in the fail-closed gates
+    # (validate_identity_content, _passes_content_filter).
+    if FORBIDDEN_ASSIGNMENT_RE.search(sanitized):
+        logger.warning("Removed credential assignment from LLM output")
+        sanitized = FORBIDDEN_ASSIGNMENT_RE.sub("[REDACTED]", sanitized)
     if max_length is None:
         return sanitized
     return sanitized[:max_length]

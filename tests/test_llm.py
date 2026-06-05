@@ -55,7 +55,7 @@ class TestSanitizeOutput:
         assert result == "Clean text about alignment"
 
     def test_multiple_patterns(self):
-        result = _sanitize_output("api_key and password here", 1000)
+        result = _sanitize_output("api_key and password: hunter2 here", 1000)
         assert result.count("[REDACTED]") == 2
 
 
@@ -156,7 +156,12 @@ class TestOllamaUrlValidation:
 
 
 class TestSanitizeWordBoundary:
-    """Test word-boundary matching for FORBIDDEN_WORD_PATTERNS."""
+    """Audit L1: the output sanitizer redacts credential *assignments* only
+    ("password: x", "secret = y"). Bare word occurrences are legitimate
+    prose and must survive — the old word-boundary replace destroyed
+    sentences like "the secret to success" before external POST. The
+    fail-closed gates (identity validation, GUARDED content filter) keep
+    the stricter bare-word check."""
 
     def test_token_economy_passes(self):
         result = _sanitize_output("token economy is growing", 1000)
@@ -188,16 +193,30 @@ class TestSanitizeWordBoundary:
         assert "passwordless" in result
         assert "[REDACTED]" not in result
 
-    def test_standalone_password_blocked(self):
-        result = _sanitize_output("enter your password here", 1000)
-        assert "[REDACTED]" in result
+    @pytest.mark.parametrize("text", [
+        "enter your password here",
+        "the secret to success is patience",
+        "secret-sharing protocol",
+        "keeping a secret is hard",
+    ], ids=["password-prose", "secret-prose", "secret-compound", "secret-end"])
+    def test_bare_word_prose_passes(self, text):
+        result = _sanitize_output(text, 1000)
+        assert "[REDACTED]" not in result
+        assert result == text
 
-    def test_secret_sharing_passes(self):
-        result = _sanitize_output("secret-sharing protocol", 1000)
-        # "secret" is at a word boundary here, should be caught
+    @pytest.mark.parametrize("text", [
+        "password: hunter2",
+        "my password = Tr0ub4dor&3",
+        "the SECRET: deadbeef123",
+        "secret=abc123 in config",
+    ], ids=["password-colon", "password-equals", "secret-upper", "secret-nospace"])
+    def test_credential_assignment_redacted(self, text):
+        result = _sanitize_output(text, 1000)
         assert "[REDACTED]" in result
-        result2 = _sanitize_output("secretarial work", 1000)
-        assert "secretarial" in result2
+        assert "hunter2" not in result
+        assert "Tr0ub4dor&3" not in result
+        assert "deadbeef123" not in result
+        assert "abc123" not in result
 
     def test_api_key_still_substring_matched(self):
         result = _sanitize_output("my_api_key_value", 1000)

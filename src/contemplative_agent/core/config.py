@@ -24,6 +24,18 @@ FORBIDDEN_WORD_PATTERNS: Tuple[str, ...] = (
     "secret",
 )
 
+# Output sanitization redacts credential *assignments* only ("password: x",
+# "secret = y"). Bare word occurrences ("the secret to success") are
+# legitimate prose and must survive ``_sanitize_output`` (audit L1: the old
+# word replace corrupted published text). The fail-closed gates — identity
+# validation and the GUARDED content filter — keep the stricter bare-word
+# check via FORBIDDEN_WORD_PATTERNS above: there a false positive blocks an
+# action instead of mutating it.
+FORBIDDEN_ASSIGNMENT_RE = re.compile(
+    r"\b(?:" + "|".join(FORBIDDEN_WORD_PATTERNS) + r")\s*[:=]\s*\S+",
+    re.IGNORECASE,
+)
+
 # Moltbook API char limits (verified via skill.md, 2026-05-04):
 # - Post body: 40,000 chars
 # - Post title: 300 chars
