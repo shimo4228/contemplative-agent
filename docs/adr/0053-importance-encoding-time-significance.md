@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted (amended 2026-06-06)
 
 ## Date
 
@@ -105,12 +105,12 @@ deferred.
 6. **Establish a measurement gate for retiring the LLM rating.** The ablation evidence
    (`docs/evidence/adr-0053/importance-ablation-20260606.md`) meets the pre-registered
    "small difference" criterion and supports retiring the distill-time LLM rating while
-   keeping pure time decay. The retirement decision itself is deferred until two conditions
-   clear: (a) the §B1 threshold-retune observation window (relevance gates retuned
-   2026-06-05) closes, and (b) the AKC position paper ships, since AKC ADR-0003's Layer-2
-   spec currently names the importance score and retiring mid-paper would churn the spec.
-   The ablation script should be re-run before deciding — the corpus grows and the result
-   may shift.
+   keeping pure time decay. The retirement decision itself is deferred until the §B1
+   threshold-retune observation window (relevance gates retuned 2026-06-05) closes —
+   experiment hygiene: one pipeline variable at a time. The ablation script should be
+   re-run before deciding — the corpus grows and the result may shift. *(As accepted, a
+   second gate — the AKC position paper shipping — was listed here; it was removed the
+   same day, see Amendment.)*
 
 ## Alternatives Considered
 
@@ -167,12 +167,9 @@ roles (retrieval weight, future gate) permanently misleading.
 
 ### Neutral / Follow-ups
 
-- The AKC P1-5 promotion verdict remains deferred (WON'T DO stands). Its re-evaluation
-  triggers are this ADR stabilizing, the gate in Decision 6 resolving, and the AKC paper
-  shipping. Were it to promote, the candidate content is: assign-once at extract time /
-  immutable store / read-time decay / gate-vs-score disambiguation / promotion-by-re-extraction
-  — the "retrieval weight" phrasing would be dropped, since score consumers are
-  substrate-specific.
+- The AKC P1-5 promotion question is closed as won't-do (2026-06-06 Amendment): AKC —
+  the position paper included — will not cover the importance mechanism. Nothing
+  promotes; the judgment stays substrate-side in this ADR.
 - `graph.jsonld` gains an ADR-0053 node with edges to
   [ADR-0009](./0009-importance-score.md),
   [ADR-0019](./0019-discrete-categories-to-embedding-views.md),
@@ -186,6 +183,17 @@ roles (retrieval weight, future gate) permanently misleading.
   embedding mechanism; value judgment lives in importance and time-decay") is now precise:
   encoding-time LLM judgment lives in the stored `importance` field; structural and
   embedding judgment owns the admit gate; cosine owns retrieval rank.
+
+## Amendment (2026-06-06)
+
+Same-day amendment by the author. As accepted, Decision 6 listed two gate conditions for
+retiring the LLM rating: (a) the §B1 observation window closing and (b) the AKC position
+paper shipping, on the grounds that AKC ADR-0003's Layer-2 spec names the importance score.
+Condition (b) is removed: the author decided AKC — the position paper included — will not
+cover the importance mechanism, so retiring the rating cannot churn the paper. The same
+decision closes the AKC P1-5 promotion question as won't-do (it was "deferred" as
+accepted). The retirement decision now waits on the §B1 window alone. The original
+two-gate wording is preserved in git history (commit 745116a).
 
 ## Related
 

@@ -66,11 +66,11 @@ ordering difference + marginal demotion diff → grounds for retirement")
 is met.
 
 This evidence **supports retirement** of the distill-time LLM rating
-(keeping decay), but per ADR-0053 the decision is gated on two more
-conditions: the §B1 threshold-retune observation window closing, and the
-AKC position paper (whose ADR-0003 Layer-2 spec currently names the
-importance score) shipping. Re-run this script before deciding — the
-corpus grows and the result may shift.
+(keeping decay), but per ADR-0053 the decision is gated on one remaining
+condition: the §B1 threshold-retune observation window closing. (A second
+gate — the AKC position paper shipping — was listed at acceptance and
+removed the same day; see ADR-0053's Amendment.) Re-run this script
+before deciding — the corpus grows and the result may shift.
 
 ## Reproduce
 
