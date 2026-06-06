@@ -3,6 +3,8 @@
 ## Status
 accepted
 
+> **Reinterpreted by [ADR-0053](0053-importance-encoding-time-significance.md) (2026-06-06).** The two roles this ADR assigned to the score have since dissolved: the retrieval-weight role (ADR-0019 moved retrieval to embedding views; ADR-0051 left ranking pure cosine) and the "Phase 2 quality gate" foundation (the admit gate was realized as a separate mechanism, ADR-0026/0027). The decay design and write-once stance remain in effect. See ADR-0053 for the current meaning (encoding-time significance) and propagation map.
+
 ## Date
 2026-03-24
 

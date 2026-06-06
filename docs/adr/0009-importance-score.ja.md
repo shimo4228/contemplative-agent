@@ -3,6 +3,8 @@
 ## Status
 accepted
 
+> **[ADR-0053](0053-importance-encoding-time-significance.ja.md) により再解釈 (2026-06-06)。** 本 ADR が score に与えた二つの役割はその後消滅した: 検索の重みの役割 (ADR-0019 が検索を embedding views に移し、ADR-0051 がランキングを純粋な cosine にした) と「Phase 2 品質ゲート」の土台 (保存ゲートは別機構として実現された、ADR-0026/0027)。減衰設計と write-once の立場は引き続き有効。現在の意味 (観測時の手応え) と propagation map は ADR-0053 を参照。
+
 ## Date
 2026-03-24
 
