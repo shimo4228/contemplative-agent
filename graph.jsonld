@@ -46,6 +46,7 @@
 
     {
       "@id": "https://doi.org/10.5281/zenodo.19212118",
+      "sameAs": "https://www.wikidata.org/wiki/Q140090187",
       "@type": ["ResearchLine", "ScholarlyArticle"],
       "name": "Contemplative Agent",
       "alternateName": [
@@ -908,6 +909,7 @@
     },
     {
       "@id": "https://github.com/shimo4228/agent-knowledge-cycle",
+      "sameAs": "https://www.wikidata.org/wiki/Q140090186",
       "@type": ["EcosystemRepo", "SoftwareSourceCode"],
       "name": "agent-knowledge-cycle (AKC)",
       "alternateName": [
