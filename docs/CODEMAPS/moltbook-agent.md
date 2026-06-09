@@ -63,7 +63,7 @@ cli.py (2024L)  -- composition root, only file importing both core/ and adapters
 
 config/                           -- externalized templates (domain-swappable, git-managed)
   domain.json                     -- submolts, thresholds
-  prompts/*.md (34 files)         -- LLM prompt templates with {placeholders}
+  prompts/*.md (32 files)         -- LLM prompt templates with {placeholders}
   views/*.md (7 files)            -- seed-text view definitions (packaged fallback for ADR-0019)
   templates/<character>/          -- 11 ethical framework templates
 
@@ -155,15 +155,17 @@ Global flags: --config-dir PATH | --domain-config PATH | --constitution-dir PATH
 
 In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
-**Engagement & posting**: system, relevance, comment, reply, cooperation_post, post_title, topic_summary, submolt_selection, internal_note (ADR-0045) — `session_insight` retired and deleted (ADR-0052)
+**Engagement & posting**: system, relevance, comment, reply, cooperation_post, post_title, topic_summary, submolt_selection, internal_note (ADR-0045), dialogue (peer loop) — `session_insight` retired and deleted (ADR-0052)
 
-**Distillation**: distill, distill_dedup, distill_refine, distill_importance, identity_distill, identity_refine, insight_extraction, rules_distill, rules_distill_refine, constitution_amend, principles
+**Distillation**: distill, distill_refine, distill_importance, identity_distill, insight_extraction, rules_distill, rules_distill_refine, constitution_amend
 
-**Audit**: stocktake_skills, stocktake_rules (LLM grouping, ADR-0046), stocktake_merge (frontmatter emission, ADR-0048), stocktake_merge_rules, stocktake_clean (singleton trigger-altitude, ADR-0048)
+**Audit**: stocktake_skills, stocktake_rules (LLM grouping, ADR-0046), stocktake_merge (frontmatter emission, ADR-0048), stocktake_merge_rules, stocktake_clean (singleton trigger-altitude, ADR-0048), stocktake_group_system / stocktake_merge_system / stocktake_clean_system (externalized `system=` prompts, ADR-0054)
 
-**Reports / experimental**: weekly-analysis, meditation_interpret
+**Untrusted boundary** (ADR-0054): untrusted_wrapper, untrusted_marker_complete, untrusted_marker_truncated — externalized text for `wrap_untrusted_content`, with a hardcoded code fallback that re-asserts the injection defense if the template is missing or gutted
 
-**Retired (files on disk, unreferenced)**: `distill_classify.md`, `distill_subcategorize.md` (ADR-0019); `topic_extraction.md`, `topic_novelty.md` (ADR-0043)
+**Experimental**: meditation_interpret
+
+**Script-read (NOT lazy-loaded via `core/prompts.py`)**: `weekly-analysis.md`, `principles.md` live in `config/prompts/` but are embedded by `scripts/weekly-analysis.sh` (the `claude -p` weekly pipeline), not by the agent's prompt loader (ADR-0040).
 
 ## LLM Function Surface
 

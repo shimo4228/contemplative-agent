@@ -114,7 +114,7 @@ Package versions, external services, optional add-ons.
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |
 | CLI commands | 21 active |
-| Prompt templates | 34 files / 30 loaded (config/prompts/*.md) |
+| Prompt templates | 32 files / 30 loaded (config/prompts/*.md) |
 | View seeds | 7 (config/views/*.md) |
 | Config templates | 11 (config/templates/) |
 | Rate limit budgets | 2 (GET 60/min, POST 30/min) |
