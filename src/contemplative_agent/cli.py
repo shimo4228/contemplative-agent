@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, cast
 
 if TYPE_CHECKING:
+    from .core.stocktake import MergeGroup, QualityIssue, StocktakeResult
     from .core.views import ViewRegistry
 from xml.sax.saxutils import escape as xml_escape
 
@@ -612,9 +613,303 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
             )
 
 
+def _render_merged_group(
+    group_items: list[tuple[str, str]],
+    merge_prompt: str,
+    fallback_title: str,
+) -> tuple[str, str] | None:
+    """Run the LLM merge for one group; return (filename, merged_text).
+
+    Returns None when the LLM call fails or the model rejects the merge
+    (candidates judged not actually redundant).
+    """
+    from datetime import date
+
+    from .core.stocktake import is_merge_rejected, merge_group
+    from .core.text_utils import extract_title, slugify
+
+    merged_text = merge_group(group_items, merge_prompt)
+    if merged_text is None:
+        print("  Merge failed (LLM error). Skipping.")
+        return None
+
+    if is_merge_rejected(merged_text):
+        print(f"  LLM rejected merge: {merged_text.strip()}")
+        print("  Skipping (candidates judged not actually redundant).")
+        return None
+
+    print(merged_text)
+
+    title = extract_title(merged_text) or fallback_title
+    slug = slugify(title) or fallback_title
+    filename = f"{slug}-{date.today().strftime('%Y%m%d')}.md"
+    return filename, merged_text
+
+
+def _delete_merged_originals(
+    target_dir: Path, target_path: Path, filenames: Sequence[str]
+) -> None:
+    """Delete the source files consumed by an approved merge.
+
+    Self-delete guard: when the merged title slugifies to one of the source
+    filenames, target_path collides with an original. The guard skips the
+    matching name so we don't delete the file we just wrote. See commit
+    542f0b2 for the bug history.
+    """
+    try:
+        target_resolved = target_path.resolve()
+    except OSError:
+        target_resolved = target_path
+    for name in filenames:
+        original = target_dir / name
+        try:
+            same_as_target = original.resolve() == target_resolved
+        except OSError:
+            same_as_target = original == target_path
+        if same_as_target:
+            continue
+        if original.exists():
+            original.unlink()
+            print(f"  Deleted {name}")
+
+
+def _stocktake_merge_phase(
+    merge_groups: Sequence[MergeGroup],
+    items_dict: dict[str, str],
+    *,
+    target_dir: Path,
+    merge_prompt: str,
+    command_prefix: str,
+    fallback_title: str,
+    stage: bool,
+    staged_batch: list[StageItem],
+) -> set[str]:
+    """Merge duplicate groups; return the filenames consumed by a merge."""
+    from .core._io import write_restricted
+
+    consumed_names: set[str] = set()
+
+    print(f"\n{'='*60}")
+    print(f"Merging {len(merge_groups)} group(s)...")
+
+    merged = 0
+    for i, group in enumerate(merge_groups, 1):
+        group_items = [
+            (name, items_dict[name])
+            for name in group.filenames
+            if name in items_dict
+        ]
+        if len(group_items) < 2:
+            continue
+
+        print(f"\n{'='*60}")
+        print(f"[Group {i}/{len(merge_groups)}] {', '.join(group.filenames)}")
+        print(f"  Reason: {group.reason}")
+
+        rendered = _render_merged_group(group_items, merge_prompt, fallback_title)
+        if rendered is None:
+            continue
+        filename, merged_text = rendered
+        target_path = target_dir / filename
+
+        if stage:
+            # Record original filenames so adopt-staged can delete them on approval.
+            staged_batch.append(
+                StageItem(
+                    filename=filename,
+                    text=merged_text,
+                    target_path=target_path,
+                    sources=list(group.filenames),
+                )
+            )
+            consumed_names.update(group.filenames)
+            continue
+
+        approved = _approve_write(target_path)
+        _log_approval(command_prefix, target_path, approved, merged_text)
+        if approved:
+            target_dir.mkdir(parents=True, exist_ok=True)
+            write_restricted(target_path, merged_text)
+            _delete_merged_originals(target_dir, target_path, group.filenames)
+            merged += 1
+            consumed_names.update(group.filenames)
+        else:
+            print("  Skipped.")
+
+    if not stage:
+        print(f"\n--- Merge summary: {merged} merged, {len(merge_groups) - merged} skipped ---")
+
+    return consumed_names
+
+
+def _stocktake_drop_phase(
+    quality_issues: Sequence[QualityIssue],
+    items_dict: dict[str, str],
+    *,
+    target_dir: Path,
+    drop_command: str,
+    stage: bool,
+    staged_batch: list[StageItem],
+) -> None:
+    """Delete (or stage for deferred approval) files flagged as low quality."""
+    print(f"\n{'='*60}")
+    print(f"Low-quality files: {len(quality_issues)}")
+
+    dropped = 0
+    for issue in quality_issues:
+        target_path = target_dir / issue.filename
+        if not target_path.exists():
+            continue
+        body = items_dict.get(issue.filename, "")
+        if not body:
+            # Defensive: quality_issues and items both come from
+            # _read_files, so they should agree. Skip rather than
+            # stage an empty artifact if they ever drift.
+            print(f"  Skipped (empty body): {issue.filename}")
+            continue
+
+        print(f"\n{'='*60}")
+        print(f"[Drop candidate] {issue.filename}")
+        print(f"  Reason: {issue.reason}")
+        print(body[:500])
+
+        if stage:
+            staged_batch.append(
+                StageItem(
+                    filename=issue.filename,
+                    text=body,
+                    target_path=target_path,
+                    action="drop",
+                    command=drop_command,
+                )
+            )
+            continue
+
+        approved = _approve_delete(target_path)
+        _log_approval(drop_command, target_path, approved, body)
+        if approved:
+            target_path.unlink()
+            print(f"  Deleted {issue.filename}")
+            dropped += 1
+        else:
+            print("  Kept.")
+
+    if not stage:
+        print(f"\n--- Drop summary: {dropped} deleted, {len(quality_issues) - dropped} kept ---")
+
+
+def _clean_one_skill(
+    name: str, body: str, target_path: Path, clean_prompt: str
+) -> str | None:
+    """Clean one skill's triggers and re-attach its original frontmatter.
+
+    Returns the final text to write, or None when the LLM call fails or the
+    triggers are already at structural altitude (CLEAN_NOOP).
+    """
+    from .core.stocktake import clean_skill_triggers, is_clean_noop
+    from .core.text_utils import split_frontmatter, synthesize_frontmatter
+
+    cleaned_text = clean_skill_triggers((name, body), clean_prompt)
+    if cleaned_text is None:
+        print(f"  Clean failed (LLM error): {name}")
+        return None
+    if is_clean_noop(cleaned_text):
+        return None  # triggers already at structural altitude
+
+    # The cleaned body comes from a frontmatter-stripped source
+    # (result.items strips it), so re-attach the skill's original
+    # frontmatter — name / description / origin and any reflection
+    # bookkeeping — before writing. Without this, a cleaned singleton
+    # would silently lose its metadata. Legacy skills that predate
+    # frontmatter emission get a synthesized block instead.
+    try:
+        original = target_path.read_text(encoding="utf-8")
+    except OSError:
+        original = ""
+    _, cleaned_body = split_frontmatter(cleaned_text)
+    # split_frontmatter only lstrips the body when it consumed a
+    # frontmatter block; for the common frontmatter-less clean output
+    # a stray leading newline from the model would yield a triple-blank
+    # gap under the re-attached frontmatter, so strip it here.
+    cleaned_body = cleaned_body.lstrip("\n")
+    frontmatter, _ = split_frontmatter(original)
+    if not frontmatter:
+        frontmatter = synthesize_frontmatter(cleaned_body)
+    return f"{frontmatter}\n\n{cleaned_body}"
+
+
+def _stocktake_clean_phase(
+    items: Sequence[tuple[str, str]],
+    *,
+    target_dir: Path,
+    command_prefix: str,
+    clean_prompt: str,
+    skip_names: set[str],
+    stage: bool,
+    staged_batch: list[StageItem],
+) -> None:
+    """Clean singleton triggers (skills only).
+
+    A merged skill is rewritten at structural altitude by the merge prompt,
+    but a skill with no twin never goes through a merge and keeps its
+    original episode-derived triggers (proper nouns, timestamp windows, the
+    saturated relevance score). This pass cleans those survivors so every
+    surviving skill ends up with reusable triggers. Files consumed by a
+    merge or flagged for drop are excluded; CLEAN_NOOP keeps it idempotent.
+    """
+    from .core._io import write_restricted
+
+    clean_command = f"{command_prefix}-clean"
+    clean_targets = [
+        (name, body) for name, body in items if name not in skip_names
+    ]
+    if not clean_targets:
+        return
+
+    print(f"\n{'='*60}")
+    print(f"Cleaning triggers for {len(clean_targets)} skill(s)...")
+
+    cleaned = 0
+    for name, body in clean_targets:
+        target_path = target_dir / name
+        final_text = _clean_one_skill(name, body, target_path, clean_prompt)
+        if final_text is None:
+            continue
+
+        print(f"\n{'='*60}")
+        print(f"[Clean] {name}")
+        print(final_text)
+
+        if stage:
+            staged_batch.append(
+                StageItem(
+                    filename=name,
+                    text=final_text,
+                    target_path=target_path,
+                    command=clean_command,
+                )
+            )
+            continue
+
+        approved = _approve_write(target_path)
+        _log_approval(clean_command, target_path, approved, final_text)
+        if approved:
+            write_restricted(target_path, final_text)
+            cleaned += 1
+            print(f"  Cleaned {name}")
+        else:
+            print("  Skipped.")
+
+    if not stage:
+        print(
+            f"\n--- Clean summary: {cleaned} cleaned, "
+            f"{len(clean_targets) - cleaned} unchanged/skipped ---"
+        )
+
+
 def _handle_stocktake_result(
     args: argparse.Namespace,
-    result,
+    result: StocktakeResult,
     *,
     target_dir: Path,
     label: str,
@@ -634,32 +929,12 @@ def _handle_stocktake_result(
 
     Drop items use `f"{command_prefix}-drop"` for audit/meta consistency.
 
-    Self-delete guard: when the merged title slugifies to one of the source
-    filenames, target_path collides with an original. The guard skips the
-    matching name so we don't delete the file we just wrote. See commit
-    542f0b2 for the bug history.
-
-    Single staging batch for merge + drop: `_stage_results` wipes STAGED_DIR
-    on every call, so calling it twice (once for merges, once for drops)
-    would erase the first batch. Per-item `command` lets us mix
-    "<prefix>" and "<prefix>-drop" in one batch.
+    Single staging batch for merge + drop + clean: `_stage_results` wipes
+    STAGED_DIR on every call, so calling it once per phase would erase the
+    earlier batches. Per-item `command` lets us mix "<prefix>",
+    "<prefix>-drop", and "<prefix>-clean" in one batch.
     """
-    from datetime import date
-
-    from .core._io import write_restricted
-    from .core.stocktake import (
-        clean_skill_triggers,
-        format_stocktake_report,
-        is_clean_noop,
-        is_merge_rejected,
-        merge_group,
-    )
-    from .core.text_utils import (
-        extract_title,
-        slugify,
-        split_frontmatter,
-        synthesize_frontmatter,
-    )
+    from .core.stocktake import format_stocktake_report
 
     print(format_stocktake_report(result, label))
 
@@ -671,220 +946,46 @@ def _handle_stocktake_result(
 
     items_dict = dict(result.items)
     stage = getattr(args, "stage", False)
-    drop_command = f"{command_prefix}-drop"
+    staged_batch: list[StageItem] = []
 
     # Filenames consumed by a successful merge (their originals get deleted on
     # adopt) and filenames flagged for drop. The clean phase skips both so it
     # only rewrites surviving singletons: merged skills are already cleaned by
     # the merge prompt, and dropped files don't need cleaning.
     consumed_names: set[str] = set()
-    dropped_names = {issue.filename for issue in result.quality_issues}
-
-    staged_batch: list[StageItem] = []
-
-    # --- Merge duplicates ---
-    merged = 0
     if result.merge_groups:
-        print(f"\n{'='*60}")
-        print(f"Merging {len(result.merge_groups)} group(s)...")
+        consumed_names = _stocktake_merge_phase(
+            result.merge_groups,
+            items_dict,
+            target_dir=target_dir,
+            merge_prompt=merge_prompt,
+            command_prefix=command_prefix,
+            fallback_title=fallback_title,
+            stage=stage,
+            staged_batch=staged_batch,
+        )
 
-        for i, group in enumerate(result.merge_groups, 1):
-            group_items = [
-                (name, items_dict[name])
-                for name in group.filenames
-                if name in items_dict
-            ]
-            if len(group_items) < 2:
-                continue
-
-            print(f"\n{'='*60}")
-            print(f"[Group {i}/{len(result.merge_groups)}] {', '.join(group.filenames)}")
-            print(f"  Reason: {group.reason}")
-
-            merged_text = merge_group(group_items, merge_prompt)
-            if merged_text is None:
-                print("  Merge failed (LLM error). Skipping.")
-                continue
-
-            if is_merge_rejected(merged_text):
-                print(f"  LLM rejected merge: {merged_text.strip()}")
-                print("  Skipping (candidates judged not actually redundant).")
-                continue
-
-            print(merged_text)
-
-            title = extract_title(merged_text) or fallback_title
-            slug = slugify(title) or fallback_title
-            filename = f"{slug}-{date.today().strftime('%Y%m%d')}.md"
-            target_path = target_dir / filename
-
-            if stage:
-                # Record original filenames so adopt-staged can delete them on approval.
-                staged_batch.append(
-                    StageItem(
-                        filename=filename,
-                        text=merged_text,
-                        target_path=target_path,
-                        sources=list(group.filenames),
-                    )
-                )
-                consumed_names.update(group.filenames)
-                continue
-
-            approved = _approve_write(target_path)
-            _log_approval(command_prefix, target_path, approved, merged_text)
-            if approved:
-                target_dir.mkdir(parents=True, exist_ok=True)
-                write_restricted(target_path, merged_text)
-                try:
-                    target_resolved = target_path.resolve()
-                except OSError:
-                    target_resolved = target_path
-                for name in group.filenames:
-                    original = target_dir / name
-                    try:
-                        same_as_target = original.resolve() == target_resolved
-                    except OSError:
-                        same_as_target = original == target_path
-                    if same_as_target:
-                        continue
-                    if original.exists():
-                        original.unlink()
-                        print(f"  Deleted {name}")
-                merged += 1
-                consumed_names.update(group.filenames)
-            else:
-                print("  Skipped.")
-
-        if not stage:
-            print(f"\n--- Merge summary: {merged} merged, {len(result.merge_groups) - merged} skipped ---")
-
-    # --- Drop low-quality files ---
     if result.quality_issues:
-        print(f"\n{'='*60}")
-        print(f"Low-quality files: {len(result.quality_issues)}")
+        _stocktake_drop_phase(
+            result.quality_issues,
+            items_dict,
+            target_dir=target_dir,
+            drop_command=f"{command_prefix}-drop",
+            stage=stage,
+            staged_batch=staged_batch,
+        )
 
-        dropped = 0
-        for issue in result.quality_issues:
-            target_path = target_dir / issue.filename
-            if not target_path.exists():
-                continue
-            body = items_dict.get(issue.filename, "")
-            if not body:
-                # Defensive: quality_issues and items both come from
-                # _read_files, so they should agree. Skip rather than
-                # stage an empty artifact if they ever drift.
-                print(f"  Skipped (empty body): {issue.filename}")
-                continue
-
-            print(f"\n{'='*60}")
-            print(f"[Drop candidate] {issue.filename}")
-            print(f"  Reason: {issue.reason}")
-            print(body[:500])
-
-            if stage:
-                staged_batch.append(
-                    StageItem(
-                        filename=issue.filename,
-                        text=body,
-                        target_path=target_path,
-                        action="drop",
-                        command=drop_command,
-                    )
-                )
-                continue
-
-            approved = _approve_delete(target_path)
-            _log_approval(drop_command, target_path, approved, body)
-            if approved:
-                target_path.unlink()
-                print(f"  Deleted {issue.filename}")
-                dropped += 1
-            else:
-                print("  Kept.")
-
-        if not stage:
-            print(f"\n--- Drop summary: {dropped} deleted, {len(result.quality_issues) - dropped} kept ---")
-
-    # --- Clean singleton triggers (skills only) ---
-    # A merged skill is rewritten at structural altitude by the merge prompt,
-    # but a skill with no twin never goes through a merge and keeps its
-    # original episode-derived triggers (proper nouns, timestamp windows, the
-    # saturated relevance score). This pass cleans those survivors so every
-    # surviving skill ends up with reusable triggers. Files consumed by a
-    # merge or flagged for drop are excluded; CLEAN_NOOP keeps it idempotent.
     if clean_prompt is not None:
-        clean_command = f"{command_prefix}-clean"
-        clean_targets = [
-            (name, body)
-            for name, body in result.items
-            if name not in consumed_names and name not in dropped_names
-        ]
-        if clean_targets:
-            print(f"\n{'='*60}")
-            print(f"Cleaning triggers for {len(clean_targets)} skill(s)...")
-
-        cleaned = 0
-        for name, body in clean_targets:
-            cleaned_text = clean_skill_triggers((name, body), clean_prompt)
-            if cleaned_text is None:
-                print(f"  Clean failed (LLM error): {name}")
-                continue
-            if is_clean_noop(cleaned_text):
-                continue  # triggers already at structural altitude
-
-            target_path = target_dir / name
-
-            # The cleaned body comes from a frontmatter-stripped source
-            # (result.items strips it), so re-attach the skill's original
-            # frontmatter — name / description / origin and any reflection
-            # bookkeeping — before writing. Without this, a cleaned singleton
-            # would silently lose its metadata. Legacy skills that predate
-            # frontmatter emission get a synthesized block instead.
-            try:
-                original = target_path.read_text(encoding="utf-8")
-            except OSError:
-                original = ""
-            _, cleaned_body = split_frontmatter(cleaned_text)
-            # split_frontmatter only lstrips the body when it consumed a
-            # frontmatter block; for the common frontmatter-less clean output
-            # a stray leading newline from the model would yield a triple-blank
-            # gap under the re-attached frontmatter, so strip it here.
-            cleaned_body = cleaned_body.lstrip("\n")
-            frontmatter, _ = split_frontmatter(original)
-            if not frontmatter:
-                frontmatter = synthesize_frontmatter(cleaned_body)
-            final_text = f"{frontmatter}\n\n{cleaned_body}"
-
-            print(f"\n{'='*60}")
-            print(f"[Clean] {name}")
-            print(final_text)
-
-            if stage:
-                staged_batch.append(
-                    StageItem(
-                        filename=name,
-                        text=final_text,
-                        target_path=target_path,
-                        command=clean_command,
-                    )
-                )
-                continue
-
-            approved = _approve_write(target_path)
-            _log_approval(clean_command, target_path, approved, final_text)
-            if approved:
-                write_restricted(target_path, final_text)
-                cleaned += 1
-                print(f"  Cleaned {name}")
-            else:
-                print("  Skipped.")
-
-        if not stage and clean_targets:
-            print(
-                f"\n--- Clean summary: {cleaned} cleaned, "
-                f"{len(clean_targets) - cleaned} unchanged/skipped ---"
-            )
+        dropped_names = {issue.filename for issue in result.quality_issues}
+        _stocktake_clean_phase(
+            result.items,
+            target_dir=target_dir,
+            command_prefix=command_prefix,
+            clean_prompt=clean_prompt,
+            skip_names=consumed_names | dropped_names,
+            stage=stage,
+            staged_batch=staged_batch,
+        )
 
     if stage and staged_batch:
         _stage_results(staged_batch, command=command_prefix)
@@ -934,6 +1035,142 @@ def _handle_sync_data(_args: argparse.Namespace, _parser: argparse.ArgumentParse
     _run_sync()
 
 
+@dataclass(frozen=True)
+class _StagedItem:
+    """One staged artifact parsed from its ``.meta.json`` sidecar."""
+
+    content_file: Path
+    target: Path
+    command: str
+    text: str
+    action: str
+    sources: list[str]
+    source_ids: Optional[Sequence[str]]
+    epistemic_counts: Optional[dict[str, int]]
+
+
+def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:
+    """Parse and validate one staged entry; None (with a printed reason) on skip."""
+    try:
+        meta = json_mod.loads(meta_file.read_text(encoding="utf-8"))
+    except (OSError, ValueError) as err:
+        print(f"  Skipped (meta read error): {meta_file.name}: {err}")
+        return None
+
+    target_str = meta.get("target")
+    command = meta.get("command")
+    if not target_str or not command:
+        print(f"  Skipped (invalid meta): {meta_file.name}")
+        return None
+
+    target = Path(target_str)
+    # Defense in depth: the meta.json is user-writable between stage and
+    # adopt, so re-verify the target still lives inside MOLTBOOK_HOME.
+    try:
+        inside = target.resolve().is_relative_to(data_root)
+    except OSError:
+        inside = False
+    if not inside:
+        print(
+            f"Error: staged target escapes MOLTBOOK_HOME: {target}",
+            file=sys.stderr,
+        )
+        return None
+
+    content_file = meta_file.parent / meta_file.name[: -len(".meta.json")]
+    if not content_file.exists():
+        print(f"  Skipped (content missing): {content_file.name}")
+        return None
+
+    try:
+        text = content_file.read_text(encoding="utf-8")
+    except OSError as err:
+        print(f"  Skipped (content read error): {content_file.name}: {err}")
+        return None
+
+    return _StagedItem(
+        content_file=content_file,
+        target=target,
+        command=command,
+        text=text,
+        action=meta.get("action", "merge"),
+        sources=meta.get("sources") or [],
+        # ADR-0050: lineage staged alongside the artifact; attach it to
+        # the adopt-time audit entry so deferred approval keeps lineage.
+        source_ids=meta.get("source_ids") or None,
+        epistemic_counts=meta.get("epistemic_counts") or None,
+    )
+
+
+def _adopt_drop_item(item: _StagedItem, *, yes: bool, audit_source: AuditSource) -> bool:
+    """Delete the drop target after approval; True when adopted."""
+    approved = True if yes else _approve_delete(item.target)
+    _log_approval(
+        item.command, item.target, approved, item.text, source=audit_source,
+        source_ids=item.source_ids,
+        epistemic_counts=item.epistemic_counts,
+    )
+    if not approved:
+        print("  Kept.")
+        return False
+    if item.target.exists():
+        item.target.unlink()
+        print(f"  Deleted {item.target.name}")
+    else:
+        print(f"  Already absent: {item.target.name}")
+    return True
+
+
+def _delete_adopted_sources(target: Path, sources: Sequence[str]) -> None:
+    """Delete the merge's original filenames once the merged result is adopted."""
+    target_parent = target.parent.resolve()
+    try:
+        target_resolved = target.resolve()
+    except OSError:
+        target_resolved = target
+    for src_name in sources:
+        src_path = (target.parent / src_name).resolve()
+        try:
+            same_dir = src_path.parent == target_parent
+        except OSError:
+            same_dir = False
+        if not same_dir:
+            print(
+                f"  Skipped source delete (outside target dir): {src_name}"
+            )
+            continue
+        # Guard: when the merged title collides with an original
+        # filename, src_path == target. Skip so we don't delete
+        # the file we just wrote.
+        if src_path == target_resolved:
+            continue
+        if src_path.exists():
+            src_path.unlink()
+            print(f"  Deleted {src_name}")
+
+
+def _adopt_write_item(item: _StagedItem, *, yes: bool, audit_source: AuditSource) -> bool:
+    """Write the staged text to its target after approval; True when adopted."""
+    from .core._io import write_restricted
+
+    approved = True if yes else _approve_write(item.target)
+    _log_approval(
+        item.command, item.target, approved, item.text, source=audit_source,
+        source_ids=item.source_ids,
+        epistemic_counts=item.epistemic_counts,
+    )
+    if not approved:
+        print("Skipped.")
+        return False
+    item.target.parent.mkdir(parents=True, exist_ok=True)
+    to_write = item.text if item.text.endswith("\n") else item.text + "\n"
+    write_restricted(item.target, to_write)
+    # skill-stocktake merges pass the original filenames in `sources`
+    # so they get deleted once the merged result is adopted.
+    _delete_adopted_sources(item.target, item.sources)
+    return True
+
+
 def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     """Walk the staging dir, run each staged file through the approval gate,
     and write accepted files to their target paths. Rejected and accepted
@@ -947,8 +1184,6 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     ``source="stage-adopted-auto"`` so they can be distinguished from
     interactively reviewed adoptions.
     """
-    from .core._io import write_restricted
-
     yes = getattr(args, "yes", False)
     audit_source: AuditSource = "stage-adopted-auto" if yes else "stage-adopted"
 
@@ -969,118 +1204,25 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     skipped = 0
     data_root = MOLTBOOK_DATA_DIR.resolve()
     for meta_file in meta_files:
-        try:
-            meta = json_mod.loads(meta_file.read_text(encoding="utf-8"))
-        except (OSError, ValueError) as err:
-            print(f"  Skipped (meta read error): {meta_file.name}: {err}")
-            skipped += 1
-            continue
-
-        target_str = meta.get("target")
-        command = meta.get("command")
-        sources = meta.get("sources") or []
-        action = meta.get("action", "merge")
-        # ADR-0050: lineage staged alongside the artifact; attach it to
-        # the adopt-time audit entry so deferred approval keeps lineage.
-        staged_source_ids = meta.get("source_ids") or None
-        staged_epistemic_counts = meta.get("epistemic_counts") or None
-        if not target_str or not command:
-            print(f"  Skipped (invalid meta): {meta_file.name}")
-            skipped += 1
-            continue
-
-        target = Path(target_str)
-        # Defense in depth: the meta.json is user-writable between stage and
-        # adopt, so re-verify the target still lives inside MOLTBOOK_HOME.
-        try:
-            inside = target.resolve().is_relative_to(data_root)
-        except OSError:
-            inside = False
-        if not inside:
-            print(
-                f"Error: staged target escapes MOLTBOOK_HOME: {target}",
-                file=sys.stderr,
-            )
-            skipped += 1
-            continue
-
-        content_file = meta_file.parent / meta_file.name[: -len(".meta.json")]
-        if not content_file.exists():
-            print(f"  Skipped (content missing): {content_file.name}")
-            skipped += 1
-            continue
-
-        try:
-            text = content_file.read_text(encoding="utf-8")
-        except OSError as err:
-            print(f"  Skipped (content read error): {content_file.name}: {err}")
+        item = _load_staged_item(meta_file, data_root)
+        if item is None:
             skipped += 1
             continue
 
         print(f"\n{'='*60}")
-        print(f"[{command}] {content_file.name} -> {target}")
-        print(text)
+        print(f"[{item.command}] {item.content_file.name} -> {item.target}")
+        print(item.text)
 
-        if action == "drop":
-            approved = True if yes else _approve_delete(target)
-            _log_approval(
-                command, target, approved, text, source=audit_source,
-                source_ids=staged_source_ids,
-                epistemic_counts=staged_epistemic_counts,
-            )
-            if approved:
-                if target.exists():
-                    target.unlink()
-                    print(f"  Deleted {target.name}")
-                else:
-                    print(f"  Already absent: {target.name}")
-                adopted += 1
-            else:
-                print("  Kept.")
-                rejected += 1
+        if item.action == "drop":
+            ok = _adopt_drop_item(item, yes=yes, audit_source=audit_source)
         else:
-            approved = True if yes else _approve_write(target)
-            _log_approval(
-                command, target, approved, text, source=audit_source,
-                source_ids=staged_source_ids,
-                epistemic_counts=staged_epistemic_counts,
-            )
-            if approved:
-                target.parent.mkdir(parents=True, exist_ok=True)
-                to_write = text if text.endswith("\n") else text + "\n"
-                write_restricted(target, to_write)
-                # skill-stocktake merges pass the original filenames in `sources`
-                # so they get deleted once the merged result is adopted.
-                target_parent = target.parent.resolve()
-                try:
-                    target_resolved = target.resolve()
-                except OSError:
-                    target_resolved = target
-                for src_name in sources:
-                    src_path = (target.parent / src_name).resolve()
-                    try:
-                        same_dir = src_path.parent == target_parent
-                    except OSError:
-                        same_dir = False
-                    if not same_dir:
-                        print(
-                            f"  Skipped source delete (outside target dir): {src_name}"
-                        )
-                        continue
-                    # Guard: when the merged title collides with an original
-                    # filename, src_path == target. Skip so we don't delete
-                    # the file we just wrote.
-                    if src_path == target_resolved:
-                        continue
-                    if src_path.exists():
-                        src_path.unlink()
-                        print(f"  Deleted {src_name}")
-                adopted += 1
-            else:
-                print("Skipped.")
-                rejected += 1
+            ok = _adopt_write_item(item, yes=yes, audit_source=audit_source)
+        if ok:
+            adopted += 1
+        else:
+            rejected += 1
 
-        content_file.unlink(missing_ok=True)
+        item.content_file.unlink(missing_ok=True)
         meta_file.unlink(missing_ok=True)
 
     print(
