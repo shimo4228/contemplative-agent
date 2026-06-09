@@ -51,9 +51,9 @@ PostRecord(timestamp, post_id, title, topic)
 AmendmentResult(text, target_path, marker_dir, pattern_ids, epistemic_counts)  # constitution.py
 IdentityResult(text, target_path, pattern_ids, epistemic_counts)               # distill.py
 SkillResult(text, filename, target_path, pattern_ids, epistemic_counts)         # insight.py
-InsightResult(skills, dropped_count, skills_dir)
+InsightResult(skills, dropped_count)
 RuleResult(text, filename, target_path, source_ids)                            # rules_distill.py
-RulesDistillResult(rules, dropped_count, rules_dir)
+RulesDistillResult(rules, dropped_count)
 ```
 
 ADR-0050: `pattern_ids` = content-hash ids of input patterns; `epistemic_counts` = `{observed, generated}` tally derived from `provenance.source_type` (never persisted); `source_ids` (RuleResult) = skill filenames of the batch.
