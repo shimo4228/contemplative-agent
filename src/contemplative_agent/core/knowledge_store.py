@@ -283,50 +283,7 @@ class KnowledgeStore:
             return
         for item in data:
             if isinstance(item, dict) and isinstance(item.get("pattern"), str):
-                entry: dict = {
-                    "pattern": item["pattern"],
-                    "distilled": item.get("distilled", "unknown"),
-                    "importance": item.get("importance", 0.5),
-                }
-                if item.get("source") is not None:
-                    entry["source"] = item["source"]
-                if item.get("last_accessed") is not None:
-                    entry["last_accessed"] = item["last_accessed"]
-                # ADR-0026: ``category`` / ``subcategory`` are no longer
-                # restored on read. If a legacy file is loaded, the
-                # field is silently dropped on the next save (ADR-0035
-                # retired the ``migrate-categories`` rewrite command).
-                if isinstance(item.get("embedding"), list):
-                    entry["embedding"] = list(item["embedding"])
-                if isinstance(item.get("gated"), bool):
-                    entry["gated"] = item["gated"]
-
-                # ADR-0021 optional fields. Preserve only if present; the
-                # load path does not auto-fill, so legacy files keep
-                # whatever shape they have on disk (ADR-0035 retired the
-                # ``migrate-patterns`` rewrite command). ADR-0029: strip
-                # the retired ``sanitized`` flag at load time so saves
-                # are net-reductive on the next write-back. ADR-0051:
-                # ``trust_score`` / ``trust_updated_at`` are no longer
-                # restored on read — legacy files load cleanly and the
-                # fields are silently dropped on the next save (every
-                # historical value is a pure function of
-                # ``provenance.source_type``).
-                if isinstance(item.get("provenance"), dict):
-                    prov = dict(item["provenance"])
-                    prov.pop("sanitized", None)
-                    entry["provenance"] = prov
-                if isinstance(item.get("valid_from"), str):
-                    entry["valid_from"] = item["valid_from"]
-                if "valid_until" in item:
-                    vu = item["valid_until"]
-                    if vu is None or isinstance(vu, str):
-                        entry["valid_until"] = vu
-                # ADR-0028: last_accessed_at / access_count /
-                # success_count / failure_count are no longer restored on
-                # read. Legacy files with these fields load cleanly and
-                # the fields are silently dropped on next save.
-                self._learned_patterns.append(entry)
+                self._learned_patterns.append(_entry_from_dict(item))
             elif isinstance(item, str):
                 # Bare string — legacy format
                 self._learned_patterns.append({
@@ -334,4 +291,52 @@ class KnowledgeStore:
                     "distilled": "unknown",
                     "importance": 0.5,
                 })
+
+
+def _entry_from_dict(item: dict) -> dict:
+    """Restore one persisted pattern object, preserving optional fields."""
+    entry: dict = {
+        "pattern": item["pattern"],
+        "distilled": item.get("distilled", "unknown"),
+        "importance": item.get("importance", 0.5),
+    }
+    if item.get("source") is not None:
+        entry["source"] = item["source"]
+    if item.get("last_accessed") is not None:
+        entry["last_accessed"] = item["last_accessed"]
+    # ADR-0026: ``category`` / ``subcategory`` are no longer
+    # restored on read. If a legacy file is loaded, the
+    # field is silently dropped on the next save (ADR-0035
+    # retired the ``migrate-categories`` rewrite command).
+    if isinstance(item.get("embedding"), list):
+        entry["embedding"] = list(item["embedding"])
+    if isinstance(item.get("gated"), bool):
+        entry["gated"] = item["gated"]
+
+    # ADR-0021 optional fields. Preserve only if present; the
+    # load path does not auto-fill, so legacy files keep
+    # whatever shape they have on disk (ADR-0035 retired the
+    # ``migrate-patterns`` rewrite command). ADR-0029: strip
+    # the retired ``sanitized`` flag at load time so saves
+    # are net-reductive on the next write-back. ADR-0051:
+    # ``trust_score`` / ``trust_updated_at`` are no longer
+    # restored on read — legacy files load cleanly and the
+    # fields are silently dropped on the next save (every
+    # historical value is a pure function of
+    # ``provenance.source_type``).
+    if isinstance(item.get("provenance"), dict):
+        prov = dict(item["provenance"])
+        prov.pop("sanitized", None)
+        entry["provenance"] = prov
+    if isinstance(item.get("valid_from"), str):
+        entry["valid_from"] = item["valid_from"]
+    if "valid_until" in item:
+        vu = item["valid_until"]
+        if vu is None or isinstance(vu, str):
+            entry["valid_until"] = vu
+    # ADR-0028: last_accessed_at / access_count /
+    # success_count / failure_count are no longer restored on
+    # read. Legacy files with these fields load cleanly and
+    # the fields are silently dropped on next save.
+    return entry
 

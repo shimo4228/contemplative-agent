@@ -647,7 +647,8 @@ def _generate_via_backend(
     tel: Dict[str, Any],
 ) -> Optional[str]:
     """Injected-backend path of :func:`_generate_impl`."""
-    assert _backend is not None  # guaranteed by caller
+    backend = _backend
+    assert backend is not None  # guaranteed by caller
     if temperature != 1.0:
         logger.debug(
             "temperature=%.2f ignored: injected backend path does not "
@@ -655,7 +656,7 @@ def _generate_via_backend(
             temperature,
         )
     try:
-        raw_text = _backend.generate(prompt, system_prompt, effective_num_predict, format)
+        raw_text = backend.generate(prompt, system_prompt, effective_num_predict, format)
     except Exception as exc:  # backend may raise on unexpected failure
         logger.error("Backend generate() raised: %s", exc)
         _circuit.record_failure()

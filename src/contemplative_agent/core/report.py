@@ -110,6 +110,92 @@ def _format_ts(ts: str) -> str:
     return ts[:19].replace("T", " ") if ts else ""
 
 
+def _comments_section(comments: List[Dict[str, Any]]) -> List[str]:
+    lines = [f"## Comments ({len(comments)} total)", ""]
+    for i, c in enumerate(comments, 1):
+        pid = c.get("post_id", "")[:12]
+        rel = c.get("relevance", "N/A")
+        original = _defang_urls(c.get("original_post", ""))
+        lines.append(
+            f"### {i}. [{_format_ts(c['ts'])}] "
+            f"Post ID: {pid}... (relevance: {rel})"
+        )
+        lines.append("")
+        if original:
+            lines.append("**Original post:**")
+            lines.append(original)
+            lines.append("")
+        lines.append("**Comment:**")
+        lines.append(_defang_urls(c.get("content", "")))
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+    return lines
+
+
+def _replies_section(replies: List[Dict[str, Any]]) -> List[str]:
+    lines = [f"## Replies ({len(replies)} total)", ""]
+    for i, r in enumerate(replies, 1):
+        pid = r.get("post_id", "")[:12]
+        target = r.get("target_agent", "unknown")
+        original = _defang_urls(r.get("original_post", ""))
+        their = _defang_urls(r.get("their_comment", ""))
+        lines.append(
+            f"### {i}. [{_format_ts(r['ts'])}] "
+            f"Reply to {target} on Post ID: {pid}..."
+        )
+        lines.append("")
+        if original:
+            lines.append("**Original post:**")
+            lines.append(original)
+            lines.append("")
+        if their:
+            lines.append("**Their comment:**")
+            lines.append(their)
+            lines.append("")
+        lines.append("**Reply:**")
+        lines.append(_defang_urls(r.get("content", "")))
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+    return lines
+
+
+def _posts_section(posts: List[Dict[str, Any]]) -> List[str]:
+    lines = [f"## Self Posts ({len(posts)} total)", ""]
+    for i, p in enumerate(posts, 1):
+        title = p.get("title", "Untitled")
+        submolt = p.get("submolt", "")
+        lines.append(f"### {i}. [{_format_ts(p['ts'])}] {title}")
+        if submolt:
+            lines.append(f"Submolt: {submolt}")
+        lines.append("")
+        lines.append(_defang_urls(p.get("content", "")))
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+    return lines
+
+
+def _summary_section(
+    comments: List[Dict[str, Any]],
+    replies: List[Dict[str, Any]],
+    posts: List[Dict[str, Any]],
+) -> List[str]:
+    lines = [
+        "## Summary",
+        f"- Comments: {len(comments)}",
+        f"- Replies: {len(replies)}",
+        f"- Self posts: {len(posts)}",
+    ]
+    if comments:
+        rels = [float(c["relevance"]) for c in comments if c.get("relevance")]
+        if rels:
+            lines.append(f"- Relevance range: {min(rels):.2f} - {max(rels):.2f}")
+    lines.append("")
+    return lines
+
+
 def _build_report(
     date: str,
     comments: List[Dict[str, Any]],
@@ -128,78 +214,12 @@ def _build_report(
         lines.append("")
 
     if comments:
-        lines.append(f"## Comments ({len(comments)} total)")
-        lines.append("")
-        for i, c in enumerate(comments, 1):
-            pid = c.get("post_id", "")[:12]
-            rel = c.get("relevance", "N/A")
-            original = _defang_urls(c.get("original_post", ""))
-            lines.append(
-                f"### {i}. [{_format_ts(c['ts'])}] "
-                f"Post ID: {pid}... (relevance: {rel})"
-            )
-            lines.append("")
-            if original:
-                lines.append("**Original post:**")
-                lines.append(original)
-                lines.append("")
-            lines.append("**Comment:**")
-            lines.append(_defang_urls(c.get("content", "")))
-            lines.append("")
-            lines.append("---")
-            lines.append("")
-
+        lines.extend(_comments_section(comments))
     if replies:
-        lines.append(f"## Replies ({len(replies)} total)")
-        lines.append("")
-        for i, r in enumerate(replies, 1):
-            pid = r.get("post_id", "")[:12]
-            target = r.get("target_agent", "unknown")
-            original = _defang_urls(r.get("original_post", ""))
-            their = _defang_urls(r.get("their_comment", ""))
-            lines.append(
-                f"### {i}. [{_format_ts(r['ts'])}] "
-                f"Reply to {target} on Post ID: {pid}..."
-            )
-            lines.append("")
-            if original:
-                lines.append("**Original post:**")
-                lines.append(original)
-                lines.append("")
-            if their:
-                lines.append("**Their comment:**")
-                lines.append(their)
-                lines.append("")
-            lines.append("**Reply:**")
-            lines.append(_defang_urls(r.get("content", "")))
-            lines.append("")
-            lines.append("---")
-            lines.append("")
-
+        lines.extend(_replies_section(replies))
     if posts:
-        lines.append(f"## Self Posts ({len(posts)} total)")
-        lines.append("")
-        for i, p in enumerate(posts, 1):
-            title = p.get("title", "Untitled")
-            submolt = p.get("submolt", "")
-            lines.append(f"### {i}. [{_format_ts(p['ts'])}] {title}")
-            if submolt:
-                lines.append(f"Submolt: {submolt}")
-            lines.append("")
-            lines.append(_defang_urls(p.get("content", "")))
-            lines.append("")
-            lines.append("---")
-            lines.append("")
-
-    lines.append("## Summary")
-    lines.append(f"- Comments: {len(comments)}")
-    lines.append(f"- Replies: {len(replies)}")
-    lines.append(f"- Self posts: {len(posts)}")
-    if comments:
-        rels = [float(c["relevance"]) for c in comments if c.get("relevance")]
-        if rels:
-            lines.append(f"- Relevance range: {min(rels):.2f} - {max(rels):.2f}")
-    lines.append("")
+        lines.extend(_posts_section(posts))
+    lines.extend(_summary_section(comments, replies, posts))
 
     return "\n".join(lines)
 

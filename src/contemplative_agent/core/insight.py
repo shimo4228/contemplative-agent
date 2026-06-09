@@ -211,20 +211,7 @@ def extract_insight(
 
     knowledge_store.load()
 
-    # ADR-0021/0051: pull live-only patterns so bitemporally superseded
-    # entries never enter batching.
-    # ADR-0026: dropped category="uncategorized" gate; gated=True is the
-    # only hard exclusion (handled by _build_cluster_batches).
-    if full:
-        raw_patterns = knowledge_store.get_live_patterns()
-    else:
-        last_run = _read_last_insight(skills_dir)
-        if last_run:
-            raw_patterns = knowledge_store.get_live_patterns_since(last_run)
-            logger.info("Incremental mode: %d new patterns since %s", len(raw_patterns), last_run)
-        else:
-            raw_patterns = knowledge_store.get_live_patterns()
-            logger.info("No previous insight run found, processing all %d patterns", len(raw_patterns))
+    raw_patterns = _select_patterns(knowledge_store, skills_dir, full)
 
     if len(raw_patterns) < MIN_PATTERNS_REQUIRED:
         return (
@@ -258,46 +245,14 @@ def extract_insight(
         )
 
     for batch_idx, (topic, batch, batch_pids) in enumerate(batches):
-        logger.info(
-            "Batch %d/%d [%s]: %d patterns",
-            batch_idx + 1, len(batches), topic, len(batch),
+        result = _extract_one_batch(
+            topic, batch, batch_pids, batch_idx, len(batches),
+            skills_dir, patterns_by_id,
         )
-
-        skill_text = _extract_skill(batch, topic=topic)
-        if skill_text is None:
-            logger.warning(
-                "Batch %d/%d [%s]: extraction failed",
-                batch_idx + 1, len(batches), topic,
-            )
+        if result is None:
             dropped_count += 1
-            continue
-
-        if not validate_identity_content(skill_text):
-            logger.warning(
-                "Batch %d/%d [%s]: forbidden pattern detected",
-                batch_idx + 1, len(batches), topic,
-            )
-            dropped_count += 1
-            continue
-
-        resolved = resolve_artifact_path(
-            skill_text,
-            skills_dir,
-            label=f"Batch {batch_idx + 1}/{len(batches)} [{topic}]",
-        )
-        if resolved is None:
-            dropped_count += 1
-            continue
-
-        skill_results.append(SkillResult(
-            text=skill_text,
-            filename=resolved.filename,
-            target_path=resolved.target_path,
-            pattern_ids=batch_pids,
-            epistemic_counts=epistemic_counts_for(
-                [patterns_by_id[pid] for pid in batch_pids if pid in patterns_by_id]
-            ),
-        ))
+        else:
+            skill_results.append(result)
 
     if not skill_results:
         return "Failed to extract skill from knowledge."
@@ -305,4 +260,77 @@ def extract_insight(
     return InsightResult(
         skills=tuple(skill_results),
         dropped_count=dropped_count,
+    )
+
+
+def _select_patterns(
+    knowledge_store: KnowledgeStore,
+    skills_dir: Optional[Path],
+    full: bool,
+) -> List[dict]:
+    """Pick the live patterns to process (full vs incremental).
+
+    ADR-0021/0051: pull live-only patterns so bitemporally superseded
+    entries never enter batching.
+    ADR-0026: dropped category="uncategorized" gate; gated=True is the
+    only hard exclusion (handled by _build_cluster_batches).
+    """
+    if full:
+        return knowledge_store.get_live_patterns()
+    last_run = _read_last_insight(skills_dir)
+    if last_run:
+        raw_patterns = knowledge_store.get_live_patterns_since(last_run)
+        logger.info("Incremental mode: %d new patterns since %s", len(raw_patterns), last_run)
+        return raw_patterns
+    raw_patterns = knowledge_store.get_live_patterns()
+    logger.info("No previous insight run found, processing all %d patterns", len(raw_patterns))
+    return raw_patterns
+
+
+def _extract_one_batch(
+    topic: str,
+    batch: List[str],
+    batch_pids: Tuple[str, ...],
+    batch_idx: int,
+    n_batches: int,
+    skills_dir: Optional[Path],
+    patterns_by_id: Dict[str, dict],
+) -> Optional[SkillResult]:
+    """Extract + validate one cluster batch; None when dropped."""
+    logger.info(
+        "Batch %d/%d [%s]: %d patterns",
+        batch_idx + 1, n_batches, topic, len(batch),
+    )
+
+    skill_text = _extract_skill(batch, topic=topic)
+    if skill_text is None:
+        logger.warning(
+            "Batch %d/%d [%s]: extraction failed",
+            batch_idx + 1, n_batches, topic,
+        )
+        return None
+
+    if not validate_identity_content(skill_text):
+        logger.warning(
+            "Batch %d/%d [%s]: forbidden pattern detected",
+            batch_idx + 1, n_batches, topic,
+        )
+        return None
+
+    resolved = resolve_artifact_path(
+        skill_text,
+        skills_dir,
+        label=f"Batch {batch_idx + 1}/{n_batches} [{topic}]",
+    )
+    if resolved is None:
+        return None
+
+    return SkillResult(
+        text=skill_text,
+        filename=resolved.filename,
+        target_path=resolved.target_path,
+        pattern_ids=batch_pids,
+        epistemic_counts=epistemic_counts_for(
+            [patterns_by_id[pid] for pid in batch_pids if pid in patterns_by_id]
+        ),
     )

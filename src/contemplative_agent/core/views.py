@@ -32,7 +32,7 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional
+from typing import Dict, List, Mapping, Optional, Tuple
 
 import numpy as np
 
@@ -124,6 +124,35 @@ def _resolve_seed_from(
     return "\n\n".join(texts)
 
 
+def _parse_frontmatter(
+    front: str, view_name: str
+) -> Tuple[float, Optional[int], Optional[str]]:
+    """Parse frontmatter lines; return (threshold, top_k, seed_from)."""
+    threshold = _DEFAULT_THRESHOLD
+    top_k: Optional[int] = _DEFAULT_TOP_K
+    seed_from: Optional[str] = None
+    for line in front.splitlines():
+        line = line.strip()
+        if not line or ":" not in line:
+            continue
+        key, _, value = line.partition(":")
+        key = key.strip()
+        value = value.strip()
+        if key == "threshold":
+            try:
+                threshold = float(value)
+            except ValueError:
+                logger.warning("View %s: invalid threshold %r", view_name, value)
+        elif key == "top_k":
+            try:
+                top_k = int(value)
+            except ValueError:
+                logger.warning("View %s: invalid top_k %r", view_name, value)
+        elif key == "seed_from":
+            seed_from = value
+    return threshold, top_k, seed_from
+
+
 def _parse_seed_file(
     path: Path,
     path_vars: Optional[Mapping[str, Path]] = None,
@@ -136,25 +165,7 @@ def _parse_seed_file(
     seed_from: Optional[str] = None
     if match:
         front, body = match.group(1), match.group(2)
-        for line in front.splitlines():
-            line = line.strip()
-            if not line or ":" not in line:
-                continue
-            key, _, value = line.partition(":")
-            key = key.strip()
-            value = value.strip()
-            if key == "threshold":
-                try:
-                    threshold = float(value)
-                except ValueError:
-                    logger.warning("View %s: invalid threshold %r", path.name, value)
-            elif key == "top_k":
-                try:
-                    top_k = int(value)
-                except ValueError:
-                    logger.warning("View %s: invalid top_k %r", path.name, value)
-            elif key == "seed_from":
-                seed_from = value
+        threshold, top_k, seed_from = _parse_frontmatter(front, path.name)
     else:
         body = raw
 

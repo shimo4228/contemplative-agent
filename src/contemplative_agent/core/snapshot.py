@@ -123,16 +123,7 @@ def write_snapshot(
         if identity_path is not None and identity_path.is_file():
             shutil.copy2(identity_path, snap_dir / "identity.md")
 
-        centroids: Dict[str, np.ndarray] = {}
-        view_names: List[str] = []
-        if view_registry is not None:
-            view_names = view_registry.names()
-            for name in view_names:
-                c = view_registry.get_centroid(name)
-                if c is not None:
-                    centroids[name] = c
-        if centroids:
-            np.savez(snap_dir / "centroids.npz", **centroids)  # type: ignore[arg-type]
+        view_names = _save_centroids(snap_dir, view_registry)
 
         manifest = {
             "command": command,
@@ -157,3 +148,18 @@ def write_snapshot(
     except OSError as exc:
         logger.warning("Snapshot write failed under %s: %s", snap_dir, exc)
         return None
+
+
+def _save_centroids(snap_dir: Path, view_registry: Optional[ViewRegistry]) -> List[str]:
+    """Save view centroids to centroids.npz; return the view names."""
+    centroids: Dict[str, np.ndarray] = {}
+    view_names: List[str] = []
+    if view_registry is not None:
+        view_names = view_registry.names()
+        for name in view_names:
+            c = view_registry.get_centroid(name)
+            if c is not None:
+                centroids[name] = c
+    if centroids:
+        np.savez(snap_dir / "centroids.npz", **centroids)  # type: ignore[arg-type]
+    return view_names
