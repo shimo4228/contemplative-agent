@@ -116,7 +116,7 @@ def interpret_and_save(
         return f"{summary}\n\n{save_msg}"
 
     prompt = prompt_template.replace("{meditation_summary}", summary)
-    llm_output = generate(prompt, num_predict=400)
+    llm_output = generate(prompt, num_predict=400, caller="meditation.report")
 
     if not llm_output:
         save_msg = f"(Result saved to {results_path})" if not dry_run else "(dry run)"

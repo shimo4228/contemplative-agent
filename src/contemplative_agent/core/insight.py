@@ -83,7 +83,10 @@ def _extract_skill(
     # conditioned on the existing skill corpus, or each new skill inherits
     # the vocabulary of the last (audit H6).
     result = generate(
-        prompt, system=get_distill_system_prompt(), num_predict=3000
+        prompt,
+        system=get_distill_system_prompt(),
+        num_predict=3000,
+        caller="insight.skill_extract",
     )
     if result is None:
         logger.warning("LLM failed to generate skill extraction.")

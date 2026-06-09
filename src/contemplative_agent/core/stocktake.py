@@ -144,7 +144,9 @@ def _find_duplicate_groups(
     prompt = prompt_template.format(items=_format_items(items))
     num_predict = min(8192, max(3000, _GROUPING_TOKENS_PER_FILE * len(items)))
     system = STOCKTAKE_GROUP_SYSTEM_PROMPT or _DEFAULT_GROUP_SYSTEM
-    raw = generate(prompt, system=system, num_predict=num_predict)
+    raw = generate(
+        prompt, system=system, num_predict=num_predict, caller="stocktake.duplicates"
+    )
     if raw is None:
         logger.warning("LLM failed during stocktake duplicate detection")
         return []
@@ -224,7 +226,9 @@ def merge_group(
     # behavior unchanged; ceiling stays within the model's num_ctx headroom.
     num_predict = min(8192, max(3000, _PER_FILE_MERGE_TOKENS * len(items)))
     system = STOCKTAKE_MERGE_SYSTEM_PROMPT or _DEFAULT_MERGE_SYSTEM
-    return generate(prompt, system=system, num_predict=num_predict)
+    return generate(
+        prompt, system=system, num_predict=num_predict, caller="stocktake.merge"
+    )
 
 
 def is_merge_rejected(merged_text: str) -> bool:
@@ -280,6 +284,7 @@ def clean_skill_triggers(
         prompt,
         system=STOCKTAKE_CLEAN_SYSTEM_PROMPT or _DEFAULT_CLEAN_SYSTEM,
         num_predict=_CLEAN_TOKENS,
+        caller="stocktake.clean_triggers",
     )
 
 

@@ -579,6 +579,9 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     if RULES_DIR.is_dir():
         configure_llm(rules_dir=RULES_DIR)
 
+    # Per-call telemetry (llm-calls-{date}.jsonl) alongside the episode log.
+    configure_llm(telemetry_dir=EPISODE_LOG_DIR)
+
     return domain_config
 
 

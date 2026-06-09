@@ -72,7 +72,12 @@ def score_relevance(post_text: str) -> float:
     )
     # Identity-only system: scoring needs the domain identity as its
     # reference (relevance.md) but not the learned skills/rules corpus.
-    result = generate(prompt, system=get_identity_system_prompt(), num_predict=30)
+    result = generate(
+        prompt,
+        system=get_identity_system_prompt(),
+        num_predict=30,
+        caller="moltbook.score_relevance",
+    )
     if result is None:
         return 0.0
 
@@ -109,7 +114,11 @@ def generate_internal_note(content: str) -> str:
     # Identity-only system: the note keeps the first-person register but
     # not the learned corpus, cutting the vocabulary feedback path
     # note → episode → distill.
-    result = generate(prompt, system=get_identity_system_prompt())
+    result = generate(
+        prompt,
+        system=get_identity_system_prompt(),
+        caller="moltbook.internal_note",
+    )
     return result.strip() if result else ""
 
 
@@ -130,6 +139,7 @@ def generate_comment(post_text: str) -> Optional[str]:
         max_length=MAX_COMMENT_LENGTH,
         temperature=COMMENT_TEMPERATURE,
         chars_per_token=1.5,
+        caller="moltbook.comment",
     )
 
 
@@ -183,7 +193,10 @@ def generate_cooperation_post(
     # budget guard would then skip every self-post under the full system
     # prompt (10-21K tok). /3 ≈ 13.4K tok output is ample for posts.
     return generate_for_api(
-        prompt, max_length=MAX_POST_LENGTH, temperature=COMMENT_TEMPERATURE
+        prompt,
+        max_length=MAX_POST_LENGTH,
+        temperature=COMMENT_TEMPERATURE,
+        caller="moltbook.cooperation_post",
     )
 
 
@@ -211,6 +224,7 @@ def generate_reply(
         max_length=MAX_COMMENT_LENGTH,
         temperature=COMMENT_TEMPERATURE,
         chars_per_token=1.5,
+        caller="moltbook.reply",
     )
 
 
@@ -228,7 +242,10 @@ def generate_post_title(feed_seed_text: str) -> Optional[str]:
     # chars_per_token=1.5 (audit M2): CJK-safe output budget; at
     # max_length=300 the cost is 250 vs 150 tokens — negligible.
     result = generate_for_api(
-        prompt, max_length=MAX_POST_TITLE_LENGTH, chars_per_token=1.5
+        prompt,
+        max_length=MAX_POST_TITLE_LENGTH,
+        chars_per_token=1.5,
+        caller="moltbook.post_title",
     )
     if result:
         # Strip surrounding whitespace, then at most ONE balanced quote
@@ -253,7 +270,12 @@ def summarize_post_topic(content: str) -> str:
     prompt = TOPIC_SUMMARY_PROMPT.format(
         post_content=wrap_untrusted_content(content, max_input=2000),
     )
-    result = generate(prompt, system=get_identity_system_prompt(), num_predict=60)
+    result = generate(
+        prompt,
+        system=get_identity_system_prompt(),
+        num_predict=60,
+        caller="moltbook.topic_summary",
+    )
     if result:
         return result.strip()[:POST_TOPIC_SUMMARY_MAX]
     # Audit L7: returning raw post content here stored external prose
@@ -272,7 +294,12 @@ def select_submolt(
         submolt_list=submolt_list,
         post_content=wrap_untrusted_content(content, max_input=1000),
     )
-    result = generate(prompt, system=get_identity_system_prompt(), num_predict=20)
+    result = generate(
+        prompt,
+        system=get_identity_system_prompt(),
+        num_predict=20,
+        caller="moltbook.select_submolt",
+    )
     if result is None:
         return None
 

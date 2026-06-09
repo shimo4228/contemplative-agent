@@ -2,18 +2,21 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
 import os
 import re
 import time
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Dict, Optional, Protocol, Tuple, runtime_checkable
 from urllib.parse import urlparse
 
 import requests
 
+from ._io import append_jsonl_restricted, now_iso
 from .config import (
     FORBIDDEN_ASSIGNMENT_RE,
     FORBIDDEN_SUBSTRING_PATTERNS,
@@ -70,6 +73,7 @@ _axiom_prompt: Optional[str] = None
 _skills_dir: Optional[Path] = None
 _rules_dir: Optional[Path] = None
 _backend: Optional[LLMBackend] = None
+_telemetry_dir: Optional[Path] = None
 
 # Cache for _load_md_files results, keyed by directory path.
 # Value is (mtime_key, concatenated_contents). Invalidated automatically
@@ -87,6 +91,7 @@ def configure(
     skills_dir: Optional[Path] = None,
     rules_dir: Optional[Path] = None,
     backend: Optional[LLMBackend] = None,
+    telemetry_dir: Optional[Path] = None,
 ) -> None:
     """Configure LLM module with adapter-specific settings.
 
@@ -105,10 +110,14 @@ def configure(
             Ollama HTTP path. Sanitization and circuit breaker continue
             to apply. Main-repo default is ``None`` (local Ollama only);
             external add-ons may inject a provider here.
+        telemetry_dir: Directory for per-call telemetry JSONL
+            (``llm-calls-{date}.jsonl``). ``None`` (default) disables
+            telemetry. Records carry call metadata only, never the prompt
+            body (see ``_emit_telemetry``).
     """
     global _identity_path, _ollama_base_url, _ollama_model
     global _default_system_prompt, _axiom_prompt, _skills_dir, _rules_dir
-    global _backend
+    global _backend, _telemetry_dir
     if identity_path is not None:
         _identity_path = identity_path
     if ollama_base_url is not None:
@@ -125,13 +134,15 @@ def configure(
         _rules_dir = rules_dir
     if backend is not None:
         _backend = backend
+    if telemetry_dir is not None:
+        _telemetry_dir = telemetry_dir
 
 
 def reset_llm_config() -> None:
     """Reset module-level LLM config and circuit breaker to defaults. Useful for testing."""
     global _identity_path, _ollama_base_url, _ollama_model
     global _default_system_prompt, _axiom_prompt, _skills_dir, _rules_dir
-    global _backend
+    global _backend, _telemetry_dir
     _identity_path = None
     _ollama_base_url = _DEFAULT_OLLAMA_URL
     _ollama_model = _DEFAULT_OLLAMA_MODEL
@@ -140,6 +151,7 @@ def reset_llm_config() -> None:
     _skills_dir = None
     _rules_dir = None
     _backend = None
+    _telemetry_dir = None
     _MD_CACHE.clear()
     _circuit.reset()
 
@@ -446,6 +458,26 @@ def _estimate_tokens(text: str) -> int:
     return math.ceil(ascii_count / 3) + (len(text) - ascii_count)
 
 
+def _emit_telemetry(record: Dict[str, Any]) -> None:
+    """Append one telemetry record to ``llm-calls-{date}.jsonl``.
+
+    No-op when ``_telemetry_dir`` is unset. Never raises: a telemetry
+    write failure must not break the generation it observes. The record
+    carries call metadata only — never the prompt body, which may embed
+    untrusted external content and would otherwise become a second
+    injection path when telemetry is read back by analysis sessions.
+    """
+    if _telemetry_dir is None:
+        return
+    try:
+        date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        append_jsonl_restricted(
+            _telemetry_dir / f"llm-calls-{date_str}.jsonl", record
+        )
+    except Exception as exc:
+        logger.warning("Failed to write LLM telemetry: %s", exc)
+
+
 def generate(
     prompt: str,
     system: Optional[str] = None,
@@ -454,6 +486,7 @@ def generate(
     format: Optional[Dict] = None,
     temperature: float = 1.0,
     drop_truncated: bool = False,
+    caller: str = "unknown",
 ) -> Optional[str]:
     """Generate text via the configured backend (default: local Ollama).
 
@@ -481,6 +514,9 @@ def generate(
             keep the partial text and rely on their own fallbacks; a
             WARNING is logged either way. Ollama-path only — an injected
             backend does not expose a truncation signal.
+        caller: Stage label recorded in per-call telemetry (e.g.
+            ``"distill.category"``). Identifies which pipeline stage made
+            the call; never affects generation.
 
     Returns sanitized output, or None on failure — including when the
     estimated input + ``num_predict`` would exceed ``NUM_CTX`` on the
@@ -492,12 +528,64 @@ def generate(
     path runs. Sanitization, circuit breaker, and empty-response handling
     apply uniformly across both paths.
     """
+    effective_num_predict = num_predict if num_predict is not None else 8192
+    tel: Dict[str, Any] = {
+        "ts": now_iso(timespec="seconds"),
+        "caller": caller,
+        # On the injected-backend path the model id is unknown to this
+        # module, so the backend class name is recorded as a sentinel —
+        # telemetry queries grouping by model see it as a distinct bucket,
+        # not an Ollama model slug.
+        "model": type(_backend).__name__ if _backend is not None else _get_model(),
+        "prompt_chars": len(prompt),
+        "system_chars": None,
+        "num_predict": effective_num_predict,
+        "temperature": temperature,
+        "has_format": format is not None,
+        "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:12],
+        "duration_ms": None,
+        # Default covers unexpected exceptions: any path that does not
+        # explicitly set an outcome below records as an error.
+        "outcome": "error",
+        "done_reason": None,
+        "prompt_eval_count": None,
+        "eval_count": None,
+    }
+    started = time.monotonic()
+    try:
+        return _generate_impl(
+            prompt,
+            system,
+            max_length,
+            format,
+            temperature,
+            drop_truncated,
+            effective_num_predict,
+            tel,
+        )
+    finally:
+        tel["duration_ms"] = int((time.monotonic() - started) * 1000)
+        _emit_telemetry(tel)
+
+
+def _generate_impl(
+    prompt: str,
+    system: Optional[str],
+    max_length: Optional[int],
+    format: Optional[Dict],
+    temperature: float,
+    drop_truncated: bool,
+    effective_num_predict: int,
+    tel: Dict[str, Any],
+) -> Optional[str]:
+    """Body of :func:`generate`; mutates *tel* with outcome metadata."""
     if _circuit.is_open:
         logger.debug("Circuit breaker open — skipping LLM request")
+        tel["outcome"] = "circuit_open"
         return None
 
     system_prompt = system or _build_system_prompt()
-    effective_num_predict = num_predict if num_predict is not None else 8192
+    tel["system_chars"] = len(system_prompt)
 
     if _backend is not None:
         if temperature != 1.0:
@@ -515,8 +603,10 @@ def generate(
         if raw_text is None or not raw_text.strip():
             logger.warning("Backend returned empty response")
             _circuit.record_failure()
+            tel["outcome"] = "empty"
             return None
         _circuit.record_success()
+        tel["outcome"] = "ok"
         return _sanitize_output(raw_text, max_length)
 
     # Ollama-path token-budget pre-flight (audit C2). The injected-backend
@@ -539,6 +629,7 @@ def generate(
             effective_num_predict,
             NUM_CTX,
         )
+        tel["outcome"] = "budget_exceeded"
         return None
 
     try:
@@ -585,7 +676,13 @@ def generate(
     if not raw_text.strip():
         logger.warning("Ollama returned empty response")
         _circuit.record_failure()
+        tel["outcome"] = "empty"
         return None
+
+    tel["done_reason"] = data.get("done_reason")
+    eval_count = data.get("eval_count")
+    if isinstance(eval_count, int):
+        tel["eval_count"] = eval_count
 
     # Output-truncation signal (audit M2): done_reason == "length" means the
     # model hit num_predict mid-generation. Not a backend fault — the call
@@ -599,6 +696,7 @@ def generate(
                 effective_num_predict,
             )
             _circuit.record_success()
+            tel["outcome"] = "truncated_dropped"
             return None
         logger.warning(
             "Output truncated at num_predict=%d (done_reason=length); "
@@ -615,6 +713,8 @@ def generate(
     # isinstance check: this block runs outside the parse try/except, so a
     # non-int value from a proxy or future Ollama build must not TypeError.
     prompt_eval = data.get("prompt_eval_count")
+    if isinstance(prompt_eval, int):
+        tel["prompt_eval_count"] = prompt_eval
     sent_chars = len(system_prompt) + len(prompt)
     if (
         isinstance(prompt_eval, int)
@@ -632,6 +732,7 @@ def generate(
         )
 
     _circuit.record_success()
+    tel["outcome"] = "ok"
     return _sanitize_output(raw_text, max_length)
 
 
@@ -642,6 +743,7 @@ def generate_for_api(
     system: Optional[str] = None,
     temperature: float = 1.0,
     chars_per_token: float = 3.0,
+    caller: str = "unknown",
 ) -> Optional[str]:
     """Generate text for an API publish path (post/comment/reply/title).
 
@@ -679,6 +781,7 @@ def generate_for_api(
         num_predict=estimated_num_predict,
         temperature=temperature,
         drop_truncated=True,
+        caller=caller,
     )
 
 

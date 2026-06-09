@@ -14,6 +14,7 @@ sent by the initiator does not count as a reply — it is the opening move).
 
 from __future__ import annotations
 
+import functools
 import json
 import logging
 import sys
@@ -71,12 +72,13 @@ def run_peer_loop(
     max_turns: int,
     seed: Optional[str] = None,
     label: str = "peer",
-    generate_fn=generate,
+    generate_fn=functools.partial(generate, caller="dialogue.peer"),
 ) -> int:
     """Run one peer's dialogue loop. Returns the number of replies generated.
 
     The ``generate_fn`` indirection exists for tests — production callers use
-    the default (``core.llm.generate``).
+    the default (``core.llm.generate`` with the telemetry caller label
+    pre-bound; the 2-argument call protocol is unchanged).
     """
     history: list[str] = []
     replies_generated = 0

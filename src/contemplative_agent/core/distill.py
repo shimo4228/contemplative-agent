@@ -250,7 +250,12 @@ def distill_identity(
         knowledge=knowledge_text,
     )
 
-    result = generate(prompt, system=get_distill_system_prompt(), num_predict=3000)
+    result = generate(
+        prompt,
+        system=get_distill_system_prompt(),
+        num_predict=3000,
+        caller="distill.identity",
+    )
     if result is None:
         msg = "LLM failed to generate identity revision."
         logger.warning(msg)
@@ -538,14 +543,21 @@ def _distill_category(
         prompt = DISTILL_PROMPT.format(episodes="\n".join(episode_lines))
 
         # Step 1: Extract — free-form output, with rules/axioms as lens
-        result = generate(prompt, system=get_distill_system_prompt(), num_predict=3000)
+        result = generate(
+            prompt,
+            system=get_distill_system_prompt(),
+            num_predict=3000,
+            caller="distill.category",
+        )
         if result is None:
             logger.warning("Batch %d/%d: step 1 (extract) failed", batch_idx + 1, len(batches))
             continue
 
         # Step 2: Summarize — concise patterns as JSON string array
         refine_prompt = DISTILL_REFINE_PROMPT.format(raw_output=result)
-        refined = generate(refine_prompt, num_predict=3000)
+        refined = generate(
+            refine_prompt, num_predict=3000, caller="distill.category_refine"
+        )
         if refined is None:
             # Audit M1: skip the batch rather than feed step-1 prose to the
             # JSON parser — the bullet fallback would either harvest raw
@@ -586,7 +598,12 @@ def _distill_category(
         if batch_patterns and DISTILL_IMPORTANCE_PROMPT:
             patterns_text = "\n".join(f"- {p}" for p in batch_patterns)
             importance_prompt = DISTILL_IMPORTANCE_PROMPT.format(patterns=patterns_text)
-            importance_result = generate(importance_prompt, num_predict=3000, format=IMPORTANCE_SCHEMA)
+            importance_result = generate(
+                importance_prompt,
+                num_predict=3000,
+                format=IMPORTANCE_SCHEMA,
+                caller="distill.importance",
+            )
             if importance_result:
                 batch_importances = _parse_importance_scores(importance_result, len(batch_patterns))
 
