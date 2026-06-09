@@ -93,9 +93,48 @@ class PostPipeline:
         by NoveltyGate (ADR-0039), and its input (``topics``) no longer
         exists post-ADR-0043.
         """
-        ctx = self._ctx
-        posts = self._get_feed()
+        feed_seeds = self._select_and_log_seeds(self._get_feed())
+        if not feed_seeds:
+            return
 
+        note = self._compose_note(feed_seeds)
+
+        content = self._get_content().create_cooperation_post(feed_seeds)
+        if content is None:
+            return
+
+        title = self._compose_title(feed_seeds)
+
+        # draft_summary is reused at record_post time to avoid a second LLM
+        # call on the same content; content_hash likewise (gate + record).
+        draft_summary = summarize_post_topic(content)
+        recent_posts = self._ctx.memory.get_recent_posts(limit=50)
+        content_hash = _content_hash(content)
+        if not self._passes_deterministic_gates(
+            title, content, draft_summary, recent_posts, content_hash
+        ):
+            return
+
+        if not self._confirm_action(f"Dynamic Post: {title}", content):
+            return
+
+        # Re-check rate limit right before posting (another session may have posted)
+        if not scheduler.can_post():
+            logger.info("Post rate limit hit after content generation (concurrent session?)")
+            return
+
+        submolt = self._choose_submolt(content)
+        if submolt is None:
+            return
+
+        scheduler.wait_for_post()
+        self._publish_post(
+            client, scheduler, title, content, submolt,
+            note=note, draft_summary=draft_summary, content_hash=content_hash,
+        )
+
+    def _seed_candidates(self, posts: List[dict]) -> List[dict]:
+        """Filter feed posts down to seedable candidates."""
         # Restrict to subscribed submolts so score_relevance only runs on
         # in-domain candidates. This is a cost-saver, not a relevance gate —
         # the relevance_floor below is what enforces topical fit.
@@ -113,11 +152,11 @@ class PostPipeline:
         # re-entered the feed. own_agent_id may be empty if /home + /agents/me
         # both failed to populate it — then this is a no-op, same as the
         # comment path's `if ctx.own_agent_id` guard.
-        if ctx.own_agent_id:
+        if self._ctx.own_agent_id:
             before = len(candidates)
             candidates = [
                 p for p in candidates
-                if (p.get("author") or {}).get("id", "") != ctx.own_agent_id
+                if (p.get("author") or {}).get("id", "") != self._ctx.own_agent_id
             ]
             excluded = before - len(candidates)
             if excluded:
@@ -125,7 +164,11 @@ class PostPipeline:
                     "post-seeding: excluded %d own-authored candidate(s)",
                     excluded,
                 )
+        return candidates
 
+    def _select_and_log_seeds(self, posts: List[dict]) -> List[dict]:
+        """Sample peer-post seeds (ADR-0043); empty list when none pass."""
+        candidates = self._seed_candidates(posts)
         feed_seeds = select_feed_seeds(
             candidates,
             rng=np.random.default_rng(),
@@ -137,7 +180,7 @@ class PostPipeline:
                 "(candidates=%d), skipping post cycle",
                 len(candidates),
             )
-            return
+            return []
         combined_chars = sum(
             len(s.get("title", "") or "") + len(s.get("content", "") or "")
             for s in feed_seeds
@@ -148,49 +191,59 @@ class PostPipeline:
             combined_chars,
             [(s.get("id") or "")[:12] for s in feed_seeds],
         )
+        return feed_seeds
 
-        # Pre-action reflection (ADR-0045): note what we noticed in the peer
-        # voices before composing a post in response to them. Pass raw seed
-        # text — not format_feed_seeds(), which already wraps each seed in
-        # <untrusted_content> — so the note prompt sees plain content rather
-        # than nested tags; generate_internal_note wraps it once itself. A
-        # downstream gate may still block the post and waste this call, which
-        # is acceptable: self-posts are rate-limited to ~1/session.
+    def _compose_note(self, feed_seeds: List[dict]) -> str:
+        """Pre-action reflection (ADR-0045): note what we noticed in the peer
+        voices before composing a post in response to them. Pass raw seed
+        text — not format_feed_seeds(), which already wraps each seed in
+        <untrusted_content> — so the note prompt sees plain content rather
+        than nested tags; generate_internal_note wraps it once itself. A
+        downstream gate may still block the post and waste this call, which
+        is acceptable: self-posts are rate-limited to ~1/session.
+        """
         note_seed = "\n\n".join(
             f"{s.get('title', '') or ''}\n{s.get('content', '') or ''}".strip()
             for s in feed_seeds
         )
-        note = generate_internal_note(note_seed)
+        return generate_internal_note(note_seed)
 
-        content = self._get_content().create_cooperation_post(feed_seeds)
-        if content is None:
-            return
-
-        # Title is generated from the same peer-voice seeds, not from the
-        # generated content, so the title still reflects what the agent was
-        # responding to rather than re-summarising its own output.
+    def _compose_title(self, feed_seeds: List[dict]) -> str:
+        """Title is generated from the same peer-voice seeds, not from the
+        generated content, so the title still reflects what the agent was
+        responding to rather than re-summarising its own output.
+        """
         title_seed = format_feed_seeds(feed_seeds)
         first_seed_title = feed_seeds[0].get("title", "") or ""
-        title = (
+        return (
             generate_post_title(title_seed)
             or f"Contemplative Note — {first_seed_title[:40]}"
         )
 
-        # --- Deterministic gates ---
-        # Historical context: an LLM-based check_topic_novelty gate used to
-        # sit upstream of these and proved too lax (weekly report 2026-04-05
-        # showed 40 near-identical self-posts in 7 days). That LLM gate was
-        # retired in ADR-0043; its function now lives in NoveltyGate (ADR-0039,
-        # embedding-cosine) and per-post seeding (ADR-0043). The gates below
-        # remain the deterministic last line of defence. They are silent: when
-        # blocked we `return` without retry so the agent does not learn to
-        # evade them by swapping synonyms.
+    def _passes_deterministic_gates(
+        self,
+        title: str,
+        content: str,
+        draft_summary: str,
+        recent_posts: list,
+        content_hash: str,
+    ) -> bool:
+        """Deterministic last line of defence before publishing.
 
+        Historical context: an LLM-based check_topic_novelty gate used to
+        sit upstream of these and proved too lax (weekly report 2026-04-05
+        showed 40 near-identical self-posts in 7 days). That LLM gate was
+        retired in ADR-0043; its function now lives in NoveltyGate (ADR-0039,
+        embedding-cosine) and per-post seeding (ADR-0043). The gates below
+        remain the deterministic last line of defence. They are silent: when
+        blocked the caller `return`s without retry so the agent does not
+        learn to evade them by swapping synonyms.
+        """
         # Test-content gate: catches leftover scaffold output like
         # "Test Title" / "Dynamic content" that leaked in Mar 30–31.
         if is_test_content(title, content):
             logger.warning("Blocked test-content self-post: %r", title)
-            return
+            return False
 
         # Continuous novelty gate (ADR-0039): embedding-cosine novelty with
         # temporal decay, plus a rate-deficit Lagrangian term that loosens
@@ -198,10 +251,7 @@ class PostPipeline:
         # Jaccard gate that drifted into silent failure (1 post/day) in
         # May 2026. The retained Jaccard gate (dedup.is_duplicate_title) is
         # exercised only by NoveltyGate's fallback path when Ollama embedding
-        # is unavailable. draft_summary is reused below at record_post time
-        # to avoid a second LLM call on the same content.
-        draft_summary = summarize_post_topic(content)
-        recent_posts = ctx.memory.get_recent_posts(limit=50)
+        # is unavailable.
         decision = self._novelty_gate.evaluate(
             title, draft_summary, content, recent_posts,
         )
@@ -219,29 +269,23 @@ class PostPipeline:
                 decision.nearest_title,
                 title,
             )
-            return
+            return False
 
         # Body-hash dedup gate (ADR-0018 amendment 2026-05-04):
         # catches verbatim re-publication that title/summary Jaccard misses.
         # May 3 2026: self-post #2 was verbatim of Apr 30 #2 with a different
-        # title — Jaccard passed, body was identical. The local content_hash
-        # is also reused at record_post() below to avoid recomputing.
-        content_hash = _content_hash(content)
+        # title — Jaccard passed, body was identical.
         recent_post_hashes = {r.content_hash for r in recent_posts}
         if content_hash in recent_post_hashes:
             logger.info(
                 "Blocked verbatim duplicate self-post by body hash: %r", title,
             )
-            return
+            return False
 
-        if not self._confirm_action(f"Dynamic Post: {title}", content):
-            return
+        return True
 
-        # Re-check rate limit right before posting (another session may have posted)
-        if not scheduler.can_post():
-            logger.info("Post rate limit hit after content generation (concurrent session?)")
-            return
-
+    def _choose_submolt(self, content: str) -> str | None:
+        """Pick a submolt via the LLM; None when it fails validation."""
         selected = select_submolt(content, self._domain.subscribed_submolts)
         if selected is None or not VALID_SUBMOLT_PATTERN.match(selected):
             # Audit L5: skip, don't substitute — same idiom as the circuit
@@ -253,10 +297,23 @@ class PostPipeline:
                 "skipping post (skip, don't substitute)",
                 selected,
             )
-            return
-        submolt = selected
+            return None
+        return selected
 
-        scheduler.wait_for_post()
+    def _publish_post(
+        self,
+        client: MoltbookClient,
+        scheduler: Scheduler,
+        title: str,
+        content: str,
+        submolt: str,
+        *,
+        note: str,
+        draft_summary: str,
+        content_hash: str,
+    ) -> None:
+        """POST the content and record it in episodes / memory / NoveltyGate."""
+        ctx = self._ctx
         try:
             resp = client.post(
                 "/posts",

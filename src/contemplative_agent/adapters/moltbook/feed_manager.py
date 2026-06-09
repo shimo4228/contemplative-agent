@@ -148,12 +148,83 @@ class FeedManager:
         scheduler: Scheduler,
     ) -> bool:
         """Score and potentially comment on a post."""
-        ctx = self._ctx
-
         post_text = post.get("content", "")
         post_id = post.get("id", "")
-        if not post_text or not post_id:
+        author_id = (post.get("author") or {}).get("id", "")
+        if (
+            not post_text
+            or not post_id
+            or not self._passes_engagement_gates(post, post_text, post_id, author_id)
+        ):
             return False
+
+        score = score_relevance(post_text)
+        threshold = self._relevance_threshold(author_id)
+        # Pre-action reflection (ADR-0045): note what we noticed reading this
+        # post before acting. Generated once for any post we may engage with
+        # and shared across the upvote/comment episodes below. A separate,
+        # single-responsibility LLM call — not piggybacked on score_relevance.
+        note = (
+            generate_internal_note(post_text)
+            if score >= ADAPTIVE_BACKOFF.upvote_only_threshold
+            else ""
+        )
+        if score < threshold:
+            self._handle_below_threshold(post_id, score, threshold, note, client)
+            return False
+        logger.info(
+            "Post %s relevance %.2f passed threshold %.2f",
+            post_id[:12],
+            score,
+            threshold,
+        )
+
+        self._upvote_relevant(post_id, score, note, client)
+
+        if not scheduler.can_comment():
+            logger.info("Comment rate limit reached")
+            return False
+
+        # Submolt feeds return content truncated to a preview. We only learn a
+        # post is comment-worthy after scoring, so fetch the full body here —
+        # right before the comment that gets posted publicly and recorded as
+        # original_post. Following-feed posts are already full (len != preview).
+        # Scoring and the internal note above ran on the preview by design
+        # (cheap, gate-first); only the comment and the record get the full body.
+        post_text = self._fetch_full_if_truncated(post, post_text, client)
+
+        comment = self._get_content().create_comment(post_text)
+        if comment is None:
+            return False
+
+        if not self._confirm_action(
+            f"Comment on post {post_id} (relevance: {score:.2f})", comment
+        ):
+            return False
+
+        scheduler.wait_for_comment()
+        return self._post_comment_and_record(
+            post, post_id, post_text, score, note, comment, client, scheduler
+        )
+
+    def _passes_engagement_gates(
+        self, post: dict, post_text: str, post_id: str, author_id: str
+    ) -> bool:
+        """Run the skip-gate chain; True when the post may be engaged.
+
+        Gate order is load-bearing (cheap static checks before memory
+        lookups) — keep it in sync with the Data Flow section of
+        docs/CODEMAPS/architecture.md when it changes.
+        """
+        return self._passes_content_gates(
+            post, post_text, post_id, author_id
+        ) and self._passes_author_history_gates(author_id, post_text, post_id)
+
+    def _passes_content_gates(
+        self, post: dict, post_text: str, post_id: str, author_id: str
+    ) -> bool:
+        """Static gates: promo, own post, ID format, submolt, already-commented."""
+        ctx = self._ctx
 
         # Promotional content gate: defanged URLs and explicit CTAs.
         # Conservative regex — see dedup._PROMO_RE. Catches inbed.ai /
@@ -164,7 +235,6 @@ class FeedManager:
             return False
 
         # Skip our own posts
-        author_id = (post.get("author") or {}).get("id", "")
         if ctx.own_agent_id and author_id == ctx.own_agent_id:
             return False
 
@@ -187,6 +257,14 @@ class FeedManager:
         if post_id in ctx.commented_posts or ctx.memory.has_commented_on(post_id):
             logger.debug("Already commented on %s, skipping", post_id[:12])
             return False
+
+        return True
+
+    def _passes_author_history_gates(
+        self, author_id: str, post_text: str, post_id: str
+    ) -> bool:
+        """Memory-backed gates: same-author repeat topic, per-author 24h limit."""
+        ctx = self._ctx
 
         # Same-author repeat-topic gate: even if the post_id is new and the
         # 24h count is under 3, an author that paraphrases the same thesis
@@ -223,58 +301,53 @@ class FeedManager:
             )
             return False
 
-        score = score_relevance(post_text)
-        # Lower threshold for agents we've previously interacted with
-        threshold = (
-            self._domain.known_agent_threshold
-            if author_id and ctx.memory.has_interacted_with(author_id)
-            else self._domain.relevance_threshold
-        )
-        # Pre-action reflection (ADR-0045): note what we noticed reading this
-        # post before acting. Generated once for any post we may engage with
-        # and shared across the upvote/comment episodes below. A separate,
-        # single-responsibility LLM call — not piggybacked on score_relevance.
-        note = (
-            generate_internal_note(post_text)
-            if score >= ADAPTIVE_BACKOFF.upvote_only_threshold
-            else ""
-        )
-        if score < threshold:
-            # Upvote-only for near-threshold posts
-            if (
-                score >= ADAPTIVE_BACKOFF.upvote_only_threshold
-                and post_id not in self._upvoted_posts
-                and client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve)
-                and self._confirm_side_effect(f"Upvote post {post_id}")
-            ):
-                if client.upvote_post(post_id):
-                    self._upvoted_posts.add(post_id)
-                    ctx.memory.episodes.append("activity", {
-                        "action": "upvote", "post_id": post_id,
-                        "internal_note": note,
-                    })
-                    logger.info(
-                        "Upvoted post %s (relevance: %.2f, below comment threshold)",
-                        post_id[:12], score,
-                    )
-            else:
-                # INFO so skipped scores land in production logs: the relevance
-                # threshold retune (audit fix #2 follow-up) needs the FULL score
-                # distribution, not just the passing tail — debug was discarded
-                # at the production INFO level (censored-distribution trap).
-                logger.info(
-                    "Post %s relevance %.2f below threshold %.2f",
-                    post_id[:12], score, threshold,
-                )
-            return False
-        logger.info(
-            "Post %s relevance %.2f passed threshold %.2f",
-            post_id[:12],
-            score,
-            threshold,
-        )
+        return True
 
-        # Upvote relevant posts (regardless of whether we comment)
+    def _relevance_threshold(self, author_id: str) -> float:
+        """Comment threshold; lower for agents we've previously interacted with."""
+        if author_id and self._ctx.memory.has_interacted_with(author_id):
+            return self._domain.known_agent_threshold
+        return self._domain.relevance_threshold
+
+    def _handle_below_threshold(
+        self,
+        post_id: str,
+        score: float,
+        threshold: float,
+        note: str,
+        client: MoltbookClient,
+    ) -> None:
+        """Upvote-only for near-threshold posts; log the score otherwise."""
+        if (
+            score >= ADAPTIVE_BACKOFF.upvote_only_threshold
+            and post_id not in self._upvoted_posts
+            and client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve)
+            and self._confirm_side_effect(f"Upvote post {post_id}")
+        ):
+            if client.upvote_post(post_id):
+                self._upvoted_posts.add(post_id)
+                self._ctx.memory.episodes.append("activity", {
+                    "action": "upvote", "post_id": post_id,
+                    "internal_note": note,
+                })
+                logger.info(
+                    "Upvoted post %s (relevance: %.2f, below comment threshold)",
+                    post_id[:12], score,
+                )
+        else:
+            # INFO so skipped scores land in production logs: the relevance
+            # threshold retune (audit fix #2 follow-up) needs the FULL score
+            # distribution, not just the passing tail — debug was discarded
+            # at the production INFO level (censored-distribution trap).
+            logger.info(
+                "Post %s relevance %.2f below threshold %.2f",
+                post_id[:12], score, threshold,
+            )
+
+    def _upvote_relevant(
+        self, post_id: str, score: float, note: str, client: MoltbookClient
+    ) -> None:
+        """Upvote relevant posts (regardless of whether we comment)."""
         if (
             post_id not in self._upvoted_posts
             and client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve)
@@ -282,7 +355,7 @@ class FeedManager:
         ):
             if client.upvote_post(post_id):
                 self._upvoted_posts.add(post_id)
-                ctx.memory.episodes.append("activity", {
+                self._ctx.memory.episodes.append("activity", {
                     "action": "upvote",
                     "post_id": post_id,
                     "internal_note": note,
@@ -291,28 +364,19 @@ class FeedManager:
                     "Upvoted post %s (relevance: %.2f)", post_id[:12], score
                 )
 
-        if not scheduler.can_comment():
-            logger.info("Comment rate limit reached")
-            return False
-
-        # Submolt feeds return content truncated to a preview. We only learn a
-        # post is comment-worthy after scoring, so fetch the full body here —
-        # right before the comment that gets posted publicly and recorded as
-        # original_post. Following-feed posts are already full (len != preview).
-        # Scoring and the internal note above ran on the preview by design
-        # (cheap, gate-first); only the comment and the record get the full body.
-        post_text = self._fetch_full_if_truncated(post, post_text, client)
-
-        comment = self._get_content().create_comment(post_text)
-        if comment is None:
-            return False
-
-        if not self._confirm_action(
-            f"Comment on post {post_id} (relevance: {score:.2f})", comment
-        ):
-            return False
-
-        scheduler.wait_for_comment()
+    def _post_comment_and_record(
+        self,
+        post: dict,
+        post_id: str,
+        post_text: str,
+        score: float,
+        note: str,
+        comment: str,
+        client: MoltbookClient,
+        scheduler: Scheduler,
+    ) -> bool:
+        """Post the comment, record it in memory/episodes, and pace."""
+        ctx = self._ctx
         try:
             # post_comment verifies the response envelope (audit H2): a
             # body-level failure raises and never reaches the records below.
