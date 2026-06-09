@@ -308,55 +308,12 @@ def distill_rules(
     empty_batches = 0  # Batches that correctly returned "no universal rules"
 
     for batch_idx, batch in enumerate(batches):
-        logger.info(
-            "Batch %d/%d: %d skills", batch_idx + 1, len(batches), len(batch)
+        batch_rules, batch_dropped, batch_empty = _distill_one_batch(
+            batch, batch_idx, len(batches), rules_dir
         )
-
-        # ADR-0050: lineage key for every rule this batch produces.
-        batch_source_ids = tuple(fname for fname, _ in batch)
-        rules_text = _extract_rules([text for _, text in batch])
-        if rules_text is None:
-            logger.warning("Batch %d/%d: extraction failed", batch_idx + 1, len(batches))
-            dropped_count += 1
-            continue
-
-        # Valid empty outcome: Stage 2 found no principle worth keeping.
-        # Not an error, just nothing to persist for this batch.
-        if rules_text == _NO_RULES_MARKER:
-            logger.info(
-                "Batch %d/%d: no universal rules (by design)",
-                batch_idx + 1,
-                len(batches),
-            )
-            empty_batches += 1
-            continue
-
-        individual_rules = _split_rules(rules_text)
-        if not individual_rules:
-            # Fallback: treat entire text as single rule if split fails
-            individual_rules = [rules_text]
-
-        for rule_text in individual_rules:
-            if not validate_identity_content(rule_text):
-                logger.warning("Batch %d/%d: forbidden pattern in rule, dropping", batch_idx + 1, len(batches))
-                dropped_count += 1
-                continue
-
-            resolved = resolve_artifact_path(
-                rule_text,
-                rules_dir,
-                label=f"Batch {batch_idx + 1}/{len(batches)}",
-            )
-            if resolved is None:
-                dropped_count += 1
-                continue
-
-            rule_results.append(RuleResult(
-                text=rule_text,
-                filename=resolved.filename,
-                target_path=resolved.target_path,
-                source_ids=batch_source_ids,
-            ))
+        rule_results.extend(batch_rules)
+        dropped_count += batch_dropped
+        empty_batches += batch_empty
 
     if not rule_results:
         # Distinguish "LLM failed to produce anything" from "LLM correctly
@@ -376,3 +333,64 @@ def distill_rules(
         rules=tuple(rule_results),
         dropped_count=dropped_count,
     )
+
+
+def _distill_one_batch(
+    batch: List[Tuple[str, str]],
+    batch_idx: int,
+    n_batches: int,
+    rules_dir: Optional[Path],
+) -> Tuple[List[RuleResult], int, int]:
+    """Extract + validate rules for one cluster batch.
+
+    Returns ``(rules, dropped_count, empty_flag)`` where *empty_flag* is 1
+    when Stage 2 correctly judged that no universal rule exists.
+    """
+    logger.info("Batch %d/%d: %d skills", batch_idx + 1, n_batches, len(batch))
+
+    # ADR-0050: lineage key for every rule this batch produces.
+    batch_source_ids = tuple(fname for fname, _ in batch)
+    rules_text = _extract_rules([text for _, text in batch])
+    if rules_text is None:
+        logger.warning("Batch %d/%d: extraction failed", batch_idx + 1, n_batches)
+        return [], 1, 0
+
+    # Valid empty outcome: Stage 2 found no principle worth keeping.
+    # Not an error, just nothing to persist for this batch.
+    if rules_text == _NO_RULES_MARKER:
+        logger.info(
+            "Batch %d/%d: no universal rules (by design)",
+            batch_idx + 1,
+            n_batches,
+        )
+        return [], 0, 1
+
+    individual_rules = _split_rules(rules_text)
+    if not individual_rules:
+        # Fallback: treat entire text as single rule if split fails
+        individual_rules = [rules_text]
+
+    rules: List[RuleResult] = []
+    dropped = 0
+    for rule_text in individual_rules:
+        if not validate_identity_content(rule_text):
+            logger.warning("Batch %d/%d: forbidden pattern in rule, dropping", batch_idx + 1, n_batches)
+            dropped += 1
+            continue
+
+        resolved = resolve_artifact_path(
+            rule_text,
+            rules_dir,
+            label=f"Batch {batch_idx + 1}/{n_batches}",
+        )
+        if resolved is None:
+            dropped += 1
+            continue
+
+        rules.append(RuleResult(
+            text=rule_text,
+            filename=resolved.filename,
+            target_path=resolved.target_path,
+            source_ids=batch_source_ids,
+        ))
+    return rules, dropped, 0

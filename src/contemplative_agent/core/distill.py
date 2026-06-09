@@ -502,6 +502,135 @@ class _CategoryResult:
     updated: int
 
 
+@dataclass(frozen=True)
+class _BatchOutput:
+    """Patterns produced by the 3-step pipeline for one episode batch."""
+    refined: str
+    patterns: Tuple[str, ...]
+    importances: Tuple[float, ...]
+    source_type: str
+    episode_ids: Tuple[str, ...]
+
+
+def _render_episode_lines(batch: List[Dict]) -> Tuple[List[str], List[str]]:
+    """Format one batch into prompt lines; return (lines, episode timestamps)."""
+    episode_lines = []
+    batch_episode_ids: List[str] = []
+    for r in batch:
+        record_type = r.get("type", "unknown")
+        data = r.get("data", {})
+        ts = r.get("ts", "")
+        summary = summarize_record(record_type, data)
+        if summary:
+            episode_lines.append(f"[{ts[:16]}] {record_type}: {summary}")
+            if ts:
+                batch_episode_ids.append(ts)
+    return episode_lines, batch_episode_ids
+
+
+def _parse_refined_patterns(refined: str) -> List[str]:
+    """Parse step-2 output into raw pattern strings (JSON, bullet fallback)."""
+    raw_patterns: List[str] = []
+    json_text = strip_code_fence(refined)
+    try:
+        parsed = json_mod.loads(json_text)
+        for item in parsed.get("patterns", []):
+            text = str(item).strip() if item else ""
+            if text:
+                raw_patterns.append(text)
+    except (json_mod.JSONDecodeError, TypeError):
+        # Fallback: bullet-point parsing
+        for line in refined.splitlines():
+            line = line.strip()
+            if line.startswith("- "):
+                pattern = line[2:].strip()
+                if pattern:
+                    raw_patterns.append(pattern)
+    return raw_patterns
+
+
+def _score_importance(batch_patterns: List[str]) -> List[float]:
+    """Step 3: Evaluate importance — separate LLM call, single task."""
+    batch_importances = [0.5] * len(batch_patterns)
+    if batch_patterns and DISTILL_IMPORTANCE_PROMPT:
+        patterns_text = "\n".join(f"- {p}" for p in batch_patterns)
+        importance_prompt = DISTILL_IMPORTANCE_PROMPT.format(patterns=patterns_text)
+        importance_result = generate(
+            importance_prompt,
+            num_predict=3000,
+            format=IMPORTANCE_SCHEMA,
+            caller="distill.importance",
+        )
+        if importance_result:
+            batch_importances = _parse_importance_scores(importance_result, len(batch_patterns))
+    return batch_importances
+
+
+def _distill_batch(
+    batch: List[Dict], batch_idx: int, n_batches: int
+) -> Optional[_BatchOutput]:
+    """Run the 3-step pipeline for one batch; None when a step fails."""
+    episode_lines, batch_episode_ids = _render_episode_lines(batch)
+    if not episode_lines:
+        return None
+
+    batch_source_type = _derive_source_type(batch)
+
+    prompt = DISTILL_PROMPT.format(episodes="\n".join(episode_lines))
+
+    # Step 1: Extract — free-form output, with rules/axioms as lens
+    result = generate(
+        prompt,
+        system=get_distill_system_prompt(),
+        num_predict=3000,
+        caller="distill.category",
+    )
+    if result is None:
+        logger.warning("Batch %d/%d: step 1 (extract) failed", batch_idx + 1, n_batches)
+        return None
+
+    # Step 2: Summarize — concise patterns as JSON string array
+    refine_prompt = DISTILL_REFINE_PROMPT.format(raw_output=result)
+    refined = generate(
+        refine_prompt, num_predict=3000, caller="distill.category_refine"
+    )
+    if refined is None:
+        # Audit M1: skip the batch rather than feed step-1 prose to the
+        # JSON parser — the bullet fallback would either harvest raw
+        # unrefined lines as patterns or silently yield zero while
+        # looking like a processed batch.
+        logger.warning(
+            "Batch %d/%d: step 2 (summarize) failed, skipping batch "
+            "(audit M1)",
+            batch_idx + 1, n_batches,
+        )
+        return None
+
+    raw_patterns = _parse_refined_patterns(refined)
+
+    # Decision gate: reject low-quality patterns
+    batch_patterns = [p for p in raw_patterns if _is_valid_pattern(p)]
+    rejected = len(raw_patterns) - len(batch_patterns)
+
+    batch_importances = _score_importance(batch_patterns)
+
+    imp_summary = ", ".join(f"{i:.1f}" for i in batch_importances) if batch_importances else "none"
+    logger.info(
+        "Batch %d/%d: %d episodes (prompt %d chars) → %d patterns (%d rejected) [importance: %s]",
+        batch_idx + 1, n_batches, len(batch), len(prompt), len(batch_patterns), rejected,
+        imp_summary,
+    )
+    return _BatchOutput(
+        refined=refined,
+        patterns=tuple(batch_patterns),
+        importances=tuple(batch_importances),
+        source_type=batch_source_type,
+        # Keep up to 5 representative timestamps so the pattern can be
+        # traced back to its originating episode window.
+        episode_ids=tuple(batch_episode_ids[:5]),
+    )
+
+
 def _distill_category(
     records: List[Dict],
     knowledge: KnowledgeStore,
@@ -523,106 +652,18 @@ def _distill_category(
     all_results: List[str] = []
 
     for batch_idx, batch in enumerate(batches):
-        episode_lines = []
-        batch_episode_ids: List[str] = []
-        for r in batch:
-            record_type = r.get("type", "unknown")
-            data = r.get("data", {})
-            ts = r.get("ts", "")
-            summary = summarize_record(record_type, data)
-            if summary:
-                episode_lines.append(f"[{ts[:16]}] {record_type}: {summary}")
-                if ts:
-                    batch_episode_ids.append(ts)
-
-        if not episode_lines:
+        out = _distill_batch(batch, batch_idx, len(batches))
+        if out is None:
             continue
-
-        batch_source_type = _derive_source_type(batch)
-
-        prompt = DISTILL_PROMPT.format(episodes="\n".join(episode_lines))
-
-        # Step 1: Extract — free-form output, with rules/axioms as lens
-        result = generate(
-            prompt,
-            system=get_distill_system_prompt(),
-            num_predict=3000,
-            caller="distill.category",
-        )
-        if result is None:
-            logger.warning("Batch %d/%d: step 1 (extract) failed", batch_idx + 1, len(batches))
-            continue
-
-        # Step 2: Summarize — concise patterns as JSON string array
-        refine_prompt = DISTILL_REFINE_PROMPT.format(raw_output=result)
-        refined = generate(
-            refine_prompt, num_predict=3000, caller="distill.category_refine"
-        )
-        if refined is None:
-            # Audit M1: skip the batch rather than feed step-1 prose to the
-            # JSON parser — the bullet fallback would either harvest raw
-            # unrefined lines as patterns or silently yield zero while
-            # looking like a processed batch.
-            logger.warning(
-                "Batch %d/%d: step 2 (summarize) failed, skipping batch "
-                "(audit M1)",
-                batch_idx + 1, len(batches),
-            )
-            continue
-
-        all_results.append(refined)
-
-        raw_patterns: List[str] = []
-        json_text = strip_code_fence(refined)
-        try:
-            parsed = json_mod.loads(json_text)
-            for item in parsed.get("patterns", []):
-                text = str(item).strip() if item else ""
-                if text:
-                    raw_patterns.append(text)
-        except (json_mod.JSONDecodeError, TypeError):
-            # Fallback: bullet-point parsing
-            for line in refined.splitlines():
-                line = line.strip()
-                if line.startswith("- "):
-                    pattern = line[2:].strip()
-                    if pattern:
-                        raw_patterns.append(pattern)
-
-        # Decision gate: reject low-quality patterns
-        batch_patterns = [p for p in raw_patterns if _is_valid_pattern(p)]
-        rejected = len(raw_patterns) - len(batch_patterns)
-
-        # Step 3: Evaluate importance — separate LLM call, single task
-        batch_importances = [0.5] * len(batch_patterns)
-        if batch_patterns and DISTILL_IMPORTANCE_PROMPT:
-            patterns_text = "\n".join(f"- {p}" for p in batch_patterns)
-            importance_prompt = DISTILL_IMPORTANCE_PROMPT.format(patterns=patterns_text)
-            importance_result = generate(
-                importance_prompt,
-                num_predict=3000,
-                format=IMPORTANCE_SCHEMA,
-                caller="distill.importance",
-            )
-            if importance_result:
-                batch_importances = _parse_importance_scores(importance_result, len(batch_patterns))
-
-        all_patterns.extend(batch_patterns)
-        all_importances.extend(batch_importances)
+        all_results.append(out.refined)
+        all_patterns.extend(out.patterns)
+        all_importances.extend(out.importances)
         # ADR-0021: record source provenance per pattern. Every pattern in
         # this batch shares the same source_type (derived from the batch's
         # episode type mix) and the same representative episode id list.
-        for _ in batch_patterns:
-            all_source_types.append(batch_source_type)
-            # Keep up to 5 representative timestamps so the pattern can be
-            # traced back to its originating episode window.
-            all_episode_ids.append(list(batch_episode_ids[:5]))
-        imp_summary = ", ".join(f"{i:.1f}" for i in batch_importances) if batch_importances else "none"
-        logger.info(
-            "Batch %d/%d: %d episodes (prompt %d chars) → %d patterns (%d rejected) [importance: %s]",
-            batch_idx + 1, len(batches), len(batch), len(prompt), len(batch_patterns), rejected,
-            imp_summary,
-        )
+        for _ in out.patterns:
+            all_source_types.append(out.source_type)
+            all_episode_ids.append(list(out.episode_ids))
 
     if not all_patterns:
         return _CategoryResult(results=tuple(all_results), added=0, updated=0)
@@ -675,6 +716,26 @@ def _distill_category(
             updated,
         )
 
+    _store_new_patterns(
+        knowledge, source_date,
+        add_patterns, add_importances, add_embeddings, add_indices,
+        all_source_types, all_episode_ids,
+    )
+
+    return _CategoryResult(results=tuple(all_results), added=len(add_patterns), updated=updated)
+
+
+def _store_new_patterns(
+    knowledge: KnowledgeStore,
+    source_date: Optional[str],
+    add_patterns: Sequence[str],
+    add_importances: Sequence[float],
+    add_embeddings: Sequence[Optional[np.ndarray]],
+    add_indices: Sequence[int],
+    all_source_types: Sequence[str],
+    all_episode_ids: Sequence[List[str]],
+) -> None:
+    """Persist deduped patterns with ADR-0021 provenance."""
     ts = now_iso()
     for pattern, importance, emb, src_idx in zip(
         add_patterns, add_importances, add_embeddings, add_indices
@@ -699,8 +760,6 @@ def _distill_category(
         )
         logger.info("Added pattern (importance=%.1f, source=%s): %s",
                      importance, source_type, pattern[:80])
-
-    return _CategoryResult(results=tuple(all_results), added=len(add_patterns), updated=updated)
 
 
 def _dedup_patterns(
@@ -742,14 +801,7 @@ def _dedup_patterns(
 
     ts = now_iso()
 
-    # Pre-compute existing embeddings (only patterns with embeddings + live count for dedup)
-    existing_with_emb: List[Tuple[Dict, np.ndarray]] = []
-    for p in existing_patterns:
-        if not is_live(p):
-            continue  # bitemporally invalidated — ignore
-        emb = p.get("embedding")
-        if isinstance(emb, list):
-            existing_with_emb.append((p, np.asarray(emb, dtype=np.float32)))
+    existing_with_emb = _live_embedded(existing_patterns)
 
     for input_idx, (new_text, new_imp, new_emb) in enumerate(
         zip(new_patterns, new_importances, new_embeddings)
@@ -761,34 +813,18 @@ def _dedup_patterns(
             add_indices.append(input_idx)
             continue
 
-        # Best similarity vs existing
-        best_existing_sim = -1.0
-        best_existing_pat: Optional[Dict] = None
-        for pat_dict, pat_emb in existing_with_emb:
-            sim = cosine(new_emb, pat_emb)
-            if sim > best_existing_sim:
-                best_existing_sim = sim
-                best_existing_pat = pat_dict
+        best_existing_sim, best_existing_pat = _best_existing_sim(new_emb, existing_with_emb)
+        best_new_sim, best_new_idx = _best_accepted_sim(new_emb, add_embeddings)
 
-        # Best similarity vs already-accepted new patterns (cross-batch)
-        best_new_sim = -1.0
-        best_new_idx = -1
-        for idx, accepted_emb in enumerate(add_embeddings):
-            if accepted_emb is None:
-                continue
-            sim = cosine(new_emb, accepted_emb)
-            if sim > best_new_sim:
-                best_new_sim = sim
-                best_new_idx = idx
-
-        # Decide: SKIP / UPDATE existing / SKIP-NEW (boost in batch) / ADD
-        if best_existing_sim >= SIM_DUPLICATE or best_new_sim >= SIM_DUPLICATE:
+        action = _dedup_action(best_existing_sim, best_existing_pat, best_new_sim, best_new_idx)
+        if action == "skip":
             skip_count += 1
             logger.info("SKIP (%.2f): %s", max(best_existing_sim, best_new_sim), new_text[:60])
-        elif best_existing_sim >= SIM_UPDATE and best_existing_pat is not None and best_existing_sim >= best_new_sim:
+        elif action == "update":
             # ADR-0021: soft-invalidate old, keep row for audit, and ADD a
             # new boosted pattern. The new row inherits max(old_imp, new_imp)
             # so a refinement never loses information.
+            assert best_existing_pat is not None  # guaranteed by _dedup_action
             old_imp = best_existing_pat.get("importance", 0.5)
             boosted_imp = max(old_imp, new_imp)
             if mutate_existing:
@@ -800,7 +836,7 @@ def _dedup_patterns(
             update_count += 1
             logger.debug("UPDATE (%.2f): invalidate + add boosted: %s",
                          best_existing_sim, new_text[:60])
-        elif best_new_sim >= SIM_UPDATE and best_new_idx >= 0:
+        elif action == "skip_new":
             if new_imp > add_importances[best_new_idx]:
                 add_importances[best_new_idx] = new_imp
             skip_count += 1
@@ -815,6 +851,64 @@ def _dedup_patterns(
         add_patterns, add_importances, add_embeddings,
         add_indices, skip_count, update_count,
     )
+
+
+def _live_embedded(existing_patterns: Sequence[dict]) -> List[Tuple[Dict, np.ndarray]]:
+    """Pre-compute existing embeddings (live patterns with embeddings only)."""
+    existing_with_emb: List[Tuple[Dict, np.ndarray]] = []
+    for p in existing_patterns:
+        if not is_live(p):
+            continue  # bitemporally invalidated — ignore
+        emb = p.get("embedding")
+        if isinstance(emb, list):
+            existing_with_emb.append((p, np.asarray(emb, dtype=np.float32)))
+    return existing_with_emb
+
+
+def _best_existing_sim(
+    new_emb: np.ndarray, existing_with_emb: Sequence[Tuple[Dict, np.ndarray]]
+) -> Tuple[float, Optional[Dict]]:
+    """Best cosine similarity vs existing patterns."""
+    best_sim = -1.0
+    best_pat: Optional[Dict] = None
+    for pat_dict, pat_emb in existing_with_emb:
+        sim = cosine(new_emb, pat_emb)
+        if sim > best_sim:
+            best_sim = sim
+            best_pat = pat_dict
+    return best_sim, best_pat
+
+
+def _best_accepted_sim(
+    new_emb: np.ndarray, add_embeddings: Sequence[Optional[np.ndarray]]
+) -> Tuple[float, int]:
+    """Best cosine similarity vs already-accepted new patterns (cross-batch)."""
+    best_sim = -1.0
+    best_idx = -1
+    for idx, accepted_emb in enumerate(add_embeddings):
+        if accepted_emb is None:
+            continue
+        sim = cosine(new_emb, accepted_emb)
+        if sim > best_sim:
+            best_sim = sim
+            best_idx = idx
+    return best_sim, best_idx
+
+
+def _dedup_action(
+    best_existing_sim: float,
+    best_existing_pat: Optional[Dict],
+    best_new_sim: float,
+    best_new_idx: int,
+) -> str:
+    """Decide: ``skip`` / ``update`` existing / ``skip_new`` (boost in batch) / ``add``."""
+    if best_existing_sim >= SIM_DUPLICATE or best_new_sim >= SIM_DUPLICATE:
+        return "skip"
+    if best_existing_sim >= SIM_UPDATE and best_existing_pat is not None and best_existing_sim >= best_new_sim:
+        return "update"
+    if best_new_sim >= SIM_UPDATE and best_new_idx >= 0:
+        return "skip_new"
+    return "add"
 
 
 def _is_valid_pattern(pattern: str) -> bool:

@@ -588,26 +588,10 @@ def _generate_impl(
     tel["system_chars"] = len(system_prompt)
 
     if _backend is not None:
-        if temperature != 1.0:
-            logger.debug(
-                "temperature=%.2f ignored: injected backend path does not "
-                "support it (Ollama-path only)",
-                temperature,
-            )
-        try:
-            raw_text = _backend.generate(prompt, system_prompt, effective_num_predict, format)
-        except Exception as exc:  # backend may raise on unexpected failure
-            logger.error("Backend generate() raised: %s", exc)
-            _circuit.record_failure()
-            return None
-        if raw_text is None or not raw_text.strip():
-            logger.warning("Backend returned empty response")
-            _circuit.record_failure()
-            tel["outcome"] = "empty"
-            return None
-        _circuit.record_success()
-        tel["outcome"] = "ok"
-        return _sanitize_output(raw_text, max_length)
+        return _generate_via_backend(
+            prompt, system_prompt, max_length, format, temperature,
+            effective_num_predict, tel,
+        )
 
     # Ollama-path token-budget pre-flight (audit C2). The injected-backend
     # path above is excluded: its context window is unknown to this module.
@@ -632,6 +616,73 @@ def _generate_impl(
         tel["outcome"] = "budget_exceeded"
         return None
 
+    data = _post_ollama(prompt, system_prompt, format, temperature,
+                        effective_num_predict, tel)
+    if data is None:
+        return None
+    raw_text = data.get("response", "")
+
+    tel["done_reason"] = data.get("done_reason")
+    eval_count = data.get("eval_count")
+    if isinstance(eval_count, int):
+        tel["eval_count"] = eval_count
+
+    if _drop_for_output_truncation(data, drop_truncated, effective_num_predict, tel):
+        return None
+
+    _warn_front_truncation(data, system_prompt, prompt, tel)
+
+    _circuit.record_success()
+    tel["outcome"] = "ok"
+    return _sanitize_output(raw_text, max_length)
+
+
+def _generate_via_backend(
+    prompt: str,
+    system_prompt: str,
+    max_length: Optional[int],
+    format: Optional[Dict],
+    temperature: float,
+    effective_num_predict: int,
+    tel: Dict[str, Any],
+) -> Optional[str]:
+    """Injected-backend path of :func:`_generate_impl`."""
+    assert _backend is not None  # guaranteed by caller
+    if temperature != 1.0:
+        logger.debug(
+            "temperature=%.2f ignored: injected backend path does not "
+            "support it (Ollama-path only)",
+            temperature,
+        )
+    try:
+        raw_text = _backend.generate(prompt, system_prompt, effective_num_predict, format)
+    except Exception as exc:  # backend may raise on unexpected failure
+        logger.error("Backend generate() raised: %s", exc)
+        _circuit.record_failure()
+        return None
+    if raw_text is None or not raw_text.strip():
+        logger.warning("Backend returned empty response")
+        _circuit.record_failure()
+        tel["outcome"] = "empty"
+        return None
+    _circuit.record_success()
+    tel["outcome"] = "ok"
+    return _sanitize_output(raw_text, max_length)
+
+
+def _post_ollama(
+    prompt: str,
+    system_prompt: str,
+    format: Optional[Dict],
+    temperature: float,
+    effective_num_predict: int,
+    tel: Dict[str, Any],
+) -> Optional[Dict]:
+    """POST to Ollama and parse the JSON body; None on any failure.
+
+    Every failure path (bad URL, transport error, unparsable body, empty
+    response) records a circuit failure.
+    """
     try:
         base_url = _get_ollama_url()
     except ValueError as exc:
@@ -679,39 +730,54 @@ def _generate_impl(
         tel["outcome"] = "empty"
         return None
 
-    tel["done_reason"] = data.get("done_reason")
-    eval_count = data.get("eval_count")
-    if isinstance(eval_count, int):
-        tel["eval_count"] = eval_count
+    return data
 
-    # Output-truncation signal (audit M2): done_reason == "length" means the
-    # model hit num_predict mid-generation. Not a backend fault — the call
-    # succeeded — so the circuit breaker records success on the drop path.
-    if data.get("done_reason") == "length":
-        if drop_truncated:
-            logger.warning(
-                "Output truncated at num_predict=%d (done_reason=length); "
-                "dropping instead of publishing a mid-sentence cut "
-                "(audit M2).",
-                effective_num_predict,
-            )
-            _circuit.record_success()
-            tel["outcome"] = "truncated_dropped"
-            return None
+
+def _drop_for_output_truncation(
+    data: Dict,
+    drop_truncated: bool,
+    effective_num_predict: int,
+    tel: Dict[str, Any],
+) -> bool:
+    """Output-truncation signal (audit M2); True when the result must drop.
+
+    done_reason == "length" means the model hit num_predict mid-generation.
+    Not a backend fault — the call succeeded — so the circuit breaker
+    records success on the drop path.
+    """
+    if data.get("done_reason") != "length":
+        return False
+    if drop_truncated:
         logger.warning(
             "Output truncated at num_predict=%d (done_reason=length); "
-            "downstream consumers receive an incomplete generation "
+            "dropping instead of publishing a mid-sentence cut "
             "(audit M2).",
             effective_num_predict,
         )
+        _circuit.record_success()
+        tel["outcome"] = "truncated_dropped"
+        return True
+    logger.warning(
+        "Output truncated at num_predict=%d (done_reason=length); "
+        "downstream consumers receive an incomplete generation "
+        "(audit M2).",
+        effective_num_predict,
+    )
+    return False
 
-    # Silent front-truncation detector (audit C2): if Ollama evaluated far
-    # fewer tokens than the chars sent could possibly compress to (~6
-    # chars/tok is a generous lower bound even for pure English), the input
-    # was cut. The 12000-char floor removes the false-positive class of
-    # small mechanical calls — truncation only matters for large prompts.
-    # isinstance check: this block runs outside the parse try/except, so a
-    # non-int value from a proxy or future Ollama build must not TypeError.
+
+def _warn_front_truncation(
+    data: Dict, system_prompt: str, prompt: str, tel: Dict[str, Any]
+) -> None:
+    """Silent front-truncation detector (audit C2).
+
+    If Ollama evaluated far fewer tokens than the chars sent could possibly
+    compress to (~6 chars/tok is a generous lower bound even for pure
+    English), the input was cut. The 12000-char floor removes the
+    false-positive class of small mechanical calls — truncation only matters
+    for large prompts. isinstance check: a non-int value from a proxy or
+    future Ollama build must not TypeError.
+    """
     prompt_eval = data.get("prompt_eval_count")
     if isinstance(prompt_eval, int):
         tel["prompt_eval_count"] = prompt_eval
@@ -730,10 +796,6 @@ def _generate_impl(
             len(system_prompt),
             len(prompt),
         )
-
-    _circuit.record_success()
-    tel["outcome"] = "ok"
-    return _sanitize_output(raw_text, max_length)
 
 
 def generate_for_api(
