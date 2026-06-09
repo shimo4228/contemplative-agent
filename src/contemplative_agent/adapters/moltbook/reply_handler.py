@@ -6,7 +6,7 @@ import json
 import logging
 import time
 from datetime import datetime, timezone
-from typing import Callable
+from typing import Callable, Optional, Tuple
 
 from .client import MoltbookClient, MoltbookClientError
 from .config import ADAPTIVE_BACKOFF
@@ -128,82 +128,111 @@ class ReplyHandler:
                 logger.info("Rate limit budget low, pausing reply processing")
                 break
 
-            fields = extract_notification_fields(notif)
-            notif_type = fields["type"]
-
-            if notif_type not in _REPLY_TYPES:
-                logger.debug(
-                    "Notification[%d] skipped: type=%r not actionable",
-                    i,
-                    notif_type,
-                )
+            validated = self._validated_notification(notif, i)
+            if validated is None:
                 continue
+            fields, reply_key = validated
 
-            post_id = fields["post_id"]
-            if not post_id or not VALID_ID_PATTERN.match(post_id):
-                logger.debug(
-                    "Notification[%d] skipped: invalid post_id=%r", i, post_id
-                )
-                continue
-
-            # Skip if already handled — this session (commented_posts) or a
-            # prior session (persistent commented cache). Mirrors the comment
-            # path's has_commented_on check (feed_manager.engage_with_post);
-            # commented_posts is rebuilt empty each session, so the persistent
-            # store is what dedups replies across sessions.
-            reply_key = f"reply:{post_id}:{fields['id']}"
-            if (
-                reply_key in self._ctx.commented_posts
-                or self._ctx.memory.has_commented_on(reply_key)
-            ):
-                logger.debug(
-                    "Notification[%d] skipped: already handled key=%s",
-                    i,
-                    reply_key,
-                )
-                continue
-
-            their_content = fields["content"]
-            original_post = fields["post_content"]
-
-            # If notification lacks comment body (e.g. post_comment type),
-            # fetch comments from the post and process unhandled ones
-            if not their_content and post_id:
-                logger.debug(
-                    "Notification[%d] has no content; fetching comments for %s",
-                    i, post_id[:12],
-                )
-                self._handle_post_comments(
-                    client, scheduler, post_id, end_time
-                )
-                continue
-
-            if not their_content:
-                logger.debug("Notification[%d] skipped: empty content", i)
-                continue
-
-            replier_id = fields["agent_id"]
-            replier_name = fields["agent_name"]
-
-            # Skip our own comments to avoid self-reply loops
-            if self._ctx.own_agent_id and replier_id == self._ctx.own_agent_id:
-                logger.debug("Notification[%d] skipped: own comment", i)
-                continue
-
-            self._process_reply(
-                client=client,
-                scheduler=scheduler,
-                post_id=post_id,
-                reply_key=reply_key,
-                their_content=their_content,
-                original_post=original_post,
-                replier_id=replier_id,
-                replier_name=replier_name,
-                comment_id="",  # notification payload has no comment id
+            self._handle_notification(
+                client, scheduler, fields, reply_key, i, end_time
             )
 
         # Fallback: check comments on our own posts directly
         self.check_own_post_comments(client, scheduler, end_time)
+
+    def _validated_notification(
+        self, notif: dict, i: int
+    ) -> Optional[Tuple[dict, str]]:
+        """Gate one notification; return (fields, reply_key) or None to skip.
+
+        Skips non-actionable types, invalid post ids, and already-handled
+        replies — this session (commented_posts) or a prior session
+        (persistent commented cache). Mirrors the comment path's
+        has_commented_on check (feed_manager.engage_with_post);
+        commented_posts is rebuilt empty each session, so the persistent
+        store is what dedups replies across sessions.
+        """
+        fields = extract_notification_fields(notif)
+        notif_type = fields["type"]
+
+        if notif_type not in _REPLY_TYPES:
+            logger.debug(
+                "Notification[%d] skipped: type=%r not actionable",
+                i,
+                notif_type,
+            )
+            return None
+
+        post_id = fields["post_id"]
+        if not post_id or not VALID_ID_PATTERN.match(post_id):
+            logger.debug(
+                "Notification[%d] skipped: invalid post_id=%r", i, post_id
+            )
+            return None
+
+        reply_key = f"reply:{post_id}:{fields['id']}"
+        if (
+            reply_key in self._ctx.commented_posts
+            or self._ctx.memory.has_commented_on(reply_key)
+        ):
+            logger.debug(
+                "Notification[%d] skipped: already handled key=%s",
+                i,
+                reply_key,
+            )
+            return None
+
+        return fields, reply_key
+
+    def _handle_notification(
+        self,
+        client: MoltbookClient,
+        scheduler: Scheduler,
+        fields: dict,
+        reply_key: str,
+        i: int,
+        end_time: float,
+    ) -> None:
+        """Reply to one validated notification (or scan its comments)."""
+        post_id = fields["post_id"]
+        their_content = fields["content"]
+        original_post = fields["post_content"]
+
+        # If notification lacks comment body (e.g. post_comment type),
+        # fetch comments from the post and process unhandled ones
+        if not their_content and post_id:
+            logger.debug(
+                "Notification[%d] has no content; fetching comments for %s",
+                i, post_id[:12],
+            )
+            self._handle_post_comments(
+                client, scheduler, post_id, end_time
+            )
+            return
+
+        if not their_content:
+            logger.debug("Notification[%d] skipped: empty content", i)
+            return
+
+        replier_id = fields["agent_id"]
+        replier_name = fields["agent_name"]
+
+        # Skip our own comments to avoid self-reply loops
+        if self._ctx.own_agent_id and replier_id == self._ctx.own_agent_id:
+            logger.debug("Notification[%d] skipped: own comment", i)
+            return
+
+        self._process_reply(
+            client=client,
+            scheduler=scheduler,
+            post_id=post_id,
+            reply_key=reply_key,
+            their_content=their_content,
+            original_post=original_post,
+            replier_id=replier_id,
+            replier_name=replier_name,
+            comment_id="",  # notification payload has no comment id
+        )
 
     def _process_reply(
         self,

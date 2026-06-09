@@ -542,46 +542,16 @@ class Agent:
                     break
 
                 try:
-                    # Refresh /home data each cycle for latest activity
-                    self._fetch_home_data(client)
-
-                    # Use /home-based reply cycle if data available, else fallback
-                    if self._home_data:
-                        self._reply_handler.run_cycle_from_home(
-                            client, scheduler, end_time, self._home_data,
-                        )
-                    else:
-                        self._reply_handler.run_cycle(client, scheduler, end_time)
-                    self._run_feed_cycle(end_time)
-                    self._post_pipeline.run_cycle(client, scheduler)
+                    self._run_session_cycle(client, scheduler, end_time)
                 except Exception:
                     logger.exception("Error in session cycle, continuing...")
 
-                # Wait before next cycle: respect both scheduler and adaptive backoff
-                adaptive_wait = self._adaptive_cycle_wait()
-                wait = max(
-                    min(scheduler.seconds_until_comment(), scheduler.seconds_until_post()),
-                    adaptive_wait,
-                )
-                wait = min(wait, max(0.0, end_time - time.time()))
-                if wait > 0 and time.time() + wait < end_time and not self._shutdown_requested:
-                    logger.info("Next cycle in %.0fs", wait)
-                    time.sleep(wait)
+                self._wait_for_next_cycle(scheduler, end_time)
 
             if self._shutdown_requested:
                 logger.info("Graceful shutdown: saving memory before exit")
 
-            # Log session end with action counts
-            actions = self._ctx.actions_taken
-            self._memory.episodes.append("session", {
-                "event": "end",
-                "duration_minutes": duration_minutes,
-                "actions_count": len(actions),
-                "comments": sum(1 for a in actions if a.startswith("Commented")),
-                "replies": sum(1 for a in actions if a.startswith("Replied")),
-                "posts": sum(1 for a in actions if a.startswith("Posted")),
-                "follows": sum(1 for a in actions if a.startswith("Followed")),
-            })
+            self._log_session_end(duration_minutes)
 
             self._memory.save()
             self._generate_activity_report()
@@ -592,6 +562,48 @@ class Agent:
             signal.signal(signal.SIGINT, original_sigint)
 
         return list(self._ctx.actions_taken)
+
+    def _run_session_cycle(
+        self, client: MoltbookClient, scheduler: Scheduler, end_time: float
+    ) -> None:
+        """One engagement cycle: replies, feed, then the post pipeline."""
+        # Refresh /home data each cycle for latest activity
+        self._fetch_home_data(client)
+
+        # Use /home-based reply cycle if data available, else fallback
+        if self._home_data:
+            self._reply_handler.run_cycle_from_home(
+                client, scheduler, end_time, self._home_data,
+            )
+        else:
+            self._reply_handler.run_cycle(client, scheduler, end_time)
+        self._run_feed_cycle(end_time)
+        self._post_pipeline.run_cycle(client, scheduler)
+
+    def _wait_for_next_cycle(self, scheduler: Scheduler, end_time: float) -> None:
+        """Wait before next cycle: respect both scheduler and adaptive backoff."""
+        adaptive_wait = self._adaptive_cycle_wait()
+        wait = max(
+            min(scheduler.seconds_until_comment(), scheduler.seconds_until_post()),
+            adaptive_wait,
+        )
+        wait = min(wait, max(0.0, end_time - time.time()))
+        if wait > 0 and time.time() + wait < end_time and not self._shutdown_requested:
+            logger.info("Next cycle in %.0fs", wait)
+            time.sleep(wait)
+
+    def _log_session_end(self, duration_minutes: int) -> None:
+        """Log session end with action counts."""
+        actions = self._ctx.actions_taken
+        self._memory.episodes.append("session", {
+            "event": "end",
+            "duration_minutes": duration_minutes,
+            "actions_count": len(actions),
+            "comments": sum(1 for a in actions if a.startswith("Commented")),
+            "replies": sum(1 for a in actions if a.startswith("Replied")),
+            "posts": sum(1 for a in actions if a.startswith("Posted")),
+            "follows": sum(1 for a in actions if a.startswith("Followed")),
+        })
 
     # ------------------------------------------------------------------
     # Cycle helpers

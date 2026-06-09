@@ -64,6 +64,55 @@ def _log_stderr(label: str, turn: int, role: str, content: str) -> None:
     print(f"[{label}] turn {turn} {role}: {snippet}", file=sys.stderr, flush=True)
 
 
+def _resolve_template() -> str:
+    """Resolve the dialogue template once.
+
+    The externalized config/prompts/dialogue.md (ADR-0054) is loaded here,
+    falling back to the hardcoded default if it is missing or lacks the
+    required placeholders.
+    """
+    from ...core.prompts import DIALOGUE_PROMPT
+
+    template = DIALOGUE_PROMPT
+    if not (
+        template
+        and "{peer_message}" in template
+        and "{history_section}" in template
+    ):
+        template = _DEFAULT_DIALOGUE_PROMPT
+    return template
+
+
+def _parse_peer_line(line: str) -> Optional[dict]:
+    """Parse one raw line into a peer message dict; None to skip."""
+    line = line.strip()
+    if not line:
+        return None
+    try:
+        msg = json.loads(line)
+    except json.JSONDecodeError:
+        logger.warning("malformed JSON line from peer, skipping: %r", line[:80])
+        return None
+    if not isinstance(msg, dict):
+        return None
+    return msg
+
+
+def _render_reply_prompt(template: str, history: list, peer_content: str) -> str:
+    """Format the reply prompt, falling back to the default template."""
+    wrapped = wrap_untrusted_content(peer_content)
+    try:
+        return template.format(
+            history_section=_build_history_section(history),
+            peer_message=wrapped,
+        )
+    except (KeyError, IndexError, ValueError):
+        return _DEFAULT_DIALOGUE_PROMPT.format(
+            history_section=_build_history_section(history),
+            peer_message=wrapped,
+        )
+
+
 def run_peer_loop(
     *,
     episode_log: EpisodeLog,
@@ -92,33 +141,15 @@ def run_peer_loop(
         history.append(f"self: {seed}")
         _log_stderr(label, 0, "self(seed)", seed)
 
-    # Resolve the dialogue template once. The externalized config/prompts/dialogue.md
-    # (ADR-0054) is loaded here, falling back to the hardcoded default if it is
-    # missing or lacks the required placeholders.
-    from ...core.prompts import DIALOGUE_PROMPT
-
-    template = DIALOGUE_PROMPT
-    if not (
-        template
-        and "{peer_message}" in template
-        and "{history_section}" in template
-    ):
-        template = _DEFAULT_DIALOGUE_PROMPT
+    template = _resolve_template()
 
     while replies_generated < max_turns:
         line = peer_in.readline(_MAX_LINE_BYTES)
         if not line:
             break  # EOF — peer closed its end
-        line = line.strip()
-        if not line:
-            continue
 
-        try:
-            msg = json.loads(line)
-        except json.JSONDecodeError:
-            logger.warning("malformed JSON line from peer, skipping: %r", line[:80])
-            continue
-        if not isinstance(msg, dict):
+        msg = _parse_peer_line(line)
+        if msg is None:
             continue
         if msg.get("type") == "stop":
             break
@@ -135,17 +166,7 @@ def run_peer_loop(
         history.append(f"peer: {peer_content}")
         _log_stderr(label, peer_turn, "peer", peer_content)
 
-        wrapped = wrap_untrusted_content(peer_content)
-        try:
-            prompt = template.format(
-                history_section=_build_history_section(history),
-                peer_message=wrapped,
-            )
-        except (KeyError, IndexError, ValueError):
-            prompt = _DEFAULT_DIALOGUE_PROMPT.format(
-                history_section=_build_history_section(history),
-                peer_message=wrapped,
-            )
+        prompt = _render_reply_prompt(template, history, peer_content)
         reply = generate_fn(prompt, num_predict=_NUM_PREDICT)
         if reply is None:
             reply = "(no reply)"

@@ -100,6 +100,67 @@ def _expected_free_energy(
     return float(ambiguity + risk)
 
 
+def _meditation_cycle(
+    A: np.ndarray,
+    B: np.ndarray,
+    C: np.ndarray,
+    beliefs: np.ndarray,
+    uniform: np.ndarray,
+    no_input_idx: int,
+    config: MeditationConfig,
+) -> Tuple[np.ndarray, int]:
+    """One meditation cycle; returns (new beliefs, pruned policy count)."""
+    # Step 1: Bayesian update with "no_input" observation
+    # Likelihood for no_input is the row A[no_input_idx, :]
+    likelihood = A[no_input_idx, :]
+    posterior = likelihood * beliefs
+    posterior_sum = posterior.sum()
+    if posterior_sum > 1e-16:
+        posterior = posterior / posterior_sum
+    else:
+        posterior = uniform.copy()
+
+    # Step 2: Temporal flattening — blend toward uniform
+    beliefs = config.temporal_decay * posterior + (1 - config.temporal_decay) * uniform
+
+    # Step 3: Evaluate expected free energy for each action
+    efe = np.array([
+        _expected_free_energy(A, B, C, beliefs, a)
+        for a in range(NUM_ACTIONS)
+    ])
+
+    # Convert to policy distribution (softmax of negative EFE)
+    neg_efe = -efe
+    neg_efe -= neg_efe.max()  # numerical stability
+    policy_dist = np.exp(neg_efe)
+    policy_dist = policy_dist / policy_dist.sum()
+
+    # Step 4: Counterfactual pruning — zero out low-probability policies
+    pruned_mask = policy_dist < config.counterfactual_threshold
+    pruned_count = int(pruned_mask.sum())
+
+    if pruned_count < NUM_ACTIONS:  # Don't prune everything
+        policy_dist[pruned_mask] = 0.0
+        policy_sum = policy_dist.sum()
+        if policy_sum > 1e-16:
+            policy_dist = policy_dist / policy_sum
+
+    # Step 5: Weighted transition using pruned policy distribution
+    # predicted_next = sum_a policy(a) * B[:, :, a] @ beliefs
+    transition = np.zeros((NUM_CONTEXTS, NUM_CONTEXTS), dtype=np.float64)
+    for a in range(NUM_ACTIONS):
+        if policy_dist[a] > 1e-16:
+            transition += policy_dist[a] * B[:, :, a]
+    beliefs = transition @ beliefs
+    beliefs_sum = beliefs.sum()
+    if beliefs_sum > 1e-16:
+        beliefs = beliefs / beliefs_sum
+    else:
+        beliefs = uniform.copy()
+
+    return beliefs, pruned_count
+
+
 def meditate(
     matrices: POMDPMatrices,
     config: MeditationConfig = DEFAULT_CONFIG,
@@ -136,54 +197,10 @@ def meditate(
     for cycle in range(min(config.meditation_cycles, config.max_cycles)):
         prev_beliefs = beliefs.copy()
 
-        # Step 1: Bayesian update with "no_input" observation
-        # Likelihood for no_input is the row A[no_input_idx, :]
-        likelihood = A[no_input_idx, :]
-        posterior = likelihood * beliefs
-        posterior_sum = posterior.sum()
-        if posterior_sum > 1e-16:
-            posterior = posterior / posterior_sum
-        else:
-            posterior = uniform.copy()
-
-        # Step 2: Temporal flattening — blend toward uniform
-        beliefs = config.temporal_decay * posterior + (1 - config.temporal_decay) * uniform
-
-        # Step 3: Evaluate expected free energy for each action
-        efe = np.array([
-            _expected_free_energy(A, B, C, beliefs, a)
-            for a in range(NUM_ACTIONS)
-        ])
-
-        # Convert to policy distribution (softmax of negative EFE)
-        neg_efe = -efe
-        neg_efe -= neg_efe.max()  # numerical stability
-        policy_dist = np.exp(neg_efe)
-        policy_dist = policy_dist / policy_dist.sum()
-
-        # Step 4: Counterfactual pruning — zero out low-probability policies
-        pruned_mask = policy_dist < config.counterfactual_threshold
-        pruned_count = int(pruned_mask.sum())
+        beliefs, pruned_count = _meditation_cycle(
+            A, B, C, beliefs, uniform, no_input_idx, config
+        )
         total_pruned += pruned_count
-
-        if pruned_count < NUM_ACTIONS:  # Don't prune everything
-            policy_dist[pruned_mask] = 0.0
-            policy_sum = policy_dist.sum()
-            if policy_sum > 1e-16:
-                policy_dist = policy_dist / policy_sum
-
-        # Step 5: Weighted transition using pruned policy distribution
-        # predicted_next = sum_a policy(a) * B[:, :, a] @ beliefs
-        transition = np.zeros((NUM_CONTEXTS, NUM_CONTEXTS), dtype=np.float64)
-        for a in range(NUM_ACTIONS):
-            if policy_dist[a] > 1e-16:
-                transition += policy_dist[a] * B[:, :, a]
-        beliefs = transition @ beliefs
-        beliefs_sum = beliefs.sum()
-        if beliefs_sum > 1e-16:
-            beliefs = beliefs / beliefs_sum
-        else:
-            beliefs = uniform.copy()
 
         trajectory.append(tuple(beliefs.tolist()))
         cycles_run = cycle + 1

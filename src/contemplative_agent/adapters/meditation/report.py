@@ -79,6 +79,27 @@ def _save_result(result: MeditationResult, results_path: Path) -> None:
         raise
 
 
+def _load_interpret_template(prompt_template: Optional[str]) -> Optional[str]:
+    """Load the interpretation prompt template unless one was supplied."""
+    if prompt_template is not None:
+        return prompt_template
+    try:
+        from ...core import prompts
+        return prompts.MEDITATION_INTERPRET_PROMPT
+    except (AttributeError, Exception):
+        return None
+
+
+def _parse_insight_bullets(llm_output: str) -> list:
+    """Parse bullet points from LLM output."""
+    patterns = []
+    for line in llm_output.strip().splitlines():
+        line = line.strip()
+        if line.startswith("- "):
+            patterns.append(line[2:].strip())
+    return patterns
+
+
 def interpret_and_save(
     result: MeditationResult,
     results_path: Path,
@@ -103,13 +124,7 @@ def interpret_and_save(
         _save_result(result, results_path)
         logger.info("Meditation result saved to %s", results_path)
 
-    # Load prompt template for human-readable interpretation
-    if prompt_template is None:
-        try:
-            from ...core import prompts
-            prompt_template = prompts.MEDITATION_INTERPRET_PROMPT
-        except (AttributeError, Exception):
-            prompt_template = None
+    prompt_template = _load_interpret_template(prompt_template)
 
     if not prompt_template:
         save_msg = f"(Result saved to {results_path})" if not dry_run else "(dry run)"
@@ -122,12 +137,7 @@ def interpret_and_save(
         save_msg = f"(Result saved to {results_path})" if not dry_run else "(dry run)"
         return f"{summary}\n\n(LLM returned no output for interpretation.)\n{save_msg}"
 
-    # Parse bullet points from LLM output
-    patterns = []
-    for line in llm_output.strip().splitlines():
-        line = line.strip()
-        if line.startswith("- "):
-            patterns.append(line[2:].strip())
+    patterns = _parse_insight_bullets(llm_output)
 
     output_lines = [summary, "", "### Meditation Insights"]
 
