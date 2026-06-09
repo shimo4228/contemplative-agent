@@ -1,0 +1,44 @@
+# Distill Step 3 (importance scoring) regression suite.
+# Production sends format=IMPORTANCE_SCHEMA (token-level constrained output);
+# passthrough.format reproduces that here.
+# Run: npx promptfoo@latest eval -c evals/promptfooconfig.step3.yaml
+description: "distill step 3 (importance) — structured-output regression"
+
+prompts:
+  - id: file://prompts/distill_prompts.py:distill_importance
+    label: step3-importance
+
+providers:
+  - id: ollama:chat:qwen3.5:9b
+    label: qwen3.5-9b
+    config:
+      num_ctx: 32768
+      num_predict: 3000
+      top_p: 0.95
+      top_k: 20
+      temperature: 0
+      seed: 42
+      think: false
+      passthrough:
+        # IMPORTANCE_SCHEMA (core/distill.py) verbatim
+        format:
+          type: object
+          properties:
+            scores:
+              type: array
+              items:
+                type: integer
+          required: [scores]
+
+defaultTest:
+  assert:
+    - type: latency
+      threshold: 600000
+    # One 1-10 integer per input pattern, same order (production contract)
+    - type: python
+      value: file://asserts/common.py:assert_importance_output
+
+tests:
+  - description: score a fixed pattern list
+    vars:
+      patterns_file: patterns/patterns_basic.txt

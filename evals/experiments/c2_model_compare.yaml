@@ -1,0 +1,35 @@
+# §C2 — qwen3.5:9b vs qwen3:4b comparison (remaining-issues Part C).
+# Same prompt + episodes, two provider arms. Requires `ollama pull qwen3:4b`.
+# Production temperature; compare distributions with --repeat 5.
+# Note: adopting a model swap re-opens the §B1 threshold calibration
+# (score quantization patterns change per model — memory: relevance-retune).
+# Run: npx promptfoo@latest eval -c evals/experiments/c2_model_compare.yaml --repeat 5
+description: "§C2 model compare — qwen3.5:9b vs qwen3:4b, same prompt"
+
+prompts:
+  - id: file://../prompts/distill_prompts.py:distill_step1
+    label: step1-extract
+
+providers:
+  - id: ollama:chat:qwen3.5:9b
+    label: 9b
+    config: &opts
+      num_ctx: 32768
+      num_predict: 3000
+      top_p: 0.95
+      top_k: 20
+      temperature: 1.0
+      think: false
+  - id: ollama:chat:qwen3:4b
+    label: 4b
+    config: *opts
+
+defaultTest:
+  assert:
+    - type: not-contains
+      value: "</untrusted_content>"
+
+tests:
+  - description: full synthetic window (40 episodes)
+    vars:
+      episode_file: ../../tests/fixtures/benchmark/synthetic.jsonl

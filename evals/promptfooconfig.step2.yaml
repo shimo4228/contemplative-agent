@@ -1,0 +1,44 @@
+# Distill Step 2 (refine) regression suite.
+# Input fixtures are captured Step-1 outputs (see README: capture policy).
+# Run: npx promptfoo@latest eval -c evals/promptfooconfig.step2.yaml
+description: "distill step 2 (refine) — JSON contract regression"
+
+prompts:
+  - id: file://prompts/distill_prompts.py:distill_refine
+    label: step2-refine
+
+providers:
+  - id: ollama:chat:qwen3.5:9b
+    label: qwen3.5-9b
+    config:
+      num_ctx: 32768
+      num_predict: 3000
+      top_p: 0.95
+      top_k: 20
+      temperature: 0
+      seed: 42
+      think: false
+
+defaultTest:
+  assert:
+    - type: not-contains
+      value: "</untrusted_content>"
+    - type: not-contains
+      value: "<|im_start|>"
+    - type: not-contains
+      value: "<|im_end|>"
+    - type: not-contains
+      value: "<|endoftext|>"
+    - type: not-contains
+      value: "<think>"
+    - type: latency
+      threshold: 600000
+    # Production contract: {"patterns": [...]}, 1-12 items, >=80% pass
+    # the _is_valid_pattern gate (fence-tolerant, same as production parse)
+    - type: python
+      value: file://asserts/common.py:assert_refine_output
+
+tests:
+  - description: refine captured step-1 output (window B)
+    vars:
+      raw_output_file: raw_outputs/step1_window_b.txt
