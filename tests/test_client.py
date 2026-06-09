@@ -441,16 +441,16 @@ class TestDualRateLimit:
         mock_response = MagicMock()
         mock_response.headers = {"X-RateLimit-Remaining": "42"}
         client._parse_rate_headers(mock_response, method="GET")
-        assert client.read_remaining == 42
-        assert client.write_remaining is None
+        assert client._read_remaining == 42
+        assert client._write_remaining is None
 
     def test_parse_rate_headers_assigns_to_write_for_post(self):
         client = MoltbookClient(api_key="test-key")
         mock_response = MagicMock()
         mock_response.headers = {"X-RateLimit-Remaining": "15"}
         client._parse_rate_headers(mock_response, method="POST")
-        assert client.write_remaining == 15
-        assert client.read_remaining is None
+        assert client._write_remaining == 15
+        assert client._read_remaining is None
 
     def test_rate_limit_remaining_backward_compat_returns_min(self):
         client = MoltbookClient(api_key="test-key")
@@ -482,7 +482,7 @@ class TestDualRateLimit:
         mock_response = MagicMock()
         mock_response.headers = {"X-RateLimit-Remaining": "5"}
         client._parse_rate_headers(mock_response)  # default method="GET"
-        assert client.read_remaining == 5
+        assert client._read_remaining == 5
 
 
 class TestGetHome:

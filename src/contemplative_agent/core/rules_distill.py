@@ -54,7 +54,6 @@ class RulesDistillResult:
 
     rules: Tuple[RuleResult, ...]
     dropped_count: int
-    rules_dir: Path
 
 
 def _read_skills(
@@ -376,5 +375,4 @@ def distill_rules(
     return RulesDistillResult(
         rules=tuple(rule_results),
         dropped_count=dropped_count,
-        rules_dir=rules_dir or Path("."),
     )

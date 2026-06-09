@@ -59,7 +59,6 @@ class InsightResult:
 
     skills: Tuple[SkillResult, ...]
     dropped_count: int
-    skills_dir: Path
 
 
 def _extract_skill(
@@ -306,5 +305,4 @@ def extract_insight(
     return InsightResult(
         skills=tuple(skill_results),
         dropped_count=dropped_count,
-        skills_dir=skills_dir or Path("."),
     )

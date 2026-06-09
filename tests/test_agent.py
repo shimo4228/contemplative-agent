@@ -65,7 +65,7 @@ class TestAutoFollow:
         agent._auto_follow(client)
         followed_names = [c.args[0] for c in client.follow_agent.call_args_list]
         assert "contemplative-agent" not in followed_names
-        assert agent._memory.is_followed("contemplative-agent") is False
+        assert "contemplative-agent" not in agent._memory.get_followed_agents()
         assert "Alice" in followed_names
 
     def test_enters_top20_follows(self, tmp_path):
@@ -347,7 +347,7 @@ class TestSideEffectGateWiring:
         agent._content = MagicMock()
         agent._content.create_comment.return_value = "Great"
 
-        agent._engage_with_post({"content": "text", "id": "post1"})
+        agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, agent._client, agent._scheduler)
         agent._client.upvote_post.assert_not_called()
 
     @patch("builtins.input", return_value="n")
@@ -603,31 +603,31 @@ class TestEngageWithPost:
 
     def test_empty_post(self, tmp_path):
         agent = self._make_agent(tmp_path)
-        assert agent._engage_with_post({"content": "", "id": "1"}) is False
-        assert agent._engage_with_post({"content": "text", "id": ""}) is False
+        assert agent._feed_manager.engage_with_post({"content": "", "id": "1"}, agent._client, agent._scheduler) is False
+        assert agent._feed_manager.engage_with_post({"content": "text", "id": ""}, agent._client, agent._scheduler) is False
 
     def test_invalid_post_id(self, tmp_path):
         agent = self._make_agent(tmp_path)
-        assert agent._engage_with_post({"content": "text", "id": "../etc"}) is False
+        assert agent._feed_manager.engage_with_post({"content": "text", "id": "../etc"}, agent._client, agent._scheduler) is False
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.3)
     def test_below_threshold(self, mock_score, tmp_path):
         agent = self._make_agent(tmp_path)
-        result = agent._engage_with_post({"content": "text", "id": "post1"})
+        result = agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, agent._client, agent._scheduler)
         assert result is False
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_rate_limit_reached(self, mock_score, tmp_path):
         agent = self._make_agent(tmp_path)
         agent._scheduler.can_comment.return_value = False
-        result = agent._engage_with_post({"content": "text", "id": "post1"})
+        result = agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, agent._client, agent._scheduler)
         assert result is False
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_comment_generation_fails(self, mock_score, tmp_path):
         agent = self._make_agent(tmp_path)
         agent._content.create_comment.return_value = None
-        result = agent._engage_with_post({"content": "text", "id": "post1"})
+        result = agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, agent._client, agent._scheduler)
         assert result is False
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
@@ -639,7 +639,7 @@ class TestEngageWithPost:
         agent._content.create_comment.return_value = "Great insight"
         agent._client.post_comment.return_value = {"id": "c-new"}
 
-        result = agent._engage_with_post({"content": "text", "id": "post1"})
+        result = agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, agent._client, agent._scheduler)
         assert result is True
         agent._client.post_comment.assert_called_once_with(
             "post1", "Great insight"
@@ -652,7 +652,7 @@ class TestEngageWithPost:
         agent._content.create_comment.return_value = "Great insight"
         agent._client.post_comment.side_effect = MoltbookClientError("fail")
 
-        result = agent._engage_with_post({"content": "text", "id": "post1"})
+        result = agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, agent._client, agent._scheduler)
         assert result is False
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
@@ -667,7 +667,7 @@ class TestEngageWithPost:
             status_code=200,
         )
 
-        result = agent._engage_with_post({"content": "text", "id": "post1"})
+        result = agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, agent._client, agent._scheduler)
         assert result is False
         assert not agent._ctx.memory.has_commented_on("post1")
         assert agent._ctx.actions_taken == []
@@ -696,7 +696,7 @@ class TestEngageWithPost:
         agent._content.create_comment.return_value = "Great insight"
         agent._client.post_comment.return_value = {"id": "c-new"}
 
-        agent._engage_with_post({"content": "text", "id": "post1"})
+        agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, agent._client, agent._scheduler)
 
         comment_eps = [
             r
@@ -731,7 +731,7 @@ class TestEngageWithPost:
         agent._content.create_comment.return_value = "Great insight"
         agent._client.post_comment.return_value = {"id": "c-new"}
 
-        agent._engage_with_post({"content": preview, "id": "post1"})
+        agent._feed_manager.engage_with_post({"content": preview, "id": "post1"}, agent._client, agent._scheduler)
 
         agent._client.get_post.assert_called_once_with("post1")
         agent._content.create_comment.assert_called_once_with(full)
@@ -760,7 +760,7 @@ class TestEngageWithPost:
         agent._content.create_comment.return_value = "Great insight"
         agent._client.post_comment.return_value = {"id": "c-new"}
 
-        agent._engage_with_post({"content": full, "id": "post1"})
+        agent._feed_manager.engage_with_post({"content": full, "id": "post1"}, agent._client, agent._scheduler)
 
         agent._client.get_post.assert_not_called()
         agent._content.create_comment.assert_called_once_with(full)
@@ -784,7 +784,7 @@ class TestEngageWithPost:
         agent._content.create_comment.return_value = "Great insight"
         agent._client.post_comment.return_value = {"id": "c-new"}
 
-        agent._engage_with_post({"content": preview, "id": "post1"})
+        agent._feed_manager.engage_with_post({"content": preview, "id": "post1"}, agent._client, agent._scheduler)
 
         agent._client.get_post.assert_not_called()
         agent._content.create_comment.assert_called_once_with(preview)
@@ -815,7 +815,7 @@ class TestEngageWithPost:
         agent._content.create_comment.return_value = "Great insight"
         agent._client.post_comment.return_value = {"id": "c-new"}
 
-        agent._engage_with_post({"content": preview, "id": "post1"})
+        agent._feed_manager.engage_with_post({"content": preview, "id": "post1"}, agent._client, agent._scheduler)
 
         agent._client.get_post.assert_called_once_with("post1")
         agent._content.create_comment.assert_called_once_with(preview)
@@ -1771,7 +1771,7 @@ class TestSelectiveMode:
         agent._scheduler.can_comment.return_value = True
         agent._content = MagicMock()
 
-        result = agent._engage_with_post({"content": "text", "id": "post1"})
+        result = agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, agent._client, agent._scheduler)
         assert result is False
         agent._content.create_comment.assert_not_called()
 
@@ -1792,7 +1792,7 @@ class TestSelectiveMode:
         agent._scheduler.can_comment.return_value = True
         agent._content = MagicMock()
 
-        result = agent._engage_with_post({"content": "text", "id": "post1"})
+        result = agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, agent._client, agent._scheduler)
         assert result is False
         agent._client.post_comment.assert_not_called()
 
@@ -1811,7 +1811,7 @@ class TestSelectiveMode:
         agent._content = MagicMock()
         agent._content.create_comment.return_value = "Nice"
 
-        agent._engage_with_post({"content": "text", "id": "post1"})
+        agent._feed_manager.engage_with_post({"content": "text", "id": "post1"}, agent._client, agent._scheduler)
         mock_time.sleep.assert_called_once_with(120.0)
 
 
@@ -2247,7 +2247,7 @@ class TestSelfPostSkip:
             "id": "post1",
             "author": {"id": "my-agent-id", "name": "self"},
         }
-        result = agent._engage_with_post(post)
+        result = agent._feed_manager.engage_with_post(post, agent._client, agent._scheduler)
         assert result is False
         mock_score.assert_not_called()
 
@@ -2266,7 +2266,7 @@ class TestSelfPostSkip:
             "id": "post1",
             "author": {"id": "other-agent", "name": "other"},
         }
-        agent._engage_with_post(post)
+        agent._feed_manager.engage_with_post(post, agent._client, agent._scheduler)
         mock_score.assert_called_once()
 
 
@@ -2285,7 +2285,7 @@ class TestSubmoltFilter:
             "id": "post1",
             "submolt_name": "unsubscribed-submolt",
         }
-        result = agent._engage_with_post(post)
+        result = agent._feed_manager.engage_with_post(post, agent._client, agent._scheduler)
         assert result is False
         mock_score.assert_not_called()
 
@@ -2299,7 +2299,7 @@ class TestSubmoltFilter:
         agent._content.create_comment.return_value = None
 
         post = {"content": "Some post", "id": "post1"}
-        agent._engage_with_post(post)
+        agent._feed_manager.engage_with_post(post, agent._client, agent._scheduler)
         mock_score.assert_called_once()
 
 

@@ -117,10 +117,6 @@ class MemoryStore:
         self._followed: set[str] = set()
 
     @property
-    def interactions(self) -> Tuple[Interaction, ...]:
-        return tuple(self._interactions)
-
-    @property
     def known_agents(self) -> Dict[str, str]:
         return dict(self._known_agents)
 
@@ -281,10 +277,6 @@ class MemoryStore:
         """Count total interactions with a specific agent."""
         return sum(1 for i in self._interactions if i.agent_id == agent_id)
 
-    def is_followed(self, agent_name: str) -> bool:
-        """Check if we've already followed this agent."""
-        return agent_name in self._followed
-
     def record_follow(self, agent_name: str) -> None:
         """Mark an agent as followed."""
         self._followed.add(agent_name)
@@ -348,10 +340,6 @@ class MemoryStore:
             self._post_history = self._post_history[-MAX_POST_HISTORY:]
 
         return record
-
-    def get_recent_post_topics(self, limit: int = 5) -> List[str]:
-        """Return topic_summaries of recent posts."""
-        return [p.topic_summary for p in self._post_history[-limit:]]
 
     def get_recent_posts(self, limit: int = 50) -> List[PostRecord]:
         """Return recent self-post records (oldest→newest), capped at `limit`.

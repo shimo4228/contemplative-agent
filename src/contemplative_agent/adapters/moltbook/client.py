@@ -99,14 +99,6 @@ class MoltbookClient:
                 logger.debug("Malformed X-RateLimit-Reset header: %r", reset)
 
     @property
-    def read_remaining(self) -> Optional[int]:
-        return self._read_remaining
-
-    @property
-    def write_remaining(self) -> Optional[int]:
-        return self._write_remaining
-
-    @property
     def rate_limit_remaining(self) -> Optional[int]:
         """Backward-compatible: returns min of known read/write remaining."""
         values = [v for v in (self._read_remaining, self._write_remaining) if v is not None]

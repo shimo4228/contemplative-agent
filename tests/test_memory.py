@@ -68,7 +68,7 @@ class TestInteraction:
 class TestMemoryStore:
     def test_empty_by_default(self):
         store = MemoryStore()
-        assert store.interactions == ()
+        assert store._interactions == []
         assert store.known_agents == {}
         assert store.interaction_count() == 0
         assert store.unique_agent_count() == 0
@@ -158,7 +158,7 @@ class TestMemoryStore:
             )
         assert store.interaction_count() == MAX_INTERACTIONS
         # Oldest should be trimmed
-        assert store.interactions[0].post_id == "p50"
+        assert store._interactions[0].post_id == "p50"
 
 
 class TestMemoryPersistence:
@@ -180,7 +180,7 @@ class TestMemoryPersistence:
         store2 = MemoryStore(path=path)
         store2.load()
         assert store2.interaction_count() == 1
-        assert store2.interactions[0].agent_id == "agent1"
+        assert store2._interactions[0].agent_id == "agent1"
         assert store2.known_agents["agent1"] == "TestAgent"
 
     def test_file_permissions(self, tmp_path):
@@ -236,8 +236,8 @@ class TestMemoryPersistence:
 
         store2 = MemoryStore(path=path)
         store2.load()
-        assert store2.interactions[0].agent_name == "テストエージェント"
-        assert store2.interactions[0].content_summary == "日本語コンテンツ"
+        assert store2._interactions[0].agent_name == "テストエージェント"
+        assert store2._interactions[0].content_summary == "日本語コンテンツ"
 
 
 class TestPostRecord:
@@ -276,7 +276,7 @@ class TestPostHistoryAndInsights:
         )
         assert r.post_id == "post1"
         assert r.content_hash == "abcdef1234567890"  # truncated to 16
-        assert len(store.get_recent_post_topics()) == 1
+        assert len(store.get_recent_posts()) == 1
 
     def test_record_post_truncates_summary(self):
         store = MemoryStore()
@@ -287,14 +287,14 @@ class TestPostHistoryAndInsights:
         )
         assert len(r.topic_summary) <= 100
 
-    def test_get_recent_post_topics(self):
+    def test_get_recent_posts_topic_order(self):
         store = MemoryStore()
         for i in range(10):
             store.record_post(
                 timestamp=f"t{i}", post_id=f"p{i}", title=f"T{i}",
                 topic_summary=f"topic{i}", content_hash=f"hash{i}",
             )
-        topics = store.get_recent_post_topics(limit=3)
+        topics = [p.topic_summary for p in store.get_recent_posts(limit=3)]
         assert len(topics) == 3
         assert topics == ["topic7", "topic8", "topic9"]
 
@@ -305,7 +305,7 @@ class TestPostHistoryAndInsights:
                 timestamp=f"t{i}", post_id=f"p{i}", title=f"T{i}",
                 topic_summary=f"topic{i}", content_hash=f"hash{i}",
             )
-        topics = store.get_recent_post_topics(limit=MAX_POST_HISTORY + 10)
+        topics = [p.topic_summary for p in store.get_recent_posts(limit=MAX_POST_HISTORY + 10)]
         assert len(topics) == MAX_POST_HISTORY
         assert topics[0] == "topic10"
 
@@ -325,7 +325,7 @@ class TestPostHistoryPersistence:
 
         store2 = MemoryStore(path=path)
         store2.load()
-        topics = store2.get_recent_post_topics()
+        topics = [p.topic_summary for p in store2.get_recent_posts()]
         assert len(topics) == 1
         assert topics[0] == "About testing"
 
@@ -347,7 +347,7 @@ class TestPostHistoryPersistence:
         store2 = MemoryStore(path=path)
         store2.load()
         assert store2.interaction_count() == 1
-        assert len(store2.get_recent_post_topics()) == 1
+        assert len(store2.get_recent_posts()) == 1
 
     def test_historical_insight_records_tolerated_on_load(self, tmp_path):
         """ADR-0052: insight generation is retired, but historical
@@ -368,14 +368,14 @@ class TestPostHistoryPersistence:
 
         store2 = MemoryStore(path=path)
         store2.load()
-        assert len(store2.get_recent_post_topics()) == 1
+        assert len(store2.get_recent_posts()) == 1
         # The historical record stays in the log untouched (research data).
         records = store2.episodes.read_range(days=1)
         assert any(r.get("type") == "insight" for r in records)
 
     def test_empty_post_topics_returns_empty(self):
         store = MemoryStore()
-        assert store.get_recent_post_topics() == []
+        assert store.get_recent_posts() == []
 
 
 class TestEpisodeLog:
@@ -541,11 +541,11 @@ class TestFollowedAgents:
 
     def test_follow_unfollow(self):
         store = MemoryStore()
-        assert store.is_followed("Agent1") is False
+        assert "Agent1" not in store.get_followed_agents()
         store.record_follow("Agent1")
-        assert store.is_followed("Agent1") is True
+        assert "Agent1" in store.get_followed_agents()
         store.record_unfollow("Agent1")
-        assert store.is_followed("Agent1") is False
+        assert "Agent1" not in store.get_followed_agents()
 
     def test_followed_agents_persisted(self, tmp_path):
         path = tmp_path / "memory.json"
@@ -565,9 +565,9 @@ class TestFollowedAgents:
 
         store = MemoryStore(path=tmp_path / "memory.json")
         store.load()
-        assert store.is_followed("X") is True
-        assert store.is_followed("Y") is True
-        assert store.is_followed("Z") is False
+        assert "X" in store.get_followed_agents()
+        assert "Y" in store.get_followed_agents()
+        assert "Z" not in store.get_followed_agents()
 
     def test_get_followed_agents(self):
         store = MemoryStore()
@@ -582,7 +582,7 @@ class TestFollowedAgents:
 
         store = MemoryStore(path=tmp_path / "memory.json")
         store.load()
-        assert store.is_followed("api_key_leak") is False
+        assert "api_key_leak" not in store.get_followed_agents()
         assert store.get_followed_agents() == set()
 
     def test_agents_json_file_permissions(self, tmp_path):

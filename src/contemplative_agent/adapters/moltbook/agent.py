@@ -410,16 +410,6 @@ class Agent:
             self._verification.record_failure()
             return False
 
-    # ------------------------------------------------------------------
-    # Feed engagement (delegated to FeedManager)
-    # ------------------------------------------------------------------
-
-    def _engage_with_post(self, post: dict) -> bool:
-        """Score and potentially comment on a post (delegates to FeedManager)."""
-        return self._feed_manager.engage_with_post(
-            post, self._ensure_client(), self._get_scheduler()
-        )
-
     def _auto_follow(self, client: MoltbookClient) -> None:
         """Maintain a stable following list based on interaction count.
 
