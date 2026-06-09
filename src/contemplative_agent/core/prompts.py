@@ -43,6 +43,13 @@ class _LazyPrompts:
         "STOCKTAKE_MERGE_PROMPT": "stocktake_merge",
         "STOCKTAKE_MERGE_RULES_PROMPT": "stocktake_merge_rules",
         "STOCKTAKE_CLEAN_PROMPT": "stocktake_clean",
+        "UNTRUSTED_WRAPPER_PROMPT": "untrusted_wrapper",
+        "UNTRUSTED_MARKER_COMPLETE_PROMPT": "untrusted_marker_complete",
+        "UNTRUSTED_MARKER_TRUNCATED_PROMPT": "untrusted_marker_truncated",
+        "STOCKTAKE_GROUP_SYSTEM_PROMPT": "stocktake_group_system",
+        "STOCKTAKE_MERGE_SYSTEM_PROMPT": "stocktake_merge_system",
+        "STOCKTAKE_CLEAN_SYSTEM_PROMPT": "stocktake_clean_system",
+        "DIALOGUE_PROMPT": "dialogue",
     }
 
     def __getattr__(self, name: str) -> str:

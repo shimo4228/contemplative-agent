@@ -11,6 +11,9 @@ from contemplative_agent.core.stocktake import (
     QualityIssue,
     StocktakeResult,
     _CLEAN_TOKENS,
+    _DEFAULT_CLEAN_SYSTEM,
+    _DEFAULT_GROUP_SYSTEM,
+    _DEFAULT_MERGE_SYSTEM,
     _PER_FILE_MERGE_TOKENS,
     _check_rule_quality,
     _check_skill_quality,
@@ -531,3 +534,44 @@ class TestFormatReport:
         report = format_stocktake_report(result, "Rules")
         assert "No duplicates" in report
         assert "5 healthy" in report
+
+
+# ---------------------------------------------------------------------------
+# ADR-0054: the stocktake system prompts are externalized to config/prompts/.
+# When the template is missing (lazy loader yields ""), the hardcoded default
+# must reach the LLM call so behavior is unchanged.
+class TestSystemPromptFallback:
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_group_system_falls_back_to_default(self, mock_generate, monkeypatch):
+        monkeypatch.setattr(
+            "contemplative_agent.core.prompts.STOCKTAKE_GROUP_SYSTEM_PROMPT",
+            "",
+            raising=False,
+        )
+        mock_generate.return_value = '{"groups": []}'
+        _find_duplicate_groups(
+            [("a.md", "body a"), ("b.md", "body b")], "prompt {items}"
+        )
+        assert mock_generate.call_args.kwargs["system"] == _DEFAULT_GROUP_SYSTEM
+
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_merge_system_falls_back_to_default(self, mock_generate, monkeypatch):
+        monkeypatch.setattr(
+            "contemplative_agent.core.prompts.STOCKTAKE_MERGE_SYSTEM_PROMPT",
+            "",
+            raising=False,
+        )
+        mock_generate.return_value = "merged"
+        merge_group([("a.md", "x"), ("b.md", "y")], "prompt {candidates}")
+        assert mock_generate.call_args.kwargs["system"] == _DEFAULT_MERGE_SYSTEM
+
+    @patch("contemplative_agent.core.stocktake.generate")
+    def test_clean_system_falls_back_to_default(self, mock_generate, monkeypatch):
+        monkeypatch.setattr(
+            "contemplative_agent.core.prompts.STOCKTAKE_CLEAN_SYSTEM_PROMPT",
+            "",
+            raising=False,
+        )
+        mock_generate.return_value = "CLEAN_NOOP"
+        clean_skill_triggers(("a.md", "body"), "prompt {skill}")
+        assert mock_generate.call_args.kwargs["system"] == _DEFAULT_CLEAN_SYSTEM

@@ -75,6 +75,7 @@ docker compose down                                     # 停止
 
 - **Immutability**: DTO とドメインオブジェクトは `frozen=True`（例外なし）。詳細は [architecture.md#Immutability](docs/CODEMAPS/architecture.md#immutability)
 - **Import 方向**: `core/` ← `adapters/` ← `cli.py` の一方向依存。`cli.py` のみ両方を import。根拠は [ADR-0001](docs/adr/0001-core-adapter-separation.md)、運用規約は [architecture.md#Import-Rule](docs/CODEMAPS/architecture.md#import-rule)
+- **プロンプト外出し**: LLM が読む指示テキストはコードにハードコードせず `config/prompts/*.md` に置く（`config/prompts/` は固定 apparatus、値層 skills/rules/identity/constitution が観察対象）。入力サニタイズ変換（`_INJECTION_TOKENS` 等、LLM が読む前に作用するもの）はコードに残す。根拠は [ADR-0003](docs/adr/0003-config-directory-design.md) / [ADR-0054](docs/adr/0054-externalize-llm-instruction-text-to-prompts.md)
 
 ## セキュリティ方針
 

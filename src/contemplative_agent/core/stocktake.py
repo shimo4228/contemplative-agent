@@ -36,6 +36,14 @@ logger = logging.getLogger(__name__)
 
 MIN_FILES_FOR_DEDUP = 2
 
+# Code-side defaults for the stocktake LLM system prompts. The canonical text
+# lives in config/prompts/stocktake_*_system.md (ADR-0054) so it is observable
+# in the prompt layer; these defaults preserve today's behavior if a template
+# file is missing or empty.
+_DEFAULT_GROUP_SYSTEM = "Return only valid JSON."
+_DEFAULT_MERGE_SYSTEM = "Merge skills, preserving every distinct concrete pattern."
+_DEFAULT_CLEAN_SYSTEM = "Rewrite only the trigger conditions; preserve all else."
+
 # Token budget per input file for a pattern-preserving merge. The merged
 # skill is the union of each input's distinct patterns, so the output scales
 # with group size. Used as ``min(8192, max(3000, _PER_FILE_MERGE_TOKENS * n))``
@@ -130,9 +138,13 @@ def _find_duplicate_groups(
     if len(items) < MIN_FILES_FOR_DEDUP:
         return []
 
+    # Lazy import avoids a core.stocktake -> core.prompts import cycle.
+    from .prompts import STOCKTAKE_GROUP_SYSTEM_PROMPT
+
     prompt = prompt_template.format(items=_format_items(items))
     num_predict = min(8192, max(3000, _GROUPING_TOKENS_PER_FILE * len(items)))
-    raw = generate(prompt, system="Return only valid JSON.", num_predict=num_predict)
+    system = STOCKTAKE_GROUP_SYSTEM_PROMPT or _DEFAULT_GROUP_SYSTEM
+    raw = generate(prompt, system=system, num_predict=num_predict)
     if raw is None:
         logger.warning("LLM failed during stocktake duplicate detection")
         return []
@@ -200,6 +212,9 @@ def merge_group(
     Returns:
         Merged skill text (or CANNOT_MERGE response), None on LLM failure.
     """
+    # Lazy import avoids a core.stocktake -> core.prompts import cycle.
+    from .prompts import STOCKTAKE_MERGE_SYSTEM_PROMPT
+
     prompt = prompt_template.format(candidates=_format_items(items))
     # The merge prompt preserves the *union* of every distinct concrete
     # pattern rather than synthesizing a shared core, so output length grows
@@ -208,7 +223,8 @@ def merge_group(
     # patterns this merge exists to preserve. Floor keeps small-group
     # behavior unchanged; ceiling stays within the model's num_ctx headroom.
     num_predict = min(8192, max(3000, _PER_FILE_MERGE_TOKENS * len(items)))
-    return generate(prompt, system="Merge skills, preserving every distinct concrete pattern.", num_predict=num_predict)
+    system = STOCKTAKE_MERGE_SYSTEM_PROMPT or _DEFAULT_MERGE_SYSTEM
+    return generate(prompt, system=system, num_predict=num_predict)
 
 
 def is_merge_rejected(merged_text: str) -> bool:
@@ -255,11 +271,14 @@ def clean_skill_triggers(
     Returns:
         Rewritten skill text (or the CLEAN_NOOP sentinel), None on LLM failure.
     """
+    # Lazy import avoids a core.stocktake -> core.prompts import cycle.
+    from .prompts import STOCKTAKE_CLEAN_SYSTEM_PROMPT
+
     _, body = item
     prompt = prompt_template.format(skill=body)
     return generate(
         prompt,
-        system="Rewrite only the trigger conditions; preserve all else.",
+        system=STOCKTAKE_CLEAN_SYSTEM_PROMPT or _DEFAULT_CLEAN_SYSTEM,
         num_predict=_CLEAN_TOKENS,
     )
 

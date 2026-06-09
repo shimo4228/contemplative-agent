@@ -63,7 +63,7 @@ cli.py (2024L)  -- composition root, only file importing both core/ and adapters
 
 config/                           -- externalized templates (domain-swappable, git-managed)
   domain.json                     -- submolts, thresholds
-  prompts/*.md (25 files)         -- LLM prompt templates with {placeholders}
+  prompts/*.md (34 files)         -- LLM prompt templates with {placeholders}
   views/*.md (7 files)            -- seed-text view definitions (packaged fallback for ADR-0019)
   templates/<character>/          -- 11 ethical framework templates
 
@@ -151,7 +151,7 @@ Global flags: --config-dir PATH | --domain-config PATH | --constitution-dir PATH
 
 **Migration commands** (`embed-backfill` / `migrate-patterns` / `migrate-categories`) retired by ADR-0035. Use from a v2.0.x release tag for v1.x store recovery.
 
-## Prompt Templates (25 active)
+## Prompt Templates (30 active)
 
 In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 

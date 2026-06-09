@@ -37,7 +37,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 - Full module dependency graph with line counts (44 modules)
 - 20+ key classes
 - CLI commands (21 active)
-- Prompt templates (25 active)
+- Prompt templates (30 active)
 - Persistent state files
 - Security boundaries & threat model
 - Performance & rate limiting (3-layer defense)
@@ -114,7 +114,7 @@ Package versions, external services, optional add-ons.
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |
 | CLI commands | 21 active |
-| Prompt templates | 27 (config/prompts/*.md) |
+| Prompt templates | 34 files / 30 loaded (config/prompts/*.md) |
 | View seeds | 7 (config/views/*.md) |
 | Config templates | 11 (config/templates/) |
 | Rate limit budgets | 2 (GET 60/min, POST 30/min) |

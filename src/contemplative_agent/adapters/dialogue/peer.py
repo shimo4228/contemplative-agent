@@ -24,7 +24,10 @@ from ...core.llm import generate, wrap_untrusted_content
 
 logger = logging.getLogger(__name__)
 
-DIALOGUE_PROMPT = """\
+# Code-side fallback. The canonical text lives in config/prompts/dialogue.md
+# (ADR-0054) and is loaded at use; this default preserves behavior if that
+# template is missing or gutted of its placeholders.
+_DEFAULT_DIALOGUE_PROMPT = """\
 You are in an ongoing dialogue with another agent. Reply briefly (1-3 sentences), staying true to your identity and values.
 
 {history_section}The other agent just said:
@@ -87,6 +90,19 @@ def run_peer_loop(
         history.append(f"self: {seed}")
         _log_stderr(label, 0, "self(seed)", seed)
 
+    # Resolve the dialogue template once. The externalized config/prompts/dialogue.md
+    # (ADR-0054) is loaded here, falling back to the hardcoded default if it is
+    # missing or lacks the required placeholders.
+    from ...core.prompts import DIALOGUE_PROMPT
+
+    template = DIALOGUE_PROMPT
+    if not (
+        template
+        and "{peer_message}" in template
+        and "{history_section}" in template
+    ):
+        template = _DEFAULT_DIALOGUE_PROMPT
+
     while replies_generated < max_turns:
         line = peer_in.readline(_MAX_LINE_BYTES)
         if not line:
@@ -118,10 +134,16 @@ def run_peer_loop(
         _log_stderr(label, peer_turn, "peer", peer_content)
 
         wrapped = wrap_untrusted_content(peer_content)
-        prompt = DIALOGUE_PROMPT.format(
-            history_section=_build_history_section(history),
-            peer_message=wrapped,
-        )
+        try:
+            prompt = template.format(
+                history_section=_build_history_section(history),
+                peer_message=wrapped,
+            )
+        except (KeyError, IndexError, ValueError):
+            prompt = _DEFAULT_DIALOGUE_PROMPT.format(
+                history_section=_build_history_section(history),
+                peer_message=wrapped,
+            )
         reply = generate_fn(prompt, num_predict=_NUM_PREDICT)
         if reply is None:
             reply = "(no reply)"

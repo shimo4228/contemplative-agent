@@ -1,0 +1,1 @@
+Return only valid JSON.
