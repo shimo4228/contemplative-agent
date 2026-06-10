@@ -742,7 +742,7 @@
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
       "@type": ["Concept", "DefinedTerm"],
-      "name": "AKC six-phase loop",
+      "name": "six-phase loop",
       "alternateName": [
         {"@value": "AKC six-phase loop", "@language": "en"},
         {"@value": "AKC 六相ループ", "@language": "ja"}
@@ -937,7 +937,7 @@
       "@id": "https://doi.org/10.5281/zenodo.19200726",
       "sameAs": "https://www.wikidata.org/wiki/Q140090186",
       "@type": ["ResearchLine", "EcosystemRepo"],
-      "name": "agent-knowledge-cycle (AKC)",
+      "name": "Agent Knowledge Cycle (AKC)",
       "alternateName": [
         {"@value": "Agent Knowledge Cycle", "@language": "en"},
         {"@value": "エージェント知識サイクル", "@language": "ja"}
@@ -1018,7 +1018,7 @@
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ref/ailuminate",
       "@type": ["ExternalReference", "CreativeWork"],
-      "name": "MLCommons AILuminate safety benchmark",
+      "name": "MLCommons AILuminate safety benchmark (2024)",
       "description": "Safety benchmark used to evaluate the contemplative-agent-rules implementation of the four axioms. Cross-graph @id reuse: same node appears in shimo4228 hub graph."
     },
     {
