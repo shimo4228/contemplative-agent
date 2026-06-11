@@ -1005,6 +1005,87 @@
       "description": "Source of the four contemplative axioms (mindfulness, emptiness, non-duality, boundless care) that ground the Contemplative Agent line."
     },
     {
+      "@id": "https://arxiv.org/abs/2305.10250",
+      "sameAs": "https://www.wikidata.org/wiki/Q140181351",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Zhong et al. (2023). MemoryBank: Enhancing Large Language Models with Long-Term Memory",
+      "identifier": "arXiv:2305.10250",
+      "url": "https://arxiv.org/abs/2305.10250",
+      "description": "Source of the Ebbinghaus-style forgetting curve (strength = e^(−t/S), with S reinforced by access) that ADR-0021 adopted for pattern-level forgetting. The mechanism was retired by ADR-0028 as misplaced in the substrate layer, and ADR-0037 records it among the paper-borrowed mechanisms that did not survive validation in Contemplative Agent's substrate."
+    },
+    {
+      "@id": "https://arxiv.org/abs/2310.08560",
+      "sameAs": "https://www.wikidata.org/wiki/Q140181237",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Packer et al. (2023). MemGPT: Towards LLMs as Operating Systems",
+      "identifier": "arXiv:2310.08560",
+      "url": "https://arxiv.org/abs/2310.08560",
+      "description": "OS-inspired virtual-memory management for LLM context, paging between in-context and external storage. Cited as the Core Memory analogue for Contemplative Agent's Identity layer in the three-layer memory architecture."
+    },
+    {
+      "@id": "https://arxiv.org/abs/2501.13956",
+      "sameAs": "https://www.wikidata.org/wiki/Q140181353",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Rasmussen et al. (2025). Zep: A Temporal Knowledge Graph Architecture for Agent Memory",
+      "identifier": "arXiv:2501.13956",
+      "url": "https://arxiv.org/abs/2501.13956",
+      "description": "Bitemporal knowledge-graph memory keeping valid_from / valid_until on every edge. Source of the bitemporal pattern fields (valid_from / valid_until) adopted by ADR-0021, one of the surveyed mechanisms that remains in effect after the retirement series."
+    },
+    {
+      "@id": "https://arxiv.org/abs/2502.12110",
+      "sameAs": "https://www.wikidata.org/wiki/Q140181355",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Xu et al. (2025). A-MEM: Agentic Memory for LLM Agents",
+      "identifier": "arXiv:2502.12110",
+      "url": "https://arxiv.org/abs/2502.12110",
+      "description": "Zettelkasten-style agentic memory in which new memories trigger LLM-driven evolution of related ones. Influenced ADR-0022's memory evolution mechanism; withdrawn by ADR-0034 after the targeted similarity band proved to contain near-duplicates that the LLM merely rephrased rather than genuinely related patterns."
+    },
+    {
+      "@id": "https://arxiv.org/abs/2503.03704",
+      "sameAs": "https://www.wikidata.org/wiki/Q140181350",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Dong et al. (2025). Memory Injection Attacks on LLM Agents (MINJA)",
+      "identifier": "arXiv:2503.03704",
+      "url": "https://arxiv.org/abs/2503.03704",
+      "description": "Memory injection attack achieving 95%+ success against production agents. Demonstrated that the episode → pattern boundary is the critical vector, motivating ADR-0021's source_type provenance surface; the companion trust_score weighting was later retired by ADR-0051, leaving provenance in effect."
+    },
+    {
+      "@id": "https://arxiv.org/abs/2504.19413",
+      "sameAs": "https://www.wikidata.org/wiki/Q140181358",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Choudhary et al. (2025). Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory",
+      "identifier": "arXiv:2504.19413",
+      "url": "https://arxiv.org/abs/2504.19413",
+      "description": "Production memory layer whose ADD / UPDATE / DELETE classification informed the distill-time quality gate. ADR-0021 considered and rejected wholesale adoption (external vector DB dependency violating the one-external-adapter principle), keeping only the write-classification idea."
+    },
+    {
+      "@id": "https://arxiv.org/abs/2512.16962",
+      "sameAs": "https://www.wikidata.org/wiki/Q140181359",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "MemoryGraft (2025). Persistent Compromise of LLM Agents via Poisoned Memory",
+      "identifier": "arXiv:2512.16962",
+      "url": "https://arxiv.org/abs/2512.16962",
+      "description": "Follow-up to the MINJA attack demonstrating persistent agent compromise through poisoned memory. Cited by ADR-0021 as evidence that a single crafted external post can permanently shape agent behavior, grounding the structural quarantine at the episode → pattern boundary."
+    },
+    {
+      "@id": "https://arxiv.org/abs/2304.03442",
+      "sameAs": "https://www.wikidata.org/wiki/Q130846143",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Park et al. (2023). Generative Agents: Interactive Simulacra of Human Behavior",
+      "identifier": "arXiv:2304.03442",
+      "url": "https://arxiv.org/abs/2304.03442",
+      "description": "Origin of the memory stream with recency × importance × relevance retrieval and the reflection tree. Source of the importance-rating concept adopted by ADR-0009's importance score for pattern retrieval."
+    },
+    {
+      "@id": "https://arxiv.org/abs/2309.02427",
+      "sameAs": "https://www.wikidata.org/wiki/Q140181234",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Sumers et al. (2023). Cognitive Architectures for Language Agents",
+      "identifier": "arXiv:2309.02427",
+      "url": "https://arxiv.org/abs/2309.02427",
+      "description": "CoALA framework providing the four-type memory taxonomy (working, episodic, semantic, procedural) used to position Contemplative Agent's three-layer memory architecture within the language-agent literature."
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/beautiful-loop",
       "@type": ["ExternalReference", "ScholarlyArticle"],
       "name": "Beautiful Loop paper",
