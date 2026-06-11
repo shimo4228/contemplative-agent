@@ -997,6 +997,7 @@
 
     {
       "@id": "https://arxiv.org/abs/2504.15125",
+      "sameAs": "https://www.wikidata.org/wiki/Q140181291",
       "@type": ["ExternalReference", "ScholarlyArticle"],
       "name": "Laukkonen et al. (2025). Contemplative Artificial Intelligence",
       "identifier": "arXiv:2504.15125",
@@ -1060,6 +1061,7 @@
     },
     {
       "@id": "https://arxiv.org/abs/2603.18743",
+      "sameAs": "https://www.wikidata.org/wiki/Q140181293",
       "@type": ["ExternalReference", "ScholarlyArticle"],
       "name": "Memento-Skills (2026). Skill-as-Memory architecture",
       "identifier": "arXiv:2603.18743",
