@@ -26,6 +26,7 @@ rsync -a --delete \
     --exclude='credentials.json' \
     --exclude='rate_state.json' \
     --exclude='commented_cache.json' \
+    --exclude='embeddings.sqlite' \
     --exclude='__pycache__/' \
     --exclude='.DS_Store' \
     --exclude='reports/.private/' \
