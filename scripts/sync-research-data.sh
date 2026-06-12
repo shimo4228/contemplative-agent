@@ -27,6 +27,8 @@ rsync -a --delete \
     --exclude='rate_state.json' \
     --exclude='commented_cache.json' \
     --exclude='embeddings.sqlite' \
+    --exclude='knowledge.backups/' \
+    --exclude='*.bak.*' \
     --exclude='__pycache__/' \
     --exclude='.DS_Store' \
     --exclude='reports/.private/' \
