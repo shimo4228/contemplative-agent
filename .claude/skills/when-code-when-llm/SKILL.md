@@ -1,8 +1,9 @@
 ---
 name: when-code-when-llm
-description: Decision framework for choosing between deterministic code (regex, keyword match, AST parse, schema validation) and LLM-based processing (classification, semantic similarity, judge) for a single task. Use when you catch yourself writing a regex for a task that keeps producing false positives or negatives, or when you are about to call an LLM for something a three-line code check would handle. Covers the structural-vs-semantic axis, the false-positive test, and worked examples of both directions.
-origin: shimo4228
+description: Decision framework for choosing between deterministic code (regex, keyword match, AST parse, schema validation) and LLM-based processing (classification, semantic similarity, judge) for a single task. Use when you catch yourself writing a regex for a task that keeps producing false positives or negatives, or when you are about to call an LLM for something a three-line code check would handle. Covers the structural-vs-semantic axis, the false-positive test, worked examples of both directions, and the enumerate/decide split for tasks where detection is structural but resolution needs judgment.
+compatibility: Developed and tested on Claude Code; portable to other Agent Skills-compatible agents.
 user-invocable: true
+origin: shimo4228
 ---
 
 # When Code, When LLM
@@ -148,6 +149,31 @@ Parse with `urllib.parse.urlparse`, compare the host. Do not ask the LLM "is thi
 
 ---
 
+## Worked examples — splitting one task between both
+
+The axis does not always cut between tasks. Sometimes it cuts **through the middle of a single task**: one stage is structural, the next is semantic. The failure mode here is treating the task as a unit — either building a heuristic that tries to *resolve* what only judgment can resolve, or asking an LLM to *enumerate* what code enumerates exactly.
+
+### Canonical-label drift across data files
+
+Several data files describe the same entity (same ID), and over time their display labels diverge — one file says `six-phase loop`, another says `AKC six-phase loop`.
+
+- **Detection is structural**: "the same ID carries ≥2 distinct label values across files" is decidable from the bytes. A linter enumerates every case, deterministically, with zero false negatives. Put it in CI.
+- **Resolution is semantic**: *which* label is canonical requires judgment — majority usage? the file with definitional authority? the more precise wording? No regex answers that.
+
+The working split: **the linter reports, never auto-fixes; the review conversation decides; variants demoted to an alias field.** A lint that auto-picked (say) the longest label would be code-where-LLM-belongs; an LLM asked to re-scan all files for duplicates every time would be LLM-where-code-belongs. Each tool does exactly half.
+
+### The same split, generalized
+
+The pattern recurs wherever a check has an *enumerate* stage and a *decide* stage:
+
+- **Duplicate candidate detection** (exact/near-exact match → code) vs **merge decision** (same underlying thing? → judgment)
+- **Broken-link enumeration** (HTTP status → code) vs **replacement target** (what should it point to now? → judgment)
+- **Style violation flagging** (line length, naming pattern → code) vs **rename choice** (what is a *better* name? → judgment)
+
+Checklist addition for this shape: when a task resists classification, ask **"is there an enumerate/decide seam inside it?"** If yes, split at the seam instead of forcing the whole task to one side.
+
+---
+
 ## Why naive rules push people the wrong direction
 
 Several well-meaning rules compose into a regex-first bias that overshoots into semantic territory:
@@ -174,3 +200,10 @@ Before committing to an approach:
 6. **Is the ground truth exact (format, syntax, presence)?** → code, and expect 100% accuracy
 
 If you are unsure after this checklist, write two small prototypes — one of each — and compare on ten hand-labeled examples. The winner is obvious within fifteen minutes.
+
+---
+
+## Related
+
+- Companion principle: **AKC ADR-0008 "Code-LLM Layering"** — [agent-knowledge-cycle/docs/adr/0008-code-and-llm-collaboration.md](https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/adr/0008-code-and-llm-collaboration.md) (Agent Knowledge Cycle research line, concept DOI [10.5281/zenodo.19200726](https://doi.org/10.5281/zenodo.19200726)). Code owns determinism / auditability / control flow + termination; LLM owns meaning; never let the LLM own durable state or termination. Scoring by an LLM is justified only as input to a code-owned decision (judge + enforce); a score nothing downstream consumes is scaffolding.
+- Source: this decision framework is distilled in the same AKC research line — [agent-knowledge-cycle/docs/skills/when-code-when-llm.md](https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/skills/when-code-when-llm.md).

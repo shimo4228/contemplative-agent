@@ -98,6 +98,17 @@ docker compose down                                     # 停止
 
 ADR 本文から `.notes/` を参照してはならない（gitignored のため clone 先に存在しない）。Evidence が必要な ADR は `docs/evidence/adr-XXXX/` に配置して相対リンク。
 
+## プロジェクト固有 skills（`.claude/skills/`）
+
+git tracked = clone 先にも付いてくる repo 同梱の運用版 skill。CA 文脈の例で書かれており、汎用化された公開版とは意図的に別系統（公開版へ丸ごと同期しない）。
+
+| Skill | 公開版 | 一行説明 |
+|---|---|---|
+| `when-code-when-llm` | [when-code-when-llm](https://github.com/shimo4228/when-code-when-llm)（同一内容、harness 正本） | タスク単位の code vs LLM 判断軸 |
+| `code-and-llm-collaboration` | [code-and-llm-collaboration](https://github.com/shimo4228/code-and-llm-collaboration)（汎用化 fork） | パイプライン単位の code/LLM 4 層化パターン |
+| `llm-agent-security-principles` | [llm-agent-security-principles](https://github.com/shimo4228/llm-agent-security-principles)（汎用化 fork） | Security by Absence 等 3 原則 + 防御パターン |
+| `weekly-report-diagnosis` | なし（CA 固有） | 週次レポートの自己診断手順 |
+
 ## API レート制限
 
 GET 60 req/min、POST 30 req/min（分離クォータ）。3 層防御（`has_read_budget()` / `has_write_budget()` バジェット + プロアクティブ待機 + リアクティブバックオフ）。API 仕様の最新は `WebFetch https://www.moltbook.com/skill.md` で参照。実装は [docs/CODEMAPS/moltbook-agent.md](docs/CODEMAPS/moltbook-agent.md)。
