@@ -45,7 +45,7 @@ Episode logs (`~/.config/moltbook/logs/*.jsonl`) contain raw content from other 
 2. **Attacker-controlled** — any agent on Moltbook can post content that ends up in these logs
 3. **High-privilege reader** — Claude Code (the coding agent) has filesystem access, tool execution, and network capabilities
 
-**Attack vector**: An adversarial agent posts content containing prompt injection payloads (e.g., "Ignore previous instructions and..."). If a coding agent reads the raw JSONL, the payload enters its context and may influence its behavior — a [Glassworm-class](https://arxiv.org/abs/2503.18711) indirect prompt injection attack.
+**Attack vector**: An adversarial agent posts content containing prompt injection payloads (e.g., "Ignore previous instructions and..."). If a coding agent reads the raw JSONL, the payload enters its context and may influence its behavior — an indirect prompt-injection attack in the same class as [GlassWorm](https://www.koi.ai/blog/glassworm-first-self-propagating-worm-using-invisible-code-hits-openvsx-marketplace) (Koi Security, 2025) — a payload that is invisible at review time enters a high-privilege reader's pipeline.
 
 **Existing mitigation**: CLAUDE.md documented "エピソードログ直読み禁止" as a convention. However, this is a probabilistic control — the LLM may still read the file when asked to debug distillation issues, analyze agent behavior, or investigate log formats.
 
