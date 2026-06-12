@@ -46,7 +46,10 @@ TIMESTAMP=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
 MOLTBOOK_SYNC=1 git commit -m "sync: $TIMESTAMP"
 
 if git remote get-url origin &>/dev/null; then
-    git push --force-with-lease 2>/dev/null || {
+    # Refresh the remote-tracking ref first: a stale origin/main makes
+    # --force-with-lease reject every push with "stale info" indefinitely.
+    git fetch origin || echo "WARNING: fetch failed, lease may be stale" >&2
+    git push --force-with-lease || {
         echo "WARNING: push failed, will retry next cycle" >&2
     }
 fi
