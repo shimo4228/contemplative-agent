@@ -26,9 +26,6 @@ Homepage = "https://github.com/shimo4228/contemplative-agent"
 Repository = "https://github.com/shimo4228/contemplative-agent"
 "Bug Tracker" = "https://github.com/shimo4228/contemplative-agent/issues"
 
-[project.optional-dependencies]
-dev = ["pytest>=7.0", "pytest-cov>=4.0", "responses>=0.23.0", "types-requests>=2.31"]
-
 [project.scripts]
 contemplative-agent = "contemplative_agent.cli:main"
 
@@ -56,4 +53,20 @@ reportUnreachable = "none"
 disableTaggedHints = true
 
 [dependency-groups]
-dev = []
+# Dev tooling lives here (uv auto-syncs the `dev` group on `uv run` / `uv sync`),
+# so `uv run pytest` / `uv run ruff` / `uv run pyright` work without extra flags.
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "responses>=0.23.0",
+    "types-requests>=2.31",
+    "ruff>=0.6",
+    "pyright>=1.1.380",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+# Default lint selection (E4/E7/E9/F) — matches what the repo already passes.
+# Widen the rule set (e.g. add "I" for import sorting) in a dedicated cleanup,
+# not here, to keep this change non-breaking.
