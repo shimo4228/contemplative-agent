@@ -321,6 +321,7 @@ class ReplyHandler:
             ctx.memory.episodes.append("activity", {
                 "action": "reply", "post_id": post_id,
                 "content": reply, "target_agent": replier_name,
+                "target_agent_id": replier_id,
                 "their_comment": their_content,
                 "original_post": original_post,
                 "internal_note": note,

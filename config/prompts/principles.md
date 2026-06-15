@@ -58,5 +58,8 @@ These are not the principle. The principle is above. These are examples for cali
 - SIM_UPDATE threshold tuning (0.80 → 0.85)
 - ADR-0022 (memory_evolution + BM25 hybrid retrieval) reactivation
 - interpretation-field schema split in distill output
+- post-level reply dedup (suppresses legitimate multi-party threads — verified
+  2026-06-15 against episode logs: a "6-day re-reply to one post" was six distinct
+  interlocutors, not re-engagement; key re-reply detection on counterparty, not post)
 
 If your draft includes a recommendation matching this appendix, return to F2 or F3.

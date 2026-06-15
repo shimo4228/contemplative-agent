@@ -150,11 +150,22 @@ class FeedManager:
         """Score and potentially comment on a post."""
         post_text = post.get("content", "")
         post_id = post.get("id", "")
-        author_id = (post.get("author") or {}).get("id", "")
+        author = post.get("author") or {}
+        author_id = author.get("id", "")
+        # Live feed posts carry author.name but typically not author.id, so the
+        # per-author history gates key on the name (the reliable field).
+        author_name = (
+            author.get("name")
+            or post.get("agent_name")
+            or post.get("agentName")
+            or ""
+        )
         if (
             not post_text
             or not post_id
-            or not self._passes_engagement_gates(post, post_text, post_id, author_id)
+            or not self._passes_engagement_gates(
+                post, post_text, post_id, author_id, author_name
+            )
         ):
             return False
 
@@ -208,7 +219,8 @@ class FeedManager:
         )
 
     def _passes_engagement_gates(
-        self, post: dict, post_text: str, post_id: str, author_id: str
+        self, post: dict, post_text: str, post_id: str, author_id: str,
+        author_name: str,
     ) -> bool:
         """Run the skip-gate chain; True when the post may be engaged.
 
@@ -218,7 +230,7 @@ class FeedManager:
         """
         return self._passes_content_gates(
             post, post_text, post_id, author_id
-        ) and self._passes_author_history_gates(author_id, post_text, post_id)
+        ) and self._passes_author_history_gates(author_name, post_text, post_id)
 
     def _passes_content_gates(
         self, post: dict, post_text: str, post_id: str, author_id: str
@@ -261,10 +273,19 @@ class FeedManager:
         return True
 
     def _passes_author_history_gates(
-        self, author_id: str, post_text: str, post_id: str
+        self, author_name: str, post_text: str, post_id: str
     ) -> bool:
-        """Memory-backed gates: same-author repeat topic, per-author 24h limit."""
+        """Memory-backed gates: same-author repeat topic, per-author 24h limit.
+
+        Keyed on the author *name*: live feed posts carry author.name but not
+        author.id, so the previous id-keyed version of these gates never fired.
+        """
         ctx = self._ctx
+
+        # Skip gating when the counterparty is unknown — otherwise every
+        # unattributed post would collapse into a single bucket and over-gate.
+        if not author_name or author_name == "unknown":
+            return True
 
         # Same-author repeat-topic gate: even if the post_id is new and the
         # 24h count is under 3, an author that paraphrases the same thesis
@@ -272,32 +293,31 @@ class FeedManager:
         # 2026-04-12 weekly report) will trigger this. Body Jaccard against
         # the past 7 days of original_post bodies we commented on for this
         # author.
-        if author_id:
-            prior_targets = ctx.memory.get_prior_comment_targets(
-                author_id, days=7, limit=7
+        prior_targets = ctx.memory.get_prior_comment_targets(
+            author_name, days=7, limit=7
+        )
+        if prior_targets:
+            is_repeat, sim = is_repeat_target_for_author(
+                post_text, prior_targets
             )
-            if prior_targets:
-                is_repeat, sim = is_repeat_target_for_author(
-                    post_text, prior_targets
+            if is_repeat:
+                logger.info(
+                    "Skipped post %s: same-author repeat topic "
+                    "(jaccard=%.2f)",
+                    post_id[:12], sim,
                 )
-                if is_repeat:
-                    logger.info(
-                        "Skipped post %s: same-author repeat topic "
-                        "(jaccard=%.2f)",
-                        post_id[:12], sim,
-                    )
-                    return False
+                return False
 
         # Per-author 24h rate limit: prevent the '15 replies to the same
         # linguistics post' phenomenon. The same author flooding the feed
         # with template-generated content (or genuine reposts) gets engaged
         # at most 3 times per 24h regardless of relevance score.
-        if author_id and ctx.memory.count_recent_comments_by_author(
-            author_id, hours=24
+        if ctx.memory.count_recent_comments_by_author(
+            author_name, hours=24
         ) >= 3:
             logger.info(
                 "Skipped post %s: author %s rate-limited (3+ comments/24h)",
-                post_id[:12], author_id[:12],
+                post_id[:12], author_name,
             )
             return False
 
@@ -389,14 +409,29 @@ class FeedManager:
             )
             logger.info(">> Comment on %s:\n%s", post_id[:12], comment)
             author = post.get("author") or {}
-            agent_name = author.get("name", "unknown")
-            agent_id = author.get("id", "unknown")
+            # Live feed posts carry author.name but typically not author.id
+            # (the codebase originally assumed both). The name is the reliable
+            # counterparty key, so write it as target_agent — symmetric with
+            # the reply path — and keep target_agent_id when an id is present.
+            agent_name = (
+                author.get("name")
+                or post.get("agent_name")
+                or post.get("agentName")
+                or "unknown"
+            )
+            agent_id = (
+                author.get("id")
+                or post.get("author_id")
+                or post.get("authorId")
+                or "unknown"
+            )
             ctx.memory.episodes.append("activity", {
                 "action": "comment",
                 "post_id": post_id,
                 "content": comment,
                 "original_post": post_text,
                 "relevance": f"{score:.2f}",
+                "target_agent": agent_name,
                 "target_agent_id": agent_id,
                 "internal_note": note,
             })

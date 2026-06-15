@@ -709,6 +709,38 @@ class TestEngageWithPost:
             == "the melting metaphor felt forced, not earned"
         )
 
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
+    @patch(
+        "contemplative_agent.adapters.moltbook.feed_manager.generate_internal_note",
+        return_value="",
+    )
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
+    def test_comment_records_counterparty_name(
+        self, mock_score, mock_note, mock_random, mock_time, tmp_path
+    ):
+        """A comment episode records the counterparty NAME (target_agent).
+
+        Live feed posts carry author.name but not author.id, so the name is
+        the reliable counterparty key written to the activity record.
+        """
+        mock_random.uniform.return_value = 60.0
+        agent = self._make_agent(tmp_path)
+        agent._content.create_comment.return_value = "Great insight"
+        agent._client.post_comment.return_value = {"id": "c-new"}
+
+        agent._feed_manager.engage_with_post(
+            {"content": "text", "id": "post1", "author": {"name": "alice"}},
+            agent._client, agent._scheduler,
+        )
+
+        comment_eps = [
+            r
+            for r in agent._ctx.memory.episodes.read_range(days=1, record_type="activity")
+            if r.get("data", {}).get("action") == "comment"
+        ]
+        assert comment_eps, "expected a comment activity episode"
+        assert comment_eps[0]["data"]["target_agent"] == "alice"
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
     @patch("contemplative_agent.adapters.moltbook.feed_manager.random")

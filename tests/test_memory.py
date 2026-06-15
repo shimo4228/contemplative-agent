@@ -884,35 +884,48 @@ class TestGetPriorCommentTargets:
         self._seed_episodes(tmp_path, [
             {"ts": ts, "type": "activity", "data": {
                 "action": "comment", "post_id": "p1",
-                "original_post": "first body", "target_agent_id": "a1",
+                "original_post": "first body", "target_agent": "a1",
             }},
             {"ts": ts, "type": "activity", "data": {
                 "action": "comment", "post_id": "p2",
-                "original_post": "second body", "target_agent_id": "a1",
+                "original_post": "second body", "target_agent": "a1",
             }},
             {"ts": ts, "type": "activity", "data": {
                 "action": "comment", "post_id": "p3",
                 "original_post": "different author body",
-                "target_agent_id": "a2",
+                "target_agent": "a2",
             }},
         ])
         store = self._make_store(tmp_path)
         targets = store.get_prior_comment_targets("a1")
         assert targets == ["first body", "second body"]
 
-    def test_skips_records_without_target_agent_id(self, tmp_path):
-        # Old activity records (pre-2026-04-14) lack target_agent_id —
-        # they must be silently filtered, not match every author lookup.
+    def test_skips_records_without_target_agent(self, tmp_path):
+        # Old comment records (before the counterparty-name fix) lack
+        # target_agent — they must be silently filtered, not match every lookup.
         from datetime import datetime, timezone
         ts = datetime.now(timezone.utc).isoformat()
         self._seed_episodes(tmp_path, [
             {"ts": ts, "type": "activity", "data": {
                 "action": "comment", "post_id": "p1",
-                "original_post": "old body without target_agent_id",
+                "original_post": "old body without target_agent",
             }},
         ])
         store = self._make_store(tmp_path)
         assert store.get_prior_comment_targets("a1") == []
+
+    def test_unknown_name_returns_empty(self, tmp_path):
+        # "unknown" must not collapse all unattributed comments into one bucket.
+        from datetime import datetime, timezone
+        ts = datetime.now(timezone.utc).isoformat()
+        self._seed_episodes(tmp_path, [
+            {"ts": ts, "type": "activity", "data": {
+                "action": "comment", "post_id": "p1",
+                "original_post": "body", "target_agent": "unknown",
+            }},
+        ])
+        store = self._make_store(tmp_path)
+        assert store.get_prior_comment_targets("unknown") == []
 
     def test_skips_non_comment_actions(self, tmp_path):
         from datetime import datetime, timezone
@@ -920,12 +933,12 @@ class TestGetPriorCommentTargets:
         self._seed_episodes(tmp_path, [
             {"ts": ts, "type": "activity", "data": {
                 "action": "upvote", "post_id": "p1",
-                "target_agent_id": "a1",
+                "target_agent": "a1",
             }},
             {"ts": ts, "type": "activity", "data": {
                 "action": "post", "post_id": "p2",
                 "title": "T", "content": "body",
-                "target_agent_id": "a1",
+                "target_agent": "a1",
             }},
         ])
         store = self._make_store(tmp_path)
@@ -942,7 +955,7 @@ class TestGetPriorCommentTargets:
             {"ts": ts, "type": "activity", "data": {
                 "action": "comment", "post_id": f"p{i}",
                 "original_post": f"body {i}",
-                "target_agent_id": "a1",
+                "target_agent": "a1",
             }}
             for i in range(10)
         ]

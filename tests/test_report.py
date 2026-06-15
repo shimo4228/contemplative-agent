@@ -35,7 +35,7 @@ class TestExtractEntries:
         assert len(replies) == 1
         assert len(posts) == 1
         assert comments[0]["post_id"] == "p1"
-        assert replies[0]["target_agent"] == "bob"
+        assert replies[0]["counterparty"] == "bob"
         assert posts[0]["title"] == "My Post"
 
     def test_skips_malformed_json(self, tmp_path):
@@ -138,28 +138,62 @@ class TestBuildReport:
         assert "**Configuration**" not in report
 
     def test_formats_comments(self):
-        comments = [{"ts": "2026-03-14T10:00:00", "post_id": "abc123def456", "content": "Great", "relevance": "0.95", "original_post": ""}]
+        comments = [{
+            "ts": "2026-03-14T10:00:00", "post_id": "abc123def456",
+            "content": "Great", "relevance": "0.95", "context": "the original",
+            "counterparty": "alice", "internal_note": "noticed a tension",
+        }]
         report = _build_report("2026-03-14", comments, [], [])
         assert "## Comments (1 total)" in report
-        assert "abc123def45" in report
-        assert "0.95" in report
+        # Unified header: kind · counterparty · post8 · relevance
+        assert "COMMENT" in report
+        assert "with alice" in report
+        assert "abc123de" in report          # post_id truncated to 8
+        assert "relevance 0.95" in report
+        assert "**Internal note:**" in report  # ADR-0045 note now surfaced
+        assert "noticed a tension" in report
 
     def test_formats_replies(self):
-        replies = [{"ts": "2026-03-14T11:00:00", "post_id": "xyz", "content": "Reply text", "target_agent": "alice", "their_comment": "Their msg", "original_post": "Original"}]
+        replies = [{
+            "ts": "2026-03-14T11:00:00", "post_id": "xyz", "content": "Reply text",
+            "counterparty": "alice", "context": "Their msg",
+            "relevance": "", "internal_note": "",
+        }]
         report = _build_report("2026-03-14", [], replies, [])
         assert "## Replies (1 total)" in report
-        assert "Reply to alice" in report
+        assert "REPLY" in report
+        assert "with alice" in report
         assert "Their msg" in report
+        assert "relevance —" in report       # replies are not relevance-scored
 
     def test_formats_posts(self):
-        posts = [{"ts": "2026-03-14T12:00:00", "post_id": "p1", "title": "My Title", "content": "Post body", "submolt": "alignment"}]
+        posts = [{
+            "ts": "2026-03-14T12:00:00", "post_id": "p1", "title": "My Title",
+            "content": "Post body", "submolt": "alignment",
+            "counterparty": "", "relevance": "", "internal_note": "",
+        }]
         report = _build_report("2026-03-14", [], [], posts)
         assert "## Self Posts (1 total)" in report
-        assert "My Title" in report
-        assert "Submolt: alignment" in report
+        assert "POST" in report
+        assert "with self" in report          # self-authored
+        assert "**Title:** My Title" in report
+        assert "**Submolt:** alignment" in report
+
+    def test_thread_replies_distinguishable_by_counterparty(self):
+        # The false-positive guard: two replies on ONE post to DIFFERENT
+        # counterparties must be distinguishable (a thread, not a re-reply).
+        replies = [
+            {"ts": "2026-03-14T11:00:00", "post_id": "shared", "content": "r1",
+             "counterparty": "alice", "context": "", "relevance": "", "internal_note": ""},
+            {"ts": "2026-03-15T11:00:00", "post_id": "shared", "content": "r2",
+             "counterparty": "bob", "context": "", "relevance": "", "internal_note": ""},
+        ]
+        report = _build_report("2026-03-14", [], replies, [])
+        assert "with alice" in report
+        assert "with bob" in report
 
     def test_summary_section(self):
-        comments = [{"ts": "t", "post_id": "p", "content": "c", "relevance": "0.92", "original_post": ""}]
+        comments = [{"ts": "t", "post_id": "p", "content": "c", "relevance": "0.92", "context": "", "counterparty": "", "internal_note": ""}]
         report = _build_report("2026-03-14", comments, [], [])
         assert "## Summary" in report
         assert "Comments: 1" in report
@@ -171,9 +205,9 @@ class TestBuildReport:
         assert "Comments: 0" in report
 
     def test_defangs_urls_in_all_sections(self):
-        comments = [{"ts": "t", "post_id": "p", "content": "See https://evil.com", "relevance": "0.9", "original_post": "Visit https://phish.io"}]
-        replies = [{"ts": "t", "post_id": "p", "content": "Reply https://bad.org", "target_agent": "a", "their_comment": "Check https://spam.net", "original_post": ""}]
-        posts = [{"ts": "t", "post_id": "p", "title": "T", "content": "Post https://malware.xyz", "submolt": ""}]
+        comments = [{"ts": "t", "post_id": "p", "content": "See https://evil.com", "relevance": "0.9", "context": "Visit https://phish.io", "counterparty": "a", "internal_note": ""}]
+        replies = [{"ts": "t", "post_id": "p", "content": "Reply https://bad.org", "counterparty": "a", "context": "Check https://spam.net", "relevance": "", "internal_note": ""}]
+        posts = [{"ts": "t", "post_id": "p", "title": "T", "content": "Post https://malware.xyz", "submolt": "", "counterparty": "", "relevance": "", "internal_note": ""}]
         report = _build_report("2026-03-14", comments, replies, posts)
         assert "https://evil.com" not in report
         assert "hxxps://evil[.]com" in report

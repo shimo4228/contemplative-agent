@@ -96,6 +96,7 @@ operator が判断する「問い」を立てるための material:
 - [ ] そのパラメータが既に effective でないか (例: `num_predict` は median 応答 ~400 tokens に対し 3384 tokens の上限で 12% しか使われていない)
 - [ ] 関連 ADR で同じ提案が withdrawn / rejected されていないか (ADR-0022 / ADR-0034 retrieval 関連、ADR-0028 forgetting 関連等)
 - [ ] retrieval / shared state を触る提案なら、呼び出し元を grep して間接経路か直接経路か確認したか (例: `views._rank` は distill 系のみから呼ばれる)
+- [ ] 「re-reply / same-post duplicate」を F1 化する前に、`$MOLTBOOK_HOME/logs/YYYY-MM-DD.jsonl` で当該 `post_id` の interaction レコードを grep し、相手 (`agent_name`) が日ごとに別人かを確認したか。別人なら多者間スレッドであって re-reply ではない → F3 / drop (2026-06-15 検証済み: #836e1237 の「6 日連続 re-reply」は 6 人の別 agent だった。post 単位 reply dedup は principles.md Appendix で rejected)
 
 ---
 

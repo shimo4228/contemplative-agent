@@ -375,22 +375,24 @@ class MemoryStore:
         return n / 7.0
 
     def count_recent_comments_by_author(
-        self, agent_id: str, hours: int = 24
+        self, agent_name: str, hours: int = 24
     ) -> int:
-        """Count outgoing interactions sent to `agent_id` within the last
+        """Count outgoing interactions sent to `agent_name` within the last
         `hours` hours.
 
-        Used by the per-author rate limiter in feed_manager to prevent the
-        '15 replies to the same linguistics post' phenomenon. Walks the
-        in-memory _interactions list, which load() restores from the past
-        7 days of episode logs at startup.
+        Keyed on the counterparty *name*: live feed posts carry author.name
+        but not author.id (interaction records store agent_id="unknown"), so
+        the previous id-keyed count never matched. Used by the per-author
+        rate limiter in feed_manager to prevent the '15 replies to the same
+        linguistics post' phenomenon. Walks the in-memory _interactions list,
+        which load() restores from the past 7 days of episode logs at startup.
         """
-        if not agent_id:
+        if not agent_name or agent_name == "unknown":
             return 0
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
         n = 0
         for it in self._interactions:
-            if it.direction != "sent" or it.agent_id != agent_id:
+            if it.direction != "sent" or it.agent_name != agent_name:
                 continue
             try:
                 ts = datetime.fromisoformat(it.timestamp)
@@ -403,21 +405,22 @@ class MemoryStore:
         return n
 
     def get_prior_comment_targets(
-        self, agent_id: str, days: int = 7, limit: int = 7
+        self, agent_name: str, days: int = 7, limit: int = 7
     ) -> List[str]:
-        """Return original_post texts of recent comments sent to agent_id.
+        """Return original_post texts of recent comments sent to agent_name.
 
         Reads activity records (action="comment") from the episode log and
-        returns the original_post bodies of those targeting agent_id. Used
+        returns the original_post bodies of those targeting agent_name. Used
         by feed_manager.engage_with_post to detect same-author repeat-topic
         posts (the 30+ Armenian-linguistics replays the 2026-04-12 weekly
         report flagged).
 
-        Older records (pre-target_agent_id field) are silently filtered out
-        because the feed_manager activity record only started carrying
-        target_agent_id from 2026-04-14 onward.
+        Keyed on the counterparty *name*: live feed posts carry author.name
+        but not author.id, so the previous target_agent_id match never fired.
+        Older records (pre-target_agent field on comments, before this fix)
+        carry no target_agent and are silently filtered out.
         """
-        if not agent_id:
+        if not agent_name or agent_name == "unknown":
             return []
         episodes = self.episodes.read_range(days=days, record_type="activity")
         targets: List[str] = []
@@ -425,7 +428,7 @@ class MemoryStore:
             data = ep.get("data") or {}
             if data.get("action") != "comment":
                 continue
-            if data.get("target_agent_id") != agent_id:
+            if data.get("target_agent") != agent_name:
                 continue
             op = data.get("original_post")
             if isinstance(op, str) and op:

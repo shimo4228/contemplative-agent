@@ -453,6 +453,20 @@ class TestSummarizeRecord:
         })
         assert s == "comment p1 — noticed: the framing felt evasive"
 
+    def test_activity_comment_uses_counterparty_name(self):
+        # Change A/D: comments now carry target_agent (the counterparty name);
+        # the summary uses it instead of falling back to post_id. The
+        # original_post body must NOT leak into the summary (ADR-0029).
+        s = summarize_record("activity", {
+            "action": "comment", "post_id": "p1",
+            "target_agent": "alice",
+            "original_post": "SECRET untrusted post body",
+            "internal_note": "noticed a tension",
+        })
+        assert s == "comment alice — noticed: noticed a tension"
+        assert "SECRET" not in s
+        assert "p1" not in s
+
     def test_unknown_returns_empty(self):
         assert summarize_record("weird_type", {}) == ""
 

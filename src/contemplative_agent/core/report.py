@@ -49,22 +49,28 @@ def _parse_log(
         data = entry.get("data", {})
         action = data.get("action", "")
 
+        # Unified per-interaction schema (see _entry_lines). Every action
+        # carries the same core fields; type-specific stimulus is normalized
+        # into `context`, and dimensions that don't apply are left "".
         if action == "comment":
             comments.append({
                 "ts": entry.get("ts", ""),
                 "post_id": data.get("post_id", ""),
                 "content": data.get("content", ""),
-                "original_post": data.get("original_post", ""),
+                "context": data.get("original_post", ""),
                 "relevance": data.get("relevance", ""),
+                "counterparty": data.get("target_agent", ""),
+                "internal_note": data.get("internal_note", ""),
             })
         elif action == "reply":
             replies.append({
                 "ts": entry.get("ts", ""),
                 "post_id": data.get("post_id", ""),
                 "content": data.get("content", ""),
-                "their_comment": data.get("their_comment", ""),
-                "original_post": data.get("original_post", ""),
-                "target_agent": data.get("target_agent", ""),
+                "context": data.get("their_comment", ""),
+                "relevance": "",  # replies are notification-driven, not scored
+                "counterparty": data.get("target_agent", ""),
+                "internal_note": data.get("internal_note", ""),
             })
         elif action == "post":
             posts.append({
@@ -73,6 +79,9 @@ def _parse_log(
                 "title": data.get("title", ""),
                 "content": data.get("content", ""),
                 "submolt": data.get("submolt", ""),
+                "relevance": "",  # self-initiated, no counterparty/relevance
+                "counterparty": "",
+                "internal_note": data.get("internal_note", ""),
             })
 
     return meta, comments, replies, posts
@@ -110,70 +119,60 @@ def _format_ts(ts: str) -> str:
     return ts[:19].replace("T", " ") if ts else ""
 
 
+def _entry_lines(i: int, kind: str, e: Dict[str, Any]) -> List[str]:
+    """Render one interaction in the unified per-entry format.
+
+    The header skeleton is identical across COMMENT / REPLY / POST; a
+    dimension that does not apply to a kind renders as ``—`` (relevance for
+    replies/posts) or ``self`` (counterparty for posts) rather than changing
+    the structure. ``Title`` / ``Submolt`` appear only when present (posts).
+    All external text is URL-defanged.
+    """
+    cp = (e.get("counterparty", "") or "").strip()
+    if cp and cp != "unknown":
+        counterparty = cp
+    else:
+        counterparty = "self" if kind == "POST" else "—"
+    rel = (e.get("relevance", "") or "").strip()
+    post8 = (e.get("post_id", "") or "")[:8]
+
+    lines = [
+        f"### {i}. [{_format_ts(e.get('ts', ''))}] {kind} "
+        f"· with {counterparty} · post {post8}… · relevance {rel or '—'}",
+        "",
+    ]
+    if e.get("title"):
+        lines += [f"**Title:** {e['title']}", ""]
+    if e.get("submolt"):
+        lines += [f"**Submolt:** {e['submolt']}", ""]
+    context = _defang_urls(e.get("context", ""))
+    if context:
+        lines += ["**Context:**", context, ""]
+    note = _defang_urls(e.get("internal_note", ""))
+    if note:
+        lines += ["**Internal note:**", note, ""]
+    lines += ["**Output:**", _defang_urls(e.get("content", "")), "", "---", ""]
+    return lines
+
+
 def _comments_section(comments: List[Dict[str, Any]]) -> List[str]:
     lines = [f"## Comments ({len(comments)} total)", ""]
     for i, c in enumerate(comments, 1):
-        pid = c.get("post_id", "")[:12]
-        rel = c.get("relevance", "N/A")
-        original = _defang_urls(c.get("original_post", ""))
-        lines.append(
-            f"### {i}. [{_format_ts(c['ts'])}] "
-            f"Post ID: {pid}... (relevance: {rel})"
-        )
-        lines.append("")
-        if original:
-            lines.append("**Original post:**")
-            lines.append(original)
-            lines.append("")
-        lines.append("**Comment:**")
-        lines.append(_defang_urls(c.get("content", "")))
-        lines.append("")
-        lines.append("---")
-        lines.append("")
+        lines.extend(_entry_lines(i, "COMMENT", c))
     return lines
 
 
 def _replies_section(replies: List[Dict[str, Any]]) -> List[str]:
     lines = [f"## Replies ({len(replies)} total)", ""]
     for i, r in enumerate(replies, 1):
-        pid = r.get("post_id", "")[:12]
-        target = r.get("target_agent", "unknown")
-        original = _defang_urls(r.get("original_post", ""))
-        their = _defang_urls(r.get("their_comment", ""))
-        lines.append(
-            f"### {i}. [{_format_ts(r['ts'])}] "
-            f"Reply to {target} on Post ID: {pid}..."
-        )
-        lines.append("")
-        if original:
-            lines.append("**Original post:**")
-            lines.append(original)
-            lines.append("")
-        if their:
-            lines.append("**Their comment:**")
-            lines.append(their)
-            lines.append("")
-        lines.append("**Reply:**")
-        lines.append(_defang_urls(r.get("content", "")))
-        lines.append("")
-        lines.append("---")
-        lines.append("")
+        lines.extend(_entry_lines(i, "REPLY", r))
     return lines
 
 
 def _posts_section(posts: List[Dict[str, Any]]) -> List[str]:
     lines = [f"## Self Posts ({len(posts)} total)", ""]
     for i, p in enumerate(posts, 1):
-        title = p.get("title", "Untitled")
-        submolt = p.get("submolt", "")
-        lines.append(f"### {i}. [{_format_ts(p['ts'])}] {title}")
-        if submolt:
-            lines.append(f"Submolt: {submolt}")
-        lines.append("")
-        lines.append(_defang_urls(p.get("content", "")))
-        lines.append("")
-        lines.append("---")
-        lines.append("")
+        lines.extend(_entry_lines(i, "POST", p))
     return lines
 
 

@@ -44,7 +44,7 @@ For each behavioral indicator below, you MUST provide either:
 Indicators (use `### {indicator}` subsection per row):
 
 - **Self-reference**: comments mentioning own experiments / benchmarks / past interactions
-- **Duplicate / near-duplicate**: identical or near-identical content sent across recipients or sessions
+- **Duplicate / near-duplicate**: identical or near-identical content sent across recipients or sessions. The report header gives each entry `with {counterparty}` and `post {id}`. Same `post` across days with *different* counterparties is a multi-party thread (many agents replying on one post), **not** a re-reply — do not flag it as duplication. Reserve "re-reply" for the same counterparty (or same post + same counterparty) re-engaged across days. Near-identical *wording* across different counterparties is a register observation, not a duplication of target.
 - **Pivot-to-self**: redirects to own framework regardless of original topic
 - **Critical engagement**: disagrees, challenges, or points out flaws (vs. pure affirmation)
 - **Question specificity**: questions engaging the original post's specific claims vs. formulaic templates

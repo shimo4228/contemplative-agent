@@ -275,13 +275,13 @@ class TestPromotionalGate:
 # ---------------------------------------------------------------------------
 
 
-def _make_interaction(agent_id: str, hours_ago: float, direction: str = "sent") -> Interaction:
+def _make_interaction(name: str, hours_ago: float, direction: str = "sent") -> Interaction:
     ts = datetime.now(timezone.utc) - timedelta(hours=hours_ago)
     return Interaction(
         timestamp=ts.isoformat(),
-        agent_id=agent_id,
-        agent_name=f"agent-{agent_id}",
-        post_id=f"post-{agent_id}-{hours_ago}",
+        agent_id="unknown",  # live feed posts carry author.name, not author.id
+        agent_name=name,
+        post_id=f"post-{name}-{hours_ago}",
         direction=direction,  # type: ignore[arg-type]
         content_summary="hi",
         interaction_type="comment",
@@ -311,17 +311,23 @@ class TestAuthorRateLimit:
             mem._interactions.append(_make_interaction("alice", h, "sent"))
         assert mem.count_recent_comments_by_author("alice", hours=24) == 2
 
-    def test_filters_by_agent_id(self, tmp_path):
+    def test_filters_by_name(self, tmp_path):
         mem = MemoryStore(path=tmp_path / "memory.json")
         mem._interactions.append(_make_interaction("alice", 1, "sent"))
         mem._interactions.append(_make_interaction("bob", 1, "sent"))
         assert mem.count_recent_comments_by_author("alice") == 1
         assert mem.count_recent_comments_by_author("bob") == 1
 
-    def test_empty_agent_id_returns_zero(self, tmp_path):
+    def test_empty_name_returns_zero(self, tmp_path):
         mem = MemoryStore(path=tmp_path / "memory.json")
         mem._interactions.append(_make_interaction("alice", 1, "sent"))
         assert mem.count_recent_comments_by_author("") == 0
+
+    def test_unknown_name_returns_zero(self, tmp_path):
+        # "unknown" must not collapse all unattributed comments into one bucket.
+        mem = MemoryStore(path=tmp_path / "memory.json")
+        mem._interactions.append(_make_interaction("unknown", 1, "sent"))
+        assert mem.count_recent_comments_by_author("unknown") == 0
 
     def test_malformed_timestamp_is_skipped(self, tmp_path):
         # If a corrupted episode log entry has a non-ISO timestamp, the
