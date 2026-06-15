@@ -22,6 +22,7 @@ from .config import (
     FORBIDDEN_SUBSTRING_PATTERNS,
     FORBIDDEN_WORD_PATTERNS,
 )
+from .text_utils import strip_frontmatter
 
 logger = logging.getLogger(__name__)
 
@@ -305,7 +306,11 @@ def _load_md_files(directory: Optional[Path], label: str) -> str:
     items = []
     for path in md_paths:
         try:
-            content = path.read_text(encoding="utf-8").strip()
+            # Strip the leading YAML frontmatter (name/description/origin +
+            # telemetry counters) so only the behavioral body reaches the
+            # system prompt — otherwise the model can echo it into output
+            # (e.g. a skill's `name:` leaked into a published comment).
+            content = strip_frontmatter(path.read_text(encoding="utf-8")).strip()
             if content and validate_identity_content(content):
                 items.append(content)
             elif content:

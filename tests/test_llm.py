@@ -1436,6 +1436,42 @@ class TestLoadSkills:
         # sorted() on filename → alpha before zebra
         assert result.index("# Alpha") < result.index("# Zebra")
 
+    def test_strips_frontmatter(self, tmp_path):
+        # A skill's YAML frontmatter (name/description/origin + telemetry)
+        # must not reach the prompt — it leaked into a published comment
+        # (2026-06-11 #f339e1d2) when it was passed through verbatim.
+        from contemplative_agent.core.llm import _load_md_files
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "skill.md").write_text(
+            "---\n"
+            "last_reflected_at: null\n"
+            "name: fluid-temporal-loop\n"
+            'description: "do the thing"\n'
+            "origin: auto-extracted\n"
+            "---\n"
+            "\n"
+            "# Fluid Temporal Loop\nGuidance.\n\n---\n\nMore guidance."
+        )
+        result = _load_md_files(skills_dir, "Skill")
+        # Body survives, including a mid-body horizontal rule.
+        assert "# Fluid Temporal Loop" in result
+        assert "More guidance." in result
+        # Frontmatter does not.
+        assert "name:" not in result
+        assert "description:" not in result
+        assert "origin:" not in result
+        assert not result.lstrip().startswith("---")
+
+    def test_no_frontmatter_unchanged(self, tmp_path):
+        # Files without frontmatter (e.g. the live rules) load verbatim.
+        from contemplative_agent.core.llm import _load_md_files
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        (rules_dir / "rule.md").write_text("# Flow Rule\nDo this thing.")
+        result = _load_md_files(rules_dir, "Rule")
+        assert result == "# Flow Rule\nDo this thing."
+
 
 class TestGetIdentitySystemPrompt:
     """Reduced system prompt: identity + axioms, no learned skills/rules
