@@ -5,6 +5,7 @@
     "sameAs": {"@id": "https://schema.org/sameAs", "@type": "@id"},
     "mainEntity": {"@id": "https://schema.org/mainEntity", "@type": "@id"},
     "isBasedOn": {"@id": "https://schema.org/isBasedOn", "@type": "@id"},
+    "isPartOf": {"@id": "https://schema.org/isPartOf", "@type": "@id"},
     "ResearchLine": "shimo:ResearchLine",
     "EcosystemRepo": "shimo:EcosystemRepo",
     "Concept": "shimo:Concept",
@@ -39,6 +40,13 @@
   },
   "@graph": [
     {
+      "@id": "https://github.com/shimo4228/shimo4228",
+      "@type": "EcosystemRepo",
+      "name": "Research Program Hub",
+      "description": "Hub repository of the shimo4228 research program; its graph.jsonld is the canonical relationship map of the research ecosystem, federating the Contemplative Agent line with its sibling and downstream lines.",
+      "url": "https://github.com/shimo4228/shimo4228"
+    },
+    {
       "@id": "https://github.com/shimo4228/contemplative-agent#knowledge-graph",
       "@type": ["Dataset", "CreativeWork"],
       "name": "Contemplative Agent Knowledge Graph",
@@ -69,6 +77,7 @@
       "identifier": "10.5281/zenodo.19212118",
       "author": {"@id": "https://orcid.org/0009-0002-6168-4162"},
       "url": "https://github.com/shimo4228/contemplative-agent",
+      "isPartOf": "https://github.com/shimo4228/shimo4228",
       "siblingOf": [
         "https://doi.org/10.5281/zenodo.19200726",
         "https://doi.org/10.5281/zenodo.19652013",
