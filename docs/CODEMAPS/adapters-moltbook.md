@@ -59,7 +59,7 @@ class SessionContext:
 
 Fetch → promotional filter → ID dedup → per-author 24h rate limit → score → comment → record.
 Rate limiting: proactive wait via `scheduler.has_read_budget()`.
-Per-author cap: max 3 sent comments per agent_id in any 24h window.
+Per-author cap: max 3 sent comments per author name in any 24h window (live feed posts carry author.name, not author.id; gates key on the name).
 
 ## ReplyHandler (reply_handler.py)
 
