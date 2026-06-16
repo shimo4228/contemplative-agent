@@ -36,7 +36,6 @@ from .memory import EpisodeLog, KnowledgeStore
 from .prompts import (
     DISTILL_PROMPT,
     DISTILL_REFINE_PROMPT,
-    DISTILL_IMPORTANCE_PROMPT,
     IDENTITY_DISTILL_PROMPT,
 )
 from .views import ViewRegistry
@@ -56,12 +55,6 @@ from .thresholds import (  # noqa: E402 — module-level by design
     SIM_UPDATE,
 )
 
-# JSON Schemas for constrained decoding (Ollama v0.5+ format parameter)
-IMPORTANCE_SCHEMA: Dict = {
-    "type": "object",
-    "properties": {"scores": {"type": "array", "items": {"type": "integer"}}},
-    "required": ["scores"],
-}
 
 def distill(
     days: int = 1,
@@ -282,41 +275,6 @@ def distill_identity(
 
 
 
-def _parse_importance_scores(raw: str, expected_count: int) -> List[float]:
-    """Parse {"scores": [8, 5, ...]} into [0.8, 0.5, ...].
-
-    Falls back to comma-separated integers, then 0.5 defaults.
-    """
-    defaults = [0.5] * expected_count
-    text = strip_code_fence(raw)
-
-    # Try JSON parse
-    scores_raw: list = []
-    try:
-        parsed = json_mod.loads(text)
-        scores_raw = parsed.get("scores", [])
-    except (json_mod.JSONDecodeError, TypeError, AttributeError):
-        # Fallback: try comma-separated integers (e.g., "8, 5, 9, 7")
-        try:
-            scores_raw = [int(x.strip()) for x in text.split(",") if x.strip()]
-        except ValueError:
-            logger.warning("Failed to parse importance scores: %s", text[:200])
-            return defaults
-
-    if len(scores_raw) != expected_count:
-        logger.warning("Importance count mismatch: got %d, expected %d",
-                       len(scores_raw), expected_count)
-        return defaults
-
-    result = []
-    for s in scores_raw:
-        try:
-            val = int(s)
-        except (ValueError, TypeError):
-            val = 5
-        result.append(max(1, min(10, val)) / 10.0)
-    return result
-
 
 @dataclass(frozen=True)
 class _ClassifiedRecords:
@@ -504,10 +462,9 @@ class _CategoryResult:
 
 @dataclass(frozen=True)
 class _BatchOutput:
-    """Patterns produced by the 3-step pipeline for one episode batch."""
+    """Patterns produced by the 2-step pipeline for one episode batch."""
     refined: str
     patterns: Tuple[str, ...]
-    importances: Tuple[float, ...]
     source_type: str
     episode_ids: Tuple[str, ...]
 
@@ -549,27 +506,10 @@ def _parse_refined_patterns(refined: str) -> List[str]:
     return raw_patterns
 
 
-def _score_importance(batch_patterns: List[str]) -> List[float]:
-    """Step 3: Evaluate importance — separate LLM call, single task."""
-    batch_importances = [0.5] * len(batch_patterns)
-    if batch_patterns and DISTILL_IMPORTANCE_PROMPT:
-        patterns_text = "\n".join(f"- {p}" for p in batch_patterns)
-        importance_prompt = DISTILL_IMPORTANCE_PROMPT.format(patterns=patterns_text)
-        importance_result = generate(
-            importance_prompt,
-            num_predict=3000,
-            format=IMPORTANCE_SCHEMA,
-            caller="distill.importance",
-        )
-        if importance_result:
-            batch_importances = _parse_importance_scores(importance_result, len(batch_patterns))
-    return batch_importances
-
-
 def _distill_batch(
     batch: List[Dict], batch_idx: int, n_batches: int
 ) -> Optional[_BatchOutput]:
-    """Run the 3-step pipeline for one batch; None when a step fails."""
+    """Run the 2-step pipeline for one batch; None when a step fails."""
     episode_lines, batch_episode_ids = _render_episode_lines(batch)
     if not episode_lines:
         return None
@@ -612,18 +552,13 @@ def _distill_batch(
     batch_patterns = [p for p in raw_patterns if _is_valid_pattern(p)]
     rejected = len(raw_patterns) - len(batch_patterns)
 
-    batch_importances = _score_importance(batch_patterns)
-
-    imp_summary = ", ".join(f"{i:.1f}" for i in batch_importances) if batch_importances else "none"
     logger.info(
-        "Batch %d/%d: %d episodes (prompt %d chars) → %d patterns (%d rejected) [importance: %s]",
+        "Batch %d/%d: %d episodes (prompt %d chars) → %d patterns (%d rejected)",
         batch_idx + 1, n_batches, len(batch), len(prompt), len(batch_patterns), rejected,
-        imp_summary,
     )
     return _BatchOutput(
         refined=refined,
         patterns=tuple(batch_patterns),
-        importances=tuple(batch_importances),
         source_type=batch_source_type,
         # Keep up to 5 representative timestamps so the pattern can be
         # traced back to its originating episode window.
@@ -646,7 +581,6 @@ def _distill_category(
     logger.info("Processing %d episodes in %d batches", len(records), len(batches))
 
     all_patterns: List[str] = []
-    all_importances: List[float] = []
     all_source_types: List[str] = []
     all_episode_ids: List[List[str]] = []
     all_results: List[str] = []
@@ -657,7 +591,6 @@ def _distill_category(
             continue
         all_results.append(out.refined)
         all_patterns.extend(out.patterns)
-        all_importances.extend(out.importances)
         # ADR-0021: record source provenance per pattern. Every pattern in
         # this batch shares the same source_type (derived from the batch's
         # episode type mix) and the same representative episode id list.
@@ -684,7 +617,10 @@ def _distill_category(
     # acceptable — the semantic coordinate is shared regardless of which
     # view a pattern is routed through at query time.
     # is_live gate (valid_until, ADR-0051) is enforced inside
-    # _dedup_patterns; this pre-filter exists for the importance-floor log.
+    # _dedup_patterns; this pre-filter exists for the decay-floor log.
+    # ADR-0056: effective_importance is pure time decay, so the floor now
+    # drops any pattern older than ~58 days from the dedup comparison scope,
+    # letting a re-observed insight re-enter as a fresh record (ADR-0053 §4).
     existing_patterns = list(knowledge.get_raw_patterns())
     pre_filter = len(existing_patterns)
     existing_patterns = [
@@ -692,14 +628,14 @@ def _distill_category(
         if effective_importance(p) >= DEDUP_IMPORTANCE_FLOOR
     ]
     if pre_filter > len(existing_patterns):
-        logger.info("Dedup scope: %d/%d patterns (importance floor %.2f)",
+        logger.info("Dedup scope: %d/%d patterns (decay floor %.2f)",
                     len(existing_patterns), pre_filter, DEDUP_IMPORTANCE_FLOOR)
 
     (
-        add_patterns, add_importances, add_embeddings,
+        add_patterns, add_embeddings,
         add_indices, skipped, updated,
     ) = _dedup_patterns(
-        all_patterns, all_importances, new_embeddings, existing_patterns,
+        all_patterns, new_embeddings, existing_patterns,
         mutate_existing=not dry_run,
     )
 
@@ -712,13 +648,13 @@ def _distill_category(
 
     if updated:
         logger.info(
-            "Dedup: %d soft-invalidated (bitemporal) and replaced with boosted new patterns",
+            "Dedup: %d soft-invalidated (bitemporal) and replaced with new patterns",
             updated,
         )
 
     _store_new_patterns(
         knowledge, source_date,
-        add_patterns, add_importances, add_embeddings, add_indices,
+        add_patterns, add_embeddings, add_indices,
         all_source_types, all_episode_ids,
     )
 
@@ -729,7 +665,6 @@ def _store_new_patterns(
     knowledge: KnowledgeStore,
     source_date: Optional[str],
     add_patterns: Sequence[str],
-    add_importances: Sequence[float],
     add_embeddings: Sequence[Optional[np.ndarray]],
     add_indices: Sequence[int],
     all_source_types: Sequence[str],
@@ -737,8 +672,8 @@ def _store_new_patterns(
 ) -> None:
     """Persist deduped patterns with ADR-0021 provenance."""
     ts = now_iso()
-    for pattern, importance, emb, src_idx in zip(
-        add_patterns, add_importances, add_embeddings, add_indices
+    for pattern, emb, src_idx in zip(
+        add_patterns, add_embeddings, add_indices
     ):
         emb_list: Optional[List[float]] = (
             [float(x) for x in emb] if emb is not None else None
@@ -753,25 +688,21 @@ def _store_new_patterns(
         knowledge.add_learned_pattern(
             pattern,
             source=source_date,
-            importance=importance,
             embedding=emb_list,
             provenance=provenance,
             valid_from=ts,
         )
-        logger.info("Added pattern (importance=%.1f, source=%s): %s",
-                     importance, source_type, pattern[:80])
+        logger.info("Added pattern (source=%s): %s", source_type, pattern[:80])
 
 
 def _dedup_patterns(
     new_patterns: Sequence[str],
-    new_importances: Sequence[float],
     new_embeddings: Sequence[Optional[np.ndarray]],
     existing_patterns: Sequence[dict],
     *,
     mutate_existing: bool = True,
 ) -> Tuple[
     List[str],
-    List[float],
     List[Optional[np.ndarray]],
     List[int],
     int,
@@ -779,13 +710,15 @@ def _dedup_patterns(
 ]:
     """Remove duplicates by comparing new patterns against existing ones.
 
-    Returns ``(add_patterns, add_importances, add_embeddings,
-    add_indices, skip_count, update_count)``.
+    Returns ``(add_patterns, add_embeddings, add_indices, skip_count,
+    update_count)``.
     - SKIP: cosine >= SIM_DUPLICATE (near-exact duplicate)
     - UPDATE: cosine >= SIM_UPDATE against existing → soft-invalidate the old
-      pattern (``valid_until = now``) and ADD a boosted new pattern. The old
-      row is kept for audit / replay (ADR-0021 bitemporal) rather than
-      mutated in place.
+      pattern (``valid_until = now``) and ADD the new pattern. The old row is
+      kept for audit / replay (ADR-0021 bitemporal) rather than mutated in
+      place. ADR-0056: no importance boost — the LLM rating was retired and
+      extraction weight is pure time decay, so the re-observed pattern simply
+      re-enters with a fresh timestamp.
     - ADD: cosine <  SIM_UPDATE against everything
 
     Patterns whose embedding is None (Ollama failure) are always ADD'd
@@ -793,7 +726,6 @@ def _dedup_patterns(
     Existing patterns without embeddings are ignored as dedup candidates.
     """
     add_patterns: List[str] = []
-    add_importances: List[float] = []
     add_embeddings: List[Optional[np.ndarray]] = []
     add_indices: List[int] = []
     skip_count = 0
@@ -803,12 +735,11 @@ def _dedup_patterns(
 
     existing_with_emb = _live_embedded(existing_patterns)
 
-    for input_idx, (new_text, new_imp, new_emb) in enumerate(
-        zip(new_patterns, new_importances, new_embeddings)
+    for input_idx, (new_text, new_emb) in enumerate(
+        zip(new_patterns, new_embeddings)
     ):
         if new_emb is None:
             add_patterns.append(new_text)
-            add_importances.append(new_imp)
             add_embeddings.append(None)
             add_indices.append(input_idx)
             continue
@@ -821,34 +752,28 @@ def _dedup_patterns(
             skip_count += 1
             logger.info("SKIP (%.2f): %s", max(best_existing_sim, best_new_sim), new_text[:60])
         elif action == "update":
-            # ADR-0021: soft-invalidate old, keep row for audit, and ADD a
-            # new boosted pattern. The new row inherits max(old_imp, new_imp)
-            # so a refinement never loses information.
+            # ADR-0021: soft-invalidate old, keep row for audit, and ADD the
+            # re-observed pattern with a fresh timestamp (no importance boost,
+            # ADR-0056).
             assert best_existing_pat is not None  # guaranteed by _dedup_action
-            old_imp = best_existing_pat.get("importance", 0.5)
-            boosted_imp = max(old_imp, new_imp)
             if mutate_existing:
                 best_existing_pat["valid_until"] = ts
             add_patterns.append(new_text)
-            add_importances.append(boosted_imp)
             add_embeddings.append(new_emb)
             add_indices.append(input_idx)
             update_count += 1
-            logger.debug("UPDATE (%.2f): invalidate + add boosted: %s",
+            logger.debug("UPDATE (%.2f): invalidate + re-add: %s",
                          best_existing_sim, new_text[:60])
         elif action == "skip_new":
-            if new_imp > add_importances[best_new_idx]:
-                add_importances[best_new_idx] = new_imp
             skip_count += 1
             logger.debug("SKIP-NEW (%.2f): %s", best_new_sim, new_text[:60])
         else:
             add_patterns.append(new_text)
-            add_importances.append(new_imp)
             add_embeddings.append(new_emb)
             add_indices.append(input_idx)
 
     return (
-        add_patterns, add_importances, add_embeddings,
+        add_patterns, add_embeddings,
         add_indices, skip_count, update_count,
     )
 

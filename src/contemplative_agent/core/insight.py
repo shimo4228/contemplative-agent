@@ -103,9 +103,11 @@ def _extract_skill(
 def _cluster_score(cluster: List[dict]) -> float:
     """Ordering key: cluster size × mean effective_importance.
 
-    Favors frequently-recurring topics that also score as important.
-    Size-only biases toward chatter; importance-only is unstable on
-    small clusters with one extreme outlier.
+    Favors frequently-recurring topics that are also recent. ADR-0056:
+    effective_importance is pure time decay (the LLM rating was retired),
+    so this weights large, freshly-reinforced clusters first. Size-only
+    biases toward stale chatter; decay alone ignores how often a topic
+    recurred.
     """
     if not cluster:
         return 0.0

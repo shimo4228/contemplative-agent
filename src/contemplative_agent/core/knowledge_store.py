@@ -16,28 +16,26 @@ from .config import FORBIDDEN_SUBSTRING_PATTERNS
 logger = logging.getLogger(__name__)
 
 def effective_importance(p: dict) -> float:
-    """Compute extraction weight: importance × time decay.
+    """Extraction weight: pure time decay ``0.95^days_elapsed``.
 
-    ``importance × 0.95^days_elapsed`` — nothing else. The Ebbinghaus
-    ``strength`` factor was retired by ADR-0028; the trust factor was
-    retired by ADR-0051 (origin must be recorded, never weighted).
+    The distill-time LLM importance rating was retired by ADR-0056 — an
+    ablation showed it added almost nothing beyond decay (Kendall tau 0.84
+    vs a decay-only variant, identical top-5 batch order). The Ebbinghaus
+    ``strength`` factor was retired by ADR-0028 and the trust factor by
+    ADR-0051 (origin is recorded, never weighted). Extraction weight is
+    therefore time alone.
     """
-    base = p.get("importance", 0.5)
     distilled = p.get("distilled", "")
     if not distilled or distilled == "unknown":
-        weight = base * 0.1  # Unknown timestamp → heavy penalty
-    else:
-        try:
-            dt = datetime.fromisoformat(distilled)
-            if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
-            days = (datetime.now(timezone.utc) - dt).total_seconds() / 86400.0
-            days = max(0.0, days)
-            weight = base * (0.95 ** days)
-        except (ValueError, TypeError):
-            weight = base * 0.1
-
-    return max(0.0, min(1.0, weight))
+        return 0.1  # Unknown timestamp → heavy penalty
+    try:
+        dt = datetime.fromisoformat(distilled)
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+        days = max(0.0, (datetime.now(timezone.utc) - dt).total_seconds() / 86400.0)
+    except (ValueError, TypeError):
+        return 0.1
+    return min(1.0, 0.95 ** days)
 
 
 def is_live(pattern: Dict) -> bool:
@@ -120,7 +118,6 @@ class KnowledgeStore:
         pattern: str,
         distilled: Optional[str] = None,
         source: Optional[str] = None,
-        importance: float = 0.5,
         embedding: Optional[List[float]] = None,
         gated: Optional[bool] = None,
         provenance: Optional[Dict] = None,
@@ -146,12 +143,15 @@ class KnowledgeStore:
         ADR-0051: ``trust_score`` / ``trust_updated_at`` are no longer
         written. Origin lives in ``provenance.source_type`` (recorded,
         never weighted).
+
+        ADR-0056: ``importance`` is no longer written. The distill-time
+        LLM rating was retired; extraction weight is pure time decay
+        (``effective_importance``).
         """
         distilled_value = distilled or now_iso()
         entry: dict = {
             "pattern": pattern,
             "distilled": distilled_value,
-            "importance": importance,
         }
         if source:
             entry["source"] = source
@@ -289,16 +289,19 @@ class KnowledgeStore:
                 self._learned_patterns.append({
                     "pattern": item,
                     "distilled": "unknown",
-                    "importance": 0.5,
                 })
 
 
 def _entry_from_dict(item: dict) -> dict:
-    """Restore one persisted pattern object, preserving optional fields."""
+    """Restore one persisted pattern object, preserving optional fields.
+
+    ADR-0056: the legacy ``importance`` field is no longer restored;
+    a tainted/legacy file's value is silently dropped on the next save
+    (extraction weight is pure time decay, no LLM rating).
+    """
     entry: dict = {
         "pattern": item["pattern"],
         "distilled": item.get("distilled", "unknown"),
-        "importance": item.get("importance", 0.5),
     }
     if item.get("source") is not None:
         entry["source"] = item["source"]

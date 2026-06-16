@@ -158,29 +158,33 @@ class TestRoundTripADR0021:
         p = store.get_raw_patterns()[0]
         assert "trust_score" not in p
         assert "trust_updated_at" not in p
+        # ADR-0056: a legacy importance rating is shed on load too.
+        assert "importance" not in p
         assert p["provenance"]["source_type"] == "self_reflection"
 
         store.save()
         on_disk = json.loads(path.read_text(encoding="utf-8"))
         assert "trust_score" not in on_disk[0]
         assert "trust_updated_at" not in on_disk[0]
+        assert "importance" not in on_disk[0]
 
 
 class TestEffectiveImportance:
-    def test_fresh_pattern_scores_near_importance(self):
-        """importance × time-decay only (ADR-0051 retired the trust factor)."""
+    def test_fresh_pattern_scores_near_one(self):
+        """ADR-0056: pure time decay — a fresh pattern is ~1.0 with no
+        dependence on any stored importance rating."""
         now = datetime.now(timezone.utc)
-        p = {"importance": 1.0, "distilled": now.isoformat(timespec="minutes")}
-        # Fresh pattern at importance 1.0 → very close to 1.0
+        p = {"distilled": now.isoformat(timespec="minutes")}
         score = effective_importance(p)
         assert 0.9 <= score <= 1.0
 
-    def test_trust_score_is_ignored(self):
-        """ADR-0051: a legacy trust_score on the row must not move the score."""
+    def test_legacy_importance_and_trust_are_ignored(self):
+        """ADR-0051/0056: legacy trust_score and importance fields on the row
+        must not move the decay-only score."""
         now = datetime.now(timezone.utc)
-        plain = {"importance": 1.0, "distilled": now.isoformat(timespec="minutes")}
-        with_legacy_trust = {**plain, "trust_score": 0.3}
-        assert effective_importance(with_legacy_trust) == pytest.approx(
+        plain = {"distilled": now.isoformat(timespec="minutes")}
+        with_legacy = {**plain, "trust_score": 0.3, "importance": 0.2}
+        assert effective_importance(with_legacy) == pytest.approx(
             effective_importance(plain)
         )
 
@@ -233,7 +237,6 @@ class TestFilterSinceBadTimestampADR0021:
         store._learned_patterns.append({
             "pattern": "broken record with malformed distilled",
             "distilled": "not-a-real-iso",
-            "importance": 0.5,
         })
 
         result = store.get_live_patterns_since("2020-01-01T00:00:00+00:00")

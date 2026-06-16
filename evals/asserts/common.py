@@ -18,8 +18,6 @@ sys.path.insert(0, str(REPO / "src"))
 from contemplative_agent.core._io import strip_code_fence  # noqa: E402
 from contemplative_agent.core.distill import _is_valid_pattern  # noqa: E402
 
-_FIXTURES = Path(__file__).resolve().parent.parent / "fixtures"
-
 _MIN_VALID_PATTERN_RATE = 0.8
 _MAX_PATTERNS = 12
 
@@ -50,29 +48,3 @@ def assert_refine_output(output: str, context) -> dict:
         "score": rate,
         "reason": f"{valid}/{len(patterns)} patterns pass the production gate",
     }
-
-
-def assert_importance_output(output: str, context) -> dict:
-    """Step 3 contract: {"scores": [int, ...]}, one 1-10 score per pattern."""
-    patterns_file = context["vars"]["patterns_file"]
-    expected = len(
-        [
-            line
-            for line in (_FIXTURES / patterns_file)
-            .read_text(encoding="utf-8")
-            .splitlines()
-            if line.strip()
-        ]
-    )
-    try:
-        parsed = json.loads(strip_code_fence(output))
-    except json.JSONDecodeError as exc:
-        return _fail(f"not JSON after fence strip: {exc}")
-    scores = parsed.get("scores") if isinstance(parsed, dict) else None
-    if not isinstance(scores, list):
-        return _fail("missing required key 'scores'")
-    if len(scores) != expected:
-        return _fail(f"{len(scores)} scores for {expected} patterns")
-    if not all(isinstance(s, int) and 1 <= s <= 10 for s in scores):
-        return _fail(f"scores outside 1..10 or non-integer: {scores}")
-    return {"pass": True, "score": 1.0, "reason": f"{expected} scores, all in 1..10"}

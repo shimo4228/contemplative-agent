@@ -45,10 +45,12 @@ Below ``SIM_UPDATE`` the new pattern is added unconditionally (ADD).
 """
 
 DEDUP_IMPORTANCE_FLOOR: float = 0.05
-"""Patterns below this effective importance are excluded from dedup
-comparisons (ADR-0019). Keeps a heavily-decayed legacy row from
-blocking a fresh, more important arrival via residual cosine
-similarity.
+"""Patterns whose ``effective_importance`` falls below this are excluded
+from dedup comparisons (ADR-0019). ADR-0056: ``effective_importance`` is
+pure time decay, so this floor is reached uniformly at ~58 days
+(``0.95^days < 0.05``); it keeps a heavily-decayed legacy row from
+blocking a fresh re-observation via residual cosine similarity, letting
+the re-observed insight re-enter as a fresh record (ADR-0053 §4).
 """
 
 # --- Insight / rules-distill clustering ------------------------------------

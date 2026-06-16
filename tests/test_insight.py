@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import patch
 
@@ -232,10 +232,15 @@ class TestExtractInsight:
 
 class TestBuildClusterBatches:
     @staticmethod
-    def _pat(text: str, embedding: list, importance: float = 0.5) -> dict:
+    def _pat(text: str, embedding: list, days_old: float = 0.0) -> dict:
+        # ADR-0056: ordering is effective_importance = pure time decay, so the
+        # pattern's age (days_old) — not a stored rating — drives the slice.
+        distilled = (
+            datetime.now(timezone.utc) - timedelta(days=days_old)
+        ).isoformat()
         return {
             "pattern": text,
-            "importance": importance,
+            "distilled": distilled,
             "embedding": embedding,
         }
 
@@ -262,8 +267,7 @@ class TestBuildClusterBatches:
         """Self-reflection patterns are *not* filtered out — the LLM can
         still derive a skill from them if the cluster holds together."""
         reflect = [
-            self._pat(f"reflect-{i}", _unit_vec(8, 1),
-                      importance=0.9) for i in range(3)
+            self._pat(f"reflect-{i}", _unit_vec(8, 1)) for i in range(3)
         ]
         batches = _build_cluster_batches(reflect, threshold=0.7)
         assert len(batches) == 1
@@ -292,26 +296,29 @@ class TestBuildClusterBatches:
         )
         assert len(batches) == 12
 
-    def test_clusters_ordered_by_size_times_importance(self) -> None:
-        """Order: larger clusters first, ties broken by mean importance."""
-        small_high = [
-            self._pat(f"sh-{i}", _unit_vec(16, 1), importance=0.9)
+    def test_clusters_ordered_by_size_times_decay(self) -> None:
+        """Order: cluster_size × mean(effective_importance). ADR-0056: the
+        weight is pure decay, so a larger slightly-aged cluster still outranks
+        a smaller fresh one as long as decay has not dropped too far."""
+        small_fresh = [
+            self._pat(f"sf-{i}", _unit_vec(16, 1), days_old=0.0)
             for i in range(3)
         ]
-        large_mid = [
-            self._pat(f"lm-{i}", _unit_vec(16, 2), importance=0.5)
+        large_aged = [
+            self._pat(f"la-{i}", _unit_vec(16, 2), days_old=2.0)
             for i in range(6)
         ]
         batches = _build_cluster_batches(
-            small_high + large_mid, threshold=0.7,
+            small_fresh + large_aged, threshold=0.7,
         )
-        # large_mid: 6 × 0.5 = 3.0 > small_high: 3 × 0.9 = 2.7
+        # large_aged: 6 × 0.95^2 ≈ 5.42 > small_fresh: 3 × 1.0 = 3.0
         _, first_texts, _ = batches[0]
-        assert any(t.startswith("lm-") for t in first_texts)
+        assert any(t.startswith("la-") for t in first_texts)
 
     def test_cluster_batches_respect_max_size(self) -> None:
+        # p-0 newest, p-14 oldest — decay keeps the 10 freshest.
         pats = [
-            self._pat(f"p-{i}", _unit_vec(8, 1), importance=0.9 - i * 0.05)
+            self._pat(f"p-{i}", _unit_vec(8, 1), days_old=i * 0.5)
             for i in range(15)
         ]
         batches = _build_cluster_batches(
@@ -362,11 +369,15 @@ class TestExtractInsightSupersededExclusion:
 
 class TestBuildClusterBatchesLineageADR0050:
     @staticmethod
-    def _pat(text: str, embedding: list, importance: float = 0.5) -> dict:
+    def _pat(text: str, embedding: list, days_old: float = 0.0) -> dict:
+        # ADR-0056: age drives the kept/demoted slice (effective_importance is
+        # pure decay), so vary distilled by days_old instead of a rating.
+        distilled = (
+            datetime.now(timezone.utc) - timedelta(days=days_old)
+        ).isoformat()
         return {
             "pattern": text,
-            "distilled": "2026-06-05T10:00+00:00",
-            "importance": importance,
+            "distilled": distilled,
             "embedding": embedding,
         }
 
@@ -384,15 +395,16 @@ class TestBuildClusterBatchesLineageADR0050:
         """Demoted tail beyond max_size must not be attributed."""
         from contemplative_agent.core.knowledge_store import pattern_id
 
+        # p-0 newest, p-14 oldest — decay keeps the 10 freshest (ADR-0056).
         pats = [
-            self._pat(f"p-{i}", _unit_vec(8, 1), importance=0.9 - i * 0.05)
+            self._pat(f"p-{i}", _unit_vec(8, 1), days_old=i * 0.5)
             for i in range(15)
         ]
         batches = _build_cluster_batches(pats, threshold=0.7, min_size=3, max_size=10)
         assert len(batches) == 1
         _, texts, pids = batches[0]
         assert len(pids) == len(texts) == 10
-        # Highest-importance 10 are kept; the 5 lowest are demoted.
+        # Freshest 10 are kept; the 5 oldest are demoted.
         kept_expected = {pattern_id(p) for p in pats[:10]}
         assert set(pids) == kept_expected
 

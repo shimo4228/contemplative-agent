@@ -190,7 +190,7 @@ def _build_skill_clusters(
     benefits from breadth even when topics don't cluster cleanly.
 
     Filenames ride through clustering inside the adapter dicts
-    (``cluster_patterns`` only reads embedding / importance / trust) so
+    (``cluster_patterns`` only reads ``embedding`` and ``distilled``) so
     each batch keeps its lineage keys (ADR-0050).
     """
     if not skill_items:
@@ -205,14 +205,16 @@ def _build_skill_clusters(
         )
         return [skill_items[:MAX_RULES_BATCH]]
 
-    # Adapter dicts for cluster_patterns; effective_importance stays neutral
-    # because we don't want importance weighting on skill clusters.
+    # Adapter dicts for cluster_patterns. effective_importance stays neutral
+    # across skill clusters: with no ``distilled`` timestamp every dict takes
+    # the same unknown-timestamp weight, so intra-cluster ordering does not
+    # depend on it (ADR-0056 retired the LLM importance rating; weight is now
+    # pure time decay).
     dicts = [
         {
             "pattern": text,
             "filename": fname,
             "embedding": matrix[i].tolist(),
-            "importance": 0.5,
         }
         for i, (fname, text) in enumerate(skill_items)
     ]

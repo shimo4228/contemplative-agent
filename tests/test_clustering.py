@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import List
 
 import numpy as np
@@ -9,12 +10,20 @@ import numpy as np
 from contemplative_agent.core.clustering import cluster_patterns
 
 
-def _pat(text: str, embedding: List[float], importance: float = 0.5) -> dict:
-    """Build a minimal pattern dict compatible with effective_importance."""
+def _pat(text: str, embedding: List[float], days_old: float = 0.0) -> dict:
+    """Build a minimal pattern dict compatible with effective_importance.
+
+    ADR-0056: extraction weight is pure time decay, so ``days_old`` (how long
+    ago the pattern was distilled) — not a stored importance rating — is what
+    orders patterns within a cluster.
+    """
+    distilled = (
+        datetime.now(timezone.utc) - timedelta(days=days_old)
+    ).isoformat()
     return {
         "pattern": text,
         "embedding": list(embedding),
-        "importance": importance,
+        "distilled": distilled,
     }
 
 
@@ -74,8 +83,9 @@ class TestAllSingletons:
 class TestMaxSizeCap:
     def test_large_cluster_is_sliced_to_max_size(self):
         # 15 patterns on same axis — single cluster exceeds max_size=10.
+        # b0 is newest, b14 oldest (ADR-0056: decay orders the slice).
         pats = [
-            _pat(f"b{i}", _axis_vec(8, 1), importance=0.9 - i * 0.05)
+            _pat(f"b{i}", _axis_vec(8, 1), days_old=i * 0.5)
             for i in range(15)
         ]
         clusters, singletons = cluster_patterns(
@@ -83,12 +93,12 @@ class TestMaxSizeCap:
         )
         assert len(clusters) == 1
         assert len(clusters[0]) == 10
-        # Top-10 by effective_importance — highest-importance patterns kept.
+        # Top-10 by effective_importance (= least decayed) — newest kept.
         kept_texts = [p["pattern"] for p in clusters[0]]
-        # Highest importance ones are b0..b9
+        # Freshest ones are b0..b9
         for i in range(10):
             assert f"b{i}" in kept_texts
-        # The remaining 5 go to singletons
+        # The remaining 5 (oldest) go to singletons
         assert len(singletons) == 5
 
 
@@ -141,17 +151,19 @@ class TestEdgeCases:
 
 
 class TestClusterInternalSort:
-    def test_cluster_members_sorted_by_effective_importance_desc(self):
-        # 5 near-identical vectors, distinct importances.
-        # _axis_vec(8, 1, weight_first=0.95) vs _axis_vec(8, 1) both on axis 1 so cosine is near 1.
-        importances = [0.2, 0.9, 0.5, 0.1, 0.7]
+    def test_cluster_members_sorted_by_decay_desc(self):
+        # 5 near-identical vectors (all on axis 1 → cosine ≈ 1), distinct ages.
+        # ADR-0056: intra-cluster order is effective_importance = pure decay,
+        # so the freshest (smallest days_old) must come first.
+        ages = [4.0, 0.5, 2.0, 7.0, 1.0]
         pats = [
-            _pat(f"p{i}", _axis_vec(8, 1), importance=imp)
-            for i, imp in enumerate(importances)
+            _pat(f"p{i}", _axis_vec(8, 1), days_old=age)
+            for i, age in enumerate(ages)
         ]
         clusters, _ = cluster_patterns(
             pats, threshold=0.7, min_size=3, max_size=10
         )
         assert len(clusters) == 1
-        got = [p["importance"] for p in clusters[0]]
-        assert got == sorted(got, reverse=True)
+        got_ages = [p["distilled"] for p in clusters[0]]
+        # Sorted by decay desc == sorted by distilled timestamp desc (newest first).
+        assert got_ages == sorted(got_ages, reverse=True)

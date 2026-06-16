@@ -62,7 +62,6 @@ def _make_constitutional_knowledge(tmp_path, n=5):
     for i in range(n):
         ks.add_learned_pattern(
             f"Constitutional pattern {i}: ethical insight about compassion and care number {i}",
-            importance=0.8,
         )
     ks.save()
     return KnowledgeStore(path=tmp_path / "knowledge.json")

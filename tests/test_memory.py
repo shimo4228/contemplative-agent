@@ -498,26 +498,28 @@ class TestKnowledgeStore:
 
     # --- Importance score tests ---
 
-    def test_importance_default_on_load(self, tmp_path):
-        """Patterns without importance field get default 0.5 on load."""
+    def test_legacy_importance_shed_on_load(self, tmp_path):
+        """ADR-0056: a legacy importance field is not restored on load."""
         path = tmp_path / "knowledge.json"
         path.write_text(json.dumps([
-            {"pattern": "Old pattern without importance", "distilled": "2026-03-20T12:00+00:00"}
+            {"pattern": "Old pattern with a legacy rating",
+             "distilled": "2026-03-20T12:00+00:00", "importance": 0.7}
         ]))
         ks = KnowledgeStore(path=path)
         ks.load()
-        assert ks._learned_patterns[0]["importance"] == 0.5
+        assert "importance" not in ks._learned_patterns[0]
 
-    def test_importance_preserved_on_roundtrip(self, tmp_path):
-        """Importance value survives save/load cycle."""
+    def test_importance_not_written(self, tmp_path):
+        """ADR-0056: the importance field is no longer written — extraction
+        weight is pure time decay, so new patterns carry no rating."""
         path = tmp_path / "knowledge.json"
         ks = KnowledgeStore(path=path)
-        ks.add_learned_pattern("High importance pattern", importance=0.9)
+        ks.add_learned_pattern("A distilled pattern without any importance rating")
         ks.save()
 
         ks2 = KnowledgeStore(path=path)
         ks2.load()
-        assert ks2._learned_patterns[0]["importance"] == 0.9
+        assert "importance" not in ks2._learned_patterns[0]
 
     def test_source_preserved_on_roundtrip(self, tmp_path):
         """Source field survives save/load cycle (regression: _parse_json was dropping it)."""
@@ -529,12 +531,6 @@ class TestKnowledgeStore:
         ks2 = KnowledgeStore(path=path)
         ks2.load()
         assert ks2._learned_patterns[0].get("source") == "2026-03-18~2026-03-19"
-
-    def test_add_learned_pattern_default_importance(self, tmp_path):
-        """add_learned_pattern without importance arg uses 0.5."""
-        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
-        ks.add_learned_pattern("Some pattern")
-        assert ks._learned_patterns[0]["importance"] == 0.5
 
 class TestFollowedAgents:
     """Tests for agents.json follow/unfollow persistence."""

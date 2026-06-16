@@ -13,7 +13,6 @@ from contemplative_agent.core.distill import (
     enrich,
     IdentityResult,
     _is_valid_pattern,
-    _parse_importance_scores,
     _classify_episodes,
     _ClassifiedRecords,
     _dedup_patterns,
@@ -55,18 +54,17 @@ def mock_embed_distinct():
 
 
 class TestDistill:
-    """Pipeline: classify → extract → refine → importance → embed → dedup → save."""
+    """Pipeline: classify → extract → refine → embed → dedup → save (ADR-0056: no importance step)."""
 
     @patch("contemplative_agent.core.distill.generate")
     def test_basic_distillation(self, mock_generate, mock_embed_distinct, tmp_path):
-        # classify is now embedding-based (no generate call); only extract / refine / importance.
+        # classify is now embedding-based (no generate call); only extract / refine.
         mock_generate.side_effect = [
             "Some free-form analysis of patterns from the episode logs.",
             json.dumps({"patterns": [
                 "Pattern one shows that quoting specific details improves engagement",
                 "Pattern two reveals that generic replies stall conversations quickly",
             ]}),
-            json.dumps({"scores": [8, 6]}),
         ]
 
         log = EpisodeLog(log_dir=tmp_path / "logs")
@@ -87,9 +85,9 @@ class TestDistill:
         patterns = [p["pattern"] for p in ks2.get_raw_patterns()]
         assert any("Pattern one" in p for p in patterns)
         assert any("Pattern two" in p for p in patterns)
-        # Importance from Step 3
+        # ADR-0056: no importance field is written; extraction weight is decay.
         p1 = [p for p in ks2._learned_patterns if "Pattern one" in p["pattern"]][0]
-        assert p1["importance"] == 0.8  # 8/10
+        assert "importance" not in p1
         # Embedding stored
         assert isinstance(p1["embedding"], list)
 
@@ -100,7 +98,6 @@ class TestDistill:
             json.dumps({"patterns": [
                 "Dry pattern that explains how quoting specific details works better",
             ]}),
-            json.dumps({"scores": [5]}),
         ]
         log = _make_log(tmp_path)
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
@@ -146,7 +143,6 @@ class TestDistillJSONFallbackADR0021:
             # Refine step returns bullets, NOT JSON — tests the fallback.
             "- First bullet pattern that explains quoting details clearly here\n"
             "- Second bullet pattern that reveals generic replies stall people",
-            json.dumps({"scores": [7, 5]}),
         ]
 
         log = _make_log(tmp_path)
@@ -233,89 +229,71 @@ class TestInsightExclusionADR0052:
         assert not (tmp_path / "knowledge.json").exists()
 
 
-class TestParseImportanceScores:
-    def test_json_format(self):
-        assert _parse_importance_scores('{"scores": [8, 5]}', 2) == [0.8, 0.5]
-
-    def test_count_mismatch_returns_defaults(self):
-        assert _parse_importance_scores('{"scores": [8]}', 2) == [0.5, 0.5]
-
-    def test_invalid_json_falls_back_to_csv(self):
-        assert _parse_importance_scores("8, 5, 9", 3) == [0.8, 0.5, 0.9]
-
-    def test_clamps_out_of_range(self):
-        assert _parse_importance_scores('{"scores": [15, -2]}', 2) == [1.0, 0.1]
-
-
 class TestDedupPatternsEmbedding:
-    """ADR-0009: cosine-based dedup."""
+    """ADR-0009: cosine-based dedup. ADR-0056: no importance threading."""
 
     def test_distinct_patterns_all_added(self):
         new_patterns = ["A new pattern", "Another distinct pattern"]
-        new_imps = [0.7, 0.5]
         new_embs = [_embedding(1, 0, 0), _embedding(0, 1, 0)]
         existing = []
-        add, add_imp, add_emb, _idx, skip, upd = _dedup_patterns(
-            new_patterns, new_imps, new_embs, existing,
+        add, add_emb, _idx, skip, upd = _dedup_patterns(
+            new_patterns, new_embs, existing,
         )
         assert len(add) == 2
         assert skip == 0
         assert upd == 0
 
     def test_near_duplicate_skipped(self):
-        existing = [{"pattern": "Existing", "importance": 0.6, "embedding": [1.0, 0.0, 0.0]}]
+        existing = [{"pattern": "Existing", "embedding": [1.0, 0.0, 0.0]}]
         new_patterns = ["Almost same"]
-        new_imps = [0.5]
         # Same direction, slight scale → cosine ≈ 1.0
         new_embs = [_embedding(0.99, 0.01, 0.0)]
-        add, add_imp, add_emb, _idx, skip, upd = _dedup_patterns(
-            new_patterns, new_imps, new_embs, existing,
+        add, add_emb, _idx, skip, upd = _dedup_patterns(
+            new_patterns, new_embs, existing,
         )
         assert len(add) == 0
         assert skip == 1
 
     def test_similar_triggers_update(self):
-        """ADR-0021: UPDATE path soft-invalidates old pattern and ADDs a new
-        boosted one; the old pattern keeps its original importance but gains
-        a ``valid_until`` timestamp for audit / replay."""
-        existing = [{"pattern": "Existing", "importance": 0.5, "embedding": [1.0, 0.0]}]
+        """ADR-0021/0056: UPDATE path soft-invalidates the old pattern and
+        re-adds the new one with a fresh timestamp. No importance boost — the
+        LLM rating was retired (ADR-0056); the old row simply gains a
+        ``valid_until`` for audit / replay."""
+        existing = [{"pattern": "Existing", "embedding": [1.0, 0.0]}]
         # cosine ≈ 0.85 (between SIM_UPDATE=0.80 and SIM_DUPLICATE=0.90)
         new_embs = [_embedding(0.85, 0.527)]
-        add, add_imp, add_emb, _idx, skip, upd = _dedup_patterns(
-            ["new"], [0.7], new_embs, existing,
+        add, add_emb, _idx, skip, upd = _dedup_patterns(
+            ["new"], new_embs, existing,
         )
         assert upd == 1
-        assert existing[0]["importance"] == 0.5  # not mutated
         assert existing[0].get("valid_until") is not None  # soft-invalidated
         assert len(add) == 1
-        assert add_imp[0] == 0.7  # boosted importance on the new pattern
 
     def test_existing_without_embedding_ignored(self):
-        existing = [{"pattern": "Old", "importance": 0.5}]  # no embedding
+        existing = [{"pattern": "Old"}]  # no embedding
         new_embs = [_embedding(1.0, 0.0)]
-        add, add_imp, add_emb, _idx, skip, upd = _dedup_patterns(
-            ["new"], [0.5], new_embs, existing,
+        add, add_emb, _idx, skip, upd = _dedup_patterns(
+            ["new"], new_embs, existing,
         )
         # Should ADD since existing has no embedding to compare against
         assert len(add) == 1
 
     def test_new_without_embedding_always_added(self):
-        existing = [{"pattern": "Old", "importance": 0.5, "embedding": [1.0, 0.0]}]
-        add, add_imp, add_emb, _idx, skip, upd = _dedup_patterns(
-            ["new"], [0.5], [None], existing,
+        existing = [{"pattern": "Old", "embedding": [1.0, 0.0]}]
+        add, add_emb, _idx, skip, upd = _dedup_patterns(
+            ["new"], [None], existing,
         )
         assert len(add) == 1
         assert add_emb == [None]
 
     def test_mutate_existing_false_does_not_modify(self):
-        existing = [{"pattern": "Old", "importance": 0.5, "embedding": [1.0, 0.0]}]
+        existing = [{"pattern": "Old", "embedding": [1.0, 0.0]}]
         new_embs = [_embedding(0.85, 0.527)]
         _dedup_patterns(
-            ["new"], [0.9], new_embs, existing,
+            ["new"], new_embs, existing,
             mutate_existing=False,
         )
-        assert existing[0]["importance"] == 0.5
-        assert existing[0].get("valid_until") is None  # no soft-invalidation either
+        assert existing[0].get("valid_until") is None  # no soft-invalidation
 
     def test_thresholds_in_range(self):
         assert 0.0 < SIM_UPDATE < SIM_DUPLICATE < 1.0
@@ -323,7 +301,8 @@ class TestDedupPatternsEmbedding:
     def test_dedup_ignores_legacy_trust_fields(self):
         # ADR-0051: trust no longer gates liveness — a legacy row with an
         # arbitrarily low trust_score stays in the dedup pool, so a
-        # semantically matching new pattern is SKIPped, not ADDed.
+        # semantically matching new pattern is SKIPped, not ADDed. ADR-0056:
+        # a legacy ``importance`` field is likewise inert.
         existing = [{
             "pattern": "old noise",
             "importance": 0.6,
@@ -331,8 +310,8 @@ class TestDedupPatternsEmbedding:
             "trust_score": 0.1,
         }]
         new_embs = [_embedding(0.99, 0.01, 0.0)]
-        add, _imp, _emb, _idx, skip, upd = _dedup_patterns(
-            ["near dup"], [0.5], new_embs, existing,
+        add, _emb, _idx, skip, upd = _dedup_patterns(
+            ["near dup"], new_embs, existing,
         )
         assert len(add) == 0
         assert skip == 1
@@ -388,14 +367,13 @@ class TestDedupSoftInvalidationADR0021:
         existing = [
             {
                 "pattern": "ghost",
-                "importance": 0.8,
                 "embedding": [1.0, 0.0],
                 "valid_until": "2026-01-01T00:00",
             }
         ]
         new_embs = [_embedding(0.85, 0.527)]  # would match if ghost were live
-        add, add_imp, add_emb, _idx, skip, upd = _dedup_patterns(
-            ["new"], [0.7], new_embs, existing,
+        add, add_emb, _idx, skip, upd = _dedup_patterns(
+            ["new"], new_embs, existing,
         )
         # ghost is invalidated → ignored → new pattern is ADD'd, not UPDATE
         assert upd == 0
@@ -405,9 +383,9 @@ class TestDedupSoftInvalidationADR0021:
         existing: list = []
         new_embs = [_embedding(1.0, 0.0), _embedding(0.0, 1.0)]
         out = _dedup_patterns(
-            ["a", "b"], [0.5, 0.5], new_embs, existing,
+            ["a", "b"], new_embs, existing,
         )
-        add, _imp, _emb, idxs, _skip, _upd = out
+        add, _emb, idxs, _skip, _upd = out
         assert add == ["a", "b"]
         assert idxs == [0, 1]
 
@@ -739,14 +717,20 @@ class TestThresholds:
 
 
 class TestEffectiveImportance:
-    def test_zero_for_unknown_distilled(self):
-        p = {"importance": 0.8, "distilled": "unknown"}
-        assert effective_importance(p) < 0.1
+    """ADR-0056: extraction weight is pure time decay; the stored ``importance``
+    field (if any) is ignored."""
 
-    def test_recent_keeps_value(self):
+    def test_unknown_distilled_gets_floor_penalty(self):
+        p = {"distilled": "unknown"}
+        assert effective_importance(p) == 0.1
+
+    def test_recent_scores_near_one_regardless_of_importance(self):
         from datetime import datetime, timezone
-        p = {"importance": 0.7, "distilled": datetime.now(timezone.utc).isoformat()}
-        assert 0.6 < effective_importance(p) <= 0.7
+        now = datetime.now(timezone.utc).isoformat()
+        plain = effective_importance({"distilled": now})
+        assert plain == pytest.approx(1.0)
+        # A legacy ``importance`` value must not change the result.
+        assert effective_importance({"distilled": now, "importance": 0.2}) == pytest.approx(plain)
 
 
 

@@ -36,7 +36,6 @@ from contemplative_agent.core.llm import (  # noqa: E402
     reset_llm_config,
 )
 from contemplative_agent.core.prompts import (  # noqa: E402
-    DISTILL_IMPORTANCE_PROMPT,
     DISTILL_PROMPT,
     DISTILL_REFINE_PROMPT,
 )
@@ -98,20 +97,3 @@ def distill_refine(context: dict) -> str:
         .strip()
     )
     return _chat(_system(True), DISTILL_REFINE_PROMPT.format(raw_output=raw_output))
-
-
-def distill_importance(context: dict) -> str:
-    """Step 3 (importance): patterns -> {"scores": [...]} JSON."""
-    patterns = [
-        line.strip()
-        for line in (
-            (_FIXTURES / context["vars"]["patterns_file"])
-            .read_text(encoding="utf-8")
-            .splitlines()
-        )
-        if line.strip()
-    ]
-    patterns_text = "\n".join(f"- {p}" for p in patterns)
-    return _chat(
-        _system(True), DISTILL_IMPORTANCE_PROMPT.format(patterns=patterns_text)
-    )

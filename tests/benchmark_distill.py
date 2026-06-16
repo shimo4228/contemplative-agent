@@ -60,7 +60,6 @@ class DistillBenchmarkReport:
     patterns_updated: int
     patterns_skipped: int
     uncertain_count: int
-    importance_scores: List[float] = field(default_factory=list)
     pattern_lengths: List[int] = field(default_factory=list)
 
 
@@ -84,7 +83,6 @@ def _collect_metrics_from_logs(
     parse_success = 0
     parse_fallback = 0
     parse_failure = 0
-    importance_scores: List[float] = []
     pattern_lengths: List[int] = []
 
     for rec in log_records:
@@ -99,27 +97,20 @@ def _collect_metrics_from_logs(
                 "noise": int(m.group(3)),
             }
 
-        # Batch results
-        m = re.search(r"Batch (\d+)/(\d+): \d+ episodes → (\d+) patterns \((\d+) rejected\) \[importance: (.*?)\]", msg)
+        # Batch results (ADR-0056: the 2-step pipeline log carries no importance)
+        m = re.search(r"Batch (\d+)/(\d+): \d+ episodes \(prompt \d+ chars\) → (\d+) patterns \((\d+) rejected\)", msg)
         if m:
             batch_count = max(batch_count, int(m.group(2)))
             extracted = int(m.group(3))
             rejected = int(m.group(4))
             total_extracted += extracted
             total_rejected += rejected
-            imp_str = m.group(5)
-            if imp_str != "none":
-                for v in imp_str.split(", "):
-                    try:
-                        importance_scores.append(float(v))
-                    except ValueError:
-                        pass
 
         # Added patterns
-        m = re.search(r"Added pattern \(importance=([\d.]+)\): (.+)", msg)
+        m = re.search(r"Added pattern \(source=[^)]+\): (.+)", msg)
         if m:
             total_added += 1
-            pattern_lengths.append(len(m.group(2)))
+            pattern_lengths.append(len(m.group(1)))
 
         # Dedup updates
         if "Dedup:" in msg and "update" in msg:
@@ -146,19 +137,16 @@ def _collect_metrics_from_logs(
             pass  # counted via batch/classify
 
         # Parse outcomes
-        if "Failed to parse importance scores" in msg:
-            parse_failure += 1
         if "Failed to parse dedup decisions" in msg:
             parse_failure += 1
-        if "Importance count mismatch" in msg:
-            parse_fallback += 1
         if "Dedup decision count mismatch" in msg:
             parse_fallback += 1
 
-    # Estimate LLM calls: classify(N) + extract(batches) + refine(batches) + importance(batches) + dedup(uncertain>0)
-    llm_call_count = episode_count + batch_count * 3 + (1 if uncertain_count > 0 else 0)
+    # Estimate LLM calls: classify(N) + extract(batches) + refine(batches) + dedup(uncertain>0)
+    # ADR-0056: the importance call per batch was retired (3 → 2 per batch).
+    llm_call_count = episode_count + batch_count * 2 + (1 if uncertain_count > 0 else 0)
 
-    # Parse success = importance batches + dedup calls - failures - fallbacks
+    # Parse success = extract/refine batches + dedup calls - failures - fallbacks
     parse_total = batch_count + (1 if uncertain_count > 0 else 0)
     parse_success = max(0, parse_total - parse_failure - parse_fallback)
 
@@ -179,7 +167,6 @@ def _collect_metrics_from_logs(
         patterns_updated=total_updated,
         patterns_skipped=total_skipped,
         uncertain_count=uncertain_count,
-        importance_scores=importance_scores,
         pattern_lengths=pattern_lengths,
     )
 
@@ -272,11 +259,6 @@ def _print_report(report: DistillBenchmarkReport) -> None:
     print(f"  Updated:      {report.patterns_updated}")
     print(f"  Uncertain:    {report.uncertain_count}")
 
-    if report.importance_scores:
-        scores = report.importance_scores
-        print(f"\n  Importance: mean={sum(scores)/len(scores):.2f}, "
-              f"min={min(scores):.2f}, max={max(scores):.2f}, n={len(scores)}")
-
     if report.pattern_lengths:
         lens = report.pattern_lengths
         print(f"  Pattern len: mean={sum(lens)/len(lens):.0f}, "
@@ -319,17 +301,6 @@ def compare_reports(path_a: str, path_b: str) -> None:
         delta = vb - va
         sign = "+" if delta > 0 else ""
         print(f"  {label:<20} {va:>10} {vb:>10} {sign}{delta:>9}")
-
-    # Importance comparison
-    for label, key in [("Importance", "importance_scores")]:
-        sa = a.get(key, [])
-        sb = b.get(key, [])
-        if sa or sb:
-            mean_a = sum(sa) / len(sa) if sa else 0
-            mean_b = sum(sb) / len(sb) if sb else 0
-            delta = mean_b - mean_a
-            sign = "+" if delta > 0 else ""
-            print(f"\n  {label} mean: {mean_a:.3f} → {mean_b:.3f} ({sign}{delta:.3f})")
 
     # Parse reliability = success / (success + fallback + failure)
     for data, name in [(a, "Before"), (b, "After")]:

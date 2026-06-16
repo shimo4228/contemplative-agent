@@ -15,7 +15,6 @@ unset MOLTBOOK_HOME                              # ランタイム prompt overri
 npx promptfoo@latest eval -c evals/promptfooconfig.step1.yaml \
   -o evals/results/step1-$(date +%Y%m%d-%H%M%S).json
 npx promptfoo@latest eval -c evals/promptfooconfig.step2.yaml
-npx promptfoo@latest eval -c evals/promptfooconfig.step3.yaml
 
 npx promptfoo@latest view   # ブラウザ UI で出力・差分を確認
 ```
@@ -27,7 +26,7 @@ npx promptfoo@latest view   # ブラウザ UI で出力・差分を確認
 | パス | 役割 |
 |---|---|
 | `prompts/distill_prompts.py` | prompt functions。**本番コードを import して描画**（`core.prompts` の lazy loader + `summarize_record` + `get_distill_system_prompt()`）。テンプレート複製ゼロ、ドリフトゼロ |
-| `promptfooconfig.step{1,2,3}.yaml` | 回帰スイート 3 本（抽出 / refine / importance 採点） |
+| `promptfooconfig.step{1,2}.yaml` | 回帰スイート 2 本（抽出 / refine）。Step 3（importance 採点）は ADR-0056 で廃止 |
 | `asserts/common.py` | Python assertion。本番の `strip_code_fence` + `_is_valid_pattern` で判定 |
 | `fixtures/` | 合成 episode fixture（下記ポリシー参照） |
 | `experiments/` | §C1 / §C2 の A/B 雛形（実施は別セッション、§B1 観察窓明け後） |
@@ -42,8 +41,6 @@ npx promptfoo@latest view   # ブラウザ UI で出力・差分を確認
 - provider は `ollama:chat`（Ollama 内部で `/api/generate`+system と同一の chat template に
   解決される）。`num_ctx: 32768` / `num_predict: 3000` / `top_p: 0.95` / `top_k: 20` /
   `think: false` は本番 `core/llm.py` payload と同値
-- Step 3 は `passthrough.format` で本番の `IMPORTANCE_SCHEMA`（token-level constrained
-  output）を再現する
 
 ## Fixture ポリシー（重要）
 
