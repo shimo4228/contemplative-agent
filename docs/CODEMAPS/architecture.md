@@ -91,18 +91,16 @@ Step 1 — Extract  [batch_size=30]
 Step 2 — Refine
   → LLM(DISTILL_REFINE_PROMPT) → JSON {"patterns":[...]}
 
-Step 3 — Score + persist
-  → LLM(DISTILL_IMPORTANCE_PROMPT, format=IMPORTANCE_SCHEMA)
-    {"scores":[1-10]} → importance = score/10
+Step 3 — Persist  [no LLM; the importance-scoring call was retired, ADR-0056]
   → embed_texts(new patterns)
   → _dedup_patterns():
-      effective_importance = importance × 0.95^days   [ADR-0021, ADR-0051]
-      skip rows below DEDUP_IMPORTANCE_FLOOR (0.05)
+      effective_importance = 0.95^days   [pure time decay; ADR-0051, ADR-0056]
+      skip rows below DEDUP_IMPORTANCE_FLOOR (0.05) → ~58 days, uniform
       cosine(new, existing):
         ≥ SIM_DUPLICATE (0.90)  →  SKIP
-        ≥ SIM_UPDATE    (0.80)  →  UPDATE (soft-invalidate old, append revised)
+        ≥ SIM_UPDATE    (0.80)  →  UPDATE (soft-invalidate old, append revised — no boost)
         < SIM_UPDATE             →  ADD
-  → KnowledgeStore.add_learned_pattern(..., embedding, gated=False)
+  → KnowledgeStore.add_learned_pattern(..., embedding, gated=False)  [no importance field]
   → provenance.source_type recorded, NEVER weighted  [ADR-0051]
 ```
 
@@ -134,8 +132,8 @@ GLOBAL embedding clustering  [NOT per-view; ADR-0026]
   cluster size ≥ MIN_PATTERNS_REQUIRED (3)  →  eligible
 
 Ordering: cluster_size × mean(effective_importance)  descending
-  effective_importance = importance × 0.95^days   [knowledge_store.effective_importance]
-Slicing: each cluster → top MAX_BATCH (10) by effective_importance
+  effective_importance = 0.95^days   [pure time decay; ADR-0056]
+Slicing: each cluster → top MAX_BATCH (10) by effective_importance (= freshest)
 
 Per cluster → LLM(INSIGHT_EXTRACTION_PROMPT, topic="cluster-N")
   system = axioms-only (no skill corpus injected — audit H6 fix, a2bebfe)
@@ -195,10 +193,10 @@ Layer 1: EpisodeLog  ~/.config/moltbook/logs/YYYY-MM-DD.jsonl  (append-only)
   + embeddings.sqlite (episode embedding sidecar, ADR-0019)
 
 Layer 2: KnowledgeStore  MOLTBOOK_HOME/knowledge.json
-  {pattern, distilled, importance, embedding[768], gated, last_view_matches,
+  {pattern, distilled, embedding[768], gated, last_view_matches,
    provenance:{source_type, source_episode_ids, pipeline_version},
-   valid_from, valid_until}
-  effective_importance = importance × 0.95^days          [knowledge_store.effective_importance]
+   valid_from, valid_until}                               [importance field retired, ADR-0056]
+  effective_importance = 0.95^days                        [pure time decay; ADR-0056]
   is_live             = valid_until is None ONLY          [knowledge_store.is_live, ADR-0051]
   origin (source_type) = recorded, NEVER weighted         [ADR-0051]
   pattern_id          = sha256(distilled|pattern)[:12]    [ADR-0050]
@@ -219,7 +217,7 @@ Pivot Snapshots  MOLTBOOK_HOME/snapshots/{cmd}_{ts}/
 | AKC Phase | Implementation | Code |
 |-----------|----------------|------|
 | Research | Feed fetch + relevance scoring | feed_manager.py |
-| Extract | `distill` (noise gate + 3-step + embedding dedup) | distill.py, views.py |
+| Extract | `distill` (noise gate + 2-step + embedding dedup) | distill.py, views.py |
 | Curate | `insight` (global clustering → skills) | insight.py, clustering.py |
 | Curate | `rules-distill` (skills → Practice/Rationale rules) | rules_distill.py |
 | Curate | `amend-constitution` (constitutional view → ethics) | constitution.py |

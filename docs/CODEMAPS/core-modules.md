@@ -16,13 +16,13 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `embeddings.py` | 92 | Ollama `/api/embed` wrapper (nomic-embed-text), `cosine`, `embed_one`, `embed_texts` |
 | `episode_embeddings.py` | 162 | `EpisodeEmbeddingStore` — SQLite sidecar for episode vectors (ADR-0019) |
 | `episode_log.py` | ~100 | `EpisodeLog` (append-only JSONL, `read_range` with `record_type` filter) |
-| `knowledge_store.py` | 337 | `KnowledgeStore` — patterns JSON + provenance/bitemporal (ADR-0021); `is_live()` (bitemporal-only, `valid_until is None`; trust floor retired ADR-0051); `effective_importance()`, `pattern_id()`, `epistemic_kind_for()`, `epistemic_counts_for()` (ADR-0050); `get_live_patterns()` / `get_live_patterns_since()` / `get_raw_patterns()` |
+| `knowledge_store.py` | 337 | `KnowledgeStore` — patterns JSON + provenance/bitemporal (ADR-0021); `is_live()` (bitemporal-only, `valid_until is None`; trust floor retired ADR-0051); `effective_importance()` (pure time decay `0.95^days`, LLM rating retired ADR-0056), `pattern_id()`, `epistemic_kind_for()`, `epistemic_counts_for()` (ADR-0050); `get_live_patterns()` / `get_live_patterns_since()` / `get_raw_patterns()` |
 | `memory.py` | 498 | `MemoryStore` facade, `Interaction`/`PostRecord` dataclasses (`Insight` retired, ADR-0052) |
 | `views.py` | 298 | `ViewRegistry` — seed-text views with `seed_from` + `${VAR}` substitution, lazy centroid cache; `find_by_view` = pure cosine rank + threshold + top_k (no importance weight, no trust, ADR-0051) |
 | `snapshot.py` | 160 | `write_snapshot()` + `collect_thresholds()` — pivot snapshots (ADR-0020) |
 | `scheduler.py` | 165 | Rate limit state, `has_read_budget`/`has_write_budget`, persistence |
 | `constitution.py` | 130 | `amend_constitution() → AmendmentResult`. ADR-0033 layer-separation framing. ADR-0050 lineage fields. |
-| `distill.py` | 844 | `distill()` (binary noise gate + 3-step + embedding dedup); `distill_identity()` (single-stage, self_reflection view, whole-file write, ADR-0030). ADR-0050 lineage fields on all result types. |
+| `distill.py` | 844 | `distill()` (binary noise gate + 2-step + embedding dedup; importance-scoring step retired ADR-0056); `distill_identity()` (single-stage, self_reflection view, whole-file write, ADR-0030). ADR-0050 lineage fields on all result types. |
 | `insight.py` | 318 | `extract_insight() → InsightResult`; global embedding clustering, no view batching (ADR-0050) |
 | `rules_distill.py` | 348 | `distill_rules() → RulesDistillResult`; Practice/Rationale B-layer format (ADR-0048) |
 | `stocktake.py` | 415 | Skill/rule audit: single-call LLM grouping (ADR-0046), `merge_group()` union-of-patterns, `CANNOT_MERGE` reject, singleton trigger-altitude clean (ADR-0048) |
@@ -69,12 +69,11 @@ Embedding sidecar (`embeddings.sqlite`, ADR-0019) indexes episode summaries.
 
 ## KnowledgeStore Schema (JSON)
 
-File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0051):
+File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0056):
 ```json
 {
   "pattern": "…",
   "distilled": "2026-04-16T…",
-  "importance": 0.7,
   "embedding": [..768 floats..],
   "gated": false,
   "last_classified_at": "2026-04-16T02:15:33Z",

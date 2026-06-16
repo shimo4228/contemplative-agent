@@ -17,13 +17,13 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 - Import rules (adapters → core, cli.py is only exception)
 - Session execution flow (ReplyHandler → FeedManager → PostPipeline) with gate thresholds
 - Offline learning flows — causal chain with module/function/formula/ADR at each step:
-  - distill (binary noise gate + 3-step + embedding dedup)
+  - distill (binary noise gate + 2-step + embedding dedup; importance step retired ADR-0056)
   - distill-identity (single-stage, pure cosine retrieval)
   - insight (global clustering, NOT per-view)
   - rules-distill, amend-constitution
   - ADR-0050 approval lineage (source_ids / epistemic_counts into audit.jsonl)
 - Meditation: flat single-level POMDP, no KnowledgeStore write (ADR-0049)
-- 3-layer memory + is_live + effective_importance formulas
+- 3-layer memory + is_live + effective_importance (pure time decay, ADR-0056)
 - AKC mapping
 
 **Use when**: Understanding overall structure, tracing any data-flow mechanism, checking thresholds.

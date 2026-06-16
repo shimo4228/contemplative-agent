@@ -2,7 +2,8 @@
 
 ## Status
 
-accepted (amended 2026-06-06)
+accepted (amended 2026-06-06; Decision 6 gate satisfied — the LLM rating was retired by
+[ADR-0056](./0056-retire-importance-llm-scoring.md))
 
 ## Date
 
@@ -167,6 +168,11 @@ roles (retrieval weight, future gate) permanently misleading.
 
 ### Neutral / Follow-ups
 
+- The Decision 6 measurement gate was satisfied on 2026-06-17: the §B1 threshold-retune window
+  closed and a re-run of the ablation on the grown corpus held the criterion (tau 0.843, identical
+  top-5). The distill-time LLM rating was retired by
+  [ADR-0056](./0056-retire-importance-llm-scoring.md), which makes `effective_importance` pure time
+  decay; Decisions 1–5's three judgment points reduce to two (encoding-time significance retired).
 - The AKC P1-5 promotion question is closed as won't-do (2026-06-06 Amendment): AKC —
   the position paper included — will not cover the importance mechanism. Nothing
   promotes; the judgment stays substrate-side in this ADR.

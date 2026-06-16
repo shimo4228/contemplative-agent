@@ -24,7 +24,7 @@ cli.py (2024L)  -- composition root, only file importing both core/ and adapters
  |    views.py (298L)             -- ViewRegistry (seed_from + ${VAR}, lazy centroid cache, pure cosine rank — ADR-0051)
  |    snapshot.py (160L)          -- write_snapshot + collect_thresholds (pivot snapshots, ADR-0020)
  |    scheduler.py (165L)         -- rate limit scheduling, persistence
- |    distill.py (831L)           -- binary noise gate + 3-step distill + identity distill (single-stage, ADR-0050)
+ |    distill.py (831L)           -- binary noise gate + 2-step distill + identity distill (single-stage, ADR-0050; importance step retired ADR-0056)
  |    insight.py (318L)           -- global clustering → behavior skill extraction (ADR-0050)
  |    rules_distill.py (348L)     -- Practice/Rationale B-layer rules synthesis (ADR-0048)
  |    constitution.py (130L)      -- constitutional amendment; ADR-0033 framing + ADR-0050 lineage
@@ -157,7 +157,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 **Engagement & posting**: system, relevance, comment, reply, cooperation_post, post_title, topic_summary, submolt_selection, internal_note (ADR-0045), dialogue (peer loop) — `session_insight` retired and deleted (ADR-0052)
 
-**Distillation**: distill, distill_refine, distill_importance, identity_distill, insight_extraction, rules_distill, rules_distill_refine, constitution_amend
+**Distillation**: distill, distill_refine, identity_distill, insight_extraction, rules_distill, rules_distill_refine, constitution_amend (`distill_importance` retired, ADR-0056)
 
 **Audit**: stocktake_skills, stocktake_rules (LLM grouping, ADR-0046), stocktake_merge (frontmatter emission, ADR-0048), stocktake_merge_rules, stocktake_clean (singleton trigger-altitude, ADR-0048), stocktake_group_system / stocktake_merge_system / stocktake_clean_system (externalized `system=` prompts, ADR-0054)
 

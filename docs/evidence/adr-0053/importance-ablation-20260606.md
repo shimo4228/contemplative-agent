@@ -72,6 +72,30 @@ gate — the AKC position paper shipping — was listed at acceptance and
 removed the same day; see ADR-0053's Amendment.) Re-run this script
 before deciding — the corpus grows and the result may shift.
 
+## 2026-06-17 re-run and retirement
+
+Re-run before deciding (per the note above), against the grown production
+store (**822 patterns**, up from 764). The verdict held:
+
+- **Kendall tau: 0.843** over 46 clusters (was 0.851 over 41)
+- **top-3 overlap: 3/3, top-5 overlap: 5/5** (identical)
+- Demotion diff in the 5 oversize clusters: **at most 2-of-12** member swaps
+  (c0: 2, c5: 1, c7: 1, c11: 0, c17: 1)
+
+The pre-registered "small difference" criterion is still met. With the §B1
+threshold-retune observation window closed and validated
+(`.notes/b1-retune-effect-2026-06-17.md`), the single remaining gate condition
+was satisfied, and the distill-time LLM rating was **retired by
+[ADR-0056](../../adr/0056-retire-importance-llm-scoring.md)**:
+`effective_importance` is now pure time decay (`0.95^days`).
+
+After that change, `current` and `decay-only` are by construction the same
+policy — running this script against post-ADR-0056 code reports **Kendall tau
+1.000, top-5 5/5, zero demotion swaps**, confirming the retirement *is* the
+decay-only variant this ablation validated rather than an approximation of it.
+The script is kept for historical reproduction; on post-retirement code the two
+arms are identical by definition.
+
 ## Reproduce
 
 ```bash
