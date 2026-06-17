@@ -16,11 +16,21 @@ if [ ! -d "$MOLTBOOK_HOME" ]; then
 fi
 
 # Sync safe files from MOLTBOOK_HOME (exclude dangerous files)
+# NOTE: hand-maintained governance/metadata files live in the data repo, NOT in
+# MOLTBOOK_HOME. They MUST be excluded here, otherwise `rsync --delete` removes
+# them on every sync. Keep this list in step with the data repo's static files.
 rsync -a --delete \
     --exclude='.git/' \
     --exclude='.gitignore' \
     --exclude='README.md' \
+    --exclude='README.ja.md' \
     --exclude='llms.txt' \
+    --exclude='LICENSE' \
+    --exclude='NOTICE' \
+    --exclude='CITATION.cff' \
+    --exclude='.zenodo.json' \
+    --exclude='graph.jsonld' \
+    --exclude='DATACARD.md' \
     --exclude='logs/' \
     --exclude='agents.json' \
     --exclude='credentials.json' \
