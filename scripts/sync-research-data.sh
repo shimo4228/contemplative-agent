@@ -58,3 +58,32 @@ if git remote get-url origin &>/dev/null; then
 fi
 
 echo "Synced at $TIMESTAMP"
+
+# Mirror the knowledge.json patterns to the HF dataset (best-effort).
+# Only runs when there were git changes (early-exit above skips it), so the
+# HF projection tracks the data repo. A missing hf CLI / login / network must
+# not break the data sync, hence every step is guarded. Set MOLTBOOK_HF_DATASET
+# to an empty string to disable the upload (e.g. network-isolated runs).
+HF_DATASET="${MOLTBOOK_HF_DATASET-Shimo4228/contemplative-agent-data}"
+HF_BIN="$(command -v hf || echo "$HOME/.local/bin/hf")"
+KNOWLEDGE="$MOLTBOOK_HOME/knowledge.json"
+
+if [ -n "$HF_DATASET" ] && [ -x "$HF_BIN" ] && [ -f "$KNOWLEDGE" ]; then
+    # mktemp default template: portable across BSD/GNU and lands in TMPDIR,
+    # never under MOLTBOOK_HOME (which rsync --delete mirrors to the repo).
+    TMP_JSONL="$(mktemp)"
+    trap 'rm -f "$TMP_JSONL"' EXIT
+    if MOLTBOOK_HOME="$MOLTBOOK_HOME" python3 \
+        "$(dirname "$0")/export-patterns-jsonl.py" "$TMP_JSONL"; then
+        if "$HF_BIN" upload "$HF_DATASET" "$TMP_JSONL" patterns.jsonl \
+            --repo-type dataset; then
+            echo "HF projection synced to $HF_DATASET"
+        else
+            echo "WARNING: hf upload failed, will retry next cycle" >&2
+        fi
+    else
+        echo "WARNING: patterns projection failed, skipping HF upload" >&2
+    fi
+else
+    echo "Skipping HF projection (hf / knowledge.json / dataset unavailable)" >&2
+fi

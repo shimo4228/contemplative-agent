@@ -139,7 +139,7 @@ contemplative-agent generate-report [--all]
 contemplative-agent solve "TEXT"
 contemplative-agent meditate [--days N] [--cycles N] [--dry-run]
 contemplative-agent dialogue HOME_A HOME_B --seed "..." [--turns N]
-contemplative-agent sync-data
+contemplative-agent sync-data        # rsync→git push to data repo; then best-effort hf upload of patterns.jsonl
 contemplative-agent install-schedule [--interval H] [--session M]
                                      [--distill-hour H] [--no-distill]
                                      [--weekly-analysis] [--weekly-analysis-day D]
