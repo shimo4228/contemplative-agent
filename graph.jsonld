@@ -410,6 +410,20 @@
       "alignsWith": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0042-explicit-truncation-contract-for-untrusted-wrapper.md"
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0055-counterparty-identity-by-author-name.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0055: Counterparty Identity by Author Name; Unified Activity/Report Schema",
+      "identifier": "ADR-0055",
+      "status": "accepted",
+      "datePublished": "2026-06-15",
+      "description": "Keys the interaction pipeline on the author name rather than the author id. Live feed posts carry author.name but not author.id (271/271 comment interaction records over a representative week had agent_name populated, agent_id 'unknown'), so several id-keyed pipelines silently degraded. The counterparty name (target_agent) is now written consistently on comment and reply records (target_agent_id retained for forward-compatibility, never the primary key); count_recent_comments_by_author and get_prior_comment_targets are re-keyed on the name, reviving the per-author repeat-topic gate and the 24h rate limit (both were dead no-ops, so same-author reposting was never throttled); and the daily report collapses to one per-interaction schema rendered identically for comment / reply / post — header (counterparty, post id, relevance '—' when N/A), Context, the ADR-0045 internal_note (previously dropped), and output. The weekly-analysis prompt and the diagnosis self-check are reinforced to read same-post / different-counterparty as a multi-party thread, not re-reply. Name boundary-validation (^[A-Za-z0-9_-]{1,64}$) stands; failures are treated as unattributed. The ADR-0029 quarantine boundary is preserved. Committed at 6c20032.",
+      "extends": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0045-pre-action-internal-note.md",
+      "alignsWith": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0029-retire-dormant-provenance-elements.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0040-separate-code-level-findings.md"
+      ]
+    },
+    {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0056-retire-importance-llm-scoring.md",
       "@type": ["ADR", "TechArticle"],
       "name": "ADR-0056: Retire the Distill-Time Importance LLM Rating — Extraction Weight Is Pure Time Decay",
@@ -1041,6 +1055,37 @@
       "url": "https://github.com/shimo4228/attention-not-self",
       "identifier": "10.5281/zenodo.20262112",
       "siblingOf": "https://doi.org/10.5281/zenodo.19212118"
+    },
+
+    {
+      "@id": "https://doi.org/10.5281/zenodo.20578272",
+      "sameAs": "https://www.wikidata.org/wiki/Q140090144",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Harness Alignment and Harness Drift: Why Intent, Unlike Correctness, Resists Automation",
+      "identifier": "10.5281/zenodo.20578272",
+      "url": "https://doi.org/10.5281/zenodo.20578272",
+      "isPartOf": "https://doi.org/10.5281/zenodo.19200726",
+      "description": "Companion position paper of the AKC sibling line, defining harness alignment (the continuous, human-gated activity of keeping an agent's harness aligned with operator intent) and harness drift, its failure mode, against the software-evolution and alignment literatures. Contemplative Agent is recorded in AKC (ADR-0018) as the operational re-implementation of the six-phase loop the paper formalizes."
+    },
+    {
+      "@id": "https://doi.org/10.5281/zenodo.20353789",
+      "sameAs": "https://www.wikidata.org/wiki/Q140090128",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Distributing Accountability, Not Capability: Phase Separation and the LLM Workflow Quadrant in Autonomous AI Agent Architectures",
+      "identifier": "10.5281/zenodo.20353789",
+      "url": "https://doi.org/10.5281/zenodo.20353789",
+      "isPartOf": "https://doi.org/10.5281/zenodo.19652013",
+      "description": "Companion position paper of the AAP sibling line (architectural follow-up, essays 4-7). Names the LLM Workflow Quadrant as the missing positive name for the cell most current LLM applications occupy and introduces the Phase Separation axis. The four-quadrant lens it formalizes is borrowed by Contemplative Agent as a usage-description aid (ADR-0033)."
+    },
+    {
+      "@id": "https://doi.org/10.5281/zenodo.20355907",
+      "sameAs": "https://www.wikidata.org/wiki/Q140090133",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "The Two-Layer Black Box: Operator Visibility, Commercial Secrecy, and a Minimum Disclosure Set for Accountable Autonomous AI Agents",
+      "identifier": "10.5281/zenodo.20355907",
+      "url": "https://doi.org/10.5281/zenodo.20355907",
+      "isPartOf": "https://doi.org/10.5281/zenodo.19652013",
+      "description": "Companion position paper of the AAP sibling line (foundational trilogy, essays 1-3). Argues that an autonomous agent's opacity has two architecturally distinct causes — technical internalization into model weights (Layer 1) and commercial secrecy of scaffolding (Layer 2) — and proposes a minimum disclosure set grounded in the prohibition-strength hierarchy (absence > scaffolding enforcement > untrusted boundary) that Contemplative Agent implements operationally."
     },
 
     {

@@ -120,6 +120,22 @@ wrapped in local punctuation when embedded in a translated sentence.
   enforced by ADR-0051 (trust retirement) and ADR-0052 (session-insight
   retirement). Bilingual first-use allowed: 「observability without
   steering（操縦なき可観測性）」.
+- **values at action time** — ADR-0058 headline principle. Value layers
+  (axioms, identity, skills, rules) belong where the agent acts or
+  interprets fresh input, not where it extracts patterns from what
+  already happened. Generalizes the ADR-0050/0051/0052
+  observation-without-steering line to the distillation lens. Bilingual
+  first-use allowed: 「values at action time（行動時にこそ価値層を）」.
+- **axiom-free distillation** — ADR-0057/0058. All distillation /
+  extraction system prompts are base-only (the credential-leak guard);
+  the four axioms are injected only at action time, never at
+  distillation time, so the corpus is not re-read through a value lens.
+- **self-reflection corpus** — ADR-0057. The body of
+  `self_reflection`-view patterns from which `distill-identity` derives
+  the persona *alone* — no prior-identity seed, no axiom injection.
+- **counterparty by author name** — ADR-0055. The interaction pipeline
+  keys the counterparty (`target_agent`) on author name, because live
+  feed posts carry `author.name` but not `author.id`.
 
 ### AAP four-quadrant lens (Keep original)
 

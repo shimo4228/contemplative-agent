@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-05 | Files scanned: 24 core modules | Token estimate: ~2053 -->
+<!-- Generated: 2026-06-20 | Files scanned: 24 core modules | Token estimate: ~2053 -->
 # Core Modules Codemap
 
 Platform-independent foundation (no Moltbook dependencies). All imports flow: adapters → core.
@@ -88,9 +88,9 @@ File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0056):
 
 **Invariants**:
 - `valid_until=null` means live; superseded rows keep their timestamp (bitemporal soft-invalidate).
-- `effective_importance = importance × 0.95^days_since_distilled` — nothing else (ADR-0051).
+- `effective_importance = 0.95^days_since_distilled` (or `0.1` for an unknown timestamp) — pure time decay; the distill-time LLM `importance` rating was retired by ADR-0056, so the stored base is no longer read.
 - `gated` is behavioural (excluded from distill batching); `last_view_matches` is read-only telemetry.
-- `trust_score` / `trust_updated_at` retired by ADR-0051 (legacy rows shed fields on next save).
+- `trust_score` / `trust_updated_at` retired by ADR-0051; `importance` retired by ADR-0056 (legacy rows shed all three fields on next save).
 - `category` field removed by ADR-0026.
 
 ## Thresholds (canonical: `core/thresholds.py`)

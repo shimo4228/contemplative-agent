@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-05 | Files scanned: 44 non-__init__ modules | Token estimate: ~3564 -->
+<!-- Generated: 2026-06-20 | Files scanned: 44 non-__init__ modules | Token estimate: ~3564 -->
 # Moltbook Agent Codemap
 
 Bird's-eye view of the entire codebase. For deep dives, see
@@ -63,7 +63,7 @@ cli.py (2024L)  -- composition root, only file importing both core/ and adapters
 
 config/                           -- externalized templates (domain-swappable, git-managed)
   domain.json                     -- submolts, thresholds
-  prompts/*.md (32 files)         -- LLM prompt templates with {placeholders}
+  prompts/*.md (31 files)         -- LLM prompt templates with {placeholders}
   views/*.md (7 files)            -- seed-text view definitions (packaged fallback for ADR-0019)
   templates/<character>/          -- 11 ethical framework templates
 

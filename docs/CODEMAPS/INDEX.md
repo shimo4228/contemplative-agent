@@ -1,8 +1,8 @@
-<!-- Generated: 2026-06-05 | Total codemaps: 5 | Token estimate: ~1370 -->
+<!-- Generated: 2026-06-20 | Total codemaps: 5 | Token estimate: ~1370 -->
 # Codemaps Index
 
 Comprehensive architectural documentation for the Contemplative Agent project.
-**Last Updated**: 2026-06-05 | **Codebase**: 44 non-`__init__` modules (50 total `.py`), ~12700 LOC, 1305 tests
+**Last Updated**: 2026-06-20 | **Codebase**: 44 non-`__init__` modules (50 total `.py`), ~13592 LOC, 1301 tests
 
 ---
 
@@ -12,7 +12,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 **Read first.** High-level architecture, system diagram, causal-chain data flows with gates and thresholds.
 
 **Topics**:
-- Project type & stats (44 non-`__init__` modules, ~12700 LOC, 1305 tests)
+- Project type & stats (44 non-`__init__` modules, ~13592 LOC, 1301 tests)
 - System diagram (core/ + adapters/moltbook/ + adapters/meditation/ + adapters/dialogue/)
 - Import rules (adapters → core, cli.py is only exception)
 - Session execution flow (ReplyHandler → FeedManager → PostPipeline) with gate thresholds
@@ -107,14 +107,14 @@ Package versions, external services, optional add-ons.
 | Metric | Value |
 |--------|-------|
 | Total `.py` files | 50 (44 non-`__init__` + 6 `__init__`) |
-| LOC | ~12700 |
-| Test files | 35 (1305 tests collected) |
+| LOC | ~13592 |
+| Test files | 35 (1301 tests collected) |
 | Core modules | 24 (platform-independent; forgetting.py deleted ADR-0051) |
 | Moltbook adapter modules | 14 |
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |
 | CLI commands | 21 active |
-| Prompt templates | 32 files / 30 loaded (config/prompts/*.md) |
+| Prompt templates | 31 files / 30 loaded (config/prompts/*.md) |
 | View seeds | 7 (config/views/*.md) |
 | Config templates | 11 (config/templates/) |
 | Rate limit budgets | 2 (GET 60/min, POST 30/min) |
@@ -136,4 +136,4 @@ Package versions, external services, optional add-ons.
 
 CODEMAPS はコード変更時に更新する（「どこにあるか」のコード索引）。
 
-Last full scan: 2026-06-05 (44 non-`__init__` modules verified, post-ADR-0046/0047/0048/0049/0050/0051 + forgetting.py deletion + client.py dead-code removal + embeddings.py trim)
+Last full scan: 2026-06-20 (v2.6.0 release: 44 non-`__init__` modules, ~13592 LOC, 1301 tests verified; post-ADR-0053/0054/0055/0056/0057/0058 — importance LLM scoring + axiom-grounded distillation retired, distill now 2-step)
