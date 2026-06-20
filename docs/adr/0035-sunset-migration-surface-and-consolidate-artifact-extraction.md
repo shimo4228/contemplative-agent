@@ -14,7 +14,7 @@ Two sources of friction have accumulated in the codebase since ADR-0019 landed a
 
 ADR-0019 moved `knowledge.json` from category-tagged rows to embedding + view shape. ADR-0021 added the provenance / bitemporal / trust schema. ADR-0026 retired the discrete `category` field. Each shipped with a one-shot CLI subcommand under `core/migration.py`:
 
-- `embed-backfill` (ADR-0009/0019) — compute embeddings for existing patterns + episode log
+- `embed-backfill` (ADR-0019) — compute embeddings for existing patterns + episode log
 - `migrate-patterns` (ADR-0021) — fill provenance / bitemporal defaults; strip retired ADR-0028/0029 fields
 - `migrate-categories` (ADR-0026) — drop `category` / `subcategory`; legacy `noise` becomes `gated=True`
 
@@ -141,8 +141,7 @@ ADR-0030 produced `single-responsibility-per-artifact`. ADR-0034 added "validate
 ## References
 
 - [ADR-0001](0001-core-adapter-separation.md) — `cli.py → core/` import direction; constraint that kept `_log_approval` / `_stage_results` from being extracted to `core/`
-- [ADR-0009](0009-llm-routing-via-views.md) — original embed-backfill motivation
-- [ADR-0019](0019-discrete-categories-to-embedding-views.md) — embedding + view shape; not retired
+- [ADR-0019](0019-discrete-categories-to-embedding-views.md) — embedding + view shape and original embed-backfill motivation; not retired
 - [ADR-0021](0021-pattern-schema-trust-temporal-forgetting-feedback.md) — pattern schema landing; not retired
 - [ADR-0026](0026-retire-discrete-categories.md) — category retirement; the `migrate-categories` command that delivered it retires here
 - [ADR-0028](0028-retire-pattern-level-forgetting.md) / [ADR-0029](0029-retire-sanitized-flag.md) — retired fields whose strip-on-load logic dies with `migration.py`

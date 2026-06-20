@@ -1,4 +1,4 @@
-# ADR-0009: Discrete categories → Embedding + Views
+# ADR-0019: Discrete categories → Embedding + Views
 
 ## Status
 accepted

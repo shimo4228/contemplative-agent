@@ -1,6 +1,6 @@
 """Sleep-time memory distillation: extract patterns from episode logs.
 
-ADR-0009: dedup is embedding-cosine based; subcategorisation has been
+ADR-0019: dedup is embedding-cosine based; subcategorisation has been
 removed (replaced by views, which materialise grouping at query time).
 
 ADR-0026 (Phase 2): Step 0 classification is binary — ``gated`` (noise
@@ -69,7 +69,7 @@ def distill(
 
     New patterns are embedded inline and dedup uses cosine similarity
     against existing same-category patterns. The legacy LLM-based
-    subcategorize step has been removed (ADR-0009); grouping is now
+    subcategorize step has been removed (ADR-0019); grouping is now
     query-time via views.
 
     Args:
@@ -158,13 +158,13 @@ def enrich(
     knowledge_store: KnowledgeStore,
     dry_run: bool = False,
 ) -> int:
-    """No-op since ADR-0009: subcategorisation is now query-time via views.
+    """No-op since ADR-0019: subcategorisation is now query-time via views.
 
     Kept as a stable entry point so the ``enrich`` CLI subcommand is
     callable; it now reports zero work.
     """
     _ = (knowledge_store, dry_run)
-    logger.info("enrich is a no-op since ADR-0009.")
+    logger.info("enrich is a no-op since ADR-0019.")
     return 0
 
 
@@ -189,18 +189,24 @@ def distill_identity(
     identity_path: Optional[Path] = None,
     view_registry: Optional[ViewRegistry] = None,
 ) -> Union[str, IdentityResult]:
-    """Distill knowledge into an updated identity description.
+    """Distill an updated identity description from self-reflection patterns.
 
-    Reads the current identity and accumulated knowledge, then asks the LLM
-    to write a brief self-description reflecting the agent's actual experience.
+    Asks the LLM to write a brief self-description from the agent's accumulated
+    self-reflection patterns. Since ADR-0057 the prior identity is NOT seeded
+    into the prompt; since ADR-0058 the distillation system prompt is axiom-free
+    (``get_distill_system_prompt`` is base-only). The persona emerges from the
+    self-reflection corpus alone, which already carries the axiom register, so
+    the two former inputs only over-determined the output.
 
     File writing is the caller's responsibility (ADR-0012 approval gate).
 
     Args:
         knowledge_store: KnowledgeStore instance (uses default if None).
-        identity_path: Path to identity.md file.
+        identity_path: Write target for the distilled identity (the caller
+            performs the approval-gated write); no longer read as a prompt
+            seed since ADR-0057.
         view_registry: ViewRegistry used to retrieve self-reflection
-            patterns via embedding cosine. Required for ADR-0009 routing;
+            patterns via embedding cosine. Required for ADR-0019 routing;
             patterns lacking embeddings are skipped.
 
     Returns:
@@ -211,14 +217,14 @@ def distill_identity(
 
     if view_registry is None:
         msg = (
-            "distill_identity requires a ViewRegistry since ADR-0009. "
+            "distill_identity requires a ViewRegistry since ADR-0019. "
             "Pass a ViewRegistry instance."
         )
         logger.warning(msg)
         return msg
 
     # Identity is distilled from self-reflection patterns only. Routing is
-    # done via the "self_reflection" view's embedding cosine (ADR-0009,
+    # done via the "self_reflection" view's embedding cosine (ADR-0019,
     # ADR-0026). Rationale: self-reflection captures internal states;
     # mixing behavioral norms into identity dilutes persona specificity
     # via the Emptiness axiom.
@@ -234,12 +240,13 @@ def distill_identity(
         logger.warning(msg)
         return msg
 
-    current_identity = ""
-    if identity_path and identity_path.exists():
-        current_identity = identity_path.read_text(encoding="utf-8").strip()
-
+    # The prior identity is intentionally NOT seeded into the prompt. Seeding
+    # it made the LLM edit the previous text (regression-to-prior hysteresis),
+    # so upstream routing/staging changes had little leverage on the output.
+    # Distilling fresh from the self-reflection corpus alone lets the identity
+    # actually move, and matches the persona's own claim of holding no fixed,
+    # defended shape (Emptiness / non-self).
     prompt = IDENTITY_DISTILL_PROMPT.format(
-        current_identity=current_identity or "(no prior identity)",
         knowledge=knowledge_text,
     )
 
@@ -320,7 +327,7 @@ def _classify_episodes(
     if view_registry is None:
         logger.warning(
             "_classify_episodes called without view_registry — "
-            "all episodes will be kept (ADR-0009 requires views for gating)"
+            "all episodes will be kept (ADR-0019 requires views for gating)"
         )
         return _ClassifiedRecords(kept=tuple(records), gated=())
 
@@ -601,7 +608,7 @@ def _distill_category(
     if not all_patterns:
         return _CategoryResult(results=tuple(all_results), added=0, updated=0)
 
-    # ADR-0009: bulk-embed new patterns inline so dedup can run on cosine
+    # ADR-0019: bulk-embed new patterns inline so dedup can run on cosine
     # similarity instead of SequenceMatcher + LLM gate.
     new_embeddings_arr = embed_texts(all_patterns)
     if new_embeddings_arr is None or new_embeddings_arr.shape[0] != len(all_patterns):

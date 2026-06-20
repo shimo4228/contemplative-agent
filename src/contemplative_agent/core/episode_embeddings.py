@@ -1,4 +1,4 @@
-"""SQLite-backed sidecar store for episode embeddings (ADR-0009).
+"""SQLite-backed sidecar store for episode embeddings (ADR-0019).
 
 Episode log JSONL stays append-only and untouched. Embeddings are kept
 in a separate SQLite file under MOLTBOOK_HOME so that:

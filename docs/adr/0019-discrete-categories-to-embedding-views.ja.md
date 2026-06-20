@@ -1,4 +1,4 @@
-# ADR-0009: 離散カテゴリの廃止 → embedding + views
+# ADR-0019: 離散カテゴリの廃止 → embedding + views
 
 ## Status
 accepted

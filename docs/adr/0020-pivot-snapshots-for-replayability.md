@@ -140,7 +140,6 @@ current centroid like `gated` does.
 ## References
 
 - ADR-0004 — Three-layer memory (originally rejected snapshots)
-- ADR-0009 (legacy, superseded by 0019) — `views/` mechanism seed
 - ADR-0019 — Discrete categories → embedding + views (removed the
   state that `last_view_matches` partly re-materialises as telemetry)
 - `src/contemplative_agent/core/snapshot.py` — implementation

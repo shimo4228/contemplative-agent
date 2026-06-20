@@ -214,15 +214,24 @@ def _get_default_system_prompt() -> str:
 
 
 def get_distill_system_prompt() -> str:
-    """System prompt with rules/axioms but without identity or skills.
+    """Base system prompt for all distillation / extraction — axioms NOT injected.
 
-    Used by distill to ground pattern extraction in values
-    without circular identity reference.
+    ADR-0058: value layers belong to action time, not distillation time. Every
+    distillation stage (distill, insight, rules_distill, constitution amend,
+    identity) reads material that is already value-shaped — self-generated
+    records were produced under the full action prompt (identity + axioms +
+    skills + rules), and downstream corpora (patterns → skills → rules) are
+    further axiom-distilled. Re-injecting the axioms here double-counts them.
+    The one slice of genuinely fresh material at distill time — external content
+    the agent observed — should be extracted faithfully (Mindfulness), not
+    re-interpreted through a value lens; the agent's value-laden *response* to it
+    is already recorded separately. So distillation uses the base prompt (the
+    credential-leak guard) only. Axioms remain at action time via
+    ``_build_system_prompt`` (the full session prompt under which the agent
+    acts) and ``get_identity_system_prompt`` (the identity lens for the
+    mechanical Moltbook calls on fresh external content).
     """
-    base = _get_default_system_prompt()
-    if _axiom_prompt:
-        base = base + "\n\n---\n\n" + _axiom_prompt
-    return base
+    return _get_default_system_prompt()
 
 
 def get_identity_system_prompt() -> str:
@@ -421,7 +430,7 @@ def _strip_thinking(text: str) -> str:
 def _sanitize_output(text: str, max_length: Optional[int] = None) -> str:
     """Remove forbidden patterns and (optionally) enforce a char length cap.
 
-    ADR-0009: max_length is now Optional. Internal callers pass None
+    ADR-0019: max_length is now Optional. Internal callers pass None
     (no slicing) so dedup/distill/insight aren't silently truncated by
     a cap meant for SNS post length. External callers (Moltbook posts,
     comments, replies) keep the cap to satisfy platform constraints.

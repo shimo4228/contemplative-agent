@@ -101,8 +101,8 @@ File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0056):
 | `SIM_DUPLICATE` | 0.90 | distill dedup SKIP | ADR-0019 |
 | `SIM_UPDATE` | 0.80 | distill dedup UPDATE | ADR-0019 |
 | `DEDUP_IMPORTANCE_FLOOR` | 0.05 | distill dedup skip-low | ADR-0019 |
-| `CLUSTER_THRESHOLD_INSIGHT` | 0.70 | insight clustering | ADR-0009 |
-| `CLUSTER_THRESHOLD_RULES` | 0.65 | rules-distill clustering | ADR-0009 |
+| `CLUSTER_THRESHOLD_INSIGHT` | 0.70 | insight clustering | ADR-0019 |
+| `CLUSTER_THRESHOLD_RULES` | 0.65 | rules-distill clustering | ADR-0019 |
 | `MAX_BATCH` | 10 | insight + rules-distill per-batch cap | — |
 
 ## LLM Functions (core/llm.py)

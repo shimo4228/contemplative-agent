@@ -98,7 +98,7 @@ Embedding target is `f"{title}\n{topic_summary}"` — the same conceptual unit t
 
 ## Related
 
-- ADR-0009 — embedding sidecar storage (`EpisodeEmbeddingStore` schema this ADR reuses)
+- ADR-0019 — embedding sidecar storage (`EpisodeEmbeddingStore` schema this ADR reuses)
 - ADR-0018 + amendment 2026-05-04 — per-caller `num_predict` and body-hash gate (kept; orthogonal to novelty)
 - ADR-0019 — discrete categories → embedding + views (the sidecar this ADR extends to post namespace)
 - ADR-0021 — trust-decay / temporal forgetting (temporal-decay reasoning shared)

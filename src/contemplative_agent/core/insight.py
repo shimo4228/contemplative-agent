@@ -4,7 +4,7 @@ Global embedding cluster per run. Each cluster → one LLM skill
 extraction call. Cross-cluster synthesis and quality control are
 deferred to skill-stocktake (external).
 
-The view concept (ADR-0009) is not used here. Views still drive
+The view concept (ADR-0019) is not used here. Views still drive
 distill's noise gate and stocktake's merge; insight works directly on
 ``gated != True`` live patterns so that any clustering structure comes
 from the embeddings themselves, not from predefined seed texts.

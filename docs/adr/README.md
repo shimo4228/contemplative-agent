@@ -62,6 +62,8 @@ Records of key design decisions for this project.
 | [0054](0054-externalize-llm-instruction-text-to-prompts.md) | Externalize LLM Instruction Text to `config/prompts/` with Hardcoded Fallback for the Injection Boundary | accepted | 2026-06-09 |
 | [0055](0055-counterparty-identity-by-author-name.md) | Counterparty Identity by Author Name; Unified Activity/Report Schema | accepted | 2026-06-15 |
 | [0056](0056-retire-importance-llm-scoring.md) | Retire the Distill-Time Importance LLM Rating — Extraction Weight Is Pure Time Decay | accepted | 2026-06-17 |
+| [0057](0057-identity-from-self-reflection-corpus-alone.md) | Distill Identity From the Self-Reflection Corpus Alone — Drop the Prior-Identity Seed and Redundant Axiom Injection `[AKC: Promote]` | accepted | 2026-06-20 |
+| [0058](0058-value-injection-at-action-time.md) | Value-Layer Injection Belongs to Action Time, Not Distillation `[AKC: Extract/Curate/Promote]` | accepted | 2026-06-20 |
 
 ## ADR Types
 

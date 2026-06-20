@@ -1,4 +1,4 @@
-"""Views: seed-text driven semantic queries over knowledge.json (ADR-0009).
+"""Views: seed-text driven semantic queries over knowledge.json (ADR-0019).
 
 A view is a named seed text plus retrieval parameters. Queries embed the
 seed and rank patterns by cosine similarity. This replaces the discrete

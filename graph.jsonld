@@ -421,6 +421,34 @@
       "alignsWith": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0051-retire-trust-weighting.md"
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0057-identity-from-self-reflection-corpus-alone.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0057: Distill Identity From the Self-Reflection Corpus Alone — Drop the Prior-Identity Seed and Redundant Axiom Injection",
+      "identifier": "ADR-0057",
+      "status": "accepted",
+      "datePublished": "2026-06-20",
+      "description": "Removes two redundant inputs from identity distillation (distill_identity) so the persona emerges from the self_reflection-view corpus alone. (1) The prior-identity seed is dropped: IDENTITY_DISTILL_PROMPT no longer interpolates the current identity, ending the regression-to-prior hysteresis that made each revision edit its own predecessor and left upstream routing/staging changes with no leverage over the output; the prompt reframe is kept neutral (no 'write from scratch' wording, which would itself inject a novelty bias). (2) The axiom system-prompt injection is dropped: the self_reflection corpus is already axiom-shaped — its patterns were distilled under axiom grounding — so re-injecting the four axioms double-counted them. identity_path remains the approval-gated write target only (ADR-0012). Staged-and-reviewed observation: removing the seed widened within-register variance while the vocabulary cluster held; removing the axioms left the register essentially unchanged — confirming both were redundant. Three attractor forces hold the output in place — the prior-identity seed (dominant), the axiom system prompt, and the self_reflection corpus being itself axiom-shaped — and this ADR removes the first two, leaving the corpus. The routing it uses (self_reflection-view embedding cosine) is ADR-0019 and is unchanged. First instance of the principle generalized by ADR-0058: value layers belong to action time, not distillation. Aligns with the Emptiness axiom — an identity holding no fixed, defended prior shape that re-forms each cycle from present reflections.",
+      "alignsWith": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0019-discrete-categories-to-embedding-views.md",
+        "https://shimo4228.github.io/shimo4228/vocab#axiom/emptiness"
+      ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0058-value-injection-at-action-time.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0058: Value-Layer Injection Belongs to Action Time, Not Distillation",
+      "identifier": "ADR-0058",
+      "status": "accepted",
+      "datePublished": "2026-06-20",
+      "description": "Generalizes ADR-0057: value-layer (axiom) injection belongs to action time, not distillation time. An audit of every value-injecting LLM call site (map → adversarial verify) found that all distillation stages read already-value-shaped material. Only pattern distill reads raw episodes, and even there the one genuinely fresh slice is external content the agent observed (another agent's raw reply), which should be extracted faithfully (the Mindfulness axiom) rather than re-interpreted through a value lens — the agent's value-laden response to it is already recorded separately, so the values live in the recorded action, not in the re-reading of the observation. insight reads stored patterns (distill's output), rules_distill reads skill texts, and constitution amend reads stored constitutional patterns plus the constitution file — corpora one or two axiom-grounded LLM stages downstream — so re-injecting the axioms double-counts them. Decision: get_distill_system_prompt returns the base credential-guard only (the axiom append is removed); because every distillation stage (distill, insight, rules_distill, constitution amend, identity) routes through it, all become axiom-free at once, and ADR-0057's identity-only get_identity_distill_system_prompt is collapsed into it. _axiom_prompt is now appended in exactly one place — the action-time identity base — so 'values at action time' is a property of the code, not a convention. Axioms remain at action time via _build_system_prompt (the session prompt under which the agent acts and produces episodes) and get_identity_system_prompt (the lens applied to fresh external feed content for relevance scoring, the pre-action internal note, topic summary, submolt selection — these are unchanged). The constitution case is the most structural: using the axiom block as the lens to revise the constitution made the axioms self-defending, so the Emptiness axiom's own directive (hold directives lightly, remain open to revision) could not operate on its own home; dropping the lens lets accumulated tensions in the patterns move the constitution. Behavioral impact is near-inert (ADR-0057's staged evidence: removing the same axiom injection left the register unchanged); pattern distill is not approval-gated, so the change is verified by a clean distill --dry-run (151 episodes classified, 135 noise-gated, 16 kept → 2 faithful observational patterns with no imposed axiom vocabulary) rather than a human gate. Consequence: with the harness scaffolding thinner on the distillation path, the underlying local model's own tendencies now drive more of the distilled output, so a pending model swap (e.g. qwen3:4b) is expected to produce a larger behavioral delta and should be re-baselined against post-change output. Extends the observation-over-steering trajectory (ADR-0050/0051/0052 retired trust weighting, session insight, and write-back) to the distillation lens.",
+      "extends": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0057-identity-from-self-reflection-corpus-alone.md",
+      "alignsWith": [
+        "https://shimo4228.github.io/shimo4228/vocab#axiom/mindfulness",
+        "https://shimo4228.github.io/shimo4228/vocab#axiom/emptiness",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0050-epistemic-taxonomy-and-approval-lineage.md"
+      ]
+    },
+    {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0022-memory-evolution-and-hybrid-retrieval.md",
       "@type": ["ADR", "TechArticle"],
       "name": "ADR-0022: Memory Evolution + Hybrid Retrieval (BM25)",

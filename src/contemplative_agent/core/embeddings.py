@@ -2,7 +2,7 @@
 
 Thin wrapper over Ollama's /api/embed endpoint plus the cosine
 similarity primitive. Used by stocktake, distill (dedup), and the views
-mechanism (ADR-0009) to resolve semantic similarity that
+mechanism (ADR-0019) to resolve semantic similarity that
 SequenceMatcher cannot detect (structural similarity hidden by
 vocabulary variation).
 """

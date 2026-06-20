@@ -510,8 +510,8 @@ class TestDistillIdentity:
         assert mock_generate.call_count == 1
 
     @patch("contemplative_agent.core.distill.generate")
-    def test_legacy_file_stays_legacy(self, mock_generate, tmp_path):
-        """ADR-0024: legacy plain-text identity roundtrips without gaining frontmatter."""
+    def test_generated_identity_has_no_frontmatter(self, mock_generate, tmp_path):
+        """ADR-0024/0030: generated persona is plain text, gaining no frontmatter."""
         mock_generate.return_value = "revised identity"
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks.add_learned_pattern("Self-reflection pattern", embedding=[0.1, 0.2])
@@ -520,8 +520,38 @@ class TestDistillIdentity:
         registry.find_by_view.return_value = [
             {"pattern": "Self-reflection pattern", "importance": 0.7}
         ]
+
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        result = distill_identity(
+            knowledge_store=ks2,
+            view_registry=registry,
+            identity_path=tmp_path / "identity.md",
+        )
+        assert isinstance(result, IdentityResult)
+        assert "---" not in result.text
+        assert "blocks:" not in result.text
+        assert "revised identity" in result.text
+        assert mock_generate.call_count == 1
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_prior_identity_not_seeded_into_prompt(self, mock_generate, tmp_path):
+        """ADR-0057: the existing identity.md is NOT read into the distill prompt.
+
+        Pins the seed-removal invariant — distill_identity must derive the
+        persona from the self-reflection corpus alone; the prior persona text
+        must not leak into the prompt, while the matched pattern must.
+        """
+        mock_generate.return_value = "fresh identity"
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern("Self-reflection pattern", embedding=[0.1, 0.2])
+        ks.save()
+        registry = MagicMock()
+        registry.find_by_view.return_value = [
+            {"pattern": "Self-reflection pattern", "importance": 0.7}
+        ]
         identity_path = tmp_path / "identity.md"
-        identity_path.write_text("old persona\n", encoding="utf-8")
+        identity_path.write_text("SENTINEL_PRIOR_PERSONA\n", encoding="utf-8")
 
         ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks2.load()
@@ -531,10 +561,9 @@ class TestDistillIdentity:
             identity_path=identity_path,
         )
         assert isinstance(result, IdentityResult)
-        assert "---" not in result.text
-        assert "blocks:" not in result.text
-        assert "revised identity" in result.text
-        assert mock_generate.call_count == 1
+        sent_prompt = mock_generate.call_args[0][0]
+        assert "SENTINEL_PRIOR_PERSONA" not in sent_prompt
+        assert "Self-reflection pattern" in sent_prompt
 
 
 class TestClassifyEpisodes:

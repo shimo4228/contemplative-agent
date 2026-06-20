@@ -125,7 +125,7 @@ contemplative-agent adopt-staged
 contemplative-agent remove-skill <name> [--reason TEXT]
 contemplative-agent rules-distill [--full]
 contemplative-agent amend-constitution
-contemplative-agent enrich [--dry-run]    -- no-op since ADR-0009
+contemplative-agent enrich [--dry-run]    -- no-op since ADR-0019
 
 # Audit
 contemplative-agent skill-stocktake [--stage]

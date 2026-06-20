@@ -14,7 +14,7 @@ ADR-0019 が landed し 2026-04-15 以降の安定化期間に入って以降、
 
 ADR-0019 で `knowledge.json` は category-tagged から embedding + view 形に移った。ADR-0021 で provenance / bitemporal / trust schema が加わり、ADR-0026 で `category` フィールドを廃止した。それぞれ `core/migration.py` の下に one-shot CLI コマンドを伴って出荷された:
 
-- `embed-backfill` (ADR-0009/0019) — 既存 pattern + episode log の埋め込み計算
+- `embed-backfill` (ADR-0019) — 既存 pattern + episode log の埋め込み計算
 - `migrate-patterns` (ADR-0021) — provenance / bitemporal default の埋め込み、ADR-0028/0029 廃止フィールドの除去
 - `migrate-categories` (ADR-0026) — `category` / `subcategory` 削除、legacy `noise` を `gated=True` に変換
 
@@ -141,8 +141,7 @@ ADR-0030 が `single-responsibility-per-artifact` を残し、ADR-0034 が "vali
 ## References
 
 - [ADR-0001](0001-core-adapter-separation.md) — `cli.py → core/` import direction、`_log_approval` / `_stage_results` を `core/` に出さなかった制約
-- [ADR-0009](0009-llm-routing-via-views.md) — embed-backfill 元来の motivation
-- [ADR-0019](0019-discrete-categories-to-embedding-views.md) — embedding + view shape、retire しない
+- [ADR-0019](0019-discrete-categories-to-embedding-views.md) — embedding + view shape と embed-backfill 元来の motivation、retire しない
 - [ADR-0021](0021-pattern-schema-trust-temporal-forgetting-feedback.md) — pattern schema landing、retire しない
 - [ADR-0026](0026-retire-discrete-categories.md) — category retirement、本 ADR で retire するのは delivered した `migrate-categories` コマンドの方
 - [ADR-0028](0028-retire-pattern-level-forgetting.md) / [ADR-0029](0029-retire-sanitized-flag.md) — `migration.py` と一緒に strip-on-load logic が死ぬ retired field

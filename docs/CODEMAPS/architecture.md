@@ -73,6 +73,8 @@ CLI → Agent.run_session(autonomy_level, session_mins)
 
 Every behaviour-producing command writes a pivot snapshot (`snapshots/{cmd}_{ts}/`) at run start (ADR-0020) and threads its path into `audit.jsonl`.
 
+All offline distillation LLM calls (distill / insight / rules-distill / constitution amend / distill-identity) run under a **base-only system prompt** — the four axioms are NOT injected. Value layers belong to action time only; `get_distill_system_prompt` is base-only since ADR-0058 (their inputs are already value-shaped, and fresh external observation should be extracted faithfully, not re-interpreted through a value lens). Axioms are injected only at action time (`_build_system_prompt`, `get_identity_system_prompt`).
+
 ### distill  [`core/distill.py`]
 
 ```
@@ -113,7 +115,9 @@ ViewRegistry.find_by_view("self_reflection", get_raw_patterns())
   cosine(pattern_emb, self_reflection_centroid)
   threshold from view frontmatter | top_k=50   [PURE COSINE, no importance weight]
 
-Single LLM call: LLM(IDENTITY_DISTILL_PROMPT, current_identity + matched)
+Single LLM call: LLM(IDENTITY_DISTILL_PROMPT, matched patterns only)
+  [ADR-0057: prior identity NOT seeded — persona emerges from the corpus alone]
+  [base-only system prompt; axioms not injected — ADR-0058]
 → validate_identity_content()
 → IdentityResult(text, target_path, pattern_ids, epistemic_counts)  [ADR-0050]
 → write gated by cli.py approval → MOLTBOOK_HOME/identity.md  [ADR-0012]
