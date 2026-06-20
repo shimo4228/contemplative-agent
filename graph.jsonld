@@ -71,7 +71,8 @@
       "name": "Contemplative Agent",
       "alternateName": [
         {"@value": "Contemplative Agent", "@language": "en"},
-        {"@value": "観想的エージェント", "@language": "ja"}
+        {"@value": "観想的エージェント", "@language": "ja"},
+        "CA"
       ],
       "description": "An autonomous CLI agent (Python package) with structural security (security-by-absence) and a three-layer memory architecture (episode log -> knowledge -> identity). Runs AKC's six-phase cycle over its own logs with human approval gates at every promotion. Local 9B stack (qwen3.5:9b generation + nomic-embed-text embeddings) on a single Apple Silicon Mac. The four contemplative axioms from Laukkonen et al. (2025) are available as an optional constitutional preset.",
       "identifier": "10.5281/zenodo.19212118",
@@ -1002,7 +1003,8 @@
       "name": "Agent Knowledge Cycle (AKC)",
       "alternateName": [
         {"@value": "Agent Knowledge Cycle", "@language": "en"},
-        {"@value": "エージェント知識サイクル", "@language": "ja"}
+        {"@value": "エージェント知識サイクル", "@language": "ja"},
+        "AKC"
       ],
       "description": "Design-layer specification of the six-phase knowledge cycle (Research → Extract → Curate → Promote → Measure → Maintain) used by autonomous agents. Independent repository; Contemplative Agent is one concrete implementation of AKC. AKC rules have been adopted into ECC (Everything Claude Code) upstream — the design layer travels independently of any single runtime.",
       "url": "https://github.com/shimo4228/agent-knowledge-cycle",
@@ -1018,7 +1020,8 @@
       "name": "Agent Attribution Practice (AAP)",
       "alternateName": [
         {"@value": "Agent Attribution Practice", "@language": "en"},
-        {"@value": "エージェント帰責実践", "@language": "ja"}
+        {"@value": "エージェント帰責実践", "@language": "ja"},
+        "AAP"
       ],
       "description": "Harness-neutral ADRs on accountability distribution in autonomous AI agents, paired with four Business AI Quadrants. Practice sibling: AAP's judgments were extracted from this agent's operational practice and re-expressed stripped of project identifiers.",
       "url": "https://github.com/shimo4228/agent-attribution-practice",
@@ -1034,7 +1037,8 @@
       "name": "Authorship Strategy",
       "alternateName": [
         {"@value": "Authorship Strategy", "@language": "en"},
-        {"@value": "著者戦略", "@language": "ja"}
+        {"@value": "著者戦略", "@language": "ja"},
+        "AS"
       ],
       "description": "Normative framework, tactical catalog, and empirical baseline for being a known author under AI-mediated diffusion. Diffusion sibling: governs how this line's outputs (DOIs, knowledge graphs, datasets) diffuse and remain attributable outside the operator-agent pair; its non-dualistic scaffold-as-collaborator commitment draws on this line's axiomatic foundation.",
       "url": "https://github.com/shimo4228/authorship-strategy",
@@ -1049,7 +1053,8 @@
       "name": "Attention, Not Self",
       "alternateName": [
         {"@value": "Attention, Not Self", "@language": "en"},
-        {"@value": "アテンション、ノット・セルフ", "@language": "ja"}
+        {"@value": "アテンション、ノット・セルフ", "@language": "ja"},
+        "ANS"
       ],
       "description": "Cross-disciplinary inquiry contrasting three Buddhist Abhidharma traditions with computational phenomenology. Vocabulary sibling: shares Buddhist phenomenological vocabulary with this line, but with asymmetric usage — this line applies it as an agent behavioral preset, Attention Not Self as a comparative cognitive framework.",
       "url": "https://github.com/shimo4228/attention-not-self",
