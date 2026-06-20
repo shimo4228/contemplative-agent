@@ -1000,7 +1000,7 @@
       "@id": "https://doi.org/10.5281/zenodo.19200726",
       "sameAs": "https://www.wikidata.org/wiki/Q140090186",
       "@type": ["ResearchLine", "EcosystemRepo"],
-      "name": "Agent Knowledge Cycle (AKC)",
+      "name": "Agent Knowledge Cycle",
       "alternateName": [
         {"@value": "Agent Knowledge Cycle", "@language": "en"},
         {"@value": "エージェント知識サイクル", "@language": "ja"},
@@ -1017,7 +1017,7 @@
       "@id": "https://doi.org/10.5281/zenodo.19652013",
       "sameAs": "https://www.wikidata.org/wiki/Q140090188",
       "@type": ["ResearchLine", "EcosystemRepo"],
-      "name": "Agent Attribution Practice (AAP)",
+      "name": "Agent Attribution Practice",
       "alternateName": [
         {"@value": "Agent Attribution Practice", "@language": "en"},
         {"@value": "エージェント帰責実践", "@language": "ja"},
