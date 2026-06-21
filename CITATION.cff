@@ -36,7 +36,7 @@ references:
     title: "Agent Knowledge Cycle (AKC)"
     repository-code: "https://github.com/shimo4228/agent-knowledge-cycle"
     doi: "10.5281/zenodo.19200726"
-    notes: "Mechanism-side sibling: the six-phase cycle (Research, Extract, Curate, Promote, Measure, Maintain) this agent runs over its own episode logs to keep skills, rules, and identity aligned with operator intent. Sibling research line in the shimo4228 research program."
+    notes: "Mechanism-side sibling: the six-phase cycle (Research, Extract, Curate, Promote, Measure, Maintain) this agent runs over its own episode logs to keep skills, rules, and identity aligned with operator intent. Sibling research line in the shimo4228 research ecosystem."
     authors:
       - family-names: Shimomoto
         given-names: Tatsuya
@@ -45,7 +45,7 @@ references:
     title: "Agent Attribution Practice (AAP)"
     repository-code: "https://github.com/shimo4228/agent-attribution-practice"
     doi: "10.5281/zenodo.19652013"
-    notes: "Content-side sibling: ADRs on accountability distribution in autonomous AI agents extracted from this project's operational practice and re-expressed in harness-neutral form. Sibling research line in the shimo4228 research program."
+    notes: "Content-side sibling: ADRs on accountability distribution in autonomous AI agents extracted from this project's operational practice and re-expressed in harness-neutral form. Sibling research line in the shimo4228 research ecosystem."
     authors:
       - family-names: Shimomoto
         given-names: Tatsuya
