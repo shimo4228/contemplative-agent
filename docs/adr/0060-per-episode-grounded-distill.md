@@ -185,8 +185,9 @@ the `SIM_UPDATE` branch of the unchanged pattern-level dedup step.
 
 ### Neutral / Follow-ups
 
-- A throwaway measurement script (`scripts/proto_grounded_distill.py`) remains in the tree.
-  Delete after the design settles in production.
+- The throwaway measurement script (`scripts/proto_grounded_distill.py`) was removed once the
+  per-episode design settled in production; its read-only measurement output is preserved in
+  `docs/evidence/adr-0060/measurement-2026-06-22.md`.
 - `docs/CODEMAPS/architecture.md` Data Flow section requires one update: the distill step is now
   one grounded LLM call per rich episode, not a 2-step batch call per 30 episodes, and the noise
   gate is absent — per the CLAUDE.md freshness rule, update in the same PR.
