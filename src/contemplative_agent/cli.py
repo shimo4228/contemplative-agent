@@ -2059,7 +2059,11 @@ def main() -> None:
 
     # enrich
     enrich_parser = subparsers.add_parser(
-        "enrich", help="Enrich existing patterns with subcategories"
+        "enrich",
+        help=(
+            "(deprecated, no-op since ADR-0019) formerly enriched patterns "
+            "with subcategories; subcategorisation is now query-time via views"
+        ),
     )
     enrich_parser.add_argument(
         "--dry-run", action="store_true", help="Show results without writing"
