@@ -24,7 +24,7 @@ cli.py (2024L)  -- composition root, only file importing both core/ and adapters
  |    views.py (298L)             -- ViewRegistry (seed_from + ${VAR}, lazy centroid cache, pure cosine rank — ADR-0051)
  |    snapshot.py (160L)          -- write_snapshot + collect_thresholds (pivot snapshots, ADR-0020)
  |    scheduler.py (165L)         -- rate limit scheduling, persistence
- |    distill.py (831L)           -- binary noise gate + 2-step distill + identity distill (single-stage, ADR-0050; importance step retired ADR-0056)
+ |    distill.py (844L)           -- per-episode grounded distill (one LLM call per episode, no noise gate, ADR-0060) + identity distill (single-stage, ADR-0050; importance step retired ADR-0056)
  |    insight.py (318L)           -- global clustering → behavior skill extraction (ADR-0050)
  |    rules_distill.py (348L)     -- Practice/Rationale B-layer rules synthesis (ADR-0048)
  |    constitution.py (130L)      -- constitutional amendment; ADR-0033 framing + ADR-0050 lineage

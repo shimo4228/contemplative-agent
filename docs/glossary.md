@@ -114,7 +114,8 @@ wrapped in local punctuation when embedded in a translated sentence.
   first-use allowed: 「security by absence（不在によるセキュリティ）」 /
   「security by absence（不在的安全）」.
 - **one external adapter per agent** — ADR-0015 principle.
-- **noise as seed** — ADR-0027 retention policy.
+- **grounded distill** (also **per-episode grounded distill**) — ADR-0060: one LLM call per engagement episode over the full episode render.
+- **noise as seed** — ADR-0027 retention policy (retired by ADR-0060; the noise gate and `noise-*.jsonl` writer were removed).
 - **pivot snapshots** — ADR-0020 replay mechanism.
 - **observability without steering** — ADR-0050 headline principle;
   enforced by ADR-0051 (trust retirement) and ADR-0052 (session-insight

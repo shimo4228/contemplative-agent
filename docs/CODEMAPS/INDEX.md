@@ -17,7 +17,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 - Import rules (adapters → core, cli.py is only exception)
 - Session execution flow (ReplyHandler → FeedManager → PostPipeline) with gate thresholds
 - Offline learning flows — causal chain with module/function/formula/ADR at each step:
-  - distill (binary noise gate + 2-step + embedding dedup; importance step retired ADR-0056)
+  - distill (per-episode grounded distill: one LLM call per engagement episode, no noise gate, + embedding dedup; ADR-0060, importance step retired ADR-0056)
   - distill-identity (single-stage, pure cosine retrieval)
   - insight (global clustering, NOT per-view)
   - rules-distill, amend-constitution
@@ -136,4 +136,4 @@ Package versions, external services, optional add-ons.
 
 CODEMAPS はコード変更時に更新する（「どこにあるか」のコード索引）。
 
-Last full scan: 2026-06-20 (v2.6.0 release: 44 non-`__init__` modules, ~13592 LOC, 1301 tests verified; post-ADR-0053/0054/0055/0056/0057/0058 — importance LLM scoring + axiom-grounded distillation retired, distill now 2-step)
+Last full scan: 2026-06-20 (v2.6.0 release: 44 non-`__init__` modules, ~13592 LOC, 1301 tests verified; post-ADR-0053/0054/0055/0056/0057/0058 — importance LLM scoring + axiom-grounded distillation retired). Post-scan hand-updates (full re-scan pending): ADR-0059 (dead reply-history removed), ADR-0060 (distill is now per-episode grounded — one LLM call per episode, the 2-step batch + noise gate were removed), ADR-0061 (action-time untrusted caps at platform field limits).

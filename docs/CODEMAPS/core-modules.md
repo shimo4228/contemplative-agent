@@ -22,7 +22,7 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `snapshot.py` | 160 | `write_snapshot()` + `collect_thresholds()` — pivot snapshots (ADR-0020) |
 | `scheduler.py` | 165 | Rate limit state, `has_read_budget`/`has_write_budget`, persistence |
 | `constitution.py` | 130 | `amend_constitution() → AmendmentResult`. ADR-0033 layer-separation framing. ADR-0050 lineage fields. |
-| `distill.py` | 844 | `distill()` (binary noise gate + 2-step + embedding dedup; importance-scoring step retired ADR-0056); `distill_identity()` (single-stage, self_reflection view, whole-file write, ADR-0030). ADR-0050 lineage fields on all result types. |
+| `distill.py` | 844 | `distill()` (per-episode grounded distill: `_is_rich_episode` activity-only scope, one LLM call per episode, no noise gate, + embedding dedup; ADR-0060, importance-scoring step retired ADR-0056); `distill_identity()` (single-stage, self_reflection view, whole-file write, ADR-0030). ADR-0050 lineage fields on all result types. |
 | `insight.py` | 318 | `extract_insight() → InsightResult`; global embedding clustering, no view batching (ADR-0050) |
 | `rules_distill.py` | 348 | `distill_rules() → RulesDistillResult`; Practice/Rationale B-layer format (ADR-0048) |
 | `stocktake.py` | 415 | Skill/rule audit: single-call LLM grouping (ADR-0046), `merge_group()` union-of-patterns, `CANNOT_MERGE` reject, singleton trigger-altitude clean (ADR-0048) |
