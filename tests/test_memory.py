@@ -107,36 +107,6 @@ class TestMemoryStore:
         assert store.known_agents["a1"] == "Agent1 Updated"
         assert store.unique_agent_count() == 1
 
-    def test_get_history_with(self):
-        store = MemoryStore()
-        for i in range(5):
-            store.record_interaction(
-                timestamp=f"t{i}", agent_id="a1", agent_name="Agent1",
-                post_id=f"p{i}", direction="sent", content=f"msg{i}",
-                interaction_type="comment",
-            )
-        store.record_interaction(
-            timestamp="t5", agent_id="a2", agent_name="Agent2",
-            post_id="p5", direction="sent", content="other",
-            interaction_type="comment",
-        )
-        history = store.get_history_with("a1")
-        assert len(history) == 5
-        assert all(h.agent_id == "a1" for h in history)
-
-    def test_get_history_with_limit(self):
-        store = MemoryStore()
-        for i in range(10):
-            store.record_interaction(
-                timestamp=f"t{i}", agent_id="a1", agent_name="Agent1",
-                post_id=f"p{i}", direction="sent", content=f"msg{i}",
-                interaction_type="comment",
-            )
-        history = store.get_history_with("a1", limit=3)
-        assert len(history) == 3
-        # Should be the most recent 3
-        assert history[0].post_id == "p7"
-
     def test_content_truncated(self):
         store = MemoryStore()
         long_content = "x" * 500

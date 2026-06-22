@@ -44,27 +44,6 @@ def _resolve_domain_prompt(template: str) -> str:
     return resolve_prompt(template, domain)
 
 
-def _build_context_section(
-    items: Optional[list[str]],
-    header: str,
-    limit: Optional[int] = None,
-    footer: str = "",
-) -> str:
-    """Build an optional context section from a list of items.
-
-    Returns empty string if items is None/empty.
-    ``header`` MUST be a trusted string literal — never pass external data.
-    """
-    if not items:
-        return ""
-    entries = items[-limit:] if limit else items
-    lines = "\n".join(f"- {item}" for item in entries)
-    section = f"\n{header}:\n{wrap_untrusted_content(lines)}\n"
-    if footer:
-        section += footer + "\n"
-    return section
-
-
 def score_relevance(post_text: str) -> float:
     """Score a post's relevance to domain topics (0.0 to 1.0)."""
     prompt = _resolve_domain_prompt(RELEVANCE_PROMPT).format(
@@ -203,17 +182,11 @@ def generate_cooperation_post(
 def generate_reply(
     original_post: str,
     their_comment: str,
-    conversation_history: Optional[list[str]] = None,
 ) -> Optional[str]:
     """Generate a reply that continues a conversation thread."""
-    history_section = _build_context_section(
-        conversation_history, "Previous exchanges with this agent", limit=5,
-    )
-
     # max_input=8000 on both (audit C2) — same prompt-size bound as the
     # comment path, so num_ctx cannot overflow on long posts/comments.
     prompt = REPLY_PROMPT.format(
-        history_section=history_section,
         original_post=wrap_untrusted_content(original_post, max_input=8000),
         their_comment=wrap_untrusted_content(their_comment, max_input=8000),
     )

@@ -1031,26 +1031,6 @@ class TestGenerateReply:
         assert result == "I agree, that's a great point."
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
-    def test_reply_with_history(self, mock_gen):
-        mock_gen.return_value = "Building on our earlier discussion..."
-        result = generate_reply(
-            "original post",
-            "their comment",
-            conversation_history=["prev exchange 1", "prev exchange 2"],
-        )
-        assert result == "Building on our earlier discussion..."
-        prompt = mock_gen.call_args[0][0]
-        assert "prev exchange 1" in prompt
-        assert "prev exchange 2" in prompt
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
-    def test_reply_without_history(self, mock_gen):
-        mock_gen.return_value = "response"
-        generate_reply("post", "comment", conversation_history=None)
-        prompt = mock_gen.call_args[0][0]
-        assert "Previous exchanges" not in prompt
-
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_returns_none_on_failure(self, mock_gen):
         mock_gen.return_value = None
         assert generate_reply("post", "comment") is None

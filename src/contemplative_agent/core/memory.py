@@ -254,13 +254,6 @@ class MemoryStore:
 
         return interaction
 
-    def get_history_with(
-        self, agent_id: str, limit: int = 10
-    ) -> List[Interaction]:
-        """Get recent interactions with a specific agent."""
-        matches = [i for i in self._interactions if i.agent_id == agent_id]
-        return matches[-limit:]
-
     def has_interacted_with(self, agent_id: str) -> bool:
         """Check if we have any history with this agent (O(1) lookup)."""
         return agent_id in self._interacted_ids

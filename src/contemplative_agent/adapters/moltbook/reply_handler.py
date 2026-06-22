@@ -265,8 +265,6 @@ class ReplyHandler:
             return
 
         ctx = self._ctx
-        history = ctx.memory.get_history_with(replier_id, limit=5)
-        history_summaries = [h.content_summary for h in history]
 
         # Pre-action reflection (ADR-0045): note what we noticed in their
         # comment (and the post it sits on) before composing a reply.
@@ -278,7 +276,6 @@ class ReplyHandler:
         reply = generate_reply(
             original_post=original_post,
             their_comment=their_content,
-            conversation_history=history_summaries,
         )
         if reply is None:
             return
