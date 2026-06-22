@@ -45,7 +45,13 @@ def _build_history_section(history: list[str]) -> str:
         return ""
     recent = history[-_HISTORY_LIMIT:]
     lines = "\n".join(f"- {h}" for h in recent)
-    return f"Previous exchanges:\n{lines}\n\n"
+    # ADR-0007: prior turns include the peer's past messages, which are
+    # untrusted input from the same source as the current turn. Wrap the whole
+    # transcript so injected instructions in any prior turn cannot escape the
+    # untrusted boundary — symmetric with the current-turn wrap in
+    # _render_reply_prompt. The "Previous exchanges:" label stays outside the
+    # wrapper as trusted scaffold.
+    return f"Previous exchanges:\n{wrap_untrusted_content(lines)}\n\n"
 
 
 def _write_json_line(stream: TextIO, payload: dict) -> bool:
