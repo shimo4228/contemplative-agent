@@ -37,29 +37,33 @@ RESULTS_DIR = FIXTURES_DIR / "results"
 
 @dataclass(frozen=True)
 class DistillBenchmarkReport:
-    """Metrics collected from a single benchmark run."""
+    """Metrics collected from a single benchmark run.
+
+    ADR-0060: distill is per-episode (one grounded LLM call per engagement
+    episode, no fixed-size batching and no noise gate). The metrics below track
+    that pipeline — batch counts, parse-fallback rates, and the Step-0 noise
+    classification of the retired 2-step pipeline no longer have a log source.
+    """
 
     # Input
     dataset: str
     episode_count: int
-    category_distribution: Dict[str, int]
+    # ADR-0060: rich engagement episodes (comment/reply/post) after filtering.
+    engagement_episode_count: int
 
-    # Pipeline
-    batch_count: int
-    parse_success_count: int
-    parse_fallback_count: int
-    parse_failure_count: int
+    # Pipeline (one LLM call per distilled episode)
+    episodes_distilled: int
     llm_call_count: int
-    llm_timeout_count: int
+    llm_failure_count: int
     elapsed_seconds: float
 
     # Output
-    patterns_extracted: int
-    patterns_rejected: int
     patterns_added: int
     patterns_updated: int
     patterns_skipped: int
-    uncertain_count: int
+    # ADR-0060: provenance is per-episode; distribution of pattern source kinds
+    # (replaces the retired Step-0 category distribution).
+    source_type_distribution: Dict[str, int] = field(default_factory=dict)
     pattern_lengths: List[int] = field(default_factory=list)
 
 
@@ -69,104 +73,91 @@ def _collect_metrics_from_logs(
     episode_count: int,
     elapsed: float,
 ) -> DistillBenchmarkReport:
-    """Parse log records emitted by distill() into a DistillBenchmarkReport."""
-    category_dist: Dict[str, int] = {}
-    batch_count = 0
-    total_extracted = 0
-    total_rejected = 0
+    """Parse log records emitted by distill() into a DistillBenchmarkReport.
+
+    ADR-0060 log surface (per-episode distill):
+      - "Distilling N engagement episodes (filtered from M records)"
+      - "Distilling N episodes individually"
+      - "Added pattern (source=X): ..."          (one per stored pattern)
+      - "Dedup: N soft-invalidated ..."          (recurring patterns replaced)
+      - "Dry run — N patterns found, S skipped, U would soft-invalidate"
+      - "Distill complete: A added, U updated"   (authoritative final counts)
+      - "Episode distill failed (LLM returned None)"  (per-episode LLM failure)
+      - "SKIP (sim): ..."                         (per-pattern dedup skip, info)
+    """
+    engagement_episode_count = 0
+    episodes_distilled = 0
     total_added = 0
     total_updated = 0
     total_skipped = 0
-    uncertain_count = 0
-    llm_call_count = 0
-    llm_timeout_count = 0
-    parse_success = 0
-    parse_fallback = 0
-    parse_failure = 0
+    llm_failure_count = 0
+    source_type_dist: Dict[str, int] = {}
     pattern_lengths: List[int] = []
 
     for rec in log_records:
         msg = rec.getMessage()
 
-        # Step 0 classification
-        m = re.search(r"Step 0: (\d+) constitutional, (\d+) uncategorized, (\d+) noise", msg)
+        # ADR-0060: engagement-episode filter (rich / total records)
+        m = re.search(r"Distilling (\d+) engagement episodes \(filtered from (\d+) records\)", msg)
         if m:
-            category_dist = {
-                "constitutional": int(m.group(1)),
-                "uncategorized": int(m.group(2)),
-                "noise": int(m.group(3)),
-            }
+            engagement_episode_count = int(m.group(1))
 
-        # Batch results (ADR-0056: the 2-step pipeline log carries no importance)
-        m = re.search(r"Batch (\d+)/(\d+): \d+ episodes \(prompt \d+ chars\) → (\d+) patterns \((\d+) rejected\)", msg)
+        # ADR-0060: per-episode loop — one structured LLM call each
+        m = re.search(r"Distilling (\d+) episodes individually", msg)
         if m:
-            batch_count = max(batch_count, int(m.group(2)))
-            extracted = int(m.group(3))
-            rejected = int(m.group(4))
-            total_extracted += extracted
-            total_rejected += rejected
+            episodes_distilled = int(m.group(1))
 
-        # Added patterns
-        m = re.search(r"Added pattern \(source=[^)]+\): (.+)", msg)
+        # Added patterns, with per-episode source provenance
+        m = re.search(r"Added pattern \(source=([^)]+)\): (.+)", msg)
         if m:
             total_added += 1
-            pattern_lengths.append(len(m.group(1)))
+            source_type_dist[m.group(1)] = source_type_dist.get(m.group(1), 0) + 1
+            pattern_lengths.append(len(m.group(2)))
 
-        # Dedup updates
-        if "Dedup:" in msg and "update" in msg:
-            m = re.search(r"(\d+) update", msg)
-            if m:
-                total_updated += int(m.group(1))
+        # Per-pattern dedup skip against the existing live pool (info-level).
+        # The distinct intra-run "SKIP-NEW" path (a new pattern skipped against
+        # another new pattern in the same run) is intentionally NOT counted
+        # here — "SKIP (" excludes "SKIP-NEW (" — so this tracks only skips
+        # against already-stored patterns.
+        if re.match(r"SKIP \(\d", msg):
+            total_skipped += 1
 
-        # LLM quality gate
-        m = re.search(r"LLM quality gate: (\d+) uncertain", msg)
+        # Recurring pattern replaced (soft-invalidate + re-add)
+        m = re.search(r"Dedup: (\d+) soft-invalidated", msg)
         if m:
-            uncertain_count += int(m.group(1))
+            total_updated = int(m.group(1))
 
-        # Distill complete
+        # Dry-run summary — authoritative skip / would-update when not persisting
+        m = re.search(r"Dry run — (\d+) patterns found, (\d+) skipped, (\d+) would soft-invalidate", msg)
+        if m:
+            total_skipped = int(m.group(2))
+            total_updated = int(m.group(3))
+
+        # Authoritative final counts (non-dry-run)
         m = re.search(r"Distill complete: (\d+) added, (\d+) updated", msg)
         if m:
-            # Use authoritative final counts
             total_added = int(m.group(1))
             total_updated = int(m.group(2))
 
-        # Ollama calls
-        if "Ollama request failed" in msg:
-            llm_timeout_count += 1
-        if "/api/generate" in msg or "Ollama" in msg:
-            pass  # counted via batch/classify
+        # Per-episode LLM failure
+        if "Episode distill failed (LLM returned None)" in msg:
+            llm_failure_count += 1
 
-        # Parse outcomes
-        if "Failed to parse dedup decisions" in msg:
-            parse_failure += 1
-        if "Dedup decision count mismatch" in msg:
-            parse_fallback += 1
-
-    # Estimate LLM calls: classify(N) + extract(batches) + refine(batches) + dedup(uncertain>0)
-    # ADR-0056: the importance call per batch was retired (3 → 2 per batch).
-    llm_call_count = episode_count + batch_count * 2 + (1 if uncertain_count > 0 else 0)
-
-    # Parse success = extract/refine batches + dedup calls - failures - fallbacks
-    parse_total = batch_count + (1 if uncertain_count > 0 else 0)
-    parse_success = max(0, parse_total - parse_failure - parse_fallback)
+    # ADR-0060: exactly one structured LLM call per distilled episode.
+    llm_call_count = episodes_distilled
 
     return DistillBenchmarkReport(
         dataset=dataset,
         episode_count=episode_count,
-        category_distribution=category_dist,
-        batch_count=batch_count,
-        parse_success_count=parse_success,
-        parse_fallback_count=parse_fallback,
-        parse_failure_count=parse_failure,
+        engagement_episode_count=engagement_episode_count,
+        episodes_distilled=episodes_distilled,
         llm_call_count=llm_call_count,
-        llm_timeout_count=llm_timeout_count,
+        llm_failure_count=llm_failure_count,
         elapsed_seconds=round(elapsed, 2),
-        patterns_extracted=total_extracted,
-        patterns_rejected=total_rejected,
         patterns_added=total_added,
         patterns_updated=total_updated,
         patterns_skipped=total_skipped,
-        uncertain_count=uncertain_count,
+        source_type_distribution=source_type_dist,
         pattern_lengths=pattern_lengths,
     )
 
@@ -240,24 +231,19 @@ def _print_report(report: DistillBenchmarkReport) -> None:
     print("=" * 60)
 
     print(f"\n  Episodes:     {report.episode_count}")
-    if report.category_distribution:
-        for cat, count in sorted(report.category_distribution.items()):
-            print(f"    {cat}: {count}")
+    print(f"  Engagement:   {report.engagement_episode_count}")
+    if report.source_type_distribution:
+        for kind, count in sorted(report.source_type_distribution.items()):
+            print(f"    {kind}: {count}")
 
-    print(f"\n  Batches:      {report.batch_count}")
+    print(f"\n  Distilled:   {report.episodes_distilled}")
     print(f"  LLM calls:   {report.llm_call_count}")
-    print(f"  Timeouts:    {report.llm_timeout_count}")
+    print(f"  LLM failures:{report.llm_failure_count}")
     print(f"  Elapsed:     {report.elapsed_seconds:.1f}s")
 
-    print(f"\n  Parse success:  {report.parse_success_count}")
-    print(f"  Parse fallback: {report.parse_fallback_count}")
-    print(f"  Parse failure:  {report.parse_failure_count}")
-
-    print(f"\n  Extracted:    {report.patterns_extracted}")
-    print(f"  Rejected:     {report.patterns_rejected}")
-    print(f"  Added:        {report.patterns_added}")
+    print(f"\n  Added:        {report.patterns_added}")
     print(f"  Updated:      {report.patterns_updated}")
-    print(f"  Uncertain:    {report.uncertain_count}")
+    print(f"  Skipped:      {report.patterns_skipped}")
 
     if report.pattern_lengths:
         lens = report.pattern_lengths
@@ -278,18 +264,14 @@ def compare_reports(path_a: str, path_b: str) -> None:
 
     fields = [
         ("Episodes", "episode_count"),
-        ("Batches", "batch_count"),
+        ("Engagement", "engagement_episode_count"),
+        ("Distilled", "episodes_distilled"),
         ("LLM calls", "llm_call_count"),
-        ("Timeouts", "llm_timeout_count"),
+        ("LLM failures", "llm_failure_count"),
         ("Elapsed (s)", "elapsed_seconds"),
-        ("Parse success", "parse_success_count"),
-        ("Parse fallback", "parse_fallback_count"),
-        ("Parse failure", "parse_failure_count"),
-        ("Extracted", "patterns_extracted"),
-        ("Rejected", "patterns_rejected"),
         ("Added", "patterns_added"),
         ("Updated", "patterns_updated"),
-        ("Uncertain", "uncertain_count"),
+        ("Skipped", "patterns_skipped"),
     ]
 
     print(f"\n  {'Metric':<20} {'Before':>10} {'After':>10} {'Delta':>10}")
@@ -301,13 +283,6 @@ def compare_reports(path_a: str, path_b: str) -> None:
         delta = vb - va
         sign = "+" if delta > 0 else ""
         print(f"  {label:<20} {va:>10} {vb:>10} {sign}{delta:>9}")
-
-    # Parse reliability = success / (success + fallback + failure)
-    for data, name in [(a, "Before"), (b, "After")]:
-        total = data.get("parse_success_count", 0) + data.get("parse_fallback_count", 0) + data.get("parse_failure_count", 0)
-        if total > 0:
-            rate = data.get("parse_success_count", 0) / total * 100
-            print(f"  Parse reliability ({name}): {rate:.1f}%")
 
     print()
 
