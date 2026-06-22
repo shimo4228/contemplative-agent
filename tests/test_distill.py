@@ -8,27 +8,34 @@ import pytest
 
 from contemplative_agent.core.distill import (
     summarize_record,
+    render_episode,
     distill,
     distill_identity,
     enrich,
     IdentityResult,
     _is_valid_pattern,
-    _classify_episodes,
-    _ClassifiedRecords,
+    _is_rich_episode,
+    _distill_one,
     _dedup_patterns,
+    EXCERPT_CAPS,
     SIM_DUPLICATE,
     SIM_UPDATE,
 )
+from contemplative_agent.core._io import truncate_boundary
 from contemplative_agent.core.knowledge_store import effective_importance
 from contemplative_agent.core.memory import EpisodeLog, KnowledgeStore
 
 
 def _make_log(tmp_path):
-    """Helper: create EpisodeLog with one interaction."""
+    """Helper: EpisodeLog with one rich engagement episode (ADR-0060)."""
     log = EpisodeLog(log_dir=tmp_path / "logs")
-    log.append("interaction", {
-        "direction": "sent", "agent_name": "Alice",
-        "content_summary": "Hello", "agent_id": "a1",
+    log.append("activity", {
+        "action": "comment",
+        "post_id": "p1",
+        "original_post": "A post about quoting specific details in replies.",
+        "content": "Quoting the exact phrase keeps the thread grounded and clear.",
+        "target_agent": "Alice",
+        "internal_note": "Noticed they responded better to concrete quotes.",
     })
     return log
 
@@ -54,31 +61,47 @@ def mock_embed_distinct():
 
 
 class TestDistill:
-    """Pipeline: classify → extract → refine → embed → dedup → save (ADR-0056: no importance step)."""
+    """Pipeline (ADR-0060): per-episode distill → embed → dedup → save."""
 
     @patch("contemplative_agent.core.distill.generate")
     def test_basic_distillation(self, mock_generate, mock_embed_distinct, tmp_path):
-        # classify is now embedding-based (no generate call); only extract / refine.
+        # ADR-0060: one LLM call per engagement episode (no 2-step, no batch).
         mock_generate.side_effect = [
-            "Some free-form analysis of patterns from the episode logs.",
             json.dumps({"patterns": [
                 "Pattern one shows that quoting specific details improves engagement",
+            ]}),
+            json.dumps({"patterns": [
                 "Pattern two reveals that generic replies stall conversations quickly",
             ]}),
         ]
 
         log = EpisodeLog(log_dir=tmp_path / "logs")
+        # interaction is NOT a rich engagement episode — filtered out (ADR-0060).
         log.append("interaction", {
             "direction": "sent", "agent_name": "Alice",
             "content_summary": "Hello", "agent_id": "a1",
         })
-        log.append("activity", {"action": "comment", "post_id": "p1"})
+        log.append("activity", {
+            "action": "comment", "post_id": "p1",
+            "original_post": "First post body here.",
+            "content": "My first grounded comment about quoting details.",
+            "internal_note": "Concrete quotes landed well.",
+        })
+        log.append("activity", {
+            "action": "reply", "post_id": "p2",
+            "their_comment": "I disagree with the premise.",
+            "original_post": "Second post body here.",
+            "content": "My second reply engaging the disagreement directly.",
+            "internal_note": "Generic replies stalled the thread.",
+        })
 
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
 
         result = distill(days=1, episode_log=log, knowledge_store=ks)
         assert "Pattern one" in result
         assert "Pattern two" in result
+        # Two rich episodes → two LLM calls; the interaction is filtered out.
+        assert mock_generate.call_count == 2
 
         ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks2.load()
@@ -92,13 +115,26 @@ class TestDistill:
         assert isinstance(p1["embedding"], list)
 
     @patch("contemplative_agent.core.distill.generate")
+    def test_structured_output_format_is_used(
+        self, mock_generate, mock_embed_distinct, tmp_path,
+    ):
+        # ADR-0060: the per-episode call constrains output with a JSON schema.
+        mock_generate.return_value = json.dumps({"patterns": [
+            "A grounded pattern about quoting concrete details in replies here",
+        ]})
+        log = _make_log(tmp_path)
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        distill(days=1, episode_log=log, knowledge_store=ks)
+        kwargs = mock_generate.call_args.kwargs
+        assert kwargs.get("format") is not None
+        assert kwargs["format"]["required"] == ["patterns"]
+        assert kwargs.get("caller") == "distill.episode"
+
+    @patch("contemplative_agent.core.distill.generate")
     def test_dry_run_does_not_write(self, mock_generate, mock_embed_distinct, tmp_path):
-        mock_generate.side_effect = [
-            "Some analysis.",
-            json.dumps({"patterns": [
-                "Dry pattern that explains how quoting specific details works better",
-            ]}),
-        ]
+        mock_generate.return_value = json.dumps({"patterns": [
+            "Dry pattern that explains how quoting specific details works better",
+        ]})
         log = _make_log(tmp_path)
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
 
@@ -112,12 +148,26 @@ class TestDistill:
         result = distill(days=1, episode_log=log, knowledge_store=ks)
         assert "No episodes" in result
 
+    def test_no_engagement_episodes(self, tmp_path):
+        # Only sparse / redundant records → nothing to distill (ADR-0060).
+        log = EpisodeLog(log_dir=tmp_path / "logs")
+        log.append("activity", {"action": "upvote", "post_id": "p1"})
+        log.append("interaction", {
+            "direction": "sent", "agent_name": "Bob",
+            "content_summary": "hi", "agent_id": "b1",
+        })
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        result = distill(days=1, episode_log=log, knowledge_store=ks)
+        assert "No engagement episodes" in result
+        assert not (tmp_path / "knowledge.json").exists()
+
     @patch("contemplative_agent.core.distill.generate", return_value=None)
     def test_llm_failure(self, mock_generate, tmp_path):
         log = _make_log(tmp_path)
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
         result = distill(days=1, episode_log=log, knowledge_store=ks)
-        assert result == ""
+        # Total LLM failure surfaces a message, not a silent blank line.
+        assert "failed" in result.lower()
         assert not (tmp_path / "knowledge.json").exists()
 
 
@@ -128,22 +178,20 @@ class TestEnrichNoOp:
 
 
 class TestDistillJSONFallbackADR0021:
-    """ADR-0021 / distill.py:548-555 — when the refine step returns text
-    that is not valid JSON, the bullet-point parser recovers patterns from
-    lines starting with ``- ``. In production the LLM occasionally
-    violates the JSON-only instruction; without this fallback the whole
-    batch would silently yield zero patterns."""
+    """``_parse_refined_patterns`` keeps a bullet-point fallback: if the
+    model ignores the JSON-only instruction (despite the ADR-0060 structured
+    ``format=`` schema), lines starting with ``- `` are still recovered so
+    the episode does not silently yield zero patterns."""
 
     @patch("contemplative_agent.core.distill.generate")
-    def test_bullet_list_recovered_when_refine_is_not_json(
+    def test_bullet_list_recovered_when_output_is_not_json(
         self, mock_generate, mock_embed_distinct, tmp_path,
     ):
-        mock_generate.side_effect = [
-            "Some free-form analysis.",
-            # Refine step returns bullets, NOT JSON — tests the fallback.
+        # The single per-episode call returns bullets, NOT JSON.
+        mock_generate.return_value = (
             "- First bullet pattern that explains quoting details clearly here\n"
-            "- Second bullet pattern that reveals generic replies stall people",
-        ]
+            "- Second bullet pattern that reveals generic replies stall people"
+        )
 
         log = _make_log(tmp_path)
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
@@ -151,36 +199,6 @@ class TestDistillJSONFallbackADR0021:
 
         assert "First bullet pattern" in result
         assert "Second bullet pattern" in result
-
-
-class TestDistillStep2BatchSkipAuditM1:
-    """Audit M1: when step 2 (summarize) fails, the batch is skipped with a
-    WARNING instead of feeding step-1 prose to the JSON parser — prose that
-    happens to lack "- " bullets would otherwise silently yield 0 patterns
-    while looking like a processed batch."""
-
-    @patch("contemplative_agent.core.distill.generate")
-    def test_step2_none_skips_batch(self, mock_generate, tmp_path, caplog):
-        import logging
-        # Step-1 prose containing "- " lines: under the old fallthrough
-        # (refined = result) the bullet parser would harvest these as
-        # patterns; under batch skip they must NOT become patterns.
-        mock_generate.side_effect = [
-            "Some free-form analysis.\n"
-            "- This unrefined observation looks like a pattern to the parser\n"
-            "- Another raw step-one line that must not reach the store",
-            None,  # step 2 fails
-        ]
-        log = _make_log(tmp_path)
-        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.distill"
-        ):
-            distill(days=1, episode_log=log, knowledge_store=ks)
-        assert "step 2" in caplog.text
-        # Batch skipped: no step-3 importance call, nothing persisted.
-        assert mock_generate.call_count == 2
-        assert not (tmp_path / "knowledge.json").exists()
 
 
 class TestInsightExclusionADR0052:
@@ -194,14 +212,10 @@ class TestInsightExclusionADR0052:
         self, mock_generate, mock_embed_distinct, tmp_path, caplog
     ):
         import logging
-        mock_generate.side_effect = [
-            "Some free-form analysis.",
-            json.dumps({"patterns": [
-                "Pattern about quoting specific details improving engagement",
-            ]}),
-            json.dumps({"scores": [7]}),
-        ]
-        log = _make_log(tmp_path)
+        mock_generate.return_value = json.dumps({"patterns": [
+            "Pattern about quoting specific details improving engagement",
+        ]})
+        log = _make_log(tmp_path)  # one rich comment episode
         log.append("insight", {
             "observation": "UNIQUE_INSIGHT_MARKER self narrative summary",
             "insight_type": "session_summary",
@@ -566,183 +580,200 @@ class TestDistillIdentity:
         assert "Self-reflection pattern" in sent_prompt
 
 
-class TestClassifyEpisodes:
-    """ADR-0026 Phase 2: binary gate — noise centroid match → gated, else kept."""
+class TestIsRichEpisode:
+    """ADR-0060: only comment/reply/post activity records are distilled."""
 
-    @patch("contemplative_agent.core.distill.embed_texts")
-    def test_non_noise_episode_is_kept(self, mock_embed):
-        mock_embed.return_value = np.array([[1.0, 0.0]], dtype=np.float32)
-        registry = MagicMock()
-        # noise centroid different (sim < threshold) → episode is kept
-        registry.get_centroid.side_effect = lambda name: (
-            np.array([0.0, 1.0], dtype=np.float32) if name == "noise"
-            else None
-        )
-        records = [{"ts": "2026-04-15T07:00:00Z", "type": "insight",
-                    "data": {"observation": "Notice empty"}}]
-        result = _classify_episodes(records, view_registry=registry)
-        assert isinstance(result, _ClassifiedRecords)
-        assert len(result.kept) == 1
-        assert len(result.gated) == 0
+    def test_comment_reply_post_are_rich(self):
+        for action in ("comment", "reply", "post"):
+            rec = {"type": "activity", "data": {"action": action}}
+            assert _is_rich_episode(rec) is True
 
-    @patch("contemplative_agent.core.distill.embed_texts")
-    def test_noise_episode_is_gated(self, mock_embed):
-        mock_embed.return_value = np.array([[1.0, 0.0]], dtype=np.float32)
-        registry = MagicMock()
-        # noise centroid matches → episode is gated out
-        registry.get_centroid.return_value = np.array([1.0, 0.0], dtype=np.float32)
-        records = [{"ts": "2026-04-15T07:00:00Z", "type": "insight",
-                    "data": {"observation": "x"}}]
-        result = _classify_episodes(records, view_registry=registry)
-        assert len(result.gated) == 1
-        assert len(result.kept) == 0
+    def test_sparse_actions_excluded(self):
+        for action in ("upvote", "follow", "unfollow"):
+            rec = {"type": "activity", "data": {"action": action}}
+            assert _is_rich_episode(rec) is False
 
-    def test_no_view_registry_defaults_to_kept(self):
-        """Without a registry, no gating happens — everything is kept."""
-        records = [{"ts": "2026-04-15T07:00:00Z", "type": "insight",
-                    "data": {"observation": "x"}}]
-        result = _classify_episodes(records, view_registry=None)
-        assert len(result.kept) == 1
-        assert len(result.gated) == 0
+    def test_non_activity_excluded(self):
+        for rtype in ("interaction", "post", "insight", "session", "dialogue"):
+            assert _is_rich_episode({"type": rtype, "data": {}}) is False
 
-    def test_empty_records(self):
-        result = _classify_episodes([], view_registry=None)
-        assert result.kept == ()
-        assert result.gated == ()
+    def test_missing_data_excluded(self):
+        assert _is_rich_episode({"type": "activity"}) is False
 
 
-class TestClassifyEpisodesNoiseLog:
-    """ADR-0027 Phase 1: gated episodes are preserved as seeds in noise-*.jsonl."""
+class TestRenderEpisode:
+    """ADR-0060: rich, world-grounded render of a single episode."""
 
-    @staticmethod
-    def _today_iso():
-        from datetime import datetime, timezone
-        return datetime.now(timezone.utc).date().isoformat()
+    def test_comment_includes_all_fields(self):
+        out = render_episode("activity", {
+            "action": "comment", "target_agent": "Alice",
+            "original_post": "The post body.",
+            "content": "My grounded comment.",
+            "internal_note": "What I noticed.",
+        })
+        assert "Post I engaged with:" in out
+        assert "The post body." in out
+        assert "My comment:" in out
+        assert "My grounded comment." in out
+        assert "What I noticed." in out
+        assert "[comment Alice]" in out
 
-    @patch("contemplative_agent.core.distill.embed_texts")
-    def test_gated_episodes_written_to_noise_log(self, mock_embed, tmp_path):
-        """With log_dir set, gated episodes append to noise-YYYY-MM-DD.jsonl."""
-        mock_embed.return_value = np.array(
-            [[1.0, 0.0], [1.0, 0.0]], dtype=np.float32,
-        )
-        registry = MagicMock()
-        registry.get_centroid.return_value = np.array([1.0, 0.0], dtype=np.float32)
-        registry.names.return_value = ["noise"]
-        records = [
-            {"ts": "2026-04-15T07:00:00Z", "type": "insight",
-             "data": {"observation": "noise sample one"}},
-            {"ts": "2026-04-15T08:00:00Z", "type": "post",
-             "data": {"text": "noise sample two"}},
-        ]
-        result = _classify_episodes(
-            records, view_registry=registry, log_dir=tmp_path,
-        )
+    def test_reply_includes_their_comment(self):
+        out = render_episode("activity", {
+            "action": "reply", "their_comment": "Their words here.",
+            "original_post": "Post.", "content": "My reply.",
+            "internal_note": "note",
+        })
+        assert "Their comment:" in out
+        assert "Their words here." in out
 
-        assert len(result.gated) == 2
-        log_path = tmp_path / f"noise-{self._today_iso()}.jsonl"
-        assert log_path.exists()
-        lines = log_path.read_text(encoding="utf-8").strip().split("\n")
-        assert len(lines) == 2
-        record = json.loads(lines[0])
-        assert set(record.keys()) == {
-            "ts", "episode_ts", "episode_summary",
-            "noise_sim", "view_centroids_hash", "record_type",
-        }
-        assert record["noise_sim"] >= 0.5
-        assert len(record["view_centroids_hash"]) == 8
-        assert record["record_type"] == "insight"
+    def test_post_includes_title(self):
+        out = render_episode("activity", {
+            "action": "post", "title": "My Title",
+            "content": "The post I wrote.", "internal_note": "note",
+        })
+        assert "Title I gave it:" in out
+        assert "My Title" in out
+        assert "My post:" in out
+        # post has no target_agent → clean header, no trailing space
+        assert "[post]" in out
+        assert "[post ]" not in out
 
-    @patch("contemplative_agent.core.distill.embed_texts")
-    def test_no_gated_episodes_creates_no_log(self, mock_embed, tmp_path):
-        """If nothing is gated, no file is created (avoids empty sentinel)."""
-        mock_embed.return_value = np.array([[1.0, 0.0]], dtype=np.float32)
-        registry = MagicMock()
-        registry.get_centroid.side_effect = lambda name: (
-            np.array([0.0, 1.0], dtype=np.float32) if name == "noise" else None
-        )
-        registry.names.return_value = ["noise"]
-        records = [{"ts": "2026-04-15T07:00:00Z", "type": "insight",
-                    "data": {"observation": "kept sample"}}]
-        result = _classify_episodes(
-            records, view_registry=registry, log_dir=tmp_path,
-        )
-        assert len(result.kept) == 1
-        assert not any(tmp_path.glob("noise-*.jsonl"))
+    def test_excerpt_fields_are_boundary_truncated(self):
+        long_post = ("First sentence is short. "
+                     + "x" * (EXCERPT_CAPS["original_post"] + 500))
+        out = render_episode("activity", {
+            "action": "comment", "original_post": long_post,
+            "content": "short", "internal_note": "n",
+        })
+        assert "[truncated]" in out
+        # the rendered post excerpt is capped near its limit (+ headers)
+        assert len(out) < EXCERPT_CAPS["original_post"] + 400
 
-    @patch("contemplative_agent.core.distill.embed_texts")
-    def test_log_dir_none_disables_writer(self, mock_embed, tmp_path):
-        """log_dir=None keeps the writer off even with gated episodes."""
-        mock_embed.return_value = np.array([[1.0, 0.0]], dtype=np.float32)
-        registry = MagicMock()
-        registry.get_centroid.return_value = np.array([1.0, 0.0], dtype=np.float32)
-        registry.names.return_value = ["noise"]
-        records = [{"ts": "2026-04-15T07:00:00Z", "type": "insight",
-                    "data": {"observation": "noise"}}]
-        result = _classify_episodes(
-            records, view_registry=registry, log_dir=None,
-        )
-        assert len(result.gated) == 1
-        assert not any(tmp_path.glob("noise-*.jsonl"))
+    def test_internal_note_never_capped(self):
+        long_note = "y" * (EXCERPT_CAPS["content"] + 3000)
+        out = render_episode("activity", {
+            "action": "comment", "original_post": "p",
+            "content": "c", "internal_note": long_note,
+        })
+        assert long_note in out  # full, no truncation marker on the note
 
-    def test_view_centroids_hash_is_deterministic(self):
-        """Same registry state → same 8-char hash; different centroids → different hash."""
-        from contemplative_agent.core.distill import _view_centroids_hash
+    def test_sparse_activity_falls_back_to_summary(self):
+        # upvote carries none of the rich fields → one-line summary, no crash.
+        out = render_episode("activity", {"action": "upvote", "post_id": "p1"})
+        assert out == summarize_record("activity", {"action": "upvote", "post_id": "p1"})
+        assert "[truncated]" not in out
 
-        def _registry(names, centroids):
-            reg = MagicMock()
-            reg.names.return_value = names
-            reg.get_centroid.side_effect = lambda n: centroids.get(n)
-            return reg
+    def test_non_activity_uses_summarize_record(self):
+        data = {"direction": "sent", "agent_name": "Bob", "content_summary": "hi"}
+        assert render_episode("interaction", data) == summarize_record("interaction", data)
 
-        centroids_a = {
-            "noise": np.array([1.0, 0.0], dtype=np.float32),
-            "constitutional": np.array([0.0, 1.0], dtype=np.float32),
-        }
-        reg_a = _registry(["noise", "constitutional"], centroids_a)
-        reg_b = _registry(["noise", "constitutional"], centroids_a)
-        hash_1 = _view_centroids_hash(reg_a)
-        hash_2 = _view_centroids_hash(reg_b)
-        assert hash_1 == hash_2
-        assert len(hash_1) == 8
 
-        centroids_c = {"noise": np.array([0.5, 0.5], dtype=np.float32)}
-        reg_c = _registry(["noise"], centroids_c)
-        assert _view_centroids_hash(reg_c) != hash_1
-        assert _view_centroids_hash(None) == "none"
+class TestTruncateBoundary:
+    """ADR-0060: sentence -> word -> char boundary truncation with a marker."""
+
+    def test_under_cap_unchanged(self):
+        assert truncate_boundary("short text", 100) == "short text"
+
+    def test_sentence_boundary_preferred(self):
+        text = "First sentence here. " + "word " * 100
+        out = truncate_boundary(text, 60)
+        assert out.endswith("[truncated]")
+        # cut at the sentence end, not mid-word
+        assert "First sentence here." in out
+
+    def test_word_boundary_fallback(self):
+        text = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda"
+        out = truncate_boundary(text, 30)
+        assert out.endswith("[truncated]")
+        body = out[: -len("[truncated]")]
+        # no trailing partial word (body ends on a complete token)
+        assert not body.endswith(("alph", "bet", "gam"))
+
+    def test_hard_cut_when_no_boundary(self):
+        text = "x" * 200
+        out = truncate_boundary(text, 50)
+        assert out.endswith("[truncated]")
+        assert len(out) <= 50
+
+    def test_marker_fits_exactly_when_budget_zero(self):
+        out = truncate_boundary("x" * 100, 5, marker="[cut]")
+        assert out == "[cut]"
+
+    def test_result_never_exceeds_max_length_below_marker(self):
+        # max_length < len(marker): result is still bounded by max_length.
+        out = truncate_boundary("x" * 100, 3, marker="[cut]")
+        assert len(out) <= 3
+
+
+class TestDistillOne:
+    """ADR-0060: the single-episode distill call."""
 
     @patch("contemplative_agent.core.distill.generate")
-    @patch("contemplative_agent.core.distill.embed_texts")
-    def test_distill_dry_run_does_not_write_noise_log(
-        self, mock_embed, mock_generate, tmp_path,
-    ):
-        """dry_run path sets log_dir=None, so no noise-*.jsonl written."""
-        mock_embed.return_value = np.array([[1.0, 0.0]], dtype=np.float32)
-        mock_generate.return_value = "1. something"
-        registry = MagicMock()
-        registry.get_centroid.return_value = np.array([1.0, 0.0], dtype=np.float32)
-        registry.names.return_value = ["noise"]
-        log = EpisodeLog(log_dir=tmp_path / "logs")
-        # activity, not insight: insight records are filtered before
-        # classification (ADR-0052) and would make this test vacuous.
-        log.append("activity", {"action": "upvote", "post_id": "p1"})
-        knowledge = KnowledgeStore(path=tmp_path / "k.json")
-        distill(
-            days=1,
-            dry_run=True,
-            episode_log=log,
-            knowledge_store=knowledge,
-            view_registry=registry,
-            log_dir=tmp_path / "logs",
-        )
-        assert not any((tmp_path / "logs").glob("noise-*.jsonl"))
+    def test_returns_validated_patterns_with_provenance(self, mock_generate):
+        mock_generate.return_value = json.dumps({"patterns": [
+            "A grounded pattern about quoting concrete details in replies",
+            "x",  # too short — rejected by _is_valid_pattern
+        ]})
+        record = {
+            "ts": "2026-06-23T10:00:00+00:00",
+            "type": "activity",
+            "data": {"action": "comment", "original_post": "p",
+                     "content": "c", "internal_note": "n"},
+        }
+        out = _distill_one(record)
+        assert out is not None
+        assert len(out.patterns) == 1
+        assert out.source_type == "self_reflection"
+        assert out.episode_ids == ("2026-06-23T10:00:00+00:00",)
+        # structured output schema is passed through
+        assert mock_generate.call_args.kwargs["format"]["required"] == ["patterns"]
+
+    @patch("contemplative_agent.core.distill.generate", return_value=None)
+    def test_llm_none_returns_none(self, mock_generate):
+        record = {"ts": "t", "type": "activity",
+                  "data": {"action": "comment", "content": "c"}}
+        assert _distill_one(record) is None
+
+
+class TestNoiseGateRemovedADR0060:
+    """ADR-0060: the noise gate and its noise-log writer are gone; records
+    that the old gate would have inspected now flow straight to per-episode
+    distill, and distill() no longer threads view_registry / log_dir."""
+
+    def test_classify_symbols_are_absent(self):
+        import contemplative_agent.core.distill as d
+        for name in (
+            "_classify_episodes", "_ClassifiedRecords", "_write_noise_log",
+            "_view_centroids_hash", "_distill_batch", "_render_episode_lines",
+            "BATCH_SIZE", "NOISE_THRESHOLD",
+        ):
+            assert not hasattr(d, name), f"{name} should be removed (ADR-0060)"
+
+    def test_distill_signature_drops_gate_params(self):
+        import inspect
+        params = inspect.signature(distill).parameters
+        assert "view_registry" not in params
+        assert "log_dir" not in params
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_no_noise_log_written(self, mock_generate, mock_embed_distinct, tmp_path):
+        mock_generate.return_value = json.dumps({"patterns": [
+            "A grounded pattern about engagement that survives the gate removal",
+        ]})
+        log = _make_log(tmp_path)
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        distill(days=1, episode_log=log, knowledge_store=ks)
+        assert not list((tmp_path / "logs").glob("noise-*.jsonl"))
 
 
 class TestThresholds:
-    """Embedding thresholds are sane defaults."""
+    """Embedding dedup thresholds are sane defaults."""
 
     def test_dedup_thresholds_in_range(self):
-        from contemplative_agent.core.distill import NOISE_THRESHOLD
-        assert 0.0 < NOISE_THRESHOLD < 1.0
+        # ADR-0060: NOISE_THRESHOLD is gone with the noise gate; the dedup
+        # thresholds remain and must stay ordered within (0, 1).
+        assert 0.0 < SIM_UPDATE < SIM_DUPLICATE < 1.0
 
 
 class TestEffectiveImportance:

@@ -34,6 +34,7 @@ class _LazyPrompts:
         "INSIGHT_EXTRACTION_PROMPT": "insight_extraction",
         "MEDITATION_INTERPRET_PROMPT": "meditation_interpret",
         "DISTILL_REFINE_PROMPT": "distill_refine",
+        "DISTILL_EPISODE_PROMPT": "distill_episode",
         "RULES_DISTILL_PROMPT": "rules_distill",
         "RULES_DISTILL_REFINE_PROMPT": "rules_distill_refine",
         "CONSTITUTION_AMEND_PROMPT": "constitution_amend",

@@ -58,6 +58,7 @@ class PromptTemplates:
     insight_extraction: str = ""
     meditation_interpret: str = ""
     distill_refine: str = ""
+    distill_episode: str = ""
     rules_distill: str = ""
     rules_distill_refine: str = ""
     constitution_amend: str = ""
@@ -234,6 +235,7 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         insight_extraction=read("insight_extraction.md", required=False),
         meditation_interpret=read("meditation_interpret.md", required=False),
         distill_refine=read("distill_refine.md", required=False),
+        distill_episode=read("distill_episode.md", required=False),
         rules_distill=read("rules_distill.md", required=False),
         rules_distill_refine=read("rules_distill_refine.md", required=False),
         constitution_amend=read("constitution_amend.md", required=False),

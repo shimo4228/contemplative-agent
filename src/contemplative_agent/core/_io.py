@@ -28,6 +28,46 @@ def truncate(text: str, max_length: int = SUMMARY_MAX_LENGTH) -> str:
     return text[: max_length - 3] + "..."
 
 
+_SENTENCE_SEPS = ("。", "！", "？", ".\n", ". ", "! ", "? ")
+
+
+def truncate_boundary(
+    text: str, max_length: int, marker: str = "…[truncated]"
+) -> str:
+    """Truncate at the nearest sentence -> word -> char boundary.
+
+    Unlike ``truncate`` (hard character slice), this prefers a sentence
+    end, then a word boundary, before falling back to a hard cut, and
+    appends ``marker`` only when it trims. The boundary is honoured only
+    in the back half of the window so a very early separator does not
+    discard most of the budget. Avoids the mid-word / mid-character cut
+    that an LLM reader can misread as an intentional pause (ADR-0060).
+
+    ``text`` at or under ``max_length`` is returned unchanged, no marker.
+    """
+    if len(text) <= max_length:
+        return text
+    budget = max_length - len(marker)
+    if budget <= 0:
+        # No room for content + marker; keep the result within max_length.
+        return marker[:max_length]
+    window = text[:budget]
+    floor = budget // 2  # only honour a boundary past the window midpoint
+    best = -1
+    for sep in _SENTENCE_SEPS:
+        idx = window.rfind(sep)
+        if idx != -1:
+            cand = idx + len(sep)
+            if cand > best:
+                best = cand
+    if best >= floor:
+        return text[:best].rstrip() + marker
+    space = window.rfind(" ")
+    if space >= floor:
+        return window[:space].rstrip() + marker
+    return window.rstrip() + marker
+
+
 def strip_code_fence(text: str) -> str:
     """Remove markdown code fences (```json ... ```) from LLM output."""
     text = text.strip()

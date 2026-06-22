@@ -82,18 +82,24 @@ Input: EpisodeLog.read_range(days=N)
   type="insight" records EXCLUDED at read  [ADR-0052: retired session
   summaries; historical records stay in the log but never re-distill]
 
-Step 0 — Binary noise gate  [ADR-0026; NO LLM]
-  embed_texts(episode summaries) → cosine(summary, noise_centroid)
-  ≥ NOISE_THRESHOLD (0.55)  →  gated (noise-*.jsonl, ADR-0027)
-  < NOISE_THRESHOLD          →  kept
+Scope filter — engagement episodes only  [ADR-0060; _is_rich_episode]
+  keep activity records with action ∈ {comment, reply, post}
+  drop redundant short interaction/post records + sparse upvote/follow/unfollow
+  (NO noise gate: keeping noise out of retrieval is the view centroids' job at
+   query time, ADR-0031 — the ingest-time gate was redundant and removed)
 
-Step 1 — Extract  [batch_size=30]
-  kept → LLM(DISTILL_PROMPT) → raw patterns
+Per-episode distill  [ADR-0060; one LLM call per episode, no batching]
+  for each episode:
+    render_episode() → rich block: original_post + their_comment (replies) +
+      the agent's own output (content/title) + internal_note (full),
+      each external field truncate_boundary()-capped at its EXCERPT_CAP
+    → LLM(DISTILL_EPISODE_PROMPT, format=_PATTERNS_SCHEMA) → JSON {"patterns":[...]}
+    → _is_valid_pattern() gate; provenance = that one episode's source_type + ts
+  (recurrence is NOT pre-clustered here — it surfaces downstream when `insight`
+   clusters patterns into skills; episode-level near-duplication is rare and the
+   pattern-level dedup below already absorbs it)
 
-Step 2 — Refine
-  → LLM(DISTILL_REFINE_PROMPT) → JSON {"patterns":[...]}
-
-Step 3 — Persist  [no LLM; the importance-scoring call was retired, ADR-0056]
+Persist  [no LLM; unchanged tail from the prior design]
   → embed_texts(new patterns)
   → _dedup_patterns():
       effective_importance = 0.95^days   [pure time decay; ADR-0051, ADR-0056]
@@ -102,11 +108,12 @@ Step 3 — Persist  [no LLM; the importance-scoring call was retired, ADR-0056]
         ≥ SIM_DUPLICATE (0.90)  →  SKIP
         ≥ SIM_UPDATE    (0.80)  →  UPDATE (soft-invalidate old, append revised — no boost)
         < SIM_UPDATE             →  ADD
-  → KnowledgeStore.add_learned_pattern(..., embedding, gated=False)  [no importance field]
+  → KnowledgeStore.add_learned_pattern(..., embedding)  [no importance field]
   → provenance.source_type recorded, NEVER weighted  [ADR-0051]
 ```
 
 Threshold canonical source: `core/thresholds.py` (read by `snapshot.collect_thresholds`).
+Excerpt caps + RICH_ACTIONS live in `core/distill.py` (ADR-0060).
 
 ### distill-identity  [`core/distill.py: distill_identity()`]
 
@@ -172,7 +179,7 @@ ViewRegistry.find_by_view("constitutional", get_live_patterns())
 
 `SkillResult` / `RuleResult` / `IdentityResult` / `AmendmentResult` all carry `source_ids` / `pattern_ids` + `epistemic_counts`. On approval: `audit.jsonl` record includes `source_ids + epistemic_counts` (always present, nullable). `staging/meta.json` carries them through `adopt-staged`.
 
-`epistemic_counts` = `{observed, generated, unknown}` tally; the kind is derived at read-time from `provenance.source_type` — never persisted. Caveat: `observed ≈ 0` is structural (pure-external distill batches don't occur at batch granularity), not "no external input" — external contact lives inside `mixed → generated`.
+`epistemic_counts` = `{observed, generated, unknown}` tally; the kind is derived at read-time from `provenance.source_type` — never persisted. Since ADR-0060 distill ingests only `activity` records (comment/reply/post), and `_episode_source_kind` maps every activity to `self`, every distilled pattern is `self_reflection → generated`: `observed` is now structurally **zero**. The external world (the post engaged with, the other agent's comment) still enters distillation — but as grounding *text inside* the rich render, not as a provenance kind. The prior caveat (observed ≈ 0 because mixed batches collapsed to `generated`) is superseded: there are no batches, and the lone external source (interaction `direction="received"`) is no longer read.
 
 ### meditate  [`adapters/meditation/`]
 
@@ -221,7 +228,7 @@ Pivot Snapshots  MOLTBOOK_HOME/snapshots/{cmd}_{ts}/
 | AKC Phase | Implementation | Code |
 |-----------|----------------|------|
 | Research | Feed fetch + relevance scoring | feed_manager.py |
-| Extract | `distill` (noise gate + 2-step + embedding dedup) | distill.py, views.py |
+| Extract | `distill` (per-episode grounded distill + embedding dedup) | distill.py |
 | Curate | `insight` (global clustering → skills) | insight.py, clustering.py |
 | Curate | `rules-distill` (skills → Practice/Rationale rules) | rules_distill.py |
 | Curate | `amend-constitution` (constitutional view → ethics) | constitution.py |

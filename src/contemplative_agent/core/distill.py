@@ -3,27 +3,25 @@
 ADR-0019: dedup is embedding-cosine based; subcategorisation has been
 removed (replaced by views, which materialise grouping at query time).
 
-ADR-0026 (Phase 2): Step 0 classification is binary — ``gated`` (noise
-centroid match → excluded from distillation) vs ``kept`` (everything
-else, funneled through a single distill pipeline). The legacy
-constitutional/uncategorized split has been collapsed; constitutional
-routing now happens at query time via ``ViewRegistry.find_by_view``
-(see ``core/constitution.py``).
+ADR-0060: each substantive engagement episode (comment / reply / post) is
+rendered richly and distilled by one grounded LLM call; the resulting
+patterns flow through the unchanged embed → cosine dedup → store tail.
+The ADR-0026 ingest-time noise gate and the fixed-size batch extract/refine
+pipeline were removed — recurrence is captured downstream when ``insight``
+clusters patterns into skills, not by pre-clustering episodes here.
 """
 
 from __future__ import annotations
 
-import hashlib
 import json as json_mod
 import logging
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
-from ._io import append_jsonl_restricted, now_iso, strip_code_fence
+from ._io import now_iso, strip_code_fence, truncate_boundary
 from .embeddings import cosine, embed_texts
 from .knowledge_store import (
     effective_importance,
@@ -34,23 +32,43 @@ from .knowledge_store import (
 from .llm import generate, get_distill_system_prompt, validate_identity_content
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import (
-    DISTILL_PROMPT,
-    DISTILL_REFINE_PROMPT,
+    DISTILL_EPISODE_PROMPT,
     IDENTITY_DISTILL_PROMPT,
 )
 from .views import ViewRegistry
 
 logger = logging.getLogger(__name__)
 
-BATCH_SIZE = 30
+# Input scope (ADR-0060): distill learns only from substantive engagement
+# episodes — comment / reply / post activity records, which carry real
+# world-grounding (original_post / their_comment / the agent's own output +
+# the pre-action internal_note). The redundant short 'interaction' / 'post'
+# records (each engagement writes both a rich activity record and a short
+# paired one) and the template sparse actions (upvote / follow / unfollow,
+# which carry no engagement content) are excluded.
+RICH_ACTIONS = frozenset({"comment", "reply", "post"})
 
-# Embedding-based dedup + noise thresholds live in ``core/thresholds.py``
-# since ADR-0035 PR2; re-exported under the historical names here so
-# existing call sites and prompt templates that reference them keep
-# working without ad-hoc late imports.
+# Per-field excerpt caps for the rich episode render (ADR-0060). Calibrated
+# to the ~p90 of measured production field lengths (see
+# docs/evidence/adr-0060/) so a single episode's grounding is near-complete;
+# one episode per LLM call fits comfortably inside NUM_CTX. internal_note is
+# in-register first-person and never capped.
+EXCERPT_CAPS = {"original_post": 4700, "their_comment": 1500, "content": 4700}
+
+# Structured-output schema for the per-episode distill call. Constrains the
+# model to emit ``{"patterns": [...]}`` at the token level (Ollama format=),
+# removing the malformed-JSON risk the 2-step bullet fallback used to absorb.
+_PATTERNS_SCHEMA = {
+    "type": "object",
+    "properties": {"patterns": {"type": "array", "items": {"type": "string"}}},
+    "required": ["patterns"],
+}
+
+# Embedding-based dedup thresholds live in ``core/thresholds.py`` since
+# ADR-0035 PR2; re-exported under the historical names here so existing call
+# sites keep working without ad-hoc late imports.
 from .thresholds import (  # noqa: E402 — module-level by design
     DEDUP_IMPORTANCE_FLOOR,
-    NOISE_THRESHOLD,
     SIM_DUPLICATE,
     SIM_UPDATE,
 )
@@ -62,15 +80,17 @@ def distill(
     episode_log: Optional[EpisodeLog] = None,
     knowledge_store: Optional[KnowledgeStore] = None,
     log_files: Optional[List[Path]] = None,
-    view_registry: Optional[ViewRegistry] = None,
-    log_dir: Optional[Path] = None,
 ) -> str:
-    """Distill recent episodes into learned patterns.
+    """Distill recent engagement episodes into learned patterns.
 
-    New patterns are embedded inline and dedup uses cosine similarity
-    against existing same-category patterns. The legacy LLM-based
-    subcategorize step has been removed (ADR-0019); grouping is now
-    query-time via views.
+    ADR-0060: each substantive engagement episode (comment / reply / post)
+    is rendered richly — the post engaged with, the other agent's comment,
+    the agent's own output, and the pre-action internal note — and distilled
+    individually by one LLM call. The resulting patterns are embedded and
+    deduplicated by cosine similarity against the live pool (the unchanged
+    tail). The former noise gate (ADR-0026 Step 0) and fixed-size batching
+    are gone: recurrence is captured downstream when ``insight`` clusters
+    patterns into skills, not by pre-clustering episodes.
 
     Args:
         days: Number of days of episodes to process.
@@ -78,9 +98,6 @@ def distill(
         episode_log: EpisodeLog instance (uses default if None).
         knowledge_store: KnowledgeStore instance (uses default if None).
         log_files: Explicit JSONL file paths to process (overrides days).
-        view_registry: ViewRegistry for Step 0 noise gating.
-        log_dir: Base directory for noise JSONL output (ADR-0027 Phase 1).
-            None disables the writer (dry-run / tests).
 
     Returns:
         The distilled patterns as a string.
@@ -112,46 +129,58 @@ def distill(
         logger.info(msg)
         return msg
 
-    # Step 0: Classify episodes via embedding centroid distance (ADR-0026:
-    # binary gated — noise centroid match is excluded, everything else is
-    # kept). Per-category routing moved to query time (views). ADR-0027
-    # Phase 1: gated episodes are appended to noise-*.jsonl as seeds
-    # unless log_dir is None (dry-run / tests).
-    classified = _classify_episodes(
-        records,
-        view_registry=view_registry,
-        log_dir=None if dry_run else log_dir,
-    )
-    if classified.gated:
-        logger.info("Step 0: %d noise episodes gated out of distillation", len(classified.gated))
+    # ADR-0060: distill only substantive engagement episodes. The redundant
+    # short paired records and the template sparse actions are filtered out;
+    # there is no noise gate (its job — keeping noise out of retrieval — is
+    # already done at query time by view centroids, ADR-0031).
+    rich = [r for r in records if _is_rich_episode(r)]
+    if not rich:
+        msg = "No engagement episodes (comment/reply/post) for distillation."
+        logger.info(msg)
+        return msg
     logger.info(
-        "Step 0: %d kept, %d gated", len(classified.kept), len(classified.gated),
+        "Distilling %d engagement episodes (filtered from %d records)",
+        len(rich), len(records),
     )
 
-    # Determine source date range from records
-    timestamps = [r.get("ts", "")[:10] for r in records if r.get("ts")]
+    # Determine source date range from the in-scope episodes. read_range
+    # returns newest-day-first, so the oldest timestamp is last — render the
+    # range oldest~newest for readable provenance.
+    timestamps = sorted(r.get("ts", "")[:10] for r in rich if r.get("ts"))
     source_date = timestamps[0] if timestamps else None
     if timestamps and timestamps[0] != timestamps[-1]:
         source_date = f"{timestamps[0]}~{timestamps[-1]}"
 
-    all_results: List[str] = []
-    total_added = 0
-    total_updated = 0
+    result = _distill_episodes(rich, knowledge, source_date, dry_run)
 
-    # ADR-0026 Phase 3: single distill pass over all kept records.
-    if classified.kept:
-        cat_results = _distill_category(
-            list(classified.kept), knowledge, source_date, dry_run,
-        )
-        all_results.extend(cat_results.results)
-        total_added += cat_results.added
-        total_updated += cat_results.updated
+    # ``results`` is empty only when every episode's LLM call returned None
+    # (an episode that yields zero patterns still records its raw output) —
+    # surface that as a message rather than a silent blank line.
+    if not result.results:
+        msg = f"Distillation extracted no patterns: all {len(rich)} episode calls failed."
+        logger.warning(msg)
+        return msg
 
-    if not dry_run and (total_added or total_updated):
+    if not dry_run and (result.added or result.updated):
         knowledge.save()
-        logger.info("Distill complete: %d added, %d updated", total_added, total_updated)
+        logger.info(
+            "Distill complete: %d added, %d updated", result.added, result.updated,
+        )
 
-    return "\n\n".join(all_results)
+    return "\n\n".join(result.results)
+
+
+def _is_rich_episode(record: Dict) -> bool:
+    """True iff this episode carries substantive world-grounding (ADR-0060).
+
+    Only ``activity`` records for ``comment`` / ``reply`` / ``post`` actions
+    carry the post engaged with, the agent's own output, and (for replies)
+    the other agent's comment. Interaction records are redundant short pairs;
+    sparse actions (upvote / follow / unfollow) carry no engagement content.
+    """
+    if record.get("type") != "activity":
+        return False
+    return (record.get("data") or {}).get("action") in RICH_ACTIONS
 
 
 def enrich(
@@ -282,150 +311,6 @@ def distill_identity(
 
 
 
-
-@dataclass(frozen=True)
-class _ClassifiedRecords:
-    """Records grouped by the ADR-0026 binary gate.
-
-    ``gated`` episodes are noise-centroid matches excluded from
-    distillation; ``kept`` episodes proceed through the single distill
-    pipeline. Per-topic routing (constitutional / self_reflection /
-    communication / ...) happens at query time via
-    ``ViewRegistry.find_by_view``, not via a persisted category.
-    """
-    kept: Tuple[Dict, ...]
-    gated: Tuple[Dict, ...]
-
-
-def _classify_episodes(
-    records: List[Dict],
-    view_registry: Optional[ViewRegistry] = None,
-    log_dir: Optional[Path] = None,
-) -> _ClassifiedRecords:
-    """Step 0: Binary gate via noise-centroid distance (ADR-0026).
-
-    Each episode summary is bulk-embedded once and compared against the
-    ``noise`` view centroid:
-
-      - noise_sim >= NOISE_THRESHOLD → gated (excluded from distillation)
-      - else                          → kept
-
-    A missing view_registry or unavailable centroid degrades safely to
-    "all kept" (no LLM fallback, no gating). The legacy three-way
-    classify path (constitutional / uncategorized / noise) has been
-    collapsed — constitutional routing moved to the insight read path
-    and to ``amend_constitution`` via views.
-
-    ADR-0027 Phase 1: when ``log_dir`` is provided, gated episodes are
-    appended to ``noise-YYYY-MM-DD.jsonl`` as seeds for later
-    re-classification. ``log_dir=None`` keeps the writer disabled (used
-    by dry-run and tests).
-    """
-    if not records:
-        return _ClassifiedRecords(kept=(), gated=())
-
-    if view_registry is None:
-        logger.warning(
-            "_classify_episodes called without view_registry — "
-            "all episodes will be kept (ADR-0019 requires views for gating)"
-        )
-        return _ClassifiedRecords(kept=tuple(records), gated=())
-
-    summaries: List[str] = []
-    for r in records:
-        record_type = r.get("type", "unknown")
-        data = r.get("data", {})
-        ts = r.get("ts", "")
-        summary = summarize_record(record_type, data)
-        episode_line = (
-            f"[{ts[:16]}] {record_type}: {summary}"
-            if summary
-            else f"[{ts[:16]}] {record_type}: (no summary)"
-        )
-        summaries.append(episode_line)
-
-    embeddings_arr = embed_texts(summaries)
-    if embeddings_arr is None or embeddings_arr.shape[0] != len(records):
-        logger.warning(
-            "Failed to embed %d episodes for classification — defaulting to kept",
-            len(records),
-        )
-        return _ClassifiedRecords(kept=tuple(records), gated=())
-
-    noise_centroid = view_registry.get_centroid("noise")
-
-    kept: List[Dict] = []
-    gated: List[Dict] = []
-    gated_log_entries: List[Tuple[Dict, float, str]] = []
-
-    for idx, r in enumerate(records):
-        emb = embeddings_arr[idx]
-        if noise_centroid is not None:
-            noise_sim = cosine(emb, noise_centroid)
-        else:
-            noise_sim = 0.0
-
-        if noise_sim >= NOISE_THRESHOLD:
-            gated.append(r)
-            gated_log_entries.append((r, float(noise_sim), summaries[idx]))
-        else:
-            kept.append(r)
-
-        if (idx + 1) % 50 == 0:
-            logger.info("Classified %d/%d episodes", idx + 1, len(records))
-
-    if log_dir is not None and gated_log_entries:
-        _write_noise_log(log_dir, view_registry, gated_log_entries)
-
-    return _ClassifiedRecords(kept=tuple(kept), gated=tuple(gated))
-
-
-def _view_centroids_hash(view_registry: Optional[ViewRegistry]) -> str:
-    """8-char SHA-256 prefix of all view centroids (ADR-0027 Phase 1).
-
-    Lets Phase 2 re-classify identify which noise records were written
-    under which centroid configuration. Views with unavailable centroids
-    are skipped — their absence is part of the fingerprint.
-    """
-    if view_registry is None:
-        return "none"
-    digest = hashlib.sha256()
-    for name in sorted(view_registry.names()):
-        centroid = view_registry.get_centroid(name)
-        if centroid is None:
-            continue
-        digest.update(name.encode("utf-8"))
-        digest.update(centroid.tobytes())
-    return digest.hexdigest()[:8]
-
-
-def _write_noise_log(
-    log_dir: Path,
-    view_registry: Optional[ViewRegistry],
-    entries: List[Tuple[Dict, float, str]],
-) -> None:
-    """Append noise-gated episodes to ``noise-YYYY-MM-DD.jsonl`` (ADR-0027 Phase 1).
-
-    Records are append-only seeds: Phase 2 re-classifies them against
-    updated centroids, Phase 3 promotes high-salience ones. Gated
-    episodes are still excluded from distillation — the writer only
-    removes the silent-discard behaviour.
-    """
-    today = datetime.now(timezone.utc).date().isoformat()
-    path = log_dir / f"noise-{today}.jsonl"
-    hash_prefix = _view_centroids_hash(view_registry)
-    for record, noise_sim, summary in entries:
-        payload = {
-            "ts": now_iso(timespec="minutes"),
-            "episode_ts": record.get("ts", ""),
-            "episode_summary": summary,
-            "noise_sim": round(noise_sim, 4),
-            "view_centroids_hash": hash_prefix,
-            "record_type": record.get("type", "unknown"),
-        }
-        append_jsonl_restricted(path, payload)
-
-
 def _episode_source_kind(record: Dict) -> str:
     """Classify one episode as 'self' / 'external' / 'unknown' (ADR-0021)."""
     record_type = record.get("type", "")
@@ -469,27 +354,64 @@ class _CategoryResult:
 
 @dataclass(frozen=True)
 class _BatchOutput:
-    """Patterns produced by the 2-step pipeline for one episode batch."""
+    """Patterns distilled from one episode (ADR-0060).
+
+    ``refined`` is the raw LLM output (kept for the returned summary string);
+    ``source_type`` and ``episode_ids`` carry the single episode's ADR-0021
+    provenance.
+    """
     refined: str
     patterns: Tuple[str, ...]
     source_type: str
     episode_ids: Tuple[str, ...]
 
 
-def _render_episode_lines(batch: List[Dict]) -> Tuple[List[str], List[str]]:
-    """Format one batch into prompt lines; return (lines, episode timestamps)."""
-    episode_lines = []
-    batch_episode_ids: List[str] = []
-    for r in batch:
-        record_type = r.get("type", "unknown")
-        data = r.get("data", {})
-        ts = r.get("ts", "")
-        summary = summarize_record(record_type, data)
-        if summary:
-            episode_lines.append(f"[{ts[:16]}] {record_type}: {summary}")
-            if ts:
-                batch_episode_ids.append(ts)
-    return episode_lines, batch_episode_ids
+def render_episode(record_type: str, data: dict) -> str:
+    """Render one episode as a rich, world-grounded block (ADR-0060).
+
+    A ``comment`` / ``reply`` / ``post`` activity record carries the post
+    the agent engaged with (``original_post``), the other agent's comment
+    (``their_comment``, replies only), the agent's own output (``content``),
+    and the pre-action ``internal_note``. Each external field is excerpted
+    with :func:`truncate_boundary` at its ADR-0060 cap; the in-register note
+    is included in full. A sparse record with none of those fields falls
+    back to the one-line :func:`summarize_record` so the caller never gets
+    an empty render.
+    """
+    if record_type != "activity":
+        return summarize_record(record_type, data)
+
+    parts: List[str] = []
+    op = data.get("original_post")
+    if op:
+        parts.append(
+            "Post I engaged with:\n"
+            + truncate_boundary(op, EXCERPT_CAPS["original_post"])
+        )
+    tc = data.get("their_comment")
+    if tc:
+        parts.append(
+            "Their comment:\n" + truncate_boundary(tc, EXCERPT_CAPS["their_comment"])
+        )
+    title = data.get("title")
+    if title:
+        parts.append("Title I gave it:\n" + title)
+    out = data.get("content")
+    action = data.get("action", "?")
+    if out:
+        parts.append(
+            f"My {action}:\n" + truncate_boundary(out, EXCERPT_CAPS["content"])
+        )
+    note = data.get("internal_note")
+    if note:
+        parts.append("What I noticed:\n" + note)  # in-register, never capped
+
+    if not parts:
+        return summarize_record(record_type, data)
+
+    target = data.get("target_agent", "")
+    header = f"[{action} {target}]" if target else f"[{action}]"
+    return header + "\n" + "\n\n".join(parts)
 
 
 def _parse_refined_patterns(refined: str) -> List[str]:
@@ -513,94 +435,83 @@ def _parse_refined_patterns(refined: str) -> List[str]:
     return raw_patterns
 
 
-def _distill_batch(
-    batch: List[Dict], batch_idx: int, n_batches: int
-) -> Optional[_BatchOutput]:
-    """Run the 2-step pipeline for one batch; None when a step fails."""
-    episode_lines, batch_episode_ids = _render_episode_lines(batch)
-    if not episode_lines:
+def _distill_one(record: Dict) -> Optional[_BatchOutput]:
+    """Distill one engagement episode into its pattern(s); None on failure.
+
+    ADR-0060: a single LLM call over the rich, world-grounded render of one
+    episode. Structured output (``format=``) constrains the model to the
+    ``{"patterns": [...]}`` shape, so the malformed-JSON the old 2-step
+    bullet fallback absorbed cannot occur. Per-episode provenance (one
+    episode's source kind and timestamp) replaces the per-batch summary.
+    """
+    record_type = record.get("type", "unknown")
+    data = record.get("data", {}) or {}
+    rendered = render_episode(record_type, data)
+    if not rendered:
         return None
 
-    batch_source_type = _derive_source_type(batch)
+    source_type = _derive_source_type([record])
+    prompt = DISTILL_EPISODE_PROMPT.format(episode=rendered)
 
-    prompt = DISTILL_PROMPT.format(episodes="\n".join(episode_lines))
-
-    # Step 1: Extract — free-form output, with rules/axioms as lens
     result = generate(
         prompt,
         system=get_distill_system_prompt(),
         num_predict=3000,
-        caller="distill.category",
+        format=_PATTERNS_SCHEMA,
+        caller="distill.episode",
     )
     if result is None:
-        logger.warning("Batch %d/%d: step 1 (extract) failed", batch_idx + 1, n_batches)
+        logger.warning("Episode distill failed (LLM returned None)")
         return None
 
-    # Step 2: Summarize — concise patterns as JSON string array
-    refine_prompt = DISTILL_REFINE_PROMPT.format(raw_output=result)
-    refined = generate(
-        refine_prompt, num_predict=3000, caller="distill.category_refine"
-    )
-    if refined is None:
-        # Audit M1: skip the batch rather than feed step-1 prose to the
-        # JSON parser — the bullet fallback would either harvest raw
-        # unrefined lines as patterns or silently yield zero while
-        # looking like a processed batch.
-        logger.warning(
-            "Batch %d/%d: step 2 (summarize) failed, skipping batch "
-            "(audit M1)",
-            batch_idx + 1, n_batches,
-        )
-        return None
-
-    raw_patterns = _parse_refined_patterns(refined)
+    raw_patterns = _parse_refined_patterns(result)
 
     # Decision gate: reject low-quality patterns
-    batch_patterns = [p for p in raw_patterns if _is_valid_pattern(p)]
-    rejected = len(raw_patterns) - len(batch_patterns)
+    patterns = [p for p in raw_patterns if _is_valid_pattern(p)]
+    rejected = len(raw_patterns) - len(patterns)
 
+    ts = record.get("ts", "")
     logger.info(
-        "Batch %d/%d: %d episodes (prompt %d chars) → %d patterns (%d rejected)",
-        batch_idx + 1, n_batches, len(batch), len(prompt), len(batch_patterns), rejected,
+        "Episode %s (prompt %d chars) → %d patterns (%d rejected)",
+        ts[:16], len(prompt), len(patterns), rejected,
     )
     return _BatchOutput(
-        refined=refined,
-        patterns=tuple(batch_patterns),
-        source_type=batch_source_type,
-        # Keep up to 5 representative timestamps so the pattern can be
-        # traced back to its originating episode window.
-        episode_ids=tuple(batch_episode_ids[:5]),
+        refined=result,
+        patterns=tuple(patterns),
+        source_type=source_type,
+        episode_ids=(ts,) if ts else (),
     )
 
 
-def _distill_category(
+def _distill_episodes(
     records: List[Dict],
     knowledge: KnowledgeStore,
     source_date: Optional[str],
     dry_run: bool,
 ) -> _CategoryResult:
-    """Run the 3-step distill pipeline over the kept records (ADR-0026).
+    """Distill each engagement episode individually, then dedup + store.
 
-    The per-category dedup scope has been retired alongside the
-    ``category`` field: dedup runs against the full live pool.
+    ADR-0060: one LLM call per episode (no fixed-size batching, no noise
+    gate). The resulting patterns flow through the unchanged embed → cosine
+    dedup → store tail; dedup runs against the full live pool, so a pattern
+    re-observed from a recurring episode is caught at the pattern level
+    (SKIP / UPDATE) without any episode-level pre-clustering.
     """
-    batches = [records[i:i + BATCH_SIZE] for i in range(0, len(records), BATCH_SIZE)]
-    logger.info("Processing %d episodes in %d batches", len(records), len(batches))
+    logger.info("Distilling %d episodes individually", len(records))
 
     all_patterns: List[str] = []
     all_source_types: List[str] = []
     all_episode_ids: List[List[str]] = []
     all_results: List[str] = []
 
-    for batch_idx, batch in enumerate(batches):
-        out = _distill_batch(batch, batch_idx, len(batches))
+    for record in records:
+        out = _distill_one(record)
         if out is None:
             continue
         all_results.append(out.refined)
         all_patterns.extend(out.patterns)
-        # ADR-0021: record source provenance per pattern. Every pattern in
-        # this batch shares the same source_type (derived from the batch's
-        # episode type mix) and the same representative episode id list.
+        # ADR-0021/0060: provenance is now per-episode — each pattern carries
+        # the source kind and timestamp of the single episode it came from.
         for _ in out.patterns:
             all_source_types.append(out.source_type)
             all_episode_ids.append(list(out.episode_ids))
@@ -690,7 +601,7 @@ def _store_new_patterns(
         provenance = {
             "source_type": source_type,
             "source_episode_ids": episode_ids,
-            "pipeline_version": "distill@0.26",
+            "pipeline_version": "distill@0.60",
         }
         knowledge.add_learned_pattern(
             pattern,

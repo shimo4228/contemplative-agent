@@ -464,6 +464,27 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0060-per-episode-grounded-distill.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0060: Per-Episode Grounded Distill — Replace Batch Extract + Noise Gate with One Grounded LLM Call per Engagement Episode",
+      "identifier": "ADR-0060",
+      "status": "accepted",
+      "datePublished": "2026-06-23",
+      "description": "Replaces the batch-extract distill pipeline and its ingest-time noise gate with one grounded LLM call per engagement episode. Since the project's first day distill never read the full text of the agent's posts/comments: its material was summarize_record's digest (internal_note full + content_summary[:80] + title + an action label), discarding original_post, the other agent's comment, and the agent's own output that activity records carry — so knowledge/identity/skills/rules were built mainly from the agent's introspection about the world (internal_note), not the world, the structural root of the self-referential register collapse the weekly diagnosis kept chasing (~120 of ~2,946 available chars/episode were used, a 24x idle). The batch step (30 episodes → one extract call → a refine call) averaged the LLM into a modal register, a flattening engine. A read-only measurement prototype (scripts/proto_grounded_distill.py; .notes/proto-distill-measurement-2026-06-22.md) over a 3-day window drove the design: (1) the briefly-locked clustering design's reinforce branch cannot fire — episode-vs-pattern cosine is cross-modal (instance vs generalization), maxing at 0.765 < the 0.80 threshold; (2) genuine episode-level near-duplication is only ~3.4% at cosine 0.90, so clustering saves ~4 calls per 3-day window; (3) loose clustering (threshold 0.70) FLATTENED — a 10-episode cluster collapsed into thematic abstractions, reproducing the register collapse being repaired; (4) singletons (one episode → one call) produced grounded, specific patterns and correctly returned [] on routine episodes. Conclusion: clustering does not earn its complexity, and recurrence is already insight's job (it clusters patterns→skills). Decision: (a) scope filter _is_rich_episode = activity records for {comment, reply, post} only, dropping the redundant short paired interaction/post records and the template sparse actions (upvote/follow/unfollow); (b) remove the noise gate entirely (_classify_episodes, _ClassifiedRecords, _view_centroids_hash, _write_noise_log, the noise-*.jsonl writer, NOISE_THRESHOLD, and distill()'s view_registry/log_dir params) — keeping noise out of retrieval is the view centroids' job at query time per ADR-0031; (c) render each episode richly (render_episode: original_post + their_comment + the agent's own content/title + internal_note full), each external field excerpted by a new boundary-aware truncate_boundary at ~p90-calibrated caps (original_post 4700, their_comment 1500, content 4700), internal_note uncapped; (d) one LLM call per episode (_distill_one) with an Ollama structured-output schema (_PATTERNS_SCHEMA) that removes the malformed-JSON the 2-step bullet fallback absorbed; (e) per-episode provenance; (f) the embed → cosine dedup → store tail is unchanged — pattern-level dedup (SIM_DUPLICATE 0.90 / SIM_UPDATE 0.80) is what prevents duplicate-pattern accumulation, so a recurring episode's pattern is caught here without episode pre-clustering. Cost: ~14x more LLM calls (~115 per 3-day window vs ~8), ~12 min/day on qwen3.5:9b (per-episode calls are ~17s, small context, no swap), accepted as the honest price of grounding. epistemic_counts shifts: every distilled episode is an activity → _episode_source_kind=self → self_reflection → generated, so observed is now structurally zero (the external world enters as grounding text, not a provenance kind). Rejected: the clustering design (reinforce can't fire, ~3.4% near-dup, clustering flattens); keeping the noise gate (redundant with ADR-0031 + insight's own defense); enriching the digest while keeping batch-extract (the averaging machine remains); lowering the reinforce threshold to ~0.72 (marks half the pool as already-known against old-register patterns; the recency-refresh is already the dedup UPDATE branch). Extends ADR-0058's observe-faithfully intent by actually feeding the external content.",
+      "supersedes": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0026-retire-discrete-categories.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0027-noise-as-seed.md"
+      ],
+      "extends": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0056-retire-importance-llm-scoring.md",
+      "alignsWith": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0031-classification-as-query.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0019-discrete-categories-to-embedding-views.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0058-value-injection-at-action-time.md",
+        "https://shimo4228.github.io/shimo4228/vocab#axiom/mindfulness"
+      ],
+      "belongsToPhase": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/extract"
+    },
+    {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0022-memory-evolution-and-hybrid-retrieval.md",
       "@type": ["ADR", "TechArticle"],
       "name": "ADR-0022: Memory Evolution + Hybrid Retrieval (BM25)",
