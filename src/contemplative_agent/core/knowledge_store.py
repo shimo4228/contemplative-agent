@@ -305,8 +305,10 @@ def _entry_from_dict(item: dict) -> dict:
     }
     if item.get("source") is not None:
         entry["source"] = item["source"]
-    if item.get("last_accessed") is not None:
-        entry["last_accessed"] = item["last_accessed"]
+    # ADR-0028: ``last_accessed`` (pattern-layer forgetting) is no longer
+    # restored on read. It was never read after restore once forgetting was
+    # retired; legacy files load cleanly and the field is silently dropped on
+    # the next save (same shed pattern as ADR-0051/0056, zero information loss).
     # ADR-0026: ``category`` / ``subcategory`` are no longer
     # restored on read. If a legacy file is loaded, the
     # field is silently dropped on the next save (ADR-0035

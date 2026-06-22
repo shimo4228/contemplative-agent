@@ -168,6 +168,32 @@ class TestRoundTripADR0021:
         assert "trust_updated_at" not in on_disk[0]
         assert "importance" not in on_disk[0]
 
+    def test_legacy_last_accessed_loads_cleanly_and_is_shed(self, tmp_path: Path):
+        """ADR-0028: rows carrying ``last_accessed`` (pattern-layer forgetting)
+        load without error, the field is not carried into memory, and the next
+        save writes it out of the file."""
+        path = tmp_path / "k.json"
+        legacy = [
+            {
+                "pattern": "legacy row with a last_accessed forgetting field",
+                "distilled": "2026-03-01T00:00",
+                "provenance": {"source_type": "self_reflection"},
+                "last_accessed": "2026-03-15T12:00",
+                "valid_from": "2026-03-01T00:00",
+                "valid_until": None,
+            }
+        ]
+        path.write_text(json.dumps(legacy), encoding="utf-8")
+        store = KnowledgeStore(path=path)
+        store.load()
+        p = store.get_raw_patterns()[0]
+        assert "last_accessed" not in p
+        assert p["provenance"]["source_type"] == "self_reflection"
+
+        store.save()
+        on_disk = json.loads(path.read_text(encoding="utf-8"))
+        assert "last_accessed" not in on_disk[0]
+
 
 class TestEffectiveImportance:
     def test_fresh_pattern_scores_near_one(self):
