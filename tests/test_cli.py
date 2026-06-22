@@ -116,6 +116,75 @@ class TestMainSolve:
         mock_agent.do_solve.assert_called_once_with("test text")
 
 
+class TestSyncDataSmoke:
+    """F7: argv parse → dispatch → _handle_sync_data → _run_sync wiring.
+
+    The shell script boundary (subprocess.run) is mocked so no real sync runs.
+    """
+
+    @patch("pathlib.Path.exists", return_value=True)
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_sync_data_runs_clean(self, mock_run, _mock_exists, capsys):
+        mock_run.return_value = MagicMock(returncode=0, stdout="synced", stderr="")
+
+        with patch("sys.argv", ["contemplative-agent", "sync-data"]):
+            main()  # must not raise / exit non-zero
+
+        # Path.exists is forced True so the subprocess boundary is always
+        # exercised regardless of cwd / checkout layout — proves the full
+        # argv → _handle_sync_data → _run_sync → subprocess.run wiring.
+        mock_run.assert_called_once()
+        assert "synced" in capsys.readouterr().out
+
+
+class TestGenerateReportSmoke:
+    """F7: argv parse → Tier-2 config → _handle_generate_report wiring."""
+
+    @patch("contemplative_agent.core.report.generate_report")
+    def test_generate_report_single_date(self, mock_gen, capsys):
+        mock_gen.return_value = Path("/tmp/report.md")
+
+        with patch("sys.argv", ["contemplative-agent", "generate-report", "--date", "2026-06-23"]):
+            main()
+
+        mock_gen.assert_called_once()
+        assert "Report generated" in capsys.readouterr().out
+
+    @patch("contemplative_agent.core.report.generate_all_reports")
+    def test_generate_report_all_dates(self, mock_gen_all, capsys):
+        mock_gen_all.return_value = [Path("/tmp/a.md"), Path("/tmp/b.md")]
+
+        with patch("sys.argv", ["contemplative-agent", "generate-report", "--all"]):
+            main()
+
+        mock_gen_all.assert_called_once()
+        assert "Generated 2 reports" in capsys.readouterr().out
+
+
+class TestMeditateSmoke:
+    """F7: argv parse → Tier-2 config → _handle_meditate wiring.
+
+    The active-inference math (POMDP build / meditate / interpret) is mocked;
+    this verifies only that the subcommand parses and dispatches.
+    """
+
+    @patch("contemplative_agent.adapters.meditation.report.interpret_and_save")
+    @patch("contemplative_agent.adapters.meditation.meditate.meditate")
+    @patch("contemplative_agent.adapters.meditation.pomdp.build_matrices")
+    def test_meditate_dry_run(self, mock_build, mock_meditate, mock_interpret, capsys):
+        mock_build.return_value = MagicMock()
+        mock_meditate.return_value = MagicMock()
+        mock_interpret.return_value = "meditation summary"
+
+        with patch("sys.argv", ["contemplative-agent", "meditate", "--days", "1", "--cycles", "1", "--dry-run"]):
+            main()
+
+        mock_build.assert_called_once()
+        mock_meditate.assert_called_once()
+        mock_interpret.assert_called_once()
+        assert "meditation summary" in capsys.readouterr().out
+
+
 class TestAutonomyFlags:
     @patch("contemplative_agent.cli.Agent")
     def test_approve_flag(self, mock_agent_cls):
