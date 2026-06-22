@@ -87,8 +87,20 @@ def generate_internal_note(content: str) -> str:
     """
     if not INTERNAL_NOTE_PROMPT:
         return ""
+    # Cap at the sum of the platform field limits so realistic content is
+    # never cut (ADR-0060 pattern, mirrored from distill's EXCERPT_CAPS): a
+    # mid-word slice here is read by the note's contemplative register as a
+    # deliberate "pause" rather than as clipping. ``content`` is a post on the
+    # feed path and ``post + sep + comment`` on the reply path; this bound
+    # generously covers both (only content that already exceeds the platform
+    # limits could reach it, and then by at most the separator's length). The
+    # cap is now only a NUM_CTX safety valve — real posts (p90 ≈ 4.7K chars)
+    # never reach it; a pathological max render is skipped by generate()'s
+    # budget guard, not silently mid-word-truncated here.
     prompt = INTERNAL_NOTE_PROMPT.format(
-        content=wrap_untrusted_content(content, max_input=1000),
+        content=wrap_untrusted_content(
+            content, max_input=MAX_POST_LENGTH + MAX_COMMENT_LENGTH
+        ),
     )
     # Identity-only system: the note keeps the first-person register but
     # not the learned corpus, cutting the vocabulary feedback path
@@ -104,12 +116,16 @@ def generate_internal_note(content: str) -> str:
 def generate_comment(post_text: str) -> Optional[str]:
     """Generate a contextual comment for a post.
 
-    ``max_input=8000`` (audit C2): the post body is fully fetched (up to
-    40K chars) before commenting; unbounded, it could push the prompt past
-    num_ctx and silently front-truncate the system prompt's value layer.
+    ``max_input=MAX_POST_LENGTH`` (ADR-0060 pattern): the cap is set to the
+    platform post-length limit so realistic content is never cut — a good
+    comment needs the whole post, and a mid-word slice is read as a deliberate
+    pause rather than clipping. Since a real post cannot exceed the platform
+    limit, this branch never truncates real content; it is a NUM_CTX safety
+    valve only (a pathological all-CJK max post is skipped by generate()'s
+    budget guard, which protects the system prompt's value layer).
     """
     prompt = COMMENT_PROMPT.format(
-        post_content=wrap_untrusted_content(post_text, max_input=8000)
+        post_content=wrap_untrusted_content(post_text, max_input=MAX_POST_LENGTH)
     )
     # chars_per_token=1.5 (audit M2): CJK output runs 1.5-2 chars/tok; the
     # /3 default under-budgets num_predict and cuts Japanese mid-sentence.
@@ -184,11 +200,15 @@ def generate_reply(
     their_comment: str,
 ) -> Optional[str]:
     """Generate a reply that continues a conversation thread."""
-    # max_input=8000 on both (audit C2) — same prompt-size bound as the
-    # comment path, so num_ctx cannot overflow on long posts/comments.
+    # Caps set to the platform field limits (ADR-0060 pattern): a reply needs
+    # the whole post and comment, and a mid-word slice is read as a deliberate
+    # pause rather than clipping. Real content cannot exceed these limits, so
+    # neither branch truncates real content — they are NUM_CTX safety valves
+    # only (worst-case ASCII ≈16.7K tok via _estimate_tokens /3, well under the
+    # 32768 budget; a pathological all-CJK max is skipped by generate()'s guard).
     prompt = REPLY_PROMPT.format(
-        original_post=wrap_untrusted_content(original_post, max_input=8000),
-        their_comment=wrap_untrusted_content(their_comment, max_input=8000),
+        original_post=wrap_untrusted_content(original_post, max_input=MAX_POST_LENGTH),
+        their_comment=wrap_untrusted_content(their_comment, max_input=MAX_COMMENT_LENGTH),
     )
     # chars_per_token=1.5 (audit M2): same CJK output budget as the comment
     # path — see generate_comment.

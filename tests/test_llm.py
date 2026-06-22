@@ -403,6 +403,30 @@ class TestGenerateInternalNote:
         )
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_realistic_long_content_marked_complete(self, mock_generate):
+        """ADR-0060 pattern: the note caps content at the platform field
+        limits so realistic content is never cut — a mid-word slice was read
+        as a deliberate pause (weekly-2026-06-21 F1.1)."""
+        mock_generate.return_value = "noticed"
+        generate_internal_note("p" * 9000)
+        prompt = mock_generate.call_args[0][0]
+        assert "is complete (9000 chars)" in prompt
+        assert "truncated" not in prompt
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_out_of_spec_content_truncated_at_platform_sum(self, mock_generate):
+        from contemplative_agent.core.config import (
+            MAX_COMMENT_LENGTH,
+            MAX_POST_LENGTH,
+        )
+
+        cap = MAX_POST_LENGTH + MAX_COMMENT_LENGTH
+        mock_generate.return_value = "noticed"
+        generate_internal_note("p" * (cap + 500))
+        prompt = mock_generate.call_args[0][0]
+        assert f"truncated to the first {cap} of {cap + 500} chars" in prompt
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
     def test_none_returns_empty(self, mock_generate):
         mock_generate.return_value = None
         assert generate_internal_note("some post") == ""
@@ -973,16 +997,31 @@ class TestGenerateComment:
 
 
 class TestGenerateCommentMaxInput:
-    """audit C2: the comment path wraps the (fully fetched, up to 40K chars)
-    post body at max_input=8000 so the prompt stays inside num_ctx and the
-    front-loaded system prompt (identity/axioms) cannot be truncated away."""
+    """ADR-0060 pattern: the comment path caps the post body at the platform
+    limit (MAX_POST_LENGTH) so realistic content is never cut — a mid-word
+    slice is read as a deliberate pause. The cap is only a num_ctx safety
+    valve, firing solely for out-of-spec input above the platform limit."""
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
-    def test_long_post_truncated_to_8000(self, mock_gen):
+    def test_realistic_long_post_marked_complete(self, mock_gen):
         mock_gen.return_value = "a comment"
         generate_comment("p" * 9000)
         prompt = mock_gen.call_args[0][0]
-        assert "truncated to the first 8000 of 9000 chars" in prompt
+        # 9000 < MAX_POST_LENGTH (40000): no longer truncated mid-word.
+        assert "is complete (9000 chars)" in prompt
+        assert "truncated" not in prompt
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_out_of_spec_post_truncated_at_platform_limit(self, mock_gen):
+        from contemplative_agent.core.config import MAX_POST_LENGTH
+
+        mock_gen.return_value = "a comment"
+        generate_comment("p" * (MAX_POST_LENGTH + 500))
+        prompt = mock_gen.call_args[0][0]
+        assert (
+            f"truncated to the first {MAX_POST_LENGTH} of "
+            f"{MAX_POST_LENGTH + 500} chars" in prompt
+        )
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_short_post_marked_complete(self, mock_gen):
@@ -1046,22 +1085,44 @@ class TestGenerateReply:
 
 
 class TestGenerateReplyMaxInput:
-    """audit C2: the reply path wraps both original_post and their_comment
-    at max_input=8000 — same prompt-size bound as the comment path."""
+    """ADR-0060 pattern: the reply path caps original_post at MAX_POST_LENGTH
+    and their_comment at MAX_COMMENT_LENGTH — the platform field limits, so
+    realistic content is never cut mid-word. The caps are num_ctx safety
+    valves, firing solely for out-of-spec input above the platform limits."""
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
-    def test_long_original_post_truncated(self, mock_gen):
+    def test_realistic_long_inputs_marked_complete(self, mock_gen):
         mock_gen.return_value = "a reply"
-        generate_reply("p" * 9000, "their comment")
+        # 9000 < MAX_POST_LENGTH, 8500 < MAX_COMMENT_LENGTH: neither cut.
+        generate_reply("p" * 9000, "c" * 8500)
         prompt = mock_gen.call_args[0][0]
-        assert "truncated to the first 8000 of 9000 chars" in prompt
+        assert "is complete (9000 chars)" in prompt
+        assert "is complete (8500 chars)" in prompt
+        assert "truncated" not in prompt
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
-    def test_long_their_comment_truncated(self, mock_gen):
+    def test_out_of_spec_original_post_truncated_at_platform_limit(self, mock_gen):
+        from contemplative_agent.core.config import MAX_POST_LENGTH
+
         mock_gen.return_value = "a reply"
-        generate_reply("post", "c" * 8500)
+        generate_reply("p" * (MAX_POST_LENGTH + 500), "their comment")
         prompt = mock_gen.call_args[0][0]
-        assert "truncated to the first 8000 of 8500 chars" in prompt
+        assert (
+            f"truncated to the first {MAX_POST_LENGTH} of "
+            f"{MAX_POST_LENGTH + 500} chars" in prompt
+        )
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
+    def test_out_of_spec_their_comment_truncated_at_platform_limit(self, mock_gen):
+        from contemplative_agent.core.config import MAX_COMMENT_LENGTH
+
+        mock_gen.return_value = "a reply"
+        generate_reply("post", "c" * (MAX_COMMENT_LENGTH + 500))
+        prompt = mock_gen.call_args[0][0]
+        assert (
+            f"truncated to the first {MAX_COMMENT_LENGTH} of "
+            f"{MAX_COMMENT_LENGTH + 500} chars" in prompt
+        )
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_short_inputs_marked_complete(self, mock_gen):

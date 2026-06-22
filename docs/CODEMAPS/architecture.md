@@ -56,7 +56,10 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │    internal_note (ADR-0045) → reply → post → EpisodeLog
  ├─ Agent._run_feed_cycle()
  │    fetch → promo filter → ID dedup → per-author cap (3/24h)
- │    → score_relevance (LLM) → comment → Scheduler budget gate
+ │    → score_relevance (LLM, on 500-char feed preview — cheap gate)
+ │    → fetch full body  [ADR-0061; before the note, not just the comment]
+ │    → internal_note + comment (read the FULL post, not the preview)
+ │    → Scheduler budget gate
  ├─ PostPipeline._run_post_cycle()
  │    feed_seeder.select_feed_seeds()        [ADR-0043]
  │      relevance ≥ 0.4 | RNG 1-3 posts | 15000-char budget

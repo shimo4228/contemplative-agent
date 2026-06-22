@@ -171,6 +171,19 @@ class FeedManager:
 
         score = score_relevance(post_text)
         threshold = self._relevance_threshold(author_id)
+        # Fetch the full body BEFORE we read the post for real — for the note
+        # (score >= upvote_only_threshold) or the comment (score >= threshold),
+        # whichever bar is lower. Scoring is a cheap gate that runs on every
+        # post and stays on the 500-char submolt preview, but the note and the
+        # comment must read the whole post: a mid-word preview cut was read by
+        # the note's contemplative register as a deliberate pause rather than
+        # clipping, and wrap_untrusted_content labelled the 500-char preview
+        # "complete" because it is under max_input (weekly-2026-06-21 F1.1).
+        # Following-feed posts are already full (len != preview), so this is a
+        # no-op then; it also respects the read budget.
+        engage_bar = min(ADAPTIVE_BACKOFF.upvote_only_threshold, threshold)
+        if score >= engage_bar:
+            post_text = self._fetch_full_if_truncated(post, post_text, client)
         # Pre-action reflection (ADR-0045): note what we noticed reading this
         # post before acting. Generated once for any post we may engage with
         # and shared across the upvote/comment episodes below. A separate,
@@ -196,14 +209,11 @@ class FeedManager:
             logger.info("Comment rate limit reached")
             return False
 
-        # Submolt feeds return content truncated to a preview. We only learn a
-        # post is comment-worthy after scoring, so fetch the full body here —
-        # right before the comment that gets posted publicly and recorded as
-        # original_post. Following-feed posts are already full (len != preview).
-        # Scoring and the internal note above ran on the preview by design
-        # (cheap, gate-first); only the comment and the record get the full body.
-        post_text = self._fetch_full_if_truncated(post, post_text, client)
-
+        # post_text is already the full body here: the engage-bar fetch above
+        # runs whenever score clears min(upvote_only_threshold, threshold), and
+        # the comment path is only reached when score >= threshold (>= that
+        # bar). The earlier fetch is the single source of the full body, so the
+        # public comment and the recorded original_post use it.
         comment = self._get_content().create_comment(post_text)
         if comment is None:
             return False

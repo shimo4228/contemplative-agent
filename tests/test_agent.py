@@ -782,6 +782,36 @@ class TestEngageWithPost:
         return_value="note",
     )
     @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
+    def test_internal_note_runs_on_full_body_not_preview(
+        self, mock_score, mock_note, mock_random, mock_time, tmp_path
+    ):
+        """weekly-2026-06-21 F1.1: the internal note must read the FULL post,
+        not the 500-char submolt preview — a mid-word preview cut was misread
+        by the note's register as a deliberate pause, and the wrapper labelled
+        the under-max_input preview "complete". The full body is fetched before
+        the note, so the note sees it."""
+        mock_random.uniform.return_value = 60.0
+        preview = "x" * 500
+        full = preview + " ...the rest the submolt feed truncated away."
+        agent = self._make_agent(tmp_path)
+        agent._client.has_read_budget.return_value = True
+        agent._client.get_post.return_value = {"id": "post1", "content": full}
+        agent._content.create_comment.return_value = "Great insight"
+        agent._client.post_comment.return_value = {"id": "c-new"}
+
+        agent._feed_manager.engage_with_post(
+            {"content": preview, "id": "post1"}, agent._client, agent._scheduler
+        )
+
+        mock_note.assert_called_once_with(full)
+
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
+    @patch(
+        "contemplative_agent.adapters.moltbook.feed_manager.generate_internal_note",
+        return_value="note",
+    )
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_full_post_skips_fetch(
         self, mock_score, mock_note, mock_random, mock_time, tmp_path
     ):
