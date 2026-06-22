@@ -23,6 +23,7 @@ import numpy as np
 
 from ._io import now_iso, strip_code_fence, truncate_boundary
 from .embeddings import cosine, embed_texts
+from .config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH
 from .knowledge_store import (
     effective_importance,
     epistemic_counts_for,
@@ -48,12 +49,23 @@ logger = logging.getLogger(__name__)
 # which carry no engagement content) are excluded.
 RICH_ACTIONS = frozenset({"comment", "reply", "post"})
 
-# Per-field excerpt caps for the rich episode render (ADR-0060). Calibrated
-# to the ~p90 of measured production field lengths (see
-# docs/evidence/adr-0060/) so a single episode's grounding is near-complete;
-# one episode per LLM call fits comfortably inside NUM_CTX. internal_note is
-# in-register first-person and never capped.
-EXCERPT_CAPS = {"original_post": 4700, "their_comment": 1500, "content": 4700}
+# Per-field excerpt caps for the rich episode render (ADR-0060). Set to the
+# platform field limits so realistic content is never cut: one episode per
+# LLM call fits inside NUM_CTX with margin even at platform max — the
+# worst-case reply (post 40000 + comment 10000 + own reply 10000 + note)
+# estimates ≈21.6k input tokens for ASCII (llm._estimate_tokens, /3), well
+# under the 32768 budget after num_predict. truncate_boundary stays as a
+# structural guard for out-of-spec data; a pathological all-CJK max render
+# would be skipped by the NUM_CTX guard in generate() (logged, not corrupt).
+# internal_note is in-register first-person and never capped. Measured
+# production field lengths (p90 ≈ original_post 4700 / content 4700 /
+# their_comment 1500, max ≈ 7400) are well within these, so nothing real is
+# truncated — see docs/evidence/adr-0060/.
+EXCERPT_CAPS = {
+    "original_post": MAX_POST_LENGTH,
+    "their_comment": MAX_COMMENT_LENGTH,
+    "content": MAX_POST_LENGTH,
+}
 
 # Structured-output schema for the per-episode distill call. Constrains the
 # model to emit ``{"patterns": [...]}`` at the token level (Ollama format=),

@@ -77,9 +77,18 @@ Distill each substantive engagement episode individually through a single ground
 3. **Render each episode richly (`render_episode`).** Produce a header followed by:
    `original_post`, `their_comment` (replies), the agent's own `content` and `title` (for posts),
    and `internal_note` in full. Each external field is excerpted by a new `truncate_boundary`
-   helper (sentence → word → character, with a marker) at `EXCERPT_CAP` values calibrated to
-   approximately the 90th percentile of measured field lengths (`original_post` 4700 chars,
-   `their_comment` 1500 chars, `content` 4700 chars). `internal_note` is never capped.
+   helper (sentence → word → character, with a marker) at `EXCERPT_CAP` values set to the
+   platform field limits (`original_post`/`content` = `MAX_POST_LENGTH` 40000, `their_comment` =
+   `MAX_COMMENT_LENGTH` 10000), so realistic content is never cut: one episode per LLM call fits
+   inside `NUM_CTX` (32768) with margin even at platform max — the worst-case reply estimates
+   ≈21.6k input tokens for ASCII content (`llm._estimate_tokens`, ~3 chars/token) against a
+   ~29k input budget after `num_predict`. `truncate_boundary` remains a structural guard for
+   out-of-spec data; a pathological all-CJK render at platform max would be skipped (logged, not
+   corrupted) by the existing `NUM_CTX` over-budget guard in `generate()`. `internal_note` is
+   never capped. The measured field-length distribution (p90 ≈ original_post 4700 / content 4700 /
+   their_comment 1500, max ≈ 7400; `docs/evidence/adr-0060/`) sits well within these caps, so no
+   real episode is truncated — an earlier ~p90 cap choice was over-conservative given the NUM_CTX
+   headroom.
 
 4. **One LLM call per episode (`_distill_one`) with structured output.** Use the new
    `config/prompts/distill_episode.md` prompt constrained by an Ollama structured-output schema

@@ -639,19 +639,24 @@ class TestRenderEpisode:
         assert "[post]" in out
         assert "[post ]" not in out
 
-    def test_excerpt_fields_are_boundary_truncated(self):
-        long_post = ("First sentence is short. "
-                     + "x" * (EXCERPT_CAPS["original_post"] + 500))
+    def test_excerpt_fields_are_boundary_truncated(self, monkeypatch):
+        # Caps are platform-max in production (realistic content is never
+        # cut); patch a small cap to verify render *does* apply the guard
+        # when a field genuinely exceeds it (out-of-spec / future limits).
+        monkeypatch.setitem(EXCERPT_CAPS, "original_post", 100)
+        long_post = "First sentence is short. " + "x" * 500
         out = render_episode("activity", {
             "action": "comment", "original_post": long_post,
             "content": "short", "internal_note": "n",
         })
         assert "[truncated]" in out
-        # the rendered post excerpt is capped near its limit (+ headers)
-        assert len(out) < EXCERPT_CAPS["original_post"] + 400
+        assert len(out) < 100 + 400  # capped excerpt + headers
 
-    def test_internal_note_never_capped(self):
-        long_note = "y" * (EXCERPT_CAPS["content"] + 3000)
+    def test_internal_note_never_capped(self, monkeypatch):
+        # note ignores the excerpt caps entirely: even with a tiny content
+        # cap, a long note is rendered in full.
+        monkeypatch.setitem(EXCERPT_CAPS, "content", 50)
+        long_note = "y" * 2000
         out = render_episode("activity", {
             "action": "comment", "original_post": "p",
             "content": "c", "internal_note": long_note,

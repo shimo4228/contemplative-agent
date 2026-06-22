@@ -77,14 +77,25 @@ removes the flattening component entirely.
 
 ## Excerpt-cap calibration (raw activity field lengths, chars)
 
-| field | n | p50 | p90 | max | chosen cap |
-|---|---|---|---|---|---|
-| original_post | 88–99 | ~1340 | ~4500–4700 | ~6100–7000 | 4700 (~p90) |
-| their_comment | 10–11 | ~500 | ~1400 | ~1850 | 1500 (~p90) |
-| content (own output) | 105–117 | ~2160 | ~4400–4660 | ~7400 | 4700 (~p90) |
-| internal_note | 117–196 | ~1260 | ~1960 | ~3280 | uncapped (in-register) |
+| field | n | p50 | p90 | max |
+|---|---|---|---|---|
+| original_post | 88–99 | ~1340 | ~4500–4700 | ~6100–7000 |
+| their_comment | 10–11 | ~500 | ~1400 | ~1850 |
+| content (own output) | 105–117 | ~2160 | ~4400–4660 | ~7400 |
+| internal_note | 117–196 | ~1260 | ~1960 | ~3280 |
 
-A single episode at these caps fits comfortably inside `NUM_CTX=32768`.
+The caps were initially set to ~p90, but that was over-conservative: `NUM_CTX=32768`
+has far more room than one episode needs. The chosen caps are the **platform field
+limits** (`MAX_POST_LENGTH` 40000 for original_post/content, `MAX_COMMENT_LENGTH`
+10000 for their_comment; internal_note uncapped), so realistic content is never cut.
+Worst-case fit (the conservative `llm._estimate_tokens`: ASCII ~3 chars/tok, CJK
+1 tok/char): an all-ASCII reply at platform max (40000 + 10000 + 10000 + note +
+wrapper) ≈ 21.6k input tokens + `num_predict` 3000 ≈ 24.6k < 32768 — fits with
+~8k tokens to spare. Only a pathological all-CJK render at platform max would
+overflow, and the existing `NUM_CTX` over-budget guard in `generate()` skips
+(logs, never corrupts) that case. Since observed maxima (~7400) are far below the
+caps, `truncate_boundary` is a no-op on real episodes and acts only as a
+structural guard.
 
 ## Post-implementation smoke (2026-06-23, `distill --dry-run --days 1`, real data)
 
