@@ -931,3 +931,46 @@ class TestGetPriorCommentTargets:
         assert len(targets) == 3
         # Should be the most recent 3 (records appended in order).
         assert targets == ["body 7", "body 8", "body 9"]
+
+
+class TestEpisodeLoadSchemaDriftVisibility:
+    """D9 regression (ultracode sweep 2026-06-23).
+
+    _load_episodes_into_memory drops records whose persisted shape no longer
+    matches the dataclass (TypeError). A schema change that adds a required
+    field without a default would drop EVERY legacy record while leaving the
+    suite green. Well-formed records must still load, and a mass-drop must be
+    observable via an aggregate WARNING (not just per-record noise).
+    """
+
+    def _good_interaction(self) -> dict:
+        return {
+            "timestamp": "2026-06-23T10:00:00+00:00",
+            "agent_id": "a1",
+            "agent_name": "Alice",
+            "post_id": "p1",
+            "direction": "sent",
+            "content_summary": "a grounded comment",
+            "interaction_type": "comment",
+        }
+
+    def test_well_formed_records_load_and_drop_is_aggregated(self, tmp_path, caplog):
+        store = MemoryStore(path=tmp_path / "mem.json")
+        store.episodes.append("interaction", self._good_interaction())
+        # A legacy/malformed record: an unexpected field → Interaction(**data)
+        # raises TypeError (the same failure a required-field schema change
+        # would produce for every old record).
+        bad = self._good_interaction()
+        bad["agent_id"] = "a2"
+        bad["obsolete_field"] = "from an older schema"
+        store.episodes.append("interaction", bad)
+
+        with caplog.at_level("WARNING"):
+            store.load()
+
+        # The well-formed record loaded; the malformed one did not.
+        assert store.known_agents == {"a1": "Alice"}
+        # The mass-drop is observable as an aggregate WARNING with the ratio.
+        assert any(
+            "Dropped 1/2 interaction records" in r.message for r in caplog.records
+        )

@@ -108,6 +108,12 @@ class KnowledgeStore:
     def __init__(self, path: Optional[Path] = None) -> None:
         self._path = path
         self._learned_patterns: List[dict] = []  # [{"pattern": str, "distilled": str}]
+        # True when load() found an existing file it could not read/parse.
+        # In that state save() must NOT overwrite the on-disk file with the
+        # empty in-memory list — that would destroy the persisted patterns
+        # (see HIGH-4, ultracode sweep 2026-06-23). A fresh store with no
+        # backing file leaves this False so the first save() can create it.
+        self._load_failed = False
 
     def has_persisted_file(self) -> bool:
         """Check whether the backing JSON file exists on disk."""
@@ -179,9 +185,19 @@ class KnowledgeStore:
         return list(self._learned_patterns)
 
     def _filter_since(self, since: str, pool: List[dict]) -> List[dict]:
-        """Return dicts from pool distilled after since. Returns all on bad timestamp."""
+        """Return dicts from pool distilled after since. Returns all on bad timestamp.
+
+        Both sides are coerced to tz-aware (naive → UTC), matching
+        ``effective_importance``. Without this, comparing a tz-naive
+        ``distilled`` against a tz-aware ``since`` (or vice versa) raised
+        TypeError and silently dropped the pattern from the result — a latent
+        data-loss path for "since" queries (ultracode sweep 2026-06-23).
+        """
+        def _aware(dt: datetime) -> datetime:
+            return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+
         try:
-            since_dt = datetime.fromisoformat(since)
+            since_dt = _aware(datetime.fromisoformat(since))
         except (ValueError, TypeError):
             return list(pool)
         result = []
@@ -190,9 +206,11 @@ class KnowledgeStore:
             if not distilled or distilled == "unknown":
                 continue
             try:
-                if datetime.fromisoformat(distilled) > since_dt:
+                if _aware(datetime.fromisoformat(distilled)) > since_dt:
                     result.append(p)
             except (ValueError, TypeError):
+                # Genuinely malformed timestamp string — skip this one record
+                # only (no longer reachable via tz naive/aware mismatch).
                 continue
         return result
 
@@ -223,6 +241,7 @@ class KnowledgeStore:
         Also handles legacy Markdown format for migration.
         """
         self._learned_patterns = []
+        self._load_failed = False
         if self._path is None or not self._path.exists():
             logger.debug("No knowledge file at %s", self._path)
             return
@@ -230,6 +249,7 @@ class KnowledgeStore:
             text = self._path.read_text(encoding="utf-8")
         except OSError as exc:
             logger.warning("Failed to read knowledge file: %s", exc)
+            self._load_failed = True
             return
 
         # Validate against forbidden patterns
@@ -241,6 +261,7 @@ class KnowledgeStore:
                     "file may be tainted, skipping load",
                     pat,
                 )
+                self._load_failed = True
                 return
 
         # Knowledge files are JSON since v2.0 (ADR-0019). Non-JSON shapes
@@ -254,11 +275,28 @@ class KnowledgeStore:
                 "Knowledge file is not a JSON array; legacy Markdown is no "
                 "longer supported. Restore from a `.bak` file if needed."
             )
+            self._load_failed = True
 
     def save(self) -> None:
-        """Persist learned patterns to JSON file using atomic write."""
+        """Persist learned patterns to JSON file using atomic write.
+
+        Refuses to write when the most recent ``load()`` failed on an
+        existing file (HIGH-4, ultracode sweep 2026-06-23): a failed load
+        leaves ``_learned_patterns`` empty, so an unconditional save would
+        atomically replace a populated file with ``[]`` and no ``.bak``.
+        Persisting an empty list over unreadable-but-present data is treated
+        as data loss; the operator must restore from a backup or fix the file.
+        """
         if self._path is None:
             logger.debug("No knowledge path configured, skipping save")
+            return
+        if self._load_failed:
+            logger.error(
+                "Refusing to save knowledge file: the last load() failed on an "
+                "existing file at %s, so the in-memory store may be empty. "
+                "Restore from a `.bak` or fix the file before saving.",
+                self._path,
+            )
             return
         self._path.parent.mkdir(parents=True, exist_ok=True)
         content = json.dumps(self._learned_patterns, ensure_ascii=False, indent=2) + "\n"
@@ -277,9 +315,11 @@ class KnowledgeStore:
             data = json.loads(text)
         except json.JSONDecodeError as exc:
             logger.warning("Failed to parse knowledge JSON: %s", exc)
+            self._load_failed = True
             return
         if not isinstance(data, list):
             logger.warning("Knowledge JSON is not an array")
+            self._load_failed = True
             return
         for item in data:
             if isinstance(item, dict) and isinstance(item.get("pattern"), str):

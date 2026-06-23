@@ -59,6 +59,71 @@ class TestLoadIdempotency:
         assert texts == ["persisted pattern written to disk"]
 
 
+class TestSaveRefusesAfterFailedLoad:
+    """HIGH-4 regression (ultracode sweep 2026-06-23).
+
+    When load() finds an existing file it cannot read/parse it leaves
+    _learned_patterns empty. An unconditional save() would then atomically
+    replace the populated file with `[]` and no `.bak` — destroying ~all
+    persisted patterns. save() must refuse while _load_failed is set.
+    """
+
+    def _populated_file(self, tmp_path: Path) -> Path:
+        path = tmp_path / "k.json"
+        seed = KnowledgeStore(path=path)
+        seed.add_learned_pattern("first persisted behavior pattern from the logs")
+        seed.add_learned_pattern("second persisted behavior pattern from the logs")
+        seed.save()
+        return path
+
+    def test_forbidden_pattern_load_then_save_does_not_wipe_file(self, tmp_path: Path):
+        path = self._populated_file(tmp_path)
+        # Taint the file with a forbidden substring (config: "api_key").
+        path.write_text(path.read_text().replace("first", "api_key first"), "utf-8")
+
+        store = KnowledgeStore(path=path)
+        store.load()  # forbidden pattern → load fails, in-memory list empty
+        assert store.get_raw_patterns() == []
+        store.save()  # must be a no-op, not an empty overwrite
+
+        # File on disk is untouched: a fresh clean store still loads 2 patterns.
+        path.write_text(path.read_text().replace("api_key first", "first"), "utf-8")
+        recovered = KnowledgeStore(path=path)
+        recovered.load()
+        assert len(recovered.get_raw_patterns()) == 2
+
+    def test_corrupt_json_load_then_save_does_not_wipe_file(self, tmp_path: Path):
+        path = self._populated_file(tmp_path)
+        original = path.read_text()
+        path.write_text("[ this is not valid json", "utf-8")
+
+        store = KnowledgeStore(path=path)
+        store.load()  # JSONDecodeError → load fails
+        assert store.get_raw_patterns() == []
+        store.save()  # no-op
+
+        # The corrupt bytes are still there (not replaced with "[]").
+        assert path.read_text() == "[ this is not valid json"
+        # And restoring the original content reloads cleanly.
+        path.write_text(original, "utf-8")
+        recovered = KnowledgeStore(path=path)
+        recovered.load()
+        assert len(recovered.get_raw_patterns()) == 2
+
+    def test_fresh_store_with_no_file_can_still_save(self, tmp_path: Path):
+        # A brand-new store (no backing file) must NOT be blocked: the
+        # missing-file path is a legitimate empty store, not a failed load.
+        path = tmp_path / "new.json"
+        store = KnowledgeStore(path=path)
+        store.load()  # file does not exist → not a failure
+        store.add_learned_pattern("a freshly distilled behavior pattern")
+        store.save()
+
+        recovered = KnowledgeStore(path=path)
+        recovered.load()
+        assert len(recovered.get_raw_patterns()) == 1
+
+
 class TestAddLearnedPatternADR0021:
     def test_defaults_for_new_pattern(self, tmp_path: Path):
         store = KnowledgeStore(path=tmp_path / "k.json")
@@ -268,6 +333,19 @@ class TestFilterSinceBadTimestampADR0021:
         result = store.get_live_patterns_since("2020-01-01T00:00:00+00:00")
         assert any("good pattern" in p["pattern"] for p in result)
         assert not any("broken record" in p["pattern"] for p in result)
+
+    def test_naive_distilled_not_dropped_against_aware_since(self, tmp_path: Path):
+        # D10 regression (ultracode sweep 2026-06-23): a tz-naive ``distilled``
+        # compared against a tz-aware ``since`` used to raise TypeError and
+        # silently drop the pattern. Both sides are now coerced to UTC, so a
+        # naive timestamp clearly after the since-bound is kept.
+        store = KnowledgeStore(path=tmp_path / "k.json")
+        store._learned_patterns.append({
+            "pattern": "recent pattern stamped with a tz-naive distilled time",
+            "distilled": "2026-06-20T12:00:00",  # naive (no offset)
+        })
+        result = store.get_live_patterns_since("2026-06-01T00:00:00+00:00")  # aware
+        assert any("recent pattern" in p["pattern"] for p in result)
 
 
 class TestPatternIdADR0050:

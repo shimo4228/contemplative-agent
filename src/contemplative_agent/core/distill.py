@@ -30,7 +30,12 @@ from .knowledge_store import (
     is_live,
     pattern_id,
 )
-from .llm import generate, get_distill_system_prompt, validate_identity_content
+from .llm import (
+    generate,
+    get_distill_system_prompt,
+    validate_identity_content,
+    wrap_untrusted_content,
+)
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import (
     DISTILL_EPISODE_PROMPT,
@@ -394,16 +399,25 @@ def render_episode(record_type: str, data: dict) -> str:
         return summarize_record(record_type, data)
 
     parts: List[str] = []
+    # ADR-0060 added external (peer-authored) fields to the distill render.
+    # ``original_post`` / ``their_comment`` are stored RAW in the episode log
+    # (action-time wrapping in llm_functions.py does not reach the persisted
+    # record), so they must be wrapped here before reaching the distill LLM —
+    # otherwise a malicious peer post could steer pattern extraction into
+    # skills/rules/identity/constitution. The agent's own ``title`` /
+    # ``content`` / ``internal_note`` are self-authored and stay un-wrapped so
+    # extraction remains faithful to the agent's own register.
     op = data.get("original_post")
     if op:
         parts.append(
             "Post I engaged with:\n"
-            + truncate_boundary(op, EXCERPT_CAPS["original_post"])
+            + wrap_untrusted_content(op, max_input=EXCERPT_CAPS["original_post"])
         )
     tc = data.get("their_comment")
     if tc:
         parts.append(
-            "Their comment:\n" + truncate_boundary(tc, EXCERPT_CAPS["their_comment"])
+            "Their comment:\n"
+            + wrap_untrusted_content(tc, max_input=EXCERPT_CAPS["their_comment"])
         )
     title = data.get("title")
     if title:

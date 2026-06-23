@@ -193,12 +193,23 @@ class MemoryStore:
             raise
 
     def _load_episodes_into_memory(self) -> None:
-        """Load recent episode log entries into in-memory lists."""
+        """Load recent episode log entries into in-memory lists.
+
+        A ``TypeError`` from ``Interaction(**data)`` / ``PostRecord(**data)``
+        means the persisted record does not match the current dataclass — the
+        hazard being a schema change (a new required field, or a rename)
+        without a default, which would silently drop EVERY legacy record while
+        the test suite stays green. The per-record warning alone hides that;
+        an aggregate WARNING with the drop ratio makes a mass-drop observable.
+        """
         records = self._episodes.read_range(days=7)
+        seen = {"interaction": 0, "post": 0}
+        dropped = {"interaction": 0, "post": 0}
         for record in records:
             record_type = record.get("type", "")
             data = record.get("data", {})
             if record_type == "interaction":
+                seen["interaction"] += 1
                 try:
                     interaction = Interaction(**data)
                     self._interactions.append(interaction)
@@ -206,14 +217,25 @@ class MemoryStore:
                     # Build known agents from JSONL
                     self._known_agents[interaction.agent_id] = interaction.agent_name
                 except TypeError:
+                    dropped["interaction"] += 1
                     logger.warning("Skipping malformed interaction in episode log")
             elif record_type == "post":
+                seen["post"] += 1
                 try:
                     self._post_history.append(PostRecord(**data))
                 except TypeError:
+                    dropped["post"] += 1
                     logger.warning("Skipping malformed post record in episode log")
             # type="insight" records (retired by ADR-0052) are intentionally
             # not loaded — they stay in the log as historical research data.
+        for kind in ("interaction", "post"):
+            if dropped[kind]:
+                logger.warning(
+                    "Dropped %d/%d %s records during episode load — possible "
+                    "schema drift (a new required field added without a "
+                    "default drops every legacy record)",
+                    dropped[kind], seen[kind], kind,
+                )
 
     def save(self) -> None:
         """Persist knowledge store, agents.json, and commented cache."""
