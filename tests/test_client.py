@@ -38,6 +38,27 @@ class TestMoltbookClient:
         assert client.rate_limit_remaining == 42
         assert client.rate_limit_reset == 1700000000.0
 
+    def test_reset_tracked_per_bucket_no_cross_clobber(self):
+        # Batch E regression (ultracode sweep 2026-06-23): the reset epoch is
+        # tracked per bucket. A GET response must not overwrite the write
+        # bucket's reset, and rate_limit_reset returns the LATER reset so a
+        # proactive wait never under-waits into a 429.
+        client = MoltbookClient(api_key="test-key")
+        write_resp = MagicMock()
+        write_resp.headers = {"X-RateLimit-Remaining": "2", "X-RateLimit-Reset": "2000.0"}
+        client._parse_rate_headers(write_resp, method="POST")
+        read_resp = MagicMock()
+        read_resp.headers = {"X-RateLimit-Remaining": "55", "X-RateLimit-Reset": "1000.0"}
+        client._parse_rate_headers(read_resp, method="GET")
+
+        # The GET (earlier reset) did not clobber the depleted write bucket.
+        assert client._write_reset == 2000.0
+        assert client._read_reset == 1000.0
+        # rate_limit_reset is the later reset (safe: never under-wait).
+        assert client.rate_limit_reset == 2000.0
+        # remaining is the min (conservative).
+        assert client.rate_limit_remaining == 2
+
     def test_parse_rate_headers_clamps_negative(self):
         client = MoltbookClient(api_key="test-key")
         mock_response = MagicMock()

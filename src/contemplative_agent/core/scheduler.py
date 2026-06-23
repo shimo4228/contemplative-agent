@@ -112,10 +112,22 @@ class Scheduler:
         return max(0.0, remaining)
 
     def seconds_until_comment(self) -> float:
+        # Mirror can_comment's cross-session re-read + daily reset so the wait
+        # reflects the same state the gate checks.
+        self._load_state()
+        self._reset_daily_if_needed()
         now = time.time()
-        elapsed = now - self._last_comment_time
-        remaining = self._limits.comment_interval_seconds - elapsed
-        return max(0.0, remaining)
+        interval_remaining = max(
+            0.0, self._limits.comment_interval_seconds - (now - self._last_comment_time)
+        )
+        # Daily cap: when exhausted, the next comment cannot happen until the
+        # rolling 24h window resets. Without this the caller saw the small
+        # interval value, woke every ~comment_interval, and burned GET budget
+        # until the cap refreshed (ultracode sweep 2026-06-23).
+        if self._comments_today >= self._limits.comments_per_day:
+            until_daily_reset = max(0.0, self._day_start + 86400 - now)
+            return max(interval_remaining, until_daily_reset)
+        return interval_remaining
 
     def record_post(self) -> None:
         self._last_post_time = time.time()
@@ -154,7 +166,16 @@ class Scheduler:
 
 
 class _InMemoryLimits:
-    """Fallback rate limits when no adapter config is provided."""
+    """Fallback rate limits when no adapter config is provided.
+
+    These are an INDEPENDENT conservative default, deliberately not the same
+    numbers as the Moltbook adapter's ``RateLimits`` (which sets
+    comments_per_day=300). ``core/`` cannot import the adapter config (one-way
+    import rule, ADR-0001), so the two cannot share a constant; in production
+    the adapter always injects its own limits and this fallback is unreachable.
+    The lower 200 here is a safe floor for the no-adapter case, not a drifted
+    copy of the 300 default.
+    """
 
     post_interval_seconds: int
     comment_interval_seconds: int

@@ -59,7 +59,12 @@ class MoltbookClient:
         self._base_url = BASE_URL
         self._read_remaining: Optional[int] = None
         self._write_remaining: Optional[int] = None
-        self._rate_limit_reset: Optional[float] = None
+        # Reset epoch is tracked per bucket (GET vs write). Previously a single
+        # shared field was overwritten by whichever method responded last, so a
+        # proactive wait could be sized against the wrong (non-depleted) bucket
+        # and under-wait into a 429. (ultracode sweep 2026-06-23)
+        self._read_reset: Optional[float] = None
+        self._write_reset: Optional[float] = None
         self._recent_429_count: int = 0
 
     def _validate_url(self, url: str) -> None:
@@ -94,13 +99,25 @@ class MoltbookClient:
         reset = response.headers.get("X-RateLimit-Reset")
         if reset is not None:
             try:
-                self._rate_limit_reset = max(0.0, float(reset))
+                value = max(0.0, float(reset))
             except (ValueError, TypeError):
                 logger.debug("Malformed X-RateLimit-Reset header: %r", reset)
+            else:
+                if method.upper() == "GET":
+                    self._read_reset = value
+                else:
+                    self._write_reset = value
 
     @property
     def rate_limit_remaining(self) -> Optional[int]:
-        """Backward-compatible: returns min of known read/write remaining."""
+        """Min of known read/write remaining.
+
+        Deliberately conservative: the proactive-wait caller (Layer 3) treats
+        either bucket running low as a reason to wait. This can over-throttle a
+        read-only cycle when only the write bucket is low, but over-waiting is
+        the safe direction (it never causes a 429); decoupling would require the
+        caller to know the upcoming request mix.
+        """
         values = [v for v in (self._read_remaining, self._write_remaining) if v is not None]
         if not values:
             return None
@@ -108,7 +125,16 @@ class MoltbookClient:
 
     @property
     def rate_limit_reset(self) -> Optional[float]:
-        return self._rate_limit_reset
+        """Latest known reset epoch across buckets.
+
+        Returns the LATER of the per-bucket resets so a proactive wait never
+        under-waits (the prior single shared field could hold the wrong bucket's
+        earlier reset and resume into a 429). Over-waiting is the safe direction.
+        """
+        resets = [r for r in (self._read_reset, self._write_reset) if r is not None]
+        if not resets:
+            return None
+        return max(resets)
 
     @property
     def recent_429_count(self) -> int:

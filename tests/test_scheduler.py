@@ -51,6 +51,29 @@ class TestScheduler:
         sched._last_comment_time = 0.0
         assert sched.can_comment()
 
+    def test_seconds_until_comment_waits_for_daily_reset_when_capped(self):
+        # Batch E regression (ultracode sweep 2026-06-23): when the daily cap
+        # is exhausted, seconds_until_comment must return the time until the
+        # 24h window resets, not the (already-elapsed) comment interval — else
+        # the agent wakes every interval and burns GET budget until reset.
+        sched = Scheduler()
+        sched._comments_today = sched._limits.comments_per_day  # at cap
+        sched._day_start = time.time() - 3600  # 1h into the window
+        sched._last_comment_time = 0.0  # interval long since elapsed
+        wait = sched.seconds_until_comment()
+        # ~23h remain in the rolling window; certainly far above the interval.
+        assert wait > sched._limits.comment_interval_seconds
+        assert wait > 80000  # close to a full day minus the elapsed hour
+
+    def test_seconds_until_comment_interval_when_under_cap(self):
+        sched = Scheduler()
+        sched._comments_today = 0
+        sched._day_start = time.time()
+        sched._last_comment_time = time.time()  # just commented
+        wait = sched.seconds_until_comment()
+        # Only the interval gates it; nowhere near a daily-reset-sized wait.
+        assert 0 < wait <= sched._limits.comment_interval_seconds
+
     def test_seconds_until_post(self):
         sched = Scheduler()
         sched._last_post_time = time.time()

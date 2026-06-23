@@ -287,11 +287,24 @@ class Agent:
             return False
         return True
 
-    def _confirm_action(self, description: str, content: str) -> bool:
-        """Ask for user confirmation based on autonomy level."""
+    def _confirm_action(
+        self, description: str, content: str, *, title: Optional[str] = None
+    ) -> bool:
+        """Ask for user confirmation based on autonomy level.
+
+        ``title`` is the agent's own LLM-generated post title (post path only).
+        It is filtered alongside ``content`` in GUARDED mode — without this a
+        forbidden pattern in the title bypassed the gate, since the title was
+        only embedded in the human-readable ``description`` and the description
+        also carries external data (agent names / post ids) that must NOT be
+        filtered (it would false-reject on legitimate external content).
+        """
         if self._autonomy is AutonomyLevel.AUTO:
             return True
         if self._autonomy is AutonomyLevel.GUARDED:
+            if title is not None and not self._passes_content_filter(title):
+                logger.info("GUARDED mode: title rejected by filter for: %s", description)
+                return False
             if not self._passes_content_filter(content):
                 logger.info("GUARDED mode: content rejected by filter for: %s", description)
                 return False

@@ -51,7 +51,7 @@ class PostPipeline:
         domain: DomainConfig,
         get_content: Callable[[], ContentManager],
         get_feed: Callable[[], List[dict]],
-        confirm_action: Callable[[str, str], bool],
+        confirm_action: Callable[..., bool],
         novelty_gate: NoveltyGate,
     ) -> None:
         self._ctx = ctx
@@ -115,7 +115,7 @@ class PostPipeline:
         ):
             return
 
-        if not self._confirm_action(f"Dynamic Post: {title}", content):
+        if not self._confirm_action(f"Dynamic Post: {title}", content, title=title):
             return
 
         # Re-check rate limit right before posting (another session may have posted)

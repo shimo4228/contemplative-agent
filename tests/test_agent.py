@@ -258,6 +258,24 @@ class TestConfirmAction:
         agent = Agent(autonomy=AutonomyLevel.GUARDED)
         assert agent._confirm_action("test", "  ") is False
 
+    def test_guarded_rejects_forbidden_in_title(self):
+        # Batch F regression (ultracode sweep 2026-06-23): the post title is
+        # the agent's own LLM output and must pass the GUARDED filter too.
+        # Previously a forbidden pattern in the title bypassed the gate because
+        # only `content` was filtered.
+        agent = Agent(autonomy=AutonomyLevel.GUARDED)
+        assert agent._confirm_action(
+            "Dynamic Post: my api_key leak", "totally safe body text",
+            title="my api_key leak",
+        ) is False
+
+    def test_guarded_passes_clean_title(self):
+        agent = Agent(autonomy=AutonomyLevel.GUARDED)
+        assert agent._confirm_action(
+            "Dynamic Post: A reflection on patience",
+            "safe body", title="A reflection on patience",
+        ) is True
+
     # ADR-0018 amendment 2026-05-04: length enforcement moved to
     # _sanitize_output(); the redundant check in _passes_content_filter is
     # removed (ADR-0030: 1 artifact 1 責務). The corresponding length-only
