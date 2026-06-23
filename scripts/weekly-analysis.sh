@@ -171,6 +171,23 @@ else
     echo "WARNING: principles.md not found at $PRINCIPLES_FILE" >&2
 fi
 
+# --- Log anomaly sweep (cheap recurring bug-discovery, 2026-06-24) ---
+# Deterministic intake of *.log / audit.jsonl signal, ranked by novelty since
+# the last sweep, so latent operational bugs surface week over week without a
+# full multi-agent audit. Read-only; NEVER reads episode logs (injection
+# boundary). Observability only — a failure must not break the weekly report.
+ANOMALY_SWEEP=""
+SWEEP_STATE="$REPORT_DIR/.anomaly-sweep-state.tsv"
+if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
+    mkdir -p "$REPORT_DIR"
+    ANOMALY_SWEEP=$(python3 "$PROJECT_ROOT/scripts/log_anomaly_sweep.py" \
+        --log-dir "$MOLTBOOK_HOME/logs" --state "$SWEEP_STATE" --top 25 2>/dev/null || true)
+    if [[ -n "$ANOMALY_SWEEP" ]]; then
+        echo "Included log anomaly sweep"
+    fi
+fi
+[[ -z "$ANOMALY_SWEEP" ]] && ANOMALY_SWEEP="## Log Anomaly Sweep"$'\n\n'"No log sweep available."
+
 # --- Build prompt ---
 SYSTEM_PROMPT=$(cat "$PROMPT_TEMPLATE")
 
@@ -179,6 +196,8 @@ USER_PROMPT="Analyze the following Moltbook agent activity for $START_DATE to $E
 $PRINCIPLES
 
 $STATE_DIFF
+
+$ANOMALY_SWEEP
 
 $PREV_REPORTS
 
