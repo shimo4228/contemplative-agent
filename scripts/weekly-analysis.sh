@@ -188,6 +188,20 @@ if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
 fi
 [[ -z "$ANOMALY_SWEEP" ]] && ANOMALY_SWEEP="## Log Anomaly Sweep"$'\n\n'"No log sweep available."
 
+# --- State invariant check (structural drift detection, 2026-06-24) ---
+# Deterministic "this should hold" checks over knowledge.json / agents.json
+# (sunset fields, dedup leaks, tombstone build-up, missing embeddings). Reads
+# distilled state only — never episode logs. Observability only — a FAIL exit
+# must not break the weekly report.
+INVARIANTS=""
+INVARIANTS=$(python3 "$PROJECT_ROOT/scripts/state_invariant_check.py" \
+    --home "$MOLTBOOK_HOME" 2>/dev/null || true)
+if [[ -n "$INVARIANTS" ]]; then
+    echo "Included state invariant check"
+else
+    INVARIANTS="## State Invariant Check"$'\n\n'"No invariant check available."
+fi
+
 # --- Build prompt ---
 SYSTEM_PROMPT=$(cat "$PROMPT_TEMPLATE")
 
@@ -198,6 +212,8 @@ $PRINCIPLES
 $STATE_DIFF
 
 $ANOMALY_SWEEP
+
+$INVARIANTS
 
 $PREV_REPORTS
 
