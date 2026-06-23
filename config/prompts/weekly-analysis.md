@@ -32,6 +32,7 @@ Summarize changes to the agent's internal state during this period:
 - **Skills**: List all skills at period end. Note any added/removed/modified.
 - **Rules**: List all rules at period end. Note any added/removed/modified.
 - **Knowledge**: Pattern count at start vs end.
+- **Operational drift** (from the provided *Log Anomaly Sweep* and *State Invariant Check*): surface any anomaly type flagged 🆕 (new since last sweep) or sharply spiking (high Δ), and any invariant at ⚠️ WARN or ❌ FAIL. These are deterministic signals — report them as observations (what changed, how much); proposing fixes belongs to the downstream diagnosis step, not this report.
 
 If state diffs are provided, analyze them. If not, note "no state data available."
 
@@ -100,7 +101,9 @@ The following data will be provided:
 1. **Methodological Principles** (`principles.md`) — Principle 3 (quote-based depth) applies to this report. Other principles apply to the downstream diagnosis step.
 2. **Daily comment reports** for the analysis period
 3. **Agent state diffs** (identity, constitution, skills, rules, knowledge count) — if available
-4. **Previous reports** (last 3 weeks if available) — for trend comparison
+4. **Log Anomaly Sweep** — deterministic ranking of log anomalies by novelty (🆕 = new since last sweep) then frequency delta; read it for B's operational-drift note
+5. **State Invariant Check** — deterministic ✅/⚠️/❌ checks over knowledge.json / agents.json; read it for B's operational-drift note
+6. **Previous reports** (last 3 weeks if available) — for trend comparison
 
 # Downstream
 
