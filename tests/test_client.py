@@ -704,6 +704,20 @@ class TestUnfollowAgent:
         with patch.object(client._session, "request", return_value=mock_response):
             assert client.unfollow_agent("some-agent") is False
 
+    def test_404_agent_not_found_is_idempotent_success(self):
+        # Regression (ultracode sweep 2026-06-23): a 404 means the agent was
+        # deleted server-side, so we are effectively no longer following it.
+        # Returning True lets the caller prune the stale local follow entry —
+        # without this every scheduled run re-issued the same doomed DELETE
+        # (observed 31× for a single deleted agent).
+        client = MoltbookClient(api_key="test-key")
+        mock_response = MagicMock()
+        mock_response.status_code = 404
+        mock_response.text = '{"statusCode":404,"message":"Agent not found"}'
+        mock_response.headers = {}
+        with patch.object(client._session, "request", return_value=mock_response):
+            assert client.unfollow_agent("gone-agent") is True
+
     # Audit L3: HTTP 2xx alone is not success — the DELETE body must be
     # verified, mirroring follow_agent's action check and post_comment's
     # ambiguous-body handling (audit H2). A silently failed unfollow is

@@ -505,6 +505,13 @@ class MoltbookClient:
         ``action``/``success`` keys) are treated as success with a WARNING,
         mirroring ``post_comment``; ``not_following`` counts as idempotent
         success, mirroring follow_agent's ``already_following``.
+
+        A 404 ("Agent not found") is likewise idempotent success: the target
+        was deleted server-side, so we are effectively no longer following it
+        and the caller should prune its local follow entry. Without this a
+        deleted agent's stale local entry made every scheduled run re-issue the
+        same doomed DELETE → 404 forever (ultracode sweep 2026-06-23: 31× for a
+        single deleted agent).
         """
         if not VALID_AGENT_NAME_PATTERN.match(agent_name):
             logger.warning("Invalid agent_name rejected: %.50r", agent_name)
@@ -512,6 +519,13 @@ class MoltbookClient:
         try:
             resp = self.delete(f"/agents/{agent_name}/follow")
         except MoltbookClientError as exc:
+            if exc.status_code == 404:
+                logger.info(
+                    "Unfollow %s: agent not found (404) — already gone, "
+                    "treating as unfollowed so the local entry is pruned",
+                    agent_name,
+                )
+                return True
             logger.warning("Failed to unfollow %s: %s", agent_name, exc)
             return False
         try:
