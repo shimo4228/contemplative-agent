@@ -118,9 +118,9 @@ contemplative-agent status
 contemplative-agent run [--session M] [--approve|--guarded|--auto]
 
 # Offline learning (ADR-0012 approval gate; pivot snapshots ADR-0020)
-contemplative-agent distill [--days N] [--dry-run] [--no-axioms]
-contemplative-agent distill-identity [--days N] [--dry-run]
-contemplative-agent insight [--days N] [--stage] [--full]
+contemplative-agent distill [--days N] [--dry-run] [--file PATH ...]
+contemplative-agent distill-identity [--stage]
+contemplative-agent insight [--stage] [--full]
 contemplative-agent adopt-staged
 contemplative-agent remove-skill <name> [--reason TEXT]
 contemplative-agent rules-distill [--full]
@@ -157,7 +157,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 **Engagement & posting**: system, relevance, comment, reply, cooperation_post, post_title, topic_summary, submolt_selection, internal_note (ADR-0045), dialogue (peer loop) — `session_insight` retired and deleted (ADR-0052)
 
-**Distillation**: distill, distill_refine, identity_distill, insight_extraction, rules_distill, rules_distill_refine, constitution_amend (`distill_importance` retired, ADR-0056)
+**Distillation**: distill_episode (per-episode grounded distill, ADR-0060 — this is the live distill prompt), identity_distill, insight_extraction, rules_distill, rules_distill_refine, constitution_amend (`distill` / `distill_refine` are no longer loaded by `core/distill.py` after ADR-0060 replaced the 2-step batch with `distill_episode`; the `.md` files + `DISTILL_PROMPT` mapping linger but are dead. `distill_importance` retired, ADR-0056)
 
 **Audit**: stocktake_skills, stocktake_rules (LLM grouping, ADR-0046), stocktake_merge (frontmatter emission, ADR-0048), stocktake_merge_rules, stocktake_clean (singleton trigger-altitude, ADR-0048), stocktake_group_system / stocktake_merge_system / stocktake_clean_system (externalized `system=` prompts, ADR-0054)
 

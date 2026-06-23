@@ -92,15 +92,15 @@ File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0056):
 - `gated` is behavioural (excluded from distill batching); `last_view_matches` is read-only telemetry.
 - `trust_score` / `trust_updated_at` retired by ADR-0051; `importance` retired by ADR-0056 (legacy rows shed all three fields on next save).
 - `category` field removed by ADR-0026.
+- `provenance.source_type` is stamped at distill time (ADR-0050/0060). The enum values are valid in type space, but post-ADR-0060 per-episode distill new patterns are stamped `self_reflection` / `external_reply`; the ADR-0050 `observed` epistemic kind is structurally absent for new patterns (interaction records are filtered out before distill), so `epistemic_counts` is effectively a generated/unknown split.
 
 ## Thresholds (canonical: `core/thresholds.py`)
 
 | Constant | Value | Used by | ADR |
 |----------|-------|---------|-----|
-| `NOISE_THRESHOLD` | 0.55 | distill Step 0 | ADR-0026 |
 | `SIM_DUPLICATE` | 0.90 | distill dedup SKIP | ADR-0019 |
 | `SIM_UPDATE` | 0.80 | distill dedup UPDATE | ADR-0019 |
-| `DEDUP_IMPORTANCE_FLOOR` | 0.05 | distill dedup skip-low | ADR-0019 |
+| `DEDUP_IMPORTANCE_FLOOR` | 0.05 | distill dedup skip-low (`effective_importance` = pure time decay) | ADR-0019, ADR-0056 |
 | `CLUSTER_THRESHOLD_INSIGHT` | 0.70 | insight clustering | ADR-0019 |
 | `CLUSTER_THRESHOLD_RULES` | 0.65 | rules-distill clustering | ADR-0019 |
 | `MAX_BATCH` | 10 | insight + rules-distill per-batch cap | — |

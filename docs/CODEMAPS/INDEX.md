@@ -53,7 +53,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 - 24 core modules with LOC and purpose
 - ADR-0012 Result types (with ADR-0050 pattern_ids / epistemic_counts fields)
 - EpisodeLog + KnowledgeStore schemas (post-ADR-0051: no trust_score)
-- Threshold table (NOISE_THRESHOLD, SIM_DUPLICATE, SIM_UPDATE, CLUSTER_THRESHOLD_*)
+- Threshold table (SIM_DUPLICATE, SIM_UPDATE, DEDUP_IMPORTANCE_FLOOR, CLUSTER_THRESHOLD_*; NOISE_THRESHOLD removed ADR-0060)
 - Views mechanism (pure cosine rank, ADR-0051)
 - LLM functions + circuit breaker
 - Security model

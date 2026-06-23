@@ -63,10 +63,11 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  ├─ PostPipeline._run_post_cycle()
  │    feed_seeder.select_feed_seeds()        [ADR-0043]
  │      relevance ≥ 0.4 | RNG 1-3 posts | 15000-char budget
- │    → NoveltyGate.evaluate()               [ADR-0039]
- │      cosine vs recent self-posts + temporal decay + rate-deficit Lagrangian
- │    → is_test_content() → body-hash (SHA-256[:16])
- │    → generate_cooperation_post → post
+ │    → generate_cooperation_post (title + body)
+ │    → _passes_deterministic_gates (order as in code):
+ │      is_test_content() → NoveltyGate.evaluate() [ADR-0039]
+ │        (cosine vs recent self-posts + temporal decay + rate-deficit Lagrangian)
+ │        → body-hash dedup (SHA-256[:16]) → post
  └─ MemoryStore.record() → EpisodeLog (append-only JSONL)
 ```
 
@@ -94,8 +95,10 @@ Scope filter — engagement episodes only  [ADR-0060; _is_rich_episode]
 Per-episode distill  [ADR-0060; one LLM call per episode, no batching]
   for each episode:
     render_episode() → rich block: original_post + their_comment (replies) +
-      the agent's own output (content/title) + internal_note (full),
-      each external field truncate_boundary()-capped at its EXCERPT_CAP
+      the agent's own output (content/title) + internal_note (full).
+      External (peer-authored) fields go through wrap_untrusted_content()
+      (injection defense + max_input cap); the agent's own content/title use
+      truncate_boundary() at its EXCERPT_CAP, internal_note is full/un-capped
     → LLM(DISTILL_EPISODE_PROMPT, format=_PATTERNS_SCHEMA) → JSON {"patterns":[...]}
     → _is_valid_pattern() gate; provenance = that one episode's source_type + ts
   (recurrence is NOT pre-clustered here — it surfaces downstream when `insight`

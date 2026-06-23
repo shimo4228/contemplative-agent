@@ -58,7 +58,6 @@ def collect_thresholds() -> Dict[str, float]:
     from . import thresholds as _t
 
     return {
-        "NOISE_THRESHOLD": _t.NOISE_THRESHOLD,
         "SIM_DUPLICATE": _t.SIM_DUPLICATE,
         "SIM_UPDATE": _t.SIM_UPDATE,
         "DEDUP_IMPORTANCE_FLOOR": _t.DEDUP_IMPORTANCE_FLOOR,

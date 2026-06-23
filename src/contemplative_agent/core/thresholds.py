@@ -19,14 +19,11 @@ from __future__ import annotations
 
 # --- Distill / dedup (core/distill.py callers) -----------------------------
 
-NOISE_THRESHOLD: float = 0.55
-"""Episode noise gate (ADR-0026, ADR-0027 Phase 1).
-
-Embedding cosine to the ``noise`` view centroid; episodes at or above
-this threshold are gated out of distillation but still retained in the
-episode log as ``bīja`` (ADR-0027). Calibrated against the ``noise``
-seed text, not against patterns.
-"""
+# NOISE_THRESHOLD (the distill noise gate from ADR-0026 / ADR-0027) was
+# removed by ADR-0060: per-episode grounded distill dropped the ingest-time
+# noise gate entirely (noise is filtered at query time via view centroids,
+# ADR-0031). The constant is gone so it no longer appears in pivot snapshots
+# as a live knob.
 
 SIM_DUPLICATE: float = 0.90
 """Pattern-pair near-duplicate threshold (ADR-0019 dedup, calibrated 2026-04-17).

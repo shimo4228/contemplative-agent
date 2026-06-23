@@ -72,13 +72,14 @@ Verification fallback: `VerificationTracker.solve()` on challenge.
 select_feed_seeds(posts, agent_id, n=1-3)   [ADR-0043]
   relevance floor 0.4 | RNG-driven | 15000-char combined budget
   each post wrapped in <untrusted_content>
-  → NoveltyGate.evaluate(title, body, own_agent_id)  [ADR-0039]
-    embedding cosine vs recent self-post history + temporal decay
-    + rate-deficit Lagrangian (threshold rises when posting rate < target)
-    → bool
-  → is_test_content(title, body)   [dedup.py]
-  → body-hash SHA-256[:16]
-  → select_submolt → generate_cooperation_post → post
+  → generate_cooperation_post (title + body)
+  → _passes_deterministic_gates (order as in post_pipeline.py):
+    is_test_content(title, body)   [dedup.py]
+    → NoveltyGate.evaluate(title, summary, body, recent_posts)  [ADR-0039]
+        embedding cosine vs recent self-post history + temporal decay
+        + rate-deficit Lagrangian (threshold rises when posting rate < target)
+    → body-hash SHA-256[:16] dedup
+  → select_submolt → post
 ```
 
 Jaccard fallback retained for Ollama-outage path only.

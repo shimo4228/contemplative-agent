@@ -85,10 +85,11 @@ def view_registry(layout):
 class TestCollectThresholds:
     def test_includes_distill_constants(self):
         t = collect_thresholds()
-        for k in ("NOISE_THRESHOLD", "SIM_DUPLICATE", "SIM_UPDATE",
-                  "DEDUP_IMPORTANCE_FLOOR"):
+        # NOISE_THRESHOLD was removed with the noise gate (ADR-0060).
+        for k in ("SIM_DUPLICATE", "SIM_UPDATE", "DEDUP_IMPORTANCE_FLOOR"):
             assert k in t
             assert isinstance(t[k], float)
+        assert "NOISE_THRESHOLD" not in t
 
 
 class TestCopyMarkdownTree:
@@ -142,7 +143,9 @@ class TestWriteSnapshot:
         assert manifest["embedding_model"] == "custom-embed"
         assert manifest["embedding_dim"] == 768
         assert set(manifest["views"]) == {"constitutional", "noise", "self_reflection"}
-        assert manifest["thresholds"]["NOISE_THRESHOLD"] == 0.55
+        # NOISE_THRESHOLD removed with the noise gate (ADR-0060).
+        assert "NOISE_THRESHOLD" not in manifest["thresholds"]
+        assert manifest["thresholds"]["SIM_DUPLICATE"] == 0.90
         assert manifest["views_dir"] == str(layout["views"])
 
     def test_centroids_npz_roundtrips(self, layout, view_registry):
