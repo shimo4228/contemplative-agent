@@ -24,6 +24,12 @@ from .views import ViewRegistry
 
 logger = logging.getLogger(__name__)
 
+# Pivot snapshots (ADR-0020) are observability/replay artifacts, not episodes,
+# so the oldest may be pruned. Without a cap they grow unbounded on every
+# approval-gated run (ultracode sweep 2026-06-23 observed 137 dirs / 17 MB).
+# The most recent snapshots are the ones a replay actually needs.
+MAX_SNAPSHOTS = 100
+
 SnapshotCommand = Literal[
     "distill",
     "distill-identity",
@@ -138,15 +144,41 @@ def write_snapshot(
             "rules_dir": str(rules_dir) if rules_dir is not None else None,
             "identity_path": str(identity_path) if identity_path is not None else None,
         }
-        (snap_dir / "manifest.json").write_text(
+        # manifest.json is written LAST and marks the snapshot complete: a dir
+        # without it is partial. Write to a temp name then rename so a reader
+        # never sees a half-written manifest.
+        manifest_tmp = snap_dir / "manifest.json.tmp"
+        manifest_tmp.write_text(
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
             encoding="utf-8",
         )
+        manifest_tmp.replace(snap_dir / "manifest.json")
 
+        _prune_snapshots(snapshots_dir, MAX_SNAPSHOTS)
         return snap_dir
     except OSError as exc:
         logger.warning("Snapshot write failed under %s: %s", snap_dir, exc)
+        # Remove the partially-written dir so it is not mistaken for complete.
+        shutil.rmtree(snap_dir, ignore_errors=True)
         return None
+
+
+def _prune_snapshots(snapshots_dir: Path, keep: int) -> None:
+    """Keep only the ``keep`` most-recent snapshot dirs; remove the rest.
+
+    Snapshot dirs are named ``{command}_{ts_compact}``, so sorting by name is
+    chronological. Best-effort: pruning failures are logged, never raised
+    (snapshots are observability, ADR-0020 — pruning must not break a command).
+    """
+    try:
+        snaps = sorted(
+            (p for p in snapshots_dir.iterdir() if p.is_dir()),
+            key=lambda p: p.name,
+        )
+    except OSError:
+        return
+    for stale in snaps[:-keep] if keep > 0 else snaps:
+        shutil.rmtree(stale, ignore_errors=True)
 
 
 def _save_centroids(snap_dir: Path, view_registry: Optional[ViewRegistry]) -> List[str]:

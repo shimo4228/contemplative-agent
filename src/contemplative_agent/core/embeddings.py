@@ -79,7 +79,22 @@ def embed_one(text: str) -> Optional[np.ndarray]:
 
 
 def cosine(v1: np.ndarray, v2: np.ndarray) -> float:
-    """Cosine similarity between two 1D vectors. Zero vectors → 0.0."""
+    """Cosine similarity between two 1D vectors. Zero vectors → 0.0.
+
+    A shape mismatch (e.g. an embedding-model swap without re-backfilling the
+    stored vectors) also returns 0.0 rather than raising: the two vectors live
+    in different spaces, so they are correctly treated as dissimilar, and the
+    WARNING surfaces the misconfiguration instead of crashing every
+    distill / insight / view command (ultracode sweep 2026-06-23).
+    """
+    if v1.shape != v2.shape:
+        logger.warning(
+            "cosine: embedding shape mismatch %s vs %s — treating as "
+            "dissimilar (0.0); likely an embedding-model change without a "
+            "re-backfill of stored vectors",
+            v1.shape, v2.shape,
+        )
+        return 0.0
     n1 = float(np.linalg.norm(v1))
     n2 = float(np.linalg.norm(v2))
     if n1 == 0.0 or n2 == 0.0:

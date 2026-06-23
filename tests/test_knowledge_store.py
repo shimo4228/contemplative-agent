@@ -8,7 +8,7 @@ fields. Their tests are removed from this file.
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -278,6 +278,26 @@ class TestEffectiveImportance:
         assert effective_importance(with_legacy) == pytest.approx(
             effective_importance(plain)
         )
+
+    def test_aged_pattern_decays_monotonically(self):
+        """Batch G regression (ultracode sweep 2026-06-23): the aged branch
+        (0.95**days) previously had no coverage — only the days=0 case was
+        tested, so a regression in the decay math would reorder distill output
+        silently. Pin the curve at several ages."""
+        now = datetime.now(timezone.utc)
+
+        def at_age(days: float) -> float:
+            ts = (now - timedelta(days=days)).isoformat(timespec="minutes")
+            return effective_importance({"distilled": ts})
+
+        fresh, d10, d30, d60 = at_age(0), at_age(10), at_age(30), at_age(60)
+        # Strictly decreasing with age.
+        assert fresh > d10 > d30 > d60
+        # Known points of 0.95**days (decay-only, ADR-0056).
+        assert d10 == pytest.approx(0.95 ** 10, abs=1e-3)
+        assert d60 == pytest.approx(0.95 ** 60, abs=1e-3)
+        # ~58-day half-life: 0.95**~13.5 ≈ 0.5.
+        assert at_age(13.5) == pytest.approx(0.5, abs=0.02)
 
 
 class TestIsLive:

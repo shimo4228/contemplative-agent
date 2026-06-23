@@ -13,9 +13,11 @@ import pytest
 
 from contemplative_agent.core.snapshot import (
     _copy_markdown_tree,
+    _prune_snapshots,
     collect_thresholds,
     write_snapshot,
 )
+import contemplative_agent.core.snapshot as snapshot_mod
 from contemplative_agent.core.views import ViewRegistry
 
 
@@ -109,6 +111,42 @@ class TestCopyMarkdownTree:
         dst = tmp_path / "dst"
         _copy_markdown_tree(tmp_path / "nonexistent", dst)
         assert not dst.exists()
+
+
+class TestSnapshotRetention:
+    """Batch G regression (ultracode sweep 2026-06-23): snapshot dirs grew
+    unbounded (137 dirs / 17 MB observed). Retention keeps the most recent N."""
+
+    def test_prune_keeps_most_recent(self, tmp_path):
+        snaps = tmp_path / "snapshots"
+        snaps.mkdir()
+        # ts_compact-style names sort chronologically by name.
+        for ts in ("20260101T000000", "20260102T000000", "20260103T000000",
+                   "20260104T000000", "20260105T000000"):
+            (snaps / f"distill_{ts}").mkdir()
+        _prune_snapshots(snaps, keep=2)
+        remaining = sorted(p.name for p in snaps.iterdir())
+        assert remaining == ["distill_20260104T000000", "distill_20260105T000000"]
+
+    def test_write_snapshot_prunes_beyond_cap(self, layout, view_registry, monkeypatch):
+        monkeypatch.setattr(snapshot_mod, "MAX_SNAPSHOTS", 3)
+        # Pre-seed older snapshot dirs (deterministic names sort before a
+        # current-time write), then write one real snapshot.
+        layout["snapshots"].mkdir()
+        for ts in ("20200101T000000", "20200102T000000",
+                   "20200103T000000", "20200104T000000"):
+            (layout["snapshots"] / f"distill_{ts}").mkdir()
+        path = write_snapshot(
+            command="distill",
+            views_dir=layout["views"],
+            constitution_dir=layout["constitution"],
+            snapshots_dir=layout["snapshots"],
+            view_registry=view_registry,
+        )
+        dirs = sorted(p.name for p in layout["snapshots"].iterdir() if p.is_dir())
+        assert len(dirs) == 3
+        # The freshly written snapshot (newest) survives the prune.
+        assert path is not None and path.name in dirs
 
 
 class TestWriteSnapshot:

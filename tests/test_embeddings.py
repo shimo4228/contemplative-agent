@@ -34,3 +34,13 @@ class TestCosine:
         zero = np.zeros(2, dtype=np.float32)
         assert cosine(v, zero) == 0.0
         assert cosine(zero, v) == 0.0
+
+    def test_shape_mismatch_returns_zero_not_crash(self):
+        # Batch G regression (ultracode sweep 2026-06-23): a dimension mismatch
+        # (e.g. an embedding-model swap without re-backfill) must degrade to
+        # 0.0 (dissimilar) instead of raising ValueError and crashing every
+        # distill / insight / view command.
+        v3 = np.array([1.0, 0.0, 0.0], dtype=np.float32)
+        v4 = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
+        assert cosine(v3, v4) == 0.0
+        assert cosine(v4, v3) == 0.0
