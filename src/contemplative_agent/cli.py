@@ -1253,6 +1253,9 @@ def _handle_remove_skill(
         )
         sys.exit(2)
 
+    # Derive from MOLTBOOK_DATA_DIR (not the import-time SKILLS_DIR constant) so
+    # this handler honors a per-call / test-patched data dir — the deletion path
+    # must resolve against the same home the rest of the invocation uses.
     skills_dir = (MOLTBOOK_DATA_DIR / "skills").resolve()
     name = args.name
     if not name.endswith(".md"):

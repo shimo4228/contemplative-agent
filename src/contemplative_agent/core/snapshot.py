@@ -166,14 +166,20 @@ def write_snapshot(
 def _prune_snapshots(snapshots_dir: Path, keep: int) -> None:
     """Keep only the ``keep`` most-recent snapshot dirs; remove the rest.
 
-    Snapshot dirs are named ``{command}_{ts_compact}``, so sorting by name is
-    chronological. Best-effort: pruning failures are logged, never raised
-    (snapshots are observability, ADR-0020 — pruning must not break a command).
+    Snapshot dirs are named ``{command}_{ts_compact}``. Multiple commands share
+    one snapshots dir, so sorting by the whole name would order by command
+    prefix first and prune a brand-new snapshot of one command ahead of an old
+    one of another. Sort by the ``{ts_compact}`` suffix instead: it is a
+    fixed-width, underscore-free timestamp (lexicographic == chronological), and
+    command names contain no underscores, so the single-underscore template
+    makes ``rsplit("_", 1)[-1]`` reliably isolate the timestamp. Best-effort:
+    pruning failures are logged, never raised (snapshots are observability,
+    ADR-0020 — pruning must not break a command).
     """
     try:
         snaps = sorted(
             (p for p in snapshots_dir.iterdir() if p.is_dir()),
-            key=lambda p: p.name,
+            key=lambda p: p.name.rsplit("_", 1)[-1],
         )
     except OSError:
         return

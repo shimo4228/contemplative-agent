@@ -52,11 +52,15 @@ class Scheduler:
             return
         try:
             data = json.loads(self._state_path.read_text(encoding="utf-8"))
+            if not isinstance(data, dict):
+                raise ValueError(f"expected JSON object, got {type(data).__name__}")
             self._last_post_time = data.get("last_post_time", 0.0)
             self._last_comment_time = data.get("last_comment_time", 0.0)
             self._comments_today = data.get("comments_today", 0)
             self._day_start = data.get("day_start", 0.0)
-        except (json.JSONDecodeError, KeyError) as exc:
+        except (json.JSONDecodeError, ValueError) as exc:
+            # Corrupt/non-object state file: fall back to the in-memory defaults
+            # already set in __init__ rather than crashing the scheduler.
             logger.warning("Failed to load rate state: %s", exc)
 
     def _save_state(self) -> None:
@@ -106,6 +110,10 @@ class Scheduler:
         return interval_ok and daily_ok
 
     def seconds_until_post(self) -> float:
+        # Mirror can_post's cross-session re-read so the wait reflects the same
+        # persisted last_post_time the gate checks. Posts have no daily cap, so
+        # (unlike seconds_until_comment) no _reset_daily_if_needed is needed.
+        self._load_state()
         now = time.time()
         elapsed = now - self._last_post_time
         remaining = self._limits.post_interval_seconds - elapsed

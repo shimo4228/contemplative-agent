@@ -128,6 +128,23 @@ class TestSnapshotRetention:
         remaining = sorted(p.name for p in snaps.iterdir())
         assert remaining == ["distill_20260104T000000", "distill_20260105T000000"]
 
+    def test_prune_chronological_across_commands(self, tmp_path):
+        # Regression: all five commands share one snapshots dir, so pruning must
+        # order by the {ts_compact} suffix, not the whole name. Sorting by name
+        # orders by command prefix first, which would prune a brand-new
+        # amend-constitution snapshot ahead of an older distill one.
+        snaps = tmp_path / "snapshots"
+        snaps.mkdir()
+        (snaps / "amend-constitution_20260105T000000").mkdir()  # newest
+        (snaps / "rules-distill_20260103T000000").mkdir()       # middle
+        (snaps / "distill_20260101T000000").mkdir()             # oldest
+        _prune_snapshots(snaps, keep=2)
+        remaining = sorted(p.name for p in snaps.iterdir())
+        assert remaining == [
+            "amend-constitution_20260105T000000",
+            "rules-distill_20260103T000000",
+        ]
+
     def test_write_snapshot_prunes_beyond_cap(self, layout, view_registry, monkeypatch):
         monkeypatch.setattr(snapshot_mod, "MAX_SNAPSHOTS", 3)
         # Pre-seed older snapshot dirs (deterministic names sort before a

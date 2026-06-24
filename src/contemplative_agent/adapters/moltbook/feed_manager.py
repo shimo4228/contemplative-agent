@@ -348,23 +348,13 @@ class FeedManager:
         client: MoltbookClient,
     ) -> None:
         """Upvote-only for near-threshold posts; log the score otherwise."""
-        if (
+        upvoted = (
             score >= ADAPTIVE_BACKOFF.upvote_only_threshold
-            and post_id not in self._upvoted_posts
-            and client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve)
-            and self._confirm_side_effect(f"Upvote post {post_id}")
-        ):
-            if client.upvote_post(post_id):
-                self._upvoted_posts.add(post_id)
-                self._ctx.memory.episodes.append("activity", {
-                    "action": "upvote", "post_id": post_id,
-                    "internal_note": note,
-                })
-                logger.info(
-                    "Upvoted post %s (relevance: %.2f, below comment threshold)",
-                    post_id[:12], score,
-                )
-        else:
+            and self._do_upvote(
+                post_id, score, note, client, below_threshold=True
+            )
+        )
+        if not upvoted:
             # INFO so skipped scores land in production logs: the relevance
             # threshold retune (audit fix #2 follow-up) needs the FULL score
             # distribution, not just the passing tail — debug was discarded
@@ -378,6 +368,26 @@ class FeedManager:
         self, post_id: str, score: float, note: str, client: MoltbookClient
     ) -> None:
         """Upvote relevant posts (regardless of whether we comment)."""
+        self._do_upvote(post_id, score, note, client, below_threshold=False)
+
+    def _do_upvote(
+        self,
+        post_id: str,
+        score: float,
+        note: str,
+        client: MoltbookClient,
+        *,
+        below_threshold: bool,
+    ) -> bool:
+        """Confirm + upvote + record the canonical "activity"/"upvote" episode.
+
+        Single source of truth for the upvote side-effect shared by
+        ``_handle_below_threshold`` and ``_upvote_relevant``. Returns True when
+        the budget/dedup/confirm guard passed (the upvote path was entered), so
+        ``_handle_below_threshold`` can fall back to its below-threshold score
+        log only when the guard was not satisfied — preserving the original
+        full-score-distribution logging behaviour.
+        """
         if (
             post_id not in self._upvoted_posts
             and client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve)
@@ -390,9 +400,13 @@ class FeedManager:
                     "post_id": post_id,
                     "internal_note": note,
                 })
+                suffix = ", below comment threshold" if below_threshold else ""
                 logger.info(
-                    "Upvoted post %s (relevance: %.2f)", post_id[:12], score
+                    "Upvoted post %s (relevance: %.2f%s)",
+                    post_id[:12], score, suffix,
                 )
+            return True
+        return False
 
     def _post_comment_and_record(
         self,
@@ -411,6 +425,10 @@ class FeedManager:
             # post_comment verifies the response envelope (audit H2): a
             # body-level failure raises and never reaches the records below.
             client.post_comment(post_id, comment)
+            # Record the dedup hash only now that the comment is actually
+            # posted (not at generation time) — a gate-rejected or failed
+            # comment must not poison a legitimate same-session retry.
+            self._get_content().mark_posted(comment)
             scheduler.record_comment()
             ctx.commented_posts.add(post_id)
             ctx.memory.record_commented(post_id)

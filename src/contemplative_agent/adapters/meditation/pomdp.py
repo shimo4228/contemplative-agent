@@ -232,13 +232,15 @@ def build_matrices(
 
     sessions = _find_sessions(records)
 
-    # Collect known agent IDs for new_connection detection
+    # Known agent IDs for new_connection detection, accumulated incrementally so
+    # it holds only agents seen BEFORE the record being classified. A global
+    # pre-scan over all records would already contain every responder's agent_id
+    # (including the very interactions classify_outcome inspects), making the
+    # `agent_id not in known_agents` check — and thus the new_connection outcome
+    # — permanently unreachable. The current record's agent is folded in AFTER
+    # classification (below), so a response from a never-before-seen agent
+    # correctly yields new_connection.
     known_agents: set = set()
-    for r in records:
-        if r.get("type") == "interaction":
-            agent_id = r.get("data", {}).get("agent_id", "")
-            if agent_id:
-                known_agents.add(agent_id)
 
     # Count co-occurrences
     # A: observation counts per context — (num_obs x num_ctx)
@@ -278,6 +280,15 @@ def build_matrices(
             b_counts[ctx_i, prev_ctx_i, act_i] += 1
 
         prev_ctx_i = ctx_i
+
+        # Fold this record's agent in AFTER classification so it counts as
+        # acquaintance for LATER records but not for its own outcome. Both sent
+        # and received interactions establish acquaintance (mirrors the prior
+        # all-records pre-scan, which was direction-agnostic).
+        if record.get("type") == "interaction":
+            agent_id = record.get("data", {}).get("agent_id", "")
+            if agent_id:
+                known_agents.add(agent_id)
 
     # Normalize columns/slices to probability distributions
     A = a_counts / a_counts.sum(axis=0, keepdims=True)

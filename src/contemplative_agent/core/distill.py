@@ -311,10 +311,14 @@ def distill_identity(
     lines = [line.strip() for line in result.strip().splitlines() if line.strip()]
     new_identity = "\n".join(lines)
 
-    # Validate against forbidden patterns before returning
+    # Validate against forbidden patterns before returning. On failure, return a
+    # distinct error message (the str arm of the return contract) rather than
+    # echoing the rejected/tainted body — which a caller (and the CLI, which
+    # prints any str result) would otherwise surface as if it were valid output.
+    # Mirrors the hard-drop behaviour of the sibling insight / rules_distill pipelines.
     if not validate_identity_content(new_identity):
-        logger.warning("Generated identity failed validation")
-        return new_identity
+        logger.warning("Generated identity failed validation; discarding")
+        return "Generated identity failed forbidden-pattern validation; discarded."
 
     if not identity_path:
         return new_identity

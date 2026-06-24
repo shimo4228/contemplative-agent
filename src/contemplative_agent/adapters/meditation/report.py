@@ -86,7 +86,11 @@ def _load_interpret_template(prompt_template: Optional[str]) -> Optional[str]:
     try:
         from ...core import prompts
         return prompts.MEDITATION_INTERPRET_PROMPT
-    except (AttributeError, Exception):
+    except AttributeError:
+        # AttributeError is the lazy proxy's "this prompt key isn't configured"
+        # signal — the only benign-degradation case. Let genuine config/IO faults
+        # (FileNotFoundError, ValueError) from the load path propagate instead of
+        # masking misconfiguration as a silent "no template".
         return None
 
 

@@ -26,12 +26,27 @@ class TestContentManager:
         assert mgr._comment_count == 1
 
     @patch("contemplative_agent.adapters.moltbook.content.generate_comment")
-    def test_create_comment_duplicate(self, mock_gen):
+    def test_create_comment_duplicate_after_posted(self, mock_gen):
+        # Dedup is against POSTED content: a comment is only skipped as a
+        # duplicate once an identical text has been mark_posted (i.e. actually
+        # published), not merely generated.
         mock_gen.return_value = "Same comment"
         mgr = ContentManager()
-        mgr.create_comment("Post A")
+        first = mgr.create_comment("Post A")
+        assert first == "Same comment"
+        mgr.mark_posted(first)
         result = mgr.create_comment("Post B")
         assert result is None
+
+    @patch("contemplative_agent.adapters.moltbook.content.generate_comment")
+    def test_create_comment_not_duplicate_until_posted(self, mock_gen):
+        # A generated-but-not-yet-posted comment must NOT poison a same-session
+        # retry of the same text (the gate may have rejected it, or posting may
+        # have failed) — regression guard for the dedup-on-generate bug.
+        mock_gen.return_value = "Same comment"
+        mgr = ContentManager()
+        assert mgr.create_comment("Post A") == "Same comment"
+        assert mgr.create_comment("Post B") == "Same comment"
 
     @patch("contemplative_agent.adapters.moltbook.content.generate_comment")
     def test_create_comment_llm_failure(self, mock_gen):

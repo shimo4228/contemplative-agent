@@ -297,6 +297,29 @@ class TestBuildMatrices:
         np.testing.assert_allclose(matrices.A.sum(axis=0), 1.0, atol=1e-10)
         np.testing.assert_allclose(matrices.D.sum(), 1.0, atol=1e-10)
 
+    def test_new_connection_reachable_in_matrices(self, tmp_path):
+        # Regression: build_matrices previously pre-populated known_agents from
+        # ALL records, so a received interaction's agent_id was always already
+        # known and classify_outcome could never return "new_connection" — the
+        # outcome stayed at its Dirichlet prior in A. Here a comment is followed
+        # (within the 300s response window) by a response from a never-seen
+        # agent, so new_connection must accumulate signal.
+        records = [
+            {"ts": _ts(0), "type": "activity",
+             "data": {"action": "comment", "post_id": "p1"}},
+            {"ts": _ts(60), "type": "interaction",
+             "data": {"direction": "received", "agent_id": "newbie",
+                      "agent_name": "Newbie"}},
+        ]
+        log = _make_log(tmp_path, records)
+        matrices = build_matrices(log, days=1)
+
+        nc_idx = {o: i for i, o in enumerate(OUTCOME_STATES)}["new_connection"]
+        # Under the bug every column of the new_connection row sits at the prior,
+        # so its max equals the uniform 1/NUM_OBSERVATIONS. The accumulated
+        # outcome pushes its column above that baseline.
+        assert matrices.A[nc_idx].max() > 1.0 / NUM_OBSERVATIONS + 1e-9
+
     def test_preferences(self, tmp_path):
         log = _make_log(tmp_path, [])
         matrices = build_matrices(log, days=1)

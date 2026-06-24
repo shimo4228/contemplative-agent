@@ -324,6 +324,10 @@ class PostPipeline:
                 },
             )
             scheduler.record_post()
+            # Record the dedup hash only now that the post is actually
+            # published (not at generation time), so a gate-rejected or
+            # failed post does not poison a legitimate same-session retry.
+            self._get_content().mark_posted(content)
             # Moltbook wraps the created resource in a {"success", "post": {...}}
             # envelope (skill.md AI Verification Challenges step 1; same shape
             # as /agents/me and /agents/profile). The flat ``id`` fallback is
