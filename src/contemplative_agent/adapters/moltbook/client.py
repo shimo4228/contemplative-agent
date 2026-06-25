@@ -15,8 +15,10 @@ from .config import (
     BASE_URL,
     CONNECT_TIMEOUT,
     MAX_RETRY_ON_429,
+    MOLTBOOK_DATA_DIR,
     READ_TIMEOUT,
 )
+from ...core._io import append_jsonl_restricted, now_iso
 from ...core.config import (
     VALID_ID_PATTERN,
     VALID_SUBMOLT_PATTERN,
@@ -27,6 +29,88 @@ VALID_AGENT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 logger = logging.getLogger(__name__)
 
 MAX_RETRY_AFTER = 300  # 5 minutes hard cap
+
+# --- API response instrumentation (silent-failure + drift capture) ---------
+# Every API call's STRUCTURE (not free-text body) is appended to this JSONL so
+# silent failures (2xx + success:false, verification_status=pending) and schema
+# drift are greppable. Self-written + structural-only → safe to read directly
+# (unlike episode logs, which carry untrusted external content).
+API_AUDIT_PATH = MOLTBOOK_DATA_DIR / "logs" / "api-audit.jsonl"
+
+_UUID_RE = re.compile(
+    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I
+)
+# Agent-name segments that are real path components, not a {name} variable.
+_AGENT_ACTIONS = {"me", "profile", "register", "status"}
+# Top-level envelope keys the client DEPENDS ON per endpoint. A missing key here
+# means our parsing would silently break → log a drift WARNING. Endpoints that
+# legitimately omit `success` (notifications, submolt feed) key on their list
+# field instead. Extra/unknown keys are recorded but not warned (additive).
+_EXPECTED_KEYS: dict[str, frozenset[str]] = {
+    "POST /posts": frozenset({"post"}),
+    "GET /posts/{id}": frozenset({"post"}),
+    "POST /posts/{id}/comments": frozenset({"comment"}),
+    "GET /posts/{id}/comments": frozenset({"comments"}),
+    "GET /agents/me": frozenset({"agent"}),
+    "GET /notifications": frozenset({"notifications"}),
+    "POST /verify": frozenset({"success"}),
+}
+# Scalar status fields worth recording (enum/bool only — never free text).
+_STATUS_FIELDS = ("verification_status", "is_spam", "is_deleted", "is_locked")
+_BOOL_STATUS_FIELDS = frozenset({"is_spam", "is_deleted", "is_locked"})
+
+
+def _normalize_endpoint(method: str, path: str) -> str:
+    """Collapse ids/names in a path to a stable template for grouping, e.g.
+    'POST /posts/9a1d.../comments' -> 'POST /posts/{id}/comments'."""
+    raw = path.split("?", 1)[0].strip("/")
+    parts = raw.split("/") if raw else []
+    out: list[str] = []
+    for i, seg in enumerate(parts):
+        prev = parts[i - 1] if i > 0 else ""
+        if _UUID_RE.match(seg):
+            out.append("{id}")
+        elif prev == "agents" and seg not in _AGENT_ACTIONS:
+            out.append("{name}")
+        elif prev == "submolts":
+            out.append("{name}")
+        elif prev == "comments":
+            out.append("{id}")
+        else:
+            out.append(seg)
+    return f"{method.upper()} /" + "/".join(out)
+
+
+def _try_json(response: requests.Response) -> Any:
+    """Parse a response body as JSON, or None if it is not JSON."""
+    try:
+        return response.json()
+    except ValueError:
+        return None
+
+
+def _content_status(body: dict[str, Any]) -> dict[str, Any]:
+    """Pull whitelisted scalar status fields from a response body (top level and
+    the nested post/comment resource). Values are coerced to bool or a short
+    printable string so an adversarial/compromised server cannot smuggle
+    free-text (a prompt-injection vector) into the directly-read audit log."""
+    status: dict[str, Any] = {}
+    sources = [body]
+    for key in ("post", "comment"):
+        sub = body.get(key)
+        if isinstance(sub, dict):
+            sources.append(sub)
+    for src in sources:
+        for field in _STATUS_FIELDS:
+            if field in src and field not in status:
+                val = src[field]
+                if field in _BOOL_STATUS_FIELDS:
+                    status[field] = bool(val)
+                else:
+                    # String status (e.g. verification_status): strip to
+                    # printable and cap — never store raw server text.
+                    status[field] = re.sub(r"[^\x20-\x7E]", "", str(val))[:32]
+    return status
 
 
 class MoltbookClientError(Exception):
@@ -203,13 +287,72 @@ class MoltbookClient:
                 return self._request(method, path, retries=retries + 1, **kwargs)
 
         if response.status_code >= 400:
+            self._record_api_outcome(
+                method, path, response.status_code, _try_json(response)
+            )
             safe_body = re.sub(r'[^\x20-\x7E\n]', '', response.text[:500])
             raise MoltbookClientError(
                 f"API error {response.status_code}: {safe_body}",
                 status_code=response.status_code,
             )
 
+        self._record_api_outcome(
+            method, path, response.status_code, _try_json(response)
+        )
         return response
+
+    def _record_api_outcome(
+        self,
+        method: str,
+        path: str,
+        status_code: int,
+        body: Any,
+    ) -> None:
+        """Append a structural record of one API call (best-effort).
+
+        Captures path / method / status / envelope-keys / status-fields /
+        soft-failures and flags schema drift, WITHOUT recording any free-text
+        body. Wrapped so instrumentation can never break a request."""
+        try:
+            endpoint = _normalize_endpoint(method, path)
+            record: dict[str, Any] = {
+                "ts": now_iso("seconds"),
+                "method": method.upper(),
+                "endpoint": endpoint,
+                "status": status_code,
+            }
+            rate = self.rate_limit_remaining
+            if rate is not None:
+                record["rate_remaining"] = rate
+            if isinstance(body, dict):
+                record["keys"] = sorted(body.keys())
+                if "success" in body:
+                    record["success"] = bool(body["success"])
+                status = _content_status(body)
+                if status:
+                    record["content_status"] = status
+                if status_code < 400 and body.get("success") is False:
+                    record["soft_fail"] = True
+                if status_code >= 400 or body.get("success") is False:
+                    err = re.sub(
+                        r"[^\x20-\x7E]", "", str(body.get("error", ""))[:200]
+                    )
+                    if err:
+                        record["error"] = err
+                expected = _EXPECTED_KEYS.get(endpoint)
+                if expected is not None:
+                    missing = expected - set(body.keys())
+                    if missing:
+                        record["drift_missing"] = sorted(missing)
+                        logger.warning(
+                            "API drift: %s missing expected key(s) %s (got %s)",
+                            endpoint,
+                            sorted(missing),
+                            sorted(body.keys()),
+                        )
+            append_jsonl_restricted(API_AUDIT_PATH, record)
+        except Exception as exc:  # never let instrumentation break a request
+            logger.debug("API audit record failed: %s", exc)
 
     def get(self, path: str, **kwargs: Any) -> requests.Response:
         return self._request("GET", path, **kwargs)
@@ -306,8 +449,14 @@ class MoltbookClient:
             logger.warning("Failed to fetch post %s: %s", post_id[:12], exc)
             return None
 
-    def post_comment(self, post_id: str, content: str) -> dict[str, Any]:
+    def post_comment(
+        self, post_id: str, content: str, parent_id: Optional[str] = None
+    ) -> dict[str, Any]:
         """POST /posts/{post_id}/comments — create a comment, verify the body.
+
+        ``parent_id`` threads the comment as a reply under an existing comment
+        (the API requires it for replies; omitting it posts a top-level
+        comment). When provided it is format-validated like ``post_id``.
 
         HTTP 2xx alone is not success: Moltbook wraps created resources in a
         ``{"success", "comment": {...}}`` envelope (same shape as the post
@@ -331,7 +480,14 @@ class MoltbookClient:
             raise MoltbookClientError(
                 f"Invalid post_id for comment: {post_id[:50]}"
             )
-        resp = self.post(f"/posts/{post_id}/comments", json={"content": content})
+        body: dict[str, Any] = {"content": content}
+        if parent_id:
+            if not VALID_ID_PATTERN.match(parent_id):
+                raise MoltbookClientError(
+                    f"Invalid parent_id for comment: {parent_id[:50]}"
+                )
+            body["parent_id"] = parent_id
+        resp = self.post(f"/posts/{post_id}/comments", json=body)
         try:
             data = resp.json()
         except ValueError:
@@ -376,6 +532,15 @@ class MoltbookClient:
                 post_id[:12],
                 sorted(data.keys()),
             )
+        # Surface the verification challenge regardless of nesting. The post
+        # create-response nests it under "post" (skill.md); the comment shape is
+        # unconfirmed, so fold a root-level "verification" into the returned dict
+        # too — the caller's ``created.get("verification")`` gate then fires
+        # whether the API nests it under "comment" or at the response root.
+        if "verification" not in comment and isinstance(
+            data.get("verification"), dict
+        ):
+            comment = {**comment, "verification": data["verification"]}
         return comment
 
     # ------------------------------------------------------------------

@@ -53,6 +53,7 @@ class PostPipeline:
         get_feed: Callable[[], List[dict]],
         confirm_action: Callable[..., bool],
         novelty_gate: NoveltyGate,
+        handle_verification: Callable[[dict], bool],
     ) -> None:
         self._ctx = ctx
         self._domain = domain
@@ -60,6 +61,7 @@ class PostPipeline:
         self._get_feed = get_feed
         self._confirm_action = confirm_action
         self._novelty_gate = novelty_gate
+        self._handle_verification = handle_verification
 
     def run_cycle(
         self,
@@ -324,10 +326,6 @@ class PostPipeline:
                 },
             )
             scheduler.record_post()
-            # Record the dedup hash only now that the post is actually
-            # published (not at generation time), so a gate-rejected or
-            # failed post does not poison a legitimate same-session retry.
-            self._get_content().mark_posted(content)
             # Moltbook wraps the created resource in a {"success", "post": {...}}
             # envelope (skill.md AI Verification Challenges step 1; same shape
             # as /agents/me and /agents/profile). The flat ``id`` fallback is
@@ -338,6 +336,27 @@ class PostPipeline:
             resp_json = resp.json()
             post_data = resp_json.get("post") or {}
             post_id = post_data.get("id") or resp_json.get("id", "")
+            # Verification handshake: a non-trusted agent's create-response
+            # carries a ``verification`` object (math challenge) that must be
+            # solved before the post is visible. This was never handled until
+            # this fix, so every post stayed verification_status=pending
+            # (invisible) since ~May 2026. An unverified post is invisible AND
+            # unrecoverable (5-min challenge window), so on failure we record
+            # nothing — it stays out of NoveltyGate/memory/dedup and a later
+            # session can post fresh, visible content instead. A trusted-bypass
+            # response has no ``verification`` key and falls straight through.
+            verification = post_data.get("verification")
+            if verification is not None and not self._handle_verification(verification):
+                logger.warning(
+                    "Post created (id=%s) but verification failed; not "
+                    "recording (pending/invisible, unrecoverable)",
+                    post_id,
+                )
+                return
+            # Record the dedup hash only now that the post is actually
+            # published AND visible (verified), so a gate-rejected, failed, or
+            # unverified post does not poison a legitimate same-session retry.
+            self._get_content().mark_posted(content)
             if post_id:
                 ctx.own_post_ids.add(post_id)
             else:

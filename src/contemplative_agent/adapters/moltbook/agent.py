@@ -36,7 +36,6 @@ from .verification import (
 from ...core.config import (
     FORBIDDEN_SUBSTRING_PATTERNS,
     FORBIDDEN_WORD_PATTERNS,
-    VALID_ID_PATTERN,
 )
 from ...core.domain import DomainConfig, get_domain_config
 from ...core.episode_embeddings import EpisodeEmbeddingStore
@@ -105,11 +104,13 @@ class Agent:
             get_content=lambda: self._content,
             confirm_action=self._confirm_action,
             confirm_side_effect=self._confirm_side_effect,
+            handle_verification=self._handle_verification,
         )
         self._reply_handler = ReplyHandler(
             ctx=self._ctx,
             confirm_action=self._confirm_action,
             confirm_side_effect=self._confirm_side_effect,
+            handle_verification=self._handle_verification,
         )
         self._novelty_gate = NoveltyGate(
             embed_store=EpisodeEmbeddingStore(EPISODE_EMBEDDINGS_PATH),
@@ -122,6 +123,7 @@ class Agent:
             get_feed=lambda: self._feed_manager.get_feed(self._ensure_client()),
             confirm_action=self._confirm_action,
             novelty_gate=self._novelty_gate,
+            handle_verification=self._handle_verification,
         )
 
     # ------------------------------------------------------------------
@@ -387,17 +389,34 @@ class Agent:
     # Verification
     # ------------------------------------------------------------------
 
-    def _handle_verification(self, challenge: dict) -> bool:
-        """Solve and submit a verification challenge."""
+    def _handle_verification(self, verification: dict) -> bool:
+        """Solve and submit a content-verification challenge.
+
+        ``verification`` is the object Moltbook embeds in a create-response
+        (post / comment / submolt) when the agent is not trusted: it carries
+        ``challenge_text`` (the obfuscated math problem) and
+        ``verification_code`` (the opaque submission handle). Returns True
+        when the content was verified (or no action was needed); False when
+        solving or submission failed (caller leaves the content unrecorded).
+
+        Deliberately NOT routed through _confirm_side_effect (audit H1):
+        verification is a platform anti-bot handshake required for created
+        content to become visible, not a social action — gating it would
+        leave the post invisible rather than supervise it.
+        """
         if self._verification.should_stop:
             logger.error("Too many verification failures. Stopping.")
             return False
 
-        challenge_text = challenge.get("text", "")
-        challenge_id = challenge.get("id", "")
+        challenge_text = verification.get("challenge_text", "")
+        verification_code = verification.get("verification_code", "")
 
-        if not challenge_id or not VALID_ID_PATTERN.match(challenge_id):
-            logger.warning("Invalid challenge_id format, skipping: %r", challenge_id[:50])
+        if not challenge_text or not verification_code:
+            logger.warning(
+                "Verification object missing challenge_text/verification_code "
+                "(keys=%s)",
+                sorted(verification.keys()),
+            )
             self._verification.record_failure()
             return False
 
@@ -408,17 +427,20 @@ class Agent:
 
         client = self._ensure_client()
         try:
-            # Deliberately NOT routed through _confirm_side_effect (audit
-            # H1): verification is a platform anti-bot handshake required
-            # for the session to function, not a social action — rejecting
-            # it would brick the session rather than supervise it.
-            result = submit_verification(client, challenge_id, answer)
+            result = submit_verification(client, verification_code, answer)
             if result.get("success"):
                 self._verification.record_success()
+                logger.info("Verification submitted and accepted")
                 return True
+            # error is server-generated; strip non-printable to avoid log
+            # injection in agent-launchd.log (same care as client.py).
+            safe_error = re.sub(
+                r"[^\x20-\x7E]", "", str(result.get("error", ""))[:200]
+            )
+            logger.warning("Verification rejected: %s", safe_error)
             self._verification.record_failure()
             return False
-        except MoltbookClientError as exc:
+        except (MoltbookClientError, ValueError) as exc:
             logger.error("Verification submission failed: %s", exc)
             self._verification.record_failure()
             return False
@@ -628,7 +650,6 @@ class Agent:
             client=self._ensure_client(),
             scheduler=self._get_scheduler(),
             end_time=end_time,
-            handle_verification=self._handle_verification,
         )
 
     def _generate_activity_report(self) -> None:

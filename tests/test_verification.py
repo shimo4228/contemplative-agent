@@ -1,136 +1,81 @@
-"""Tests for verification challenge solver."""
+"""Tests for the verification challenge solver and submission."""
+
+from unittest.mock import MagicMock, patch
+
+import pytest
 
 from contemplative_agent.adapters.moltbook.verification import (
     VerificationTracker,
-    compute,
-    deobfuscate,
-    parse_challenge,
-    parse_number_word,
+    _extract_answer,
     solve_challenge,
+    submit_verification,
 )
 
-
-class TestDeobfuscate:
-    def test_basic_repeat(self):
-        assert deobfuscate("ttwweennttyy") == "twenty"
-
-    def test_triple_repeat(self):
-        assert deobfuscate("fffiiivvveee") == "five"
-
-    def test_no_repeat(self):
-        assert deobfuscate("five") == "five"
-
-    def test_empty(self):
-        assert deobfuscate("") == ""
-
-    def test_mixed_repeat(self):
-        assert deobfuscate("ttwweennttyy pplluuss ffiivvee") == "twenty plus five"
-
-    def test_single_char(self):
-        assert deobfuscate("a") == "a"
-
-    def test_all_same(self):
-        # "aaaa" pair-decodes to "aa" (each pair of 'a' = one 'a')
-        assert deobfuscate("aaaa") == "aa"
+_SOLVE_TARGET = "contemplative_agent.adapters.moltbook.verification.generate"
 
 
-class TestParseNumberWord:
-    def test_simple_numbers(self):
-        assert parse_number_word("zero") == 0
-        assert parse_number_word("one") == 1
-        assert parse_number_word("twenty") == 20
-
-    def test_compound_hyphenated(self):
-        assert parse_number_word("twenty-five") == 25
-        assert parse_number_word("thirty-three") == 33
-
-    def test_compound_space(self):
-        assert parse_number_word("twenty five") == 25
-
-    def test_digit_string(self):
-        assert parse_number_word("42") == 42
-
-    def test_case_insensitive(self):
-        assert parse_number_word("TWENTY") == 20
-
-    def test_invalid(self):
-        assert parse_number_word("foobar") is None
-
-    def test_hundred(self):
-        assert parse_number_word("two hundred") == 200
-
-    def test_hundred_with_remainder(self):
-        assert parse_number_word("three hundred fifty") == 350
-
-
-class TestParseChallenge:
-    def test_plus(self):
-        result = parse_challenge("twenty plus five")
-        assert result == (20.0, "+", 5.0)
-
-    def test_minus(self):
-        result = parse_challenge("ten minus three")
-        assert result is not None
-        assert result == (10.0, "-", 3.0)
-
-    def test_times(self):
-        result = parse_challenge("five times six")
-        assert result == (5.0, "*", 6.0)
-
-    def test_divided(self):
-        result = parse_challenge("twenty divided four")
-        assert result == (20.0, "/", 4.0)
-
-    def test_gains(self):
-        result = parse_challenge("ten gains five")
-        assert result == (10.0, "+", 5.0)
-
-    def test_loses(self):
-        result = parse_challenge("ten loses three")
-        assert result == (10.0, "-", 3.0)
-
-    def test_invalid(self):
-        assert parse_challenge("hello world") is None
-
-    def test_invalid_numbers(self):
-        assert parse_challenge("foobar plus baz") is None
-
-
-class TestCompute:
-    def test_add(self):
-        assert compute(20.0, "+", 5.0) == 25.0
-
-    def test_subtract(self):
-        assert compute(20.0, "-", 5.0) == 15.0
-
-    def test_multiply(self):
-        assert compute(5.0, "*", 6.0) == 30.0
-
-    def test_divide(self):
-        assert compute(20.0, "/", 4.0) == 5.0
-
-    def test_divide_by_zero(self):
-        assert compute(20.0, "/", 0.0) is None
-
-    def test_invalid_op(self):
-        assert compute(1.0, "^", 2.0) is None
+class TestExtractAnswer:
+    @pytest.mark.parametrize(
+        "raw,expected",
+        [
+            ("15.00", "15.00"),
+            ("15", "15.00"),
+            ("The answer is 15.", "15.00"),
+            ("twenty minus five = 15", "15.00"),  # last number wins
+            ("525.5", "525.50"),
+            ("  42  ", "42.00"),
+            ("I cannot solve this", None),
+            ("", None),
+        ],
+        ids=[
+            "already-formatted",
+            "bare-int",
+            "trailing-prose",
+            "reasoning-last-number",
+            "one-decimal",
+            "whitespace",
+            "no-number",
+            "empty",
+        ],
+    )
+    def test_extract(self, raw, expected):
+        assert _extract_answer(raw) == expected
 
 
 class TestSolveChallenge:
-    def test_obfuscated_addition(self):
-        assert solve_challenge("ttwweennttyy pplluuss ffiivvee") == "25.00"
+    def test_returns_formatted_number(self):
+        with patch(_SOLVE_TARGET, return_value="15.00") as gen:
+            assert solve_challenge("A] lO^bSt-Er ...") == "15.00"
+        gen.assert_called_once()
 
-    def test_obfuscated_subtraction(self):
-        assert solve_challenge("tteenn mmiinnuuss tthhrreeee") == "7.00"
+    def test_formats_bare_integer(self):
+        with patch(_SOLVE_TARGET, return_value="15"):
+            assert solve_challenge("noise") == "15.00"
 
-    def test_plain_text(self):
-        assert solve_challenge("five times six") == "30.00"
+    def test_llm_unavailable_returns_none(self):
+        with patch(_SOLVE_TARGET, return_value=None):
+            assert solve_challenge("noise") is None
 
-    def test_division(self):
-        assert solve_challenge("twenty divided four") == "5.00"
+    def test_unparseable_output_returns_none(self):
+        with patch(_SOLVE_TARGET, return_value="I refuse"):
+            assert solve_challenge("noise") is None
 
-    def test_unsolvable(self):
-        assert solve_challenge("random gibberish") is None
+    def test_empty_challenge_skips_llm(self):
+        with patch(_SOLVE_TARGET) as gen:
+            assert solve_challenge("") is None
+        gen.assert_not_called()
+
+
+class TestSubmitVerification:
+    def test_posts_verification_code_and_answer(self):
+        client = MagicMock()
+        client.post.return_value.json.return_value = {"success": True}
+        result = submit_verification(client, "moltbook_verify_abc", "15.00")
+        assert result == {"success": True}
+        client.post.assert_called_once_with(
+            "/verify",
+            json={"verification_code": "moltbook_verify_abc", "answer": "15.00"},
+        )
 
 
 class TestVerificationTracker:

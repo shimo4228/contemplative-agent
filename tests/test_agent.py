@@ -553,7 +553,9 @@ class TestHandleVerification:
         agent._verification = MagicMock()
         agent._verification.should_stop = True
 
-        result = agent._handle_verification({"text": "test", "id": "v1"})
+        result = agent._handle_verification(
+            {"challenge_text": "test", "verification_code": "moltbook_verify_v1"}
+        )
         assert result is False
 
     @patch("contemplative_agent.adapters.moltbook.agent.solve_challenge", return_value=None)
@@ -562,7 +564,9 @@ class TestHandleVerification:
         agent._verification = MagicMock()
         agent._verification.should_stop = False
 
-        result = agent._handle_verification({"text": "test", "id": "v1"})
+        result = agent._handle_verification(
+            {"challenge_text": "test", "verification_code": "moltbook_verify_v1"}
+        )
         assert result is False
         agent._verification.record_failure.assert_called_once()
 
@@ -576,7 +580,9 @@ class TestHandleVerification:
         agent._verification = MagicMock()
         agent._verification.should_stop = False
 
-        result = agent._handle_verification({"text": "test", "id": "v1"})
+        result = agent._handle_verification(
+            {"challenge_text": "test", "verification_code": "moltbook_verify_v1"}
+        )
         assert result is True
         agent._verification.record_success.assert_called_once()
 
@@ -590,7 +596,9 @@ class TestHandleVerification:
         agent._verification = MagicMock()
         agent._verification.should_stop = False
 
-        result = agent._handle_verification({"text": "test", "id": "v1"})
+        result = agent._handle_verification(
+            {"challenge_text": "test", "verification_code": "moltbook_verify_v1"}
+        )
         assert result is False
         agent._verification.record_failure.assert_called_once()
 
@@ -604,9 +612,42 @@ class TestHandleVerification:
         agent._verification = MagicMock()
         agent._verification.should_stop = False
 
-        result = agent._handle_verification({"text": "test", "id": "v1"})
+        result = agent._handle_verification(
+            {"challenge_text": "test", "verification_code": "moltbook_verify_v1"}
+        )
         assert result is False
         agent._verification.record_failure.assert_called_once()
+
+    def test_missing_fields_records_failure(self):
+        agent = Agent()
+        agent._verification = MagicMock()
+        agent._verification.should_stop = False
+
+        # An envelope lacking challenge_text/verification_code (e.g. a future
+        # API rename) fails closed rather than submitting garbage.
+        result = agent._handle_verification({"foo": "bar"})
+        assert result is False
+        agent._verification.record_failure.assert_called_once()
+
+    @patch("contemplative_agent.adapters.moltbook.agent.submit_verification")
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge",
+        return_value="15.00",
+    )
+    def test_submit_called_with_verification_code(self, mock_solve, mock_submit):
+        mock_submit.return_value = {"success": True}
+        agent = Agent()
+        agent._client = MagicMock()
+        agent._verification = MagicMock()
+        agent._verification.should_stop = False
+
+        agent._handle_verification(
+            {"challenge_text": "noise", "verification_code": "moltbook_verify_v1"}
+        )
+        # Current API keys submission on verification_code, not a challenge id.
+        args, _ = mock_submit.call_args
+        assert args[1] == "moltbook_verify_v1"
+        assert args[2] == "15.00"
 
 
 class TestEngageWithPost:
@@ -663,6 +704,62 @@ class TestEngageWithPost:
             "post1", "Great insight"
         )
         assert len(agent._ctx.actions_taken) == 1
+
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
+    def test_comment_verification_success_records(
+        self, mock_score, mock_random, mock_time, tmp_path
+    ):
+        """A comment whose create-response carries a verification object is
+        recorded only after the handshake succeeds."""
+        mock_random.uniform.return_value = 60.0
+        agent = self._make_agent(tmp_path)
+        agent._content.create_comment.return_value = "Great insight"
+        agent._client.post_comment.return_value = {
+            "id": "c-new",
+            "verification": {
+                "verification_code": "moltbook_verify_x",
+                "challenge_text": "noise",
+            },
+        }
+        # Replace the stored callback (feed_manager captured the bound method at
+        # construction, so patching agent._handle_verification would not take).
+        verify = MagicMock(return_value=True)
+        agent._feed_manager._handle_verification = verify
+
+        result = agent._feed_manager.engage_with_post(
+            {"content": "text", "id": "post1"}, agent._client, agent._scheduler
+        )
+        assert result is True
+        verify.assert_called_once_with(
+            {"verification_code": "moltbook_verify_x", "challenge_text": "noise"}
+        )
+        assert agent._ctx.memory.has_commented_on("post1")
+        agent._scheduler.record_comment.assert_called_once()
+
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
+    def test_comment_verification_failure_not_recorded(self, mock_score, tmp_path):
+        """When the comment handshake fails the comment is invisible, so it is
+        not recorded — but the comment-rate counter still advances."""
+        agent = self._make_agent(tmp_path)
+        agent._content.create_comment.return_value = "Great insight"
+        agent._client.post_comment.return_value = {
+            "id": "c-new",
+            "verification": {
+                "verification_code": "moltbook_verify_x",
+                "challenge_text": "noise",
+            },
+        }
+        agent._feed_manager._handle_verification = MagicMock(return_value=False)
+
+        result = agent._feed_manager.engage_with_post(
+            {"content": "text", "id": "post1"}, agent._client, agent._scheduler
+        )
+        assert result is False
+        assert not agent._ctx.memory.has_commented_on("post1")
+        assert agent._ctx.actions_taken == []
+        agent._scheduler.record_comment.assert_called_once()
 
     @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_comment_client_error(self, mock_score, tmp_path):
@@ -910,6 +1007,10 @@ class TestRunFeedCycle:
         agent._scheduler = MagicMock()
         fm = agent._feed_manager
 
+        # The legacy feed-borne verification_challenge field is now inert: the
+        # current API returns challenges in the create-response (handled at
+        # create time), never on a fetched feed post. Both posts must reach
+        # engage_with_post and the feed loop must not dispatch verification.
         posts = [
             {"content": "post1", "id": "p1"},
             {"content": "post2", "id": "p2", "verification_challenge": {"text": "v", "id": "vc1"}},
@@ -920,8 +1021,8 @@ class TestRunFeedCycle:
              patch.object(fm, "engage_with_post") as mock_engage:
             agent._run_feed_cycle(time.time() + 3600)
 
-        mock_engage.assert_called_once()
-        mock_verify.assert_called_once()
+        assert mock_engage.call_count == 2
+        mock_verify.assert_not_called()
 
     def test_respects_end_time(self):
         agent = Agent(autonomy=AutonomyLevel.AUTO)
@@ -992,6 +1093,121 @@ class TestRunPostCycle:
         agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
         agent._client.post.assert_called_once()
         assert any("Posted: Notes on dedup gates" in a for a in agent._ctx.actions_taken)
+
+    @patch("contemplative_agent.adapters.moltbook.verification.generate", return_value="15")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="reflection on alignment")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Notes on dedup gates")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_created_post_triggers_verify(
+        self, mock_score, mock_title, mock_summarize, mock_submolt, mock_gen,
+        tmp_path,
+    ):
+        """Regression (the exact bug): a create-response carrying a
+        ``verification`` object must drive a POST /verify keyed on
+        verification_code before the post is recorded. Pre-fix this never
+        happened and every post stayed pending/invisible."""
+        # Clean memory so the body-hash dedup gate isn't tripped by the shared
+        # session MOLTBOOK_HOME (other post-cycle tests reuse the same content).
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        agent._client = MagicMock()
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_post.return_value = True
+        agent._content = MagicMock()
+        agent._content.create_cooperation_post.return_value = (
+            "We paused to revisit how gates intersect with memory."
+        )
+        agent._post_pipeline._novelty_gate.evaluate = MagicMock(
+            return_value=_admit_decision()
+        )
+        agent._post_pipeline._novelty_gate.record = MagicMock()
+
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {"posts": [
+            {"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}
+        ]}
+        post_resp = MagicMock()
+        post_resp.json.return_value = {
+            "success": True,
+            "post": {
+                "id": "new-post-123",
+                "verification_status": "pending",
+                "verification": {
+                    "verification_code": "moltbook_verify_x",
+                    "challenge_text": "A] lO^bSt-Er ...",
+                },
+            },
+        }
+        verify_resp = MagicMock()
+        verify_resp.json.return_value = {"success": True}
+        agent._client.get.return_value = feed_resp
+
+        def post_router(path, **kwargs):
+            return verify_resp if path == "/verify" else post_resp
+
+        agent._client.post.side_effect = post_router
+
+        agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
+
+        verify_calls = [
+            c for c in agent._client.post.call_args_list
+            if c.args and c.args[0] == "/verify"
+        ]
+        assert len(verify_calls) == 1
+        assert verify_calls[0].kwargs["json"]["verification_code"] == "moltbook_verify_x"
+        # Verified → recorded.
+        assert any("Posted:" in a for a in agent._ctx.actions_taken)
+        agent._post_pipeline._novelty_gate.record.assert_called_once()
+
+    @patch("contemplative_agent.adapters.moltbook.agent.solve_challenge", return_value=None)
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="reflection on alignment")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Notes on dedup gates")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_failed_verification_not_recorded(
+        self, mock_score, mock_title, mock_summarize, mock_submolt, mock_solve,
+        tmp_path,
+    ):
+        """When verification cannot be solved, the (invisible) post must not be
+        recorded — it stays out of NoveltyGate/memory/actions — but the
+        rate-limit counter still advances (the create consumed server quota)."""
+        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
+        agent._client = MagicMock()
+        agent._scheduler = MagicMock()
+        agent._scheduler.can_post.return_value = True
+        agent._content = MagicMock()
+        agent._content.create_cooperation_post.return_value = (
+            "We paused to revisit how gates intersect with memory."
+        )
+        agent._post_pipeline._novelty_gate.evaluate = MagicMock(
+            return_value=_admit_decision()
+        )
+        agent._post_pipeline._novelty_gate.record = MagicMock()
+
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {"posts": [
+            {"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}
+        ]}
+        post_resp = MagicMock()
+        post_resp.json.return_value = {
+            "success": True,
+            "post": {
+                "id": "new-post-123",
+                "verification": {
+                    "verification_code": "moltbook_verify_x",
+                    "challenge_text": "unsolvable",
+                },
+            },
+        }
+        agent._client.get.return_value = feed_resp
+        agent._client.post.return_value = post_resp
+
+        agent._post_pipeline.run_cycle(agent._client, agent._scheduler)
+
+        assert agent._ctx.actions_taken == []
+        agent._post_pipeline._novelty_gate.record.assert_not_called()
+        agent._content.mark_posted.assert_not_called()
+        agent._scheduler.record_post.assert_called_once()
 
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="topic summary")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Notes on shared gates")
@@ -1459,8 +1675,9 @@ class TestRunReplyCycle:
 
         agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
+        # Notification path has no comment id → top-level comment (parent_id None).
         agent._client.post_comment.assert_called_once_with(
-            "p1", "My reply"
+            "p1", "My reply", parent_id=None
         )
         assert "Replied to Alice on p1" in agent._ctx.actions_taken
         # Both received + sent should be recorded
@@ -1484,7 +1701,7 @@ class TestRunReplyCycle:
         agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
         agent._client.post_comment.assert_called_once_with(
-            "p2", "My reply"
+            "p2", "My reply", parent_id=None
         )
         assert "Replied to Bob on p2" in agent._ctx.actions_taken
 
@@ -1606,7 +1823,7 @@ class TestRunReplyCycle:
         agent._reply_handler.run_cycle(agent._client, agent._scheduler, time.time() + 3600)
 
         agent._client.post_comment.assert_called_once_with(
-            "p1", "My reply"
+            "p1", "My reply", parent_id=None
         )
         agent._client.upvote_comment.assert_not_called()
 
@@ -1678,8 +1895,9 @@ class TestCheckOwnPostComments:
             agent._client, agent._scheduler, time.time() + 3600
         )
 
+        # Comment-scan path knows the comment id → reply threads under it.
         agent._client.post_comment.assert_called_once_with(
-            "my-post-1", "Thanks!"
+            "my-post-1", "Thanks!", parent_id="c1"
         )
         assert "Replied to Alice on my-post-1" in agent._ctx.actions_taken
         assert agent._memory.interaction_count() - before_count == 2  # received + sent

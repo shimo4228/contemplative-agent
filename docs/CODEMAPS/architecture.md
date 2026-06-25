@@ -53,13 +53,13 @@ All DTOs `frozen=True`. Required by approval-gate diff pipeline and bitemporal i
 ```
 CLI → Agent.run_session(autonomy_level, session_mins)
  ├─ ReplyHandler._run_reply_cycle()
- │    internal_note (ADR-0045) → reply → post → EpisodeLog
+ │    internal_note (ADR-0045) → reply → POST → verify → EpisodeLog
  ├─ Agent._run_feed_cycle()
  │    fetch → promo filter → ID dedup → per-author cap (3/24h)
  │    → score_relevance (LLM, on 500-char feed preview — cheap gate)
  │    → fetch full body  [ADR-0061; before the note, not just the comment]
  │    → internal_note + comment (read the FULL post, not the preview)
- │    → Scheduler budget gate
+ │    → Scheduler budget gate → POST → verify
  ├─ PostPipeline._run_post_cycle()
  │    feed_seeder.select_feed_seeds()        [ADR-0043]
  │      relevance ≥ 0.4 | RNG 1-3 posts | 15000-char budget
@@ -67,9 +67,18 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │    → _passes_deterministic_gates (order as in code):
  │      is_test_content() → NoveltyGate.evaluate() [ADR-0039]
  │        (cosine vs recent self-posts + temporal decay + rate-deficit Lagrangian)
- │        → body-hash dedup (SHA-256[:16]) → post
+ │        → body-hash dedup (SHA-256[:16]) → POST /posts
+ │    → verification handshake: a non-trusted agent's create-response carries a
+ │      math challenge; solve_challenge (LLM reasoning) → POST /verify. Content
+ │      stays verification_status=pending (invisible) until verified, so memory/
+ │      NoveltyGate recording happens ONLY after success (posts, comments, replies)
  └─ MemoryStore.record() → EpisodeLog (append-only JSONL)
 ```
+
+All content creation (post / comment / reply) goes through this same verification
+handshake. Each API call's structural outcome (status, envelope keys, content
+status, soft-failures, schema drift) is appended to `logs/api-audit.jsonl` by the
+client chokepoint — a self-written, free-text-free log safe to read directly.
 
 ---
 

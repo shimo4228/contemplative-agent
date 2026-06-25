@@ -764,3 +764,147 @@ class TestUnfollowAgent:
 # TestUpdateProfile / TestPatchMethod / TestUnsubscribeSubmolt /
 # mark_all tests were removed together with the dead client capabilities
 # (no production caller; security by absence — see client.py note).
+
+
+_AUDIT_TARGET = "contemplative_agent.adapters.moltbook.client.append_jsonl_restricted"
+
+
+def _resp(payload, status=200, headers=None):
+    r = MagicMock()
+    r.status_code = status
+    r.headers = headers or {}
+    r.json.return_value = payload
+    r.text = "" if isinstance(payload, dict) else "body"
+    return r
+
+
+class TestPostCommentParentId:
+    def test_parent_id_included_in_body(self):
+        client = MoltbookClient(api_key="k")
+        resp = _resp({"success": True, "comment": {"id": "c2"}})
+        with patch.object(client._session, "request", return_value=resp) as req:
+            client.post_comment("p1", "hi", parent_id="c1")
+        assert req.call_args.kwargs["json"] == {"content": "hi", "parent_id": "c1"}
+
+    def test_no_parent_id_omits_field(self):
+        client = MoltbookClient(api_key="k")
+        resp = _resp({"success": True, "comment": {"id": "c2"}})
+        with patch.object(client._session, "request", return_value=resp) as req:
+            client.post_comment("p1", "hi")
+        assert req.call_args.kwargs["json"] == {"content": "hi"}
+
+    def test_invalid_parent_id_raises(self):
+        client = MoltbookClient(api_key="k")
+        with pytest.raises(MoltbookClientError, match="Invalid parent_id"):
+            client.post_comment("p1", "hi", parent_id="../etc/passwd")
+
+
+class TestPostCommentVerificationSurfacing:
+    """The comment verification gate (feed_manager/reply_handler) reads
+    ``created.get("verification")`` on post_comment's return. Confirm — through
+    real response parsing — that the challenge surfaces regardless of nesting."""
+
+    def test_verification_nested_under_comment(self):
+        client = MoltbookClient(api_key="k")
+        resp = _resp({
+            "success": True,
+            "comment": {
+                "id": "c1",
+                "verification": {"verification_code": "moltbook_verify_x",
+                                 "challenge_text": "noise"},
+            },
+        })
+        with patch.object(client._session, "request", return_value=resp):
+            created = client.post_comment("p1", "hi")
+        assert created["verification"]["verification_code"] == "moltbook_verify_x"
+
+    def test_verification_at_response_root_is_folded_in(self):
+        # If the API puts verification at the root (not inside "comment"), it is
+        # folded into the returned dict so the caller's gate still fires.
+        client = MoltbookClient(api_key="k")
+        resp = _resp({
+            "success": True,
+            "comment": {"id": "c1"},
+            "verification": {"verification_code": "moltbook_verify_x",
+                             "challenge_text": "noise"},
+        })
+        with patch.object(client._session, "request", return_value=resp):
+            created = client.post_comment("p1", "hi")
+        assert created["verification"]["verification_code"] == "moltbook_verify_x"
+
+    def test_no_verification_when_trusted(self):
+        client = MoltbookClient(api_key="k")
+        resp = _resp({"success": True, "comment": {"id": "c1"}})
+        with patch.object(client._session, "request", return_value=resp):
+            created = client.post_comment("p1", "hi")
+        assert "verification" not in created
+
+
+class TestApiInstrumentation:
+    def test_records_structural_fields_without_freetext(self):
+        client = MoltbookClient(api_key="k")
+        resp = _resp(
+            {
+                "success": True,
+                "post": {
+                    "id": "p1",
+                    "verification_status": "pending",
+                    "content": "SECRET BODY TEXT",
+                },
+            },
+            status=201,
+        )
+        captured: list = []
+        with patch.object(client._session, "request", return_value=resp), \
+             patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)):
+            client.post("/posts", json={"title": "t", "content": "SECRET BODY TEXT"})
+        assert len(captured) == 1
+        rec = captured[0]
+        assert rec["endpoint"] == "POST /posts"
+        assert rec["status"] == 201
+        assert rec["success"] is True
+        assert rec["content_status"] == {"verification_status": "pending"}
+        # The audit log must never carry untrusted free-text body content.
+        import json as _json
+        assert "SECRET BODY TEXT" not in _json.dumps(rec)
+
+    def test_soft_fail_flagged(self):
+        client = MoltbookClient(api_key="k")
+        resp = _resp({"success": False, "error": "nope"}, status=200)
+        captured: list = []
+        with patch.object(client._session, "request", return_value=resp), \
+             patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)):
+            client.get("/feed")
+        assert captured[0]["soft_fail"] is True
+        assert captured[0]["error"] == "nope"
+
+    def test_drift_warning_on_missing_expected_key(self, caplog):
+        client = MoltbookClient(api_key="k")
+        resp = _resp({"foo": 1}, status=200)  # GET /agents/me depends on "agent"
+        captured: list = []
+        with patch.object(client._session, "request", return_value=resp), \
+             patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)), \
+             caplog.at_level(
+                 logging.WARNING,
+                 logger="contemplative_agent.adapters.moltbook.client",
+             ):
+            client.get("/agents/me")
+        assert "API drift" in caplog.text
+        assert captured[0]["drift_missing"] == ["agent"]
+
+    def test_id_normalized_in_endpoint(self):
+        client = MoltbookClient(api_key="k")
+        resp = _resp({"success": True, "post": {"id": "x"}}, status=200)
+        captured: list = []
+        with patch.object(client._session, "request", return_value=resp), \
+             patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)):
+            client.get("/posts/9a1d74d9-3c21-4294-bb0d-cda2f4fedcd8")
+        assert captured[0]["endpoint"] == "GET /posts/{id}"
+
+    def test_instrumentation_failure_never_breaks_request(self):
+        client = MoltbookClient(api_key="k")
+        resp = _resp({"success": True, "agent": {}}, status=200)
+        with patch.object(client._session, "request", return_value=resp), \
+             patch(_AUDIT_TARGET, side_effect=OSError("disk full")):
+            out = client.get("/agents/me")  # must not raise
+        assert out is resp

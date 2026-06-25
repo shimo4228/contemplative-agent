@@ -93,10 +93,12 @@ class ReplyHandler:
         ctx: SessionContext,
         confirm_action: Callable[[str, str], bool],
         confirm_side_effect: Callable[[str], bool],
+        handle_verification: Callable[[dict], bool],
     ) -> None:
         self._ctx = ctx
         self._confirm_action = confirm_action
         self._confirm_side_effect = confirm_side_effect
+        self._handle_verification = handle_verification
 
     def run_cycle(
         self,
@@ -300,8 +302,26 @@ class ReplyHandler:
         try:
             # post_comment verifies the response envelope (audit H2): a
             # body-level failure raises and never reaches the records below.
-            client.post_comment(post_id, reply)
+            # parent_id threads the reply under the comment being answered when
+            # known (comment-scan path); the notification path has no comment id
+            # so it posts a top-level comment (parent_id=None).
+            created = client.post_comment(
+                post_id, reply, parent_id=comment_id or None
+            )
             scheduler.record_comment()
+            # Verification handshake: a reply is invisible until the
+            # create-response challenge is solved. On failure record nothing so
+            # a later session can reply visibly; the inbound "received"
+            # interaction above stays recorded (it happened regardless).
+            verification = (
+                created.get("verification") if isinstance(created, dict) else None
+            )
+            if verification is not None and not self._handle_verification(verification):
+                logger.warning(
+                    "Reply on %s created but verification failed; not recording",
+                    post_id[:12],
+                )
+                return
             ctx.commented_posts.add(reply_key)
             # Persist cross-session so a later session does not re-reply to the
             # same target (mirrors feed_manager.engage_with_post's

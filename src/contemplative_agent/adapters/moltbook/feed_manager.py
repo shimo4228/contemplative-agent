@@ -43,12 +43,14 @@ class FeedManager:
         get_content: Callable[[], ContentManager],
         confirm_action: Callable[[str, str], bool],
         confirm_side_effect: Callable[[str], bool],
+        handle_verification: Callable[[dict], bool],
     ) -> None:
         self._ctx = ctx
         self._domain = domain
         self._get_content = get_content
         self._confirm_action = confirm_action
         self._confirm_side_effect = confirm_side_effect
+        self._handle_verification = handle_verification
         self._upvoted_posts: Set[str] = set()
         self._cached_feed: List[dict] = []
         self._feed_fetched_at: float = 0.0
@@ -99,13 +101,17 @@ class FeedManager:
         client: MoltbookClient,
         scheduler: Scheduler,
         end_time: float,
-        handle_verification: Callable[[dict], bool],
     ) -> None:
         """Fetch from multiple sources and engage with posts.
 
         Sources (in priority order):
         1. Following feed (always, 1 GET)
         2. Submolt feeds (cached)
+
+        Content verification (math challenge) is handled at create time inside
+        the comment path (``_post_comment_and_record``), not here: the current
+        API returns the challenge in the create-response, never as a
+        ``verification_challenge`` field on a fetched feed post.
         """
         seen_ids: set[str] = set()
         all_posts: List[dict] = []
@@ -131,10 +137,6 @@ class FeedManager:
             if not client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve):
                 logger.info("Read budget low, pausing feed engagement")
                 break
-            challenge = post.get("verification_challenge")
-            if challenge:
-                handle_verification(challenge)
-                continue
             self.engage_with_post(post, client, scheduler)
 
     # ------------------------------------------------------------------
@@ -424,12 +426,25 @@ class FeedManager:
         try:
             # post_comment verifies the response envelope (audit H2): a
             # body-level failure raises and never reaches the records below.
-            client.post_comment(post_id, comment)
-            # Record the dedup hash only now that the comment is actually
-            # posted (not at generation time) — a gate-rejected or failed
+            created = client.post_comment(post_id, comment)
+            scheduler.record_comment()
+            # Verification handshake: like posts, a comment is invisible until
+            # the create-response challenge is solved. On failure record nothing
+            # (it stays out of dedup/memory) so a later session can comment
+            # visibly; a trusted-bypass response carries no verification object.
+            verification = (
+                created.get("verification") if isinstance(created, dict) else None
+            )
+            if verification is not None and not self._handle_verification(verification):
+                logger.warning(
+                    "Comment on %s created but verification failed; not recording",
+                    post_id[:12],
+                )
+                return False
+            # Record the dedup hash only now that the comment is actually posted
+            # AND visible (verified) — a gate-rejected, failed, or unverified
             # comment must not poison a legitimate same-session retry.
             self._get_content().mark_posted(comment)
-            scheduler.record_comment()
             ctx.commented_posts.add(post_id)
             ctx.memory.record_commented(post_id)
             ctx.actions_taken.append(
