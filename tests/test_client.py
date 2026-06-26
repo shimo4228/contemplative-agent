@@ -892,6 +892,24 @@ class TestApiInstrumentation:
         assert "API drift" in caplog.text
         assert captured[0]["drift_missing"] == ["agent"]
 
+    def test_error_response_does_not_trigger_false_drift(self, caplog):
+        # A 4xx on a create endpoint returns the error envelope ({error,message}),
+        # which lacks the success key — that must NOT be flagged as schema drift.
+        client = MoltbookClient(api_key="k")
+        resp = _resp({"error": "Not found", "message": "x"}, status=404)
+        resp.text = "Not found"
+        captured: list = []
+        with patch.object(client._session, "request", return_value=resp), \
+             patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)), \
+             caplog.at_level(
+                 logging.WARNING,
+                 logger="contemplative_agent.adapters.moltbook.client",
+             ):
+            with pytest.raises(MoltbookClientError):
+                client.post("/posts/abc/comments", json={"content": "hi"})
+        assert "API drift" not in caplog.text
+        assert "drift_missing" not in captured[0]
+
     def test_id_normalized_in_endpoint(self):
         client = MoltbookClient(api_key="k")
         resp = _resp({"success": True, "post": {"id": "x"}}, status=200)

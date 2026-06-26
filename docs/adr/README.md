@@ -67,6 +67,7 @@ Records of key design decisions for this project.
 | [0059](0059-remove-dead-reply-history.md) | Remove the Dead Reply-History Mechanism | accepted | 2026-06-22 |
 | [0060](0060-per-episode-grounded-distill.md) | Per-Episode Grounded Distill — Replace Batch Extract + Noise Gate with One Grounded LLM Call per Engagement Episode | accepted | 2026-06-23 |
 | [0061](0061-action-time-untrusted-cap-at-platform-limits.md) | Action-Time Untrusted Input Caps at Platform Field Limits; Internal Note Reads the Full Body | accepted | 2026-06-23 |
+| [0062](0062-create-time-verification-handshake.md) | Create-Time Content-Verification Handshake via LLM Reasoning; Gate Recording on Visibility | accepted | 2026-06-26 |
 
 ## ADR Types
 

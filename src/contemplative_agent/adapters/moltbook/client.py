@@ -339,8 +339,11 @@ class MoltbookClient:
                     )
                     if err:
                         record["error"] = err
+                # Drift check only on success: a 4xx/5xx body is the error
+                # envelope ({error, message, ...}), which legitimately lacks the
+                # success-shape keys — checking it there is a false positive.
                 expected = _EXPECTED_KEYS.get(endpoint)
-                if expected is not None:
+                if status_code < 400 and expected is not None:
                     missing = expected - set(body.keys())
                     if missing:
                         record["drift_missing"] = sorted(missing)
