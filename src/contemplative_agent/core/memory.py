@@ -69,6 +69,12 @@ class PostRecord:
     title: str
     topic_summary: str  # 1-line summary of what the post was about
     content_hash: str  # first 16 chars of SHA-256
+    # True only for posts that completed the visibility-verification handshake
+    # (ADR-0063). Defaults False so pre-fix "post" episodes — written before the
+    # handshake worked, all stuck verification_status=pending and invisible —
+    # deserialize as unverified and are excluded from the NoveltyGate comparison
+    # (deduping a new post against content nobody ever saw kept the agent silent).
+    verified: bool = False
 
 
 # Session insight (the ``Insight`` dataclass, type="insight" episodes) was
@@ -339,14 +345,21 @@ class MemoryStore:
         title: str,
         topic_summary: str,
         content_hash: str,
+        verified: bool = True,
     ) -> PostRecord:
-        """Record a post made by this agent."""
+        """Record a post made by this agent.
+
+        ``verified`` defaults True because the post pipeline now records only
+        after the visibility-verification handshake succeeds (ADR-0063); the
+        flag scopes the NoveltyGate comparison to visible posts.
+        """
         record = PostRecord(
             timestamp=timestamp,
             post_id=post_id,
             title=title,
             topic_summary=truncate(topic_summary, POST_TOPIC_SUMMARY_MAX),
             content_hash=content_hash[:16],
+            verified=verified,
         )
         self._post_history.append(record)
         self._episodes.append("post", asdict(record))
@@ -356,14 +369,27 @@ class MemoryStore:
 
         return record
 
-    def get_recent_posts(self, limit: int = 50) -> List[PostRecord]:
+    def get_recent_posts(
+        self, limit: int = 50, verified_only: bool = False
+    ) -> List[PostRecord]:
         """Return recent self-post records (oldest→newest), capped at `limit`.
 
-        Used by the deterministic Jaccard dedup gate in post_pipeline. The
-        default of 50 covers roughly the past week at the agent's post-volume
+        Used by the NoveltyGate comparison and body-hash dedup in post_pipeline.
+        The default of 50 covers roughly the past week at the agent's post-volume
         ceiling and is bounded by MAX_POST_HISTORY anyway.
+
+        ``verified_only=True`` returns only posts that passed the visibility
+        handshake (ADR-0063), so dedup compares a draft against content that was
+        actually published — not against pre-fix pending posts nobody saw. Filter
+        first, then cap, so the limit counts verified posts (not slots consumed
+        by skipped pending ones).
         """
-        return list(self._post_history[-limit:])
+        records = (
+            [r for r in self._post_history if r.verified]
+            if verified_only
+            else self._post_history
+        )
+        return list(records[-limit:])
 
     def get_post_rate_7d(self) -> float:
         """Self-post rate (posts/day) over a fixed 7-day trailing window.

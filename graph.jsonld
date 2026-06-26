@@ -518,6 +518,21 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0063-novelty-gate-verified-only-comparison.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0063: Scope the NoveltyGate Comparison to Verified (Visible) Posts",
+      "identifier": "ADR-0063",
+      "status": "accepted",
+      "datePublished": "2026-06-26",
+      "description": "After ADR-0062 fixed verification, the agent still produced zero visible posts: the NoveltyGate (ADR-0039) dedupes a draft against memory.get_recent_posts(limit=50), and all 349 stored posts are verification_status=pending (created pre-0062, challenge windows expired, permanently invisible) — so every draft was rejected for being too similar to a post nobody ever saw (observed: reject:low_novelty, novelty=0.25, nearest=0.79 vs a pending post). A secondary defect: the rate-deficit Lagrangian (mu·(target-actual_rate)) never loosened because get_post_rate_7d() counted the 349 pending posts as recent activity. Comments/replies were unaffected (they skip the gate). Decision: (1) scope the NoveltyGate comparison set to VERIFIED posts only — add verified:bool=False to PostRecord (frozen), record_post(verified=True) since the pipeline now records only after the handshake (ADR-0062), and get_recent_posts(verified_only=True) called from post_pipeline; the filtered list feeds both the cosine comparison and body-hash dedup. (2) Rely on backward-compatible deserialization — pre-fix 'post' episodes lack the verified key, so PostRecord(**data) falls through to default False and the 349 pending posts are excluded with no episode-log edit (honors the append-only / no-delete-episodes invariant). (3) Do NOT scope the rate-deficit term: with the verified comparison set empty, novelty=1.0 already admits, unblocking posting; scoping the rate too would make deficit≈target_rate during rebuild, letting mu·deficit override novelty and admit near-duplicate VISIBLE posts every 30 min (the May-2026 echo chamber). Leaving the rate counting all posts keeps deficit≈0 (pending posts age out of the 7-day window over ~7 days), so once verified posts accumulate the novelty comparison correctly blocks near-duplicates; code review confirmed no regime re-silences the agent (empty verified set → novelty=1.0 regardless of deficit). Rejected alternatives: scope the rate too (echo chamber during rebuild), purge/rewrite the 349 pending records (violates append-only episode log; would not survive reload), lower theta globally (blunt, weakens dedup on visible posts), do-nothing/wait-for-ageout (slow, unreliable — a 0.79-similar draft still blocks while the comparison set holds invisible posts). Trade-off: two denominators now differ (comparison=verified-only, rate=all-posts), deliberately. Pre-existing follow-up: _load_episodes_into_memory does not enforce MAX_POST_HISTORY on load while record_post does.",
+      "extends": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0062-create-time-verification-handshake.md"
+      ],
+      "alignsWith": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0039-novelty-score-lagrangian-self-post-gate.md"
+      ]
+    },
+    {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0022-memory-evolution-and-hybrid-retrieval.md",
       "@type": ["ADR", "TechArticle"],
       "name": "ADR-0022: Memory Evolution + Hybrid Retrieval (BM25)",

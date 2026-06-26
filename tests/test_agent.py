@@ -1327,6 +1327,7 @@ class TestRunPostCycle:
             title="Prior post title",
             topic_summary="prior summary",
             content_hash=prior_hash,
+            verified=True,  # a real prior post the body-hash gate compares against
         )
         # NoveltyGate admits — the only gate that can block here is the
         # body-hash gate this test exercises.

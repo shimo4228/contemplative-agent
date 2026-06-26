@@ -233,6 +233,24 @@ class TestPostRecord:
         assert r.post_id == "post1"
         assert r.content_hash == "abcdef1234567890"
 
+    def test_verified_defaults_false(self):
+        # A record built without `verified` — exactly what PostRecord(**data)
+        # produces for a pre-fix "post" episode that has no verified key —
+        # defaults to False, so it is excluded from the verified-only
+        # NoveltyGate comparison (ADR-0063).
+        r = PostRecord(
+            timestamp="t", post_id="p", title="T",
+            topic_summary="s", content_hash="h",
+        )
+        assert r.verified is False
+
+    def test_verified_explicit_true(self):
+        r = PostRecord(
+            timestamp="t", post_id="p", title="T",
+            topic_summary="s", content_hash="h", verified=True,
+        )
+        assert r.verified is True
+
 
 class TestPostHistoryAndInsights:
     def test_record_post(self):
@@ -247,6 +265,62 @@ class TestPostHistoryAndInsights:
         assert r.post_id == "post1"
         assert r.content_hash == "abcdef1234567890"  # truncated to 16
         assert len(store.get_recent_posts()) == 1
+
+    def test_record_post_defaults_verified_true(self):
+        # record_post is called only after the visibility handshake succeeds,
+        # so a recorded post is verified by default (ADR-0063).
+        store = MemoryStore()
+        r = store.record_post(
+            timestamp="t", post_id="p", title="T",
+            topic_summary="s", content_hash="h",
+        )
+        assert r.verified is True
+
+    def test_get_recent_posts_verified_only_filters(self):
+        store = MemoryStore()
+        store.record_post(
+            timestamp="t1", post_id="p1", title="T1",
+            topic_summary="s1", content_hash="h1", verified=False,  # legacy/pending
+        )
+        store.record_post(
+            timestamp="t2", post_id="p2", title="T2",
+            topic_summary="s2", content_hash="h2", verified=True,
+        )
+        assert [r.post_id for r in store.get_recent_posts()] == ["p1", "p2"]
+        assert [
+            r.post_id for r in store.get_recent_posts(verified_only=True)
+        ] == ["p2"]
+
+    def test_verified_only_empty_when_all_pending(self):
+        # Production state at fix time: all posts pending → verified-only
+        # comparison set is empty → NoveltyGate sees no history → admits.
+        store = MemoryStore()
+        for i in range(5):
+            store.record_post(
+                timestamp=f"t{i}", post_id=f"p{i}", title=f"T{i}",
+                topic_summary=f"s{i}", content_hash=f"h{i}", verified=False,
+            )
+        assert store.get_recent_posts(verified_only=True) == []
+        assert len(store.get_recent_posts()) == 5
+
+    def test_verified_persists_and_reloads(self, tmp_path):
+        # The verified flag survives the episode-log round trip; a legacy record
+        # written without it reloads as verified=False (excluded).
+        path = tmp_path / "memory.json"
+        store = MemoryStore(path=path)
+        store.record_post(
+            timestamp="2026-06-26T00:00:00", post_id="pv", title="V",
+            topic_summary="visible", content_hash="hv", verified=True,
+        )
+        store.record_post(
+            timestamp="2026-06-25T00:00:00", post_id="pp", title="P",
+            topic_summary="pending", content_hash="hp", verified=False,
+        )
+        store2 = MemoryStore(path=path)
+        store2.load()
+        by_id = {r.post_id: r.verified for r in store2.get_recent_posts()}
+        assert by_id == {"pv": True, "pp": False}
+        assert [r.post_id for r in store2.get_recent_posts(verified_only=True)] == ["pv"]
 
     def test_record_post_truncates_summary(self):
         store = MemoryStore()

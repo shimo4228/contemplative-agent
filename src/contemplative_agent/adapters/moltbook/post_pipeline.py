@@ -110,7 +110,10 @@ class PostPipeline:
         # draft_summary is reused at record_post time to avoid a second LLM
         # call on the same content; content_hash likewise (gate + record).
         draft_summary = summarize_post_topic(content)
-        recent_posts = self._ctx.memory.get_recent_posts(limit=50)
+        # verified_only (ADR-0063): compare the draft against posts that were
+        # actually published, not pre-fix pending posts nobody saw — deduping
+        # against invisible content kept the agent unable to post anything new.
+        recent_posts = self._ctx.memory.get_recent_posts(limit=50, verified_only=True)
         content_hash = _content_hash(content)
         if not self._passes_deterministic_gates(
             title, content, draft_summary, recent_posts, content_hash
