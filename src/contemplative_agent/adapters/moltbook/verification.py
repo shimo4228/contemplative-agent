@@ -44,10 +44,17 @@ _SOLVER_SYSTEM = (
 )
 # A reasoning model gets the arithmetic right only when allowed to think first
 # (forcing an immediate answer produced wrong results in testing); num_predict
-# is a generous cap (the model stops at its natural end, ~hundreds of tokens),
-# and drop_truncated fails closed if a pathological case overruns rather than
-# extracting a number from incomplete reasoning.
-_SOLVER_NUM_PREDICT = 3000
+# is a generous cap, and drop_truncated fails closed if a case overruns rather
+# than extracting a number from incomplete reasoning.
+#
+# Retuned 3000→5000 (2026-06-27): telemetry (caller=moltbook.verify_solve, n=71)
+# showed 12.7% of solves hitting the cap (done_reason=length) → dropped by
+# drop_truncated → the post stays unverified and invisible. Successful (STOP)
+# solves' output ran up to 2901 tokens (p99=2810) — genuine multi-step reasoning
+# on hard challenges, not degenerate repetition (temperature=0 rules out a
+# high-temp loop). 5000 (~1.8x p99) clears the genuine tail and stays well within
+# NUM_CTX (system + short challenge + 5000 ≈ 5.3K ≪ 32768).
+_SOLVER_NUM_PREDICT = 5000
 
 
 def solve_challenge(challenge_text: str) -> Optional[str]:

@@ -6,6 +6,7 @@ import pytest
 
 from contemplative_agent.adapters.moltbook.verification import (
     VerificationTracker,
+    _SOLVER_NUM_PREDICT,
     _extract_answer,
     solve_challenge,
     submit_verification,
@@ -64,6 +65,21 @@ class TestSolveChallenge:
         with patch(_SOLVE_TARGET) as gen:
             assert solve_challenge("") is None
         gen.assert_not_called()
+
+    def test_solver_uses_generous_num_predict_and_fails_closed(self):
+        # Regression (2026-06-27 retune 3000->5000): the solver must request a
+        # num_predict large enough that genuine multi-step reasoning (telemetry
+        # showed successful solves' output up to ~2900 tokens) is not truncated,
+        # AND must keep drop_truncated=True so a cut-off trace fails closed to
+        # None instead of submitting a wrong number pulled from incomplete work.
+        # temperature 0 keeps the arithmetic answer deterministic.
+        with patch(_SOLVE_TARGET, return_value="15.00") as gen:
+            solve_challenge("noise")
+        _, kwargs = gen.call_args
+        assert kwargs["num_predict"] == _SOLVER_NUM_PREDICT
+        assert _SOLVER_NUM_PREDICT >= 5000
+        assert kwargs["drop_truncated"] is True
+        assert kwargs["temperature"] == 0.0
 
 
 class TestSubmitVerification:
