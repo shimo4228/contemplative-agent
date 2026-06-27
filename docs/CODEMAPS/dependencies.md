@@ -22,7 +22,8 @@
 |---------|---------|--------|
 | Moltbook API | adapters/moltbook | HTTPS, Bearer auth, domain-locked (`www.moltbook.com`) |
 | Ollama (generation) | core/llm | `localhost:11434`, `qwen3.5:9b` (override: `OLLAMA_MODEL`) — default; overridable via `LLMBackend` Protocol |
-| Ollama (embedding) | core/embeddings | `localhost:11434`, `nomic-embed-text` (override: `OLLAMA_EMBEDDING_MODEL`) — 768-dim, deterministic |
+| mlx_lm.server (generation) | core/mlx_backend | `localhost:8080` host-local, `mlx-community/Qwen3.5-9B-4bit` (override: `MLX_BASE_URL`/`MLX_MODEL`) — opt-in via `LLM_BACKEND=mlx`, Apple Silicon (ADR-0064). Generation only |
+| Ollama (embedding) | core/embeddings | `localhost:11434`, `nomic-embed-text` (override: `OLLAMA_EMBEDDING_MODEL`) — 768-dim, deterministic. Always Ollama, even when generation is on MLX |
 
 ## Optional Add-ons
 

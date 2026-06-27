@@ -670,14 +670,19 @@ class TestGenerateBudgetGuard:
     def test_guard_not_applied_to_backend_path(self):
         """The injected-backend path has an unknown context window; the
         NUM_CTX guard is Ollama-only and must not block delegation."""
-        from contemplative_agent.core.llm import configure, reset_llm_config
+        from contemplative_agent.core.llm import (
+            BackendResult,
+            configure,
+            reset_llm_config,
+        )
 
         calls = {}
 
         class StubBackend:
-            def generate(self, prompt, system, num_predict, format):
+            def generate(self, prompt, system, num_predict, format,
+                         *, temperature=1.0):
                 calls["prompt_len"] = len(prompt)
-                return "delegated"
+                return BackendResult(text="delegated")
 
         reset_llm_config()
         configure(backend=StubBackend())

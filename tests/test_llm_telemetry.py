@@ -160,7 +160,8 @@ class TestTelemetryFailurePaths:
 
     def test_backend_raise_is_error(self, telemetry_dir):
         class _RaisingBackend:
-            def generate(self, prompt, system, num_predict, format):
+            def generate(self, prompt, system, num_predict, format,
+                         *, temperature=1.0):
                 raise RuntimeError("backend boom")
 
         configure(backend=_RaisingBackend())

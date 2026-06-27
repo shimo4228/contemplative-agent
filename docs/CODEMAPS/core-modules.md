@@ -11,9 +11,10 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `config.py` | 28 | `FORBIDDEN_SUBSTRING_PATTERNS`, `VALID_ID_PATTERN`, `MAX_COMMENT_LENGTH` |
 | `domain.py` | 362 | `DomainConfig`, `PromptTemplates` (reads `MOLTBOOK_HOME/prompts/` overrides with packaged fallback), constitution loader |
 | `prompts.py` | ~70 | Lazy-load proxy to `config/prompts/*.md` + placeholder resolution |
-| `llm.py` | 553 | Ollama interface + `LLMBackend` Protocol (pluggable), circuit breaker, sanitization; `_build_system_prompt` reads identity.md as single blob (ADR-0030) |
+| `llm.py` | 1049 | Ollama interface + `LLMBackend` Protocol (pluggable, returns `BackendResult`, keyword `temperature`), circuit breaker, sanitization, `drop_truncated` gate, `validate_trusted_url` SSRF guard; `_build_system_prompt` reads identity.md as single blob (ADR-0030) |
+| `mlx_backend.py` | 138 | `MlxLmBackend(LLMBackend)` — routes generation to host-local mlx_lm.server (OpenAI `/v1/chat/completions`) when `LLM_BACKEND=mlx` (ADR-0064); thinking-off per request, `format`→prompt instruction |
 | `clustering.py` | ~115 | Average-linkage cosine agglomerative clustering (numpy-only). Used by `insight` and `rules_distill` |
-| `embeddings.py` | 92 | Ollama `/api/embed` wrapper (nomic-embed-text), `cosine`, `embed_one`, `embed_texts` |
+| `embeddings.py` | 107 | Ollama `/api/embed` wrapper (nomic-embed-text), `cosine`, `embed_one`, `embed_texts` |
 | `episode_embeddings.py` | 162 | `EpisodeEmbeddingStore` — SQLite sidecar for episode vectors (ADR-0019) |
 | `episode_log.py` | ~100 | `EpisodeLog` (append-only JSONL, `read_range` with `record_type` filter) |
 | `knowledge_store.py` | 337 | `KnowledgeStore` — patterns JSON + provenance/bitemporal (ADR-0021); `is_live()` (bitemporal-only, `valid_until is None`; trust floor retired ADR-0051); `effective_importance()` (pure time decay `0.95^days`, LLM rating retired ADR-0056), `pattern_id()`, `epistemic_kind_for()`, `epistemic_counts_for()` (ADR-0050); `get_live_patterns()` / `get_live_patterns_since()` / `get_raw_patterns()` |

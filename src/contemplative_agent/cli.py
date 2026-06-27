@@ -583,6 +583,25 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     # Per-call telemetry (llm-calls-{date}.jsonl) alongside the episode log.
     configure_llm(telemetry_dir=EPISODE_LOG_DIR)
 
+    # Opt-in: route generation (not embeddings) through a local mlx_lm.server
+    # when LLM_BACKEND=mlx. On Apple Silicon this is ~1.8x faster and ~3.4 GB
+    # lighter than Ollama for the same Qwen3.5 9B weights (ADR-0064). Unset or
+    # any other value keeps the default Ollama generation path, so the switch
+    # reverts by clearing one env var. Embeddings always stay on Ollama via
+    # OLLAMA_BASE_URL — mlx_lm.server has no embeddings endpoint.
+    if os.environ.get("LLM_BACKEND", "").strip().lower() == "mlx":
+        from .core.mlx_backend import MlxLmBackend
+
+        mlx_base_url = os.environ.get("MLX_BASE_URL", "http://localhost:8080")
+        mlx_model = os.environ.get("MLX_MODEL", "mlx-community/Qwen3.5-9B-4bit")
+        configure_llm(backend=MlxLmBackend(base_url=mlx_base_url, model=mlx_model))
+        logger.info(
+            "LLM_BACKEND=mlx: generation routed to mlx_lm.server (%s, model=%s); "
+            "embeddings remain on Ollama.",
+            mlx_base_url,
+            mlx_model,
+        )
+
     return domain_config
 
 

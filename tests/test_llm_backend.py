@@ -8,10 +8,11 @@ resolution and HTTP entirely, so these tests never touch network code.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Union
 
 from contemplative_agent.core.llm import (
     CIRCUIT_FAILURE_THRESHOLD,
+    BackendResult,
     LLMBackend,
     _circuit,
     configure,
@@ -22,9 +23,14 @@ from contemplative_agent.core.llm import (
 
 @dataclass
 class FakeBackend:
-    """Record calls and return queued responses."""
+    """Record calls and return queued responses.
 
-    responses: List[Optional[str]] = field(default_factory=list)
+    ``responses`` entries may be plain strings (wrapped in a
+    :class:`BackendResult`), pre-built ``BackendResult`` instances (to set
+    ``finish_reason``/``eval_count``), or ``None`` (hard failure).
+    """
+
+    responses: List[Union[str, BackendResult, None]] = field(default_factory=list)
     calls: List[dict] = field(default_factory=list)
     raise_exc: Optional[BaseException] = None
 
@@ -34,20 +40,26 @@ class FakeBackend:
         system: str,
         num_predict: int,
         format: Optional[Dict],
-    ) -> Optional[str]:
+        *,
+        temperature: float = 1.0,
+    ) -> Optional[BackendResult]:
         self.calls.append(
             {
                 "prompt": prompt,
                 "system": system,
                 "num_predict": num_predict,
                 "format": format,
+                "temperature": temperature,
             }
         )
         if self.raise_exc is not None:
             raise self.raise_exc
         if not self.responses:
             return None
-        return self.responses.pop(0)
+        item = self.responses.pop(0)
+        if item is None or isinstance(item, BackendResult):
+            return item
+        return BackendResult(text=item)
 
 
 class TestLLMBackendProtocol:

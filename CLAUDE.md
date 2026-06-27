@@ -28,6 +28,7 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 
 - Python 3.10+ (venv は 3.13.5)
 - 依存: requests, numpy。LLM は Ollama (qwen3.5:9b 生成 + nomic-embed-text 埋め込み, localhost)。Docker はオプション
+- **MLX 生成バックエンド（Apple Silicon、任意、[ADR-0064](docs/adr/0064-mlx-generation-backend.md)）**: `LLM_BACKEND=mlx` で**生成のみ**を host 上の mlx_lm.server (`:8080`) に振り向ける（M1 で約 1.8x 速・約 3.4GB 軽）。**埋め込みは常に Ollama (`:11434`)** に残る（mlx_lm.server に埋め込み endpoint なし）。起動は `scripts/serve-mlx.sh`。mlx-lm は uvx/uv tool 実行で pyproject に入れない（agent は HTTP するだけ）。env を外せば Ollama 生成に即復帰（reversible）
 - ビルド: hatch
 
 ## CLI コマンド（頻出）

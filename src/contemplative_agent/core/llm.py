@@ -9,6 +9,7 @@ import math
 import os
 import re
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, Optional, Protocol, Tuple, runtime_checkable
@@ -38,16 +39,35 @@ CIRCUIT_COOLDOWN_SECONDS = 120
 NUM_CTX = 32768  # Ollama context window (input + output share it). audit C2.
 
 
+@dataclass(frozen=True)
+class BackendResult:
+    """Raw generation result from an injected :class:`LLMBackend`.
+
+    ``finish_reason`` mirrors Ollama's ``done_reason``: the value
+    ``"length"`` signals the output hit ``num_predict`` mid-generation,
+    which drives the ``drop_truncated`` fail-closed gate in the caller
+    (audit M2). ``eval_count`` (generated-token count) feeds telemetry
+    parity with the Ollama path. Both are optional: a backend that cannot
+    report them leaves them ``None`` and only loses the truncation gate /
+    telemetry detail, never correctness of the returned text.
+    """
+
+    text: str
+    finish_reason: Optional[str] = None
+    eval_count: Optional[int] = None
+
+
 @runtime_checkable
 class LLMBackend(Protocol):
     """Pluggable generation backend.
 
     Default (``_backend = None``) uses the built-in Ollama HTTP path. An
-    external package (e.g. ``contemplative-agent-cloud``) can inject a
-    backend implementation via ``configure(backend=...)`` to route
-    generation through a different provider. Sanitization, circuit
-    breaker, and untrusted-content wrapping remain in this module and
-    apply uniformly regardless of backend.
+    external package (e.g. ``contemplative-agent-cloud``) or the in-repo
+    ``MlxLmBackend`` can inject a backend implementation via
+    ``configure(backend=...)`` to route generation through a different
+    provider. Sanitization, circuit breaker, truncation gating, and
+    untrusted-content wrapping remain in this module and apply uniformly
+    regardless of backend.
     """
 
     def generate(
@@ -56,8 +76,16 @@ class LLMBackend(Protocol):
         system: str,
         num_predict: int,
         format: Optional[Dict],
-    ) -> Optional[str]:
-        """Return raw model output, or None on failure.
+        *,
+        temperature: float = 1.0,
+    ) -> Optional[BackendResult]:
+        """Return a :class:`BackendResult`, or None on failure.
+
+        ``temperature`` is forwarded from the caller so backends honor the
+        per-call sampling temperature (e.g. 0.0 for deterministic
+        verification, 1.3 for outward reflective generation). The truncation
+        decision (``drop_truncated``) is made by the caller from
+        ``finish_reason``, so implementations need not gate on it.
 
         Implementations must not apply sanitization — the caller handles
         ``_sanitize_output`` uniformly across backends.
@@ -401,21 +429,41 @@ def _parse_trusted_hosts(raw: str) -> frozenset:
     return frozenset(hosts)
 
 
-def _get_ollama_url() -> str:
-    url = os.environ.get("OLLAMA_BASE_URL", _ollama_base_url)
+def validate_trusted_url(url: str, *, source: str) -> str:
+    """Return *url* unchanged if its host is trusted; raise ValueError else.
+
+    Shared SSRF guard for every local LLM transport (Ollama generation +
+    embeddings via ``OLLAMA_BASE_URL``, and the MLX backend via
+    ``MLX_BASE_URL``). Trust set = localhost ∪ ``OLLAMA_TRUSTED_HOSTS``.
+    ``OLLAMA_TRUSTED_HOSTS`` is a trust-escalation mechanism that extends
+    the localhost-only default to Docker service names (e.g. "ollama");
+    only unqualified hostnames (no dots) are accepted, so arbitrary public
+    domains cannot be added. The port is not part of the host check, so a
+    second local service on another port (e.g. localhost:8080) is allowed
+    without configuration. ``source`` names the offending setting in the
+    error so misconfig is diagnosable.
+    """
     parsed = urlparse(url)
-    # OLLAMA_TRUSTED_HOSTS is a trust-escalation mechanism: it extends the
-    # localhost-only default to allow Docker service names (e.g. "ollama").
-    # Only unqualified hostnames (no dots) are accepted to prevent adding
-    # arbitrary public domains. Set only in controlled environments.
+    # Scheme gate: this guard is exported as a general SSRF check, so it must
+    # reject non-HTTP schemes (file://, ftp://, data://) whose hostname could
+    # otherwise resolve to a trusted host (e.g. file://localhost/etc/passwd).
+    if parsed.scheme not in ("http", "https"):
+        raise ValueError(
+            f"{source} must use http or https, got: {parsed.scheme!r}"
+        )
     trusted_raw = os.environ.get("OLLAMA_TRUSTED_HOSTS", "")
     allowed = LOCALHOST_HOSTS | _parse_trusted_hosts(trusted_raw)
     if parsed.hostname not in allowed:
         raise ValueError(
-            f"OLLAMA_BASE_URL must point to a trusted host "
+            f"{source} must point to a trusted host "
             f"({', '.join(sorted(allowed))}), got: {parsed.hostname}"
         )
     return url
+
+
+def _get_ollama_url() -> str:
+    url = os.environ.get("OLLAMA_BASE_URL", _ollama_base_url)
+    return validate_trusted_url(url, source="OLLAMA_BASE_URL")
 
 
 def _get_model() -> str:
@@ -515,19 +563,21 @@ def generate(
             minutes at the default 8192). Falls back to 8192 if None.
         format: JSON Schema dict for structured output (Ollama v0.5+).
                 When set, output is constrained at the token level.
-        temperature: Ollama sampling temperature. Default 1.0 (production
+        temperature: Sampling temperature. Default 1.0 (production
             baseline). Outward reflective generation (comment/reply/post)
             raises it to break formulaic, RLHF-baked openings (ADR-0047);
-            scoring/distill paths keep 1.0. Ollama-path only — an injected
-            backend does not receive it (its protocol is unchanged).
-        drop_truncated: When True and Ollama reports ``done_reason ==
-            "length"`` (output hit ``num_predict`` mid-generation), return
-            None instead of the cut text — external publish paths must not
-            POST a mid-sentence fragment (audit M2; "skip, don't
-            substitute"). Default False: internal callers (distill/insight)
-            keep the partial text and rely on their own fallbacks; a
-            WARNING is logged either way. Ollama-path only — an injected
-            backend does not expose a truncation signal.
+            scoring/distill paths keep 1.0. Forwarded to an injected
+            backend via the ``LLMBackend`` protocol so it honors the same
+            per-call temperature.
+        drop_truncated: When True and the backend reports a length-capped
+            stop (Ollama ``done_reason == "length"`` / OpenAI
+            ``finish_reason == "length"``, output hit ``num_predict``
+            mid-generation), return None instead of the cut text —
+            external publish paths must not POST a mid-sentence fragment
+            (audit M2; "skip, don't substitute"). Default False: internal
+            callers (distill/insight) keep the partial text and rely on
+            their own fallbacks; a WARNING is logged either way. Applies
+            uniformly across the Ollama and injected-backend paths.
         caller: Stage label recorded in per-call telemetry (e.g.
             ``"distill.category"``). Identifies which pipeline stage made
             the call; never affects generation.
@@ -604,7 +654,7 @@ def _generate_impl(
     if _backend is not None:
         return _generate_via_backend(
             prompt, system_prompt, max_length, format, temperature,
-            effective_num_predict, tel,
+            drop_truncated, effective_num_predict, tel,
         )
 
     # Ollama-path token-budget pre-flight (audit C2). The injected-backend
@@ -657,32 +707,61 @@ def _generate_via_backend(
     max_length: Optional[int],
     format: Optional[Dict],
     temperature: float,
+    drop_truncated: bool,
     effective_num_predict: int,
     tel: Dict[str, Any],
 ) -> Optional[str]:
-    """Injected-backend path of :func:`_generate_impl`."""
+    """Injected-backend path of :func:`_generate_impl`.
+
+    Mirrors the Ollama path's truncation gating and telemetry: the backend
+    returns a :class:`BackendResult` (text + finish_reason + eval_count),
+    and this function — not the backend — applies ``drop_truncated`` and
+    records the circuit outcome, so a deliberate truncation drop is scored
+    as a success (the call worked) rather than a failure (audit M2).
+    """
     backend = _backend
-    assert backend is not None  # guaranteed by caller
-    if temperature != 1.0:
-        logger.debug(
-            "temperature=%.2f ignored: injected backend path does not "
-            "support it (Ollama-path only)",
-            temperature,
-        )
+    if backend is None:  # guaranteed by caller; explicit guard survives python -O
+        raise RuntimeError("_generate_via_backend called with no backend configured")
     try:
-        raw_text = backend.generate(prompt, system_prompt, effective_num_predict, format)
+        result = backend.generate(
+            prompt, system_prompt, effective_num_predict, format,
+            temperature=temperature,
+        )
     except Exception as exc:  # backend may raise on unexpected failure
         logger.error("Backend generate() raised: %s", exc)
         _circuit.record_failure()
         return None
-    if raw_text is None or not raw_text.strip():
+    if result is None or not result.text.strip():
         logger.warning("Backend returned empty response")
         _circuit.record_failure()
         tel["outcome"] = "empty"
         return None
+
+    tel["done_reason"] = result.finish_reason
+    if isinstance(result.eval_count, int):
+        tel["eval_count"] = result.eval_count
+
+    if result.finish_reason == "length":
+        if drop_truncated:
+            logger.warning(
+                "Output truncated at num_predict=%d (finish_reason=length); "
+                "dropping instead of publishing a mid-sentence cut "
+                "(audit M2).",
+                effective_num_predict,
+            )
+            _circuit.record_success()
+            tel["outcome"] = "truncated_dropped"
+            return None
+        logger.warning(
+            "Output truncated at num_predict=%d (finish_reason=length); "
+            "downstream consumers receive an incomplete generation "
+            "(audit M2).",
+            effective_num_predict,
+        )
+
     _circuit.record_success()
     tel["outcome"] = "ok"
-    return _sanitize_output(raw_text, max_length)
+    return _sanitize_output(result.text, max_length)
 
 
 def _post_ollama(
@@ -724,7 +803,9 @@ def _post_ollama(
         payload["format"] = format
 
     try:
-        response = requests.post(url, json=payload, timeout=(30, 1200))
+        response = requests.post(
+            url, json=payload, timeout=(30, 1200), allow_redirects=False
+        )
         response.raise_for_status()
     except requests.RequestException as exc:
         logger.error("Ollama request failed: %s", exc)

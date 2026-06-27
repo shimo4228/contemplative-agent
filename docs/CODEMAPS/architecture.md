@@ -2,7 +2,7 @@
 # Architecture
 
 ## Project Type
-Python CLI agent: core/adapter separation + 3-layer memory + embedding views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal (ADR-0021) + trust retirement (ADR-0051). Generation pluggable via `LLMBackend` Protocol (default: Ollama; add-on: `contemplative-agent-cloud`).
+Python CLI agent: core/adapter separation + 3-layer memory + embedding views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal (ADR-0021) + trust retirement (ADR-0051). Generation pluggable via `LLMBackend` Protocol (default: Ollama; in-repo MLX backend via `LLM_BACKEND=mlx`, ADR-0064; add-on: `contemplative-agent-cloud`).
 
 **Stats**: 44 non-`__init__` modules (50 total `.py`), ~13592 LOC, 1301 tests / 35 test files
 
@@ -32,6 +32,8 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
          |                       |
     Moltbook API            Ollama (local default)
     60GET/30POST/min        qwen3.5:9b + nomic-embed-text (768-dim)
+                            gen → mlx_lm.server :8080 when LLM_BACKEND=mlx (ADR-0064);
+                            embeddings always Ollama :11434
 ```
 
 ## Import Rule
@@ -41,7 +43,7 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
 `contemplative-agent init [--template NAME]` copies every runtime Markdown from `config/` into `MOLTBOOK_HOME`. Template-derived: `constitution/`, `skills/`, `rules/`. Shared: `prompts/`, `views/`. Existing dirs never overwritten.
 
 ## LLM Backend
-`core/llm.py` `LLMBackend` Protocol: `generate(prompt, system, num_predict, format, ...)`. Module-level `_backend` slot set via `configure(backend=...)`. Sanitization + circuit breaker apply uniformly.
+`core/llm.py` `LLMBackend` Protocol: `generate(prompt, system, num_predict, format, *, temperature)` → `Optional[BackendResult]` (`text` + `finish_reason` + `eval_count`). Module-level `_backend` slot set via `configure(backend=...)`. Sanitization, circuit breaker, and the `drop_truncated` truncation gate (from `finish_reason`) are applied by the **caller** (`_generate_via_backend`), uniformly across backends. Default `_backend=None` → built-in Ollama HTTP path. In-repo `core/mlx_backend.py` `MlxLmBackend` routes generation to a host-local mlx_lm.server (OpenAI `/v1/chat/completions`) when `LLM_BACKEND=mlx` (ADR-0064); embeddings stay on Ollama. SSRF allowlist shared via `validate_trusted_url()`.
 
 ## Immutability
 All DTOs `frozen=True`. Required by approval-gate diff pipeline and bitemporal invariants.
