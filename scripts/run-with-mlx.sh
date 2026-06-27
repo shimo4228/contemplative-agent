@@ -21,7 +21,14 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 AGENT="$(dirname "$SCRIPT_DIR")/.venv/bin/contemplative-agent"
 LOG="$HOME/.config/moltbook/logs/mlx-server.log"
 
+# --prompt-cache-size 2: cap retained KV caches. Default holds up to ~10
+# distinct prompt KV caches; at this agent's ~7.6k-token system prompt that
+# is ~2 GB of cache ON TOP of the ~5.2 GB weights, pushing a 16 GB host into
+# compression + swap (the model footprint then exceeds the ADR-0064 cold
+# benchmark). A single autonomous agent reuses one system-prompt prefix, so
+# 2 caches preserve the prefix-reuse speedup while bounding cache to ~0.4 GB.
 "$SERVER" --model "$MODEL" --host 127.0.0.1 --port "$PORT" \
+  --prompt-cache-size 2 \
   --chat-template-args '{"enable_thinking": false}' >>"$LOG" 2>&1 &
 MLX_PID=$!
 # Kill the server on any exit (success, failure, or signal) so it never
