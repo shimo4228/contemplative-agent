@@ -9,7 +9,7 @@
 	<array>
 		<string>/usr/bin/caffeinate</string>
 		<string>-s</string>
-		<string>{{PROJECT_ROOT}}/scripts/run-with-mlx.sh</string>
+		<string>{{VENV_BIN}}/contemplative-agent</string>
 		<string>-v</string>
 		<string>--auto</string>
 		<string>run</string>
