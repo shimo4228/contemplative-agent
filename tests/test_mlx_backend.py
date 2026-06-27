@@ -94,6 +94,25 @@ class TestRequestShape:
         ]
 
     @patch("contemplative_agent.core.mlx_backend.requests.post")
+    def test_payload_sends_top_p_and_top_k(self, mock_post, backend):
+        """Regression: the payload must carry the same top_p/top_k the Ollama
+        path sends (core/llm._post_ollama: top_p=0.95, top_k=20).
+
+        Without nucleus + top-k sampling, Qwen3.5-9B-4bit on mlx_lm.server
+        degenerates into repetition loops at the outward COMMENT_TEMPERATURE
+        (1.3): it never emits EOS and runs to max_tokens (finish_reason=length),
+        so a single content generation can take 10-25 minutes and block all
+        posting. mlx_lm.server applies no default top_p and ignores
+        repetition_penalty, so these must be sent explicitly. Dropping either
+        key reintroduces the runaway, hence this guard.
+        """
+        mock_post.return_value = _mock_response()
+        backend.generate("p", "s", 128, None, temperature=1.3)
+        payload = mock_post.call_args.kwargs["json"]
+        assert payload["top_p"] == 0.95
+        assert payload["top_k"] == 20
+
+    @patch("contemplative_agent.core.mlx_backend.requests.post")
     def test_system_omitted_when_empty(self, mock_post, backend):
         mock_post.return_value = _mock_response()
         backend.generate("only user", "", 64, None)

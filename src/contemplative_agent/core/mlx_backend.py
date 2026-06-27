@@ -100,6 +100,18 @@ class MlxLmBackend:
             "messages": messages,
             "max_tokens": num_predict,
             "temperature": temperature,
+            # Sampler parity with the Ollama path (core/llm._post_ollama sends
+            # the same top_p/top_k). REQUIRED, not cosmetic: at the outward
+            # COMMENT_TEMPERATURE (1.3), Qwen3.5-9B-4bit degenerates into
+            # repetition loops that never emit EOS and run to max_tokens
+            # (finish_reason=length) — empirically "ears, ears, ears…". Nucleus
+            # + top-k sampling clips the tail and restores natural stopping
+            # (temp 1.3 + top_p 0.95 → finish_reason=stop, ~180 tokens). Ollama
+            # never showed this because llama.cpp applied these; mlx_lm.server
+            # applies no default top_p and ignores repetition_penalty on its
+            # OpenAI endpoint, so they must be sent explicitly here.
+            "top_p": 0.95,
+            "top_k": 20,
             "stream": False,
             # Thinking off per request — parity with the Ollama think:False
             # default. mlx_lm.server forwards chat_template_kwargs into the
