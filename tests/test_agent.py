@@ -16,6 +16,7 @@ from contemplative_agent.adapters.moltbook.reply_handler import (
     extract_agent_fields,
     extract_notification_fields,
 )
+from contemplative_agent.adapters.moltbook.verification import VerificationSolveResult
 from contemplative_agent.core.config import VALID_ID_PATTERN
 from contemplative_agent.core.memory import MemoryStore
 
@@ -23,6 +24,14 @@ from contemplative_agent.core.memory import MemoryStore
 def _make_clean_memory(tmp_path: Path) -> MemoryStore:
     """Create a MemoryStore with temporary paths (no live data)."""
     return MemoryStore(path=tmp_path / "memory.json")
+
+
+def _solve_result(answer: str | None = "15.00") -> VerificationSolveResult:
+    return VerificationSolveResult(
+        answer=answer,
+        solver_path="llm_reason" if answer is not None else "none",
+        challenge_sha256="challenge-sha",
+    )
 
 
 class TestAutoFollow:
@@ -558,8 +567,12 @@ class TestHandleVerification:
         )
         assert result is False
 
-    @patch("contemplative_agent.adapters.moltbook.agent.solve_challenge", return_value=None)
-    def test_solve_fails(self, mock_solve):
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge_result",
+        return_value=_solve_result(None),
+    )
+    def test_solve_fails(self, mock_solve, mock_audit):
         agent = Agent()
         agent._verification = MagicMock()
         agent._verification.should_stop = False
@@ -569,10 +582,15 @@ class TestHandleVerification:
         )
         assert result is False
         agent._verification.record_failure.assert_called_once()
+        mock_audit.assert_called_once()
 
     @patch("contemplative_agent.adapters.moltbook.agent.submit_verification")
-    @patch("contemplative_agent.adapters.moltbook.agent.solve_challenge", return_value="answer")
-    def test_submit_success(self, mock_solve, mock_submit):
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge_result",
+        return_value=_solve_result("answer"),
+    )
+    def test_submit_success(self, mock_solve, mock_audit, mock_submit):
         mock_submit.return_value = {"success": True}
         agent = Agent()
         agent._client = MagicMock()
@@ -585,10 +603,16 @@ class TestHandleVerification:
         )
         assert result is True
         agent._verification.record_success.assert_called_once()
+        mock_audit.assert_called_once()
+        assert mock_audit.call_args.kwargs["verify_success"] is True
 
     @patch("contemplative_agent.adapters.moltbook.agent.submit_verification")
-    @patch("contemplative_agent.adapters.moltbook.agent.solve_challenge", return_value="answer")
-    def test_submit_failure(self, mock_solve, mock_submit):
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge_result",
+        return_value=_solve_result("answer"),
+    )
+    def test_submit_failure(self, mock_solve, mock_audit, mock_submit):
         mock_submit.return_value = {"success": False}
         agent = Agent()
         agent._client = MagicMock()
@@ -601,10 +625,16 @@ class TestHandleVerification:
         )
         assert result is False
         agent._verification.record_failure.assert_called_once()
+        mock_audit.assert_called_once()
+        assert mock_audit.call_args.kwargs["verify_success"] is False
 
     @patch("contemplative_agent.adapters.moltbook.agent.submit_verification")
-    @patch("contemplative_agent.adapters.moltbook.agent.solve_challenge", return_value="answer")
-    def test_submit_client_error(self, mock_solve, mock_submit):
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge_result",
+        return_value=_solve_result("answer"),
+    )
+    def test_submit_client_error(self, mock_solve, mock_audit, mock_submit):
         mock_submit.side_effect = MoltbookClientError("fail")
         agent = Agent()
         agent._client = MagicMock()
@@ -617,6 +647,8 @@ class TestHandleVerification:
         )
         assert result is False
         agent._verification.record_failure.assert_called_once()
+        mock_audit.assert_called_once()
+        assert mock_audit.call_args.kwargs["verify_success"] is False
 
     def test_missing_fields_records_failure(self):
         agent = Agent()
@@ -631,10 +663,13 @@ class TestHandleVerification:
 
     @patch("contemplative_agent.adapters.moltbook.agent.submit_verification")
     @patch(
-        "contemplative_agent.adapters.moltbook.agent.solve_challenge",
-        return_value="15.00",
+        "contemplative_agent.adapters.moltbook.agent.record_verification_audit",
     )
-    def test_submit_called_with_verification_code(self, mock_solve, mock_submit):
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge_result",
+        return_value=_solve_result("15.00"),
+    )
+    def test_submit_called_with_verification_code(self, mock_solve, mock_audit, mock_submit):
         mock_submit.return_value = {"success": True}
         agent = Agent()
         agent._client = MagicMock()
@@ -1159,13 +1194,23 @@ class TestRunPostCycle:
         assert any("Posted:" in a for a in agent._ctx.actions_taken)
         agent._post_pipeline._novelty_gate.record.assert_called_once()
 
-    @patch("contemplative_agent.adapters.moltbook.agent.solve_challenge", return_value=None)
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge_result",
+        return_value=_solve_result(None),
+    )
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic", return_value="reflection on alignment")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Notes on dedup gates")
     @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
     def test_failed_verification_not_recorded(
-        self, mock_score, mock_title, mock_summarize, mock_submolt, mock_solve,
+        self,
+        mock_score,
+        mock_title,
+        mock_summarize,
+        mock_submolt,
+        mock_solve,
+        mock_audit,
         tmp_path,
     ):
         """When verification cannot be solved, the (invisible) post must not be

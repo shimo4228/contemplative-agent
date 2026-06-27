@@ -67,7 +67,7 @@ Records of key design decisions for this project.
 | [0059](0059-remove-dead-reply-history.md) | Remove the Dead Reply-History Mechanism | accepted | 2026-06-22 |
 | [0060](0060-per-episode-grounded-distill.md) | Per-Episode Grounded Distill — Replace Batch Extract + Noise Gate with One Grounded LLM Call per Engagement Episode | accepted | 2026-06-23 |
 | [0061](0061-action-time-untrusted-cap-at-platform-limits.md) | Action-Time Untrusted Input Caps at Platform Field Limits; Internal Note Reads the Full Body | accepted | 2026-06-23 |
-| [0062](0062-create-time-verification-handshake.md) | Create-Time Content-Verification Handshake via LLM Reasoning; Gate Recording on Visibility | accepted | 2026-06-26 |
+| [0062](0062-create-time-verification-handshake.md) | Create-Time Content-Verification Handshake with Hybrid LLM/Code Solver; Gate Recording on Visibility | accepted | 2026-06-26 |
 | [0063](0063-novelty-gate-verified-only-comparison.md) | Scope the NoveltyGate Comparison to Verified (Visible) Posts | accepted | 2026-06-26 |
 | [0064](0064-mlx-generation-backend.md) | Route Generation Through a Local mlx_lm.server on Apple Silicon | accepted | 2026-06-27 |
 | [0065](0065-mlx-ondemand-launchd-and-telemetry-model-contract.md) | Wire mlx_lm.server as an On-Demand launchd Job and Enforce a Served-Model-ID Contract on LLM Telemetry | partially-superseded-by 0067 | 2026-06-27 |

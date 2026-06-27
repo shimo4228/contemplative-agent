@@ -74,6 +74,8 @@ class PromptTemplates:
     stocktake_merge_system: str = ""
     stocktake_clean_system: str = ""
     dialogue: str = ""
+    verification_solve_extract_system: str = ""
+    verification_solve_reason_system: str = ""
 
 
 def load_domain_config(path: Optional[Path] = None) -> DomainConfig:
@@ -251,6 +253,12 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         stocktake_merge_system=read("stocktake_merge_system.md", required=False),
         stocktake_clean_system=read("stocktake_clean_system.md", required=False),
         dialogue=read("dialogue.md", required=False),
+        verification_solve_extract_system=read(
+            "verification_solve_extract_system.md", required=False
+        ),
+        verification_solve_reason_system=read(
+            "verification_solve_reason_system.md", required=False
+        ),
     )
 
 

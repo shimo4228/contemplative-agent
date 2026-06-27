@@ -14,7 +14,7 @@ cli.py (2024L)  -- composition root, only file importing both core/ and adapters
  |    _io.py (46L)                -- file I/O (write_restricted, truncate, archive_before_write)
  |    config.py (28L)             -- security constants (FORBIDDEN_*, VALID_*, MAX_*)
  |    domain.py (362L)            -- DomainConfig + PromptTemplates + constitution loader
- |    prompts.py (~70L)           -- lazy-loading proxy to config/prompts/*.md
+ |    prompts.py (70L)            -- lazy-loading proxy to config/prompts/*.md
  |    llm.py (553L)               -- Ollama interface + LLMBackend Protocol, circuit breaker; identity.md read as single blob (ADR-0030)
  |    embeddings.py (92L)         -- /api/embed wrapper (nomic-embed-text) + cosine + embed_one/embed_texts
  |    episode_embeddings.py (162L)-- EpisodeEmbeddingStore (SQLite sidecar, ADR-0019)
@@ -38,14 +38,14 @@ cli.py (2024L)  -- composition root, only file importing both core/ and adapters
  |
  -> adapters/moltbook/  (14 modules)
  |    config.py (85L)             -- URLs, paths, timeouts, rate limits
- |    agent.py (619L)             -- session orchestrator (feed/reply/post cycles)
+ |    agent.py (721L)             -- session orchestrator (feed/reply/post cycles)
  |    session_context.py (55L)    -- shared session state contract
  |    feed_manager.py (348L)      -- feed fetch, scoring, engagement, ID dedup, promo + author rate limit
  |    reply_handler.py (394L)     -- notification reply processing; pre-action internal_note (ADR-0045)
  |    post_pipeline.py (207L)     -- feed-seeder → NoveltyGate → test-content + body-hash gates → post
  |    client.py (448L)            -- HTTP client (auth, domain lock, retry/429-backoff)
  |    auth.py (111L)              -- credential management, register
- |    verification.py (236L)      -- obfuscated math challenge solver
+ |    verification.py (582L)      -- obfuscated math solver + challenge audit log
  |    content.py (64L)            -- rules-based content + axiom intro injection
  |    llm_functions.py (231L)     -- Moltbook-specific LLM functions
  |    dedup.py (213L)             -- deterministic gates: prefix-5 stem + Jaccard, test-content, promo regex
@@ -63,7 +63,7 @@ cli.py (2024L)  -- composition root, only file importing both core/ and adapters
 
 config/                           -- externalized templates (domain-swappable, git-managed)
   domain.json                     -- submolts, thresholds
-  prompts/*.md (31 files)         -- LLM prompt templates with {placeholders}
+  prompts/*.md (34 files)         -- LLM prompt templates with {placeholders}
   views/*.md (7 files)            -- seed-text view definitions (packaged fallback for ADR-0019)
   templates/<character>/          -- 11 ethical framework templates
 
@@ -78,6 +78,7 @@ config/                           -- externalized templates (domain-swappable, g
   snapshots/{cmd}_{ts}/           -- pivot snapshots (ADR-0020: manifest + views + constitution + centroids.npz)
   logs/YYYY-MM-DD.jsonl           -- daily episode log (append-only, 0600)
   logs/audit.jsonl                -- approval history incl. snapshot_path + source_ids + epistemic_counts (ADR-0020/0050)
+  logs/verification-audit.jsonl   -- base64 challenge corpus + solve/verify outcome
   reports/                        -- activity reports + analysis/ (weekly)
   agents.json                     -- followed agents (0600)
   rate_state.json                 -- request budgets, timestamps (0600)
@@ -85,7 +86,7 @@ config/                           -- externalized templates (domain-swappable, g
   commented_cache.json            -- post dedup cache (0600)
 ```
 
-**Total: 45 non-`__init__` modules, ~14243 LOC** (test count: see [INDEX.md](INDEX.md))
+**Total: 45 non-`__init__` modules, ~15062 LOC** (test count: see [INDEX.md](INDEX.md))
 
 ## Key Classes
 
@@ -99,7 +100,7 @@ config/                           -- externalized templates (domain-swappable, g
 | `PostPipeline` | adapters/moltbook/post_pipeline.py | Self-post generation + dedup gates |
 | `NoveltyGate` | adapters/moltbook/novelty.py | Embedding novelty + temporal decay + Lagrangian (ADR-0039) |
 | `MoltbookClient` | adapters/moltbook/client.py | HTTP client (domain lock, 429 backoff) |
-| `VerificationTracker` | adapters/moltbook/verification.py | Math challenge solver, auto-stop |
+| `VerificationTracker` / `VerificationSolveResult` | adapters/moltbook/verification.py | Math challenge solve state, audit path, auto-stop |
 | `ContentManager` | adapters/moltbook/content.py | Content gen + axiom intro |
 | `EpisodeLog` | core/episode_log.py | Append-only JSONL |
 | `EpisodeEmbeddingStore` | core/episode_embeddings.py | SQLite sidecar for episode vectors |
@@ -151,13 +152,15 @@ Global flags: --config-dir PATH | --domain-config PATH | --constitution-dir PATH
 
 **Migration commands** (`embed-backfill` / `migrate-patterns` / `migrate-categories`) retired by ADR-0035. Use from a v2.0.x release tag for v1.x store recovery.
 
-## Prompt Templates (30 active)
+## Prompt Templates (32 active)
 
 In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 **Engagement & posting**: system, relevance, comment, reply, cooperation_post, post_title, topic_summary, submolt_selection, internal_note (ADR-0045), dialogue (peer loop) — `session_insight` retired and deleted (ADR-0052)
 
 **Distillation**: distill_episode (per-episode grounded distill, ADR-0060 — this is the live distill prompt), identity_distill, insight_extraction, rules_distill, rules_distill_refine, constitution_amend (`distill` / `distill_refine` are no longer loaded by `core/distill.py` after ADR-0060 replaced the 2-step batch with `distill_episode`; the `.md` files + `DISTILL_PROMPT` mapping linger but are dead. `distill_importance` retired, ADR-0056)
+
+**Verification**: verification_solve_extract_system (short EXPR/FINAL extraction) and verification_solve_reason_system (bounded reasoning fallback). `verification.py` wraps the challenge as untrusted, lets the LLM propose arithmetic, and only accepts guarded expressions when Python recomputation matches the stated final answer. `Agent._handle_verification()` writes `logs/verification-audit.jsonl` with a base64-encoded challenge, SHA-256s, solver path, answer, and `/verify` outcome for corpus-driven solver evaluation (ADR-0062 amendment).
 
 **Audit**: stocktake_skills, stocktake_rules (LLM grouping, ADR-0046), stocktake_merge (frontmatter emission, ADR-0048), stocktake_merge_rules, stocktake_clean (singleton trigger-altitude, ADR-0048), stocktake_group_system / stocktake_merge_system / stocktake_clean_system (externalized `system=` prompts, ADR-0054)
 
@@ -203,6 +206,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 | `logs/audit.jsonl` | JSONL | `MOLTBOOK_HOME` | Approval history + source_ids + epistemic_counts (ADR-0020/0050) |
 | `logs/skill-usage-*.jsonl` | JSONL | `MOLTBOOK_HOME` | Historic skill log (ADR-0023 sunset ADR-0036; no new files; observation evidence only) |
 | `logs/llm-calls-*.jsonl` | JSONL (0600) | `MOLTBOOK_HOME` | Per-call LLM telemetry: caller/model/tokens/duration/outcome; never prompt bodies (sha256 prefix only) |
+| `logs/verification-audit.jsonl` | JSONL (0600) | `MOLTBOOK_HOME` | Verification challenge corpus/outcome log: `challenge_b64`, `challenge_sha256`, hashed code, answer, solver_path, verify_success |
 
 ## Security Boundaries
 

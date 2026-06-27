@@ -2,7 +2,7 @@
 # Codemaps Index
 
 Comprehensive architectural documentation for the Contemplative Agent project.
-**Last Updated**: 2026-06-27 | **Codebase**: 45 non-`__init__` modules (51 total `.py`), ~14243 LOC, 1400 tests
+**Last Updated**: 2026-06-28 | **Codebase**: 45 non-`__init__` modules (51 total `.py`), ~15062 LOC, 1462 tests collected
 
 ---
 
@@ -12,7 +12,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 **Read first.** High-level architecture, system diagram, causal-chain data flows with gates and thresholds.
 
 **Topics**:
-- Project type & stats (45 non-`__init__` modules, ~14243 LOC, 1400 tests)
+- Project type & stats (45 non-`__init__` modules, ~15062 LOC, 1462 tests collected)
 - System diagram (core/ + adapters/moltbook/ + adapters/meditation/ + adapters/dialogue/)
 - Import rules (adapters → core, cli.py is only exception)
 - Session execution flow (ReplyHandler → FeedManager → PostPipeline) with gate thresholds
@@ -37,7 +37,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 - Full module dependency graph with line counts (44 modules)
 - 20+ key classes
 - CLI commands (21 active)
-- Prompt templates (30 active)
+- Prompt templates (32 active)
 - Persistent state files
 - Security boundaries & threat model
 - Performance & rate limiting (3-layer defense)
@@ -107,14 +107,14 @@ Package versions, external services, optional add-ons.
 | Metric | Value |
 |--------|-------|
 | Total `.py` files | 51 (45 non-`__init__` + 6 `__init__`) |
-| LOC | ~14243 |
-| Test files | 38 (1400 tests collected) |
+| LOC | ~15062 |
+| Test files | 38 (1462 tests collected; 1461 passed, 1 skipped on 2026-06-28) |
 | Core modules | 25 (platform-independent; forgetting.py deleted ADR-0051, mlx_backend.py added ADR-0064) |
 | Moltbook adapter modules | 14 |
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |
 | CLI commands | 21 active |
-| Prompt templates | 31 files / 30 loaded (config/prompts/*.md) |
+| Prompt templates | 34 files / 32 loaded (config/prompts/*.md) |
 | View seeds | 7 (config/views/*.md) |
 | Config templates | 11 (config/templates/) |
 | Rate limit budgets | 2 (GET 60/min, POST 30/min) |
@@ -136,4 +136,4 @@ Package versions, external services, optional add-ons.
 
 CODEMAPS はコード変更時に更新する（「どこにあるか」のコード索引）。
 
-Last full scan: 2026-06-20 (v2.6.0 release: 44 non-`__init__` modules, ~13592 LOC, 1301 tests verified; post-ADR-0053/0054/0055/0056/0057/0058 — importance LLM scoring + axiom-grounded distillation retired). Post-scan hand-updates (full re-scan pending): ADR-0059 (dead reply-history removed), ADR-0060 (distill is now per-episode grounded — one LLM call per episode, the 2-step batch + noise gate were removed), ADR-0061 (action-time untrusted caps at platform field limits), ADR-0062 (create-time verification handshake), ADR-0063 (NoveltyGate scoped to verified posts), ADR-0064 (opt-in MLX generation backend — `core/mlx_backend.py` added), ADR-0065 (MLX on-demand launchd wiring + telemetry served-model-id contract), ADR-0066 (backend-aware context-budget guard via context_window property). Current counts after hand-updates: 45 non-`__init__` modules (51 total `.py`), ~14243 LOC, 1400 tests.
+Last full scan: 2026-06-20 (v2.6.0 release: 44 non-`__init__` modules, ~13592 LOC, 1301 tests verified; post-ADR-0053/0054/0055/0056/0057/0058 — importance LLM scoring + axiom-grounded distillation retired). Post-scan hand-updates (full re-scan pending): ADR-0059 (dead reply-history removed), ADR-0060 (distill is now per-episode grounded — one LLM call per episode, the 2-step batch + noise gate were removed), ADR-0061 (action-time untrusted caps at platform field limits), ADR-0062 (create-time verification handshake; amended with guarded expression extraction and base64 verification-audit corpus logging), ADR-0063 (NoveltyGate scoped to verified posts), ADR-0064 (opt-in MLX generation backend — `core/mlx_backend.py` added), ADR-0065 (MLX on-demand launchd wiring + telemetry served-model-id contract), ADR-0066 (backend-aware context-budget guard via context_window property). Current counts after hand-updates: 45 non-`__init__` modules (51 total `.py`), ~15062 LOC, 1462 tests collected.

@@ -65,7 +65,7 @@
 | [0059](0059-remove-dead-reply-history.ja.md) | 死んでいた reply 履歴機構の撤去 | accepted | 2026-06-22 |
 | [0060](0060-per-episode-grounded-distill.ja.md) | エピソード単位の grounded distill — バッチ抽出 + noise gate を「engagement エピソード 1 件 = grounded な LLM 1 コール」に置換 | accepted | 2026-06-23 |
 | [0061](0061-action-time-untrusted-cap-at-platform-limits.ja.md) | action 時 untrusted 入力 cap を platform field 上限に統一; 内省ノートは全文を読む | accepted | 2026-06-23 |
-| [0062](0062-create-time-verification-handshake.ja.md) | 作成時コンテンツ検証ハンドシェイク（LLM 推論による求解）と、可視化を条件とする記録ゲート | accepted | 2026-06-26 |
+| [0062](0062-create-time-verification-handshake.ja.md) | 作成時コンテンツ検証ハンドシェイク（LLM/コード併用ソルバ）と、可視化を条件とする記録ゲート | accepted | 2026-06-26 |
 | [0063](0063-novelty-gate-verified-only-comparison.ja.md) | NoveltyGate の比較対象を verified（可視）投稿のみにスコープする | accepted | 2026-06-26 |
 | [0064](0064-mlx-generation-backend.ja.md) | Apple Silicon で生成を host-local の mlx_lm.server 経由にする | accepted | 2026-06-27 |
 | [0065](0065-mlx-ondemand-launchd-and-telemetry-model-contract.ja.md) | mlx_lm.server を launchd のオンデマンドジョブとして配線し、LLM テレメトリに served-model-id 契約を課す | partially-superseded-by 0067 | 2026-06-27 |

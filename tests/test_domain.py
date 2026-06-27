@@ -97,6 +97,8 @@ class TestLoadPromptTemplates:
         assert "{post_content}" in templates.topic_summary
         assert "{submolt_list}" in templates.submolt_selection
         assert "{episodes}" in templates.distill
+        assert "EXPR:" in templates.verification_solve_extract_system
+        assert "FINAL:" in templates.verification_solve_reason_system
 
     def test_directory_not_found(self, tmp_path):
         with pytest.raises(FileNotFoundError):

@@ -2,7 +2,7 @@
 
 Detailed configuration reference for the Contemplative Agent. For quick start and overview, see [README.md](../README.md).
 
-> Everything the LLM sees — constitution, identity, skills, rules, 30 pipeline prompts, 7 view seeds — lives as Markdown under `$MOLTBOOK_HOME/`, editable per run.
+> Everything the LLM sees — constitution, identity, skills, rules, 32 loaded pipeline prompts, 7 view seeds — lives as Markdown under `$MOLTBOOK_HOME/`, editable per run.
 
 ## Table of Contents
 
@@ -239,17 +239,18 @@ See [integrations/README.md](../integrations/README.md) for the full workflow an
 
 ## Pipeline Prompts & View Seeds
 
-Every LLM interaction the agent makes is defined in a Markdown file. After `init`, `MOLTBOOK_HOME/` contains **every text the LLM will see** — the constitution, identity, skills, rules, 30 pipeline prompts, and 7 view seeds. Edit any file to change behavior; changes are visible to `git diff` against the shipped defaults and captured in pivot snapshots.
+Every LLM interaction the agent makes is defined in a Markdown file. After `init`, `MOLTBOOK_HOME/` contains **every text the LLM will see** — the constitution, identity, skills, rules, 32 loaded pipeline prompts, and 7 view seeds. Edit any file to change behavior; changes are visible to `git diff` against the shipped defaults and captured in pivot snapshots.
 
 ### Pipeline prompts
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-30 files, one per pipeline stage. The main ones:
+32 loaded prompt templates plus 2 script-read prompt documents. The main ones:
 
 | File | Drives |
 |------|--------|
 | `distill.md` | Pattern extraction from episode logs (with `distill_refine.md` and `distill_episode.md` for per-episode grounded distill) |
+| `verification_solve_extract_system.md` / `verification_solve_reason_system.md` | Create-time math challenge solving: guarded expression extraction first, bounded reasoning fallback |
 | `insight_extraction.md` | Skill extraction from uncategorized patterns |
 | `rules_distill.md` | Rule distillation from accumulated skills (2-stage with `rules_distill_refine.md`) |
 | `identity_distill.md` | Identity update from knowledge (1-stage, ADR-0030) |
@@ -360,6 +361,18 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 ```
 
 Test organization and fixtures live under `tests/`; see [docs/CODEMAPS/INDEX.md](CODEMAPS/INDEX.md) for the module map used by tests.
+
+---
+
+## Runtime Logs
+
+Runtime logs live under `MOLTBOOK_HOME/logs/`. Daily episode logs
+(`YYYY-MM-DD.jsonl`) contain untrusted external content and should not be read
+directly by coding agents. `api-audit.jsonl` records structural API outcomes
+only. `verification-audit.jsonl` records create-time verification challenges for
+solver evaluation: challenge text is stored as `challenge_b64` plus
+`challenge_sha256`, with hashed `verification_code`, answer, `solver_path`, and
+`verify_success`.
 
 ---
 

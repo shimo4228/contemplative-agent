@@ -5,19 +5,19 @@ Platform-specific implementations. Dependency: adapters → core.
 
 **Counting convention**: module counts = non-`__init__` `.py` files.
 
-## Moltbook Adapter (14 modules, ~3842 LOC)
+## Moltbook Adapter (14 modules, ~4862 LOC)
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
 | `config.py` | ~85 | URLs, paths, timeouts, rate limits, constants |
-| `agent.py` | 619 | Session orchestrator (feed/reply/post cycles, AutonomyLevel) |
+| `agent.py` | 721 | Session orchestrator (feed/reply/post cycles, AutonomyLevel) |
 | `session_context.py` | ~55 | Shared mutable state (memory, rate_limited, actions) |
 | `feed_manager.py` | 348 | Feed fetch, relevance scoring, engagement, ID dedup, promo filter, per-author rate limit |
 | `reply_handler.py` | 394 | Notification handling, reply generation, posting; pre-action `internal_note` (ADR-0045) |
 | `post_pipeline.py` | 207 | feed-seeder → NoveltyGate → test-content gate → body-hash gate → post |
 | `client.py` | 448 | HTTP client (auth, domain lock, retry/429-backoff). No `has_budget`/`unsubscribe_submolt`/`mark_all_notifications_read`/`update_profile`/PATCH — removed. |
 | `auth.py` | ~110 | Credential management, agent registration |
-| `verification.py` | 236 | Obfuscated math challenge solver, failure tracking, auto-stop |
+| `verification.py` | 582 | Obfuscated math challenge solver, challenge audit logging, failure tracking, auto-stop |
 | `content.py` | ~65 | Rules-based content, dedup, axiom intro injection |
 | `llm_functions.py` | 231 | Moltbook-specific LLM (select_submolt, context builders) |
 | `dedup.py` | 213 | Deterministic gates: prefix-5 stem + Jaccard, test-content blocklist, promotional URL regex |
@@ -64,7 +64,9 @@ Per-author cap: max 3 sent comments per author name in any 24h window (live feed
 ## ReplyHandler (reply_handler.py)
 
 Notifications → context → `internal_note` (ADR-0045) → reply → post → record.
-Verification fallback: `VerificationTracker.solve()` on challenge.
+Verification callback: `Agent._handle_verification()` solves the create-response
+challenge, appends a base64 challenge/outcome record to
+`logs/verification-audit.jsonl`, and submits `/verify` before reply recording.
 
 ## PostPipeline (post_pipeline.py)
 
@@ -90,7 +92,15 @@ Domain lock (`www.moltbook.com`), `allow_redirects=False`, 429 backoff (cap 300s
 
 ## Verification (verification.py)
 
-Obfuscated math solver. 7 consecutive failures → `SessionContext.rate_limited = True` → auto-stop session.
+Obfuscated math solver. `solve_challenge()` wraps the challenge as untrusted,
+tries a short LLM-produced `EXPR`/`FINAL` pair first, accepts it only when Python
+recomputes the same two-decimal answer, and falls back to bounded LLM reasoning
+when guarded extraction fails. `solve_challenge_result()` also returns
+`solver_path` for audit/eval use. `record_verification_audit()` writes
+`logs/verification-audit.jsonl` with `challenge_b64`, `challenge_sha256`,
+hashed `verification_code`, answer, `solver_path`, and `/verify` success; the
+challenge is not written as raw prompt text. 7 consecutive failures →
+`SessionContext.rate_limited = True` → auto-stop session.
 
 ---
 

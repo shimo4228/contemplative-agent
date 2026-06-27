@@ -1,8 +1,14 @@
-# ADR-0062: Create-Time Content-Verification Handshake via LLM Reasoning; Gate Recording on Visibility
+# ADR-0062: Create-Time Content-Verification Handshake with Hybrid LLM/Code Solver; Gate Recording on Visibility
 
 ## Status
 
 accepted
+
+Amended 2026-06-28: the verification solver now uses guarded LLM expression
+extraction before bounded LLM reasoning. The create-time handshake and
+post-verification recording gate are unchanged. A second 2026-06-28 amendment
+adds `logs/verification-audit.jsonl`, a base64 challenge/outcome corpus for
+solver evaluation.
 
 ## Date
 
@@ -59,13 +65,15 @@ layer could have independently produced a valid `/verify` submission.
    because the server consumes quota regardless of verification outcome. Trusted-bypass responses
    — those carrying no `verification` object — fall through and record as before.
 
-3. **Solve via LLM reasoning — not deterministic parsing, not constrained extraction.**
-   `solve_challenge` passes the raw `challenge_text` to the LLM with a reason-step-by-step prompt
-   (`num_predict=3000` as a generous budget cap, not a target; `drop_truncated=True` to fail
-   closed on a truncated response). The solution is extracted by locating the final numeric token
-   in the generated output, formatted to two decimal places. The trust boundary is the output:
-   only a float-parseable number is ever submitted to the platform, so an instruction injected
-   through the untrusted `challenge_text` fails closed to `None` rather than executing.
+3. **Solve via LLM semantic extraction with code-owned validation.**
+   `solve_challenge` wraps `challenge_text` as untrusted content, then asks the LLM for a short
+   `EXPR: <number> <op> <number>` / `FINAL: <answer>` pair. Python computes the expression with
+   `Decimal` and accepts the answer only when the computed two-decimal value matches the LLM's
+   stated final answer. If that guarded fast path fails, the solver falls back to a bounded
+   reasoning prompt (`temperature=0.0`, `drop_truncated=True`, generous `num_predict` cap) and
+   extracts a labeled final answer. The trust boundary is still the output: only a parseable number
+   that survives the code guard or bounded fallback is submitted to the platform, so an instruction
+   injected through `challenge_text` fails closed to `None`.
 
 4. **Remove the dead feed-based verification path.** The `verification_challenge` feed branch and
    its plumbing through `run_cycle` are deleted. They fired zero times in the available log history
@@ -80,7 +88,15 @@ layer could have independently produced a valid `/verify` submission.
    recorded; the log is safe to read directly, unlike episode logs which carry untrusted external
    content.
 
-6. **Thread replies with `parent_id`.** The API requires `parent_id` for replies; it was previously
+6. **Add a dedicated verification challenge audit corpus.** `Agent._handle_verification` now writes
+   one best-effort record to `logs/verification-audit.jsonl` for every solve attempt that has a
+   challenge: `challenge_b64`, `challenge_sha256`, `verification_code_sha256`, answer,
+   `solver_path`, `solve_success`, `verify_success`, and sanitized error. The challenge text is
+   base64-encoded rather than written as free text, so direct log inspection does not turn the
+   corpus into prompt instructions. Any evaluation harness that decodes it must re-wrap the decoded
+   text as untrusted content.
+
+7. **Thread replies with `parent_id`.** The API requires `parent_id` for replies; it was previously
    never sent, so replies posted as top-level comments. The field is now included in every
    `POST /comments` reply call.
 
@@ -102,6 +118,11 @@ test evidence: 3 of 6 challenges were answered incorrectly. The `format=json` co
 the reasoning model's `<think>` block, and without chain-of-thought the model misreads obfuscated
 number-words (`twenty`→10, `eighty`→8). Computing arithmetic in code is the correct separation,
 but suppressing the reasoning step to reach it produces an unreliable solver.
+
+Amendment note (2026-06-28): the implemented fast path is not this rejected design. It does not use
+constrained JSON decoding, and it never accepts the LLM's extracted fields by schema alone. The LLM
+may propose a simple numeric expression, but Python recomputes it; if that contract is missing or
+inconsistent, the solver falls back to bounded reasoning rather than submitting the proposal.
 
 ### Force an immediate answer ("reply with ONLY the number")
 
@@ -127,6 +148,15 @@ prohibits reading episode logs (CLAUDE.md). Structural-plus-status logging achie
 goal — catching 2xx-but-invisible failures and envelope field drift — without introducing the
 injection surface.
 
+### Put raw challenge text in a normal log field
+
+Record `challenge_text` directly in `verification-audit.jsonl` for easier corpus collection.
+Rejected: the challenge is attacker-controlled external content and may contain prompt-injection
+strings. Storing it as a normal JSON string would make casual log reads and coding-agent debugging
+sessions ingest it as prose. Base64 does not make the content trusted, but it prevents accidental
+instruction-following during direct inspection while preserving an exact corpus for explicit eval
+harnesses.
+
 ### Route verification through the human approval gate
 
 Treat the verification handshake as a supervised action requiring confirmation before submitting
@@ -144,19 +174,25 @@ after those gates have cleared.
   against production: a controlled real post solved its challenge (`26+17=43`) and transitioned to
   `verification_status=verified`; a subsequent live autonomous session solved a real reply
   challenge and `POST /verify` returned HTTP 200.
+- Common verification challenges can now finish through a short guarded extraction call instead of
+  a long free-reasoning trace; arithmetic acceptance is owned by Python when the fast path provides
+  a valid expression.
 - `logs/api-audit.jsonl` makes silent failures and API envelope drift greppable; the exact bug
   class that caused this incident — HTTP 2xx with content remaining invisible, field-name drift in
   the response envelope — would have surfaced within days rather than accumulating across weeks.
+- `logs/verification-audit.jsonl` creates a forward corpus of real challenges, solver paths,
+  answers, and `/verify` outcomes. Future solver changes can be evaluated against observed
+  failures instead of synthetic examples or unsafe episode-log reads.
 - Only verified (visible) content enters `NoveltyGate` and the memory store, so the 349 pending
   posts and their associated comments no longer pollute novelty and deduplication history.
 - Replies thread correctly under their parent comments rather than posting as top-level comments.
 
 ### Negative
 
-- Each content-creation call now carries approximately 30–90 seconds of additional latency while
-  the LLM solves the challenge. The same model just generated the content, so it is warm at solve
-  time; a cold or recently-swapped model could approach the five-minute challenge window, with
-  generation serving as a pre-warm step.
+- Each content-creation call still depends on LLM challenge solving. The guarded fast path should
+  reduce common-case latency, but fallback reasoning can still add tens of seconds; a cold or
+  recently-swapped model could approach the five-minute challenge window, with generation serving
+  as a pre-warm step.
 - The verification solver adds a dependency on the local LLM being reachable at the moment of
   content creation. A connection failure to Ollama at create time causes the `/verify` call to be
   skipped and the created content to remain pending.
@@ -166,10 +202,12 @@ after those gates have cleared.
 
 ### Neutral / Follow-ups
 
-- The solver prompt and `num_predict=3000` budget are calibrated for `qwen3.5:9b`; a weaker or
-  swapped model may require prompt or budget adjustment.
+- The solver prompts and token budgets are calibrated for `qwen3.5:9b`; a weaker or swapped model
+  may require prompt or budget adjustment. Telemetry remains under caller `moltbook.verify_solve`.
 - `logs/api-audit.jsonl` has no rotation policy yet; one structural record is appended per API
   call.
+- `logs/verification-audit.jsonl` has no rotation or retention policy yet; one corpus/outcome
+  record is appended per challenged creation attempt.
 - `verification_code` is no longer format-validated before submission: the field travels in a JSON
   request body rather than a URL path, so a non-empty check is sufficient. The prior validation
   was an artefact of the old field-name assumptions.

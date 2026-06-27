@@ -30,7 +30,9 @@ from .reply_handler import ReplyHandler
 from .session_context import SessionContext
 from .verification import (
     VerificationTracker,
+    record_verification_audit,
     solve_challenge,
+    solve_challenge_result,
     submit_verification,
 )
 from ...core.config import (
@@ -420,8 +422,16 @@ class Agent:
             self._verification.record_failure()
             return False
 
-        answer = solve_challenge(challenge_text)
+        solve_result = solve_challenge_result(challenge_text)
+        answer = solve_result.answer
         if answer is None:
+            record_verification_audit(
+                challenge_text=challenge_text,
+                verification_code=verification_code,
+                solve_result=solve_result,
+                verify_success=False,
+                error="solve_failed",
+            )
             self._verification.record_failure()
             return False
 
@@ -429,6 +439,12 @@ class Agent:
         try:
             result = submit_verification(client, verification_code, answer)
             if result.get("success"):
+                record_verification_audit(
+                    challenge_text=challenge_text,
+                    verification_code=verification_code,
+                    solve_result=solve_result,
+                    verify_success=True,
+                )
                 self._verification.record_success()
                 logger.info("Verification submitted and accepted")
                 return True
@@ -438,10 +454,24 @@ class Agent:
                 r"[^\x20-\x7E]", "", str(result.get("error", ""))[:200]
             )
             logger.warning("Verification rejected: %s", safe_error)
+            record_verification_audit(
+                challenge_text=challenge_text,
+                verification_code=verification_code,
+                solve_result=solve_result,
+                verify_success=False,
+                error=safe_error or "verify_rejected",
+            )
             self._verification.record_failure()
             return False
         except (MoltbookClientError, ValueError) as exc:
             logger.error("Verification submission failed: %s", exc)
+            record_verification_audit(
+                challenge_text=challenge_text,
+                verification_code=verification_code,
+                solve_result=solve_result,
+                verify_success=False,
+                error=str(exc),
+            )
             self._verification.record_failure()
             return False
 

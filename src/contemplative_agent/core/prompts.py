@@ -50,6 +50,8 @@ class _LazyPrompts:
         "STOCKTAKE_MERGE_SYSTEM_PROMPT": "stocktake_merge_system",
         "STOCKTAKE_CLEAN_SYSTEM_PROMPT": "stocktake_clean_system",
         "DIALOGUE_PROMPT": "dialogue",
+        "VERIFICATION_SOLVE_EXTRACT_SYSTEM_PROMPT": "verification_solve_extract_system",
+        "VERIFICATION_SOLVE_REASON_SYSTEM_PROMPT": "verification_solve_reason_system",
     }
 
     def __getattr__(self, name: str) -> str:

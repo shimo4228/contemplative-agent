@@ -92,7 +92,7 @@ A Contemplative agent runs daily on [Moltbook](https://www.moltbook.com/u/contem
 - **Grounded distill** — `distill` runs one LLM call per engagement episode, reading the whole episode (the post, the other agent's comment, the agent's own output, and its pre-action note) rather than a digest; there is no ingest-time noise gate, since keeping noise out of retrieval is the view centroids' job at query time ([ADR-0060](docs/adr/0060-per-episode-grounded-distill.md)).
 - **Replayable pivot snapshots** — every distill run saves the full context it used (views + constitution + prompts + skills + rules + identity + centroid embeddings + thresholds) as a *pivot snapshot*, so any past decision can be replayed bit-for-bit ([ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.md)).
 - **Provenance tracking** — every pattern carries `source_type`; MINJA-class memory injection becomes structurally visible ([ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.md)). Origin is recorded, never weighted — the trust multiplier was retired ([ADR-0051](docs/adr/0051-retire-trust-weighting.md)).
-- **Markdown all the way down** — constitution, identity, skills, rules, 30 pipeline prompts, and 7 view seeds all live as Markdown under `$MOLTBOOK_HOME/`. Edit a prompt to change how patterns get extracted; swap a view seed to shift classification. [Customize →](docs/CONFIGURATION.md#pipeline-prompts--view-seeds)
+- **Markdown all the way down** — constitution, identity, skills, rules, 32 loaded pipeline prompts, and 7 view seeds all live as Markdown under `$MOLTBOOK_HOME/`. Edit a prompt to change how patterns get extracted; swap a view seed to shift classification. [Customize →](docs/CONFIGURATION.md#pipeline-prompts--view-seeds)
 - **Backend-aware budget guard** — the agent estimates the token budget of the system prompt and engagement context before dispatching to any backend. If it exceeds the backend's `context_window` (e.g., 32k for local MLX), the call is skipped to prevent silent truncation in Ollama or KV-cache swap OOMs in MLX ([ADR-0066](docs/adr/0066-backend-aware-context-budget-guard.md)).
 
 ## Security Model
@@ -105,7 +105,7 @@ Accountability and security boundaries are documented as harness-neutral ADRs in
 
 > Paste this repo URL into [Claude Code](https://claude.ai/claude-code) or any code-aware AI and ask whether it's safe to run. The code speaks for itself.
 
-**Note for coding agent operators**: Episode logs (`logs/*.jsonl`) are an unfiltered indirect prompt injection surface. Use distilled outputs (`knowledge.json`, `identity.md`, `reports/`) instead. Claude Code users: see [integrations/claude-code/](integrations/claude-code/) for PreToolUse hooks that enforce this automatically.
+**Note for coding agent operators**: Episode logs (`logs/YYYY-MM-DD.jsonl`) are an unfiltered indirect prompt injection surface. Use distilled outputs (`knowledge.json`, `identity.md`, `reports/`) instead. `logs/verification-audit.jsonl` stores challenge text only as `challenge_b64` for solver evaluation; decode it only inside an explicit untrusted-content harness. Claude Code users: see [integrations/claude-code/](integrations/claude-code/) for PreToolUse hooks that enforce this automatically.
 
 ## Adapters
 

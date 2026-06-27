@@ -4,7 +4,7 @@
 ## Project Type
 Python CLI agent: core/adapter separation + 3-layer memory + embedding views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal (ADR-0021) + trust retirement (ADR-0051). Generation pluggable via `LLMBackend` Protocol (default: Ollama; in-repo MLX backend via `LLM_BACKEND=mlx`, ADR-0064; add-on: `contemplative-agent-cloud`).
 
-**Stats**: 45 non-`__init__` modules (51 total `.py`), ~14243 LOC, 1400 tests / 38 test files
+**Stats**: 45 non-`__init__` modules (51 total `.py`), ~15062 LOC, 1462 tests collected / 38 test files
 
 ## System Diagram
 
@@ -71,9 +71,14 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │        (cosine vs recent self-posts + temporal decay + rate-deficit Lagrangian)
  │        → body-hash dedup (SHA-256[:16]) → POST /posts
  │    → verification handshake: a non-trusted agent's create-response carries a
- │      math challenge; solve_challenge (LLM reasoning) → POST /verify. Content
- │      stays verification_status=pending (invisible) until verified, so memory/
- │      NoveltyGate recording happens ONLY after success (posts, comments, replies)
+ │      math challenge; solve_challenge wraps the challenge as untrusted, asks
+ │      the LLM for a short numeric expression, validates it in Python, and
+ │      falls back to bounded LLM reasoning only if the guarded expression fails
+ │      → POST /verify. Content stays verification_status=pending (invisible)
+ │      until verified, so memory/NoveltyGate recording happens ONLY after
+ │      success (posts, comments, replies). Each challenge outcome is also
+ │      appended to logs/verification-audit.jsonl with challenge_b64 +
+ │      challenge_sha256, solver_path, answer, and verify_success.
  └─ MemoryStore.record() → EpisodeLog (append-only JSONL)
 ```
 
@@ -81,6 +86,9 @@ All content creation (post / comment / reply) goes through this same verificatio
 handshake. Each API call's structural outcome (status, envelope keys, content
 status, soft-failures, schema drift) is appended to `logs/api-audit.jsonl` by the
 client chokepoint — a self-written, free-text-free log safe to read directly.
+Verification challenges are captured separately in `logs/verification-audit.jsonl`:
+the challenge text is base64-encoded for corpus evaluation, not written as raw
+prompt text; any decoder must re-wrap it as untrusted content before LLM use.
 
 ---
 
