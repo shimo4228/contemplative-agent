@@ -35,6 +35,13 @@ logger = logging.getLogger(__name__)
 
 MIN_PATTERNS_REQUIRED = 3
 
+# Above this live-pattern count, ``insight --full`` reclusters a pool large
+# enough that the naive ~O(N^3) agglomerative merge in clustering.py can be
+# slow, so the run emits an advisory warning (review 2026-06-27 M4). This is a
+# performance heads-up, NOT a quality cap on patterns — nothing is dropped. A
+# few hundred is comfortable; ADR-0060's per-episode distill grows the pool.
+FULL_RECLUSTER_WARN_N = 500
+
 
 @dataclass(frozen=True)
 class SkillResult:
@@ -115,6 +122,47 @@ def _cluster_score(cluster: List[dict]) -> float:
     return len(cluster) * mean_imp
 
 
+def _log_dropped_singletons(singletons: List[dict]) -> None:
+    """Visibility-only instrument for dropped singleton patterns (review
+    2026-06-27 M3).
+
+    ``cluster_patterns`` demotes sub-``min_size`` groups and the >``max_size``
+    cluster tails into ``singletons``, which never reach the LLM and so can
+    never become skills. Rarity/heterogeneity is the signal, so pooling them
+    is the wrong fix; instead this logs how many were dropped and their
+    ``effective_importance`` distribution (p50/p90/p99/max) plus the top rows,
+    so a rare-singleton lane and floor can later be decided from the real live
+    distribution rather than a blind constant. No lane/threshold is applied
+    here — this only logs.
+    """
+    if not singletons:
+        return
+    scores = sorted(
+        (effective_importance(p) for p in singletons), reverse=True
+    )
+    n = len(scores)
+
+    def _pct(q: float) -> float:
+        # Linear-position percentile on the descending list: q is the fraction
+        # of patterns scoring at or below the returned value, so a high q maps
+        # near the top (max). Diagnostic-only, so the exact interpolation rule
+        # is immaterial.
+        idx = min(n - 1, max(0, int(round((1.0 - q) * (n - 1)))))
+        return scores[idx]
+
+    logger.info(
+        "insight: %d singleton pattern(s) dropped (never skilled); "
+        "effective_importance p50=%.3f p90=%.3f p99=%.3f max=%.3f",
+        n, _pct(0.50), _pct(0.90), _pct(0.99), scores[0],
+    )
+    for p in sorted(singletons, key=effective_importance, reverse=True)[:10]:
+        logger.info(
+            "  dropped singleton score=%.3f: %s",
+            effective_importance(p),
+            (p.get("pattern", "") or "")[:80],
+        )
+
+
 def _build_cluster_batches(
     raw_patterns: List[dict],
     threshold: float = CLUSTER_THRESHOLD,
@@ -147,12 +195,13 @@ def _build_cluster_batches(
     if len(candidates) < min_size:
         return []
 
-    clusters, _ = cluster_patterns(
+    clusters, singletons = cluster_patterns(
         candidates,
         threshold=threshold,
         min_size=min_size,
         max_size=max_size,
     )
+    _log_dropped_singletons(singletons)
     if not clusters:
         return []
 
@@ -278,7 +327,15 @@ def _select_patterns(
     only hard exclusion (handled by _build_cluster_batches).
     """
     if full:
-        return knowledge_store.get_live_patterns()
+        patterns = knowledge_store.get_live_patterns()
+        if len(patterns) > FULL_RECLUSTER_WARN_N:
+            logger.warning(
+                "insight --full: reclustering %d live patterns (> %d); the "
+                "naive agglomerative merge is ~O(N^3) and may be slow "
+                "(review 2026-06-27 M4)",
+                len(patterns), FULL_RECLUSTER_WARN_N,
+            )
+        return patterns
     last_run = _read_last_insight(skills_dir)
     if last_run:
         raw_patterns = knowledge_store.get_live_patterns_since(last_run)

@@ -357,6 +357,26 @@ class TestExtractRules:
         assert "Engagement Practices" in result
         assert mock_generate.call_count == 2
 
+    @patch(
+        "contemplative_agent.core.rules_distill.get_distill_system_prompt",
+        return_value="BASE_ONLY_DISTILL_PROMPT",
+    )
+    @patch("contemplative_agent.core.rules_distill.generate")
+    def test_both_stages_use_base_only_system_prompt(self, mock_generate, mock_sys):
+        """H2 (review 2026-06-27): offline rules-distill must run under the
+        base-only distill system prompt in BOTH stages. Pre-fix Stage 2 omitted
+        ``system=`` and defaulted to the full action-time prompt (identity +
+        axioms + learned skills/rules) — a self-conditioning leak in the offline
+        learning path documented as base-only."""
+        mock_generate.side_effect = [
+            GOOD_RULES_RESPONSE_STAGE1,
+            GOOD_RULES_RESPONSE_STAGE2,
+        ]
+        _extract_rules(["# Skill 1\nContent"])
+        assert mock_generate.call_count == 2
+        for call in mock_generate.call_args_list:
+            assert call.kwargs.get("system") == "BASE_ONLY_DISTILL_PROMPT"
+
     @patch("contemplative_agent.core.rules_distill.generate")
     def test_stage1_failure(self, mock_generate):
         mock_generate.return_value = None

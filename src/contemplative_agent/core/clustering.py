@@ -8,8 +8,15 @@ cluster size.
 Design choices:
 - Average-linkage rather than single-linkage to avoid chain-effect
   clusters that drag the LLM into over-abstract synthesis
-- O(N^2) pairwise matrix — fine for N up to a few hundred; well under
-  the caller's corpus sizes
+- The O(N^2) cosine matrix is cheap; the real cost driver is the naive
+  agglomerative merge in ``_merge_clusters``, which rescans every
+  remaining cluster pair (recomputing submatrix means) on each of up to
+  N-1 merges — worst case ~O(N^3). Fine for N up to a few hundred (well
+  under current corpus sizes), but ``insight --full`` slows as the live
+  pool grows (ADR-0060 distills per episode); ``insight`` warns past a
+  measured threshold (``FULL_RECLUSTER_WARN_N``). A cached priority-queue
+  agglomeration (~O(N^2 log N)) is the upgrade if --full ever becomes
+  painful — deferred until measured (review 2026-06-27 M4)
 - Pure numpy, no scipy/sklearn dependency
 
 Patterns without an ``embedding`` field are returned as singletons.
@@ -43,6 +50,10 @@ def _merge_clusters(
     Returns a list of index groups. Each index refers to a row of the
     embedding matrix. Merge halts when the highest remaining
     inter-cluster average similarity drops below ``threshold``.
+
+    Cost: each of up to N-1 merges rescans all remaining cluster pairs and
+    recomputes their submatrix means, so this is ~O(N^3) worst case — the
+    dominant clustering cost, not the O(N^2) matrix (review 2026-06-27 M4).
     """
     n = similarity.shape[0]
     clusters: List[List[int]] = [[i] for i in range(n)]

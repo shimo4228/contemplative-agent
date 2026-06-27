@@ -90,6 +90,15 @@ def epistemic_counts_for(patterns: List[dict]) -> Dict[str, int]:
     All three keys are always present so audit.jsonl records keep a
     stable shape for offline analysis; ``None`` kinds count as
     ``"unknown"``.
+
+    Read this as a *provenance-kind* tally (self-narrative vs external-reply
+    source record), NOT as an external-grounding presence metric. Since
+    ADR-0060 distill ingests only ``activity`` records and maps every activity
+    to ``self`` → ``generated``, ``observed`` is structurally **zero** (review
+    2026-06-27 M2). The external world (the post engaged with, the other
+    agent's comment) still enters distillation, but as grounding *text inside*
+    the rich render, not as an ``observed`` kind — so ``observed == 0`` does
+    not mean "no external grounding". See architecture.md / ADR-0060.
     """
     counts = {"observed": 0, "generated": 0, "unknown": 0}
     for p in patterns:

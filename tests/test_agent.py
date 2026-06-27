@@ -1606,18 +1606,9 @@ class TestOwnPostIdTracking:
         agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
         assert "nested-post-1" in agent._ctx.own_post_ids
 
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
-    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
-    def test_dynamic_post_warns_when_response_missing_id(
-        self, mock_score, mock_title, mock_select, tmp_path, caplog,
-    ):
-        """Defense against the original silent-failure mode: if the API
-        envelope ever drops or renames the ``post.id`` field again, the
-        operator should see a WARNING in agent-launchd.log instead of the
-        NoveltyGate quietly admitting everything."""
-        import logging
-
+    @staticmethod
+    def _setup_post_agent(tmp_path, post_payload):
+        """Wire an AUTO agent whose create-post returns ``post_payload``."""
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
         agent._client = MagicMock()
         agent._scheduler = MagicMock()
@@ -1628,18 +1619,93 @@ class TestOwnPostIdTracking:
         feed_resp = MagicMock()
         feed_resp.json.return_value = {"posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]}
         post_resp = MagicMock()
-        # Envelope shape changed: no "post" key, no top-level "id".
-        post_resp.json.return_value = {"success": True, "message": "ok"}
+        post_resp.json.return_value = post_payload
         agent._client.get.return_value = feed_resp
         agent._client.post.return_value = post_resp
+        return agent
 
+    @staticmethod
+    def _assert_post_not_recorded(agent):
+        """H1 (review 2026-06-27): an un-provable create-post must leave no
+        trace in dedup / memory / episode / NoveltyGate — only the rate-limit
+        quota is consumed because the HTTP request did reach the server."""
+        assert agent._ctx.own_post_ids == set()
+        assert agent._memory.get_recent_posts() == []
+        assert agent._memory.episodes.read_range(days=2, record_type="activity") == []
+        agent._content.mark_posted.assert_not_called()
+        agent._scheduler.record_post.assert_called_once()
+
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_dynamic_post_records_nothing_when_missing_id(
+        self, mock_score, mock_title, mock_select, tmp_path, caplog,
+    ):
+        """H1: an envelope with no usable ``post.id`` (and no top-level id)
+        must hard-gate — no dedup mark, no post history, no activity episode —
+        not merely warn while still polluting memory as it did pre-fix."""
+        import logging
+
+        # Envelope shape changed: no "post" key, no top-level "id".
+        agent = self._setup_post_agent(tmp_path, {"success": True, "message": "ok"})
         with caplog.at_level(logging.WARNING, logger="contemplative_agent.adapters.moltbook.post_pipeline"):
             agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
-        assert agent._ctx.own_post_ids == set()
-        assert any(
-            "create-post response missing id" in rec.message
-            for rec in caplog.records
+        self._assert_post_not_recorded(agent)
+        assert any("recording nothing" in rec.message for rec in caplog.records)
+
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_dynamic_post_records_nothing_on_success_false(
+        self, mock_score, mock_title, mock_select, tmp_path,
+    ):
+        """H1: HTTP 2xx with body-level ``success: false`` must record nothing
+        even though a ``post.id`` could be present in a malformed body."""
+        agent = self._setup_post_agent(
+            tmp_path, {"success": False, "error": "rejected", "post": {"id": "ghost"}}
         )
+        agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
+        self._assert_post_not_recorded(agent)
+
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_dynamic_post_records_nothing_on_non_dict_post(
+        self, mock_score, mock_title, mock_select, tmp_path,
+    ):
+        """H1: a non-object ``post`` with no recoverable top-level id yields
+        no usable id, so nothing is recorded."""
+        agent = self._setup_post_agent(
+            tmp_path, {"success": True, "post": "not-a-dict"}
+        )
+        agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
+        self._assert_post_not_recorded(agent)
+
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_dynamic_post_records_nothing_on_non_dict_body(
+        self, mock_score, mock_title, mock_select, tmp_path,
+    ):
+        """H1: a non-dict response body (e.g. a bare JSON list) records nothing."""
+        agent = self._setup_post_agent(tmp_path, ["unexpected", "shape"])
+        agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
+        self._assert_post_not_recorded(agent)
+
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.select_submolt", return_value="philosophy")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title", return_value="Title")
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance", return_value=0.8)
+    def test_dynamic_post_records_nothing_on_malformed_id(
+        self, mock_score, mock_title, mock_select, tmp_path,
+    ):
+        """H1 + security M (review 2026-06-27): a server id with control
+        characters (log-injection / episode-log-pollution vector) fails
+        VALID_ID_PATTERN, so the post is gated out and recorded nowhere."""
+        agent = self._setup_post_agent(
+            tmp_path, {"success": True, "post": {"id": "ok\nFAKE: injected line"}}
+        )
+        agent._post_pipeline._run_dynamic_post(agent._client, agent._scheduler)
+        self._assert_post_not_recorded(agent)
 
     def test_init_has_empty_own_post_ids(self):
         agent = Agent()

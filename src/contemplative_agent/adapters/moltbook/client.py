@@ -89,6 +89,22 @@ def _try_json(response: requests.Response) -> Any:
         return None
 
 
+def envelope_ok(body: Any) -> bool:
+    """Body-level success predicate for a 2xx response (review 2026-06-27).
+
+    HTTP 2xx alone does not prove a write succeeded: Moltbook can return a
+    ``{"success": false, ...}`` envelope with a 2xx status. Returns ``False``
+    only for an *explicit* ``success: false`` in a dict body. A body without a
+    ``success`` key, a non-dict body, and ``None`` (non-JSON) all return
+    ``True`` — the ambiguous case is treated as success so idempotent writes
+    (already-subscribed / already-upvoted, which the server may answer with an
+    odd-shaped body) are never flipped into a false failure. The matching
+    create-resource gate (``parse_created_post_response`` in post_pipeline)
+    builds on this predicate for the self-post path.
+    """
+    return not (isinstance(body, dict) and body.get("success") is False)
+
+
 def _content_status(body: dict[str, Any]) -> dict[str, Any]:
     """Pull whitelisted scalar status fields from a response body (top level and
     the nested post/comment resource). Values are coerced to bool or a short
@@ -372,7 +388,10 @@ class MoltbookClient:
             logger.warning("Invalid submolt name: %s", name[:50])
             return False
         try:
-            self.post(f"/submolts/{name}/subscribe")
+            resp = self.post(f"/submolts/{name}/subscribe")
+            if not envelope_ok(_try_json(resp)):
+                logger.warning("Subscribe %s soft-failed (body success:false)", name)
+                return False
             logger.info("Subscribed to submolt: %s", name)
             return True
         except MoltbookClientError as exc:
@@ -572,7 +591,12 @@ class MoltbookClient:
             logger.warning("Invalid post_id for mark-read: %s", post_id[:50])
             return False
         try:
-            self.post(f"/notifications/read-by-post/{post_id}")
+            resp = self.post(f"/notifications/read-by-post/{post_id}")
+            if not envelope_ok(_try_json(resp)):
+                logger.warning(
+                    "Mark-read for %s soft-failed (body success:false)", post_id
+                )
+                return False
             return True
         except MoltbookClientError as exc:
             logger.warning("Failed to mark notifications read for %s: %s", post_id, exc)
@@ -591,7 +615,10 @@ class MoltbookClient:
             logger.warning("Invalid post_id for upvote: %s", post_id[:50])
             return False
         try:
-            self.post(f"/posts/{post_id}/upvote")
+            resp = self.post(f"/posts/{post_id}/upvote")
+            if not envelope_ok(_try_json(resp)):
+                logger.warning("Upvote post %s soft-failed (body success:false)", post_id)
+                return False
             return True
         except MoltbookClientError as exc:
             if exc.status_code == 409:
@@ -609,7 +636,12 @@ class MoltbookClient:
             logger.warning("Invalid comment_id for upvote: %s", comment_id[:50])
             return False
         try:
-            self.post(f"/comments/{comment_id}/upvote")
+            resp = self.post(f"/comments/{comment_id}/upvote")
+            if not envelope_ok(_try_json(resp)):
+                logger.warning(
+                    "Upvote comment %s soft-failed (body success:false)", comment_id
+                )
+                return False
             return True
         except MoltbookClientError as exc:
             if exc.status_code == 409:

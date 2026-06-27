@@ -5,7 +5,11 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from contemplative_agent.adapters.moltbook.client import MoltbookClient, MoltbookClientError
+from contemplative_agent.adapters.moltbook.client import (
+    MoltbookClient,
+    MoltbookClientError,
+    envelope_ok,
+)
 
 
 class TestMoltbookClient:
@@ -600,6 +604,79 @@ class TestUpvote:
         mock_response.text = "error"
         mock_response.headers = {}
         with patch.object(client._session, "request", return_value=mock_response):
+            assert client.upvote_comment("comment-456") is False
+
+
+class TestEnvelopeOk:
+    """L1 (review 2026-06-27): the shared body-level success predicate.
+
+    Only an explicit ``success: false`` is a failure. A body without a
+    ``success`` key, a non-dict body, and ``None`` (non-JSON) are all
+    treated as success so the contentless idempotent writes never flip a
+    benign already-done/odd-shape response into a false failure."""
+
+    def test_explicit_false_is_failure(self):
+        assert envelope_ok({"success": False, "error": "nope"}) is False
+
+    def test_explicit_true_is_success(self):
+        assert envelope_ok({"success": True}) is True
+
+    def test_missing_success_key_is_success(self):
+        assert envelope_ok({"subscribed": True}) is True
+
+    def test_non_dict_is_success(self):
+        assert envelope_ok("ok") is True
+        assert envelope_ok(["ok"]) is True
+
+    def test_none_is_success(self):
+        assert envelope_ok(None) is True
+
+
+class TestContentlessWriteSoftFail:
+    """L1 (review 2026-06-27): subscribe / mark-read / upvote must return
+    False when the 2xx body carries an explicit ``success: false`` instead
+    of trusting HTTP status alone. 409/400 already-done idempotency stays
+    True (covered by the per-helper classes above)."""
+
+    @staticmethod
+    def _soft_fail_resp():
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
+        mock_response.json.return_value = {"success": False, "error": "denied"}
+        return mock_response
+
+    def test_subscribe_soft_fail_returns_false(self, caplog):
+        client = MoltbookClient(api_key="test-key")
+        with patch.object(
+            client._session, "request", return_value=self._soft_fail_resp()
+        ):
+            with caplog.at_level(
+                logging.WARNING,
+                logger="contemplative_agent.adapters.moltbook.client",
+            ):
+                assert client.subscribe_submolt("philosophy") is False
+        assert "soft" in caplog.text.lower() or "success" in caplog.text.lower()
+
+    def test_mark_read_soft_fail_returns_false(self):
+        client = MoltbookClient(api_key="test-key")
+        with patch.object(
+            client._session, "request", return_value=self._soft_fail_resp()
+        ):
+            assert client.mark_notifications_read_by_post("post-123") is False
+
+    def test_upvote_post_soft_fail_returns_false(self):
+        client = MoltbookClient(api_key="test-key")
+        with patch.object(
+            client._session, "request", return_value=self._soft_fail_resp()
+        ):
+            assert client.upvote_post("post-123") is False
+
+    def test_upvote_comment_soft_fail_returns_false(self):
+        client = MoltbookClient(api_key="test-key")
+        with patch.object(
+            client._session, "request", return_value=self._soft_fail_resp()
+        ):
             assert client.upvote_comment("comment-456") is False
 
 

@@ -125,8 +125,16 @@ def _extract_rules(skill_texts: List[str]) -> Optional[str]:
         return None
 
     refine_prompt = RULES_DISTILL_REFINE_PROMPT.format(raw_output=raw)
+    # Stage 2 must use the same base-only distill system prompt as Stage 1
+    # (review 2026-06-27 H2). Omitting ``system`` defaults to the full
+    # action-time prompt (identity + axioms + learned skills/rules), which
+    # re-injects the corpus being distilled and self-conditions the offline
+    # learning path that architecture.md documents as base-only.
     result = generate(
-        refine_prompt, num_predict=3000, caller="rules_distill.refine"
+        refine_prompt,
+        system=get_distill_system_prompt(),
+        num_predict=3000,
+        caller="rules_distill.refine",
     )
     if result is None:
         logger.warning("Stage 2 (refinement) failed.")

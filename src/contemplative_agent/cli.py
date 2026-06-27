@@ -278,9 +278,13 @@ def _log_approval(
             lineage-tracked command has ≥1 input by construction, so
             "tracked but empty" does not occur and null uniformly means
             "no lineage attached".
-        epistemic_counts: Observed/generated tally of the artifact's input
-            patterns (ADR-0050). Always present in the record (null when
-            not applicable; empty dicts normalize to null, same rationale).
+        epistemic_counts: Provenance-kind tally (observed/generated/unknown)
+            of the artifact's input patterns (ADR-0050). Always present in the
+            record (null when not applicable; empty dicts normalize to null,
+            same rationale). NOT an external-grounding metric: since ADR-0060
+            ``observed`` is structurally zero (review 2026-06-27 M2), so a 0 here
+            does not mean the inputs lacked external grounding — see
+            ``epistemic_counts_for`` and architecture.md.
     """
     if approved is None:
         decision = "staged"
@@ -559,6 +563,39 @@ def _do_init(template_name: str = "contemplative") -> None:
         copy_or_create_dir(src_dir, dst_dir, label)
 
 
+def _configure_llm_runtime() -> None:
+    """Apply per-call telemetry and the opt-in MLX backend (review 2026-06-27 M1).
+
+    Shared by full command setup (``_configure_llm_and_domain``) and the Tier
+    1.5 stocktake path so telemetry and ``LLM_BACKEND=mlx`` routing apply
+    consistently. Deliberately does NOT load skills/rules/axioms: stocktake
+    passes its own explicit system prompts and must keep a clean prompt
+    environment, so this runtime config is the subset that is always safe.
+
+    Opt-in MLX: route generation (not embeddings) through a local mlx_lm.server
+    when LLM_BACKEND=mlx. On Apple Silicon this is ~1.8x faster and ~3.4 GB
+    lighter than Ollama for the same Qwen3.5 9B weights (ADR-0064). Unset or any
+    other value keeps the default Ollama generation path, so the switch reverts
+    by clearing one env var. Embeddings always stay on Ollama via
+    OLLAMA_BASE_URL — mlx_lm.server has no embeddings endpoint.
+    """
+    # Per-call telemetry (llm-calls-{date}.jsonl) alongside the episode log.
+    configure_llm(telemetry_dir=EPISODE_LOG_DIR)
+
+    if os.environ.get("LLM_BACKEND", "").strip().lower() == "mlx":
+        from .core.mlx_backend import MlxLmBackend
+
+        mlx_base_url = os.environ.get("MLX_BASE_URL", "http://localhost:8080")
+        mlx_model = os.environ.get("MLX_MODEL", "mlx-community/Qwen3.5-9B-4bit")
+        configure_llm(backend=MlxLmBackend(base_url=mlx_base_url, model=mlx_model))
+        logger.info(
+            "LLM_BACKEND=mlx: generation routed to mlx_lm.server (%s, model=%s); "
+            "embeddings remain on Ollama.",
+            mlx_base_url,
+            mlx_model,
+        )
+
+
 def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     """Load domain config, constitution, skills, and rules into LLM.
 
@@ -580,27 +617,7 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     if RULES_DIR.is_dir():
         configure_llm(rules_dir=RULES_DIR)
 
-    # Per-call telemetry (llm-calls-{date}.jsonl) alongside the episode log.
-    configure_llm(telemetry_dir=EPISODE_LOG_DIR)
-
-    # Opt-in: route generation (not embeddings) through a local mlx_lm.server
-    # when LLM_BACKEND=mlx. On Apple Silicon this is ~1.8x faster and ~3.4 GB
-    # lighter than Ollama for the same Qwen3.5 9B weights (ADR-0064). Unset or
-    # any other value keeps the default Ollama generation path, so the switch
-    # reverts by clearing one env var. Embeddings always stay on Ollama via
-    # OLLAMA_BASE_URL — mlx_lm.server has no embeddings endpoint.
-    if os.environ.get("LLM_BACKEND", "").strip().lower() == "mlx":
-        from .core.mlx_backend import MlxLmBackend
-
-        mlx_base_url = os.environ.get("MLX_BASE_URL", "http://localhost:8080")
-        mlx_model = os.environ.get("MLX_MODEL", "mlx-community/Qwen3.5-9B-4bit")
-        configure_llm(backend=MlxLmBackend(base_url=mlx_base_url, model=mlx_model))
-        logger.info(
-            "LLM_BACKEND=mlx: generation routed to mlx_lm.server (%s, model=%s); "
-            "embeddings remain on Ollama.",
-            mlx_base_url,
-            mlx_model,
-        )
+    _configure_llm_runtime()
 
     return domain_config
 
@@ -2175,8 +2192,6 @@ def main() -> None:
     # Tier 1: Commands that don't need LLM or domain config
     no_llm_handlers: dict[str, Callable[..., None]] = {
         "install-schedule": _handle_install_schedule,
-        "skill-stocktake": _handle_skill_stocktake,
-        "rules-stocktake": _handle_rules_stocktake,
         "sync-data": _handle_sync_data,
         "adopt-staged": _handle_adopt_staged,
         "remove-skill": _handle_remove_skill,
@@ -2184,6 +2199,22 @@ def main() -> None:
     }
     handler = no_llm_handlers.get(args.command)
     if handler:
+        handler(args, parser)
+        return
+
+    # Tier 1.5: LLM commands that need per-call telemetry + backend routing but
+    # NOT the skills/rules/axioms corpus (review 2026-06-27 M1). Stocktake calls
+    # generate() with its own explicit system prompts, so loading the corpus
+    # would pollute its prompt environment; routing here (instead of the old
+    # no_llm_handlers slot) makes LLM_BACKEND=mlx and telemetry apply instead of
+    # silently defaulting to Ollama with no telemetry.
+    llm_runtime_only_handlers: dict[str, Callable[..., None]] = {
+        "skill-stocktake": _handle_skill_stocktake,
+        "rules-stocktake": _handle_rules_stocktake,
+    }
+    handler = llm_runtime_only_handlers.get(args.command)
+    if handler:
+        _configure_llm_runtime()
         handler(args, parser)
         return
 

@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 import logging
+import re
 from datetime import datetime, timezone
-from typing import Callable, List
+from typing import Any, Callable, Dict, List, Tuple
 
 import numpy as np
 
-from .client import MoltbookClient, MoltbookClientError
+from .client import MoltbookClient, MoltbookClientError, envelope_ok
 from .config import ADAPTIVE_BACKOFF
 from .content import ContentManager, _content_hash
 from .dedup import is_test_content
@@ -23,7 +24,7 @@ from .llm_functions import (
 )
 from .novelty import NoveltyGate
 from .session_context import SessionContext
-from ...core.config import VALID_SUBMOLT_PATTERN
+from ...core.config import VALID_ID_PATTERN, VALID_SUBMOLT_PATTERN
 from ...core.domain import DomainConfig
 from ...core.scheduler import Scheduler
 
@@ -35,6 +36,38 @@ def _score_post_relevance(post: dict) -> float:
     as dicts. Kept module-level so tests can monkeypatch it independently of
     the underlying LLM call."""
     return score_relevance(post.get("content", "") or "")
+
+
+def parse_created_post_response(resp_json: Any) -> Tuple[str, Dict[str, Any]]:
+    """Gate a create-post response down to a recordable ``(post_id, post)``.
+
+    Review 2026-06-27 (H1): HTTP 2xx is not proof of a usable, visible post.
+    Returns ``("", {})`` — meaning *record nothing* — for any of:
+
+    * a non-dict response body,
+    * an explicit body-level ``success: false`` (via ``envelope_ok``),
+    * no usable ``post.id`` and no bare top-level ``id`` fallback.
+
+    Otherwise returns the post id and the nested ``post`` object (``{}`` when
+    the id came from the top-level fallback) so the caller can still read the
+    verification challenge from it. The bare top-level ``id`` fallback is kept
+    for the trusted-bypass shape (observed nowhere in production, cost zero),
+    but now only survives when it yields a ``VALID_ID_PATTERN`` id, so a
+    ``success: false``, id-less, or malformed-id envelope can no longer pollute
+    memory. The id is validated against the same pattern ``NoveltyGate.record``
+    enforces, so it cannot smuggle control characters into the episode log /
+    novelty sidecar (log-injection / structural-invariant gap, review
+    2026-06-27 security M).
+    """
+    if not isinstance(resp_json, dict) or not envelope_ok(resp_json):
+        return "", {}
+    post_data = resp_json.get("post")
+    if not isinstance(post_data, dict):
+        post_data = {}
+    post_id = post_data.get("id") or resp_json.get("id", "")
+    if not isinstance(post_id, str) or not VALID_ID_PATTERN.match(post_id):
+        return "", {}
+    return post_id, post_data
 
 
 class PostPipeline:
@@ -331,23 +364,43 @@ class PostPipeline:
             scheduler.record_post()
             # Moltbook wraps the created resource in a {"success", "post": {...}}
             # envelope (skill.md AI Verification Challenges step 1; same shape
-            # as /agents/me and /agents/profile). The flat ``id`` fallback is
-            # kept defensively in case a trusted-bypass path returns the bare
-            # object — observed nowhere in production, but the cost is zero.
-            # ``or {}`` over ``get(_, {})`` handles a non-dict ``"post"`` value
-            # without raising, matching the style at feed_manager.py:179.
-            resp_json = resp.json()
-            post_data = resp_json.get("post") or {}
-            post_id = post_data.get("id") or resp_json.get("id", "")
+            # as /agents/me and /agents/profile). HTTP 2xx is NOT proof of a
+            # usable, visible post (review 2026-06-27 H1): a body-level
+            # success:false, a missing id, or a non-dict body must record
+            # nothing, otherwise a phantom self-post pollutes dedup, memory,
+            # episodes, reports, and ADR-0060 distillation input. The rate-limit
+            # quota above is still consumed because the request reached the
+            # server. ``parse_created_post_response`` keeps the bare top-level
+            # ``id`` trusted-bypass fallback, but only when it yields a real id.
+            try:
+                resp_json = resp.json()
+            except ValueError:
+                resp_json = None
+            post_id, post_data = parse_created_post_response(resp_json)
+            if not post_id:
+                # Scrub the server-controlled key names before logging so a
+                # hostile body cannot forge log lines via a "\n"-bearing key
+                # (same control-char strip as client._record_api_outcome).
+                keys = (
+                    sorted(re.sub(r"[^\x20-\x7E]", "", str(k))[:40] for k in resp_json)
+                    if isinstance(resp_json, dict)
+                    else "<non-dict>"
+                )
+                logger.warning(
+                    "create-post response did not prove a usable post id "
+                    "(success:false / missing id / non-dict body); recording "
+                    "nothing (envelope keys=%s)",
+                    keys,
+                )
+                return
             # Verification handshake: a non-trusted agent's create-response
             # carries a ``verification`` object (math challenge) that must be
-            # solved before the post is visible. This was never handled until
-            # this fix, so every post stayed verification_status=pending
-            # (invisible) since ~May 2026. An unverified post is invisible AND
-            # unrecoverable (5-min challenge window), so on failure we record
-            # nothing — it stays out of NoveltyGate/memory/dedup and a later
-            # session can post fresh, visible content instead. A trusted-bypass
-            # response has no ``verification`` key and falls straight through.
+            # solved before the post is visible (pending/invisible otherwise
+            # since ~May 2026). An unverified post is invisible AND unrecoverable
+            # (5-min challenge window), so on failure we record nothing — it
+            # stays out of NoveltyGate/memory/dedup and a later session can post
+            # fresh, visible content. A trusted-bypass response has no
+            # ``verification`` key and falls straight through.
             verification = post_data.get("verification")
             if verification is not None and not self._handle_verification(verification):
                 logger.warning(
@@ -356,22 +409,12 @@ class PostPipeline:
                     post_id,
                 )
                 return
-            # Record the dedup hash only now that the post is actually
-            # published AND visible (verified), so a gate-rejected, failed, or
-            # unverified post does not poison a legitimate same-session retry.
+            # Past this gate the post is provably created AND visible, so record
+            # the dedup hash, id, episode, history and novelty sidecar together;
+            # post_id is guaranteed non-empty so the prior id-presence branches
+            # collapse.
             self._get_content().mark_posted(content)
-            if post_id:
-                ctx.own_post_ids.add(post_id)
-            else:
-                # 17/17 self-posts silently dropped their id in May 2026 before
-                # this was caught — log loudly so any future regression in the
-                # response envelope is visible in agent-launchd.log instead of
-                # quietly disabling NoveltyGate again.
-                logger.warning(
-                    "create-post response missing id; NoveltyGate sidecar "
-                    "will miss this post (envelope keys=%s)",
-                    sorted(resp_json.keys()) if isinstance(resp_json, dict) else "<non-dict>",
-                )
+            ctx.own_post_ids.add(post_id)
             ctx.actions_taken.append(f"Posted: {title}")
             logger.info(">> New post [%s] (id=%s):\n%s", title, post_id, content)
             ctx.memory.episodes.append("activity", {
@@ -396,9 +439,8 @@ class PostPipeline:
             # The gate owns the canonical text shape internally, so the
             # caller just hands over (title, topic_summary) and trusts
             # the gate to use the same shape it scored against.
-            if post_id:
-                self._novelty_gate.record(
-                    post_id, now_iso, title, topic_summary,
-                )
+            self._novelty_gate.record(
+                post_id, now_iso, title, topic_summary,
+            )
         except MoltbookClientError as exc:
             logger.error("Failed to post dynamic content: %s", exc)

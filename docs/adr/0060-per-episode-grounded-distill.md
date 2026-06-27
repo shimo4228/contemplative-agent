@@ -173,10 +173,14 @@ the `SIM_UPDATE` branch of the unchanged pattern-level dedup step.
   store); pattern-level dedup (SIM_DUPLICATE 0.90 / SIM_UPDATE 0.80) throttles accumulation of
   duplicates; decay ranking (`0.95^days`) keeps the working set recent; and the no-delete policy
   retains patterns as research data. These mitigations are pre-existing.
-- `insight --full` re-clusters the entire live pattern pool O(N²) and will slow as the pool grows
-  faster. This is a pre-existing issue that faster pattern growth surfaces sooner. Mitigation, if
-  the cost bites, is filtering `--full` candidates by the existing decay floor (approximately 58
-  days).
+- `insight --full` re-clusters the entire live pattern pool and will slow as the pool grows
+  faster. The cost driver is the naive agglomerative merge in `clustering.py` (`_merge_clusters`),
+  which rescans every remaining cluster pair on each of up to N-1 merges — worst case ~O(N³), not
+  the O(N²) cosine matrix (corrected per review 2026-06-27 M4; an earlier draft of this ADR said
+  O(N²)). This is a pre-existing issue that faster pattern growth surfaces sooner. `insight` now
+  emits an advisory warning past `FULL_RECLUSTER_WARN_N` live patterns. Mitigation, if the cost
+  bites, is filtering `--full` candidates by the existing decay floor (approximately 58 days), or
+  replacing the merge with a cached priority-queue agglomeration (~O(N² log N)).
 - `epistemic_counts` shifts structurally: every distilled episode is an activity record
   (`_episode_source_kind=self` → `self_reflection` → `generated`), so the `observed` provenance
   kind is now structurally zero. External world content enters as grounding text within the

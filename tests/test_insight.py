@@ -4,14 +4,16 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
 from contemplative_agent.core.insight import (
+    FULL_RECLUSTER_WARN_N,
     InsightResult,
     _build_cluster_batches,
     _extract_skill,
+    _select_patterns,
     extract_insight,
 )
 from contemplative_agent.core.memory import KnowledgeStore
@@ -230,6 +232,41 @@ class TestExtractInsight:
 # ---------------------------------------------------------------------------
 
 
+class TestFullReclusterWarning:
+    """M4 (review 2026-06-27): insight --full reclusters the whole live pool
+    through the naive ~O(N^3) agglomerative merge, so a warning fires past a
+    measured threshold; small pools stay quiet."""
+
+    @staticmethod
+    def _ks(n: int) -> MagicMock:
+        ks = MagicMock()
+        ks.get_live_patterns.return_value = [
+            {"pattern": f"p{i}"} for i in range(n)
+        ]
+        return ks
+
+    def test_warns_when_full_pool_large(self, caplog) -> None:
+        import logging as _logging
+
+        ks = self._ks(FULL_RECLUSTER_WARN_N + 1)
+        with caplog.at_level(
+            _logging.WARNING, logger="contemplative_agent.core.insight"
+        ):
+            patterns = _select_patterns(ks, None, full=True)
+        assert len(patterns) == FULL_RECLUSTER_WARN_N + 1
+        assert "may be slow" in caplog.text
+
+    def test_no_warning_for_small_full_pool(self, caplog) -> None:
+        import logging as _logging
+
+        ks = self._ks(3)
+        with caplog.at_level(
+            _logging.WARNING, logger="contemplative_agent.core.insight"
+        ):
+            _select_patterns(ks, None, full=True)
+        assert "may be slow" not in caplog.text
+
+
 class TestBuildClusterBatches:
     @staticmethod
     def _pat(text: str, embedding: list, days_old: float = 0.0) -> dict:
@@ -279,6 +316,23 @@ class TestBuildClusterBatches:
         orth = [self._pat(f"o-{i}", _unit_vec(8, i + 1)) for i in range(5)]
         batches = _build_cluster_batches(orth, threshold=0.7)
         assert batches == []
+
+    def test_dropped_singletons_are_logged(self, caplog) -> None:
+        """M3 (review 2026-06-27): patterns that never cluster (plus demoted
+        >max_size tails) are dropped from skill extraction. Their count and
+        effective_importance distribution must be visible so a rare-singleton
+        lane and floor can be decided from real data later. Visibility only —
+        no lane/threshold is applied here."""
+        import logging as _logging
+
+        orth = [self._pat(f"o-{i}", _unit_vec(8, i + 1)) for i in range(5)]
+        with caplog.at_level(
+            _logging.INFO, logger="contemplative_agent.core.insight"
+        ):
+            batches = _build_cluster_batches(orth, threshold=0.7)
+        assert batches == []
+        assert "5 singleton" in caplog.text
+        assert "effective_importance" in caplog.text
 
     def test_no_cluster_count_cap(self) -> None:
         """Every cluster ≥ min_size becomes a batch — no top-N cap.
