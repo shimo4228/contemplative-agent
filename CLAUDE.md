@@ -109,6 +109,7 @@ git tracked = clone 先にも付いてくる repo 同梱の運用版 skill。CA 
 | `code-and-llm-collaboration` | [code-and-llm-collaboration](https://github.com/shimo4228/code-and-llm-collaboration)（汎用化 fork） | パイプライン単位の code/LLM 4 層化パターン |
 | `llm-agent-security-principles` | [llm-agent-security-principles](https://github.com/shimo4228/llm-agent-security-principles)（汎用化 fork） | Security by Absence 等 3 原則 + 防御パターン |
 | `weekly-report-diagnosis` | なし（CA 固有） | 週次レポートの自己診断手順 |
+| `apple-silicon-local-llm-serving` | なし（CA 固有） | Apple Silicon ローカル LLM ランタイム選択（mlx_lm.server vs Ollama）の判断軸 |
 
 ## API レート制限
 
