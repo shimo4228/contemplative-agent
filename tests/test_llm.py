@@ -679,6 +679,8 @@ class TestGenerateBudgetGuard:
         calls = {}
 
         class StubBackend:
+            model = "stub-model"
+
             def generate(self, prompt, system, num_predict, format,
                          *, temperature=1.0):
                 calls["prompt_len"] = len(prompt)

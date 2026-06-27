@@ -160,6 +160,8 @@ class TestTelemetryFailurePaths:
 
     def test_backend_raise_is_error(self, telemetry_dir):
         class _RaisingBackend:
+            model = "raising-model"
+
             def generate(self, prompt, system, num_predict, format,
                          *, temperature=1.0):
                 raise RuntimeError("backend boom")
@@ -168,7 +170,10 @@ class TestTelemetryFailurePaths:
         assert generate("test") is None
         record = _read_records(telemetry_dir)[0]
         assert record["outcome"] == "error"
-        assert record["model"] == "_RaisingBackend"
+        # Backend declares its served model id via the LLMBackend contract;
+        # telemetry records that real id (not a class-name sentinel) even on
+        # the error path.
+        assert record["model"] == "raising-model"
 
 
 class TestTelemetrySecurity:

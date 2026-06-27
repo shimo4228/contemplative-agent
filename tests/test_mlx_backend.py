@@ -259,3 +259,25 @@ class TestIntegrationThroughCore:
         configure(backend=MlxLmBackend(base_url=_BASE_URL, model=_MODEL))
         assert generate("p", system="s") is None
         assert _circuit._consecutive_failures == 1
+
+    @patch("contemplative_agent.core.mlx_backend.requests.post")
+    def test_telemetry_records_real_model_id(self, mock_post, tmp_path):
+        """The injected backend's served model id — not its class name — is
+        recorded in per-call telemetry, so telemetry groups by the actual
+        model uniformly across backends (parity with the Ollama path)."""
+        mock_post.return_value = _mock_response()
+        configure(
+            backend=MlxLmBackend(base_url=_BASE_URL, model=_MODEL),
+            telemetry_dir=tmp_path,
+        )
+        generate("p", system="s")
+
+        files = list(tmp_path.glob("llm-calls-*.jsonl"))
+        assert len(files) == 1
+        records = [
+            json.loads(line)
+            for line in files[0].read_text().splitlines()
+            if line.strip()
+        ]
+        assert records
+        assert records[-1]["model"] == _MODEL

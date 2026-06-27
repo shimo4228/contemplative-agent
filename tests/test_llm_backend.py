@@ -30,6 +30,7 @@ class FakeBackend:
     ``finish_reason``/``eval_count``), or ``None`` (hard failure).
     """
 
+    model: str = "fake-model"
     responses: List[Union[str, BackendResult, None]] = field(default_factory=list)
     calls: List[dict] = field(default_factory=list)
     raise_exc: Optional[BaseException] = None

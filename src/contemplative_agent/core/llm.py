@@ -70,6 +70,16 @@ class LLMBackend(Protocol):
     regardless of backend.
     """
 
+    @property
+    def model(self) -> str:
+        """Served model id recorded in per-call telemetry
+        (``llm-calls-{date}.jsonl``). A read-only property so a ``frozen=True``
+        backend dataclass satisfies it; declaring it on the protocol lets
+        telemetry group by the actual served model across every backend —
+        matching the Ollama default's ``_get_model()`` — instead of a
+        class-name sentinel. pyright flags any injected backend that omits it."""
+        ...
+
     def generate(
         self,
         prompt: str,
@@ -596,11 +606,10 @@ def generate(
     tel: Dict[str, Any] = {
         "ts": now_iso(timespec="seconds"),
         "caller": caller,
-        # On the injected-backend path the model id is unknown to this
-        # module, so the backend class name is recorded as a sentinel —
-        # telemetry queries grouping by model see it as a distinct bucket,
-        # not an Ollama model slug.
-        "model": type(_backend).__name__ if _backend is not None else _get_model(),
+        # Injected backends declare their served model id via the LLMBackend
+        # ``model`` contract, so telemetry records the real served model
+        # across any backend (parity with the Ollama default's _get_model()).
+        "model": _backend.model if _backend is not None else _get_model(),
         "prompt_chars": len(prompt),
         "system_chars": None,
         "num_predict": effective_num_predict,
