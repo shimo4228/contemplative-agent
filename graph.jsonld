@@ -561,6 +561,35 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0065-mlx-ondemand-launchd-and-telemetry-model-contract.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0065: Wire mlx_lm.server as an On-Demand launchd Job and Enforce a Served-Model-ID Contract on LLM Telemetry",
+      "identifier": "ADR-0065",
+      "status": "partially-superseded-by ADR-0067",
+      "datePublished": "2026-06-27",
+      "description": "ADR-0064 deferred wiring mlx_lm.server into the production launchd jobs (agent.plist at 0/6/12/18h, distill.plist at 03:30). Two gaps were closed together. Gap 1: the LLM telemetry model field derived from a class-name sentinel (e.g. 'MlxLmBackend') rather than the real served model id, so operators could not trust which model served a call. Gap 2: process lifecycle — whether to run mlx_lm.server as a resident KeepAlive service or on demand. Decision: (1) generalize the telemetry model field into a served-model-id contract via a read-only model property on the LLMBackend Protocol (model = _backend.model if injected else _get_model(); MlxLmBackend already exposes model:str; commit 0f2b169). (2) run mlx_lm.server on demand via scripts/run-with-mlx.sh invoked from agent.plist/distill.plist ProgramArguments — polls /health (cold M1 load ~12s, 60s cap), runs the agent with LLM_BACKEND=mlx, kills the server via trap EXIT so its lifetime matches the job, with NO silent Ollama fallback — rather than a resident KeepAlive mlx-server.plist that would hold ~5.2GB idle all day and worsen idle memory vs the Ollama-default-unload baseline (commit 9f230d8). Partially superseded by ADR-0067: the launchd-wiring half was reverted to a direct contemplative-agent (Ollama) invocation on 2026-06-28 (commit b888840) after the 16GB production A/B showed mlx_lm.server is unfit for unattended continuous use; the served-model-id telemetry contract remains in effect and is the instrument that produced ADR-0067's evidence.",
+      "partiallySupersededBy": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0067-keep-ollama-for-unattended-production.md"
+      ],
+      "alignsWith": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0064-mlx-generation-backend.md"
+      ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0067-keep-ollama-for-unattended-production.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0067: Keep Ollama as the Production Generation Backend — mlx_lm.server Unfit for Unattended Continuous Use on 16 GB Apple Silicon",
+      "identifier": "ADR-0067",
+      "status": "accepted — partially-supersedes ADR-0065",
+      "datePublished": "2026-06-28",
+      "description": "Full-day production A/B on 2026-06-27 (M1/16GB), recomputed from ~/.config/moltbook/logs/llm-calls-2026-06-27.jsonl via ADR-0065's served-model-id telemetry contract. MLX (mlx-community/Qwen3.5-9B-4bit via mlx_lm.server): 21,224 generation calls, only 107 ok (0.50%), 21,060 circuit_open (99.2%), 53 error, 4 truncated; the 09:00-UTC hour alone spun 19,520 attempts with 2 ok. Ollama (qwen3.5:9b) across the surrounding 18-day baseline (06-09..06-26) ran ~200-270 calls/day at ~100% ok and essentially never tripped the circuit breaker. The model loaded and ran (21k logged real-model-id calls) — the failure is runtime degradation, not a load failure. Root cause: mlx_lm.server has no graceful OOM degradation (a Metal OOM aborts the process / wedges generation rather than returning an error — mlx-lm #854/#883 class), which trips the agent's circuit breaker; the breaker opens and the reactive retry path spins. Two mechanisms compound it on 16GB: a non-linear prefill cliff (mlx-server.log: the same ~7.5k-token prompt prefilled in 72s right after load, then 58min eleven minutes later, ~75x, on the same process — MLX Metal allocations are wired/non-swappable so under memory compression there is no graceful page-out unlike Ollama's mmap'd GGUF; a Metal OOM abort at 18:13 UTC was also seen) and prompt-cache churn (the ~7.6k all-injected system prefix is evicted under --prompt-cache-size 2 as reply/comment/score/internal_note prompts rotate, so most generations pay a full cold prefill). Decision: (1) production generation stays Ollama (launchd reverted, commit b888840); (2) retain ADR-0065's served-model-id telemetry contract (backend-neutral, produced this evidence); (3) keep the MLX backend code and all opt-in paths (LLM_BACKEND=mlx, /agent-run mlx, scripts/serve-mlx.sh) for interactive/manual/short-lived use; (4) scope the unfitness claim to 16GB Apple Silicon + Qwen3.5-9B-4bit + unattended continuous — deliberately NOT generalized to 'mlx_lm.server is unfit for production' (the evidence is config-specific; an over-broad claim is brittle and reifies a contingent result into a rule, against the Emptiness axiom). Two survey caveats are resolved as not-applicable here: the 'qwen3_5 is a VLM that fails to load' caveat (contradicted by 21k logged real-model-id calls) and truncation-as-MLX-EOS-runaway (the local verify_solve A/B found it n=5 noise / a solver-design property, not MLX-specific) — so this ADR rests on the circuit-breaker cascade, not truncation. Rejected: mitigate-and-keep MLX in production (symptomatic; the root is upstream-unfixed — #615 no kv-size flag, #854/#883 OOM aborts, all OPEN; 8-bit has no 16GB headroom, bf16 ~18GB does not fit), state the claim broadly, delete the MLX code (opt-in is reversible and useful), switch to a smaller MLX model (quality cost, still no graceful OOM), cloud backend (separate opt-in, relaxes security-by-absence for research only). Reversal thresholds — revisit unattended MLX only when ALL hold: (a) bounded KV / --max-kv-size lands (#615/#884 merged); (b) #854/#883 resolved so a Metal OOM returns HTTP 5xx and the process survives without a kernel panic; (c) a 24h / tens-of-thousands-of-calls run on the target host holds error and truncation rates at Ollama parity (~0).",
+      "alignsWith": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0064-mlx-generation-backend.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0066-backend-aware-context-budget-guard.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0007-security-boundary-model.md"
+      ]
+    },
+    {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0022-memory-evolution-and-hybrid-retrieval.md",
       "@type": ["ADR", "TechArticle"],
       "name": "ADR-0022: Memory Evolution + Hybrid Retrieval (BM25)",

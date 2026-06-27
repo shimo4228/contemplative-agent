@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0067 (launchd-wiring portion superseded — the on-demand mlx_lm.server wiring of `agent.plist` / `distill.plist` was reverted to direct Ollama on 2026-06-28; the served-model-id telemetry contract remains in effect)
 
 ## Date
 

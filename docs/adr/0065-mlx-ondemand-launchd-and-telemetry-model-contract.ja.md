@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0067（launchd 配線部分は supersede — `agent.plist` / `distill.plist` のオンデマンド mlx_lm.server 配線は 2026-06-28 に直接 Ollama へ revert された。served-model-id テレメトリ契約は存続）
 
 ## Date
 
