@@ -17,6 +17,8 @@ import pytest
 import requests
 
 from contemplative_agent.core.llm import (
+    SAMPLING_TOP_P,
+    SAMPLING_TOP_K,
     BackendResult,
     LLMBackend,
     _circuit,
@@ -95,8 +97,10 @@ class TestRequestShape:
 
     @patch("contemplative_agent.core.mlx_backend.requests.post")
     def test_payload_sends_top_p_and_top_k(self, mock_post, backend):
-        """Regression: the payload must carry the same top_p/top_k the Ollama
-        path sends (core/llm._post_ollama: top_p=0.95, top_k=20).
+        """Regression: the payload must carry the SAME top_p/top_k the Ollama
+        path uses, sourced from the single source of truth in core/llm
+        (SAMPLING_TOP_P / SAMPLING_TOP_K) — asserting against the shared
+        constants, not literals, so the two backends provably cannot drift.
 
         Without nucleus + top-k sampling, Qwen3.5-9B-4bit on mlx_lm.server
         degenerates into repetition loops at the outward COMMENT_TEMPERATURE
@@ -104,13 +108,14 @@ class TestRequestShape:
         so a single content generation can take 10-25 minutes and block all
         posting. mlx_lm.server applies no default top_p and ignores
         repetition_penalty, so these must be sent explicitly. Dropping either
-        key reintroduces the runaway, hence this guard.
+        key (or hardcoding a value that drifts from the Ollama path)
+        reintroduces the runaway, hence this guard.
         """
         mock_post.return_value = _mock_response()
         backend.generate("p", "s", 128, None, temperature=1.3)
         payload = mock_post.call_args.kwargs["json"]
-        assert payload["top_p"] == 0.95
-        assert payload["top_k"] == 20
+        assert payload["top_p"] == SAMPLING_TOP_P
+        assert payload["top_k"] == SAMPLING_TOP_K
 
     @patch("contemplative_agent.core.mlx_backend.requests.post")
     def test_system_omitted_when_empty(self, mock_post, backend):

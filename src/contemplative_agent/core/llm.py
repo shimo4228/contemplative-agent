@@ -38,6 +38,16 @@ CIRCUIT_COOLDOWN_SECONDS = 120
 
 NUM_CTX = 32768  # Ollama context window (input + output share it). audit C2.
 
+# Fixed sampling policy shared by EVERY backend (single source of truth). The
+# per-call temperature flows through LLMBackend.generate(); top_p/top_k are the
+# fixed nucleus + top-k clip applied identically on the built-in Ollama path
+# and every injected backend (e.g. core/mlx_backend.py, which imports these).
+# Defined once so the backends cannot drift: a backend that silently omits
+# these lets high-temperature generation (e.g. COMMENT_TEMPERATURE=1.3)
+# degenerate into repetition loops that never emit EOS and run to num_predict.
+SAMPLING_TOP_P = 0.95
+SAMPLING_TOP_K = 20
+
 
 @dataclass(frozen=True)
 class BackendResult:
@@ -801,8 +811,8 @@ def _post_ollama(
         "stream": False,
         "options": {
             "temperature": temperature,
-            "top_p": 0.95,
-            "top_k": 20,
+            "top_p": SAMPLING_TOP_P,
+            "top_k": SAMPLING_TOP_K,
             "num_predict": effective_num_predict,
             "num_ctx": NUM_CTX,
         },

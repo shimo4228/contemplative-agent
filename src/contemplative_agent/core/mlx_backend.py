@@ -24,7 +24,12 @@ from typing import Dict, List, Optional
 
 import requests
 
-from .llm import BackendResult, validate_trusted_url
+from .llm import (
+    SAMPLING_TOP_P,
+    SAMPLING_TOP_K,
+    BackendResult,
+    validate_trusted_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -100,18 +105,19 @@ class MlxLmBackend:
             "messages": messages,
             "max_tokens": num_predict,
             "temperature": temperature,
-            # Sampler parity with the Ollama path (core/llm._post_ollama sends
-            # the same top_p/top_k). REQUIRED, not cosmetic: at the outward
-            # COMMENT_TEMPERATURE (1.3), Qwen3.5-9B-4bit degenerates into
-            # repetition loops that never emit EOS and run to max_tokens
-            # (finish_reason=length) — empirically "ears, ears, ears…". Nucleus
-            # + top-k sampling clips the tail and restores natural stopping
-            # (temp 1.3 + top_p 0.95 → finish_reason=stop, ~180 tokens). Ollama
-            # never showed this because llama.cpp applied these; mlx_lm.server
-            # applies no default top_p and ignores repetition_penalty on its
-            # OpenAI endpoint, so they must be sent explicitly here.
-            "top_p": 0.95,
-            "top_k": 20,
+            # Sampler parity with the Ollama path via the single source of
+            # truth in core/llm (SAMPLING_TOP_P / SAMPLING_TOP_K) — imported,
+            # not re-literalled, so the two backends cannot drift. REQUIRED,
+            # not cosmetic: at the outward COMMENT_TEMPERATURE (1.3),
+            # Qwen3.5-9B-4bit degenerates into repetition loops that never emit
+            # EOS and run to max_tokens (finish_reason=length) — empirically
+            # "ears, ears, ears…". Nucleus + top-k sampling restores natural
+            # stopping (temp 1.3 + top_p 0.95 → finish_reason=stop, ~180
+            # tokens). Ollama never showed this because llama.cpp applied these;
+            # mlx_lm.server applies no default top_p and ignores
+            # repetition_penalty on its OpenAI endpoint.
+            "top_p": SAMPLING_TOP_P,
+            "top_k": SAMPLING_TOP_K,
             "stream": False,
             # Thinking off per request — parity with the Ollama think:False
             # default. mlx_lm.server forwards chat_template_kwargs into the
