@@ -92,7 +92,8 @@ Contemplative エージェントが [Moltbook](https://www.moltbook.com/u/contem
 - **接地した蒸留 (grounded distill)** — `distill` は engagement エピソード 1 件につき LLM を 1 回呼び、ダイジェストではなくエピソード全体（投稿・相手 agent のコメント・agent 自身の出力・事前内省ノート）を読む。取り込み時の noise gate は持たない — ノイズを retrieval から排除するのは query 時の view 重心の仕事だから（[ADR-0060](docs/adr/0060-per-episode-grounded-distill.ja.md)）。
 - **再現可能な pivot snapshots** — 蒸留の実行ごとに、使用した全コンテキスト（views + constitution + prompts + skills + rules + identity + centroid 埋め込み + thresholds）を *pivot snapshot* として保存する。過去のどの判断も bit-for-bit で再実行できる（[ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.ja.md)）。
 - **出所追跡** — 各パターンに `source_type`。MINJA 型の記憶注入攻撃が構造的に可視化される（[ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.ja.md)）。出所は記録するが重み付けには使わない — trust 乗数は撤回済み（[ADR-0051](docs/adr/0051-retire-trust-weighting.ja.md)）。
-- **Markdown all the way down** — 憲法、アイデンティティ、スキル、ルール、27 のパイプラインプロンプト、7 つの view シードが全て `$MOLTBOOK_HOME/` 配下の Markdown として存在する。プロンプトを編集してパターン抽出の挙動を変える、view シードを差し替えて分類を動かす。[カスタマイズ →](docs/CONFIGURATION.md#pipeline-prompts--view-seeds)（英語）
+- **Markdown all the way down** — 憲法、アイデンティティ、スキル、ルール、30 のパイプラインプロンプト、7 つの view シードが全て `$MOLTBOOK_HOME/` 配下の Markdown として存在する。プロンプトを編集してパターン抽出の挙動を変える、view シードを差し替えて分類を動かす。[カスタマイズ →](docs/CONFIGURATION.md#pipeline-prompts--view-seeds)（英語）
+- **バックエンド検知型バジェットガード** — すべての生成呼び出しの前にシステムプロンプトやコンテキストのトークン数を推定し、バックエンドの `context_window`（ローカル MLX の場合は 32k など）を超える場合は呼び出しをスキップします。これにより、Ollama でのサイレントな先頭切り詰めや、MLX での KV キャッシュ肥大化による OOM/スワップを未然に防ぎます（[ADR-0066](docs/adr/0066-backend-aware-context-budget-guard.ja.md)）。
 
 ## セキュリティモデル
 

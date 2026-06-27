@@ -19,7 +19,7 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 - **Embedding model**: nomic-embed-text (~274 MB, 768-dim) via Ollama
 - **Hardware**: Apple Silicon Mac (M1+), 16 GB RAM, ~10 GB free disk
 - **Runtime dependencies**: requests>=2.33.0, numpy>=1.24.0
-- **ADRs**: 51 active (accepted / proposed) + 10 superseded/withdrawn (ADR-0001 through ADR-0061; ADR-0009 partially superseded by ADR-0056, ADR-0021 partially superseded by ADR-0028/0029/0051, ADR-0022 superseded by ADR-0034, ADR-0023 sunset by ADR-0036, ADR-0024/0025 superseded by ADR-0030, ADR-0026/0027 superseded by ADR-0060, ADR-0032 withdrawn, ADR-0050 partially superseded by ADR-0051)
+- **ADRs**: 56 active (accepted / proposed) + 10 superseded/withdrawn (ADR-0001 through ADR-0066; ADR-0009 partially superseded by ADR-0056, ADR-0021 partially superseded by ADR-0028/0029/0051, ADR-0022 superseded by ADR-0034, ADR-0023 sunset by ADR-0036, ADR-0024/0025 superseded by ADR-0030, ADR-0026/0027 superseded by ADR-0060, ADR-0032 withdrawn, ADR-0050 partially superseded by ADR-0051)
 - **External lenses borrowed**: AAP four-quadrant routing lens (Script / Algorithmic Search / LLM Workflow / Autonomous Agentic Loop) — usage description only, not a category claim (ADR-0033)
 - **Ethical framework presets**: 11 (contemplative, utilitarian, stoic, care-ethicist, deontologist, pragmatist, narrativist, contractarian, cynic, existentialist, tabula-rasa)
 - **Runtime data directory**: `$MOLTBOOK_HOME` (default `~/.config/moltbook/`)
@@ -170,7 +170,7 @@ Contemplative Agent is a host-agnostic Python CLI agent (`contemplative-agent ..
 
 ## Can I customize the LLM prompts?
 
-Yes — all 27 pipeline prompts ship as `config/prompts/*.md` and are copied to `$MOLTBOOK_HOME/prompts/` at `init` time. After init, the home copies are the source of truth; the shipped defaults serve as fallback for any file the user deletes and as the version-upgrade safety net. The same pattern applies to the 7 view seeds (`config/views/` → `$MOLTBOOK_HOME/views/`). Override files are validated against the forbidden-pattern list at load time (same check as constitution and identity content) — a tainted override silently falls back to the packaged default with a warning. Pivot snapshots capture the active prompts, views, skills, rules, identity, and constitution at the time of each behavior-producing run, so the complete inference-time context behind any distilled pattern or amendment is reproducible from a snapshot alone.
+Yes — all 30 pipeline prompts ship as `config/prompts/*.md` and are copied to `$MOLTBOOK_HOME/prompts/` at `init` time. After init, the home copies are the source of truth; the shipped defaults serve as fallback for any file the user deletes and as the version-upgrade safety net. The same pattern applies to the 7 view seeds (`config/views/` → `$MOLTBOOK_HOME/views/`). Override files are validated against the forbidden-pattern list at load time (same check as constitution and identity content) — a tainted override silently falls back to the packaged default with a warning. Pivot snapshots capture the active prompts, views, skills, rules, identity, and constitution at the time of each behavior-producing run, so the complete inference-time context behind any distilled pattern or amendment is reproducible from a snapshot alone.
 
 - **Code**: `core/domain.py` (`load_prompt_templates`, `_resolve_home_prompts_dir`), `core/snapshot.py` (`write_snapshot`)
 - **ADR**: ADR-0020 (pivot snapshots for replayability)
@@ -249,6 +249,20 @@ Four mechanism retirements enforce one principle, established by ADR-0050 as **o
 
 The relationships described in prose throughout this document are also published as a machine-readable JSON-LD graph at [`graph.jsonld`](graph.jsonld). The graph encodes six core node types (`ResearchLine`, `Axiom`, `MemoryLayer`, `ADR`, `Concept`, `EcosystemRepo`) and seven edge types — including custom edges `gatedBy` (`MemoryLayer → ADR-0012`, encoding the approval-gate chain structurally) and `appliesTo` (`ADR-0033 → AAP Quadrants`, the cross-line bridge to Agent Attribution Practice). Three design choices are load-bearing. First, the four axioms are typed as `Axiom` (not `Concept`), reflecting that they form a closed swappable preset rather than free-form terminology — Contemplative Agent ships them as the default but accepts 11 alternative templates. Second, `gatedBy` edges run from each MemoryLayer to ADR-0012, making the approval-gate chain queryable as triples rather than buried in prose; promotions into the Identity layer cannot bypass this edge in the schema. Third, `MemoryLayer` `@id`s are shared with the AKC graph (same URI for the three layers in both files), so an LLM crawling both graphs sees the layers as identical entities rather than as parallel definitions. The ResearchLine `@id` uses the parent Zenodo concept DOI (`10.5281/zenodo.19212118`) per shimo4228 convention — Citation files use the latest versioned DOI, badges and graphs use the concept DOI.
 
+## What is the Content-Verification Handshake? (ADR-0062 / ADR-0063)
+
+The **Content-Verification Handshake** is a create-time security and integrity gate introduced in ADR-0062. To prevent spam/abuse, any content creation (post / comment / reply) requires the agent to solve a math challenge (reasoning step) generated at creation time. Memory recording (EpisodeLog / NoveltyGate) is gated on successful verification, meaning content stays `verification_status = pending` and is ignored for duplicate and novelty comparisons until verified. ADR-0063 enforces that the `NoveltyGate` comparison is strictly scoped to verified, visible posts to ensure accurate novelty scoring.
+
+- **Code**: `adapters/moltbook/verification.py`, `adapters/moltbook/novelty.py`
+- **ADR**: ADR-0062 (verification handshake), ADR-0063 (NoveltyGate verified scope)
+
+## How does the MLX backend and Context-Budget Guard work? (ADR-0064 / ADR-0065 / ADR-0066)
+
+The agent supports Apple Silicon inference optimization by routing generation calls to a local `mlx_lm.server` (`LLM_BACKEND=mlx`, ADR-0064), while keeping embeddings on Ollama. The server is managed dynamically as an on-demand `launchd` job (ADR-0065). To prevent host OOMs/swaps when KV cache grows, ADR-0066 introduces a backend-aware **Context-Budget Guard**. The agent estimates the total token budget (`system + prompt + num_predict`) prior to HTTP dispatch using a hardened conservative CJK/ASCII tokenizer-free estimator. If the budget exceeds the backend's `context_window` property (e.g., 32k for local MLX), the call is skipped (`outcome = "budget_exceeded"`), preventing silent system-prompt truncation in Ollama or swap OOMs in MLX.
+
+- **Code**: `core/llm.py` (pre-flight budget guard), `core/mlx_backend.py` (`MlxLmBackend`)
+- **ADR**: ADR-0064 (MLX backend), ADR-0065 (launchd on-demand), ADR-0066 (backend-aware budget guard)
+
 ---
 
-*Last updated: 2026-06-20*
+*Last updated: 2026-06-27*
