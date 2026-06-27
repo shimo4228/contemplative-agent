@@ -18,7 +18,7 @@ import functools
 import json
 import logging
 import sys
-from typing import Optional, TextIO
+from typing import Callable, Optional, TextIO
 
 from ...core.episode_log import EpisodeLog
 from ...core.llm import generate, wrap_untrusted_content
@@ -127,7 +127,9 @@ def run_peer_loop(
     max_turns: int,
     seed: Optional[str] = None,
     label: str = "peer",
-    generate_fn=functools.partial(generate, caller="dialogue.peer"),
+    generate_fn: Callable[..., Optional[str]] = functools.partial(
+        generate, caller="dialogue.peer"
+    ),
 ) -> int:
     """Run one peer's dialogue loop. Returns the number of replies generated.
 

@@ -10,7 +10,7 @@ from pathlib import Path
 
 # scripts/ is not a package; import the module by path.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-import log_anomaly_sweep as las  # noqa: E402
+import log_anomaly_sweep as las  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 
 class TestNormalize:

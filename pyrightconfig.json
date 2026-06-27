@@ -1,6 +1,0 @@
-{
-  "include": ["src", "tests"],
-  "reportUnusedVariable": "none",
-  "reportUnreachable": "none",
-  "disableTaggedHints": true
-}

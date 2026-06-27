@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import math
 from datetime import datetime, timedelta, timezone
-from typing import List
+from typing import Callable, List
 
 import numpy as np
 import pytest
@@ -133,24 +133,29 @@ def gate(tmp_path):
     )
 
 
-def _patch_embed(monkeypatch, vec):
+def _patch_embed(
+    monkeypatch: pytest.MonkeyPatch,
+    vec: np.ndarray | Callable[[str], np.ndarray | None],
+) -> None:
     """Monkeypatch ``novelty.embed_one`` and ``novelty.embed_texts``.
 
     ``vec`` may be a single (D,) array (constant for every call) or callable
     accepting the text and returning a vector / None.
     """
+    single: Callable[[str], np.ndarray | None]
     if callable(vec):
         single = vec
     else:
-        single = lambda _text: vec  # noqa: E731
+        fixed_vec = vec
+        single = lambda _text: fixed_vec  # noqa: E731
 
-    def batch(texts):
+    def batch(texts: List[str]) -> np.ndarray | None:
         if not texts:
             return np.zeros((0, 0), dtype=np.float32)
         results = [single(t) for t in texts]
         if any(r is None for r in results):
             return None
-        return np.stack(results).astype(np.float32)
+        return np.stack([r for r in results if r is not None]).astype(np.float32)
 
     monkeypatch.setattr(
         "contemplative_agent.adapters.moltbook.novelty.embed_one", single

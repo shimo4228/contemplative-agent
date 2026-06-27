@@ -7,7 +7,7 @@ from pathlib import Path
 
 # scripts/ is not a package; import the module by path.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
-import state_invariant_check as sic  # noqa: E402
+import state_invariant_check as sic  # type: ignore[import-not-found]  # noqa: E402
 
 
 def _live(text: str, **extra) -> dict:

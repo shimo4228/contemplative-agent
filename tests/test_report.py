@@ -273,6 +273,7 @@ class TestGenerateReport:
 
         output_dir = tmp_path / "reports"
         result = generate_report(log_dir, output_dir, date="2026-03-14")
+        assert result is not None
         content = result.read_text(encoding="utf-8")
         assert "domain=test" in content
 

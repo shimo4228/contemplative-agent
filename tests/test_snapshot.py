@@ -193,6 +193,7 @@ class TestWriteSnapshot:
             snapshots_dir=layout["snapshots"],
             view_registry=view_registry,
         )
+        assert path is not None
         manifest = json.loads((path / "manifest.json").read_text())
         assert manifest["command"] == "insight"
         assert manifest["embedding_model"] == "custom-embed"
@@ -211,6 +212,7 @@ class TestWriteSnapshot:
             snapshots_dir=layout["snapshots"],
             view_registry=view_registry,
         )
+        assert path is not None
         data = np.load(path / "centroids.npz")
         for name in ("constitutional", "noise", "self_reflection"):
             saved = data[name]

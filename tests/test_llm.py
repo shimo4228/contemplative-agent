@@ -522,6 +522,7 @@ class TestGenerate:
         mock_post.return_value = mock_resp
 
         result = generate("test")
+        assert result is not None
         assert "api_key" not in result
         assert "[REDACTED]" in result
 
@@ -533,6 +534,7 @@ class TestGenerate:
         mock_post.return_value = mock_resp
 
         result = generate("test", max_length=50)
+        assert result is not None
         assert len(result) == 50
 
     @patch("contemplative_agent.core.llm.requests.post")
@@ -544,6 +546,7 @@ class TestGenerate:
         mock_post.return_value = mock_resp
 
         result = generate("test")  # default max_length is None now
+        assert result is not None
         assert len(result) == 200
 
     @patch("contemplative_agent.core.llm.requests.post")

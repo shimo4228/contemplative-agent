@@ -161,6 +161,10 @@ class TestTelemetryFailurePaths:
     def test_backend_raise_is_error(self, telemetry_dir):
         class _RaisingBackend:
             model = "raising-model"
+            # Satisfies the LLMBackend protocol's context_window member; the
+            # tiny "test" prompt stays well under it, so the budget guard
+            # passes and the backend's raising generate() is still reached.
+            context_window = 32768
 
             def generate(self, prompt, system, num_predict, format,
                          *, temperature=1.0):

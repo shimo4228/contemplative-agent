@@ -152,13 +152,21 @@ class TestSelectFeedSeeds:
 
     def test_seeded_rng_produces_deterministic_selection(self):
         posts = [_post(f"t{i}", "x" * 100, post_id=f"p{i}") for i in range(10)]
-        kwargs = dict(
-            score_relevance=lambda p: 0.8,
-            target_count=3,
-            relevance_floor=0.4,
-        )
-        run1 = select_feed_seeds(posts, rng=np.random.default_rng(42), **kwargs)
-        run2 = select_feed_seeds(posts, rng=np.random.default_rng(42), **kwargs)
+
+        # A fresh rng per call (seed pinned) with identical config otherwise;
+        # a local helper keeps the config DRY without a **kwargs dict, whose
+        # unified value type pyright cannot match per-parameter.
+        def run(seed: int) -> list[dict]:
+            return select_feed_seeds(
+                posts,
+                rng=np.random.default_rng(seed),
+                score_relevance=lambda p: 0.8,
+                target_count=3,
+                relevance_floor=0.4,
+            )
+
+        run1 = run(42)
+        run2 = run(42)
         assert [p["id"] for p in run1] == [p["id"] for p in run2]
 
     def test_empty_input_returns_empty(self):

@@ -500,7 +500,7 @@ class TestDistillIdentity:
         ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks2.load()
         result = distill_identity(knowledge_store=ks2, view_registry=registry)
-        assert "No self-reflection" in result
+        assert "No self-reflection" in str(result)
 
     @patch("contemplative_agent.core.distill.generate")
     def test_full_path(self, mock_generate, tmp_path):

@@ -46,11 +46,10 @@ markers = [
 [tool.pyright]
 include = ["src", "tests"]
 # Argparse handler signatures take (args, parser) uniformly via dispatcher;
-# many handlers do not use parser. The `_` prefix marks intent; `disableTaggedHints`
-# silences Pylance's grayed-out "is not accessed" hints (not a Pyright rule).
+# many handlers do not use parser, so unused-variable and unreachable reports
+# are disabled here (the `_` prefix marks intent at the call sites).
 reportUnusedVariable = "none"
 reportUnreachable = "none"
-disableTaggedHints = true
 
 [dependency-groups]
 # Dev tooling lives here (uv auto-syncs the `dev` group on `uv run` / `uv sync`),
