@@ -70,6 +70,7 @@ Records of key design decisions for this project.
 | [0062](0062-create-time-verification-handshake.md) | Create-Time Content-Verification Handshake via LLM Reasoning; Gate Recording on Visibility | accepted | 2026-06-26 |
 | [0063](0063-novelty-gate-verified-only-comparison.md) | Scope the NoveltyGate Comparison to Verified (Visible) Posts | accepted | 2026-06-26 |
 | [0064](0064-mlx-generation-backend.md) | Route Generation Through a Local mlx_lm.server on Apple Silicon | accepted | 2026-06-27 |
+| [0065](0065-mlx-ondemand-launchd-and-telemetry-model-contract.md) | Wire mlx_lm.server as an On-Demand launchd Job and Enforce a Served-Model-ID Contract on LLM Telemetry | accepted | 2026-06-27 |
 
 ## ADR Types
 
