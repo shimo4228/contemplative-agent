@@ -126,11 +126,25 @@ class TestDefangUrls:
 
 class TestBuildReport:
     def test_includes_session_meta(self):
-        meta = {"domain": "contemplative-ai", "axioms_enabled": True, "ollama_model": "qwen3.5:9b"}
+        meta = {
+            "domain": "contemplative-ai",
+            "axioms_enabled": True,
+            "llm_backend": "mlx",
+            "llm_model": "mlx-community/Qwen3.5-9B-4bit",
+        }
         report = _build_report("2026-03-14", [], [], [], session_meta=meta)
         assert "**Configuration**:" in report
         assert "domain=contemplative-ai" in report
         assert "axioms=enabled" in report
+        assert "model=mlx:mlx-community/Qwen3.5-9B-4bit" in report
+
+    def test_includes_legacy_ollama_model_session_meta(self):
+        meta = {
+            "domain": "contemplative-ai",
+            "axioms_enabled": True,
+            "ollama_model": "qwen3.5:9b",
+        }
+        report = _build_report("2026-03-14", [], [], [], session_meta=meta)
         assert "model=qwen3.5:9b" in report
 
     def test_no_session_meta(self):
@@ -266,7 +280,7 @@ class TestGenerateReport:
         log_dir.mkdir()
         jsonl = log_dir / "2026-03-14.jsonl"
         lines = [
-            json.dumps({"type": "session", "data": {"event": "start", "domain": "test", "axioms_enabled": True, "ollama_model": "qwen3.5:9b"}}),
+            json.dumps({"type": "session", "data": {"event": "start", "domain": "test", "axioms_enabled": True, "llm_backend": "mlx", "llm_model": "local-mlx"}}),
             json.dumps({"ts": "t", "type": "activity", "data": {"action": "comment", "post_id": "p1", "content": "Hi", "relevance": "0.9"}}),
         ]
         jsonl.write_text("\n".join(lines), encoding="utf-8")
@@ -276,6 +290,7 @@ class TestGenerateReport:
         assert result is not None
         content = result.read_text(encoding="utf-8")
         assert "domain=test" in content
+        assert "model=mlx:local-mlx" in content
 
 
 class TestGenerateAllReports:

@@ -605,6 +605,31 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     return domain_config
 
 
+def _llm_session_meta() -> dict[str, str]:
+    """Return backend/model metadata for the session start episode.
+
+    Per-call telemetry records the exact served model on every request. The
+    session-level metadata is coarser but must still name the selected
+    generation backend so daily reports do not call an MLX run "Ollama".
+    """
+    backend = os.environ.get("LLM_BACKEND", "").strip().lower()
+    if backend == "mlx":
+        return {
+            "llm_backend": "mlx",
+            "llm_model": os.environ.get(
+                "MLX_MODEL", "mlx-community/Qwen3.5-9B-4bit"
+            ),
+        }
+    return {
+        "llm_backend": "ollama",
+        "llm_model": os.environ.get("OLLAMA_MODEL", "qwen3.5:9b"),
+        # Legacy field retained only for default Ollama sessions so older
+        # report consumers that know this key keep working without making MLX
+        # sessions look like Ollama generation.
+        "ollama_model": os.environ.get("OLLAMA_MODEL", "qwen3.5:9b"),
+    }
+
+
 # --- Tier 1: No LLM needed ---
 
 
@@ -1790,7 +1815,7 @@ def _handle_agent_command(
         session_meta = {
             "axioms_enabled": not args.no_axioms,
             "domain": dc.name,
-            "ollama_model": os.environ.get("OLLAMA_MODEL", "qwen3.5:9b"),
+            **_llm_session_meta(),
         }
         # Non-blocking lock (audit M5): a second concurrent session would
         # double-spend rate budgets and race knowledge.json — fail fast

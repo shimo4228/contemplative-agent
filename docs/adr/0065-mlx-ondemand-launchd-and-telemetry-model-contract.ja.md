@@ -123,6 +123,6 @@ model id を読む。却下。明示的な read-only Protocol property を採り
 
 - 本 ADR は [ADR-0064](./0064-mlx-generation-backend.md) の `### Negative / Risks` セクションに
   記された「launchd plist は future work」項目を閉じる。
-- [ADR-0064](./0064-mlx-generation-backend.md) の distill パターン収量に基づく採用ゲート —
-  ライブのエピソード窓における mlx 対 Ollama 出力の dry-run 比較 — は依然として未解決の検証項目
-  である。本 ADR はこれを解決しない。
+- [ADR-0064](./0064-mlx-generation-backend.md) の distill パターン収量に基づく採用ゲートは
+  その後 pass した。根拠は
+  [`docs/evidence/adr-0064/distill-yield-comparison.md`](../evidence/adr-0064/distill-yield-comparison.md)。

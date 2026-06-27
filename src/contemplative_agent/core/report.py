@@ -208,8 +208,15 @@ def _build_report(
     if session_meta:
         domain = session_meta.get("domain", "unknown")
         axioms = "enabled" if session_meta.get("axioms_enabled") else "disabled"
-        model = session_meta.get("ollama_model", "unknown")
-        lines.append(f"**Configuration**: domain={domain}, axioms={axioms}, model={model}")
+        backend = session_meta.get("llm_backend")
+        model = session_meta.get("llm_model") or session_meta.get("ollama_model", "unknown")
+        if backend:
+            model_text = f"{backend}:{model}"
+        else:
+            model_text = str(model)
+        lines.append(
+            f"**Configuration**: domain={domain}, axioms={axioms}, model={model_text}"
+        )
         lines.append("")
 
     if comments:

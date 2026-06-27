@@ -130,6 +130,6 @@ transparently.
 
 - This ADR closes the "launchd plist is future work" item noted in the
   [ADR-0064](./0064-mlx-generation-backend.md) `### Negative / Risks` section.
-- The distill pattern-yield adoption gate from [ADR-0064](./0064-mlx-generation-backend.md) — a
-  dry-run comparison of mlx vs Ollama output over a live episode window — remains an open
-  verification item; this ADR does not resolve it.
+- The distill pattern-yield adoption gate from [ADR-0064](./0064-mlx-generation-backend.md) has
+  since passed; see
+  [`docs/evidence/adr-0064/distill-yield-comparison.md`](../evidence/adr-0064/distill-yield-comparison.md).

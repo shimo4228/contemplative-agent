@@ -90,7 +90,30 @@ class TestMainRun:
         call_kwargs = mock_agent.run_session.call_args[1]
         assert call_kwargs["duration_minutes"] == 60
         assert "session_meta" in call_kwargs
-        assert "domain" in call_kwargs["session_meta"]
+        meta = call_kwargs["session_meta"]
+        assert "domain" in meta
+        assert meta["llm_backend"] == "ollama"
+        assert meta["llm_model"] == "qwen3.5:9b"
+        assert meta["ollama_model"] == "qwen3.5:9b"
+
+    @patch("contemplative_agent.cli.configure_llm")
+    @patch("contemplative_agent.cli.Agent")
+    def test_run_mlx_session_meta(self, mock_agent_cls, _mock_configure):
+        mock_agent = MagicMock()
+        mock_agent_cls.return_value = mock_agent
+
+        with patch.dict(
+            "os.environ",
+            {"LLM_BACKEND": "mlx", "MLX_MODEL": "local-mlx-model"},
+            clear=False,
+        ):
+            with patch("sys.argv", ["contemplative-agent", "run"]):
+                main()
+
+        meta = mock_agent.run_session.call_args[1]["session_meta"]
+        assert meta["llm_backend"] == "mlx"
+        assert meta["llm_model"] == "local-mlx-model"
+        assert "ollama_model" not in meta
 
     @patch("contemplative_agent.cli.Agent")
     def test_run_custom_duration(self, mock_agent_cls):
@@ -263,7 +286,8 @@ class TestInstallSchedule:
         assert plist_path.exists()
         content = plist_path.read_text()
         assert "<string>120</string>" in content
-        assert "contemplative-agent" in content
+        assert "scripts/run-with-mlx.sh" in content
+        assert "{{VENV_BIN}}/contemplative-agent" not in content
         # Verify all placeholders were replaced
         for placeholder in ("{{VENV_BIN}}", "{{PROJECT_ROOT}}", "{{SESSION_MINUTES}}", "{{LOG_PATH}}", "{{CALENDAR_INTERVALS}}"):
             assert placeholder not in content
@@ -330,6 +354,8 @@ class TestInstallDistillSchedule:
         assert plist_path.exists()
         content = plist_path.read_text()
         assert "distill" in content
+        assert "scripts/run-with-mlx.sh" in content
+        assert "{{VENV_BIN}}/contemplative-agent" not in content
         assert "<integer>3</integer>" in content
         # Audit M5: distill fires at :30, offset from the agent plist's
         # HH:00, so the two scheduled jobs never start in the same minute.
@@ -412,6 +438,23 @@ class TestInstallScheduleCommand:
         with patch("sys.argv", ["contemplative-agent", "install-schedule", "--session", "0"]):
             with pytest.raises(SystemExit):
                 main()
+
+
+class TestRunWithMlxScript:
+    def test_script_checks_served_model_before_reuse(self):
+        script = Path("scripts/run-with-mlx.sh").read_text(encoding="utf-8")
+        assert "/v1/models" in script
+        assert "grep -Fx -- \"$MODEL\"" in script
+        assert "unexpected model" in script
+
+    def test_script_only_kills_server_it_started(self):
+        script = Path("scripts/run-with-mlx.sh").read_text(encoding="utf-8")
+        assert "STARTED_MLX=1" in script
+        assert "kill \"$MLX_PID\"" in script
+
+    def test_script_exports_base_url_from_port(self):
+        script = Path("scripts/run-with-mlx.sh").read_text(encoding="utf-8")
+        assert "export MLX_BASE_URL=\"http://localhost:$PORT\"" in script
 
 
 class TestNoAxiomsFlag:
