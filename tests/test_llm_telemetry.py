@@ -64,6 +64,7 @@ EXPECTED_FIELDS = {
     "done_reason",
     "prompt_eval_count",
     "eval_count",
+    "cached_tokens",
 }
 
 
@@ -90,6 +91,9 @@ class TestTelemetryOkPath:
         assert record["done_reason"] == "stop"
         assert record["prompt_eval_count"] == 10
         assert record["eval_count"] == 5
+        # Ollama does not report prompt-cache hits; the field exists (parity
+        # with the MLX path) but stays None on this path.
+        assert record["cached_tokens"] is None
         assert isinstance(record["duration_ms"], int)
 
     @patch("contemplative_agent.core.llm.requests.post")

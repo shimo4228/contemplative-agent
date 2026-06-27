@@ -57,14 +57,19 @@ class BackendResult:
     ``"length"`` signals the output hit ``num_predict`` mid-generation,
     which drives the ``drop_truncated`` fail-closed gate in the caller
     (audit M2). ``eval_count`` (generated-token count) feeds telemetry
-    parity with the Ollama path. Both are optional: a backend that cannot
-    report them leaves them ``None`` and only loses the truncation gate /
+    parity with the Ollama path. ``prompt_tokens`` (total input tokens) and
+    ``cached_tokens`` (prompt-cache hits; ``cached_tokens / prompt_tokens``
+    = the per-call cache-hit rate) let telemetry tell a prompt-cache-churn
+    slowdown apart from a memory-pressure cliff. All optional: a backend
+    that cannot report a field leaves it ``None`` and only loses the gate /
     telemetry detail, never correctness of the returned text.
     """
 
     text: str
     finish_reason: Optional[str] = None
     eval_count: Optional[int] = None
+    prompt_tokens: Optional[int] = None
+    cached_tokens: Optional[int] = None
 
 
 @runtime_checkable
@@ -654,6 +659,10 @@ def generate(
         "done_reason": None,
         "prompt_eval_count": None,
         "eval_count": None,
+        # Cache-hit accounting: cached_tokens / prompt_eval_count is the
+        # per-call prompt-cache hit rate. Populated on the MLX path (from
+        # mlx_lm.server usage); None on the Ollama path (no cache reporting).
+        "cached_tokens": None,
     }
     started = time.monotonic()
     try:
@@ -789,6 +798,16 @@ def _generate_via_backend(
     tel["done_reason"] = result.finish_reason
     if isinstance(result.eval_count, int):
         tel["eval_count"] = result.eval_count
+    # Prefill accounting (mlx_lm.server usage): record total input tokens
+    # under the same prompt_eval_count field NAME the Ollama path uses — both
+    # are total input today (Ollama has no prompt KV cache to make the two
+    # diverge) — and prompt-cache hits separately. cached_tokens /
+    # prompt_eval_count is the cache-hit rate that distinguishes a cache-churn
+    # slowdown from a memory-pressure cliff.
+    if isinstance(result.prompt_tokens, int):
+        tel["prompt_eval_count"] = result.prompt_tokens
+    if isinstance(result.cached_tokens, int):
+        tel["cached_tokens"] = result.cached_tokens
 
     if result.finish_reason == "length":
         if drop_truncated:

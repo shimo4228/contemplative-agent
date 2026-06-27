@@ -10,7 +10,7 @@ accounting apply uniformly with the Ollama path.
 from __future__ import annotations
 
 import json
-from typing import Optional
+from typing import Dict, Optional
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -36,10 +36,24 @@ def _mock_response(
     content: str = "hello",
     finish_reason: str = "stop",
     completion_tokens: Optional[int] = 7,
+    prompt_tokens: Optional[int] = None,
+    cached_tokens: Optional[int] = None,
 ):
-    """Build a MagicMock mimicking an OpenAI chat-completion HTTP response."""
+    """Build a MagicMock mimicking an OpenAI chat-completion HTTP response.
+
+    ``prompt_tokens`` / ``cached_tokens`` mirror mlx_lm.server's prefill
+    accounting: ``usage.prompt_tokens`` (total input) and
+    ``usage.prompt_tokens_details.cached_tokens`` (prompt-cache hits). Both
+    default to absent so existing callers exercise the no-accounting case.
+    """
     resp = MagicMock()
-    usage = {} if completion_tokens is None else {"completion_tokens": completion_tokens}
+    usage: Dict = {}
+    if completion_tokens is not None:
+        usage["completion_tokens"] = completion_tokens
+    if prompt_tokens is not None:
+        usage["prompt_tokens"] = prompt_tokens
+    if cached_tokens is not None:
+        usage["prompt_tokens_details"] = {"cached_tokens": cached_tokens}
     resp.json.return_value = {
         "choices": [
             {"message": {"content": content}, "finish_reason": finish_reason}
@@ -191,6 +205,41 @@ class TestResponseMapping:
         assert result.eval_count is None
 
     @patch("contemplative_agent.core.mlx_backend.requests.post")
+    def test_prompt_and_cached_tokens_parsed(self, mock_post, backend):
+        """mlx_lm.server reports prefill accounting in usage: prompt_tokens
+        (total input) and prompt_tokens_details.cached_tokens (served from
+        the prompt KV cache vs freshly prefilled). Surfacing both lets
+        telemetry compute the per-call cache-hit rate that tells a
+        cache-churn slowdown apart from a memory-pressure cliff."""
+        mock_post.return_value = _mock_response(
+            prompt_tokens=7434, cached_tokens=7237
+        )
+        result = backend.generate("p", "s", 64, None)
+        assert result is not None
+        assert result.prompt_tokens == 7434
+        assert result.cached_tokens == 7237
+
+    @patch("contemplative_agent.core.mlx_backend.requests.post")
+    def test_prompt_and_cached_tokens_none_when_absent(self, mock_post, backend):
+        """A response without prefill accounting (older server, or nothing
+        cached) leaves both None — never raises, never fabricates a count."""
+        mock_post.return_value = _mock_response()  # only completion_tokens
+        result = backend.generate("p", "s", 64, None)
+        assert result is not None
+        assert result.prompt_tokens is None
+        assert result.cached_tokens is None
+
+    @patch("contemplative_agent.core.mlx_backend.requests.post")
+    def test_prompt_tokens_without_cached_details(self, mock_post, backend):
+        """prompt_tokens present but no prompt_tokens_details block (no cache
+        hit reported): prompt_tokens surfaces, cached_tokens stays None."""
+        mock_post.return_value = _mock_response(prompt_tokens=500)
+        result = backend.generate("p", "s", 64, None)
+        assert result is not None
+        assert result.prompt_tokens == 500
+        assert result.cached_tokens is None
+
+    @patch("contemplative_agent.core.mlx_backend.requests.post")
     def test_null_content_becomes_empty_string(self, mock_post, backend):
         resp = MagicMock()
         resp.json.return_value = {
@@ -331,3 +380,32 @@ class TestIntegrationThroughCore:
         ]
         assert records
         assert records[-1]["model"] == _MODEL
+
+    @patch("contemplative_agent.core.mlx_backend.requests.post")
+    def test_telemetry_records_prefill_cache_accounting(self, mock_post, tmp_path):
+        """MLX prefill accounting reaches per-call telemetry: prompt_eval_count
+        (total input tokens, unified with the Ollama path's field name) and
+        cached_tokens (prompt-cache hits). cached_tokens / prompt_eval_count is
+        the cache-hit rate that distinguishes a cache-churn slowdown (the
+        ~7.5k system prefix evicted by smaller prompts, re-prefilled in full)
+        from a memory-pressure cliff — the open question after the 2026-06-27
+        58-minute prefill hang."""
+        mock_post.return_value = _mock_response(
+            prompt_tokens=7434, cached_tokens=7237
+        )
+        configure(
+            backend=MlxLmBackend(base_url=_BASE_URL, model=_MODEL),
+            telemetry_dir=tmp_path,
+        )
+        generate("p", system="s")
+
+        files = list(tmp_path.glob("llm-calls-*.jsonl"))
+        assert len(files) == 1
+        records = [
+            json.loads(line)
+            for line in files[0].read_text().splitlines()
+            if line.strip()
+        ]
+        assert records
+        assert records[-1]["prompt_eval_count"] == 7434
+        assert records[-1]["cached_tokens"] == 7237

@@ -109,6 +109,12 @@ def generate_internal_note(content: str) -> str:
         prompt,
         system=get_identity_system_prompt(),
         caller="moltbook.internal_note",
+        # Cap well below the 8192 default: production telemetry (863 calls)
+        # shows real notes finish at p90 ≈ 413 tokens (median 264); the lone
+        # 8192-token run was a repetition runaway that, under the MLX backend,
+        # holds the KV cache and adds mid-session memory pressure. 1000 covers
+        # real notes with margin (2026-06-27 prefill-degradation handoff).
+        num_predict=1000,
     )
     return result.strip() if result else ""
 

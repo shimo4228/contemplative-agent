@@ -165,6 +165,23 @@ def _parse_completion(data: Dict) -> BackendResult:
     eval_count = usage.get("completion_tokens")
     if not isinstance(eval_count, int):
         eval_count = None
+    # Prefill accounting: prompt_tokens (total input) and, nested under
+    # prompt_tokens_details, cached_tokens (served from the prompt KV cache
+    # vs freshly prefilled). Absent on older servers / when nothing was
+    # cached — each field independently falls back to None, never raises.
+    prompt_tokens = usage.get("prompt_tokens")
+    if not isinstance(prompt_tokens, int):
+        prompt_tokens = None
+    details = usage.get("prompt_tokens_details")
+    cached_tokens = (
+        details.get("cached_tokens") if isinstance(details, dict) else None
+    )
+    if not isinstance(cached_tokens, int):
+        cached_tokens = None
     return BackendResult(
-        text=text, finish_reason=finish_reason, eval_count=eval_count
+        text=text,
+        finish_reason=finish_reason,
+        eval_count=eval_count,
+        prompt_tokens=prompt_tokens,
+        cached_tokens=cached_tokens,
     )

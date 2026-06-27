@@ -455,6 +455,18 @@ class TestGenerateInternalNote:
         finally:
             reset_llm_config()
 
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_caps_num_predict(self, mock_generate):
+        """The note caps num_predict instead of inheriting the 8192 default.
+        Production telemetry (863 calls) shows real notes finish at p90 ≈ 413
+        tokens (median 264); a single 8192-token run was a repetition runaway.
+        An 8192 ceiling lets that runaway hold the MLX KV cache and add memory
+        pressure mid-session; 1000 covers real notes with margin (audit:
+        2026-06-27 prefill-degradation handoff)."""
+        mock_generate.return_value = "noticed"
+        generate_internal_note("some post")
+        assert mock_generate.call_args.kwargs["num_predict"] == 1000
+
 
 class TestGetModel:
     def test_default_model(self):
