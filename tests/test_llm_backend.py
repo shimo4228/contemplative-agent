@@ -31,6 +31,7 @@ class FakeBackend:
     """
 
     model: str = "fake-model"
+    context_window: int = 32768
     responses: List[Union[str, BackendResult, None]] = field(default_factory=list)
     calls: List[dict] = field(default_factory=list)
     raise_exc: Optional[BaseException] = None

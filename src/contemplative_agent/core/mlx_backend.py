@@ -58,10 +58,17 @@ class MlxLmBackend:
             allowlist (SSRF guard), so only local / trusted hosts are
             reachable.
         model: Served model id, e.g. ``mlx-community/Qwen3.5-9B-4bit``.
+        context_window: Token budget the core pre-flight guard enforces
+            (audit C2). Memory-bounded on the 16 GB host, NOT Qwen3.5-9B's
+            262k native window: mlx_lm.server has no context flag (issue
+            #615) and grows the KV cache until the host swaps/OOMs past it.
+            Default 32768 (matches the Ollama path's NUM_CTX, for a
+            different reason — memory, not a chosen window).
     """
 
     base_url: str
     model: str
+    context_window: int = 32768
 
     def __post_init__(self) -> None:
         # Fail fast at construction (cli.py startup) on a misconfigured
@@ -69,6 +76,13 @@ class MlxLmBackend:
         # circuit breaker with an opaque error. generate() re-validates per
         # call so a runtime OLLAMA_TRUSTED_HOSTS change is still enforced.
         validate_trusted_url(self.base_url, source="MLX_BASE_URL")
+        # A non-positive window would make the core budget guard skip EVERY
+        # call (est_input + num_predict > 0 is always true) — a silent
+        # generation blackout. Reject it at construction, like the URL above.
+        if self.context_window <= 0:
+            raise ValueError(
+                f"context_window must be positive, got {self.context_window}"
+            )
 
     def generate(
         self,

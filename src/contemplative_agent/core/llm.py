@@ -90,6 +90,20 @@ class LLMBackend(Protocol):
         class-name sentinel. pyright flags any injected backend that omits it."""
         ...
 
+    @property
+    def context_window(self) -> int:
+        """Effective input+output token budget for the pre-flight guard
+        (audit C2) — the ceiling the host can actually serve, NOT the model's
+        native window. For the in-repo ``MlxLmBackend`` this is memory-bounded
+        on the 16 GB host (~32k): mlx_lm.server has no context flag (issue
+        #615) and grows the KV cache until the host swaps/OOMs past it, well
+        under Qwen3.5-9B's 262k native window. A cloud backend reports its
+        provider's real context limit. Declared here so pyright nudges every
+        backend to supply it; the guard still tolerates its absence (the
+        caller falls back to None and skips the check), so a not-yet-updated
+        external backend keeps delegating unguarded."""
+        ...
+
     def generate(
         self,
         prompt: str,
@@ -531,13 +545,18 @@ def _sanitize_output(text: str, max_length: Optional[int] = None) -> str:
 def _estimate_tokens(text: str) -> int:
     """Approximate token count without a tokenizer dependency (audit C2).
 
-    Conservative upper bound: ASCII at ~3 chars/tok (dense markdown/code/URLs
-    tokenize denser than prose's ~4), CJK at 1 tok/char (real: 1.5-2). The
-    project ships only requests+numpy, so no real tokenizer is available;
-    this feeds an over-budget skip guard, where over-estimating is safe.
+    Conservative upper bound in BOTH char classes, so the skip guard never
+    under-counts: ASCII at ~3 chars/tok (dense markdown/code/URLs tokenize
+    denser than prose's ~4 — ~0.33 tok/char ≥ real ~0.25); non-ASCII/CJK at
+    2 tok/char (Qwen3.5 real is ~1.5-2, so 2 is the upper bound). Counting CJK
+    at 1 tok/char would UNDER-estimate by 33-50% and let a CJK-heavy prompt
+    slip past the guard into Ollama front-truncation or mlx_lm.server KV-cache
+    OOM — the exact failures the guard prevents. The project ships only
+    requests+numpy, so no real tokenizer is available; over-estimating is the
+    safe direction for a skip guard.
     """
     ascii_count = sum(1 for ch in text if ord(ch) < 128)
-    return math.ceil(ascii_count / 3) + (len(text) - ascii_count)
+    return math.ceil(ascii_count / 3) + (len(text) - ascii_count) * 2
 
 
 def _emit_telemetry(record: Dict[str, Any]) -> None:
@@ -603,9 +622,11 @@ def generate(
             the call; never affects generation.
 
     Returns sanitized output, or None on failure — including when the
-    estimated input + ``num_predict`` would exceed ``NUM_CTX`` on the
-    Ollama path (audit C2: skip rather than let Ollama silently
-    front-truncate the system prompt).
+    estimated input + ``num_predict`` would exceed the backend's context
+    window (``NUM_CTX`` on the Ollama path, ``LLMBackend.context_window``
+    for an injected backend that declares one) — audit C2: skip rather than
+    front-truncate the value layer (Ollama) or grow the KV cache to OOM
+    (mlx_lm.server).
 
     If an ``LLMBackend`` was injected via ``configure(backend=...)``, the
     raw generation is delegated to it; otherwise the built-in Ollama HTTP
@@ -670,34 +691,43 @@ def _generate_impl(
     system_prompt = system or _build_system_prompt()
     tel["system_chars"] = len(system_prompt)
 
+    # Context-budget pre-flight (audit C2), backend-aware. The window is
+    # NUM_CTX on the built-in Ollama path; an injected backend supplies its
+    # own via the LLMBackend.context_window contract. A backend that omits it
+    # (unknown window) falls back to None and is left unguarded, so a
+    # not-yet-updated external backend still delegates. Over-budget input is
+    # skipped, not sent: Ollama would silently front-truncate the system
+    # prompt's value layer (identity/axioms) first; mlx_lm.server (no context
+    # flag, issue #615) would instead grow the KV cache until the host
+    # swaps/OOMs. Skip, don't substitute — caller-input pathology, not a
+    # backend fault, so the circuit breaker is left untouched.
+    ctx_window = (
+        getattr(_backend, "context_window", None)
+        if _backend is not None
+        else NUM_CTX
+    )
+    if ctx_window is not None:
+        est_system = _estimate_tokens(system_prompt)
+        est_prompt = _estimate_tokens(prompt)
+        if est_system + est_prompt + effective_num_predict > ctx_window:
+            logger.warning(
+                "Skipping LLM call: estimated input %d tok (system≈%d + "
+                "prompt≈%d) + num_predict %d exceeds context window %d "
+                "(audit C2).",
+                est_system + est_prompt,
+                est_system,
+                est_prompt,
+                effective_num_predict,
+                ctx_window,
+            )
+            tel["outcome"] = "budget_exceeded"
+            return None
+
     if _backend is not None:
         return _generate_via_backend(
             prompt, system_prompt, max_length, format, temperature,
             drop_truncated, effective_num_predict, tel,
         )
-
-    # Ollama-path token-budget pre-flight (audit C2). The injected-backend
-    # path above is excluded: its context window is unknown to this module.
-    # Over-budget input would be silently truncated from the FRONT, dropping
-    # the system prompt's value layer (identity/axioms) first — skip instead
-    # (all callers handle None by skipping; "skip, don't substitute"). Not a
-    # circuit failure: it is caller-input pathology, not a backend fault.
-    est_system = _estimate_tokens(system_prompt)
-    est_prompt = _estimate_tokens(prompt)
-    if est_system + est_prompt + effective_num_predict > NUM_CTX:
-        logger.warning(
-            "Skipping LLM call: estimated input %d tok (system≈%d + "
-            "prompt≈%d) + num_predict %d exceeds num_ctx %d; Ollama would "
-            "silently front-truncate the system prompt's value layer "
-            "(audit C2).",
-            est_system + est_prompt,
-            est_system,
-            est_prompt,
-            effective_num_predict,
-            NUM_CTX,
-        )
-        tel["outcome"] = "budget_exceeded"
-        return None
 
     data = _post_ollama(prompt, system_prompt, format, temperature,
                         effective_num_predict, tel)

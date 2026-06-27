@@ -63,6 +63,14 @@ class TestProtocolConformance:
         with pytest.raises(Exception):
             backend.model = "other"  # type: ignore[misc]
 
+    def test_context_window_default(self, backend):
+        """The MLX window is memory-bounded on the 16 GB host (~32k), NOT
+        Qwen3.5-9B's 262k native window: mlx_lm.server has no context flag
+        (issue #615) and grows the KV cache to OOM past it. The core
+        budget guard reads this value via the LLMBackend.context_window
+        contract."""
+        assert backend.context_window == 32768
+
 
 class TestRequestShape:
     @patch("contemplative_agent.core.mlx_backend.requests.post")
@@ -218,6 +226,13 @@ class TestSecurity:
         with pytest.raises(ValueError, match="http or https"):
             MlxLmBackend(base_url="file://localhost/etc/passwd", model=_MODEL)
 
+    def test_non_positive_context_window_rejected(self):
+        # Fail fast: a non-positive window would make the core budget guard
+        # skip every call (est_input + num_predict > 0 always) — a silent
+        # generation blackout. Reject it at construction like a bad URL.
+        with pytest.raises(ValueError, match="context_window must be positive"):
+            MlxLmBackend(base_url=_BASE_URL, model=_MODEL, context_window=0)
+
     @patch("contemplative_agent.core.mlx_backend.requests.post")
     def test_http_error_propagates(self, mock_post, backend):
         resp = MagicMock()
@@ -283,6 +298,17 @@ class TestIntegrationThroughCore:
         configure(backend=MlxLmBackend(base_url=_BASE_URL, model=_MODEL))
         assert generate("p", system="s") is None
         assert _circuit._consecutive_failures == 1
+
+    @patch("contemplative_agent.core.mlx_backend.requests.post")
+    def test_over_budget_skips_before_request(self, mock_post):
+        """An over-window prompt is skipped by the core budget guard BEFORE
+        the HTTP call — the request is never sent. Regression for the hole
+        the MLX path had: mlx_lm.server has no context cap, so an oversized
+        prompt would grow the KV cache until the 16 GB host swaps/OOMs."""
+        configure(backend=MlxLmBackend(base_url=_BASE_URL, model=_MODEL))
+        # ~66k est tokens for ASCII at 3 chars/tok > the 32768 window.
+        assert generate("x" * 200000, system="s") is None
+        mock_post.assert_not_called()
 
     @patch("contemplative_agent.core.mlx_backend.requests.post")
     def test_telemetry_records_real_model_id(self, mock_post, tmp_path):

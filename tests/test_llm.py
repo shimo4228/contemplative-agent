@@ -603,21 +603,24 @@ class TestGenerate:
 
 
 class TestEstimateTokens:
-    """_estimate_tokens: tokenizer-free char-class upper bound (audit C2).
-    ASCII at ~3 chars/tok (dense markdown/code tokenize denser than prose),
-    CJK at 1 tok/char — over-estimating is safe for a skip guard."""
+    """_estimate_tokens: tokenizer-free char-class upper bound (audit C2),
+    conservative in BOTH classes so the skip guard never under-counts.
+    ASCII at ~3 chars/tok (dense markdown/code tokenize denser than prose);
+    CJK at 2 tok/char — Qwen3.5 real is ~1.5-2, so 2 is the upper bound.
+    Counting CJK at 1 would under-count and let a CJK-heavy prompt slip past
+    the guard into front-truncation / KV-cache OOM."""
 
     def test_pure_ascii_three_chars_per_token(self):
         from contemplative_agent.core.llm import _estimate_tokens
         assert _estimate_tokens("a" * 300) == 100
 
-    def test_pure_cjk_one_token_per_char(self):
+    def test_pure_cjk_two_tokens_per_char(self):
         from contemplative_agent.core.llm import _estimate_tokens
-        assert _estimate_tokens("瞑" * 100) == 100
+        assert _estimate_tokens("瞑" * 100) == 200
 
     def test_mixed_sums_both_classes(self):
         from contemplative_agent.core.llm import _estimate_tokens
-        assert _estimate_tokens("a" * 300 + "瞑" * 100) == 200
+        assert _estimate_tokens("a" * 300 + "瞑" * 100) == 300
 
     def test_empty_string_is_zero(self):
         from contemplative_agent.core.llm import _estimate_tokens
@@ -667,9 +670,11 @@ class TestGenerateBudgetGuard:
         assert generate("test", system="small system") == "ok"
         mock_post.assert_called_once()
 
-    def test_guard_not_applied_to_backend_path(self):
-        """The injected-backend path has an unknown context window; the
-        NUM_CTX guard is Ollama-only and must not block delegation."""
+    def test_guard_skipped_when_backend_omits_context_window(self):
+        """A backend that does not declare ``context_window`` has an unknown
+        window, so the guard degrades gracefully (getattr → None → skip) and
+        delegation is never blocked. This keeps an un-updated external backend
+        (e.g. an older contemplative-agent-cloud) working unchanged."""
         from contemplative_agent.core.llm import (
             BackendResult,
             configure,
@@ -678,7 +683,7 @@ class TestGenerateBudgetGuard:
 
         calls = {}
 
-        class StubBackend:
+        class StubBackend:  # no context_window → unknown window → unguarded
             model = "stub-model"
 
             def generate(self, prompt, system, num_predict, format,
@@ -687,10 +692,72 @@ class TestGenerateBudgetGuard:
                 return BackendResult(text="delegated")
 
         reset_llm_config()
-        configure(backend=StubBackend())
+        # Deliberately omits context_window — pyright flags the non-conformance,
+        # which is exactly the un-updated-backend case this test exercises.
+        configure(backend=StubBackend())  # type: ignore[arg-type]
         try:
             assert generate("x" * 200000) == "delegated"
             assert calls["prompt_len"] == 200000
+        finally:
+            reset_llm_config()
+
+    def test_guard_applied_when_backend_declares_context_window(self, caplog):
+        """A backend that declares ``context_window`` IS budget-guarded: an
+        over-window prompt is skipped before the backend is ever called.
+        This closes the injected-backend hole — mlx_lm.server has no context
+        flag and would otherwise grow the KV cache until the host OOMs/swaps
+        (the mechanism behind the production swap incident)."""
+        from contemplative_agent.core.llm import (
+            BackendResult,
+            configure,
+            reset_llm_config,
+        )
+
+        calls = {}
+
+        class GuardedBackend:
+            model: str = "guarded-model"
+            context_window: int = 32768
+
+            def generate(self, prompt, system, num_predict, format,
+                         *, temperature=1.0):
+                calls["called"] = True
+                return BackendResult(text="should not reach here")
+
+        reset_llm_config()
+        configure(backend=GuardedBackend())
+        try:
+            with caplog.at_level(
+                logging.WARNING, logger="contemplative_agent.core.llm"
+            ):
+                result = generate("x" * 200000)  # ~66k est tok > 32768
+            assert result is None
+            assert "called" not in calls  # skipped before delegation
+            assert "audit C2" in caplog.text
+        finally:
+            reset_llm_config()
+
+    def test_backend_under_budget_delegates(self):
+        """A declared-window backend still delegates when the input fits, so
+        the guard adds a ceiling without changing the normal path."""
+        from contemplative_agent.core.llm import (
+            BackendResult,
+            configure,
+            reset_llm_config,
+        )
+
+        class GuardedBackend:
+            model: str = "guarded-model"
+            context_window: int = 32768
+
+            def generate(self, prompt, system, num_predict, format,
+                         *, temperature=1.0):
+                return BackendResult(text="delegated")
+
+        reset_llm_config()
+        configure(backend=GuardedBackend())
+        try:
+            assert generate("small", system="s") == "delegated"
         finally:
             reset_llm_config()
 
