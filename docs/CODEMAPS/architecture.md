@@ -1,10 +1,10 @@
-<!-- Generated: 2026-06-20 | Files scanned: 44 | Token estimate: ~2575 -->
+<!-- Generated: 2026-06-20 | Files scanned: 45 | Token estimate: ~2575 -->
 # Architecture
 
 ## Project Type
 Python CLI agent: core/adapter separation + 3-layer memory + embedding views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal (ADR-0021) + trust retirement (ADR-0051). Generation pluggable via `LLMBackend` Protocol (default: Ollama; in-repo MLX backend via `LLM_BACKEND=mlx`, ADR-0064; add-on: `contemplative-agent-cloud`).
 
-**Stats**: 44 non-`__init__` modules (50 total `.py`), ~13592 LOC, 1301 tests / 35 test files
+**Stats**: 45 non-`__init__` modules (51 total `.py`), ~14243 LOC, 1400 tests / 38 test files
 
 ## System Diagram
 

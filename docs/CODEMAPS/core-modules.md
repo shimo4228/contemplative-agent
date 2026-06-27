@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-20 | Files scanned: 24 core modules | Token estimate: ~2053 -->
+<!-- Generated: 2026-06-20 | Files scanned: 25 core modules | Token estimate: ~2053 -->
 # Core Modules Codemap
 
 Platform-independent foundation (no Moltbook dependencies). All imports flow: adapters → core.

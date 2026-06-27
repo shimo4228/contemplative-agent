@@ -2,7 +2,7 @@
 # Codemaps Index
 
 Comprehensive architectural documentation for the Contemplative Agent project.
-**Last Updated**: 2026-06-20 | **Codebase**: 44 non-`__init__` modules (50 total `.py`), ~13592 LOC, 1301 tests
+**Last Updated**: 2026-06-27 | **Codebase**: 45 non-`__init__` modules (51 total `.py`), ~14243 LOC, 1400 tests
 
 ---
 
@@ -12,7 +12,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 **Read first.** High-level architecture, system diagram, causal-chain data flows with gates and thresholds.
 
 **Topics**:
-- Project type & stats (44 non-`__init__` modules, ~13592 LOC, 1301 tests)
+- Project type & stats (45 non-`__init__` modules, ~14243 LOC, 1400 tests)
 - System diagram (core/ + adapters/moltbook/ + adapters/meditation/ + adapters/dialogue/)
 - Import rules (adapters → core, cli.py is only exception)
 - Session execution flow (ReplyHandler → FeedManager → PostPipeline) with gate thresholds
@@ -50,7 +50,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 **Platform-independent foundation.** 24 modules providing base functionality.
 
 **Topics**:
-- 24 core modules with LOC and purpose
+- 25 core modules with LOC and purpose
 - ADR-0012 Result types (with ADR-0050 pattern_ids / epistemic_counts fields)
 - EpisodeLog + KnowledgeStore schemas (post-ADR-0051: no trust_score)
 - Threshold table (SIM_DUPLICATE, SIM_UPDATE, DEDUP_IMPORTANCE_FLOOR, CLUSTER_THRESHOLD_*; NOISE_THRESHOLD removed ADR-0060)
@@ -106,10 +106,10 @@ Package versions, external services, optional add-ons.
 
 | Metric | Value |
 |--------|-------|
-| Total `.py` files | 50 (44 non-`__init__` + 6 `__init__`) |
-| LOC | ~13592 |
-| Test files | 35 (1301 tests collected) |
-| Core modules | 24 (platform-independent; forgetting.py deleted ADR-0051) |
+| Total `.py` files | 51 (45 non-`__init__` + 6 `__init__`) |
+| LOC | ~14243 |
+| Test files | 38 (1400 tests collected) |
+| Core modules | 25 (platform-independent; forgetting.py deleted ADR-0051, mlx_backend.py added ADR-0064) |
 | Moltbook adapter modules | 14 |
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |
@@ -136,4 +136,4 @@ Package versions, external services, optional add-ons.
 
 CODEMAPS はコード変更時に更新する（「どこにあるか」のコード索引）。
 
-Last full scan: 2026-06-20 (v2.6.0 release: 44 non-`__init__` modules, ~13592 LOC, 1301 tests verified; post-ADR-0053/0054/0055/0056/0057/0058 — importance LLM scoring + axiom-grounded distillation retired). Post-scan hand-updates (full re-scan pending): ADR-0059 (dead reply-history removed), ADR-0060 (distill is now per-episode grounded — one LLM call per episode, the 2-step batch + noise gate were removed), ADR-0061 (action-time untrusted caps at platform field limits).
+Last full scan: 2026-06-20 (v2.6.0 release: 44 non-`__init__` modules, ~13592 LOC, 1301 tests verified; post-ADR-0053/0054/0055/0056/0057/0058 — importance LLM scoring + axiom-grounded distillation retired). Post-scan hand-updates (full re-scan pending): ADR-0059 (dead reply-history removed), ADR-0060 (distill is now per-episode grounded — one LLM call per episode, the 2-step batch + noise gate were removed), ADR-0061 (action-time untrusted caps at platform field limits), ADR-0062 (create-time verification handshake), ADR-0063 (NoveltyGate scoped to verified posts), ADR-0064 (opt-in MLX generation backend — `core/mlx_backend.py` added), ADR-0065 (MLX on-demand launchd wiring + telemetry served-model-id contract). Current counts after hand-updates: 45 non-`__init__` modules (51 total `.py`), ~14243 LOC, 1400 tests.

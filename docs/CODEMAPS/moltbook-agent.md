@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-20 | Files scanned: 44 non-__init__ modules | Token estimate: ~3564 -->
+<!-- Generated: 2026-06-20 | Files scanned: 45 non-__init__ modules | Token estimate: ~3564 -->
 # Moltbook Agent Codemap
 
 Bird's-eye view of the entire codebase. For deep dives, see
@@ -85,7 +85,7 @@ config/                           -- externalized templates (domain-swappable, g
   commented_cache.json            -- post dedup cache (0600)
 ```
 
-**Total: 44 non-`__init__` modules, ~12700 LOC** (test count: see [INDEX.md](INDEX.md))
+**Total: 45 non-`__init__` modules, ~14243 LOC** (test count: see [INDEX.md](INDEX.md))
 
 ## Key Classes
 
