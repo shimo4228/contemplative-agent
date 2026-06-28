@@ -94,7 +94,7 @@ git tracked = clone 先にも付いてくる repo 同梱の運用版 skill。CA 
 | `llm-agent-security-principles` | [llm-agent-security-principles](https://github.com/shimo4228/llm-agent-security-principles)（汎用化 fork） | Security by Absence 等 3 原則 + 防御パターン |
 | `weekly-report-diagnosis` | なし（CA 固有） | 週次レポートの自己診断手順 |
 | `apple-silicon-local-llm-serving` | なし（CA 固有） | Apple Silicon ローカル LLM ランタイム選択（mlx_lm.server vs Ollama）の判断軸 |
-| `agent-run` | なし（CA 固有） | `/agent-run <時間> [backend] [provider]` でエージェントをバックグラウンド起動。backend = ollama（既定）/ cloud（sibling `contemplative-agent-cloud`）。silent fallback 禁止 |
+| `agent-run` | なし（CA 固有） | `/agent-run <時間> [backend] [provider]` でエージェントをバックグラウンド起動。backend = ollama（既定）/ cloud（sibling `contemplative-agent-cloud`）/ mlx（sibling `contemplative-agent-mlx`、Apple Silicon 対話用）。silent fallback 禁止 |
 
 ## API レート制限
 
@@ -109,6 +109,7 @@ ADR-0022..0030 後の積み残しはローカルの `.notes/remaining-issues-*.m
 - [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules) — 四公理ルール、アダプタ、ベンチマーク
 - [contemplative-agent-data](https://github.com/shimo4228/contemplative-agent-data) — ランタイムデータ（研究用、`sync-data` で同期）
 - [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) — 任意の cloud 生成バックエンド（Anthropic / OpenAI）。main repo を無改変で `LLMBackend` Protocol 経由注入。`/agent-run <時間> cloud [provider]` で起動。埋め込みは Ollama 据置き。security by absence を緩めるため研究実験用途のみ
+- [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx) — Apple Silicon 向けのローカル MLX 生成バックエンド（`mlx_lm.server`）。cloud と同型で `LLMBackend` Protocol 経由注入（main repo 無改変）。`/agent-run <時間> mlx` で起動。生成のみ MLX・埋め込みは Ollama 据置き。**完全にローカル**（cloud egress なし）なので security by absence は緩めないが、16GB では無人連続運用に不適（[ADR-0067](docs/adr/0067-keep-ollama-for-unattended-production.md)）→ 対話的・短時間用途のみ。本番スケジュールは Ollama。ADR-0070 で main から退役し本 repo へ切り出し
 
 ## HF Datasets mirror
 

@@ -1,6 +1,6 @@
 ---
 name: agent-run
-description: contemplative-agent をバックグラウンドで起動する。引数でセッション時間とバックエンド (ollama / cloud) を指定（例: /agent-run 4時間, /agent-run 30分 cloud openai）
+description: contemplative-agent をバックグラウンドで起動する。引数でセッション時間とバックエンド (ollama / cloud / mlx) を指定（例: /agent-run 4時間, /agent-run 30分 cloud openai, /agent-run 30分 mlx）
 origin: shimo4228
 user-invocable: true
 ---
@@ -8,7 +8,7 @@ user-invocable: true
 # Agent Run
 
 contemplative-agent をバックグラウンドで起動する。生成バックエンドを
-**ollama（デフォルト）/ cloud** から選べる。
+**ollama（デフォルト）/ cloud / mlx** から選べる。
 
 ## 引数の解釈
 
@@ -24,8 +24,9 @@ contemplative-agent をバックグラウンドで起動する。生成バック
 
 | 値 | 経路 |
 |---|---|
-| `ollama`（既定） | ローカル Ollama + `qwen3.5:9b`（main repo の組み込み生成） |
+| `ollama`（既定） | ローカル Ollama + `gemma4:e4b`（main repo の組み込み生成） |
 | `cloud` | `contemplative-agent-cloud`（Anthropic Claude / OpenAI GPT。埋め込みは Ollama 据置き） |
+| `mlx` | `contemplative-agent-mlx`（Apple Silicon ローカル MLX `mlx_lm.server`。埋め込みは Ollama 据置き。`run-with-mlx.sh` がサーバを起動→実行→停止）。**対話的・短時間用途のみ**（16GB 無人連続運用に不適、ADR-0067） |
 
 ### provider（`cloud` のときだけ意味を持つ、省略時 `anthropic`）
 
@@ -40,6 +41,8 @@ skill は repo 内で動く前提。repo ルートと sibling の cloud repo を
 REPO="$(git -C "$PWD" rev-parse --show-toplevel)"
 AGENT="$REPO/.venv/bin/contemplative-agent"
 CLOUD_BIN="$(dirname "$REPO")/contemplative-agent-cloud/.venv/bin/contemplative-agent-cloud"
+MLX_REPO="$(dirname "$REPO")/contemplative-agent-mlx"
+MLX_RUN="$MLX_REPO/scripts/run-with-mlx.sh"
 ```
 
 ## 起動コマンド (CRITICAL)
@@ -63,6 +66,16 @@ CLOUD_BIN="$(dirname "$REPO")/contemplative-agent-cloud/.venv/bin/contemplative-
 CONTEMPLATIVE_CLOUD_PROVIDER={provider} "$CLOUD_BIN" -v --auto run --session {N}
 ```
 
+### mlx
+
+`contemplative-agent-mlx` の `run-with-mlx.sh` が mlx_lm.server を起動 → ヘルス待ち →
+エージェント実行 → 終了時にサーバ停止する（idle メモリ ~0）。**Apple Silicon 専用**。
+生成のみ MLX、埋め込みは Ollama 据置き。
+
+```bash
+"$MLX_RUN" -v --auto run --session {N}
+```
+
 ## 実行手順
 
 1. `$ARGUMENTS` を 時間 / backend / provider に分解。
@@ -79,6 +92,7 @@ CONTEMPLATIVE_CLOUD_PROVIDER={provider} "$CLOUD_BIN" -v --auto run --session {N}
 |---|---|---|
 | `ollama` | `curl -sf localhost:11434/api/tags` | Ollama 未起動を報告して停止 |
 | `cloud` | `[ -x "$CLOUD_BIN" ]` かつ（`[ -f "$MOLTBOOK_HOME/cloud.env" ]` または `$ANTHROPIC_API_KEY` / `$OPENAI_API_KEY` が設定済み） | cloud venv 不動 or 鍵未設定を報告。**Ollama へ落とさない**。導入: `uv pip install --python <cloud>/.venv/bin/python -e <main-repo>`、鍵は `~/.config/moltbook/cloud.env` に `CONTEMPLATIVE_CLOUD_PROVIDER=` と `ANTHROPIC_API_KEY=`（または `OPENAI_API_KEY=`） |
+| `mlx` | `[ "$(uname -m)" = "arm64" ]` かつ `[ -x "$MLX_RUN" ]` かつ `[ -x "$MLX_REPO/.venv/bin/contemplative-agent-mlx" ]` かつ `[ -x "$HOME/.local/bin/mlx_lm.server" ]` かつ Ollama 稼働（埋め込み用、`curl -sf localhost:11434/api/tags`） | 非 Apple Silicon / mlx venv 不動 / mlx_lm.server 未導入 / Ollama 停止を報告し**停止**。**Ollama へ落とさない**。導入: mlx repo を `git clone` → `uv venv .venv` → `uv pip install -e .` + main も同 venv へ、`uv tool install mlx-lm` |
 
 `MOLTBOOK_HOME` 未設定時の既定は `~/.config/moltbook`。
 
@@ -96,3 +110,7 @@ CONTEMPLATIVE_CLOUD_PROVIDER={provider} "$CLOUD_BIN" -v --auto run --session {N}
   cloud add-on も埋め込みは据置き）。
 - `cloud` は untrusted な SNS コンテンツを外部 API に送る = security by absence を
   **緩める**選択。研究実験（大型モデルでの distill 比較等）以外では使わない。
+- `mlx` は**完全ローカル**（cloud egress なし）で security by absence は緩めない。ただし
+  Apple Silicon 専用で、16GB では無人連続運用に不適（ADR-0067: EOS 暴走 / OOM / prefill 崖 /
+  cache churn / wired thrash）。**対話的・短時間に限る**。本番スケジュール（0/6/12/18 時 JST）と
+  重ねると 16GB メモリ競合でクラッシュしうるので避ける。

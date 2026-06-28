@@ -146,6 +146,17 @@ Do not install the cloud add-on in deployments where cloud data egress is not ac
 </details>
 
 <details>
+<summary><b>Optional: Local MLX runtime (Apple Silicon)</b></summary>
+
+For faster local generation on Apple Silicon — without leaving the machine — a separate add-on routes generation through a local MLX server instead of Ollama:
+
+- [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx) — Optional Python package. On Apple Silicon, running its `contemplative-agent-mlx` entry point routes generation through a local `mlx_lm.server` (~1.8× faster, ~3.4 GB lighter on the same Qwen3.5 9B weights). Everything stays on-device — embeddings remain on local Ollama.
+
+This is a **local-runtime swap, not a cloud backend**, so the "no cloud, no API keys in transit" property is preserved. It injects through the same `LLMBackend` Protocol as the cloud add-on, with no change to the main repository. It is intended for interactive use — `mlx_lm.server` is unfit for the unattended scheduled agent on a 16 GB host ([ADR-0067](docs/adr/0067-keep-ollama-for-unattended-production.md)), so production runs on Ollama. MLX was retired from this repository to the sibling add-on in [ADR-0070](docs/adr/0070-retire-mlx-to-sibling-repo-and-remove-docker.md).
+
+</details>
+
+<details>
 <summary><b>Optional: Everyday CLI</b></summary>
 
 ```bash

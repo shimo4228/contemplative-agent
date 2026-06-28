@@ -129,6 +129,14 @@ code lives.
   `contemplative-agent-cloud`. Until then, the `agent-run` skill's `mlx` backend
   option is removed (ollama default + cloud retained), and the `.env.example` /
   CLAUDE.md / CODEMAPS MLX references are dropped.
+- **Update (2026-06-28): done.** The sibling repo `contemplative-agent-mlx` now
+  exists — `MlxLmBackend` + `serve-mlx.sh` / `run-with-mlx.sh` reconstructed from
+  commit `c291ab0` as a Protocol-injected add-on (mirroring
+  `contemplative-agent-cloud`, with `MlxLmBackend` declaring `context_window=32768`
+  so the ADR-0066 budget guard applies). The `agent-run` skill's `mlx` option is
+  re-wired to the new `contemplative-agent-mlx` entry point, and the README /
+  CLAUDE.md cross-links are restored. MLX is now installable as an add-on; `git
+  revert` is no longer the only path to it.
 
 ### Reversibility
 

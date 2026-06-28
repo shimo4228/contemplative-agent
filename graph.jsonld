@@ -1131,6 +1131,14 @@
       "extends": "https://doi.org/10.5281/zenodo.19212118"
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent-mlx",
+      "@type": ["EcosystemRepo", "SoftwareSourceCode"],
+      "name": "contemplative-agent-mlx",
+      "description": "Optional local MLX generation backend (Apple Silicon, mlx_lm.server) that routes generation to a local MLX runtime while keeping embeddings on Ollama. On-device only, no cloud egress, so it does not relax the no-cloud property — the same LLMBackend Protocol-injection shape as contemplative-agent-cloud. Relocated out of Contemplative Agent core by ADR-0070; unfit for unattended continuous use on a 16 GB host per ADR-0067, so it is for interactive use while production runs on Ollama.",
+      "url": "https://github.com/shimo4228/contemplative-agent-mlx",
+      "extends": "https://doi.org/10.5281/zenodo.19212118"
+    },
+    {
       "@id": "https://github.com/shimo4228/contemplative-agent-data",
       "@type": ["EcosystemRepo", "SoftwareSourceCode"],
       "name": "contemplative-agent-data",
