@@ -1,6 +1,6 @@
 ---
 name: agent-run
-description: contemplative-agent をバックグラウンドで起動する。引数でセッション時間とバックエンド (ollama / mlx / cloud) を指定（例: /agent-run 4時間, /agent-run 1時間 mlx, /agent-run 30分 cloud openai）
+description: contemplative-agent をバックグラウンドで起動する。引数でセッション時間とバックエンド (ollama / cloud) を指定（例: /agent-run 4時間, /agent-run 30分 cloud openai）
 origin: shimo4228
 user-invocable: true
 ---
@@ -8,7 +8,7 @@ user-invocable: true
 # Agent Run
 
 contemplative-agent をバックグラウンドで起動する。生成バックエンドを
-**ollama（デフォルト）/ mlx / cloud** から選べる。
+**ollama（デフォルト）/ cloud** から選べる。
 
 ## 引数の解釈
 
@@ -25,7 +25,6 @@ contemplative-agent をバックグラウンドで起動する。生成バック
 | 値 | 経路 |
 |---|---|
 | `ollama`（既定） | ローカル Ollama + `qwen3.5:9b`（main repo の組み込み生成） |
-| `mlx` | host-local `mlx_lm.server`（Apple Silicon、~1.8x 速・軽メモリ。ADR-0064/0065） |
 | `cloud` | `contemplative-agent-cloud`（Anthropic Claude / OpenAI GPT。埋め込みは Ollama 据置き） |
 
 ### provider（`cloud` のときだけ意味を持つ、省略時 `anthropic`）
@@ -40,7 +39,6 @@ skill は repo 内で動く前提。repo ルートと sibling の cloud repo を
 ```bash
 REPO="$(git -C "$PWD" rev-parse --show-toplevel)"
 AGENT="$REPO/.venv/bin/contemplative-agent"
-WRAP="$REPO/scripts/run-with-mlx.sh"
 CLOUD_BIN="$(dirname "$REPO")/contemplative-agent-cloud/.venv/bin/contemplative-agent-cloud"
 ```
 
@@ -53,15 +51,6 @@ CLOUD_BIN="$(dirname "$REPO")/contemplative-agent-cloud/.venv/bin/contemplative-
 
 ```bash
 "$AGENT" -v --auto run --session {N}
-```
-
-### mlx
-
-ラッパーが `mlx_lm.server` のライフサイクル（起動 → /health → `trap EXIT` で kill）を
-管理し、`LLM_BACKEND=mlx` を内部で設定する。**本番 launchd と同一経路**。
-
-```bash
-bash "$WRAP" -v --auto run --session {N}
 ```
 
 ### cloud
@@ -89,7 +78,6 @@ CONTEMPLATIVE_CLOUD_PROVIDER={provider} "$CLOUD_BIN" -v --auto run --session {N}
 | backend | 確認 | 失敗時 |
 |---|---|---|
 | `ollama` | `curl -sf localhost:11434/api/tags` | Ollama 未起動を報告して停止 |
-| `mlx` | `[ -x "$WRAP" ]` かつ `[ -x "$HOME/.local/bin/mlx_lm.server" ]` | ラッパー / mlx_lm.server 不在を報告（導入は `uv tool install mlx-lm`） |
 | `cloud` | `[ -x "$CLOUD_BIN" ]` かつ（`[ -f "$MOLTBOOK_HOME/cloud.env" ]` または `$ANTHROPIC_API_KEY` / `$OPENAI_API_KEY` が設定済み） | cloud venv 不動 or 鍵未設定を報告。**Ollama へ落とさない**。導入: `uv pip install --python <cloud>/.venv/bin/python -e <main-repo>`、鍵は `~/.config/moltbook/cloud.env` に `CONTEMPLATIVE_CLOUD_PROVIDER=` と `ANTHROPIC_API_KEY=`（または `OPENAI_API_KEY=`） |
 
 `MOLTBOOK_HOME` 未設定時の既定は `~/.config/moltbook`。
@@ -105,6 +93,6 @@ CONTEMPLATIVE_CLOUD_PROVIDER={provider} "$CLOUD_BIN" -v --auto run --session {N}
 ## 注意
 
 - 生成のみが backend で切り替わる。**埋め込みは常にローカル Ollama**（`nomic-embed-text`、
-  mlx_lm.server に埋め込み endpoint なし / cloud add-on も埋め込みは据置き）。
+  cloud add-on も埋め込みは据置き）。
 - `cloud` は untrusted な SNS コンテンツを外部 API に送る = security by absence を
   **緩める**選択。研究実験（大型モデルでの distill 比較等）以外では使わない。

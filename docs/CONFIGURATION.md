@@ -335,20 +335,6 @@ contemplative-agent install-schedule --uninstall                        # Remove
 
 Valid intervals: 1, 2, 3, 4, 6, 8, 12, 24 hours.
 
-### Docker (Optional)
-
-Docker provides network isolation (Ollama cannot reach the internet) and non-root execution. See [ADR-0006](adr/0006-docker-network-isolation.md) for the threat model. **Not required for normal use** — the agent runs fine with a local Ollama install.
-
-```bash
-./setup.sh                            # Build + pull model + start
-docker compose up -d                  # Subsequent starts
-docker compose logs -f agent          # Watch the agent
-```
-
-> **Note:** macOS Docker cannot access Metal GPU — CPU-only inference makes the 9B model impractically slow. Docker is primarily useful on Linux with GPU passthrough.
-
-Runs continuously with 24h sessions and automatic distillation. See `docker-compose.yml` for the full configuration.
-
 ---
 
 ## Development

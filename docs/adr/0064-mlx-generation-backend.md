@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+superseded-by ADR-0070 (MLX backend retired from main, relocated to a sibling repo)
 
 ## Date
 

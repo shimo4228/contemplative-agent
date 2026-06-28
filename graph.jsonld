@@ -234,9 +234,10 @@
       "@type": ["ADR", "TechArticle"],
       "name": "ADR-0006: Docker Network Isolation",
       "identifier": "ADR-0006",
-      "status": "accepted",
+      "status": "superseded-by ADR-0070",
       "datePublished": "2026-03-14",
-      "description": "Optional containerized deployment with non-root execution and an isolated network namespace for the external surface. Local Ollama-on-host remains the default; Docker is an opt-in hardening layer."
+      "description": "Optional containerized deployment with non-root execution and an isolated network namespace for the external surface. Local Ollama-on-host remains the default; Docker is an opt-in hardening layer. Superseded by ADR-0070: Docker removed from main (recoverable by git revert).",
+      "supersededBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0070-retire-mlx-to-sibling-repo-and-remove-docker.md"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0007-security-boundary-model.md",
@@ -537,14 +538,15 @@
       "@type": ["ADR", "TechArticle"],
       "name": "ADR-0064: Route Generation Through a Local mlx_lm.server on Apple Silicon",
       "identifier": "ADR-0064",
-      "status": "accepted",
+      "status": "superseded-by ADR-0070",
       "datePublished": "2026-06-27",
       "description": "On the maintainer's M1/16GB host, qwen3.5:9b on Ollama (Metal/GGUF Q4_K_M, ~8.6GB resident) swaps and decodes slowly. A controlled same-host, same-weights benchmark (thinking off, temp 0, 256-tok cap, 3-run median; docs/evidence/adr-0064/) showed Apple's MLX runtime via mlx_lm.server runs ~1.8x faster (6.8-7.0 -> 12.1-12.7 tok/s) at ~3.4GB less memory (8.6GB -> 5.2GB); re-measuring Ollama under low swap still gave ~7 tok/s, so the gap is intrinsic to the runtime, not a swap artifact, and the smaller footprint is what relieves the 16GB swap pressure. Three constraints shape adoption: mlx_lm.server is generation-only (no embeddings endpoint, no token-constrained structured output / no Ollama format= equivalent); it has no Metal passthrough in Docker so it runs on the host, not the ADR-0006 isolated compose stack; and format= is used by exactly one call site (distill._distill_one, {patterns:[...]}) which already has a JSON->bullet fallback. Decision: add an opt-in MLX generation backend that routes GENERATION ONLY through a local mlx_lm.server, keeping embeddings on Ollama. (1) core/mlx_backend.py MlxLmBackend(LLMBackend) POSTs to {MLX_BASE_URL}/v1/chat/completions, maps the OpenAI body to a BackendResult, sets thinking off per request via chat_template_kwargs={enable_thinking:false}, and renders a format schema into a prompt instruction (the distill bullet fallback absorbs drift). (2) The LLMBackend Protocol is extended: generate() takes keyword temperature and returns Optional[BackendResult] (text+finish_reason+eval_count) instead of Optional[str], so the injected path honors per-call temperature (0.0 deterministic verification, 1.3 outward) and the CALLER (_generate_via_backend), not the backend, applies the drop_truncated fail-closed gate (audit M2) from finish_reason with the same circuit-success-on-deliberate-drop accounting as the Ollama path. (3) cli.py composition root injects MlxLmBackend when LLM_BACKEND=mlx; unset keeps the default Ollama path, so the switch reverts by clearing one env var. (4) Embeddings stay on Ollama (OLLAMA_BASE_URL, nomic-embed-text); the MLX host reuses the shared validate_trusted_url() SSRF allowlist (localhost:8080 passes, port is not part of the host check). Target topology = two host-local services: mlx_lm.server (generation, :8080, ~5.2GB) + Ollama (embeddings, :11434, ~0.3GB). mlx-lm is run via uvx/uv tool, not a project dependency (the agent only makes HTTP calls; pyproject stays requests+numpy). Hardening done in passing: validate_trusted_url now also rejects non-HTTP schemes and is shared by both transports; the Ollama path gained allow_redirects=False. Verified: the verification challenge solver (temp 0, drop_truncated, gates publishing) solves correctly end-to-end through MLX; 21 new tests; python+security review PASS (no CRITICAL/HIGH). Rejected: repoint OLLAMA_BASE_URL (breaks shared-URL embeddings), keep format-distill on Ollama as auto-fallback (deferred — distill-on-Ollama is the 8.6GB path that swaps hardest; env gate allows revert if pattern yield regresses), run mlx in a container (no Metal passthrough), make MLX the default (host/platform-specific; opt-in keeps zero-config Ollama everywhere). Adoption of distill-on-MLX is gated on a dry-run pattern-yield comparison vs the Ollama baseline; quality drift from non-identical quantization (Q4_K_M vs MLX 4bit) is out of scope (OptiQ-4bit is a follow-up).",
       "alignsWith": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0001-core-adapter-separation.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0006-docker-network-isolation.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0007-security-boundary-model.md"
-      ]
+      ],
+      "supersededBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0070-retire-mlx-to-sibling-repo-and-remove-docker.md"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0066-backend-aware-context-budget-guard.md",
@@ -565,11 +567,12 @@
       "@type": ["ADR", "TechArticle"],
       "name": "ADR-0065: Wire mlx_lm.server as an On-Demand launchd Job and Enforce a Served-Model-ID Contract on LLM Telemetry",
       "identifier": "ADR-0065",
-      "status": "partially-superseded-by ADR-0067",
+      "status": "partially-superseded-by ADR-0067 and ADR-0070",
       "datePublished": "2026-06-27",
       "description": "ADR-0064 deferred wiring mlx_lm.server into the production launchd jobs (agent.plist at 0/6/12/18h, distill.plist at 03:30). Two gaps were closed together. Gap 1: the LLM telemetry model field derived from a class-name sentinel (e.g. 'MlxLmBackend') rather than the real served model id, so operators could not trust which model served a call. Gap 2: process lifecycle — whether to run mlx_lm.server as a resident KeepAlive service or on demand. Decision: (1) generalize the telemetry model field into a served-model-id contract via a read-only model property on the LLMBackend Protocol (model = _backend.model if injected else _get_model(); MlxLmBackend already exposes model:str; commit 0f2b169). (2) run mlx_lm.server on demand via scripts/run-with-mlx.sh invoked from agent.plist/distill.plist ProgramArguments — polls /health (cold M1 load ~12s, 60s cap), runs the agent with LLM_BACKEND=mlx, kills the server via trap EXIT so its lifetime matches the job, with NO silent Ollama fallback — rather than a resident KeepAlive mlx-server.plist that would hold ~5.2GB idle all day and worsen idle memory vs the Ollama-default-unload baseline (commit 9f230d8). Partially superseded by ADR-0067: the launchd-wiring half was reverted to a direct contemplative-agent (Ollama) invocation on 2026-06-28 (commit b888840) after the 16GB production A/B showed mlx_lm.server is unfit for unattended continuous use; the served-model-id telemetry contract remains in effect and is the instrument that produced ADR-0067's evidence.",
       "partiallySupersededBy": [
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0067-keep-ollama-for-unattended-production.md"
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0067-keep-ollama-for-unattended-production.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0070-retire-mlx-to-sibling-repo-and-remove-docker.md"
       ],
       "alignsWith": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0064-mlx-generation-backend.md"
@@ -587,6 +590,19 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0064-mlx-generation-backend.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0066-backend-aware-context-budget-guard.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0007-security-boundary-model.md"
+      ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0070-retire-mlx-to-sibling-repo-and-remove-docker.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0070: Retire the MLX Backend to a Sibling Repo and Remove Docker from Main",
+      "identifier": "ADR-0070",
+      "status": "accepted",
+      "datePublished": "2026-06-28",
+      "description": "ADR-0067 found mlx_lm.server unfit for unattended production on 16GB Apple Silicon but kept the MLX backend opt-in in main (Decision #3). This ADR retires both MLX and Docker from main. MLX is structurally symmetric with the contemplative-agent-cloud add-on (both implement the LLMBackend Protocol), so it is relocated to a sibling contemplative-agent-mlx repo (follow-up): the in-tree LLM_BACKEND=mlx branch, core/mlx_backend.py, MLX scripts (serve-mlx.sh / run-with-mlx.sh), and tests are deleted, while the LLMBackend Protocol, configure(backend=...), the served-model-id telemetry contract (ADR-0065), and the context-budget guard (ADR-0066) are retained as the backend-neutral cloud injection seam. Docker is an infra wrapper, not a Protocol-injected backend, so its Dockerfile / docker-compose / docker-entrypoint / .dockerignore / setup.sh are removed outright, recoverable by git revert. Evidence (docs/evidence/adr-0064, adr-0067) and the apple-silicon-local-llm-serving skill are retained. Strengthens security-by-absence: the only in-tree generation path is Ollama; every alternative backend is opt-in and out-of-tree. core 25->24 modules.",
+      "supersedes": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0064-mlx-generation-backend.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0006-docker-network-isolation.md"
       ]
     },
     {

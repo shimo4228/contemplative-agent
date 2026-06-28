@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+superseded-by ADR-0070（MLX backend を main から退役し sibling repo へ移設）
 
 ## Date
 

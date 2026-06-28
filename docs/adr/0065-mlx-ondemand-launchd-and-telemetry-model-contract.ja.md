@@ -2,7 +2,7 @@
 
 ## Status
 
-partially-superseded-by ADR-0067（launchd 配線部分は supersede — `agent.plist` / `distill.plist` のオンデマンド mlx_lm.server 配線は 2026-06-28 に直接 Ollama へ revert された。served-model-id テレメトリ契約は存続）
+partially-superseded-by ADR-0067（launchd 配線部分は supersede — `agent.plist` / `distill.plist` のオンデマンド mlx_lm.server 配線は 2026-06-28 に直接 Ollama へ revert された。served-model-id テレメトリ契約は存続）。MLX backend 参照は ADR-0070 でさらに supersede（MLX を main から sibling repo へ退役）
 
 ## Date
 

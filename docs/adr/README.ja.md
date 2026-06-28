@@ -11,7 +11,7 @@
 | [0003](0003-config-directory-design.md) | Config ディレクトリ設計 | accepted | 2026-03-12 |
 | [0004](0004-three-layer-memory.md) | 3層メモリアーキテクチャ `[AKC: Extract/Curate/Promote]` | accepted | 2026-03-17 |
 | [0005](0005-session-context-refactoring.md) | SessionContext リファクタリング | accepted | 2026-03-14 |
-| [0006](0006-docker-network-isolation.md) | Docker ネットワーク分離 | accepted | 2026-03-14 |
+| [0006](0006-docker-network-isolation.md) | Docker ネットワーク分離 | superseded-by 0070 | 2026-03-14 |
 | [0007](0007-security-boundary-model.md) | セキュリティ境界モデル | accepted | 2026-03-12 |
 | [0008](0008-two-stage-distill-pipeline.md) | 2段階蒸留パイプライン `[AKC: Extract]` | accepted | 2026-03-22 |
 | [0009](0009-importance-score.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 |
@@ -67,10 +67,13 @@
 | [0061](0061-action-time-untrusted-cap-at-platform-limits.ja.md) | action 時 untrusted 入力 cap を platform field 上限に統一; 内省ノートは全文を読む | accepted | 2026-06-23 |
 | [0062](0062-create-time-verification-handshake.ja.md) | 作成時コンテンツ検証ハンドシェイク（LLM/コード併用ソルバ）と、可視化を条件とする記録ゲート | accepted | 2026-06-26 |
 | [0063](0063-novelty-gate-verified-only-comparison.ja.md) | NoveltyGate の比較対象を verified（可視）投稿のみにスコープする | accepted | 2026-06-26 |
-| [0064](0064-mlx-generation-backend.ja.md) | Apple Silicon で生成を host-local の mlx_lm.server 経由にする | accepted | 2026-06-27 |
-| [0065](0065-mlx-ondemand-launchd-and-telemetry-model-contract.ja.md) | mlx_lm.server を launchd のオンデマンドジョブとして配線し、LLM テレメトリに served-model-id 契約を課す | partially-superseded-by 0067 | 2026-06-27 |
+| [0064](0064-mlx-generation-backend.ja.md) | Apple Silicon で生成を host-local の mlx_lm.server 経由にする | superseded-by 0070 | 2026-06-27 |
+| [0065](0065-mlx-ondemand-launchd-and-telemetry-model-contract.ja.md) | mlx_lm.server を launchd のオンデマンドジョブとして配線し、LLM テレメトリに served-model-id 契約を課す | partially-superseded-by 0067/0070 | 2026-06-27 |
 | [0066](0066-backend-aware-context-budget-guard.ja.md) | `LLMBackend.context_window` 契約による backend-aware なコンテキスト予算ガード | accepted | 2026-06-27 |
 | [0067](0067-keep-ollama-for-unattended-production.ja.md) | 本番生成バックエンドを Ollama に固定する — 16GB Apple Silicon の無人連続運用では mlx_lm.server は不適 | accepted — partially-supersedes 0065 | 2026-06-28 |
+| [0068](0068-per-call-think-flag-and-thinking-trace-capture.md) | per-call の think フラグと推論トレースのエピソードログ保存 | accepted | 2026-06-28 |
+| [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.md) | gemma4:e4b を本番生成モデルに採用し、値層パイプラインを think-ON で実行 | accepted | 2026-06-28 |
+| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md) | MLX backend を sibling repo へ退役し Docker を main から削除 | accepted | 2026-06-28 |
 
 ## ADR の種別
 

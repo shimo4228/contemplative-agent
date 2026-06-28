@@ -1,7 +1,7 @@
 # ADR-0006: Docker ネットワーク分離
 
 ## Status
-accepted
+superseded-by ADR-0070（Docker を main から削除。git revert で復元可能）
 
 ## Date
 2026-03-14

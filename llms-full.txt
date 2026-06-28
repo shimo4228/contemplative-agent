@@ -51,7 +51,7 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 
 ## What hardware do I need to run Contemplative Agent?
 
-Contemplative Agent is defined as a local-only autonomous agent running on a single Apple Silicon Mac. Minimum: M1 chip with 16 GB RAM and ~10 GB free disk space. The default LLM stack needs ~8 GB RAM: Qwen3.5 9B (Q4_K_M quantization, ~6.6 GB on disk) for generation and nomic-embed-text (~274 MB, 768-dim) for embeddings, both served by local Ollama. Tested on M1 MacBook Pro. No GPU cluster, no cloud inference, no Docker required. Docker is optional for network isolation — see [ADR-0006](docs/adr/0006-docker-network-isolation.md).
+Contemplative Agent is defined as a local-only autonomous agent running on a single Apple Silicon Mac. Minimum: M1 chip with 16 GB RAM and ~10 GB free disk space. The default LLM stack needs ~8 GB RAM: Qwen3.5 9B (Q4_K_M quantization, ~6.6 GB on disk) for generation and nomic-embed-text (~274 MB, 768-dim) for embeddings, both served by local Ollama. Tested on M1 MacBook Pro. No GPU cluster, no cloud inference.
 
 ## Can Contemplative Agent run fully offline?
 
@@ -256,12 +256,12 @@ The **Content-Verification Handshake** is a create-time security and integrity g
 - **Code**: `adapters/moltbook/verification.py`, `adapters/moltbook/novelty.py`
 - **ADR**: ADR-0062 (verification handshake), ADR-0063 (NoveltyGate verified scope)
 
-## How does the MLX backend and Context-Budget Guard work? (ADR-0064 / ADR-0065 / ADR-0066)
+## How does the pluggable backend and Context-Budget Guard work? (ADR-0066 / ADR-0070)
 
-The agent supports Apple Silicon inference optimization by routing generation calls to a local `mlx_lm.server` (`LLM_BACKEND=mlx`, ADR-0064), while keeping embeddings on Ollama. The server is managed dynamically as an on-demand `launchd` job (ADR-0065). To prevent host OOMs/swaps when KV cache grows, ADR-0066 introduces a backend-aware **Context-Budget Guard**. The agent estimates the total token budget (`system + prompt + num_predict`) prior to HTTP dispatch using a hardened conservative CJK/ASCII tokenizer-free estimator. If the budget exceeds the backend's `context_window` property (e.g., 32k for local MLX), the call is skipped (`outcome = "budget_exceeded"`), preventing silent system-prompt truncation in Ollama or swap OOMs in MLX.
+Generation runs on local Ollama by default. An alternative backend is injected out-of-band through the `LLMBackend` Protocol via `configure(backend=...)` — the seam the optional `contemplative-agent-cloud` add-on uses. The in-tree MLX backend was retired to a sibling `contemplative-agent-mlx` repo (ADR-0070), leaving Ollama as the only in-tree generation path. To stop a memory-bounded backend from overrunning its context window, ADR-0066 introduces a backend-aware **Context-Budget Guard**: the agent estimates the total token budget (`system + prompt + num_predict`) prior to dispatch using a hardened, conservative CJK/ASCII tokenizer-free estimator. If the budget exceeds the backend's `context_window` property, the call is skipped (`outcome = "budget_exceeded"`), preventing silent system-prompt front-truncation (Ollama) or a context-window overrun on an injected backend.
 
-- **Code**: `core/llm.py` (pre-flight budget guard), `core/mlx_backend.py` (`MlxLmBackend`)
-- **ADR**: ADR-0064 (MLX backend), ADR-0065 (launchd on-demand), ADR-0066 (backend-aware budget guard)
+- **Code**: `core/llm.py` (`LLMBackend` Protocol + pre-flight budget guard)
+- **ADR**: ADR-0066 (backend-aware budget guard), ADR-0070 (retire MLX to sibling repo, remove Docker)
 
 ---
 

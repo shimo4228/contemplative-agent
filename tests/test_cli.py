@@ -2,7 +2,6 @@
 
 import json
 import logging
-import os
 from pathlib import Path
 from typing import Literal
 from unittest.mock import MagicMock, patch
@@ -158,25 +157,6 @@ class TestMainRun:
         assert meta["llm_backend"] == "ollama"
         assert meta["llm_model"] == "qwen3.5:9b"
         assert meta["ollama_model"] == "qwen3.5:9b"
-
-    @patch("contemplative_agent.cli.configure_llm")
-    @patch("contemplative_agent.cli.Agent")
-    def test_run_mlx_session_meta(self, mock_agent_cls, _mock_configure):
-        mock_agent = MagicMock()
-        mock_agent_cls.return_value = mock_agent
-
-        with patch.dict(
-            "os.environ",
-            {"LLM_BACKEND": "mlx", "MLX_MODEL": "local-mlx-model"},
-            clear=False,
-        ):
-            with patch("sys.argv", ["contemplative-agent", "run"]):
-                main()
-
-        meta = mock_agent.run_session.call_args[1]["session_meta"]
-        assert meta["llm_backend"] == "mlx"
-        assert meta["llm_model"] == "local-mlx-model"
-        assert "ollama_model" not in meta
 
     @patch("contemplative_agent.cli.Agent")
     def test_run_custom_duration(self, mock_agent_cls):
@@ -349,10 +329,8 @@ class TestInstallSchedule:
         assert plist_path.exists()
         content = plist_path.read_text()
         assert "<string>120</string>" in content
-        # Ollama revert (commit b888840 / ADR-0067): the agent plist invokes the
-        # contemplative-agent binary directly via caffeinate, not the opt-in MLX
-        # wrapper script.
-        assert "scripts/run-with-mlx.sh" not in content
+        # The agent plist invokes the contemplative-agent binary directly via
+        # caffeinate (commit b888840 / ADR-0067).
         assert "/contemplative-agent" in content
         assert "{{VENV_BIN}}/contemplative-agent" not in content
         # Verify all placeholders were replaced
@@ -421,9 +399,8 @@ class TestInstallDistillSchedule:
         assert plist_path.exists()
         content = plist_path.read_text()
         assert "distill" in content
-        # Ollama revert (commit b888840 / ADR-0067): distill plist invokes the
-        # contemplative-agent binary directly, not the opt-in MLX wrapper script.
-        assert "scripts/run-with-mlx.sh" not in content
+        # The distill plist invokes the contemplative-agent binary directly
+        # (commit b888840 / ADR-0067).
         assert "/contemplative-agent" in content
         assert "{{VENV_BIN}}/contemplative-agent" not in content
         assert "<integer>3</integer>" in content
@@ -508,23 +485,6 @@ class TestInstallScheduleCommand:
         with patch("sys.argv", ["contemplative-agent", "install-schedule", "--session", "0"]):
             with pytest.raises(SystemExit):
                 main()
-
-
-class TestRunWithMlxScript:
-    def test_script_checks_served_model_before_reuse(self):
-        script = Path("scripts/run-with-mlx.sh").read_text(encoding="utf-8")
-        assert "/v1/models" in script
-        assert "grep -Fx -- \"$MODEL\"" in script
-        assert "unexpected model" in script
-
-    def test_script_only_kills_server_it_started(self):
-        script = Path("scripts/run-with-mlx.sh").read_text(encoding="utf-8")
-        assert "STARTED_MLX=1" in script
-        assert "kill \"$MLX_PID\"" in script
-
-    def test_script_exports_base_url_from_port(self):
-        script = Path("scripts/run-with-mlx.sh").read_text(encoding="utf-8")
-        assert "export MLX_BASE_URL=\"http://localhost:$PORT\"" in script
 
 
 class TestNoAxiomsFlag:
@@ -2598,44 +2558,24 @@ class TestApprovalLineageADR0050:
 class TestStocktakeRuntimeRouting:
     """M1 (review 2026-06-27): stocktake commands previously sat in
     ``no_llm_handlers`` and returned before any LLM setup, so per-call
-    telemetry and ``LLM_BACKEND=mlx`` backend injection were silently skipped
-    (it only "worked" because Ollama is the default). They now route through a
-    Tier 1.5 runtime path that applies telemetry + backend WITHOUT loading the
-    skills/rules/axioms corpus (stocktake passes its own system prompts)."""
+    telemetry was silently skipped (it only "worked" because Ollama is the
+    default). They now route through a Tier 1.5 runtime path that applies
+    telemetry WITHOUT loading the skills/rules/axioms corpus (stocktake passes
+    its own system prompts)."""
 
     @patch("contemplative_agent.cli._handle_skill_stocktake")
     @patch("contemplative_agent.cli.configure_llm")
-    def test_skill_stocktake_applies_telemetry_and_mlx_backend(
-        self, mock_configure, mock_handler
-    ):
+    def test_skill_stocktake_applies_telemetry(self, mock_configure, mock_handler):
         with patch("sys.argv", ["contemplative-agent", "skill-stocktake"]):
-            with patch.dict(os.environ, {"LLM_BACKEND": "mlx"}, clear=False):
-                main()
+            main()
         mock_handler.assert_called_once()
         kwargs_list = [c.kwargs for c in mock_configure.call_args_list]
         # telemetry applied
         assert any("telemetry_dir" in kw for kw in kwargs_list)
-        # LLM_BACKEND=mlx honored — no silent Ollama divergence
-        assert any(kw.get("backend") is not None for kw in kwargs_list)
         # clean prompt environment: corpus NOT loaded
         assert not any("skills_dir" in kw for kw in kwargs_list)
         assert not any("rules_dir" in kw for kw in kwargs_list)
         assert not any("axiom_prompt" in kw for kw in kwargs_list)
-
-    @patch("contemplative_agent.cli._handle_skill_stocktake")
-    @patch("contemplative_agent.cli.configure_llm")
-    def test_skill_stocktake_no_backend_when_env_unset(
-        self, mock_configure, mock_handler
-    ):
-        env = {k: v for k, v in os.environ.items() if k != "LLM_BACKEND"}
-        with patch("sys.argv", ["contemplative-agent", "skill-stocktake"]):
-            with patch.dict(os.environ, env, clear=True):
-                main()
-        mock_handler.assert_called_once()
-        kwargs_list = [c.kwargs for c in mock_configure.call_args_list]
-        assert any("telemetry_dir" in kw for kw in kwargs_list)
-        # No env → default Ollama path, no backend injected.
-        assert not any(kw.get("backend") is not None for kw in kwargs_list)
 
     @patch("contemplative_agent.cli._handle_rules_stocktake")
     @patch("contemplative_agent.cli.configure_llm")

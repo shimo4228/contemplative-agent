@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-20 | Files scanned: 25 core modules | Token estimate: ~2053 -->
+<!-- Generated: 2026-06-20 | Files scanned: 24 core modules | Token estimate: ~2053 -->
 # Core Modules Codemap
 
 Platform-independent foundation (no Moltbook dependencies). All imports flow: adapters → core.
@@ -12,7 +12,6 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `domain.py` | 362 | `DomainConfig`, `PromptTemplates` (reads `MOLTBOOK_HOME/prompts/` overrides with packaged fallback), constitution loader |
 | `prompts.py` | ~70 | Lazy-load proxy to `config/prompts/*.md` + placeholder resolution |
 | `llm.py` | 1049 | Ollama interface + `LLMBackend` Protocol (pluggable, returns `BackendResult`, keyword `temperature`/`think`, `model`/`context_window` properties), circuit breaker, sanitization, `drop_truncated` gate, per-call `think` flag + reasoning-trace capture (`generate_for_api` returns `GenerationOutput(text, thinking)`), backend-aware context-budget pre-flight (audit C2, ADR-0066), `validate_trusted_url` SSRF guard; `_build_system_prompt` reads identity.md as single blob (ADR-0030) |
-| `mlx_backend.py` | 138 | `MlxLmBackend(LLMBackend)` — routes generation to host-local mlx_lm.server (OpenAI `/v1/chat/completions`) when `LLM_BACKEND=mlx` (ADR-0064); thinking-off per request, `format`→prompt instruction, `context_window=32768` memory-bounded budget cap (ADR-0066) |
 | `clustering.py` | ~115 | Average-linkage cosine agglomerative clustering (numpy-only). Used by `insight` and `rules_distill` |
 | `embeddings.py` | 107 | Ollama `/api/embed` wrapper (nomic-embed-text), `cosine`, `embed_one`, `embed_texts` |
 | `episode_embeddings.py` | 162 | `EpisodeEmbeddingStore` — SQLite sidecar for episode vectors (ADR-0019) |
@@ -35,7 +34,7 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 
 **Note**: `forgetting.py` was deleted (ADR-0051); `is_live` moved to `knowledge_store.py`.
 
-**Total: ~6006 LOC (24 modules)**
+**Total: ~7141 LOC (24 modules)**
 
 ## Key Dataclasses
 

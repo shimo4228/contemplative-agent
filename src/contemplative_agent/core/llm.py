@@ -48,7 +48,7 @@ NUM_CTX = 32768  # Ollama context window (input + output share it). audit C2.
 # Fixed sampling policy shared by EVERY backend (single source of truth). The
 # per-call temperature flows through LLMBackend.generate(); top_p/top_k are the
 # fixed nucleus + top-k clip applied identically on the built-in Ollama path
-# and every injected backend (e.g. core/mlx_backend.py, which imports these).
+# and every injected backend (which imports these).
 # Defined once so the backends cannot drift: a backend that silently omits
 # these lets high-temperature generation (e.g. COMMENT_TEMPERATURE=1.3)
 # degenerate into repetition loops that never emit EOS and run to num_predict.
@@ -107,10 +107,9 @@ class LLMBackend(Protocol):
     """Pluggable generation backend.
 
     Default (``_backend = None``) uses the built-in Ollama HTTP path. An
-    external package (e.g. ``contemplative-agent-cloud``) or the in-repo
-    ``MlxLmBackend`` can inject a backend implementation via
-    ``configure(backend=...)`` to route generation through a different
-    provider. Sanitization, circuit breaker, truncation gating, and
+    external package (e.g. ``contemplative-agent-cloud``) can inject a backend
+    implementation via ``configure(backend=...)`` to route generation through a
+    different provider. Sanitization, circuit breaker, truncation gating, and
     untrusted-content wrapping remain in this module and apply uniformly
     regardless of backend.
     """
@@ -129,11 +128,9 @@ class LLMBackend(Protocol):
     def context_window(self) -> int:
         """Effective input+output token budget for the pre-flight guard
         (audit C2) — the ceiling the host can actually serve, NOT the model's
-        native window. For the in-repo ``MlxLmBackend`` this is memory-bounded
-        on the 16 GB host (~32k): mlx_lm.server has no context flag (issue
-        #615) and grows the KV cache until the host swaps/OOMs past it, well
-        under Qwen3.5-9B's 262k native window. A cloud backend reports its
-        provider's real context limit. Declared here so pyright nudges every
+        native window. A cloud backend reports its provider's real context
+        limit; a memory-bounded local backend reports the ceiling the host can
+        actually serve. Declared here so pyright nudges every
         backend to supply it; the guard still tolerates its absence (the
         caller falls back to None and skips the check), so a not-yet-updated
         external backend keeps delegating unguarded."""
@@ -490,7 +487,7 @@ def _build_system_prompt() -> str:
     return base_prompt
 
 
-# Unqualified hostname pattern: Docker service names like "ollama", no dots allowed.
+# Unqualified hostname pattern: a bare service host (no dots) like a LAN Ollama.
 # This prevents adding public domains (e.g. "evil.com") to the trusted list.
 _SIMPLE_HOSTNAME_RE = re.compile(r"^[a-zA-Z0-9][a-zA-Z0-9\-]{0,62}$")
 
@@ -511,12 +508,11 @@ def validate_trusted_url(url: str, *, source: str) -> str:
     """Return *url* unchanged if its host is trusted; raise ValueError else.
 
     Shared SSRF guard for every local LLM transport (Ollama generation +
-    embeddings via ``OLLAMA_BASE_URL``, and the MLX backend via
-    ``MLX_BASE_URL``). Trust set = localhost ∪ ``OLLAMA_TRUSTED_HOSTS``.
-    ``OLLAMA_TRUSTED_HOSTS`` is a trust-escalation mechanism that extends
-    the localhost-only default to Docker service names (e.g. "ollama");
-    only unqualified hostnames (no dots) are accepted, so arbitrary public
-    domains cannot be added. The port is not part of the host check, so a
+    embeddings via ``OLLAMA_BASE_URL``). Trust set = localhost ∪
+    ``OLLAMA_TRUSTED_HOSTS``. ``OLLAMA_TRUSTED_HOSTS`` is a trust-escalation
+    mechanism that extends the localhost-only default to an unqualified
+    service host (e.g. a remote Ollama on the LAN); only unqualified hostnames
+    (no dots) are accepted, so arbitrary public domains cannot be added. The port is not part of the host check, so a
     second local service on another port (e.g. localhost:8080) is allowed
     without configuration. ``source`` names the offending setting in the
     error so misconfig is diagnosable.
@@ -650,8 +646,8 @@ def _estimate_tokens(text: str) -> int:
     denser than prose's ~4 — ~0.33 tok/char ≥ real ~0.25); non-ASCII/CJK at
     2 tok/char (Qwen3.5 real is ~1.5-2, so 2 is the upper bound). Counting CJK
     at 1 tok/char would UNDER-estimate by 33-50% and let a CJK-heavy prompt
-    slip past the guard into Ollama front-truncation or mlx_lm.server KV-cache
-    OOM — the exact failures the guard prevents. The project ships only
+    slip past the guard into Ollama front-truncation — the exact failure the
+    guard prevents. The project ships only
     requests+numpy, so no real tokenizer is available; over-estimating is the
     safe direction for a skip guard.
     """
@@ -733,8 +729,8 @@ def generate(
     estimated input + ``num_predict`` would exceed the backend's context
     window (``NUM_CTX`` on the Ollama path, ``LLMBackend.context_window``
     for an injected backend that declares one) — audit C2: skip rather than
-    front-truncate the value layer (Ollama) or grow the KV cache to OOM
-    (mlx_lm.server).
+    front-truncate the value layer (Ollama) or overrun an injected backend's
+    context window.
 
     If an ``LLMBackend`` was injected via ``configure(backend=...)``, the
     raw generation is delegated to it; otherwise the built-in Ollama HTTP
@@ -839,8 +835,8 @@ def _generate_full(
         "prompt_eval_count": None,
         "eval_count": None,
         # Cache-hit accounting: cached_tokens / prompt_eval_count is the
-        # per-call prompt-cache hit rate. Populated on the MLX path (from
-        # mlx_lm.server usage); None on the Ollama path (no cache reporting).
+        # per-call prompt-cache hit rate. Populated by backends that report a
+        # prompt cache; None on the Ollama path (no cache reporting).
         "cached_tokens": None,
     }
     started = time.monotonic()
@@ -887,10 +883,10 @@ def _generate_impl(
     # (unknown window) falls back to None and is left unguarded, so a
     # not-yet-updated external backend still delegates. Over-budget input is
     # skipped, not sent: Ollama would silently front-truncate the system
-    # prompt's value layer (identity/axioms) first; mlx_lm.server (no context
-    # flag, issue #615) would instead grow the KV cache until the host
-    # swaps/OOMs. Skip, don't substitute — caller-input pathology, not a
-    # backend fault, so the circuit breaker is left untouched.
+    # prompt's value layer (identity/axioms) first, and a memory-bounded
+    # injected backend could instead overrun its context window. Skip, don't
+    # substitute — caller-input pathology, not a backend fault, so the circuit
+    # breaker is left untouched.
     ctx_window = (
         getattr(_backend, "context_window", None)
         if _backend is not None
@@ -993,12 +989,12 @@ def _generate_via_backend(
     tel["done_reason"] = result.finish_reason
     if isinstance(result.eval_count, int):
         tel["eval_count"] = result.eval_count
-    # Prefill accounting (mlx_lm.server usage): record total input tokens
-    # under the same prompt_eval_count field NAME the Ollama path uses — both
-    # are total input today (Ollama has no prompt KV cache to make the two
-    # diverge) — and prompt-cache hits separately. cached_tokens /
-    # prompt_eval_count is the cache-hit rate that distinguishes a cache-churn
-    # slowdown from a memory-pressure cliff.
+    # Prefill accounting: record total input tokens under the same
+    # prompt_eval_count field NAME the Ollama path uses — both are total input
+    # today (Ollama has no prompt KV cache to make the two diverge) — and
+    # prompt-cache hits separately. cached_tokens / prompt_eval_count is the
+    # cache-hit rate that distinguishes a cache-churn slowdown from a
+    # memory-pressure cliff.
     if isinstance(result.prompt_tokens, int):
         tel["prompt_eval_count"] = result.prompt_tokens
     if isinstance(result.cached_tokens, int):

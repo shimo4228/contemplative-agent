@@ -2,9 +2,9 @@
 # Architecture
 
 ## Project Type
-Python CLI agent: core/adapter separation + 3-layer memory + embedding views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal (ADR-0021) + trust retirement (ADR-0051). Generation pluggable via `LLMBackend` Protocol (default: Ollama; in-repo MLX backend via `LLM_BACKEND=mlx`, ADR-0064; add-on: `contemplative-agent-cloud`).
+Python CLI agent: core/adapter separation + 3-layer memory + embedding views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal (ADR-0021) + trust retirement (ADR-0051). Generation pluggable via `LLMBackend` Protocol (default: Ollama; add-on: `contemplative-agent-cloud`).
 
-**Stats**: 45 non-`__init__` modules (51 total `.py`), ~15062 LOC, 1462 tests collected / 38 test files
+**Stats**: 45 non-`__init__` modules (51 total `.py`), ~15520 LOC, 1479 tests collected / 37 test files
 
 ## System Diagram
 
@@ -28,12 +28,10 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
       dedup  novelty  feed_seeder
     adapters/meditation/  (4 modules, experimental)  config  pomdp  meditate  report
     adapters/dialogue/  (1 module)  peer.py
-    cli.py  (composition root, 2024L)
+    cli.py  (composition root, 2346L)
          |                       |
     Moltbook API            Ollama (local default)
-    60GET/30POST/min        qwen3.5:9b + nomic-embed-text (768-dim)
-                            gen → mlx_lm.server :8080 when LLM_BACKEND=mlx (ADR-0064);
-                            embeddings always Ollama :11434
+    60GET/30POST/min        gemma4:e4b + nomic-embed-text (768-dim) :11434
 ```
 
 ## Import Rule
@@ -43,7 +41,7 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
 `contemplative-agent init [--template NAME]` copies every runtime Markdown from `config/` into `MOLTBOOK_HOME`. Template-derived: `constitution/`, `skills/`, `rules/`. Shared: `prompts/`, `views/`. Existing dirs never overwritten.
 
 ## LLM Backend
-`core/llm.py` `LLMBackend` Protocol: `generate(prompt, system, num_predict, format, *, temperature)` → `Optional[BackendResult]` (`text` + `finish_reason` + `eval_count`), plus read-only `model` (served id, ADR-0065) and `context_window` (token ceiling, ADR-0066) properties. Module-level `_backend` slot set via `configure(backend=...)`. Sanitization, circuit breaker, and the `drop_truncated` truncation gate (from `finish_reason`) are applied by the **caller** (`_generate_via_backend`), uniformly across backends. A backend-aware context-budget pre-flight (`_generate_impl`, before dispatch; audit C2) skips the call when est `system+prompt+num_predict` exceeds the backend's `context_window` (`NUM_CTX` on the Ollama path; a backend omitting the property is unguarded) — Ollama would front-truncate the value layer, mlx_lm.server would grow the KV cache to OOM. Default `_backend=None` → built-in Ollama HTTP path. In-repo `core/mlx_backend.py` `MlxLmBackend` routes generation to a host-local mlx_lm.server (OpenAI `/v1/chat/completions`) when `LLM_BACKEND=mlx` (ADR-0064); embeddings stay on Ollama. SSRF allowlist shared via `validate_trusted_url()`.
+`core/llm.py` `LLMBackend` Protocol: `generate(prompt, system, num_predict, format, *, temperature)` → `Optional[BackendResult]` (`text` + `finish_reason` + `eval_count`), plus read-only `model` (served id, ADR-0065) and `context_window` (token ceiling, ADR-0066) properties. Module-level `_backend` slot set via `configure(backend=...)`. Sanitization, circuit breaker, and the `drop_truncated` truncation gate (from `finish_reason`) are applied by the **caller** (`_generate_via_backend`), uniformly across backends. A backend-aware context-budget pre-flight (`_generate_impl`, before dispatch; audit C2) skips the call when est `system+prompt+num_predict` exceeds the backend's `context_window` (`NUM_CTX` on the Ollama path; a backend omitting the property is unguarded) — Ollama would front-truncate the value layer, a memory-bounded injected backend would overrun its window. Default `_backend=None` → built-in Ollama HTTP path; an add-on (e.g. `contemplative-agent-cloud`) injects an alternative via `configure(backend=...)`. SSRF allowlist shared via `validate_trusted_url()`.
 
 ## Immutability
 All DTOs `frozen=True`. Required by approval-gate diff pipeline and bitemporal invariants.
@@ -90,7 +88,7 @@ CLI → Agent.run_session(autonomy_level, session_mins)
 Embedding stays `nomic-embed-text` (`OLLAMA_EMBEDDING_MODEL`), generation-only.
 
 **Reasoning trace (`think`)**: a per-call `think` flag (default False; toggles
-Ollama `think` / MLX `enable_thinking`) requests the model's reasoning trace,
+Ollama `think`) requests the model's reasoning trace,
 secret-scrubbed but never published. Two regimes (ADR-0068, ADR-0069):
 - *Autonomous content paths* (comment / reply / cooperation post) and the
   scheduled `distill` stay **think-OFF** (latency / stability). When a caller
@@ -289,5 +287,4 @@ Pivot Snapshots  MOLTBOOK_HOME/snapshots/{cmd}_{ts}/
 
 ## Entry Points
 - `contemplative-agent` → `contemplative_agent.cli:main`
-- `docker compose up` → entrypoint loop with auto-distill
 - Tests: `pytest tests/ -v`

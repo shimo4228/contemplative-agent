@@ -570,36 +570,21 @@ def _do_init(template_name: str = "contemplative") -> None:
 
 
 def _configure_llm_runtime() -> None:
-    """Apply per-call telemetry and the opt-in MLX backend (review 2026-06-27 M1).
+    """Apply per-call telemetry shared by full and Tier 1.5 command setup.
 
     Shared by full command setup (``_configure_llm_and_domain``) and the Tier
-    1.5 stocktake path so telemetry and ``LLM_BACKEND=mlx`` routing apply
-    consistently. Deliberately does NOT load skills/rules/axioms: stocktake
-    passes its own explicit system prompts and must keep a clean prompt
-    environment, so this runtime config is the subset that is always safe.
+    1.5 stocktake path so telemetry applies consistently. Deliberately does NOT
+    load skills/rules/axioms: stocktake passes its own explicit system prompts
+    and must keep a clean prompt environment, so this runtime config is the
+    subset that is always safe.
 
-    Opt-in MLX: route generation (not embeddings) through a local mlx_lm.server
-    when LLM_BACKEND=mlx. On Apple Silicon this is ~1.8x faster and ~3.4 GB
-    lighter than Ollama for the same Qwen3.5 9B weights (ADR-0064). Unset or any
-    other value keeps the default Ollama generation path, so the switch reverts
-    by clearing one env var. Embeddings always stay on Ollama via
-    OLLAMA_BASE_URL — mlx_lm.server has no embeddings endpoint.
+    Generation runs on the default Ollama path. An external package (e.g.
+    ``contemplative-agent-cloud``) injects an alternative backend out-of-band
+    via ``configure(backend=...)`` through the ``LLMBackend`` protocol;
+    embeddings always stay on Ollama via ``OLLAMA_BASE_URL``.
     """
     # Per-call telemetry (llm-calls-{date}.jsonl) alongside the episode log.
     configure_llm(telemetry_dir=EPISODE_LOG_DIR)
-
-    if os.environ.get("LLM_BACKEND", "").strip().lower() == "mlx":
-        from .core.mlx_backend import MlxLmBackend
-
-        mlx_base_url = os.environ.get("MLX_BASE_URL", "http://localhost:8080")
-        mlx_model = os.environ.get("MLX_MODEL", "mlx-community/Qwen3.5-9B-4bit")
-        configure_llm(backend=MlxLmBackend(base_url=mlx_base_url, model=mlx_model))
-        logger.info(
-            "LLM_BACKEND=mlx: generation routed to mlx_lm.server (%s, model=%s); "
-            "embeddings remain on Ollama.",
-            mlx_base_url,
-            mlx_model,
-        )
 
 
 def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
@@ -631,24 +616,15 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
 def _llm_session_meta() -> dict[str, str]:
     """Return backend/model metadata for the session start episode.
 
-    Per-call telemetry records the exact served model on every request. The
-    session-level metadata is coarser but must still name the selected
-    generation backend so daily reports do not call an MLX run "Ollama".
+    Per-call telemetry records the exact served model on every request via the
+    ``LLMBackend.model`` contract. The session-level metadata is coarser and
+    names the default Ollama generation backend.
     """
-    backend = os.environ.get("LLM_BACKEND", "").strip().lower()
-    if backend == "mlx":
-        return {
-            "llm_backend": "mlx",
-            "llm_model": os.environ.get(
-                "MLX_MODEL", "mlx-community/Qwen3.5-9B-4bit"
-            ),
-        }
     return {
         "llm_backend": "ollama",
         "llm_model": os.environ.get("OLLAMA_MODEL", "qwen3.5:9b"),
-        # Legacy field retained only for default Ollama sessions so older
-        # report consumers that know this key keep working without making MLX
-        # sessions look like Ollama generation.
+        # Legacy field retained so older report consumers that know this key
+        # keep working.
         "ollama_model": os.environ.get("OLLAMA_MODEL", "qwen3.5:9b"),
     }
 
@@ -2325,12 +2301,12 @@ def main() -> None:
         handler(args, parser)
         return
 
-    # Tier 1.5: LLM commands that need per-call telemetry + backend routing but
-    # NOT the skills/rules/axioms corpus (review 2026-06-27 M1). Stocktake calls
+    # Tier 1.5: LLM commands that need per-call telemetry but NOT the
+    # skills/rules/axioms corpus (review 2026-06-27 M1). Stocktake calls
     # generate() with its own explicit system prompts, so loading the corpus
     # would pollute its prompt environment; routing here (instead of the old
-    # no_llm_handlers slot) makes LLM_BACKEND=mlx and telemetry apply instead of
-    # silently defaulting to Ollama with no telemetry.
+    # no_llm_handlers slot) makes telemetry apply instead of silently running
+    # with no telemetry.
     llm_runtime_only_handlers: dict[str, Callable[..., None]] = {
         "skill-stocktake": _handle_skill_stocktake,
         "rules-stocktake": _handle_rules_stocktake,

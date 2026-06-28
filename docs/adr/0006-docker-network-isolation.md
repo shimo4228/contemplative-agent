@@ -1,7 +1,7 @@
 # ADR-0006: Docker Network Isolation
 
 ## Status
-accepted
+superseded-by ADR-0070 (Docker removed from main; recoverable by git revert)
 
 ## Date
 2026-03-14

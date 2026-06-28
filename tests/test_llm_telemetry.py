@@ -93,7 +93,7 @@ class TestTelemetryOkPath:
         assert record["prompt_eval_count"] == 10
         assert record["eval_count"] == 5
         # Ollama does not report prompt-cache hits; the field exists (parity
-        # with the MLX path) but stays None on this path.
+        # with backends that do) but stays None on this path.
         assert record["cached_tokens"] is None
         assert isinstance(record["duration_ms"], int)
 

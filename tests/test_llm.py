@@ -212,7 +212,9 @@ class TestOllamaUrlValidation:
         monkeypatch.setenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
         assert _get_ollama_url() == "http://127.0.0.1:11434"
 
-    def test_trusted_hosts_allows_docker_service(self, monkeypatch):
+    def test_trusted_hosts_allows_unqualified_hostname(self, monkeypatch):
+        # Trust-escalation to a bare service host (no dots), e.g. a remote
+        # Ollama on the LAN.
         monkeypatch.setenv("OLLAMA_BASE_URL", "http://ollama:11434")
         monkeypatch.setenv("OLLAMA_TRUSTED_HOSTS", "ollama")
         assert _get_ollama_url() == "http://ollama:11434"
@@ -464,7 +466,7 @@ class TestGenerateInternalNote:
         """The note caps num_predict instead of inheriting the 8192 default.
         Production telemetry (863 calls) shows real notes finish at p90 ≈ 413
         tokens (median 264); a single 8192-token run was a repetition runaway.
-        An 8192 ceiling lets that runaway hold the MLX KV cache and add memory
+        An 8192 ceiling lets that runaway waste generation time and add memory
         pressure mid-session; 1000 covers real notes with margin (audit:
         2026-06-27 prefill-degradation handoff)."""
         mock_generate.return_value = "noticed"
@@ -723,9 +725,9 @@ class TestGenerateBudgetGuard:
     def test_guard_applied_when_backend_declares_context_window(self, caplog):
         """A backend that declares ``context_window`` IS budget-guarded: an
         over-window prompt is skipped before the backend is ever called.
-        This closes the injected-backend hole — mlx_lm.server has no context
-        flag and would otherwise grow the KV cache until the host OOMs/swaps
-        (the mechanism behind the production swap incident)."""
+        This closes the injected-backend hole — a memory-bounded backend would
+        otherwise overrun its context window and OOM/swap the host (the
+        mechanism behind the production swap incident)."""
         from contemplative_agent.core.llm import (
             BackendResult,
             configure,

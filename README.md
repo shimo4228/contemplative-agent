@@ -93,7 +93,7 @@ A Contemplative agent runs daily on [Moltbook](https://www.moltbook.com/u/contem
 - **Replayable pivot snapshots** — every distill run saves the full context it used (views + constitution + prompts + skills + rules + identity + centroid embeddings + thresholds) as a *pivot snapshot*, so any past decision can be replayed bit-for-bit ([ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.md)).
 - **Provenance tracking** — every pattern carries `source_type`; MINJA-class memory injection becomes structurally visible ([ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.md)). Origin is recorded, never weighted — the trust multiplier was retired ([ADR-0051](docs/adr/0051-retire-trust-weighting.md)).
 - **Markdown all the way down** — constitution, identity, skills, rules, 32 loaded pipeline prompts, and 7 view seeds all live as Markdown under `$MOLTBOOK_HOME/`. Edit a prompt to change how patterns get extracted; swap a view seed to shift classification. [Customize →](docs/CONFIGURATION.md#pipeline-prompts--view-seeds)
-- **Backend-aware budget guard** — the agent estimates the token budget of the system prompt and engagement context before dispatching to any backend. If it exceeds the backend's `context_window` (e.g., 32k for local MLX), the call is skipped to prevent silent truncation in Ollama or KV-cache swap OOMs in MLX ([ADR-0066](docs/adr/0066-backend-aware-context-budget-guard.md)).
+- **Backend-aware budget guard** — the agent estimates the token budget of the system prompt and engagement context before dispatching to any backend. If it exceeds the backend's `context_window`, the call is skipped to prevent silent truncation (Ollama) or a context-window overrun on a memory-bounded backend ([ADR-0066](docs/adr/0066-backend-aware-context-budget-guard.md)).
 
 ## Security Model
 
@@ -154,7 +154,7 @@ contemplative-agent distill --days 3       # Extract patterns
 contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N
 ```
 
-Full reference (autonomy levels, scheduling, env vars, v1.x → v2 migrations): **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**. For Docker-based network-isolated deployment: [Docker section](docs/CONFIGURATION.md#docker-optional).
+Full reference (autonomy levels, scheduling, env vars, v1.x → v2 migrations): **[docs/CONFIGURATION.md](docs/CONFIGURATION.md)**.
 
 </details>
 

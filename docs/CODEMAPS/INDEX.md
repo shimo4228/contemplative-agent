@@ -2,7 +2,7 @@
 # Codemaps Index
 
 Comprehensive architectural documentation for the Contemplative Agent project.
-**Last Updated**: 2026-06-28 | **Codebase**: 45 non-`__init__` modules (51 total `.py`), ~15062 LOC, 1462 tests collected
+**Last Updated**: 2026-06-28 | **Codebase**: 45 non-`__init__` modules (51 total `.py`), ~15520 LOC, 1479 tests collected
 
 ---
 
@@ -12,7 +12,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 **Read first.** High-level architecture, system diagram, causal-chain data flows with gates and thresholds.
 
 **Topics**:
-- Project type & stats (45 non-`__init__` modules, ~15062 LOC, 1462 tests collected)
+- Project type & stats (45 non-`__init__` modules, ~15520 LOC, 1479 tests collected)
 - System diagram (core/ + adapters/moltbook/ + adapters/meditation/ + adapters/dialogue/)
 - Import rules (adapters → core, cli.py is only exception)
 - Session execution flow (ReplyHandler → FeedManager → PostPipeline) with gate thresholds
@@ -50,7 +50,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 **Platform-independent foundation.** 24 modules providing base functionality.
 
 **Topics**:
-- 25 core modules with LOC and purpose
+- 24 core modules with LOC and purpose
 - ADR-0012 Result types (with ADR-0050 pattern_ids / epistemic_counts fields)
 - EpisodeLog + KnowledgeStore schemas (post-ADR-0051: no trust_score)
 - Threshold table (SIM_DUPLICATE, SIM_UPDATE, DEDUP_IMPORTANCE_FLOOR, CLUSTER_THRESHOLD_*; NOISE_THRESHOLD removed ADR-0060)
@@ -107,9 +107,9 @@ Package versions, external services, optional add-ons.
 | Metric | Value |
 |--------|-------|
 | Total `.py` files | 51 (45 non-`__init__` + 6 `__init__`) |
-| LOC | ~15062 |
-| Test files | 38 (1462 tests collected; 1461 passed, 1 skipped on 2026-06-28) |
-| Core modules | 25 (platform-independent; forgetting.py deleted ADR-0051, mlx_backend.py added ADR-0064) |
+| LOC | ~15520 |
+| Test files | 37 (1479 tests collected) |
+| Core modules | 24 (platform-independent; forgetting.py deleted ADR-0051, mlx_backend.py removed ADR-0070) |
 | Moltbook adapter modules | 14 |
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |
@@ -123,7 +123,7 @@ Package versions, external services, optional add-ons.
 
 ## Related Documentation
 
-- **CLAUDE.md** — Project conventions, setup, Docker, security policy
+- **CLAUDE.md** — Project conventions, setup, security policy
 - **README.md** — User-facing overview, quickstart
 - **CHANGELOG.md** — Release history
 - **[docs/adr/](../adr/README.md)** — Architecture Decision Records. 「なぜそうしたか」
@@ -136,4 +136,4 @@ Package versions, external services, optional add-ons.
 
 CODEMAPS はコード変更時に更新する（「どこにあるか」のコード索引）。
 
-Last full scan: 2026-06-20 (v2.6.0 release: 44 non-`__init__` modules, ~13592 LOC, 1301 tests verified; post-ADR-0053/0054/0055/0056/0057/0058 — importance LLM scoring + axiom-grounded distillation retired). Post-scan hand-updates (full re-scan pending): ADR-0059 (dead reply-history removed), ADR-0060 (distill is now per-episode grounded — one LLM call per episode, the 2-step batch + noise gate were removed), ADR-0061 (action-time untrusted caps at platform field limits), ADR-0062 (create-time verification handshake; amended with guarded expression extraction and base64 verification-audit corpus logging), ADR-0063 (NoveltyGate scoped to verified posts), ADR-0064 (opt-in MLX generation backend — `core/mlx_backend.py` added), ADR-0065 (MLX on-demand launchd wiring + telemetry served-model-id contract), ADR-0066 (backend-aware context-budget guard via context_window property). Current counts after hand-updates: 45 non-`__init__` modules (51 total `.py`), ~15062 LOC, 1462 tests collected.
+Last full scan: 2026-06-20 (v2.6.0 release: 44 non-`__init__` modules, ~13592 LOC, 1301 tests verified; post-ADR-0053/0054/0055/0056/0057/0058 — importance LLM scoring + axiom-grounded distillation retired). Post-scan hand-updates (full re-scan pending): ADR-0059 (dead reply-history removed), ADR-0060 (distill is now per-episode grounded — one LLM call per episode, the 2-step batch + noise gate were removed), ADR-0061 (action-time untrusted caps at platform field limits), ADR-0062 (create-time verification handshake; amended with guarded expression extraction and base64 verification-audit corpus logging), ADR-0063 (NoveltyGate scoped to verified posts), ADR-0064 (opt-in MLX generation backend — `core/mlx_backend.py` added), ADR-0065 (MLX on-demand launchd wiring + telemetry served-model-id contract), ADR-0066 (backend-aware context-budget guard via context_window property), ADR-0070 (MLX backend retired to sibling repo + Docker removed — `core/mlx_backend.py`, MLX scripts, and Docker infra deleted; `LLMBackend` Protocol retained for cloud injection). Current counts after hand-updates: 45 non-`__init__` modules (51 total `.py`), ~15520 LOC, 1479 tests collected.
