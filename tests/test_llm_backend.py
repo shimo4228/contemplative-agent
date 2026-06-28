@@ -44,6 +44,7 @@ class FakeBackend:
         format: Optional[Dict],
         *,
         temperature: float = 1.0,
+        think: bool = False,
     ) -> Optional[BackendResult]:
         self.calls.append(
             {
@@ -52,6 +53,7 @@ class FakeBackend:
                 "num_predict": num_predict,
                 "format": format,
                 "temperature": temperature,
+                "think": think,
             }
         )
         if self.raise_exc is not None:

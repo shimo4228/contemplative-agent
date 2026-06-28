@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import Optional, Set
+from typing import Set
 
+from ...core.llm import GenerationOutput
 from .llm_functions import generate_comment, generate_cooperation_post
 
 logger = logging.getLogger(__name__)
@@ -44,25 +45,37 @@ class ContentManager:
         """Record content as posted, so a later identical text is deduped."""
         self._posted_hashes.add(_content_hash(content))
 
-    def create_comment(self, post_text: str) -> Optional[str]:
-        comment = generate_comment(post_text)
-        if comment is None:
-            return None
-        if self.is_duplicate(comment):
+    def create_comment(
+        self, post_text: str, *, think: bool = False
+    ) -> GenerationOutput:
+        """Generate a (deduped) comment, surfacing the reasoning trace.
+
+        Returns a :class:`GenerationOutput`: ``.text`` is None on
+        failure/duplicate (the caller's existing None-check still holds),
+        ``.thinking`` carries the trace when ``think=True`` so the caller can
+        persist it to the comment episode.
+        """
+        out = generate_comment(post_text, think=think)
+        if out.text is None:
+            return out
+        if self.is_duplicate(out.text):
             logger.info("Duplicate comment skipped")
-            return None
+            return GenerationOutput(text=None)
         self._comment_count += 1
-        return comment
+        return out
 
     def create_cooperation_post(
         self,
         feed_seeds: list[dict],
-    ) -> Optional[str]:
-        post = generate_cooperation_post(feed_seeds)
-        if post is None:
-            return None
-        if self.is_duplicate(post):
+        *,
+        think: bool = False,
+    ) -> GenerationOutput:
+        """Generate a (deduped) self-post; see :meth:`create_comment`."""
+        out = generate_cooperation_post(feed_seeds, think=think)
+        if out.text is None:
+            return out
+        if self.is_duplicate(out.text):
             logger.info("Duplicate cooperation post skipped")
-            return None
+            return GenerationOutput(text=None)
         self._post_count += 1
-        return post
+        return out

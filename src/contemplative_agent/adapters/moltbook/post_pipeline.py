@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
@@ -134,7 +134,8 @@ class PostPipeline:
 
         note = self._compose_note(feed_seeds)
 
-        content = self._get_content().create_cooperation_post(feed_seeds)
+        generated = self._get_content().create_cooperation_post(feed_seeds)
+        content = generated.text
         if content is None:
             return
 
@@ -169,6 +170,7 @@ class PostPipeline:
         self._publish_post(
             client, scheduler, title, content, submolt,
             note=note, draft_summary=draft_summary, content_hash=content_hash,
+            thinking=generated.thinking,
         )
 
     def _seed_candidates(self, posts: List[dict]) -> List[dict]:
@@ -349,8 +351,14 @@ class PostPipeline:
         note: str,
         draft_summary: str,
         content_hash: str,
+        thinking: Optional[str] = None,
     ) -> None:
-        """POST the content and record it in episodes / memory / NoveltyGate."""
+        """POST the content and record it in episodes / memory / NoveltyGate.
+
+        ``thinking`` is the reasoning trace (None unless generated with
+        ``think=True``); recorded on the episode alongside ``internal_note``
+        for later inspection (comment report), never published.
+        """
         ctx = self._ctx
         try:
             resp = client.post(
@@ -421,6 +429,7 @@ class PostPipeline:
                 "action": "post", "post_id": post_id,
                 "content": content, "title": title,
                 "internal_note": note,
+                "thinking": thinking,
             })
 
             # Record post in memory. Reuse draft_summary and content_hash

@@ -24,6 +24,7 @@ from contemplative_agent.core.llm import (
     wrap_untrusted_content,
     generate,
     generate_for_api,
+    GenerationOutput,
 )
 
 
@@ -702,7 +703,7 @@ class TestGenerateBudgetGuard:
             model = "stub-model"
 
             def generate(self, prompt, system, num_predict, format,
-                         *, temperature=1.0):
+                         *, temperature=1.0, think=False):
                 calls["prompt_len"] = len(prompt)
                 return BackendResult(text="delegated")
 
@@ -735,7 +736,7 @@ class TestGenerateBudgetGuard:
             context_window: int = 32768
 
             def generate(self, prompt, system, num_predict, format,
-                         *, temperature=1.0):
+                         *, temperature=1.0, think=False):
                 calls["called"] = True
                 return BackendResult(text="should not reach here")
 
@@ -766,7 +767,7 @@ class TestGenerateBudgetGuard:
             context_window: int = 32768
 
             def generate(self, prompt, system, num_predict, format,
-                         *, temperature=1.0):
+                         *, temperature=1.0, think=False):
                 return BackendResult(text="delegated")
 
         reset_llm_config()
@@ -944,7 +945,7 @@ class TestCjkCharsPerToken:
         from contemplative_agent.adapters.moltbook.llm_functions import (
             generate_post_title,
         )
-        mock_api.return_value = "ok"
+        mock_api.return_value = GenerationOutput(text="ok")
         generate_post_title("seed text")
         assert mock_api.call_args.kwargs["chars_per_token"] == 1.5
 
@@ -989,69 +990,69 @@ class TestGenerateForApi:
     num_predict は max(50, ceil(max_length/3)+50) で内部派生。
     """
 
-    @patch("contemplative_agent.core.llm.generate")
+    @patch("contemplative_agent.core.llm._generate_full")
     def test_post_title_max_length_derives_to_150(self, mock_gen):
-        mock_gen.return_value = "ok"
+        mock_gen.return_value = GenerationOutput(text="ok")
         generate_for_api("p", max_length=300)
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["num_predict"] == 150  # ceil(300/3) + 50 = 150
 
-    @patch("contemplative_agent.core.llm.generate")
+    @patch("contemplative_agent.core.llm._generate_full")
     def test_comment_max_length_derives_to_3384(self, mock_gen):
-        mock_gen.return_value = "ok"
+        mock_gen.return_value = GenerationOutput(text="ok")
         generate_for_api("p", max_length=10000)
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["num_predict"] == 3384  # ceil(10000/3) + 50 = 3384
 
-    @patch("contemplative_agent.core.llm.generate")
+    @patch("contemplative_agent.core.llm._generate_full")
     def test_self_post_max_length_derives_to_13384(self, mock_gen):
-        mock_gen.return_value = "ok"
+        mock_gen.return_value = GenerationOutput(text="ok")
         generate_for_api("p", max_length=40000)
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["num_predict"] == 13384  # ceil(40000/3) + 50 = 13384
 
-    @patch("contemplative_agent.core.llm.generate")
+    @patch("contemplative_agent.core.llm._generate_full")
     def test_zero_max_length_returns_50(self, mock_gen):
         """At max_length=0, num_predict = ceil(0/3) + 50 = 50 (the +50 margin)."""
-        mock_gen.return_value = "ok"
+        mock_gen.return_value = GenerationOutput(text="ok")
         generate_for_api("p", max_length=0)
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["num_predict"] == 50
 
-    @patch("contemplative_agent.core.llm.generate")
+    @patch("contemplative_agent.core.llm._generate_full")
     def test_temperature_defaults_to_1_0(self, mock_gen):
-        mock_gen.return_value = "ok"
+        mock_gen.return_value = GenerationOutput(text="ok")
         generate_for_api("p", max_length=300)
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["temperature"] == 1.0
 
-    @patch("contemplative_agent.core.llm.generate")
+    @patch("contemplative_agent.core.llm._generate_full")
     def test_temperature_propagates(self, mock_gen):
-        mock_gen.return_value = "ok"
+        mock_gen.return_value = GenerationOutput(text="ok")
         generate_for_api("p", max_length=300, temperature=1.3)
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["temperature"] == 1.3
 
-    @patch("contemplative_agent.core.llm.generate")
+    @patch("contemplative_agent.core.llm._generate_full")
     def test_passes_max_length_through(self, mock_gen):
-        mock_gen.return_value = "ok"
+        mock_gen.return_value = GenerationOutput(text="ok")
         generate_for_api("p", max_length=300)
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["max_length"] == 300
 
-    @patch("contemplative_agent.core.llm.generate")
+    @patch("contemplative_agent.core.llm._generate_full")
     def test_chars_per_token_cjk_derives_to_6717(self, mock_gen):
         """CJK callers (comment/reply/title) pass chars_per_token=1.5 —
         ceil(10000/1.5) + 50 = 6717 (audit M2: the /3 default was the
         truncation root cause for Japanese output)."""
-        mock_gen.return_value = "ok"
+        mock_gen.return_value = GenerationOutput(text="ok")
         generate_for_api("p", max_length=10000, chars_per_token=1.5)
         assert mock_gen.call_args.kwargs["num_predict"] == 6717
 
-    @patch("contemplative_agent.core.llm.generate")
+    @patch("contemplative_agent.core.llm._generate_full")
     def test_drop_truncated_propagates(self, mock_gen):
         """API publish paths never emit a mid-sentence cut (audit M2)."""
-        mock_gen.return_value = "ok"
+        mock_gen.return_value = GenerationOutput(text="ok")
         generate_for_api("p", max_length=300)
         assert mock_gen.call_args.kwargs["drop_truncated"] is True
 
@@ -1060,6 +1061,79 @@ class TestGenerateForApi:
         would silently feed a bad num_predict to Ollama."""
         with pytest.raises(ValueError, match="chars_per_token"):
             generate_for_api("p", max_length=300, chars_per_token=0)
+
+
+class TestThinkParameter:
+    """think flag payload wiring + thinking-trace capture (Layers 1-2)."""
+
+    @staticmethod
+    def _ollama(**body):
+        resp = MagicMock()
+        resp.json.return_value = body
+        resp.raise_for_status.return_value = None
+        return resp
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_think_defaults_false_in_payload(self, mock_post):
+        mock_post.return_value = self._ollama(response="ok")
+        generate("p")
+        assert mock_post.call_args.kwargs["json"]["think"] is False
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_think_true_in_payload(self, mock_post):
+        mock_post.return_value = self._ollama(response="ok")
+        generate("p", think=True)
+        assert mock_post.call_args.kwargs["json"]["think"] is True
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_generate_still_returns_text_only(self, mock_post):
+        mock_post.return_value = self._ollama(response="answer", thinking="reasoning")
+        # The plain generate() projects to text; the trace is dropped here.
+        assert generate("p", think=True) == "answer"
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_thinking_captured_from_ollama_field(self, mock_post):
+        mock_post.return_value = self._ollama(response="answer", thinking="reasoning here")
+        out = generate_for_api("p", max_length=200, think=True)
+        assert out.text == "answer"
+        assert out.thinking == "reasoning here"
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_thinking_inline_fallback(self, mock_post):
+        mock_post.return_value = self._ollama(
+            response="<think>inline reason</think>final answer"
+        )
+        out = generate_for_api("p", max_length=200, think=True)
+        assert out.text == "final answer"  # <think> stripped from published text
+        assert out.thinking == "inline reason"
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_thinking_secret_scrubbed(self, mock_post):
+        mock_post.return_value = self._ollama(
+            response="answer", thinking="My api_key is in here"
+        )
+        out = generate_for_api("p", max_length=200, think=True)
+        assert "api_key" not in (out.thinking or "")
+        assert "[REDACTED]" in (out.thinking or "")
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_thinking_none_when_absent(self, mock_post):
+        mock_post.return_value = self._ollama(response="answer")
+        out = generate_for_api("p", max_length=200)
+        assert out.text == "answer"
+        assert out.thinking is None
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_no_trace_captured_when_think_false(self, mock_post):
+        # Default-off contract: even if a model ignores think=False and emits an
+        # inline <think> block, the trace is NOT captured/persisted (telemetry
+        # would say think=false). The published text still has <think> stripped.
+        mock_post.return_value = self._ollama(
+            response="<think>leaked reasoning</think>answer", thinking="also leaked"
+        )
+        out = generate_for_api("p", max_length=200)  # think defaults False
+        assert out.text == "answer"
+        assert out.thinking is None
 
 
 class TestGenerateComment:
@@ -1077,7 +1151,7 @@ class TestGenerateComment:
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_uses_generate_for_api_with_max_comment_length(self, mock_gen):
         from contemplative_agent.core.config import MAX_COMMENT_LENGTH
-        mock_gen.return_value = "ok"
+        mock_gen.return_value = GenerationOutput(text="ok")
         generate_comment("post")
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["max_length"] == MAX_COMMENT_LENGTH
@@ -1143,7 +1217,7 @@ class TestGenerateCooperationPost:
             COMMENT_TEMPERATURE,
         )
 
-        mock_gen.return_value = "ok"
+        mock_gen.return_value = GenerationOutput(text="ok")
         generate_cooperation_post(self._SEEDS)
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["max_length"] == MAX_POST_LENGTH
@@ -1166,7 +1240,7 @@ class TestGenerateReply:
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_uses_generate_for_api_with_max_comment_length(self, mock_gen):
         from contemplative_agent.core.config import MAX_COMMENT_LENGTH
-        mock_gen.return_value = "ok"
+        mock_gen.return_value = GenerationOutput(text="ok")
         generate_reply("post", "comment")
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["max_length"] == MAX_COMMENT_LENGTH
@@ -1229,7 +1303,7 @@ class TestGeneratePostTitle:
     def test_uses_generate_for_api_with_title_length(self, mock_gen):
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
         from contemplative_agent.core.config import MAX_POST_TITLE_LENGTH
-        mock_gen.return_value = "A reasonable title"
+        mock_gen.return_value = GenerationOutput(text="A reasonable title")
         result = generate_post_title("topics")
         kwargs = mock_gen.call_args.kwargs
         assert kwargs["max_length"] == MAX_POST_TITLE_LENGTH
@@ -1239,7 +1313,7 @@ class TestGeneratePostTitle:
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_strips_quotes(self, mock_gen):
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
-        mock_gen.return_value = '"A quoted title"'
+        mock_gen.return_value = GenerationOutput(text='"A quoted title"')
         result = generate_post_title("topics")
         assert result == "A quoted title"
 
@@ -1248,7 +1322,7 @@ class TestGeneratePostTitle:
         """The `[:80]` slice was overkill — API limit is 300 chars (per skill.md)."""
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
         long_title = "x" * 200
-        mock_gen.return_value = long_title
+        mock_gen.return_value = GenerationOutput(text=long_title)
         result = generate_post_title("topics")
         # 200 chars passes through (was previously truncated to 80)
         assert result == long_title
@@ -1260,25 +1334,25 @@ class TestGeneratePostTitle:
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_preserves_unbalanced_leading_quote(self, mock_gen):
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
-        mock_gen.return_value = '"Unbalanced opening stays'
+        mock_gen.return_value = GenerationOutput(text='"Unbalanced opening stays')
         assert generate_post_title("topics") == '"Unbalanced opening stays'
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_preserves_mixed_quote_ends(self, mock_gen):
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
-        mock_gen.return_value = "\"mixed'"
+        mock_gen.return_value = GenerationOutput(text="\"mixed'")
         assert generate_post_title("topics") == "\"mixed'"
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_strips_only_one_balanced_pair(self, mock_gen):
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
-        mock_gen.return_value = "'\"Nested title\"'"
+        mock_gen.return_value = GenerationOutput(text="'\"Nested title\"'")
         assert generate_post_title("topics") == '"Nested title"'
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_preserves_internal_quotes(self, mock_gen):
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
-        mock_gen.return_value = 'On "emergence" and its limits'
+        mock_gen.return_value = GenerationOutput(text='On "emergence" and its limits')
         assert generate_post_title("topics") == 'On "emergence" and its limits'
 
 

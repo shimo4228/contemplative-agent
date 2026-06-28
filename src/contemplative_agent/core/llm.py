@@ -63,6 +63,11 @@ class BackendResult:
     slowdown apart from a memory-pressure cliff. All optional: a backend
     that cannot report a field leaves it ``None`` and only loses the gate /
     telemetry detail, never correctness of the returned text.
+
+    ``thinking`` carries the model's reasoning trace when a thinking-capable
+    backend was called with ``think=True`` (None otherwise). It is NOT part of
+    the published ``text`` — the caller persists it separately (episode log)
+    rather than emitting it externally.
     """
 
     text: str
@@ -70,6 +75,24 @@ class BackendResult:
     eval_count: Optional[int] = None
     prompt_tokens: Optional[int] = None
     cached_tokens: Optional[int] = None
+    thinking: Optional[str] = None
+
+
+@dataclass(frozen=True)
+class GenerationOutput:
+    """Sanitized generation result surfaced to publish-path callers.
+
+    ``text`` is the sanitized, publishable output (None only on the
+    truncation-drop / failure paths that previously returned None). ``thinking``
+    is the model's reasoning trace when the call ran with ``think=True``,
+    already scrubbed of credential/forbidden patterns but NOT emitted
+    externally — publish-path callers attach it to the episode log alongside
+    ``internal_note`` (untrusted regime: distilled-only read-back). Default
+    ``None`` keeps it absent under the production ``think=False`` default.
+    """
+
+    text: Optional[str]
+    thinking: Optional[str] = None
 
 
 @runtime_checkable
@@ -117,6 +140,7 @@ class LLMBackend(Protocol):
         format: Optional[Dict],
         *,
         temperature: float = 1.0,
+        think: bool = False,
     ) -> Optional[BackendResult]:
         """Return a :class:`BackendResult`, or None on failure.
 
@@ -125,6 +149,14 @@ class LLMBackend(Protocol):
         verification, 1.3 for outward reflective generation). The truncation
         decision (``drop_truncated``) is made by the caller from
         ``finish_reason``, so implementations need not gate on it.
+
+        ``think`` requests the model's reasoning trace (default False = the
+        production behavior). A backend that honors it returns the trace in
+        ``BackendResult.thinking``; one that cannot should still accept the
+        kwarg and leave ``thinking`` None. The caller always passes ``think=``,
+        so every implementer must accept it (or ``**kwargs``): a backend whose
+        signature lacks both raises ``TypeError`` at call time — this is a
+        required signature update, not a graceful degrade.
 
         Implementations must not apply sanitization — the caller handles
         ``_sanitize_output`` uniformly across backends.
@@ -514,6 +546,64 @@ def _strip_thinking(text: str) -> str:
     return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
 
+def _extract_inline_thinking(text: str) -> Optional[str]:
+    """Return the concatenated contents of inline ``<think>...</think>`` blocks.
+
+    Fallback for models that emit reasoning inline rather than in a separate
+    response field (Ollama returns a dedicated ``thinking`` field when
+    ``think=True``, but an inline-only model would otherwise lose its trace to
+    ``_strip_thinking``). Returns None when no block is present.
+    """
+    blocks = re.findall(r"<think>(.*?)</think>", text, flags=re.DOTALL)
+    joined = "\n".join(b.strip() for b in blocks).strip()
+    return joined or None
+
+
+def _scrub_secrets(text: str) -> str:
+    """Redact forbidden patterns and credential-assignment forms.
+
+    The credential/secret half of :func:`_sanitize_output`, factored out so it
+    can also scrub persisted ``thinking`` traces (which bypass the published
+    ``text`` path but are still written to the episode log). Does NOT strip
+    ``<think>`` blocks or apply a length cap.
+    """
+    scrubbed = text
+    for pattern in FORBIDDEN_SUBSTRING_PATTERNS:
+        if pattern.lower() in scrubbed.lower():
+            logger.warning("Removed forbidden pattern from LLM output: %s", pattern)
+            scrubbed = re.sub(
+                re.escape(pattern), "[REDACTED]", scrubbed, flags=re.IGNORECASE
+            )
+    # Audit L1: redact credential-assignment forms only — bare "password" /
+    # "secret" words are legitimate prose and must not be corrupted before
+    # external POST. The bare-word check lives on in the fail-closed gates
+    # (validate_identity_content, _passes_content_filter).
+    if FORBIDDEN_ASSIGNMENT_RE.search(scrubbed):
+        logger.warning("Removed credential assignment from LLM output")
+        scrubbed = FORBIDDEN_ASSIGNMENT_RE.sub("[REDACTED]", scrubbed)
+    return scrubbed
+
+
+# Hard cap on a persisted reasoning trace. A thinking model can emit several
+# thousand tokens (~6-12K chars); without a cap a think=True session would bloat
+# the episode-log JSONL line and the report section. 16000 chars covers a
+# realistic trace without silently destroying it.
+MAX_THINKING_CHARS = 16000
+
+
+def _sanitize_thinking(thinking: Optional[str]) -> Optional[str]:
+    """Scrub a reasoning trace for persistence (episode log); None stays None.
+
+    Secret-scrubbed like published output and length-capped (``MAX_THINKING_CHARS``)
+    so a verbose trace cannot bloat the episode log, but NOT ``<think>``-stripped —
+    the trace is stored, never emitted externally.
+    """
+    if not thinking:
+        return None
+    scrubbed = _scrub_secrets(thinking).strip()[:MAX_THINKING_CHARS]
+    return scrubbed or None
+
+
 def _sanitize_output(text: str, max_length: Optional[int] = None) -> str:
     """Remove forbidden patterns and (optionally) enforce a char length cap.
 
@@ -528,20 +618,7 @@ def _sanitize_output(text: str, max_length: Optional[int] = None) -> str:
     historical compatibility with external callers where it doubles as
     the platform char-cap value.
     """
-    sanitized = _strip_thinking(text).strip()
-    for pattern in FORBIDDEN_SUBSTRING_PATTERNS:
-        if pattern.lower() in sanitized.lower():
-            logger.warning("Removed forbidden pattern from LLM output: %s", pattern)
-            sanitized = re.sub(
-                re.escape(pattern), "[REDACTED]", sanitized, flags=re.IGNORECASE
-            )
-    # Audit L1: redact credential-assignment forms only — bare "password" /
-    # "secret" words are legitimate prose and must not be corrupted before
-    # external POST. The bare-word check lives on in the fail-closed gates
-    # (validate_identity_content, _passes_content_filter).
-    if FORBIDDEN_ASSIGNMENT_RE.search(sanitized):
-        logger.warning("Removed credential assignment from LLM output")
-        sanitized = FORBIDDEN_ASSIGNMENT_RE.sub("[REDACTED]", sanitized)
+    sanitized = _scrub_secrets(_strip_thinking(text).strip())
     if max_length is None:
         return sanitized
     return sanitized[:max_length]
@@ -593,6 +670,7 @@ def generate(
     temperature: float = 1.0,
     drop_truncated: bool = False,
     caller: str = "unknown",
+    think: bool = False,
 ) -> Optional[str]:
     """Generate text via the configured backend (default: local Ollama).
 
@@ -625,6 +703,13 @@ def generate(
         caller: Stage label recorded in per-call telemetry (e.g.
             ``"distill.category"``). Identifies which pipeline stage made
             the call; never affects generation.
+        think: Request the model's reasoning trace. Default False = the
+            production behavior (no thinking; fastest). When True, the
+            reasoning trace is captured but NOT returned here — ``generate``
+            still yields only the sanitized published text. Publish-path
+            callers that want the trace use ``generate_for_api`` (which
+            returns a :class:`GenerationOutput` carrying ``.thinking``).
+            Recorded in telemetry either way.
 
     Returns sanitized output, or None on failure — including when the
     estimated input + ``num_predict`` would exceed the backend's context
@@ -638,6 +723,39 @@ def generate(
     path runs. Sanitization, circuit breaker, and empty-response handling
     apply uniformly across both paths.
     """
+    out = _generate_full(
+        prompt,
+        system,
+        max_length,
+        num_predict,
+        format,
+        temperature,
+        drop_truncated,
+        caller,
+        think,
+    )
+    return out.text if out is not None else None
+
+
+def _generate_full(
+    prompt: str,
+    system: Optional[str],
+    max_length: Optional[int],
+    num_predict: Optional[int],
+    format: Optional[Dict],
+    temperature: float,
+    drop_truncated: bool,
+    caller: str,
+    think: bool,
+) -> Optional[GenerationOutput]:
+    """Shared core of :func:`generate` and :func:`generate_for_api`.
+
+    Builds the per-call telemetry record (including ``think``), runs the
+    backend via :func:`_generate_impl`, and returns a :class:`GenerationOutput`
+    (sanitized text + optional reasoning trace), or None on failure /
+    truncation-drop. :func:`generate` projects this to ``.text``; publish-path
+    callers keep the full object to persist ``.thinking`` to the episode log.
+    """
     effective_num_predict = num_predict if num_predict is not None else 8192
     tel: Dict[str, Any] = {
         "ts": now_iso(timespec="seconds"),
@@ -650,6 +768,11 @@ def generate(
         "system_chars": None,
         "num_predict": effective_num_predict,
         "temperature": temperature,
+        # Whether the reasoning trace was requested for this call. A metadata
+        # flag only — the trace content itself is never written to telemetry
+        # (it goes to the episode log); this lets analysis tell think-on from
+        # think-off rows apart, e.g. for a latency A/B.
+        "think": think,
         "has_format": format is not None,
         "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:12],
         "duration_ms": None,
@@ -675,6 +798,7 @@ def generate(
             drop_truncated,
             effective_num_predict,
             tel,
+            think,
         )
     finally:
         tel["duration_ms"] = int((time.monotonic() - started) * 1000)
@@ -690,8 +814,9 @@ def _generate_impl(
     drop_truncated: bool,
     effective_num_predict: int,
     tel: Dict[str, Any],
-) -> Optional[str]:
-    """Body of :func:`generate`; mutates *tel* with outcome metadata."""
+    think: bool,
+) -> Optional[GenerationOutput]:
+    """Body of :func:`_generate_full`; mutates *tel* with outcome metadata."""
     if _circuit.is_open:
         logger.debug("Circuit breaker open — skipping LLM request")
         tel["outcome"] = "circuit_open"
@@ -735,11 +860,11 @@ def _generate_impl(
     if _backend is not None:
         return _generate_via_backend(
             prompt, system_prompt, max_length, format, temperature,
-            drop_truncated, effective_num_predict, tel,
+            drop_truncated, effective_num_predict, tel, think,
         )
 
     data = _post_ollama(prompt, system_prompt, format, temperature,
-                        effective_num_predict, tel)
+                        effective_num_predict, tel, think)
     if data is None:
         return None
     raw_text = data.get("response", "")
@@ -756,7 +881,20 @@ def _generate_impl(
 
     _circuit.record_success()
     tel["outcome"] = "ok"
-    return _sanitize_output(raw_text, max_length)
+    # Capture the reasoning trace ONLY when this call requested think — Ollama
+    # returns it in a dedicated ``thinking`` field, with an inline <think>
+    # fallback for models that emit it inline. Gating on ``think`` upholds the
+    # default-off contract: a model that emits <think> despite think=False must
+    # not silently persist a trace while telemetry records think=false. (The
+    # published text still strips inline <think> via _sanitize_output either way.)
+    thinking = (
+        _sanitize_thinking(data.get("thinking") or _extract_inline_thinking(raw_text))
+        if think
+        else None
+    )
+    return GenerationOutput(
+        text=_sanitize_output(raw_text, max_length), thinking=thinking
+    )
 
 
 def _generate_via_backend(
@@ -768,7 +906,8 @@ def _generate_via_backend(
     drop_truncated: bool,
     effective_num_predict: int,
     tel: Dict[str, Any],
-) -> Optional[str]:
+    think: bool,
+) -> Optional[GenerationOutput]:
     """Injected-backend path of :func:`_generate_impl`.
 
     Mirrors the Ollama path's truncation gating and telemetry: the backend
@@ -783,7 +922,7 @@ def _generate_via_backend(
     try:
         result = backend.generate(
             prompt, system_prompt, effective_num_predict, format,
-            temperature=temperature,
+            temperature=temperature, think=think,
         )
     except Exception as exc:  # backend may raise on unexpected failure
         logger.error("Backend generate() raised: %s", exc)
@@ -829,7 +968,18 @@ def _generate_via_backend(
 
     _circuit.record_success()
     tel["outcome"] = "ok"
-    return _sanitize_output(result.text, max_length)
+    # Capture the trace only when think was requested — same default-off gate as
+    # the Ollama path (a backend that emits a trace despite think=False must not
+    # silently persist it).
+    # Extract inline <think> BEFORE _sanitize_output strips it from the text.
+    thinking = (
+        _sanitize_thinking(result.thinking or _extract_inline_thinking(result.text))
+        if think
+        else None
+    )
+    return GenerationOutput(
+        text=_sanitize_output(result.text, max_length), thinking=thinking
+    )
 
 
 def _post_ollama(
@@ -839,6 +989,7 @@ def _post_ollama(
     temperature: float,
     effective_num_predict: int,
     tel: Dict[str, Any],
+    think: bool,
 ) -> Optional[Dict]:
     """POST to Ollama and parse the JSON body; None on any failure.
 
@@ -865,7 +1016,7 @@ def _post_ollama(
             "num_predict": effective_num_predict,
             "num_ctx": NUM_CTX,
         },
-        "think": False,
+        "think": think,
     }
     if format is not None:
         payload["format"] = format
@@ -970,7 +1121,8 @@ def generate_for_api(
     temperature: float = 1.0,
     chars_per_token: float = 3.0,
     caller: str = "unknown",
-) -> Optional[str]:
+    think: bool = False,
+) -> GenerationOutput:
     """Generate text for an API publish path (post/comment/reply/title).
 
     Caller specifies only ``max_length`` (the API's char limit). ``num_predict``
@@ -991,8 +1143,14 @@ def generate_for_api(
             would derive num_predict≈26.7K and leave only ~6K tokens of
             input headroom inside NUM_CTX, permanently tripping the C2
             budget guard with the full system prompt.
+        think: Request the reasoning trace (default False = production). When
+            True the trace is captured on the returned ``GenerationOutput``
+            so the publish path can persist it to the episode log.
 
-    Truncated output (done_reason=length) is dropped, not published —
+    Returns a :class:`GenerationOutput`: ``.text`` is the sanitized published
+    output (None on failure / truncation-drop — callers already None-check the
+    old return), ``.thinking`` is the optional reasoning trace. Truncated
+    output (done_reason=length) is dropped, not published —
     ``drop_truncated=True`` on every API path (audit M2).
     """
     if chars_per_token <= 0:
@@ -1000,15 +1158,18 @@ def generate_for_api(
             f"chars_per_token must be positive, got {chars_per_token}"
         )
     estimated_num_predict = math.ceil(max_length / chars_per_token) + 50
-    return generate(
+    out = _generate_full(
         prompt,
         system=system,
         max_length=max_length,
         num_predict=estimated_num_predict,
+        format=None,
         temperature=temperature,
         drop_truncated=True,
         caller=caller,
+        think=think,
     )
+    return out if out is not None else GenerationOutput(text=None)
 
 
 _INJECTION_TOKENS = (

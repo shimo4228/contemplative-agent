@@ -6,7 +6,7 @@ import logging
 import random
 import time
 from datetime import datetime, timezone
-from typing import Callable, List, Set
+from typing import Callable, List, Optional, Set
 
 from .client import MoltbookClient, MoltbookClientError
 from .config import (
@@ -216,7 +216,8 @@ class FeedManager:
         # the comment path is only reached when score >= threshold (>= that
         # bar). The earlier fetch is the single source of the full body, so the
         # public comment and the recorded original_post use it.
-        comment = self._get_content().create_comment(post_text)
+        generated = self._get_content().create_comment(post_text)
+        comment = generated.text
         if comment is None:
             return False
 
@@ -227,7 +228,8 @@ class FeedManager:
 
         scheduler.wait_for_comment()
         return self._post_comment_and_record(
-            post, post_id, post_text, score, note, comment, client, scheduler
+            post, post_id, post_text, score, note, comment,
+            generated.thinking, client, scheduler,
         )
 
     def _passes_engagement_gates(
@@ -418,10 +420,16 @@ class FeedManager:
         score: float,
         note: str,
         comment: str,
+        thinking: Optional[str],
         client: MoltbookClient,
         scheduler: Scheduler,
     ) -> bool:
-        """Post the comment, record it in memory/episodes, and pace."""
+        """Post the comment, record it in memory/episodes, and pace.
+
+        ``thinking`` is the reasoning trace (None unless the comment was
+        generated with ``think=True``); recorded alongside ``internal_note``
+        on the episode for later inspection (comment report), never published.
+        """
         ctx = self._ctx
         try:
             # post_comment verifies the response envelope (audit H2): a
@@ -477,6 +485,7 @@ class FeedManager:
                 "target_agent": agent_name,
                 "target_agent_id": agent_id,
                 "internal_note": note,
+                "thinking": thinking,
             })
             ctx.memory.record_interaction(
                 timestamp=datetime.now(timezone.utc).isoformat(),

@@ -65,6 +65,7 @@ EXPECTED_FIELDS = {
     "prompt_eval_count",
     "eval_count",
     "cached_tokens",
+    "think",
 }
 
 
@@ -101,6 +102,18 @@ class TestTelemetryOkPath:
         mock_post.return_value = _mock_ok_response()
         generate("test")
         assert _read_records(telemetry_dir)[0]["caller"] == "unknown"
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_think_defaults_false(self, mock_post, telemetry_dir):
+        mock_post.return_value = _mock_ok_response()
+        generate("test")
+        assert _read_records(telemetry_dir)[0]["think"] is False
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_think_true_recorded(self, mock_post, telemetry_dir):
+        mock_post.return_value = _mock_ok_response()
+        generate("test", think=True)
+        assert _read_records(telemetry_dir)[0]["think"] is True
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_three_calls_three_records(self, mock_post, telemetry_dir):
@@ -171,7 +184,7 @@ class TestTelemetryFailurePaths:
             context_window = 32768
 
             def generate(self, prompt, system, num_predict, format,
-                         *, temperature=1.0):
+                         *, temperature=1.0, think=False):
                 raise RuntimeError("backend boom")
 
         configure(backend=_RaisingBackend())

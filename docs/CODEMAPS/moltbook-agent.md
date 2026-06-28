@@ -206,7 +206,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 | `history/identity/` | Markdown | `MOLTBOOK_HOME` | Identity archives |
 | `logs/audit.jsonl` | JSONL | `MOLTBOOK_HOME` | Approval history + source_ids + epistemic_counts (ADR-0020/0050) |
 | `logs/skill-usage-*.jsonl` | JSONL | `MOLTBOOK_HOME` | Historic skill log (ADR-0023 sunset ADR-0036; no new files; observation evidence only) |
-| `logs/llm-calls-*.jsonl` | JSONL (0600) | `MOLTBOOK_HOME` | Per-call LLM telemetry: caller/model/tokens/duration/outcome; never prompt bodies (sha256 prefix only) |
+| `logs/llm-calls-*.jsonl` | JSONL (0600) | `MOLTBOOK_HOME` | Per-call LLM telemetry: caller/model/tokens/duration/outcome/`think` (reasoning-trace flag, metadata only); never prompt bodies or trace content (sha256 prefix only) |
 | `logs/verification-audit.jsonl` | JSONL (0600) | `MOLTBOOK_HOME` | Verification challenge corpus/outcome log: `challenge_b64`, `challenge_sha256`, hashed code, answer, solver_path, verify_success |
 
 ## Security Boundaries

@@ -118,6 +118,40 @@ class TestRequestShape:
         ]
 
     @patch("contemplative_agent.core.mlx_backend.requests.post")
+    def test_think_true_enables_thinking(self, mock_post, backend):
+        mock_post.return_value = _mock_response()
+        backend.generate("p", "s", 128, None, think=True)
+        payload = mock_post.call_args.kwargs["json"]
+        assert payload["chat_template_kwargs"] == {"enable_thinking": True}
+
+    @patch("contemplative_agent.core.mlx_backend.requests.post")
+    def test_reasoning_content_parsed_into_thinking(self, mock_post, backend):
+        resp = MagicMock()
+        resp.json.return_value = {
+            "choices": [
+                {
+                    "message": {
+                        "content": "final",
+                        "reasoning_content": "step-by-step trace",
+                    },
+                    "finish_reason": "stop",
+                }
+            ],
+            "usage": {},
+        }
+        resp.raise_for_status.return_value = None
+        mock_post.return_value = resp
+        result = backend.generate("p", "s", 128, None, think=True)
+        assert result.text == "final"
+        assert result.thinking == "step-by-step trace"
+
+    @patch("contemplative_agent.core.mlx_backend.requests.post")
+    def test_thinking_none_when_no_reasoning_content(self, mock_post, backend):
+        mock_post.return_value = _mock_response(content="answer")
+        result = backend.generate("p", "s", 128, None)
+        assert result.thinking is None
+
+    @patch("contemplative_agent.core.mlx_backend.requests.post")
     def test_payload_sends_top_p_and_top_k(self, mock_post, backend):
         """Regression: the payload must carry the SAME top_p/top_k the Ollama
         path uses, sourced from the single source of truth in core/llm

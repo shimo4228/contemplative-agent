@@ -85,6 +85,16 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  └─ MemoryStore.record() → EpisodeLog (append-only JSONL)
 ```
 
+**Reasoning trace (`think`)**: content generation (comment / reply / cooperation
+post) accepts a per-call `think` flag (default False = production; toggles Ollama
+`think` / MLX `enable_thinking`). When on, `core/llm.generate_for_api` returns a
+`GenerationOutput(text, thinking)`: the trace is secret-scrubbed but never
+published, surfaced up the publish seam, and stored on the `activity` episode as a
+`thinking` field beside `internal_note` (untrusted regime). `report.py` renders it
+as a `**Thinking:**` block in the comment report. Telemetry records only the
+`think` boolean (metadata), never the trace content. The trace is None under the
+default, so episodes/reports are unchanged until a caller opts in.
+
 All content creation (post / comment / reply) goes through this same verification
 handshake. Each API call's structural outcome (status, envelope keys, content
 status, soft-failures, schema drift) is appended to `logs/api-audit.jsonl` by the

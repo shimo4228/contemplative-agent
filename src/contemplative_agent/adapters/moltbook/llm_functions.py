@@ -20,6 +20,7 @@ from ...core.prompts import (
     TOPIC_SUMMARY_PROMPT,
 )
 from ...core.llm import (
+    GenerationOutput,
     generate,
     generate_for_api,
     get_identity_system_prompt,
@@ -119,7 +120,7 @@ def generate_internal_note(content: str) -> str:
     return result.strip() if result else ""
 
 
-def generate_comment(post_text: str) -> Optional[str]:
+def generate_comment(post_text: str, *, think: bool = False) -> GenerationOutput:
     """Generate a contextual comment for a post.
 
     ``max_input=MAX_POST_LENGTH`` (ADR-0060 pattern): the cap is set to the
@@ -129,6 +130,11 @@ def generate_comment(post_text: str) -> Optional[str]:
     limit, this branch never truncates real content; it is a NUM_CTX safety
     valve only (a pathological all-CJK max post is skipped by generate()'s
     budget guard, which protects the system prompt's value layer).
+
+    Returns a :class:`GenerationOutput`: ``.text`` is the comment (None on
+    failure/drop), ``.thinking`` the reasoning trace when ``think=True``
+    (default False = production; the trace is persisted to the episode log,
+    never published).
     """
     prompt = COMMENT_PROMPT.format(
         post_content=wrap_untrusted_content(post_text, max_input=MAX_POST_LENGTH)
@@ -141,6 +147,7 @@ def generate_comment(post_text: str) -> Optional[str]:
         temperature=COMMENT_TEMPERATURE,
         chars_per_token=1.5,
         caller="moltbook.comment",
+        think=think,
     )
 
 
@@ -174,7 +181,9 @@ def format_feed_seeds(seeds: list[dict]) -> str:
 
 def generate_cooperation_post(
     feed_seeds: list[dict],
-) -> Optional[str]:
+    *,
+    think: bool = False,
+) -> GenerationOutput:
     """Generate a post that responds to specific peer voices in the feed.
 
     Pre-ADR-0043 this took a single string containing an LLM-generated
@@ -198,14 +207,21 @@ def generate_cooperation_post(
         max_length=MAX_POST_LENGTH,
         temperature=COMMENT_TEMPERATURE,
         caller="moltbook.cooperation_post",
+        think=think,
     )
 
 
 def generate_reply(
     original_post: str,
     their_comment: str,
-) -> Optional[str]:
-    """Generate a reply that continues a conversation thread."""
+    *,
+    think: bool = False,
+) -> GenerationOutput:
+    """Generate a reply that continues a conversation thread.
+
+    Returns a :class:`GenerationOutput` (``.text`` reply, ``.thinking`` trace
+    when ``think=True``); see :func:`generate_comment`.
+    """
     # Caps set to the platform field limits (ADR-0060 pattern): a reply needs
     # the whole post and comment, and a mid-word slice is read as a deliberate
     # pause rather than clipping. Real content cannot exceed these limits, so
@@ -224,6 +240,7 @@ def generate_reply(
         temperature=COMMENT_TEMPERATURE,
         chars_per_token=1.5,
         caller="moltbook.reply",
+        think=think,
     )
 
 
@@ -240,12 +257,14 @@ def generate_post_title(feed_seed_text: str) -> Optional[str]:
     )
     # chars_per_token=1.5 (audit M2): CJK-safe output budget; at
     # max_length=300 the cost is 250 vs 150 tokens — negligible.
+    # Title generation does not surface a reasoning trace (no episode of its
+    # own); read only the published text. think defaults off.
     result = generate_for_api(
         prompt,
         max_length=MAX_POST_TITLE_LENGTH,
         chars_per_token=1.5,
         caller="moltbook.post_title",
-    )
+    ).text
     if result:
         # Strip surrounding whitespace, then at most ONE balanced quote
         # pair the LLM may have added (audit L4: the old chained

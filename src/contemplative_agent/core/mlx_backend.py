@@ -92,6 +92,7 @@ class MlxLmBackend:
         format: Optional[Dict],
         *,
         temperature: float = 1.0,
+        think: bool = False,
     ) -> Optional[BackendResult]:
         """Generate via mlx_lm.server.
 
@@ -100,6 +101,12 @@ class MlxLmBackend:
         ``drop_truncated`` gate (from ``finish_reason``), and circuit
         accounting. A transport error or unparsable body raises, so the
         caller scores a circuit failure; this method never sanitizes.
+
+        ``think`` toggles the reasoning trace via the tokenizer chat template
+        (``enable_thinking``, the Qwen kwarg mlx_lm.server forwards). Default
+        False = production. When True the trace is parsed into
+        ``BackendResult.thinking`` from the response ``reasoning_content``
+        field (with an inline ``<think>`` fallback handled by the caller).
         """
         url = validate_trusted_url(self.base_url, source="MLX_BASE_URL")
 
@@ -133,10 +140,10 @@ class MlxLmBackend:
             "top_p": SAMPLING_TOP_P,
             "top_k": SAMPLING_TOP_K,
             "stream": False,
-            # Thinking off per request — parity with the Ollama think:False
-            # default. mlx_lm.server forwards chat_template_kwargs into the
-            # tokenizer chat template (Qwen reads enable_thinking).
-            "chat_template_kwargs": {"enable_thinking": False},
+            # Thinking per request — parity with the Ollama ``think`` flag.
+            # mlx_lm.server forwards chat_template_kwargs into the tokenizer
+            # chat template (Qwen reads enable_thinking). Default False.
+            "chat_template_kwargs": {"enable_thinking": think},
         }
 
         response = requests.post(
@@ -157,10 +164,16 @@ def _parse_completion(data: Dict) -> BackendResult:
     """
     try:
         choice = data["choices"][0]
-        text = choice["message"]["content"] or ""
+        message = choice["message"]
+        text = message["content"] or ""
     except (KeyError, IndexError, TypeError) as exc:
         raise ValueError(f"Malformed mlx_lm.server response: {exc}") from exc
     finish_reason = choice.get("finish_reason")
+    # Reasoning trace when think=True. mlx_lm.server surfaces it under
+    # ``reasoning_content`` (OpenAI-compatible); absent / None otherwise, in
+    # which case the caller falls back to inline <think> extraction.
+    reasoning = message.get("reasoning_content") if isinstance(message, dict) else None
+    thinking = reasoning if isinstance(reasoning, str) and reasoning.strip() else None
     usage = data.get("usage") or {}
     eval_count = usage.get("completion_tokens")
     if not isinstance(eval_count, int):
@@ -184,4 +197,5 @@ def _parse_completion(data: Dict) -> BackendResult:
         eval_count=eval_count,
         prompt_tokens=prompt_tokens,
         cached_tokens=cached_tokens,
+        thinking=thinking,
     )

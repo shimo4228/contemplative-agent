@@ -435,6 +435,10 @@ def render_episode(record_type: str, data: dict) -> str:
     note = data.get("internal_note")
     if note:
         parts.append("What I noticed:\n" + note)  # in-register, never capped
+    # NOTE: the episode's ``thinking`` field (ADR-0068 reasoning trace) is
+    # deliberately NOT rendered here. It is untrusted model output; if ever
+    # included in a distill prompt it MUST go through wrap_untrusted_content()
+    # first, like the external post/comment fields above.
 
     if not parts:
         return summarize_record(record_type, data)

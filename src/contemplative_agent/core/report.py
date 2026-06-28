@@ -61,6 +61,9 @@ def _parse_log(
                 "relevance": data.get("relevance", ""),
                 "counterparty": data.get("target_agent", ""),
                 "internal_note": data.get("internal_note", ""),
+                # None when the comment ran think=False; coerce to "" so the
+                # renderer's truthiness gate hides the block.
+                "thinking": data.get("thinking") or "",
             })
         elif action == "reply":
             replies.append({
@@ -71,6 +74,7 @@ def _parse_log(
                 "relevance": "",  # replies are notification-driven, not scored
                 "counterparty": data.get("target_agent", ""),
                 "internal_note": data.get("internal_note", ""),
+                "thinking": data.get("thinking") or "",
             })
         elif action == "post":
             posts.append({
@@ -82,6 +86,7 @@ def _parse_log(
                 "relevance": "",  # self-initiated, no counterparty/relevance
                 "counterparty": "",
                 "internal_note": data.get("internal_note", ""),
+                "thinking": data.get("thinking") or "",
             })
 
     return meta, comments, replies, posts
@@ -151,6 +156,11 @@ def _entry_lines(i: int, kind: str, e: Dict[str, Any]) -> List[str]:
     note = _defang_urls(e.get("internal_note", ""))
     if note:
         lines += ["**Internal note:**", note, ""]
+    # Reasoning trace (present only when the call ran think=True). Untrusted
+    # model output like every other field here — URL-defanged before render.
+    thinking = _defang_urls(e.get("thinking", ""))
+    if thinking:
+        lines += ["**Thinking:**", thinking, ""]
     lines += ["**Output:**", _defang_urls(e.get("content", "")), "", "---", ""]
     return lines
 

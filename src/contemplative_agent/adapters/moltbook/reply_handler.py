@@ -275,10 +275,11 @@ class ReplyHandler:
         )
         note = generate_internal_note(note_context)
 
-        reply = generate_reply(
+        generated = generate_reply(
             original_post=original_post,
             their_comment=their_content,
         )
+        reply = generated.text
         if reply is None:
             return
 
@@ -342,6 +343,7 @@ class ReplyHandler:
                 "their_comment": their_content,
                 "original_post": original_post,
                 "internal_note": note,
+                "thinking": generated.thinking,
             })
             ctx.memory.record_interaction(
                 timestamp=datetime.now(timezone.utc).isoformat(),

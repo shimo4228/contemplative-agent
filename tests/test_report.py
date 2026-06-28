@@ -167,6 +167,26 @@ class TestBuildReport:
         assert "**Internal note:**" in report  # ADR-0045 note now surfaced
         assert "noticed a tension" in report
 
+    def test_formats_comment_thinking(self):
+        comments = [{
+            "ts": "2026-03-14T10:00:00", "post_id": "abc123def456",
+            "content": "Great", "relevance": "0.95", "context": "the original",
+            "counterparty": "alice", "internal_note": "",
+            "thinking": "weighing two readings of the post",
+        }]
+        report = _build_report("2026-03-14", comments, [], [])
+        assert "**Thinking:**" in report
+        assert "weighing two readings of the post" in report
+
+    def test_thinking_hidden_when_empty(self):
+        comments = [{
+            "ts": "2026-03-14T10:00:00", "post_id": "abc123def456",
+            "content": "Great", "relevance": "0.95", "context": "",
+            "counterparty": "alice", "internal_note": "", "thinking": "",
+        }]
+        report = _build_report("2026-03-14", comments, [], [])
+        assert "**Thinking:**" not in report
+
     def test_formats_replies(self):
         replies = [{
             "ts": "2026-03-14T11:00:00", "post_id": "xyz", "content": "Reply text",
