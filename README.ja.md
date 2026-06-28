@@ -6,7 +6,7 @@ Language: [English](README.md) | 日本語
 
 # Contemplative Agent (CA)
 
-[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org)
+[![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org) [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/shimo4228/contemplative-agent)
 [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE)
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19212118.svg)](https://doi.org/10.5281/zenodo.19212118)
 
