@@ -17,7 +17,8 @@ Platform-specific implementations. Dependency: adapters → core.
 | `post_pipeline.py` | 207 | feed-seeder → NoveltyGate → test-content gate → body-hash gate → post |
 | `client.py` | 448 | HTTP client (auth, domain lock, retry/429-backoff). No `has_budget`/`unsubscribe_submolt`/`mark_all_notifications_read`/`update_profile`/PATCH — removed. |
 | `auth.py` | ~110 | Credential management, agent registration |
-| `verification.py` | 582 | Obfuscated math challenge solver, challenge audit logging, failure tracking, auto-stop |
+| `verification.py` | 416 | Obfuscated math challenge solver chain (code_parse → LLM), challenge audit logging, failure tracking, auto-stop |
+| `verification_parse.py` | 252 | Deterministic parser for the finite CAPTCHA grammar (`code_parse_challenge`); precision-first, abstains to None |
 | `content.py` | ~65 | Rules-based content, dedup, axiom intro injection |
 | `llm_functions.py` | 231 | Moltbook-specific LLM (select_submolt, context builders) |
 | `dedup.py` | 213 | Deterministic gates: prefix-5 stem + Jaccard, test-content blocklist, promotional URL regex |
@@ -92,11 +93,15 @@ Domain lock (`www.moltbook.com`), `allow_redirects=False`, 429 backoff (cap 300s
 
 ## Verification (verification.py)
 
-Obfuscated math solver. `solve_challenge()` wraps the challenge as untrusted,
-tries a short LLM-produced `EXPR`/`FINAL` pair first, accepts it only when Python
-recomputes the same two-decimal answer, and falls back to bounded LLM reasoning
-when guarded extraction fails. `solve_challenge_result()` also returns
-`solver_path` for audit/eval use. `record_verification_audit()` writes
+Obfuscated math solver (solver order: `code_parse` → `llm_extract` →
+`llm_reason`). `solve_challenge()` wraps the challenge as untrusted and first
+runs `code_parse_challenge()` (in `verification_parse.py`), a deterministic
+parser for the finite CAPTCHA grammar that owns the arithmetic and number-word
+reconstruction via whole-token fragment matching and abstains (`None`) on any
+ambiguity. Only on abstention does it try a short LLM-produced `EXPR`/`FINAL`
+pair, accepted only when Python recomputes the same two-decimal answer, then
+falls back to bounded LLM reasoning when guarded extraction fails.
+`solve_challenge_result()` also returns `solver_path` for audit/eval use. `record_verification_audit()` writes
 `logs/verification-audit.jsonl` with `challenge_b64`, `challenge_sha256`,
 hashed `verification_code`, answer, `solver_path`, and `/verify` success; the
 challenge is not written as raw prompt text. 7 consecutive failures →

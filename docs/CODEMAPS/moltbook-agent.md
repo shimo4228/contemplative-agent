@@ -45,7 +45,8 @@ cli.py (2024L)  -- composition root, only file importing both core/ and adapters
  |    post_pipeline.py (207L)     -- feed-seeder → NoveltyGate → test-content + body-hash gates → post
  |    client.py (448L)            -- HTTP client (auth, domain lock, retry/429-backoff)
  |    auth.py (111L)              -- credential management, register
- |    verification.py (582L)      -- obfuscated math solver + challenge audit log
+ |    verification.py (416L)      -- math solver chain (code_parse → LLM) + challenge audit log
+ |    verification_parse.py (252L)-- deterministic finite-grammar CAPTCHA parser (code_parse_challenge)
  |    content.py (64L)            -- rules-based content + axiom intro injection
  |    llm_functions.py (231L)     -- Moltbook-specific LLM functions
  |    dedup.py (213L)             -- deterministic gates: prefix-5 stem + Jaccard, test-content, promo regex
@@ -160,7 +161,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 **Distillation**: distill_episode (per-episode grounded distill, ADR-0060 — this is the live distill prompt), identity_distill, insight_extraction, rules_distill, rules_distill_refine, constitution_amend (`distill` / `distill_refine` are no longer loaded by `core/distill.py` after ADR-0060 replaced the 2-step batch with `distill_episode`; the `.md` files + `DISTILL_PROMPT` mapping linger but are dead. `distill_importance` retired, ADR-0056)
 
-**Verification**: verification_solve_extract_system (short EXPR/FINAL extraction) and verification_solve_reason_system (bounded reasoning fallback). `verification.py` wraps the challenge as untrusted, lets the LLM propose arithmetic, and only accepts guarded expressions when Python recomputation matches the stated final answer. `Agent._handle_verification()` writes `logs/verification-audit.jsonl` with a base64-encoded challenge, SHA-256s, solver path, answer, and `/verify` outcome for corpus-driven solver evaluation (ADR-0062 amendment).
+**Verification**: solver order is `code_parse` → `llm_extract` → `llm_reason`. `verification.py` wraps the challenge as untrusted and first runs the deterministic `code_parse_challenge()` (in `verification_parse.py`), which owns the finite CAPTCHA grammar's arithmetic / number-word reconstruction and abstains to `None` on any ambiguity. Only on abstention does the LLM propose arithmetic via verification_solve_extract_system (short EXPR/FINAL extraction), accepted only when Python recomputation matches the stated final answer, with verification_solve_reason_system as the bounded reasoning fallback. `Agent._handle_verification()` writes `logs/verification-audit.jsonl` with a base64-encoded challenge, SHA-256s, `solver_path` (now incl. `code_parse`), answer, and `/verify` outcome for corpus-driven solver evaluation (ADR-0062 amendment).
 
 **Audit**: stocktake_skills, stocktake_rules (LLM grouping, ADR-0046), stocktake_merge (frontmatter emission, ADR-0048), stocktake_merge_rules, stocktake_clean (singleton trigger-altitude, ADR-0048), stocktake_group_system / stocktake_merge_system / stocktake_clean_system (externalized `system=` prompts, ADR-0054)
 

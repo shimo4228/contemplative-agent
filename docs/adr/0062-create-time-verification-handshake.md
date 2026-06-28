@@ -10,6 +10,22 @@ post-verification recording gate are unchanged. A second 2026-06-28 amendment
 adds `logs/verification-audit.jsonl`, a base64 challenge/outcome corpus for
 solver evaluation.
 
+Third amendment 2026-06-28: a deterministic code parser
+(`verification_parse.code_parse_challenge`) now runs BEFORE the guarded LLM
+extraction (solver order: `code_parse` → `llm_extract` → `llm_reason`). The
+guarded EXPR/FINAL path only proves the model's expression and stated answer
+agree arithmetically — not that the expression faithfully represents the
+obfuscated challenge — so a self-consistent-but-wrong proposal (e.g. `20 + 12 =
+32` for a "twenty five + twelve" challenge) passed it; the audit corpus showed
+two such live failures. The new parser owns the finite CAPTCHA grammar's
+arithmetic and number-word reconstruction via whole-token fragment matching (no
+substring matching, so carrier nouns like "antenna" cannot inject "ten"), and is
+precision-first: it abstains to `None` on any ambiguity (≠2 operands, no clear
+operation, conflicting operations), falling through to the unchanged LLM chain.
+The output trust boundary is unchanged — only a parseable, code-recomputed
+number is ever submitted — so this is a mechanism amendment, not a
+security-boundary change, and needs no new ADR.
+
 ## Date
 
 2026-06-26

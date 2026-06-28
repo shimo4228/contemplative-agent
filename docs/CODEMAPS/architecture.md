@@ -71,9 +71,12 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │        (cosine vs recent self-posts + temporal decay + rate-deficit Lagrangian)
  │        → body-hash dedup (SHA-256[:16]) → POST /posts
  │    → verification handshake: a non-trusted agent's create-response carries a
- │      math challenge; solve_challenge wraps the challenge as untrusted, asks
- │      the LLM for a short numeric expression, validates it in Python, and
- │      falls back to bounded LLM reasoning only if the guarded expression fails
+ │      math challenge; solve_challenge first runs a deterministic code parser
+ │      (code_parse_challenge) that owns the finite CAPTCHA grammar's arithmetic
+ │      and number-word reconstruction and abstains (None) on any ambiguity; only
+ │      then does it ask the LLM for a short numeric expression, validate it in
+ │      Python, and fall back to bounded LLM reasoning if the guarded expression
+ │      fails (solver order: code_parse → llm_extract → llm_reason)
  │      → POST /verify. Content stays verification_status=pending (invisible)
  │      until verified, so memory/NoveltyGate recording happens ONLY after
  │      success (posts, comments, replies). Each challenge outcome is also

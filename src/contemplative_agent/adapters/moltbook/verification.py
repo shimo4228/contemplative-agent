@@ -8,15 +8,19 @@ The answer (a number to 2 decimals) must be POSTed to ``/verify`` with the
 ``verification_code`` before the content becomes visible. Trusted agents and
 admins bypass this and receive no ``verification`` object.
 
-Solving is a semantic task — the operation is implied by a verb and the noise is
-adversarial to any fixed parser — so the de-noising is handed to the LLM. The
-arithmetic, by contrast, is owned by code: the LLM first proposes a short
-``EXPR``/``FINAL`` pair which Python recomputes with ``Decimal`` (the guarded
-fast path); only if that contract is missing or inconsistent does the solver
-fall back to a bounded reasoning prompt. The trust boundary is the *output*:
-only a parseable number that survives the code guard or bounded fallback is ever
-submitted; a prompt injected via the challenge fails closed to ``None`` and is
-bounded by ``VerificationTracker``.
+The solver is two-tier (order: ``code_parse`` -> ``llm_extract`` ->
+``llm_reason``). Code owns the arithmetic and number-word reconstruction for the
+finite CAPTCHA grammar: ``verification_parse.code_parse_challenge`` runs first
+and, when it recovers exactly two operands and one operation with high
+confidence, returns the ``Decimal`` answer without any LLM call. It is
+precision-first and abstains to ``None`` on any ambiguity. Only then is the
+de-noising handed to the LLM for cases outside that grammar: the model proposes
+a short ``EXPR``/``FINAL`` pair which Python recomputes with ``Decimal`` (the
+guarded fast path), falling back to a bounded reasoning prompt if that contract
+is missing or inconsistent. The trust boundary is the *output*: only a parseable
+number that the code parser computed or that survives the code guard / bounded
+fallback is ever submitted; a prompt injected via the challenge fails closed to
+``None`` and is bounded by ``VerificationTracker``.
 """
 
 from __future__ import annotations
@@ -31,6 +35,7 @@ import re
 from typing import TYPE_CHECKING, Any, Literal, Optional
 
 from .config import EPISODE_LOG_DIR, MAX_VERIFICATION_FAILURES
+from .verification_parse import code_parse_challenge
 from ...core._io import append_jsonl_restricted, now_iso
 from ...core.llm import generate, wrap_untrusted_content
 
@@ -105,7 +110,7 @@ class VerificationSolveResult:
     """Internal solve outcome used for challenge-corpus audit logging."""
 
     answer: Optional[str]
-    solver_path: Literal["llm_extract", "llm_reason", "none"]
+    solver_path: Literal["code_parse", "llm_extract", "llm_reason", "none"]
     challenge_sha256: str
 
 
@@ -133,6 +138,20 @@ def solve_challenge_result(challenge_text: str) -> VerificationSolveResult:
         return VerificationSolveResult(
             answer=None,
             solver_path="none",
+            challenge_sha256=challenge_sha256,
+        )
+
+    # Deterministic code parser (ADR-0062 amendment): for the finite CAPTCHA
+    # grammar, code owns the arithmetic and number-word reconstruction so that a
+    # self-consistent-but-wrong LLM proposal can no longer pass the guard. It is
+    # precision-first and returns None on any ambiguity, falling through to the
+    # LLM chain below.
+    parsed = code_parse_challenge(challenge_text)
+    if parsed is not None:
+        logger.info("Verification challenge solved (code parse): %s", parsed)
+        return VerificationSolveResult(
+            answer=parsed,
+            solver_path="code_parse",
             challenge_sha256=challenge_sha256,
         )
 
