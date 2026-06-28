@@ -60,6 +60,11 @@ OLLAMA_MODEL = _DEFAULT_OLLAMA_MODEL
 
 # --- HTTP client ---
 MAX_VERIFICATION_FAILURES = 7
+# Max length of an untrusted Moltbook CAPTCHA challenge fed to either the
+# deterministic parser (verification_parse) or the LLM solve path (verification);
+# anything longer is malicious or unparseable by the finite grammar — abstain.
+# Shared here so the two bounds cannot silently drift apart.
+MAX_CHALLENGE_INPUT = 2000
 MAX_RETRY_ON_429 = 3
 CONNECT_TIMEOUT = 30
 READ_TIMEOUT = 60

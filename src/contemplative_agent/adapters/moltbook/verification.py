@@ -34,9 +34,13 @@ import math
 import re
 from typing import TYPE_CHECKING, Any, Literal, Optional
 
-from .config import EPISODE_LOG_DIR, MAX_VERIFICATION_FAILURES
+from .config import (
+    EPISODE_LOG_DIR,
+    MAX_CHALLENGE_INPUT,
+    MAX_VERIFICATION_FAILURES,
+)
 from .verification_parse import code_parse_challenge
-from ...core._io import append_jsonl_restricted, now_iso
+from ...core._io import append_jsonl_restricted, now_iso, strip_to_printable
 from ...core.llm import generate, wrap_untrusted_content
 
 if TYPE_CHECKING:
@@ -82,7 +86,6 @@ FINAL: <answer to two decimals>
 
 The FINAL line must be the last line and the last number in your reply.
 """
-_MAX_CHALLENGE_INPUT = 2000
 _MAX_AUDIT_CHALLENGE_BYTES = 8192
 _EXTRACT_NUM_PREDICT = 512
 # A reasoning model gets the arithmetic right only when allowed to think first
@@ -258,7 +261,7 @@ def _sha256_text(text: str) -> str:
 
 
 def _sanitize_audit_error(error: str) -> str:
-    return re.sub(r"[^\x20-\x7E]", "", error[:200])
+    return strip_to_printable(error, 200)
 
 
 def _generate_solver(prompt: str, *, system: str, num_predict: int) -> Optional[str]:
@@ -275,7 +278,7 @@ def _generate_solver(prompt: str, *, system: str, num_predict: int) -> Optional[
 def _challenge_prompt(challenge_text: str) -> str:
     return "Solve this verification challenge:\n\n" + wrap_untrusted_content(
         challenge_text,
-        max_input=_MAX_CHALLENGE_INPUT,
+        max_input=MAX_CHALLENGE_INPUT,
     )
 
 

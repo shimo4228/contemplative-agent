@@ -12,9 +12,14 @@ rules_distill produce than to how files are written.
 
 from __future__ import annotations
 
+import logging
 import re
 import unicodedata
-from typing import Optional
+from datetime import datetime
+from pathlib import Path
+from typing import List, Optional, Tuple
+
+logger = logging.getLogger(__name__)
 
 MAX_SLUG_LENGTH = 50
 
@@ -117,3 +122,36 @@ def synthesize_frontmatter(body: str, *, origin: str = "auto-extracted") -> str:
         f"origin: {origin}\n"
         "---"
     )
+
+
+def read_markdown_bodies(
+    directory: Path, *, since: Optional[str] = None
+) -> List[Tuple[str, str]]:
+    """Return sorted ``(filename, frontmatter-stripped body)`` for ``*.md``.
+
+    Skips dotfiles and empty bodies; logs a warning on unreadable files.
+    When *since* is an ISO timestamp, only files modified after it are
+    included (an unparseable *since* logs a warning and reads all). Shared
+    by the insight / rules-distill / stocktake readers.
+    """
+    if not directory.is_dir():
+        return []
+    cutoff: Optional[float] = None
+    if since:
+        try:
+            cutoff = datetime.fromisoformat(since).timestamp()
+        except ValueError:
+            logger.warning("Invalid since timestamp %r, reading all files", since)
+    items: List[Tuple[str, str]] = []
+    for p in sorted(directory.glob("*.md")):
+        if p.name.startswith("."):
+            continue
+        if cutoff is not None and p.stat().st_mtime < cutoff:
+            continue
+        try:
+            body = strip_frontmatter(p.read_text(encoding="utf-8")).strip()
+            if body:
+                items.append((p.name, body))
+        except OSError:
+            logger.warning("Could not read file %s", p)
+    return items

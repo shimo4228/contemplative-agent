@@ -155,8 +155,12 @@ class TestMainRun:
         meta = call_kwargs["session_meta"]
         assert "domain" in meta
         assert meta["llm_backend"] == "ollama"
-        assert meta["llm_model"] == "qwen3.5:9b"
-        assert meta["ollama_model"] == "qwen3.5:9b"
+        # Session metadata reuses the canonical served-model resolver (ADR-0069)
+        # rather than a stale literal, so assert against it, not a hardcoded id.
+        from contemplative_agent.core.llm import served_model
+
+        assert meta["llm_model"] == served_model()
+        assert meta["ollama_model"] == served_model()
 
     @patch("contemplative_agent.cli.Agent")
     def test_run_custom_duration(self, mock_agent_cls):

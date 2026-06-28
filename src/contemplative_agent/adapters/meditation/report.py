@@ -4,12 +4,11 @@ from __future__ import annotations
 
 import json
 import logging
-import os
 from dataclasses import asdict
 from pathlib import Path
 from typing import List, Optional
 
-from ...core._io import now_iso, write_restricted
+from ...core._io import now_iso, write_text_atomic
 from ...core.llm import generate
 from .config import ACTION_STATES, CONTEXT_STATES
 from .meditate import MeditationResult
@@ -69,13 +68,10 @@ def _save_result(result: MeditationResult, results_path: Path) -> None:
     existing.append(entry)
 
     content = json.dumps(existing, ensure_ascii=False, indent=2) + "\n"
-    tmp_path = results_path.with_suffix(".json.tmp")
     try:
-        write_restricted(tmp_path, content)
-        os.replace(str(tmp_path), str(results_path))
+        write_text_atomic(results_path, content)
     except OSError as exc:
         logger.error("Failed to save meditation results: %s", exc)
-        tmp_path.unlink(missing_ok=True)
         raise
 
 

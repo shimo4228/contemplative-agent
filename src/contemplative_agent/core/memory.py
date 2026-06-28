@@ -10,13 +10,13 @@ from __future__ import annotations
 
 import json
 import logging
-import os
+from collections import Counter
 from dataclasses import asdict, dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Dict, Iterable, List, Literal, Optional, Tuple
+from typing import Any, Callable, Dict, Iterable, List, Literal, Optional, Tuple
 
-from ._io import truncate, write_restricted
+from ._io import parse_aware_utc, truncate, write_text_atomic
 from .episode_log import EpisodeLog
 from .knowledge_store import KnowledgeStore
 
@@ -189,13 +189,10 @@ class MemoryStore:
             ensure_ascii=False,
             indent=2,
         ) + "\n"
-        tmp_path = self._agents_path.with_suffix(".json.tmp")
         try:
-            write_restricted(tmp_path, content)
-            os.replace(str(tmp_path), str(self._agents_path))
+            write_text_atomic(self._agents_path, content)
         except OSError as exc:
             logger.error("Failed to save agents.json: %s", exc)
-            tmp_path.unlink(missing_ok=True)
             raise
 
     def _load_episodes_into_memory(self) -> None:
@@ -326,13 +323,14 @@ class MemoryStore:
         count below ``limit`` when enough other agents exist.
         """
         excluded = set(exclude_ids or ())
+        counts = Counter(i.agent_id for i in self._interactions)
         ranked = []
         for agent_id, agent_name in self._known_agents.items():
             if agent_id in excluded:
                 continue
             if agent_name in self._TEST_AGENT_NAMES:
                 continue
-            count = self.interaction_count_with(agent_id)
+            count = counts.get(agent_id, 0)
             if count > 0:
                 ranked.append((agent_id, agent_name, count))
         ranked.sort(key=lambda x: x[2], reverse=True)
@@ -391,6 +389,31 @@ class MemoryStore:
         )
         return list(records[-limit:])
 
+    @staticmethod
+    def _count_within(
+        items: Iterable[Any],
+        cutoff: datetime,
+        predicate: Callable[[Any], bool],
+    ) -> int:
+        """Count items matching *predicate* whose timestamp is >= *cutoff*.
+
+        Shared trailing-window counter for the post-rate and per-author
+        comment-rate limiters: parse each item's ``timestamp`` (skipping
+        malformed values), coerce tz-naive to UTC, and tally those at or
+        after the cutoff.
+        """
+        n = 0
+        for x in items:
+            if not predicate(x):
+                continue
+            try:
+                ts = parse_aware_utc(x.timestamp)
+            except ValueError:
+                continue
+            if ts >= cutoff:
+                n += 1
+        return n
+
     def get_post_rate_7d(self) -> float:
         """Self-post rate (posts/day) over a fixed 7-day trailing window.
 
@@ -403,17 +426,7 @@ class MemoryStore:
         are skipped (same pattern as count_recent_comments_by_author).
         """
         cutoff = datetime.now(timezone.utc) - timedelta(days=7)
-        n = 0
-        for p in self._post_history:
-            try:
-                ts = datetime.fromisoformat(p.timestamp)
-            except ValueError:
-                continue
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=timezone.utc)
-            if ts >= cutoff:
-                n += 1
-        return n / 7.0
+        return self._count_within(self._post_history, cutoff, lambda _p: True) / 7.0
 
     def count_recent_comments_by_author(
         self, agent_name: str, hours: int = 24
@@ -431,19 +444,11 @@ class MemoryStore:
         if not agent_name or agent_name == "unknown":
             return 0
         cutoff = datetime.now(timezone.utc) - timedelta(hours=hours)
-        n = 0
-        for it in self._interactions:
-            if it.direction != "sent" or it.agent_name != agent_name:
-                continue
-            try:
-                ts = datetime.fromisoformat(it.timestamp)
-            except ValueError:
-                continue
-            if ts.tzinfo is None:
-                ts = ts.replace(tzinfo=timezone.utc)
-            if ts >= cutoff:
-                n += 1
-        return n
+        return self._count_within(
+            self._interactions,
+            cutoff,
+            lambda it: it.direction == "sent" and it.agent_name == agent_name,
+        )
 
     def get_prior_comment_targets(
         self, agent_name: str, days: int = 7, limit: int = 7
@@ -518,13 +523,10 @@ class MemoryStore:
         if self._commented_cache is None or self._commented_cache_path is None:
             return
         self._commented_cache_path.parent.mkdir(parents=True, exist_ok=True)
-        tmp_path = self._commented_cache_path.with_suffix(".json.tmp")
         try:
-            write_restricted(
-                tmp_path,
+            write_text_atomic(
+                self._commented_cache_path,
                 json.dumps(sorted(self._commented_cache), ensure_ascii=False),
             )
-            os.replace(str(tmp_path), str(self._commented_cache_path))
         except OSError as exc:
             logger.warning("Failed to save commented cache: %s", exc)
-            tmp_path.unlink(missing_ok=True)

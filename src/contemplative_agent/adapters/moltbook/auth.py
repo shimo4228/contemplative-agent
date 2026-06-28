@@ -8,6 +8,7 @@ import os
 from typing import TYPE_CHECKING, Optional
 
 from .config import CREDENTIALS_PATH
+from ...core._io import write_text_atomic
 
 if TYPE_CHECKING:
     from .client import MoltbookClient
@@ -63,13 +64,7 @@ def save_credentials(api_key: str, agent_id: Optional[str] = None) -> None:
         data["agent_id"] = agent_id
 
     content = json.dumps(data, indent=2) + "\n"
-    tmp_path = CREDENTIALS_PATH.with_suffix(".json.tmp")
-    old_umask = os.umask(0o177)
-    try:
-        tmp_path.write_text(content, encoding="utf-8")
-    finally:
-        os.umask(old_umask)
-    os.replace(str(tmp_path), str(CREDENTIALS_PATH))
+    write_text_atomic(CREDENTIALS_PATH, content)
     logger.info(
         "Credentials saved to %s (%s)",
         CREDENTIALS_PATH,

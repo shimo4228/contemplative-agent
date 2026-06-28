@@ -27,6 +27,8 @@ from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
+from contemplative_agent.core._io import age_days as _age_days
+from contemplative_agent.core._io import parse_aware_utc
 from contemplative_agent.core.config import VALID_ID_PATTERN
 from contemplative_agent.core.embeddings import (
     cosine,
@@ -337,13 +339,10 @@ def _build_history(
         if vec is None:
             continue
         try:
-            ts = datetime.fromisoformat(record.timestamp)
+            ts = parse_aware_utc(record.timestamp)
         except ValueError:
             continue
-        if ts.tzinfo is None:
-            ts = ts.replace(tzinfo=timezone.utc)
-        age_days = max(0.0, (now - ts).total_seconds() / 86400.0)
-        out.append((vec, age_days))
+        out.append((vec, _age_days(ts, now=now)))
     return out
 
 

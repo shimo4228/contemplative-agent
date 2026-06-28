@@ -107,15 +107,12 @@ def _parse_peer_line(line: str) -> Optional[dict]:
 def _render_reply_prompt(template: str, history: list, peer_content: str) -> str:
     """Format the reply prompt, falling back to the default template."""
     wrapped = wrap_untrusted_content(peer_content)
+    section = _build_history_section(history)
     try:
-        return template.format(
-            history_section=_build_history_section(history),
-            peer_message=wrapped,
-        )
+        return template.format(history_section=section, peer_message=wrapped)
     except (KeyError, IndexError, ValueError):
         return _DEFAULT_DIALOGUE_PROMPT.format(
-            history_section=_build_history_section(history),
-            peer_message=wrapped,
+            history_section=section, peer_message=wrapped
         )
 
 

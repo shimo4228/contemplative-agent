@@ -38,7 +38,12 @@ from .adapters.moltbook.config import (
     STAGED_DIR,
     VIEWS_DIR,
 )
-from .core._io import acquire_run_lock, append_jsonl_restricted, now_iso
+from .core._io import (
+    acquire_run_lock,
+    append_jsonl_restricted,
+    now_iso,
+    write_run_marker,
+)
 from .core.domain import (
     DEFAULT_CONFIG_DIR,
     DomainConfig,
@@ -310,24 +315,22 @@ def _log_approval(
         logger.warning("Failed to write audit log: %s", AUDIT_LOG_PATH)
 
 
-def _approve_write(path: Path) -> bool:
-    """Prompt user for write approval. Default is N (safe side)."""
-    print(f"\nWrite to {path}? [y/N] ", end="", flush=True)
+def _approve(prompt: str) -> bool:
+    """Prompt user for y/N approval. Default is N (safe side)."""
+    print(f"\n{prompt} [y/N] ", end="", flush=True)
     try:
         return input().strip().lower() == "y"
     except (EOFError, KeyboardInterrupt):
         print()
         return False
+
+
+def _approve_write(path: Path) -> bool:
+    return _approve(f"Write to {path}?")
 
 
 def _approve_delete(path: Path) -> bool:
-    """Prompt user for delete approval. Default is N (safe side)."""
-    print(f"\nDelete {path}? [y/N] ", end="", flush=True)
-    try:
-        return input().strip().lower() == "y"
-    except (EOFError, KeyboardInterrupt):
-        print()
-        return False
+    return _approve(f"Delete {path}?")
 
 
 def _run_approval_loop(
@@ -617,15 +620,19 @@ def _llm_session_meta() -> dict[str, str]:
     """Return backend/model metadata for the session start episode.
 
     Per-call telemetry records the exact served model on every request via the
-    ``LLMBackend.model`` contract. The session-level metadata is coarser and
-    names the default Ollama generation backend.
+    ``LLMBackend.model`` contract. The session-level metadata reuses the same
+    canonical resolver (``served_model()``) so it never drifts to a stale
+    literal — both record whatever model is actually serving generation.
     """
+    from .core.llm import served_model
+
+    model = served_model()
     return {
         "llm_backend": "ollama",
-        "llm_model": os.environ.get("OLLAMA_MODEL", "qwen3.5:9b"),
+        "llm_model": model,
         # Legacy field retained so older report consumers that know this key
         # keep working.
-        "ollama_model": os.environ.get("OLLAMA_MODEL", "qwen3.5:9b"),
+        "ollama_model": model,
     }
 
 
@@ -1573,6 +1580,57 @@ def _handle_enrich(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     print(f"Subcategorized: {sub_count}")
 
 
+def _handle_single_result(
+    result: Any,
+    *,
+    command: str,
+    reasoning_label: str,
+    snapshot_path: Optional[Path],
+    stage: bool,
+    stage_filename: Optional[str] = None,
+) -> bool:
+    """Print / stage / approve-write a single value-layer result.
+
+    Shared tail for the distill-identity and amend-constitution handlers:
+    handle the string-error short-circuit, write the reasoning trace, stage
+    when requested, then run the ADR-0012 approval gate and write on approval.
+    Returns ``True`` only when the result was approved and written to its
+    target, so callers can run a post-write hook (e.g. the constitution
+    last-amend marker). ``stage_filename`` defaults to the target's own name.
+    """
+    if isinstance(result, str):
+        print(result)
+        return False
+    print(result.text)
+    _write_reasoning(snapshot_path, [(reasoning_label, result.thinking)])
+    if stage:
+        _stage_results(
+            [StageItem(
+                stage_filename or result.target_path.name,
+                result.text, result.target_path,
+                source_ids=list(result.pattern_ids),
+                epistemic_counts=dict(result.epistemic_counts),
+            )],
+            command=command,
+        )
+        return False
+    if result.thinking:
+        print(f"\n--- Reasoning ---\n{result.thinking}")
+    approved = _approve_write(result.target_path)
+    _log_approval(
+        command, result.target_path, approved, result.text,
+        snapshot_path=snapshot_path,
+        source_ids=result.pattern_ids,
+        epistemic_counts=result.epistemic_counts,
+    )
+    if not approved:
+        print("Discarded.")
+        return False
+    from .core._io import write_restricted as _wr
+    _wr(result.target_path, result.text + "\n")
+    return True
+
+
 def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     from .core.distill import distill_identity
     from .core.memory import KnowledgeStore
@@ -1586,35 +1644,14 @@ def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.Argumen
         identity_path=IDENTITY_PATH,
         view_registry=view_registry,
     )
-    if isinstance(result, str):
-        print(result)
-        return
-    print(result.text)
-    _write_reasoning(snapshot_path, [("identity", result.thinking)])
-    if getattr(args, "stage", False):
-        _stage_results(
-            [StageItem(
-                "identity.md", result.text, result.target_path,
-                source_ids=list(result.pattern_ids),
-                epistemic_counts=dict(result.epistemic_counts),
-            )],
-            command="distill-identity",
-        )
-        return
-    if result.thinking:
-        print(f"\n--- Reasoning ---\n{result.thinking}")
-    approved = _approve_write(result.target_path)
-    _log_approval(
-        "distill-identity", result.target_path, approved, result.text,
+    _handle_single_result(
+        result,
+        command="distill-identity",
+        reasoning_label="identity",
         snapshot_path=snapshot_path,
-        source_ids=result.pattern_ids,
-        epistemic_counts=result.epistemic_counts,
+        stage=getattr(args, "stage", False),
+        stage_filename="identity.md",
     )
-    if not approved:
-        print("Discarded.")
-        return
-    from .core._io import write_restricted as _wr
-    _wr(result.target_path, result.text + "\n")
 
 
 def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
@@ -1703,37 +1740,18 @@ def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.Argum
         constitution_dir=constitution_dir,
         view_registry=view_registry,
     )
-    if isinstance(result, str):
-        print(result)
-        return
-    print(result.text)
-    _write_reasoning(snapshot_path, [("constitution amendment", result.thinking)])
-    if getattr(args, "stage", False):
-        _stage_results(
-            [StageItem(
-                result.target_path.name, result.text, result.target_path,
-                source_ids=list(result.pattern_ids),
-                epistemic_counts=dict(result.epistemic_counts),
-            )],
-            command="amend-constitution",
-        )
-        return
-    if result.thinking:
-        print(f"\n--- Reasoning ---\n{result.thinking}")
-    approved = _approve_write(result.target_path)
-    _log_approval(
-        "amend-constitution", result.target_path, approved, result.text,
+    wrote = _handle_single_result(
+        result,
+        command="amend-constitution",
+        reasoning_label="constitution amendment",
         snapshot_path=snapshot_path,
-        source_ids=result.pattern_ids,
-        epistemic_counts=result.epistemic_counts,
+        stage=getattr(args, "stage", False),
     )
-    if not approved:
-        print("Discarded.")
-        return
-    from .core._io import write_restricted as _wr
-    _wr(result.target_path, result.text + "\n")
-    marker = result.marker_dir / ".last_constitution_amend"
-    marker.write_text(now_iso() + "\n", encoding="utf-8")
+    # ``wrote`` is True only on the approved-write path, where ``result`` is
+    # the amendment object (never the string-error short-circuit); the
+    # isinstance narrows the type for the marker write.
+    if wrote and not isinstance(result, str):
+        write_run_marker(result.marker_dir, ".last_constitution_amend")
 
 
 def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:

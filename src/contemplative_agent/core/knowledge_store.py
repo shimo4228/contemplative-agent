@@ -5,15 +5,31 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
-import os
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
 from typing import Dict, List, Optional
 
-from ._io import now_iso, write_restricted
+from ._io import age_days, now_iso, parse_aware_utc, write_text_atomic
 from .config import FORBIDDEN_SUBSTRING_PATTERNS
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_distilled(p: dict) -> Optional[datetime]:
+    """Parse a pattern's ``distilled`` ISO timestamp to a tz-aware datetime.
+
+    Returns ``None`` for missing / ``"unknown"`` / malformed timestamps;
+    naive inputs are coerced to UTC (matching ``effective_importance`` and
+    ``_filter_since``).
+    """
+    distilled = p.get("distilled", "")
+    if not distilled or distilled == "unknown":
+        return None
+    try:
+        return parse_aware_utc(distilled)
+    except (ValueError, TypeError):
+        return None
+
 
 def effective_importance(p: dict) -> float:
     """Extraction weight: pure time decay ``0.95^days_elapsed``.
@@ -25,17 +41,10 @@ def effective_importance(p: dict) -> float:
     ADR-0051 (origin is recorded, never weighted). Extraction weight is
     therefore time alone.
     """
-    distilled = p.get("distilled", "")
-    if not distilled or distilled == "unknown":
-        return 0.1  # Unknown timestamp → heavy penalty
-    try:
-        dt = datetime.fromisoformat(distilled)
-        if dt.tzinfo is None:
-            dt = dt.replace(tzinfo=timezone.utc)
-        days = max(0.0, (datetime.now(timezone.utc) - dt).total_seconds() / 86400.0)
-    except (ValueError, TypeError):
-        return 0.1
-    return min(1.0, 0.95 ** days)
+    dt = _parse_distilled(p)
+    if dt is None:
+        return 0.1  # Missing / unknown / malformed timestamp → heavy penalty
+    return min(1.0, 0.95 ** age_days(dt))
 
 
 def is_live(pattern: Dict) -> bool:
@@ -202,25 +211,15 @@ class KnowledgeStore:
         TypeError and silently dropped the pattern from the result — a latent
         data-loss path for "since" queries (ultracode sweep 2026-06-23).
         """
-        def _aware(dt: datetime) -> datetime:
-            return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
-
         try:
-            since_dt = _aware(datetime.fromisoformat(since))
+            since_dt = parse_aware_utc(since)
         except (ValueError, TypeError):
             return list(pool)
         result = []
         for p in pool:
-            distilled = p.get("distilled", "")
-            if not distilled or distilled == "unknown":
-                continue
-            try:
-                if _aware(datetime.fromisoformat(distilled)) > since_dt:
-                    result.append(p)
-            except (ValueError, TypeError):
-                # Genuinely malformed timestamp string — skip this one record
-                # only (no longer reachable via tz naive/aware mismatch).
-                continue
+            dt = _parse_distilled(p)
+            if dt is not None and dt > since_dt:
+                result.append(p)
         return result
 
     def get_live_patterns(self) -> List[dict]:
@@ -309,13 +308,10 @@ class KnowledgeStore:
             return
         self._path.parent.mkdir(parents=True, exist_ok=True)
         content = json.dumps(self._learned_patterns, ensure_ascii=False, indent=2) + "\n"
-        tmp_path = self._path.with_suffix(".json.tmp")
         try:
-            write_restricted(tmp_path, content)
-            os.replace(str(tmp_path), str(self._path))
+            write_text_atomic(self._path, content)
         except OSError as exc:
             logger.error("Failed to save knowledge file: %s", exc)
-            tmp_path.unlink(missing_ok=True)
             raise
 
     def _parse_json(self, text: str) -> None:

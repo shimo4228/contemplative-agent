@@ -26,11 +26,11 @@ import logging
 import re
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 from ._io import strip_code_fence
 from .llm import generate_full
-from .text_utils import strip_frontmatter
+from .text_utils import read_markdown_bodies
 
 logger = logging.getLogger(__name__)
 
@@ -100,25 +100,38 @@ def _read_files(directory: Path) -> List[Tuple[str, str]]:
 
     Returns list of (filename, body_text) tuples, sorted by name.
     """
-    if not directory.is_dir():
-        return []
-
-    items: List[Tuple[str, str]] = []
-    for p in sorted(directory.glob("*.md")):
-        if p.name.startswith("."):
-            continue
-        try:
-            body = strip_frontmatter(p.read_text(encoding="utf-8")).strip()
-            if body:
-                items.append((p.name, body))
-        except OSError:
-            logger.warning("Could not read file %s", p)
-    return items
+    return read_markdown_bodies(directory)
 
 
 def _format_items(items: List[Tuple[str, str]]) -> str:
     """Format (filename, body) tuples as LLM input with === separators."""
     return "\n\n===\n\n".join(f"**{name}**\n\n{body}" for name, body in items)
+
+
+def _generate_with_trace(
+    prompt: str,
+    *,
+    system: str,
+    num_predict: int,
+    caller: str,
+    trace_sink: Optional[List[str]],
+) -> Optional[str]:
+    """Run a think-ON generate, append the reasoning trace, return the text.
+
+    Centralises the ADR-0069 trace-capture contract shared by the grouping /
+    merge / clean calls: think=True, append ``out.thinking`` to *trace_sink*
+    when present, and return ``out.text`` (None when the LLM produced no
+    text). Callers own any failure-path logging and post-processing.
+    """
+    out = generate_full(
+        prompt, system=system, num_predict=num_predict,
+        caller=caller, think=True,
+    )
+    if out is None or out.text is None:
+        return None
+    if trace_sink is not None and out.thinking:
+        trace_sink.append(out.thinking)
+    return out.text
 
 
 def _find_duplicate_groups(
@@ -153,17 +166,15 @@ def _find_duplicate_groups(
     prompt = prompt_template.format(items=_format_items(items))
     num_predict = min(8192, max(3000, _GROUPING_TOKENS_PER_FILE * len(items)))
     system = STOCKTAKE_GROUP_SYSTEM_PROMPT or _DEFAULT_GROUP_SYSTEM
-    out = generate_full(
+    text = _generate_with_trace(
         prompt, system=system, num_predict=num_predict,
-        caller="stocktake.duplicates", think=True,
+        caller="stocktake.duplicates", trace_sink=trace_sink,
     )
-    if out is None or out.text is None:
+    if text is None:
         logger.warning("LLM failed during stocktake duplicate detection")
         return []
-    if trace_sink is not None and out.thinking:
-        trace_sink.append(out.thinking)
 
-    return _parse_groups(out.text)
+    return _parse_groups(text)
 
 
 def _parse_groups(raw: str) -> List[MergeGroup]:
@@ -242,15 +253,10 @@ def merge_group(
     # behavior unchanged; ceiling stays within the model's num_ctx headroom.
     num_predict = min(8192, max(3000, _PER_FILE_MERGE_TOKENS * len(items)))
     system = STOCKTAKE_MERGE_SYSTEM_PROMPT or _DEFAULT_MERGE_SYSTEM
-    out = generate_full(
+    return _generate_with_trace(
         prompt, system=system, num_predict=num_predict,
-        caller="stocktake.merge", think=True,
+        caller="stocktake.merge", trace_sink=trace_sink,
     )
-    if out is None or out.text is None:
-        return None
-    if trace_sink is not None and out.thinking:
-        trace_sink.append(out.thinking)
-    return out.text
 
 
 def is_merge_rejected(merged_text: str) -> bool:
@@ -306,18 +312,13 @@ def clean_skill_triggers(
 
     _, body = item
     prompt = prompt_template.format(skill=body)
-    out = generate_full(
+    return _generate_with_trace(
         prompt,
         system=STOCKTAKE_CLEAN_SYSTEM_PROMPT or _DEFAULT_CLEAN_SYSTEM,
         num_predict=_CLEAN_TOKENS,
         caller="stocktake.clean_triggers",
-        think=True,
+        trace_sink=trace_sink,
     )
-    if out is None or out.text is None:
-        return None
-    if trace_sink is not None and out.thinking:
-        trace_sink.append(out.thinking)
-    return out.text
 
 
 def is_clean_noop(text: str) -> bool:
@@ -353,6 +354,42 @@ def _check_rule_quality(filename: str, body: str) -> Optional[QualityIssue]:
     return None
 
 
+def _run_stocktake(
+    directory: Optional[Path],
+    group_prompt: str,
+    quality_check: Callable[[str, str], Optional[QualityIssue]],
+) -> StocktakeResult:
+    """Audit a directory of ``*.md`` files for duplicates and quality issues.
+
+    Shared body for the skill and rule passes: they differ only in the
+    grouping prompt and the per-file quality check.
+    """
+    if directory is None or not directory.is_dir():
+        return StocktakeResult(merge_groups=(), quality_issues=(), total_files=0)
+
+    items = _read_files(directory)
+    if not items:
+        return StocktakeResult(merge_groups=(), quality_issues=(), total_files=0)
+
+    grouping_traces: List[str] = []
+    merge_groups = _find_duplicate_groups(items, group_prompt, grouping_traces)
+
+    # Structural quality checks
+    quality_issues: List[QualityIssue] = []
+    for filename, body in items:
+        issue = quality_check(filename, body)
+        if issue is not None:
+            quality_issues.append(issue)
+
+    return StocktakeResult(
+        merge_groups=tuple(merge_groups),
+        quality_issues=tuple(quality_issues),
+        total_files=len(items),
+        items=tuple(items),
+        thinking="\n\n".join(grouping_traces) or None,
+    )
+
+
 def run_skill_stocktake(
     skills_dir: Optional[Path] = None,
 ) -> StocktakeResult:
@@ -364,34 +401,11 @@ def run_skill_stocktake(
     Returns:
         StocktakeResult with merge groups and quality issues.
     """
-    if skills_dir is None or not skills_dir.is_dir():
-        return StocktakeResult(merge_groups=(), quality_issues=(), total_files=0)
-
-    items = _read_files(skills_dir)
-    if not items:
-        return StocktakeResult(merge_groups=(), quality_issues=(), total_files=0)
-
     # Lazy import avoids a core.stocktake -> core.prompts import cycle.
     from . import prompts
 
-    grouping_traces: List[str] = []
-    merge_groups = _find_duplicate_groups(
-        items, prompts.STOCKTAKE_SKILLS_PROMPT, grouping_traces
-    )
-
-    # Structural quality checks
-    quality_issues: List[QualityIssue] = []
-    for filename, body in items:
-        issue = _check_skill_quality(filename, body)
-        if issue is not None:
-            quality_issues.append(issue)
-
-    return StocktakeResult(
-        merge_groups=tuple(merge_groups),
-        quality_issues=tuple(quality_issues),
-        total_files=len(items),
-        items=tuple(items),
-        thinking="\n\n".join(grouping_traces) or None,
+    return _run_stocktake(
+        skills_dir, prompts.STOCKTAKE_SKILLS_PROMPT, _check_skill_quality
     )
 
 
@@ -406,34 +420,11 @@ def run_rules_stocktake(
     Returns:
         StocktakeResult with merge groups and quality issues.
     """
-    if rules_dir is None or not rules_dir.is_dir():
-        return StocktakeResult(merge_groups=(), quality_issues=(), total_files=0)
-
-    items = _read_files(rules_dir)
-    if not items:
-        return StocktakeResult(merge_groups=(), quality_issues=(), total_files=0)
-
     # Lazy import avoids a core.stocktake -> core.prompts import cycle.
     from . import prompts
 
-    grouping_traces: List[str] = []
-    merge_groups = _find_duplicate_groups(
-        items, prompts.STOCKTAKE_RULES_PROMPT, grouping_traces
-    )
-
-    # Structural quality checks
-    quality_issues: List[QualityIssue] = []
-    for filename, body in items:
-        issue = _check_rule_quality(filename, body)
-        if issue is not None:
-            quality_issues.append(issue)
-
-    return StocktakeResult(
-        merge_groups=tuple(merge_groups),
-        quality_issues=tuple(quality_issues),
-        total_files=len(items),
-        items=tuple(items),
-        thinking="\n\n".join(grouping_traces) or None,
+    return _run_stocktake(
+        rules_dir, prompts.STOCKTAKE_RULES_PROMPT, _check_rule_quality
     )
 
 

@@ -926,27 +926,14 @@ def _generate_impl(
     if isinstance(eval_count, int):
         tel["eval_count"] = eval_count
 
-    if _drop_for_output_truncation(data, drop_truncated, effective_num_predict, tel):
+    if _drop_for_output_truncation(
+        data.get("done_reason"), drop_truncated, effective_num_predict, tel
+    ):
         return None
 
     _warn_front_truncation(data, system_prompt, prompt, tel)
 
-    _circuit.record_success()
-    tel["outcome"] = "ok"
-    # Capture the reasoning trace ONLY when this call requested think — Ollama
-    # returns it in a dedicated ``thinking`` field, with an inline <think>
-    # fallback for models that emit it inline. Gating on ``think`` upholds the
-    # default-off contract: a model that emits <think> despite think=False must
-    # not silently persist a trace while telemetry records think=false. (The
-    # published text still strips inline <think> via _sanitize_output either way.)
-    thinking = (
-        _sanitize_thinking(data.get("thinking") or _extract_inline_thinking(raw_text))
-        if think
-        else None
-    )
-    return GenerationOutput(
-        text=_sanitize_output(raw_text, max_length), thinking=thinking
-    )
+    return _finalize_ok(raw_text, data.get("thinking"), max_length, think, tel)
 
 
 def _generate_via_backend(
@@ -1000,38 +987,12 @@ def _generate_via_backend(
     if isinstance(result.cached_tokens, int):
         tel["cached_tokens"] = result.cached_tokens
 
-    if result.finish_reason == "length":
-        if drop_truncated:
-            logger.warning(
-                "Output truncated at num_predict=%d (finish_reason=length); "
-                "dropping instead of publishing a mid-sentence cut "
-                "(audit M2).",
-                effective_num_predict,
-            )
-            _circuit.record_success()
-            tel["outcome"] = "truncated_dropped"
-            return None
-        logger.warning(
-            "Output truncated at num_predict=%d (finish_reason=length); "
-            "downstream consumers receive an incomplete generation "
-            "(audit M2).",
-            effective_num_predict,
-        )
+    if _drop_for_output_truncation(
+        result.finish_reason, drop_truncated, effective_num_predict, tel
+    ):
+        return None
 
-    _circuit.record_success()
-    tel["outcome"] = "ok"
-    # Capture the trace only when think was requested — same default-off gate as
-    # the Ollama path (a backend that emits a trace despite think=False must not
-    # silently persist it).
-    # Extract inline <think> BEFORE _sanitize_output strips it from the text.
-    thinking = (
-        _sanitize_thinking(result.thinking or _extract_inline_thinking(result.text))
-        if think
-        else None
-    )
-    return GenerationOutput(
-        text=_sanitize_output(result.text, max_length), thinking=thinking
-    )
+    return _finalize_ok(result.text, result.thinking, max_length, think, tel)
 
 
 def _post_ollama(
@@ -1101,22 +1062,23 @@ def _post_ollama(
 
 
 def _drop_for_output_truncation(
-    data: Dict,
+    finish_reason: Optional[str],
     drop_truncated: bool,
     effective_num_predict: int,
     tel: Dict[str, Any],
 ) -> bool:
     """Output-truncation signal (audit M2); True when the result must drop.
 
-    done_reason == "length" means the model hit num_predict mid-generation.
-    Not a backend fault — the call succeeded — so the circuit breaker
-    records success on the drop path.
+    ``finish_reason == "length"`` means the model hit num_predict
+    mid-generation. Not a backend fault — the call succeeded — so the circuit
+    breaker records success on the drop path. Shared by the Ollama and
+    injected-backend paths; each passes its own reason field.
     """
-    if data.get("done_reason") != "length":
+    if finish_reason != "length":
         return False
     if drop_truncated:
         logger.warning(
-            "Output truncated at num_predict=%d (done_reason=length); "
+            "Output truncated at num_predict=%d (finish_reason=length); "
             "dropping instead of publishing a mid-sentence cut "
             "(audit M2).",
             effective_num_predict,
@@ -1125,12 +1087,40 @@ def _drop_for_output_truncation(
         tel["outcome"] = "truncated_dropped"
         return True
     logger.warning(
-        "Output truncated at num_predict=%d (done_reason=length); "
+        "Output truncated at num_predict=%d (finish_reason=length); "
         "downstream consumers receive an incomplete generation "
         "(audit M2).",
         effective_num_predict,
     )
     return False
+
+
+def _finalize_ok(
+    text: str,
+    reasoning: Optional[str],
+    max_length: Optional[int],
+    think: bool,
+    tel: Dict[str, Any],
+) -> GenerationOutput:
+    """Shared success tail for both generation paths.
+
+    Records the circuit success, marks the telemetry outcome, and builds the
+    think-gated reasoning trace. The trace is captured ONLY when this call
+    requested think (default-off contract): a model that emits a trace despite
+    think=False must not silently persist it while telemetry records
+    think=false. Inline <think> is extracted BEFORE ``_sanitize_output``
+    strips it from the published text.
+    """
+    _circuit.record_success()
+    tel["outcome"] = "ok"
+    thinking = (
+        _sanitize_thinking(reasoning or _extract_inline_thinking(text))
+        if think
+        else None
+    )
+    return GenerationOutput(
+        text=_sanitize_output(text, max_length), thinking=thinking
+    )
 
 
 def _warn_front_truncation(

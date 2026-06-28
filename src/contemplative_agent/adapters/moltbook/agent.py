@@ -30,6 +30,7 @@ from .reply_handler import ReplyHandler
 from .session_context import SessionContext
 from .verification import (
     VerificationTracker,
+    _sanitize_audit_error,
     record_verification_audit,
     solve_challenge,
     solve_challenge_result,
@@ -450,9 +451,7 @@ class Agent:
                 return True
             # error is server-generated; strip non-printable to avoid log
             # injection in agent-launchd.log (same care as client.py).
-            safe_error = re.sub(
-                r"[^\x20-\x7E]", "", str(result.get("error", ""))[:200]
-            )
+            safe_error = _sanitize_audit_error(str(result.get("error", "")))
             logger.warning("Verification rejected: %s", safe_error)
             record_verification_audit(
                 challenge_text=challenge_text,

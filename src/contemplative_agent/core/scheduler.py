@@ -2,10 +2,11 @@
 
 import json
 import logging
-import os
 import time
 from pathlib import Path
 from typing import Optional, Protocol
+
+from ._io import write_text_atomic
 
 logger = logging.getLogger(__name__)
 
@@ -73,15 +74,7 @@ class Scheduler:
             "comments_today": self._comments_today,
             "day_start": self._day_start,
         }
-        tmp_path = self._state_path.with_suffix(".json.tmp")
-        old_umask = os.umask(0o177)
-        try:
-            tmp_path.write_text(
-                json.dumps(data, indent=2) + "\n", encoding="utf-8"
-            )
-        finally:
-            os.umask(old_umask)
-        os.replace(str(tmp_path), str(self._state_path))
+        write_text_atomic(self._state_path, json.dumps(data, indent=2) + "\n")
 
     def _reset_daily_if_needed(self) -> None:
         now = time.time()

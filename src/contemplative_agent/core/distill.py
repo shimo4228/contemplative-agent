@@ -394,6 +394,20 @@ class _BatchOutput:
     episode_ids: Tuple[str, ...]
 
 
+@dataclass(frozen=True)
+class _PatternProvenance:
+    """Per-pattern provenance from the single episode it was distilled from.
+
+    Replaces the index-aligned ``all_patterns`` / ``all_source_types`` /
+    ``all_episode_ids`` parallel arrays with one record per pattern
+    (ADR-0021/0060): the pattern text plus the source kind and episode ids
+    of its originating episode.
+    """
+    text: str
+    source_type: str
+    episode_ids: Tuple[str, ...]
+
+
 def render_episode(record_type: str, data: dict) -> str:
     """Render one episode as a rich, world-grounded block (ADR-0060).
 
@@ -540,9 +554,7 @@ def _distill_episodes(
     """
     logger.info("Distilling %d episodes individually", len(records))
 
-    all_patterns: List[str] = []
-    all_source_types: List[str] = []
-    all_episode_ids: List[List[str]] = []
+    provenance: List[_PatternProvenance] = []
     all_results: List[str] = []
 
     for record in records:
@@ -550,15 +562,21 @@ def _distill_episodes(
         if out is None:
             continue
         all_results.append(out.refined)
-        all_patterns.extend(out.patterns)
-        # ADR-0021/0060: provenance is now per-episode — each pattern carries
-        # the source kind and timestamp of the single episode it came from.
-        for _ in out.patterns:
-            all_source_types.append(out.source_type)
-            all_episode_ids.append(list(out.episode_ids))
+        # ADR-0021/0060: provenance is per-episode — each pattern carries the
+        # source kind and episode ids of the single episode it came from.
+        for pattern in out.patterns:
+            provenance.append(
+                _PatternProvenance(
+                    text=pattern,
+                    source_type=out.source_type,
+                    episode_ids=out.episode_ids,
+                )
+            )
 
-    if not all_patterns:
+    if not provenance:
         return _CategoryResult(results=tuple(all_results), added=0, updated=0)
+
+    all_patterns = [pp.text for pp in provenance]
 
     # ADR-0019: bulk-embed new patterns inline so dedup can run on cosine
     # similarity instead of SequenceMatcher + LLM gate.
@@ -570,7 +588,7 @@ def _distill_episodes(
         )
         new_embeddings: List[Optional[np.ndarray]] = [None] * len(all_patterns)
     else:
-        new_embeddings = [new_embeddings_arr[i] for i in range(len(all_patterns))]
+        new_embeddings = list(new_embeddings_arr)  # iterating a 2-D ndarray yields its rows
 
     # ADR-0026: dedup scope is the full live pool. Cross-axis overlap is
     # acceptable — the semantic coordinate is shared regardless of which
@@ -614,7 +632,7 @@ def _distill_episodes(
     _store_new_patterns(
         knowledge, source_date,
         add_patterns, add_embeddings, add_indices,
-        all_source_types, all_episode_ids,
+        provenance,
     )
 
     return _CategoryResult(results=tuple(all_results), added=len(add_patterns), updated=updated)
@@ -626,8 +644,7 @@ def _store_new_patterns(
     add_patterns: Sequence[str],
     add_embeddings: Sequence[Optional[np.ndarray]],
     add_indices: Sequence[int],
-    all_source_types: Sequence[str],
-    all_episode_ids: Sequence[List[str]],
+    provenance: Sequence[_PatternProvenance],
 ) -> None:
     """Persist deduped patterns with ADR-0021 provenance."""
     ts = now_iso()
@@ -637,9 +654,9 @@ def _store_new_patterns(
         emb_list: Optional[List[float]] = (
             [float(x) for x in emb] if emb is not None else None
         )
-        source_type = all_source_types[src_idx] if src_idx < len(all_source_types) else "unknown"
-        episode_ids = all_episode_ids[src_idx] if src_idx < len(all_episode_ids) else []
-        provenance = {
+        source_type = provenance[src_idx].source_type
+        episode_ids = list(provenance[src_idx].episode_ids)
+        provenance_meta = {
             "source_type": source_type,
             "source_episode_ids": episode_ids,
             "pipeline_version": "distill@0.60",
@@ -648,7 +665,7 @@ def _store_new_patterns(
             pattern,
             source=source_date,
             embedding=emb_list,
-            provenance=provenance,
+            provenance=provenance_meta,
             valid_from=ts,
         )
         logger.info("Added pattern (source=%s): %s", source_type, pattern[:80])

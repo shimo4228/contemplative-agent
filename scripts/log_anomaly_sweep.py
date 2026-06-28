@@ -28,6 +28,8 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Iterable, List
 
+from _md import md_safe
+
 # A line is an anomaly candidate if (a) its log level is WARNING/ERROR/CRITICAL,
 # or (b) it matches a level-agnostic critical pattern (these are real problems
 # even when logged at INFO/DEBUG). Level keying keeps the verbose DEBUG/INFO
@@ -188,9 +190,9 @@ def render_markdown(findings: List[Finding], top: int) -> str:
     lines.append("|----|------|----|------------------------|")
     for f in findings[:top]:
         flag = "🆕" if f.is_new else ""
-        # Escape table delimiter and neutralize backticks so a signature cannot
-        # break out of its Markdown code span in the downstream LLM prompt.
-        sig = f.signature.replace("|", "\\|").replace("`", "'")
+        # Neutralize Markdown breakers so a signature cannot break out of its
+        # code span in the downstream LLM prompt.
+        sig = md_safe(f.signature)
         lines.append(f"| {flag} | {f.count} | {f.delta:+d} | `{sig}` |")
     lines.append("")
     lines.append(

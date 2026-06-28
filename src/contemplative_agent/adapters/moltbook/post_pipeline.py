@@ -13,7 +13,7 @@ from .client import MoltbookClient, MoltbookClientError, envelope_ok
 from .config import ADAPTIVE_BACKOFF
 from .content import ContentManager, _content_hash
 from .dedup import is_test_content
-from .feed_seeder import select_feed_seeds
+from .feed_seeder import _combined_length, select_feed_seeds
 from .llm_functions import (
     format_feed_seeds,
     generate_internal_note,
@@ -221,10 +221,7 @@ class PostPipeline:
                 len(candidates),
             )
             return []
-        combined_chars = sum(
-            len(s.get("title", "") or "") + len(s.get("content", "") or "")
-            for s in feed_seeds
-        )
+        combined_chars = _combined_length(feed_seeds)
         logger.info(
             "post-seeding: selected %d seed(s) combined_chars=%d ids=%s",
             len(feed_seeds),

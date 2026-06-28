@@ -142,6 +142,21 @@ class ReplyHandler:
         # Fallback: check comments on our own posts directly
         self.check_own_post_comments(client, scheduler, end_time)
 
+    def _reply_dedup(self, post_id: str, comment_id: str) -> Tuple[str, bool]:
+        """Return the reply dedup key and whether it was already handled.
+
+        A reply is "handled" if its key is in the in-session
+        ``commented_posts`` set or the persistent ``has_commented_on`` cache.
+        Shared by the notification path and the post-comment scan; each caller
+        keeps its own logging / skip behavior.
+        """
+        key = f"reply:{post_id}:{comment_id}"
+        handled = (
+            key in self._ctx.commented_posts
+            or self._ctx.memory.has_commented_on(key)
+        )
+        return key, handled
+
     def _validated_notification(
         self, notif: dict, i: int
     ) -> Optional[Tuple[dict, str]]:
@@ -172,11 +187,8 @@ class ReplyHandler:
             )
             return None
 
-        reply_key = f"reply:{post_id}:{fields['id']}"
-        if (
-            reply_key in self._ctx.commented_posts
-            or self._ctx.memory.has_commented_on(reply_key)
-        ):
+        reply_key, handled = self._reply_dedup(post_id, fields["id"])
+        if handled:
             logger.debug(
                 "Notification[%d] skipped: already handled key=%s",
                 i,
@@ -393,11 +405,8 @@ class ReplyHandler:
                 break
 
             fields = extract_agent_fields(comment)
-            reply_key = f"reply:{post_id}:{fields['id']}"
-            if (
-                reply_key in self._ctx.commented_posts
-                or self._ctx.memory.has_commented_on(reply_key)
-            ):
+            reply_key, handled = self._reply_dedup(post_id, fields["id"])
+            if handled:
                 continue
 
             # Skip our own comments to avoid self-reply loops

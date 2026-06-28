@@ -10,10 +10,11 @@ import fcntl
 import json
 import logging
 import os
+import re
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterator
+from typing import Any, Dict, Iterator, Optional
 
 logger = logging.getLogger(__name__)
 
@@ -144,5 +145,78 @@ def now_iso(timespec: str = "minutes") -> str:
     (e.g. audit log) pass ``timespec="seconds"``.
     """
     return datetime.now(timezone.utc).isoformat(timespec=timespec)
+
+
+_PRINTABLE_RE = re.compile(r"[^\x20-\x7E]")
+_PRINTABLE_KEEP_NL_RE = re.compile(r"[^\x20-\x7E\n]")
+
+
+def strip_to_printable(
+    value: object, max_len: int, *, keep_newline: bool = False
+) -> str:
+    """Strip to printable ASCII and cap at ``max_len``.
+
+    Shared log / audit / prompt-injection guard: one place that drops
+    non-printable bytes (which can smuggle ANSI escapes or markdown
+    breakers into an LLM-facing or terminal-facing string) and bounds the
+    length. ``keep_newline=True`` preserves ``\\n`` for callers that want
+    multi-line context to survive. ``re.sub`` only deletes, so slicing
+    before the substitution is equivalent to slicing after.
+    """
+    pattern = _PRINTABLE_KEEP_NL_RE if keep_newline else _PRINTABLE_RE
+    return pattern.sub("", str(value)[:max_len])
+
+
+def ensure_aware(dt: datetime) -> datetime:
+    """Coerce a tz-naive datetime to UTC; tz-aware inputs pass through."""
+    return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
+
+
+def parse_aware_utc(value: str) -> datetime:
+    """Parse an ISO timestamp, coercing a tz-naive result to UTC.
+
+    Raises the same exceptions as :func:`datetime.fromisoformat`; callers
+    keep their own ``try/except`` so each decides which inputs to skip.
+    """
+    return ensure_aware(datetime.fromisoformat(value))
+
+
+def age_days(dt: datetime, *, now: Optional[datetime] = None) -> float:
+    """Non-negative age in days of an aware datetime versus *now* (UTC)."""
+    ref = now if now is not None else datetime.now(timezone.utc)
+    return max(0.0, (ref - dt).total_seconds() / 86400.0)
+
+
+def write_text_atomic(path: Path, content: str) -> None:
+    """Atomically write *content* via a ``.tmp`` sibling + ``os.replace``.
+
+    Writes the temp file with 0600 perms (:func:`write_restricted`) then
+    renames it over *path*. On failure the temp file is removed and the
+    ``OSError`` re-raised; callers decide whether to log-and-swallow or
+    propagate (the raise-vs-warn policy stays at the call site).
+    """
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
+    try:
+        write_restricted(tmp_path, content)
+        os.replace(str(tmp_path), str(path))
+    except OSError:
+        tmp_path.unlink(missing_ok=True)
+        raise
+
+
+def read_run_marker(directory: Optional[Path], name: str) -> Optional[str]:
+    """Read a stored ISO timestamp from ``directory/name``, or ``None``."""
+    if directory is None:
+        return None
+    marker = directory / name
+    if marker.exists():
+        return marker.read_text(encoding="utf-8").strip()
+    return None
+
+
+def write_run_marker(directory: Path, name: str) -> None:
+    """Record ``now_iso()`` into ``directory/name``, creating parents."""
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / name).write_text(now_iso() + "\n", encoding="utf-8")
 
 

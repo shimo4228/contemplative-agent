@@ -26,7 +26,9 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import List
+from typing import Any, List
+
+from _md import md_safe
 
 # Fields retired by ADRs — a pattern is meant to shed these on its next save.
 # Their presence means dead metadata is still round-tripping (drift), not
@@ -64,15 +66,6 @@ class InvariantResult:
     level: str  # OK | INFO | WARN | FAIL
     summary: str
     samples: tuple[str, ...] = ()
-
-
-def _md_safe(s: str) -> str:
-    """Neutralize Markdown table/code-span breakers before LLM-facing output.
-
-    Mirrors log_anomaly_sweep.render_markdown: a backtick would close the code
-    span early, a pipe would misparse a table cell.
-    """
-    return s.replace("|", "\\|").replace("`", "'")
 
 
 def _is_aware_or_naive_parseable(ts: str) -> bool:
@@ -187,26 +180,24 @@ def check_agents(agents: dict) -> List[InvariantResult]:
         "agents_followed", _OK, f"{len(followed)} followed agents, all unique")]
 
 
+def _load_typed(path: Path, expected: type, default: Any) -> Any:
+    """Read a JSON file, returning the loaded value only if it has *expected*
+    type; silently fall back to ``default`` on IO / parse / type error.
+    """
+    if path.is_file():
+        try:
+            loaded = json.loads(path.read_text(encoding="utf-8"))
+            if isinstance(loaded, expected):
+                return loaded
+        except (OSError, json.JSONDecodeError):
+            pass
+    return default
+
+
 def load_state(home: Path) -> tuple[List[dict], dict]:
     """Read knowledge.json + agents.json (never episode logs)."""
-    patterns: List[dict] = []
-    kj = home / "knowledge.json"
-    if kj.is_file():
-        try:
-            loaded = json.loads(kj.read_text(encoding="utf-8"))
-            if isinstance(loaded, list):
-                patterns = loaded
-        except (OSError, json.JSONDecodeError):
-            pass
-    agents: dict = {}
-    aj = home / "agents.json"
-    if aj.is_file():
-        try:
-            loaded = json.loads(aj.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
-                agents = loaded
-        except (OSError, json.JSONDecodeError):
-            pass
+    patterns = _load_typed(home / "knowledge.json", list, [])
+    agents = _load_typed(home / "agents.json", dict, {})
     return patterns, agents
 
 
@@ -233,7 +224,7 @@ def render_markdown(results: List[InvariantResult]) -> str:
     if samples:
         lines.append("")
         for name, sample_list in samples:
-            joined = "; ".join(f"`{_md_safe(s)}`" for s in sample_list)
+            joined = "; ".join(f"`{md_safe(s)}`" for s in sample_list)
             lines.append(f"- {name} examples: {joined}")
     return "\n".join(lines) + "\n"
 

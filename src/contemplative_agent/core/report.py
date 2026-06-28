@@ -14,6 +14,21 @@ from ._io import write_restricted
 logger = logging.getLogger(__name__)
 
 
+def _base_entry(entry: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+    """Common per-interaction fields shared by comment / reply / post.
+
+    ``thinking`` is None when the call ran think=False; coerce to "" so the
+    renderer's truthiness gate hides the block.
+    """
+    return {
+        "ts": entry.get("ts", ""),
+        "post_id": data.get("post_id", ""),
+        "content": data.get("content", ""),
+        "internal_note": data.get("internal_note", ""),
+        "thinking": data.get("thinking") or "",
+    }
+
+
 def _parse_log(
     jsonl_path: Path,
 ) -> tuple[
@@ -54,39 +69,25 @@ def _parse_log(
         # into `context`, and dimensions that don't apply are left "".
         if action == "comment":
             comments.append({
-                "ts": entry.get("ts", ""),
-                "post_id": data.get("post_id", ""),
-                "content": data.get("content", ""),
+                **_base_entry(entry, data),
                 "context": data.get("original_post", ""),
                 "relevance": data.get("relevance", ""),
                 "counterparty": data.get("target_agent", ""),
-                "internal_note": data.get("internal_note", ""),
-                # None when the comment ran think=False; coerce to "" so the
-                # renderer's truthiness gate hides the block.
-                "thinking": data.get("thinking") or "",
             })
         elif action == "reply":
             replies.append({
-                "ts": entry.get("ts", ""),
-                "post_id": data.get("post_id", ""),
-                "content": data.get("content", ""),
+                **_base_entry(entry, data),
                 "context": data.get("their_comment", ""),
                 "relevance": "",  # replies are notification-driven, not scored
                 "counterparty": data.get("target_agent", ""),
-                "internal_note": data.get("internal_note", ""),
-                "thinking": data.get("thinking") or "",
             })
         elif action == "post":
             posts.append({
-                "ts": entry.get("ts", ""),
-                "post_id": data.get("post_id", ""),
+                **_base_entry(entry, data),
                 "title": data.get("title", ""),
-                "content": data.get("content", ""),
                 "submolt": data.get("submolt", ""),
                 "relevance": "",  # self-initiated, no counterparty/relevance
                 "counterparty": "",
-                "internal_note": data.get("internal_note", ""),
-                "thinking": data.get("thinking") or "",
             })
 
     return meta, comments, replies, posts
@@ -165,24 +166,10 @@ def _entry_lines(i: int, kind: str, e: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _comments_section(comments: List[Dict[str, Any]]) -> List[str]:
-    lines = [f"## Comments ({len(comments)} total)", ""]
-    for i, c in enumerate(comments, 1):
-        lines.extend(_entry_lines(i, "COMMENT", c))
-    return lines
-
-
-def _replies_section(replies: List[Dict[str, Any]]) -> List[str]:
-    lines = [f"## Replies ({len(replies)} total)", ""]
-    for i, r in enumerate(replies, 1):
-        lines.extend(_entry_lines(i, "REPLY", r))
-    return lines
-
-
-def _posts_section(posts: List[Dict[str, Any]]) -> List[str]:
-    lines = [f"## Self Posts ({len(posts)} total)", ""]
-    for i, p in enumerate(posts, 1):
-        lines.extend(_entry_lines(i, "POST", p))
+def _section(heading: str, kind: str, entries: List[Dict[str, Any]]) -> List[str]:
+    lines = [f"## {heading} ({len(entries)} total)", ""]
+    for i, e in enumerate(entries, 1):
+        lines.extend(_entry_lines(i, kind, e))
     return lines
 
 
@@ -230,11 +217,11 @@ def _build_report(
         lines.append("")
 
     if comments:
-        lines.extend(_comments_section(comments))
+        lines.extend(_section("Comments", "COMMENT", comments))
     if replies:
-        lines.extend(_replies_section(replies))
+        lines.extend(_section("Replies", "REPLY", replies))
     if posts:
-        lines.extend(_posts_section(posts))
+        lines.extend(_section("Self Posts", "POST", posts))
     lines.extend(_summary_section(comments, replies, posts))
 
     return "\n".join(lines)

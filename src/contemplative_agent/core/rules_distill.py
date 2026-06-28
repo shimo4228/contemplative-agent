@@ -14,17 +14,16 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from datetime import datetime
 from pathlib import Path
 from typing import List, Optional, Tuple, Union
 
-from ._io import now_iso
+from ._io import read_run_marker, write_run_marker
 from .artifact_extraction import resolve_artifact_path
 from .clustering import cluster_patterns
 from .embeddings import embed_texts
 from .llm import generate_full, get_distill_system_prompt, validate_identity_content
 from .prompts import RULES_DISTILL_PROMPT, RULES_DISTILL_REFINE_PROMPT
-from .text_utils import extract_title, strip_frontmatter
+from .text_utils import extract_title, read_markdown_bodies
 from .thresholds import CLUSTER_THRESHOLD_RULES, MAX_BATCH as MAX_RULES_BATCH
 
 logger = logging.getLogger(__name__)
@@ -74,29 +73,7 @@ def _read_skills(
         filename is the lineage key carried into RuleResult.source_ids
         (ADR-0050).
     """
-    if not skills_dir.is_dir():
-        return []
-
-    cutoff: Optional[float] = None
-    if since:
-        try:
-            cutoff = datetime.fromisoformat(since).timestamp()
-        except ValueError:
-            logger.warning("Invalid since timestamp %r, reading all skills", since)
-
-    skills: List[Tuple[str, str]] = []
-    for p in sorted(skills_dir.glob("*.md")):
-        if p.name.startswith("."):
-            continue
-        if cutoff is not None and p.stat().st_mtime < cutoff:
-            continue
-        try:
-            body = strip_frontmatter(p.read_text(encoding="utf-8")).strip()
-            if body:
-                skills.append((p.name, body))
-        except OSError:
-            logger.warning("Could not read skill file %s", p)
-    return skills
+    return read_markdown_bodies(skills_dir, since=since)
 
 
 # Marker the refine prompt emits when Stage 1 analysis found 0 passing
@@ -270,19 +247,12 @@ def _build_skill_clusters(
 
 def _read_last_run(rules_dir: Optional[Path]) -> Optional[str]:
     """Read the timestamp of the last rules-distill run."""
-    if rules_dir is None:
-        return None
-    marker = rules_dir / ".last_rules_distill"
-    if marker.exists():
-        return marker.read_text(encoding="utf-8").strip()
-    return None
+    return read_run_marker(rules_dir, ".last_rules_distill")
 
 
 def _write_last_run(rules_dir: Path) -> None:
     """Record the current timestamp as the last rules-distill run."""
-    rules_dir.mkdir(parents=True, exist_ok=True)
-    marker = rules_dir / ".last_rules_distill"
-    marker.write_text(now_iso() + "\n", encoding="utf-8")
+    write_run_marker(rules_dir, ".last_rules_distill")
 
 
 def distill_rules(

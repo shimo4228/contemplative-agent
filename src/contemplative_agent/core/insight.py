@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Tuple, Union
 
-from ._io import now_iso
+from ._io import read_run_marker, write_run_marker
 from .artifact_extraction import resolve_artifact_path
 from .clustering import cluster_patterns
 from .knowledge_store import (
@@ -225,19 +225,12 @@ def _build_cluster_batches(
 
 def _read_last_insight(skills_dir: Optional[Path]) -> Optional[str]:
     """Read the timestamp of the last insight run."""
-    if skills_dir is None:
-        return None
-    marker = skills_dir / ".last_insight"
-    if marker.exists():
-        return marker.read_text(encoding="utf-8").strip()
-    return None
+    return read_run_marker(skills_dir, ".last_insight")
 
 
 def write_last_insight(skills_dir: Path) -> None:
     """Record the current timestamp as the last insight run."""
-    skills_dir.mkdir(parents=True, exist_ok=True)
-    marker = skills_dir / ".last_insight"
-    marker.write_text(now_iso() + "\n", encoding="utf-8")
+    write_run_marker(skills_dir, ".last_insight")
 
 
 def extract_insight(

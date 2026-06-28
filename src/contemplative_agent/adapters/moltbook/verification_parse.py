@@ -41,11 +41,12 @@ from decimal import Decimal, DivisionByZero, InvalidOperation
 import re
 from typing import NamedTuple, Optional, Union
 
-# Mirrors verification._MAX_CHALLENGE_INPUT (kept local to avoid a circular
-# import). The parser receives the raw, untrusted challenge before the LLM path's
-# length guard, so it bounds its own input: anything longer than a real CAPTCHA
-# phrase is malicious or unparseable by the finite grammar — abstain.
-_MAX_INPUT = 2000
+from .config import MAX_CHALLENGE_INPUT as _MAX_INPUT
+
+# The parser receives the raw, untrusted challenge before the LLM path's length
+# guard, so ``_MAX_INPUT`` bounds its own input: anything longer than a real
+# CAPTCHA phrase is malicious or unparseable by the finite grammar — abstain.
+# The bound is shared via config so the parser and LLM-path limits cannot drift.
 
 # Greedy fragment-merge window. The obfuscator splits one word across several
 # fragments ("tw|enn|ty" -> twenty, "t|welv|e" -> twelve), so a single number

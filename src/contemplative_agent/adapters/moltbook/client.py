@@ -18,7 +18,7 @@ from .config import (
     MOLTBOOK_DATA_DIR,
     READ_TIMEOUT,
 )
-from ...core._io import append_jsonl_restricted, now_iso
+from ...core._io import append_jsonl_restricted, now_iso, strip_to_printable
 from ...core.config import (
     VALID_ID_PATTERN,
     VALID_SUBMOLT_PATTERN,
@@ -125,7 +125,7 @@ def _content_status(body: dict[str, Any]) -> dict[str, Any]:
                 else:
                     # String status (e.g. verification_status): strip to
                     # printable and cap — never store raw server text.
-                    status[field] = re.sub(r"[^\x20-\x7E]", "", str(val))[:32]
+                    status[field] = strip_to_printable(val, 32)
     return status
 
 
@@ -184,6 +184,7 @@ class MoltbookClient:
         Assigns remaining quota to read or write bucket based on request method.
         GET → read, POST/PUT/PATCH/DELETE → write.
         """
+        is_read = method.upper() == "GET"
         remaining = response.headers.get("X-RateLimit-Remaining")
         if remaining is not None:
             try:
@@ -191,7 +192,7 @@ class MoltbookClient:
             except (ValueError, TypeError):
                 logger.debug("Malformed X-RateLimit-Remaining header: %r", remaining)
             else:
-                if method.upper() == "GET":
+                if is_read:
                     self._read_remaining = value
                 else:
                     self._write_remaining = value
@@ -203,7 +204,7 @@ class MoltbookClient:
             except (ValueError, TypeError):
                 logger.debug("Malformed X-RateLimit-Reset header: %r", reset)
             else:
-                if method.upper() == "GET":
+                if is_read:
                     self._read_reset = value
                 else:
                     self._write_reset = value
@@ -302,19 +303,15 @@ class MoltbookClient:
                 time.sleep(retry_after)
                 return self._request(method, path, retries=retries + 1, **kwargs)
 
+        self._record_api_outcome(
+            method, path, response.status_code, _try_json(response)
+        )
         if response.status_code >= 400:
-            self._record_api_outcome(
-                method, path, response.status_code, _try_json(response)
-            )
-            safe_body = re.sub(r'[^\x20-\x7E\n]', '', response.text[:500])
+            safe_body = strip_to_printable(response.text, 500, keep_newline=True)
             raise MoltbookClientError(
                 f"API error {response.status_code}: {safe_body}",
                 status_code=response.status_code,
             )
-
-        self._record_api_outcome(
-            method, path, response.status_code, _try_json(response)
-        )
         return response
 
     def _record_api_outcome(
@@ -350,9 +347,7 @@ class MoltbookClient:
                 if status_code < 400 and body.get("success") is False:
                     record["soft_fail"] = True
                 if status_code >= 400 or body.get("success") is False:
-                    err = re.sub(
-                        r"[^\x20-\x7E]", "", str(body.get("error", ""))[:200]
-                    )
+                    err = strip_to_printable(body.get("error", ""), 200)
                     if err:
                         record["error"] = err
                 # Drift check only on success: a 4xx/5xx body is the error
@@ -532,9 +527,7 @@ class MoltbookClient:
             # Unlike the multi-line HTTP body at the status>=400 path, the
             # error field is single-line — strip \n too so a hostile server
             # cannot forge log lines in agent-launchd.log (log injection).
-            safe_error = re.sub(
-                r"[^\x20-\x7E]", "", str(data.get("error", ""))[:200]
-            )
+            safe_error = strip_to_printable(data.get("error", ""), 200)
             raise MoltbookClientError(
                 f"Comment on {post_id[:12]} failed at body level "
                 f"(HTTP {resp.status_code}): {safe_error}",
@@ -742,9 +735,7 @@ class MoltbookClient:
             return True
         if "success" in data and not data["success"]:
             # Single-line strip, same log-injection guard as post_comment.
-            safe_error = re.sub(
-                r"[^\x20-\x7E]", "", str(data.get("error", ""))[:200]
-            )
+            safe_error = strip_to_printable(data.get("error", ""), 200)
             logger.warning(
                 "Unfollow %s failed at body level (HTTP %d): %s",
                 agent_name,
@@ -757,7 +748,7 @@ class MoltbookClient:
             logger.info("Unfollowed %s", agent_name)
             return True
         if action:
-            safe_action = re.sub(r"[^\x20-\x7E]", "", str(action)[:50])
+            safe_action = strip_to_printable(action, 50)
             logger.warning(
                 "Unfollow %s: unexpected action=%r", agent_name, safe_action
             )
