@@ -17,6 +17,7 @@ from contemplative_agent.adapters.moltbook.llm_functions import (
 )
 from contemplative_agent.core.memory import POST_TOPIC_SUMMARY_MAX
 from contemplative_agent.core.llm import (
+    _DEFAULT_OLLAMA_MODEL,
     _DEFAULT_UNTRUSTED_FRAME,
     _get_model,
     _get_ollama_url,
@@ -24,6 +25,8 @@ from contemplative_agent.core.llm import (
     wrap_untrusted_content,
     generate,
     generate_for_api,
+    generate_full,
+    served_model,
     GenerationOutput,
 )
 
@@ -1134,6 +1137,68 @@ class TestThinkParameter:
         out = generate_for_api("p", max_length=200)  # think defaults False
         assert out.text == "answer"
         assert out.thinking is None
+
+
+class TestGenerateFull:
+    """ADR-0069: generate_full() is the internal trace-keeping entry — like
+    generate() but returns the full GenerationOutput so the value-layer
+    pipelines (think-ON) keep .thinking."""
+
+    @staticmethod
+    def _ollama(**body):
+        resp = MagicMock()
+        resp.json.return_value = body
+        resp.raise_for_status.return_value = None
+        return resp
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_returns_text_and_thinking_when_think_on(self, mock_post):
+        mock_post.return_value = self._ollama(response="answer", thinking="why so")
+        out = generate_full("p", num_predict=100, think=True)
+        assert isinstance(out, GenerationOutput)
+        assert out.text == "answer"
+        assert out.thinking == "why so"
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_thinking_none_under_default_think_off(self, mock_post):
+        # Default-off contract: trace dropped even if the model emits one.
+        mock_post.return_value = self._ollama(response="answer", thinking="leaked")
+        out = generate_full("p", num_predict=100)
+        assert out is not None
+        assert out.text == "answer"
+        assert out.thinking is None
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_sends_think_in_payload(self, mock_post):
+        mock_post.return_value = self._ollama(response="ok")
+        generate_full("p", num_predict=100, think=True)
+        assert mock_post.call_args.kwargs["json"]["think"] is True
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_none_on_failure(self, mock_post):
+        mock_post.side_effect = requests.RequestException("boom")
+        assert generate_full("p", num_predict=100, think=True) is None
+
+
+class TestProductionModelADR0069:
+    """ADR-0069: gemma4:e4b is the production generation default; embedding is
+    a separate knob, so this swap is generation-only and reversible via env."""
+
+    def test_default_model_is_gemma(self):
+        assert _DEFAULT_OLLAMA_MODEL == "gemma4:e4b"
+
+    def test_get_model_defaults_to_gemma(self, monkeypatch):
+        monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+        assert _get_model() == "gemma4:e4b"
+
+    def test_ollama_model_env_overrides(self, monkeypatch):
+        monkeypatch.setenv("OLLAMA_MODEL", "qwen3.5:9b")
+        assert _get_model() == "qwen3.5:9b"
+
+    def test_served_model_matches_get_model_on_ollama_path(self, monkeypatch):
+        # No injected backend → served_model() mirrors _get_model().
+        monkeypatch.delenv("OLLAMA_MODEL", raising=False)
+        assert served_model() == _get_model()
 
 
 class TestGenerateComment:

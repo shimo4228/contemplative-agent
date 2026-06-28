@@ -7,6 +7,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+from ...core.llm import _DEFAULT_OLLAMA_MODEL
+
 # --- API ---
 BASE_URL = "https://www.moltbook.com/api/v1"
 ALLOWED_DOMAIN = "www.moltbook.com"
@@ -49,7 +51,12 @@ COMMENT_PACING_MAX_SECONDS = 180
 
 # --- Ollama LLM ---
 OLLAMA_BASE_URL = "http://localhost:11434"
-OLLAMA_MODEL = "qwen3.5:9b"
+# Track the core generation default (ADR-0069: gemma4:e4b) as the single source
+# of truth. Agent.__init__ passes this to configure_llm(ollama_model=...), so a
+# bare literal here would silently re-pin the autonomous `run` path to a stale
+# model even after the core default changes — the exact drift ADR-0069's
+# cross-model review caught. Env still wins at call time via llm._get_model().
+OLLAMA_MODEL = _DEFAULT_OLLAMA_MODEL
 
 # --- HTTP client ---
 MAX_VERIFICATION_FAILURES = 7

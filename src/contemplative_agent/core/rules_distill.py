@@ -22,7 +22,7 @@ from ._io import now_iso
 from .artifact_extraction import resolve_artifact_path
 from .clustering import cluster_patterns
 from .embeddings import embed_texts
-from .llm import generate, get_distill_system_prompt, validate_identity_content
+from .llm import generate_full, get_distill_system_prompt, validate_identity_content
 from .prompts import RULES_DISTILL_PROMPT, RULES_DISTILL_REFINE_PROMPT
 from .text_utils import extract_title, strip_frontmatter
 from .thresholds import CLUSTER_THRESHOLD_RULES, MAX_BATCH as MAX_RULES_BATCH
@@ -46,6 +46,10 @@ class RuleResult:
     filename: str
     target_path: Path
     source_ids: Tuple[str, ...] = ()
+    # ADR-0069: combined Stage 1+2 reasoning trace (rules-distill runs
+    # think-ON). Per-batch — every rule from one batch shares the batch's
+    # trace, mirroring batch-level source_ids. None when think was off.
+    thinking: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -100,29 +104,46 @@ def _read_skills(
 _NO_RULES_MARKER = "# No Universal Rules Found"
 
 
-def _extract_rules(skill_texts: List[str]) -> Optional[str]:
+def _combine_traces(stage1: Optional[str], stage2: Optional[str]) -> Optional[str]:
+    """Section the two-stage reasoning traces into one block (ADR-0069).
+
+    Returns None when neither stage produced a trace (think off / empty).
+    """
+    parts = []
+    if stage1:
+        parts.append("## Stage 1 — extraction\n\n" + stage1)
+    if stage2:
+        parts.append("## Stage 2 — refinement\n\n" + stage2)
+    return "\n\n".join(parts) if parts else None
+
+
+def _extract_rules(skill_texts: List[str]) -> Optional[Tuple[str, Optional[str]]]:
     """Extract behavioral rules from skill texts via 2-stage LLM pipeline.
 
     Stage 1: Free-form extraction with distill system prompt as lens.
     Stage 2: Refine into structured Markdown.
 
-    Returns the Stage 2 Markdown, or None on LLM failure / invalid output.
-    An empty-but-valid result (no universal rules in this batch) returns
-    the ``_NO_RULES_MARKER`` string which callers should recognize.
+    Returns ``(stage2_markdown, thinking)`` — the combined Stage 1+2 reasoning
+    traces ride along because rules-distill runs think-ON (ADR-0069). None on
+    LLM failure / invalid output. An empty-but-valid result (no universal rules
+    in this batch) returns ``(_NO_RULES_MARKER, thinking)`` which callers
+    recognize.
     """
     prompt = RULES_DISTILL_PROMPT.format(
         patterns="\n\n---\n\n".join(skill_texts),
     )
 
-    raw = generate(
+    raw_out = generate_full(
         prompt,
         system=get_distill_system_prompt(),
         num_predict=3000,
         caller="rules_distill.extract",
+        think=True,
     )
-    if raw is None:
+    if raw_out is None or raw_out.text is None:
         logger.warning("Stage 1 (extraction) failed.")
         return None
+    raw = raw_out.text
 
     refine_prompt = RULES_DISTILL_REFINE_PROMPT.format(raw_output=raw)
     # Stage 2 must use the same base-only distill system prompt as Stage 1
@@ -130,29 +151,32 @@ def _extract_rules(skill_texts: List[str]) -> Optional[str]:
     # action-time prompt (identity + axioms + learned skills/rules), which
     # re-injects the corpus being distilled and self-conditions the offline
     # learning path that architecture.md documents as base-only.
-    result = generate(
+    result_out = generate_full(
         refine_prompt,
         system=get_distill_system_prompt(),
         num_predict=3000,
         caller="rules_distill.refine",
+        think=True,
     )
-    if result is None:
+    if result_out is None or result_out.text is None:
         logger.warning("Stage 2 (refinement) failed.")
         return None
+    result = result_out.text
+    thinking = _combine_traces(raw_out.thinking, result_out.thinking)
 
     # "No Universal Rules Found" is a valid outcome — the Stage 1 analysis
     # concluded that no candidate principle passed all four universality
     # tests for this batch. Propagate as-is so the caller records 0 rules.
     if result.strip().startswith(_NO_RULES_MARKER):
         logger.info("Stage 2: no universal rules passed for this batch.")
-        return _NO_RULES_MARKER
+        return _NO_RULES_MARKER, thinking
 
     if extract_title(result) is None:
         logger.warning("Rules extraction has no title (# line). Dropping.")
         logger.debug("Raw LLM output (first 200 chars): %.200s", result)
         return None
 
-    return result
+    return result, thinking
 
 
 def _split_rules(text: str) -> List[str]:
@@ -360,10 +384,11 @@ def _distill_one_batch(
 
     # ADR-0050: lineage key for every rule this batch produces.
     batch_source_ids = tuple(fname for fname, _ in batch)
-    rules_text = _extract_rules([text for _, text in batch])
-    if rules_text is None:
+    extracted = _extract_rules([text for _, text in batch])
+    if extracted is None:
         logger.warning("Batch %d/%d: extraction failed", batch_idx + 1, n_batches)
         return [], 1, 0
+    rules_text, thinking = extracted
 
     # Valid empty outcome: Stage 2 found no principle worth keeping.
     # Not an error, just nothing to persist for this batch.
@@ -402,5 +427,6 @@ def _distill_one_batch(
             filename=resolved.filename,
             target_path=resolved.target_path,
             source_ids=batch_source_ids,
+            thinking=thinking,
         ))
     return rules, dropped, 0

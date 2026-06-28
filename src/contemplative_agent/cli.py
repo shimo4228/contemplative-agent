@@ -359,6 +359,12 @@ def _run_approval_loop(
         print(f"\n{'='*60}")
         print(f"[{i}/{len(items)}] {item.filename}")
         print(item.text)
+        # ADR-0069: show the reasoning trace (think-ON pipelines) so the owner
+        # approves with the *why* visible. getattr keeps StageItem-shaped items
+        # (no ``thinking`` attribute) working unchanged.
+        thinking = getattr(item, "thinking", None)
+        if thinking:
+            print(f"\n--- Reasoning ---\n{thinking}")
         approved = _approve_write(item.target_path)
         _log_approval(
             command,
@@ -678,18 +684,20 @@ def _render_merged_group(
     group_items: list[tuple[str, str]],
     merge_prompt: str,
     fallback_title: str,
+    trace_sink: Optional[list[str]] = None,
 ) -> tuple[str, str] | None:
     """Run the LLM merge for one group; return (filename, merged_text).
 
     Returns None when the LLM call fails or the model rejects the merge
-    (candidates judged not actually redundant).
+    (candidates judged not actually redundant). ``trace_sink`` (ADR-0069)
+    collects the merge reasoning trace when provided.
     """
     from datetime import date
 
     from .core.stocktake import is_merge_rejected, merge_group
     from .core.text_utils import extract_title, slugify
 
-    merged_text = merge_group(group_items, merge_prompt)
+    merged_text = merge_group(group_items, merge_prompt, trace_sink)
     if merged_text is None:
         print("  Merge failed (LLM error). Skipping.")
         return None
@@ -744,8 +752,15 @@ def _stocktake_merge_phase(
     fallback_title: str,
     stage: bool,
     staged_batch: list[StageItem],
+    trace_sink: Optional[list[str]] = None,
+    snapshot_path: Optional[Path] = None,
 ) -> set[str]:
-    """Merge duplicate groups; return the filenames consumed by a merge."""
+    """Merge duplicate groups; return the filenames consumed by a merge.
+
+    ``trace_sink`` (ADR-0069) collects each group's merge reasoning trace;
+    ``snapshot_path`` is threaded into the approval audit so an adopted merge
+    points back at the run's manifest + reasoning.
+    """
     from .core._io import write_restricted
 
     consumed_names: set[str] = set()
@@ -767,7 +782,10 @@ def _stocktake_merge_phase(
         print(f"[Group {i}/{len(merge_groups)}] {', '.join(group.filenames)}")
         print(f"  Reason: {group.reason}")
 
-        rendered = _render_merged_group(group_items, merge_prompt, fallback_title)
+        n_before = len(trace_sink) if trace_sink is not None else 0
+        rendered = _render_merged_group(
+            group_items, merge_prompt, fallback_title, trace_sink
+        )
         if rendered is None:
             continue
         filename, merged_text = rendered
@@ -786,8 +804,14 @@ def _stocktake_merge_phase(
             consumed_names.update(group.filenames)
             continue
 
+        # ADR-0069: show this merge's reasoning before its approval gate.
+        if trace_sink is not None and len(trace_sink) > n_before:
+            print(f"\n--- Reasoning ---\n{trace_sink[-1]}")
         approved = _approve_write(target_path)
-        _log_approval(command_prefix, target_path, approved, merged_text)
+        _log_approval(
+            command_prefix, target_path, approved, merged_text,
+            snapshot_path=snapshot_path,
+        )
         if approved:
             target_dir.mkdir(parents=True, exist_ok=True)
             write_restricted(target_path, merged_text)
@@ -811,6 +835,7 @@ def _stocktake_drop_phase(
     drop_command: str,
     stage: bool,
     staged_batch: list[StageItem],
+    snapshot_path: Optional[Path] = None,
 ) -> None:
     """Delete (or stage for deferred approval) files flagged as low quality."""
     print(f"\n{'='*60}")
@@ -847,7 +872,9 @@ def _stocktake_drop_phase(
             continue
 
         approved = _approve_delete(target_path)
-        _log_approval(drop_command, target_path, approved, body)
+        _log_approval(
+            drop_command, target_path, approved, body, snapshot_path=snapshot_path
+        )
         if approved:
             target_path.unlink()
             print(f"  Deleted {issue.filename}")
@@ -860,17 +887,19 @@ def _stocktake_drop_phase(
 
 
 def _clean_one_skill(
-    name: str, body: str, target_path: Path, clean_prompt: str
+    name: str, body: str, target_path: Path, clean_prompt: str,
+    trace_sink: Optional[list[str]] = None,
 ) -> str | None:
     """Clean one skill's triggers and re-attach its original frontmatter.
 
     Returns the final text to write, or None when the LLM call fails or the
-    triggers are already at structural altitude (CLEAN_NOOP).
+    triggers are already at structural altitude (CLEAN_NOOP). ``trace_sink``
+    (ADR-0069) collects the clean reasoning trace when provided.
     """
     from .core.stocktake import clean_skill_triggers, is_clean_noop
     from .core.text_utils import split_frontmatter, synthesize_frontmatter
 
-    cleaned_text = clean_skill_triggers((name, body), clean_prompt)
+    cleaned_text = clean_skill_triggers((name, body), clean_prompt, trace_sink)
     if cleaned_text is None:
         print(f"  Clean failed (LLM error): {name}")
         return None
@@ -908,6 +937,8 @@ def _stocktake_clean_phase(
     skip_names: set[str],
     stage: bool,
     staged_batch: list[StageItem],
+    trace_sink: Optional[list[str]] = None,
+    snapshot_path: Optional[Path] = None,
 ) -> None:
     """Clean singleton triggers (skills only).
 
@@ -933,7 +964,10 @@ def _stocktake_clean_phase(
     cleaned = 0
     for name, body in clean_targets:
         target_path = target_dir / name
-        final_text = _clean_one_skill(name, body, target_path, clean_prompt)
+        n_before = len(trace_sink) if trace_sink is not None else 0
+        final_text = _clean_one_skill(
+            name, body, target_path, clean_prompt, trace_sink
+        )
         if final_text is None:
             continue
 
@@ -952,8 +986,14 @@ def _stocktake_clean_phase(
             )
             continue
 
+        # ADR-0069: show this clean's reasoning before its approval gate.
+        if trace_sink is not None and len(trace_sink) > n_before:
+            print(f"\n--- Reasoning ---\n{trace_sink[-1]}")
         approved = _approve_write(target_path)
-        _log_approval(clean_command, target_path, approved, final_text)
+        _log_approval(
+            clean_command, target_path, approved, final_text,
+            snapshot_path=snapshot_path,
+        )
         if approved:
             write_restricted(target_path, final_text)
             cleaned += 1
@@ -978,6 +1018,7 @@ def _handle_stocktake_result(
     command_prefix: str,
     fallback_title: str,
     clean_prompt: str | None = None,
+    snapshot_path: Optional[Path] = None,
 ) -> None:
     """Shared body for _handle_skill_stocktake and _handle_rules_stocktake.
 
@@ -1003,11 +1044,19 @@ def _handle_stocktake_result(
     # triggers even when there is nothing to merge or drop, so don't short-
     # circuit. Rules pass no clean_prompt and keep the original early return.
     if not result.merge_groups and not result.quality_issues and clean_prompt is None:
+        # Nothing to merge/drop/clean, but the grouping call still reasoned
+        # about the corpus — persist that trace (ADR-0069) before returning.
+        _write_reasoning(snapshot_path, [("duplicate grouping", result.thinking)])
         return
 
     items_dict = dict(result.items)
     stage = getattr(args, "stage", False)
     staged_batch: list[StageItem] = []
+    # ADR-0069: collect per-phase reasoning traces (stocktake runs think-ON).
+    # The grouping trace rides on result.thinking; merge / clean traces are
+    # gathered per operation via these sinks and aggregated into reasoning.md.
+    merge_traces: list[str] = []
+    clean_traces: list[str] = []
 
     # Filenames consumed by a successful merge (their originals get deleted on
     # adopt) and filenames flagged for drop. The clean phase skips both so it
@@ -1024,6 +1073,8 @@ def _handle_stocktake_result(
             fallback_title=fallback_title,
             stage=stage,
             staged_batch=staged_batch,
+            trace_sink=merge_traces,
+            snapshot_path=snapshot_path,
         )
 
     if result.quality_issues:
@@ -1034,6 +1085,7 @@ def _handle_stocktake_result(
             drop_command=f"{command_prefix}-drop",
             stage=stage,
             staged_batch=staged_batch,
+            snapshot_path=snapshot_path,
         )
 
     if clean_prompt is not None:
@@ -1046,10 +1098,19 @@ def _handle_stocktake_result(
             skip_names=consumed_names | dropped_names,
             stage=stage,
             staged_batch=staged_batch,
+            trace_sink=clean_traces,
+            snapshot_path=snapshot_path,
         )
 
     if stage and staged_batch:
         _stage_results(staged_batch, command=command_prefix)
+
+    # ADR-0069: persist the run's reasoning — grouping (the main judgment) plus
+    # each merge / clean operation — to reasoning.md beside the snapshot.
+    sections: list[tuple[str, Optional[str]]] = [("duplicate grouping", result.thinking)]
+    sections += [(f"merge {i}", t) for i, t in enumerate(merge_traces, 1)]
+    sections += [(f"clean {i}", t) for i, t in enumerate(clean_traces, 1)]
+    _write_reasoning(snapshot_path, sections)
 
 
 def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
@@ -1057,6 +1118,7 @@ def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.Argument
     from .core import prompts
     from .core.stocktake import run_skill_stocktake
 
+    snapshot_path = _take_snapshot(args, "skill-stocktake", think=True)
     result = run_skill_stocktake(skills_dir=SKILLS_DIR)
     _handle_stocktake_result(
         args,
@@ -1067,6 +1129,7 @@ def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.Argument
         command_prefix="skill-stocktake",
         fallback_title="merged-skill",
         clean_prompt=prompts.STOCKTAKE_CLEAN_PROMPT,
+        snapshot_path=snapshot_path,
     )
 
 
@@ -1080,6 +1143,7 @@ def _handle_rules_stocktake(args: argparse.Namespace, _parser: argparse.Argument
     from .core import prompts
     from .core.stocktake import run_rules_stocktake
 
+    snapshot_path = _take_snapshot(args, "rules-stocktake", think=True)
     result = run_rules_stocktake(rules_dir=RULES_DIR)
     _handle_stocktake_result(
         args,
@@ -1089,6 +1153,7 @@ def _handle_rules_stocktake(args: argparse.Namespace, _parser: argparse.Argument
         merge_prompt=prompts.STOCKTAKE_MERGE_RULES_PROMPT,
         command_prefix="rules-stocktake",
         fallback_title="merged-rule",
+        snapshot_path=snapshot_path,
     )
 
 
@@ -1447,6 +1512,8 @@ def _take_snapshot(
     args: argparse.Namespace,
     command: str,
     view_registry: Optional["ViewRegistry"] = None,
+    *,
+    think: bool = False,
 ) -> Optional[Path]:
     """Write a pivot snapshot at the start of a behavior-producing command.
 
@@ -1455,9 +1522,15 @@ def _take_snapshot(
     rely on the approval prompt to discard). Returns None if
     snapshotting fails — callers must not treat a missing snapshot as
     an error (ADR-0020: snapshots are observability, not correctness).
+
+    ``think`` (ADR-0069) records the run's think state in the manifest beside
+    the generation model (``served_model()``); the value-layer pipelines that
+    run think-ON pass ``think=True`` so the manifest distinguishes their runs
+    from the think-OFF autonomous ``distill``.
     """
     if _is_dry_run(args):
         return None
+    from .core.llm import served_model
     from .core.snapshot import SnapshotCommand, write_snapshot
 
     return write_snapshot(
@@ -1470,7 +1543,47 @@ def _take_snapshot(
         rules_dir=RULES_DIR if RULES_DIR.is_dir() else None,
         identity_path=IDENTITY_PATH if IDENTITY_PATH.is_file() else None,
         view_registry=view_registry,
+        generation_model=served_model(),
+        think=think,
     )
+
+
+def _write_reasoning(
+    snapshot_path: Optional[Path],
+    sections: Sequence[tuple[str, Optional[str]]],
+) -> None:
+    """Persist the run's reasoning trace(s) to ``reasoning.md`` in the snapshot.
+
+    ADR-0069: think-ON value-layer pipelines capture the model's reasoning;
+    it is written beside the run's input snapshot (durable, per-run, co-located
+    with the input state that produced it) rather than in the input manifest,
+    keeping the manifest's single responsibility. Each section is
+    ``(title, trace)``; identical traces are de-duplicated (rules-distill shares
+    one batch trace across its rules), empty traces skipped, and nothing is
+    written when no section has content. Traces are already secret-scrubbed
+    (``GenerationOutput.thinking``); URL-defanged here like the episode report,
+    since the trace is untrusted model output.
+    """
+    if snapshot_path is None:
+        return
+    from .core.report import defang_urls
+
+    blocks: list[str] = []
+    seen: set[str] = set()
+    for title, trace in sections:
+        if not trace or trace in seen:
+            continue
+        seen.add(trace)
+        blocks.append(f"## {title}\n\n{defang_urls(trace)}")
+    if not blocks:
+        return
+    try:
+        (snapshot_path / "reasoning.md").write_text(
+            "# Reasoning trace (ADR-0069)\n\n" + "\n\n".join(blocks) + "\n",
+            encoding="utf-8",
+        )
+    except OSError as exc:
+        logger.warning("Failed to write reasoning.md under %s: %s", snapshot_path, exc)
 
 
 def _handle_enrich(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
@@ -1491,7 +1604,7 @@ def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.Argumen
     knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
     view_registry = _load_view_registry(args)
     knowledge_store.load()
-    snapshot_path = _take_snapshot(args, "distill-identity", view_registry)
+    snapshot_path = _take_snapshot(args, "distill-identity", view_registry, think=True)
     result = distill_identity(
         knowledge_store=knowledge_store,
         identity_path=IDENTITY_PATH,
@@ -1501,6 +1614,7 @@ def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.Argumen
         print(result)
         return
     print(result.text)
+    _write_reasoning(snapshot_path, [("identity", result.thinking)])
     if getattr(args, "stage", False):
         _stage_results(
             [StageItem(
@@ -1511,6 +1625,8 @@ def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.Argumen
             command="distill-identity",
         )
         return
+    if result.thinking:
+        print(f"\n--- Reasoning ---\n{result.thinking}")
     approved = _approve_write(result.target_path)
     _log_approval(
         "distill-identity", result.target_path, approved, result.text,
@@ -1532,7 +1648,7 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
     knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
     view_registry = _load_view_registry(args)
     knowledge_store.load()
-    snapshot_path = _take_snapshot(args, "insight", view_registry)
+    snapshot_path = _take_snapshot(args, "insight", view_registry, think=True)
     result = extract_insight(
         knowledge_store=knowledge_store,
         skills_dir=SKILLS_DIR,
@@ -1541,6 +1657,7 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
     if isinstance(result, str):
         print(result)
         return
+    _write_reasoning(snapshot_path, [(s.filename, s.thinking) for s in result.skills])
     if getattr(args, "stage", False):
         _stage_results(
             [StageItem(
@@ -1565,7 +1682,9 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
 def _handle_rules_distill(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     from .core.rules_distill import _write_last_run, distill_rules
 
-    snapshot_path = _take_snapshot(args, "rules-distill", _load_view_registry(args))
+    snapshot_path = _take_snapshot(
+        args, "rules-distill", _load_view_registry(args), think=True
+    )
     result = distill_rules(
         skills_dir=SKILLS_DIR,
         rules_dir=RULES_DIR,
@@ -1574,6 +1693,7 @@ def _handle_rules_distill(args: argparse.Namespace, _parser: argparse.ArgumentPa
     if isinstance(result, str):
         print(result)
         return
+    _write_reasoning(snapshot_path, [(r.filename, r.thinking) for r in result.rules])
     if getattr(args, "stage", False):
         _stage_results(
             [StageItem(
@@ -1601,7 +1721,7 @@ def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.Argum
     knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
     constitution_dir = args.constitution_dir or CONSTITUTION_DIR
     view_registry = _load_view_registry(args)
-    snapshot_path = _take_snapshot(args, "amend-constitution")
+    snapshot_path = _take_snapshot(args, "amend-constitution", think=True)
     result = amend_constitution(
         knowledge_store=knowledge_store,
         constitution_dir=constitution_dir,
@@ -1611,6 +1731,7 @@ def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.Argum
         print(result)
         return
     print(result.text)
+    _write_reasoning(snapshot_path, [("constitution amendment", result.thinking)])
     if getattr(args, "stage", False):
         _stage_results(
             [StageItem(
@@ -1621,6 +1742,8 @@ def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.Argum
             command="amend-constitution",
         )
         return
+    if result.thinking:
+        print(f"\n--- Reasoning ---\n{result.thinking}")
     approved = _approve_write(result.target_path)
     _log_approval(
         "amend-constitution", result.target_path, approved, result.text,

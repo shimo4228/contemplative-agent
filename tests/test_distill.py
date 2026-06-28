@@ -23,6 +23,7 @@ from contemplative_agent.core.distill import (
 )
 from contemplative_agent.core._io import truncate_boundary
 from contemplative_agent.core.knowledge_store import effective_importance
+from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.memory import EpisodeLog, KnowledgeStore
 
 
@@ -502,9 +503,9 @@ class TestDistillIdentity:
         result = distill_identity(knowledge_store=ks2, view_registry=registry)
         assert "No self-reflection" in str(result)
 
-    @patch("contemplative_agent.core.distill.generate")
+    @patch("contemplative_agent.core.distill.generate_full")
     def test_full_path(self, mock_generate, tmp_path):
-        mock_generate.return_value = "revised identity"
+        mock_generate.return_value = GenerationOutput(text="revised identity")
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks.add_learned_pattern("Self-reflection pattern about meta-cognition",
                                 embedding=[0.1, 0.2])
@@ -523,10 +524,10 @@ class TestDistillIdentity:
         assert "revised identity" in result.text
         assert mock_generate.call_count == 1
 
-    @patch("contemplative_agent.core.distill.generate")
+    @patch("contemplative_agent.core.distill.generate_full")
     def test_generated_identity_has_no_frontmatter(self, mock_generate, tmp_path):
         """ADR-0024/0030: generated persona is plain text, gaining no frontmatter."""
-        mock_generate.return_value = "revised identity"
+        mock_generate.return_value = GenerationOutput(text="revised identity")
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks.add_learned_pattern("Self-reflection pattern", embedding=[0.1, 0.2])
         ks.save()
@@ -548,7 +549,7 @@ class TestDistillIdentity:
         assert "revised identity" in result.text
         assert mock_generate.call_count == 1
 
-    @patch("contemplative_agent.core.distill.generate")
+    @patch("contemplative_agent.core.distill.generate_full")
     def test_prior_identity_not_seeded_into_prompt(self, mock_generate, tmp_path):
         """ADR-0057: the existing identity.md is NOT read into the distill prompt.
 
@@ -556,7 +557,7 @@ class TestDistillIdentity:
         persona from the self-reflection corpus alone; the prior persona text
         must not leak into the prompt, while the matched pattern must.
         """
-        mock_generate.return_value = "fresh identity"
+        mock_generate.return_value = GenerationOutput(text="fresh identity")
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks.add_learned_pattern("Self-reflection pattern", embedding=[0.1, 0.2])
         ks.save()
@@ -831,12 +832,12 @@ class TestEffectiveImportance:
 
 
 class TestDistillIdentityLineageADR0050:
-    @patch("contemplative_agent.core.distill.generate")
+    @patch("contemplative_agent.core.distill.generate_full")
     def test_identity_result_carries_lineage(self, mock_generate, tmp_path):
         """pattern_ids + epistemic_counts come from the view-matched list."""
         from contemplative_agent.core.knowledge_store import pattern_id
 
-        mock_generate.return_value = "revised identity"
+        mock_generate.return_value = GenerationOutput(text="revised identity")
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
         ks.add_learned_pattern("seed pattern", embedding=[0.1, 0.2])
         ks.save()

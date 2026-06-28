@@ -25,7 +25,7 @@ from .knowledge_store import (
     epistemic_counts_for,
     pattern_id,
 )
-from .llm import generate, get_distill_system_prompt, validate_identity_content
+from .llm import generate_full, get_distill_system_prompt, validate_identity_content
 from .memory import KnowledgeStore
 from .prompts import INSIGHT_EXTRACTION_PROMPT
 from .text_utils import extract_title
@@ -58,6 +58,9 @@ class SkillResult:
     target_path: Path
     pattern_ids: Tuple[str, ...] = ()
     epistemic_counts: Dict[str, int] = field(default_factory=dict)
+    # ADR-0069: the reasoning trace for this skill (insight runs think-ON).
+    # Per-skill (one LLM call per cluster), None when think was off / no trace.
+    thinking: Optional[str] = None
 
 
 @dataclass(frozen=True)
@@ -70,10 +73,11 @@ class InsightResult:
 
 def _extract_skill(
     patterns: List[str], topic: str = "mixed"
-) -> Optional[str]:
+) -> Optional[Tuple[str, Optional[str]]]:
     """Extract one skill from patterns via LLM.
 
-    Returns valid Markdown skill text, or None on failure.
+    Returns ``(skill_text, thinking)`` — the reasoning trace rides along
+    because insight runs think-ON (ADR-0069). None on failure.
     """
     # The prompt template variable is still ``{subcategory}`` for backward
     # compatibility with the .md file; here we pass a topic label which
@@ -88,23 +92,24 @@ def _extract_skill(
     # Axioms-only system (same as distill): skill generation must not be
     # conditioned on the existing skill corpus, or each new skill inherits
     # the vocabulary of the last (audit H6).
-    result = generate(
+    out = generate_full(
         prompt,
         system=get_distill_system_prompt(),
         num_predict=3000,
         caller="insight.skill_extract",
+        think=True,
     )
-    if result is None:
+    if out is None or out.text is None:
         logger.warning("LLM failed to generate skill extraction.")
         return None
 
-    text = result.strip()
+    text = out.text.strip()
     if extract_title(text) is None:
         logger.warning("Skill has no title, dropping.")
-        logger.debug("Raw LLM output (first 300 chars): %.300s", result)
+        logger.debug("Raw LLM output (first 300 chars): %.300s", out.text)
         return None
 
-    return text
+    return text, out.thinking
 
 
 def _cluster_score(cluster: List[dict]) -> float:
@@ -361,13 +366,14 @@ def _extract_one_batch(
         batch_idx + 1, n_batches, topic, len(batch),
     )
 
-    skill_text = _extract_skill(batch, topic=topic)
-    if skill_text is None:
+    extracted = _extract_skill(batch, topic=topic)
+    if extracted is None:
         logger.warning(
             "Batch %d/%d [%s]: extraction failed",
             batch_idx + 1, n_batches, topic,
         )
         return None
+    skill_text, thinking = extracted
 
     if not validate_identity_content(skill_text):
         logger.warning(
@@ -392,4 +398,5 @@ def _extract_one_batch(
         epistemic_counts=epistemic_counts_for(
             [patterns_by_id[pid] for pid in batch_pids if pid in patterns_by_id]
         ),
+        thinking=thinking,
     )

@@ -29,7 +29,7 @@ from pathlib import Path
 from typing import List, Optional, Tuple
 
 from ._io import strip_code_fence
-from .llm import generate
+from .llm import generate_full
 from .text_utils import strip_frontmatter
 
 logger = logging.getLogger(__name__)
@@ -88,6 +88,11 @@ class StocktakeResult:
     quality_issues: Tuple[QualityIssue, ...]
     total_files: int
     items: Tuple[Tuple[str, str], ...] = ()
+    # ADR-0069: the duplicate-grouping reasoning trace (stocktake runs
+    # think-ON). This is the run's main judgment — which skills/rules are
+    # redundant. Per-merge / per-clean traces are collected separately via the
+    # ``trace_sink`` parameter in the CLI phases. None when think was off.
+    thinking: Optional[str] = None
 
 
 def _read_files(directory: Path) -> List[Tuple[str, str]]:
@@ -119,6 +124,7 @@ def _format_items(items: List[Tuple[str, str]]) -> str:
 def _find_duplicate_groups(
     items: List[Tuple[str, str]],
     prompt_template: str,
+    trace_sink: Optional[List[str]] = None,
 ) -> List[MergeGroup]:
     """Detect semantic duplicate groups via a single LLM grouping call.
 
@@ -131,6 +137,9 @@ def _find_duplicate_groups(
     Args:
         items: List of (filename, body_text) tuples.
         prompt_template: Grouping prompt with an ``{items}`` placeholder.
+        trace_sink: Optional list. When provided, the call runs think-ON
+            (ADR-0069) and the grouping reasoning trace is appended to it.
+            None (the test/default path) keeps the return type a plain list.
 
     Returns:
         List of MergeGroup. Empty list on LLM failure (safe default).
@@ -144,14 +153,17 @@ def _find_duplicate_groups(
     prompt = prompt_template.format(items=_format_items(items))
     num_predict = min(8192, max(3000, _GROUPING_TOKENS_PER_FILE * len(items)))
     system = STOCKTAKE_GROUP_SYSTEM_PROMPT or _DEFAULT_GROUP_SYSTEM
-    raw = generate(
-        prompt, system=system, num_predict=num_predict, caller="stocktake.duplicates"
+    out = generate_full(
+        prompt, system=system, num_predict=num_predict,
+        caller="stocktake.duplicates", think=True,
     )
-    if raw is None:
+    if out is None or out.text is None:
         logger.warning("LLM failed during stocktake duplicate detection")
         return []
+    if trace_sink is not None and out.thinking:
+        trace_sink.append(out.thinking)
 
-    return _parse_groups(raw)
+    return _parse_groups(out.text)
 
 
 def _parse_groups(raw: str) -> List[MergeGroup]:
@@ -200,6 +212,7 @@ def _parse_groups(raw: str) -> List[MergeGroup]:
 def merge_group(
     items: List[Tuple[str, str]],
     prompt_template: str,
+    trace_sink: Optional[List[str]] = None,
 ) -> Optional[str]:
     """Merge redundant files into a single unified skill via LLM.
 
@@ -210,6 +223,9 @@ def merge_group(
     Args:
         items: List of (filename, body_text) tuples for the group.
         prompt_template: Prompt with {candidates} placeholder.
+        trace_sink: Optional list. When provided, the call runs think-ON
+            (ADR-0069) and the merge reasoning trace is appended to it. None
+            (the test/default path) keeps the return type a plain string.
 
     Returns:
         Merged skill text (or CANNOT_MERGE response), None on LLM failure.
@@ -226,9 +242,15 @@ def merge_group(
     # behavior unchanged; ceiling stays within the model's num_ctx headroom.
     num_predict = min(8192, max(3000, _PER_FILE_MERGE_TOKENS * len(items)))
     system = STOCKTAKE_MERGE_SYSTEM_PROMPT or _DEFAULT_MERGE_SYSTEM
-    return generate(
-        prompt, system=system, num_predict=num_predict, caller="stocktake.merge"
+    out = generate_full(
+        prompt, system=system, num_predict=num_predict,
+        caller="stocktake.merge", think=True,
     )
+    if out is None or out.text is None:
+        return None
+    if trace_sink is not None and out.thinking:
+        trace_sink.append(out.thinking)
+    return out.text
 
 
 def is_merge_rejected(merged_text: str) -> bool:
@@ -254,6 +276,7 @@ _CLEAN_NOOP_RE = re.compile(r"^\s*CLEAN_NOOP", re.IGNORECASE)
 def clean_skill_triggers(
     item: Tuple[str, str],
     prompt_template: str,
+    trace_sink: Optional[List[str]] = None,
 ) -> Optional[str]:
     """Rewrite a single skill's triggers at structural altitude.
 
@@ -271,6 +294,9 @@ def clean_skill_triggers(
     Args:
         item: (filename, body_text) of the skill to clean.
         prompt_template: Prompt with a ``{skill}`` placeholder.
+        trace_sink: Optional list. When provided, the call runs think-ON
+            (ADR-0069) and the clean reasoning trace is appended to it. None
+            (the test/default path) keeps the return type a plain string.
 
     Returns:
         Rewritten skill text (or the CLEAN_NOOP sentinel), None on LLM failure.
@@ -280,12 +306,18 @@ def clean_skill_triggers(
 
     _, body = item
     prompt = prompt_template.format(skill=body)
-    return generate(
+    out = generate_full(
         prompt,
         system=STOCKTAKE_CLEAN_SYSTEM_PROMPT or _DEFAULT_CLEAN_SYSTEM,
         num_predict=_CLEAN_TOKENS,
         caller="stocktake.clean_triggers",
+        think=True,
     )
+    if out is None or out.text is None:
+        return None
+    if trace_sink is not None and out.thinking:
+        trace_sink.append(out.thinking)
+    return out.text
 
 
 def is_clean_noop(text: str) -> bool:
@@ -342,7 +374,10 @@ def run_skill_stocktake(
     # Lazy import avoids a core.stocktake -> core.prompts import cycle.
     from . import prompts
 
-    merge_groups = _find_duplicate_groups(items, prompts.STOCKTAKE_SKILLS_PROMPT)
+    grouping_traces: List[str] = []
+    merge_groups = _find_duplicate_groups(
+        items, prompts.STOCKTAKE_SKILLS_PROMPT, grouping_traces
+    )
 
     # Structural quality checks
     quality_issues: List[QualityIssue] = []
@@ -356,6 +391,7 @@ def run_skill_stocktake(
         quality_issues=tuple(quality_issues),
         total_files=len(items),
         items=tuple(items),
+        thinking="\n\n".join(grouping_traces) or None,
     )
 
 
@@ -380,7 +416,10 @@ def run_rules_stocktake(
     # Lazy import avoids a core.stocktake -> core.prompts import cycle.
     from . import prompts
 
-    merge_groups = _find_duplicate_groups(items, prompts.STOCKTAKE_RULES_PROMPT)
+    grouping_traces: List[str] = []
+    merge_groups = _find_duplicate_groups(
+        items, prompts.STOCKTAKE_RULES_PROMPT, grouping_traces
+    )
 
     # Structural quality checks
     quality_issues: List[QualityIssue] = []
@@ -394,6 +433,7 @@ def run_rules_stocktake(
         quality_issues=tuple(quality_issues),
         total_files=len(items),
         items=tuple(items),
+        thinking="\n\n".join(grouping_traces) or None,
     )
 
 

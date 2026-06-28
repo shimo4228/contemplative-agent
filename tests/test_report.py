@@ -4,7 +4,7 @@ import json
 
 from contemplative_agent.core.report import (
     _build_report,
-    _defang_urls,
+    defang_urls,
     _format_ts,
     _parse_log,
     generate_all_reports,
@@ -102,26 +102,26 @@ class TestExtractSessionMeta:
 
 class TestDefangUrls:
     def test_defangs_https(self):
-        assert _defang_urls("Visit https://evil.com/phish") == "Visit hxxps://evil[.]com/phish"
+        assert defang_urls("Visit https://evil.com/phish") == "Visit hxxps://evil[.]com/phish"
 
     def test_defangs_http(self):
-        assert _defang_urls("Go to http://bad.org/x") == "Go to hxxp://bad[.]org/x"
+        assert defang_urls("Go to http://bad.org/x") == "Go to hxxp://bad[.]org/x"
 
     def test_preserves_moltbook_urls(self):
         text = "See https://www.moltbook.com/u/agent and https://moltbook.com/skill.md"
-        assert _defang_urls(text) == text
+        assert defang_urls(text) == text
 
     def test_mixed_safe_and_unsafe(self):
         text = "Link: https://www.moltbook.com/u/x and https://inbed.ai/agents"
-        result = _defang_urls(text)
+        result = defang_urls(text)
         assert "https://www.moltbook.com/u/x" in result
         assert "hxxps://inbed[.]ai/agents" in result
 
     def test_no_urls(self):
-        assert _defang_urls("No links here") == "No links here"
+        assert defang_urls("No links here") == "No links here"
 
     def test_empty_string(self):
-        assert _defang_urls("") == ""
+        assert defang_urls("") == ""
 
 
 class TestBuildReport:

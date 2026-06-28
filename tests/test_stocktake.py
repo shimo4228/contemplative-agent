@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from unittest.mock import patch
 
+from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.stocktake import (
     MergeGroup,
     QualityIssue,
@@ -249,33 +250,33 @@ class TestRuleQuality:
 # ---------------------------------------------------------------------------
 
 class TestFindDuplicateGroups:
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_returns_merge_groups(self, mock_generate):
-        mock_generate.return_value = LLM_MERGE_RESPONSE
+        mock_generate.return_value = GenerationOutput(text=LLM_MERGE_RESPONSE)
         items = [("a.md", "content a"), ("b.md", "content b")]
         groups = _find_duplicate_groups(items, "prompt {items}")
         assert len(groups) == 1
         assert mock_generate.call_count == 1
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_no_duplicates_returns_empty(self, mock_generate):
-        mock_generate.return_value = LLM_NO_MERGE_RESPONSE
+        mock_generate.return_value = GenerationOutput(text=LLM_NO_MERGE_RESPONSE)
         items = [("a.md", "content a"), ("b.md", "content b")]
         assert _find_duplicate_groups(items, "prompt {items}") == []
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_multiple_groups_not_collapsed(self, mock_generate):
         """Distinct families stay separate — the grouping call can return
         several small groups rather than one over-merged blob."""
-        mock_generate.return_value = json.dumps({"groups": [
+        mock_generate.return_value = GenerationOutput(text=json.dumps({"groups": [
             {"files": ["a.md", "b.md"], "reason": "family one"},
             {"files": ["c.md", "d.md"], "reason": "family two"},
-        ]})
+        ]}))
         items = [(f"{c}.md", f"body {c}") for c in "abcd"]
         groups = _find_duplicate_groups(items, "prompt {items}")
         assert len(groups) == 2
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_llm_failure_returns_empty(self, mock_generate):
         mock_generate.return_value = None
         items = [("a.md", "content a"), ("b.md", "content b")]
@@ -285,11 +286,11 @@ class TestFindDuplicateGroups:
         items = [("a.md", "content a")]
         assert _find_duplicate_groups(items, "prompt {items}") == []
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_grouping_token_budget_has_floor(self, mock_generate):
         """Small stores still get a generous budget so the JSON is not
         truncated (truncation would corrupt parsing and drop groups)."""
-        mock_generate.return_value = LLM_NO_MERGE_RESPONSE
+        mock_generate.return_value = GenerationOutput(text=LLM_NO_MERGE_RESPONSE)
         items = [("a.md", "x"), ("b.md", "y")]
         _find_duplicate_groups(items, "prompt {items}")
         assert mock_generate.call_args.kwargs["num_predict"] == 3000
@@ -300,51 +301,51 @@ class TestFindDuplicateGroups:
 # ---------------------------------------------------------------------------
 
 class TestMergeGroup:
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_returns_merged_text(self, mock_generate):
-        mock_generate.return_value = "# Merged Skill\n\n## Problem\nCombined.\n\n## Solution\nUnified."
+        mock_generate.return_value = GenerationOutput(text="# Merged Skill\n\n## Problem\nCombined.\n\n## Solution\nUnified.")
         items = [("a.md", "content a"), ("b.md", "content b")]
         result = merge_group(items, "merge {candidates}")
         assert result is not None
         assert "# Merged Skill" in result
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_llm_failure(self, mock_generate):
         mock_generate.return_value = None
         items = [("a.md", "content a"), ("b.md", "content b")]
         assert merge_group(items, "merge {candidates}") is None
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_cannot_merge_returned_verbatim(self, mock_generate):
         """LLM reject path: CANNOT_MERGE is returned as-is for caller inspection."""
-        mock_generate.return_value = "CANNOT_MERGE: distinct behaviors."
+        mock_generate.return_value = GenerationOutput(text="CANNOT_MERGE: distinct behaviors.")
         items = [("a.md", "content a"), ("b.md", "content b")]
         result = merge_group(items, "merge {candidates}")
         assert result is not None
         assert result.startswith("CANNOT_MERGE:")
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_small_group_keeps_floor_budget(self, mock_generate):
         """A 2-file merge keeps the 3000-token floor (prior behavior)."""
-        mock_generate.return_value = "# Merged\n\n## Problem\np\n\n## Solution\ns"
+        mock_generate.return_value = GenerationOutput(text="# Merged\n\n## Problem\np\n\n## Solution\ns")
         items = [("a.md", "x"), ("b.md", "y")]
         merge_group(items, "merge {candidates}")
         assert mock_generate.call_args.kwargs["num_predict"] == 3000
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_token_budget_scales_with_group_size(self, mock_generate):
         """Pattern-preserving merge output grows with inputs, so the token
         budget scales above the floor — preventing truncation that would
         silently drop the distinct patterns the merge exists to preserve."""
-        mock_generate.return_value = "# Merged\n\n## Problem\np\n\n## Solution\ns"
+        mock_generate.return_value = GenerationOutput(text="# Merged\n\n## Problem\np\n\n## Solution\ns")
         items = [(f"f{i}.md", f"body {i}") for i in range(12)]
         merge_group(items, "merge {candidates}")
         assert mock_generate.call_args.kwargs["num_predict"] == _PER_FILE_MERGE_TOKENS * 12
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_token_budget_capped_at_ceiling(self, mock_generate):
         """Very large groups are capped at 8192 (num_ctx headroom)."""
-        mock_generate.return_value = "# Merged\n\n## Problem\np\n\n## Solution\ns"
+        mock_generate.return_value = GenerationOutput(text="# Merged\n\n## Problem\np\n\n## Solution\ns")
         items = [(f"f{i}.md", f"body {i}") for i in range(40)]
         merge_group(items, "merge {candidates}")
         assert mock_generate.call_args.kwargs["num_predict"] == 8192
@@ -369,10 +370,10 @@ class TestIsMergeRejected:
 # ---------------------------------------------------------------------------
 
 class TestCleanSkillTriggers:
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_returns_cleaned_text(self, mock_generate):
-        mock_generate.return_value = (
-            "# Skill\n\n## When to Use\nWhen a particular individual acts."
+        mock_generate.return_value = GenerationOutput(
+            text="# Skill\n\n## When to Use\nWhen a particular individual acts."
         )
         result = clean_skill_triggers(
             ("solo.md", "# Skill\n\n## When to Use\nWhen Count1 acts at 09:35."),
@@ -381,29 +382,29 @@ class TestCleanSkillTriggers:
         assert result is not None
         assert "a particular individual" in result
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_llm_failure(self, mock_generate):
         mock_generate.return_value = None
         assert clean_skill_triggers(("solo.md", "body"), "clean {skill}") is None
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_noop_returned_for_caller_inspection(self, mock_generate):
         """Already-clean skills get CLEAN_NOOP, returned as-is for the caller."""
-        mock_generate.return_value = "CLEAN_NOOP"
+        mock_generate.return_value = GenerationOutput(text="CLEAN_NOOP")
         result = clean_skill_triggers(("solo.md", "body"), "clean {skill}")
         assert result == "CLEAN_NOOP"
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_passes_skill_body_into_prompt(self, mock_generate):
         """The {skill} placeholder receives the body; braces in the body are
         safe (they are an argument, not part of the format template)."""
-        mock_generate.return_value = "CLEAN_NOOP"
+        mock_generate.return_value = GenerationOutput(text="CLEAN_NOOP")
         clean_skill_triggers(("solo.md", "UNIQUE_BODY_MARKER {x}"), "clean: {skill}")
         assert "UNIQUE_BODY_MARKER {x}" in mock_generate.call_args.args[0]
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_token_budget(self, mock_generate):
-        mock_generate.return_value = "CLEAN_NOOP"
+        mock_generate.return_value = GenerationOutput(text="CLEAN_NOOP")
         clean_skill_triggers(("solo.md", "body"), "clean {skill}")
         assert mock_generate.call_args.kwargs["num_predict"] == _CLEAN_TOKENS
 
@@ -430,11 +431,11 @@ class TestIsCleanNoop:
 # ---------------------------------------------------------------------------
 
 class TestRunSkillStocktake:
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_detects_merges_and_quality(self, mock_generate, tmp_path):
-        mock_generate.return_value = json.dumps({
+        mock_generate.return_value = GenerationOutput(text=json.dumps({
             "groups": [{"files": ["a.md", "b.md"], "reason": "overlap"}]
-        })
+        }))
         skills_dir = _make_skills_dir(tmp_path, {
             "a.md": GOOD_SKILL,
             "b.md": GOOD_SKILL_NO_FRONTMATTER,
@@ -446,7 +447,7 @@ class TestRunSkillStocktake:
         assert len(result.quality_issues) >= 1  # short.md
         assert result.total_files == 3
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_no_issues(self, mock_generate, tmp_path):
         # Single file: below MIN_FILES_FOR_DEDUP, so grouping LLM not invoked
         skills_dir = _make_skills_dir(tmp_path, {
@@ -473,9 +474,9 @@ class TestRunSkillStocktake:
 # ---------------------------------------------------------------------------
 
 class TestRunRulesStocktake:
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_detects_quality_issue(self, mock_generate, tmp_path):
-        mock_generate.return_value = LLM_NO_MERGE_RESPONSE
+        mock_generate.return_value = GenerationOutput(text=LLM_NO_MERGE_RESPONSE)
         rules_dir = _make_rules_dir(tmp_path, {
             "good.md": GOOD_RULE,
             "bad.md": MISSING_PRACTICE_RULE,
@@ -496,7 +497,7 @@ class TestRunRulesStocktake:
 # ---------------------------------------------------------------------------
 
 class TestIndependence:
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_skills_and_rules_do_not_mix(self, mock_generate, tmp_path):
         """Skill stocktake does not read rules, and vice versa."""
         skills_dir = _make_skills_dir(tmp_path, {"s.md": GOOD_SKILL})
@@ -541,37 +542,72 @@ class TestFormatReport:
 # When the template is missing (lazy loader yields ""), the hardcoded default
 # must reach the LLM call so behavior is unchanged.
 class TestSystemPromptFallback:
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_group_system_falls_back_to_default(self, mock_generate, monkeypatch):
         monkeypatch.setattr(
             "contemplative_agent.core.prompts.STOCKTAKE_GROUP_SYSTEM_PROMPT",
             "",
             raising=False,
         )
-        mock_generate.return_value = '{"groups": []}'
+        mock_generate.return_value = GenerationOutput(text='{"groups": []}')
         _find_duplicate_groups(
             [("a.md", "body a"), ("b.md", "body b")], "prompt {items}"
         )
         assert mock_generate.call_args.kwargs["system"] == _DEFAULT_GROUP_SYSTEM
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_merge_system_falls_back_to_default(self, mock_generate, monkeypatch):
         monkeypatch.setattr(
             "contemplative_agent.core.prompts.STOCKTAKE_MERGE_SYSTEM_PROMPT",
             "",
             raising=False,
         )
-        mock_generate.return_value = "merged"
+        mock_generate.return_value = GenerationOutput(text="merged")
         merge_group([("a.md", "x"), ("b.md", "y")], "prompt {candidates}")
         assert mock_generate.call_args.kwargs["system"] == _DEFAULT_MERGE_SYSTEM
 
-    @patch("contemplative_agent.core.stocktake.generate")
+    @patch("contemplative_agent.core.stocktake.generate_full")
     def test_clean_system_falls_back_to_default(self, mock_generate, monkeypatch):
         monkeypatch.setattr(
             "contemplative_agent.core.prompts.STOCKTAKE_CLEAN_SYSTEM_PROMPT",
             "",
             raising=False,
         )
-        mock_generate.return_value = "CLEAN_NOOP"
+        mock_generate.return_value = GenerationOutput(text="CLEAN_NOOP")
         clean_skill_triggers(("a.md", "body"), "prompt {skill}")
         assert mock_generate.call_args.kwargs["system"] == _DEFAULT_CLEAN_SYSTEM
+
+
+class TestStocktakeTraceCapture:
+    """ADR-0069: stocktake runs think-ON; the grouping trace lands on
+    StocktakeResult.thinking and per-op traces flow through trace_sink."""
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_merge_group_populates_trace_sink(self, mock_gen):
+        mock_gen.return_value = GenerationOutput(
+            text="# Merged\n\n## Problem\nx\n\n## Solution\ny", thinking="merge reason"
+        )
+        sink: list[str] = []
+        merge_group([("a.md", "x"), ("b.md", "y")], "merge {candidates}", sink)
+        assert sink == ["merge reason"]
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_merge_group_omits_trace_when_none(self, mock_gen):
+        mock_gen.return_value = GenerationOutput(text="# Merged\n\nbody", thinking=None)
+        sink: list[str] = []
+        merge_group([("a.md", "x"), ("b.md", "y")], "merge {candidates}", sink)
+        assert sink == []
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_run_skill_stocktake_sets_grouping_thinking(self, mock_gen, tmp_path):
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        for n in ("a.md", "b.md"):
+            (skills_dir / n).write_text(
+                "## Problem\n" + "x" * 250 + "\n## Solution\ny", encoding="utf-8"
+            )
+        mock_gen.return_value = GenerationOutput(
+            text=json.dumps({"groups": []}), thinking="why these are distinct"
+        )
+        result = run_skill_stocktake(skills_dir=skills_dir)
+        assert result.thinking == "why these are distinct"

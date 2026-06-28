@@ -97,7 +97,7 @@ _SAFE_DOMAINS = frozenset({"moltbook.com", "www.moltbook.com"})
 _URL_RE = re.compile(r"https?://[^\s)\]>\"']+")
 
 
-def _defang_urls(text: str) -> str:
+def defang_urls(text: str) -> str:
     """Defang URLs to prevent accidental clicks on external links.
 
     Transforms ``https://example.com`` → ``hxxps://example[.]com``.
@@ -150,18 +150,18 @@ def _entry_lines(i: int, kind: str, e: Dict[str, Any]) -> List[str]:
         lines += [f"**Title:** {e['title']}", ""]
     if e.get("submolt"):
         lines += [f"**Submolt:** {e['submolt']}", ""]
-    context = _defang_urls(e.get("context", ""))
+    context = defang_urls(e.get("context", ""))
     if context:
         lines += ["**Context:**", context, ""]
-    note = _defang_urls(e.get("internal_note", ""))
+    note = defang_urls(e.get("internal_note", ""))
     if note:
         lines += ["**Internal note:**", note, ""]
     # Reasoning trace (present only when the call ran think=True). Untrusted
     # model output like every other field here — URL-defanged before render.
-    thinking = _defang_urls(e.get("thinking", ""))
+    thinking = defang_urls(e.get("thinking", ""))
     if thinking:
         lines += ["**Thinking:**", thinking, ""]
-    lines += ["**Output:**", _defang_urls(e.get("content", "")), "", "---", ""]
+    lines += ["**Output:**", defang_urls(e.get("content", "")), "", "---", ""]
     return lines
 
 

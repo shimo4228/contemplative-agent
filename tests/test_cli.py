@@ -17,6 +17,7 @@ from contemplative_agent.cli import (
     _handle_remove_skill,
     _handle_rules_stocktake,
     _handle_skill_stocktake,
+    _handle_stocktake_result,
     _setup_logging,
     _build_calendar_intervals,
     _do_init,
@@ -26,8 +27,69 @@ from contemplative_agent.cli import (
     _list_templates,
     _log_approval,
     _stage_results,
+    _write_reasoning,
     StageItem,
 )
+
+
+class TestWriteReasoning:
+    """ADR-0069: think-ON value-layer pipelines write their reasoning trace to
+    reasoning.md beside the run's snapshot (not into the input manifest)."""
+
+    def test_writes_sections_to_reasoning_md(self, tmp_path):
+        _write_reasoning(tmp_path, [("identity", "first reason"), ("rule a", "second reason")])
+        content = (tmp_path / "reasoning.md").read_text()
+        assert "## identity" in content
+        assert "first reason" in content
+        assert "## rule a" in content
+        assert "second reason" in content
+
+    def test_dedupes_identical_traces(self, tmp_path):
+        # rules-distill shares one batch trace across its rules — write it once.
+        _write_reasoning(tmp_path, [("rule 1", "same trace"), ("rule 2", "same trace")])
+        content = (tmp_path / "reasoning.md").read_text()
+        assert content.count("same trace") == 1
+
+    def test_skips_empty_and_none_traces(self, tmp_path):
+        _write_reasoning(tmp_path, [("a", None), ("b", "")])
+        assert not (tmp_path / "reasoning.md").exists()
+
+    def test_noop_when_snapshot_path_none(self):
+        # No snapshot (e.g. --dry-run) → nothing to do, no crash.
+        _write_reasoning(None, [("a", "trace")])
+
+    def test_defangs_urls_in_trace(self, tmp_path):
+        _write_reasoning(tmp_path, [("a", "see https://evil.example.com/x for more")])
+        content = (tmp_path / "reasoning.md").read_text()
+        assert "https://evil.example.com/x" not in content
+
+    def test_stocktake_grouping_trace_written_to_reasoning_md(self, tmp_path):
+        """ADR-0069 integration: a stocktake run with nothing to merge/drop
+        still persists its grouping reasoning to reasoning.md beside the snapshot."""
+        from contemplative_agent.core.stocktake import StocktakeResult
+
+        result = StocktakeResult(
+            merge_groups=(),
+            quality_issues=(),
+            total_files=3,
+            items=(),
+            thinking="these three rules are genuinely distinct",
+        )
+        # rules path: clean_prompt=None → early return after writing the trace.
+        _handle_stocktake_result(
+            MagicMock(),
+            result,
+            target_dir=tmp_path / "rules",
+            label="Rules",
+            merge_prompt="m {candidates}",
+            command_prefix="rules-stocktake",
+            fallback_title="merged-rule",
+            clean_prompt=None,
+            snapshot_path=tmp_path,
+        )
+        content = (tmp_path / "reasoning.md").read_text()
+        assert "## duplicate grouping" in content
+        assert "these three rules are genuinely distinct" in content
 
 
 class TestSetupLogging:
@@ -1513,7 +1575,7 @@ class TestSkillStocktakeCleanPhase:
         )
         clean_calls: list[str] = []
 
-        def fake_clean(item, _prompt):
+        def fake_clean(item, _prompt, _trace_sink=None):
             clean_calls.append(item[0])
             return "CLEAN_NOOP"
 

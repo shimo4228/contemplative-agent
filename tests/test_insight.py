@@ -16,6 +16,7 @@ from contemplative_agent.core.insight import (
     _select_patterns,
     extract_insight,
 )
+from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.memory import KnowledgeStore
 from contemplative_agent.core.text_utils import extract_title, slugify
 
@@ -116,31 +117,34 @@ class TestSlugify:
 
 
 class TestExtractSkill:
-    @patch("contemplative_agent.core.insight.generate")
+    @patch("contemplative_agent.core.insight.generate_full")
     def test_returns_skill_text(self, mock_generate) -> None:
-        mock_generate.return_value = GOOD_SKILL_RESPONSE
+        mock_generate.return_value = GenerationOutput(text=GOOD_SKILL_RESPONSE)
         result = _extract_skill(["p1", "p2"])
         assert result is not None
-        assert "# Ask Before Reacting" in result
+        text, _thinking = result
+        assert "# Ask Before Reacting" in text
 
-    @patch("contemplative_agent.core.insight.generate")
+    @patch("contemplative_agent.core.insight.generate_full")
     def test_llm_failure(self, mock_generate) -> None:
         mock_generate.return_value = None
         assert _extract_skill(["p1"]) is None
 
-    @patch("contemplative_agent.core.insight.generate")
+    @patch("contemplative_agent.core.insight.generate_full")
     def test_no_title_returns_none(self, mock_generate) -> None:
-        mock_generate.return_value = "some text without a title line"
+        mock_generate.return_value = GenerationOutput(
+            text="some text without a title line"
+        )
         assert _extract_skill(["p1"]) is None
 
-    @patch("contemplative_agent.core.insight.generate")
+    @patch("contemplative_agent.core.insight.generate_full")
     def test_passes_topic_to_prompt(self, mock_generate) -> None:
-        mock_generate.return_value = GOOD_SKILL_RESPONSE
+        mock_generate.return_value = GenerationOutput(text=GOOD_SKILL_RESPONSE)
         _extract_skill(["p1"], topic="cluster-1")
         prompt_arg = mock_generate.call_args[0][0]
         assert "cluster-1" in prompt_arg
 
-    @patch("contemplative_agent.core.insight.generate")
+    @patch("contemplative_agent.core.insight.generate_full")
     def test_uses_distill_system_prompt(self, mock_generate, tmp_path) -> None:
         """Audit H6: skill generation must not be conditioned on the existing
         skill corpus nor identity — same anti-circularity grounding as
@@ -159,7 +163,7 @@ class TestExtractSkill:
         (skills_dir / "marker.md").write_text("# Marker Skill\nx")
         configure(identity_path=identity, skills_dir=skills_dir)
         try:
-            mock_generate.return_value = GOOD_SKILL_RESPONSE
+            mock_generate.return_value = GenerationOutput(text=GOOD_SKILL_RESPONSE)
             _extract_skill(["p1"])
             system = mock_generate.call_args.kwargs["system"]
             assert system == get_distill_system_prompt()
@@ -194,7 +198,7 @@ class TestExtractInsight:
 
     @patch("contemplative_agent.core.insight._extract_skill")
     def test_returns_insight_result(self, mock_skill, knowledge_store) -> None:
-        mock_skill.return_value = GOOD_SKILL_RESPONSE
+        mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
         result = extract_insight(knowledge_store=knowledge_store)
         assert isinstance(result, InsightResult)
         assert len(result.skills) == 1
@@ -216,7 +220,7 @@ class TestExtractInsight:
                 f"noise-{i}", embedding=_unit_vec(8, 1), gated=True,
             )
         ks.save()
-        mock_skill.return_value = GOOD_SKILL_RESPONSE
+        mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
 
         result = extract_insight(knowledge_store=ks)
         assert isinstance(result, InsightResult)
@@ -468,7 +472,7 @@ class TestExtractInsightLineageADR0050:
     def test_skill_result_carries_pattern_ids(self, mock_skill, knowledge_store) -> None:
         from contemplative_agent.core.knowledge_store import pattern_id
 
-        mock_skill.return_value = GOOD_SKILL_RESPONSE
+        mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
         result = extract_insight(knowledge_store=knowledge_store)
         assert isinstance(result, InsightResult)
         skill = result.skills[0]
@@ -488,7 +492,7 @@ class TestExtractInsightLineageADR0050:
             provenance={"source_type": "external_reply"},
         )
         ks.save()
-        mock_skill.return_value = GOOD_SKILL_RESPONSE
+        mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
 
         result = extract_insight(knowledge_store=ks)
         assert isinstance(result, InsightResult)
@@ -510,7 +514,7 @@ class TestExtractInsightLineageADR0050:
                 distilled="2099-01-01T00:00+00:00",
             )
         ks.save()
-        mock_skill.return_value = GOOD_SKILL_RESPONSE
+        mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
 
         result = extract_insight(knowledge_store=ks, skills_dir=skills_dir)
         assert isinstance(result, InsightResult)

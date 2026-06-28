@@ -204,6 +204,37 @@ class TestWriteSnapshot:
         assert manifest["thresholds"]["SIM_DUPLICATE"] == 0.90
         assert manifest["views_dir"] == str(layout["views"])
 
+    def test_manifest_records_generation_model_and_think(self, layout, view_registry):
+        """ADR-0069: the manifest records the run's generation model + think
+        state beside the embedding model, closing the reproducibility gap."""
+        path = write_snapshot(
+            command="insight",
+            views_dir=layout["views"],
+            constitution_dir=layout["constitution"],
+            snapshots_dir=layout["snapshots"],
+            view_registry=view_registry,
+            generation_model="gemma4:e4b",
+            think=True,
+        )
+        assert path is not None
+        manifest = json.loads((path / "manifest.json").read_text())
+        assert manifest["generation_model"] == "gemma4:e4b"
+        assert manifest["think"] is True
+
+    def test_manifest_generation_fields_default_when_omitted(self, layout, view_registry):
+        """Backward compat: callers that omit the new args get null/False."""
+        path = write_snapshot(
+            command="distill",
+            views_dir=layout["views"],
+            constitution_dir=layout["constitution"],
+            snapshots_dir=layout["snapshots"],
+            view_registry=view_registry,
+        )
+        assert path is not None
+        manifest = json.loads((path / "manifest.json").read_text())
+        assert manifest["generation_model"] is None
+        assert manifest["think"] is False
+
     def test_centroids_npz_roundtrips(self, layout, view_registry):
         path = write_snapshot(
             command="distill",

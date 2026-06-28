@@ -29,7 +29,14 @@ logger = logging.getLogger(__name__)
 
 # Default Ollama settings — overridden by adapter config or env vars
 _DEFAULT_OLLAMA_URL = "http://localhost:11434"
-_DEFAULT_OLLAMA_MODEL = "qwen3.5:9b"
+# Production generation model. gemma4:e4b supersedes qwen3.5:9b (ADR-0069):
+# the think-on/off A/B (docs/evidence/adr-0068/) ranks gemma > qwen on quality
+# and gemma think-OFF is faster (0.65x). Embedding stays nomic-embed-text via the
+# separate OLLAMA_EMBEDDING_MODEL knob (core/embeddings.py) — this default is
+# generation-only. Revert: set OLLAMA_MODEL=qwen3.5:9b (no code change needed,
+# launchd plists pin no model). gemma's 128K context >> NUM_CTX (32768), so the
+# context-budget assumptions are unchanged.
+_DEFAULT_OLLAMA_MODEL = "gemma4:e4b"
 
 LOCALHOST_HOSTS = frozenset({"localhost", "127.0.0.1", "::1"})
 
@@ -541,6 +548,17 @@ def _get_model() -> str:
     return os.environ.get("OLLAMA_MODEL", _ollama_model)
 
 
+def served_model() -> str:
+    """The model id actually serving generation, across any backend.
+
+    An injected ``LLMBackend`` declares its served model via the ``model``
+    contract; the built-in Ollama path uses ``_get_model()``. Single source of
+    truth for per-call telemetry and the snapshot manifest (ADR-0069), so both
+    record the same served model regardless of backend.
+    """
+    return _backend.model if _backend is not None else _get_model()
+
+
 def _strip_thinking(text: str) -> str:
     """Remove <think>...</think> blocks from model output."""
     return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
@@ -737,6 +755,44 @@ def generate(
     return out.text if out is not None else None
 
 
+def generate_full(
+    prompt: str,
+    system: Optional[str] = None,
+    max_length: Optional[int] = None,
+    num_predict: Optional[int] = None,
+    format: Optional[Dict] = None,
+    temperature: float = 1.0,
+    drop_truncated: bool = False,
+    caller: str = "unknown",
+    think: bool = False,
+) -> Optional[GenerationOutput]:
+    """Like :func:`generate` but returns the full :class:`GenerationOutput`.
+
+    Internal trace-keeping entry point (ADR-0069): the value-layer pipelines
+    that run with ``think=True`` (insight / rules-distill / amend-constitution /
+    distill-identity / skill-stocktake / rules-stocktake) need the reasoning
+    trace, which :func:`generate` discards when it projects to ``.text``. This
+    is the internal analogue of :func:`generate_for_api` (which serves the
+    publish seam) — same shared core (:func:`_generate_full`), no platform
+    char-limit derivation. Args mirror :func:`generate`. Returns ``None`` on
+    failure / truncation-drop (callers None-check, same as ``generate``);
+    otherwise a ``GenerationOutput`` whose ``.thinking`` is populated only when
+    ``think=True`` (the default-off contract holds — a model emitting ``<think>``
+    under ``think=False`` never persists a trace).
+    """
+    return _generate_full(
+        prompt,
+        system,
+        max_length,
+        num_predict,
+        format,
+        temperature,
+        drop_truncated,
+        caller,
+        think,
+    )
+
+
 def _generate_full(
     prompt: str,
     system: Optional[str],
@@ -763,7 +819,7 @@ def _generate_full(
         # Injected backends declare their served model id via the LLMBackend
         # ``model`` contract, so telemetry records the real served model
         # across any backend (parity with the Ollama default's _get_model()).
-        "model": _backend.model if _backend is not None else _get_model(),
+        "model": served_model(),
         "prompt_chars": len(prompt),
         "system_chars": None,
         "num_predict": effective_num_predict,

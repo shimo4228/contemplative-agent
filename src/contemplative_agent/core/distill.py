@@ -32,6 +32,7 @@ from .knowledge_store import (
 )
 from .llm import (
     generate,
+    generate_full,
     get_distill_system_prompt,
     validate_identity_content,
     wrap_untrusted_content,
@@ -228,6 +229,10 @@ class IdentityResult:
     target_path: Path
     pattern_ids: Tuple[str, ...] = ()
     epistemic_counts: Dict[str, int] = field(default_factory=dict)
+    # ADR-0069: reasoning trace behind the identity (distill-identity runs
+    # think-ON; this is the manual command, distinct from the autonomous
+    # episode distill which stays think-OFF). None when think was off.
+    thinking: Optional[str] = None
 
 
 def distill_identity(
@@ -296,19 +301,20 @@ def distill_identity(
         knowledge=knowledge_text,
     )
 
-    result = generate(
+    out = generate_full(
         prompt,
         system=get_distill_system_prompt(),
         num_predict=3000,
         caller="distill.identity",
+        think=True,
     )
-    if result is None:
+    if out is None or out.text is None:
         msg = "LLM failed to generate identity revision."
         logger.warning(msg)
         return msg
 
     # Clean up: strip empty lines and preamble
-    lines = [line.strip() for line in result.strip().splitlines() if line.strip()]
+    lines = [line.strip() for line in out.text.strip().splitlines() if line.strip()]
     new_identity = "\n".join(lines)
 
     # Validate against forbidden patterns before returning. On failure, return a
@@ -328,6 +334,7 @@ def distill_identity(
         target_path=identity_path,
         pattern_ids=tuple(pattern_id(p) for p in matched),
         epistemic_counts=epistemic_counts_for(matched),
+        thinking=out.thinking,
     )
 
 

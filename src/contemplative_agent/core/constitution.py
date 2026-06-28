@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import Dict, Optional, Tuple, Union
 
 from .knowledge_store import epistemic_counts_for, pattern_id
-from .llm import generate, get_distill_system_prompt, validate_identity_content
+from .llm import generate_full, get_distill_system_prompt, validate_identity_content
 from .memory import KnowledgeStore
 from .prompts import CONSTITUTION_AMEND_PROMPT
 from .views import ViewRegistry
@@ -38,6 +38,10 @@ class AmendmentResult:
     marker_dir: Path
     pattern_ids: Tuple[str, ...] = ()
     epistemic_counts: Dict[str, int] = field(default_factory=dict)
+    # ADR-0069: reasoning trace behind the amendment (amend-constitution runs
+    # think-ON — the constitution sits at the top of the behavior-change chain,
+    # so the owner sees *why* this amendment was proposed at the approval gate).
+    thinking: Optional[str] = None
 
 
 def amend_constitution(
@@ -119,18 +123,19 @@ def amend_constitution(
         constitutional_patterns=constitutional_text,
     )
 
-    result = generate(
+    out = generate_full(
         prompt,
         system=get_distill_system_prompt(),
         num_predict=3000,
         caller="constitution.amend",
+        think=True,
     )
-    if result is None:
+    if out is None or out.text is None:
         msg = "LLM failed to generate constitution amendment."
         logger.warning(msg)
         return msg
 
-    amended_text = result.strip()
+    amended_text = out.text.strip()
 
     if not validate_identity_content(amended_text):
         logger.warning("Generated constitution failed validation")
@@ -142,4 +147,5 @@ def amend_constitution(
         marker_dir=constitution_dir,
         pattern_ids=tuple(pattern_id(p) for p in matched),
         epistemic_counts=epistemic_counts_for(matched),
+        thinking=out.thinking,
     )

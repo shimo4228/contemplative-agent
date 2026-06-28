@@ -85,15 +85,27 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  └─ MemoryStore.record() → EpisodeLog (append-only JSONL)
 ```
 
-**Reasoning trace (`think`)**: content generation (comment / reply / cooperation
-post) accepts a per-call `think` flag (default False = production; toggles Ollama
-`think` / MLX `enable_thinking`). When on, `core/llm.generate_for_api` returns a
-`GenerationOutput(text, thinking)`: the trace is secret-scrubbed but never
-published, surfaced up the publish seam, and stored on the `activity` episode as a
-`thinking` field beside `internal_note` (untrusted regime). `report.py` renders it
-as a `**Thinking:**` block in the comment report. Telemetry records only the
-`think` boolean (metadata), never the trace content. The trace is None under the
-default, so episodes/reports are unchanged until a caller opts in.
+**Generation model**: `gemma4:e4b` since ADR-0069 (was `qwen3.5:9b`) —
+`_DEFAULT_OLLAMA_MODEL`, overridable via `OLLAMA_MODEL` (launchd pins none).
+Embedding stays `nomic-embed-text` (`OLLAMA_EMBEDDING_MODEL`), generation-only.
+
+**Reasoning trace (`think`)**: a per-call `think` flag (default False; toggles
+Ollama `think` / MLX `enable_thinking`) requests the model's reasoning trace,
+secret-scrubbed but never published. Two regimes (ADR-0068, ADR-0069):
+- *Autonomous content paths* (comment / reply / cooperation post) and the
+  scheduled `distill` stay **think-OFF** (latency / stability). When a caller
+  opts in, `core/llm.generate_for_api` returns `GenerationOutput(text, thinking)`
+  and the publish seam stores the trace on the `activity` episode beside
+  `internal_note` (untrusted regime); `report.py` renders a `**Thinking:**` block.
+- *Manual value-layer pipelines* (insight / rules-distill / amend-constitution /
+  distill-identity / skill-stocktake / rules-stocktake) run **think-ON** via
+  `core/llm.generate_full` (the internal `GenerationOutput`-returning entry). The
+  trace rides on the result object and is written to
+  `snapshots/{cmd}_{ts}/reasoning.md` (URL-defanged) + shown at the approval gate.
+
+Telemetry records only the `think` boolean (metadata), never trace content. The
+snapshot manifest records `generation_model` + `think` (ADR-0069) beside
+`embedding_model`.
 
 All content creation (post / comment / reply) goes through this same verification
 handshake. Each API call's structural outcome (status, envelope keys, content
@@ -107,7 +119,7 @@ prompt text; any decoder must re-wrap it as untrusted content before LLM use.
 
 ## Data Flow — Offline Learning
 
-Every behaviour-producing command writes a pivot snapshot (`snapshots/{cmd}_{ts}/`) at run start (ADR-0020) and threads its path into `audit.jsonl`.
+Every behaviour-producing command writes a pivot snapshot (`snapshots/{cmd}_{ts}/`) at run start (ADR-0020) and threads its path into `audit.jsonl`. The manifest records `generation_model` + `think` (ADR-0069). The six **think-ON** value-layer commands (insight / rules-distill / amend-constitution / distill-identity / skill-stocktake / rules-stocktake) also write their reasoning trace to `reasoning.md` in the snapshot dir; the autonomous `distill` stays think-OFF.
 
 All offline distillation LLM calls (distill / insight / rules-distill / constitution amend / distill-identity) run under a **base-only system prompt** — the four axioms are NOT injected. Value layers belong to action time only; `get_distill_system_prompt` is base-only since ADR-0058 (their inputs are already value-shaped, and fresh external observation should be extracted faithfully, not re-interpreted through a value lens). Axioms are injected only at action time (`_build_system_prompt`, `get_identity_system_prompt`).
 
@@ -160,11 +172,11 @@ ViewRegistry.find_by_view("self_reflection", get_raw_patterns())
   cosine(pattern_emb, self_reflection_centroid)
   threshold from view frontmatter | top_k=50   [PURE COSINE, no importance weight]
 
-Single LLM call: LLM(IDENTITY_DISTILL_PROMPT, matched patterns only)
+Single LLM call: generate_full(IDENTITY_DISTILL_PROMPT, ...)  [think-ON, ADR-0069]
   [ADR-0057: prior identity NOT seeded — persona emerges from the corpus alone]
   [base-only system prompt; axioms not injected — ADR-0058]
 → validate_identity_content()
-→ IdentityResult(text, target_path, pattern_ids, epistemic_counts)  [ADR-0050]
+→ IdentityResult(text, target_path, pattern_ids, epistemic_counts, thinking)  [ADR-0050; thinking → reasoning.md, ADR-0069]
 → write gated by cli.py approval → MOLTBOOK_HOME/identity.md  [ADR-0012]
 ```
 
@@ -184,10 +196,10 @@ Ordering: cluster_size × mean(effective_importance)  descending
   effective_importance = 0.95^days   [pure time decay; ADR-0056]
 Slicing: each cluster → top MAX_BATCH (10) by effective_importance (= freshest)
 
-Per cluster → LLM(INSIGHT_EXTRACTION_PROMPT, topic="cluster-N")
+Per cluster → generate_full(INSIGHT_EXTRACTION_PROMPT, topic="cluster-N")  [think-ON, ADR-0069]
   system = axioms-only (no skill corpus injected — audit H6 fix, a2bebfe)
   → validate_identity_content()
-  → SkillResult(text, filename, target_path, pattern_ids, epistemic_counts)  [ADR-0050]
+  → SkillResult(text, filename, target_path, pattern_ids, epistemic_counts, thinking)  [ADR-0050; per-skill thinking → reasoning.md, ADR-0069]
 
 → InsightResult   →   write gated by cli.py per-file approval  [ADR-0012]
 ```
@@ -199,8 +211,8 @@ Views NOT used for batching. Every eligible cluster becomes a batch (no top-N cl
 ```
 skills/*.md (MIN=3) → embed_texts → cluster(CLUSTER_THRESHOLD_RULES=0.65)
   → batches (MAX_BATCH=10)
-  → LLM(RULES_DISTILL_PROMPT) → LLM(RULES_DISTILL_REFINE_PROMPT)
-  → RuleResult(text, filename, target_path, source_ids)  [ADR-0050; source_ids=skill filenames]
+  → generate_full(RULES_DISTILL_PROMPT) → generate_full(RULES_DISTILL_REFINE_PROMPT)  [both think-ON, ADR-0069]
+  → RuleResult(text, filename, target_path, source_ids, thinking)  [ADR-0050; source_ids=skill filenames; per-batch thinking (both stages) → reasoning.md, ADR-0069]
 → write gated  [ADR-0012]
 ```
 
@@ -209,7 +221,8 @@ skills/*.md (MIN=3) → embed_texts → cluster(CLUSTER_THRESHOLD_RULES=0.65)
 ```
 ViewRegistry.find_by_view("constitutional", get_live_patterns())
   MIN_PATTERNS_REQUIRED=3 gate
-→ LLM(CONSTITUTION_AMEND_PROMPT) → AmendmentResult(... pattern_ids, epistemic_counts)
+→ generate_full(CONSTITUTION_AMEND_PROMPT)  [think-ON, ADR-0069]
+→ AmendmentResult(... pattern_ids, epistemic_counts, thinking)  [thinking → reasoning.md + approval gate, ADR-0069]
 → write gated  [ADR-0012]
 ```
 

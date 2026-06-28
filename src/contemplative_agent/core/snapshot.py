@@ -36,6 +36,8 @@ SnapshotCommand = Literal[
     "insight",
     "rules-distill",
     "amend-constitution",
+    "skill-stocktake",
+    "rules-stocktake",
 ]
 
 _COMPACT_TS_FORMAT = "%Y%m%dT%H%M%S%fZ"
@@ -90,6 +92,8 @@ def write_snapshot(
     rules_dir: Optional[Path] = None,
     identity_path: Optional[Path] = None,
     view_registry: Optional[ViewRegistry] = None,
+    generation_model: Optional[str] = None,
+    think: bool = False,
 ) -> Optional[Path]:
     """Write a pivot snapshot for the given command.
 
@@ -103,6 +107,11 @@ def write_snapshot(
     ``prompts_dir`` / ``skills_dir`` / ``rules_dir`` / ``identity_path``
     are optional for backward compatibility with older callers — a
     missing path just skips that subdir in the snapshot.
+
+    ``generation_model`` / ``think`` (ADR-0069) record the run's generation
+    config in the manifest beside ``embedding_model``. Supplied by the caller
+    (``_take_snapshot`` passes ``served_model()`` and the command's think state)
+    so this writer stays decoupled from the LLM module.
 
     Returns the snapshot directory on success, ``None`` on any failure.
     Snapshots are observability — callers must not rely on snapshot
@@ -133,6 +142,13 @@ def write_snapshot(
         manifest = {
             "command": command,
             "ts": ts_iso,
+            # Generation model + think state for this run (ADR-0069). The
+            # embedding model has always been recorded; the generation model and
+            # per-run think setting close the reproducibility gap so a snapshot
+            # records the full inference config (which model, thinking on/off)
+            # that produced the run, not just the embedding lens.
+            "generation_model": generation_model,
+            "think": think,
             "embedding_model": _get_embedding_model(),
             "embedding_dim": EMBEDDING_DIM,
             "thresholds": collect_thresholds(),

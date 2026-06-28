@@ -3,6 +3,7 @@
 from unittest.mock import MagicMock, patch
 
 from contemplative_agent.core.constitution import AmendmentResult, amend_constitution, MIN_PATTERNS_REQUIRED
+from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.memory import KnowledgeStore
 
 
@@ -142,9 +143,9 @@ class TestAmendConstitution:
 
     @patch("contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
            "Amend: {current_constitution}\nPatterns: {constitutional_patterns}")
-    @patch("contemplative_agent.core.constitution.generate")
+    @patch("contemplative_agent.core.constitution.generate_full")
     def test_returns_amendment_result(self, mock_generate, tmp_path):
-        mock_generate.return_value = AMENDED_CONSTITUTION
+        mock_generate.return_value = GenerationOutput(text=AMENDED_CONSTITUTION)
         ks = _make_constitutional_knowledge(tmp_path)
         const_dir = _setup_constitution(tmp_path)
         original = (const_dir / "contemplative-axioms.md").read_text()
@@ -163,7 +164,7 @@ class TestAmendConstitution:
 
     @patch("contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
            "Amend: {current_constitution}\nPatterns: {constitutional_patterns}")
-    @patch("contemplative_agent.core.constitution.generate", return_value=None)
+    @patch("contemplative_agent.core.constitution.generate_full", return_value=None)
     def test_llm_failure_returns_error(self, mock_generate, tmp_path):
         ks = _make_constitutional_knowledge(tmp_path)
         const_dir = _setup_constitution(tmp_path)
@@ -179,9 +180,9 @@ class TestAmendConstitution:
 
     @patch("contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
            "Amend: {current_constitution}\nPatterns: {constitutional_patterns}")
-    @patch("contemplative_agent.core.constitution.generate")
+    @patch("contemplative_agent.core.constitution.generate_full")
     def test_forbidden_pattern_returns_string(self, mock_generate, tmp_path):
-        mock_generate.return_value = "My api_key is secret."
+        mock_generate.return_value = GenerationOutput(text="My api_key is secret.")
         ks = _make_constitutional_knowledge(tmp_path)
         const_dir = _setup_constitution(tmp_path)
         original = (const_dir / "contemplative-axioms.md").read_text()
@@ -221,12 +222,12 @@ class TestAmendConstitution:
 
 
 class TestAmendConstitutionLineageADR0050:
-    @patch("contemplative_agent.core.constitution.generate")
+    @patch("contemplative_agent.core.constitution.generate_full")
     def test_amendment_result_carries_lineage(self, mock_generate, tmp_path):
         """pattern_ids + epistemic_counts come from the view-matched list."""
         from contemplative_agent.core.knowledge_store import pattern_id
 
-        mock_generate.return_value = AMENDED_CONSTITUTION
+        mock_generate.return_value = GenerationOutput(text=AMENDED_CONSTITUTION)
         ks = _make_constitutional_knowledge(tmp_path)
         const_dir = _setup_constitution(tmp_path)
 

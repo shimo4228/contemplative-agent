@@ -9,6 +9,7 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.rules_distill import (
     MIN_SKILLS_REQUIRED,
     RulesDistillResult,
@@ -346,22 +347,24 @@ class TestSplitRules:
 
 
 class TestExtractRules:
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_success(self, mock_generate):
         mock_generate.side_effect = [
-            GOOD_RULES_RESPONSE_STAGE1,
-            GOOD_RULES_RESPONSE_STAGE2,
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE2),
         ]
         result = _extract_rules(["# Skill 1\nContent"])
         assert result is not None
-        assert "Engagement Practices" in result
+        # ADR-0069: _extract_rules now returns (text, thinking); thinking is
+        # None here because the mocked GenerationOutputs carry no trace.
+        assert "Engagement Practices" in result[0]
         assert mock_generate.call_count == 2
 
     @patch(
         "contemplative_agent.core.rules_distill.get_distill_system_prompt",
         return_value="BASE_ONLY_DISTILL_PROMPT",
     )
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_both_stages_use_base_only_system_prompt(self, mock_generate, mock_sys):
         """H2 (review 2026-06-27): offline rules-distill must run under the
         base-only distill system prompt in BOTH stages. Pre-fix Stage 2 omitted
@@ -369,43 +372,48 @@ class TestExtractRules:
         axioms + learned skills/rules) — a self-conditioning leak in the offline
         learning path documented as base-only."""
         mock_generate.side_effect = [
-            GOOD_RULES_RESPONSE_STAGE1,
-            GOOD_RULES_RESPONSE_STAGE2,
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE2),
         ]
         _extract_rules(["# Skill 1\nContent"])
         assert mock_generate.call_count == 2
         for call in mock_generate.call_args_list:
             assert call.kwargs.get("system") == "BASE_ONLY_DISTILL_PROMPT"
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_stage1_failure(self, mock_generate):
         mock_generate.return_value = None
         result = _extract_rules(["# Skill 1\nContent"])
         assert result is None
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_stage2_failure(self, mock_generate):
-        mock_generate.side_effect = [GOOD_RULES_RESPONSE_STAGE1, None]
+        mock_generate.side_effect = [GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1), None]
         result = _extract_rules(["# Skill 1\nContent"])
         assert result is None
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_no_title_drops(self, mock_generate):
-        mock_generate.side_effect = ["Stage 1 result", "No title here"]
+        mock_generate.side_effect = [
+            GenerationOutput(text="Stage 1 result"),
+            GenerationOutput(text="No title here"),
+        ]
         result = _extract_rules(["# Skill 1\nContent"])
         assert result is None
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_no_universal_rules_marker_is_valid(self, mock_generate):
         """Stage 2 outputting the '# No Universal Rules Found' marker is a
         valid empty outcome, not a failure. _extract_rules returns the
         marker verbatim and callers must recognize it."""
         mock_generate.side_effect = [
-            GOOD_RULES_RESPONSE_STAGE1,
-            "# No Universal Rules Found",
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),
+            GenerationOutput(text="# No Universal Rules Found"),
         ]
         result = _extract_rules(["# Skill 1\nContent"])
-        assert result == _NO_RULES_MARKER
+        # ADR-0069: _extract_rules returns (text, thinking); the valid-empty
+        # outcome is (_NO_RULES_MARKER, None) — no trace from the mocks.
+        assert result == (_NO_RULES_MARKER, None)
 
 
 class TestDistillRulesRespectsNoRulesMarker:
@@ -413,7 +421,7 @@ class TestDistillRulesRespectsNoRulesMarker:
     that batch silently (not as a failure) and distinguish 'valid empty'
     from 'LLM error' in the final message."""
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_all_empty_batches_returns_valid_empty_message(
         self, mock_generate, tmp_path
     ):
@@ -422,8 +430,8 @@ class TestDistillRulesRespectsNoRulesMarker:
         extract' — that would mislead the user into thinking the LLM
         broke, when in fact it correctly judged 'no universal principle'."""
         mock_generate.side_effect = [
-            GOOD_RULES_RESPONSE_STAGE1,
-            "# No Universal Rules Found",
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),
+            GenerationOutput(text="# No Universal Rules Found"),
         ]
         skills_dir = _make_skills_dir(tmp_path, n=5)
         result = distill_rules(
@@ -433,7 +441,7 @@ class TestDistillRulesRespectsNoRulesMarker:
         assert "No universal rules extracted" in result
         assert "Failed to extract" not in result
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_actual_failure_still_says_failed(
         self, mock_generate, tmp_path
     ):
@@ -466,7 +474,7 @@ class TestDistillRules:
         assert "Insufficient skills" in result
         assert f"1/{MIN_SKILLS_REQUIRED}" in result
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_extraction_failure(self, mock_generate, tmp_path):
         mock_generate.return_value = None
         skills_dir = _make_skills_dir(tmp_path, n=5)
@@ -474,22 +482,22 @@ class TestDistillRules:
         assert isinstance(result, str)
         assert "Failed to extract" in result
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_forbidden_pattern(self, mock_generate, tmp_path):
         mock_generate.side_effect = [
-            "Stage 1",
-            "# Rules\nLeaked api_key: sk-1234\n",
+            GenerationOutput(text="Stage 1"),
+            GenerationOutput(text="# Rules\nLeaked api_key: sk-1234\n"),
         ]
         skills_dir = _make_skills_dir(tmp_path, n=5)
         result = distill_rules(skills_dir=skills_dir, rules_dir=tmp_path / "rules")
         assert isinstance(result, str)
         assert "Failed to extract" in result
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_returns_rules_result(self, mock_generate, tmp_path):
         mock_generate.side_effect = [
-            GOOD_RULES_RESPONSE_STAGE1,
-            GOOD_RULES_RESPONSE_STAGE2,
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE2),
         ]
         skills_dir = _make_skills_dir(tmp_path, n=5)
         rules_dir = tmp_path / "rules"
@@ -504,22 +512,25 @@ class TestDistillRules:
         # Core function does not write — caller's responsibility
         assert not rules_dir.exists()
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_empty_slug_dropped(self, mock_generate, tmp_path):
         """Title with only special chars produces empty slug → dropped."""
-        mock_generate.side_effect = ["Stage 1", "# !!!\n\nContent"]
+        mock_generate.side_effect = [
+            GenerationOutput(text="Stage 1"),
+            GenerationOutput(text="# !!!\n\nContent"),
+        ]
         skills_dir = _make_skills_dir(tmp_path, n=5)
         rules_dir = tmp_path / "rules"
         result = distill_rules(skills_dir=skills_dir, rules_dir=rules_dir)
         assert isinstance(result, str)
         assert "Failed to extract" in result
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_frontmatter_skill_files(self, mock_generate, tmp_path):
         """Skills with YAML frontmatter are correctly parsed."""
         mock_generate.side_effect = [
-            GOOD_RULES_RESPONSE_STAGE1,
-            GOOD_RULES_RESPONSE_STAGE2,
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE2),
         ]
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
@@ -574,25 +585,25 @@ class TestBuildSkillClusters:
 
 
 class TestBatchProcessing:
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_multiple_batches(self, mock_generate, tmp_path):
         mock_generate.side_effect = [
-            GOOD_RULES_RESPONSE_STAGE1,
-            GOOD_RULES_RESPONSE_STAGE2,
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE2),
         ] * 3
         skills_dir = _make_skills_dir(tmp_path, n=25)
         result = distill_rules(skills_dir=skills_dir, rules_dir=tmp_path / "rules")
         assert isinstance(result, RulesDistillResult)
         assert len(result.rules) >= 2
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_partial_failure(self, mock_generate, tmp_path):
         mock_generate.side_effect = [
             None,  # batch 1 stage 1 fails
-            GOOD_RULES_RESPONSE_STAGE1,  # batch 2 stage 1
-            GOOD_RULES_RESPONSE_STAGE2,  # batch 2 stage 2
-            GOOD_RULES_RESPONSE_STAGE1,  # batch 3 stage 1
-            GOOD_RULES_RESPONSE_STAGE2,  # batch 3 stage 2
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),  # batch 2 stage 1
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE2),  # batch 2 stage 2
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),  # batch 3 stage 1
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE2),  # batch 3 stage 2
         ]
         skills_dir = _make_skills_dir(tmp_path, n=25)
         result = distill_rules(skills_dir=skills_dir, rules_dir=tmp_path / "rules")
@@ -602,12 +613,12 @@ class TestBatchProcessing:
 
 
 class TestIncrementalMode:
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_no_marker_written_by_core(self, mock_generate, tmp_path):
         """Core function does not write marker — caller's responsibility."""
         mock_generate.side_effect = [
-            GOOD_RULES_RESPONSE_STAGE1,
-            GOOD_RULES_RESPONSE_STAGE2,
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE2),
         ]
         skills_dir = _make_skills_dir(tmp_path, n=5)
         rules_dir = tmp_path / "rules"
@@ -616,11 +627,11 @@ class TestIncrementalMode:
         marker = rules_dir / ".last_rules_distill"
         assert not marker.exists()
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_full_ignores_marker(self, mock_generate, tmp_path):
         mock_generate.side_effect = [
-            GOOD_RULES_RESPONSE_STAGE1,
-            GOOD_RULES_RESPONSE_STAGE2,
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE2),
         ]
         skills_dir = _make_skills_dir(tmp_path, n=5)
         rules_dir = tmp_path / "rules"
@@ -633,7 +644,7 @@ class TestIncrementalMode:
         assert isinstance(result, RulesDistillResult)
         assert "Ask Before Reacting" in result.rules[0].text
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_incremental_filters_old_skills(self, mock_generate, tmp_path):
         """Incremental mode only reads skills newer than last run."""
         import os
@@ -653,8 +664,8 @@ class TestIncrementalMode:
         (rules_dir / ".last_rules_distill").write_text("2020-01-01T00:00+00:00\n")
 
         mock_generate.side_effect = [
-            GOOD_RULES_RESPONSE_STAGE1,
-            GOOD_RULES_RESPONSE_STAGE2,
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE2),
         ]
         result = distill_rules(skills_dir=skills_dir, rules_dir=rules_dir)
         assert isinstance(result, RulesDistillResult)
@@ -693,13 +704,13 @@ class TestRulesLineageADR0050:
         flat = {(fname, text) for b in batches for fname, text in b}
         assert flat == set(items)
 
-    @patch("contemplative_agent.core.rules_distill.generate")
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_rule_results_carry_source_ids(self, mock_generate, tmp_path):
         """Every rule from a batch is attributed to the batch's skill files."""
         skills_dir = _make_skills_dir(tmp_path, n=3)
         mock_generate.side_effect = [
-            GOOD_RULES_RESPONSE_STAGE1,
-            GOOD_RULES_RESPONSE_STAGE2,
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE2),
         ]
         result = distill_rules(skills_dir=skills_dir, rules_dir=tmp_path / "rules", full=True)
         assert isinstance(result, RulesDistillResult)
