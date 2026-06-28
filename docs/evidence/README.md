@@ -18,6 +18,7 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `adr-0030/` | Withdrawn approach handoff (archived) | ADR-0030 |
 | `adr-0064/` | Ollama vs MLX A/B benchmark (speed/memory) + distill pattern-yield comparison | ADR-0064 |
 | `adr-0067/` | MLX vs Ollama production A/B telemetry + prefill degradation + upstream failure-mode survey | ADR-0067 / 0065 |
+| `adr-0068/` | gemma4:e4b think-on/off vs qwen3.5:9b comment-generation A/B (latency + codex blind judge) | ADR-0068 |
 
 ## 昇格ワークフロー
 

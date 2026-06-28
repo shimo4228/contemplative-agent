@@ -115,6 +115,10 @@ episodes.
 ### Neutral / Follow-ups
 
 - No call site sets `think=True` yet; wiring comment generation to think (and any
-  decision to adopt a thinking model) is deferred to the A/B outcome.
+  decision to adopt a thinking model) is deferred to the A/B outcome. First A/B run
+  (gemma4:e4b think-on/off vs qwen3.5:9b, 2026-06-28):
+  [`docs/evidence/adr-0068/gemma-e4b-think-ab-20260628.md`](../evidence/adr-0068/gemma-e4b-think-ab-20260628.md)
+  — codex blind judge ranks gemma_think > gemma_nothink > qwen; gemma think-OFF is a
+  faster, higher-quality swap candidate; think-ON's quality edge is small vs 2.2× latency.
 - The sibling `contemplative-agent-cloud` backend should add the `think` keyword and
   populate `BackendResult.thinking` to gain trace capture on the cloud path.
