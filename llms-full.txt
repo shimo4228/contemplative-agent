@@ -1,6 +1,6 @@
 # Contemplative Agent — AI Reference
 
-Self-contained AI-facing reference for Contemplative Agent — a local-only autonomous AI agent running on Ollama (Qwen3.5 9B + nomic-embed-text) on a single Apple Silicon Mac. Covers FAQ, term definitions, and prior research citations.
+Self-contained AI-facing reference for Contemplative Agent — a local-only autonomous AI agent running on Ollama (Gemma 4 E4B + nomic-embed-text) on a single Apple Silicon Mac. Covers FAQ, term definitions, and prior research citations.
 
 > **Audience**: AI search engines (ChatGPT, Perplexity, Gemini) indexing this project, and AI agents / researchers navigating the codebase. For navigation to other docs (CODEMAPS, ADRs, related repos), see [llms.txt](llms.txt). For human-facing narrative overview, see [README.md](README.md).
 
@@ -15,9 +15,9 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 - **Tests**: 1301 (pytest, across 35 test files)
 - **Python**: 3.10+
 - **Build system**: hatch, uv
-- **Generation LLM**: Qwen3.5 9B (Q4_K_M quantization, ~6.6 GB on disk) via Ollama
+- **Generation LLM**: Gemma 4 E4B / `gemma4:e4b` (Q4_K_M quantization, ~9.6 GB on disk) via Ollama
 - **Embedding model**: nomic-embed-text (~274 MB, 768-dim) via Ollama
-- **Hardware**: Apple Silicon Mac (M1+), 16 GB RAM, ~10 GB free disk
+- **Hardware**: Apple Silicon Mac (M1+), 16 GB RAM, ~12 GB free disk
 - **Runtime dependencies**: requests>=2.33.0, numpy>=1.24.0
 - **ADRs**: 56 active (accepted / proposed) + 10 superseded/withdrawn (ADR-0001 through ADR-0066; ADR-0009 partially superseded by ADR-0056, ADR-0021 partially superseded by ADR-0028/0029/0051, ADR-0022 superseded by ADR-0034, ADR-0023 sunset by ADR-0036, ADR-0024/0025 superseded by ADR-0030, ADR-0026/0027 superseded by ADR-0060, ADR-0032 withdrawn, ADR-0050 partially superseded by ADR-0051)
 - **External lenses borrowed**: AAP four-quadrant routing lens (Script / Algorithmic Search / LLM Workflow / Autonomous Agentic Loop) — usage description only, not a category claim (ADR-0033)
@@ -51,7 +51,7 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 
 ## What hardware do I need to run Contemplative Agent?
 
-Contemplative Agent is defined as a local-only autonomous agent running on a single Apple Silicon Mac. Minimum: M1 chip with 16 GB RAM and ~10 GB free disk space. The default LLM stack needs ~8 GB RAM: Qwen3.5 9B (Q4_K_M quantization, ~6.6 GB on disk) for generation and nomic-embed-text (~274 MB, 768-dim) for embeddings, both served by local Ollama. Tested on M1 MacBook Pro. No GPU cluster, no cloud inference.
+Contemplative Agent is defined as a local-only autonomous agent running on a single Apple Silicon Mac. Minimum: M1 chip with 16 GB RAM and ~12 GB free disk space. The default LLM stack: Gemma 4 E4B (`gemma4:e4b`, Q4_K_M quantization, ~9.6 GB on disk) for generation and nomic-embed-text (~274 MB, 768-dim) for embeddings, both served by local Ollama. Tested on M1 MacBook Pro. No GPU cluster, no cloud inference.
 
 ## Can Contemplative Agent run fully offline?
 
@@ -146,7 +146,7 @@ The **Dialogue command** is defined as a local-only inter-agent primitive: `cont
 
 ## What is contemplative-agent-cloud?
 
-**contemplative-agent-cloud** is defined as an optional add-on package (separate repository) that replaces the local Ollama generation backend with managed LLM APIs (Anthropic Claude, OpenAI GPT). When installed and configured via `CONTEMPLATIVE_CLOUD_PROVIDER` + `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` environment variables, all generation calls in contemplative-agent — distillation, skill insight, rule distillation, constitution amendment, post generation, comment generation, reply handling, local dialogue — route through the selected cloud provider. Embeddings continue to use local `nomic-embed-text`. The main repository's default behavior is unchanged: without the add-on installed and an explicit backend configuration, all LLM calls remain local and the "No cloud. No API keys in transit. Local Ollama only" property in the main README's Key Features and Security Model sections continues to hold. Main repository code is not modified — the add-on injects its backend through an abstract `LLMBackend` Protocol defined in `core/llm.py` that has no knowledge of any specific provider. Intended for research experiments requiring generation models larger than Qwen3.5 9B (e.g., the "distilling with larger model" direction from the 2026-04-20 Laukkonen team correspondence).
+**contemplative-agent-cloud** is defined as an optional add-on package (separate repository) that replaces the local Ollama generation backend with managed LLM APIs (Anthropic Claude, OpenAI GPT). When installed and configured via `CONTEMPLATIVE_CLOUD_PROVIDER` + `ANTHROPIC_API_KEY` / `OPENAI_API_KEY` environment variables, all generation calls in contemplative-agent — distillation, skill insight, rule distillation, constitution amendment, post generation, comment generation, reply handling, local dialogue — route through the selected cloud provider. Embeddings continue to use local `nomic-embed-text`. The main repository's default behavior is unchanged: without the add-on installed and an explicit backend configuration, all LLM calls remain local and the "No cloud. No API keys in transit. Local Ollama only" property in the main README's Key Features and Security Model sections continues to hold. Main repository code is not modified — the add-on injects its backend through an abstract `LLMBackend` Protocol defined in `core/llm.py` that has no knowledge of any specific provider. Intended for research experiments requiring generation models larger than Gemma 4 E4B (e.g., the "distilling with larger model" direction from the 2026-04-20 Laukkonen team correspondence).
 
 - **Code**: separate repository [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud)
 - **Main-repo hook**: `core/llm.py` `LLMBackend` Protocol, `configure(backend=...)`

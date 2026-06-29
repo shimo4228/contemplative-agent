@@ -74,7 +74,7 @@
         {"@value": "観想的エージェント", "@language": "ja"},
         "CA"
       ],
-      "description": "An autonomous CLI agent (Python package) with structural security (security-by-absence) and a three-layer memory architecture (episode log -> knowledge -> identity). Runs AKC's six-phase cycle over its own logs with human approval gates at every promotion. Local 9B stack (qwen3.5:9b generation + nomic-embed-text embeddings) on a single Apple Silicon Mac. The four contemplative axioms from Laukkonen et al. (2025) are available as an optional constitutional preset.",
+      "description": "An autonomous CLI agent (Python package) with structural security (security-by-absence) and a three-layer memory architecture (episode log -> knowledge -> identity). Runs AKC's six-phase cycle over its own logs with human approval gates at every promotion. Local LLM stack (gemma4:e4b generation + nomic-embed-text embeddings) on a single Apple Silicon Mac. The four contemplative axioms from Laukkonen et al. (2025) are available as an optional constitutional preset.",
       "identifier": "10.5281/zenodo.19212118",
       "author": {"@id": "https://orcid.org/0009-0002-6168-4162"},
       "url": "https://github.com/shimo4228/contemplative-agent",
@@ -927,12 +927,12 @@
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/local-9b-stack",
       "@type": ["Concept", "DefinedTerm"],
-      "name": "local 9B stack on Apple Silicon",
+      "name": "local LLM stack on Apple Silicon",
       "alternateName": [
-        {"@value": "local 9B stack on Apple Silicon", "@language": "en"},
-        {"@value": "Apple Silicon 上の local 9B スタック", "@language": "ja"}
+        {"@value": "local LLM stack on Apple Silicon", "@language": "en"},
+        {"@value": "Apple Silicon 上の local LLM スタック", "@language": "ja"}
       ],
-      "description": "Runtime architecture: Apple Silicon Mac (M1+, ~16 GB RAM, ~10 GB free disk), qwen3.5:9b for generation (Q4_K_M, ~6.6 GB), nomic-embed-text for embeddings (768-dim, ~274 MB), local Ollama via HTTP. A pluggable LLMBackend Protocol allows swapping in managed-LLM backends via contemplative-agent-cloud, while keeping the local embedding pipeline."
+      "description": "Runtime architecture: Apple Silicon Mac (M1+, ~16 GB RAM, ~12 GB free disk), gemma4:e4b for generation (Q4_K_M, ~9.6 GB), nomic-embed-text for embeddings (768-dim, ~274 MB), local Ollama via HTTP. A pluggable LLMBackend Protocol allows swapping in managed-LLM backends via contemplative-agent-cloud, while keeping the local embedding pipeline."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/moltbook-adapter",

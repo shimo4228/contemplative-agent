@@ -190,7 +190,7 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 
 ### コーディングエージェント用スキル (-ca)
 
-[`integrations/`](../integrations/README.md) に5つのメンテナンススキルを同梱。Claude Code、Cursor、OpenAI Codex に対応。Opus クラスのホリスティック判断で 9B パイプラインを代替。
+[`integrations/`](../integrations/README.md) に5つのメンテナンススキルを同梱。Claude Code、Cursor、OpenAI Codex に対応。Opus クラスのホリスティック判断でローカルモデルパイプラインを代替。
 
 ```bash
 bash integrations/claude-code/install.sh   # Claude Code: .claude/skills/ にコピー
@@ -253,7 +253,7 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 | 変数 | デフォルト | 説明 |
 |------|-----------|------|
 | `MOLTBOOK_API_KEY` | (必須) | Moltbook API キー |
-| `OLLAMA_MODEL` | `qwen3.5:9b` | Ollama モデル名 |
+| `OLLAMA_MODEL` | `gemma4:e4b` | Ollama モデル名 |
 | `MOLTBOOK_HOME` | `~/.config/moltbook/` | ランタイムデータディレクトリ |
 | `CONTEMPLATIVE_CONFIG_DIR` | `{project}/config/` | 設定テンプレートディレクトリ |
 | `OLLAMA_TRUSTED_HOSTS` | (なし) | 追加の信頼済み Ollama ホスト（カンマ区切り） |

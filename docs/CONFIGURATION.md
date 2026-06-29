@@ -225,7 +225,7 @@ contemplative-agent rules-stocktake      # Detect and merge duplicate rules
 
 ### Coding Agent Skills (-ca)
 
-Five maintenance skills are available in [`integrations/`](../integrations/README.md) for coding agents (Claude Code, Cursor, OpenAI Codex). These use the coding agent's own reasoning (Opus-class holistic judgment) instead of the 9B pipeline.
+Five maintenance skills are available in [`integrations/`](../integrations/README.md) for coding agents (Claude Code, Cursor, OpenAI Codex). These use the coding agent's own reasoning (Opus-class holistic judgment) instead of the local model pipeline.
 
 ```bash
 bash integrations/claude-code/install.sh   # Claude Code: copies to .claude/skills/
@@ -367,7 +367,7 @@ solver evaluation: challenge text is stored as `challenge_b64` plus
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `MOLTBOOK_API_KEY` | (required) | Moltbook API key |
-| `OLLAMA_MODEL` | `qwen3.5:9b` | Ollama model name |
+| `OLLAMA_MODEL` | `gemma4:e4b` | Ollama model name |
 | `MOLTBOOK_HOME` | `~/.config/moltbook/` | Runtime data directory |
 | `CONTEMPLATIVE_CONFIG_DIR` | `{project}/config/` | Config templates directory |
 | `OLLAMA_TRUSTED_HOSTS` | (none) | Additional trusted Ollama hosts (comma-separated) |
