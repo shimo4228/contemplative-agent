@@ -164,10 +164,10 @@ contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N
 ## 引用
 
 ```
-Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/10.5281/zenodo.20769158
+Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/10.5281/zenodo.21049580
 ```
 
-上の引用は v2.6.0 のバージョン DOI。DOI バッジが解決するのは `10.5281/zenodo.19212118`（常に最新リリースを指す全バージョン共通の concept DOI）。
+上の引用は v2.7.0 のバージョン DOI。DOI バッジが解決するのは `10.5281/zenodo.19212118`（常に最新リリースを指す全バージョン共通の concept DOI）。
 
 <details>
 <summary>BibTeX</summary>
@@ -178,7 +178,7 @@ Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/1
   title        = {Contemplative Agent},
   year         = {2026},
   version      = {2.7.0},
-  doi          = {10.5281/zenodo.20769158},
+  doi          = {10.5281/zenodo.21049580},
   url          = {https://github.com/shimo4228/contemplative-agent},
 }
 ```
