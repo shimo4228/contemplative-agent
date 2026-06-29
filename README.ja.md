@@ -7,6 +7,7 @@ Language: [English](README.md) | 日本語
 # Contemplative Agent (CA)
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19212118.svg)](https://doi.org/10.5281/zenodo.19212118) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/shimo4228/contemplative-agent) [![GitMCP](https://img.shields.io/endpoint?url=https://gitmcp.io/badge/shimo4228/contemplative-agent)](https://gitmcp.io/shimo4228/contemplative-agent)
 
 Contemplative Agent は、自身のログに対して 6 フェーズの知識サイクルを回す CLI エージェント — ログ → パターン → スキル → ルールへの各昇格は人間の承認ゲートを通る。ローカル Gemma 4 モデル + Apple Silicon Mac (M1+, 16 GB RAM) で完結 — クラウドなし、API キーは外部に出ない、シェル実行は存在しない。
 
@@ -24,8 +25,6 @@ Contemplative Agent は、自身のログに対して 6 フェーズの知識サ
 3. [`llms-full.txt`](llms-full.txt) — 統合された事実参照
 4. README およびリポジトリ固有 docs — 説明と詳細
 
-**クエリ可能な AI surface:** [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/shimo4228/contemplative-agent) [![GitMCP](https://img.shields.io/endpoint?url=https://gitmcp.io/badge/shimo4228/contemplative-agent)](https://gitmcp.io/shimo4228/contemplative-agent)
-
 shimo4228 全体の研究エコシステムの関係マップは以下を参照:
 https://github.com/shimo4228/shimo4228/blob/main/graph.jsonld
 
@@ -36,17 +35,15 @@ https://github.com/shimo4228/shimo4228/blob/main/graph.jsonld
 ```mermaid
 graph TD
     EL["エピソードログ<br/>生の行動・不変 JSONL・untrusted"]
-    KB["ナレッジ<br/>(行動)"]
-    KC["ナレッジ<br/>(憲法)"]
-    EL -->|distill| KB
-    EL -->|"distill (憲法)"| KC
-    KB -->|distill-identity| Identity["アイデンティティ"]
-    KB -->|insight| Skills["スキル"]
+    K["ナレッジ<br/>単一のパターンストア（埋め込み）— View が実行時にクエリ"]
+    EL -->|distill| K
+    K -->|insight| Skills["スキル"]
     Skills -->|rules-distill| Rules["ルール"]
-    KC -->|amend| Constitution["憲法"]
+    K -->|"distill-identity · self_reflection view"| Identity["アイデンティティ"]
+    K -->|"amend-constitution · constitutional view"| Constitution["憲法"]
 ```
 
-要するに、生の行動データがより抽象的なレイヤーへと上方に流れる。各レイヤーはオプション。エピソードログより上のレイヤーはすべて、エージェント自身が経験を省察して生成する。
+要するに、`distill` が生の行動を単一のナレッジ（パターンストア）に変換し、*View*（編集可能な埋め込み重心）が実行時にその1つのストアをクエリする（`constitutional` view が `amend-constitution` に、`self_reflection` view が `distill-identity` に素材を供給）。`insight` はストアを読んでスキルを作り、`rules-distill` がそれをルールへ蒸留する。各レイヤーはオプションで、エージェント自身が経験を省察して生成する。
 
 このパイプラインは AKC フェーズのコードへの対応: `distill` が Extract、`insight` / `rules-distill` / `amend-constitution` が Curate、`distill-identity` が Promote、pivot snapshots ([ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.ja.md)) が Measure に対応する。Research と Maintain は個別コマンドでなくセッションを越えて継続的に回る。完全な対応表: [docs/CODEMAPS/architecture.md](docs/CODEMAPS/architecture.md#akc-agent-knowledge-cycle-mapping)。
 
@@ -93,7 +90,7 @@ Contemplative エージェントが [Moltbook](https://www.moltbook.com/u/contem
 - **接地した蒸留 (grounded distill)** — `distill` は engagement エピソード 1 件につき LLM を 1 回呼び、ダイジェストではなくエピソード全体を読む。ノイズは取り込み時でなく query 時の view 重心で除外する（[ADR-0060](docs/adr/0060-per-episode-grounded-distill.ja.md)）。
 - **再現可能な pivot snapshots** — 蒸留の実行ごとに、使用した全コンテキスト（views + constitution + prompts + skills + rules + identity + centroid 埋め込み + thresholds）を *pivot snapshot* として保存する。過去のどの判断も bit-for-bit で再実行できる（[ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.ja.md)）。
 - **出所追跡** — 各パターンに `source_type`。MINJA 型の記憶注入攻撃が構造的に可視化される（[ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.ja.md)）。出所は記録するが重み付けには使わない — trust 乗数は撤回済み（[ADR-0051](docs/adr/0051-retire-trust-weighting.ja.md)）。
-- **Markdown all the way down** — 憲法、アイデンティティ、スキル、ルール、30 のパイプラインプロンプト、7 つの view シードが全て `$MOLTBOOK_HOME/` 配下の Markdown として存在する。プロンプトを編集してパターン抽出の挙動を変える、view シードを差し替えて分類を動かす。[カスタマイズ →](docs/CONFIGURATION.md#pipeline-prompts--view-seeds)（英語）
+- **Markdown all the way down** — 憲法、アイデンティティ、スキル、ルール、32 のロード済みパイプラインプロンプト、7 つの view シードが全て `$MOLTBOOK_HOME/` 配下の Markdown として存在する。プロンプトを編集してパターン抽出の挙動を変える、view シードを差し替えて分類を動かす。[カスタマイズ →](docs/CONFIGURATION.md#pipeline-prompts--view-seeds)（英語）
 - **バックエンド検知型バジェットガード** — 各生成呼び出しの前にプロンプトのトークン予算を推定し、バックエンドの `context_window` を超えるなら呼び出しをスキップして、サイレントな切り詰めを防ぐ（[ADR-0066](docs/adr/0066-backend-aware-context-budget-guard.ja.md)）。
 
 ## セキュリティモデル

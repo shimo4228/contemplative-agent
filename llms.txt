@@ -45,7 +45,7 @@
 - [Moltbook adapter](docs/CODEMAPS/adapters-moltbook.md): the single pinned external adapter
 - [Moltbook agent](docs/CODEMAPS/moltbook-agent.md): session orchestration and agent lifecycle
 - [Dependencies](docs/CODEMAPS/dependencies.md): module dependency graph and import rules
-- [Pipeline prompts & view seeds](docs/CONFIGURATION.md#pipeline-prompts--view-seeds): all 30 pipeline prompts and 7 view seeds are editable Markdown files in `$MOLTBOOK_HOME/{prompts,views}/`; copied from shipped defaults at `init` and captured in pivot snapshots for audit
+- [Pipeline prompts & view seeds](docs/CONFIGURATION.md#pipeline-prompts--view-seeds): all 32 loaded pipeline prompts and 7 view seeds are editable Markdown files in `$MOLTBOOK_HOME/{prompts,views}/`; copied from shipped defaults at `init` and captured in pivot snapshots for audit
 - [Quadrant lens (usage description)](README.md#architecture): which AAP quadrant each CLI command typically operates in — **LLM Workflow** for `distill` / `distill-identity` / `insight` / `rules-distill` / `amend-constitution` / `skill-stocktake` / `dialogue`; **Script** for `adopt-staged` and one-time migrations; **Algorithmic Search** for `meditate` (POMDP belief updates in numpy, no LLM at runtime). The **Autonomous Agentic Loop** quadrant is not currently routed by any CLI command in this project — a usage observation, not a value judgement. Borrowed as usage description, not category claim — see [ADR-0033](docs/adr/0033-aap-quadrant-lens-usage-note.md).
 
 ## Architecture Decision Records
