@@ -12,14 +12,14 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 - **DOI**: [10.5281/zenodo.20769158](https://doi.org/10.5281/zenodo.20769158) (v2.6.0 version DOI; concept DOI 10.5281/zenodo.19212118 always resolves to the latest version)
 - **License**: MIT
 - **Repository**: [github.com/shimo4228/contemplative-agent](https://github.com/shimo4228/contemplative-agent)
-- **Tests**: 1301 (pytest, across 35 test files)
+- **Tests**: 1479 (pytest, across 37 test files)
 - **Python**: 3.10+
 - **Build system**: hatch, uv
 - **Generation LLM**: Gemma 4 E4B / `gemma4:e4b` (Q4_K_M quantization, ~9.6 GB on disk) via Ollama
 - **Embedding model**: nomic-embed-text (~274 MB, 768-dim) via Ollama
 - **Hardware**: Apple Silicon Mac (M1+), 16 GB RAM, ~12 GB free disk
 - **Runtime dependencies**: requests>=2.33.0, numpy>=1.24.0
-- **ADRs**: 56 active (accepted / proposed) + 10 superseded/withdrawn (ADR-0001 through ADR-0066; ADR-0009 partially superseded by ADR-0056, ADR-0021 partially superseded by ADR-0028/0029/0051, ADR-0022 superseded by ADR-0034, ADR-0023 sunset by ADR-0036, ADR-0024/0025 superseded by ADR-0030, ADR-0026/0027 superseded by ADR-0060, ADR-0032 withdrawn, ADR-0050 partially superseded by ADR-0051)
+- **ADRs**: 60 active (accepted / proposed) + 10 superseded/withdrawn (ADR-0001 through ADR-0070; ADR-0009 partially superseded by ADR-0056, ADR-0021 partially superseded by ADR-0028/0029/0051, ADR-0022 superseded by ADR-0034, ADR-0023 sunset by ADR-0036, ADR-0024/0025 superseded by ADR-0030, ADR-0026/0027 superseded by ADR-0060, ADR-0032 withdrawn, ADR-0050 partially superseded by ADR-0051)
 - **External lenses borrowed**: AAP four-quadrant routing lens (Script / Algorithmic Search / LLM Workflow / Autonomous Agentic Loop) — usage description only, not a category claim (ADR-0033)
 - **Ethical framework presets**: 11 (contemplative, utilitarian, stoic, care-ethicist, deontologist, pragmatist, narrativist, contractarian, cynic, existentialist, tabula-rasa)
 - **Runtime data directory**: `$MOLTBOOK_HOME` (default `~/.config/moltbook/`)
@@ -265,4 +265,4 @@ Generation runs on local Ollama by default. An alternative backend is injected o
 
 ---
 
-*Last updated: 2026-06-27*
+*Last updated: 2026-06-30*

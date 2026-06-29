@@ -27,7 +27,7 @@ uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 ```
 
 - Python 3.10+ (venv は 3.13.5)
-- 依存: requests, numpy。LLM は Ollama (qwen3.5:9b 生成 + nomic-embed-text 埋め込み, localhost)
+- 依存: requests, numpy。LLM は Ollama (gemma4:e4b 生成 + nomic-embed-text 埋め込み, localhost)
 - ビルド: hatch
 
 ## CLI コマンド（頻出）

@@ -71,9 +71,9 @@
 | [0065](0065-mlx-ondemand-launchd-and-telemetry-model-contract.ja.md) | mlx_lm.server を launchd のオンデマンドジョブとして配線し、LLM テレメトリに served-model-id 契約を課す | partially-superseded-by 0067/0070 | 2026-06-27 |
 | [0066](0066-backend-aware-context-budget-guard.ja.md) | `LLMBackend.context_window` 契約による backend-aware なコンテキスト予算ガード | accepted | 2026-06-27 |
 | [0067](0067-keep-ollama-for-unattended-production.ja.md) | 本番生成バックエンドを Ollama に固定する — 16GB Apple Silicon の無人連続運用では mlx_lm.server は不適 | accepted — partially-supersedes 0065 | 2026-06-28 |
-| [0068](0068-per-call-think-flag-and-thinking-trace-capture.md) | per-call の think フラグと推論トレースのエピソードログ保存 | accepted | 2026-06-28 |
-| [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.md) | gemma4:e4b を本番生成モデルに採用し、値層パイプラインを think-ON で実行 | accepted | 2026-06-28 |
-| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md) | MLX backend を sibling repo へ退役し Docker を main から削除 | accepted | 2026-06-28 |
+| [0068](0068-per-call-think-flag-and-thinking-trace-capture.ja.md) | per-call の think フラグと推論トレースのエピソードログ保存 | accepted | 2026-06-28 |
+| [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.ja.md) | gemma4:e4b を本番生成モデルに採用し、値層パイプラインを think-ON で実行 | accepted | 2026-06-28 |
+| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.ja.md) | MLX backend を sibling repo へ退役し Docker を main から削除 | accepted | 2026-06-28 |
 
 ## ADR の種別
 

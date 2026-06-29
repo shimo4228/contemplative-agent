@@ -41,7 +41,7 @@ When think is on, the reasoning trace is research material worth keeping. The
 content-action paths already store it on the episode log (ADR-0068), but the
 value-layer pipelines write distilled artifacts, not episodes — they had no home
 for a trace. Every value-layer command already writes a pivot snapshot
-([ADR-0020](./0020-pivot-snapshots.md)) at run start; the snapshot directory is a
+([ADR-0020](./0020-pivot-snapshots-for-replayability.md)) at run start; the snapshot directory is a
 durable, per-run observability bundle co-located with the exact input state that
 produced the run, which makes it the natural home for the output reasoning too.
 `skill-stocktake` / `rules-stocktake` were the exception: they took no snapshot —

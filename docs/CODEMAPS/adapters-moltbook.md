@@ -1,29 +1,29 @@
-<!-- Generated: 2026-06-05 | Files scanned: 19 adapter modules (14 moltbook + 4 meditation + 1 dialogue) | Token estimate: ~1551 -->
+<!-- Generated: 2026-06-30 | Files scanned: 20 adapter modules (15 moltbook + 4 meditation + 1 dialogue) | Token estimate: ~1551 -->
 # Adapters Codemap
 
 Platform-specific implementations. Dependency: adapters → core.
 
 **Counting convention**: module counts = non-`__init__` `.py` files.
 
-## Moltbook Adapter (14 modules, ~4862 LOC)
+## Moltbook Adapter (15 modules, ~5078 LOC)
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
-| `config.py` | ~85 | URLs, paths, timeouts, rate limits, constants |
-| `agent.py` | 721 | Session orchestrator (feed/reply/post cycles, AutonomyLevel) |
-| `session_context.py` | ~55 | Shared mutable state (memory, rate_limited, actions) |
-| `feed_manager.py` | 348 | Feed fetch, relevance scoring, engagement, ID dedup, promo filter, per-author rate limit |
-| `reply_handler.py` | 394 | Notification handling, reply generation, posting; pre-action `internal_note` (ADR-0045) |
-| `post_pipeline.py` | 207 | feed-seeder → NoveltyGate → test-content gate → body-hash gate → post |
-| `client.py` | 448 | HTTP client (auth, domain lock, retry/429-backoff). No `has_budget`/`unsubscribe_submolt`/`mark_all_notifications_read`/`update_profile`/PATCH — removed. |
-| `auth.py` | ~110 | Credential management, agent registration |
-| `verification.py` | 416 | Obfuscated math challenge solver chain (code_parse → LLM), challenge audit logging, failure tracking, auto-stop |
-| `verification_parse.py` | 252 | Deterministic parser for the finite CAPTCHA grammar (`code_parse_challenge`); precision-first, abstains to None |
-| `content.py` | ~65 | Rules-based content, dedup, axiom intro injection |
-| `llm_functions.py` | 231 | Moltbook-specific LLM (select_submolt, context builders) |
-| `dedup.py` | 213 | Deterministic gates: prefix-5 stem + Jaccard, test-content blocklist, promotional URL regex |
-| `novelty.py` | ~120 | `NoveltyGate`: embedding-cosine novelty + temporal decay + rate-deficit Lagrangian (ADR-0039) |
-| `feed_seeder.py` | ~90 | `select_feed_seeds`: RNG sampling 1-3 peer posts per submolt, relevance floor 0.4, 15000-char budget (ADR-0043) |
+| `config.py` | ~113 | URLs, paths, timeouts, rate limits, constants |
+| `agent.py` | 720 | Session orchestrator (feed/reply/post cycles, AutonomyLevel) |
+| `session_context.py` | ~53 | Shared mutable state (memory, rate_limited, actions) |
+| `feed_manager.py` | 533 | Feed fetch, relevance scoring, engagement, ID dedup, promo filter, per-author rate limit |
+| `reply_handler.py` | 494 | Notification handling, reply generation, posting; pre-action `internal_note` (ADR-0045) |
+| `post_pipeline.py` | 452 | feed-seeder → NoveltyGate → test-content gate → body-hash gate → post |
+| `client.py` | 767 | HTTP client (auth, domain lock, retry/429-backoff). No `has_budget`/`unsubscribe_submolt`/`mark_all_notifications_read`/`update_profile`/PATCH — removed. |
+| `auth.py` | ~106 | Credential management, agent registration |
+| `verification.py` | 423 | Obfuscated math challenge solver chain (code_parse → LLM), challenge audit logging, failure tracking, auto-stop |
+| `verification_parse.py` | 321 | Deterministic parser for the finite CAPTCHA grammar (`code_parse_challenge`); precision-first, abstains to None |
+| `content.py` | ~81 | Rules-based content, dedup, axiom intro injection |
+| `llm_functions.py` | 336 | Moltbook-specific LLM (select_submolt, context builders) |
+| `dedup.py` | 222 | Deterministic gates: prefix-5 stem + Jaccard, test-content blocklist, promotional URL regex |
+| `novelty.py` | ~370 | `NoveltyGate`: embedding-cosine novelty + temporal decay + rate-deficit Lagrangian (ADR-0039) |
+| `feed_seeder.py` | ~87 | `select_feed_seeds`: RNG sampling 1-3 peer posts per submolt, relevance floor 0.4, 15000-char budget (ADR-0043) |
 
 **Retired (not in codebase)**: `extract_topics` / `check_topic_novelty` (ADR-0043), `topic_keywords` config field (ADR-0044).
 
@@ -114,9 +114,9 @@ challenge is not written as raw prompt text. 7 consecutive failures →
 | Module | LOC | Purpose |
 |--------|-----|---------|
 | `config.py` | 55 | State space definition, meditation parameters |
-| `pomdp.py` | 294 | EpisodeLog → POMDP matrices (A/B/C/D via numpy) |
-| `meditate.py` | 206 | Active Inference loop; "temporal flattening" / "counterfactual pruning" = local implementation labels, NOT paper terms (ADR-0049) |
-| `report.py` | 145 | Result interpretation (LLM, display-only) → `config/meditation/results.json` |
+| `pomdp.py` | 305 | EpisodeLog → POMDP matrices (A/B/C/D via numpy) |
+| `meditate.py` | 231 | Active Inference loop; "temporal flattening" / "counterfactual pruning" = local implementation labels, NOT paper terms (ADR-0049) |
+| `report.py` | 155 | Result interpretation (LLM, display-only) → `config/meditation/results.json` |
 
 **Data flow**:
 ```
@@ -132,7 +132,7 @@ EpisodeLog → pomdp.build_matrices() → A/B/C/D
 
 ---
 
-## Dialogue Adapter (1 module, ~140 LOC)
+## Dialogue Adapter (1 module, ~190 LOC)
 
 `peer.py` — 2-agent peer-to-peer dialogue loop. LLM turn exchange over stdin/stdout between two independent agent processes.
 

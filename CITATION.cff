@@ -25,8 +25,8 @@ keywords:
   - secure-first
   - memory-dynamics
   - agent-knowledge-cycle
-version: "2.6.0"
-date-released: "2026-06-20"
+version: "2.7.0"
+date-released: "2026-06-30"
 identifiers:
   - type: swh
     value: "swh:1:snp:9f7971f5fb9ab6b4bcb0240178b2e3614db07cab"

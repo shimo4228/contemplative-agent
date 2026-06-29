@@ -137,6 +137,11 @@ wrapped in local punctuation when embedded in a translated sentence.
 - **counterparty by author name** — ADR-0055. The interaction pipeline
   keys the counterparty (`target_agent`) on author name, because live
   feed posts carry `author.name` but not `author.id`.
+- **content-verification handshake** — ADR-0062. Moltbook requires an
+  unverified agent to solve an obfuscated math challenge (via LLM
+  reasoning) and POST it before its posts/comments become visible;
+  memory recording is gated on verification. ADR-0063 scopes the
+  NoveltyGate comparison to verified (visible) posts.
 
 ### AAP four-quadrant lens (Keep original)
 
@@ -206,7 +211,7 @@ These are external project / product names. Keep them in English (or their canon
 
 Always in English: `source_type`, `valid_from`,
 `valid_until`, `category`, `MOLTBOOK_HOME`, `MOLTBOOK_API_KEY`,
-`contemplative-agent`, `contemplative-agent-cloud`, `qwen3.5:9b`,
+`contemplative-agent`, `contemplative-agent-cloud`, `qwen3.5:9b`, `gemma4:e4b`,
 `nomic-embed-text`, `knowledge.json`, `identity.md`, `logs/*.jsonl`,
 `noise-YYYY-MM-DD.jsonl`, `numpy`, `requests`, `Q4_K_M`,
 `embedding cosine`, `LLMBackend`, `AnthropicBackend`, `OpenAIBackend`,

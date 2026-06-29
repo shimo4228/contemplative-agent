@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-20 | Files scanned: 24 core modules | Token estimate: ~2053 -->
+<!-- Generated: 2026-06-30 | Files scanned: 24 core modules | Token estimate: ~2053 -->
 # Core Modules Codemap
 
 Platform-independent foundation (no Moltbook dependencies). All imports flow: adapters → core.
@@ -7,34 +7,34 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
-| `_io.py` | 46 | `write_restricted`, `truncate`, `archive_before_write` |
-| `config.py` | 28 | `FORBIDDEN_SUBSTRING_PATTERNS`, `VALID_ID_PATTERN`, `MAX_COMMENT_LENGTH` |
-| `domain.py` | 362 | `DomainConfig`, `PromptTemplates` (reads `MOLTBOOK_HOME/prompts/` overrides with packaged fallback), constitution loader |
+| `_io.py` | 222 | `write_restricted`, `truncate`, `archive_before_write` |
+| `config.py` | 47 | `FORBIDDEN_SUBSTRING_PATTERNS`, `VALID_ID_PATTERN`, `MAX_COMMENT_LENGTH` |
+| `domain.py` | 367 | `DomainConfig`, `PromptTemplates` (reads `MOLTBOOK_HOME/prompts/` overrides with packaged fallback), constitution loader |
 | `prompts.py` | ~70 | Lazy-load proxy to `config/prompts/*.md` + placeholder resolution |
-| `llm.py` | 1049 | Ollama interface + `LLMBackend` Protocol (pluggable, returns `BackendResult`, keyword `temperature`/`think`, `model`/`context_window` properties), circuit breaker, sanitization, `drop_truncated` gate, per-call `think` flag + reasoning-trace capture (`generate_for_api` returns `GenerationOutput(text, thinking)`), backend-aware context-budget pre-flight (audit C2, ADR-0066), `validate_trusted_url` SSRF guard; `_build_system_prompt` reads identity.md as single blob (ADR-0030) |
-| `clustering.py` | ~115 | Average-linkage cosine agglomerative clustering (numpy-only). Used by `insight` and `rules_distill` |
+| `llm.py` | 1320 | Ollama interface + `LLMBackend` Protocol (pluggable, returns `BackendResult`, keyword `temperature`/`think`, `model`/`context_window` properties), circuit breaker, sanitization, `drop_truncated` gate, per-call `think` flag + reasoning-trace capture (`generate_for_api` returns `GenerationOutput(text, thinking)`), backend-aware context-budget pre-flight (audit C2, ADR-0066), `validate_trusted_url` SSRF guard; `_build_system_prompt` reads identity.md as single blob (ADR-0030) |
+| `clustering.py` | 128 | Average-linkage cosine agglomerative clustering (numpy-only). Used by `insight` and `rules_distill` |
 | `embeddings.py` | 107 | Ollama `/api/embed` wrapper (nomic-embed-text), `cosine`, `embed_one`, `embed_texts` |
 | `episode_embeddings.py` | 162 | `EpisodeEmbeddingStore` — SQLite sidecar for episode vectors (ADR-0019) |
-| `episode_log.py` | ~100 | `EpisodeLog` (append-only JSONL, `read_range` with `record_type` filter) |
-| `knowledge_store.py` | 337 | `KnowledgeStore` — patterns JSON + provenance/bitemporal (ADR-0021); `is_live()` (bitemporal-only, `valid_until is None`; trust floor retired ADR-0051); `effective_importance()` (pure time decay `0.95^days`, LLM rating retired ADR-0056), `pattern_id()`, `epistemic_kind_for()`, `epistemic_counts_for()` (ADR-0050); `get_live_patterns()` / `get_live_patterns_since()` / `get_raw_patterns()` |
-| `memory.py` | 498 | `MemoryStore` facade, `Interaction`/`PostRecord` dataclasses (`Insight` retired, ADR-0052) |
-| `views.py` | 298 | `ViewRegistry` — seed-text views with `seed_from` + `${VAR}` substitution, lazy centroid cache; `find_by_view` = pure cosine rank + threshold + top_k (no importance weight, no trust, ADR-0051) |
-| `snapshot.py` | 160 | `write_snapshot()` + `collect_thresholds()` — pivot snapshots (ADR-0020) |
-| `scheduler.py` | 165 | Rate limit state, `has_read_budget`/`has_write_budget`, persistence |
-| `constitution.py` | 130 | `amend_constitution() → AmendmentResult`. ADR-0033 layer-separation framing. ADR-0050 lineage fields. |
-| `distill.py` | 844 | `distill()` (per-episode grounded distill: `_is_rich_episode` activity-only scope, one LLM call per episode, no noise gate, + embedding dedup; ADR-0060, importance-scoring step retired ADR-0056); `distill_identity()` (single-stage, self_reflection view, whole-file write, ADR-0030). ADR-0050 lineage fields on all result types. |
-| `insight.py` | 318 | `extract_insight() → InsightResult`; global embedding clustering, no view batching (ADR-0050) |
-| `rules_distill.py` | 348 | `distill_rules() → RulesDistillResult`; Practice/Rationale B-layer format (ADR-0048) |
-| `stocktake.py` | 415 | Skill/rule audit: single-call LLM grouping (ADR-0046), `merge_group()` union-of-patterns, `CANNOT_MERGE` reject, singleton trigger-altitude clean (ADR-0048) |
-| `report.py` | 256 | `generate_report()` JSONL → Markdown activity summary |
-| `metrics.py` | 160 | Session metrics aggregation |
-| `text_utils.py` | 60 | Shared Markdown helpers (`slugify`, `extract_title`, `strip_frontmatter`, `synthesize_frontmatter`) — ADR-0035 PR2, ADR-0048 |
-| `thresholds.py` | 90 | Centralized thresholds with ADR/calibration annotations. `snapshot.collect_thresholds` reads from here. |
+| `episode_log.py` | 91 | `EpisodeLog` (append-only JSONL, `read_range` with `record_type` filter) |
+| `knowledge_store.py` | 392 | `KnowledgeStore` — patterns JSON + provenance/bitemporal (ADR-0021); `is_live()` (bitemporal-only, `valid_until is None`; trust floor retired ADR-0051); `effective_importance()` (pure time decay `0.95^days`, LLM rating retired ADR-0056), `pattern_id()`, `epistemic_kind_for()`, `epistemic_counts_for()` (ADR-0050); `get_live_patterns()` / `get_live_patterns_since()` / `get_raw_patterns()` |
+| `memory.py` | 532 | `MemoryStore` facade, `Interaction`/`PostRecord` dataclasses (`Insight` retired, ADR-0052) |
+| `views.py` | 309 | `ViewRegistry` — seed-text views with `seed_from` + `${VAR}` substitution, lazy centroid cache; `find_by_view` = pure cosine rank + threshold + top_k (no importance weight, no trust, ADR-0051) |
+| `snapshot.py` | 218 | `write_snapshot()` + `collect_thresholds()` — pivot snapshots (ADR-0020) |
+| `scheduler.py` | 193 | Rate limit state, `has_read_budget`/`has_write_budget`, persistence |
+| `constitution.py` | 151 | `amend_constitution() → AmendmentResult`. ADR-0033 layer-separation framing. ADR-0050 lineage fields. |
+| `distill.py` | 856 | `distill()` (per-episode grounded distill: `_is_rich_episode` activity-only scope, one LLM call per episode, no noise gate, + embedding dedup; ADR-0060, importance-scoring step retired ADR-0056); `distill_identity()` (single-stage, self_reflection view, whole-file write, ADR-0030). ADR-0050 lineage fields on all result types. |
+| `insight.py` | 395 | `extract_insight() → InsightResult`; global embedding clustering, no view batching (ADR-0050) |
+| `rules_distill.py` | 402 | `distill_rules() → RulesDistillResult`; Practice/Rationale B-layer format (ADR-0048) |
+| `stocktake.py` | 470 | Skill/rule audit: single-call LLM grouping (ADR-0046), `merge_group()` union-of-patterns, `CANNOT_MERGE` reject, singleton trigger-altitude clean (ADR-0048) |
+| `report.py` | 279 | `generate_report()` JSONL → Markdown activity summary |
+| `metrics.py` | 171 | Session metrics aggregation |
+| `text_utils.py` | 157 | Shared Markdown helpers (`slugify`, `extract_title`, `strip_frontmatter`, `synthesize_frontmatter`) — ADR-0035 PR2, ADR-0048 |
+| `thresholds.py` | 84 | Centralized thresholds with ADR/calibration annotations. `snapshot.collect_thresholds` reads from here. |
 | `artifact_extraction.py` | 69 | Shared `extract_title → slugify → path-escape guard` chain (ADR-0035 PR3a) |
 
 **Note**: `forgetting.py` was deleted (ADR-0051); `is_live` moved to `knowledge_store.py`.
 
-**Total: ~7141 LOC (24 modules)**
+**Total: ~7192 LOC (24 modules)**
 
 ## Key Dataclasses
 
@@ -56,7 +56,7 @@ RuleResult(text, filename, target_path, source_ids)                            #
 RulesDistillResult(rules, dropped_count)
 ```
 
-ADR-0050: `pattern_ids` = content-hash ids of input patterns; `epistemic_counts` = `{observed, generated}` tally derived from `provenance.source_type` (never persisted); `source_ids` (RuleResult) = skill filenames of the batch.
+ADR-0050: `pattern_ids` = content-hash ids of input patterns; `epistemic_counts` = `{observed, generated, unknown}` tally derived from `provenance.source_type` (never persisted); `source_ids` (RuleResult) = skill filenames of the batch.
 
 ## EpisodeLog Schema (JSONL)
 

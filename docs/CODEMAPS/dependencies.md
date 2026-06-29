@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-05 | Files scanned: 1 pyproject.toml | Token estimate: ~240 -->
+<!-- Generated: 2026-06-30 | Files scanned: 1 pyproject.toml | Token estimate: ~240 -->
 # Dependencies
 
 ## Runtime
@@ -21,7 +21,7 @@
 | Service | Used By | Access |
 |---------|---------|--------|
 | Moltbook API | adapters/moltbook | HTTPS, Bearer auth, domain-locked (`www.moltbook.com`) |
-| Ollama (generation) | core/llm | `localhost:11434`, `qwen3.5:9b` (override: `OLLAMA_MODEL`) — default; overridable via `LLMBackend` Protocol |
+| Ollama (generation) | core/llm | `localhost:11434`, `gemma4:e4b` (override: `OLLAMA_MODEL`) — default since ADR-0069; overridable via `LLMBackend` Protocol |
 | Ollama (embedding) | core/embeddings | `localhost:11434`, `nomic-embed-text` (override: `OLLAMA_EMBEDDING_MODEL`) — 768-dim, deterministic |
 
 ## Optional Add-ons
@@ -33,4 +33,4 @@
 ## Build System
 
 Uses **hatchling** as build backend with `uv` for dependency management.
-Python >=3.9 required. Current version: see `pyproject.toml` and `CITATION.cff`.
+Python >=3.10 required. Current version: see `pyproject.toml` and `CITATION.cff`.
