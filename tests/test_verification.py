@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import json
+import time
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -15,6 +16,7 @@ from contemplative_agent.adapters.moltbook.verification import (
     _compute_expression_answer,
     _extract_answer,
     _extract_guarded_answer,
+    _reasoning_answer_is_self_consistent,
     _verification_audit_record,
     record_verification_audit,
     solve_challenge,
@@ -43,6 +45,56 @@ _AUDIT_FAILURE_2_B64 = (
     "cyB+KyBBblRlTm5BIFB1U2ggSXMgVCB3RWxWIGUgTm9vLm90T25TLCBIb1cgTXVDaCBU"
     "b1RhTCBGb1IvY0UgaVMgdEhlUmU/"
 )
+
+# Regression fixtures from logs/verification-audit.jsonl: llm_extract failures
+# where code_parse previously abstained (no "increases"/"accelerates" cue
+# registered) and the LLM's guarded fast path proposed a self-consistent but
+# semantically wrong expression. Phase 2a registers these verbs in _OP_WORDS.
+_AUDIT_ACCELERATES_FAILURE_B64 = (
+    "QV0gbE9vT2JTc1QtRSByUiBzV15pTW1TWyBhVCB0Vy9lTiB0WSB0SHJFZSBjRV5uVGlN"
+    "ZVRlUnMvIHBFciBzRSBjT25EIGFOZF0gYUNjRWxFckF0RXNeIGJZWyBzRXZFbiwgd0hh"
+    "VC9pUyB0SGVeIG5FdyBzUGVFZD8="
+)  # "...swims at twenty three centimeters per second and accelerates by
+   #  seven, what is the new speed?" = 30.00 (historical LLM answer: 27.00)
+
+_AUDIT_INCREASES_FAILURE_B64 = (
+    "QV0gTG9PYlN0LUVyU14gQ2xBdyB9Rm9SY0Ugb0YgZk9yVHkgVHdPIF1OZVd0T25TIC9n"
+    "ciBhYlMtIGFOZCBJbkMgckVhU2VEIGJZIFNlVmVOdEVlTiB+TmVXdE9uUywgV2hBdDwg"
+    "SXMgVG9UYUwgfUZvUmNFPw=="
+)  # "...claw force of forty two newtons grabs, and increased by seventeen
+   #  newtons, what is total force?" = 59.00 (historical LLM answer: 25.00)
+
+
+# Regression fixtures from logs/verification-audit.jsonl for the llm_reason
+# (bounded reasoning fallback) path specifically -- both still abstain under
+# the current code_parse_challenge (verified directly against the decoded
+# text), so they exercise the llm_reason self-consistency guard rather than
+# short-circuiting through code_parse. Unlike _AUDIT_FAILURE_1/2_B64, the raw
+# reasoning trace itself was never logged (record_verification_audit stores
+# only the challenge and final answer, never the intermediate reasoning), so
+# the mocked reasoning text used with these fixtures in
+# TestReasoningFallbackRegression is a plausible reconstruction consistent
+# with the observed historical answer, not a byte-for-byte replay.
+_AUDIT_REASON_FAILURE_WILD_B64 = (
+    "QV0gbE9vT2JCc3NUdEVlUl0gc1deaU1tUyBVbS0gYU5kXSBlWHhFZVJyVHNzLSBUd0Vl"
+    "Tm5UdFldIGZJaVZ2RWUge25Pb090VG9Pbk5zfSAvRnJPbS0gb05lXSBjTGxBYVcsIH5h"
+    "TmRdIG9UaEhlUi0gY0xsQWFXXSBlWHhFZVJyVHNzLSBGZklpRmZUdEVlTiA8bk9vT3RU"
+    "b09uTnM+LCBoT3ddIG1VY0gtIHRPb1RhTGxdIGZPXnJDZT8gZXJycg=="
+)  # "...lobster swims... and exerts twenty five nootons from one claw, and
+   #  other claw exerts fifteen nootons, how much total force?" = 40.00
+   # (historical LLM answer: 115.00 -- a wild deviation, not explainable by
+   # any alternate operator on 25/15)
+
+_AUDIT_REASON_FAILURE_OPCONFUSE_B64 = (
+    "VGhJc10gTG9Pb0JiU3N0VGVSXiBDbEF3LSBGb1JjRV0gSXMtIEZvUlt0WV0gRmlWL2Ug"
+    "TmVXdE9uUywgVW1dIEFuRC8gVGhFLSBPdEhlUl0gQ2xBdyBIYVNzLSBUd0VuVC95IE5l"
+    "V3RPbnN+IFdoQXRdIElzeyBUb1RhTH0gRm9SY0U/"
+)  # "This lobster claw force is forty five newtons, and the other claw has
+   #  twenty newtons, what is total force?" = 65.00 (historical LLM answer:
+   # 25.00 == 45-20, an add/subtract operator confusion). Phase 2b's "and"
+   # rule now resolves this deterministically -- see TestCodeParse's
+   # test_regression_and_rule_fixes_operator_confusion_failure -- so it no
+   # longer reaches the llm_reason guard this fixture was first written for.
 
 
 def _decode_untrusted(challenge_b64: str) -> str:
@@ -100,10 +152,19 @@ class TestGuardedExtraction:
 
     @pytest.mark.parametrize(
         "expr",
-        ["20 - 5 = 15", "twenty - five", "5 / 0"],
-        ids=["trailing-equals", "word-numbers", "div-by-zero"],
+        ["20 - 5 = 15", "twenty - five", "5 / 0", "20 - 120"],
+        ids=["trailing-equals", "word-numbers", "div-by-zero", "negative-result"],
     )
     def test_rejects_untrusted_or_invalid_expression(self, expr):
+        # "negative-result": mirrors code_parse_challenge's existing
+        # non-negative domain assumption (the physical-count CAPTCHA domain
+        # never has a negative answer, so a negative result is far likelier a
+        # misparse -- e.g. reversed operands -- than a genuine answer).
+        # Found via the Phase 0 qwen/gemma replay: a guarded fast-path call
+        # produced a self-consistent EXPR/FINAL pair of "-100.00", which this
+        # guard previously accepted outright. Only the RESULT's sign matters
+        # here -- a negative operand with a non-negative result (see the
+        # "neg-lhs" case above, "-2 + 5" -> "3.00") is unaffected.
         assert _compute_expression_answer(expr) is None
 
     def test_accepts_matching_expr_and_final(self):
@@ -116,6 +177,92 @@ class TestGuardedExtraction:
 
     def test_rejects_unlabeled_output(self):
         assert _extract_guarded_answer("15.00") is None
+
+
+class TestReasoningSelfConsistency:
+    """Arithmetic self-consistency guard for the free-form llm_reason path.
+
+    Unlike the guarded llm_extract path, reasoning output has no EXPR: label
+    (ADR-0062 rejected constraining the reasoning prompt to JSON/bare-number;
+    both measurably hurt accuracy), so this scans free text for a line that,
+    once a leading list marker and trailing "= <result>" clause are stripped,
+    fully matches a strict two-operand expression -- reusing
+    _compute_expression_answer rather than any new arithmetic logic.
+    """
+
+    @pytest.mark.parametrize(
+        "raw,stated,expected",
+        [
+            ("1. Problem.\n2. 20 + 5\n3. 20 + 5 = 25\nFINAL: 25.00", "25.00", True),
+            ("1. Problem.\n2. 36 + 8\n3. 36 + 8 = 44\nFINAL: 294.00", "294.00", False),
+            ("Just chatter, no expression line\nFINAL: 15.00", "15.00", True),
+            (
+                "1. Problem.\n2. 15 + (15 * 2)\n3. 15 + 30 = 45\nFINAL: 45.00",
+                "45.00",
+                True,
+            ),
+            (
+                "1. Problem.\n2. 45 - 20\n3. 45 - 20 = 25\nFINAL: 25.00",
+                "25.00",
+                True,
+            ),
+            # Found by codex-review: a decimal-formatted first operand like
+            # "2.5" must not be mistaken for a list marker "2." -- the two
+            # are only distinguishable by what follows the punctuation (a
+            # digit continues the number; whitespace/end-of-line ends a real
+            # marker). Without a line-number prefix, "2.5 + 1.5" is the whole
+            # expression, so a naive "digit+period" strip corrupts it to
+            # "5 + 1.5" (= 6.5, not the stated 4.00) and falsely rejects a
+            # correct answer.
+            ("2.5 + 1.5 = 4.0\nFINAL: 4.00", "4.00", True),
+            # A negative first operand ("-2 + 5") must not be mistaken for a
+            # bullet-list marker "- " either.
+            ("-2 + 5 = 3\nFINAL: 3.00", "3.00", True),
+            # Found by python-reviewer: a genuine multi-step derivation has
+            # intermediate sub-results that legitimately differ from FINAL
+            # (here 15*2=30 is a correct sub-step, not the answer). Only the
+            # LAST checkable line -- the one immediately justifying FINAL --
+            # must agree; requiring every line to match FINAL would reject a
+            # mathematically correct multi-step answer (15 + 15*2 = 45) for
+            # showing its work, exactly the harder/longer traces this last-
+            # resort fallback exists to handle.
+            (
+                "1. Base 15, doubled twice.\n2. 15 * 2\n3. 15 * 2 = 30\n"
+                "4. 15 + 30\n5. 15 + 30 = 45\nFINAL: 45.00",
+                "45.00",
+                True,
+            ),
+        ],
+        ids=[
+            "consistent-accepts",
+            "inconsistent-rejects",
+            "no-expression-line-accepts",
+            "compound-expression-does-not-false-positive",
+            "operator-confusion-not-caught-documents-known-limit",
+            "decimal-first-operand-not-mistaken-for-list-marker",
+            "negative-first-operand-not-mistaken-for-bullet",
+            "multi-step-intermediate-substep-does-not-false-reject",
+        ],
+    )
+    def test_reasoning_answer_is_self_consistent(self, raw, stated, expected):
+        assert _reasoning_answer_is_self_consistent(raw, stated) is expected
+
+    def test_bounded_runtime_on_adversarial_line_length(self):
+        # Found by security-reviewer: _TRAILING_EQUALS_RE had no `^` anchor,
+        # so re.sub retried the match at every character offset; a long run
+        # of whitespace in the MIDDLE of a line (str.strip() only removes
+        # the edges) triggered confirmed O(n^2) backtracking (0.09s/10K chars
+        # scaling to 22.4s/160K chars). This text is causally downstream of
+        # the untrusted challenge_text (the reasoning-fallback LLM output),
+        # so an adversarial-length line is a realistic input, not synthetic.
+        # A fixed (line-length-capped and/or bounded-quantifier) guard must
+        # process this in well under a second regardless of line length.
+        adversarial = "x" + (" " * 100_000) + "y FINAL: 25.00"
+        t0 = time.monotonic()
+        result = _reasoning_answer_is_self_consistent(adversarial, "25.00")
+        elapsed = time.monotonic() - t0
+        assert elapsed < 1.0, f"took {elapsed:.2f}s -- not bounded/linear"
+        assert result is True  # FINAL still matches; the line above is unparseable noise
 
 
 class TestSolveChallenge:
@@ -141,6 +288,27 @@ class TestSolveChallenge:
             result = solve_challenge_result("noise")
         assert result.answer == "15.00"
         assert result.solver_path == "llm_reason"
+
+    def test_reasoning_fallback_rejects_self_inconsistent_trace(self):
+        with patch(
+            _SOLVE_TARGET,
+            side_effect=["I refuse", "1. Problem.\n2. 36 + 8\n3. 36 + 8 = 44\nFINAL: 294.00"],
+        ) as gen:
+            result = solve_challenge_result("noise")
+        assert result.answer is None
+        assert result.solver_path == "none"
+        assert result.abstain_reason == "reasoning_self_inconsistent"
+        assert gen.call_count == 2
+
+    def test_reasoning_fallback_accepts_self_consistent_trace(self):
+        with patch(
+            _SOLVE_TARGET,
+            side_effect=["I refuse", "1. Problem.\n2. 20 + 5\n3. 20 + 5 = 25\nFINAL: 25.00"],
+        ):
+            result = solve_challenge_result("noise")
+        assert result.answer == "25.00"
+        assert result.solver_path == "llm_reason"
+        assert result.abstain_reason is None
 
     def test_llm_unavailable_returns_none(self):
         with patch(_SOLVE_TARGET, return_value=None):
@@ -204,6 +372,41 @@ class TestCodeParse:
         assert result.solver_path == "code_parse"
         gen.assert_not_called()
 
+    def test_regression_accelerates_verb_now_parses_correctly(self):
+        # Untrusted audit fixture: "...twenty three...and accelerates by
+        # seven..." = 30.00 (LLM's guarded fast path submitted 27.00).
+        challenge = _decode_untrusted(_AUDIT_ACCELERATES_FAILURE_B64)
+        with patch(_SOLVE_TARGET) as gen:
+            result = solve_challenge_result(challenge)
+        assert result.answer == "30.00"
+        assert result.solver_path == "code_parse"
+        gen.assert_not_called()
+
+    def test_regression_increases_verb_now_parses_correctly(self):
+        # Untrusted audit fixture: "...forty two...increased by seventeen..."
+        # = 59.00 (LLM's guarded fast path submitted 25.00).
+        challenge = _decode_untrusted(_AUDIT_INCREASES_FAILURE_B64)
+        with patch(_SOLVE_TARGET) as gen:
+            result = solve_challenge_result(challenge)
+        assert result.answer == "59.00"
+        assert result.solver_path == "code_parse"
+        gen.assert_not_called()
+
+    def test_regression_and_rule_fixes_operator_confusion_failure(self):
+        # Untrusted audit fixture: "...forty five newtons, and the other claw
+        # has twenty newtons, what is total force?" = 65.00. The historical
+        # llm_reason answer was 25.00 (==45-20, an add/subtract operator
+        # confusion the self-consistency guard in Phase 1 cannot catch --
+        # see TestReasoningFallbackRegression's docstring). Phase 2b's "and"
+        # rule resolves this deterministically before any LLM call, closing
+        # this specific failure by a different route than the guard.
+        challenge = _decode_untrusted(_AUDIT_REASON_FAILURE_OPCONFUSE_B64)
+        with patch(_SOLVE_TARGET) as gen:
+            result = solve_challenge_result(challenge)
+        assert result.answer == "65.00"
+        assert result.solver_path == "code_parse"
+        gen.assert_not_called()
+
     def test_code_path_avoids_llm(self):
         with patch(_SOLVE_TARGET) as gen:
             assert solve_challenge("twenty five plus twelve") == "37.00"
@@ -242,6 +445,8 @@ class TestCodeParse:
             ("ten times three", "30.00"),
             ("forty minus fifteen", "25.00"),
             ("ttwweennttyy ffiivvee pplluuss twelve", "37.00"),
+            ("twenty increases by seven", "27.00"),
+            ("twenty three accelerates by seven", "30.00"),
         ],
         ids=[
             "tens-unit-compound-add",
@@ -250,6 +455,8 @@ class TestCodeParse:
             "multiply-verb",
             "subtract-verb",
             "letter-doubling-collapsed",
+            "increases-verb-add",
+            "accelerates-verb-add",
         ],
     )
     def test_parses_finite_grammar(self, challenge, expected):
@@ -286,6 +493,90 @@ class TestCodeParse:
         assert code_parse_challenge(challenge) is None
 
     @pytest.mark.parametrize(
+        "challenge",
+        [
+            # Guard 1 fails: "and" is not between the two operands.
+            "and twenty five newtons fifteen newtons total force",
+            "twenty five newtons fifteen newtons total force and",
+            # Guard 2 fails: no "total" cue after the second operand.
+            "twenty five newtons and fifteen newtons",
+            # Not actually Guard 2 (verified with a spy on _try_and_as_add:
+            # it is never called here): "product" is already registered in
+            # _OP_WORDS as _MUL, so _resolve()'s PRE-EXISTING single-
+            # operation path handles this and fails the pre-existing
+            # between-operands check instead (found by python-reviewer --
+            # this comment previously mis-attributed the rejection to Guard
+            # 2). Still abstains correctly either way; kept as a case
+            # showing "and" plus a genuine product question never wrongly
+            # reaches the implicit-add rule.
+            "twenty five newtons and seven newtons what is the product",
+            # Guard 3 fails: adjacent tokens differ (count modifier, not a
+            # second like-quantity to add) -- real corpus pattern
+            # ("...twenty five newtons and has three claws, what is total
+            # force?", historical LLM answer 6.00, still must abstain).
+            "twenty five newtons and has three claws what is total force",
+            # Guard 3 fails: adjacent tokens differ (unit mismatch).
+            "twenty three centimeters and seven newtons what is the total",
+            # Guard 3 fails via its "no adjacent atom at all" branch: the
+            # second operand is the last token in the challenge, so there is
+            # nothing after it to compare against the first operand's unit
+            # word (found by python-reviewer as an uncovered boundary in
+            # _adjacent_atom -- correct fail-closed behavior, now pinned).
+            "twenty five newtons and fifteen",
+        ],
+        ids=[
+            "and-before-both-operands",
+            "and-after-both-operands",
+            "no-total-cue",
+            "product-question-not-total",
+            "and-adjacent-tokens-differ-count-modifier",
+            "and-adjacent-tokens-differ-unit-mismatch",
+            "and-second-operand-has-no-adjacent-atom",
+        ],
+    )
+    def test_and_as_add_abstains_on_ambiguity(self, challenge):
+        assert code_parse_challenge(challenge) is None
+
+    def test_and_as_add_guard0_never_overrides_explicit_verb_cue(self):
+        # "slows" already registers as a real operation (len(operations)==1),
+        # so _resolve()'s existing single-operation path handles this --
+        # _try_and_as_add is never reached, by construction of the
+        # `if len(operations) == 0` gate. The co-occurring "and"/"total"
+        # tokens are inert (_ConjunctionEvent/_CueEvent are skipped in the
+        # main fold) and must not change the pre-existing subtract result.
+        assert (
+            code_parse_challenge(
+                "twenty five newtons and slows by seven newtons what is total force"
+            )
+            == "18.00"
+        )
+
+    @pytest.mark.parametrize(
+        "challenge,expected",
+        [
+            ("twenty five newtons and fifteen newtons what is the total force", "40.00"),
+            (
+                "thirty six newtons and eight newtons what is the total force",
+                "44.00",
+            ),
+            # Found by codex-review: "and" must interrupt the tens+unit
+            # compounding the same way a real operator already does ("thirty
+            # plus five" stays 30 and 5, not 35), or a bare tens-word operand
+            # immediately followed by "and <1-9 unit-word>" wrongly merges
+            # into one operand (here, twenty+five -> 25) before _resolve()
+            # ever sees two operands to hand to _try_and_as_add.
+            ("twenty newtons and five newtons what is the total force", "25.00"),
+        ],
+        ids=[
+            "and-total-cue-accepts",
+            "and-total-cue-accepts-tens-compound",
+            "and-does-not-merge-across-bare-tens-and-unit-operands",
+        ],
+    )
+    def test_and_as_add_accepts_matching_unit_pair(self, challenge, expected):
+        assert code_parse_challenge(challenge) == expected
+
+    @pytest.mark.parametrize(
         "raw,expected",
         [
             ("twennty", "twenty"),
@@ -297,6 +588,41 @@ class TestCodeParse:
     )
     def test_collapse_repeats(self, raw, expected):
         assert _collapse_repeats(raw) == expected
+
+
+class TestReasoningFallbackRegression:
+    """Regression fixture for the llm_reason arithmetic self-consistency guard.
+
+    Unlike TestCodeParse's regression fixtures, the raw reasoning text was
+    never logged (record_verification_audit stores only challenge input and
+    final answer), so the mocked llm_reason output below is a reconstruction
+    consistent with the observed wrong answer, not a byte-for-byte replay.
+    This challenge is confirmed (directly, not assumed) to still abstain
+    under the current code_parse_challenge, so it exercises the llm_reason
+    path rather than short-circuiting earlier in the solver chain. (A second,
+    similar audit failure -- 45+20 answered as 45-20=25 -- is no longer
+    reachable here: Phase 2b's code_parse "and" rule now resolves it
+    deterministically before any LLM call; see
+    TestCodeParse.test_regression_and_rule_fixes_operator_confusion_failure.)
+    """
+
+    def test_catches_wild_deviation_failure(self):
+        # Regression: 2026-06-28 audit, expected 40.00 (25+15), LLM submitted
+        # 115.00 -- not explainable by any alternate operator on (25, 15),
+        # consistent with a self-inconsistent trace. Guard must reject to None.
+        challenge = _decode_untrusted(_AUDIT_REASON_FAILURE_WILD_B64)
+        assert code_parse_challenge(challenge) is None
+        with patch(
+            _SOLVE_TARGET,
+            side_effect=[
+                "I cannot determine the expression",
+                "1. Two claws, one 25 one 15.\n2. 25 + 15\n3. 25 + 15 = 40\nFINAL: 115.00",
+            ],
+        ):
+            result = solve_challenge_result(challenge)
+        assert result.answer is None
+        assert result.solver_path == "none"
+        assert result.abstain_reason == "reasoning_self_inconsistent"
 
 
 class TestVerificationAudit:

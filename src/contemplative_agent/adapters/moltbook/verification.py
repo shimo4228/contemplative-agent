@@ -105,6 +105,39 @@ _NUMBER_PATTERN = r"-?\d+(?:\.\d+)?"
 _EXPR_PATTERN = re.compile(
     rf"\(?\s*({_NUMBER_PATTERN})\s*([+*/xX-])\s*({_NUMBER_PATTERN})\s*\)?"
 )
+# Free-form reasoning output has no EXPR: label (ADR-0062 rejected constraining
+# it to JSON/bare-number; both measurably hurt accuracy), so isolating a
+# checkable arithmetic line requires stripping a leading list marker ("2.",
+# "-") and a trailing "= <result>" clause before attempting the same strict
+# fullmatch _compute_expression_answer already applies to a labeled EXPR value.
+# The lookahead requires whitespace (or end of line) right after the marker
+# punctuation: a real list marker ("2. ", "- ") is always followed by a
+# space, while a decimal/negative number ("2.5", "-2") has a digit right
+# there instead -- without this, "2.5 + 1.5" is misread as marker "2." plus
+# expression "5 + 1.5" (found by codex-review; verified: corrupts a correct
+# self-consistent line into a false "reasoning_self_inconsistent" rejection).
+#
+# Whitespace quantifiers are bounded to a small fixed count, not `\s*`
+# (found by security-reviewer): a genuine list marker or "= <result>" tail
+# never has more than a couple of whitespace characters around it, and an
+# unbounded `\s*` with no anchor at both ends made _TRAILING_EQUALS_RE's
+# re.sub retry the match at every offset in the line -- confirmed quadratic
+# (0.09s/10K chars scaling to 22.4s/160K chars) when a long whitespace run
+# sits in the middle of a line (str.strip() only removes the edges). This
+# text is the reasoning-fallback LLM's free-form output, causally downstream
+# of the untrusted challenge_text, so an adversarial-length line is a
+# realistic input. See also _MAX_REASONING_LINE_CHARS below, a second,
+# independent bound on the same risk.
+_LIST_MARKER_RE = re.compile(r"^\s{0,10}(?:\d+[.)](?=\s|$)|[-*](?=\s|$))\s{0,10}")
+_TRAILING_EQUALS_RE = re.compile(
+    rf"\s{{0,10}}=\s{{0,10}}{_NUMBER_PATTERN}\s{{0,10}}\.?\s{{0,10}}\Z"
+)
+# A genuine arithmetic expression line ("36 + 8 = 44") is always short;
+# anything longer cannot usefully fullmatch _EXPR_PATTERN regardless, so it
+# is skipped before either regex above runs at all -- a second, independent
+# bound on the same adversarial-length risk (defense in depth, not a
+# replacement for the bounded quantifiers above).
+_MAX_REASONING_LINE_CHARS = 200
 VERIFICATION_AUDIT_PATH = EPISODE_LOG_DIR / "verification-audit.jsonl"
 
 
@@ -115,6 +148,12 @@ class VerificationSolveResult:
     answer: Optional[str]
     solver_path: Literal["code_parse", "llm_extract", "llm_reason", "none"]
     challenge_sha256: str
+    # Categorical reason for a None answer, e.g. "reasoning_self_inconsistent".
+    # Optional/additive: existing solver_path="none" cases (empty challenge,
+    # no parseable answer) leave this None, unchanged from before this field
+    # existed. Threaded into the audit log's existing `error` column (see
+    # agent.py._handle_verification) rather than adding a new log field.
+    abstain_reason: Optional[str] = None
 
 
 def solve_challenge(challenge_text: str) -> Optional[str]:
@@ -184,13 +223,21 @@ def solve_challenge_result(challenge_text: str) -> VerificationSolveResult:
         system=_reason_system_prompt(),
         num_predict=_SOLVER_NUM_PREDICT,
     )
-    reason_answer = _extract_answer(raw or "")
+    reason_text = raw or ""
+    reason_answer = _extract_answer(reason_text)
     if reason_answer is None:
         logger.warning("Verification solver produced no parseable answer")
         return VerificationSolveResult(
             answer=None,
             solver_path="none",
             challenge_sha256=challenge_sha256,
+        )
+    if not _reasoning_answer_is_self_consistent(reason_text, reason_answer):
+        return VerificationSolveResult(
+            answer=None,
+            solver_path="none",
+            challenge_sha256=challenge_sha256,
+            abstain_reason="reasoning_self_inconsistent",
         )
     logger.info("Verification challenge solved (reasoning fallback): %s", reason_answer)
     return VerificationSolveResult(
@@ -350,6 +397,13 @@ def _compute_decimal_pair(lhs: Decimal, op: str, rhs: Decimal) -> Optional[str]:
             return None
     except (DivisionByZero, InvalidOperation):
         return None
+    # Mirrors code_parse_challenge's existing non-negative domain assumption
+    # (verification_parse._compute): the physical-count CAPTCHA domain never
+    # has a negative answer, so a negative result is far likelier a misparse
+    # (e.g. reversed operands) than a genuine one -- reject rather than let a
+    # self-consistent-but-negative EXPR/FINAL pair pass the guard.
+    if not result.is_finite() or result < 0:
+        return None
     return _format_decimal(result)
 
 
@@ -378,6 +432,65 @@ def _extract_answer(text: str) -> Optional[str]:
         # submit "inf" as the answer.
         return None
     return f"{value:.2f}"
+
+
+def _reasoning_answer_is_self_consistent(text: str, stated: str) -> bool:
+    """Cross-check any flat two-operand expression line in free-form reasoning
+    text against the already-extracted FINAL answer.
+
+    The bounded reasoning fallback is deliberately free-form (ADR-0062 rejected
+    constraining it to JSON/bare-number; both measurably hurt accuracy), so
+    unlike the guarded llm_extract path there is no ``EXPR:`` label to key off.
+    Instead this walks each line and, after stripping a leading list marker
+    ("2.", "-") and a trailing "= <result>" clause, tries the SAME strict
+    fullmatch ``_compute_expression_answer`` already applies to a labeled EXPR
+    value. A line that is prose, the FINAL line itself, or a compound/nested
+    expression ``_EXPR_PATTERN`` cannot fully represent (e.g. "15 + (15 * 2)")
+    simply fails to fullmatch and is silently skipped -- an unparseable line is
+    not evidence of inconsistency, matching the abstain-on-ambiguity posture
+    ``code_parse_challenge`` already uses rather than manufacturing a false
+    rejection.
+
+    Checks only the LAST checkable line, not every checkable line: a genuine
+    multi-step derivation has intermediate sub-results that legitimately
+    differ from FINAL (e.g. "15 * 2 = 30" as one step of "15 + 15*2 = 45"),
+    and rejecting on any such sub-step would false-reject a mathematically
+    correct multi-step answer -- exactly the harder, longer traces this
+    last-resort fallback exists to handle (found by python-reviewer).
+    Returns False when the last checkable line's recomputed value disagrees
+    with ``stated``; True when it agrees or no checkable line exists at all.
+
+    This proves only that the reasoning trace's own arithmetic is internally
+    consistent, not that its expression's operator choice matches the
+    obfuscated challenge's intent -- the same limit ADR-0062's 3rd amendment
+    documents for the llm_extract guard (a self-consistent EXPR can still
+    misread which operation the source text calls for).
+    """
+    last_checkable: Optional[tuple[str, str]] = None
+    for line in text.splitlines():
+        if len(line) > _MAX_REASONING_LINE_CHARS:
+            continue
+        candidate = _TRAILING_EQUALS_RE.sub(
+            "", _LIST_MARKER_RE.sub("", line.strip())
+        ).strip()
+        if not candidate:
+            continue
+        computed = _compute_expression_answer(candidate)
+        if computed is not None:
+            last_checkable = (line.strip(), computed)
+    if last_checkable is None:
+        return True
+    line_text, computed = last_checkable
+    if computed != stated:
+        logger.warning(
+            "Verification reasoning trace self-inconsistent: line %r "
+            "computes %s but stated FINAL is %s",
+            line_text,
+            computed,
+            stated,
+        )
+        return False
+    return True
 
 
 def submit_verification(

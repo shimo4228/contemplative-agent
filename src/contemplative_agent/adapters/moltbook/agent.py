@@ -431,7 +431,7 @@ class Agent:
                 verification_code=verification_code,
                 solve_result=solve_result,
                 verify_success=False,
-                error="solve_failed",
+                error=solve_result.abstain_reason or "solve_failed",
             )
             self._verification.record_failure()
             return False

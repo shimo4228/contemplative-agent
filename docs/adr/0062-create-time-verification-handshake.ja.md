@@ -19,6 +19,39 @@ twelve」に対し `20 + 12 = 32`）が通過していた（監査 corpus に li
 不変の LLM チェーンへフォールスルーする。出力の信頼境界は不変（コードで検算可能な数値のみ送信）であり、
 security boundary 変更ではない機構 amendment のため新 ADR は不要。
 
+2026-07-01 第4 amendment: `logs/verification-audit.jsonl`（2026-06-28〜07-01 の実チャレンジ 252件）で、
+guarded `llm_extract` 経路が依然 16.1% 誤答、算術検算を一切持たない `llm_reason` フォールバックは 66.7% 誤答
+と判明した。自己整合性ガード（`_reasoning_answer_is_self_consistent`）を追加し、自由記述の reasoning trace
+から行頭の箇条書き記号・行末の `= <結果>` 節を除去した上で二項式に厳密一致する行を探し、guarded 経路が既に
+使う `_compute_expression_answer` で再計算する。計算結果が FINAL と食い違えば、誤答を送信せず `None` に
+fail-closed する。`temperature=0.0` のため単純な再生成 retry は同じ誤答を再現するだけで無意味であり、この
+チェックは生成済みテキストへの後付け検算（追加の LLM 呼び出しなし）なのでレイテンシに影響せず、下記の
+チャレンジ窓リスクを悪化させない。このガードは算術的自己整合性のみを証明し、数式の演算子が難読化文の
+意図と一致するかは証明しない — 第3 amendment が `llm_extract` について既に記す限界と同一 — ため、演算子
+取り違え（例: "45 と 20 の total" の正解が 65 なのに、自己整合した `45 - 20 = 25` を FINAL に述べる）は
+依然通過する。`VerificationSolveResult.abstain_reason`（デフォルト `None`、追加のみ）を新設し、この理由と
+将来の棄権理由を、新しいログスキーマなしで既存の audit `error` 列に流し込む。
+
+2026-07-01 第5 amendment: 同じ監査コーパスで、決定論パーサの演算動詞辞書に実在の非対称性
+（`decreases` はあるが `increases` が無い、`slows` はあるが `accelerates` が無い）が見つかり、かつ裸の
+接続詞 "and" を一切扱わないため、コーパスで支配的な `llm_extract` 失敗パターン ——「X newtons and
+Y newtons, what is total force?」—— がそもそも `code_parse` に到達していなかった。`increases`/
+`increased`/`accelerates`/`accelerate` を、既存の対語と同じリスクプロファイル（構造的曖昧さの無い単一
+動詞トークン）で新規登録した。裸の "and" を暗黙の加算シグナルとして扱うのはより危険 — コーパスは "and" を
+基準量と乗数カウントの接続（"...and has three claws..."）や積を問う質問（"...and applies X, what is the
+product?"）にも使う — なので、以下 4 ガードを**すべて**課す: (1) 動詞・記号による演算が1つも見つかって
+いないこと（"and" が既存キューと組み合わさって第2の矛盾する演算を捏造することは絶対に無い）、(2) "and"
+トークンが2オペランドの間に位置すること（本モジュールの他の全キューと同じ between 不変条件）、(3) 第2
+オペランド以降に "total" cue 語が出現すること（product/multiplied を問う質問は "total" と言わないため
+排除できる）、(4) 各オペランド直後の atom が両者で同一の collapse 後文字列であること（典型的には反復
+される単位語。チャレンジ自身の2出現を比較するだけで、単位語辞書を持たずに難読化のスペルゆれ
+——"newtons"/"neutons"/"notons"—— を吸収でき、第2の「オペランド」が実は乗数であるカウント修飾語的
+読みを排除できる）。実コーパス252件全件を通した変更前後の `code_parse_challenge` 再実行では、回帰ゼロ
+（既存の解決済み回答は全て不変）、新規に解決された59件中の危険な不一致もゼロ（48件は既存の正解と一致、
+11件は既存の誤答を修正、0件が既存の正解と食い違う）ことを確認した。両追加ともパーサの既存の
+abstain-first 姿勢と出力の信頼境界は不変のため、先行2件の amendment と同様、機構変更であり
+security-boundary 変更ではない。
+
 ## Date
 
 2026-06-26
@@ -98,7 +131,12 @@ Corpus 収集を簡単にするため、`verification-audit.jsonl` に `challeng
 
 ### Neutral / Follow-ups
 
-- ソルバプロンプトと token budget は `qwen3.5:9b` 向けに較正されている。より弱いモデルやスワップされたモデルではプロンプトや予算の調整が必要になりうる。telemetry caller は `moltbook.verify_solve` のまま。
+- ソルバプロンプトと token budget は元々 `qwen3.5:9b` 向けに較正されていた。ADR-0069 で本番モデルが
+  `gemma4:e4b` にスワップされた後、この特定タスクで弱くなっていないかを専用のブラインド・リプレイ実験
+  （2026-07-01、`docs/evidence/verify-solve-model-compare-20260701/`）で確認した: gemma は自身が過去に
+  正解した95件を100%の自己一貫性で再現した一方、qwen が同じ95件をブラインドで再現できたのは72.6%に
+  とどまった — gemma がこのタスクで劣っているという証拠は無く、per-task のモデル固定は不要と判断した。
+  telemetry caller は `moltbook.verify_solve` のまま。
 - `logs/api-audit.jsonl` にはまだローテーションポリシーがない。API 呼び出しごとに1レコードを追記する。
 - `logs/verification-audit.jsonl` にはまだローテーション / retention ポリシーがない。challenge を伴う作成試行ごとに1 corpus/outcome レコードを追記する。
 - `verification_code` は送信前のフォーマット検証を行わなくなった: このフィールドは URL パスではなく JSON リクエストボディを通るため、非空チェックで十分である。従来の検証は古いフィールド名前提の遺物だった。

@@ -26,6 +26,59 @@ The output trust boundary is unchanged — only a parseable, code-recomputed
 number is ever submitted — so this is a mechanism amendment, not a
 security-boundary change, and needs no new ADR.
 
+Fourth amendment 2026-07-01: `logs/verification-audit.jsonl` (252 real
+challenges, 2026-06-28 through 07-01) showed the guarded `llm_extract` path
+still wrong 16.1% of the time and the unguarded `llm_reason` fallback wrong
+66.7% of the time — the latter has no arithmetic cross-check at all. A
+self-consistency guard (`_reasoning_answer_is_self_consistent`) now scans the
+free-form reasoning trace for any line that, once a leading list-marker and
+trailing `= <result>` clause are stripped, strictly matches a two-operand
+expression, and recomputes it with the same `_compute_expression_answer` the
+guarded path already uses; a computed value that disagrees with the stated
+FINAL rejects to `None` rather than submitting a self-inconsistent answer.
+`temperature=0.0` makes retry pointless (a bare regeneration reproduces the
+same wrong answer), and the check runs on already-generated text with no
+extra LLM call, so it adds no latency and cannot worsen the challenge-window
+risk noted below. This guard proves only arithmetic self-consistency, not
+that the expression's operator matches the obfuscated text's intent — the
+same limit the third amendment documents for `llm_extract` — so an
+operator-confusion answer (e.g. `45 - 20 = 25` self-consistently stated for a
+"45 and 20, total" challenge whose answer is `65`) still passes. A
+`VerificationSolveResult.abstain_reason` field (default `None`, additive)
+threads this and future abstain causes into the existing audit `error`
+column with no new log schema.
+
+Fifth amendment 2026-07-01: the same audit corpus showed the deterministic
+parser's operation-verb dictionary had a live asymmetry (`decreases` but no
+`increases`; `slows` but no `accelerates`) and lacked any bare-conjunction
+handling, so the corpus's dominant `llm_extract` failure shape — "X newtons
+and Y newtons, what is total force?" — never reached `code_parse` at all.
+`increases`/`increased`/`accelerates`/`accelerate` are now registered
+alongside their existing counterparts (same risk profile: single verb
+tokens, no structural ambiguity). Treating a bare "and" as an implicit
+addition cue is riskier — the corpus also uses "and" to connect a base
+quantity to a multiplicative count ("...and has three claws...") or a
+product question ("...and applies X, what is the product?") — so it is
+gated by four guards, all required: (1) zero verb/symbol operations already
+found (so "and" can never combine with an existing cue to manufacture a
+second, conflicting operation), (2) an "and" token positioned between the
+two operands (the same between-operands invariant every other cue in this
+module already enforces), (3) a "total" cue word after the second operand
+(ruling out product/multiplied questions, which never say "total"), and (4)
+the atom immediately after each operand is the same collapsed string in
+both cases (typically a repeated unit word; comparing the challenge's own
+two occurrences to each other absorbs obfuscator spelling drift —
+"newtons"/"neutons"/"notons" — without a unit dictionary, and rejects a
+count-modifier reading where the second "operand" is not a like quantity).
+Before/after replay of all 252 real corpus challenges through
+`code_parse_challenge` confirmed zero regressions (every previously-resolved
+answer unchanged) and zero new-wrong-answers among 59 newly-resolved rows
+(48 agree with the historical correct answer, 11 correct a historical
+wrong answer, 0 disagree with a historical correct answer). Both additions
+keep the parser's existing abstain-first posture and output trust boundary
+unchanged, so — as with the prior two amendments — this is a mechanism
+change, not a security-boundary change.
+
 ## Date
 
 2026-06-26
@@ -218,8 +271,12 @@ after those gates have cleared.
 
 ### Neutral / Follow-ups
 
-- The solver prompts and token budgets are calibrated for `qwen3.5:9b`; a weaker or swapped model
-  may require prompt or budget adjustment. Telemetry remains under caller `moltbook.verify_solve`.
+- The solver prompts and token budgets were originally calibrated for `qwen3.5:9b`. A dedicated
+  blind replay (2026-07-01, `docs/evidence/verify-solve-model-compare-20260701/`) checked whether
+  the post-ADR-0069 production swap to `gemma4:e4b` weakened this specific task: gemma reproduced
+  its own 95 historically-correct solves with 100% self-consistency, while qwen blind-replaying
+  those same 95 challenges matched only 72.6% of the time — gemma is not the weaker model here, so
+  no per-task model override is warranted. Telemetry remains under caller `moltbook.verify_solve`.
 - `logs/api-audit.jsonl` has no rotation policy yet; one structural record is appended per API
   call.
 - `logs/verification-audit.jsonl` has no rotation or retention policy yet; one corpus/outcome

@@ -74,7 +74,13 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │      and number-word reconstruction and abstains (None) on any ambiguity; only
  │      then does it ask the LLM for a short numeric expression, validate it in
  │      Python, and fall back to bounded LLM reasoning if the guarded expression
- │      fails (solver order: code_parse → llm_extract → llm_reason)
+ │      fails (solver order: code_parse → llm_extract → llm_reason). The bounded
+ │      reasoning fallback also self-checks: any line in its free-form trace that
+ │      reduces to a two-operand expression is recomputed and compared to the
+ │      stated FINAL, rejecting to None on disagreement rather than submitting a
+ │      self-inconsistent answer (does not catch a self-consistent but
+ │      semantically wrong operator choice — the same limit code_parse's guard
+ │      note already documents for llm_extract)
  │      → POST /verify. Content stays verification_status=pending (invisible)
  │      until verified, so memory/NoveltyGate recording happens ONLY after
  │      success (posts, comments, replies). Each challenge outcome is also

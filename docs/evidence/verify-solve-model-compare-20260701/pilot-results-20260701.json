@@ -1,0 +1,738 @@
+{
+  "summary": [
+    {
+      "label": "qwen_blind_replay_of_gemma_solved (PRIMARY)",
+      "n": 25,
+      "matched": 19,
+      "accuracy": 0.76
+    },
+    {
+      "label": "qwen_self_consistency_floor",
+      "n": 10,
+      "matched": 10,
+      "accuracy": 1.0
+    },
+    {
+      "label": "gemma_blind_replay_of_qwen_solved (secondary, small n)",
+      "n": 10,
+      "matched": 10,
+      "accuracy": 1.0
+    },
+    {
+      "label": "gemma_self_consistency_floor",
+      "n": 25,
+      "matched": 25,
+      "accuracy": 1.0
+    }
+  ],
+  "detail": {
+    "qwen_on_gemma_solved": [
+      {
+        "i": 0,
+        "ts": "2026-06-28T15:06:36+00:00",
+        "historical_answer": "47.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "47.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 2.9
+      },
+      {
+        "i": 1,
+        "ts": "2026-06-28T15:11:01+00:00",
+        "historical_answer": "15.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "15.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.9
+      },
+      {
+        "i": 2,
+        "ts": "2026-06-28T15:17:04+00:00",
+        "historical_answer": "15.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "15.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 2.5
+      },
+      {
+        "i": 3,
+        "ts": "2026-06-28T15:23:19+00:00",
+        "historical_answer": "23.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "23.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.4
+      },
+      {
+        "i": 4,
+        "ts": "2026-06-28T15:34:45+00:00",
+        "historical_answer": "16.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "23.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": false,
+        "sec": 5.5
+      },
+      {
+        "i": 5,
+        "ts": "2026-06-28T15:41:28+00:00",
+        "historical_answer": "30.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "30.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.5
+      },
+      {
+        "i": 6,
+        "ts": "2026-06-28T15:54:55+00:00",
+        "historical_answer": "47.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "47.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.6
+      },
+      {
+        "i": 7,
+        "ts": "2026-06-28T16:01:17+00:00",
+        "historical_answer": "92.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "92.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.4
+      },
+      {
+        "i": 8,
+        "ts": "2026-06-28T21:02:10+00:00",
+        "historical_answer": "47.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "47.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.8
+      },
+      {
+        "i": 9,
+        "ts": "2026-06-28T21:08:32+00:00",
+        "historical_answer": "30.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "30.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 6.3
+      },
+      {
+        "i": 10,
+        "ts": "2026-06-28T21:12:28+00:00",
+        "historical_answer": "16.00",
+        "historical_solver_path": "llm_reason",
+        "replay_answer": "13.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": false,
+        "sec": 6.3
+      },
+      {
+        "i": 11,
+        "ts": "2026-06-28T21:22:22+00:00",
+        "historical_answer": "48.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "48.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 6.1
+      },
+      {
+        "i": 12,
+        "ts": "2026-06-28T21:26:43+00:00",
+        "historical_answer": "16.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "16.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.7
+      },
+      {
+        "i": 13,
+        "ts": "2026-06-28T21:38:48+00:00",
+        "historical_answer": "28.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "28.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.5
+      },
+      {
+        "i": 14,
+        "ts": "2026-06-29T03:03:48+00:00",
+        "historical_answer": "161.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "161.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 6.1
+      },
+      {
+        "i": 15,
+        "ts": "2026-06-29T03:08:08+00:00",
+        "historical_answer": "57.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "57.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.7
+      },
+      {
+        "i": 16,
+        "ts": "2026-06-29T03:12:16+00:00",
+        "historical_answer": "39.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "32.70",
+        "replay_solver_path": "llm_reason",
+        "matches_historical": false,
+        "sec": 15.4
+      },
+      {
+        "i": 17,
+        "ts": "2026-06-29T03:24:31+00:00",
+        "historical_answer": "47.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "-100.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": false,
+        "sec": 6.1
+      },
+      {
+        "i": 18,
+        "ts": "2026-06-29T03:27:26+00:00",
+        "historical_answer": "88.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "420.00",
+        "replay_solver_path": "llm_reason",
+        "matches_historical": false,
+        "sec": 13.4
+      },
+      {
+        "i": 19,
+        "ts": "2026-06-29T03:39:06+00:00",
+        "historical_answer": "30.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "22.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": false,
+        "sec": 5.8
+      },
+      {
+        "i": 20,
+        "ts": "2026-06-29T03:55:02+00:00",
+        "historical_answer": "46.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "46.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.7
+      },
+      {
+        "i": 21,
+        "ts": "2026-06-29T03:58:17+00:00",
+        "historical_answer": "16.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "16.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 7.2
+      },
+      {
+        "i": 22,
+        "ts": "2026-06-29T04:01:43+00:00",
+        "historical_answer": "56.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "56.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.8
+      },
+      {
+        "i": 23,
+        "ts": "2026-06-29T04:07:02+00:00",
+        "historical_answer": "39.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "39.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.7
+      },
+      {
+        "i": 24,
+        "ts": "2026-06-29T09:02:09+00:00",
+        "historical_answer": "30.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "30.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.4
+      }
+    ],
+    "qwen_self_consistency": [
+      {
+        "i": 0,
+        "ts": "2026-06-28T03:11:22+00:00",
+        "historical_answer": "28.00",
+        "historical_solver_path": "llm_reason",
+        "replay_answer": "28.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 1,
+        "ts": "2026-06-28T03:16:53+00:00",
+        "historical_answer": "448.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "448.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 2,
+        "ts": "2026-06-28T03:23:03+00:00",
+        "historical_answer": "76.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "76.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 3,
+        "ts": "2026-06-28T03:27:37+00:00",
+        "historical_answer": "44.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "44.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.9
+      },
+      {
+        "i": 4,
+        "ts": "2026-06-28T03:33:24+00:00",
+        "historical_answer": "44.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "44.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 5,
+        "ts": "2026-06-28T03:40:34+00:00",
+        "historical_answer": "40.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "40.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 6,
+        "ts": "2026-06-28T03:46:29+00:00",
+        "historical_answer": "30.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "30.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 7,
+        "ts": "2026-06-28T03:50:57+00:00",
+        "historical_answer": "36.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "36.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 8,
+        "ts": "2026-06-28T03:56:30+00:00",
+        "historical_answer": "16.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "16.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 5.9
+      },
+      {
+        "i": 9,
+        "ts": "2026-06-28T04:01:52+00:00",
+        "historical_answer": "44.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "44.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 6.1
+      }
+    ],
+    "gemma_on_qwen_solved": [
+      {
+        "i": 0,
+        "ts": "2026-06-28T03:11:22+00:00",
+        "historical_answer": "28.00",
+        "historical_solver_path": "llm_reason",
+        "replay_answer": "28.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 1,
+        "ts": "2026-06-28T03:16:53+00:00",
+        "historical_answer": "448.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "448.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 2,
+        "ts": "2026-06-28T03:23:03+00:00",
+        "historical_answer": "76.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "76.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 3,
+        "ts": "2026-06-28T03:27:37+00:00",
+        "historical_answer": "44.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "44.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 17.7
+      },
+      {
+        "i": 4,
+        "ts": "2026-06-28T03:33:24+00:00",
+        "historical_answer": "44.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "44.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 5,
+        "ts": "2026-06-28T03:40:34+00:00",
+        "historical_answer": "40.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "40.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 6,
+        "ts": "2026-06-28T03:46:29+00:00",
+        "historical_answer": "30.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "30.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 7,
+        "ts": "2026-06-28T03:50:57+00:00",
+        "historical_answer": "36.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "36.00",
+        "replay_solver_path": "code_parse",
+        "matches_historical": true,
+        "sec": 0.0
+      },
+      {
+        "i": 8,
+        "ts": "2026-06-28T03:56:30+00:00",
+        "historical_answer": "16.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "16.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.6
+      },
+      {
+        "i": 9,
+        "ts": "2026-06-28T04:01:52+00:00",
+        "historical_answer": "44.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "44.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.7
+      }
+    ],
+    "gemma_self_consistency": [
+      {
+        "i": 0,
+        "ts": "2026-06-28T15:06:36+00:00",
+        "historical_answer": "47.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "47.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.6
+      },
+      {
+        "i": 1,
+        "ts": "2026-06-28T15:11:01+00:00",
+        "historical_answer": "15.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "15.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.7
+      },
+      {
+        "i": 2,
+        "ts": "2026-06-28T15:17:04+00:00",
+        "historical_answer": "15.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "15.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 1.8
+      },
+      {
+        "i": 3,
+        "ts": "2026-06-28T15:23:19+00:00",
+        "historical_answer": "23.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "23.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.4
+      },
+      {
+        "i": 4,
+        "ts": "2026-06-28T15:34:45+00:00",
+        "historical_answer": "16.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "16.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.5
+      },
+      {
+        "i": 5,
+        "ts": "2026-06-28T15:41:28+00:00",
+        "historical_answer": "30.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "30.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.6
+      },
+      {
+        "i": 6,
+        "ts": "2026-06-28T15:54:55+00:00",
+        "historical_answer": "47.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "47.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.5
+      },
+      {
+        "i": 7,
+        "ts": "2026-06-28T16:01:17+00:00",
+        "historical_answer": "92.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "92.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 12.0
+      },
+      {
+        "i": 8,
+        "ts": "2026-06-28T21:02:10+00:00",
+        "historical_answer": "47.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "47.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.7
+      },
+      {
+        "i": 9,
+        "ts": "2026-06-28T21:08:32+00:00",
+        "historical_answer": "30.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "30.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 4.2
+      },
+      {
+        "i": 10,
+        "ts": "2026-06-28T21:12:28+00:00",
+        "historical_answer": "16.00",
+        "historical_solver_path": "llm_reason",
+        "replay_answer": "16.00",
+        "replay_solver_path": "llm_reason",
+        "matches_historical": true,
+        "sec": 11.5
+      },
+      {
+        "i": 11,
+        "ts": "2026-06-28T21:22:22+00:00",
+        "historical_answer": "48.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "48.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.7
+      },
+      {
+        "i": 12,
+        "ts": "2026-06-28T21:26:43+00:00",
+        "historical_answer": "16.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "16.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.9
+      },
+      {
+        "i": 13,
+        "ts": "2026-06-28T21:38:48+00:00",
+        "historical_answer": "28.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "28.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.8
+      },
+      {
+        "i": 14,
+        "ts": "2026-06-29T03:03:48+00:00",
+        "historical_answer": "161.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "161.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.7
+      },
+      {
+        "i": 15,
+        "ts": "2026-06-29T03:08:08+00:00",
+        "historical_answer": "57.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "57.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.7
+      },
+      {
+        "i": 16,
+        "ts": "2026-06-29T03:12:16+00:00",
+        "historical_answer": "39.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "39.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.6
+      },
+      {
+        "i": 17,
+        "ts": "2026-06-29T03:24:31+00:00",
+        "historical_answer": "47.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "47.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.6
+      },
+      {
+        "i": 18,
+        "ts": "2026-06-29T03:27:26+00:00",
+        "historical_answer": "88.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "88.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.6
+      },
+      {
+        "i": 19,
+        "ts": "2026-06-29T03:39:06+00:00",
+        "historical_answer": "30.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "30.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.5
+      },
+      {
+        "i": 20,
+        "ts": "2026-06-29T03:55:02+00:00",
+        "historical_answer": "46.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "46.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.6
+      },
+      {
+        "i": 21,
+        "ts": "2026-06-29T03:58:17+00:00",
+        "historical_answer": "16.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "16.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 4.1
+      },
+      {
+        "i": 22,
+        "ts": "2026-06-29T04:01:43+00:00",
+        "historical_answer": "56.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "56.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.5
+      },
+      {
+        "i": 23,
+        "ts": "2026-06-29T04:07:02+00:00",
+        "historical_answer": "39.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "39.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 10.9
+      },
+      {
+        "i": 24,
+        "ts": "2026-06-29T09:02:09+00:00",
+        "historical_answer": "30.00",
+        "historical_solver_path": "llm_extract",
+        "replay_answer": "30.00",
+        "replay_solver_path": "llm_extract",
+        "matches_historical": true,
+        "sec": 3.4
+      }
+    ]
+  }
+}

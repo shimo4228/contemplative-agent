@@ -5,7 +5,7 @@ Platform-specific implementations. Dependency: adapters → core.
 
 **Counting convention**: module counts = non-`__init__` `.py` files.
 
-## Moltbook Adapter (15 modules, ~5078 LOC)
+## Moltbook Adapter (15 modules, ~5308 LOC)
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
@@ -17,8 +17,8 @@ Platform-specific implementations. Dependency: adapters → core.
 | `post_pipeline.py` | 452 | feed-seeder → NoveltyGate → test-content gate → body-hash gate → post |
 | `client.py` | 767 | HTTP client (auth, domain lock, retry/429-backoff). No `has_budget`/`unsubscribe_submolt`/`mark_all_notifications_read`/`update_profile`/PATCH — removed. |
 | `auth.py` | ~106 | Credential management, agent registration |
-| `verification.py` | 423 | Obfuscated math challenge solver chain (code_parse → LLM), challenge audit logging, failure tracking, auto-stop |
-| `verification_parse.py` | 321 | Deterministic parser for the finite CAPTCHA grammar (`code_parse_challenge`); precision-first, abstains to None |
+| `verification.py` | 502 | Obfuscated math challenge solver chain (code_parse → LLM), reasoning-path arithmetic self-consistency guard, challenge audit logging, failure tracking, auto-stop |
+| `verification_parse.py` | 472 | Deterministic parser for the finite CAPTCHA grammar (`code_parse_challenge`); precision-first, abstains to None |
 | `content.py` | ~81 | Rules-based content, dedup, axiom intro injection |
 | `llm_functions.py` | 336 | Moltbook-specific LLM (select_submolt, context builders) |
 | `dedup.py` | 222 | Deterministic gates: prefix-5 stem + Jaccard, test-content blocklist, promotional URL regex |
@@ -100,7 +100,10 @@ parser for the finite CAPTCHA grammar that owns the arithmetic and number-word
 reconstruction via whole-token fragment matching and abstains (`None`) on any
 ambiguity. Only on abstention does it try a short LLM-produced `EXPR`/`FINAL`
 pair, accepted only when Python recomputes the same two-decimal answer, then
-falls back to bounded LLM reasoning when guarded extraction fails.
+falls back to bounded LLM reasoning when guarded extraction fails; the
+reasoning fallback's own free-form trace is likewise scanned for a two-operand
+expression line and rejected (`None`) if its recomputed value disagrees with
+the stated `FINAL`, via `_reasoning_answer_is_self_consistent()`.
 `solve_challenge_result()` also returns `solver_path` for audit/eval use. `record_verification_audit()` writes
 `logs/verification-audit.jsonl` with `challenge_b64`, `challenge_sha256`,
 hashed `verification_code`, answer, `solver_path`, and `/verify` success; the
