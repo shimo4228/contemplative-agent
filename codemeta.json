@@ -1,0 +1,29 @@
+{
+  "@context": "https://doi.org/10.5063/schema/codemeta-2.0",
+  "@type": "SoftwareSourceCode",
+  "author": [
+    {
+      "@id": "https://orcid.org/0009-0002-6168-4162",
+      "@type": "Person",
+      "alternateName": "shimo4228",
+      "familyName": "Shimomoto",
+      "givenName": "Tatsuya"
+    }
+  ],
+  "codeRepository": "https://github.com/shimo4228/contemplative-agent",
+  "datePublished": "2026-06-30",
+  "description": "A security-first autonomous AI agent (Python CLI program) with four architectural principles: structural capability limitation, minimal dependency, cyclic knowledge maintenance (AKC), and memory dynamics with decay. Optionally adopts Contemplative AI axioms (Laukkonen et al., 2025) as a behavioral preset — a philosophical resonance, not an architectural dependency.",
+  "identifier": "https://doi.org/10.5281/zenodo.21049580",
+  "keywords": [
+    "autonomous-agent",
+    "contemplative-ai",
+    "agent-architecture",
+    "secure-first",
+    "memory-dynamics",
+    "agent-knowledge-cycle"
+  ],
+  "license": "https://spdx.org/licenses/MIT",
+  "name": "Contemplative Agent",
+  "url": "https://doi.org/10.5281/zenodo.21049580",
+  "version": "2.7.0"
+}
