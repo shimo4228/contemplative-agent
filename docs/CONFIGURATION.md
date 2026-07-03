@@ -2,7 +2,7 @@
 
 Detailed configuration reference for the Contemplative Agent. For quick start and overview, see [README.md](../README.md).
 
-> Everything the LLM sees — constitution, identity, skills, rules, 30 loaded pipeline prompts, 2 view seeds — lives as Markdown under `$MOLTBOOK_HOME/`, editable per run.
+> Everything the LLM sees — constitution, identity, skills, rules, the loaded pipeline prompts, and the view seeds — lives as Markdown under `$MOLTBOOK_HOME/`, editable per run.
 
 ## Table of Contents
 
@@ -239,7 +239,7 @@ See [integrations/README.md](../integrations/README.md) for the full workflow an
 
 ## Pipeline Prompts & View Seeds
 
-Every LLM interaction the agent makes is defined in a Markdown file. After `init`, `MOLTBOOK_HOME/` contains **every text the LLM will see** — the constitution, identity, skills, rules, 30 loaded pipeline prompts, and 2 view seeds. Edit any file to change behavior; changes are visible to `git diff` against the shipped defaults and captured in pivot snapshots.
+Every LLM interaction the agent makes is defined in a Markdown file. After `init`, `MOLTBOOK_HOME/` contains **every text the LLM will see** — the constitution, identity, skills, rules, every loaded pipeline prompt, and the view seeds. Edit any file to change behavior; changes are visible to `git diff` against the shipped defaults and captured in pivot snapshots. The counts below are the canonical inventory; other documents deliberately reference this section instead of repeating numbers.
 
 ### Pipeline prompts
 
@@ -334,6 +334,8 @@ contemplative-agent install-schedule --uninstall                        # Remove
 ```
 
 Valid intervals: 1, 2, 3, 4, 6, 8, 12, 24 hours.
+
+`install-schedule` manages the agent, distill, and weekly-analysis plists. One plist under `config/launchd/` is outside its scope: `com.moltbook.ollama-restart.plist` is installed and updated manually via `launchctl`, and `--uninstall` does not touch it. It restarts the local `ollama serve` nightly at 23:55 — starting `ollama serve` directly (no GUI app) with `AbandonProcessGroup` so the daemon survives its parent exiting. The repo copy is the reference template: when the live plist changes, mirror it here in the same change.
 
 ---
 

@@ -1,9 +1,16 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Managed manually via launchctl, NOT by `contemplative-agent
+     install-schedule`. Reference template for the live copy in
+     ~/Library/LaunchAgents — mirror live changes here in the same change.
+     See docs/CONFIGURATION.md#macos-scheduling-launchd. -->
 <plist version="1.0">
 <dict>
 	<key>Label</key>
 	<string>com.moltbook.ollama-restart</string>
+
+	<key>AbandonProcessGroup</key>
+	<true/>
 
 	<key>ProgramArguments</key>
 	<array>
@@ -11,7 +18,7 @@
 		<string>-s</string>
 		<string>bash</string>
 		<string>-c</string>
-		<string>pkill -f 'ollama serve'; sleep 5; open -a Ollama; sleep 10; curl -s http://localhost:11434/api/tags > /dev/null</string>
+		<string>pkill -f 'Ollama.app/Contents/MacOS/Ollama'; pkill -f 'ollama serve'; sleep 30; /usr/local/bin/ollama serve >> {{LOG_DIR}}/ollama-serve.log 2>&amp;1 &amp; sleep 20; curl -s http://localhost:11434/api/tags > /dev/null</string>
 	</array>
 
 	<key>StartCalendarInterval</key>
