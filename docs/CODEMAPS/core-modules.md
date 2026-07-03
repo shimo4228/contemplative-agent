@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-30 | Files scanned: 24 core modules | Token estimate: ~2053 -->
+<!-- Generated: 2026-06-30 | Files scanned: 24 core modules | Token estimate: ~2053 | Hand-updated: 2026-07-03 (view_metrics.py row; aggregate counts → INDEX.md#statistics) -->
 # Core Modules Codemap
 
 Platform-independent foundation (no Moltbook dependencies). All imports flow: adapters → core.
@@ -33,9 +33,7 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `thresholds.py` | 84 | Centralized thresholds with ADR/calibration annotations. `snapshot.collect_thresholds` reads from here. |
 | `artifact_extraction.py` | 69 | Shared `extract_title → slugify → path-escape guard` chain (ADR-0035 PR3a) |
 
-**Note**: `forgetting.py` was deleted (ADR-0051); `is_live` moved to `knowledge_store.py`.
-
-**Total: ~7192 LOC (24 modules)**
+**Note**: `forgetting.py` was deleted (ADR-0051); `is_live` moved to `knowledge_store.py`. Aggregate counts: [INDEX.md § Statistics](INDEX.md#statistics).
 
 ## Key Dataclasses
 

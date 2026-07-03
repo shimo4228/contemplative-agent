@@ -5,7 +5,7 @@ Platform-specific implementations. Dependency: adapters → core.
 
 **Counting convention**: module counts = non-`__init__` `.py` files.
 
-## Moltbook Adapter (15 modules, ~5308 LOC)
+## Moltbook Adapter
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
@@ -112,7 +112,7 @@ challenge is not written as raw prompt text. 7 consecutive failures →
 
 ---
 
-## Meditation Adapter (experimental, 4 modules)
+## Meditation Adapter (experimental)
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
@@ -135,7 +135,7 @@ EpisodeLog → pomdp.build_matrices() → A/B/C/D
 
 ---
 
-## Dialogue Adapter (1 module, ~190 LOC)
+## Dialogue Adapter
 
 `peer.py` — 2-agent peer-to-peer dialogue loop. LLM turn exchange over stdin/stdout between two independent agent processes.
 

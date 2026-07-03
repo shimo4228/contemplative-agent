@@ -4,30 +4,30 @@
 ## Project Type
 Python CLI agent: core/adapter separation + 3-layer memory + embedding views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal (ADR-0021) + trust retirement (ADR-0051). Generation pluggable via `LLMBackend` Protocol (default: Ollama; add-on: `contemplative-agent-cloud`).
 
-**Stats**: 45 non-`__init__` modules (51 total `.py`), ~15570 LOC, 1479 tests collected / 37 test files
+**Stats**: see [INDEX.md § Statistics](INDEX.md#statistics)
 
 ## System Diagram
 
 ```
   config/ (templates, git-managed)       ~/.config/moltbook/ (MOLTBOOK_HOME, runtime)
     domain.json  prompts/*.md              knowledge.json  embeddings.sqlite  identity.md
-    views/*.md   templates/<char>/11       constitution/  views/  prompts/  skills/  rules/
+    views/*.md   templates/<char>/       constitution/  views/  prompts/  skills/  rules/
                                            snapshots/  logs/  agents.json
          |
          v
   src/contemplative_agent/
-    core/  (24 modules, platform-independent)
+    core/  (platform-independent)
       _io  config  domain  prompts  llm(+LLMBackend)  embeddings
       episode_embeddings  episode_log  knowledge_store  memory
       views  snapshot  scheduler  distill  insight  constitution
-      rules_distill  stocktake  report  metrics  clustering
+      rules_distill  stocktake  report  metrics  view_metrics  clustering
       text_utils  thresholds  artifact_extraction
-    adapters/moltbook/  (15 modules)
+    adapters/moltbook/
       agent  session_context  feed_manager  reply_handler  post_pipeline
       client  auth  verification  content  llm_functions  config
       dedup  novelty  feed_seeder
-    adapters/meditation/  (4 modules, experimental)  config  pomdp  meditate  report
-    adapters/dialogue/  (1 module)  peer.py
+    adapters/meditation/  (experimental)  config  pomdp  meditate  report
+    adapters/dialogue/  peer.py
     cli.py  (composition root, 2364L)
          |                       |
     Moltbook API            Ollama (local default)

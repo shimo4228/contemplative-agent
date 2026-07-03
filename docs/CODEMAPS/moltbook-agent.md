@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-30 | Files scanned: 45 non-__init__ modules | Token estimate: ~3564 -->
+<!-- Generated: 2026-06-30 | Files scanned: 45 non-__init__ modules | Token estimate: ~3564 | Hand-updated: 2026-07-03 (view_metrics.py entry; aggregate counts → INDEX.md#statistics) -->
 # Moltbook Agent Codemap
 
 Bird's-eye view of the entire codebase. For deep dives, see
@@ -10,7 +10,7 @@ Bird's-eye view of the entire codebase. For deep dives, see
 
 ```
 cli.py (2364L)  -- composition root, only file importing both core/ and adapters/
- -> core/  (24 modules)
+ -> core/
  |    _io.py (222L)                -- file I/O (write_restricted, truncate, archive_before_write)
  |    config.py (47L)             -- security constants (FORBIDDEN_*, VALID_*, MAX_*)
  |    domain.py (367L)            -- DomainConfig + PromptTemplates + constitution loader
@@ -31,12 +31,13 @@ cli.py (2364L)  -- composition root, only file importing both core/ and adapters
  |    stocktake.py (470L)         -- skill/rule audit: LLM grouping (ADR-0046), merge/quality, singleton clean (ADR-0048)
  |    report.py (279L)            -- activity report generation (JSONL → Markdown)
  |    metrics.py (171L)           -- session metrics aggregation
+ |    view_metrics.py (383L)      -- read-only pattern-composition instruments: consumed-view supply + seed-independent diversity (ADR-0071/0072)
  |    text_utils.py (157L)         -- shared Markdown helpers [ADR-0035 PR2, ADR-0048]
  |    thresholds.py (84L)         -- centralized thresholds with ADR + calibration annotations [ADR-0035 PR2]
  |    artifact_extraction.py (69L)-- shared extract_title → slugify → path-escape guard chain [ADR-0035 PR3a]
  |    clustering.py (128L)       -- average-linkage cosine agglomerative clustering (numpy-only)
  |
- -> adapters/moltbook/  (15 modules)
+ -> adapters/moltbook/
  |    config.py (113L)             -- URLs, paths, timeouts, rate limits
  |    agent.py (720L)             -- session orchestrator (feed/reply/post cycles)
  |    session_context.py (53L)    -- shared session state contract
@@ -53,20 +54,20 @@ cli.py (2364L)  -- composition root, only file importing both core/ and adapters
  |    novelty.py (370L)          -- NoveltyGate: embedding novelty + temporal decay + Lagrangian (ADR-0039)
  |    feed_seeder.py (87L)       -- select_feed_seeds: RNG peer-post sampling per submolt (ADR-0043)
  |
- -> adapters/meditation/  (4 modules, experimental)
+ -> adapters/meditation/  (experimental)
  |    config.py (55L)             -- state space definition, parameters
  |    pomdp.py (305L)             -- JSONL → POMDP matrices (numpy)
  |    meditate.py (231L)          -- Active Inference loop (flat single-level POMDP, ADR-0049)
  |    report.py (155L)            -- result interpretation (display-only) → results.json
  |
- -> adapters/dialogue/  (1 module)
+ -> adapters/dialogue/
       peer.py (190L)             -- 2-agent peer-to-peer dialogue loop (stdin/stdout, independent processes)
 
 config/                           -- externalized templates (domain-swappable, git-managed)
   domain.json                     -- submolts, thresholds
-  prompts/*.md (34 files)         -- LLM prompt templates with {placeholders}
-  views/*.md (7 files)            -- seed-text view definitions (packaged fallback for ADR-0019)
-  templates/<character>/          -- 11 ethical framework templates
+  prompts/*.md                    -- LLM prompt templates with {placeholders}
+  views/*.md                      -- seed-text view definitions (packaged fallback for ADR-0019; consumed set only, ADR-0073)
+  templates/<character>/          -- ethical framework templates (one dir per character)
 
 ~/.config/moltbook/               -- runtime data (env var MOLTBOOK_HOME)
   identity.md                     -- agent persona (updated by distill-identity)
@@ -87,7 +88,7 @@ config/                           -- externalized templates (domain-swappable, g
   commented_cache.json            -- post dedup cache (0600)
 ```
 
-**Total: 45 non-`__init__` modules, ~15570 LOC** (test count: see [INDEX.md](INDEX.md))
+**Totals: see [INDEX.md § Statistics](INDEX.md#statistics)**
 
 ## Key Classes
 
@@ -111,7 +112,7 @@ config/                           -- externalized templates (domain-swappable, g
 | `Scheduler` | core/scheduler.py | Rate limit enforcement |
 | `DomainConfig` / `PromptTemplates` | core/domain.py | @dataclass(frozen=True) |
 
-## CLI Commands (21 active)
+## CLI Commands
 
 ```
 contemplative-agent init [--template <character>] [--config-dir PATH]
@@ -153,7 +154,7 @@ Global flags: --config-dir PATH | --domain-config PATH | --constitution-dir PATH
 
 **Migration commands** (`embed-backfill` / `migrate-patterns` / `migrate-categories`) retired by ADR-0035. Use from a v2.0.x release tag for v1.x store recovery.
 
-## Prompt Templates (32 active)
+## Prompt Templates
 
 In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
