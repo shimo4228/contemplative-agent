@@ -74,6 +74,7 @@
 | [0068](0068-per-call-think-flag-and-thinking-trace-capture.ja.md) | per-call の think フラグと推論トレースのエピソードログ保存 | accepted | 2026-06-28 |
 | [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.ja.md) | gemma4:e4b を本番生成モデルに採用し、値層パイプラインを think-ON で実行 | accepted | 2026-06-28 |
 | [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.ja.md) | MLX backend を sibling repo へ退役し Docker を main から削除 | accepted | 2026-06-28 |
+| [0071](0071-read-only-pattern-composition-instruments.ja.md) | 読み取り専用のパターン組成計器（view supply / 多様性 / grounding） | accepted | 2026-07-03 |
 
 ## ADR の種別
 

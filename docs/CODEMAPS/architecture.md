@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-30 | Files scanned: 45 | Token estimate: ~2575 -->
+<!-- Generated: 2026-06-30 | Files scanned: 45 | Token estimate: ~2575 | Hand-updated: 2026-07-03 (view_metrics instruments; noise-view claim corrected) -->
 # Architecture
 
 ## Project Type
@@ -137,8 +137,11 @@ Input: EpisodeLog.read_range(days=N)
 Scope filter — engagement episodes only  [ADR-0060; _is_rich_episode]
   keep activity records with action ∈ {comment, reply, post}
   drop redundant short interaction/post records + sparse upvote/follow/unfollow
-  (NO noise gate: keeping noise out of retrieval is the view centroids' job at
-   query time, ADR-0031 — the ingest-time gate was redundant and removed)
+  (NO ingest noise gate [ADR-0060]. Downstream, the two view-querying
+   consumers — distill-identity / amend-constitution — apply their own view
+   thresholds at query time [ADR-0031]; insight skips legacy `gated` rows.
+   The `noise` view seed itself is consumed by no code path — orphaned
+   definition, deliberately unmeasured by view_metrics)
 
 Per-episode distill  [ADR-0060; one LLM call per episode, no batching]
   for each episode:
@@ -165,6 +168,18 @@ Persist  [no LLM; unchanged tail from the prior design]
   → KnowledgeStore.add_learned_pattern(..., embedding)  [no importance field]
   → provenance.source_type recorded, NEVER weighted  [ADR-0051]
 ```
+
+Dry-run instruments  [`core/view_metrics.py` — read-only observability, never a gate]
+  `distill --dry-run` additionally logs the would-be-added batch's composition:
+  consumed-view supply (self_reflection / constitutional pass rates + cosine
+  percentiles), seed-independent diversity (pairwise cosine + the cluster
+  structure insight would see), and grounding (source_type / epistemic)
+  composition. `report --patterns` renders the same instruments over the whole
+  live pool; `insight` logs dropped singletons with their nearest consumed
+  view. Instruments measure only the two consumed views — a distribution over
+  an unconsumed seed measures seed staleness, not corpus structure. Empty/low
+  supply stays ambiguous (missing patterns vs stale seed) and the output says
+  so. Nothing here feeds ranking, gating, or promotion.
 
 Threshold canonical source: `core/thresholds.py` (read by `snapshot.collect_thresholds`).
 Excerpt caps + RICH_ACTIONS live in `core/distill.py` (ADR-0060).

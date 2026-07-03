@@ -4,10 +4,15 @@ Global embedding cluster per run. Each cluster → one LLM skill
 extraction call. Cross-cluster synthesis and quality control are
 deferred to skill-stocktake (external).
 
-The view concept (ADR-0019) is not used here. Views still drive
-distill's noise gate and stocktake's merge; insight works directly on
-``gated != True`` live patterns so that any clustering structure comes
-from the embeddings themselves, not from predefined seed texts.
+The view concept (ADR-0019) does not shape extraction: insight works
+directly on ``gated != True`` live patterns so that any clustering
+structure comes from the embeddings themselves, not from predefined
+seed texts. The only view usage is read-only visibility — dropped
+singletons log their nearest *consumed* view (``view_metrics``) so the
+operator can see what skill extraction discards; nothing is gated,
+ranked, or rescued by it. (The former claims that views drive distill's
+noise gate and stocktake's merge went stale: ADR-0060 removed the noise
+gate and ADR-0046 moved stocktake grouping to a single LLM call.)
 """
 
 from __future__ import annotations
@@ -30,6 +35,7 @@ from .memory import KnowledgeStore
 from .prompts import INSIGHT_EXTRACTION_PROMPT
 from .text_utils import extract_title
 from .thresholds import CLUSTER_THRESHOLD_INSIGHT as CLUSTER_THRESHOLD, MAX_BATCH as BATCH_SIZE
+from .view_metrics import ViewLookup, nearest_view
 
 logger = logging.getLogger(__name__)
 
@@ -127,7 +133,10 @@ def _cluster_score(cluster: List[dict]) -> float:
     return len(cluster) * mean_imp
 
 
-def _log_dropped_singletons(singletons: List[dict]) -> None:
+def _log_dropped_singletons(
+    singletons: List[dict],
+    view_registry: Optional[ViewLookup] = None,
+) -> None:
     """Visibility-only instrument for dropped singleton patterns (review
     2026-06-27 M3).
 
@@ -137,7 +146,10 @@ def _log_dropped_singletons(singletons: List[dict]) -> None:
     is the wrong fix; instead this logs how many were dropped and their
     ``effective_importance`` distribution (p50/p90/p99/max) plus the top rows,
     so a rare-singleton lane and floor can later be decided from the real live
-    distribution rather than a blind constant. No lane/threshold is applied
+    distribution rather than a blind constant. When ``view_registry`` is
+    given, each top row also shows its nearest consumed view and cosine
+    (``view_metrics.nearest_view``) — where the discarded pattern sits
+    relative to the two real view consumers. No lane/threshold is applied
     here — this only logs.
     """
     if not singletons:
@@ -161,9 +173,14 @@ def _log_dropped_singletons(singletons: List[dict]) -> None:
         n, _pct(0.50), _pct(0.90), _pct(0.99), scores[0],
     )
     for p in sorted(singletons, key=effective_importance, reverse=True)[:10]:
+        nearest = (
+            nearest_view(p, view_registry) if view_registry is not None else None
+        )
+        view_note = f" view≈{nearest[0]}:{nearest[1]:.2f}" if nearest else ""
         logger.info(
-            "  dropped singleton score=%.3f: %s",
+            "  dropped singleton score=%.3f%s: %s",
             effective_importance(p),
+            view_note,
             (p.get("pattern", "") or "")[:80],
         )
 
@@ -173,6 +190,7 @@ def _build_cluster_batches(
     threshold: float = CLUSTER_THRESHOLD,
     min_size: int = MIN_PATTERNS_REQUIRED,
     max_size: int = BATCH_SIZE,
+    view_registry: Optional[ViewLookup] = None,
 ) -> List[Tuple[str, List[str], Tuple[str, ...]]]:
     """Cluster patterns globally; every cluster ≥ ``min_size`` becomes a batch.
 
@@ -206,7 +224,7 @@ def _build_cluster_batches(
         min_size=min_size,
         max_size=max_size,
     )
-    _log_dropped_singletons(singletons)
+    _log_dropped_singletons(singletons, view_registry)
     if not clusters:
         return []
 
@@ -237,6 +255,7 @@ def extract_insight(
     knowledge_store: Optional[KnowledgeStore] = None,
     skills_dir: Optional[Path] = None,
     full: bool = False,
+    instrument_views: Optional[ViewLookup] = None,
 ) -> Union[str, InsightResult]:
     """Extract behavioral skills from accumulated knowledge.
 
@@ -251,6 +270,8 @@ def extract_insight(
         knowledge_store: KnowledgeStore with learned patterns.
         skills_dir: Directory for skill files (used for incremental tracking).
         full: If True, process all patterns instead of only new ones.
+        instrument_views: Optional view lookup for the dropped-singleton
+            visibility log (nearest consumed view); never gates anything.
 
     Returns:
         InsightResult on success, or error message string.
@@ -268,7 +289,7 @@ def extract_insight(
             f"Run more sessions and distill first."
         )
 
-    batches = _build_cluster_batches(raw_patterns)
+    batches = _build_cluster_batches(raw_patterns, view_registry=instrument_views)
 
     if not batches:
         return (

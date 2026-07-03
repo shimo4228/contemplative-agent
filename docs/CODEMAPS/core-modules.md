@@ -19,6 +19,7 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `knowledge_store.py` | 392 | `KnowledgeStore` — patterns JSON + provenance/bitemporal (ADR-0021); `is_live()` (bitemporal-only, `valid_until is None`; trust floor retired ADR-0051); `effective_importance()` (pure time decay `0.95^days`, LLM rating retired ADR-0056), `pattern_id()`, `epistemic_kind_for()`, `epistemic_counts_for()` (ADR-0050); `get_live_patterns()` / `get_live_patterns_since()` / `get_raw_patterns()` |
 | `memory.py` | 532 | `MemoryStore` facade, `Interaction`/`PostRecord` dataclasses (`Insight` retired, ADR-0052) |
 | `views.py` | 309 | `ViewRegistry` — seed-text views with `seed_from` + `${VAR}` substitution, lazy centroid cache; `find_by_view` = pure cosine rank + threshold + top_k (no importance weight, no trust, ADR-0051) |
+| `view_metrics.py` | ~330 | Read-only pattern-composition instruments: consumed-view supply, seed-independent diversity (pairwise cosine + cluster structure), grounding composition, `nearest_view` singleton visibility. Observability only — never wired into gates/ranking (AKC ADR-0015 shape) |
 | `snapshot.py` | 218 | `write_snapshot()` + `collect_thresholds()` — pivot snapshots (ADR-0020) |
 | `scheduler.py` | 193 | Rate limit state, `has_read_budget`/`has_write_budget`, persistence |
 | `constitution.py` | 151 | `amend_constitution() → AmendmentResult`. ADR-0033 layer-separation framing. ADR-0050 lineage fields. |
@@ -76,11 +77,9 @@ File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0056):
   "distilled": "2026-04-16T…",
   "embedding": [..768 floats..],
   "gated": false,
-  "last_classified_at": "2026-04-16T02:15:33Z",
-  "last_view_matches": {"constitutional": 0.72, "noise": 0.12, …},
   "provenance": {"source_type": "self_reflection|external_reply|mixed|unknown",
                  "source_episode_ids": ["..."],
-                 "pipeline_version": "distill@0.26"},
+                 "pipeline_version": "distill@0.60"},
   "valid_from": "2026-04-16T…",
   "valid_until": null
 }
@@ -89,7 +88,7 @@ File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0056):
 **Invariants**:
 - `valid_until=null` means live; superseded rows keep their timestamp (bitemporal soft-invalidate).
 - `effective_importance = 0.95^days_since_distilled` (or `0.1` for an unknown timestamp) — pure time decay; the distill-time LLM `importance` rating was retired by ADR-0056, so the stored base is no longer read.
-- `gated` is behavioural (excluded from distill batching); `last_view_matches` is read-only telemetry.
+- `gated` is behavioural (insight clustering skips gated rows); no per-pattern view telemetry is persisted (`last_classified_at` / `last_view_matches` never existed in code — removed from this doc 2026-07-03).
 - `trust_score` / `trust_updated_at` retired by ADR-0051; `importance` retired by ADR-0056 (legacy rows shed all three fields on next save).
 - `category` field removed by ADR-0026.
 - `provenance.source_type` is stamped at distill time (ADR-0050/0060). The enum values are valid in type space, but post-ADR-0060 per-episode distill new patterns are stamped `self_reflection` / `external_reply`; the ADR-0050 `observed` epistemic kind is structurally absent for new patterns (interaction records are filtered out before distill), so `epistemic_counts` is effectively a generated/unknown split.
@@ -134,7 +133,7 @@ Fallback seed body.
 
 `find_by_view(name, candidates)` = embed seed → cosine rank → threshold filter → top_k slice. Pure cosine only (no importance weight, no trust; ADR-0051).
 
-Seed views: `communication`, `constitutional`, `noise`, `reasoning`, `self_reflection`, `social`, `technical`.
+Seed views: `communication`, `constitutional`, `noise`, `reasoning`, `self_reflection`, `social`, `technical`. Only two are queried by code — `self_reflection` (distill-identity) and `constitutional` (amend-constitution); the other five are orphaned definitions with no consumer (snapshots capture all centroids for reproducibility only). `view_metrics.py` instruments deliberately measure only the consumed pair.
 
 ## Security Model
 

@@ -143,6 +143,90 @@ class TestDistill:
         assert "Dry pattern" in result
         assert not (tmp_path / "knowledge.json").exists()
 
+    @patch("contemplative_agent.core.distill.generate")
+    def test_dry_run_logs_instrument_lines(
+        self, mock_generate, mock_embed_distinct, tmp_path, caplog,
+    ):
+        """Dry run emits the read-only pattern instruments (diversity /
+        grounding always; view supply only when a registry is provided)."""
+        import logging as _logging
+
+        mock_generate.return_value = json.dumps({"patterns": [
+            "Dry pattern that explains how quoting specific details works better",
+        ]})
+        log = _make_log(tmp_path)
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+
+        with caplog.at_level(
+            _logging.INFO, logger="contemplative_agent.core.distill"
+        ):
+            distill(days=1, dry_run=True, episode_log=log, knowledge_store=ks)
+
+        assert "diversity —" in caplog.text
+        assert "grounding —" in caplog.text
+        assert "view supply" not in caplog.text  # no registry passed
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_dry_run_logs_view_supply_with_registry(
+        self, mock_generate, mock_embed_distinct, tmp_path, caplog,
+    ):
+        import logging as _logging
+
+        from contemplative_agent.core.views import View
+
+        class _Reg:
+            def get(self, name):
+                return View(name=name, seed_text="s", threshold=0.5)
+
+            def get_centroid(self, name):
+                return _embedding(1.0, 0.0, 0.0, 0.0)
+
+        mock_generate.return_value = json.dumps({"patterns": [
+            "Dry pattern that explains how quoting specific details works better",
+        ]})
+        log = _make_log(tmp_path)
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+
+        with caplog.at_level(
+            _logging.INFO, logger="contemplative_agent.core.distill"
+        ):
+            distill(
+                days=1, dry_run=True, episode_log=log,
+                knowledge_store=ks, instrument_views=_Reg(),
+            )
+
+        assert "view supply — self_reflection" in caplog.text
+        assert "view supply — constitutional" in caplog.text
+
+    @patch("contemplative_agent.core.distill.embed_texts")
+    @patch("contemplative_agent.core.distill.generate")
+    def test_dry_run_instruments_cover_only_would_be_added(
+        self, mock_generate, mock_embed, tmp_path, caplog,
+    ):
+        """codex review P3: instruments must describe the post-dedup
+        would-be-added set, not every generated pattern. Two identical
+        patterns → intra-batch dedup skips one → diversity n=1."""
+        import logging as _logging
+
+        mock_generate.return_value = json.dumps({"patterns": [
+            "A duplicated pattern about quoting concrete details in replies",
+            "A duplicated pattern about quoting concrete details in replies",
+        ]})
+        # Identical embeddings → second pattern is an intra-batch duplicate.
+        mock_embed.side_effect = lambda texts: np.array(
+            [[1.0, 0.0, 0.0, 0.0]] * len(texts), dtype=np.float32,
+        )
+        log = _make_log(tmp_path)
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+
+        with caplog.at_level(
+            _logging.INFO, logger="contemplative_agent.core.distill"
+        ):
+            distill(days=1, dry_run=True, episode_log=log, knowledge_store=ks)
+
+        assert "2 patterns found, 1 skipped" in caplog.text
+        assert "diversity — n=1" in caplog.text
+
     def test_empty_episodes(self, tmp_path):
         log = EpisodeLog(log_dir=tmp_path / "logs")
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")

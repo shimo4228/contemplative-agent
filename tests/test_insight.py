@@ -338,6 +338,33 @@ class TestBuildClusterBatches:
         assert "5 singleton" in caplog.text
         assert "effective_importance" in caplog.text
 
+    def test_dropped_singletons_log_nearest_view_with_registry(self, caplog) -> None:
+        """M3 follow-up: when a view registry is provided, each logged
+        singleton also shows its nearest *consumed* view and cosine —
+        visibility for the future rescue-lane decision, never a gate."""
+        import logging as _logging
+
+        import numpy as np
+
+        class _Reg:
+            def get(self, name):
+                return None
+
+            def get_centroid(self, name):
+                if name == "self_reflection":
+                    return np.asarray(_unit_vec(8, 1), dtype=np.float32)
+                return None
+
+        orth = [self._pat(f"o-{i}", _unit_vec(8, i + 1)) for i in range(5)]
+        with caplog.at_level(
+            _logging.INFO, logger="contemplative_agent.core.insight"
+        ):
+            batches = _build_cluster_batches(
+                orth, threshold=0.7, view_registry=_Reg()
+            )
+        assert batches == []
+        assert "view≈self_reflection" in caplog.text
+
     def test_no_cluster_count_cap(self) -> None:
         """Every cluster ≥ min_size becomes a batch — no top-N cap.
 

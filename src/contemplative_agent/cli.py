@@ -1455,6 +1455,7 @@ def _handle_distill(args: argparse.Namespace, parser: argparse.ArgumentParser) -
             episode_log=episode_log,
             knowledge_store=knowledge_store,
             log_files=log_files,
+            instrument_views=view_registry,
         )
         print(result)
 
@@ -1666,6 +1667,7 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         knowledge_store=knowledge_store,
         skills_dir=SKILLS_DIR,
         full=args.full,
+        instrument_views=view_registry,
     )
     if isinstance(result, str):
         print(result)
@@ -1762,6 +1764,21 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     episode_log = EpisodeLog(log_dir=log_dir)
     report = compute_metrics(episode_log, days=args.days)
     print(format_report(report, fmt=args.format))
+
+    # --patterns: read-only pattern-composition instruments (view_metrics).
+    # Costs two seed embeddings via Ollama; everything else reads stored
+    # pattern embeddings. Observability only — never wired into gates.
+    if getattr(args, "patterns", False):
+        from .core.memory import KnowledgeStore
+        from .core.view_metrics import format_pattern_report
+
+        knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
+        knowledge_store.load()
+        view_registry = _load_view_registry(args)
+        print()
+        print(format_pattern_report(
+            knowledge_store.get_live_patterns(), view_registry,
+        ))
 
 
 def _handle_generate_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
@@ -2099,6 +2116,11 @@ def main() -> None:
     report_parser.add_argument(
         "--format", choices=["text", "md"], default="text",
         help="Output format (default: text)",
+    )
+    report_parser.add_argument(
+        "--patterns", action="store_true",
+        help="Append read-only knowledge-pattern composition instruments "
+             "(consumed-view supply / diversity / grounding)",
     )
 
     # generate-report

@@ -1450,6 +1450,74 @@
       "name": "Hermes (agent memory architecture)",
       "description": "Independent agent-memory architecture cited alongside Memento and Contemplative Agent as a convergence point: three independent projects arriving at the same three-layer memory + skill-auto-generation attractor. Treated as evidence of mechanism commoditization rather than a borrowable mechanism.",
       "referencedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0037-memory-subsystem-yogacara-convergence.md"
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0071: Read-Only Pattern-Composition Instruments (View Supply / Diversity / Grounding)",
+      "identifier": "ADR-0071",
+      "status": "accepted",
+      "datePublished": "2026-07-03",
+      "description": "Adds core/view_metrics.py: read-only pattern-composition instruments over Layer 2 (knowledge patterns). Three instruments — consumed-view supply (cosine-to-seed distributions restricted to the two views with real consumers: self_reflection → distill-identity, constitutional → amend-constitution), seed-independent diversity (pairwise-cosine homogeneity + the cluster structure insight would see, gated rows excluded to mirror insight), and grounding composition (provenance source_type + the ADR-0050 epistemic tally with the structural observed==0 caveat). Wired into distill --dry-run (post-dedup would-be-added set), report --patterns (opt-in), and insight's dropped-singleton log (nearest consumed view). Observability only: nothing feeds gates, ranking, retrieval, or promotion (same shape as AKC ADR-0015 Decision 2); output carries a fixed ambiguity note (empty/low supply = missing patterns or a stale seed, undecidable) per AKC ADR-0016. The five orphaned views are deliberately unmeasured — a distribution over an unconsumed seed measures seed staleness, not corpus structure. First baseline: live pool n=1463, view threshold 0.55 sits at the corpus pairwise-cosine floor (mean/p50=0.554) so top_k does all real selection; a control experiment put the unrelated-text floor at 0.33–0.46, showing the homogeneity is a genuine echo signature, not embedding-model anisotropy.",
+      "citation": [
+        "https://arxiv.org/abs/2512.13564",
+        "https://arxiv.org/abs/2603.07670",
+        "https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/adr/0015-self-reingestion-observability.md",
+        "https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/adr/0016-measuring-thinking-centric-phases.md"
+      ],
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0019-discrete-categories-to-embedding-views.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0050-epistemic-taxonomy-and-approval-lineage.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0060-per-episode-grounded-distill.md"
+      ]
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
+      "@type": ["Concept", "DefinedTerm"],
+      "name": "pattern-composition instruments",
+      "alternateName": [
+        {"@value": "pattern-composition instruments", "@language": "en"},
+        {"@value": "パターン組成計器", "@language": "ja"}
+      ],
+      "description": "Read-only distributions over Layer 2 knowledge patterns: consumed-view supply, seed-independent diversity (the echo-chamber detector), and grounding composition. Instruments are observability, never intervention — they feed the operator, not gates or ranking. Calibrated by a three-point scale: unrelated-text floor (~0.33–0.46 cosine), corpus pairwise mean (0.554 at introduction), and consumed-view top band (~0.68–0.77).",
+      "appliesTo": ["https://shimo4228.github.io/shimo4228/vocab#memory-layer/knowledge"],
+      "subjectOf": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md"
+    },
+    {
+      "@id": "https://arxiv.org/abs/2512.13564",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Memory in the Age of AI Agents: A Survey (2025)",
+      "identifier": "arXiv:2512.13564",
+      "url": "https://arxiv.org/abs/2512.13564",
+      "description": "Survey unifying the fragmented agent-memory literature under a Forms / Functions / Dynamics framework. Cited by ADR-0071 as evidence that memory-distillation pipelines are converging on the same three-layer-plus-distill structure, which motivates instrumenting this repo's differentiator (the views layer) rather than adding more convergent mechanism.",
+      "referencedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md"
+    },
+    {
+      "@id": "https://arxiv.org/abs/2603.07670",
+      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "name": "Memory for Autonomous LLM Agents: Mechanisms, Evaluation, and Emerging Frontiers (2026)",
+      "identifier": "arXiv:2603.07670",
+      "url": "https://arxiv.org/abs/2603.07670",
+      "description": "Formalizes agent memory as a write–manage–read loop with a three-dimensional taxonomy (temporal scope, representational substrate, control policy). Cited by ADR-0071 for the same convergence argument; supplies field-standard vocabulary the instruments' readings can be anchored to.",
+      "referencedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md"
+    },
+    {
+      "@id": "https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/adr/0015-self-reingestion-observability.md",
+      "@type": ["ExternalReference", "TechArticle"],
+      "name": "AKC ADR-0015: Self-reingestion observability (visibility without intervention)",
+      "identifier": "AKC ADR-0015",
+      "url": "https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/adr/0015-self-reingestion-observability.md",
+      "description": "Sibling-repo decision: make the self-generated share of memory visible as a Measure-phase observability concern while changing no retrieval, ranking, or promotion. ADR-0071 adopts the same shape for all three instruments.",
+      "referencedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md"
+    },
+    {
+      "@id": "https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/adr/0016-measuring-thinking-centric-phases.md",
+      "@type": ["ExternalReference", "TechArticle"],
+      "name": "AKC ADR-0016: Measuring thinking-centric phases (a biased instrument is worse than none)",
+      "identifier": "AKC ADR-0016",
+      "url": "https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/adr/0016-measuring-thinking-centric-phases.md",
+      "description": "Sibling-repo decision on instrument design: report per-phase character rather than single counts, and treat a systematically biased instrument as worse than no instrument. ADR-0071's fixed ambiguity note (empty/low view supply is undecidable between missing patterns and a stale seed) implements that lesson.",
+      "referencedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md"
     }
   ]
 }

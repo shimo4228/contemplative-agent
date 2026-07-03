@@ -231,6 +231,45 @@ class TestGenerateReportSmoke:
         assert "Generated 2 reports" in capsys.readouterr().out
 
 
+class TestReportPatternsSmoke:
+    """report --patterns: argv → Tier-2 config → pattern-instrument wiring."""
+
+    @patch("contemplative_agent.core.view_metrics.format_pattern_report")
+    @patch("contemplative_agent.cli._load_view_registry")
+    @patch("contemplative_agent.core.memory.KnowledgeStore")
+    @patch("contemplative_agent.core.metrics.format_report")
+    @patch("contemplative_agent.core.metrics.compute_metrics")
+    def test_report_patterns_flag_appends_composition(
+        self, _mock_metrics, mock_fmt, mock_ks, _mock_reg, mock_pattern_report,
+        capsys,
+    ):
+        mock_fmt.return_value = "SESSION-METRICS"
+        mock_ks.return_value.get_live_patterns.return_value = []
+        mock_pattern_report.return_value = "PATTERN-COMPOSITION"
+
+        with patch("sys.argv", ["contemplative-agent", "report", "--patterns"]):
+            main()
+
+        out = capsys.readouterr().out
+        assert "SESSION-METRICS" in out
+        assert "PATTERN-COMPOSITION" in out
+        mock_pattern_report.assert_called_once()
+
+    @patch("contemplative_agent.core.view_metrics.format_pattern_report")
+    @patch("contemplative_agent.core.metrics.format_report")
+    @patch("contemplative_agent.core.metrics.compute_metrics")
+    def test_report_without_flag_skips_instruments(
+        self, _mock_metrics, mock_fmt, mock_pattern_report, capsys,
+    ):
+        mock_fmt.return_value = "SESSION-METRICS"
+
+        with patch("sys.argv", ["contemplative-agent", "report"]):
+            main()
+
+        assert "SESSION-METRICS" in capsys.readouterr().out
+        mock_pattern_report.assert_not_called()
+
+
 class TestMeditateSmoke:
     """F7: argv parse → Tier-2 config → _handle_meditate wiring.
 

@@ -42,6 +42,7 @@ from .prompts import (
     DISTILL_EPISODE_PROMPT,
     IDENTITY_DISTILL_PROMPT,
 )
+from .view_metrics import ViewLookup, instrument_lines
 from .views import ViewRegistry
 
 logger = logging.getLogger(__name__)
@@ -98,6 +99,7 @@ def distill(
     episode_log: Optional[EpisodeLog] = None,
     knowledge_store: Optional[KnowledgeStore] = None,
     log_files: Optional[List[Path]] = None,
+    instrument_views: Optional[ViewLookup] = None,
 ) -> str:
     """Distill recent engagement episodes into learned patterns.
 
@@ -116,6 +118,9 @@ def distill(
         episode_log: EpisodeLog instance (uses default if None).
         knowledge_store: KnowledgeStore instance (uses default if None).
         log_files: Explicit JSONL file paths to process (overrides days).
+        instrument_views: Optional view lookup for the dry-run view-supply
+            instrument; the diversity / grounding instruments run without it
+            (``view_metrics`` — read-only observability, never a gate).
 
     Returns:
         The distilled patterns as a string.
@@ -149,8 +154,11 @@ def distill(
 
     # ADR-0060: distill only substantive engagement episodes. The redundant
     # short paired records and the template sparse actions are filtered out;
-    # there is no noise gate (its job — keeping noise out of retrieval — is
-    # already done at query time by view centroids, ADR-0031).
+    # there is no ingest-time noise gate. Downstream, the two view-querying
+    # consumers (distill-identity / amend-constitution) keep low-relevance
+    # patterns out via their own view thresholds at query time (ADR-0031),
+    # and insight skips legacy ``gated`` rows. Nothing consumes the ``noise``
+    # view seed — it is an orphaned definition (see view_metrics docstring).
     rich = [r for r in records if _is_rich_episode(r)]
     if not rich:
         msg = "No engagement episodes (comment/reply/post) for distillation."
@@ -169,7 +177,7 @@ def distill(
     if timestamps and timestamps[0] != timestamps[-1]:
         source_date = f"{timestamps[0]}~{timestamps[-1]}"
 
-    result = _distill_episodes(rich, knowledge, source_date, dry_run)
+    result = _distill_episodes(rich, knowledge, source_date, dry_run, instrument_views)
 
     # ``results`` is empty only when every episode's LLM call returned None
     # (an episode that yields zero patterns still records its raw output) —
@@ -543,6 +551,7 @@ def _distill_episodes(
     knowledge: KnowledgeStore,
     source_date: Optional[str],
     dry_run: bool,
+    instrument_views: Optional[ViewLookup] = None,
 ) -> _CategoryResult:
     """Distill each engagement episode individually, then dedup + store.
 
@@ -621,6 +630,20 @@ def _distill_episodes(
             "Dry run — %d patterns found, %d skipped, %d would soft-invalidate",
             len(all_patterns), skipped, updated,
         )
+        # Read-only composition instruments over the would-be-ADDED set —
+        # post-dedup, so skipped duplicates are not counted (codex review
+        # 2026-07-03 P3). View supply needs the registry, diversity and
+        # grounding run regardless. Observability only — never a gate.
+        batch = [
+            {
+                "pattern": text,
+                "embedding": emb.tolist() if emb is not None else None,
+                "provenance": {"source_type": provenance[idx].source_type},
+            }
+            for text, emb, idx in zip(add_patterns, add_embeddings, add_indices)
+        ]
+        for line in instrument_lines(batch, instrument_views):
+            logger.info("dry-run instrument: %s", line)
         return _CategoryResult(results=tuple(all_results), added=0, updated=0)
 
     if updated:
