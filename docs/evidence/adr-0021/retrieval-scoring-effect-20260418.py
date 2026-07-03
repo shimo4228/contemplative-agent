@@ -24,9 +24,9 @@ import numpy as np
 REPO = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(REPO / "src"))
 
-from contemplative_agent.core.embeddings import cosine, embed_one
-from contemplative_agent.core.forgetting import is_live
-from contemplative_agent.core.views import (
+from contemplative_agent.core.embeddings import cosine, embed_one  # noqa: E402 — sys.path hack precedes imports by design
+from contemplative_agent.core.forgetting import is_live  # noqa: E402
+from contemplative_agent.core.views import (  # noqa: E402
     _compute_bm25_scores,
     _parse_seed_file,
 )
