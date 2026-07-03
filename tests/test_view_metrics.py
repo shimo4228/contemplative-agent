@@ -15,10 +15,8 @@ from contemplative_agent.core.view_metrics import (
     CLUSTER_STATS_MAX_N,
     CONSUMED_VIEWS,
     ClusterStats,
-    GroundingComposition,
     ViewSupply,
     compute_diversity,
-    compute_grounding,
     compute_view_supply,
     format_pattern_report,
     nearest_view,
@@ -50,12 +48,10 @@ class _FakeRegistry:
         return self._centroids.get(name)
 
 
-def _pat(embedding, source_type: Optional[str] = None, gated: bool = False) -> dict:
+def _pat(embedding, gated: bool = False) -> dict:
     p: dict = {"pattern": "text", "valid_until": None}
     if embedding is not None:
         p["embedding"] = embedding
-    if source_type is not None:
-        p["provenance"] = {"source_type": source_type}
     if gated:
         p["gated"] = True
     return p
@@ -209,37 +205,6 @@ class TestDiversity:
 
 
 # ---------------------------------------------------------------------------
-# compute_grounding
-# ---------------------------------------------------------------------------
-
-
-class TestGrounding:
-    def test_source_types_epistemic_and_gated(self) -> None:
-        patterns = [
-            _pat([1.0], source_type="self_reflection"),
-            _pat([1.0], source_type="self_reflection", gated=True),
-            _pat([1.0], source_type="external_reply"),
-            _pat([1.0]),  # no provenance → unknown
-        ]
-        g = compute_grounding(patterns)
-        assert g == GroundingComposition(
-            source_types=(
-                ("self_reflection", 2),
-                ("external_reply", 1),
-                ("unknown", 1),
-            ),
-            epistemic=(("observed", 1), ("generated", 2), ("unknown", 1)),
-            gated=1,
-        )
-
-    def test_empty_is_stable(self) -> None:
-        g = compute_grounding([])
-        assert g.source_types == ()
-        assert g.epistemic == (("observed", 0), ("generated", 0), ("unknown", 0))
-        assert g.gated == 0
-
-
-# ---------------------------------------------------------------------------
 # nearest_view
 # ---------------------------------------------------------------------------
 
@@ -274,14 +239,13 @@ class TestFormatPatternReport:
     def test_report_contains_all_sections_and_ambiguity_note(self) -> None:
         registry = _FakeRegistry({"self_reflection": np.array([1.0, 0.0], dtype=np.float32)})
         patterns = [
-            _pat([1.0, 0.0], source_type="self_reflection"),
-            _pat([0.0, 1.0], source_type="external_reply"),
+            _pat([1.0, 0.0]),
+            _pat([0.0, 1.0]),
         ]
         text = format_pattern_report(patterns, registry, views=("self_reflection",))
         assert "Pattern Composition" in text
         assert "self_reflection: 1/2 pass @0.55" in text
         assert "pairwise" in text
-        assert "source_type" in text
         # ADR-0016 blind-spot guard: empty/low supply must be flagged as
         # ambiguous (missing patterns vs stale seed), and the instrument
         # must declare itself observability-only.

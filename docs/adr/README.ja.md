@@ -75,6 +75,7 @@
 | [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.ja.md) | gemma4:e4b を本番生成モデルに採用し、値層パイプラインを think-ON で実行 | accepted | 2026-06-28 |
 | [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.ja.md) | MLX backend を sibling repo へ退役し Docker を main から削除 | accepted | 2026-06-28 |
 | [0071](0071-read-only-pattern-composition-instruments.ja.md) | 読み取り専用のパターン組成計器（view supply / 多様性 / grounding） | accepted | 2026-07-03 |
+| [0072](0072-echo-chamber-interventions.ja.md) | echo chamber への介入 — レジスタ指示・corpus 育ちの seed・抽出失敗ガード | accepted | 2026-07-03 |
 
 ## ADR の種別
 

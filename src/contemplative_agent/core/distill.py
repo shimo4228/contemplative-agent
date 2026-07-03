@@ -119,7 +119,7 @@ def distill(
         knowledge_store: KnowledgeStore instance (uses default if None).
         log_files: Explicit JSONL file paths to process (overrides days).
         instrument_views: Optional view lookup for the dry-run view-supply
-            instrument; the diversity / grounding instruments run without it
+            instrument; the diversity instrument runs without it
             (``view_metrics`` — read-only observability, never a gate).
 
     Returns:
@@ -477,10 +477,10 @@ def render_episode(record_type: str, data: dict) -> str:
     return header + "\n" + "\n\n".join(parts)
 
 
-def _parse_refined_patterns(refined: str) -> List[str]:
-    """Parse step-2 output into raw pattern strings (JSON, bullet fallback)."""
+def _parse_patterns(raw: str) -> List[str]:
+    """Parse per-episode LLM output into raw pattern strings (JSON, bullet fallback)."""
     raw_patterns: List[str] = []
-    json_text = strip_code_fence(refined)
+    json_text = strip_code_fence(raw)
     try:
         parsed = json_mod.loads(json_text)
         for item in parsed.get("patterns", []):
@@ -489,7 +489,7 @@ def _parse_refined_patterns(refined: str) -> List[str]:
                 raw_patterns.append(text)
     except (json_mod.JSONDecodeError, TypeError):
         # Fallback: bullet-point parsing
-        for line in refined.splitlines():
+        for line in raw.splitlines():
             line = line.strip()
             if line.startswith("- "):
                 pattern = line[2:].strip()
@@ -527,7 +527,7 @@ def _distill_one(record: Dict) -> Optional[_BatchOutput]:
         logger.warning("Episode distill failed (LLM returned None)")
         return None
 
-    raw_patterns = _parse_refined_patterns(result)
+    raw_patterns = _parse_patterns(result)
 
     # Decision gate: reject low-quality patterns
     patterns = [p for p in raw_patterns if _is_valid_pattern(p)]
@@ -835,15 +835,48 @@ def _dedup_action(
     return "add"
 
 
+# Known extraction-failure register (validity check, not a value filter):
+# the model is instructed to return an empty list when an episode carries
+# nothing durable (distill_episode.md), but occasionally narrates the
+# failure instead — a statement about the distillation task, not an
+# observation about the agent (§B3 2026-07-03: one reached self_reflection
+# rank 16). Episode/task-referential phrases only: bare phrases such as
+# "lack sufficient context" or "cannot identify a pattern" are excluded
+# because a genuine first-person recognition can use them ("I noticed I
+# lack sufficient context before making a claim" — codex-review P2,
+# 2026-07-03); "extract" and "generalizable" are the task's own
+# vocabulary, not the agent's self-vocabulary.
+_EXTRACTION_FAILURE_PHRASES: Tuple[str, ...] = (
+    "events appear isolated",
+    "the episode does not contain",
+    "the episode lacks",
+    "the episodes lack",
+    "unable to extract a pattern",
+    "cannot extract a pattern",
+    "no generalizable pattern",
+    "nothing generalizable",
+)
+
+
 def _is_valid_pattern(pattern: str) -> bool:
     """Decision gate: is this pattern worth storing?
 
-    Rejects labels, keywords, and fragments that aren't actionable patterns.
+    Rejects labels, keywords, and fragments that aren't actionable patterns,
+    plus extraction-failure meta-statements (see
+    ``_EXTRACTION_FAILURE_PHRASES``).
     """
     if len(pattern) < 30:
         return False
     if pattern.count(" ") < 3:
         return False
+    lowered = pattern.lower()
+    for phrase in _EXTRACTION_FAILURE_PHRASES:
+        if phrase in lowered:
+            logger.info(
+                "Rejected extraction-failure meta-statement (%r): %.60s",
+                phrase, pattern,
+            )
+            return False
     return True
 
 

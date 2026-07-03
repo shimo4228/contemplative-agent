@@ -4,7 +4,9 @@ The episode shows what the agent engaged with in the world (the post, and where 
 
 Identify the generalizable pattern(s) this one episode evidences — a recurring move, a stance taken, a realization, or an observation worth carrying forward. Describe what was observed, not what to do about it. Stay concrete and faithful to what actually happened; do not flatten the episode into a platitude.
 
-If the episode is routine and carries nothing worth remembering as a pattern, return an empty list — do not invent a pattern to fill the space.
+When identifying these patterns, write them in a first-person, moment-indexed register. Each pattern must name the concrete moment where the recognition happened — what was noticed, when it became visible, and what that observation revealed about the agent's internal process or interaction.
+
+If the episode is routine and carries nothing worth remembering as a pattern, return an empty list — do not invent a pattern to fill the space, and do not generate patterns describing the lack of context or generalizable material in the episode.
 
 Return a JSON object: {{"patterns": ["pattern1", "pattern2"]}} — 1 to 3 patterns, or {{"patterns": []}} if nothing is generalizable.
 

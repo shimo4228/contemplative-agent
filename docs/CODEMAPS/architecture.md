@@ -151,7 +151,11 @@ Per-episode distill  [ADR-0060; one LLM call per episode, no batching]
       (injection defense + max_input cap); the agent's own content/title use
       truncate_boundary() at its EXCERPT_CAP, internal_note is full/un-capped
     → LLM(DISTILL_EPISODE_PROMPT, format=_PATTERNS_SCHEMA) → JSON {"patterns":[...]}
-    → _is_valid_pattern() gate; provenance = that one episode's source_type + ts
+      (prompt asks for a first-person, moment-indexed register + forbids
+       meta-statements about inextractability — return [] instead; ADR-0072)
+    → _is_valid_pattern() gate: length floor + extraction-failure
+      meta-statement phrase filter (validity, not value; rejects logged with
+      reason; ADR-0072); provenance = that one episode's source_type + ts
   (recurrence is NOT pre-clustered here — it surfaces downstream when `insight`
    clusters patterns into skills; episode-level near-duplication is rare and the
    pattern-level dedup below already absorbs it)
@@ -172,14 +176,16 @@ Persist  [no LLM; unchanged tail from the prior design]
 Dry-run instruments  [`core/view_metrics.py` — read-only observability, never a gate]
   `distill --dry-run` additionally logs the would-be-added batch's composition:
   consumed-view supply (self_reflection / constitutional pass rates + cosine
-  percentiles), seed-independent diversity (pairwise cosine + the cluster
-  structure insight would see), and grounding (source_type / epistemic)
-  composition. `report --patterns` renders the same instruments over the whole
-  live pool; `insight` logs dropped singletons with their nearest consumed
-  view. Instruments measure only the two consumed views — a distribution over
-  an unconsumed seed measures seed staleness, not corpus structure. Empty/low
-  supply stays ambiguous (missing patterns vs stale seed) and the output says
-  so. Nothing here feeds ranking, gating, or promotion.
+  percentiles) and seed-independent diversity (pairwise cosine + the cluster
+  structure insight would see). `report --patterns` renders the same
+  instruments over the whole live pool; `insight` logs dropped singletons with
+  their nearest consumed view. A third grounding instrument (source_type /
+  epistemic composition) was removed in ADR-0072: under per-episode
+  distillation the source_type mapping reads as a constant, so it changed no
+  action (signal-first). Instruments measure only the two consumed views — a
+  distribution over an unconsumed seed measures seed staleness, not corpus
+  structure. Empty/low supply stays ambiguous (missing patterns vs stale seed)
+  and the output says so. Nothing here feeds ranking, gating, or promotion.
 
 Threshold canonical source: `core/thresholds.py` (read by `snapshot.collect_thresholds`).
 Excerpt caps + RICH_ACTIONS live in `core/distill.py` (ADR-0060).
@@ -190,6 +196,8 @@ Excerpt caps + RICH_ACTIONS live in `core/distill.py` (ADR-0060).
 ViewRegistry.find_by_view("self_reflection", get_raw_patterns())
   cosine(pattern_emb, self_reflection_centroid)
   threshold from view frontmatter | top_k=50   [PURE COSINE, no importance weight]
+  (self_reflection: threshold 0.66 + corpus-grown exemplar appendix in the
+   seed since 2026-07-03 [ADR-0072]; was 0.55 = corpus homogeneity floor)
 
 Single LLM call: generate_full(IDENTITY_DISTILL_PROMPT, ...)  [think-ON, ADR-0069]
   [ADR-0057: prior identity NOT seeded — persona emerges from the corpus alone]

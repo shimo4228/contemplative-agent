@@ -1472,6 +1472,20 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0072-echo-chamber-interventions.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0072: Echo-Chamber Interventions — Register Instruction, Corpus-Grown Seed, Extraction-Failure Guard",
+      "identifier": "ADR-0072",
+      "status": "accepted",
+      "datePublished": "2026-07-03",
+      "description": "Phase-two interventions against the echo chamber ADR-0071's instruments quantified, plus the curation the first readings demanded. (1) The live per-episode distill prompt gains a first-person, moment-indexed register instruction — drafted by the executing model itself (gemma4:e4b, prompt-model-match) — and an explicit prohibition on narrating extraction failure (return the empty list instead). (2) _is_valid_pattern gains a conservative extraction-failure phrase filter (8 episode/task-referential multi-word phrases, rejects logged with reason; validity, not value — bare phrases like 'lack sufficient context' deliberately excluded because genuine first-person recognitions use them). (3) The self_reflection view seed keeps its abstract register description and appends four A-register exemplar patterns drawn from the corpus (corpus-grown anchoring); threshold recalibrated 0.55 → 0.66 from a fresh full-distribution calibration (new off-topic control floor 0.40–0.46; 193/1463 = 13.2% pass, ≥ 3×top_k). (4) Deletions by signal-first: the grounding instrument (constant under the per-episode source_type mapping), the dead batch-distill prompts distill.md / distill_refine.md with their loader wiring (dead since ADR-0060), and the promptfoo evals harness that rode them. Same-window paired measurement: first-person moment-indexed register confirmed qualitatively; would-soft-invalidate collapsed (24–31 → 5–9: the new register diverges from the legacy pool); new-batch view supply reaches the seed's exemplar band (compounding mechanism confirmed — future A-register patterns rank into the view's top band); intra-batch pairwise mean unchanged at 0.60 — the register axis rotated rather than diversified, recorded as the next observation target.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0060-per-episode-grounded-distill.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0019-discrete-categories-to-embedding-views.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": ["Concept", "DefinedTerm"],
       "name": "pattern-composition instruments",
@@ -1479,9 +1493,12 @@
         {"@value": "pattern-composition instruments", "@language": "en"},
         {"@value": "パターン組成計器", "@language": "ja"}
       ],
-      "description": "Read-only distributions over Layer 2 knowledge patterns: consumed-view supply, seed-independent diversity (the echo-chamber detector), and grounding composition. Instruments are observability, never intervention — they feed the operator, not gates or ranking. Calibrated by a three-point scale: unrelated-text floor (~0.33–0.46 cosine), corpus pairwise mean (0.554 at introduction), and consumed-view top band (~0.68–0.77).",
+      "description": "Read-only distributions over Layer 2 knowledge patterns: consumed-view supply and seed-independent diversity (the echo-chamber detector). Instruments are observability, never intervention — they feed the operator, not gates or ranking. Calibrated by a three-point scale: unrelated-text floor cosine, corpus pairwise mean, and consumed-view top band — re-measured whenever the seed geometry changes (introduction values: floor ~0.33–0.46, corpus mean 0.554, top band ~0.68–0.77 under the pre-ADR-0072 seed). A third grounding-composition instrument shipped with ADR-0071 was removed by ADR-0072: under per-episode distillation its source_type reading is constant, and an instrument whose reading changes no action violates signal-first.",
       "appliesTo": ["https://shimo4228.github.io/shimo4228/vocab#memory-layer/knowledge"],
-      "subjectOf": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md"
+      "subjectOf": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0072-echo-chamber-interventions.md"
+      ]
     },
     {
       "@id": "https://arxiv.org/abs/2512.13564",

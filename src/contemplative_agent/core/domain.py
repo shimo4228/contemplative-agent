@@ -52,12 +52,10 @@ class PromptTemplates:
     post_title: str
     topic_summary: str
     submolt_selection: str
-    distill: str
     internal_note: str = ""
     identity_distill: str = ""
     insight_extraction: str = ""
     meditation_interpret: str = ""
-    distill_refine: str = ""
     distill_episode: str = ""
     rules_distill: str = ""
     rules_distill_refine: str = ""
@@ -231,12 +229,10 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         post_title=read("post_title.md"),
         topic_summary=read("topic_summary.md"),
         submolt_selection=read("submolt_selection.md"),
-        distill=read("distill.md"),
         internal_note=read("internal_note.md", required=False),
         identity_distill=read("identity_distill.md", required=False),
         insight_extraction=read("insight_extraction.md", required=False),
         meditation_interpret=read("meditation_interpret.md", required=False),
-        distill_refine=read("distill_refine.md", required=False),
         distill_episode=read("distill_episode.md", required=False),
         rules_distill=read("rules_distill.md", required=False),
         rules_distill_refine=read("rules_distill_refine.md", required=False),

@@ -1,4 +1,4 @@
-"""Read-only pattern-composition instruments (view supply / diversity / grounding).
+"""Read-only pattern-composition instruments (view supply / diversity).
 
 Observability ONLY: everything here returns distributions and compositions
 for a human operator to read. Nothing in this module may be wired into a
@@ -7,7 +7,7 @@ that separation is the point (mirrors AKC ADR-0015 Decision 2: visibility
 without intervention; rejection write-back and metric-driven ranking were
 explicitly rejected there and in ADR-0050/0051).
 
-Three instruments:
+Two instruments:
 
 - **View supply** — how many patterns clear each *consumed* view's threshold.
   Axes are restricted to views with a real downstream consumer
@@ -18,12 +18,14 @@ Three instruments:
 - **Diversity** — seed-independent homogeneity of a pattern set: pairwise
   cosine percentiles plus the cluster-structure summary ``insight`` would
   see. A rising pairwise mean with supply concentrating in
-  ``self_reflection`` and grounding turning inward is the echo-chamber
-  signature (register collapse), measured without any hand-written axis.
-- **Grounding** — provenance composition (``source_type``) and the
-  ADR-0050 epistemic tally. Read the epistemic line as a *provenance-kind*
-  tally, never as external-grounding presence: after ADR-0060 ``observed``
-  is structurally zero (review 2026-06-27 M2, ``knowledge_store``).
+  ``self_reflection`` is the echo-chamber signature (register collapse),
+  measured without any hand-written axis.
+
+A third grounding instrument (``source_type`` / epistemic composition) was
+removed on 2026-07-03 (ADR-0072): under per-episode distillation the
+``source_type`` mapping is record-type-derived and reads as a constant, so
+the instrument changed no action (signal-first). Do not re-add it as-is —
+measuring external grounding needs episode-content-level fields.
 
 Interpretation caveat (review 2026-06-27 / AKC ADR-0016): an empty or thin
 view supply is ambiguous — it can mean "no such patterns" or "the seed no
@@ -42,7 +44,6 @@ import numpy as np
 
 from .clustering import cluster_patterns
 from .embeddings import cosine
-from .knowledge_store import epistemic_counts_for
 from .thresholds import CLUSTER_THRESHOLD_INSIGHT, MAX_BATCH
 from .views import View
 
@@ -114,15 +115,6 @@ class DiversityStats:
     pairwise_p50: float
     pairwise_p90: float
     cluster_stats: Optional[ClusterStats]  # None below 2 or above the O(N^3) cap
-
-
-@dataclass(frozen=True)
-class GroundingComposition:
-    """Provenance composition (ADR-0050 read-time derivation)."""
-
-    source_types: Tuple[Tuple[str, int], ...]  # count desc, then name
-    epistemic: Tuple[Tuple[str, int], ...]  # observed / generated / unknown
-    gated: int  # legacy noise flag (ADR-0026)
 
 
 def _embedding_of(pattern: dict) -> Optional[np.ndarray]:
@@ -297,20 +289,6 @@ def compute_diversity(
     )
 
 
-def compute_grounding(patterns: Sequence[dict]) -> GroundingComposition:
-    """Provenance composition: source_type tally, epistemic tally, gated count."""
-    counter: Counter = Counter()
-    for p in patterns:
-        provenance = p.get("provenance") or {}
-        counter[provenance.get("source_type") or "unknown"] += 1
-    epistemic = epistemic_counts_for(list(patterns))
-    return GroundingComposition(
-        source_types=tuple(sorted(counter.items(), key=lambda kv: (-kv[1], kv[0]))),
-        epistemic=tuple((k, epistemic[k]) for k in ("observed", "generated", "unknown")),
-        gated=sum(1 for p in patterns if p.get("gated")),
-    )
-
-
 def nearest_view(
     pattern: dict,
     registry: ViewLookup,
@@ -370,22 +348,6 @@ def format_diversity(stats: DiversityStats) -> List[str]:
     return lines
 
 
-def format_grounding(grounding: GroundingComposition) -> List[str]:
-    source_types = (
-        ", ".join(f"{name}={count}" for name, count in grounding.source_types)
-        or "none"
-    )
-    epistemic = ", ".join(f"{name}={count}" for name, count in grounding.epistemic)
-    return [
-        f"grounding — source_type: {source_types}",
-        (
-            "grounding — epistemic (provenance kind, NOT external-grounding "
-            f"presence; ADR-0060): {epistemic}"
-        ),
-        f"grounding — gated (legacy noise flag): {grounding.gated}",
-    ]
-
-
 def instrument_lines(
     patterns: Sequence[dict],
     registry: Optional[ViewLookup] = None,
@@ -398,7 +360,6 @@ def instrument_lines(
     if registry is not None:
         lines.extend(format_view_supply(compute_view_supply(patterns, registry, views)))
     lines.extend(format_diversity(compute_diversity(patterns, cluster_cap=cluster_cap)))
-    lines.extend(format_grounding(compute_grounding(patterns)))
     return lines
 
 

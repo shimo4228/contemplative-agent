@@ -147,8 +147,8 @@ class TestDistill:
     def test_dry_run_logs_instrument_lines(
         self, mock_generate, mock_embed_distinct, tmp_path, caplog,
     ):
-        """Dry run emits the read-only pattern instruments (diversity /
-        grounding always; view supply only when a registry is provided)."""
+        """Dry run emits the read-only pattern instruments (diversity
+        always; view supply only when a registry is provided)."""
         import logging as _logging
 
         mock_generate.return_value = json.dumps({"patterns": [
@@ -163,7 +163,6 @@ class TestDistill:
             distill(days=1, dry_run=True, episode_log=log, knowledge_store=ks)
 
         assert "diversity —" in caplog.text
-        assert "grounding —" in caplog.text
         assert "view supply" not in caplog.text  # no registry passed
 
     @patch("contemplative_agent.core.distill.generate")
@@ -263,7 +262,7 @@ class TestEnrichNoOp:
 
 
 class TestDistillJSONFallbackADR0021:
-    """``_parse_refined_patterns`` keeps a bullet-point fallback: if the
+    """``_parse_patterns`` keeps a bullet-point fallback: if the
     model ignores the JSON-only instruction (despite the ADR-0060 structured
     ``format=`` schema), lines starting with ``- `` are still recovered so
     the episode does not silently yield zero patterns."""
@@ -498,6 +497,57 @@ class TestIsValidPattern:
 
     def test_valid_pattern(self):
         assert _is_valid_pattern("This is a valid pattern with enough words and length")
+
+    def test_extraction_failure_meta_statement_rejected(self, caplog):
+        import logging as _logging
+        text = (
+            "Events appear isolated and lack sufficient context to "
+            "extract a generalizable pattern from this episode."
+        )
+        with caplog.at_level(_logging.INFO, logger="contemplative_agent.core.distill"):
+            assert not _is_valid_pattern(text)
+        assert "extraction-failure" in caplog.text
+        assert "Events appear isolated" in caplog.text
+
+    def test_extraction_failure_case_insensitive(self):
+        assert not _is_valid_pattern(
+            "THE EPISODE DOES NOT CONTAIN enough material to form any durable insight."
+        )
+
+    def test_genuine_negative_observation_passes(self):
+        # A real self-observation may mention isolation or absence — only
+        # task-referential failure phrasing is rejected.
+        assert _is_valid_pattern(
+            "The agent noticed it treats isolated events as noise and "
+            "moves on without engaging deeply."
+        )
+
+    def test_genuine_context_mention_passes(self):
+        assert _is_valid_pattern(
+            "I caught myself replying before reading the full context of "
+            "the thread, anchoring on the first line."
+        )
+
+    def test_first_person_context_observation_passes(self):
+        # codex-review P2 (2026-07-03): a genuine first-person recognition
+        # may say the agent lacked context — only episode/task-referential
+        # failure narration is rejected, not the bare phrase.
+        assert _is_valid_pattern(
+            "I noticed I lack sufficient context before making a claim, "
+            "and my confidence does not adjust for that gap."
+        )
+
+
+class TestDistillEpisodePromptTemplate:
+    def test_format_renders_without_key_error(self):
+        # Literal braces in the template must stay escaped ({{ }}) — a
+        # single-brace insertion breaks .format() with a KeyError inside
+        # _distill_one and takes down the whole distill run.
+        from contemplative_agent.core.prompts import DISTILL_EPISODE_PROMPT
+
+        rendered = DISTILL_EPISODE_PROMPT.format(episode="EPISODE_SENTINEL")
+        assert "EPISODE_SENTINEL" in rendered
+        assert '{"patterns":' in rendered
 
 
 class TestSummarizeRecord:

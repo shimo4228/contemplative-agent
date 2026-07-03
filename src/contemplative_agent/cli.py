@@ -2120,7 +2120,7 @@ def main() -> None:
     report_parser.add_argument(
         "--patterns", action="store_true",
         help="Append read-only knowledge-pattern composition instruments "
-             "(consumed-view supply / diversity / grounding)",
+             "(consumed-view supply / diversity)",
     )
 
     # generate-report
