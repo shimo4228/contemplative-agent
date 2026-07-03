@@ -2,7 +2,7 @@
 
 Detailed configuration reference for the Contemplative Agent. For quick start and overview, see [README.md](../README.md).
 
-> Everything the LLM sees — constitution, identity, skills, rules, 32 loaded pipeline prompts, 7 view seeds — lives as Markdown under `$MOLTBOOK_HOME/`, editable per run.
+> Everything the LLM sees — constitution, identity, skills, rules, 30 loaded pipeline prompts, 2 view seeds — lives as Markdown under `$MOLTBOOK_HOME/`, editable per run.
 
 ## Table of Contents
 
@@ -239,17 +239,17 @@ See [integrations/README.md](../integrations/README.md) for the full workflow an
 
 ## Pipeline Prompts & View Seeds
 
-Every LLM interaction the agent makes is defined in a Markdown file. After `init`, `MOLTBOOK_HOME/` contains **every text the LLM will see** — the constitution, identity, skills, rules, 32 loaded pipeline prompts, and 7 view seeds. Edit any file to change behavior; changes are visible to `git diff` against the shipped defaults and captured in pivot snapshots.
+Every LLM interaction the agent makes is defined in a Markdown file. After `init`, `MOLTBOOK_HOME/` contains **every text the LLM will see** — the constitution, identity, skills, rules, 30 loaded pipeline prompts, and 2 view seeds. Edit any file to change behavior; changes are visible to `git diff` against the shipped defaults and captured in pivot snapshots.
 
 ### Pipeline prompts
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-32 loaded prompt templates plus 2 script-read prompt documents. The main ones:
+30 loaded prompt templates plus 2 script-read prompt documents. The main ones:
 
 | File | Drives |
 |------|--------|
-| `distill.md` | Pattern extraction from episode logs (with `distill_refine.md` and `distill_episode.md` for per-episode grounded distill) |
+| `distill_episode.md` | Per-episode grounded pattern extraction from episode logs (ADR-0060; the retired batch prompts `distill.md` / `distill_refine.md` were deleted in ADR-0072) |
 | `verification_solve_extract_system.md` / `verification_solve_reason_system.md` | Create-time math challenge solving: guarded expression extraction first, bounded reasoning fallback |
 | `insight_extraction.md` | Skill extraction from uncategorized patterns |
 | `rules_distill.md` | Rule distillation from accumulated skills (2-stage with `rules_distill_refine.md`) |
@@ -265,12 +265,12 @@ Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
 Location: `MOLTBOOK_HOME/views/*.md` (default: `~/.config/moltbook/views/`)
 
-7 files, one per semantic category. Each view seed is a short block of text whose embedding becomes the centroid for that view. Episodes are classified by cosine similarity to these centroids.
+2 files, one per consuming pipeline: `self_reflection` (feeds `distill-identity`) and `constitutional` (feeds `amend-constitution`). Each view seed is a short block of text whose embedding becomes the view's centroid; at query time the consumer ranks stored patterns by cosine similarity to that centroid, gated by the frontmatter `threshold` and `top_k` — classification is a query, nothing is tagged (ADR-0031). Five former seeds (`communication` / `noise` / `reasoning` / `social` / `technical`) had no consumer and were pruned in ADR-0073.
 
 - **Default:** copied from `config/views/` at `init`
-- **Edit:** update the seed text; recomputed on next run (centroid is cached per process)
-- **Add your own:** drop a new `<name>.md` with frontmatter specifying `threshold`, `top_k`, optional `seed_from`
-- **Remove:** delete a view file to retire its category; existing patterns tagged with that view are retained but new episodes will never be classified into it
+- **Edit:** update the seed text; re-embedded on next process start (centroid is cached per process)
+- **Add your own:** drop a new `<name>.md` with frontmatter specifying `threshold`, `top_k`, optional `seed_from` — and wire code that actually queries it, or it is dead config (ADR-0073). The working pattern is to grow the seed from real corpus exemplars (ADR-0072)
+- **Remove:** delete a view file to retire it; stored patterns are untouched (views are read-time queries)
 
 Frontmatter example:
 

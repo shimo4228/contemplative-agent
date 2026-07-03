@@ -140,8 +140,8 @@ Scope filter — engagement episodes only  [ADR-0060; _is_rich_episode]
   (NO ingest noise gate [ADR-0060]. Downstream, the two view-querying
    consumers — distill-identity / amend-constitution — apply their own view
    thresholds at query time [ADR-0031]; insight skips legacy `gated` rows.
-   The `noise` view seed itself is consumed by no code path — orphaned
-   definition, deliberately unmeasured by view_metrics)
+   The five orphaned view seeds, `noise` included, were pruned in ADR-0073 —
+   only the two consumed views ship)
 
 Per-episode distill  [ADR-0060; one LLM call per episode, no batching]
   for each episode:

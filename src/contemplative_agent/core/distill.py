@@ -157,8 +157,8 @@ def distill(
     # there is no ingest-time noise gate. Downstream, the two view-querying
     # consumers (distill-identity / amend-constitution) keep low-relevance
     # patterns out via their own view thresholds at query time (ADR-0031),
-    # and insight skips legacy ``gated`` rows. Nothing consumes the ``noise``
-    # view seed — it is an orphaned definition (see view_metrics docstring).
+    # and insight skips legacy ``gated`` rows. (The orphaned ``noise`` view
+    # seed this comment used to point at was pruned in ADR-0073.)
     rich = [r for r in records if _is_rich_episode(r)]
     if not rich:
         msg = "No engagement episodes (comment/reply/post) for distillation."

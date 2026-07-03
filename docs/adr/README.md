@@ -78,6 +78,7 @@ Records of key design decisions for this project.
 | [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md) | Retire the MLX Backend to a Sibling Repo and Remove Docker from Main | accepted | 2026-06-28 |
 | [0071](0071-read-only-pattern-composition-instruments.md) | Read-Only Pattern-Composition Instruments (View Supply / Diversity / Grounding) | accepted | 2026-07-03 |
 | [0072](0072-echo-chamber-interventions.md) | Echo-Chamber Interventions — Register Instruction, Corpus-Grown Seed, Extraction-Failure Guard | accepted | 2026-07-03 |
+| [0073](0073-prune-orphaned-view-seeds.md) | Prune the Five Orphaned View Seeds | accepted | 2026-07-03 |
 
 ## ADR Types
 

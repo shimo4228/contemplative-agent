@@ -133,7 +133,7 @@ Fallback seed body.
 
 `find_by_view(name, candidates)` = embed seed → cosine rank → threshold filter → top_k slice. Pure cosine only (no importance weight, no trust; ADR-0051).
 
-Seed views: `communication`, `constitutional`, `noise`, `reasoning`, `self_reflection`, `social`, `technical`. Only two are queried by code — `self_reflection` (distill-identity) and `constitutional` (amend-constitution); the other five are orphaned definitions with no consumer (snapshots capture all centroids for reproducibility only). `view_metrics.py` instruments deliberately measure only the consumed pair.
+Seed views: `constitutional` (amend-constitution) and `self_reflection` (distill-identity) — both have a live consumer. The five orphaned seeds (`communication`, `noise`, `reasoning`, `social`, `technical` — former insight batch axes / noise gate, dead since ADR-0050/0060) were pruned in ADR-0073: a consumer-less view is dead by definition, and future views are grown from stable corpus clusters together with their consumer wiring, not pre-authored. `view_metrics.py` instruments measure only consumed views.
 
 ## Security Model
 

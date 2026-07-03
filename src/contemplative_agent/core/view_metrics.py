@@ -12,9 +12,10 @@ Two instruments:
 - **View supply** — how many patterns clear each *consumed* view's threshold.
   Axes are restricted to views with a real downstream consumer
   (``self_reflection`` → distill-identity, ``constitutional`` →
-  amend-constitution). The five orphaned seed files in ``config/views/`` are
-  deliberately not measured: a distribution over an unconsumed seed measures
-  seed staleness, not corpus structure, and its reading changes no action.
+  amend-constitution). Never measure a consumer-less seed: a distribution
+  over an unconsumed seed measures seed staleness, not corpus structure, and
+  its reading changes no action. (The five orphaned seed files that used to
+  sit in ``config/views/`` were pruned in ADR-0073 for the same reason.)
 - **Diversity** — seed-independent homogeneity of a pattern set: pairwise
   cosine percentiles plus the cluster-structure summary ``insight`` would
   see. A rising pairwise mean with supply concentrating in

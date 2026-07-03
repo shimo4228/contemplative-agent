@@ -1486,6 +1486,20 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0073-prune-orphaned-view-seeds.md",
+      "@type": ["ADR", "TechArticle"],
+      "name": "ADR-0073: Prune the Five Orphaned View Seeds",
+      "identifier": "ADR-0073",
+      "status": "accepted",
+      "datePublished": "2026-07-03",
+      "description": "Deletes the five view seeds whose consumers were retired long ago (the insight batch axes communication/reasoning/social/technical by ADR-0050, the ingest noise gate by ADR-0060) from both the repo templates and the live home (live copies soft-deleted to a dated backup). Only the two consumed views ship: self_reflection (distill-identity) and constitutional (amend-constitution). Encodes the standing policy the deletion implies: a view exists only together with a consumer that queries it — future views are grown from stable corpus clusters with their consumer wired in the same change (the route ADR-0072's exemplar appendix validated), never pre-authored against anticipated categories. The reference sweep also rewrote the stale CONFIGURATION.md view-seed section (it still described pre-ADR-0031 episode classification and view tagging) and corrected the facing-doc counts (30 loaded prompts / 2 view seeds) that had gone stale with ADR-0072's prompt deletion. No behavior change: nothing queried the five seeds. Closes the disposition ADR-0072 deferred.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0072-echo-chamber-interventions.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0019-discrete-categories-to-embedding-views.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": ["Concept", "DefinedTerm"],
       "name": "pattern-composition instruments",
