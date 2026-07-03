@@ -59,7 +59,6 @@ _DIGITS_RE = re.compile(r"\d+")
 _WS_RE = re.compile(r"\s+")
 
 _SIG_MAXLEN = 80
-_EXAMPLE_MAXLEN = 160
 
 
 @dataclass(frozen=True)
@@ -70,7 +69,6 @@ class Finding:
     count: int
     delta: int
     is_new: bool
-    example: str
 
 
 def normalize(line: str) -> str:
@@ -97,7 +95,6 @@ def analyze(lines: Iterable[str], prev_counts: Dict[str, int]) -> List[Finding]:
     since last sweep. Sort: NEW first, then largest delta, then largest count.
     """
     counts: Counter[str] = Counter()
-    examples: Dict[str, str] = {}
     for line in lines:
         if not _is_signal(line):
             continue
@@ -105,7 +102,6 @@ def analyze(lines: Iterable[str], prev_counts: Dict[str, int]) -> List[Finding]:
         if not sig:
             continue
         counts[sig] += 1
-        examples.setdefault(sig, line.strip()[:_EXAMPLE_MAXLEN])
 
     findings: List[Finding] = []
     for sig, count in counts.items():
@@ -121,7 +117,6 @@ def analyze(lines: Iterable[str], prev_counts: Dict[str, int]) -> List[Finding]:
                 count=count,
                 delta=count - prev,
                 is_new=(prev == 0),
-                example=examples[sig],
             )
         )
     findings.sort(key=lambda f: (not f.is_new, -f.delta, -f.count))

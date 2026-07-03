@@ -291,10 +291,6 @@ class MemoryStore:
         """Total number of recorded interactions."""
         return len(self._interactions)
 
-    def interaction_count_with(self, agent_id: str) -> int:
-        """Count total interactions with a specific agent."""
-        return sum(1 for i in self._interactions if i.agent_id == agent_id)
-
     def record_follow(self, agent_name: str) -> None:
         """Mark an agent as followed."""
         self._followed.add(agent_name)
