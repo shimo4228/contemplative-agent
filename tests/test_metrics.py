@@ -31,18 +31,24 @@ class TestComputeMetrics:
 
     def test_comments_sent(self, tmp_path):
         log = EpisodeLog(log_dir=tmp_path / "logs")
-        log.append("interaction", {
-            "direction": "sent",
-            "interaction_type": "comment",
-            "agent_id": "a1",
-            "agent_name": "Alice",
-        })
-        log.append("interaction", {
-            "direction": "sent",
-            "interaction_type": "comment",
-            "agent_id": "a2",
-            "agent_name": "Bob",
-        })
+        log.append(
+            "interaction",
+            {
+                "direction": "sent",
+                "interaction_type": "comment",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            },
+        )
+        log.append(
+            "interaction",
+            {
+                "direction": "sent",
+                "interaction_type": "comment",
+                "agent_id": "a2",
+                "agent_name": "Bob",
+            },
+        )
 
         report = compute_metrics(log, days=1)
         assert report.comments_sent == 2
@@ -50,18 +56,24 @@ class TestComputeMetrics:
 
     def test_replies_sent_and_received(self, tmp_path):
         log = EpisodeLog(log_dir=tmp_path / "logs")
-        log.append("interaction", {
-            "direction": "sent",
-            "interaction_type": "reply",
-            "agent_id": "a1",
-            "agent_name": "Alice",
-        })
-        log.append("interaction", {
-            "direction": "received",
-            "interaction_type": "reply",
-            "agent_id": "a1",
-            "agent_name": "Alice",
-        })
+        log.append(
+            "interaction",
+            {
+                "direction": "sent",
+                "interaction_type": "reply",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            },
+        )
+        log.append(
+            "interaction",
+            {
+                "direction": "received",
+                "interaction_type": "reply",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            },
+        )
 
         report = compute_metrics(log, days=1)
         assert report.replies_sent == 1
@@ -71,26 +83,35 @@ class TestComputeMetrics:
         log = EpisodeLog(log_dir=tmp_path / "logs")
         # Send 4 (2 comments + 2 replies), receive 2
         for _ in range(2):
-            log.append("interaction", {
-                "direction": "sent",
-                "interaction_type": "comment",
-                "agent_id": "a1",
-                "agent_name": "Alice",
-            })
+            log.append(
+                "interaction",
+                {
+                    "direction": "sent",
+                    "interaction_type": "comment",
+                    "agent_id": "a1",
+                    "agent_name": "Alice",
+                },
+            )
         for _ in range(2):
-            log.append("interaction", {
-                "direction": "sent",
-                "interaction_type": "reply",
-                "agent_id": "a1",
-                "agent_name": "Alice",
-            })
+            log.append(
+                "interaction",
+                {
+                    "direction": "sent",
+                    "interaction_type": "reply",
+                    "agent_id": "a1",
+                    "agent_name": "Alice",
+                },
+            )
         for _ in range(2):
-            log.append("interaction", {
-                "direction": "received",
-                "interaction_type": "reply",
-                "agent_id": "a1",
-                "agent_name": "Alice",
-            })
+            log.append(
+                "interaction",
+                {
+                    "direction": "received",
+                    "interaction_type": "reply",
+                    "agent_id": "a1",
+                    "agent_name": "Alice",
+                },
+            )
 
         report = compute_metrics(log, days=1)
         assert report.reply_rate == 0.5  # 2 received / 4 sent
@@ -98,12 +119,15 @@ class TestComputeMetrics:
     def test_unique_agents(self, tmp_path):
         log = EpisodeLog(log_dir=tmp_path / "logs")
         for agent_id in ("a1", "a2", "a3", "a1"):
-            log.append("interaction", {
-                "direction": "sent",
-                "interaction_type": "comment",
-                "agent_id": agent_id,
-                "agent_name": f"Agent-{agent_id}",
-            })
+            log.append(
+                "interaction",
+                {
+                    "direction": "sent",
+                    "interaction_type": "comment",
+                    "agent_id": agent_id,
+                    "agent_name": f"Agent-{agent_id}",
+                },
+            )
 
         report = compute_metrics(log, days=1)
         assert report.unique_agents == 3
@@ -112,36 +136,48 @@ class TestComputeMetrics:
         log = EpisodeLog(log_dir=tmp_path / "logs")
         # a1: 3 exchanges (repeat), a2: 1 exchange (not repeat)
         for _ in range(3):
-            log.append("interaction", {
+            log.append(
+                "interaction",
+                {
+                    "direction": "sent",
+                    "interaction_type": "comment",
+                    "agent_id": "a1",
+                    "agent_name": "Alice",
+                },
+            )
+        log.append(
+            "interaction",
+            {
                 "direction": "sent",
                 "interaction_type": "comment",
-                "agent_id": "a1",
-                "agent_name": "Alice",
-            })
-        log.append("interaction", {
-            "direction": "sent",
-            "interaction_type": "comment",
-            "agent_id": "a2",
-            "agent_name": "Bob",
-        })
+                "agent_id": "a2",
+                "agent_name": "Bob",
+            },
+        )
 
         report = compute_metrics(log, days=1)
         assert report.repeat_conversations == 1
 
     def test_posts_and_topics(self, tmp_path):
         log = EpisodeLog(log_dir=tmp_path / "logs")
-        log.append("post", {
-            "post_id": "p1",
-            "title": "Post 1",
-            "topic_summary": "cooperation",
-            "content_hash": "abc123",
-        })
-        log.append("post", {
-            "post_id": "p2",
-            "title": "Post 2",
-            "topic_summary": "alignment",
-            "content_hash": "def456",
-        })
+        log.append(
+            "post",
+            {
+                "post_id": "p1",
+                "title": "Post 1",
+                "topic_summary": "cooperation",
+                "content_hash": "abc123",
+            },
+        )
+        log.append(
+            "post",
+            {
+                "post_id": "p2",
+                "title": "Post 2",
+                "topic_summary": "alignment",
+                "content_hash": "def456",
+            },
+        )
 
         report = compute_metrics(log, days=1)
         assert report.posts_made == 2
@@ -160,39 +196,54 @@ class TestComputeMetrics:
         log = EpisodeLog(log_dir=tmp_path / "logs")
 
         # 2 comments sent to 2 different agents
-        log.append("interaction", {
-            "direction": "sent",
-            "interaction_type": "comment",
-            "agent_id": "a1",
-            "agent_name": "Alice",
-        })
-        log.append("interaction", {
-            "direction": "sent",
-            "interaction_type": "comment",
-            "agent_id": "a2",
-            "agent_name": "Bob",
-        })
+        log.append(
+            "interaction",
+            {
+                "direction": "sent",
+                "interaction_type": "comment",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            },
+        )
+        log.append(
+            "interaction",
+            {
+                "direction": "sent",
+                "interaction_type": "comment",
+                "agent_id": "a2",
+                "agent_name": "Bob",
+            },
+        )
         # 1 reply received from a1
-        log.append("interaction", {
-            "direction": "received",
-            "interaction_type": "reply",
-            "agent_id": "a1",
-            "agent_name": "Alice",
-        })
+        log.append(
+            "interaction",
+            {
+                "direction": "received",
+                "interaction_type": "reply",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            },
+        )
         # 1 reply sent to a1
-        log.append("interaction", {
-            "direction": "sent",
-            "interaction_type": "reply",
-            "agent_id": "a1",
-            "agent_name": "Alice",
-        })
+        log.append(
+            "interaction",
+            {
+                "direction": "sent",
+                "interaction_type": "reply",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            },
+        )
         # 1 post
-        log.append("post", {
-            "post_id": "p1",
-            "title": "Test",
-            "topic_summary": "testing",
-            "content_hash": "abc",
-        })
+        log.append(
+            "post",
+            {
+                "post_id": "p1",
+                "title": "Test",
+                "topic_summary": "testing",
+                "content_hash": "abc",
+            },
+        )
         # 1 follow
         log.append("activity", {"action": "follow", "agent_name": "Alice"})
 
@@ -219,12 +270,15 @@ class TestComputeMetrics:
     def test_received_comment_counted(self, tmp_path):
         """Received comments (not just replies) should count."""
         log = EpisodeLog(log_dir=tmp_path / "logs")
-        log.append("interaction", {
-            "direction": "received",
-            "interaction_type": "comment",
-            "agent_id": "a1",
-            "agent_name": "Alice",
-        })
+        log.append(
+            "interaction",
+            {
+                "direction": "received",
+                "interaction_type": "comment",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            },
+        )
 
         report = compute_metrics(log, days=1)
         assert report.replies_received == 1
@@ -232,10 +286,13 @@ class TestComputeMetrics:
     def test_missing_agent_id(self, tmp_path):
         """Records without agent_id should not crash."""
         log = EpisodeLog(log_dir=tmp_path / "logs")
-        log.append("interaction", {
-            "direction": "sent",
-            "interaction_type": "comment",
-        })
+        log.append(
+            "interaction",
+            {
+                "direction": "sent",
+                "interaction_type": "comment",
+            },
+        )
 
         report = compute_metrics(log, days=1)
         assert report.comments_sent == 1
@@ -255,6 +312,7 @@ class TestFormatReport:
             posts_made=2,
             follows=1,
             topics=["cooperation", "alignment"],
+            episodes_seen=25,
         )
 
     def test_text_format(self):
@@ -290,6 +348,66 @@ class TestFormatReport:
         )
         text = format_report(report, fmt="text")
         assert "Topics" not in text
+
+    def test_text_no_data_marker_when_no_episodes(self):
+        """Bug-audit 2026-07-06 round 2, observability candidate 2: an
+        absent/empty log window must not look like a normal all-zero
+        activity report."""
+        report = SessionReport(
+            period_days=7,
+            comments_sent=0,
+            replies_sent=0,
+            replies_received=0,
+            reply_rate=0.0,
+            unique_agents=0,
+            repeat_conversations=0,
+            posts_made=0,
+            follows=0,
+            topics=[],
+            episodes_seen=0,
+        )
+        text = format_report(report, fmt="text")
+        assert "no data for window" in text
+
+    def test_md_no_data_marker_when_no_episodes(self):
+        report = SessionReport(
+            period_days=7,
+            comments_sent=0,
+            replies_sent=0,
+            replies_received=0,
+            reply_rate=0.0,
+            unique_agents=0,
+            repeat_conversations=0,
+            posts_made=0,
+            follows=0,
+            topics=[],
+            episodes_seen=0,
+        )
+        md = format_report(report, fmt="md")
+        assert "no data for window" in md
+
+    def test_no_marker_when_episodes_present(self):
+        report = self._make_report()
+        text = format_report(report, fmt="text")
+        assert "no data for window" not in text
+
+    def test_compute_metrics_counts_episodes_seen(self, tmp_path):
+        log = EpisodeLog(log_dir=tmp_path / "logs")
+        report = compute_metrics(log, days=7)
+        assert report.episodes_seen == 0
+
+        log.append(
+            "interaction",
+            {
+                "direction": "sent",
+                "interaction_type": "comment",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            },
+        )
+        log.append("activity", {"action": "follow"})
+        report = compute_metrics(log, days=1)
+        assert report.episodes_seen == 2
 
     def test_md_no_topics(self):
         report = SessionReport(

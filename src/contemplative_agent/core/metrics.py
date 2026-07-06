@@ -28,6 +28,10 @@ class SessionReport:
     posts_made: int
     follows: int
     topics: list  # type: ignore[type-arg]  # list[str], py3.9 compat
+    # Bug-audit 2026-07-06 round 2 (observability): distinguishes "no
+    # episodes found in the window" (log absent / empty) from a genuine
+    # zero-activity period — both otherwise render as an all-zero report.
+    episodes_seen: int = 0
 
 
 @dataclass
@@ -113,6 +117,7 @@ def compute_metrics(episode_log: EpisodeLog, days: int = 7) -> SessionReport:
         posts_made=tally.posts_made,
         follows=tally.follows,
         topics=tally.topics,
+        episodes_seen=len(records),
     )
 
 
@@ -131,9 +136,17 @@ def format_report(report: SessionReport, fmt: str = "text") -> str:
     return _format_text(report)
 
 
+def _no_data_marker(report: SessionReport) -> str:
+    return f"(no data for window — no episodes found in the last {report.period_days} days)"
+
+
 def _format_text(report: SessionReport) -> str:
     lines = [
         f"Session Report ({report.period_days} days)",
+    ]
+    if report.episodes_seen == 0:
+        lines.append(f"  {_no_data_marker(report)}")
+    lines += [
         f"  Comments sent:        {report.comments_sent}",
         f"  Replies sent:         {report.replies_sent}",
         f"  Replies received:     {report.replies_received}",
@@ -152,6 +165,11 @@ def _format_md(report: SessionReport) -> str:
     lines = [
         f"## Session Report ({report.period_days} days)",
         "",
+    ]
+    if report.episodes_seen == 0:
+        lines.append(f"*{_no_data_marker(report)}*")
+        lines.append("")
+    lines += [
         "| Metric | Value |",
         "|--------|-------|",
         f"| Comments sent | {report.comments_sent} |",

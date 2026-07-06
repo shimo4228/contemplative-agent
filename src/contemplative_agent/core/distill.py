@@ -166,7 +166,8 @@ def distill(
         return msg
     logger.info(
         "Distilling %d engagement episodes (filtered from %d records)",
-        len(rich), len(records),
+        len(rich),
+        len(records),
     )
 
     # Determine source date range from the in-scope episodes. read_range
@@ -190,7 +191,9 @@ def distill(
     if not dry_run and (result.added or result.updated):
         knowledge.save()
         logger.info(
-            "Distill complete: %d added, %d updated", result.added, result.updated,
+            "Distill complete: %d added, %d updated",
+            result.added,
+            result.updated,
         )
 
     return "\n\n".join(result.results)
@@ -276,8 +279,7 @@ def distill_identity(
 
     if view_registry is None:
         msg = (
-            "distill_identity requires a ViewRegistry since ADR-0019. "
-            "Pass a ViewRegistry instance."
+            "distill_identity requires a ViewRegistry since ADR-0019. Pass a ViewRegistry instance."
         )
         logger.warning(msg)
         return msg
@@ -347,7 +349,6 @@ def distill_identity(
     )
 
 
-
 def _episode_source_kind(record: Dict) -> str:
     """Classify one episode as 'self' / 'external' / 'unknown' (ADR-0021)."""
     record_type = record.get("type", "")
@@ -384,6 +385,7 @@ def _derive_source_type(records: List[Dict]) -> str:
 @dataclass(frozen=True)
 class _CategoryResult:
     """Result of distilling a single category."""
+
     results: Tuple[str, ...]
     added: int
     updated: int
@@ -397,6 +399,7 @@ class _BatchOutput:
     ``source_type`` and ``episode_ids`` carry the single episode's ADR-0021
     provenance.
     """
+
     refined: str
     patterns: Tuple[str, ...]
     source_type: str
@@ -412,6 +415,7 @@ class _PatternProvenance:
     (ADR-0021/0060): the pattern text plus the source kind and episode ids
     of its originating episode.
     """
+
     text: str
     source_type: str
     episode_ids: Tuple[str, ...]
@@ -450,8 +454,7 @@ def render_episode(record_type: str, data: dict) -> str:
     tc = data.get("their_comment")
     if tc:
         parts.append(
-            "Their comment:\n"
-            + wrap_untrusted_content(tc, max_input=EXCERPT_CAPS["their_comment"])
+            "Their comment:\n" + wrap_untrusted_content(tc, max_input=EXCERPT_CAPS["their_comment"])
         )
     title = data.get("title")
     if title:
@@ -459,9 +462,7 @@ def render_episode(record_type: str, data: dict) -> str:
     out = data.get("content")
     action = data.get("action", "?")
     if out:
-        parts.append(
-            f"My {action}:\n" + truncate_boundary(out, EXCERPT_CAPS["content"])
-        )
+        parts.append(f"My {action}:\n" + truncate_boundary(out, EXCERPT_CAPS["content"]))
     note = data.get("internal_note")
     if note:
         parts.append("What I noticed:\n" + note)  # in-register, never capped
@@ -549,7 +550,10 @@ def _distill_one(record: Dict) -> Optional[_BatchOutput]:
     ts = record.get("ts", "")
     logger.info(
         "Episode %s (prompt %d chars) → %d patterns (%d rejected)",
-        ts[:16], len(prompt), len(patterns), rejected,
+        ts[:16],
+        len(prompt),
+        len(patterns),
+        rejected,
     )
     return _BatchOutput(
         refined=result,
@@ -578,10 +582,12 @@ def _distill_episodes(
 
     provenance: List[_PatternProvenance] = []
     all_results: List[str] = []
+    failed = 0
 
     for record in records:
         out = _distill_one(record)
         if out is None:
+            failed += 1
             continue
         all_results.append(out.refined)
         # ADR-0021/0060: provenance is per-episode — each pattern carries the
@@ -594,6 +600,21 @@ def _distill_episodes(
                     episode_ids=out.episode_ids,
                 )
             )
+
+    # Bug-audit 2026-07-06 round 2 (observability candidate 1): a partial
+    # Ollama flake drops episodes silently at the per-episode level — one
+    # aggregate line distinguishes it from a clean low-yield run. The
+    # episodes are not retried; their content is only reachable in a
+    # future run if the window still covers them.
+    if failed:
+        logger.warning(
+            "Episode distill summary: %d/%d episodes yielded no output "
+            "(LLM failure or empty render); their patterns are lost for this run",
+            failed,
+            len(records),
+        )
+    else:
+        logger.info("Episode distill summary: all %d episodes produced output", len(records))
 
     if not provenance:
         return _CategoryResult(results=tuple(all_results), added=0, updated=0)
@@ -623,25 +644,35 @@ def _distill_episodes(
     existing_patterns = list(knowledge.get_raw_patterns())
     pre_filter = len(existing_patterns)
     existing_patterns = [
-        p for p in existing_patterns
-        if effective_importance(p) >= DEDUP_IMPORTANCE_FLOOR
+        p for p in existing_patterns if effective_importance(p) >= DEDUP_IMPORTANCE_FLOOR
     ]
     if pre_filter > len(existing_patterns):
-        logger.info("Dedup scope: %d/%d patterns (decay floor %.2f)",
-                    len(existing_patterns), pre_filter, DEDUP_IMPORTANCE_FLOOR)
+        logger.info(
+            "Dedup scope: %d/%d patterns (decay floor %.2f)",
+            len(existing_patterns),
+            pre_filter,
+            DEDUP_IMPORTANCE_FLOOR,
+        )
 
     (
-        add_patterns, add_embeddings,
-        add_indices, skipped, updated,
+        add_patterns,
+        add_embeddings,
+        add_indices,
+        skipped,
+        updated,
     ) = _dedup_patterns(
-        all_patterns, new_embeddings, existing_patterns,
+        all_patterns,
+        new_embeddings,
+        existing_patterns,
         mutate_existing=not dry_run,
     )
 
     if dry_run:
         logger.info(
             "Dry run — %d patterns found, %d skipped, %d would soft-invalidate",
-            len(all_patterns), skipped, updated,
+            len(all_patterns),
+            skipped,
+            updated,
         )
         # Read-only composition instruments over the would-be-ADDED set —
         # post-dedup, so skipped duplicates are not counted (codex review
@@ -666,8 +697,11 @@ def _distill_episodes(
         )
 
     _store_new_patterns(
-        knowledge, source_date,
-        add_patterns, add_embeddings, add_indices,
+        knowledge,
+        source_date,
+        add_patterns,
+        add_embeddings,
+        add_indices,
         provenance,
     )
 
@@ -684,12 +718,8 @@ def _store_new_patterns(
 ) -> None:
     """Persist deduped patterns with ADR-0021 provenance."""
     ts = now_iso()
-    for pattern, emb, src_idx in zip(
-        add_patterns, add_embeddings, add_indices
-    ):
-        emb_list: Optional[List[float]] = (
-            [float(x) for x in emb] if emb is not None else None
-        )
+    for pattern, emb, src_idx in zip(add_patterns, add_embeddings, add_indices):
+        emb_list: Optional[List[float]] = [float(x) for x in emb] if emb is not None else None
         source_type = provenance[src_idx].source_type
         episode_ids = list(provenance[src_idx].episode_ids)
         provenance_meta = {
@@ -747,9 +777,7 @@ def _dedup_patterns(
 
     existing_with_emb = _live_embedded(existing_patterns)
 
-    for input_idx, (new_text, new_emb) in enumerate(
-        zip(new_patterns, new_embeddings)
-    ):
+    for input_idx, (new_text, new_emb) in enumerate(zip(new_patterns, new_embeddings)):
         if new_emb is None:
             add_patterns.append(new_text)
             add_embeddings.append(None)
@@ -774,8 +802,7 @@ def _dedup_patterns(
             add_embeddings.append(new_emb)
             add_indices.append(input_idx)
             update_count += 1
-            logger.debug("UPDATE (%.2f): invalidate + re-add: %s",
-                         best_existing_sim, new_text[:60])
+            logger.debug("UPDATE (%.2f): invalidate + re-add: %s", best_existing_sim, new_text[:60])
         elif action == "skip_new":
             skip_count += 1
             logger.debug("SKIP-NEW (%.2f): %s", best_new_sim, new_text[:60])
@@ -785,8 +812,11 @@ def _dedup_patterns(
             add_indices.append(input_idx)
 
     return (
-        add_patterns, add_embeddings,
-        add_indices, skip_count, update_count,
+        add_patterns,
+        add_embeddings,
+        add_indices,
+        skip_count,
+        update_count,
     )
 
 
@@ -841,7 +871,11 @@ def _dedup_action(
     """Decide: ``skip`` / ``update`` existing / ``skip_new`` (boost in batch) / ``add``."""
     if best_existing_sim >= SIM_DUPLICATE or best_new_sim >= SIM_DUPLICATE:
         return "skip"
-    if best_existing_sim >= SIM_UPDATE and best_existing_pat is not None and best_existing_sim >= best_new_sim:
+    if (
+        best_existing_sim >= SIM_UPDATE
+        and best_existing_pat is not None
+        and best_existing_sim >= best_new_sim
+    ):
         return "update"
     if best_new_sim >= SIM_UPDATE and best_new_idx >= 0:
         return "skip_new"
@@ -887,7 +921,8 @@ def _is_valid_pattern(pattern: str) -> bool:
         if phrase in lowered:
             logger.info(
                 "Rejected extraction-failure meta-statement (%r): %.60s",
-                phrase, pattern,
+                phrase,
+                pattern,
             )
             return False
     return True
