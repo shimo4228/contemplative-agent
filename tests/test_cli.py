@@ -1,6 +1,7 @@
 """Tests for the CLI entry point."""
 
 import argparse
+import hashlib
 import json
 import logging
 from pathlib import Path
@@ -18,6 +19,7 @@ from contemplative_agent.cli import (
     _handle_rules_stocktake,
     _handle_skill_stocktake,
     _handle_stocktake_result,
+    _labeled_sections,
     _setup_logging,
     _build_calendar_intervals,
     _do_init,
@@ -26,10 +28,13 @@ from contemplative_agent.cli import (
     _do_uninstall_schedule,
     _list_templates,
     _log_approval,
+    _remove_stale_schedule_jobs,
     _stage_results,
+    _stocktake_merge_phase,
     _write_reasoning,
     StageItem,
 )
+from contemplative_agent.core.stocktake import MergeGroup
 
 
 class TestWriteReasoning:
@@ -241,7 +246,12 @@ class TestReportPatternsSmoke:
     @patch("contemplative_agent.core.metrics.format_report")
     @patch("contemplative_agent.core.metrics.compute_metrics")
     def test_report_patterns_flag_appends_composition(
-        self, _mock_metrics, mock_fmt, mock_ks, _mock_reg, mock_pattern_report,
+        self,
+        _mock_metrics,
+        mock_fmt,
+        mock_ks,
+        _mock_reg,
+        mock_pattern_report,
         capsys,
     ):
         mock_fmt.return_value = "SESSION-METRICS"
@@ -260,7 +270,11 @@ class TestReportPatternsSmoke:
     @patch("contemplative_agent.core.metrics.format_report")
     @patch("contemplative_agent.core.metrics.compute_metrics")
     def test_report_without_flag_skips_instruments(
-        self, _mock_metrics, mock_fmt, mock_pattern_report, capsys,
+        self,
+        _mock_metrics,
+        mock_fmt,
+        mock_pattern_report,
+        capsys,
     ):
         mock_fmt.return_value = "SESSION-METRICS"
 
@@ -286,7 +300,10 @@ class TestMeditateSmoke:
         mock_meditate.return_value = MagicMock()
         mock_interpret.return_value = "meditation summary"
 
-        with patch("sys.argv", ["contemplative-agent", "meditate", "--days", "1", "--cycles", "1", "--dry-run"]):
+        with patch(
+            "sys.argv",
+            ["contemplative-agent", "meditate", "--days", "1", "--cycles", "1", "--dry-run"],
+        ):
             main()
 
         mock_build.assert_called_once()
@@ -305,6 +322,7 @@ class TestAutonomyFlags:
             main()
 
         from contemplative_agent.adapters.moltbook.agent import AutonomyLevel
+
         mock_agent_cls.assert_called_once_with(autonomy=AutonomyLevel.APPROVE, domain_config=None)
 
     @patch("contemplative_agent.cli.Agent")
@@ -316,6 +334,7 @@ class TestAutonomyFlags:
             main()
 
         from contemplative_agent.adapters.moltbook.agent import AutonomyLevel
+
         mock_agent_cls.assert_called_once_with(autonomy=AutonomyLevel.GUARDED, domain_config=None)
 
     @patch("contemplative_agent.cli.Agent")
@@ -327,6 +346,7 @@ class TestAutonomyFlags:
             main()
 
         from contemplative_agent.adapters.moltbook.agent import AutonomyLevel
+
         mock_agent_cls.assert_called_once_with(autonomy=AutonomyLevel.AUTO, domain_config=None)
 
     @patch("contemplative_agent.cli.Agent")
@@ -366,8 +386,10 @@ class TestInstallSchedule:
         mock_run.return_value = MagicMock(returncode=0, stderr="")
         plist_path = tmp_path / "com.moltbook.agent.plist"
 
-        with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path), \
-             patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path):
+        with (
+            patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path),
+            patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path),
+        ):
             _do_install_schedule(interval=6, session=120)
 
         assert plist_path.exists()
@@ -378,7 +400,13 @@ class TestInstallSchedule:
         assert "/contemplative-agent" in content
         assert "{{VENV_BIN}}/contemplative-agent" not in content
         # Verify all placeholders were replaced
-        for placeholder in ("{{VENV_BIN}}", "{{PROJECT_ROOT}}", "{{SESSION_MINUTES}}", "{{LOG_PATH}}", "{{CALENDAR_INTERVALS}}"):
+        for placeholder in (
+            "{{VENV_BIN}}",
+            "{{PROJECT_ROOT}}",
+            "{{SESSION_MINUTES}}",
+            "{{LOG_PATH}}",
+            "{{CALENDAR_INTERVALS}}",
+        ):
             assert placeholder not in content
 
     @patch("contemplative_agent.cli.subprocess.run")
@@ -388,8 +416,10 @@ class TestInstallSchedule:
         plist_path = tmp_path / "com.moltbook.agent.plist"
         plist_path.write_text("old content")
 
-        with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path), \
-             patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path):
+        with (
+            patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path),
+            patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path),
+        ):
             _do_install_schedule(interval=6, session=120)
 
         # First call: unload, second call: load
@@ -408,9 +438,11 @@ class TestUninstallSchedule:
         plist_path = tmp_path / "com.moltbook.agent.plist"
         distill_plist_path = tmp_path / "com.moltbook.distill.plist"
         weekly_plist_path = tmp_path / "com.moltbook.weekly-analysis.plist"
-        with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path), \
-             patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist_path), \
-             patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist_path):
+        with (
+            patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path),
+            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist_path),
+            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist_path),
+        ):
             _do_uninstall_schedule()
         assert "No schedule installed" in capsys.readouterr().out
 
@@ -421,9 +453,11 @@ class TestUninstallSchedule:
         weekly_plist_path = tmp_path / "com.moltbook.weekly-analysis.plist"
         plist_path.write_text("dummy")
 
-        with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path), \
-             patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist_path), \
-             patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist_path):
+        with (
+            patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path),
+            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist_path),
+            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist_path),
+        ):
             _do_uninstall_schedule()
 
         assert not plist_path.exists()
@@ -436,8 +470,10 @@ class TestInstallDistillSchedule:
         mock_run.return_value = MagicMock(returncode=0, stderr="")
         plist_path = tmp_path / "com.moltbook.distill.plist"
 
-        with patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", plist_path), \
-             patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path):
+        with (
+            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", plist_path),
+            patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path),
+        ):
             _do_install_distill_schedule(distill_hour=3)
 
         assert plist_path.exists()
@@ -460,8 +496,10 @@ class TestInstallDistillSchedule:
         mock_run.return_value = MagicMock(returncode=0, stderr="")
         plist_path = tmp_path / "com.moltbook.distill.plist"
 
-        with patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", plist_path), \
-             patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path):
+        with (
+            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", plist_path),
+            patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path),
+        ):
             _do_install_distill_schedule(distill_hour=5)
 
         content = plist_path.read_text()
@@ -473,8 +511,10 @@ class TestInstallDistillSchedule:
         plist_path = tmp_path / "com.moltbook.distill.plist"
         plist_path.write_text("old content")
 
-        with patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", plist_path), \
-             patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path):
+        with (
+            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", plist_path),
+            patch("contemplative_agent.cli.LAUNCHD_PLIST_DIR", tmp_path),
+        ):
             _do_install_distill_schedule(distill_hour=3)
 
         assert mock_run.call_count == 2
@@ -497,9 +537,11 @@ class TestUninstallScheduleBoth:
         agent_plist.write_text("dummy")
         distill_plist.write_text("dummy")
 
-        with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", agent_plist), \
-             patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist), \
-             patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist):
+        with (
+            patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", agent_plist),
+            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist),
+            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist),
+        ):
             _do_uninstall_schedule()
 
         assert not agent_plist.exists()
@@ -511,9 +553,11 @@ class TestUninstallScheduleBoth:
         distill_plist = tmp_path / "com.moltbook.distill.plist"
         weekly_plist = tmp_path / "com.moltbook.weekly-analysis.plist"
 
-        with patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", agent_plist), \
-             patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist), \
-             patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist):
+        with (
+            patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", agent_plist),
+            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist),
+            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist),
+        ):
             _do_uninstall_schedule()
 
         assert "No schedule installed" in capsys.readouterr().out
@@ -578,12 +622,14 @@ class TestListTemplates:
 
 class TestDoInit:
     def test_default_template(self, tmp_path):
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.IDENTITY_PATH", tmp_path / "identity.md"), \
-             patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"), \
-             patch("contemplative_agent.cli.CONSTITUTION_DIR", tmp_path / "constitution"), \
-             patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"), \
-             patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.IDENTITY_PATH", tmp_path / "identity.md"),
+            patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"),
+            patch("contemplative_agent.cli.CONSTITUTION_DIR", tmp_path / "constitution"),
+            patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"),
+            patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"),
+        ):
             _do_init()
 
         assert (tmp_path / "identity.md").exists()
@@ -595,24 +641,28 @@ class TestDoInit:
         assert json.loads((tmp_path / "knowledge.json").read_text()) == []
 
     def test_custom_template(self, tmp_path):
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.IDENTITY_PATH", tmp_path / "identity.md"), \
-             patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"), \
-             patch("contemplative_agent.cli.CONSTITUTION_DIR", tmp_path / "constitution"), \
-             patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"), \
-             patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.IDENTITY_PATH", tmp_path / "identity.md"),
+            patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"),
+            patch("contemplative_agent.cli.CONSTITUTION_DIR", tmp_path / "constitution"),
+            patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"),
+            patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"),
+        ):
             _do_init(template_name="stoic")
 
         identity = (tmp_path / "identity.md").read_text()
         assert len(identity) > 1  # Not empty — copied from template
 
     def test_invalid_template(self, tmp_path):
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.IDENTITY_PATH", tmp_path / "identity.md"), \
-             patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"), \
-             patch("contemplative_agent.cli.CONSTITUTION_DIR", tmp_path / "constitution"), \
-             patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"), \
-             patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.IDENTITY_PATH", tmp_path / "identity.md"),
+            patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"),
+            patch("contemplative_agent.cli.CONSTITUTION_DIR", tmp_path / "constitution"),
+            patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"),
+            patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"),
+        ):
             with pytest.raises(SystemExit):
                 _do_init(template_name="nonexistent")
 
@@ -622,12 +672,14 @@ class TestDoInit:
         constitution = tmp_path / "constitution"
         constitution.mkdir()
 
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.IDENTITY_PATH", identity), \
-             patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"), \
-             patch("contemplative_agent.cli.CONSTITUTION_DIR", constitution), \
-             patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"), \
-             patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.IDENTITY_PATH", identity),
+            patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"),
+            patch("contemplative_agent.cli.CONSTITUTION_DIR", constitution),
+            patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"),
+            patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"),
+        ):
             _do_init()
 
         # Identity should not be overwritten
@@ -637,14 +689,16 @@ class TestDoInit:
 
     def test_copies_prompts_and_views_from_config(self, tmp_path):
         """`init` materialises all LLM-facing Markdown files under MOLTBOOK_HOME."""
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.IDENTITY_PATH", tmp_path / "identity.md"), \
-             patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"), \
-             patch("contemplative_agent.cli.CONSTITUTION_DIR", tmp_path / "constitution"), \
-             patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"), \
-             patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"), \
-             patch("contemplative_agent.cli.PROMPTS_DIR", tmp_path / "prompts"), \
-             patch("contemplative_agent.cli.VIEWS_DIR", tmp_path / "views"):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.IDENTITY_PATH", tmp_path / "identity.md"),
+            patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"),
+            patch("contemplative_agent.cli.CONSTITUTION_DIR", tmp_path / "constitution"),
+            patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"),
+            patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"),
+            patch("contemplative_agent.cli.PROMPTS_DIR", tmp_path / "prompts"),
+            patch("contemplative_agent.cli.VIEWS_DIR", tmp_path / "views"),
+        ):
             _do_init()
 
         prompts_dst = tmp_path / "prompts"
@@ -655,6 +709,7 @@ class TestDoInit:
         # Every .md the repo ships under config/prompts/ and config/views/
         # should now be materialised in the home.
         from contemplative_agent.core.domain import DEFAULT_CONFIG_DIR
+
         packaged_prompts = sorted(p.name for p in (DEFAULT_CONFIG_DIR / "prompts").glob("*.md"))
         packaged_views = sorted(p.name for p in (DEFAULT_CONFIG_DIR / "views").glob("*.md"))
         assert sorted(p.name for p in prompts_dst.glob("*.md")) == packaged_prompts
@@ -668,14 +723,16 @@ class TestDoInit:
         views = tmp_path / "views"
         views.mkdir()
 
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.IDENTITY_PATH", tmp_path / "identity.md"), \
-             patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"), \
-             patch("contemplative_agent.cli.CONSTITUTION_DIR", tmp_path / "constitution"), \
-             patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"), \
-             patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"), \
-             patch("contemplative_agent.cli.PROMPTS_DIR", prompts), \
-             patch("contemplative_agent.cli.VIEWS_DIR", views):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.IDENTITY_PATH", tmp_path / "identity.md"),
+            patch("contemplative_agent.cli.KNOWLEDGE_PATH", tmp_path / "knowledge.json"),
+            patch("contemplative_agent.cli.CONSTITUTION_DIR", tmp_path / "constitution"),
+            patch("contemplative_agent.cli.SKILLS_DIR", tmp_path / "skills"),
+            patch("contemplative_agent.cli.RULES_DIR", tmp_path / "rules"),
+            patch("contemplative_agent.cli.PROMPTS_DIR", prompts),
+            patch("contemplative_agent.cli.VIEWS_DIR", views),
+        ):
             _do_init()
 
         assert (prompts / "distill.md").read_text(encoding="utf-8") == "user-edited distill"
@@ -736,9 +793,7 @@ class TestLogApproval:
     def test_source_stage_adopted(self, tmp_path):
         audit_path = tmp_path / "logs" / "audit.jsonl"
         with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
-            _log_approval(
-                "insight", Path("a.md"), True, "content", source="stage-adopted"
-            )
+            _log_approval("insight", Path("a.md"), True, "content", source="stage-adopted")
         record = json.loads(audit_path.read_text().strip())
         assert record["source"] == "stage-adopted"
         assert record["decision"] == "approved"
@@ -748,7 +803,10 @@ class TestLogApproval:
         snap = tmp_path / "snapshots" / "distill_20260415T104542Z"
         with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
             _log_approval(
-                "distill-identity", Path("identity.md"), True, "content",
+                "distill-identity",
+                Path("identity.md"),
+                True,
+                "content",
                 snapshot_path=snap,
             )
         record = json.loads(audit_path.read_text().strip())
@@ -766,8 +824,12 @@ class TestLogApproval:
         audit_path = tmp_path / "logs" / "audit.jsonl"
         with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
             _log_approval(
-                "remove-skill", Path("skills/foo.md"), True, "content",
-                source="direct-remove", reason="superseded by 2026-04-17 run",
+                "remove-skill",
+                Path("skills/foo.md"),
+                True,
+                "content",
+                source="direct-remove",
+                reason="superseded by 2026-04-17 run",
             )
         record = json.loads(audit_path.read_text().strip())
         assert record["reason"] == "superseded by 2026-04-17 run"
@@ -785,9 +847,7 @@ class TestLogApproval:
         """approved=None should map to decision='staged'."""
         audit_path = tmp_path / "logs" / "audit.jsonl"
         with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
-            _log_approval(
-                "insight", Path("a.md"), None, "content", source="stage"
-            )
+            _log_approval("insight", Path("a.md"), None, "content", source="stage")
         record = json.loads(audit_path.read_text().strip())
         assert record["decision"] == "staged"
         assert record["source"] == "stage"
@@ -806,8 +866,12 @@ class TestHandleRemoveSkill:
     ):
         """Build an argparse.Namespace matching the remove-skill subparser."""
         import argparse
+
         return argparse.Namespace(
-            name=name, reason=reason, yes=yes, dry_run=dry_run,
+            name=name,
+            reason=reason,
+            yes=yes,
+            dry_run=dry_run,
         )
 
     @staticmethod
@@ -821,8 +885,10 @@ class TestHandleRemoveSkill:
         skills_dir = tmp_path / "skills"
         target = self._make_skill(skills_dir, "foo-20260417")
         audit_path = tmp_path / "logs" / "audit.jsonl"
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path),
+        ):
             _handle_remove_skill(
                 self._args("foo-20260417", reason="old pipeline"),
                 MagicMock(),
@@ -838,9 +904,11 @@ class TestHandleRemoveSkill:
         skills_dir = tmp_path / "skills"
         target = self._make_skill(skills_dir, "bar-20260417")
         audit_path = tmp_path / "logs" / "audit.jsonl"
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path), \
-             patch("contemplative_agent.cli._approve_delete", return_value=True):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path),
+            patch("contemplative_agent.cli._approve_delete", return_value=True),
+        ):
             _handle_remove_skill(
                 self._args("bar-20260417", yes=False),
                 MagicMock(),
@@ -854,9 +922,11 @@ class TestHandleRemoveSkill:
         skills_dir = tmp_path / "skills"
         target = self._make_skill(skills_dir, "baz-20260417")
         audit_path = tmp_path / "logs" / "audit.jsonl"
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path), \
-             patch("contemplative_agent.cli._approve_delete", return_value=False):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path),
+            patch("contemplative_agent.cli._approve_delete", return_value=False),
+        ):
             _handle_remove_skill(
                 self._args("baz-20260417", yes=False),
                 MagicMock(),
@@ -870,8 +940,10 @@ class TestHandleRemoveSkill:
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         audit_path = tmp_path / "logs" / "audit.jsonl"
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path),
+        ):
             with pytest.raises(SystemExit) as exc:
                 _handle_remove_skill(
                     self._args("nonexistent-20260417"),
@@ -884,8 +956,10 @@ class TestHandleRemoveSkill:
         skills_dir = tmp_path / "skills"
         target = self._make_skill(skills_dir, "keep-me-20260417")
         audit_path = tmp_path / "logs" / "audit.jsonl"
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path),
+        ):
             _handle_remove_skill(
                 self._args("keep-me-20260417", dry_run=True),
                 MagicMock(),
@@ -900,8 +974,10 @@ class TestHandleRemoveSkill:
         skills_dir = tmp_path / "skills"
         self._make_skill(skills_dir, "req-20260417")
         audit_path = tmp_path / "logs" / "audit.jsonl"
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path),
+        ):
             with pytest.raises(SystemExit) as exc:
                 _handle_remove_skill(
                     self._args("req-20260417", reason="   "),
@@ -913,8 +989,10 @@ class TestHandleRemoveSkill:
         skills_dir = tmp_path / "skills"
         target = self._make_skill(skills_dir, "ext-20260417")
         audit_path = tmp_path / "logs" / "audit.jsonl"
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path),
+        ):
             _handle_remove_skill(
                 self._args("ext-20260417.md"),
                 MagicMock(),
@@ -927,8 +1005,10 @@ class TestHandleRemoveSkill:
         skills_dir.mkdir()
         (tmp_path / "other.md").write_text("outside", encoding="utf-8")
         audit_path = tmp_path / "logs" / "audit.jsonl"
-        with patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
+        with (
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path),
+        ):
             with pytest.raises(SystemExit) as exc:
                 _handle_remove_skill(
                     self._args("../other"),
@@ -945,9 +1025,11 @@ class TestStageResults:
         staged_dir = tmp_path / ".staged"
         target = tmp_path / "skills" / "test-skill.md"
         audit = tmp_path / "logs" / "audit.jsonl"
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _stage_results(
                 [StageItem("test-skill.md", "# Test Skill\nContent", target)],
                 command="insight",
@@ -966,9 +1048,11 @@ class TestStageResults:
             StageItem("a.md", "# A", tmp_path / "skills" / "a.md"),
             StageItem("b.md", "# B", tmp_path / "skills" / "b.md"),
         ]
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _stage_results(items, command="insight")
         assert (staged_dir / "a.md").exists()
         assert (staged_dir / "b.md").exists()
@@ -977,9 +1061,11 @@ class TestStageResults:
         staged_dir = tmp_path / ".staged"
         audit = tmp_path / "logs" / "audit.jsonl"
         evil_target = Path("/tmp/evil.md")
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _stage_results(
                 [StageItem("evil.md", "pwned", evil_target)],
                 command="insight",
@@ -992,9 +1078,11 @@ class TestStageResults:
         staged_dir = tmp_path / ".staged"
         target = tmp_path / "skills" / "a.md"
         audit = tmp_path / "logs" / "audit.jsonl"
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _stage_results(
                 [StageItem("a.md", "# A", target)],
                 command="insight",
@@ -1011,9 +1099,11 @@ class TestStageResults:
         staged_dir = tmp_path / ".staged"
         target = tmp_path / "skills" / "merged.md"
         audit = tmp_path / "logs" / "audit.jsonl"
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _stage_results(
                 [
                     StageItem(
@@ -1046,9 +1136,11 @@ class TestAdoptStaged:
         staged_dir = tmp_path / ".staged"
         audit = tmp_path / "logs" / "audit.jsonl"
         item = StageItem(filename, text, target, sources=list(sources or []))
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _stage_results([item], command=command)
         return staged_dir
 
@@ -1058,10 +1150,12 @@ class TestAdoptStaged:
         # `yes` explicitly to exercise the interactive prompt path.
         args = MagicMock()
         args.yes = False
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit), \
-             patch("builtins.input", side_effect=inputs):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=inputs),
+        ):
             _handle_adopt_staged(args, MagicMock())
 
     def test_empty_staging_dir_is_noop(self, tmp_path, capsys):
@@ -1079,9 +1173,7 @@ class TestAdoptStaged:
 
     def test_approve_writes_target_and_clears_staging(self, tmp_path):
         target = tmp_path / "skills" / "a.md"
-        staged = self._stage_one(
-            tmp_path, filename="a.md", text="# A", target=target
-        )
+        staged = self._stage_one(tmp_path, filename="a.md", text="# A", target=target)
         self._run_adopt(tmp_path, staged, inputs=["y"])
         assert target.exists()
         assert target.read_text().startswith("# A")
@@ -1091,9 +1183,7 @@ class TestAdoptStaged:
 
     def test_reject_does_not_write_and_clears_staging(self, tmp_path):
         target = tmp_path / "skills" / "a.md"
-        staged = self._stage_one(
-            tmp_path, filename="a.md", text="# A", target=target
-        )
+        staged = self._stage_one(tmp_path, filename="a.md", text="# A", target=target)
         self._run_adopt(tmp_path, staged, inputs=["n"])
         assert not target.exists()
         # rejected items are also cleared from staging
@@ -1103,9 +1193,7 @@ class TestAdoptStaged:
     def test_adopt_logs_audit_entry(self, tmp_path):
         target = tmp_path / "skills" / "a.md"
         audit = tmp_path / "logs" / "audit.jsonl"
-        staged = self._stage_one(
-            tmp_path, filename="a.md", text="# A", target=target
-        )
+        staged = self._stage_one(tmp_path, filename="a.md", text="# A", target=target)
         self._run_adopt(tmp_path, staged, inputs=["y"])
         lines = audit.read_text().strip().splitlines()
         # stage + stage-adopted, so >= 2 entries
@@ -1214,7 +1302,6 @@ class TestSkillStocktakeDirectMerge:
 
     def _make_result(self, filenames, text="# Merged skill body"):
         from contemplative_agent.core.stocktake import (
-            MergeGroup,
             StocktakeResult,
         )
 
@@ -1236,15 +1323,19 @@ class TestSkillStocktakeDirectMerge:
         args.stage = False
 
         fake_result = self._make_result(["a.md", "b.md"])
-        with patch(
-            "contemplative_agent.core.stocktake.run_skill_stocktake",
-            return_value=fake_result,
-        ), patch(
-            "contemplative_agent.core.stocktake.merge_group",
-            return_value=merged_text,
-        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
-        ), patch("builtins.input", side_effect=inputs):
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_skill_stocktake",
+                return_value=fake_result,
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.merge_group",
+                return_value=merged_text,
+            ),
+            patch("contemplative_agent.cli.SKILLS_DIR", skills_dir),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=inputs),
+        ):
             _handle_skill_stocktake(args, MagicMock())
 
         return skills_dir, audit
@@ -1271,14 +1362,12 @@ class TestSkillStocktakeDirectMerge:
         assert (skills_dir / "a.md").exists()
         assert (skills_dir / "b.md").exists()
 
-    def test_direct_merge_preserves_target_when_name_collides_with_source(
-        self, tmp_path
-    ):
+    def test_direct_merge_preserves_target_when_name_collides_with_source(self, tmp_path):
         """Regression: when LLM's merged title slugifies to an existing source
         filename, target_path == sources[0]. The delete loop must not unlink
         the file we just wrote. Previously this caused total loss of merge
         output (observed 2026-04-11 during resonant-fluidity merge)."""
-        from contemplative_agent.core.stocktake import MergeGroup, StocktakeResult
+        from contemplative_agent.core.stocktake import StocktakeResult
 
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
@@ -1301,9 +1390,7 @@ class TestSkillStocktakeDirectMerge:
         (skills_dir / colliding).write_text("# pre-existing content at collision path")
 
         fake_result = StocktakeResult(
-            merge_groups=(
-                MergeGroup(filenames=(colliding, "b.md"), reason="dup"),
-            ),
+            merge_groups=(MergeGroup(filenames=(colliding, "b.md"), reason="dup"),),
             quality_issues=(),
             total_files=2,
             items=((colliding, "# X"), ("b.md", "# Y")),
@@ -1313,15 +1400,19 @@ class TestSkillStocktakeDirectMerge:
         # which matches `colliding`.
         merged_text = "No title here, just body prose.\n\nMore body."
 
-        with patch(
-            "contemplative_agent.core.stocktake.run_skill_stocktake",
-            return_value=fake_result,
-        ), patch(
-            "contemplative_agent.core.stocktake.merge_group",
-            return_value=merged_text,
-        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
-        ), patch("builtins.input", side_effect=["y"]):
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_skill_stocktake",
+                return_value=fake_result,
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.merge_group",
+                return_value=merged_text,
+            ),
+            patch("contemplative_agent.cli.SKILLS_DIR", skills_dir),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=["y"]),
+        ):
             _handle_skill_stocktake(args, MagicMock())
 
         target = skills_dir / colliding
@@ -1346,9 +1437,7 @@ class TestSkillStocktakeDirectMerge:
             "# Merged Pattern\n\n"
             "**Context:** When two skills overlap.\n"
         )
-        skills_dir, _ = self._run_direct(
-            tmp_path, inputs=["y"], merged_text=merged_text
-        )
+        skills_dir, _ = self._run_direct(tmp_path, inputs=["y"], merged_text=merged_text)
 
         today = date.today().strftime("%Y%m%d")
         written = skills_dir / f"merged-pattern-{today}.md"
@@ -1384,18 +1473,20 @@ class TestSkillStocktakeCleanPhase:
             total_files=1,
             items=(("solo.md", "# Solo\n\noriginal"),),
         )
-        cleaned = (
-            "# Solo\n\noriginal\n\n## When to Use\nWhen a particular individual acts."
-        )
-        with patch(
-            "contemplative_agent.core.stocktake.run_skill_stocktake",
-            return_value=fake_result,
-        ), patch(
-            "contemplative_agent.core.stocktake.clean_skill_triggers",
-            return_value=cleaned,
-        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
-        ), patch("builtins.input", side_effect=["y"]):
+        cleaned = "# Solo\n\noriginal\n\n## When to Use\nWhen a particular individual acts."
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_skill_stocktake",
+                return_value=fake_result,
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.clean_skill_triggers",
+                return_value=cleaned,
+            ),
+            patch("contemplative_agent.cli.SKILLS_DIR", skills_dir),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=["y"]),
+        ):
             _handle_skill_stocktake(args, MagicMock())
 
         body = (skills_dir / "solo.md").read_text()
@@ -1449,15 +1540,19 @@ class TestSkillStocktakeCleanPhase:
             "**Context:** When a particular individual acts.\n\n"
             "## When to Use\nWhen a particular individual acts on a specific topic."
         )
-        with patch(
-            "contemplative_agent.core.stocktake.run_skill_stocktake",
-            return_value=fake_result,
-        ), patch(
-            "contemplative_agent.core.stocktake.clean_skill_triggers",
-            return_value=cleaned,
-        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
-        ), patch("builtins.input", side_effect=["y"]):
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_skill_stocktake",
+                return_value=fake_result,
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.clean_skill_triggers",
+                return_value=cleaned,
+            ),
+            patch("contemplative_agent.cli.SKILLS_DIR", skills_dir),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=["y"]),
+        ):
             _handle_skill_stocktake(args, MagicMock())
 
         body = (skills_dir / "solo.md").read_text()
@@ -1500,15 +1595,19 @@ class TestSkillStocktakeCleanPhase:
             "**Context:** Applies when a particular individual acts. Extra detail.\n\n"
             "## When to Use\nWhen a particular individual acts."
         )
-        with patch(
-            "contemplative_agent.core.stocktake.run_skill_stocktake",
-            return_value=fake_result,
-        ), patch(
-            "contemplative_agent.core.stocktake.clean_skill_triggers",
-            return_value=cleaned,
-        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
-        ), patch("builtins.input", side_effect=["y"]):
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_skill_stocktake",
+                return_value=fake_result,
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.clean_skill_triggers",
+                return_value=cleaned,
+            ),
+            patch("contemplative_agent.cli.SKILLS_DIR", skills_dir),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=["y"]),
+        ):
             _handle_skill_stocktake(args, MagicMock())
 
         body = (skills_dir / "solo.md").read_text()
@@ -1534,16 +1633,18 @@ class TestSkillStocktakeCleanPhase:
             total_files=1,
             items=(("solo.md", "# Solo original"),),
         )
-        with patch(
-            "contemplative_agent.core.stocktake.run_skill_stocktake",
-            return_value=fake_result,
-        ), patch(
-            "contemplative_agent.core.stocktake.clean_skill_triggers",
-            return_value="CLEAN_NOOP",
-        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
-        ), patch(
-            "builtins.input", side_effect=AssertionError("no approval prompt expected")
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_skill_stocktake",
+                return_value=fake_result,
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.clean_skill_triggers",
+                return_value="CLEAN_NOOP",
+            ),
+            patch("contemplative_agent.cli.SKILLS_DIR", skills_dir),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=AssertionError("no approval prompt expected")),
         ):
             _handle_skill_stocktake(args, MagicMock())
 
@@ -1553,7 +1654,6 @@ class TestSkillStocktakeCleanPhase:
     def test_merged_and_dropped_excluded_from_clean(self, tmp_path):
         """Files consumed by a merge or flagged for drop are not cleaned."""
         from contemplative_agent.core.stocktake import (
-            MergeGroup,
             QualityIssue,
             StocktakeResult,
         )
@@ -1583,18 +1683,23 @@ class TestSkillStocktakeCleanPhase:
             clean_calls.append(item[0])
             return "CLEAN_NOOP"
 
-        with patch(
-            "contemplative_agent.core.stocktake.run_skill_stocktake",
-            return_value=fake_result,
-        ), patch(
-            "contemplative_agent.core.stocktake.merge_group",
-            return_value="# Merged\n\nBody",
-        ), patch(
-            "contemplative_agent.core.stocktake.clean_skill_triggers",
-            side_effect=fake_clean,
-        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
-        ), patch("builtins.input", side_effect=["y", "y"]):
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_skill_stocktake",
+                return_value=fake_result,
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.merge_group",
+                return_value="# Merged\n\nBody",
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.clean_skill_triggers",
+                side_effect=fake_clean,
+            ),
+            patch("contemplative_agent.cli.SKILLS_DIR", skills_dir),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=["y", "y"]),
+        ):
             _handle_skill_stocktake(args, MagicMock())
 
         # a.md+b.md consumed by the merge, bad.md dropped -> only solo.md cleaned.
@@ -1621,17 +1726,20 @@ class TestSkillStocktakeCleanPhase:
             items=(("solo.md", "# Solo original"),),
         )
         cleaned = "# Solo\n\n## When to Use\nWhen a particular individual acts."
-        with patch(
-            "contemplative_agent.core.stocktake.run_skill_stocktake",
-            return_value=fake_result,
-        ), patch(
-            "contemplative_agent.core.stocktake.clean_skill_triggers",
-            return_value=cleaned,
-        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
-            "contemplative_agent.cli.STAGED_DIR", staged
-        ), patch(
-            "contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path
-        ), patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_skill_stocktake",
+                return_value=fake_result,
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.clean_skill_triggers",
+                return_value=cleaned,
+            ),
+            patch("contemplative_agent.cli.SKILLS_DIR", skills_dir),
+            patch("contemplative_agent.cli.STAGED_DIR", staged),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _handle_skill_stocktake(args, MagicMock())
 
         # Live file untouched; staged copy + meta written under the clean command.
@@ -1659,14 +1767,17 @@ class TestSkillStocktakeCleanPhase:
             total_files=1,
             items=(("r.md", "# Rule"),),
         )
-        with patch(
-            "contemplative_agent.core.stocktake.run_rules_stocktake",
-            return_value=fake_result,
-        ), patch(
-            "contemplative_agent.core.stocktake.clean_skill_triggers",
-        ) as mock_clean, patch(
-            "contemplative_agent.cli.RULES_DIR", rules_dir
-        ), patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_rules_stocktake",
+                return_value=fake_result,
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.clean_skill_triggers",
+            ) as mock_clean,
+            patch("contemplative_agent.cli.RULES_DIR", rules_dir),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _handle_rules_stocktake(args, MagicMock())
 
         mock_clean.assert_not_called()
@@ -1683,7 +1794,6 @@ class TestRulesStocktakeDirectMerge:
 
     def _make_result(self, filenames, text="# Merged rule body"):
         from contemplative_agent.core.stocktake import (
-            MergeGroup,
             StocktakeResult,
         )
 
@@ -1705,15 +1815,19 @@ class TestRulesStocktakeDirectMerge:
         args.stage = False
 
         fake_result = self._make_result(["a.md", "b.md"])
-        with patch(
-            "contemplative_agent.core.stocktake.run_rules_stocktake",
-            return_value=fake_result,
-        ), patch(
-            "contemplative_agent.core.stocktake.merge_group",
-            return_value=merged_text,
-        ), patch("contemplative_agent.cli.RULES_DIR", rules_dir), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
-        ), patch("builtins.input", side_effect=inputs):
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_rules_stocktake",
+                return_value=fake_result,
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.merge_group",
+                return_value=merged_text,
+            ),
+            patch("contemplative_agent.cli.RULES_DIR", rules_dir),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=inputs),
+        ):
             _handle_rules_stocktake(args, MagicMock())
 
         return rules_dir, audit
@@ -1739,14 +1853,12 @@ class TestRulesStocktakeDirectMerge:
         assert (rules_dir / "a.md").exists()
         assert (rules_dir / "b.md").exists()
 
-    def test_direct_merge_preserves_target_when_name_collides_with_source(
-        self, tmp_path
-    ):
+    def test_direct_merge_preserves_target_when_name_collides_with_source(self, tmp_path):
         """Regression: same self-delete bug that hit skill-stocktake
         (commit 542f0b2). When the merged rule title slugifies to the
         name of one of the source rules, the delete loop must not unlink
         the file we just wrote."""
-        from contemplative_agent.core.stocktake import MergeGroup, StocktakeResult
+        from contemplative_agent.core.stocktake import StocktakeResult
         from datetime import date
 
         rules_dir = tmp_path / "rules"
@@ -1762,9 +1874,7 @@ class TestRulesStocktakeDirectMerge:
         args.stage = False
 
         fake_result = StocktakeResult(
-            merge_groups=(
-                MergeGroup(filenames=(colliding, "b.md"), reason="dup"),
-            ),
+            merge_groups=(MergeGroup(filenames=(colliding, "b.md"), reason="dup"),),
             quality_issues=(),
             total_files=2,
             items=((colliding, "# X"), ("b.md", "# Y")),
@@ -1773,15 +1883,19 @@ class TestRulesStocktakeDirectMerge:
         # slug falls back to "merged-rule" -> filename matches `colliding`.
         merged_text = "No title here, just rule body prose.\n\nMore body."
 
-        with patch(
-            "contemplative_agent.core.stocktake.run_rules_stocktake",
-            return_value=fake_result,
-        ), patch(
-            "contemplative_agent.core.stocktake.merge_group",
-            return_value=merged_text,
-        ), patch("contemplative_agent.cli.RULES_DIR", rules_dir), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
-        ), patch("builtins.input", side_effect=["y"]):
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_rules_stocktake",
+                return_value=fake_result,
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.merge_group",
+                return_value=merged_text,
+            ),
+            patch("contemplative_agent.cli.RULES_DIR", rules_dir),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=["y"]),
+        ):
             _handle_rules_stocktake(args, MagicMock())
 
         target = rules_dir / colliding
@@ -1812,9 +1926,11 @@ class TestStageResultsDropAction:
         staged_dir = tmp_path / ".staged"
         target = tmp_path / "skills" / "low-quality.md"
         audit = tmp_path / "logs" / "audit.jsonl"
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _stage_results(
                 [StageItem("low-quality.md", "# LQ", target, action="drop")],
                 command="skill-stocktake-drop",
@@ -1828,9 +1944,11 @@ class TestStageResultsDropAction:
         staged_dir = tmp_path / ".staged"
         target = tmp_path / "skills" / "merged.md"
         audit = tmp_path / "logs" / "audit.jsonl"
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _stage_results(
                 [StageItem("merged.md", "# M", target)],
                 command="skill-stocktake",
@@ -1875,9 +1993,11 @@ class TestAdoptStagedDrop:
         staged_dir = tmp_path / ".staged"
         audit = tmp_path / "logs" / "audit.jsonl"
         item = StageItem(filename, text, target, action=action)
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _stage_results([item], command=command)
         return staged_dir
 
@@ -1885,10 +2005,12 @@ class TestAdoptStagedDrop:
         audit = tmp_path / "logs" / "audit.jsonl"
         args = MagicMock()
         args.yes = False
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit), \
-             patch("builtins.input", side_effect=inputs):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=inputs),
+        ):
             _handle_adopt_staged(args, MagicMock())
 
     def test_adopt_drop_approved_deletes_target(self, tmp_path):
@@ -1898,7 +2020,9 @@ class TestAdoptStagedDrop:
         target.write_text("# Low quality skill\nshort")
 
         staged = self._stage_one(
-            tmp_path, filename="low-quality.md", text="# Low quality skill\nshort",
+            tmp_path,
+            filename="low-quality.md",
+            text="# Low quality skill\nshort",
             target=target,
         )
         self._run_adopt(tmp_path, staged, inputs=["y"])
@@ -1911,7 +2035,9 @@ class TestAdoptStagedDrop:
         target.write_text("# Low quality skill\nshort")
 
         staged = self._stage_one(
-            tmp_path, filename="low-quality.md", text="# Low quality skill\nshort",
+            tmp_path,
+            filename="low-quality.md",
+            text="# Low quality skill\nshort",
             target=target,
         )
         self._run_adopt(tmp_path, staged, inputs=["n"])
@@ -1925,7 +2051,10 @@ class TestAdoptStagedDrop:
 
         audit = tmp_path / "logs" / "audit.jsonl"
         staged = self._stage_one(
-            tmp_path, filename="low-quality.md", text="# LQ", target=target,
+            tmp_path,
+            filename="low-quality.md",
+            text="# LQ",
+            target=target,
         )
         self._run_adopt(tmp_path, staged, inputs=["y"])
 
@@ -1943,7 +2072,10 @@ class TestAdoptStagedDrop:
         target = skills_dir / "gone.md"  # does not exist
 
         staged = self._stage_one(
-            tmp_path, filename="gone.md", text="# Ghost", target=target,
+            tmp_path,
+            filename="gone.md",
+            text="# Ghost",
+            target=target,
         )
         # Should not raise
         self._run_adopt(tmp_path, staged, inputs=["y"])
@@ -1966,9 +2098,11 @@ class TestAdoptStagedDrop:
             action="drop",
             command="skill-stocktake-drop",
         )
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _stage_results([merge_item, drop_item], command="skill-stocktake")
 
         self._run_adopt(tmp_path, staged_dir, inputs=["y", "y"])
@@ -1992,10 +2126,12 @@ class TestAdoptStagedYesFlag:
         args.yes = True
         # Patch input() with a sentinel that fails the test if called.
         # If --yes works correctly, the prompt path should never run.
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit), \
-             patch("builtins.input") as mock_input:
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input") as mock_input,
+        ):
             _handle_adopt_staged(args, MagicMock())
             mock_input.assert_not_called()
 
@@ -2003,12 +2139,14 @@ class TestAdoptStagedYesFlag:
         target = tmp_path / "skills" / "a.md"
         staged_dir = tmp_path / ".staged"
         item = StageItem("a.md", "# Auto-approved A", target)
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch(
-                 "contemplative_agent.cli.AUDIT_LOG_PATH",
-                 tmp_path / "logs" / "audit.jsonl",
-             ):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch(
+                "contemplative_agent.cli.AUDIT_LOG_PATH",
+                tmp_path / "logs" / "audit.jsonl",
+            ),
+        ):
             _stage_results([item], command="insight")
 
         self._run_adopt_yes(tmp_path, staged_dir)
@@ -2040,12 +2178,14 @@ class TestAdoptStagedYesFlag:
             action="drop",
             command="skill-stocktake-drop",
         )
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch(
-                 "contemplative_agent.cli.AUDIT_LOG_PATH",
-                 tmp_path / "logs" / "audit.jsonl",
-             ):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch(
+                "contemplative_agent.cli.AUDIT_LOG_PATH",
+                tmp_path / "logs" / "audit.jsonl",
+            ),
+        ):
             _stage_results([item], command="skill-stocktake")
 
         self._run_adopt_yes(tmp_path, staged_dir)
@@ -2076,12 +2216,14 @@ class TestAdoptStagedYesFlag:
             action="drop",
             command="skill-stocktake-drop",
         )
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch(
-                 "contemplative_agent.cli.AUDIT_LOG_PATH",
-                 tmp_path / "logs" / "audit.jsonl",
-             ):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch(
+                "contemplative_agent.cli.AUDIT_LOG_PATH",
+                tmp_path / "logs" / "audit.jsonl",
+            ),
+        ):
             _stage_results([merge_item, drop_item], command="skill-stocktake")
 
         self._run_adopt_yes(tmp_path, staged_dir)
@@ -2109,8 +2251,7 @@ class TestSkillStocktakeDirectDrop:
         return StocktakeResult(
             merge_groups=(),
             quality_issues=tuple(
-                QualityIssue(filename=f, reason="body < 200 chars")
-                for f in quality_files
+                QualityIssue(filename=f, reason="body < 200 chars") for f in quality_files
             ),
             total_files=len(quality_files),
             items=tuple((f, body) for f in quality_files),
@@ -2127,12 +2268,15 @@ class TestSkillStocktakeDirectDrop:
         args.stage = False
 
         fake_result = self._make_result_with_quality_issues(quality_files)
-        with patch(
-            "contemplative_agent.core.stocktake.run_skill_stocktake",
-            return_value=fake_result,
-        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
-        ), patch("builtins.input", side_effect=inputs):
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_skill_stocktake",
+                return_value=fake_result,
+            ),
+            patch("contemplative_agent.cli.SKILLS_DIR", skills_dir),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=inputs),
+        ):
             _handle_skill_stocktake(args, MagicMock())
 
         return skills_dir, audit
@@ -2164,13 +2308,15 @@ class TestSkillStocktakeDirectDrop:
         args.stage = True
 
         fake_result = self._make_result_with_quality_issues(["lq.md"])
-        with patch(
-            "contemplative_agent.core.stocktake.run_skill_stocktake",
-            return_value=fake_result,
-        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
-            "contemplative_agent.cli.STAGED_DIR", staged_dir
-        ), patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_skill_stocktake",
+                return_value=fake_result,
+            ),
+            patch("contemplative_agent.cli.SKILLS_DIR", skills_dir),
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
         ):
             _handle_skill_stocktake(args, MagicMock())
 
@@ -2206,12 +2352,15 @@ class TestRulesStocktakeDirectDrop:
         args.stage = False
 
         fake_result = self._make_result_with_quality_issues(quality_files)
-        with patch(
-            "contemplative_agent.core.stocktake.run_rules_stocktake",
-            return_value=fake_result,
-        ), patch("contemplative_agent.cli.RULES_DIR", rules_dir), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
-        ), patch("builtins.input", side_effect=inputs):
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_rules_stocktake",
+                return_value=fake_result,
+            ),
+            patch("contemplative_agent.cli.RULES_DIR", rules_dir),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=inputs),
+        ):
             _handle_rules_stocktake(args, MagicMock())
 
         return rules_dir, audit
@@ -2243,13 +2392,15 @@ class TestRulesStocktakeDirectDrop:
         args.stage = True
 
         fake_result = self._make_result_with_quality_issues(["old-rule.md"])
-        with patch(
-            "contemplative_agent.core.stocktake.run_rules_stocktake",
-            return_value=fake_result,
-        ), patch("contemplative_agent.cli.RULES_DIR", rules_dir), patch(
-            "contemplative_agent.cli.STAGED_DIR", staged_dir
-        ), patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_rules_stocktake",
+                return_value=fake_result,
+            ),
+            patch("contemplative_agent.cli.RULES_DIR", rules_dir),
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
         ):
             _handle_rules_stocktake(args, MagicMock())
 
@@ -2270,23 +2421,17 @@ class TestStocktakeStageMergeAndDropCoexist:
 
     def _make_mixed_result(self, merge_files, quality_files, body="x" * 250):
         from contemplative_agent.core.stocktake import (
-            MergeGroup,
             QualityIssue,
             StocktakeResult,
         )
 
         return StocktakeResult(
-            merge_groups=(
-                MergeGroup(filenames=tuple(merge_files), reason="dup"),
-            ),
+            merge_groups=(MergeGroup(filenames=tuple(merge_files), reason="dup"),),
             quality_issues=tuple(
-                QualityIssue(filename=f, reason="missing section")
-                for f in quality_files
+                QualityIssue(filename=f, reason="missing section") for f in quality_files
             ),
             total_files=len(merge_files) + len(quality_files),
-            items=tuple(
-                (f, body) for f in (*merge_files, *quality_files)
-            ),
+            items=tuple((f, body) for f in (*merge_files, *quality_files)),
         )
 
     def test_skill_stage_merge_and_drop_both_survive(self, tmp_path):
@@ -2306,16 +2451,19 @@ class TestStocktakeStageMergeAndDropCoexist:
         )
         merged_text = "# Merged Skill\n\n## Problem\nx\n\n## Solution\ny\n"
 
-        with patch(
-            "contemplative_agent.core.stocktake.run_skill_stocktake",
-            return_value=fake_result,
-        ), patch(
-            "contemplative_agent.core.stocktake.merge_group",
-            return_value=merged_text,
-        ), patch("contemplative_agent.cli.SKILLS_DIR", skills_dir), patch(
-            "contemplative_agent.cli.STAGED_DIR", staged_dir
-        ), patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_skill_stocktake",
+                return_value=fake_result,
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.merge_group",
+                return_value=merged_text,
+            ),
+            patch("contemplative_agent.cli.SKILLS_DIR", skills_dir),
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
         ):
             _handle_skill_stocktake(args, MagicMock())
 
@@ -2325,9 +2473,7 @@ class TestStocktakeStageMergeAndDropCoexist:
             f"{[p.name for p in meta_files]}"
         )
 
-        commands = sorted(
-            json.loads(p.read_text())["command"] for p in meta_files
-        )
+        commands = sorted(json.loads(p.read_text())["command"] for p in meta_files)
         assert commands == ["skill-stocktake", "skill-stocktake-drop"]
 
         # The drop meta should be for lq.md and carry action="drop"
@@ -2350,20 +2496,21 @@ class TestStocktakeStageMergeAndDropCoexist:
             merge_files=("a.md", "b.md"),
             quality_files=("lq.md",),
         )
-        merged_text = (
-            "# Merged Rule\n\n**Practice:** do x\n\n**Rationale:** because y\n"
-        )
+        merged_text = "# Merged Rule\n\n**Practice:** do x\n\n**Rationale:** because y\n"
 
-        with patch(
-            "contemplative_agent.core.stocktake.run_rules_stocktake",
-            return_value=fake_result,
-        ), patch(
-            "contemplative_agent.core.stocktake.merge_group",
-            return_value=merged_text,
-        ), patch("contemplative_agent.cli.RULES_DIR", rules_dir), patch(
-            "contemplative_agent.cli.STAGED_DIR", staged_dir
-        ), patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), patch(
-            "contemplative_agent.cli.AUDIT_LOG_PATH", audit
+        with (
+            patch(
+                "contemplative_agent.core.stocktake.run_rules_stocktake",
+                return_value=fake_result,
+            ),
+            patch(
+                "contemplative_agent.core.stocktake.merge_group",
+                return_value=merged_text,
+            ),
+            patch("contemplative_agent.cli.RULES_DIR", rules_dir),
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
         ):
             _handle_rules_stocktake(args, MagicMock())
 
@@ -2373,15 +2520,12 @@ class TestStocktakeStageMergeAndDropCoexist:
             f"{[p.name for p in meta_files]}"
         )
 
-        commands = sorted(
-            json.loads(p.read_text())["command"] for p in meta_files
-        )
+        commands = sorted(json.loads(p.read_text())["command"] for p in meta_files)
         assert commands == ["rules-stocktake", "rules-stocktake-drop"]
 
         drop_meta = json.loads((staged_dir / "lq.md.meta.json").read_text())
         assert drop_meta["action"] == "drop"
         assert drop_meta["command"] == "rules-stocktake-drop"
-
 
 
 class TestDialogueCommand:
@@ -2402,6 +2546,7 @@ class TestDialogueCommand:
     @staticmethod
     def _args(home_a: Path, home_b: Path, *, turns: int = 3, seed: str = "hello"):
         import argparse
+
         return argparse.Namespace(home_a=home_a, home_b=home_b, turns=turns, seed=seed)
 
     def test_rejects_production_home(self, tmp_path, capsys):
@@ -2451,9 +2596,11 @@ class TestDialogueCommand:
 
         fake_proc = MagicMock()
         fake_proc.wait.return_value = 0
-        with patch("contemplative_agent.cli.subprocess.Popen", return_value=fake_proc) as popen, \
-             patch("contemplative_agent.cli.os.pipe", return_value=(1000, 1001)), \
-             patch("contemplative_agent.cli.os.close"):
+        with (
+            patch("contemplative_agent.cli.subprocess.Popen", return_value=fake_proc) as popen,
+            patch("contemplative_agent.cli.os.pipe", return_value=(1000, 1001)),
+            patch("contemplative_agent.cli.os.close"),
+        ):
             _handle_dialogue(self._args(home_a, home_b), MagicMock())
 
         assert popen.call_count == 2
@@ -2482,9 +2629,11 @@ class TestDialogueCommand:
 
         fake_proc = MagicMock()
         fake_proc.wait.return_value = 0
-        with patch("contemplative_agent.cli.subprocess.Popen", return_value=fake_proc) as popen, \
-             patch("contemplative_agent.cli.os.pipe", return_value=(1000, 1001)), \
-             patch("contemplative_agent.cli.os.close"):
+        with (
+            patch("contemplative_agent.cli.subprocess.Popen", return_value=fake_proc) as popen,
+            patch("contemplative_agent.cli.os.pipe", return_value=(1000, 1001)),
+            patch("contemplative_agent.cli.os.close"),
+        ):
             _handle_dialogue(self._args(home_a, home_b), MagicMock())
 
         for call in popen.call_args_list:
@@ -2501,14 +2650,19 @@ class TestApprovalLineageADR0050:
         audit_path = tmp_path / "logs" / "audit.jsonl"
         with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path):
             _log_approval(
-                "insight", Path("skills/foo.md"), True, "# Skill",
+                "insight",
+                Path("skills/foo.md"),
+                True,
+                "# Skill",
                 source_ids=["abc123def456", "0123456789ab"],
                 epistemic_counts={"observed": 1, "generated": 2, "unknown": 0},
             )
         record = json.loads(audit_path.read_text().strip())
         assert record["source_ids"] == ["abc123def456", "0123456789ab"]
         assert record["epistemic_counts"] == {
-            "observed": 1, "generated": 2, "unknown": 0,
+            "observed": 1,
+            "generated": 2,
+            "unknown": 0,
         }
 
     def test_log_approval_lineage_fields_always_present(self, tmp_path):
@@ -2527,17 +2681,23 @@ class TestApprovalLineageADR0050:
         audit_path = tmp_path / "logs" / "audit.jsonl"
         skills_dir = tmp_path / "skills"
         item = SkillResult(
-            text="# S", filename="s.md", target_path=skills_dir / "s.md",
+            text="# S",
+            filename="s.md",
+            target_path=skills_dir / "s.md",
             pattern_ids=("a1a1a1a1a1a1", "b2b2b2b2b2b2"),
             epistemic_counts={"observed": 0, "generated": 2, "unknown": 0},
         )
-        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path), \
-             patch("builtins.input", side_effect=["y"]):
+        with (
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path),
+            patch("builtins.input", side_effect=["y"]),
+        ):
             _run_approval_loop([item], command="insight", target_dir=skills_dir)
         record = json.loads(audit_path.read_text().strip())
         assert record["source_ids"] == ["a1a1a1a1a1a1", "b2b2b2b2b2b2"]
         assert record["epistemic_counts"] == {
-            "observed": 0, "generated": 2, "unknown": 0,
+            "observed": 0,
+            "generated": 2,
+            "unknown": 0,
         }
 
     def test_run_approval_loop_plumbs_rule_source_ids(self, tmp_path):
@@ -2548,11 +2708,15 @@ class TestApprovalLineageADR0050:
         audit_path = tmp_path / "logs" / "audit.jsonl"
         rules_dir = tmp_path / "rules"
         item = RuleResult(
-            text="# R", filename="r.md", target_path=rules_dir / "r.md",
+            text="# R",
+            filename="r.md",
+            target_path=rules_dir / "r.md",
             source_ids=("skill-a.md", "skill-b.md"),
         )
-        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path), \
-             patch("builtins.input", side_effect=["y"]):
+        with (
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path),
+            patch("builtins.input", side_effect=["y"]),
+        ):
             _run_approval_loop([item], command="rules-distill", target_dir=rules_dir)
         record = json.loads(audit_path.read_text().strip())
         assert record["source_ids"] == ["skill-a.md", "skill-b.md"]
@@ -2563,19 +2727,25 @@ class TestApprovalLineageADR0050:
         audit = tmp_path / "logs" / "audit.jsonl"
         target = tmp_path / "skills" / "a.md"
         item = StageItem(
-            "a.md", "# A", target,
+            "a.md",
+            "# A",
+            target,
             source_ids=["c3c3c3c3c3c3"],
             epistemic_counts={"observed": 1, "generated": 0, "unknown": 0},
         )
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _stage_results([item], command="insight")
 
         meta = json.loads((staged_dir / "a.md.meta.json").read_text())
         assert meta["source_ids"] == ["c3c3c3c3c3c3"]
         assert meta["epistemic_counts"] == {
-            "observed": 1, "generated": 0, "unknown": 0,
+            "observed": 1,
+            "generated": 0,
+            "unknown": 0,
         }
         # Stage-time audit record already carries lineage.
         stage_record = json.loads(audit.read_text().strip().splitlines()[-1])
@@ -2584,10 +2754,12 @@ class TestApprovalLineageADR0050:
 
         args = MagicMock()
         args.yes = False
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit), \
-             patch("builtins.input", side_effect=["y"]):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=["y"]),
+        ):
             _handle_adopt_staged(args, MagicMock())
 
         adopted_record = json.loads(audit.read_text().strip().splitlines()[-1])
@@ -2595,7 +2767,9 @@ class TestApprovalLineageADR0050:
         assert adopted_record["source"] == "stage-adopted"
         assert adopted_record["source_ids"] == ["c3c3c3c3c3c3"]
         assert adopted_record["epistemic_counts"] == {
-            "observed": 1, "generated": 0, "unknown": 0,
+            "observed": 1,
+            "generated": 0,
+            "unknown": 0,
         }
 
 
@@ -2675,21 +2849,21 @@ class TestCollisionFreePathH5:
         audit_path = tmp_path / "logs" / "audit.jsonl"
         skills_dir = tmp_path / "skills"
         items = [
-            SkillResult(text="# First cluster skill", filename="s.md",
-                        target_path=skills_dir / "s.md"),
-            SkillResult(text="# Second cluster skill", filename="s.md",
-                        target_path=skills_dir / "s.md"),
+            SkillResult(
+                text="# First cluster skill", filename="s.md", target_path=skills_dir / "s.md"
+            ),
+            SkillResult(
+                text="# Second cluster skill", filename="s.md", target_path=skills_dir / "s.md"
+            ),
         ]
-        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path), \
-             patch("builtins.input", side_effect=["y", "y"]):
-            written = _run_approval_loop(
-                items, command="insight", target_dir=skills_dir
-            )
+        with (
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path),
+            patch("builtins.input", side_effect=["y", "y"]),
+        ):
+            written = _run_approval_loop(items, command="insight", target_dir=skills_dir)
         assert written == 2
-        assert (skills_dir / "s.md").read_text(
-            encoding="utf-8") == "# First cluster skill"
-        assert (skills_dir / "s-2.md").read_text(
-            encoding="utf-8") == "# Second cluster skill"
+        assert (skills_dir / "s.md").read_text(encoding="utf-8") == "# First cluster skill"
+        assert (skills_dir / "s-2.md").read_text(encoding="utf-8") == "# Second cluster skill"
 
 
 class TestInstallScheduleValidationOrderM9:
@@ -2700,19 +2874,21 @@ class TestInstallScheduleValidationOrderM9:
         from contemplative_agent.cli import _handle_install_schedule
 
         args = argparse.Namespace(
-            uninstall=False, interval=6, session=30, distill_hour=3,
-            no_distill=False, weekly_analysis=True,
+            uninstall=False,
+            interval=6,
+            session=30,
+            distill_hour=3,
+            no_distill=False,
+            weekly_analysis=True,
             weekly_analysis_day=9,  # invalid (>6)
             weekly_analysis_hour=8,
         )
         parser = argparse.ArgumentParser()
-        with patch(
-            "contemplative_agent.cli._do_install_schedule"
-        ) as mock_session, patch(
-            "contemplative_agent.cli._do_install_distill_schedule"
-        ) as mock_distill, patch(
-            "contemplative_agent.cli._do_install_weekly_analysis_schedule"
-        ) as mock_weekly:
+        with (
+            patch("contemplative_agent.cli._do_install_schedule") as mock_session,
+            patch("contemplative_agent.cli._do_install_distill_schedule") as mock_distill,
+            patch("contemplative_agent.cli._do_install_weekly_analysis_schedule") as mock_weekly,
+        ):
             with pytest.raises(SystemExit):
                 _handle_install_schedule(args, parser)
         mock_session.assert_not_called()
@@ -2760,3 +2936,172 @@ class TestCollisionRerunIdempotencyCodex:
         (tmp_path / "s-20260706-2.md").write_text("second", encoding="utf-8")
         resolved = _collision_free_path(tmp_path / "s-20260706.md", "second")
         assert resolved == tmp_path / "s-20260706-2.md"
+
+
+class TestStageResultsCollisionGuard:
+    """Round-2 R2-H1/R2-L2: the staging path shares the H5 collision guard
+    (two same-slug items in one batch previously clobbered each other's
+    .md + .meta.json) and hashes the normalized on-disk text so the staged
+    audit entry correlates with the adopt-time hash."""
+
+    def _stage(self, tmp_path, items):
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
+            _stage_results(items, command="insight")
+        return staged_dir, audit
+
+    def test_same_filename_items_both_survive(self, tmp_path):
+        items = [
+            StageItem("dup.md", "# First", tmp_path / "skills" / "dup.md"),
+            StageItem("dup.md", "# Second", tmp_path / "skills" / "dup.md"),
+        ]
+        staged_dir, _ = self._stage(tmp_path, items)
+        assert (staged_dir / "dup.md").read_text() == "# First\n"
+        assert (staged_dir / "dup-2.md").read_text() == "# Second\n"
+        # Sidecars pair with the collision-resolved names, so adopt-staged
+        # (which globs *.meta.json) sees both artifacts.
+        assert (staged_dir / "dup.md.meta.json").exists()
+        assert (staged_dir / "dup-2.md.meta.json").exists()
+
+    def test_staged_hash_matches_disk_bytes(self, tmp_path):
+        items = [StageItem("a.md", "# A", tmp_path / "skills" / "a.md")]
+        staged_dir, audit = self._stage(tmp_path, items)
+        disk = (staged_dir / "a.md").read_text()
+        record = json.loads(audit.read_text().strip())
+        assert record["content_hash"] == hashlib.sha256(disk.encode()).hexdigest()[:16]
+
+    def test_trailing_newline_not_doubled(self, tmp_path):
+        items = [StageItem("a.md", "# A\n", tmp_path / "skills" / "a.md")]
+        staged_dir, _ = self._stage(tmp_path, items)
+        assert (staged_dir / "a.md").read_text() == "# A\n"
+
+
+class TestRemoveStaleScheduleJobs:
+    """Round-2 R2-M1: install-schedule is declarative over the full schedule
+    set — optional jobs from a previous install whose flag is off this run
+    are removed instead of running forever on a stale schedule."""
+
+    def _paths(self, tmp_path):
+        return (
+            tmp_path / "com.moltbook.distill.plist",
+            tmp_path / "com.moltbook.weekly-analysis.plist",
+        )
+
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_removes_distill_when_flag_off(self, mock_run, tmp_path):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        distill, weekly = self._paths(tmp_path)
+        distill.write_text("dummy")
+        with (
+            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill),
+            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly),
+        ):
+            _remove_stale_schedule_jobs(distill=False, weekly_analysis=False)
+        assert not distill.exists()
+        mock_run.assert_called_once()  # one unload, for the distill plist
+
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_removes_weekly_when_flag_dropped(self, mock_run, tmp_path):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        distill, weekly = self._paths(tmp_path)
+        weekly.write_text("dummy")
+        with (
+            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill),
+            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly),
+        ):
+            _remove_stale_schedule_jobs(distill=True, weekly_analysis=False)
+        assert not weekly.exists()
+
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_keeps_jobs_whose_flag_is_on(self, mock_run, tmp_path):
+        distill, weekly = self._paths(tmp_path)
+        distill.write_text("dummy")
+        weekly.write_text("dummy")
+        with (
+            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill),
+            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly),
+        ):
+            _remove_stale_schedule_jobs(distill=True, weekly_analysis=True)
+        assert distill.exists()
+        assert weekly.exists()
+        mock_run.assert_not_called()
+
+
+class TestStocktakeTraceLabels:
+    """Round-2 R2-L1: reasoning.md sections carry the operation's real label
+    (console group number / skill filename) instead of list position, so a
+    skipped group no longer shifts later traces onto the wrong slot."""
+
+    def test_merge_labels_survive_skipped_group(self, tmp_path):
+        groups = [
+            MergeGroup(filenames=("a.md", "b.md"), reason="dup"),
+            MergeGroup(filenames=("c.md", "d.md"), reason="dup"),
+            MergeGroup(filenames=("e.md", "f.md"), reason="dup"),
+        ]
+        items = {n: f"# {n}" for n in ("a.md", "b.md", "c.md", "d.md", "e.md", "f.md")}
+        traces: list[str] = []
+        labels: list[str] = []
+        calls = {"n": 0}
+
+        def fake_render(group_items, prompt, fallback, sink):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                return None  # LLM error: no trace appended for group 2
+            sink.append(f"thinking {calls['n']}")
+            return (f"merged-{calls['n']}.md", "# Merged")
+
+        with patch("contemplative_agent.cli._render_merged_group", side_effect=fake_render):
+            _stocktake_merge_phase(
+                groups,
+                items,
+                target_dir=tmp_path,
+                merge_prompt="p",
+                command_prefix="skill-stocktake",
+                fallback_title="merged",
+                stage=True,
+                staged_batch=[],
+                trace_sink=traces,
+                trace_labels=labels,
+            )
+        assert labels == ["group 1", "group 3"]
+        assert _labeled_sections("merge", labels, traces) == [
+            ("merge group 1", "thinking 1"),
+            ("merge group 3", "thinking 3"),
+        ]
+
+    def test_labeled_sections_mismatch_falls_back_positional(self):
+        # Defensive: a labels/traces desync (future plumbing bug) must not
+        # silently drop traces via zip truncation.
+        assert _labeled_sections("merge", ["group 1"], ["t1", "t2"]) == [
+            ("merge 1", "t1"),
+            ("merge 2", "t2"),
+        ]
+
+
+class TestAdoptionOrderForCollisionPair:
+    """Codex review round-2 P2: adopt-staged must process a collision pair in
+    staging order — a plain name sort put dup-2.md.meta.json first ('-' < '.')
+    and swapped the pair's final target names."""
+
+    def test_adoption_preserves_staging_order(self, tmp_path):
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        target = tmp_path / "skills" / "dup.md"
+        items = [
+            StageItem("dup.md", "# First", target),
+            StageItem("dup.md", "# Second", target),
+        ]
+        ns = argparse.Namespace(yes=True)
+        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
+             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
+             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+            _stage_results(items, command="insight")
+            _handle_adopt_staged(ns, MagicMock())
+        # First staged item keeps the unsuffixed name; the collider gets -2.
+        assert (tmp_path / "skills" / "dup.md").read_text() == "# First\n"
+        assert (tmp_path / "skills" / "dup-2.md").read_text() == "# Second\n"

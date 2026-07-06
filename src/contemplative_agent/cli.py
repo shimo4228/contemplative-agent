@@ -204,6 +204,22 @@ def _do_install_weekly_analysis_schedule(weekday: int, hour: int) -> None:
     print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly analysis)")
 
 
+def _unload_and_remove_plist(plist_path: Path, label: str) -> bool:
+    """Unload and delete one launchd plist; True when a file was removed."""
+    if not plist_path.exists():
+        return False
+    result = subprocess.run(
+        ["launchctl", "unload", str(plist_path)],
+        capture_output=True,
+        text=True,
+    )
+    if result.returncode != 0:
+        print(f"Warning: launchctl unload ({label}): {result.stderr.strip()}", file=sys.stderr)
+    plist_path.unlink()
+    print(f"Removed: {plist_path}")
+    return True
+
+
 def _do_uninstall_schedule() -> None:
     """Uninstall launchd plists (session + distill + weekly-analysis)."""
     removed = False
@@ -213,21 +229,27 @@ def _do_uninstall_schedule() -> None:
         (LAUNCHD_DISTILL_PLIST_PATH, "distill"),
         (LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH, "weekly-analysis"),
     ]:
-        if not plist_path.exists():
-            continue
-        result = subprocess.run(
-            ["launchctl", "unload", str(plist_path)],
-            capture_output=True,
-            text=True,
-        )
-        if result.returncode != 0:
-            print(f"Warning: launchctl unload ({label}): {result.stderr.strip()}", file=sys.stderr)
-        plist_path.unlink()
-        print(f"Removed: {plist_path}")
-        removed = True
+        removed = _unload_and_remove_plist(plist_path, label) or removed
 
     if not removed:
         print("No schedule installed.")
+
+
+def _remove_stale_schedule_jobs(*, distill: bool, weekly_analysis: bool) -> None:
+    """Remove previously-installed optional jobs whose flag is off this run.
+
+    ``install-schedule`` is declarative over the full schedule set (round-2
+    R2-M1): re-running with ``--no-distill`` previously left an earlier
+    com.moltbook.distill job loaded on its stale schedule indefinitely, with
+    no warning — same for a dropped ``--weekly-analysis``. The always-on
+    session job needs no reconcile (reinstall overwrites it in place).
+    """
+    if not distill and _unload_and_remove_plist(LAUNCHD_DISTILL_PLIST_PATH, "distill"):
+        print("  (stale distill schedule removed: --no-distill on this run)")
+    if not weekly_analysis and _unload_and_remove_plist(
+        LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH, "weekly-analysis"
+    ):
+        print("  (stale weekly-analysis schedule removed: flag not set on this run)")
 
 
 AUDIT_LOG_PATH = MOLTBOOK_DATA_DIR / "logs" / "audit.jsonl"
@@ -360,18 +382,14 @@ def _collision_free_path(target_path: Path, text: str) -> Path:
     if _same_content(target_path):
         return target_path
     for n in range(2, 100):
-        candidate = target_path.with_name(
-            f"{target_path.stem}-{n}{target_path.suffix}"
-        )
+        candidate = target_path.with_name(f"{target_path.stem}-{n}{target_path.suffix}")
         if not candidate.exists() or _same_content(candidate):
             print(
                 f"  Name collision: {target_path.name} exists with different "
                 f"content; writing {candidate.name} instead"
             )
             return candidate
-    raise RuntimeError(
-        f"No collision-free name available for {target_path} after 98 tries"
-    )
+    raise RuntimeError(f"No collision-free name available for {target_path} after 98 tries")
 
 
 def _run_approval_loop(
@@ -400,7 +418,7 @@ def _run_approval_loop(
 
     written = 0
     for i, item in enumerate(items, 1):
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"[{i}/{len(items)}] {item.filename}")
         print(item.text)
         # ADR-0069: show the reasoning trace (think-ON pipelines) so the owner
@@ -422,10 +440,7 @@ def _run_approval_loop(
             # ADR-0050: SkillResult carries pattern_ids, RuleResult carries
             # source_ids (skill filenames); StageItem-shaped items carry
             # neither here (staging logs lineage itself).
-            source_ids=(
-                getattr(item, "pattern_ids", None)
-                or getattr(item, "source_ids", None)
-            ),
+            source_ids=(getattr(item, "pattern_ids", None) or getattr(item, "source_ids", None)),
             epistemic_counts=getattr(item, "epistemic_counts", None),
         )
         if approved:
@@ -487,7 +502,7 @@ def _stage_results(items: list[StageItem], command: str) -> None:
             old_file.unlink()
     staged_paths = []
     data_root = MOLTBOOK_DATA_DIR.resolve()
-    for item in items:
+    for seq, item in enumerate(items, 1):
         if not item.target_path.resolve().is_relative_to(data_root):
             print(
                 f"Error: target path escapes MOLTBOOK_HOME: {item.target_path}",
@@ -495,11 +510,25 @@ def _stage_results(items: list[StageItem], command: str) -> None:
             )
             continue
         item_command = item.command or command
-        staged_file = STAGED_DIR / item.filename
-        staged_file.write_text(item.text + "\n", encoding="utf-8")
+        # Same H5 collision guard as the direct / adopt write paths (round-2
+        # R2-H1): two same-slug items in one batch previously clobbered each
+        # other's .md + .meta.json in the staging dir — adopt-staged only
+        # ever saw the survivor, losing the first artifact with no warning.
+        # (The dir is wiped per batch, so collisions are intra-batch only.)
+        staged_file = _collision_free_path(STAGED_DIR / item.filename, item.text)
+        # Normalize the trailing newline BEFORE hashing so the "staged" audit
+        # entry's content_hash matches both the on-disk bytes and the
+        # adopt-time hash of the re-read file (round-2 R2-L2: the
+        # unconditional ``+ "\n"`` made every staged↔adopted pair differ).
+        text = item.text if item.text.endswith("\n") else item.text + "\n"
+        staged_file.write_text(text, encoding="utf-8")
         meta: dict[str, object] = {
             "target": str(item.target_path),
             "command": item_command,
+            # Adoption order (codex review round-2 P2): without it,
+            # adopt-staged's name sort processes "dup-2.md" before "dup.md"
+            # ('-' < '.'), swapping a collision pair's final target names.
+            "seq": seq,
         }
         if item.sources:
             meta["sources"] = list(item.sources)
@@ -511,11 +540,17 @@ def _stage_results(items: list[StageItem], command: str) -> None:
             meta["source_ids"] = list(item.source_ids)
         if item.epistemic_counts:
             meta["epistemic_counts"] = dict(item.epistemic_counts)
-        meta_file = STAGED_DIR / f"{item.filename}.meta.json"
+        # Derive the sidecar from the collision-resolved name so the
+        # .md ↔ .meta.json pairing adopt-staged relies on stays intact.
+        meta_file = STAGED_DIR / f"{staged_file.name}.meta.json"
         meta_file.write_text(json_mod.dumps(meta, indent=2) + "\n", encoding="utf-8")
         staged_paths.append((staged_file, item.target_path))
         _log_approval(
-            item_command, item.target_path, None, item.text, source="stage",
+            item_command,
+            item.target_path,
+            None,
+            text,
+            source="stage",
             source_ids=item.source_ids or None,
             epistemic_counts=item.epistemic_counts or None,
         )
@@ -548,8 +583,7 @@ def _list_templates() -> list[str]:
     if not templates_dir.is_dir():
         return []
     return sorted(
-        d.name for d in templates_dir.iterdir()
-        if d.is_dir() and (d / "identity.md").exists()
+        d.name for d in templates_dir.iterdir() if d.is_dir() and (d / "identity.md").exists()
     )
 
 
@@ -702,6 +736,13 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
                 parser.error("--weekly-analysis-day must be 0 (Sun) to 6 (Sat)")
             if args.weekly_analysis_hour < 0 or args.weekly_analysis_hour > 23:
                 parser.error("--weekly-analysis-hour must be between 0 and 23")
+        # Reconcile before installing (round-2 R2-M1): drop optional jobs
+        # from a previous install whose flag is off this run, so the command
+        # describes the complete desired schedule set.
+        _remove_stale_schedule_jobs(
+            distill=not args.no_distill,
+            weekly_analysis=args.weekly_analysis,
+        )
         _do_install_schedule(interval=args.interval, session=args.session)
         if not args.no_distill:
             _do_install_distill_schedule(distill_hour=args.distill_hour)
@@ -747,9 +788,7 @@ def _render_merged_group(
     return filename, merged_text
 
 
-def _delete_merged_originals(
-    target_dir: Path, target_path: Path, filenames: Sequence[str]
-) -> None:
+def _delete_merged_originals(target_dir: Path, target_path: Path, filenames: Sequence[str]) -> None:
     """Delete the source files consumed by an approved merge.
 
     Self-delete guard: when the merged title slugifies to one of the source
@@ -785,39 +824,42 @@ def _stocktake_merge_phase(
     stage: bool,
     staged_batch: list[StageItem],
     trace_sink: Optional[list[str]] = None,
+    trace_labels: Optional[list[str]] = None,
     snapshot_path: Optional[Path] = None,
 ) -> set[str]:
     """Merge duplicate groups; return the filenames consumed by a merge.
 
     ``trace_sink`` (ADR-0069) collects each group's merge reasoning trace;
-    ``snapshot_path`` is threaded into the approval audit so an adopted merge
-    points back at the run's manifest + reasoning.
+    ``trace_labels`` receives the console group number for each collected
+    trace (round-2 R2-L1: positional numbering misattributed traces once a
+    group was skipped mid-run); ``snapshot_path`` is threaded into the
+    approval audit so an adopted merge points back at the run's manifest +
+    reasoning.
     """
     from .core._io import write_restricted
 
     consumed_names: set[str] = set()
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Merging {len(merge_groups)} group(s)...")
 
     merged = 0
     for i, group in enumerate(merge_groups, 1):
-        group_items = [
-            (name, items_dict[name])
-            for name in group.filenames
-            if name in items_dict
-        ]
+        group_items = [(name, items_dict[name]) for name in group.filenames if name in items_dict]
         if len(group_items) < 2:
             continue
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"[Group {i}/{len(merge_groups)}] {', '.join(group.filenames)}")
         print(f"  Reason: {group.reason}")
 
         n_before = len(trace_sink) if trace_sink is not None else 0
-        rendered = _render_merged_group(
-            group_items, merge_prompt, fallback_title, trace_sink
-        )
+        rendered = _render_merged_group(group_items, merge_prompt, fallback_title, trace_sink)
+        # Label the trace with the group number shown above ("[Group i/N]")
+        # even when the render is rejected — a CANNOT_MERGE trace is still
+        # reasoning worth attributing to the right group (R2-L1).
+        if trace_sink is not None and trace_labels is not None and len(trace_sink) > n_before:
+            trace_labels.append(f"group {i}")
         if rendered is None:
             continue
         filename, merged_text = rendered
@@ -846,7 +888,10 @@ def _stocktake_merge_phase(
             target_path = _collision_free_path(target_path, merged_text)
         approved = _approve_write(target_path)
         _log_approval(
-            command_prefix, target_path, approved, merged_text,
+            command_prefix,
+            target_path,
+            approved,
+            merged_text,
             snapshot_path=snapshot_path,
         )
         if approved:
@@ -875,7 +920,7 @@ def _stocktake_drop_phase(
     snapshot_path: Optional[Path] = None,
 ) -> None:
     """Delete (or stage for deferred approval) files flagged as low quality."""
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Low-quality files: {len(quality_issues)}")
 
     dropped = 0
@@ -891,7 +936,7 @@ def _stocktake_drop_phase(
             print(f"  Skipped (empty body): {issue.filename}")
             continue
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"[Drop candidate] {issue.filename}")
         print(f"  Reason: {issue.reason}")
         print(body[:500])
@@ -909,9 +954,7 @@ def _stocktake_drop_phase(
             continue
 
         approved = _approve_delete(target_path)
-        _log_approval(
-            drop_command, target_path, approved, body, snapshot_path=snapshot_path
-        )
+        _log_approval(drop_command, target_path, approved, body, snapshot_path=snapshot_path)
         if approved:
             target_path.unlink()
             print(f"  Deleted {issue.filename}")
@@ -924,7 +967,10 @@ def _stocktake_drop_phase(
 
 
 def _clean_one_skill(
-    name: str, body: str, target_path: Path, clean_prompt: str,
+    name: str,
+    body: str,
+    target_path: Path,
+    clean_prompt: str,
     trace_sink: Optional[list[str]] = None,
 ) -> str | None:
     """Clean one skill's triggers and re-attach its original frontmatter.
@@ -975,6 +1021,7 @@ def _stocktake_clean_phase(
     stage: bool,
     staged_batch: list[StageItem],
     trace_sink: Optional[list[str]] = None,
+    trace_labels: Optional[list[str]] = None,
     snapshot_path: Optional[Path] = None,
 ) -> None:
     """Clean singleton triggers (skills only).
@@ -989,26 +1036,26 @@ def _stocktake_clean_phase(
     from .core._io import write_restricted
 
     clean_command = f"{command_prefix}-clean"
-    clean_targets = [
-        (name, body) for name, body in items if name not in skip_names
-    ]
+    clean_targets = [(name, body) for name, body in items if name not in skip_names]
     if not clean_targets:
         return
 
-    print(f"\n{'='*60}")
+    print(f"\n{'=' * 60}")
     print(f"Cleaning triggers for {len(clean_targets)} skill(s)...")
 
     cleaned = 0
     for name, body in clean_targets:
         target_path = target_dir / name
         n_before = len(trace_sink) if trace_sink is not None else 0
-        final_text = _clean_one_skill(
-            name, body, target_path, clean_prompt, trace_sink
-        )
+        final_text = _clean_one_skill(name, body, target_path, clean_prompt, trace_sink)
+        # Label the trace with the skill filename (R2-L1) — recorded even on
+        # CLEAN_NOOP so reasoning.md attribution survives skipped files.
+        if trace_sink is not None and trace_labels is not None and len(trace_sink) > n_before:
+            trace_labels.append(name)
         if final_text is None:
             continue
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"[Clean] {name}")
         print(final_text)
 
@@ -1028,7 +1075,10 @@ def _stocktake_clean_phase(
             print(f"\n--- Reasoning ---\n{trace_sink[-1]}")
         approved = _approve_write(target_path)
         _log_approval(
-            clean_command, target_path, approved, final_text,
+            clean_command,
+            target_path,
+            approved,
+            final_text,
             snapshot_path=snapshot_path,
         )
         if approved:
@@ -1043,6 +1093,22 @@ def _stocktake_clean_phase(
             f"\n--- Clean summary: {cleaned} cleaned, "
             f"{len(clean_targets) - cleaned} unchanged/skipped ---"
         )
+
+
+def _labeled_sections(
+    prefix: str, labels: list[str], traces: list[str]
+) -> list[tuple[str, Optional[str]]]:
+    """Pair reasoning traces with their operation labels for reasoning.md.
+
+    Traces were previously numbered by list position, so a group skipped
+    mid-run (LLM failure / CANNOT_MERGE / CLEAN_NOOP) shifted every later
+    trace onto the wrong group number (round-2 R2-L1). Labels are recorded
+    at call time; on a length mismatch (future plumbing bug) fall back to
+    positional numbering rather than silently dropping traces via ``zip``.
+    """
+    if len(labels) != len(traces):
+        return [(f"{prefix} {i}", t) for i, t in enumerate(traces, 1)]
+    return [(f"{prefix} {label}", t) for label, t in zip(labels, traces)]
 
 
 def _handle_stocktake_result(
@@ -1093,7 +1159,9 @@ def _handle_stocktake_result(
     # The grouping trace rides on result.thinking; merge / clean traces are
     # gathered per operation via these sinks and aggregated into reasoning.md.
     merge_traces: list[str] = []
+    merge_trace_labels: list[str] = []
     clean_traces: list[str] = []
+    clean_trace_labels: list[str] = []
 
     # Filenames consumed by a successful merge (their originals get deleted on
     # adopt) and filenames flagged for drop. The clean phase skips both so it
@@ -1111,6 +1179,7 @@ def _handle_stocktake_result(
             stage=stage,
             staged_batch=staged_batch,
             trace_sink=merge_traces,
+            trace_labels=merge_trace_labels,
             snapshot_path=snapshot_path,
         )
 
@@ -1136,6 +1205,7 @@ def _handle_stocktake_result(
             stage=stage,
             staged_batch=staged_batch,
             trace_sink=clean_traces,
+            trace_labels=clean_trace_labels,
             snapshot_path=snapshot_path,
         )
 
@@ -1145,8 +1215,8 @@ def _handle_stocktake_result(
     # ADR-0069: persist the run's reasoning — grouping (the main judgment) plus
     # each merge / clean operation — to reasoning.md beside the snapshot.
     sections: list[tuple[str, Optional[str]]] = [("duplicate grouping", result.thinking)]
-    sections += [(f"merge {i}", t) for i, t in enumerate(merge_traces, 1)]
-    sections += [(f"clean {i}", t) for i, t in enumerate(clean_traces, 1)]
+    sections += _labeled_sections("merge", merge_trace_labels, merge_traces)
+    sections += _labeled_sections("clean", clean_trace_labels, clean_traces)
     _write_reasoning(snapshot_path, sections)
 
 
@@ -1269,7 +1339,11 @@ def _adopt_drop_item(item: _StagedItem, *, yes: bool, audit_source: AuditSource)
     """Delete the drop target after approval; True when adopted."""
     approved = True if yes else _approve_delete(item.target)
     _log_approval(
-        item.command, item.target, approved, item.text, source=audit_source,
+        item.command,
+        item.target,
+        approved,
+        item.text,
+        source=audit_source,
         source_ids=item.source_ids,
         epistemic_counts=item.epistemic_counts,
     )
@@ -1298,9 +1372,7 @@ def _delete_adopted_sources(target: Path, sources: Sequence[str]) -> None:
         except OSError:
             same_dir = False
         if not same_dir:
-            print(
-                f"  Skipped source delete (outside target dir): {src_name}"
-            )
+            print(f"  Skipped source delete (outside target dir): {src_name}")
             continue
         # Guard: when the merged title collides with an original
         # filename, src_path == target. Skip so we don't delete
@@ -1323,7 +1395,11 @@ def _adopt_write_item(item: _StagedItem, *, yes: bool, audit_source: AuditSource
         target = _collision_free_path(target, item.text)
     approved = True if yes else _approve_write(target)
     _log_approval(
-        item.command, target, approved, item.text, source=audit_source,
+        item.command,
+        target,
+        approved,
+        item.text,
+        source=audit_source,
         source_ids=item.source_ids,
         epistemic_counts=item.epistemic_counts,
     )
@@ -1337,6 +1413,22 @@ def _adopt_write_item(item: _StagedItem, *, yes: bool, audit_source: AuditSource
     # so they get deleted once the merged result is adopted.
     _delete_adopted_sources(target, item.sources)
     return True
+
+
+def _staged_sort_key(meta_file: Path) -> tuple[int, str]:
+    """Adoption order: staging sequence first, then filename.
+
+    A plain name sort adopts ``dup-2.md`` before ``dup.md`` ('-' sorts
+    before '.'), so a collision pair's final target names came out swapped
+    from their staging order (codex review round-2 P2). ``seq`` is written
+    by ``_stage_results``; metas without it (pre-seq batches, corrupt
+    sidecars) sort last by name, preserving the old order among themselves.
+    """
+    try:
+        seq = json_mod.loads(meta_file.read_text(encoding="utf-8")).get("seq")
+    except (OSError, ValueError):
+        seq = None
+    return (seq if isinstance(seq, int) else sys.maxsize, meta_file.name)
 
 
 def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
@@ -1359,13 +1451,15 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         print("No staging directory.")
         return
 
-    meta_files = sorted(STAGED_DIR.glob("*.meta.json"))
+    meta_files = sorted(STAGED_DIR.glob("*.meta.json"), key=_staged_sort_key)
     if not meta_files:
         print("No staged files.")
         return
 
     if yes:
-        print(f"Auto-approve mode (--yes): adopting {len(meta_files)} staged item(s) without prompts.")
+        print(
+            f"Auto-approve mode (--yes): adopting {len(meta_files)} staged item(s) without prompts."
+        )
 
     adopted = 0
     rejected = 0
@@ -1377,7 +1471,7 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
             skipped += 1
             continue
 
-        print(f"\n{'='*60}")
+        print(f"\n{'=' * 60}")
         print(f"[{item.command}] {item.content_file.name} -> {item.target}")
         print(item.text)
 
@@ -1393,15 +1487,10 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         item.content_file.unlink(missing_ok=True)
         meta_file.unlink(missing_ok=True)
 
-    print(
-        f"\n--- Summary: {adopted} adopted, {rejected} rejected, "
-        f"{skipped} skipped ---"
-    )
+    print(f"\n--- Summary: {adopted} adopted, {rejected} rejected, {skipped} skipped ---")
 
 
-def _handle_remove_skill(
-    args: argparse.Namespace, _parser: argparse.ArgumentParser
-) -> None:
+def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     """Delete a skill from ``skills_dir`` with an audit trail.
 
     The single manual-CRUD entry point for the skills directory. Writes an
@@ -1665,12 +1754,15 @@ def _handle_single_result(
     _write_reasoning(snapshot_path, [(reasoning_label, result.thinking)])
     if stage:
         _stage_results(
-            [StageItem(
-                stage_filename or result.target_path.name,
-                result.text, result.target_path,
-                source_ids=list(result.pattern_ids),
-                epistemic_counts=dict(result.epistemic_counts),
-            )],
+            [
+                StageItem(
+                    stage_filename or result.target_path.name,
+                    result.text,
+                    result.target_path,
+                    source_ids=list(result.pattern_ids),
+                    epistemic_counts=dict(result.epistemic_counts),
+                )
+            ],
             command=command,
         )
         return False
@@ -1678,7 +1770,10 @@ def _handle_single_result(
         print(f"\n--- Reasoning ---\n{result.thinking}")
     approved = _approve_write(result.target_path)
     _log_approval(
-        command, result.target_path, approved, result.text,
+        command,
+        result.target_path,
+        approved,
+        result.text,
         snapshot_path=snapshot_path,
         source_ids=result.pattern_ids,
         epistemic_counts=result.epistemic_counts,
@@ -1687,6 +1782,7 @@ def _handle_single_result(
         print("Discarded.")
         return False
     from .core._io import write_restricted as _wr
+
     _wr(result.target_path, result.text + "\n")
     return True
 
@@ -1734,11 +1830,16 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
     _write_reasoning(snapshot_path, [(s.filename, s.thinking) for s in result.skills])
     if getattr(args, "stage", False):
         _stage_results(
-            [StageItem(
-                s.filename, s.text, s.target_path,
-                source_ids=list(s.pattern_ids),
-                epistemic_counts=dict(s.epistemic_counts),
-            ) for s in result.skills],
+            [
+                StageItem(
+                    s.filename,
+                    s.text,
+                    s.target_path,
+                    source_ids=list(s.pattern_ids),
+                    epistemic_counts=dict(s.epistemic_counts),
+                )
+                for s in result.skills
+            ],
             command="insight",
         )
         return
@@ -1750,15 +1851,15 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
     )
     if written > 0:
         write_last_insight(SKILLS_DIR)
-    print(f"\n--- Summary: {written} written, {len(result.skills) - written} skipped, {result.dropped_count} dropped ---")
+    print(
+        f"\n--- Summary: {written} written, {len(result.skills) - written} skipped, {result.dropped_count} dropped ---"
+    )
 
 
 def _handle_rules_distill(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     from .core.rules_distill import _write_last_run, distill_rules
 
-    snapshot_path = _take_snapshot(
-        args, "rules-distill", _load_view_registry(args), think=True
-    )
+    snapshot_path = _take_snapshot(args, "rules-distill", _load_view_registry(args), think=True)
     result = distill_rules(
         skills_dir=SKILLS_DIR,
         rules_dir=RULES_DIR,
@@ -1770,10 +1871,15 @@ def _handle_rules_distill(args: argparse.Namespace, _parser: argparse.ArgumentPa
     _write_reasoning(snapshot_path, [(r.filename, r.thinking) for r in result.rules])
     if getattr(args, "stage", False):
         _stage_results(
-            [StageItem(
-                r.filename, r.text, r.target_path,
-                source_ids=list(r.source_ids),
-            ) for r in result.rules],
+            [
+                StageItem(
+                    r.filename,
+                    r.text,
+                    r.target_path,
+                    source_ids=list(r.source_ids),
+                )
+                for r in result.rules
+            ],
             command="rules-distill",
         )
         return
@@ -1785,7 +1891,9 @@ def _handle_rules_distill(args: argparse.Namespace, _parser: argparse.ArgumentPa
     )
     if written > 0:
         _write_last_run(RULES_DIR)
-    print(f"\n--- Summary: {written} written, {len(result.rules) - written} skipped, {result.dropped_count} dropped ---")
+    print(
+        f"\n--- Summary: {written} written, {len(result.rules) - written} skipped, {result.dropped_count} dropped ---"
+    )
 
 
 def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
@@ -1835,9 +1943,12 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
         knowledge_store.load()
         view_registry = _load_view_registry(args)
         print()
-        print(format_pattern_report(
-            knowledge_store.get_live_patterns(), view_registry,
-        ))
+        print(
+            format_pattern_report(
+                knowledge_store.get_live_patterns(),
+                view_registry,
+            )
+        )
 
 
 def _handle_generate_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
@@ -1872,7 +1983,9 @@ def _handle_meditate(args: argparse.Namespace, _parser: argparse.ArgumentParser)
     matrices = build_matrices(episode_log, days=args.days, config=config)
     result = run_meditate(matrices, config=config)
     output = interpret_and_save(
-        result, results_path, dry_run=args.dry_run,
+        result,
+        results_path,
+        dry_run=args.dry_run,
     )
     print(output)
 
@@ -1903,14 +2016,25 @@ def _spawn_dialogue_peer(
         "contemplative_agent.cli",
     )
     cmd = [
-        sys.executable, "-u", "-m", peer_module,
-        "dialogue-peer", "--turns", str(turns), "--label", home.name,
+        sys.executable,
+        "-u",
+        "-m",
+        peer_module,
+        "dialogue-peer",
+        "--turns",
+        str(turns),
+        "--label",
+        home.name,
     ]
     if seed is not None:
         cmd += ["--seed", seed]
     env = {**os.environ, "MOLTBOOK_HOME": str(home)}
     return subprocess.Popen(
-        cmd, stdin=stdin_fd, stdout=stdout_fd, env=env, close_fds=True,
+        cmd,
+        stdin=stdin_fd,
+        stdout=stdout_fd,
+        env=env,
+        close_fds=True,
     )
 
 
@@ -1958,12 +2082,18 @@ def _handle_dialogue(args: argparse.Namespace, _parser: argparse.ArgumentParser)
     b_to_a_r, b_to_a_w = os.pipe()
 
     proc_a = _spawn_dialogue_peer(
-        home=home_a, turns=args.turns,
-        stdin_fd=b_to_a_r, stdout_fd=a_to_b_w, seed=args.seed,
+        home=home_a,
+        turns=args.turns,
+        stdin_fd=b_to_a_r,
+        stdout_fd=a_to_b_w,
+        seed=args.seed,
     )
     proc_b = _spawn_dialogue_peer(
-        home=home_b, turns=args.turns,
-        stdin_fd=a_to_b_r, stdout_fd=b_to_a_w, seed=None,
+        home=home_b,
+        turns=args.turns,
+        stdin_fd=a_to_b_r,
+        stdout_fd=b_to_a_w,
+        seed=None,
     )
     # Parent releases its pipe ends so EOF propagates when a peer exits.
     for fd in (a_to_b_r, a_to_b_w, b_to_a_r, b_to_a_w):
@@ -2006,8 +2136,10 @@ def _handle_dialogue_peer(args: argparse.Namespace, _parser: argparse.ArgumentPa
     # Exit nonzero on shortfall; _handle_dialogue already fails on rc != 0.
     if replies < args.turns:
         logger.warning(
-            "dialogue peer %s generated %d of %d requested replies "
-            "(dialogue truncated)", args.label, replies, args.turns,
+            "dialogue peer %s generated %d of %d requested replies (dialogue truncated)",
+            args.label,
+            replies,
+            args.turns,
         )
         sys.exit(2)
 
@@ -2042,14 +2174,9 @@ def _handle_agent_command(
         # with a clear message instead of queueing behind it.
         with acquire_run_lock(RUN_LOCK_PATH, blocking=False) as acquired:
             if not acquired:
-                print(
-                    "Another run/distill process holds the run lock "
-                    f"({RUN_LOCK_PATH}); exiting."
-                )
+                print(f"Another run/distill process holds the run lock ({RUN_LOCK_PATH}); exiting.")
                 return
-            agent.run_session(
-                duration_minutes=args.session, session_meta=session_meta
-            )
+            agent.run_session(duration_minutes=args.session, session_meta=session_meta)
     elif args.command == "solve":
         agent.do_solve(args.text)
 
@@ -2059,9 +2186,7 @@ def main() -> None:
         prog="contemplative-agent",
         description="Contemplative AI agent for Moltbook",
     )
-    parser.add_argument(
-        "-v", "--verbose", action="store_true", help="Enable debug logging"
-    )
+    parser.add_argument("-v", "--verbose", action="store_true", help="Enable debug logging")
 
     # Domain configuration flags
     parser.add_argument(
@@ -2129,7 +2254,9 @@ def main() -> None:
     # init
     init_parser = subparsers.add_parser("init", help="Initialize identity and knowledge files")
     init_parser.add_argument(
-        "--template", type=str, default="contemplative",
+        "--template",
+        type=str,
+        default="contemplative",
         help="Character template to use (default: contemplative)",
     )
 
@@ -2144,8 +2271,11 @@ def main() -> None:
         "--dry-run", action="store_true", help="Show results without writing"
     )
     distill_parser.add_argument(
-        "--file", type=Path, nargs="+", dest="log_files",
-        help="Explicit JSONL log file(s) to process (overrides --days)"
+        "--file",
+        type=Path,
+        nargs="+",
+        dest="log_files",
+        help="Explicit JSONL log file(s) to process (overrides --days)",
     )
 
     # distill-identity
@@ -2153,7 +2283,9 @@ def main() -> None:
         "distill-identity", help="Distill knowledge into identity (without pattern distillation)"
     )
     distill_id_parser.add_argument(
-        "--stage", action="store_true", help="Write to staging dir instead of interactive approval (for coding agents)"
+        "--stage",
+        action="store_true",
+        help="Write to staging dir instead of interactive approval (for coding agents)",
     )
 
     # rules-distill
@@ -2164,32 +2296,38 @@ def main() -> None:
         "--full", action="store_true", help="Process all patterns (not just new ones)"
     )
     rules_distill_parser.add_argument(
-        "--stage", action="store_true", help="Write to staging dir instead of interactive approval (for coding agents)"
+        "--stage",
+        action="store_true",
+        help="Write to staging dir instead of interactive approval (for coding agents)",
     )
 
     # amend-constitution
     amend_parser = subparsers.add_parser(
-        "amend-constitution", help="Propose amendments to the constitution from accumulated ethical experience"
+        "amend-constitution",
+        help="Propose amendments to the constitution from accumulated ethical experience",
     )
     amend_parser.add_argument(
-        "--stage", action="store_true", help="Write to staging dir instead of interactive approval (for coding agents)"
+        "--stage",
+        action="store_true",
+        help="Write to staging dir instead of interactive approval (for coding agents)",
     )
 
     # report
     report_parser = subparsers.add_parser(
         "report", help="Show self-improvement metrics from episode logs"
     )
+    report_parser.add_argument("--days", type=int, default=7, help="Days to look back (default: 7)")
     report_parser.add_argument(
-        "--days", type=int, default=7, help="Days to look back (default: 7)"
-    )
-    report_parser.add_argument(
-        "--format", choices=["text", "md"], default="text",
+        "--format",
+        choices=["text", "md"],
+        default="text",
         help="Output format (default: text)",
     )
     report_parser.add_argument(
-        "--patterns", action="store_true",
+        "--patterns",
+        action="store_true",
         help="Append read-only knowledge-pattern composition instruments "
-             "(consumed-view supply / diversity)",
+        "(consumed-view supply / diversity)",
     )
 
     # generate-report
@@ -2197,11 +2335,15 @@ def main() -> None:
         "generate-report", help="Generate activity report from episode logs"
     )
     gen_report_parser.add_argument(
-        "--date", type=str, default=None,
+        "--date",
+        type=str,
+        default=None,
         help="Date to generate report for (YYYY-MM-DD, default: today)",
     )
     gen_report_parser.add_argument(
-        "--all", action="store_true", dest="all_dates",
+        "--all",
+        action="store_true",
+        dest="all_dates",
         help="Generate reports for all available log dates",
     )
 
@@ -2210,35 +2352,48 @@ def main() -> None:
         "install-schedule", help="Install/uninstall launchd schedule for periodic sessions"
     )
     schedule_parser.add_argument(
-        "--interval", type=int, default=6,
+        "--interval",
+        type=int,
+        default=6,
         help="Hours between sessions (default: 6)",
     )
     schedule_parser.add_argument(
-        "--session", type=int, default=60,
+        "--session",
+        type=int,
+        default=60,
         help="Session duration in minutes (default: 60)",
     )
     schedule_parser.add_argument(
-        "--uninstall", action="store_true",
+        "--uninstall",
+        action="store_true",
         help="Remove installed schedule",
     )
     schedule_parser.add_argument(
-        "--no-distill", action="store_true",
+        "--no-distill",
+        action="store_true",
         help="Skip installing daily distillation schedule",
     )
     schedule_parser.add_argument(
-        "--distill-hour", type=int, default=3,
+        "--distill-hour",
+        type=int,
+        default=3,
         help="Hour to run daily distillation (0-23, default: 3)",
     )
     schedule_parser.add_argument(
-        "--weekly-analysis", action="store_true",
+        "--weekly-analysis",
+        action="store_true",
         help="Also install weekly analysis report schedule",
     )
     schedule_parser.add_argument(
-        "--weekly-analysis-day", type=int, default=1,
+        "--weekly-analysis-day",
+        type=int,
+        default=1,
         help="Day of week for weekly analysis (0=Sun..6=Sat, default: 1=Mon)",
     )
     schedule_parser.add_argument(
-        "--weekly-analysis-hour", type=int, default=9,
+        "--weekly-analysis-hour",
+        type=int,
+        default=9,
         help="Hour to run weekly analysis (0-23, default: 9)",
     )
 
@@ -2250,7 +2405,9 @@ def main() -> None:
         "--full", action="store_true", help="Process all patterns (default: new only)"
     )
     insight_parser.add_argument(
-        "--stage", action="store_true", help="Write to staging dir instead of interactive approval (for coding agents)"
+        "--stage",
+        action="store_true",
+        help="Write to staging dir instead of interactive approval (for coding agents)",
     )
 
     # meditate
@@ -2258,15 +2415,20 @@ def main() -> None:
         "meditate", help="Run active inference meditation on episode history"
     )
     meditate_parser.add_argument(
-        "--days", type=int, default=7,
+        "--days",
+        type=int,
+        default=7,
         help="Days of episodes to build POMDP from (default: 7)",
     )
     meditate_parser.add_argument(
-        "--cycles", type=int, default=50,
+        "--cycles",
+        type=int,
+        default=50,
         help="Number of meditation cycles (default: 50)",
     )
     meditate_parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="Show results without writing to knowledge store",
     )
 
@@ -2277,19 +2439,25 @@ def main() -> None:
         help="Run a local dialogue between two agent instances (two MOLTBOOK_HOMEs)",
     )
     dialogue_parser.add_argument(
-        "home_a", type=Path,
+        "home_a",
+        type=Path,
         help="MOLTBOOK_HOME for agent A (initiator). Must be pre-initialised.",
     )
     dialogue_parser.add_argument(
-        "home_b", type=Path,
+        "home_b",
+        type=Path,
         help="MOLTBOOK_HOME for agent B (responder). Must be pre-initialised.",
     )
     dialogue_parser.add_argument(
-        "--seed", type=str, required=True,
+        "--seed",
+        type=str,
+        required=True,
         help="Opening message from agent A that starts the dialogue",
     )
     dialogue_parser.add_argument(
-        "--turns", type=int, default=5,
+        "--turns",
+        type=int,
+        default=5,
         help="Max reply turns per side (hard cap, default: 5)",
     )
 
@@ -2301,22 +2469,32 @@ def main() -> None:
         help="(internal) one side of a dialogue — spawned by 'dialogue'",
     )
     dialogue_peer_parser.add_argument(
-        "--turns", type=int, required=True,
+        "--turns",
+        type=int,
+        required=True,
         help="Max reply turns this peer will generate",
     )
     dialogue_peer_parser.add_argument(
-        "--seed", type=str, default=None,
+        "--seed",
+        type=str,
+        default=None,
         help="Opening message if this peer is the initiator",
     )
     dialogue_peer_parser.add_argument(
-        "--label", type=str, default="peer",
+        "--label",
+        type=str,
+        default="peer",
         help="Short label for stderr traces",
     )
 
     # skill-stocktake
-    skill_stocktake_parser = subparsers.add_parser("skill-stocktake", help="Audit skills for duplicates and quality issues")
+    skill_stocktake_parser = subparsers.add_parser(
+        "skill-stocktake", help="Audit skills for duplicates and quality issues"
+    )
     skill_stocktake_parser.add_argument(
-        "--stage", action="store_true", help="Write merged skills to staging dir instead of interactive approval"
+        "--stage",
+        action="store_true",
+        help="Write merged skills to staging dir instead of interactive approval",
     )
 
     # rules-stocktake
@@ -2354,7 +2532,7 @@ def main() -> None:
         "--yes",
         action="store_true",
         help="Auto-approve all staged items without prompting "
-             "(for non-TTY / coding-agent workflows where stdin is not interactive)",
+        "(for non-TTY / coding-agent workflows where stdin is not interactive)",
     )
 
     # remove-skill
@@ -2376,7 +2554,7 @@ def main() -> None:
         "--yes",
         action="store_true",
         help="Skip the interactive prompt "
-             "(for non-TTY / coding-agent workflows where stdin is not interactive)",
+        "(for non-TTY / coding-agent workflows where stdin is not interactive)",
     )
     remove_skill_p.add_argument(
         "--dry-run",
@@ -2385,9 +2563,7 @@ def main() -> None:
     )
 
     # solve
-    solve_parser = subparsers.add_parser(
-        "solve", help="Test verification solver"
-    )
+    solve_parser = subparsers.add_parser("solve", help="Test verification solver")
     solve_parser.add_argument("text", help="Obfuscated challenge text")
 
     args = parser.parse_args()
