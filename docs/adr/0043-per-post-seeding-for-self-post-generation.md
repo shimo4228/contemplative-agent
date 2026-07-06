@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed (1-week observation determines acceptance)
+accepted (2026-07-06 status stocktake — canon-token criterion met decisively: zero occurrences in weeklies 2026-06-21/06-28/07-05; self-posts open with the specific phrase that drew the agent in and engage quoted feed voices (weekly 2026-07-05, self-post #2d3613ed signal note). Self-post pairwise similarity and fallback rate were never instrumented weekly — accepted on the observable criteria plus 6 weeks of sustained operation)
 
 ## Date
 

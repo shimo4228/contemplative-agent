@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed (1 週間の観察で accepted へ昇格判定)
+accepted (2026-07-06 status 棚卸し — canon token 基準は明確に達成: weekly 2026-06-21/06-28/07-05 で出現ゼロ。self-post は「引き込まれた具体的フレーズ」で書き出し feed voice を引用して関与 (weekly 2026-07-05、self-post #2d3613ed の signal note)。self-post の pairwise 類似度と fallback rate は weekly で計測されなかった — 観測可能な基準 + 6 週間の継続稼働で accepted)
 
 ## Date
 

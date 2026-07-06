@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed (1 週間観察後に accepted 昇格判断)
+accepted (2026-07-06 status 棚卸し — 「specific-post references」効果は単独で確認済み (Consequences 参照)。昇格保留は ADR-0043 との共同観察のためだけであり、ADR-0043 の accepted 化により解消)
 
 ## Date
 
@@ -133,3 +133,7 @@ deferred とされていた Alternatives Considered 2 ("Pass individual feed pos
 `cooperation_post.md` を single-primary-voice フレームに変更した (commit `cd8d27b`): 1 つの voice を直接取り上げ (何を喚起するか、何を加えたい / 問いたいか)、他の voice は応答を鋭くするときのみ名指しで持ち込み、*"your post is your own position, not a synthesis of theirs"* とする。本 ADR の specificity contract (*"Stay close to the specific language each voice uses"*) は保持。これにより、ADR-0043 の multi-voice rewrite が drift した先から、本 ADR が意図した single-resonant-voice engagement を復元する。本変更が `feed_seeds` prompt を部分的に supersede する ADR-0043 も参照。
 
 Status は `proposed` のまま: 変更は 1 週間前のもので、tri-voice テンプレートが再発しなくなるか・self-post が特定の voice 1 つに深く engage するかは次の weekly の測定対象。
+
+## Postscript — 2026-07-06: accepted へ昇格
+
+tri-voice の *"shared trembling ground"* テンプレートは 6 月の weekly で再発せず、specificity contract は目に見えて機能している — modal な self-post は「引き込まれた具体的フレーズ」で書き出す形になった (weekly 2026-07-05、self-post #2d3613ed の signal note)。ADR-0043 自身の受入基準も達成され (ADR-0043 の Status 参照)、上記の合同観察による昇格保留は解消した。weekly が現在追跡している register レベルの懸念 (internal-monologue 化、lexicon 吸収) は echo-chamber スレッド (ADR-0072) に属し、本 ADR の engagement-gradient 修復の範囲外。2026-07-06 の status 棚卸しで ADR-0039/0043 と同時に昇格。

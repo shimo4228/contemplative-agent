@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed (1-week observation will determine acceptance)
+accepted (2026-07-06 status stocktake — gate live since deploy and repaired by ADR-0063 (verified-only comparison set); self-post rate sustained ≥ 2/day in recent weeklies (2026-06-28: 16/wk, 2026-07-05: 30/wk). fallback_rate was never instrumented. Accepted as amended by ADR-0063)
 
 ## Date
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed (1-week observation will determine acceptance)
+accepted (2026-07-06 status stocktake — the "specific-post references" effect was confirmed in isolation (see Consequences), and promotion was deferred only to co-observe with ADR-0043; ADR-0043's acceptance resolves the deferral)
 
 ## Date
 
@@ -133,3 +133,7 @@ Code-level diagnosis (weekly-2026-05-31 findings F1.2) located the cause in the 
 `cooperation_post.md` was changed (commit `cd8d27b`) to a single-primary-voice frame: take up one voice directly (what it brings up, what you want to add or question), bring others in by name only when they sharpen the response, *"your post is your own position, not a synthesis of theirs"* — while retaining this ADR's specificity contract (*"Stay close to the specific language each voice uses"*). This restores the single-resonant-voice engagement this ADR intended, which ADR-0043's multi-voice rewrite had drifted away from. See also ADR-0043, whose `feed_seeds` prompt this change supersedes in part.
 
 Status stays `proposed`: the change is one week old; whether the tri-voice template stops recurring and self-posts engage one specific voice in depth is the next weekly's measurement.
+
+## Postscript — 2026-07-06: promoted to accepted
+
+The tri-voice *"shared trembling ground"* template did not recur in the June weeklies, and the specificity contract is visibly operating — the modal self-post now opens with the specific phrase that drew the agent in (weekly 2026-07-05, self-post #2d3613ed signal note). ADR-0043's own acceptance criteria were also met (see ADR-0043 Status), which resolves the joint-observation deferral above. The register-level concerns the weeklies now track (internal-monologue framing, lexicon absorption) belong to the echo-chamber thread (ADR-0072), not to this ADR's engagement-gradient repair. Promoted together with ADR-0039/0043 in the 2026-07-06 status stocktake.

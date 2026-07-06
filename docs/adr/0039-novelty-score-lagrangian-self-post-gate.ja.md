@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed (1 週間観察後に accepted 昇格判断)
+accepted (2026-07-06 status 棚卸し — gate はデプロイ以来稼働し、ADR-0063 (verified-only 比較集合) で修復済み。self-post レートは直近 weekly で ≥ 2/day を維持 (2026-06-28: 16/週, 2026-07-05: 30/週)。fallback_rate は計測されなかった。ADR-0063 による修正込みで accepted)
 
 ## Date
 
