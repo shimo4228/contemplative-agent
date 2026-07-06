@@ -1,5 +1,6 @@
 """Tests for the CLI entry point."""
 
+import argparse
 import json
 import logging
 from pathlib import Path
@@ -2629,3 +2630,133 @@ class TestStocktakeRuntimeRouting:
         kwargs_list = [c.kwargs for c in mock_configure.call_args_list]
         assert any("telemetry_dir" in kw for kw in kwargs_list)
         assert not any("skills_dir" in kw for kw in kwargs_list)
+
+
+class TestCollisionFreePathH5:
+    """Bug-audit 2026-07-06 H5: an approved write must never silently
+    overwrite an existing file with different content — same-day slug
+    collisions previously clobbered the earlier skill/rule while audit.jsonl
+    recorded both items as approved."""
+
+    def test_nonexistent_path_unchanged(self, tmp_path):
+        from contemplative_agent.cli import _collision_free_path
+
+        target = tmp_path / "skill-20260706.md"
+        assert _collision_free_path(target, "body") == target
+
+    def test_identical_content_keeps_path(self, tmp_path):
+        from contemplative_agent.cli import _collision_free_path
+
+        target = tmp_path / "skill-20260706.md"
+        target.write_text("same body\n", encoding="utf-8")
+        assert _collision_free_path(target, "same body") == target
+
+    def test_different_content_gets_suffix(self, tmp_path):
+        from contemplative_agent.cli import _collision_free_path
+
+        target = tmp_path / "skill-20260706.md"
+        target.write_text("first batch skill", encoding="utf-8")
+        resolved = _collision_free_path(target, "second batch skill")
+        assert resolved == tmp_path / "skill-20260706-2.md"
+
+    def test_suffix_increments_past_existing(self, tmp_path):
+        from contemplative_agent.cli import _collision_free_path
+
+        (tmp_path / "s-20260706.md").write_text("one", encoding="utf-8")
+        (tmp_path / "s-20260706-2.md").write_text("two", encoding="utf-8")
+        resolved = _collision_free_path(tmp_path / "s-20260706.md", "three")
+        assert resolved == tmp_path / "s-20260706-3.md"
+
+    def test_approval_loop_does_not_clobber(self, tmp_path):
+        """Two approved same-slug items in one run both survive on disk."""
+        from contemplative_agent.cli import _run_approval_loop
+        from contemplative_agent.core.insight import SkillResult
+
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        skills_dir = tmp_path / "skills"
+        items = [
+            SkillResult(text="# First cluster skill", filename="s.md",
+                        target_path=skills_dir / "s.md"),
+            SkillResult(text="# Second cluster skill", filename="s.md",
+                        target_path=skills_dir / "s.md"),
+        ]
+        with patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit_path), \
+             patch("builtins.input", side_effect=["y", "y"]):
+            written = _run_approval_loop(
+                items, command="insight", target_dir=skills_dir
+            )
+        assert written == 2
+        assert (skills_dir / "s.md").read_text(
+            encoding="utf-8") == "# First cluster skill"
+        assert (skills_dir / "s-2.md").read_text(
+            encoding="utf-8") == "# Second cluster skill"
+
+
+class TestInstallScheduleValidationOrderM9:
+    """Bug-audit 2026-07-06 M9: an invalid --weekly-analysis-* argument must
+    be rejected BEFORE any launchd schedule is installed."""
+
+    def test_invalid_weekly_day_installs_nothing(self):
+        from contemplative_agent.cli import _handle_install_schedule
+
+        args = argparse.Namespace(
+            uninstall=False, interval=6, session=30, distill_hour=3,
+            no_distill=False, weekly_analysis=True,
+            weekly_analysis_day=9,  # invalid (>6)
+            weekly_analysis_hour=8,
+        )
+        parser = argparse.ArgumentParser()
+        with patch(
+            "contemplative_agent.cli._do_install_schedule"
+        ) as mock_session, patch(
+            "contemplative_agent.cli._do_install_distill_schedule"
+        ) as mock_distill, patch(
+            "contemplative_agent.cli._do_install_weekly_analysis_schedule"
+        ) as mock_weekly:
+            with pytest.raises(SystemExit):
+                _handle_install_schedule(args, parser)
+        mock_session.assert_not_called()
+        mock_distill.assert_not_called()
+        mock_weekly.assert_not_called()
+
+
+class TestDialoguePeerShortfallM10:
+    """Bug-audit 2026-07-06 M10: a dialogue truncated by peer EOF previously
+    exited 0, so the parent rc gate reported it as a clean full run."""
+
+    @staticmethod
+    def _args(turns):
+        return argparse.Namespace(turns=turns, seed=None, label="peer-a")
+
+    def test_shortfall_exits_nonzero(self):
+        from contemplative_agent.cli import _handle_dialogue_peer
+
+        with patch(
+            "contemplative_agent.adapters.dialogue.peer.run_peer_loop",
+            return_value=1,
+        ):
+            with pytest.raises(SystemExit) as exc_info:
+                _handle_dialogue_peer(self._args(turns=5), MagicMock())
+        assert exc_info.value.code == 2
+
+    def test_full_run_exits_cleanly(self):
+        from contemplative_agent.cli import _handle_dialogue_peer
+
+        with patch(
+            "contemplative_agent.adapters.dialogue.peer.run_peer_loop",
+            return_value=5,
+        ):
+            _handle_dialogue_peer(self._args(turns=5), MagicMock())
+
+
+class TestCollisionRerunIdempotencyCodex:
+    """Codex review 2026-07-06: rerunning the same collision batch must reuse
+    an existing identical -2 file, not mint -3, -4… on every retry."""
+
+    def test_identical_suffixed_file_is_reused(self, tmp_path):
+        from contemplative_agent.cli import _collision_free_path
+
+        (tmp_path / "s-20260706.md").write_text("first", encoding="utf-8")
+        (tmp_path / "s-20260706-2.md").write_text("second", encoding="utf-8")
+        resolved = _collision_free_path(tmp_path / "s-20260706.md", "second")
+        assert resolved == tmp_path / "s-20260706-2.md"

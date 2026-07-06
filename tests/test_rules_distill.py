@@ -718,3 +718,19 @@ class TestRulesLineageADR0050:
         expected = {"skill-000.md", "skill-001.md", "skill-002.md"}
         for rule in result.rules:
             assert set(rule.source_ids) == expected
+
+
+class TestTruncationPolicyH1:
+    """Bug-audit 2026-07-06 H1: both rule-extraction stages pass
+    drop_truncated=True."""
+
+    @patch("contemplative_agent.core.rules_distill.generate_full")
+    def test_extract_rules_drops_truncated_both_stages(self, mock_generate):
+        mock_generate.side_effect = [
+            GenerationOutput(text="stage1 raw output"),
+            None,
+        ]
+        assert _extract_rules(["skill text"]) is None
+        assert mock_generate.call_count == 2
+        for call in mock_generate.call_args_list:
+            assert call.kwargs["drop_truncated"] is True

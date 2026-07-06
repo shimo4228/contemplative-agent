@@ -2921,3 +2921,52 @@ class TestAdaptiveCycleWait:
         agent._client.recent_429_count = 3
         agent._adaptive_cycle_wait()
         agent._client.reset_429_count.assert_called_once()
+
+
+class TestSessionCycleStepIsolationH4:
+    """Bug-audit 2026-07-06 H4: an uncaught error in the reply step must not
+    silently skip feed engagement and the post pipeline for that cycle."""
+
+    def _make_cycle_agent(self, tmp_path):
+        agent = Agent(
+            autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path)
+        )
+        agent._fetch_home_data = MagicMock()
+        agent._home_data = {"activity_on_your_posts": []}
+        agent._reply_handler = MagicMock()
+        agent._run_feed_cycle = MagicMock()
+        agent._post_pipeline = MagicMock()
+        return agent
+
+    def test_reply_step_error_does_not_skip_feed_and_post(self, tmp_path):
+        agent = self._make_cycle_agent(tmp_path)
+        agent._reply_handler.run_cycle_from_home.side_effect = KeyError(
+            "malformed notification shape"
+        )
+
+        agent._run_session_cycle(MagicMock(), MagicMock(), end_time=0.0)
+
+        agent._run_feed_cycle.assert_called_once()
+        agent._post_pipeline.run_cycle.assert_called_once()
+
+    def test_feed_step_error_does_not_skip_post_pipeline(self, tmp_path):
+        agent = self._make_cycle_agent(tmp_path)
+        agent._run_feed_cycle.side_effect = AttributeError("feed shape drift")
+
+        agent._run_session_cycle(MagicMock(), MagicMock(), end_time=0.0)
+
+        agent._reply_handler.run_cycle_from_home.assert_called_once()
+        agent._post_pipeline.run_cycle.assert_called_once()
+
+    def test_step_error_is_logged_with_step_name(self, tmp_path, caplog):
+        import logging as _logging
+
+        agent = self._make_cycle_agent(tmp_path)
+        agent._reply_handler.run_cycle_from_home.side_effect = KeyError("boom")
+
+        with caplog.at_level(
+            _logging.ERROR, logger="contemplative_agent.adapters.moltbook.agent"
+        ):
+            agent._run_session_cycle(MagicMock(), MagicMock(), end_time=0.0)
+
+        assert "replies" in caplog.text

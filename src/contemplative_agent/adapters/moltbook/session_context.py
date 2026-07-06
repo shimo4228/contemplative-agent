@@ -10,9 +10,16 @@ from __future__ import annotations
 import logging
 from typing import List, Set
 
+from ...core.config import VALID_ID_PATTERN
 from ...core.memory import MemoryStore
 
 logger = logging.getLogger(__name__)
+
+# Bug-audit 2026-07-06 H3: how far back / how many own posts to restore at
+# session start. The limit bounds the read-budget cost of the own-post
+# comment fallback, which issues one GET per tracked id each cycle.
+OWN_POST_SEED_DAYS = 7
+OWN_POST_SEED_LIMIT = 10
 
 
 class SessionContext:
@@ -43,6 +50,59 @@ class SessionContext:
         self.own_agent_id: str = own_agent_id
         self.actions_taken: List[str] = []
         self._rate_limited: bool = False
+
+    def seed_own_post_ids(
+        self,
+        days: int = OWN_POST_SEED_DAYS,
+        limit: int = OWN_POST_SEED_LIMIT,
+    ) -> int:
+        """Restore own post ids from the episode log at session start.
+
+        ``own_post_ids`` previously started empty every session (a plain
+        in-memory set), so the own-post comment fallback had zero coverage
+        of posts made in prior sessions — a reply landing on an older post
+        was never discovered when the /home activity feed missed it
+        (bug-audit 2026-07-06 H3). Seeds the most recent *limit* post ids
+        from the last *days* days of "activity" episodes.
+
+        Returns the number of ids seeded.
+        """
+        records = self.memory.episodes.read_range(
+            days=days, record_type="activity"
+        )
+        # read_range interleaves days (today's file first, chronological
+        # within each file) — sort by ISO timestamp to pick the true most
+        # recent posts before applying the limit.
+        posts: List[tuple[str, str]] = []
+        for rec in records:
+            data = rec.get("data") or {}
+            if data.get("action") != "post":
+                continue
+            post_id = data.get("post_id")
+            # Episode logs are an untrusted-data boundary (project threat
+            # model): re-validate ids locally instead of trusting that every
+            # writer of "post" records already did (security review
+            # 2026-07-06 — defense in depth).
+            if (
+                isinstance(post_id, str)
+                and post_id
+                and VALID_ID_PATTERN.match(post_id)
+            ):
+                posts.append((str(rec.get("ts") or ""), post_id))
+        posts.sort(reverse=True)
+        seeded: List[str] = []
+        for _ts, post_id in posts:
+            if post_id not in seeded:
+                seeded.append(post_id)
+            if len(seeded) >= limit:
+                break
+        self.own_post_ids.update(seeded)
+        if seeded:
+            logger.info(
+                "Restored %d own post id(s) from episode log (last %dd)",
+                len(seeded), days,
+            )
+        return len(seeded)
 
     @property
     def is_rate_limited(self) -> bool:

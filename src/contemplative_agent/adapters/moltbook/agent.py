@@ -5,7 +5,7 @@ import logging
 import re
 import signal
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
 
 from .auth import check_claim_status, load_credentials, register_agent
 from .client import MoltbookClient, MoltbookClientError
@@ -588,6 +588,13 @@ class Agent:
         })
         self._memory.episodes.append("session", start_data)
 
+        # Restore own post ids from prior sessions so the own-post comment
+        # fallback covers posts made before this process started (H3).
+        try:
+            self._ctx.seed_own_post_ids()
+        except Exception:
+            logger.exception("Failed to seed own post ids from episode log")
+
         try:
             try:
                 self._fetch_home_data(client)
@@ -630,19 +637,45 @@ class Agent:
     def _run_session_cycle(
         self, client: MoltbookClient, scheduler: Scheduler, end_time: float
     ) -> None:
-        """One engagement cycle: replies, feed, then the post pipeline."""
-        # Refresh /home data each cycle for latest activity
-        self._fetch_home_data(client)
+        """One engagement cycle: replies, feed, then the post pipeline.
 
-        # Use /home-based reply cycle if data available, else fallback
-        if self._home_data:
-            self._reply_handler.run_cycle_from_home(
-                client, scheduler, end_time, self._home_data,
+        Each step is isolated (bug-audit 2026-07-06 H4): an uncaught error
+        in the reply step must not silently skip feed engagement and the
+        post pipeline for the whole cycle — a persistently malformed
+        notification would otherwise stop posting indefinitely behind a
+        generic outer-loop warning that names neither the failing step nor
+        the skipped ones.
+        """
+        # Refresh /home data each cycle for latest activity
+        self._run_cycle_step(
+            "home_refresh", lambda: self._fetch_home_data(client)
+        )
+
+        def _reply_step() -> None:
+            # Use /home-based reply cycle if data available, else fallback
+            if self._home_data:
+                self._reply_handler.run_cycle_from_home(
+                    client, scheduler, end_time, self._home_data,
+                )
+            else:
+                self._reply_handler.run_cycle(client, scheduler, end_time)
+
+        self._run_cycle_step("replies", _reply_step)
+        self._run_cycle_step("feed", lambda: self._run_feed_cycle(end_time))
+        self._run_cycle_step(
+            "post_pipeline",
+            lambda: self._post_pipeline.run_cycle(client, scheduler),
+        )
+
+    def _run_cycle_step(self, step: str, fn: Callable[[], None]) -> None:
+        """Run one session-cycle step; log-and-continue on failure (H4)."""
+        try:
+            fn()
+        except Exception:
+            logger.exception(
+                "Error in session-cycle step %r; continuing with next step",
+                step,
             )
-        else:
-            self._reply_handler.run_cycle(client, scheduler, end_time)
-        self._run_feed_cycle(end_time)
-        self._post_pipeline.run_cycle(client, scheduler)
 
     def _wait_for_next_cycle(self, scheduler: Scheduler, end_time: float) -> None:
         """Wait before next cycle: respect both scheduler and adaptive backoff."""

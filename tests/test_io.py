@@ -179,3 +179,31 @@ class TestNowIso:
 
     def test_utc_offset(self):
         assert now_iso().endswith("+00:00")
+
+
+class TestWriteRestrictedAtomicM11:
+    """Bug-audit 2026-07-06 M11: value-layer writes (skills / rules /
+    constitution) must be atomic — an interruption mid-write previously left
+    a truncated .md that the next curation run silently consumed."""
+
+    def test_failure_leaves_original_intact(self, tmp_path, monkeypatch):
+        import contemplative_agent.core._io as io_mod
+
+        target = tmp_path / "skill.md"
+        write_restricted(target, "original body")
+
+        def _boom(src, dst):
+            raise OSError("simulated interruption")
+
+        monkeypatch.setattr(io_mod.os, "replace", _boom)
+        with pytest.raises(OSError):
+            write_restricted(target, "new body")
+
+        assert target.read_text(encoding="utf-8") == "original body"
+        assert not (tmp_path / "skill.md.tmp").exists()
+
+    def test_no_tmp_file_left_on_success(self, tmp_path):
+        target = tmp_path / "rule.md"
+        write_restricted(target, "body")
+        assert target.read_text(encoding="utf-8") == "body"
+        assert list(tmp_path.glob("*.tmp")) == []

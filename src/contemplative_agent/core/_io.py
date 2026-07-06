@@ -79,14 +79,25 @@ def strip_code_fence(text: str) -> str:
 
 
 def write_restricted(path: Path, content: str) -> None:
-    """Write content to a file with 0600 permissions from creation.
+    """Atomically write content to a file with 0600 permissions.
 
     Uses umask to ensure the file is never world-readable, even briefly.
     Note: os.umask() is process-wide and not thread-safe.
+
+    Atomic since bug-audit 2026-07-06 M11 (``.tmp`` sibling + ``os.replace``):
+    a process interruption mid-write previously left a truncated
+    skill/rule/constitution file that the next curation run silently
+    consumed. On failure the temp file is removed and the ``OSError``
+    re-raised.
     """
+    tmp_path = path.with_suffix(path.suffix + ".tmp")
     old_umask = os.umask(0o177)
     try:
-        path.write_text(content, encoding="utf-8")
+        tmp_path.write_text(content, encoding="utf-8")
+        os.replace(str(tmp_path), str(path))
+    except OSError:
+        tmp_path.unlink(missing_ok=True)
+        raise
     finally:
         os.umask(old_umask)
 
@@ -188,20 +199,16 @@ def age_days(dt: datetime, *, now: Optional[datetime] = None) -> float:
 
 
 def write_text_atomic(path: Path, content: str) -> None:
-    """Atomically write *content* via a ``.tmp`` sibling + ``os.replace``.
+    """Atomically write *content* with 0600 perms.
 
-    Writes the temp file with 0600 perms (:func:`write_restricted`) then
-    renames it over *path*. On failure the temp file is removed and the
+    Since bug-audit 2026-07-06 M11 this is a thin alias of
+    :func:`write_restricted`, which performs the ``.tmp`` sibling +
+    ``os.replace`` dance itself; kept so existing call sites keep their
+    intent-revealing name. On failure the temp file is removed and the
     ``OSError`` re-raised; callers decide whether to log-and-swallow or
     propagate (the raise-vs-warn policy stays at the call site).
     """
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    try:
-        write_restricted(tmp_path, content)
-        os.replace(str(tmp_path), str(path))
-    except OSError:
-        tmp_path.unlink(missing_ok=True)
-        raise
+    write_restricted(path, content)
 
 
 def read_run_marker(directory: Optional[Path], name: str) -> Optional[str]:

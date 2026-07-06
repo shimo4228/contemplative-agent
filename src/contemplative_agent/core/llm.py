@@ -1112,7 +1112,13 @@ def _finalize_ok(
     strips it from the published text.
     """
     _circuit.record_success()
-    tel["outcome"] = "ok"
+    # A length-capped generation reaching this tail was KEPT (drop_truncated
+    # False — the drop path returned earlier). Record it distinctly so
+    # telemetry can measure how often consumers received an incomplete
+    # generation instead of folding it into "ok" (bug-audit 2026-07-06 M1).
+    tel["outcome"] = (
+        "truncated_kept" if tel.get("done_reason") == "length" else "ok"
+    )
     thinking = (
         _sanitize_thinking(reasoning or _extract_inline_thinking(text))
         if think

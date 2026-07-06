@@ -326,9 +326,15 @@ def select_submolt(
     if cleaned in submolts:
         return cleaned
 
-    # Try to find a match within the response
-    for name in submolts:
+    # Try to find a match within the response. Longest name first (bug-audit
+    # 2026-07-06 L7): with tuple order, a short name that is a substring of a
+    # longer sibling ("ai" vs "aiethics") could win against the intended
+    # longer match and silently misroute the post.
+    for name in sorted(submolts, key=len, reverse=True):
         if name in cleaned:
+            logger.info(
+                "Submolt %r matched as substring of LLM output %r", name, cleaned
+            )
             return name
 
     logger.warning("LLM returned unrecognized submolt: %s", result)

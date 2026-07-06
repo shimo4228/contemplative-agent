@@ -150,9 +150,15 @@ Per-episode distill  [ADR-0060; one LLM call per episode, no batching]
       External (peer-authored) fields go through wrap_untrusted_content()
       (injection defense + max_input cap); the agent's own content/title use
       truncate_boundary() at its EXCERPT_CAP, internal_note is full/un-capped
-    → LLM(DISTILL_EPISODE_PROMPT, format=_PATTERNS_SCHEMA) → JSON {"patterns":[...]}
+    → LLM(DISTILL_EPISODE_PROMPT, format=_PATTERNS_SCHEMA, drop_truncated=True)
+      → JSON {"patterns":[...]}
       (prompt asks for a first-person, moment-indexed register + forbids
-       meta-statements about inextractability — return [] instead; ADR-0072)
+       meta-statements about inextractability — return [] instead; ADR-0072.
+       Bug-audit 2026-07-06: a num_predict-capped generation is dropped —
+       explicit per-episode failure — instead of silently parsing a cut JSON
+       body (H1; all internal pipelines now pass drop_truncated=True); a
+       shape-violating body (top-level array / non-list "patterns") falls
+       back to bullet parsing instead of crashing the whole run (H2))
     → _is_valid_pattern() gate: length floor + extraction-failure
       meta-statement phrase filter (validity, not value; rejects logged with
       reason; ADR-0072); provenance = that one episode's source_type + ts

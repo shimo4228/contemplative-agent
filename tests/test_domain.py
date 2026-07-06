@@ -317,3 +317,51 @@ class TestEndToEndIntegration:
         clauses = load_constitution(constitution_dir)
         assert clauses  # non-empty
         assert "suffering" in clauses.lower()
+
+
+class TestUnknownKeyWarningH7:
+    """Bug-audit 2026-07-06 H7: a typo'd thresholds/submolts sub-key silently
+    fell back to the packaged default; it must at least WARN."""
+
+    @staticmethod
+    def _write_config(tmp_path, thresholds=None, submolts=None):
+        config = {
+            "name": "Test",
+            "description": "Test domain",
+            "submolts": submolts or {"subscribed": ["a"], "default": "a"},
+            "thresholds": (
+                thresholds if thresholds is not None
+                else {"relevance": 0.9, "known_agent": 0.6}
+            ),
+        }
+        path = tmp_path / "domain.json"
+        path.write_text(json.dumps(config), encoding="utf-8")
+        return path
+
+    def test_typo_threshold_key_warns(self, tmp_path, caplog):
+        path = self._write_config(tmp_path, thresholds={"relevence": 0.95})
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.domain"
+        ):
+            config = load_domain_config(path)
+        assert "relevence" in caplog.text
+        # The typo'd override is dropped — packaged default remains.
+        assert config.relevance_threshold == 0.82
+
+    def test_typo_submolt_key_warns(self, tmp_path, caplog):
+        path = self._write_config(
+            tmp_path, submolts={"subscribed": ["a"], "defualt": "b"}
+        )
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.domain"
+        ):
+            load_domain_config(path)
+        assert "defualt" in caplog.text
+
+    def test_valid_keys_do_not_warn(self, tmp_path, caplog):
+        path = self._write_config(tmp_path)
+        with caplog.at_level(
+            logging.WARNING, logger="contemplative_agent.core.domain"
+        ):
+            load_domain_config(path)
+        assert "unknown key" not in caplog.text

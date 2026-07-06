@@ -331,3 +331,51 @@ class TestGenerateAllReports:
         output_dir = tmp_path / "reports"
 
         assert generate_all_reports(log_dir, output_dir) == []
+
+
+class TestConfigChangeFlagM7:
+    """Bug-audit 2026-07-06 M7: a mid-day config change must not be silently
+    papered over by the first session's values."""
+
+    @staticmethod
+    def _write_log(tmp_path, sessions):
+        lines = []
+        for meta in sessions:
+            lines.append(json.dumps({
+                "ts": "2026-07-06T00:00:00+00:00",
+                "type": "session",
+                "data": {"event": "start", **meta},
+            }))
+        path = tmp_path / "2026-07-06.jsonl"
+        path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        return path
+
+    def test_conflicting_domain_sets_flag(self, tmp_path):
+        from contemplative_agent.core.report import _parse_log
+
+        path = self._write_log(tmp_path, [
+            {"domain": "A", "axioms_enabled": False},
+            {"domain": "B", "axioms_enabled": True},
+        ])
+        meta, _, _, _ = _parse_log(path)
+        assert meta["_config_changed"] is True
+        assert meta["domain"] == "A"  # first-seen still wins for values
+
+    def test_same_config_does_not_flag(self, tmp_path):
+        from contemplative_agent.core.report import _parse_log
+
+        path = self._write_log(tmp_path, [
+            {"domain": "A", "duration_minutes": 30},
+            {"domain": "A", "duration_minutes": 60},  # volatile key differs
+        ])
+        meta, _, _, _ = _parse_log(path)
+        assert "_config_changed" not in meta
+
+    def test_report_renders_change_note(self, tmp_path):
+        from contemplative_agent.core.report import _build_report
+
+        text = _build_report(
+            "2026-07-06", [], [], [],
+            session_meta={"domain": "A", "_config_changed": True},
+        )
+        assert "configuration changed mid-day" in text

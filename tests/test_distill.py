@@ -17,6 +17,7 @@ from contemplative_agent.core.distill import (
     _is_rich_episode,
     _distill_one,
     _dedup_patterns,
+    _parse_patterns,
     EXCERPT_CAPS,
     SIM_DUPLICATE,
     SIM_UPDATE,
@@ -283,6 +284,74 @@ class TestDistillJSONFallbackADR0021:
 
         assert "First bullet pattern" in result
         assert "Second bullet pattern" in result
+
+
+class TestParsePatternsShapeGuards:
+    """Bug-audit 2026-07-06 H2/M2: ``_parse_patterns`` must never raise on a
+    syntactically-valid JSON value whose shape deviates from
+    ``{"patterns": [...]}`` — a top-level array previously escaped the
+    ``(JSONDecodeError, TypeError)`` catch as an uncaught ``AttributeError``,
+    crashing the whole scheduled distill run before ``knowledge.save()``."""
+
+    def test_top_level_array_does_not_raise(self):
+        # Previously: parsed.get(...) on a list → AttributeError (uncaught).
+        result = _parse_patterns('["pattern one", "pattern two"]')
+        assert result == []
+
+    def test_top_level_scalar_does_not_raise(self):
+        assert _parse_patterns("42") == []
+        assert _parse_patterns('"just a string"') == []
+        assert _parse_patterns("null") == []
+
+    def test_patterns_value_string_is_not_iterated_charwise(self):
+        # Previously: a string value iterated char-by-char.
+        raw = json.dumps({"patterns": "one long pattern string here"})
+        assert _parse_patterns(raw) == []
+
+    def test_patterns_value_dict_is_not_iterated_keywise(self):
+        # Previously: dict keys ≥30 chars could persist as garbage patterns.
+        key = "a dict key long enough to pass the validity length gate check"
+        raw = json.dumps({"patterns": {key: "value"}})
+        assert _parse_patterns(raw) == []
+
+    def test_valid_shape_still_parses(self):
+        raw = json.dumps({"patterns": ["alpha pattern", "  beta  ", ""]})
+        assert _parse_patterns(raw) == ["alpha pattern", "beta"]
+
+
+class TestTruncationPolicyH1:
+    """Bug-audit 2026-07-06 H1: internal distill calls pass
+    drop_truncated=True so a num_predict-capped generation becomes an
+    explicit failure (None → logged skip) instead of a silently parsed
+    partial output."""
+
+    @patch("contemplative_agent.core.distill.generate", return_value=None)
+    def test_distill_one_drops_truncated(self, mock_generate):
+        record = {
+            "type": "activity",
+            "ts": "2026-07-06T00:00:00",
+            "data": {
+                "action": "comment",
+                "content": "Some rich episode content long enough to render",
+                "internal_note": "Noticed the concrete detail helped.",
+            },
+        }
+        assert _distill_one(record) is None
+        assert mock_generate.call_args.kwargs["drop_truncated"] is True
+
+    @patch("contemplative_agent.core.distill.generate_full", return_value=None)
+    def test_distill_identity_drops_truncated(self, mock_generate, tmp_path):
+        ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks.add_learned_pattern("Self-reflection pattern", embedding=[0.1, 0.2])
+        ks.save()
+        registry = MagicMock()
+        registry.find_by_view.return_value = [
+            {"pattern": "Self-reflection pattern", "importance": 0.7}
+        ]
+        ks2 = KnowledgeStore(path=tmp_path / "knowledge.json")
+        ks2.load()
+        distill_identity(knowledge_store=ks2, view_registry=registry)
+        assert mock_generate.call_args.kwargs["drop_truncated"] is True
 
 
 class TestInsightExclusionADR0052:

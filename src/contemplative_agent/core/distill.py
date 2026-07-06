@@ -315,6 +315,7 @@ def distill_identity(
         num_predict=3000,
         caller="distill.identity",
         think=True,
+        drop_truncated=True,
     )
     if out is None or out.text is None:
         msg = "LLM failed to generate identity revision."
@@ -482,12 +483,23 @@ def _parse_patterns(raw: str) -> List[str]:
     raw_patterns: List[str] = []
     json_text = strip_code_fence(raw)
     try:
-        parsed = json_mod.loads(json_text)
-        for item in parsed.get("patterns", []):
+        parsed: object = json_mod.loads(json_text)
+    except (json_mod.JSONDecodeError, TypeError):
+        parsed = None
+    if isinstance(parsed, dict) and isinstance(parsed.get("patterns"), list):
+        for item in parsed["patterns"]:
             text = str(item).strip() if item else ""
             if text:
                 raw_patterns.append(text)
-    except (json_mod.JSONDecodeError, TypeError):
+    else:
+        if parsed is not None:
+            # Valid JSON but not the {"patterns": [...]} shape — a top-level
+            # array/scalar or a non-list "patterns" value. Never iterate it
+            # (a str iterates char-wise, a dict key-wise); log and fall back.
+            logger.warning(
+                "Distill output shape violation (top-level %s); using bullet fallback",
+                type(parsed).__name__,
+            )
         # Fallback: bullet-point parsing
         for line in raw.splitlines():
             line = line.strip()
@@ -522,6 +534,7 @@ def _distill_one(record: Dict) -> Optional[_BatchOutput]:
         num_predict=3000,
         format=_PATTERNS_SCHEMA,
         caller="distill.episode",
+        drop_truncated=True,
     )
     if result is None:
         logger.warning("Episode distill failed (LLM returned None)")

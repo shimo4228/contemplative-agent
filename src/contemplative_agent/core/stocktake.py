@@ -125,7 +125,7 @@ def _generate_with_trace(
     """
     out = generate_full(
         prompt, system=system, num_predict=num_predict,
-        caller=caller, think=True,
+        caller=caller, think=True, drop_truncated=True,
     )
     if out is None or out.text is None:
         return None
@@ -174,15 +174,23 @@ def _find_duplicate_groups(
         logger.warning("LLM failed during stocktake duplicate detection")
         return []
 
-    return _parse_groups(text)
+    return _parse_groups(text, known={name for name, _ in items})
 
 
-def _parse_groups(raw: str) -> List[MergeGroup]:
+def _parse_groups(
+    raw: str, known: Optional[set[str]] = None
+) -> List[MergeGroup]:
     """Parse LLM grouping output into a MergeGroup list.
 
     Attempts JSON extraction (tolerating code fences and surrounding prose).
     Groups with fewer than two files are dropped. Returns an empty list on
     parse failure — a malformed response yields no merges rather than an error.
+
+    ``known`` (the real filename set) filters hallucinated names BEFORE the
+    disjointness claim below — otherwise a group like ["missing.md", "a.md"]
+    would claim "a.md", get dropped later for having < 2 existing files, and
+    silently rob a later valid ["a.md", "b.md"] group of its merge (codex
+    review 2026-07-06). ``None`` skips the filter (direct-parse callers).
     """
     text = strip_code_fence(raw)
 
@@ -207,16 +215,42 @@ def _parse_groups(raw: str) -> List[MergeGroup]:
         return []
 
     result: List[MergeGroup] = []
+    claimed: set[str] = set()
     for g in groups:
+        if not isinstance(g, dict):
+            continue
         files = g.get("files", [])
         reason = g.get("reason", "")
-        if isinstance(files, list) and len(files) >= 2 and reason:
-            result.append(
-                MergeGroup(
-                    filenames=tuple(str(f) for f in files),
-                    reason=str(reason),
+        if not (isinstance(files, list) and reason):
+            continue
+        # Bug-audit 2026-07-06 H6/L8: dedupe within the group and enforce
+        # cross-group disjointness. A file merged (and deleted) by an earlier
+        # group would otherwise be re-merged from its stale in-memory body,
+        # re-introducing the duplicate the stocktake exists to remove; a
+        # self-duplicate ["a.md", "a.md"] would pass the >=2 gate and burn a
+        # merge call on a no-op rename.
+        unique: List[str] = []
+        for f in files:
+            name = str(f)
+            if known is not None and name not in known:
+                logger.warning(
+                    "Stocktake group names a file that does not exist; "
+                    "dropping that entry"
                 )
+                continue
+            if name not in unique and name not in claimed:
+                unique.append(name)
+        if len(unique) < len(files):
+            logger.warning(
+                "Stocktake group overlaps an earlier group or repeats a "
+                "file; keeping %d of %d entries", len(unique), len(files),
             )
+        if len(unique) < 2:
+            continue
+        claimed.update(unique)
+        result.append(
+            MergeGroup(filenames=tuple(unique), reason=str(reason))
+        )
     return result
 
 

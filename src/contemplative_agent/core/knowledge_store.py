@@ -203,13 +203,20 @@ class KnowledgeStore:
         return list(self._learned_patterns)
 
     def _filter_since(self, since: str, pool: List[dict]) -> List[dict]:
-        """Return dicts from pool distilled after since. Returns all on bad timestamp.
+        """Return dicts from pool distilled at/after since. Returns all on bad timestamp.
 
         Both sides are coerced to tz-aware (naive → UTC), matching
         ``effective_importance``. Without this, comparing a tz-naive
         ``distilled`` against a tz-aware ``since`` (or vice versa) raised
         TypeError and silently dropped the pattern from the result — a latent
         data-loss path for "since" queries (ultracode sweep 2026-06-23).
+
+        Inclusive (``>=``) since bug-audit 2026-07-06 M12: both ``distilled``
+        and the run markers carry minute precision, so with strict ``>`` a
+        pattern distilled in the same minute as the marker was excluded this
+        run AND every later run (markers only move forward) — a permanent
+        silent loss, not a delay. The cost of ``>=`` is one same-minute
+        re-processing, which downstream approval gates absorb.
         """
         try:
             since_dt = parse_aware_utc(since)
@@ -218,7 +225,7 @@ class KnowledgeStore:
         result = []
         for p in pool:
             dt = _parse_distilled(p)
-            if dt is not None and dt > since_dt:
+            if dt is not None and dt >= since_dt:
                 result.append(p)
         return result
 
@@ -227,7 +234,7 @@ class KnowledgeStore:
         return [p for p in self._learned_patterns if is_live(p)]
 
     def get_live_patterns_since(self, since: str) -> List[dict]:
-        """Return live patterns distilled after the given ISO timestamp."""
+        """Return live patterns distilled at or after the given ISO timestamp."""
         return [
             p for p in self._filter_since(since, self._learned_patterns)
             if is_live(p)

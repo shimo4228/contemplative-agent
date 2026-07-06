@@ -448,3 +448,28 @@ class TestEpistemicCountsForADR0050:
         from contemplative_agent.core.knowledge_store import epistemic_counts_for
 
         assert epistemic_counts_for([]) == {"observed": 0, "generated": 0, "unknown": 0}
+
+
+class TestFilterSinceInclusiveM12:
+    """Bug-audit 2026-07-06 M12: markers and ``distilled`` share minute
+    precision, so with strict ``>`` a pattern distilled in the same minute as
+    the run marker was excluded this run and every later run (markers only
+    move forward) — a permanent silent loss. The bound is now inclusive."""
+
+    def test_same_minute_pattern_is_included(self, tmp_path: Path):
+        store = KnowledgeStore(path=tmp_path / "k.json")
+        store._learned_patterns.append({
+            "pattern": "pattern distilled in the exact marker minute boundary",
+            "distilled": "2026-07-06T12:34+00:00",
+        })
+        result = store.get_live_patterns_since("2026-07-06T12:34+00:00")
+        assert len(result) == 1
+
+    def test_earlier_pattern_still_excluded(self, tmp_path: Path):
+        store = KnowledgeStore(path=tmp_path / "k.json")
+        store._learned_patterns.append({
+            "pattern": "old pattern distilled well before the marker minute",
+            "distilled": "2026-07-06T12:33+00:00",
+        })
+        result = store.get_live_patterns_since("2026-07-06T12:34+00:00")
+        assert result == []

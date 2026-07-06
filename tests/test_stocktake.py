@@ -253,7 +253,9 @@ class TestFindDuplicateGroups:
     @patch("contemplative_agent.core.stocktake.generate_full")
     def test_returns_merge_groups(self, mock_generate):
         mock_generate.return_value = GenerationOutput(text=LLM_MERGE_RESPONSE)
-        items = [("a.md", "content a"), ("b.md", "content b")]
+        # Filenames must match the mocked LLM response: _parse_groups now
+        # drops names that are not in the known set (codex review 2026-07-06).
+        items = [("skill-a.md", "content a"), ("skill-b.md", "content b")]
         groups = _find_duplicate_groups(items, "prompt {items}")
         assert len(groups) == 1
         assert mock_generate.call_count == 1
@@ -611,3 +613,83 @@ class TestStocktakeTraceCapture:
         )
         result = run_skill_stocktake(skills_dir=skills_dir)
         assert result.thinking == "why these are distinct"
+
+
+class TestTruncationPolicyH1:
+    """Bug-audit 2026-07-06 H1: the shared stocktake LLM helper passes
+    drop_truncated=True (covers grouping / merge / clean calls)."""
+
+    @patch("contemplative_agent.core.stocktake.generate_full", return_value=None)
+    def test_generate_with_trace_drops_truncated(self, mock_generate):
+        from contemplative_agent.core.stocktake import _generate_with_trace
+
+        result = _generate_with_trace(
+            "prompt", system="sys", num_predict=100,
+            caller="stocktake.test", trace_sink=None,
+        )
+        assert result is None
+        assert mock_generate.call_args.kwargs["drop_truncated"] is True
+
+
+class TestParseGroupsDisjointnessH6:
+    """Bug-audit 2026-07-06 H6/L8: LLM-returned merge groups must be
+    disjoint and internally deduplicated — an overlapping file would be
+    re-merged from its stale pre-deletion body, re-introducing a duplicate."""
+
+    def test_overlapping_groups_keep_first_claim(self):
+        text = json.dumps({"groups": [
+            {"files": ["a.md", "b.md"], "reason": "dup pair"},
+            {"files": ["a.md", "c.md"], "reason": "overlaps first"},
+        ]})
+        groups = _parse_groups(text)
+        assert groups[0].filenames == ("a.md", "b.md")
+        # Second group loses "a.md" and collapses below the 2-file minimum.
+        assert len(groups) == 1
+
+    def test_overlap_with_enough_remainder_survives(self):
+        text = json.dumps({"groups": [
+            {"files": ["a.md", "b.md"], "reason": "dup pair"},
+            {"files": ["a.md", "c.md", "d.md"], "reason": "partial overlap"},
+        ]})
+        groups = _parse_groups(text)
+        assert len(groups) == 2
+        assert groups[1].filenames == ("c.md", "d.md")
+
+    def test_self_duplicate_group_is_dropped(self):
+        text = json.dumps({"groups": [
+            {"files": ["a.md", "a.md"], "reason": "self pair"},
+        ]})
+        assert _parse_groups(text) == []
+
+    def test_non_dict_group_entry_is_skipped(self):
+        text = json.dumps({"groups": [
+            "not a dict",
+            {"files": ["a.md", "b.md"], "reason": "valid"},
+        ]})
+        groups = _parse_groups(text)
+        assert len(groups) == 1
+        assert groups[0].filenames == ("a.md", "b.md")
+
+
+class TestParseGroupsKnownFilterCodex:
+    """Codex review 2026-07-06: a hallucinated filename must not claim its
+    group-mates before the group is dropped — that silently robbed a later
+    valid group of its merge."""
+
+    def test_hallucinated_file_does_not_claim_real_sibling(self):
+        text = json.dumps({"groups": [
+            {"files": ["missing.md", "a.md"], "reason": "half hallucinated"},
+            {"files": ["a.md", "b.md"], "reason": "valid pair"},
+        ]})
+        groups = _parse_groups(text, known={"a.md", "b.md"})
+        # First group collapses (missing.md dropped → 1 file); the valid
+        # pair must survive with a.md unclaimed.
+        assert len(groups) == 1
+        assert groups[0].filenames == ("a.md", "b.md")
+
+    def test_none_known_skips_filter(self):
+        text = json.dumps({"groups": [
+            {"files": ["x.md", "y.md"], "reason": "no filter"},
+        ]})
+        groups = _parse_groups(text)
+        assert groups[0].filenames == ("x.md", "y.md")

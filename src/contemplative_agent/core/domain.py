@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional, Tuple
 
+from ._io import strip_to_printable
 from .config import FORBIDDEN_SUBSTRING_PATTERNS
 
 logger = logging.getLogger(__name__)
@@ -76,6 +77,25 @@ class PromptTemplates:
     verification_solve_reason_system: str = ""
 
 
+def _warn_unknown_keys(section: str, mapping: object, allowed: set[str]) -> None:
+    """WARN on unrecognized sub-keys in a domain-config section (H7).
+
+    Keys are sanitized before logging (security review 2026-07-06): a shared
+    or downloaded domain config could otherwise smuggle control characters /
+    newlines into WARNING lines that log_anomaly_sweep consumes.
+    """
+    if not isinstance(mapping, dict):
+        return
+    unknown = sorted(set(mapping) - allowed)
+    if unknown:
+        safe_keys = [strip_to_printable(k, 80) for k in unknown]
+        logger.warning(
+            "Domain config %r has unknown key(s) %s (allowed: %s) — "
+            "misspelled keys silently fall back to packaged defaults",
+            section, safe_keys, sorted(allowed),
+        )
+
+
 def load_domain_config(path: Optional[Path] = None) -> DomainConfig:
     """Load and validate domain configuration from JSON.
 
@@ -112,6 +132,14 @@ def load_domain_config(path: Optional[Path] = None) -> DomainConfig:
 
     submolts = data["submolts"]
     thresholds = data["thresholds"]
+
+    # Bug-audit 2026-07-06 H7: a typo'd sub-key ("relevence", "defualt", …)
+    # previously fell back to the packaged default with zero signal, so the
+    # agent's live engagement gates silently diverged from the reviewed
+    # config. Unknown sub-keys are almost certainly misspellings — warn
+    # loudly (log_anomaly_sweep catches WARNING-level lines).
+    _warn_unknown_keys("thresholds", thresholds, {"relevance", "known_agent"})
+    _warn_unknown_keys("submolts", submolts, {"subscribed", "default"})
 
     return DomainConfig(
         name=data["name"],

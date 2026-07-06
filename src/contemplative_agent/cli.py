@@ -333,6 +333,47 @@ def _approve_delete(path: Path) -> bool:
     return _approve(f"Delete {path}?")
 
 
+def _collision_free_path(target_path: Path, text: str) -> Path:
+    """Return a write path that will not silently clobber a different file.
+
+    Two batches in one run (or across runs on the same day) can slugify to
+    the same ``<slug>-YYYYMMDD.md``; the second approved write previously
+    overwrote the first with no warning, while audit.jsonl recorded both as
+    "approved" (bug-audit 2026-07-06 H5). Identical content keeps the
+    original path (idempotent re-write); differing content gets a ``-2``,
+    ``-3``… suffix before the extension. A suffixed path whose content
+    already matches is also reused (codex review 2026-07-06: a rerun of the
+    same collision batch must not mint ``-3`` when an identical ``-2``
+    exists). Same-minute M12 reprocessing regenerates DIFFERENT text for the
+    same sources (LLM non-determinism), so this guard cannot recognize that
+    case as a duplicate — stocktake dedup catches it downstream.
+    """
+    if not target_path.exists():
+        return target_path
+
+    def _same_content(path: Path) -> bool:
+        try:
+            return path.read_text(encoding="utf-8").strip() == text.strip()
+        except OSError:
+            return False
+
+    if _same_content(target_path):
+        return target_path
+    for n in range(2, 100):
+        candidate = target_path.with_name(
+            f"{target_path.stem}-{n}{target_path.suffix}"
+        )
+        if not candidate.exists() or _same_content(candidate):
+            print(
+                f"  Name collision: {target_path.name} exists with different "
+                f"content; writing {candidate.name} instead"
+            )
+            return candidate
+    raise RuntimeError(
+        f"No collision-free name available for {target_path} after 98 tries"
+    )
+
+
 def _run_approval_loop(
     items: Sequence[Any],
     *,
@@ -368,10 +409,13 @@ def _run_approval_loop(
         thinking = getattr(item, "thinking", None)
         if thinking:
             print(f"\n--- Reasoning ---\n{thinking}")
-        approved = _approve_write(item.target_path)
+        # Resolve slug collisions BEFORE the gate so the owner approves —
+        # and the audit records — the path actually written (H5).
+        target_path = _collision_free_path(item.target_path, item.text)
+        approved = _approve_write(target_path)
         _log_approval(
             command,
-            item.target_path,
+            target_path,
             approved,
             item.text,
             snapshot_path=snapshot_path,
@@ -386,7 +430,7 @@ def _run_approval_loop(
         )
         if approved:
             target_dir.mkdir(parents=True, exist_ok=True)
-            write_restricted(item.target_path, item.text)
+            write_restricted(target_path, item.text)
             written += 1
         else:
             print("Skipped.")
@@ -643,20 +687,25 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
     if args.uninstall:
         _do_uninstall_schedule()
     else:
+        # Validate ALL arguments before installing ANY schedule (bug-audit
+        # 2026-07-06 M9): a late parser.error() previously fired after the
+        # session + distill launchd jobs were already loaded, so the user saw
+        # only a usage error while two schedules were in fact live.
         if args.interval < 1 or args.interval > 24 or 24 % args.interval != 0:
             parser.error("--interval must evenly divide 24 (1, 2, 3, 4, 6, 8, 12, 24)")
         if args.session < 1 or args.session > 1440:
             parser.error("--session must be between 1 and 1440 minutes")
         if args.distill_hour < 0 or args.distill_hour > 23:
             parser.error("--distill-hour must be between 0 and 23")
-        _do_install_schedule(interval=args.interval, session=args.session)
-        if not args.no_distill:
-            _do_install_distill_schedule(distill_hour=args.distill_hour)
         if args.weekly_analysis:
             if args.weekly_analysis_day < 0 or args.weekly_analysis_day > 6:
                 parser.error("--weekly-analysis-day must be 0 (Sun) to 6 (Sat)")
             if args.weekly_analysis_hour < 0 or args.weekly_analysis_hour > 23:
                 parser.error("--weekly-analysis-hour must be between 0 and 23")
+        _do_install_schedule(interval=args.interval, session=args.session)
+        if not args.no_distill:
+            _do_install_distill_schedule(distill_hour=args.distill_hour)
+        if args.weekly_analysis:
             _do_install_weekly_analysis_schedule(
                 weekday=args.weekly_analysis_day,
                 hour=args.weekly_analysis_hour,
@@ -790,6 +839,11 @@ def _stocktake_merge_phase(
         # ADR-0069: show this merge's reasoning before its approval gate.
         if trace_sink is not None and len(trace_sink) > n_before:
             print(f"\n--- Reasoning ---\n{trace_sink[-1]}")
+        # H5 collision guard — exempt when the merged file deliberately
+        # reuses one of the group's own names (merge-into-source overwrite,
+        # matched by _delete_merged_originals' self-delete guard).
+        if target_path.name not in group.filenames:
+            target_path = _collision_free_path(target_path, merged_text)
         approved = _approve_write(target_path)
         _log_approval(
             command_prefix, target_path, approved, merged_text,
@@ -1262,21 +1316,26 @@ def _adopt_write_item(item: _StagedItem, *, yes: bool, audit_source: AuditSource
     """Write the staged text to its target after approval; True when adopted."""
     from .core._io import write_restricted
 
-    approved = True if yes else _approve_write(item.target)
+    # H5 collision guard — exempt when a stocktake merge deliberately reuses
+    # one of its own source names (merge-into-source overwrite).
+    target = item.target
+    if target.name not in (item.sources or ()):
+        target = _collision_free_path(target, item.text)
+    approved = True if yes else _approve_write(target)
     _log_approval(
-        item.command, item.target, approved, item.text, source=audit_source,
+        item.command, target, approved, item.text, source=audit_source,
         source_ids=item.source_ids,
         epistemic_counts=item.epistemic_counts,
     )
     if not approved:
         print("Skipped.")
         return False
-    item.target.parent.mkdir(parents=True, exist_ok=True)
+    target.parent.mkdir(parents=True, exist_ok=True)
     to_write = item.text if item.text.endswith("\n") else item.text + "\n"
-    write_restricted(item.target, to_write)
+    write_restricted(target, to_write)
     # skill-stocktake merges pass the original filenames in `sources`
     # so they get deleted once the merged result is adopted.
-    _delete_adopted_sources(item.target, item.sources)
+    _delete_adopted_sources(target, item.sources)
     return True
 
 
@@ -1933,7 +1992,7 @@ def _handle_dialogue_peer(args: argparse.Namespace, _parser: argparse.ArgumentPa
     from .core.episode_log import EpisodeLog
 
     episode_log = EpisodeLog(log_dir=EPISODE_LOG_DIR)
-    run_peer_loop(
+    replies = run_peer_loop(
         episode_log=episode_log,
         peer_in=sys.stdin,
         peer_out=sys.stdout,
@@ -1941,6 +2000,16 @@ def _handle_dialogue_peer(args: argparse.Namespace, _parser: argparse.ArgumentPa
         seed=args.seed,
         label=args.label,
     )
+    # Bug-audit 2026-07-06 M10: a dialogue cut short (peer EOF / broken pipe
+    # after fewer than the requested turns) previously exited 0, so the
+    # parent's rc gate reported a truncated dialogue as a clean full run.
+    # Exit nonzero on shortfall; _handle_dialogue already fails on rc != 0.
+    if replies < args.turns:
+        logger.warning(
+            "dialogue peer %s generated %d of %d requested replies "
+            "(dialogue truncated)", args.label, replies, args.turns,
+        )
+        sys.exit(2)
 
 
 # --- Tier 3: Agent instance needed ---

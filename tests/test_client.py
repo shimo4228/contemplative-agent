@@ -9,6 +9,7 @@ from contemplative_agent.adapters.moltbook.client import (
     MoltbookClient,
     MoltbookClientError,
     envelope_ok,
+    envelope_ok_strict,
 )
 
 
@@ -342,6 +343,7 @@ class TestSubscribeSubmolt:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.headers = {}
+        mock_response.json.return_value = {"success": True}
 
         with patch.object(client._session, "request", return_value=mock_response):
             assert client.subscribe_submolt("philosophy") is True
@@ -551,6 +553,7 @@ class TestMarkNotificationsRead:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.headers = {}
+        mock_response.json.return_value = {"success": True}
         with patch.object(client._session, "request", return_value=mock_response):
             assert client.mark_notifications_read_by_post("post-123") is True
 
@@ -564,6 +567,7 @@ class TestUpvote:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.headers = {}
+        mock_response.json.return_value = {"success": True}
         with patch.object(client._session, "request", return_value=mock_response):
             assert client.upvote_post("post-123") is True
 
@@ -585,6 +589,7 @@ class TestUpvote:
         mock_response = MagicMock()
         mock_response.status_code = 200
         mock_response.headers = {}
+        mock_response.json.return_value = {"success": True}
         with patch.object(client._session, "request", return_value=mock_response):
             assert client.upvote_comment("comment-456") is True
 
@@ -1003,3 +1008,126 @@ class TestApiInstrumentation:
              patch(_AUDIT_TARGET, side_effect=OSError("disk full")):
             out = client.get("/agents/me")  # must not raise
         assert out is resp
+
+
+class TestEnvelopeOkStrictM3:
+    """Bug-audit 2026-07-06 M3: idempotent writes (subscribe / upvote /
+    mark-read) must not report success on a 2xx with an empty or non-dict
+    body — unlike create-comment, a false failure here is retry-safe."""
+
+    def test_none_body_fails(self):
+        assert envelope_ok_strict(None) is False
+
+    def test_non_dict_body_fails(self):
+        assert envelope_ok_strict("ok") is False
+        assert envelope_ok_strict(["ok"]) is False
+
+    def test_explicit_false_fails(self):
+        assert envelope_ok_strict({"success": False}) is False
+
+    def test_dict_without_success_key_passes(self):
+        assert envelope_ok_strict({"subscribed": True}) is True
+
+    def test_explicit_true_passes(self):
+        assert envelope_ok_strict({"success": True}) is True
+
+    def test_subscribe_rejects_non_json_2xx(self):
+        client = MoltbookClient(api_key="test-key")
+        mock_response = MagicMock()
+        mock_response.status_code = 200
+        mock_response.headers = {}
+        mock_response.text = "<html>proxy timeout</html>"
+        mock_response.json.side_effect = ValueError("not json")
+        with patch.object(client._session, "request", return_value=mock_response):
+            assert client.subscribe_submolt("general") is False
+
+
+class TestMissingRateHeaderWarningM4:
+    """Bug-audit 2026-07-06 M4: while X-RateLimit-Remaining has never been
+    seen, budget checks assume unlimited; a persistent header gap must warn
+    instead of silently disabling the proactive-wait layer."""
+
+    def test_warns_after_streak(self, caplog):
+        import logging as _logging
+        from contemplative_agent.adapters.moltbook.client import (
+            _MISSING_HEADER_WARN_AFTER,
+        )
+
+        client = MoltbookClient(api_key="test-key")
+        mock_response = MagicMock()
+        mock_response.headers = {}
+        with caplog.at_level(
+            _logging.WARNING,
+            logger="contemplative_agent.adapters.moltbook.client",
+        ):
+            for _ in range(_MISSING_HEADER_WARN_AFTER):
+                client._parse_rate_headers(mock_response, method="GET")
+        assert "proactive budget layer is blind" in caplog.text
+
+    def test_header_resets_streak(self, caplog):
+        import logging as _logging
+        from contemplative_agent.adapters.moltbook.client import (
+            _MISSING_HEADER_WARN_AFTER,
+        )
+
+        client = MoltbookClient(api_key="test-key")
+        missing = MagicMock()
+        missing.headers = {}
+        present = MagicMock()
+        present.headers = {"X-RateLimit-Remaining": "42"}
+        with caplog.at_level(
+            _logging.WARNING,
+            logger="contemplative_agent.adapters.moltbook.client",
+        ):
+            for _ in range(_MISSING_HEADER_WARN_AFTER - 1):
+                client._parse_rate_headers(missing, method="GET")
+            client._parse_rate_headers(present, method="GET")
+            for _ in range(_MISSING_HEADER_WARN_AFTER - 1):
+                client._parse_rate_headers(missing, method="GET")
+        assert "proactive budget layer is blind" not in caplog.text
+
+
+class TestTerminal429CountM5:
+    """Bug-audit 2026-07-06 M5: retried-and-healed soft 429s must not count —
+    only terminal 429s (hard limit or retries exhausted) feed the post-cycle
+    backoff-widening signal."""
+
+    def test_soft_429_healed_by_retry_does_not_count(self):
+        client = MoltbookClient(api_key="test-key")
+        limited = MagicMock()
+        limited.status_code = 429
+        limited.headers = {"Retry-After": "0"}
+        limited.text = "rate limited"
+        ok = MagicMock()
+        ok.status_code = 200
+        ok.headers = {}
+        ok.text = "{}"
+        ok.json.return_value = {}
+        with patch.object(
+            client._session, "request", side_effect=[limited, ok]
+        ), patch(
+            "contemplative_agent.adapters.moltbook.client.time.sleep"
+        ):
+            client.get("/test")
+        assert client.recent_429_count == 0
+
+    def test_soft_429_exhausted_counts_once(self):
+        from contemplative_agent.adapters.moltbook.client import (
+            MAX_RETRY_ON_429,
+        )
+
+        client = MoltbookClient(api_key="test-key")
+        limited = MagicMock()
+        limited.status_code = 429
+        limited.headers = {"Retry-After": "0"}
+        limited.text = "rate limited"
+        limited.json.return_value = {}
+        with patch.object(
+            client._session, "request", return_value=limited
+        ), patch(
+            "contemplative_agent.adapters.moltbook.client.time.sleep"
+        ):
+            with pytest.raises(MoltbookClientError):
+                client.get("/test")
+        assert client.recent_429_count == 1
+        assert MAX_RETRY_ON_429 >= 1  # retries actually happened above

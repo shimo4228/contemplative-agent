@@ -104,6 +104,7 @@ def _extract_skill(
         num_predict=3000,
         caller="insight.skill_extract",
         think=True,
+        drop_truncated=True,
     )
     if out is None or out.text is None:
         logger.warning("LLM failed to generate skill extraction.")

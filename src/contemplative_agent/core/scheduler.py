@@ -55,6 +55,23 @@ class Scheduler:
             data = json.loads(self._state_path.read_text(encoding="utf-8"))
             if not isinstance(data, dict):
                 raise ValueError(f"expected JSON object, got {type(data).__name__}")
+            # Bug-audit 2026-07-06 M8: _save_state always writes the full
+            # schema, so a missing field means the file was externally
+            # edited/truncated — the silent .get() default would quietly
+            # reset a counter (e.g. comments_today → 0 bypasses the daily
+            # cap). Load what is present but say so.
+            expected = (
+                "last_post_time", "last_comment_time",
+                "comments_today", "day_start",
+            )
+            missing = [k for k in expected if k not in data]
+            if missing:
+                logger.warning(
+                    "Rate state %s is missing field(s) %s — those counters "
+                    "reset to defaults (daily caps may be under-enforced "
+                    "until the next save)",
+                    self._state_path.name, missing,
+                )
             self._last_post_time = data.get("last_post_time", 0.0)
             self._last_comment_time = data.get("last_comment_time", 0.0)
             self._comments_today = data.get("comments_today", 0)

@@ -129,6 +129,7 @@ def amend_constitution(
         num_predict=3000,
         caller="constitution.amend",
         think=True,
+        drop_truncated=True,
     )
     if out is None or out.text is None:
         msg = "LLM failed to generate constitution amendment."

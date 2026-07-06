@@ -857,10 +857,11 @@ class TestSilentTruncationDetector:
 
 class TestDoneReasonTruncation:
     """generate() reads Ollama's done_reason (audit M2): "length" means the
-    output hit num_predict mid-generation. Default: WARNING only (internal
-    callers keep the partial text — distill has its own fallbacks).
-    drop_truncated=True: return None so external publish paths skip instead
-    of POSTing a mid-sentence cut ("skip, don't substitute")."""
+    output hit num_predict mid-generation. Default: WARNING + telemetry
+    outcome "truncated_kept" (bug-audit 2026-07-06 M1); since the same audit's
+    H1 all internal pipeline callers opt into drop_truncated=True.
+    drop_truncated=True: return None so callers skip instead of consuming a
+    mid-sentence cut ("skip, don't substitute")."""
 
     @staticmethod
     def _mock_resp(payload):
@@ -1889,3 +1890,19 @@ class TestLoadMdFilesCache:
 
         second = llm._load_md_files(skills_dir, "Skill")
         assert "# A" in second and "# B" in second
+
+
+class TestSelectSubmoltLongestFirstL7:
+    """Bug-audit 2026-07-06 L7: when one subscribed submolt's name is a
+    substring of another ("ai" in "aiethics"), the substring fallback must
+    prefer the longest (most specific) match, not tuple order."""
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_longest_name_wins(self, mock_generate):
+        mock_generate.return_value = "I would post this to aiethics."
+        assert select_submolt("content", ("ai", "aiethics")) == "aiethics"
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_exact_match_still_preferred(self, mock_generate):
+        mock_generate.return_value = "ai"
+        assert select_submolt("content", ("ai", "aiethics")) == "ai"

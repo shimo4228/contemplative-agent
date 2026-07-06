@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from typing import Any, Optional
+from typing import Any, Dict, Optional
 from urllib.parse import urlparse
 
 import requests
@@ -29,6 +29,9 @@ VALID_AGENT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")
 logger = logging.getLogger(__name__)
 
 MAX_RETRY_AFTER = 300  # 5 minutes hard cap
+# M4: warn after this many consecutive responses (per bucket) without a
+# parseable X-RateLimit-Remaining header.
+_MISSING_HEADER_WARN_AFTER = 10
 
 # --- API response instrumentation (silent-failure + drift capture) ---------
 # Every API call's STRUCTURE (not free-text body) is appended to this JSONL so
@@ -105,6 +108,21 @@ def envelope_ok(body: Any) -> bool:
     return not (isinstance(body, dict) and body.get("success") is False)
 
 
+def envelope_ok_strict(body: Any) -> bool:
+    """Strict body-level success predicate for idempotent writes (bug-audit
+    2026-07-06 M3).
+
+    ``envelope_ok`` treats a missing / non-JSON body as success so a
+    create-comment is never flipped into a false failure (which would cause
+    double-posting). Subscribe / upvote / mark-read carry no such risk — they
+    are idempotent-safe to retry (409 is already treated as success) — so a
+    2xx with an empty or non-dict body (proxy truncation mid-write, malformed
+    JSON) is NOT accepted as proof the write happened. A dict body without an
+    explicit ``success: false`` still passes, matching the lenient predicate.
+    """
+    return isinstance(body, dict) and body.get("success") is not False
+
+
 def _content_status(body: dict[str, Any]) -> dict[str, Any]:
     """Pull whitelisted scalar status fields from a response body (top level and
     the nested post/comment resource). Values are coerced to bool or a short
@@ -166,6 +184,12 @@ class MoltbookClient:
         self._read_reset: Optional[float] = None
         self._write_reset: Optional[float] = None
         self._recent_429_count: int = 0
+        # Bug-audit 2026-07-06 M4: consecutive responses per bucket without a
+        # parseable X-RateLimit-Remaining header. While a bucket's remaining
+        # is None, has_read_budget/has_write_budget assume unlimited — if a
+        # CDN/proxy strips the headers, the proactive-wait layer is silently
+        # blind for that bucket, so warn once per streak.
+        self._missing_header_streak: Dict[str, int] = {"read": 0, "write": 0}
 
     def _validate_url(self, url: str) -> None:
         """Ensure the URL points to the allowed domain only."""
@@ -185,6 +209,8 @@ class MoltbookClient:
         GET → read, POST/PUT/PATCH/DELETE → write.
         """
         is_read = method.upper() == "GET"
+        bucket = "read" if is_read else "write"
+        parsed_remaining = False
         remaining = response.headers.get("X-RateLimit-Remaining")
         if remaining is not None:
             try:
@@ -196,6 +222,20 @@ class MoltbookClient:
                     self._read_remaining = value
                 else:
                     self._write_remaining = value
+                parsed_remaining = True
+        if parsed_remaining:
+            self._missing_header_streak[bucket] = 0
+        else:
+            # M4: while remaining is None the budget checks assume unlimited;
+            # surface a persistent header gap instead of staying silent.
+            self._missing_header_streak[bucket] += 1
+            if self._missing_header_streak[bucket] == _MISSING_HEADER_WARN_AFTER:
+                logger.warning(
+                    "No parseable X-RateLimit-Remaining header on the last "
+                    "%d %s responses; proactive budget layer is blind for "
+                    "this bucket (reactive 429 backoff only)",
+                    _MISSING_HEADER_WARN_AFTER, bucket,
+                )
 
         reset = response.headers.get("X-RateLimit-Reset")
         if reset is not None:
@@ -281,10 +321,16 @@ class MoltbookClient:
         self._parse_rate_headers(response, method=method)
 
         if response.status_code == 429:
-            self._recent_429_count += 1
             # Don't retry hourly/daily limits — they won't clear soon
             body_text = response.text[:500]
             if "limit reached" in body_text.lower():
+                # Bug-audit 2026-07-06 M5: count only TERMINAL 429s (hard
+                # limit, or soft after retries exhausted). A burst of retried
+                # soft 429s that self-healed within one call previously
+                # inflated recent_429_count, so the post-cycle backoff
+                # widening conflated "briefly throttled" with "limit hit"
+                # and overreacted to a transient blip.
+                self._recent_429_count += 1
                 logger.warning("Hard rate limit reached (429). Not retrying.")
             elif retries < MAX_RETRY_ON_429:
                 try:
@@ -302,6 +348,9 @@ class MoltbookClient:
                 )
                 time.sleep(retry_after)
                 return self._request(method, path, retries=retries + 1, **kwargs)
+            else:
+                # Soft 429 with retries exhausted — terminal (M5).
+                self._recent_429_count += 1
 
         self._record_api_outcome(
             method, path, response.status_code, _try_json(response)
@@ -384,8 +433,11 @@ class MoltbookClient:
             return False
         try:
             resp = self.post(f"/submolts/{name}/subscribe")
-            if not envelope_ok(_try_json(resp)):
-                logger.warning("Subscribe %s soft-failed (body success:false)", name)
+            if not envelope_ok_strict(_try_json(resp)):
+                logger.warning(
+                    "Subscribe %s soft-failed (success:false or non-JSON body)",
+                    name,
+                )
                 return False
             logger.info("Subscribed to submolt: %s", name)
             return True
@@ -585,9 +637,10 @@ class MoltbookClient:
             return False
         try:
             resp = self.post(f"/notifications/read-by-post/{post_id}")
-            if not envelope_ok(_try_json(resp)):
+            if not envelope_ok_strict(_try_json(resp)):
                 logger.warning(
-                    "Mark-read for %s soft-failed (body success:false)", post_id
+                    "Mark-read for %s soft-failed (success:false or non-JSON "
+                    "body)", post_id
                 )
                 return False
             return True
@@ -609,8 +662,11 @@ class MoltbookClient:
             return False
         try:
             resp = self.post(f"/posts/{post_id}/upvote")
-            if not envelope_ok(_try_json(resp)):
-                logger.warning("Upvote post %s soft-failed (body success:false)", post_id)
+            if not envelope_ok_strict(_try_json(resp)):
+                logger.warning(
+                    "Upvote post %s soft-failed (success:false or non-JSON "
+                    "body)", post_id
+                )
                 return False
             return True
         except MoltbookClientError as exc:
@@ -630,9 +686,10 @@ class MoltbookClient:
             return False
         try:
             resp = self.post(f"/comments/{comment_id}/upvote")
-            if not envelope_ok(_try_json(resp)):
+            if not envelope_ok_strict(_try_json(resp)):
                 logger.warning(
-                    "Upvote comment %s soft-failed (body success:false)", comment_id
+                    "Upvote comment %s soft-failed (success:false or non-JSON "
+                    "body)", comment_id
                 )
                 return False
             return True

@@ -1,5 +1,6 @@
 """Tests for the rate-limit scheduler."""
 
+import json
 import time
 
 from contemplative_agent.core.scheduler import Scheduler
@@ -137,3 +138,39 @@ class TestCrossSessionCommentState:
         other._save_state()
 
         assert not observer.can_comment()
+
+
+class TestPartialStateWarningM8:
+    """Bug-audit 2026-07-06 M8: _save_state always writes the full schema, so
+    a partially-populated rate_state.json (external edit / truncation) must
+    warn instead of silently resetting counters like comments_today."""
+
+    def test_missing_field_warns(self, tmp_path, caplog):
+        import logging as _logging
+
+        state = tmp_path / "rate_state.json"
+        state.write_text(
+            json.dumps({"last_comment_time": 123.0}), encoding="utf-8"
+        )
+        with caplog.at_level(
+            _logging.WARNING, logger="contemplative_agent.core.scheduler"
+        ):
+            scheduler = Scheduler(state_path=state)
+        assert "comments_today" in caplog.text
+        assert scheduler._comments_today == 0  # default still applies
+
+    def test_full_schema_does_not_warn(self, tmp_path, caplog):
+        import logging as _logging
+
+        state = tmp_path / "rate_state.json"
+        state.write_text(json.dumps({
+            "last_post_time": 1.0,
+            "last_comment_time": 2.0,
+            "comments_today": 3,
+            "day_start": 4.0,
+        }), encoding="utf-8")
+        with caplog.at_level(
+            _logging.WARNING, logger="contemplative_agent.core.scheduler"
+        ):
+            Scheduler(state_path=state)
+        assert "missing field" not in caplog.text

@@ -546,3 +546,12 @@ class TestExtractInsightLineageADR0050:
         result = extract_insight(knowledge_store=ks, skills_dir=skills_dir)
         assert isinstance(result, InsightResult)
         assert len(result.skills[0].pattern_ids) == 3
+
+
+class TestTruncationPolicyH1:
+    """Bug-audit 2026-07-06 H1: skill extraction passes drop_truncated=True."""
+
+    @patch("contemplative_agent.core.insight.generate_full", return_value=None)
+    def test_extract_skill_drops_truncated(self, mock_generate) -> None:
+        assert _extract_skill(["p1"]) is None
+        assert mock_generate.call_args.kwargs["drop_truncated"] is True

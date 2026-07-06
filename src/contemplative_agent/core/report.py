@@ -29,6 +29,14 @@ def _base_entry(entry: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+# Rendered config keys (M7): a mid-day change to any of these flags the
+# report's Configuration line. Volatile per-session fields (duration,
+# autonomy) legitimately differ and are excluded.
+_CONFIG_META_KEYS = (
+    "domain", "axioms_enabled", "llm_backend", "llm_model", "ollama_model",
+)
+
+
 def _parse_log(
     jsonl_path: Path,
 ) -> tuple[
@@ -55,10 +63,17 @@ def _parse_log(
             continue
 
         if entry.get("type") == "session" and entry.get("data", {}).get("event") == "start":
-            # Merge: keep first-seen values, fill in missing keys from later sessions
+            # Merge: keep first-seen values, fill in missing keys from later
+            # sessions. Bug-audit 2026-07-06 M7: when a later session start
+            # carries a DIFFERENT value for a rendered config key (mid-day
+            # domain/model/axioms change), flag it so the report does not
+            # silently attribute the whole day's activity to the first
+            # session's configuration.
             for k, v in entry.get("data", {}).items():
                 if k not in meta:
                     meta[k] = v
+                elif k in _CONFIG_META_KEYS and meta[k] != v:
+                    meta["_config_changed"] = True
             continue
 
         data = entry.get("data", {})
@@ -211,9 +226,15 @@ def _build_report(
             model_text = f"{backend}:{model}"
         else:
             model_text = str(model)
-        lines.append(
+        config_line = (
             f"**Configuration**: domain={domain}, axioms={axioms}, model={model_text}"
         )
+        if session_meta.get("_config_changed"):
+            config_line += (
+                " *(configuration changed mid-day; values above are from "
+                "the first session)*"
+            )
+        lines.append(config_line)
         lines.append("")
 
     if comments:

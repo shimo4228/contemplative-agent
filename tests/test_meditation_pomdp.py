@@ -340,3 +340,40 @@ class TestBuildMatrices:
         # Should be uniform (from Dirichlet prior only, no data)
         row = matrices.A[no_input_idx, :]
         assert row.shape == (NUM_CONTEXTS,)
+
+
+class TestNoInputRowUniformH8:
+    """Bug-audit 2026-07-06 H8: the no_input row is never fed by data, but
+    column normalization previously turned it into 1/column_sum — varying
+    with each context's activity volume. meditate.py uses this row as the
+    meditation likelihood and documents it as uniform ("eyes closed" carries
+    no evidence about context); a skewed activity log therefore silently
+    biased every belief update toward the least-active contexts."""
+
+    def test_no_input_row_uniform_under_skewed_activity(self, tmp_path):
+        base = _ts(0)
+        # 30 early-session activities vs 1 late-session activity: without the
+        # fix, A[no_input, early_session] << A[no_input, late_session].
+        records = [{"ts": base, "type": "session", "data": {"event": "start"}}]
+        for i in range(30):
+            records.append({
+                "ts": _ts(60 + i),
+                "type": "activity",
+                "data": {"action": "comment", "post_id": f"p{i}"},
+            })
+        records.append({
+            "ts": _ts(3500),
+            "type": "activity",
+            "data": {"action": "comment", "post_id": "late"},
+        })
+        records.append(
+            {"ts": _ts(3600), "type": "session", "data": {"event": "end"}}
+        )
+        log = _make_log(tmp_path, records)
+        matrices = build_matrices(log, days=1)
+
+        no_input_idx = OBSERVATION_STATES.index("no_input")
+        row = matrices.A[no_input_idx, :]
+        np.testing.assert_allclose(row, row[0], atol=1e-10)
+        # Columns must still be valid distributions after the re-pin.
+        np.testing.assert_allclose(matrices.A.sum(axis=0), 1.0, atol=1e-10)

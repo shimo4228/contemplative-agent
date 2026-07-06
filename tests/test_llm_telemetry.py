@@ -130,14 +130,18 @@ class TestTelemetryOkPath:
         assert (telemetry_dir / f"llm-calls-{date_str}.jsonl").exists()
 
     @patch("contemplative_agent.core.llm.requests.post")
-    def test_truncated_but_kept_is_ok_with_done_reason(
+    def test_truncated_but_kept_records_truncated_kept(
         self, mock_post, telemetry_dir
     ):
+        """Bug-audit 2026-07-06 M1: a length-capped generation kept because
+        drop_truncated=False must NOT be recorded as a clean "ok" — otherwise
+        telemetry cannot measure how often internal consumers received an
+        incomplete generation."""
         mock_post.return_value = _mock_ok_response(done_reason="length")
         result = generate("test", drop_truncated=False)
         assert result == "Hello world"
         record = _read_records(telemetry_dir)[0]
-        assert record["outcome"] == "ok"
+        assert record["outcome"] == "truncated_kept"
         assert record["done_reason"] == "length"
 
 

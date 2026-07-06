@@ -293,6 +293,12 @@ class FeedManager:
 
         Keyed on the author *name*: live feed posts carry author.name but not
         author.id, so the previous id-keyed version of these gates never fired.
+
+        Accepted risk (bug-audit 2026-07-06 M6): two distinct agents sharing
+        a display name merge into one history bucket, so a prolific "Aria"
+        can rate-limit an unrelated "Aria". Structurally unfixable at this
+        layer until the feed carries author ids; the skip logs below name the
+        author so a collision is at least attributable post-hoc.
         """
         ctx = self._ctx
 

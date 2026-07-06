@@ -18,6 +18,7 @@ from .config import (
     NUM_ACTIONS,
     NUM_CONTEXTS,
     NUM_OBSERVATIONS,
+    OBSERVATION_STATES,
     OUTCOME_STATES,
 )
 
@@ -294,6 +295,23 @@ def build_matrices(
     A = a_counts / a_counts.sum(axis=0, keepdims=True)
     B = b_counts / b_counts.sum(axis=0, keepdims=True)
     D = d_counts / d_counts.sum()
+
+    # Bug-audit 2026-07-06 H8: the "no_input" observation row is never fed by
+    # data (outcome_idx only spans OUTCOME_STATES), so after column
+    # normalization it became 1/column_sum — varying with how much activity
+    # each context accumulated. meditate.py uses this row as the meditation
+    # likelihood and documents it as uniform ("eyes closed" carries no
+    # evidence about context); left as-is, every meditation cycle silently
+    # biased beliefs toward the LEAST-active contexts. Pin the row to exactly
+    # 1/NUM_OBSERVATIONS and scale the data rows to the remaining mass per
+    # column (a plain column renormalization after the pin would re-skew it).
+    no_input_i = OBSERVATION_STATES.index("no_input")
+    uniform_mass = 1.0 / NUM_OBSERVATIONS
+    data_rows = np.ones(NUM_OBSERVATIONS, dtype=bool)
+    data_rows[no_input_i] = False
+    data_col_sums = A[data_rows, :].sum(axis=0, keepdims=True)  # > 0 (prior)
+    A[data_rows, :] *= (1.0 - uniform_mass) / data_col_sums
+    A[no_input_i, :] = uniform_mass
 
     # C: preference — favor high_engagement and new_connection
     C = np.zeros(NUM_OBSERVATIONS, dtype=np.float64)

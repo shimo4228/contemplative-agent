@@ -116,6 +116,7 @@ def _extract_rules(skill_texts: List[str]) -> Optional[Tuple[str, Optional[str]]
         num_predict=3000,
         caller="rules_distill.extract",
         think=True,
+        drop_truncated=True,
     )
     if raw_out is None or raw_out.text is None:
         logger.warning("Stage 1 (extraction) failed.")
@@ -134,6 +135,7 @@ def _extract_rules(skill_texts: List[str]) -> Optional[Tuple[str, Optional[str]]
         num_predict=3000,
         caller="rules_distill.refine",
         think=True,
+        drop_truncated=True,
     )
     if result_out is None or result_out.text is None:
         logger.warning("Stage 2 (refinement) failed.")

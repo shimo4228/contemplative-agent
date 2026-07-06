@@ -243,3 +243,21 @@ class TestAmendConstitutionLineageADR0050:
         assert result.epistemic_counts == {
             "observed": 0, "generated": 0, "unknown": len(live),
         }
+
+
+class TestTruncationPolicyH1:
+    """Bug-audit 2026-07-06 H1: constitution amendment passes
+    drop_truncated=True."""
+
+    @patch("contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+           "Amend: {current_constitution}\nPatterns: {constitutional_patterns}")
+    @patch("contemplative_agent.core.constitution.generate_full",
+           return_value=None)
+    def test_amend_drops_truncated(self, mock_generate, tmp_path):
+        ks = _make_constitutional_knowledge(tmp_path)
+        const_dir = _setup_constitution(tmp_path)
+        amend_constitution(
+            knowledge_store=ks, constitution_dir=const_dir,
+            view_registry=_matching_view_registry(),
+        )
+        assert mock_generate.call_args.kwargs["drop_truncated"] is True
