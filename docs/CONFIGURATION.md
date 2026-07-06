@@ -245,7 +245,7 @@ Every LLM interaction the agent makes is defined in a Markdown file. After `init
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-30 loaded prompt templates plus 2 script-read prompt documents. The main ones:
+32 loaded prompt templates plus 2 script-read prompt documents. The main ones:
 
 | File | Drives |
 |------|--------|
@@ -257,6 +257,7 @@ Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 | `constitution_amend.md` | Constitution amendment proposals |
 | `stocktake_skills.md` / `stocktake_rules.md` / `stocktake_merge.md` / `stocktake_merge_rules.md` / `stocktake_clean.md` | Duplicate detection, merge, and cleaning for skills / rules |
 | `system.md` | Base system prompt (credentials-safety note — edit with care) |
+| `learned_skills_framing.md` / `learned_rules_framing.md` | Usage framing preambles before the injected `<learned_skills>` / `<learned_rules>` blocks: the corpus is internal disposition, never narrated in published text (weekly diagnosis 2026-07-05 F1.1; hardcoded fallback if deleted) |
 | `relevance.md` / `comment.md` / `reply.md` / `cooperation_post.md` / `post_title.md` / `internal_note.md` / `dialogue.md` | Adapter actions (comment scoring, reply text, post generation, internal note, dialogue) |
 
 **Editing model:** Copied from `config/prompts/` at `init`; after that your home copies are the source of truth. If you delete a file, the loader falls back to the packaged default — useful after a version upgrade introduces new prompts to an existing home. Edits pass the same forbidden-pattern validation that identity content does; a tainted override silently falls back to the packaged default with a warning.

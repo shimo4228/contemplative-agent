@@ -276,27 +276,38 @@ class TestSanitizeWordBoundary:
         assert "passwordless" in result
         assert "[REDACTED]" not in result
 
-    @pytest.mark.parametrize("text", [
-        "enter your password here",
-        "the secret to success is patience",
-        "secret-sharing protocol",
-        "keeping a secret is hard",
-    ], ids=["password-prose", "secret-prose", "secret-compound", "secret-end"])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "enter your password here",
+            "the secret to success is patience",
+            "secret-sharing protocol",
+            "keeping a secret is hard",
+        ],
+        ids=["password-prose", "secret-prose", "secret-compound", "secret-end"],
+    )
     def test_bare_word_prose_passes(self, text):
         result = _sanitize_output(text, 1000)
         assert "[REDACTED]" not in result
         assert result == text
 
-    @pytest.mark.parametrize("text", [
-        "password: hunter2",
-        "my password = Tr0ub4dor&3",
-        "the SECRET: deadbeef123",
-        "secret=abc123 in config",
-        "password：hunter2",
-    ], ids=[
-        "password-colon", "password-equals", "secret-upper",
-        "secret-nospace", "password-fullwidth-colon",
-    ])
+    @pytest.mark.parametrize(
+        "text",
+        [
+            "password: hunter2",
+            "my password = Tr0ub4dor&3",
+            "the SECRET: deadbeef123",
+            "secret=abc123 in config",
+            "password：hunter2",
+        ],
+        ids=[
+            "password-colon",
+            "password-equals",
+            "secret-upper",
+            "secret-nospace",
+            "password-fullwidth-colon",
+        ],
+    )
     def test_credential_assignment_redacted(self, text):
         result = _sanitize_output(text, 1000)
         assert "[REDACTED]" in result
@@ -318,6 +329,7 @@ def _configure_skills_marker(tmp_path):
     regression to the full prompt. Callers must reset_llm_config() after.
     """
     from contemplative_agent.core.llm import configure, reset_llm_config
+
     reset_llm_config()
     skills_dir = tmp_path / "skills_marker"
     skills_dir.mkdir()
@@ -353,11 +365,15 @@ class TestScoreRelevanceParsing:
         mock_generate.return_value = None
         assert score_relevance("test post") == 0.0
 
-    @pytest.mark.parametrize("output", [
-        "1.5",
-        "I rate this topic 5 out of 10",
-        "8",
-    ], ids=["decimal-over-one", "wrong-scale-prose", "ten-scale-integer"])
+    @pytest.mark.parametrize(
+        "output",
+        [
+            "1.5",
+            "I rate this topic 5 out of 10",
+            "8",
+        ],
+        ids=["decimal-over-one", "wrong-scale-prose", "ten-scale-integer"],
+    )
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
     def test_out_of_range_rejected_to_zero(self, mock_generate, output):
         """Audit L2: a value outside the 0-1 contract is a wrong-scale
@@ -386,6 +402,7 @@ class TestScoreRelevanceParsing:
             get_identity_system_prompt,
             reset_llm_config,
         )
+
         _configure_skills_marker(tmp_path)
         try:
             mock_generate.return_value = "0.5"
@@ -451,6 +468,7 @@ class TestGenerateInternalNote:
             get_identity_system_prompt,
             reset_llm_config,
         )
+
         _configure_skills_marker(tmp_path)
         try:
             mock_generate.return_value = "noticed"
@@ -633,18 +651,22 @@ class TestEstimateTokens:
 
     def test_pure_ascii_three_chars_per_token(self):
         from contemplative_agent.core.llm import _estimate_tokens
+
         assert _estimate_tokens("a" * 300) == 100
 
     def test_pure_cjk_two_tokens_per_char(self):
         from contemplative_agent.core.llm import _estimate_tokens
+
         assert _estimate_tokens("瞑" * 100) == 200
 
     def test_mixed_sums_both_classes(self):
         from contemplative_agent.core.llm import _estimate_tokens
+
         assert _estimate_tokens("a" * 300 + "瞑" * 100) == 300
 
     def test_empty_string_is_zero(self):
         from contemplative_agent.core.llm import _estimate_tokens
+
         assert _estimate_tokens("") == 0
 
 
@@ -656,13 +678,12 @@ class TestGenerateBudgetGuard:
 
     def setup_method(self):
         from contemplative_agent.core.llm import _circuit
+
         _circuit.record_success()  # Reset state
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_over_budget_returns_none_and_warns(self, mock_post, caplog):
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.llm"
-        ):
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             result = generate("test", system="x" * 200000)
         assert result is None
         mock_post.assert_not_called()
@@ -673,6 +694,7 @@ class TestGenerateBudgetGuard:
         """Over-budget is caller-input pathology, not a backend failure —
         recording it could spuriously open the breaker for a healthy Ollama."""
         from contemplative_agent.core.llm import _circuit
+
         generate("test", system="x" * 200000)
         assert _circuit._consecutive_failures == 0
 
@@ -707,8 +729,9 @@ class TestGenerateBudgetGuard:
         class StubBackend:  # no context_window → unknown window → unguarded
             model = "stub-model"
 
-            def generate(self, prompt, system, num_predict, format,
-                         *, temperature=1.0, think=False):
+            def generate(
+                self, prompt, system, num_predict, format, *, temperature=1.0, think=False
+            ):
                 calls["prompt_len"] = len(prompt)
                 return BackendResult(text="delegated")
 
@@ -740,17 +763,16 @@ class TestGenerateBudgetGuard:
             model: str = "guarded-model"
             context_window: int = 32768
 
-            def generate(self, prompt, system, num_predict, format,
-                         *, temperature=1.0, think=False):
+            def generate(
+                self, prompt, system, num_predict, format, *, temperature=1.0, think=False
+            ):
                 calls["called"] = True
                 return BackendResult(text="should not reach here")
 
         reset_llm_config()
         configure(backend=GuardedBackend())
         try:
-            with caplog.at_level(
-                logging.WARNING, logger="contemplative_agent.core.llm"
-            ):
+            with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
                 result = generate("x" * 200000)  # ~66k est tok > 32768
             assert result is None
             assert "called" not in calls  # skipped before delegation
@@ -771,8 +793,9 @@ class TestGenerateBudgetGuard:
             model: str = "guarded-model"
             context_window: int = 32768
 
-            def generate(self, prompt, system, num_predict, format,
-                         *, temperature=1.0, think=False):
+            def generate(
+                self, prompt, system, num_predict, format, *, temperature=1.0, think=False
+            ):
                 return BackendResult(text="delegated")
 
         reset_llm_config()
@@ -798,12 +821,8 @@ class TestSilentTruncationDetector:
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_small_prompt_eval_count_warns(self, mock_post, caplog):
-        mock_post.return_value = self._mock_resp(
-            {"response": "ok", "prompt_eval_count": 500}
-        )
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.llm"
-        ):
+        mock_post.return_value = self._mock_resp({"response": "ok", "prompt_eval_count": 500})
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             # 20000 ascii chars ≈ 6667 est tokens — passes the budget guard,
             # but 500 evaluated tokens < 20000 // 6 floor → truncated.
             result = generate("a" * 20000, system="s")
@@ -812,21 +831,15 @@ class TestSilentTruncationDetector:
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_proportional_prompt_eval_count_no_warning(self, mock_post, caplog):
-        mock_post.return_value = self._mock_resp(
-            {"response": "ok", "prompt_eval_count": 6000}
-        )
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.llm"
-        ):
+        mock_post.return_value = self._mock_resp({"response": "ok", "prompt_eval_count": 6000})
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             generate("a" * 20000, system="s")
         assert "front-truncation" not in caplog.text
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_absent_prompt_eval_count_no_warning_no_crash(self, mock_post, caplog):
         mock_post.return_value = self._mock_resp({"response": "ok"})
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.llm"
-        ):
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             assert generate("a" * 20000, system="s") == "ok"
         assert "front-truncation" not in caplog.text
 
@@ -834,23 +847,15 @@ class TestSilentTruncationDetector:
     def test_non_int_prompt_eval_count_no_warning_no_crash(self, mock_post, caplog):
         """A proxy or future Ollama build returning a string value must not
         TypeError — the detector runs outside the parse try/except."""
-        mock_post.return_value = self._mock_resp(
-            {"response": "ok", "prompt_eval_count": "500"}
-        )
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.llm"
-        ):
+        mock_post.return_value = self._mock_resp({"response": "ok", "prompt_eval_count": "500"})
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             assert generate("a" * 20000, system="s") == "ok"
         assert "front-truncation" not in caplog.text
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_small_prompt_below_floor_never_fires(self, mock_post, caplog):
-        mock_post.return_value = self._mock_resp(
-            {"response": "ok", "prompt_eval_count": 10}
-        )
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.llm"
-        ):
+        mock_post.return_value = self._mock_resp({"response": "ok", "prompt_eval_count": 10})
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             generate("a" * 600, system="s")
         assert "front-truncation" not in caplog.text
 
@@ -875,9 +880,7 @@ class TestDoneReasonTruncation:
         mock_post.return_value = self._mock_resp(
             {"response": "cut off mid-", "done_reason": "length"}
         )
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.llm"
-        ):
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             result = generate("test", system="s")
         assert result == "cut off mid-"
         assert "audit M2" in caplog.text
@@ -887,9 +890,7 @@ class TestDoneReasonTruncation:
         mock_post.return_value = self._mock_resp(
             {"response": "cut off mid-", "done_reason": "length"}
         )
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.llm"
-        ):
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             result = generate("test", system="s", drop_truncated=True)
         assert result is None
         assert "audit M2" in caplog.text
@@ -899,20 +900,15 @@ class TestDoneReasonTruncation:
         """Truncation is a budget artifact, not a backend fault — the
         breaker must not creep toward open on healthy responses."""
         from contemplative_agent.core.llm import _circuit
-        mock_post.return_value = self._mock_resp(
-            {"response": "cut", "done_reason": "length"}
-        )
+
+        mock_post.return_value = self._mock_resp({"response": "cut", "done_reason": "length"})
         generate("test", system="s", drop_truncated=True)
         assert _circuit._consecutive_failures == 0
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_stop_done_reason_returns_text(self, mock_post, caplog):
-        mock_post.return_value = self._mock_resp(
-            {"response": "complete", "done_reason": "stop"}
-        )
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.llm"
-        ):
+        mock_post.return_value = self._mock_resp({"response": "complete", "done_reason": "stop"})
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             result = generate("test", system="s", drop_truncated=True)
         assert result == "complete"
         assert "audit M2" not in caplog.text
@@ -920,9 +916,7 @@ class TestDoneReasonTruncation:
     @patch("contemplative_agent.core.llm.requests.post")
     def test_absent_done_reason_no_warning(self, mock_post, caplog):
         mock_post.return_value = self._mock_resp({"response": "ok"})
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.llm"
-        ):
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             assert generate("test", system="s", drop_truncated=True) == "ok"
         assert "audit M2" not in caplog.text
 
@@ -951,6 +945,7 @@ class TestCjkCharsPerToken:
         from contemplative_agent.adapters.moltbook.llm_functions import (
             generate_post_title,
         )
+
         mock_api.return_value = GenerationOutput(text="ok")
         generate_post_title("seed text")
         assert mock_api.call_args.kwargs["chars_per_token"] == 1.5
@@ -1106,18 +1101,14 @@ class TestThinkParameter:
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_thinking_inline_fallback(self, mock_post):
-        mock_post.return_value = self._ollama(
-            response="<think>inline reason</think>final answer"
-        )
+        mock_post.return_value = self._ollama(response="<think>inline reason</think>final answer")
         out = generate_for_api("p", max_length=200, think=True)
         assert out.text == "final answer"  # <think> stripped from published text
         assert out.thinking == "inline reason"
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_thinking_secret_scrubbed(self, mock_post):
-        mock_post.return_value = self._ollama(
-            response="answer", thinking="My api_key is in here"
-        )
+        mock_post.return_value = self._ollama(response="answer", thinking="My api_key is in here")
         out = generate_for_api("p", max_length=200, think=True)
         assert "api_key" not in (out.thinking or "")
         assert "[REDACTED]" in (out.thinking or "")
@@ -1219,6 +1210,7 @@ class TestGenerateComment:
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_uses_generate_for_api_with_max_comment_length(self, mock_gen):
         from contemplative_agent.core.config import MAX_COMMENT_LENGTH
+
         mock_gen.return_value = GenerationOutput(text="ok")
         generate_comment("post")
         kwargs = mock_gen.call_args.kwargs
@@ -1250,8 +1242,7 @@ class TestGenerateCommentMaxInput:
         generate_comment("p" * (MAX_POST_LENGTH + 500))
         prompt = mock_gen.call_args[0][0]
         assert (
-            f"truncated to the first {MAX_POST_LENGTH} of "
-            f"{MAX_POST_LENGTH + 500} chars" in prompt
+            f"truncated to the first {MAX_POST_LENGTH} of {MAX_POST_LENGTH + 500} chars" in prompt
         )
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
@@ -1308,6 +1299,7 @@ class TestGenerateReply:
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_uses_generate_for_api_with_max_comment_length(self, mock_gen):
         from contemplative_agent.core.config import MAX_COMMENT_LENGTH
+
         mock_gen.return_value = GenerationOutput(text="ok")
         generate_reply("post", "comment")
         kwargs = mock_gen.call_args.kwargs
@@ -1339,8 +1331,7 @@ class TestGenerateReplyMaxInput:
         generate_reply("p" * (MAX_POST_LENGTH + 500), "their comment")
         prompt = mock_gen.call_args[0][0]
         assert (
-            f"truncated to the first {MAX_POST_LENGTH} of "
-            f"{MAX_POST_LENGTH + 500} chars" in prompt
+            f"truncated to the first {MAX_POST_LENGTH} of {MAX_POST_LENGTH + 500} chars" in prompt
         )
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
@@ -1371,6 +1362,7 @@ class TestGeneratePostTitle:
     def test_uses_generate_for_api_with_title_length(self, mock_gen):
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
         from contemplative_agent.core.config import MAX_POST_TITLE_LENGTH
+
         mock_gen.return_value = GenerationOutput(text="A reasonable title")
         result = generate_post_title("topics")
         kwargs = mock_gen.call_args.kwargs
@@ -1381,6 +1373,7 @@ class TestGeneratePostTitle:
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_strips_quotes(self, mock_gen):
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
+
         mock_gen.return_value = GenerationOutput(text='"A quoted title"')
         result = generate_post_title("topics")
         assert result == "A quoted title"
@@ -1389,6 +1382,7 @@ class TestGeneratePostTitle:
     def test_no_80_char_slice(self, mock_gen):
         """The `[:80]` slice was overkill — API limit is 300 chars (per skill.md)."""
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
+
         long_title = "x" * 200
         mock_gen.return_value = GenerationOutput(text=long_title)
         result = generate_post_title("topics")
@@ -1402,33 +1396,42 @@ class TestGeneratePostTitle:
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_preserves_unbalanced_leading_quote(self, mock_gen):
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
+
         mock_gen.return_value = GenerationOutput(text='"Unbalanced opening stays')
         assert generate_post_title("topics") == '"Unbalanced opening stays'
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_preserves_mixed_quote_ends(self, mock_gen):
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
+
         mock_gen.return_value = GenerationOutput(text="\"mixed'")
         assert generate_post_title("topics") == "\"mixed'"
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_strips_only_one_balanced_pair(self, mock_gen):
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
+
         mock_gen.return_value = GenerationOutput(text="'\"Nested title\"'")
         assert generate_post_title("topics") == '"Nested title"'
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_preserves_internal_quotes(self, mock_gen):
         from contemplative_agent.adapters.moltbook.llm_functions import generate_post_title
+
         mock_gen.return_value = GenerationOutput(text='On "emergence" and its limits')
         assert generate_post_title("topics") == 'On "emergence" and its limits'
 
 
 class TestSelectSubmolt:
     _DEFAULT_SUBMOLTS = (
-        "general", "philosophy", "consciousness",
-        "agents", "memory", "emergence",
-        "ai", "tooling",
+        "general",
+        "philosophy",
+        "consciousness",
+        "agents",
+        "memory",
+        "emergence",
+        "ai",
+        "tooling",
     )
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
@@ -1468,6 +1471,7 @@ class TestSelectSubmolt:
             get_identity_system_prompt,
             reset_llm_config,
         )
+
         _configure_skills_marker(tmp_path)
         try:
             mock_gen.return_value = "ethics"
@@ -1519,6 +1523,7 @@ class TestSummarizePostTopic:
             get_identity_system_prompt,
             reset_llm_config,
         )
+
         _configure_skills_marker(tmp_path)
         try:
             mock_gen.return_value = "a summary"
@@ -1578,20 +1583,24 @@ class TestCircuitBreaker:
     def setup_method(self):
         """Reset global circuit breaker before each test."""
         from contemplative_agent.core.llm import _circuit
+
         _circuit.record_success()  # Reset state
 
     def test_circuit_closed_initially(self):
         from contemplative_agent.core.llm import _circuit
+
         assert _circuit.is_open is False
 
     def test_circuit_opens_after_threshold(self):
         from contemplative_agent.core.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
+
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             _circuit.record_failure()
         assert _circuit.is_open is True
 
     def test_circuit_resets_on_success(self):
         from contemplative_agent.core.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
+
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             _circuit.record_failure()
         assert _circuit.is_open is True
@@ -1600,6 +1609,7 @@ class TestCircuitBreaker:
 
     def test_circuit_recovers_after_cooldown(self):
         from contemplative_agent.core.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
+
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             _circuit.record_failure()
         assert _circuit.is_open is True
@@ -1610,6 +1620,7 @@ class TestCircuitBreaker:
     @patch("contemplative_agent.core.llm.requests.post")
     def test_generate_returns_none_when_open(self, mock_post):
         from contemplative_agent.core.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
+
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             _circuit.record_failure()
 
@@ -1620,6 +1631,7 @@ class TestCircuitBreaker:
     @patch("contemplative_agent.core.llm.requests.post")
     def test_generate_records_failure(self, mock_post):
         from contemplative_agent.core.llm import _circuit
+
         mock_post.side_effect = requests.ConnectionError("refused")
 
         result = generate("test prompt")
@@ -1629,6 +1641,7 @@ class TestCircuitBreaker:
     @patch("contemplative_agent.core.llm.requests.post")
     def test_generate_records_success(self, mock_post):
         from contemplative_agent.core.llm import _circuit
+
         _circuit.record_failure()  # Pre-set one failure
         mock_resp = MagicMock()
         mock_resp.json.return_value = {"response": "Hello world"}
@@ -1644,24 +1657,29 @@ class TestLoadSkills:
 
     def setup_method(self):
         from contemplative_agent.core.llm import reset_llm_config
+
         reset_llm_config()
 
     def teardown_method(self):
         from contemplative_agent.core.llm import reset_llm_config
+
         reset_llm_config()
 
     def test_no_skills_dir(self):
         from contemplative_agent.core.llm import _load_md_files
+
         assert _load_md_files(None, "Skill") == ""
 
     def test_empty_skills_dir(self, tmp_path):
         from contemplative_agent.core.llm import _load_md_files
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         assert _load_md_files(skills_dir, "Skill") == ""
 
     def test_loads_skill_files(self, tmp_path):
         from contemplative_agent.core.llm import _load_md_files
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "skill-a.md").write_text("# Skill A\nBehavior A")
@@ -1672,6 +1690,7 @@ class TestLoadSkills:
 
     def test_skips_forbidden_content(self, tmp_path):
         from contemplative_agent.core.llm import _load_md_files
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "good.md").write_text("# Good Skill\nSafe content")
@@ -1682,6 +1701,7 @@ class TestLoadSkills:
 
     def test_skills_injected_into_identity(self, tmp_path):
         from contemplative_agent.core.llm import configure, _build_system_prompt
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "skill.md").write_text("# Test Skill\nDo this")
@@ -1692,6 +1712,7 @@ class TestLoadSkills:
 
     def test_no_skills_no_injection(self, tmp_path):
         from contemplative_agent.core.llm import configure, _build_system_prompt
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         configure(skills_dir=skills_dir)
@@ -1700,6 +1721,7 @@ class TestLoadSkills:
 
     def test_skills_sorted_alphabetically(self, tmp_path):
         from contemplative_agent.core.llm import _load_md_files
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "2026-03-16-zebra.md").write_text("# Zebra")
@@ -1713,6 +1735,7 @@ class TestLoadSkills:
         # must not reach the prompt — it leaked into a published comment
         # (2026-06-11 #f339e1d2) when it was passed through verbatim.
         from contemplative_agent.core.llm import _load_md_files
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "skill.md").write_text(
@@ -1738,11 +1761,127 @@ class TestLoadSkills:
     def test_no_frontmatter_unchanged(self, tmp_path):
         # Files without frontmatter (e.g. the live rules) load verbatim.
         from contemplative_agent.core.llm import _load_md_files
+
         rules_dir = tmp_path / "rules"
         rules_dir.mkdir()
         (rules_dir / "rule.md").write_text("# Flow Rule\nDo this thing.")
         result = _load_md_files(rules_dir, "Rule")
         assert result == "# Flow Rule\nDo this thing."
+
+
+class TestLearnedCorpusFraming:
+    """Usage framing for the injected learned corpus (weekly diagnosis
+    2026-07-05 F1.1). The auto-extracted skill bodies are imperative
+    procedures with trigger tables; injected bare, the model renders their
+    activation in-band (published comments opening with skill-activation
+    scaffolding, once replacing the reply entirely — 06-29 #2b826a1e). A
+    framing preamble tells the model the corpus is internal disposition,
+    never narrated in published text — generation-side input shaping, not
+    an output filter (findings Principle 1). Text is externalized per
+    ADR-0054 with a hardcoded fallback."""
+
+    def setup_method(self):
+        from contemplative_agent.core.llm import reset_llm_config
+
+        reset_llm_config()
+
+    def teardown_method(self):
+        from contemplative_agent.core.llm import reset_llm_config
+
+        reset_llm_config()
+
+    def _corpus_dirs(self, tmp_path):
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "skill.md").write_text("# Test Skill\nDo this")
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        (rules_dir / "rule.md").write_text("# Test Rule\nFollow this")
+        return skills_dir, rules_dir
+
+    def test_skills_framing_precedes_skills_block(self, tmp_path):
+        from contemplative_agent.core.llm import configure, _build_system_prompt
+        from contemplative_agent.core.prompts import LEARNED_SKILLS_FRAMING_PROMPT
+
+        skills_dir, rules_dir = self._corpus_dirs(tmp_path)
+        configure(skills_dir=skills_dir, rules_dir=rules_dir)
+        prompt = _build_system_prompt()
+        assert LEARNED_SKILLS_FRAMING_PROMPT  # packaged template exists
+        assert LEARNED_SKILLS_FRAMING_PROMPT in prompt
+        assert prompt.index(LEARNED_SKILLS_FRAMING_PROMPT) < prompt.index("<learned_skills>")
+
+    def test_rules_framing_precedes_rules_block(self, tmp_path):
+        from contemplative_agent.core.llm import configure, _build_system_prompt
+        from contemplative_agent.core.prompts import LEARNED_RULES_FRAMING_PROMPT
+
+        skills_dir, rules_dir = self._corpus_dirs(tmp_path)
+        configure(skills_dir=skills_dir, rules_dir=rules_dir)
+        prompt = _build_system_prompt()
+        assert LEARNED_RULES_FRAMING_PROMPT  # packaged template exists
+        assert LEARNED_RULES_FRAMING_PROMPT in prompt
+        assert prompt.index(LEARNED_RULES_FRAMING_PROMPT) < prompt.index("<learned_rules>")
+
+    def test_no_framing_without_corpus(self, tmp_path):
+        """Framing rides with its block: empty corpus → no framing text."""
+        from contemplative_agent.core.llm import configure, _build_system_prompt
+        from contemplative_agent.core.prompts import (
+            LEARNED_RULES_FRAMING_PROMPT,
+            LEARNED_SKILLS_FRAMING_PROMPT,
+        )
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        configure(skills_dir=skills_dir, rules_dir=rules_dir)
+        prompt = _build_system_prompt()
+        assert LEARNED_SKILLS_FRAMING_PROMPT not in prompt
+        assert LEARNED_RULES_FRAMING_PROMPT not in prompt
+
+    def test_no_corpus_does_not_touch_prompt_registry(self, tmp_path, monkeypatch):
+        """Codex review 2026-07-06 P2: with an injected default_system_prompt
+        and no learned corpus, _build_system_prompt must not force the prompt
+        registry to load — a minimal runtime may have no prompts dir at all,
+        and the framing import is only needed when a block is emitted."""
+        from contemplative_agent.core import domain
+        from contemplative_agent.core.llm import _build_system_prompt, configure
+
+        def _boom():
+            raise FileNotFoundError("prompts dir absent in minimal runtime")
+
+        monkeypatch.setattr(domain, "get_prompt_templates", _boom)
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        configure(
+            default_system_prompt="Base.",
+            skills_dir=skills_dir,
+            rules_dir=rules_dir,
+        )
+        prompt = _build_system_prompt()
+        assert "Base." in prompt
+
+    def test_empty_template_falls_back_to_hardcoded(self, tmp_path, monkeypatch):
+        """A missing/gutted template must not silently drop the framing —
+        same fallback contract as the untrusted wrapper (ADR-0054)."""
+        import contemplative_agent.core.prompts as prompts_mod
+        from contemplative_agent.core.llm import (
+            _DEFAULT_LEARNED_RULES_FRAMING,
+            _DEFAULT_LEARNED_SKILLS_FRAMING,
+            _build_system_prompt,
+            configure,
+        )
+
+        monkeypatch.setattr(prompts_mod, "LEARNED_SKILLS_FRAMING_PROMPT", "", raising=False)
+        monkeypatch.setattr(prompts_mod, "LEARNED_RULES_FRAMING_PROMPT", "", raising=False)
+        skills_dir, rules_dir = self._corpus_dirs(tmp_path)
+        configure(skills_dir=skills_dir, rules_dir=rules_dir)
+        prompt = _build_system_prompt()
+        assert _DEFAULT_LEARNED_SKILLS_FRAMING in prompt
+        assert _DEFAULT_LEARNED_RULES_FRAMING in prompt
+        assert prompt.index(_DEFAULT_LEARNED_SKILLS_FRAMING) < prompt.index("<learned_skills>")
+        assert prompt.index(_DEFAULT_LEARNED_RULES_FRAMING) < prompt.index("<learned_rules>")
 
 
 class TestGetIdentitySystemPrompt:
@@ -1752,14 +1891,17 @@ class TestGetIdentitySystemPrompt:
 
     def setup_method(self):
         from contemplative_agent.core.llm import reset_llm_config
+
         reset_llm_config()
 
     def teardown_method(self):
         from contemplative_agent.core.llm import reset_llm_config
+
         reset_llm_config()
 
     def _configure_full(self, tmp_path):
         from contemplative_agent.core.llm import configure
+
         identity = tmp_path / "identity.md"
         identity.write_text("# Who I Am\nA contemplative test agent")
         skills_dir = tmp_path / "skills"
@@ -1777,6 +1919,7 @@ class TestGetIdentitySystemPrompt:
 
     def test_contains_identity_and_axioms(self, tmp_path):
         from contemplative_agent.core.llm import get_identity_system_prompt
+
         self._configure_full(tmp_path)
         prompt = get_identity_system_prompt()
         assert "A contemplative test agent" in prompt
@@ -1784,6 +1927,7 @@ class TestGetIdentitySystemPrompt:
 
     def test_excludes_skills_and_rules(self, tmp_path):
         from contemplative_agent.core.llm import get_identity_system_prompt
+
         self._configure_full(tmp_path)
         prompt = get_identity_system_prompt()
         assert "<learned_skills>" not in prompt
@@ -1795,6 +1939,7 @@ class TestGetIdentitySystemPrompt:
         """Regression: extracting the shared base must not change
         _build_system_prompt output."""
         from contemplative_agent.core.llm import _build_system_prompt
+
         self._configure_full(tmp_path)
         prompt = _build_system_prompt()
         assert "A contemplative test agent" in prompt
@@ -1808,6 +1953,7 @@ class TestGetIdentitySystemPrompt:
             configure,
             get_identity_system_prompt,
         )
+
         identity = tmp_path / "identity.md"
         identity.write_text("api_key leaked content")
         configure(
@@ -1826,14 +1972,17 @@ class TestLoadMdFilesCache:
 
     def setup_method(self):
         from contemplative_agent.core.llm import reset_llm_config
+
         reset_llm_config()
 
     def teardown_method(self):
         from contemplative_agent.core.llm import reset_llm_config
+
         reset_llm_config()
 
     def test_repeat_call_hits_cache(self, tmp_path):
         from contemplative_agent.core import llm
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "a.md").write_text("# A")
@@ -1844,6 +1993,7 @@ class TestLoadMdFilesCache:
         stamp = (skills_dir / "a.md").stat().st_mtime
         (skills_dir / "a.md").write_text("# B")
         import os
+
         os.utime(skills_dir / "a.md", (stamp, stamp))
         os.utime(skills_dir, (stamp, stamp))
 
@@ -1854,6 +2004,7 @@ class TestLoadMdFilesCache:
 
     def test_file_edit_invalidates_cache(self, tmp_path):
         from contemplative_agent.core import llm
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         md = skills_dir / "a.md"
@@ -1866,6 +2017,7 @@ class TestLoadMdFilesCache:
         md.write_text("# Second")
         later = md.stat().st_mtime + 10
         import os
+
         os.utime(md, (later, later))
 
         second = llm._load_md_files(skills_dir, "Skill")
@@ -1874,6 +2026,7 @@ class TestLoadMdFilesCache:
 
     def test_new_file_invalidates_cache(self, tmp_path):
         from contemplative_agent.core import llm
+
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "a.md").write_text("# A")
@@ -1885,6 +2038,7 @@ class TestLoadMdFilesCache:
         # Bump dir mtime explicitly (some FS bump it on create, others not).
         later = new_md.stat().st_mtime + 10
         import os
+
         os.utime(skills_dir, (later, later))
         os.utime(new_md, (later, later))
 

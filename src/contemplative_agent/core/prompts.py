@@ -50,6 +50,8 @@ class _LazyPrompts:
         "DIALOGUE_PROMPT": "dialogue",
         "VERIFICATION_SOLVE_EXTRACT_SYSTEM_PROMPT": "verification_solve_extract_system",
         "VERIFICATION_SOLVE_REASON_SYSTEM_PROMPT": "verification_solve_reason_system",
+        "LEARNED_SKILLS_FRAMING_PROMPT": "learned_skills_framing",
+        "LEARNED_RULES_FRAMING_PROMPT": "learned_rules_framing",
     }
 
     def __getattr__(self, name: str) -> str:
@@ -62,6 +64,7 @@ class _LazyPrompts:
 
 
 _lazy = _LazyPrompts()
+
 
 # Expose all prompt constants as module-level attributes via __getattr__
 def __getattr__(name: str) -> str:

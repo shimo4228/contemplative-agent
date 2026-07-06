@@ -23,7 +23,9 @@ logger = logging.getLogger(__name__)
 # Runtime data (identity, knowledge, constitution, ...) lives in MOLTBOOK_HOME.
 _PROJECT_ROOT = Path(__file__).resolve().parent.parent.parent.parent
 _CONFIG_DIR_OVERRIDE = os.environ.get("CONTEMPLATIVE_CONFIG_DIR")
-DEFAULT_CONFIG_DIR = Path(_CONFIG_DIR_OVERRIDE) if _CONFIG_DIR_OVERRIDE else _PROJECT_ROOT / "config"
+DEFAULT_CONFIG_DIR = (
+    Path(_CONFIG_DIR_OVERRIDE) if _CONFIG_DIR_OVERRIDE else _PROJECT_ROOT / "config"
+)
 DEFAULT_DOMAIN_CONFIG_PATH = DEFAULT_CONFIG_DIR / "domain.json"
 DEFAULT_PROMPTS_DIR = DEFAULT_CONFIG_DIR / "prompts"
 
@@ -75,6 +77,8 @@ class PromptTemplates:
     dialogue: str = ""
     verification_solve_extract_system: str = ""
     verification_solve_reason_system: str = ""
+    learned_skills_framing: str = ""
+    learned_rules_framing: str = ""
 
 
 def _warn_unknown_keys(section: str, mapping: object, allowed: set[str]) -> None:
@@ -92,7 +96,9 @@ def _warn_unknown_keys(section: str, mapping: object, allowed: set[str]) -> None
         logger.warning(
             "Domain config %r has unknown key(s) %s (allowed: %s) — "
             "misspelled keys silently fall back to packaged defaults",
-            section, safe_keys, sorted(allowed),
+            section,
+            safe_keys,
+            sorted(allowed),
         )
 
 
@@ -119,9 +125,7 @@ def load_domain_config(path: Optional[Path] = None) -> DomainConfig:
     raw_lower = raw.lower()
     for pattern in FORBIDDEN_SUBSTRING_PATTERNS:
         if pattern.lower() in raw_lower:
-            raise ValueError(
-                f"Domain config contains forbidden pattern: {pattern}"
-            )
+            raise ValueError(f"Domain config contains forbidden pattern: {pattern}")
 
     data = json.loads(raw)
 
@@ -207,6 +211,7 @@ def _read_prompt_with_fallback(
             else:
                 # Lazy import to avoid circular dependency: core.llm imports from core.config.
                 from .llm import validate_identity_content
+
                 if content and not validate_identity_content(content):
                     logger.warning(
                         "Home prompt override %s failed pattern validation; using packaged default",
@@ -283,6 +288,8 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         verification_solve_reason_system=read(
             "verification_solve_reason_system.md", required=False
         ),
+        learned_skills_framing=read("learned_skills_framing.md", required=False),
+        learned_rules_framing=read("learned_rules_framing.md", required=False),
     )
 
 
@@ -321,9 +328,7 @@ def load_constitution(constitution_dir: Optional[Path] = None) -> str:
     raw_lower = raw.lower()
     for pattern in FORBIDDEN_SUBSTRING_PATTERNS:
         if pattern.lower() in raw_lower:
-            raise ValueError(
-                f"Constitutional clauses contain forbidden pattern: {pattern}"
-            )
+            raise ValueError(f"Constitutional clauses contain forbidden pattern: {pattern}")
     return raw
 
 
@@ -343,6 +348,7 @@ def resolve_prompt(
 
     class _DefaultDict(dict):
         """Dict that returns the key wrapped in braces for missing keys."""
+
         def __missing__(self, key: str) -> str:
             return "{" + key + "}"
 
