@@ -1,59 +1,60 @@
 """Deterministic parser for Moltbook's obfuscated arithmetic CAPTCHA.
 
-ADR-0062 amendment (2026-06-28): the guarded ``EXPR``/``FINAL`` LLM fast path
-only proves that the model's expression and its stated answer agree
-arithmetically — *not* that the expression faithfully represents the obfuscated
-challenge text. A self-consistent but semantically wrong proposal (e.g.
-``20 + 12 = 32`` for a "twenty five + twelve" challenge) therefore slips through
-the guard. This module owns the arithmetic and number-word reconstruction for
-the *finite* CAPTCHA grammar and runs BEFORE any LLM call.
+Rewritten 2026-07-07 (ADR-0062, 5th amendment) from the 601-challenge audit
+corpus (docs/evidence/adr-0062-parser-rewrite/). The previous grammar grew by
+per-failure patching; this version derives its rules from the corpus-observed
+obfuscation layers instead:
 
-It is precision-first: it returns a parsed answer only when confident, otherwise
-``None`` so the existing LLM chain still runs. A wrong code parse is worse than
-``None`` (it bypasses the LLM that might have got it right), so every ambiguity
-abstains:
+- letter doubling (``ttwweennttyy``) — collapsed before lexicon lookup;
+- word splitting (``tw en ty th ree``) — whole-atom merges, bounded by the
+  longest lexicon word, never by a fragment-count window;
+- leet substitution (``f0rce``) — ``0`` maps to ``o`` before scanning;
+- homophone misspelling (``fife``, ``twenny``, ``thrirty``) — bounded fuzzy
+  matching (edit distance 1 after collapse, minimum lengths, unique result);
+  a misspelled number word that stayed invisible made the old parser submit
+  a confidently wrong answer, the only deterministic-path wrongs in the
+  corpus;
+- duplicated number words (``fourteen fourteen``) — adjacent equal values
+  collapse to one;
+- multi-step phrasing (``gains eight ... increases by seven``) — operands
+  and operations must interleave strictly (num op num [op num ...]) and are
+  left-folded;
+- implicit operations in the question tail (``... what is the total
+  force?`` / ``... what is the product?`` / ``twelve newtons less``) —
+  resolved only under the connective/unit/adjacency guards below.
 
-- not exactly two operands -> None,
-- not exactly one distinct operation -> None,
-- no operation positioned *between* the two operands -> None (a trailing or
-  question-framing cue such as "how many more ..." must not be read as the
-  operator),
-- a negative result -> None (the physical-count CAPTCHA domain is non-negative;
-  a negative is far likelier a misparse than a real answer).
+It stays precision-first: a parsed answer is returned only when the whole
+event stream fits the grammar; every ambiguity abstains (``None``) so the
+LLM chain still runs. A wrong code parse is worse than ``None``.
 
-Matching is whole-token equality over *merged fragments*, never substring
-matching. The obfuscator both splits one word across several
-whitespace/punctuation-delimited fragments (``tw|enn|ty`` -> twenty) and pads
-carrier nouns whose letters happen to contain number words (``antenna`` contains
-``ten``). Substring scanning would falsely read ``ten`` out of ``antenna``;
-whole-token equality on merged fragments cannot, because ``antenna`` never
-*equals* ``ten``.
+Matching is whole-token equality (or distance-1 fuzzy) over merged whole
+atoms, never substring matching: ``antenna`` never yields ``ten`` because it
+never *equals* (nor is within one edit of) ``ten``.
 
-The challenge text is untrusted. This parser never executes or interprets it as
-instructions — it only matches obfuscated number words and arithmetic cues, is
-length-bounded against a malicious oversized payload, and fails closed to
-``None``.
+The challenge text is untrusted. This parser never executes or interprets it
+as instructions — it only matches obfuscated number words and arithmetic
+cues, is length-bounded against a malicious oversized payload, and fails
+closed to ``None``.
 """
 
 from __future__ import annotations
 
-from decimal import Decimal, DivisionByZero, InvalidOperation
 import re
+from decimal import Decimal, DivisionByZero, InvalidOperation
 from typing import NamedTuple, Optional, Union
 
 from .config import MAX_CHALLENGE_INPUT as _MAX_INPUT
 
-# The parser receives the raw, untrusted challenge before the LLM path's length
-# guard, so ``_MAX_INPUT`` bounds its own input: anything longer than a real
-# CAPTCHA phrase is malicious or unparseable by the finite grammar — abstain.
-# The bound is shared via config so the parser and LLM-path limits cannot drift.
+# The parser receives the raw, untrusted challenge before the LLM path's
+# length guard, so ``_MAX_INPUT`` bounds its own input: anything longer than a
+# real CAPTCHA phrase is malicious or unparseable by the finite grammar —
+# abstain. The bound is shared via config so the parser and LLM-path limits
+# cannot drift.
 
-# Greedy fragment-merge window. The obfuscator splits one word across several
-# fragments ("tw|enn|ty" -> twenty, "t|welv|e" -> twelve), so a single number
-# word can span ~3 fragments; 5 leaves margin. A larger window stays safe
-# because matching is whole-token equality (never substring) and the accept
-# guard abstains on any extra operand a spurious merge might introduce.
-_MERGE_WINDOW = 5
+_ADD = "+"
+_SUB = "-"
+_MUL = "*"
+_DIV = "/"
 
 _UNITS = {
     "zero": 0,
@@ -90,174 +91,290 @@ _TENS = {
     "ninety": 90,
 }
 
-_ADD = "+"
-_SUB = "-"
-_MUL = "*"
-_DIV = "/"
-
-# Operation cues are matched on the verb in the challenge body. ``-``, ``/`` and
-# ``x`` are deliberately NOT taken as literal operators: they are pervasive
-# obfuscation noise (e.g. ``b-StErS``, ``HoW/``). Only literal ``+`` and ``*``
-# are treated as symbol cues — see ``_SYMBOL_OPS`` / ``_ATOM_RE``.
+# Operation cues are matched on the verb in the challenge body. ``-``, ``/``
+# and ``x`` are deliberately NOT taken as literal operators: they are
+# pervasive obfuscation noise (``b-StErS``, ``HoW/``). Only literal ``+`` and
+# ``*`` are treated as symbol cues, and only when positioned between operands
+# (a stray trailing ``what is+ total force?`` is noise — see _resolve).
+#
+# Quantity-introducing verbs (``exerts``, ``applies``, ``pushes``, ``has``)
+# are deliberately absent: they attach a magnitude to a subject, they do not
+# combine two magnitudes ("one claw exerts X and the other exerts Y" is an
+# implicit ADD resolved by the question tail, not by "exerts").
 _OP_WORDS = {
     # add
     "plus": _ADD,
     "add": _ADD,
     "adds": _ADD,
+    "added": _ADD,
     "gain": _ADD,
     "gains": _ADD,
+    "gained": _ADD,
+    "give": _ADD,
+    "gives": _ADD,
     "more": _ADD,
-    "sum": _ADD,
-    "combined": _ADD,
-    # "increases"/"increased" is the missing counterpart to "decreases" below;
-    # "accelerates"/"accelerate" is the missing counterpart to "slows" below.
-    # Both are single verb tokens with the same risk profile as the existing
-    # entries (no structural ambiguity), added from corpus evidence
-    # (logs/verification-audit.jsonl): "accelerates" alone appeared in 11
-    # challenges with a 36% llm_extract wrong-answer rate, "increases" in ~15
-    # with a 13% wrong-answer rate -- both now resolved deterministically.
     "increases": _ADD,
     "increased": _ADD,
     "accelerates": _ADD,
     "accelerate": _ADD,
+    "acquires": _ADD,
+    "acquire": _ADD,
+    "speeds": _ADD,
     # subtract
     "minus": _SUB,
     "less": _SUB,
     "lose": _SUB,
     "loses": _SUB,
+    "lost": _SUB,
     "fewer": _SUB,
     "drop": _SUB,
     "drops": _SUB,
     "slows": _SUB,
     "decreases": _SUB,
+    "decreased": _SUB,
+    "reduces": _SUB,
+    "reduce": _SUB,
+    "subtracts": _SUB,
+    "subtract": _SUB,
     # multiply
     "times": _MUL,
     "multiplied": _MUL,
     "multiply": _MUL,
+    "multiplies": _MUL,
     "product": _MUL,
-    # divide
+    # divide — the 601-challenge corpus contains ZERO division challenges;
+    # only unambiguous explicit words are kept (for the grammar's symmetry),
+    # while the prose-ambiguous "splits"/"split"/"shared" of the previous
+    # lexicon are dropped: the corpus uses them as scene prose ("a claw
+    # struggle splits on territory", "shares claw"), where reading them as
+    # division turned a correct implicit add into 30/14.
     "divided": _DIV,
     "divide": _DIV,
-    "splits": _DIV,
-    "split": _DIV,
+    "divides": _DIV,
     "quotient": _DIV,
-    "shared": _DIV,
 }
 
-# Literal operator symbols that are signal rather than noise.
+# Literal operator symbols that are signal (when between operands).
 _SYMBOL_OPS = {"+": _ADD, "*": _MUL}
 
-# One atom per scan step: a run of letters OR a single signal-operator symbol,
-# in textual order. Other punctuation (the obfuscation noise) is dropped, but
-# operator symbols keep their position relative to the number words so the
-# accept guard can require an operator *between* the operands.
+# Question-tail cue words that imply an operation over the two operands when
+# no explicit operation sits between them. "sum"/"combined" live here rather
+# than in _OP_WORDS: all nine corpus occurrences are trailing question cues
+# ("what is the combined force?"), never between-operand operators — and as
+# operators they aborted challenges where a split "swims um" merged into a
+# spurious leading "sum". "product"/"times"/"multiplied" stay _OP_WORDS and
+# are reclassified by position in _resolve.
+_ADDITIVE_CUES = {"total", "sum", "combined"}
+
+# Safe continuation material directly after the second operand of an implicit
+# add: the question itself may follow instead of a unit word.
+_QUESTION_WORDS = {"what", "whats", "how", "total", "sum", "combined"}
+
+# Fuzzy matching floors: a number word may be recovered at edit distance 1
+# from its CANONICAL spelling only when the merged token is >= 4 letters
+# ("trwo" -> two, "fife" -> five, but never a 3-letter prose token like
+# "for" -> four), an operation verb only when token and word are >= 6
+# letters. Targets are the canonical (uncollapsed) spellings: comparing
+# against collapsed lexicon keys would grant double-lettered words a free
+# extra edit ("there" is one edit from collapsed "thre" but two from
+# "three").
+_FUZZY_MIN_TOKEN = 4
+_FUZZY_MIN_OP = 6
+
+# How many atoms past the second operand a postfix operator may sit and still
+# bind to it ("twelve <unit> less", "three times <that>") — one intervening
+# unit/filler atom, no more. A farther trailing operation word is question
+# framing ("... how many less?"), which must not be read as the operator.
+_POSTFIX_ADJACENCY = 2
+
+# Common prose words that sit one edit from a number word and would
+# otherwise be misread as operands ("then" -> ten, "once"/"ones"/"none" ->
+# one, "fight"/"right" and the rest of the -ight family -> eight; the corpus
+# says "dominance fight" in 40 of 601 challenges and "right claw" in 5).
+# Corpus-checked via the replay harness.
+_FUZZY_STOPWORDS = {
+    "then",
+    "once",
+    "ones",
+    "none",
+    "there",
+    "fight",
+    "fights",
+    "right",
+    "light",
+    "might",
+    "night",
+    "sight",
+    "tight",
+    "weight",
+}
+
+# One atom per scan step: a run of letters OR a single signal-operator
+# symbol, in textual order. Other punctuation (obfuscation noise) is dropped,
+# but operator symbols keep their position relative to the number words.
 _ATOM_RE = re.compile(r"[a-z]+|[+*]")
 
 
 def _collapse_repeats(text: str) -> str:
     """Collapse every run of an identical character to one (``aa`` -> ``a``).
 
-    This neutralises the obfuscator's letter doubling (``twennty`` -> twenty).
-    Number/operation lexicons are keyed on collapsed forms so e.g. ``-teen``
-    words (``ee`` -> ``e``) and ``adds`` (``dd`` -> ``d``) compare consistently.
+    This neutralises the obfuscator's letter doubling (``twennty`` ->
+    twenty). Number/operation lexicons are keyed on collapsed forms so both
+    clean and letter-doubled spellings compare consistently.
     """
     return re.sub(r"(.)\1+", r"\1", text)
 
 
-# Lexicons keyed on collapsed forms (see _collapse_repeats). Scan tokens are
-# collapsed before lookup so both clean and letter-doubled spellings match.
-_NUMBER_WORDS = {
-    _collapse_repeats(word): value
-    for word, value in {**_UNITS, **_TEENS, **_TENS}.items()
-}
-_TENS_COLLAPSED = {_collapse_repeats(word) for word in _TENS}
+_CANONICAL_NUMBERS = {**_UNITS, **_TEENS, **_TENS}
+_NUMBER_WORDS = {_collapse_repeats(word): value for word, value in _CANONICAL_NUMBERS.items()}
+_TENS_VALUES = frozenset(_TENS.values())
 _OP_TOKENS = {_collapse_repeats(word): op for word, op in _OP_WORDS.items()}
-
-# "and" and the "total" question-cue word are tracked separately from
-# _OP_TOKENS (see _try_and_as_add): they must never be counted as a
-# recognized operation themselves, only consulted when _resolve() finds zero
-# operations at all. "sum" is deliberately NOT included here even though it
-# is the more obvious synonym: "sum" is already registered in _OP_WORDS above
-# (for a hypothetical between-operands phrasing, e.g. "the sum of X and Y"),
-# so a trailing-question "...what is the sum?" is consumed as an _OpEvent
-# before this dict is ever consulted, exactly like the existing "combined"
-# entry -- adding it here too would be dead code. Corpus evidence
-# (logs/verification-audit.jsonl) also shows "total" is the dominant cue
-# (154/252 challenges) versus "sum" (61/252), so this alone covers the bulk
-# of the pattern without resolving that pre-existing conflict.
 _AND_COLLAPSED = _collapse_repeats("and")
-_CUE_TOKENS = {_collapse_repeats(word) for word in ("total",)}
+_CUE_TOKENS = {_collapse_repeats(word) for word in _ADDITIVE_CUES}
+_QUESTION_TOKENS = {_collapse_repeats(word) for word in _QUESTION_WORDS}
+
+# Longest candidate a merge can produce: the longest canonical word plus the
+# one extra character fuzzy matching tolerates. Compared against the
+# COLLAPSED merged token (letter doubling can make the raw run arbitrarily
+# longer, so a raw-length bound would blind the scanner to doubled words).
+_MAX_TOKEN_LEN = max(len(word) for word in (*_CANONICAL_NUMBERS, *_OP_WORDS)) + 1
+# Fragment-count cap for one merge: the corpus splits a word across at most
+# ~6 fragments; 12 leaves margin while bounding scan cost on adversarial
+# many-atom input.
+_MAX_MERGE_ATOMS = 12
+
+
+class _Abstain(Exception):
+    """Internal signal: the challenge is ambiguous — fail closed to None."""
+
+
+def _within_one_edit(a: str, b: str) -> bool:
+    """True when Levenshtein distance between ``a`` and ``b`` is exactly 1."""
+    la, lb = len(a), len(b)
+    if abs(la - lb) > 1 or a == b:
+        return False
+    if la == lb:
+        return sum(x != y for x, y in zip(a, b)) == 1
+    if la > lb:
+        a, b, la, lb = b, a, lb, la
+    # ``b`` is one longer: skip exactly one character of ``b``.
+    i = 0
+    while i < la and a[i] == b[i]:
+        i += 1
+    return a[i:] == b[i + 1 :]
 
 
 class _NumEvent(NamedTuple):
     value: int
     is_tens: bool
-    atom_start: int  # atom-list index of the number word's first token
-    atom_end: int  # atom-list index of the number word's last token
+    atom_start: int
+    atom_end: int
 
 
 class _OpEvent(NamedTuple):
     op: str
+    atom_index: int
+    is_symbol: bool
 
 
-class _ConjunctionEvent(NamedTuple):
-    """A bare "and" token -- tracked for _try_and_as_add's Guard 1, and (like
-    every non-_NumEvent) interrupts a pending tens-merge in _resolve()'s main
-    fold (see the comment there).
-
-    Deliberately NOT an _OpEvent: "and" must never be counted toward
-    ``operations`` in _resolve()'s main fold, or it could combine with an
-    existing verb/symbol cue to manufacture a spurious second operation
-    (see _try_and_as_add's Guard 0 docstring).
-    """
-
+class _AndEvent(NamedTuple):
     atom_index: int
 
 
 class _CueEvent(NamedTuple):
-    """A "total" question-word token -- tracked for Guard 2, and (like every
-    non-_NumEvent) interrupts a pending tens-merge in _resolve()'s main fold
-    (see the comment there).
-
-    Also deliberately not an _OpEvent, for the same reason as
-    _ConjunctionEvent: it signals an implicit-add *question*, not an
-    operation between the operands.
-    """
-
     atom_index: int
 
 
-_Event = Union[_NumEvent, _OpEvent, _ConjunctionEvent, _CueEvent]
+_Event = Union[_NumEvent, _OpEvent, _AndEvent, _CueEvent]
 
 
 class _Operand(NamedTuple):
     value: int
-    first_index: int  # event index of the operand's first token
-    last_index: int  # event index of the operand's last token
-    atom_start: int  # atom-list index of the operand's first token
-    atom_end: int  # atom-list index of the operand's last token
+    atom_start: int
+    atom_end: int
 
 
 def code_parse_challenge(challenge_text: str) -> Optional[str]:
     """Parse the finite CAPTCHA grammar deterministically.
 
     Returns the answer formatted to two decimals (e.g. ``"44.00"``) only when
-    exactly two operands and exactly one operation — positioned between them —
-    are recovered with high confidence; otherwise ``None`` so the LLM solver
+    the operands and operations recovered from the challenge interleave into
+    exactly one unambiguous computation; otherwise ``None`` so the LLM solver
     chain runs.
     """
     if not challenge_text or len(challenge_text) > _MAX_INPUT:
         return None
-    atoms = _ATOM_RE.findall(challenge_text.lower())
-    return _resolve(_scan(atoms), atoms)
+    normalized = challenge_text.lower().replace("0", "o")
+    atoms = _ATOM_RE.findall(normalized)
+    try:
+        events = _dedup_numbers(_scan(atoms))
+        operands = _compose_operands(events)
+        return _resolve(operands, events, atoms)
+    except _Abstain:
+        return None
+
+
+_Match = tuple[str, Union[int, str, None]]
+
+
+def _match_exact(token: str) -> Optional[_Match]:
+    """Look up a collapsed merged token in the exact lexicons."""
+    if token in _NUMBER_WORDS:
+        return ("num", _NUMBER_WORDS[token])
+    if token in _OP_TOKENS:
+        return ("op", _OP_TOKENS[token])
+    if token == _AND_COLLAPSED:
+        return ("and", None)
+    if token in _CUE_TOKENS:
+        return ("cue", None)
+    return None
+
+
+def _match_fuzzy(token: str) -> Optional[_Match]:
+    """Recover a homophone-misspelled number word or operation verb.
+
+    Edit distance exactly 1 after collapse, with per-kind length floors.
+    All candidates must agree on one result (value or operator); two
+    different plausible readings poison the whole parse (raises _Abstain)
+    rather than letting either reading win — the corpus shows a silently
+    dropped number word produces a confident wrong answer.
+    """
+    if token in _FUZZY_STOPWORDS:
+        return None
+    results: set[_Match] = set()
+    if len(token) >= _FUZZY_MIN_TOKEN:
+        for word, value in _CANONICAL_NUMBERS.items():
+            if _within_one_edit(token, word):
+                results.add(("num", value))
+    if len(token) >= _FUZZY_MIN_OP:
+        # Ops also compare against their collapsed form: a doubled AND
+        # misspelled verb ("accellarates" -> "acelarates") is two edits from
+        # the canonical spelling but one from the collapsed one. Numbers stay
+        # canonical-only — they become operands, where a false positive is a
+        # wrong submitted answer, not just a wrong verb reading.
+        for word, op in _OP_WORDS.items():
+            if len(word) < _FUZZY_MIN_OP:
+                continue
+            if _within_one_edit(token, word) or _within_one_edit(token, _collapse_repeats(word)):
+                results.add(("op", op))
+    if not results:
+        return None
+    if len(results) > 1:
+        # Deliberate: ambiguity at the longest merge length abandons the
+        # whole parse instead of backing off to a shorter merge — a shorter
+        # reading that "works" around a poisoned token is exactly the
+        # silent-drop failure mode this rule exists to prevent.
+        raise _Abstain
+    return next(iter(results))
 
 
 def _scan(atoms: list[str]) -> list[_Event]:
-    """Tokenise into ordered number / operation events.
+    """Tokenise into ordered number / operation / connective / cue events.
 
-    Number words are reconstructed by greedy whole-token merging of consecutive
-    letter atoms (never crossing an operator symbol); operator symbols and verb
-    cues become op events in textual order.
+    Lexicon words are reconstructed by greedy whole-token merging of
+    consecutive letter atoms (longest merge first, never crossing an operator
+    symbol, bounded by the longest lexicon word). Exact matches win; fuzzy
+    recovery runs only where no exact merge matched.
     """
     events: list[_Event] = []
     i = 0
@@ -266,185 +383,240 @@ def _scan(atoms: list[str]) -> list[_Event]:
         atom = atoms[i]
         symbol_op = _SYMBOL_OPS.get(atom)
         if symbol_op is not None:
-            events.append(_OpEvent(symbol_op))
+            events.append(_OpEvent(symbol_op, i, True))
             i += 1
             continue
 
-        # Greedy whole-token merge over the run of letter atoms starting at i,
-        # bounded by the next operator symbol (merging must not cross it).
+        # Candidate tokens per merge length: collapsed concatenations of
+        # whole consecutive atoms, never crossing an operator symbol, capped
+        # by fragment count and by collapsed length (raw length is
+        # meaningless under letter doubling).
+        run_tokens: list[str] = []
+        merged_raw = ""
         run_end = i
-        while run_end < total and atoms[run_end] not in _SYMBOL_OPS:
+        while (
+            run_end < total
+            and atoms[run_end] not in _SYMBOL_OPS
+            and len(run_tokens) < _MAX_MERGE_ATOMS
+        ):
+            merged_raw += atoms[run_end]
+            token = _collapse_repeats(merged_raw)
+            if len(token) > _MAX_TOKEN_LEN:
+                break
+            run_tokens.append(token)
             run_end += 1
-        max_length = min(_MERGE_WINDOW, run_end - i)
+
         matched = False
-        for length in range(max_length, 0, -1):
-            token = _collapse_repeats("".join(atoms[i : i + length]))
-            if token in _NUMBER_WORDS:
-                events.append(
-                    _NumEvent(_NUMBER_WORDS[token], token in _TENS_COLLAPSED, i, i + length - 1)
-                )
+        for matcher in (_match_exact, _match_fuzzy):
+            for length in range(len(run_tokens), 0, -1):
+                token = run_tokens[length - 1]
+                result = matcher(token)
+                if result is None:
+                    continue
+                kind, payload = result
+                last = i + length - 1
+                if kind == "num" and isinstance(payload, int):
+                    events.append(_NumEvent(payload, payload in _TENS_VALUES, i, last))
+                elif kind == "op" and isinstance(payload, str):
+                    events.append(_OpEvent(payload, i, False))
+                elif kind == "and":
+                    events.append(_AndEvent(i))
+                else:
+                    events.append(_CueEvent(i))
                 i += length
                 matched = True
                 break
-            if token in _OP_TOKENS:
-                events.append(_OpEvent(_OP_TOKENS[token]))
-                i += length
-                matched = True
-                break
-            if token == _AND_COLLAPSED:
-                events.append(_ConjunctionEvent(i))
-                i += length
-                matched = True
-                break
-            if token in _CUE_TOKENS:
-                events.append(_CueEvent(i))
-                i += length
-                matched = True
+            if matched:
                 break
         if not matched:
             i += 1
     return events
 
 
-def _resolve(events: list[_Event], atoms: list[str]) -> Optional[str]:
-    """Fold events into operands + operations and apply the precision guards."""
-    operands: list[_Operand] = []
-    op_positions: list[tuple[int, str]] = []
-    and_atom_indices: list[int] = []
-    cue_atom_indices: list[int] = []
-    # The pending tens-word is kept as the whole _NumEvent (rather than
-    # decomposed into separate Optional[int] locals) so narrowing
-    # `pending is not None` once gives typed access to all of its fields.
-    pending: Optional[_NumEvent] = None
-    pending_index: Optional[int] = None
-    op_since_tens = False
+def _dedup_numbers(events: list[_Event]) -> list[_Event]:
+    """Drop a number event that immediately repeats the previous one.
 
-    def flush_pending_tens() -> None:
-        nonlocal pending, pending_index, op_since_tens
-        if pending is not None and pending_index is not None:
-            operands.append(
-                _Operand(
-                    pending.value,
-                    pending_index,
-                    pending_index,
-                    pending.atom_start,
-                    pending.atom_end,
-                )
-            )
-        pending = None
-        pending_index = None
-        op_since_tens = False
-
-    for index, event in enumerate(events):
-        if not isinstance(event, _NumEvent):
-            # Any non-numeric event -- a real operator, a bare "and", or a
-            # "total" cue -- interrupts a pending tens-merge the same way.
-            # Without this, a bare tens-word operand immediately followed by
-            # "and <1-9 unit-word>" (e.g. "twenty ... and five ...") would
-            # wrongly compound into one operand (25) via the branch below
-            # (found by codex-review for _ConjunctionEvent specifically;
-            # hoisted here, once, so a future event type cannot omit it and
-            # reintroduce the same bug for itself).
-            if pending is not None:
-                op_since_tens = True
-            if isinstance(event, _OpEvent):
-                op_positions.append((index, event.op))
-            elif isinstance(event, _ConjunctionEvent):
-                and_atom_indices.append(event.atom_index)
-            else:
-                cue_atom_indices.append(event.atom_index)
-            continue
-        # _NumEvent: merge a unit (1-9) onto a directly-preceding tens word, but
-        # only when no operation cue intervened ("thirty six" -> 36, while
-        # "thirty plus five" stays 30 and 5).
-        if event.is_tens:
-            flush_pending_tens()
-            pending = event
-            pending_index = index
-        elif (
-            pending is not None
-            and pending_index is not None
-            and 1 <= event.value <= 9
-            and not op_since_tens
+    The obfuscator writes a number word twice (a split form followed by a
+    clean repeat: ``tw ellv e twelve``, ``thirty two two``). Only *directly*
+    consecutive equal values collapse — any intervening operation, "and", or
+    cue event keeps both (``forty + seven ... seven`` stays a chain).
+    """
+    deduped: list[_Event] = []
+    for event in events:
+        previous = deduped[-1] if deduped else None
+        if (
+            isinstance(event, _NumEvent)
+            and isinstance(previous, _NumEvent)
+            and previous.value == event.value
+            and previous.is_tens == event.is_tens
         ):
+            # Keep one event spanning both occurrences, so downstream
+            # atom-adjacency guards look past the duplicate.
+            deduped[-1] = previous._replace(atom_end=event.atom_end)
+            continue
+        deduped.append(event)
+    return deduped
+
+
+def _compose_operands(events: list[_Event]) -> list[_Operand]:
+    """Fold number events into operands, compounding tens + unit.
+
+    A unit word (1-9) merges onto a directly preceding tens word only when no
+    other event intervened ("thirty six" -> 36, while "thirty plus five" and
+    "thirty and five" stay separate operands). Unmatched prose atoms carry no
+    event and therefore never interrupt the compound (``forty antenna plus
+    two`` still reads forty).
+    """
+    operands: list[_Operand] = []
+    pending: Optional[_NumEvent] = None
+    interrupted = False
+
+    def flush() -> None:
+        nonlocal pending, interrupted
+        if pending is not None:
+            operands.append(_Operand(pending.value, pending.atom_start, pending.atom_end))
+        pending = None
+        interrupted = False
+
+    for event in events:
+        if not isinstance(event, _NumEvent):
+            if pending is not None:
+                interrupted = True
+            continue
+        if event.is_tens:
+            flush()
+            pending = event
+        elif pending is not None and 1 <= event.value <= 9 and not interrupted:
             operands.append(
-                _Operand(
-                    pending.value + event.value,
-                    pending_index,
-                    index,
-                    pending.atom_start,
-                    event.atom_end,
-                )
+                _Operand(pending.value + event.value, pending.atom_start, event.atom_end)
             )
             pending = None
-            pending_index = None
-            op_since_tens = False
+            interrupted = False
         else:
-            flush_pending_tens()
-            operands.append(
-                _Operand(event.value, index, index, event.atom_start, event.atom_end)
-            )
-    flush_pending_tens()
-
-    if len(operands) != 2:
-        return None
-    operations = {op for _, op in op_positions}
-    if len(operations) == 0:
-        return _try_and_as_add(operands, and_atom_indices, cue_atom_indices, atoms)
-    if len(operations) != 1:
-        return None
-    operation = next(iter(operations))
-    between = any(
-        operands[0].last_index < position < operands[1].first_index
-        for position, _ in op_positions
-    )
-    if not between:
-        return None
-    return _compute(operands[0].value, operation, operands[1].value)
+            flush()
+            operands.append(_Operand(event.value, event.atom_start, event.atom_end))
+    flush()
+    return operands
 
 
-def _try_and_as_add(
+def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -> Optional[str]:
+    """Fit ops/cues around the operands and compute, or abstain.
+
+    Grammar: operands and explicit operations must interleave strictly —
+    every gap between consecutive operands carries exactly one agreed
+    operation, and anything after the last operand must be consistent with
+    it. A two-operand challenge with an empty gap may still resolve through
+    the guarded implicit rules (question-tail add/multiply, adjacent postfix
+    operator).
+    """
+    if len(operands) < 2:
+        return None
+
+    ops = [e for e in events if isinstance(e, _OpEvent)]
+    ands = [e for e in events if isinstance(e, _AndEvent)]
+    cues = [e for e in events if isinstance(e, _CueEvent)]
+    last = operands[-1]
+
+    # Position classification (atom indices). Head/tail symbols are noise;
+    # a head word-operation is question framing ("how many more ...") and
+    # poisons the read.
+    gap_ops: list[list[str]] = [[] for _ in range(len(operands) - 1)]
+    tail_word_ops: list[_OpEvent] = []
+    for op in ops:
+        if op.atom_index < operands[0].atom_start:
+            if not op.is_symbol:
+                return None
+            continue
+        if op.atom_index > last.atom_end:
+            if not op.is_symbol:
+                tail_word_ops.append(op)
+            continue
+        for gap, (left, right) in enumerate(zip(operands, operands[1:])):
+            if left.atom_end < op.atom_index < right.atom_start:
+                gap_ops[gap].append(op.op)
+                break
+        else:
+            # Inside an operand's own atom range — impossible by construction.
+            return None
+
+    filled = [set(g) for g in gap_ops]
+    if any(len(f) > 1 for f in filled):
+        return None
+
+    if all(filled):
+        chain = [next(iter(f)) for f in filled]
+        # Tail operations must restate the last step ("gains eight more") or
+        # be a multiplicative/divisive contradiction — then abstain.
+        for op in tail_word_ops:
+            if op.op != chain[-1]:
+                return None
+        return _compute_chain(operands, chain)
+
+    if len(operands) != 2 or any(filled):
+        # Chains (3+) never resolve implicitly; a half-filled two-operand
+        # read is contradictory.
+        return None
+    return _resolve_implicit(operands, tail_word_ops, ands, cues, atoms)
+
+
+def _resolve_implicit(
     operands: list[_Operand],
-    and_atom_indices: list[int],
-    cue_atom_indices: list[int],
+    tail_word_ops: list[_OpEvent],
+    ands: list[_AndEvent],
+    cues: list[_CueEvent],
     atoms: list[str],
 ) -> Optional[str]:
-    """Conditionally treat a bare "and" as an implicit addition cue.
+    """Resolve two operands with no explicit operation between them.
 
-    Only reached from _resolve() when exactly two operands were found and
-    ZERO recognized operations (Guard 0, enforced by the caller): "and" can
-    therefore never combine with an existing verb/symbol cue to manufacture a
-    spurious second operation. "and" alone is a much weaker addition signal
-    than an explicit verb ("gains", "plus") -- the corpus shows it also
-    connects a base quantity to a multiplicative count ("...and has three
-    claws...") or a product question ("...and applies X, what is the
-    product?") -- so three more guards must ALL hold before this accepts:
-
-    Guard 1: an "and" token sits between the two operands (the same
-        "operator must be between the operands" invariant as every other cue
-        in this module -- a trailing or leading "and" does not count).
-    Guard 2: a total/sum cue word appears after the second operand (rules out
-        "product"/"multiplied" questions, which ask something else and never
-        mention total/sum at all).
-    Guard 3: the atom immediately after each operand's last number-word atom
-        is the same collapsed string for both operands (typically a repeated
-        unit word like "newtons"). No unit-word dictionary is needed:
-        comparing the challenge's own two occurrences to each other absorbs
-        whatever spelling the obfuscator used ("newtons"/"neutons"/"notons")
-        for free, and rules out a count-modifier reading where the second
-        "operand" is actually a multiplier ("...and has three claws...":
-        "claws" != "newtons").
+    Priority: a multiplicative signal (specific) beats the additive question
+    cue (generic); a postfix subtraction requires immediate adjacency; the
+    implicit add requires the connective, the cue, and the unit guard.
     """
-    first, second = operands[0], operands[1]
-    if not any(first.atom_end < idx < second.atom_start for idx in and_atom_indices):
+    first, second = operands
+    and_between = any(first.atom_end < a.atom_index < second.atom_start for a in ands)
+    cue_after = any(c.atom_index > second.atom_end for c in cues)
+
+    mult_tail = [op for op in tail_word_ops if op.op == _MUL]
+    sub_tail = [op for op in tail_word_ops if op.op == _SUB]
+    other_tail = [op for op in tail_word_ops if op.op not in (_MUL, _SUB)]
+
+    if mult_tail:
+        if sub_tail:
+            return None
+        adjacent = any(op.atom_index - second.atom_end <= _POSTFIX_ADJACENCY for op in mult_tail)
+        if and_between or adjacent:
+            return _compute_chain(operands, [_MUL])
         return None
-    if not any(idx > second.atom_end for idx in cue_atom_indices):
+    if sub_tail:
+        if other_tail:
+            return None
+        if all(op.atom_index - second.atom_end <= _POSTFIX_ADJACENCY for op in sub_tail):
+            return _compute_chain(operands, [_SUB])
         return None
-    unit_after_first = _adjacent_atom(atoms, first.atom_end)
-    unit_after_second = _adjacent_atom(atoms, second.atom_end)
-    if unit_after_first is None or unit_after_first != unit_after_second:
+    if other_tail:
+        # A bare trailing additive verb ("... how many more?") is question
+        # framing, not an operator.
         return None
-    return _compute(first.value, _ADD, second.value)
+
+    # Implicit add: "X <unit> and Y <unit>, what is the total?"
+    if not (and_between and cue_after):
+        return None
+    unit_first = _adjacent_atom(atoms, first.atom_end)
+    unit_second = _adjacent_atom(atoms, second.atom_end)
+    if unit_first is None or unit_second is None:
+        return None
+    # Fuzzy unit pairing needs the same length floor as every other fuzzy
+    # comparison in this module: two short noise fragments ("me"/"ne") sit
+    # one edit apart far too easily. Exact equality has no floor (the corpus
+    # abbreviates units down to "cm", and equal short units are real signal).
+    like_units = unit_first == unit_second or (
+        len(unit_first) >= _FUZZY_MIN_TOKEN
+        and len(unit_second) >= _FUZZY_MIN_TOKEN
+        and _within_one_edit(unit_first, unit_second)
+    )
+    if not (like_units or unit_second in _QUESTION_TOKENS):
+        return None
+    return _compute_chain(operands, [_ADD])
 
 
 def _adjacent_atom(atoms: list[str], atom_end: int) -> Optional[str]:
@@ -454,26 +626,29 @@ def _adjacent_atom(atoms: list[str], atom_end: int) -> Optional[str]:
     return _collapse_repeats(atoms[atom_end + 1])
 
 
-def _compute(lhs: int, op: str, rhs: int) -> Optional[str]:
-    """Compute ``lhs op rhs`` with Decimal precision, formatted to two decimals.
+def _compute_chain(operands: list[_Operand], chain: list[str]) -> Optional[str]:
+    """Left-fold the operand values, abstaining on any out-of-domain step.
 
-    Abstains (``None``) on division by zero and on a negative result — the
-    CAPTCHA domain is non-negative, so a negative is a misparse signal.
+    The physical-count CAPTCHA domain is non-negative: a negative
+    intermediate or final value, a division by zero, or a non-finite result
+    signals a misparse, not a real answer.
     """
-    left, right = Decimal(lhs), Decimal(rhs)
+    result = Decimal(operands[0].value)
     try:
-        if op == _ADD:
-            result = left + right
-        elif op == _SUB:
-            result = left - right
-        elif op == _MUL:
-            result = left * right
-        elif op == _DIV:
-            result = left / right
-        else:
-            return None
+        for op, operand in zip(chain, operands[1:]):
+            right = Decimal(operand.value)
+            if op == _ADD:
+                result += right
+            elif op == _SUB:
+                result -= right
+            elif op == _MUL:
+                result *= right
+            elif op == _DIV:
+                result /= right
+            else:
+                return None
+            if not result.is_finite() or result < 0:
+                return None
     except (DivisionByZero, InvalidOperation):
-        return None
-    if not result.is_finite() or result < 0:
         return None
     return f"{result:.2f}"

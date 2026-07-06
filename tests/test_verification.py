@@ -55,14 +55,47 @@ _AUDIT_ACCELERATES_FAILURE_B64 = (
     "ZVRlUnMvIHBFciBzRSBjT25EIGFOZF0gYUNjRWxFckF0RXNeIGJZWyBzRXZFbiwgd0hh"
     "VC9pUyB0SGVeIG5FdyBzUGVFZD8="
 )  # "...swims at twenty three centimeters per second and accelerates by
-   #  seven, what is the new speed?" = 30.00 (historical LLM answer: 27.00)
+#  seven, what is the new speed?" = 30.00 (historical LLM answer: 27.00)
 
 _AUDIT_INCREASES_FAILURE_B64 = (
     "QV0gTG9PYlN0LUVyU14gQ2xBdyB9Rm9SY0Ugb0YgZk9yVHkgVHdPIF1OZVd0T25TIC9n"
     "ciBhYlMtIGFOZCBJbkMgckVhU2VEIGJZIFNlVmVOdEVlTiB+TmVXdE9uUywgV2hBdDwg"
     "SXMgVG9UYUwgfUZvUmNFPw=="
 )  # "...claw force of forty two newtons grabs, and increased by seventeen
-   #  newtons, what is total force?" = 59.00 (historical LLM answer: 25.00)
+#  newtons, what is total force?" = 59.00 (historical LLM answer: 25.00)
+
+# Regression fixtures from logs/verification-audit.jsonl (2026-06-28..07-06):
+# the four challenges where code_parse itself SUBMITTED A WRONG ANSWER (the
+# only deterministic-path wrongs in the 620-record corpus). Root cause: a
+# homophone-misspelled number word ("fife" = five, "twenny" = twenty,
+# "thrirty" = thirty) matched nothing, became invisible, and the grammar
+# confidently parsed the remaining pair. The rewrite recovers these via
+# bounded fuzzy number-word matching; a wrong parse here is the exact
+# failure mode the hard replay gate exists to prevent.
+_AUDIT_CODEPARSE_WRONG_FIFE_B64 = (
+    "XSBBXSBMb09iQi5zU3RUZUVyXSBjTGFXLUZvUl5jRSBpUyB0SGlSdFkgZklmRSBOZVd0"
+    "T25TXSBhTmQgQW5UZU5uQWEgVG9VdEMuaEggYURkU3MgVHdFZUxsViBlIE5lV3RPblMs"
+    "IEhvVyBNdUNoIFRvVGFMIEZvUl5jRT8gPCA+IC8gXCB8IH4geyB9"
+)  # "...thirty fife newtons and antennaa touch adds twelve newtons, total?"
+# = 47.00 (historical code_parse answer: 42.00 — "fife" dropped)
+_AUDIT_CODEPARSE_WRONG_TWENNY_B64 = (
+    "QV0gTG9Pb0JiU3NTdFRlRXJdIHNXL2lNbVNeIGFULyBUd0VuTnkgVGhSZUVlIG1FXnRF"
+    "clMsIHVNLSBhTmQtIGlULyBnQWlOc10gRmlWdkVlIG1FL3RFclMsIHdIL2FUXiBJcyBU"
+    "aEUgbkV3LSBTcEVlRD8="
+)  # "...swims at twenny three meters, um and it gains fivvee meters, what
+# is the new speed?" = 28.00 (historical: 8.00 — "twenny" dropped)
+_AUDIT_CODEPARSE_WRONG_THRIRTY_B64 = (
+    "QV0gbE9vT2JTc3RFcnIgU153SW1TWyBpTi8gdEhlLSBvQ2VBbiwgaVRzIENsQXdXIGZP"
+    "ckNlRSBpU14gdEhySXJUeS0gdFdvXSBuRXVUdE9uUywgYU5kLSBpVC8gYURkU3NbIGZJ"
+    "ZlRlRW5+IG5FdVR0T25TLCB3SGFUXSBpU14gdEhlLSB0T3RUYUxsIEZvUl5jRT8="
+)  # "...claw force is thrirty two neuttons, and it adds fifteen neuttons,
+# what is the tottall force?" = 47.00 (historical: 17.00)
+_AUDIT_CODEPARSE_WRONG_PAIR_B64 = (
+    "QV0gbE9vQi1zdEVyciBDbEF3V14gRXhFclRzUyBbdEhySXJUeV0gZklpVi9lIE5lVy0g"
+    "VG9Oc34gQW5EeyB0SGVPdEhlUn0gQ2xBd1d8IEV4RXJUc1MgPHRXZU50WT4gdEhyRWVe"
+    "IE5lVy8gVG9OcywgSG9XLSBNdUNoeyBUb1RhTH0gRm9SY2U/"
+)  # "...claww exertss thrirty fiiv e new tons and theother claww exertss
+# twenty three new tons, how much total force?" = 58.00 (historical: 28.00)
 
 
 # Regression fixtures from logs/verification-audit.jsonl for the llm_reason
@@ -81,20 +114,20 @@ _AUDIT_REASON_FAILURE_WILD_B64 = (
     "TmRdIG9UaEhlUi0gY0xsQWFXXSBlWHhFZVJyVHNzLSBGZklpRmZUdEVlTiA8bk9vT3RU"
     "b09uTnM+LCBoT3ddIG1VY0gtIHRPb1RhTGxdIGZPXnJDZT8gZXJycg=="
 )  # "...lobster swims... and exerts twenty five nootons from one claw, and
-   #  other claw exerts fifteen nootons, how much total force?" = 40.00
-   # (historical LLM answer: 115.00 -- a wild deviation, not explainable by
-   # any alternate operator on 25/15)
+#  other claw exerts fifteen nootons, how much total force?" = 40.00
+# (historical LLM answer: 115.00 -- a wild deviation, not explainable by
+# any alternate operator on 25/15)
 
 _AUDIT_REASON_FAILURE_OPCONFUSE_B64 = (
     "VGhJc10gTG9Pb0JiU3N0VGVSXiBDbEF3LSBGb1JjRV0gSXMtIEZvUlt0WV0gRmlWL2Ug"
     "TmVXdE9uUywgVW1dIEFuRC8gVGhFLSBPdEhlUl0gQ2xBdyBIYVNzLSBUd0VuVC95IE5l"
     "V3RPbnN+IFdoQXRdIElzeyBUb1RhTH0gRm9SY0U/"
 )  # "This lobster claw force is forty five newtons, and the other claw has
-   #  twenty newtons, what is total force?" = 65.00 (historical LLM answer:
-   # 25.00 == 45-20, an add/subtract operator confusion). Phase 2b's "and"
-   # rule now resolves this deterministically -- see TestCodeParse's
-   # test_regression_and_rule_fixes_operator_confusion_failure -- so it no
-   # longer reaches the llm_reason guard this fixture was first written for.
+#  twenty newtons, what is total force?" = 65.00 (historical LLM answer:
+# 25.00 == 45-20, an add/subtract operator confusion). Phase 2b's "and"
+# rule now resolves this deterministically -- see TestCodeParse's
+# test_regression_and_rule_fixes_operator_confusion_failure -- so it no
+# longer reaches the llm_reason guard this fixture was first written for.
 
 
 def _decode_untrusted(challenge_b64: str) -> str:
@@ -466,20 +499,20 @@ class TestCodeParse:
         "challenge",
         [
             "twenty five twelve",  # no operation cue
-            "two plus three plus four",  # three operands
-            "ten gains five loses two",  # conflicting operations + 3 operands
-            "ten gains five loses",  # conflicting operations
+            "ten gains five loses",  # trailing op conflicts with the chain op
             "twenty",  # single operand
             "ten divided by zero",  # division by zero
             "five minus twenty",  # negative result (non-negative CAPTCHA domain)
-            "twenty five twelve plus",  # operator trails both operands, not between
+            # A trailing literal "+" is obfuscation noise (corpus: "what is+
+            # total force?"), so it is ignored rather than read as the
+            # operator; with no connective between the operands the implicit
+            # rules abstain too.
+            "twenty five twelve plus",
             "how many more force between twenty and twelve",  # cue is question framing
             "",  # empty
         ],
         ids=[
             "no-operation",
-            "three-operands",
-            "conflict-and-extra-operand",
             "conflicting-operations",
             "single-operand",
             "div-by-zero",
@@ -492,6 +525,267 @@ class TestCodeParse:
     def test_abstains_on_ambiguity(self, challenge):
         assert code_parse_challenge(challenge) is None
 
+    # --- rewrite (2026-07-07): capabilities driven by the 601-challenge
+    # audit corpus (docs/evidence/adr-0062-parser-rewrite/). Each case is a
+    # cleaned-up instance of a real challenge pattern the previous grammar
+    # abstained on (or, for the fuzzy fixtures below, answered wrongly).
+
+    @pytest.mark.parametrize(
+        "challenge,expected",
+        [
+            # Multi-step chains, strictly interleaved (num op num op num).
+            ("two plus three plus four", "9.00"),
+            ("ten gains five loses two", "13.00"),
+            ("twenty three gains five then loses seven", "21.00"),
+            (
+                "a lobster claw force is um forty + seven neuwtons after"
+                " molting the lobster um increases by um seven nootons what"
+                " is the total force?",
+                "54.00",
+            ),
+        ],
+        ids=[
+            "chain-two-adds",
+            "chain-add-then-subtract",
+            "chain-add-subtract-words",
+            "chain-symbol-then-verb-corpus",
+        ],
+    )
+    def test_parses_interleaved_chain(self, challenge, expected):
+        assert code_parse_challenge(challenge) == expected
+
+    @pytest.mark.parametrize(
+        "challenge,expected",
+        [
+            # Operation verbs the corpus uses that the old lexicon lacked.
+            (
+                "a lobster claw exerts thirty two neutons um and it gives"
+                " fourteen neutons what is the total claw force?",
+                "46.00",
+            ),
+            (
+                "a lobster swims at twenty three cm per second but drag"
+                " reduces her speed by seven what is the new speed?",
+                "16.00",
+            ),
+            (
+                "a lobster swims at twenty five meters per minute um and"
+                " speeds up by seven meters per minute what is the new"
+                " swimming speed?",
+                "32.00",
+            ),
+            (
+                "a lobster swims at twenty three meters per second and"
+                " acquires seven what is the new velocity?",
+                "30.00",
+            ),
+            (
+                "a lobster claw force is fifteen nootons and the other claw"
+                " multiplies it by two what is total force?",
+                "30.00",
+            ),
+        ],
+        ids=[
+            "gives-verb-add",
+            "reduces-verb-subtract",
+            "speeds-up-verb-add",
+            "acquires-verb-add",
+            "multiplies-verb",
+        ],
+    )
+    def test_parses_corpus_operation_verbs(self, challenge, expected):
+        assert code_parse_challenge(challenge) == expected
+
+    @pytest.mark.parametrize(
+        "fixture_b64,expected",
+        [
+            (_AUDIT_CODEPARSE_WRONG_FIFE_B64, "47.00"),
+            (_AUDIT_CODEPARSE_WRONG_TWENNY_B64, "28.00"),
+            (_AUDIT_CODEPARSE_WRONG_THRIRTY_B64, "47.00"),
+            (_AUDIT_CODEPARSE_WRONG_PAIR_B64, "58.00"),
+        ],
+        ids=[
+            "fife-is-five",
+            "twenny-is-twenty",
+            "thrirty-is-thirty",
+            "thrirty-fiiv-pair",
+        ],
+    )
+    def test_regression_fuzzy_number_words_fix_code_parse_wrongs(self, fixture_b64, expected):
+        # The four live code_parse wrong answers (see fixture comment): a
+        # misspelled number word must either be recovered (fuzzy, distance 1)
+        # or force an abstain — never silently dropped.
+        challenge = _decode_untrusted(fixture_b64)
+        assert code_parse_challenge(challenge) == expected
+
+    @pytest.mark.parametrize(
+        "challenge,expected",
+        [
+            # Misspelled operation verb, distance 1 after collapse.
+            ("twenty three accellarates by seven what is the new speed", "30.00"),
+            # Leet substitution: 0 used as the letter o (corpus: "F0r",
+            # "Velo0oCiTyY").
+            (
+                "a l0bster claw f0rce is f0rty five newt0ns plus twelve newt0ns what is t0tal?",
+                "57.00",
+            ),
+        ],
+        ids=["fuzzy-op-verb", "leet-zero-as-o"],
+    )
+    def test_parses_misspelled_cues(self, challenge, expected):
+        assert code_parse_challenge(challenge) == expected
+
+    @pytest.mark.parametrize(
+        "challenge,expected",
+        [
+            # Implicit add: unit words obfuscated differently on each side
+            # ("neewotons" vs "neewtons") still pair up via distance-1
+            # comparison of the challenge's own two occurrences.
+            (
+                "a lobster claw force is thirty five neewotons and the other"
+                " claw is twenty four neewtons how much total force?",
+                "59.00",
+            ),
+            # Implicit add: no unit word after the second operand — the
+            # question itself follows, which is safe continuation material.
+            (
+                "a lobster claw exerts thirty five nootons and the other"
+                " claw exerts twelve what s total force?",
+                "47.00",
+            ),
+            # A stray trailing "+" (noise) must not block the implicit add.
+            (
+                "a lobster claw force is thirty neewtons and the other claw"
+                " exerts twelve neewtons what is + total force?",
+                "42.00",
+            ),
+            # "sum" / "combined" are additive question cues like "total"
+            # (all corpus occurrences are trailing questions, never
+            # between-operand operators).
+            (
+                "a lobster claw exerts twenty five nootons and the other"
+                " claw exerts fifteen nootons how much is the sum?",
+                "40.00",
+            ),
+            (
+                "a lobster claw exerts twenty five nootons and the other"
+                " claw exerts fifteen nootons what is the combined force?",
+                "40.00",
+            ),
+        ],
+        ids=[
+            "implicit-add-fuzzy-unit-pair",
+            "implicit-add-question-tail",
+            "implicit-add-stray-plus-noise",
+            "implicit-add-sum-cue",
+            "implicit-add-combined-cue",
+        ],
+    )
+    def test_implicit_add_relaxations(self, challenge, expected):
+        assert code_parse_challenge(challenge) == expected
+
+    @pytest.mark.parametrize(
+        "challenge,expected",
+        [
+            # Trailing product question implies multiplication (corpus:
+            # "...what iss the prroduuct?").
+            (
+                "a lobster claw exerts thirty newtons and antenna applies"
+                " twenty five newtons what is the product?",
+                "750.00",
+            ),
+            # Postfix multiplier: "N times (that force)".
+            (
+                "a lobster claw exerts twenty five newtons um and it exerts"
+                " this force two times what is total force?",
+                "50.00",
+            ),
+            (
+                "lobster claws exert twenty four neutons um and during a"
+                " push they apply three times that force how many newtons"
+                " totally?",
+                "72.00",
+            ),
+            # Postfix subtraction: "Y newtons less".
+            (
+                "a claw exerts thirty five newtons while another claw"
+                " exerts twelve neutons less what is the resulting force?",
+                "23.00",
+            ),
+        ],
+        ids=[
+            "product-question-tail",
+            "postfix-times",
+            "postfix-times-that-force",
+            "postfix-less",
+        ],
+    )
+    def test_trailing_and_postfix_operations(self, challenge, expected):
+        assert code_parse_challenge(challenge) == expected
+
+    @pytest.mark.parametrize(
+        "challenge,expected",
+        [
+            # The obfuscator duplicates a number word (split form followed by
+            # a clean repeat); adjacent equal values collapse to one.
+            (
+                "a lobster dominant claw exerts thirty two two neutons and"
+                " the submissive claw exerts fourteen neutons what is the"
+                " total force?",
+                "46.00",
+            ),
+            (
+                "a claw exerts fourteen fourteen neutons and the other claw"
+                " exerts twenty neutons what is total force?",
+                "34.00",
+            ),
+        ],
+        ids=["dup-unit-after-compound", "dup-whole-word"],
+    )
+    def test_duplicate_number_words_dedup(self, challenge, expected):
+        assert code_parse_challenge(challenge) == expected
+
+    @pytest.mark.parametrize(
+        "challenge",
+        [
+            # Non-equal adjacent numbers are NOT a duplication — abstain.
+            "a lobster swims at twenty fifty five meters per second and"
+            " slows by nine meters per second what is the new speed?",
+            # Distractor third number with no interleaved operator.
+            "a lobster gets speed by thirty two eleven what is the new velocity?",
+            # Between-op and trailing word-op disagree ('*' vs '+').
+            "seventeen * six and the lobster gains more neurons what is the total force?",
+            # Implicit-add unit guard: two SHORT noise fragments one edit
+            # apart ("me" vs "ne") must not pass as a like-unit pair — the
+            # fuzzy comparison carries the same length floor as _match_fuzzy
+            # (found by python-reviewer).
+            "twenty five me ters and fifteen ne wtons what is the total force?",
+        ],
+        ids=[
+            "non-equal-adjacent-numbers",
+            "distractor-third-number",
+            "conflicting-between-and-tail-ops",
+            "short-fragment-units-not-fuzzy-paired",
+        ],
+    )
+    def test_rewrite_still_abstains_on_traps(self, challenge):
+        assert code_parse_challenge(challenge) is None
+
+    @pytest.mark.parametrize(
+        "challenge",
+        ["a " * 1000, "a" * 4000, "tw en ty " * 220, "+ " * 1000],
+        ids=["single-letter-atoms", "one-huge-atom", "near-word-flood", "symbol-flood"],
+    )
+    def test_bounded_runtime_on_adversarial_input(self, challenge):
+        # The scanner's merge window is bounded by collapsed token length AND
+        # fragment count, so pathological inputs at (or beyond) the
+        # MAX_CHALLENGE_INPUT bound must return quickly instead of going
+        # quadratic. 1s is orders of magnitude above the observed worst case
+        # (~10ms) while still failing a runaway regression.
+        start = time.monotonic()
+        code_parse_challenge(challenge[:2000])
+        assert time.monotonic() - start < 1.0
+
     @pytest.mark.parametrize(
         "challenge",
         [
@@ -500,16 +794,6 @@ class TestCodeParse:
             "twenty five newtons fifteen newtons total force and",
             # Guard 2 fails: no "total" cue after the second operand.
             "twenty five newtons and fifteen newtons",
-            # Not actually Guard 2 (verified with a spy on _try_and_as_add:
-            # it is never called here): "product" is already registered in
-            # _OP_WORDS as _MUL, so _resolve()'s PRE-EXISTING single-
-            # operation path handles this and fails the pre-existing
-            # between-operands check instead (found by python-reviewer --
-            # this comment previously mis-attributed the rejection to Guard
-            # 2). Still abstains correctly either way; kept as a case
-            # showing "and" plus a genuine product question never wrongly
-            # reaches the implicit-add rule.
-            "twenty five newtons and seven newtons what is the product",
             # Guard 3 fails: adjacent tokens differ (count modifier, not a
             # second like-quantity to add) -- real corpus pattern
             # ("...twenty five newtons and has three claws, what is total
@@ -528,7 +812,6 @@ class TestCodeParse:
             "and-before-both-operands",
             "and-after-both-operands",
             "no-total-cue",
-            "product-question-not-total",
             "and-adjacent-tokens-differ-count-modifier",
             "and-adjacent-tokens-differ-unit-mismatch",
             "and-second-operand-has-no-adjacent-atom",
@@ -536,6 +819,17 @@ class TestCodeParse:
     )
     def test_and_as_add_abstains_on_ambiguity(self, challenge):
         assert code_parse_challenge(challenge) is None
+
+    def test_and_with_product_question_multiplies(self):
+        # Spec change (2026-07-07 rewrite): a trailing product question with
+        # a connective between two operands is a real corpus pattern whose
+        # correct answer is the product (previously pinned as abstain out of
+        # caution that it might wrongly reach the implicit-ADD rule; it must
+        # still never be read as addition).
+        assert (
+            code_parse_challenge("twenty five newtons and seven newtons what is the product")
+            == "175.00"
+        )
 
     def test_and_as_add_guard0_never_overrides_explicit_verb_cue(self):
         # "slows" already registers as a real operation (len(operations)==1),
@@ -648,9 +942,9 @@ class TestVerificationAudit:
         assert base64.b64decode(record["challenge_b64"]).decode("utf-8") == challenge
         assert record["challenge_encoding"] == "base64:utf-8"
         assert record["challenge_sha256"] == solve_result.challenge_sha256
-        assert record["verification_code_sha256"] == hashlib.sha256(
-            code.encode("utf-8")
-        ).hexdigest()
+        assert (
+            record["verification_code_sha256"] == hashlib.sha256(code.encode("utf-8")).hexdigest()
+        )
         assert record["answer"] == "25.00"
         assert record["solver_path"] == "llm_extract"
         assert record["solve_success"] is True

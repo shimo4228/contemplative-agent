@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-30 | Files scanned: 45 | Token estimate: ~2575 | Hand-updated: 2026-07-03 (view_metrics instruments; noise-view claim corrected) -->
+<!-- Generated: 2026-06-30 | Files scanned: 45 | Token estimate: ~2575 | Hand-updated: 2026-07-07 (verification parser rewrite, ADR-0062 6th amendment) -->
 # Architecture
 
 ## Project Type
@@ -70,8 +70,14 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │        → body-hash dedup (SHA-256[:16]) → POST /posts
  │    → verification handshake: a non-trusted agent's create-response carries a
  │      math challenge; solve_challenge first runs a deterministic code parser
- │      (code_parse_challenge) that owns the finite CAPTCHA grammar's arithmetic
- │      and number-word reconstruction and abstains (None) on any ambiguity; only
+ │      (code_parse_challenge, rewritten 2026-07-07 from the 601-challenge audit
+ │      corpus — ADR-0062 6th amendment) that normalizes leet 0→o, merges split
+ │      fragments bounded by collapsed token length, recovers misspelled number
+ │      words / operation verbs at edit distance 1 (canonical spellings, prose
+ │      stopwords, ambiguity poisons the parse), dedups doubled number words,
+ │      left-folds strictly interleaved N-step chains, resolves trailing
+ │      total/product cues and adjacent postfix operators, and abstains (None)
+ │      on any ambiguity (replay: coverage 82.9%, zero wrong submissions); only
  │      then does it ask the LLM for a short numeric expression, validate it in
  │      Python, and fall back to bounded LLM reasoning if the guarded expression
  │      fails (solver order: code_parse → llm_extract → llm_reason). The bounded

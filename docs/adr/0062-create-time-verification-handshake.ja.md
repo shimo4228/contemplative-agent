@@ -52,6 +52,34 @@ product?"）にも使う — なので、以下 4 ガードを**すべて**課�
 abstain-first 姿勢と出力の信頼境界は不変のため、先行2件の amendment と同様、機構変更であり
 security-boundary 変更ではない。
 
+2026-07-07 第6 amendment: `verification_parse.py` を、失敗の都度の継ぎ足しではなく、成長した監査
+コーパス（620 レコード / unique 601 challenge、2026-06-28〜07-06）から導出してゼロから書き直した。
+コーパスが示した事実: (a) 失敗は決定論パーサが棄権して LLM チェーンに渡した分に集中する
+（`code_parse` は担当 58% 中誤答 1.7%、対して `llm_extract` 19.0%、`llm_reason` 74.1%）、(b) 決定論
+経路自身も 4 件の誤答を提出しており、根本原因は 1 つ — ホモフォン誤綴りの数詞（"fife"、"twenny"、
+"thrirty"）が何にもマッチせず不可視になり、残った 2 数を文法が自信を持って誤パースした。書き直しでは
+継ぎ足し文法を以下のコーパス由来パイプラインに置換した: `0`→`o` の leet 正規化; 断片 merge の上限を
+collapse 後トークン長（+ 断片数キャップ）に変更（二重字化の下では raw 長の上限は無意味）; 数詞の
+編集距離 1 fuzzy 復元は正準綴りと比較（長さフロア、prose ストップワード —— "fight"/"right" は "eight"
+から 1 編集で 601 件中 45 件に出現 ——、および 2 通り以上の読みが成立したらパース全体を棄権する
+poison 規則）、演算動詞は正準形または collapse 形と比較; 隣接する重複数詞の dedup（"thirty two two"、
+"forty forty five" — 数詞を 2 度書く難読化手口）; 厳密にインターリーブした N 段チェーンの左畳み込み
+（各ステップに非負ガード。"forty + seven ... increases by seven" = 54）; 位置で分類する trailing cue
+（オペランド間の演算語は演算子、最終オペランド以降では total/sum/combined が暗黙加算、
+product/times/multiplied が暗黙乗算、第 2 オペランド直後の "less"/"times" は後置演算子、末尾の
+浮遊 `+` 記号はノイズ）; 暗黙加算の単位ガードを「隣接トークンの完全一致」から「pairwise 編集距離
+≤ 1（難読化は同じ単位語を出現ごとに違う綴りにする）または疑問語への連続」に緩和（"and has three
+claws" のカウント修飾語トラップは引き続き拒否）。除算動詞は明示語のみに削減 — コーパスに除算問題は
+0 件で、旧 "splits"/"shared" エントリは情景 prose（"a claw struggle splits on territory"）を除算と
+誤読していた。意図的な仕様変更 2 点: 完全インターリーブの 3+ オペランドチェーンをパース対象化
+（従来は無条件棄権）、"X and Y, what is the product?" を乗算として解決（従来は棄権と固定）。検証:
+オフラインのリプレイハーネス（`docs/evidence/adr-0062-parser-rewrite/`）で、サーバ受理済み 550 件の
+回答 + 手動で解いた 40 ラベルを ground truth に、hard gate「601 件で誤答提出ゼロ」PASS、カバレッジ
+58% → 82.9%（498/601 パース、全件正解）、4 件の誤答回帰を base64 fixture 化した 121 テスト全 green。
+サーバが算術的に唯一自然な回答を拒否した 2 レコード（0.33%）はサーバ側 anomaly としてハーネスに
+記録した。abstain-first 姿勢、3 段 solver 順序、audit テレメトリ、出力の信頼境界は不変 — 第 3
+amendment の前例に従い機構 amendment とする。
+
 ## Date
 
 2026-06-26

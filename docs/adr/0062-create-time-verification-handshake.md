@@ -79,6 +79,50 @@ keep the parser's existing abstain-first posture and output trust boundary
 unchanged, so — as with the prior two amendments — this is a mechanism
 change, not a security-boundary change.
 
+Sixth amendment 2026-07-07: `verification_parse.py` rewritten from scratch,
+derived from the grown audit corpus (620 records / 601 unique challenges,
+2026-06-28..07-06) instead of per-failure patching. The corpus showed (a)
+failures concentrate where the deterministic parser abstains and hands off
+to the LLM chain (`code_parse` 1.7% wrong on the 58% it handled, vs
+`llm_extract` 19.0% and `llm_reason` 74.1%), and (b) the deterministic path
+itself submitted four wrong answers, all with one root cause: a
+homophone-misspelled number word ("fife", "twenny", "thrirty") matched
+nothing, became invisible, and the grammar confidently parsed the remaining
+pair. The rewrite replaces the accreted grammar with a corpus-derived
+pipeline: `0`→`o` leet normalization; fragment merging bounded by collapsed
+token length (a raw-length bound is meaningless under letter doubling) plus
+a fragment-count cap; edit-distance-1 fuzzy recovery of number words against
+their canonical spellings (length floors, a prose stopword list —
+"fight"/"right" sit one edit from "eight" and appear in 45 of 601
+challenges — and a poison rule: two different plausible readings abstain the
+whole parse) and of operation verbs (canonical or collapsed form); adjacent
+duplicate number words dedup ("thirty two two", "forty forty five" — an
+obfuscator trick of writing a number twice); strictly interleaved N-step
+chains left-folded with per-step non-negative guards ("forty + seven ...
+increases by seven" = 54); position-classified trailing cues (an operation
+word between operands is the operator; after the last operand,
+total/sum/combined imply addition, product/times/multiplied imply
+multiplication, an adjacent postfix "less"/"times" binds to the second
+operand, and a stray trailing `+` symbol is noise); and the implicit-add
+unit guard relaxed from exact adjacent-token equality to pairwise edit
+distance ≤ 1 (obfuscators misspell the same unit differently per occurrence)
+or question-word continuation, still rejecting count-modifier traps ("and
+has three claws"). Division verbs are trimmed to explicit words only — the
+corpus contains zero division challenges, and the old "splits"/"shared"
+entries misread scene prose ("a claw struggle splits on territory") as
+division. Two deliberate spec changes: fully interleaved 3+-operand chains
+now parse (previously hard-abstained), and "X and Y, what is the product?"
+now multiplies (previously pinned as abstain). Validation: an offline replay
+harness (`docs/evidence/adr-0062-parser-rewrite/`) with ground truth from
+550 server-accepted answers plus 40 hand-solved labels — hard gate "zero
+wrong submissions on 601 challenges" PASS, coverage 58% → 82.9% (498/601
+parsed, all correct), 121 tests green including the four wrong-answer
+regressions as base64 fixtures. Two corpus records where the server rejected
+the only arithmetically natural answer (0.33%) are labeled as server-side
+anomalies in the harness. The abstain-first posture, three-stage solver
+order, audit telemetry, and output trust boundary are unchanged — a
+mechanism amendment, per the third amendment's precedent.
+
 ## Date
 
 2026-06-26
