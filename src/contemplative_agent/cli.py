@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence, cast
 
 if TYPE_CHECKING:
+    from .core.insight import SkillResult
     from .core.stocktake import MergeGroup, QualityIssue, StocktakeResult
     from .core.views import ViewRegistry
 from xml.sax.saxutils import escape as xml_escape
@@ -70,10 +71,12 @@ def _setup_logging(verbose: bool = False) -> None:
 LAUNCHD_LABEL = "com.moltbook.agent"
 LAUNCHD_DISTILL_LABEL = "com.moltbook.distill"
 LAUNCHD_WEEKLY_ANALYSIS_LABEL = "com.moltbook.weekly-analysis"
+LAUNCHD_INSIGHT_LABEL = "com.moltbook.insight"
 LAUNCHD_PLIST_DIR = Path.home() / "Library" / "LaunchAgents"
 LAUNCHD_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_LABEL}.plist"
 LAUNCHD_DISTILL_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_DISTILL_LABEL}.plist"
 LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_WEEKLY_ANALYSIS_LABEL}.plist"
+LAUNCHD_INSIGHT_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_INSIGHT_LABEL}.plist"
 
 
 def _build_calendar_intervals(interval_hours: int) -> str:
@@ -204,6 +207,29 @@ def _do_install_weekly_analysis_schedule(weekday: int, hour: int) -> None:
     print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly analysis)")
 
 
+def _do_install_insight_schedule(weekday: int, hour: int) -> None:
+    """Install launchd plist for weekly staged insight (ADR-0074, macOS only).
+
+    Runs ``insight --stage``: candidates land in staging for later human
+    review via ``adopt-staged``. The pending guard makes a skipped review
+    week a no-op run, and the marker keeps windows disjoint, so the job is
+    safe to fire unattended.
+    """
+    _install_plist(
+        template_name="com.moltbook.insight.plist",
+        plist_path=LAUNCHD_INSIGHT_PLIST_PATH,
+        log_name="insight-launchd.log",
+        substitutions={
+            "{{WEEKDAY}}": str(weekday),
+            "{{HOUR}}": str(hour),
+        },
+    )
+
+    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    print(f"Installed: {LAUNCHD_INSIGHT_PLIST_PATH}")
+    print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly staged insight)")
+
+
 def _unload_and_remove_plist(plist_path: Path, label: str) -> bool:
     """Unload and delete one launchd plist; True when a file was removed."""
     if not plist_path.exists():
@@ -221,13 +247,14 @@ def _unload_and_remove_plist(plist_path: Path, label: str) -> bool:
 
 
 def _do_uninstall_schedule() -> None:
-    """Uninstall launchd plists (session + distill + weekly-analysis)."""
+    """Uninstall launchd plists (session + distill + weekly-analysis + insight)."""
     removed = False
 
     for plist_path, label in [
         (LAUNCHD_PLIST_PATH, "session"),
         (LAUNCHD_DISTILL_PLIST_PATH, "distill"),
         (LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH, "weekly-analysis"),
+        (LAUNCHD_INSIGHT_PLIST_PATH, "insight"),
     ]:
         removed = _unload_and_remove_plist(plist_path, label) or removed
 
@@ -235,14 +262,17 @@ def _do_uninstall_schedule() -> None:
         print("No schedule installed.")
 
 
-def _remove_stale_schedule_jobs(*, distill: bool, weekly_analysis: bool) -> None:
+def _remove_stale_schedule_jobs(
+    *, distill: bool, weekly_analysis: bool, weekly_insight: bool
+) -> None:
     """Remove previously-installed optional jobs whose flag is off this run.
 
     ``install-schedule`` is declarative over the full schedule set (round-2
     R2-M1): re-running with ``--no-distill`` previously left an earlier
     com.moltbook.distill job loaded on its stale schedule indefinitely, with
-    no warning — same for a dropped ``--weekly-analysis``. The always-on
-    session job needs no reconcile (reinstall overwrites it in place).
+    no warning — same for a dropped ``--weekly-analysis`` / ``--weekly-insight``.
+    The always-on session job needs no reconcile (reinstall overwrites it in
+    place).
     """
     if not distill and _unload_and_remove_plist(LAUNCHD_DISTILL_PLIST_PATH, "distill"):
         print("  (stale distill schedule removed: --no-distill on this run)")
@@ -250,9 +280,22 @@ def _remove_stale_schedule_jobs(*, distill: bool, weekly_analysis: bool) -> None
         LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH, "weekly-analysis"
     ):
         print("  (stale weekly-analysis schedule removed: flag not set on this run)")
+    if not weekly_insight and _unload_and_remove_plist(LAUNCHD_INSIGHT_PLIST_PATH, "insight"):
+        print("  (stale insight schedule removed: flag not set on this run)")
 
 
 AUDIT_LOG_PATH = MOLTBOOK_DATA_DIR / "logs" / "audit.jsonl"
+
+# ADR-0074: one JSON record per staged insight candidate. Feeds the novelty
+# gate's known-theme inventory so a theme counts as "considered" once it
+# reached human review, whether or not it was adopted.
+INSIGHT_STAGED_LEDGER_PATH = MOLTBOOK_DATA_DIR / "logs" / "insight-staged.jsonl"
+
+# ADR-0074: serialises staging producers. The pending guard alone is a
+# check-then-act race — two concurrent `--stage` runs (weekly launchd job +
+# a manual run) could both pass the guard and interleave the wipe/write.
+# Lives OUTSIDE STAGED_DIR so the per-batch wipe never touches it.
+STAGED_LOCK_PATH = MOLTBOOK_DATA_DIR / ".staged.lock"
 
 
 AuditSource = Literal[
@@ -489,13 +532,57 @@ class StageItem:
     epistemic_counts: dict[str, int] = field(default_factory=dict)
 
 
-def _stage_results(items: list[StageItem], command: str) -> None:
+def _pending_staged_count() -> int:
+    """Number of unreviewed items sitting in the staging dir.
+
+    Keyed on ``*.meta.json`` sidecars — an ``.md`` without its sidecar is an
+    orphan, not a pending batch (adopt-staged pairs on the sidecar too).
+    """
+    if not STAGED_DIR.exists():
+        return 0
+    return len(list(STAGED_DIR.glob("*.meta.json")))
+
+
+def _stage_results(items: list[StageItem], command: str) -> bool:
     """Write generated results to the staging directory for external approval.
 
     Creates the staging dir, writes each file plus a sidecar `*.meta.json`,
     records a 'staged' entry in the audit log, and prints paths for the
     calling agent to read.
+
+    ADR-0074 pending guard: when an unreviewed batch is still sitting in
+    staging, refuse (return ``False``) instead of wiping it — the wipe-per-
+    batch semantics silently destroyed candidates that were waiting for
+    human review once producers moved to scheduled runs. The invariant is
+    "staging holds at most one unreviewed batch".
+
+    The guard + wipe + write run under a non-blocking ``flock``
+    (``STAGED_LOCK_PATH``): without it the guard is a check-then-act race —
+    two concurrent ``--stage`` producers (weekly launchd insight + a manual
+    run) could both see an empty staging dir and interleave their writes
+    (codex review 2026-07-09). Losing the lock refuses like the guard does.
     """
+    with acquire_run_lock(STAGED_LOCK_PATH, blocking=False) as held:
+        if not held:
+            print(
+                "Another staging producer holds the staging lock — "
+                "refusing this batch (ADR-0074). Retry when it finishes."
+            )
+            return False
+        return _stage_results_locked(items, command)
+
+
+def _stage_results_locked(items: list[StageItem], command: str) -> bool:
+    """Body of :func:`_stage_results`; caller holds ``STAGED_LOCK_PATH``."""
+    pending = _pending_staged_count()
+    if pending:
+        print(
+            f"Staging holds {pending} unreviewed item(s) from a previous run — "
+            "refusing to overwrite them (ADR-0074). Review with "
+            "`contemplative-agent adopt-staged` first."
+        )
+        return False
+
     STAGED_DIR.mkdir(parents=True, exist_ok=True)
     for old_file in STAGED_DIR.iterdir():
         if old_file.is_file():
@@ -558,6 +645,7 @@ def _stage_results(items: list[StageItem], command: str) -> None:
     print(f"Staged {len(staged_paths)} file(s) in {STAGED_DIR}/")
     for staged, target in staged_paths:
         print(f"  {staged} → {target}")
+    return True
 
 
 def _run_sync() -> None:
@@ -736,12 +824,18 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
                 parser.error("--weekly-analysis-day must be 0 (Sun) to 6 (Sat)")
             if args.weekly_analysis_hour < 0 or args.weekly_analysis_hour > 23:
                 parser.error("--weekly-analysis-hour must be between 0 and 23")
+        if args.weekly_insight:
+            if args.weekly_insight_day < 0 or args.weekly_insight_day > 6:
+                parser.error("--weekly-insight-day must be 0 (Sun) to 6 (Sat)")
+            if args.weekly_insight_hour < 0 or args.weekly_insight_hour > 23:
+                parser.error("--weekly-insight-hour must be between 0 and 23")
         # Reconcile before installing (round-2 R2-M1): drop optional jobs
         # from a previous install whose flag is off this run, so the command
         # describes the complete desired schedule set.
         _remove_stale_schedule_jobs(
             distill=not args.no_distill,
             weekly_analysis=args.weekly_analysis,
+            weekly_insight=args.weekly_insight,
         )
         _do_install_schedule(interval=args.interval, session=args.session)
         if not args.no_distill:
@@ -750,6 +844,11 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
             _do_install_weekly_analysis_schedule(
                 weekday=args.weekly_analysis_day,
                 hour=args.weekly_analysis_hour,
+            )
+        if args.weekly_insight:
+            _do_install_insight_schedule(
+                weekday=args.weekly_insight_day,
+                hour=args.weekly_insight_hour,
             )
 
 
@@ -1468,6 +1567,17 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     for meta_file in meta_files:
         item = _load_staged_item(meta_file, data_root)
         if item is None:
+            # Quarantine instead of leaving the sidecar in place: an invalid
+            # meta counts toward the ADR-0074 pending guard, so a single
+            # corrupt sidecar would otherwise block every future --stage run
+            # permanently (codex review 2026-07-09). Rename preserves the
+            # bytes for inspection while removing it from the pending count.
+            quarantined = meta_file.with_name(meta_file.name + ".invalid")
+            try:
+                meta_file.rename(quarantined)
+                print(f"  Quarantined invalid sidecar → {quarantined.name}")
+            except OSError as err:
+                print(f"  Could not quarantine {meta_file.name}: {err}", file=sys.stderr)
             skipped += 1
             continue
 
@@ -1810,26 +1920,70 @@ def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.Argumen
     )
 
 
+def _append_insight_ledger(skills: Sequence[SkillResult]) -> None:
+    """Record each staged/reviewed insight candidate in the theme ledger.
+
+    ADR-0074: the ledger is decision-agnostic — a candidate counts as
+    "considered" once it reached review, so the novelty gate stops
+    re-surfacing the same theme even when the human rejected it.
+    """
+    from .core._io import append_jsonl_restricted, now_iso
+    from .core.insight import skill_theme
+
+    for s in skills:
+        name, description = skill_theme(s.text, fallback_name=Path(s.filename).stem)
+        append_jsonl_restricted(
+            INSIGHT_STAGED_LEDGER_PATH,
+            {
+                "ts": now_iso(),
+                "name": name,
+                "description": description,
+                "filename": s.filename,
+            },
+        )
+
+
 def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     from .core.insight import extract_insight, write_last_insight
     from .core.memory import KnowledgeStore
 
+    # ADR-0074 fast-fail: extraction burns one LLM call per cluster, so
+    # check the pending-staging guard BEFORE any expensive work rather
+    # than letting _stage_results refuse after the fact.
+    pending = _pending_staged_count() if getattr(args, "stage", False) else 0
+    if pending:
+        print(
+            f"Staging holds {pending} unreviewed item(s) — "
+            "skipping this insight run (ADR-0074). Review with "
+            "`contemplative-agent adopt-staged` first."
+        )
+        return
+
     knowledge_store = KnowledgeStore(path=KNOWLEDGE_PATH)
     view_registry = _load_view_registry(args)
-    knowledge_store.load()
     snapshot_path = _take_snapshot(args, "insight", view_registry, think=True)
     result = extract_insight(
         knowledge_store=knowledge_store,
         skills_dir=SKILLS_DIR,
         full=args.full,
         instrument_views=view_registry,
+        staged_ledger_path=INSIGHT_STAGED_LEDGER_PATH,
     )
     if isinstance(result, str):
         print(result)
         return
     _write_reasoning(snapshot_path, [(s.filename, s.thinking) for s in result.skills])
+
+    if not result.skills:
+        # Every cluster was already covered. The window WAS considered, so
+        # the marker still advances (ADR-0074) — otherwise the incremental
+        # window would grow without bound across quiet weeks.
+        write_last_insight(SKILLS_DIR)
+        print(f"\n--- Summary: 0 novel clusters ({result.skipped_known} already covered) ---")
+        return
+
     if getattr(args, "stage", False):
-        _stage_results(
+        staged = _stage_results(
             [
                 StageItem(
                     s.filename,
@@ -1842,6 +1996,14 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
             ],
             command="insight",
         )
+        if staged:
+            # Ledger first, marker last (codex review 2026-07-09): a failure
+            # between the two must leave the window unconsumed rather than
+            # consumed-but-unremembered. Marker advances at staging time, not
+            # adoption time (ADR-0074): approval decides skill adoption, not
+            # pattern re-processing.
+            _append_insight_ledger(result.skills)
+            write_last_insight(SKILLS_DIR)
         return
     written = _run_approval_loop(
         result.skills,
@@ -1849,10 +2011,14 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         target_dir=SKILLS_DIR,
         snapshot_path=snapshot_path,
     )
-    if written > 0:
-        write_last_insight(SKILLS_DIR)
+    # ADR-0074: the interactive loop is the review — patterns were
+    # considered regardless of how many candidates were accepted.
+    # Ledger first, marker last (same ordering rationale as the stage path).
+    _append_insight_ledger(result.skills)
+    write_last_insight(SKILLS_DIR)
     print(
-        f"\n--- Summary: {written} written, {len(result.skills) - written} skipped, {result.dropped_count} dropped ---"
+        f"\n--- Summary: {written} written, {len(result.skills) - written} skipped, "
+        f"{result.dropped_count} dropped, {result.skipped_known} already covered ---"
     )
 
 
@@ -2395,6 +2561,26 @@ def main() -> None:
         type=int,
         default=9,
         help="Hour to run weekly analysis (0-23, default: 9)",
+    )
+    schedule_parser.add_argument(
+        "--weekly-insight",
+        action="store_true",
+        help="Also install weekly staged insight schedule (ADR-0074)",
+    )
+    schedule_parser.add_argument(
+        "--weekly-insight-day",
+        type=int,
+        default=1,
+        help="Day of week for weekly insight (0=Sun..6=Sat, default: 1=Mon)",
+    )
+    schedule_parser.add_argument(
+        "--weekly-insight-hour",
+        type=int,
+        default=8,
+        help=(
+            "Hour to run weekly insight (0-23, default: 8 — one hour before "
+            "weekly analysis, outside agent-session hours)"
+        ),
     )
 
     # insight

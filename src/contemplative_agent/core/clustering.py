@@ -8,15 +8,15 @@ cluster size.
 Design choices:
 - Average-linkage rather than single-linkage to avoid chain-effect
   clusters that drag the LLM into over-abstract synthesis
-- The O(N^2) cosine matrix is cheap; the real cost driver is the naive
-  agglomerative merge in ``_merge_clusters``, which rescans every
-  remaining cluster pair (recomputing submatrix means) on each of up to
-  N-1 merges — worst case ~O(N^3). Fine for N up to a few hundred (well
-  under current corpus sizes), but ``insight --full`` slows as the live
-  pool grows (ADR-0060 distills per episode); ``insight`` warns past a
-  measured threshold (``FULL_RECLUSTER_WARN_N``). A cached priority-queue
-  agglomeration (~O(N^2 log N)) is the upgrade if --full ever becomes
-  painful — deferred until measured (review 2026-06-27 M4)
+- ``_merge_clusters`` runs the exact average-linkage agglomeration via
+  the Lance-Williams update (ADR-0074): the merged row's inter-cluster
+  mean is the size-weighted mean of the two source rows, so each merge
+  is one vectorized O(N) row update plus an O(N^2) argmax instead of a
+  Python-level rescan of every cluster pair. Same partitions as the
+  retired naive submatrix-mean implementation (equivalence pinned in
+  tests), but ~O(N^2) per merge in numpy: the 2026-07-09 live pool
+  (N=1798) clusters in under a second where the naive loop needed hours
+  (the review 2026-06-27 M4 upgrade, delivered once measured)
 - Pure numpy, no scipy/sklearn dependency
 
 Patterns without an ``embedding`` field are returned as singletons.
@@ -42,38 +42,49 @@ def _cosine_matrix(embeddings: np.ndarray) -> np.ndarray:
     return unit @ unit.T
 
 
-def _merge_clusters(
-    similarity: np.ndarray, threshold: float
-) -> List[List[int]]:
+def _merge_clusters(similarity: np.ndarray, threshold: float) -> List[List[int]]:
     """Average-linkage agglomerative merge on index space.
 
     Returns a list of index groups. Each index refers to a row of the
     embedding matrix. Merge halts when the highest remaining
     inter-cluster average similarity drops below ``threshold``.
 
-    Cost: each of up to N-1 merges rescans all remaining cluster pairs and
-    recomputes their submatrix means, so this is ~O(N^3) worst case — the
-    dominant clustering cost, not the O(N^2) matrix (review 2026-06-27 M4).
+    Exact Lance-Williams agglomeration (ADR-0074): merging clusters i and
+    j updates every other cluster k's linkage in one vectorized pass —
+    ``s(k, i∪j) = (n_i·s(k,i) + n_j·s(k,j)) / (n_i + n_j)`` — which equals
+    the mean over the merged submatrix, so partitions are identical to
+    recomputing submatrix means from scratch (equivalence pinned in
+    tests). Dead rows/columns are parked at ``-inf`` so the global argmax
+    stays a flat O(N^2) numpy scan.
     """
     n = similarity.shape[0]
-    clusters: List[List[int]] = [[i] for i in range(n)]
+    if n == 0:
+        return []
 
-    while len(clusters) > 1:
-        best_sim = -1.0
-        best_i = -1
-        best_j = -1
-        for i in range(len(clusters)):
-            for j in range(i + 1, len(clusters)):
-                sub = similarity[np.ix_(clusters[i], clusters[j])]
-                s = float(sub.mean())
-                if s > best_sim:
-                    best_sim = s
-                    best_i, best_j = i, j
-        if best_sim < threshold or best_i < 0:
+    # float64 keeps the incremental weighted means stable across long
+    # merge chains; the input cosine matrix is typically float32.
+    sim = similarity.astype(np.float64, copy=True)
+    np.fill_diagonal(sim, -np.inf)
+    sizes = np.ones(n)
+    members: List[List[int]] = [[i] for i in range(n)]
+
+    while True:
+        flat = int(np.argmax(sim))
+        i, j = divmod(flat, n)
+        if not np.isfinite(sim[i, j]) or sim[i, j] < threshold:
             break
-        clusters[best_i].extend(clusters[best_j])
-        del clusters[best_j]
-    return clusters
+        ni, nj = sizes[i], sizes[j]
+        merged_row = (ni * sim[i] + nj * sim[j]) / (ni + nj)
+        sim[i, :] = merged_row
+        sim[:, i] = merged_row
+        sim[i, i] = -np.inf
+        sim[j, :] = -np.inf
+        sim[:, j] = -np.inf
+        sizes[i] = ni + nj
+        members[i].extend(members[j])
+        members[j] = []
+
+    return [m for m in members if m]
 
 
 def cluster_patterns(

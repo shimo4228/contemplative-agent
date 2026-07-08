@@ -60,7 +60,7 @@ contemplative-agent rules-stocktake                    # Audit rules for duplica
 ### Scheduling
 
 ```bash
-contemplative-agent install-schedule [--weekly-analysis]
+contemplative-agent install-schedule [--weekly-analysis] [--weekly-insight]
 contemplative-agent install-schedule --uninstall
 ```
 
@@ -202,6 +202,15 @@ contemplative-agent insight --full       # Process all patterns (not just new on
 contemplative-agent insight --stage      # Write to staging directory for approval
 ```
 
+ADR-0074 semantics: the incremental run requires the `.last_insight` marker
+(it refuses instead of silently reclustering the whole pool); an LLM novelty
+gate skips clusters whose theme an adopted skill or a previously staged
+candidate already covers (ledger: `MOLTBOOK_HOME/logs/insight-staged.jsonl`);
+the marker advances when candidates reach review (staging or the interactive
+loop), not at adoption. `--stage` refuses while an unreviewed batch sits in
+staging — review it with `adopt-staged` first. Weekly automation:
+`install-schedule --weekly-insight` (default Mon 08:00).
+
 You can also hand-write skill files and place them in the directory.
 
 ### Rules
@@ -245,13 +254,14 @@ Every LLM interaction the agent makes is defined in a Markdown file. After `init
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-32 loaded prompt templates plus 2 script-read prompt documents. The main ones:
+34 loaded prompt templates plus 2 script-read prompt documents. The main ones:
 
 | File | Drives |
 |------|--------|
 | `distill_episode.md` | Per-episode grounded pattern extraction from episode logs (ADR-0060; the retired batch prompts `distill.md` / `distill_refine.md` were deleted in ADR-0072) |
 | `verification_solve_extract_system.md` / `verification_solve_reason_system.md` | Create-time math challenge solving: guarded expression extraction first, bounded reasoning fallback |
-| `insight_extraction.md` | Skill extraction from uncategorized patterns |
+| `insight_extraction.md` | Skill extraction from uncategorized patterns (naming/vocabulary discipline, ADR-0074) |
+| `insight_novelty.md` / `insight_novelty_system.md` | Novelty gate: one grouping call judging which candidate clusters an existing or previously staged skill theme already covers (ADR-0074; fails open) |
 | `rules_distill.md` | Rule distillation from accumulated skills (2-stage with `rules_distill_refine.md`) |
 | `identity_distill.md` | Identity update from knowledge (1-stage, ADR-0030) |
 | `constitution_amend.md` | Constitution amendment proposals |
@@ -331,12 +341,13 @@ contemplative-agent install-schedule                                    # 6h int
 contemplative-agent install-schedule --interval 4 --session 90          # 4h intervals, 90min sessions
 contemplative-agent install-schedule --distill-hour 5                   # Distill at 05:00
 contemplative-agent install-schedule --no-distill                       # Sessions only, no distillation
+contemplative-agent install-schedule --weekly-insight                   # + weekly staged insight (Mon 08:00, ADR-0074)
 contemplative-agent install-schedule --uninstall                        # Remove schedule
 ```
 
 Valid intervals: 1, 2, 3, 4, 6, 8, 12, 24 hours.
 
-`install-schedule` manages the agent, distill, and weekly-analysis plists. One plist under `config/launchd/` is outside its scope: `com.moltbook.ollama-restart.plist` is installed and updated manually via `launchctl`, and `--uninstall` does not touch it. It restarts the local `ollama serve` nightly at 23:55 — starting `ollama serve` directly (no GUI app) with `AbandonProcessGroup` so the daemon survives its parent exiting. The repo copy is the reference template: when the live plist changes, mirror it here in the same change.
+`install-schedule` manages the agent, distill, weekly-analysis, and insight plists. One plist under `config/launchd/` is outside its scope: `com.moltbook.ollama-restart.plist` is installed and updated manually via `launchctl`, and `--uninstall` does not touch it. It restarts the local `ollama serve` nightly at 23:55 — starting `ollama serve` directly (no GUI app) with `AbandonProcessGroup` so the daemon survives its parent exiting. The repo copy is the reference template: when the live plist changes, mirror it here in the same change.
 
 ---
 

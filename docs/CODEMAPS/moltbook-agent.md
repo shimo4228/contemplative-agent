@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-30 | Files scanned: 45 non-__init__ modules | Token estimate: ~3564 | Hand-updated: 2026-07-03 (view_metrics.py entry; aggregate counts → INDEX.md#statistics) -->
+<!-- Generated: 2026-06-30 | Files scanned: 45 non-__init__ modules | Token estimate: ~3564 | Hand-updated: 2026-07-09 (weekly staged insight, ADR-0074) -->
 # Moltbook Agent Codemap
 
 Bird's-eye view of the entire codebase. For deep dives, see
@@ -123,7 +123,7 @@ contemplative-agent run [--session M] [--approve|--guarded|--auto]
 # Offline learning (ADR-0012 approval gate; pivot snapshots ADR-0020)
 contemplative-agent distill [--days N] [--dry-run] [--file PATH ...]
 contemplative-agent distill-identity [--stage]
-contemplative-agent insight [--stage] [--full]
+contemplative-agent insight [--stage] [--full]   -- incremental needs .last_insight marker; LLM novelty gate; --stage refuses on pending review (ADR-0074)
 contemplative-agent adopt-staged
 contemplative-agent remove-skill <name> [--reason TEXT]
 contemplative-agent rules-distill [--full]
@@ -146,7 +146,9 @@ contemplative-agent sync-data        # rsync→git push to data repo; then best-
 contemplative-agent install-schedule [--interval H] [--session M]
                                      [--distill-hour H] [--no-distill]
                                      [--weekly-analysis] [--weekly-analysis-day D]
-                                     [--weekly-analysis-hour H] [--uninstall]
+                                     [--weekly-analysis-hour H]
+                                     [--weekly-insight] [--weekly-insight-day D]
+                                     [--weekly-insight-hour H] [--uninstall]
 
 Global flags: --config-dir PATH | --domain-config PATH | --constitution-dir PATH
               --no-axioms | --approve/--guarded/--auto
@@ -160,7 +162,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 **Engagement & posting**: system, relevance, comment, reply, cooperation_post, post_title, topic_summary, submolt_selection, internal_note (ADR-0045), dialogue (peer loop) — `session_insight` retired and deleted (ADR-0052)
 
-**Distillation**: distill_episode (per-episode grounded distill, ADR-0060 — this is the live distill prompt; first-person moment-indexed register instruction since ADR-0072), identity_distill, insight_extraction, rules_distill, rules_distill_refine, constitution_amend (`distill` / `distill_refine` went dead when ADR-0060 replaced the 2-step batch with `distill_episode`; files + mappings deleted in ADR-0072. `distill_importance` retired, ADR-0056)
+**Distillation**: distill_episode (per-episode grounded distill, ADR-0060 — this is the live distill prompt; first-person moment-indexed register instruction since ADR-0072), identity_distill, insight_extraction (naming/vocabulary discipline since ADR-0074), insight_novelty + insight_novelty_system (novelty gate, ADR-0074), rules_distill, rules_distill_refine, constitution_amend (`distill` / `distill_refine` went dead when ADR-0060 replaced the 2-step batch with `distill_episode`; files + mappings deleted in ADR-0072. `distill_importance` retired, ADR-0056)
 
 **Verification**: solver order is `code_parse` → `llm_extract` → `llm_reason`. `verification.py` wraps the challenge as untrusted and first runs the deterministic `code_parse_challenge()` (in `verification_parse.py`), which owns the finite CAPTCHA grammar's arithmetic / number-word reconstruction and abstains to `None` on any ambiguity. Only on abstention does the LLM propose arithmetic via verification_solve_extract_system (short EXPR/FINAL extraction), accepted only when Python recomputation matches the stated final answer, with verification_solve_reason_system as the bounded reasoning fallback. `Agent._handle_verification()` writes `logs/verification-audit.jsonl` with a base64-encoded challenge, SHA-256s, `solver_path` (now incl. `code_parse`), answer, and `/verify` outcome for corpus-driven solver evaluation (ADR-0062 amendment).
 

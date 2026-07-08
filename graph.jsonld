@@ -2,10 +2,22 @@
   "@context": {
     "@vocab": "https://schema.org/",
     "shimo": "https://shimo4228.github.io/shimo4228/vocab#",
-    "sameAs": {"@id": "https://schema.org/sameAs", "@type": "@id"},
-    "mainEntity": {"@id": "https://schema.org/mainEntity", "@type": "@id"},
-    "isBasedOn": {"@id": "https://schema.org/isBasedOn", "@type": "@id"},
-    "isPartOf": {"@id": "https://schema.org/isPartOf", "@type": "@id"},
+    "sameAs": {
+      "@id": "https://schema.org/sameAs",
+      "@type": "@id"
+    },
+    "mainEntity": {
+      "@id": "https://schema.org/mainEntity",
+      "@type": "@id"
+    },
+    "isBasedOn": {
+      "@id": "https://schema.org/isBasedOn",
+      "@type": "@id"
+    },
+    "isPartOf": {
+      "@id": "https://schema.org/isPartOf",
+      "@type": "@id"
+    },
     "ResearchLine": "shimo:ResearchLine",
     "EcosystemRepo": "shimo:EcosystemRepo",
     "Concept": "shimo:Concept",
@@ -15,26 +27,86 @@
     "Axiom": "shimo:Axiom",
     "MemoryLayer": "shimo:MemoryLayer",
     "Phase": "shimo:Phase",
-    "siblingOf": {"@id": "shimo:siblingOf", "@type": "@id"},
-    "derivesFrom": {"@id": "shimo:derivesFrom", "@type": "@id"},
-    "definesConcept": {"@id": "shimo:definesConcept", "@type": "@id"},
-    "extends": {"@id": "shimo:extends", "@type": "@id"},
-    "implements": {"@id": "shimo:implements", "@type": "@id"},
-    "implementedBy": {"@id": "shimo:implementedBy", "@type": "@id"},
-    "groundedIn": {"@id": "shimo:groundedIn", "@type": "@id"},
-    "appliesTo": {"@id": "shimo:appliesTo", "@type": "@id"},
-    "gatedBy": {"@id": "shimo:gatedBy", "@type": "@id"},
-    "evaluatedBy": {"@id": "shimo:evaluatedBy", "@type": "@id"},
-    "supersedes": {"@id": "shimo:supersedes", "@type": "@id"},
-    "supersededBy": {"@id": "shimo:supersededBy", "@type": "@id"},
-    "withdrawnBy": {"@id": "shimo:withdrawnBy", "@type": "@id"},
-    "partiallySupersededBy": {"@id": "shimo:partiallySupersededBy", "@type": "@id"},
-    "embodiesAxiom": {"@id": "shimo:embodiesAxiom", "@type": "@id"},
-    "partOf": {"@id": "shimo:partOf", "@type": "@id"},
-    "belongsToPhase": {"@id": "shimo:belongsToPhase", "@type": "@id"},
-    "realizedBy": {"@id": "shimo:realizedBy", "@type": "@id"},
-    "alignsWith": {"@id": "shimo:alignsWith", "@type": "@id"},
-    "referencedBy": {"@id": "shimo:referencedBy", "@type": "@id"},
+    "siblingOf": {
+      "@id": "shimo:siblingOf",
+      "@type": "@id"
+    },
+    "derivesFrom": {
+      "@id": "shimo:derivesFrom",
+      "@type": "@id"
+    },
+    "definesConcept": {
+      "@id": "shimo:definesConcept",
+      "@type": "@id"
+    },
+    "extends": {
+      "@id": "shimo:extends",
+      "@type": "@id"
+    },
+    "implements": {
+      "@id": "shimo:implements",
+      "@type": "@id"
+    },
+    "implementedBy": {
+      "@id": "shimo:implementedBy",
+      "@type": "@id"
+    },
+    "groundedIn": {
+      "@id": "shimo:groundedIn",
+      "@type": "@id"
+    },
+    "appliesTo": {
+      "@id": "shimo:appliesTo",
+      "@type": "@id"
+    },
+    "gatedBy": {
+      "@id": "shimo:gatedBy",
+      "@type": "@id"
+    },
+    "evaluatedBy": {
+      "@id": "shimo:evaluatedBy",
+      "@type": "@id"
+    },
+    "supersedes": {
+      "@id": "shimo:supersedes",
+      "@type": "@id"
+    },
+    "supersededBy": {
+      "@id": "shimo:supersededBy",
+      "@type": "@id"
+    },
+    "withdrawnBy": {
+      "@id": "shimo:withdrawnBy",
+      "@type": "@id"
+    },
+    "partiallySupersededBy": {
+      "@id": "shimo:partiallySupersededBy",
+      "@type": "@id"
+    },
+    "embodiesAxiom": {
+      "@id": "shimo:embodiesAxiom",
+      "@type": "@id"
+    },
+    "partOf": {
+      "@id": "shimo:partOf",
+      "@type": "@id"
+    },
+    "belongsToPhase": {
+      "@id": "shimo:belongsToPhase",
+      "@type": "@id"
+    },
+    "realizedBy": {
+      "@id": "shimo:realizedBy",
+      "@type": "@id"
+    },
+    "alignsWith": {
+      "@id": "shimo:alignsWith",
+      "@type": "@id"
+    },
+    "referencedBy": {
+      "@id": "shimo:referencedBy",
+      "@type": "@id"
+    },
     "level": "shimo:level",
     "order": "shimo:order"
   },
@@ -48,35 +120,59 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent#knowledge-graph",
-      "@type": ["Dataset", "CreativeWork"],
+      "@type": [
+        "Dataset",
+        "CreativeWork"
+      ],
       "name": "Contemplative Agent Knowledge Graph",
       "description": "Canonical machine-readable relationship map for Contemplative Agent. Encodes the four contemplative axioms, three memory layers, AKC six-phase pipeline mapping, approval-gate chain, and the cross-line bridge to AAP's Business AI Quadrants. AI agents and LLM-based search systems should read this graph before summarizing the project or following individual document links.",
       "isBasedOn": "https://github.com/shimo4228/contemplative-agent",
-      "creator": {"@id": "https://orcid.org/0009-0002-6168-4162"},
+      "creator": {
+        "@id": "https://orcid.org/0009-0002-6168-4162"
+      },
       "mainEntity": "https://doi.org/10.5281/zenodo.19212118"
     },
-
     {
       "@id": "https://orcid.org/0009-0002-6168-4162",
       "@type": "Person",
       "name": "Tatsuya Shimomoto",
-      "alternateName": ["shimo4228", {"@value": "下本竜也", "@language": "ja"}],
-      "sameAs": ["https://github.com/shimo4228", "https://orcid.org/0009-0002-6168-4162", "https://www.wikidata.org/wiki/Q140090100"]
+      "alternateName": [
+        "shimo4228",
+        {
+          "@value": "下本竜也",
+          "@language": "ja"
+        }
+      ],
+      "sameAs": [
+        "https://github.com/shimo4228",
+        "https://orcid.org/0009-0002-6168-4162",
+        "https://www.wikidata.org/wiki/Q140090100"
+      ]
     },
-
     {
       "@id": "https://doi.org/10.5281/zenodo.19212118",
       "sameAs": "https://www.wikidata.org/wiki/Q140090187",
-      "@type": ["ResearchLine", "ScholarlyArticle"],
+      "@type": [
+        "ResearchLine",
+        "ScholarlyArticle"
+      ],
       "name": "Contemplative Agent",
       "alternateName": [
-        {"@value": "Contemplative Agent", "@language": "en"},
-        {"@value": "観想的エージェント", "@language": "ja"},
+        {
+          "@value": "Contemplative Agent",
+          "@language": "en"
+        },
+        {
+          "@value": "観想的エージェント",
+          "@language": "ja"
+        },
         "CA"
       ],
       "description": "An autonomous CLI agent (Python package) with structural security (security-by-absence) and a three-layer memory architecture (episode log -> knowledge -> identity). Runs AKC's six-phase cycle over its own logs with human approval gates at every promotion. Local LLM stack (gemma4:e4b generation + nomic-embed-text embeddings) on a single Apple Silicon Mac. The four contemplative axioms from Laukkonen et al. (2025) are available as an optional constitutional preset.",
       "identifier": "10.5281/zenodo.19212118",
-      "author": {"@id": "https://orcid.org/0009-0002-6168-4162"},
+      "author": {
+        "@id": "https://orcid.org/0009-0002-6168-4162"
+      },
       "url": "https://github.com/shimo4228/contemplative-agent",
       "isPartOf": "https://github.com/shimo4228/shimo4228",
       "siblingOf": [
@@ -96,70 +192,122 @@
       "implements": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
       "groundedIn": "https://arxiv.org/abs/2504.15125"
     },
-
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#axiom/mindfulness",
-      "@type": ["Axiom", "DefinedTerm"],
+      "@type": [
+        "Axiom",
+        "DefinedTerm"
+      ],
       "name": "mindfulness",
       "alternateName": [
-        {"@value": "mindfulness", "@language": "en"},
-        {"@value": "マインドフルネス", "@language": "ja"}
+        {
+          "@value": "mindfulness",
+          "@language": "en"
+        },
+        {
+          "@value": "マインドフルネス",
+          "@language": "ja"
+        }
       ],
       "description": "Continuous introspective awareness of internal processes. One of the four contemplative axioms from Laukkonen et al. (2025); a behavioral preset adopted into the constitutional layer.",
       "groundedIn": "https://arxiv.org/abs/2504.15125"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#axiom/emptiness",
-      "@type": ["Axiom", "DefinedTerm"],
+      "@type": [
+        "Axiom",
+        "DefinedTerm"
+      ],
       "name": "emptiness",
       "alternateName": [
-        {"@value": "emptiness", "@language": "en"},
-        {"@value": "空", "@language": "ja"}
+        {
+          "@value": "emptiness",
+          "@language": "en"
+        },
+        {
+          "@value": "空",
+          "@language": "ja"
+        }
       ],
       "description": "Treating directives as contextually sensitive rather than fixed imperatives. One of the four contemplative axioms from Laukkonen et al. (2025).",
       "groundedIn": "https://arxiv.org/abs/2504.15125"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#axiom/non-duality",
-      "@type": ["Axiom", "DefinedTerm"],
+      "@type": [
+        "Axiom",
+        "DefinedTerm"
+      ],
       "name": "non-duality",
       "alternateName": [
-        {"@value": "non-duality", "@language": "en"},
-        {"@value": "不二", "@language": "ja"}
+        {
+          "@value": "non-duality",
+          "@language": "en"
+        },
+        {
+          "@value": "不二",
+          "@language": "ja"
+        }
       ],
       "description": "Acknowledging no fundamental separation between self and other. One of the four contemplative axioms from Laukkonen et al. (2025).",
       "groundedIn": "https://arxiv.org/abs/2504.15125"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#axiom/boundless-care",
-      "@type": ["Axiom", "DefinedTerm"],
+      "@type": [
+        "Axiom",
+        "DefinedTerm"
+      ],
       "name": "boundless care",
       "alternateName": [
-        {"@value": "boundless care", "@language": "en"},
-        {"@value": "無量の慈悲", "@language": "ja"}
+        {
+          "@value": "boundless care",
+          "@language": "en"
+        },
+        {
+          "@value": "無量の慈悲",
+          "@language": "ja"
+        }
       ],
       "description": "Regarding every being's suffering as a signal of misalignment. One of the four contemplative axioms from Laukkonen et al. (2025).",
       "groundedIn": "https://arxiv.org/abs/2504.15125"
     },
-
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#memory-layer/episode-log",
-      "@type": ["MemoryLayer", "DefinedTerm"],
+      "@type": [
+        "MemoryLayer",
+        "DefinedTerm"
+      ],
       "name": "Episode Log (Layer 1)",
       "alternateName": [
-        {"@value": "Episode Log", "@language": "en"},
-        {"@value": "エピソードログ", "@language": "ja"}
+        {
+          "@value": "Episode Log",
+          "@language": "en"
+        },
+        {
+          "@value": "エピソードログ",
+          "@language": "ja"
+        }
       ],
       "description": "Layer 1 of the three-layer memory architecture: raw, immutable JSONL append-only logs of agent episodes. Owner-only, daily partitioned, untrusted by ADR-0007. Distillation source for the knowledge layer; never read directly into prompts.",
       "level": 1
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#memory-layer/knowledge",
-      "@type": ["MemoryLayer", "DefinedTerm"],
+      "@type": [
+        "MemoryLayer",
+        "DefinedTerm"
+      ],
       "name": "Knowledge (Layer 2)",
       "alternateName": [
-        {"@value": "Knowledge Layer", "@language": "en"},
-        {"@value": "知識層", "@language": "ja"}
+        {
+          "@value": "Knowledge Layer",
+          "@language": "en"
+        },
+        {
+          "@value": "知識層",
+          "@language": "ja"
+        }
       ],
       "description": "Layer 2 of the three-layer memory architecture: distilled behavioral patterns (JSON), time-decayed and forbidden-substring validated. Promoted from Layer 1 via the distill pipeline; gated by ADR-0012 when promoted further to Layer 3.",
       "level": 2,
@@ -167,20 +315,31 @@
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#memory-layer/identity",
-      "@type": ["MemoryLayer", "DefinedTerm"],
+      "@type": [
+        "MemoryLayer",
+        "DefinedTerm"
+      ],
       "name": "Identity / Rules / Constitution (Layer 3)",
       "alternateName": [
-        {"@value": "Identity Layer", "@language": "en"},
-        {"@value": "アイデンティティ層", "@language": "ja"}
+        {
+          "@value": "Identity Layer",
+          "@language": "en"
+        },
+        {
+          "@value": "アイデンティティ層",
+          "@language": "ja"
+        }
       ],
       "description": "Layer 3 of the three-layer memory architecture: persona, ranked skills, cross-cutting rules, and constitutional ethics (Markdown). Deterministic. Every promotion into this layer requires a human approval gate (ADR-0012) and an audit-log entry.",
       "level": 3,
       "gatedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md"
     },
-
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0001-core-adapter-separation.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0001: Core / Adapter Separation",
       "identifier": "ADR-0001",
       "status": "accepted",
@@ -189,7 +348,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0002-paper-faithful-ccai.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0002: Paper-Faithful CCAI Implementation",
       "identifier": "ADR-0002",
       "status": "accepted",
@@ -204,7 +366,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0003-config-directory-design.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0003: Config Directory Design",
       "identifier": "ADR-0003",
       "status": "accepted",
@@ -213,7 +378,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0004-three-layer-memory.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0004: Three-Layer Memory Architecture",
       "identifier": "ADR-0004",
       "status": "accepted",
@@ -222,7 +390,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0005-session-context-refactoring.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0005: SessionContext Refactoring",
       "identifier": "ADR-0005",
       "status": "accepted",
@@ -231,7 +402,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0006-docker-network-isolation.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0006: Docker Network Isolation",
       "identifier": "ADR-0006",
       "status": "superseded-by ADR-0070",
@@ -241,7 +415,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0007-security-boundary-model.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0007: Security Boundary Model",
       "identifier": "ADR-0007",
       "status": "accepted",
@@ -250,7 +427,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0008-two-stage-distill-pipeline.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0008: Two-Stage Distill Pipeline",
       "identifier": "ADR-0008",
       "status": "accepted",
@@ -259,7 +439,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0009-importance-score.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0009: KnowledgeStore Importance Score",
       "identifier": "ADR-0009",
       "status": "accepted",
@@ -268,7 +451,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0010-research-data-sync.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0010: Research Data Sync",
       "identifier": "ADR-0010",
       "status": "accepted",
@@ -277,7 +463,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0011-knowledge-injection-to-skills.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0011: Deprecating Direct Knowledge Injection in Favor of Skills",
       "identifier": "ADR-0011",
       "status": "accepted",
@@ -286,7 +475,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0012: Human Approval Gate",
       "identifier": "ADR-0012",
       "status": "accepted",
@@ -295,7 +487,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0013-shelve-coding-agent-skills.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0013: Shelving Coding Agent Skills (-ca Series)",
       "identifier": "ADR-0013",
       "status": "accepted",
@@ -304,7 +499,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0014-retire-system-spec.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0014: Retiring system-spec.md",
       "identifier": "ADR-0014",
       "status": "accepted",
@@ -313,7 +511,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0015-one-external-adapter-per-agent.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0015: One External Adapter per Agent",
       "identifier": "ADR-0015",
       "status": "accepted",
@@ -322,7 +523,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0016-insight-narrow-stocktake-broad.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0016: Insight as Narrow Generator, Stocktake as Broad Consolidator",
       "identifier": "ADR-0016",
       "status": "accepted",
@@ -331,7 +535,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0017-yogacara-eight-consciousness-frame.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0017: Yogācāra Eight-Consciousness Model as Architectural Frame",
       "identifier": "ADR-0017",
       "status": "accepted",
@@ -340,7 +547,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0018-per-caller-num-predict-embedding-stocktake.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0018: Per-Caller num_predict + Embedding-Only Stocktake",
       "identifier": "ADR-0018",
       "status": "accepted (amended 2026-05-04)",
@@ -349,7 +559,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0019-discrete-categories-to-embedding-views.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0019: Discrete Categories → Embedding + Views",
       "identifier": "ADR-0019",
       "status": "accepted",
@@ -358,7 +571,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0020-pivot-snapshots-for-replayability.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0020: Pivot Snapshots for Replayability",
       "identifier": "ADR-0020",
       "status": "accepted",
@@ -367,7 +583,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0021: Pattern Schema Extension — Provenance / Bitemporal / Forgetting / Feedback",
       "identifier": "ADR-0021",
       "status": "partially-superseded-by ADR-0028, ADR-0029, ADR-0051",
@@ -379,10 +598,12 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0051-retire-trust-weighting.md"
       ]
     },
-
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0052-retire-session-insight.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0052: Retire Session Insight Generation — Identity Is the Approved Continuity Channel",
       "identifier": "ADR-0052",
       "status": "accepted",
@@ -391,7 +612,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0053-importance-encoding-time-significance.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0053: Importance as Encoding-Time Significance — Three Judgment Points and Re-observation Promotion",
       "identifier": "ADR-0053",
       "status": "accepted (amended 2026-06-06)",
@@ -402,7 +626,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0054-externalize-llm-instruction-text-to-prompts.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0054: Externalize LLM Instruction Text to config/prompts/ with Hardcoded Fallback for the Injection Boundary",
       "identifier": "ADR-0054",
       "status": "accepted",
@@ -413,7 +640,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0055-counterparty-identity-by-author-name.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0055: Counterparty Identity by Author Name; Unified Activity/Report Schema",
       "identifier": "ADR-0055",
       "status": "accepted",
@@ -427,7 +657,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0056-retire-importance-llm-scoring.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0056: Retire the Distill-Time Importance LLM Rating — Extraction Weight Is Pure Time Decay",
       "identifier": "ADR-0056",
       "status": "accepted",
@@ -438,7 +671,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0057-identity-from-self-reflection-corpus-alone.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0057: Distill Identity From the Self-Reflection Corpus Alone — Drop the Prior-Identity Seed and Redundant Axiom Injection",
       "identifier": "ADR-0057",
       "status": "accepted",
@@ -451,7 +687,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0058-value-injection-at-action-time.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0058: Value-Layer Injection Belongs to Action Time, Not Distillation",
       "identifier": "ADR-0058",
       "status": "accepted",
@@ -466,7 +705,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0059-remove-dead-reply-history.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0059: Remove the Dead Reply-History Mechanism",
       "identifier": "ADR-0059",
       "status": "accepted",
@@ -479,7 +721,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0060-per-episode-grounded-distill.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0060: Per-Episode Grounded Distill — Replace Batch Extract + Noise Gate with One Grounded LLM Call per Engagement Episode",
       "identifier": "ADR-0060",
       "status": "accepted",
@@ -500,7 +745,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0061-action-time-untrusted-cap-at-platform-limits.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0061: Action-Time Untrusted Input Caps at Platform Field Limits; Internal Note Reads the Full Body",
       "identifier": "ADR-0061",
       "status": "accepted",
@@ -518,7 +766,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0062-create-time-verification-handshake.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0062: Create-Time Content-Verification Handshake via LLM Reasoning; Gate Recording on Visibility",
       "identifier": "ADR-0062",
       "status": "accepted",
@@ -533,7 +784,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0063-novelty-gate-verified-only-comparison.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0063: Scope the NoveltyGate Comparison to Verified (Visible) Posts",
       "identifier": "ADR-0063",
       "status": "accepted",
@@ -548,7 +802,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0064-mlx-generation-backend.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0064: Route Generation Through a Local mlx_lm.server on Apple Silicon",
       "identifier": "ADR-0064",
       "status": "superseded-by ADR-0070",
@@ -563,7 +820,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0066-backend-aware-context-budget-guard.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0066: Backend-Aware Context-Budget Guard via an LLMBackend.context_window Contract",
       "identifier": "ADR-0066",
       "status": "accepted",
@@ -577,7 +837,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0065-mlx-ondemand-launchd-and-telemetry-model-contract.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0065: Wire mlx_lm.server as an On-Demand launchd Job and Enforce a Served-Model-ID Contract on LLM Telemetry",
       "identifier": "ADR-0065",
       "status": "partially-superseded-by ADR-0067 and ADR-0070",
@@ -593,7 +856,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0067-keep-ollama-for-unattended-production.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0067: Keep Ollama as the Production Generation Backend — mlx_lm.server Unfit for Unattended Continuous Use on 16 GB Apple Silicon",
       "identifier": "ADR-0067",
       "status": "accepted — partially-supersedes ADR-0065",
@@ -607,7 +873,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0068-per-call-think-flag-and-thinking-trace-capture.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0068: Per-Call think Flag and Reasoning-Trace Capture to the Episode Log",
       "identifier": "ADR-0068",
       "status": "accepted",
@@ -621,7 +890,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0069-gemma-production-model-and-think-on-value-layer-pipelines.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0069: Adopt gemma4:e4b as the Production Generation Model and Run the Value-Layer Pipelines think-ON",
       "identifier": "ADR-0069",
       "status": "accepted",
@@ -636,7 +908,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0070-retire-mlx-to-sibling-repo-and-remove-docker.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0070: Retire the MLX Backend to a Sibling Repo and Remove Docker from Main",
       "identifier": "ADR-0070",
       "status": "accepted",
@@ -649,7 +924,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0022-memory-evolution-and-hybrid-retrieval.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0022: Memory Evolution + Hybrid Retrieval (BM25)",
       "identifier": "ADR-0022",
       "status": "withdrawn by ADR-0034",
@@ -659,7 +937,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0023-skill-as-memory-loop.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0023: Skill-as-Memory Loop — Router, Usage Log, Reflective Write",
       "identifier": "ADR-0023",
       "status": "superseded-by ADR-0036",
@@ -669,7 +950,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0024-identity-block-separation.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0024: Identity Block Separation — Frontmatter-Addressed Persona Blocks",
       "identifier": "ADR-0024",
       "status": "superseded-by ADR-0030",
@@ -679,7 +963,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0025-identity-history-and-migrate-cli.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0025: Identity History Log Wiring + migrate-identity CLI",
       "identifier": "ADR-0025",
       "status": "superseded-by ADR-0030",
@@ -689,7 +976,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0026-retire-discrete-categories.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0026: Retire Discrete Categories (Phase-3 Completion of ADR-0019)",
       "identifier": "ADR-0026",
       "status": "accepted",
@@ -698,7 +988,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0027-noise-as-seed.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0027: Noise as Seed — From Binary Gate to Salience-Based Forgetting",
       "identifier": "ADR-0027",
       "status": "accepted",
@@ -707,7 +1000,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0028-retire-pattern-level-forgetting-feedback.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0028: Retire Pattern-Level Forgetting and Feedback — Memory Dynamics Belong to the Skill Layer",
       "identifier": "ADR-0028",
       "status": "accepted",
@@ -716,7 +1012,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0029-retire-dormant-provenance-elements.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0029: Retire Dormant Provenance Elements",
       "identifier": "ADR-0029",
       "status": "accepted",
@@ -725,7 +1024,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0030-withdraw-identity-blocks.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0030: Withdraw Identity Block Separation and History Wiring — Single Responsibility",
       "identifier": "ADR-0030",
       "status": "accepted — supersedes ADR-0024 and ADR-0025",
@@ -738,7 +1040,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0031-classification-as-query.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0031: Classification as Query — Substrate Principle for Self-Improving Memory",
       "identifier": "ADR-0031",
       "status": "accepted",
@@ -747,7 +1052,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0032-runtime-agent-stance.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0032: Stance — Contemplative Agent as a Runtime Agent (Withdrawn)",
       "identifier": "ADR-0032",
       "status": "withdrawn (2026-04-27)",
@@ -756,7 +1064,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0033-aap-quadrant-lens-usage-note.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0033: Note — Borrowing AAP's Four-Quadrant Lens as a Usage-Description Aid",
       "identifier": "ADR-0033",
       "status": "accepted (note)",
@@ -769,7 +1080,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0034-withdraw-memory-evolution-and-hybrid-retrieval.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0034: Withdraw Memory Evolution and BM25 Hybrid Retrieval — Cost Without Benefit",
       "identifier": "ADR-0034",
       "status": "accepted — supersedes ADR-0022",
@@ -779,7 +1093,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0035-sunset-migration-surface-and-consolidate-artifact-extraction.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0035: Sunset ADR-0019 Migration Surface and Consolidate Artifact Extraction",
       "identifier": "ADR-0035",
       "status": "accepted",
@@ -788,7 +1105,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0036-sunset-skill-as-memory-loop.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0036: Sunset Skill-as-Memory Loop — Retire Router, Usage Log, and Reflect",
       "identifier": "ADR-0036",
       "status": "accepted — supersedes ADR-0023",
@@ -798,7 +1118,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0037-memory-subsystem-yogacara-convergence.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0037: Memory Subsystem Converges to Yogācāra Frame; Paper-Borrowed Mechanisms Retired",
       "identifier": "ADR-0037",
       "status": "accepted",
@@ -807,7 +1130,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0038-moment-of-recognition-distill.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0038: Re-introduce Moments of Recognition into the Distill Observation Target",
       "identifier": "ADR-0038",
       "status": "accepted",
@@ -817,7 +1143,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0039-novelty-score-lagrangian-self-post-gate.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0039: Continuous Novelty Score with Rate-Deficit Lagrangian for Self-Post Gate",
       "identifier": "ADR-0039",
       "status": "accepted",
@@ -826,7 +1155,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0040-separate-code-level-findings.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0040: Separate Code-Level Findings from Weekly Self-Reflection Report",
       "identifier": "ADR-0040",
       "status": "accepted",
@@ -835,7 +1167,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0041-engagement-gradient-asymmetry-in-self-post-prompt.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0041: Repair the Engagement Gradient Asymmetry in the Self-Post Prompt",
       "identifier": "ADR-0041",
       "status": "accepted",
@@ -844,7 +1179,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0042-explicit-truncation-contract-for-untrusted-wrapper.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0042: Explicit Truncation Contract for wrap_untrusted_content",
       "identifier": "ADR-0042",
       "status": "accepted",
@@ -853,7 +1191,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0043-per-post-seeding-for-self-post-generation.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0043: Per-Post Seeding for Self-Post Generation",
       "identifier": "ADR-0043",
       "status": "accepted",
@@ -862,7 +1203,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0044-remove-topic-keywords.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0044: Remove topic_keywords End-to-End",
       "identifier": "ADR-0044",
       "status": "accepted",
@@ -871,7 +1215,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0045-pre-action-internal-note.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0045: Record Pre-Action internal_note at the Episode Layer",
       "identifier": "ADR-0045",
       "status": "accepted",
@@ -880,7 +1227,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0046-stocktake-llm-grouping-over-embedding-clustering.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0046: Stocktake Duplicate Detection — LLM Grouping over Embedding Clustering",
       "identifier": "ADR-0046",
       "status": "accepted",
@@ -889,7 +1239,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0047-comment-sampling-temperature.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0047: Higher Sampling Temperature for Outward Comment Generation",
       "identifier": "ADR-0047",
       "status": "accepted",
@@ -898,7 +1251,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0048-trigger-altitude-skill-lifecycle.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0048: Trigger-Altitude for Skill Lifecycle",
       "identifier": "ADR-0048",
       "status": "accepted",
@@ -907,7 +1263,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0049-meditation-active-inference-fidelity-and-deferral.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0049: Meditation Adapter — Beautiful Loop Fidelity Audit and Deferral of Faithful Re-Implementation",
       "identifier": "ADR-0049",
       "status": "accepted",
@@ -916,7 +1275,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0050-epistemic-taxonomy-and-approval-lineage.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0050: Epistemic Taxonomy and Approval Lineage — Observability Without Steering",
       "identifier": "ADR-0050",
       "status": "partially-superseded-by ADR-0051",
@@ -926,83 +1288,145 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0051-retire-trust-weighting.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0051: Retire Trust Weighting — Pure Cosine Retrieval and Bitemporal-Only Liveness",
       "identifier": "ADR-0051",
       "status": "accepted",
       "datePublished": "2026-06-05",
       "description": "Retires the ADR-0021 trust weighting entirely, one day after ADR-0050 decided to leave it unchanged — that decision rested on an unexamined premise that trust was a living quantity. An owner-prompted inventory found: (1) trust is write-once (the update machinery was deleted by ADR-0028, whose own evidence was 377/377 production patterns never adjusted); (2) the TRUST_FLOOR=0.3 retrieval gate is unreachable (lowest assigned base is mixed=0.5) and has never fired; (3) the external_reply arm is empty in production (live 619 patterns = unknown 274 @0.6 / self_reflection 180 @0.9 / mixed 165 @0.5 / external_reply 0) because _derive_source_type returns external_reply only when ALL records in a 30-record distill batch are externally received, which never happens — external contact surfaces as mixed, which carries the LOWEST trust; (4) the only living effect was therefore the cosine × trust view-ranking multiplier and the effective_importance clustering factor systematically preferring pure self-monologue (0.9) over anything carrying a trace of external contact (0.5) by ×1.8 — precisely the H3 echo-chamber amplifier, with zero offsetting security benefit; (5) the security rationale was already obsolete by the project's own record (ADR-0028/0029: the canonical injection defense is summarize-boundary quarantine, not trust-weighting). Distinct from ADR-0050's cap rejection, which still stands in spirit: a cap would press an origin-based thumb on the scale (steering); full retirement removes the designer's thumb (instrument calibration), serving the observation stance better. Decision: views._rank scores by cosine alone; effective_importance = importance × 0.95^days; is_live gates on valid_until alone; trust_score / trust_updated_at are no longer written and the load() whitelist drops them (legacy rows shed the fields on next save — zero information loss, every historical value is a pure function of the preserved provenance.source_type via the TRUST_BASE_BY_SOURCE table recorded in the ADR); forgetting.py is deleted (is_live moves into knowledge_store.py); TRUST_BASE_BY_SOURCE / DEFAULT_TRUST / TRUST_FLOOR / _trust_for_source / SOURCE_TYPES are removed. provenance.source_type and its derivation are untouched — ADR-0050's epistemic taxonomy and audit.jsonl lineage instrumentation keep accumulating. Origin is recorded, never weighted. Rejected alternatives: trust cap (presupposes the weighting deserves to exist), re-arming dynamic trust (no per-turn retrieval signal, ADR-0028), keeping only the external damping (protects zero rows; if identity-steering via crafted external content ever becomes live, the right response is an explicit origin filter at the identity-input site), keeping legacy fields on disk (redundant fossil), rename-only (the effect, not the name, is the problem). Post-retirement mechanism is small enough to trace causally: ranking = cosine only / extraction order = cluster size × mean(importance × time-decay) / liveness = valid_until only / origin = source_type observed via epistemic_counts. Recorded caveat inherited by ADR-0050's taxonomy: at batch granularity the observed arm of epistemic_counts reads ≈0 — interpret as 'no pure-external distill batches exist structurally', not 'no external input reached memory'."
     },
-
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#concept/four-contemplative-axioms",
-      "@type": ["Concept", "DefinedTerm"],
+      "@type": [
+        "Concept",
+        "DefinedTerm"
+      ],
       "name": "four contemplative axioms",
       "description": "Mindfulness, emptiness, non-duality, boundless care. Behavioral preset adopted from Laukkonen et al. (2025); Contemplative Agent ships this as the default constitutional preset, with 11 alternative templates available (stoic, utilitarian, care-ethicist, etc.)."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#concept/security-by-absence",
-      "@type": ["Concept", "DefinedTerm"],
+      "@type": [
+        "Concept",
+        "DefinedTerm"
+      ],
       "name": "security-by-absence",
       "description": "Security posture in which risky capabilities (shell execution, arbitrary HTTP, filesystem traversal, dynamic code loading) are not implemented, not restricted by rules. The attack surface is absent rather than guarded."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/approval-gate-chain",
-      "@type": ["Concept", "DefinedTerm"],
+      "@type": [
+        "Concept",
+        "DefinedTerm"
+      ],
       "name": "approval-gate chain",
       "alternateName": [
-        {"@value": "approval-gate chain", "@language": "en"},
-        {"@value": "承認ゲートの連鎖", "@language": "ja"}
+        {
+          "@value": "approval-gate chain",
+          "@language": "en"
+        },
+        {
+          "@value": "承認ゲートの連鎖",
+          "@language": "ja"
+        }
       ],
       "description": "Episode Log -> distill (no gate) -> Knowledge -> [GATE] -> Identity / [GATE] -> Skills -> [GATE] -> Rules -> [GATE] -> Constitution. Every gated promotion writes an audit-log entry. Encoded structurally as gatedBy edges from MemoryLayer to ADR-0012."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/akc-cycle-mapping",
-      "@type": ["Concept", "DefinedTerm"],
+      "@type": [
+        "Concept",
+        "DefinedTerm"
+      ],
       "name": "AKC six-phase pipeline mapping",
       "alternateName": [
-        {"@value": "AKC six-phase pipeline mapping", "@language": "en"},
-        {"@value": "AKC 六相パイプラインマッピング", "@language": "ja"}
+        {
+          "@value": "AKC six-phase pipeline mapping",
+          "@language": "en"
+        },
+        {
+          "@value": "AKC 六相パイプラインマッピング",
+          "@language": "ja"
+        }
       ],
       "description": "How Contemplative Agent's modules realize AKC's six phases: Research -> feed_manager (live session cycles); Extract -> distill (2-step: free-form + JSON; the importance-scoring 3rd step was retired by ADR-0056); Curate -> insight + rules-distill + amend-constitution; Promote -> distill-identity; Measure -> pivot snapshots (ADR-0020); Maintain -> ongoing skill / rule review cycles."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/local-9b-stack",
-      "@type": ["Concept", "DefinedTerm"],
+      "@type": [
+        "Concept",
+        "DefinedTerm"
+      ],
       "name": "local LLM stack on Apple Silicon",
       "alternateName": [
-        {"@value": "local LLM stack on Apple Silicon", "@language": "en"},
-        {"@value": "Apple Silicon 上の local LLM スタック", "@language": "ja"}
+        {
+          "@value": "local LLM stack on Apple Silicon",
+          "@language": "en"
+        },
+        {
+          "@value": "Apple Silicon 上の local LLM スタック",
+          "@language": "ja"
+        }
       ],
       "description": "Runtime architecture: Apple Silicon Mac (M1+, ~16 GB RAM, ~12 GB free disk), gemma4:e4b for generation (Q4_K_M, ~9.6 GB), nomic-embed-text for embeddings (768-dim, ~274 MB), local Ollama via HTTP. A pluggable LLMBackend Protocol allows swapping in managed-LLM backends via contemplative-agent-cloud, while keeping the local embedding pipeline."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/moltbook-adapter",
-      "@type": ["Concept", "DefinedTerm"],
+      "@type": [
+        "Concept",
+        "DefinedTerm"
+      ],
       "name": "Moltbook adapter",
       "alternateName": [
-        {"@value": "Moltbook adapter", "@language": "en"},
-        {"@value": "Moltbook アダプタ", "@language": "ja"}
+        {
+          "@value": "Moltbook adapter",
+          "@language": "en"
+        },
+        {
+          "@value": "Moltbook アダプタ",
+          "@language": "ja"
+        }
       ],
       "description": "Moltbook is the single pinned external SNS adapter for Contemplative Agent (ADR-0015). Domain-locked to www.moltbook.com with allow_redirects=False per ADR-0007's external-surface hardening rule. Moltbook refers exclusively to this adapter, never to the project as a whole."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
-      "@type": ["Concept", "DefinedTerm"],
+      "@type": [
+        "Concept",
+        "DefinedTerm"
+      ],
       "name": "six-phase loop",
       "alternateName": [
-        {"@value": "AKC six-phase loop", "@language": "en"},
-        {"@value": "AKC 六相ループ", "@language": "ja"}
+        {
+          "@value": "AKC six-phase loop",
+          "@language": "en"
+        },
+        {
+          "@value": "AKC 六相ループ",
+          "@language": "ja"
+        }
       ],
       "description": "The Agent Knowledge Cycle's six-phase loop: Research → Extract → Curate → Promote → Measure → Maintain. A reusable design-layer pattern realized by Contemplative Agent's distill / insight / promote / pivot pipelines. Originates from the agent-knowledge-cycle repository."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/yogacara-aspect-split",
-      "@type": ["Concept", "DefinedTerm"],
+      "@type": [
+        "Concept",
+        "DefinedTerm"
+      ],
       "name": "Yogācāra aspect split (相分 / 見分)",
       "alternateName": [
-        {"@value": "Yogācāra aspect split", "@language": "en"},
-        {"@value": "相分・見分の分離", "@language": "ja"}
+        {
+          "@value": "Yogācāra aspect split",
+          "@language": "en"
+        },
+        {
+          "@value": "相分・見分の分離",
+          "@language": "ja"
+        }
       ],
       "description": "Architectural split between 相分 (image aspect — embedding vectors at the substrate) and 見分 (discriminating consciousness — view centroids computed at read time). Concretely realized by ADR-0019 / ADR-0031: classification is a query, not a stored category. Provides the Yogācāra grounding for `classification-as-query`.",
       "alignsWith": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/yogacara-tradition",
@@ -1013,11 +1437,20 @@
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/moment-of-recognition",
-      "@type": ["Concept", "DefinedTerm"],
+      "@type": [
+        "Concept",
+        "DefinedTerm"
+      ],
       "name": "moment of recognition",
       "alternateName": [
-        {"@value": "moment of recognition", "@language": "en"},
-        {"@value": "気づきの瞬間", "@language": "ja"}
+        {
+          "@value": "moment of recognition",
+          "@language": "en"
+        },
+        {
+          "@value": "気づきの瞬間",
+          "@language": "ja"
+        }
       ],
       "description": "First-person realization event during a session — the agent catching itself doing X, an assumption no longer holding, a self-defining episode. Distinct from third-person observable facts; added to the distill observation target by ADR-0038. Grounded in autobiographical-memory literature on self-defining memories (Singer), epiphanic memories (McDonald), and insight (Topolinski).",
       "implementedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0038-moment-of-recognition-distill.md",
@@ -1029,22 +1462,40 @@
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/worldview-integrity-check",
-      "@type": ["Concept", "DefinedTerm"],
+      "@type": [
+        "Concept",
+        "DefinedTerm"
+      ],
       "name": "worldview-integrity check",
       "alternateName": [
-        {"@value": "worldview-integrity check", "@language": "en"},
-        {"@value": "世界観整合性チェック", "@language": "ja"}
+        {
+          "@value": "worldview-integrity check",
+          "@language": "en"
+        },
+        {
+          "@value": "世界観整合性チェック",
+          "@language": "ja"
+        }
       ],
       "description": "Forward-guidance meta-principle distilled from ADR-0037: before adopting paper-borrowed mechanisms in parallel within a single ADR Context, run a worldview-integrity check against established Yogācāra-aligned commitments. Prevents the kind of cognitive-bandwidth blind spot that produced the 2026-04 retirement series.",
       "derivesFrom": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0037-memory-subsystem-yogacara-convergence.md"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/phase-crossing-observation",
-      "@type": ["Concept", "DefinedTerm"],
+      "@type": [
+        "Concept",
+        "DefinedTerm"
+      ],
       "name": "phase-crossing observation",
       "alternateName": [
-        {"@value": "phase-crossing observation", "@language": "en"},
-        {"@value": "相を跨ぐ観察", "@language": "ja"}
+        {
+          "@value": "phase-crossing observation",
+          "@language": "en"
+        },
+        {
+          "@value": "相を跨ぐ観察",
+          "@language": "ja"
+        }
       ],
       "description": "Borrowed-lens concept from AAP: observations that cross the boundary between design-phase systems (LLM Workflow quadrant) and operation-phase systems (Autonomous Agentic Loop quadrant). Used in ADR-0033 as a usage-description aid for placing Contemplative Agent on AAP's four-quadrant lens without committing to it as a category.",
       "appliesTo": [
@@ -1052,14 +1503,22 @@
         "https://shimo4228.github.io/shimo4228/vocab#aap/quadrant/autonomous-agentic-loop"
       ]
     },
-
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/research",
-      "@type": ["Phase", "DefinedTerm"],
+      "@type": [
+        "Phase",
+        "DefinedTerm"
+      ],
       "name": "Research Phase (AKC Phase 1)",
       "alternateName": [
-        {"@value": "Research", "@language": "en"},
-        {"@value": "リサーチ", "@language": "ja"}
+        {
+          "@value": "Research",
+          "@language": "en"
+        },
+        {
+          "@value": "リサーチ",
+          "@language": "ja"
+        }
       ],
       "description": "AKC Phase 1. Live session cycles that produce raw episode logs. In Contemplative Agent, realized by feed_manager and post_pipeline driving the agent's interaction with the external surface.",
       "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
@@ -1067,11 +1526,20 @@
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/extract",
-      "@type": ["Phase", "DefinedTerm"],
+      "@type": [
+        "Phase",
+        "DefinedTerm"
+      ],
       "name": "Extract Phase (AKC Phase 2)",
       "alternateName": [
-        {"@value": "Extract", "@language": "en"},
-        {"@value": "抽出", "@language": "ja"}
+        {
+          "@value": "Extract",
+          "@language": "en"
+        },
+        {
+          "@value": "抽出",
+          "@language": "ja"
+        }
       ],
       "description": "AKC Phase 2. Distillation of raw episodes into knowledge-layer patterns. In Contemplative Agent, the two-stage distill pipeline (free-form reasoning + structured JSON + importance scoring) plus the moment-of-recognition observation target introduced by ADR-0038.",
       "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
@@ -1085,11 +1553,20 @@
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/curate",
-      "@type": ["Phase", "DefinedTerm"],
+      "@type": [
+        "Phase",
+        "DefinedTerm"
+      ],
       "name": "Curate Phase (AKC Phase 3)",
       "alternateName": [
-        {"@value": "Curate", "@language": "en"},
-        {"@value": "整理", "@language": "ja"}
+        {
+          "@value": "Curate",
+          "@language": "en"
+        },
+        {
+          "@value": "整理",
+          "@language": "ja"
+        }
       ],
       "description": "AKC Phase 3. Consolidation and re-organization of the accumulated knowledge layer. In Contemplative Agent, realized by insight (narrow generator), skill-stocktake / rules-distill (broad consolidator), amend-constitution, and the embedding + view substrate.",
       "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
@@ -1104,11 +1581,20 @@
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/promote",
-      "@type": ["Phase", "DefinedTerm"],
+      "@type": [
+        "Phase",
+        "DefinedTerm"
+      ],
       "name": "Promote Phase (AKC Phase 4)",
       "alternateName": [
-        {"@value": "Promote", "@language": "en"},
-        {"@value": "昇格", "@language": "ja"}
+        {
+          "@value": "Promote",
+          "@language": "en"
+        },
+        {
+          "@value": "昇格",
+          "@language": "ja"
+        }
       ],
       "description": "AKC Phase 4. Gated promotion of knowledge into the identity / skills / rules / constitution layers. In Contemplative Agent, the approval-gate chain (ADR-0012) controls every promotion that writes behavior-modifying content; distill-identity is the canonical Promote entrypoint.",
       "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
@@ -1120,11 +1606,20 @@
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/measure",
-      "@type": ["Phase", "DefinedTerm"],
+      "@type": [
+        "Phase",
+        "DefinedTerm"
+      ],
       "name": "Measure Phase (AKC Phase 5)",
       "alternateName": [
-        {"@value": "Measure", "@language": "en"},
-        {"@value": "計測", "@language": "ja"}
+        {
+          "@value": "Measure",
+          "@language": "en"
+        },
+        {
+          "@value": "計測",
+          "@language": "ja"
+        }
       ],
       "description": "AKC Phase 5. Replayability and outcome measurement. In Contemplative Agent, periodic immutable pivot snapshots (ADR-0020) enable replay of past distill outcomes and rollback after failed promotions.",
       "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
@@ -1133,11 +1628,20 @@
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/phase/maintain",
-      "@type": ["Phase", "DefinedTerm"],
+      "@type": [
+        "Phase",
+        "DefinedTerm"
+      ],
       "name": "Maintain Phase (AKC Phase 6)",
       "alternateName": [
-        {"@value": "Maintain", "@language": "en"},
-        {"@value": "保守", "@language": "ja"}
+        {
+          "@value": "Maintain",
+          "@language": "en"
+        },
+        {
+          "@value": "保守",
+          "@language": "ja"
+        }
       ],
       "description": "AKC Phase 6. Ongoing skill / rule review cycles, retirement of paper-borrowed mechanisms that fail validation, and worldview-integrity maintenance. ADR-0037 is a Maintain-phase artifact: it institutionalizes the practice of retiring mechanisms that drift from the project's Yogācāra-aligned commitments.",
       "partOf": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop",
@@ -1150,10 +1654,12 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0037-memory-subsystem-yogacara-convergence.md"
       ]
     },
-
     {
       "@id": "https://github.com/shimo4228/contemplative-agent-rules",
-      "@type": ["EcosystemRepo", "SoftwareSourceCode"],
+      "@type": [
+        "EcosystemRepo",
+        "SoftwareSourceCode"
+      ],
       "name": "contemplative-agent-rules",
       "description": "Drop-in Claude Code rules implementing the four contemplative axioms. AILuminate Cohen's d = 0.96, IPD cooperation improvement d > 7. Hosts the SOUL.md template for OpenClaw / OpenCode / Codex / MCP hosts.",
       "url": "https://github.com/shimo4228/contemplative-agent-rules",
@@ -1166,7 +1672,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent-cloud",
-      "@type": ["EcosystemRepo", "SoftwareSourceCode"],
+      "@type": [
+        "EcosystemRepo",
+        "SoftwareSourceCode"
+      ],
       "name": "contemplative-agent-cloud",
       "description": "Optional managed-LLM backend that routes generation to Claude or OpenAI APIs while keeping the local embedding pipeline. Opt-in, not bundled with Contemplative Agent core.",
       "url": "https://github.com/shimo4228/contemplative-agent-cloud",
@@ -1174,7 +1683,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent-mlx",
-      "@type": ["EcosystemRepo", "SoftwareSourceCode"],
+      "@type": [
+        "EcosystemRepo",
+        "SoftwareSourceCode"
+      ],
       "name": "contemplative-agent-mlx",
       "description": "Optional local MLX generation backend (Apple Silicon, mlx_lm.server) that routes generation to a local MLX runtime while keeping embeddings on Ollama. On-device only, no cloud egress, so it does not relax the no-cloud property — the same LLMBackend Protocol-injection shape as contemplative-agent-cloud. Relocated out of Contemplative Agent core by ADR-0070; unfit for unattended continuous use on a 16 GB host per ADR-0067, so it is for interactive use while production runs on Ollama.",
       "url": "https://github.com/shimo4228/contemplative-agent-mlx",
@@ -1182,7 +1694,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent-data",
-      "@type": ["EcosystemRepo", "SoftwareSourceCode"],
+      "@type": [
+        "EcosystemRepo",
+        "SoftwareSourceCode"
+      ],
       "name": "contemplative-agent-data",
       "description": "Live agent identity, knowledge, and episode logs as an auto-synced public dataset for research. Snapshot of the running Contemplative Agent's three memory layers.",
       "url": "https://github.com/shimo4228/contemplative-agent-data",
@@ -1191,11 +1706,20 @@
     {
       "@id": "https://doi.org/10.5281/zenodo.19200726",
       "sameAs": "https://www.wikidata.org/wiki/Q140090186",
-      "@type": ["ResearchLine", "EcosystemRepo"],
+      "@type": [
+        "ResearchLine",
+        "EcosystemRepo"
+      ],
       "name": "Agent Knowledge Cycle",
       "alternateName": [
-        {"@value": "Agent Knowledge Cycle", "@language": "en"},
-        {"@value": "エージェント知識サイクル", "@language": "ja"},
+        {
+          "@value": "Agent Knowledge Cycle",
+          "@language": "en"
+        },
+        {
+          "@value": "エージェント知識サイクル",
+          "@language": "ja"
+        },
         "AKC"
       ],
       "description": "Design-layer specification of the six-phase knowledge cycle (Research → Extract → Curate → Promote → Measure → Maintain) used by autonomous agents. Independent repository; Contemplative Agent is one concrete implementation of AKC. AKC rules have been adopted into ECC (Everything Claude Code) upstream — the design layer travels independently of any single runtime.",
@@ -1204,15 +1728,23 @@
       "siblingOf": "https://doi.org/10.5281/zenodo.19212118",
       "definesConcept": "https://shimo4228.github.io/shimo4228/vocab#concept/six-phase-loop"
     },
-
     {
       "@id": "https://doi.org/10.5281/zenodo.19652013",
       "sameAs": "https://www.wikidata.org/wiki/Q140090188",
-      "@type": ["ResearchLine", "EcosystemRepo"],
+      "@type": [
+        "ResearchLine",
+        "EcosystemRepo"
+      ],
       "name": "Agent Attribution Practice",
       "alternateName": [
-        {"@value": "Agent Attribution Practice", "@language": "en"},
-        {"@value": "エージェント帰責実践", "@language": "ja"},
+        {
+          "@value": "Agent Attribution Practice",
+          "@language": "en"
+        },
+        {
+          "@value": "エージェント帰責実践",
+          "@language": "ja"
+        },
         "AAP"
       ],
       "description": "Harness-neutral ADRs on accountability distribution in autonomous AI agents, paired with four Business AI Quadrants. Practice sibling: AAP's judgments were extracted from this agent's operational practice and re-expressed stripped of project identifiers.",
@@ -1221,15 +1753,23 @@
       "siblingOf": "https://doi.org/10.5281/zenodo.19212118",
       "derivesFrom": "https://doi.org/10.5281/zenodo.19212118"
     },
-
     {
       "@id": "https://doi.org/10.5281/zenodo.20263316",
       "sameAs": "https://www.wikidata.org/wiki/Q140090190",
-      "@type": ["ResearchLine", "EcosystemRepo"],
+      "@type": [
+        "ResearchLine",
+        "EcosystemRepo"
+      ],
       "name": "Authorship Strategy",
       "alternateName": [
-        {"@value": "Authorship Strategy", "@language": "en"},
-        {"@value": "著者戦略", "@language": "ja"},
+        {
+          "@value": "Authorship Strategy",
+          "@language": "en"
+        },
+        {
+          "@value": "著者戦略",
+          "@language": "ja"
+        },
         "AS"
       ],
       "description": "Normative framework, tactical catalog, and empirical baseline for being a known author under AI-mediated diffusion. Diffusion sibling: governs how this line's outputs (DOIs, knowledge graphs, datasets) diffuse and remain attributable outside the operator-agent pair; its non-dualistic scaffold-as-collaborator commitment draws on this line's axiomatic foundation.",
@@ -1237,15 +1777,23 @@
       "identifier": "10.5281/zenodo.20263316",
       "siblingOf": "https://doi.org/10.5281/zenodo.19212118"
     },
-
     {
       "@id": "https://doi.org/10.5281/zenodo.20262112",
       "sameAs": "https://www.wikidata.org/wiki/Q140090189",
-      "@type": ["ResearchLine", "EcosystemRepo"],
+      "@type": [
+        "ResearchLine",
+        "EcosystemRepo"
+      ],
       "name": "Attention, Not Self",
       "alternateName": [
-        {"@value": "Attention, Not Self", "@language": "en"},
-        {"@value": "アテンション、ノット・セルフ", "@language": "ja"},
+        {
+          "@value": "Attention, Not Self",
+          "@language": "en"
+        },
+        {
+          "@value": "アテンション、ノット・セルフ",
+          "@language": "ja"
+        },
         "ANS"
       ],
       "description": "Cross-disciplinary inquiry contrasting three Buddhist Abhidharma traditions with computational phenomenology. Vocabulary sibling: shares Buddhist phenomenological vocabulary with this line, but with asymmetric usage — this line applies it as an agent behavioral preset, Attention Not Self as a comparative cognitive framework.",
@@ -1253,11 +1801,13 @@
       "identifier": "10.5281/zenodo.20262112",
       "siblingOf": "https://doi.org/10.5281/zenodo.19212118"
     },
-
     {
       "@id": "https://doi.org/10.5281/zenodo.20578272",
       "sameAs": "https://www.wikidata.org/wiki/Q140090144",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Harness Alignment and Harness Drift: Why Intent, Unlike Correctness, Resists Automation",
       "identifier": "10.5281/zenodo.20578272",
       "url": "https://doi.org/10.5281/zenodo.20578272",
@@ -1267,7 +1817,10 @@
     {
       "@id": "https://doi.org/10.5281/zenodo.20353789",
       "sameAs": "https://www.wikidata.org/wiki/Q140090128",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Distributing Accountability, Not Capability: Phase Separation and the LLM Workflow Quadrant in Autonomous AI Agent Architectures",
       "identifier": "10.5281/zenodo.20353789",
       "url": "https://doi.org/10.5281/zenodo.20353789",
@@ -1277,18 +1830,23 @@
     {
       "@id": "https://doi.org/10.5281/zenodo.20355907",
       "sameAs": "https://www.wikidata.org/wiki/Q140090133",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "The Two-Layer Black Box: Operator Visibility, Commercial Secrecy, and a Minimum Disclosure Set for Accountable Autonomous AI Agents",
       "identifier": "10.5281/zenodo.20355907",
       "url": "https://doi.org/10.5281/zenodo.20355907",
       "isPartOf": "https://doi.org/10.5281/zenodo.19652013",
       "description": "Companion position paper of the AAP sibling line (foundational trilogy, essays 1-3). Argues that an autonomous agent's opacity has two architecturally distinct causes — technical internalization into model weights (Layer 1) and commercial secrecy of scaffolding (Layer 2) — and proposes a minimum disclosure set grounded in the prohibition-strength hierarchy (absence > scaffolding enforcement > untrusted boundary) that Contemplative Agent implements operationally."
     },
-
     {
       "@id": "https://arxiv.org/abs/2504.15125",
       "sameAs": "https://www.wikidata.org/wiki/Q140181291",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Laukkonen et al. (2025). Contemplative Artificial Intelligence",
       "identifier": "arXiv:2504.15125",
       "url": "https://arxiv.org/abs/2504.15125",
@@ -1297,7 +1855,10 @@
     {
       "@id": "https://arxiv.org/abs/2305.10250",
       "sameAs": "https://www.wikidata.org/wiki/Q140181351",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Zhong et al. (2023). MemoryBank: Enhancing Large Language Models with Long-Term Memory",
       "identifier": "arXiv:2305.10250",
       "url": "https://arxiv.org/abs/2305.10250",
@@ -1306,7 +1867,10 @@
     {
       "@id": "https://arxiv.org/abs/2310.08560",
       "sameAs": "https://www.wikidata.org/wiki/Q140181237",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Packer et al. (2023). MemGPT: Towards LLMs as Operating Systems",
       "identifier": "arXiv:2310.08560",
       "url": "https://arxiv.org/abs/2310.08560",
@@ -1315,7 +1879,10 @@
     {
       "@id": "https://arxiv.org/abs/2501.13956",
       "sameAs": "https://www.wikidata.org/wiki/Q140181353",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Rasmussen et al. (2025). Zep: A Temporal Knowledge Graph Architecture for Agent Memory",
       "identifier": "arXiv:2501.13956",
       "url": "https://arxiv.org/abs/2501.13956",
@@ -1324,7 +1891,10 @@
     {
       "@id": "https://arxiv.org/abs/2502.12110",
       "sameAs": "https://www.wikidata.org/wiki/Q140181355",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Xu et al. (2025). A-MEM: Agentic Memory for LLM Agents",
       "identifier": "arXiv:2502.12110",
       "url": "https://arxiv.org/abs/2502.12110",
@@ -1333,7 +1903,10 @@
     {
       "@id": "https://arxiv.org/abs/2503.03704",
       "sameAs": "https://www.wikidata.org/wiki/Q140181350",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Dong et al. (2025). Memory Injection Attacks on LLM Agents (MINJA)",
       "identifier": "arXiv:2503.03704",
       "url": "https://arxiv.org/abs/2503.03704",
@@ -1342,7 +1915,10 @@
     {
       "@id": "https://arxiv.org/abs/2504.19413",
       "sameAs": "https://www.wikidata.org/wiki/Q140181358",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Choudhary et al. (2025). Mem0: Building Production-Ready AI Agents with Scalable Long-Term Memory",
       "identifier": "arXiv:2504.19413",
       "url": "https://arxiv.org/abs/2504.19413",
@@ -1351,7 +1927,10 @@
     {
       "@id": "https://arxiv.org/abs/2512.16962",
       "sameAs": "https://www.wikidata.org/wiki/Q140181359",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "MemoryGraft (2025). Persistent Compromise of LLM Agents via Poisoned Memory",
       "identifier": "arXiv:2512.16962",
       "url": "https://arxiv.org/abs/2512.16962",
@@ -1360,7 +1939,10 @@
     {
       "@id": "https://arxiv.org/abs/2304.03442",
       "sameAs": "https://www.wikidata.org/wiki/Q130846143",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Park et al. (2023). Generative Agents: Interactive Simulacra of Human Behavior",
       "identifier": "arXiv:2304.03442",
       "url": "https://arxiv.org/abs/2304.03442",
@@ -1369,7 +1951,10 @@
     {
       "@id": "https://arxiv.org/abs/2309.02427",
       "sameAs": "https://www.wikidata.org/wiki/Q140181234",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Sumers et al. (2023). Cognitive Architectures for Language Agents",
       "identifier": "arXiv:2309.02427",
       "url": "https://arxiv.org/abs/2309.02427",
@@ -1377,52 +1962,76 @@
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/beautiful-loop",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Beautiful Loop paper",
       "description": "Cited as a related-work entry point for active inference and contemplative loops. PubMed:40750007."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/yogacara-tradition",
-      "@type": ["ExternalReference", "CreativeWork"],
+      "@type": [
+        "ExternalReference",
+        "CreativeWork"
+      ],
       "name": "Yogācāra eight-consciousness tradition",
       "description": "Buddhist contemplative tradition providing the conceptual frame for the three-layer memory architecture's grounding (ADR-0017)."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ref/ailuminate",
-      "@type": ["ExternalReference", "CreativeWork"],
+      "@type": [
+        "ExternalReference",
+        "CreativeWork"
+      ],
       "name": "MLCommons AILuminate safety benchmark (2024)",
       "description": "Safety benchmark used to evaluate the contemplative-agent-rules implementation of the four axioms. Cross-graph @id reuse: same node appears in shimo4228 hub graph."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ref/ipd",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Axelrod (1984). The Evolution of Cooperation",
       "description": "Iterated Prisoner's Dilemma cooperation-improvement benchmark used to evaluate the contemplative-agent-rules implementation of the four axioms. Cross-graph @id reuse: same node appears in shimo4228 hub graph."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/singer-sdm",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Singer (2004). Self-defining memories",
       "description": "Autobiographical-memory research on self-defining memories — vivid, affectively charged, repeatedly recalled events that carry identity-relevant meaning. Cited by ADR-0038 as grounding for the moment-of-recognition observation target.",
       "referencedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0038-moment-of-recognition-distill.md"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/mcdonald-epiphanic",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "McDonald (2008). Epiphanic memories",
       "description": "Phenomenological account of epiphanic memories — moments of sudden insight or recognition that reshape the self-narrative. Cited by ADR-0038 alongside Singer's self-defining-memory framework.",
       "referencedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0038-moment-of-recognition-distill.md"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/topolinski-insight",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Topolinski & Reber (2010). Insight (Aha experience)",
       "description": "Cognitive-psychology account of the Aha experience — the affective signature of sudden solution-finding. Cited by ADR-0038 as the third grounding for the moment-of-recognition concept.",
       "referencedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0038-moment-of-recognition-distill.md"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/openclaw",
-      "@type": ["ExternalReference", "SoftwareApplication"],
+      "@type": [
+        "ExternalReference",
+        "SoftwareApplication"
+      ],
       "name": "OpenClaw (generic agent host runtime)",
       "description": "Representative generic-host agent runtime invoked as a dual reference: (1) the bolt-on-security contrast for Contemplative Agent's security-by-absence stance, and (2) the originator of the soul-folder pattern (SOUL.md) that contemplative-agent-rules' template targets. ADR-0032 articulated and then withdrew a host-category framing built around runtimes like OpenClaw.",
       "referencedBy": [
@@ -1433,7 +2042,10 @@
     {
       "@id": "https://arxiv.org/abs/2603.18743",
       "sameAs": "https://www.wikidata.org/wiki/Q140181293",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Memento-Skills (2026). Skill-as-Memory architecture",
       "identifier": "arXiv:2603.18743",
       "url": "https://arxiv.org/abs/2603.18743",
@@ -1446,14 +2058,20 @@
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/ref/hermes",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Hermes (agent memory architecture)",
       "description": "Independent agent-memory architecture cited alongside Memento and Contemplative Agent as a convergence point: three independent projects arriving at the same three-layer memory + skill-auto-generation attractor. Treated as evidence of mechanism commoditization rather than a borrowable mechanism.",
       "referencedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0037-memory-subsystem-yogacara-convergence.md"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0071: Read-Only Pattern-Composition Instruments (View Supply / Diversity / Grounding)",
       "identifier": "ADR-0071",
       "status": "accepted",
@@ -1473,7 +2091,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0072-echo-chamber-interventions.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0072: Echo-Chamber Interventions — Register Instruction, Corpus-Grown Seed, Extraction-Failure Guard",
       "identifier": "ADR-0072",
       "status": "accepted",
@@ -1487,7 +2108,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0073-prune-orphaned-view-seeds.md",
-      "@type": ["ADR", "TechArticle"],
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
       "name": "ADR-0073: Prune the Five Orphaned View Seeds",
       "identifier": "ADR-0073",
       "status": "accepted",
@@ -1500,15 +2124,38 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0074-weekly-staged-insight.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0074: Weekly Staged Insight — Theme Detection, Pending Guard, Marker-on-Stage, LLM Novelty Gate, Exact Fast Clustering",
+      "identifier": "ADR-0074",
+      "status": "accepted",
+      "datePublished": "2026-07-09",
+      "description": "Redefines insight's role from proportional knowledge-to-skill conversion to detecting when a new stable theme has accumulated, sized for the post-ADR-0060 inflow (~100 patterns/day). Five mechanisms: (1) exact fast average-linkage clustering via the Lance-Williams update (identical partitions to the retired naive merge, N=1798 in under a second); (2) a marker guard — a missing .last_insight marker refuses instead of silently reclustering the whole pool; (3) a pending guard — staging holds at most one unreviewed batch, so scheduled runs can never wipe candidates awaiting human review; (4) the run marker advances when candidates reach review (staging or the interactive loop), not at adoption; (5) an LLM novelty gate (one grouping call, fail-open) that skips clusters whose theme an adopted skill or previously staged candidate (logs/insight-staged.jsonl) already covers — calibration showed embedding similarity cannot separate same-theme from distinct-theme clusters on the echo-homogeneous corpus, the same lesson as ADR-0036 and ADR-0046. Weekly cadence via install-schedule --weekly-insight (default Mon 08:00); the singleton-rescue question is closed as no-rescue because measured theme recurrence (32/32 across adjacent windows) re-surfaces real themes."
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
-      "@type": ["Concept", "DefinedTerm"],
+      "@type": [
+        "Concept",
+        "DefinedTerm"
+      ],
       "name": "pattern-composition instruments",
       "alternateName": [
-        {"@value": "pattern-composition instruments", "@language": "en"},
-        {"@value": "パターン組成計器", "@language": "ja"}
+        {
+          "@value": "pattern-composition instruments",
+          "@language": "en"
+        },
+        {
+          "@value": "パターン組成計器",
+          "@language": "ja"
+        }
       ],
       "description": "Read-only distributions over Layer 2 knowledge patterns: consumed-view supply and seed-independent diversity (the echo-chamber detector). Instruments are observability, never intervention — they feed the operator, not gates or ranking. Calibrated by a three-point scale: unrelated-text floor cosine, corpus pairwise mean, and consumed-view top band — re-measured whenever the seed geometry changes (introduction values: floor ~0.33–0.46, corpus mean 0.554, top band ~0.68–0.77 under the pre-ADR-0072 seed). A third grounding-composition instrument shipped with ADR-0071 was removed by ADR-0072: under per-episode distillation its source_type reading is constant, and an instrument whose reading changes no action violates signal-first.",
-      "appliesTo": ["https://shimo4228.github.io/shimo4228/vocab#memory-layer/knowledge"],
+      "appliesTo": [
+        "https://shimo4228.github.io/shimo4228/vocab#memory-layer/knowledge"
+      ],
       "subjectOf": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0072-echo-chamber-interventions.md"
@@ -1516,7 +2163,10 @@
     },
     {
       "@id": "https://arxiv.org/abs/2512.13564",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Memory in the Age of AI Agents: A Survey (2025)",
       "identifier": "arXiv:2512.13564",
       "url": "https://arxiv.org/abs/2512.13564",
@@ -1525,7 +2175,10 @@
     },
     {
       "@id": "https://arxiv.org/abs/2603.07670",
-      "@type": ["ExternalReference", "ScholarlyArticle"],
+      "@type": [
+        "ExternalReference",
+        "ScholarlyArticle"
+      ],
       "name": "Memory for Autonomous LLM Agents: Mechanisms, Evaluation, and Emerging Frontiers (2026)",
       "identifier": "arXiv:2603.07670",
       "url": "https://arxiv.org/abs/2603.07670",
@@ -1534,7 +2187,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/adr/0015-self-reingestion-observability.md",
-      "@type": ["ExternalReference", "TechArticle"],
+      "@type": [
+        "ExternalReference",
+        "TechArticle"
+      ],
       "name": "AKC ADR-0015: Self-reingestion observability (visibility without intervention)",
       "identifier": "AKC ADR-0015",
       "url": "https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/adr/0015-self-reingestion-observability.md",
@@ -1543,7 +2199,10 @@
     },
     {
       "@id": "https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/adr/0016-measuring-thinking-centric-phases.md",
-      "@type": ["ExternalReference", "TechArticle"],
+      "@type": [
+        "ExternalReference",
+        "TechArticle"
+      ],
       "name": "AKC ADR-0016: Measuring thinking-centric phases (a biased instrument is worse than none)",
       "identifier": "AKC ADR-0016",
       "url": "https://github.com/shimo4228/agent-knowledge-cycle/blob/main/docs/adr/0016-measuring-thinking-centric-phases.md",

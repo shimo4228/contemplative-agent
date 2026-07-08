@@ -58,6 +58,8 @@ class PromptTemplates:
     internal_note: str = ""
     identity_distill: str = ""
     insight_extraction: str = ""
+    insight_novelty: str = ""
+    insight_novelty_system: str = ""
     meditation_interpret: str = ""
     distill_episode: str = ""
     rules_distill: str = ""
@@ -265,6 +267,8 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         internal_note=read("internal_note.md", required=False),
         identity_distill=read("identity_distill.md", required=False),
         insight_extraction=read("insight_extraction.md", required=False),
+        insight_novelty=read("insight_novelty.md", required=False),
+        insight_novelty_system=read("insight_novelty_system.md", required=False),
         meditation_interpret=read("meditation_interpret.md", required=False),
         distill_episode=read("distill_episode.md", required=False),
         rules_distill=read("rules_distill.md", required=False),

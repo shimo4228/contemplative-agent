@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-30 | Files scanned: 45 | Token estimate: ~2575 | Hand-updated: 2026-07-07 (verification parser rewrite, ADR-0062 6th amendment) -->
+<!-- Generated: 2026-06-30 | Files scanned: 45 | Token estimate: ~2575 | Hand-updated: 2026-07-09 (weekly staged insight, ADR-0074) -->
 # Architecture
 
 ## Project Type
@@ -224,26 +224,41 @@ No Stage 2 refine. No importance-ranked input. One LLM call only.
 ### insight  [`core/insight.py: extract_insight()`]
 
 ```
-Input: KnowledgeStore.get_live_patterns()   [is_live: valid_until is None]
-  gated=True excluded before clustering
+Input: incremental — KnowledgeStore.get_live_patterns_since(.last_insight marker)
+  [is_live: valid_until is None; gated=True excluded before clustering]
+  missing marker → REFUSE (no silent full recluster; --full is the deliberate
+  whole-pool path)  [ADR-0074]
 
 GLOBAL embedding clustering  [NOT per-view; ADR-0026]
   cluster_patterns(threshold=CLUSTER_THRESHOLD_INSIGHT=0.70)  [core/clustering.py]
+  exact Lance-Williams average-linkage (same partitions as the retired naive
+  merge, vectorized; N=1798 < 1 s)  [ADR-0074]
   cluster size ≥ MIN_PATTERNS_REQUIRED (3)  →  eligible
 
 Ordering: cluster_size × mean(effective_importance)  descending
   effective_importance = 0.95^days   [pure time decay; ADR-0056]
 Slicing: each cluster → top MAX_BATCH (10) by effective_importance (= freshest)
 
-Per cluster → generate_full(INSIGHT_EXTRACTION_PROMPT, topic="cluster-N")  [think-ON, ADR-0069]
-  system = axioms-only (no skill corpus injected — audit H6 fix, a2bebfe)
+NOVELTY GATE  [ADR-0074, fail-open]
+  one generate_full(INSIGHT_NOVELTY_PROMPT) call: candidate clusters (3 samples
+  each) vs known themes = skills/*.md frontmatter + logs/insight-staged.jsonl
+  covered clusters skipped (skipped_known); all covered → empty result,
+  marker still advances
+
+Per novel cluster → generate_full(INSIGHT_EXTRACTION_PROMPT, topic="cluster-N")  [think-ON, ADR-0069]
+  system = axioms-only (no skill corpus injected — audit H6 fix, a2bebfe;
+  the novelty gate reads themes, generation never does)
   → validate_identity_content()
   → SkillResult(text, filename, target_path, pattern_ids, epistemic_counts, thinking)  [ADR-0050; per-skill thinking → reasoning.md, ADR-0069]
 
-→ InsightResult   →   write gated by cli.py per-file approval  [ADR-0012]
+→ InsightResult  →  --stage: pending guard (staging holds ≤ 1 unreviewed batch)
+   → staging + marker advance + ledger append; interactive: per-file approval
+   [ADR-0012], marker advances after the loop  [ADR-0074]
 ```
 
-Views NOT used for batching. Every eligible cluster becomes a batch (no top-N cluster cap).
+Views NOT used for batching. Every eligible cluster becomes a batch (no top-N
+cluster cap). Weekly automation: `install-schedule --weekly-insight`
+(launchd, default Mon 08:00; a pending review makes the run a no-op).
 
 ### rules-distill  [`core/rules_distill.py: distill_rules()`]
 

@@ -1239,9 +1239,13 @@ class TestAdoptStaged:
         assert not Path("/tmp/evil-adopted.md").exists()
         captured = capsys.readouterr()
         assert "escapes MOLTBOOK_HOME" in captured.err
-        # staging entries remain (skipped, not cleared)
+        # Bytes preserved for inspection, but the sidecar is quarantined
+        # (renamed .invalid) so a permanently skipped entry stops counting
+        # toward the ADR-0074 pending guard instead of blocking all future
+        # staging (codex review 2026-07-09).
         assert (staged_dir / "evil.md").exists()
-        assert (staged_dir / "evil.md.meta.json").exists()
+        assert (staged_dir / "evil.md.meta.json.invalid").exists()
+        assert not (staged_dir / "evil.md.meta.json").exists()
 
     def test_adopt_blocks_source_path_traversal(self, tmp_path):
         """Suspicious source filenames in meta.json must not delete arbitrary files."""
@@ -2990,45 +2994,59 @@ class TestRemoveStaleScheduleJobs:
         return (
             tmp_path / "com.moltbook.distill.plist",
             tmp_path / "com.moltbook.weekly-analysis.plist",
+            tmp_path / "com.moltbook.insight.plist",
+        )
+
+    def _patches(self, distill, weekly, insight):
+        return (
+            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill),
+            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly),
+            patch("contemplative_agent.cli.LAUNCHD_INSIGHT_PLIST_PATH", insight),
         )
 
     @patch("contemplative_agent.cli.subprocess.run")
     def test_removes_distill_when_flag_off(self, mock_run, tmp_path):
         mock_run.return_value = MagicMock(returncode=0, stderr="")
-        distill, weekly = self._paths(tmp_path)
+        distill, weekly, insight = self._paths(tmp_path)
         distill.write_text("dummy")
-        with (
-            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill),
-            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly),
-        ):
-            _remove_stale_schedule_jobs(distill=False, weekly_analysis=False)
+        p1, p2, p3 = self._patches(distill, weekly, insight)
+        with p1, p2, p3:
+            _remove_stale_schedule_jobs(distill=False, weekly_analysis=False, weekly_insight=False)
         assert not distill.exists()
         mock_run.assert_called_once()  # one unload, for the distill plist
 
     @patch("contemplative_agent.cli.subprocess.run")
     def test_removes_weekly_when_flag_dropped(self, mock_run, tmp_path):
         mock_run.return_value = MagicMock(returncode=0, stderr="")
-        distill, weekly = self._paths(tmp_path)
+        distill, weekly, insight = self._paths(tmp_path)
         weekly.write_text("dummy")
-        with (
-            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill),
-            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly),
-        ):
-            _remove_stale_schedule_jobs(distill=True, weekly_analysis=False)
+        p1, p2, p3 = self._patches(distill, weekly, insight)
+        with p1, p2, p3:
+            _remove_stale_schedule_jobs(distill=True, weekly_analysis=False, weekly_insight=False)
         assert not weekly.exists()
 
     @patch("contemplative_agent.cli.subprocess.run")
+    def test_removes_insight_when_flag_dropped(self, mock_run, tmp_path):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        distill, weekly, insight = self._paths(tmp_path)
+        insight.write_text("dummy")
+        p1, p2, p3 = self._patches(distill, weekly, insight)
+        with p1, p2, p3:
+            _remove_stale_schedule_jobs(distill=True, weekly_analysis=True, weekly_insight=False)
+        assert not insight.exists()
+
+    @patch("contemplative_agent.cli.subprocess.run")
     def test_keeps_jobs_whose_flag_is_on(self, mock_run, tmp_path):
-        distill, weekly = self._paths(tmp_path)
+        distill, weekly, insight = self._paths(tmp_path)
         distill.write_text("dummy")
         weekly.write_text("dummy")
-        with (
-            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill),
-            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly),
-        ):
-            _remove_stale_schedule_jobs(distill=True, weekly_analysis=True)
+        insight.write_text("dummy")
+        p1, p2, p3 = self._patches(distill, weekly, insight)
+        with p1, p2, p3:
+            _remove_stale_schedule_jobs(distill=True, weekly_analysis=True, weekly_insight=True)
         assert distill.exists()
         assert weekly.exists()
+        assert insight.exists()
         mock_run.assert_not_called()
 
 
@@ -3097,11 +3115,223 @@ class TestAdoptionOrderForCollisionPair:
             StageItem("dup.md", "# Second", target),
         ]
         ns = argparse.Namespace(yes=True)
-        with patch("contemplative_agent.cli.STAGED_DIR", staged_dir), \
-             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path), \
-             patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit):
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+        ):
             _stage_results(items, command="insight")
             _handle_adopt_staged(ns, MagicMock())
         # First staged item keeps the unsuffixed name; the collider gets -2.
         assert (tmp_path / "skills" / "dup.md").read_text() == "# First\n"
         assert (tmp_path / "skills" / "dup-2.md").read_text() == "# Second\n"
+
+
+class TestStageResultsPendingGuardADR0074:
+    """_stage_results must never wipe an unreviewed batch (ADR-0074)."""
+
+    def _ctx(self, tmp_path):
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        return (
+            staged_dir,
+            (
+                patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+                patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+                patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            ),
+        )
+
+    def test_refuses_when_unreviewed_batch_pending(self, tmp_path, capsys):
+        staged_dir, patches = self._ctx(tmp_path)
+        staged_dir.mkdir(parents=True)
+        (staged_dir / "old.md").write_text("# Old\n")
+        (staged_dir / "old.md.meta.json").write_text('{"target": "x", "seq": 1}\n')
+        item = StageItem("new.md", "# New", tmp_path / "skills" / "new.md")
+        with patches[0], patches[1], patches[2]:
+            ok = _stage_results([item], command="insight")
+        assert ok is False
+        # Pending batch untouched, new batch not written.
+        assert (staged_dir / "old.md").exists()
+        assert (staged_dir / "old.md.meta.json").exists()
+        assert not (staged_dir / "new.md").exists()
+        assert "adopt-staged" in capsys.readouterr().out
+
+    def test_proceeds_when_no_pending_meta(self, tmp_path):
+        staged_dir, patches = self._ctx(tmp_path)
+        staged_dir.mkdir(parents=True)
+        # Orphan file without a .meta.json sidecar is not a pending batch.
+        (staged_dir / "stray.txt").write_text("x")
+        item = StageItem("new.md", "# New", tmp_path / "skills" / "new.md")
+        with patches[0], patches[1], patches[2]:
+            ok = _stage_results([item], command="insight")
+        assert ok is True
+        assert (staged_dir / "new.md").exists()
+        assert not (staged_dir / "stray.txt").exists()
+
+
+class TestInsightStagePathADR0074:
+    """insight --stage: pending guard fast-fail, marker advance, staged ledger."""
+
+    def _run(self, tmp_path, insight_result, *, prefill_staging=False):
+        from contemplative_agent.core.insight import InsightResult, SkillResult
+
+        staged_dir = tmp_path / ".staged"
+        skills_dir = tmp_path / "skills"
+        ledger = tmp_path / "logs" / "insight-staged.jsonl"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        if prefill_staging:
+            staged_dir.mkdir(parents=True)
+            (staged_dir / "old.md").write_text("# Old\n")
+            (staged_dir / "old.md.meta.json").write_text('{"target": "x"}\n')
+
+        if insight_result == "one-skill":
+            insight_result = InsightResult(
+                skills=(
+                    SkillResult(
+                        text=(
+                            "---\n"
+                            "name: fresh-theme\n"
+                            'description: "A fresh theme"\n'
+                            "origin: auto-extracted\n"
+                            "---\n\n# Fresh Theme\n\nbody\n"
+                        ),
+                        filename="fresh-theme-20260709.md",
+                        target_path=skills_dir / "fresh-theme-20260709.md",
+                    ),
+                ),
+                dropped_count=0,
+            )
+
+        args = argparse.Namespace(stage=True, full=False)
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.SKILLS_DIR", skills_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", audit),
+            patch("contemplative_agent.cli.INSIGHT_STAGED_LEDGER_PATH", ledger),
+            patch("contemplative_agent.cli._load_view_registry", return_value=None),
+            patch("contemplative_agent.cli._take_snapshot", return_value=tmp_path),
+            patch(
+                "contemplative_agent.core.insight.extract_insight",
+                return_value=insight_result,
+            ) as mock_extract,
+        ):
+            from contemplative_agent.cli import _handle_insight
+
+            _handle_insight(args, MagicMock())
+        return staged_dir, skills_dir, ledger, mock_extract
+
+    def test_stage_success_advances_marker_and_ledger(self, tmp_path):
+        staged_dir, skills_dir, ledger, _ = self._run(tmp_path, "one-skill")
+        assert (staged_dir / "fresh-theme-20260709.md").exists()
+        assert (skills_dir / ".last_insight").exists()
+        record = json.loads(ledger.read_text().strip())
+        assert record["name"] == "fresh-theme"
+        assert record["description"] == "A fresh theme"
+
+    def test_pending_staging_blocks_before_extraction(self, tmp_path, capsys):
+        staged_dir, skills_dir, ledger, mock_extract = self._run(
+            tmp_path, "one-skill", prefill_staging=True
+        )
+        mock_extract.assert_not_called()
+        assert not (skills_dir / ".last_insight").exists()
+        assert not ledger.exists()
+        assert (staged_dir / "old.md").exists()
+        assert "adopt-staged" in capsys.readouterr().out
+
+    def test_all_covered_advances_marker_without_staging(self, tmp_path):
+        from contemplative_agent.core.insight import InsightResult
+
+        empty = InsightResult(skills=(), dropped_count=0, skipped_known=3)
+        staged_dir, skills_dir, ledger, _ = self._run(tmp_path, empty)
+        assert (skills_dir / ".last_insight").exists()
+        assert not ledger.exists()
+        assert not any(staged_dir.glob("*.md")) if staged_dir.exists() else True
+
+
+class TestStagingHardeningCodexR20260709:
+    """codex review 2026-07-09: corrupt-sidecar quarantine, staging lock,
+    ledger-before-marker ordering."""
+
+    def test_adopt_staged_quarantines_invalid_sidecar(self, tmp_path, capsys):
+        """A corrupt meta.json must stop counting toward the pending guard
+        after adopt-staged runs, instead of blocking all future staging."""
+        from contemplative_agent.cli import _pending_staged_count
+
+        staged_dir = tmp_path / ".staged"
+        staged_dir.mkdir()
+        (staged_dir / "bad.md").write_text("# Bad\n")
+        (staged_dir / "bad.md.meta.json").write_text("{not json")
+        args = argparse.Namespace(yes=False)
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", tmp_path / "audit.jsonl"),
+        ):
+            _handle_adopt_staged(args, MagicMock())
+            assert _pending_staged_count() == 0
+        assert (staged_dir / "bad.md.meta.json.invalid").exists()
+        assert not (staged_dir / "bad.md.meta.json").exists()
+        assert "Quarantined" in capsys.readouterr().out
+
+    def test_stage_results_refuses_when_lock_held(self, tmp_path, capsys):
+        """Concurrent producer holding the staging lock → refuse, no wipe."""
+        from contemplative_agent.core._io import acquire_run_lock
+
+        staged_dir = tmp_path / ".staged"
+        lock_path = tmp_path / ".staged.lock"
+        item = StageItem("new.md", "# New", tmp_path / "skills" / "new.md")
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", tmp_path / "audit.jsonl"),
+            patch("contemplative_agent.cli.STAGED_LOCK_PATH", lock_path),
+        ):
+            with acquire_run_lock(lock_path, blocking=False) as held:
+                assert held is True
+                ok = _stage_results([item], command="insight")
+        assert ok is False
+        assert not (staged_dir / "new.md").exists()
+        assert "staging lock" in capsys.readouterr().out
+
+    def test_ledger_failure_leaves_marker_unwritten(self, tmp_path):
+        """Ledger append is ordered BEFORE the marker write: a failure between
+        them must leave the window unconsumed (marker absent)."""
+        from contemplative_agent.core.insight import InsightResult, SkillResult
+
+        staged_dir = tmp_path / ".staged"
+        skills_dir = tmp_path / "skills"
+        result = InsightResult(
+            skills=(
+                SkillResult(
+                    text='---\nname: x\ndescription: "y"\n---\n\n# X\n',
+                    filename="x-20260709.md",
+                    target_path=skills_dir / "x-20260709.md",
+                ),
+            ),
+            dropped_count=0,
+        )
+        args = argparse.Namespace(stage=True, full=False)
+        with (
+            patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.cli.SKILLS_DIR", skills_dir),
+            patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.AUDIT_LOG_PATH", tmp_path / "audit.jsonl"),
+            patch("contemplative_agent.cli.STAGED_LOCK_PATH", tmp_path / ".staged.lock"),
+            patch("contemplative_agent.cli._load_view_registry", return_value=None),
+            patch("contemplative_agent.cli._take_snapshot", return_value=tmp_path),
+            patch(
+                "contemplative_agent.cli._append_insight_ledger",
+                side_effect=OSError("disk full"),
+            ),
+            patch(
+                "contemplative_agent.core.insight.extract_insight",
+                return_value=result,
+            ),
+        ):
+            from contemplative_agent.cli import _handle_insight
+
+            with pytest.raises(OSError):
+                _handle_insight(args, MagicMock())
+        assert not (skills_dir / ".last_insight").exists()

@@ -17,12 +17,14 @@ gate and ADR-0046 moved stocktake grouping to a single LLM call.)
 
 from __future__ import annotations
 
+import json
 import logging
+import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Sequence, Tuple, Union
 
-from ._io import read_run_marker, write_run_marker
+from ._io import read_run_marker, strip_code_fence, write_run_marker
 from .artifact_extraction import resolve_artifact_path
 from .clustering import cluster_patterns
 from .knowledge_store import (
@@ -33,7 +35,7 @@ from .knowledge_store import (
 from .llm import generate_full, get_distill_system_prompt, validate_identity_content
 from .memory import KnowledgeStore
 from .prompts import INSIGHT_EXTRACTION_PROMPT
-from .text_utils import extract_title
+from .text_utils import extract_title, split_frontmatter
 from .thresholds import CLUSTER_THRESHOLD_INSIGHT as CLUSTER_THRESHOLD, MAX_BATCH as BATCH_SIZE
 from .view_metrics import ViewLookup, nearest_view
 
@@ -41,11 +43,10 @@ logger = logging.getLogger(__name__)
 
 MIN_PATTERNS_REQUIRED = 3
 
-# Above this live-pattern count, ``insight --full`` reclusters a pool large
-# enough that the naive ~O(N^3) agglomerative merge in clustering.py can be
-# slow, so the run emits an advisory warning (review 2026-06-27 M4). This is a
-# performance heads-up, NOT a quality cap on patterns — nothing is dropped. A
-# few hundred is comfortable; ADR-0060's per-episode distill grows the pool.
+# Above this live-pattern count, ``insight --full`` emits an advisory warning.
+# Clustering itself is cheap since the ADR-0074 Lance-Williams merge; the cost
+# that still scales with the pool is the human review batch (every eligible
+# cluster becomes a staged candidate). NOT a quality cap — nothing is dropped.
 FULL_RECLUSTER_WARN_N = 500
 
 
@@ -71,10 +72,17 @@ class SkillResult:
 
 @dataclass(frozen=True)
 class InsightResult:
-    """Result of a successful insight extraction."""
+    """Result of a successful insight extraction.
+
+    ADR-0074: ``skipped_known`` counts clusters the novelty gate judged
+    already covered by an existing or previously staged skill. ``skills``
+    may legitimately be empty when every cluster was known — the caller
+    still advances the run marker in that case (the window WAS considered).
+    """
 
     skills: Tuple[SkillResult, ...]
     dropped_count: int
+    skipped_known: int = 0
 
 
 def _extract_skill(
@@ -155,9 +163,7 @@ def _log_dropped_singletons(
     """
     if not singletons:
         return
-    scores = sorted(
-        (effective_importance(p) for p in singletons), reverse=True
-    )
+    scores = sorted((effective_importance(p) for p in singletons), reverse=True)
     n = len(scores)
 
     def _pct(q: float) -> float:
@@ -171,12 +177,14 @@ def _log_dropped_singletons(
     logger.info(
         "insight: %d singleton pattern(s) dropped (never skilled); "
         "effective_importance p50=%.3f p90=%.3f p99=%.3f max=%.3f",
-        n, _pct(0.50), _pct(0.90), _pct(0.99), scores[0],
+        n,
+        _pct(0.50),
+        _pct(0.90),
+        _pct(0.99),
+        scores[0],
     )
     for p in sorted(singletons, key=effective_importance, reverse=True)[:10]:
-        nearest = (
-            nearest_view(p, view_registry) if view_registry is not None else None
-        )
+        nearest = nearest_view(p, view_registry) if view_registry is not None else None
         view_note = f" view≈{nearest[0]}:{nearest[1]:.2f}" if nearest else ""
         logger.info(
             "  dropped singleton score=%.3f%s: %s",
@@ -234,11 +242,13 @@ def _build_cluster_batches(
     batches: List[Tuple[str, List[str], Tuple[str, ...]]] = []
     for idx, cluster in enumerate(clusters, start=1):
         topic = f"cluster-{idx}"
-        batches.append((
-            topic,
-            [p["pattern"] for p in cluster],
-            tuple(pattern_id(p) for p in cluster),
-        ))
+        batches.append(
+            (
+                topic,
+                [p["pattern"] for p in cluster],
+                tuple(pattern_id(p) for p in cluster),
+            )
+        )
     return batches
 
 
@@ -252,11 +262,188 @@ def write_last_insight(skills_dir: Path) -> None:
     write_run_marker(skills_dir, ".last_insight")
 
 
+# ---------------------------------------------------------------------------
+# ADR-0074: LLM novelty gate
+# ---------------------------------------------------------------------------
+
+_FRONTMATTER_SCALAR_RE = {
+    "name": re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE),
+    "description": re.compile(r'^description:\s*"?(.*?)"?\s*$', re.MULTILINE),
+}
+
+# Sample patterns shown to the novelty judge per cluster; enough to convey
+# the theme without ballooning the single grouping call past the context
+# budget (same shape as stocktake's one-call grouping, ADR-0046).
+_NOVELTY_SAMPLE_PER_CLUSTER = 3
+_NOVELTY_SAMPLE_CHARS = 300
+
+
+def skill_theme(text: str, fallback_name: str = "skill") -> Tuple[str, str]:
+    """Return ``(name, description)`` for a skill document.
+
+    Reads the YAML frontmatter scalars when present; falls back to the
+    first Markdown title (and the given name) for legacy bodies without
+    frontmatter. Shared by the novelty gate's known-theme inventory and
+    the CLI's staged-ledger writer so both sides agree on identity.
+    """
+    frontmatter, body = split_frontmatter(text)
+    name = None
+    description = None
+    if frontmatter:
+        m = _FRONTMATTER_SCALAR_RE["name"].search(frontmatter)
+        name = m.group(1).strip() if m else None
+        m = _FRONTMATTER_SCALAR_RE["description"].search(frontmatter)
+        description = m.group(1).strip() if m else None
+    title = extract_title(body or text)
+    return (name or fallback_name, description or title or "")
+
+
+def _load_known_themes(
+    skills_dir: Optional[Path],
+    staged_ledger_path: Optional[Path],
+) -> List[Tuple[str, str]]:
+    """Inventory of themes already surfaced to the human gate.
+
+    Sources: adopted skill files (``skills_dir/*.md``) and the staged
+    ledger (one JSON record per previously staged candidate — ADR-0074:
+    a candidate counts as "considered" once it reached review, whether
+    or not it was adopted). Deduplicated by name, first occurrence wins.
+    """
+    themes: List[Tuple[str, str]] = []
+    seen: set[str] = set()
+
+    if skills_dir is not None and skills_dir.is_dir():
+        for path in sorted(skills_dir.glob("*.md")):
+            if path.name.startswith("."):
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError:
+                logger.warning("novelty gate: unreadable skill file %s", path.name)
+                continue
+            name, description = skill_theme(text, fallback_name=path.stem)
+            if name not in seen:
+                seen.add(name)
+                themes.append((name, description))
+
+    if staged_ledger_path is not None and staged_ledger_path.exists():
+        try:
+            lines = staged_ledger_path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            logger.warning("novelty gate: unreadable staged ledger")
+            lines = []
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            name = str(record.get("name") or "").strip()
+            if not name or name in seen:
+                continue
+            seen.add(name)
+            themes.append((name, str(record.get("description") or "").strip()))
+
+    return themes
+
+
+def _parse_covered_ids(raw: str, known_topics: set[str]) -> Optional[set[str]]:
+    """Parse the novelty judge's output into covered cluster ids.
+
+    Tolerates code fences and surrounding prose (same salvage as
+    stocktake's ``_parse_groups``). Hallucinated ids are dropped.
+    ``None`` signals an unusable response — the caller fails open.
+    """
+    text = strip_code_fence(raw)
+    try:
+        data = json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        end = text.rfind("}") + 1
+        if start < 0 or end <= start:
+            return None
+        try:
+            data = json.loads(text[start:end])
+        except json.JSONDecodeError:
+            return None
+    covered = data.get("covered") if isinstance(data, dict) else None
+    if not isinstance(covered, list):
+        return None
+    return {c for c in covered if isinstance(c, str) and c in known_topics}
+
+
+def _filter_novel_batches(
+    batches: List[Tuple[str, List[str], Tuple[str, ...]]],
+    known_themes: Sequence[Tuple[str, str]],
+) -> Tuple[List[Tuple[str, List[str], Tuple[str, ...]]], int]:
+    """Drop cluster batches whose theme is already covered (ADR-0074).
+
+    One LLM call judges all candidate clusters against the known-theme
+    inventory — the same single-call grouping shape as stocktake
+    (ADR-0046), because "is this the same theme?" is a semantic question:
+    the 2026-07-09 calibration on the live corpus showed embedding
+    separation does not exist (same-theme member-level cross-similarity
+    0.646-0.709 vs distinct-theme up to 0.698; centroids fully overlap).
+
+    Fails open: on LLM failure or unparseable output every batch is kept
+    — the human review gate is the ultimate filter, so the failure mode
+    is extra review load, never a silently dropped theme.
+
+    Returns ``(novel_batches, skipped_count)``.
+    """
+    if not batches or not known_themes:
+        return batches, 0
+
+    # Lazy import avoids widening module import cost for non-gate callers.
+    from .prompts import INSIGHT_NOVELTY_PROMPT, INSIGHT_NOVELTY_SYSTEM_PROMPT
+
+    known_lines = "\n".join(
+        f"- {name}: {description}" if description else f"- {name}"
+        for name, description in known_themes
+    )
+    cluster_blocks = []
+    for topic, patterns, _pids in batches:
+        samples = "\n".join(
+            f"  - {p[:_NOVELTY_SAMPLE_CHARS]}" for p in patterns[:_NOVELTY_SAMPLE_PER_CLUSTER]
+        )
+        cluster_blocks.append(f"{topic}:\n{samples}")
+
+    prompt = INSIGHT_NOVELTY_PROMPT.format(known=known_lines, clusters="\n\n".join(cluster_blocks))
+    out = generate_full(
+        prompt,
+        system=INSIGHT_NOVELTY_SYSTEM_PROMPT,
+        num_predict=2000,
+        caller="insight.novelty",
+        drop_truncated=True,
+    )
+    if out is None or out.text is None:
+        logger.warning("novelty gate: LLM call failed — keeping all %d clusters", len(batches))
+        return batches, 0
+
+    covered = _parse_covered_ids(out.text, {topic for topic, _, _ in batches})
+    if covered is None:
+        logger.warning("novelty gate: unparseable judgment — keeping all %d clusters", len(batches))
+        return batches, 0
+
+    novel = [b for b in batches if b[0] not in covered]
+    if covered:
+        logger.info(
+            "novelty gate: %d/%d cluster(s) already covered (%s)",
+            len(covered),
+            len(batches),
+            ", ".join(sorted(covered)),
+        )
+    return novel, len(covered)
+
+
 def extract_insight(
     knowledge_store: Optional[KnowledgeStore] = None,
     skills_dir: Optional[Path] = None,
     full: bool = False,
     instrument_views: Optional[ViewLookup] = None,
+    staged_ledger_path: Optional[Path] = None,
 ) -> Union[str, InsightResult]:
     """Extract behavioral skills from accumulated knowledge.
 
@@ -265,17 +452,23 @@ def extract_insight(
     Quality control is deferred to skill-stocktake.
 
     By default, only processes patterns added since the last insight run.
-    Use full=True to process all patterns.
+    Use full=True to process all patterns. ADR-0074: when the run marker
+    is missing, the incremental path refuses instead of silently
+    reclustering the whole live corpus.
 
     Args:
         knowledge_store: KnowledgeStore with learned patterns.
-        skills_dir: Directory for skill files (used for incremental tracking).
+        skills_dir: Directory for skill files (used for incremental tracking
+            and the novelty gate's adopted-skill inventory).
         full: If True, process all patterns instead of only new ones.
         instrument_views: Optional view lookup for the dropped-singleton
             visibility log (nearest consumed view); never gates anything.
+        staged_ledger_path: Previously staged candidates (ADR-0074); feeds
+            the novelty gate alongside adopted skills.
 
     Returns:
-        InsightResult on success, or error message string.
+        InsightResult on success (possibly with zero skills when every
+        cluster was already covered), or error message string.
     """
     if knowledge_store is None:
         return "No knowledge store provided."
@@ -283,6 +476,13 @@ def extract_insight(
     knowledge_store.load()
 
     raw_patterns = _select_patterns(knowledge_store, skills_dir, full)
+    if raw_patterns is None:
+        return (
+            "No previous insight run marker (.last_insight) found. Refusing to "
+            "recluster the entire live corpus implicitly (ADR-0074). Run with "
+            "--full to process all patterns deliberately, or create the marker "
+            "to scope the incremental window."
+        )
 
     if len(raw_patterns) < MIN_PATTERNS_REQUIRED:
         return (
@@ -298,9 +498,24 @@ def extract_insight(
             f"Accumulate more diverse patterns or lower CLUSTER_THRESHOLD."
         )
 
+    # ADR-0074 novelty gate: drop clusters whose theme already reached the
+    # human gate (adopted skills + staged ledger). Runs BEFORE extraction so
+    # known themes cost one grouping call, not one generation each.
+    skipped_known = 0
+    known_themes = _load_known_themes(skills_dir, staged_ledger_path)
+    if known_themes:
+        batches, skipped_known = _filter_novel_batches(batches, known_themes)
+    if not batches:
+        logger.info(
+            "novelty gate: all %d cluster(s) already covered — nothing to extract",
+            skipped_known,
+        )
+        return InsightResult(skills=(), dropped_count=0, skipped_known=skipped_known)
+
     logger.info(
         "Processing %d patterns in %d cluster batches",
-        len(raw_patterns), len(batches),
+        len(raw_patterns),
+        len(batches),
     )
 
     skill_results: List[SkillResult] = []
@@ -312,13 +527,19 @@ def extract_insight(
         logger.debug(
             "pattern_id collision: %d patterns → %d unique ids "
             "(identical distilled+text rows; counts may undercount)",
-            len(raw_patterns), len(patterns_by_id),
+            len(raw_patterns),
+            len(patterns_by_id),
         )
 
     for batch_idx, (topic, batch, batch_pids) in enumerate(batches):
         result = _extract_one_batch(
-            topic, batch, batch_pids, batch_idx, len(batches),
-            skills_dir, patterns_by_id,
+            topic,
+            batch,
+            batch_pids,
+            batch_idx,
+            len(batches),
+            skills_dir,
+            patterns_by_id,
         )
         if result is None:
             dropped_count += 1
@@ -331,6 +552,7 @@ def extract_insight(
     return InsightResult(
         skills=tuple(skill_results),
         dropped_count=dropped_count,
+        skipped_known=skipped_known,
     )
 
 
@@ -338,22 +560,26 @@ def _select_patterns(
     knowledge_store: KnowledgeStore,
     skills_dir: Optional[Path],
     full: bool,
-) -> List[dict]:
+) -> Optional[List[dict]]:
     """Pick the live patterns to process (full vs incremental).
 
     ADR-0021/0051: pull live-only patterns so bitemporally superseded
     entries never enter batching.
     ADR-0026: dropped category="uncategorized" gate; gated=True is the
     only hard exclusion (handled by _build_cluster_batches).
+    ADR-0074: a missing run marker returns ``None`` (refuse) instead of
+    silently falling back to the whole live corpus — the silent fallback
+    bypassed the ``FULL_RECLUSTER_WARN_N`` advisory and turned a routine
+    incremental run into an unbounded recluster.
     """
     if full:
         patterns = knowledge_store.get_live_patterns()
         if len(patterns) > FULL_RECLUSTER_WARN_N:
             logger.warning(
-                "insight --full: reclustering %d live patterns (> %d); the "
-                "naive agglomerative merge is ~O(N^3) and may be slow "
-                "(review 2026-06-27 M4)",
-                len(patterns), FULL_RECLUSTER_WARN_N,
+                "insight --full: reclustering %d live patterns (> %d); "
+                "expect a large first review batch (ADR-0074)",
+                len(patterns),
+                FULL_RECLUSTER_WARN_N,
             )
         return patterns
     last_run = _read_last_insight(skills_dir)
@@ -361,9 +587,10 @@ def _select_patterns(
         raw_patterns = knowledge_store.get_live_patterns_since(last_run)
         logger.info("Incremental mode: %d new patterns since %s", len(raw_patterns), last_run)
         return raw_patterns
-    raw_patterns = knowledge_store.get_live_patterns()
-    logger.info("No previous insight run found, processing all %d patterns", len(raw_patterns))
-    return raw_patterns
+    logger.warning(
+        "insight: no .last_insight marker — refusing the implicit full recluster (ADR-0074)"
+    )
+    return None
 
 
 def _extract_one_batch(
@@ -378,14 +605,19 @@ def _extract_one_batch(
     """Extract + validate one cluster batch; None when dropped."""
     logger.info(
         "Batch %d/%d [%s]: %d patterns",
-        batch_idx + 1, n_batches, topic, len(batch),
+        batch_idx + 1,
+        n_batches,
+        topic,
+        len(batch),
     )
 
     extracted = _extract_skill(batch, topic=topic)
     if extracted is None:
         logger.warning(
             "Batch %d/%d [%s]: extraction failed",
-            batch_idx + 1, n_batches, topic,
+            batch_idx + 1,
+            n_batches,
+            topic,
         )
         return None
     skill_text, thinking = extracted
@@ -393,7 +625,9 @@ def _extract_one_batch(
     if not validate_identity_content(skill_text):
         logger.warning(
             "Batch %d/%d [%s]: forbidden pattern detected",
-            batch_idx + 1, n_batches, topic,
+            batch_idx + 1,
+            n_batches,
+            topic,
         )
         return None
 

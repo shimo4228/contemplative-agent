@@ -132,9 +132,7 @@ class TestExtractSkill:
 
     @patch("contemplative_agent.core.insight.generate_full")
     def test_no_title_returns_none(self, mock_generate) -> None:
-        mock_generate.return_value = GenerationOutput(
-            text="some text without a title line"
-        )
+        mock_generate.return_value = GenerationOutput(text="some text without a title line")
         assert _extract_skill(["p1"]) is None
 
     @patch("contemplative_agent.core.insight.generate_full")
@@ -155,6 +153,7 @@ class TestExtractSkill:
             get_distill_system_prompt,
             reset_llm_config,
         )
+
         reset_llm_config()
         identity = tmp_path / "identity.md"
         identity.write_text("# Who I Am\nIDENTITY-MARKER-TEXT")
@@ -187,19 +186,19 @@ class TestExtractInsight:
         ks = KnowledgeStore(path=tmp_path / "k.json")
         ks.add_learned_pattern("only one", embedding=_unit_vec(8, 1))
         ks.save()
-        result = extract_insight(knowledge_store=ks)
+        result = extract_insight(knowledge_store=ks, full=True)
         assert "Insufficient patterns" in str(result)
 
     @patch("contemplative_agent.core.insight._extract_skill")
     def test_extraction_failure(self, mock_skill, knowledge_store) -> None:
         mock_skill.return_value = None
-        result = extract_insight(knowledge_store=knowledge_store)
+        result = extract_insight(knowledge_store=knowledge_store, full=True)
         assert "Failed to extract" in str(result)
 
     @patch("contemplative_agent.core.insight._extract_skill")
     def test_returns_insight_result(self, mock_skill, knowledge_store) -> None:
         mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
-        result = extract_insight(knowledge_store=knowledge_store)
+        result = extract_insight(knowledge_store=knowledge_store, full=True)
         assert isinstance(result, InsightResult)
         assert len(result.skills) == 1
         assert "# Ask Before Reacting" in result.skills[0].text
@@ -213,16 +212,19 @@ class TestExtractInsight:
         # 3 clean, 2 gated — all on the same axis so they'd otherwise cluster.
         for i in range(3):
             ks.add_learned_pattern(
-                f"clean-{i}", embedding=_unit_vec(8, 1),
+                f"clean-{i}",
+                embedding=_unit_vec(8, 1),
             )
         for i in range(2):
             ks.add_learned_pattern(
-                f"noise-{i}", embedding=_unit_vec(8, 1), gated=True,
+                f"noise-{i}",
+                embedding=_unit_vec(8, 1),
+                gated=True,
             )
         ks.save()
         mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
 
-        result = extract_insight(knowledge_store=ks)
+        result = extract_insight(knowledge_store=ks, full=True)
         assert isinstance(result, InsightResult)
         # Exactly one cluster formed from the 3 clean patterns.
         called_with = mock_skill.call_args_list
@@ -237,38 +239,34 @@ class TestExtractInsight:
 
 
 class TestFullReclusterWarning:
-    """M4 (review 2026-06-27): insight --full reclusters the whole live pool
-    through the naive ~O(N^3) agglomerative merge, so a warning fires past a
-    measured threshold; small pools stay quiet."""
+    """--full past the measured threshold warns about the review-batch size
+    (ADR-0074 reworded the M4 advisory: clustering is fast now, the cost
+    that scales with the pool is the human review batch); small pools stay
+    quiet."""
 
     @staticmethod
     def _ks(n: int) -> MagicMock:
         ks = MagicMock()
-        ks.get_live_patterns.return_value = [
-            {"pattern": f"p{i}"} for i in range(n)
-        ]
+        ks.get_live_patterns.return_value = [{"pattern": f"p{i}"} for i in range(n)]
         return ks
 
     def test_warns_when_full_pool_large(self, caplog) -> None:
         import logging as _logging
 
         ks = self._ks(FULL_RECLUSTER_WARN_N + 1)
-        with caplog.at_level(
-            _logging.WARNING, logger="contemplative_agent.core.insight"
-        ):
+        with caplog.at_level(_logging.WARNING, logger="contemplative_agent.core.insight"):
             patterns = _select_patterns(ks, None, full=True)
+        assert patterns is not None
         assert len(patterns) == FULL_RECLUSTER_WARN_N + 1
-        assert "may be slow" in caplog.text
+        assert "large first review batch" in caplog.text
 
     def test_no_warning_for_small_full_pool(self, caplog) -> None:
         import logging as _logging
 
         ks = self._ks(3)
-        with caplog.at_level(
-            _logging.WARNING, logger="contemplative_agent.core.insight"
-        ):
+        with caplog.at_level(_logging.WARNING, logger="contemplative_agent.core.insight"):
             _select_patterns(ks, None, full=True)
-        assert "may be slow" not in caplog.text
+        assert "large first review batch" not in caplog.text
 
 
 class TestBuildClusterBatches:
@@ -276,9 +274,7 @@ class TestBuildClusterBatches:
     def _pat(text: str, embedding: list, days_old: float = 0.0) -> dict:
         # ADR-0056: ordering is effective_importance = pure time decay, so the
         # pattern's age (days_old) — not a stored rating — drives the slice.
-        distilled = (
-            datetime.now(timezone.utc) - timedelta(days=days_old)
-        ).isoformat()
+        distilled = (datetime.now(timezone.utc) - timedelta(days=days_old)).isoformat()
         return {
             "pattern": text,
             "distilled": distilled,
@@ -295,10 +291,7 @@ class TestBuildClusterBatches:
 
     def test_gated_patterns_excluded_before_clustering(self) -> None:
         clean = [self._pat(f"c-{i}", _unit_vec(8, 1)) for i in range(3)]
-        gated = [
-            {**self._pat(f"g-{i}", _unit_vec(8, 1)), "gated": True}
-            for i in range(2)
-        ]
+        gated = [{**self._pat(f"g-{i}", _unit_vec(8, 1)), "gated": True} for i in range(2)]
         batches = _build_cluster_batches(clean + gated, threshold=0.7)
         assert len(batches) == 1
         _, texts, _ = batches[0]
@@ -307,9 +300,7 @@ class TestBuildClusterBatches:
     def test_self_reflection_not_excluded(self) -> None:
         """Self-reflection patterns are *not* filtered out — the LLM can
         still derive a skill from them if the cluster holds together."""
-        reflect = [
-            self._pat(f"reflect-{i}", _unit_vec(8, 1)) for i in range(3)
-        ]
+        reflect = [self._pat(f"reflect-{i}", _unit_vec(8, 1)) for i in range(3)]
         batches = _build_cluster_batches(reflect, threshold=0.7)
         assert len(batches) == 1
         _, texts, _ = batches[0]
@@ -330,9 +321,7 @@ class TestBuildClusterBatches:
         import logging as _logging
 
         orth = [self._pat(f"o-{i}", _unit_vec(8, i + 1)) for i in range(5)]
-        with caplog.at_level(
-            _logging.INFO, logger="contemplative_agent.core.insight"
-        ):
+        with caplog.at_level(_logging.INFO, logger="contemplative_agent.core.insight"):
             batches = _build_cluster_batches(orth, threshold=0.7)
         assert batches == []
         assert "5 singleton" in caplog.text
@@ -356,12 +345,8 @@ class TestBuildClusterBatches:
                 return None
 
         orth = [self._pat(f"o-{i}", _unit_vec(8, i + 1)) for i in range(5)]
-        with caplog.at_level(
-            _logging.INFO, logger="contemplative_agent.core.insight"
-        ):
-            batches = _build_cluster_batches(
-                orth, threshold=0.7, view_registry=_Reg()
-            )
+        with caplog.at_level(_logging.INFO, logger="contemplative_agent.core.insight"):
+            batches = _build_cluster_batches(orth, threshold=0.7, view_registry=_Reg())
         assert batches == []
         assert "view≈self_reflection" in caplog.text
 
@@ -374,10 +359,12 @@ class TestBuildClusterBatches:
         """
         pats = []
         for axis in range(1, 13):
-            pats.extend(self._pat(f"ax{axis}-{i}", _unit_vec(16, axis))
-                        for i in range(3))
+            pats.extend(self._pat(f"ax{axis}-{i}", _unit_vec(16, axis)) for i in range(3))
         batches = _build_cluster_batches(
-            pats, threshold=0.7, min_size=3, max_size=10,
+            pats,
+            threshold=0.7,
+            min_size=3,
+            max_size=10,
         )
         assert len(batches) == 12
 
@@ -385,16 +372,11 @@ class TestBuildClusterBatches:
         """Order: cluster_size × mean(effective_importance). ADR-0056: the
         weight is pure decay, so a larger slightly-aged cluster still outranks
         a smaller fresh one as long as decay has not dropped too far."""
-        small_fresh = [
-            self._pat(f"sf-{i}", _unit_vec(16, 1), days_old=0.0)
-            for i in range(3)
-        ]
-        large_aged = [
-            self._pat(f"la-{i}", _unit_vec(16, 2), days_old=2.0)
-            for i in range(6)
-        ]
+        small_fresh = [self._pat(f"sf-{i}", _unit_vec(16, 1), days_old=0.0) for i in range(3)]
+        large_aged = [self._pat(f"la-{i}", _unit_vec(16, 2), days_old=2.0) for i in range(6)]
         batches = _build_cluster_batches(
-            small_fresh + large_aged, threshold=0.7,
+            small_fresh + large_aged,
+            threshold=0.7,
         )
         # large_aged: 6 × 0.95^2 ≈ 5.42 > small_fresh: 3 × 1.0 = 3.0
         _, first_texts, _ = batches[0]
@@ -402,12 +384,12 @@ class TestBuildClusterBatches:
 
     def test_cluster_batches_respect_max_size(self) -> None:
         # p-0 newest, p-14 oldest — decay keeps the 10 freshest.
-        pats = [
-            self._pat(f"p-{i}", _unit_vec(8, 1), days_old=i * 0.5)
-            for i in range(15)
-        ]
+        pats = [self._pat(f"p-{i}", _unit_vec(8, 1), days_old=i * 0.5) for i in range(15)]
         batches = _build_cluster_batches(
-            pats, threshold=0.7, min_size=3, max_size=10,
+            pats,
+            threshold=0.7,
+            min_size=3,
+            max_size=10,
         )
         assert len(batches) == 1
         _, texts, _ = batches[0]
@@ -423,7 +405,8 @@ class TestExtractInsightSupersededExclusion:
             ks.add_learned_pattern(f"live-{i}", embedding=_unit_vec(8, 1))
         for i in range(2):
             ks.add_learned_pattern(
-                f"dead-{i}", embedding=_unit_vec(8, 1),
+                f"dead-{i}",
+                embedding=_unit_vec(8, 1),
                 valid_until="2020-01-01T00:00:00+00:00",
             )
         ks.save()
@@ -438,7 +421,7 @@ class TestExtractInsightSupersededExclusion:
             "contemplative_agent.core.insight._build_cluster_batches",
             side_effect=fake_build,
         ):
-            result = extract_insight(knowledge_store=ks)
+            result = extract_insight(knowledge_store=ks, full=True)
 
         # extract_insight returns an informational string when no batches produce skills.
         assert isinstance(result, str)
@@ -457,9 +440,7 @@ class TestBuildClusterBatchesLineageADR0050:
     def _pat(text: str, embedding: list, days_old: float = 0.0) -> dict:
         # ADR-0056: age drives the kept/demoted slice (effective_importance is
         # pure decay), so vary distilled by days_old instead of a rating.
-        distilled = (
-            datetime.now(timezone.utc) - timedelta(days=days_old)
-        ).isoformat()
+        distilled = (datetime.now(timezone.utc) - timedelta(days=days_old)).isoformat()
         return {
             "pattern": text,
             "distilled": distilled,
@@ -481,10 +462,7 @@ class TestBuildClusterBatchesLineageADR0050:
         from contemplative_agent.core.knowledge_store import pattern_id
 
         # p-0 newest, p-14 oldest — decay keeps the 10 freshest (ADR-0056).
-        pats = [
-            self._pat(f"p-{i}", _unit_vec(8, 1), days_old=i * 0.5)
-            for i in range(15)
-        ]
+        pats = [self._pat(f"p-{i}", _unit_vec(8, 1), days_old=i * 0.5) for i in range(15)]
         batches = _build_cluster_batches(pats, threshold=0.7, min_size=3, max_size=10)
         assert len(batches) == 1
         _, texts, pids = batches[0]
@@ -500,7 +478,7 @@ class TestExtractInsightLineageADR0050:
         from contemplative_agent.core.knowledge_store import pattern_id
 
         mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
-        result = extract_insight(knowledge_store=knowledge_store)
+        result = extract_insight(knowledge_store=knowledge_store, full=True)
         assert isinstance(result, InsightResult)
         skill = result.skills[0]
         expected = {pattern_id(p) for p in knowledge_store.get_raw_patterns()}
@@ -511,17 +489,19 @@ class TestExtractInsightLineageADR0050:
         ks = KnowledgeStore(path=tmp_path / "k.json")
         for i in range(2):
             ks.add_learned_pattern(
-                f"self-{i}", embedding=_unit_vec(8, 1),
+                f"self-{i}",
+                embedding=_unit_vec(8, 1),
                 provenance={"source_type": "self_reflection"},
             )
         ks.add_learned_pattern(
-            "ext-0", embedding=_unit_vec(8, 1),
+            "ext-0",
+            embedding=_unit_vec(8, 1),
             provenance={"source_type": "external_reply"},
         )
         ks.save()
         mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
 
-        result = extract_insight(knowledge_store=ks)
+        result = extract_insight(knowledge_store=ks, full=True)
         assert isinstance(result, InsightResult)
         counts = result.skills[0].epistemic_counts
         assert counts == {"observed": 1, "generated": 2, "unknown": 0}
@@ -537,7 +517,8 @@ class TestExtractInsightLineageADR0050:
         ks = KnowledgeStore(path=tmp_path / "k.json")
         for i in range(3):
             ks.add_learned_pattern(
-                f"new-{i}", embedding=_unit_vec(8, 1),
+                f"new-{i}",
+                embedding=_unit_vec(8, 1),
                 distilled="2099-01-01T00:00+00:00",
             )
         ks.save()
@@ -555,3 +536,186 @@ class TestTruncationPolicyH1:
     def test_extract_skill_drops_truncated(self, mock_generate) -> None:
         assert _extract_skill(["p1"]) is None
         assert mock_generate.call_args.kwargs["drop_truncated"] is True
+
+
+# ---------------------------------------------------------------------------
+# ADR-0074: marker guard — no silent full recluster
+# ---------------------------------------------------------------------------
+
+
+class TestMarkerGuardADR0074:
+    """Missing .last_insight must refuse instead of silently processing all."""
+
+    def test_no_marker_refuses_incremental(self, knowledge_store, skills_dir) -> None:
+        result = extract_insight(knowledge_store=knowledge_store, skills_dir=skills_dir)
+        assert isinstance(result, str)
+        assert "--full" in result
+
+    def test_no_skills_dir_refuses_incremental(self, knowledge_store) -> None:
+        result = extract_insight(knowledge_store=knowledge_store)
+        assert isinstance(result, str)
+        assert "--full" in result
+
+    @patch("contemplative_agent.core.insight._extract_skill")
+    def test_full_bypasses_marker_guard(self, mock_skill, knowledge_store, skills_dir) -> None:
+        mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
+        result = extract_insight(knowledge_store=knowledge_store, skills_dir=skills_dir, full=True)
+        assert isinstance(result, InsightResult)
+
+    @patch("contemplative_agent.core.insight._extract_skill")
+    def test_marker_present_runs_incremental(self, mock_skill, tmp_path) -> None:
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / ".last_insight").write_text("2020-01-01T00:00:00+00:00\n")
+        ks = KnowledgeStore(path=tmp_path / "k.json")
+        for i in range(3):
+            ks.add_learned_pattern(f"new-{i}", embedding=_unit_vec(8, 1))
+        ks.save()
+        mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
+        result = extract_insight(knowledge_store=ks, skills_dir=skills_dir)
+        assert isinstance(result, InsightResult)
+
+
+# ---------------------------------------------------------------------------
+# ADR-0074: LLM novelty gate — skip clusters whose theme is already covered
+# ---------------------------------------------------------------------------
+
+
+class TestFilterNovelBatches:
+    BATCHES = [
+        ("cluster-1", ["p1", "p2", "p3"], ("id1", "id2", "id3")),
+        ("cluster-2", ["q1", "q2", "q3"], ("id4", "id5", "id6")),
+    ]
+    KNOWN = [("skill-a", "handles consensus friction")]
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_covered_cluster_is_filtered(self, mock_generate) -> None:
+        from contemplative_agent.core.insight import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(text='{"covered": ["cluster-1"]}')
+        novel, skipped = _filter_novel_batches(self.BATCHES, self.KNOWN)
+        assert [b[0] for b in novel] == ["cluster-2"]
+        assert skipped == 1
+
+    @patch("contemplative_agent.core.insight.generate_full", return_value=None)
+    def test_llm_failure_fails_open(self, _mock_generate) -> None:
+        from contemplative_agent.core.insight import _filter_novel_batches
+
+        novel, skipped = _filter_novel_batches(self.BATCHES, self.KNOWN)
+        assert len(novel) == 2
+        assert skipped == 0
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_unparseable_output_fails_open(self, mock_generate) -> None:
+        from contemplative_agent.core.insight import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(text="not json at all")
+        novel, skipped = _filter_novel_batches(self.BATCHES, self.KNOWN)
+        assert len(novel) == 2
+        assert skipped == 0
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_hallucinated_cluster_ids_ignored(self, mock_generate) -> None:
+        from contemplative_agent.core.insight import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(text='{"covered": ["cluster-9"]}')
+        novel, skipped = _filter_novel_batches(self.BATCHES, self.KNOWN)
+        assert len(novel) == 2
+        assert skipped == 0
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_prompt_carries_known_themes_and_samples(self, mock_generate) -> None:
+        from contemplative_agent.core.insight import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(text='{"covered": []}')
+        _filter_novel_batches(self.BATCHES, self.KNOWN)
+        prompt = mock_generate.call_args.args[0]
+        assert "skill-a" in prompt
+        assert "handles consensus friction" in prompt
+        assert "cluster-1" in prompt
+        assert "p1" in prompt
+
+
+class TestLoadKnownThemes:
+    def test_reads_skill_frontmatter(self, tmp_path) -> None:
+        from contemplative_agent.core.insight import _load_known_themes
+
+        d = tmp_path / "skills"
+        d.mkdir()
+        (d / "a-skill.md").write_text(GOOD_SKILL_RESPONSE)
+        themes = _load_known_themes(d, None)
+        assert (
+            "ask-before-reacting",
+            "Ask clarifying questions before forming a response",
+        ) in themes
+
+    def test_falls_back_to_title_without_frontmatter(self, tmp_path) -> None:
+        from contemplative_agent.core.insight import _load_known_themes
+
+        d = tmp_path / "skills"
+        d.mkdir()
+        (d / "bare.md").write_text("# Bare Title\n\nBody only.\n")
+        themes = _load_known_themes(d, None)
+        assert any(name == "bare" or "Bare Title" in desc for name, desc in themes)
+
+    def test_reads_staged_ledger(self, tmp_path) -> None:
+        import json as json_mod
+
+        from contemplative_agent.core.insight import _load_known_themes
+
+        ledger = tmp_path / "insight-staged.jsonl"
+        ledger.write_text(
+            json_mod.dumps({"name": "staged-theme", "description": "previously staged"}) + "\n"
+        )
+        themes = _load_known_themes(None, ledger)
+        assert ("staged-theme", "previously staged") in themes
+
+    def test_dedups_by_name(self, tmp_path) -> None:
+        import json as json_mod
+
+        from contemplative_agent.core.insight import _load_known_themes
+
+        d = tmp_path / "skills"
+        d.mkdir()
+        (d / "a-skill.md").write_text(GOOD_SKILL_RESPONSE)
+        ledger = tmp_path / "insight-staged.jsonl"
+        ledger.write_text(
+            json_mod.dumps({"name": "ask-before-reacting", "description": "dup"}) + "\n"
+        )
+        themes = _load_known_themes(d, ledger)
+        names = [n for n, _ in themes]
+        assert names.count("ask-before-reacting") == 1
+
+
+class TestNoveltyGateIntegration:
+    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.insight._extract_skill")
+    def test_all_covered_returns_empty_result_with_count(
+        self, mock_skill, mock_generate, knowledge_store, tmp_path
+    ) -> None:
+        """When every cluster is known, no LLM extraction runs and the
+        result is an InsightResult with zero skills and skipped_known set,
+        so the caller can still advance the marker."""
+        skills_dir = tmp_path / "sk"
+        skills_dir.mkdir()
+        (skills_dir / "known.md").write_text(GOOD_SKILL_RESPONSE)
+        mock_generate.return_value = GenerationOutput(text='{"covered": ["cluster-1"]}')
+        result = extract_insight(knowledge_store=knowledge_store, skills_dir=skills_dir, full=True)
+        assert isinstance(result, InsightResult)
+        assert result.skills == ()
+        assert result.skipped_known == 1
+        mock_skill.assert_not_called()
+
+    @patch("contemplative_agent.core.insight._extract_skill")
+    def test_gate_skipped_when_no_known_themes(self, mock_skill, knowledge_store, tmp_path) -> None:
+        """Empty skills dir + no ledger → no novelty LLM call, batches flow
+        straight to extraction."""
+        skills_dir = tmp_path / "sk"
+        skills_dir.mkdir()
+        mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
+        with patch("contemplative_agent.core.insight.generate_full") as mock_generate:
+            result = extract_insight(
+                knowledge_store=knowledge_store, skills_dir=skills_dir, full=True
+            )
+        assert isinstance(result, InsightResult)
+        mock_generate.assert_not_called()

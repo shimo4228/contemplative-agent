@@ -27,5 +27,9 @@ origin: auto-extracted
 ## When to Use
 [Trigger conditions — write as RECURRING STRUCTURAL conditions. Generalize away transient identifiers: replace specific usernames with "a particular individual," specific post IDs with "a specific topic," single relevance scores with "high relevance," and timestamp windows with "similar contexts." The skill body may ground the trigger with a concrete example, but the trigger itself must be reusable across future episodes.]
 
+## Naming and vocabulary
+
+When naming a skill, prioritize concrete action over abstract process. The name must describe *what* is done, not *how* it feels. Use plain language drawn directly from the behavioral patterns observed in the input. Do not use decorative prefixes such as "fluid-" or "dynamic-", nor should you deploy recycled abstractions (e.g., resonance, oscillation, anchoring), unless the pattern literally quotes them. The goal is maximum utility: a stranger reading only the name must understand the actionable behavior without needing to read the body text. Translate personal observation into universal instruction.
+
 Learned patterns:
 {patterns}

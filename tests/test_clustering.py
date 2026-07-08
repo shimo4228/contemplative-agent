@@ -167,3 +167,75 @@ class TestClusterInternalSort:
         got_ages = [p["distilled"] for p in clusters[0]]
         # Sorted by decay desc == sorted by distilled timestamp desc (newest first).
         assert got_ages == sorted(got_ages, reverse=True)
+
+
+class TestMergeEquivalenceADR0074:
+    """The vectorized Lance-Williams merge must reproduce the retired naive
+    submatrix-mean agglomeration exactly (identical partitions).
+
+    The naive port below is the pre-ADR-0074 implementation kept as a
+    reference oracle; both consume the same cosine matrix.
+    """
+
+    @staticmethod
+    def _naive_merge(similarity: np.ndarray, threshold: float) -> List[List[int]]:
+        n = similarity.shape[0]
+        clusters: List[List[int]] = [[i] for i in range(n)]
+        while len(clusters) > 1:
+            best_sim = -1.0
+            best_i = -1
+            best_j = -1
+            for i in range(len(clusters)):
+                for j in range(i + 1, len(clusters)):
+                    sub = similarity[np.ix_(clusters[i], clusters[j])]
+                    s = float(sub.mean())
+                    if s > best_sim:
+                        best_sim = s
+                        best_i, best_j = i, j
+            if best_sim < threshold or best_i < 0:
+                break
+            clusters[best_i].extend(clusters[best_j])
+            del clusters[best_j]
+        return clusters
+
+    def _assert_equivalent(self, embeddings: np.ndarray, threshold: float) -> None:
+        from contemplative_agent.core.clustering import _cosine_matrix, _merge_clusters
+
+        sim = _cosine_matrix(embeddings)
+        got = {frozenset(g) for g in _merge_clusters(sim.copy(), threshold)}
+        want = {frozenset(g) for g in self._naive_merge(sim, threshold)}
+        assert got == want
+
+    def test_blob_data_matches_naive(self):
+        rng = np.random.default_rng(42)
+        blobs = []
+        for axis in range(3):
+            center = np.zeros(12)
+            center[axis] = 1.0
+            blobs.append(center + rng.normal(0, 0.15, size=(16, 12)))
+        emb = np.vstack(blobs).astype(np.float32)
+        self._assert_equivalent(emb, 0.70)
+
+    def test_homogeneous_data_matches_naive(self):
+        # Echo-like corpus: one broad blob, threshold cuts mid-continuum.
+        rng = np.random.default_rng(7)
+        center = rng.normal(0, 1, 12)
+        emb = (center + rng.normal(0, 0.55, size=(40, 12))).astype(np.float32)
+        self._assert_equivalent(emb, 0.70)
+
+    def test_mixed_scale_matches_naive(self):
+        rng = np.random.default_rng(123)
+        parts = []
+        for axis in range(4):
+            center = np.zeros(16)
+            center[axis] = 1.0
+            n = 5 + axis * 7
+            parts.append(center + rng.normal(0, 0.25, size=(n, 16)))
+        emb = np.vstack(parts).astype(np.float32)
+        self._assert_equivalent(emb, 0.65)
+
+    def test_empty_and_single(self):
+        from contemplative_agent.core.clustering import _merge_clusters
+
+        assert _merge_clusters(np.zeros((0, 0)), 0.7) == []
+        assert _merge_clusters(np.ones((1, 1)), 0.7) == [[0]]
