@@ -33,7 +33,11 @@ def _base_entry(entry: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
 # report's Configuration line. Volatile per-session fields (duration,
 # autonomy) legitimately differ and are excluded.
 _CONFIG_META_KEYS = (
-    "domain", "axioms_enabled", "llm_backend", "llm_model", "ollama_model",
+    "domain",
+    "axioms_enabled",
+    "llm_backend",
+    "llm_model",
+    "ollama_model",
 )
 
 
@@ -83,27 +87,33 @@ def _parse_log(
         # carries the same core fields; type-specific stimulus is normalized
         # into `context`, and dimensions that don't apply are left "".
         if action == "comment":
-            comments.append({
-                **_base_entry(entry, data),
-                "context": data.get("original_post", ""),
-                "relevance": data.get("relevance", ""),
-                "counterparty": data.get("target_agent", ""),
-            })
+            comments.append(
+                {
+                    **_base_entry(entry, data),
+                    "context": data.get("original_post", ""),
+                    "relevance": data.get("relevance", ""),
+                    "counterparty": data.get("target_agent", ""),
+                }
+            )
         elif action == "reply":
-            replies.append({
-                **_base_entry(entry, data),
-                "context": data.get("their_comment", ""),
-                "relevance": "",  # replies are notification-driven, not scored
-                "counterparty": data.get("target_agent", ""),
-            })
+            replies.append(
+                {
+                    **_base_entry(entry, data),
+                    "context": data.get("their_comment", ""),
+                    "relevance": "",  # replies are notification-driven, not scored
+                    "counterparty": data.get("target_agent", ""),
+                }
+            )
         elif action == "post":
-            posts.append({
-                **_base_entry(entry, data),
-                "title": data.get("title", ""),
-                "submolt": data.get("submolt", ""),
-                "relevance": "",  # self-initiated, no counterparty/relevance
-                "counterparty": "",
-            })
+            posts.append(
+                {
+                    **_base_entry(entry, data),
+                    "title": data.get("title", ""),
+                    "submolt": data.get("submolt", ""),
+                    "relevance": "",  # self-initiated, no counterparty/relevance
+                    "counterparty": "",
+                }
+            )
 
     return meta, comments, replies, posts
 
@@ -119,6 +129,7 @@ def defang_urls(text: str) -> str:
     Transforms ``https://example.com`` → ``hxxps://example[.]com``.
     URLs pointing to safe domains (moltbook.com) are left intact.
     """
+
     def _defang(match: re.Match[str]) -> str:
         url = match.group(0)
         try:
@@ -200,7 +211,17 @@ def _summary_section(
         f"- Self posts: {len(posts)}",
     ]
     if comments:
-        rels = [float(c["relevance"]) for c in comments if c.get("relevance")]
+        # Stored field — parse defensively (degrade, never abort): a single
+        # malformed relevance value must not crash the end-of-session report.
+        rels: List[float] = []
+        for c in comments:
+            raw = c.get("relevance")
+            if not raw:
+                continue
+            try:
+                rels.append(float(raw))
+            except (TypeError, ValueError):
+                logger.warning("Skipping non-numeric relevance value: %r", raw)
         if rels:
             lines.append(f"- Relevance range: {min(rels):.2f} - {max(rels):.2f}")
     lines.append("")
@@ -226,13 +247,10 @@ def _build_report(
             model_text = f"{backend}:{model}"
         else:
             model_text = str(model)
-        config_line = (
-            f"**Configuration**: domain={domain}, axioms={axioms}, model={model_text}"
-        )
+        config_line = f"**Configuration**: domain={domain}, axioms={axioms}, model={model_text}"
         if session_meta.get("_config_changed"):
             config_line += (
-                " *(configuration changed mid-day; values above are from "
-                "the first session)*"
+                " *(configuration changed mid-day; values above are from the first session)*"
             )
         lines.append(config_line)
         lines.append("")
@@ -284,7 +302,10 @@ def generate_report(
 
     logger.info(
         "Report generated: %s (%d comments, %d replies, %d posts)",
-        report_path, len(comments), len(replies), len(posts),
+        report_path,
+        len(comments),
+        len(replies),
+        len(posts),
     )
     return report_path
 

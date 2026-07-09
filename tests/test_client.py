@@ -1131,3 +1131,59 @@ class TestTerminal429CountM5:
                 client.get("/test")
         assert client.recent_429_count == 1
         assert MAX_RETRY_ON_429 >= 1  # retries actually happened above
+
+
+class TestApiAuditTransportAndRetry:
+    """Observability sweep 2026-07-10: transport failures and retried-429
+    backoffs previously raised/recursed past _record_api_outcome, leaving the
+    two failure modes api-audit.jsonl exists to explain out of the corpus."""
+
+    def test_transport_error_recorded(self):
+        import requests as _requests
+
+        client = MoltbookClient(api_key="k")
+        captured: list = []
+        with patch.object(
+            client._session,
+            "request",
+            side_effect=_requests.ConnectionError("boom"),
+        ), patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)):
+            with pytest.raises(MoltbookClientError, match="Request failed"):
+                client.get("/posts")
+        assert len(captured) == 1
+        rec = captured[0]
+        assert rec["transport_error"] == "ConnectionError"
+        assert rec["status"] is None
+        assert rec["endpoint"] == "GET /posts"
+        assert "boom" in rec["error"]
+
+    def test_retried_429_backoff_recorded(self):
+        client = MoltbookClient(api_key="k")
+        resp_429 = _resp({}, status=429, headers={"Retry-After": "0.01"})
+        resp_429.text = ""
+        resp_200 = _resp({}, status=200)
+        captured: list = []
+        with patch.object(
+            client._session, "request", side_effect=[resp_429, resp_200]
+        ), patch(
+            "contemplative_agent.adapters.moltbook.client.time.sleep"
+        ), patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)):
+            client.get("/posts")
+        retried = [r for r in captured if r.get("retried")]
+        assert len(retried) == 1
+        assert retried[0]["status"] == 429
+        assert retried[0]["retry_attempt"] == 1
+        assert retried[0]["retry_max"] >= 1
+        assert retried[0]["retry_after_s"] == pytest.approx(0.01)
+        # The eventual 200 still gets the ordinary outcome record.
+        assert any(r.get("status") == 200 for r in captured)
+
+    def test_audit_write_failure_never_breaks_request(self, caplog):
+        client = MoltbookClient(api_key="k")
+        resp_200 = _resp({}, status=200)
+        with patch.object(client._session, "request", return_value=resp_200), patch(
+            _AUDIT_TARGET, side_effect=OSError("disk full")
+        ), caplog.at_level(logging.WARNING):
+            result = client.get("/posts")
+        assert result.status_code == 200
+        assert "API audit record failed" in caplog.text

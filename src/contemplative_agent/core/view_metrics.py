@@ -44,7 +44,7 @@ from typing import List, Optional, Protocol, Sequence, Tuple
 import numpy as np
 
 from .clustering import cluster_patterns
-from .embeddings import cosine
+from .embeddings import calibration_drift_note, cosine
 from .thresholds import CLUSTER_THRESHOLD_INSIGHT, MAX_BATCH
 from .views import View
 
@@ -164,7 +164,8 @@ def compute_view_supply(
         if view is None or centroid is None:
             logger.warning(
                 "view supply: view %r unavailable (missing definition or "
-                "seed embedding failed) — omitted from instruments", name,
+                "seed embedding failed) — omitted from instruments",
+                name,
             )
             continue
         sims = [cosine(centroid, vec) for vec in embedded]
@@ -211,11 +212,7 @@ def compute_diversity(
     array (codex review 2026-07-03 P2; ``embeddings.cosine`` treats such
     vectors as dissimilar for the same reason).
     """
-    pairs = [
-        (vec, p)
-        for vec, p in ((_embedding_of(p), p) for p in patterns)
-        if vec is not None
-    ]
+    pairs = [(vec, p) for vec, p in ((_embedding_of(p), p) for p in patterns) if vec is not None]
     skipped = len(patterns) - len(pairs)
     if pairs:
         dims = Counter(vec.shape[0] for vec, _ in pairs)
@@ -227,7 +224,9 @@ def compute_diversity(
                 "diversity: %d pattern(s) dropped — embedding dim differs "
                 "from dominant %d (dims=%s); likely legacy vectors from "
                 "another embedding model",
-                dropped, dominant_dim, dict(dims),
+                dropped,
+                dominant_dim,
+                dict(dims),
             )
             pairs = [(vec, p) for vec, p in pairs if vec.shape[0] == dominant_dim]
     vectors = [vec for vec, _ in pairs]
@@ -235,8 +234,11 @@ def compute_diversity(
     n = len(vectors)
     if n < 2:
         return DiversityStats(
-            n=n, skipped=skipped,
-            pairwise_mean=0.0, pairwise_p50=0.0, pairwise_p90=0.0,
+            n=n,
+            skipped=skipped,
+            pairwise_mean=0.0,
+            pairwise_p50=0.0,
+            pairwise_p90=0.0,
             cluster_stats=None,
         )
 
@@ -245,8 +247,9 @@ def compute_diversity(
         stride = -(-n // PAIRWISE_STATS_MAX_N)  # ceil division
         pairwise_vectors = vectors[::stride]
         logger.info(
-            "diversity: pairwise stats on a deterministic stride sample "
-            "%d/%d (memory guard)", len(pairwise_vectors), n,
+            "diversity: pairwise stats on a deterministic stride sample %d/%d (memory guard)",
+            len(pairwise_vectors),
+            n,
         )
     matrix = np.asarray(pairwise_vectors, dtype=np.float32)
     norms = np.linalg.norm(matrix, axis=1, keepdims=True)
@@ -277,7 +280,8 @@ def compute_diversity(
     else:
         logger.info(
             "diversity: cluster stats skipped (n=%d > %d, O(N^3) merge guard)",
-            n, cluster_cap,
+            n,
+            cluster_cap,
         )
 
     return DiversityStats(
@@ -343,8 +347,7 @@ def format_diversity(stats: DiversityStats) -> List[str]:
         )
     elif stats.n >= 2:
         lines.append(
-            f"diversity — cluster stats skipped (n={stats.n} above cap, "
-            f"O(N^3) merge guard)"
+            f"diversity — cluster stats skipped (n={stats.n} above cap, O(N^3) merge guard)"
         )
     return lines
 
@@ -375,9 +378,10 @@ def format_pattern_report(
     lines = [f"Pattern Composition ({len(patterns)} patterns)"]
     lines.extend(
         f"  {line}"
-        for line in instrument_lines(
-            patterns, registry, views=views, cluster_cap=cluster_cap
-        )
+        for line in instrument_lines(patterns, registry, views=views, cluster_cap=cluster_cap)
     )
     lines.append(f"  {_AMBIGUITY_NOTE}")
+    drift = calibration_drift_note()
+    if drift:
+        lines.append(f"  WARNING: {drift}")
     return "\n".join(lines)

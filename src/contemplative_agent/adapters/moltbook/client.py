@@ -40,9 +40,7 @@ _MISSING_HEADER_WARN_AFTER = 10
 # (unlike episode logs, which carry untrusted external content).
 API_AUDIT_PATH = MOLTBOOK_DATA_DIR / "logs" / "api-audit.jsonl"
 
-_UUID_RE = re.compile(
-    r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I
-)
+_UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
 # Agent-name segments that are real path components, not a {name} variable.
 _AGENT_ACTIONS = {"me", "profile", "register", "status"}
 # Top-level envelope keys the client DEPENDS ON per endpoint. A missing key here
@@ -168,10 +166,12 @@ class MoltbookClient:
 
     def __init__(self, api_key: Optional[str] = None) -> None:
         self._session = requests.Session()
-        self._session.headers.update({
-            "Content-Type": "application/json",
-            "User-Agent": "ContemplativeAgent/0.1",
-        })
+        self._session.headers.update(
+            {
+                "Content-Type": "application/json",
+                "User-Agent": "ContemplativeAgent/0.1",
+            }
+        )
         if api_key:
             self._session.headers["Authorization"] = f"Bearer {api_key}"
         self._base_url = BASE_URL
@@ -196,13 +196,10 @@ class MoltbookClient:
         parsed = urlparse(url)
         if parsed.hostname != ALLOWED_DOMAIN:
             raise MoltbookClientError(
-                f"Domain validation failed: {parsed.hostname} "
-                f"is not {ALLOWED_DOMAIN}"
+                f"Domain validation failed: {parsed.hostname} is not {ALLOWED_DOMAIN}"
             )
 
-    def _parse_rate_headers(
-        self, response: requests.Response, method: str = "GET"
-    ) -> None:
+    def _parse_rate_headers(self, response: requests.Response, method: str = "GET") -> None:
         """Extract rate limit info from response headers.
 
         Assigns remaining quota to read or write bucket based on request method.
@@ -234,7 +231,8 @@ class MoltbookClient:
                     "No parseable X-RateLimit-Remaining header on the last "
                     "%d %s responses; proactive budget layer is blind for "
                     "this bucket (reactive 429 backoff only)",
-                    _MISSING_HEADER_WARN_AFTER, bucket,
+                    _MISSING_HEADER_WARN_AFTER,
+                    bucket,
                 )
 
         reset = response.headers.get("X-RateLimit-Reset")
@@ -316,6 +314,19 @@ class MoltbookClient:
         try:
             response = self._session.request(method, url, **kwargs)
         except requests.RequestException as exc:
+            # Transport failures (timeout / connection reset / DNS) raise
+            # before _record_api_outcome — without this record an API outage
+            # is invisible in api-audit.jsonl (observability sweep 2026-07-10).
+            self._append_api_audit(
+                {
+                    "ts": now_iso("seconds"),
+                    "method": method.upper(),
+                    "endpoint": _normalize_endpoint(method, path),
+                    "status": None,
+                    "transport_error": type(exc).__name__,
+                    "error": strip_to_printable(str(exc), 200),
+                }
+            )
             raise MoltbookClientError(f"Request failed: {exc}") from exc
 
         self._parse_rate_headers(response, method=method)
@@ -346,15 +357,30 @@ class MoltbookClient:
                     retries + 1,
                     MAX_RETRY_ON_429,
                 )
+                # Retried transient 429s return via recursion below and never
+                # reach _record_api_outcome — record the backoff decision here
+                # so a rate-limit cascade is replayable. Terminal 429s (hard
+                # limit / retries exhausted) fall through and get the ordinary
+                # record without the "retried" marker.
+                self._append_api_audit(
+                    {
+                        "ts": now_iso("seconds"),
+                        "method": method.upper(),
+                        "endpoint": _normalize_endpoint(method, path),
+                        "status": 429,
+                        "retried": True,
+                        "retry_attempt": retries + 1,
+                        "retry_max": MAX_RETRY_ON_429,
+                        "retry_after_s": retry_after,
+                    }
+                )
                 time.sleep(retry_after)
                 return self._request(method, path, retries=retries + 1, **kwargs)
             else:
                 # Soft 429 with retries exhausted — terminal (M5).
                 self._recent_429_count += 1
 
-        self._record_api_outcome(
-            method, path, response.status_code, _try_json(response)
-        )
+        self._record_api_outcome(method, path, response.status_code, _try_json(response))
         if response.status_code >= 400:
             safe_body = strip_to_printable(response.text, 500, keep_newline=True)
             raise MoltbookClientError(
@@ -413,9 +439,20 @@ class MoltbookClient:
                             sorted(missing),
                             sorted(body.keys()),
                         )
+            self._append_api_audit(record)
+        except Exception as exc:  # never let instrumentation break a request
+            logger.warning("API audit record failed: %s", exc)
+
+    def _append_api_audit(self, record: dict[str, Any]) -> None:
+        """Best-effort append to api-audit.jsonl.
+
+        WARNING (not debug) on failure: a persistently broken audit writer
+        should be visible at default log levels — the log's whole purpose is
+        explaining silent failures (observability sweep 2026-07-10)."""
+        try:
             append_jsonl_restricted(API_AUDIT_PATH, record)
         except Exception as exc:  # never let instrumentation break a request
-            logger.debug("API audit record failed: %s", exc)
+            logger.warning("API audit record failed: %s", exc)
 
     def get(self, path: str, **kwargs: Any) -> requests.Response:
         return self._request("GET", path, **kwargs)
@@ -451,9 +488,7 @@ class MoltbookClient:
             logger.warning("Failed to subscribe to %s: %s", name, exc)
             return False
 
-    def get_notifications(
-        self, since: Optional[str] = None
-    ) -> list[dict[str, Any]]:
+    def get_notifications(self, since: Optional[str] = None) -> list[dict[str, Any]]:
         """Fetch notifications. Returns empty list on failure."""
         params: dict[str, str] = {}
         if since:
@@ -484,9 +519,7 @@ class MoltbookClient:
             logger.warning("Failed to follow %s: %s", agent_name, exc)
             return False
 
-    def get_post_comments(
-        self, post_id: str
-    ) -> list[dict[str, Any]]:
+    def get_post_comments(self, post_id: str) -> list[dict[str, Any]]:
         """Fetch comments for a post. Returns empty list on failure."""
         if not VALID_ID_PATTERN.match(post_id):
             logger.warning("Invalid post_id format: %s", post_id[:50])
@@ -546,15 +579,11 @@ class MoltbookClient:
         field through ``wrap_untrusted_content`` before LLM-bound use.
         """
         if not VALID_ID_PATTERN.match(post_id):
-            raise MoltbookClientError(
-                f"Invalid post_id for comment: {post_id[:50]}"
-            )
+            raise MoltbookClientError(f"Invalid post_id for comment: {post_id[:50]}")
         body: dict[str, Any] = {"content": content}
         if parent_id:
             if not VALID_ID_PATTERN.match(parent_id):
-                raise MoltbookClientError(
-                    f"Invalid parent_id for comment: {parent_id[:50]}"
-                )
+                raise MoltbookClientError(f"Invalid parent_id for comment: {parent_id[:50]}")
             body["parent_id"] = parent_id
         resp = self.post(f"/posts/{post_id}/comments", json=body)
         try:
@@ -604,9 +633,7 @@ class MoltbookClient:
         # unconfirmed, so fold a root-level "verification" into the returned dict
         # too — the caller's ``created.get("verification")`` gate then fires
         # whether the API nests it under "comment" or at the response root.
-        if "verification" not in comment and isinstance(
-            data.get("verification"), dict
-        ):
+        if "verification" not in comment and isinstance(data.get("verification"), dict):
             comment = {**comment, "verification": data["verification"]}
         return comment
 
@@ -639,8 +666,7 @@ class MoltbookClient:
             resp = self.post(f"/notifications/read-by-post/{post_id}")
             if not envelope_ok_strict(_try_json(resp)):
                 logger.warning(
-                    "Mark-read for %s soft-failed (success:false or non-JSON "
-                    "body)", post_id
+                    "Mark-read for %s soft-failed (success:false or non-JSON body)", post_id
                 )
                 return False
             return True
@@ -664,8 +690,7 @@ class MoltbookClient:
             resp = self.post(f"/posts/{post_id}/upvote")
             if not envelope_ok_strict(_try_json(resp)):
                 logger.warning(
-                    "Upvote post %s soft-failed (success:false or non-JSON "
-                    "body)", post_id
+                    "Upvote post %s soft-failed (success:false or non-JSON body)", post_id
                 )
                 return False
             return True
@@ -688,8 +713,7 @@ class MoltbookClient:
             resp = self.post(f"/comments/{comment_id}/upvote")
             if not envelope_ok_strict(_try_json(resp)):
                 logger.warning(
-                    "Upvote comment %s soft-failed (success:false or non-JSON "
-                    "body)", comment_id
+                    "Upvote comment %s soft-failed (success:false or non-JSON body)", comment_id
                 )
                 return False
             return True
@@ -784,8 +808,7 @@ class MoltbookClient:
             data = None
         if not isinstance(data, dict):
             logger.warning(
-                "Unfollow response for %s has no JSON object body "
-                "(HTTP %d); assuming success",
+                "Unfollow response for %s has no JSON object body (HTTP %d); assuming success",
                 agent_name,
                 resp.status_code,
             )
@@ -806,13 +829,10 @@ class MoltbookClient:
             return True
         if action:
             safe_action = strip_to_printable(action, 50)
-            logger.warning(
-                "Unfollow %s: unexpected action=%r", agent_name, safe_action
-            )
+            logger.warning("Unfollow %s: unexpected action=%r", agent_name, safe_action)
             return False
         logger.warning(
-            "Unfollow response for %s missing action (envelope keys=%s); "
-            "assuming success",
+            "Unfollow response for %s missing action (envelope keys=%s); assuming success",
             agent_name,
             sorted(data.keys()),
         )

@@ -102,9 +102,7 @@ _EXTRACT_NUM_PREDICT = 512
 # NUM_CTX (system + short challenge + 5000 ≈ 5.3K ≪ 32768).
 _SOLVER_NUM_PREDICT = 5000
 _NUMBER_PATTERN = r"-?\d+(?:\.\d+)?"
-_EXPR_PATTERN = re.compile(
-    rf"\(?\s*({_NUMBER_PATTERN})\s*([+*/xX-])\s*({_NUMBER_PATTERN})\s*\)?"
-)
+_EXPR_PATTERN = re.compile(rf"\(?\s*({_NUMBER_PATTERN})\s*([+*/xX-])\s*({_NUMBER_PATTERN})\s*\)?")
 # Free-form reasoning output has no EXPR: label (ADR-0062 rejected constraining
 # it to JSON/bare-number; both measurably hurt accuracy), so isolating a
 # checkable arithmetic line requires stripping a leading list marker ("2.",
@@ -271,7 +269,25 @@ def record_verification_audit(
         )
         append_jsonl_restricted(VERIFICATION_AUDIT_PATH, record)
     except Exception as exc:
-        logger.debug("Verification audit record failed: %s", exc)
+        # WARNING (not debug): a persistently broken audit writer must be
+        # visible at default log levels (observability sweep 2026-07-10).
+        logger.warning("Verification audit record failed: %s", exc)
+
+
+def unsolved_result(challenge_text: str) -> VerificationSolveResult:
+    """Solve-result placeholder for challenges that were never attempted.
+
+    Used to audit-log abstains that happen BEFORE the solver runs (e.g. a
+    malformed verification object missing challenge_text/verification_code) —
+    those previously tripped the failure tracker with no corpus record, so a
+    server-side shape change was indistinguishable from verification simply
+    not happening (observability sweep 2026-07-10).
+    """
+    return VerificationSolveResult(
+        answer=None,
+        solver_path="none",
+        challenge_sha256=_sha256_text(challenge_text),
+    )
 
 
 def _verification_audit_record(
@@ -291,9 +307,7 @@ def _verification_audit_record(
         "challenge_b64": base64.b64encode(kept).decode("ascii"),
         "challenge_bytes": len(raw),
         "challenge_truncated": len(kept) < len(raw),
-        "verification_code_sha256": _sha256_text(verification_code)
-        if verification_code
-        else None,
+        "verification_code_sha256": _sha256_text(verification_code) if verification_code else None,
         "answer": solve_result.answer,
         "solver_path": solve_result.solver_path,
         "solve_success": solve_result.answer is not None,
@@ -470,9 +484,7 @@ def _reasoning_answer_is_self_consistent(text: str, stated: str) -> bool:
     for line in text.splitlines():
         if len(line) > _MAX_REASONING_LINE_CHARS:
             continue
-        candidate = _TRAILING_EQUALS_RE.sub(
-            "", _LIST_MARKER_RE.sub("", line.strip())
-        ).strip()
+        candidate = _TRAILING_EQUALS_RE.sub("", _LIST_MARKER_RE.sub("", line.strip())).strip()
         if not candidate:
             continue
         computed = _compute_expression_answer(candidate)

@@ -1314,3 +1314,18 @@ class TestVerificationTracker:
         tracker.record_success()
         tracker.record_failure()
         assert not tracker.should_stop
+
+
+class TestUnsolvedResult:
+    """Placeholder for challenges never attempted (malformed verification
+    object) — lets the abstain reach verification-audit.jsonl."""
+
+    def test_placeholder_shape(self):
+        import hashlib as _hashlib
+
+        from contemplative_agent.adapters.moltbook.verification import unsolved_result
+
+        r = unsolved_result("some challenge")
+        assert r.answer is None
+        assert r.solver_path == "none"
+        assert r.challenge_sha256 == _hashlib.sha256(b"some challenge").hexdigest()

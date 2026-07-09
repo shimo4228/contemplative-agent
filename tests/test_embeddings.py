@@ -44,3 +44,25 @@ class TestCosine:
         v4 = np.array([1.0, 0.0, 0.0, 0.0], dtype=np.float32)
         assert cosine(v3, v4) == 0.0
         assert cosine(v4, v3) == 0.0
+
+
+class TestCalibrationDriftNote:
+    """ADR-0071/0072 calibration pin: a same-dimension embedding-model swap
+    passes every shape check while invalidating all calibrated thresholds —
+    the pin makes the swap loudly visible."""
+
+    def test_pinned_model_returns_none(self, monkeypatch):
+        from contemplative_agent.core.embeddings import calibration_drift_note
+
+        monkeypatch.delenv("OLLAMA_EMBEDDING_MODEL", raising=False)
+        assert calibration_drift_note() is None
+
+    def test_swapped_model_returns_warning(self, monkeypatch):
+        from contemplative_agent.core.embeddings import calibration_drift_note
+
+        monkeypatch.setenv("OLLAMA_EMBEDDING_MODEL", "some-other-768d-model")
+        note = calibration_drift_note()
+        assert note is not None
+        assert "some-other-768d-model" in note
+        assert "nomic-embed-text" in note
+        assert "0.554" in note  # anchors travel with the warning

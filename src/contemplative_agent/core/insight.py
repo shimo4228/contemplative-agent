@@ -17,6 +17,8 @@ gate and ADR-0046 moved stocktake grouping to a single LLM call.)
 
 from __future__ import annotations
 
+import base64
+import hashlib
 import json
 import logging
 import re
@@ -374,9 +376,66 @@ def _parse_covered_ids(raw: str, known_topics: set[str]) -> Optional[set[str]]:
     return {c for c in covered if isinstance(c, str) and c in known_topics}
 
 
+# Bound on the base64-stored judge prompt/output in insight-novelty.jsonl
+# (weekly cadence — worst case ~256 KiB/run; same truncation-flag pattern as
+# verification-audit's _MAX_AUDIT_CHALLENGE_BYTES).
+_MAX_NOVELTY_AUDIT_BYTES = 131072
+
+
+def _append_novelty_audit(
+    audit_path: Optional[Path],
+    *,
+    verdict: str,
+    batches: Sequence[Tuple[str, List[str], Tuple[str, ...]]],
+    covered: Optional[set[str]],
+    known_themes_count: int,
+    prompt: str,
+    raw_output: Optional[str],
+) -> None:
+    """Best-effort replay record for one novelty-gate run (ADR-0074/0075).
+
+    The covered→drop decision suppresses skill creation permanently; storing
+    the exact judge prompt and raw output (base64 + sha256, bounded) makes the
+    parse and the judgment replayable offline — without it a judge that starts
+    wrongly suppressing novel themes leaves no corpus to diagnose from.
+    ``verdict``: "judged" | "fail_open_llm" | "fail_open_parse".
+    """
+    if audit_path is None:
+        return
+    try:
+        from ._io import append_jsonl_restricted, now_iso
+
+        def _b64_fields(name: str, text: Optional[str]) -> dict:
+            if text is None:
+                return {f"{name}_b64": None}
+            raw = text.encode("utf-8", "replace")
+            kept = raw[:_MAX_NOVELTY_AUDIT_BYTES]
+            return {
+                f"{name}_sha256": hashlib.sha256(raw).hexdigest(),
+                f"{name}_encoding": "base64:utf-8",
+                f"{name}_b64": base64.b64encode(kept).decode("ascii"),
+                f"{name}_bytes": len(raw),
+                f"{name}_truncated": len(kept) < len(raw),
+            }
+
+        record: dict = {
+            "ts": now_iso("seconds"),
+            "verdict": verdict,
+            "known_themes_count": known_themes_count,
+            "clusters": sorted(topic for topic, _, _ in batches),
+            "covered": sorted(covered) if covered else [],
+            **_b64_fields("prompt", prompt),
+            **_b64_fields("output", raw_output),
+        }
+        append_jsonl_restricted(audit_path, record)
+    except Exception as exc:  # instrumentation must never break insight
+        logger.warning("insight novelty audit record failed: %s", exc)
+
+
 def _filter_novel_batches(
     batches: List[Tuple[str, List[str], Tuple[str, ...]]],
     known_themes: Sequence[Tuple[str, str]],
+    audit_path: Optional[Path] = None,
 ) -> Tuple[List[Tuple[str, List[str], Tuple[str, ...]]], int]:
     """Drop cluster batches whose theme is already covered (ADR-0074).
 
@@ -420,11 +479,29 @@ def _filter_novel_batches(
     )
     if out is None or out.text is None:
         logger.warning("novelty gate: LLM call failed — keeping all %d clusters", len(batches))
+        _append_novelty_audit(
+            audit_path,
+            verdict="fail_open_llm",
+            batches=batches,
+            covered=None,
+            known_themes_count=len(known_themes),
+            prompt=prompt,
+            raw_output=None,
+        )
         return batches, 0
 
     covered = _parse_covered_ids(out.text, {topic for topic, _, _ in batches})
     if covered is None:
         logger.warning("novelty gate: unparseable judgment — keeping all %d clusters", len(batches))
+        _append_novelty_audit(
+            audit_path,
+            verdict="fail_open_parse",
+            batches=batches,
+            covered=None,
+            known_themes_count=len(known_themes),
+            prompt=prompt,
+            raw_output=out.text,
+        )
         return batches, 0
 
     novel = [b for b in batches if b[0] not in covered]
@@ -435,6 +512,15 @@ def _filter_novel_batches(
             len(batches),
             ", ".join(sorted(covered)),
         )
+    _append_novelty_audit(
+        audit_path,
+        verdict="judged",
+        batches=batches,
+        covered=covered,
+        known_themes_count=len(known_themes),
+        prompt=prompt,
+        raw_output=out.text,
+    )
     return novel, len(covered)
 
 
@@ -444,6 +530,7 @@ def extract_insight(
     full: bool = False,
     instrument_views: Optional[ViewLookup] = None,
     staged_ledger_path: Optional[Path] = None,
+    novelty_audit_path: Optional[Path] = None,
 ) -> Union[str, InsightResult]:
     """Extract behavioral skills from accumulated knowledge.
 
@@ -465,6 +552,8 @@ def extract_insight(
             visibility log (nearest consumed view); never gates anything.
         staged_ledger_path: Previously staged candidates (ADR-0074); feeds
             the novelty gate alongside adopted skills.
+        novelty_audit_path: Optional replay log (insight-novelty.jsonl) for
+            the novelty gate's judge run (ADR-0075); never gates anything.
 
     Returns:
         InsightResult on success (possibly with zero skills when every
@@ -504,7 +593,9 @@ def extract_insight(
     skipped_known = 0
     known_themes = _load_known_themes(skills_dir, staged_ledger_path)
     if known_themes:
-        batches, skipped_known = _filter_novel_batches(batches, known_themes)
+        batches, skipped_known = _filter_novel_batches(
+            batches, known_themes, audit_path=novelty_audit_path
+        )
     if not batches:
         logger.info(
             "novelty gate: all %d cluster(s) already covered — nothing to extract",

@@ -24,9 +24,49 @@ _DEFAULT_EMBEDDING_MODEL = "nomic-embed-text"
 EMBEDDING_TIMEOUT_SECONDS = 60
 EMBEDDING_DIM = 768  # nomic-embed-text dimension
 
+# Calibration pin (ADR-0071 / ADR-0072). Every similarity threshold in this
+# codebase (view floors 0.66/0.55, dedup 0.90/0.80, novelty θ=0.35, cluster
+# 0.70/0.65) and the three-point calibration scale below were measured on
+# THIS exact model. A same-dimension model swap passes every shape check
+# (cosine dim guard, view_metrics row drop) while silently invalidating all
+# of them — so the model identity itself is pinned here and compared at
+# startup / report time. Re-measure the scale and update both constants
+# whenever the geometry changes (model swap, seed rewrite, normalization).
+CALIBRATED_EMBEDDING_MODEL = "nomic-embed-text"
+# Three-point scale measured 2026-07-03 (ADR-0071 §readings, ADR-0072 §17-24):
+# floor = cosine of deliberately unrelated texts vs corpus/seeds,
+# corpus_mean = pairwise mean over the live pattern pool,
+# top_band = consumed-view top matches.
+CALIBRATION_ANCHORS = {
+    "floor": (0.33, 0.46),
+    "corpus_mean": 0.554,
+    "top_band": (0.68, 0.77),
+}
+
 
 def _get_embedding_model() -> str:
     return os.environ.get("OLLAMA_EMBEDDING_MODEL", _DEFAULT_EMBEDDING_MODEL)
+
+
+def calibration_drift_note() -> Optional[str]:
+    """Return a warning string when the active embedding model is not the
+    calibration model, else None.
+
+    Read-only instrument guard (ADR-0071 invariant 1): the note feeds the
+    operator via logs / report output, never a gate. String comparison only —
+    no I/O, safe to call on every command startup.
+    """
+    active = _get_embedding_model()
+    if active == CALIBRATED_EMBEDDING_MODEL:
+        return None
+    return (
+        f"embedding model {active!r} != calibration model "
+        f"{CALIBRATED_EMBEDDING_MODEL!r}: all similarity thresholds and the "
+        f"three-point scale (floor {CALIBRATION_ANCHORS['floor']}, corpus mean "
+        f"{CALIBRATION_ANCHORS['corpus_mean']}, top band "
+        f"{CALIBRATION_ANCHORS['top_band']}) were calibrated on the pinned "
+        "model and are unreliable until re-measured (ADR-0071/0072)"
+    )
 
 
 def embed_texts(texts: List[str]) -> Optional[np.ndarray]:
@@ -92,7 +132,8 @@ def cosine(v1: np.ndarray, v2: np.ndarray) -> float:
             "cosine: embedding shape mismatch %s vs %s — treating as "
             "dissimilar (0.0); likely an embedding-model change without a "
             "re-backfill of stored vectors",
-            v1.shape, v2.shape,
+            v1.shape,
+            v2.shape,
         )
         return 0.0
     n1 = float(np.linalg.norm(v1))

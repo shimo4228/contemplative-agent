@@ -427,3 +427,36 @@ class TestNoveltyGateCalibration:
             gate.record(f"p{i}", ts, title, title)
             priors.append(_rec(ts, title, pid=f"p{i}"))
         assert rejected >= 15, f"only {rejected}/19 rejected"
+
+
+class TestNoveltyGateHistoryMissing:
+    """Observability sweep 2026-07-10: a novelty score computed over a
+    thinned history (partial embed failure / empty post_id) must carry the
+    gap in the decision record instead of looking like a clean admit."""
+
+    def test_full_history_reports_zero_missing(self, gate, monkeypatch):
+        _patch_embed(monkeypatch, _vec())
+        _no_deficit(gate, monkeypatch)
+        prior = _rec(_iso(_now() - timedelta(days=1)), "Prior", pid="p1")
+        gate.record(prior.post_id, prior.timestamp, prior.title, prior.topic_summary)
+        decision = gate.evaluate("Title", "summary", "body", [prior])
+        assert decision.history_missing == 0
+
+    def test_partial_embed_failure_counted(self, gate, monkeypatch):
+        _no_deficit(gate, monkeypatch)
+        target = _vec()
+        # Draft embeds fine; the batch backfill for uncached priors fails
+        # (Ollama outage mid-call) — the unseeded prior drops out of history.
+        monkeypatch.setattr(
+            "contemplative_agent.adapters.moltbook.novelty.embed_one",
+            lambda _t: target,
+        )
+        monkeypatch.setattr(
+            "contemplative_agent.adapters.moltbook.novelty.embed_texts",
+            lambda _texts: None,
+        )
+        seeded = _rec(_iso(_now() - timedelta(days=1)), "Seeded", pid="p1")
+        gate.record(seeded.post_id, seeded.timestamp, seeded.title, seeded.topic_summary)
+        unseeded = _rec(_iso(_now() - timedelta(days=2)), "Unseeded", pid="p2")
+        decision = gate.evaluate("Title", "summary", "body", [seeded, unseeded])
+        assert decision.history_missing == 1

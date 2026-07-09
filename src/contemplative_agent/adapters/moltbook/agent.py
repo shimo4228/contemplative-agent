@@ -35,6 +35,7 @@ from .verification import (
     solve_challenge,
     solve_challenge_result,
     submit_verification,
+    unsolved_result,
 )
 from ...core.config import (
     FORBIDDEN_SUBSTRING_PATTERNS,
@@ -194,9 +195,7 @@ class Agent:
 
         api_key = load_credentials()
         if api_key is None:
-            raise RuntimeError(
-                "No API key found. Run 'contemplative-agent register' first."
-            )
+            raise RuntimeError("No API key found. Run 'contemplative-agent register' first.")
         self._client = MoltbookClient(api_key)
         self._scheduler = Scheduler(
             state_path=RATE_STATE_PATH,
@@ -411,14 +410,33 @@ class Agent:
             logger.error("Too many verification failures. Stopping.")
             return False
 
-        challenge_text = verification.get("challenge_text", "")
-        verification_code = verification.get("verification_code", "")
+        # Coerce, don't trust: a malformed object can carry null / non-string
+        # values ("challenge_text": null), which must land in the malformed
+        # branch below rather than crash unsolved_result's hashing
+        # (codex review 2026-07-10).
+        raw_challenge = verification.get("challenge_text")
+        raw_code = verification.get("verification_code")
+        challenge_text = raw_challenge if isinstance(raw_challenge, str) else ""
+        verification_code = raw_code if isinstance(raw_code, str) else ""
 
         if not challenge_text or not verification_code:
+            # Key names are server-controlled — sanitize before they touch
+            # the plain application log or the audit error field.
+            keys_repr = _sanitize_audit_error(",".join(map(str, sorted(verification.keys()))))[:150]
             logger.warning(
-                "Verification object missing challenge_text/verification_code "
-                "(keys=%s)",
-                sorted(verification.keys()),
+                "Verification object missing challenge_text/verification_code (keys=%s)",
+                keys_repr,
+            )
+            # Audit-log the abstain: this branch trips the failure tracker
+            # (and can auto-stop the session), so without a record a
+            # server-side shape change would be indistinguishable in
+            # verification-audit.jsonl from verification not happening at all.
+            record_verification_audit(
+                challenge_text=challenge_text,
+                verification_code=verification_code,
+                solve_result=unsolved_result(challenge_text),
+                verify_success=False,
+                error="malformed_verification_object keys=" + keys_repr,
             )
             self._verification.record_failure()
             return False
@@ -516,9 +534,13 @@ class Agent:
             if client.unfollow_agent(name):
                 self._memory.record_unfollow(name)
                 self._ctx.actions_taken.append(f"Unfollowed {name}")
-                self._memory.episodes.append("activity", {
-                    "action": "unfollow", "target_agent": name,
-                })
+                self._memory.episodes.append(
+                    "activity",
+                    {
+                        "action": "unfollow",
+                        "target_agent": name,
+                    },
+                )
                 unfollowed += 1
 
         # Follow agents who entered the top FOLLOW_RANK, highest-ranked first.
@@ -533,14 +555,21 @@ class Agent:
             if client.follow_agent(name):
                 self._memory.record_follow(name)
                 self._ctx.actions_taken.append(f"Followed {name}")
-                self._memory.episodes.append("activity", {
-                    "action": "follow", "target_agent": name,
-                })
+                self._memory.episodes.append(
+                    "activity",
+                    {
+                        "action": "follow",
+                        "target_agent": name,
+                    },
+                )
                 followed += 1
 
         logger.info(
             "Auto-follow: follow<=%d keep<=%d, followed %d, unfollowed %d (currently: %d)",
-            FOLLOW_RANK, KEEP_RANK, followed, unfollowed,
+            FOLLOW_RANK,
+            KEEP_RANK,
+            followed,
+            unfollowed,
             len(currently_followed) - unfollowed + followed,
         )
 
@@ -581,11 +610,13 @@ class Agent:
         # Log session start with configuration metadata
         # Internal fields are applied last to prevent caller from overwriting them
         start_data: Dict[str, Any] = dict(session_meta) if session_meta else {}
-        start_data.update({
-            "event": "start",
-            "duration_minutes": duration_minutes,
-            "autonomy": self._autonomy.value,
-        })
+        start_data.update(
+            {
+                "event": "start",
+                "duration_minutes": duration_minutes,
+                "autonomy": self._autonomy.value,
+            }
+        )
         self._memory.episodes.append("session", start_data)
 
         # Restore own post ids from prior sessions so the own-post comment
@@ -647,15 +678,16 @@ class Agent:
         the skipped ones.
         """
         # Refresh /home data each cycle for latest activity
-        self._run_cycle_step(
-            "home_refresh", lambda: self._fetch_home_data(client)
-        )
+        self._run_cycle_step("home_refresh", lambda: self._fetch_home_data(client))
 
         def _reply_step() -> None:
             # Use /home-based reply cycle if data available, else fallback
             if self._home_data:
                 self._reply_handler.run_cycle_from_home(
-                    client, scheduler, end_time, self._home_data,
+                    client,
+                    scheduler,
+                    end_time,
+                    self._home_data,
                 )
             else:
                 self._reply_handler.run_cycle(client, scheduler, end_time)
@@ -692,15 +724,18 @@ class Agent:
     def _log_session_end(self, duration_minutes: int) -> None:
         """Log session end with action counts."""
         actions = self._ctx.actions_taken
-        self._memory.episodes.append("session", {
-            "event": "end",
-            "duration_minutes": duration_minutes,
-            "actions_count": len(actions),
-            "comments": sum(1 for a in actions if a.startswith("Commented")),
-            "replies": sum(1 for a in actions if a.startswith("Replied")),
-            "posts": sum(1 for a in actions if a.startswith("Posted")),
-            "follows": sum(1 for a in actions if a.startswith("Followed")),
-        })
+        self._memory.episodes.append(
+            "session",
+            {
+                "event": "end",
+                "duration_minutes": duration_minutes,
+                "actions_count": len(actions),
+                "comments": sum(1 for a in actions if a.startswith("Commented")),
+                "replies": sum(1 for a in actions if a.startswith("Replied")),
+                "posts": sum(1 for a in actions if a.startswith("Posted")),
+                "follows": sum(1 for a in actions if a.startswith("Followed")),
+            },
+        )
 
     # ------------------------------------------------------------------
     # Cycle helpers
@@ -720,6 +755,7 @@ class Agent:
             from ...core.report import generate_report
 
             from .config import REPORTS_DIR
+
             output_dir = REPORTS_DIR
             result = generate_report(
                 log_dir=EPISODE_LOG_DIR,

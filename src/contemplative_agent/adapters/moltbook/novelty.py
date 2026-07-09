@@ -59,6 +59,12 @@ class GateDecision:
     nearest_title: Optional[str]
     nearest_sim: float
     reason: str  # "admit" | "reject:low_novelty" | "embed_failed_fallback"
+    # Prior posts the gate could NOT compare against (empty post_id, or a
+    # partial batch-embed failure dropped them from the cache). A clean-looking
+    # high-novelty admit computed over a thinned history is not the same
+    # decision as one over full history — surface the gap in the log
+    # (observability sweep 2026-07-10).
+    history_missing: int = 0
 
 
 # ---------------------------------------------------------------------------
@@ -125,9 +131,7 @@ class PostEmbeddingCache:
     def __init__(self, store: EpisodeEmbeddingStore) -> None:
         self._store = store
 
-    def get_or_embed_many(
-        self, records: Sequence[PostRecord]
-    ) -> dict[str, np.ndarray]:
+    def get_or_embed_many(self, records: Sequence[PostRecord]) -> dict[str, np.ndarray]:
         """Return ``{post_id: vector}`` for as many records as can be embedded.
 
         Strategy: one ``get_many`` against the sidecar, then a single
@@ -143,9 +147,7 @@ class PostEmbeddingCache:
         misses = [r for r in records if r.post_id and r.post_id not in cached]
         if not misses:
             return cached
-        miss_texts = [
-            _embedding_text(r.title, r.topic_summary) for r in misses
-        ]
+        miss_texts = [_embedding_text(r.title, r.topic_summary) for r in misses]
         miss_vecs = embed_texts(miss_texts)
         if miss_vecs is None or miss_vecs.shape[0] != len(misses):
             return cached
@@ -209,20 +211,23 @@ class NoveltyGate:
         draft_text = _embedding_text(draft_title, draft_topic_summary)
         draft_vec = embed_one(draft_text)
         if draft_vec is None:
-            return self._fallback(
-                draft_title, draft_topic_summary, recent_records
-            )
+            return self._fallback(draft_title, draft_topic_summary, recent_records)
 
         cached = self._cache.get_or_embed_many(list(recent_records))
         history = _build_history(recent_records, cached)
-        novelty = compute_novelty(
-            draft_vec, history, tau_days=self._tau_days
-        )
+        history_missing = len(recent_records) - len(history)
+        if history_missing:
+            logger.warning(
+                "NoveltyGate: %d/%d prior post(s) missing from comparison "
+                "history (empty post_id or partial embed failure) — novelty "
+                "computed over thinned history",
+                history_missing,
+                len(recent_records),
+            )
+        novelty = compute_novelty(draft_vec, history, tau_days=self._tau_days)
         deficit = max(0.0, self._target_rate - self._memory.get_post_rate_7d())
         score = novelty + self._mu * deficit
-        nearest_title, nearest_sim = _find_nearest(
-            draft_vec, recent_records, cached
-        )
+        nearest_title, nearest_sim = _find_nearest(draft_vec, recent_records, cached)
 
         admit = score >= self._theta
         reason = "admit" if admit else "reject:low_novelty"
@@ -234,10 +239,10 @@ class NoveltyGate:
             nearest_title=nearest_title,
             nearest_sim=nearest_sim,
             reason=reason,
+            history_missing=history_missing,
         )
         logger.info(
-            "NoveltyGate %s: novelty=%.3f deficit=%.2f score=%.3f "
-            "theta=%.2f nearest=%.3f (%r)",
+            "NoveltyGate %s: novelty=%.3f deficit=%.2f score=%.3f theta=%.2f nearest=%.3f (%r)",
             "admit" if admit else "reject",
             novelty,
             deficit,

@@ -251,3 +251,21 @@ class TestFormatPatternReport:
         # must declare itself observability-only.
         assert "stale seed" in text
         assert "not gates" in text
+
+
+class TestCalibrationDriftLine:
+    """ADR-0071/0072: the pattern report surfaces an embedding-model swap
+    against the calibration pin — readings are meaningless off-model."""
+
+    def test_report_flags_swapped_model(self, monkeypatch) -> None:
+        monkeypatch.setenv("OLLAMA_EMBEDDING_MODEL", "swapped-model")
+        registry = _FakeRegistry({"self_reflection": np.array([1.0, 0.0], dtype=np.float32)})
+        text = format_pattern_report([_pat([1.0, 0.0])], registry, views=("self_reflection",))
+        assert "WARNING:" in text
+        assert "swapped-model" in text
+
+    def test_report_silent_on_pinned_model(self, monkeypatch) -> None:
+        monkeypatch.delenv("OLLAMA_EMBEDDING_MODEL", raising=False)
+        registry = _FakeRegistry({"self_reflection": np.array([1.0, 0.0], dtype=np.float32)})
+        text = format_pattern_report([_pat([1.0, 0.0])], registry, views=("self_reflection",))
+        assert "calibration model" not in text

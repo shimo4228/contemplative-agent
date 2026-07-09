@@ -2970,3 +2970,48 @@ class TestSessionCycleStepIsolationH4:
             agent._run_session_cycle(MagicMock(), MagicMock(), end_time=0.0)
 
         assert "replies" in caplog.text
+
+
+class TestHandleVerificationMalformedObject:
+    """Observability sweep 2026-07-10: a malformed verification object trips
+    the failure tracker (and can auto-stop the session) — it must leave a
+    verification-audit record, or a server-side shape change is
+    indistinguishable from verification not happening."""
+
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    def test_malformed_object_records_audit(self, mock_audit):
+        agent = Agent()
+        agent._verification = MagicMock()
+        agent._verification.should_stop = False
+
+        result = agent._handle_verification({"unexpected": "shape"})
+
+        assert result is False
+        agent._verification.record_failure.assert_called_once()
+        mock_audit.assert_called_once()
+        kwargs = mock_audit.call_args.kwargs
+        assert kwargs["verify_success"] is False
+        assert "malformed_verification_object" in kwargs["error"]
+        assert "unexpected" in kwargs["error"]
+        assert kwargs["solve_result"].solver_path == "none"
+        assert kwargs["solve_result"].answer is None
+
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    def test_null_challenge_text_does_not_crash(self, mock_audit):
+        # codex review 2026-07-10: "challenge_text": null must land in the
+        # malformed branch (audit + record_failure), not crash the hashing in
+        # unsolved_result via None.encode().
+        agent = Agent()
+        agent._verification = MagicMock()
+        agent._verification.should_stop = False
+
+        result = agent._handle_verification(
+            {"challenge_text": None, "verification_code": "moltbook_verify_v1"}
+        )
+
+        assert result is False
+        agent._verification.record_failure.assert_called_once()
+        mock_audit.assert_called_once()
+        kwargs = mock_audit.call_args.kwargs
+        assert kwargs["challenge_text"] == ""
+        assert "malformed_verification_object" in kwargs["error"]

@@ -719,3 +719,91 @@ class TestNoveltyGateIntegration:
             )
         assert isinstance(result, InsightResult)
         mock_generate.assert_not_called()
+
+
+class TestNoveltyGateAudit:
+    """ADR-0075: the covered→drop judgment must be replayable offline —
+    insight-novelty.jsonl stores the exact judge prompt and raw output as
+    base64 + sha256."""
+
+    BATCHES = [
+        ("cluster-1", ["p1", "p2", "p3"], ("id1", "id2", "id3")),
+        ("cluster-2", ["q1", "q2", "q3"], ("id4", "id5", "id6")),
+    ]
+    KNOWN = [("skill-a", "handles consensus friction")]
+
+    @staticmethod
+    def _records(path):
+        import json as _json
+
+        return [_json.loads(line) for line in path.read_text().splitlines()]
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_judged_run_writes_replayable_record(self, mock_generate, tmp_path) -> None:
+        import base64 as _base64
+        import json as _json
+
+        from contemplative_agent.core.insight import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(text='{"covered": ["cluster-1"]}')
+        audit = tmp_path / "insight-novelty.jsonl"
+        novel, skipped = _filter_novel_batches(self.BATCHES, self.KNOWN, audit_path=audit)
+        assert skipped == 1
+        records = self._records(audit)
+        assert len(records) == 1
+        rec = records[0]
+        assert rec["verdict"] == "judged"
+        assert rec["covered"] == ["cluster-1"]
+        assert rec["clusters"] == ["cluster-1", "cluster-2"]
+        assert rec["known_themes_count"] == 1
+        prompt = _base64.b64decode(rec["prompt_b64"]).decode("utf-8")
+        assert "skill-a" in prompt and "cluster-1" in prompt
+        assert rec["prompt_truncated"] is False
+        output = _base64.b64decode(rec["output_b64"]).decode("utf-8")
+        assert _json.loads(output) == {"covered": ["cluster-1"]}
+
+    @patch("contemplative_agent.core.insight.generate_full", return_value=None)
+    def test_llm_failure_writes_fail_open_record(self, _mock_generate, tmp_path) -> None:
+        from contemplative_agent.core.insight import _filter_novel_batches
+
+        audit = tmp_path / "insight-novelty.jsonl"
+        novel, _ = _filter_novel_batches(self.BATCHES, self.KNOWN, audit_path=audit)
+        assert len(novel) == 2
+        rec = self._records(audit)[0]
+        assert rec["verdict"] == "fail_open_llm"
+        assert rec["output_b64"] is None
+        assert rec["covered"] == []
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_unparseable_writes_fail_open_parse(self, mock_generate, tmp_path) -> None:
+        import base64 as _base64
+
+        from contemplative_agent.core.insight import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(text="not json at all")
+        audit = tmp_path / "insight-novelty.jsonl"
+        _filter_novel_batches(self.BATCHES, self.KNOWN, audit_path=audit)
+        rec = self._records(audit)[0]
+        assert rec["verdict"] == "fail_open_parse"
+        assert _base64.b64decode(rec["output_b64"]).decode("utf-8") == "not json at all"
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_audit_write_failure_never_breaks_gate(self, mock_generate, tmp_path) -> None:
+        from contemplative_agent.core.insight import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(text='{"covered": []}')
+        # A directory at the audit path forces the append to fail.
+        bad = tmp_path / "audit-as-dir"
+        bad.mkdir()
+        novel, skipped = _filter_novel_batches(self.BATCHES, self.KNOWN, audit_path=bad)
+        assert len(novel) == 2
+        assert skipped == 0
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_no_audit_path_writes_nothing(self, mock_generate, tmp_path) -> None:
+        from contemplative_agent.core.insight import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(text='{"covered": []}')
+        novel, _ = _filter_novel_batches(self.BATCHES, self.KNOWN)
+        assert len(novel) == 2
+        assert list(tmp_path.iterdir()) == []

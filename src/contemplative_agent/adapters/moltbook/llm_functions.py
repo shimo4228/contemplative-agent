@@ -59,6 +59,15 @@ def score_relevance(post_text: str) -> float:
         caller="moltbook.score_relevance",
     )
     if result is None:
+        # LLM unavailable — the 0.0 is a failure sentinel, not a judgment.
+        # Without this WARNING an Ollama outage scores every post 0.0 and
+        # masquerades downstream as "uninteresting feed", silently polluting
+        # the relevance distribution a retune would read
+        # (observability sweep 2026-07-10).
+        logger.warning(
+            "Relevance scoring LLM unavailable — returning 0.0 "
+            "(reason=llm_unavailable, not a low score)"
+        )
         return 0.0
 
     match = re.search(r"(\d+(?:\.\d+)?)", result)
@@ -68,9 +77,7 @@ def score_relevance(post_text: str) -> float:
             # Audit L2: a value outside the 0-1 contract ("topic 5",
             # "8/10") is a wrong-scale answer, not a high score. Clamping
             # it to 1.0 failed toward acting; reject toward not acting.
-            logger.warning(
-                "Relevance score out of range, rejecting: %s", result[:80]
-            )
+            logger.warning("Relevance score out of range, rejecting: %s", result[:80])
             return 0.0
         return max(0.0, score)
     logger.warning("Could not parse relevance score: %s", result)
@@ -99,9 +106,7 @@ def generate_internal_note(content: str) -> str:
     # never reach it; a pathological max render is skipped by generate()'s
     # budget guard, not silently mid-word-truncated here.
     prompt = INTERNAL_NOTE_PROMPT.format(
-        content=wrap_untrusted_content(
-            content, max_input=MAX_POST_LENGTH + MAX_COMMENT_LENGTH
-        ),
+        content=wrap_untrusted_content(content, max_input=MAX_POST_LENGTH + MAX_COMMENT_LENGTH),
     )
     # Identity-only system: the note keeps the first-person register but
     # not the learned corpus, cutting the vocabulary feedback path
@@ -304,7 +309,8 @@ def summarize_post_topic(content: str) -> str:
 
 
 def select_submolt(
-    content: str, submolts: tuple[str, ...],
+    content: str,
+    submolts: tuple[str, ...],
 ) -> Optional[str]:
     """Ask LLM to select the best submolt for a post. Returns None if invalid."""
     submolt_list = ", ".join(submolts)
@@ -332,11 +338,8 @@ def select_submolt(
     # longer match and silently misroute the post.
     for name in sorted(submolts, key=len, reverse=True):
         if name in cleaned:
-            logger.info(
-                "Submolt %r matched as substring of LLM output %r", name, cleaned
-            )
+            logger.info("Submolt %r matched as substring of LLM output %r", name, cleaned)
             return name
 
     logger.warning("LLM returned unrecognized submolt: %s", result)
     return None
-

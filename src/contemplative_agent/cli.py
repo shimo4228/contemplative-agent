@@ -291,6 +291,10 @@ AUDIT_LOG_PATH = MOLTBOOK_DATA_DIR / "logs" / "audit.jsonl"
 # reached human review, whether or not it was adopted.
 INSIGHT_STAGED_LEDGER_PATH = MOLTBOOK_DATA_DIR / "logs" / "insight-staged.jsonl"
 
+# ADR-0075: one record per novelty-gate judge run (prompt + raw output as
+# base64+sha256) so a covered→drop decision is replayable offline.
+INSIGHT_NOVELTY_AUDIT_PATH = MOLTBOOK_DATA_DIR / "logs" / "insight-novelty.jsonl"
+
 # ADR-0074: serialises staging producers. The pending guard alone is a
 # check-then-act race — two concurrent `--stage` runs (weekly launchd job +
 # a manual run) could both pass the guard and interleave the wipe/write.
@@ -754,6 +758,14 @@ def _configure_llm_runtime() -> None:
     """
     # Per-call telemetry (llm-calls-{date}.jsonl) alongside the episode log.
     configure_llm(telemetry_dir=EPISODE_LOG_DIR)
+    # Calibration drift guard (ADR-0071/0072): a same-dimension embedding
+    # model swap invalidates every calibrated similarity threshold while
+    # passing all shape checks — surface it loudly, never gate on it.
+    from .core.embeddings import calibration_drift_note
+
+    drift = calibration_drift_note()
+    if drift:
+        logger.warning("%s", drift)
 
 
 def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
@@ -1926,6 +1938,11 @@ def _append_insight_ledger(skills: Sequence[SkillResult]) -> None:
     ADR-0074: the ledger is decision-agnostic — a candidate counts as
     "considered" once it reached review, so the novelty gate stops
     re-surfacing the same theme even when the human rejected it.
+
+    Deliberately NOT best-effort (unlike the other audit writers): the append
+    is part of the "ledger first, marker last" transaction (codex review
+    2026-07-09) — a write failure must abort BEFORE write_last_insight so the
+    window stays unconsumed rather than consumed-but-unremembered.
     """
     from .core._io import append_jsonl_restricted, now_iso
     from .core.insight import skill_theme
@@ -1968,6 +1985,7 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         full=args.full,
         instrument_views=view_registry,
         staged_ledger_path=INSIGHT_STAGED_LEDGER_PATH,
+        novelty_audit_path=INSIGHT_NOVELTY_AUDIT_PATH,
     )
     if isinstance(result, str):
         print(result)

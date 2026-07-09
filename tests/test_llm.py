@@ -2060,3 +2060,18 @@ class TestSelectSubmoltLongestFirstL7:
     def test_exact_match_still_preferred(self, mock_generate):
         mock_generate.return_value = "ai"
         assert select_submolt("content", ("ai", "aiethics")) == "ai"
+
+
+class TestScoreRelevanceOutageVisibility:
+    """Observability sweep 2026-07-10: an LLM-unavailable 0.0 is a failure
+    sentinel, not a judgment — it must WARN so an Ollama outage cannot
+    masquerade as an uninteresting feed."""
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_none_result_warns_llm_unavailable(self, mock_generate, caplog):
+        import logging as _logging
+
+        mock_generate.return_value = None
+        with caplog.at_level(_logging.WARNING):
+            assert score_relevance("test post") == 0.0
+        assert "llm_unavailable" in caplog.text

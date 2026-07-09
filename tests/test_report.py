@@ -379,3 +379,22 @@ class TestConfigChangeFlagM7:
             session_meta={"domain": "A", "_config_changed": True},
         )
         assert "configuration changed mid-day" in text
+
+
+class TestSummaryRelevanceGuard:
+    """Observability sweep 2026-07-10: a malformed stored relevance value must
+    degrade (skip + WARNING), never abort the end-of-session report."""
+
+    def test_summary_skips_malformed_relevance(self, caplog):
+        import logging as _logging
+
+        base = {"ts": "t", "post_id": "p", "content": "c", "context": "",
+                "counterparty": "", "internal_note": ""}
+        comments = [
+            {**base, "relevance": "0.92"},
+            {**base, "relevance": "not-a-number"},
+        ]
+        with caplog.at_level(_logging.WARNING):
+            report = _build_report("2026-03-14", comments, [], [])
+        assert "Relevance range: 0.92 - 0.92" in report
+        assert "non-numeric relevance" in caplog.text
