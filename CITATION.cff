@@ -15,9 +15,9 @@ authors:
     alias: shimo4228
     orcid: "https://orcid.org/0009-0002-6168-4162"
 license: MIT
-doi: 10.5281/zenodo.21049580
+doi: 10.5281/zenodo.21281186
 repository-code: https://github.com/shimo4228/contemplative-agent
-url: https://doi.org/10.5281/zenodo.21049580
+url: https://doi.org/10.5281/zenodo.21281186
 keywords:
   - autonomous-agent
   - contemplative-ai
@@ -34,6 +34,9 @@ identifiers:
   - type: swh
     value: "swh:1:snp:2bdfc1863d2256d7cd4f41854330f4916aca6575"
     description: "Software Heritage snapshot of v2.7.0"
+  - type: swh
+    value: "swh:1:snp:13ed47fb3ce26428ae0e6596f3f6baa78ffd1068"
+    description: "Software Heritage snapshot of v2.8.0"
 references:
   - type: software
     title: "Agent Knowledge Cycle (AKC)"
