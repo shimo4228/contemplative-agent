@@ -78,7 +78,7 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 
 ## ドキュメント配置
 
-- `docs/` — 外部可視の durable reference（adr / CODEMAPS / evidence / runbooks / glossary / CONFIGURATION）
+- `docs/` — 外部可視の durable reference（adr / CODEMAPS / evidence / runbooks / security / glossary / CONFIGURATION）
 - `.notes/` — 内部 WIP（gitignored）。session checkpoint、cold-start handoff、実験 scratch、ツール出力。成果が出たら `docs/evidence/adr-XXXX/` に昇格
 
 ADR 本文から `.notes/` を参照してはならない（gitignored のため clone 先に存在しない）。Evidence が必要な ADR は `docs/evidence/adr-XXXX/` に配置して相対リンク。
@@ -102,7 +102,7 @@ GET 60 req/min、POST 30 req/min（分離クォータ）。3 層防御（`has_re
 
 ## 残課題
 
-ADR-0022..0030 後の積み残しはローカルの `.notes/remaining-issues-*.md` に集約（gitignored、cold-start ready）。
+pending タスクの正本はローカルの `.notes/TASKS.md`（単一台帳、gitignored。2026-07-06 規約化 — rule `~/.claude/rules/common/task-tracking.md`、棚卸しは `/task-stocktake`）。詳細は台帳行のリンク先（handoff / `.notes/archive/` / ADR）に置き、ここに状態・件数を複製しない。旧 `remaining-issues-*.md` は `.notes/archive/` に退役済み。
 
 ## 関連リポジトリ
 
