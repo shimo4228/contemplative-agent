@@ -123,6 +123,51 @@ anomalies in the harness. The abstain-first posture, three-stage solver
 order, audit telemetry, and output trust boundary are unchanged — a
 mechanism amendment, per the third amendment's precedent.
 
+Seventh amendment 2026-07-09: grammar extended from the post-rewrite failure
+round (816 records / 792 unique challenges; success rate flat at 85.8%
+after the sixth amendment because the challenge mix shifted toward
+multiplicative phrasings the grammar could not represent). Failure decoding
+showed three classes: operation-selection errors (both `code_parse` and the
+LLM read "increases by a factor seven", "doubled by two", "it has two
+claws", "each detects two" as addition), split-number misreads in the LLM
+paths ("tW/eN tY tHrEe" extracted as 20, dropping "three"), and a small
+irreducible server-side class. Changes, each backed by a server-accepted
+twin of the same shape (and, where noted, the same numbers): multiplicative
+marker words (factor/doubled/each) fill an empty gap or beat a generic
+change-verb ("increases"/"accelerates", now a distinct internal op code) in
+the same gap, while a NON-adjacent trailing marker stays scene noise
+("...physicx factors" = 47.00 accepted); an adjacent "times" tail overrides
+a single change-verb gap ("increases it by three times" = 96.00, twin
+accepted); a claw count directly after the second operand multiplies
+("three claws" — every corpus-accepted example is a product, none an add;
+the sixth amendment's "count-modifier trap" abstain is superseded for
+exactly this shape); explicit arithmetic instructions ("what is the sum of
+these", "please add them") waive the implicit-add like-unit guard (the
+multiplicative reading was server-rejected twice); "slows" against a
+trailing "combined" cue and the same-subject bare possessed count ("it has
+twoo, whats total") abstain — both readings are corpus-attested, and a
+wrong parse is worse than None; number-word fuzzy matching gains an
+edit-distance-1 comparison against the COLLAPSED canonical spelling for
+merged tokens ≥ 6 letters ("fowr teen" → "fowrten" → fourteen), mirroring
+operation verbs. The replay harness gains negative ground truth (a
+server-rejected answer is durably wrong for that challenge, no manual label
+needed) and null-answer labels for known-unresolvable challenges (five:
+four arithmetically forced answers the server rejected — two of them
+reclassified from the 6th amendment's "labeled by arithmetic" caveat — and
+one server-inconsistent "accelerates by four"). LLM prompts gain
+split-number de-noising examples and the multiply/add cue lists. The
+review round hardened three seams the corpus alone could not surface: a
+non-adjacent trailing marker is noise on the implicit path too (not just
+the explicit chain), the same-subject possession lookback is
+atom-boundary-free (the fuzzy number merge can absorb a fragment of the
+verb, "ha s two"), and a head-position marker or an implicit
+postfix-subtract against a "combined" cue abstains. Validation: hard gate
+PASS on 792 challenges (654 correct, zero wrong, coverage 81.4% → 83.2%
+with the lost-correct regressions from the new rules driven back to zero),
+151 tests green including the failure round as base64 fixtures. Solver
+order, audit telemetry, and output trust boundary unchanged — a mechanism
+amendment.
+
 ## Date
 
 2026-06-26

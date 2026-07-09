@@ -130,6 +130,117 @@ _AUDIT_REASON_FAILURE_OPCONFUSE_B64 = (
 # longer reaches the llm_reason guard this fixture was first written for.
 
 
+# Regression fixtures from logs/verification-audit.jsonl (2026-07-07..07-09):
+# the post-rewrite failure round (ADR-0062, 7th amendment). Expected answers
+# marked "twin-confirmed" are backed by a server-ACCEPTED challenge of the
+# same operation shape (where noted, the same numbers) elsewhere in the
+# corpus; the rest follow from explicit arithmetic wording plus the server's
+# rejection of the alternative reading.
+_AUDIT_FACTOR_B64 = (
+    "QV0gTG9PIGJCc1QtRXJyIFNed0ltUyBhVCB0Vy9lTiB0WSBUaFJlRSBjTS9zLCBDYVVz"
+    "RWQgQnleIGEgQ2xBdyBGb1JjRSBpTiBuRWVXdE9uUywgQW5ELyB0SGUgUmVCIG9vVCBi"
+    "VW1QIGlOY1JlQXNlUyB2RWxBd0NpVHkgQnleIGEgRmFDdE9yIFNlVmVOIDwgV29IYVQg"
+    "SXMgVGhFIG5FdyBWZUxvT29jaVR5Pw=="
+)  # "...swims at twenty three cm/s ... increases velocity by a factor
+# seven, what is the new velocity?" = 161.00, twin-confirmed: "twenty three
+# notons times a molting growth factor is seven" = 161.00 ACCEPTED
+# (2026-07-06). Historical code_parse answer: 30.00 ("increases" read as
+# add, "factor" invisible) — REJECTED by the server.
+
+_AUDIT_DOUBLED_B64 = (
+    "QV0gbE8gYi1TdEVyUiBsb29vYnNzc3N0ZXJyciBTXndJbVNbIGFOZF0gY0xhVyBzVHJJ"
+    "a0VzXiB3SXRIIG5Pb1RvTnMtIGZPckNlXSBvRi8gdEhpUiB0WS0gZkl2RSB1bSwgYU5k"
+    "XSBhRnRFcl4gbU9sVHRJbkcgdEhlXiBmT3JDZV0gaVMgZE91QmxFZC0gYlkvIHRXbyB+"
+    "LCB3SGFUXSBpU14gdEhlLSB0T3RBbC8gZk9yQ2U/"
+)  # "...force of thirty five ... after molting the force is doubled by
+# two, what is the total force?" = 70.00, twin-confirmed: "claw force is
+# thirty five new tons times two" = 70.00 ACCEPTED (2026-07-03).
+# Historical code_parse answer: 37.00 (implicit add) — REJECTED.
+
+_AUDIT_TIMES_TAIL_B64 = (
+    "QV0gTG9eYlN0LUVyIENsQXddIEZvUmNFIElzIFRoSXJUeSBUd08gTmVXdC1PIG5zfiBB"
+    "bkQgTW9MdEluRyBNdVNjbEUgcyBJbkNyRWFTZVMgSXQgQnkgVGhSZUUgfFRpTWVTPCwg"
+    "V2hBdCBJcyBUaEUgTmVXXSBGb1JeY0U/"
+)  # "...claw force is thirty two newtons and molting muscles increases it
+# by three times, what is the new force?" = 96.00, twin-confirmed: "claw
+# force is thirty two new tons and rival aplies thre times" = 96.00
+# ACCEPTED (2026-07-02). Historical llm_reason answer: 128.00 — REJECTED
+# (code_parse abstained: tail "times" contradicted the "increases" gap op).
+
+_AUDIT_EACH_B64 = (
+    "QW5dIGxPb09iQnNTdFRlUnJeIGxJa0UvIGx4TyBiLVN0IEVyUiBzSG9Xd1MgeyBlSWdI"
+    "dEVlTiBdIGVZL0UgZkZhQyB0UyBdIGFOZC0gZUFjSCBcLCBlQWNIIGRFZVRlQ3RTIHRX"
+    "L29PIH4gc0lnR25OYUxsUywgaE93LyBtQW5ZIDwgdE90QWwgXSBzSWdHbkFsUz8="
+)  # "...shows eighteen eye facets and each detects two signals, how many
+# total signals?" = 36.00 (per-item count: each = multiply). Historical
+# llm_extract answer: 16.00 — REJECTED (code_parse abstained).
+
+_AUDIT_CLAWS_STRIKE_B64 = (
+    "QV0gbE9eYlN0LUVyIENsQXcgXWVYZXJUc34gdFdlTnRZIGZJdkUgbkV1LVRvTnMtIFxc"
+    "IGFOZCB7dEhyRWV9IGNMYVdzIHxzVHJJa0V+IHRPZ0V0SGVSLCB3SGFUIElzIDx0SGU+"
+    "IHRPdEFsXiBmT3JDZT8="
+)  # "...claw exerts twenty five neu-tons and three claws strike together,
+# what is the total force?" = 75.00, twin-confirmed: "claw force of twenty
+# five newtons * thre claws" = 75.00 ACCEPTED (2026-07-02); zero additive
+# "N claws" examples in the corpus. Historical llm_extract: 28.00 —
+# REJECTED (code_parse abstained: "claws" is not a like-unit).
+
+_AUDIT_SPLIT_CLAWS_B64 = (
+    "QV0gbE9vT2JTc1N0VGVSXiBDbEFddyBFeEUgclRzLyBUd0VuVHkge0ZpViBlfSBOb090"
+    "T25TIH5BbkR8IEhhUzwgVGhSZUUtIENsQX13UywgV2hBdC8gSXNeIFRvVGFMLSBGb1Ig"
+    "Y0U/"
+)  # "...claw exerts twenty five nootons and has three cla ws, what is
+# total force?" = 75.00 (same count-multiplier rule; the unit noun is
+# split into "cla ws"). Historical llm_extract answer: 6.00 — REJECTED.
+
+_AUDIT_SUM_UNLIKE_B64 = (
+    "QV0gTG9PYlN0RXJTXiBTd0ltU1sgYVQvIFR3RW5UeSBUaFJlRX0gQ2VOdEltRXRFclMv"
+    "IFBlUlsgU2VDb05kUy0gQW5EXiBpVHMgQ2xBd10gRXhFclRzLyBGaUZ0RWVOPCBOZVd0"
+    "T25TLCBXaEF0IElzIFRoRV0gU3VNLyBvRiBUaEVzRT8="
+)  # "...swims at twenty three centimeters per seconds and its claw exerts
+# fifteen newtons, what is the sum of these?" = 38.00 ("sum" is an
+# explicit arithmetic instruction; the multiplicative reading 345.00 was
+# REJECTED by the server — twice, 2026-06-30 and 2026-07-09).
+
+_AUDIT_ADD_THEM_B64 = (
+    "TG8ub0ItU3RFcl0gU3deaU1tU1sgTGlLZV0gQV0gUXVJckt5XSBDckF3TCwgVW1dIFNo"
+    "RWxMXSBTaEVkU10gQW5EXSBUd0VuVHldIFRoUmVFXSBDZU50aU1lVGVSc10gUGVSXSBT"
+    "ZUNvTmQsXSBBbkRdIENsQXddIEV4RXJUc10gRmlGZlRlRW5dIE5lV3RPblMsXSBQbEVh"
+    "U2VdIEFkRF0gVGhFbV0/"
+)  # "...twenty three centimeters per second, and claw exerts fiffteen
+# newtons, please add them?" = 38.00 (imperative "add them"). Historical
+# llm_extract answer: 345.00 (multiplied) — REJECTED.
+
+_AUDIT_FOWRTEEN_B64 = (
+    "QV0gbE9eYlN0LUVyIENsQSB3RSB4RSByVCBzXyB1bSAvIGVYeEUgclQgcyB0V2VOIHRZ"
+    "IFRoUmVFIE5vT150T25TLSBhTmQtIGlUcyBNIGFUZSBBZCBEIHMgWyBmT3dSIHRFZU4g"
+    "Tm9PXnRPblMsIFdoQXQgXWlTIFRoRSBUb1RhTC0gRm9SXmNFPw=="
+)  # "...claw exerts twen ty three nootons and its mate ad d s fowr teen
+# nootons, what is the total force?" = 37.00 ("fowr teen" = fourteen: one
+# edit from the COLLAPSED canonical spelling, two from the canonical).
+# Historical llm_extract answer: 34.00 (dropped "three") — REJECTED.
+
+_AUDIT_SLOWS_COMBINED_B64 = (
+    "QV0gTG9CLVN0RXIgU3dJbVNeIGFULyBUd0VuVHkgVGhSZUUgTWVUZVJzIFBlUlwgU2VD"
+    "b05kLCBBbk90SGVSXSBMb09vQmJTc1N0RXIgU2xPd1N+IGJZLyBGaUZ0RWVOIE1lVGVS"
+    "cyBQZVJ9IFNlQ29OZCAtIFdoQXQnUzwgVGhFIENvTWJJbkVkXCBWZUxvT2NJdFk/"
+)  # "...swims at twenty three m/s, another lobster slows by fifteen m/s —
+# what's the combined velocity?" — the subtract reading 8.00 was REJECTED
+# and every corpus "combined" success is additive, but "another ... slows"
+# vs "combined" is genuinely contradictory: abstain (None), never 8.00.
+
+_AUDIT_HAS_BARE_COUNT_B64 = (
+    "QV0gTG9Pb0Igc1R0RXJSLSB+a05vV24vIGZPcl0gRG9NaU5hTmNFLSBmSWlHaFRzLCBV"
+    "bV0gSXRTIENsQXdXXiBFeEVyVHMtIG5Pb1RvTnMvIG9GLSBUd0VuVHldIFRoUmVFZX4g"
+    "QW5EfCBJdCBIYVNeIFR3T28sIFdoQXRTXSBUb1RhTC0gRm9SY0U/"
+)  # "...claw exerts nootons of twenty three and it has twoo, whats total
+# force?" — corpus "has N" is additive when a unit follows ("other claw
+# has twenty newtons" = add) but multiplicative when bare/count ("it has
+# two claws" = 50.00 ACCEPTED for 25×2); with the noun mangled away the
+# reading is ambiguous: abstain (None). The implicit-add answer 25.00 was
+# REJECTED (twice, 2026-07-08).
+
+
 def _decode_untrusted(challenge_b64: str) -> str:
     """Decode an audit fixture. Returned text is untrusted obfuscated CAPTCHA."""
     return base64.b64decode(challenge_b64).decode("utf-8")
@@ -794,11 +905,6 @@ class TestCodeParse:
             "twenty five newtons fifteen newtons total force and",
             # Guard 2 fails: no "total" cue after the second operand.
             "twenty five newtons and fifteen newtons",
-            # Guard 3 fails: adjacent tokens differ (count modifier, not a
-            # second like-quantity to add) -- real corpus pattern
-            # ("...twenty five newtons and has three claws, what is total
-            # force?", historical LLM answer 6.00, still must abstain).
-            "twenty five newtons and has three claws what is total force",
             # Guard 3 fails: adjacent tokens differ (unit mismatch).
             "twenty three centimeters and seven newtons what is the total",
             # Guard 3 fails via its "no adjacent atom at all" branch: the
@@ -812,7 +918,6 @@ class TestCodeParse:
             "and-before-both-operands",
             "and-after-both-operands",
             "no-total-cue",
-            "and-adjacent-tokens-differ-count-modifier",
             "and-adjacent-tokens-differ-unit-mismatch",
             "and-second-operand-has-no-adjacent-atom",
         ],
@@ -830,6 +935,209 @@ class TestCodeParse:
             code_parse_challenge("twenty five newtons and seven newtons what is the product")
             == "175.00"
         )
+
+    # --- round 7 (2026-07-09): post-rewrite failure round from the live
+    # audit corpus (ADR-0062, 7th amendment). See the _AUDIT_*_B64 fixture
+    # comments for per-case ground-truth provenance.
+
+    @pytest.mark.parametrize(
+        "fixture_b64,expected",
+        [
+            (_AUDIT_FACTOR_B64, "161.00"),
+            (_AUDIT_DOUBLED_B64, "70.00"),
+            (_AUDIT_TIMES_TAIL_B64, "96.00"),
+            (_AUDIT_EACH_B64, "36.00"),
+            (_AUDIT_CLAWS_STRIKE_B64, "75.00"),
+            (_AUDIT_SPLIT_CLAWS_B64, "75.00"),
+            (_AUDIT_SUM_UNLIKE_B64, "38.00"),
+            (_AUDIT_ADD_THEM_B64, "38.00"),
+            (_AUDIT_FOWRTEEN_B64, "37.00"),
+        ],
+        ids=[
+            "factor-beats-increases",
+            "doubled-is-multiply",
+            "times-tail-beats-increases",
+            "each-is-multiply",
+            "claws-count-multiplier",
+            "claws-count-multiplier-split-noun",
+            "sum-cue-waives-unit-guard",
+            "add-them-imperative",
+            "fowrteen-collapsed-fuzzy",
+        ],
+    )
+    def test_regression_round7_corpus_failures_parse(self, fixture_b64, expected):
+        challenge = _decode_untrusted(fixture_b64)
+        assert code_parse_challenge(challenge) == expected
+
+    @pytest.mark.parametrize(
+        "fixture_b64",
+        [_AUDIT_SLOWS_COMBINED_B64, _AUDIT_HAS_BARE_COUNT_B64],
+        ids=["slows-vs-combined-contradiction", "has-bare-count-ambiguous"],
+    )
+    def test_regression_round7_ambiguous_shapes_abstain(self, fixture_b64):
+        # Both readings are corpus-attested for these shapes; a wrong code
+        # parse is worse than None (the LLM chain still runs).
+        challenge = _decode_untrusted(fixture_b64)
+        assert code_parse_challenge(challenge) is None
+
+    @pytest.mark.parametrize(
+        "challenge,expected",
+        [
+            # "by a factor (of) N" upgrades a change-verb to multiply.
+            (
+                "a lobster swims at twenty three cm per second and a reboot"
+                " bump increases velocity by a factor seven what is the new"
+                " velocity?",
+                "161.00",
+            ),
+            # "doubled by two" is an explicit multiplier, not an add.
+            (
+                "a claw strikes with force of thirty five and after molting"
+                " the force is doubled by two what is the total force?",
+                "70.00",
+            ),
+            # An adjacent "times" tail overrides a change-verb gap op.
+            (
+                "a claw force is thirty two newtons and molting increases"
+                " it by three times what is the new force?",
+                "96.00",
+            ),
+            # "each" makes the second operand a per-item count.
+            (
+                "a lobster shows eighteen eye facets and each detects two"
+                " signals how many total signals?",
+                "36.00",
+            ),
+            # A count of claws multiplies the per-claw magnitude.
+            (
+                "a claw exerts twenty five newtons and three claws strike"
+                " together what is the total force?",
+                "75.00",
+            ),
+            # Explicit "sum" question: unlike units may still be added.
+            (
+                "a lobster swims at twenty three centimeters per second and"
+                " its claw exerts fifteen newtons what is the sum of these?",
+                "38.00",
+            ),
+            # Imperative "please add them" is an instruction, not framing.
+            (
+                "a lobster swims at twenty three centimeters per second and"
+                " claw exerts fifteen newtons please add them?",
+                "38.00",
+            ),
+            # A misspelled number word one edit from the COLLAPSED canonical
+            # spelling ("fowrteen" / "fourten") is recovered like a
+            # misspelled operation verb already is.
+            (
+                "a claw exerts twenty three nootons and its mate adds"
+                " fowrteen nootons what is the total force?",
+                "37.00",
+            ),
+        ],
+        ids=[
+            "factor-upgrade",
+            "doubled-multiplier",
+            "times-tail-override",
+            "each-per-item",
+            "claws-count",
+            "sum-unlike-units",
+            "add-them-imperative",
+            "fowrteen-fuzzy",
+        ],
+    )
+    def test_round7_grammar(self, challenge, expected):
+        assert code_parse_challenge(challenge) == expected
+
+    @pytest.mark.parametrize(
+        "challenge,expected",
+        [
+            # A NON-adjacent trailing marker word is scene noise and must
+            # not contradict an explicit chain (corpus twin: "...thirty five
+            # newtons + twelve newtons during dominance fights lobster
+            # velocity um physicx factors" = 47.00 ACCEPTED 2026-06-29).
+            (
+                "a dominant lobster exerts thirty five newtons + twelve"
+                " newtons during dominance fights lobster velocity um"
+                " physics factors",
+                "47.00",
+            ),
+            # A change-verb WITHOUT any multiplicative marker stays an add
+            # (dozens of corpus-accepted twins).
+            ("twenty three accelerates by seven what is the new speed", "30.00"),
+            # "has" with a like-unit second operand stays an implicit add
+            # (the dominant corpus shape for "has").
+            (
+                "a claw force is thirty five newtons and the other claw has"
+                " twenty newtons what is the total force?",
+                "55.00",
+            ),
+            # "<noun> has <bare number>" is another entity's magnitude, an
+            # implicit add — only the same-subject "it has <bare number>"
+            # abstains (corpus truth 46.00, 2026-06-30 accepted).
+            (
+                "the stronger claw exerts thirty two neutons and the weaker"
+                " claw has fourteen how much total force?",
+                "46.00",
+            ),
+            # A "+" symbol and a change-verb in the same gap agree on add;
+            # the pair must not be read as an ambiguity (corpus truth 30.00,
+            # multiple 2026-06/07 accepted twins).
+            (
+                "a lobster swims at twenty three cm per second and+"
+                " increases by seven what is the new speed?",
+                "30.00",
+            ),
+            # A NON-adjacent trailing marker is noise on the IMPLICIT path
+            # too, not multiplicative evidence — the implicit add must win
+            # (found by codex-review: the noise rule initially covered only
+            # the explicit-chain path, turning this into 420.00).
+            (
+                "a dominant lobster exerts thirty five newtons and twelve"
+                " newtons during dominance fights lobster velocity um"
+                " physics factors what is total force?",
+                "47.00",
+            ),
+        ],
+        ids=[
+            "trailing-factor-noise-ignored",
+            "change-verb-alone-still-adds",
+            "has-with-unit-still-adds",
+            "noun-has-bare-number-still-adds",
+            "plus-symbol-and-change-verb-agree",
+            "implicit-trailing-marker-noise-still-adds",
+        ],
+    )
+    def test_round7_guards_preserve_existing_readings(self, challenge, expected):
+        assert code_parse_challenge(challenge) == expected
+
+    @pytest.mark.parametrize(
+        "challenge",
+        [
+            # A marker BEFORE the first operand is an unmodeled phrasing
+            # (zero corpus occurrences): abstain like the head op-word
+            # guard, never let the additive path silently override it
+            # (found by python-reviewer).
+            "each claw force is twenty three newtons and the other claw"
+            " exerts seven newtons what is the total force?",
+            # The split form of the same-subject bare possessed count must
+            # abstain exactly like the unsplit "it has twoo" fixture
+            # (found by codex-review).
+            "a claw exerts nootons of twenty three and i t ha s two whats total force?",
+            # Subtract vs "combined" contradiction on the IMPLICIT postfix
+            # path, mirroring the explicit-chain guard (found by
+            # python-reviewer).
+            "a claw exerts thirty five newtons while another claw exerts"
+            " twelve neutons less what is the combined force?",
+        ],
+        ids=[
+            "head-marker-abstains",
+            "split-it-has-bare-count-abstains",
+            "implicit-postfix-sub-vs-combined-abstains",
+        ],
+    )
+    def test_round7_review_hardening_abstains(self, challenge):
+        assert code_parse_challenge(challenge) is None
 
     def test_and_as_add_guard0_never_overrides_explicit_verb_cue(self):
         # "slows" already registers as a real operation (len(operations)==1),

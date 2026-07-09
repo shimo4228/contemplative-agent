@@ -71,13 +71,20 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │    → verification handshake: a non-trusted agent's create-response carries a
  │      math challenge; solve_challenge first runs a deterministic code parser
  │      (code_parse_challenge, rewritten 2026-07-07 from the 601-challenge audit
- │      corpus — ADR-0062 6th amendment) that normalizes leet 0→o, merges split
+ │      corpus — ADR-0062 6th amendment; grammar extended 2026-07-09 on 792
+ │      challenges — 7th amendment) that normalizes leet 0→o, merges split
  │      fragments bounded by collapsed token length, recovers misspelled number
- │      words / operation verbs at edit distance 1 (canonical spellings, prose
- │      stopwords, ambiguity poisons the parse), dedups doubled number words,
- │      left-folds strictly interleaved N-step chains, resolves trailing
- │      total/product cues and adjacent postfix operators, and abstains (None)
- │      on any ambiguity (replay: coverage 82.9%, zero wrong submissions); only
+ │      words / operation verbs at edit distance 1 (canonical or, for tokens
+ │      ≥ 6 letters, collapsed spellings; prose stopwords; ambiguity poisons
+ │      the parse), dedups doubled number words, left-folds strictly
+ │      interleaved N-step chains, resolves trailing total/sum/product cues,
+ │      adjacent postfix operators, multiplicative markers (factor / doubled /
+ │      each / a claw count after the second operand — markers beat generic
+ │      change-verbs like "increases" in the same gap; non-adjacent trailing
+ │      markers are noise), waives the like-unit guard under an explicit
+ │      "sum" / "add them" instruction, and abstains (None) on any ambiguity,
+ │      including corpus-attested contradictions ("slows" vs "combined", bare
+ │      "it has N") (replay: coverage 83.2%, zero wrong submissions); only
  │      then does it ask the LLM for a short numeric expression, validate it in
  │      Python, and fall back to bounded LLM reasoning if the guarded expression
  │      fails (solver order: code_parse → llm_extract → llm_reason). The bounded

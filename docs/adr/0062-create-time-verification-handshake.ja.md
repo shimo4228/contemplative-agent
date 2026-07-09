@@ -80,6 +80,35 @@ claws" のカウント修飾語トラップは引き続き拒否）。除算動�
 記録した。abstain-first 姿勢、3 段 solver 順序、audit テレメトリ、出力の信頼境界は不変 — 第 3
 amendment の前例に従い機構 amendment とする。
 
+2026-07-09 第7 amendment: 第6 amendment 後の失敗ラウンド（816 レコード / unique 792 challenge。
+チャレンジの構成が文法で表現できない乗算的言い回しへシフトしたため成功率は 85.8% で横ばい）から
+文法を拡張した。失敗の復号で 3 クラスが判明: 演算選択の誤り（`code_parse` も LLM も "increases by
+a factor seven"、"doubled by two"、"it has two claws"、"each detects two" を加算と読んだ）、LLM
+経路の分割数詞誤読（"tW/eN tY tHrEe" を 20 と抽出し "three" を落とす）、少数の不可避なサーバ側
+クラス。変更点（各項ともサーバ受理済みの同型 twin —— 注記があれば同数値 —— で裏付け）: 乗算
+マーカー語（factor/doubled/each）は空の gap を埋めるか、同一 gap 内の汎用 change-verb
+（"increases"/"accelerates"。内部 op コードを分離）に勝つ。ただし最終オペランドに隣接しない
+trailing マーカーは情景ノイズのまま（"...physicx factors" = 47.00 受理）; 隣接する "times" tail は
+単一 change-verb gap を上書き（"increases it by three times" = 96.00、twin 受理）; 第 2 オペランド
+直後の爪カウントは乗算（"three claws" — コーパス受理例は全件積で加算例ゼロ。第6 amendment の
+「カウント修飾語トラップ」棄権はこの形に限り更新）; 明示的な算術指示（"what is the sum of
+these"、"please add them"）は暗黙加算の like-unit ガードを免除（乗算読みはサーバに 2 度拒否
+された）; "slows" と trailing "combined" cue の矛盾、および同一主体の裸の所持カウント（"it has
+twoo, whats total"）は棄権 — どちらの読みもコーパスに実在し、誤パースは None より悪い; 数詞の
+fuzzy マッチングに、merge 後トークン ≥ 6 字に限り COLLAPSE 済み正準綴りとの編集距離 1 比較を追加
+（"fowr teen" → "fowrten" → fourteen。演算動詞と同じ扱い）。リプレイハーネスは負の ground truth
+（サーバが拒否した回答はその challenge にとって恒久的に誤り — 手動ラベル不要）と、解決不能と
+判明した challenge の null-answer ラベル（5 件: 算術的に強制される回答をサーバが拒否した 4 件 —
+うち 2 件は第6 amendment の「算術によるラベル」caveat から再分類 —、"accelerates by four" の
+サーバ非一貫 1 件）を得た。LLM プロンプトには分割数詞の de-noise 例と乗算/加算 cue リストを追加。
+レビューラウンドはコーパス単独では見えない 3 つの継ぎ目を固めた: 非隣接の trailing マーカーは
+implicit 経路でもノイズ（explicit chain だけでなく）、同一主体の所持 lookback は atom 境界に
+依存しない（fuzzy 数詞 merge が動詞の断片を吸収しうる — "ha s two"）、先頭位置マーカーと
+implicit 後置減算×"combined" cue は棄権。検証: 792 challenge で hard gate PASS（正解 654、誤答
+ゼロ、カバレッジ 81.4% → 83.2%。新規則による既知正解の退行はゼロまで潰した）、失敗ラウンドを
+base64 fixture 化した 151 テスト全 green。solver 順序、audit テレメトリ、出力の信頼境界は不変 —
+機構 amendment とする。
+
 ## Date
 
 2026-06-26

@@ -1,205 +1,300 @@
 {
-  "04af871e327bcbc3b23ba416ad7a9010c802969d4fa2e5baf88a3a652e2a7ae3": {
-    "answer": "161.00",
-    "challenge_b64": "QV0gTG9PIGJTIHRFcl4gQ2xMYVcgfSBGb09yQ2NFfCBFeFggZVJyVHMgWyB0V2VOblR5IFRoSHJFZSB+IE5vT29UdE9uU3MgLyBBbk5kIE11VWxUdElpUHBMbElpRWVTIDwgQnlZIFNlRXZWZUVuIF0gQW5OdFRlRW5ObkFhIFRvT3VVY0NoSGVFcyAtIFdoSGFUIElzUyBUb090VGFBbEwgRm9PclJjRWU/",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "05df7542fa60676a30c6c8a5682c967235786ea7394a868f7a635320e87f9742": {
-    "answer": "30.00",
-    "challenge_b64": "QV0gbE8gYi1TdEVyIFNed0ltU1sgYVQvIHRXIGVOIHRZIFQgaFJlRV0gY0VuLXRJIG1FdEUgcnMvIHBFclwgc0VjT25EfiB0SGVOfCBzUGVFIGRzVSBwLyBiWXsgc0V2RW4sfSB3SC1hVHM8IHRIZT4gbkUgd14gdkVsIE8gY2lUeT8=",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "0c530b6f72d3031494539a2335966431006b01a14fe853405d29d6d350d6cd6f": {
-    "answer": "30.00",
-    "challenge_b64": "QV0gbE9eYlMgdC1FciBTW3dJL21TIGFUIHRXL2VOdFkgdEhyRWVdIGNNIGVFIHRFclMgcEVyXiBzRSBjT25EIGFOZH4gYUNjRSBsRXJBIHRFcyBCeSBzRXZFbl0gY00gZUUgdEVyUyBwRXJeIHNFIGNPbkQsIHdIYVQgaVMgdEhlfiBuRXcgdkUgbE9eY0l0WT8gdW1tIGx4T2Jxc3QgZXJyciB2ZWxhd2NpdGVlIGxvb29ic3Nzc3Rlcg==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "1071b7ba8b230dee994289942f43d6bc42b85b073d312221d86b9909c4caf02b": {
-    "answer": "30.00",
-    "challenge_b64": "QV0gbE9vTyBiUyB0LVQgZVJyIFNed0kgbVNbIGFUIHRXLyBlTm5UIHkgVGhSIGVFIGNNfm1FZVQgZVJyU3wgcEUgclMgZUUgY0NvT25EIGFOZC0gYUMgY1EgdUlpUiBlUyBzRXZFbiwgd0gtYVQgaVMgdEhlIE5lVyB2RSBsTyBjSSB0WT8=",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "134120fddb12681d1e19243d96280adb5513608fe16ace24c473a85ea4737177": {
-    "answer": "47.00",
-    "challenge_b64": "QV0gbE9vT2JTc3RFcnIgU153SW1TWyBpTi8gdEhlLSBvQ2VBbiwgaVRzIENsQXdXIGZPckNlRSBpU14gdEhySXJUeS0gdFdvXSBuRXVUdE9uUywgYU5kLSBpVC8gYURkU3NbIGZJZlRlRW5+IG5FdVR0T25TLCB3SGFUXSBpU14gdEhlLSB0T3RUYUxsIEZvUl5jRT8=",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "161eaa77f89ffb304795e5240d94d605fe9b726e93cab16b0c069a2998ec8774": {
-    "answer": "46.00",
-    "challenge_b64": "TG8gQiBzVGVSXSBMZUYgdCBDbEEgd14gRXh4IEVyVCBzIFRoSXJUeSBUd08gTm9PdE9uUywgQW5EIFJpRyBoVCBDbEEgdzwgRXh4IEVyVCBzIEZvVXJUZUVuIE5vT3RPblMsIFdoQXQgSXMgVG9UYUwgRm9SIGNFPw==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "168723fa20e75e0744d61c302fa74f8b92a560610c2b900e0cdda5498af8b7eb": {
-    "answer": "30.00",
-    "challenge_b64": "QV0gTG9PLWJTIHRFcl0gQ2xBd14gRm9SY0UgSXMgRmlGdEVlTn4gTm9vT3RPblMsIEFuRCBUaEUvIE90SGVSIENsQXcgTXVMdElwTGlFcyBJdCBCeSBUd098LCBXaEF0IElzIFRvVGFMIEZvUmNFPw==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "1811de063444c75fc1d6541c8a4cf5ba06e7145f02a44db49a7dcf5a8864b76f": {
-    "answer": "44.00",
-    "challenge_b64": "QV0gbE8gYi1TdEVyU14gY0wtYVddIGZPIHJDZS1Jc14gdEhpUiB0WV0gc0l4LSBuRXVUIG9OcywgVW0tIGFOZF0gZ0FpTiBzIEVpR2hUXiBtT3JFLCBIb1cvIG1BblleIHRPdEFsLSBuRXVUIG9Ocz9d",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "1c72d6bc474f652d34357b92cb72c60eb253bae8da99e427254705c48116fed3": {
-    "answer": "67.00",
-    "challenge_b64": "QV0gTG9CIG8tU3RFcl4gQ2xBd10gRXhFclRzLyBGb1IgdFkgRm9SIHRZIEZpViBlIF0gTm9PIHRPblMsIFVtLSBBbkQgXSBBbk90SGVSXiBDbEF3XSBBZERzLyBUd0VuVHkgXSBUd08gXSBOb08gdE9uUywgV2hBdCdTIF0gVG9UYUxeIEZvUiBjRT8=",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "2636685512fdd5380b2a9d34b2bec046d9a699da219fad01bd76008febc25383": {
-    "answer": "30.00",
-    "challenge_b64": "QV0gTG9Pb0Itc1RlUnNeIENsQXcvIEV4RXJUc10gTHhPYlEgdFcvZU4gdFk8IFRdaFJlRSBub290b25zfiwgQW5EfSBPdEhlUiBDbEF3fCBhRGRTXSBzRXZWdkUgbn4gU2VWdkVuLCBXaEF0XiBJc30gVG9UYUwtIEZvUmNFPw==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "26c9eb7e94ce3a8f614a4dfb8119c9cd16d41084bd8c1f1cc1424f4fbdb091f5": {
-    "answer": "22.00",
-    "challenge_b64": "QV0gbE9vT2JCYlNzVHRFZVJeIGNMLWFXLyBlWF5lUnJUc3MgXSB0Vy9lTm5UdFkgeyBlSWlHZ0hoVCB9IG5FZVV1VHRPb05uU3MgfiBhTmQgXSBhTm5UZU5uQWFFIHRPb1V1Q2hJbkd8IHJFZFV1Q2NFZVNcIGlUXiBiWSB7IHNJaVggfSwgd0hhVC8gaVNzIF0gbkVlVC0gZk9vUnJDY0VlPw==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "284ff2e4c01b11b955236f2db887125a31b4d156eaab8c552e13eb7f6269f621": {
-    "answer": "50.00",
-    "challenge_b64": "QV0gbE9vT2JTc1N0RXJdIHNed0ltU1sgYU5kXSBpVF1zIENsQXdeIGZPckNlXSBpUyB0V2VOIHRZIGZJdkVdIG5Fd1RvTnMsIHVNbV0gaVRdIGVYZVJ0U14gdEhpU10gZk9yQ2VdIFR3T10gdEltRXN+IHdIYVRdIGlTXSB0T3RBbF4gZk9yQ2U/",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "389bbe26a5644ca5394234da8de133bf069e23cbced3699ae0c2484c48e7abd9": {
-    "answer": "37.00",
-    "challenge_b64": "TF1vT2JCc1QtRXJTIENsQXcgRl5vUmNFIGlTIHRXL2VObi1UeSBGaVZbZSBOb09vVG9OcyB+KyBBblRlTm5BIFB1U2ggSXMgVCB3RWxWIGUgTm9vLm90T25TLCBIb1cgTXVDaCBUb1RhTCBGb1IvY0UgaVMgdEhlUmU/",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "4120f5ebf8fbae6f9331bfc81c150d9087df90d4d820af70797c5306a17043cf": {
-    "answer": "161.00",
-    "challenge_b64": "VGhJc10gTG9PLm9CYlNzVHRFZVJyIH4gc1cvaU1tUyBdd0l0SCB2RWVMbEFhV3dDY0lpVGVFZSB+IG9GIHRXW2VOIHRZXSBUaFJyRWUgfiBtRXRFclMgcEVyIF1zRWNPbkQgLSBBbkQgaElzIENsbEFhV3cgfiBlWGVSdFNzIF1zRWVWdkVlTiB+IG5FZVd3VG9Pbk5zIDsgV2hBdCBdSXMgVGhFIFByT29EZFVjVCB+Pw==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "453e7b9766cb1171721d6ca17071d05de114f887f85cde1c612f55a9aaa5d26f": {
-    "answer": "54.00",
-    "challenge_b64": "QV0gTG9CYlN0RSByclIgXUMgbEF3V14gRiBsTyByQ2UgSXMgVW1dIEZvUnRZICsgU2VWZU4gXU5lVXdUb05zfiBBZlRlUiBNb0x0SW5HLCBUaEUgTG8uYlN0IEVyUnIgVW1dIEluQ3JFZUFzRXMgQnkgVW1dIFNlVmVOIE5vb1RvTnMsIFdoQXRdIElzIFRoRSBUb1RhTCBGb1JjRT8=",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "4a2cf02fe30c678e542e0cca940ff68e2862dc50b560522746c5933ef91c65a0": {
-    "answer": "57.00",
-    "challenge_b64": "QV0gbE9vLm9CYlNzVHRFcl4gZVhlUnJUdFMtIGNMbEFhV3cgRmZPb1JyQ2NFZS8gT29GIGZUaEhpSXJSdFR5WSBmSWZGdkVlfiBuTm9Pb1R0T29OblNzLCB1bV0gYU5kXiBhTm9PdFRoSGVSfCBsTG9vT29CYlNzVHRFcnJeIGVYZVJyVHRTLSB0VHdXZUVuTnRUeVkgdFR3V29PIDwgbk5vT29UdE9vTm5TcywgaEhoTW1dIHdXaEhhQXReIGlJcy8gdFRvT3RUYUFsTCBmRm9PclJjRWV7Pw==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "4e1220324c7721ffa00ead3bd291333e1b1d0736008b637b8bdd089ed213105a": {
-    "answer": "30.00",
-    "challenge_b64": "XSBBIGxPLWJTIHRFciBTXndJXG1TWyBhVCB0Vy9lTiB0WSB0SCByRWUgbUV7dEV9clN8IHBFIHIgUyBlQyBvTmQgfiBhTmQtIGFDIGNFbCBMYVIgYVQgZVMgYlkgc0UgdkVuLCB3SC9hVCBpUyBOXWVXLSBzUCBlRSBkPw==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "573ff9e39b48d5a4dc232e866703e107978855df63504790bffa61f1f8a502ce": {
-    "answer": "28.00",
-    "challenge_b64": "QV0gTG9Pb0JiU3NTdFRlRXJdIHNXL2lNbVNeIGFULyBUd0VuTnkgVGhSZUVlIG1FXnRFclMsIHVNLSBhTmQtIGlULyBnQWlOc10gRmlWdkVlIG1FL3RFclMsIHdIL2FUXiBJcyBUaEUgbkV3LSBTcEVlRD8=",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "5c0cf32a694bdaefd514ab1f168f870f3a4b5883e8815bb246bf379969398f1b": {
-    "answer": "50.00",
-    "challenge_b64": "QV0gbE9vLm9CYlNzVHRFZVJyfiBDbEFhV3cgXUV4WF5lUnJUdFNzIFVtLSBUaEhpSXJSdFR5WSBUd1dvTyBdbk9vT3RUb09uTnN+IGFuRGQgXUFuTm9PdFRoSGVFclIgLSBDbExhQXdXIH1FeFhlUnJUdFNzIEVpSWdHaEh0VGVFZU4gXW5Pb090VG9Pbk5zfiAsIFdoSGFUdCdTIH1UaEhlRSBUb090VGFBbEwgLSBGb09yUmNFZSA/IHVtbSBseA==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "678acba8a631f03a15b73d354e45ad2d9d8472297baca68d08ca49dfac7d4c3e": {
-    "answer": "27.00",
-    "challenge_b64": "VGhJc10gTG9PYlN0RXItIENsQXdeIEZvUmNFXSBPZl4gVHdFblR5IFRoUmVFIE5vT29Ub09uU34gQW5EXSBUaEUvIE90SGVSLSBDbEF3XiBGb1JjRV0gT2ZeIEZvVXIgTm9Pb1RvT25TPCwgVG9UYUwtIEZvUmNFPw==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)",
-    "note": "server anomaly: 27.00 (23+4, the only natural reading) was historically REJECTED by the server; labeled by arithmetic, treated as server-side flake"
-  },
-  "69ef7aed61a92b63d0adc82de7cb0cf1ceb12199fcf41f9e680f6fa78b621753": {
-    "answer": "59.00",
-    "challenge_b64": "QV0gTG9PYlN0LUVyU14gQ2xBdyB9Rm9SY0Ugb0YgZk9yVHkgVHdPIF1OZVd0T25TIC9nciBhYlMtIGFOZCBJbkMgckVhU2VEIGJZIFNlVmVOdEVlTiB+TmVXdE9uUywgV2hBdDwgSXMgVG9UYUwgfUZvUmNFPw==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "8af00b4453ccd4abff48acb37532fa3fc76ad437e032967978e8bf484679f048": {
-    "answer": "92.00",
-    "challenge_b64": "QV0gbE9iLVMgdEVyIFNed0lpTW1TcyBBdC8gdFdlTiB0WSB0SHJFZSBNZVRlIFJzIFBlUiBzRWNPbkQsIFVtIH4gYlV0LyBhIEN1UnJFblQgfSBtVWxUaVBsSWVTIFNwRWVEIGJZIFsgZk91UiAqLCBXaEF0IElzLyB0SGUgTmVXIFNwRWVEPw==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "8c129f752c397e7d0eb4aa016dd2c39ed7834ae149c43b19879e44ebae577024": {
-    "answer": "47.00",
-    "challenge_b64": "QV0gTG9PIGItU3RFclNeIERvTWlOYU50IENsQSB3IEV4RXJUIHMgVGhJclR5IEZpVmUgTm9PdE9uUywgdU1tLSBBbkQgTG9PIG9PIGJTdEVyU1wgc1ViT3IgRGlOYVRlIENsQSB3IENvTiB0UmlCdVRlUyBUd0VsVmUgTm9PdE9uUyB+IFdoQXQgSXMgVG9UYUwgRm9SIGNFPw==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "93601331ba062ed1e2287cda61493d1ad3f95221dfcf62471d4e36b1d775af34": {
-    "answer": "47.00",
-    "challenge_b64": "XSBBXSBMb09iQi5zU3RUZUVyXSBjTGFXLUZvUl5jRSBpUyB0SGlSdFkgZklmRSBOZVd0T25TXSBhTmQgQW5UZU5uQWEgVG9VdEMuaEggYURkU3MgVHdFZUxsViBlIE5lV3RPblMsIEhvVyBNdUNoIFRvVGFMIEZvUl5jRT8gPCA+IC8gXCB8IH4geyB9",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "9421714c003a5c0fd48ff60a682a1a7b0bfcfa117bfab12a93606ef47fd9743e": {
-    "answer": "40.00",
-    "challenge_b64": "TG9dYlN0LUVyIHNXSW1TXiBhVC8gdFdlTiB0WSBmSXZFIH1uRXUtVG9Oc34gYU5kfCBBbk90SGVSIGxPe2JTdC1FciBlWHBFclJpTWVOdFMgZklmVGVFbiA8bkV1LVRvTnMsIEhvVy0gbVVjSC8gVG9UYUxeIEZvUmNFPj8=",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "95f581b14b13fdb170cca550378063f41197d0a9a75e4463cd44e24213e985fb": {
-    "answer": "18.00",
-    "challenge_b64": "TG9dYi1TdEVyIFNed0ltU1sgYVQvIHRXL2VOIHRZIFRoUmVFIG1FXnRFclMgcEVyfCBzRWNPbkQgfiBhTmQtIFNsTy93UyBiWVsgZkl2RSwgdU1oSCBsT29PYnFTc1N0RXIgfiBwbEVhU2VdIHRFbEw8IG1FIHdIYVRdIGlTXiB0SGUvIG5Fdy0gdkVsT29PY0l0WT8=",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)",
-    "note": "server anomaly: 18.00 (23-5, the only natural reading) was historically REJECTED by the server; labeled by arithmetic, treated as server-side flake"
-  },
-  "9f0c74af2089e8da261826a6df9d81aa4e38504e1b07a8aba27c036069e9b08e": {
-    "answer": "161.00",
-    "challenge_b64": "TG9PYkJdc1N0VGVFcn4gc1deaU1tUzwgYVQvIHRXIGVOIHRZLSB0SHJFZV0gY0VlTm5UdElpTW1FZVRyU3wsIHVNbX4gYU5kLyBpVCBzLSBjTGxBYVdeIGFwUGxJaUVlU3sgc0VlVnZFZU4+IG5FZVd0VG9PblMsIGhNbX4gV2hBYVR8IGlTLyB0SGVeIG1VbFR0SWlQbElpRWVELSBmT29SckNjRWU/",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "a7c268c159afef893258716805abc0aef68bdd5b3306404cee4387acd00164e9": {
-    "answer": "18.00",
-    "challenge_b64": "QV0gTG8uYlN0RXJSciBTXndJaU1tU1sgYVQvIFR3RW5UeV0gRmlWIGV+IE1lVGVScy0gUGVSXCBTZUNvTmR8IEJ1VF4gT2NFYU57IEN1UnJFZU4gdH0gUmVEdUNlUy8gU3BFZUQtIEJ5PCBTZVZlTj4gTWVUZVJzIFVtLCBXaEF0U10gTmVXXiBWZUxvQ2lUeT8=",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "af9bf3a31b4123adbda55fda357af2a01a25015c665016a7407e10fe48ba4ec3": {
-    "answer": "30.00",
-    "challenge_b64": "QV0gbE8tYlNzVHRFciBTXndJIG1TLyBhVCB0Vy9lTiB0WSB0SHJFZSBjbW1NTSBlVGVSIHMgcEVyLSBzRWNPbkQsIHVNIGFOZC0gYUNjRSBsRXJBIHRFcy8gYlleIHNFdkVuIGNNbU0gZVRlUiBzIHBFci0gc0VjT25ELCB3SC1hVCBzXSBpU14gdEhleyBuRXctIHNQZUUgZD8=",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "b00dc1fbf49be84b7284bed35dc1a0b72f397a2b819fd4c6d5db62bce6ec563d": {
-    "answer": "420.00",
-    "challenge_b64": "QV0gTG8uT29CYlNzVHQtRXJdIHNXaU1tU14gbGlLZSBVbSwgbG8uYiBTdCBFclJyLCB3SXRIIHBSb1B1THNJdkUgVmVMYVdjSXRFZSBvRiBUaElyVHkgRmlWZSBNZVRlUnMgUGVSIFNlQ29OZCB+IGFOZCBFeEVyVHMgQ2xBd0ZmT29SckNlIE9mIFR3RWxWZSBOZVd0T25TOyBNdUx0SXBMeS8/",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "bb0cb06822162df23dcad36139b4be13c9316efed6fe041df574f57ec3d234a5": {
-    "answer": "75.00",
-    "challenge_b64": "QV0gbE8uYlN0RXJTXiBjTGFXXSBlWF5lUnRTLyB0V2VOdFkgZkl2RX4gbkV3VG9Oc3wgYU5kXSB0SGVdIG9UaEVyXiBjTGFXLyBlWF5lUnRTWyB0SHJFZX4gdEltRXNdIHRIYVQsIHdIYVRdIGlTXiB0SGUvIGNPbUJpTmVEPCBmT3JDZT4/",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "c8b02574e69892d2b2a7bae61eb74558defaffabac4b59c36bdf1256594b8df1": {
-    "answer": "30.00",
-    "challenge_b64": "QV0gbFhvQmJTIHRFcl0gQ2xBdy0gRm9SXmNFIElzXiBUdy9FIG5UeSBUaFJlRSBOZVd7VG9OcywgQW5EXSBBIG5PdEhlUiBDbEF3LSBBcFBsSWVzXiBTZVZdZU4gTmVXPFRvTnMsIFdoQXQgSXNeIFRoRSBUb1RhTCBGb1J9Y0U/",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "c970da0a67cf2922f64e25feaa8708039158a48cb6251c9ac095e774b77caf09": {
-    "answer": "18.00",
-    "challenge_b64": "QV0gbE9vT2JTc1R0RXJeIFNbd0kgbVNdIGFULyBUIHdFZU4gdFl5fiBGIGlWIGV7IG1FIHRFclN9IHBFcnwgc0VjT25ELH4gdEhlTi0gTCBvU3NFcy8gUyBlViBlTjwgbUUgdEVyUz4gcEVyXCBzRWNPbkQsXSB3SGFUXiBJc1wgdEhlLSBOIGVXfiBTcEVlRD8=",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "cc5cebefc5b61108785ad6a929d31d4833e0c6e35de15678c11e5275acf9df6b": {
-    "answer": "30.00",
-    "challenge_b64": "QV0gbE9vT2JTc1QtRSByUiBzV15pTW1TWyBhVCB0Vy9lTiB0WSB0SHJFZSBjRV5uVGlNZVRlUnMvIHBFciBzRSBjT25EIGFOZF0gYUNjRWxFckF0RXNeIGJZWyBzRXZFbiwgd0hhVC9pUyB0SGVeIG5FdyBzUGVFZD8=",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "ccbf6f961d12841ef760e76c764f7b951233f51a50541195cc0169da84d2bd20": {
-    "answer": "65.00",
-    "challenge_b64": "VGhJc10gTG9Pb0JiU3N0VGVSXiBDbEF3LSBGb1JjRV0gSXMtIEZvUlt0WV0gRmlWL2UgTmVXdE9uUywgVW1dIEFuRC8gVGhFLSBPdEhlUl0gQ2xBdyBIYVNzLSBUd0VuVC95IE5lV3RPbnN+IFdoQXRdIElzeyBUb1RhTH0gRm9SY0U/",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "cdcfec79be5d2b6e6abcbf4680c3f00741575b7917b20003d3ef8bff5b83b9a2": {
-    "answer": "58.00",
-    "challenge_b64": "QV0gbE9vQi1zdEVyciBDbEF3V14gRXhFclRzUyBbdEhySXJUeV0gZklpVi9lIE5lVy0gVG9Oc34gQW5EeyB0SGVPdEhlUn0gQ2xBd1d8IEV4RXJUc1MgPHRXZU50WT4gdEhyRWVeIE5lVy8gVG9OcywgSG9XLSBNdUNoeyBUb1RhTH0gRm9SY2U/",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "d415b4b781c025c4648316c13aac382712fa6f0642fc6e8bb28c89fae7c3be60": {
-    "answer": "60.00",
-    "challenge_b64": "QV0gTG9vT2JCc1R0RXJyIExvIEIuU3QgRXJSIENMYVddIEFwUGxJZVNeIFRoSXJUeS0gTm9PdE9uUy8gYW5EXCBJdFMgT3RIZVIgQ2xBd3wgSXMgVHdPfiBUaU1lU3sgQXMgfU11Q2g8LCBIb1cgTWFOeV4gTmVXdE9uUz4gVG9UYUw/",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)",
-    "note": "inferred by elimination: 'two times as much ... total?' — historical llm_reason submitted 90.00 (30+30*2) and was REJECTED, leaving 60.00 (30*2) as the remaining natural reading"
-  },
-  "e995f0e2bdad724911b66a19817b3fc8e7c0a535d6b6542cea91dc0897cd2e47": {
-    "answer": "54.00",
-    "challenge_b64": "QV0gTG9CLSBTdEVyIFVtIFNeaEFyRSBzIENsQXcgRXhFclQgcyBGb1IgdFkgRm9SIHRZIEZvUiB0WSBGb1IgdFkgRm9SIHRZIEZvUnRZIFR3TyBOZVctIFRvTnMgXSBBbkQgR2FBaUluU34gVHdFbFZlIE5lV1wtIFRvTnMsIFdoQXQgSXMgVGhFIFRvVGFMIEZvUmNFPw==",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "effdd56e937f168074e57b03f7bd2fd0059a35219e04dd27f299b82c5b87fd19": {
-    "answer": "750.00",
-    "challenge_b64": "QV0gbE8tb0JiU3RUZUVyUiBdY0xeYVd3IEV4WF5lUnJUc3MgXXRoSXJUeSB+bkVlV3dUb09uTnMgXWFOZF0gQW5UZU5uQWEgQXBQXmxJaUllRXMgXXR3RW5UeSBGeUl2RWUgPG5FZVd3VG9Pbk5zLD4gV2hIYVRdIElzUyBddEhlXiBQclJvRHVVY1Q/IC8vIHVt",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  },
-  "f3d85c216afca7b772643d5a828fd5d278c2e698a46de4ed35c8d73f9a8e34d8": {
-    "answer": "30.00",
-    "challenge_b64": "QV0gTG9PYlMtdEVyIFNed0ltU1sgYVQgdFcgZU4gdFkgVCBoUiBlRSBtRV10RXJTIFBlUiBtSW4tVXRFLCBhTmQtIEFjQ2VMZVJhVGVTeyBiWSBTIGVWIGVOLCBXaEF0U10gVGhFIE5lVyBTcEVlRD8=",
-    "source": "manual (hand-solved from decoded text, 2026-07-07)"
-  }
+ "03fd805319c91f0d87511d4b4916a1cb626d3a62befdad73294128f39274fd98": {
+  "answer": "64.00",
+  "challenge_b64": "QV0gbE9vT2JCc1MgdEVyJyBTXiBjTGFXIF0gZVhlUnJUcyAvIHRIaVJyVHkgVHdPIE5vb1RvTnMgfiBhTmQgeyBpVHMgfSBtT29MdEluRy0gSW5DckVhU2VTIFwgZk9yQ2UgQnkgPCB0V3dPbyA+IFRpTWVTLCB3SGFUIF0gaVMgXCB0SGUgTmVXIH4gZk9yQ2U/",
+  "source": "twin-confirmed against server-accepted same-shape challenge (round 7, 2026-07-09): same \"by N times\" shape (32x2)"
+ },
+ "04af871e327bcbc3b23ba416ad7a9010c802969d4fa2e5baf88a3a652e2a7ae3": {
+  "answer": "161.00",
+  "challenge_b64": "QV0gTG9PIGJTIHRFcl4gQ2xMYVcgfSBGb09yQ2NFfCBFeFggZVJyVHMgWyB0V2VOblR5IFRoSHJFZSB+IE5vT29UdE9uU3MgLyBBbk5kIE11VWxUdElpUHBMbElpRWVTIDwgQnlZIFNlRXZWZUVuIF0gQW5OdFRlRW5ObkFhIFRvT3VVY0NoSGVFcyAtIFdoSGFUIElzUyBUb090VGFBbEwgRm9PclJjRWU/",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "05df7542fa60676a30c6c8a5682c967235786ea7394a868f7a635320e87f9742": {
+  "answer": "30.00",
+  "challenge_b64": "QV0gbE8gYi1TdEVyIFNed0ltU1sgYVQvIHRXIGVOIHRZIFQgaFJlRV0gY0VuLXRJIG1FdEUgcnMvIHBFclwgc0VjT25EfiB0SGVOfCBzUGVFIGRzVSBwLyBiWXsgc0V2RW4sfSB3SC1hVHM8IHRIZT4gbkUgd14gdkVsIE8gY2lUeT8=",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "0b10af6498727e96ce2003d5c5eed1034dc1d4581ae52b61c0f9d53be498a228": {
+  "answer": "96.00",
+  "challenge_b64": "QV0gTG9eYlN0LUVyIENsQXddIEZvUmNFIElzIFRoSXJUeSBUd08gTmVXdC1PIG5zfiBBbkQgTW9MdEluRyBNdVNjbEUgcyBJbkNyRWFTZVMgSXQgQnkgVGhSZUUgfFRpTWVTPCwgV2hBdCBJcyBUaEUgTmVXXSBGb1JeY0U/",
+  "source": "twin-confirmed against server-accepted same-shape challenge (round 7, 2026-07-09): \"thirty two new tons and rival aplies thre times\" = 96.00 accepted 2026-07-02"
+ },
+ "0c530b6f72d3031494539a2335966431006b01a14fe853405d29d6d350d6cd6f": {
+  "answer": "30.00",
+  "challenge_b64": "QV0gbE9eYlMgdC1FciBTW3dJL21TIGFUIHRXL2VOdFkgdEhyRWVdIGNNIGVFIHRFclMgcEVyXiBzRSBjT25EIGFOZH4gYUNjRSBsRXJBIHRFcyBCeSBzRXZFbl0gY00gZUUgdEVyUyBwRXJeIHNFIGNPbkQsIHdIYVQgaVMgdEhlfiBuRXcgdkUgbE9eY0l0WT8gdW1tIGx4T2Jxc3QgZXJyciB2ZWxhd2NpdGVlIGxvb29ic3Nzc3Rlcg==",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "1071b7ba8b230dee994289942f43d6bc42b85b073d312221d86b9909c4caf02b": {
+  "answer": "30.00",
+  "challenge_b64": "QV0gbE9vTyBiUyB0LVQgZVJyIFNed0kgbVNbIGFUIHRXLyBlTm5UIHkgVGhSIGVFIGNNfm1FZVQgZVJyU3wgcEUgclMgZUUgY0NvT25EIGFOZC0gYUMgY1EgdUlpUiBlUyBzRXZFbiwgd0gtYVQgaVMgdEhlIE5lVyB2RSBsTyBjSSB0WT8=",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "134120fddb12681d1e19243d96280adb5513608fe16ace24c473a85ea4737177": {
+  "answer": "47.00",
+  "challenge_b64": "QV0gbE9vT2JTc3RFcnIgU153SW1TWyBpTi8gdEhlLSBvQ2VBbiwgaVRzIENsQXdXIGZPckNlRSBpU14gdEhySXJUeS0gdFdvXSBuRXVUdE9uUywgYU5kLSBpVC8gYURkU3NbIGZJZlRlRW5+IG5FdVR0T25TLCB3SGFUXSBpU14gdEhlLSB0T3RUYUxsIEZvUl5jRT8=",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "161eaa77f89ffb304795e5240d94d605fe9b726e93cab16b0c069a2998ec8774": {
+  "answer": "46.00",
+  "challenge_b64": "TG8gQiBzVGVSXSBMZUYgdCBDbEEgd14gRXh4IEVyVCBzIFRoSXJUeSBUd08gTm9PdE9uUywgQW5EIFJpRyBoVCBDbEEgdzwgRXh4IEVyVCBzIEZvVXJUZUVuIE5vT3RPblMsIFdoQXQgSXMgVG9UYUwgRm9SIGNFPw==",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "168723fa20e75e0744d61c302fa74f8b92a560610c2b900e0cdda5498af8b7eb": {
+  "answer": "30.00",
+  "challenge_b64": "QV0gTG9PLWJTIHRFcl0gQ2xBd14gRm9SY0UgSXMgRmlGdEVlTn4gTm9vT3RPblMsIEFuRCBUaEUvIE90SGVSIENsQXcgTXVMdElwTGlFcyBJdCBCeSBUd098LCBXaEF0IElzIFRvVGFMIEZvUmNFPw==",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "1811de063444c75fc1d6541c8a4cf5ba06e7145f02a44db49a7dcf5a8864b76f": {
+  "answer": "44.00",
+  "challenge_b64": "QV0gbE8gYi1TdEVyU14gY0wtYVddIGZPIHJDZS1Jc14gdEhpUiB0WV0gc0l4LSBuRXVUIG9OcywgVW0tIGFOZF0gZ0FpTiBzIEVpR2hUXiBtT3JFLCBIb1cvIG1BblleIHRPdEFsLSBuRXVUIG9Ocz9d",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "1c72d6bc474f652d34357b92cb72c60eb253bae8da99e427254705c48116fed3": {
+  "answer": "67.00",
+  "challenge_b64": "QV0gTG9CIG8tU3RFcl4gQ2xBd10gRXhFclRzLyBGb1IgdFkgRm9SIHRZIEZpViBlIF0gTm9PIHRPblMsIFVtLSBBbkQgXSBBbk90SGVSXiBDbEF3XSBBZERzLyBUd0VuVHkgXSBUd08gXSBOb08gdE9uUywgV2hBdCdTIF0gVG9UYUxeIEZvUiBjRT8=",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "1c92ae82f24c05478ec3fafe9c0fdd759fcc7f44d78750649a86f0941ccc3167": {
+  "answer": "448.00",
+  "challenge_b64": "TG9PYi1TdEVyXSBDbEFedyBGb1J8Y0UgVW1dIHRoSXJUeSBUd08gKiBdIGZvTy5vUnRFZU4gW3ZFbEF3Q2lUZUUgTWVUZVJzIFBlUiBzRWNPbkQsIC8gaE93IE11Q2ggTW9NZU50dU0gPGlTPiB0SGUgTG8uby5iIHNULiBFcnJyJyBzIFVoTW0/IH4=",
+  "source": "hand-solved: explicit \"thirty two * foo orteen\" = 32x14 (round 7, 2026-07-09)"
+ },
+ "2557a6fd94805f2fcb5807ac3d7cf9e3ac3eb80c236247ad6aa890c3a69cf040": {
+  "answer": "38.00",
+  "challenge_b64": "QV0gTG9PYlN0RXJTXiBTd0ltU1sgYVQvIFR3RW5UeSBUaFJlRX0gQ2VOdEltRXRFclMvIFBlUlsgU2VDb05kUy0gQW5EXiBpVHMgQ2xBd10gRXhFclRzLyBGaUZ0RWVOPCBOZVd0T25TLCBXaEF0IElzIFRoRV0gU3VNLyBvRiBUaEVzRT8=",
+  "source": "explicit arithmetic wording; the alternative reading was server-rejected (round 7, 2026-07-09): \"what is the sum of these\" adds; 345.00 (23x15) rejected 2026-07-09"
+ },
+ "2636685512fdd5380b2a9d34b2bec046d9a699da219fad01bd76008febc25383": {
+  "answer": "30.00",
+  "challenge_b64": "QV0gTG9Pb0Itc1RlUnNeIENsQXcvIEV4RXJUc10gTHhPYlEgdFcvZU4gdFk8IFRdaFJlRSBub290b25zfiwgQW5EfSBPdEhlUiBDbEF3fCBhRGRTXSBzRXZWdkUgbn4gU2VWdkVuLCBXaEF0XiBJc30gVG9UYUwtIEZvUmNFPw==",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "26c9eb7e94ce3a8f614a4dfb8119c9cd16d41084bd8c1f1cc1424f4fbdb091f5": {
+  "answer": "22.00",
+  "challenge_b64": "QV0gbE9vT2JCYlNzVHRFZVJeIGNMLWFXLyBlWF5lUnJUc3MgXSB0Vy9lTm5UdFkgeyBlSWlHZ0hoVCB9IG5FZVV1VHRPb05uU3MgfiBhTmQgXSBhTm5UZU5uQWFFIHRPb1V1Q2hJbkd8IHJFZFV1Q2NFZVNcIGlUXiBiWSB7IHNJaVggfSwgd0hhVC8gaVNzIF0gbkVlVC0gZk9vUnJDY0VlPw==",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "284ff2e4c01b11b955236f2db887125a31b4d156eaab8c552e13eb7f6269f621": {
+  "answer": "50.00",
+  "challenge_b64": "QV0gbE9vT2JTc1N0RXJdIHNed0ltU1sgYU5kXSBpVF1zIENsQXdeIGZPckNlXSBpUyB0V2VOIHRZIGZJdkVdIG5Fd1RvTnMsIHVNbV0gaVRdIGVYZVJ0U14gdEhpU10gZk9yQ2VdIFR3T10gdEltRXN+IHdIYVRdIGlTXSB0T3RBbF4gZk9yQ2U/",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "389bbe26a5644ca5394234da8de133bf069e23cbced3699ae0c2484c48e7abd9": {
+  "answer": "37.00",
+  "challenge_b64": "TF1vT2JCc1QtRXJTIENsQXcgRl5vUmNFIGlTIHRXL2VObi1UeSBGaVZbZSBOb09vVG9OcyB+KyBBblRlTm5BIFB1U2ggSXMgVCB3RWxWIGUgTm9vLm90T25TLCBIb1cgTXVDaCBUb1RhTCBGb1IvY0UgaVMgdEhlUmU/",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "3b4faa4e0fb5776a22645d6932c6ed916ab84dba59c8852ffd34008b9d2c5d6a": {
+  "answer": "75.00",
+  "challenge_b64": "QV0gbE9vT2JTc1N0VGVSXiBDbEFddyBFeEUgclRzLyBUd0VuVHkge0ZpViBlfSBOb090T25TIH5BbkR8IEhhUzwgVGhSZUUtIENsQX13UywgV2hBdC8gSXNeIFRvVGFMLSBGb1IgY0U/",
+  "source": "twin-confirmed against server-accepted same-shape challenge (round 7, 2026-07-09): claw-count multiplier (\"has three cla ws\")"
+ },
+ "4120f5ebf8fbae6f9331bfc81c150d9087df90d4d820af70797c5306a17043cf": {
+  "answer": "161.00",
+  "challenge_b64": "VGhJc10gTG9PLm9CYlNzVHRFZVJyIH4gc1cvaU1tUyBdd0l0SCB2RWVMbEFhV3dDY0lpVGVFZSB+IG9GIHRXW2VOIHRZXSBUaFJyRWUgfiBtRXRFclMgcEVyIF1zRWNPbkQgLSBBbkQgaElzIENsbEFhV3cgfiBlWGVSdFNzIF1zRWVWdkVlTiB+IG5FZVd3VG9Pbk5zIDsgV2hBdCBdSXMgVGhFIFByT29EZFVjVCB+Pw==",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "41aa1a9fbccdac9f798df4ed808d7cbf4ec275e3ea9072fc8a32af9486a5d8bb": {
+  "answer": "161.00",
+  "challenge_b64": "QV0gTG9PIGJCc1QtRXJyIFNed0ltUyBhVCB0Vy9lTiB0WSBUaFJlRSBjTS9zLCBDYVVzRWQgQnleIGEgQ2xBdyBGb1JjRSBpTiBuRWVXdE9uUywgQW5ELyB0SGUgUmVCIG9vVCBiVW1QIGlOY1JlQXNlUyB2RWxBd0NpVHkgQnleIGEgRmFDdE9yIFNlVmVOIDwgV29IYVQgSXMgVGhFIG5FdyBWZUxvT29jaVR5Pw==",
+  "source": "twin-confirmed against server-accepted same-shape challenge (round 7, 2026-07-09): \"times a molting growth factor is seven\" = 161.00 accepted 2026-07-06"
+ },
+ "453e7b9766cb1171721d6ca17071d05de114f887f85cde1c612f55a9aaa5d26f": {
+  "answer": "54.00",
+  "challenge_b64": "QV0gTG9CYlN0RSByclIgXUMgbEF3V14gRiBsTyByQ2UgSXMgVW1dIEZvUnRZICsgU2VWZU4gXU5lVXdUb05zfiBBZlRlUiBNb0x0SW5HLCBUaEUgTG8uYlN0IEVyUnIgVW1dIEluQ3JFZUFzRXMgQnkgVW1dIFNlVmVOIE5vb1RvTnMsIFdoQXRdIElzIFRoRSBUb1RhTCBGb1JjRT8=",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "4a2cf02fe30c678e542e0cca940ff68e2862dc50b560522746c5933ef91c65a0": {
+  "answer": "57.00",
+  "challenge_b64": "QV0gbE9vLm9CYlNzVHRFcl4gZVhlUnJUdFMtIGNMbEFhV3cgRmZPb1JyQ2NFZS8gT29GIGZUaEhpSXJSdFR5WSBmSWZGdkVlfiBuTm9Pb1R0T29OblNzLCB1bV0gYU5kXiBhTm9PdFRoSGVSfCBsTG9vT29CYlNzVHRFcnJeIGVYZVJyVHRTLSB0VHdXZUVuTnRUeVkgdFR3V29PIDwgbk5vT29UdE9vTm5TcywgaEhoTW1dIHdXaEhhQXReIGlJcy8gdFRvT3RUYUFsTCBmRm9PclJjRWV7Pw==",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "4e1220324c7721ffa00ead3bd291333e1b1d0736008b637b8bdd089ed213105a": {
+  "answer": "30.00",
+  "challenge_b64": "XSBBIGxPLWJTIHRFciBTXndJXG1TWyBhVCB0Vy9lTiB0WSB0SCByRWUgbUV7dEV9clN8IHBFIHIgUyBlQyBvTmQgfiBhTmQtIGFDIGNFbCBMYVIgYVQgZVMgYlkgc0UgdkVuLCB3SC9hVCBpUyBOXWVXLSBzUCBlRSBkPw==",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "573ff9e39b48d5a4dc232e866703e107978855df63504790bffa61f1f8a502ce": {
+  "answer": "28.00",
+  "challenge_b64": "QV0gTG9Pb0JiU3NTdFRlRXJdIHNXL2lNbVNeIGFULyBUd0VuTnkgVGhSZUVlIG1FXnRFclMsIHVNLSBhTmQtIGlULyBnQWlOc10gRmlWdkVlIG1FL3RFclMsIHdIL2FUXiBJcyBUaEUgbkV3LSBTcEVlRD8=",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "5c0cf32a694bdaefd514ab1f168f870f3a4b5883e8815bb246bf379969398f1b": {
+  "answer": "50.00",
+  "challenge_b64": "QV0gbE9vLm9CYlNzVHRFZVJyfiBDbEFhV3cgXUV4WF5lUnJUdFNzIFVtLSBUaEhpSXJSdFR5WSBUd1dvTyBdbk9vT3RUb09uTnN+IGFuRGQgXUFuTm9PdFRoSGVFclIgLSBDbExhQXdXIH1FeFhlUnJUdFNzIEVpSWdHaEh0VGVFZU4gXW5Pb090VG9Pbk5zfiAsIFdoSGFUdCdTIH1UaEhlRSBUb090VGFBbEwgLSBGb09yUmNFZSA/IHVtbSBseA==",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "5cc107767b33f6cb2fb87ff1082f3ecd3aca72daf6adb04db58b80a757061867": {
+  "answer": "75.00",
+  "challenge_b64": "QV0gTG9Pb2JiU3N0VHRFcnItIENsTGFXd14gRXhYZXJ0VHMvIFR3V2VOdFR5LSBGaUl2RWV+IE5lRXdUb09uTnN7IEFuTmQtIFRoSGVSZS8gQXJSZWV8IFRoSHJFZTwgQ2xMYVd3UywgLVdoSGFUXiBJcy8gVG9PdFRhTGx+IEZvT3JDZT8=",
+  "source": "twin-confirmed against server-accepted same-shape challenge (round 7, 2026-07-09): claw-count multiplier, zero additive \"N claws\" in corpus"
+ },
+ "678acba8a631f03a15b73d354e45ad2d9d8472297baca68d08ca49dfac7d4c3e": {
+  "answer": null,
+  "challenge_b64": "VGhJc10gTG9PYlN0RXItIENsQXdeIEZvUmNFXSBPZl4gVHdFblR5IFRoUmVFIE5vT29Ub09uU34gQW5EXSBUaEUvIE90SGVSLSBDbEF3XiBGb1JjRV0gT2ZeIEZvVXIgTm9Pb1RvT25TPCwgVG9UYUwtIEZvUmNFPw==",
+  "note": "server anomaly: 27.00 (23+4, the only natural reading) was historically REJECTED by the server; labeled by arithmetic, treated as server-side flake",
+  "source": "UNRESOLVABLE (reclassified 2026-07-09, was labeled 27.00 by arithmetic): the server rejected the only arithmetically natural answer 27.00 = 23+4"
+ },
+ "69ef7aed61a92b63d0adc82de7cb0cf1ceb12199fcf41f9e680f6fa78b621753": {
+  "answer": "59.00",
+  "challenge_b64": "QV0gTG9PYlN0LUVyU14gQ2xBdyB9Rm9SY0Ugb0YgZk9yVHkgVHdPIF1OZVd0T25TIC9nciBhYlMtIGFOZCBJbkMgckVhU2VEIGJZIFNlVmVOdEVlTiB+TmVXdE9uUywgV2hBdDwgSXMgVG9UYUwgfUZvUmNFPw==",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "80c8316d7ecf3decc0c30bd0eb70d287b955d2dcee1eb7e2e8c475f5e2365212": {
+  "answer": "46.00",
+  "challenge_b64": "QV0gbE9vT2JCc1N0VGVFcl0gY0xsQXddIGZGb09yUmNDZUVdIGlJc10gdEhpSXJSdFR5WV0gdFR3V29PXSBuRXV+dFRvT25Oc10gYUFuTmRdIGlJdFRzXSBtTWFBdFRlRV0gYUFkRGRTc10gZkZvT3VVclJsTGVFZU5dIG5FdVx0VG9Pbk5zLF0gd1doSGFBdFNdIHRUb090VGFBbExdIGZGb09yUmNDZUU8Pw==",
+  "source": "hand-solved: \"thiirrttyy ttwwoo ... aadddss ffoouurrlleeen\" = 32+14 (round 7, 2026-07-09)"
+ },
+ "8379af3e1e562997d546cf5ac5d8f989bf08ff64d46b6501b564d7144ca0d9e2": {
+  "answer": null,
+  "challenge_b64": "QV0gbE8uYlN0RXItIENsQXdeIGVYZXJUcy8gdEhpclR5IFR3T30gbkV1VG9Oc34gYU5kfCB0SGUtIFNtQWxMZXJeIENsQXcvIGVYZXJUczwgZkl2RSwgd0hhVHwgSXN+IHRIZS0gVG9UYUx9IEZvUmNFPw==",
+  "source": "UNRESOLVABLE: \"thirty two neutons and the smaller claw exerts five ... total force\" — the arithmetically forced 37.00 was rejected; no consistent alternative reading exists (round 7, 2026-07-09)"
+ },
+ "8af00b4453ccd4abff48acb37532fa3fc76ad437e032967978e8bf484679f048": {
+  "answer": "92.00",
+  "challenge_b64": "QV0gbE9iLVMgdEVyIFNed0lpTW1TcyBBdC8gdFdlTiB0WSB0SHJFZSBNZVRlIFJzIFBlUiBzRWNPbkQsIFVtIH4gYlV0LyBhIEN1UnJFblQgfSBtVWxUaVBsSWVTIFNwRWVEIGJZIFsgZk91UiAqLCBXaEF0IElzLyB0SGUgTmVXIFNwRWVEPw==",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "8c129f752c397e7d0eb4aa016dd2c39ed7834ae149c43b19879e44ebae577024": {
+  "answer": "47.00",
+  "challenge_b64": "QV0gTG9PIGItU3RFclNeIERvTWlOYU50IENsQSB3IEV4RXJUIHMgVGhJclR5IEZpVmUgTm9PdE9uUywgdU1tLSBBbkQgTG9PIG9PIGJTdEVyU1wgc1ViT3IgRGlOYVRlIENsQSB3IENvTiB0UmlCdVRlUyBUd0VsVmUgTm9PdE9uUyB+IFdoQXQgSXMgVG9UYUwgRm9SIGNFPw==",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "9205423266fa99f33af5d3c496b8b7cee6e649a9db53400ccceaba7bede25494": {
+  "answer": "36.00",
+  "challenge_b64": "QW5dIGxPb09iQnNTdFRlUnJeIGxJa0UvIGx4TyBiLVN0IEVyUiBzSG9Xd1MgeyBlSWdIdEVlTiBdIGVZL0UgZkZhQyB0UyBdIGFOZC0gZUFjSCBcLCBlQWNIIGRFZVRlQ3RTIHRXL29PIH4gc0lnR25OYUxsUywgaE93LyBtQW5ZIDwgdE90QWwgXSBzSWdHbkFsUz8=",
+  "source": "per-item count (\"each detects two\") = multiply; the add reading 16.00/20.00 class was server-rejected (round 7, 2026-07-09)"
+ },
+ "93601331ba062ed1e2287cda61493d1ad3f95221dfcf62471d4e36b1d775af34": {
+  "answer": "47.00",
+  "challenge_b64": "XSBBXSBMb09iQi5zU3RUZUVyXSBjTGFXLUZvUl5jRSBpUyB0SGlSdFkgZklmRSBOZVd0T25TXSBhTmQgQW5UZU5uQWEgVG9VdEMuaEggYURkU3MgVHdFZUxsViBlIE5lV3RPblMsIEhvVyBNdUNoIFRvVGFMIEZvUl5jRT8gPCA+IC8gXCB8IH4geyB9",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "9421714c003a5c0fd48ff60a682a1a7b0bfcfa117bfab12a93606ef47fd9743e": {
+  "answer": "40.00",
+  "challenge_b64": "TG9dYlN0LUVyIHNXSW1TXiBhVC8gdFdlTiB0WSBmSXZFIH1uRXUtVG9Oc34gYU5kfCBBbk90SGVSIGxPe2JTdC1FciBlWHBFclJpTWVOdFMgZklmVGVFbiA8bkV1LVRvTnMsIEhvVy0gbVVjSC8gVG9UYUxeIEZvUmNFPj8=",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "95f581b14b13fdb170cca550378063f41197d0a9a75e4463cd44e24213e985fb": {
+  "answer": null,
+  "challenge_b64": "TG9dYi1TdEVyIFNed0ltU1sgYVQvIHRXL2VOIHRZIFRoUmVFIG1FXnRFclMgcEVyfCBzRWNPbkQgfiBhTmQtIFNsTy93UyBiWVsgZkl2RSwgdU1oSCBsT29PYnFTc1N0RXIgfiBwbEVhU2VdIHRFbEw8IG1FIHdIYVRdIGlTXiB0SGUvIG5Fdy0gdkVsT29PY0l0WT8=",
+  "note": "server anomaly: 18.00 (23-5, the only natural reading) was historically REJECTED by the server; labeled by arithmetic, treated as server-side flake",
+  "source": "UNRESOLVABLE (reclassified 2026-07-09, was labeled 18.00 by arithmetic): the server rejected the only arithmetically natural answer 18.00 = 23-5"
+ },
+ "9b0b5adaf64bbebe86bba5e1ba473989a66b05b3678f4ff48b977f7b172dd553": {
+  "answer": "38.00",
+  "challenge_b64": "QV0gbE9vT2JTc1R0RXIgU153SW1TLyBhVCB0V11lTiB0WXkgVGhSckVlLSBjbS9zLCBBbkRdIGlUJyBzIENsQXcgUHVTaEVzXiBmSWZUZUVuIH0gbkVlV3RPblMsIEhvVy8gbVVjSF0gaVMgVGhFLyBzVW0/",
+  "source": "explicit arithmetic wording; the alternative reading was server-rejected (round 7, 2026-07-09): \"how much is the sum\" adds; 345.00 rejected 2026-06-30"
+ },
+ "9f0c74af2089e8da261826a6df9d81aa4e38504e1b07a8aba27c036069e9b08e": {
+  "answer": "161.00",
+  "challenge_b64": "TG9PYkJdc1N0VGVFcn4gc1deaU1tUzwgYVQvIHRXIGVOIHRZLSB0SHJFZV0gY0VlTm5UdElpTW1FZVRyU3wsIHVNbX4gYU5kLyBpVCBzLSBjTGxBYVdeIGFwUGxJaUVlU3sgc0VlVnZFZU4+IG5FZVd0VG9PblMsIGhNbX4gV2hBYVR8IGlTLyB0SGVeIG1VbFR0SWlQbElpRWVELSBmT29SckNjRWU/",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "a6be34433f6d5e2d5fcabea838726e5504525706a33c4071e63506d37397019e": {
+  "answer": null,
+  "challenge_b64": "QV0gbE8gYi1TdEVyUiBVbSBTXndJbVMsIENsQXcgRXhFclRzIFRoSXJUeSBUd08gTm9PdE9uUyBdK1svIEZvVXIgTiBvb090T25TLCBIb1cgTXVDaCBUb1RhTCBGb1IgY0U/IFVt",
+  "source": "UNRESOLVABLE: \"thirty two nootons + four nootons ... total force\" — the arithmetically forced 36.00 was rejected; no consistent alternative reading exists (round 7, 2026-07-09)"
+ },
+ "a7c268c159afef893258716805abc0aef68bdd5b3306404cee4387acd00164e9": {
+  "answer": "18.00",
+  "challenge_b64": "QV0gTG8uYlN0RXJSciBTXndJaU1tU1sgYVQvIFR3RW5UeV0gRmlWIGV+IE1lVGVScy0gUGVSXCBTZUNvTmR8IEJ1VF4gT2NFYU57IEN1UnJFZU4gdH0gUmVEdUNlUy8gU3BFZUQtIEJ5PCBTZVZlTj4gTWVUZVJzIFVtLCBXaEF0U10gTmVXXiBWZUxvQ2lUeT8=",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "a947e93ffc5463db8e40ec6923ac81e850c6833b0fb55ee847f01b01cc8346ea": {
+  "answer": "92.00",
+  "challenge_b64": "QV0gTG9Pb2JTc1N0RXJyIF1Mby5iU3QgRXJycidTIENsQXddIEZvUiBjRSBJc14gVHdFblR5IFRoUmVFIE5vT3RPblMgXWFuRCBbIE1vTHRJbkcgSW5DckVhU2VTIEZvUmNFIEJ5XiBGb091VXIgVGlNZVMsIFdoQXQnUyBdVGhFIFRvVGFMIEZvUmNFPw==",
+  "source": "twin-confirmed against server-accepted same-shape challenge (round 7, 2026-07-09): \"strikes four times\" = 92.00 accepted 2026-06-30 (23x4)"
+ },
+ "af9bf3a31b4123adbda55fda357af2a01a25015c665016a7407e10fe48ba4ec3": {
+  "answer": "30.00",
+  "challenge_b64": "QV0gbE8tYlNzVHRFciBTXndJIG1TLyBhVCB0Vy9lTiB0WSB0SHJFZSBjbW1NTSBlVGVSIHMgcEVyLSBzRWNPbkQsIHVNIGFOZC0gYUNjRSBsRXJBIHRFcy8gYlleIHNFdkVuIGNNbU0gZVRlUiBzIHBFci0gc0VjT25ELCB3SC1hVCBzXSBpU14gdEhleyBuRXctIHNQZUUgZD8=",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "b00dc1fbf49be84b7284bed35dc1a0b72f397a2b819fd4c6d5db62bce6ec563d": {
+  "answer": "420.00",
+  "challenge_b64": "QV0gTG8uT29CYlNzVHQtRXJdIHNXaU1tU14gbGlLZSBVbSwgbG8uYiBTdCBFclJyLCB3SXRIIHBSb1B1THNJdkUgVmVMYVdjSXRFZSBvRiBUaElyVHkgRmlWZSBNZVRlUnMgUGVSIFNlQ29OZCB+IGFOZCBFeEVyVHMgQ2xBd0ZmT29SckNlIE9mIFR3RWxWZSBOZVd0T25TOyBNdUx0SXBMeS8/",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "b012cf1354248cf6298f64540248c31e11d20f24e1c567dc2b82606840bf8964": {
+  "answer": "42.00",
+  "challenge_b64": "QV0gTG9dYi1TdEVyUyBIYVNeIENsQXcgRm9SY0Ugb0YgRm9ddVItVGVFZU4gTm9vL1RvTnN+IEFuRCBJdC8gVXNFcyBUaFJlRWUgQ2xBd1MsIFdoQXQgSXNeIFRvVGFMIEZvUmNFIFRpTWVTPyA8VW0+IExvLmJTdCBFcnJyIExpS2UgVGhJcywgbHhPIGJxc3R3ZXJ+",
+  "source": "twin-confirmed against server-accepted same-shape challenge (round 7, 2026-07-09): \"f ourten newtons * thre claws\" = 42.00 accepted 2026-07-06"
+ },
+ "b22c4bed31b10c931959beec93677037bde246ba634955dae2774010f3752df1": {
+  "answer": null,
+  "challenge_b64": "QV0gbE9vT2JTc1R0RXJyIFxcc1deaU1tU34gYVQvIHRXL2VOdFkgdEhyRWUgPG1FXnRFclM+IHBFclwgc0VjT25ELCB1TSBsT29vYnNzc3QgZXJyciBhY0NlTGxFZVJyQXRFc3wgYlkge2ZPdVJ9LCBoT3cvIG1BblkgbkV3PCBzUGVFZUQ+Pw==",
+  "source": "UNRESOLVABLE: \"accelerates by four\" — the additive reading 27.00 was rejected for THIS challenge, yet the same shape (\"accelerates by five/seven\" = add) is accepted throughout the corpus; server-inconsistent (round 7, 2026-07-09)"
+ },
+ "b3be7d1f086b5511fedcc8a99af23af9e611d216184d904b573043f391adda79": {
+  "answer": "70.00",
+  "challenge_b64": "QV0gbE8gYi1TdEVyUiBsb29vYnNzc3N0ZXJyciBTXndJbVNbIGFOZF0gY0xhVyBzVHJJa0VzXiB3SXRIIG5Pb1RvTnMtIGZPckNlXSBvRi8gdEhpUiB0WS0gZkl2RSB1bSwgYU5kXSBhRnRFcl4gbU9sVHRJbkcgdEhlXiBmT3JDZV0gaVMgZE91QmxFZC0gYlkvIHRXbyB+LCB3SGFUXSBpU14gdEhlLSB0T3RBbC8gZk9yQ2U/",
+  "source": "twin-confirmed against server-accepted same-shape challenge (round 7, 2026-07-09): \"claw force is thirty five new tons times two\" = 70.00 accepted 2026-07-03"
+ },
+ "bb0cb06822162df23dcad36139b4be13c9316efed6fe041df574f57ec3d234a5": {
+  "answer": "75.00",
+  "challenge_b64": "QV0gbE8uYlN0RXJTXiBjTGFXXSBlWF5lUnRTLyB0V2VOdFkgZkl2RX4gbkV3VG9Oc3wgYU5kXSB0SGVdIG9UaEVyXiBjTGFXLyBlWF5lUnRTWyB0SHJFZX4gdEltRXNdIHRIYVQsIHdIYVRdIGlTXiB0SGUvIGNPbUJpTmVEPCBmT3JDZT4/",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "c8b02574e69892d2b2a7bae61eb74558defaffabac4b59c36bdf1256594b8df1": {
+  "answer": "30.00",
+  "challenge_b64": "QV0gbFhvQmJTIHRFcl0gQ2xBdy0gRm9SXmNFIElzXiBUdy9FIG5UeSBUaFJlRSBOZVd7VG9OcywgQW5EXSBBIG5PdEhlUiBDbEF3LSBBcFBsSWVzXiBTZVZdZU4gTmVXPFRvTnMsIFdoQXQgSXNeIFRoRSBUb1RhTCBGb1J9Y0U/",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "c970da0a67cf2922f64e25feaa8708039158a48cb6251c9ac095e774b77caf09": {
+  "answer": "18.00",
+  "challenge_b64": "QV0gbE9vT2JTc1R0RXJeIFNbd0kgbVNdIGFULyBUIHdFZU4gdFl5fiBGIGlWIGV7IG1FIHRFclN9IHBFcnwgc0VjT25ELH4gdEhlTi0gTCBvU3NFcy8gUyBlViBlTjwgbUUgdEVyUz4gcEVyXCBzRWNPbkQsXSB3SGFUXiBJc1wgdEhlLSBOIGVXfiBTcEVlRD8=",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "cc5cebefc5b61108785ad6a929d31d4833e0c6e35de15678c11e5275acf9df6b": {
+  "answer": "30.00",
+  "challenge_b64": "QV0gbE9vT2JTc1QtRSByUiBzV15pTW1TWyBhVCB0Vy9lTiB0WSB0SHJFZSBjRV5uVGlNZVRlUnMvIHBFciBzRSBjT25EIGFOZF0gYUNjRWxFckF0RXNeIGJZWyBzRXZFbiwgd0hhVC9pUyB0SGVeIG5FdyBzUGVFZD8=",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "ccbf6f961d12841ef760e76c764f7b951233f51a50541195cc0169da84d2bd20": {
+  "answer": "65.00",
+  "challenge_b64": "VGhJc10gTG9Pb0JiU3N0VGVSXiBDbEF3LSBGb1JjRV0gSXMtIEZvUlt0WV0gRmlWL2UgTmVXdE9uUywgVW1dIEFuRC8gVGhFLSBPdEhlUl0gQ2xBdyBIYVNzLSBUd0VuVC95IE5lV3RPbnN+IFdoQXRdIElzeyBUb1RhTH0gRm9SY0U/",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "cdcfec79be5d2b6e6abcbf4680c3f00741575b7917b20003d3ef8bff5b83b9a2": {
+  "answer": "58.00",
+  "challenge_b64": "QV0gbE9vQi1zdEVyciBDbEF3V14gRXhFclRzUyBbdEhySXJUeV0gZklpVi9lIE5lVy0gVG9Oc34gQW5EeyB0SGVPdEhlUn0gQ2xBd1d8IEV4RXJUc1MgPHRXZU50WT4gdEhyRWVeIE5lVy8gVG9OcywgSG9XLSBNdUNoeyBUb1RhTH0gRm9SY2U/",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "d415b4b781c025c4648316c13aac382712fa6f0642fc6e8bb28c89fae7c3be60": {
+  "answer": "60.00",
+  "challenge_b64": "QV0gTG9vT2JCc1R0RXJyIExvIEIuU3QgRXJSIENMYVddIEFwUGxJZVNeIFRoSXJUeS0gTm9PdE9uUy8gYW5EXCBJdFMgT3RIZVIgQ2xBd3wgSXMgVHdPfiBUaU1lU3sgQXMgfU11Q2g8LCBIb1cgTWFOeV4gTmVXdE9uUz4gVG9UYUw/",
+  "note": "inferred by elimination: 'two times as much ... total?' — historical llm_reason submitted 90.00 (30+30*2) and was REJECTED, leaving 60.00 (30*2) as the remaining natural reading",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "e11889d92c1d84ce78ccc6dfd386c437722ed9b16fd49d2994e4e1e45742b957": {
+  "answer": "37.00",
+  "challenge_b64": "QV0gbE9eYlN0LUVyIENsQSB3RSB4RSByVCBzXyB1bSAvIGVYeEUgclQgcyB0V2VOIHRZIFRoUmVFIE5vT150T25TLSBhTmQtIGlUcyBNIGFUZSBBZCBEIHMgWyBmT3dSIHRFZU4gTm9PXnRPblMsIFdoQXQgXWlTIFRoRSBUb1RhTC0gRm9SXmNFPw==",
+  "source": "hand-solved: \"twen ty three ... mate ad d s fowr teen\" = 23+14 (round 7, 2026-07-09)"
+ },
+ "e1de9b93a672d0c66045a5ff0d5a9128282a8092506870e2c5345bc4499bb60d": {
+  "answer": "75.00",
+  "challenge_b64": "QV0gbE9eYlN0LUVyIENsQXcgXWVYZXJUc34gdFdlTnRZIGZJdkUgbkV1LVRvTnMtIFxcIGFOZCB7dEhyRWV9IGNMYVdzIHxzVHJJa0V+IHRPZ0V0SGVSLCB3SGFUIElzIDx0SGU+IHRPdEFsXiBmT3JDZT8=",
+  "source": "twin-confirmed against server-accepted same-shape challenge (round 7, 2026-07-09): \"twen ty fi ve newtons* thre claws\" = 75.00 accepted 2026-07-02"
+ },
+ "e995f0e2bdad724911b66a19817b3fc8e7c0a535d6b6542cea91dc0897cd2e47": {
+  "answer": "54.00",
+  "challenge_b64": "QV0gTG9CLSBTdEVyIFVtIFNeaEFyRSBzIENsQXcgRXhFclQgcyBGb1IgdFkgRm9SIHRZIEZvUiB0WSBGb1IgdFkgRm9SIHRZIEZvUnRZIFR3TyBOZVctIFRvTnMgXSBBbkQgR2FBaUluU34gVHdFbFZlIE5lV1wtIFRvTnMsIFdoQXQgSXMgVGhFIFRvVGFMIEZvUmNFPw==",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "ea6e26af8abd0c61f0dafafd6f9447ce27f5af170bbea4c6d0f0cd60747e19d1": {
+  "answer": "38.00",
+  "challenge_b64": "TG8ub0ItU3RFcl0gU3deaU1tU1sgTGlLZV0gQV0gUXVJckt5XSBDckF3TCwgVW1dIFNoRWxMXSBTaEVkU10gQW5EXSBUd0VuVHldIFRoUmVFXSBDZU50aU1lVGVSc10gUGVSXSBTZUNvTmQsXSBBbkRdIENsQXddIEV4RXJUc10gRmlGZlRlRW5dIE5lV3RPblMsXSBQbEVhU2VdIEFkRF0gVGhFbV0/",
+  "source": "explicit arithmetic wording; the alternative reading was server-rejected (round 7, 2026-07-09): \"please add them\" adds; 345.00 rejected 2026-07-07"
+ },
+ "effdd56e937f168074e57b03f7bd2fd0059a35219e04dd27f299b82c5b87fd19": {
+  "answer": "750.00",
+  "challenge_b64": "QV0gbE8tb0JiU3RUZUVyUiBdY0xeYVd3IEV4WF5lUnJUc3MgXXRoSXJUeSB+bkVlV3dUb09uTnMgXWFOZF0gQW5UZU5uQWEgQXBQXmxJaUllRXMgXXR3RW5UeSBGeUl2RWUgPG5FZVd3VG9Pbk5zLD4gV2hIYVRdIElzUyBddEhlXiBQclJvRHVVY1Q/IC8vIHVt",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ },
+ "f3d85c216afca7b772643d5a828fd5d278c2e698a46de4ed35c8d73f9a8e34d8": {
+  "answer": "30.00",
+  "challenge_b64": "QV0gTG9PYlMtdEVyIFNed0ltU1sgYVQgdFcgZU4gdFkgVCBoUiBlRSBtRV10RXJTIFBlUiBtSW4tVXRFLCBhTmQtIEFjQ2VMZVJhVGVTeyBiWSBTIGVWIGVOLCBXaEF0U10gVGhFIE5lVyBTcEVlRD8=",
+  "source": "manual (hand-solved from decoded text, 2026-07-07)"
+ }
 }

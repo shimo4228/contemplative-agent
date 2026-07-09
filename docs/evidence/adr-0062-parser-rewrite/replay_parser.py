@@ -7,13 +7,21 @@ LLM, no network, no server interaction.
 Ground truth per challenge:
 - server-accepted records (``verify_success: true``): the recorded ``answer``
   is the confirmed correct answer;
+- server-REJECTED records: negative truth — every answer the server rejected
+  for a challenge is known-wrong for that challenge, so a parse that
+  reproduces one counts as WRONG without any manual labeling (round 7);
 - otherwise: an entry in ``manual_labels.json`` (hand-solved from the decoded
-  text; see README) if present, else unlabeled.
+  text, or twin-confirmed against an accepted same-shape challenge; see
+  README) if present, else unlabeled. An entry whose ``answer`` is null marks
+  a known-unresolvable challenge (the server rejected the arithmetically
+  forced reading, or accepted twins contradict the rejection): the parse is
+  excused from the gate and reported separately.
 
-Gate semantics (plan 2026-07-07):
-- HARD: zero wrong answers — a parse that disagrees with known truth fails
-  the gate; a parse on an unlabeled challenge is printed for manual
-  verification and must be labeled before the gate can pass.
+Gate semantics (plan 2026-07-07, amended 2026-07-09):
+- HARD: zero wrong answers — a parse that disagrees with known truth
+  (positive or negative) fails the gate; a parse on an unlabeled challenge
+  is printed for manual verification and must be labeled before the gate can
+  pass.
 - SOFT: coverage (parse rate) — reported, not enforced.
 
 Challenge text is untrusted (prompt-injection route): this script only
@@ -57,16 +65,23 @@ def main() -> int:
         manual = json.loads(LABELS_PATH.read_text())
 
     # Dedupe by challenge hash; an accepted record wins (it carries truth).
+    # Rejected answers are collected across ALL records first: the server
+    # saying "Incorrect answer" to X is durable negative truth for that
+    # challenge, even when a later attempt succeeded with a different answer.
     by_sha: dict[str, dict] = {}
+    rejected: dict[str, set[str]] = {}
     for record in records:
         sha = record["challenge_sha256"]
         prev = by_sha.get(sha)
         if prev is None or (record["verify_success"] and not prev["verify_success"]):
             by_sha[sha] = record
+        if not record["verify_success"] and record.get("answer"):
+            rejected.setdefault(sha, set()).add(record["answer"])
 
     parsed = abstained = correct = 0
     wrong: list[str] = []
     unlabeled_parses: list[str] = []
+    unresolvable_parses: list[str] = []
     for sha, record in sorted(by_sha.items()):
         text = base64.b64decode(record["challenge_b64"]).decode("utf-8", "replace")
         got = code_parse_challenge(text)
@@ -74,14 +89,24 @@ def main() -> int:
             abstained += 1
             continue
         parsed += 1
+        label = manual.get(sha)
         if record["verify_success"]:
             truth = record["answer"]
-        elif sha in manual:
-            truth = manual[sha]["answer"]
+        elif label is not None:
+            truth = label["answer"]
+            if truth is None:
+                # Known-unresolvable: excused from the gate, listed below.
+                unresolvable_parses.append(f"  {sha[:16]} parsed={got}\n    {cleaned(text)}")
+                continue
         else:
             truth = None
         if truth is None:
-            unlabeled_parses.append(f"  {sha[:16]} parsed={got}\n    {cleaned(text)}")
+            if got in rejected.get(sha, ()):
+                wrong.append(
+                    f"  {sha[:16]} parsed={got} (server-REJECTED this answer)\n    {cleaned(text)}"
+                )
+            else:
+                unlabeled_parses.append(f"  {sha[:16]} parsed={got}\n    {cleaned(text)}")
         elif got == truth:
             correct += 1
         else:
@@ -94,12 +119,16 @@ def main() -> int:
     print(f"correct vs truth  : {correct}")
     print(f"WRONG vs truth    : {len(wrong)}")
     print(f"parsed, unlabeled : {len(unlabeled_parses)}")
+    print(f"known-unresolvable: {len(unresolvable_parses)}")
     if wrong:
         print("\n-- WRONG (hard-gate failures) --")
         print("\n".join(wrong))
     if unlabeled_parses:
         print("\n-- parsed but unlabeled (verify by hand, add to manual_labels.json) --")
         print("\n".join(unlabeled_parses))
+    if unresolvable_parses:
+        print("\n-- known-unresolvable (excused; see manual_labels.json notes) --")
+        print("\n".join(unresolvable_parses))
     gate_ok = not wrong and not unlabeled_parses
     print(f"\nHARD GATE: {'PASS' if gate_ok else 'FAIL'}")
     return 0 if gate_ok else 1
