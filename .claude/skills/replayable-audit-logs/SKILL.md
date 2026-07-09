@@ -1,11 +1,16 @@
 ---
 name: replayable-audit-logs
-description: Design know-how for ADR-0075 observability-by-default — every feature that performs external I/O, calls an LLM, or makes non-deterministic/heuristic decisions ships a replayable append-only JSONL audit log in the same PR. Use when adding or reviewing such a feature (the Verify-gate question "which log answers why, and can we replay it offline?"), when designing a new audit record schema, when a recurring failure needs corpus-driven repair (replay harness, positive/negative ground truth, regression fixtures from real traffic), or when deciding how to store untrusted text in a log. NOT for choosing code vs LLM for a task (when-code-when-llm) and NOT for the security boundary model itself (llm-agent-security-principles / ADR-0007).
+description: Design know-how for ADR-0075 observability-by-default — every feature that performs external I/O, calls an LLM, or makes non-deterministic/heuristic decisions ships a replayable append-only JSONL audit log in the same PR. Use when adding or reviewing such a feature (the Verify-gate question "which log answers why, and can we replay it offline?"), when designing a new audit record schema, when a recurring failure needs corpus-driven repair (replay harness, positive/negative ground truth, regression fixtures from real traffic), or when deciding how to store untrusted text in a log. NOT for read-only aggregate readings over stored state — distributions, compositions, calibration scales (that is read-only-instruments / ADR-0071) — NOT for choosing code vs LLM for a task (when-code-when-llm), and NOT for the security boundary model itself (llm-agent-security-principles / ADR-0007).
 compatibility: Written for the Contemplative Agent repo (examples are CA-specific); the pattern itself is portable.
 origin: shimo4228
 ---
 
 # Replayable Audit Logs (observability by default)
+
+> Sibling genre: an **instrument** reads across the whole store at query time
+> (distributions, calibration) — see
+> [`read-only-instruments`](../read-only-instruments/SKILL.md). The log is the
+> corpus; the instrument is one lens over it.
 
 Principle (canonical rationale: [ADR-0075](../../../docs/adr/0075-observability-by-default.md)):
 **a feature with external I/O, LLM calls, or heuristic decisions ships its audit

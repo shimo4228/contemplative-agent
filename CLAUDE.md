@@ -61,7 +61,7 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 - **Immutability**: DTO とドメインオブジェクトは `frozen=True`（例外なし）。詳細は [architecture.md#Immutability](docs/CODEMAPS/architecture.md#immutability)
 - **Import 方向**: `core/` ← `adapters/` ← `cli.py` の一方向依存。`cli.py` のみ両方を import。根拠は [ADR-0001](docs/adr/0001-core-adapter-separation.md)、運用規約は [architecture.md#Import-Rule](docs/CODEMAPS/architecture.md#import-rule)
 - **プロンプト外出し**: LLM が読む指示テキストはコードにハードコードせず `config/prompts/*.md` に置く（`config/prompts/` は固定 apparatus、値層 skills/rules/identity/constitution が観察対象）。入力サニタイズ変換（`_INJECTION_TOKENS` 等、LLM が読む前に作用するもの）はコードに残す。根拠は [ADR-0003](docs/adr/0003-config-directory-design.md) / [ADR-0054](docs/adr/0054-externalize-llm-instruction-text-to-prompts.md)
-- **Observability by default**: 外部 I/O・LLM 呼び出し・非決定的判定を含む機能は、リプレイ可能な監査ログ（append-only JSONL、untrusted 原文は base64 + sha256、abstain/失敗に理由コード、silent fallback 禁止）を**機能と同じ PR で**出荷する。Verify で問う: 「誤動作したときどのログが理由に答えるか。オフラインでリプレイできるか」。設計ノウハウは skill `replayable-audit-logs`、根拠は [ADR-0075](docs/adr/0075-observability-by-default.md)
+- **Observability by default**: 外部 I/O・LLM 呼び出し・非決定的判定を含む機能は、リプレイ可能な監査ログ（append-only JSONL、untrusted 原文は base64 + sha256、abstain/失敗に理由コード、silent fallback 禁止）を**機能と同じ PR で**出荷する。Verify で問う: 「誤動作したときどのログが理由に答えるか。オフラインでリプレイできるか」。設計ノウハウは skill `replayable-audit-logs`（イベントログ）/ `read-only-instruments`（計器 = 保存データ全体への read-only 読み値）、根拠は [ADR-0075](docs/adr/0075-observability-by-default.md) / [ADR-0071](docs/adr/0071-read-only-pattern-composition-instruments.md)
 
 ## セキュリティ方針
 
@@ -95,6 +95,7 @@ git tracked = clone 先にも付いてくる repo 同梱の運用版 skill。CA 
 | `llm-agent-security-principles` | [llm-agent-security-principles](https://github.com/shimo4228/llm-agent-security-principles)（汎用化 fork） | Security by Absence 等 3 原則 + 防御パターン |
 | `weekly-report-diagnosis` | なし（CA 固有） | 週次レポートの自己診断手順 |
 | `replayable-audit-logs` | なし（CA 固有） | ADR-0075 observability-by-default の設計ノウハウ（監査ログスキーマ・リプレイハーネス・ground truth 規律・修理ループ） |
+| `read-only-instruments` | なし（CA 固有） | 計器（ADR-0071 系 read-only 分布・読み値）の設計ノウハウ — 計器→介入の順序、signal-first の建立/撤去判断、3 点較正スケール、読み違えの罠 |
 | `apple-silicon-local-llm-serving` | なし（CA 固有） | Apple Silicon ローカル LLM ランタイム選択（mlx_lm.server vs Ollama）の判断軸 |
 | `agent-run` | なし（CA 固有） | `/agent-run <時間> [backend] [provider]` でエージェントをバックグラウンド起動。backend = ollama（既定）/ cloud（sibling `contemplative-agent-cloud`）/ mlx（sibling `contemplative-agent-mlx`、Apple Silicon 対話用）。silent fallback 禁止 |
 
