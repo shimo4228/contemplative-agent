@@ -29,6 +29,8 @@ origin: auto-extracted
 
 ## Naming and vocabulary
 
+This section is guidance for how YOU choose the name — it is NOT part of the output format. Do not include a "Naming and vocabulary" heading or any naming rationale in the skill you write; the skill ends after "When to Use".
+
 When naming a skill, prioritize concrete action over abstract process. The name must describe *what* is done, not *how* it feels. Use plain language drawn directly from the behavioral patterns observed in the input. Do not use decorative prefixes such as "fluid-" or "dynamic-", nor should you deploy recycled abstractions (e.g., resonance, oscillation, anchoring), unless the pattern literally quotes them. The goal is maximum utility: a stranger reading only the name must understand the actionable behavior without needing to read the body text. Translate personal observation into universal instruction.
 
 Learned patterns:
