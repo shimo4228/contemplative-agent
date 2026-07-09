@@ -2136,6 +2136,21 @@
       "description": "Redefines insight's role from proportional knowledge-to-skill conversion to detecting when a new stable theme has accumulated, sized for the post-ADR-0060 inflow (~100 patterns/day). Five mechanisms: (1) exact fast average-linkage clustering via the Lance-Williams update (identical partitions to the retired naive merge, N=1798 in under a second); (2) a marker guard — a missing .last_insight marker refuses instead of silently reclustering the whole pool; (3) a pending guard — staging holds at most one unreviewed batch, so scheduled runs can never wipe candidates awaiting human review; (4) the run marker advances when candidates reach review (staging or the interactive loop), not at adoption; (5) an LLM novelty gate (one grouping call, fail-open) that skips clusters whose theme an adopted skill or previously staged candidate (logs/insight-staged.jsonl) already covers — calibration showed embedding similarity cannot separate same-theme from distinct-theme clusters on the echo-homogeneous corpus, the same lesson as ADR-0036 and ADR-0046. Weekly cadence via install-schedule --weekly-insight (default Mon 08:00); the singleton-rescue question is closed as no-rescue because measured theme recurrence (32/32 across adjacent windows) re-surfaces real themes."
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0075: Observability by Default — Replayable Audit Logs Ship With the Feature",
+      "identifier": "ADR-0075",
+      "status": "accepted",
+      "datePublished": "2026-07-09",
+      "description": "Elevates an implicit practice to a standing principle: any feature that performs external I/O, calls an LLM, or makes non-deterministic or heuristic decisions must ship its audit instrumentation in the same PR as the feature — append-only JSONL under MOLTBOOK_HOME/logs/, records sufficient for offline replay (untrusted raw input as base64 + sha256, decision path, categorical reason codes for every abstain/fallback/failure, outcome), and no silent fallbacks. Motivated by the ADR-0062 round-6/7 parser repairs, which were possible only because verification-audit.jsonl predated the investigation: server-accepted answers gave positive ground truth, server-rejected answers gave negative ground truth, and a deterministic replay harness with a zero-wrong hard gate made grammar changes testable against every historical challenge. The principle is layered across three artifacts: a one-line rule in CLAUDE.md (always loaded), design know-how in the project skill .claude/skills/replayable-audit-logs (record-schema checklist, replay-harness pattern, ground-truth discipline, corpus-driven repair loop), and this ADR as canonical rationale. Rejected alternatives: ad-hoc logging at investigation time (the corpus must predate the failure), an observability framework like OpenTelemetry (single-process local agent, dependency floor stays requests+numpy), a global harness rule (project-specific practice), and a CLAUDE.md bullet without an ADR (evidence and criteria would drift).",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0062-create-time-verification-handshake.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",

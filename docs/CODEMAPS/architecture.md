@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-30 | Files scanned: 45 | Token estimate: ~2575 | Hand-updated: 2026-07-09 (weekly staged insight, ADR-0074) -->
+<!-- Generated: 2026-06-30 | Files scanned: 45 | Token estimate: ~2575 | Hand-updated: 2026-07-09 (parser round 7 ADR-0062 7th amendment; Observability section, ADR-0075) -->
 # Architecture
 
 ## Project Type
@@ -45,6 +45,15 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
 
 ## Immutability
 All DTOs `frozen=True`. Required by approval-gate diff pipeline and bitemporal invariants.
+
+## Observability
+Every feature with external I/O, LLM calls, or heuristic decisions ships a replayable
+append-only JSONL audit log in the same PR (untrusted raw input as base64 + sha256,
+decision path, categorical reason codes, outcome; no silent fallbacks) — ADR-0075.
+Existing instruments: `verification-audit.jsonl` (solver; replay harness in
+`docs/evidence/adr-0062-parser-rewrite/`), `api-audit.jsonl` (API drift),
+`audit.jsonl` (approval gates), LLM telemetry caller tags. Design know-how:
+project skill `replayable-audit-logs`.
 
 ---
 

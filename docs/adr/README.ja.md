@@ -31,6 +31,8 @@
 | [0023](0023-skill-as-memory-loop.ja.md) | Skill-as-Memory ループ — Router / Usage Log / Reflective Write | superseded-by 0036 | 2026-04-16 |
 | [0024](0024-identity-block-separation.ja.md) | Identity Block Separation — Frontmatter で addressing する persona ブロック | proposed | 2026-04-16 |
 | [0025](0025-identity-history-and-migrate-cli.ja.md) | Identity History ログ配線 + migrate-identity CLI | proposed | 2026-04-16 |
+| [0026](0026-retire-discrete-categories.ja.md) | 離散カテゴリの廃止（ADR-0019 の Phase-3 完了） | accepted | 2026-04-16 |
+| [0027](0027-noise-as-seed.ja.md) | Noise as Seed — binary gate から salience-based forgetting へ | accepted | 2026-04-16 |
 | [0028](0028-retire-pattern-level-forgetting-feedback.ja.md) | pattern 層の forgetting と feedback を撤回 — 記憶動的層は skill 層にある | proposed | 2026-04-18 |
 | [0029](0029-retire-dormant-provenance-elements.ja.md) | dormant な provenance 要素を撤回 — `user_input` / `external_post` / `sanitized` | accepted | 2026-04-18 |
 | [0030](0030-withdraw-identity-blocks.ja.md) | Identity Block 分離と History 配線の撤回 — Single Responsibility | accepted — ADR-0024 と ADR-0025 を supersede | 2026-04-18 |
@@ -77,6 +79,8 @@
 | [0071](0071-read-only-pattern-composition-instruments.ja.md) | 読み取り専用のパターン組成計器（view supply / 多様性 / grounding） | accepted | 2026-07-03 |
 | [0072](0072-echo-chamber-interventions.ja.md) | echo chamber への介入 — レジスタ指示・corpus 育ちの seed・抽出失敗ガード | accepted | 2026-07-03 |
 | [0073](0073-prune-orphaned-view-seeds.ja.md) | 孤児化した 5 つの view seed を削除する | accepted | 2026-07-03 |
+| [0074](0074-weekly-staged-insight.ja.md) | 週次 staged insight — テーマ検出への役割再定義、pending ガード、staging 時マーカー更新、LLM novelty ゲート、厳密高速クラスタリング | accepted | 2026-07-09 |
+| [0075](0075-observability-by-default.ja.md) | Observability by Default — リプレイ可能な監査ログは機能と同じ PR で出荷する | accepted | 2026-07-09 |
 
 ## ADR の種別
 
