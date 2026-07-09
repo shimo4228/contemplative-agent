@@ -120,6 +120,18 @@
       "scheme": "doi"
     },
     {
+      "identifier": "10.48550/arXiv.2512.13564",
+      "relation": "references",
+      "resource_type": "publication-preprint",
+      "scheme": "doi"
+    },
+    {
+      "identifier": "10.48550/arXiv.2603.07670",
+      "relation": "references",
+      "resource_type": "publication-preprint",
+      "scheme": "doi"
+    },
+    {
       "identifier": "10.5281/zenodo.20263316",
       "relation": "isReferencedBy",
       "resource_type": "software",

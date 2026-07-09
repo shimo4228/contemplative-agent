@@ -12,7 +12,7 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 - **DOI**: [10.5281/zenodo.21049580](https://doi.org/10.5281/zenodo.21049580) (v2.7.0 version DOI; concept DOI 10.5281/zenodo.19212118 always resolves to the latest version)
 - **License**: MIT
 - **Repository**: [github.com/shimo4228/contemplative-agent](https://github.com/shimo4228/contemplative-agent)
-- **Tests**: 1479 (pytest, across 37 test files)
+- **Tests**: 1711 (pytest, across 41 test files)
 - **Python**: 3.10+
 - **Build system**: hatch, uv
 - **Generation LLM**: Gemma 4 E4B / `gemma4:e4b` (Q4_K_M quantization, ~9.6 GB on disk) via Ollama
@@ -263,6 +263,21 @@ Generation runs on local Ollama by default. An alternative backend is injected o
 - **Code**: `core/llm.py` (`LLMBackend` Protocol + pre-flight budget guard)
 - **ADR**: ADR-0066 (backend-aware budget guard), ADR-0070 (retire MLX to sibling repo, remove Docker)
 
+## How were the echo-chamber and register-collapse patterns measured and repaired? (ADR-0071 / ADR-0072 / ADR-0073)
+
+ADR-0071 adds `core/view_metrics.py`, a read-only instrument module, before any behavioral change: it measures view-supply distributions for the two views actually consumed (`self_reflection`, `constitutional`), seed-independent pairwise diversity as an echo-chamber detector, and grounding composition. The audit that motivated it found 5 of the 7 shipped views were orphaned (no consumer since ADR-0050/ADR-0060 retired their readers) and that CODEMAPS described mechanisms that no longer existed. The new instruments then measured a fresh-batch pairwise cosine mean of 0.60 across three runs against a corpus mean of 0.554 — an echo chamber forming *now*, worse than the pool it feeds — traced to grammatical register (third-person analytic voice dominating over first-person moment-indexed voice), not vocabulary repetition. ADR-0072 ships three interventions against that measured baseline: a model-drafted register instruction in `distill_episode.md`, an extraction-failure guard in `_is_valid_pattern` so the model's own "couldn't find a pattern" text is never saved and ranked, and a corpus-grown seed exemplar-appendix route. ADR-0073 deletes the five orphaned view seeds outright (`communication` / `noise` / `reasoning` / `social` / `technical`) and records the standing policy: a view exists only together with a consumer wired in the same change, never pre-authored against anticipated categories.
+
+- **Code**: `core/view_metrics.py`, `core/distill.py` (`_is_valid_pattern`), `config/prompts/distill_episode.md`, `config/views/`
+- **ADR**: ADR-0071 (instruments), ADR-0072 (interventions), ADR-0073 (orphaned-seed prune)
+
+## How does `insight` scale past a static few-hundred-pattern corpus, and what is Observability by Default? (ADR-0074 / ADR-0075)
+
+`insight`'s one-shot global-recluster design was sized for a static few-hundred-pattern corpus; per-episode grounded distill (ADR-0060) raised pattern inflow to ~90–115/day, and by 2026-07-09 the live non-gated pool stood at 1,798 patterns — a structural scale mismatch, not a one-off. ADR-0074 moves `insight` to a weekly staged cadence (`install-schedule --weekly-insight` → `insight --stage` → `adopt-staged` review), backed by exact fast average-linkage clustering via the Lance-Williams update (partitions pinned equivalent to the prior naive implementation, 1,798 clusters in under a second), a `.last_insight` marker guard against silent whole-corpus reclustering, and a pending-batch guard that fast-fails before any LLM call so a skipped review week costs zero calls. ADR-0075 generalizes the instrument-first discipline of ADR-0071 into a standing principle: any feature performing external I/O, an LLM call, or a non-deterministic/heuristic decision must ship a replayable append-only JSONL audit log in the same PR — untrusted text stored as base64+sha256 (never free text, so a raw log read cannot itself become a prompt-injection path), a categorical reason code for every abstain/fallback/failure, no silent fallbacks. It was motivated directly by the fact that the round-6/7 verification-parser repairs were possible only because `logs/verification-audit.jsonl` already existed before anyone went looking for the failures it eventually explained.
+
+- **Code**: `cli.py` (`insight --stage`, `adopt-staged`), `core/insight.py` (`_merge_clusters` exact clustering, marker/pending guards)
+- **ADR**: ADR-0074 (weekly staged insight), ADR-0075 (observability by default)
+- **Skill**: `.claude/skills/replayable-audit-logs` (design know-how: record-schema checklist, replay-harness pattern)
+
 ---
 
-*Last updated: 2026-06-30*
+*Last updated: 2026-07-09*

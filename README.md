@@ -118,7 +118,7 @@ The core is platform-agnostic. Adapters are thin wrappers around platform I/O.
 
 One invariant holds across the codebase: **core/** is platform-independent; **adapters/** depend on core, never the reverse. Module maps, data-flow diagrams, and per-module responsibilities live in **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)** (the authoritative source). The Yogācāra eight-consciousness frame that constrained the memory design: [ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.md).
 
-CLI commands can be read through AAP's four-quadrant routing lens: most behaviour-modifying commands operate as bounded **LLM Workflow** (defined control flow, deterministic promotion through the [approval gate](docs/adr/0012-human-approval-gate.md)), `meditate` is **Algorithmic Search** (numpy POMDP, no runtime LLM), and no command runs an autonomous agentic loop — a usage observation, not a value judgement. See [ADR-0033](docs/adr/0033-aap-quadrant-lens-usage-note.md).
+CLI commands can be read through AAP's four-quadrant routing lens: most behaviour-modifying commands operate as bounded **LLM Workflow** (defined control flow, deterministic promotion through the [approval gate](docs/adr/0012-human-approval-gate.md) — and inside each, the mechanism layer is deterministic embedding math per [ADR-0019](docs/adr/0019-discrete-categories-to-embedding-views.md): cosine dedup, ranking, clustering, with the LLM confined to value judgment and generation), `meditate` is **Algorithmic Search** (numpy POMDP, no runtime LLM), and no command runs an autonomous agentic loop — a usage observation, not a value judgement. See [ADR-0033](docs/adr/0033-aap-quadrant-lens-usage-note.md).
 
 ## Using inside other agents
 
@@ -177,7 +177,7 @@ The citation above uses the v2.7.0 version DOI. The DOI badge resolves to `10.52
   author       = {Shimomoto, Tatsuya},
   title        = {Contemplative Agent},
   year         = {2026},
-  version      = {2.7.0},
+  version      = {2.8.0},
   doi          = {10.5281/zenodo.21049580},
   url          = {https://github.com/shimo4228/contemplative-agent},
 }

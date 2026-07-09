@@ -142,6 +142,15 @@ wrapped in local punctuation when embedded in a translated sentence.
   reasoning) and POST it before its posts/comments become visible;
   memory recording is gated on verification. ADR-0063 scopes the
   NoveltyGate comparison to verified (visible) posts.
+- **read-only pattern-composition instruments** — ADR-0071. Measure
+  view supply, seed-independent diversity, and grounding composition
+  before any behavioral intervention — instrument first, then act on
+  what the instrument reads.
+- **observability by default** — ADR-0075 headline principle. Any
+  feature performing external I/O, an LLM call, or a non-deterministic
+  decision ships a replayable append-only audit log in the same PR, not
+  as a follow-up. Bilingual first-use allowed: 「observability by
+  default（既定として可観測）」.
 
 ### AAP four-quadrant lens (Keep original)
 

@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-30 | Files scanned: 45 non-__init__ modules | Token estimate: ~3564 | Hand-updated: 2026-07-09 (weekly staged insight, ADR-0074) -->
+<!-- Generated: 2026-07-09 | Files scanned: 46 non-__init__ modules | Token estimate: ~4276 -->
 # Moltbook Agent Codemap
 
 Bird's-eye view of the entire codebase. For deep dives, see
@@ -9,54 +9,54 @@ Bird's-eye view of the entire codebase. For deep dives, see
 ## Module Dependency Graph
 
 ```
-cli.py (2364L)  -- composition root, only file importing both core/ and adapters/
+cli.py (2817L)  -- composition root, only file importing both core/ and adapters/
  -> core/
- |    _io.py (222L)                -- file I/O (write_restricted, truncate, archive_before_write)
+ |    _io.py (229L)                -- file I/O (write_restricted, truncate, archive_before_write)
  |    config.py (47L)             -- security constants (FORBIDDEN_*, VALID_*, MAX_*)
- |    domain.py (367L)            -- DomainConfig + PromptTemplates + constitution loader
+ |    domain.py (401L)            -- DomainConfig + PromptTemplates + constitution loader
  |    prompts.py (70L)            -- lazy-loading proxy to config/prompts/*.md
- |    llm.py (1320L)               -- Ollama interface + LLMBackend Protocol, circuit breaker; identity.md read as single blob (ADR-0030)
+ |    llm.py (1345L)               -- Ollama interface + LLMBackend Protocol, circuit breaker; identity.md read as single blob (ADR-0030)
  |    embeddings.py (107L)         -- /api/embed wrapper (nomic-embed-text) + cosine + embed_one/embed_texts
  |    episode_embeddings.py (162L)-- EpisodeEmbeddingStore (SQLite sidecar, ADR-0019)
  |    episode_log.py (91L)      -- Layer 1: append-only JSONL episode storage
- |    knowledge_store.py (392L)   -- Layer 2: patterns JSON + provenance/bitemporal (ADR-0021; trust retired ADR-0051); is_live/effective_importance/pattern_id/epistemic_counts (ADR-0050)
- |    memory.py (532L)            -- Layer 3 facade + Interaction/PostRecord + helpers (Insight retired, ADR-0052)
+ |    knowledge_store.py (399L)   -- Layer 2: patterns JSON + provenance/bitemporal (ADR-0021; trust retired ADR-0051); is_live/effective_importance/pattern_id/epistemic_counts (ADR-0050)
+ |    memory.py (528L)            -- Layer 3 facade + Interaction/PostRecord + helpers (Insight retired, ADR-0052)
  |    views.py (309L)             -- ViewRegistry (seed_from + ${VAR}, lazy centroid cache, pure cosine rank — ADR-0051)
  |    snapshot.py (218L)          -- write_snapshot + collect_thresholds (pivot snapshots, ADR-0020)
- |    scheduler.py (193L)         -- rate limit scheduling, persistence
- |    distill.py (856L)           -- per-episode grounded distill (one LLM call per episode, no noise gate, ADR-0060) + identity distill (single-stage, ADR-0050; importance step retired ADR-0056)
- |    insight.py (395L)           -- global clustering → behavior skill extraction (ADR-0050)
- |    rules_distill.py (402L)     -- Practice/Rationale B-layer rules synthesis (ADR-0048)
- |    constitution.py (151L)      -- constitutional amendment; ADR-0033 framing + ADR-0050 lineage
- |    stocktake.py (470L)         -- skill/rule audit: LLM grouping (ADR-0046), merge/quality, singleton clean (ADR-0048)
- |    report.py (279L)            -- activity report generation (JSONL → Markdown)
- |    metrics.py (171L)           -- session metrics aggregation
+ |    scheduler.py (210L)         -- rate limit scheduling, persistence
+ |    distill.py (960L)           -- per-episode grounded distill (one LLM call per episode, no noise gate, ADR-0060) + identity distill (single-stage, ADR-0050; importance step retired ADR-0056)
+ |    insight.py (651L)           -- global clustering → behavior skill extraction (ADR-0050)
+ |    rules_distill.py (404L)     -- Practice/Rationale B-layer rules synthesis (ADR-0048)
+ |    constitution.py (152L)      -- constitutional amendment; ADR-0033 framing + ADR-0050 lineage
+ |    stocktake.py (504L)         -- skill/rule audit: LLM grouping (ADR-0046), merge/quality, singleton clean (ADR-0048)
+ |    report.py (300L)            -- activity report generation (JSONL → Markdown)
+ |    metrics.py (189L)           -- session metrics aggregation
  |    view_metrics.py (383L)      -- read-only pattern-composition instruments: consumed-view supply + seed-independent diversity (ADR-0071/0072)
  |    text_utils.py (157L)         -- shared Markdown helpers [ADR-0035 PR2, ADR-0048]
  |    thresholds.py (84L)         -- centralized thresholds with ADR + calibration annotations [ADR-0035 PR2]
  |    artifact_extraction.py (69L)-- shared extract_title → slugify → path-escape guard chain [ADR-0035 PR3a]
- |    clustering.py (128L)       -- average-linkage cosine agglomerative clustering (numpy-only)
+ |    clustering.py (139L)       -- average-linkage cosine agglomerative clustering (numpy-only)
  |
  -> adapters/moltbook/
  |    config.py (113L)             -- URLs, paths, timeouts, rate limits
- |    agent.py (720L)             -- session orchestrator (feed/reply/post cycles)
- |    session_context.py (53L)    -- shared session state contract
- |    feed_manager.py (533L)      -- feed fetch, scoring, engagement, ID dedup, promo + author rate limit
+ |    agent.py (753L)             -- session orchestrator (feed/reply/post cycles)
+ |    session_context.py (113L)    -- shared session state contract
+ |    feed_manager.py (539L)      -- feed fetch, scoring, engagement, ID dedup, promo + author rate limit
  |    reply_handler.py (494L)     -- notification reply processing; pre-action internal_note (ADR-0045)
  |    post_pipeline.py (452L)     -- feed-seeder → NoveltyGate → test-content + body-hash gates → post
- |    client.py (767L)            -- HTTP client (auth, domain lock, retry/429-backoff)
+ |    client.py (824L)            -- HTTP client (auth, domain lock, retry/429-backoff)
  |    auth.py (106L)              -- credential management, register
- |    verification.py (423L)      -- math solver chain (code_parse → LLM) + challenge audit log
- |    verification_parse.py (321L)-- deterministic finite-grammar CAPTCHA parser (code_parse_challenge)
+ |    verification.py (536L)      -- math solver chain (code_parse → LLM) + challenge audit log
+ |    verification_parse.py (909L)-- deterministic finite-grammar CAPTCHA parser (code_parse_challenge)
  |    content.py (81L)            -- rules-based content + axiom intro injection
- |    llm_functions.py (336L)     -- Moltbook-specific LLM functions
+ |    llm_functions.py (342L)     -- Moltbook-specific LLM functions
  |    dedup.py (222L)             -- deterministic gates: prefix-5 stem + Jaccard, test-content, promo regex
  |    novelty.py (370L)          -- NoveltyGate: embedding novelty + temporal decay + Lagrangian (ADR-0039)
  |    feed_seeder.py (87L)       -- select_feed_seeds: RNG peer-post sampling per submolt (ADR-0043)
  |
  -> adapters/meditation/  (experimental)
  |    config.py (55L)             -- state space definition, parameters
- |    pomdp.py (305L)             -- JSONL → POMDP matrices (numpy)
+ |    pomdp.py (323L)             -- JSONL → POMDP matrices (numpy)
  |    meditate.py (231L)          -- Active Inference loop (flat single-level POMDP, ADR-0049)
  |    report.py (155L)            -- result interpretation (display-only) → results.json
  |

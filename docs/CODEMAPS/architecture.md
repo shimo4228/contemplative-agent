@@ -1,4 +1,4 @@
-<!-- Generated: 2026-06-30 | Files scanned: 45 | Token estimate: ~2575 | Hand-updated: 2026-07-09 (parser round 7 ADR-0062 7th amendment; Observability section, ADR-0075) -->
+<!-- Generated: 2026-07-09 | Files scanned: 46 | Token estimate: ~5573 -->
 # Architecture
 
 ## Project Type
@@ -28,7 +28,7 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
       dedup  novelty  feed_seeder
     adapters/meditation/  (experimental)  config  pomdp  meditate  report
     adapters/dialogue/  peer.py
-    cli.py  (composition root, 2364L)
+    cli.py  (composition root, 2817L)
          |                       |
     Moltbook API            Ollama (local default)
     60GET/30POST/min        gemma4:e4b + nomic-embed-text (768-dim) :11434

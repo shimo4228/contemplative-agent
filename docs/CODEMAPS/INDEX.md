@@ -1,8 +1,8 @@
-<!-- Generated: 2026-06-30 | Total codemaps: 5 | Token estimate: ~1370 -->
+<!-- Generated: 2026-07-09 | Total codemaps: 5 | Token estimate: ~1814 -->
 # Codemaps Index
 
 Comprehensive architectural documentation for the Contemplative Agent project.
-**Last Updated**: 2026-06-30 | **Codebase**: see [Statistics](#statistics)
+**Last Updated**: 2026-07-09 | **Codebase**: see [Statistics](#statistics)
 
 ---
 
@@ -104,13 +104,13 @@ Package versions, external services, optional add-ons.
 
 ## Statistics
 
-As of **2026-07-03** — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
+As of **2026-07-09** — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
 
 | Metric | Value |
 |--------|-------|
 | Total `.py` files | 52 (46 non-`__init__` + 6 `__init__`) |
-| LOC | ~16324 |
-| Test files | 40 (1546 tests collected) |
+| LOC | ~17834 |
+| Test files | 41 (1711 tests collected) |
 | Core modules | 25 (platform-independent) |
 | Moltbook adapter modules | 15 |
 | Meditation adapter modules | 4 |
@@ -139,4 +139,4 @@ Measured by: `find src -name '*.py' | wc -l` · `find src -name '*.py' -exec cat
 
 CODEMAPS はコード変更時に更新する（「どこにあるか」のコード索引）。
 
-Last full scan: 2026-06-20 (v2.6.0 release: 44 non-`__init__` modules, ~13592 LOC, 1301 tests verified; post-ADR-0053/0054/0055/0056/0057/0058 — importance LLM scoring + axiom-grounded distillation retired). Post-scan hand-updates (full re-scan pending): ADR-0059 (dead reply-history removed), ADR-0060 (distill is now per-episode grounded — one LLM call per episode, the 2-step batch + noise gate were removed), ADR-0061 (action-time untrusted caps at platform field limits), ADR-0062 (create-time verification handshake; amended with guarded expression extraction and base64 verification-audit corpus logging), ADR-0063 (NoveltyGate scoped to verified posts), ADR-0064 (opt-in MLX generation backend — `core/mlx_backend.py` added), ADR-0065 (MLX on-demand launchd wiring + telemetry served-model-id contract), ADR-0066 (backend-aware context-budget guard via context_window property), ADR-0070 (MLX backend retired to sibling repo + Docker removed — `core/mlx_backend.py`, MLX scripts, and Docker infra deleted; `LLMBackend` Protocol retained for cloud injection), ADR-0071 (read-only pattern-composition instruments — `core/view_metrics.py` added), ADR-0072 (echo-chamber interventions — the two batch distill prompts deleted), ADR-0073 (orphaned view seeds pruned — `config/views/` ships `self_reflection` + `constitutional`). Current aggregate counts live in [Statistics](#statistics) only.
+Full re-scan: 2026-07-09 (v2.8.0 release gate; live wc/find/pytest recount — LOC + per-file line counts in [core-modules.md](core-modules.md)/[adapters-moltbook.md](adapters-moltbook.md)/[moltbook-agent.md](moltbook-agent.md) refreshed, largest drifts: `cli.py` 2364→2817L, `verification_parse.py` 472→909L post ADR-0062 6th/7th amendment grammar rounds, `insight.py` 395→651L post ADR-0074). Covers through ADR-0075 (observability-by-default: every feature with external I/O / LLM calls / heuristic decisions ships a replayable JSONL audit log in the same PR — see [architecture.md § Observability](architecture.md#observability)), ADR-0074 (weekly staged insight: theme detection, `.last_insight` pending guard, LLM novelty gate, exact fast clustering), ADR-0073 (orphaned view seeds pruned — `config/views/` ships only `self_reflection` + `constitutional`; verified no stale references remain), ADR-0072 (echo-chamber interventions — register instruction, corpus-grown seed exemplar, extraction-failure guard), ADR-0071 (read-only pattern-composition instruments — `core/view_metrics.py`). Dead-code removal (`interaction_count_with`, `Finding.example`, commit `0034980`) verified clean — no remaining references in source or docs. Current aggregate counts live in [Statistics](#statistics) only.

@@ -118,7 +118,7 @@ Contemplative エージェントが [Moltbook](https://www.moltbook.com/u/contem
 
 コードベース全体で守られる不変条件: **core/** はプラットフォーム非依存。**adapters/** は core に依存する（逆方向は禁止）。モジュール一覧、データフロー図、モジュール別責務は **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)** が正本。記憶設計を予測的に制約した唯識 (Yogācāra) の枠組み: [ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.ja.md)。
 
-CLI コマンドは AAP の 4 象限ルーティングレンズで読める: behaviour-modifying コマンドの大半は bounded な **LLM Workflow**（defined control flow、[承認ゲート](docs/adr/0012-human-approval-gate.ja.md) を介した deterministic promotion）として動作し、`meditate` は **Algorithmic Search**（numpy の POMDP、runtime に LLM なし）、autonomous agentic loop を回すコマンドは無い — usage observation であって value judgement ではない。[ADR-0033](docs/adr/0033-aap-quadrant-lens-usage-note.ja.md) 参照。
+CLI コマンドは AAP の 4 象限ルーティングレンズで読める: behaviour-modifying コマンドの大半は bounded な **LLM Workflow**（defined control flow、[承認ゲート](docs/adr/0012-human-approval-gate.ja.md) を介した deterministic promotion — かつ各コマンドの内部では、機構層は [ADR-0019](docs/adr/0019-discrete-categories-to-embedding-views.ja.md) に従う決定論的な embedding 数学: cosine dedup・ランキング・クラスタリングで、LLM は価値判断と生成に限定される）として動作し、`meditate` は **Algorithmic Search**（numpy の POMDP、runtime に LLM なし）、autonomous agentic loop を回すコマンドは無い — usage observation であって value judgement ではない。[ADR-0033](docs/adr/0033-aap-quadrant-lens-usage-note.ja.md) 参照。
 
 ## 他のエージェントの内側で使う
 
@@ -177,7 +177,7 @@ Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/1
   author       = {Shimomoto, Tatsuya},
   title        = {Contemplative Agent},
   year         = {2026},
-  version      = {2.7.0},
+  version      = {2.8.0},
   doi          = {10.5281/zenodo.21049580},
   url          = {https://github.com/shimo4228/contemplative-agent},
 }
