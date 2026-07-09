@@ -50,10 +50,18 @@ All DTOs `frozen=True`. Required by approval-gate diff pipeline and bitemporal i
 Every feature with external I/O, LLM calls, or heuristic decisions ships a replayable
 append-only JSONL audit log in the same PR (untrusted raw input as base64 + sha256,
 decision path, categorical reason codes, outcome; no silent fallbacks) — ADR-0075.
-Existing instruments: `verification-audit.jsonl` (solver; replay harness in
-`docs/evidence/adr-0062-parser-rewrite/`), `api-audit.jsonl` (API drift),
-`audit.jsonl` (approval gates), LLM telemetry caller tags. Design know-how:
-project skill `replayable-audit-logs`.
+Existing instruments: `verification-audit.jsonl` (solver — incl.
+malformed-object abstains; replay harness in
+`docs/evidence/adr-0062-parser-rewrite/`), `api-audit.jsonl` (API drift —
+incl. transport errors and retried-429 backoffs),
+`audit.jsonl` (approval gates), `insight-novelty.jsonl` (ADR-0074 novelty-gate
+judge runs: prompt + raw output base64+sha256, verdict
+judged/fail_open_llm/fail_open_parse), LLM telemetry caller tags. An
+embedding-model calibration pin (`core/embeddings.py`
+`CALIBRATED_EMBEDDING_MODEL` + three-point anchors, ADR-0071/0072) warns at
+command startup and in `report --patterns` when the active model drifts from
+the one all similarity thresholds were calibrated on. Design know-how:
+project skills `replayable-audit-logs` / `read-only-instruments`.
 
 ---
 
@@ -260,6 +268,9 @@ NOVELTY GATE  [ADR-0074, fail-open]
   each) vs known themes = skills/*.md frontmatter + logs/insight-staged.jsonl
   covered clusters skipped (skipped_known); all covered → empty result,
   marker still advances
+  each judge run appended to logs/insight-novelty.jsonl (prompt + raw output
+  base64+sha256, 128KiB bound; verdict judged/fail_open_llm/fail_open_parse)
+  — replay-only, never gates (ADR-0075)
 
 Per novel cluster → generate_full(INSIGHT_EXTRACTION_PROMPT, topic="cluster-N")  [think-ON, ADR-0069]
   system = axioms-only (no skill corpus injected — audit H6 fix, a2bebfe;
