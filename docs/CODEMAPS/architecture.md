@@ -1,4 +1,4 @@
-<!-- Generated: 2026-07-09 | Files scanned: 46 | Token estimate: ~5573 -->
+<!-- Generated: 2026-07-10 | Files scanned: 46 | Token estimate: ~5573 -->
 # Architecture
 
 ## Project Type
