@@ -9,10 +9,20 @@ import math
 import os
 import re
 import time
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional, Protocol, Sequence, Tuple, runtime_checkable
+from typing import (
+    Any,
+    Dict,
+    Iterator,
+    Optional,
+    Protocol,
+    Sequence,
+    Tuple,
+    runtime_checkable,
+)
 from urllib.parse import urlparse
 
 import requests
@@ -280,6 +290,7 @@ class _CircuitBreaker:
     def __init__(self) -> None:
         self._consecutive_failures: int = 0
         self._opened_at: float = 0.0
+        self._shield_depth: int = 0
 
     @property
     def is_open(self) -> bool:
@@ -292,6 +303,8 @@ class _CircuitBreaker:
         return True
 
     def record_failure(self) -> None:
+        if self._shield_depth > 0:
+            return
         self._consecutive_failures += 1
         if self._consecutive_failures >= CIRCUIT_FAILURE_THRESHOLD:
             self._opened_at = time.time()
@@ -302,6 +315,8 @@ class _CircuitBreaker:
             )
 
     def record_success(self) -> None:
+        if self._shield_depth > 0:
+            return
         if self._consecutive_failures > 0:
             logger.info("Circuit breaker reset after successful request")
         self._consecutive_failures = 0
@@ -314,6 +329,28 @@ class _CircuitBreaker:
 
 
 _circuit = _CircuitBreaker()
+
+
+@contextmanager
+def circuit_shield() -> Iterator[None]:
+    """Suspend circuit-breaker *accounting* for the duration of the block.
+
+    For observability-only LLM calls (ADR-0076 shadow skill selection): an
+    instrument's own failures must never open the circuit that guards the
+    publish-path generation it observes — without this, a repeatedly
+    failing selector call would trip the breaker and the subsequent
+    comment/reply/post generation would be skipped as ``circuit_open``
+    (codex review 2026-07-10 P2). Only ``record_failure`` /
+    ``record_success`` become no-ops; ``is_open`` is still honored, so a
+    shielded call cannot un-trip or sneak past an already-open circuit.
+    Depth-counted so nested shields compose; single-process agent, so no
+    thread-safety concern.
+    """
+    _circuit._shield_depth += 1
+    try:
+        yield
+    finally:
+        _circuit._shield_depth -= 1
 
 
 def _get_default_system_prompt() -> str:

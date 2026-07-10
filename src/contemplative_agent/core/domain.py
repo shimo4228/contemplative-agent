@@ -81,6 +81,7 @@ class PromptTemplates:
     verification_solve_reason_system: str = ""
     learned_skills_framing: str = ""
     learned_rules_framing: str = ""
+    skill_selection: str = ""
 
 
 def _warn_unknown_keys(section: str, mapping: object, allowed: set[str]) -> None:
@@ -294,6 +295,7 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         ),
         learned_skills_framing=read("learned_skills_framing.md", required=False),
         learned_rules_framing=read("learned_rules_framing.md", required=False),
+        skill_selection=read("skill_selection.md", required=False),
     )
 
 

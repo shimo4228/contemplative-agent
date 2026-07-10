@@ -55,6 +55,7 @@ from .core.domain import (
     set_domain_config_cache,
 )
 from .core.llm import configure as configure_llm
+from .core.skill_selection import configure_skill_selection
 
 logger = logging.getLogger(__name__)
 
@@ -788,6 +789,10 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
 
     if SKILLS_DIR.is_dir():
         configure_llm(skills_dir=SKILLS_DIR)
+        # ADR-0076: shadow skill-selection observation for content
+        # generations. Records selections to logs/skill-selection-*.jsonl;
+        # injection is unchanged. Leaving audit_dir unset disables it.
+        configure_skill_selection(skills_dir=SKILLS_DIR, audit_dir=EPISODE_LOG_DIR)
     if RULES_DIR.is_dir():
         configure_llm(rules_dir=RULES_DIR)
 
@@ -2234,6 +2239,26 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
             )
         )
 
+    # --skill-selection: read-only shadow-selection reading (ADR-0076).
+    # Aggregates logs/skill-selection-*.jsonl; observability only — a broken
+    # instrument degrades to a WARNING and never breaks the report.
+    if getattr(args, "skill_selection", False):
+        try:
+            from .core.skill_selection import (
+                format_skill_selection_report,
+                read_skill_selection_log,
+            )
+
+            reading = read_skill_selection_log(
+                log_dir,
+                days=args.days,
+                skills_dir=SKILLS_DIR if SKILLS_DIR.is_dir() else None,
+            )
+            print()
+            print(format_skill_selection_report(reading))
+        except Exception as exc:
+            logger.warning("Skill-selection reading failed (report unaffected): %s", exc)
+
 
 def _handle_generate_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     from .core.report import generate_all_reports, generate_report
@@ -2612,6 +2637,13 @@ def main() -> None:
         action="store_true",
         help="Append read-only knowledge-pattern composition instruments "
         "(consumed-view supply / diversity)",
+    )
+    report_parser.add_argument(
+        "--skill-selection",
+        action="store_true",
+        help="Append the read-only skill-selection shadow reading "
+        "(per-skill frequency, never-selected, would-be token reduction; "
+        "ADR-0076)",
     )
 
     # generate-report

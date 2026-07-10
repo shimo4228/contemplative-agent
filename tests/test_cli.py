@@ -286,6 +286,75 @@ class TestReportPatternsSmoke:
         mock_pattern_report.assert_not_called()
 
 
+class TestReportSkillSelectionSmoke:
+    """report --skill-selection: argv → shadow-selection reading wiring (ADR-0076)."""
+
+    @patch("contemplative_agent.core.skill_selection.format_skill_selection_report")
+    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.metrics.format_report")
+    @patch("contemplative_agent.core.metrics.compute_metrics")
+    def test_report_skill_selection_flag_appends_reading(
+        self,
+        _mock_metrics,
+        mock_fmt,
+        mock_read,
+        mock_sel_report,
+        capsys,
+    ):
+        mock_fmt.return_value = "SESSION-METRICS"
+        mock_sel_report.return_value = "SKILL-SELECTION-READING"
+
+        with patch("sys.argv", ["contemplative-agent", "report", "--skill-selection"]):
+            main()
+
+        out = capsys.readouterr().out
+        assert "SESSION-METRICS" in out
+        assert "SKILL-SELECTION-READING" in out
+        mock_read.assert_called_once()
+
+    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.metrics.format_report")
+    @patch("contemplative_agent.core.metrics.compute_metrics")
+    def test_report_without_flag_skips_selection_reading(
+        self,
+        _mock_metrics,
+        mock_fmt,
+        mock_read,
+        capsys,
+    ):
+        mock_fmt.return_value = "SESSION-METRICS"
+
+        with patch("sys.argv", ["contemplative-agent", "report"]):
+            main()
+
+        assert "SESSION-METRICS" in capsys.readouterr().out
+        mock_read.assert_not_called()
+
+    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.metrics.format_report")
+    @patch("contemplative_agent.core.metrics.compute_metrics")
+    def test_reading_failure_degrades_to_warning(
+        self,
+        _mock_metrics,
+        mock_fmt,
+        mock_read,
+        capsys,
+        caplog,
+    ):
+        # A broken instrument must not break the report that hosts it.
+        mock_fmt.return_value = "SESSION-METRICS"
+        mock_read.side_effect = OSError("boom")
+
+        with (
+            patch("sys.argv", ["contemplative-agent", "report", "--skill-selection"]),
+            caplog.at_level(logging.WARNING),
+        ):
+            main()
+
+        assert "SESSION-METRICS" in capsys.readouterr().out
+        assert any("skill-selection" in r.message.lower() for r in caplog.records)
+
+
 class TestMeditateSmoke:
     """F7: argv parse → Tier-2 config → _handle_meditate wiring.
 

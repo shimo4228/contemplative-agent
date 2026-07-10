@@ -54,6 +54,7 @@ class _LazyPrompts:
         "VERIFICATION_SOLVE_REASON_SYSTEM_PROMPT": "verification_solve_reason_system",
         "LEARNED_SKILLS_FRAMING_PROMPT": "learned_skills_framing",
         "LEARNED_RULES_FRAMING_PROMPT": "learned_rules_framing",
+        "SKILL_SELECTION_PROMPT": "skill_selection",
     }
 
     def __getattr__(self, name: str) -> str:

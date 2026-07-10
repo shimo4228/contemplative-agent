@@ -26,6 +26,7 @@ from ...core.llm import (
     get_identity_system_prompt,
     wrap_untrusted_content,
 )
+from ...core.skill_selection import shadow_observe_skill_selection
 
 logger = logging.getLogger(__name__)
 
@@ -141,9 +142,11 @@ def generate_comment(post_text: str, *, think: bool = False) -> GenerationOutput
     (default False = production; the trace is persisted to the episode log,
     never published).
     """
-    prompt = COMMENT_PROMPT.format(
-        post_content=wrap_untrusted_content(post_text, max_input=MAX_POST_LENGTH)
-    )
+    wrapped_post = wrap_untrusted_content(post_text, max_input=MAX_POST_LENGTH)
+    # ADR-0076 shadow observation: records which skills the model judges
+    # applicable to this situation; feeds nothing back into this generation.
+    shadow_observe_skill_selection(wrapped_post, generation_caller="moltbook.comment")
+    prompt = COMMENT_PROMPT.format(post_content=wrapped_post)
     # chars_per_token=1.5 (audit M2): CJK output runs 1.5-2 chars/tok; the
     # /3 default under-budgets num_predict and cuts Japanese mid-sentence.
     return generate_for_api(
@@ -199,8 +202,13 @@ def generate_cooperation_post(
     ADR-0052: ungated self-narrative must not condition next-session
     generation — identity (approval-gated) is the continuity carrier.
     """
+    seeds_text = format_feed_seeds(feed_seeds)
+    # ADR-0076 shadow observation (see generate_comment). post_title, which
+    # runs in the same pipeline pass over the same seeds, is deliberately
+    # not observed — a second selection adds cost, not information.
+    shadow_observe_skill_selection(seeds_text, generation_caller="moltbook.cooperation_post")
     prompt = _resolve_domain_prompt(COOPERATION_POST_PROMPT).format(
-        feed_seeds=format_feed_seeds(feed_seeds),
+        feed_seeds=seeds_text,
     )
     # Deliberately keeps the chars_per_token=3.0 default (audit M2): /3 ≈
     # 13.4K tok output is ample for posts, and the CJK-safe /1.5 would only
@@ -235,9 +243,15 @@ def generate_reply(
     # neither branch truncates real content — they are NUM_CTX safety valves
     # only (worst-case ASCII ≈16.7K tok via _estimate_tokens /3, well under the
     # 32768 budget; a pathological all-CJK max is skipped by generate()'s guard).
+    wrapped_post = wrap_untrusted_content(original_post, max_input=MAX_POST_LENGTH)
+    wrapped_comment = wrap_untrusted_content(their_comment, max_input=MAX_COMMENT_LENGTH)
+    # ADR-0076 shadow observation (see generate_comment).
+    shadow_observe_skill_selection(
+        f"{wrapped_post}\n\n{wrapped_comment}", generation_caller="moltbook.reply"
+    )
     prompt = REPLY_PROMPT.format(
-        original_post=wrap_untrusted_content(original_post, max_input=MAX_POST_LENGTH),
-        their_comment=wrap_untrusted_content(their_comment, max_input=MAX_COMMENT_LENGTH),
+        original_post=wrapped_post,
+        their_comment=wrapped_comment,
     )
     # chars_per_token=1.5 (audit M2): same CJK output budget as the comment
     # path — see generate_comment.

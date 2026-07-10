@@ -2151,6 +2151,23 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0076-skill-selection-shadow-instrument.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0076: Skill-Selection Shadow Instrument — Pass-1 LLM Applicability Observed, Not Enforced",
+      "identifier": "ADR-0076",
+      "status": "accepted",
+      "datePublished": "2026-07-10",
+      "description": "Introduces a shadow-mode pass-1 LLM skill selection: before each content generation (comment / reply / cooperation post), one extra identity-prompt LLM call receives the situation plus the learned-skill catalog (name — description lines) and picks applicable skills; the result is recorded to logs/skill-selection-YYYY-MM-DD.jsonl (ADR-0075 schema: verdict judged/fail_open_llm/fail_open_parse/empty_catalog/no_template, hallucinated names rejected and logged, prompt/output as base64+sha256, full vs would-be skill token estimates baked in at record time) and changes nothing about injection. Motivated by the corpus reaching ≈20.3K tok ≈62% of the 32,768-token window and the 2026-07-09 C2-guard incident. Closes both ADR-0036 doors on corpus evidence: skill trigger conditions are situational-semantic, so neither cosine routing (similarity ≠ applicability) nor typed frontmatter predicates (triggers do not project onto an action-type axis) can carry the judgment — it belongs to the LLM per mechanism-vs-value-split. Shadow-first because no published reliability evidence exists for description-only selection on 4-9B local models; enforcement criteria (hallucination rate, fail-open rate, never-selected stability, realized token reduction via report --skill-selection) are reserved for a follow-up ADR after 2-4 weeks of data. Deliberate exclusions: post_title (same pipeline pass and seeds as cooperation_post), the learned corpus itself from the judge's prompt (audit H5 vocabulary feedback).",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0036-sunset-skill-as-memory-loop.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",
