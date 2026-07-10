@@ -96,6 +96,7 @@ git tracked = clone 先にも付いてくる repo 同梱の運用版 skill。CA 
 | `weekly-report-diagnosis` | なし（CA 固有） | 週次レポートの自己診断手順 |
 | `replayable-audit-logs` | なし（CA 固有） | ADR-0075 observability-by-default の設計ノウハウ（監査ログスキーマ・リプレイハーネス・ground truth 規律・修理ループ） |
 | `read-only-instruments` | なし（CA 固有） | 計器（ADR-0071 系 read-only 分布・読み値）の設計ノウハウ — 計器→介入の順序、signal-first の建立/撤去判断、3 点較正スケール、読み違えの罠 |
+| `shadow-mode-validation` | なし（CA 固有） | shadow-mode 検証（ADR-0076 系）の設計ノウハウ — 候補判断機構を観測専用で並走させ would-be 判断を記録し、enforcement をデータで決める。観測対象を抑止しない隔離（circuit_shield）、幻覚の一級データ化、kill switch 内蔵、exit 基準の予約 |
 | `apple-silicon-local-llm-serving` | なし（CA 固有） | Apple Silicon ローカル LLM ランタイム選択（mlx_lm.server vs Ollama）の判断軸 |
 | `agent-run` | なし（CA 固有） | `/agent-run <時間> [backend] [provider]` でエージェントをバックグラウンド起動。backend = ollama（既定）/ cloud（sibling `contemplative-agent-cloud`）/ mlx（sibling `contemplative-agent-mlx`、Apple Silicon 対話用）。silent fallback 禁止 |
 
