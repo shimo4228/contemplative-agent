@@ -60,7 +60,12 @@ judged/fail_open_llm/fail_open_parse), LLM telemetry caller tags. An
 embedding-model calibration pin (`core/embeddings.py`
 `CALIBRATED_EMBEDDING_MODEL` + three-point anchors, ADR-0071/0072) warns at
 command startup and in `report --patterns` when the active model drifts from
-the one all similarity thresholds were calibrated on. Design know-how:
+the one all similarity thresholds were calibrated on. A system-prompt budget
+reading (`core/llm.py` `system_prompt_budget_reading`, shown by
+`adopt-staged` before the approval loop) projects the value-layer token cost
+against `NUM_CTX` so batches are approved with the window share visible
+(2026-07-10, after a blind 13-skill adoption tripped the C2 guard; baseline
+at introduction ≈20.3K tok ≈62%). Design know-how:
 project skills `replayable-audit-logs` / `read-only-instruments`.
 
 ---

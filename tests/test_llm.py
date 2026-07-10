@@ -904,6 +904,73 @@ class TestGenerateBudgetClamp:
             reset_llm_config()
 
 
+class TestSystemPromptBudgetReading:
+    """Read-only budget instrument (ADR-0071 style): projects the system
+    prompt token estimate after a value-layer adoption so the operator sees
+    the window cost at the approval gate. 2026-07-09: a 13-skill batch was
+    approved with no budget visibility and grew the system prompt past the
+    C2 guard, silencing self-posts for 24+ hours."""
+
+    def test_reading_projects_additions_and_replacements(self):
+        from contemplative_agent.core.llm import (
+            NUM_CTX,
+            system_prompt_budget_reading,
+        )
+
+        with patch(
+            "contemplative_agent.core.llm._build_system_prompt",
+            return_value="a" * 3000,  # 1000 tok at ascii/3
+        ):
+            reading = system_prompt_budget_reading(
+                new_texts=["b" * 300],  # +100 tok
+                replaced_texts=["c" * 150],  # -50 tok
+            )
+        assert reading.current_tokens == 1000
+        assert reading.projected_tokens == 1050
+        assert reading.window == NUM_CTX
+
+    def test_projection_floors_at_zero(self):
+        from contemplative_agent.core.llm import system_prompt_budget_reading
+
+        with patch(
+            "contemplative_agent.core.llm._build_system_prompt",
+            return_value="a" * 300,  # 100 tok
+        ):
+            reading = system_prompt_budget_reading(
+                new_texts=[],
+                replaced_texts=["c" * 3000],  # -1000 tok > current
+            )
+        assert reading.projected_tokens == 0
+
+    def test_reading_is_immutable(self):
+        from contemplative_agent.core.llm import system_prompt_budget_reading
+
+        with patch(
+            "contemplative_agent.core.llm._build_system_prompt",
+            return_value="a" * 300,
+        ):
+            reading = system_prompt_budget_reading(new_texts=[])
+        with pytest.raises(Exception):
+            reading.current_tokens = 0  # type: ignore[misc]
+
+    def test_overrides_measure_but_do_not_leak(self, tmp_path):
+        """Per-reading overrides (for unconfigured Tier-1 callers) must be
+        restored afterwards — an instrument must not leave module
+        configuration behind as a side effect."""
+        from contemplative_agent.core import llm as llm_module
+        from contemplative_agent.core.llm import system_prompt_budget_reading
+
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "s.md").write_text("x" * 3000)  # 1000 tok
+
+        saved = llm_module._skills_dir
+        baseline = system_prompt_budget_reading(new_texts=[])
+        reading = system_prompt_budget_reading(new_texts=[], skills_dir=skills_dir)
+        assert reading.current_tokens > baseline.current_tokens  # skills counted
+        assert llm_module._skills_dir == saved  # restored
+
+
 class TestSilentTruncationDetector:
     """generate() warns when Ollama's prompt_eval_count is anomalously small
     for the chars sent — the silent front-truncation signal (audit C2).

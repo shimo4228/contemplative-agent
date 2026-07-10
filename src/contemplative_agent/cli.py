@@ -508,9 +508,11 @@ def _is_dry_run(args: argparse.Namespace) -> bool:
 class StageItem:
     """One artifact pending external approval in the staging dir.
 
-    `sources` is only set by skill-stocktake merges: it lists original
-    skill filenames that `adopt-staged` should delete when the merged
-    result is accepted. All other commands leave it empty.
+    `sources` is set by skill-stocktake merges (original skill filenames
+    that `adopt-staged` deletes when the merged result is accepted) and by
+    stocktake clean rewrites (the rewrite's own filename, so adoption
+    overwrites in place instead of minting a `-2.md` collision copy).
+    All other commands leave it empty.
 
     `action` distinguishes merge (write) from drop (delete) operations.
 
@@ -1171,11 +1173,18 @@ def _stocktake_clean_phase(
         print(final_text)
 
         if stage:
+            # Self-source (2026-07-10 fix): a clean rewrite targets its own
+            # original, so list it in `sources` to ride the merge-into-source
+            # collision exemption in _adopt_write_item — without it the H5
+            # guard treated every staged rewrite as a collision and minted
+            # `-2.md` duplicates. The self-delete guard in
+            # _delete_adopted_sources keeps the freshly written file.
             staged_batch.append(
                 StageItem(
                     filename=name,
                     text=final_text,
                     target_path=target_path,
+                    sources=[name],
                     command=clean_command,
                 )
             )
@@ -1542,6 +1551,95 @@ def _staged_sort_key(meta_file: Path) -> tuple[int, str]:
     return (seq if isinstance(seq, int) else sys.maxsize, meta_file.name)
 
 
+def _print_system_budget_for_staged(meta_files: Sequence[Path], data_root: Path) -> None:
+    """Print the read-only system-prompt budget projection for a staged batch.
+
+    ADR-0071-style instrument at the adopt gate: shows what adopting the
+    whole batch does to the system prompt's share of the context window,
+    so the operator approves with the cost visible (2026-07-09: a 13-skill
+    batch was approved blind and pushed the prompt past the C2 guard).
+    Observability only — the reading gates nothing, and any failure
+    degrades to a WARNING so a broken instrument never blocks adoption.
+    Invalid sidecars are skipped silently here; the adopt loop itself
+    reports and quarantines them.
+
+    Same defense-in-depth as ``_load_staged_item`` (codex review 2026-07-10):
+    the sidecar is user-writable between stage and adopt, so any path it
+    names is containment-checked against ``data_root`` before being read —
+    the instrument must not read (or hang on) an arbitrary path the adopt
+    loop would quarantine.
+    """
+
+    def _inside_data_root(path: Path) -> bool:
+        try:
+            return path.resolve().is_relative_to(data_root.resolve())
+        except OSError:
+            return False
+
+    try:
+        from .core.llm import system_prompt_budget_reading
+
+        new_texts: list[str] = []
+        replaced_texts: list[str] = []
+        for meta_file in meta_files:
+            try:
+                meta = json_mod.loads(meta_file.read_text(encoding="utf-8"))
+                if not meta.get("target"):
+                    continue
+                target = Path(meta["target"])
+                if not _inside_data_root(target):
+                    continue
+                sources = meta.get("sources") or []
+                if meta.get("action", "merge") == "drop":
+                    if target.exists():
+                        replaced_texts.append(target.read_text(encoding="utf-8"))
+                    continue
+                content_file = meta_file.parent / meta_file.name[: -len(".meta.json")]
+                text = content_file.read_text(encoding="utf-8")
+                new_texts.append(text)
+                # Subtract the existing target only when adoption really
+                # replaces it: an in-place rewrite/merge (target listed in
+                # sources) or an idempotent identical write. A same-name,
+                # different-content, non-source target gets a `-N.md` suffix
+                # from _collision_free_path and the original survives —
+                # subtracting it would under-project (codex 2026-07-10 P2).
+                if target.exists() and (
+                    target.name in sources
+                    or target.read_text(encoding="utf-8").strip() == text.strip()
+                ):
+                    replaced_texts.append(target.read_text(encoding="utf-8"))
+                for src_name in sources:
+                    src_path = target.parent / src_name
+                    if src_path != target and _inside_data_root(src_path) and src_path.exists():
+                        replaced_texts.append(src_path.read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+        # adopt-staged is a Tier-1 (no-LLM-setup) command, so mirror the
+        # session-time prompt composition (agent.py startup: identity +
+        # axioms + skills + rules) via per-reading overrides — the reading
+        # must measure the prompt agents actually run with.
+        clauses = load_constitution(CONSTITUTION_DIR)
+        reading = system_prompt_budget_reading(
+            new_texts,
+            replaced_texts,
+            identity_path=IDENTITY_PATH if IDENTITY_PATH.is_file() else None,
+            axiom_prompt=clauses or None,
+            skills_dir=SKILLS_DIR if SKILLS_DIR.is_dir() else None,
+            rules_dir=RULES_DIR if RULES_DIR.is_dir() else None,
+        )
+        pct = round(100 * reading.projected_tokens / reading.window)
+        print(
+            f"System prompt budget: ≈{reading.current_tokens:,} tok → "
+            f"≈{reading.projected_tokens:,} tok after this batch "
+            f"({pct}% of the {reading.window:,}-token window; "
+            f"estimate over-counts — audit C2 scale)"
+        )
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "System budget instrument failed (adoption unaffected): %s", exc
+        )
+
+
 def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     """Walk the staging dir, run each staged file through the approval gate,
     and write accepted files to their target paths. Rejected and accepted
@@ -1567,6 +1665,9 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         print("No staged files.")
         return
 
+    data_root = MOLTBOOK_DATA_DIR.resolve()
+    _print_system_budget_for_staged(meta_files, data_root)
+
     if yes:
         print(
             f"Auto-approve mode (--yes): adopting {len(meta_files)} staged item(s) without prompts."
@@ -1575,7 +1676,6 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     adopted = 0
     rejected = 0
     skipped = 0
-    data_root = MOLTBOOK_DATA_DIR.resolve()
     for meta_file in meta_files:
         item = _load_staged_item(meta_file, data_root)
         if item is None:

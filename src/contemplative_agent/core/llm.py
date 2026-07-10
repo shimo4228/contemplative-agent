@@ -12,7 +12,7 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional, Protocol, Tuple, runtime_checkable
+from typing import Any, Dict, Optional, Protocol, Sequence, Tuple, runtime_checkable
 from urllib.parse import urlparse
 
 import requests
@@ -695,6 +695,73 @@ def _estimate_tokens(text: str) -> int:
     """
     ascii_count = sum(1 for ch in text if ord(ch) < 128)
     return math.ceil(ascii_count / 3) + (len(text) - ascii_count) * 2
+
+
+@dataclass(frozen=True)
+class SystemBudgetReading:
+    """Read-only projection of the system prompt's context-window cost.
+
+    An ADR-0071-style instrument reading: it informs the operator at a
+    value-layer approval gate ("adopting this batch takes the system prompt
+    to N tok, Z% of the window") and feeds no gate, ranking, or retrieval.
+    Token counts use :func:`_estimate_tokens`, which deliberately
+    over-counts (audit C2 scale) — read the numbers as a conservative
+    ceiling, not a measurement.
+    """
+
+    current_tokens: int
+    projected_tokens: int
+    window: int
+
+
+def system_prompt_budget_reading(
+    new_texts: Sequence[str],
+    replaced_texts: Sequence[str] = (),
+    *,
+    identity_path: Optional[Path] = None,
+    axiom_prompt: Optional[str] = None,
+    skills_dir: Optional[Path] = None,
+    rules_dir: Optional[Path] = None,
+) -> SystemBudgetReading:
+    """Project the system prompt token estimate after a value-layer change.
+
+    ``new_texts`` are bodies about to be added (or written over existing
+    files); ``replaced_texts`` are the current bodies they replace or delete.
+    The projection is additive over file bodies — framing preambles and
+    separators in :func:`_build_system_prompt` are per-corpus, not per-file,
+    so a per-file delta approximates the real rebuild closely enough for an
+    approval-gate reading. Motivated 2026-07-09: a 13-skill batch was
+    approved with no budget visibility and pushed the system prompt past the
+    C2 guard, silencing every self-post for 24+ hours.
+
+    The keyword overrides let an unconfigured caller (e.g. the Tier-1
+    ``adopt-staged`` command, which never runs the LLM setup) measure the
+    session-time prompt composition. They are applied only for the duration
+    of this reading and restored afterwards — an instrument must not leave
+    module configuration behind as a side effect.
+    """
+    global _identity_path, _axiom_prompt, _skills_dir, _rules_dir
+    saved = (_identity_path, _axiom_prompt, _skills_dir, _rules_dir)
+    try:
+        if identity_path is not None:
+            _identity_path = identity_path
+        if axiom_prompt is not None:
+            _axiom_prompt = axiom_prompt
+        if skills_dir is not None:
+            _skills_dir = skills_dir
+        if rules_dir is not None:
+            _rules_dir = rules_dir
+        current = _estimate_tokens(_build_system_prompt())
+    finally:
+        _identity_path, _axiom_prompt, _skills_dir, _rules_dir = saved
+    delta = sum(_estimate_tokens(t) for t in new_texts) - sum(
+        _estimate_tokens(t) for t in replaced_texts
+    )
+    return SystemBudgetReading(
+        current_tokens=current,
+        projected_tokens=max(0, current + delta),
+        window=NUM_CTX,
+    )
 
 
 def _emit_telemetry(record: Dict[str, Any]) -> None:

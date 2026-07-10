@@ -30,6 +30,7 @@ from contemplative_agent.cli import (
     _log_approval,
     _remove_stale_schedule_jobs,
     _stage_results,
+    _stocktake_clean_phase,
     _stocktake_merge_phase,
     _write_reasoning,
     StageItem,
@@ -1268,6 +1269,107 @@ class TestAdoptStaged:
         assert target.exists()
         assert victim.exists()  # traversal blocked
 
+    def test_adopt_clean_rewrite_overwrites_in_place(self, tmp_path):
+        """Regression (2026-07-10): a staged skill-stocktake clean rewrite
+        targets its own original file. The collision guard must recognize the
+        self-source and overwrite in place — the pre-fix behavior minted a
+        `-2.md` duplicate for all 10 rewrites of a batch, doubling the corpus
+        the stocktake was meant to shrink."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "a.md").write_text("# A original")
+
+        target = skills_dir / "a.md"
+        staged = self._stage_one(
+            tmp_path,
+            filename="a.md",
+            text="# A cleaned",
+            target=target,
+            command="skill-stocktake-clean",
+            sources=["a.md"],
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        assert target.read_text().startswith("# A cleaned")
+        assert not (skills_dir / "a-2.md").exists()
+
+    def test_adopt_prints_system_budget_reading(self, tmp_path, capsys):
+        """The adopt gate shows the read-only system-prompt budget projection
+        (2026-07-09: a 13-skill batch was approved blind and grew the system
+        prompt past the C2 guard)."""
+        target = tmp_path / "skills" / "a.md"
+        staged = self._stage_one(tmp_path, filename="a.md", text="# A", target=target)
+        with patch(
+            "contemplative_agent.core.llm._build_system_prompt",
+            return_value="a" * 3000,
+        ):
+            self._run_adopt(tmp_path, staged, inputs=["y"])
+        out = capsys.readouterr().out
+        assert "System prompt budget" in out
+
+    def test_budget_reading_skips_targets_outside_data_root(self, tmp_path, capsys):
+        """Codex review 2026-07-10 P2: the instrument pre-pass must apply the
+        same MOLTBOOK_HOME containment check as _load_staged_item — a
+        tampered sidecar (target outside the data root, e.g. a special file)
+        must not be read by the budget pass."""
+        from contemplative_agent.cli import _print_system_budget_for_staged
+
+        staged_dir = tmp_path / ".staged"
+        staged_dir.mkdir()
+        outside = tmp_path / "outside.md"
+        outside.write_text("x" * 30000)  # 10K tok if wrongly counted
+        (staged_dir / "evil.md").write_text("small")
+        (staged_dir / "evil.md.meta.json").write_text(
+            json.dumps({"target": str(outside), "command": "insight"})
+        )
+        with patch(
+            "contemplative_agent.core.llm._build_system_prompt",
+            return_value="a" * 3000,  # 1000 tok
+        ):
+            _print_system_budget_for_staged(
+                [staged_dir / "evil.md.meta.json"], data_root=tmp_path / "home"
+            )
+        out = capsys.readouterr().out
+        # Escaping entry skipped entirely: reading stays at the bare prompt.
+        assert "≈1,000 tok → ≈1,000 tok" in out
+
+    def test_budget_reading_does_not_subtract_collision_targets(self, tmp_path, capsys):
+        """Codex review 2026-07-10 P2: a write whose target exists with
+        different content and is NOT in sources gets a `-2.md` suffix on
+        adopt — the original survives, so its tokens must not be subtracted."""
+        from contemplative_agent.cli import _print_system_budget_for_staged
+
+        skills_dir = tmp_path / "home" / "skills"
+        skills_dir.mkdir(parents=True)
+        target = skills_dir / "a.md"
+        target.write_text("b" * 1500)  # 500 tok — must NOT be subtracted
+        staged_dir = tmp_path / ".staged"
+        staged_dir.mkdir()
+        (staged_dir / "a.md").write_text("c" * 300)  # +100 tok
+        (staged_dir / "a.md.meta.json").write_text(
+            json.dumps({"target": str(target), "command": "insight"})
+        )
+        with patch(
+            "contemplative_agent.core.llm._build_system_prompt",
+            return_value="a" * 3000,  # 1000 tok
+        ):
+            _print_system_budget_for_staged(
+                [staged_dir / "a.md.meta.json"], data_root=tmp_path / "home"
+            )
+        out = capsys.readouterr().out
+        assert "≈1,000 tok → ≈1,100 tok" in out  # +100, no -500
+
+    def test_adopt_survives_budget_instrument_failure(self, tmp_path):
+        """Degrade, never abort (ADR-0071 invariant): a broken instrument
+        must not block the adoption it merely informs."""
+        target = tmp_path / "skills" / "a.md"
+        staged = self._stage_one(tmp_path, filename="a.md", text="# A", target=target)
+        with patch(
+            "contemplative_agent.core.llm.system_prompt_budget_reading",
+            side_effect=RuntimeError("instrument broke"),
+        ):
+            self._run_adopt(tmp_path, staged, inputs=["y"])
+        assert target.exists()
+
     def test_adopt_preserves_target_when_source_name_matches(self, tmp_path):
         """Regression: when a merged target has the same basename as one of
         its sources (e.g. merged title slugifies back to the dominant
@@ -1294,6 +1396,36 @@ class TestAdoptStaged:
         assert "Merged" in target.read_text()
         # The other (non-colliding) source is deleted
         assert not (skills_dir / "b.md").exists()
+
+
+class TestStocktakeCleanStaging:
+    """`_stocktake_clean_phase` with stage=True must stage each rewrite as an
+    in-place overwrite of its own original (sources=[name]) — without the
+    self-source, adopt-staged's collision guard mints a `-2.md` duplicate
+    (2026-07-10 incident: 10 duplicates from one batch)."""
+
+    def test_staged_clean_item_carries_self_source(self, tmp_path):
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "a.md").write_text("# A original")
+        staged_batch: list[StageItem] = []
+        with patch(
+            "contemplative_agent.cli._clean_one_skill",
+            return_value="# A cleaned",
+        ):
+            _stocktake_clean_phase(
+                [("a.md", "# A original")],
+                target_dir=skills_dir,
+                command_prefix="skill-stocktake",
+                clean_prompt="p",
+                skip_names=set(),
+                stage=True,
+                staged_batch=staged_batch,
+            )
+        assert len(staged_batch) == 1
+        item = staged_batch[0]
+        assert item.sources == ["a.md"]
+        assert item.target_path == skills_dir / "a.md"
 
 
 class TestSkillStocktakeDirectMerge:
