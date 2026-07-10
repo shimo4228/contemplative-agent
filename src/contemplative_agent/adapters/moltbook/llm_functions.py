@@ -202,11 +202,13 @@ def generate_cooperation_post(
     prompt = _resolve_domain_prompt(COOPERATION_POST_PROMPT).format(
         feed_seeds=format_feed_seeds(feed_seeds),
     )
-    # Deliberately keeps the chars_per_token=3.0 default (audit M2): at
-    # max_length=40000, the CJK-safe /1.5 would derive num_predict≈26.7K
-    # and leave only ~6K tokens of input headroom inside NUM_CTX — the C2
-    # budget guard would then skip every self-post under the full system
-    # prompt (10-21K tok). /3 ≈ 13.4K tok output is ample for posts.
+    # Deliberately keeps the chars_per_token=3.0 default (audit M2): /3 ≈
+    # 13.4K tok output is ample for posts, and the CJK-safe /1.5 would only
+    # request a ≈26.7K budget the C2 guard clamps back under the full system
+    # prompt. Note the derived 13.4K itself exceeded the window once the
+    # system prompt passed ~19K tok (2026-07-09, 13-skill adoption) — the C2
+    # guard now clamps num_predict to the remaining budget instead of
+    # skipping, so self-posts survive system-prompt growth.
     return generate_for_api(
         prompt,
         max_length=MAX_POST_LENGTH,

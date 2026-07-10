@@ -45,6 +45,16 @@ CIRCUIT_COOLDOWN_SECONDS = 120
 
 NUM_CTX = 32768  # Ollama context window (input + output share it). audit C2.
 
+# Floor for the C2 num_predict clamp: when the input leaves less than this
+# many output tokens, clamping would yield a generation so short that publish
+# paths drop it anyway (done_reason=length → audit M2), so the call is skipped
+# instead. 2048 tok ≈ 3-6K chars — comfortably above real post/comment sizes
+# (production p90 post ≈ 2,400 chars), so a clamp that survives this floor
+# still serves full-size content. 2026-07-09 regression: a 13-skill adoption
+# grew the system prompt to ~20.3K tok and the old skip-only guard suppressed
+# every self-post for 24+ hours despite ~11.5K tok of usable output budget.
+MIN_CLAMPED_NUM_PREDICT = 2048
+
 # Fixed sampling policy shared by EVERY backend (single source of truth). The
 # per-call temperature flows through LLMBackend.generate(); top_p/top_k are the
 # fixed nucleus + top-k clip applied identically on the built-in Ollama path
@@ -755,12 +765,16 @@ def generate(
             returns a :class:`GenerationOutput` carrying ``.thinking``).
             Recorded in telemetry either way.
 
-    Returns sanitized output, or None on failure — including when the
-    estimated input + ``num_predict`` would exceed the backend's context
-    window (``NUM_CTX`` on the Ollama path, ``LLMBackend.context_window``
-    for an injected backend that declares one) — audit C2: skip rather than
-    front-truncate the value layer (Ollama) or overrun an injected backend's
-    context window.
+    Returns sanitized output, or None on failure. Context budget (audit C2,
+    against ``NUM_CTX`` on the Ollama path or ``LLMBackend.context_window``
+    for an injected backend that declares one): when estimated input +
+    ``num_predict`` exceeds the window but the input still leaves at least
+    ``MIN_CLAMPED_NUM_PREDICT`` tokens, ``num_predict`` is clamped to the
+    remaining budget and the call proceeds (WARNING logged, requested value
+    kept in telemetry as ``num_predict_requested``). Only when the input
+    alone leaves less than the clamp floor is the call skipped (None) —
+    skip rather than front-truncate the value layer (Ollama) or overrun an
+    injected backend's context window.
 
     If an ``LLMBackend`` was injected via ``configure(backend=...)``, the
     raw generation is delegated to it; otherwise the built-in Ollama HTTP
@@ -921,19 +935,40 @@ def _generate_impl(
     if ctx_window is not None:
         est_system = _estimate_tokens(system_prompt)
         est_prompt = _estimate_tokens(prompt)
-        if est_system + est_prompt + effective_num_predict > ctx_window:
+        available = ctx_window - est_system - est_prompt
+        if effective_num_predict > available:
+            if available < MIN_CLAMPED_NUM_PREDICT:
+                logger.warning(
+                    "Skipping LLM call: estimated input %d tok (system≈%d + "
+                    "prompt≈%d) leaves %d tok < clamp floor %d in context "
+                    "window %d (audit C2).",
+                    est_system + est_prompt,
+                    est_system,
+                    est_prompt,
+                    available,
+                    MIN_CLAMPED_NUM_PREDICT,
+                    ctx_window,
+                )
+                tel["outcome"] = "budget_exceeded"
+                return None
+            # Degrade the output budget instead of suppressing the action:
+            # a skip here silenced every self-post for 24+ hours when a skill
+            # adoption grew the system prompt past the old guard (2026-07-09).
+            # The estimate over-counts input (audit C2), so the clamped value
+            # is conservative; real posts sit far below it.
             logger.warning(
-                "Skipping LLM call: estimated input %d tok (system≈%d + "
-                "prompt≈%d) + num_predict %d exceeds context window %d "
-                "(audit C2).",
+                "Clamping num_predict %d -> %d: estimated input %d tok "
+                "(system≈%d + prompt≈%d) in context window %d (audit C2).",
+                effective_num_predict,
+                available,
                 est_system + est_prompt,
                 est_system,
                 est_prompt,
-                effective_num_predict,
                 ctx_window,
             )
-            tel["outcome"] = "budget_exceeded"
-            return None
+            tel["num_predict_requested"] = effective_num_predict
+            effective_num_predict = available
+            tel["num_predict"] = effective_num_predict
 
     if _backend is not None:
         return _generate_via_backend(
@@ -1212,9 +1247,10 @@ def generate_for_api(
             comment/reply/title pass 1.5 — at the /3 default, Japanese
             output hits num_predict early and is cut mid-sentence
             (audit M2). The post path keeps 3.0: at max_length=40000, /1.5
-            would derive num_predict≈26.7K and leave only ~6K tokens of
-            input headroom inside NUM_CTX, permanently tripping the C2
-            budget guard with the full system prompt.
+            would derive num_predict≈26.7K, which the C2 guard would clamp
+            to whatever input headroom remains under the full system
+            prompt anyway — requesting a realistic budget up front keeps
+            the clamp (and its WARNING) for genuine contention.
         think: Request the reasoning trace (default False = production). When
             True the trace is captured on the returned ``GenerationOutput``
             so the publish path can persist it to the episode log.

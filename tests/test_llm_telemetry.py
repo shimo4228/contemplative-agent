@@ -130,9 +130,7 @@ class TestTelemetryOkPath:
         assert (telemetry_dir / f"llm-calls-{date_str}.jsonl").exists()
 
     @patch("contemplative_agent.core.llm.requests.post")
-    def test_truncated_but_kept_records_truncated_kept(
-        self, mock_post, telemetry_dir
-    ):
+    def test_truncated_but_kept_records_truncated_kept(self, mock_post, telemetry_dir):
         """Bug-audit 2026-07-06 M1: a length-capped generation kept because
         drop_truncated=False must NOT be recorded as a clean "ok" — otherwise
         telemetry cannot measure how often internal consumers received an
@@ -172,6 +170,24 @@ class TestTelemetryFailurePaths:
         assert _read_records(telemetry_dir)[0]["outcome"] == "budget_exceeded"
 
     @patch("contemplative_agent.core.llm.requests.post")
+    def test_clamped_call_records_requested_num_predict(self, mock_post, telemetry_dir):
+        """A C2-clamped call is an ok outcome whose record answers 'why was
+        the output budget smaller than requested': ``num_predict`` holds the
+        clamped value actually sent, ``num_predict_requested`` the original."""
+        mock_post.return_value = _mock_ok_response()
+        assert generate("y" * 3000, system="x" * 60000, num_predict=13384) is not None
+        record = _read_records(telemetry_dir)[0]
+        assert record["outcome"] == "ok"
+        assert record["num_predict_requested"] == 13384
+        assert record["num_predict"] == NUM_CTX - 20000 - 1000
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_unclamped_call_has_no_requested_field(self, mock_post, telemetry_dir):
+        mock_post.return_value = _mock_ok_response()
+        assert generate("test", num_predict=512) is not None
+        assert "num_predict_requested" not in _read_records(telemetry_dir)[0]
+
+    @patch("contemplative_agent.core.llm.requests.post")
     def test_truncated_dropped(self, mock_post, telemetry_dir):
         mock_post.return_value = _mock_ok_response(done_reason="length")
         assert generate("test", drop_truncated=True) is None
@@ -187,8 +203,9 @@ class TestTelemetryFailurePaths:
             # passes and the backend's raising generate() is still reached.
             context_window = 32768
 
-            def generate(self, prompt, system, num_predict, format,
-                         *, temperature=1.0, think=False):
+            def generate(
+                self, prompt, system, num_predict, format, *, temperature=1.0, think=False
+            ):
                 raise RuntimeError("backend boom")
 
         configure(backend=_RaisingBackend())

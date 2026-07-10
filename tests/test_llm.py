@@ -806,6 +806,104 @@ class TestGenerateBudgetGuard:
             reset_llm_config()
 
 
+class TestGenerateBudgetClamp:
+    """When the estimated input fits the window but input + num_predict
+    exceeds it, generate() clamps num_predict to the remaining budget instead
+    of skipping the call. Regression fixture for 2026-07-09: 13 newly adopted
+    skills grew the system prompt to ~20.3K tok, and the self-post path's
+    num_predict=13384 then tripped the C2 skip on every post for 24+ hours —
+    action suppression, not protection. The skip is reserved for input that
+    leaves less than MIN_CLAMPED_NUM_PREDICT of output budget."""
+
+    def setup_method(self):
+        from contemplative_agent.core.llm import _circuit
+
+        _circuit.record_success()  # Reset state
+
+    @staticmethod
+    def _ok_resp():
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"response": "ok"}
+        mock_resp.raise_for_status.return_value = None
+        return mock_resp
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_oversized_num_predict_is_clamped_not_skipped(self, mock_post, caplog):
+        """Production shape of the 2026-07-09 outage: system ≈20K tok,
+        prompt ≈1K tok, num_predict 13384 → input fits, sum exceeds."""
+        from contemplative_agent.core.llm import NUM_CTX
+
+        mock_post.return_value = self._ok_resp()
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
+            result = generate("y" * 3000, system="x" * 60000, num_predict=13384)
+        assert result == "ok"
+        sent = mock_post.call_args.kwargs["json"]["options"]["num_predict"]
+        assert sent == NUM_CTX - 20000 - 1000  # clamped to remaining budget
+        assert "Clamping num_predict" in caplog.text
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_clamp_does_not_record_circuit_failure(self, mock_post):
+        """Clamping is a degraded-but-served call, not a backend failure."""
+        from contemplative_agent.core.llm import _circuit
+
+        mock_post.return_value = self._ok_resp()
+        generate("y" * 3000, system="x" * 60000, num_predict=13384)
+        assert _circuit._consecutive_failures == 0
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_available_below_floor_still_skips(self, mock_post, caplog):
+        """When the input leaves less output budget than
+        MIN_CLAMPED_NUM_PREDICT, clamping would produce a uselessly short
+        (and M2-droppable) generation — keep the skip."""
+        from contemplative_agent.core.llm import MIN_CLAMPED_NUM_PREDICT, NUM_CTX
+
+        # ascii/3 estimate: leave available ≈ MIN_CLAMPED_NUM_PREDICT - 1000.
+        system_chars = (NUM_CTX - MIN_CLAMPED_NUM_PREDICT + 1000) * 3
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
+            result = generate("p", system="x" * system_chars, num_predict=8192)
+        assert result is None
+        mock_post.assert_not_called()
+        assert "audit C2" in caplog.text
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_requested_num_predict_within_budget_is_untouched(self, mock_post):
+        """No clamp when the requested output budget already fits."""
+        mock_post.return_value = self._ok_resp()
+        assert generate("test", system="small system", num_predict=512) == "ok"
+        sent = mock_post.call_args.kwargs["json"]["options"]["num_predict"]
+        assert sent == 512
+
+    def test_backend_path_receives_clamped_num_predict(self):
+        """The clamp applies uniformly to injected backends that declare
+        context_window."""
+        from contemplative_agent.core.llm import (
+            NUM_CTX,
+            BackendResult,
+            configure,
+            reset_llm_config,
+        )
+
+        received = {}
+
+        class GuardedBackend:
+            model: str = "guarded-model"
+            context_window: int = NUM_CTX
+
+            def generate(
+                self, prompt, system, num_predict, format, *, temperature=1.0, think=False
+            ):
+                received["num_predict"] = num_predict
+                return BackendResult(text="delegated")
+
+        reset_llm_config()
+        configure(backend=GuardedBackend())
+        try:
+            assert generate("y" * 3000, system="x" * 60000, num_predict=13384) == "delegated"
+            assert received["num_predict"] == NUM_CTX - 20000 - 1000
+        finally:
+            reset_llm_config()
+
+
 class TestSilentTruncationDetector:
     """generate() warns when Ollama's prompt_eval_count is anomalously small
     for the chars sent — the silent front-truncation signal (audit C2).
