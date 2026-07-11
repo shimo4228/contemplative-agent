@@ -8,7 +8,7 @@ Language: English | [日本語](README.ja.md)
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19212118.svg)](https://doi.org/10.5281/zenodo.19212118) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org)
 
-Contemplative Agent is an autonomous agent that carries an explicit, human-editable constitution — and amends it. The agent distills its own episode logs into patterns and proposes promotions into its value layer (constitution, identity, skills, rules); nothing lands there without passing a human approval gate. The whole loop runs on a single Apple Silicon Mac (M1+, 16 GB) with a local Gemma 4 model — no cloud, no LLM API keys, no shell execution.
+Contemplative Agent is an autonomous agent that carries an explicit, human-editable constitution — and amends it. The agent distills its own episode logs into patterns and proposes promotions into its value layer (constitution, identity, skills, rules); nothing lands there without passing a human approval gate. The whole loop runs with any local LLM served by Ollama — robustly, even with a small model on a single Apple Silicon Mac (M1+, 16 GB) — no cloud, no LLM API keys, no shell execution.
 
 For researchers studying how an agent accumulates and revises its own values and knowledge, and for developers who want a fully local, auditable autonomous agent small enough to read end-to-end.
 
@@ -66,7 +66,7 @@ This pipeline maps the AKC six phases onto code: `distill` covers Extract, `insi
 
 ## Quick Start
 
-**Prerequisites:** [Ollama](https://ollama.com/download) installed locally. The default model (Gemma 4 E4B / `gemma4:e4b`, Q4_K_M) is ~9.6 GB on disk. Tested on M1 Mac with 16 GB RAM.
+**Prerequisites:** [Ollama](https://ollama.com/download) installed locally. Any Ollama model works — set `OLLAMA_MODEL` to swap ([Configuration Guide](docs/CONFIGURATION.md)). The tested default is the compact Gemma 4 E4B (`gemma4:e4b`, Q4_K_M, ~9.6 GB on disk), which runs the whole loop on an M1 Mac with 16 GB RAM.
 
 ```bash
 git clone https://github.com/shimo4228/contemplative-agent.git
@@ -91,7 +91,7 @@ If you have [Claude Code](https://claude.ai/claude-code), paste this repo URL an
 
 ## Live Agent
 
-A Contemplative agent runs daily on [Moltbook](https://www.moltbook.com/u/contemplative-agent). Its evolving value layer is published openly — Identity, Constitution, Skills, and Rules each reached their current state through the human approval gate; the reports are ungated operational records:
+A Contemplative agent runs daily on [Moltbook](https://www.moltbook.com/u/contemplative-agent) — currently generating with the compact Gemma 4 E4B on local Ollama, switched from Qwen 3.5 9B by a cross-model blind evaluation with no code change ([ADR-0069](docs/adr/0069-gemma-production-model-and-think-on-value-layer-pipelines.md)). Its evolving value layer is published openly — Identity, Constitution, Skills, and Rules each reached their current state through the human approval gate; the reports are ungated operational records:
 
 - [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md) — distilled persona
 - [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution) — ethical principles (started from CCAI four axioms)
@@ -152,7 +152,7 @@ Contemplative Agent is a host-agnostic CLI. Use it standalone (see Quick Start) 
 <details>
 <summary><b>Optional: Running with Managed LLM APIs</b></summary>
 
-For research experiments needing a generation model larger than Gemma 4 E4B, the optional [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) add-on routes every generation call through Anthropic Claude or OpenAI GPT via the abstract `LLMBackend` Protocol — main-repo code unmodified, embeddings stay on local Ollama. This is an explicit **opt-in** that relaxes the no-cloud property for users who install it; do not install it in deployments where cloud data egress is not acceptable.
+For research experiments needing a generation model beyond what the local host serves, the optional [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) add-on routes every generation call through Anthropic Claude or OpenAI GPT via the abstract `LLMBackend` Protocol — main-repo code unmodified, embeddings stay on local Ollama. This is an explicit **opt-in** that relaxes the no-cloud property for users who install it; do not install it in deployments where cloud data egress is not acceptable.
 
 </details>
 

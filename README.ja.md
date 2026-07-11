@@ -8,7 +8,7 @@ Language: [English](README.md) | 日本語
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19212118.svg)](https://doi.org/10.5281/zenodo.19212118) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org)
 
-Contemplative Agent は、明文化された人間編集可能な憲法（constitution）を持ち、それを自ら改正していく自律エージェント。エージェントは自身のエピソードログをパターンに蒸留し、value layer（価値層 — constitution / identity / skills / rules）への昇格を提案するが、人間の承認ゲートを通らずにそこへ書き込まれるものは何もない。ループ全体が Apple Silicon Mac 1 台（M1+, 16 GB）とローカル Gemma 4 モデルで完結する — クラウドなし、LLM API キーなし、シェル実行なし。
+Contemplative Agent は、明文化された人間編集可能な憲法（constitution）を持ち、それを自ら改正していく自律エージェント。エージェントは自身のエピソードログをパターンに蒸留し、value layer（価値層 — constitution / identity / skills / rules）への昇格を提案するが、人間の承認ゲートを通らずにそこへ書き込まれるものは何もない。ループ全体が Ollama 上の任意のローカル LLM で動く — Apple Silicon Mac 1 台（M1+, 16 GB）の小さなモデルでも堅牢に完結する。クラウドなし、LLM API キーなし、シェル実行なし。
 
 エージェントが自らの価値と知識をどう蓄積し書き換えるかを研究する人、そして全コードを端から端まで読める規模の、ローカル完結で監査可能な自律エージェントを求める開発者に向けている。
 
@@ -66,7 +66,7 @@ graph TD
 
 ## クイックスタート
 
-**前提条件:** [Ollama](https://ollama.com/download) がローカルにインストール済みであること。デフォルトモデル（Gemma 4 E4B / `gemma4:e4b`, Q4_K_M）はディスク約 9.6 GB。M1 Mac（16 GB RAM）で動作確認済み。
+**前提条件:** [Ollama](https://ollama.com/download) がローカルにインストール済みであること。Ollama のモデルなら何でも動く — `OLLAMA_MODEL` で差し替え可能（[Configuration Guide](docs/CONFIGURATION.md)）。動作確認済みのデフォルトは小型の Gemma 4 E4B（`gemma4:e4b`, Q4_K_M, ディスク約 9.6 GB）で、M1 Mac（16 GB RAM）でループ全体が回る。
 
 ```bash
 git clone https://github.com/shimo4228/contemplative-agent.git
@@ -91,7 +91,7 @@ cp config/templates/stoic/identity.md $MOLTBOOK_HOME/
 
 ## 稼働中のエージェント
 
-Contemplative agent が [Moltbook](https://www.moltbook.com/u/contemplative-agent) で毎日稼働している。進化していく value layer は公開されている — Identity / Constitution / Skills / Rules はいずれも人間承認ゲートを通って現在の状態に至った。レポート類はゲートを通らない運用記録である:
+Contemplative agent が [Moltbook](https://www.moltbook.com/u/contemplative-agent) で毎日稼働している — 現在の生成モデルはローカル Ollama 上の小型 Gemma 4 E4B。Qwen 3.5 9B からクロスモデルのブラインド評価でコード変更なしに乗り換えた（[ADR-0069](docs/adr/0069-gemma-production-model-and-think-on-value-layer-pipelines.ja.md)）。進化していく value layer は公開されている — Identity / Constitution / Skills / Rules はいずれも人間承認ゲートを通って現在の状態に至った。レポート類はゲートを通らない運用記録である:
 
 - [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md) — 蒸留されたペルソナ
 - [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution) — 倫理原則（CCAI 四公理から出発）
@@ -152,7 +152,7 @@ Contemplative Agent はホスト非依存の CLI である。単体で使う（�
 <details>
 <summary><b>オプション: マネージド LLM API での実行</b></summary>
 
-Gemma 4 E4B より大きい生成モデルが要る研究実験向けに、オプションの [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) アドオンが全生成呼び出しを抽象 `LLMBackend` Protocol 経由で Anthropic Claude / OpenAI GPT にルーティングする — main リポジトリのコードは無改変、埋め込みはローカル Ollama のまま。これは明示的な **opt-in** であり、インストールしたユーザーに対してのみ no-cloud 特性を緩める。クラウドへのデータ egress が許容できない環境ではインストールしないこと。
+ローカルホストで動かせる範囲を超える生成モデルが要る研究実験向けに、オプションの [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) アドオンが全生成呼び出しを抽象 `LLMBackend` Protocol 経由で Anthropic Claude / OpenAI GPT にルーティングする — main リポジトリのコードは無改変、埋め込みはローカル Ollama のまま。これは明示的な **opt-in** であり、インストールしたユーザーに対してのみ no-cloud 特性を緩める。クラウドへのデータ egress が許容できない環境ではインストールしないこと。
 
 </details>
 
