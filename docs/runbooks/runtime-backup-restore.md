@@ -60,4 +60,13 @@ contemplative-agent generate-report   # reads knowledge + logs end to end
 ```
 
 Last restore drill: 2026-07-11 (initial verification — clone, inventory diff
-against live home, JSON parse of knowledge.json).
+against live home: 2575/2575 files with zero difference, knowledge.json JSON
+parse OK with sha256 identical to live).
+
+## Known limits
+
+GitHub warns on files over 50 MB and hard-blocks over 100 MB.
+`knowledge.json` (52 MB at the first backup, and growing) is the file to
+watch — if it approaches 100 MB, move it to Git LFS or address growth at the
+source (pattern-store compaction) before the push starts failing. The same
+limit applies to the public data repo, which also tracks `knowledge.json`.
