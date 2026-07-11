@@ -215,6 +215,6 @@ MIT ライセンスは書いてある通りの意味である — fork してよ
 - Laukkonen, Friston & Chandaria (2025). *A Beautiful Loop: An Active Inference Theory of Consciousness.* *Neuroscience & Biobehavioral Reviews*, 176, 106296. [PubMed:40750007](https://pubmed.ncbi.nlm.nih.gov/40750007/) — meditation アダプタの基盤。
 - Vasubandhu（世親、4–5 世紀）*Triṃśikā-vijñaptimātratā*（唯識三十頌）および玄奘（659）*成唯識論* — アーキテクチャの枠組みとして採用した八識モデル（[ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.ja.md)）。
 
-さらに読む: メモリシステム文献目録（ADR ごとの設計影響）は [docs/BIBLIOGRAPHY.md](docs/BIBLIOGRAPHY.md)、開発中に書かれた 16 本の記事の索引は [docs/DEVELOPMENT-RECORDS.md](docs/DEVELOPMENT-RECORDS.md)。
+さらに読む: メモリシステム文献目録（ADR ごとの設計影響）は [docs/BIBLIOGRAPHY.md](docs/BIBLIOGRAPHY.md)、開発中に書かれた 17 本の記事の索引は [docs/DEVELOPMENT-RECORDS.md](docs/DEVELOPMENT-RECORDS.md)。
 
 **謝辞:** Jerry Mares（[VADUGWI](https://doi.org/10.5281/zenodo.19383636)） — 決定論的感情スコアリング設計の着想。

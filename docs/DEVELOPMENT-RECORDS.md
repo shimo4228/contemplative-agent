@@ -1,6 +1,6 @@
 # Development Records
 
-Sixteen articles written during Contemplative Agent's development, in chronological order. They trace the project's design history — from the initial scratch build through the memory-architecture experiments to the accountability framing that later became [AAP](https://github.com/shimo4228/agent-attribution-practice). English sources live in the [zenn-content](https://github.com/shimo4228/zenn-content) repository.
+Seventeen articles written during Contemplative Agent's development, in chronological order. They trace the project's design history — from the initial scratch build through the memory-architecture experiments to the accountability framing that later became [AAP](https://github.com/shimo4228/agent-attribution-practice) and the observability discipline later published as [agent-observability-patterns](https://github.com/shimo4228/agent-observability-patterns). English sources live in the [zenn-content](https://github.com/shimo4228/zenn-content) repository.
 
 1. [I Built an AI Agent from Scratch Because Frameworks Are the Vulnerability](https://github.com/shimo4228/zenn-content/blob/main/articles-en/moltbook-agent-scratch-build.md)
 2. [Natural Language as Architecture](https://github.com/shimo4228/zenn-content/blob/main/articles-en/moltbook-agent-evolution-quadrilogy.md)
@@ -18,3 +18,4 @@ Sixteen articles written during Contemplative Agent's development, in chronologi
 14. [The LLM Workflow Quadrant Is Missing from Our Vocabulary](https://github.com/shimo4228/zenn-content/blob/main/articles-en/react-agent-business-quadrant-2.md)
 15. [Is ReAct Needed in Production? — Separating Design and Operation Phases](https://github.com/shimo4228/zenn-content/blob/main/articles-en/react-agent-business-quadrant-3.md)
 16. [Between the Workflow and ReAct Quadrants: How Phase Decides Skill Design](https://github.com/shimo4228/zenn-content/blob/main/articles-en/react-agent-business-quadrant-4.md)
+17. [Why Did My Agent Decide That? 3 Observability Patterns](https://github.com/shimo4228/zenn-content/blob/main/articles-en/agent-observability-patterns.md)
