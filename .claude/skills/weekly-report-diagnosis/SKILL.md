@@ -108,6 +108,14 @@ operator が判断する「問い」を立てるための material:
 
 weekly レポート本体 (`weekly-{end-date}.md`) は touch しない。
 
+### 日本語版（2026-07-12 追加）
+
+findings 生成後、同じ内容の日本語版を `weekly-{end-date}-findings.ja.md` として**必ず**併せて出力する。英語版が正本（過去週の重複検出は英語版を読む）。規約:
+
+- 冒頭に `> 日本語版（自動翻訳）。英語正本: weekly-{end-date}-findings.md` の 1 行
+- E からの source quote・コード参照 (`path:line`)・識別子は英語原文のまま。地の文だけ訳す（普通の日本語で、カタカナ乱用しない）
+- 構造（F1/F2/F3、見出し階層）は英語版と 1:1 対応
+
 ### 出力フォーマット
 
 ```markdown

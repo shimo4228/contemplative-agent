@@ -176,7 +176,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 **Experimental**: meditation_interpret
 
-**Script-read (NOT lazy-loaded via `core/prompts.py`)**: `weekly-analysis.md`, `principles.md` live in `config/prompts/` but are embedded by `scripts/weekly-analysis.sh` (the `claude -p` weekly pipeline), not by the agent's prompt loader (ADR-0040).
+**Script-read (NOT lazy-loaded via `core/prompts.py`)**: `weekly-analysis.md`, `weekly-analysis-ja.md`, `principles.md` live in `config/prompts/` but are embedded by `scripts/weekly-analysis.sh` (the `claude -p` weekly pipeline; `-ja` drives the best-effort Japanese translation pass via `--model sonnet`), not by the agent's prompt loader (ADR-0040).
 
 ## LLM Function Surface
 

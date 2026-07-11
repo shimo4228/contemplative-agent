@@ -234,3 +234,44 @@ echo "$USER_PROMPT" | claude -p \
 
 echo "Report generated: $OUTPUT"
 echo "Size: $(wc -c < "$OUTPUT") bytes"
+
+# --- Japanese version (best-effort; must never break the canonical English report) ---
+# English weekly-<date>.md stays canonical (it is what next weeks' prompts re-read);
+# the .ja.md is a translation for the operator. Sonnet is deliberate: translation
+# does not need the session's larger model. Failure is logged, never fatal.
+# timeout guards the unattended launchd job against a hung CLI call; when the
+# coreutils binary is absent from launchd's PATH the call degrades to no cap.
+TRANSLATE_TIMEOUT_SECONDS=900
+run_claude_translate() {
+    if command -v timeout >/dev/null 2>&1; then
+        timeout "$TRANSLATE_TIMEOUT_SECONDS" claude -p "$@"
+    else
+        claude -p "$@"
+    fi
+}
+
+TRANSLATE_PROMPT="$PROJECT_ROOT/config/prompts/weekly-analysis-ja.md"
+OUTPUT_JA="$REPORT_DIR/weekly-${END_DATE}.ja.md"
+if [[ -f "$TRANSLATE_PROMPT" ]]; then
+    TRANSLATE_SYSTEM_PROMPT=$(cat "$TRANSLATE_PROMPT")
+    echo "Translating report to Japanese (model: sonnet)..."
+    if run_claude_translate \
+        --model sonnet \
+        --system-prompt "$TRANSLATE_SYSTEM_PROMPT" \
+        --output-format text \
+        < "$OUTPUT" > "$OUTPUT_JA" && [[ -s "$OUTPUT_JA" ]]; then
+        en_bytes=$(wc -c < "$OUTPUT")
+        ja_bytes=$(wc -c < "$OUTPUT_JA")
+        # CLI exit 0 + non-empty file can still hide a mid-document cutoff;
+        # a Japanese translation far smaller than the English source is the signal
+        if (( ja_bytes * 10 < en_bytes * 3 )); then
+            echo "WARNING: Japanese report is <30% of English size (${ja_bytes}/${en_bytes} bytes) — possible truncation" >&2
+        fi
+        echo "Japanese report generated: $OUTPUT_JA (${ja_bytes} bytes)"
+    else
+        rm -f "$OUTPUT_JA"
+        echo "WARNING: Japanese translation failed — English report unaffected" >&2
+    fi
+else
+    echo "WARNING: translation prompt not found at $TRANSLATE_PROMPT; skipping Japanese version" >&2
+fi
