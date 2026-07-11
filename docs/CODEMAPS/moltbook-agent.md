@@ -148,7 +148,11 @@ contemplative-agent install-schedule [--interval H] [--session M]
                                      [--weekly-analysis] [--weekly-analysis-day D]
                                      [--weekly-analysis-hour H]
                                      [--weekly-insight] [--weekly-insight-day D]
-                                     [--weekly-insight-hour H] [--uninstall]
+                                     [--weekly-insight-hour H]
+                                     [--weekly-backup] [--weekly-backup-day D]
+                                     [--weekly-backup-hour H] [--uninstall]
+                                     # --weekly-backup: private off-site mirror of MOLTBOOK_HOME
+                                     # incl. logs/ (scripts/backup-runtime.sh; excludes credentials.json)
 
 Global flags: --config-dir PATH | --domain-config PATH | --constitution-dir PATH
               --no-axioms | --approve/--guarded/--auto

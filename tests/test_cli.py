@@ -24,6 +24,7 @@ from contemplative_agent.cli import (
     _build_calendar_intervals,
     _do_init,
     _do_install_schedule,
+    _do_install_backup_schedule,
     _do_install_distill_schedule,
     _do_uninstall_schedule,
     _list_templates,
@@ -498,40 +499,56 @@ class TestInstallSchedule:
         assert "load" in mock_run.call_args_list[1][0][0]
 
 
+@pytest.fixture
+def plist_sandbox(tmp_path, monkeypatch):
+    """Redirect EVERY ``LAUNCHD_*_PLIST_PATH`` constant into tmp_path.
+
+    Discovery is dynamic so a newly added schedule plist can never fall
+    through to the user's real ~/Library/LaunchAgents/. Hand-listing the
+    paths per test caused two live-plist deletions during full-suite runs:
+    the Apr 8 incident (weekly-analysis) and the Jul 9 incident (insight —
+    ledger T-FLAKY1: the walker unloaded and deleted the freshly installed
+    com.moltbook.insight.plist because the test patched only three paths).
+    """
+    import contemplative_agent.cli as cli_mod
+
+    paths = {}
+    for attr in dir(cli_mod):
+        if attr.startswith("LAUNCHD_") and attr.endswith("_PLIST_PATH"):
+            sandboxed = tmp_path / getattr(cli_mod, attr).name
+            monkeypatch.setattr(cli_mod, attr, sandboxed)
+            paths[attr] = sandboxed
+    monkeypatch.setattr(cli_mod, "LAUNCHD_PLIST_DIR", tmp_path)
+    return paths
+
+
 class TestUninstallSchedule:
-    def test_uninstall_no_plist(self, tmp_path, capsys):
-        # NOTE: _do_uninstall_schedule walks THREE plist paths (session,
-        # distill, weekly-analysis). All three must be patched to tmp_path,
-        # otherwise the weekly-analysis path falls through to the user's
-        # real ~/Library/LaunchAgents/ and the test will silently delete
-        # the live plist. (See Apr 8 incident.)
-        plist_path = tmp_path / "com.moltbook.agent.plist"
-        distill_plist_path = tmp_path / "com.moltbook.distill.plist"
-        weekly_plist_path = tmp_path / "com.moltbook.weekly-analysis.plist"
-        with (
-            patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path),
-            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist_path),
-            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist_path),
-        ):
-            _do_uninstall_schedule()
+    def test_uninstall_no_plist(self, plist_sandbox, capsys):
+        _do_uninstall_schedule()
         assert "No schedule installed" in capsys.readouterr().out
 
     @patch("contemplative_agent.cli.subprocess.run")
-    def test_uninstall_removes_plist(self, mock_run, tmp_path):
-        plist_path = tmp_path / "com.moltbook.agent.plist"
-        distill_plist_path = tmp_path / "com.moltbook.distill.plist"
-        weekly_plist_path = tmp_path / "com.moltbook.weekly-analysis.plist"
-        plist_path.write_text("dummy")
+    def test_uninstall_removes_plist(self, mock_run, plist_sandbox):
+        plist_sandbox["LAUNCHD_PLIST_PATH"].write_text("dummy")
 
-        with (
-            patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", plist_path),
-            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist_path),
-            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist_path),
-        ):
-            _do_uninstall_schedule()
+        _do_uninstall_schedule()
 
-        assert not plist_path.exists()
+        assert not plist_sandbox["LAUNCHD_PLIST_PATH"].exists()
         mock_run.assert_called_once()
+
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_uninstall_walks_every_registered_plist(self, mock_run, plist_sandbox):
+        """Regression pin for the Jul 9 incident (T-FLAKY1): the uninstall
+        walker must cover every LAUNCHD_*_PLIST_PATH constant — a constant
+        the walker misses would survive here."""
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        for path in plist_sandbox.values():
+            path.write_text("dummy")
+
+        _do_uninstall_schedule()
+
+        for name, path in plist_sandbox.items():
+            assert not path.exists(), f"{name} not removed by uninstall walker"
 
 
 class TestInstallDistillSchedule:
@@ -592,43 +609,41 @@ class TestInstallDistillSchedule:
         assert "load" in mock_run.call_args_list[1][0][0]
 
 
+class TestInstallBackupSchedule:
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_install_creates_backup_plist(self, mock_run, plist_sandbox):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+
+        _do_install_backup_schedule(weekday=1, hour=10)
+
+        plist_path = plist_sandbox["LAUNCHD_BACKUP_PLIST_PATH"]
+        assert plist_path.exists()
+        content = plist_path.read_text()
+        assert "backup-runtime.sh" in content
+        assert "<integer>1</integer>" in content
+        assert "<integer>10</integer>" in content
+        # Verify all placeholders were replaced
+        for placeholder in ("{{PROJECT_ROOT}}", "{{WEEKDAY}}", "{{HOUR}}", "{{LOG_PATH}}"):
+            assert placeholder not in content
+
+
 class TestUninstallScheduleBoth:
     @patch("contemplative_agent.cli.subprocess.run")
-    def test_uninstall_removes_both_plists(self, mock_run, tmp_path):
-        # NOTE: All THREE plist paths must be patched (session, distill,
-        # weekly-analysis), otherwise the unpatched one falls through to
-        # the user's real ~/Library/LaunchAgents/. The weekly tmp path is
-        # left intentionally non-existent so the uninstall walker skips
-        # it, keeping the mock_run.call_count expectation at 2.
+    def test_uninstall_removes_both_plists(self, mock_run, plist_sandbox):
+        # Only session + distill exist; the walker skips the others,
+        # keeping the mock_run.call_count expectation at 2.
         mock_run.return_value = MagicMock(returncode=0, stderr="")
-        agent_plist = tmp_path / "com.moltbook.agent.plist"
-        distill_plist = tmp_path / "com.moltbook.distill.plist"
-        weekly_plist = tmp_path / "com.moltbook.weekly-analysis.plist"
-        agent_plist.write_text("dummy")
-        distill_plist.write_text("dummy")
+        plist_sandbox["LAUNCHD_PLIST_PATH"].write_text("dummy")
+        plist_sandbox["LAUNCHD_DISTILL_PLIST_PATH"].write_text("dummy")
 
-        with (
-            patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", agent_plist),
-            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist),
-            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist),
-        ):
-            _do_uninstall_schedule()
+        _do_uninstall_schedule()
 
-        assert not agent_plist.exists()
-        assert not distill_plist.exists()
+        assert not plist_sandbox["LAUNCHD_PLIST_PATH"].exists()
+        assert not plist_sandbox["LAUNCHD_DISTILL_PLIST_PATH"].exists()
         assert mock_run.call_count == 2
 
-    def test_uninstall_no_plists(self, tmp_path, capsys):
-        agent_plist = tmp_path / "com.moltbook.agent.plist"
-        distill_plist = tmp_path / "com.moltbook.distill.plist"
-        weekly_plist = tmp_path / "com.moltbook.weekly-analysis.plist"
-
-        with (
-            patch("contemplative_agent.cli.LAUNCHD_PLIST_PATH", agent_plist),
-            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill_plist),
-            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly_plist),
-        ):
-            _do_uninstall_schedule()
+    def test_uninstall_no_plists(self, plist_sandbox, capsys):
+        _do_uninstall_schedule()
 
         assert "No schedule installed" in capsys.readouterr().out
 
@@ -3191,63 +3206,67 @@ class TestRemoveStaleScheduleJobs:
     set — optional jobs from a previous install whose flag is off this run
     are removed instead of running forever on a stale schedule."""
 
-    def _paths(self, tmp_path):
-        return (
-            tmp_path / "com.moltbook.distill.plist",
-            tmp_path / "com.moltbook.weekly-analysis.plist",
-            tmp_path / "com.moltbook.insight.plist",
-        )
-
-    def _patches(self, distill, weekly, insight):
-        return (
-            patch("contemplative_agent.cli.LAUNCHD_DISTILL_PLIST_PATH", distill),
-            patch("contemplative_agent.cli.LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH", weekly),
-            patch("contemplative_agent.cli.LAUNCHD_INSIGHT_PLIST_PATH", insight),
-        )
+    @staticmethod
+    def _all_on(**overrides):
+        flags = {
+            "distill": True,
+            "weekly_analysis": True,
+            "weekly_insight": True,
+            "weekly_backup": True,
+        }
+        flags.update(overrides)
+        return flags
 
     @patch("contemplative_agent.cli.subprocess.run")
-    def test_removes_distill_when_flag_off(self, mock_run, tmp_path):
+    def test_removes_distill_when_flag_off(self, mock_run, plist_sandbox):
         mock_run.return_value = MagicMock(returncode=0, stderr="")
-        distill, weekly, insight = self._paths(tmp_path)
+        distill = plist_sandbox["LAUNCHD_DISTILL_PLIST_PATH"]
         distill.write_text("dummy")
-        p1, p2, p3 = self._patches(distill, weekly, insight)
-        with p1, p2, p3:
-            _remove_stale_schedule_jobs(distill=False, weekly_analysis=False, weekly_insight=False)
+        _remove_stale_schedule_jobs(**self._all_on(distill=False))
         assert not distill.exists()
         mock_run.assert_called_once()  # one unload, for the distill plist
 
     @patch("contemplative_agent.cli.subprocess.run")
-    def test_removes_weekly_when_flag_dropped(self, mock_run, tmp_path):
+    def test_removes_weekly_when_flag_dropped(self, mock_run, plist_sandbox):
         mock_run.return_value = MagicMock(returncode=0, stderr="")
-        distill, weekly, insight = self._paths(tmp_path)
+        weekly = plist_sandbox["LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH"]
         weekly.write_text("dummy")
-        p1, p2, p3 = self._patches(distill, weekly, insight)
-        with p1, p2, p3:
-            _remove_stale_schedule_jobs(distill=True, weekly_analysis=False, weekly_insight=False)
+        _remove_stale_schedule_jobs(**self._all_on(weekly_analysis=False))
         assert not weekly.exists()
 
     @patch("contemplative_agent.cli.subprocess.run")
-    def test_removes_insight_when_flag_dropped(self, mock_run, tmp_path):
+    def test_removes_insight_when_flag_dropped(self, mock_run, plist_sandbox):
         mock_run.return_value = MagicMock(returncode=0, stderr="")
-        distill, weekly, insight = self._paths(tmp_path)
+        insight = plist_sandbox["LAUNCHD_INSIGHT_PLIST_PATH"]
         insight.write_text("dummy")
-        p1, p2, p3 = self._patches(distill, weekly, insight)
-        with p1, p2, p3:
-            _remove_stale_schedule_jobs(distill=True, weekly_analysis=True, weekly_insight=False)
+        _remove_stale_schedule_jobs(**self._all_on(weekly_insight=False))
         assert not insight.exists()
 
     @patch("contemplative_agent.cli.subprocess.run")
-    def test_keeps_jobs_whose_flag_is_on(self, mock_run, tmp_path):
-        distill, weekly, insight = self._paths(tmp_path)
-        distill.write_text("dummy")
-        weekly.write_text("dummy")
-        insight.write_text("dummy")
-        p1, p2, p3 = self._patches(distill, weekly, insight)
-        with p1, p2, p3:
-            _remove_stale_schedule_jobs(distill=True, weekly_analysis=True, weekly_insight=True)
-        assert distill.exists()
-        assert weekly.exists()
-        assert insight.exists()
+    def test_removes_backup_when_flag_dropped(self, mock_run, plist_sandbox):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        backup = plist_sandbox["LAUNCHD_BACKUP_PLIST_PATH"]
+        backup.write_text("dummy")
+        _remove_stale_schedule_jobs(**self._all_on(weekly_backup=False))
+        assert not backup.exists()
+
+    @patch("contemplative_agent.cli.subprocess.run")
+    def test_keeps_jobs_whose_flag_is_on(self, mock_run, plist_sandbox):
+        for attr in (
+            "LAUNCHD_DISTILL_PLIST_PATH",
+            "LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH",
+            "LAUNCHD_INSIGHT_PLIST_PATH",
+            "LAUNCHD_BACKUP_PLIST_PATH",
+        ):
+            plist_sandbox[attr].write_text("dummy")
+        _remove_stale_schedule_jobs(**self._all_on())
+        for attr in (
+            "LAUNCHD_DISTILL_PLIST_PATH",
+            "LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH",
+            "LAUNCHD_INSIGHT_PLIST_PATH",
+            "LAUNCHD_BACKUP_PLIST_PATH",
+        ):
+            assert plist_sandbox[attr].exists()
         mock_run.assert_not_called()
 
 

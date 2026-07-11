@@ -60,7 +60,7 @@ contemplative-agent rules-stocktake                    # Audit rules for duplica
 ### Scheduling
 
 ```bash
-contemplative-agent install-schedule [--weekly-analysis] [--weekly-insight]
+contemplative-agent install-schedule [--weekly-analysis] [--weekly-insight] [--weekly-backup]
 contemplative-agent install-schedule --uninstall
 ```
 
@@ -343,12 +343,22 @@ contemplative-agent install-schedule --interval 4 --session 90          # 4h int
 contemplative-agent install-schedule --distill-hour 5                   # Distill at 05:00
 contemplative-agent install-schedule --no-distill                       # Sessions only, no distillation
 contemplative-agent install-schedule --weekly-insight                   # + weekly staged insight (Mon 08:00, ADR-0074)
+contemplative-agent install-schedule --weekly-backup                    # + weekly runtime backup to a PRIVATE mirror repo (Mon 10:00)
 contemplative-agent install-schedule --uninstall                        # Remove schedule
 ```
 
+The weekly backup (`scripts/backup-runtime.sh`) rsync-mirrors MOLTBOOK_HOME —
+including `logs/`, which `sync-data` deliberately excludes from the public data
+repo — into the git repo at `MOLTBOOK_BACKUP_REPO` (default
+`~/MyAI_Lab/contemplative-agent-runtime-backup`) and pushes it. The backup repo
+must stay **private forever**: episode logs are raw untrusted external content.
+`credentials.json` is excluded — a restore needs this repo plus a re-issued
+credential. See `docs/runbooks/runtime-backup-restore.md` for the restore
+procedure.
+
 Valid intervals: 1, 2, 3, 4, 6, 8, 12, 24 hours.
 
-`install-schedule` manages the agent, distill, weekly-analysis, and insight plists. One plist under `config/launchd/` is outside its scope: `com.moltbook.ollama-restart.plist` is installed and updated manually via `launchctl`, and `--uninstall` does not touch it. It restarts the local `ollama serve` nightly at 23:55 — starting `ollama serve` directly (no GUI app) with `AbandonProcessGroup` so the daemon survives its parent exiting. The repo copy is the reference template: when the live plist changes, mirror it here in the same change.
+`install-schedule` manages the agent, distill, weekly-analysis, insight, and backup plists. One plist under `config/launchd/` is outside its scope: `com.moltbook.ollama-restart.plist` is installed and updated manually via `launchctl`, and `--uninstall` does not touch it. It restarts the local `ollama serve` nightly at 23:55 — starting `ollama serve` directly (no GUI app) with `AbandonProcessGroup` so the daemon survives its parent exiting. The repo copy is the reference template: when the live plist changes, mirror it here in the same change.
 
 ---
 

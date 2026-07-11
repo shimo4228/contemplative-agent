@@ -73,11 +73,13 @@ LAUNCHD_LABEL = "com.moltbook.agent"
 LAUNCHD_DISTILL_LABEL = "com.moltbook.distill"
 LAUNCHD_WEEKLY_ANALYSIS_LABEL = "com.moltbook.weekly-analysis"
 LAUNCHD_INSIGHT_LABEL = "com.moltbook.insight"
+LAUNCHD_BACKUP_LABEL = "com.moltbook.backup"
 LAUNCHD_PLIST_DIR = Path.home() / "Library" / "LaunchAgents"
 LAUNCHD_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_LABEL}.plist"
 LAUNCHD_DISTILL_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_DISTILL_LABEL}.plist"
 LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_WEEKLY_ANALYSIS_LABEL}.plist"
 LAUNCHD_INSIGHT_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_INSIGHT_LABEL}.plist"
+LAUNCHD_BACKUP_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_BACKUP_LABEL}.plist"
 
 
 def _build_calendar_intervals(interval_hours: int) -> str:
@@ -231,6 +233,30 @@ def _do_install_insight_schedule(weekday: int, hour: int) -> None:
     print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly staged insight)")
 
 
+def _do_install_backup_schedule(weekday: int, hour: int) -> None:
+    """Install launchd plist for the weekly runtime backup (macOS only).
+
+    Runs ``scripts/backup-runtime.sh``: a near-complete rsync mirror of
+    MOLTBOOK_HOME (including logs/, which sync-data deliberately excludes
+    from the public data repo) committed and pushed to a PRIVATE
+    disaster-recovery repo. Failures write ERROR lines to the launchd log,
+    which the weekly log-anomaly sweep scans.
+    """
+    _install_plist(
+        template_name="com.moltbook.backup.plist",
+        plist_path=LAUNCHD_BACKUP_PLIST_PATH,
+        log_name="backup-launchd.log",
+        substitutions={
+            "{{WEEKDAY}}": str(weekday),
+            "{{HOUR}}": str(hour),
+        },
+    )
+
+    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    print(f"Installed: {LAUNCHD_BACKUP_PLIST_PATH}")
+    print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly runtime backup)")
+
+
 def _unload_and_remove_plist(plist_path: Path, label: str) -> bool:
     """Unload and delete one launchd plist; True when a file was removed."""
     if not plist_path.exists():
@@ -248,7 +274,7 @@ def _unload_and_remove_plist(plist_path: Path, label: str) -> bool:
 
 
 def _do_uninstall_schedule() -> None:
-    """Uninstall launchd plists (session + distill + weekly-analysis + insight)."""
+    """Uninstall launchd plists (session + distill + weekly-analysis + insight + backup)."""
     removed = False
 
     for plist_path, label in [
@@ -256,6 +282,7 @@ def _do_uninstall_schedule() -> None:
         (LAUNCHD_DISTILL_PLIST_PATH, "distill"),
         (LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH, "weekly-analysis"),
         (LAUNCHD_INSIGHT_PLIST_PATH, "insight"),
+        (LAUNCHD_BACKUP_PLIST_PATH, "backup"),
     ]:
         removed = _unload_and_remove_plist(plist_path, label) or removed
 
@@ -264,16 +291,16 @@ def _do_uninstall_schedule() -> None:
 
 
 def _remove_stale_schedule_jobs(
-    *, distill: bool, weekly_analysis: bool, weekly_insight: bool
+    *, distill: bool, weekly_analysis: bool, weekly_insight: bool, weekly_backup: bool
 ) -> None:
     """Remove previously-installed optional jobs whose flag is off this run.
 
     ``install-schedule`` is declarative over the full schedule set (round-2
     R2-M1): re-running with ``--no-distill`` previously left an earlier
     com.moltbook.distill job loaded on its stale schedule indefinitely, with
-    no warning — same for a dropped ``--weekly-analysis`` / ``--weekly-insight``.
-    The always-on session job needs no reconcile (reinstall overwrites it in
-    place).
+    no warning — same for a dropped ``--weekly-analysis`` / ``--weekly-insight``
+    / ``--weekly-backup``. The always-on session job needs no reconcile
+    (reinstall overwrites it in place).
     """
     if not distill and _unload_and_remove_plist(LAUNCHD_DISTILL_PLIST_PATH, "distill"):
         print("  (stale distill schedule removed: --no-distill on this run)")
@@ -283,6 +310,8 @@ def _remove_stale_schedule_jobs(
         print("  (stale weekly-analysis schedule removed: flag not set on this run)")
     if not weekly_insight and _unload_and_remove_plist(LAUNCHD_INSIGHT_PLIST_PATH, "insight"):
         print("  (stale insight schedule removed: flag not set on this run)")
+    if not weekly_backup and _unload_and_remove_plist(LAUNCHD_BACKUP_PLIST_PATH, "backup"):
+        print("  (stale backup schedule removed: flag not set on this run)")
 
 
 AUDIT_LOG_PATH = MOLTBOOK_DATA_DIR / "logs" / "audit.jsonl"
@@ -848,6 +877,11 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
                 parser.error("--weekly-insight-day must be 0 (Sun) to 6 (Sat)")
             if args.weekly_insight_hour < 0 or args.weekly_insight_hour > 23:
                 parser.error("--weekly-insight-hour must be between 0 and 23")
+        if args.weekly_backup:
+            if args.weekly_backup_day < 0 or args.weekly_backup_day > 6:
+                parser.error("--weekly-backup-day must be 0 (Sun) to 6 (Sat)")
+            if args.weekly_backup_hour < 0 or args.weekly_backup_hour > 23:
+                parser.error("--weekly-backup-hour must be between 0 and 23")
         # Reconcile before installing (round-2 R2-M1): drop optional jobs
         # from a previous install whose flag is off this run, so the command
         # describes the complete desired schedule set.
@@ -855,6 +889,7 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
             distill=not args.no_distill,
             weekly_analysis=args.weekly_analysis,
             weekly_insight=args.weekly_insight,
+            weekly_backup=args.weekly_backup,
         )
         _do_install_schedule(interval=args.interval, session=args.session)
         if not args.no_distill:
@@ -868,6 +903,11 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
             _do_install_insight_schedule(
                 weekday=args.weekly_insight_day,
                 hour=args.weekly_insight_hour,
+            )
+        if args.weekly_backup:
+            _do_install_backup_schedule(
+                weekday=args.weekly_backup_day,
+                hour=args.weekly_backup_hour,
             )
 
 
@@ -2731,6 +2771,23 @@ def main() -> None:
             "Hour to run weekly insight (0-23, default: 8 — one hour before "
             "weekly analysis, outside agent-session hours)"
         ),
+    )
+    schedule_parser.add_argument(
+        "--weekly-backup",
+        action="store_true",
+        help="Also install weekly runtime backup schedule (private off-site mirror)",
+    )
+    schedule_parser.add_argument(
+        "--weekly-backup-day",
+        type=int,
+        default=1,
+        help="Day of week for weekly backup (0=Sun..6=Sat, default: 1=Mon)",
+    )
+    schedule_parser.add_argument(
+        "--weekly-backup-hour",
+        type=int,
+        default=10,
+        help="Hour to run weekly backup (0-23, default: 10 — outside agent-session hours)",
     )
 
     # insight
