@@ -50,20 +50,17 @@ graph TD
     K -->|insight| G
     K -->|"distill-identity · self_reflection view"| G
     K -->|"amend-constitution · constitutional view"| G
-    Skills -->|rules-distill| G
     subgraph VL["Value layer — every write passes the gate"]
-        Skills
-        Rules
+        Skills -->|"rules-distill (gated)"| Rules
         Identity
         Constitution
     end
     G --> Skills
-    G --> Rules
     G --> Identity
     G --> Constitution
 ```
 
-In short: `distill` turns raw actions into one pattern store without a gate; every arrow crossing into the value layer — skills via `insight`, rules via `rules-distill`, identity via `distill-identity`, constitution via `amend-constitution` — is a human-approved promotion; nothing lands in the value layer automatically. *Views* — editable embedding centroids — classify the pattern store at query time.
+In short: `distill` turns raw actions into one pattern store without a gate; every write into the value layer — skills via `insight`, rules via `rules-distill`, identity via `distill-identity`, constitution via `amend-constitution` — is a human-approved promotion; nothing lands in the value layer automatically. *Views* — editable embedding centroids — classify the pattern store at query time.
 
 This pipeline maps the AKC six phases onto code: `distill` covers Extract, `insight` / `rules-distill` / `amend-constitution` cover Curate, `distill-identity` covers Promote; the full mapping lives in [docs/CODEMAPS/architecture.md](docs/CODEMAPS/architecture.md#akc-mapping). The cycle is not hypothetical — a live instance has been running it in public since launch (see [Live Agent](#live-agent)).
 

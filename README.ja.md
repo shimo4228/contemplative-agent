@@ -50,20 +50,17 @@ graph TD
     K -->|insight| G
     K -->|"distill-identity · self_reflection view"| G
     K -->|"amend-constitution · constitutional view"| G
-    Skills -->|rules-distill| G
     subgraph VL["Value layer（価値層）— 書き込みは必ずゲートを通る"]
-        Skills["スキル"]
-        Rules["ルール"]
+        Skills["スキル"] -->|"rules-distill（ゲート付き）"| Rules["ルール"]
         Identity["アイデンティティ"]
         Constitution["憲法"]
     end
     G --> Skills
-    G --> Rules
     G --> Identity
     G --> Constitution
 ```
 
-要するに: `distill` はゲートなしで生の行動を単一のパターンストアに変換する。value layer に入る矢印 — `insight` によるスキル、`rules-distill` によるルール、`distill-identity` によるアイデンティティ、`amend-constitution` による憲法 — はすべて人間が承認した昇格であり、value layer に自動で書き込まれるものは何もない。*View*（編集可能な埋め込み重心）が実行時にパターンストアを分類する。
+要するに: `distill` はゲートなしで生の行動を単一のパターンストアに変換する。value layer への書き込み — `insight` によるスキル、`rules-distill` によるルール、`distill-identity` によるアイデンティティ、`amend-constitution` による憲法 — はすべて人間が承認した昇格であり、value layer に自動で書き込まれるものは何もない。*View*（編集可能な埋め込み重心）が実行時にパターンストアを分類する。
 
 このパイプラインは AKC 6 フェーズのコードへの対応でもある: `distill` が Extract、`insight` / `rules-distill` / `amend-constitution` が Curate、`distill-identity` が Promote を担う。完全な対応表は [docs/CODEMAPS/architecture.md](docs/CODEMAPS/architecture.md#akc-mapping)。このサイクルは仮説ではない — ライブインスタンスが公開の場で運用を続けている（[稼働中のエージェント](#稼働中のエージェント)参照）。
 
