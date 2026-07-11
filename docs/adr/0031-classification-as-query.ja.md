@@ -26,6 +26,8 @@ accepted — ADR-0019、ADR-0022、ADR-0026 に既に実現されている原則
 
 軸の改訂コストは O(seed-edit) であり、O(corpus-size) ではない。Curate フェーズ (`distill`、`insight`、`rules-distill`、`amend-constitution`、`skill-reflect`) が分類軸を改訂しても、history 層 (`episodes.sqlite`、不変 JSONL) と pattern 層 (`knowledge.json`) はそのまま、その上の投影だけがシフトする。
 
+**消費実態の明確化 (2026-07-11)。** 上の Curate 列挙は「全 Curate コマンドが view を query する」という意味ではない。view を query するのは 2 つだけ — `distill-identity` (`self_reflection`) と `amend-constitution` (`constitutional`)。`insight` と `rules-distill` は意図的に教師なし embedding clustering を使う。判断規則: 意味軸が事前に既知のとき（「X に関わる patterns はどれか？」）は **view** が正しい投影であり、オペレーターがまだ命名していない構造を発見することが目的のときは **clustering** が正しい投影 — そこに seed を課すと発見が既命名の軸に偏る。どちらのメカニズムも本 ADR に等しく従う: カテゴリはいずれにせよ query 時の計算であり、違いは query 軸が事前定義（seed）か創発（cluster）かだけである。
+
 ## Reference Implementations
 
 - [ADR-0019](0019-discrete-categories-to-embedding-views.ja.md) — 離散的 `category` フィールドから view ベース投影への initial migration

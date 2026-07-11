@@ -24,6 +24,40 @@ body as the embedded seed. ``${VAR}`` placeholders are substituted from
 wildcards (``*``, ``?``). Relative paths resolve against the view file's
 directory. If resolution yields zero readable files, the body is used as
 fallback.
+
+Role boundary — views vs prompts
+--------------------------------
+
+``config/views/`` and ``config/prompts/`` are both natural-language
+config files, but they feed different machinery:
+
+- **views** are *read-side*: the embedding model consumes the seed, and
+  the result is a query-time ranking over patterns that already exist
+  (ADR-0019 / ADR-0031, "classification as query").
+- **prompts** are *write-side*: the generation LLM consumes them, and
+  the result is new text.
+
+Which pipelines consume views is deliberate, not an oversight. Retrieval
+along a **predefined semantic axis** goes through a view
+(``distill_identity`` → ``self_reflection``, ``amend_constitution`` →
+``constitutional``). **Discovery of structure the operator has not
+named** uses unsupervised clustering over the whole live pool instead
+(``insight`` — see its module docstring). Do not add a view to insight
+to "restore symmetry"; imposing a seed there would bias skill discovery
+toward pre-named axes. The asymmetry is the design.
+
+Register contract (ADR-0072)
+----------------------------
+
+Since 2026-07 the ``self_reflection`` view is not a neutral lens only:
+it is the *read side* of a production→retrieval contract whose *write
+side* is the register instruction in ``config/prompts/distill_episode.md``
+(first-person, moment-indexed patterns). Editing either side alone can
+silently break view supply — treat prompt and seed as a pair, and read
+the view-supply instrument (``view_metrics``, surfaced at ``distill
+--dry-run`` and the adopt gate) as the drift detector. The
+``constitutional`` view has no such coupling: its seed is the live
+constitution itself via ``seed_from``.
 """
 
 from __future__ import annotations
@@ -63,10 +97,12 @@ _VAR_RE = re.compile(r"\$\{(\w+)\}")
 
 def _substitute_vars(value: str, path_vars: Mapping[str, Path]) -> str:
     """Replace ``${VAR}`` placeholders using path_vars. Unknown vars stay literal."""
+
     def repl(m: "re.Match[str]") -> str:
         key = m.group(1)
         replacement = path_vars.get(key)
         return str(replacement) if replacement is not None else m.group(0)
+
     return _VAR_RE.sub(repl, value)
 
 
@@ -87,7 +123,8 @@ def _resolve_seed_from(
         if "${" in substituted:
             logger.warning(
                 "View %s: seed_from %r has unresolved placeholder — using body",
-                view_path.name, pattern,
+                view_path.name,
+                pattern,
             )
             return None
     else:
@@ -109,8 +146,7 @@ def _resolve_seed_from(
         try:
             body = match.read_text(encoding="utf-8").strip()
         except OSError as exc:
-            logger.warning("View %s: seed_from read failed for %s: %s",
-                           view_path.name, match, exc)
+            logger.warning("View %s: seed_from read failed for %s: %s", view_path.name, match, exc)
             continue
         if body:
             texts.append(body)
@@ -118,15 +154,14 @@ def _resolve_seed_from(
     if not texts:
         logger.warning(
             "View %s: seed_from %r resolved to no readable content — using body",
-            view_path.name, pattern,
+            view_path.name,
+            pattern,
         )
         return None
     return "\n\n".join(texts)
 
 
-def _parse_frontmatter(
-    front: str, view_name: str
-) -> Tuple[float, Optional[int], Optional[str]]:
+def _parse_frontmatter(front: str, view_name: str) -> Tuple[float, Optional[int], Optional[str]]:
     """Parse frontmatter lines; return (threshold, top_k, seed_from)."""
     threshold = _DEFAULT_THRESHOLD
     top_k: Optional[int] = _DEFAULT_TOP_K

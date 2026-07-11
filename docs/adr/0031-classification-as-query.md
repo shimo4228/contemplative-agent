@@ -26,6 +26,8 @@ This treats classification as a **query operation** rather than a **state field*
 
 Revising an axis becomes O(seed-edit), not O(corpus-size). When the Curate phase (`distill`, `insight`, `rules-distill`, `amend-constitution`, `skill-reflect`) revises a classification axis, no historical data is lost or rewritten — the history layer (`episodes.sqlite`, immutable JSONL) and the pattern layer (`knowledge.json`) stay untouched while the projection over them shifts.
 
+**Consumption note (clarified 2026-07-11).** The Curate list above does not mean every Curate command queries views. Only two do: `distill-identity` (`self_reflection`) and `amend-constitution` (`constitutional`). `insight` and `rules-distill` deliberately use unsupervised embedding clustering instead. The decision rule: a **view** is the right projection when the semantic axis is known in advance ("which patterns speak to X?"); **clustering** is the right projection when the point is to discover structure the operator has not named — imposing a seed there would bias the discovery toward pre-named axes. Both mechanisms obey this ADR equally: categories remain query-time computations either way; they differ only in whether the query axis is predefined (seed) or emergent (cluster).
+
 ## Reference Implementations
 
 - [ADR-0019](0019-discrete-categories-to-embedding-views.md) — initial migration from a discrete `category` field to view-based projection

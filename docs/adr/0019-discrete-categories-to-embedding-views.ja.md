@@ -63,3 +63,7 @@ binary の `gated` フラグだけは生き残るが、これは *gate 判定* (
 ## Key Insight
 
 元のスキーマがした間違いは「この pattern は何の種類か?」を pattern の属性として扱ったこと。それは違う — それは「pattern にどんな質問をしたいか?」の属性。Embedding が答えの形 (answer-shape) を保存し、views が質問を保存し、両者を結びつけるのは query 時に行う。Emptiness 公理は文学的修辞ではなく、構造的読解が可能で、本 ADR はその読解を実装したものである。
+
+## Addendum (2026-07-11) — `self_reflection` view の役割進化
+
+本 ADR 出荷時点の view は*中立な*読み出し時レンズだった: patterns はどの seed からも独立に生成され、views は事後的に分類するだけだった。[ADR-0072](0072-echo-chamber-interventions.ja.md) は `self_reflection` view をその先へ進化させた: distill prompt (`config/prompts/distill_episode.md`) が生成を一人称・moment-indexed なレジスタへ誘導し（write 側）、view seed が同じレジスタを記述・例示する（read 側）。「views は質問を保存する」は今も正しいが、この特定の質問は生成ターゲットも兼ねる — production→retrieval の契約である。prompt と seed はペアとして編集すること。drift の検出器は view-supply 計器 (`core/view_metrics.py`)。`constitutional` view にはこの結合はない（seed は `seed_from` 経由の憲法実体そのもの）。views と prompts の責務境界、および「どのパイプラインに view を与え、どこで教師なし clustering を使うか」の規則は `core/views.py` の module docstring と ADR-0031 の消費実態ノートに文書化されている。

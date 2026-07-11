@@ -1,4 +1,4 @@
-<!-- Generated: 2026-07-10 | Files scanned: 46 | Token estimate: ~5573 -->
+<!-- Generated: 2026-07-11 | Files scanned: 46 | Token estimate: ~5573 -->
 # Architecture
 
 ## Project Type
@@ -247,7 +247,10 @@ ViewRegistry.find_by_view("self_reflection", get_raw_patterns())
   cosine(pattern_emb, self_reflection_centroid)
   threshold from view frontmatter | top_k=50   [PURE COSINE, no importance weight]
   (self_reflection: threshold 0.66 + corpus-grown exemplar appendix in the
-   seed since 2026-07-03 [ADR-0072]; was 0.55 = corpus homogeneity floor)
+   seed since 2026-07-03 [ADR-0072]; was 0.55 = corpus homogeneity floor.
+   Register contract: this seed is the READ side of an ADR-0072 pair whose
+   WRITE side is the register instruction in distill_episode.md — edit them
+   as a pair; view_metrics supply readings are the drift detector)
 
 Single LLM call: generate_full(IDENTITY_DISTILL_PROMPT, ...)  [think-ON, ADR-0069]
   [ADR-0057: prior identity NOT seeded — persona emerges from the corpus alone]
@@ -297,7 +300,11 @@ Per novel cluster → generate_full(INSIGHT_EXTRACTION_PROMPT, topic="cluster-N"
    [ADR-0012], marker advances after the loop  [ADR-0074]
 ```
 
-Views NOT used for batching. Every eligible cluster becomes a batch (no top-N
+Views NOT used for batching — deliberate, not an omission: views retrieve along
+predefined semantic axes; insight discovers structure the operator has not
+named, so imposing a seed would bias discovery (decision rule: known axis →
+view, emergent structure → clustering; see `core/views.py` docstring +
+ADR-0031 consumption note). Every eligible cluster becomes a batch (no top-N
 cluster cap). Weekly automation: `install-schedule --weekly-insight`
 (launchd, default Mon 08:00; a pending review makes the run a no-op).
 
