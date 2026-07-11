@@ -50,6 +50,8 @@ docs/*
 !docs/CONFIGURATION.md
 !docs/CONFIGURATION.ja.md
 !docs/glossary.md
+!docs/BIBLIOGRAPHY.md
+!docs/DEVELOPMENT-RECORDS.md
 Modelfile.contemplative
 
 # Internal working notes (local-only, not tracked)

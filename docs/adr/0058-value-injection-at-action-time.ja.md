@@ -132,6 +132,12 @@ ADR-0057 の 2 関数分割を残し、他段だけ repoint する。却下: 全
 - `distill`・`insight`・`rules_distill`・`constitution` amend は承認ゲートが**ない**ので、本変更は出力ごとの
   人手ゲートなしで出荷される。緩和: 挙動差は near-inert（ADR-0057 実測）、dry-run smoke はクリーン、検査用に
   `--dry-run` が残る。identity は ADR-0012 ゲートを維持。
+  > **訂正 (2026-07-11)**: 上の記述はゲート無しの範囲を過大に述べている。承認ゲートが無いのは `distill` の
+  > パターン書き込みのみ。`insight`・`rules_distill`・`amend-constitution` は書き込み前に ADR-0012 の承認
+  > ループを通る（対話的、または `--stage` → `adopt-staged` レビュー経由）— `cli.py` の
+  > `_run_approval_loop` / `_handle_single_result` を参照。出力ごとの人手ゲートなしで出荷されるのは、
+  > ゲートの無い `distill` 段に作用する本 ADR の*プロンプト変更それ自体*であり、価値層コマンドの
+  > 書き込みゲートは一度も除去されていない。
 - 理論上の損失: 公理がどの観察が重要かの*選別*に有用な働きをしていたなら、除去で抽出が変わる。該当しないと
   評価: 重要度 / 採否は既に機構的な関心事（ADR-0026 / 0027 の noise-centroid ゲート、ADR-0056 の純粋時間減衰）
   であり公理駆動ではない。untrusted な外部内容の安全枠付けは公理でなく `wrap_untrusted_content` が担う。

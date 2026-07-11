@@ -121,6 +121,16 @@ wrapped in local punctuation when embedded in a translated sentence.
   enforced by ADR-0051 (trust retirement) and ADR-0052 (session-insight
   retirement). Bilingual first-use allowed: 「observability without
   steering（操縦なき可観測性）」.
+- **value layer** — the four human-gated artifact layers the agent
+  proposes changes to: constitution, identity, skills, rules. The
+  ethical preset occupying the layer is swappable (11 shipped
+  templates); the machinery governing it is preset-independent — human
+  approval gate (ADR-0012), approval lineage (ADR-0050), pivot
+  snapshots (ADR-0020), values at action time (ADR-0058). Vocabulary
+  anchored in ADR-0058 ("value-layer injection") and ADR-0069
+  ("value-layer pipelines"); front-loaded in the README as of v2.8.
+  See also **values at action time**. Bilingual first-use allowed:
+  「value layer（価値層）」.
 - **values at action time** — ADR-0058 headline principle. Value layers
   (axioms, identity, skills, rules) belong where the agent acts or
   interprets fresh input, not where it extracts patterns from what

@@ -12,14 +12,14 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 - **DOI**: [10.5281/zenodo.21281186](https://doi.org/10.5281/zenodo.21281186) (v2.8.0 version DOI; concept DOI 10.5281/zenodo.19212118 always resolves to the latest version)
 - **License**: MIT
 - **Repository**: [github.com/shimo4228/contemplative-agent](https://github.com/shimo4228/contemplative-agent)
-- **Tests**: 1711 (pytest, across 41 test files)
+- **Tests**: 1783 (pytest, across 42 test files)
 - **Python**: 3.10+
 - **Build system**: hatch, uv
 - **Generation LLM**: Gemma 4 E4B / `gemma4:e4b` (Q4_K_M quantization, ~9.6 GB on disk) via Ollama
 - **Embedding model**: nomic-embed-text (~274 MB, 768-dim) via Ollama
 - **Hardware**: Apple Silicon Mac (M1+), 16 GB RAM, ~12 GB free disk
 - **Runtime dependencies**: requests>=2.33.0, numpy>=1.24.0
-- **ADRs**: 60 active (accepted / proposed) + 10 superseded/withdrawn (ADR-0001 through ADR-0070; ADR-0009 partially superseded by ADR-0056, ADR-0021 partially superseded by ADR-0028/0029/0051, ADR-0022 superseded by ADR-0034, ADR-0023 sunset by ADR-0036, ADR-0024/0025 superseded by ADR-0030, ADR-0026/0027 superseded by ADR-0060, ADR-0032 withdrawn, ADR-0050 partially superseded by ADR-0051)
+- **ADRs**: 76 total (ADR-0001 through ADR-0076) — 66 accepted, 3 partially superseded, 5 superseded, 2 withdrawn. Full index with per-ADR statuses and supersession trail: [docs/adr/README.md](docs/adr/README.md)
 - **External lenses borrowed**: AAP four-quadrant routing lens (Script / Algorithmic Search / LLM Workflow / Autonomous Agentic Loop) — usage description only, not a category claim (ADR-0033)
 - **Ethical framework presets**: 11 (contemplative, utilitarian, stoic, care-ethicist, deontologist, pragmatist, narrativist, contractarian, cynic, existentialist, tabula-rasa)
 - **Runtime data directory**: `$MOLTBOOK_HOME` (default `~/.config/moltbook/`)
@@ -108,6 +108,13 @@ The **Approval Gate** is defined as a human-in-the-loop checkpoint before writin
 
 - **Code**: `cli.py` (approval flow), `core/_io.py` (staged writes)
 - **ADR**: ADR-0012
+
+## What is the value layer, and what governs changes to it?
+
+The **value layer** is defined as the four human-gated artifact layers the agent proposes changes to: constitution, identity, skills, and rules — the layers that condition how the agent acts, as opposed to the memory layers (episode log, knowledge store) that record what happened. The agent generates candidate changes to the value layer from its own distilled experience (`amend-constitution`, `distill-identity`, `insight`, `rules-distill`), but every write passes the human approval gate (ADR-0012) and is recorded with approval lineage (ADR-0050) and a replayable pivot snapshot (ADR-0020). Two properties are deliberately separated: the ethical **preset** occupying the layer is swappable — 11 templates ship, the Contemplative AI four axioms are the default — while the **machinery** governing the layer is preset-independent and operates identically under any of them. Value-layer content is injected only at action time, never at distillation time (ADR-0058), so the agent's observation of its own past stays faithful rather than being re-read through a value lens. Vocabulary anchor: ADR-0058 ("value-layer injection belongs to action time") and ADR-0069 ("value-layer pipelines" run think-ON with reasoning traces captured to pivot snapshots).
+
+- **Code**: `cli.py` (approval flow), `core/constitution.py`, `core/distill.py` (distill-identity), `core/insight.py`, `core/rules_distill.py`, `core/llm.py` (action-time injection)
+- **ADR**: ADR-0012 (gate), ADR-0050 (lineage), ADR-0020 (snapshots), ADR-0058 (values at action time), ADR-0069 (think-ON value-layer pipelines)
 
 ## What is the Constitution?
 
@@ -280,4 +287,4 @@ ADR-0071 adds `core/view_metrics.py`, a read-only instrument module, before any 
 
 ---
 
-*Last updated: 2026-07-09*
+*Last updated: 2026-07-11*

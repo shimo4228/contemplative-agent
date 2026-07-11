@@ -185,6 +185,7 @@
         "https://shimo4228.github.io/shimo4228/vocab#concept/four-contemplative-axioms",
         "https://shimo4228.github.io/shimo4228/vocab#concept/security-by-absence",
         "https://shimo4228.github.io/shimo4228/vocab#ca/concept/approval-gate-chain",
+        "https://shimo4228.github.io/shimo4228/vocab#ca/concept/value-layer",
         "https://shimo4228.github.io/shimo4228/vocab#ca/concept/akc-cycle-mapping",
         "https://shimo4228.github.io/shimo4228/vocab#ca/concept/local-9b-stack",
         "https://shimo4228.github.io/shimo4228/vocab#ca/concept/moltbook-adapter"
@@ -1305,7 +1306,7 @@
         "DefinedTerm"
       ],
       "name": "four contemplative axioms",
-      "description": "Mindfulness, emptiness, non-duality, boundless care. Behavioral preset adopted from Laukkonen et al. (2025); Contemplative Agent ships this as the default constitutional preset, with 11 alternative templates available (stoic, utilitarian, care-ethicist, etc.)."
+      "description": "Mindfulness, emptiness, non-duality, boundless care. Behavioral preset adopted from Laukkonen et al. (2025); Contemplative Agent ships this as the default constitutional preset, with 10 alternative templates available (stoic, utilitarian, care-ethicist, etc.)."
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#concept/security-by-absence",
@@ -1334,6 +1335,26 @@
         }
       ],
       "description": "Episode Log -> distill (no gate) -> Knowledge -> [GATE] -> Identity / [GATE] -> Skills -> [GATE] -> Rules -> [GATE] -> Constitution. Every gated promotion writes an audit-log entry. Encoded structurally as gatedBy edges from MemoryLayer to ADR-0012."
+    },
+    {
+      "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/value-layer",
+      "@type": [
+        "Concept",
+        "DefinedTerm"
+      ],
+      "name": "value layer",
+      "alternateName": [
+        {
+          "@value": "value layer",
+          "@language": "en"
+        },
+        {
+          "@value": "価値層",
+          "@language": "ja"
+        }
+      ],
+      "description": "The four human-gated artifact layers the agent proposes changes to: constitution, identity, skills, rules. The ethical preset occupying the layer is swappable (11 shipped templates); the machinery governing it is preset-independent — human approval gate (ADR-0012), approval lineage on every promotion (ADR-0050), replayable pivot snapshots (ADR-0020), and value injection at action time rather than distillation time (ADR-0058). Vocabulary anchored in ADR-0058 (value-layer injection) and ADR-0069 (value-layer pipelines run think-ON).",
+      "gatedBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/akc-cycle-mapping",

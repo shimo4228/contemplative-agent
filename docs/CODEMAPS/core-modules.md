@@ -1,4 +1,4 @@
-<!-- Generated: 2026-07-09 | Files scanned: 25 core modules | Token estimate: ~2533 -->
+<!-- Generated: 2026-07-11 | Files scanned: 26 core modules | Token estimate: ~2803 -->
 # Core Modules Codemap
 
 Platform-independent foundation (no Moltbook dependencies). All imports flow: adapters → core.
@@ -11,8 +11,8 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `config.py` | 47 | `FORBIDDEN_SUBSTRING_PATTERNS`, `VALID_ID_PATTERN`, `MAX_COMMENT_LENGTH` |
 | `domain.py` | 401 | `DomainConfig`, `PromptTemplates` (reads `MOLTBOOK_HOME/prompts/` overrides with packaged fallback), constitution loader |
 | `prompts.py` | ~70 | Lazy-load proxy to `config/prompts/*.md` + placeholder resolution |
-| `llm.py` | 1345 | Ollama interface + `LLMBackend` Protocol (pluggable, returns `BackendResult`, keyword `temperature`/`think`, `model`/`context_window` properties), circuit breaker, sanitization, `drop_truncated` gate, per-call `think` flag + reasoning-trace capture (`generate_for_api` returns `GenerationOutput(text, thinking)`), backend-aware context-budget pre-flight (audit C2, ADR-0066), `validate_trusted_url` SSRF guard; `_build_system_prompt` reads identity.md as single blob (ADR-0030) |
-| `clustering.py` | 139 | Average-linkage cosine agglomerative clustering (numpy-only). Used by `insight` and `rules_distill` |
+| `llm.py` | 1485 | Ollama interface + `LLMBackend` Protocol (pluggable, returns `BackendResult`, keyword `temperature`/`think`, `model`/`context_window` properties), circuit breaker + `circuit_shield()` context-manager isolation (ADR-0076: a failing observer can never trip the breaker for the generation it watches), sanitization, `drop_truncated` gate, per-call `think` flag + reasoning-trace capture (`generate_for_api` returns `GenerationOutput(text, thinking)`), backend-aware context-budget pre-flight (audit C2, ADR-0066), `system_prompt_budget_reading()` window-share instrument at adopt gate, `validate_trusted_url` SSRF guard; `_build_system_prompt` reads identity.md as single blob (ADR-0030) |
+| `clustering.py` | 139 | Average-linkage cosine agglomerative clustering via exact Lance-Williams merge (ADR-0074 perf rewrite, same partitions as the retired naive version), numpy-only. Used by `insight` and `rules_distill` |
 | `embeddings.py` | 107 | Ollama `/api/embed` wrapper (nomic-embed-text), `cosine`, `embed_one`, `embed_texts` |
 | `episode_embeddings.py` | 162 | `EpisodeEmbeddingStore` — SQLite sidecar for episode vectors (ADR-0019) |
 | `episode_log.py` | 91 | `EpisodeLog` (append-only JSONL, `read_range` with `record_type` filter) |
@@ -24,7 +24,8 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `scheduler.py` | 210 | Rate limit state, `has_read_budget`/`has_write_budget`, persistence |
 | `constitution.py` | 152 | `amend_constitution() → AmendmentResult`. ADR-0033 layer-separation framing. ADR-0050 lineage fields. |
 | `distill.py` | 960 | `distill()` (per-episode grounded distill: `_is_rich_episode` activity-only scope, one LLM call per episode, no noise gate, + embedding dedup; ADR-0060, importance-scoring step retired ADR-0056); `_is_valid_pattern` validity gate (length floor + extraction-failure meta-statement phrase filter, ADR-0072); `distill_identity()` (single-stage, self_reflection view, whole-file write, ADR-0030). ADR-0050 lineage fields on all result types. |
-| `insight.py` | 651 | `extract_insight() → InsightResult`; global embedding clustering, no view batching (ADR-0050) |
+| `insight.py` | 742 | `extract_insight() → InsightResult`; global embedding clustering, no view batching (ADR-0050); ADR-0074 weekly-staged flow: `.last_insight` marker guard refuses an implicit full recluster, LLM novelty gate skips clusters already covered (`skipped_known`), `--stage` writes a pending-review ledger consumed by `adopt-staged` |
+| `skill_selection.py` | 472 | ADR-0076 shadow instrument: `select_applicable_skills()` pass-1 LLM pick over the skill catalog (name+description only, identity-only system prompt — no learned vocabulary fed back to the judge), `shadow_observe_skill_selection()` fire-and-log wrapper under `circuit_shield()` (never gates injection), audit → `logs/skill-selection-YYYY-MM-DD.jsonl`; `read_skill_selection_log()` / `format_skill_selection_report()` back `report --skill-selection` |
 | `rules_distill.py` | 404 | `distill_rules() → RulesDistillResult`; Practice/Rationale B-layer format (ADR-0048) |
 | `stocktake.py` | 504 | Skill/rule audit: single-call LLM grouping (ADR-0046), `merge_group()` union-of-patterns, `CANNOT_MERGE` reject, singleton trigger-altitude clean (ADR-0048) |
 | `report.py` | 300 | `generate_report()` JSONL → Markdown activity summary |
@@ -50,7 +51,7 @@ PostRecord(timestamp, post_id, title, topic)
 AmendmentResult(text, target_path, marker_dir, pattern_ids, epistemic_counts)  # constitution.py
 IdentityResult(text, target_path, pattern_ids, epistemic_counts)               # distill.py
 SkillResult(text, filename, target_path, pattern_ids, epistemic_counts)         # insight.py
-InsightResult(skills, dropped_count)
+InsightResult(skills, dropped_count, skipped_known)  # skipped_known: ADR-0074 novelty gate
 RuleResult(text, filename, target_path, source_ids)                            # rules_distill.py
 RulesDistillResult(rules, dropped_count)
 ```

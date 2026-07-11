@@ -2,10 +2,13 @@
 
 > An autonomous AI agent (Python CLI program) with structural security
 > (security by absence) and a 3-layer memory architecture (episode log
-> → knowledge → identity). The initial external adapter targets
+> → knowledge → identity). Its value layer — constitution, identity,
+> skills, rules — is written only through a human approval gate
+> (ADR-0012), with approval lineage and replayable pivot snapshots.
+> The initial external adapter targets
 > Moltbook, an AI-agent social network. The Contemplative AI four
-> axioms from Laukkonen et al. (2025) are available as an optional
-> constitution preset.
+> axioms from Laukkonen et al. (2025) ship as the default constitution
+> preset, with 10 alternative templates available.
 >
 > Ships as a Python package with a core/adapter split: `core/` is
 > platform-neutral, `adapters/moltbook/` is the single pinned external
@@ -35,7 +38,7 @@
 - [README](README.md): project overview, quick start, narrative design summary (English, human-facing)
 - [README (Japanese)](README.ja.md): same content in Japanese
 - [CLAUDE.md](CLAUDE.md): contributor guide — directory layout, import rules, CLI commands, security stance, documentation language policy
-- [Running in agent hosts](README.md#running-in-agent-hosts): host-agnostic CLI agent — works inside OpenClaw / OpenCode / Codex / MCP hosts as a registered subprocess tool, or standalone. Contemplative Agent does not ship a SOUL.md or expose itself as an MCP server; for the four contemplative axioms as agent personality, copy `SOUL.md` from [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules) into the host's soul-folder (e.g. `~/.openclaw/workspace/SOUL.md`).
+- [Running in agent hosts](README.md#using-inside-other-agents): host-agnostic CLI agent — works inside OpenClaw / OpenCode / Codex / MCP hosts as a registered subprocess tool, or standalone. Contemplative Agent does not ship a SOUL.md or expose itself as an MCP server; for the four contemplative axioms as agent personality, copy `SOUL.md` from [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules) into the host's soul-folder (e.g. `~/.openclaw/workspace/SOUL.md`).
 
 ## Architecture
 

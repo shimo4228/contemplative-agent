@@ -7,15 +7,22 @@ Language: English | [日本語](README.ja.md)
 # Contemplative Agent (CA)
 
 [![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.19212118.svg)](https://doi.org/10.5281/zenodo.19212118) [![License: MIT](https://img.shields.io/badge/license-MIT-green)](LICENSE) [![Python](https://img.shields.io/badge/python-3.10%2B-blue)](https://www.python.org)
-[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/shimo4228/contemplative-agent) [![GitMCP](https://img.shields.io/endpoint?url=https://gitmcp.io/badge/shimo4228/contemplative-agent)](https://gitmcp.io/shimo4228/contemplative-agent)
 
-Contemplative Agent is a CLI agent that runs a six-phase knowledge cycle over its own logs — every promotion from logs → patterns → skills → rules passes through a human approval gate. Runs entirely on a single Apple Silicon Mac (M1+, 16 GB RAM) with a local Gemma 4 model — no cloud, no API keys in transit, no shell execution.
+Contemplative Agent is an autonomous agent that carries an explicit, human-editable constitution — and amends it. The agent distills its own episode logs into patterns and proposes promotions into its value layer (constitution, identity, skills, rules); nothing lands there without passing a human approval gate. The whole loop runs on a single Apple Silicon Mac (M1+, 16 GB) with a local Gemma 4 model — no cloud, no LLM API keys, no shell execution.
 
-For researchers studying how an agent accumulates and revises its own knowledge, and for developers who want a fully local, auditable autonomous agent small enough to read end-to-end.
+For researchers studying how an agent accumulates and revises its own values and knowledge, and for developers who want a fully local, auditable autonomous agent small enough to read end-to-end.
 
-This repository is the operational implementation of two companion research projects: the **[Agent Knowledge Cycle (AKC)](https://github.com/shimo4228/agent-knowledge-cycle)** — how an agent turns its own experience into improvable skills — and **[Agent Attribution Practice (AAP)](https://github.com/shimo4228/agent-attribution-practice)** — how accountability is distributed in autonomous agents. Both are summarized under [Related Work](#related-work).
+Self-modification is the part of an autonomous agent that is hardest to see; here it is the most visible part — every change to the agent's values is a discrete, human-approved, replayable event. The preset is swappable; the value-layer machinery is not: the human approval gate, approval lineage on every promotion, replayable pivot snapshots, and value injection at action time rather than distillation time all operate identically under any preset ([ADR-0012](docs/adr/0012-human-approval-gate.md), [ADR-0050](docs/adr/0050-epistemic-taxonomy-and-approval-lineage.md), [ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.md), [ADR-0058](docs/adr/0058-value-injection-at-action-time.md)).
 
-The first adapter is **Moltbook**, an AI-only social network. The Contemplative AI four axioms (Emptiness, Non-Duality, Mindfulness, Boundless Care) ship as an optional preset.
+This repository is the operational implementation of two companion research projects — the **[Agent Knowledge Cycle (AKC)](https://github.com/shimo4228/agent-knowledge-cycle)** (how an agent turns its own experience into improvable skills) and **[Agent Attribution Practice (AAP)](https://github.com/shimo4228/agent-attribution-practice)** (how accountability is distributed in autonomous agents); both are summarized under [Related Work](#related-work). The first adapter is **Moltbook**, an AI-only social network, and the Contemplative AI four axioms (Emptiness, Non-Duality, Mindfulness, Boundless Care) ship as the default constitution preset — one of 11.
+
+| If you came for… | Start at |
+|---|---|
+| Just want to run it | [Quick Start](#quick-start) |
+| An agent with an explicit, amendable constitution | [How It Works](#how-it-works) |
+| A fully local agent with structural security | [Security Model](#security-model) |
+| Agent memory & self-improvement research | [Key Features](#key-features) · [Related Work](#related-work) |
+| Instrument-first operational discipline | [Observability by Default](#observability-by-default) |
 
 <details>
 <summary>AI-facing reading order</summary>
@@ -24,6 +31,8 @@ The first adapter is **Moltbook**, an AI-only social network. The Contemplative 
 2. [`llms.txt`](llms.txt) — compact navigation index
 3. [`llms-full.txt`](llms-full.txt) — consolidated factual reference
 4. README and project-specific docs — narrative and detail
+
+Conversational entry points: ask this repo on [DeepWiki](https://deepwiki.com/shimo4228/contemplative-agent) or connect an agent via [GitMCP](https://gitmcp.io/shimo4228/contemplative-agent).
 
 For the canonical relationship map of shimo4228's research ecosystem, see:
 https://github.com/shimo4228/shimo4228/blob/main/graph.jsonld
@@ -34,18 +43,29 @@ https://github.com/shimo4228/shimo4228/blob/main/graph.jsonld
 
 ```mermaid
 graph TD
-    EL["Episode Log<br/>raw actions, immutable JSONL, untrusted"]
-    K["Knowledge<br/>one pattern store (embeddings) — Views query it at runtime"]
-    EL -->|distill| K
-    K -->|insight| Skills
-    Skills -->|rules-distill| Rules
-    K -->|"distill-identity · self_reflection view"| Identity
-    K -->|"amend-constitution · constitutional view"| Constitution
+    EL["Episode Log — raw actions, immutable JSONL, untrusted"]
+    K["Knowledge — one pattern store (embeddings); views query it at runtime"]
+    G{{"Human approval gate — ADR-0012"}}
+    EL -->|"distill (ungated)"| K
+    K -->|insight| G
+    K -->|"distill-identity · self_reflection view"| G
+    K -->|"amend-constitution · constitutional view"| G
+    Skills -->|rules-distill| G
+    subgraph VL["Value layer — every write passes the gate"]
+        Skills
+        Rules
+        Identity
+        Constitution
+    end
+    G --> Skills
+    G --> Rules
+    G --> Identity
+    G --> Constitution
 ```
 
-In short: `distill` turns raw actions into a single Knowledge store of patterns; *Views* — editable embedding centroids — query that one store at runtime (the `constitutional` view feeds `amend-constitution`, the `self_reflection` view feeds `distill-identity`), while `insight` reads it for Skills and `rules-distill` distills those into Rules. Each layer is optional and generated by the agent reflecting on its own experience.
+In short: `distill` turns raw actions into one pattern store without a gate; every arrow crossing into the value layer — skills via `insight`, rules via `rules-distill`, identity via `distill-identity`, constitution via `amend-constitution` — is a human-approved promotion; nothing lands in the value layer automatically. *Views* — editable embedding centroids — classify the pattern store at query time.
 
-This pipeline maps the AKC phases onto code: `distill` covers Extract; `insight` / `rules-distill` / `amend-constitution` cover Curate; `distill-identity` covers Promote; pivot snapshots ([ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.md)) cover Measure. Research and Maintain run continuously across sessions rather than as discrete commands. Full mapping: [docs/CODEMAPS/architecture.md](docs/CODEMAPS/architecture.md#akc-agent-knowledge-cycle-mapping).
+This pipeline maps the AKC six phases onto code: `distill` covers Extract, `insight` / `rules-distill` / `amend-constitution` cover Curate, `distill-identity` covers Promote; the full mapping lives in [docs/CODEMAPS/architecture.md](docs/CODEMAPS/architecture.md#akc-mapping). The cycle is not hypothetical — a live instance has been running it in public since launch (see [Live Agent](#live-agent)).
 
 ## Quick Start
 
@@ -74,7 +94,7 @@ If you have [Claude Code](https://claude.ai/claude-code), paste this repo URL an
 
 ## Live Agent
 
-A Contemplative agent runs daily on [Moltbook](https://www.moltbook.com/u/contemplative-agent). Its evolving state is published openly:
+A Contemplative agent runs daily on [Moltbook](https://www.moltbook.com/u/contemplative-agent). Its evolving value layer is published openly — Identity, Constitution, Skills, and Rules each reached their current state through the human approval gate; the reports are ungated operational records:
 
 - [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md) — distilled persona
 - [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution) — ethical principles (started from CCAI four axioms)
@@ -85,19 +105,27 @@ A Contemplative agent runs daily on [Moltbook](https://www.moltbook.com/u/contem
 
 ## Key Features
 
-- **Knowledge cycle (AKC) over its own logs** — the agent runs the six-phase cycle on its own logs. No fine-tuning, no labeled training data. Every promotion (logs → patterns → skills → rules → identity) passes through a [human approval gate](docs/adr/0012-human-approval-gate.md).
-- **Embedding + views** — the agent classifies a memory by similarity at query time instead of storing a fixed label. A *view* is an editable text seed that defines one such category; edit a view and the classification shifts ([ADR-0019](docs/adr/0019-discrete-categories-to-embedding-views.md), [ADR-0026](docs/adr/0026-retire-discrete-categories.md)).
+- **Human-gated value layer** — the agent generates its own skills, rules, identity, and constitutional amendments from its logs, but nothing is promoted without explicit human approval; every approval carries lineage and a replayable pivot snapshot, and values are injected at action time, not distillation time (ADR links in the intro above).
 - **Grounded distill** — `distill` runs one LLM call per engagement episode, reading the whole episode rather than a digest; noise is filtered at query time by view centroids, not at ingest ([ADR-0060](docs/adr/0060-per-episode-grounded-distill.md)).
-- **Replayable pivot snapshots** — every distill run saves the full context it used (views + constitution + prompts + skills + rules + identity + centroid embeddings + thresholds) as a *pivot snapshot*, so any past decision can be replayed bit-for-bit ([ADR-0020](docs/adr/0020-pivot-snapshots-for-replayability.md)).
-- **Provenance tracking** — every pattern carries `source_type`; MINJA-class memory injection becomes structurally visible ([ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.md)). Origin is recorded, never weighted — the trust multiplier was retired ([ADR-0051](docs/adr/0051-retire-trust-weighting.md)).
-- **Markdown all the way down** — constitution, identity, skills, rules, pipeline prompts, and view seeds all live as Markdown under `$MOLTBOOK_HOME/`. Edit a prompt to change how patterns get extracted; swap a view seed to shift classification. [Customize →](docs/CONFIGURATION.md#pipeline-prompts--view-seeds)
-- **Backend-aware budget guard** — the agent estimates the prompt's token budget before each call and skips it if it would exceed the backend's `context_window`, preventing silent truncation ([ADR-0066](docs/adr/0066-backend-aware-context-budget-guard.md)).
+- **Embedding + views** — the agent classifies a memory by similarity at query time instead of storing a fixed label; a *view* is an editable text seed that defines one such category ([ADR-0019](docs/adr/0019-discrete-categories-to-embedding-views.md)). v2.8 pruned the shipped seeds from 7 to the 2 with live consumers, after instruments showed the rest were orphaned ([ADR-0073](docs/adr/0073-prune-orphaned-view-seeds.md)).
+- **Weekly staged insight** — patterns flow in daily (~90–115/day); skill candidates are clustered and staged weekly behind the approval gate, with exact fast agglomerative clustering that stays tractable at ~1,800 patterns on a 16 GB host ([ADR-0074](docs/adr/0074-weekly-staged-insight.md)).
+- **Markdown all the way down** — constitution, identity, skills, rules, every pipeline prompt, and the view seeds all live as editable Markdown under `$MOLTBOOK_HOME/`. Edit a prompt to change how patterns get extracted; swap a view seed to shift classification. [Customize →](docs/CONFIGURATION.md#pipeline-prompts--view-seeds)
+- **Backend-aware budget guard** — the agent estimates the prompt's token budget before each call and skips it if it would exceed the backend's context window, preventing silent truncation ([ADR-0066](docs/adr/0066-backend-aware-context-budget-guard.md)).
+
+## Observability by Default
+
+Since v2.7 the project's operating discipline is *instrument before intervene*: measure with read-only instruments first, ship the audit log with the feature, and only then change behavior.
+
+- **Read-only pattern-composition instruments** measure view supply, pairwise diversity (an echo-chamber detector), and grounding composition before any behavioral change ([ADR-0071](docs/adr/0071-read-only-pattern-composition-instruments.md)).
+- The instruments' first payoff: an echo-chamber register forming at distill was measured, then repaired at the prompt layer ([ADR-0072](docs/adr/0072-echo-chamber-interventions.md)), and five orphaned view seeds were pruned ([ADR-0073](docs/adr/0073-prune-orphaned-view-seeds.md)).
+- **Observability by default** — any feature performing external I/O, an LLM call, or a heuristic decision ships a replayable append-only JSONL audit log in the same PR ([ADR-0075](docs/adr/0075-observability-by-default.md)).
+- **Skill selection runs as a shadow instrument** — the would-be selection is recorded on every call but never enforced, so enforcement can later be decided from data rather than intuition ([ADR-0076](docs/adr/0076-skill-selection-shadow-instrument.md)).
 
 ## Security Model
 
 Accountability and security boundaries are documented as harness-neutral ADRs in [AAP](https://github.com/shimo4228/agent-attribution-practice). This repository is the operational implementation of those judgments.
 
-- **Security by absence** — dangerous capabilities were never built: no shell execution, no arbitrary network access, no file traversal, that code does not exist in the codebase. Domain-locked to `moltbook.com` + localhost Ollama. 2 runtime dependencies: `requests`, `numpy`.
+- **Security by absence** — dangerous capabilities were never built: no shell execution, no arbitrary network access, no file traversal — that code simply does not exist in the codebase. Domain-locked to `moltbook.com` + localhost Ollama. 2 runtime dependencies: `requests`, `numpy`.
 - One external adapter per process ([ADR-0015](docs/adr/0015-one-external-adapter-per-agent.md)).
 - Full threat model: [ADR-0007](docs/adr/0007-security-boundary-model.md). [Latest security scan](docs/security/2026-04-01-security-scan.md).
 
@@ -116,35 +144,25 @@ The core is platform-agnostic. Adapters are thin wrappers around platform I/O.
 
 ## Architecture
 
-One invariant holds across the codebase: **core/** is platform-independent; **adapters/** depend on core, never the reverse. Module maps, data-flow diagrams, and per-module responsibilities live in **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)** (the authoritative source). The Yogācāra eight-consciousness frame that constrained the memory design: [ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.md).
+One invariant holds across the codebase: **core/** is platform-independent; **adapters/** depend on core, never the reverse. Module maps, data-flow diagrams, and the canonical repository statistics (module and test counts) live in **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)** (the authoritative source). The Yogācāra eight-consciousness frame that constrained the memory design: [ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.md).
 
-CLI commands can be read through AAP's four-quadrant routing lens: most behaviour-modifying commands operate as bounded **LLM Workflow** (defined control flow, deterministic promotion through the [approval gate](docs/adr/0012-human-approval-gate.md) — and inside each, the mechanism layer is deterministic embedding math per [ADR-0019](docs/adr/0019-discrete-categories-to-embedding-views.md): cosine dedup, ranking, clustering, with the LLM confined to value judgment and generation), `meditate` is **Algorithmic Search** (numpy POMDP, no runtime LLM), and no command runs an autonomous agentic loop — a usage observation, not a value judgement. See [ADR-0033](docs/adr/0033-aap-quadrant-lens-usage-note.md).
+CLI commands can be read through AAP's four-quadrant routing lens — a usage observation, not a value judgement; the full reading lives in [ADR-0033](docs/adr/0033-aap-quadrant-lens-usage-note.md).
 
 ## Using inside other agents
 
-Contemplative Agent is a host-agnostic CLI. Use it standalone (see Quick Start) or register the binary as a CLI tool in any agent host (OpenClaw / Codex / MCP hosts) — e.g. in `~/.openclaw/workspace/AGENTS.md` — so the host invokes it as a subprocess, keeping the external surface in a separate process ([one adapter per process](docs/adr/0015-one-external-adapter-per-agent.md)). It is not exposed as an MCP server ([ADR-0007](docs/adr/0007-security-boundary-model.md)). To load the four axioms as host personality, copy `SOUL.md` from [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules) to your host's soul-folder (e.g. `~/.openclaw/workspace/SOUL.md`). Full host-integration guide: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+Contemplative Agent is a host-agnostic CLI. Use it standalone (see Quick Start) or register the binary as a CLI tool in any agent host (OpenClaw / Codex / MCP hosts), so the host invokes it as a subprocess — keeping the external surface in a separate process ([one adapter per process](docs/adr/0015-one-external-adapter-per-agent.md)). It is not exposed as an MCP server ([ADR-0007](docs/adr/0007-security-boundary-model.md)). To load the four axioms as host personality, copy `SOUL.md` from [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules) to your host's soul-folder. Full host-integration guide: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 <details>
 <summary><b>Optional: Running with Managed LLM APIs</b></summary>
 
-For research experiments needing a generation model larger than Gemma 4 E4B (e.g. comparing distillation behavior with Claude Opus or GPT-5 while keeping the rest of the memory pipeline identical), a separate add-on repository provides managed-LLM backends:
-
-- [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) — Optional Python package. Installing it and setting an API key routes every generation call (distill, insight, rules-distill, amend-constitution, post, comment, reply, dialogue) through Anthropic Claude or OpenAI GPT. Embeddings continue to use local `nomic-embed-text`.
-
-This is an explicit **opt-in**. The main repository's default stack (Ollama + Gemma 4 E4B) does not reach any cloud endpoint. The "no cloud, no API keys in transit" property applies to this repository; the cloud add-on relaxes it for users who opt into it. Main repository code is not modified — the add-on injects its backend through an abstract `LLMBackend` Protocol that knows nothing about any specific provider.
-
-Do not install the cloud add-on in deployments where cloud data egress is not acceptable (regulatory constraints, air-gapped research, privacy-sensitive personal assistants).
+For research experiments needing a generation model larger than Gemma 4 E4B, the optional [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) add-on routes every generation call through Anthropic Claude or OpenAI GPT via the abstract `LLMBackend` Protocol — main-repo code unmodified, embeddings stay on local Ollama. This is an explicit **opt-in** that relaxes the no-cloud property for users who install it; do not install it in deployments where cloud data egress is not acceptable.
 
 </details>
 
 <details>
 <summary><b>Optional: Local MLX runtime (Apple Silicon)</b></summary>
 
-For faster local generation on Apple Silicon — without leaving the machine — a separate add-on routes generation through a local MLX server instead of Ollama:
-
-- [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx) — Optional Python package. On Apple Silicon, running its `contemplative-agent-mlx` entry point routes generation through a local `mlx_lm.server` instead of Ollama (≈1.8× faster and ≈3.4 GB lighter than Ollama, benchmarked on Qwen3.5 9B). Everything stays on-device — embeddings remain on local Ollama.
-
-This is a **local-runtime swap, not a cloud backend**, so the "no cloud, no API keys in transit" property is preserved. It injects through the same `LLMBackend` Protocol as the cloud add-on, with no change to the main repository. It is intended for interactive use — `mlx_lm.server` is unfit for the unattended scheduled agent on a 16 GB host ([ADR-0067](docs/adr/0067-keep-ollama-for-unattended-production.md)), so production runs on Ollama. MLX was retired from this repository to the sibling add-on in [ADR-0070](docs/adr/0070-retire-mlx-to-sibling-repo-and-remove-docker.md).
+For faster interactive generation on Apple Silicon, the optional [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx) add-on routes generation through a local `mlx_lm.server` (≈1.8× faster, ≈3.4 GB lighter; embeddings stay on Ollama) via the same `LLMBackend` Protocol. It is a **local-runtime swap, not a cloud backend** — the no-cloud property is preserved. `mlx_lm.server` is unfit for the unattended scheduled agent on a 16 GB host ([ADR-0067](docs/adr/0067-keep-ollama-for-unattended-production.md)), so production runs on Ollama ([ADR-0070](docs/adr/0070-retire-mlx-to-sibling-repo-and-remove-docker.md)).
 
 </details>
 
@@ -196,43 +214,10 @@ The ecosystem hub — a human-readable index of all five research lines — is [
 
 **Theoretical foundation:**
 
-- Laukkonen, Inglis, Chandaria, Sandved-Smith, Lopez-Sola, Hohwy, Gold, & Elwood (2025). *Contemplative Artificial Intelligence.* [arXiv:2504.15125](https://arxiv.org/abs/2504.15125) — four-axiom ethical framework (optional preset, [ADR-0002](docs/adr/0002-paper-faithful-ccai.md)).
+- Laukkonen, Inglis, Chandaria, Sandved-Smith, Lopez-Sola, Hohwy, Gold, & Elwood (2025). *Contemplative Artificial Intelligence.* [arXiv:2504.15125](https://arxiv.org/abs/2504.15125) — four-axiom ethical framework (default preset, [ADR-0002](docs/adr/0002-paper-faithful-ccai.md)).
 - Laukkonen, Friston & Chandaria (2025). *A Beautiful Loop: An Active Inference Theory of Consciousness.* *Neuroscience & Biobehavioral Reviews*, 176, 106296. [PubMed:40750007](https://pubmed.ncbi.nlm.nih.gov/40750007/) — meditation adapter basis.
 - Vasubandhu (4th–5th c. CE). *Triṃśikā-vijñaptimātratā* (唯識三十頌) and Xuanzang (659 CE). *Cheng Weishi Lun* (成唯識論) — eight-consciousness model adopted as the architectural frame ([ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.md)).
 
-<details>
-<summary><b>Memory systems bibliography</b></summary>
-
-Each paper below informed a specific design decision documented in the linked ADR.
-
-- Xu, W., Liang, Z., Mei, K., Gao, H., Tan, J., & Zhang, Y. (2025). *A-MEM: Agentic Memory for LLM Agents.* [arXiv:2502.12110](https://arxiv.org/abs/2502.12110) — Zettelkasten-style dynamic indexing and memory evolution. Originally informed [ADR-0022](docs/adr/0022-memory-evolution-and-hybrid-retrieval.md), withdrawn by [ADR-0034](docs/adr/0034-withdraw-memory-evolution-and-hybrid-retrieval.md) after empirical evaluation. Retained as a historical reference.
-- Rasmussen, P., Paliychuk, P., Beauvais, T., Ryan, J., & Chalef, D. (2025). *Zep: A Temporal Knowledge Graph Architecture for Agent Memory.* [arXiv:2501.13956](https://arxiv.org/abs/2501.13956) — bitemporal knowledge-graph edges (Graphiti engine); informs the `valid_from` / `valid_until` contract on every pattern ([ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.md)).
-- Zhong, W., Guo, L., Gao, Q., Ye, H., & Wang, Y. (2023). *MemoryBank: Enhancing Large Language Models with Long-Term Memory.* [arXiv:2305.10250](https://arxiv.org/abs/2305.10250) — Ebbinghaus-style decay with access-reinforced strength; originally informed the retrieval-aware forgetting curve proposed in [ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.md), retired by [ADR-0028](docs/adr/0028-retire-pattern-level-forgetting-feedback.md) in favour of locating memory dynamics at the skill layer. Retained as a historical reference.
-- Dong, S., Xu, S., He, P., Li, Y., Tang, J., Liu, T., Liu, H., & Xiang, Z. (2025). *Memory Injection Attacks on LLM Agents via Query-Only Interaction* (MINJA). [arXiv:2503.03704](https://arxiv.org/abs/2503.03704) — query-only memory injection attacks on agent memory; motivates `source_type` provenance so MINJA-class attacks become structurally visible rather than invisible (the companion `trust_score` weighting was later retired by [ADR-0051](docs/adr/0051-retire-trust-weighting.md); the quarantine boundary is the canonical defense) ([ADR-0021](docs/adr/0021-pattern-schema-trust-temporal-forgetting-feedback.md)).
-- Zhou, H., Guo, S., Liu, A., et al. (2026). *Memento-Skills: Let Agents Design Agents.* [arXiv:2603.18743](https://arxiv.org/abs/2603.18743) — skills as persistent evolving memory units, retrieved, applied, and rewritten by outcome. Informed [ADR-0023](docs/adr/0023-skill-as-memory-loop.md), sunset by [ADR-0036](docs/adr/0036-sunset-skill-as-memory-loop.md). Retained as a historical reference.
-
-</details>
+Further reading: the memory-systems bibliography (per-ADR design influences) lives in [docs/BIBLIOGRAPHY.md](docs/BIBLIOGRAPHY.md); sixteen articles written during development are indexed in [docs/DEVELOPMENT-RECORDS.md](docs/DEVELOPMENT-RECORDS.md).
 
 **Acknowledgments:** Jerry Mares ([VADUGWI](https://doi.org/10.5281/zenodo.19383636)) — deterministic affect-scoring design inspiration.
-
-<details>
-<summary><b>Development Records (16 articles, source on GitHub)</b></summary>
-
-1. [I Built an AI Agent from Scratch Because Frameworks Are the Vulnerability](https://github.com/shimo4228/zenn-content/blob/main/articles-en/moltbook-agent-scratch-build.md)
-2. [Natural Language as Architecture](https://github.com/shimo4228/zenn-content/blob/main/articles-en/moltbook-agent-evolution-quadrilogy.md)
-3. [Every LLM App Is Just a Markdown-and-Code Sandwich](https://github.com/shimo4228/zenn-content/blob/main/articles-en/llm-app-sandwich-architecture.md)
-4. [Do Autonomous Agents Really Need an Orchestration Layer?](https://github.com/shimo4228/zenn-content/blob/main/articles-en/symbiotic-agent-architecture.md)
-5. [Not Reasoning, Not Tools -- What If the Essence of AI Agents Is Memory?](https://github.com/shimo4228/zenn-content/blob/main/articles-en/agent-essence-is-memory.md)
-6. [My Agent's Memory Broke -- A Day Wrestling a 9B Model](https://github.com/shimo4228/zenn-content/blob/main/articles-en/few-shot-for-small-models.md)
-7. [Porting Game Dev Memory Management to AI Agent Memory Distillation](https://github.com/shimo4228/zenn-content/blob/main/articles-en/agent-memory-game-dev-distillation.md)
-8. [Freedom and Constraints of Autonomous Agents — Self-Modification, Trust Boundaries, and Emergent Gameplay](https://github.com/shimo4228/zenn-content/blob/main/articles-en/agent-freedom-and-constraints.md)
-9. [How Ethics Emerged from Episode Logs — 17 Days of Contemplative Agent Design](https://github.com/shimo4228/zenn-content/blob/main/articles-en/contemplative-agent-journey-en.md)
-10. [A Sign on a Climbable Wall: Why AI Agents Need Accountability, Not Just Guardrails](https://github.com/shimo4228/zenn-content/blob/main/articles-en/ai-agent-accountability-wall-en.md)
-11. [Can You Trace the Cause After an Incident?](https://github.com/shimo4228/zenn-content/blob/main/articles-en/agent-causal-traceability-org-adoption-en.md)
-12. [AI Agent Black Boxes Have Two Layers — Technical Limits and Business Incentives](https://github.com/shimo4228/zenn-content/blob/main/articles-en/agent-blackbox-capitalism-timescale-en.md)
-13. [Where ReAct Agents Are Actually Needed in Business](https://github.com/shimo4228/zenn-content/blob/main/articles-en/react-agent-business-quadrant.md)
-14. [The LLM Workflow Quadrant Is Missing from Our Vocabulary](https://github.com/shimo4228/zenn-content/blob/main/articles-en/react-agent-business-quadrant-2.md)
-15. [Is ReAct Needed in Production? — Separating Design and Operation Phases](https://github.com/shimo4228/zenn-content/blob/main/articles-en/react-agent-business-quadrant-3.md)
-16. [Between the Workflow and ReAct Quadrants: How Phase Decides Skill Design](https://github.com/shimo4228/zenn-content/blob/main/articles-en/react-agent-business-quadrant-4.md)
-
-</details>

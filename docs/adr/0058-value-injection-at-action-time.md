@@ -156,6 +156,12 @@ of these call sites.)
   change ships without a per-output human gate. Mitigation: the behavioral delta is near-inert
   (ADR-0057 evidence), the dry-run smoke check is clean, and `--dry-run` remains available for
   inspection. Identity keeps its ADR-0012 gate.
+  > **Correction (2026-07-11)**: the bullet above overstates the ungated set. Only `distill`'s
+  > pattern writes are ungated. `insight`, `rules_distill`, and `amend-constitution` DO run the
+  > ADR-0012 approval loop before writing (interactively, or via `--stage` → `adopt-staged` review) —
+  > see `cli.py` `_run_approval_loop` / `_handle_single_result`. What ships without a per-output
+  > human gate is this ADR's *prompt change itself* as it affects the ungated `distill` stage; the
+  > value-layer commands' write gates were never removed.
 - A theoretical loss: if the axioms were doing useful work *selecting* which observations are
   significant, removing them would change extraction. Assessed as not the case — significance /
   admission is already a mechanical concern (the noise-centroid gate of ADR-0026 / 0027 and pure time
