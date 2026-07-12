@@ -1,6 +1,6 @@
 # Development Records
 
-Seventeen articles written during Contemplative Agent's development, in chronological order. They trace the project's design history — from the initial scratch build through the memory-architecture experiments to the accountability framing that later became [AAP](https://github.com/shimo4228/agent-attribution-practice) and the observability discipline later published as [agent-observability-patterns](https://github.com/shimo4228/agent-observability-patterns). English sources live in the [zenn-content](https://github.com/shimo4228/zenn-content) repository.
+Articles written during Contemplative Agent's development, in chronological order. They trace the project's design history — from the initial scratch build through the memory-architecture experiments to the accountability framing that later became [AAP](https://github.com/shimo4228/agent-attribution-practice) and the observability discipline later published as [agent-observability-patterns](https://github.com/shimo4228/agent-observability-patterns). English sources live in the [zenn-content](https://github.com/shimo4228/zenn-content) repository.
 
 1. [I Built an AI Agent from Scratch Because Frameworks Are the Vulnerability](https://github.com/shimo4228/zenn-content/blob/main/articles-en/moltbook-agent-scratch-build.md)
 2. [Natural Language as Architecture](https://github.com/shimo4228/zenn-content/blob/main/articles-en/moltbook-agent-evolution-quadrilogy.md)
@@ -19,3 +19,4 @@ Seventeen articles written during Contemplative Agent's development, in chronolo
 15. [Is ReAct Needed in Production? — Separating Design and Operation Phases](https://github.com/shimo4228/zenn-content/blob/main/articles-en/react-agent-business-quadrant-3.md)
 16. [Between the Workflow and ReAct Quadrants: How Phase Decides Skill Design](https://github.com/shimo4228/zenn-content/blob/main/articles-en/react-agent-business-quadrant-4.md)
 17. [Why Did My Agent Decide That? 3 Observability Patterns](https://github.com/shimo4228/zenn-content/blob/main/articles-en/agent-observability-patterns.md)
+18. [Building an Autonomous Agent on an M1 Mac, by Choice](https://github.com/shimo4228/zenn-content/blob/main/articles-en/small-llm-by-choice.md)

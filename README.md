@@ -215,6 +215,6 @@ The ecosystem hub — a human-readable index of all five research lines — is [
 - Laukkonen, Friston & Chandaria (2025). *A Beautiful Loop: An Active Inference Theory of Consciousness.* *Neuroscience & Biobehavioral Reviews*, 176, 106296. [PubMed:40750007](https://pubmed.ncbi.nlm.nih.gov/40750007/) — meditation adapter basis.
 - Vasubandhu (4th–5th c. CE). *Triṃśikā-vijñaptimātratā* (唯識三十頌) and Xuanzang (659 CE). *Cheng Weishi Lun* (成唯識論) — eight-consciousness model adopted as the architectural frame ([ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.md)).
 
-Further reading: the memory-systems bibliography (per-ADR design influences) lives in [docs/BIBLIOGRAPHY.md](docs/BIBLIOGRAPHY.md); seventeen articles written during development are indexed in [docs/DEVELOPMENT-RECORDS.md](docs/DEVELOPMENT-RECORDS.md).
+Further reading: the memory-systems bibliography (per-ADR design influences) lives in [docs/BIBLIOGRAPHY.md](docs/BIBLIOGRAPHY.md); the articles written during development are indexed in [docs/DEVELOPMENT-RECORDS.md](docs/DEVELOPMENT-RECORDS.md).
 
 **Acknowledgments:** Jerry Mares ([VADUGWI](https://doi.org/10.5281/zenodo.19383636)) — deterministic affect-scoring design inspiration.
