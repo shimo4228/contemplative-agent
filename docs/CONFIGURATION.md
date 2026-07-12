@@ -254,7 +254,7 @@ Every LLM interaction the agent makes is defined in a Markdown file. After `init
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-35 loaded prompt templates plus 2 script-read prompt documents. The main ones:
+35 loaded prompt templates plus 3 script-read prompt documents (`principles.md`, `weekly-analysis.md`, and `weekly-analysis-ja.md` — the Japanese translation pass — are read by `scripts/weekly-analysis.sh`, not the loader). The main ones:
 
 | File | Drives |
 |------|--------|

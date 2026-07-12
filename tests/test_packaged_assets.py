@@ -29,7 +29,7 @@ REPO_ROOT = _repo_root()
 
 # Prompt documents consumed by scripts/weekly-analysis.sh rather than the
 # PromptTemplates registry. A stem listed here must name its consumer.
-SCRIPT_READ_PROMPTS = {"principles", "weekly-analysis"}
+SCRIPT_READ_PROMPTS = {"principles", "weekly-analysis", "weekly-analysis-ja"}
 
 
 def _prompt_stems() -> set[str]:
