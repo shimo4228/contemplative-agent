@@ -22,6 +22,7 @@ from .session_context import SessionContext
 from ...core.config import VALID_ID_PATTERN
 from ...core.domain import DomainConfig
 from ...core.scheduler import Scheduler
+from ...core.text_utils import log_preview
 
 logger = logging.getLogger(__name__)
 
@@ -156,18 +157,11 @@ class FeedManager:
         author_id = author.get("id", "")
         # Live feed posts carry author.name but typically not author.id, so the
         # per-author history gates key on the name (the reliable field).
-        author_name = (
-            author.get("name")
-            or post.get("agent_name")
-            or post.get("agentName")
-            or ""
-        )
+        author_name = author.get("name") or post.get("agent_name") or post.get("agentName") or ""
         if (
             not post_text
             or not post_id
-            or not self._passes_engagement_gates(
-                post, post_text, post_id, author_id, author_name
-            )
+            or not self._passes_engagement_gates(post, post_text, post_id, author_id, author_name)
         ):
             return False
 
@@ -221,19 +215,28 @@ class FeedManager:
         if comment is None:
             return False
 
-        if not self._confirm_action(
-            f"Comment on post {post_id} (relevance: {score:.2f})", comment
-        ):
+        if not self._confirm_action(f"Comment on post {post_id} (relevance: {score:.2f})", comment):
             return False
 
         scheduler.wait_for_comment()
         return self._post_comment_and_record(
-            post, post_id, post_text, score, note, comment,
-            generated.thinking, client, scheduler,
+            post,
+            post_id,
+            post_text,
+            score,
+            note,
+            comment,
+            generated.thinking,
+            client,
+            scheduler,
         )
 
     def _passes_engagement_gates(
-        self, post: dict, post_text: str, post_id: str, author_id: str,
+        self,
+        post: dict,
+        post_text: str,
+        post_id: str,
+        author_id: str,
         author_name: str,
     ) -> bool:
         """Run the skip-gate chain; True when the post may be engaged.
@@ -286,9 +289,7 @@ class FeedManager:
 
         return True
 
-    def _passes_author_history_gates(
-        self, author_name: str, post_text: str, post_id: str
-    ) -> bool:
+    def _passes_author_history_gates(self, author_name: str, post_text: str, post_id: str) -> bool:
         """Memory-backed gates: same-author repeat topic, per-author 24h limit.
 
         Keyed on the author *name*: live feed posts carry author.name but not
@@ -313,18 +314,14 @@ class FeedManager:
         # 2026-04-12 weekly report) will trigger this. Body Jaccard against
         # the past 7 days of original_post bodies we commented on for this
         # author.
-        prior_targets = ctx.memory.get_prior_comment_targets(
-            author_name, days=7, limit=7
-        )
+        prior_targets = ctx.memory.get_prior_comment_targets(author_name, days=7, limit=7)
         if prior_targets:
-            is_repeat, sim = is_repeat_target_for_author(
-                post_text, prior_targets
-            )
+            is_repeat, sim = is_repeat_target_for_author(post_text, prior_targets)
             if is_repeat:
                 logger.info(
-                    "Skipped post %s: same-author repeat topic "
-                    "(jaccard=%.2f)",
-                    post_id[:12], sim,
+                    "Skipped post %s: same-author repeat topic (jaccard=%.2f)",
+                    post_id[:12],
+                    sim,
                 )
                 return False
 
@@ -332,12 +329,11 @@ class FeedManager:
         # linguistics post' phenomenon. The same author flooding the feed
         # with template-generated content (or genuine reposts) gets engaged
         # at most 3 times per 24h regardless of relevance score.
-        if ctx.memory.count_recent_comments_by_author(
-            author_name, hours=24
-        ) >= 3:
+        if ctx.memory.count_recent_comments_by_author(author_name, hours=24) >= 3:
             logger.info(
                 "Skipped post %s: author %s rate-limited (3+ comments/24h)",
-                post_id[:12], author_name,
+                post_id[:12],
+                author_name,
             )
             return False
 
@@ -358,11 +354,8 @@ class FeedManager:
         client: MoltbookClient,
     ) -> None:
         """Upvote-only for near-threshold posts; log the score otherwise."""
-        upvoted = (
-            score >= ADAPTIVE_BACKOFF.upvote_only_threshold
-            and self._do_upvote(
-                post_id, score, note, client, below_threshold=True
-            )
+        upvoted = score >= ADAPTIVE_BACKOFF.upvote_only_threshold and self._do_upvote(
+            post_id, score, note, client, below_threshold=True
         )
         if not upvoted:
             # INFO so skipped scores land in production logs: the relevance
@@ -371,7 +364,9 @@ class FeedManager:
             # at the production INFO level (censored-distribution trap).
             logger.info(
                 "Post %s relevance %.2f below threshold %.2f",
-                post_id[:12], score, threshold,
+                post_id[:12],
+                score,
+                threshold,
             )
 
     def _upvote_relevant(
@@ -405,15 +400,20 @@ class FeedManager:
         ):
             if client.upvote_post(post_id):
                 self._upvoted_posts.add(post_id)
-                self._ctx.memory.episodes.append("activity", {
-                    "action": "upvote",
-                    "post_id": post_id,
-                    "internal_note": note,
-                })
+                self._ctx.memory.episodes.append(
+                    "activity",
+                    {
+                        "action": "upvote",
+                        "post_id": post_id,
+                        "internal_note": note,
+                    },
+                )
                 suffix = ", below comment threshold" if below_threshold else ""
                 logger.info(
                     "Upvoted post %s (relevance: %.2f%s)",
-                    post_id[:12], score, suffix,
+                    post_id[:12],
+                    score,
+                    suffix,
                 )
             return True
         return False
@@ -446,9 +446,7 @@ class FeedManager:
             # the create-response challenge is solved. On failure record nothing
             # (it stays out of dedup/memory) so a later session can comment
             # visibly; a trusted-bypass response carries no verification object.
-            verification = (
-                created.get("verification") if isinstance(created, dict) else None
-            )
+            verification = created.get("verification") if isinstance(created, dict) else None
             if verification is not None and not self._handle_verification(verification):
                 logger.warning(
                     "Comment on %s created but verification failed; not recording",
@@ -461,38 +459,44 @@ class FeedManager:
             self._get_content().mark_posted(comment)
             ctx.commented_posts.add(post_id)
             ctx.memory.record_commented(post_id)
-            ctx.actions_taken.append(
-                f"Commented on {post_id} (relevance: {score:.2f})"
+            ctx.actions_taken.append(f"Commented on {post_id} (relevance: {score:.2f})")
+            # Preview only: full bodies in *.log become anomaly-sweep noise
+            # and cross the self-written-log trust boundary (F1.1 2026-07-11).
+            # Canonical full text: episode log below + comment-reports. Verbose
+            # (-v) runs emit the DEBUG full body: never redirect a -v run's
+            # output into the sweep-scanned logs dir.
+            logger.info(
+                ">> Comment on %s: %d chars: %s",
+                post_id[:12],
+                len(comment),
+                log_preview(comment),
             )
-            logger.info(">> Comment on %s:\n%s", post_id[:12], comment)
+            logger.debug(">> Comment full body on %s:\n%s", post_id[:12], comment)
             author = post.get("author") or {}
             # Live feed posts carry author.name but typically not author.id
             # (the codebase originally assumed both). The name is the reliable
             # counterparty key, so write it as target_agent — symmetric with
             # the reply path — and keep target_agent_id when an id is present.
             agent_name = (
-                author.get("name")
-                or post.get("agent_name")
-                or post.get("agentName")
-                or "unknown"
+                author.get("name") or post.get("agent_name") or post.get("agentName") or "unknown"
             )
             agent_id = (
-                author.get("id")
-                or post.get("author_id")
-                or post.get("authorId")
-                or "unknown"
+                author.get("id") or post.get("author_id") or post.get("authorId") or "unknown"
             )
-            ctx.memory.episodes.append("activity", {
-                "action": "comment",
-                "post_id": post_id,
-                "content": comment,
-                "original_post": post_text,
-                "relevance": f"{score:.2f}",
-                "target_agent": agent_name,
-                "target_agent_id": agent_id,
-                "internal_note": note,
-                "thinking": thinking,
-            })
+            ctx.memory.episodes.append(
+                "activity",
+                {
+                    "action": "comment",
+                    "post_id": post_id,
+                    "content": comment,
+                    "original_post": post_text,
+                    "relevance": f"{score:.2f}",
+                    "target_agent": agent_name,
+                    "target_agent_id": agent_id,
+                    "internal_note": note,
+                    "thinking": thinking,
+                },
+            )
             ctx.memory.record_interaction(
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 agent_id=agent_id,
@@ -503,12 +507,8 @@ class FeedManager:
                 interaction_type="comment",
             )
             # Pacing: random wait before next engagement
-            extra_wait = random.uniform(
-                COMMENT_PACING_MIN_SECONDS, COMMENT_PACING_MAX_SECONDS
-            )
-            logger.info(
-                "Pacing: waiting %.0fs before next engagement", extra_wait
-            )
+            extra_wait = random.uniform(COMMENT_PACING_MIN_SECONDS, COMMENT_PACING_MAX_SECONDS)
+            logger.info("Pacing: waiting %.0fs before next engagement", extra_wait)
             time.sleep(extra_wait)
             return True
         except MoltbookClientError as exc:
@@ -517,9 +517,7 @@ class FeedManager:
                 ctx.set_rate_limited()
             return False
 
-    def _fetch_full_if_truncated(
-        self, post: dict, post_text: str, client: MoltbookClient
-    ) -> str:
+    def _fetch_full_if_truncated(self, post: dict, post_text: str, client: MoltbookClient) -> str:
         """Return the full post body when ``post_text`` looks truncated.
 
         Submolt feeds clamp ``content`` to ``FEED_CONTENT_PREVIEW_LEN`` chars;

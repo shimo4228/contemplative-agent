@@ -5,6 +5,7 @@ import pytest
 from contemplative_agent.core.text_utils import (
     MAX_SLUG_LENGTH,
     extract_title,
+    log_preview,
     slugify,
     split_frontmatter,
     strip_frontmatter,
@@ -114,3 +115,34 @@ class TestSynthesizeFrontmatter:
         frontmatter, recovered_body = split_frontmatter(f"{block}\n\n{body}")
         assert frontmatter == block
         assert recovered_body == body
+
+
+class TestLogPreview:
+    """log_preview keeps generated bodies out of operational logs (weekly
+    2026-07-11 F1.1): multi-line prose in *.log becomes prefix-less
+    continuation lines that the log-anomaly sweep ingests as signatures."""
+
+    def test_collapses_newlines_to_single_line(self):
+        assert "\n" not in log_preview("line one\nline two\r\nline three")
+
+    def test_collapses_whitespace_runs(self):
+        assert log_preview("a  b\n\n  c") == "a b c"
+
+    def test_short_text_unchanged(self):
+        assert log_preview("short body") == "short body"
+
+    def test_long_text_truncated_with_ellipsis(self):
+        out = log_preview("x" * 200, limit=80)
+        assert out == "x" * 80 + "…"
+
+    def test_exactly_limit_not_truncated(self):
+        assert log_preview("y" * 80, limit=80) == "y" * 80
+
+    def test_empty_string(self):
+        assert log_preview("") == ""
+
+    def test_truncation_counts_collapsed_text(self):
+        # Newlines collapse first, then the limit applies to the result.
+        out = log_preview(("word\n" * 50), limit=20)
+        assert out == "word word word word…"
+        assert "\n" not in out

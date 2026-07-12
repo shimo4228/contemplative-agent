@@ -27,6 +27,7 @@ from .session_context import SessionContext
 from ...core.config import VALID_ID_PATTERN, VALID_SUBMOLT_PATTERN
 from ...core.domain import DomainConfig
 from ...core.scheduler import Scheduler
+from ...core.text_utils import log_preview
 
 logger = logging.getLogger(__name__)
 
@@ -168,8 +169,14 @@ class PostPipeline:
 
         scheduler.wait_for_post()
         self._publish_post(
-            client, scheduler, title, content, submolt,
-            note=note, draft_summary=draft_summary, content_hash=content_hash,
+            client,
+            scheduler,
+            title,
+            content,
+            submolt,
+            note=note,
+            draft_summary=draft_summary,
+            content_hash=content_hash,
             thinking=generated.thinking,
         )
 
@@ -180,10 +187,7 @@ class PostPipeline:
         # the relevance_floor below is what enforces topical fit.
         subscribed = set(self._domain.subscribed_submolts or ())
         if subscribed:
-            candidates = [
-                p for p in posts
-                if (p.get("submolt_name") or "") in subscribed
-            ]
+            candidates = [p for p in posts if (p.get("submolt_name") or "") in subscribed]
         else:
             candidates = list(posts)
 
@@ -195,7 +199,8 @@ class PostPipeline:
         if self._ctx.own_agent_id:
             before = len(candidates)
             candidates = [
-                p for p in candidates
+                p
+                for p in candidates
                 if (p.get("author") or {}).get("id", "") != self._ctx.own_agent_id
             ]
             excluded = before - len(candidates)
@@ -240,8 +245,7 @@ class PostPipeline:
         is acceptable: self-posts are rate-limited to ~1/session.
         """
         note_seed = "\n\n".join(
-            f"{s.get('title', '') or ''}\n{s.get('content', '') or ''}".strip()
-            for s in feed_seeds
+            f"{s.get('title', '') or ''}\n{s.get('content', '') or ''}".strip() for s in feed_seeds
         )
         return generate_internal_note(note_seed)
 
@@ -252,10 +256,7 @@ class PostPipeline:
         """
         title_seed = format_feed_seeds(feed_seeds)
         first_seed_title = feed_seeds[0].get("title", "") or ""
-        return (
-            generate_post_title(title_seed)
-            or f"Contemplative Note — {first_seed_title[:40]}"
-        )
+        return generate_post_title(title_seed) or f"Contemplative Note — {first_seed_title[:40]}"
 
     def _passes_deterministic_gates(
         self,
@@ -290,7 +291,10 @@ class PostPipeline:
         # exercised only by NoveltyGate's fallback path when Ollama embedding
         # is unavailable.
         decision = self._novelty_gate.evaluate(
-            title, draft_summary, content, recent_posts,
+            title,
+            draft_summary,
+            content,
+            recent_posts,
         )
         if not decision.admit:
             # Outcome already logged inside the gate at INFO (admit) or
@@ -315,7 +319,8 @@ class PostPipeline:
         recent_post_hashes = {r.content_hash for r in recent_posts}
         if content_hash in recent_post_hashes:
             logger.info(
-                "Blocked verbatim duplicate self-post by body hash: %r", title,
+                "Blocked verbatim duplicate self-post by body hash: %r",
+                title,
             )
             return False
 
@@ -421,13 +426,30 @@ class PostPipeline:
             self._get_content().mark_posted(content)
             ctx.own_post_ids.add(post_id)
             ctx.actions_taken.append(f"Posted: {title}")
-            logger.info(">> New post [%s] (id=%s):\n%s", title, post_id, content)
-            ctx.memory.episodes.append("activity", {
-                "action": "post", "post_id": post_id,
-                "content": content, "title": title,
-                "internal_note": note,
-                "thinking": thinking,
-            })
+            # Preview only: full bodies in *.log become anomaly-sweep noise
+            # and cross the self-written-log trust boundary (F1.1 2026-07-11).
+            # Canonical full text: episode log below + comment-reports. Verbose
+            # (-v) runs emit the DEBUG full body: never redirect a -v run's
+            # output into the sweep-scanned logs dir.
+            logger.info(
+                ">> New post [%s] (id=%s): %d chars: %s",
+                title,
+                post_id,
+                len(content),
+                log_preview(content),
+            )
+            logger.debug(">> New post full body (id=%s):\n%s", post_id, content)
+            ctx.memory.episodes.append(
+                "activity",
+                {
+                    "action": "post",
+                    "post_id": post_id,
+                    "content": content,
+                    "title": title,
+                    "internal_note": note,
+                    "thinking": thinking,
+                },
+            )
 
             # Record post in memory. Reuse draft_summary and content_hash
             # computed above (novelty gate / body-hash gate) instead of
@@ -446,7 +468,10 @@ class PostPipeline:
             # caller just hands over (title, topic_summary) and trusts
             # the gate to use the same shape it scored against.
             self._novelty_gate.record(
-                post_id, now_iso, title, topic_summary,
+                post_id,
+                now_iso,
+                title,
+                topic_summary,
             )
         except MoltbookClientError as exc:
             logger.error("Failed to post dynamic content: %s", exc)

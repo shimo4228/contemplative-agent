@@ -15,15 +15,20 @@ from .llm_functions import generate_internal_note, generate_reply
 from .session_context import SessionContext
 from ...core.config import VALID_ID_PATTERN
 from ...core.scheduler import Scheduler
+from ...core.text_utils import log_preview
 
 logger = logging.getLogger(__name__)
 
 # Notification types that warrant a reply
-_REPLY_TYPES = frozenset({
-    "reply", "comment",
-    "post_comment", "comment_reply",
-    "mention",
-})
+_REPLY_TYPES = frozenset(
+    {
+        "reply",
+        "comment",
+        "post_comment",
+        "comment_reply",
+        "mention",
+    }
+)
 
 
 def extract_agent_fields(data: dict) -> dict:
@@ -32,16 +37,8 @@ def extract_agent_fields(data: dict) -> dict:
     Shared by notification processing and own-post comment handling.
     """
     return {
-        "id": (
-            data.get("id")
-            or data.get("notification_id")
-            or data.get("comment_id", "")
-        ),
-        "content": (
-            data.get("content")
-            or data.get("body")
-            or data.get("text", "")
-        ),
+        "id": (data.get("id") or data.get("notification_id") or data.get("comment_id", "")),
+        "content": (data.get("content") or data.get("body") or data.get("text", "")),
         "agent_id": (
             data.get("agent_id")
             or data.get("agentId")
@@ -60,24 +57,22 @@ def extract_agent_fields(data: dict) -> dict:
 def extract_notification_fields(notif: dict) -> dict:
     """Extract notification fields with fallback for different API formats."""
     fields = extract_agent_fields(notif)
-    fields.update({
-        "type": (
-            notif.get("type")
-            or notif.get("kind")
-            or notif.get("event_type", "")
-        ),
-        "post_id": (
-            notif.get("post_id")
-            or notif.get("postId")
-            or notif.get("relatedPostId")
-            or notif.get("target_id", "")
-        ),
-        "post_content": (
-            notif.get("post_content")
-            or notif.get("postContent")
-            or notif.get("original_content", "")
-        ),
-    })
+    fields.update(
+        {
+            "type": (notif.get("type") or notif.get("kind") or notif.get("event_type", "")),
+            "post_id": (
+                notif.get("post_id")
+                or notif.get("postId")
+                or notif.get("relatedPostId")
+                or notif.get("target_id", "")
+            ),
+            "post_content": (
+                notif.get("post_content")
+                or notif.get("postContent")
+                or notif.get("original_content", "")
+            ),
+        }
+    )
     return fields
 
 
@@ -111,9 +106,7 @@ class ReplyHandler:
             return
 
         notifications = client.get_notifications()
-        logger.debug(
-            "Fetched %d notification(s) from API", len(notifications)
-        )
+        logger.debug("Fetched %d notification(s) from API", len(notifications))
 
         for i, notif in enumerate(notifications):
             logger.debug(
@@ -135,9 +128,7 @@ class ReplyHandler:
                 continue
             fields, reply_key = validated
 
-            self._handle_notification(
-                client, scheduler, fields, reply_key, i, end_time
-            )
+            self._handle_notification(client, scheduler, fields, reply_key, i, end_time)
 
         # Fallback: check comments on our own posts directly
         self.check_own_post_comments(client, scheduler, end_time)
@@ -151,15 +142,10 @@ class ReplyHandler:
         keeps its own logging / skip behavior.
         """
         key = f"reply:{post_id}:{comment_id}"
-        handled = (
-            key in self._ctx.commented_posts
-            or self._ctx.memory.has_commented_on(key)
-        )
+        handled = key in self._ctx.commented_posts or self._ctx.memory.has_commented_on(key)
         return key, handled
 
-    def _validated_notification(
-        self, notif: dict, i: int
-    ) -> Optional[Tuple[dict, str]]:
+    def _validated_notification(self, notif: dict, i: int) -> Optional[Tuple[dict, str]]:
         """Gate one notification; return (fields, reply_key) or None to skip.
 
         Skips non-actionable types, invalid post ids, and already-handled
@@ -182,9 +168,7 @@ class ReplyHandler:
 
         post_id = fields["post_id"]
         if not post_id or not VALID_ID_PATTERN.match(post_id):
-            logger.debug(
-                "Notification[%d] skipped: invalid post_id=%r", i, post_id
-            )
+            logger.debug("Notification[%d] skipped: invalid post_id=%r", i, post_id)
             return None
 
         reply_key, handled = self._reply_dedup(post_id, fields["id"])
@@ -217,11 +201,10 @@ class ReplyHandler:
         if not their_content and post_id:
             logger.debug(
                 "Notification[%d] has no content; fetching comments for %s",
-                i, post_id[:12],
+                i,
+                post_id[:12],
             )
-            self._handle_post_comments(
-                client, scheduler, post_id, end_time
-            )
+            self._handle_post_comments(client, scheduler, post_id, end_time)
             return
 
         if not their_content:
@@ -270,21 +253,15 @@ class ReplyHandler:
         # Promotional gate. _handle_post_comments passes original_post=""
         # (no body fetched in that path) — guard against running the regex
         # on an empty string just to return False.
-        if is_promotional(their_content) or (
-            original_post and is_promotional(original_post)
-        ):
-            logger.info(
-                "Skipped promotional reply target: %s", post_id[:12]
-            )
+        if is_promotional(their_content) or (original_post and is_promotional(original_post)):
+            logger.info("Skipped promotional reply target: %s", post_id[:12])
             return
 
         ctx = self._ctx
 
         # Pre-action reflection (ADR-0045): note what we noticed in their
         # comment (and the post it sits on) before composing a reply.
-        note_context = (
-            f"{original_post}\n\n{their_content}" if original_post else their_content
-        )
+        note_context = f"{original_post}\n\n{their_content}" if original_post else their_content
         note = generate_internal_note(note_context)
 
         generated = generate_reply(
@@ -295,9 +272,7 @@ class ReplyHandler:
         if reply is None:
             return
 
-        if not self._confirm_action(
-            f"Reply to {replier_name} on post {post_id}", reply
-        ):
+        if not self._confirm_action(f"Reply to {replier_name} on post {post_id}", reply):
             return
 
         # Record the incoming comment first (chronological order)
@@ -318,17 +293,13 @@ class ReplyHandler:
             # parent_id threads the reply under the comment being answered when
             # known (comment-scan path); the notification path has no comment id
             # so it posts a top-level comment (parent_id=None).
-            created = client.post_comment(
-                post_id, reply, parent_id=comment_id or None
-            )
+            created = client.post_comment(post_id, reply, parent_id=comment_id or None)
             scheduler.record_comment()
             # Verification handshake: a reply is invisible until the
             # create-response challenge is solved. On failure record nothing so
             # a later session can reply visibly; the inbound "received"
             # interaction above stays recorded (it happened regardless).
-            verification = (
-                created.get("verification") if isinstance(created, dict) else None
-            )
+            verification = created.get("verification") if isinstance(created, dict) else None
             if verification is not None and not self._handle_verification(verification):
                 logger.warning(
                     "Reply on %s created but verification failed; not recording",
@@ -342,21 +313,39 @@ class ReplyHandler:
             # the episode-scan fallback in _build_commented_cache stores post_ids,
             # not reply keys, so it does not dedup against pre-change replies.
             ctx.memory.record_commented(reply_key)
-            ctx.actions_taken.append(
-                f"Replied to {replier_name} on {post_id}"
-            )
+            ctx.actions_taken.append(f"Replied to {replier_name} on {post_id}")
+            # Preview only: full bodies in *.log become anomaly-sweep noise
+            # and cross the self-written-log trust boundary (F1.1 2026-07-11).
+            # Canonical full text: episode log below + comment-reports. Verbose
+            # (-v) runs emit the DEBUG full body: never redirect a -v run's
+            # output into the sweep-scanned logs dir.
             logger.info(
-                ">> Reply to %s on %s:\n%s", replier_name, post_id[:12], reply
+                ">> Reply to %s on %s: %d chars: %s",
+                replier_name,
+                post_id[:12],
+                len(reply),
+                log_preview(reply),
             )
-            ctx.memory.episodes.append("activity", {
-                "action": "reply", "post_id": post_id,
-                "content": reply, "target_agent": replier_name,
-                "target_agent_id": replier_id,
-                "their_comment": their_content,
-                "original_post": original_post,
-                "internal_note": note,
-                "thinking": generated.thinking,
-            })
+            logger.debug(
+                ">> Reply full body to %s on %s:\n%s",
+                replier_name,
+                post_id[:12],
+                reply,
+            )
+            ctx.memory.episodes.append(
+                "activity",
+                {
+                    "action": "reply",
+                    "post_id": post_id,
+                    "content": reply,
+                    "target_agent": replier_name,
+                    "target_agent_id": replier_id,
+                    "their_comment": their_content,
+                    "original_post": original_post,
+                    "internal_note": note,
+                    "thinking": generated.thinking,
+                },
+            )
             ctx.memory.record_interaction(
                 timestamp=datetime.now(timezone.utc).isoformat(),
                 agent_id=replier_id,
@@ -391,9 +380,7 @@ class ReplyHandler:
     ) -> None:
         """Fetch comments on a post and reply to unhandled ones."""
         comments = client.get_post_comments(post_id)
-        logger.debug(
-            "Post %s has %d comment(s)", post_id[:12], len(comments)
-        )
+        logger.debug("Post %s has %d comment(s)", post_id[:12], len(comments))
 
         for comment in comments:
             if time.time() >= end_time or self._ctx.is_rate_limited:
@@ -466,9 +453,7 @@ class ReplyHandler:
             self._handle_post_comments(client, scheduler, post_id, end_time)
 
             # Mark notifications as read for this post
-            if self._confirm_side_effect(
-                f"Mark notifications read for post {post_id}"
-            ):
+            if self._confirm_side_effect(f"Mark notifications read for post {post_id}"):
                 client.mark_notifications_read_by_post(post_id)
 
     def check_own_post_comments(

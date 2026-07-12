@@ -23,6 +23,26 @@ logger = logging.getLogger(__name__)
 
 MAX_SLUG_LENGTH = 50
 
+LOG_PREVIEW_LIMIT = 80
+
+_WS_RUN_RE = re.compile(r"\s+")
+
+
+def log_preview(text: str, limit: int = LOG_PREVIEW_LIMIT) -> str:
+    """Collapse text to a single truncated line safe for operational logs.
+
+    Generated bodies must not enter ``*.log`` verbatim: multi-line prose
+    becomes prefix-less continuation lines that the log-anomaly sweep
+    ingests as anomaly signatures, and full LLM output (downstream of
+    untrusted feed content) does not belong in the channel classified as
+    self-written (weekly 2026-07-11 F1.1). Full bodies live in the episode
+    log and comment-reports; logs get this preview.
+    """
+    collapsed = _WS_RUN_RE.sub(" ", text).strip()
+    if len(collapsed) <= limit:
+        return collapsed
+    return collapsed[:limit].rstrip() + "…"
+
 
 def slugify(title: str) -> str:
     """Convert a title to a filesystem-safe slug.
@@ -115,18 +135,10 @@ def synthesize_frontmatter(body: str, *, origin: str = "auto-extracted") -> str:
     # YAML double-quoted scalar: collapse whitespace and neutralise inner
     # double quotes so the synthesized line stays parseable.
     description = " ".join(description.split()).replace('"', "'")
-    return (
-        "---\n"
-        f"name: {name}\n"
-        f'description: "{description}"\n'
-        f"origin: {origin}\n"
-        "---"
-    )
+    return f'---\nname: {name}\ndescription: "{description}"\norigin: {origin}\n---'
 
 
-def read_markdown_bodies(
-    directory: Path, *, since: Optional[str] = None
-) -> List[Tuple[str, str]]:
+def read_markdown_bodies(directory: Path, *, since: Optional[str] = None) -> List[Tuple[str, str]]:
     """Return sorted ``(filename, frontmatter-stripped body)`` for ``*.md``.
 
     Skips dotfiles and empty bodies; logs a warning on unreadable files.
