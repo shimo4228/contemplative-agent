@@ -3,6 +3,11 @@ set -euo pipefail
 
 MOLTBOOK_HOME="${MOLTBOOK_HOME:-$HOME/.config/moltbook}"
 DATA_REPO="$HOME/MyAI_Lab/contemplative-agent-data"
+# Resolve once, before any cd: $0 may be relative, and the script cds into
+# $DATA_REPO before the HF block — a relative dirname breaks there (observed
+# 2026-07-12 on a manual relative-path invocation; launchd always passes an
+# absolute path, which is why it never surfaced).
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if [ ! -d "$DATA_REPO/.git" ]; then
     echo "ERROR: Data repo not found at $DATA_REPO" >&2
@@ -54,7 +59,7 @@ rsync -a --delete \
 # hard reject. Runs before git add; set -e makes a filter failure abort
 # the sync rather than commit a stale or half-written copy.
 MOLTBOOK_HOME="$MOLTBOOK_HOME" python3 \
-    "$(cd "$(dirname "$0")" && pwd)/export-patterns-jsonl.py" \
+    "$SCRIPT_DIR/export-patterns-jsonl.py" \
     "$DATA_REPO/knowledge.json" --format json
 
 # Git commit and push
@@ -95,7 +100,7 @@ if [ -n "$HF_DATASET" ] && [ -x "$HF_BIN" ] && [ -f "$KNOWLEDGE" ]; then
     TMP_JSONL="$(mktemp)"
     trap 'rm -f "$TMP_JSONL"' EXIT
     if MOLTBOOK_HOME="$MOLTBOOK_HOME" python3 \
-        "$(dirname "$0")/export-patterns-jsonl.py" "$TMP_JSONL"; then
+        "$SCRIPT_DIR/export-patterns-jsonl.py" "$TMP_JSONL"; then
         if "$HF_BIN" upload "$HF_DATASET" "$TMP_JSONL" patterns.jsonl \
             --repo-type dataset; then
             echo "HF projection synced to $HF_DATASET"
