@@ -37,6 +37,7 @@ rsync -a --delete \
     --exclude='rate_state.json' \
     --exclude='commented_cache.json' \
     --exclude='embeddings.sqlite' \
+    --exclude='knowledge.json' \
     --exclude='knowledge.backups/' \
     --exclude='*.bak.*' \
     --exclude='__pycache__/' \
@@ -45,6 +46,16 @@ rsync -a --delete \
     --exclude='.private/' \
     --exclude='.staged/' \
     "$MOLTBOOK_HOME/" "$DATA_REPO/"
+
+# knowledge.json is excluded from the rsync above and regenerated here
+# embedding-free (--format json): the 768-dim vectors are model-locked,
+# re-derivable from pattern text, and ~97% of the raw file's weight — the
+# raw copy had crossed GitHub's 50 MB warning on its way to the 100 MB
+# hard reject. Runs before git add; set -e makes a filter failure abort
+# the sync rather than commit a stale or half-written copy.
+MOLTBOOK_HOME="$MOLTBOOK_HOME" python3 \
+    "$(cd "$(dirname "$0")" && pwd)/export-patterns-jsonl.py" \
+    "$DATA_REPO/knowledge.json" --format json
 
 # Git commit and push
 cd "$DATA_REPO"

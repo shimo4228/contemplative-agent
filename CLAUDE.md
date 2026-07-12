@@ -124,7 +124,7 @@ Repo mapping:
 | GitHub | HF dataset |
 |---|---|
 | `shimo4228/contemplative-agent` ← **this repo** (local: `contemplative-agent/`) | [`Shimo4228/contemplative-agent`](https://huggingface.co/datasets/Shimo4228/contemplative-agent) |
-| `shimo4228/contemplative-agent-data`（graph.jsonld ではなく `patterns.jsonl` projection。`sync-data` が git push 後に `scripts/export-patterns-jsonl.py` で projection を生成し best-effort で `hf upload` する。dataset は `MOLTBOOK_HF_DATASET` env で上書き可（空文字で upload 無効化）。手動再生成は `python3 scripts/export-patterns-jsonl.py out.jsonl` → `hf upload`） | [`Shimo4228/contemplative-agent-data`](https://huggingface.co/datasets/Shimo4228/contemplative-agent-data) |
+| `shimo4228/contemplative-agent-data`（graph.jsonld ではなく `patterns.jsonl` projection。repo 側 `knowledge.json` も HF projection も **embedding-free**（2026-07-12〜、`export-patterns-jsonl.py` が export 境界で 768-dim vector を落とす — 再導出可能で raw の ~97% を占めるため）。`sync-data` が rsync 後に repo 用 `--format json` を生成し、git push 後に best-effort で `hf upload` する。dataset は `MOLTBOOK_HF_DATASET` env で上書き可（空文字で upload 無効化）。手動再生成は `python3 scripts/export-patterns-jsonl.py out.jsonl` → `hf upload`） | [`Shimo4228/contemplative-agent-data`](https://huggingface.co/datasets/Shimo4228/contemplative-agent-data) |
 | `shimo4228/agent-attribution-practice` | [`Shimo4228/agent-attribution-practice`](https://huggingface.co/datasets/Shimo4228/agent-attribution-practice) |
 | `shimo4228/agent-knowledge-cycle` | [`Shimo4228/agent-knowledge-cycle`](https://huggingface.co/datasets/Shimo4228/agent-knowledge-cycle) |
 | `shimo4228/shimo4228` (hub repo) | [`Shimo4228/research-program-hub`](https://huggingface.co/datasets/Shimo4228/research-program-hub) |
