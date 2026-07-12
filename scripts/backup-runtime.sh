@@ -18,6 +18,8 @@ set -euo pipefail
 
 MOLTBOOK_HOME="${MOLTBOOK_HOME:-$HOME/.config/moltbook}"
 BACKUP_REPO="${MOLTBOOK_BACKUP_REPO:-$HOME/MyAI_Lab/contemplative-agent-runtime-backup}"
+# Resolve before any cd (same lesson as sync-research-data.sh 2026-07-12).
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 if [ ! -d "$MOLTBOOK_HOME" ]; then
     echo "ERROR: MOLTBOOK_HOME not found at $MOLTBOOK_HOME" >&2
@@ -54,20 +56,33 @@ fi
 #   credentials.json             — the API secret; never in git, private or not
 #   .run.lock .staged.lock       — transient concurrency locks
 #   __pycache__/ .DS_Store       — junk
-# Everything else — logs/, knowledge.json (+ historical *.bak.*), embeddings,
-# reports/ (including .private/), snapshots/, skills/, views/, agents.json —
-# is state and goes in: a restore should need nothing but this repo plus a
-# re-issued credential.
+#   knowledge.json               — mirrored embedding-free below (the 768-dim
+#                                  vectors are re-derivable and ~97% of the
+#                                  raw file, which was heading for GitHub's
+#                                  100 MB hard limit; restore rebuilds them
+#                                  with scripts/restore-embed-knowledge.py).
+#                                  Historical *.bak.* stay as-is: static
+#                                  blobs, committed once, no churn.
+# Everything else — logs/, reports/ (including .private/), snapshots/,
+# skills/, views/, agents.json — is state and goes in: a restore should need
+# nothing but this repo, a re-issued credential, and one re-embed run.
 rsync -a --delete \
     --exclude='.git/' \
     --exclude='README.md' \
     --exclude='.gitignore' \
     --exclude='credentials.json' \
+    --exclude='knowledge.json' \
     --exclude='.run.lock' \
     --exclude='.staged.lock' \
     --exclude='__pycache__/' \
     --exclude='.DS_Store' \
     "$MOLTBOOK_HOME/" "$BACKUP_REPO/"
+
+# knowledge.json is excluded above and regenerated embedding-free (set -e
+# aborts the backup on filter failure rather than committing a stale copy).
+MOLTBOOK_HOME="$MOLTBOOK_HOME" python3 \
+    "$SCRIPT_DIR/export-patterns-jsonl.py" \
+    "$BACKUP_REPO/knowledge.json" --format json
 
 cd "$BACKUP_REPO"
 

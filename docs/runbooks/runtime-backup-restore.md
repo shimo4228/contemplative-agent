@@ -20,12 +20,20 @@ off-machine copy of those logs.
 | Excluded | Reason |
 |---|---|
 | `credentials.json` | API secret — never in git, private or not |
+| `knowledge.json` (raw) | mirrored **embedding-free** instead (see below) |
 | `.run.lock`, `.staged.lock` | transient concurrency locks |
 | `__pycache__/`, `.DS_Store` | junk |
 | `README.md`, `.gitignore` (repo side) | backup-repo static files |
 
-Everything else — `logs/`, `knowledge.json` (+ historical `*.bak.*`),
-`embeddings.sqlite`, `reports/`, `snapshots/`, `skills/`, `views/`,
+`knowledge.json` is regenerated into the mirror with the 768-dim embeddings
+dropped (since 2026-07-12, `scripts/export-patterns-jsonl.py --format json`):
+the vectors are model-locked (`nomic-embed-text`), fully re-derivable from
+pattern text, and ~97% of the raw file's weight — the raw copy had passed
+GitHub's 50 MB warning on its way to the 100 MB hard reject. Restore rebuilds
+them in one step (see procedure). Historical `*.bak.*` snapshots stay as-is:
+static blobs, committed once, no churn.
+
+Everything else — `logs/`, `reports/`, `snapshots/`, `skills/`, `views/`,
 `identity.md`, `constitution/`, `rules/`, `agents.json` — is mirrored.
 
 ## Security invariants
@@ -55,18 +63,35 @@ rm -rf ~/.config/moltbook/.git
 #    — re-register / copy from the secret store, then verify:
 contemplative-agent status
 
-# 5. Sanity checks
+# 5. Rebuild the pattern embeddings (the mirror stores knowledge.json
+#    embedding-free). Needs the project venv + Ollama running with the
+#    embedding model pulled. Idempotent; fails loudly without writing if
+#    the embedder is unreachable.
+cd ~/MyAI_Lab/contemplative-agent && uv run python scripts/restore-embed-knowledge.py
+
+# 6. Sanity checks
 contemplative-agent generate-report   # reads knowledge + logs end to end
 ```
 
-Last restore drill: 2026-07-11 (initial verification — clone, inventory diff
-against live home: 2575/2575 files with zero difference, knowledge.json JSON
-parse OK with sha256 identical to live).
+Restore drills:
+
+- 2026-07-11 (initial, pre-embedding-free): clone, inventory diff against
+  live home 2575/2575 files zero difference, knowledge.json JSON parse OK
+  with sha256 identical to live.
+- Since 2026-07-12 the mirror's `knowledge.json` is embedding-free, so a
+  drill's knowledge check is **no longer sha256-vs-live**. Verify instead:
+  JSON parse OK, row count matches live, and (after step 5) the
+  `missing_embedding` invariant passes. Re-derived vectors are only
+  bit-identical to the originals under the same Ollama/model version — the
+  store is self-consistent either way.
 
 ## Known limits
 
-GitHub warns on files over 50 MB and hard-blocks over 100 MB.
-`knowledge.json` (52 MB at the first backup, and growing) is the file to
-watch — if it approaches 100 MB, move it to Git LFS or address growth at the
-source (pattern-store compaction) before the push starts failing. The same
-limit applies to the public data repo, which also tracks `knowledge.json`.
+GitHub warns on files over 50 MB and hard-blocks over 100 MB. The two
+growth bombs were defused on 2026-07-12 by mirroring `knowledge.json`
+embedding-free here (57 MB → ~1.6 MB) and in the public data repo (same
+mechanism, `sync-research-data.sh`). Static already-committed blobs
+(`embeddings.sqlite.bak.*` 61 MB, historical `knowledge.json.bak.*`) remain
+in history but do not churn. If any *churning* file ever approaches 100 MB
+again, move it to Git LFS or address growth at the source before the push
+starts failing.
