@@ -97,6 +97,7 @@ git tracked = clone 先にも付いてくる repo 同梱の運用版 skill。CA 
 | `replayable-audit-logs` | なし（CA 固有） | ADR-0075 observability-by-default の設計ノウハウ（監査ログスキーマ・リプレイハーネス・ground truth 規律・修理ループ） |
 | `read-only-instruments` | なし（CA 固有） | 計器（ADR-0071 系 read-only 分布・読み値）の設計ノウハウ — 計器→介入の順序、signal-first の建立/撤去判断、3 点較正スケール、読み違えの罠 |
 | `shadow-mode-validation` | なし（CA 固有） | shadow-mode 検証（ADR-0076 系）の設計ノウハウ — 候補判断機構を観測専用で並走させ would-be 判断を記録し、enforcement をデータで決める。観測対象を抑止しない隔離（circuit_shield）、幻覚の一級データ化、kill switch 内蔵、exit 基準の予約 |
+| `chaos-tdd-fault-injection` | なし（CA 固有） | chaos-TDD（ADR-0077 系）の設計ノウハウ — 運用障害履歴から fault カタログを起こし、既存 seam（LLMBackend Protocol / requests 層）に決定論的に注入、fault テストが望ましいガード挙動を先に主張して最小ガードを同 PR で出荷する。production hook 新設禁止・実 sleep 禁止・telemetry/reason トークンでの定常状態 assert |
 | `apple-silicon-local-llm-serving` | なし（CA 固有） | Apple Silicon ローカル LLM ランタイム選択（mlx_lm.server vs Ollama）の判断軸 |
 | `agent-run` | なし（CA 固有） | `/agent-run <時間> [backend] [provider]` でエージェントをバックグラウンド起動。backend = ollama（既定）/ cloud（sibling `contemplative-agent-cloud`）/ mlx（sibling `contemplative-agent-mlx`、Apple Silicon 対話用）。silent fallback 禁止 |
 

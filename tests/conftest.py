@@ -35,6 +35,24 @@ os.environ["MOLTBOOK_HOME"] = str(_MOLTBOOK_TEST_HOME)
 os.environ["OLLAMA_BASE_URL"] = "http://127.0.0.1:1"
 os.environ.setdefault("OLLAMA_TRUSTED_HOSTS", "127.0.0.1")
 
+# Deterministic hypothesis runs (ADR-0077 chaos-TDD discipline):
+# derandomize derives examples from the test name (no wall-clock entropy,
+# identical output on every run), database=None disables the example DB,
+# deadline=None avoids flaky per-example timing failures on loaded CI
+# hosts. Known failure shapes are pinned with explicit @example(...)
+# decorators at each test site. The storage dir is relocated into the
+# sandbox tempdir BEFORE hypothesis is imported — database=None does not
+# cover the constants/unicode caches, which would otherwise create an
+# untracked .hypothesis/ in the repo.
+os.environ.setdefault("HYPOTHESIS_STORAGE_DIRECTORY", str(_MOLTBOOK_TEST_HOME / ".hypothesis"))
+
+from hypothesis import settings as _hyp_settings  # noqa: E402
+
+_hyp_settings.register_profile(
+    "ci", derandomize=True, max_examples=50, deadline=None, database=None
+)
+_hyp_settings.load_profile("ci")
+
 
 @pytest.fixture(autouse=True)
 def _reset_llm_circuit_breaker():
@@ -46,6 +64,7 @@ def _reset_llm_circuit_breaker():
     "Circuit breaker open" and return early before hitting the mock.
     """
     from contemplative_agent.core.llm import _circuit
+
     _circuit.reset()
     yield
     _circuit.reset()

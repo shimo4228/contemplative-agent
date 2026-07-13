@@ -1,4 +1,4 @@
-<!-- Generated: 2026-07-11 | Files scanned: 46 | Token estimate: ~5573 -->
+<!-- Generated: 2026-07-11 | Updated: 2026-07-13 (ADR-0077 distill abstain reason codes + error_kind telemetry) | Files scanned: 46 | Token estimate: ~5650 -->
 # Architecture
 
 ## Project Type
@@ -200,9 +200,18 @@ Per-episode distill  [ADR-0060; one LLM call per episode, no batching]
        meta-statements about inextractability — return [] instead; ADR-0072.
        Bug-audit 2026-07-06: a num_predict-capped generation is dropped —
        explicit per-episode failure — instead of silently parsing a cut JSON
-       body (H1; all internal pipelines now pass drop_truncated=True); a
-       shape-violating body (top-level array / non-list "patterns") falls
-       back to bullet parsing instead of crashing the whole run (H2))
+       body (H1; all internal pipelines now pass drop_truncated=True).
+       ADR-0077: every per-episode failure abstains with a reason code
+       (reason=llm_none / empty_render / shape_violation) — a valid-JSON
+       body violating {"patterns": [str]} (top-level array/scalar, non-list
+       or non-string "patterns") abstains as shape_violation instead of
+       bullet-scanning the JSON (H2 superseded for JSON bodies); the bullet
+       fallback survives only for genuinely non-JSON bodies, tagged
+       parse=bullet_fallback. The summary WARNING tallies abstains per
+       reason; embed-degradation carries reason=embed_failed. Chaos tests
+       (tests/chaos.py + test_llm_chaos.py / test_distill_chaos.py) pin the
+       fault catalog F1-F5, and llm-calls telemetry stamps a sparse
+       error_kind on failure rows)
     → _is_valid_pattern() gate: length floor + extraction-failure
       meta-statement phrase filter (validity, not value; rejects logged with
       reason; ADR-0072); provenance = that one episode's source_type + ts

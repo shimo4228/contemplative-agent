@@ -369,7 +369,9 @@ class TestDistill:
         with caplog.at_level(_logging.INFO, logger="contemplative_agent.core.distill"):
             distill(days=1, episode_log=log, knowledge_store=ks)
 
-        assert "1/2 episodes yielded no output" in caplog.text
+        # ADR-0077: the summary is tallied per abstain reason.
+        assert "1/2 episodes abstained" in caplog.text
+        assert "llm_none=1" in caplog.text
 
     @patch("contemplative_agent.core.distill.generate")
     def test_no_summary_warning_when_all_succeed(
@@ -431,36 +433,39 @@ class TestDistillJSONFallbackADR0021:
 
 
 class TestParsePatternsShapeGuards:
-    """Bug-audit 2026-07-06 H2/M2: ``_parse_patterns`` must never raise on a
-    syntactically-valid JSON value whose shape deviates from
+    """Bug-audit 2026-07-06 H2/M2 + ADR-0077 F3: ``_parse_patterns`` must
+    never raise on a syntactically-valid JSON value whose shape deviates from
     ``{"patterns": [...]}`` — a top-level array previously escaped the
     ``(JSONDecodeError, TypeError)`` catch as an uncaught ``AttributeError``,
-    crashing the whole scheduled distill run before ``knowledge.save()``."""
+    crashing the whole scheduled distill run before ``knowledge.save()``.
+    Since ADR-0077 these shapes classify as ``shape_violation`` (abstain)
+    instead of silently falling through to the bullet scanner. Exhaustive
+    shape fuzzing lives in test_distill_chaos.py."""
 
-    def test_top_level_array_does_not_raise(self):
+    def test_top_level_array_is_shape_violation(self):
         # Previously: parsed.get(...) on a list → AttributeError (uncaught).
-        result = _parse_patterns('["pattern one", "pattern two"]')
-        assert result == []
+        patterns, mode = _parse_patterns('["pattern one", "pattern two"]')
+        assert (patterns, mode) == ([], "shape_violation")
 
-    def test_top_level_scalar_does_not_raise(self):
-        assert _parse_patterns("42") == []
-        assert _parse_patterns('"just a string"') == []
-        assert _parse_patterns("null") == []
+    def test_top_level_scalar_is_shape_violation(self):
+        for raw in ("42", '"just a string"', "null"):
+            patterns, mode = _parse_patterns(raw)
+            assert (patterns, mode) == ([], "shape_violation")
 
     def test_patterns_value_string_is_not_iterated_charwise(self):
         # Previously: a string value iterated char-by-char.
         raw = json.dumps({"patterns": "one long pattern string here"})
-        assert _parse_patterns(raw) == []
+        assert _parse_patterns(raw) == ([], "shape_violation")
 
     def test_patterns_value_dict_is_not_iterated_keywise(self):
         # Previously: dict keys ≥30 chars could persist as garbage patterns.
         key = "a dict key long enough to pass the validity length gate check"
         raw = json.dumps({"patterns": {key: "value"}})
-        assert _parse_patterns(raw) == []
+        assert _parse_patterns(raw) == ([], "shape_violation")
 
     def test_valid_shape_still_parses(self):
         raw = json.dumps({"patterns": ["alpha pattern", "  beta  ", ""]})
-        assert _parse_patterns(raw) == ["alpha pattern", "beta"]
+        assert _parse_patterns(raw) == (["alpha pattern", "beta"], "json")
 
 
 class TestTruncationPolicyH1:
@@ -480,7 +485,8 @@ class TestTruncationPolicyH1:
                 "internal_note": "Noticed the concrete detail helped.",
             },
         }
-        assert _distill_one(record) is None
+        # ADR-0077: the dropped generation surfaces as a reason code.
+        assert _distill_one(record) == "llm_none"
         assert mock_generate.call_args.kwargs["drop_truncated"] is True
 
     @patch("contemplative_agent.core.distill.generate_full", return_value=None)
@@ -1176,7 +1182,7 @@ class TestDistillOne:
             },
         }
         out = _distill_one(record)
-        assert out is not None
+        assert not isinstance(out, str)  # success path returns _BatchOutput
         assert len(out.patterns) == 1
         assert out.source_type == "self_reflection"
         assert out.episode_ids == ("2026-06-23T10:00:00+00:00",)
@@ -1184,9 +1190,10 @@ class TestDistillOne:
         assert mock_generate.call_args.kwargs["format"]["required"] == ["patterns"]
 
     @patch("contemplative_agent.core.distill.generate", return_value=None)
-    def test_llm_none_returns_none(self, mock_generate):
+    def test_llm_none_returns_reason_code(self, mock_generate):
+        # ADR-0077: failures return an abstain reason, never a bare None.
         record = {"ts": "t", "type": "activity", "data": {"action": "comment", "content": "c"}}
-        assert _distill_one(record) is None
+        assert _distill_one(record) == "llm_none"
 
 
 class TestNoiseGateRemovedADR0060:

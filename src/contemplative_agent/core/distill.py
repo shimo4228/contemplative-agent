@@ -15,9 +15,10 @@ from __future__ import annotations
 
 import json as json_mod
 import logging
+from collections import Counter
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple, Union
+from typing import Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
@@ -82,6 +83,17 @@ _PATTERNS_SCHEMA = {
     "properties": {"patterns": {"type": "array", "items": {"type": "string"}}},
     "required": ["patterns"],
 }
+
+# Per-episode abstain reason codes (ADR-0075: failures carry a reason code,
+# no silent fallback; introduced by the ADR-0077 chaos-TDD pilot). Emitted in
+# machine-greppable WARNING lines ("reason=<code>") and tallied per-reason in
+# the distill summary. Literal-typed so a typo at a future call site fails
+# type check instead of silently minting a new reason.
+AbstainReason = Literal["llm_none", "empty_render", "shape_violation"]
+ParseMode = Literal["json", "bullet_fallback", "shape_violation"]
+ABSTAIN_LLM_NONE: AbstainReason = "llm_none"  # generate() returned None (fault or drop)
+ABSTAIN_EMPTY_RENDER: AbstainReason = "empty_render"  # episode rendered to an empty prompt
+ABSTAIN_SHAPE_VIOLATION: AbstainReason = "shape_violation"  # valid JSON, wrong shape
 
 # Embedding-based dedup thresholds live in ``core/thresholds.py`` since
 # ADR-0035 PR2; re-exported under the historical names here so existing call
@@ -479,52 +491,83 @@ def render_episode(record_type: str, data: dict) -> str:
     return header + "\n" + "\n\n".join(parts)
 
 
-def _parse_patterns(raw: str) -> List[str]:
-    """Parse per-episode LLM output into raw pattern strings (JSON, bullet fallback)."""
-    raw_patterns: List[str] = []
+# Sentinel distinguishing "not JSON at all" from a parsed JSON null, which
+# is a legitimate (wrong-shaped) JSON value and must abstain, not bullet-scan.
+_JSON_PARSE_FAILED = object()
+
+
+def _parse_patterns(raw: str) -> Tuple[List[str], ParseMode]:
+    """Parse per-episode LLM output into ``(patterns, parse_mode)``.
+
+    parse_mode is one of:
+
+    - ``"json"`` — the structured-output ``{"patterns": [str, ...]}`` shape.
+    - ``"shape_violation"`` — syntactically valid JSON deviating from that
+      shape (top-level array/scalar/null, missing or non-list ``patterns``,
+      or a non-string list item — the schema says ``items: string``). Yields
+      no patterns: bullet-scanning a JSON body almost always returns [],
+      which is indistinguishable from a legitimate empty extraction
+      (ADR-0077 F3; previously a silent fallback).
+    - ``"bullet_fallback"`` — non-JSON body scanned for ``- `` bullets. Kept
+      as graceful degradation for backends that ignore ``format=``
+      (bug-audit 2026-07-06 H2), now tagged for observability.
+    """
     json_text = strip_code_fence(raw)
     try:
         parsed: object = json_mod.loads(json_text)
     except (json_mod.JSONDecodeError, TypeError):
-        parsed = None
-    if isinstance(parsed, dict) and isinstance(parsed.get("patterns"), list):
-        for item in parsed["patterns"]:
-            text = str(item).strip() if item else ""
-            if text:
-                raw_patterns.append(text)
-    else:
-        if parsed is not None:
-            # Valid JSON but not the {"patterns": [...]} shape — a top-level
-            # array/scalar or a non-list "patterns" value. Never iterate it
-            # (a str iterates char-wise, a dict key-wise); log and fall back.
-            logger.warning(
-                "Distill output shape violation (top-level %s); using bullet fallback",
-                type(parsed).__name__,
-            )
-        # Fallback: bullet-point parsing
-        for line in raw.splitlines():
-            line = line.strip()
-            if line.startswith("- "):
-                pattern = line[2:].strip()
-                if pattern:
-                    raw_patterns.append(pattern)
-    return raw_patterns
+        parsed = _JSON_PARSE_FAILED
+    if parsed is not _JSON_PARSE_FAILED:
+        if (
+            isinstance(parsed, dict)
+            and isinstance(parsed.get("patterns"), list)
+            and all(isinstance(item, str) for item in parsed["patterns"])
+        ):
+            patterns = [item.strip() for item in parsed["patterns"] if item.strip()]
+            return patterns, "json"
+        # Valid JSON but not the {"patterns": [str, ...]} shape — never
+        # iterate it (a str iterates char-wise, a dict key-wise) and never
+        # bullet-scan it.
+        logger.warning(
+            "Distill output shape violation (top-level %s); abstaining",
+            type(parsed).__name__ if parsed is not None else "null",
+        )
+        return [], "shape_violation"
+    # Non-JSON body: bullet-point fallback (audit H2).
+    raw_patterns: List[str] = []
+    for line in raw.splitlines():
+        line = line.strip()
+        if line.startswith("- "):
+            pattern = line[2:].strip()
+            if pattern:
+                raw_patterns.append(pattern)
+    if raw_patterns:
+        logger.warning(
+            "Distill output was not JSON; recovered %d pattern(s) (parse=bullet_fallback)",
+            len(raw_patterns),
+        )
+    return raw_patterns, "bullet_fallback"
 
 
-def _distill_one(record: Dict) -> Optional[_BatchOutput]:
-    """Distill one engagement episode into its pattern(s); None on failure.
+def _distill_one(record: Dict) -> Union[_BatchOutput, AbstainReason]:
+    """Distill one engagement episode; ``_BatchOutput`` or an abstain reason.
 
     ADR-0060: a single LLM call over the rich, world-grounded render of one
     episode. Structured output (``format=``) constrains the model to the
-    ``{"patterns": [...]}`` shape, so the malformed-JSON the old 2-step
-    bullet fallback absorbed cannot occur. Per-episode provenance (one
-    episode's source kind and timestamp) replaces the per-batch summary.
+    ``{"patterns": [...]}`` shape, but a backend can still emit valid JSON
+    of the wrong shape — that abstains with ``reason=shape_violation``
+    instead of silently degrading (ADR-0077 F3). Failures return an
+    ``ABSTAIN_*`` reason code, never a bare None, so the caller tallies
+    them per reason (ADR-0075). Per-episode provenance (one episode's
+    source kind and timestamp) replaces the per-batch summary.
     """
     record_type = record.get("type", "unknown")
     data = record.get("data", {}) or {}
+    ts = record.get("ts", "")
     rendered = render_episode(record_type, data)
     if not rendered:
-        return None
+        logger.warning("Episode distill abstained: reason=%s ts=%s", ABSTAIN_EMPTY_RENDER, ts[:16])
+        return ABSTAIN_EMPTY_RENDER
 
     source_type = _derive_source_type([record])
     prompt = DISTILL_EPISODE_PROMPT.format(episode=rendered)
@@ -538,16 +581,20 @@ def _distill_one(record: Dict) -> Optional[_BatchOutput]:
         drop_truncated=True,
     )
     if result is None:
-        logger.warning("Episode distill failed (LLM returned None)")
-        return None
+        logger.warning("Episode distill abstained: reason=%s ts=%s", ABSTAIN_LLM_NONE, ts[:16])
+        return ABSTAIN_LLM_NONE
 
-    raw_patterns = _parse_patterns(result)
+    raw_patterns, parse_mode = _parse_patterns(result)
+    if parse_mode == "shape_violation":
+        logger.warning(
+            "Episode distill abstained: reason=%s ts=%s", ABSTAIN_SHAPE_VIOLATION, ts[:16]
+        )
+        return ABSTAIN_SHAPE_VIOLATION
 
     # Decision gate: reject low-quality patterns
     patterns = [p for p in raw_patterns if _is_valid_pattern(p)]
     rejected = len(raw_patterns) - len(patterns)
 
-    ts = record.get("ts", "")
     logger.info(
         "Episode %s (prompt %d chars) → %d patterns (%d rejected)",
         ts[:16],
@@ -582,12 +629,12 @@ def _distill_episodes(
 
     provenance: List[_PatternProvenance] = []
     all_results: List[str] = []
-    failed = 0
+    abstained: Counter[str] = Counter()
 
     for record in records:
         out = _distill_one(record)
-        if out is None:
-            failed += 1
+        if isinstance(out, str):
+            abstained[out] += 1
             continue
         all_results.append(out.refined)
         # ADR-0021/0060: provenance is per-episode — each pattern carries the
@@ -601,17 +648,22 @@ def _distill_episodes(
                 )
             )
 
-    # Bug-audit 2026-07-06 round 2 (observability candidate 1): a partial
-    # Ollama flake drops episodes silently at the per-episode level — one
-    # aggregate line distinguishes it from a clean low-yield run. The
-    # episodes are not retried; their content is only reachable in a
+    # Bug-audit 2026-07-06 round 2 (observability candidate 1) + ADR-0077:
+    # a partial Ollama flake drops episodes at the per-episode level — one
+    # aggregate line, tallied per abstain reason, distinguishes a backend
+    # fault burst from a parse-layer problem and from a clean low-yield run.
+    # The episodes are not retried; their content is only reachable in a
     # future run if the window still covers them.
-    if failed:
+    if abstained:
         logger.warning(
-            "Episode distill summary: %d/%d episodes yielded no output "
-            "(LLM failure or empty render); their patterns are lost for this run",
-            failed,
+            "Episode distill summary: %d/%d episodes abstained "
+            "(llm_none=%d shape_violation=%d empty_render=%d); "
+            "their patterns are lost for this run",
+            sum(abstained.values()),
             len(records),
+            abstained[ABSTAIN_LLM_NONE],
+            abstained[ABSTAIN_SHAPE_VIOLATION],
+            abstained[ABSTAIN_EMPTY_RENDER],
         )
     else:
         logger.info("Episode distill summary: all %d episodes produced output", len(records))
@@ -626,7 +678,8 @@ def _distill_episodes(
     new_embeddings_arr = embed_texts(all_patterns)
     if new_embeddings_arr is None or new_embeddings_arr.shape[0] != len(all_patterns):
         logger.warning(
-            "Failed to embed %d new patterns; storing without embedding (dedup degraded)",
+            "Failed to embed %d new patterns; storing without embedding "
+            "(dedup degraded, reason=embed_failed)",
             len(all_patterns),
         )
         new_embeddings: List[Optional[np.ndarray]] = [None] * len(all_patterns)

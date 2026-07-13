@@ -1143,6 +1143,7 @@ def _generate_via_backend(
     except Exception as exc:  # backend may raise on unexpected failure
         logger.error("Backend generate() raised: %s", exc)
         _circuit.record_failure()
+        tel["error_kind"] = "backend_exception"
         return None
     if result is None or not result.text.strip():
         logger.warning("Backend returned empty response")
@@ -1172,6 +1173,22 @@ def _generate_via_backend(
     return _finalize_ok(result.text, result.thinking, max_length, think, tel)
 
 
+def _classify_request_error(exc: requests.RequestException) -> str:
+    """Coarse transport-fault class for telemetry (ADR-0077).
+
+    Before this, 429 / timeout / connection-refused / bad body all collapsed
+    into ``outcome="error"`` and were indistinguishable offline. The class
+    is sparse telemetry metadata only — it drives no gate or retry.
+    """
+    if isinstance(exc, requests.exceptions.HTTPError) and exc.response is not None:
+        return f"http_{exc.response.status_code}"
+    if isinstance(exc, requests.exceptions.Timeout):
+        return "timeout"
+    if isinstance(exc, requests.exceptions.ConnectionError):
+        return "connection"
+    return "request_error"
+
+
 def _post_ollama(
     prompt: str,
     system_prompt: str,
@@ -1184,13 +1201,16 @@ def _post_ollama(
     """POST to Ollama and parse the JSON body; None on any failure.
 
     Every failure path (bad URL, transport error, unparsable body, empty
-    response) records a circuit failure.
+    response) records a circuit failure and stamps ``tel["error_kind"]``
+    (sparse: present on failure rows only) so telemetry can tell fault
+    kinds apart (ADR-0077).
     """
     try:
         base_url = _get_ollama_url()
     except ValueError as exc:
         logger.error("Invalid Ollama URL: %s", exc)
         _circuit.record_failure()
+        tel["error_kind"] = "bad_url"
         return None
 
     url = f"{base_url}/api/generate"
@@ -1217,6 +1237,7 @@ def _post_ollama(
     except requests.RequestException as exc:
         logger.error("Ollama request failed: %s", exc)
         _circuit.record_failure()
+        tel["error_kind"] = _classify_request_error(exc)
         return None
 
     try:
@@ -1225,6 +1246,7 @@ def _post_ollama(
     except (json.JSONDecodeError, KeyError) as exc:
         logger.error("Failed to parse Ollama response: %s", exc)
         _circuit.record_failure()
+        tel["error_kind"] = "bad_json"
         return None
 
     if not raw_text.strip():

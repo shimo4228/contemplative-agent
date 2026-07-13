@@ -2189,6 +2189,22 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0077-chaos-tdd-fault-injection.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0077: Chaos-TDD Fault Injection — Seeded Fault Schedules as Test-First Specification (Pilot: distill)",
+      "identifier": "ADR-0077",
+      "status": "accepted",
+      "datePublished": "2026-07-13",
+      "description": "Establishes deterministic chaos-TDD fault injection for the distill pipeline: faults are injected only at the two existing seams (a test-side ChaosBackend implementing the LLMBackend Protocol with explicit or seed-derived fault schedules, and the requests HTTP layer via the responses library), never via a production hook. Five previously-untested fault classes are pinned — F1 mid-generation read-timeout, F2 direct /api/embed HTTP faults, F3 syntactically-valid JSON violating the {\"patterns\": [str]} structured-output shape, F4 HTTP 429 from the Ollama endpoint itself (fail-fast pinned: no retry, no Retry-After sleep — the circuit breaker is the recovery mechanism for a local daemon), F5 flapping success/failure sequences. The TDD contract: a chaos test states the desired guarded behavior first, and the minimal guard lands in the same PR. Production deltas shipped: distill abstain reason codes (llm_none / empty_render / shape_violation; valid-JSON-wrong-shape abstains instead of silently bullet-scanning, while the bullet fallback is retained for non-JSON bodies; per-reason summary tally; reason=embed_failed token) and a sparse error_kind telemetry field (timeout / connection / http_<status> / bad_json / bad_url / request_error / backend_exception) so llm-calls JSONL distinguishes fault kinds offline. Determinism discipline: hypothesis under a derandomized ci profile with pinned @example regressions, no real sleeps (latency = injected ReadTimeout), storage relocated to the pytest sandbox. Rejected altitudes: chaostoolkit/toxiproxy (infra-level), production random chaos (episode logs are irreplaceable research material). Know-how captured as project skill chaos-tdd-fault-injection.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0060-per-episode-grounded-distill.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",

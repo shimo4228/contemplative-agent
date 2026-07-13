@@ -10,8 +10,15 @@ from __future__ import annotations
 
 import numpy as np
 import pytest
+import responses as responses_lib
 
-from contemplative_agent.core.embeddings import cosine
+from contemplative_agent.core.embeddings import cosine, embed_texts
+from tests.chaos import (
+    add_embed_429,
+    add_embed_ragged,
+    add_embed_short,
+    add_embed_timeout,
+)
 
 
 class TestCosine:
@@ -66,3 +73,35 @@ class TestCalibrationDriftNote:
         assert "some-other-768d-model" in note
         assert "nomic-embed-text" in note
         assert "0.554" in note  # anchors travel with the warning
+
+
+class TestEmbedTextsHTTPFaults:
+    """ADR-0077 F2: direct HTTP-layer faults on /api/embed (previously only
+    the indirect embed_texts-returns-None path was covered). All faults must
+    degrade to None — callers treat None as "skip similarity work"."""
+
+    @responses_lib.activate
+    def test_429_returns_none(self):
+        add_embed_429(responses_lib.mock)
+        assert embed_texts(["some text"]) is None
+
+    @responses_lib.activate
+    def test_read_timeout_returns_none(self):
+        add_embed_timeout(responses_lib.mock)
+        assert embed_texts(["some text"]) is None
+
+    @responses_lib.activate
+    def test_ragged_rows_return_none(self):
+        # Rows of unequal dimension: np.asarray(dtype=float32) must fail
+        # inside embed_texts, not propagate a ValueError to the caller.
+        add_embed_ragged(responses_lib.mock)
+        assert embed_texts(["a", "b"]) is None
+
+    @responses_lib.activate
+    def test_short_row_count_parses_but_mismatches(self):
+        # M < N rows parse fine — the length mismatch is the CALLER's guard
+        # (distill checks shape[0] != len; see test_distill_chaos.py).
+        add_embed_short(responses_lib.mock, n_returned=1)
+        result = embed_texts(["a", "b", "c"])
+        assert result is not None
+        assert result.shape[0] == 1
