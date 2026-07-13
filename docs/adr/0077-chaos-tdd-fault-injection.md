@@ -150,10 +150,11 @@ same fault coverage reproducibly, without touching the running system.
 - Telemetry distinguishes 429 / timeout / connection / bad-body /
   backend-exception failures offline, where previously all four
   collapsed into one undifferentiated `outcome="error"`.
-- Five previously-untested fault classes are pinned by 40 deterministic
+- Five previously-untested fault classes are pinned by 32 deterministic
   chaos tests (`tests/test_llm_chaos.py`, `tests/test_distill_chaos.py`,
-  `TestEmbedTextsHTTPFaults` in `tests/test_embeddings.py`) plus
-  `hypothesis` fuzzing with pinned `@example` regressions. The flapping-
+  `TestEmbedTextsHTTPFaults` in `tests/test_embeddings.py`; count via
+  `pytest --collect-only`, 2026-07-13) plus `hypothesis` fuzzing with
+  pinned `@example` regressions. The flapping-
   circuit sequences and the fail-fast-on-429 policy are now executable
   specification, not tribal knowledge.
 - The fault catalog (`tests/chaos.py` vocabulary) gives future pipelines

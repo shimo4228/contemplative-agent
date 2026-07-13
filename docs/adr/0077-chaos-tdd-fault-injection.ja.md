@@ -65,7 +65,7 @@ Phase 0 の外部調査（2026-07-13）は **Compose** verdict を返した: `hy
 
 - shape は違反しているが parse は通る LLM 出力が、空の bullet スキャンへ黙って劣化しなくなった。`reason=shape_violation` で声を上げて abstain し、正当な空抽出と区別できる。
 - テレメトリが 429 / timeout / 接続失敗 / 不正ボディ / backend 例外をオフラインで判別できる。以前はすべてが無差別の `outcome="error"` に潰れていた。
-- 未テストだった 5 つの fault クラスが 40 本の決定論的 chaos テスト（`tests/test_llm_chaos.py`、`tests/test_distill_chaos.py`、`tests/test_embeddings.py` の `TestEmbedTextsHTTPFaults`）と、`@example` で pin した hypothesis fuzz で固定された。flapping-circuit の系列と 429 への fail-fast 方針は、暗黙知ではなく実行可能な仕様になった。
+- 未テストだった 5 つの fault クラスが 32 本の決定論的 chaos テスト（`tests/test_llm_chaos.py`、`tests/test_distill_chaos.py`、`tests/test_embeddings.py` の `TestEmbedTextsHTTPFaults`。本数は `pytest --collect-only` で実測、2026-07-13）と、`@example` で pin した hypothesis fuzz で固定された。flapping-circuit の系列と 429 への fail-fast 方針は、暗黙知ではなく実行可能な仕様になった。
 - fault カタログ（`tests/chaos.py` の語彙）は将来のパイプラインに再利用可能な注入キットを与える。ノウハウは project skill `chaos-tdd-fault-injection` として捕捉した。
 
 ### Negative
