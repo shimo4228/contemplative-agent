@@ -62,6 +62,7 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 - **Import 方向**: `core/` ← `adapters/` ← `cli.py` の一方向依存。`cli.py` のみ両方を import。根拠は [ADR-0001](docs/adr/0001-core-adapter-separation.md)、運用規約は [architecture.md#Import-Rule](docs/CODEMAPS/architecture.md#import-rule)
 - **プロンプト外出し**: LLM が読む指示テキストはコードにハードコードせず `config/prompts/*.md` に置く（`config/prompts/` は固定 apparatus、値層 skills/rules/identity/constitution が観察対象）。入力サニタイズ変換（`_INJECTION_TOKENS` 等、LLM が読む前に作用するもの）はコードに残す。根拠は [ADR-0003](docs/adr/0003-config-directory-design.md) / [ADR-0054](docs/adr/0054-externalize-llm-instruction-text-to-prompts.md)
 - **Observability by default**: 外部 I/O・LLM 呼び出し・非決定的判定を含む機能は、リプレイ可能な監査ログ（append-only JSONL、untrusted 原文は base64 + sha256、abstain/失敗に理由コード、silent fallback 禁止）を**機能と同じ PR で**出荷する。Verify で問う: 「誤動作したときどのログが理由に答えるか。オフラインでリプレイできるか」。設計ノウハウは skill `replayable-audit-logs`（イベントログ）/ `read-only-instruments`（計器 = 保存データ全体への read-only 読み値）、根拠は [ADR-0075](docs/adr/0075-observability-by-default.md) / [ADR-0071](docs/adr/0071-read-only-pattern-composition-instruments.md)
+- **Chaos-TDD by default（発火条件は上と同じ）**: LLM 呼び出し・外部 I/O・untrusted 応答の parse を含む機能は、fault column（決定論的 fault-injection テスト — 想定外応答時の望ましいガード挙動を先に主張する）を**機能と同じ PR で**出荷する。新しいチェーン段ではなく TDD ステップ内の規律。Verify で問う: 「この機能の fault カタログ行はどこか。想定外応答に理由コード付きで abstain するか」。注入キットは `tests/chaos.py`（ChaosBackend + responses ヘルパー + hypothesis 戦略）、設計ノウハウは skill `chaos-tdd-fault-injection`、根拠は [ADR-0077](docs/adr/0077-chaos-tdd-fault-injection.md)
 
 ## セキュリティ方針
 
