@@ -20,3 +20,4 @@ Articles written during Contemplative Agent's development, in chronological orde
 16. [Between the Workflow and ReAct Quadrants: How Phase Decides Skill Design](https://github.com/shimo4228/zenn-content/blob/main/articles-en/react-agent-business-quadrant-4.md)
 17. [Why Did My Agent Decide That? 3 Observability Patterns](https://github.com/shimo4228/zenn-content/blob/main/articles-en/agent-observability-patterns.md)
 18. [Building an Autonomous Agent on an M1 Mac, by Choice](https://github.com/shimo4228/zenn-content/blob/main/articles-en/small-llm-by-choice.md)
+19. [Fault Injection TDD Found 3 Silent Failures in My LLM Agent](https://github.com/shimo4228/zenn-content/blob/main/articles-en/chaos-tdd-fault-injection.md)
