@@ -1,3 +1,5 @@
+Language: English | [日本語](DEVELOPMENT-RECORDS.ja.md)
+
 # Development Records
 
 Articles written during Contemplative Agent's development, in chronological order. They trace the project's design history — from the initial scratch build through the memory-architecture experiments to the accountability framing that later became [AAP](https://github.com/shimo4228/agent-attribution-practice) and the observability discipline later published as [agent-observability-patterns](https://github.com/shimo4228/agent-observability-patterns). English sources live in the [zenn-content](https://github.com/shimo4228/zenn-content) repository.
