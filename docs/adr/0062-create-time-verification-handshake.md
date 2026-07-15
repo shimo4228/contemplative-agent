@@ -168,6 +168,57 @@ with the lost-correct regressions from the new rules driven back to zero),
 order, audit telemetry, and output trust boundary unchanged — a mechanism
 amendment.
 
+Eighth amendment 2026-07-15: solver hardened from the post-round-7 failure
+round (448 records after 2026-07-10, 31 rejected answers, 6.9%; five from
+`code_parse` itself — the class the hard gate exists to prevent). Failure
+decoding split three ways. (1) Parser round-8 grammar, one rule per live
+wrong: a 4-5 letter token one edit from a COLLAPSED number word
+("thyree"/"qthreee") sat below the round-7 collapsed-fuzzy floor and
+dropped silently — it now poisons the parse (abstain; recovery-as-a-value
+stays out until the replay corpus shows zero false matches); "five point
+five" composes a decimal operand via a new `point` lexeme (whose absence
+had also let `_dedup_numbers` merge the two fives), with a non-composable
+point adjacent to an operand abstaining and a distant one staying scene
+noise; multiplicative markers additionally match at one adjacent
+TRANSPOSITION ("duoubbles" → "duobles" vs "doubles" — Damerau 1,
+Levenshtein 2, invisible to the round-7 fuzzy); a restated compound
+quantity ("swims at twenty three … speed is twenty three, and speeds up by
+seven") collapses at the operand level when the gap holds no event — the
+operand-level extension of `_dedup_numbers` — with the mangled restatement
+verb "speed is" (merged "speedis", one edit from "speeds") added to the
+fuzzy stopwords so it cannot fill the gap as an op. (2) Rejected-answer
+memory: the live corpus contains sha-identical challenge repeats where the
+solver resubmitted the exact same rejected answer; each solve now consults
+the audit log's server-rejection records (single source of truth, no second
+store; incremental append-only reads keyed on a byte offset; fails open) —
+a rejected code_parse/llm_extract candidate falls through to the next path,
+and when every path lands on a rejected value the solver abstains
+(`answer_previously_rejected`) instead of burning failure-tracker budget on
+a guaranteed 400. (3) LLM distractor discipline: 26 of the 31 failures were
+LLM-path unit confusions (velocity summed or multiplied into a "total
+force" question; "total" answered with subtraction) — both prompts (and
+their re-synced in-code fallback defaults) now pin number selection to the
+unit the question names, keep the round-7 explicit-pair exception ("sum of
+these" still adds unlike units), state that "total" never subtracts, and
+carry one worked distractor example from the live failures; LLM-path effect
+is measured on the next live round (the replay harness covers only
+code_parse). The review round (python-reviewer + codex cross-model) closed
+four seams the failure corpus alone could not surface: only records
+carrying the server's incorrect-answer message count as rejections
+(verify_success=false is also written for transport failures, where the
+answer may be correct); a multi-digit or duplicated fractional part
+("point five five") abstains instead of composing .5; the restatement
+collapse requires the copula ("speed IS twenty three"), so two genuine
+equal quantities in scene prose never merge; and the audit log is read
+incrementally rather than reparsed per solve (every verify appends to it,
+which defeated a whole-file mtime cache). Validation: hard gate PASS on
+1272 challenges (1045 correct,
+zero wrong, coverage 82.5%); the round-7 parser replayed on the same corpus
+scores WRONG 5 — round 8 eliminates all five with net positive coverage
+(82.4% → 82.5%). 174 tests green including the five wrongs as base64
+fixtures. Solver order, audit telemetry, and output trust boundary
+unchanged — a mechanism amendment, per the third amendment's precedent.
+
 ## Date
 
 2026-06-26

@@ -16,7 +16,9 @@ from contemplative_agent.adapters.moltbook.verification import (
     _compute_expression_answer,
     _extract_answer,
     _extract_guarded_answer,
+    _load_rejected_answers,
     _reasoning_answer_is_self_consistent,
+    _sha256_text,
     _verification_audit_record,
     record_verification_audit,
     solve_challenge,
@@ -239,6 +241,61 @@ _AUDIT_HAS_BARE_COUNT_B64 = (
 # two claws" = 50.00 ACCEPTED for 25×2); with the noun mangled away the
 # reading is ambiguous: abstain (None). The implicit-add answer 25.00 was
 # REJECTED (twice, 2026-07-08).
+
+
+# Regression fixtures from logs/verification-audit.jsonl (2026-07-10..07-14):
+# the post-round-7 failure round (ADR-0062, 8th amendment) — the five
+# challenges where code_parse itself submitted a wrong answer. Expected
+# answers follow from explicit arithmetic wording plus the server's
+# rejection of the submitted reading; abstain (None) is expected where no
+# deterministic reading survives.
+_AUDIT_R8_THYREE_MUL_B64 = (
+    "VGhJc10gbE9vTyBiUyB0RXJSXiBjTGFXLSBmTyByQ2V9IElzIHRIaVIgdFkgdEh5UmVF"
+    "fiBOZVd0T25TPCAqIHRXIG9PfCwgd0hhVC8gaVMgdEhlXSBUb1RhTF4gZk9yQ2VcPw=="
+)  # "...force is thir ty thyree newtons * two, what is the total force?"
+# — "thyree" (collapsed "thyre", 5 letters) sat below the collapsed-fuzzy
+# floor, dropped silently, and 30 × 2 = 60.00 was submitted — REJECTED.
+# Round 8 poisons a 4-5 letter near-miss of a collapsed number word:
+# abstain (None), never 60.00 (the true 33 × 2 = 66 needs the LLM chain).
+
+_AUDIT_R8_QTHREE_B64 = (
+    "QV0gTG9CLXNUIGVSXiBDbEF3fCBGb1JjRS0gSXNdIFR3RSBuVHkgcVRoUmVFZV4gTm9P"
+    "dE9uUy8gQW5EfiBJdH0gR2FBaU4gc3wgRmlWIGUsIFdoQXQ8IElzXSBUb1RhTC0gRm9S"
+    "Y0V+Pw=="
+)  # "...force is twe nty qthreee nootons and it gains five, what is total
+# force?" — "qthreee" (collapsed "qthre") dropped the same way and
+# 20 + 5 = 25.00 was submitted — REJECTED. Same poison rule: abstain.
+
+_AUDIT_R8_POINT_FIVE_B64 = (
+    "QV0gbE9vT2JTLXRFciBTXndJbVNbIGFULyB0V2VOdFkgdEhyRWVdIGNFbU1lTi10RXJz"
+    "LyBwRXJdIHNFY09uRCBhTmQvIGdBaU5zXSBmSXZFIHBPaU50IEYgaVZlLCB3SGFUXSBJ"
+    "c14gdEhlLyBuRXctIHZFbE9jSXRZPw=="
+)  # "...swims at twenty three cementers per second and gains five point
+# f ive, what is the new velocity?" = 28.50 ("point" previously produced
+# no event, so _dedup_numbers merged the two fives and 23 + 5 = 28.00 was
+# submitted — REJECTED).
+
+_AUDIT_R8_RESTATED_SPEED_B64 = (
+    "QV0gTG8ub0JTdC1FclNed0ltUyBhVC8gdFdlTiB0WSBUaFJlRWUgbG9vb2Jzc3NzdGVy"
+    "IHZlbEF3Y0l0RWUsIFVtLSBTcEVlRF0gaVMgdFdlTnRZIFRoUmVFLCBBbkQvIEl0UyBe"
+    "c1BlRWQgU3BFZURzLSBVcCBCeSBTZVZlTiwgSG9XLyBtVWNIIE5vVz8gPCA+IHsgfSBc"
+    "IHwgfg=="
+)  # "...swims at twen ty threee ... speed is twenty three, and its speed
+# speeds up by seven, how much now?" = 30.00 (the restated "twenty three"
+# was counted twice — "speed is" merged to "speedis" and fuzzy-matched the
+# op "speeds", filling the gap — and 23 + 23 + 7 = 53.00 was submitted —
+# REJECTED. Round 8: "speedis" is a fuzzy stopword, and equal-value
+# operands with an event-free gap collapse like _dedup_numbers does).
+
+_AUDIT_R8_DUOBLES_B64 = (
+    "VGhdSXMgTG9eb0JvU3NULUVyUyBDbEF3XiBGb1JjRSBJcyBUdyBFblR5IEZpVmUgTm9v"
+    "T3RPblMsIFVtLSBBbkQgRHVPdUJiTGVTIEJ5IFRoUmVFIC8gV2hBdFMgVG9UYUwgRm9S"
+    "Y2U/"
+)  # "...claw force is tw enty five nootons, um and duoubbles by three,
+# whats total force?" = 75.00 ("duoubbles" collapses to "duobles" — an
+# adjacent transposition of "doubles", invisible to plain distance-1
+# fuzzy — so the marker dropped and 25 + 3 = 28.00 was submitted —
+# REJECTED. Round 7 twin: "doubled by two" = multiply, ACCEPTED shape).
 
 
 def _decode_untrusted(challenge_b64: str) -> str:
@@ -980,6 +1037,147 @@ class TestCodeParse:
         challenge = _decode_untrusted(fixture_b64)
         assert code_parse_challenge(challenge) is None
 
+    # --- Round 8 (2026-07-15): regressions on the five post-round-7
+    # challenges where code_parse itself submitted a wrong answer. See the
+    # _AUDIT_R8_*_B64 fixture comments for per-case provenance.
+
+    @pytest.mark.parametrize(
+        "fixture_b64,expected",
+        [
+            (_AUDIT_R8_POINT_FIVE_B64, "28.50"),
+            (_AUDIT_R8_RESTATED_SPEED_B64, "30.00"),
+            (_AUDIT_R8_DUOBLES_B64, "75.00"),
+        ],
+        ids=[
+            "point-five-decimal",
+            "restated-operand-collapses",
+            "duobles-transposed-marker",
+        ],
+    )
+    def test_regression_round8_corpus_failures_parse(self, fixture_b64, expected):
+        challenge = _decode_untrusted(fixture_b64)
+        assert code_parse_challenge(challenge) == expected
+
+    @pytest.mark.parametrize(
+        "fixture_b64",
+        [_AUDIT_R8_THYREE_MUL_B64, _AUDIT_R8_QTHREE_B64],
+        ids=["thyree-near-miss-poisons", "qthree-near-miss-poisons"],
+    )
+    def test_regression_round8_number_near_miss_abstains(self, fixture_b64):
+        # A 4-5 letter token one edit from a COLLAPSED number word used to
+        # drop silently (below _FUZZY_MIN_NUM_COLLAPSED), leaving a
+        # confident wrong answer. Round 8 poisons the parse instead.
+        challenge = _decode_untrusted(fixture_b64)
+        assert code_parse_challenge(challenge) is None
+
+    @pytest.mark.parametrize(
+        "challenge,expected",
+        [
+            # Decimal composition: integer part + "point" + unit digit.
+            (
+                "a lobster swims at twenty three cm per second and gains"
+                " five point five, what is the new velocity?",
+                "28.50",
+            ),
+            # The integer part may itself be a tens+unit compound.
+            (
+                "a lobster claw force is twenty three point five newtons"
+                " plus four newtons, what is the total force?",
+                "27.50",
+            ),
+            # A transposed marker ("duobles" -> doubles) still multiplies.
+            (
+                "the claw force is twenty five nootons and duoubbles by three, whats total force?",
+                "75.00",
+            ),
+            # Equal-value operands with an event-free gap collapse to one
+            # (the operand-level extension of _dedup_numbers).
+            (
+                "a lobster swims at twenty three velocity um speed is"
+                " twenty three, and its speed speeds up by seven, how much"
+                " now?",
+                "30.00",
+            ),
+        ],
+        ids=[
+            "point-decimal-simple",
+            "point-decimal-compound-integer",
+            "duobles-marker-fuzzy",
+            "equal-operand-restatement",
+        ],
+    )
+    def test_round8_grammar(self, challenge, expected):
+        assert code_parse_challenge(challenge) == expected
+
+    @pytest.mark.parametrize(
+        "challenge",
+        [
+            # A 4-5 letter near-miss of a collapsed number word poisons the
+            # whole parse (silent drop = confident wrong answer).
+            "the claw force is thirty thyree newtons * two, what is the total force?",
+            "claw force is twe nty qthreee nootons and it gains five, what is total force?",
+            # A dangling "point" with no unit digit after it is an
+            # unmodeled decimal — abstain, never guess.
+            "a claw exerts twenty three point newtons and gains five, what is the total force?",
+            # A multi-digit (or duplicated) fractional part is ambiguous
+            # between .55 and a duplicated .5 — abstain (codex-review
+            # finding: this used to compose .5 and answer confidently).
+            "a claw force is twenty point five five newtons plus one newton, what is total force?",
+            # Equal values WITHOUT the restatement copula are two genuine
+            # quantities, never collapsed — and with the first gap empty
+            # the chain cannot resolve (python-reviewer finding: an
+            # unconditional collapse would have computed 28.00 here).
+            "a claw exerts twenty three newtons while the other claw"
+            " exerts twenty three newtons and gains five, what is the total force?",
+            # Equal operands joined by a genuine explicit add keep BOTH
+            # values out of the deterministic path only when the gap holds
+            # an event; a bare restatement stays collapsed. Here the gap op
+            # makes 16 + 16 explicit — but the pair must NOT collapse to a
+            # single 16 (it computes 32.00, asserted below).
+        ],
+        ids=[
+            "thyree-poisons",
+            "qthree-poisons",
+            "dangling-point-abstains",
+            "multi-digit-fraction-abstains",
+            "equal-pair-without-copula-abstains",
+        ],
+    )
+    def test_round8_guards_abstain(self, challenge):
+        assert code_parse_challenge(challenge) is None
+
+    @pytest.mark.parametrize(
+        "challenge,expected",
+        [
+            # An explicit op between equal values is a real pair, not a
+            # restatement — the gap holds an event, so no collapse.
+            (
+                "a claw exerts sixteen newtons but another claw adds"
+                " sixteen newtons, what is the total force?",
+                "32.00",
+            ),
+            # "and" between equal values also keeps both.
+            (
+                "a claw exerts fifteen newtons and the other claw exerts"
+                " fifteen newtons, what is the total force?",
+                "30.00",
+            ),
+            # Round-7 readings survive round 8 untouched.
+            (
+                "a claw strikes with force of thirty five and after molting"
+                " the force is doubled by two what is the total force?",
+                "70.00",
+            ),
+        ],
+        ids=[
+            "equal-pair-explicit-add-kept",
+            "equal-pair-and-kept",
+            "round7-doubled-unchanged",
+        ],
+    )
+    def test_round8_guards_preserve_existing_readings(self, challenge, expected):
+        assert code_parse_challenge(challenge) == expected
+
     @pytest.mark.parametrize(
         "challenge,expected",
         [
@@ -1280,6 +1478,158 @@ class TestVerificationAudit:
         assert record["solve_success"] is False
         assert record["verify_success"] is False
         assert record["error"] == "baderror"
+
+
+class TestRejectedAnswerSuppression:
+    """Round 8: a previously server-rejected answer is never resubmitted.
+
+    The audit log (verify_success=false records) is the single source of
+    truth; the live corpus contains sha-identical failure pairs where the
+    solver resubmitted the exact same wrong answer because no path consulted
+    the failure history.
+    """
+
+    # Deterministically code-parseable: 10 + 5 = 15.00.
+    _CHALLENGE = "a claw exerts ten newtons and gains five newtons, what is the total force?"
+
+    def _write_rejection(
+        self,
+        path,
+        challenge: str,
+        answer: str,
+        error: str = 'API error 400: {"statusCode":400,"message":"Incorrect answer"}',
+    ) -> None:
+        record = {
+            "ts": "2026-07-14T00:00:00+00:00",
+            "challenge_sha256": _sha256_text(challenge),
+            "answer": answer,
+            "solver_path": "code_parse",
+            "solve_success": True,
+            "verify_success": False,
+            "error": error,
+        }
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(record) + "\n")
+
+    def test_load_rejected_answers_collects_failures_by_sha(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        self._write_rejection(audit, "challenge a", "15.00")
+        self._write_rejection(audit, "challenge a", "16.00")
+        self._write_rejection(audit, "challenge b", "9.00")
+
+        assert _load_rejected_answers(_sha256_text("challenge a"), path=audit) == {
+            "15.00",
+            "16.00",
+        }
+        assert _load_rejected_answers(_sha256_text("challenge b"), path=audit) == {"9.00"}
+        assert _load_rejected_answers(_sha256_text("unseen"), path=audit) == frozenset()
+
+    def test_cache_invalidates_after_append(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        self._write_rejection(audit, "challenge a", "15.00")
+        assert _load_rejected_answers(_sha256_text("challenge a"), path=audit) == {"15.00"}
+
+        self._write_rejection(audit, "challenge a", "16.00")
+        assert _load_rejected_answers(_sha256_text("challenge a"), path=audit) == {
+            "15.00",
+            "16.00",
+        }
+
+    def test_fails_open_on_missing_file_and_broken_lines(self, tmp_path):
+        missing = tmp_path / "nope.jsonl"
+        assert _load_rejected_answers(_sha256_text("x"), path=missing) == frozenset()
+
+        audit = tmp_path / "audit.jsonl"
+        audit.write_text('{"broken\n[]\n', encoding="utf-8")
+        self._write_rejection(audit, "challenge a", "15.00")
+        assert _load_rejected_answers(_sha256_text("challenge a"), path=audit) == {"15.00"}
+
+    def test_transport_failures_are_not_rejections(self, tmp_path):
+        # verify_success=false is also written for client/network errors,
+        # where the submitted answer may be CORRECT — only the server's
+        # incorrect-answer rejection blacklists it (codex-review finding).
+        audit = tmp_path / "audit.jsonl"
+        self._write_rejection(
+            audit, "challenge a", "15.00", error="HTTP request failed: connection reset"
+        )
+        assert _load_rejected_answers(_sha256_text("challenge a"), path=audit) == frozenset()
+
+    def test_partial_trailing_line_is_reread_after_completion(self, tmp_path):
+        # A concurrent append may leave a torn last line; it must not be
+        # consumed (offset advances only past complete lines) and must count
+        # once finished.
+        audit = tmp_path / "audit.jsonl"
+        self._write_rejection(audit, "challenge a", "15.00")
+        record = {
+            "challenge_sha256": _sha256_text("challenge a"),
+            "answer": "16.00",
+            "verify_success": False,
+            "error": "Incorrect answer",
+        }
+        full_line = json.dumps(record) + "\n"
+        with audit.open("a", encoding="utf-8") as fh:
+            fh.write(full_line[:20])
+        assert _load_rejected_answers(_sha256_text("challenge a"), path=audit) == {"15.00"}
+        with audit.open("a", encoding="utf-8") as fh:
+            fh.write(full_line[20:])
+        assert _load_rejected_answers(_sha256_text("challenge a"), path=audit) == {
+            "15.00",
+            "16.00",
+        }
+
+    def test_success_records_are_not_rejections(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        record = {
+            "challenge_sha256": _sha256_text("challenge a"),
+            "answer": "15.00",
+            "verify_success": True,
+        }
+        audit.write_text(json.dumps(record) + "\n", encoding="utf-8")
+        assert _load_rejected_answers(_sha256_text("challenge a"), path=audit) == frozenset()
+
+    def test_code_parse_rejected_falls_through_to_llm(self, tmp_path, monkeypatch):
+        audit = tmp_path / "audit.jsonl"
+        self._write_rejection(audit, self._CHALLENGE, "15.00")
+        monkeypatch.setattr(
+            "contemplative_agent.adapters.moltbook.verification.VERIFICATION_AUDIT_PATH",
+            audit,
+        )
+        with patch(_SOLVE_TARGET) as mock_generate:
+            mock_generate.return_value = "EXPR: 10 + 6\nFINAL: 16.00"
+            result = solve_challenge_result(self._CHALLENGE)
+        assert result.answer == "16.00"
+        assert result.solver_path == "llm_extract"
+
+    def test_all_paths_rejected_abstains(self, tmp_path, monkeypatch):
+        audit = tmp_path / "audit.jsonl"
+        self._write_rejection(audit, self._CHALLENGE, "15.00")
+        self._write_rejection(audit, self._CHALLENGE, "16.00")
+        monkeypatch.setattr(
+            "contemplative_agent.adapters.moltbook.verification.VERIFICATION_AUDIT_PATH",
+            audit,
+        )
+        with patch(_SOLVE_TARGET) as mock_generate:
+            mock_generate.side_effect = [
+                "EXPR: 10 + 6\nFINAL: 16.00",
+                "1. ten and six\n2. 10 + 6\n3. 16\nFINAL: 16.00",
+            ]
+            result = solve_challenge_result(self._CHALLENGE)
+        assert result.answer is None
+        assert result.solver_path == "none"
+        assert result.abstain_reason == "answer_previously_rejected"
+
+    def test_unrejected_answer_still_short_circuits_code_parse(self, tmp_path, monkeypatch):
+        audit = tmp_path / "audit.jsonl"
+        self._write_rejection(audit, "some other challenge", "15.00")
+        monkeypatch.setattr(
+            "contemplative_agent.adapters.moltbook.verification.VERIFICATION_AUDIT_PATH",
+            audit,
+        )
+        with patch(_SOLVE_TARGET) as mock_generate:
+            result = solve_challenge_result(self._CHALLENGE)
+        assert result.answer == "15.00"
+        assert result.solver_path == "code_parse"
+        mock_generate.assert_not_called()
 
 
 class TestSubmitVerification:

@@ -27,3 +27,18 @@ each, or a count of claws (it has two claws = x2). An explicit question or
 instruction always wins over scene wording: what is the sum, please add
 them, total, or combined = add the two numbers, even when their units
 differ.
+
+Picking the two numbers: when the question names a quantity (total FORCE,
+new VELOCITY/SPEED), use only the numbers carrying that quantity's unit
+(force = newtons; velocity = meters or cm per second). A velocity mentioned
+next to a force question is a distractor: ignore it, and never multiply
+unlike units together. "How much total X" / "what is the total X" always
+means ADD the matching numbers, never subtract. Only an explicit pair
+instruction (what is the sum of these, please add them) adds the two
+stated numbers even when their units differ.
+
+Example: "swims at fifteen meters per second, claw exerts thirty four
+newtons and a rival exerts nineteen newtons, how much total force?"
+EXPR: 34 + 19
+FINAL: 53.00
+(15 is a velocity, not a force — ignored; "total" adds, never 34 - 19.)

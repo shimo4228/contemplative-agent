@@ -109,6 +109,40 @@ implicit 後置減算×"combined" cue は棄権。検証: 792 challenge で hard
 base64 fixture 化した 151 テスト全 green。solver 順序、audit テレメトリ、出力の信頼境界は不変 —
 機構 amendment とする。
 
+2026-07-15 第8 amendment: 第7 amendment 後の失敗ラウンド（2026-07-10 以降 448 レコード、拒否 31 件
+= 6.9%。うち 5 件は `code_parse` 自身の誤答 — hard gate が防ぐべきクラスそのもの）から solver を
+強化した。失敗の復号は 3 系統に分かれた。(1) パーサ round-8 文法（live 誤答 1 件につき 1 規則）:
+COLLAPSE 済み数詞から編集距離 1 の 4-5 字トークン（"thyree"/"qthreee"）は round-7 の
+collapsed-fuzzy 床未満で黙って落ちていた — 今後はパース全体を毒化（棄権。値としての回復は
+replay コーパスで誤マッチゼロが示されるまで見送り）; "five point five" は新 `point` lexeme で
+小数オペランドに合成（この lexeme が無かったことで `_dedup_numbers` が 2 つの five を誤併合しても
+いた）。合成できない point はオペランド隣接なら棄権、遠ければ情景ノイズ; 乗算マーカーは隣接
+転置 1 回でも一致（"duoubbles" → "duobles" vs "doubles" — Damerau 1 / Levenshtein 2 で round-7
+fuzzy には不可視）; 言い直された複合量（"swims at twenty three … speed is twenty three, and
+speeds up by seven"）は gap にイベントが無い場合オペランドレベルで縮約 — `_dedup_numbers` の
+オペランド版 — し、破損した言い直し動詞 "speed is"（merge 後 "speedis"、"speeds" から 1 編集）を
+fuzzy stopwords に追加して gap を偽演算で埋めさせない。(2) 拒否回答メモリ: live コーパスに
+sha 同一の challenge 再出題で同じ拒否済み回答をそのまま再送した組が存在した。各 solve は audit
+ログのサーバ拒否レコードを参照し（単一の情報源、第 2 ストア無し。append-only 前提の byte offset
+差分読み、読めなければ fail-open）、code_parse / llm_extract の拒否済み候補は次のパスへ
+フォールスルー、全パスが拒否済み値に達したら棄権（`answer_previously_rejected`）して確実な 400 に
+failure-tracker 予算を燃やさない。(3) LLM の distractor 規律: 31 件中 26 件は LLM 経路の単位混同
+（"total force" 質問に速度を加算/乗算、"total" を減算で回答）— 両プロンプト（と再同期した
+コード内フォールバック既定値）は、質問が名指しする量の単位に数の選択を固定し、round-7 の明示
+ペア指示例外（"sum of these" は異単位でも加算）を保持し、"total" は決して減算しないと明記し、
+live 失敗由来の worked example を 1 つ持つ。LLM 経路の効果は次の live ラウンドで測定する（replay
+ハーネスは code_parse のみ対象）。レビューラウンド（python-reviewer + codex cross-model）は失敗
+コーパス単独では見えない 4 つの継ぎ目を閉じた: サーバの incorrect-answer メッセージを持つ
+レコードのみを拒否と数える（verify_success=false は transport 失敗でも書かれ、その回答は正しい
+可能性がある）; 複数桁または重複した小数部（"point five five"）は .5 に合成せず棄権; 言い直し
+縮約は copula（"speed IS twenty three"）を要求し、情景 prose 中の 2 つの真に別個な等値量は決して
+併合しない; audit ログは solve ごとの全再パースでなく差分読み（verify のたびに追記されるため
+mtime キャッシュは無効化され続けていた）。検証: 1272 challenge で hard gate PASS（正解 1045、誤答ゼロ、
+カバレッジ 82.5%）。round-7 パーサを同一コーパスで replay すると誤答 5 — round 8 は 5 件全てを
+解消しつつカバレッジは純増（82.4% → 82.5%）。5 誤答を base64 fixture 化した 174 テスト全 green。
+solver 順序、audit テレメトリ、出力の信頼境界は不変 — 第 3 amendment の前例に従い機構 amendment
+とする。
+
 ## Date
 
 2026-06-26

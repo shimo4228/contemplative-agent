@@ -46,6 +46,26 @@ post-rewrite failure round of the live corpus:
   ``fowrten`` -> fourteen) for merged tokens of >= 6 letters, mirroring
   what operation verbs already do.
 
+Round 8 (2026-07-15, ADR-0062 8th amendment) extends the grammar from the
+post-round-7 failure round (the five live code_parse wrongs, 2026-07-10..14):
+
+- number-word near-miss poisoning (``thyree`` / ``qthreee``) — a 4-5 letter
+  token one edit from a COLLAPSED number word sits below the collapsed-fuzzy
+  floor and used to drop silently; it now poisons the whole parse (abstain)
+  instead of leaving a confident wrong answer;
+- decimal composition (``five point five``) — a ``point`` lexeme between an
+  integer operand and an adjacent bare unit digit composes a decimal value;
+  a ``point`` adjacent to an operand that cannot compose abstains, a distant
+  one is scene noise;
+- transposed multiplicative markers (``duoubbles`` -> ``duobles``) — marker
+  words additionally match at one adjacent transposition, which plain
+  distance-1 fuzzy cannot see;
+- restatement collapse (``speed is twenty three`` after ``twenty three``) —
+  equal-value consecutive operands with an event-free gap collapse to one,
+  the operand-level extension of ``_dedup_numbers``; the mangled
+  restatement verb ``speed is`` (merged: ``speedis``, one edit from
+  ``speeds``) joins the fuzzy stopwords so it cannot fill the gap as an op.
+
 It stays precision-first: a parsed answer is returned only when the whole
 event stream fits the grammar; every ambiguity abstains (``None``) so the
 LLM chain still runs. A wrong code parse is worse than ``None``.
@@ -289,7 +309,19 @@ _FUZZY_STOPWORDS = {
     "sight",
     "tight",
     "weight",
+    # Round 8: the restatement phrasing "speed is twenty three" merges
+    # "speed is" into "speedis", whose COLLAPSED form "spedis" is one edit
+    # from the collapsed op "speds" ("speeds") — turning a prose
+    # restatement into a spurious gap operation (live wrong: 23 was counted
+    # twice and 53.00 submitted for a 23 + 7 challenge). Stopwords compare
+    # against the collapsed merged token, hence the collapsed spelling.
+    "spedis",
 }
+
+# Round 8: the decimal connective ("five point five"). A single word, not a
+# family — kept out of the op/cue lexicons because it composes VALUES (one
+# operand from two number events) rather than combining operands.
+_POINT_WORD = "point"
 
 # One atom per scan step: a run of letters OR a single signal-operator
 # symbol, in textual order. Other punctuation (obfuscation noise) is dropped,
@@ -358,6 +390,25 @@ def _within_one_edit(a: str, b: str) -> bool:
     return a[i:] == b[i + 1 :]
 
 
+def _within_one_swap(a: str, b: str) -> bool:
+    """True when ``a`` and ``b`` differ by exactly one ADJACENT transposition.
+
+    Round 8: the obfuscator's vowel scrambling produces ``duobles`` for
+    ``doubles`` — Damerau distance 1 but Levenshtein distance 2, invisible to
+    ``_within_one_edit``. Used only for multiplicative marker words, whose
+    misread costs a wrong operator, never a wrong operand.
+    """
+    if len(a) != len(b) or a == b:
+        return False
+    diffs = [i for i, (x, y) in enumerate(zip(a, b)) if x != y]
+    return (
+        len(diffs) == 2
+        and diffs[1] == diffs[0] + 1
+        and a[diffs[0]] == b[diffs[1]]
+        and a[diffs[1]] == b[diffs[0]]
+    )
+
+
 class _NumEvent(NamedTuple):
     value: int
     is_tens: bool
@@ -388,11 +439,18 @@ class _MulMarkerEvent(NamedTuple):
     atom_index: int
 
 
-_Event = Union[_NumEvent, _OpEvent, _AndEvent, _CueEvent, _MulMarkerEvent]
+class _PointEvent(NamedTuple):
+    atom_index: int
+
+
+_Event = Union[_NumEvent, _OpEvent, _AndEvent, _CueEvent, _MulMarkerEvent, _PointEvent]
 
 
 class _Operand(NamedTuple):
-    value: int
+    # int for whole numbers; Decimal once a "point" composition merged a
+    # fractional part in (round 8). _compute_chain already folds through
+    # Decimal either way.
+    value: Union[int, Decimal]
     atom_start: int
     atom_end: int
 
@@ -412,6 +470,7 @@ def code_parse_challenge(challenge_text: str) -> Optional[str]:
     try:
         events = _dedup_numbers(_scan(atoms))
         operands = _compose_operands(events)
+        operands = _dedup_operands(_apply_points(operands, events, atoms), events, atoms)
         return _resolve(operands, events, atoms)
     except _Abstain:
         return None
@@ -437,6 +496,8 @@ def _match_exact(token: str) -> Optional[_Lexeme]:
         return _Lexeme("cue", None, _CUE_TOKEN_WORDS[token])
     if token in _MARKER_TOKENS:
         return _Lexeme("mark")
+    if token == _POINT_WORD:
+        return _Lexeme("point")
     return None
 
 
@@ -477,7 +538,37 @@ def _match_fuzzy(token: str) -> Optional[_Lexeme]:
                 continue
             if _within_one_edit(token, word) or _within_one_edit(token, _collapse_repeats(word)):
                 results.add(("op", op))
+        # Round 8: multiplicative markers were exact-match only, so a
+        # transposed "duoubbles" (collapsed: "duobles") dropped silently
+        # and a product read as an implicit add. Markers additionally
+        # accept one adjacent transposition (_within_one_swap): the misread
+        # cost is bounded to the operator, and the surviving grammar
+        # position rules (gap / adjacency) still gate where it applies.
+        for word in _MUL_MARKER_WORDS:
+            if len(word) < _FUZZY_MIN_OP:
+                continue
+            collapsed_word = _collapse_repeats(word)
+            if (
+                _within_one_edit(token, word)
+                or _within_one_edit(token, collapsed_word)
+                or _within_one_swap(token, word)
+                or _within_one_swap(token, collapsed_word)
+            ):
+                results.add(("mark", "mark"))
     if not results:
+        # Round 8: a 4-5 letter token one edit from a COLLAPSED number word
+        # sits below _FUZZY_MIN_NUM_COLLAPSED and used to drop silently
+        # ("thyree" -> "thyre", "qthreee" -> "qthre", both one edit from
+        # "thre") — the exact silent-drop failure mode that produces a
+        # confident wrong answer. Too short to recover safely (the
+        # collapsed target is one edit "cheaper"), so poison the parse
+        # instead: abstain, and the LLM chain still runs. This tier only
+        # fires when nothing else matched — a canonical-tier recovery
+        # ("fife" -> five) keeps winning.
+        if _FUZZY_MIN_TOKEN <= len(token) < _FUZZY_MIN_NUM_COLLAPSED:
+            for collapsed_word in _NUMBER_WORDS:
+                if _within_one_edit(token, collapsed_word):
+                    raise _Abstain
         return None
     if len(results) > 1:
         # Deliberate: ambiguity at the longest merge length abandons the
@@ -543,6 +634,8 @@ def _scan(atoms: list[str]) -> list[_Event]:
                     events.append(_AndEvent(i))
                 elif result.kind == "mark":
                     events.append(_MulMarkerEvent(i))
+                elif result.kind == "point":
+                    events.append(_PointEvent(i))
                 else:
                     events.append(_CueEvent(i, result.word or ""))
                 i += length
@@ -619,6 +712,136 @@ def _compose_operands(events: list[_Event]) -> list[_Operand]:
             operands.append(_Operand(event.value, event.atom_start, event.atom_end))
     flush()
     return operands
+
+
+def _event_span(event: _Event) -> tuple[int, int]:
+    """Atom span of an event ((start, end) inclusive)."""
+    if isinstance(event, _NumEvent):
+        return event.atom_start, event.atom_end
+    return event.atom_index, event.atom_index
+
+
+def _events_between(events: list[_Event], atom_end: int, atom_start: int) -> bool:
+    """True when any event lies strictly inside (``atom_end``, ``atom_start``)."""
+    return any(atom_end < _event_span(e)[0] and _event_span(e)[1] < atom_start for e in events)
+
+
+def _fraction_is_single_digit_word(atoms: list[str], operand: _Operand) -> bool:
+    """True when the fractional operand's span holds at most ONE whole
+    number-word atom.
+
+    ``_dedup_numbers`` merges a duplicated digit BEFORE point composition,
+    so "twenty point five five" reaches here as one 5-valued operand
+    spanning both "five" atoms — indistinguishable by value from the split
+    form "f ive". The atoms tell them apart: a split form's fragments are
+    not number words individually, while a duplicated (or multi-digit
+    fractional, "point five five" = .55) span holds two whole number-word
+    atoms — ambiguous, so the caller abstains (found by codex-review: the
+    duplicated form composed .5 and confidently answered 21.50).
+    """
+    whole_words = sum(
+        1
+        for atom in atoms[operand.atom_start : operand.atom_end + 1]
+        if _collapse_repeats(atom) in _NUMBER_WORDS
+    )
+    return whole_words <= 1
+
+
+def _apply_points(
+    operands: list[_Operand], events: list[_Event], atoms: list[str]
+) -> list[_Operand]:
+    """Compose ``<integer> point <unit digit>`` pairs into decimal operands.
+
+    Round 8: "gains five point five" used to read as a bare 5 (the two
+    fives even deduped into one across the event-less "point"). A point
+    strictly between two operands — nothing else in the gap, both sides
+    adjacent, fractional side a bare unit digit — composes a decimal. A
+    point that sits NEXT to an operand but cannot compose is an unmodeled
+    decimal (its digit was likely mangled away): abstain, never guess. A
+    point far from every operand is scene prose and is ignored.
+    """
+    points = [e for e in events if isinstance(e, _PointEvent)]
+    if not points:
+        return operands
+    merged = list(operands)
+    for point in points:
+        composed = False
+        for i in range(len(merged) - 1):
+            left, right = merged[i], merged[i + 1]
+            if not (left.atom_end < point.atom_index < right.atom_start):
+                continue
+            if (
+                point.atom_index - left.atom_end <= _POSTFIX_ADJACENCY
+                and right.atom_start - point.atom_index <= _POSTFIX_ADJACENCY
+                and not _events_between(
+                    [e for e in events if e is not point], left.atom_end, right.atom_start
+                )
+                and isinstance(left.value, int)
+                and isinstance(right.value, int)
+                and 0 <= right.value <= 9
+                and _fraction_is_single_digit_word(atoms, right)
+            ):
+                merged[i] = _Operand(
+                    Decimal(left.value) + Decimal(right.value) / 10,
+                    left.atom_start,
+                    right.atom_end,
+                )
+                del merged[i + 1]
+                composed = True
+            break
+        if composed:
+            continue
+        near_operand = any(
+            min(abs(point.atom_index - o.atom_end), abs(o.atom_start - point.atom_index))
+            <= _POSTFIX_ADJACENCY
+            for o in merged
+        )
+        if near_operand:
+            raise _Abstain
+    return merged
+
+
+# Copula directly before a restated operand ("speed IS twenty three"): the
+# restatement collapse requires it, so two genuinely distinct equal
+# quantities in scene prose ("one claw exerts twenty three ... the other
+# claw exerts twenty three") never merge (found by python-reviewer: an
+# unconditional event-free-gap collapse could turn a would-be abstain into
+# a computed answer for coincidental equal values).
+_RESTATEMENT_COPULA = "is"
+
+
+def _dedup_operands(
+    operands: list[_Operand], events: list[_Event], atoms: list[str]
+) -> list[_Operand]:
+    """Collapse a restated equal-value operand whose gap holds no event.
+
+    Round 8: the operand-level extension of ``_dedup_numbers``. The
+    obfuscator restates a compound quantity in prose ("swims at twenty
+    three ... um speed is twenty three, and speeds up by seven"), which
+    ``_dedup_numbers`` cannot see (the raw events alternate 20/3). Two
+    guards keep real pairs apart: the gap must be completely event-free
+    (an operation, "and", cue, marker or point between equal values keeps
+    both — "sixteen ... adds sixteen" stays a real pair), and the second
+    occurrence must be introduced by the restatement copula ("... IS
+    twenty three"), which scene prose for a distinct second quantity
+    ("the other claw exerts twenty three") does not use.
+    """
+    deduped = [operands[0]] if operands else []
+    for operand in operands[1:]:
+        previous = deduped[-1]
+        restated = (
+            operand.atom_start > 0
+            and _collapse_repeats(atoms[operand.atom_start - 1]) == _RESTATEMENT_COPULA
+        )
+        if (
+            restated
+            and operand.value == previous.value
+            and not _events_between(events, previous.atom_end, operand.atom_start)
+        ):
+            deduped[-1] = previous._replace(atom_end=operand.atom_end)
+            continue
+        deduped.append(operand)
+    return deduped
 
 
 def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -> Optional[str]:

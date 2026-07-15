@@ -14,6 +14,15 @@ question or instruction wins over scene wording: what is the sum, please
 add them, total, or combined = add the two numbers, even when their units
 differ.
 
+Choosing the numbers: when the question names a quantity (total FORCE,
+new VELOCITY/SPEED), use only the numbers carrying that quantity's unit
+(force = newtons; velocity = meters or cm per second) — a velocity next to
+a force question is a distractor: ignore it, never multiply unlike units.
+"How much total X" always means ADD the matching numbers, never subtract.
+Only an explicit pair instruction (what is the sum of these, please add
+them) adds the two stated numbers even when units differ. In line 1,
+keep only the numbers whose unit matches the question.
+
 Use at most four short lines:
 1. De-noised problem.
 2. Numeric expression using +, -, *, or /.
