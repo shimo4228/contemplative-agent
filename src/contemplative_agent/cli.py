@@ -45,6 +45,7 @@ from .core._io import (
     now_iso,
     write_run_marker,
 )
+from .core.run_context import new_session_id, set_session_id
 from .core.domain import (
     DEFAULT_CONFIG_DIR,
     DomainConfig,
@@ -2513,19 +2514,31 @@ def _handle_agent_command(
         if args.session <= 0 or args.session > 1440:
             parser.error("--session must be between 1 and 1440 minutes")
         dc = domain_config or get_domain_config()
+        # Session identity (ADR-0078 follow-up): every audit record written
+        # while this session runs carries session_id via the shared writer.
+        # Cleared in finally — a same-process caller (tests, embedding) must
+        # not have later non-session writes stamped with a stale session_id.
+        session_id = new_session_id()
+        set_session_id(session_id)
         session_meta = {
             "axioms_enabled": not args.no_axioms,
             "domain": dc.name,
+            "session_id": session_id,
             **_llm_session_meta(),
         }
-        # Non-blocking lock (audit M5): a second concurrent session would
-        # double-spend rate budgets and race knowledge.json — fail fast
-        # with a clear message instead of queueing behind it.
-        with acquire_run_lock(RUN_LOCK_PATH, blocking=False) as acquired:
-            if not acquired:
-                print(f"Another run/distill process holds the run lock ({RUN_LOCK_PATH}); exiting.")
-                return
-            agent.run_session(duration_minutes=args.session, session_meta=session_meta)
+        try:
+            # Non-blocking lock (audit M5): a second concurrent session would
+            # double-spend rate budgets and race knowledge.json — fail fast
+            # with a clear message instead of queueing behind it.
+            with acquire_run_lock(RUN_LOCK_PATH, blocking=False) as acquired:
+                if not acquired:
+                    print(
+                        f"Another run/distill process holds the run lock ({RUN_LOCK_PATH}); exiting."
+                    )
+                    return
+                agent.run_session(duration_minutes=args.session, session_meta=session_meta)
+        finally:
+            set_session_id(None)
     elif args.command == "solve":
         agent.do_solve(args.text)
 

@@ -106,7 +106,12 @@ process.
 - Trace grouping is a time-gap reconstruction: the audit logs carry no
   run/session ID, so root spans mark the reconstruction explicitly via
   `ca.convert.*` attributes rather than implying a native session
-  boundary.
+  boundary. **Resolved same day (2026-07-16):** the shared JSONL writer
+  (`core/_io.py append_jsonl_restricted`) now stamps every record with a
+  process-wide `run_id` and, during agent sessions, a `session_id`
+  (`core/run_context.py`) — the one OTel mechanism worth borrowing without
+  the SDK. The converter groups by `run_id` where present and falls back
+  to time-gap clustering for records written before the field existed.
 - Duration-less audit records (`verification`, `api`) become zero-width
   spans. Fabricating estimated widths was deliberately avoided — a
   zero-width span is an honest representation of "no duration was

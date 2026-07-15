@@ -19,16 +19,17 @@ class TestAppend:
         path = tmp_path / f"{_date_str()}.jsonl"
         assert path.exists()
         record = json.loads(path.read_text(encoding="utf-8").splitlines()[0])
-        assert set(record) == {"ts", "type", "data"}
+        # run_id は共有 writer (_io.append_jsonl_restricted) が全 JSONL に
+        # スタンプする実行識別子（ADR-0078 follow-up）。session 中は
+        # session_id も付くが、テストプロセスでは非 session なので付かない。
+        assert set(record) == {"ts", "type", "data", "run_id"}
         assert record["type"] == "post"
         assert record["data"] == {"content": "hello"}
 
     def test_ts_is_utc_iso(self, tmp_path):
         log = EpisodeLog(tmp_path)
         log.append("activity", {})
-        record = json.loads(
-            (tmp_path / f"{_date_str()}.jsonl").read_text(encoding="utf-8")
-        )
+        record = json.loads((tmp_path / f"{_date_str()}.jsonl").read_text(encoding="utf-8"))
         assert record["ts"].endswith("+00:00")
 
     def test_none_log_dir_is_noop(self, tmp_path):
@@ -66,9 +67,7 @@ class TestReadFile:
 
     def test_reads_multiple_valid_lines(self, tmp_path):
         path = tmp_path / "log.jsonl"
-        path.write_text(
-            "\n".join(json.dumps({"i": i}) for i in range(5)) + "\n", encoding="utf-8"
-        )
+        path.write_text("\n".join(json.dumps({"i": i}) for i in range(5)) + "\n", encoding="utf-8")
         assert len(EpisodeLog.read_file(path)) == 5
 
 

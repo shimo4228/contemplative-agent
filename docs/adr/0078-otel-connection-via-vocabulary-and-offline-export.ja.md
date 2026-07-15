@@ -96,7 +96,13 @@ runtime 要件が変わった証拠ではない。
 
 - トレースのグルーピングは時間ギャップによる再構成である: 監査ログは
   run/session ID を持たないため、root span が `ca.convert.*` 属性で再構成で
-  あることを明示し、ネイティブなセッション境界を装わない。
+  あることを明示し、ネイティブなセッション境界を装わない。**同日解消
+  （2026-07-16）:** 共有 JSONL writer（`core/_io.py`
+  `append_jsonl_restricted`）が全レコードにプロセス単位の `run_id` を、
+  エージェントセッション中は `session_id` をスタンプするようになった
+  （`core/run_context.py`）— SDK なしで借りる価値のある唯一の OTel 機構。
+  converter は `run_id` があればそれで束ね、フィールド導入前のレコードは
+  時間ギャップ clustering に fallback する。
 - duration を持たない監査レコード（`verification`、`api`）はゼロ幅 span に
   なる。推定幅の捏造は意図的に避けた — ゼロ幅 span は「duration が記録されて
   いない」ことの正直な表現であり、埋めるべきモデリングの穴ではない。

@@ -78,6 +78,13 @@ the audit-log schemas map onto the OTel GenAI semantic conventions via a
 zero-dependency vocabulary doc ([docs/otel-semconv-mapping.md](../otel-semconv-mapping.md))
 and an offline JSONL→OTLP exporter in the sibling repo
 `contemplative-agent-otel` (reads log files only — zero code dependency).
+Execution identity (ADR-0078 same-day follow-up): `core/_io.py`
+`append_jsonl_restricted` — the single writer behind every JSONL log
+(audit logs *and* episode logs) — stamps each record with a process-wide
+`run_id` (uuid4, minted in `core/run_context.py` at import) and, while a
+`run` session is active, a `session_id` (set/cleared by `cli.py` around
+`run_session`, `try/finally`). Caller-supplied values win; offline tooling
+groups records by id instead of inferring runs from time gaps.
 
 ---
 

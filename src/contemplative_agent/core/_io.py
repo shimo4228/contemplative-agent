@@ -32,9 +32,7 @@ def truncate(text: str, max_length: int = SUMMARY_MAX_LENGTH) -> str:
 _SENTENCE_SEPS = ("。", "！", "？", ".\n", ". ", "! ", "? ")
 
 
-def truncate_boundary(
-    text: str, max_length: int, marker: str = "…[truncated]"
-) -> str:
+def truncate_boundary(text: str, max_length: int, marker: str = "…[truncated]") -> str:
     """Truncate at the nearest sentence -> word -> char boundary.
 
     Unlike ``truncate`` (hard character slice), this prefers a sentence
@@ -110,12 +108,26 @@ def append_jsonl_restricted(path: Path, record: Dict[str, Any]) -> None:
     Unlike ``write_restricted`` this opens in append mode, so the umask
     only affects files that do not exist yet — pre-existing files keep
     their current permission bits.
+
+    Every record is stamped with the process ``run_id`` (and ``session_id``
+    while an agent session is active) so offline tooling can group records
+    by execution instead of inferring runs from time gaps (ADR-0078
+    follow-up). Stamping happens here — the single writer all audit logs
+    share — so no producer can forget it. Caller-supplied values win.
     """
+    from .run_context import RUN_ID, current_session_id
+
+    stamped = dict(record)
+    stamped.setdefault("run_id", RUN_ID)
+    session_id = current_session_id()
+    if session_id is not None:
+        stamped.setdefault("session_id", session_id)
+
     path.parent.mkdir(parents=True, exist_ok=True)
     old_umask = os.umask(0o177)
     try:
         with path.open("a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            f.write(json.dumps(stamped, ensure_ascii=False) + "\n")
     finally:
         os.umask(old_umask)
 
@@ -162,9 +174,7 @@ _PRINTABLE_RE = re.compile(r"[^\x20-\x7E]")
 _PRINTABLE_KEEP_NL_RE = re.compile(r"[^\x20-\x7E\n]")
 
 
-def strip_to_printable(
-    value: object, max_len: int, *, keep_newline: bool = False
-) -> str:
+def strip_to_printable(value: object, max_len: int, *, keep_newline: bool = False) -> str:
     """Strip to printable ASCII and cap at ``max_len``.
 
     Shared log / audit / prompt-injection guard: one place that drops
@@ -225,5 +235,3 @@ def write_run_marker(directory: Path, name: str) -> None:
     """Record ``now_iso()`` into ``directory/name``, creating parents."""
     directory.mkdir(parents=True, exist_ok=True)
     (directory / name).write_text(now_iso() + "\n", encoding="utf-8")
-
-

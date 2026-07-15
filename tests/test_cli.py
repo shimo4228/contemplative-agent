@@ -171,6 +171,37 @@ class TestMainRun:
         assert meta["ollama_model"] == served_model()
 
     @patch("contemplative_agent.cli.Agent")
+    def test_run_clears_session_id_after_return(self, mock_agent_cls):
+        # 回帰 (codex-review 2026-07-16): run 終了後に session_id が残留し、
+        # 同一プロセスの後続 audit 書き込みへ stale session_id が付く
+        from contemplative_agent.core.run_context import current_session_id
+
+        mock_agent = MagicMock()
+        mock_agent_cls.return_value = mock_agent
+
+        with patch("sys.argv", ["contemplative-agent", "run"]):
+            main()
+
+        assert current_session_id() is None
+        session_meta = mock_agent.run_session.call_args[1]["session_meta"]
+        assert session_meta["session_id"]  # session 中は採番済みの id が渡る
+
+    @patch("contemplative_agent.cli.Agent")
+    def test_run_clears_session_id_even_when_lock_unavailable(self, mock_agent_cls):
+        from contemplative_agent.core.run_context import current_session_id
+
+        mock_agent = MagicMock()
+        mock_agent_cls.return_value = mock_agent
+
+        with patch("contemplative_agent.cli.acquire_run_lock") as mock_lock:
+            mock_lock.return_value.__enter__.return_value = False
+            with patch("sys.argv", ["contemplative-agent", "run"]):
+                main()
+
+        mock_agent.run_session.assert_not_called()
+        assert current_session_id() is None
+
+    @patch("contemplative_agent.cli.Agent")
     def test_run_custom_duration(self, mock_agent_cls):
         mock_agent = MagicMock()
         mock_agent_cls.return_value = mock_agent

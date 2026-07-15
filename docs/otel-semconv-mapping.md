@@ -24,6 +24,8 @@ Written by `core/llm.py:_emit_telemetry` (one record per LLM call).
 | `temperature` | `gen_ai.request.temperature` |
 | `error_kind` ([ADR-0077](adr/0077-chaos-tdd-fault-injection.md) fault classes) | `error.type` |
 | `ts` + `duration_ms` | span start / end |
+| `run_id` (one per process; stamped on every audit record by the shared writer) | trace grouping key (`ca.convert.grouping = "run-id"`) |
+| `session_id` (present while an agent session is active) | `session.id` (general semconv) |
 | `caller`, `prompt_sha256`, `think`, `cached_tokens`, … | no semconv equivalent → custom `ca.audit.*` namespace |
 
 The fields with no standard equivalent are exactly the research-replay

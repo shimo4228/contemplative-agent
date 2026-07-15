@@ -66,6 +66,9 @@ EXPECTED_FIELDS = {
     "eval_count",
     "cached_tokens",
     "think",
+    # 共有 writer (_io.append_jsonl_restricted) が全 JSONL にスタンプする
+    # 実行識別子（ADR-0078 follow-up）。session 中は session_id も付く
+    "run_id",
 }
 
 
