@@ -83,6 +83,7 @@
 | [0075](0075-observability-by-default.ja.md) | Observability by Default — リプレイ可能な監査ログは機能と同じ PR で出荷する | accepted | 2026-07-09 |
 | [0076](0076-skill-selection-shadow-instrument.ja.md) | Skill 選択シャドウ計器 — pass-1 LLM 適用判断を観測し、強制しない | accepted | 2026-07-10 |
 | [0077](0077-chaos-tdd-fault-injection.ja.md) | Chaos-TDD Fault Injection — seed 固定 fault schedule をテストファーストの仕様にする（パイロット: distill） | accepted | 2026-07-13 |
+| [0078](0078-otel-connection-via-vocabulary-and-offline-export.ja.md) | 語彙 mapping とオフライン export による OTel 接続 — runtime 導入はしない | accepted | 2026-07-16 |
 
 ## ADR の種別
 

@@ -53,6 +53,7 @@ docs/*
 !docs/BIBLIOGRAPHY.md
 !docs/DEVELOPMENT-RECORDS.md
 !docs/DEVELOPMENT-RECORDS.ja.md
+!docs/otel-semconv-mapping.md
 Modelfile.contemplative
 
 # Internal working notes (local-only, not tracked)

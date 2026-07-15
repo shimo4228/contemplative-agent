@@ -2205,6 +2205,22 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0078-otel-connection-via-vocabulary-and-offline-export.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0078: OTel Connection via Vocabulary Mapping and Offline Export — Not Runtime Adoption",
+      "identifier": "ADR-0078",
+      "status": "accepted",
+      "datePublished": "2026-07-16",
+      "description": "Maintains ADR-0075's rejection of runtime OpenTelemetry adoption (single local process, requests+numpy dependency floor, research-grade offline replay as the primary observability requirement) while connecting to the OTel ecosystem through two zero-runtime-impact routes: (1) a zero-dependency vocabulary mapping documenting how the audit-log schemas correspond to the OTel GenAI semantic conventions (Development status; gen_ai.* attributes map near 1:1 onto the llm-calls telemetry fields) in docs/otel-semconv-mapping.md, with the canonical field-by-field table living next to the implementing code in the sibling repository; and (2) an offline exporter, sibling repo contemplative-agent-otel, that converts existing JSONL audit logs (llm-calls, verification-audit, api-audit) to OTLP traces after the fact with zero code dependency on the main package. Untrusted raw text (challenge bodies, server response bodies) is dropped at parse time — only hashes and categorical error classes reach span attributes, enforced by a regression test. The retention-policy contrast is deliberate: GenAI conventions redact content by default (ops consumers), ADR-0075 logs store raw untrusted inputs base64+sha256 (replay consumers) — same events, opposite retention choices. Empirically validated by converting real logs into Jaeger v2: 1,031 spans (2026-07-15 normal day), 31,524 spans (2026-07-12 incident day, one 30,442-span trace with 33 errors). Trace grouping is a time-gap reconstruction marked via ca.convert.* attributes; duration-less audit records become zero-width spans rather than fabricated estimates.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0077-chaos-tdd-fault-injection.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",

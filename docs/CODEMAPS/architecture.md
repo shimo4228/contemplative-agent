@@ -73,6 +73,11 @@ against `NUM_CTX` so batches are approved with the window share visible
 (2026-07-10, after a blind 13-skill adoption tripped the C2 guard; baseline
 at introduction ≈20.3K tok ≈62%). Design know-how:
 project skills `replayable-audit-logs` / `read-only-instruments`.
+OTel connection (ADR-0078): runtime adoption stays rejected (per ADR-0075);
+the audit-log schemas map onto the OTel GenAI semantic conventions via a
+zero-dependency vocabulary doc ([docs/otel-semconv-mapping.md](../otel-semconv-mapping.md))
+and an offline JSONL→OTLP exporter in the sibling repo
+`contemplative-agent-otel` (reads log files only — zero code dependency).
 
 ---
 
