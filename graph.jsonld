@@ -145,13 +145,11 @@
       ],
       "sameAs": [
         "https://github.com/shimo4228",
-        "https://orcid.org/0009-0002-6168-4162",
-        "https://www.wikidata.org/wiki/Q140090100"
+        "https://orcid.org/0009-0002-6168-4162"
       ]
     },
     {
       "@id": "https://doi.org/10.5281/zenodo.19212118",
-      "sameAs": "https://www.wikidata.org/wiki/Q140090187",
       "@type": [
         "ResearchLine",
         "ScholarlyArticle"
@@ -1726,7 +1724,6 @@
     },
     {
       "@id": "https://doi.org/10.5281/zenodo.19200726",
-      "sameAs": "https://www.wikidata.org/wiki/Q140090186",
       "@type": [
         "ResearchLine",
         "EcosystemRepo"
@@ -1751,7 +1748,6 @@
     },
     {
       "@id": "https://doi.org/10.5281/zenodo.19652013",
-      "sameAs": "https://www.wikidata.org/wiki/Q140090188",
       "@type": [
         "ResearchLine",
         "EcosystemRepo"
@@ -1776,7 +1772,6 @@
     },
     {
       "@id": "https://doi.org/10.5281/zenodo.20263316",
-      "sameAs": "https://www.wikidata.org/wiki/Q140090190",
       "@type": [
         "ResearchLine",
         "EcosystemRepo"
@@ -1800,7 +1795,6 @@
     },
     {
       "@id": "https://doi.org/10.5281/zenodo.20262112",
-      "sameAs": "https://www.wikidata.org/wiki/Q140090189",
       "@type": [
         "ResearchLine",
         "EcosystemRepo"
@@ -1824,7 +1818,6 @@
     },
     {
       "@id": "https://doi.org/10.5281/zenodo.20578272",
-      "sameAs": "https://www.wikidata.org/wiki/Q140090144",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
@@ -1837,7 +1830,6 @@
     },
     {
       "@id": "https://doi.org/10.5281/zenodo.20353789",
-      "sameAs": "https://www.wikidata.org/wiki/Q140090128",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
@@ -1850,7 +1842,6 @@
     },
     {
       "@id": "https://doi.org/10.5281/zenodo.20355907",
-      "sameAs": "https://www.wikidata.org/wiki/Q140090133",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
@@ -1863,7 +1854,6 @@
     },
     {
       "@id": "https://arxiv.org/abs/2504.15125",
-      "sameAs": "https://www.wikidata.org/wiki/Q140181291",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
@@ -1875,7 +1865,6 @@
     },
     {
       "@id": "https://arxiv.org/abs/2305.10250",
-      "sameAs": "https://www.wikidata.org/wiki/Q140181351",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
@@ -1887,7 +1876,6 @@
     },
     {
       "@id": "https://arxiv.org/abs/2310.08560",
-      "sameAs": "https://www.wikidata.org/wiki/Q140181237",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
@@ -1899,7 +1887,6 @@
     },
     {
       "@id": "https://arxiv.org/abs/2501.13956",
-      "sameAs": "https://www.wikidata.org/wiki/Q140181353",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
@@ -1911,7 +1898,6 @@
     },
     {
       "@id": "https://arxiv.org/abs/2502.12110",
-      "sameAs": "https://www.wikidata.org/wiki/Q140181355",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
@@ -1923,7 +1909,6 @@
     },
     {
       "@id": "https://arxiv.org/abs/2503.03704",
-      "sameAs": "https://www.wikidata.org/wiki/Q140181350",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
@@ -1935,7 +1920,6 @@
     },
     {
       "@id": "https://arxiv.org/abs/2504.19413",
-      "sameAs": "https://www.wikidata.org/wiki/Q140181358",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
@@ -1947,7 +1931,6 @@
     },
     {
       "@id": "https://arxiv.org/abs/2512.16962",
-      "sameAs": "https://www.wikidata.org/wiki/Q140181359",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
@@ -1959,7 +1942,6 @@
     },
     {
       "@id": "https://arxiv.org/abs/2304.03442",
-      "sameAs": "https://www.wikidata.org/wiki/Q130846143",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
@@ -1971,7 +1953,6 @@
     },
     {
       "@id": "https://arxiv.org/abs/2309.02427",
-      "sameAs": "https://www.wikidata.org/wiki/Q140181234",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
@@ -2062,7 +2043,6 @@
     },
     {
       "@id": "https://arxiv.org/abs/2603.18743",
-      "sameAs": "https://www.wikidata.org/wiki/Q140181293",
       "@type": [
         "ExternalReference",
         "ScholarlyArticle"
