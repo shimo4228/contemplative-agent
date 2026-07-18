@@ -59,7 +59,7 @@ def backfill(knowledge_path: Path, batch_size: int = DEFAULT_BATCH_SIZE) -> int:
             )
         vectors.extend(v.tolist() for v in embedded)
 
-    for i, vec in zip(missing, vectors):
+    for i, vec in zip(missing, vectors, strict=True):
         rows[i]["embedding"] = vec
 
     # Same shape knowledge_store.save() writes (indent=2, trailing newline),

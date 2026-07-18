@@ -19,8 +19,6 @@ if TYPE_CHECKING:
 from xml.sax.saxutils import escape as xml_escape
 
 from ..adapters.moltbook import config
-
-
 from . import runtime
 
 logger = logging.getLogger(__name__)

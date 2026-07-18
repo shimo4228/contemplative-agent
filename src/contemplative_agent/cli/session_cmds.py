@@ -22,10 +22,7 @@ from ..adapters.moltbook import config
 from ..core.domain import (
     DEFAULT_CONFIG_DIR,
 )
-
-
-from . import memory_cmds
-from . import runtime
+from . import memory_cmds, runtime
 
 logger = logging.getLogger(__name__)
 

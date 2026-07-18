@@ -10,6 +10,11 @@ from urllib.parse import urlparse
 
 import requests
 
+from ...core._io import append_jsonl_restricted, now_iso, strip_to_printable
+from ...core.config import (
+    VALID_ID_PATTERN,
+    VALID_SUBMOLT_PATTERN,
+)
 from .config import (
     ALLOWED_DOMAIN,
     BASE_URL,
@@ -17,11 +22,6 @@ from .config import (
     MAX_RETRY_ON_429,
     MOLTBOOK_DATA_DIR,
     READ_TIMEOUT,
-)
-from ...core._io import append_jsonl_restricted, now_iso, strip_to_printable
-from ...core.config import (
-    VALID_ID_PATTERN,
-    VALID_SUBMOLT_PATTERN,
 )
 
 VALID_AGENT_NAME_PATTERN = re.compile(r"^[A-Za-z0-9_-]{1,64}$")

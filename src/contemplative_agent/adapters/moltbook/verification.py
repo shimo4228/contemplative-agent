@@ -26,24 +26,24 @@ fallback is ever submitted; a prompt injected via the challenge fails closed to
 from __future__ import annotations
 
 import base64
-from dataclasses import dataclass
-from decimal import Decimal, DivisionByZero, InvalidOperation
 import hashlib
 import json
 import logging
 import math
-from pathlib import Path
 import re
+from dataclasses import dataclass
+from decimal import Decimal, DivisionByZero, InvalidOperation
+from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal, Optional
 
+from ...core._io import append_jsonl_restricted, now_iso, strip_to_printable
+from ...core.llm import generate, wrap_untrusted_content
 from .config import (
     EPISODE_LOG_DIR,
     MAX_CHALLENGE_INPUT,
     MAX_VERIFICATION_FAILURES,
 )
 from .verification_parse import code_parse_challenge
-from ...core._io import append_jsonl_restricted, now_iso, strip_to_printable
-from ...core.llm import generate, wrap_untrusted_content
 
 if TYPE_CHECKING:
     from .client import MoltbookClient

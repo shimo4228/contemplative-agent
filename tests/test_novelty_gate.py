@@ -32,7 +32,6 @@ from contemplative_agent.adapters.moltbook.novelty import (
 from contemplative_agent.core.episode_embeddings import EpisodeEmbeddingStore
 from contemplative_agent.core.memory import MemoryStore, PostRecord
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------

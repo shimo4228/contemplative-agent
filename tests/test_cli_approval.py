@@ -9,11 +9,9 @@ import json
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-
 from contemplative_agent.cli.adopt import _handle_adopt_staged
 from contemplative_agent.cli.approval import _approve_delete, _log_approval
 from contemplative_agent.cli.staging import StageItem, _stage_results
-
 
 
 class TestLogApproval:

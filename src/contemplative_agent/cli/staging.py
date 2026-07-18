@@ -5,10 +5,10 @@ Extracted verbatim from the single-file cli.py (ADR-0079 Phase 2).
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
 import json as json_mod
 import logging
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Literal
 
@@ -19,8 +19,6 @@ from ..adapters.moltbook import config
 from ..core._io import (
     acquire_run_lock,
 )
-
-
 from . import approval
 
 logger = logging.getLogger(__name__)

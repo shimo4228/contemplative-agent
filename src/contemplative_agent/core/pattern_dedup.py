@@ -20,6 +20,7 @@ from .thresholds import SIM_DUPLICATE, SIM_UPDATE
 
 logger = logging.getLogger(__name__)
 
+
 def _dedup_patterns(
     new_patterns: Sequence[str],
     new_embeddings: Sequence[Optional[np.ndarray]],
@@ -60,7 +61,7 @@ def _dedup_patterns(
 
     existing_with_emb = _live_embedded(existing_patterns)
 
-    for input_idx, (new_text, new_emb) in enumerate(zip(new_patterns, new_embeddings)):
+    for input_idx, (new_text, new_emb) in enumerate(zip(new_patterns, new_embeddings, strict=True)):
         if new_emb is None:
             add_patterns.append(new_text)
             add_embeddings.append(None)

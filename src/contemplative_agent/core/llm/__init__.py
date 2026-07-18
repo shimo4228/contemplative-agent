@@ -32,14 +32,14 @@ import requests
 from .._io import append_jsonl_restricted, now_iso
 from . import prompting as _prompting
 from .backend import (
+    _DEFAULT_OLLAMA_MODEL as _DEFAULT_OLLAMA_MODEL,
+    _DEFAULT_OLLAMA_URL as _DEFAULT_OLLAMA_URL,
     CIRCUIT_COOLDOWN_SECONDS as CIRCUIT_COOLDOWN_SECONDS,
     CIRCUIT_FAILURE_THRESHOLD as CIRCUIT_FAILURE_THRESHOLD,
     MIN_CLAMPED_NUM_PREDICT as MIN_CLAMPED_NUM_PREDICT,
     NUM_CTX as NUM_CTX,
     SAMPLING_TOP_K as SAMPLING_TOP_K,
     SAMPLING_TOP_P as SAMPLING_TOP_P,
-    _DEFAULT_OLLAMA_MODEL as _DEFAULT_OLLAMA_MODEL,
-    _DEFAULT_OLLAMA_URL as _DEFAULT_OLLAMA_URL,
     BackendResult as BackendResult,
     GenerationOutput as GenerationOutput,
     LLMBackend as LLMBackend,
@@ -47,12 +47,12 @@ from .backend import (
     circuit_shield as circuit_shield,
 )
 from .guard import (
-    LOCALHOST_HOSTS as LOCALHOST_HOSTS,
-    MAX_THINKING_CHARS as MAX_THINKING_CHARS,
     _DEFAULT_MARKER_COMPLETE as _DEFAULT_MARKER_COMPLETE,
     _DEFAULT_MARKER_TRUNCATED as _DEFAULT_MARKER_TRUNCATED,
     _DEFAULT_UNTRUSTED_FRAME as _DEFAULT_UNTRUSTED_FRAME,
     _INJECTION_TOKENS as _INJECTION_TOKENS,
+    LOCALHOST_HOSTS as LOCALHOST_HOSTS,
+    MAX_THINKING_CHARS as MAX_THINKING_CHARS,
     _extract_inline_thinking as _extract_inline_thinking,
     _sanitize_output as _sanitize_output,
     _sanitize_thinking as _sanitize_thinking,

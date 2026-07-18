@@ -1,5 +1,7 @@
 """Tests for self-improvement metrics."""
 
+import pytest
+
 from contemplative_agent.core.memory import EpisodeLog
 from contemplative_agent.core.metrics import (
     SessionReport,
@@ -261,11 +263,8 @@ class TestComputeMetrics:
     def test_report_is_frozen(self, tmp_path):
         log = EpisodeLog(log_dir=tmp_path / "logs")
         report = compute_metrics(log, days=7)
-        try:
+        with pytest.raises(AttributeError):
             report.comments_sent = 99  # type: ignore[misc]
-            assert False, "Should raise FrozenInstanceError"
-        except AttributeError:
-            pass
 
     def test_received_comment_counted(self, tmp_path):
         """Received comments (not just replies) should count."""

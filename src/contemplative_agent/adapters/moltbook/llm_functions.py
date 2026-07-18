@@ -8,6 +8,13 @@ from typing import Optional
 
 from ...core.config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH, MAX_POST_TITLE_LENGTH
 from ...core.domain import get_domain_config, resolve_prompt
+from ...core.llm import (
+    GenerationOutput,
+    generate,
+    generate_for_api,
+    get_identity_system_prompt,
+    wrap_untrusted_content,
+)
 from ...core.memory import POST_TOPIC_SUMMARY_MAX
 from ...core.prompts import (
     COMMENT_PROMPT,
@@ -18,13 +25,6 @@ from ...core.prompts import (
     REPLY_PROMPT,
     SUBMOLT_SELECTION_PROMPT,
     TOPIC_SUMMARY_PROMPT,
-)
-from ...core.llm import (
-    GenerationOutput,
-    generate,
-    generate_for_api,
-    get_identity_system_prompt,
-    wrap_untrusted_content,
 )
 from ...core.skill_selection import shadow_observe_skill_selection
 

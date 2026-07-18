@@ -9,10 +9,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from contemplative_agent.adapters.moltbook.verification import (
-    VerificationSolveResult,
-    VerificationTracker,
     _EXTRACT_NUM_PREDICT,
     _SOLVER_NUM_PREDICT,
+    VerificationSolveResult,
+    VerificationTracker,
     _compute_expression_answer,
     _extract_answer,
     _extract_guarded_answer,

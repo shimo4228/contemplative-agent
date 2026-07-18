@@ -1049,6 +1049,7 @@ class TestMissingRateHeaderWarningM4:
 
     def test_warns_after_streak(self, caplog):
         import logging as _logging
+
         from contemplative_agent.adapters.moltbook.client import (
             _MISSING_HEADER_WARN_AFTER,
         )
@@ -1066,6 +1067,7 @@ class TestMissingRateHeaderWarningM4:
 
     def test_header_resets_streak(self, caplog):
         import logging as _logging
+
         from contemplative_agent.adapters.moltbook.client import (
             _MISSING_HEADER_WARN_AFTER,
         )

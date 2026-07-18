@@ -8,14 +8,14 @@ from unittest.mock import patch
 
 from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.stocktake import (
-    MergeGroup,
-    QualityIssue,
-    StocktakeResult,
     _CLEAN_TOKENS,
     _DEFAULT_CLEAN_SYSTEM,
     _DEFAULT_GROUP_SYSTEM,
     _DEFAULT_MERGE_SYSTEM,
     _PER_FILE_MERGE_TOKENS,
+    MergeGroup,
+    QualityIssue,
+    StocktakeResult,
     _check_rule_quality,
     _check_skill_quality,
     _find_duplicate_groups,
@@ -29,7 +29,6 @@ from contemplative_agent.core.stocktake import (
     run_rules_stocktake,
     run_skill_stocktake,
 )
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

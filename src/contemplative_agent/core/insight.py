@@ -23,18 +23,19 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Dict, List, Optional, Sequence, Tuple, Union
 
+from . import insight_novelty, llm
 from ._io import read_run_marker, write_run_marker
 from .artifact_extraction import resolve_artifact_path
 from .clustering import cluster_patterns
+from .insight_novelty import (
+    _Batch,
+    skill_theme as skill_theme,  # public re-export (consumers: skill_selection, cli)
+)
 from .knowledge_store import (
     effective_importance,
     epistemic_counts_for,
     pattern_id,
 )
-from . import llm
-from . import insight_novelty
-from .insight_novelty import _Batch
-from .insight_novelty import skill_theme as skill_theme  # public re-export (consumers: skill_selection, cli)
 from .memory import KnowledgeStore
 from .prompts import INSIGHT_EXTRACTION_PROMPT
 from .text_utils import extract_title

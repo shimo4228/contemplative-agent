@@ -16,7 +16,6 @@ from contemplative_agent.cli import main
 from contemplative_agent.cli.session_cmds import _do_init, _handle_dialogue, _list_templates
 
 
-
 class TestSyncDataSmoke:
     """F7: argv parse → dispatch → _handle_sync_data → _run_sync wiring.
 

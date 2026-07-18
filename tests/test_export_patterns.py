@@ -53,7 +53,7 @@ class TestJsonlExport:
         assert count == 2
         lines = out.read_text(encoding="utf-8").splitlines()
         assert len(lines) == 2
-        for line, src in zip(lines, _ROWS):
+        for line, src in zip(lines, _ROWS, strict=True):
             row = json.loads(line)
             assert "embedding" not in row
             assert row["pattern"] == src["pattern"]
@@ -67,7 +67,7 @@ class TestJsonExport:
         assert count == 2
         rows = json.loads(out.read_text(encoding="utf-8"))
         assert isinstance(rows, list) and len(rows) == 2
-        for row, src in zip(rows, _ROWS):
+        for row, src in zip(rows, _ROWS, strict=True):
             assert "embedding" not in row
             assert row["pattern"] == src["pattern"]
             assert row["valid_until"] == src["valid_until"]

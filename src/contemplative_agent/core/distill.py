@@ -22,14 +22,14 @@ from typing import Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
-from ._io import now_iso, strip_code_fence
 from . import episode_render, pattern_dedup
+from ._io import now_iso, strip_code_fence
+from .embeddings import embed_texts
+
 # Public re-exports (ADR-0079 Phase 3b): render_episode / summarize_record
 # are public names of this module; their implementation lives in
 # .episode_render.
-from .episode_render import render_episode as render_episode
-from .episode_render import summarize_record as summarize_record
-from .embeddings import embed_texts
+from .episode_render import render_episode as render_episode, summarize_record as summarize_record
 from .knowledge_store import (
     effective_importance,
     epistemic_counts_for,
@@ -608,7 +608,7 @@ def _distill_episodes(
                 "embedding": emb.tolist() if emb is not None else None,
                 "provenance": {"source_type": provenance[idx].source_type},
             }
-            for text, emb, idx in zip(add_patterns, add_embeddings, add_indices)
+            for text, emb, idx in zip(add_patterns, add_embeddings, add_indices, strict=True)
         ]
         for line in instrument_lines(batch, instrument_views):
             logger.info("dry-run instrument: %s", line)
@@ -642,7 +642,7 @@ def _store_new_patterns(
 ) -> None:
     """Persist deduped patterns with ADR-0021 provenance."""
     ts = now_iso()
-    for pattern, emb, src_idx in zip(add_patterns, add_embeddings, add_indices):
+    for pattern, emb, src_idx in zip(add_patterns, add_embeddings, add_indices, strict=True):
         emb_list: Optional[List[float]] = [float(x) for x in emb] if emb is not None else None
         source_type = provenance[src_idx].source_type
         episode_ids = list(provenance[src_idx].episode_ids)
@@ -705,5 +705,3 @@ def _is_valid_pattern(pattern: str) -> bool:
             )
             return False
     return True
-
-

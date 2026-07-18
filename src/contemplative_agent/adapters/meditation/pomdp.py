@@ -14,12 +14,12 @@ from .config import (
     ACTION_STATES,
     CONTEXT_STATES,
     DEFAULT_CONFIG,
-    MeditationConfig,
     NUM_ACTIONS,
     NUM_CONTEXTS,
     NUM_OBSERVATIONS,
     OBSERVATION_STATES,
     OUTCOME_STATES,
+    MeditationConfig,
 )
 
 logger = logging.getLogger(__name__)

@@ -80,9 +80,37 @@ layers = [
     "contemplative_agent.core",
 ]
 
+# ADR-0015: one external adapter per agent — adapters must stay separable.
+# On violation, move the shared logic down into core/ rather than importing
+# a sibling adapter.
+[[tool.importlinter.contracts]]
+name = "Adapter independence (ADR-0015): moltbook / meditation / dialogue"
+type = "independence"
+modules = [
+    "contemplative_agent.adapters.moltbook",
+    "contemplative_agent.adapters.meditation",
+    "contemplative_agent.adapters.dialogue",
+]
+
 [tool.ruff]
 target-version = "py310"
 line-length = 100
-# Default lint selection (E4/E7/E9/F) — matches what the repo already passes.
-# Widen the rule set (e.g. add "I" for import sorting) in a dedicated cleanup,
-# not here, to keep this change non-breaking.
+
+[tool.ruff.lint]
+# Beyond the defaults (E4/E7/E9/F): B (bugbear — silent-truncation zip,
+# mutable defaults), I (import sorting), T20 (no print in library code —
+# use logging; rules/python/hooks.md).
+extend-select = ["B", "I", "T20"]
+
+[tool.ruff.lint.isort]
+# Keep explicit `X as X` re-export blocks (core/llm/__init__.py) compact
+# instead of one import statement per name.
+combine-as-imports = true
+
+[tool.ruff.lint.per-file-ignores]
+# Console-UI seams where print IS the interface, not stray logging.
+"src/contemplative_agent/cli/**" = ["T20"]                      # CLI user output
+"src/contemplative_agent/adapters/moltbook/agent.py" = ["T20"]  # ADR-0012 approval-gate TTY display
+"src/contemplative_agent/adapters/dialogue/peer.py" = ["T20"]   # stderr turn progress
+"tests/**" = ["T20"]
+"scripts/**" = ["T20"]

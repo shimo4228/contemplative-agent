@@ -9,7 +9,6 @@ from contemplative_agent.cli import main
 from contemplative_agent.cli.runtime import _setup_logging
 
 
-
 class TestSetupLogging:
     def test_debug_level(self):
         root = logging.getLogger()

@@ -380,7 +380,7 @@ def _within_one_edit(a: str, b: str) -> bool:
     if abs(la - lb) > 1 or a == b:
         return False
     if la == lb:
-        return sum(x != y for x, y in zip(a, b)) == 1
+        return sum(x != y for x, y in zip(a, b, strict=False)) == 1
     if la > lb:
         a, b, la, lb = b, a, lb, la
     # ``b`` is one longer: skip exactly one character of ``b``.
@@ -400,7 +400,7 @@ def _within_one_swap(a: str, b: str) -> bool:
     """
     if len(a) != len(b) or a == b:
         return False
-    diffs = [i for i, (x, y) in enumerate(zip(a, b)) if x != y]
+    diffs = [i for i, (x, y) in enumerate(zip(a, b, strict=False)) if x != y]
     return (
         len(diffs) == 2
         and diffs[1] == diffs[0] + 1
@@ -877,7 +877,7 @@ def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -
             if not op.is_symbol:
                 tail_word_ops.append(op)
             continue
-        for gap, (left, right) in enumerate(zip(operands, operands[1:])):
+        for gap, (left, right) in enumerate(zip(operands, operands[1:], strict=False)):
             if left.atom_end < op.atom_index < right.atom_start:
                 gap_ops[gap].append(op.op)
                 break
@@ -902,7 +902,7 @@ def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -
         if mark.atom_index > last.atom_end:
             tail_marks.append(mark)
             continue
-        for gap, (left, right) in enumerate(zip(operands, operands[1:])):
+        for gap, (left, right) in enumerate(zip(operands, operands[1:], strict=False)):
             if left.atom_end < mark.atom_index < right.atom_start:
                 if not gap_ops[gap] or set(gap_ops[gap]) == {_ADD_CHANGE}:
                     gap_ops[gap] = [_MUL]
@@ -1113,7 +1113,7 @@ def _compute_chain(operands: list[_Operand], chain: list[str]) -> Optional[str]:
     """
     result = Decimal(operands[0].value)
     try:
-        for op, operand in zip(chain, operands[1:]):
+        for op, operand in zip(chain, operands[1:], strict=False):
             right = Decimal(operand.value)
             if op == _ADD:
                 result += right

@@ -11,11 +11,11 @@ import pytest
 
 from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.rules_distill import (
+    _NO_RULES_MARKER,
     MIN_SKILLS_REQUIRED,
     RulesDistillResult,
     _build_skill_clusters,
     _extract_rules,
-    _NO_RULES_MARKER,
     _read_skills,
     _split_rules,
     distill_rules,

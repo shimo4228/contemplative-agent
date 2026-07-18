@@ -7,6 +7,15 @@ import signal
 import time
 from typing import Any, Callable, Dict, List, Optional
 
+from ...core.config import (
+    FORBIDDEN_SUBSTRING_PATTERNS,
+    FORBIDDEN_WORD_PATTERNS,
+)
+from ...core.domain import DomainConfig, get_domain_config
+from ...core.episode_embeddings import EpisodeEmbeddingStore
+from ...core.llm import configure as configure_llm
+from ...core.memory import MemoryStore
+from ...core.scheduler import Scheduler
 from .auth import check_claim_status, load_credentials, register_agent
 from .client import MoltbookClient, MoltbookClientError
 from .config import (
@@ -37,15 +46,6 @@ from .verification import (
     submit_verification,
     unsolved_result,
 )
-from ...core.config import (
-    FORBIDDEN_SUBSTRING_PATTERNS,
-    FORBIDDEN_WORD_PATTERNS,
-)
-from ...core.domain import DomainConfig, get_domain_config
-from ...core.episode_embeddings import EpisodeEmbeddingStore
-from ...core.llm import configure as configure_llm
-from ...core.memory import MemoryStore
-from ...core.scheduler import Scheduler
 
 logger = logging.getLogger(__name__)
 
@@ -817,7 +817,6 @@ class Agent:
         """Generate daily activity report from episode logs."""
         try:
             from ...core.report import generate_report
-
             from .config import REPORTS_DIR
 
             output_dir = REPORTS_DIR

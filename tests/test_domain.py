@@ -286,6 +286,7 @@ class TestConfigDirOverride:
         monkeypatch.setenv("CONTEMPLATIVE_CONFIG_DIR", str(tmp_path))
         # Re-import to pick up env var change
         import importlib
+
         import contemplative_agent.core.domain as domain_mod
         importlib.reload(domain_mod)
         try:

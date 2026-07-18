@@ -2,7 +2,11 @@
 
 from unittest.mock import MagicMock, patch
 
-from contemplative_agent.core.constitution import AmendmentResult, amend_constitution, MIN_PATTERNS_REQUIRED
+from contemplative_agent.core.constitution import (
+    MIN_PATTERNS_REQUIRED,
+    AmendmentResult,
+    amend_constitution,
+)
 from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.memory import KnowledgeStore
 

@@ -27,8 +27,7 @@ from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
-from contemplative_agent.core._io import age_days as _age_days
-from contemplative_agent.core._io import parse_aware_utc
+from contemplative_agent.core._io import age_days as _age_days, parse_aware_utc
 from contemplative_agent.core.config import VALID_ID_PATTERN
 from contemplative_agent.core.embeddings import (
     cosine,
@@ -152,7 +151,7 @@ class PostEmbeddingCache:
         if miss_vecs is None or miss_vecs.shape[0] != len(misses):
             return cached
         rows: List[Tuple[str, str, np.ndarray]] = []
-        for record, vec in zip(misses, miss_vecs):
+        for record, vec in zip(misses, miss_vecs, strict=True):
             cached[record.post_id] = vec
             rows.append((record.post_id, record.timestamp, vec))
         if rows:

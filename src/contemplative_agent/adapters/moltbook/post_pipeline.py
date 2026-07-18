@@ -9,6 +9,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple
 
 import numpy as np
 
+from ...core.config import VALID_ID_PATTERN, VALID_SUBMOLT_PATTERN
+from ...core.domain import DomainConfig
+from ...core.scheduler import Scheduler
+from ...core.text_utils import log_preview
 from .client import MoltbookClient, MoltbookClientError, envelope_ok
 from .config import ADAPTIVE_BACKOFF
 from .content import ContentManager, _content_hash
@@ -24,10 +28,6 @@ from .llm_functions import (
 )
 from .novelty import NoveltyGate
 from .session_context import SessionContext
-from ...core.config import VALID_ID_PATTERN, VALID_SUBMOLT_PATTERN
-from ...core.domain import DomainConfig
-from ...core.scheduler import Scheduler
-from ...core.text_utils import log_preview
 
 logger = logging.getLogger(__name__)
 

@@ -22,7 +22,6 @@ uses (no magic numbers).
 from __future__ import annotations
 
 import json
-
 from unittest.mock import patch
 
 from contemplative_agent.core import insight, insight_novelty
@@ -32,7 +31,6 @@ from contemplative_agent.core.llm import (
     configure,
     reset_llm_config,
 )
-
 from tests.chaos import NONE, OK, SHAPE_VIOLATION, TRUNCATED, ChaosBackend
 
 KNOWN = [("skill-a", "handles consensus friction")]

@@ -8,6 +8,10 @@ import time
 from datetime import datetime, timezone
 from typing import Callable, List, Optional, Set
 
+from ...core.config import VALID_ID_PATTERN
+from ...core.domain import DomainConfig
+from ...core.scheduler import Scheduler
+from ...core.text_utils import log_preview
 from .client import MoltbookClient, MoltbookClientError
 from .config import (
     ADAPTIVE_BACKOFF,
@@ -19,10 +23,6 @@ from .content import ContentManager
 from .dedup import is_promotional, is_repeat_target_for_author
 from .llm_functions import generate_internal_note, score_relevance
 from .session_context import SessionContext
-from ...core.config import VALID_ID_PATTERN
-from ...core.domain import DomainConfig
-from ...core.scheduler import Scheduler
-from ...core.text_utils import log_preview
 
 logger = logging.getLogger(__name__)
 

@@ -8,10 +8,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from contemplative_agent.adapters.moltbook.agent import Agent, AutonomyLevel
 from contemplative_agent.adapters.moltbook.client import (
     MoltbookClientError,
 )
-from contemplative_agent.adapters.moltbook.agent import Agent, AutonomyLevel
 from contemplative_agent.adapters.moltbook.reply_handler import (
     extract_agent_fields,
     extract_notification_fields,

@@ -8,7 +8,6 @@ import argparse
 import json
 from unittest.mock import MagicMock, patch
 
-
 from contemplative_agent.cli import main
 from contemplative_agent.cli.stocktake_cmd import (
     _handle_rules_stocktake,
@@ -17,8 +16,6 @@ from contemplative_agent.cli.stocktake_cmd import (
     _stocktake_merge_phase,
 )
 from contemplative_agent.core.stocktake import MergeGroup
-
-
 
 
 class TestSkillStocktakeDirectDrop:

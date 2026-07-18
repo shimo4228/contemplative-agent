@@ -8,14 +8,14 @@ import time
 from datetime import datetime, timezone
 from typing import Callable, Optional, Tuple
 
+from ...core.config import VALID_ID_PATTERN
+from ...core.scheduler import Scheduler
+from ...core.text_utils import log_preview
 from .client import MoltbookClient, MoltbookClientError
 from .config import ADAPTIVE_BACKOFF
 from .dedup import is_promotional
 from .llm_functions import generate_internal_note, generate_reply
 from .session_context import SessionContext
-from ...core.config import VALID_ID_PATTERN
-from ...core.scheduler import Scheduler
-from ...core.text_utils import log_preview
 
 logger = logging.getLogger(__name__)
 

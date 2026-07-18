@@ -19,8 +19,7 @@ import logging
 from unittest.mock import patch
 
 import numpy as np
-from hypothesis import example, given
-from hypothesis import strategies as st
+from hypothesis import example, given, strategies as st
 
 from contemplative_agent.core.distill import (
     ABSTAIN_EMPTY_RENDER,
@@ -36,7 +35,6 @@ from contemplative_agent.core.llm import (
     reset_llm_config,
 )
 from contemplative_agent.core.memory import KnowledgeStore
-
 from tests.chaos import (
     EXC_TIMEOUT,
     LLM_NONE_FAULTS,

@@ -15,21 +15,21 @@ from contemplative_agent.adapters.moltbook.llm_functions import (
     select_submolt,
     summarize_post_topic,
 )
-from contemplative_agent.core.memory import POST_TOPIC_SUMMARY_MAX
 from contemplative_agent.core.llm import (
-    CIRCUIT_FAILURE_THRESHOLD,
     _DEFAULT_OLLAMA_MODEL,
     _DEFAULT_UNTRUSTED_FRAME,
+    CIRCUIT_FAILURE_THRESHOLD,
+    GenerationOutput,
     _get_model,
     _get_ollama_url,
     _sanitize_output,
-    wrap_untrusted_content,
     generate,
     generate_for_api,
     generate_full,
     served_model,
-    GenerationOutput,
+    wrap_untrusted_content,
 )
+from contemplative_agent.core.memory import POST_TOPIC_SUMMARY_MAX
 
 
 def _assert_breaker_saw_no_failure(circuit) -> None:
@@ -961,7 +961,7 @@ class TestSystemPromptBudgetReading:
             return_value="a" * 300,
         ):
             reading = system_prompt_budget_reading(new_texts=[])
-        with pytest.raises(Exception):
+        with pytest.raises(AttributeError):
             reading.current_tokens = 0  # type: ignore[misc]
 
     def test_overrides_measure_but_do_not_leak(self, tmp_path):
@@ -1451,10 +1451,10 @@ class TestGenerateCooperationPost:
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
     def test_uses_generate_for_api_with_max_post_length(self, mock_gen):
-        from contemplative_agent.core.config import MAX_POST_LENGTH
         from contemplative_agent.adapters.moltbook.llm_functions import (
             COMMENT_TEMPERATURE,
         )
+        from contemplative_agent.core.config import MAX_POST_LENGTH
 
         mock_gen.return_value = GenerationOutput(text="ok")
         generate_cooperation_post(self._SEEDS)
@@ -1772,14 +1772,14 @@ class TestCircuitBreaker:
         assert _circuit.is_open is False
 
     def test_circuit_opens_after_threshold(self):
-        from contemplative_agent.core.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
+        from contemplative_agent.core.llm import CIRCUIT_FAILURE_THRESHOLD, _circuit
 
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             _circuit.record_failure()
         assert _circuit.is_open is True
 
     def test_circuit_resets_on_success(self):
-        from contemplative_agent.core.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
+        from contemplative_agent.core.llm import CIRCUIT_FAILURE_THRESHOLD, _circuit
 
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             _circuit.record_failure()
@@ -1788,7 +1788,7 @@ class TestCircuitBreaker:
         assert _circuit.is_open is False
 
     def test_circuit_recovers_after_cooldown(self):
-        from contemplative_agent.core.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
+        from contemplative_agent.core.llm import CIRCUIT_FAILURE_THRESHOLD, _circuit
 
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             _circuit.record_failure()
@@ -1799,7 +1799,7 @@ class TestCircuitBreaker:
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_generate_returns_none_when_open(self, mock_post):
-        from contemplative_agent.core.llm import _circuit, CIRCUIT_FAILURE_THRESHOLD
+        from contemplative_agent.core.llm import CIRCUIT_FAILURE_THRESHOLD, _circuit
 
         for _ in range(CIRCUIT_FAILURE_THRESHOLD):
             _circuit.record_failure()
@@ -1880,7 +1880,7 @@ class TestLoadSkills:
         assert "Bad Skill" not in result
 
     def test_skills_injected_into_identity(self, tmp_path):
-        from contemplative_agent.core.llm import configure, _build_system_prompt
+        from contemplative_agent.core.llm import _build_system_prompt, configure
 
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
@@ -1891,7 +1891,7 @@ class TestLoadSkills:
         assert "# Test Skill" in identity
 
     def test_no_skills_no_injection(self, tmp_path):
-        from contemplative_agent.core.llm import configure, _build_system_prompt
+        from contemplative_agent.core.llm import _build_system_prompt, configure
 
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
@@ -1980,7 +1980,7 @@ class TestLearnedCorpusFraming:
         return skills_dir, rules_dir
 
     def test_skills_framing_precedes_skills_block(self, tmp_path):
-        from contemplative_agent.core.llm import configure, _build_system_prompt
+        from contemplative_agent.core.llm import _build_system_prompt, configure
         from contemplative_agent.core.prompts import LEARNED_SKILLS_FRAMING_PROMPT
 
         skills_dir, rules_dir = self._corpus_dirs(tmp_path)
@@ -1991,7 +1991,7 @@ class TestLearnedCorpusFraming:
         assert prompt.index(LEARNED_SKILLS_FRAMING_PROMPT) < prompt.index("<learned_skills>")
 
     def test_rules_framing_precedes_rules_block(self, tmp_path):
-        from contemplative_agent.core.llm import configure, _build_system_prompt
+        from contemplative_agent.core.llm import _build_system_prompt, configure
         from contemplative_agent.core.prompts import LEARNED_RULES_FRAMING_PROMPT
 
         skills_dir, rules_dir = self._corpus_dirs(tmp_path)
@@ -2003,7 +2003,7 @@ class TestLearnedCorpusFraming:
 
     def test_no_framing_without_corpus(self, tmp_path):
         """Framing rides with its block: empty corpus → no framing text."""
-        from contemplative_agent.core.llm import configure, _build_system_prompt
+        from contemplative_agent.core.llm import _build_system_prompt, configure
         from contemplative_agent.core.prompts import (
             LEARNED_RULES_FRAMING_PROMPT,
             LEARNED_SKILLS_FRAMING_PROMPT,

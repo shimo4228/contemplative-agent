@@ -9,7 +9,6 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from contemplative_agent.core import insight_novelty
-
 from contemplative_agent.core.insight import (
     FULL_RECLUSTER_WARN_N,
     InsightResult,
@@ -21,7 +20,6 @@ from contemplative_agent.core.insight import (
 from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.memory import KnowledgeStore
 from contemplative_agent.core.text_utils import extract_title, slugify
-
 
 # ---------------------------------------------------------------------------
 # Fixtures

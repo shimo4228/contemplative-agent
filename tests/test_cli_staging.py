@@ -16,7 +16,6 @@ from contemplative_agent.cli.adopt import _handle_adopt_staged
 from contemplative_agent.cli.staging import StageItem, _stage_results
 
 
-
 class TestStageResults:
     """Tests for _stage_results() staging helper."""
 

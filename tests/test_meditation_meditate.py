@@ -5,9 +5,9 @@ from __future__ import annotations
 import numpy as np
 
 from contemplative_agent.adapters.meditation.config import (
-    MeditationConfig,
     NUM_ACTIONS,
     NUM_CONTEXTS,
+    MeditationConfig,
 )
 from contemplative_agent.adapters.meditation.meditate import (
     MeditationResult,

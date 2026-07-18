@@ -4,9 +4,9 @@ import json
 
 from contemplative_agent.core.report import (
     _build_report,
-    defang_urls,
     _format_ts,
     _parse_log,
+    defang_urls,
     generate_all_reports,
     generate_report,
 )

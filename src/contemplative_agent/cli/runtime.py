@@ -25,7 +25,6 @@ from ..core.domain import (
 from ..core.llm import configure as configure_llm
 from ..core.skill_selection import configure_skill_selection
 
-
 logger = logging.getLogger(__name__)
 
 

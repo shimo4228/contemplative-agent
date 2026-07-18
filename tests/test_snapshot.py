@@ -11,13 +11,13 @@ from unittest.mock import patch
 import numpy as np
 import pytest
 
+import contemplative_agent.core.snapshot as snapshot_mod
 from contemplative_agent.core.snapshot import (
     _copy_markdown_tree,
     _prune_snapshots,
     collect_thresholds,
     write_snapshot,
 )
-import contemplative_agent.core.snapshot as snapshot_mod
 from contemplative_agent.core.views import ViewRegistry
 
 

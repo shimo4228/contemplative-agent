@@ -14,11 +14,7 @@ if TYPE_CHECKING:
     from ..core.stocktake import MergeGroup, QualityIssue, StocktakeResult
 
 from ..adapters.moltbook import config
-
-
-from . import approval
-from . import memory_cmds
-from . import staging
+from . import approval, memory_cmds, staging
 from .staging import StageItem
 
 logger = logging.getLogger(__name__)
@@ -225,7 +221,9 @@ def _stocktake_drop_phase(
             continue
 
         approved = approval._approve_delete(target_path)
-        approval._log_approval(drop_command, target_path, approved, body, snapshot_path=snapshot_path)
+        approval._log_approval(
+            drop_command, target_path, approved, body, snapshot_path=snapshot_path
+        )
         if approved:
             target_path.unlink()
             print(f"  Deleted {issue.filename}")
@@ -386,7 +384,7 @@ def _labeled_sections(
     """
     if len(labels) != len(traces):
         return [(f"{prefix} {i}", t) for i, t in enumerate(traces, 1)]
-    return [(f"{prefix} {label}", t) for label, t in zip(labels, traces)]
+    return [(f"{prefix} {label}", t) for label, t in zip(labels, traces, strict=True)]
 
 
 def _handle_stocktake_result(

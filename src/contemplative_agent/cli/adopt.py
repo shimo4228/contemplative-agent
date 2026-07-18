@@ -7,9 +7,9 @@ from __future__ import annotations
 
 import argparse
 import json as json_mod
-from dataclasses import dataclass
 import logging
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING, Optional, Sequence
 
@@ -20,8 +20,6 @@ from ..adapters.moltbook import config
 from ..core.domain import (
     load_constitution,
 )
-
-
 from . import approval
 from .approval import AuditSource
 

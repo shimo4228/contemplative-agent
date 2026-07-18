@@ -9,20 +9,20 @@ name; submodule internals are not part of any API surface).
 from __future__ import annotations
 
 import argparse
-from collections.abc import Callable
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     pass
 
-from ..adapters.moltbook.agent import Agent, AutonomyLevel
 from ..adapters.moltbook import config
+from ..adapters.moltbook.agent import Agent, AutonomyLevel
 from ..core._io import acquire_run_lock
-from ..core.run_context import new_session_id, set_session_id
 from ..core.domain import DomainConfig, get_domain_config
+from ..core.run_context import new_session_id, set_session_id
 from .adopt import _handle_adopt_staged, _handle_remove_skill
 from .memory_cmds import (
     _handle_amend_constitution,

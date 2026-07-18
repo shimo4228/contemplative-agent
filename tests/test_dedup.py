@@ -22,7 +22,6 @@ from contemplative_agent.adapters.moltbook.dedup import (
 )
 from contemplative_agent.core.memory import Interaction, MemoryStore, PostRecord
 
-
 # ---------------------------------------------------------------------------
 # Tokenization + Jaccard primitives
 # ---------------------------------------------------------------------------

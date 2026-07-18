@@ -24,10 +24,10 @@ import numpy as np
 
 from .config import (
     DEFAULT_CONFIG,
-    MeditationConfig,
     NUM_ACTIONS,
     NUM_CONTEXTS,
     OBSERVATION_STATES,
+    MeditationConfig,
 )
 from .pomdp import POMDPMatrices
 

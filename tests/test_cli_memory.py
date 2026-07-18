@@ -8,12 +8,10 @@ import argparse
 import json
 from unittest.mock import MagicMock, patch
 
-
 from contemplative_agent.cli.memory_cmds import _write_reasoning
 from contemplative_agent.cli.stocktake_cmd import (
     _handle_stocktake_result,
 )
-
 
 
 class TestWriteReasoning:

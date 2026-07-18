@@ -24,7 +24,6 @@ from contemplative_agent.adapters.meditation.pomdp import (
 )
 from contemplative_agent.core.episode_log import EpisodeLog
 
-
 # --- classify_action tests ---
 
 

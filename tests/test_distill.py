@@ -1,11 +1,12 @@
 """Tests for sleep-time memory distillation (ADR-0009 embedding-based)."""
 
 import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import MagicMock, patch
 
 import numpy as np
 import pytest
 
+from contemplative_agent.core._io import truncate_boundary
 from contemplative_agent.core.distill import (
     IdentityResult,
     _distill_one,
@@ -18,12 +19,11 @@ from contemplative_agent.core.distill import (
     summarize_record,
 )
 from contemplative_agent.core.episode_render import EXCERPT_CAPS, _is_rich_episode
-from contemplative_agent.core.pattern_dedup import _dedup_patterns
-from contemplative_agent.core.thresholds import SIM_DUPLICATE, SIM_UPDATE
-from contemplative_agent.core._io import truncate_boundary
 from contemplative_agent.core.knowledge_store import effective_importance
 from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.memory import EpisodeLog, KnowledgeStore
+from contemplative_agent.core.pattern_dedup import _dedup_patterns
+from contemplative_agent.core.thresholds import SIM_DUPLICATE, SIM_UPDATE
 
 
 def _make_log(tmp_path):

@@ -20,7 +20,6 @@ from contemplative_agent.cli.schedule import (
 )
 
 
-
 class TestBuildCalendarIntervals:
     def test_every_6_hours(self):
         result = _build_calendar_intervals(6)

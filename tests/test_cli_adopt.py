@@ -16,7 +16,6 @@ from contemplative_agent.cli.adopt import _handle_adopt_staged, _handle_remove_s
 from contemplative_agent.cli.staging import StageItem, _stage_results
 
 
-
 class TestHandleRemoveSkill:
     """`remove-skill` CLI: audit-backed manual skill deletion."""
 

@@ -8,7 +8,6 @@ import argparse
 import json
 from unittest.mock import MagicMock, patch
 
-
 from contemplative_agent.cli.staging import StageItem
 from contemplative_agent.cli.stocktake_cmd import (
     _handle_rules_stocktake,
@@ -16,8 +15,6 @@ from contemplative_agent.cli.stocktake_cmd import (
     _stocktake_clean_phase,
 )
 from contemplative_agent.core.stocktake import MergeGroup
-
-
 
 
 class TestStocktakeCleanStaging:
@@ -616,8 +613,9 @@ class TestRulesStocktakeDirectMerge:
         (commit 542f0b2). When the merged rule title slugifies to the
         name of one of the source rules, the delete loop must not unlink
         the file we just wrote."""
-        from contemplative_agent.core.stocktake import StocktakeResult
         from datetime import date
+
+        from contemplative_agent.core.stocktake import StocktakeResult
 
         rules_dir = tmp_path / "rules"
         rules_dir.mkdir()
