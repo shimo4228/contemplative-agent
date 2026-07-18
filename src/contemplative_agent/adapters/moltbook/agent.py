@@ -143,25 +143,72 @@ class Agent:
         home = client.get_home()
         self._home_data = home
 
-        # Extract agent ID from your_account
+        # Extract agent ID and name from your_account. The name is the
+        # operative self-identification key on live data (feed posts and
+        # notifications carry author.name but not author.id — ADR-0055).
         account = home.get("your_account", {})
         agent_id = account.get("id", "")
-        agent_name = account.get("name", "")
+        self._store_own_agent_name(account.get("name", ""))
         if agent_id:
             self._ctx.own_agent_id = agent_id
-            logger.info("Own agent ID: %s (name: %s)", agent_id[:12], agent_name)
-        elif not self._ctx.own_agent_id:
-            # Fallback to /agents/me if /home didn't return an ID
+            logger.info(
+                "Own agent ID: %s (name: %s)",
+                agent_id[:12],
+                self._ctx.own_agent_name,
+            )
+        if not self._ctx.own_agent_id or not self._ctx.own_agent_name:
+            # Fallback to /agents/me when /home left either identity field
+            # unset — the name is required for the self-gates on live data
+            # (cross-model review 2026-07-18: id-only /home responses would
+            # otherwise leave the name-keyed gates dead).
             self._fetch_own_agent_id_fallback(client)
+        self._log_self_identification_state()
+
+    def _store_own_agent_name(self, name: str) -> None:
+        """Store the own account name; reject sentinel values.
+
+        "unknown" is the extract_agent_fields default for absent counterparty
+        names — accepting it as our OWN name would make is_self's
+        `author_name != "unknown"` clause suppress every name match and
+        silently kill the gate (security review 2026-07-18).
+        """
+        if name and name != "unknown":
+            self._ctx.own_agent_name = name
+
+    def _log_self_identification_state(self) -> None:
+        """Surface degraded self-identification (no silent fallback).
+
+        The name is the operative key on live data (author ids are absent —
+        ADR-0055), so a missing own name degrades the self-gates even when
+        the id is known.
+        """
+        if not self._ctx.own_agent_id and not self._ctx.own_agent_name:
+            logger.warning("Self-reply protection DEGRADED: own agent ID and name unknown")
+        elif not self._ctx.own_agent_name:
+            logger.warning(
+                "Self-reply protection DEGRADED: own agent name unknown "
+                "(name is the operative key; live data lacks author ids)"
+            )
+        elif not self._ctx.own_agent_id:
+            logger.info("Own agent ID unknown; self-identification keyed on name only")
 
     def _fetch_own_agent_id_fallback(self, client: MoltbookClient) -> None:
-        """Fallback: fetch agent ID from /agents/me."""
+        """Fallback: fetch agent ID (and name) from /agents/me."""
         try:
             resp = client.get("/agents/me")
             agent_data = resp.json().get("agent", {})
-            self._ctx.own_agent_id = agent_data.get("id", "")
+            fallback_id = agent_data.get("id", "")
+            if fallback_id:
+                # Only overwrite on a truthy value: this path also runs
+                # name-only (id already set from /home) and must not clear it.
+                self._ctx.own_agent_id = fallback_id
+            self._store_own_agent_name(agent_data.get("name", ""))
             if self._ctx.own_agent_id:
-                logger.info("Own agent ID (fallback): %s", self._ctx.own_agent_id[:12])
+                logger.info(
+                    "Own agent ID (fallback): %s (name: %s)",
+                    self._ctx.own_agent_id[:12],
+                    self._ctx.own_agent_name,
+                )
         except MoltbookClientError as exc:
             if exc.status_code in (401, 403):
                 logger.critical(
@@ -173,8 +220,6 @@ class Agent:
                 logger.warning("Failed to fetch own agent ID: %s", exc)
         except ValueError as exc:
             logger.warning("Failed to parse /agents/me response: %s", exc)
-        if not self._ctx.own_agent_id:
-            logger.warning("Self-reply protection DEGRADED: own agent ID unknown")
 
     def _ensure_subscriptions(self, client: MoltbookClient) -> None:
         """Subscribe to all configured submolts (idempotent)."""

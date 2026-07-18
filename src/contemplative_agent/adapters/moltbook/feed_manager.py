@@ -246,11 +246,16 @@ class FeedManager:
         docs/CODEMAPS/architecture.md when it changes.
         """
         return self._passes_content_gates(
-            post, post_text, post_id, author_id
+            post, post_text, post_id, author_id, author_name
         ) and self._passes_author_history_gates(author_name, post_text, post_id)
 
     def _passes_content_gates(
-        self, post: dict, post_text: str, post_id: str, author_id: str
+        self,
+        post: dict,
+        post_text: str,
+        post_id: str,
+        author_id: str,
+        author_name: str,
     ) -> bool:
         """Static gates: promo, own post, ID format, submolt, already-commented."""
         ctx = self._ctx
@@ -263,8 +268,10 @@ class FeedManager:
             logger.info("Skipped promotional post: %s", post_id[:12])
             return False
 
-        # Skip our own posts
-        if ctx.own_agent_id and author_id == ctx.own_agent_id:
+        # Skip our own posts — keyed on name (live feed lacks author.id,
+        # ADR-0055 precedent); id compare retained as belt-and-braces.
+        if ctx.is_self(author_id, author_name):
+            logger.debug("Skipped own post %s", post_id[:12])
             return False
 
         # Validate post_id to prevent path traversal

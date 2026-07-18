@@ -214,8 +214,9 @@ class ReplyHandler:
         replier_id = fields["agent_id"]
         replier_name = fields["agent_name"]
 
-        # Skip our own comments to avoid self-reply loops
-        if self._ctx.own_agent_id and replier_id == self._ctx.own_agent_id:
+        # Skip our own comments to avoid self-reply loops (name-keyed:
+        # notification data carries agent_name but agent_id="unknown")
+        if self._ctx.is_self(replier_id, replier_name):
             logger.debug("Notification[%d] skipped: own comment", i)
             return
 
@@ -396,8 +397,9 @@ class ReplyHandler:
             if handled:
                 continue
 
-            # Skip our own comments to avoid self-reply loops
-            if self._ctx.own_agent_id and fields["agent_id"] == self._ctx.own_agent_id:
+            # Skip our own comments to avoid self-reply loops (name-keyed:
+            # comment data carries agent_name but agent_id="unknown")
+            if self._ctx.is_self(fields["agent_id"], fields["agent_name"]):
                 continue
 
             if not fields["content"]:

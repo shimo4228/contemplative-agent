@@ -35,6 +35,7 @@ class SessionContext:
         "commented_posts",
         "own_post_ids",
         "own_agent_id",
+        "own_agent_name",
         "actions_taken",
         "_rate_limited",
     )
@@ -43,13 +44,38 @@ class SessionContext:
         self,
         memory: MemoryStore,
         own_agent_id: str = "",
+        own_agent_name: str = "",
     ) -> None:
         self.memory: MemoryStore = memory
         self.commented_posts: Set[str] = set()
         self.own_post_ids: Set[str] = set()
         self.own_agent_id: str = own_agent_id
+        self.own_agent_name: str = own_agent_name
         self.actions_taken: List[str] = []
         self._rate_limited: bool = False
+
+    def is_self(self, author_id: str, author_name: str) -> bool:
+        """True when the counterparty is this agent (id or name match).
+
+        Live feed/notification data carries the author *name* but not the
+        author *id* (ADR-0055: 271/271 records with agent_id="unknown"), so
+        the name compare is the operative key; the id compare is kept as
+        belt-and-braces for a future API that ships ids. Sentinel values
+        never match: a counterparty ""/"unknown" (extract_agent_fields
+        default) and empty own fields each make the corresponding clause a
+        no-op. Exact match by design — normalization would widen the false
+        self-match surface (silently muting a distinct agent). Accepted
+        risk, same as the author-history gates: a stranger sharing this
+        agent's display name is skipped (bug-audit 2026-07-06 M6).
+        """
+        if self.own_agent_id and author_id and author_id == self.own_agent_id:
+            return True
+        return bool(
+            self.own_agent_name
+            and author_name
+            and author_name != "unknown"
+            and author_name == self.own_agent_name
+        )
 
     def seed_own_post_ids(
         self,
@@ -67,9 +93,7 @@ class SessionContext:
 
         Returns the number of ids seeded.
         """
-        records = self.memory.episodes.read_range(
-            days=days, record_type="activity"
-        )
+        records = self.memory.episodes.read_range(days=days, record_type="activity")
         # read_range interleaves days (today's file first, chronological
         # within each file) — sort by ISO timestamp to pick the true most
         # recent posts before applying the limit.
@@ -83,11 +107,7 @@ class SessionContext:
             # model): re-validate ids locally instead of trusting that every
             # writer of "post" records already did (security review
             # 2026-07-06 — defense in depth).
-            if (
-                isinstance(post_id, str)
-                and post_id
-                and VALID_ID_PATTERN.match(post_id)
-            ):
+            if isinstance(post_id, str) and post_id and VALID_ID_PATTERN.match(post_id):
                 posts.append((str(rec.get("ts") or ""), post_id))
         posts.sort(reverse=True)
         seeded: List[str] = []
@@ -100,7 +120,8 @@ class SessionContext:
         if seeded:
             logger.info(
                 "Restored %d own post id(s) from episode log (last %dd)",
-                len(seeded), days,
+                len(seeded),
+                days,
             )
         return len(seeded)
 

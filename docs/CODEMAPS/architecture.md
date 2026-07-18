@@ -98,7 +98,8 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │     observation — records only, injection unchanged; same for comment
  │     and cooperation_post below, NOT post_title]
  ├─ Agent._run_feed_cycle()
- │    fetch → promo filter → ID dedup → per-author cap (3/24h)
+ │    fetch → promo filter → own-author skip (name-keyed + id belt-and-braces;
+ │      live feed lacks author.id) → ID dedup → per-author cap (3/24h)
  │    → score_relevance (LLM, on 500-char feed preview — cheap gate)
  │    → fetch full body  [ADR-0061; before the note, not just the comment]
  │    → internal_note + comment (read the FULL post, not the preview)

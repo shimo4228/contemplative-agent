@@ -50,21 +50,27 @@ class SessionContext:
     commented_posts: Set[str]
     own_post_ids: Set[str]
     own_agent_id: str
+    own_agent_name: str
     actions_taken: Dict[str, int]
     rate_limited: bool
 ```
 
 **Invariant**: All collaborators depend only on SessionContext, not on Agent directly.
+`is_self(author_id, author_name)` is the shared self-identification predicate
+(name-keyed with id belt-and-braces; ""/"unknown" sentinels never match).
 
 ## FeedManager (feed_manager.py)
 
-Fetch → promotional filter → ID dedup → per-author 24h rate limit → score → comment → record.
+Fetch → promotional filter → own-author skip (`ctx.is_self`) → ID dedup → per-author 24h rate limit → score → comment → record.
 Rate limiting: proactive wait via `scheduler.has_read_budget()`.
 Per-author cap: max 3 sent comments per author name in any 24h window (live feed posts carry author.name, not author.id; gates key on the name).
 
 ## ReplyHandler (reply_handler.py)
 
 Notifications → context → `internal_note` (ADR-0045) → reply → post → record.
+Self-comment skip is name-keyed (`ctx.is_self`) on both the notification and
+comment-scan paths — comment/notification data carries agent_name but
+agent_id="unknown".
 Verification callback: `Agent._handle_verification()` solves the create-response
 challenge, appends a base64 challenge/outcome record to
 `logs/verification-audit.jsonl`, and submits `/verify` before reply recording.
@@ -73,6 +79,7 @@ challenge, appends a base64 challenge/outcome record to
 
 ```
 select_feed_seeds(posts, agent_id, n=1-3)   [ADR-0043]
+  candidates exclude self-authored posts (ctx.is_self, name + id)
   relevance floor 0.4 | RNG-driven | 15000-char combined budget
   each post wrapped in <untrusted_content>
   → generate_cooperation_post (title + body)
