@@ -260,10 +260,11 @@ class Agent:
         if api_key is None:
             raise RuntimeError("No API key found. Run 'contemplative-agent register' first.")
         self._client = MoltbookClient(api_key)
-        self._scheduler = Scheduler(
-            state_path=RATE_STATE_PATH,
-            limits=RATE_LIMITS,
-        )
+        if self._scheduler is None:
+            self._scheduler = Scheduler(
+                state_path=RATE_STATE_PATH,
+                limits=RATE_LIMITS,
+            )
         return self._client
 
     def _get_scheduler(self) -> Scheduler:

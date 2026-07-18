@@ -241,6 +241,20 @@ class TestEnsureClient:
         with pytest.raises(RuntimeError, match="No API key found"):
             agent._ensure_client()
 
+    @patch("contemplative_agent.adapters.moltbook.agent.Scheduler")
+    @patch("contemplative_agent.adapters.moltbook.agent.MoltbookClient")
+    @patch("contemplative_agent.adapters.moltbook.agent.load_credentials", return_value="test-key")
+    def test_preserves_injected_scheduler(self, mock_creds, mock_client_cls, mock_sched_cls):
+        # codex review 2026-07-18 (P2): an injected scheduler must survive
+        # lazy client creation — _ensure_client used to replace it with a
+        # fresh Scheduler, silently disabling the injection seam on the
+        # run_session path.
+        sched = MagicMock()
+        agent = Agent(scheduler=sched)
+        agent._ensure_client()
+        mock_sched_cls.assert_not_called()
+        assert agent._get_scheduler() is sched
+
 
 class TestGetScheduler:
     def test_raises_when_not_initialized(self):
