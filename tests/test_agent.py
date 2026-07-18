@@ -602,15 +602,24 @@ class TestFetchFeed:
 
 
 class TestHandleVerification:
-    def test_should_stop(self):
-        agent = Agent()
-        agent._verification = MagicMock()
-        agent._verification.should_stop = True
+    """Failure tracking observed through the real VerificationTracker.
 
-        result = agent._handle_verification(
-            {"challenge_text": "test", "verification_code": "moltbook_verify_v1"}
-        )
+    The tracker's public surface exposes only should_stop, so tests set
+    max_failures=1 and read should_stop as "this path recorded the failure"
+    (probe idiom shared with test_llm.py's circuit-breaker tests).
+    """
+
+    def test_should_stop(self):
+        tracker = VerificationTracker(max_failures=1)
+        tracker.record_failure()  # already at the ceiling
+        agent, _, _ = _make_agent(verification=tracker)
+
+        with patch("contemplative_agent.adapters.moltbook.agent.solve_challenge_result") as solve:
+            result = agent._handle_verification(
+                {"challenge_text": "test", "verification_code": "moltbook_verify_v1"}
+            )
         assert result is False
+        solve.assert_not_called()  # halted before any solving
 
     @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
     @patch(
@@ -618,15 +627,14 @@ class TestHandleVerification:
         return_value=_solve_result(None),
     )
     def test_solve_fails(self, mock_solve, mock_audit):
-        agent = Agent()
-        agent._verification = MagicMock()
-        agent._verification.should_stop = False
+        tracker = VerificationTracker(max_failures=1)
+        agent, _, _ = _make_agent(verification=tracker)
 
         result = agent._handle_verification(
             {"challenge_text": "test", "verification_code": "moltbook_verify_v1"}
         )
         assert result is False
-        agent._verification.record_failure.assert_called_once()
+        assert tracker.should_stop is True  # the unsolved challenge was recorded
         mock_audit.assert_called_once()
 
     @patch("contemplative_agent.adapters.moltbook.agent.submit_verification")
@@ -637,17 +645,18 @@ class TestHandleVerification:
     )
     def test_submit_success(self, mock_solve, mock_audit, mock_submit):
         mock_submit.return_value = {"success": True}
-        agent = Agent()
-        agent._client = MagicMock()
-        agent._scheduler = MagicMock()
-        agent._verification = MagicMock()
-        agent._verification.should_stop = False
+        tracker = VerificationTracker(max_failures=2)
+        tracker.record_failure()  # pre-seed: one short of the stop threshold
+        agent, _, _ = _make_agent(verification=tracker)
 
         result = agent._handle_verification(
             {"challenge_text": "test", "verification_code": "moltbook_verify_v1"}
         )
         assert result is True
-        agent._verification.record_success.assert_called_once()
+        # Probe: success must reset the failure streak — without the reset
+        # this second failure would reach max_failures=2 and trip should_stop.
+        tracker.record_failure()
+        assert not tracker.should_stop
         mock_audit.assert_called_once()
         assert mock_audit.call_args.kwargs["verify_success"] is True
 
@@ -659,17 +668,14 @@ class TestHandleVerification:
     )
     def test_submit_failure(self, mock_solve, mock_audit, mock_submit):
         mock_submit.return_value = {"success": False}
-        agent = Agent()
-        agent._client = MagicMock()
-        agent._scheduler = MagicMock()
-        agent._verification = MagicMock()
-        agent._verification.should_stop = False
+        tracker = VerificationTracker(max_failures=1)
+        agent, _, _ = _make_agent(verification=tracker)
 
         result = agent._handle_verification(
             {"challenge_text": "test", "verification_code": "moltbook_verify_v1"}
         )
         assert result is False
-        agent._verification.record_failure.assert_called_once()
+        assert tracker.should_stop is True
         mock_audit.assert_called_once()
         assert mock_audit.call_args.kwargs["verify_success"] is False
 
@@ -681,30 +687,26 @@ class TestHandleVerification:
     )
     def test_submit_client_error(self, mock_solve, mock_audit, mock_submit):
         mock_submit.side_effect = MoltbookClientError("fail")
-        agent = Agent()
-        agent._client = MagicMock()
-        agent._scheduler = MagicMock()
-        agent._verification = MagicMock()
-        agent._verification.should_stop = False
+        tracker = VerificationTracker(max_failures=1)
+        agent, _, _ = _make_agent(verification=tracker)
 
         result = agent._handle_verification(
             {"challenge_text": "test", "verification_code": "moltbook_verify_v1"}
         )
         assert result is False
-        agent._verification.record_failure.assert_called_once()
+        assert tracker.should_stop is True
         mock_audit.assert_called_once()
         assert mock_audit.call_args.kwargs["verify_success"] is False
 
     def test_missing_fields_records_failure(self):
-        agent = Agent()
-        agent._verification = MagicMock()
-        agent._verification.should_stop = False
+        tracker = VerificationTracker(max_failures=1)
+        agent, _, _ = _make_agent(verification=tracker)
 
         # An envelope lacking challenge_text/verification_code (e.g. a future
         # API rename) fails closed rather than submitting garbage.
         result = agent._handle_verification({"foo": "bar"})
         assert result is False
-        agent._verification.record_failure.assert_called_once()
+        assert tracker.should_stop is True
 
     @patch("contemplative_agent.adapters.moltbook.agent.submit_verification")
     @patch(
@@ -716,10 +718,7 @@ class TestHandleVerification:
     )
     def test_submit_called_with_verification_code(self, mock_solve, mock_audit, mock_submit):
         mock_submit.return_value = {"success": True}
-        agent = Agent()
-        agent._client = MagicMock()
-        agent._verification = MagicMock()
-        agent._verification.should_stop = False
+        agent, _, _ = _make_agent()  # fresh default tracker: should_stop False
 
         agent._handle_verification(
             {"challenge_text": "noise", "verification_code": "moltbook_verify_v1"}
@@ -1209,6 +1208,28 @@ def _admit_decision():
     )
 
 
+class _RecordingNoveltyGate:
+    """Duck-typed NoveltyGate stand-in: admits by default, records traffic.
+
+    Injected through the Agent constructor seam so tests observe gate calls
+    without reaching into ``_post_pipeline._novelty_gate``. The real gate is
+    unusable here: the test env points Ollama at an unreachable port, so
+    ``record`` would silently no-op on embed failure.
+    """
+
+    def __init__(self, decision=None) -> None:
+        self.evaluated: list[tuple[str, str]] = []
+        self.recorded: list[tuple[str, str]] = []
+        self._decision = decision
+
+    def evaluate(self, draft_title, draft_topic_summary, draft_body, recent_records):
+        self.evaluated.append((draft_title, draft_topic_summary))
+        return self._decision if self._decision is not None else _admit_decision()
+
+    def record(self, post_id, timestamp, title, topic_summary) -> None:
+        self.recorded.append((post_id, title))
+
+
 class TestRunPostCycle:
     @patch(
         "contemplative_agent.adapters.moltbook.post_pipeline.select_submolt",
@@ -1233,15 +1254,13 @@ class TestRunPostCycle:
         # Apr 2026 episode-log pollution). The test-content gate (correctly)
         # blocks those literals from reaching the live feed.
         content = MagicMock()
-        agent, client, scheduler = _make_agent(content=content)
+        # Admitting gate stub — keep the test focused on the publish path.
+        # NoveltyGate's own behaviour is covered in test_novelty_gate.py.
+        gate = _RecordingNoveltyGate()
+        agent, client, scheduler = _make_agent(content=content, novelty_gate=gate)
         content.create_cooperation_post.return_value = GenerationOutput(
             text="We paused to revisit how gates intersect with memory."
         )
-        # Bypass NoveltyGate at the boundary — keep the test focused on the
-        # publish path. NoveltyGate's own behaviour is covered in
-        # test_novelty_gate.py.
-        agent._post_pipeline._novelty_gate.evaluate = MagicMock(return_value=_admit_decision())
-        agent._post_pipeline._novelty_gate.record = MagicMock()
 
         feed_resp = MagicMock()
         feed_resp.json.return_value = {
@@ -1289,12 +1308,11 @@ class TestRunPostCycle:
         # Clean memory so the body-hash dedup gate isn't tripped by the shared
         # session MOLTBOOK_HOME (other post-cycle tests reuse the same content).
         content = MagicMock()
-        agent, client, scheduler = _make_agent(tmp_path, content=content)
+        gate = _RecordingNoveltyGate()
+        agent, client, scheduler = _make_agent(tmp_path, content=content, novelty_gate=gate)
         content.create_cooperation_post.return_value = GenerationOutput(
             text="We paused to revisit how gates intersect with memory."
         )
-        agent._post_pipeline._novelty_gate.evaluate = MagicMock(return_value=_admit_decision())
-        agent._post_pipeline._novelty_gate.record = MagicMock()
 
         feed_resp = MagicMock()
         feed_resp.json.return_value = {
@@ -1326,9 +1344,9 @@ class TestRunPostCycle:
         verify_calls = [c for c in client.post.call_args_list if c.args and c.args[0] == "/verify"]
         assert len(verify_calls) == 1
         assert verify_calls[0].kwargs["json"]["verification_code"] == "moltbook_verify_x"
-        # Verified → recorded.
+        # Verified → recorded (the visible post reached the novelty gate).
         assert any("Posted:" in a for a in agent._ctx.actions_taken)
-        agent._post_pipeline._novelty_gate.record.assert_called_once()
+        assert len(gate.recorded) == 1
 
     @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
     @patch(
@@ -1365,12 +1383,11 @@ class TestRunPostCycle:
         recorded — it stays out of NoveltyGate/memory/actions — but the
         rate-limit counter still advances (the create consumed server quota)."""
         content = MagicMock()
-        agent, client, scheduler = _make_agent(tmp_path, content=content)
+        gate = _RecordingNoveltyGate()
+        agent, client, scheduler = _make_agent(tmp_path, content=content, novelty_gate=gate)
         content.create_cooperation_post.return_value = GenerationOutput(
             text="We paused to revisit how gates intersect with memory."
         )
-        agent._post_pipeline._novelty_gate.evaluate = MagicMock(return_value=_admit_decision())
-        agent._post_pipeline._novelty_gate.record = MagicMock()
 
         feed_resp = MagicMock()
         feed_resp.json.return_value = {
@@ -1393,7 +1410,7 @@ class TestRunPostCycle:
         agent._post_pipeline.run_cycle(client, scheduler)
 
         assert agent._ctx.actions_taken == []
-        agent._post_pipeline._novelty_gate.record.assert_not_called()
+        assert gate.recorded == []
         content.mark_posted.assert_not_called()
         scheduler.record_post.assert_called_once()
 
@@ -1414,12 +1431,12 @@ class TestRunPostCycle:
         as seeds for a new self-post. Mirrors engage_with_post's own-post skip
         (feed_manager.py). Posts with no author survive (no regression)."""
         content = MagicMock()
-        agent, client, scheduler = _make_agent(content=content)
+        agent, client, scheduler = _make_agent(
+            content=content, novelty_gate=_RecordingNoveltyGate()
+        )
         content.create_cooperation_post.return_value = GenerationOutput(
             text="We paused to revisit how gates intersect with memory."
         )
-        agent._post_pipeline._novelty_gate.evaluate = MagicMock(return_value=_admit_decision())
-        agent._post_pipeline._novelty_gate.record = MagicMock()
         agent._ctx.own_agent_id = "my-agent-id"
 
         feed_resp = MagicMock()
@@ -1486,12 +1503,12 @@ class TestRunPostCycle:
         """F1.1 degradation: if own_agent_id never populated (empty string), the
         skip is a no-op — same guard as the comment path (`if ctx.own_agent_id`)."""
         content = MagicMock()
-        agent, client, scheduler = _make_agent(content=content)
+        agent, client, scheduler = _make_agent(
+            content=content, novelty_gate=_RecordingNoveltyGate()
+        )
         content.create_cooperation_post.return_value = GenerationOutput(
             text="We paused to revisit how gates intersect with memory."
         )
-        agent._post_pipeline._novelty_gate.evaluate = MagicMock(return_value=_admit_decision())
-        agent._post_pipeline._novelty_gate.record = MagicMock()
         agent._ctx.own_agent_id = ""  # not populated
 
         feed_resp = MagicMock()
@@ -1552,7 +1569,11 @@ class TestRunPostCycle:
         prior_hash = _content_hash(duplicate_body)
 
         content = MagicMock()
-        agent, client, scheduler = _make_agent(content=content)
+        # NoveltyGate admits — the only gate that can block here is the
+        # body-hash gate this test exercises.
+        agent, client, scheduler = _make_agent(
+            content=content, novelty_gate=_RecordingNoveltyGate()
+        )
         content.create_cooperation_post.return_value = GenerationOutput(text=duplicate_body)
 
         prior_record = PostRecord(
@@ -1563,9 +1584,6 @@ class TestRunPostCycle:
             content_hash=prior_hash,
             verified=True,  # a real prior post the body-hash gate compares against
         )
-        # NoveltyGate admits — the only gate that can block here is the
-        # body-hash gate this test exercises.
-        agent._post_pipeline._novelty_gate.evaluate = MagicMock(return_value=_admit_decision())
         agent._ctx.memory.get_recent_posts = MagicMock(return_value=[prior_record])
 
         feed_resp = MagicMock()
@@ -1650,9 +1668,9 @@ class TestRunSession:
 
     @patch("contemplative_agent.adapters.moltbook.agent.load_credentials", return_value="key")
     def test_session_stops_on_verification_failure(self, mock_creds):
-        agent = Agent(autonomy=AutonomyLevel.AUTO)
-        agent._verification = MagicMock()
-        agent._verification.should_stop = True
+        tracker = VerificationTracker(max_failures=1)
+        tracker.record_failure()  # should_stop already tripped
+        agent = Agent(autonomy=AutonomyLevel.AUTO, verification=tracker)
 
         with (
             patch.object(agent, "_ensure_client") as mock_ensure,
@@ -3492,14 +3510,13 @@ class TestHandleVerificationMalformedObject:
 
     @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
     def test_malformed_object_records_audit(self, mock_audit):
-        agent = Agent()
-        agent._verification = MagicMock()
-        agent._verification.should_stop = False
+        tracker = VerificationTracker(max_failures=1)
+        agent, _, _ = _make_agent(verification=tracker)
 
         result = agent._handle_verification({"unexpected": "shape"})
 
         assert result is False
-        agent._verification.record_failure.assert_called_once()
+        assert tracker.should_stop is True
         mock_audit.assert_called_once()
         kwargs = mock_audit.call_args.kwargs
         assert kwargs["verify_success"] is False
@@ -3513,16 +3530,15 @@ class TestHandleVerificationMalformedObject:
         # codex review 2026-07-10: "challenge_text": null must land in the
         # malformed branch (audit + record_failure), not crash the hashing in
         # unsolved_result via None.encode().
-        agent = Agent()
-        agent._verification = MagicMock()
-        agent._verification.should_stop = False
+        tracker = VerificationTracker(max_failures=1)
+        agent, _, _ = _make_agent(verification=tracker)
 
         result = agent._handle_verification(
             {"challenge_text": None, "verification_code": "moltbook_verify_v1"}
         )
 
         assert result is False
-        agent._verification.record_failure.assert_called_once()
+        assert tracker.should_stop is True
         mock_audit.assert_called_once()
         kwargs = mock_audit.call_args.kwargs
         assert kwargs["challenge_text"] == ""
