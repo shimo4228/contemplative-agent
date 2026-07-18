@@ -144,18 +144,30 @@ else
 fi
 
 # --- Previous N weeks' analyses (Principle 4 guard ground) ---
+# Discover prior reports by glob rather than exact END_DATE - i*7d probes:
+# actual report end-dates drift (07-11 vs a probed 07-10), so the exact-name
+# probe silently found nothing and dropped the trend baseline. The date-shaped
+# glob naturally excludes -findings.md / .ja.md / -findings.ja.md variants.
+# ISO dates compare lexicographically, so [[ < ]] and sort -r are date-correct.
 PREV_REPORTS=""
 PREV_FOUND=0
-for i in $(seq 1 "$PREV_REPORT_COUNT"); do
-    offset=$((i * DAYS))
-    prev_end=$(date -j -f %Y-%m-%d -v-"$offset"d "$END_DATE" +%Y-%m-%d)
+PREV_DATES=$(
+    for f in "$REPORT_DIR"/weekly-????-??-??.md; do
+        [[ -e "$f" ]] || continue          # unmatched glob stays literal
+        d=$(basename "$f" .md)
+        d=${d#weekly-}
+        if [[ "$d" < "$END_DATE" ]]; then  # strictly before this run's end
+            printf '%s\n' "$d"
+        fi
+    done | sort -r | head -n "$PREV_REPORT_COUNT"
+)
+for prev_end in $PREV_DATES; do
     prev_file="$REPORT_DIR/weekly-${prev_end}.md"
-    if [[ -f "$prev_file" ]]; then
-        PREV_REPORTS+="## Previous Report (ending $prev_end)"$'\n\n'
-        PREV_REPORTS+="$(cat "$prev_file")"$'\n\n---\n\n'
-        PREV_FOUND=$((PREV_FOUND + 1))
-        echo "Including previous report: $prev_file"
-    fi
+    [[ -f "$prev_file" ]] || continue      # belt-and-braces vs odd filenames
+    PREV_REPORTS+="## Previous Report (ending $prev_end)"$'\n\n'
+    PREV_REPORTS+="$(cat "$prev_file")"$'\n\n---\n\n'
+    PREV_FOUND=$((PREV_FOUND + 1))
+    echo "Including previous report: $prev_file"
 done
 if [[ $PREV_FOUND -eq 0 ]]; then
     PREV_REPORTS="No previous reports available for trend comparison."
