@@ -1,4 +1,4 @@
-<!-- Generated: 2026-07-11 | Updated: 2026-07-13 (ADR-0077 distill abstain reason codes + error_kind telemetry) | Files scanned: 46 | Token estimate: ~5650 -->
+<!-- Generated: 2026-07-11 | Updated: 2026-07-18 (ADR-0074 amendment: chunked novelty gate + fail-open extraction cap) | Files scanned: 46 | Token estimate: ~5700 -->
 # Architecture
 
 ## Project Type
@@ -302,14 +302,32 @@ Ordering: cluster_size × mean(effective_importance)  descending
   effective_importance = 0.95^days   [pure time decay; ADR-0056]
 Slicing: each cluster → top MAX_BATCH (10) by effective_importance (= freshest)
 
-NOVELTY GATE  [ADR-0074, fail-open]
-  one generate_full(INSIGHT_NOVELTY_PROMPT) call: candidate clusters (3 samples
-  each) vs known themes = skills/*.md frontmatter + logs/insight-staged.jsonl
-  covered clusters skipped (skipped_known); all covered → empty result,
-  marker still advances
-  each judge run appended to logs/insight-novelty.jsonl (prompt + raw output
-  base64+sha256, 128KiB bound; verdict judged/fail_open_llm/fail_open_parse)
-  — replay-only, never gates (ADR-0075)
+NOVELTY GATE  [ADR-0074 + 2026-07-18 amendment; fail-open PER CHUNK]
+  token-bounded chunked judging: _pack_novelty_chunks packs cluster blocks
+  (3 samples each) greedily under window(32768) − output reserve(2048) −
+  fixed cost(template + FULL known-theme inventory, repeated per chunk);
+  known themes = skills/*.md frontmatter + logs/insight-staged.jsonl
+  one generate_full(INSIGHT_NOVELTY_PROMPT) call PER CHUNK; covered ids
+  validated per chunk; covered clusters skipped (skipped_known);
+  all covered → empty result, marker still advances
+  fail-open is chunk-scoped: LLM/parse failure keeps only that chunk's
+  clusters (unjudged → fail_open_topics); oversized single block retries
+  with truncated samples then fails open alone (fail_open_budget = the
+  known-inventory-outgrew-chunking signal)
+  one record per chunk appended to logs/insight-novelty.jsonl (batch_index/
+  batch_count; prompt + raw output base64+sha256, 128KiB bound; verdict
+  judged/fail_open_llm/fail_open_parse/fail_open_budget) — replay-only,
+  never gates (ADR-0075)
+
+FAIL-OPEN EXTRACTION CAP  [ADR-0074 amendment 2026-07-18]
+  UNJUDGED clusters only (fail_open_topics) capped at
+  MOLTBOOK_INSIGHT_FAILOPEN_CAP (default 20); deterministic priority:
+  member count desc → effective_importance sum desc → topic name
+  judged-novel clusters never capped (review-budget circuit breaker for a
+  broken gate, NOT a quality filter); deferred clusters are not extracted /
+  staged / ledger-written (no "considered" status unseen → recur in later
+  windows); deferral recorded in insight-novelty.jsonl
+  (reason=review_budget_deferred, topics + sizes + pattern_ids)
 
 Per novel cluster → generate_full(INSIGHT_EXTRACTION_PROMPT, topic="cluster-N")  [think-ON, ADR-0069]
   system = axioms-only (no skill corpus injected — audit H6 fix, a2bebfe;

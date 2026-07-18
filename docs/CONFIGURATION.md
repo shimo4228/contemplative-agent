@@ -211,6 +211,14 @@ loop), not at adoption. `--stage` refuses while an unreviewed batch sits in
 staging — review it with `adopt-staged` first. Weekly automation:
 `install-schedule --weekly-insight` (default Mon 08:00).
 
+2026-07-18 amendment: the novelty judge runs in token-budgeted chunks (each
+carries the full known-theme inventory) and fails open per chunk; clusters
+that reach extraction unjudged are capped at `MOLTBOOK_INSIGHT_FAILOPEN_CAP`
+(env, default 20 — a circuit breaker for a broken gate, never applied to
+judged-novel clusters). Deferred clusters are not staged or ledger-written
+and recur in later windows; deferrals are recorded in
+`MOLTBOOK_HOME/logs/insight-novelty.jsonl`.
+
 You can also hand-write skill files and place them in the directory.
 
 ### Rules

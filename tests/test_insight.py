@@ -593,35 +593,39 @@ class TestFilterNovelBatches:
         from contemplative_agent.core.insight import _filter_novel_batches
 
         mock_generate.return_value = GenerationOutput(text='{"covered": ["cluster-1"]}')
-        novel, skipped = _filter_novel_batches(self.BATCHES, self.KNOWN)
-        assert [b[0] for b in novel] == ["cluster-2"]
-        assert skipped == 1
+        result = _filter_novel_batches(self.BATCHES, self.KNOWN)
+        assert [b[0] for b in result.novel] == ["cluster-2"]
+        assert result.skipped_known == 1
+        assert result.fail_open_topics == frozenset()
 
     @patch("contemplative_agent.core.insight.generate_full", return_value=None)
     def test_llm_failure_fails_open(self, _mock_generate) -> None:
         from contemplative_agent.core.insight import _filter_novel_batches
 
-        novel, skipped = _filter_novel_batches(self.BATCHES, self.KNOWN)
-        assert len(novel) == 2
-        assert skipped == 0
+        result = _filter_novel_batches(self.BATCHES, self.KNOWN)
+        assert len(result.novel) == 2
+        assert result.skipped_known == 0
+        assert result.fail_open_topics == frozenset({"cluster-1", "cluster-2"})
 
     @patch("contemplative_agent.core.insight.generate_full")
     def test_unparseable_output_fails_open(self, mock_generate) -> None:
         from contemplative_agent.core.insight import _filter_novel_batches
 
         mock_generate.return_value = GenerationOutput(text="not json at all")
-        novel, skipped = _filter_novel_batches(self.BATCHES, self.KNOWN)
-        assert len(novel) == 2
-        assert skipped == 0
+        result = _filter_novel_batches(self.BATCHES, self.KNOWN)
+        assert len(result.novel) == 2
+        assert result.skipped_known == 0
+        assert result.fail_open_topics == frozenset({"cluster-1", "cluster-2"})
 
     @patch("contemplative_agent.core.insight.generate_full")
     def test_hallucinated_cluster_ids_ignored(self, mock_generate) -> None:
         from contemplative_agent.core.insight import _filter_novel_batches
 
         mock_generate.return_value = GenerationOutput(text='{"covered": ["cluster-9"]}')
-        novel, skipped = _filter_novel_batches(self.BATCHES, self.KNOWN)
-        assert len(novel) == 2
-        assert skipped == 0
+        result = _filter_novel_batches(self.BATCHES, self.KNOWN)
+        assert len(result.novel) == 2
+        assert result.skipped_known == 0
+        assert result.fail_open_topics == frozenset()
 
     @patch("contemplative_agent.core.insight.generate_full")
     def test_prompt_carries_known_themes_and_samples(self, mock_generate) -> None:
@@ -634,6 +638,411 @@ class TestFilterNovelBatches:
         assert "handles consensus friction" in prompt
         assert "cluster-1" in prompt
         assert "p1" in prompt
+
+
+class TestNoveltyChunking:
+    """Token-bounded chunking (grill 2026-07-18): the judge prompt is split
+    into budgeted batches instead of one unbounded call — the 2026-07-18
+    weekly run assembled 40,074 input tokens against the 32,768 window and
+    fail-opened all 117 clusters."""
+
+    KNOWN = [("skill-a", "handles consensus friction")]
+
+    @staticmethod
+    def _batches(n: int, size: int = 3):
+        return [
+            (
+                f"cluster-{i}",
+                [f"pattern {i}-{j} some behavioral text" for j in range(size)],
+                tuple(f"id{i}-{j}" for j in range(size)),
+            )
+            for i in range(1, n + 1)
+        ]
+
+    @staticmethod
+    def _window_for_blocks(known, batches, n_blocks: int) -> int:
+        """Context window sized to fit exactly ``n_blocks`` cluster blocks."""
+        from contemplative_agent.core.insight import (
+            _NOVELTY_OUTPUT_RESERVE,
+            _cluster_block,
+            _novelty_fixed_tokens,
+            _render_known_lines,
+        )
+        from contemplative_agent.core.llm import _estimate_tokens
+
+        known_lines = _render_known_lines(known)
+        block_costs = sorted(
+            _estimate_tokens(_cluster_block(topic, patterns) + "\n\n")
+            for topic, patterns, _ in batches
+        )
+        budget = sum(block_costs[-n_blocks:]) if n_blocks else 0
+        return _NOVELTY_OUTPUT_RESERVE + _novelty_fixed_tokens(known_lines) + budget
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_single_call_when_budget_fits(self, mock_generate) -> None:
+        from contemplative_agent.core.insight import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(text='{"covered": []}')
+        result = _filter_novel_batches(self._batches(3), self.KNOWN)
+        assert mock_generate.call_count == 1
+        assert len(result.novel) == 3
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_splits_when_budget_forces_it(self, mock_generate) -> None:
+        from contemplative_agent.core import insight
+
+        batches = self._batches(3)
+        window = self._window_for_blocks(self.KNOWN, batches, 1)
+        mock_generate.return_value = GenerationOutput(text='{"covered": []}')
+        with patch.object(insight, "_NOVELTY_CTX_WINDOW", window):
+            result = insight._filter_novel_batches(batches, self.KNOWN)
+        assert mock_generate.call_count == 3
+        assert len(result.novel) == 3
+        # Every chunk prompt carries the FULL known inventory but only its
+        # own cluster block.
+        for i, call in enumerate(mock_generate.call_args_list, start=1):
+            prompt = call.args[0]
+            assert "skill-a" in prompt
+            assert f"cluster-{i}:" in prompt
+            for j in range(1, 4):
+                if j != i:
+                    assert f"cluster-{j}:" not in prompt
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_packing_is_deterministic(self, mock_generate) -> None:
+        from contemplative_agent.core import insight
+
+        batches = self._batches(5)
+        window = self._window_for_blocks(self.KNOWN, batches, 2)
+        mock_generate.return_value = GenerationOutput(text='{"covered": []}')
+        with patch.object(insight, "_NOVELTY_CTX_WINDOW", window):
+            insight._filter_novel_batches(batches, self.KNOWN)
+            first = [c.args[0] for c in mock_generate.call_args_list]
+            mock_generate.reset_mock()
+            insight._filter_novel_batches(batches, self.KNOWN)
+            second = [c.args[0] for c in mock_generate.call_args_list]
+        assert first == second
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_chunk_failure_is_isolated(self, mock_generate) -> None:
+        """One failed chunk fails open alone; judged chunks keep their
+        verdicts (the 2026-07-18 failure mode collapsed ALL clusters into
+        one fail-open)."""
+        from contemplative_agent.core import insight
+
+        batches = self._batches(3)
+        window = self._window_for_blocks(self.KNOWN, batches, 1)
+        mock_generate.side_effect = [
+            GenerationOutput(text='{"covered": ["cluster-1"]}'),
+            None,
+            GenerationOutput(text='{"covered": []}'),
+        ]
+        with patch.object(insight, "_NOVELTY_CTX_WINDOW", window):
+            result = insight._filter_novel_batches(batches, self.KNOWN)
+        assert [b[0] for b in result.novel] == ["cluster-2", "cluster-3"]
+        assert result.skipped_known == 1
+        assert result.fail_open_topics == frozenset({"cluster-2"})
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_covered_id_from_other_chunk_ignored(self, mock_generate) -> None:
+        from contemplative_agent.core import insight
+
+        batches = self._batches(2)
+        window = self._window_for_blocks(self.KNOWN, batches, 1)
+        # Chunk 1 hallucinates coverage of a cluster living in chunk 2.
+        mock_generate.side_effect = [
+            GenerationOutput(text='{"covered": ["cluster-2"]}'),
+            GenerationOutput(text='{"covered": []}'),
+        ]
+        with patch.object(insight, "_NOVELTY_CTX_WINDOW", window):
+            result = insight._filter_novel_batches(batches, self.KNOWN)
+        assert len(result.novel) == 2
+        assert result.skipped_known == 0
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_known_overflow_fails_open_without_llm_call(self, mock_generate, tmp_path) -> None:
+        """When the known inventory alone exhausts the budget, no judge call
+        is possible — every cluster fails open with an audit reason (the
+        quantitative trigger for a future retrieval design)."""
+        import json as _json
+
+        from contemplative_agent.core import insight
+
+        batches = self._batches(2)
+        audit = tmp_path / "insight-novelty.jsonl"
+        with patch.object(insight, "_NOVELTY_CTX_WINDOW", 1):
+            result = insight._filter_novel_batches(batches, self.KNOWN, audit_path=audit)
+        mock_generate.assert_not_called()
+        assert len(result.novel) == 2
+        assert result.fail_open_topics == frozenset({"cluster-1", "cluster-2"})
+        records = [_json.loads(line) for line in audit.read_text().splitlines()]
+        assert [r["verdict"] for r in records] == ["fail_open_budget"]
+        assert records[0]["clusters"] == ["cluster-1", "cluster-2"]
+        # Not part of the chunk sequence — a separate event type, so the
+        # batch fields stay None instead of a misleading count (codex P2).
+        assert records[0]["batch_index"] is None
+        assert records[0]["batch_count"] is None
+
+    def test_ctx_window_follows_smaller_injected_backend(self) -> None:
+        """Packing must budget against the SAME window the generate preflight
+        validates (codex P2): an injected backend advertising a smaller
+        context_window lowers the packing budget; a larger one never raises
+        it above the module ceiling."""
+        from contemplative_agent.core import insight
+        from contemplative_agent.core.llm import configure, reset_llm_config
+
+        class _TinyBackend:
+            context_window = 4096
+            model = "tiny"
+
+            def generate(self, *a, **k):  # pragma: no cover - never called
+                return None
+
+        class _HugeBackend(_TinyBackend):
+            context_window = 200_000
+
+        assert insight._novelty_ctx_window() == insight._NOVELTY_CTX_WINDOW
+        reset_llm_config()
+        configure(backend=_TinyBackend())
+        try:
+            assert insight._novelty_ctx_window() == 4096
+        finally:
+            reset_llm_config()
+        configure(backend=_HugeBackend())
+        try:
+            assert insight._novelty_ctx_window() == insight._NOVELTY_CTX_WINDOW
+        finally:
+            reset_llm_config()
+
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_oversized_cluster_gets_truncated_samples(self, mock_generate) -> None:
+        """A cluster block that alone exceeds the budget is retried with
+        truncated samples before failing open."""
+        from contemplative_agent.core import insight
+        from contemplative_agent.core.insight import (
+            _NOVELTY_OUTPUT_RESERVE,
+            _cluster_block,
+            _novelty_fixed_tokens,
+            _render_known_lines,
+        )
+        from contemplative_agent.core.llm import _estimate_tokens
+
+        batches = [
+            (
+                "cluster-1",
+                ["x" * 300, "y" * 300, "z" * 300],
+                ("id1", "id2", "id3"),
+            )
+        ]
+        known_lines = _render_known_lines(self.KNOWN)
+        full_cost = _estimate_tokens(_cluster_block("cluster-1", batches[0][1]) + "\n\n")
+        truncated_cost = _estimate_tokens(
+            _cluster_block(
+                "cluster-1",
+                batches[0][1],
+                sample_n=insight._NOVELTY_TRUNCATED_SAMPLE_PER_CLUSTER,
+                sample_chars=insight._NOVELTY_TRUNCATED_SAMPLE_CHARS,
+            )
+            + "\n\n"
+        )
+        assert truncated_cost < full_cost
+        window = _NOVELTY_OUTPUT_RESERVE + _novelty_fixed_tokens(known_lines) + truncated_cost
+        mock_generate.return_value = GenerationOutput(text='{"covered": []}')
+        with patch.object(insight, "_NOVELTY_CTX_WINDOW", window):
+            result = insight._filter_novel_batches(batches, self.KNOWN)
+        assert mock_generate.call_count == 1
+        prompt = mock_generate.call_args.args[0]
+        assert "cluster-1" in prompt
+        # Truncated to one sample of _NOVELTY_TRUNCATED_SAMPLE_CHARS chars.
+        assert "x" * insight._NOVELTY_TRUNCATED_SAMPLE_CHARS in prompt
+        assert "x" * (insight._NOVELTY_TRUNCATED_SAMPLE_CHARS + 1) not in prompt
+        assert "y" * 10 not in prompt
+        assert result.fail_open_topics == frozenset()
+
+
+class TestFailopenExtractionCap:
+    """Fail-open extraction cap (grill 2026-07-18): a review-budget circuit
+    breaker. Applies ONLY to clusters that reached extraction unjudged
+    (through a fail-open batch); judged-novel clusters are never deferred,
+    so the cap is a blast-radius guard, not a quality filter."""
+
+    @staticmethod
+    def _batches(n: int, size: int = 3):
+        return [
+            (
+                f"cluster-{i}",
+                [f"p{i}-{j}" for j in range(size)],
+                tuple(f"id{i}-{j}" for j in range(size)),
+            )
+            for i in range(1, n + 1)
+        ]
+
+    def test_empty_inputs_skip_the_gate(self) -> None:
+        from contemplative_agent.core.insight import _filter_novel_batches
+
+        result = _filter_novel_batches([], [("skill-a", "d")])
+        assert result.novel == ()
+        assert result.skipped_known == 0
+        assert result.fail_open_topics == frozenset()
+
+    def test_deferral_audit_failure_never_breaks_cap(self, tmp_path) -> None:
+        from contemplative_agent.core.insight import _apply_failopen_extraction_cap
+
+        batches = self._batches(3)
+        bad = tmp_path / "audit-as-dir"
+        bad.mkdir()
+        kept = _apply_failopen_extraction_cap(
+            batches,
+            frozenset(b[0] for b in batches),
+            {},
+            cap=1,
+            audit_path=bad,
+        )
+        assert len(kept) == 1
+
+    def test_under_cap_is_noop(self, tmp_path) -> None:
+        from contemplative_agent.core.insight import _apply_failopen_extraction_cap
+
+        batches = self._batches(3)
+        audit = tmp_path / "insight-novelty.jsonl"
+        kept = _apply_failopen_extraction_cap(
+            batches,
+            frozenset({"cluster-1", "cluster-2"}),
+            {},
+            cap=2,
+            audit_path=audit,
+        )
+        assert kept == batches
+        assert not audit.exists()
+
+    def test_defers_beyond_cap_by_size_then_topic(self) -> None:
+        from contemplative_agent.core.insight import _apply_failopen_extraction_cap
+
+        batches = [
+            ("cluster-1", ["a"] * 3, ("i1",)),
+            ("cluster-2", ["b"] * 5, ("i2",)),
+            ("cluster-3", ["c"] * 4, ("i3",)),
+        ]
+        kept = _apply_failopen_extraction_cap(
+            batches,
+            frozenset({"cluster-1", "cluster-2", "cluster-3"}),
+            {},
+            cap=2,
+            audit_path=None,
+        )
+        # Largest two survive; cluster-1 (size 3) is deferred. Original
+        # batch order is preserved for the survivors.
+        assert [b[0] for b in kept] == ["cluster-2", "cluster-3"]
+
+    def test_judged_novel_batches_never_deferred(self) -> None:
+        from contemplative_agent.core.insight import _apply_failopen_extraction_cap
+
+        batches = self._batches(4)
+        # Only cluster-3 / cluster-4 came through a fail-open batch.
+        kept = _apply_failopen_extraction_cap(
+            batches,
+            frozenset({"cluster-3", "cluster-4"}),
+            {},
+            cap=1,
+            audit_path=None,
+        )
+        topics = [b[0] for b in kept]
+        assert "cluster-1" in topics and "cluster-2" in topics
+        assert len([t for t in topics if t in ("cluster-3", "cluster-4")]) == 1
+
+    def test_importance_breaks_size_ties(self) -> None:
+        from contemplative_agent.core.insight import _apply_failopen_extraction_cap
+
+        batches = [
+            ("cluster-1", ["a"] * 3, ("old",)),
+            ("cluster-2", ["b"] * 3, ("new",)),
+        ]
+        patterns_by_id = {
+            "old": {"distilled": "2020-01-01T00:00:00+00:00"},
+            "new": {"distilled": "2026-07-18T00:00:00+00:00"},
+        }
+        kept = _apply_failopen_extraction_cap(
+            batches,
+            frozenset({"cluster-1", "cluster-2"}),
+            patterns_by_id,
+            cap=1,
+            audit_path=None,
+        )
+        assert [b[0] for b in kept] == ["cluster-2"]
+
+    def test_deferral_writes_audit_record(self, tmp_path) -> None:
+        import json as _json
+
+        from contemplative_agent.core.insight import _apply_failopen_extraction_cap
+
+        batches = self._batches(3)
+        audit = tmp_path / "insight-novelty.jsonl"
+        _apply_failopen_extraction_cap(
+            batches,
+            frozenset({"cluster-1", "cluster-2", "cluster-3"}),
+            {},
+            cap=1,
+            audit_path=audit,
+        )
+        records = [_json.loads(line) for line in audit.read_text().splitlines()]
+        assert len(records) == 1
+        rec = records[0]
+        assert rec["reason"] == "review_budget_deferred"
+        assert rec["cap"] == 1
+        assert len(rec["deferred"]) == 2
+        entry = rec["deferred"][0]
+        assert set(entry) == {"topic", "size", "pattern_ids"}
+
+    def test_cap_env_override(self, monkeypatch) -> None:
+        from contemplative_agent.core.insight import (
+            _DEFAULT_FAILOPEN_EXTRACTION_CAP,
+            _failopen_extraction_cap,
+        )
+
+        monkeypatch.delenv("MOLTBOOK_INSIGHT_FAILOPEN_CAP", raising=False)
+        assert _failopen_extraction_cap() == _DEFAULT_FAILOPEN_EXTRACTION_CAP
+        monkeypatch.setenv("MOLTBOOK_INSIGHT_FAILOPEN_CAP", "5")
+        assert _failopen_extraction_cap() == 5
+
+    def test_cap_env_invalid_falls_back_with_warning(self, monkeypatch, caplog) -> None:
+        import logging
+
+        from contemplative_agent.core.insight import (
+            _DEFAULT_FAILOPEN_EXTRACTION_CAP,
+            _failopen_extraction_cap,
+        )
+
+        for bad in ("abc", "0", "-3"):
+            monkeypatch.setenv("MOLTBOOK_INSIGHT_FAILOPEN_CAP", bad)
+            with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.insight"):
+                assert _failopen_extraction_cap() == _DEFAULT_FAILOPEN_EXTRACTION_CAP
+        assert caplog.text.count("MOLTBOOK_INSIGHT_FAILOPEN_CAP") == 3
+
+    @patch("contemplative_agent.core.insight.generate_full", return_value=None)
+    @patch("contemplative_agent.core.insight._extract_skill")
+    def test_capped_failopen_run_extracts_at_most_cap(
+        self, mock_skill, _mock_generate, monkeypatch, tmp_path
+    ) -> None:
+        """End to end: gate fail-open + cap=1 → exactly one extraction call;
+        deferred clusters are never staged (and thus never enter the
+        ledger, so they can resurface in later windows)."""
+        monkeypatch.setenv("MOLTBOOK_INSIGHT_FAILOPEN_CAP", "1")
+        skills_dir = tmp_path / "sk"
+        skills_dir.mkdir()
+        (skills_dir / "known.md").write_text(GOOD_SKILL_RESPONSE)
+        ks = KnowledgeStore(path=tmp_path / "k.json")
+        for axis in (1, 2, 3):
+            for j in range(3):
+                ks.add_learned_pattern(
+                    f"axis {axis} pattern {j} behavioral observation",
+                    embedding=_unit_vec(8, axis),
+                )
+        ks.save()
+        mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
+        result = extract_insight(knowledge_store=ks, skills_dir=skills_dir, full=True)
+        assert isinstance(result, InsightResult)
+        assert mock_skill.call_count == 1
+        assert len(result.skills) == 1
 
 
 class TestLoadKnownThemes:
@@ -747,8 +1156,8 @@ class TestNoveltyGateAudit:
 
         mock_generate.return_value = GenerationOutput(text='{"covered": ["cluster-1"]}')
         audit = tmp_path / "insight-novelty.jsonl"
-        novel, skipped = _filter_novel_batches(self.BATCHES, self.KNOWN, audit_path=audit)
-        assert skipped == 1
+        result = _filter_novel_batches(self.BATCHES, self.KNOWN, audit_path=audit)
+        assert result.skipped_known == 1
         records = self._records(audit)
         assert len(records) == 1
         rec = records[0]
@@ -756,6 +1165,8 @@ class TestNoveltyGateAudit:
         assert rec["covered"] == ["cluster-1"]
         assert rec["clusters"] == ["cluster-1", "cluster-2"]
         assert rec["known_themes_count"] == 1
+        assert rec["batch_index"] == 0
+        assert rec["batch_count"] == 1
         prompt = _base64.b64decode(rec["prompt_b64"]).decode("utf-8")
         assert "skill-a" in prompt and "cluster-1" in prompt
         assert rec["prompt_truncated"] is False
@@ -767,8 +1178,8 @@ class TestNoveltyGateAudit:
         from contemplative_agent.core.insight import _filter_novel_batches
 
         audit = tmp_path / "insight-novelty.jsonl"
-        novel, _ = _filter_novel_batches(self.BATCHES, self.KNOWN, audit_path=audit)
-        assert len(novel) == 2
+        result = _filter_novel_batches(self.BATCHES, self.KNOWN, audit_path=audit)
+        assert len(result.novel) == 2
         rec = self._records(audit)[0]
         assert rec["verdict"] == "fail_open_llm"
         assert rec["output_b64"] is None
@@ -795,15 +1206,15 @@ class TestNoveltyGateAudit:
         # A directory at the audit path forces the append to fail.
         bad = tmp_path / "audit-as-dir"
         bad.mkdir()
-        novel, skipped = _filter_novel_batches(self.BATCHES, self.KNOWN, audit_path=bad)
-        assert len(novel) == 2
-        assert skipped == 0
+        result = _filter_novel_batches(self.BATCHES, self.KNOWN, audit_path=bad)
+        assert len(result.novel) == 2
+        assert result.skipped_known == 0
 
     @patch("contemplative_agent.core.insight.generate_full")
     def test_no_audit_path_writes_nothing(self, mock_generate, tmp_path) -> None:
         from contemplative_agent.core.insight import _filter_novel_batches
 
         mock_generate.return_value = GenerationOutput(text='{"covered": []}')
-        novel, _ = _filter_novel_batches(self.BATCHES, self.KNOWN)
-        assert len(novel) == 2
+        result = _filter_novel_batches(self.BATCHES, self.KNOWN)
+        assert len(result.novel) == 2
         assert list(tmp_path.iterdir()) == []

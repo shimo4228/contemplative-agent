@@ -175,3 +175,82 @@ accumulated**.
   intentional behavioural break documented in the error message itself.
 - Evidence (window simulations, calibration numbers, equivalence method):
   [docs/evidence/adr-0074/](../evidence/adr-0074/window-simulation-20260709.md).
+
+## Amendment (2026-07-18): token-bounded chunked judging + fail-open extraction cap
+
+### Context
+
+The first scheduled weekly run (2026-07-17T23:00 UTC) exposed a capacity
+failure in Decision 6: the single novelty call packed the full known-theme
+inventory (60 themes) plus 117 cluster samples into one 40,074-token prompt
+against the 32,768-token window. `llm.py`'s C2 preflight refused the call
+(no output floor left), the gate followed its fail-open policy, and all 117
+clusters flowed to extraction — 106 staged candidates, reviewed
+**0 adopted / 106 rejected** (`.notes/insight-candidate-review-2026-07-18.md`,
+archive `insight-staged-20260718-before-review.tar.gz`). The mismatch is
+steady-state, not first-run-only: the incremental window averages ~118 new
+live patterns/day, and the known inventory grows monotonically because the
+ledger is decision-agnostic.
+
+### Decision
+
+1. **Token-bounded chunked judging.** The judge prompt is split into
+   budgeted chunks (`_pack_novelty_chunks`): greedy, deterministic,
+   order-preserving packing of cluster blocks under
+   `window − output reserve (2048) − fixed cost`, where the fixed cost is
+   the template plus the FULL known inventory (every chunk sees all known
+   themes; only the cluster blocks are partitioned). Covered ids are
+   validated per chunk — a judge cannot suppress a cluster it was not
+   shown. Fail-open becomes **per chunk**: an LLM failure or unparseable
+   verdict keeps only that chunk's clusters unjudged; other chunks'
+   verdicts stand. A cluster block that alone exceeds the budget is retried
+   with truncated samples, then fails open individually
+   (`fail_open_budget`) — the audit signal that the known inventory has
+   outgrown chunking and a retrieval-assisted gate needs (re)evaluation.
+   Replay of the incident prompt: 2 chunks (86 + 31 clusters), both within
+   budget, no cluster lost.
+2. **Fail-open extraction cap.** Clusters that reach extraction UNJUDGED
+   (through a fail-open chunk) are bounded at
+   `MOLTBOOK_INSIGHT_FAILOPEN_CAP` (default 20) by a deterministic,
+   code-owned priority (member count desc → time-decay importance sum desc
+   → topic name). Judged-novel clusters are never capped, so normal weeks
+   are unlimited — the cap is a review-budget circuit breaker for broken
+   gates, not a quality filter (the operator's no-numeric-caps rule).
+   Deferred clusters are not extracted, not staged and **not
+   ledger-written** — "considered" status is never granted to a theme no
+   human saw — so a real theme recurs in a later window and gets judged
+   then (Decision 9's recurrence evidence). Every deferral is recorded in
+   `insight-novelty.jsonl` (`reason=review_budget_deferred`, with topics,
+   sizes and pattern ids); nothing is silently truncated.
+3. **Audit schema.** `insight-novelty.jsonl` records one row per chunk
+   (`batch_index` / `batch_count` added), verdict vocabulary extended with
+   `fail_open_budget` (a separate event type outside the chunk sequence —
+   its batch fields are null, cross-model review 2026-07-18), plus the
+   deferral record above. Existing fields are unchanged, so prior records
+   remain replayable. The packing budget follows the same context-window
+   source as the generate preflight (an injected backend advertising a
+   smaller window lowers it), so a packed chunk is never refused by the
+   preflight it was sized for.
+
+### Explicitly out of scope
+
+This amendment does **not** reverse the embedding-gate rejection: no
+similarity threshold suppresses anything. Retrieval-assisted judging
+(embedding as enumeration, LLM as verdict), daily consolidation layers, and
+`recall@k` evaluation stay open questions
+(`.notes/insight-novelty-gate-redesign-open-questions-2026-07-18.md`),
+deliberately deferred until the ADR-0076 skill-selection shadow reading
+(~2026-07-24) settles the injection economics and the next scheduled run
+measures whether chunking alone suffices — the 106 rejected candidates now
+sit in the ledger as known themes, so the gate's first judged run is the
+natural experiment.
+
+### Consequences
+
+- The 2026-07-18 failure shape becomes structurally impossible: an
+  oversized window costs more judge calls (one per chunk), and a broken
+  gate floods review with at most 20 candidates instead of 106.
+- Weekly cost in the current regime: ~2–5 judge calls instead of 1.
+- Fault column: `tests/test_insight_chaos.py` (F-NOV-1..5 — chunk-isolated
+  fail-open for backend loss / malformed / truncated output, budget
+  overflow without a call, cap after total fail-open) per ADR-0077.

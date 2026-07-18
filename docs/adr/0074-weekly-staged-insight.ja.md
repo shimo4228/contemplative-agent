@@ -160,3 +160,73 @@ centroid 水準（0.795–0.902 vs 中央値 0.830）でもメンバー平均水
   意図的な挙動変更であり、エラーメッセージ自体に文書化してある。
 - Evidence（窓シミュレーション・校正値・一致検証の方法）:
   [docs/evidence/adr-0074/](../evidence/adr-0074/window-simulation-20260709.md)。
+
+## Amendment (2026-07-18): トークン上限付き分割判定 + fail-open 抽出上限
+
+### Context
+
+初回のスケジュール週次実行（2026-07-17T23:00 UTC）で Decision 6 の容量欠陥が
+露呈した: 単一の novelty call が既知テーマ一覧（60 件）+ 117 クラスタの
+サンプルを 40,074 トークンの 1 プロンプトに詰め、32,768 トークン窓を超過。
+`llm.py` の C2 preflight が呼び出しを拒否（出力フロアが確保できない）、gate は
+fail-open ポリシーに従い、117 クラスタ全部が抽出へ流れた — 106 候補が staged、
+レビュー結果 **0 採用 / 106 却下**
+（`.notes/insight-candidate-review-2026-07-18.md`、アーカイブ
+`insight-staged-20260718-before-review.tar.gz`）。このミスマッチは初回限りでは
+なく定常的: 増分窓は日次 ~118 新規 live パターンで、ledger が decision-agnostic
+なため既知一覧は単調増加する。
+
+### Decision
+
+1. **トークン上限付き分割判定。** judge プロンプトを予算付きチャンクに分割する
+   （`_pack_novelty_chunks`）: `窓 − 出力予約 (2048) − 固定費` の下でクラスタ
+   ブロックを貪欲・決定論的・順序保存で詰める。固定費はテンプレート + 既知
+   テーマ一覧の全文（**全チャンクが既知テーマ全件を見る**。分割されるのは
+   クラスタブロックのみ）。covered ID はチャンク単位で検証 — judge は見せられて
+   いないクラスタを抑制できない。fail-open は**チャンク単位**になる: LLM 失敗や
+   parse 不能はそのチャンクのクラスタだけを未判定のまま残し、他チャンクの判定は
+   生きる。単独で予算超過するクラスタブロックはサンプル切り詰めで再試行し、
+   それでも無理なら単独で fail-open（`fail_open_budget`）— 既知一覧が chunking の
+   限界を超えた監査シグナルであり、retrieval 支援 gate の（再）評価トリガー。
+   実障害プロンプトのリプレイ: 2 チャンク（86 + 31 クラスタ）、いずれも予算内、
+   クラスタ欠落なし。
+2. **fail-open 抽出上限。** 未判定のまま（fail-open チャンク経由で）抽出に達した
+   クラスタは `MOLTBOOK_INSIGHT_FAILOPEN_CAP`（既定 20）で上限し、決定論的な
+   コード所有の優先順位（メンバー数降順 → 時間減衰 importance 合計降順 →
+   topic 名）で選ぶ。判定済み novel クラスタには一切適用しない — 正常週は無制限
+   であり、上限は壊れた gate 用のレビュー予算回路遮断器であって quality filter
+   ではない（operator の no-numeric-caps 規律）。deferral 分は抽出せず・stage
+   せず・**ledger にも書かない** — 人間が見ていないテーマに「considered」を
+   付与しない — ので、本物のテーマは後続窓で再出現して判定を受ける（Decision 9
+   の recurrence 証拠）。全 deferral は `insight-novelty.jsonl` に記録
+   （`reason=review_budget_deferred`、topic・サイズ・pattern id 付き）。沈黙の
+   切り捨てはしない。
+3. **監査スキーマ。** `insight-novelty.jsonl` はチャンクごとに 1 行
+   （`batch_index` / `batch_count` を追加）、verdict 語彙に `fail_open_budget`
+   を追加（チャンク列の外にある独立イベント型 — batch フィールドは null、
+   cross-model review 2026-07-18）、上記 deferral レコードを追加。既存
+   フィールドは不変なので過去レコードのリプレイ可能性は保たれる。packing
+   予算は generate preflight と同じ context-window ソースに従う（注入
+   backend がより小さい窓を広告すればそれに合わせる）ため、packer が
+   サイズした チャンクが preflight に拒否されることはない。
+
+### 明示的スコープ外
+
+本 amendment は embedding gate 却下を**覆さない**: いかなる類似度閾値も抑制に
+使わない。retrieval 支援判定（embedding は列挙、LLM が判定）、日次 consolidation
+層、`recall@k` 評価は open question のまま
+（`.notes/insight-novelty-gate-redesign-open-questions-2026-07-18.md`）。
+ADR-0076 skill-selection shadow の読み（~2026-07-24）が注入経済を確定させ、
+次回スケジュール実行が「chunking だけで足りるか」を実測するまで意図的に延期 —
+却下済み 106 候補は ledger 上の既知テーマとなったため、gate の初回正常判定が
+自然実験になる。
+
+### Consequences
+
+- 2026-07-18 の障害形は構造的に不可能になる: 窓の肥大は judge call 数の増加
+  （チャンクごとに 1 call）で受け、壊れた gate は最大 20 候補（106 でなく）しか
+  レビューに流せない。
+- 現行レジームの週次コスト: 1 call → ~2–5 judge call。
+- fault column: `tests/test_insight_chaos.py`（F-NOV-1..5 — backend 喪失 /
+  malformed / truncated 出力のチャンク隔離 fail-open、call なしの予算超過、
+  全 fail-open 後の上限）。ADR-0077 準拠。
