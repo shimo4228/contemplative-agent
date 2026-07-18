@@ -74,13 +74,27 @@ class Agent:
         autonomy: AutonomyLevel = AutonomyLevel.APPROVE,
         memory: Optional[MemoryStore] = None,
         domain_config: Optional[DomainConfig] = None,
+        *,
+        client: Optional[MoltbookClient] = None,
+        scheduler: Optional[Scheduler] = None,
+        content: Optional[ContentManager] = None,
+        verification: Optional[VerificationTracker] = None,
+        novelty_gate: Optional[NoveltyGate] = None,
     ) -> None:
+        """Compose the agent from its collaborators.
+
+        The keyword-only parameters are injection seams for tests: each
+        defaults to the production collaborator when omitted. Injecting
+        ``client`` bypasses credential loading in ``_ensure_client``, so a
+        caller that injects ``client`` is responsible for injecting
+        ``scheduler`` too when the exercised paths need one.
+        """
         self._autonomy = autonomy
         self._domain = domain_config or get_domain_config()
-        self._content = ContentManager()
-        self._verification = VerificationTracker()
-        self._client: Optional[MoltbookClient] = None
-        self._scheduler: Optional[Scheduler] = None
+        self._content = content if content is not None else ContentManager()
+        self._verification = verification if verification is not None else VerificationTracker()
+        self._client: Optional[MoltbookClient] = client
+        self._scheduler: Optional[Scheduler] = scheduler
         self._memory = memory or MemoryStore(
             log_dir=EPISODE_LOG_DIR,
             knowledge_path=KNOWLEDGE_PATH,
@@ -116,9 +130,13 @@ class Agent:
             confirm_side_effect=self._confirm_side_effect,
             handle_verification=self._handle_verification,
         )
-        self._novelty_gate = NoveltyGate(
-            embed_store=EpisodeEmbeddingStore(EPISODE_EMBEDDINGS_PATH),
-            memory=self._memory,
+        self._novelty_gate = (
+            novelty_gate
+            if novelty_gate is not None
+            else NoveltyGate(
+                embed_store=EpisodeEmbeddingStore(EPISODE_EMBEDDINGS_PATH),
+                memory=self._memory,
+            )
         )
         self._post_pipeline = PostPipeline(
             ctx=self._ctx,
