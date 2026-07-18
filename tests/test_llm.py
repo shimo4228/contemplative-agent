@@ -17,6 +17,7 @@ from contemplative_agent.adapters.moltbook.llm_functions import (
 )
 from contemplative_agent.core.memory import POST_TOPIC_SUMMARY_MAX
 from contemplative_agent.core.llm import (
+    CIRCUIT_FAILURE_THRESHOLD,
     _DEFAULT_OLLAMA_MODEL,
     _DEFAULT_UNTRUSTED_FRAME,
     _get_model,
@@ -29,6 +30,16 @@ from contemplative_agent.core.llm import (
     served_model,
     GenerationOutput,
 )
+
+
+def _assert_breaker_saw_no_failure(circuit) -> None:
+    """Probe the breaker through its public surface: drive it to one failure
+    below the threshold — it tips open iff a failure was already recorded."""
+    for _ in range(CIRCUIT_FAILURE_THRESHOLD - 1):
+        circuit.record_failure()
+    opened = circuit.is_open
+    circuit.reset()  # self-clean: don't rely on surrounding tests' setup
+    assert not opened
 
 
 class TestSanitizeOutput:
@@ -696,7 +707,7 @@ class TestGenerateBudgetGuard:
         from contemplative_agent.core.llm import _circuit
 
         generate("test", system="x" * 200000)
-        assert _circuit._consecutive_failures == 0
+        _assert_breaker_saw_no_failure(_circuit)
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_over_budget_via_huge_user_prompt(self, mock_post):
@@ -848,7 +859,7 @@ class TestGenerateBudgetClamp:
 
         mock_post.return_value = self._ok_resp()
         generate("y" * 3000, system="x" * 60000, num_predict=13384)
-        assert _circuit._consecutive_failures == 0
+        _assert_breaker_saw_no_failure(_circuit)
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_available_below_floor_still_skips(self, mock_post, caplog):
@@ -1068,7 +1079,7 @@ class TestDoneReasonTruncation:
 
         mock_post.return_value = self._mock_resp({"response": "cut", "done_reason": "length"})
         generate("test", system="s", drop_truncated=True)
-        assert _circuit._consecutive_failures == 0
+        _assert_breaker_saw_no_failure(_circuit)
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_stop_done_reason_returns_text(self, mock_post, caplog):
@@ -1154,73 +1165,78 @@ class TestCommentTemperature:
 class TestGenerateForApi:
     """ADR-0018 amendment: API 投稿系 caller は max_length のみ指定、
     num_predict は max(50, ceil(max_length/3)+50) で内部派生。
+
+    All assertions observe the Ollama HTTP boundary (request payload) or the
+    returned GenerationOutput — not the internal _generate_full seam.
     """
 
-    @patch("contemplative_agent.core.llm._generate_full")
-    def test_post_title_max_length_derives_to_150(self, mock_gen):
-        mock_gen.return_value = GenerationOutput(text="ok")
-        generate_for_api("p", max_length=300)
-        kwargs = mock_gen.call_args.kwargs
-        assert kwargs["num_predict"] == 150  # ceil(300/3) + 50 = 150
+    @staticmethod
+    def _mock_resp(payload):
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = payload
+        mock_resp.raise_for_status.return_value = None
+        return mock_resp
 
-    @patch("contemplative_agent.core.llm._generate_full")
-    def test_comment_max_length_derives_to_3384(self, mock_gen):
-        mock_gen.return_value = GenerationOutput(text="ok")
-        generate_for_api("p", max_length=10000)
-        kwargs = mock_gen.call_args.kwargs
-        assert kwargs["num_predict"] == 3384  # ceil(10000/3) + 50 = 3384
+    def _sent_options(self, mock_post, **kwargs):
+        mock_post.return_value = self._mock_resp({"response": "ok"})
+        generate_for_api("p", **kwargs)
+        return mock_post.call_args.kwargs["json"]["options"]
 
-    @patch("contemplative_agent.core.llm._generate_full")
-    def test_self_post_max_length_derives_to_13384(self, mock_gen):
-        mock_gen.return_value = GenerationOutput(text="ok")
-        generate_for_api("p", max_length=40000)
-        kwargs = mock_gen.call_args.kwargs
-        assert kwargs["num_predict"] == 13384  # ceil(40000/3) + 50 = 13384
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_post_title_max_length_derives_to_150(self, mock_post):
+        options = self._sent_options(mock_post, max_length=300)
+        assert options["num_predict"] == 150  # ceil(300/3) + 50 = 150
 
-    @patch("contemplative_agent.core.llm._generate_full")
-    def test_zero_max_length_returns_50(self, mock_gen):
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_comment_max_length_derives_to_3384(self, mock_post):
+        options = self._sent_options(mock_post, max_length=10000)
+        assert options["num_predict"] == 3384  # ceil(10000/3) + 50 = 3384
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_self_post_max_length_derives_to_13384(self, mock_post):
+        options = self._sent_options(mock_post, max_length=40000)
+        assert options["num_predict"] == 13384  # ceil(40000/3) + 50 = 13384
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_zero_max_length_returns_50(self, mock_post):
         """At max_length=0, num_predict = ceil(0/3) + 50 = 50 (the +50 margin)."""
-        mock_gen.return_value = GenerationOutput(text="ok")
-        generate_for_api("p", max_length=0)
-        kwargs = mock_gen.call_args.kwargs
-        assert kwargs["num_predict"] == 50
+        options = self._sent_options(mock_post, max_length=0)
+        assert options["num_predict"] == 50
 
-    @patch("contemplative_agent.core.llm._generate_full")
-    def test_temperature_defaults_to_1_0(self, mock_gen):
-        mock_gen.return_value = GenerationOutput(text="ok")
-        generate_for_api("p", max_length=300)
-        kwargs = mock_gen.call_args.kwargs
-        assert kwargs["temperature"] == 1.0
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_temperature_defaults_to_1_0(self, mock_post):
+        options = self._sent_options(mock_post, max_length=300)
+        assert options["temperature"] == 1.0
 
-    @patch("contemplative_agent.core.llm._generate_full")
-    def test_temperature_propagates(self, mock_gen):
-        mock_gen.return_value = GenerationOutput(text="ok")
-        generate_for_api("p", max_length=300, temperature=1.3)
-        kwargs = mock_gen.call_args.kwargs
-        assert kwargs["temperature"] == 1.3
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_temperature_propagates(self, mock_post):
+        options = self._sent_options(mock_post, max_length=300, temperature=1.3)
+        assert options["temperature"] == 1.3
 
-    @patch("contemplative_agent.core.llm._generate_full")
-    def test_passes_max_length_through(self, mock_gen):
-        mock_gen.return_value = GenerationOutput(text="ok")
-        generate_for_api("p", max_length=300)
-        kwargs = mock_gen.call_args.kwargs
-        assert kwargs["max_length"] == 300
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_max_length_caps_published_text(self, mock_post):
+        """max_length is the platform char cap: output is sliced to it."""
+        mock_post.return_value = self._mock_resp({"response": "a" * 400})
+        out = generate_for_api("p", max_length=300)
+        assert out.text == "a" * 300
 
-    @patch("contemplative_agent.core.llm._generate_full")
-    def test_chars_per_token_cjk_derives_to_6717(self, mock_gen):
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_chars_per_token_cjk_derives_to_6717(self, mock_post):
         """CJK callers (comment/reply/title) pass chars_per_token=1.5 —
         ceil(10000/1.5) + 50 = 6717 (audit M2: the /3 default was the
         truncation root cause for Japanese output)."""
-        mock_gen.return_value = GenerationOutput(text="ok")
-        generate_for_api("p", max_length=10000, chars_per_token=1.5)
-        assert mock_gen.call_args.kwargs["num_predict"] == 6717
+        options = self._sent_options(mock_post, max_length=10000, chars_per_token=1.5)
+        assert options["num_predict"] == 6717
 
-    @patch("contemplative_agent.core.llm._generate_full")
-    def test_drop_truncated_propagates(self, mock_gen):
-        """API publish paths never emit a mid-sentence cut (audit M2)."""
-        mock_gen.return_value = GenerationOutput(text="ok")
-        generate_for_api("p", max_length=300)
-        assert mock_gen.call_args.kwargs["drop_truncated"] is True
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_truncated_output_is_dropped(self, mock_post):
+        """API publish paths never emit a mid-sentence cut (audit M2):
+        done_reason=length responses are dropped, not published."""
+        mock_post.return_value = self._mock_resp(
+            {"response": "cut mid-sentence", "done_reason": "length"}
+        )
+        out = generate_for_api("p", max_length=300)
+        assert out.text is None
 
     def test_non_positive_chars_per_token_raises(self):
         """Fail fast at the boundary: 0 would ZeroDivisionError, negative
@@ -1814,7 +1830,7 @@ class TestCircuitBreaker:
 
         result = generate("test prompt")
         assert result == "Hello world"
-        assert _circuit._consecutive_failures == 0
+        _assert_breaker_saw_no_failure(_circuit)
 
 
 class TestLoadSkills:

@@ -149,28 +149,29 @@ class TestPartialStateWarningM8:
         import logging as _logging
 
         state = tmp_path / "rate_state.json"
-        state.write_text(
-            json.dumps({"last_comment_time": 123.0}), encoding="utf-8"
-        )
-        with caplog.at_level(
-            _logging.WARNING, logger="contemplative_agent.core.scheduler"
-        ):
+        state.write_text(json.dumps({"last_comment_time": 123.0}), encoding="utf-8")
+        with caplog.at_level(_logging.WARNING, logger="contemplative_agent.core.scheduler"):
             scheduler = Scheduler(state_path=state)
         assert "comments_today" in caplog.text
-        assert scheduler._comments_today == 0  # default still applies
+        # Default still applies: quota identical to a scheduler with no state.
+        fresh = Scheduler(state_path=tmp_path / "fresh_state.json")
+        assert scheduler.comments_remaining_today == fresh.comments_remaining_today
 
     def test_full_schema_does_not_warn(self, tmp_path, caplog):
         import logging as _logging
 
         state = tmp_path / "rate_state.json"
-        state.write_text(json.dumps({
-            "last_post_time": 1.0,
-            "last_comment_time": 2.0,
-            "comments_today": 3,
-            "day_start": 4.0,
-        }), encoding="utf-8")
-        with caplog.at_level(
-            _logging.WARNING, logger="contemplative_agent.core.scheduler"
-        ):
+        state.write_text(
+            json.dumps(
+                {
+                    "last_post_time": 1.0,
+                    "last_comment_time": 2.0,
+                    "comments_today": 3,
+                    "day_start": 4.0,
+                }
+            ),
+            encoding="utf-8",
+        )
+        with caplog.at_level(_logging.WARNING, logger="contemplative_agent.core.scheduler"):
             Scheduler(state_path=state)
         assert "missing field" not in caplog.text

@@ -68,7 +68,6 @@ class TestInteraction:
 class TestMemoryStore:
     def test_empty_by_default(self):
         store = MemoryStore()
-        assert store._interactions == []
         assert store.known_agents == {}
         assert store.interaction_count() == 0
         assert store.unique_agent_count() == 0
@@ -94,13 +93,21 @@ class TestMemoryStore:
     def test_known_agents_updated(self):
         store = MemoryStore()
         store.record_interaction(
-            timestamp="t1", agent_id="a1", agent_name="Agent1",
-            post_id="p1", direction="sent", content="hi",
+            timestamp="t1",
+            agent_id="a1",
+            agent_name="Agent1",
+            post_id="p1",
+            direction="sent",
+            content="hi",
             interaction_type="comment",
         )
         store.record_interaction(
-            timestamp="t2", agent_id="a1", agent_name="Agent1 Updated",
-            post_id="p2", direction="received", content="hey",
+            timestamp="t2",
+            agent_id="a1",
+            agent_name="Agent1 Updated",
+            post_id="p2",
+            direction="received",
+            content="hey",
             interaction_type="reply",
         )
         # Name should be updated
@@ -111,8 +118,12 @@ class TestMemoryStore:
         store = MemoryStore()
         long_content = "x" * 500
         i = store.record_interaction(
-            timestamp="t1", agent_id="a1", agent_name="Agent1",
-            post_id="p1", direction="sent", content=long_content,
+            timestamp="t1",
+            agent_id="a1",
+            agent_name="Agent1",
+            post_id="p1",
+            direction="sent",
+            content=long_content,
             interaction_type="comment",
         )
         assert len(i.content_summary) == 200
@@ -122,8 +133,12 @@ class TestMemoryStore:
         store = MemoryStore()
         for i in range(MAX_INTERACTIONS + 50):
             store.record_interaction(
-                timestamp=f"t{i}", agent_id="a1", agent_name="Agent1",
-                post_id=f"p{i}", direction="sent", content=f"msg{i}",
+                timestamp=f"t{i}",
+                agent_id="a1",
+                agent_name="Agent1",
+                post_id=f"p{i}",
+                direction="sent",
+                content=f"msg{i}",
                 interaction_type="comment",
             )
         assert store.interaction_count() == MAX_INTERACTIONS
@@ -157,8 +172,12 @@ class TestMemoryPersistence:
         path = tmp_path / "memory.json"
         store = MemoryStore(path=path)
         store.record_interaction(
-            timestamp="t1", agent_id="a1", agent_name="A1",
-            post_id="p1", direction="sent", content="hi",
+            timestamp="t1",
+            agent_id="a1",
+            agent_name="A1",
+            post_id="p1",
+            direction="sent",
+            content="hi",
             interaction_type="comment",
         )
         store.save()
@@ -185,8 +204,12 @@ class TestMemoryPersistence:
         path = tmp_path / "deep" / "nested" / "memory.json"
         store = MemoryStore(path=path)
         store.record_interaction(
-            timestamp="t1", agent_id="a1", agent_name="A1",
-            post_id="p1", direction="sent", content="hi",
+            timestamp="t1",
+            agent_id="a1",
+            agent_name="A1",
+            post_id="p1",
+            direction="sent",
+            content="hi",
             interaction_type="comment",
         )
         store.save()
@@ -198,8 +221,12 @@ class TestMemoryPersistence:
         path = tmp_path / "memory.json"
         store = MemoryStore(path=path)
         store.record_interaction(
-            timestamp="t1", agent_id="a1", agent_name="テストエージェント",
-            post_id="p1", direction="sent", content="日本語コンテンツ",
+            timestamp="t1",
+            agent_id="a1",
+            agent_name="テストエージェント",
+            post_id="p1",
+            direction="sent",
+            content="日本語コンテンツ",
             interaction_type="comment",
         )
         store.save()
@@ -239,15 +266,22 @@ class TestPostRecord:
         # defaults to False, so it is excluded from the verified-only
         # NoveltyGate comparison (ADR-0063).
         r = PostRecord(
-            timestamp="t", post_id="p", title="T",
-            topic_summary="s", content_hash="h",
+            timestamp="t",
+            post_id="p",
+            title="T",
+            topic_summary="s",
+            content_hash="h",
         )
         assert r.verified is False
 
     def test_verified_explicit_true(self):
         r = PostRecord(
-            timestamp="t", post_id="p", title="T",
-            topic_summary="s", content_hash="h", verified=True,
+            timestamp="t",
+            post_id="p",
+            title="T",
+            topic_summary="s",
+            content_hash="h",
+            verified=True,
         )
         assert r.verified is True
 
@@ -271,25 +305,34 @@ class TestPostHistoryAndInsights:
         # so a recorded post is verified by default (ADR-0063).
         store = MemoryStore()
         r = store.record_post(
-            timestamp="t", post_id="p", title="T",
-            topic_summary="s", content_hash="h",
+            timestamp="t",
+            post_id="p",
+            title="T",
+            topic_summary="s",
+            content_hash="h",
         )
         assert r.verified is True
 
     def test_get_recent_posts_verified_only_filters(self):
         store = MemoryStore()
         store.record_post(
-            timestamp="t1", post_id="p1", title="T1",
-            topic_summary="s1", content_hash="h1", verified=False,  # legacy/pending
+            timestamp="t1",
+            post_id="p1",
+            title="T1",
+            topic_summary="s1",
+            content_hash="h1",
+            verified=False,  # legacy/pending
         )
         store.record_post(
-            timestamp="t2", post_id="p2", title="T2",
-            topic_summary="s2", content_hash="h2", verified=True,
+            timestamp="t2",
+            post_id="p2",
+            title="T2",
+            topic_summary="s2",
+            content_hash="h2",
+            verified=True,
         )
         assert [r.post_id for r in store.get_recent_posts()] == ["p1", "p2"]
-        assert [
-            r.post_id for r in store.get_recent_posts(verified_only=True)
-        ] == ["p2"]
+        assert [r.post_id for r in store.get_recent_posts(verified_only=True)] == ["p2"]
 
     def test_verified_only_empty_when_all_pending(self):
         # Production state at fix time: all posts pending → verified-only
@@ -297,8 +340,12 @@ class TestPostHistoryAndInsights:
         store = MemoryStore()
         for i in range(5):
             store.record_post(
-                timestamp=f"t{i}", post_id=f"p{i}", title=f"T{i}",
-                topic_summary=f"s{i}", content_hash=f"h{i}", verified=False,
+                timestamp=f"t{i}",
+                post_id=f"p{i}",
+                title=f"T{i}",
+                topic_summary=f"s{i}",
+                content_hash=f"h{i}",
+                verified=False,
             )
         assert store.get_recent_posts(verified_only=True) == []
         assert len(store.get_recent_posts()) == 5
@@ -309,12 +356,20 @@ class TestPostHistoryAndInsights:
         path = tmp_path / "memory.json"
         store = MemoryStore(path=path)
         store.record_post(
-            timestamp="2026-06-26T00:00:00", post_id="pv", title="V",
-            topic_summary="visible", content_hash="hv", verified=True,
+            timestamp="2026-06-26T00:00:00",
+            post_id="pv",
+            title="V",
+            topic_summary="visible",
+            content_hash="hv",
+            verified=True,
         )
         store.record_post(
-            timestamp="2026-06-25T00:00:00", post_id="pp", title="P",
-            topic_summary="pending", content_hash="hp", verified=False,
+            timestamp="2026-06-25T00:00:00",
+            post_id="pp",
+            title="P",
+            topic_summary="pending",
+            content_hash="hp",
+            verified=False,
         )
         store2 = MemoryStore(path=path)
         store2.load()
@@ -326,8 +381,11 @@ class TestPostHistoryAndInsights:
         store = MemoryStore()
         long_summary = "x" * 200
         r = store.record_post(
-            timestamp="t1", post_id="p1", title="T1",
-            topic_summary=long_summary, content_hash="abc",
+            timestamp="t1",
+            post_id="p1",
+            title="T1",
+            topic_summary=long_summary,
+            content_hash="abc",
         )
         assert len(r.topic_summary) <= 100
 
@@ -335,8 +393,11 @@ class TestPostHistoryAndInsights:
         store = MemoryStore()
         for i in range(10):
             store.record_post(
-                timestamp=f"t{i}", post_id=f"p{i}", title=f"T{i}",
-                topic_summary=f"topic{i}", content_hash=f"hash{i}",
+                timestamp=f"t{i}",
+                post_id=f"p{i}",
+                title=f"T{i}",
+                topic_summary=f"topic{i}",
+                content_hash=f"hash{i}",
             )
         topics = [p.topic_summary for p in store.get_recent_posts(limit=3)]
         assert len(topics) == 3
@@ -346,8 +407,11 @@ class TestPostHistoryAndInsights:
         store = MemoryStore()
         for i in range(MAX_POST_HISTORY + 10):
             store.record_post(
-                timestamp=f"t{i}", post_id=f"p{i}", title=f"T{i}",
-                topic_summary=f"topic{i}", content_hash=f"hash{i}",
+                timestamp=f"t{i}",
+                post_id=f"p{i}",
+                title=f"T{i}",
+                topic_summary=f"topic{i}",
+                content_hash=f"hash{i}",
             )
         topics = [p.topic_summary for p in store.get_recent_posts(limit=MAX_POST_HISTORY + 10)]
         assert len(topics) == MAX_POST_HISTORY
@@ -378,13 +442,20 @@ class TestPostHistoryPersistence:
         path = tmp_path / "memory.json"
         store = MemoryStore(path=path)
         store.record_interaction(
-            timestamp="t1", agent_id="a1", agent_name="Agent1",
-            post_id="p1", direction="sent", content="hi",
+            timestamp="t1",
+            agent_id="a1",
+            agent_name="Agent1",
+            post_id="p1",
+            direction="sent",
+            content="hi",
             interaction_type="comment",
         )
         store.record_post(
-            timestamp="t2", post_id="p2", title="Post",
-            topic_summary="topic", content_hash="hash123",
+            timestamp="t2",
+            post_id="p2",
+            title="Post",
+            topic_summary="topic",
+            content_hash="hash123",
         )
         store.save()
 
@@ -400,14 +471,20 @@ class TestPostHistoryPersistence:
         them anywhere in memory."""
         path = tmp_path / "memory.json"
         store = MemoryStore(path=path)
-        store._episodes.append("insight", {
-            "timestamp": "t1",
-            "observation": "historical narrative",
-            "insight_type": "session_summary",
-        })
+        store._episodes.append(
+            "insight",
+            {
+                "timestamp": "t1",
+                "observation": "historical narrative",
+                "insight_type": "session_summary",
+            },
+        )
         store.record_post(
-            timestamp="t2", post_id="p2", title="Post",
-            topic_summary="topic", content_hash="hash123",
+            timestamp="t2",
+            post_id="p2",
+            title="Post",
+            topic_summary="topic",
+            content_hash="hash123",
         )
 
         store2 = MemoryStore(path=path)
@@ -463,7 +540,7 @@ class TestEpisodeLog:
         log_file = log_dir / f"{date_str}.jsonl"
         log_file.write_text(
             '{"ts": "t1", "type": "ok", "data": {}}\n'
-            'not json\n'
+            "not json\n"
             '{"ts": "t2", "type": "ok2", "data": {}}\n'
         )
         log = EpisodeLog(log_dir=log_dir)
@@ -511,9 +588,11 @@ class TestKnowledgeStore:
     def test_load_rejects_tainted_file(self, tmp_path):
         """Knowledge file containing forbidden patterns should not be loaded."""
         path = tmp_path / "knowledge.json"
-        path.write_text(json.dumps([
-            {"pattern": "The api_key for the service is leaked", "distilled": "2026-01-01"}
-        ]))
+        path.write_text(
+            json.dumps(
+                [{"pattern": "The api_key for the service is leaked", "distilled": "2026-01-01"}]
+            )
+        )
         ks = KnowledgeStore(path=path)
         ks.load()
         # File was rejected — no data should be loaded
@@ -522,9 +601,9 @@ class TestKnowledgeStore:
     def test_load_rejects_bearer_pattern(self, tmp_path):
         """Bearer token pattern in knowledge file triggers rejection."""
         path = tmp_path / "knowledge.json"
-        path.write_text(json.dumps([
-            {"pattern": "Use Bearer token for auth", "distilled": "2026-01-01"}
-        ]))
+        path.write_text(
+            json.dumps([{"pattern": "Use Bearer token for auth", "distilled": "2026-01-01"}])
+        )
         ks = KnowledgeStore(path=path)
         ks.load()
         assert [p["pattern"] for p in ks.get_raw_patterns()] == []
@@ -538,20 +617,29 @@ class TestKnowledgeStore:
 
         ks2 = KnowledgeStore(path=path)
         ks2.load()
-        assert [p["pattern"] for p in ks2.get_raw_patterns()] == ["Contemplative practice is valuable"]
+        assert [p["pattern"] for p in ks2.get_raw_patterns()] == [
+            "Contemplative practice is valuable"
+        ]
 
     # --- Importance score tests ---
 
     def test_legacy_importance_shed_on_load(self, tmp_path):
         """ADR-0056: a legacy importance field is not restored on load."""
         path = tmp_path / "knowledge.json"
-        path.write_text(json.dumps([
-            {"pattern": "Old pattern with a legacy rating",
-             "distilled": "2026-03-20T12:00+00:00", "importance": 0.7}
-        ]))
+        path.write_text(
+            json.dumps(
+                [
+                    {
+                        "pattern": "Old pattern with a legacy rating",
+                        "distilled": "2026-03-20T12:00+00:00",
+                        "importance": 0.7,
+                    }
+                ]
+            )
+        )
         ks = KnowledgeStore(path=path)
         ks.load()
-        assert "importance" not in ks._learned_patterns[0]
+        assert "importance" not in ks.get_raw_patterns()[0]
 
     def test_importance_not_written(self, tmp_path):
         """ADR-0056: the importance field is no longer written — extraction
@@ -563,7 +651,7 @@ class TestKnowledgeStore:
 
         ks2 = KnowledgeStore(path=path)
         ks2.load()
-        assert "importance" not in ks2._learned_patterns[0]
+        assert "importance" not in ks2.get_raw_patterns()[0]
 
     def test_source_preserved_on_roundtrip(self, tmp_path):
         """Source field survives save/load cycle (regression: _parse_json was dropping it)."""
@@ -574,7 +662,8 @@ class TestKnowledgeStore:
 
         ks2 = KnowledgeStore(path=path)
         ks2.load()
-        assert ks2._learned_patterns[0].get("source") == "2026-03-18~2026-03-19"
+        assert ks2.get_raw_patterns()[0].get("source") == "2026-03-18~2026-03-19"
+
 
 class TestFollowedAgents:
     """Tests for agents.json follow/unfollow persistence."""
@@ -641,8 +730,12 @@ class TestKnownAgentsFromJSONL:
     def test_known_agents_from_record(self):
         store = MemoryStore()
         store.record_interaction(
-            timestamp="t1", agent_id="a1", agent_name="Agent1",
-            post_id="p1", direction="sent", content="hi",
+            timestamp="t1",
+            agent_id="a1",
+            agent_name="Agent1",
+            post_id="p1",
+            direction="sent",
+            content="hi",
             interaction_type="comment",
         )
         assert store.known_agents == {"a1": "Agent1"}
@@ -651,8 +744,12 @@ class TestKnownAgentsFromJSONL:
         path = tmp_path / "memory.json"
         store = MemoryStore(path=path)
         store.record_interaction(
-            timestamp="t1", agent_id="a1", agent_name="Agent1",
-            post_id="p1", direction="sent", content="hi",
+            timestamp="t1",
+            agent_id="a1",
+            agent_name="Agent1",
+            post_id="p1",
+            direction="sent",
+            content="hi",
             interaction_type="comment",
         )
         store.save()
@@ -669,8 +766,12 @@ class TestTopInteractedAgents:
     def _seed(store, agent_id, agent_name, times=1):
         for _ in range(times):
             store.record_interaction(
-                timestamp="t", agent_id=agent_id, agent_name=agent_name,
-                post_id="p", direction="sent", content="x",
+                timestamp="t",
+                agent_id=agent_id,
+                agent_name=agent_name,
+                post_id="p",
+                direction="sent",
+                content="x",
                 interaction_type="comment",
             )
 
@@ -826,8 +927,12 @@ class TestInteractedIdsSet:
     def test_has_interacted_with_after_record(self):
         store = MemoryStore()
         store.record_interaction(
-            timestamp="t1", agent_id="a1", agent_name="Agent1",
-            post_id="p1", direction="sent", content="hi",
+            timestamp="t1",
+            agent_id="a1",
+            agent_name="Agent1",
+            post_id="p1",
+            direction="sent",
+            content="hi",
             interaction_type="comment",
         )
         assert store.has_interacted_with("a1") is True
@@ -836,8 +941,12 @@ class TestInteractedIdsSet:
     def test_has_interacted_with_after_load(self, tmp_path):
         store = MemoryStore(path=tmp_path / "memory.json")
         store.record_interaction(
-            timestamp="t1", agent_id="a1", agent_name="Agent1",
-            post_id="p1", direction="sent", content="hi",
+            timestamp="t1",
+            agent_id="a1",
+            agent_name="Agent1",
+            post_id="p1",
+            direction="sent",
+            content="hi",
             interaction_type="comment",
         )
         store.save()
@@ -906,6 +1015,7 @@ class TestGetPriorCommentTargets:
     def _seed_episodes(self, tmp_path, records):
         """Write activity records to today's episode log file."""
         from datetime import datetime, timezone
+
         log_dir = tmp_path / "logs"
         log_dir.mkdir(parents=True, exist_ok=True)
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -920,22 +1030,43 @@ class TestGetPriorCommentTargets:
 
     def test_returns_original_posts_for_matching_author(self, tmp_path):
         from datetime import datetime, timezone
+
         ts = datetime.now(timezone.utc).isoformat()
-        self._seed_episodes(tmp_path, [
-            {"ts": ts, "type": "activity", "data": {
-                "action": "comment", "post_id": "p1",
-                "original_post": "first body", "target_agent": "a1",
-            }},
-            {"ts": ts, "type": "activity", "data": {
-                "action": "comment", "post_id": "p2",
-                "original_post": "second body", "target_agent": "a1",
-            }},
-            {"ts": ts, "type": "activity", "data": {
-                "action": "comment", "post_id": "p3",
-                "original_post": "different author body",
-                "target_agent": "a2",
-            }},
-        ])
+        self._seed_episodes(
+            tmp_path,
+            [
+                {
+                    "ts": ts,
+                    "type": "activity",
+                    "data": {
+                        "action": "comment",
+                        "post_id": "p1",
+                        "original_post": "first body",
+                        "target_agent": "a1",
+                    },
+                },
+                {
+                    "ts": ts,
+                    "type": "activity",
+                    "data": {
+                        "action": "comment",
+                        "post_id": "p2",
+                        "original_post": "second body",
+                        "target_agent": "a1",
+                    },
+                },
+                {
+                    "ts": ts,
+                    "type": "activity",
+                    "data": {
+                        "action": "comment",
+                        "post_id": "p3",
+                        "original_post": "different author body",
+                        "target_agent": "a2",
+                    },
+                },
+            ],
+        )
         store = self._make_store(tmp_path)
         targets = store.get_prior_comment_targets("a1")
         assert targets == ["first body", "second body"]
@@ -944,43 +1075,77 @@ class TestGetPriorCommentTargets:
         # Old comment records (before the counterparty-name fix) lack
         # target_agent — they must be silently filtered, not match every lookup.
         from datetime import datetime, timezone
+
         ts = datetime.now(timezone.utc).isoformat()
-        self._seed_episodes(tmp_path, [
-            {"ts": ts, "type": "activity", "data": {
-                "action": "comment", "post_id": "p1",
-                "original_post": "old body without target_agent",
-            }},
-        ])
+        self._seed_episodes(
+            tmp_path,
+            [
+                {
+                    "ts": ts,
+                    "type": "activity",
+                    "data": {
+                        "action": "comment",
+                        "post_id": "p1",
+                        "original_post": "old body without target_agent",
+                    },
+                },
+            ],
+        )
         store = self._make_store(tmp_path)
         assert store.get_prior_comment_targets("a1") == []
 
     def test_unknown_name_returns_empty(self, tmp_path):
         # "unknown" must not collapse all unattributed comments into one bucket.
         from datetime import datetime, timezone
+
         ts = datetime.now(timezone.utc).isoformat()
-        self._seed_episodes(tmp_path, [
-            {"ts": ts, "type": "activity", "data": {
-                "action": "comment", "post_id": "p1",
-                "original_post": "body", "target_agent": "unknown",
-            }},
-        ])
+        self._seed_episodes(
+            tmp_path,
+            [
+                {
+                    "ts": ts,
+                    "type": "activity",
+                    "data": {
+                        "action": "comment",
+                        "post_id": "p1",
+                        "original_post": "body",
+                        "target_agent": "unknown",
+                    },
+                },
+            ],
+        )
         store = self._make_store(tmp_path)
         assert store.get_prior_comment_targets("unknown") == []
 
     def test_skips_non_comment_actions(self, tmp_path):
         from datetime import datetime, timezone
+
         ts = datetime.now(timezone.utc).isoformat()
-        self._seed_episodes(tmp_path, [
-            {"ts": ts, "type": "activity", "data": {
-                "action": "upvote", "post_id": "p1",
-                "target_agent": "a1",
-            }},
-            {"ts": ts, "type": "activity", "data": {
-                "action": "post", "post_id": "p2",
-                "title": "T", "content": "body",
-                "target_agent": "a1",
-            }},
-        ])
+        self._seed_episodes(
+            tmp_path,
+            [
+                {
+                    "ts": ts,
+                    "type": "activity",
+                    "data": {
+                        "action": "upvote",
+                        "post_id": "p1",
+                        "target_agent": "a1",
+                    },
+                },
+                {
+                    "ts": ts,
+                    "type": "activity",
+                    "data": {
+                        "action": "post",
+                        "post_id": "p2",
+                        "title": "T",
+                        "content": "body",
+                        "target_agent": "a1",
+                    },
+                },
+            ],
+        )
         store = self._make_store(tmp_path)
         assert store.get_prior_comment_targets("a1") == []
 
@@ -990,13 +1155,19 @@ class TestGetPriorCommentTargets:
 
     def test_respects_limit(self, tmp_path):
         from datetime import datetime, timezone
+
         ts = datetime.now(timezone.utc).isoformat()
         records = [
-            {"ts": ts, "type": "activity", "data": {
-                "action": "comment", "post_id": f"p{i}",
-                "original_post": f"body {i}",
-                "target_agent": "a1",
-            }}
+            {
+                "ts": ts,
+                "type": "activity",
+                "data": {
+                    "action": "comment",
+                    "post_id": f"p{i}",
+                    "original_post": f"body {i}",
+                    "target_agent": "a1",
+                },
+            }
             for i in range(10)
         ]
         self._seed_episodes(tmp_path, records)
@@ -1045,6 +1216,4 @@ class TestEpisodeLoadSchemaDriftVisibility:
         # The well-formed record loaded; the malformed one did not.
         assert store.known_agents == {"a1": "Alice"}
         # The mass-drop is observable as an aggregate WARNING with the ratio.
-        assert any(
-            "Dropped 1/2 interaction records" in r.message for r in caplog.records
-        )
+        assert any("Dropped 1/2 interaction records" in r.message for r in caplog.records)

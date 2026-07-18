@@ -694,20 +694,23 @@ class TestInstallScheduleCommand:
 class TestNoAxiomsFlag:
     """Tests for --no-axioms flag controlling CCAI clause injection."""
 
+    @patch("contemplative_agent.cli.load_constitution")
     @patch("contemplative_agent.cli.Agent")
     @patch("contemplative_agent.cli.configure_llm")
-    def test_axioms_injected_by_default(self, mock_configure, mock_agent_cls):
+    def test_axioms_injected_by_default(
+        self, mock_configure, mock_agent_cls, mock_load_constitution
+    ):
         """Without --no-axioms, configure_llm should be called with axiom_prompt."""
         mock_agent = MagicMock()
         mock_agent_cls.return_value = mock_agent
+        mock_load_constitution.return_value = "Axiom clauses for test."
 
         with patch("sys.argv", ["contemplative-agent", "status"]):
             main()
 
-        # axiom_prompt should have been passed if contemplative-axioms.md exists
         calls = [c for c in mock_configure.call_args_list if "axiom_prompt" in c.kwargs]
-        if calls:
-            assert calls[0].kwargs["axiom_prompt"]  # non-empty string
+        assert calls, "configure_llm was never called with axiom_prompt"
+        assert calls[0].kwargs["axiom_prompt"] == "Axiom clauses for test."
 
     @patch("contemplative_agent.cli.Agent")
     @patch("contemplative_agent.cli.configure_llm")
@@ -1262,10 +1265,7 @@ class TestAdoptStaged:
 
     def _run_adopt(self, tmp_path, staged_dir, *, inputs: list[str]):
         audit = tmp_path / "logs" / "audit.jsonl"
-        # MagicMock attributes return MagicMock (truthy) by default, so set
-        # `yes` explicitly to exercise the interactive prompt path.
-        args = MagicMock()
-        args.yes = False
+        args = argparse.Namespace(yes=False)
         with (
             patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
@@ -1570,11 +1570,11 @@ class TestSkillStocktakeDirectMerge:
         (skills_dir / "b.md").write_text("# B")
         audit = tmp_path / "logs" / "audit.jsonl"
 
-        args = MagicMock()
-        args.stage = False
+        args = argparse.Namespace(stage=False)
 
         fake_result = self._make_result(["a.md", "b.md"])
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_skill_stocktake",
                 return_value=fake_result,
@@ -1626,8 +1626,7 @@ class TestSkillStocktakeDirectMerge:
         (skills_dir / "b.md").write_text("# B original")
         audit = tmp_path / "logs" / "audit.jsonl"
 
-        args = MagicMock()
-        args.stage = False
+        args = argparse.Namespace(stage=False)
 
         # LLM returns "# A" as title -> slug "a" -> target collides with a.md
         # The date suffix forces filename to f"a-{YYYYMMDD}.md" though, so to
@@ -1652,6 +1651,7 @@ class TestSkillStocktakeDirectMerge:
         merged_text = "No title here, just body prose.\n\nMore body."
 
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_skill_stocktake",
                 return_value=fake_result,
@@ -1714,8 +1714,7 @@ class TestSkillStocktakeCleanPhase:
         (skills_dir / "solo.md").write_text("# Solo\n\noriginal")
         audit = tmp_path / "logs" / "audit.jsonl"
 
-        args = MagicMock()
-        args.stage = False
+        args = argparse.Namespace(stage=False)
 
         # No merges, no drops -> only the clean phase runs.
         fake_result = StocktakeResult(
@@ -1726,6 +1725,7 @@ class TestSkillStocktakeCleanPhase:
         )
         cleaned = "# Solo\n\noriginal\n\n## When to Use\nWhen a particular individual acts."
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_skill_stocktake",
                 return_value=fake_result,
@@ -1774,8 +1774,7 @@ class TestSkillStocktakeCleanPhase:
         (skills_dir / "solo.md").write_text(original)
         audit = tmp_path / "logs" / "audit.jsonl"
 
-        args = MagicMock()
-        args.stage = False
+        args = argparse.Namespace(stage=False)
 
         fake_result = StocktakeResult(
             merge_groups=(),
@@ -1792,6 +1791,7 @@ class TestSkillStocktakeCleanPhase:
             "## When to Use\nWhen a particular individual acts on a specific topic."
         )
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_skill_stocktake",
                 return_value=fake_result,
@@ -1832,8 +1832,7 @@ class TestSkillStocktakeCleanPhase:
         )
         audit = tmp_path / "logs" / "audit.jsonl"
 
-        args = MagicMock()
-        args.stage = False
+        args = argparse.Namespace(stage=False)
 
         fake_result = StocktakeResult(
             merge_groups=(),
@@ -1847,6 +1846,7 @@ class TestSkillStocktakeCleanPhase:
             "## When to Use\nWhen a particular individual acts."
         )
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_skill_stocktake",
                 return_value=fake_result,
@@ -1875,8 +1875,7 @@ class TestSkillStocktakeCleanPhase:
         skills_dir.mkdir()
         (skills_dir / "solo.md").write_text("# Solo original")
         audit = tmp_path / "logs" / "audit.jsonl"
-        args = MagicMock()
-        args.stage = False
+        args = argparse.Namespace(stage=False)
 
         fake_result = StocktakeResult(
             merge_groups=(),
@@ -1885,6 +1884,7 @@ class TestSkillStocktakeCleanPhase:
             items=(("solo.md", "# Solo original"),),
         )
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_skill_stocktake",
                 return_value=fake_result,
@@ -1914,8 +1914,7 @@ class TestSkillStocktakeCleanPhase:
         for n in ("a.md", "b.md", "bad.md", "solo.md"):
             (skills_dir / n).write_text(f"# {n}")
         audit = tmp_path / "logs" / "audit.jsonl"
-        args = MagicMock()
-        args.stage = False
+        args = argparse.Namespace(stage=False)
 
         fake_result = StocktakeResult(
             merge_groups=(MergeGroup(filenames=("a.md", "b.md"), reason="dup"),),
@@ -1935,6 +1934,7 @@ class TestSkillStocktakeCleanPhase:
             return "CLEAN_NOOP"
 
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_skill_stocktake",
                 return_value=fake_result,
@@ -1967,8 +1967,7 @@ class TestSkillStocktakeCleanPhase:
         staged = tmp_path / ".staged"
         audit = tmp_path / "logs" / "audit.jsonl"
 
-        args = MagicMock()
-        args.stage = True
+        args = argparse.Namespace(stage=True)
 
         fake_result = StocktakeResult(
             merge_groups=(),
@@ -1978,6 +1977,7 @@ class TestSkillStocktakeCleanPhase:
         )
         cleaned = "# Solo\n\n## When to Use\nWhen a particular individual acts."
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_skill_stocktake",
                 return_value=fake_result,
@@ -2009,8 +2009,7 @@ class TestSkillStocktakeCleanPhase:
         rules_dir.mkdir()
         (rules_dir / "r.md").write_text("# Rule")
         audit = tmp_path / "logs" / "audit.jsonl"
-        args = MagicMock()
-        args.stage = False
+        args = argparse.Namespace(stage=False)
 
         fake_result = StocktakeResult(
             merge_groups=(),
@@ -2019,6 +2018,7 @@ class TestSkillStocktakeCleanPhase:
             items=(("r.md", "# Rule"),),
         )
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_rules_stocktake",
                 return_value=fake_result,
@@ -2062,11 +2062,11 @@ class TestRulesStocktakeDirectMerge:
         (rules_dir / "b.md").write_text("# B")
         audit = tmp_path / "logs" / "audit.jsonl"
 
-        args = MagicMock()
-        args.stage = False
+        args = argparse.Namespace(stage=False)
 
         fake_result = self._make_result(["a.md", "b.md"])
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_rules_stocktake",
                 return_value=fake_result,
@@ -2121,8 +2121,7 @@ class TestRulesStocktakeDirectMerge:
         (rules_dir / colliding).write_text("# pre-existing content")
         (rules_dir / "b.md").write_text("# B original")
 
-        args = MagicMock()
-        args.stage = False
+        args = argparse.Namespace(stage=False)
 
         fake_result = StocktakeResult(
             merge_groups=(MergeGroup(filenames=(colliding, "b.md"), reason="dup"),),
@@ -2135,6 +2134,7 @@ class TestRulesStocktakeDirectMerge:
         merged_text = "No title here, just rule body prose.\n\nMore body."
 
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_rules_stocktake",
                 return_value=fake_result,
@@ -2254,8 +2254,7 @@ class TestAdoptStagedDrop:
 
     def _run_adopt(self, tmp_path, staged_dir, *, inputs: list[str]):
         audit = tmp_path / "logs" / "audit.jsonl"
-        args = MagicMock()
-        args.yes = False
+        args = argparse.Namespace(yes=False)
         with (
             patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),
@@ -2373,8 +2372,7 @@ class TestAdoptStagedYesFlag:
 
     def _run_adopt_yes(self, tmp_path, staged_dir):
         audit = tmp_path / "logs" / "audit.jsonl"
-        args = MagicMock()
-        args.yes = True
+        args = argparse.Namespace(yes=True)
         # Patch input() with a sentinel that fails the test if called.
         # If --yes works correctly, the prompt path should never run.
         with (
@@ -2515,11 +2513,11 @@ class TestSkillStocktakeDirectDrop:
             (skills_dir / f).write_text("# short")
         audit = tmp_path / "logs" / "audit.jsonl"
 
-        args = MagicMock()
-        args.stage = False
+        args = argparse.Namespace(stage=False)
 
         fake_result = self._make_result_with_quality_issues(quality_files)
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_skill_stocktake",
                 return_value=fake_result,
@@ -2555,11 +2553,11 @@ class TestSkillStocktakeDirectDrop:
         staged_dir = tmp_path / ".staged"
         audit = tmp_path / "logs" / "audit.jsonl"
 
-        args = MagicMock()
-        args.stage = True
+        args = argparse.Namespace(stage=True)
 
         fake_result = self._make_result_with_quality_issues(["lq.md"])
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_skill_stocktake",
                 return_value=fake_result,
@@ -2599,11 +2597,11 @@ class TestRulesStocktakeDirectDrop:
             (rules_dir / f).write_text("# old rule without Practice/Rationale")
         audit = tmp_path / "logs" / "audit.jsonl"
 
-        args = MagicMock()
-        args.stage = False
+        args = argparse.Namespace(stage=False)
 
         fake_result = self._make_result_with_quality_issues(quality_files)
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_rules_stocktake",
                 return_value=fake_result,
@@ -2639,11 +2637,11 @@ class TestRulesStocktakeDirectDrop:
         staged_dir = tmp_path / ".staged"
         audit = tmp_path / "logs" / "audit.jsonl"
 
-        args = MagicMock()
-        args.stage = True
+        args = argparse.Namespace(stage=True)
 
         fake_result = self._make_result_with_quality_issues(["old-rule.md"])
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_rules_stocktake",
                 return_value=fake_result,
@@ -2693,8 +2691,7 @@ class TestStocktakeStageMergeAndDropCoexist:
         staged_dir = tmp_path / ".staged"
         audit = tmp_path / "logs" / "audit.jsonl"
 
-        args = MagicMock()
-        args.stage = True
+        args = argparse.Namespace(stage=True)
 
         fake_result = self._make_mixed_result(
             merge_files=("a.md", "b.md"),
@@ -2703,6 +2700,7 @@ class TestStocktakeStageMergeAndDropCoexist:
         merged_text = "# Merged Skill\n\n## Problem\nx\n\n## Solution\ny\n"
 
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_skill_stocktake",
                 return_value=fake_result,
@@ -2740,8 +2738,7 @@ class TestStocktakeStageMergeAndDropCoexist:
         staged_dir = tmp_path / ".staged"
         audit = tmp_path / "logs" / "audit.jsonl"
 
-        args = MagicMock()
-        args.stage = True
+        args = argparse.Namespace(stage=True)
 
         fake_result = self._make_mixed_result(
             merge_files=("a.md", "b.md"),
@@ -2750,6 +2747,7 @@ class TestStocktakeStageMergeAndDropCoexist:
         merged_text = "# Merged Rule\n\n**Practice:** do x\n\n**Rationale:** because y\n"
 
         with (
+            patch("contemplative_agent.cli._take_snapshot", return_value=None),
             patch(
                 "contemplative_agent.core.stocktake.run_rules_stocktake",
                 return_value=fake_result,
@@ -3003,8 +3001,7 @@ class TestApprovalLineageADR0050:
         assert stage_record["decision"] == "staged"
         assert stage_record["source_ids"] == ["c3c3c3c3c3c3"]
 
-        args = MagicMock()
-        args.yes = False
+        args = argparse.Namespace(yes=False)
         with (
             patch("contemplative_agent.cli.STAGED_DIR", staged_dir),
             patch("contemplative_agent.cli.MOLTBOOK_DATA_DIR", tmp_path),

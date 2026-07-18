@@ -2534,9 +2534,13 @@ class TestSelectiveMode:
         mock_time.time.return_value = 1000.0
         mock_time.sleep = MagicMock()
 
+        # A previous session commented on post1 and persisted its cache;
+        # the current session must pick it up through the on-disk cache.
+        past_session = _make_clean_memory(tmp_path)
+        past_session.record_commented("post1")
+        past_session.save()
+
         memory = _make_clean_memory(tmp_path)
-        # Simulate a previous session's comment by seeding the cache
-        memory._commented_cache = {"post1"}
 
         agent = Agent(autonomy=AutonomyLevel.AUTO, memory=memory)
         agent._client = MagicMock()
