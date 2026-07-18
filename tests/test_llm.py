@@ -929,7 +929,7 @@ class TestSystemPromptBudgetReading:
         )
 
         with patch(
-            "contemplative_agent.core.llm._build_system_prompt",
+            "contemplative_agent.core.llm.prompting._build_system_prompt",
             return_value="a" * 3000,  # 1000 tok at ascii/3
         ):
             reading = system_prompt_budget_reading(
@@ -944,7 +944,7 @@ class TestSystemPromptBudgetReading:
         from contemplative_agent.core.llm import system_prompt_budget_reading
 
         with patch(
-            "contemplative_agent.core.llm._build_system_prompt",
+            "contemplative_agent.core.llm.prompting._build_system_prompt",
             return_value="a" * 300,  # 100 tok
         ):
             reading = system_prompt_budget_reading(
@@ -957,7 +957,7 @@ class TestSystemPromptBudgetReading:
         from contemplative_agent.core.llm import system_prompt_budget_reading
 
         with patch(
-            "contemplative_agent.core.llm._build_system_prompt",
+            "contemplative_agent.core.llm.prompting._build_system_prompt",
             return_value="a" * 300,
         ):
             reading = system_prompt_budget_reading(new_texts=[])
@@ -968,18 +968,17 @@ class TestSystemPromptBudgetReading:
         """Per-reading overrides (for unconfigured Tier-1 callers) must be
         restored afterwards — an instrument must not leave module
         configuration behind as a side effect."""
-        from contemplative_agent.core import llm as llm_module
-        from contemplative_agent.core.llm import system_prompt_budget_reading
+        from contemplative_agent.core.llm import prompting, system_prompt_budget_reading
 
         skills_dir = tmp_path / "skills"
         skills_dir.mkdir()
         (skills_dir / "s.md").write_text("x" * 3000)  # 1000 tok
 
-        saved = llm_module._skills_dir
+        saved = prompting._skills_dir
         baseline = system_prompt_budget_reading(new_texts=[])
         reading = system_prompt_budget_reading(new_texts=[], skills_dir=skills_dir)
         assert reading.current_tokens > baseline.current_tokens  # skills counted
-        assert llm_module._skills_dir == saved  # restored
+        assert prompting._skills_dir == saved  # restored
 
 
 class TestSilentTruncationDetector:

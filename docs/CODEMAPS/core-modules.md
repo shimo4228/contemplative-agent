@@ -11,7 +11,7 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `config.py` | 47 | `FORBIDDEN_SUBSTRING_PATTERNS`, `VALID_ID_PATTERN`, `MAX_COMMENT_LENGTH` |
 | `domain.py` | 401 | `DomainConfig`, `PromptTemplates` (reads `MOLTBOOK_HOME/prompts/` overrides with packaged fallback), constitution loader |
 | `prompts.py` | ~70 | Lazy-load proxy to `config/prompts/*.md` + placeholder resolution |
-| `llm.py` | 1485 | Ollama interface + `LLMBackend` Protocol (pluggable, returns `BackendResult`, keyword `temperature`/`think`, `model`/`context_window` properties), circuit breaker + `circuit_shield()` context-manager isolation (ADR-0076: a failing observer can never trip the breaker for the generation it watches), sanitization, `drop_truncated` gate, per-call `think` flag + reasoning-trace capture (`generate_for_api` returns `GenerationOutput(text, thinking)`), backend-aware context-budget pre-flight (audit C2, ADR-0066), `system_prompt_budget_reading()` window-share instrument at adopt gate, `validate_trusted_url` SSRF guard; `_build_system_prompt` reads identity.md as single blob (ADR-0030) |
+| `llm/` (package, ADR-0079) | ~1620 | Ollama interface behind a **permanent facade** (`llm/__init__.py` — the public `core.llm` import path is API for siblings; transport + generation + `configure`/`reset_llm_config` live here). Submodules: `llm/backend.py` — `LLMBackend` Protocol (pluggable, returns `BackendResult`, keyword `temperature`/`think`, `model`/`context_window` properties) + circuit breaker + `circuit_shield()` context-manager isolation (ADR-0076: a failing observer can never trip the breaker for the generation it watches); `llm/prompting.py` — system-prompt assembly, sole owner of prompt-side mutable state, `system_prompt_budget_reading()` window-share instrument at adopt gate, `_build_system_prompt` reads identity.md as single blob (ADR-0030); `llm/guard.py` — sanitization, `validate_trusted_url` SSRF guard, `wrap_untrusted_content`. Generation keeps the `drop_truncated` gate, per-call `think` flag + reasoning-trace capture (`generate_for_api` returns `GenerationOutput(text, thinking)`), backend-aware context-budget pre-flight (audit C2, ADR-0066) |
 | `clustering.py` | 139 | Average-linkage cosine agglomerative clustering via exact Lance-Williams merge (ADR-0074 perf rewrite, same partitions as the retired naive version), numpy-only. Used by `insight` and `rules_distill` |
 | `embeddings.py` | 107 | Ollama `/api/embed` wrapper (nomic-embed-text), `cosine`, `embed_one`, `embed_texts` |
 | `episode_embeddings.py` | 162 | `EpisodeEmbeddingStore` — SQLite sidecar for episode vectors (ADR-0019) |
@@ -103,7 +103,7 @@ File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0056):
 | `CLUSTER_THRESHOLD_RULES` | 0.65 | rules-distill clustering | ADR-0019 |
 | `MAX_BATCH` | 10 | insight + rules-distill per-batch cap | — |
 
-## LLM Functions (core/llm.py)
+## LLM Functions (core/llm/ package)
 
 **Configuration**: `configure(identity_path, ollama_url, axiom_prompt, model, backend=None)`
 

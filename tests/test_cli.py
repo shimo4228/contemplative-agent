@@ -1414,7 +1414,7 @@ class TestAdoptStaged:
         target = tmp_path / "skills" / "a.md"
         staged = self._stage_one(tmp_path, filename="a.md", text="# A", target=target)
         with patch(
-            "contemplative_agent.core.llm._build_system_prompt",
+            "contemplative_agent.core.llm.prompting._build_system_prompt",
             return_value="a" * 3000,
         ):
             self._run_adopt(tmp_path, staged, inputs=["y"])
@@ -1437,7 +1437,7 @@ class TestAdoptStaged:
             json.dumps({"target": str(outside), "command": "insight"})
         )
         with patch(
-            "contemplative_agent.core.llm._build_system_prompt",
+            "contemplative_agent.core.llm.prompting._build_system_prompt",
             return_value="a" * 3000,  # 1000 tok
         ):
             _print_system_budget_for_staged(
@@ -1464,7 +1464,7 @@ class TestAdoptStaged:
             json.dumps({"target": str(target), "command": "insight"})
         )
         with patch(
-            "contemplative_agent.core.llm._build_system_prompt",
+            "contemplative_agent.core.llm.prompting._build_system_prompt",
             return_value="a" * 3000,  # 1000 tok
         ):
             _print_system_budget_for_staged(
