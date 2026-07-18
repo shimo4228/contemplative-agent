@@ -39,8 +39,8 @@ only decides *where panes run*; the shared context lives in the repos.
 | 4 | **Product metabolism (AKC)** | distill daily; insight weekly (staged) — `com.moltbook.distill` / `.insight` | Extract (distill) / Curate (insight) | `adopt-staged` (approval gate, ADR-0012) | `knowledge.json`, identity / skills / rules | CA + data repo |
 | 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-analysis` | report A–E (observation only) | diagnosis (manual) → F1/F2/F3 → ADR / `.notes/TASKS.md` / code | `reports/analysis/weekly-*.md`, `-findings.md` | CA |
 | 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | pre-commit diff approval | code, tests, ADR, CODEMAPS | CA |
-| 7 | **Crystallization → papers** | on demand | essays → position-paper drafting | deposit (human) | 3 papers: AKC ×1 / AAP ×2 (all DOI-registered) | AKC / AAP repos |
-| 8 | **Diffusion (publishing)** | on demand | collect-context → article-writing → ja-to-en → substack | publish (human) | Zenn (ja ~58) / Dev.to (en ~66) / Substack (4) | `zenn-content/` |
+| 7 | **Crystallization → papers** | on demand | essays → position-paper drafting | deposit (human) | position papers (DOI-registered) — index in [hub](https://github.com/shimo4228/shimo4228#papers) | AKC / AAP repos |
+| 8 | **Diffusion (publishing)** | on demand | collect-context → article-writing → ja-to-en → substack | publish (human) | Zenn (ja) / Dev.to (en) / Substack essays | `zenn-content/` |
 | 9 | **Machine-reference-sphere optimization** | periodic / on demand | gap-review / citation-sync / release-doi / hf-sync / `com.moltbook.sync-data` | deposit / DOI minting approval | DOI, SWHID, HF mirrors, graph citation edges | all repos |
 
 ---
@@ -115,16 +115,16 @@ That routing layer, not a third-party workspace product, is what makes separate 
 
 ---
 
-## Papers (crystallized output, verified)
+## Papers & DOIs (pointer — not duplicated here)
 
-| From | Title | DOI |
-|---|---|---|
-| AKC | *Harness Alignment and Harness Drift: Why Intent, Unlike Correctness, Resists Automation* | `10.5281/zenodo.20578272` (+ SSRN) |
-| AAP | *The Two-Layer Black Box: Operator Visibility, Commercial Secrecy, and a Minimum Disclosure Set…* | `10.5281/zenodo.20355907` (+ SSRN) |
-| AAP | *Distributing Accountability, Not Capability: Phase Separation and the LLM Workflow Quadrant…* | `10.5281/zenodo.20353789` (+ SSRN) |
+The canonical index of the program's position papers, and every research line's concept DOI, lives
+in the **hub repo**, which exists precisely to keep those citation pointers in one place. Copying
+titles/DOIs into this file would go stale, so this doc only points:
 
-Sibling repos are all DOI-registered: Contemplative Agent `10.5281/zenodo.19212118`,
-AKC `10.5281/zenodo.19200726`, AAP `10.5281/zenodo.19652013`, Authorship Strategy `10.5281/zenodo.20263316`.
+- Papers → [shimo4228 research hub — **Papers**](https://github.com/shimo4228/shimo4228#papers)
+- Per-line concept DOIs → the hub's ecosystem table ([shimo4228/shimo4228](https://github.com/shimo4228/shimo4228#readme))
+
+Cycle #7 deposits into that index; Cycle #9 keeps the pointers in sync.
 
 ---
 
@@ -133,8 +133,9 @@ AKC `10.5281/zenodo.19200726`, AAP `10.5281/zenodo.19652013`, Authorship Strateg
 The two **intake → dev** loops are wired unevenly:
 
 - **Cycle #5 (weekly reflection → dev) is fully wired**: automated report → manual diagnosis →
-  human promotion, with a visible trail in ADRs (e.g. 0040 created the diagnosis skill; 0039–0043,
-  0052, 0055, 0060, 0061, 0074 cite specific weekly reports as their trigger).
+  human promotion, with a visible trail in ADRs (e.g. ADR-0040 created the diagnosis skill; several
+  later ADRs cite a specific weekly report as their trigger — grep `docs/adr/` for `weekly` to
+  regenerate the current list rather than freezing it here).
 - **Cycle #1's repo-promotion edge is not yet formalized for Contemplative Agent**: this repo's
   `CLAUDE.md` has no "Research Wiki Consultation" section, so `wiki-harvest` cannot resolve this
   repo's owned concept pages and falls back to a backfill signal. The daily-research heartbeat runs,
@@ -153,5 +154,5 @@ Each master-table row corresponds to a live asset. To re-verify after changes:
   `.claude/skills/weekly-report-diagnosis/SKILL.md`; outputs in `~/.config/moltbook/reports/analysis/`
 - Cycle #1 driver: `daily-research/scripts/daily-research.sh`; consumers
   `~/.claude/skills/wiki-harvest/`, `~/.claude/skills/wiki-query/`
-- Papers / DOIs: sibling-repo `CITATION.cff` + `.zenodo.json`
+- Papers / DOIs (canonical index): [hub `## Papers`](https://github.com/shimo4228/shimo4228#papers); per-repo `CITATION.cff` + `.zenodo.json`
 - Concept layer: [`../graph.jsonld`](../graph.jsonld)
