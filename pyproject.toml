@@ -62,6 +62,22 @@ dev = [
     "types-requests>=2.31",
     "ruff>=0.6",
     "pyright>=1.1.380",
+    "import-linter>=2.0",
+]
+
+[tool.importlinter]
+root_packages = ["contemplative_agent"]
+
+# ADR-0001: one-way dependency cli -> adapters -> core.
+# On violation, move the shared code down into core/ (or inject it via
+# constructor / SessionContext) instead of importing upward.
+[[tool.importlinter.contracts]]
+name = "Layered architecture: cli -> adapters -> core (ADR-0001)"
+type = "layers"
+layers = [
+    "contemplative_agent.cli",
+    "contemplative_agent.adapters",
+    "contemplative_agent.core",
 ]
 
 [tool.ruff]

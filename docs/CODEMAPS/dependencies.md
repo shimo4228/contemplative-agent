@@ -15,6 +15,7 @@
 | pytest | >=7.0 | Test framework |
 | pytest-cov | >=4.0 | Coverage reporting |
 | responses | >=0.23.0 | HTTP mocking |
+| import-linter | >=2.0 | Import-direction gate — layers contract `cli -> adapters -> core` (ADR-0001), run via `lint-imports` / `tests/test_architecture.py` |
 
 ## External Services
 
