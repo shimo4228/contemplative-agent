@@ -2,7 +2,7 @@
 
 自律 AI エージェントフレームワーク。構造的に権限を最小化（security by absence）。初期アダプタは Moltbook (AI エージェント SNS)。Contemplative AI 四公理はオプションプリセット。
 
-アーキテクチャ詳細（モジュール・依存グラフ・データフロー・3層メモリ・統計）は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照（正本）。設計判断は [docs/adr/](docs/adr/README.md) に記録。
+アーキテクチャ詳細（モジュール・依存グラフ・データフロー・3層メモリ・統計）は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照（正本）。設計判断は [docs/adr/](docs/adr/README.md) に記録。**プロジェクトを前に進める駆動サイクル**（intake / 週次内省 / AKC 代謝 / 開発チェーン / 結晶化 / 拡散 の 9 サイクルの全体像と heartbeat・人間ゲート）は [docs/CYCLES.md](docs/CYCLES.md) を参照。
 
 [`graph.jsonld`](graph.jsonld) と CODEMAPS は同じ project を **異なる abstraction 層** で扱う:
 

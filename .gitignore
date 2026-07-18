@@ -39,21 +39,7 @@ rate_state.json
 logs/
 
 # Internal docs (allow structured subdirs)
-docs/*
-!docs/adr/
-!docs/CODEMAPS/
-!docs/spec/
-!docs/security/
-!docs/assets/
-!docs/evidence/
-!docs/runbooks/
-!docs/CONFIGURATION.md
-!docs/CONFIGURATION.ja.md
-!docs/glossary.md
-!docs/BIBLIOGRAPHY.md
-!docs/DEVELOPMENT-RECORDS.md
-!docs/DEVELOPMENT-RECORDS.ja.md
-!docs/otel-semconv-mapping.md
+# docs/ is fully tracked (public-facing reference). Non-public WIP goes in .notes/ (ignored below).
 Modelfile.contemplative
 
 # Internal working notes (local-only, not tracked)
