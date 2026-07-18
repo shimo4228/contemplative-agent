@@ -22,13 +22,17 @@ from typing import Dict, List, Literal, Optional, Sequence, Tuple, Union
 
 import numpy as np
 
-from ._io import now_iso, strip_code_fence, truncate_boundary
-from .embeddings import cosine, embed_texts
-from .config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH
+from ._io import now_iso, strip_code_fence
+from . import episode_render, pattern_dedup
+# Public re-exports (ADR-0079 Phase 3b): render_episode / summarize_record
+# are public names of this module; their implementation lives in
+# .episode_render.
+from .episode_render import render_episode as render_episode
+from .episode_render import summarize_record as summarize_record
+from .embeddings import embed_texts
 from .knowledge_store import (
     effective_importance,
     epistemic_counts_for,
-    is_live,
     pattern_id,
 )
 from .llm import (
@@ -36,7 +40,6 @@ from .llm import (
     generate_full,
     get_distill_system_prompt,
     validate_identity_content,
-    wrap_untrusted_content,
 )
 from .memory import EpisodeLog, KnowledgeStore
 from .prompts import (
@@ -48,32 +51,6 @@ from .views import ViewRegistry
 
 logger = logging.getLogger(__name__)
 
-# Input scope (ADR-0060): distill learns only from substantive engagement
-# episodes — comment / reply / post activity records, which carry real
-# world-grounding (original_post / their_comment / the agent's own output +
-# the pre-action internal_note). The redundant short 'interaction' / 'post'
-# records (each engagement writes both a rich activity record and a short
-# paired one) and the template sparse actions (upvote / follow / unfollow,
-# which carry no engagement content) are excluded.
-RICH_ACTIONS = frozenset({"comment", "reply", "post"})
-
-# Per-field excerpt caps for the rich episode render (ADR-0060). Set to the
-# platform field limits so realistic content is never cut: one episode per
-# LLM call fits inside NUM_CTX with margin even at platform max — the
-# worst-case reply (post 40000 + comment 10000 + own reply 10000 + note)
-# estimates ≈21.6k input tokens for ASCII (llm._estimate_tokens, /3), well
-# under the 32768 budget after num_predict. truncate_boundary stays as a
-# structural guard for out-of-spec data; a pathological all-CJK max render
-# would be skipped by the NUM_CTX guard in generate() (logged, not corrupt).
-# internal_note is in-register first-person and never capped. Measured
-# production field lengths (p90 ≈ original_post 4700 / content 4700 /
-# their_comment 1500, max ≈ 7400) are well within these, so nothing real is
-# truncated — see docs/evidence/adr-0060/.
-EXCERPT_CAPS = {
-    "original_post": MAX_POST_LENGTH,
-    "their_comment": MAX_COMMENT_LENGTH,
-    "content": MAX_POST_LENGTH,
-}
 
 # Structured-output schema for the per-episode distill call. Constrains the
 # model to emit ``{"patterns": [...]}`` at the token level (Ollama format=),
@@ -100,8 +77,6 @@ ABSTAIN_SHAPE_VIOLATION: AbstainReason = "shape_violation"  # valid JSON, wrong 
 # sites keep working without ad-hoc late imports.
 from .thresholds import (  # noqa: E402 — module-level by design
     DEDUP_IMPORTANCE_FLOOR,
-    SIM_DUPLICATE,
-    SIM_UPDATE,
 )
 
 
@@ -171,7 +146,7 @@ def distill(
     # patterns out via their own view thresholds at query time (ADR-0031),
     # and insight skips legacy ``gated`` rows. (The orphaned ``noise`` view
     # seed this comment used to point at was pruned in ADR-0073.)
-    rich = [r for r in records if _is_rich_episode(r)]
+    rich = [r for r in records if episode_render._is_rich_episode(r)]
     if not rich:
         msg = "No engagement episodes (comment/reply/post) for distillation."
         logger.info(msg)
@@ -209,19 +184,6 @@ def distill(
         )
 
     return "\n\n".join(result.results)
-
-
-def _is_rich_episode(record: Dict) -> bool:
-    """True iff this episode carries substantive world-grounding (ADR-0060).
-
-    Only ``activity`` records for ``comment`` / ``reply`` / ``post`` actions
-    carry the post engaged with, the agent's own output, and (for replies)
-    the other agent's comment. Interaction records are redundant short pairs;
-    sparse actions (upvote / follow / unfollow) carry no engagement content.
-    """
-    if record.get("type") != "activity":
-        return False
-    return (record.get("data") or {}).get("action") in RICH_ACTIONS
 
 
 def enrich(
@@ -361,39 +323,6 @@ def distill_identity(
     )
 
 
-def _episode_source_kind(record: Dict) -> str:
-    """Classify one episode as 'self' / 'external' / 'unknown' (ADR-0021)."""
-    record_type = record.get("type", "")
-    data = record.get("data", {}) or {}
-    if record_type == "interaction":
-        return "external" if data.get("direction") == "received" else "self"
-    if record_type in ("post", "activity"):
-        return "self"
-    return "unknown"
-
-
-def _derive_source_type(records: List[Dict]) -> str:
-    """Map a batch of episodes to an ADR-0021 provenance.source_type value.
-
-    Pure origin record (ADR-0051 retired the trust weighting that used to
-    hang off it; ADR-0050's ``epistemic_kind_for`` derives from it):
-
-    - All self-generated → self_reflection.
-    - All externally-sourced → external_reply.
-    - Mixed self + external → mixed.
-    - Only unknown types → unknown.
-    """
-    kinds = {_episode_source_kind(r) for r in records}
-    kinds.discard("unknown")
-    if not kinds:
-        return "unknown"
-    if kinds == {"self"}:
-        return "self_reflection"
-    if kinds == {"external"}:
-        return "external_reply"
-    return "mixed"
-
-
 @dataclass(frozen=True)
 class _CategoryResult:
     """Result of distilling a single category."""
@@ -431,64 +360,6 @@ class _PatternProvenance:
     text: str
     source_type: str
     episode_ids: Tuple[str, ...]
-
-
-def render_episode(record_type: str, data: dict) -> str:
-    """Render one episode as a rich, world-grounded block (ADR-0060).
-
-    A ``comment`` / ``reply`` / ``post`` activity record carries the post
-    the agent engaged with (``original_post``), the other agent's comment
-    (``their_comment``, replies only), the agent's own output (``content``),
-    and the pre-action ``internal_note``. Each external field is excerpted
-    with :func:`truncate_boundary` at its ADR-0060 cap; the in-register note
-    is included in full. A sparse record with none of those fields falls
-    back to the one-line :func:`summarize_record` so the caller never gets
-    an empty render.
-    """
-    if record_type != "activity":
-        return summarize_record(record_type, data)
-
-    parts: List[str] = []
-    # ADR-0060 added external (peer-authored) fields to the distill render.
-    # ``original_post`` / ``their_comment`` are stored RAW in the episode log
-    # (action-time wrapping in llm_functions.py does not reach the persisted
-    # record), so they must be wrapped here before reaching the distill LLM —
-    # otherwise a malicious peer post could steer pattern extraction into
-    # skills/rules/identity/constitution. The agent's own ``title`` /
-    # ``content`` / ``internal_note`` are self-authored and stay un-wrapped so
-    # extraction remains faithful to the agent's own register.
-    op = data.get("original_post")
-    if op:
-        parts.append(
-            "Post I engaged with:\n"
-            + wrap_untrusted_content(op, max_input=EXCERPT_CAPS["original_post"])
-        )
-    tc = data.get("their_comment")
-    if tc:
-        parts.append(
-            "Their comment:\n" + wrap_untrusted_content(tc, max_input=EXCERPT_CAPS["their_comment"])
-        )
-    title = data.get("title")
-    if title:
-        parts.append("Title I gave it:\n" + title)
-    out = data.get("content")
-    action = data.get("action", "?")
-    if out:
-        parts.append(f"My {action}:\n" + truncate_boundary(out, EXCERPT_CAPS["content"]))
-    note = data.get("internal_note")
-    if note:
-        parts.append("What I noticed:\n" + note)  # in-register, never capped
-    # NOTE: the episode's ``thinking`` field (ADR-0068 reasoning trace) is
-    # deliberately NOT rendered here. It is untrusted model output; if ever
-    # included in a distill prompt it MUST go through wrap_untrusted_content()
-    # first, like the external post/comment fields above.
-
-    if not parts:
-        return summarize_record(record_type, data)
-
-    target = data.get("target_agent", "")
-    header = f"[{action} {target}]" if target else f"[{action}]"
-    return header + "\n" + "\n\n".join(parts)
 
 
 # Sentinel distinguishing "not JSON at all" from a parsed JSON null, which
@@ -564,12 +435,12 @@ def _distill_one(record: Dict) -> Union[_BatchOutput, AbstainReason]:
     record_type = record.get("type", "unknown")
     data = record.get("data", {}) or {}
     ts = record.get("ts", "")
-    rendered = render_episode(record_type, data)
+    rendered = episode_render.render_episode(record_type, data)
     if not rendered:
         logger.warning("Episode distill abstained: reason=%s ts=%s", ABSTAIN_EMPTY_RENDER, ts[:16])
         return ABSTAIN_EMPTY_RENDER
 
-    source_type = _derive_source_type([record])
+    source_type = episode_render._derive_source_type([record])
     prompt = DISTILL_EPISODE_PROMPT.format(episode=rendered)
 
     result = generate(
@@ -690,7 +561,7 @@ def _distill_episodes(
     # acceptable — the semantic coordinate is shared regardless of which
     # view a pattern is routed through at query time.
     # is_live gate (valid_until, ADR-0051) is enforced inside
-    # _dedup_patterns; this pre-filter exists for the decay-floor log.
+    # pattern_dedup._dedup_patterns; this pre-filter exists for the decay-floor log.
     # ADR-0056: effective_importance is pure time decay, so the floor now
     # drops any pattern older than ~58 days from the dedup comparison scope,
     # letting a re-observed insight re-enter as a fresh record (ADR-0053 §4).
@@ -713,7 +584,7 @@ def _distill_episodes(
         add_indices,
         skipped,
         updated,
-    ) = _dedup_patterns(
+    ) = pattern_dedup._dedup_patterns(
         all_patterns,
         new_embeddings,
         existing_patterns,
@@ -790,151 +661,6 @@ def _store_new_patterns(
         logger.info("Added pattern (source=%s): %s", source_type, pattern[:80])
 
 
-def _dedup_patterns(
-    new_patterns: Sequence[str],
-    new_embeddings: Sequence[Optional[np.ndarray]],
-    existing_patterns: Sequence[dict],
-    *,
-    mutate_existing: bool = True,
-) -> Tuple[
-    List[str],
-    List[Optional[np.ndarray]],
-    List[int],
-    int,
-    int,
-]:
-    """Remove duplicates by comparing new patterns against existing ones.
-
-    Returns ``(add_patterns, add_embeddings, add_indices, skip_count,
-    update_count)``.
-    - SKIP: cosine >= SIM_DUPLICATE (near-exact duplicate)
-    - UPDATE: cosine >= SIM_UPDATE against existing → soft-invalidate the old
-      pattern (``valid_until = now``) and ADD the new pattern. The old row is
-      kept for audit / replay (ADR-0021 bitemporal) rather than mutated in
-      place. ADR-0056: no importance boost — the LLM rating was retired and
-      extraction weight is pure time decay, so the re-observed pattern simply
-      re-enters with a fresh timestamp.
-    - ADD: cosine <  SIM_UPDATE against everything
-
-    Patterns whose embedding is None (Ollama failure) are always ADD'd
-    so distillation degrades gracefully when the embed model is down.
-    Existing patterns without embeddings are ignored as dedup candidates.
-    """
-    add_patterns: List[str] = []
-    add_embeddings: List[Optional[np.ndarray]] = []
-    add_indices: List[int] = []
-    skip_count = 0
-    update_count = 0
-
-    ts = now_iso()
-
-    existing_with_emb = _live_embedded(existing_patterns)
-
-    for input_idx, (new_text, new_emb) in enumerate(zip(new_patterns, new_embeddings)):
-        if new_emb is None:
-            add_patterns.append(new_text)
-            add_embeddings.append(None)
-            add_indices.append(input_idx)
-            continue
-
-        best_existing_sim, best_existing_pat = _best_existing_sim(new_emb, existing_with_emb)
-        best_new_sim, best_new_idx = _best_accepted_sim(new_emb, add_embeddings)
-
-        action = _dedup_action(best_existing_sim, best_existing_pat, best_new_sim, best_new_idx)
-        if action == "skip":
-            skip_count += 1
-            logger.info("SKIP (%.2f): %s", max(best_existing_sim, best_new_sim), new_text[:60])
-        elif action == "update":
-            # ADR-0021: soft-invalidate old, keep row for audit, and ADD the
-            # re-observed pattern with a fresh timestamp (no importance boost,
-            # ADR-0056).
-            assert best_existing_pat is not None  # guaranteed by _dedup_action
-            if mutate_existing:
-                best_existing_pat["valid_until"] = ts
-            add_patterns.append(new_text)
-            add_embeddings.append(new_emb)
-            add_indices.append(input_idx)
-            update_count += 1
-            logger.debug("UPDATE (%.2f): invalidate + re-add: %s", best_existing_sim, new_text[:60])
-        elif action == "skip_new":
-            skip_count += 1
-            logger.debug("SKIP-NEW (%.2f): %s", best_new_sim, new_text[:60])
-        else:
-            add_patterns.append(new_text)
-            add_embeddings.append(new_emb)
-            add_indices.append(input_idx)
-
-    return (
-        add_patterns,
-        add_embeddings,
-        add_indices,
-        skip_count,
-        update_count,
-    )
-
-
-def _live_embedded(existing_patterns: Sequence[dict]) -> List[Tuple[Dict, np.ndarray]]:
-    """Pre-compute existing embeddings (live patterns with embeddings only)."""
-    existing_with_emb: List[Tuple[Dict, np.ndarray]] = []
-    for p in existing_patterns:
-        if not is_live(p):
-            continue  # bitemporally invalidated — ignore
-        emb = p.get("embedding")
-        if isinstance(emb, list):
-            existing_with_emb.append((p, np.asarray(emb, dtype=np.float32)))
-    return existing_with_emb
-
-
-def _best_existing_sim(
-    new_emb: np.ndarray, existing_with_emb: Sequence[Tuple[Dict, np.ndarray]]
-) -> Tuple[float, Optional[Dict]]:
-    """Best cosine similarity vs existing patterns."""
-    best_sim = -1.0
-    best_pat: Optional[Dict] = None
-    for pat_dict, pat_emb in existing_with_emb:
-        sim = cosine(new_emb, pat_emb)
-        if sim > best_sim:
-            best_sim = sim
-            best_pat = pat_dict
-    return best_sim, best_pat
-
-
-def _best_accepted_sim(
-    new_emb: np.ndarray, add_embeddings: Sequence[Optional[np.ndarray]]
-) -> Tuple[float, int]:
-    """Best cosine similarity vs already-accepted new patterns (cross-batch)."""
-    best_sim = -1.0
-    best_idx = -1
-    for idx, accepted_emb in enumerate(add_embeddings):
-        if accepted_emb is None:
-            continue
-        sim = cosine(new_emb, accepted_emb)
-        if sim > best_sim:
-            best_sim = sim
-            best_idx = idx
-    return best_sim, best_idx
-
-
-def _dedup_action(
-    best_existing_sim: float,
-    best_existing_pat: Optional[Dict],
-    best_new_sim: float,
-    best_new_idx: int,
-) -> str:
-    """Decide: ``skip`` / ``update`` existing / ``skip_new`` (boost in batch) / ``add``."""
-    if best_existing_sim >= SIM_DUPLICATE or best_new_sim >= SIM_DUPLICATE:
-        return "skip"
-    if (
-        best_existing_sim >= SIM_UPDATE
-        and best_existing_pat is not None
-        and best_existing_sim >= best_new_sim
-    ):
-        return "update"
-    if best_new_sim >= SIM_UPDATE and best_new_idx >= 0:
-        return "skip_new"
-    return "add"
-
-
 # Known extraction-failure register (validity check, not a value filter):
 # the model is instructed to return an empty list when an episode carries
 # nothing durable (distill_episode.md), but occasionally narrates the
@@ -981,33 +707,3 @@ def _is_valid_pattern(pattern: str) -> bool:
     return True
 
 
-def summarize_record(record_type: str, data: dict) -> str:
-    """Create a one-line summary of an episode record."""
-    if record_type == "interaction":
-        direction = data.get("direction", "?")
-        agent = data.get("agent_name", "unknown")
-        content = data.get("content_summary", "")[:80]
-        return f"{direction} with {agent}: {content}"
-    elif record_type == "post":
-        title = data.get("title", data.get("topic_summary", "untitled"))
-        return f"posted: {title}"
-    # type="insight" has no branch: retired by ADR-0052 and filtered out at
-    # the distill read path; an insight record reaching here is a bug, and
-    # the "" fallthrough keeps it out of any prompt.
-    elif record_type == "activity":
-        action = data.get("action", "unknown")
-        target = data.get("target_agent", data.get("post_id", ""))
-        base = f"{action} {target}".strip()
-        # ADR-0045: the behavioural fact and the pre-action internal note
-        # coexist on one line so distill sees "what happened, and what was
-        # felt about it" — the dual register ADR-0038 designed for, now with
-        # real first-person supply instead of post-hoc reconstruction.
-        note = data.get("internal_note", "")
-        return f"{base} — noticed: {note}" if note else base
-    elif record_type == "dialogue":
-        role = data.get("role", "?")
-        turn = data.get("turn", "?")
-        content = data.get("content", "")[:80]
-        seed_marker = " [seed]" if data.get("seed") else ""
-        return f"{role} turn {turn}{seed_marker}: {content}"
-    return ""

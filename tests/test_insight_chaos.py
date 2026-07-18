@@ -25,7 +25,7 @@ import json
 
 from unittest.mock import patch
 
-from contemplative_agent.core import insight
+from contemplative_agent.core import insight, insight_novelty
 from contemplative_agent.core.llm import (
     BackendResult,
     _estimate_tokens,
@@ -58,12 +58,12 @@ def _batches(n: int, size: int = 3):
 
 def _window_for_one_block(batches) -> int:
     """Context window that fits exactly one cluster block per judge call."""
-    known_lines = insight._render_known_lines(KNOWN)
+    known_lines = insight_novelty._render_known_lines(KNOWN)
     max_block = max(
-        _estimate_tokens(insight._cluster_block(topic, patterns) + "\n\n")
+        _estimate_tokens(insight_novelty._cluster_block(topic, patterns) + "\n\n")
         for topic, patterns, _ in batches
     )
-    return insight._NOVELTY_OUTPUT_RESERVE + insight._novelty_fixed_tokens(known_lines) + max_block
+    return insight_novelty._NOVELTY_OUTPUT_RESERVE + insight_novelty._novelty_fixed_tokens(known_lines) + max_block
 
 
 def _run_gate(schedule, batches, audit_path=None):
@@ -72,8 +72,8 @@ def _run_gate(schedule, batches, audit_path=None):
     reset_llm_config()
     configure(backend=NoveltyChaosBackend(schedule=list(schedule)))
     try:
-        with patch.object(insight, "_NOVELTY_CTX_WINDOW", window):
-            return insight._filter_novel_batches(batches, KNOWN, audit_path=audit_path)
+        with patch.object(insight_novelty, "_NOVELTY_CTX_WINDOW", window):
+            return insight_novelty._filter_novel_batches(batches, KNOWN, audit_path=audit_path)
     finally:
         reset_llm_config()
 
@@ -117,8 +117,8 @@ class TestBudgetOverflowFailOpen:
         reset_llm_config()
         configure(backend=backend)
         try:
-            with patch.object(insight, "_NOVELTY_CTX_WINDOW", 1):
-                result = insight._filter_novel_batches(_batches(2), KNOWN, audit_path=audit)
+            with patch.object(insight_novelty, "_NOVELTY_CTX_WINDOW", 1):
+                result = insight_novelty._filter_novel_batches(_batches(2), KNOWN, audit_path=audit)
         finally:
             reset_llm_config()
         assert backend.calls == []  # no judge call was possible
@@ -165,7 +165,7 @@ class TestOkPathStillWorksThroughBackend:
         reset_llm_config()
         configure(backend=CoveredBackend())
         try:
-            result = insight._filter_novel_batches(batches, KNOWN, audit_path=None)
+            result = insight_novelty._filter_novel_batches(batches, KNOWN, audit_path=None)
         finally:
             reset_llm_config()
         assert result.novel == ()

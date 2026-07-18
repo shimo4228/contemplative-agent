@@ -148,7 +148,7 @@ class TestDistillOneAbstainReasons:
         assert "reason=llm_none" in caplog.text
 
     def test_empty_render_reason(self):
-        with patch("contemplative_agent.core.distill.render_episode", return_value=""):
+        with patch("contemplative_agent.core.episode_render.render_episode", return_value=""):
             assert _distill_one(_episode()) == ABSTAIN_EMPTY_RENDER
 
     @patch("contemplative_agent.core.distill.generate")

@@ -8,6 +8,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from contemplative_agent.core import insight_novelty
+
 from contemplative_agent.core.insight import (
     FULL_RECLUSTER_WARN_N,
     InsightResult,
@@ -117,7 +119,7 @@ class TestSlugify:
 
 
 class TestExtractSkill:
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_returns_skill_text(self, mock_generate) -> None:
         mock_generate.return_value = GenerationOutput(text=GOOD_SKILL_RESPONSE)
         result = _extract_skill(["p1", "p2"])
@@ -125,24 +127,24 @@ class TestExtractSkill:
         text, _thinking = result
         assert "# Ask Before Reacting" in text
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_llm_failure(self, mock_generate) -> None:
         mock_generate.return_value = None
         assert _extract_skill(["p1"]) is None
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_no_title_returns_none(self, mock_generate) -> None:
         mock_generate.return_value = GenerationOutput(text="some text without a title line")
         assert _extract_skill(["p1"]) is None
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_passes_topic_to_prompt(self, mock_generate) -> None:
         mock_generate.return_value = GenerationOutput(text=GOOD_SKILL_RESPONSE)
         _extract_skill(["p1"], topic="cluster-1")
         prompt_arg = mock_generate.call_args[0][0]
         assert "cluster-1" in prompt_arg
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_uses_distill_system_prompt(self, mock_generate, tmp_path) -> None:
         """Audit H6: skill generation must not be conditioned on the existing
         skill corpus nor identity — same anti-circularity grounding as
@@ -189,14 +191,14 @@ class TestExtractInsight:
         result = extract_insight(knowledge_store=ks, full=True)
         assert "Insufficient patterns" in str(result)
 
-    @patch("contemplative_agent.core.insight.generate_full", return_value=None)
+    @patch("contemplative_agent.core.llm.generate_full", return_value=None)
     def test_extraction_failure(self, mock_generate, knowledge_store) -> None:
         result = extract_insight(knowledge_store=knowledge_store, full=True)
         assert "Failed to extract" in str(result)
         mock_generate.assert_called_once()
 
     @patch(
-        "contemplative_agent.core.insight.generate_full",
+        "contemplative_agent.core.llm.generate_full",
         return_value=GenerationOutput(text=GOOD_SKILL_RESPONSE),
     )
     def test_returns_insight_result(self, mock_generate, knowledge_store) -> None:
@@ -207,7 +209,7 @@ class TestExtractInsight:
         today = date.today().strftime("%Y%m%d")
         assert result.skills[0].filename == f"ask-before-reacting-{today}.md"
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_gated_patterns_excluded(self, mock_generate, tmp_path) -> None:
         """gated=True (noise) patterns must not reach the LLM prompt."""
         ks = KnowledgeStore(path=tmp_path / "k.json")
@@ -415,7 +417,7 @@ class TestExtractInsightSupersededExclusion:
     boundary — live patterns cluster and extract normally, superseded ones
     never appear in the extraction prompt."""
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_superseded_patterns_excluded(self, mock_generate, tmp_path: Path) -> None:
         ks = KnowledgeStore(path=tmp_path / "k.json")
         for i in range(3):
@@ -552,7 +554,7 @@ class TestExtractInsightLineageADR0050:
 class TestTruncationPolicyH1:
     """Bug-audit 2026-07-06 H1: skill extraction passes drop_truncated=True."""
 
-    @patch("contemplative_agent.core.insight.generate_full", return_value=None)
+    @patch("contemplative_agent.core.llm.generate_full", return_value=None)
     def test_extract_skill_drops_truncated(self, mock_generate) -> None:
         assert _extract_skill(["p1"]) is None
         assert mock_generate.call_args.kwargs["drop_truncated"] is True
@@ -608,9 +610,9 @@ class TestFilterNovelBatches:
     ]
     KNOWN = [("skill-a", "handles consensus friction")]
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_covered_cluster_is_filtered(self, mock_generate) -> None:
-        from contemplative_agent.core.insight import _filter_novel_batches
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
 
         mock_generate.return_value = GenerationOutput(text='{"covered": ["cluster-1"]}')
         result = _filter_novel_batches(self.BATCHES, self.KNOWN)
@@ -618,18 +620,18 @@ class TestFilterNovelBatches:
         assert result.skipped_known == 1
         assert result.fail_open_topics == frozenset()
 
-    @patch("contemplative_agent.core.insight.generate_full", return_value=None)
+    @patch("contemplative_agent.core.llm.generate_full", return_value=None)
     def test_llm_failure_fails_open(self, _mock_generate) -> None:
-        from contemplative_agent.core.insight import _filter_novel_batches
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
 
         result = _filter_novel_batches(self.BATCHES, self.KNOWN)
         assert len(result.novel) == 2
         assert result.skipped_known == 0
         assert result.fail_open_topics == frozenset({"cluster-1", "cluster-2"})
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_unparseable_output_fails_open(self, mock_generate) -> None:
-        from contemplative_agent.core.insight import _filter_novel_batches
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
 
         mock_generate.return_value = GenerationOutput(text="not json at all")
         result = _filter_novel_batches(self.BATCHES, self.KNOWN)
@@ -637,9 +639,9 @@ class TestFilterNovelBatches:
         assert result.skipped_known == 0
         assert result.fail_open_topics == frozenset({"cluster-1", "cluster-2"})
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_hallucinated_cluster_ids_ignored(self, mock_generate) -> None:
-        from contemplative_agent.core.insight import _filter_novel_batches
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
 
         mock_generate.return_value = GenerationOutput(text='{"covered": ["cluster-9"]}')
         result = _filter_novel_batches(self.BATCHES, self.KNOWN)
@@ -647,9 +649,9 @@ class TestFilterNovelBatches:
         assert result.skipped_known == 0
         assert result.fail_open_topics == frozenset()
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_prompt_carries_known_themes_and_samples(self, mock_generate) -> None:
-        from contemplative_agent.core.insight import _filter_novel_batches
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
 
         mock_generate.return_value = GenerationOutput(text='{"covered": []}')
         _filter_novel_batches(self.BATCHES, self.KNOWN)
@@ -682,7 +684,7 @@ class TestNoveltyChunking:
     @staticmethod
     def _window_for_blocks(known, batches, n_blocks: int) -> int:
         """Context window sized to fit exactly ``n_blocks`` cluster blocks."""
-        from contemplative_agent.core.insight import (
+        from contemplative_agent.core.insight_novelty import (
             _NOVELTY_OUTPUT_RESERVE,
             _cluster_block,
             _novelty_fixed_tokens,
@@ -698,24 +700,24 @@ class TestNoveltyChunking:
         budget = sum(block_costs[-n_blocks:]) if n_blocks else 0
         return _NOVELTY_OUTPUT_RESERVE + _novelty_fixed_tokens(known_lines) + budget
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_single_call_when_budget_fits(self, mock_generate) -> None:
-        from contemplative_agent.core.insight import _filter_novel_batches
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
 
         mock_generate.return_value = GenerationOutput(text='{"covered": []}')
         result = _filter_novel_batches(self._batches(3), self.KNOWN)
         assert mock_generate.call_count == 1
         assert len(result.novel) == 3
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_splits_when_budget_forces_it(self, mock_generate) -> None:
-        from contemplative_agent.core import insight
+        from contemplative_agent.core import insight_novelty
 
         batches = self._batches(3)
         window = self._window_for_blocks(self.KNOWN, batches, 1)
         mock_generate.return_value = GenerationOutput(text='{"covered": []}')
-        with patch.object(insight, "_NOVELTY_CTX_WINDOW", window):
-            result = insight._filter_novel_batches(batches, self.KNOWN)
+        with patch.object(insight_novelty, "_NOVELTY_CTX_WINDOW", window):
+            result = insight_novelty._filter_novel_batches(batches, self.KNOWN)
         assert mock_generate.call_count == 3
         assert len(result.novel) == 3
         # Every chunk prompt carries the FULL known inventory but only its
@@ -728,27 +730,25 @@ class TestNoveltyChunking:
                 if j != i:
                     assert f"cluster-{j}:" not in prompt
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_packing_is_deterministic(self, mock_generate) -> None:
-        from contemplative_agent.core import insight
 
         batches = self._batches(5)
         window = self._window_for_blocks(self.KNOWN, batches, 2)
         mock_generate.return_value = GenerationOutput(text='{"covered": []}')
-        with patch.object(insight, "_NOVELTY_CTX_WINDOW", window):
-            insight._filter_novel_batches(batches, self.KNOWN)
+        with patch.object(insight_novelty, "_NOVELTY_CTX_WINDOW", window):
+            insight_novelty._filter_novel_batches(batches, self.KNOWN)
             first = [c.args[0] for c in mock_generate.call_args_list]
             mock_generate.reset_mock()
-            insight._filter_novel_batches(batches, self.KNOWN)
+            insight_novelty._filter_novel_batches(batches, self.KNOWN)
             second = [c.args[0] for c in mock_generate.call_args_list]
         assert first == second
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_chunk_failure_is_isolated(self, mock_generate) -> None:
         """One failed chunk fails open alone; judged chunks keep their
         verdicts (the 2026-07-18 failure mode collapsed ALL clusters into
         one fail-open)."""
-        from contemplative_agent.core import insight
 
         batches = self._batches(3)
         window = self._window_for_blocks(self.KNOWN, batches, 1)
@@ -757,15 +757,14 @@ class TestNoveltyChunking:
             None,
             GenerationOutput(text='{"covered": []}'),
         ]
-        with patch.object(insight, "_NOVELTY_CTX_WINDOW", window):
-            result = insight._filter_novel_batches(batches, self.KNOWN)
+        with patch.object(insight_novelty, "_NOVELTY_CTX_WINDOW", window):
+            result = insight_novelty._filter_novel_batches(batches, self.KNOWN)
         assert [b[0] for b in result.novel] == ["cluster-2", "cluster-3"]
         assert result.skipped_known == 1
         assert result.fail_open_topics == frozenset({"cluster-2"})
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_covered_id_from_other_chunk_ignored(self, mock_generate) -> None:
-        from contemplative_agent.core import insight
 
         batches = self._batches(2)
         window = self._window_for_blocks(self.KNOWN, batches, 1)
@@ -774,24 +773,23 @@ class TestNoveltyChunking:
             GenerationOutput(text='{"covered": ["cluster-2"]}'),
             GenerationOutput(text='{"covered": []}'),
         ]
-        with patch.object(insight, "_NOVELTY_CTX_WINDOW", window):
-            result = insight._filter_novel_batches(batches, self.KNOWN)
+        with patch.object(insight_novelty, "_NOVELTY_CTX_WINDOW", window):
+            result = insight_novelty._filter_novel_batches(batches, self.KNOWN)
         assert len(result.novel) == 2
         assert result.skipped_known == 0
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_known_overflow_fails_open_without_llm_call(self, mock_generate, tmp_path) -> None:
         """When the known inventory alone exhausts the budget, no judge call
         is possible — every cluster fails open with an audit reason (the
         quantitative trigger for a future retrieval design)."""
         import json as _json
 
-        from contemplative_agent.core import insight
 
         batches = self._batches(2)
         audit = tmp_path / "insight-novelty.jsonl"
-        with patch.object(insight, "_NOVELTY_CTX_WINDOW", 1):
-            result = insight._filter_novel_batches(batches, self.KNOWN, audit_path=audit)
+        with patch.object(insight_novelty, "_NOVELTY_CTX_WINDOW", 1):
+            result = insight_novelty._filter_novel_batches(batches, self.KNOWN, audit_path=audit)
         mock_generate.assert_not_called()
         assert len(result.novel) == 2
         assert result.fail_open_topics == frozenset({"cluster-1", "cluster-2"})
@@ -808,7 +806,6 @@ class TestNoveltyChunking:
         validates (codex P2): an injected backend advertising a smaller
         context_window lowers the packing budget; a larger one never raises
         it above the module ceiling."""
-        from contemplative_agent.core import insight
         from contemplative_agent.core.llm import configure, reset_llm_config
 
         class _TinyBackend:
@@ -821,25 +818,24 @@ class TestNoveltyChunking:
         class _HugeBackend(_TinyBackend):
             context_window = 200_000
 
-        assert insight._novelty_ctx_window() == insight._NOVELTY_CTX_WINDOW
+        assert insight_novelty._novelty_ctx_window() == insight_novelty._NOVELTY_CTX_WINDOW
         reset_llm_config()
         configure(backend=_TinyBackend())
         try:
-            assert insight._novelty_ctx_window() == 4096
+            assert insight_novelty._novelty_ctx_window() == 4096
         finally:
             reset_llm_config()
         configure(backend=_HugeBackend())
         try:
-            assert insight._novelty_ctx_window() == insight._NOVELTY_CTX_WINDOW
+            assert insight_novelty._novelty_ctx_window() == insight_novelty._NOVELTY_CTX_WINDOW
         finally:
             reset_llm_config()
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_oversized_cluster_gets_truncated_samples(self, mock_generate) -> None:
         """A cluster block that alone exceeds the budget is retried with
         truncated samples before failing open."""
-        from contemplative_agent.core import insight
-        from contemplative_agent.core.insight import (
+        from contemplative_agent.core.insight_novelty import (
             _NOVELTY_OUTPUT_RESERVE,
             _cluster_block,
             _novelty_fixed_tokens,
@@ -860,22 +856,22 @@ class TestNoveltyChunking:
             _cluster_block(
                 "cluster-1",
                 batches[0][1],
-                sample_n=insight._NOVELTY_TRUNCATED_SAMPLE_PER_CLUSTER,
-                sample_chars=insight._NOVELTY_TRUNCATED_SAMPLE_CHARS,
+                sample_n=insight_novelty._NOVELTY_TRUNCATED_SAMPLE_PER_CLUSTER,
+                sample_chars=insight_novelty._NOVELTY_TRUNCATED_SAMPLE_CHARS,
             )
             + "\n\n"
         )
         assert truncated_cost < full_cost
         window = _NOVELTY_OUTPUT_RESERVE + _novelty_fixed_tokens(known_lines) + truncated_cost
         mock_generate.return_value = GenerationOutput(text='{"covered": []}')
-        with patch.object(insight, "_NOVELTY_CTX_WINDOW", window):
-            result = insight._filter_novel_batches(batches, self.KNOWN)
+        with patch.object(insight_novelty, "_NOVELTY_CTX_WINDOW", window):
+            result = insight_novelty._filter_novel_batches(batches, self.KNOWN)
         assert mock_generate.call_count == 1
         prompt = mock_generate.call_args.args[0]
         assert "cluster-1" in prompt
         # Truncated to one sample of _NOVELTY_TRUNCATED_SAMPLE_CHARS chars.
-        assert "x" * insight._NOVELTY_TRUNCATED_SAMPLE_CHARS in prompt
-        assert "x" * (insight._NOVELTY_TRUNCATED_SAMPLE_CHARS + 1) not in prompt
+        assert "x" * insight_novelty._NOVELTY_TRUNCATED_SAMPLE_CHARS in prompt
+        assert "x" * (insight_novelty._NOVELTY_TRUNCATED_SAMPLE_CHARS + 1) not in prompt
         assert "y" * 10 not in prompt
         assert result.fail_open_topics == frozenset()
 
@@ -898,7 +894,7 @@ class TestFailopenExtractionCap:
         ]
 
     def test_empty_inputs_skip_the_gate(self) -> None:
-        from contemplative_agent.core.insight import _filter_novel_batches
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
 
         result = _filter_novel_batches([], [("skill-a", "d")])
         assert result.novel == ()
@@ -1038,7 +1034,7 @@ class TestFailopenExtractionCap:
                 assert _failopen_extraction_cap() == _DEFAULT_FAILOPEN_EXTRACTION_CAP
         assert caplog.text.count("MOLTBOOK_INSIGHT_FAILOPEN_CAP") == 3
 
-    @patch("contemplative_agent.core.insight.generate_full", return_value=None)
+    @patch("contemplative_agent.core.llm.generate_full", return_value=None)
     @patch("contemplative_agent.core.insight._extract_skill")
     def test_capped_failopen_run_extracts_at_most_cap(
         self, mock_skill, _mock_generate, monkeypatch, tmp_path
@@ -1067,7 +1063,7 @@ class TestFailopenExtractionCap:
 
 class TestLoadKnownThemes:
     def test_reads_skill_frontmatter(self, tmp_path) -> None:
-        from contemplative_agent.core.insight import _load_known_themes
+        from contemplative_agent.core.insight_novelty import _load_known_themes
 
         d = tmp_path / "skills"
         d.mkdir()
@@ -1079,7 +1075,7 @@ class TestLoadKnownThemes:
         ) in themes
 
     def test_falls_back_to_title_without_frontmatter(self, tmp_path) -> None:
-        from contemplative_agent.core.insight import _load_known_themes
+        from contemplative_agent.core.insight_novelty import _load_known_themes
 
         d = tmp_path / "skills"
         d.mkdir()
@@ -1090,7 +1086,7 @@ class TestLoadKnownThemes:
     def test_reads_staged_ledger(self, tmp_path) -> None:
         import json as json_mod
 
-        from contemplative_agent.core.insight import _load_known_themes
+        from contemplative_agent.core.insight_novelty import _load_known_themes
 
         ledger = tmp_path / "insight-staged.jsonl"
         ledger.write_text(
@@ -1102,7 +1098,7 @@ class TestLoadKnownThemes:
     def test_dedups_by_name(self, tmp_path) -> None:
         import json as json_mod
 
-        from contemplative_agent.core.insight import _load_known_themes
+        from contemplative_agent.core.insight_novelty import _load_known_themes
 
         d = tmp_path / "skills"
         d.mkdir()
@@ -1117,7 +1113,7 @@ class TestLoadKnownThemes:
 
 
 class TestNoveltyGateIntegration:
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     @patch("contemplative_agent.core.insight._extract_skill")
     def test_all_covered_returns_empty_result_with_count(
         self, mock_skill, mock_generate, knowledge_store, tmp_path
@@ -1142,7 +1138,7 @@ class TestNoveltyGateIntegration:
         skills_dir = tmp_path / "sk"
         skills_dir.mkdir()
         mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
-        with patch("contemplative_agent.core.insight.generate_full") as mock_generate:
+        with patch("contemplative_agent.core.llm.generate_full") as mock_generate:
             result = extract_insight(
                 knowledge_store=knowledge_store, skills_dir=skills_dir, full=True
             )
@@ -1167,12 +1163,12 @@ class TestNoveltyGateAudit:
 
         return [_json.loads(line) for line in path.read_text().splitlines()]
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_judged_run_writes_replayable_record(self, mock_generate, tmp_path) -> None:
         import base64 as _base64
         import json as _json
 
-        from contemplative_agent.core.insight import _filter_novel_batches
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
 
         mock_generate.return_value = GenerationOutput(text='{"covered": ["cluster-1"]}')
         audit = tmp_path / "insight-novelty.jsonl"
@@ -1193,9 +1189,9 @@ class TestNoveltyGateAudit:
         output = _base64.b64decode(rec["output_b64"]).decode("utf-8")
         assert _json.loads(output) == {"covered": ["cluster-1"]}
 
-    @patch("contemplative_agent.core.insight.generate_full", return_value=None)
+    @patch("contemplative_agent.core.llm.generate_full", return_value=None)
     def test_llm_failure_writes_fail_open_record(self, _mock_generate, tmp_path) -> None:
-        from contemplative_agent.core.insight import _filter_novel_batches
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
 
         audit = tmp_path / "insight-novelty.jsonl"
         result = _filter_novel_batches(self.BATCHES, self.KNOWN, audit_path=audit)
@@ -1205,11 +1201,11 @@ class TestNoveltyGateAudit:
         assert rec["output_b64"] is None
         assert rec["covered"] == []
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_unparseable_writes_fail_open_parse(self, mock_generate, tmp_path) -> None:
         import base64 as _base64
 
-        from contemplative_agent.core.insight import _filter_novel_batches
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
 
         mock_generate.return_value = GenerationOutput(text="not json at all")
         audit = tmp_path / "insight-novelty.jsonl"
@@ -1218,9 +1214,9 @@ class TestNoveltyGateAudit:
         assert rec["verdict"] == "fail_open_parse"
         assert _base64.b64decode(rec["output_b64"]).decode("utf-8") == "not json at all"
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_audit_write_failure_never_breaks_gate(self, mock_generate, tmp_path) -> None:
-        from contemplative_agent.core.insight import _filter_novel_batches
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
 
         mock_generate.return_value = GenerationOutput(text='{"covered": []}')
         # A directory at the audit path forces the append to fail.
@@ -1230,9 +1226,9 @@ class TestNoveltyGateAudit:
         assert len(result.novel) == 2
         assert result.skipped_known == 0
 
-    @patch("contemplative_agent.core.insight.generate_full")
+    @patch("contemplative_agent.core.llm.generate_full")
     def test_no_audit_path_writes_nothing(self, mock_generate, tmp_path) -> None:
-        from contemplative_agent.core.insight import _filter_novel_batches
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
 
         mock_generate.return_value = GenerationOutput(text='{"covered": []}')
         result = _filter_novel_batches(self.BATCHES, self.KNOWN)

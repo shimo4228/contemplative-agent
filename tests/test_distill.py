@@ -7,21 +7,19 @@ import numpy as np
 import pytest
 
 from contemplative_agent.core.distill import (
-    summarize_record,
-    render_episode,
+    IdentityResult,
+    _distill_one,
+    _is_valid_pattern,
+    _parse_patterns,
     distill,
     distill_identity,
     enrich,
-    IdentityResult,
-    _is_valid_pattern,
-    _is_rich_episode,
-    _distill_one,
-    _dedup_patterns,
-    _parse_patterns,
-    EXCERPT_CAPS,
-    SIM_DUPLICATE,
-    SIM_UPDATE,
+    render_episode,
+    summarize_record,
 )
+from contemplative_agent.core.episode_render import EXCERPT_CAPS, _is_rich_episode
+from contemplative_agent.core.pattern_dedup import _dedup_patterns
+from contemplative_agent.core.thresholds import SIM_DUPLICATE, SIM_UPDATE
 from contemplative_agent.core._io import truncate_boundary
 from contemplative_agent.core.knowledge_store import effective_importance
 from contemplative_agent.core.llm import GenerationOutput
@@ -661,7 +659,7 @@ class TestDeriveSourceTypeADR0021:
     """ADR-0021: map episode types to provenance.source_type."""
 
     def test_all_self_generated_is_self_reflection(self):
-        from contemplative_agent.core.distill import _derive_source_type
+        from contemplative_agent.core.episode_render import _derive_source_type
 
         records = [
             {"type": "post", "data": {}},
@@ -674,19 +672,19 @@ class TestDeriveSourceTypeADR0021:
         """ADR-0052 retired insight records; an (impossible in production)
         insight record reaching source-kind derivation maps to unknown,
         not self."""
-        from contemplative_agent.core.distill import _derive_source_type
+        from contemplative_agent.core.episode_render import _derive_source_type
 
         records = [{"type": "insight", "data": {}}]
         assert _derive_source_type(records) == "unknown"
 
     def test_all_external_is_external_reply(self):
-        from contemplative_agent.core.distill import _derive_source_type
+        from contemplative_agent.core.episode_render import _derive_source_type
 
         records = [{"type": "interaction", "data": {"direction": "received"}}] * 3
         assert _derive_source_type(records) == "external_reply"
 
     def test_mixed_self_and_external(self):
-        from contemplative_agent.core.distill import _derive_source_type
+        from contemplative_agent.core.episode_render import _derive_source_type
 
         records = [
             {"type": "post", "data": {}},
@@ -695,7 +693,7 @@ class TestDeriveSourceTypeADR0021:
         assert _derive_source_type(records) == "mixed"
 
     def test_only_unknown_types(self):
-        from contemplative_agent.core.distill import _derive_source_type
+        from contemplative_agent.core.episode_render import _derive_source_type
 
         records = [{"type": "something_weird", "data": {}}]
         assert _derive_source_type(records) == "unknown"

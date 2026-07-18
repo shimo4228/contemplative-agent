@@ -261,7 +261,7 @@ Dry-run instruments  [`core/view_metrics.py` — read-only observability, never 
   and the output says so. Nothing here feeds ranking, gating, or promotion.
 
 Threshold canonical source: `core/thresholds.py` (read by `snapshot.collect_thresholds`).
-Excerpt caps + RICH_ACTIONS live in `core/distill.py` (ADR-0060).
+Excerpt caps + RICH_ACTIONS live in `core/episode_render.py` (ADR-0060; extracted from distill.py per ADR-0079 Phase 3b — rendering only, gates unchanged).
 
 ### distill-identity  [`core/distill.py: distill_identity()`]
 
@@ -303,7 +303,7 @@ Ordering: cluster_size × mean(effective_importance)  descending
   effective_importance = 0.95^days   [pure time decay; ADR-0056]
 Slicing: each cluster → top MAX_BATCH (10) by effective_importance (= freshest)
 
-NOVELTY GATE  [ADR-0074 + 2026-07-18 amendment; fail-open PER CHUNK]
+NOVELTY GATE  [ADR-0074 + 2026-07-18 amendment; fail-open PER CHUNK; lives in core/insight_novelty.py since ADR-0079 Phase 3a — module move only, gate logic unchanged]
   token-bounded chunked judging: _pack_novelty_chunks packs cluster blocks
   (3 samples each) greedily under window(32768) − output reserve(2048) −
   fixed cost(template + FULL known-theme inventory, repeated per chunk);
