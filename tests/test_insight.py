@@ -189,15 +189,17 @@ class TestExtractInsight:
         result = extract_insight(knowledge_store=ks, full=True)
         assert "Insufficient patterns" in str(result)
 
-    @patch("contemplative_agent.core.insight._extract_skill")
-    def test_extraction_failure(self, mock_skill, knowledge_store) -> None:
-        mock_skill.return_value = None
+    @patch("contemplative_agent.core.insight.generate_full", return_value=None)
+    def test_extraction_failure(self, mock_generate, knowledge_store) -> None:
         result = extract_insight(knowledge_store=knowledge_store, full=True)
         assert "Failed to extract" in str(result)
+        mock_generate.assert_called_once()
 
-    @patch("contemplative_agent.core.insight._extract_skill")
-    def test_returns_insight_result(self, mock_skill, knowledge_store) -> None:
-        mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
+    @patch(
+        "contemplative_agent.core.insight.generate_full",
+        return_value=GenerationOutput(text=GOOD_SKILL_RESPONSE),
+    )
+    def test_returns_insight_result(self, mock_generate, knowledge_store) -> None:
         result = extract_insight(knowledge_store=knowledge_store, full=True)
         assert isinstance(result, InsightResult)
         assert len(result.skills) == 1
@@ -205,9 +207,9 @@ class TestExtractInsight:
         today = date.today().strftime("%Y%m%d")
         assert result.skills[0].filename == f"ask-before-reacting-{today}.md"
 
-    @patch("contemplative_agent.core.insight._extract_skill")
-    def test_gated_patterns_excluded(self, mock_skill, tmp_path) -> None:
-        """gated=True (noise) patterns must not reach the LLM."""
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_gated_patterns_excluded(self, mock_generate, tmp_path) -> None:
+        """gated=True (noise) patterns must not reach the LLM prompt."""
         ks = KnowledgeStore(path=tmp_path / "k.json")
         # 3 clean, 2 gated — all on the same axis so they'd otherwise cluster.
         for i in range(3):
@@ -222,15 +224,27 @@ class TestExtractInsight:
                 gated=True,
             )
         ks.save()
-        mock_skill.return_value = (GOOD_SKILL_RESPONSE, None)
+
+        prompts: list[str] = []
+
+        def fake_generate(prompt, **kwargs):
+            # Guard: the only expected LLM traffic is skill extraction (the
+            # novelty gate stays silent with no known themes).
+            assert kwargs.get("caller") == "insight.skill_extract"
+            prompts.append(prompt)
+            return GenerationOutput(text=GOOD_SKILL_RESPONSE)
+
+        mock_generate.side_effect = fake_generate
 
         result = extract_insight(knowledge_store=ks, full=True)
         assert isinstance(result, InsightResult)
-        # Exactly one cluster formed from the 3 clean patterns.
-        called_with = mock_skill.call_args_list
-        assert len(called_with) == 1
-        patterns_passed = called_with[0][0][0]
-        assert set(patterns_passed) == {"clean-0", "clean-1", "clean-2"}
+        # Exactly one cluster formed from the 3 clean patterns; the gated
+        # ones are invisible at the LLM boundary.
+        assert len(prompts) == 1
+        for i in range(3):
+            assert f"clean-{i}" in prompts[0]
+        assert "noise-0" not in prompts[0]
+        assert "noise-1" not in prompts[0]
 
 
 # ---------------------------------------------------------------------------
@@ -397,9 +411,12 @@ class TestBuildClusterBatches:
 
 
 class TestExtractInsightSupersededExclusion:
-    """N2: extract_insight must skip patterns whose valid_until is set."""
+    """N2: patterns whose valid_until is set must be invisible at the LLM
+    boundary — live patterns cluster and extract normally, superseded ones
+    never appear in the extraction prompt."""
 
-    def test_superseded_patterns_excluded(self, tmp_path: Path) -> None:
+    @patch("contemplative_agent.core.insight.generate_full")
+    def test_superseded_patterns_excluded(self, mock_generate, tmp_path: Path) -> None:
         ks = KnowledgeStore(path=tmp_path / "k.json")
         for i in range(3):
             ks.add_learned_pattern(f"live-{i}", embedding=_unit_vec(8, 1))
@@ -411,23 +428,26 @@ class TestExtractInsightSupersededExclusion:
             )
         ks.save()
 
-        seen_batches = []
+        prompts: list[str] = []
 
-        def fake_build(raw_patterns, **_kwargs):
-            seen_batches.append([p["pattern"] for p in raw_patterns])
-            return []
+        def fake_generate(prompt, **kwargs):
+            assert kwargs.get("caller") == "insight.skill_extract"
+            prompts.append(prompt)
+            return GenerationOutput(text=GOOD_SKILL_RESPONSE)
 
-        with patch(
-            "contemplative_agent.core.insight._build_cluster_batches",
-            side_effect=fake_build,
-        ):
-            result = extract_insight(knowledge_store=ks, full=True)
+        mock_generate.side_effect = fake_generate
 
-        # extract_insight returns an informational string when no batches produce skills.
-        assert isinstance(result, str)
-        assert seen_batches, "expected _build_cluster_batches to be called"
-        # Only live patterns reach batching.
-        assert set(seen_batches[0]) == {"live-0", "live-1", "live-2"}
+        result = extract_insight(knowledge_store=ks, full=True)
+
+        # The 3 live patterns form one cluster and extract one skill; the
+        # superseded ones never reach the prompt.
+        assert isinstance(result, InsightResult)
+        assert len(result.skills) == 1
+        assert len(prompts) == 1
+        for i in range(3):
+            assert f"live-{i}" in prompts[0]
+        assert "dead-0" not in prompts[0]
+        assert "dead-1" not in prompts[0]
 
 
 # ---------------------------------------------------------------------------
