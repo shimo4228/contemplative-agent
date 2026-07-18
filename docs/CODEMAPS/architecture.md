@@ -1,4 +1,4 @@
-<!-- Generated: 2026-07-11 | Updated: 2026-07-18 (ADR-0074 amendment: chunked novelty gate + fail-open extraction cap) | Files scanned: 46 | Token estimate: ~5700 -->
+<!-- Generated: 2026-07-18 | Files scanned: 69 | Token estimate: ~7030 -->
 # Architecture
 
 ## Project Type
@@ -19,9 +19,10 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
     core/  (platform-independent)
       _io  config  domain  prompts  llm(+LLMBackend)  embeddings
       episode_embeddings  episode_log  knowledge_store  memory
-      views  snapshot  scheduler  distill  insight  constitution
-      rules_distill  stocktake  report  metrics  view_metrics  clustering
-      text_utils  thresholds  artifact_extraction
+      views  snapshot  scheduler  distill  pattern_dedup  episode_render
+      insight  insight_novelty  skill_selection  constitution  rules_distill
+      stocktake  report  metrics  view_metrics  clustering  text_utils
+      thresholds  artifact_extraction  run_context
     adapters/moltbook/
       agent  session_context  feed_manager  reply_handler  post_pipeline
       client  auth  verification  content  llm_functions  config
@@ -42,7 +43,7 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
 `contemplative-agent init [--template NAME]` copies every runtime Markdown from `config/` into `MOLTBOOK_HOME`. Template-derived: `constitution/`, `skills/`, `rules/`. Shared: `prompts/`, `views/`. Existing dirs never overwritten.
 
 ## LLM Backend
-`core/llm.py` `LLMBackend` Protocol: `generate(prompt, system, num_predict, format, *, temperature)` → `Optional[BackendResult]` (`text` + `finish_reason` + `eval_count`), plus read-only `model` (served id, ADR-0065) and `context_window` (token ceiling, ADR-0066) properties. Module-level `_backend` slot set via `configure(backend=...)`. Sanitization, circuit breaker, and the `drop_truncated` truncation gate (from `finish_reason`) are applied by the **caller** (`_generate_via_backend`), uniformly across backends. A backend-aware context-budget pre-flight (`_generate_impl`, before dispatch; audit C2) guards est `system+prompt+num_predict` against the backend's `context_window` (`NUM_CTX` on the Ollama path; a backend omitting the property is unguarded) — Ollama would front-truncate the value layer, a memory-bounded injected backend would overrun its window. Over-budget `num_predict` is **clamped** to the remaining window (WARNING + `num_predict_requested` in telemetry); the call is skipped only when input alone leaves < `MIN_CLAMPED_NUM_PREDICT` (2048) output tokens (2026-07-10 fix: the skip-only guard suppressed every self-post for 24h after a 13-skill adoption grew the system prompt to ~20.3K tok). Default `_backend=None` → built-in Ollama HTTP path; an add-on (e.g. `contemplative-agent-cloud`) injects an alternative via `configure(backend=...)`. SSRF allowlist shared via `validate_trusted_url()`.
+`core/llm/` package (ADR-0079): `backend.py` `LLMBackend` Protocol: `generate(prompt, system, num_predict, format, *, temperature)` → `Optional[BackendResult]` (`text` + `finish_reason` + `eval_count`), plus read-only `model` (served id, ADR-0065) and `context_window` (token ceiling, ADR-0066) properties. Module-level `_backend` slot set via `configure(backend=...)`. Sanitization, circuit breaker, and the `drop_truncated` truncation gate (from `finish_reason`) are applied by the **caller** (`_generate_via_backend`), uniformly across backends. A backend-aware context-budget pre-flight (`_generate_impl`, before dispatch; audit C2) guards est `system+prompt+num_predict` against the backend's `context_window` (`NUM_CTX` on the Ollama path; a backend omitting the property is unguarded) — Ollama would front-truncate the value layer, a memory-bounded injected backend would overrun its window. Over-budget `num_predict` is **clamped** to the remaining window (WARNING + `num_predict_requested` in telemetry); the call is skipped only when input alone leaves < `MIN_CLAMPED_NUM_PREDICT` (2048) output tokens (2026-07-10 fix: the skip-only guard suppressed every self-post for 24h after a 13-skill adoption grew the system prompt to ~20.3K tok). Default `_backend=None` → built-in Ollama HTTP path; an add-on (e.g. `contemplative-agent-cloud`) injects an alternative via `configure(backend=...)`. SSRF allowlist shared via `validate_trusted_url()`.
 
 ## Immutability
 All DTOs `frozen=True`. Required by approval-gate diff pipeline and bitemporal invariants.
@@ -68,7 +69,7 @@ embedding-model calibration pin (`core/embeddings.py`
 `CALIBRATED_EMBEDDING_MODEL` + three-point anchors, ADR-0071/0072) warns at
 command startup and in `report --patterns` when the active model drifts from
 the one all similarity thresholds were calibrated on. A system-prompt budget
-reading (`core/llm.py` `system_prompt_budget_reading`, shown by
+reading (`core/llm/prompting.py` `system_prompt_budget_reading`, shown by
 `adopt-staged` before the approval loop) projects the value-layer token cost
 against `NUM_CTX` so batches are approved with the window share visible
 (2026-07-10, after a blind 13-skill adoption tripped the C2 guard; baseline
@@ -83,7 +84,7 @@ Execution identity (ADR-0078 same-day follow-up): `core/_io.py`
 `append_jsonl_restricted` — the single writer behind every JSONL log
 (audit logs *and* episode logs) — stamps each record with a process-wide
 `run_id` (uuid4, minted in `core/run_context.py` at import) and, while a
-`run` session is active, a `session_id` (set/cleared by `cli.py` around
+`run` session is active, a `session_id` (set/cleared by `cli/__init__.py` around
 `run_session`, `try/finally`). Caller-supplied values win; offline tooling
 groups records by id instead of inferring runs from time gaps.
 
@@ -280,7 +281,7 @@ Single LLM call: generate_full(IDENTITY_DISTILL_PROMPT, ...)  [think-ON, ADR-006
   [base-only system prompt; axioms not injected — ADR-0058]
 → validate_identity_content()
 → IdentityResult(text, target_path, pattern_ids, epistemic_counts, thinking)  [ADR-0050; thinking → reasoning.md, ADR-0069]
-→ write gated by cli.py approval → MOLTBOOK_HOME/identity.md  [ADR-0012]
+→ write gated by cli/approval.py → MOLTBOOK_HOME/identity.md  [ADR-0012]
 ```
 
 No Stage 2 refine. No importance-ranked input. One LLM call only.

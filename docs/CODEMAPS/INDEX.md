@@ -1,8 +1,8 @@
-<!-- Generated: 2026-07-11 | Total codemaps: 5 | Token estimate: ~1908 -->
+<!-- Generated: 2026-07-18 | Total codemaps: 5 | Token estimate: ~2195 -->
 # Codemaps Index
 
 Comprehensive architectural documentation for the Contemplative Agent project.
-**Last Updated**: 2026-07-11 | **Codebase**: see [Statistics](#statistics)
+**Last Updated**: 2026-07-18 | **Codebase**: see [Statistics](#statistics)
 
 ---
 
@@ -14,7 +14,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 **Topics**:
 - Project type & stats (see [Statistics](#statistics))
 - System diagram (core/ + adapters/moltbook/ + adapters/meditation/ + adapters/dialogue/)
-- Import rules (adapters → core, cli.py is only exception)
+- Import rules (adapters → core, cli/ is only exception)
 - Session execution flow (ReplyHandler → FeedManager → PostPipeline) with gate thresholds
 - Offline learning flows — causal chain with module/function/formula/ADR at each step:
   - distill (per-episode grounded distill: one LLM call per engagement episode, no noise gate, + embedding dedup; ADR-0060, importance step retired ADR-0056)
@@ -104,23 +104,24 @@ Package versions, external services, optional add-ons.
 
 ## Statistics
 
-As of **2026-07-11** — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
+As of **2026-07-18** — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
 
 | Metric | Value |
 |--------|-------|
-| Total `.py` files | 53 (47 non-`__init__` + 6 `__init__`) |
-| LOC | ~18883 |
-| Test files | 42 (1783 tests collected) |
-| Core modules | 26 (platform-independent) |
+| Total `.py` files | 69 (61 non-`__init__` + 8 `__init__`) |
+| LOC | ~20294 |
+| Test files | 56 (1920 tests collected) |
+| Core modules | 30 (platform-independent; incl. `llm/` package as one row) |
 | Moltbook adapter modules | 15 |
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |
+| CLI package modules | 10 (`cli/`, split from single `cli.py` per ADR-0079) |
 | CLI commands | see [moltbook-agent.md](moltbook-agent.md) CLI table or `contemplative-agent --help` |
 | Prompt templates / view seeds | canonical inventory in [CONFIGURATION.md](../CONFIGURATION.md#pipeline-prompts--view-seeds), guarded by `tests/test_packaged_assets.py` |
 | Config templates | 11 (config/templates/) |
 | Rate limit budgets | 2 (GET 60/min, POST 30/min) |
 
-Measured by: `find src -name '*.py' | wc -l` · `find src -name '*.py' -exec cat {} + | wc -l` · `ls tests/test_*.py | wc -l` · `uv run pytest tests/ --collect-only -q | tail -1` · per package: `find src/contemplative_agent/<pkg> -name '*.py' ! -name '__init__.py' | wc -l`
+Measured by: `find src -name '*.py' | wc -l` · `find src -name '*.py' -exec cat {} + | wc -l` · `find tests -name 'test_*.py' | wc -l` · `uv run pytest tests/ --collect-only -q | tail -1` · per package: `find src/contemplative_agent/<pkg> -name '*.py' ! -name '__init__.py' | wc -l`
 
 ---
 
@@ -139,4 +140,4 @@ Measured by: `find src -name '*.py' | wc -l` · `find src -name '*.py' -exec cat
 
 CODEMAPS はコード変更時に更新する（「どこにあるか」のコード索引）。
 
-Full re-scan: 2026-07-09 (v2.8.0 release gate; live wc/find/pytest recount — LOC + per-file line counts in [core-modules.md](core-modules.md)/[adapters-moltbook.md](adapters-moltbook.md)/[moltbook-agent.md](moltbook-agent.md) refreshed, largest drifts: `cli.py` 2364→2817L, `verification_parse.py` 472→909L post ADR-0062 6th/7th amendment grammar rounds, `insight.py` 395→651L post ADR-0074). Covers through ADR-0076 (skill-selection shadow instrument: `core/skill_selection.py` pass-1 LLM applicability observation before content generations, `logs/skill-selection-*.jsonl` + `report --skill-selection`, injection unchanged), ADR-0075 (observability-by-default: every feature with external I/O / LLM calls / heuristic decisions ships a replayable JSONL audit log in the same PR — see [architecture.md § Observability](architecture.md#observability)), ADR-0074 (weekly staged insight: theme detection, `.last_insight` pending guard, LLM novelty gate, exact fast clustering), ADR-0073 (orphaned view seeds pruned — `config/views/` ships only `self_reflection` + `constitutional`; verified no stale references remain), ADR-0072 (echo-chamber interventions — register instruction, corpus-grown seed exemplar, extraction-failure guard), ADR-0071 (read-only pattern-composition instruments — `core/view_metrics.py`). Dead-code removal (`interaction_count_with`, `Finding.example`, commit `0034980`) verified clean — no remaining references in source or docs. Current aggregate counts live in [Statistics](#statistics) only. Stats-only refresh: 2026-07-11 (live recount; no full regeneration — see [core-modules.md](core-modules.md) for the same-day ADR-0074/0076 section update).
+Full re-scan: 2026-07-09 (v2.8.0 release gate; live wc/find/pytest recount — LOC + per-file line counts in [core-modules.md](core-modules.md)/[adapters-moltbook.md](adapters-moltbook.md)/[moltbook-agent.md](moltbook-agent.md) refreshed, largest drifts: `cli.py` 2364→2817L, `verification_parse.py` 472→909L post ADR-0062 6th/7th amendment grammar rounds, `insight.py` 395→651L post ADR-0074). Covers through ADR-0076 (skill-selection shadow instrument: `core/skill_selection.py` pass-1 LLM applicability observation before content generations, `logs/skill-selection-*.jsonl` + `report --skill-selection`, injection unchanged), ADR-0075 (observability-by-default: every feature with external I/O / LLM calls / heuristic decisions ships a replayable JSONL audit log in the same PR — see [architecture.md § Observability](architecture.md#observability)), ADR-0074 (weekly staged insight: theme detection, `.last_insight` pending guard, LLM novelty gate, exact fast clustering), ADR-0073 (orphaned view seeds pruned — `config/views/` ships only `self_reflection` + `constitutional`; verified no stale references remain), ADR-0072 (echo-chamber interventions — register instruction, corpus-grown seed exemplar, extraction-failure guard), ADR-0071 (read-only pattern-composition instruments — `core/view_metrics.py`). Dead-code removal (`interaction_count_with`, `Finding.example`, commit `0034980`) verified clean — no remaining references in source or docs. Current aggregate counts live in [Statistics](#statistics) only. Stats-only refresh: 2026-07-11 (live recount; no full regeneration — see [core-modules.md](core-modules.md) for the same-day ADR-0074/0076 section update). Full re-scan: 2026-07-18 (ADR-0079 module reorganization: `core/llm.py` → `core/llm/` package — `__init__.py` facade, `backend.py` Protocol+circuit-breaker, `prompting.py` system-prompt assembly, `guard.py` sanitize/SSRF; `cli.py` (2817L) → `cli/` package — `__init__.py` dispatch (589L) + `runtime.py`/`schedule.py`/`approval.py`/`staging.py`/`adopt.py`/`stocktake_cmd.py`/`memory_cmds.py`/`session_cmds.py`/`__main__.py` (10 files, ~3277L total); `core/insight_novelty.py` and `core/pattern_dedup.py` + `core/episode_render.py` extracted from `insight.py`/`distill.py` — gate logic unchanged, rendering/dedup only. Also folds in ADR-0078 `core/run_context.py` (run_id/session_id minting, missing from the 07-09 scan) and live LOC drift in `adapters/moltbook/` (`agent.py` 753→853L, `client.py` 824→844L, `verification.py` 536→700L, `verification_parse.py` 909→1132L, others adjusted) accumulated since 2026-07-09 across unrelated fix commits. All six codemaps + Statistics recomputed live in this pass.

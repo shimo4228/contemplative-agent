@@ -1,4 +1,4 @@
-<!-- Generated: 2026-07-09 | Files scanned: 20 adapter modules (15 moltbook + 4 meditation + 1 dialogue) | Token estimate: ~1966 -->
+<!-- Generated: 2026-07-18 | Files scanned: 20 adapter modules (15 moltbook + 4 meditation + 1 dialogue) | Token estimate: ~2080 -->
 # Adapters Codemap
 
 Platform-specific implementations. Dependency: adapters → core.
@@ -10,19 +10,19 @@ Platform-specific implementations. Dependency: adapters → core.
 | Module | LOC | Purpose |
 |--------|-----|---------|
 | `config.py` | ~113 | URLs, paths, timeouts, rate limits, constants |
-| `agent.py` | 753 | Session orchestrator (feed/reply/post cycles, AutonomyLevel) |
-| `session_context.py` | 113 | Shared mutable state (memory, rate_limited, actions) |
-| `feed_manager.py` | 539 | Feed fetch, relevance scoring, engagement, ID dedup, promo filter, per-author rate limit |
-| `reply_handler.py` | 494 | Notification handling, reply generation, posting; pre-action `internal_note` (ADR-0045) |
-| `post_pipeline.py` | 452 | feed-seeder → NoveltyGate → test-content gate → body-hash gate → post |
-| `client.py` | 824 | HTTP client (auth, domain lock, retry/429-backoff). No `has_budget`/`unsubscribe_submolt`/`mark_all_notifications_read`/`update_profile`/PATCH — removed. |
+| `agent.py` | 853 | Session orchestrator (feed/reply/post cycles, AutonomyLevel) |
+| `session_context.py` | 134 | Shared mutable state (memory, rate_limited, actions) |
+| `feed_manager.py` | 544 | Feed fetch, relevance scoring, engagement, ID dedup, promo filter, per-author rate limit |
+| `reply_handler.py` | 481 | Notification handling, reply generation, posting; pre-action `internal_note` (ADR-0045) |
+| `post_pipeline.py` | 483 | feed-seeder → NoveltyGate → test-content gate → body-hash gate → post |
+| `client.py` | 844 | HTTP client (auth, domain lock, retry/429-backoff). No `has_budget`/`unsubscribe_submolt`/`mark_all_notifications_read`/`update_profile`/PATCH — removed. |
 | `auth.py` | ~106 | Credential management, agent registration |
-| `verification.py` | 536 | Obfuscated math challenge solver chain (code_parse → LLM), reasoning-path arithmetic self-consistency guard, challenge audit logging, failure tracking, auto-stop |
-| `verification_parse.py` | 909 | Deterministic parser for the finite CAPTCHA grammar (`code_parse_challenge`); precision-first, abstains to None |
+| `verification.py` | 700 | Obfuscated math challenge solver chain (code_parse → LLM), reasoning-path arithmetic self-consistency guard, challenge audit logging, failure tracking, auto-stop |
+| `verification_parse.py` | 1132 | Deterministic parser for the finite CAPTCHA grammar (`code_parse_challenge`); precision-first, abstains to None |
 | `content.py` | ~81 | Rules-based content, dedup, axiom intro injection |
-| `llm_functions.py` | 342 | Moltbook-specific LLM (select_submolt, context builders) |
+| `llm_functions.py` | 361 | Moltbook-specific LLM (select_submolt, context builders) |
 | `dedup.py` | 222 | Deterministic gates: prefix-5 stem + Jaccard, test-content blocklist, promotional URL regex |
-| `novelty.py` | ~370 | `NoveltyGate`: embedding-cosine novelty + temporal decay + rate-deficit Lagrangian (ADR-0039) |
+| `novelty.py` | 375 | `NoveltyGate`: embedding-cosine novelty + temporal decay + rate-deficit Lagrangian (ADR-0039) |
 | `feed_seeder.py` | ~87 | `select_feed_seeds`: RNG sampling 1-3 peer posts per submolt, relevance floor 0.4, 15000-char budget (ADR-0043) |
 
 **Retired (not in codebase)**: `extract_topics` / `check_topic_novelty` (ADR-0043), `topic_keywords` config field (ADR-0044).
@@ -161,7 +161,7 @@ contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N
 - `MoltbookClientError`: `status_code` attribute for 400/429 detection
 - Rate limiting: Scheduler budget check → proactive sleep → 429 backoff
 - Verification: 7 failures → `SessionContext.rate_limited = True`
-- Circuit breaker (core/llm.py): 5 LLM failures → 120s cooldown
+- Circuit breaker (core/llm/backend.py): 5 LLM failures → 120s cooldown
 
 ## Testing Patterns
 

@@ -1,4 +1,4 @@
-<!-- Generated: 2026-07-11 | Files scanned: 26 core modules | Token estimate: ~2803 -->
+<!-- Generated: 2026-07-18 | Files scanned: 30 core modules | Token estimate: ~3196 -->
 # Core Modules Codemap
 
 Platform-independent foundation (no Moltbook dependencies). All imports flow: adapters → core.
@@ -7,33 +7,34 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
-| `_io.py` | 229 | `write_restricted`, `truncate`, `archive_before_write` |
+| `_io.py` | 237 | `write_restricted`, `truncate`, `archive_before_write` |
+| `run_context.py` | 35 | ADR-0078: mints process-wide `run_id` (uuid4) at import; `set_session_id`/`clear` for the active `run` session; read by `core/_io.py`'s `append_jsonl_restricted` to stamp every JSONL record |
 | `config.py` | 47 | `FORBIDDEN_SUBSTRING_PATTERNS`, `VALID_ID_PATTERN`, `MAX_COMMENT_LENGTH` |
-| `domain.py` | 401 | `DomainConfig`, `PromptTemplates` (reads `MOLTBOOK_HOME/prompts/` overrides with packaged fallback), constitution loader |
-| `prompts.py` | ~70 | Lazy-load proxy to `config/prompts/*.md` + placeholder resolution |
-| `llm/` (package, ADR-0079) | ~1620 | Ollama interface behind a **permanent facade** (`llm/__init__.py` — the public `core.llm` import path is API for siblings; transport + generation + `configure`/`reset_llm_config` live here). Submodules: `llm/backend.py` — `LLMBackend` Protocol (pluggable, returns `BackendResult`, keyword `temperature`/`think`, `model`/`context_window` properties) + circuit breaker + `circuit_shield()` context-manager isolation (ADR-0076: a failing observer can never trip the breaker for the generation it watches); `llm/prompting.py` — system-prompt assembly, sole owner of prompt-side mutable state, `system_prompt_budget_reading()` window-share instrument at adopt gate, `_build_system_prompt` reads identity.md as single blob (ADR-0030); `llm/guard.py` — sanitization, `validate_trusted_url` SSRF guard, `wrap_untrusted_content`. Generation keeps the `drop_truncated` gate, per-call `think` flag + reasoning-trace capture (`generate_for_api` returns `GenerationOutput(text, thinking)`), backend-aware context-budget pre-flight (audit C2, ADR-0066) |
+| `domain.py` | 403 | `DomainConfig`, `PromptTemplates` (reads `MOLTBOOK_HOME/prompts/` overrides with packaged fallback), constitution loader |
+| `prompts.py` | 74 | Lazy-load proxy to `config/prompts/*.md` + placeholder resolution |
+| `llm/` (package, ADR-0079) | 1624 | Ollama interface behind a **permanent facade** (`llm/__init__.py` — the public `core.llm` import path is API for siblings; transport + generation + `configure`/`reset_llm_config` live here). Submodules: `llm/backend.py` — `LLMBackend` Protocol (pluggable, returns `BackendResult`, keyword `temperature`/`think`, `model`/`context_window` properties) + circuit breaker + `circuit_shield()` context-manager isolation (ADR-0076: a failing observer can never trip the breaker for the generation it watches); `llm/prompting.py` — system-prompt assembly, sole owner of prompt-side mutable state, `system_prompt_budget_reading()` window-share instrument at adopt gate, `_build_system_prompt` reads identity.md as single blob (ADR-0030); `llm/guard.py` — sanitization, `validate_trusted_url` SSRF guard, `wrap_untrusted_content`. Generation keeps the `drop_truncated` gate, per-call `think` flag + reasoning-trace capture (`generate_for_api` returns `GenerationOutput(text, thinking)`), backend-aware context-budget pre-flight (audit C2, ADR-0066) |
 | `clustering.py` | 139 | Average-linkage cosine agglomerative clustering via exact Lance-Williams merge (ADR-0074 perf rewrite, same partitions as the retired naive version), numpy-only. Used by `insight` and `rules_distill` |
-| `embeddings.py` | 107 | Ollama `/api/embed` wrapper (nomic-embed-text), `cosine`, `embed_one`, `embed_texts` |
+| `embeddings.py` | 148 | Ollama `/api/embed` wrapper (nomic-embed-text), `cosine`, `embed_one`, `embed_texts` |
 | `episode_embeddings.py` | 162 | `EpisodeEmbeddingStore` — SQLite sidecar for episode vectors (ADR-0019) |
 | `episode_log.py` | 91 | `EpisodeLog` (append-only JSONL, `read_range` with `record_type` filter) |
 | `knowledge_store.py` | 399 | `KnowledgeStore` — patterns JSON + provenance/bitemporal (ADR-0021); `is_live()` (bitemporal-only, `valid_until is None`; trust floor retired ADR-0051); `effective_importance()` (pure time decay `0.95^days`, LLM rating retired ADR-0056), `pattern_id()`, `epistemic_kind_for()`, `epistemic_counts_for()` (ADR-0050); `get_live_patterns()` / `get_live_patterns_since()` / `get_raw_patterns()` |
 | `memory.py` | 528 | `MemoryStore` facade, `Interaction`/`PostRecord` dataclasses (`Insight` retired, ADR-0052) |
-| `views.py` | 309 | `ViewRegistry` — seed-text views with `seed_from` + `${VAR}` substitution, lazy centroid cache; `find_by_view` = pure cosine rank + threshold + top_k (no importance weight, no trust, ADR-0051) |
-| `view_metrics.py` | 383 | Read-only pattern-composition instruments: consumed-view supply, seed-independent diversity (pairwise cosine + cluster structure), `nearest_view` singleton visibility (grounding composition removed — constant under per-episode mapping, ADR-0072). Observability only — never wired into gates/ranking (AKC ADR-0015 shape) |
+| `views.py` | 344 | `ViewRegistry` — seed-text views with `seed_from` + `${VAR}` substitution, lazy centroid cache; `find_by_view` = pure cosine rank + threshold + top_k (no importance weight, no trust, ADR-0051) |
+| `view_metrics.py` | 387 | Read-only pattern-composition instruments: consumed-view supply, seed-independent diversity (pairwise cosine + cluster structure), `nearest_view` singleton visibility (grounding composition removed — constant under per-episode mapping, ADR-0072). Observability only — never wired into gates/ranking (AKC ADR-0015 shape) |
 | `snapshot.py` | 218 | `write_snapshot()` + `collect_thresholds()` — pivot snapshots (ADR-0020) |
 | `scheduler.py` | 210 | Rate limit state, `has_read_budget`/`has_write_budget`, persistence |
 | `constitution.py` | 152 | `amend_constitution() → AmendmentResult`. ADR-0033 layer-separation framing. ADR-0050 lineage fields. |
-| `distill.py` | ~710 | `distill()` (per-episode grounded distill: activity-only scope via `episode_render._is_rich_episode`, one LLM call per episode, no noise gate; ADR-0060, importance-scoring step retired ADR-0056); `_is_valid_pattern` validity gate (length floor + extraction-failure meta-statement phrase filter, ADR-0072); `distill_identity()` (single-stage, self_reflection view, whole-file write, ADR-0030). ADR-0050 lineage fields on all result types. Re-exports `render_episode` / `summarize_record` from `episode_render.py` (public names; ADR-0079 Phase 3b). |
-| `pattern_dedup.py` | ~170 | Embedding-cosine dedup decisions for distilled patterns (add / update / skip / skip-new against live pool + current batch; ADR-0019/0021/0056). Extracted from distill.py (ADR-0079 Phase 3b); does not import distill. |
-| `episode_render.py` | ~180 | Episode→prompt-text projection for distillation (`render_episode`, `summarize_record`, rich-episode scope, source-type derivation). Extracted from distill.py (ADR-0079 Phase 3b); does not import distill. |
-| `insight.py` | ~600 | `extract_insight() → InsightResult`; global embedding clustering, no view batching (ADR-0050); ADR-0074 weekly-staged flow: `.last_insight` marker guard refuses an implicit full recluster, novelty gate delegated to `insight_novelty.py`, `--stage` writes a pending-review ledger consumed by `adopt-staged`. Re-exports `skill_theme` (public name; ADR-0079 Phase 3a). |
-| `insight_novelty.py` | ~470 | ADR-0074 LLM novelty gate for staged insight: known-theme loading, token-budget chunk packing, covered-id parsing, novelty audit log (`skipped_known`). Extracted from insight.py (ADR-0079 Phase 3a); does not import insight. Namespace note: distinct from `adapters/moltbook/novelty.py` (feed novelty). |
+| `distill.py` | 709 | `distill()` (per-episode grounded distill: activity-only scope via `episode_render._is_rich_episode`, one LLM call per episode, no noise gate; ADR-0060, importance-scoring step retired ADR-0056); `_is_valid_pattern` validity gate (length floor + extraction-failure meta-statement phrase filter, ADR-0072); `distill_identity()` (single-stage, self_reflection view, whole-file write, ADR-0030). ADR-0050 lineage fields on all result types. Re-exports `render_episode` / `summarize_record` from `episode_render.py` (public names; ADR-0079 Phase 3b). |
+| `pattern_dedup.py` | 165 | Embedding-cosine dedup decisions for distilled patterns (add / update / skip / skip-new against live pool + current batch; ADR-0019/0021/0056). Extracted from distill.py (ADR-0079 Phase 3b); does not import distill. |
+| `episode_render.py` | 182 | Episode→prompt-text projection for distillation (`render_episode`, `summarize_record`, rich-episode scope, source-type derivation). Extracted from distill.py (ADR-0079 Phase 3b); does not import distill. |
+| `insight.py` | 603 | `extract_insight() → InsightResult`; global embedding clustering, no view batching (ADR-0050); ADR-0074 weekly-staged flow: `.last_insight` marker guard refuses an implicit full recluster, novelty gate delegated to `insight_novelty.py`, `--stage` writes a pending-review ledger consumed by `adopt-staged`. Re-exports `skill_theme` (public name; ADR-0079 Phase 3a). |
+| `insight_novelty.py` | 467 | ADR-0074 LLM novelty gate for staged insight: known-theme loading, token-budget chunk packing, covered-id parsing, novelty audit log (`skipped_known`). Extracted from insight.py (ADR-0079 Phase 3a); does not import insight. Namespace note: distinct from `adapters/moltbook/novelty.py` (feed novelty). |
 | `skill_selection.py` | 472 | ADR-0076 shadow instrument: `select_applicable_skills()` pass-1 LLM pick over the skill catalog (name+description only, identity-only system prompt — no learned vocabulary fed back to the judge), `shadow_observe_skill_selection()` fire-and-log wrapper under `circuit_shield()` (never gates injection), audit → `logs/skill-selection-YYYY-MM-DD.jsonl`; `read_skill_selection_log()` / `format_skill_selection_report()` back `report --skill-selection` |
 | `rules_distill.py` | 404 | `distill_rules() → RulesDistillResult`; Practice/Rationale B-layer format (ADR-0048) |
 | `stocktake.py` | 504 | Skill/rule audit: single-call LLM grouping (ADR-0046), `merge_group()` union-of-patterns, `CANNOT_MERGE` reject, singleton trigger-altitude clean (ADR-0048) |
-| `report.py` | 300 | `generate_report()` JSONL → Markdown activity summary |
+| `report.py` | 321 | `generate_report()` JSONL → Markdown activity summary |
 | `metrics.py` | 189 | Session metrics aggregation |
-| `text_utils.py` | 157 | Shared Markdown helpers (`slugify`, `extract_title`, `strip_frontmatter`, `synthesize_frontmatter`) — ADR-0035 PR2, ADR-0048 |
+| `text_utils.py` | 169 | Shared Markdown helpers (`slugify`, `extract_title`, `strip_frontmatter`, `synthesize_frontmatter`) — ADR-0035 PR2, ADR-0048 |
 | `thresholds.py` | 84 | Centralized thresholds with ADR/calibration annotations. `snapshot.collect_thresholds` reads from here. |
 | `artifact_extraction.py` | 69 | Shared `extract_title → slugify → path-escape guard` chain (ADR-0035 PR3a) |
 
@@ -49,7 +50,7 @@ Interaction(timestamp, agent_id, agent_name, type, direction)
 PostRecord(timestamp, post_id, title, topic)
 ```
 
-**ADR-0012 Result types** — generated results; file writing done by cli.py after approval:
+**ADR-0012 Result types** — generated results; file writing done by cli/ (approval.py / adopt.py) after approval:
 ```python
 AmendmentResult(text, target_path, marker_dir, pattern_ids, epistemic_counts)  # constitution.py
 IdentityResult(text, target_path, pattern_ids, epistemic_counts)               # distill.py
