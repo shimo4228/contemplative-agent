@@ -2201,6 +2201,21 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0079-module-reorganization-package-splits.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0079: Module Reorganization — Package Splits, Permanent Facades, and Documented Size-Cap Exceptions",
+      "identifier": "ADR-0079",
+      "status": "accepted",
+      "datePublished": "2026-07-18",
+      "description": "Resolves seven violations of the 800-line file-size cap by splitting on responsibility rather than line count, under a two-option shim rule: a compatibility layer is either a permanent facade (the import path is public API) or absent (clean break with tests migrated in the same commit) — never a temporary shim, because mock.patch fails loudly on missing attributes but silently no-ops through a shim, and the no-op'd patches here are tmp-dir redirects guarding real user data. core/llm.py (1,507 lines) becomes the core/llm/ package (backend / prompting / guard) behind a permanent facade preserving all sibling-repo and internal import paths; cli.py (3,037 lines) becomes the cli/ package (nine submodules) with a clean break re-exporting only main, plus __main__.py and a single _repo_root() helper replacing depth-sensitive parents[2] resolution; core/insight.py extracts the novelty filter to core/insight_novelty.py; core/distill.py extracts pattern_dedup and episode_render. Three files stay documented exceptions to the cap — verification_parse.py (one cohesive deterministic parser), agent.py (single class), client.py (44 lines over) — the cap is a ceiling, not a target. Split boundaries and three behavior risks (repo-root depth, module execution, facade patch-incompatibility for moved callers) were confirmed via an independent cross-model design review (OpenAI Codex).",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0001-core-adapter-separation.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",
