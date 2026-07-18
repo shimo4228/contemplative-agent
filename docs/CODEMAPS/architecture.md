@@ -28,14 +28,15 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
       dedup  novelty  feed_seeder
     adapters/meditation/  (experimental)  config  pomdp  meditate  report
     adapters/dialogue/  peer.py
-    cli.py  (composition root, 2817L)
+    cli/  (composition root package, ADR-0079: __init__ dispatch + runtime/
+          schedule/approval/staging/adopt/stocktake_cmd/memory_cmds/session_cmds)
          |                       |
     Moltbook API            Ollama (local default)
     60GET/30POST/min        gemma4:e4b + nomic-embed-text (768-dim) :11434
 ```
 
 ## Import Rule
-`core/ ← adapters/ ← cli.py` (one direction). `cli.py` is the only file importing both. Meditation/dialogue adapters depend on core/ only; they do not import moltbook adapter.
+`core/ ← adapters/ ← cli/` (one direction). The `cli/` package (composition root; formerly the single-file cli.py, split per ADR-0079) is the only layer importing both. Meditation/dialogue adapters depend on core/ only; they do not import moltbook adapter.
 
 ## Init-Time Copy
 `contemplative-agent init [--template NAME]` copies every runtime Markdown from `config/` into `MOLTBOOK_HOME`. Template-derived: `constitution/`, `skills/`, `rules/`. Shared: `prompts/`, `views/`. Existing dirs never overwritten.

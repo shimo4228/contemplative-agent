@@ -9,7 +9,7 @@ Bird's-eye view of the entire codebase. For deep dives, see
 ## Module Dependency Graph
 
 ```
-cli.py (2817L)  -- composition root, only file importing both core/ and adapters/
+cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ and adapters/
  -> core/
  |    _io.py (229L)                -- file I/O (write_restricted, truncate, archive_before_write)
  |    config.py (47L)             -- security constants (FORBIDDEN_*, VALID_*, MAX_*)
