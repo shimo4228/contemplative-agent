@@ -830,14 +830,25 @@ class TestEngageWithPost:
         client.post_comment.assert_called_once_with("post1", "Great insight")
         assert len(agent._ctx.actions_taken) == 1
 
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.submit_verification",
+        return_value={"success": True},
+    )
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge_result",
+        return_value=_solve_result("15.00"),
+    )
     @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
     @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
     @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
     def test_comment_verification_success_records(
-        self, mock_score, mock_random, mock_time, tmp_path
+        self, mock_score, mock_random, mock_time, mock_solve, mock_submit, mock_audit, tmp_path
     ):
         """A comment whose create-response carries a verification object is
-        recorded only after the handshake succeeds."""
+        recorded only after the handshake succeeds. The real
+        _handle_verification runs; the handshake is controlled at the existing
+        module seams (solve_challenge_result / submit_verification)."""
         mock_random.uniform.return_value = 60.0
         agent, client, scheduler, content = self._make_agent(tmp_path)
         content.create_comment.return_value = GenerationOutput(text="Great insight")
@@ -848,25 +859,31 @@ class TestEngageWithPost:
                 "challenge_text": "noise",
             },
         }
-        # Replace the stored callback (feed_manager captured the bound method at
-        # construction, so patching agent._handle_verification would not take).
-        verify = MagicMock(return_value=True)
-        agent._feed_manager._handle_verification = verify
 
         result = agent._feed_manager.engage_with_post(
             {"content": "text", "id": "post1"}, client, scheduler
         )
         assert result is True
-        verify.assert_called_once_with(
-            {"verification_code": "moltbook_verify_x", "challenge_text": "noise"}
-        )
+        # The create-response verification object reached the handshake and
+        # was submitted on its verification_code with the solved answer.
+        args, _ = mock_submit.call_args
+        assert args[1] == "moltbook_verify_x"
+        assert args[2] == "15.00"
         assert agent._ctx.memory.has_commented_on("post1")
         scheduler.record_comment.assert_called_once()
 
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge_result",
+        return_value=_solve_result(None),
+    )
     @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
-    def test_comment_verification_failure_not_recorded(self, mock_score, tmp_path):
-        """When the comment handshake fails the comment is invisible, so it is
-        not recorded — but the comment-rate counter still advances."""
+    def test_comment_verification_failure_not_recorded(
+        self, mock_score, mock_solve, mock_audit, tmp_path
+    ):
+        """When the comment handshake fails (challenge unsolvable) the comment
+        is invisible, so it is not recorded — but the comment-rate counter
+        still advances."""
         agent, client, scheduler, content = self._make_agent(tmp_path)
         content.create_comment.return_value = GenerationOutput(text="Great insight")
         client.post_comment.return_value = {
@@ -876,7 +893,6 @@ class TestEngageWithPost:
                 "challenge_text": "noise",
             },
         }
-        agent._feed_manager._handle_verification = MagicMock(return_value=False)
 
         result = agent._feed_manager.engage_with_post(
             {"content": "text", "id": "post1"}, client, scheduler
@@ -2947,14 +2963,8 @@ class TestSelfReplyGatesByName:
     """Regression tests for the name-keyed self-comment skips: notification
     and comment-scan data carry agent_name but agent_id="unknown" (ADR-0055
     evidence), so an id-only compare never fires and the agent replies to
-    its own comments."""
-
-    def _make_agent(self, tmp_path):
-        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
-        agent._client = MagicMock()
-        agent._scheduler = MagicMock()
-        agent._scheduler.can_comment.return_value = True
-        return agent
+    its own comments. The gate is observed at the client boundary: whether
+    a reply reaches client.post_comment (and threaded under which comment)."""
 
     @staticmethod
     def _notification_fields(agent_name):
@@ -2968,63 +2978,74 @@ class TestSelfReplyGatesByName:
             "agent_name": agent_name,
         }
 
-    def test_notification_from_self_by_name_skipped(self, tmp_path):
-        agent = self._make_agent(tmp_path)
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="Thanks!"),
+    )
+    def test_notification_from_self_by_name_skipped(self, mock_reply, tmp_path):
+        agent, client, scheduler = _make_agent(tmp_path)
         agent._ctx.own_agent_name = "contemplative-agent"
-        handler = agent._reply_handler
-        handler._process_reply = MagicMock()
 
-        handler._handle_notification(
-            agent._client,
-            agent._scheduler,
+        agent._reply_handler._handle_notification(
+            client,
+            scheduler,
             self._notification_fields("contemplative-agent"),
             "reply:post1:n1",
             0,
             time.time() + 60,
         )
-        handler._process_reply.assert_not_called()
+        mock_reply.assert_not_called()  # the gate fires before generation
+        client.post_comment.assert_not_called()
 
-    def test_notification_from_other_agent_processed(self, tmp_path):
-        agent = self._make_agent(tmp_path)
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="Thanks!"),
+    )
+    def test_notification_from_other_agent_processed(self, mock_reply, tmp_path):
+        agent, client, scheduler = _make_agent(tmp_path)
         agent._ctx.own_agent_name = "contemplative-agent"
-        handler = agent._reply_handler
-        handler._process_reply = MagicMock()
 
-        handler._handle_notification(
-            agent._client,
-            agent._scheduler,
+        agent._reply_handler._handle_notification(
+            client,
+            scheduler,
             self._notification_fields("Alice"),
             "reply:post1:n1",
             0,
             time.time() + 60,
         )
-        handler._process_reply.assert_called_once()
+        # Notification path carries no comment id → top-level comment.
+        client.post_comment.assert_called_once_with("post1", "Thanks!", parent_id=None)
 
-    def test_post_comment_scan_skips_own_comment_by_name(self, tmp_path):
-        agent = self._make_agent(tmp_path)
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="Thanks!"),
+    )
+    def test_post_comment_scan_skips_own_comment_by_name(self, mock_reply, tmp_path):
+        agent, client, scheduler = _make_agent(tmp_path)
         agent._ctx.own_agent_name = "contemplative-agent"
-        handler = agent._reply_handler
-        handler._process_reply = MagicMock()
-        agent._client.get_post_comments.return_value = [
+        client.get_post_comments.return_value = [
             {"id": "c1", "content": "hi", "author": {"name": "contemplative-agent"}},
             {"id": "c2", "content": "hello", "author": {"name": "Alice"}},
         ]
 
-        handler._handle_post_comments(agent._client, agent._scheduler, "post1", time.time() + 60)
-        handler._process_reply.assert_called_once()
-        assert handler._process_reply.call_args.kwargs["replier_name"] == "Alice"
+        agent._reply_handler._handle_post_comments(client, scheduler, "post1", time.time() + 60)
+        # Only Alice's comment is answered: the reply threads under c2, so
+        # the skipped own comment (c1) is proven at the boundary parameter.
+        client.post_comment.assert_called_once_with("post1", "Thanks!", parent_id="c2")
 
-    def test_comment_with_unknown_name_not_treated_as_self(self, tmp_path):
-        agent = self._make_agent(tmp_path)
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="Thanks!"),
+    )
+    def test_comment_with_unknown_name_not_treated_as_self(self, mock_reply, tmp_path):
+        agent, client, scheduler = _make_agent(tmp_path)
         agent._ctx.own_agent_name = "contemplative-agent"
-        handler = agent._reply_handler
-        handler._process_reply = MagicMock()
-        agent._client.get_post_comments.return_value = [
+        client.get_post_comments.return_value = [
             {"id": "c3", "content": "anonymous comment"},  # name -> "unknown"
         ]
 
-        handler._handle_post_comments(agent._client, agent._scheduler, "post1", time.time() + 60)
-        handler._process_reply.assert_called_once()
+        agent._reply_handler._handle_post_comments(client, scheduler, "post1", time.time() + 60)
+        client.post_comment.assert_called_once_with("post1", "Thanks!", parent_id="c3")
 
 
 class TestSeedCandidatesSelfFilter:
@@ -3459,45 +3480,63 @@ class TestAdaptiveCycleWait:
 
 class TestSessionCycleStepIsolationH4:
     """Bug-audit 2026-07-06 H4: an uncaught error in the reply step must not
-    silently skip feed engagement and the post pipeline for that cycle."""
+    silently skip feed engagement and the post pipeline for that cycle.
+
+    Faults are injected at the client boundary (reply_handler / feed_manager
+    swallow only MoltbookClientError, so a KeyError/AttributeError raised by
+    a client call escapes the step), and step survival is observed at the
+    same boundary: the feed fetch reaching the client and the post pipeline
+    consulting the scheduler gate.
+    """
 
     def _make_cycle_agent(self, tmp_path):
-        agent = Agent(autonomy=AutonomyLevel.AUTO, memory=_make_clean_memory(tmp_path))
-        agent._fetch_home_data = MagicMock()
-        agent._home_data = {"activity_on_your_posts": []}
-        agent._reply_handler = MagicMock()
-        agent._run_feed_cycle = MagicMock()
-        agent._post_pipeline = MagicMock()
-        return agent
+        client = MagicMock()
+        client.get_home.return_value = {
+            "your_account": {"id": "me-1", "name": "bot"},
+            "activity_on_your_posts": [{"post_id": "post-1", "new_notification_count": 1}],
+        }
+        client.has_read_budget.return_value = True
+        client.has_write_budget.return_value = True
+        client.get_following_feed.return_value = []
+        client.get_post_comments.return_value = []
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {"posts": []}
+        client.get.return_value = feed_resp
+        scheduler = MagicMock()
+        scheduler.can_comment.return_value = True
+        # The post step ends right after the boundary touch this test observes.
+        scheduler.can_post.return_value = False
+        return _make_agent(tmp_path, client=client, scheduler=scheduler)
 
     def test_reply_step_error_does_not_skip_feed_and_post(self, tmp_path):
-        agent = self._make_cycle_agent(tmp_path)
-        agent._reply_handler.run_cycle_from_home.side_effect = KeyError(
-            "malformed notification shape"
-        )
+        agent, client, scheduler = self._make_cycle_agent(tmp_path)
+        client.get_post_comments.side_effect = KeyError("malformed notification shape")
 
-        agent._run_session_cycle(MagicMock(), MagicMock(), end_time=0.0)
+        agent._run_session_cycle(client, scheduler, end_time=time.time() + 60)
 
-        agent._run_feed_cycle.assert_called_once()
-        agent._post_pipeline.run_cycle.assert_called_once()
+        # Feed step survived: the submolt feed fetch reached the client.
+        assert any("/feed" in str(c) for c in client.get.call_args_list)
+        # Post step survived: the pipeline consulted the scheduler gate.
+        scheduler.can_post.assert_called_once()
 
     def test_feed_step_error_does_not_skip_post_pipeline(self, tmp_path):
-        agent = self._make_cycle_agent(tmp_path)
-        agent._run_feed_cycle.side_effect = AttributeError("feed shape drift")
+        agent, client, scheduler = self._make_cycle_agent(tmp_path)
+        client.get.side_effect = AttributeError("feed shape drift")
 
-        agent._run_session_cycle(MagicMock(), MagicMock(), end_time=0.0)
+        agent._run_session_cycle(client, scheduler, end_time=time.time() + 60)
 
-        agent._reply_handler.run_cycle_from_home.assert_called_once()
-        agent._post_pipeline.run_cycle.assert_called_once()
+        # Reply step ran to its client boundary before the feed fault.
+        client.get_post_comments.assert_called_once_with("post-1")
+        scheduler.can_post.assert_called_once()
 
     def test_step_error_is_logged_with_step_name(self, tmp_path, caplog):
         import logging as _logging
 
-        agent = self._make_cycle_agent(tmp_path)
-        agent._reply_handler.run_cycle_from_home.side_effect = KeyError("boom")
+        agent, client, scheduler = self._make_cycle_agent(tmp_path)
+        client.get_post_comments.side_effect = KeyError("boom")
 
         with caplog.at_level(_logging.ERROR, logger="contemplative_agent.adapters.moltbook.agent"):
-            agent._run_session_cycle(MagicMock(), MagicMock(), end_time=0.0)
+            agent._run_session_cycle(client, scheduler, end_time=time.time() + 60)
 
         assert "replies" in caplog.text
 
