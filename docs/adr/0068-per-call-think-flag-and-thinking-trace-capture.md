@@ -11,9 +11,9 @@ accepted
 ## Context
 
 The LLM generation path hard-coded thinking **off** on every backend: the Ollama
-payload sent `"think": False` ([`core/llm.py`](../../src/contemplative_agent/core/llm.py)
+payload sent `"think": False` ([`core/llm.py` (now `core/llm/`)](../../src/contemplative_agent/core/llm/)
 `_post_ollama`) and the MLX backend sent `chat_template_kwargs={"enable_thinking": False}`
-([`core/mlx_backend.py`](../../src/contemplative_agent/core/mlx_backend.py)). There
+(`core/mlx_backend.py` (retired to contemplative-agent-mlx, [ADR-0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md))). There
 was no way to enable a reasoning trace per call, and even if a model emitted one,
 `_sanitize_output` → `_strip_thinking` discarded it and `generate()` returned only
 the published text.

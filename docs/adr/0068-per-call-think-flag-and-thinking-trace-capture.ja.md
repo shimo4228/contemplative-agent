@@ -12,9 +12,9 @@ accepted
 
 LLM 生成経路は、どのバックエンドでも thinking を **off** にハードコードしていた:
 Ollama のペイロードは `"think": False` を送り
-（[`core/llm.py`](../../src/contemplative_agent/core/llm.py) の `_post_ollama`）、
+（[`core/llm.py` (now `core/llm/`)](../../src/contemplative_agent/core/llm/) の `_post_ollama`）、
 MLX バックエンドは `chat_template_kwargs={"enable_thinking": False}` を送っていた
-（[`core/mlx_backend.py`](../../src/contemplative_agent/core/mlx_backend.py)）。
+（`core/mlx_backend.py` (retired to contemplative-agent-mlx, [ADR-0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md))）。
 コール単位で推論トレースを有効化する手段はなく、仮にモデルがトレースを出力しても
 `_sanitize_output` → `_strip_thinking` がそれを破棄し、`generate()` は公開テキストのみを
 返していた。

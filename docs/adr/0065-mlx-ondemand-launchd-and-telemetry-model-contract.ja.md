@@ -43,7 +43,7 @@ Ollama と並んで常駐の `KeepAlive` launchd サービスとして動かす�
 ## Decision
 
 1. **テレメトリの `model` フィールドを、`LLMBackend` Protocol を通じて強制される real
-   served-model-id 契約に一般化する。** [`core/llm.py`](../../src/contemplative_agent/core/llm.py)
+   served-model-id 契約に一般化する。** [`core/llm.py` (now `core/llm/`)](../../src/contemplative_agent/core/llm/)
    の `LLMBackend` に read-only の `model` property を追加する。`generate()` のテレメトリレコードは
    今や `model = _backend.model if _backend is not None else _get_model()` を設定し、すべての
    バックエンドがクラス名 sentinel ではなく実際の served model id を報告する。`MlxLmBackend` は
@@ -53,7 +53,7 @@ Ollama と並んで常駐の `KeepAlive` launchd サービスとして動かす�
    Protocol を満たすよう `model` 値を付与した。（コミット `0f2b169`。）
 
 2. **`mlx_lm.server` を、既存の `agent.plist` / `distill.plist` の `ProgramArguments` から呼ぶ
-   [`scripts/run-with-mlx.sh`](../../scripts/run-with-mlx.sh) 経由でオンデマンド起動する。常駐の
+   `scripts/run-with-mlx.sh` (retired to contemplative-agent-mlx, [ADR-0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md)) 経由でオンデマンド起動する。常駐の
    `KeepAlive` launchd サービスにはしない。** ラッパーは `mlx_lm.server` を起動し、`/health` を
    ready になるまでポーリングし（M1 のコールドロード ≈ 12 秒、ハードキャップ 60 秒）、
    `LLM_BACKEND=mlx` で `contemplative-agent` を実行し、`trap EXIT` でサーバを kill する。これで

@@ -46,7 +46,7 @@ ships in commit `0f2b169` and the launchd wrapper in commit `9f230d8`.
 
 1. **Generalize the telemetry `model` field to a real served-model-id contract enforced through
    the `LLMBackend` Protocol.** Add a read-only `model` property to `LLMBackend` in
-   [`core/llm.py`](../../src/contemplative_agent/core/llm.py). The `generate()` telemetry record
+   [`core/llm.py` (now `core/llm/`)](../../src/contemplative_agent/core/llm/). The `generate()` telemetry record
    now sets `model = _backend.model if _backend is not None else _get_model()`, so every backend
    reports its actual served model id rather than a class-name sentinel. `MlxLmBackend` already
    exposes `model: str` and required no change. The property is read-only specifically to remain
@@ -55,7 +55,7 @@ ships in commit `0f2b169` and the launchd wrapper in commit `9f230d8`.
    `model` value to satisfy the updated Protocol. (Commit `0f2b169`.)
 
 2. **Run `mlx_lm.server` on demand via
-   [`scripts/run-with-mlx.sh`](../../scripts/run-with-mlx.sh), invoked from the
+   `scripts/run-with-mlx.sh` (retired to contemplative-agent-mlx, [ADR-0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md)), invoked from the
    `ProgramArguments` of the existing `agent.plist` and `distill.plist`, rather than as a
    resident `KeepAlive` launchd service.** The wrapper starts `mlx_lm.server`, polls `/health`
    until ready (cold M1 model load ≈ 12 s, hard cap at 60 s), runs `contemplative-agent` with

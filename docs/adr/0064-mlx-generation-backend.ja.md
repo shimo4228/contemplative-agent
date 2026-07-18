@@ -10,7 +10,7 @@ superseded-by ADR-0070（MLX backend を main から退役し sibling repo へ�
 
 ## Context
 
-エージェントのデフォルト LLM トランスポートは [`core/llm.py`](../../src/contemplative_agent/core/llm.py)
+エージェントのデフォルト LLM トランスポートは [`core/llm.py` (now `core/llm/`)](../../src/contemplative_agent/core/llm/)
 の組み込み Ollama HTTP 経路で、ローカルの Ollama デーモン（テキストは `/api/generate`、埋め込みは
 `/api/embed`）に接続する。メンテナの主ホスト（M1 Mac・16GB ユニファイドメモリ）では、本番モデル
 `qwen3.5:9b`（Q4_K_M、ディスク 6.6GB、KV キャッシュ込みで常駐 ~8.6GB）が日常的にスワップを誘発し、

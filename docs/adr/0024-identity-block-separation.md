@@ -139,7 +139,7 @@ Blocks are **trusted** (same as today's identity.md). Frontmatter metadata is ge
 
 - Letta Persona / Human blocks — block-addressed long-term memory for agents (persistent context across sessions).
 - [ADR-0007](0007-security-boundary-model.md) — trust boundary model that identity lives inside.
-- [ADR-0012](0012-approval-gate.md) — approval gate for writes to `MOLTBOOK_HOME`.
+- [ADR-0012](0012-human-approval-gate.md) — approval gate for writes to `MOLTBOOK_HOME`.
 - [ADR-0020](0020-pivot-snapshots-for-replayability.md) — snapshots remain the full-text recovery path; history logs are only hashes.
 - [ADR-0021](0021-pattern-schema-trust-temporal-forgetting-feedback.md) — schema-extension cadence this ADR mirrors.
 - [ADR-0023](0023-skill-as-memory-loop.md) — sibling ADR with the same "stdlib-only frontmatter + history log + deferred CLI wiring" discipline.

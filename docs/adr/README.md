@@ -128,7 +128,7 @@ Rejected options and why
 What resulted from this decision
 
 ## References
-- [ADR-NNNN](NNNN-slug.md) — short note on the relationship (supersedes / refines / depends-on / precedent)
+- `ADR-NNNN` (`NNNN-slug.md`) — short note on the relationship (supersedes / refines / depends-on / precedent)
 - External sources (papers, prior art, evidence)
 ```
 

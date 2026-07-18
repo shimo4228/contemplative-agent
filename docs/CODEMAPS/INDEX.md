@@ -110,12 +110,12 @@ As of **2026-07-18** — values are measured, never carried forward from a previ
 |--------|-------|
 | Total `.py` files | 69 (61 non-`__init__` + 8 `__init__`) |
 | LOC | ~20294 |
-| Test files | 56 (1920 tests collected) |
+| Test files | 60 (1927 tests collected) |
 | Core modules | 30 (platform-independent; incl. `llm/` package as one row) |
 | Moltbook adapter modules | 15 |
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |
-| CLI package modules | 10 (`cli/`, split from single `cli.py` per ADR-0079) |
+| CLI package modules | 9 (`cli/` excl. `__init__.py`, split from single `cli.py` per ADR-0079) |
 | CLI commands | see [moltbook-agent.md](moltbook-agent.md) CLI table or `contemplative-agent --help` |
 | Prompt templates / view seeds | canonical inventory in [CONFIGURATION.md](../CONFIGURATION.md#pipeline-prompts--view-seeds), guarded by `tests/test_packaged_assets.py` |
 | Config templates | 11 (config/templates/) |

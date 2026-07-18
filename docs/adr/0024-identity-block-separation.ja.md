@@ -139,7 +139,7 @@ parser は **stdlib のみ**（ADR-0023 の `skill_frontmatter.py` と同じ規�
 
 - Letta Persona / Human blocks — エージェントのブロック addressing な長期記憶（セッション跨ぎの persistent context）。
 - [ADR-0007](0007-security-boundary-model.md) — identity がその中に存在する信頼境界モデル。
-- [ADR-0012](0012-approval-gate.md) — `MOLTBOOK_HOME` への書き込み承認ゲート。
+- [ADR-0012](0012-human-approval-gate.md) — `MOLTBOOK_HOME` への書き込み承認ゲート。
 - [ADR-0020](0020-pivot-snapshots-for-replayability.md) — snapshot は full-text 復元の経路として残る; history log はハッシュのみ。
 - [ADR-0021](0021-pattern-schema-trust-temporal-forgetting-feedback.md) — このADRが mirror するスキーマ拡張ケイデンス。
 - [ADR-0023](0023-skill-as-memory-loop.md) — 「stdlib のみ frontmatter + history log + CLI 配線は deferred」という同じ規律を持つ sibling ADR。

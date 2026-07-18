@@ -15,7 +15,7 @@ bug: the MLX payload sent only `temperature` and dropped `top_p`/`top_k`, so at 
 `COMMENT_TEMPERATURE=1.3` the Qwen3.5-9B model degenerated into repetition loops that never emit EOS
 and ran to `num_predict`, blocking posting and driving the 16 GB host into swap. The fix extracted
 `SAMPLING_TOP_P`/`SAMPLING_TOP_K` to a single source of truth in
-[`core/llm.py`](../../src/contemplative_agent/core/llm.py) that both the built-in Ollama path and the
+[`core/llm.py` (now `core/llm/`)](../../src/contemplative_agent/core/llm/) that both the built-in Ollama path and the
 injected `MlxLmBackend` import.
 
 This ADR records the follow-up **parameter-parity audit**: a sweep of every generation parameter for

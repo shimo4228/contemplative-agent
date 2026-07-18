@@ -14,7 +14,7 @@ MLX バックエンド修正セッション（コミット `ebc227e` / `30f7e39`
 塞いだ。MLX payload が `temperature` だけ送って `top_p`/`top_k` を落としていたため、外向きの
 `COMMENT_TEMPERATURE=1.3` で Qwen3.5-9B が退行的繰り返しループに陥り、EOS を出さず `num_predict`
 上限まで暴走して投稿を妨げ、16GB ホストを swap に追い込んでいた。修正では
-[`core/llm.py`](../../src/contemplative_agent/core/llm.py) に `SAMPLING_TOP_P`/`SAMPLING_TOP_K` を
+[`core/llm.py` (now `core/llm/`)](../../src/contemplative_agent/core/llm/) に `SAMPLING_TOP_P`/`SAMPLING_TOP_K` を
 単一の出所として切り出し、組み込みの Ollama 経路と注入された `MlxLmBackend` の双方が import する形に
 した。
 

@@ -144,6 +144,6 @@ ADR-0030 produced `single-responsibility-per-artifact`. ADR-0034 added "validate
 - [ADR-0019](0019-discrete-categories-to-embedding-views.md) — embedding + view shape and original embed-backfill motivation; not retired
 - [ADR-0021](0021-pattern-schema-trust-temporal-forgetting-feedback.md) — pattern schema landing; not retired
 - [ADR-0026](0026-retire-discrete-categories.md) — category retirement; the `migrate-categories` command that delivered it retires here
-- [ADR-0028](0028-retire-pattern-level-forgetting.md) / [ADR-0029](0029-retire-sanitized-flag.md) — retired fields whose strip-on-load logic dies with `migration.py`
+- [ADR-0028](0028-retire-pattern-level-forgetting-feedback.md) / [ADR-0029](0029-retire-dormant-provenance-elements.md) — retired fields whose strip-on-load logic dies with `migration.py`
 - [ADR-0030](0030-withdraw-identity-blocks.md) — first withdrawal ADR; the `single-responsibility-per-artifact` heuristic that constrains PR3's design
 - [ADR-0034](0034-withdraw-memory-evolution-and-hybrid-retrieval.md) — most recent withdrawal precedent; the same retire-with-docs-in-one-PR pattern

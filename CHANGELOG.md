@@ -11,6 +11,10 @@ Format loosely follows [Keep a Changelog](https://keepachangelog.com/).
 ### Added
 
 - **Import-direction gate (ADR-0001 enforcement).** An `import-linter` layers contract in `pyproject.toml` machine-enforces the one-way dependency `cli -> adapters -> core`; `tests/test_architecture.py` runs it on every pytest run, so the rule no longer relies on always-loaded context alone. Initial scan of the existing codebase: 1 contract kept, 0 broken.
+- **Adapter-independence contract (ADR-0015 enforcement).** A second `import-linter` contract forbids `moltbook` / `meditation` / `dialogue` adapters from importing each other, machine-backing the one-external-adapter-per-agent separation.
+- **Documentation-integrity gates.** `tests/test_doc_links.py` verifies every relative markdown link resolves (the initial sweep found and fixed 24 broken links left behind by the ADR-0079 module reorganization, ADR renames, and the ADR-0070 retirement of MLX files) and that every ADR ships as an en/ja pair. `tests/test_doc_stats.py` recomputes the machine-checkable rows of `INDEX.md#statistics` and emits a warning-only drift report (detection is code, the update decision stays human); its first run caught four stale rows.
+- **Frozen-dataclass gate.** `tests/test_frozen_dataclasses.py` AST-scans `src/` and fails on any `@dataclass` without `frozen=True`; the only exception is an explicit reasoned allowlist (currently `_Tally`, a private accumulator in `core/metrics.py`), making the "no exceptions" immutability rule machine-readable.
+- **Ruff rule set widened to B / I / T20** (the dedicated cleanup the previous config comment deferred). Import sorting applied across 66 files; all 13 `zip()` sites now declare explicit `strict=` (`strict=True` where parallel construction is guarded, `strict=False` where truncation is the semantics — `verification_parse.py` kept behavior-frozen); `print` is banned from library code with console-UI seams (`cli/`, approval-gate TTY, dialogue stderr) explicitly exempted via per-file-ignores.
 
 ## v2.8.0 — Instrument Before Intervene: Echo-Chamber Repair, Weekly-Scale Insight, and Observability by Default (2026-07-09)
 
@@ -231,14 +235,14 @@ Net diff vs. v2.2.1: 110 files changed, +2170 / -5772 (-3602 LOC), test files 35
 
 ### Sunset (Removed)
 
-- **`core/memory_evolution.py` and BM25 hybrid retrieval ([ADR-0034](docs/adr/0034-withdraw-memory-evolution-and-bm25.md) supersedes ADR-0022).** Memory evolution pass (LLM-driven neighbor mutation) and BM25 lexical retrieval did not earn their complexity in measured runs. Embedding cosine + view centroid ranking covers the same query surface deterministically.
-- **`core/migration.py` and three migration CLI commands ([ADR-0035](docs/adr/0035-sunset-adr0019-migration-surface.md) sunsets the ADR-0019 migration surface).** `embed-backfill`, `migrate-patterns`, `migrate-categories` are removed. Recovery path for a v1.x store: check out a v2.0.x release tag and run the migration commands there before pulling main. `knowledge.json.bak.*` files are left on disk by past runs as evidence.
+- **`core/memory_evolution.py` and BM25 hybrid retrieval ([ADR-0034](docs/adr/0034-withdraw-memory-evolution-and-hybrid-retrieval.md) supersedes ADR-0022).** Memory evolution pass (LLM-driven neighbor mutation) and BM25 lexical retrieval did not earn their complexity in measured runs. Embedding cosine + view centroid ranking covers the same query surface deterministically.
+- **`core/migration.py` and three migration CLI commands ([ADR-0035](docs/adr/0035-sunset-migration-surface-and-consolidate-artifact-extraction.md) sunsets the ADR-0019 migration surface).** `embed-backfill`, `migrate-patterns`, `migrate-categories` are removed. Recovery path for a v1.x store: check out a v2.0.x release tag and run the migration commands there before pulling main. `knowledge.json.bak.*` files are left on disk by past runs as evidence.
 - **`core/skill_frontmatter.py`, `core/skill_reflect.py`, `core/skill_router.py` and skill-usage logging ([ADR-0036](docs/adr/0036-sunset-skill-as-memory-loop.md) sunsets ADR-0023 skill-as-memory loop).** The closed-loop skill-router + skill-reflect path could not produce a measurable improvement signal over the simpler insight + rules-distill pair. Existing `logs/skill-usage-*.jsonl` files are preserved as historical observation evidence; no new files are generated.
 - **`tests/test_skill_reflect.py` (165L) and `tests/test_skill_router.py` (416L)** removed alongside the modules above.
 
 ### Added
 
-- **[ADR-0035](docs/adr/0035-sunset-adr0019-migration-surface.md)** — sunset of the ADR-0019 migration surface, with three companion refactor PRs:
+- **[ADR-0035](docs/adr/0035-sunset-migration-surface-and-consolidate-artifact-extraction.md)** — sunset of the ADR-0019 migration surface, with three companion refactor PRs:
   - **PR2**: extract `core/text_utils.py` (60L — `slugify`, `extract_title`, `_strip_frontmatter`) and `core/thresholds.py` (90L — centralized retrieval/classification thresholds with ADR / calibration date / unit annotations). The promotion breaks the `stocktake → rules_distill` import edge that had existed only because `_strip_frontmatter` happened to live in `rules_distill.py`. `snapshot.collect_thresholds` now reads from `thresholds.py` so a new threshold automatically appears in pivot snapshots without a separate registration step.
   - **PR3a**: extract `core/artifact_extraction.py` (69L — shared `extract_title → slugify → path-escape guard` chain for insight / rules-distill LLM artifact bodies). Tightly scoped — the helper deliberately does not become a base class for the broader extract→validate→stage loop, since that overgeneralization (ADR-0024/0025) was withdrawn by ADR-0030.
   - **PR3b**: extract `_run_approval_loop` from `cli.py` so insight / rules-distill / amend-constitution share a single approval-loop implementation instead of three near-duplicates.
@@ -322,7 +326,7 @@ This release overhauls the Layer 2 knowledge store. The old discrete-category
 classification is retired; patterns are now stored as embedding coordinates,
 carry provenance / bitemporal validity / retrieval-aware forgetting, and
 co-evolve with their neighbors. The Yogācāra eight-consciousness model is
-adopted as the explicit architectural frame ([ADR-0017](../docs/adr/0017-yogacara-eight-consciousness-frame.md)):
+adopted as the explicit architectural frame ([ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.md)):
 episode log ↔ sense-streams, knowledge ↔ ālaya (seed storehouse), identity
 ↔ manas (self-grasping view).
 
@@ -401,7 +405,7 @@ release. Episode logs are not affected.
 
 ## Security
 
-- The "one external adapter per agent" principle ([ADR-0015](../docs/adr/0015-one-external-adapter-per-agent.md))
+- The "one external adapter per agent" principle ([ADR-0015](docs/adr/0015-one-external-adapter-per-agent.md))
   is now exercised by a dedicated 50-test coverage pass against silent
   failure paths in ADR-0020..0025.
 - Provenance + trust_score give MINJA-class attacks a structural signature

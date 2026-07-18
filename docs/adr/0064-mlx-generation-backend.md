@@ -11,7 +11,7 @@ superseded-by ADR-0070 (MLX backend retired from main, relocated to a sibling re
 ## Context
 
 The agent's default LLM transport is the built-in Ollama HTTP path in
-[`core/llm.py`](../../src/contemplative_agent/core/llm.py), which talks to a local
+[`core/llm.py` (now `core/llm/`)](../../src/contemplative_agent/core/llm/), which talks to a local
 Ollama daemon (`/api/generate` for text, `/api/embed` for embeddings). On the
 maintainer's primary host — an M1 Mac with 16 GB of unified memory — the production
 model `qwen3.5:9b` (Q4_K_M, 6.6 GB on disk, ~8.6 GB resident with KV cache) routinely
