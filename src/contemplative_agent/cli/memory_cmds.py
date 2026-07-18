@@ -87,7 +87,7 @@ def _load_view_registry(
 ) -> "ViewRegistry":
     """Load the view registry, preferring user-customised views.
 
-    Passes ``${config.CONSTITUTION_DIR}`` to seed_from resolution so views can
+    Passes ``${CONSTITUTION_DIR}`` to seed_from resolution so views can
     inject live constitution content (honours ``--constitution-dir``).
     """
     from ..core.views import ViewRegistry
@@ -97,7 +97,12 @@ def _load_view_registry(
     ) or config.CONSTITUTION_DIR
     registry = ViewRegistry(
         views_dir=_resolve_views_dir(),
-        path_vars={"config.CONSTITUTION_DIR": constitution_dir},
+        # The KEY is the ``${CONSTITUTION_DIR}`` placeholder name used inside
+        # view files' seed_from — it is a template variable, not a Python
+        # reference, and must stay exactly "CONSTITUTION_DIR" (codex P1,
+        # ADR-0079 Phase 4: a mechanical rename here silently falls back to
+        # the generic seed for every CLI-loaded registry).
+        path_vars={"CONSTITUTION_DIR": constitution_dir},
     )
     registry.load_views()
     return registry

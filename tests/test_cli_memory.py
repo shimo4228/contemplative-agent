@@ -154,3 +154,33 @@ class TestInsightStagePathADR0074:
         assert (skills_dir / ".last_insight").exists()
         assert not ledger.exists()
         assert not any(staged_dir.glob("*.md")) if staged_dir.exists() else True
+
+
+class TestLoadViewRegistryPlaceholderKey:
+    """Regression (codex P1, ADR-0079 Phase 4): _load_view_registry must pass
+    path_vars keyed by the literal placeholder name ``CONSTITUTION_DIR`` — the
+    key is a ``${VAR}`` template variable inside view files, not a Python
+    reference. A mechanical rename of the key (e.g. to "config.CONSTITUTION_DIR")
+    leaves every ``seed_from: ${CONSTITUTION_DIR}/*.md`` unresolved and the
+    registry silently falls back to the generic seed body."""
+
+    def test_constitution_placeholder_resolves_to_live_seed(self, tmp_path):
+        from contemplative_agent.cli import memory_cmds
+
+        const_dir = tmp_path / "constitution"
+        const_dir.mkdir()
+        (const_dir / "clause.md").write_text("LIVE CONSTITUTION CLAUSE", encoding="utf-8")
+        views_dir = tmp_path / "views"
+        views_dir.mkdir()
+        (views_dir / "constitutional.md").write_text(
+            "---\nseed_from: ${CONSTITUTION_DIR}/*.md\n---\n\nfallback body\n",
+            encoding="utf-8",
+        )
+        with (
+            patch("contemplative_agent.cli.memory_cmds._resolve_views_dir", return_value=views_dir),
+            patch("contemplative_agent.adapters.moltbook.config.CONSTITUTION_DIR", const_dir),
+        ):
+            registry = memory_cmds._load_view_registry(args=None)
+        view = registry.get("constitutional")
+        assert view is not None
+        assert view.seed_text == "LIVE CONSTITUTION CLAUSE"  # not the fallback body
