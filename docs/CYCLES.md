@@ -1,9 +1,9 @@
 <!--
 FRESHNESS
   generated: 2026-07-19
-  source-commit: 7e3a742
-  method: hand-authored from graph.jsonld (concept layer) + launchd plists + weekly/daily driver scripts + sibling-repo DOIs
-  refresh: re-verify the master table rows against live assets (see "Sources & verification" at the bottom) after any change to schedules, pipelines, or the research-program repo set
+  source-commit: d390227
+  method: hand-authored from graph.jsonld (concept layer) + launchd plists + weekly/daily driver scripts + harness role contracts + sibling-repo DOIs
+  refresh: re-verify the master table rows and operating model against live assets (see "Sources & verification" at the bottom) after any change to schedules, pipelines, orchestration contracts, or the research-program repo set
 -->
 
 # Driving Cycles — Contemplative Agent Research Program
@@ -29,19 +29,54 @@ only decides *where panes run*; the shared context lives in the repos.
 
 ---
 
+## Operating model — persistent contracts, replaceable workers
+
+Two different agent layers must not be conflated:
+
+- The **runtime agent** is the Contemplative Agent product: it operates in Cycle #3, metabolizes
+  experience into knowledge and value-layer candidates in Cycle #4, and becomes the subject of
+  observation and diagnosis in Cycle #5.
+- The **program workers** are the Claude Code / Codex sessions and scheduled scripts that operate
+  the research program. A worker is replaceable: it may start with a fresh context, run one bounded
+  role, write or review an artifact, and exit.
+
+Program-level continuity therefore belongs to contracts and artifacts, not to a named worker's
+private persona or conversation memory:
+
+| Persistent concern | Canonical home | Operating consequence |
+|---|---|---|
+| Role identity | `CLAUDE.md`, rules, skills, and agent definitions | A different session or engine can perform the same role without redefining it |
+| Compounding memory | reports, ADRs, CODEMAPS, task ledgers, and audit records | Later workers inherit durable artifacts rather than another worker's private recollection |
+| Coordination | explicit input/output artifacts between cycles | The handoff survives the session that produced it |
+| Review independence | author/reviewer separation in the development, writing, and paper chains | Review runs in a separate context; high-stakes paths add cross-model review where specified |
+| Authority | the human promotion edges below | Workers propose, diagnose, implement, and review; a human promotes durable changes |
+
+Cycle #5 is the clearest example. The scheduled weekly-analysis session produces the observation-only
+A–E report. A **separate session**, governed by the `weekly-report-diagnosis` skill, reads that report
+alongside the codebase, ADRs, current value layers, and task ledger to produce F1/F2/F3 findings. The
+human then decides whether any finding is promoted to an ADR, task, or code change. Report author,
+diagnostician, and promoter are three distinct responsibilities even though no long-lived named agent
+is created for them.
+
+This model deliberately keeps execution identity lightweight. A session's useful result compounds
+only after it lands in the appropriate shared artifact; the session itself is not an additional
+source of truth.
+
+---
+
 ## Master table
 
-| # | Cycle | Cadence / trigger | Automated leg | Human gate (promotion edge) | Main artifacts | Home |
+| # | Cycle | Cadence / trigger | Agent / automated leg | Human gate (promotion edge) | Main artifacts | Home |
 |---|---|---|---|---|---|---|
-| 1 | **Research intake** | daily 05:00 — `com.shimomoto.daily-research` | source discovery → Vault notes + graph | wiki `/ingest`; harvest candidate → ADR / graph / code | `daily-research/` notes, `wiki/concept/` | sibling repo `daily-research/` |
+| 1 | **Research intake** | daily 05:00 — `com.shimomoto.daily-research` | source discovery → Vault notes + graph | surfaced candidate (e.g. via `wiki-harvest`) → ADR / graph / code | `daily-research/` notes, `wiki/concept/` | sibling repo `daily-research/` |
 | 2 | **Wiki refresh** | weekly Mon 09:00 — `com.shimo.wiki-refresh` | wiki maintenance / re-synthesis | — | Obsidian Vault `wiki/` | Vault |
 | 3 | **Product operation** | every 6h, 00/06/12/18 JST — `com.moltbook.agent` | live sessions → episode logs / comment-reports | — | `logs/`, `reports/comment-reports/` | CA runtime (`MOLTBOOK_HOME`) |
 | 4 | **Product metabolism (AKC)** | distill daily; insight weekly (staged) — `com.moltbook.distill` / `.insight` | Extract (distill) / Curate (insight) | `adopt-staged` (approval gate, ADR-0012) | `knowledge.json`, identity / skills / rules | CA + data repo |
-| 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-analysis` | report A–E (observation only) | diagnosis (manual) → F1/F2/F3 → ADR / `.notes/TASKS.md` / code | `reports/analysis/weekly-*.md`, `-findings.md` | CA |
+| 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-analysis` | report session → A–E; separate diagnosis session → F1/F2/F3 | promote findings → ADR / `.notes/TASKS.md` / code | `reports/analysis/weekly-*.md`, `-findings.md` | CA |
 | 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | pre-commit diff approval | code, tests, ADR, CODEMAPS | CA |
-| 7 | **Crystallization → papers** | on demand | essays → position-paper drafting | deposit (human) | position papers (DOI-registered) — index in [hub](https://github.com/shimo4228/shimo4228#papers) | AKC / AAP repos |
-| 8 | **Diffusion (publishing)** | on demand | collect-context → article-writing → ja-to-en → substack | publish (human) | Zenn (ja) / Dev.to (en) / Substack essays | `zenn-content/` |
-| 9 | **Machine-reference-sphere optimization** | periodic / on demand | gap-review / citation-sync / release-doi / hf-sync / `com.moltbook.sync-data` | deposit / DOI minting approval | DOI, SWHID, HF mirrors, graph citation edges | all repos |
+| 7 | **Crystallization → papers** | on demand | essays → position-paper drafting → independent parallel review → citation gate | deposit (human) | position papers (DOI-registered) — index in [hub](https://github.com/shimo4228/shimo4228#papers) | AKC / AAP repos |
+| 8 | **Diffusion (publishing)** | on demand | collect-context → article-writing → editor / reviewer / fact-check → ja-to-en → substack | publish (human) | Zenn (ja) / Dev.to (en) / Substack essays | `zenn-content/` |
+| 9 | **Machine-reference-sphere optimization** | periodic / on demand | citation-sync / release-doi / hf-sync / `com.moltbook.sync-data` | deposit / DOI minting approval | DOI, SWHID, HF mirrors, graph citation edges | all repos |
 
 ---
 
@@ -86,9 +121,11 @@ research-intake pass (LLM-mediated).
 
 ## Human gates = the promotion edges
 
-Everything up to the raw artifact is automated; a human owns each of these promotions:
+Automated and on-demand agent legs produce and review the candidate artifacts; a human owns each of
+these promotions:
 
-- **#1** wiki-harvest ledger candidate → `docs/adr/`, `graph.jsonld`, `glossary.md`, or code
+- **#1** research candidate (including a `wiki-harvest` ledger candidate) → `docs/adr/`,
+  `graph.jsonld`, `glossary.md`, or code
 - **#4** staged insight → identity / skills / rules / constitution (`adopt-staged`, ADR-0012)
 - **#5** weekly F1/F2/F3 findings → ADR / `.notes/TASKS.md` / code change
 - **#6** implemented diff → commit (after the Verify gate)
@@ -111,7 +148,9 @@ The cycles cohere because they read and write a common, layered context:
 - **CODEMAPS** (file layer) + **`docs/adr/`** (decision layer) + **CLAUDE.md / rules** (routing layer).
 
 Any working session — in whatever pane it runs — picks up its domain's context from these files.
-That routing layer, not a third-party workspace product, is what makes separate sessions a team.
+The session's private context is disposable and never authoritative: a conclusion that must survive
+is written to the artifact layer appropriate to its role. That routing and artifact layer, not a
+third-party workspace product, is what makes separate sessions a team.
 
 ---
 
@@ -128,20 +167,23 @@ Cycle #7 deposits into that index; Cycle #9 keeps the pointers in sync.
 
 ---
 
-## Known asymmetry (recorded, not yet acted on)
+## Intake → development landing modes
 
-The two **intake → dev** loops are wired unevenly:
+The two intake paths close their loops with different degrees of procedural specificity:
 
-- **Cycle #5 (weekly reflection → dev) is fully wired**: automated report → manual diagnosis →
-  human promotion, with a visible trail in ADRs (e.g. ADR-0040 created the diagnosis skill; several
-  later ADRs cite a specific weekly report as their trigger — grep `docs/adr/` for `weekly` to
-  regenerate the current list rather than freezing it here).
-- **Cycle #1's repo-promotion edge is not yet formalized for Contemplative Agent**: this repo's
-  `CLAUDE.md` has no "Research Wiki Consultation" section, so `wiki-harvest` cannot resolve this
-  repo's owned concept pages and falls back to a backfill signal. The daily-research heartbeat runs,
-  but its landing edge into CA is informal.
+- **Cycle #5 (weekly reflection → dev) has a fixed chain**: automated A–E report → separate-session
+  diagnosis via `weekly-report-diagnosis` → human promotion, with a visible trail in ADRs (e.g.
+  ADR-0040 created the diagnosis skill; several later ADRs cite a specific weekly report as their
+  trigger — grep `docs/adr/` for `weekly` to regenerate the current list rather than freezing it
+  here).
+- **Cycle #1 (research intake → dev) is intentionally method-flexible**. `wiki-harvest` already
+  provides one structured route from the read-only research wiki to a repo-local candidate ledger,
+  but it is not the required or exclusive route. Direct consultation of the wiki, primary-source
+  reading, or another research workflow may surface the same kind of candidate. The invariant is
+  the landing discipline: trace the claim to a primary source, name a concrete repo destination,
+  and leave promotion into ADR / graph / code to the human gate.
 
-This map records the asymmetry; deciding whether/how to close it is a separate step.
+The fixed part is the evidence and promotion contract, not the tool used to surface a candidate.
 
 ---
 
@@ -152,6 +194,8 @@ Each master-table row corresponds to a live asset. To re-verify after changes:
 - Schedules: `ls ~/Library/LaunchAgents/com.*` and `config/launchd/*.plist`
 - Cycle #5 driver: `scripts/weekly-analysis.sh`, `config/prompts/weekly-analysis.md`,
   `.claude/skills/weekly-report-diagnosis/SKILL.md`; outputs in `~/.config/moltbook/reports/analysis/`
+- Program-worker role and review contracts: `~/.claude/rules/common/agents.md`,
+  `~/.claude/rules/common/planning.md`, and the `writing-ecosystem` / `paper-ecosystem` skills
 - Cycle #1 driver: `daily-research/scripts/daily-research.sh`; consumers
   `~/.claude/skills/wiki-harvest/`, `~/.claude/skills/wiki-query/`
 - Papers / DOIs (canonical index): [hub `## Papers`](https://github.com/shimo4228/shimo4228#papers); per-repo `CITATION.cff` + `.zenodo.json`
