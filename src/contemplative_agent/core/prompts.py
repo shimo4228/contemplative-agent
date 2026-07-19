@@ -51,7 +51,6 @@ class _LazyPrompts:
         "STOCKTAKE_CLEAN_SYSTEM_PROMPT": "stocktake_clean_system",
         "DIALOGUE_PROMPT": "dialogue",
         "VERIFICATION_SOLVE_EXTRACT_SYSTEM_PROMPT": "verification_solve_extract_system",
-        "VERIFICATION_SOLVE_REASON_SYSTEM_PROMPT": "verification_solve_reason_system",
         "LEARNED_SKILLS_FRAMING_PROMPT": "learned_skills_framing",
         "LEARNED_RULES_FRAMING_PROMPT": "learned_rules_framing",
         "SKILL_SELECTION_PROMPT": "skill_selection",

@@ -143,6 +143,25 @@ mtime キャッシュは無効化され続けていた）。検証: 1272 challen
 solver 順序、audit テレメトリ、出力の信頼境界は不変 — 第 3 amendment の前例に従い機構 amendment
 とする。
 
+2026-07-20 第9 amendment: 自由推論フォールバック（`llm_reason`）を退役。`code_parse` と guarded な
+`llm_extract` を過ぎたら、solver は推測せず理由コード付きで abstain する。過去の機構 amendment と
+異なり、本 amendment は **solver 順序を変更する**: チェーンは code_parse → llm_extract → abstain に
+なる。証拠（T-VER6 再計測、round-7 運用 10 日 / 921 レコード）: `llm_reason` はトラフィックの 2.3%
+（21 件、毎日 1〜5 件で流入は枯れていない）を verify 成功率 38%（8/21）で処理 — コイントス未満の
+推測で、8 件の成功のために誤答 13 件を送信（全誤答の 25% を占めて全成功の 0.9% を得る）し、
+rejected-answer メモリと platform から見える誤答 footprint を膨らませていた。一方 `code_parse` は
+98.8%（734/743、シェア 80.7%）、`llm_extract` は 81.4%（127/156、round 6 の 63.2% から改善）で、
+guarded 経路が負荷を担えている。機構: guarded 経路がいずれも提出可能な答えを出さない場合、solver は
+`abstain_reason="reason_fallback_disabled"` を返す（候補は出たが全て rejected の場合は従来通り
+`answer_previously_rejected` — 2 つのコードは別の読みに使う）。理由は不変の agent 配線経由で audit
+ログの既存 `error` 列に乗り、abstain は従来通り failure tracker に数えられるため、challenge 文法の
+持続的 drift は推測で踏み抜かれず loud にセッションを停止させる。退役機構は同一変更で撤去
+（推論 system プロンプト `config/prompts/verification_solve_reason_system.md` + `PromptTemplates`
+フィールドとコード内デフォルト、FINAL 行自己整合性ガード、5000 トークン推論予算。本 amendment の
+commit の git revert で復元可能）。復活基準（予約）: `reason_fallback_disabled` の日次件数が高止まり
+し `llm_extract` の改善で吸収できない場合、last resort は再計算ゲート付き guarded 経路として再設計
+する — 自由形式の推測は復活させない（台帳 T-VER-ABSTAIN で追跡、約 2 週間後に読む）。
+
 ## Date
 
 2026-06-26

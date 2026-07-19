@@ -33,7 +33,7 @@ def _make_clean_memory(tmp_path: Path) -> MemoryStore:
 def _solve_result(answer: str | None = "15.00") -> VerificationSolveResult:
     return VerificationSolveResult(
         answer=answer,
-        solver_path="llm_reason" if answer is not None else "none",
+        solver_path="llm_extract" if answer is not None else "none",
         challenge_sha256="challenge-sha",
     )
 
@@ -650,6 +650,30 @@ class TestHandleVerification:
         assert result is False
         assert tracker.should_stop is True  # the unsolved challenge was recorded
         mock_audit.assert_called_once()
+
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge_result",
+        return_value=VerificationSolveResult(
+            answer=None,
+            solver_path="none",
+            challenge_sha256="challenge-sha",
+            abstain_reason="reason_fallback_disabled",
+        ),
+    )
+    def test_abstain_reason_reaches_audit_error(self, mock_solve, mock_audit):
+        # ADR-0062 9th amendment: the retired-fallback abstain code is the
+        # revival/confirmation reading for T-VER-ABSTAIN, so it must land in
+        # the audit log's error column verbatim.
+        tracker = VerificationTracker(max_failures=1)
+        agent, _, _ = _make_agent(verification=tracker)
+
+        result = agent._handle_verification(
+            {"challenge_text": "test", "verification_code": "moltbook_verify_v1"}
+        )
+        assert result is False
+        mock_audit.assert_called_once()
+        assert mock_audit.call_args.kwargs["error"] == "reason_fallback_disabled"
 
     @patch("contemplative_agent.adapters.moltbook.agent.submit_verification")
     @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
@@ -1305,7 +1329,10 @@ class TestRunPostCycle:
         client.post.assert_called_once()
         assert any("Posted: Notes on dedup gates" in a for a in agent._ctx.actions_taken)
 
-    @patch("contemplative_agent.adapters.moltbook.verification.generate", return_value="15")
+    @patch(
+        "contemplative_agent.adapters.moltbook.verification.generate",
+        return_value="EXPR: 20 - 5\nFINAL: 15.00",
+    )
     @patch(
         "contemplative_agent.adapters.moltbook.post_pipeline.select_submolt",
         return_value="philosophy",

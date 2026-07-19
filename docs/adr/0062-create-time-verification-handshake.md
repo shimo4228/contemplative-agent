@@ -219,6 +219,36 @@ scores WRONG 5 — round 8 eliminates all five with net positive coverage
 fixtures. Solver order, audit telemetry, and output trust boundary
 unchanged — a mechanism amendment, per the third amendment's precedent.
 
+Ninth amendment 2026-07-20: the free-reasoning fallback (`llm_reason`) is
+retired; past `code_parse` and the guarded `llm_extract` path the solver
+now abstains with a reason code instead of guessing. Unlike the prior
+mechanism amendments this one DOES change the solver order: the chain is
+now code_parse → llm_extract → abstain. Evidence (T-VER6 re-measurement,
+10 days of round-7 operation, 921 records): `llm_reason` carried 2.3% of
+traffic (21 records, a steady 1-5/day — the inflow is not drying up) at
+38% verify success (8/21), i.e. sub-coin-flip guessing that submitted 13
+wrong answers to earn 8 successes — 25% of all wrong submissions (13/52)
+for 0.9% of all successes, feeding the rejected-answer memory and the
+platform-visible wrong-answer footprint. Meanwhile `code_parse` reached
+98.8% (734/743, 80.7% share) and `llm_extract` 81.4% (127/156, up from
+63.2% under round 6), so the guarded paths carry the load. Mechanics: when
+neither guarded path produces a submittable answer the solver returns
+`abstain_reason="reason_fallback_disabled"` (a produced-but-rejected
+candidate still reports `answer_previously_rejected` — the two codes feed
+different readings); the reason lands in the audit log's existing `error`
+column via the unchanged agent wiring, and the abstain still counts toward
+the failure tracker, so sustained challenge-grammar drift halts the
+session loudly instead of being guessed through. The retired machinery is
+removed in the same change (reasoning system prompt
+`config/prompts/verification_solve_reason_system.md` + its
+`PromptTemplates` field and in-code default, the FINAL-line
+self-consistency guard, the 5000-token reasoning budget; recoverable via
+git revert of this amendment's commit). Revival criterion, reserved: if
+the daily `reason_fallback_disabled` count stays material and `llm_extract`
+improvements do not absorb it, re-design the last resort as a
+recompute-gated guarded path — free-form guessing does not come back
+(tracked as T-VER-ABSTAIN in the task ledger, read after ~2 weeks).
+
 ## Date
 
 2026-06-26

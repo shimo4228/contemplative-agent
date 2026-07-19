@@ -98,7 +98,6 @@ class TestLoadPromptTemplates:
         assert "{submolt_list}" in templates.submolt_selection
         assert "{episode}" in templates.distill_episode
         assert "EXPR:" in templates.verification_solve_extract_system
-        assert "FINAL:" in templates.verification_solve_reason_system
 
     def test_directory_not_found(self, tmp_path):
         with pytest.raises(FileNotFoundError):
@@ -170,9 +169,7 @@ class TestHomePromptOverride:
         home = tmp_path / "home"
         prompts = home / "prompts"
         prompts.mkdir(parents=True)
-        (prompts / "distill_episode.md").write_text(
-            "HOME VERSION — {episode}", encoding="utf-8"
-        )
+        (prompts / "distill_episode.md").write_text("HOME VERSION — {episode}", encoding="utf-8")
         monkeypatch.setenv("MOLTBOOK_HOME", str(home))
 
         # Point at the packaged directory explicitly; home layer should
@@ -288,6 +285,7 @@ class TestConfigDirOverride:
         import importlib
 
         import contemplative_agent.core.domain as domain_mod
+
         importlib.reload(domain_mod)
         try:
             assert domain_mod.DEFAULT_CONFIG_DIR == tmp_path
@@ -331,8 +329,7 @@ class TestUnknownKeyWarningH7:
             "description": "Test domain",
             "submolts": submolts or {"subscribed": ["a"], "default": "a"},
             "thresholds": (
-                thresholds if thresholds is not None
-                else {"relevance": 0.9, "known_agent": 0.6}
+                thresholds if thresholds is not None else {"relevance": 0.9, "known_agent": 0.6}
             ),
         }
         path = tmp_path / "domain.json"
@@ -341,28 +338,20 @@ class TestUnknownKeyWarningH7:
 
     def test_typo_threshold_key_warns(self, tmp_path, caplog):
         path = self._write_config(tmp_path, thresholds={"relevence": 0.95})
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.domain"
-        ):
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.domain"):
             config = load_domain_config(path)
         assert "relevence" in caplog.text
         # The typo'd override is dropped — packaged default remains.
         assert config.relevance_threshold == 0.82
 
     def test_typo_submolt_key_warns(self, tmp_path, caplog):
-        path = self._write_config(
-            tmp_path, submolts={"subscribed": ["a"], "defualt": "b"}
-        )
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.domain"
-        ):
+        path = self._write_config(tmp_path, submolts={"subscribed": ["a"], "defualt": "b"})
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.domain"):
             load_domain_config(path)
         assert "defualt" in caplog.text
 
     def test_valid_keys_do_not_warn(self, tmp_path, caplog):
         path = self._write_config(tmp_path)
-        with caplog.at_level(
-            logging.WARNING, logger="contemplative_agent.core.domain"
-        ):
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.domain"):
             load_domain_config(path)
         assert "unknown key" not in caplog.text

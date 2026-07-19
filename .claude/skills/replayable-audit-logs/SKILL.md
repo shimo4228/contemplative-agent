@@ -29,9 +29,9 @@ Design the record so the run can be **replayed offline**, not merely read:
       text: a raw log read must not become a prompt-injection path. Bound the
       stored size (`challenge_truncated`-style flag when cut).
 - [ ] **Decision path** — which branch/tier handled it (e.g. `solver_path:
-      code_parse | llm_extract | llm_reason | none`).
+      code_parse | llm_extract | none`).
 - [ ] **Reason codes, categorical** — every abstain / fallback / failure gets a
-      machine-groupable code (`abstain_reason: reasoning_self_inconsistent`),
+      machine-groupable code (`abstain_reason: reason_fallback_disabled`),
       not prose. **A silent fallback is a defect**, not a style choice.
 - [ ] **Outcome** — what happened downstream (`verify_success`), plus a
       sanitized error (`strip_to_printable`, length-capped).

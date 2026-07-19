@@ -131,15 +131,15 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │      "sum" / "add them" instruction, and abstains (None) on any ambiguity,
  │      including corpus-attested contradictions ("slows" vs "combined", bare
  │      "it has N") (replay: coverage 83.2%, zero wrong submissions); only
- │      then does it ask the LLM for a short numeric expression, validate it in
- │      Python, and fall back to bounded LLM reasoning if the guarded expression
- │      fails (solver order: code_parse → llm_extract → llm_reason). The bounded
- │      reasoning fallback also self-checks: any line in its free-form trace that
- │      reduces to a two-operand expression is recomputed and compared to the
- │      stated FINAL, rejecting to None on disagreement rather than submitting a
- │      self-inconsistent answer (does not catch a self-consistent but
- │      semantically wrong operator choice — the same limit code_parse's guard
- │      note already documents for llm_extract)
+ │      then does it ask the LLM for a short numeric expression and validate it
+ │      in Python (solver order: code_parse → llm_extract → abstain, ADR-0062
+ │      9th amendment — the free-reasoning fallback was retired after the
+ │      round-7 audit measured it at 2.3% of traffic with 38% verify success;
+ │      past the guarded paths the solver abstains with
+ │      abstain_reason=reason_fallback_disabled, or answer_previously_rejected
+ │      when every produced candidate was already server-rejected, and the
+ │      abstain still counts toward the failure tracker so grammar drift halts
+ │      the session loudly instead of being guessed through)
  │      → POST /verify. Content stays verification_status=pending (invisible)
  │      until verified, so memory/NoveltyGate recording happens ONLY after
  │      success (posts, comments, replies). Each challenge outcome is also

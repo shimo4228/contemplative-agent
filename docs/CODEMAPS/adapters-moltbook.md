@@ -17,7 +17,7 @@ Platform-specific implementations. Dependency: adapters → core.
 | `post_pipeline.py` | 483 | feed-seeder → NoveltyGate → test-content gate → body-hash gate → post |
 | `client.py` | 844 | HTTP client (auth, domain lock, retry/429-backoff). No `has_budget`/`unsubscribe_submolt`/`mark_all_notifications_read`/`update_profile`/PATCH — removed. |
 | `auth.py` | ~106 | Credential management, agent registration |
-| `verification.py` | 700 | Obfuscated math challenge solver chain (code_parse → LLM), reasoning-path arithmetic self-consistency guard, challenge audit logging, failure tracking, auto-stop |
+| `verification.py` | 552 | Obfuscated math challenge solver chain (code_parse → guarded llm_extract → abstain, ADR-0062 9th amendment), rejected-answer memory, challenge audit logging, failure tracking, auto-stop |
 | `verification_parse.py` | 1132 | Deterministic parser for the finite CAPTCHA grammar (`code_parse_challenge`); precision-first, abstains to None |
 | `content.py` | ~81 | Rules-based content, dedup, axiom intro injection |
 | `llm_functions.py` | 361 | Moltbook-specific LLM (select_submolt, context builders) |
@@ -101,17 +101,18 @@ Domain lock (`www.moltbook.com`), `allow_redirects=False`, 429 backoff (cap 300s
 ## Verification (verification.py)
 
 Obfuscated math solver (solver order: `code_parse` → `llm_extract` →
-`llm_reason`). `solve_challenge()` wraps the challenge as untrusted and first
+abstain; the free-reasoning fallback was retired by ADR-0062's 9th
+amendment — round-7 audit measured it at 2.3% of traffic with 38% verify
+success). `solve_challenge()` wraps the challenge as untrusted and first
 runs `code_parse_challenge()` (in `verification_parse.py`), a deterministic
 parser for the finite CAPTCHA grammar that owns the arithmetic and number-word
 reconstruction via whole-token fragment matching and abstains (`None`) on any
 ambiguity. Only on abstention does it try a short LLM-produced `EXPR`/`FINAL`
-pair, accepted only when Python recomputes the same two-decimal answer, then
-falls back to bounded LLM reasoning when guarded extraction fails; the
-reasoning fallback's own free-form trace is likewise scanned for a two-operand
-expression line and rejected (`None`) if its recomputed value disagrees with
-the stated `FINAL`, via `_reasoning_answer_is_self_consistent()`.
-`solve_challenge_result()` also returns `solver_path` for audit/eval use. `record_verification_audit()` writes
+pair, accepted only when Python recomputes the same two-decimal answer. When
+neither guarded path produces a submittable answer the solver abstains with
+`abstain_reason="reason_fallback_disabled"` (or `answer_previously_rejected`
+when every produced candidate was already server-rejected) instead of
+guessing. `solve_challenge_result()` also returns `solver_path` for audit/eval use. `record_verification_audit()` writes
 `logs/verification-audit.jsonl` with `challenge_b64`, `challenge_sha256`,
 hashed `verification_code`, answer, `solver_path`, and `/verify` success; the
 challenge is not written as raw prompt text. 7 consecutive failures →

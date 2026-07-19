@@ -78,7 +78,6 @@ class PromptTemplates:
     stocktake_clean_system: str = ""
     dialogue: str = ""
     verification_solve_extract_system: str = ""
-    verification_solve_reason_system: str = ""
     learned_skills_framing: str = ""
     learned_rules_framing: str = ""
     skill_selection: str = ""
@@ -289,9 +288,6 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         dialogue=read("dialogue.md", required=False),
         verification_solve_extract_system=read(
             "verification_solve_extract_system.md", required=False
-        ),
-        verification_solve_reason_system=read(
-            "verification_solve_reason_system.md", required=False
         ),
         learned_skills_framing=read("learned_skills_framing.md", required=False),
         learned_rules_framing=read("learned_rules_framing.md", required=False),

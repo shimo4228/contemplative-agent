@@ -104,13 +104,13 @@ Package versions, external services, optional add-ons.
 
 ## Statistics
 
-As of **2026-07-18** — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
+As of **2026-07-20** — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
 
 | Metric | Value |
 |--------|-------|
 | Total `.py` files | 69 (61 non-`__init__` + 8 `__init__`) |
-| LOC | ~20294 |
-| Test files | 60 (1927 tests collected) |
+| LOC | ~20128 |
+| Test files | 60 (1917 tests collected) |
 | Core modules | 30 (platform-independent; incl. `llm/` package as one row) |
 | Moltbook adapter modules | 15 |
 | Meditation adapter modules | 4 |
