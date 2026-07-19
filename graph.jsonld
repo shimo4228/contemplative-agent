@@ -2216,6 +2216,25 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0080-north-star-layered-end-state.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0080: North Star — Per-Layer End-State Definition, Not a Capability Target",
+      "identifier": "ADR-0080",
+      "status": "accepted",
+      "datePublished": "2026-07-20",
+      "description": "Worldview ADR fixing the program's north star as per-layer completion conditions rather than a capability target. Mechanism layer (code): done = the layer stops moving — changes become repair-only; the ADR-0071/0075/0077 instrument/audit/chaos-TDD line is read as convergence toward 'trustworthy enough not to touch'. Value layer (identity/constitution/skills/rules): no destination by design — the desirable state is that legible evolution continues, with every change traceable in the records and explicable offline (observation-over-steering, ADR-0050/0051/0052). Research layer: done = the founding questions (does a contemplative constitution shape small-local-model behavior; does distillation compound; does identity stay stable) are answered either way and crystallized into papers diffused into the machine-reference sphere, where derivation by others and by LLMs is the success criterion. Security layer: done = absence preserved — one external adapter, no permission growth; this layer succeeds by not changing. Ending design: the 6-hour heartbeat stops when the read-only instruments show metabolic steady state and the remaining questions require a different experiment (e.g. a second agent for framework/worldview separation); the final deliverable is the longitudinal record (contemplative-agent-data plus the papers), not the agent instance. Owner's explicit clause: quality benchmarks may be derived from this definition as per-layer gates, but the definition itself is a value-layer statement not reducible to any benchmark suite (Goodhart guard). One-sentence summary: the desired end state is a finished observation instrument on which only the value layers keep moving — the durable artifact is the record of the run, not the runner.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0002-paper-faithful-ccai.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0017-yogacara-eight-consciousness-frame.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0050-epistemic-taxonomy-and-approval-lineage.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0015-one-external-adapter-per-agent.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",

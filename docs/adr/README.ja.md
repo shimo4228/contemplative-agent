@@ -85,6 +85,7 @@
 | [0077](0077-chaos-tdd-fault-injection.ja.md) | Chaos-TDD Fault Injection — seed 固定 fault schedule をテストファーストの仕様にする（パイロット: distill） | accepted | 2026-07-13 |
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.ja.md) | 語彙 mapping とオフライン export による OTel 接続 — runtime 導入はしない | accepted | 2026-07-16 |
 | [0079](0079-module-reorganization-package-splits.ja.md) | モジュール再編 — package 分割・恒久 facade・サイズ上限の文書化された例外 | accepted | 2026-07-18 |
+| [0080](0080-north-star-layered-end-state.ja.md) | North Star — 層別の最終状態定義（能力目標にしない） | accepted | 2026-07-20 |
 
 ## ADR の種別
 

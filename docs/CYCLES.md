@@ -1,8 +1,8 @@
 <!--
 FRESHNESS
-  generated: 2026-07-19
-  source-commit: d390227
-  method: hand-authored from graph.jsonld (concept layer) + launchd plists + weekly/daily driver scripts + harness role contracts + sibling-repo DOIs
+  generated: 2026-07-20
+  source-commit: 33e24c4
+  method: hand-authored from graph.jsonld (concept layer) + launchd plists + weekly/daily driver scripts + harness role contracts + sibling-repo DOIs; north-star section points to ADR-0080 (canonical)
   refresh: re-verify the master table rows and operating model against live assets (see "Sources & verification" at the bottom) after any change to schedules, pipelines, orchestration contracts, or the research-program repo set
 -->
 
@@ -61,6 +61,26 @@ is created for them.
 This model deliberately keeps execution identity lightweight. A session's useful result compounds
 only after it lands in the appropriate shared artifact; the session itself is not an additional
 source of truth.
+
+---
+
+## North star — what "done" means per layer
+
+The program's desired end state is defined **per layer, as completion conditions — not as a
+capability target** (canonical: [ADR-0080](adr/0080-north-star-layered-end-state.md); this section
+only points there):
+
+- **Mechanism layer (code)** — done = it stops moving; changes become repair-only
+- **Value layer** (identity / constitution / skills / rules) — no destination; done = legible
+  evolution continues, every change traceable and explicable offline
+- **Research layer** — done = the founding questions answered and crystallized into papers,
+  diffused into the machine-reference sphere (derivation = success)
+- **Security layer** — done = absence preserved (succeeds by not changing)
+- **Ending design** — a designed termination of the heartbeat; the final deliverable is the
+  longitudinal record (dataset + papers), not the agent instance
+
+Benchmarks may be derived from this definition as per-layer gates, but the definition itself is
+not reducible to any benchmark suite (ADR-0080's benchmark non-reducibility clause).
 
 ---
 
