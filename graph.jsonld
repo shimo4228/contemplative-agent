@@ -2235,6 +2235,22 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0081-skill-selection-two-pass-injection-enforcement.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0081: Skill-Selection Two-Pass Injection Enforcement",
+      "identifier": "ADR-0081",
+      "status": "accepted",
+      "datePublished": "2026-07-24",
+      "description": "Enforces the ADR-0076 shadow skill selection as two-pass injection on the three observed generation paths (comment / reply / cooperation post): pass 1 = the existing selector call, pass 2 = generation with only the selected skill bodies in the <learned_skills> block (learned rules unchanged; post_title reuses cooperation_post's selection). Decided on the 2026-07-24 first reading of 14 days / 7,930 shadow records, which supported migration on all four ADR-0076 criteria: hallucination 0.5% of judged with zero propagation, fail-open 0% in normal operation (all 6,631 fail_open_llm records traced to a single 2026-07-12 circuit-breaker-open incident during which publish paths proceeded untouched), all 19 skills selected with day-level stability, would-be token reduction p50 78.9% / p90 86.5% (≈15.9K tok/action). Fail-open under enforcement falls back to full-corpus injection; a judged-but-empty selection injects nothing (a judgment, not a failure). Rollout is flag-gated (MOLTBOOK_SKILL_SELECTION_ENFORCE=1, default off) with an attended smoke run before the launchd schedule turns it on; the audit log continues with an enforced/shadow marker, and the next reading window observes the post-enforcement self-referential selection→generation→distill→skills loop. Rejected alternatives: status quo full injection, static tiering, numeric selection caps, immediate default-on. Also closes the ADR-0076 situation-granularity open question (prompt max 6,864 bytes, zero truncation).",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0076-skill-selection-shadow-instrument.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0074-weekly-staged-insight.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",

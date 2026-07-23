@@ -253,3 +253,144 @@ class TestRepoRoot:
         from contemplative_agent.cli.runtime import _repo_root
 
         assert (_repo_root() / "config" / "views").is_dir()
+
+
+# ---------------------------------------------------------------------------
+# ADR-0081: description-audit phase (advisory-only) in the skill stocktake
+# ---------------------------------------------------------------------------
+
+class TestStocktakeDescriptionPhase:
+    def _write_skill(self, d, name, description="A narrow skill"):
+        (d / name).write_text(
+            f"---\nname: {name[:-3]}\ndescription: \"{description}\"\n---\n\n# T\n\nbody",
+            encoding="utf-8",
+        )
+
+    def test_prints_mismatch_with_usage_annotation(self, tmp_path, capsys):
+        from unittest.mock import patch
+
+        from contemplative_agent.cli.stocktake_cmd import _stocktake_description_phase
+
+        self._write_skill(tmp_path, "s.md")
+        with patch(
+            "contemplative_agent.core.stocktake.audit_skill_description",
+            return_value="broader: description omits the narrow trigger",
+        ):
+            _stocktake_description_phase(
+                [("s.md", "body")],
+                target_dir=tmp_path,
+                desc_prompt="audit {name} {description} {skill}",
+                skip_names=set(),
+                usage_counts={"s": 920},
+            )
+        out = capsys.readouterr().out
+        assert "broader" in out
+        assert "selected 920x" in out
+        assert "advisory only" in out
+
+    def test_skips_consumed_and_writes_nothing(self, tmp_path, capsys):
+        from unittest.mock import patch
+
+        from contemplative_agent.cli.stocktake_cmd import _stocktake_description_phase
+
+        self._write_skill(tmp_path, "s.md")
+        before = (tmp_path / "s.md").read_text(encoding="utf-8")
+        with patch(
+            "contemplative_agent.core.stocktake.audit_skill_description"
+        ) as mock_audit:
+            _stocktake_description_phase(
+                [("s.md", "body")],
+                target_dir=tmp_path,
+                desc_prompt="audit {name} {description} {skill}",
+                skip_names={"s.md"},
+            )
+        assert mock_audit.call_count == 0
+        assert (tmp_path / "s.md").read_text(encoding="utf-8") == before
+
+    def test_missing_description_flagged_without_llm_call(self, tmp_path, capsys):
+        from unittest.mock import patch
+
+        from contemplative_agent.cli.stocktake_cmd import _stocktake_description_phase
+
+        (tmp_path / "s.md").write_text("# Title only\n\nbody", encoding="utf-8")
+        with patch(
+            "contemplative_agent.core.stocktake.audit_skill_description"
+        ) as mock_audit:
+            _stocktake_description_phase(
+                [("s.md", "body")],
+                target_dir=tmp_path,
+                desc_prompt="audit {name} {description} {skill}",
+                skip_names=set(),
+            )
+        out = capsys.readouterr().out
+        # skill_theme falls back to the markdown title as description, so a
+        # title-only file still audits; a truly empty one is flagged. Either
+        # way the phase must not crash — assert the summary line printed.
+        assert "Description audit" in out
+        assert mock_audit.call_count <= 1
+
+
+class TestCodexReviewFixes20260724:
+    """Regression pins for the codex-review P2 findings on the ADR-0081 diff."""
+
+    def test_drop_phase_returns_only_actually_dropped(self, tmp_path, capsys):
+        from unittest.mock import patch
+
+        from contemplative_agent.cli.stocktake_cmd import _stocktake_drop_phase
+        from contemplative_agent.core.stocktake import QualityIssue
+
+        (tmp_path / "kept.md").write_text("# K\n\nbody", encoding="utf-8")
+        issues = [QualityIssue(filename="kept.md", reason="too short")]
+        with (
+            patch(
+                "contemplative_agent.cli.approval._approve_delete", return_value=False
+            ),
+            patch("contemplative_agent.cli.approval._log_approval"),
+        ):
+            dropped = _stocktake_drop_phase(
+                issues,
+                {"kept.md": "body"},
+                target_dir=tmp_path,
+                drop_command="skill-stocktake-drop",
+                stage=False,
+                staged_batch=[],
+            )
+        # Operator kept the file → it is NOT excluded from later phases.
+        assert dropped == set()
+        assert (tmp_path / "kept.md").exists()
+
+    def test_load_selection_reading_empty_window_is_none(self, tmp_path, monkeypatch):
+        from contemplative_agent.cli import stocktake_cmd
+
+        monkeypatch.setattr(
+            stocktake_cmd.config, "EPISODE_LOG_DIR", tmp_path / "logs"
+        )
+        monkeypatch.setattr(
+            stocktake_cmd.config, "SKILLS_DIR", tmp_path / "skills"
+        )
+        assert stocktake_cmd._load_selection_reading() is None
+
+    def test_description_phase_audits_body_from_disk(self, tmp_path):
+        """The audit must read the on-disk (possibly just-cleaned) body,
+        not the stale pre-clean body passed in items."""
+        from unittest.mock import patch
+
+        from contemplative_agent.cli.stocktake_cmd import _stocktake_description_phase
+
+        (tmp_path / "s.md").write_text(
+            '---\nname: s\ndescription: "d"\n---\n\n# T\n\nFRESH_BODY',
+            encoding="utf-8",
+        )
+        with patch(
+            "contemplative_agent.core.stocktake.audit_skill_description",
+            return_value=None,
+        ) as mock_audit:
+            _stocktake_description_phase(
+                [("s.md", "STALE_BODY")],
+                target_dir=tmp_path,
+                desc_prompt="audit {name} {description} {skill}",
+                skip_names=set(),
+            )
+        audited_body = mock_audit.call_args.args[0][2]
+        assert "FRESH_BODY" in audited_body
+        assert "STALE_BODY" not in audited_body

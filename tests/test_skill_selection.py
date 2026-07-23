@@ -525,3 +525,44 @@ class TestSkillSelectionReading:
         text = ss.format_skill_selection_report(reading)
         assert "skill-a" in text
         assert "judged" in text
+
+
+class TestHallucinationRate:
+    """ADR-0081 Decision 6: the report surfaces the hallucination rate —
+    one of ADR-0076's four enforcement criteria, previously not aggregated."""
+
+    def test_reading_counts_hallucinated_records(self, tmp_path):
+        from datetime import datetime, timezone
+
+        log_dir = tmp_path / "logs"
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        recs = [
+            dict(TestSkillSelectionReading._judged(["skill-a"]), rejected_names=["ghost"]),
+            TestSkillSelectionReading._judged(["skill-a"]),
+            {"ts": "t", "verdict": "fail_open_llm", "selected": [], "rejected_names": []},
+        ]
+        TestSkillSelectionReading()._write_log(log_dir, today, recs)
+        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        assert reading.hallucination_records == 1
+
+    def test_report_renders_hallucination_line(self, tmp_path):
+        from datetime import datetime, timezone
+
+        log_dir = tmp_path / "logs"
+        today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+        recs = [
+            dict(TestSkillSelectionReading._judged(["skill-a"]), rejected_names=["ghost"]),
+            TestSkillSelectionReading._judged(["skill-a"]),
+        ]
+        TestSkillSelectionReading()._write_log(log_dir, today, recs)
+        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        text = ss.format_skill_selection_report(reading)
+        assert "Hallucination" in text
+        assert "1/2" in text
+
+    def test_zero_judged_renders_without_division_error(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        log_dir.mkdir()
+        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        text = ss.format_skill_selection_report(reading)
+        assert "records" in text

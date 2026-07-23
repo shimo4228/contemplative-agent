@@ -70,12 +70,14 @@ class PromptTemplates:
     stocktake_merge: str = ""
     stocktake_merge_rules: str = ""
     stocktake_clean: str = ""
+    stocktake_description: str = ""
     untrusted_wrapper: str = ""
     untrusted_marker_complete: str = ""
     untrusted_marker_truncated: str = ""
     stocktake_group_system: str = ""
     stocktake_merge_system: str = ""
     stocktake_clean_system: str = ""
+    stocktake_description_system: str = ""
     dialogue: str = ""
     verification_solve_extract_system: str = ""
     learned_skills_framing: str = ""
@@ -279,12 +281,14 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
         stocktake_merge=read("stocktake_merge.md", required=False),
         stocktake_merge_rules=read("stocktake_merge_rules.md", required=False),
         stocktake_clean=read("stocktake_clean.md", required=False),
+        stocktake_description=read("stocktake_description.md", required=False),
         untrusted_wrapper=read("untrusted_wrapper.md", required=False),
         untrusted_marker_complete=read("untrusted_marker_complete.md", required=False),
         untrusted_marker_truncated=read("untrusted_marker_truncated.md", required=False),
         stocktake_group_system=read("stocktake_group_system.md", required=False),
         stocktake_merge_system=read("stocktake_merge_system.md", required=False),
         stocktake_clean_system=read("stocktake_clean_system.md", required=False),
+        stocktake_description_system=read("stocktake_description_system.md", required=False),
         dialogue=read("dialogue.md", required=False),
         verification_solve_extract_system=read(
             "verification_solve_extract_system.md", required=False

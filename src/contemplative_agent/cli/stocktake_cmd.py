@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import argparse
 import logging
+from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from ..core.stocktake import MergeGroup, QualityIssue, StocktakeResult
@@ -24,7 +25,7 @@ def _render_merged_group(
     group_items: list[tuple[str, str]],
     merge_prompt: str,
     fallback_title: str,
-    trace_sink: Optional[list[str]] = None,
+    trace_sink: list[str] | None = None,
 ) -> tuple[str, str] | None:
     """Run the LLM merge for one group; return (filename, merged_text).
 
@@ -90,9 +91,9 @@ def _stocktake_merge_phase(
     fallback_title: str,
     stage: bool,
     staged_batch: list[StageItem],
-    trace_sink: Optional[list[str]] = None,
-    trace_labels: Optional[list[str]] = None,
-    snapshot_path: Optional[Path] = None,
+    trace_sink: list[str] | None = None,
+    trace_labels: list[str] | None = None,
+    snapshot_path: Path | None = None,
 ) -> set[str]:
     """Merge duplicate groups; return the filenames consumed by a merge.
 
@@ -184,12 +185,20 @@ def _stocktake_drop_phase(
     drop_command: str,
     stage: bool,
     staged_batch: list[StageItem],
-    snapshot_path: Optional[Path] = None,
-) -> None:
-    """Delete (or stage for deferred approval) files flagged as low quality."""
+    snapshot_path: Path | None = None,
+) -> set[str]:
+    """Delete (or stage for deferred approval) files flagged as low quality.
+
+    Returns the filenames actually removed from the store this run —
+    deleted, or staged for drop approval. A candidate the operator KEEPS is
+    not in the set, so downstream phases (description audit) still cover it
+    (codex review 2026-07-24: a kept file stays in the selector catalog and
+    its description still needs checking).
+    """
     print(f"\n{'=' * 60}")
     print(f"Low-quality files: {len(quality_issues)}")
 
+    dropped_names: set[str] = set()
     dropped = 0
     for issue in quality_issues:
         target_path = target_dir / issue.filename
@@ -218,6 +227,7 @@ def _stocktake_drop_phase(
                     command=drop_command,
                 )
             )
+            dropped_names.add(issue.filename)
             continue
 
         approved = approval._approve_delete(target_path)
@@ -227,12 +237,14 @@ def _stocktake_drop_phase(
         if approved:
             target_path.unlink()
             print(f"  Deleted {issue.filename}")
+            dropped_names.add(issue.filename)
             dropped += 1
         else:
             print("  Kept.")
 
     if not stage:
         print(f"\n--- Drop summary: {dropped} deleted, {len(quality_issues) - dropped} kept ---")
+    return dropped_names
 
 
 def _clean_one_skill(
@@ -240,7 +252,7 @@ def _clean_one_skill(
     body: str,
     target_path: Path,
     clean_prompt: str,
-    trace_sink: Optional[list[str]] = None,
+    trace_sink: list[str] | None = None,
 ) -> str | None:
     """Clean one skill's triggers and re-attach its original frontmatter.
 
@@ -289,9 +301,9 @@ def _stocktake_clean_phase(
     skip_names: set[str],
     stage: bool,
     staged_batch: list[StageItem],
-    trace_sink: Optional[list[str]] = None,
-    trace_labels: Optional[list[str]] = None,
-    snapshot_path: Optional[Path] = None,
+    trace_sink: list[str] | None = None,
+    trace_labels: list[str] | None = None,
+    snapshot_path: Path | None = None,
 ) -> None:
     """Clean singleton triggers (skills only).
 
@@ -371,9 +383,75 @@ def _stocktake_clean_phase(
         )
 
 
+def _stocktake_description_phase(
+    items: Sequence[tuple[str, str]],
+    *,
+    target_dir: Path,
+    desc_prompt: str,
+    skip_names: set[str],
+    usage_counts: dict[str, int] | None = None,
+    trace_sink: list[str] | None = None,
+    trace_labels: list[str] | None = None,
+) -> None:
+    """Audit description fidelity for surviving skills (ADR-0081, advisory).
+
+    Under two-pass injection the frontmatter description is the selector's
+    only evidence, so a description broader or narrower than the body's
+    triggers distorts every selection. This phase prints mismatch reasons
+    for the operator — it writes nothing and gates nothing. Files consumed
+    by a merge or flagged for drop are excluded (their descriptions are
+    about to change or disappear). ``usage_counts`` (skill name → window
+    selection count) annotates each finding so near-always-selected skills
+    — the over-broad suspects — are visible next to the verdict.
+    """
+    from ..core.insight import skill_theme
+    from ..core.stocktake import audit_skill_description
+    from ..core.text_utils import split_frontmatter
+
+    targets = [name for name, _ in items if name not in skip_names]
+    if not targets:
+        return
+
+    print(f"\n{'=' * 60}")
+    print(f"Auditing descriptions for {len(targets)} skill(s)...")
+
+    findings = 0
+    for name in targets:
+        # Read description AND body from the file on disk, not result.items:
+        # the clean phase may have just rewritten this skill's triggers, and
+        # auditing the pre-clean body could report the opposite verdict from
+        # the skill actually saved (codex review 2026-07-24). The raw read is
+        # also the same seam the selector's catalog loader uses.
+        try:
+            raw = (target_dir / name).read_text(encoding="utf-8")
+        except OSError:
+            print(f"  Skipped (unreadable): {name}")
+            continue
+        _, body = split_frontmatter(raw)
+        skill_name, description = skill_theme(raw, fallback_name=Path(name).stem)
+        if not description:
+            print(f"  {name} — no description in frontmatter (selector sees title only)")
+            findings += 1
+            continue
+
+        n_before = len(trace_sink) if trace_sink is not None else 0
+        reason = audit_skill_description((name, description, body), desc_prompt, trace_sink)
+        if trace_sink is not None and trace_labels is not None and len(trace_sink) > n_before:
+            trace_labels.append(name)
+        if reason is None:
+            continue
+        findings += 1
+        suffix = ""
+        if usage_counts is not None:
+            suffix = f" [selected {usage_counts.get(skill_name, 0)}x in window]"
+        print(f"  {name}{suffix} — {reason}")
+
+    print(f"--- Description audit: {findings} mismatch(es), advisory only ---")
+
+
 def _labeled_sections(
     prefix: str, labels: list[str], traces: list[str]
-) -> list[tuple[str, Optional[str]]]:
+) -> list[tuple[str, str | None]]:
     """Pair reasoning traces with their operation labels for reasoning.md.
 
     Traces were previously numbered by list position, so a group skipped
@@ -397,7 +475,8 @@ def _handle_stocktake_result(
     command_prefix: str,
     fallback_title: str,
     clean_prompt: str | None = None,
-    snapshot_path: Optional[Path] = None,
+    desc_prompt: str | None = None,
+    snapshot_path: Path | None = None,
 ) -> None:
     """Shared body for _handle_skill_stocktake and _handle_rules_stocktake.
 
@@ -459,8 +538,9 @@ def _handle_stocktake_result(
             snapshot_path=snapshot_path,
         )
 
+    actually_dropped: set[str] = set()
     if result.quality_issues:
-        _stocktake_drop_phase(
+        actually_dropped = _stocktake_drop_phase(
             result.quality_issues,
             items_dict,
             target_dir=target_dir,
@@ -485,15 +565,72 @@ def _handle_stocktake_result(
             snapshot_path=snapshot_path,
         )
 
+    desc_traces: list[str] = []
+    desc_trace_labels: list[str] = []
+    # Truthiness, not `is not None`: a missing template file loads as ""
+    # (domain.py required=False), and an empty prompt would fabricate
+    # mismatch findings for every skill instead of abstaining
+    # (python-reviewer 2026-07-24 MEDIUM).
+    if desc_prompt:
+        # Skip only files actually removed this run (deleted or staged for
+        # drop) — a quality-flagged file the operator KEEPS stays in the
+        # selector catalog, so its description still gets audited (codex
+        # review 2026-07-24).
+        usage_counts = (
+            dict(result.selection_usage.per_skill) if result.selection_usage is not None else None
+        )
+        _stocktake_description_phase(
+            result.items,
+            target_dir=target_dir,
+            desc_prompt=desc_prompt,
+            skip_names=consumed_names | actually_dropped,
+            usage_counts=usage_counts,
+            trace_sink=desc_traces,
+            trace_labels=desc_trace_labels,
+        )
+
     if stage and staged_batch:
         staging._stage_results(staged_batch, command=command_prefix)
 
     # ADR-0069: persist the run's reasoning — grouping (the main judgment) plus
-    # each merge / clean operation — to reasoning.md beside the snapshot.
-    sections: list[tuple[str, Optional[str]]] = [("duplicate grouping", result.thinking)]
+    # each merge / clean / description-audit operation — to reasoning.md.
+    sections: list[tuple[str, str | None]] = [("duplicate grouping", result.thinking)]
     sections += _labeled_sections("merge", merge_trace_labels, merge_traces)
     sections += _labeled_sections("clean", clean_trace_labels, clean_traces)
+    sections += _labeled_sections("description", desc_trace_labels, desc_traces)
     memory_cmds._write_reasoning(snapshot_path, sections)
+
+
+# ADR-0081 usage window: matches the 2-week shadow-reading cadence the
+# enforcement decision was made on (2026-07-24 first reading).
+_USAGE_WINDOW_DAYS = 14
+
+
+def _load_selection_reading():
+    """Read the ADR-0081 usage dimension for the skill stocktake report.
+
+    The instrument is optional (audit_dir unset disables it; the log dir may
+    simply not exist), so any failure degrades to None — the stocktake runs
+    exactly as before, just without the usage section. Never fatal.
+    """
+    from ..core.skill_selection import read_skill_selection_log
+
+    try:
+        reading = read_skill_selection_log(
+            config.EPISODE_LOG_DIR,
+            days=_USAGE_WINDOW_DAYS,
+            skills_dir=config.SKILLS_DIR,
+        )
+    except Exception as exc:  # noqa: BLE001 — advisory reading, never fatal
+        logger.warning("skill-selection usage reading unavailable: %s", exc)
+        return None
+    if reading.records == 0:
+        # Fresh install or kill-switched instrument: an empty log window is
+        # "no observation", not "every skill went unselected" — attaching it
+        # would render a spurious all-never-selected section and annotate
+        # findings as 0x (codex review 2026-07-24).
+        return None
+    return reading
 
 
 def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
@@ -502,7 +639,10 @@ def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.Argument
     from ..core.stocktake import run_skill_stocktake
 
     snapshot_path = memory_cmds._take_snapshot(args, "skill-stocktake", think=True)
-    result = run_skill_stocktake(skills_dir=config.SKILLS_DIR)
+    result = run_skill_stocktake(
+        skills_dir=config.SKILLS_DIR,
+        selection_reading=_load_selection_reading(),
+    )
     _handle_stocktake_result(
         args,
         result,
@@ -512,6 +652,7 @@ def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.Argument
         command_prefix="skill-stocktake",
         fallback_title="merged-skill",
         clean_prompt=prompts.STOCKTAKE_CLEAN_PROMPT,
+        desc_prompt=prompts.STOCKTAKE_DESC_PROMPT,
         snapshot_path=snapshot_path,
     )
 

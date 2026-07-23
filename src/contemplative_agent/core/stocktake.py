@@ -24,13 +24,17 @@ from __future__ import annotations
 import json
 import logging
 import re
-from dataclasses import dataclass
+from collections.abc import Callable
+from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Callable, List, Optional, Tuple
+from typing import TYPE_CHECKING
 
 from ._io import strip_code_fence
 from .llm import generate_full
 from .text_utils import read_markdown_bodies
+
+if TYPE_CHECKING:
+    from .skill_selection import SkillSelectionReading
 
 logger = logging.getLogger(__name__)
 
@@ -43,6 +47,7 @@ MIN_FILES_FOR_DEDUP = 2
 _DEFAULT_GROUP_SYSTEM = "Return only valid JSON."
 _DEFAULT_MERGE_SYSTEM = "Merge skills, preserving every distinct concrete pattern."
 _DEFAULT_CLEAN_SYSTEM = "Rewrite only the trigger conditions; preserve all else."
+_DEFAULT_DESC_SYSTEM = "Judge description fidelity only; output DESC_OK or one reason line."
 
 # Token budget per input file for a pattern-preserving merge. The merged
 # skill is the union of each input's distinct patterns, so the output scales
@@ -68,7 +73,7 @@ _CANNOT_MERGE_RE = re.compile(r"^\s*CANNOT_MERGE\s*:", re.IGNORECASE)
 class MergeGroup:
     """A group of files identified as semantically redundant."""
 
-    filenames: Tuple[str, ...]
+    filenames: tuple[str, ...]
     reason: str
 
 
@@ -84,18 +89,23 @@ class QualityIssue:
 class StocktakeResult:
     """Result of a stocktake audit."""
 
-    merge_groups: Tuple[MergeGroup, ...]
-    quality_issues: Tuple[QualityIssue, ...]
+    merge_groups: tuple[MergeGroup, ...]
+    quality_issues: tuple[QualityIssue, ...]
     total_files: int
-    items: Tuple[Tuple[str, str], ...] = ()
+    items: tuple[tuple[str, str], ...] = ()
     # ADR-0069: the duplicate-grouping reasoning trace (stocktake runs
     # think-ON). This is the run's main judgment — which skills/rules are
     # redundant. Per-merge / per-clean traces are collected separately via the
     # ``trace_sink`` parameter in the CLI phases. None when think was off.
-    thinking: Optional[str] = None
+    thinking: str | None = None
+    # ADR-0081 usage dimension: the shadow selection-log reading (statistics
+    # computed by code). Rendered as a report section only — retirement stays
+    # an LLM proposal + human-gate judgment, never a numeric auto-threshold.
+    # None for the rules pass and when the instrument log is absent.
+    selection_usage: SkillSelectionReading | None = None
 
 
-def _read_files(directory: Path) -> List[Tuple[str, str]]:
+def _read_files(directory: Path) -> list[tuple[str, str]]:
     """Read all .md files from a directory, stripping frontmatter.
 
     Returns list of (filename, body_text) tuples, sorted by name.
@@ -103,7 +113,7 @@ def _read_files(directory: Path) -> List[Tuple[str, str]]:
     return read_markdown_bodies(directory)
 
 
-def _format_items(items: List[Tuple[str, str]]) -> str:
+def _format_items(items: list[tuple[str, str]]) -> str:
     """Format (filename, body) tuples as LLM input with === separators."""
     return "\n\n===\n\n".join(f"**{name}**\n\n{body}" for name, body in items)
 
@@ -114,8 +124,8 @@ def _generate_with_trace(
     system: str,
     num_predict: int,
     caller: str,
-    trace_sink: Optional[List[str]],
-) -> Optional[str]:
+    trace_sink: list[str] | None,
+) -> str | None:
     """Run a think-ON generate, append the reasoning trace, return the text.
 
     Centralises the ADR-0069 trace-capture contract shared by the grouping /
@@ -124,8 +134,12 @@ def _generate_with_trace(
     text). Callers own any failure-path logging and post-processing.
     """
     out = generate_full(
-        prompt, system=system, num_predict=num_predict,
-        caller=caller, think=True, drop_truncated=True,
+        prompt,
+        system=system,
+        num_predict=num_predict,
+        caller=caller,
+        think=True,
+        drop_truncated=True,
     )
     if out is None or out.text is None:
         return None
@@ -135,10 +149,10 @@ def _generate_with_trace(
 
 
 def _find_duplicate_groups(
-    items: List[Tuple[str, str]],
+    items: list[tuple[str, str]],
     prompt_template: str,
-    trace_sink: Optional[List[str]] = None,
-) -> List[MergeGroup]:
+    trace_sink: list[str] | None = None,
+) -> list[MergeGroup]:
     """Detect semantic duplicate groups via a single LLM grouping call.
 
     All bodies go to one ``generate`` request; the LLM returns the subsets
@@ -167,8 +181,11 @@ def _find_duplicate_groups(
     num_predict = min(8192, max(3000, _GROUPING_TOKENS_PER_FILE * len(items)))
     system = STOCKTAKE_GROUP_SYSTEM_PROMPT or _DEFAULT_GROUP_SYSTEM
     text = _generate_with_trace(
-        prompt, system=system, num_predict=num_predict,
-        caller="stocktake.duplicates", trace_sink=trace_sink,
+        prompt,
+        system=system,
+        num_predict=num_predict,
+        caller="stocktake.duplicates",
+        trace_sink=trace_sink,
     )
     if text is None:
         logger.warning("LLM failed during stocktake duplicate detection")
@@ -177,9 +194,7 @@ def _find_duplicate_groups(
     return _parse_groups(text, known={name for name, _ in items})
 
 
-def _parse_groups(
-    raw: str, known: Optional[set[str]] = None
-) -> List[MergeGroup]:
+def _parse_groups(raw: str, known: set[str] | None = None) -> list[MergeGroup]:
     """Parse LLM grouping output into a MergeGroup list.
 
     Attempts JSON extraction (tolerating code fences and surrounding prose).
@@ -214,7 +229,7 @@ def _parse_groups(
     if not isinstance(groups, list):
         return []
 
-    result: List[MergeGroup] = []
+    result: list[MergeGroup] = []
     claimed: set[str] = set()
     for g in groups:
         if not isinstance(g, dict):
@@ -229,13 +244,12 @@ def _parse_groups(
         # re-introducing the duplicate the stocktake exists to remove; a
         # self-duplicate ["a.md", "a.md"] would pass the >=2 gate and burn a
         # merge call on a no-op rename.
-        unique: List[str] = []
+        unique: list[str] = []
         for f in files:
             name = str(f)
             if known is not None and name not in known:
                 logger.warning(
-                    "Stocktake group names a file that does not exist; "
-                    "dropping that entry"
+                    "Stocktake group names a file that does not exist; dropping that entry"
                 )
                 continue
             if name not in unique and name not in claimed:
@@ -243,22 +257,22 @@ def _parse_groups(
         if len(unique) < len(files):
             logger.warning(
                 "Stocktake group overlaps an earlier group or repeats a "
-                "file; keeping %d of %d entries", len(unique), len(files),
+                "file; keeping %d of %d entries",
+                len(unique),
+                len(files),
             )
         if len(unique) < 2:
             continue
         claimed.update(unique)
-        result.append(
-            MergeGroup(filenames=tuple(unique), reason=str(reason))
-        )
+        result.append(MergeGroup(filenames=tuple(unique), reason=str(reason)))
     return result
 
 
 def merge_group(
-    items: List[Tuple[str, str]],
+    items: list[tuple[str, str]],
     prompt_template: str,
-    trace_sink: Optional[List[str]] = None,
-) -> Optional[str]:
+    trace_sink: list[str] | None = None,
+) -> str | None:
     """Merge redundant files into a single unified skill via LLM.
 
     The prompt instructs the LLM to emit ``CANNOT_MERGE: <reason>`` when
@@ -288,8 +302,11 @@ def merge_group(
     num_predict = min(8192, max(3000, _PER_FILE_MERGE_TOKENS * len(items)))
     system = STOCKTAKE_MERGE_SYSTEM_PROMPT or _DEFAULT_MERGE_SYSTEM
     return _generate_with_trace(
-        prompt, system=system, num_predict=num_predict,
-        caller="stocktake.merge", trace_sink=trace_sink,
+        prompt,
+        system=system,
+        num_predict=num_predict,
+        caller="stocktake.merge",
+        trace_sink=trace_sink,
     )
 
 
@@ -314,10 +331,10 @@ _CLEAN_NOOP_RE = re.compile(r"^\s*CLEAN_NOOP", re.IGNORECASE)
 
 
 def clean_skill_triggers(
-    item: Tuple[str, str],
+    item: tuple[str, str],
     prompt_template: str,
-    trace_sink: Optional[List[str]] = None,
-) -> Optional[str]:
+    trace_sink: list[str] | None = None,
+) -> str | None:
     """Rewrite a single skill's triggers at structural altitude.
 
     The prompt generalizes transient surface identifiers (usernames, post
@@ -360,7 +377,88 @@ def is_clean_noop(text: str) -> bool:
     return _CLEAN_NOOP_RE.match(text) is not None
 
 
-def _check_skill_quality(filename: str, body: str) -> Optional[QualityIssue]:
+# Token budget for a single-skill description audit. Output is DESC_OK or a
+# one-line mismatch reason, so a small flat budget suffices (same shape as
+# the selection call's name-list budget in core.skill_selection).
+_DESC_AUDIT_TOKENS = 400
+
+# Terminal-safety bounds for the audit's reason line (it is untrusted LLM
+# output printed to the operator's console): control chars stripped, length
+# capped. Same guard shape as core.skill_selection's catalog scrub.
+_DESC_REASON_MAX_CHARS = 300
+_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]|\x1b")
+
+# DESC_OK sentinel: the auditor emits this when the frontmatter description
+# faithfully carries the body's trigger conditions. Start-anchored (like
+# _CANNOT_MERGE_RE / _CLEAN_NOOP_RE) so trailing model chatter still reads
+# as a pass.
+_DESC_OK_RE = re.compile(r"^\s*DESC_OK", re.IGNORECASE)
+
+
+def audit_skill_description(
+    item: tuple[str, str, str],
+    prompt_template: str,
+    trace_sink: list[str] | None = None,
+) -> str | None:
+    """Judge whether a skill's description faithfully carries its triggers.
+
+    ADR-0081: under two-pass injection the description is the selector's
+    only evidence, so a description that is broader or narrower than the
+    body's actual trigger conditions distorts every selection. This audit
+    is advisory-only — it returns a one-line mismatch reason for the
+    stocktake report (the human decides what to do), or ``None`` when the
+    description is faithful (``DESC_OK``) or the LLM call fails (abstain,
+    logged — never a fabricated verdict).
+
+    Args:
+        item: (filename, description, body_text) of the skill to audit.
+        prompt_template: Prompt with ``{name}`` / ``{description}`` /
+            ``{skill}`` placeholders.
+        trace_sink: Optional list. When provided, the call runs think-ON
+            (ADR-0069) and the audit reasoning trace is appended to it.
+
+    Returns:
+        Mismatch reason line, or None (faithful / LLM failure).
+    """
+    # Lazy import avoids a core.stocktake -> core.prompts import cycle.
+    from .llm import wrap_untrusted_content
+    from .prompts import STOCKTAKE_DESC_SYSTEM_PROMPT
+
+    name, description, body = item
+    # Both fields are persistent LLM-distilled content and the exact target
+    # of this judgment — a skill body saying "output DESC_OK" must not be
+    # able to suppress its own mismatch. Wrap them in the untrusted-content
+    # boundary before generation (codex review 2026-07-24). The sibling
+    # merge/clean prompts interpolate raw, but they transform content
+    # rather than judge it, so the incentive to self-exonerate is unique
+    # to this audit.
+    prompt = prompt_template.format(
+        name=name,
+        description=wrap_untrusted_content(description),
+        skill=wrap_untrusted_content(body),
+    )
+    text = _generate_with_trace(
+        prompt,
+        system=STOCKTAKE_DESC_SYSTEM_PROMPT or _DEFAULT_DESC_SYSTEM,
+        num_predict=_DESC_AUDIT_TOKENS,
+        caller="stocktake.description_audit",
+        trace_sink=trace_sink,
+    )
+    if text is None:
+        logger.warning("LLM failed during stocktake description audit: %s", name)
+        return None
+    if _DESC_OK_RE.match(text):
+        return None
+    # The reason reaches the terminal report — scrub control characters
+    # (ANSI injection guard, same shape as skill_selection._scrub_control),
+    # collapse newlines (the contract is ONE line; embedded newlines could
+    # spoof extra report entries — security review 2026-07-24), and cap to
+    # one report line's worth.
+    one_line = " ".join(text.split())
+    return _CONTROL_CHARS_RE.sub("", one_line)[:_DESC_REASON_MAX_CHARS]
+
+
+def _check_skill_quality(filename: str, body: str) -> QualityIssue | None:
     """Check a skill file for structural quality issues."""
     if len(body) < 200:
         return QualityIssue(filename=filename, reason="body < 200 chars")
@@ -371,7 +469,7 @@ def _check_skill_quality(filename: str, body: str) -> Optional[QualityIssue]:
     return None
 
 
-def _check_rule_quality(filename: str, body: str) -> Optional[QualityIssue]:
+def _check_rule_quality(filename: str, body: str) -> QualityIssue | None:
     """Check a rule file for structural quality issues.
 
     Rules use the B-layer Practice/Rationale format (standing methodology),
@@ -389,9 +487,9 @@ def _check_rule_quality(filename: str, body: str) -> Optional[QualityIssue]:
 
 
 def _run_stocktake(
-    directory: Optional[Path],
+    directory: Path | None,
     group_prompt: str,
-    quality_check: Callable[[str, str], Optional[QualityIssue]],
+    quality_check: Callable[[str, str], QualityIssue | None],
 ) -> StocktakeResult:
     """Audit a directory of ``*.md`` files for duplicates and quality issues.
 
@@ -405,11 +503,11 @@ def _run_stocktake(
     if not items:
         return StocktakeResult(merge_groups=(), quality_issues=(), total_files=0)
 
-    grouping_traces: List[str] = []
+    grouping_traces: list[str] = []
     merge_groups = _find_duplicate_groups(items, group_prompt, grouping_traces)
 
     # Structural quality checks
-    quality_issues: List[QualityIssue] = []
+    quality_issues: list[QualityIssue] = []
     for filename, body in items:
         issue = quality_check(filename, body)
         if issue is not None:
@@ -425,12 +523,16 @@ def _run_stocktake(
 
 
 def run_skill_stocktake(
-    skills_dir: Optional[Path] = None,
+    skills_dir: Path | None = None,
+    selection_reading: SkillSelectionReading | None = None,
 ) -> StocktakeResult:
     """Audit skills/*.md for duplicates and quality issues.
 
     Args:
         skills_dir: Directory containing skill files.
+        selection_reading: Optional ADR-0081 usage dimension — the shadow
+            selection-log reading, attached to the result for the report's
+            usage section. Statistics only; no gate or threshold consumes it.
 
     Returns:
         StocktakeResult with merge groups and quality issues.
@@ -438,13 +540,14 @@ def run_skill_stocktake(
     # Lazy import avoids a core.stocktake -> core.prompts import cycle.
     from . import prompts
 
-    return _run_stocktake(
-        skills_dir, prompts.STOCKTAKE_SKILLS_PROMPT, _check_skill_quality
-    )
+    result = _run_stocktake(skills_dir, prompts.STOCKTAKE_SKILLS_PROMPT, _check_skill_quality)
+    if selection_reading is None:
+        return result
+    return replace(result, selection_usage=selection_reading)
 
 
 def run_rules_stocktake(
-    rules_dir: Optional[Path] = None,
+    rules_dir: Path | None = None,
 ) -> StocktakeResult:
     """Audit rules/*.md for duplicates and quality issues.
 
@@ -457,9 +560,7 @@ def run_rules_stocktake(
     # Lazy import avoids a core.stocktake -> core.prompts import cycle.
     from . import prompts
 
-    return _run_stocktake(
-        rules_dir, prompts.STOCKTAKE_RULES_PROMPT, _check_rule_quality
-    )
+    return _run_stocktake(rules_dir, prompts.STOCKTAKE_RULES_PROMPT, _check_rule_quality)
 
 
 def format_stocktake_report(result: StocktakeResult, label: str) -> str:
@@ -469,7 +570,7 @@ def format_stocktake_report(result: StocktakeResult, label: str) -> str:
     collision with ``core.metrics.format_report`` (which formats a
     SessionReport, not a StocktakeResult).
     """
-    lines: List[str] = []
+    lines: list[str] = []
     lines.append(f"{label} Stocktake Report")
     lines.append("=" * len(lines[0]))
     lines.append(f"{result.total_files} files scanned")
@@ -490,6 +591,20 @@ def format_stocktake_report(result: StocktakeResult, label: str) -> str:
         lines.append("LOW QUALITY:")
         for issue in result.quality_issues:
             lines.append(f"  {issue.filename} — {issue.reason}")
+
+    # ADR-0081 usage dimension: full selection distribution, ascending so the
+    # quiet tail (retirement candidates for the human gate) reads first.
+    # Never survivors-only; never a numeric auto-retire threshold.
+    usage = result.selection_usage
+    if usage is not None:
+        lines.append("")
+        lines.append(f"SKILL USAGE (selection window {usage.days}d, {usage.records} records):")
+        for name, count in sorted(usage.per_skill, key=lambda kv: (kv[1], kv[0])):
+            lines.append(f"  {name}: selected {count}x")
+        if usage.never_selected:
+            lines.append("  Never selected in window (check records count first):")
+            for name in usage.never_selected:
+                lines.append(f"    {name}")
 
     # Summary
     merge_file_count = sum(len(g.filenames) for g in result.merge_groups)

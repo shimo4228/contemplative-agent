@@ -24,7 +24,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -84,13 +84,13 @@ def _scrub_control(value: str, max_len: int) -> str:
     return _CONTROL_CHARS_RE.sub("", value)[:max_len]
 
 
-_skills_dir: Optional[Path] = None
-_audit_dir: Optional[Path] = None
+_skills_dir: Path | None = None
+_audit_dir: Path | None = None
 
 
 def configure_skill_selection(
-    skills_dir: Optional[Path] = None,
-    audit_dir: Optional[Path] = None,
+    skills_dir: Path | None = None,
+    audit_dir: Path | None = None,
 ) -> None:
     """Configure the shadow instrument (same module-global pattern as
     ``configure_llm``).
@@ -121,7 +121,7 @@ class SkillCatalogEntry:
     body_tokens: int
 
 
-def load_skill_catalog(skills_dir: Optional[Path]) -> Tuple[SkillCatalogEntry, ...]:
+def load_skill_catalog(skills_dir: Path | None) -> tuple[SkillCatalogEntry, ...]:
     """Read ``skills_dir/*.md`` into catalog entries.
 
     Same traversal contract as insight's ``_load_known_themes``: sorted
@@ -132,7 +132,7 @@ def load_skill_catalog(skills_dir: Optional[Path]) -> Tuple[SkillCatalogEntry, .
     """
     if skills_dir is None or not skills_dir.is_dir():
         return ()
-    entries: List[SkillCatalogEntry] = []
+    entries: list[SkillCatalogEntry] = []
     for path in sorted(skills_dir.glob("*.md")):
         if path.name.startswith("."):
             continue
@@ -167,19 +167,19 @@ class SkillSelectionResult:
     """
 
     verdict: str
-    selected: Tuple[str, ...]
-    rejected_names: Tuple[str, ...]
+    selected: tuple[str, ...]
+    rejected_names: tuple[str, ...]
     prompt: str
-    raw_output: Optional[str]
+    raw_output: str | None
 
 
-def _render_catalog(catalog: Tuple[SkillCatalogEntry, ...]) -> str:
+def _render_catalog(catalog: tuple[SkillCatalogEntry, ...]) -> str:
     return "\n".join(f"{e.name} — {e.description}" for e in catalog)
 
 
 def select_applicable_skills(
     situation: str,
-    catalog: Tuple[SkillCatalogEntry, ...],
+    catalog: tuple[SkillCatalogEntry, ...],
 ) -> SkillSelectionResult:
     """Run one selection call and validate the answer against the catalog.
 
@@ -224,7 +224,7 @@ def select_applicable_skills(
         )
     by_lower = {e.name.lower(): e.name for e in catalog}
     selected: set[str] = set()
-    rejected: List[str] = []
+    rejected: list[str] = []
     for line in lines:
         if line.lower() == _NONE_SENTINEL:
             continue
@@ -245,7 +245,7 @@ def select_applicable_skills(
     )
 
 
-def _b64_fields(name: str, text: Optional[str]) -> Dict[str, Any]:
+def _b64_fields(name: str, text: str | None) -> dict[str, Any]:
     """Untrusted-text storage bundle (same shape as insight-novelty audit):
     sha256 over the full text, base64 of the kept prefix, explicit
     truncation flag."""
@@ -262,7 +262,7 @@ def _b64_fields(name: str, text: Optional[str]) -> Dict[str, Any]:
     }
 
 
-def _append_selection_audit(record: Dict[str, Any]) -> None:
+def _append_selection_audit(record: dict[str, Any]) -> None:
     if _audit_dir is None:
         return
     date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
@@ -282,7 +282,7 @@ def shadow_observe_skill_selection(situation: str, *, generation_caller: str) ->
         return
     try:
         catalog = load_skill_catalog(_skills_dir)
-        base: Dict[str, Any] = {
+        base: dict[str, Any] = {
             "ts": now_iso("seconds"),
             "generation_caller": generation_caller,
             "catalog_count": len(catalog),
@@ -354,9 +354,13 @@ class SkillSelectionReading:
 
     days: int
     records: int
-    verdicts: Tuple[Tuple[str, int], ...]
-    per_skill: Tuple[Tuple[str, int], ...]
-    never_selected: Tuple[str, ...]
+    verdicts: tuple[tuple[str, int], ...]
+    per_skill: tuple[tuple[str, int], ...]
+    never_selected: tuple[str, ...]
+    # ADR-0081: judged records whose answer included at least one
+    # hallucinated (non-catalog) name — one of ADR-0076's four
+    # enforcement criteria, surfaced in the report as a rate over judged.
+    hallucination_records: int
     selected_count_p50: float
     selected_count_p90: float
     token_reduction_p50: float
@@ -367,7 +371,7 @@ def read_skill_selection_log(
     log_dir: Path,
     *,
     days: int,
-    skills_dir: Optional[Path],
+    skills_dir: Path | None,
 ) -> SkillSelectionReading:
     """Aggregate ``skill-selection-*.jsonl`` files within the window.
 
@@ -378,11 +382,12 @@ def read_skill_selection_log(
     alongside ``records`` before drawing conclusions.
     """
     cutoff = datetime.now(timezone.utc).date() - timedelta(days=days)
-    verdict_counts: Dict[str, int] = {}
-    skill_counts: Dict[str, int] = {}
-    selected_counts: List[int] = []
-    reductions: List[int] = []
+    verdict_counts: dict[str, int] = {}
+    skill_counts: dict[str, int] = {}
+    selected_counts: list[int] = []
+    reductions: list[int] = []
     records = 0
+    hallucination_records = 0
     if log_dir.is_dir():
         for path in sorted(log_dir.glob("skill-selection-*.jsonl")):
             date_part = path.stem.removeprefix("skill-selection-")
@@ -414,6 +419,8 @@ def read_skill_selection_log(
                 for name in selected:
                     skill_counts[name] = skill_counts.get(name, 0) + 1
                 selected_counts.append(len(selected))
+                if rec.get("rejected_names"):
+                    hallucination_records += 1
                 full = rec.get("full_skill_tokens")
                 would_be = rec.get("would_be_skill_tokens")
                 if isinstance(full, int) and isinstance(would_be, int):
@@ -422,7 +429,7 @@ def read_skill_selection_log(
     catalog_names = [e.name for e in load_skill_catalog(skills_dir)]
     never_selected = tuple(name for name in catalog_names if name not in skill_counts)
 
-    def _pct(values: List[int], q: float) -> float:
+    def _pct(values: list[int], q: float) -> float:
         if not values:
             return 0.0
         return float(np.percentile(np.asarray(values, dtype=float), q))
@@ -433,6 +440,7 @@ def read_skill_selection_log(
         verdicts=tuple(sorted(verdict_counts.items())),
         per_skill=tuple(sorted(skill_counts.items(), key=lambda kv: (-kv[1], kv[0]))),
         never_selected=never_selected,
+        hallucination_records=hallucination_records,
         selected_count_p50=_pct(selected_counts, 50),
         selected_count_p90=_pct(selected_counts, 90),
         token_reduction_p50=_pct(reductions, 50),
@@ -450,6 +458,13 @@ def format_skill_selection_report(reading: SkillSelectionReading) -> str:
     if reading.verdicts:
         verdict_text = ", ".join(f"{v}: {n}" for v, n in reading.verdicts)
         lines.append(f"Verdicts: {verdict_text}")
+    judged = dict(reading.verdicts).get("judged", 0)
+    if judged:
+        rate = reading.hallucination_records / judged
+        lines.append(
+            f"Hallucination: {reading.hallucination_records}/{judged} judged "
+            f"({rate:.1%} with rejected names)"
+        )
     lines.append(
         "Selected per action: p50 "
         f"{reading.selected_count_p50:.1f} / p90 {reading.selected_count_p90:.1f}"

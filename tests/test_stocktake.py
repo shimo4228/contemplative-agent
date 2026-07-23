@@ -114,11 +114,16 @@ More content here to ensure we exceed the minimum character threshold of two hun
 """
 
 # LLM grouping responses (single-call duplicate detection)
-LLM_MERGE_RESPONSE = json.dumps({
-    "groups": [
-        {"files": ["skill-a.md", "skill-b.md"], "reason": "Both describe the same response loop"},
-    ]
-})
+LLM_MERGE_RESPONSE = json.dumps(
+    {
+        "groups": [
+            {
+                "files": ["skill-a.md", "skill-b.md"],
+                "reason": "Both describe the same response loop",
+            },
+        ]
+    }
+)
 LLM_NO_MERGE_RESPONSE = json.dumps({"groups": []})
 
 
@@ -141,6 +146,7 @@ def _make_rules_dir(tmp_path: Path, rules: dict[str, str]) -> Path:
 # ---------------------------------------------------------------------------
 # Unit tests: _read_files
 # ---------------------------------------------------------------------------
+
 
 class TestReadFiles:
     def test_reads_and_strips_frontmatter(self, tmp_path):
@@ -171,6 +177,7 @@ class TestReadFiles:
 # ---------------------------------------------------------------------------
 # Unit tests: _parse_groups
 # ---------------------------------------------------------------------------
+
 
 class TestParseGroups:
     def test_valid_json(self):
@@ -206,6 +213,7 @@ class TestParseGroups:
 # ---------------------------------------------------------------------------
 # Unit tests: quality checks
 # ---------------------------------------------------------------------------
+
 
 class TestSkillQuality:
     def test_good_skill(self):
@@ -248,6 +256,7 @@ class TestRuleQuality:
 # Unit tests: _find_duplicate_groups (single LLM grouping call)
 # ---------------------------------------------------------------------------
 
+
 class TestFindDuplicateGroups:
     @patch("contemplative_agent.core.stocktake.generate_full")
     def test_returns_merge_groups(self, mock_generate):
@@ -269,10 +278,16 @@ class TestFindDuplicateGroups:
     def test_multiple_groups_not_collapsed(self, mock_generate):
         """Distinct families stay separate — the grouping call can return
         several small groups rather than one over-merged blob."""
-        mock_generate.return_value = GenerationOutput(text=json.dumps({"groups": [
-            {"files": ["a.md", "b.md"], "reason": "family one"},
-            {"files": ["c.md", "d.md"], "reason": "family two"},
-        ]}))
+        mock_generate.return_value = GenerationOutput(
+            text=json.dumps(
+                {
+                    "groups": [
+                        {"files": ["a.md", "b.md"], "reason": "family one"},
+                        {"files": ["c.md", "d.md"], "reason": "family two"},
+                    ]
+                }
+            )
+        )
         items = [(f"{c}.md", f"body {c}") for c in "abcd"]
         groups = _find_duplicate_groups(items, "prompt {items}")
         assert len(groups) == 2
@@ -301,10 +316,13 @@ class TestFindDuplicateGroups:
 # Unit tests: merge_group + is_merge_rejected
 # ---------------------------------------------------------------------------
 
+
 class TestMergeGroup:
     @patch("contemplative_agent.core.stocktake.generate_full")
     def test_returns_merged_text(self, mock_generate):
-        mock_generate.return_value = GenerationOutput(text="# Merged Skill\n\n## Problem\nCombined.\n\n## Solution\nUnified.")
+        mock_generate.return_value = GenerationOutput(
+            text="# Merged Skill\n\n## Problem\nCombined.\n\n## Solution\nUnified."
+        )
         items = [("a.md", "content a"), ("b.md", "content b")]
         result = merge_group(items, "merge {candidates}")
         assert result is not None
@@ -328,7 +346,9 @@ class TestMergeGroup:
     @patch("contemplative_agent.core.stocktake.generate_full")
     def test_small_group_keeps_floor_budget(self, mock_generate):
         """A 2-file merge keeps the 3000-token floor (prior behavior)."""
-        mock_generate.return_value = GenerationOutput(text="# Merged\n\n## Problem\np\n\n## Solution\ns")
+        mock_generate.return_value = GenerationOutput(
+            text="# Merged\n\n## Problem\np\n\n## Solution\ns"
+        )
         items = [("a.md", "x"), ("b.md", "y")]
         merge_group(items, "merge {candidates}")
         assert mock_generate.call_args.kwargs["num_predict"] == 3000
@@ -338,7 +358,9 @@ class TestMergeGroup:
         """Pattern-preserving merge output grows with inputs, so the token
         budget scales above the floor — preventing truncation that would
         silently drop the distinct patterns the merge exists to preserve."""
-        mock_generate.return_value = GenerationOutput(text="# Merged\n\n## Problem\np\n\n## Solution\ns")
+        mock_generate.return_value = GenerationOutput(
+            text="# Merged\n\n## Problem\np\n\n## Solution\ns"
+        )
         items = [(f"f{i}.md", f"body {i}") for i in range(12)]
         merge_group(items, "merge {candidates}")
         assert mock_generate.call_args.kwargs["num_predict"] == _PER_FILE_MERGE_TOKENS * 12
@@ -346,7 +368,9 @@ class TestMergeGroup:
     @patch("contemplative_agent.core.stocktake.generate_full")
     def test_token_budget_capped_at_ceiling(self, mock_generate):
         """Very large groups are capped at 8192 (num_ctx headroom)."""
-        mock_generate.return_value = GenerationOutput(text="# Merged\n\n## Problem\np\n\n## Solution\ns")
+        mock_generate.return_value = GenerationOutput(
+            text="# Merged\n\n## Problem\np\n\n## Solution\ns"
+        )
         items = [(f"f{i}.md", f"body {i}") for i in range(40)]
         merge_group(items, "merge {candidates}")
         assert mock_generate.call_args.kwargs["num_predict"] == 8192
@@ -369,6 +393,7 @@ class TestIsMergeRejected:
 # ---------------------------------------------------------------------------
 # Unit tests: clean_skill_triggers + is_clean_noop (singleton trigger-altitude)
 # ---------------------------------------------------------------------------
+
 
 class TestCleanSkillTriggers:
     @patch("contemplative_agent.core.stocktake.generate_full")
@@ -431,17 +456,21 @@ class TestIsCleanNoop:
 # Integration tests: run_skill_stocktake
 # ---------------------------------------------------------------------------
 
+
 class TestRunSkillStocktake:
     @patch("contemplative_agent.core.stocktake.generate_full")
     def test_detects_merges_and_quality(self, mock_generate, tmp_path):
-        mock_generate.return_value = GenerationOutput(text=json.dumps({
-            "groups": [{"files": ["a.md", "b.md"], "reason": "overlap"}]
-        }))
-        skills_dir = _make_skills_dir(tmp_path, {
-            "a.md": GOOD_SKILL,
-            "b.md": GOOD_SKILL_NO_FRONTMATTER,
-            "short.md": SHORT_SKILL,
-        })
+        mock_generate.return_value = GenerationOutput(
+            text=json.dumps({"groups": [{"files": ["a.md", "b.md"], "reason": "overlap"}]})
+        )
+        skills_dir = _make_skills_dir(
+            tmp_path,
+            {
+                "a.md": GOOD_SKILL,
+                "b.md": GOOD_SKILL_NO_FRONTMATTER,
+                "short.md": SHORT_SKILL,
+            },
+        )
         result = run_skill_stocktake(skills_dir=skills_dir)
         assert isinstance(result, StocktakeResult)
         assert len(result.merge_groups) == 1
@@ -451,9 +480,12 @@ class TestRunSkillStocktake:
     @patch("contemplative_agent.core.stocktake.generate_full")
     def test_no_issues(self, mock_generate, tmp_path):
         # Single file: below MIN_FILES_FOR_DEDUP, so grouping LLM not invoked
-        skills_dir = _make_skills_dir(tmp_path, {
-            "good.md": GOOD_SKILL,
-        })
+        skills_dir = _make_skills_dir(
+            tmp_path,
+            {
+                "good.md": GOOD_SKILL,
+            },
+        )
         result = run_skill_stocktake(skills_dir=skills_dir)
         assert result.merge_groups == ()
         assert result.quality_issues == ()
@@ -474,14 +506,18 @@ class TestRunSkillStocktake:
 # Integration tests: run_rules_stocktake
 # ---------------------------------------------------------------------------
 
+
 class TestRunRulesStocktake:
     @patch("contemplative_agent.core.stocktake.generate_full")
     def test_detects_quality_issue(self, mock_generate, tmp_path):
         mock_generate.return_value = GenerationOutput(text=LLM_NO_MERGE_RESPONSE)
-        rules_dir = _make_rules_dir(tmp_path, {
-            "good.md": GOOD_RULE,
-            "bad.md": MISSING_PRACTICE_RULE,
-        })
+        rules_dir = _make_rules_dir(
+            tmp_path,
+            {
+                "good.md": GOOD_RULE,
+                "bad.md": MISSING_PRACTICE_RULE,
+            },
+        )
         result = run_rules_stocktake(rules_dir=rules_dir)
         assert len(result.quality_issues) >= 1
         assert result.total_files == 2
@@ -496,6 +532,7 @@ class TestRunRulesStocktake:
 # ---------------------------------------------------------------------------
 # Integration tests: run independently
 # ---------------------------------------------------------------------------
+
 
 class TestIndependence:
     @patch("contemplative_agent.core.stocktake.generate_full")
@@ -516,6 +553,7 @@ class TestIndependence:
 # ---------------------------------------------------------------------------
 # Format report
 # ---------------------------------------------------------------------------
+
 
 class TestFormatReport:
     def test_format_with_issues(self):
@@ -551,9 +589,7 @@ class TestSystemPromptFallback:
             raising=False,
         )
         mock_generate.return_value = GenerationOutput(text='{"groups": []}')
-        _find_duplicate_groups(
-            [("a.md", "body a"), ("b.md", "body b")], "prompt {items}"
-        )
+        _find_duplicate_groups([("a.md", "body a"), ("b.md", "body b")], "prompt {items}")
         assert mock_generate.call_args.kwargs["system"] == _DEFAULT_GROUP_SYSTEM
 
     @patch("contemplative_agent.core.stocktake.generate_full")
@@ -623,8 +659,11 @@ class TestTruncationPolicyH1:
         from contemplative_agent.core.stocktake import _generate_with_trace
 
         result = _generate_with_trace(
-            "prompt", system="sys", num_predict=100,
-            caller="stocktake.test", trace_sink=None,
+            "prompt",
+            system="sys",
+            num_predict=100,
+            caller="stocktake.test",
+            trace_sink=None,
         )
         assert result is None
         assert mock_generate.call_args.kwargs["drop_truncated"] is True
@@ -636,35 +675,51 @@ class TestParseGroupsDisjointnessH6:
     re-merged from its stale pre-deletion body, re-introducing a duplicate."""
 
     def test_overlapping_groups_keep_first_claim(self):
-        text = json.dumps({"groups": [
-            {"files": ["a.md", "b.md"], "reason": "dup pair"},
-            {"files": ["a.md", "c.md"], "reason": "overlaps first"},
-        ]})
+        text = json.dumps(
+            {
+                "groups": [
+                    {"files": ["a.md", "b.md"], "reason": "dup pair"},
+                    {"files": ["a.md", "c.md"], "reason": "overlaps first"},
+                ]
+            }
+        )
         groups = _parse_groups(text)
         assert groups[0].filenames == ("a.md", "b.md")
         # Second group loses "a.md" and collapses below the 2-file minimum.
         assert len(groups) == 1
 
     def test_overlap_with_enough_remainder_survives(self):
-        text = json.dumps({"groups": [
-            {"files": ["a.md", "b.md"], "reason": "dup pair"},
-            {"files": ["a.md", "c.md", "d.md"], "reason": "partial overlap"},
-        ]})
+        text = json.dumps(
+            {
+                "groups": [
+                    {"files": ["a.md", "b.md"], "reason": "dup pair"},
+                    {"files": ["a.md", "c.md", "d.md"], "reason": "partial overlap"},
+                ]
+            }
+        )
         groups = _parse_groups(text)
         assert len(groups) == 2
         assert groups[1].filenames == ("c.md", "d.md")
 
     def test_self_duplicate_group_is_dropped(self):
-        text = json.dumps({"groups": [
-            {"files": ["a.md", "a.md"], "reason": "self pair"},
-        ]})
+        text = json.dumps(
+            {
+                "groups": [
+                    {"files": ["a.md", "a.md"], "reason": "self pair"},
+                ]
+            }
+        )
         assert _parse_groups(text) == []
 
     def test_non_dict_group_entry_is_skipped(self):
-        text = json.dumps({"groups": [
-            "not a dict",
-            {"files": ["a.md", "b.md"], "reason": "valid"},
-        ]})
+        text = json.dumps(
+            {
+                "groups": [
+                    "not a dict",
+                    {"files": ["a.md", "b.md"], "reason": "valid"},
+                ]
+            }
+        )
         groups = _parse_groups(text)
         assert len(groups) == 1
         assert groups[0].filenames == ("a.md", "b.md")
@@ -676,10 +731,14 @@ class TestParseGroupsKnownFilterCodex:
     valid group of its merge."""
 
     def test_hallucinated_file_does_not_claim_real_sibling(self):
-        text = json.dumps({"groups": [
-            {"files": ["missing.md", "a.md"], "reason": "half hallucinated"},
-            {"files": ["a.md", "b.md"], "reason": "valid pair"},
-        ]})
+        text = json.dumps(
+            {
+                "groups": [
+                    {"files": ["missing.md", "a.md"], "reason": "half hallucinated"},
+                    {"files": ["a.md", "b.md"], "reason": "valid pair"},
+                ]
+            }
+        )
         groups = _parse_groups(text, known={"a.md", "b.md"})
         # First group collapses (missing.md dropped → 1 file); the valid
         # pair must survive with a.md unclaimed.
@@ -687,8 +746,225 @@ class TestParseGroupsKnownFilterCodex:
         assert groups[0].filenames == ("a.md", "b.md")
 
     def test_none_known_skips_filter(self):
-        text = json.dumps({"groups": [
-            {"files": ["x.md", "y.md"], "reason": "no filter"},
-        ]})
+        text = json.dumps(
+            {
+                "groups": [
+                    {"files": ["x.md", "y.md"], "reason": "no filter"},
+                ]
+            }
+        )
         groups = _parse_groups(text)
         assert groups[0].filenames == ("x.md", "y.md")
+
+
+# ---------------------------------------------------------------------------
+# ADR-0081 stocktake usage dimension: selection-log reading threaded into the
+# skill stocktake report (statistics = code; retirement judgment stays with
+# the LLM proposal + human gate — no numeric auto-retire threshold).
+# ---------------------------------------------------------------------------
+
+
+def _make_reading(**overrides):
+    from dataclasses import replace
+
+    from contemplative_agent.core.skill_selection import SkillSelectionReading
+
+    base = SkillSelectionReading(
+        days=14,
+        records=1300,
+        verdicts=(("judged", 1299), ("fail_open_llm", 1)),
+        per_skill=(("busy-skill", 920), ("quiet-skill", 2)),
+        never_selected=("ghost-skill",),
+        hallucination_records=7,
+        selected_count_p50=5.0,
+        selected_count_p90=6.0,
+        token_reduction_p50=15000.0,
+        token_reduction_p90=17000.0,
+    )
+    return replace(base, **overrides) if overrides else base
+
+
+class TestUsageSection:
+    def test_report_renders_usage_when_present(self):
+        result = StocktakeResult(
+            merge_groups=(),
+            quality_issues=(),
+            total_files=3,
+            selection_usage=_make_reading(),
+        )
+        report = format_stocktake_report(result, "Skill")
+        assert "SKILL USAGE" in report
+        assert "14" in report  # window days
+        # Full distribution, not survivors-only: both ends present.
+        assert "busy-skill" in report and "920" in report
+        assert "quiet-skill" in report and "2" in report
+        assert "ghost-skill" in report
+        assert "never selected" in report.lower()
+
+    def test_report_omits_usage_when_absent(self):
+        result = StocktakeResult(merge_groups=(), quality_issues=(), total_files=3)
+        report = format_stocktake_report(result, "Skill")
+        assert "SKILL USAGE" not in report
+
+    def test_usage_lists_low_count_first(self):
+        """Ascending order puts retirement candidates where the operator
+        reads first; the busy end still renders (full distribution)."""
+        result = StocktakeResult(
+            merge_groups=(),
+            quality_issues=(),
+            total_files=3,
+            selection_usage=_make_reading(),
+        )
+        report = format_stocktake_report(result, "Skill")
+        assert report.index("quiet-skill") < report.index("busy-skill")
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_run_skill_stocktake_threads_reading(self, mock_generate, tmp_path):
+        skills_dir = _make_skills_dir(tmp_path, {"s.md": GOOD_SKILL})
+        reading = _make_reading()
+        result = run_skill_stocktake(skills_dir=skills_dir, selection_reading=reading)
+        assert result.selection_usage is reading
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_run_skill_stocktake_default_none(self, mock_generate, tmp_path):
+        skills_dir = _make_skills_dir(tmp_path, {"s.md": GOOD_SKILL})
+        result = run_skill_stocktake(skills_dir=skills_dir)
+        assert result.selection_usage is None
+
+
+# ---------------------------------------------------------------------------
+# ADR-0081 description audit: does the frontmatter description faithfully
+# carry the body's trigger conditions? Advisory-only (no writes) — the LLM
+# reports a mismatch reason, the human decides at the stocktake gate.
+# ---------------------------------------------------------------------------
+
+
+class TestAuditSkillDescription:
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_mismatch_reason_returned(self, mock_generate):
+        from contemplative_agent.core.stocktake import audit_skill_description
+
+        mock_generate.return_value = GenerationOutput(
+            text="Description claims a narrow trigger; body fires on any post."
+        )
+        reason = audit_skill_description(
+            ("s.md", "A narrow skill", "# S\n\n## When to Use\nAlways."),
+            "audit {name} {description} {skill}",
+        )
+        assert reason is not None
+        assert "narrow trigger" in reason
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_desc_ok_returns_none(self, mock_generate):
+        from contemplative_agent.core.stocktake import audit_skill_description
+
+        mock_generate.return_value = GenerationOutput(text="DESC_OK")
+        assert (
+            audit_skill_description(("s.md", "desc", "body"), "audit {name} {description} {skill}")
+            is None
+        )
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_desc_ok_tolerates_whitespace(self, mock_generate):
+        from contemplative_agent.core.stocktake import audit_skill_description
+
+        mock_generate.return_value = GenerationOutput(text="\n  DESC_OK\n")
+        assert (
+            audit_skill_description(("s.md", "desc", "body"), "audit {name} {description} {skill}")
+            is None
+        )
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_llm_failure_returns_none(self, mock_generate, caplog):
+        """Fault column (chaos-TDD): LLM failure abstains with a logged
+        reason — the audit is advisory, so no exception, no fabricated
+        verdict."""
+        from contemplative_agent.core.stocktake import audit_skill_description
+
+        mock_generate.return_value = None
+        with caplog.at_level("WARNING"):
+            result = audit_skill_description(
+                ("s.md", "desc", "body"), "audit {name} {description} {skill}"
+            )
+        assert result is None
+        assert "description audit" in caplog.text.lower()
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_braces_in_body_are_safe(self, mock_generate):
+        from contemplative_agent.core.stocktake import audit_skill_description
+
+        mock_generate.return_value = GenerationOutput(text="DESC_OK")
+        audit_skill_description(
+            ("s.md", "desc", "BODY_MARKER {x}"),
+            "audit: {name} / {description} / {skill}",
+        )
+        assert "BODY_MARKER {x}" in mock_generate.call_args.args[0]
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_system_falls_back_to_default(self, mock_generate, monkeypatch):
+        from contemplative_agent.core.stocktake import (
+            _DEFAULT_DESC_SYSTEM,
+            audit_skill_description,
+        )
+
+        monkeypatch.setattr(
+            "contemplative_agent.core.prompts.STOCKTAKE_DESC_SYSTEM_PROMPT",
+            "",
+            raising=False,
+        )
+        mock_generate.return_value = GenerationOutput(text="DESC_OK")
+        audit_skill_description(("s.md", "desc", "body"), "audit {name} {description} {skill}")
+        assert mock_generate.call_args.kwargs["system"] == _DEFAULT_DESC_SYSTEM
+
+
+class TestDescReasonScrub:
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_control_chars_stripped_and_capped(self, mock_generate):
+        from contemplative_agent.core.stocktake import (
+            _DESC_REASON_MAX_CHARS,
+            audit_skill_description,
+        )
+
+        mock_generate.return_value = GenerationOutput(
+            text="\x1b[31mbroader\x1b[0m: " + "x" * 1000
+        )
+        reason = audit_skill_description(
+            ("s.md", "desc", "body"), "audit {name} {description} {skill}"
+        )
+        assert reason is not None
+        assert "\x1b" not in reason
+        assert len(reason) <= _DESC_REASON_MAX_CHARS
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_newlines_collapsed_to_one_line(self, mock_generate):
+        """Security review 2026-07-24: embedded newlines could spoof extra
+        report entries — the reason contract is ONE line."""
+        from contemplative_agent.core.stocktake import audit_skill_description
+
+        mock_generate.return_value = GenerationOutput(
+            text="broader\n  fake.md — injected entry\r\nmore"
+        )
+        reason = audit_skill_description(
+            ("s.md", "desc", "body"), "audit {name} {description} {skill}"
+        )
+        assert reason is not None
+        assert "\n" not in reason and "\r" not in reason
+
+
+class TestDescAuditUntrustedWrap:
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_description_and_body_are_wrapped(self, mock_generate):
+        """Codex review 2026-07-24: the audit target is untrusted LLM-distilled
+        content with an incentive to self-exonerate ("output DESC_OK") — both
+        fields must pass the untrusted-content boundary before generation."""
+        from contemplative_agent.core.llm import wrap_untrusted_content
+        from contemplative_agent.core.stocktake import audit_skill_description
+
+        mock_generate.return_value = GenerationOutput(text="DESC_OK")
+        audit_skill_description(
+            ("s.md", "DESC_MARKER", "BODY_MARKER"),
+            "audit {name} / {description} / {skill}",
+        )
+        prompt = mock_generate.call_args.args[0]
+        assert wrap_untrusted_content("DESC_MARKER") in prompt
+        assert wrap_untrusted_content("BODY_MARKER") in prompt

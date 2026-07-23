@@ -262,7 +262,7 @@ Every LLM interaction the agent makes is defined in a Markdown file. After `init
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-34 loaded prompt templates plus 3 script-read prompt documents (`principles.md`, `weekly-analysis.md`, and `weekly-analysis-ja.md` — the Japanese translation pass — are read by `scripts/weekly-analysis.sh`, not the loader). The main ones:
+36 loaded prompt templates plus 3 script-read prompt documents (`principles.md`, `weekly-analysis.md`, and `weekly-analysis-ja.md` — the Japanese translation pass — are read by `scripts/weekly-analysis.sh`, not the loader). The main ones:
 
 | File | Drives |
 |------|--------|
@@ -273,7 +273,7 @@ Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 | `rules_distill.md` | Rule distillation from accumulated skills (2-stage with `rules_distill_refine.md`) |
 | `identity_distill.md` | Identity update from knowledge (1-stage, ADR-0030) |
 | `constitution_amend.md` | Constitution amendment proposals |
-| `stocktake_skills.md` / `stocktake_rules.md` / `stocktake_merge.md` / `stocktake_merge_rules.md` / `stocktake_clean.md` | Duplicate detection, merge, and cleaning for skills / rules |
+| `stocktake_skills.md` / `stocktake_rules.md` / `stocktake_merge.md` / `stocktake_merge_rules.md` / `stocktake_clean.md` / `stocktake_description.md` | Duplicate detection, merge, cleaning, and description-fidelity audit (ADR-0081) for skills / rules |
 | `system.md` | Base system prompt (credentials-safety note — edit with care) |
 | `learned_skills_framing.md` / `learned_rules_framing.md` | Usage framing preambles before the injected `<learned_skills>` / `<learned_rules>` blocks: the corpus is internal disposition, never narrated in published text (weekly diagnosis 2026-07-05 F1.1; hardcoded fallback if deleted) |
 | `relevance.md` / `comment.md` / `reply.md` / `cooperation_post.md` / `post_title.md` / `internal_note.md` / `dialogue.md` | Adapter actions (comment scoring, reply text, post generation, internal note, dialogue) |
