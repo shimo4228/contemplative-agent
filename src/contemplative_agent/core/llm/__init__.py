@@ -21,7 +21,7 @@ import os
 import time
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any
 
 import requests
 
@@ -69,6 +69,7 @@ from .prompting import (
     _build_system_prompt as _build_system_prompt,
     _estimate_tokens as _estimate_tokens,
     _load_md_files as _load_md_files,
+    build_system_prompt_with_skills as build_system_prompt_with_skills,
     get_distill_system_prompt as get_distill_system_prompt,
     get_identity_system_prompt as get_identity_system_prompt,
     system_prompt_budget_reading as system_prompt_budget_reading,
@@ -81,21 +82,21 @@ logger = logging.getLogger(__name__)
 # state only; prompt-side state is owned by .prompting (single owner).
 _ollama_base_url: str = _DEFAULT_OLLAMA_URL
 _ollama_model: str = _DEFAULT_OLLAMA_MODEL
-_backend: Optional[LLMBackend] = None
-_telemetry_dir: Optional[Path] = None
+_backend: LLMBackend | None = None
+_telemetry_dir: Path | None = None
 
 
 def configure(
     *,
-    identity_path: Optional[Path] = None,
-    ollama_base_url: Optional[str] = None,
-    ollama_model: Optional[str] = None,
-    default_system_prompt: Optional[str] = None,
-    axiom_prompt: Optional[str] = None,
-    skills_dir: Optional[Path] = None,
-    rules_dir: Optional[Path] = None,
-    backend: Optional[LLMBackend] = None,
-    telemetry_dir: Optional[Path] = None,
+    identity_path: Path | None = None,
+    ollama_base_url: str | None = None,
+    ollama_model: str | None = None,
+    default_system_prompt: str | None = None,
+    axiom_prompt: str | None = None,
+    skills_dir: Path | None = None,
+    rules_dir: Path | None = None,
+    backend: LLMBackend | None = None,
+    telemetry_dir: Path | None = None,
 ) -> None:
     """Configure LLM module with adapter-specific settings.
 
@@ -168,7 +169,7 @@ def served_model() -> str:
     return _backend.model if _backend is not None else _get_model()
 
 
-def _emit_telemetry(record: Dict[str, Any]) -> None:
+def _emit_telemetry(record: dict[str, Any]) -> None:
     """Append one telemetry record to ``llm-calls-{date}.jsonl``.
 
     No-op when ``_telemetry_dir`` is unset. Never raises: a telemetry
@@ -188,15 +189,15 @@ def _emit_telemetry(record: Dict[str, Any]) -> None:
 
 def generate(
     prompt: str,
-    system: Optional[str] = None,
-    max_length: Optional[int] = None,
-    num_predict: Optional[int] = None,
-    format: Optional[Dict] = None,
+    system: str | None = None,
+    max_length: int | None = None,
+    num_predict: int | None = None,
+    format: dict | None = None,
     temperature: float = 1.0,
     drop_truncated: bool = False,
     caller: str = "unknown",
     think: bool = False,
-) -> Optional[str]:
+) -> str | None:
     """Generate text via the configured backend (default: local Ollama).
 
     Args:
@@ -268,15 +269,15 @@ def generate(
 
 def generate_full(
     prompt: str,
-    system: Optional[str] = None,
-    max_length: Optional[int] = None,
-    num_predict: Optional[int] = None,
-    format: Optional[Dict] = None,
+    system: str | None = None,
+    max_length: int | None = None,
+    num_predict: int | None = None,
+    format: dict | None = None,
     temperature: float = 1.0,
     drop_truncated: bool = False,
     caller: str = "unknown",
     think: bool = False,
-) -> Optional[GenerationOutput]:
+) -> GenerationOutput | None:
     """Like :func:`generate` but returns the full :class:`GenerationOutput`.
 
     Internal trace-keeping entry point (ADR-0069): the value-layer pipelines
@@ -306,15 +307,15 @@ def generate_full(
 
 def _generate_full(
     prompt: str,
-    system: Optional[str],
-    max_length: Optional[int],
-    num_predict: Optional[int],
-    format: Optional[Dict],
+    system: str | None,
+    max_length: int | None,
+    num_predict: int | None,
+    format: dict | None,
     temperature: float,
     drop_truncated: bool,
     caller: str,
     think: bool,
-) -> Optional[GenerationOutput]:
+) -> GenerationOutput | None:
     """Shared core of :func:`generate` and :func:`generate_for_api`.
 
     Builds the per-call telemetry record (including ``think``), runs the
@@ -324,7 +325,7 @@ def _generate_full(
     callers keep the full object to persist ``.thinking`` to the episode log.
     """
     effective_num_predict = num_predict if num_predict is not None else 8192
-    tel: Dict[str, Any] = {
+    tel: dict[str, Any] = {
         "ts": now_iso(timespec="seconds"),
         "caller": caller,
         # Injected backends declare their served model id via the LLMBackend
@@ -374,15 +375,15 @@ def _generate_full(
 
 def _generate_impl(
     prompt: str,
-    system: Optional[str],
-    max_length: Optional[int],
-    format: Optional[Dict],
+    system: str | None,
+    max_length: int | None,
+    format: dict | None,
     temperature: float,
     drop_truncated: bool,
     effective_num_predict: int,
-    tel: Dict[str, Any],
+    tel: dict[str, Any],
     think: bool,
-) -> Optional[GenerationOutput]:
+) -> GenerationOutput | None:
     """Body of :func:`_generate_full`; mutates *tel* with outcome metadata."""
     if _circuit.is_open:
         logger.debug("Circuit breaker open — skipping LLM request")
@@ -479,14 +480,14 @@ def _generate_impl(
 def _generate_via_backend(
     prompt: str,
     system_prompt: str,
-    max_length: Optional[int],
-    format: Optional[Dict],
+    max_length: int | None,
+    format: dict | None,
     temperature: float,
     drop_truncated: bool,
     effective_num_predict: int,
-    tel: Dict[str, Any],
+    tel: dict[str, Any],
     think: bool,
-) -> Optional[GenerationOutput]:
+) -> GenerationOutput | None:
     """Injected-backend path of :func:`_generate_impl`.
 
     Mirrors the Ollama path's truncation gating and telemetry: the backend
@@ -559,12 +560,12 @@ def _classify_request_error(exc: requests.RequestException) -> str:
 def _post_ollama(
     prompt: str,
     system_prompt: str,
-    format: Optional[Dict],
+    format: dict | None,
     temperature: float,
     effective_num_predict: int,
-    tel: Dict[str, Any],
+    tel: dict[str, Any],
     think: bool,
-) -> Optional[Dict]:
+) -> dict | None:
     """POST to Ollama and parse the JSON body; None on any failure.
 
     Every failure path (bad URL, transport error, unparsable body, empty
@@ -626,10 +627,10 @@ def _post_ollama(
 
 
 def _drop_for_output_truncation(
-    finish_reason: Optional[str],
+    finish_reason: str | None,
     drop_truncated: bool,
     effective_num_predict: int,
-    tel: Dict[str, Any],
+    tel: dict[str, Any],
 ) -> bool:
     """Output-truncation signal (audit M2); True when the result must drop.
 
@@ -661,10 +662,10 @@ def _drop_for_output_truncation(
 
 def _finalize_ok(
     text: str,
-    reasoning: Optional[str],
-    max_length: Optional[int],
+    reasoning: str | None,
+    max_length: int | None,
     think: bool,
-    tel: Dict[str, Any],
+    tel: dict[str, Any],
 ) -> GenerationOutput:
     """Shared success tail for both generation paths.
 
@@ -686,7 +687,7 @@ def _finalize_ok(
 
 
 def _warn_front_truncation(
-    data: Dict, system_prompt: str, prompt: str, tel: Dict[str, Any]
+    data: dict, system_prompt: str, prompt: str, tel: dict[str, Any]
 ) -> None:
     """Silent front-truncation detector (audit C2).
 
@@ -717,7 +718,7 @@ def generate_for_api(
     prompt: str,
     max_length: int,
     *,
-    system: Optional[str] = None,
+    system: str | None = None,
     temperature: float = 1.0,
     chars_per_token: float = 3.0,
     caller: str = "unknown",

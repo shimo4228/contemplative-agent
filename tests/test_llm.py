@@ -2255,3 +2255,62 @@ class TestScoreRelevanceOutageVisibility:
         with caplog.at_level(_logging.WARNING):
             assert score_relevance("test post") == 0.0
         assert "llm_unavailable" in caplog.text
+
+
+class TestBuildSystemPromptWithSkills:
+    """ADR-0081 pass-2 seam: compose the system prompt with a caller-supplied
+    (selection-filtered) skills block instead of the full corpus."""
+
+    def _dirs(self, tmp_path):
+        from contemplative_agent.core.llm import configure, reset_llm_config
+
+        reset_llm_config()
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        (skills_dir / "a.md").write_text("# Full Corpus Skill\nFULL_MARKER")
+        rules_dir = tmp_path / "rules"
+        rules_dir.mkdir()
+        (rules_dir / "r.md").write_text("# Rule\nRULE_MARKER")
+        configure(skills_dir=skills_dir, rules_dir=rules_dir)
+        return skills_dir, rules_dir
+
+    def test_selected_block_replaces_full_corpus(self, tmp_path):
+        from contemplative_agent.core.llm import (
+            build_system_prompt_with_skills,
+            reset_llm_config,
+        )
+
+        self._dirs(tmp_path)
+        try:
+            prompt = build_system_prompt_with_skills("SELECTED_ONLY_BODY")
+            assert "SELECTED_ONLY_BODY" in prompt
+            assert "FULL_MARKER" not in prompt
+            assert "<learned_skills>" in prompt
+            assert "RULE_MARKER" in prompt  # rules injection unchanged
+        finally:
+            reset_llm_config()
+
+    def test_empty_block_omits_skills_section_keeps_rules(self, tmp_path):
+        from contemplative_agent.core.llm import (
+            build_system_prompt_with_skills,
+            reset_llm_config,
+        )
+
+        self._dirs(tmp_path)
+        try:
+            prompt = build_system_prompt_with_skills("")
+            assert "<learned_skills>" not in prompt
+            assert "FULL_MARKER" not in prompt
+            assert "RULE_MARKER" in prompt
+        finally:
+            reset_llm_config()
+
+    def test_full_build_unchanged(self, tmp_path):
+        from contemplative_agent.core.llm import _build_system_prompt, reset_llm_config
+
+        self._dirs(tmp_path)
+        try:
+            prompt = _build_system_prompt()
+            assert "FULL_MARKER" in prompt
+        finally:
+            reset_llm_config()

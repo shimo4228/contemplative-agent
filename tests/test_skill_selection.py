@@ -566,3 +566,200 @@ class TestHallucinationRate:
         reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         text = ss.format_skill_selection_report(reading)
         assert "records" in text
+
+
+class TestEnforcement:
+    """ADR-0081: flag-gated two-pass injection enforcement."""
+
+    def _configure(self, tmp_path, monkeypatch):
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir(exist_ok=True)
+        _write_skill(skills_dir, "a.md", "skill-a", "does a")
+        _write_skill(skills_dir, "b.md", "skill-b", "does b")
+        audit_dir = tmp_path / "logs"
+        ss.configure_skill_selection(skills_dir=skills_dir, audit_dir=audit_dir)
+        monkeypatch.setattr(ss, "_load_selection_template", lambda: PROMPT_TEMPLATE)
+        return skills_dir, audit_dir
+
+    @staticmethod
+    def _records(audit_dir: Path) -> list[dict]:
+        files = sorted(audit_dir.glob("skill-selection-*.jsonl"))
+        assert files
+        return [
+            json.loads(line)
+            for f in files
+            for line in f.read_text(encoding="utf-8").splitlines()
+        ]
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_flag_off_returns_none_and_records_shadow(self, mock_generate, tmp_path, monkeypatch):
+        self._configure(tmp_path, monkeypatch)
+        monkeypatch.delenv("MOLTBOOK_SKILL_SELECTION_ENFORCE", raising=False)
+        mock_generate.return_value = "skill-a"
+        result = ss.shadow_observe_skill_selection("s", generation_caller="moltbook.comment")
+        assert result is None
+        (rec,) = self._records(tmp_path / "logs")
+        assert rec["enforced"] is False
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_flag_on_judged_returns_selection_marked_enforced(
+        self, mock_generate, tmp_path, monkeypatch
+    ):
+        self._configure(tmp_path, monkeypatch)
+        monkeypatch.setenv("MOLTBOOK_SKILL_SELECTION_ENFORCE", "1")
+        mock_generate.return_value = "skill-a"
+        result = ss.shadow_observe_skill_selection("s", generation_caller="moltbook.comment")
+        assert result == ("skill-a",)
+        (rec,) = self._records(tmp_path / "logs")
+        assert rec["enforced"] is True
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_flag_on_llm_failure_fails_open_to_full_injection(
+        self, mock_generate, tmp_path, monkeypatch
+    ):
+        """Fault column (chaos-TDD): selector failure under enforcement must
+        fall back to full injection (None), never an empty injection."""
+        self._configure(tmp_path, monkeypatch)
+        monkeypatch.setenv("MOLTBOOK_SKILL_SELECTION_ENFORCE", "1")
+        mock_generate.return_value = None
+        result = ss.shadow_observe_skill_selection("s", generation_caller="moltbook.reply")
+        assert result is None
+        (rec,) = self._records(tmp_path / "logs")
+        assert rec["verdict"] == "fail_open_llm"
+        assert rec["enforced"] is False
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_flag_on_judged_empty_returns_empty_tuple(self, mock_generate, tmp_path, monkeypatch):
+        """An empty judged selection is a decision (inject nothing), not a
+        failure (ADR-0081 Decision 3)."""
+        self._configure(tmp_path, monkeypatch)
+        monkeypatch.setenv("MOLTBOOK_SKILL_SELECTION_ENFORCE", "1")
+        mock_generate.return_value = "none"
+        result = ss.shadow_observe_skill_selection("s", generation_caller="moltbook.comment")
+        assert result == ()
+        (rec,) = self._records(tmp_path / "logs")
+        assert rec["enforced"] is True
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_flag_on_unconfigured_audit_dir_is_full_injection(
+        self, mock_generate, tmp_path, monkeypatch
+    ):
+        """Kill switch (audit_dir unset) disables the selector entirely —
+        with ADR-0081 that means full injection."""
+        monkeypatch.setenv("MOLTBOOK_SKILL_SELECTION_ENFORCE", "1")
+        assert ss.shadow_observe_skill_selection("s", generation_caller="x") is None
+        assert mock_generate.call_count == 0
+
+
+class TestSelectedSkillsBlock:
+    def test_returns_only_selected_bodies_frontmatter_stripped(self, tmp_path):
+        _write_skill(tmp_path, "a.md", "skill-a", "does a")
+        _write_skill(tmp_path, "b.md", "skill-b", "does b")
+        ss.configure_skill_selection(skills_dir=tmp_path, audit_dir=tmp_path / "logs")
+        block = ss.selected_skills_block(("skill-a",))
+        assert "body of skill-a" in block
+        assert "body of skill-b" not in block
+        assert "---" not in block  # frontmatter stripped
+
+    def test_unknown_name_ignored_with_warning(self, tmp_path, caplog):
+        _write_skill(tmp_path, "a.md", "skill-a", "does a")
+        ss.configure_skill_selection(skills_dir=tmp_path, audit_dir=tmp_path / "logs")
+        with caplog.at_level(logging.WARNING):
+            block = ss.selected_skills_block(("skill-a", "ghost-skill"))
+        assert "body of skill-a" in block
+        assert "ghost-skill" in caplog.text
+
+    def test_empty_selection_returns_empty_string(self, tmp_path):
+        _write_skill(tmp_path, "a.md", "skill-a", "does a")
+        ss.configure_skill_selection(skills_dir=tmp_path, audit_dir=tmp_path / "logs")
+        assert ss.selected_skills_block(()) == ""
+
+
+class TestEnforcementWiring:
+    """ADR-0081: when the selector returns a judged selection, the publish
+    paths generate under a selection-filtered system prompt; None keeps the
+    default (full) system prompt."""
+
+    @staticmethod
+    def _output(text: str = "generated"):
+        from contemplative_agent.core.llm import GenerationOutput
+
+        return GenerationOutput(text=text)
+
+    def _patches(self):
+        return (
+            patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api"),
+            patch(
+                "contemplative_agent.adapters.moltbook.llm_functions.shadow_observe_skill_selection"
+            ),
+            patch(
+                "contemplative_agent.adapters.moltbook.llm_functions.selected_skills_block",
+                return_value="SEL_BLOCK",
+            ),
+            patch(
+                "contemplative_agent.adapters.moltbook.llm_functions.build_system_prompt_with_skills",
+                return_value="SYS_SEL",
+            ),
+        )
+
+    def test_comment_enforced_uses_selected_system(self):
+        from contemplative_agent.adapters.moltbook.llm_functions import generate_comment
+
+        p_api, p_shadow, p_block, p_build = self._patches()
+        with p_api as mock_api, p_shadow as mock_shadow, p_block as mock_block, p_build:
+            mock_api.return_value = self._output()
+            mock_shadow.return_value = ("skill-a",)
+            generate_comment("a post")
+            assert mock_api.call_args.kwargs["system"] == "SYS_SEL"
+            assert mock_block.call_args.args[0] == ("skill-a",)
+
+    def test_comment_shadow_keeps_full_system(self):
+        from contemplative_agent.adapters.moltbook.llm_functions import generate_comment
+
+        p_api, p_shadow, p_block, p_build = self._patches()
+        with p_api as mock_api, p_shadow as mock_shadow, p_block, p_build:
+            mock_api.return_value = self._output()
+            mock_shadow.return_value = None
+            generate_comment("a post")
+            assert mock_api.call_args.kwargs.get("system") is None
+
+    def test_reply_enforced_uses_selected_system(self):
+        from contemplative_agent.adapters.moltbook.llm_functions import generate_reply
+
+        p_api, p_shadow, p_block, p_build = self._patches()
+        with p_api as mock_api, p_shadow as mock_shadow, p_block, p_build:
+            mock_api.return_value = self._output()
+            mock_shadow.return_value = ("skill-b",)
+            generate_reply("post", "comment")
+            assert mock_api.call_args.kwargs["system"] == "SYS_SEL"
+
+    def test_post_title_reuses_cooperation_selection(self):
+        from contemplative_agent.adapters.moltbook.llm_functions import (
+            generate_cooperation_post,
+            generate_post_title,
+        )
+
+        p_api, p_shadow, p_block, p_build = self._patches()
+        with p_api as mock_api, p_shadow as mock_shadow, p_block, p_build:
+            mock_api.return_value = self._output(text="a title")
+            mock_shadow.return_value = ("skill-a",)
+            generate_cooperation_post([{"title": "t", "content": "seed"}])
+            generate_post_title("seed")
+            # post_title runs no second selection but generates under the
+            # same selection-filtered system prompt (ADR-0081 Decision 2).
+            assert mock_shadow.call_count == 1
+            assert mock_api.call_args.kwargs["system"] == "SYS_SEL"
+
+    def test_post_title_full_when_cooperation_was_shadow(self):
+        from contemplative_agent.adapters.moltbook.llm_functions import (
+            generate_cooperation_post,
+            generate_post_title,
+        )
+
+        p_api, p_shadow, p_block, p_build = self._patches()
+        with p_api as mock_api, p_shadow as mock_shadow, p_block, p_build:
+            mock_api.return_value = self._output(text="a title")
+            mock_shadow.return_value = None
+            generate_cooperation_post([{"title": "t", "content": "seed"}])
+            generate_post_title("seed")
+            assert mock_api.call_args.kwargs.get("system") is None

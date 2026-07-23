@@ -3623,3 +3623,57 @@ class TestHandleVerificationMalformedObject:
         kwargs = mock_audit.call_args.kwargs
         assert kwargs["challenge_text"] == ""
         assert "malformed_verification_object" in kwargs["error"]
+
+
+class TestPostPipelineSelectionOrdering:
+    """ADR-0081 Decision 2 regression pin: post_title reuses the
+    cooperation_post pass's skill selection via a module-level hand-off in
+    llm_functions, which is only correct because the pipeline generates the
+    body BEFORE the title. A reorder would silently serve a stale/None
+    selection (python-reviewer 2026-07-24)."""
+
+    @patch(
+        "contemplative_agent.adapters.moltbook.post_pipeline.select_submolt",
+        return_value="philosophy",
+    )
+    @patch(
+        "contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic",
+        return_value="reflection on alignment",
+    )
+    @patch("contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title")
+    @patch(
+        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
+        return_value=0.8,
+    )
+    def test_body_generated_before_title(
+        self, mock_score, mock_title, mock_summarize, mock_submolt
+    ):
+        order: list[str] = []
+        content = MagicMock()
+
+        def _body(*args, **kwargs):
+            order.append("body")
+            return GenerationOutput(
+                text="We paused to revisit how gates intersect with memory."
+            )
+
+        def _title(*args, **kwargs):
+            order.append("title")
+            return "Notes on dedup gates"
+
+        content.create_cooperation_post.side_effect = _body
+        mock_title.side_effect = _title
+        gate = _RecordingNoveltyGate()
+        agent, client, scheduler = _make_agent(content=content, novelty_gate=gate)
+
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {
+            "posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]
+        }
+        post_resp = MagicMock()
+        post_resp.json.return_value = {"success": True, "post": {"id": "new-post-123"}}
+        client.get.return_value = feed_resp
+        client.post.return_value = post_resp
+
+        agent._post_pipeline.run_cycle(client, scheduler)
+        assert order == ["body", "title"]

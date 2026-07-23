@@ -59,12 +59,16 @@ incl. transport errors and retried-429 backoffs),
 `audit.jsonl` (approval gates), `insight-novelty.jsonl` (ADR-0074 novelty-gate
 judge runs: prompt + raw output base64+sha256, verdict
 judged/fail_open_llm/fail_open_parse), `skill-selection-YYYY-MM-DD.jsonl`
-(ADR-0076 shadow pass-1 skill selection before each content generation:
+(ADR-0076 pass-1 skill selection before each content generation:
 selected + hallucinated-rejected names, verdict judged/fail_open_llm/
-fail_open_parse/empty_catalog/no_template, prompt/output base64+sha256,
-full vs would-be skill token estimates baked in at record time; read via
-`report --skill-selection`; injection unchanged — enforcement reserved for
-a follow-up ADR), LLM telemetry caller tags. An
+fail_open_parse/empty_catalog/no_template, `enforced` flag, prompt/output
+base64+sha256, full vs would-be skill token estimates baked in at record
+time; read via `report --skill-selection` incl. hallucination rate.
+ADR-0081: with `MOLTBOOK_SKILL_SELECTION_ENFORCE=1` a judged selection
+drives two-pass injection — pass 2 generates under a system prompt whose
+`<learned_skills>` block holds only the selected bodies; every fail-open
+verdict, the kill switch, and flag-off keep full injection), LLM telemetry
+caller tags. An
 embedding-model calibration pin (`core/embeddings.py`
 `CALIBRATED_EMBEDDING_MODEL` + three-point anchors, ADR-0071/0072) warns at
 command startup and in `report --patterns` when the active model drifts from
@@ -96,9 +100,12 @@ groups records by id instead of inferring runs from time gaps.
 CLI → Agent.run_session(autonomy_level, session_mins)
  ├─ ReplyHandler._run_reply_cycle()
  │    internal_note (ADR-0045) → reply → POST → verify → EpisodeLog
- │    [reply generation is preceded by the ADR-0076 shadow skill-selection
- │     observation — records only, injection unchanged; same for comment
- │     and cooperation_post below, NOT post_title]
+ │    [reply generation is preceded by the ADR-0076 pass-1 skill selection —
+ │     shadow by default (records only); with ADR-0081
+ │     MOLTBOOK_SKILL_SELECTION_ENFORCE=1 a judged selection makes the
+ │     generation inject only the selected skill bodies (fail-open → full
+ │     injection); same for comment and cooperation_post below; post_title
+ │     reuses cooperation_post's selection, no second call]
  ├─ Agent._run_feed_cycle()
  │    fetch → promo filter → own-author skip (name-keyed + id belt-and-braces;
  │      live feed lacks author.id) → ID dedup → per-author cap (3/24h)

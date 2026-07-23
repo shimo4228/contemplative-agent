@@ -351,3 +351,36 @@ class TestRemoveStaleScheduleJobs:
         ):
             assert plist_sandbox[attr].exists()
         mock_run.assert_not_called()
+
+
+class TestInstallScheduleEnforceFlag:
+    """ADR-0081 rollout: launchd does not inherit shell exports, so
+    install-schedule must propagate MOLTBOOK_SKILL_SELECTION_ENFORCE from
+    the installing shell into the session plist's EnvironmentVariables
+    (codex review 2026-07-24 P1 — without this, production silently stays
+    in shadow mode after the documented post-smoke rollout)."""
+
+    def _install(self, tmp_path):
+        plist_path = tmp_path / "com.moltbook.agent.plist"
+        with (
+            patch("contemplative_agent.cli.schedule.LAUNCHD_PLIST_PATH", plist_path),
+            patch("contemplative_agent.cli.schedule.LAUNCHD_PLIST_DIR", tmp_path),
+        ):
+            _do_install_schedule(interval=6, session=120)
+        return plist_path.read_text()
+
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_flag_set_in_shell_lands_in_plist(self, mock_run, tmp_path, monkeypatch):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        monkeypatch.setenv("MOLTBOOK_SKILL_SELECTION_ENFORCE", "1")
+        content = self._install(tmp_path)
+        assert "MOLTBOOK_SKILL_SELECTION_ENFORCE" in content
+        assert "{{ENFORCE_ENV}}" not in content
+
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_flag_unset_leaves_plist_clean(self, mock_run, tmp_path, monkeypatch):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        monkeypatch.delenv("MOLTBOOK_SKILL_SELECTION_ENFORCE", raising=False)
+        content = self._install(tmp_path)
+        assert "MOLTBOOK_SKILL_SELECTION_ENFORCE" not in content
+        assert "{{ENFORCE_ENV}}" not in content

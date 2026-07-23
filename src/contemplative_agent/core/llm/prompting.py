@@ -14,9 +14,9 @@ from __future__ import annotations
 import logging
 import math
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Optional, Sequence, Tuple
 
 from ..config import FORBIDDEN_SUBSTRING_PATTERNS, FORBIDDEN_WORD_PATTERNS
 from ..text_utils import strip_frontmatter
@@ -26,25 +26,25 @@ logger = logging.getLogger(__name__)
 
 # Module-level settings — set by configure() from the adapter (via the
 # package facade's configure()).
-_identity_path: Optional[Path] = None
-_default_system_prompt: Optional[str] = None
-_axiom_prompt: Optional[str] = None
-_skills_dir: Optional[Path] = None
-_rules_dir: Optional[Path] = None
+_identity_path: Path | None = None
+_default_system_prompt: str | None = None
+_axiom_prompt: str | None = None
+_skills_dir: Path | None = None
+_rules_dir: Path | None = None
 
 # Cache for _load_md_files results, keyed by directory path.
 # Value is (mtime_key, concatenated_contents). Invalidated automatically
 # when any *.md file is added, removed, or edited (mtime_key covers both).
-_MD_CACHE: Dict[Path, Tuple[float, str]] = {}
+_MD_CACHE: dict[Path, tuple[float, str]] = {}
 
 
 def configure_prompting(
     *,
-    identity_path: Optional[Path] = None,
-    default_system_prompt: Optional[str] = None,
-    axiom_prompt: Optional[str] = None,
-    skills_dir: Optional[Path] = None,
-    rules_dir: Optional[Path] = None,
+    identity_path: Path | None = None,
+    default_system_prompt: str | None = None,
+    axiom_prompt: str | None = None,
+    skills_dir: Path | None = None,
+    rules_dir: Path | None = None,
 ) -> None:
     """Set the prompt-side configuration. Called by ``core.llm.configure()``."""
     global _identity_path, _default_system_prompt, _axiom_prompt
@@ -140,7 +140,7 @@ def validate_identity_content(content: str) -> bool:
     return True
 
 
-def _mtime_key(directory: Path, md_paths: list) -> Optional[float]:
+def _mtime_key(directory: Path, md_paths: list) -> float | None:
     """Composite mtime covering dir add/delete and per-file edits.
 
     Max of directory mtime (bumped on entry add/remove) and each
@@ -160,7 +160,7 @@ def _mtime_key(directory: Path, md_paths: list) -> Optional[float]:
     return max(stamps)
 
 
-def _load_md_files(directory: Optional[Path], label: str) -> str:
+def _load_md_files(directory: Path | None, label: str) -> str:
     """Load and concatenate .md files from a directory.
 
     Each file is validated against forbidden patterns; tainted files are skipped.
@@ -259,6 +259,20 @@ def _build_system_prompt() -> str:
     above) so the model treats the corpus as internal disposition rather than
     a procedure to narrate.
     """
+    return build_system_prompt_with_skills(_load_md_files(_skills_dir, "Skill"))
+
+
+def build_system_prompt_with_skills(skills: str) -> str:
+    """Compose the system prompt with a caller-supplied skills block.
+
+    ADR-0081 pass-2 seam: under two-pass injection the caller passes the
+    selection-filtered skill bodies (already frontmatter-stripped and
+    forbidden-pattern-validated by ``skill_selection.selected_skills_block``);
+    an empty string omits the ``<learned_skills>`` block entirely (a
+    judged-empty selection injects nothing). Rules injection is unchanged.
+    ``_build_system_prompt()`` delegates here with the full corpus, so the
+    layer order and framing are single-sourced.
+    """
     base_prompt = _identity_axioms_base()
 
     # Append learned skills and rules if available (treated as untrusted —
@@ -267,7 +281,6 @@ def _build_system_prompt() -> str:
     # the corpus branches: pulling them eagerly would force the full prompt
     # registry to load even for a minimal runtime with an injected
     # default_system_prompt and no learned corpus (codex review 2026-07-06 P2).
-    skills = _load_md_files(_skills_dir, "Skill")
     if skills:
         from ..prompts import LEARNED_SKILLS_FRAMING_PROMPT
 
@@ -328,10 +341,10 @@ def system_prompt_budget_reading(
     new_texts: Sequence[str],
     replaced_texts: Sequence[str] = (),
     *,
-    identity_path: Optional[Path] = None,
-    axiom_prompt: Optional[str] = None,
-    skills_dir: Optional[Path] = None,
-    rules_dir: Optional[Path] = None,
+    identity_path: Path | None = None,
+    axiom_prompt: str | None = None,
+    skills_dir: Path | None = None,
+    rules_dir: Path | None = None,
 ) -> SystemBudgetReading:
     """Project the system prompt token estimate after a value-layer change.
 

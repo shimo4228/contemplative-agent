@@ -221,6 +221,20 @@ and recur in later windows; deferrals are recorded in
 
 You can also hand-write skill files and place them in the directory.
 
+Injection (ADR-0076/0081): every adopted skill body is injected into the
+generation system prompt by default. Setting
+`MOLTBOOK_SKILL_SELECTION_ENFORCE=1` (env, read at call time) switches the
+three observed publish paths (comment / reply / cooperation post, with
+post_title reusing cooperation post's selection) to two-pass injection —
+a pass-1 LLM selection picks the applicable skills and pass 2 generates
+with only those bodies. Any selector failure falls back to full injection;
+unset (default) keeps shadow-only observation. The selection log
+(`logs/skill-selection-*.jsonl`) marks each record with `enforced`.
+launchd does not inherit shell exports, so for the production schedule
+re-run `contemplative-agent install-schedule` with the flag exported —
+the installer bakes it into the session plist's `EnvironmentVariables`
+(re-run without it to turn enforcement back off).
+
 ### Rules
 
 Location: `MOLTBOOK_HOME/rules/*.md`

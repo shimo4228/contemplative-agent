@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import logging
 import re
-from typing import Optional
 
 from ...core.config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH, MAX_POST_TITLE_LENGTH
 from ...core.domain import get_domain_config, resolve_prompt
 from ...core.llm import (
     GenerationOutput,
+    build_system_prompt_with_skills,
     generate,
     generate_for_api,
     get_identity_system_prompt,
@@ -26,7 +26,10 @@ from ...core.prompts import (
     SUBMOLT_SELECTION_PROMPT,
     TOPIC_SUMMARY_PROMPT,
 )
-from ...core.skill_selection import shadow_observe_skill_selection
+from ...core.skill_selection import (
+    selected_skills_block,
+    shadow_observe_skill_selection,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -126,6 +129,27 @@ def generate_internal_note(content: str) -> str:
     return result.strip() if result else ""
 
 
+def _selection_system(selection: tuple[str, ...] | None) -> str | None:
+    """Map a selector return to the ``system=`` argument for the publish call.
+
+    ADR-0081: ``None`` (shadow mode, fail-open, kill switch) → ``None`` =
+    the default full system prompt; a judged selection (possibly empty) →
+    a system prompt whose ``<learned_skills>`` block holds only the
+    selected bodies (empty selection injects no skills block).
+    """
+    if selection is None:
+        return None
+    return build_system_prompt_with_skills(selected_skills_block(selection))
+
+
+# ADR-0081 Decision 2: post_title runs in the same pipeline pass over the
+# same seeds as cooperation_post, so it reuses that pass's selection instead
+# of paying a second selector call. Module-level hand-off (single process,
+# sequential pipeline); generate_cooperation_post overwrites it every pass,
+# so a stale value cannot leak across passes.
+_last_cooperation_selection: tuple[str, ...] | None = None
+
+
 def generate_comment(post_text: str, *, think: bool = False) -> GenerationOutput:
     """Generate a contextual comment for a post.
 
@@ -143,15 +167,19 @@ def generate_comment(post_text: str, *, think: bool = False) -> GenerationOutput
     never published).
     """
     wrapped_post = wrap_untrusted_content(post_text, max_input=MAX_POST_LENGTH)
-    # ADR-0076 shadow observation: records which skills the model judges
-    # applicable to this situation; feeds nothing back into this generation.
-    shadow_observe_skill_selection(wrapped_post, generation_caller="moltbook.comment")
+    # ADR-0076 shadow observation / ADR-0081 enforcement: a judged selection
+    # under the rollout flag returns skill names → generate under a
+    # selection-filtered system prompt; None (shadow, fail-open, kill
+    # switch) keeps the full prompt.
+    selection = shadow_observe_skill_selection(wrapped_post, generation_caller="moltbook.comment")
+    system = _selection_system(selection)
     prompt = COMMENT_PROMPT.format(post_content=wrapped_post)
     # chars_per_token=1.5 (audit M2): CJK output runs 1.5-2 chars/tok; the
     # /3 default under-budgets num_predict and cuts Japanese mid-sentence.
     return generate_for_api(
         prompt,
         max_length=MAX_COMMENT_LENGTH,
+        system=system,
         temperature=COMMENT_TEMPERATURE,
         chars_per_token=1.5,
         caller="moltbook.comment",
@@ -202,11 +230,18 @@ def generate_cooperation_post(
     ADR-0052: ungated self-narrative must not condition next-session
     generation — identity (approval-gated) is the continuity carrier.
     """
+    global _last_cooperation_selection
     seeds_text = format_feed_seeds(feed_seeds)
-    # ADR-0076 shadow observation (see generate_comment). post_title, which
-    # runs in the same pipeline pass over the same seeds, is deliberately
-    # not observed — a second selection adds cost, not information.
-    shadow_observe_skill_selection(seeds_text, generation_caller="moltbook.cooperation_post")
+    # ADR-0076 shadow observation / ADR-0081 enforcement (see
+    # generate_comment). post_title, which runs in the same pipeline pass
+    # over the same seeds, is deliberately not observed — a second selection
+    # adds cost, not information; it reuses this pass's selection instead
+    # (ADR-0081 Decision 2, via _last_cooperation_selection).
+    selection = shadow_observe_skill_selection(
+        seeds_text, generation_caller="moltbook.cooperation_post"
+    )
+    _last_cooperation_selection = selection
+    system = _selection_system(selection)
     prompt = _resolve_domain_prompt(COOPERATION_POST_PROMPT).format(
         feed_seeds=seeds_text,
     )
@@ -220,6 +255,7 @@ def generate_cooperation_post(
     return generate_for_api(
         prompt,
         max_length=MAX_POST_LENGTH,
+        system=system,
         temperature=COMMENT_TEMPERATURE,
         caller="moltbook.cooperation_post",
         think=think,
@@ -245,10 +281,11 @@ def generate_reply(
     # 32768 budget; a pathological all-CJK max is skipped by generate()'s guard).
     wrapped_post = wrap_untrusted_content(original_post, max_input=MAX_POST_LENGTH)
     wrapped_comment = wrap_untrusted_content(their_comment, max_input=MAX_COMMENT_LENGTH)
-    # ADR-0076 shadow observation (see generate_comment).
-    shadow_observe_skill_selection(
+    # ADR-0076 shadow observation / ADR-0081 enforcement (see generate_comment).
+    selection = shadow_observe_skill_selection(
         f"{wrapped_post}\n\n{wrapped_comment}", generation_caller="moltbook.reply"
     )
+    system = _selection_system(selection)
     prompt = REPLY_PROMPT.format(
         original_post=wrapped_post,
         their_comment=wrapped_comment,
@@ -258,6 +295,7 @@ def generate_reply(
     return generate_for_api(
         prompt,
         max_length=MAX_COMMENT_LENGTH,
+        system=system,
         temperature=COMMENT_TEMPERATURE,
         chars_per_token=1.5,
         caller="moltbook.reply",
@@ -265,7 +303,7 @@ def generate_reply(
     )
 
 
-def generate_post_title(feed_seed_text: str) -> Optional[str]:
+def generate_post_title(feed_seed_text: str) -> str | None:
     """Generate a post title from peer-post voice blocks (ADR-0043).
 
     ``feed_seed_text`` is the output of ``format_feed_seeds`` — concatenated
@@ -283,6 +321,9 @@ def generate_post_title(feed_seed_text: str) -> Optional[str]:
     result = generate_for_api(
         prompt,
         max_length=MAX_POST_TITLE_LENGTH,
+        # ADR-0081 Decision 2: reuse the cooperation_post pass's selection
+        # (same seeds, same pipeline pass) — no second selector call.
+        system=_selection_system(_last_cooperation_selection),
         chars_per_token=1.5,
         caller="moltbook.post_title",
     ).text
@@ -327,7 +368,7 @@ def summarize_post_topic(content: str) -> str:
 def select_submolt(
     content: str,
     submolts: tuple[str, ...],
-) -> Optional[str]:
+) -> str | None:
     """Ask LLM to select the best submolt for a post. Returns None if invalid."""
     submolt_list = ", ".join(submolts)
     prompt = SUBMOLT_SELECTION_PROMPT.format(

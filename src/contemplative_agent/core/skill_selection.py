@@ -35,7 +35,9 @@ from .llm import (
     circuit_shield,
     generate,
     get_identity_system_prompt,
+    validate_identity_content,
 )
+from .text_utils import strip_frontmatter
 
 logger = logging.getLogger(__name__)
 
@@ -269,17 +271,71 @@ def _append_selection_audit(record: dict[str, Any]) -> None:
     append_jsonl_restricted(_audit_dir / f"skill-selection-{date_str}.jsonl", record)
 
 
-def shadow_observe_skill_selection(situation: str, *, generation_caller: str) -> None:
-    """Shadow entry point: select, record, change nothing.
+def enforcement_enabled() -> bool:
+    """ADR-0081 rollout flag: ``MOLTBOOK_SKILL_SELECTION_ENFORCE=1`` opts in
+    to two-pass injection. Read at call time so a launchd plist / shell can
+    flip it without touching ``configure_skill_selection``."""
+    import os
 
-    Returns ``None`` by design — the type signature is the guarantee that
-    shadow mode feeds nothing back into generation. The whole body degrades
-    to a WARNING on any failure (degrade-never-abort): a broken instrument
-    must never block the publish action it observes. When ``audit_dir`` is
-    unconfigured the function is a silent no-op (shadow disabled).
+    return os.environ.get("MOLTBOOK_SKILL_SELECTION_ENFORCE") == "1"
+
+
+def selected_skills_block(selected: tuple[str, ...]) -> str:
+    """Concatenated bodies of the selected skills, for pass-2 injection.
+
+    Same traversal, identity-matching (``skill_theme``), and body guards
+    (frontmatter strip + forbidden-pattern validation) as the full-corpus
+    loader in ``llm.prompting._load_md_files`` — the selector's catalog and
+    this filter must agree on skill identity, so both derive the name via
+    ``skill_theme``. A selected name with no matching file (adopt/stocktake
+    raced the selection) is logged and skipped, never fatal. Empty
+    selection returns "" (ADR-0081: a judged-empty selection injects no
+    skill bodies).
+    """
+    if not selected or _skills_dir is None or not _skills_dir.is_dir():
+        return ""
+    wanted = {name.lower() for name in selected}
+    found: set[str] = set()
+    bodies: list[str] = []
+    for path in sorted(_skills_dir.glob("*.md")):
+        if path.name.startswith("."):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            logger.warning("skill selection: unreadable skill file %s", path.name)
+            continue
+        name, _ = skill_theme(text, fallback_name=path.stem)
+        key = strip_to_printable(name, _NAME_MAX_CHARS).lower()
+        if key not in wanted:
+            continue
+        found.add(key)
+        body = strip_frontmatter(text).strip()
+        if body and validate_identity_content(body):
+            bodies.append(body)
+        elif body:
+            logger.warning("skill selection: %s contains forbidden patterns, skipping", path.name)
+    for missing in wanted - found:
+        logger.warning("skill selection: selected skill %r has no file, skipping", missing)
+    return "\n\n".join(bodies)
+
+
+def shadow_observe_skill_selection(
+    situation: str, *, generation_caller: str
+) -> tuple[str, ...] | None:
+    """Selection entry point: select, record, and (ADR-0081) optionally enforce.
+
+    Returns ``None`` for full injection — shadow mode (flag off), any
+    fail-open verdict, the kill switch (``audit_dir`` unset), or an internal
+    failure. Returns the selected skill names (possibly an empty tuple =
+    inject nothing) ONLY when ``MOLTBOOK_SKILL_SELECTION_ENFORCE=1`` and the
+    verdict is ``judged``. The whole body degrades to a WARNING on any
+    failure (degrade-never-abort): a broken instrument must never block the
+    publish action it observes. Every audit record carries ``enforced``
+    (whether this observation fed back into injection).
     """
     if _audit_dir is None:
-        return
+        return None
     try:
         catalog = load_skill_catalog(_skills_dir)
         base: dict[str, Any] = {
@@ -293,6 +349,7 @@ def shadow_observe_skill_selection(situation: str, *, generation_caller: str) ->
                 {
                     **base,
                     "verdict": "empty_catalog",
+                    "enforced": False,
                     "selected": [],
                     "selected_count": 0,
                     "rejected_names": [],
@@ -302,12 +359,13 @@ def shadow_observe_skill_selection(situation: str, *, generation_caller: str) ->
                     **_b64_fields("output", None),
                 }
             )
-            return
+            return None
         if not _load_selection_template():
             _append_selection_audit(
                 {
                     **base,
                     "verdict": "no_template",
+                    "enforced": False,
                     "selected": [],
                     "selected_count": 0,
                     "rejected_names": [],
@@ -317,13 +375,17 @@ def shadow_observe_skill_selection(situation: str, *, generation_caller: str) ->
                     **_b64_fields("output", None),
                 }
             )
-            return
+            return None
         result = select_applicable_skills(situation, catalog)
+        # ADR-0081: only a judged verdict under the rollout flag feeds back
+        # into injection; every fail-open path stays full injection.
+        enforced = enforcement_enabled() and result.verdict == "judged"
         by_name = {e.name: e.body_tokens for e in catalog}
         _append_selection_audit(
             {
                 **base,
                 "verdict": result.verdict,
+                "enforced": enforced,
                 "selected": list(result.selected),
                 "selected_count": len(result.selected),
                 "rejected_names": list(result.rejected_names),
@@ -336,11 +398,13 @@ def shadow_observe_skill_selection(situation: str, *, generation_caller: str) ->
                 **_b64_fields("output", result.raw_output),
             }
         )
+        return result.selected if enforced else None
     except Exception as exc:
         logger.warning(
             "skill selection shadow observation failed (generation unaffected): %s",
             exc,
         )
+        return None
 
 
 @dataclass(frozen=True)
