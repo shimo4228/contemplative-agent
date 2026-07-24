@@ -899,19 +899,25 @@ class _TailSignals(NamedTuple):
         return any(c.word == "combined" for c in self.cues)
 
 
-def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -> str | None:
-    """Fit ops/cues around the operands and compute, or abstain.
+class _Positions(NamedTuple):
+    """Where every event sits relative to the operands, once and for all."""
 
-    Grammar: operands and explicit operations must interleave strictly —
-    every gap between consecutive operands carries exactly one agreed
-    operation, and anything after the last operand must be consistent with
-    it. A two-operand challenge with an empty gap may still resolve through
-    the guarded implicit rules (question-tail add/multiply, adjacent postfix
-    operator).
+    filled: list[set[str]]
+    """Per-gap operation sets, change-verb collapsed, guaranteed unambiguous."""
+    tail: _TailSignals
+    ands: list[_AndEvent]
+
+
+def _classify_positions(operands: list[_Operand], events: list[_Event]) -> _Positions | None:
+    """Fold the event stream into per-gap and tail buckets, or abstain.
+
+    Deliberately NOT part of the rule tables below. This is a fold, not a
+    decision cascade: the four abstains here are guard clauses of the
+    classification itself, and they cannot be written as predicates over a
+    context because the context is precisely what this loop is building.
+    Rules decide what the arrangement MEANS; this decides what the
+    arrangement IS.
     """
-    if len(operands) < 2:
-        return None
-
     ops = [e for e in events if isinstance(e, _OpEvent)]
     ands = [e for e in events if isinstance(e, _AndEvent)]
     cues = [e for e in events if isinstance(e, _CueEvent)]
@@ -976,12 +982,36 @@ def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -
     if any(len(f) > 1 for f in filled):
         return None
 
-    tail = _TailSignals(
-        word_ops=tuple(tail_word_ops),
-        marks=tuple(tail_marks),
-        cues=tuple(c for c in cues if c.atom_index > last.atom_end),
-        last_atom_end=last.atom_end,
+    return _Positions(
+        filled=filled,
+        tail=_TailSignals(
+            word_ops=tuple(tail_word_ops),
+            marks=tuple(tail_marks),
+            cues=tuple(c for c in cues if c.atom_index > last.atom_end),
+            last_atom_end=last.atom_end,
+        ),
+        ands=ands,
     )
+
+
+def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -> str | None:
+    """Fit ops/cues around the operands and compute, or abstain.
+
+    Grammar: operands and explicit operations must interleave strictly —
+    every gap between consecutive operands carries exactly one agreed
+    operation, and anything after the last operand must be consistent with
+    it. A two-operand challenge with an empty gap may still resolve through
+    the guarded implicit rules (question-tail add/multiply, adjacent postfix
+    operator).
+    """
+    if len(operands) < 2:
+        return None
+
+    positions = _classify_positions(operands, events)
+    if positions is None:
+        return None
+    filled, tail, ands = positions.filled, positions.tail, positions.ands
+    tail_word_ops = list(tail.word_ops)
 
     if all(filled):
         chain = [next(iter(f)) for f in filled]
