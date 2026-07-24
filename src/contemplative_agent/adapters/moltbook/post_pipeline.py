@@ -12,8 +12,7 @@ import numpy as np
 from ...core.config import VALID_ID_PATTERN, VALID_SUBMOLT_PATTERN
 from ...core.domain import DomainConfig
 from ...core.scheduler import Scheduler
-from ...core.text_utils import log_preview
-from .client import MoltbookClient, MoltbookClientError, envelope_ok
+from .client import MoltbookClient, envelope_ok
 from .config import ADAPTIVE_BACKOFF
 from .content import ContentManager, _content_hash
 from .dedup import is_test_content
@@ -27,6 +26,7 @@ from .llm_functions import (
     summarize_post_topic,
 )
 from .novelty import NoveltyGate
+from .publish import client_error_guard, log_published, passes_verification
 from .session_context import SessionContext
 
 logger = logging.getLogger(__name__)
@@ -368,7 +368,7 @@ class PostPipeline:
         for later inspection (comment report), never published.
         """
         ctx = self._ctx
-        try:
+        with client_error_guard("post dynamic content", on_rate_limited=ctx.set_rate_limited):
             resp = client.post(
                 "/posts",
                 json={
@@ -417,13 +417,11 @@ class PostPipeline:
             # stays out of NoveltyGate/memory/dedup and a later session can post
             # fresh, visible content. A trusted-bypass response has no
             # ``verification`` key and falls straight through.
-            verification = post_data.get("verification")
-            if verification is not None and not self._handle_verification(verification):
-                logger.warning(
-                    "Post created (id=%s) but verification failed; not "
-                    "recording (pending/invisible, unrecoverable)",
-                    post_id,
-                )
+            if not passes_verification(
+                post_data.get("verification"),
+                self._handle_verification,
+                description=f"Post (id={post_id})",
+            ):
                 return
             # Past this gate the post is provably created AND visible, so record
             # the dedup hash, id, episode, history and novelty sidecar together;
@@ -437,14 +435,14 @@ class PostPipeline:
             # Canonical full text: episode log below + comment-reports. Verbose
             # (-v) runs emit the DEBUG full body: never redirect a -v run's
             # output into the sweep-scanned logs dir.
-            logger.info(
+            log_published(
                 ">> New post [%s] (id=%s): %d chars: %s",
                 title,
                 post_id,
-                len(content),
-                log_preview(content),
+                body=content,
+                full_fmt=">> New post full body (id=%s):\n%s",
+                full_args=(post_id,),
             )
-            logger.debug(">> New post full body (id=%s):\n%s", post_id, content)
             ctx.memory.episodes.append(
                 "activity",
                 {
@@ -479,5 +477,3 @@ class PostPipeline:
                 title,
                 topic_summary,
             )
-        except MoltbookClientError as exc:
-            logger.error("Failed to post dynamic content: %s", exc)

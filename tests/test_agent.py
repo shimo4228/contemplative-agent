@@ -1329,6 +1329,41 @@ class TestRunPostCycle:
         client.post.assert_called_once()
         assert any("Posted: Notes on dedup gates" in a for a in agent._ctx.actions_taken)
 
+    def _publish(self, status_code):
+        """Drive the publish step directly with a failing client.
+
+        The surrounding cycle has its own gates (seeding, novelty, budget)
+        whose outcome depends on state other tests leave behind; this asserts
+        on the client-error guard itself, which is what changed.
+        """
+        agent, client, scheduler = _make_agent(
+            content=MagicMock(), novelty_gate=_RecordingNoveltyGate()
+        )
+        client.post.side_effect = MoltbookClientError("boom", status_code=status_code)
+        assert agent._ctx.is_rate_limited is False
+        agent._post_pipeline._publish_post(
+            client,
+            scheduler,
+            "Notes on dedup gates",
+            "We paused to revisit how gates intersect with memory.",
+            "philosophy",
+            note="",
+            draft_summary="reflection on alignment",
+            content_hash="abc123",
+        )
+        return agent
+
+    def test_post_429_flags_rate_limited(self):
+        # The comment and reply paths always flagged a 429; the post path did
+        # not, so a throttled post cycle kept spending budget the comment paths
+        # would have stopped spending. One shared client-error guard fixes it.
+        assert self._publish(429)._ctx.is_rate_limited is True
+
+    def test_post_non_429_error_does_not_flag_rate_limited(self):
+        # Only a 429 means the budget model and the server disagree; an
+        # ordinary failure must not suppress the rest of the session.
+        assert self._publish(500)._ctx.is_rate_limited is False
+
     @patch(
         "contemplative_agent.adapters.moltbook.verification.generate",
         return_value="EXPR: 20 - 5\nFINAL: 15.00",

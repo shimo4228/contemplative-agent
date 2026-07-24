@@ -10,11 +10,11 @@ from typing import Callable, Optional, Tuple
 
 from ...core.config import VALID_ID_PATTERN
 from ...core.scheduler import Scheduler
-from ...core.text_utils import log_preview
-from .client import MoltbookClient, MoltbookClientError
+from .client import MoltbookClient
 from .config import ADAPTIVE_BACKOFF
 from .dedup import is_promotional
 from .llm_functions import generate_internal_note, generate_reply
+from .publish import client_error_guard, log_published, passes_verification, verification_of
 from .session_context import SessionContext
 
 logger = logging.getLogger(__name__)
@@ -288,7 +288,7 @@ class ReplyHandler:
         )
 
         scheduler.wait_for_comment()
-        try:
+        with client_error_guard(f"reply on {post_id}", on_rate_limited=ctx.set_rate_limited):
             # post_comment verifies the response envelope (audit H2): a
             # body-level failure raises and never reaches the records below.
             # parent_id threads the reply under the comment being answered when
@@ -296,16 +296,13 @@ class ReplyHandler:
             # so it posts a top-level comment (parent_id=None).
             created = client.post_comment(post_id, reply, parent_id=comment_id or None)
             scheduler.record_comment()
-            # Verification handshake: a reply is invisible until the
-            # create-response challenge is solved. On failure record nothing so
-            # a later session can reply visibly; the inbound "received"
-            # interaction above stays recorded (it happened regardless).
-            verification = created.get("verification") if isinstance(created, dict) else None
-            if verification is not None and not self._handle_verification(verification):
-                logger.warning(
-                    "Reply on %s created but verification failed; not recording",
-                    post_id[:12],
-                )
+            # The inbound "received" interaction above stays recorded even when
+            # the handshake fails — it happened regardless of our visibility.
+            if not passes_verification(
+                verification_of(created),
+                self._handle_verification,
+                description=f"Reply on {post_id[:12]}",
+            ):
                 return
             ctx.commented_posts.add(reply_key)
             # Persist cross-session so a later session does not re-reply to the
@@ -320,18 +317,12 @@ class ReplyHandler:
             # Canonical full text: episode log below + comment-reports. Verbose
             # (-v) runs emit the DEBUG full body: never redirect a -v run's
             # output into the sweep-scanned logs dir.
-            logger.info(
+            log_published(
                 ">> Reply to %s on %s: %d chars: %s",
                 replier_name,
                 post_id[:12],
-                len(reply),
-                log_preview(reply),
-            )
-            logger.debug(
-                ">> Reply full body to %s on %s:\n%s",
-                replier_name,
-                post_id[:12],
-                reply,
+                body=reply,
+                full_fmt=">> Reply full body to %s on %s:\n%s",
             )
             ctx.memory.episodes.append(
                 "activity",
@@ -367,10 +358,6 @@ class ReplyHandler:
                 and self._confirm_side_effect(f"Upvote comment {comment_id}")
             ):
                 client.upvote_comment(comment_id)
-        except MoltbookClientError as exc:
-            logger.error("Failed to reply on %s: %s", post_id, exc)
-            if exc.status_code == 429:
-                ctx.set_rate_limited()
 
     def _handle_post_comments(
         self,

@@ -11,7 +11,6 @@ from typing import Callable, List, Optional, Set
 from ...core.config import VALID_ID_PATTERN
 from ...core.domain import DomainConfig
 from ...core.scheduler import Scheduler
-from ...core.text_utils import log_preview
 from .client import MoltbookClient, MoltbookClientError
 from .config import (
     ADAPTIVE_BACKOFF,
@@ -22,6 +21,7 @@ from .config import (
 from .content import ContentManager
 from .dedup import is_promotional, is_repeat_target_for_author
 from .llm_functions import generate_internal_note, score_relevance
+from .publish import client_error_guard, log_published, passes_verification, verification_of
 from .session_context import SessionContext
 
 logger = logging.getLogger(__name__)
@@ -444,21 +444,19 @@ class FeedManager:
         on the episode for later inspection (comment report), never published.
         """
         ctx = self._ctx
-        try:
+        posted = False
+        with client_error_guard(
+            f"comment on {post_id[:12]}", on_rate_limited=ctx.set_rate_limited
+        ):
             # post_comment verifies the response envelope (audit H2): a
             # body-level failure raises and never reaches the records below.
             created = client.post_comment(post_id, comment)
             scheduler.record_comment()
-            # Verification handshake: like posts, a comment is invisible until
-            # the create-response challenge is solved. On failure record nothing
-            # (it stays out of dedup/memory) so a later session can comment
-            # visibly; a trusted-bypass response carries no verification object.
-            verification = created.get("verification") if isinstance(created, dict) else None
-            if verification is not None and not self._handle_verification(verification):
-                logger.warning(
-                    "Comment on %s created but verification failed; not recording",
-                    post_id[:12],
-                )
+            if not passes_verification(
+                verification_of(created),
+                self._handle_verification,
+                description=f"Comment on {post_id[:12]}",
+            ):
                 return False
             # Record the dedup hash only now that the comment is actually posted
             # AND visible (verified) — a gate-rejected, failed, or unverified
@@ -472,13 +470,12 @@ class FeedManager:
             # Canonical full text: episode log below + comment-reports. Verbose
             # (-v) runs emit the DEBUG full body: never redirect a -v run's
             # output into the sweep-scanned logs dir.
-            logger.info(
+            log_published(
                 ">> Comment on %s: %d chars: %s",
                 post_id[:12],
-                len(comment),
-                log_preview(comment),
+                body=comment,
+                full_fmt=">> Comment full body on %s:\n%s",
             )
-            logger.debug(">> Comment full body on %s:\n%s", post_id[:12], comment)
             author = post.get("author") or {}
             # Live feed posts carry author.name but typically not author.id
             # (the codebase originally assumed both). The name is the reliable
@@ -517,12 +514,8 @@ class FeedManager:
             extra_wait = random.uniform(COMMENT_PACING_MIN_SECONDS, COMMENT_PACING_MAX_SECONDS)
             logger.info("Pacing: waiting %.0fs before next engagement", extra_wait)
             time.sleep(extra_wait)
-            return True
-        except MoltbookClientError as exc:
-            logger.error("Failed to comment on %s: %s", post_id[:12], exc)
-            if exc.status_code == 429:
-                ctx.set_rate_limited()
-            return False
+            posted = True
+        return posted
 
     def _fetch_full_if_truncated(self, post: dict, post_text: str, client: MoltbookClient) -> str:
         """Return the full post body when ``post_text`` looks truncated.

@@ -1,3 +1,17 @@
+"""FROZEN SNAPSHOT of verification_parse.py before the resolve-stage split.
+
+Not imported by the package — this exists only so
+``differential_replay.py`` can run the old and new parsers side by side over
+the local audit corpus and require them to agree on every challenge. Delete it
+once the next grammar amendment lands and this baseline stops being the
+"previous behaviour" anyone wants to diff against.
+
+Baseline commit: ADR-0062 9th amendment (2026-07-25).
+"""
+
+from __future__ import annotations
+
+
 """Deterministic parser for Moltbook's obfuscated arithmetic CAPTCHA.
 
 Rewritten 2026-07-07 (ADR-0062, 5th amendment) from the 601-challenge audit
@@ -80,13 +94,14 @@ cues, is length-bounded against a malicious oversized payload, and fails
 closed to ``None``.
 """
 
-from __future__ import annotations
 
 import re
 from decimal import Decimal, DivisionByZero, InvalidOperation
 from typing import NamedTuple, Optional, Union
 
-from .config import MAX_CHALLENGE_INPUT as _MAX_INPUT
+from contemplative_agent.adapters.moltbook.config import (
+    MAX_CHALLENGE_INPUT as _MAX_INPUT,
+)
 
 # The parser receives the raw, untrusted challenge before the LLM path's
 # length guard, so ``_MAX_INPUT`` bounds its own input: anything longer than a
@@ -844,61 +859,6 @@ def _dedup_operands(
     return deduped
 
 
-class _TailSignals(NamedTuple):
-    """What follows the last operand, as both resolution branches read it.
-
-    The explicit-chain branch and the implicit two-operand branch each used to
-    re-derive these from the raw event lists, and the two derivations drifted
-    twice: the non-adjacent-marker noise rule was implemented in one branch
-    only (found by codex-review) and so was the subtract-vs-"combined"
-    contradiction guard (found by python-reviewer). Both were real
-    server-rejected answers. Deriving once and handing the result to both
-    branches is what makes a third such divergence impossible rather than
-    merely unlikely.
-    """
-
-    word_ops: tuple[_OpEvent, ...]
-    marks: tuple[_MulMarkerEvent, ...]
-    cues: tuple[_CueEvent, ...]
-    last_atom_end: int
-
-    def is_adjacent(self, atom_index: int) -> bool:
-        """Whether a trailing token sits close enough to modify the operand.
-
-        Distance is the whole distinction between an operator and scene noise:
-        "...factors what is total force?" is an implicit add, while an adjacent
-        marker multiplies.
-        """
-        return atom_index - self.last_atom_end <= _POSTFIX_ADJACENCY
-
-    @property
-    def mult_ops(self) -> list[_OpEvent]:
-        return [op for op in self.word_ops if op.op == _MUL]
-
-    @property
-    def sub_ops(self) -> list[_OpEvent]:
-        return [op for op in self.word_ops if op.op == _SUB]
-
-    @property
-    def other_ops(self) -> list[_OpEvent]:
-        return [op for op in self.word_ops if op.op not in (_MUL, _SUB)]
-
-    @property
-    def adjacent_marks(self) -> list[_MulMarkerEvent]:
-        """Trailing multiplicative markers close enough to count as evidence."""
-        return [m for m in self.marks if self.is_adjacent(m.atom_index)]
-
-    @property
-    def contradicts_subtraction(self) -> bool:
-        """A trailing "combined" cue against a subtract reading.
-
-        Every corpus-accepted "combined" is additive and the subtract reading
-        was server-rejected, so this abstains rather than guessing — in both
-        branches, which is the point.
-        """
-        return any(c.word == "combined" for c in self.cues)
-
-
 def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -> Optional[str]:
     """Fit ops/cues around the operands and compute, or abstain.
 
@@ -976,12 +936,7 @@ def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -
     if any(len(f) > 1 for f in filled):
         return None
 
-    tail = _TailSignals(
-        word_ops=tuple(tail_word_ops),
-        marks=tuple(tail_marks),
-        cues=tuple(c for c in cues if c.atom_index > last.atom_end),
-        last_atom_end=last.atom_end,
-    )
+    tail_cues = [c for c in cues if c.atom_index > last.atom_end]
 
     if all(filled):
         chain = [next(iter(f)) for f in filled]
@@ -997,7 +952,7 @@ def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -
             override = (
                 chain == [_ADD_CHANGE]
                 and all(op.op == _MUL for op in contradicting)
-                and any(tail.is_adjacent(op.atom_index) for op in contradicting)
+                and any(op.atom_index - last.atom_end <= _POSTFIX_ADJACENCY for op in contradicting)
             )
             if not override:
                 return None
@@ -1006,7 +961,9 @@ def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -
         # lobster slows by fifteen ... what's the combined velocity?") is
         # contradictory: every corpus-accepted "combined" is additive, and
         # the subtract reading was server-rejected — abstain, never guess.
-        if any(_normalize_op(op) == _SUB for op in chain) and tail.contradicts_subtraction:
+        if any(_normalize_op(op) == _SUB for op in chain) and any(
+            c.word == "combined" for c in tail_cues
+        ):
             return None
         return _compute_chain(operands, [_normalize_op(op) for op in chain])
 
@@ -1014,13 +971,15 @@ def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -
         # Chains (3+) never resolve implicitly; a half-filled two-operand
         # read is contradictory.
         return None
-    return _resolve_implicit(operands, tail, ands, atoms)
+    return _resolve_implicit(operands, tail_word_ops, tail_marks, ands, tail_cues, atoms)
 
 
 def _resolve_implicit(
     operands: list[_Operand],
-    tail: _TailSignals,
+    tail_word_ops: list[_OpEvent],
+    tail_marks: list[_MulMarkerEvent],
     ands: list[_AndEvent],
+    tail_cues: list[_CueEvent],
     atoms: list[str],
 ) -> Optional[str]:
     """Resolve two operands with no explicit operation between them.
@@ -1033,22 +992,26 @@ def _resolve_implicit(
     """
     first, second = operands
     and_between = any(first.atom_end < a.atom_index < second.atom_start for a in ands)
-    cue_after = bool(tail.cues)
+    cue_after = bool(tail_cues)
 
-    mult_tail = tail.mult_ops
-    sub_tail = tail.sub_ops
-    other_tail = tail.other_ops
+    mult_tail = [op for op in tail_word_ops if op.op == _MUL]
+    sub_tail = [op for op in tail_word_ops if op.op == _SUB]
+    other_tail = [op for op in tail_word_ops if op.op not in (_MUL, _SUB)]
 
-    # A trailing multiplicative marker counts as evidence only when adjacent —
-    # unlike a trailing multiplicative VERB, whose non-adjacent "what is the
-    # product?" question form is corpus-attested. A between-operand marker was
-    # already folded into the gap by _resolve and never reaches here.
-    adjacent_marks = tail.adjacent_marks
+    # A trailing multiplicative marker counts as evidence only when ADJACENT
+    # to the second operand — unlike a trailing multiplicative VERB, whose
+    # non-adjacent "what is the product?" question form is corpus-attested,
+    # a distant marker is scene noise ("...physicx factors what is total
+    # force?" is an implicit add) exactly as in the explicit-chain path
+    # (found by codex-review: the noise rule was applied to one path only).
+    # A between-operand marker was already folded into the gap by _resolve
+    # and never reaches here.
+    adjacent_marks = [m for m in tail_marks if m.atom_index - second.atom_end <= _POSTFIX_ADJACENCY]
     if mult_tail or adjacent_marks:
         if sub_tail:
             return None
         adjacent = bool(adjacent_marks) or any(
-            tail.is_adjacent(op.atom_index) for op in mult_tail
+            op.atom_index - second.atom_end <= _POSTFIX_ADJACENCY for op in mult_tail
         )
         if and_between or adjacent:
             return _compute_chain(operands, [_MUL])
@@ -1056,9 +1019,12 @@ def _resolve_implicit(
     if sub_tail:
         if other_tail:
             return None
-        if tail.contradicts_subtraction:
+        # The same subtract-vs-"combined" contradiction the explicit-chain
+        # path abstains on (found by python-reviewer: the guard covered one
+        # path only).
+        if any(c.word == "combined" for c in tail_cues):
             return None
-        if all(tail.is_adjacent(op.atom_index) for op in sub_tail):
+        if all(op.atom_index - second.atom_end <= _POSTFIX_ADJACENCY for op in sub_tail):
             return _compute_chain(operands, [_SUB])
         return None
     # A bare trailing additive verb ("... how many more?") is question
@@ -1094,7 +1060,7 @@ def _resolve_implicit(
     # "please add them") waives the like-unit guard: the corpus pairs
     # unlike quantities (velocity + force) under an explicit sum, and the
     # multiplicative reading was server-rejected.
-    explicit_add = imperative_add or any(c.word == "sum" for c in tail.cues)
+    explicit_add = imperative_add or any(c.word == "sum" for c in tail_cues)
     # Fuzzy unit pairing needs the same length floor as every other fuzzy
     # comparison in this module: two short noise fragments ("me"/"ne") sit
     # one edit apart far too easily. Exact equality has no floor (the corpus

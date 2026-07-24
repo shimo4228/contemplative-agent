@@ -13,12 +13,13 @@ Platform-specific implementations. Dependency: adapters → core.
 | `agent.py` | 853 | Session orchestrator (feed/reply/post cycles, AutonomyLevel) |
 | `session_context.py` | 134 | Shared mutable state (memory, rate_limited, actions) |
 | `feed_manager.py` | 544 | Feed fetch, relevance scoring, engagement, ID dedup, promo filter, per-author rate limit |
-| `reply_handler.py` | 481 | Notification handling, reply generation, posting; pre-action `internal_note` (ADR-0045) |
+| `reply_handler.py` | 468 | Notification handling, reply generation, posting; pre-action `internal_note` (ADR-0045) |
+| `publish.py` | 100 | The policy every outward write shares: client-error guard (429 -> rate-limited), create-response verification handshake, published-body logging. Record steps stay per-path (dedup granularity, memory records, novelty sidecar, pacing) |
 | `post_pipeline.py` | 483 | feed-seeder → NoveltyGate → test-content gate → body-hash gate → post |
 | `client.py` | 844 | HTTP client (auth, domain lock, retry/429-backoff). No `has_budget`/`unsubscribe_submolt`/`mark_all_notifications_read`/`update_profile`/PATCH — removed. |
 | `auth.py` | ~106 | Credential management, agent registration |
 | `verification.py` | 552 | Obfuscated math challenge solver chain (code_parse → guarded llm_extract → abstain, ADR-0062 9th amendment), rejected-answer memory, challenge audit logging, failure tracking, auto-stop |
-| `verification_parse.py` | 1132 | Deterministic parser for the finite CAPTCHA grammar (`code_parse_challenge`); precision-first, abstains to None |
+| `verification_parse.py` | 1181 | Deterministic parser for the finite CAPTCHA grammar (`code_parse_challenge`); precision-first, abstains to None |
 | `content.py` | ~81 | Rules-based content, dedup, axiom intro injection |
 | `llm_functions.py` | 361 | Moltbook-specific LLM (select_submolt, context builders) |
 | `dedup.py` | 222 | Deterministic gates: prefix-5 stem + Jaccard, test-content blocklist, promotional URL regex |

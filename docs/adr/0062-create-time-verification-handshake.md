@@ -249,6 +249,36 @@ improvements do not absorb it, re-design the last resort as a
 recompute-gated guarded path — free-form guessing does not come back
 (tracked as T-VER-ABSTAIN in the task ledger, read after ~2 weeks).
 
+Tenth amendment 2026-07-25: structural only — no grammar change. The two
+resolution branches in `verification_parse.py` (`_resolve` for explicit
+operator chains, `_resolve_implicit` for the guarded two-operand reads) each
+re-derived what follows the last operand from the raw event lists, and the two
+derivations had already drifted twice: the non-adjacent-marker noise rule and
+the subtract-vs-"combined" contradiction guard were each implemented in one
+branch only, and each produced server-rejected answers before being found in
+review. Both now read one `_TailSignals` value derived once, so a third such
+divergence is structurally unavailable rather than merely unlikely. The grammar
+itself, the fail-closed abstain semantics, and the resolution order are
+untouched.
+
+Verified by a new differential gate,
+`docs/evidence/adr-0062-parser-rewrite/differential_replay.py`: the frozen
+pre-refactor parser (`verification_parse_baseline.py`) and the current one are
+run over every unique challenge in the local audit corpus and required to agree
+on all of them, abstains included. Ground truth is irrelevant to a
+behaviour-preserving change — what matters is that the rewrite decides exactly
+what the old code decided — so coverage is the whole corpus (2149/2149 at this
+writing) rather than the ~82% that carries a label. Keep the harness for the
+next amendment: run it first to see exactly which challenges the intended
+grammar change moves, then delete or refresh the baseline.
+
+Separately observed while running the gates, NOT addressed here: the
+ground-truth gate (`replay_parser.py`) currently reports 7 wrong answers
+against server truth and so fails, and it fails identically at the pre-refactor
+commit. The corpus has grown from 1272 to 2149 unique challenges since the
+eighth amendment; these are new grammar failures accumulated since, and closing
+them is an eleventh amendment, not a refactor.
+
 ## Date
 
 2026-06-26
