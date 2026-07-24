@@ -23,6 +23,7 @@ from ..core.domain import (
     DEFAULT_CONFIG_DIR,
 )
 from . import memory_cmds, runtime
+from .registry import CommandSpec, Tier, no_arguments
 
 logger = logging.getLogger(__name__)
 
@@ -363,3 +364,174 @@ def _handle_dialogue_peer(args: argparse.Namespace, _parser: argparse.ArgumentPa
             args.turns,
         )
         sys.exit(2)
+
+
+def _add_init_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--template",
+        type=str,
+        default="contemplative",
+        help="Character template to use (default: contemplative)",
+    )
+
+
+def _add_report_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--days", type=int, default=7, help="Days to look back (default: 7)")
+    parser.add_argument(
+        "--format",
+        choices=["text", "md"],
+        default="text",
+        help="Output format (default: text)",
+    )
+    parser.add_argument(
+        "--patterns",
+        action="store_true",
+        help="Append read-only knowledge-pattern composition instruments "
+        "(consumed-view supply / diversity)",
+    )
+    parser.add_argument(
+        "--skill-selection",
+        action="store_true",
+        help="Append the read-only skill-selection shadow reading "
+        "(per-skill frequency, never-selected, would-be token reduction; "
+        "ADR-0076)",
+    )
+
+
+def _add_generate_report_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--date",
+        type=str,
+        default=None,
+        help="Date to generate report for (YYYY-MM-DD, default: today)",
+    )
+    parser.add_argument(
+        "--all",
+        action="store_true",
+        dest="all_dates",
+        help="Generate reports for all available log dates",
+    )
+
+
+def _add_meditate_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=7,
+        help="Days of episodes to build POMDP from (default: 7)",
+    )
+    parser.add_argument(
+        "--cycles",
+        type=int,
+        default=50,
+        help="Number of meditation cycles (default: 50)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Show results without writing to knowledge store",
+    )
+
+
+def _add_dialogue_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "home_a",
+        type=Path,
+        help="MOLTBOOK_HOME for agent A (initiator). Must be pre-initialised.",
+    )
+    parser.add_argument(
+        "home_b",
+        type=Path,
+        help="MOLTBOOK_HOME for agent B (responder). Must be pre-initialised.",
+    )
+    parser.add_argument(
+        "--seed",
+        type=str,
+        required=True,
+        help="Opening message from agent A that starts the dialogue",
+    )
+    parser.add_argument(
+        "--turns",
+        type=int,
+        default=5,
+        help="Max reply turns per side (hard cap, default: 5)",
+    )
+
+
+def _add_dialogue_peer_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--turns",
+        type=int,
+        required=True,
+        help="Max reply turns this peer will generate",
+    )
+    parser.add_argument(
+        "--seed",
+        type=str,
+        default=None,
+        help="Opening message if this peer is the initiator",
+    )
+    parser.add_argument(
+        "--label",
+        type=str,
+        default="peer",
+        help="Short label for stderr traces",
+    )
+
+
+COMMANDS: tuple[CommandSpec, ...] = (
+    CommandSpec(
+        name="init",
+        help="Initialize identity and knowledge files",
+        handler=_handle_init,
+        tier=Tier.LLM_FULL,
+        add_arguments=_add_init_arguments,
+    ),
+    CommandSpec(
+        name="report",
+        help="Show self-improvement metrics from episode logs",
+        handler=_handle_report,
+        tier=Tier.LLM_FULL,
+        add_arguments=_add_report_arguments,
+    ),
+    CommandSpec(
+        name="generate-report",
+        help="Generate activity report from episode logs",
+        handler=_handle_generate_report,
+        tier=Tier.LLM_FULL,
+        add_arguments=_add_generate_report_arguments,
+    ),
+    CommandSpec(
+        name="meditate",
+        help="Run active inference meditation on episode history",
+        handler=_handle_meditate,
+        tier=Tier.LLM_FULL,
+        add_arguments=_add_meditate_arguments,
+    ),
+    CommandSpec(
+        name="sync-data",
+        help="Sync research data to external git repository",
+        handler=_handle_sync_data,
+        tier=Tier.NO_LLM,
+        add_arguments=no_arguments,
+    ),
+    # dialogue spawns two peer agents (each rooted at a different
+    # MOLTBOOK_HOME) and pipes them together; it needs no LLM of its own.
+    CommandSpec(
+        name="dialogue",
+        help="Run a local dialogue between two agent instances (two MOLTBOOK_HOMEs)",
+        handler=_handle_dialogue,
+        tier=Tier.NO_LLM,
+        add_arguments=_add_dialogue_arguments,
+    ),
+    # Internal entry for each peer subprocess: reads JSON line messages from
+    # stdin, writes replies to stdout. Spawned by `dialogue`, not by users —
+    # hence a different tier from `dialogue` despite the shared module.
+    CommandSpec(
+        name="dialogue-peer",
+        help="(internal) one side of a dialogue — spawned by 'dialogue'",
+        handler=_handle_dialogue_peer,
+        tier=Tier.LLM_FULL,
+        add_arguments=_add_dialogue_peer_arguments,
+    ),
+)

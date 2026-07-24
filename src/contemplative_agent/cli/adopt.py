@@ -22,6 +22,7 @@ from ..core.domain import (
 )
 from . import approval
 from .approval import AuditSource
+from .registry import CommandSpec, Tier
 
 logger = logging.getLogger(__name__)
 
@@ -429,3 +430,55 @@ def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentPar
         print(f"Removed {target.name}")
     else:
         print("Kept.")
+
+
+def _add_adopt_staged_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Auto-approve all staged items without prompting "
+        "(for non-TTY / coding-agent workflows where stdin is not interactive)",
+    )
+
+
+def _add_remove_skill_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "name",
+        help="Skill filename stem (with or without .md suffix)",
+    )
+    parser.add_argument(
+        "--reason",
+        required=True,
+        help="Justification recorded in audit.jsonl (required, non-empty)",
+    )
+    parser.add_argument(
+        "-y",
+        "--yes",
+        action="store_true",
+        help="Skip the interactive prompt "
+        "(for non-TTY / coding-agent workflows where stdin is not interactive)",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Resolve and print the target without deleting or writing audit",
+    )
+
+
+COMMANDS: tuple[CommandSpec, ...] = (
+    CommandSpec(
+        name="adopt-staged",
+        help="Review files in the staging dir through the approval gate and adopt accepted ones",
+        handler=_handle_adopt_staged,
+        tier=Tier.NO_LLM,
+        add_arguments=_add_adopt_staged_arguments,
+    ),
+    CommandSpec(
+        name="remove-skill",
+        help="Remove a skill from skills_dir with an audit trail",
+        handler=_handle_remove_skill,
+        tier=Tier.NO_LLM,
+        add_arguments=_add_remove_skill_arguments,
+    ),
+)

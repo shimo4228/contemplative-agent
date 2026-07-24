@@ -8,6 +8,7 @@ from __future__ import annotations
 import argparse
 import logging
 from collections.abc import Sequence
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -16,6 +17,7 @@ if TYPE_CHECKING:
 
 from ..adapters.moltbook import config
 from . import approval, memory_cmds, staging
+from .registry import CommandSpec, Tier
 from .staging import StageItem
 
 logger = logging.getLogger(__name__)
@@ -465,6 +467,76 @@ def _labeled_sections(
     return [(f"{prefix} {label}", t) for label, t in zip(labels, traces, strict=True)]
 
 
+@dataclass(frozen=True)
+class StocktakeRun:
+    """What differs between the skill and rules stocktakes, in one object.
+
+    The two handlers diff only in these fields; everything else about a run is
+    shared. Passing them as a unit keeps ``_handle_stocktake_result`` from
+    growing another positional-argument column each time a phase needs one more
+    piece of configuration.
+
+    ``clean_prompt`` / ``desc_prompt`` are ``None`` for rules — their absence is
+    what selects the phases that run, so they are configuration, not options.
+    """
+
+    args: argparse.Namespace
+    target_dir: Path
+    label: str
+    merge_prompt: str
+    command_prefix: str
+    fallback_title: str
+    clean_prompt: str | None = None
+    desc_prompt: str | None = None
+    snapshot_path: Path | None = None
+
+    @property
+    def stage(self) -> bool:
+        return bool(getattr(self.args, "stage", False))
+
+    @property
+    def drop_command(self) -> str:
+        """Drop items carry their own command for audit/meta consistency."""
+        return f"{self.command_prefix}-drop"
+
+
+@dataclass(frozen=True)
+class _DropOutcome:
+    """Which files the drop phase *proposed* versus which it actually removed.
+
+    These two sets are not interchangeable and the later phases each need a
+    different one — conflating them was a real bug (codex review 2026-07-24).
+    Separate fields make picking the wrong one a visible choice rather than a
+    silent reuse of whichever local variable was in scope.
+    """
+
+    flagged: frozenset[str]
+    """Every file the quality audit flagged, whether or not it was removed."""
+
+    removed: frozenset[str]
+    """Files actually deleted or staged for drop this run."""
+
+
+@dataclass(frozen=True)
+class _TraceSink:
+    """Per-phase reasoning traces plus the operation label each came from.
+
+    Traces used to be numbered by list position, so a group skipped mid-run
+    shifted every later trace onto the wrong group number (round-2 R2-L1).
+    Keeping the label beside its trace is what ``_labeled_sections`` needs, so
+    they travel together instead of as two lists a caller must keep aligned.
+
+    Frozen like every dataclass here: the phase drivers append to the two
+    lists, they never rebind them, so the sink itself stays a fixed pair.
+    """
+
+    traces: list[str] = field(default_factory=list)
+    labels: list[str] = field(default_factory=list)
+
+    def sections(self, prefix: str) -> list[tuple[str, str | None]]:
+        return _labeled_sections(prefix, self.labels, self.traces)
+
+
 def _handle_stocktake_result(
     args: argparse.Namespace,
     result: StocktakeResult,
@@ -478,127 +550,176 @@ def _handle_stocktake_result(
     desc_prompt: str | None = None,
     snapshot_path: Path | None = None,
 ) -> None:
-    """Shared body for _handle_skill_stocktake and _handle_rules_stocktake.
+    """Shared body for _handle_skill_stocktake and _handle_rules_stocktake."""
+    _run_stocktake_phases(
+        StocktakeRun(
+            args=args,
+            target_dir=target_dir,
+            label=label,
+            merge_prompt=merge_prompt,
+            command_prefix=command_prefix,
+            fallback_title=fallback_title,
+            clean_prompt=clean_prompt,
+            desc_prompt=desc_prompt,
+            snapshot_path=snapshot_path,
+        ),
+        result,
+    )
 
-    Both handlers diff only in:
-      - target_dir       (config.SKILLS_DIR vs config.RULES_DIR)
-      - label            ("Skill" vs "Rules")
-      - merge_prompt     (skill vs rules merge prompt template)
-      - command_prefix   ("skill-stocktake" vs "rules-stocktake")
-      - fallback_title   ("merged-skill" vs "merged-rule")
 
-    Drop items use `f"{command_prefix}-drop"` for audit/meta consistency.
+def _run_stocktake_phases(run: StocktakeRun, result: StocktakeResult) -> None:
+    """Report, then merge -> drop -> clean -> description audit -> persist.
 
-    Single staging batch for merge + drop + clean: `staging._stage_results` wipes
-    STAGED_DIR on every call, so calling it once per phase would erase the
-    earlier batches. Per-item `command` lets us mix "<prefix>",
-    "<prefix>-drop", and "<prefix>-clean" in one batch.
+    Single staging batch for the whole run: ``staging._stage_results`` wipes
+    STAGED_DIR on every call, so flushing per phase would erase the earlier
+    batches. Per-item ``command`` lets one batch mix "<prefix>",
+    "<prefix>-drop", and "<prefix>-clean".
     """
     from ..core.stocktake import format_stocktake_report
 
-    print(format_stocktake_report(result, label))
+    print(format_stocktake_report(result, run.label))
 
     # With a clean_prompt (skills), the clean phase may rewrite singleton
     # triggers even when there is nothing to merge or drop, so don't short-
     # circuit. Rules pass no clean_prompt and keep the original early return.
-    if not result.merge_groups and not result.quality_issues and clean_prompt is None:
+    if not result.merge_groups and not result.quality_issues and run.clean_prompt is None:
         # Nothing to merge/drop/clean, but the grouping call still reasoned
         # about the corpus — persist that trace (ADR-0069) before returning.
-        memory_cmds._write_reasoning(snapshot_path, [("duplicate grouping", result.thinking)])
+        memory_cmds._write_reasoning(run.snapshot_path, [("duplicate grouping", result.thinking)])
         return
 
     items_dict = dict(result.items)
-    stage = getattr(args, "stage", False)
     staged_batch: list[StageItem] = []
-    # ADR-0069: collect per-phase reasoning traces (stocktake runs think-ON).
-    # The grouping trace rides on result.thinking; merge / clean traces are
-    # gathered per operation via these sinks and aggregated into reasoning.md.
-    merge_traces: list[str] = []
-    merge_trace_labels: list[str] = []
-    clean_traces: list[str] = []
-    clean_trace_labels: list[str] = []
+    # ADR-0069: per-phase reasoning traces (stocktake runs think-ON). The
+    # grouping trace rides on result.thinking; the rest are gathered per
+    # operation and aggregated into reasoning.md at the end.
+    merge_trace = _TraceSink()
+    clean_trace = _TraceSink()
+    desc_trace = _TraceSink()
 
-    # Filenames consumed by a successful merge (their originals get deleted on
-    # adopt) and filenames flagged for drop. The clean phase skips both so it
-    # only rewrites surviving singletons: merged skills are already cleaned by
-    # the merge prompt, and dropped files don't need cleaning.
-    consumed_names: set[str] = set()
-    if result.merge_groups:
-        consumed_names = _stocktake_merge_phase(
-            result.merge_groups,
-            items_dict,
-            target_dir=target_dir,
-            merge_prompt=merge_prompt,
-            command_prefix=command_prefix,
-            fallback_title=fallback_title,
-            stage=stage,
-            staged_batch=staged_batch,
-            trace_sink=merge_traces,
-            trace_labels=merge_trace_labels,
-            snapshot_path=snapshot_path,
-        )
+    consumed = _stocktake_merge(run, result, items_dict, staged_batch, merge_trace)
+    dropped = _stocktake_drop(run, result, items_dict, staged_batch)
+    _stocktake_clean(run, result, consumed, dropped, staged_batch, clean_trace)
+    _stocktake_describe(run, result, consumed, dropped, desc_trace)
 
-    actually_dropped: set[str] = set()
-    if result.quality_issues:
-        actually_dropped = _stocktake_drop_phase(
-            result.quality_issues,
-            items_dict,
-            target_dir=target_dir,
-            drop_command=f"{command_prefix}-drop",
-            stage=stage,
-            staged_batch=staged_batch,
-            snapshot_path=snapshot_path,
-        )
-
-    if clean_prompt is not None:
-        dropped_names = {issue.filename for issue in result.quality_issues}
-        _stocktake_clean_phase(
-            result.items,
-            target_dir=target_dir,
-            command_prefix=command_prefix,
-            clean_prompt=clean_prompt,
-            skip_names=consumed_names | dropped_names,
-            stage=stage,
-            staged_batch=staged_batch,
-            trace_sink=clean_traces,
-            trace_labels=clean_trace_labels,
-            snapshot_path=snapshot_path,
-        )
-
-    desc_traces: list[str] = []
-    desc_trace_labels: list[str] = []
-    # Truthiness, not `is not None`: a missing template file loads as ""
-    # (domain.py required=False), and an empty prompt would fabricate
-    # mismatch findings for every skill instead of abstaining
-    # (python-reviewer 2026-07-24 MEDIUM).
-    if desc_prompt:
-        # Skip only files actually removed this run (deleted or staged for
-        # drop) — a quality-flagged file the operator KEEPS stays in the
-        # selector catalog, so its description still gets audited (codex
-        # review 2026-07-24).
-        usage_counts = (
-            dict(result.selection_usage.per_skill) if result.selection_usage is not None else None
-        )
-        _stocktake_description_phase(
-            result.items,
-            target_dir=target_dir,
-            desc_prompt=desc_prompt,
-            skip_names=consumed_names | actually_dropped,
-            usage_counts=usage_counts,
-            trace_sink=desc_traces,
-            trace_labels=desc_trace_labels,
-        )
-
-    if stage and staged_batch:
-        staging._stage_results(staged_batch, command=command_prefix)
+    if run.stage and staged_batch:
+        staging._stage_results(staged_batch, command=run.command_prefix)
 
     # ADR-0069: persist the run's reasoning — grouping (the main judgment) plus
     # each merge / clean / description-audit operation — to reasoning.md.
     sections: list[tuple[str, str | None]] = [("duplicate grouping", result.thinking)]
-    sections += _labeled_sections("merge", merge_trace_labels, merge_traces)
-    sections += _labeled_sections("clean", clean_trace_labels, clean_traces)
-    sections += _labeled_sections("description", desc_trace_labels, desc_traces)
-    memory_cmds._write_reasoning(snapshot_path, sections)
+    sections += merge_trace.sections("merge")
+    sections += clean_trace.sections("clean")
+    sections += desc_trace.sections("description")
+    memory_cmds._write_reasoning(run.snapshot_path, sections)
+
+
+def _stocktake_merge(
+    run: StocktakeRun,
+    result: StocktakeResult,
+    items_dict: dict[str, str],
+    staged_batch: list[StageItem],
+    trace: _TraceSink,
+) -> frozenset[str]:
+    """Filenames consumed by a successful merge (originals deleted on adopt)."""
+    if not result.merge_groups:
+        return frozenset()
+    return frozenset(
+        _stocktake_merge_phase(
+            result.merge_groups,
+            items_dict,
+            target_dir=run.target_dir,
+            merge_prompt=run.merge_prompt,
+            command_prefix=run.command_prefix,
+            fallback_title=run.fallback_title,
+            stage=run.stage,
+            staged_batch=staged_batch,
+            trace_sink=trace.traces,
+            trace_labels=trace.labels,
+            snapshot_path=run.snapshot_path,
+        )
+    )
+
+
+def _stocktake_drop(
+    run: StocktakeRun,
+    result: StocktakeResult,
+    items_dict: dict[str, str],
+    staged_batch: list[StageItem],
+) -> _DropOutcome:
+    flagged = frozenset(issue.filename for issue in result.quality_issues)
+    if not result.quality_issues:
+        return _DropOutcome(flagged=flagged, removed=frozenset())
+    removed = _stocktake_drop_phase(
+        result.quality_issues,
+        items_dict,
+        target_dir=run.target_dir,
+        drop_command=run.drop_command,
+        stage=run.stage,
+        staged_batch=staged_batch,
+        snapshot_path=run.snapshot_path,
+    )
+    return _DropOutcome(flagged=flagged, removed=frozenset(removed))
+
+
+def _stocktake_clean(
+    run: StocktakeRun,
+    result: StocktakeResult,
+    consumed: frozenset[str],
+    dropped: _DropOutcome,
+    staged_batch: list[StageItem],
+    trace: _TraceSink,
+) -> None:
+    """Rewrite surviving singletons. Skips *flagged* drops, not just removed
+    ones: there is no point cleaning a file this run is proposing to delete."""
+    if run.clean_prompt is None:
+        return
+    _stocktake_clean_phase(
+        result.items,
+        target_dir=run.target_dir,
+        command_prefix=run.command_prefix,
+        clean_prompt=run.clean_prompt,
+        skip_names=set(consumed | dropped.flagged),
+        stage=run.stage,
+        staged_batch=staged_batch,
+        trace_sink=trace.traces,
+        trace_labels=trace.labels,
+        snapshot_path=run.snapshot_path,
+    )
+
+
+def _stocktake_describe(
+    run: StocktakeRun,
+    result: StocktakeResult,
+    consumed: frozenset[str],
+    dropped: _DropOutcome,
+    trace: _TraceSink,
+) -> None:
+    """Audit descriptions of files that survive the run.
+
+    Skips only files *actually removed* — a quality-flagged file the operator
+    KEEPS stays in the selector catalog, so its description still needs
+    auditing (codex review 2026-07-24). This is the one place that wants
+    ``removed`` rather than ``flagged``.
+    """
+    # Truthiness, not `is not None`: a missing template file loads as ""
+    # (domain.py required=False), and an empty prompt would fabricate
+    # mismatch findings for every skill instead of abstaining
+    # (python-reviewer 2026-07-24 MEDIUM).
+    if not run.desc_prompt:
+        return
+    usage_counts = (
+        dict(result.selection_usage.per_skill) if result.selection_usage is not None else None
+    )
+    _stocktake_description_phase(
+        result.items,
+        target_dir=run.target_dir,
+        desc_prompt=run.desc_prompt,
+        skip_names=set(consumed | dropped.removed),
+        usage_counts=usage_counts,
+        trace_sink=trace.traces,
+        trace_labels=trace.labels,
+    )
 
 
 # ADR-0081 usage window: matches the 2-week shadow-reading cadence the
@@ -679,3 +800,41 @@ def _handle_rules_stocktake(args: argparse.Namespace, _parser: argparse.Argument
         fallback_title="merged-rule",
         snapshot_path=snapshot_path,
     )
+
+
+def _add_skill_stocktake_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--stage",
+        action="store_true",
+        help="Write merged skills to staging dir instead of interactive approval",
+    )
+
+
+def _add_rules_stocktake_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--stage",
+        action="store_true",
+        help="Write merged rules to staging dir instead of interactive approval",
+    )
+
+
+# Tier 1.5: telemetry without the skills/rules/axioms corpus. Stocktake passes
+# its own explicit system prompts, so loading the corpus would pollute its
+# prompt environment (review 2026-06-27 M1) — but running with no telemetry at
+# all, as the old no-LLM slot did, hid its generation behaviour entirely.
+COMMANDS: tuple[CommandSpec, ...] = (
+    CommandSpec(
+        name="skill-stocktake",
+        help="Audit skills for duplicates and quality issues",
+        handler=_handle_skill_stocktake,
+        tier=Tier.LLM_RUNTIME_ONLY,
+        add_arguments=_add_skill_stocktake_arguments,
+    ),
+    CommandSpec(
+        name="rules-stocktake",
+        help="Audit rules for duplicates and quality issues",
+        handler=_handle_rules_stocktake,
+        tier=Tier.LLM_RUNTIME_ONLY,
+        add_arguments=_add_rules_stocktake_arguments,
+    ),
+)

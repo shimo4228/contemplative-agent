@@ -6,6 +6,7 @@ Split from the single-file test_cli.py alongside the cli/ package split
 
 import argparse
 import json
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from contemplative_agent.cli import main
@@ -312,7 +313,7 @@ class TestStocktakeRuntimeRouting:
     telemetry WITHOUT loading the skills/rules/axioms corpus (stocktake passes
     its own system prompts)."""
 
-    @patch("contemplative_agent.cli._handle_skill_stocktake")
+    @patch("contemplative_agent.cli.stocktake_cmd._handle_skill_stocktake")
     @patch("contemplative_agent.cli.runtime.configure_llm")
     def test_skill_stocktake_applies_telemetry(self, mock_configure, mock_handler):
         with patch("sys.argv", ["contemplative-agent", "skill-stocktake"]):
@@ -326,7 +327,7 @@ class TestStocktakeRuntimeRouting:
         assert not any("rules_dir" in kw for kw in kwargs_list)
         assert not any("axiom_prompt" in kw for kw in kwargs_list)
 
-    @patch("contemplative_agent.cli._handle_rules_stocktake")
+    @patch("contemplative_agent.cli.stocktake_cmd._handle_rules_stocktake")
     @patch("contemplative_agent.cli.runtime.configure_llm")
     def test_rules_stocktake_applies_telemetry(self, mock_configure, mock_handler):
         with patch("sys.argv", ["contemplative-agent", "rules-stocktake"]):
@@ -388,3 +389,80 @@ class TestStocktakeTraceLabels:
             ("merge 1", "t1"),
             ("merge 2", "t2"),
         ]
+
+
+class TestDropFlaggedVersusRemoved:
+    """A quality-flagged file the operator KEEPS is not the same as a removed one.
+
+    The clean phase wants *flagged* (no point tidying a file this run proposes
+    to delete); the description audit wants *removed* (a kept file stays in the
+    selector catalog, so its description still needs checking — codex review
+    2026-07-24). Conflating the two sets was the original bug; these tests pin
+    which phase reads which.
+    """
+
+    @staticmethod
+    def _result(items, flagged):
+        from contemplative_agent.core.stocktake import QualityIssue, StocktakeResult
+
+        return StocktakeResult(
+            merge_groups=(),
+            quality_issues=tuple(QualityIssue(filename=n, reason="thin") for n in flagged),
+            total_files=len(items),
+            items=tuple(items),
+        )
+
+    def _run(self, *, removed):
+        from contemplative_agent.cli.stocktake_cmd import StocktakeRun, _run_stocktake_phases
+
+        items = [("keep.md", "body a"), ("flagged.md", "body b")]
+        captured = {}
+
+        def _fake_drop(*_a, **_kw):
+            return set(removed)
+
+        def _fake_clean(*_a, **kw):
+            captured["clean_skip"] = kw["skip_names"]
+
+        def _fake_desc(*_a, **kw):
+            captured["desc_skip"] = kw["skip_names"]
+
+        run = StocktakeRun(
+            args=argparse.Namespace(stage=False),
+            target_dir=Path("/nonexistent"),
+            label="Skill",
+            merge_prompt="m",
+            command_prefix="skill-stocktake",
+            fallback_title="merged-skill",
+            clean_prompt="c",
+            desc_prompt="d",
+        )
+        with (
+            patch("contemplative_agent.cli.stocktake_cmd._stocktake_drop_phase", _fake_drop),
+            patch("contemplative_agent.cli.stocktake_cmd._stocktake_clean_phase", _fake_clean),
+            patch("contemplative_agent.cli.stocktake_cmd._stocktake_description_phase", _fake_desc),
+            patch("contemplative_agent.cli.stocktake_cmd.memory_cmds._write_reasoning"),
+            patch("contemplative_agent.core.stocktake.format_stocktake_report", return_value=""),
+        ):
+            _run_stocktake_phases(run, self._result(items, ["flagged.md"]))
+        return captured
+
+    def test_kept_flagged_file_is_skipped_by_clean(self):
+        captured = self._run(removed=set())
+        assert "flagged.md" in captured["clean_skip"]
+
+    def test_kept_flagged_file_is_still_description_audited(self):
+        # Operator kept it: not removed, so it stays in the catalog and its
+        # description must still be audited.
+        captured = self._run(removed=set())
+        assert "flagged.md" not in captured["desc_skip"]
+
+    def test_removed_file_is_skipped_by_both(self):
+        captured = self._run(removed={"flagged.md"})
+        assert "flagged.md" in captured["clean_skip"]
+        assert "flagged.md" in captured["desc_skip"]
+
+    def test_surviving_file_is_never_skipped(self):
+        captured = self._run(removed={"flagged.md"})
+        assert "keep.md" not in captured["clean_skip"]
+        assert "keep.md" not in captured["desc_skip"]

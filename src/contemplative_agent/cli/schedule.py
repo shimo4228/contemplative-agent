@@ -16,6 +16,7 @@ from xml.sax.saxutils import escape as xml_escape
 
 from ..adapters.moltbook import config
 from . import runtime
+from .registry import CommandSpec, Tier
 
 logger = logging.getLogger(__name__)
 
@@ -353,3 +354,99 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
                 weekday=args.weekly_backup_day,
                 hour=args.weekly_backup_hour,
             )
+
+
+def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--interval",
+        type=int,
+        default=6,
+        help="Hours between sessions (default: 6)",
+    )
+    parser.add_argument(
+        "--session",
+        type=int,
+        default=60,
+        help="Session duration in minutes (default: 60)",
+    )
+    parser.add_argument(
+        "--uninstall",
+        action="store_true",
+        help="Remove installed schedule",
+    )
+    parser.add_argument(
+        "--no-distill",
+        action="store_true",
+        help="Skip installing daily distillation schedule",
+    )
+    parser.add_argument(
+        "--distill-hour",
+        type=int,
+        default=3,
+        help="Hour to run daily distillation (0-23, default: 3)",
+    )
+    parser.add_argument(
+        "--weekly-analysis",
+        action="store_true",
+        help="Also install weekly analysis report schedule",
+    )
+    parser.add_argument(
+        "--weekly-analysis-day",
+        type=int,
+        default=1,
+        help="Day of week for weekly analysis (0=Sun..6=Sat, default: 1=Mon)",
+    )
+    parser.add_argument(
+        "--weekly-analysis-hour",
+        type=int,
+        default=9,
+        help="Hour to run weekly analysis (0-23, default: 9)",
+    )
+    parser.add_argument(
+        "--weekly-insight",
+        action="store_true",
+        help="Also install weekly staged insight schedule (ADR-0074)",
+    )
+    parser.add_argument(
+        "--weekly-insight-day",
+        type=int,
+        default=1,
+        help="Day of week for weekly insight (0=Sun..6=Sat, default: 1=Mon)",
+    )
+    parser.add_argument(
+        "--weekly-insight-hour",
+        type=int,
+        default=8,
+        help=(
+            "Hour to run weekly insight (0-23, default: 8 — one hour before "
+            "weekly analysis, outside agent-session hours)"
+        ),
+    )
+    parser.add_argument(
+        "--weekly-backup",
+        action="store_true",
+        help="Also install weekly runtime backup schedule (private off-site mirror)",
+    )
+    parser.add_argument(
+        "--weekly-backup-day",
+        type=int,
+        default=1,
+        help="Day of week for weekly backup (0=Sun..6=Sat, default: 1=Mon)",
+    )
+    parser.add_argument(
+        "--weekly-backup-hour",
+        type=int,
+        default=10,
+        help="Hour to run weekly backup (0-23, default: 10 — outside agent-session hours)",
+    )
+
+
+COMMANDS: tuple[CommandSpec, ...] = (
+    CommandSpec(
+        name="install-schedule",
+        help="Install/uninstall launchd schedule for periodic sessions",
+        handler=_handle_install_schedule,
+        tier=Tier.NO_LLM,
+        add_arguments=_add_install_schedule_arguments,
+    ),
+)

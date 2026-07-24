@@ -29,8 +29,9 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
       dedup  novelty  feed_seeder
     adapters/meditation/  (experimental)  config  pomdp  meditate  report
     adapters/dialogue/  peer.py
-    cli/  (composition root package, ADR-0079: __init__ dispatch + runtime/
-          schedule/approval/staging/adopt/stocktake_cmd/memory_cmds/session_cmds)
+    cli/  (composition root package, ADR-0079: __init__ tier dispatch + registry/
+          agent_cmds/runtime/schedule/approval/staging/adopt/stocktake_cmd/
+          memory_cmds/session_cmds)
          |                       |
     Moltbook API            Ollama (local default)
     60GET/30POST/min        gemma4:e4b + nomic-embed-text (768-dim) :11434

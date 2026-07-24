@@ -20,6 +20,7 @@ from ..core._io import (
     write_run_marker,
 )
 from . import adopt, approval, runtime, staging
+from .registry import CommandSpec, Tier
 from .staging import StageItem
 
 logger = logging.getLogger(__name__)
@@ -446,3 +447,92 @@ def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.Argum
     # isinstance narrows the type for the marker write.
     if wrote and not isinstance(result, str):
         write_run_marker(result.marker_dir, ".last_constitution_amend")
+
+
+def _add_distill_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--days", type=int, default=1, help="Days of episodes to process (default: 1)"
+    )
+    parser.add_argument("--dry-run", action="store_true", help="Show results without writing")
+    parser.add_argument(
+        "--file",
+        type=Path,
+        nargs="+",
+        dest="log_files",
+        help="Explicit JSONL log file(s) to process (overrides --days)",
+    )
+
+
+def _add_stage_argument(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--stage",
+        action="store_true",
+        help="Write to staging dir instead of interactive approval (for coding agents)",
+    )
+
+
+def _add_full_and_stage_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--full", action="store_true", help="Process all patterns (not just new ones)"
+    )
+    _add_stage_argument(parser)
+
+
+def _add_insight_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--full", action="store_true", help="Process all patterns (default: new only)"
+    )
+    _add_stage_argument(parser)
+
+
+def _add_enrich_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument("--dry-run", action="store_true", help="Show results without writing")
+
+
+COMMANDS: tuple[CommandSpec, ...] = (
+    CommandSpec(
+        name="distill",
+        help="Distill recent episodes into learned patterns",
+        handler=_handle_distill,
+        tier=Tier.LLM_FULL,
+        add_arguments=_add_distill_arguments,
+    ),
+    CommandSpec(
+        name="distill-identity",
+        help="Distill knowledge into identity (without pattern distillation)",
+        handler=_handle_distill_identity,
+        tier=Tier.LLM_FULL,
+        add_arguments=_add_stage_argument,
+    ),
+    CommandSpec(
+        name="rules-distill",
+        help="Distill universal behavioral rules from skill files",
+        handler=_handle_rules_distill,
+        tier=Tier.LLM_FULL,
+        add_arguments=_add_full_and_stage_arguments,
+    ),
+    CommandSpec(
+        name="amend-constitution",
+        help="Propose amendments to the constitution from accumulated ethical experience",
+        handler=_handle_amend_constitution,
+        tier=Tier.LLM_FULL,
+        add_arguments=_add_stage_argument,
+    ),
+    CommandSpec(
+        name="insight",
+        help="Extract behavioral skill from accumulated knowledge",
+        handler=_handle_insight,
+        tier=Tier.LLM_FULL,
+        add_arguments=_add_insight_arguments,
+    ),
+    CommandSpec(
+        name="enrich",
+        help=(
+            "(deprecated, no-op since ADR-0019) formerly enriched patterns "
+            "with subcategories; subcategorisation is now query-time via views"
+        ),
+        handler=_handle_enrich,
+        tier=Tier.LLM_FULL,
+        add_arguments=_add_enrich_arguments,
+    ),
+)

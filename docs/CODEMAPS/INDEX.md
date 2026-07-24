@@ -104,18 +104,18 @@ Package versions, external services, optional add-ons.
 
 ## Statistics
 
-As of **2026-07-20** — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
+As of **2026-07-25** — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
 
 | Metric | Value |
 |--------|-------|
-| Total `.py` files | 69 (61 non-`__init__` + 8 `__init__`) |
-| LOC | ~20128 |
-| Test files | 60 (1917 tests collected) |
+| Total `.py` files | 71 (63 non-`__init__` + 8 `__init__`) |
+| LOC | ~20903 |
+| Test files | 60 (1977 tests collected) |
 | Core modules | 30 (platform-independent; incl. `llm/` package as one row) |
 | Moltbook adapter modules | 15 |
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |
-| CLI package modules | 9 (`cli/` excl. `__init__.py`, split from single `cli.py` per ADR-0079) |
+| CLI package modules | 11 (`cli/` excl. `__init__.py`, split from single `cli.py` per ADR-0079; `registry.py` + `agent_cmds.py` added when subcommand declaration moved out of `main`) |
 | CLI commands | see [moltbook-agent.md](moltbook-agent.md) CLI table or `contemplative-agent --help` |
 | Prompt templates / view seeds | canonical inventory in [CONFIGURATION.md](../CONFIGURATION.md#pipeline-prompts--view-seeds), guarded by `tests/test_packaged_assets.py` |
 | Config templates | 11 (config/templates/) |

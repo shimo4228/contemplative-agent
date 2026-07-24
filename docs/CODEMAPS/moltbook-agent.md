@@ -10,16 +10,18 @@ Bird's-eye view of the entire codebase. For deep dives, see
 
 ```
 cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ and adapters/
-    __init__.py (589L)        -- argparse + dispatch + main + run_session wiring (session_id set/clear)
+    __init__.py (127L)        -- global flags + COMMANDS aggregation + tier dispatch + main
+    registry.py (97L)         -- CommandSpec / Tier: each module declares its own commands
     __main__.py (7L)          -- `python -m contemplative_agent` entry
-    runtime.py (135L)         -- shared helpers, _repo_root()
-    approval.py (223L)        -- approval-gate loop + audit.jsonl writer (ADR-0012)
-    staging.py (183L)         -- insight --stage / pending-review staging dir
-    adopt.py (433L)           -- adopt-staged command
-    stocktake_cmd.py (542L)   -- skill-stocktake / rules-stocktake commands
-    memory_cmds.py (448L)     -- distill / insight / rules-distill / amend-constitution / distill-identity commands
-    session_cmds.py (368L)    -- run / register / status commands
-    schedule.py (349L)        -- install-schedule / launchd plist generation
+    agent_cmds.py (131L)      -- register / status / run / solve (Agent tier; run holds the run lock + session_id)
+    runtime.py (134L)         -- shared helpers, _repo_root()
+    approval.py (222L)        -- approval-gate loop + audit.jsonl writer (ADR-0012)
+    staging.py (181L)         -- insight --stage / pending-review staging dir
+    adopt.py (484L)           -- adopt-staged / remove-skill commands
+    stocktake_cmd.py (840L)   -- skill-stocktake / rules-stocktake commands
+    memory_cmds.py (538L)     -- distill / insight / rules-distill / amend-constitution / distill-identity commands
+    session_cmds.py (537L)    -- init / report / generate-report / meditate / sync-data / dialogue / dialogue-peer
+    schedule.py (452L)        -- install-schedule / launchd plist generation
  -> core/
  |    _io.py (237L)                -- file I/O (write_restricted, truncate, archive_before_write)
  |    run_context.py (35L)         -- ADR-0078: mints process-wide run_id; set/clear session_id, read by _io.py writer
