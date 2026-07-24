@@ -901,6 +901,67 @@ class _TailSignals(NamedTuple):
         return any(c.word == "combined" for c in self.cues)
 
 
+class _Decision(NamedTuple):
+    """A rule's verdict, with ``stop`` carrying the whole point of the type.
+
+    A rule that abstains and a rule that does not apply both look like
+    ``None`` downstream, and a plain ``... -> str | None`` table cannot tell
+    them apart: the abstaining rule would fall through to later rules and
+    answer where the grammar says stay silent. Nine amendments' worth of
+    guards are abstains, so that collapse would not be a subtle regression —
+    it would be most of them.
+    """
+
+    stop: bool
+    answer: str | None
+
+
+_ABSTAIN = _Decision(stop=True, answer=None)
+"""The rule fires and the parser stays silent."""
+
+
+def _answer(value: str | None) -> _Decision:
+    """The rule fires with a computed answer — ``None`` included.
+
+    ``_compute_chain`` returns ``None`` for an out-of-domain step (negative
+    intermediate, division by zero). That is a fired rule producing no
+    answer, not a rule declining to apply, so it must stop too.
+    """
+    return _Decision(stop=True, answer=value)
+
+
+_Ctx = TypeVar("_Ctx")
+
+
+@dataclass(frozen=True)
+class _Rule(Generic[_Ctx]):
+    """One grammar rule: when it applies, and what it decides.
+
+    ``when`` and ``then`` stay separate so the table reads as a column of
+    conditions — that column is the answer to "which row does my next
+    amendment go in, and where".
+    """
+
+    name: str
+    when: Callable[[_Ctx], bool]
+    then: Callable[[_Ctx], _Decision]
+
+
+def _resolve_operation(rules: tuple[_Rule[_Ctx], ...], ctx: _Ctx) -> str | None:
+    """Walk an ordered rule table and return the first firing rule's answer.
+
+    Order is the grammar: earlier rows are the more specific readings. Every
+    table ends in an unconditional terminal row, so falling off the end is a
+    table-authoring bug, never a parse outcome.
+    """
+    for rule in rules:
+        if rule.when(ctx):
+            decision = rule.then(ctx)
+            if decision.stop:
+                return decision.answer
+    raise AssertionError("rule table is not total — it must end in a terminal row")
+
+
 class _Positions(NamedTuple):
     """Where every event sits relative to the operands, once and for all."""
 
@@ -996,6 +1057,81 @@ def _classify_positions(operands: list[_Operand], events: list[_Event]) -> _Posi
     )
 
 
+@dataclass(frozen=True)
+class _ExplicitCtx:
+    """Everything the explicit-chain tail rules read, derived once."""
+
+    operands: list[_Operand]
+    chain: list[str]
+    tail: _TailSignals
+    contradicting: list[_OpEvent]
+    """Tail operations that do not restate the chain's last step."""
+    mul_override: bool
+    """Whether those contradicting tail ops are the one attested exception."""
+
+
+def _explicit_context(
+    operands: list[_Operand], chain: list[str], tail: _TailSignals
+) -> _ExplicitCtx:
+    contradicting = [op for op in tail.word_ops if _normalize_op(op.op) != _normalize_op(chain[-1])]
+    return _ExplicitCtx(
+        operands=operands,
+        chain=chain,
+        tail=tail,
+        contradicting=contradicting,
+        mul_override=(
+            chain == [_ADD_CHANGE]
+            and bool(contradicting)
+            and all(op.op == _MUL for op in contradicting)
+            and any(tail.is_adjacent(op.atom_index) for op in contradicting)
+        ),
+    )
+
+
+# Ordered grammar for a fully specified chain — every gap carries one agreed
+# operation, and what follows the last operand must be consistent with it.
+_EXPLICIT_TAIL_RULES: tuple[_Rule[_ExplicitCtx], ...] = (
+    # Tail operations must restate the last step ("gains eight more") or be a
+    # multiplicative/divisive contradiction — then abstain. One exception
+    # (round 7, twin-confirmed): an ADJACENT multiplicative tail after a
+    # single change-verb gap ("increases it by three times") overrides the
+    # change-verb to multiply.
+    #
+    # In the cascade this rewrote the chain to [_MUL] and fell into the
+    # subtract-vs-"combined" guard below; _normalize_op(_MUL) is never _SUB,
+    # so that guard was inert after an override and answering here is exactly
+    # equivalent. This is the one place the table short-circuits a
+    # fall-through rather than transcribing it — the differential replay is
+    # what proves it.
+    _Rule(
+        "adjacent_multiplicative_tail_overrides_change_verb",
+        lambda c: bool(c.contradicting) and c.mul_override,
+        lambda c: _answer(_compute_chain(c.operands, [_MUL])),
+    ),
+    _Rule(
+        "tail_operation_contradicts_the_chain",
+        lambda c: bool(c.contradicting),
+        lambda _c: _ABSTAIN,
+    ),
+    # A subtraction chain against a trailing "combined" cue ("another lobster
+    # slows by fifteen ... what's the combined velocity?") is contradictory:
+    # every corpus-accepted "combined" is additive, and the subtract reading
+    # was server-rejected — abstain, never guess.
+    _Rule(
+        "subtraction_chain_against_combined_cue",
+        lambda c: (
+            any(_normalize_op(op) == _SUB for op in c.chain) and c.tail.contradicts_subtraction
+        ),
+        lambda _c: _ABSTAIN,
+    ),
+    _Rule(
+        "explicit_chain",
+        lambda _c: True,
+        lambda c: _answer(_compute_chain(c.operands, [_normalize_op(op) for op in c.chain])),
+    ),
+)
+
+
 def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -> str | None:
     """Fit ops/cues around the operands and compute, or abstain.
 
@@ -1013,101 +1149,18 @@ def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -
     if positions is None:
         return None
     filled, tail, ands = positions.filled, positions.tail, positions.ands
-    tail_word_ops = list(tail.word_ops)
 
     if all(filled):
-        chain = [next(iter(f)) for f in filled]
-        # Tail operations must restate the last step ("gains eight more") or
-        # be a multiplicative/divisive contradiction — then abstain. One
-        # exception (round 7, twin-confirmed): an ADJACENT multiplicative
-        # tail after a single change-verb gap ("increases it by three
-        # times") overrides the change-verb to multiply.
-        contradicting = [
-            op for op in tail_word_ops if _normalize_op(op.op) != _normalize_op(chain[-1])
-        ]
-        if contradicting:
-            override = (
-                chain == [_ADD_CHANGE]
-                and all(op.op == _MUL for op in contradicting)
-                and any(tail.is_adjacent(op.atom_index) for op in contradicting)
-            )
-            if not override:
-                return None
-            chain = [_MUL]
-        # A subtraction chain against a trailing "combined" cue ("another
-        # lobster slows by fifteen ... what's the combined velocity?") is
-        # contradictory: every corpus-accepted "combined" is additive, and
-        # the subtract reading was server-rejected — abstain, never guess.
-        if any(_normalize_op(op) == _SUB for op in chain) and tail.contradicts_subtraction:
-            return None
-        return _compute_chain(operands, [_normalize_op(op) for op in chain])
+        return _resolve_operation(
+            _EXPLICIT_TAIL_RULES,
+            _explicit_context(operands, [next(iter(f)) for f in filled], tail),
+        )
 
     if len(operands) != 2 or any(filled):
         # Chains (3+) never resolve implicitly; a half-filled two-operand
         # read is contradictory.
         return None
     return _resolve_implicit(operands, tail, ands, atoms)
-
-
-class _Decision(NamedTuple):
-    """A rule's verdict, with ``stop`` carrying the whole point of the type.
-
-    A rule that abstains and a rule that does not apply both look like
-    ``None`` downstream, and a plain ``... -> str | None`` table cannot tell
-    them apart: the abstaining rule would fall through to later rules and
-    answer where the grammar says stay silent. Nine amendments' worth of
-    guards are abstains, so that collapse would not be a subtle regression —
-    it would be most of them.
-    """
-
-    stop: bool
-    answer: str | None
-
-
-_ABSTAIN = _Decision(stop=True, answer=None)
-"""The rule fires and the parser stays silent."""
-
-
-def _answer(value: str | None) -> _Decision:
-    """The rule fires with a computed answer — ``None`` included.
-
-    ``_compute_chain`` returns ``None`` for an out-of-domain step (negative
-    intermediate, division by zero). That is a fired rule producing no
-    answer, not a rule declining to apply, so it must stop too.
-    """
-    return _Decision(stop=True, answer=value)
-
-
-_Ctx = TypeVar("_Ctx")
-
-
-@dataclass(frozen=True)
-class _Rule(Generic[_Ctx]):
-    """One grammar rule: when it applies, and what it decides.
-
-    ``when`` and ``then`` stay separate so the table reads as a column of
-    conditions — that column is the answer to "which row does my next
-    amendment go in, and where".
-    """
-
-    name: str
-    when: Callable[[_Ctx], bool]
-    then: Callable[[_Ctx], _Decision]
-
-
-def _resolve_operation(rules: tuple[_Rule[_Ctx], ...], ctx: _Ctx) -> str | None:
-    """Walk an ordered rule table and return the first firing rule's answer.
-
-    Order is the grammar: earlier rows are the more specific readings. Every
-    table ends in an unconditional terminal row, so falling off the end is a
-    table-authoring bug, never a parse outcome.
-    """
-    for rule in rules:
-        if rule.when(ctx):
-            decision = rule.then(ctx)
-            if decision.stop:
-                return decision.answer
-    raise AssertionError("rule table is not total — it must end in a terminal row")
 
 
 @dataclass(frozen=True)
