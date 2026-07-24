@@ -5,7 +5,8 @@ import logging
 import re
 import signal
 import time
-from typing import Any, Callable, Dict, List, Optional
+from collections.abc import Callable
+from typing import Any
 
 from ...core.config import (
     FORBIDDEN_SUBSTRING_PATTERNS,
@@ -72,14 +73,14 @@ class Agent:
     def __init__(
         self,
         autonomy: AutonomyLevel = AutonomyLevel.APPROVE,
-        memory: Optional[MemoryStore] = None,
-        domain_config: Optional[DomainConfig] = None,
+        memory: MemoryStore | None = None,
+        domain_config: DomainConfig | None = None,
         *,
-        client: Optional[MoltbookClient] = None,
-        scheduler: Optional[Scheduler] = None,
-        content: Optional[ContentManager] = None,
-        verification: Optional[VerificationTracker] = None,
-        novelty_gate: Optional[NoveltyGate] = None,
+        client: MoltbookClient | None = None,
+        scheduler: Scheduler | None = None,
+        content: ContentManager | None = None,
+        verification: VerificationTracker | None = None,
+        novelty_gate: NoveltyGate | None = None,
     ) -> None:
         """Compose the agent from its collaborators.
 
@@ -93,8 +94,8 @@ class Agent:
         self._domain = domain_config or get_domain_config()
         self._content = content if content is not None else ContentManager()
         self._verification = verification if verification is not None else VerificationTracker()
-        self._client: Optional[MoltbookClient] = client
-        self._scheduler: Optional[Scheduler] = scheduler
+        self._client: MoltbookClient | None = client
+        self._scheduler: Scheduler | None = scheduler
         self._memory = memory or MemoryStore(
             log_dir=EPISODE_LOG_DIR,
             knowledge_path=KNOWLEDGE_PATH,
@@ -356,7 +357,7 @@ class Agent:
         return True
 
     def _confirm_action(
-        self, description: str, content: str, *, title: Optional[str] = None
+        self, description: str, content: str, *, title: str | None = None
     ) -> bool:
         """Ask for user confirmation based on autonomy level.
 
@@ -434,7 +435,7 @@ class Agent:
         client = self._ensure_client()
         return check_claim_status(client)
 
-    def do_solve(self, text: str) -> Optional[str]:
+    def do_solve(self, text: str) -> str | None:
         """Solve a verification challenge (for testing)."""
         answer = solve_challenge(text)
         if answer:
@@ -447,7 +448,7 @@ class Agent:
     # Feed management (delegated to FeedManager)
     # ------------------------------------------------------------------
 
-    def _get_feed(self) -> List[dict]:
+    def _get_feed(self) -> list[dict]:
         """Return cached feed (delegates to FeedManager)."""
         return self._feed_manager.get_feed(self._ensure_client())
 
@@ -644,8 +645,8 @@ class Agent:
     def run_session(
         self,
         duration_minutes: int = 60,
-        session_meta: Optional[Dict[str, Any]] = None,
-    ) -> List[str]:
+        session_meta: dict[str, Any] | None = None,
+    ) -> list[str]:
         """Run an autonomous engagement session."""
         client = self._ensure_client()
         scheduler = self._get_scheduler()
@@ -673,7 +674,7 @@ class Agent:
 
         # Log session start with configuration metadata
         # Internal fields are applied last to prevent caller from overwriting them
-        start_data: Dict[str, Any] = dict(session_meta) if session_meta else {}
+        start_data: dict[str, Any] = dict(session_meta) if session_meta else {}
         start_data.update(
             {
                 "event": "start",

@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import argparse
 import logging
+from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Optional, Sequence, cast
+from typing import TYPE_CHECKING, Any, cast
 
 if TYPE_CHECKING:
     from ..core.insight import SkillResult
@@ -79,8 +80,8 @@ def _resolve_views_dir() -> Path:
 
 
 def _load_view_registry(
-    args: Optional[argparse.Namespace] = None,
-) -> "ViewRegistry":
+    args: argparse.Namespace | None = None,
+) -> ViewRegistry:
     """Load the view registry, preferring user-customised views.
 
     Passes ``${CONSTITUTION_DIR}`` to seed_from resolution so views can
@@ -107,10 +108,10 @@ def _load_view_registry(
 def _take_snapshot(
     args: argparse.Namespace,
     command: str,
-    view_registry: Optional["ViewRegistry"] = None,
+    view_registry: ViewRegistry | None = None,
     *,
     think: bool = False,
-) -> Optional[Path]:
+) -> Path | None:
     """Write a pivot snapshot at the start of a behavior-producing command.
 
     Skipped when the caller passes ``--dry-run`` (only ``distill`` still
@@ -145,8 +146,8 @@ def _take_snapshot(
 
 
 def _write_reasoning(
-    snapshot_path: Optional[Path],
-    sections: Sequence[tuple[str, Optional[str]]],
+    snapshot_path: Path | None,
+    sections: Sequence[tuple[str, str | None]],
 ) -> None:
     """Persist the run's reasoning trace(s) to ``reasoning.md`` in the snapshot.
 
@@ -198,9 +199,9 @@ def _handle_single_result(
     *,
     command: str,
     reasoning_label: str,
-    snapshot_path: Optional[Path],
+    snapshot_path: Path | None,
     stage: bool,
-    stage_filename: Optional[str] = None,
+    stage_filename: str | None = None,
 ) -> bool:
     """Print / stage / approve-write a single value-layer result.
 

@@ -64,9 +64,9 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Mapping
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, List, Mapping, Optional, Tuple
 
 import numpy as np
 
@@ -78,7 +78,7 @@ logger = logging.getLogger(__name__)
 # Cache embedded seeds per ViewRegistry instance to avoid re-embedding on
 # every query. Cleared when load_views() is called again.
 _DEFAULT_THRESHOLD = 0.0
-_DEFAULT_TOP_K: Optional[int] = None
+_DEFAULT_TOP_K: int | None = None
 
 
 @dataclass(frozen=True)
@@ -88,7 +88,7 @@ class View:
     name: str
     seed_text: str
     threshold: float = _DEFAULT_THRESHOLD
-    top_k: Optional[int] = _DEFAULT_TOP_K
+    top_k: int | None = _DEFAULT_TOP_K
 
 
 _FRONTMATTER_RE = re.compile(r"^---\n(.*?)\n---\n(.*)$", re.DOTALL)
@@ -98,7 +98,7 @@ _VAR_RE = re.compile(r"\$\{(\w+)\}")
 def _substitute_vars(value: str, path_vars: Mapping[str, Path]) -> str:
     """Replace ``${VAR}`` placeholders using path_vars. Unknown vars stay literal."""
 
-    def repl(m: "re.Match[str]") -> str:
+    def repl(m: re.Match[str]) -> str:
         key = m.group(1)
         replacement = path_vars.get(key)
         return str(replacement) if replacement is not None else m.group(0)
@@ -110,7 +110,7 @@ def _resolve_seed_from(
     pattern: str,
     view_path: Path,
     path_vars: Mapping[str, Path],
-) -> Optional[str]:
+) -> str | None:
     """Resolve a ``seed_from`` pattern to concatenated file contents.
 
     Returns ``None`` when no files match or all reads fail. Supports glob
@@ -141,7 +141,7 @@ def _resolve_seed_from(
         logger.warning("View %s: seed_from glob failed: %s", view_path.name, exc)
         return None
 
-    texts: List[str] = []
+    texts: list[str] = []
     for match in matches:
         try:
             body = match.read_text(encoding="utf-8").strip()
@@ -161,11 +161,11 @@ def _resolve_seed_from(
     return "\n\n".join(texts)
 
 
-def _parse_frontmatter(front: str, view_name: str) -> Tuple[float, Optional[int], Optional[str]]:
+def _parse_frontmatter(front: str, view_name: str) -> tuple[float, int | None, str | None]:
     """Parse frontmatter lines; return (threshold, top_k, seed_from)."""
     threshold = _DEFAULT_THRESHOLD
-    top_k: Optional[int] = _DEFAULT_TOP_K
-    seed_from: Optional[str] = None
+    top_k: int | None = _DEFAULT_TOP_K
+    seed_from: str | None = None
     for line in front.splitlines():
         line = line.strip()
         if not line or ":" not in line:
@@ -190,14 +190,14 @@ def _parse_frontmatter(front: str, view_name: str) -> Tuple[float, Optional[int]
 
 def _parse_seed_file(
     path: Path,
-    path_vars: Optional[Mapping[str, Path]] = None,
+    path_vars: Mapping[str, Path] | None = None,
 ) -> View:
     """Parse a seed file into a View. Frontmatter is optional."""
     raw = path.read_text(encoding="utf-8")
     match = _FRONTMATTER_RE.match(raw)
     threshold = _DEFAULT_THRESHOLD
-    top_k: Optional[int] = _DEFAULT_TOP_K
-    seed_from: Optional[str] = None
+    top_k: int | None = _DEFAULT_TOP_K
+    seed_from: str | None = None
     if match:
         front, body = match.group(1), match.group(2)
         threshold, top_k, seed_from = _parse_frontmatter(front, path.name)
@@ -223,16 +223,16 @@ class ViewRegistry:
 
     def __init__(
         self,
-        views_dir: Optional[Path] = None,
-        path_vars: Optional[Mapping[str, Path]] = None,
+        views_dir: Path | None = None,
+        path_vars: Mapping[str, Path] | None = None,
     ) -> None:
         self._views_dir = views_dir
         self._path_vars: Mapping[str, Path] = path_vars or {}
-        self._views: Dict[str, View] = {}
-        self._centroids: Dict[str, np.ndarray] = {}
+        self._views: dict[str, View] = {}
+        self._centroids: dict[str, np.ndarray] = {}
         self._loaded = False
 
-    def load_views(self) -> Dict[str, View]:
+    def load_views(self) -> dict[str, View]:
         """Read all *.md files in views_dir into View instances.
 
         Returns the loaded views dict. Embedding of seed texts is
@@ -263,17 +263,17 @@ class ViewRegistry:
             self._views[view.name] = view
         return dict(self._views)
 
-    def names(self) -> List[str]:
+    def names(self) -> list[str]:
         if not self._loaded:
             self.load_views()
         return sorted(self._views.keys())
 
-    def get(self, name: str) -> Optional[View]:
+    def get(self, name: str) -> View | None:
         if not self._loaded:
             self.load_views()
         return self._views.get(name)
 
-    def get_centroid(self, name: str) -> Optional[np.ndarray]:
+    def get_centroid(self, name: str) -> np.ndarray | None:
         """Return the embedding of the view's seed text, embedding on first call."""
         if not self._loaded:
             self.load_views()
@@ -293,8 +293,8 @@ class ViewRegistry:
     def find_by_view(
         self,
         view_name: str,
-        candidates: List[Dict],
-    ) -> List[Dict]:
+        candidates: list[dict],
+    ) -> list[dict]:
         """Return patterns from ``candidates`` ranked by cosine.
 
         ``candidates`` is a list of pattern dicts each containing an
@@ -313,10 +313,10 @@ class ViewRegistry:
     @staticmethod
     def _rank(
         seed_emb: np.ndarray,
-        candidates: List[Dict],
+        candidates: list[dict],
         threshold: float,
-        top_k: Optional[int],
-    ) -> List[Dict]:
+        top_k: int | None,
+    ) -> list[dict]:
         """Rank candidates by raw cosine similarity.
 
         Pure read, pure semantics: a candidate makes the cut iff it is
@@ -326,7 +326,7 @@ class ViewRegistry:
         ADR-0021 trust multiplier (origin is recorded in provenance,
         never weighted).
         """
-        scored: List[tuple] = []
+        scored: list[tuple] = []
         for pat in candidates:
             emb = pat.get("embedding")
             if not emb:

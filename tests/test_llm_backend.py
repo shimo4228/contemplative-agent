@@ -8,7 +8,6 @@ resolution and HTTP entirely, so these tests never touch network code.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional, Union
 
 from contemplative_agent.core.llm import (
     CIRCUIT_FAILURE_THRESHOLD,
@@ -32,20 +31,20 @@ class FakeBackend:
 
     model: str = "fake-model"
     context_window: int = 32768
-    responses: List[Union[str, BackendResult, None]] = field(default_factory=list)
-    calls: List[dict] = field(default_factory=list)
-    raise_exc: Optional[BaseException] = None
+    responses: list[str | BackendResult | None] = field(default_factory=list)
+    calls: list[dict] = field(default_factory=list)
+    raise_exc: BaseException | None = None
 
     def generate(
         self,
         prompt: str,
         system: str,
         num_predict: int,
-        format: Optional[Dict],
+        format: dict | None,
         *,
         temperature: float = 1.0,
         think: bool = False,
-    ) -> Optional[BackendResult]:
+    ) -> BackendResult | None:
         self.calls.append(
             {
                 "prompt": prompt,

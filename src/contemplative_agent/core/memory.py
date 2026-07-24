@@ -9,9 +9,10 @@
 from __future__ import annotations
 
 import logging
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List, Literal, Optional, Tuple
+from typing import Literal
 
 from ._io import truncate
 from .episode_log import EpisodeLog
@@ -95,11 +96,11 @@ class MemoryStore:
 
     def __init__(
         self,
-        path: Optional[Path] = None,
-        log_dir: Optional[Path] = None,
-        knowledge_path: Optional[Path] = None,
-        commented_cache_path: Optional[Path] = None,
-        agents_path: Optional[Path] = None,
+        path: Path | None = None,
+        log_dir: Path | None = None,
+        knowledge_path: Path | None = None,
+        commented_cache_path: Path | None = None,
+        agents_path: Path | None = None,
     ) -> None:
         # When path is given (e.g. tests), derive sibling paths from it
         if path is not None:
@@ -118,7 +119,7 @@ class MemoryStore:
         )
 
     @property
-    def known_agents(self) -> Dict[str, str]:
+    def known_agents(self) -> dict[str, str]:
         return self._interaction_index.known_agents
 
     @property
@@ -234,8 +235,8 @@ class MemoryStore:
         return self._follows.names()
 
     def get_top_interacted_agents(
-        self, limit: int = 20, exclude_ids: Optional[Iterable[str]] = None
-    ) -> List[Tuple[str, str]]:
+        self, limit: int = 20, exclude_ids: Iterable[str] | None = None
+    ) -> list[tuple[str, str]]:
         """Return top N (agent_id, agent_name) pairs by interaction count."""
         return self._interaction_index.top(limit, exclude_ids)
 
@@ -258,7 +259,7 @@ class MemoryStore:
             timestamp, post_id, title, topic_summary, content_hash, verified
         )
 
-    def get_recent_posts(self, limit: int = 50, verified_only: bool = False) -> List[PostRecord]:
+    def get_recent_posts(self, limit: int = 50, verified_only: bool = False) -> list[PostRecord]:
         """Return recent self-post records (oldest→newest), capped at ``limit``.
 
         Used by the NoveltyGate comparison and body-hash dedup in post_pipeline.
@@ -277,7 +278,7 @@ class MemoryStore:
 
     def get_prior_comment_targets(
         self, agent_name: str, days: int = 7, limit: int = 7
-    ) -> List[str]:
+    ) -> list[str]:
         """Return original_post texts of recent comments sent to agent_name."""
         return self._comments.prior_comment_targets(agent_name, days, limit)
 

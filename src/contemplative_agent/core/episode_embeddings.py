@@ -15,9 +15,9 @@ from __future__ import annotations
 import logging
 import os
 import sqlite3
+from collections.abc import Iterable, Iterator
 from contextlib import contextmanager
 from pathlib import Path
-from typing import Dict, Iterable, Iterator, List, Optional, Tuple
 
 import numpy as np
 
@@ -49,7 +49,7 @@ class EpisodeEmbeddingStore:
         CREATE INDEX IF NOT EXISTS idx_ts ON episode_embeddings(ts);
     """
 
-    def __init__(self, db_path: Optional[Path] = None) -> None:
+    def __init__(self, db_path: Path | None = None) -> None:
         self._db_path = db_path
         self._initialized = False
 
@@ -89,7 +89,7 @@ class EpisodeEmbeddingStore:
                 (episode_id, ts, blob),
             )
 
-    def upsert_many(self, items: Iterable[Tuple[str, str, np.ndarray]]) -> int:
+    def upsert_many(self, items: Iterable[tuple[str, str, np.ndarray]]) -> int:
         """Bulk insert/replace. Returns number of rows written."""
         self._ensure_initialized()
         if self._db_path is None:
@@ -107,7 +107,7 @@ class EpisodeEmbeddingStore:
             )
         return len(rows)
 
-    def get(self, episode_id: str) -> Optional[np.ndarray]:
+    def get(self, episode_id: str) -> np.ndarray | None:
         """Fetch one embedding by id, or None if not present."""
         self._ensure_initialized()
         if self._db_path is None or not self._db_path.exists():
@@ -123,7 +123,7 @@ class EpisodeEmbeddingStore:
 
     _SQLITE_VARIABLE_LIMIT = 500  # SQLITE_MAX_VARIABLE_NUMBER default is 999
 
-    def get_many(self, episode_ids: List[str]) -> Dict[str, np.ndarray]:
+    def get_many(self, episode_ids: list[str]) -> dict[str, np.ndarray]:
         """Bulk fetch. Missing ids are absent from the result dict.
 
         Chunks the IN clause to stay under SQLite's variable limit.
@@ -131,7 +131,7 @@ class EpisodeEmbeddingStore:
         self._ensure_initialized()
         if self._db_path is None or not self._db_path.exists() or not episode_ids:
             return {}
-        result: Dict[str, np.ndarray] = {}
+        result: dict[str, np.ndarray] = {}
         with self._connect() as conn:
             for start in range(0, len(episode_ids), self._SQLITE_VARIABLE_LIMIT):
                 chunk = episode_ids[start : start + self._SQLITE_VARIABLE_LIMIT]

@@ -6,7 +6,6 @@ import json
 import logging
 from dataclasses import asdict
 from pathlib import Path
-from typing import List, Optional
 
 from ...core._io import now_iso, write_text_atomic
 from ...core.llm import generate
@@ -52,7 +51,7 @@ def _save_result(result: MeditationResult, results_path: Path) -> None:
     """Append meditation result to results.json."""
     results_path.parent.mkdir(parents=True, exist_ok=True)
 
-    existing: List[dict] = []
+    existing: list[dict] = []
     if results_path.exists():
         try:
             existing = json.loads(results_path.read_text(encoding="utf-8"))
@@ -75,7 +74,7 @@ def _save_result(result: MeditationResult, results_path: Path) -> None:
         raise
 
 
-def _load_interpret_template(prompt_template: Optional[str]) -> Optional[str]:
+def _load_interpret_template(prompt_template: str | None) -> str | None:
     """Load the interpretation prompt template unless one was supplied."""
     if prompt_template is not None:
         return prompt_template
@@ -104,7 +103,7 @@ def interpret_and_save(
     result: MeditationResult,
     results_path: Path,
     dry_run: bool = False,
-    prompt_template: Optional[str] = None,
+    prompt_template: str | None = None,
 ) -> str:
     """Interpret meditation results via LLM and save raw data to results.json.
 

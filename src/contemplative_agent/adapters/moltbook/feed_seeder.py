@@ -21,7 +21,7 @@ Design:
 from __future__ import annotations
 
 import logging
-from typing import Callable, List, Sequence
+from collections.abc import Callable, Sequence
 
 import numpy as np
 
@@ -36,7 +36,7 @@ def select_feed_seeds(
     target_count: int = 3,
     relevance_floor: float = 0.4,
     char_budget: int = 15000,
-) -> List[dict]:
+) -> list[dict]:
     """Pick up to ``target_count`` peer posts as direct seeds.
 
     Shuffle ``posts``, walk in shuffled order, accept the first ones whose
@@ -59,7 +59,7 @@ def select_feed_seeds(
         return []
     indices = list(range(len(posts)))
     rng.shuffle(indices)
-    accepted: List[dict] = []
+    accepted: list[dict] = []
     for idx in indices:
         post = posts[idx]
         try:

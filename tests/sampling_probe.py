@@ -30,7 +30,6 @@ import json
 import sys
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import requests
 
@@ -56,7 +55,7 @@ SYSTEM_PROMPT = (
 # Sampling profiles. ``base`` = current production values (core/llm.py:472-479).
 # Sweep main axis = top_k (top_k=0 means "no limit"); min_p is the safety valve
 # applied once the tail is opened. One variable at a time, per the plan.
-PROFILES: Dict[str, Dict[str, float]] = {
+PROFILES: dict[str, dict[str, float]] = {
     "base":            {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0},
     "topk-40":         {"temperature": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.0},
     "topk-100":        {"temperature": 1.0, "top_p": 0.95, "top_k": 100, "min_p": 0.0},
@@ -91,13 +90,13 @@ class ProbeReport:
     """All samples for one profile over one suite."""
 
     profile: str
-    params: Dict[str, float]
+    params: dict[str, float]
     model: str
     suite: str
-    samples: List[Sample] = field(default_factory=list)
+    samples: list[Sample] = field(default_factory=list)
 
 
-def load_suite(name: str) -> List[Dict[str, str]]:
+def load_suite(name: str) -> list[dict[str, str]]:
     """Read a ``<name>_suite.jsonl`` fixture into a list of records."""
     path = SUITE_DIR / f"{name}_suite.jsonl"
     if not path.exists():
@@ -121,7 +120,7 @@ def _opening_signature(text: str, n: int = 3) -> str:
     return " ".join(w.lower().strip(".,!?;:—\"'`") for w in words)
 
 
-def probe_one(prompt: str, params: Dict[str, float], seed: int) -> Dict:
+def probe_one(prompt: str, params: dict[str, float], seed: int) -> dict:
     """Call Ollama once and return the raw JSON response (with timing fields)."""
     payload = {
         "model": MODEL,
@@ -145,7 +144,7 @@ def probe_one(prompt: str, params: Dict[str, float], seed: int) -> Dict:
 
 
 def run_probe(
-    profile: str, seeds: List[int], suite: str, output: Optional[str]
+    profile: str, seeds: list[int], suite: str, output: str | None
 ) -> ProbeReport:
     """Run one profile across the suite × seeds and persist the report."""
     if profile not in PROFILES:
@@ -155,7 +154,7 @@ def run_probe(
     records = load_suite(suite)
     template = COMMENT_TEMPLATE_PATH.read_text()
 
-    samples: List[Sample] = []
+    samples: list[Sample] = []
     for rec in records:
         prompt = template.replace("{post_content}", rec["post"])
         for seed in seeds:
@@ -191,7 +190,7 @@ def run_probe(
     return report
 
 
-def _save(report: ProbeReport, profile: str, output: Optional[str]) -> None:
+def _save(report: ProbeReport, profile: str, output: str | None) -> None:
     RESULTS_DIR.mkdir(parents=True, exist_ok=True)
     name = output or f"{profile}.json"
     path = RESULTS_DIR / name if not Path(name).is_absolute() else Path(name)
@@ -199,7 +198,7 @@ def _save(report: ProbeReport, profile: str, output: Optional[str]) -> None:
     print(f"\nSaved: {path}")
 
 
-def _mean(values: List[float]) -> float:
+def _mean(values: list[float]) -> float:
     return sum(values) / len(values) if values else 0.0
 
 
@@ -256,7 +255,7 @@ def compare(name_a: str, name_b: str) -> None:
     print()
 
 
-def _load_report(name: str) -> Dict:
+def _load_report(name: str) -> dict:
     path = RESULTS_DIR / f"{name}.json" if not name.endswith(".json") else Path(name)
     if not path.exists():
         print(f"Report not found: {path}")

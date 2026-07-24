@@ -15,7 +15,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Tuple, Union
 
 from ._io import read_run_marker, write_run_marker
 from .artifact_extraction import resolve_artifact_path
@@ -44,24 +43,24 @@ class RuleResult:
     text: str
     filename: str
     target_path: Path
-    source_ids: Tuple[str, ...] = ()
+    source_ids: tuple[str, ...] = ()
     # ADR-0069: combined Stage 1+2 reasoning trace (rules-distill runs
     # think-ON). Per-batch — every rule from one batch shares the batch's
     # trace, mirroring batch-level source_ids. None when think was off.
-    thinking: Optional[str] = None
+    thinking: str | None = None
 
 
 @dataclass(frozen=True)
 class RulesDistillResult:
     """Result of a successful rules distillation."""
 
-    rules: Tuple[RuleResult, ...]
+    rules: tuple[RuleResult, ...]
     dropped_count: int
 
 
 def _read_skills(
-    skills_dir: Path, since: Optional[str] = None
-) -> List[Tuple[str, str]]:
+    skills_dir: Path, since: str | None = None
+) -> list[tuple[str, str]]:
     """Read skill file contents from *skills_dir*.
 
     Args:
@@ -81,7 +80,7 @@ def _read_skills(
 _NO_RULES_MARKER = "# No Universal Rules Found"
 
 
-def _combine_traces(stage1: Optional[str], stage2: Optional[str]) -> Optional[str]:
+def _combine_traces(stage1: str | None, stage2: str | None) -> str | None:
     """Section the two-stage reasoning traces into one block (ADR-0069).
 
     Returns None when neither stage produced a trace (think off / empty).
@@ -94,7 +93,7 @@ def _combine_traces(stage1: Optional[str], stage2: Optional[str]) -> Optional[st
     return "\n\n".join(parts) if parts else None
 
 
-def _extract_rules(skill_texts: List[str]) -> Optional[Tuple[str, Optional[str]]]:
+def _extract_rules(skill_texts: list[str]) -> tuple[str, str | None] | None:
     """Extract behavioral rules from skill texts via 2-stage LLM pipeline.
 
     Stage 1: Free-form extraction with distill system prompt as lens.
@@ -158,7 +157,7 @@ def _extract_rules(skill_texts: List[str]) -> Optional[Tuple[str, Optional[str]]
     return result, thinking
 
 
-def _split_rules(text: str) -> List[str]:
+def _split_rules(text: str) -> list[str]:
     """Split a multi-rule document into individual rule texts.
 
     The LLM produces output like:
@@ -174,7 +173,7 @@ def _split_rules(text: str) -> List[str]:
     import re
 
     parts = re.split(r"(?=^## Rule \d+)", text, flags=re.MULTILINE)
-    rules: List[str] = []
+    rules: list[str] = []
     for part in parts:
         part = part.strip()
         if not part or not part.startswith("## Rule"):
@@ -190,8 +189,8 @@ def _split_rules(text: str) -> List[str]:
 
 
 def _build_skill_clusters(
-    skill_items: List[Tuple[str, str]],
-) -> List[List[Tuple[str, str]]]:
+    skill_items: list[tuple[str, str]],
+) -> list[list[tuple[str, str]]]:
     """Group (filename, body) skill pairs by embedding cosine similarity.
 
     One Ollama ``embed_texts`` call; failures (None return) degrade to a
@@ -235,7 +234,7 @@ def _build_skill_clusters(
         min_size=MIN_SKILLS_REQUIRED,
         max_size=MAX_RULES_BATCH,
     )
-    batches: List[List[Tuple[str, str]]] = [
+    batches: list[list[tuple[str, str]]] = [
         [(p["filename"], p["pattern"]) for p in c] for c in clusters
     ]
     # Singletons collectively form one "other" batch only if the pool is
@@ -247,7 +246,7 @@ def _build_skill_clusters(
     return batches
 
 
-def _read_last_run(rules_dir: Optional[Path]) -> Optional[str]:
+def _read_last_run(rules_dir: Path | None) -> str | None:
     """Read the timestamp of the last rules-distill run."""
     return read_run_marker(rules_dir, ".last_rules_distill")
 
@@ -258,10 +257,10 @@ def _write_last_run(rules_dir: Path) -> None:
 
 
 def distill_rules(
-    skills_dir: Optional[Path] = None,
-    rules_dir: Optional[Path] = None,
+    skills_dir: Path | None = None,
+    rules_dir: Path | None = None,
     full: bool = False,
-) -> Union[str, RulesDistillResult]:
+) -> str | RulesDistillResult:
     """Distill universal behavioral rules from accumulated skill files.
 
     Two-stage pipeline per batch: free-form extraction → structured Markdown.
@@ -280,7 +279,7 @@ def distill_rules(
     if skills_dir is None:
         return "No skills directory provided."
 
-    since: Optional[str] = None
+    since: str | None = None
     if not full:
         since = _read_last_run(rules_dir)
         if since:
@@ -309,7 +308,7 @@ def distill_rules(
         len(skill_items), len(batches),
     )
 
-    rule_results: List[RuleResult] = []
+    rule_results: list[RuleResult] = []
     dropped_count = 0
     empty_batches = 0  # Batches that correctly returned "no universal rules"
 
@@ -342,11 +341,11 @@ def distill_rules(
 
 
 def _distill_one_batch(
-    batch: List[Tuple[str, str]],
+    batch: list[tuple[str, str]],
     batch_idx: int,
     n_batches: int,
-    rules_dir: Optional[Path],
-) -> Tuple[List[RuleResult], int, int]:
+    rules_dir: Path | None,
+) -> tuple[list[RuleResult], int, int]:
     """Extract + validate rules for one cluster batch.
 
     Returns ``(rules, dropped_count, empty_flag)`` where *empty_flag* is 1
@@ -377,7 +376,7 @@ def _distill_one_batch(
         # Fallback: treat entire text as single rule if split fails
         individual_rules = [rules_text]
 
-    rules: List[RuleResult] = []
+    rules: list[RuleResult] = []
     dropped = 0
     for rule_text in individual_rules:
         if not validate_identity_content(rule_text):

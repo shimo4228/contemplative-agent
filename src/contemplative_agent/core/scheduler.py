@@ -4,7 +4,7 @@ import json
 import logging
 import time
 from pathlib import Path
-from typing import Optional, Protocol
+from typing import Protocol
 
 from ._io import write_text_atomic
 
@@ -36,8 +36,8 @@ class Scheduler:
 
     def __init__(
         self,
-        state_path: Optional[Path] = None,
-        limits: Optional[RateLimitsProtocol] = None,
+        state_path: Path | None = None,
+        limits: RateLimitsProtocol | None = None,
         is_new_agent: bool = False,
     ) -> None:
         self._state_path = state_path

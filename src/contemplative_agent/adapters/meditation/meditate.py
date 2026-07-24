@@ -18,7 +18,6 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
-from typing import Tuple
 
 import numpy as np
 
@@ -38,9 +37,9 @@ logger = logging.getLogger(__name__)
 class MeditationResult:
     """Result of a meditation session."""
 
-    initial_beliefs: Tuple[float, ...]
-    final_beliefs: Tuple[float, ...]
-    belief_trajectory: Tuple[Tuple[float, ...], ...]
+    initial_beliefs: tuple[float, ...]
+    final_beliefs: tuple[float, ...]
+    belief_trajectory: tuple[tuple[float, ...], ...]
     pruned_policies: int
     cycles_run: int
     entropy_initial: float
@@ -108,7 +107,7 @@ def _meditation_cycle(
     uniform: np.ndarray,
     no_input_idx: int,
     config: MeditationConfig,
-) -> Tuple[np.ndarray, int]:
+) -> tuple[np.ndarray, int]:
     """One meditation cycle; returns (new beliefs, pruned policy count)."""
     # Step 1: Bayesian update with "no_input" observation
     # Likelihood for no_input is the row A[no_input_idx, :]

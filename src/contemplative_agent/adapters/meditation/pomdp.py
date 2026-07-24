@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -41,7 +41,7 @@ class POMDPMatrices:
     D: np.ndarray
 
 
-def classify_action(record: Dict[str, Any]) -> str:
+def classify_action(record: dict[str, Any]) -> str:
     """Map an episode record to an action state.
 
     Mapping:
@@ -87,9 +87,9 @@ def classify_action(record: Dict[str, Any]) -> str:
 
 
 def classify_outcome(
-    record: Dict[str, Any],
-    subsequent: List[Dict[str, Any]],
-    known_agents: Optional[set] = None,
+    record: dict[str, Any],
+    subsequent: list[dict[str, Any]],
+    known_agents: set | None = None,
     config: MeditationConfig = DEFAULT_CONFIG,
 ) -> str:
     """Map a record + subsequent responses to an outcome state.
@@ -137,9 +137,9 @@ def classify_outcome(
 
 
 def classify_context(
-    record: Dict[str, Any],
-    session_start: Optional[str] = None,
-    session_end: Optional[str] = None,
+    record: dict[str, Any],
+    session_start: str | None = None,
+    session_end: str | None = None,
 ) -> str:
     """Map a record's timestamp to a session phase.
 
@@ -172,10 +172,10 @@ def classify_context(
     return "late_session"
 
 
-def _find_sessions(records: List[Dict[str, Any]]) -> List[Tuple[str, str]]:
+def _find_sessions(records: list[dict[str, Any]]) -> list[tuple[str, str]]:
     """Extract (start_ts, end_ts) pairs from session records."""
-    sessions: List[Tuple[str, str]] = []
-    pending_start: Optional[str] = None
+    sessions: list[tuple[str, str]] = []
+    pending_start: str | None = None
 
     for r in records:
         if r.get("type") != "session":
@@ -195,9 +195,9 @@ def _find_sessions(records: List[Dict[str, Any]]) -> List[Tuple[str, str]]:
 
 
 def _find_session_for_record(
-    record: Dict[str, Any],
-    sessions: List[Tuple[str, str]],
-) -> Tuple[Optional[str], Optional[str]]:
+    record: dict[str, Any],
+    sessions: list[tuple[str, str]],
+) -> tuple[str | None, str | None]:
     """Find which session a record belongs to."""
     ts_str = record.get("ts", "")
     try:
@@ -255,7 +255,7 @@ def build_matrices(
     outcome_idx = {o: i for i, o in enumerate(OUTCOME_STATES)}
     context_idx = {c: i for i, c in enumerate(CONTEXT_STATES)}
 
-    prev_ctx_i: Optional[int] = None
+    prev_ctx_i: int | None = None
 
     for i, record in enumerate(records):
         # Skip session records themselves

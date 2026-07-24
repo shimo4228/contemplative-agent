@@ -4,12 +4,11 @@ These constants are platform-independent and shared across all adapters.
 """
 
 import re
-from typing import Tuple
 
 VALID_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
 VALID_SUBMOLT_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,49}$")
 
-FORBIDDEN_SUBSTRING_PATTERNS: Tuple[str, ...] = (
+FORBIDDEN_SUBSTRING_PATTERNS: tuple[str, ...] = (
     "api_key",
     "api-key",
     "apikey",
@@ -19,7 +18,7 @@ FORBIDDEN_SUBSTRING_PATTERNS: Tuple[str, ...] = (
     "private_key",
     "-----BEGIN",
 )
-FORBIDDEN_WORD_PATTERNS: Tuple[str, ...] = (
+FORBIDDEN_WORD_PATTERNS: tuple[str, ...] = (
     "password",
     "secret",
 )

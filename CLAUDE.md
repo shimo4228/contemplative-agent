@@ -25,6 +25,10 @@ uv pip install -e ".[dev]"
 uv run pytest tests/ -v
 uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 
+# lint（ルールセットは pyproject の select で明示固定 — PostToolUse の autofix hook が
+# PATH/uvx の ruff を使うため、default 集合に依存すると版差で木が二層化する）
+uv run ruff check src/ tests/ scripts/
+
 # import 方向ゲート（ADR-0001。pytest 実行時は tests/test_architecture.py 経由で自動発火）
 uv run lint-imports
 ```

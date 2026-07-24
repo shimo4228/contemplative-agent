@@ -11,7 +11,6 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, Optional, Tuple, Union
 
 from .knowledge_store import epistemic_counts_for, pattern_id
 from .llm import generate_full, get_distill_system_prompt, validate_identity_content
@@ -36,19 +35,19 @@ class AmendmentResult:
     text: str
     target_path: Path
     marker_dir: Path
-    pattern_ids: Tuple[str, ...] = ()
-    epistemic_counts: Dict[str, int] = field(default_factory=dict)
+    pattern_ids: tuple[str, ...] = ()
+    epistemic_counts: dict[str, int] = field(default_factory=dict)
     # ADR-0069: reasoning trace behind the amendment (amend-constitution runs
     # think-ON — the constitution sits at the top of the behavior-change chain,
     # so the owner sees *why* this amendment was proposed at the approval gate).
-    thinking: Optional[str] = None
+    thinking: str | None = None
 
 
 def amend_constitution(
-    knowledge_store: Optional[KnowledgeStore] = None,
-    constitution_dir: Optional[Path] = None,
-    view_registry: Optional[ViewRegistry] = None,
-) -> Union[str, AmendmentResult]:
+    knowledge_store: KnowledgeStore | None = None,
+    constitution_dir: Path | None = None,
+    view_registry: ViewRegistry | None = None,
+) -> str | AmendmentResult:
     """Generate a constitution amendment from accumulated constitutional patterns.
 
     Reads the current constitution and constitutional patterns from the knowledge store,

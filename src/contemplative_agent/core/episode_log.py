@@ -6,7 +6,7 @@ import json
 import logging
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ._io import append_jsonl_restricted
 
@@ -19,20 +19,20 @@ class EpisodeLog:
     Each line: {"ts": "ISO8601", "type": "interaction|post|activity|insight", "data": {...}}
     """
 
-    def __init__(self, log_dir: Optional[Path] = None) -> None:
+    def __init__(self, log_dir: Path | None = None) -> None:
         self._log_dir = log_dir
 
-    def _today_path(self) -> Optional[Path]:
+    def _today_path(self) -> Path | None:
         if self._log_dir is None:
             return None
         return self._log_dir / f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.jsonl"
 
-    def _path_for_date(self, date_str: str) -> Optional[Path]:
+    def _path_for_date(self, date_str: str) -> Path | None:
         if self._log_dir is None:
             return None
         return self._log_dir / f"{date_str}.jsonl"
 
-    def append(self, record_type: str, data: Dict[str, Any]) -> None:
+    def append(self, record_type: str, data: dict[str, Any]) -> None:
         """Append a record immediately to today's log file."""
         path = self._today_path()
         if path is None:
@@ -48,8 +48,8 @@ class EpisodeLog:
             logger.warning("Failed to write episode log: %s", exc)
 
     def read_range(
-        self, days: int = 1, record_type: Optional[str] = None
-    ) -> List[Dict[str, Any]]:
+        self, days: int = 1, record_type: str | None = None
+    ) -> list[dict[str, Any]]:
         """Read records from the last N days.
 
         Args:
@@ -59,7 +59,7 @@ class EpisodeLog:
         """
         if self._log_dir is None:
             return []
-        records: List[Dict[str, Any]] = []
+        records: list[dict[str, Any]] = []
         now = datetime.now(timezone.utc)
         for i in range(days):
             date_str = (now - timedelta(days=i)).strftime("%Y-%m-%d")
@@ -71,7 +71,7 @@ class EpisodeLog:
         return records
 
     @staticmethod
-    def read_file(path: Path) -> List[Dict[str, Any]]:
+    def read_file(path: Path) -> list[dict[str, Any]]:
         """Read all JSON lines from a single JSONL file."""
         if not path.exists():
             return []

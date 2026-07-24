@@ -20,7 +20,6 @@ import logging
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
-from typing import Optional
 
 from .text_utils import extract_title, slugify
 
@@ -37,10 +36,10 @@ class ResolvedArtifactPath:
 
 def resolve_artifact_path(
     body: str,
-    target_dir: Optional[Path],
+    target_dir: Path | None,
     *,
     label: str,
-) -> Optional[ResolvedArtifactPath]:
+) -> ResolvedArtifactPath | None:
     """Derive ``<slug>-YYYYMMDD.md`` from *body* and check it against escape.
 
     Returns ``None`` when:

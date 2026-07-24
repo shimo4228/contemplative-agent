@@ -5,8 +5,8 @@ from __future__ import annotations
 import json
 import logging
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Callable, Optional, Tuple
 
 from ...core.config import VALID_ID_PATTERN
 from ...core.scheduler import Scheduler
@@ -133,7 +133,7 @@ class ReplyHandler:
         # Fallback: check comments on our own posts directly
         self.check_own_post_comments(client, scheduler, end_time)
 
-    def _reply_dedup(self, post_id: str, comment_id: str) -> Tuple[str, bool]:
+    def _reply_dedup(self, post_id: str, comment_id: str) -> tuple[str, bool]:
         """Return the reply dedup key and whether it was already handled.
 
         A reply is "handled" if its key is in the in-session
@@ -145,7 +145,7 @@ class ReplyHandler:
         handled = key in self._ctx.commented_posts or self._ctx.memory.has_commented_on(key)
         return key, handled
 
-    def _validated_notification(self, notif: dict, i: int) -> Optional[Tuple[dict, str]]:
+    def _validated_notification(self, notif: dict, i: int) -> tuple[dict, str] | None:
         """Gate one notification; return (fields, reply_key) or None to skip.
 
         Skips non-actionable types, invalid post ids, and already-handled

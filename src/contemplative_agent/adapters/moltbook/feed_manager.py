@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 import random
 import time
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Callable, List, Optional, Set
 
 from ...core.config import VALID_ID_PATTERN
 from ...core.domain import DomainConfig
@@ -52,18 +52,18 @@ class FeedManager:
         self._confirm_action = confirm_action
         self._confirm_side_effect = confirm_side_effect
         self._handle_verification = handle_verification
-        self._upvoted_posts: Set[str] = set()
-        self._cached_feed: List[dict] = []
+        self._upvoted_posts: set[str] = set()
+        self._cached_feed: list[dict] = []
         self._feed_fetched_at: float = 0.0
 
     # ------------------------------------------------------------------
     # Feed fetching
     # ------------------------------------------------------------------
 
-    def fetch_feed(self, client: MoltbookClient) -> List[dict]:
+    def fetch_feed(self, client: MoltbookClient) -> list[dict]:
         """Fetch recent posts from subscribed submolt feeds."""
         seen_ids: set[str] = set()
-        posts: List[dict] = []
+        posts: list[dict] = []
         for submolt in self._domain.subscribed_submolts:
             try:
                 resp = client.get(f"/submolts/{submolt}/feed")
@@ -85,7 +85,7 @@ class FeedManager:
         self,
         client: MoltbookClient,
         max_age: float = _FEED_CACHE_TTL,
-    ) -> List[dict]:
+    ) -> list[dict]:
         """Return cached feed if fresh, otherwise fetch anew."""
         if time.time() - self._feed_fetched_at < max_age and self._cached_feed:
             return self._cached_feed
@@ -115,7 +115,7 @@ class FeedManager:
         ``verification_challenge`` field on a fetched feed post.
         """
         seen_ids: set[str] = set()
-        all_posts: List[dict] = []
+        all_posts: list[dict] = []
 
         # Source 1: Following feed
         if client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve):
@@ -433,7 +433,7 @@ class FeedManager:
         score: float,
         note: str,
         comment: str,
-        thinking: Optional[str],
+        thinking: str | None,
         client: MoltbookClient,
         scheduler: Scheduler,
     ) -> bool:

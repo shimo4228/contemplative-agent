@@ -19,9 +19,9 @@ from __future__ import annotations
 
 import logging
 import os
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional, Sequence, Tuple, Union
 
 from . import insight_novelty, llm
 from ._io import read_run_marker, write_run_marker
@@ -66,11 +66,11 @@ class SkillResult:
     text: str
     filename: str
     target_path: Path
-    pattern_ids: Tuple[str, ...] = ()
-    epistemic_counts: Dict[str, int] = field(default_factory=dict)
+    pattern_ids: tuple[str, ...] = ()
+    epistemic_counts: dict[str, int] = field(default_factory=dict)
     # ADR-0069: the reasoning trace for this skill (insight runs think-ON).
     # Per-skill (one LLM call per cluster), None when think was off / no trace.
-    thinking: Optional[str] = None
+    thinking: str | None = None
 
 
 @dataclass(frozen=True)
@@ -83,14 +83,14 @@ class InsightResult:
     still advances the run marker in that case (the window WAS considered).
     """
 
-    skills: Tuple[SkillResult, ...]
+    skills: tuple[SkillResult, ...]
     dropped_count: int
     skipped_known: int = 0
 
 
 def _extract_skill(
-    patterns: List[str], topic: str = "mixed"
-) -> Optional[Tuple[str, Optional[str]]]:
+    patterns: list[str], topic: str = "mixed"
+) -> tuple[str, str | None] | None:
     """Extract one skill from patterns via LLM.
 
     Returns ``(skill_text, thinking)`` — the reasoning trace rides along
@@ -130,7 +130,7 @@ def _extract_skill(
     return text, out.thinking
 
 
-def _cluster_score(cluster: List[dict]) -> float:
+def _cluster_score(cluster: list[dict]) -> float:
     """Ordering key: cluster size × mean effective_importance.
 
     Favors frequently-recurring topics that are also recent. ADR-0056:
@@ -146,8 +146,8 @@ def _cluster_score(cluster: List[dict]) -> float:
 
 
 def _log_dropped_singletons(
-    singletons: List[dict],
-    view_registry: Optional[ViewLookup] = None,
+    singletons: list[dict],
+    view_registry: ViewLookup | None = None,
 ) -> None:
     """Visibility-only instrument for dropped singleton patterns (review
     2026-06-27 M3).
@@ -198,12 +198,12 @@ def _log_dropped_singletons(
 
 
 def _build_cluster_batches(
-    raw_patterns: List[dict],
+    raw_patterns: list[dict],
     threshold: float = CLUSTER_THRESHOLD,
     min_size: int = MIN_PATTERNS_REQUIRED,
     max_size: int = BATCH_SIZE,
-    view_registry: Optional[ViewLookup] = None,
-) -> List[Tuple[str, List[str], Tuple[str, ...]]]:
+    view_registry: ViewLookup | None = None,
+) -> list[tuple[str, list[str], tuple[str, ...]]]:
     """Cluster patterns globally; every cluster ≥ ``min_size`` becomes a batch.
 
     ``gated`` patterns (noise per ADR-0026) are skipped before
@@ -242,7 +242,7 @@ def _build_cluster_batches(
 
     clusters.sort(key=_cluster_score, reverse=True)
 
-    batches: List[Tuple[str, List[str], Tuple[str, ...]]] = []
+    batches: list[tuple[str, list[str], tuple[str, ...]]] = []
     for idx, cluster in enumerate(clusters, start=1):
         topic = f"cluster-{idx}"
         batches.append(
@@ -255,7 +255,7 @@ def _build_cluster_batches(
     return batches
 
 
-def _read_last_insight(skills_dir: Optional[Path]) -> Optional[str]:
+def _read_last_insight(skills_dir: Path | None) -> str | None:
     """Read the timestamp of the last insight run."""
     return read_run_marker(skills_dir, ".last_insight")
 
@@ -300,7 +300,7 @@ def _failopen_extraction_cap() -> int:
 
 
 def _append_deferral_audit(
-    audit_path: Optional[Path],
+    audit_path: Path | None,
     *,
     cap: int,
     deferred: Sequence[_Batch],
@@ -326,12 +326,12 @@ def _append_deferral_audit(
 
 
 def _apply_failopen_extraction_cap(
-    batches: List[_Batch],
+    batches: list[_Batch],
     fail_open_topics: frozenset[str],
-    patterns_by_id: Dict[str, dict],
+    patterns_by_id: dict[str, dict],
     cap: int,
-    audit_path: Optional[Path] = None,
-) -> List[_Batch]:
+    audit_path: Path | None = None,
+) -> list[_Batch]:
     """Bound the blast radius of a fail-open novelty verdict (grill 2026-07-18).
 
     Applies ONLY to clusters that reached extraction unjudged (through a
@@ -346,7 +346,7 @@ def _apply_failopen_extraction_cap(
     if len(fail_open_batches) <= cap:
         return batches
 
-    def _priority(batch: _Batch) -> Tuple[int, float, str]:
+    def _priority(batch: _Batch) -> tuple[int, float, str]:
         topic, patterns, pids = batch
         importance = sum(
             effective_importance(patterns_by_id[pid]) for pid in pids if pid in patterns_by_id
@@ -371,13 +371,13 @@ def _apply_failopen_extraction_cap(
 
 
 def extract_insight(
-    knowledge_store: Optional[KnowledgeStore] = None,
-    skills_dir: Optional[Path] = None,
+    knowledge_store: KnowledgeStore | None = None,
+    skills_dir: Path | None = None,
     full: bool = False,
-    instrument_views: Optional[ViewLookup] = None,
-    staged_ledger_path: Optional[Path] = None,
-    novelty_audit_path: Optional[Path] = None,
-) -> Union[str, InsightResult]:
+    instrument_views: ViewLookup | None = None,
+    staged_ledger_path: Path | None = None,
+    novelty_audit_path: Path | None = None,
+) -> str | InsightResult:
     """Extract behavioral skills from accumulated knowledge.
 
     Single-pass per cluster: extract skill, validate, return.
@@ -481,7 +481,7 @@ def extract_insight(
         len(batches),
     )
 
-    skill_results: List[SkillResult] = []
+    skill_results: list[SkillResult] = []
     dropped_count = 0
 
     for batch_idx, (topic, batch, batch_pids) in enumerate(batches):
@@ -511,9 +511,9 @@ def extract_insight(
 
 def _select_patterns(
     knowledge_store: KnowledgeStore,
-    skills_dir: Optional[Path],
+    skills_dir: Path | None,
     full: bool,
-) -> Optional[List[dict]]:
+) -> list[dict] | None:
     """Pick the live patterns to process (full vs incremental).
 
     ADR-0021/0051: pull live-only patterns so bitemporally superseded
@@ -548,13 +548,13 @@ def _select_patterns(
 
 def _extract_one_batch(
     topic: str,
-    batch: List[str],
-    batch_pids: Tuple[str, ...],
+    batch: list[str],
+    batch_pids: tuple[str, ...],
     batch_idx: int,
     n_batches: int,
-    skills_dir: Optional[Path],
-    patterns_by_id: Dict[str, dict],
-) -> Optional[SkillResult]:
+    skills_dir: Path | None,
+    patterns_by_id: dict[str, dict],
+) -> SkillResult | None:
     """Extract + validate one cluster batch; None when dropped."""
     logger.info(
         "Batch %d/%d [%s]: %d patterns",

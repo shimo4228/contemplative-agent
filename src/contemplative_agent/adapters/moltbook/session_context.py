@@ -8,7 +8,6 @@ to Agent's private attributes.
 from __future__ import annotations
 
 import logging
-from typing import List, Set
 
 from ...core.config import VALID_ID_PATTERN
 from ...core.memory import MemoryStore
@@ -47,11 +46,11 @@ class SessionContext:
         own_agent_name: str = "",
     ) -> None:
         self.memory: MemoryStore = memory
-        self.commented_posts: Set[str] = set()
-        self.own_post_ids: Set[str] = set()
+        self.commented_posts: set[str] = set()
+        self.own_post_ids: set[str] = set()
         self.own_agent_id: str = own_agent_id
         self.own_agent_name: str = own_agent_name
-        self.actions_taken: List[str] = []
+        self.actions_taken: list[str] = []
         self._rate_limited: bool = False
 
     def is_self(self, author_id: str, author_name: str) -> bool:
@@ -97,7 +96,7 @@ class SessionContext:
         # read_range interleaves days (today's file first, chronological
         # within each file) — sort by ISO timestamp to pick the true most
         # recent posts before applying the limit.
-        posts: List[tuple[str, str]] = []
+        posts: list[tuple[str, str]] = []
         for rec in records:
             data = rec.get("data") or {}
             if data.get("action") != "post":
@@ -110,7 +109,7 @@ class SessionContext:
             if isinstance(post_id, str) and post_id and VALID_ID_PATTERN.match(post_id):
                 posts.append((str(rec.get("ts") or ""), post_id))
         posts.sort(reverse=True)
-        seeded: List[str] = []
+        seeded: list[str] = []
         for _ts, post_id in posts:
             if post_id not in seeded:
                 seeded.append(post_id)

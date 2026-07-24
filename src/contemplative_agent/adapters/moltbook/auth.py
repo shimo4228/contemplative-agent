@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 import logging
 import os
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from ...core._io import write_text_atomic
 from .config import CREDENTIALS_PATH
@@ -23,7 +23,7 @@ def _mask_key(key: str) -> str:
     return "*" * (len(key) - 4) + key[-4:]
 
 
-def load_credentials() -> Optional[str]:
+def load_credentials() -> str | None:
     """Load API key from environment variable or credentials file.
 
     Priority: MOLTBOOK_API_KEY env var > credentials file.
@@ -51,7 +51,7 @@ def load_credentials() -> Optional[str]:
     return None
 
 
-def save_credentials(api_key: str, agent_id: Optional[str] = None) -> None:
+def save_credentials(api_key: str, agent_id: str | None = None) -> None:
     """Save API key to credentials file with restricted permissions.
 
     Uses atomic write (tmp + rename) with umask to prevent race window

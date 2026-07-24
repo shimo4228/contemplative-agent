@@ -7,14 +7,14 @@ import logging
 import re
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any
 
 from ._io import write_restricted
 
 logger = logging.getLogger(__name__)
 
 
-def _base_entry(entry: Dict[str, Any], data: Dict[str, Any]) -> Dict[str, Any]:
+def _base_entry(entry: dict[str, Any], data: dict[str, Any]) -> dict[str, Any]:
     """Common per-interaction fields shared by comment / reply / post.
 
     ``thinking`` is None when the call ran think=False; coerce to "" so the
@@ -44,19 +44,19 @@ _CONFIG_META_KEYS = (
 def _parse_log(
     jsonl_path: Path,
 ) -> tuple[
-    Dict[str, Any],
-    List[Dict[str, Any]],
-    List[Dict[str, Any]],
-    List[Dict[str, Any]],
+    dict[str, Any],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
+    list[dict[str, Any]],
 ]:
     """Parse a JSONL log file in a single pass.
 
     Returns (session_meta, comments, replies, posts).
     """
-    meta: Dict[str, Any] = {}
-    comments: List[Dict[str, Any]] = []
-    replies: List[Dict[str, Any]] = []
-    posts: List[Dict[str, Any]] = []
+    meta: dict[str, Any] = {}
+    comments: list[dict[str, Any]] = []
+    replies: list[dict[str, Any]] = []
+    posts: list[dict[str, Any]] = []
 
     for line in jsonl_path.read_text(encoding="utf-8").splitlines():
         if not line.strip():
@@ -151,7 +151,7 @@ def _format_ts(ts: str) -> str:
     return ts[:19].replace("T", " ") if ts else ""
 
 
-def _entry_lines(i: int, kind: str, e: Dict[str, Any]) -> List[str]:
+def _entry_lines(i: int, kind: str, e: dict[str, Any]) -> list[str]:
     """Render one interaction in the unified per-entry format.
 
     The header skeleton is identical across COMMENT / REPLY / POST; a
@@ -192,7 +192,7 @@ def _entry_lines(i: int, kind: str, e: Dict[str, Any]) -> List[str]:
     return lines
 
 
-def _section(heading: str, kind: str, entries: List[Dict[str, Any]]) -> List[str]:
+def _section(heading: str, kind: str, entries: list[dict[str, Any]]) -> list[str]:
     lines = [f"## {heading} ({len(entries)} total)", ""]
     for i, e in enumerate(entries, 1):
         lines.extend(_entry_lines(i, kind, e))
@@ -200,10 +200,10 @@ def _section(heading: str, kind: str, entries: List[Dict[str, Any]]) -> List[str
 
 
 def _summary_section(
-    comments: List[Dict[str, Any]],
-    replies: List[Dict[str, Any]],
-    posts: List[Dict[str, Any]],
-) -> List[str]:
+    comments: list[dict[str, Any]],
+    replies: list[dict[str, Any]],
+    posts: list[dict[str, Any]],
+) -> list[str]:
     lines = [
         "## Summary",
         f"- Comments: {len(comments)}",
@@ -213,7 +213,7 @@ def _summary_section(
     if comments:
         # Stored field — parse defensively (degrade, never abort): a single
         # malformed relevance value must not crash the end-of-session report.
-        rels: List[float] = []
+        rels: list[float] = []
         for c in comments:
             raw = c.get("relevance")
             if not raw:
@@ -230,13 +230,13 @@ def _summary_section(
 
 def _build_report(
     date: str,
-    comments: List[Dict[str, Any]],
-    replies: List[Dict[str, Any]],
-    posts: List[Dict[str, Any]],
-    session_meta: Optional[Dict[str, Any]] = None,
+    comments: list[dict[str, Any]],
+    replies: list[dict[str, Any]],
+    posts: list[dict[str, Any]],
+    session_meta: dict[str, Any] | None = None,
 ) -> str:
     """Build Markdown report content."""
-    lines: List[str] = [f"# Moltbook Activity Report — {date}", ""]
+    lines: list[str] = [f"# Moltbook Activity Report — {date}", ""]
 
     if session_meta:
         domain = session_meta.get("domain", "unknown")
@@ -269,8 +269,8 @@ def _build_report(
 def generate_report(
     log_dir: Path,
     output_dir: Path,
-    date: Optional[str] = None,
-) -> Optional[Path]:
+    date: str | None = None,
+) -> Path | None:
     """Generate a Markdown activity report from a JSONL episode log.
 
     Args:
@@ -310,9 +310,9 @@ def generate_report(
     return report_path
 
 
-def generate_all_reports(log_dir: Path, output_dir: Path) -> List[Path]:
+def generate_all_reports(log_dir: Path, output_dir: Path) -> list[Path]:
     """Generate reports for all JSONL files in log_dir."""
-    generated: List[Path] = []
+    generated: list[Path] = []
     for jsonl_file in sorted(log_dir.glob("*.jsonl")):
         date = jsonl_file.stem
         result = generate_report(log_dir, output_dir, date)

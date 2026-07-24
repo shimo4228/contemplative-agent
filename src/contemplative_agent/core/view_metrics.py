@@ -38,8 +38,9 @@ from __future__ import annotations
 
 import logging
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass
-from typing import List, Optional, Protocol, Sequence, Tuple
+from typing import Protocol
 
 import numpy as np
 
@@ -53,7 +54,7 @@ logger = logging.getLogger(__name__)
 # Views that have an actual querying consumer today (distill.py
 # distill_identity / constitution.py amend_constitution). Instruments measure
 # only these; see module docstring for why orphaned views are excluded.
-CONSUMED_VIEWS: Tuple[str, ...] = ("self_reflection", "constitutional")
+CONSUMED_VIEWS: tuple[str, ...] = ("self_reflection", "constitutional")
 
 # Above this many embedded patterns, cluster stats are skipped: the
 # agglomerative merge in clustering.py is ~O(N^3) worst case. Mirrors
@@ -77,9 +78,9 @@ _AMBIGUITY_NOTE = (
 class ViewLookup(Protocol):
     """The structural slice of ``ViewRegistry`` these instruments need."""
 
-    def get(self, name: str) -> Optional[View]: ...
+    def get(self, name: str) -> View | None: ...
 
-    def get_centroid(self, name: str) -> Optional[np.ndarray]: ...
+    def get_centroid(self, name: str) -> np.ndarray | None: ...
 
 
 @dataclass(frozen=True)
@@ -115,10 +116,10 @@ class DiversityStats:
     pairwise_mean: float
     pairwise_p50: float
     pairwise_p90: float
-    cluster_stats: Optional[ClusterStats]  # None below 2 or above the O(N^3) cap
+    cluster_stats: ClusterStats | None  # None below 2 or above the O(N^3) cap
 
 
-def _embedding_of(pattern: dict) -> Optional[np.ndarray]:
+def _embedding_of(pattern: dict) -> np.ndarray | None:
     """Pattern embedding as float32 vector, or None when absent/malformed.
 
     Malformed values (non-numeric, ragged nesting) return None instead of
@@ -148,7 +149,7 @@ def compute_view_supply(
     patterns: Sequence[dict],
     registry: ViewLookup,
     views: Sequence[str] = CONSUMED_VIEWS,
-) -> Tuple[ViewSupply, ...]:
+) -> tuple[ViewSupply, ...]:
     """Cosine-to-seed supply stats per consumed view.
 
     Patterns without embeddings are skipped. Views that cannot be resolved
@@ -157,7 +158,7 @@ def compute_view_supply(
     must stay distinguishable.
     """
     embedded = [e for e in (_embedding_of(p) for p in patterns) if e is not None]
-    supplies: List[ViewSupply] = []
+    supplies: list[ViewSupply] = []
     for name in views:
         view = registry.get(name)
         centroid = registry.get_centroid(name) if view is not None else None
@@ -258,7 +259,7 @@ def compute_diversity(
     similarity = unit @ unit.T
     upper = similarity[np.triu_indices(len(pairwise_vectors), k=1)]
 
-    cluster_stats: Optional[ClusterStats] = None
+    cluster_stats: ClusterStats | None = None
     if n <= cluster_cap:
         # Mirror insight._build_cluster_batches: gated rows never reach its
         # clustering, so they must not inflate the instrument either
@@ -298,7 +299,7 @@ def nearest_view(
     pattern: dict,
     registry: ViewLookup,
     views: Sequence[str] = CONSUMED_VIEWS,
-) -> Optional[Tuple[str, float]]:
+) -> tuple[str, float] | None:
     """Best (view, cosine) among consumed views, or None when unresolvable.
 
     Visibility helper for dropped-singleton logging (review 2026-06-27 M3):
@@ -308,7 +309,7 @@ def nearest_view(
     vec = _embedding_of(pattern)
     if vec is None:
         return None
-    best: Optional[Tuple[str, float]] = None
+    best: tuple[str, float] | None = None
     for name in views:
         centroid = registry.get_centroid(name)
         if centroid is None:
@@ -319,7 +320,7 @@ def nearest_view(
     return best
 
 
-def format_view_supply(supplies: Sequence[ViewSupply]) -> List[str]:
+def format_view_supply(supplies: Sequence[ViewSupply]) -> list[str]:
     return [
         (
             f"view supply — {s.view}: {s.passing}/{s.total} pass "
@@ -330,7 +331,7 @@ def format_view_supply(supplies: Sequence[ViewSupply]) -> List[str]:
     ]
 
 
-def format_diversity(stats: DiversityStats) -> List[str]:
+def format_diversity(stats: DiversityStats) -> list[str]:
     lines = [
         (
             f"diversity — n={stats.n} (no embedding: {stats.skipped}) "
@@ -354,13 +355,13 @@ def format_diversity(stats: DiversityStats) -> List[str]:
 
 def instrument_lines(
     patterns: Sequence[dict],
-    registry: Optional[ViewLookup] = None,
+    registry: ViewLookup | None = None,
     *,
     views: Sequence[str] = CONSUMED_VIEWS,
     cluster_cap: int = CLUSTER_STATS_MAX_N,
-) -> List[str]:
+) -> list[str]:
     """All instrument lines for a pattern set (view supply needs a registry)."""
-    lines: List[str] = []
+    lines: list[str] = []
     if registry is not None:
         lines.extend(format_view_supply(compute_view_supply(patterns, registry, views)))
     lines.extend(format_diversity(compute_diversity(patterns, cluster_cap=cluster_cap)))

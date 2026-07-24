@@ -19,8 +19,8 @@ Tests are split into:
 from __future__ import annotations
 
 import math
+from collections.abc import Callable
 from datetime import datetime, timedelta, timezone
-from typing import Callable, List
 
 import numpy as np
 import pytest
@@ -148,7 +148,7 @@ def _patch_embed(
         fixed_vec = vec
         single = lambda _text: fixed_vec  # noqa: E731
 
-    def batch(texts: List[str]) -> np.ndarray | None:
+    def batch(texts: list[str]) -> np.ndarray | None:
         if not texts:
             return np.zeros((0, 0), dtype=np.float32)
         results = [single(t) for t in texts]
@@ -416,7 +416,7 @@ class TestNoveltyGateCalibration:
         )
 
         rejected = 0
-        priors: List[PostRecord] = []
+        priors: list[PostRecord] = []
         for i, title in enumerate(REPORT_TITLES):
             decision = gate.evaluate(title, title, "body", priors)
             if not decision.admit:

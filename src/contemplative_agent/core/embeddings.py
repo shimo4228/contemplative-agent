@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import os
-from typing import List, Optional
 
 import numpy as np
 import requests
@@ -48,7 +47,7 @@ def _get_embedding_model() -> str:
     return os.environ.get("OLLAMA_EMBEDDING_MODEL", _DEFAULT_EMBEDDING_MODEL)
 
 
-def calibration_drift_note() -> Optional[str]:
+def calibration_drift_note() -> str | None:
     """Return a warning string when the active embedding model is not the
     calibration model, else None.
 
@@ -69,7 +68,7 @@ def calibration_drift_note() -> Optional[str]:
     )
 
 
-def embed_texts(texts: List[str]) -> Optional[np.ndarray]:
+def embed_texts(texts: list[str]) -> np.ndarray | None:
     """Embed a list of texts using Ollama. Returns (N, D) float array or None.
 
     On any failure (network, model missing, malformed response), returns
@@ -110,7 +109,7 @@ def embed_texts(texts: List[str]) -> Optional[np.ndarray]:
         return None
 
 
-def embed_one(text: str) -> Optional[np.ndarray]:
+def embed_one(text: str) -> np.ndarray | None:
     """Embed a single text. Returns (D,) float vector or None."""
     result = embed_texts([text])
     if result is None or result.shape[0] == 0:

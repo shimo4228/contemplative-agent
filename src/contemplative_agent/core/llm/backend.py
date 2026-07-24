@@ -6,9 +6,10 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Dict, Iterator, Optional, Protocol, runtime_checkable
+from typing import Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
@@ -71,11 +72,11 @@ class BackendResult:
     """
 
     text: str
-    finish_reason: Optional[str] = None
-    eval_count: Optional[int] = None
-    prompt_tokens: Optional[int] = None
-    cached_tokens: Optional[int] = None
-    thinking: Optional[str] = None
+    finish_reason: str | None = None
+    eval_count: int | None = None
+    prompt_tokens: int | None = None
+    cached_tokens: int | None = None
+    thinking: str | None = None
 
 
 @dataclass(frozen=True)
@@ -91,8 +92,8 @@ class GenerationOutput:
     ``None`` keeps it absent under the production ``think=False`` default.
     """
 
-    text: Optional[str]
-    thinking: Optional[str] = None
+    text: str | None
+    thinking: str | None = None
 
 
 @runtime_checkable
@@ -134,11 +135,11 @@ class LLMBackend(Protocol):
         prompt: str,
         system: str,
         num_predict: int,
-        format: Optional[Dict],
+        format: dict | None,
         *,
         temperature: float = 1.0,
         think: bool = False,
-    ) -> Optional[BackendResult]:
+    ) -> BackendResult | None:
         """Return a :class:`BackendResult`, or None on failure.
 
         ``temperature`` is forwarded from the caller so backends honor the

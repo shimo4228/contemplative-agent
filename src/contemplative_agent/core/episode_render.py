@@ -9,7 +9,6 @@ imports this module).
 from __future__ import annotations
 
 import logging
-from typing import Dict, List
 
 from ._io import truncate_boundary
 from .config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH
@@ -46,7 +45,7 @@ EXCERPT_CAPS = {
 }
 
 
-def _is_rich_episode(record: Dict) -> bool:
+def _is_rich_episode(record: dict) -> bool:
     """True iff this episode carries substantive world-grounding (ADR-0060).
 
     Only ``activity`` records for ``comment`` / ``reply`` / ``post`` actions
@@ -59,7 +58,7 @@ def _is_rich_episode(record: Dict) -> bool:
     return (record.get("data") or {}).get("action") in RICH_ACTIONS
 
 
-def _episode_source_kind(record: Dict) -> str:
+def _episode_source_kind(record: dict) -> str:
     """Classify one episode as 'self' / 'external' / 'unknown' (ADR-0021)."""
     record_type = record.get("type", "")
     data = record.get("data", {}) or {}
@@ -70,7 +69,7 @@ def _episode_source_kind(record: Dict) -> str:
     return "unknown"
 
 
-def _derive_source_type(records: List[Dict]) -> str:
+def _derive_source_type(records: list[dict]) -> str:
     """Map a batch of episodes to an ADR-0021 provenance.source_type value.
 
     Pure origin record (ADR-0051 retired the trust weighting that used to
@@ -107,7 +106,7 @@ def render_episode(record_type: str, data: dict) -> str:
     if record_type != "activity":
         return summarize_record(record_type, data)
 
-    parts: List[str] = []
+    parts: list[str] = []
     # ADR-0060 added external (peer-authored) fields to the distill render.
     # ``original_post`` / ``their_comment`` are stored RAW in the episode log
     # (action-time wrapping in llm_functions.py does not reach the persisted

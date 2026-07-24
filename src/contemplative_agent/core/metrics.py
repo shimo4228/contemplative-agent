@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections import Counter
 from dataclasses import dataclass, field
-from typing import Any, Dict
+from typing import Any
 
 from .memory import EpisodeLog
 
@@ -48,7 +48,7 @@ class _Tally:
     agent_exchanges: Counter = field(default_factory=Counter)  # type: ignore[type-arg]
     seen_agents: set = field(default_factory=set)  # type: ignore[type-arg]
 
-    def add_interaction(self, data: Dict[str, Any]) -> None:
+    def add_interaction(self, data: dict[str, Any]) -> None:
         direction = data.get("direction", "")
         interaction_type = data.get("interaction_type", "")
         agent_id = data.get("agent_id", "")
@@ -66,13 +66,13 @@ class _Tally:
             if interaction_type in ("comment", "reply"):
                 self.replies_received += 1
 
-    def add_post(self, data: Dict[str, Any]) -> None:
+    def add_post(self, data: dict[str, Any]) -> None:
         self.posts_made += 1
         topic = data.get("topic_summary", "")
         if topic:
             self.topics.append(topic)
 
-    def add_activity(self, data: Dict[str, Any]) -> None:
+    def add_activity(self, data: dict[str, Any]) -> None:
         if data.get("action", "") == "follow":
             self.follows += 1
 
@@ -92,7 +92,7 @@ def compute_metrics(episode_log: EpisodeLog, days: int = 7) -> SessionReport:
     tally = _Tally()
     for record in records:
         record_type = record.get("type", "")
-        data: Dict[str, Any] = record.get("data", {})
+        data: dict[str, Any] = record.get("data", {})
 
         if record_type == "interaction":
             tally.add_interaction(data)

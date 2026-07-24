@@ -6,7 +6,6 @@ from __future__ import annotations
 import logging
 import os
 import re
-from typing import Optional
 from urllib.parse import urlparse
 
 from ..config import FORBIDDEN_ASSIGNMENT_RE, FORBIDDEN_SUBSTRING_PATTERNS
@@ -66,7 +65,7 @@ def _strip_thinking(text: str) -> str:
     return re.sub(r"<think>.*?</think>", "", text, flags=re.DOTALL).strip()
 
 
-def _extract_inline_thinking(text: str) -> Optional[str]:
+def _extract_inline_thinking(text: str) -> str | None:
     """Return the concatenated contents of inline ``<think>...</think>`` blocks.
 
     Fallback for models that emit reasoning inline rather than in a separate
@@ -109,7 +108,7 @@ def _scrub_secrets(text: str) -> str:
 MAX_THINKING_CHARS = 16000
 
 
-def _sanitize_thinking(thinking: Optional[str]) -> Optional[str]:
+def _sanitize_thinking(thinking: str | None) -> str | None:
     """Scrub a reasoning trace for persistence (episode log); None stays None.
 
     Secret-scrubbed like published output and length-capped (``MAX_THINKING_CHARS``)
@@ -122,7 +121,7 @@ def _sanitize_thinking(thinking: Optional[str]) -> Optional[str]:
     return scrubbed or None
 
 
-def _sanitize_output(text: str, max_length: Optional[int] = None) -> str:
+def _sanitize_output(text: str, max_length: int | None = None) -> str:
     """Remove forbidden patterns and (optionally) enforce a char length cap.
 
     ADR-0019: max_length is now Optional. Internal callers pass None
@@ -183,7 +182,7 @@ def _format_or_default(template: str, default: str, **kwargs: int) -> str:
 def wrap_untrusted_content(
     post_text: str,
     *,
-    max_input: Optional[int] = None,
+    max_input: int | None = None,
 ) -> str:
     """Wrap external content with prompt injection mitigation.
 

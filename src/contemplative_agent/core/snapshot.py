@@ -15,7 +15,7 @@ import logging
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Tuple
+from typing import Literal
 
 import numpy as np
 
@@ -43,7 +43,7 @@ SnapshotCommand = Literal[
 _COMPACT_TS_FORMAT = "%Y%m%dT%H%M%S%fZ"
 
 
-def _format_ts_pair(now: datetime) -> Tuple[str, str]:
+def _format_ts_pair(now: datetime) -> tuple[str, str]:
     """Return (compact, iso) forms derived from a single ``datetime``.
 
     Deriving both forms from one instant prevents microsecond drift
@@ -56,7 +56,7 @@ def _format_ts_pair(now: datetime) -> Tuple[str, str]:
     return compact, iso
 
 
-def collect_thresholds() -> Dict[str, float]:
+def collect_thresholds() -> dict[str, float]:
     """Gather all classification/similarity thresholds that shape a run.
 
     Reads from ``core/thresholds.py`` (the canonical registry since
@@ -87,14 +87,14 @@ def write_snapshot(
     views_dir: Path,
     constitution_dir: Path,
     snapshots_dir: Path,
-    prompts_dir: Optional[Path] = None,
-    skills_dir: Optional[Path] = None,
-    rules_dir: Optional[Path] = None,
-    identity_path: Optional[Path] = None,
-    view_registry: Optional[ViewRegistry] = None,
-    generation_model: Optional[str] = None,
+    prompts_dir: Path | None = None,
+    skills_dir: Path | None = None,
+    rules_dir: Path | None = None,
+    identity_path: Path | None = None,
+    view_registry: ViewRegistry | None = None,
+    generation_model: str | None = None,
     think: bool = False,
-) -> Optional[Path]:
+) -> Path | None:
     """Write a pivot snapshot for the given command.
 
     Captures the full inference-time lens so a distill run can be
@@ -203,10 +203,10 @@ def _prune_snapshots(snapshots_dir: Path, keep: int) -> None:
         shutil.rmtree(stale, ignore_errors=True)
 
 
-def _save_centroids(snap_dir: Path, view_registry: Optional[ViewRegistry]) -> List[str]:
+def _save_centroids(snap_dir: Path, view_registry: ViewRegistry | None) -> list[str]:
     """Save view centroids to centroids.npz; return the view names."""
-    centroids: Dict[str, np.ndarray] = {}
-    view_names: List[str] = []
+    centroids: dict[str, np.ndarray] = {}
+    view_names: list[str] = []
     if view_registry is not None:
         view_names = view_registry.names()
         for name in view_names:

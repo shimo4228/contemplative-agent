@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import hashlib
 import logging
-from typing import Set
 
 from ...core.llm import GenerationOutput
 from .llm_functions import generate_comment, generate_cooperation_post
@@ -21,7 +20,7 @@ class ContentManager:
     """Manages content generation and deduplication."""
 
     def __init__(self) -> None:
-        self._posted_hashes: Set[str] = set()
+        self._posted_hashes: set[str] = set()
         self._comment_count = 0
         self._post_count = 0
 

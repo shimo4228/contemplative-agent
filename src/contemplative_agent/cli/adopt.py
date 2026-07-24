@@ -9,9 +9,10 @@ import argparse
 import json as json_mod
 import logging
 import sys
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional, Sequence
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     pass
@@ -43,8 +44,8 @@ class _StagedItem:
     text: str
     action: str
     sources: list[str]
-    source_ids: Optional[Sequence[str]]
-    epistemic_counts: Optional[dict[str, int]]
+    source_ids: Sequence[str] | None
+    epistemic_counts: dict[str, int] | None
 
 
 def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:

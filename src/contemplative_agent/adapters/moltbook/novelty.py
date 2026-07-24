@@ -21,9 +21,9 @@ from __future__ import annotations
 
 import logging
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from typing import List, Optional, Sequence, Tuple
 
 import numpy as np
 
@@ -55,7 +55,7 @@ class GateDecision:
     novelty: float
     deficit: float
     threshold: float
-    nearest_title: Optional[str]
+    nearest_title: str | None
     nearest_sim: float
     reason: str  # "admit" | "reject:low_novelty" | "embed_failed_fallback"
     # Prior posts the gate could NOT compare against (empty post_id, or a
@@ -73,7 +73,7 @@ class GateDecision:
 
 def compute_novelty(
     draft_vec: np.ndarray,
-    history: Sequence[Tuple[np.ndarray, float]],
+    history: Sequence[tuple[np.ndarray, float]],
     *,
     tau_days: float,
 ) -> float:
@@ -150,7 +150,7 @@ class PostEmbeddingCache:
         miss_vecs = embed_texts(miss_texts)
         if miss_vecs is None or miss_vecs.shape[0] != len(misses):
             return cached
-        rows: List[Tuple[str, str, np.ndarray]] = []
+        rows: list[tuple[str, str, np.ndarray]] = []
         for record, vec in zip(misses, miss_vecs, strict=True):
             cached[record.post_id] = vec
             rows.append((record.post_id, record.timestamp, vec))
@@ -334,10 +334,10 @@ class NoveltyGate:
 
 def _build_history(
     records: Sequence[PostRecord], cached: dict[str, np.ndarray]
-) -> List[Tuple[np.ndarray, float]]:
+) -> list[tuple[np.ndarray, float]]:
     """Pair each cached embedding with its age in days (UTC, current time)."""
     now = datetime.now(timezone.utc)
-    out: List[Tuple[np.ndarray, float]] = []
+    out: list[tuple[np.ndarray, float]] = []
     for record in records:
         vec = cached.get(record.post_id)
         if vec is None:
@@ -354,14 +354,14 @@ def _find_nearest(
     draft_vec: np.ndarray,
     records: Sequence[PostRecord],
     cached: dict[str, np.ndarray],
-) -> Tuple[Optional[str], float]:
+) -> tuple[str | None, float]:
     """Report the nearest (highest-similarity) prior post, for logging only.
 
     Recency decay is *not* applied here — the log value is the raw similarity
     to the closest historical post, which is what an operator would want to
     see to judge whether the gate is behaving reasonably.
     """
-    best_title: Optional[str] = None
+    best_title: str | None = None
     best_sim = 0.0
     for record in records:
         vec = cached.get(record.post_id)

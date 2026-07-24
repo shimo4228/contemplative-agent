@@ -13,7 +13,7 @@ import stat
 import subprocess
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     pass
@@ -227,7 +227,7 @@ def _spawn_dialogue_peer(
     turns: int,
     stdin_fd: int,
     stdout_fd: int,
-    seed: Optional[str] = None,
+    seed: str | None = None,
 ) -> subprocess.Popen:
     # CONTEMPLATIVE_DIALOGUE_PEER_MODULE lets an outer wrapper (e.g. a
     # managed-LLM shim) route peers through its own entry module so the

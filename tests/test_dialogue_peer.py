@@ -5,22 +5,21 @@ from __future__ import annotations
 import io
 import json
 from pathlib import Path
-from typing import List, Optional
 
 from contemplative_agent.adapters.dialogue.peer import run_peer_loop
 from contemplative_agent.core.episode_log import EpisodeLog
 
 
-def _parse_lines(stream: io.StringIO) -> List[dict]:
+def _parse_lines(stream: io.StringIO) -> list[dict]:
     raw = stream.getvalue().splitlines()
     return [json.loads(line) for line in raw if line.strip()]
 
 
-def _fake_generate(canned: List[str]):
+def _fake_generate(canned: list[str]):
     """Return a generate_fn that yields canned replies in order."""
     iterator = iter(canned)
 
-    def _gen(_prompt: str, num_predict: int = 300) -> Optional[str]:
+    def _gen(_prompt: str, num_predict: int = 300) -> str | None:
         try:
             return next(iterator)
         except StopIteration:
@@ -194,7 +193,7 @@ def test_generate_returns_none_fallback(tmp_path: Path) -> None:
     )
     peer_out = io.StringIO()
 
-    def _none_gen(_prompt: str, num_predict: int = 300) -> Optional[str]:
+    def _none_gen(_prompt: str, num_predict: int = 300) -> str | None:
         return None
 
     replies = run_peer_loop(
@@ -251,7 +250,7 @@ def test_peer_content_is_wrapped_as_untrusted(tmp_path: Path) -> None:
     peer_out = io.StringIO()
     captured_prompts: list[str] = []
 
-    def _capturing_gen(prompt: str, num_predict: int = 300) -> Optional[str]:
+    def _capturing_gen(prompt: str, num_predict: int = 300) -> str | None:
         captured_prompts.append(prompt)
         return "ok"
 
@@ -283,7 +282,7 @@ def test_history_is_wrapped_as_untrusted(tmp_path: Path) -> None:
     peer_out = io.StringIO()
     captured_prompts: list[str] = []
 
-    def _capturing_gen(prompt: str, num_predict: int = 300) -> Optional[str]:
+    def _capturing_gen(prompt: str, num_predict: int = 300) -> str | None:
         captured_prompts.append(prompt)
         return "ok"
 
@@ -320,7 +319,7 @@ def test_dialogue_prompt_falls_back_when_template_missing(
     peer_out = io.StringIO()
     captured_prompts: list[str] = []
 
-    def _capturing_gen(prompt: str, num_predict: int = 300) -> Optional[str]:
+    def _capturing_gen(prompt: str, num_predict: int = 300) -> str | None:
         captured_prompts.append(prompt)
         return "ok"
 

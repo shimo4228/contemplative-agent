@@ -27,8 +27,6 @@ see it in the next pass.
 
 from __future__ import annotations
 
-from typing import List, Tuple
-
 import numpy as np
 
 from .knowledge_store import effective_importance
@@ -42,7 +40,7 @@ def _cosine_matrix(embeddings: np.ndarray) -> np.ndarray:
     return unit @ unit.T
 
 
-def _merge_clusters(similarity: np.ndarray, threshold: float) -> List[List[int]]:
+def _merge_clusters(similarity: np.ndarray, threshold: float) -> list[list[int]]:
     """Average-linkage agglomerative merge on index space.
 
     Returns a list of index groups. Each index refers to a row of the
@@ -66,7 +64,7 @@ def _merge_clusters(similarity: np.ndarray, threshold: float) -> List[List[int]]
     sim = similarity.astype(np.float64, copy=True)
     np.fill_diagonal(sim, -np.inf)
     sizes = np.ones(n)
-    members: List[List[int]] = [[i] for i in range(n)]
+    members: list[list[int]] = [[i] for i in range(n)]
 
     while True:
         flat = int(np.argmax(sim))
@@ -88,12 +86,12 @@ def _merge_clusters(similarity: np.ndarray, threshold: float) -> List[List[int]]
 
 
 def cluster_patterns(
-    patterns: List[dict],
+    patterns: list[dict],
     *,
     threshold: float,
     min_size: int = 3,
     max_size: int = 10,
-) -> Tuple[List[List[dict]], List[dict]]:
+) -> tuple[list[list[dict]], list[dict]]:
     """Group ``patterns`` into cosine clusters.
 
     Patterns without an ``embedding`` field bypass clustering and are
@@ -106,8 +104,8 @@ def cluster_patterns(
         Any demoted tail or sub-``min_size`` group ends up in
         ``singletons`` flattened.
     """
-    singletons: List[dict] = []
-    embedded: List[dict] = []
+    singletons: list[dict] = []
+    embedded: list[dict] = []
     for p in patterns:
         if p.get("embedding"):
             embedded.append(p)
@@ -121,7 +119,7 @@ def cluster_patterns(
     similarity = _cosine_matrix(matrix)
     raw_groups = _merge_clusters(similarity, threshold)
 
-    clusters: List[List[dict]] = []
+    clusters: list[list[dict]] = []
     for indices in raw_groups:
         members = sorted(
             (embedded[i] for i in indices),

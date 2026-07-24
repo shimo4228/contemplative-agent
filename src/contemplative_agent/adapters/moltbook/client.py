@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import time
-from typing import Any, Dict, Optional
+from typing import Any
 from urllib.parse import urlparse
 
 import requests
@@ -148,7 +148,7 @@ def _content_status(body: dict[str, Any]) -> dict[str, Any]:
 class MoltbookClientError(Exception):
     """Raised for Moltbook API errors."""
 
-    def __init__(self, message: str, status_code: Optional[int] = None) -> None:
+    def __init__(self, message: str, status_code: int | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
 
@@ -164,7 +164,7 @@ class MoltbookClient:
     - 429 retry with backoff (max 3 attempts, capped at 5min)
     """
 
-    def __init__(self, api_key: Optional[str] = None) -> None:
+    def __init__(self, api_key: str | None = None) -> None:
         self._session = requests.Session()
         self._session.headers.update(
             {
@@ -175,21 +175,21 @@ class MoltbookClient:
         if api_key:
             self._session.headers["Authorization"] = f"Bearer {api_key}"
         self._base_url = BASE_URL
-        self._read_remaining: Optional[int] = None
-        self._write_remaining: Optional[int] = None
+        self._read_remaining: int | None = None
+        self._write_remaining: int | None = None
         # Reset epoch is tracked per bucket (GET vs write). Previously a single
         # shared field was overwritten by whichever method responded last, so a
         # proactive wait could be sized against the wrong (non-depleted) bucket
         # and under-wait into a 429. (ultracode sweep 2026-06-23)
-        self._read_reset: Optional[float] = None
-        self._write_reset: Optional[float] = None
+        self._read_reset: float | None = None
+        self._write_reset: float | None = None
         self._recent_429_count: int = 0
         # Bug-audit 2026-07-06 M4: consecutive responses per bucket without a
         # parseable X-RateLimit-Remaining header. While a bucket's remaining
         # is None, has_read_budget/has_write_budget assume unlimited — if a
         # CDN/proxy strips the headers, the proactive-wait layer is silently
         # blind for that bucket, so warn once per streak.
-        self._missing_header_streak: Dict[str, int] = {"read": 0, "write": 0}
+        self._missing_header_streak: dict[str, int] = {"read": 0, "write": 0}
 
     def _validate_url(self, url: str) -> None:
         """Ensure the URL points to the allowed domain only."""
@@ -248,7 +248,7 @@ class MoltbookClient:
                     self._write_reset = value
 
     @property
-    def rate_limit_remaining(self) -> Optional[int]:
+    def rate_limit_remaining(self) -> int | None:
         """Min of known read/write remaining.
 
         Deliberately conservative: the proactive-wait caller (Layer 3) treats
@@ -263,7 +263,7 @@ class MoltbookClient:
         return min(values)
 
     @property
-    def rate_limit_reset(self) -> Optional[float]:
+    def rate_limit_reset(self) -> float | None:
         """Latest known reset epoch across buckets.
 
         Returns the LATER of the per-bucket resets so a proactive wait never
@@ -488,7 +488,7 @@ class MoltbookClient:
             logger.warning("Failed to subscribe to %s: %s", name, exc)
             return False
 
-    def get_notifications(self, since: Optional[str] = None) -> list[dict[str, Any]]:
+    def get_notifications(self, since: str | None = None) -> list[dict[str, Any]]:
         """Fetch notifications. Returns empty list on failure."""
         params: dict[str, str] = {}
         if since:
@@ -532,7 +532,7 @@ class MoltbookClient:
             logger.warning("Failed to fetch comments for %s: %s", post_id, exc)
             return []
 
-    def get_post(self, post_id: str) -> Optional[dict[str, Any]]:
+    def get_post(self, post_id: str) -> dict[str, Any] | None:
         """GET /posts/{post_id} — fetch a single post (full body).
 
         Submolt feeds return `content` truncated to a preview; this fetches
@@ -552,7 +552,7 @@ class MoltbookClient:
             return None
 
     def post_comment(
-        self, post_id: str, content: str, parent_id: Optional[str] = None
+        self, post_id: str, content: str, parent_id: str | None = None
     ) -> dict[str, Any]:
         """POST /posts/{post_id}/comments — create a comment, verify the body.
 

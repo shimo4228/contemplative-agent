@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Dict, List
+from typing import Any
 
 import numpy as np
 
@@ -231,7 +231,7 @@ class TestClassifyContext:
 # --- build_matrices tests ---
 
 
-def _make_log(tmp_path: Path, records: List[Dict[str, Any]]) -> EpisodeLog:
+def _make_log(tmp_path: Path, records: list[dict[str, Any]]) -> EpisodeLog:
     """Create an EpisodeLog with pre-written records."""
     log_dir = tmp_path / "logs"
     log_dir.mkdir()

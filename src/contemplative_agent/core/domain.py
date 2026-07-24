@@ -11,7 +11,6 @@ import logging
 import os
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Tuple
 
 from ._io import strip_to_printable
 from .config import FORBIDDEN_SUBSTRING_PATTERNS
@@ -36,7 +35,7 @@ class DomainConfig:
 
     name: str
     description: str
-    subscribed_submolts: Tuple[str, ...]
+    subscribed_submolts: tuple[str, ...]
     default_submolt: str
     relevance_threshold: float
     known_agent_threshold: float
@@ -106,7 +105,7 @@ def _warn_unknown_keys(section: str, mapping: object, allowed: set[str]) -> None
         )
 
 
-def load_domain_config(path: Optional[Path] = None) -> DomainConfig:
+def load_domain_config(path: Path | None = None) -> DomainConfig:
     """Load and validate domain configuration from JSON.
 
     Args:
@@ -172,7 +171,7 @@ def _read_md_file(path: Path, required: bool = True) -> str:
     return content
 
 
-def _resolve_home_prompts_dir() -> Optional[Path]:
+def _resolve_home_prompts_dir() -> Path | None:
     """Return ``$MOLTBOOK_HOME/prompts/`` if it exists, else None.
 
     A non-existent home directory means no override layer is active and
@@ -188,7 +187,7 @@ def _resolve_home_prompts_dir() -> Optional[Path]:
 def _read_prompt_with_fallback(
     name: str,
     base_dir: Path,
-    home_dir: Optional[Path],
+    home_dir: Path | None,
     *,
     required: bool = True,
 ) -> str:
@@ -226,7 +225,7 @@ def _read_prompt_with_fallback(
     return _read_md_file(base_dir / name, required=required)
 
 
-def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates:
+def load_prompt_templates(prompts_dir: Path | None = None) -> PromptTemplates:
     """Load all prompt templates from a directory of .md files.
 
     Precedence for each template:
@@ -299,7 +298,7 @@ def load_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates
     )
 
 
-def load_constitution(constitution_dir: Optional[Path] = None) -> str:
+def load_constitution(constitution_dir: Path | None = None) -> str:
     """Load constitutional clauses from a constitution directory.
 
     Loads all .md files from the constitution directory with forbidden-pattern
@@ -370,11 +369,11 @@ def resolve_prompt(
 # Module-level lazy singletons for backward compatibility
 # ---------------------------------------------------------------------------
 
-_cached_domain_config: Optional[DomainConfig] = None
-_cached_prompt_templates: Optional[PromptTemplates] = None
+_cached_domain_config: DomainConfig | None = None
+_cached_prompt_templates: PromptTemplates | None = None
 
 
-def get_domain_config(path: Optional[Path] = None) -> DomainConfig:
+def get_domain_config(path: Path | None = None) -> DomainConfig:
     """Get or load the domain config (cached singleton)."""
     global _cached_domain_config
     if _cached_domain_config is None:
@@ -382,7 +381,7 @@ def get_domain_config(path: Optional[Path] = None) -> DomainConfig:
     return _cached_domain_config
 
 
-def get_prompt_templates(prompts_dir: Optional[Path] = None) -> PromptTemplates:
+def get_prompt_templates(prompts_dir: Path | None = None) -> PromptTemplates:
     """Get or load prompt templates (cached singleton)."""
     global _cached_prompt_templates
     if _cached_prompt_templates is None:

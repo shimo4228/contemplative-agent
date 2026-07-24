@@ -4,8 +4,9 @@ from __future__ import annotations
 
 import logging
 import re
+from collections.abc import Callable
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any
 
 import numpy as np
 
@@ -39,7 +40,7 @@ def _score_post_relevance(post: dict) -> float:
     return score_relevance(post.get("content", "") or "")
 
 
-def parse_created_post_response(resp_json: Any) -> Tuple[str, Dict[str, Any]]:
+def parse_created_post_response(resp_json: Any) -> tuple[str, dict[str, Any]]:
     """Gate a create-post response down to a recordable ``(post_id, post)``.
 
     Review 2026-06-27 (H1): HTTP 2xx is not proof of a usable, visible post.
@@ -84,7 +85,7 @@ class PostPipeline:
         ctx: SessionContext,
         domain: DomainConfig,
         get_content: Callable[[], ContentManager],
-        get_feed: Callable[[], List[dict]],
+        get_feed: Callable[[], list[dict]],
         confirm_action: Callable[..., bool],
         novelty_gate: NoveltyGate,
         handle_verification: Callable[[dict], bool],
@@ -180,7 +181,7 @@ class PostPipeline:
             thinking=generated.thinking,
         )
 
-    def _seed_candidates(self, posts: List[dict]) -> List[dict]:
+    def _seed_candidates(self, posts: list[dict]) -> list[dict]:
         """Filter feed posts down to seedable candidates."""
         # Restrict to subscribed submolts so score_relevance only runs on
         # in-domain candidates. This is a cost-saver, not a relevance gate —
@@ -217,7 +218,7 @@ class PostPipeline:
                 )
         return candidates
 
-    def _select_and_log_seeds(self, posts: List[dict]) -> List[dict]:
+    def _select_and_log_seeds(self, posts: list[dict]) -> list[dict]:
         """Sample peer-post seeds (ADR-0043); empty list when none pass."""
         candidates = self._seed_candidates(posts)
         feed_seeds = select_feed_seeds(
@@ -241,7 +242,7 @@ class PostPipeline:
         )
         return feed_seeds
 
-    def _compose_note(self, feed_seeds: List[dict]) -> str:
+    def _compose_note(self, feed_seeds: list[dict]) -> str:
         """Pre-action reflection (ADR-0045): note what we noticed in the peer
         voices before composing a post in response to them. Pass raw seed
         text — not format_feed_seeds(), which already wraps each seed in
@@ -255,7 +256,7 @@ class PostPipeline:
         )
         return generate_internal_note(note_seed)
 
-    def _compose_title(self, feed_seeds: List[dict]) -> str:
+    def _compose_title(self, feed_seeds: list[dict]) -> str:
         """Title is generated from the same peer-voice seeds, not from the
         generated content, so the title still reflects what the agent was
         responding to rather than re-summarising its own output.
@@ -359,7 +360,7 @@ class PostPipeline:
         note: str,
         draft_summary: str,
         content_hash: str,
-        thinking: Optional[str] = None,
+        thinking: str | None = None,
     ) -> None:
         """POST the content and record it in episodes / memory / NoveltyGate.
 

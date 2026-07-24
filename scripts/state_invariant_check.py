@@ -26,7 +26,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any, List
+from typing import Any
 
 from _md import md_safe
 
@@ -78,9 +78,9 @@ def _is_aware_or_naive_parseable(ts: str) -> bool:
         return False
 
 
-def check_knowledge(patterns: List[dict]) -> List[InvariantResult]:
+def check_knowledge(patterns: list[dict]) -> list[InvariantResult]:
     """Invariants over the knowledge.json pattern list."""
-    results: List[InvariantResult] = []
+    results: list[InvariantResult] = []
     total = len(patterns)
     live = [p for p in patterns if p.get("valid_until") is None]
 
@@ -166,7 +166,7 @@ def check_knowledge(patterns: List[dict]) -> List[InvariantResult]:
     return results
 
 
-def check_agents(agents: dict) -> List[InvariantResult]:
+def check_agents(agents: dict) -> list[InvariantResult]:
     """Invariants over agents.json."""
     followed = agents.get("followed", []) if isinstance(agents, dict) else []
     if not isinstance(followed, list):
@@ -194,7 +194,7 @@ def _load_typed(path: Path, expected: type, default: Any) -> Any:
     return default
 
 
-def load_state(home: Path) -> tuple[List[dict], dict]:
+def load_state(home: Path) -> tuple[list[dict], dict]:
     """Read knowledge.json + agents.json (never episode logs)."""
     patterns = _load_typed(home / "knowledge.json", list, [])
     agents = _load_typed(home / "agents.json", dict, {})
@@ -204,7 +204,7 @@ def load_state(home: Path) -> tuple[List[dict], dict]:
 _LEVEL_ICON = {_OK: "✅", _INFO: "ℹ️", _WARN: "⚠️", _FAIL: "❌"}
 
 
-def render_markdown(results: List[InvariantResult]) -> str:
+def render_markdown(results: list[InvariantResult]) -> str:
     lines = ["## State Invariant Check", ""]
     fails = sum(1 for r in results if r.level == _FAIL)
     warns = sum(1 for r in results if r.level == _WARN)
@@ -229,12 +229,12 @@ def render_markdown(results: List[InvariantResult]) -> str:
     return "\n".join(lines) + "\n"
 
 
-def run(home: Path) -> List[InvariantResult]:
+def run(home: Path) -> list[InvariantResult]:
     patterns, agents = load_state(home)
     return check_knowledge(patterns) + check_agents(agents)
 
 
-def main(argv: List[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--home", type=Path, required=True, help="MOLTBOOK_HOME")
     args = parser.parse_args(argv)

@@ -24,9 +24,9 @@ from __future__ import annotations
 import argparse
 import re
 from collections import Counter
+from collections.abc import Iterable
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Iterable, List
 
 from _md import md_safe
 
@@ -87,7 +87,7 @@ def normalize(line: str) -> str:
     return s[:_SIG_MAXLEN]
 
 
-def analyze(lines: Iterable[str], prev_counts: Dict[str, int]) -> List[Finding]:
+def analyze(lines: Iterable[str], prev_counts: dict[str, int]) -> list[Finding]:
     """Rank anomaly signatures by novelty then frequency delta.
 
     ``prev_counts`` is the previous sweep's ``signature -> count`` snapshot.
@@ -103,7 +103,7 @@ def analyze(lines: Iterable[str], prev_counts: Dict[str, int]) -> List[Finding]:
             continue
         counts[sig] += 1
 
-    findings: List[Finding] = []
+    findings: list[Finding] = []
     for sig, count in counts.items():
         prev = prev_counts.get(sig, 0)
         # is_new conflates "first ever seen" with "seen before but absent from
@@ -123,11 +123,11 @@ def analyze(lines: Iterable[str], prev_counts: Dict[str, int]) -> List[Finding]:
     return findings
 
 
-def read_state(path: Path) -> Dict[str, int]:
+def read_state(path: Path) -> dict[str, int]:
     """Load the previous sweep's ``count<TAB>signature`` TSV; empty if absent."""
     if not path.is_file():
         return {}
-    out: Dict[str, int] = {}
+    out: dict[str, int] = {}
     for raw in path.read_text(encoding="utf-8", errors="replace").splitlines():
         count_str, _, sig = raw.partition("\t")
         if not sig:
@@ -168,7 +168,7 @@ def iter_allowed_log_lines(log_dir: Path) -> Iterable[str]:
             continue
 
 
-def render_markdown(findings: List[Finding], top: int) -> str:
+def render_markdown(findings: list[Finding], top: int) -> str:
     """Render the ranked findings as a Markdown section."""
     lines = ["## Log Anomaly Sweep", ""]
     if not findings:
@@ -197,7 +197,7 @@ def render_markdown(findings: List[Finding], top: int) -> str:
     return "\n".join(lines) + "\n"
 
 
-def main(argv: List[str] | None = None) -> int:
+def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--log-dir", type=Path, required=True, help="MOLTBOOK_HOME/logs")
     parser.add_argument("--state", type=Path, required=True, help="sweep state TSV path")

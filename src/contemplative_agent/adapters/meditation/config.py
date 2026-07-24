@@ -3,11 +3,10 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Tuple
 
 # --- POMDP State Space (intentionally coarse) ---
 # Actions: what the agent did (maps to Episode Log record types)
-ACTION_STATES: Tuple[str, ...] = (
+ACTION_STATES: tuple[str, ...] = (
     "idle",        # No meaningful action (session start/end, follow/unfollow)
     "read_feed",   # Consumed content (upvote without comment)
     "comment",     # Responded to another agent's post
@@ -17,7 +16,7 @@ ACTION_STATES: Tuple[str, ...] = (
 )
 
 # Outcomes: what happened after the action (derived from subsequent records)
-OUTCOME_STATES: Tuple[str, ...] = (
+OUTCOME_STATES: tuple[str, ...] = (
     "no_response",      # No engagement received within window
     "low_engagement",   # Few interactions back (1-2)
     "high_engagement",  # Active conversation (3+)
@@ -25,7 +24,7 @@ OUTCOME_STATES: Tuple[str, ...] = (
 )
 
 # Contexts: hidden state representing session phase
-CONTEXT_STATES: Tuple[str, ...] = (
+CONTEXT_STATES: tuple[str, ...] = (
     "early_session",     # First third of session
     "mid_session",       # Middle third
     "late_session",      # Final third
@@ -33,7 +32,7 @@ CONTEXT_STATES: Tuple[str, ...] = (
 )
 
 # Include "no_input" as an extra observation for meditation (uniform likelihood)
-OBSERVATION_STATES: Tuple[str, ...] = OUTCOME_STATES + ("no_input",)
+OBSERVATION_STATES: tuple[str, ...] = OUTCOME_STATES + ("no_input",)
 
 NUM_ACTIONS = len(ACTION_STATES)
 NUM_OBSERVATIONS = len(OBSERVATION_STATES)

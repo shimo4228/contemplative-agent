@@ -21,7 +21,7 @@ Design notes:
 from __future__ import annotations
 
 import re
-from typing import Iterable
+from collections.abc import Iterable
 
 # Common English stopwords plus a few connectives that show up in titles.
 _STOP: frozenset[str] = frozenset({

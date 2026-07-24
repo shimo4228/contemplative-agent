@@ -3,14 +3,13 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import List
 
 import numpy as np
 
 from contemplative_agent.core.clustering import cluster_patterns
 
 
-def _pat(text: str, embedding: List[float], days_old: float = 0.0) -> dict:
+def _pat(text: str, embedding: list[float], days_old: float = 0.0) -> dict:
     """Build a minimal pattern dict compatible with effective_importance.
 
     ADR-0056: extraction weight is pure time decay, so ``days_old`` (how long
@@ -27,7 +26,7 @@ def _pat(text: str, embedding: List[float], days_old: float = 0.0) -> dict:
     }
 
 
-def _axis_vec(dim: int, axis: int, weight_first: float = 0.0) -> List[float]:
+def _axis_vec(dim: int, axis: int, weight_first: float = 0.0) -> list[float]:
     """Unit vector mostly on ``axis`` with optional weight on axis 0.
 
     Lets us build vectors with controlled pairwise cosine: two vectors
@@ -178,9 +177,9 @@ class TestMergeEquivalenceADR0074:
     """
 
     @staticmethod
-    def _naive_merge(similarity: np.ndarray, threshold: float) -> List[List[int]]:
+    def _naive_merge(similarity: np.ndarray, threshold: float) -> list[list[int]]:
         n = similarity.shape[0]
-        clusters: List[List[int]] = [[i] for i in range(n)]
+        clusters: list[list[int]] = [[i] for i in range(n)]
         while len(clusters) > 1:
             best_sim = -1.0
             best_i = -1

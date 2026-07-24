@@ -7,8 +7,9 @@ from __future__ import annotations
 
 import hashlib
 import logging
+from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Optional, Sequence
+from typing import TYPE_CHECKING, Any, Literal
 
 if TYPE_CHECKING:
     pass
@@ -42,10 +43,10 @@ def _log_approval(
     content: str,
     *,
     source: AuditSource = "direct",
-    snapshot_path: Optional[Path] = None,
-    reason: Optional[str] = None,
-    source_ids: Optional[Sequence[str]] = None,
-    epistemic_counts: Optional[dict[str, int]] = None,
+    snapshot_path: Path | None = None,
+    reason: str | None = None,
+    source_ids: Sequence[str] | None = None,
+    epistemic_counts: dict[str, int] | None = None,
 ) -> None:
     """Append approval decision to audit log.
 
@@ -167,7 +168,7 @@ def _run_approval_loop(
     *,
     command: str,
     target_dir: Path,
-    snapshot_path: Optional[Path] = None,
+    snapshot_path: Path | None = None,
 ) -> int:
     """Iterate generated artifacts through the approval gate, write approved.
 

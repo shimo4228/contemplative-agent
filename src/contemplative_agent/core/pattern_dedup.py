@@ -9,7 +9,7 @@ verbatim from core/distill.py (ADR-0079 Phase 3b). Must not import from
 from __future__ import annotations
 
 import logging
-from typing import Dict, List, Optional, Sequence, Tuple
+from collections.abc import Sequence
 
 import numpy as np
 
@@ -23,14 +23,14 @@ logger = logging.getLogger(__name__)
 
 def _dedup_patterns(
     new_patterns: Sequence[str],
-    new_embeddings: Sequence[Optional[np.ndarray]],
+    new_embeddings: Sequence[np.ndarray | None],
     existing_patterns: Sequence[dict],
     *,
     mutate_existing: bool = True,
-) -> Tuple[
-    List[str],
-    List[Optional[np.ndarray]],
-    List[int],
+) -> tuple[
+    list[str],
+    list[np.ndarray | None],
+    list[int],
     int,
     int,
 ]:
@@ -51,9 +51,9 @@ def _dedup_patterns(
     so distillation degrades gracefully when the embed model is down.
     Existing patterns without embeddings are ignored as dedup candidates.
     """
-    add_patterns: List[str] = []
-    add_embeddings: List[Optional[np.ndarray]] = []
-    add_indices: List[int] = []
+    add_patterns: list[str] = []
+    add_embeddings: list[np.ndarray | None] = []
+    add_indices: list[int] = []
     skip_count = 0
     update_count = 0
 
@@ -104,9 +104,9 @@ def _dedup_patterns(
     )
 
 
-def _live_embedded(existing_patterns: Sequence[dict]) -> List[Tuple[Dict, np.ndarray]]:
+def _live_embedded(existing_patterns: Sequence[dict]) -> list[tuple[dict, np.ndarray]]:
     """Pre-compute existing embeddings (live patterns with embeddings only)."""
-    existing_with_emb: List[Tuple[Dict, np.ndarray]] = []
+    existing_with_emb: list[tuple[dict, np.ndarray]] = []
     for p in existing_patterns:
         if not is_live(p):
             continue  # bitemporally invalidated — ignore
@@ -117,11 +117,11 @@ def _live_embedded(existing_patterns: Sequence[dict]) -> List[Tuple[Dict, np.nda
 
 
 def _best_existing_sim(
-    new_emb: np.ndarray, existing_with_emb: Sequence[Tuple[Dict, np.ndarray]]
-) -> Tuple[float, Optional[Dict]]:
+    new_emb: np.ndarray, existing_with_emb: Sequence[tuple[dict, np.ndarray]]
+) -> tuple[float, dict | None]:
     """Best cosine similarity vs existing patterns."""
     best_sim = -1.0
-    best_pat: Optional[Dict] = None
+    best_pat: dict | None = None
     for pat_dict, pat_emb in existing_with_emb:
         sim = cosine(new_emb, pat_emb)
         if sim > best_sim:
@@ -131,8 +131,8 @@ def _best_existing_sim(
 
 
 def _best_accepted_sim(
-    new_emb: np.ndarray, add_embeddings: Sequence[Optional[np.ndarray]]
-) -> Tuple[float, int]:
+    new_emb: np.ndarray, add_embeddings: Sequence[np.ndarray | None]
+) -> tuple[float, int]:
     """Best cosine similarity vs already-accepted new patterns (cross-batch)."""
     best_sim = -1.0
     best_idx = -1
@@ -148,7 +148,7 @@ def _best_accepted_sim(
 
 def _dedup_action(
     best_existing_sim: float,
-    best_existing_pat: Optional[Dict],
+    best_existing_pat: dict | None,
     best_new_sim: float,
     best_new_idx: int,
 ) -> str:

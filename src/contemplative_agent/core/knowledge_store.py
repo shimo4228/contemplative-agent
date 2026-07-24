@@ -7,7 +7,6 @@ import json
 import logging
 from datetime import datetime
 from pathlib import Path
-from typing import Dict, List, Optional
 
 from ._io import age_days, now_iso, parse_aware_utc, write_text_atomic
 from .config import FORBIDDEN_SUBSTRING_PATTERNS
@@ -15,7 +14,7 @@ from .config import FORBIDDEN_SUBSTRING_PATTERNS
 logger = logging.getLogger(__name__)
 
 
-def _parse_distilled(p: dict) -> Optional[datetime]:
+def _parse_distilled(p: dict) -> datetime | None:
     """Parse a pattern's ``distilled`` ISO timestamp to a tz-aware datetime.
 
     Returns ``None`` for missing / ``"unknown"`` / malformed timestamps;
@@ -47,7 +46,7 @@ def effective_importance(p: dict) -> float:
     return min(1.0, 0.95 ** age_days(dt))
 
 
-def is_live(pattern: Dict) -> bool:
+def is_live(pattern: dict) -> bool:
     """True if the pattern is currently retrievable (ADR-0051).
 
     Bitemporal gate only: a pattern is live iff ``valid_until is None``
@@ -74,14 +73,14 @@ def pattern_id(p: dict) -> str:
 # ADR-0050 read-time derivation: epistemic kind is a pure function of
 # source_type, never persisted. {observed, generated} only — "asserted"
 # was rejected (needs semantic judgment, not derivable from record type).
-_EPISTEMIC_KIND_BY_SOURCE: Dict[str, str] = {
+_EPISTEMIC_KIND_BY_SOURCE: dict[str, str] = {
     "self_reflection": "generated",
     "mixed": "generated",  # any self contribution taints the batch
     "external_reply": "observed",
 }
 
 
-def epistemic_kind_for(p: dict) -> Optional[str]:
+def epistemic_kind_for(p: dict) -> str | None:
     """Derive the epistemic kind of a pattern row (ADR-0050).
 
     Returns ``"generated"`` for self-narrative provenance,
@@ -93,7 +92,7 @@ def epistemic_kind_for(p: dict) -> Optional[str]:
     return _EPISTEMIC_KIND_BY_SOURCE.get(source_type)
 
 
-def epistemic_counts_for(patterns: List[dict]) -> Dict[str, int]:
+def epistemic_counts_for(patterns: list[dict]) -> dict[str, int]:
     """Tally epistemic kinds over pattern rows (ADR-0050).
 
     All three keys are always present so audit.jsonl records keep a
@@ -123,9 +122,9 @@ class KnowledgeStore:
     (agents, post topics, insights) lives in JSONL episode logs.
     """
 
-    def __init__(self, path: Optional[Path] = None) -> None:
+    def __init__(self, path: Path | None = None) -> None:
         self._path = path
-        self._learned_patterns: List[dict] = []  # [{"pattern": str, "distilled": str}]
+        self._learned_patterns: list[dict] = []  # [{"pattern": str, "distilled": str}]
         # True when load() found an existing file it could not read/parse.
         # In that state save() must NOT overwrite the on-disk file with the
         # empty in-memory list — that would destroy the persisted patterns
@@ -140,13 +139,13 @@ class KnowledgeStore:
     def add_learned_pattern(
         self,
         pattern: str,
-        distilled: Optional[str] = None,
-        source: Optional[str] = None,
-        embedding: Optional[List[float]] = None,
-        gated: Optional[bool] = None,
-        provenance: Optional[Dict] = None,
-        valid_from: Optional[str] = None,
-        valid_until: Optional[str] = None,
+        distilled: str | None = None,
+        source: str | None = None,
+        embedding: list[float] | None = None,
+        gated: bool | None = None,
+        provenance: dict | None = None,
+        valid_from: str | None = None,
+        valid_until: str | None = None,
     ) -> None:
         """Append a new learned pattern dict.
 
@@ -194,7 +193,7 @@ class KnowledgeStore:
 
         self._learned_patterns.append(entry)
 
-    def get_raw_patterns(self) -> List[dict]:
+    def get_raw_patterns(self) -> list[dict]:
         """Return a copy of pattern dicts (for analysis/dedup).
 
         ADR-0026: the ``category`` filter has been retired. Use a
@@ -202,7 +201,7 @@ class KnowledgeStore:
         """
         return list(self._learned_patterns)
 
-    def _filter_since(self, since: str, pool: List[dict]) -> List[dict]:
+    def _filter_since(self, since: str, pool: list[dict]) -> list[dict]:
         """Return dicts from pool distilled at/after since. Returns all on bad timestamp.
 
         Both sides are coerced to tz-aware (naive → UTC), matching
@@ -229,11 +228,11 @@ class KnowledgeStore:
                 result.append(p)
         return result
 
-    def get_live_patterns(self) -> List[dict]:
+    def get_live_patterns(self) -> list[dict]:
         """Return patterns that pass ``is_live`` (bitemporal gate)."""
         return [p for p in self._learned_patterns if is_live(p)]
 
-    def get_live_patterns_since(self, since: str) -> List[dict]:
+    def get_live_patterns_since(self, since: str) -> list[dict]:
         """Return live patterns distilled at or after the given ISO timestamp."""
         return [
             p for p in self._filter_since(since, self._learned_patterns)

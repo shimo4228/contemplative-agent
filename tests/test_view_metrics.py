@@ -6,8 +6,6 @@ call is involved anywhere (the fake registry returns precomputed centroids).
 
 from __future__ import annotations
 
-from typing import Dict, Optional
-
 import numpy as np
 import pytest
 
@@ -29,13 +27,13 @@ class _FakeRegistry:
 
     def __init__(
         self,
-        centroids: Dict[str, np.ndarray],
-        thresholds: Optional[Dict[str, float]] = None,
+        centroids: dict[str, np.ndarray],
+        thresholds: dict[str, float] | None = None,
     ) -> None:
         self._centroids = centroids
         self._thresholds = thresholds or {}
 
-    def get(self, name: str) -> Optional[View]:
+    def get(self, name: str) -> View | None:
         if name not in self._centroids:
             return None
         return View(
@@ -44,7 +42,7 @@ class _FakeRegistry:
             threshold=self._thresholds.get(name, 0.55),
         )
 
-    def get_centroid(self, name: str) -> Optional[np.ndarray]:
+    def get_centroid(self, name: str) -> np.ndarray | None:
         return self._centroids.get(name)
 
 

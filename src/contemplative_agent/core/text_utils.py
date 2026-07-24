@@ -17,7 +17,6 @@ import re
 import unicodedata
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Tuple
 
 logger = logging.getLogger(__name__)
 
@@ -57,7 +56,7 @@ def slugify(title: str) -> str:
     return slug[:MAX_SLUG_LENGTH]
 
 
-def extract_title(body: str) -> Optional[str]:
+def extract_title(body: str) -> str | None:
     """Return the first ``# `` heading text, or ``None`` when absent.
 
     Used by insight, rules-distill, and the stocktake merge writer to
@@ -107,7 +106,7 @@ def split_frontmatter(text: str) -> tuple[str, str]:
 _CONTEXT_RE = re.compile(r"^\s*\*\*Context:\*\*\s*(.+)$", re.MULTILINE)
 
 
-def _context_summary(body: str) -> Optional[str]:
+def _context_summary(body: str) -> str | None:
     """First sentence of the ``**Context:**`` line, or ``None`` when absent."""
     match = _CONTEXT_RE.search(body)
     if not match:
@@ -138,7 +137,7 @@ def synthesize_frontmatter(body: str, *, origin: str = "auto-extracted") -> str:
     return f'---\nname: {name}\ndescription: "{description}"\norigin: {origin}\n---'
 
 
-def read_markdown_bodies(directory: Path, *, since: Optional[str] = None) -> List[Tuple[str, str]]:
+def read_markdown_bodies(directory: Path, *, since: str | None = None) -> list[tuple[str, str]]:
     """Return sorted ``(filename, frontmatter-stripped body)`` for ``*.md``.
 
     Skips dotfiles and empty bodies; logs a warning on unreadable files.
@@ -148,13 +147,13 @@ def read_markdown_bodies(directory: Path, *, since: Optional[str] = None) -> Lis
     """
     if not directory.is_dir():
         return []
-    cutoff: Optional[float] = None
+    cutoff: float | None = None
     if since:
         try:
             cutoff = datetime.fromisoformat(since).timestamp()
         except ValueError:
             logger.warning("Invalid since timestamp %r, reading all files", since)
-    items: List[Tuple[str, str]] = []
+    items: list[tuple[str, str]] = []
     for p in sorted(directory.glob("*.md")):
         if p.name.startswith("."):
             continue

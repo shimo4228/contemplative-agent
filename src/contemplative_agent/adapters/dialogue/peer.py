@@ -18,7 +18,8 @@ import functools
 import json
 import logging
 import sys
-from typing import Callable, Optional, TextIO
+from collections.abc import Callable
+from typing import TextIO
 
 from ...core.episode_log import EpisodeLog
 from ...core.llm import generate, wrap_untrusted_content
@@ -80,16 +81,12 @@ def _resolve_template() -> str:
     from ...core.prompts import DIALOGUE_PROMPT
 
     template = DIALOGUE_PROMPT
-    if not (
-        template
-        and "{peer_message}" in template
-        and "{history_section}" in template
-    ):
+    if not (template and "{peer_message}" in template and "{history_section}" in template):
         template = _DEFAULT_DIALOGUE_PROMPT
     return template
 
 
-def _parse_peer_line(line: str) -> Optional[dict]:
+def _parse_peer_line(line: str) -> dict | None:
     """Parse one raw line into a peer message dict; None to skip."""
     line = line.strip()
     if not line:
@@ -111,9 +108,7 @@ def _render_reply_prompt(template: str, history: list, peer_content: str) -> str
     try:
         return template.format(history_section=section, peer_message=wrapped)
     except (KeyError, IndexError, ValueError):
-        return _DEFAULT_DIALOGUE_PROMPT.format(
-            history_section=section, peer_message=wrapped
-        )
+        return _DEFAULT_DIALOGUE_PROMPT.format(history_section=section, peer_message=wrapped)
 
 
 def run_peer_loop(
@@ -122,9 +117,12 @@ def run_peer_loop(
     peer_in: TextIO,
     peer_out: TextIO,
     max_turns: int,
-    seed: Optional[str] = None,
+    seed: str | None = None,
     label: str = "peer",
-    generate_fn: Callable[..., Optional[str]] = functools.partial(
+    # B008 is about mutable defaults evaluated once at def time. Here that
+    # single evaluation IS the intent: the partial binds one immutable keyword
+    # to a module-level function, and tests override the parameter anyway.
+    generate_fn: Callable[..., str | None] = functools.partial(  # noqa: B008
         generate, caller="dialogue.peer"
     ),
 ) -> int:
@@ -141,7 +139,8 @@ def run_peer_loop(
         if not _write_json_line(peer_out, {"turn": 0, "content": seed}):
             return 0
         episode_log.append(
-            "dialogue", {"role": "self", "turn": 0, "content": seed, "seed": True},
+            "dialogue",
+            {"role": "self", "turn": 0, "content": seed, "seed": True},
         )
         history.append(f"self: {seed}")
         _log_stderr(label, 0, "self(seed)", seed)
@@ -178,7 +177,8 @@ def run_peer_loop(
 
         replies_generated += 1
         episode_log.append(
-            "dialogue", {"role": "self", "turn": replies_generated, "content": reply},
+            "dialogue",
+            {"role": "self", "turn": replies_generated, "content": reply},
         )
         history.append(f"self: {reply}")
         _log_stderr(label, replies_generated, "self", reply)

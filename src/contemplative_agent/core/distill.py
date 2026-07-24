@@ -16,9 +16,10 @@ from __future__ import annotations
 import json as json_mod
 import logging
 from collections import Counter
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Dict, List, Literal, Optional, Sequence, Tuple, Union
+from typing import Literal
 
 import numpy as np
 
@@ -83,10 +84,10 @@ from .thresholds import (  # noqa: E402 — module-level by design
 def distill(
     days: int = 1,
     dry_run: bool = False,
-    episode_log: Optional[EpisodeLog] = None,
-    knowledge_store: Optional[KnowledgeStore] = None,
-    log_files: Optional[List[Path]] = None,
-    instrument_views: Optional[ViewLookup] = None,
+    episode_log: EpisodeLog | None = None,
+    knowledge_store: KnowledgeStore | None = None,
+    log_files: list[Path] | None = None,
+    instrument_views: ViewLookup | None = None,
 ) -> str:
     """Distill recent engagement episodes into learned patterns.
 
@@ -117,7 +118,7 @@ def distill(
     knowledge.load()
 
     if log_files:
-        records: List[Dict] = []
+        records: list[dict] = []
         for path in log_files:
             records.extend(EpisodeLog.read_file(path))
     else:
@@ -212,19 +213,19 @@ class IdentityResult:
 
     text: str
     target_path: Path
-    pattern_ids: Tuple[str, ...] = ()
-    epistemic_counts: Dict[str, int] = field(default_factory=dict)
+    pattern_ids: tuple[str, ...] = ()
+    epistemic_counts: dict[str, int] = field(default_factory=dict)
     # ADR-0069: reasoning trace behind the identity (distill-identity runs
     # think-ON; this is the manual command, distinct from the autonomous
     # episode distill which stays think-OFF). None when think was off.
-    thinking: Optional[str] = None
+    thinking: str | None = None
 
 
 def distill_identity(
-    knowledge_store: Optional[KnowledgeStore] = None,
-    identity_path: Optional[Path] = None,
-    view_registry: Optional[ViewRegistry] = None,
-) -> Union[str, IdentityResult]:
+    knowledge_store: KnowledgeStore | None = None,
+    identity_path: Path | None = None,
+    view_registry: ViewRegistry | None = None,
+) -> str | IdentityResult:
     """Distill an updated identity description from self-reflection patterns.
 
     Asks the LLM to write a brief self-description from the agent's accumulated
@@ -332,7 +333,7 @@ class _DistillOutcome:
     name described a dimension the pipeline no longer has.
     """
 
-    results: Tuple[str, ...]
+    results: tuple[str, ...]
     added: int
     updated: int
 
@@ -347,9 +348,9 @@ class _BatchOutput:
     """
 
     refined: str
-    patterns: Tuple[str, ...]
+    patterns: tuple[str, ...]
     source_type: str
-    episode_ids: Tuple[str, ...]
+    episode_ids: tuple[str, ...]
 
 
 @dataclass(frozen=True)
@@ -364,7 +365,7 @@ class _PatternProvenance:
 
     text: str
     source_type: str
-    episode_ids: Tuple[str, ...]
+    episode_ids: tuple[str, ...]
 
 
 # Sentinel distinguishing "not JSON at all" from a parsed JSON null, which
@@ -372,7 +373,7 @@ class _PatternProvenance:
 _JSON_PARSE_FAILED = object()
 
 
-def _parse_patterns(raw: str) -> Tuple[List[str], ParseMode]:
+def _parse_patterns(raw: str) -> tuple[list[str], ParseMode]:
     """Parse per-episode LLM output into ``(patterns, parse_mode)``.
 
     parse_mode is one of:
@@ -410,7 +411,7 @@ def _parse_patterns(raw: str) -> Tuple[List[str], ParseMode]:
         )
         return [], "shape_violation"
     # Non-JSON body: bullet-point fallback (audit H2).
-    raw_patterns: List[str] = []
+    raw_patterns: list[str] = []
     for line in raw.splitlines():
         line = line.strip()
         if line.startswith("- "):
@@ -425,7 +426,7 @@ def _parse_patterns(raw: str) -> Tuple[List[str], ParseMode]:
     return raw_patterns, "bullet_fallback"
 
 
-def _distill_one(record: Dict) -> Union[_BatchOutput, AbstainReason]:
+def _distill_one(record: dict) -> _BatchOutput | AbstainReason:
     """Distill one engagement episode; ``_BatchOutput`` or an abstain reason.
 
     ADR-0060: a single LLM call over the rich, world-grounded render of one
@@ -500,20 +501,20 @@ class _DedupResult:
     """What survives dedup, and what dedup did to the existing pool."""
 
     add_patterns: tuple[str, ...]
-    add_embeddings: tuple[Optional[np.ndarray], ...]
+    add_embeddings: tuple[np.ndarray | None, ...]
     add_indices: tuple[int, ...]
     skipped: int
     updated: int
 
 
-def _extract_patterns(records: List[Dict]) -> _ExtractResult:
+def _extract_patterns(records: list[dict]) -> _ExtractResult:
     """One LLM call per episode; collect patterns and tally abstains.
 
     ADR-0060: no fixed-size batching and no noise gate — each episode is
     distilled on its own, so a failure costs one episode rather than a batch.
     """
-    provenance: List[_PatternProvenance] = []
-    all_results: List[str] = []
+    provenance: list[_PatternProvenance] = []
+    all_results: list[str] = []
     abstained: Counter[str] = Counter()
 
     for record in records:
@@ -560,7 +561,7 @@ def _extract_patterns(records: List[Dict]) -> _ExtractResult:
     )
 
 
-def _embed_patterns(patterns: Sequence[str]) -> List[Optional[np.ndarray]]:
+def _embed_patterns(patterns: Sequence[str]) -> list[np.ndarray | None]:
     """Bulk-embed the extracted patterns (ADR-0019).
 
     Degrades to all-None rather than failing the run: without embeddings dedup
@@ -582,7 +583,7 @@ def _embed_patterns(patterns: Sequence[str]) -> List[Optional[np.ndarray]]:
 def _dedup_against_live_pool(
     knowledge: KnowledgeStore,
     patterns: Sequence[str],
-    embeddings: Sequence[Optional[np.ndarray]],
+    embeddings: Sequence[np.ndarray | None],
     *,
     mutate_existing: bool,
 ) -> _DedupResult:
@@ -639,7 +640,7 @@ def _instrument_dry_run(
     extracted: _ExtractResult,
     deduped: _DedupResult,
     pattern_count: int,
-    instrument_views: Optional[ViewLookup],
+    instrument_views: ViewLookup | None,
 ) -> None:
     """Log what a real run would have written, plus the read-only instruments."""
     logger.info(
@@ -667,11 +668,11 @@ def _instrument_dry_run(
 
 
 def _distill_episodes(
-    records: List[Dict],
+    records: list[dict],
     knowledge: KnowledgeStore,
-    source_date: Optional[str],
+    source_date: str | None,
     dry_run: bool,
-    instrument_views: Optional[ViewLookup] = None,
+    instrument_views: ViewLookup | None = None,
 ) -> _DistillOutcome:
     """Distill each engagement episode individually, then dedup + store.
 
@@ -724,16 +725,16 @@ def _distill_episodes(
 
 def _store_new_patterns(
     knowledge: KnowledgeStore,
-    source_date: Optional[str],
+    source_date: str | None,
     add_patterns: Sequence[str],
-    add_embeddings: Sequence[Optional[np.ndarray]],
+    add_embeddings: Sequence[np.ndarray | None],
     add_indices: Sequence[int],
     provenance: Sequence[_PatternProvenance],
 ) -> None:
     """Persist deduped patterns with ADR-0021 provenance."""
     ts = now_iso()
     for pattern, emb, src_idx in zip(add_patterns, add_embeddings, add_indices, strict=True):
-        emb_list: Optional[List[float]] = [float(x) for x in emb] if emb is not None else None
+        emb_list: list[float] | None = [float(x) for x in emb] if emb is not None else None
         source_type = provenance[src_idx].source_type
         episode_ids = list(provenance[src_idx].episode_ids)
         provenance_meta = {
@@ -762,7 +763,7 @@ def _store_new_patterns(
 # lack sufficient context before making a claim" — codex-review P2,
 # 2026-07-03); "extract" and "generalizable" are the task's own
 # vocabulary, not the agent's self-vocabulary.
-_EXTRACTION_FAILURE_PHRASES: Tuple[str, ...] = (
+_EXTRACTION_FAILURE_PHRASES: tuple[str, ...] = (
     "events appear isolated",
     "the episode does not contain",
     "the episode lacks",

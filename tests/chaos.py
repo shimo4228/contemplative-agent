@@ -20,7 +20,6 @@ import json
 import os
 import random
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
 
 import requests
 import responses as responses_lib
@@ -62,7 +61,7 @@ LLM_NONE_FAULTS = frozenset({NONE, EMPTY, EXC_TIMEOUT, EXC_CONNECTION, TRUNCATED
 CIRCUIT_FAILING_FAULTS = frozenset({NONE, EMPTY, EXC_TIMEOUT, EXC_CONNECTION})
 
 
-def trips_circuit(schedule: List[str], threshold: int) -> bool:
+def trips_circuit(schedule: list[str], threshold: int) -> bool:
     """True when the schedule would open the circuit breaker mid-run.
 
     Schedule-driven pipeline tests that predict per-episode outcomes from
@@ -95,18 +94,18 @@ class ChaosBackend:
     pipeline tests can predict stored patterns exactly.
     """
 
-    schedule: List[str] = field(default_factory=list)
+    schedule: list[str] = field(default_factory=list)
     model: str = "chaos-model"
     context_window: int = 32768
-    calls: List[dict] = field(default_factory=list)
+    calls: list[dict] = field(default_factory=list)
 
     @classmethod
     def from_seed(
         cls,
         seed: int,
         n: int,
-        weights: Optional[Dict[str, float]] = None,
-    ) -> "ChaosBackend":
+        weights: dict[str, float] | None = None,
+    ) -> ChaosBackend:
         """Build a schedule of ``n`` faults from ``seed`` (deterministic).
 
         ``weights`` maps fault name -> relative weight (default: uniform over
@@ -131,11 +130,11 @@ class ChaosBackend:
         prompt: str,
         system: str,
         num_predict: int,
-        format: Optional[Dict],
+        format: dict | None,
         *,
         temperature: float = 1.0,
         think: bool = False,
-    ) -> Optional[BackendResult]:
+    ) -> BackendResult | None:
         idx = len(self.calls)
         self.calls.append(
             {
@@ -287,6 +286,6 @@ def non_patterns_json() -> st.SearchStrategy[str]:
     return st.one_of(wrong_top_level, patterns_with_non_str).map(json.dumps)
 
 
-def fault_schedules(min_size: int = 1, max_size: int = 12) -> st.SearchStrategy[List[str]]:
+def fault_schedules(min_size: int = 1, max_size: int = 12) -> st.SearchStrategy[list[str]]:
     """Sequences over the fault vocabulary (flapping, bursts, mixtures)."""
     return st.lists(st.sampled_from(FAULT_VOCABULARY), min_size=min_size, max_size=max_size)

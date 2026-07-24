@@ -60,7 +60,9 @@ dev = [
     "hypothesis>=6.100",
     "responses>=0.23.0",
     "types-requests>=2.31",
-    "ruff>=0.6",
+    # Floor tracks the version the PostToolUse autofix hook resolves, so
+    # `uv run ruff` and the hook agree on more than just the rule set.
+    "ruff>=0.16",
     "pyright>=1.1.380",
     "import-linter>=2.0",
 ]
@@ -97,10 +99,21 @@ target-version = "py310"
 line-length = 100
 
 [tool.ruff.lint]
-# Beyond the defaults (E4/E7/E9/F): B (bugbear — silent-truncation zip,
-# mutable defaults), I (import sorting), T20 (no print in library code —
-# use logging; rules/python/hooks.md).
-extend-select = ["B", "I", "T20"]
+# Pin the rule set explicitly rather than inheriting ruff's defaults. The
+# PostToolUse autofix hook resolves ruff from PATH/uvx while this repo locks
+# its own version, and the two drifted: a wider default set fired UP/SIM/RUF
+# on the files that happened to be edited, and `ruff check src/ tests/` at
+# the locked version reported those same files clean — so the tree silently
+# split into modernized and legacy halves. An explicit `select` makes the
+# answer identical under both binaries (verified: 674 findings either way).
+#
+# E4/E7/E9/F are ruff's own defaults, restated here so nothing depends on
+# what "default" means in a given release. Beyond them: B (bugbear —
+# silent-truncation zip, mutable defaults), I (import sorting), T20 (no
+# print in library code — use logging; rules/python/hooks.md), UP (pyupgrade
+# — PEP 585/604 typing; the floor is py310 so `list[str]` / `X | None` are
+# native at runtime).
+select = ["E4", "E7", "E9", "F", "B", "I", "T20", "UP"]
 
 [tool.ruff.lint.isort]
 # Keep explicit `X as X` re-export blocks (core/llm/__init__.py) compact

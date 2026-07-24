@@ -11,13 +11,12 @@ them directly, so no log writer can forget.
 from __future__ import annotations
 
 import uuid
-from typing import Optional
 
 # One per process, generated at import time. All audit records written by
 # this process share it, which lets offline tooling group them exactly.
 RUN_ID: str = uuid.uuid4().hex
 
-_session_id: Optional[str] = None
+_session_id: str | None = None
 
 
 def new_session_id() -> str:
@@ -25,11 +24,11 @@ def new_session_id() -> str:
     return uuid.uuid4().hex
 
 
-def set_session_id(session_id: Optional[str]) -> None:
+def set_session_id(session_id: str | None) -> None:
     """Set (or clear, with None) the active agent-session identifier."""
     global _session_id
     _session_id = session_id
 
 
-def current_session_id() -> Optional[str]:
+def current_session_id() -> str | None:
     return _session_id

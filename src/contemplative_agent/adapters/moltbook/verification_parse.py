@@ -84,7 +84,7 @@ from __future__ import annotations
 
 import re
 from decimal import Decimal, DivisionByZero, InvalidOperation
-from typing import NamedTuple, Optional, Union
+from typing import NamedTuple
 
 from .config import MAX_CHALLENGE_INPUT as _MAX_INPUT
 
@@ -423,7 +423,7 @@ class _OpEvent(NamedTuple):
     # Canonical lexicon word that produced this event (None for symbol ops
     # and fuzzy matches). Only exact-match words drive word-keyed rules
     # (the "add" imperative), so fuzzy recovery does not need to carry one.
-    word: Optional[str] = None
+    word: str | None = None
 
 
 class _AndEvent(NamedTuple):
@@ -443,19 +443,19 @@ class _PointEvent(NamedTuple):
     atom_index: int
 
 
-_Event = Union[_NumEvent, _OpEvent, _AndEvent, _CueEvent, _MulMarkerEvent, _PointEvent]
+_Event = _NumEvent | _OpEvent | _AndEvent | _CueEvent | _MulMarkerEvent | _PointEvent
 
 
 class _Operand(NamedTuple):
     # int for whole numbers; Decimal once a "point" composition merged a
     # fractional part in (round 8). _compute_chain already folds through
     # Decimal either way.
-    value: Union[int, Decimal]
+    value: int | Decimal
     atom_start: int
     atom_end: int
 
 
-def code_parse_challenge(challenge_text: str) -> Optional[str]:
+def code_parse_challenge(challenge_text: str) -> str | None:
     """Parse the finite CAPTCHA grammar deterministically.
 
     Returns the answer formatted to two decimals (e.g. ``"44.00"``) only when
@@ -478,13 +478,13 @@ def code_parse_challenge(challenge_text: str) -> Optional[str]:
 
 class _Lexeme(NamedTuple):
     kind: str
-    value: Union[int, str, None] = None
+    value: int | str | None = None
     # Canonical lexicon word behind the match, where a rule needs it
     # (op imperatives, cue "sum"); None for fuzzy ops and non-word kinds.
-    word: Optional[str] = None
+    word: str | None = None
 
 
-def _match_exact(token: str) -> Optional[_Lexeme]:
+def _match_exact(token: str) -> _Lexeme | None:
     """Look up a collapsed merged token in the exact lexicons."""
     if token in _NUMBER_WORDS:
         return _Lexeme("num", _NUMBER_WORDS[token])
@@ -501,7 +501,7 @@ def _match_exact(token: str) -> Optional[_Lexeme]:
     return None
 
 
-def _match_fuzzy(token: str) -> Optional[_Lexeme]:
+def _match_fuzzy(token: str) -> _Lexeme | None:
     """Recover a homophone-misspelled number word or operation verb.
 
     Edit distance exactly 1 after collapse, with per-kind length floors.
@@ -512,7 +512,7 @@ def _match_fuzzy(token: str) -> Optional[_Lexeme]:
     """
     if token in _FUZZY_STOPWORDS:
         return None
-    results: set[tuple[str, Union[int, str]]] = set()
+    results: set[tuple[str, int | str]] = set()
     if len(token) >= _FUZZY_MIN_TOKEN:
         for word, value in _CANONICAL_NUMBERS.items():
             if _within_one_edit(token, word):
@@ -683,7 +683,7 @@ def _compose_operands(events: list[_Event]) -> list[_Operand]:
     two`` still reads forty).
     """
     operands: list[_Operand] = []
-    pending: Optional[_NumEvent] = None
+    pending: _NumEvent | None = None
     interrupted = False
 
     def flush() -> None:
@@ -899,7 +899,7 @@ class _TailSignals(NamedTuple):
         return any(c.word == "combined" for c in self.cues)
 
 
-def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -> Optional[str]:
+def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -> str | None:
     """Fit ops/cues around the operands and compute, or abstain.
 
     Grammar: operands and explicit operations must interleave strictly —
@@ -1022,7 +1022,7 @@ def _resolve_implicit(
     tail: _TailSignals,
     ands: list[_AndEvent],
     atoms: list[str],
-) -> Optional[str]:
+) -> str | None:
     """Resolve two operands with no explicit operation between them.
 
     Priority: a multiplicative signal (specific) beats the additive question
@@ -1047,9 +1047,7 @@ def _resolve_implicit(
     if mult_tail or adjacent_marks:
         if sub_tail:
             return None
-        adjacent = bool(adjacent_marks) or any(
-            tail.is_adjacent(op.atom_index) for op in mult_tail
-        )
+        adjacent = bool(adjacent_marks) or any(tail.is_adjacent(op.atom_index) for op in mult_tail)
         if and_between or adjacent:
             return _compute_chain(operands, [_MUL])
         return None
@@ -1109,7 +1107,7 @@ def _resolve_implicit(
     return _compute_chain(operands, [_ADD])
 
 
-def _adjacent_atom(atoms: list[str], atom_end: int) -> Optional[str]:
+def _adjacent_atom(atoms: list[str], atom_end: int) -> str | None:
     """Collapsed form of the atom immediately after ``atom_end``, if any."""
     if atom_end + 1 >= len(atoms):
         return None
@@ -1153,7 +1151,7 @@ def _count_noun_after(atoms: list[str], atom_end: int) -> bool:
     return _collapse_repeats(atoms[atom_end + 1] + atoms[atom_end + 2]) == _COUNT_NOUN
 
 
-def _compute_chain(operands: list[_Operand], chain: list[str]) -> Optional[str]:
+def _compute_chain(operands: list[_Operand], chain: list[str]) -> str | None:
     """Left-fold the operand values, abstaining on any out-of-domain step.
 
     The physical-count CAPTCHA domain is non-negative: a negative

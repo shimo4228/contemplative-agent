@@ -20,7 +20,6 @@ import sys
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
-from typing import Dict, List, Optional
 
 # Add src to path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "src"))
@@ -63,12 +62,12 @@ class DistillBenchmarkReport:
     patterns_skipped: int
     # ADR-0060: provenance is per-episode; distribution of pattern source kinds
     # (replaces the retired Step-0 category distribution).
-    source_type_distribution: Dict[str, int] = field(default_factory=dict)
-    pattern_lengths: List[int] = field(default_factory=list)
+    source_type_distribution: dict[str, int] = field(default_factory=dict)
+    pattern_lengths: list[int] = field(default_factory=list)
 
 
 def _collect_metrics_from_logs(
-    log_records: List[logging.LogRecord],
+    log_records: list[logging.LogRecord],
     dataset: str,
     episode_count: int,
     elapsed: float,
@@ -91,8 +90,8 @@ def _collect_metrics_from_logs(
     total_updated = 0
     total_skipped = 0
     llm_failure_count = 0
-    source_type_dist: Dict[str, int] = {}
-    pattern_lengths: List[int] = []
+    source_type_dist: dict[str, int] = {}
+    pattern_lengths: list[int] = []
 
     for rec in log_records:
         msg = rec.getMessage()
@@ -162,7 +161,7 @@ def _collect_metrics_from_logs(
     )
 
 
-def run_benchmark(dataset: str = "synthetic", output: Optional[str] = None) -> DistillBenchmarkReport:
+def run_benchmark(dataset: str = "synthetic", output: str | None = None) -> DistillBenchmarkReport:
     """Run distill() against a fixed dataset and collect metrics."""
     dataset_path = FIXTURES_DIR / f"{dataset}.jsonl"
     if not dataset_path.exists():
@@ -179,7 +178,7 @@ def run_benchmark(dataset: str = "synthetic", output: Optional[str] = None) -> D
     knowledge.load()
 
     # Capture logs
-    log_records: List[logging.LogRecord] = []
+    log_records: list[logging.LogRecord] = []
 
     class _Collector(logging.Handler):
         def emit(self, record: logging.LogRecord) -> None:
