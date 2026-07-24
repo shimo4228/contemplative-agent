@@ -368,7 +368,7 @@ class TestPostRate7d:
         mem = MemoryStore(
             path=tmp_path / "a.json", log_dir=tmp_path / "logs"
         )
-        mem._post_history.append(
+        mem._posts.history.append(
             PostRecord(
                 timestamp="not-iso",
                 post_id="bad",

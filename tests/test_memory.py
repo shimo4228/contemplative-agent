@@ -143,7 +143,7 @@ class TestMemoryStore:
             )
         assert store.interaction_count() == MAX_INTERACTIONS
         # Oldest should be trimmed
-        assert store._interactions[0].post_id == "p50"
+        assert store._interaction_index.interactions[0].post_id == "p50"
 
 
 class TestMemoryPersistence:
@@ -165,7 +165,7 @@ class TestMemoryPersistence:
         store2 = MemoryStore(path=path)
         store2.load()
         assert store2.interaction_count() == 1
-        assert store2._interactions[0].agent_id == "agent1"
+        assert store2._interaction_index.interactions[0].agent_id == "agent1"
         assert store2.known_agents["agent1"] == "TestAgent"
 
     def test_file_permissions(self, tmp_path):
@@ -233,8 +233,8 @@ class TestMemoryPersistence:
 
         store2 = MemoryStore(path=path)
         store2.load()
-        assert store2._interactions[0].agent_name == "テストエージェント"
-        assert store2._interactions[0].content_summary == "日本語コンテンツ"
+        assert store2._interaction_index.interactions[0].agent_name == "テストエージェント"
+        assert store2._interaction_index.interactions[0].content_summary == "日本語コンテンツ"
 
 
 class TestPostRecord:

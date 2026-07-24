@@ -108,10 +108,10 @@ As of **2026-07-25** — values are measured, never carried forward from a previ
 
 | Metric | Value |
 |--------|-------|
-| Total `.py` files | 71 (63 non-`__init__` + 8 `__init__`) |
-| LOC | ~20903 |
+| Total `.py` files | 73 (65 non-`__init__` + 8 `__init__`) |
+| LOC | ~21236 |
 | Test files | 60 (1977 tests collected) |
-| Core modules | 30 (platform-independent; incl. `llm/` package as one row) |
+| Core modules | 32 (platform-independent; incl. `llm/` package as one row) |
 | Moltbook adapter modules | 15 |
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |

@@ -75,6 +75,11 @@ from .prompting import (
     system_prompt_budget_reading as system_prompt_budget_reading,
     validate_identity_content as validate_identity_content,
 )
+from .request import (
+    DEFAULT_NUM_PREDICT as DEFAULT_NUM_PREDICT,
+    GenerationRequest as GenerationRequest,
+    ResolvedRequest as ResolvedRequest,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -254,15 +259,17 @@ def generate(
     apply uniformly across both paths.
     """
     out = _generate_full(
-        prompt,
-        system,
-        max_length,
-        num_predict,
-        format,
-        temperature,
-        drop_truncated,
-        caller,
-        think,
+        GenerationRequest(
+            prompt=prompt,
+            system=system,
+            max_length=max_length,
+            num_predict=num_predict,
+            format=format,
+            temperature=temperature,
+            drop_truncated=drop_truncated,
+            caller=caller,
+            think=think,
+        )
     )
     return out.text if out is not None else None
 
@@ -293,29 +300,21 @@ def generate_full(
     under ``think=False`` never persists a trace).
     """
     return _generate_full(
-        prompt,
-        system,
-        max_length,
-        num_predict,
-        format,
-        temperature,
-        drop_truncated,
-        caller,
-        think,
+        GenerationRequest(
+            prompt=prompt,
+            system=system,
+            max_length=max_length,
+            num_predict=num_predict,
+            format=format,
+            temperature=temperature,
+            drop_truncated=drop_truncated,
+            caller=caller,
+            think=think,
+        )
     )
 
 
-def _generate_full(
-    prompt: str,
-    system: str | None,
-    max_length: int | None,
-    num_predict: int | None,
-    format: dict | None,
-    temperature: float,
-    drop_truncated: bool,
-    caller: str,
-    think: bool,
-) -> GenerationOutput | None:
+def _generate_full(request: GenerationRequest) -> GenerationOutput | None:
     """Shared core of :func:`generate` and :func:`generate_for_api`.
 
     Builds the per-call telemetry record (including ``think``), runs the
@@ -324,25 +323,24 @@ def _generate_full(
     truncation-drop. :func:`generate` projects this to ``.text``; publish-path
     callers keep the full object to persist ``.thinking`` to the episode log.
     """
-    effective_num_predict = num_predict if num_predict is not None else 8192
     tel: dict[str, Any] = {
         "ts": now_iso(timespec="seconds"),
-        "caller": caller,
+        "caller": request.caller,
         # Injected backends declare their served model id via the LLMBackend
         # ``model`` contract, so telemetry records the real served model
         # across any backend (parity with the Ollama default's _get_model()).
         "model": served_model(),
-        "prompt_chars": len(prompt),
+        "prompt_chars": len(request.prompt),
         "system_chars": None,
-        "num_predict": effective_num_predict,
-        "temperature": temperature,
+        "num_predict": request.effective_num_predict,
+        "temperature": request.temperature,
         # Whether the reasoning trace was requested for this call. A metadata
         # flag only — the trace content itself is never written to telemetry
         # (it goes to the episode log); this lets analysis tell think-on from
         # think-off rows apart, e.g. for a latency A/B.
-        "think": think,
-        "has_format": format is not None,
-        "prompt_sha256": hashlib.sha256(prompt.encode("utf-8")).hexdigest()[:12],
+        "think": request.think,
+        "has_format": request.format is not None,
+        "prompt_sha256": hashlib.sha256(request.prompt.encode("utf-8")).hexdigest()[:12],
         "duration_ms": None,
         # Default covers unexpected exceptions: any path that does not
         # explicitly set an outcome below records as an error.
@@ -357,41 +355,26 @@ def _generate_full(
     }
     started = time.monotonic()
     try:
-        return _generate_impl(
-            prompt,
-            system,
-            max_length,
-            format,
-            temperature,
-            drop_truncated,
-            effective_num_predict,
-            tel,
-            think,
-        )
+        return _generate_impl(request, tel)
     finally:
         tel["duration_ms"] = int((time.monotonic() - started) * 1000)
         _emit_telemetry(tel)
 
 
-def _generate_impl(
-    prompt: str,
-    system: str | None,
-    max_length: int | None,
-    format: dict | None,
-    temperature: float,
-    drop_truncated: bool,
-    effective_num_predict: int,
-    tel: dict[str, Any],
-    think: bool,
-) -> GenerationOutput | None:
-    """Body of :func:`_generate_full`; mutates *tel* with outcome metadata."""
+def _generate_impl(request: GenerationRequest, tel: dict[str, Any]) -> GenerationOutput | None:
+    """Body of :func:`_generate_full`; mutates *tel* with outcome metadata.
+
+    Resolves the caller's request into a :class:`ResolvedRequest` — system
+    prompt built, output budget clamped to the context window — and dispatches
+    it. Everything below this frame sees only the resolved form.
+    """
     if _circuit.is_open:
         logger.debug("Circuit breaker open — skipping LLM request")
         tel["outcome"] = "circuit_open"
         return None
 
-    system_prompt = system or _build_system_prompt()
-    tel["system_chars"] = len(system_prompt)
+    resolved = request.resolve(request.system or _build_system_prompt())
+    tel["system_chars"] = len(resolved.system)
 
     # Context-budget pre-flight (audit C2), backend-aware. The window is
     # NUM_CTX on the built-in Ollama path; an injected backend supplies its
@@ -405,10 +388,10 @@ def _generate_impl(
     # breaker is left untouched.
     ctx_window = getattr(_backend, "context_window", None) if _backend is not None else NUM_CTX
     if ctx_window is not None:
-        est_system = _estimate_tokens(system_prompt)
-        est_prompt = _estimate_tokens(prompt)
+        est_system = _estimate_tokens(resolved.system)
+        est_prompt = _estimate_tokens(resolved.prompt)
         available = ctx_window - est_system - est_prompt
-        if effective_num_predict > available:
+        if resolved.num_predict > available:
             if available < MIN_CLAMPED_NUM_PREDICT:
                 logger.warning(
                     "Skipping LLM call: estimated input %d tok (system≈%d + "
@@ -431,33 +414,21 @@ def _generate_impl(
             logger.warning(
                 "Clamping num_predict %d -> %d: estimated input %d tok "
                 "(system≈%d + prompt≈%d) in context window %d (audit C2).",
-                effective_num_predict,
+                resolved.num_predict,
                 available,
                 est_system + est_prompt,
                 est_system,
                 est_prompt,
                 ctx_window,
             )
-            tel["num_predict_requested"] = effective_num_predict
-            effective_num_predict = available
-            tel["num_predict"] = effective_num_predict
+            tel["num_predict_requested"] = resolved.num_predict
+            resolved = resolved.clamped_to(available)
+            tel["num_predict"] = resolved.num_predict
 
     if _backend is not None:
-        return _generate_via_backend(
-            prompt,
-            system_prompt,
-            max_length,
-            format,
-            temperature,
-            drop_truncated,
-            effective_num_predict,
-            tel,
-            think,
-        )
+        return _generate_via_backend(resolved, tel)
 
-    data = _post_ollama(
-        prompt, system_prompt, format, temperature, effective_num_predict, tel, think
-    )
+    data = _post_ollama(resolved, tel)
     if data is None:
         return None
     raw_text = data.get("response", "")
@@ -467,27 +438,15 @@ def _generate_impl(
     if isinstance(eval_count, int):
         tel["eval_count"] = eval_count
 
-    if _drop_for_output_truncation(
-        data.get("done_reason"), drop_truncated, effective_num_predict, tel
-    ):
+    if _drop_for_output_truncation(data.get("done_reason"), resolved, tel):
         return None
 
-    _warn_front_truncation(data, system_prompt, prompt, tel)
+    _warn_front_truncation(data, resolved.system, resolved.prompt, tel)
 
-    return _finalize_ok(raw_text, data.get("thinking"), max_length, think, tel)
+    return _finalize_ok(raw_text, data.get("thinking"), resolved, tel)
 
 
-def _generate_via_backend(
-    prompt: str,
-    system_prompt: str,
-    max_length: int | None,
-    format: dict | None,
-    temperature: float,
-    drop_truncated: bool,
-    effective_num_predict: int,
-    tel: dict[str, Any],
-    think: bool,
-) -> GenerationOutput | None:
+def _generate_via_backend(request: ResolvedRequest, tel: dict[str, Any]) -> GenerationOutput | None:
     """Injected-backend path of :func:`_generate_impl`.
 
     Mirrors the Ollama path's truncation gating and telemetry: the backend
@@ -501,12 +460,12 @@ def _generate_via_backend(
         raise RuntimeError("_generate_via_backend called with no backend configured")
     try:
         result = backend.generate(
-            prompt,
-            system_prompt,
-            effective_num_predict,
-            format,
-            temperature=temperature,
-            think=think,
+            request.prompt,
+            request.system,
+            request.num_predict,
+            request.format,
+            temperature=request.temperature,
+            think=request.think,
         )
     except Exception as exc:  # backend may raise on unexpected failure
         logger.error("Backend generate() raised: %s", exc)
@@ -533,12 +492,10 @@ def _generate_via_backend(
     if isinstance(result.cached_tokens, int):
         tel["cached_tokens"] = result.cached_tokens
 
-    if _drop_for_output_truncation(
-        result.finish_reason, drop_truncated, effective_num_predict, tel
-    ):
+    if _drop_for_output_truncation(result.finish_reason, request, tel):
         return None
 
-    return _finalize_ok(result.text, result.thinking, max_length, think, tel)
+    return _finalize_ok(result.text, result.thinking, request, tel)
 
 
 def _classify_request_error(exc: requests.RequestException) -> str:
@@ -557,15 +514,7 @@ def _classify_request_error(exc: requests.RequestException) -> str:
     return "request_error"
 
 
-def _post_ollama(
-    prompt: str,
-    system_prompt: str,
-    format: dict | None,
-    temperature: float,
-    effective_num_predict: int,
-    tel: dict[str, Any],
-    think: bool,
-) -> dict | None:
+def _post_ollama(request: ResolvedRequest, tel: dict[str, Any]) -> dict | None:
     """POST to Ollama and parse the JSON body; None on any failure.
 
     Every failure path (bad URL, transport error, unparsable body, empty
@@ -584,20 +533,20 @@ def _post_ollama(
     url = f"{base_url}/api/generate"
     payload = {
         "model": _get_model(),
-        "prompt": prompt,
-        "system": system_prompt,
+        "prompt": request.prompt,
+        "system": request.system,
         "stream": False,
         "options": {
-            "temperature": temperature,
+            "temperature": request.temperature,
             "top_p": SAMPLING_TOP_P,
             "top_k": SAMPLING_TOP_K,
-            "num_predict": effective_num_predict,
+            "num_predict": request.num_predict,
             "num_ctx": NUM_CTX,
         },
-        "think": think,
+        "think": request.think,
     }
-    if format is not None:
-        payload["format"] = format
+    if request.format is not None:
+        payload["format"] = request.format
 
     try:
         response = requests.post(url, json=payload, timeout=(30, 1200), allow_redirects=False)
@@ -628,8 +577,7 @@ def _post_ollama(
 
 def _drop_for_output_truncation(
     finish_reason: str | None,
-    drop_truncated: bool,
-    effective_num_predict: int,
+    request: ResolvedRequest,
     tel: dict[str, Any],
 ) -> bool:
     """Output-truncation signal (audit M2); True when the result must drop.
@@ -641,12 +589,12 @@ def _drop_for_output_truncation(
     """
     if finish_reason != "length":
         return False
-    if drop_truncated:
+    if request.drop_truncated:
         logger.warning(
             "Output truncated at num_predict=%d (finish_reason=length); "
             "dropping instead of publishing a mid-sentence cut "
             "(audit M2).",
-            effective_num_predict,
+            request.num_predict,
         )
         _circuit.record_success()
         tel["outcome"] = "truncated_dropped"
@@ -655,7 +603,7 @@ def _drop_for_output_truncation(
         "Output truncated at num_predict=%d (finish_reason=length); "
         "downstream consumers receive an incomplete generation "
         "(audit M2).",
-        effective_num_predict,
+        request.num_predict,
     )
     return False
 
@@ -663,8 +611,7 @@ def _drop_for_output_truncation(
 def _finalize_ok(
     text: str,
     reasoning: str | None,
-    max_length: int | None,
-    think: bool,
+    request: ResolvedRequest,
     tel: dict[str, Any],
 ) -> GenerationOutput:
     """Shared success tail for both generation paths.
@@ -682,8 +629,10 @@ def _finalize_ok(
     # telemetry can measure how often consumers received an incomplete
     # generation instead of folding it into "ok" (bug-audit 2026-07-06 M1).
     tel["outcome"] = "truncated_kept" if tel.get("done_reason") == "length" else "ok"
-    thinking = _sanitize_thinking(reasoning or _extract_inline_thinking(text)) if think else None
-    return GenerationOutput(text=_sanitize_output(text, max_length), thinking=thinking)
+    thinking = (
+        _sanitize_thinking(reasoning or _extract_inline_thinking(text)) if request.think else None
+    )
+    return GenerationOutput(text=_sanitize_output(text, request.max_length), thinking=thinking)
 
 
 def _warn_front_truncation(
@@ -759,14 +708,16 @@ def generate_for_api(
         raise ValueError(f"chars_per_token must be positive, got {chars_per_token}")
     estimated_num_predict = math.ceil(max_length / chars_per_token) + 50
     out = _generate_full(
-        prompt,
-        system=system,
-        max_length=max_length,
-        num_predict=estimated_num_predict,
-        format=None,
-        temperature=temperature,
-        drop_truncated=True,
-        caller=caller,
-        think=think,
+        GenerationRequest(
+            prompt=prompt,
+            system=system,
+            max_length=max_length,
+            num_predict=estimated_num_predict,
+            format=None,
+            temperature=temperature,
+            drop_truncated=True,
+            caller=caller,
+            think=think,
+        )
     )
     return out if out is not None else GenerationOutput(text=None)

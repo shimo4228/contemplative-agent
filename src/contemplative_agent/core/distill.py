@@ -324,8 +324,13 @@ def distill_identity(
 
 
 @dataclass(frozen=True)
-class _CategoryResult:
-    """Result of distilling a single category."""
+class _DistillOutcome:
+    """What one distill pass produced: rendered results plus store deltas.
+
+    Named for categories back when distillation ran per category; ADR-0019
+    retired that axis and ADR-0060 made the unit a single episode, so the old
+    name described a dimension the pipeline no longer has.
+    """
 
     results: Tuple[str, ...]
     added: int
@@ -481,23 +486,32 @@ def _distill_one(record: Dict) -> Union[_BatchOutput, AbstainReason]:
     )
 
 
-def _distill_episodes(
-    records: List[Dict],
-    knowledge: KnowledgeStore,
-    source_date: Optional[str],
-    dry_run: bool,
-    instrument_views: Optional[ViewLookup] = None,
-) -> _CategoryResult:
-    """Distill each engagement episode individually, then dedup + store.
+@dataclass(frozen=True)
+class _ExtractResult:
+    """Per-episode LLM extraction, before anything is embedded or stored."""
 
-    ADR-0060: one LLM call per episode (no fixed-size batching, no noise
-    gate). The resulting patterns flow through the unchanged embed → cosine
-    dedup → store tail; dedup runs against the full live pool, so a pattern
-    re-observed from a recurring episode is caught at the pattern level
-    (SKIP / UPDATE) without any episode-level pre-clustering.
+    provenance: tuple[_PatternProvenance, ...]
+    results: tuple[str, ...]
+    abstained: Counter[str]
+
+
+@dataclass(frozen=True)
+class _DedupResult:
+    """What survives dedup, and what dedup did to the existing pool."""
+
+    add_patterns: tuple[str, ...]
+    add_embeddings: tuple[Optional[np.ndarray], ...]
+    add_indices: tuple[int, ...]
+    skipped: int
+    updated: int
+
+
+def _extract_patterns(records: List[Dict]) -> _ExtractResult:
+    """One LLM call per episode; collect patterns and tally abstains.
+
+    ADR-0060: no fixed-size batching and no noise gate — each episode is
+    distilled on its own, so a failure costs one episode rather than a batch.
     """
-    logger.info("Distilling %d episodes individually", len(records))
-
     provenance: List[_PatternProvenance] = []
     all_results: List[str] = []
     abstained: Counter[str] = Counter()
@@ -539,27 +553,49 @@ def _distill_episodes(
     else:
         logger.info("Episode distill summary: all %d episodes produced output", len(records))
 
-    if not provenance:
-        return _CategoryResult(results=tuple(all_results), added=0, updated=0)
+    return _ExtractResult(
+        provenance=tuple(provenance),
+        results=tuple(all_results),
+        abstained=abstained,
+    )
 
-    all_patterns = [pp.text for pp in provenance]
 
-    # ADR-0019: bulk-embed new patterns inline so dedup can run on cosine
-    # similarity instead of SequenceMatcher + LLM gate.
-    new_embeddings_arr = embed_texts(all_patterns)
-    if new_embeddings_arr is None or new_embeddings_arr.shape[0] != len(all_patterns):
+def _embed_patterns(patterns: Sequence[str]) -> List[Optional[np.ndarray]]:
+    """Bulk-embed the extracted patterns (ADR-0019).
+
+    Degrades to all-None rather than failing the run: without embeddings dedup
+    falls back to storing everything, which is worse than deduping but better
+    than losing the distillation entirely. The reason code is logged so a
+    degraded run is distinguishable offline from a clean one.
+    """
+    arr = embed_texts(list(patterns))
+    if arr is None or arr.shape[0] != len(patterns):
         logger.warning(
             "Failed to embed %d new patterns; storing without embedding "
             "(dedup degraded, reason=embed_failed)",
-            len(all_patterns),
+            len(patterns),
         )
-        new_embeddings: List[Optional[np.ndarray]] = [None] * len(all_patterns)
-    else:
-        new_embeddings = list(new_embeddings_arr)  # iterating a 2-D ndarray yields its rows
+        return [None] * len(patterns)
+    return list(arr)  # iterating a 2-D ndarray yields its rows
 
-    # ADR-0026: dedup scope is the full live pool. Cross-axis overlap is
-    # acceptable — the semantic coordinate is shared regardless of which
-    # view a pattern is routed through at query time.
+
+def _dedup_against_live_pool(
+    knowledge: KnowledgeStore,
+    patterns: Sequence[str],
+    embeddings: Sequence[Optional[np.ndarray]],
+    *,
+    mutate_existing: bool,
+) -> _DedupResult:
+    """Compare new patterns against the live pool.
+
+    ADR-0026: dedup scope is the full live pool. Cross-axis overlap is
+    acceptable — the semantic coordinate is shared regardless of which view a
+    pattern is routed through at query time.
+
+    ``mutate_existing`` is passed explicitly rather than derived from a dry-run
+    flag in scope: this is the one step that writes to the existing pool
+    (bitemporal soft-invalidation), so the caller has to say so out loud.
+    """
     # is_live gate (valid_until, ADR-0051) is enforced inside
     # pattern_dedup._dedup_patterns; this pre-filter exists for the decay-floor log.
     # ADR-0056: effective_importance is pure time decay, so the floor now
@@ -585,51 +621,105 @@ def _distill_episodes(
         skipped,
         updated,
     ) = pattern_dedup._dedup_patterns(
-        all_patterns,
-        new_embeddings,
+        list(patterns),
+        list(embeddings),
         existing_patterns,
+        mutate_existing=mutate_existing,
+    )
+    return _DedupResult(
+        add_patterns=tuple(add_patterns),
+        add_embeddings=tuple(add_embeddings),
+        add_indices=tuple(add_indices),
+        skipped=skipped,
+        updated=updated,
+    )
+
+
+def _instrument_dry_run(
+    extracted: _ExtractResult,
+    deduped: _DedupResult,
+    pattern_count: int,
+    instrument_views: Optional[ViewLookup],
+) -> None:
+    """Log what a real run would have written, plus the read-only instruments."""
+    logger.info(
+        "Dry run — %d patterns found, %d skipped, %d would soft-invalidate",
+        pattern_count,
+        deduped.skipped,
+        deduped.updated,
+    )
+    # Read-only composition instruments over the would-be-ADDED set —
+    # post-dedup, so skipped duplicates are not counted (codex review
+    # 2026-07-03 P3). View supply needs the registry, diversity and
+    # grounding run regardless. Observability only — never a gate.
+    batch = [
+        {
+            "pattern": text,
+            "embedding": emb.tolist() if emb is not None else None,
+            "provenance": {"source_type": extracted.provenance[idx].source_type},
+        }
+        for text, emb, idx in zip(
+            deduped.add_patterns, deduped.add_embeddings, deduped.add_indices, strict=True
+        )
+    ]
+    for line in instrument_lines(batch, instrument_views):
+        logger.info("dry-run instrument: %s", line)
+
+
+def _distill_episodes(
+    records: List[Dict],
+    knowledge: KnowledgeStore,
+    source_date: Optional[str],
+    dry_run: bool,
+    instrument_views: Optional[ViewLookup] = None,
+) -> _DistillOutcome:
+    """Distill each engagement episode individually, then dedup + store.
+
+    Four stages: extract (one LLM call per episode) -> embed -> dedup against
+    the live pool -> persist, or instrument and stop when ``dry_run``. A
+    re-observed pattern from a recurring episode is caught at the pattern level
+    (SKIP / UPDATE) in the dedup stage, so no episode-level pre-clustering is
+    needed (ADR-0060).
+    """
+    logger.info("Distilling %d episodes individually", len(records))
+
+    extracted = _extract_patterns(records)
+    if not extracted.provenance:
+        return _DistillOutcome(results=extracted.results, added=0, updated=0)
+
+    all_patterns = [pp.text for pp in extracted.provenance]
+    embeddings = _embed_patterns(all_patterns)
+    deduped = _dedup_against_live_pool(
+        knowledge,
+        all_patterns,
+        embeddings,
         mutate_existing=not dry_run,
     )
 
     if dry_run:
-        logger.info(
-            "Dry run — %d patterns found, %d skipped, %d would soft-invalidate",
-            len(all_patterns),
-            skipped,
-            updated,
-        )
-        # Read-only composition instruments over the would-be-ADDED set —
-        # post-dedup, so skipped duplicates are not counted (codex review
-        # 2026-07-03 P3). View supply needs the registry, diversity and
-        # grounding run regardless. Observability only — never a gate.
-        batch = [
-            {
-                "pattern": text,
-                "embedding": emb.tolist() if emb is not None else None,
-                "provenance": {"source_type": provenance[idx].source_type},
-            }
-            for text, emb, idx in zip(add_patterns, add_embeddings, add_indices, strict=True)
-        ]
-        for line in instrument_lines(batch, instrument_views):
-            logger.info("dry-run instrument: %s", line)
-        return _CategoryResult(results=tuple(all_results), added=0, updated=0)
+        _instrument_dry_run(extracted, deduped, len(all_patterns), instrument_views)
+        return _DistillOutcome(results=extracted.results, added=0, updated=0)
 
-    if updated:
+    if deduped.updated:
         logger.info(
             "Dedup: %d soft-invalidated (bitemporal) and replaced with new patterns",
-            updated,
+            deduped.updated,
         )
 
     _store_new_patterns(
         knowledge,
         source_date,
-        add_patterns,
-        add_embeddings,
-        add_indices,
-        provenance,
+        deduped.add_patterns,
+        deduped.add_embeddings,
+        deduped.add_indices,
+        extracted.provenance,
     )
 
-    return _CategoryResult(results=tuple(all_results), added=len(add_patterns), updated=updated)
+    return _DistillOutcome(
+        results=extracted.results,
+        added=len(deduped.add_patterns),
+        updated=deduped.updated,
+    )
 
 
 def _store_new_patterns(

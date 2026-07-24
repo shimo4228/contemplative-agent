@@ -296,36 +296,36 @@ class TestAuthorRateLimit:
         mem = MemoryStore(path=tmp_path / "memory.json")
         # 3 sent + 2 received to alice within window
         for h in (1, 2, 3):
-            mem._interactions.append(_make_interaction("alice", h, "sent"))
+            mem._interaction_index.interactions.append(_make_interaction("alice", h, "sent"))
         for h in (1, 2):
-            mem._interactions.append(_make_interaction("alice", h, "received"))
+            mem._interaction_index.interactions.append(_make_interaction("alice", h, "received"))
         assert mem.count_recent_comments_by_author("alice") == 3
 
     def test_only_within_window(self, tmp_path):
         mem = MemoryStore(path=tmp_path / "memory.json")
         # 2 inside 24h, 2 outside
         for h in (1, 23):
-            mem._interactions.append(_make_interaction("alice", h, "sent"))
+            mem._interaction_index.interactions.append(_make_interaction("alice", h, "sent"))
         for h in (25, 100):
-            mem._interactions.append(_make_interaction("alice", h, "sent"))
+            mem._interaction_index.interactions.append(_make_interaction("alice", h, "sent"))
         assert mem.count_recent_comments_by_author("alice", hours=24) == 2
 
     def test_filters_by_name(self, tmp_path):
         mem = MemoryStore(path=tmp_path / "memory.json")
-        mem._interactions.append(_make_interaction("alice", 1, "sent"))
-        mem._interactions.append(_make_interaction("bob", 1, "sent"))
+        mem._interaction_index.interactions.append(_make_interaction("alice", 1, "sent"))
+        mem._interaction_index.interactions.append(_make_interaction("bob", 1, "sent"))
         assert mem.count_recent_comments_by_author("alice") == 1
         assert mem.count_recent_comments_by_author("bob") == 1
 
     def test_empty_name_returns_zero(self, tmp_path):
         mem = MemoryStore(path=tmp_path / "memory.json")
-        mem._interactions.append(_make_interaction("alice", 1, "sent"))
+        mem._interaction_index.interactions.append(_make_interaction("alice", 1, "sent"))
         assert mem.count_recent_comments_by_author("") == 0
 
     def test_unknown_name_returns_zero(self, tmp_path):
         # "unknown" must not collapse all unattributed comments into one bucket.
         mem = MemoryStore(path=tmp_path / "memory.json")
-        mem._interactions.append(_make_interaction("unknown", 1, "sent"))
+        mem._interaction_index.interactions.append(_make_interaction("unknown", 1, "sent"))
         assert mem.count_recent_comments_by_author("unknown") == 0
 
     def test_malformed_timestamp_is_skipped(self, tmp_path):
@@ -335,8 +335,8 @@ class TestAuthorRateLimit:
         mem = MemoryStore(path=tmp_path / "memory.json")
         bad = replace(_make_interaction("alice", 1, "sent"), timestamp="not-a-date")
         good = _make_interaction("alice", 2, "sent")
-        mem._interactions.append(bad)
-        mem._interactions.append(good)
+        mem._interaction_index.interactions.append(bad)
+        mem._interaction_index.interactions.append(good)
         # Bad entry skipped (silently), good entry counted.
         assert mem.count_recent_comments_by_author("alice") == 1
 
@@ -354,7 +354,7 @@ class TestGetRecentPosts:
     def test_returns_tail_with_limit(self, tmp_path):
         mem = MemoryStore(path=tmp_path / "memory.json")
         for i in range(10):
-            mem._post_history.append(
+            mem._posts.history.append(
                 PostRecord(
                     timestamp=f"2026-04-05T{i:02d}:00:00+00:00",
                     post_id=f"p{i}",
