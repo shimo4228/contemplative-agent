@@ -83,8 +83,10 @@ closed to ``None``.
 from __future__ import annotations
 
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
 from decimal import Decimal, DivisionByZero, InvalidOperation
-from typing import NamedTuple
+from typing import Generic, NamedTuple, TypeVar
 
 from .config import MAX_CHALLENGE_INPUT as _MAX_INPUT
 
@@ -1047,94 +1049,274 @@ def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -
     return _resolve_implicit(operands, tail, ands, atoms)
 
 
+class _Decision(NamedTuple):
+    """A rule's verdict, with ``stop`` carrying the whole point of the type.
+
+    A rule that abstains and a rule that does not apply both look like
+    ``None`` downstream, and a plain ``... -> str | None`` table cannot tell
+    them apart: the abstaining rule would fall through to later rules and
+    answer where the grammar says stay silent. Nine amendments' worth of
+    guards are abstains, so that collapse would not be a subtle regression —
+    it would be most of them.
+    """
+
+    stop: bool
+    answer: str | None
+
+
+_ABSTAIN = _Decision(stop=True, answer=None)
+"""The rule fires and the parser stays silent."""
+
+
+def _answer(value: str | None) -> _Decision:
+    """The rule fires with a computed answer — ``None`` included.
+
+    ``_compute_chain`` returns ``None`` for an out-of-domain step (negative
+    intermediate, division by zero). That is a fired rule producing no
+    answer, not a rule declining to apply, so it must stop too.
+    """
+    return _Decision(stop=True, answer=value)
+
+
+_Ctx = TypeVar("_Ctx")
+
+
+@dataclass(frozen=True)
+class _Rule(Generic[_Ctx]):
+    """One grammar rule: when it applies, and what it decides.
+
+    ``when`` and ``then`` stay separate so the table reads as a column of
+    conditions — that column is the answer to "which row does my next
+    amendment go in, and where".
+    """
+
+    name: str
+    when: Callable[[_Ctx], bool]
+    then: Callable[[_Ctx], _Decision]
+
+
+def _resolve_operation(rules: tuple[_Rule[_Ctx], ...], ctx: _Ctx) -> str | None:
+    """Walk an ordered rule table and return the first firing rule's answer.
+
+    Order is the grammar: earlier rows are the more specific readings. Every
+    table ends in an unconditional terminal row, so falling off the end is a
+    table-authoring bug, never a parse outcome.
+    """
+    for rule in rules:
+        if rule.when(ctx):
+            decision = rule.then(ctx)
+            if decision.stop:
+                return decision.answer
+    raise AssertionError("rule table is not total — it must end in a terminal row")
+
+
+@dataclass(frozen=True)
+class _ImplicitCtx:
+    """Everything the implicit two-operand rules read, derived once.
+
+    The nested conditions of the old cascade become named fields here, and
+    each flattened rule re-states the field it sits under. That is what keeps
+    an inner abstain from leaking into a later branch when the nesting goes
+    away.
+    """
+
+    operands: list[_Operand]
+    tail: _TailSignals
+    and_between: bool
+    cue_after: bool
+    sub_tail: list[_OpEvent]
+    other_tail: list[_OpEvent]
+    has_mult_signal: bool
+    mult_adjacent: bool
+    sub_all_adjacent: bool
+    imperative_add: bool
+    count_noun_after: bool
+    unit_first: str | None
+    unit_second: str | None
+    possessed_bare_count: bool
+    explicit_add: bool
+    like_units: bool
+
+
+def _implicit_context(
+    operands: list[_Operand],
+    tail: _TailSignals,
+    ands: list[_AndEvent],
+    atoms: list[str],
+) -> _ImplicitCtx:
+    """Derive the implicit-rule facts eagerly.
+
+    Every helper involved is pure and cannot raise ``_Abstain`` (the raises
+    all sit upstream, in operand building), and each lookback is bounded, so
+    computing them all up front is observationally identical to the lazy
+    cascade this replaces.
+    """
+    first, second = operands
+    mult_tail = tail.mult_ops
+    other_tail = tail.other_ops
+
+    # A trailing multiplicative marker counts as evidence only when adjacent —
+    # unlike a trailing multiplicative VERB, whose non-adjacent "what is the
+    # product?" question form is corpus-attested. A between-operand marker was
+    # already folded into the gap by _classify_positions and never reaches here.
+    adjacent_marks = tail.adjacent_marks
+
+    unit_first = _adjacent_atom(atoms, first.atom_end)
+    unit_second = _adjacent_atom(atoms, second.atom_end)
+    # Fuzzy unit pairing needs the same length floor as every other fuzzy
+    # comparison in this module: two short noise fragments ("me"/"ne") sit
+    # one edit apart far too easily. Exact equality has no floor (the corpus
+    # abbreviates units down to "cm", and equal short units are real signal).
+    like_units = unit_first is not None and (
+        unit_first == unit_second
+        or (
+            unit_second is not None
+            and len(unit_first) >= _FUZZY_MIN_TOKEN
+            and len(unit_second) >= _FUZZY_MIN_TOKEN
+            and _within_one_edit(unit_first, unit_second)
+        )
+    )
+
+    # A bare trailing additive verb ("... how many more?") is question
+    # framing, not an operator — except the imperative "please add them",
+    # an explicit instruction which resolves the add below.
+    imperative_add = bool(other_tail) and all(op.word in _IMPERATIVE_ADD_WORDS for op in other_tail)
+    sub_tail = tail.sub_ops
+
+    return _ImplicitCtx(
+        operands=operands,
+        tail=tail,
+        and_between=any(first.atom_end < a.atom_index < second.atom_start for a in ands),
+        cue_after=bool(tail.cues),
+        sub_tail=sub_tail,
+        other_tail=other_tail,
+        has_mult_signal=bool(mult_tail or adjacent_marks),
+        mult_adjacent=bool(adjacent_marks)
+        or any(tail.is_adjacent(op.atom_index) for op in mult_tail),
+        sub_all_adjacent=all(tail.is_adjacent(op.atom_index) for op in sub_tail),
+        imperative_add=imperative_add,
+        count_noun_after=_count_noun_after(atoms, second.atom_end),
+        unit_first=unit_first,
+        unit_second=unit_second,
+        possessed_bare_count=_possessed_bare_count(atoms, second),
+        # An explicit arithmetic instruction ("what is the sum of these" /
+        # "please add them") waives the like-unit guard: the corpus pairs
+        # unlike quantities (velocity + force) under an explicit sum, and the
+        # multiplicative reading was server-rejected.
+        explicit_add=imperative_add or any(c.word == "sum" for c in tail.cues),
+        like_units=like_units,
+    )
+
+
+# Ordered grammar for two operands with no explicit operation between them.
+# Priority: a multiplicative signal (specific) beats the additive question
+# cue (generic); a postfix subtraction requires immediate adjacency; the
+# implicit add requires the connective, the cue, and the unit guard — unless
+# an explicit arithmetic instruction ("sum" / "add them") waives it.
+#
+# Each block below is exhaustive over its own signal, which is what replaces
+# the old nesting: nothing falls out of the multiplicative block into the
+# subtraction block.
+_IMPLICIT_RULES: tuple[_Rule[_ImplicitCtx], ...] = (
+    # --- multiplicative signal --------------------------------------------
+    _Rule(
+        "multiplicative_signal_conflicts_with_subtraction",
+        lambda c: c.has_mult_signal and bool(c.sub_tail),
+        lambda _c: _ABSTAIN,
+    ),
+    _Rule(
+        "multiplicative_signal_supported_by_connective_or_adjacency",
+        lambda c: c.has_mult_signal and (c.and_between or c.mult_adjacent),
+        lambda c: _answer(_compute_chain(c.operands, [_MUL])),
+    ),
+    _Rule(
+        "multiplicative_signal_unsupported",
+        lambda c: c.has_mult_signal,
+        lambda _c: _ABSTAIN,
+    ),
+    # --- postfix subtraction ----------------------------------------------
+    _Rule(
+        "postfix_subtraction_mixed_with_another_operation",
+        lambda c: bool(c.sub_tail) and bool(c.other_tail),
+        lambda _c: _ABSTAIN,
+    ),
+    # A subtraction against a trailing "combined" cue ("another lobster slows
+    # by fifteen ... what's the combined velocity?") is contradictory: every
+    # corpus-accepted "combined" is additive, and the subtract reading was
+    # server-rejected — abstain, never guess.
+    _Rule(
+        "postfix_subtraction_against_combined_cue",
+        lambda c: bool(c.sub_tail) and c.tail.contradicts_subtraction,
+        lambda _c: _ABSTAIN,
+    ),
+    _Rule(
+        "postfix_subtraction_adjacent",
+        lambda c: bool(c.sub_tail) and c.sub_all_adjacent,
+        lambda c: _answer(_compute_chain(c.operands, [_SUB])),
+    ),
+    _Rule(
+        "postfix_subtraction_not_adjacent",
+        lambda c: bool(c.sub_tail),
+        lambda _c: _ABSTAIN,
+    ),
+    # --- additive readings -------------------------------------------------
+    _Rule(
+        "trailing_additive_verb_is_question_framing",
+        lambda c: bool(c.other_tail) and not c.imperative_add,
+        lambda _c: _ABSTAIN,
+    ),
+    # Count multiplier: "twenty five newtons and three claws" — a claw count
+    # directly after the second operand multiplies the per-claw magnitude
+    # (every corpus-accepted example is a product).
+    _Rule(
+        "count_noun_after_second_operand_multiplies",
+        lambda c: c.and_between and c.cue_after and c.count_noun_after,
+        lambda c: _answer(_compute_chain(c.operands, [_MUL])),
+    ),
+    # Implicit add: "X <unit> and Y <unit>, what is the total?"
+    _Rule(
+        "implicit_add_needs_connective_and_cue",
+        lambda c: not (c.and_between and (c.cue_after or c.imperative_add)),
+        lambda _c: _ABSTAIN,
+    ),
+    _Rule(
+        "implicit_add_needs_a_unit_on_both_operands",
+        lambda c: c.unit_first is None or c.unit_second is None,
+        lambda _c: _ABSTAIN,
+    ),
+    # A same-subject bare possessed count ("...and it has twoo, whats total
+    # force?") is ambiguous: corpus "has" adds when another entity holds the
+    # quantity ("the weaker claw has fourteen") but multiplies when the same
+    # subject possesses a count of claws, and here the count noun was mangled
+    # away — abstain rather than guess either way. The lookback is merge-aware
+    # ("i t ha s two" still reads as "it has"; found by codex-review: a raw
+    # single-atom check missed the split form).
+    _Rule(
+        "same_subject_possessed_bare_count_is_ambiguous",
+        lambda c: c.unit_second in _QUESTION_TOKENS and c.possessed_bare_count,
+        lambda _c: _ABSTAIN,
+    ),
+    _Rule(
+        "implicit_add_needs_like_units_or_an_explicit_instruction",
+        lambda c: not (c.like_units or c.unit_second in _QUESTION_TOKENS or c.explicit_add),
+        lambda _c: _ABSTAIN,
+    ),
+    _Rule(
+        "implicit_add",
+        lambda _c: True,
+        lambda c: _answer(_compute_chain(c.operands, [_ADD])),
+    ),
+)
+
+
 def _resolve_implicit(
     operands: list[_Operand],
     tail: _TailSignals,
     ands: list[_AndEvent],
     atoms: list[str],
 ) -> str | None:
-    """Resolve two operands with no explicit operation between them.
-
-    Priority: a multiplicative signal (specific) beats the additive question
-    cue (generic); a postfix subtraction requires immediate adjacency; the
-    implicit add requires the connective, the cue, and the unit guard —
-    unless an explicit arithmetic instruction ("sum" / "add them") waives
-    the unit guard.
-    """
-    first, second = operands
-    and_between = any(first.atom_end < a.atom_index < second.atom_start for a in ands)
-    cue_after = bool(tail.cues)
-
-    mult_tail = tail.mult_ops
-    sub_tail = tail.sub_ops
-    other_tail = tail.other_ops
-
-    # A trailing multiplicative marker counts as evidence only when adjacent —
-    # unlike a trailing multiplicative VERB, whose non-adjacent "what is the
-    # product?" question form is corpus-attested. A between-operand marker was
-    # already folded into the gap by _resolve and never reaches here.
-    adjacent_marks = tail.adjacent_marks
-    if mult_tail or adjacent_marks:
-        if sub_tail:
-            return None
-        adjacent = bool(adjacent_marks) or any(tail.is_adjacent(op.atom_index) for op in mult_tail)
-        if and_between or adjacent:
-            return _compute_chain(operands, [_MUL])
-        return None
-    if sub_tail:
-        if other_tail:
-            return None
-        if tail.contradicts_subtraction:
-            return None
-        if all(tail.is_adjacent(op.atom_index) for op in sub_tail):
-            return _compute_chain(operands, [_SUB])
-        return None
-    # A bare trailing additive verb ("... how many more?") is question
-    # framing, not an operator — except the imperative "please add them",
-    # an explicit instruction which resolves the add below.
-    imperative_add = bool(other_tail) and all(op.word in _IMPERATIVE_ADD_WORDS for op in other_tail)
-    if other_tail and not imperative_add:
-        return None
-
-    # Count multiplier: "twenty five newtons and three claws" — a claw
-    # count directly after the second operand multiplies the per-claw
-    # magnitude (every corpus-accepted example is a product).
-    if and_between and cue_after and _count_noun_after(atoms, second.atom_end):
-        return _compute_chain(operands, [_MUL])
-
-    # Implicit add: "X <unit> and Y <unit>, what is the total?"
-    if not (and_between and (cue_after or imperative_add)):
-        return None
-    unit_first = _adjacent_atom(atoms, first.atom_end)
-    unit_second = _adjacent_atom(atoms, second.atom_end)
-    if unit_first is None or unit_second is None:
-        return None
-    # A same-subject bare possessed count ("...and it has twoo, whats total
-    # force?") is ambiguous: corpus "has" adds when another entity holds the
-    # quantity ("the weaker claw has fourteen") but multiplies when the same
-    # subject possesses a count of claws, and here the count noun was
-    # mangled away — abstain rather than guess either way. The lookback is
-    # merge-aware ("i t ha s two" still reads as "it has"; found by
-    # codex-review: a raw single-atom check missed the split form).
-    if unit_second in _QUESTION_TOKENS and _possessed_bare_count(atoms, second):
-        return None
-    # An explicit arithmetic instruction ("what is the sum of these" /
-    # "please add them") waives the like-unit guard: the corpus pairs
-    # unlike quantities (velocity + force) under an explicit sum, and the
-    # multiplicative reading was server-rejected.
-    explicit_add = imperative_add or any(c.word == "sum" for c in tail.cues)
-    # Fuzzy unit pairing needs the same length floor as every other fuzzy
-    # comparison in this module: two short noise fragments ("me"/"ne") sit
-    # one edit apart far too easily. Exact equality has no floor (the corpus
-    # abbreviates units down to "cm", and equal short units are real signal).
-    like_units = unit_first == unit_second or (
-        len(unit_first) >= _FUZZY_MIN_TOKEN
-        and len(unit_second) >= _FUZZY_MIN_TOKEN
-        and _within_one_edit(unit_first, unit_second)
-    )
-    if not (like_units or unit_second in _QUESTION_TOKENS or explicit_add):
-        return None
-    return _compute_chain(operands, [_ADD])
+    """Resolve two operands with no explicit operation between them."""
+    return _resolve_operation(_IMPLICIT_RULES, _implicit_context(operands, tail, ands, atoms))
 
 
 def _adjacent_atom(atoms: list[str], atom_end: int) -> str | None:
