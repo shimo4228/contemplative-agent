@@ -26,7 +26,6 @@ fails closed to ``None`` and is bounded by ``VerificationTracker``.
 
 from __future__ import annotations
 
-import base64
 import hashlib
 import json
 import logging
@@ -35,9 +34,14 @@ import re
 from dataclasses import dataclass
 from decimal import Decimal, DivisionByZero, InvalidOperation
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal, Optional
+from typing import TYPE_CHECKING, Any, Literal
 
-from ...core._io import append_jsonl_restricted, now_iso, strip_to_printable
+from ...core._io import (
+    append_jsonl_restricted,
+    b64_audit_fields,
+    now_iso,
+    strip_to_printable,
+)
 from ...core.llm import generate, wrap_untrusted_content
 from .config import (
     EPISODE_LOG_DIR,
@@ -113,7 +117,7 @@ VERIFICATION_AUDIT_PATH = EPISODE_LOG_DIR / "verification-audit.jsonl"
 class VerificationSolveResult:
     """Internal solve outcome used for challenge-corpus audit logging."""
 
-    answer: Optional[str]
+    answer: str | None
     solver_path: Literal["code_parse", "llm_extract", "none"]
     challenge_sha256: str
     # Categorical reason for a None answer, e.g. "reason_fallback_disabled"
@@ -122,7 +126,7 @@ class VerificationSolveResult:
     # no parseable answer) leave this None, unchanged from before this field
     # existed. Threaded into the audit log's existing `error` column (see
     # agent.py._handle_verification) rather than adding a new log field.
-    abstain_reason: Optional[str] = None
+    abstain_reason: str | None = None
 
 
 # Rejected-answer memory (round 8, ADR-0062 8th amendment). The audit log is
@@ -153,7 +157,7 @@ _REJECTED_ERROR_MARKER = "incorrect answer"
 _ABSTAIN_REASON_FALLBACK_DISABLED = "reason_fallback_disabled"
 
 
-def _load_rejected_answers(challenge_sha256: str, path: Optional[Path] = None) -> frozenset[str]:
+def _load_rejected_answers(challenge_sha256: str, path: Path | None = None) -> frozenset[str]:
     """Answers the server has already rejected for this exact challenge.
 
     Reads server-rejection records (verify_success=false with the
@@ -203,7 +207,7 @@ def _load_rejected_answers(challenge_sha256: str, path: Optional[Path] = None) -
     return frozenset(rejected.get(challenge_sha256, ()))
 
 
-def solve_challenge(challenge_text: str) -> Optional[str]:
+def solve_challenge(challenge_text: str) -> str | None:
     """Solve an obfuscated math challenge via the LLM.
 
     Returns the answer formatted to 2 decimals (e.g. ``"15.00"``), or ``None``
@@ -320,7 +324,7 @@ def record_verification_audit(
     verification_code: str,
     solve_result: VerificationSolveResult,
     verify_success: bool,
-    error: Optional[str] = None,
+    error: str | None = None,
 ) -> None:
     """Append a best-effort verification corpus/audit record.
 
@@ -365,17 +369,19 @@ def _verification_audit_record(
     verification_code: str,
     solve_result: VerificationSolveResult,
     verify_success: bool,
-    error: Optional[str],
+    error: str | None,
 ) -> dict[str, Any]:
-    raw = challenge_text.encode("utf-8", "replace")
-    kept = raw[:_MAX_AUDIT_CHALLENGE_BYTES]
     record: dict[str, Any] = {
         "ts": now_iso("seconds"),
-        "challenge_sha256": solve_result.challenge_sha256,
-        "challenge_encoding": "base64:utf-8",
-        "challenge_b64": base64.b64encode(kept).decode("ascii"),
-        "challenge_bytes": len(raw),
-        "challenge_truncated": len(kept) < len(raw),
+        # The digest is the solver's, computed upstream over this same text
+        # (``_sha256_text`` uses the same encode-with-replace), so the audit
+        # row and the rejected-answer index key stay literally identical.
+        **b64_audit_fields(
+            "challenge",
+            challenge_text,
+            max_bytes=_MAX_AUDIT_CHALLENGE_BYTES,
+            sha256=solve_result.challenge_sha256,
+        ),
         "verification_code_sha256": _sha256_text(verification_code) if verification_code else None,
         "answer": solve_result.answer,
         "solver_path": solve_result.solver_path,
@@ -394,7 +400,7 @@ def _sanitize_audit_error(error: str) -> str:
     return strip_to_printable(error, 200)
 
 
-def _generate_solver(prompt: str, *, system: str, num_predict: int) -> Optional[str]:
+def _generate_solver(prompt: str, *, system: str, num_predict: int) -> str | None:
     return generate(
         prompt,
         system=system,
@@ -418,7 +424,7 @@ def _extract_system_prompt() -> str:
     return VERIFICATION_SOLVE_EXTRACT_SYSTEM_PROMPT or _DEFAULT_EXTRACT_SYSTEM
 
 
-def _extract_guarded_answer(text: str) -> Optional[str]:
+def _extract_guarded_answer(text: str) -> str | None:
     """Validate EXPR/FINAL output and return the computed answer if they agree."""
     expr = _extract_labeled_value(text, ("EXPR", "EXPRESSION"))
     final = _extract_labeled_value(text, ("FINAL", "ANSWER"))
@@ -438,7 +444,7 @@ def _extract_guarded_answer(text: str) -> Optional[str]:
     return computed
 
 
-def _extract_labeled_value(text: str, labels: tuple[str, ...]) -> Optional[str]:
+def _extract_labeled_value(text: str, labels: tuple[str, ...]) -> str | None:
     pattern = "|".join(re.escape(label) for label in labels)
     match = re.search(rf"^\s*(?:{pattern})\s*:\s*(.+?)\s*$", text, re.IGNORECASE | re.MULTILINE)
     if match is None:
@@ -446,7 +452,7 @@ def _extract_labeled_value(text: str, labels: tuple[str, ...]) -> Optional[str]:
     return match.group(1).strip()
 
 
-def _compute_expression_answer(expr: str) -> Optional[str]:
+def _compute_expression_answer(expr: str) -> str | None:
     """Compute a strict two-number arithmetic expression from LLM output."""
     match = _EXPR_PATTERN.fullmatch(expr.strip().strip("`"))
     if match is None:
@@ -460,7 +466,7 @@ def _compute_expression_answer(expr: str) -> Optional[str]:
     return _compute_decimal_pair(lhs, match.group(2), rhs)
 
 
-def _compute_decimal_pair(lhs: Decimal, op: str, rhs: Decimal) -> Optional[str]:
+def _compute_decimal_pair(lhs: Decimal, op: str, rhs: Decimal) -> str | None:
     try:
         if op == "+":
             result = lhs + rhs
@@ -484,14 +490,14 @@ def _compute_decimal_pair(lhs: Decimal, op: str, rhs: Decimal) -> Optional[str]:
     return _format_decimal(result)
 
 
-def _format_decimal(value: Decimal) -> Optional[str]:
+def _format_decimal(value: Decimal) -> str | None:
     if not value.is_finite():
         return None
     formatted = f"{value:.2f}"
     return "0.00" if formatted == "-0.00" else formatted
 
 
-def _extract_answer(text: str) -> Optional[str]:
+def _extract_answer(text: str) -> str | None:
     """Pull the final number from LLM output and format it to 2 decimals.
 
     A labeled ``FINAL:`` / ``ANSWER:`` line wins. Otherwise the last number is
@@ -512,7 +518,7 @@ def _extract_answer(text: str) -> Optional[str]:
 
 
 def submit_verification(
-    client: "MoltbookClient",
+    client: MoltbookClient,
     verification_code: str,
     answer: str,
 ) -> dict:

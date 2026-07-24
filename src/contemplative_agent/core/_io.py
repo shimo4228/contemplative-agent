@@ -6,15 +6,18 @@ and text truncation helpers used across core / adapters.
 
 from __future__ import annotations
 
+import base64
 import fcntl
+import hashlib
 import json
 import logging
 import os
 import re
+from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, Iterator, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -57,8 +60,7 @@ def truncate_boundary(text: str, max_length: int, marker: str = "…[truncated]"
         idx = window.rfind(sep)
         if idx != -1:
             cand = idx + len(sep)
-            if cand > best:
-                best = cand
+            best = max(best, cand)
     if best >= floor:
         return text[:best].rstrip() + marker
     space = window.rfind(" ")
@@ -100,7 +102,7 @@ def write_restricted(path: Path, content: str) -> None:
         os.umask(old_umask)
 
 
-def append_jsonl_restricted(path: Path, record: Dict[str, Any]) -> None:
+def append_jsonl_restricted(path: Path, record: dict[str, Any]) -> None:
     """Append one JSON record to a JSONL file with 0600 permissions.
 
     Creates the parent directory if missing. Serialises with
@@ -188,6 +190,52 @@ def strip_to_printable(value: object, max_len: int, *, keep_newline: bool = Fals
     return pattern.sub("", str(value)[:max_len])
 
 
+def b64_audit_fields(
+    name: str,
+    text: str | None,
+    *,
+    max_bytes: int,
+    sha256: str | None = None,
+) -> dict[str, Any]:
+    """Replay-safe storage bundle for one untrusted text field (ADR-0075).
+
+    Emits ``{name}_sha256`` over the *full* text, ``{name}_b64`` of the kept
+    prefix, ``{name}_bytes`` (full byte length), and an explicit
+    ``{name}_truncated`` flag, so an offline replay can tell a bounded record
+    from a complete one instead of silently reading a cut-off payload as whole.
+
+    Single owner for the encoding so the three audit writers (insight-novelty,
+    skill-selection, verification) cannot drift in replay format. ``max_bytes``
+    stays per-caller — the cap is each log's size budget, not a shared
+    constant. ``sha256`` overrides the digest for callers that already
+    computed it upstream over the same text.
+
+    ``text is None`` yields only ``{name}_b64: None`` (no digest / length /
+    flag): the field was never produced, which is distinct from "produced and
+    empty".
+
+    The prefix is cut on a **codepoint** boundary. A raw ``raw[:max_bytes]``
+    slice can end mid-sequence, and a consumer doing
+    ``b64decode(rec[f"{name}_b64"]).decode("utf-8")`` then raises
+    ``UnicodeDecodeError`` — a live hazard for this project's Japanese
+    payloads. Re-encoding the ignore-decoded prefix drops only the trailing
+    partial sequence, since the input is valid UTF-8 by construction.
+    """
+    if text is None:
+        return {f"{name}_b64": None}
+    raw = text.encode("utf-8", "replace")
+    kept = raw[:max_bytes]
+    if len(kept) < len(raw):
+        kept = kept.decode("utf-8", "ignore").encode("utf-8")
+    return {
+        f"{name}_sha256": sha256 if sha256 is not None else hashlib.sha256(raw).hexdigest(),
+        f"{name}_encoding": "base64:utf-8",
+        f"{name}_b64": base64.b64encode(kept).decode("ascii"),
+        f"{name}_bytes": len(raw),
+        f"{name}_truncated": len(kept) < len(raw),
+    }
+
+
 def ensure_aware(dt: datetime) -> datetime:
     """Coerce a tz-naive datetime to UTC; tz-aware inputs pass through."""
     return dt.replace(tzinfo=timezone.utc) if dt.tzinfo is None else dt
@@ -202,7 +250,7 @@ def parse_aware_utc(value: str) -> datetime:
     return ensure_aware(datetime.fromisoformat(value))
 
 
-def age_days(dt: datetime, *, now: Optional[datetime] = None) -> float:
+def age_days(dt: datetime, *, now: datetime | None = None) -> float:
     """Non-negative age in days of an aware datetime versus *now* (UTC)."""
     ref = now if now is not None else datetime.now(timezone.utc)
     return max(0.0, (ref - dt).total_seconds() / 86400.0)
@@ -221,7 +269,7 @@ def write_text_atomic(path: Path, content: str) -> None:
     write_restricted(path, content)
 
 
-def read_run_marker(directory: Optional[Path], name: str) -> Optional[str]:
+def read_run_marker(directory: Path | None, name: str) -> str | None:
     """Read a stored ISO timestamp from ``directory/name``, or ``None``."""
     if directory is None:
         return None

@@ -1,5 +1,7 @@
 """Tests for core/_io shared I/O helpers (process lock, audit M5)."""
 
+import base64
+import hashlib
 import json
 import os
 import re
@@ -11,6 +13,7 @@ from contemplative_agent.core._io import (
     SUMMARY_MAX_LENGTH,
     acquire_run_lock,
     append_jsonl_restricted,
+    b64_audit_fields,
     now_iso,
     strip_code_fence,
     truncate,
@@ -207,3 +210,77 @@ class TestWriteRestrictedAtomicM11:
         write_restricted(target, "body")
         assert target.read_text(encoding="utf-8") == "body"
         assert list(tmp_path.glob("*.tmp")) == []
+
+
+class TestB64AuditFields:
+    """Shared replay-safe encoder for untrusted audit text (ADR-0075).
+
+    Single owner for the format used by insight-novelty, skill-selection and
+    verification audit logs — these tests are what stops the three from
+    drifting apart again.
+    """
+
+    def test_untruncated_roundtrips(self):
+        text = "hello world"
+        fields = b64_audit_fields("prompt", text, max_bytes=1024)
+        assert fields["prompt_encoding"] == "base64:utf-8"
+        assert fields["prompt_truncated"] is False
+        assert fields["prompt_bytes"] == len(text.encode("utf-8"))
+        assert base64.b64decode(fields["prompt_b64"]).decode("utf-8") == text
+        assert fields["prompt_sha256"] == hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def test_none_emits_only_b64_key(self):
+        # "never produced" must stay distinguishable from "produced and empty":
+        # no digest, no length, no truncation flag.
+        assert b64_audit_fields("output", None, max_bytes=1024) == {"output_b64": None}
+
+    def test_empty_string_is_not_none(self):
+        fields = b64_audit_fields("output", "", max_bytes=1024)
+        assert fields["output_b64"] == ""
+        assert fields["output_bytes"] == 0
+        assert fields["output_truncated"] is False
+
+    def test_sha256_covers_full_text_not_kept_prefix(self):
+        text = "x" * 100
+        fields = b64_audit_fields("prompt", text, max_bytes=10)
+        assert fields["prompt_truncated"] is True
+        assert fields["prompt_bytes"] == 100
+        assert len(base64.b64decode(fields["prompt_b64"])) == 10
+        # Digest is over the whole text, so replay can detect a bounded row.
+        assert fields["prompt_sha256"] == hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+    def test_truncated_multibyte_prefix_still_decodes(self):
+        # Regression: a raw ``raw[:cap]`` slice cut mid-sequence, so a consumer
+        # doing b64decode(...).decode("utf-8") raised UnicodeDecodeError on
+        # Japanese payloads. The prefix must land on a codepoint boundary.
+        text = "あいうえお" * 10  # 3 bytes per char
+        for cap in range(1, 32):
+            fields = b64_audit_fields("prompt", text, max_bytes=cap)
+            kept = base64.b64decode(fields["prompt_b64"])
+            kept.decode("utf-8")  # must not raise
+            assert len(kept) <= cap
+            assert text.startswith(kept.decode("utf-8"))
+
+    def test_boundary_trim_still_flags_truncation(self):
+        # cap=2 on a 3-byte char keeps zero bytes — still a truncation, and the
+        # flag must say so rather than reading as a complete empty payload.
+        fields = b64_audit_fields("prompt", "あ", max_bytes=2)
+        assert base64.b64decode(fields["prompt_b64"]) == b""
+        assert fields["prompt_truncated"] is True
+        assert fields["prompt_bytes"] == 3
+
+    def test_sha256_override_wins(self):
+        # verification passes the solver's precomputed digest so the audit row
+        # and the rejected-answer index key stay literally identical.
+        fields = b64_audit_fields("challenge", "abc", max_bytes=1024, sha256="deadbeef")
+        assert fields["challenge_sha256"] == "deadbeef"
+
+    def test_name_prefixes_every_field(self):
+        fields = b64_audit_fields("challenge", "abc", max_bytes=1024)
+        assert set(fields) == {
+            "challenge_sha256",
+            "challenge_encoding",
+            "challenge_b64",
+            "challenge_bytes",
+            "challenge_truncated",
+        }

@@ -16,8 +16,6 @@ vocabulary back into the judge).
 
 from __future__ import annotations
 
-import base64
-import hashlib
 import json
 import logging
 import re
@@ -28,7 +26,7 @@ from typing import Any
 
 import numpy as np
 
-from ._io import append_jsonl_restricted, now_iso, strip_to_printable
+from ._io import append_jsonl_restricted, b64_audit_fields, now_iso, strip_to_printable
 from .insight import skill_theme
 from .llm import (
     _estimate_tokens,
@@ -248,20 +246,13 @@ def select_applicable_skills(
 
 
 def _b64_fields(name: str, text: str | None) -> dict[str, Any]:
-    """Untrusted-text storage bundle (same shape as insight-novelty audit):
-    sha256 over the full text, base64 of the kept prefix, explicit
-    truncation flag."""
-    if text is None:
-        return {f"{name}_b64": None}
-    raw = text.encode("utf-8", "replace")
-    kept = raw[:_MAX_SKILL_SELECTION_AUDIT_BYTES]
-    return {
-        f"{name}_sha256": hashlib.sha256(raw).hexdigest(),
-        f"{name}_encoding": "base64:utf-8",
-        f"{name}_b64": base64.b64encode(kept).decode("ascii"),
-        f"{name}_bytes": len(raw),
-        f"{name}_truncated": len(kept) < len(raw),
-    }
+    """Untrusted-text storage bundle at this log's byte cap.
+
+    Thin binding of the shared encoder to ``_MAX_SKILL_SELECTION_AUDIT_BYTES``;
+    the replay format itself lives in ``_io.b64_audit_fields`` so the three
+    audit writers cannot drift apart.
+    """
+    return b64_audit_fields(name, text, max_bytes=_MAX_SKILL_SELECTION_AUDIT_BYTES)
 
 
 def _append_selection_audit(record: dict[str, Any]) -> None:

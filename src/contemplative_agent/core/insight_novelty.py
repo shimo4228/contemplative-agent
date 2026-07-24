@@ -9,14 +9,12 @@ import from .insight (the extraction pipeline imports this module).
 
 from __future__ import annotations
 
-import base64
-import hashlib
 import json
 import logging
 import re
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import List, Optional, Sequence, Tuple
 
 from . import llm
 from ._io import strip_code_fence
@@ -62,7 +60,7 @@ _NOVELTY_TRUNCATED_SAMPLE_CHARS = 150
 
 
 # One cluster batch as produced by _build_cluster_batches.
-_Batch = Tuple[str, List[str], Tuple[str, ...]]
+_Batch = tuple[str, list[str], tuple[str, ...]]
 
 
 @dataclass(frozen=True)
@@ -75,12 +73,12 @@ class NoveltyFilterResult:
     consumes exactly this set.
     """
 
-    novel: Tuple[_Batch, ...]
+    novel: tuple[_Batch, ...]
     skipped_known: int
     fail_open_topics: frozenset[str]
 
 
-def _render_known_lines(known_themes: Sequence[Tuple[str, str]]) -> str:
+def _render_known_lines(known_themes: Sequence[tuple[str, str]]) -> str:
     return "\n".join(
         f"- {name}: {description}" if description else f"- {name}"
         for name, description in known_themes
@@ -89,7 +87,7 @@ def _render_known_lines(known_themes: Sequence[Tuple[str, str]]) -> str:
 
 def _cluster_block(
     topic: str,
-    patterns: List[str],
+    patterns: list[str],
     sample_n: int = _NOVELTY_SAMPLE_PER_CLUSTER,
     sample_chars: int = _NOVELTY_SAMPLE_CHARS,
 ) -> str:
@@ -125,7 +123,7 @@ def _novelty_ctx_window() -> int:
 def _pack_novelty_chunks(
     batches: Sequence[_Batch],
     known_lines: str,
-) -> Tuple[List[Tuple[List[_Batch], List[str]]], List[_Batch]]:
+) -> tuple[list[tuple[list[_Batch], list[str]]], list[_Batch]]:
     """Greedily pack cluster blocks into token-budgeted judge chunks.
 
     Deterministic and order-preserving. Returns ``(chunks, unbudgetable)``
@@ -134,10 +132,10 @@ def _pack_novelty_chunks(
     the caller fails those open with an audit reason.
     """
     budget = _novelty_ctx_window() - _NOVELTY_OUTPUT_RESERVE - _novelty_fixed_tokens(known_lines)
-    chunks: List[Tuple[List[_Batch], List[str]]] = []
-    unbudgetable: List[_Batch] = []
-    cur_batches: List[_Batch] = []
-    cur_blocks: List[str] = []
+    chunks: list[tuple[list[_Batch], list[str]]] = []
+    unbudgetable: list[_Batch] = []
+    cur_batches: list[_Batch] = []
+    cur_blocks: list[str] = []
     cur_tokens = 0
     for batch in batches:
         topic, patterns, _pids = batch
@@ -170,7 +168,7 @@ def _pack_novelty_chunks(
     return chunks, unbudgetable
 
 
-def skill_theme(text: str, fallback_name: str = "skill") -> Tuple[str, str]:
+def skill_theme(text: str, fallback_name: str = "skill") -> tuple[str, str]:
     """Return ``(name, description)`` for a skill document.
 
     Reads the YAML frontmatter scalars when present; falls back to the
@@ -191,9 +189,9 @@ def skill_theme(text: str, fallback_name: str = "skill") -> Tuple[str, str]:
 
 
 def _load_known_themes(
-    skills_dir: Optional[Path],
-    staged_ledger_path: Optional[Path],
-) -> List[Tuple[str, str]]:
+    skills_dir: Path | None,
+    staged_ledger_path: Path | None,
+) -> list[tuple[str, str]]:
     """Inventory of themes already surfaced to the human gate.
 
     Sources: adopted skill files (``skills_dir/*.md``) and the staged
@@ -201,7 +199,7 @@ def _load_known_themes(
     a candidate counts as "considered" once it reached review, whether
     or not it was adopted). Deduplicated by name, first occurrence wins.
     """
-    themes: List[Tuple[str, str]] = []
+    themes: list[tuple[str, str]] = []
     seen: set[str] = set()
 
     if skills_dir is not None and skills_dir.is_dir():
@@ -241,7 +239,7 @@ def _load_known_themes(
     return themes
 
 
-def _parse_covered_ids(raw: str, known_topics: set[str]) -> Optional[set[str]]:
+def _parse_covered_ids(raw: str, known_topics: set[str]) -> set[str] | None:
     """Parse the novelty judge's output into covered cluster ids.
 
     Tolerates code fences and surrounding prose (same salvage as
@@ -273,16 +271,16 @@ _MAX_NOVELTY_AUDIT_BYTES = 131072
 
 
 def _append_novelty_audit(
-    audit_path: Optional[Path],
+    audit_path: Path | None,
     *,
     verdict: str,
     batches: Sequence[_Batch],
-    covered: Optional[set[str]],
+    covered: set[str] | None,
     known_themes_count: int,
-    prompt: Optional[str],
-    raw_output: Optional[str],
-    batch_index: Optional[int] = None,
-    batch_count: Optional[int] = None,
+    prompt: str | None,
+    raw_output: str | None,
+    batch_index: int | None = None,
+    batch_count: int | None = None,
 ) -> None:
     """Best-effort replay record for one novelty-judge chunk (ADR-0074/0075).
 
@@ -297,20 +295,11 @@ def _append_novelty_audit(
     if audit_path is None:
         return
     try:
-        from ._io import append_jsonl_restricted, now_iso
+        from ._io import append_jsonl_restricted, b64_audit_fields, now_iso
 
-        def _b64_fields(name: str, text: Optional[str]) -> dict:
-            if text is None:
-                return {f"{name}_b64": None}
-            raw = text.encode("utf-8", "replace")
-            kept = raw[:_MAX_NOVELTY_AUDIT_BYTES]
-            return {
-                f"{name}_sha256": hashlib.sha256(raw).hexdigest(),
-                f"{name}_encoding": "base64:utf-8",
-                f"{name}_b64": base64.b64encode(kept).decode("ascii"),
-                f"{name}_bytes": len(raw),
-                f"{name}_truncated": len(kept) < len(raw),
-            }
+        def _b64_fields(name: str, text: str | None) -> dict:
+            """Bind the shared replay encoder to this log's byte cap."""
+            return b64_audit_fields(name, text, max_bytes=_MAX_NOVELTY_AUDIT_BYTES)
 
         record: dict = {
             "ts": now_iso("seconds"),
@@ -329,9 +318,9 @@ def _append_novelty_audit(
 
 
 def _filter_novel_batches(
-    batches: List[_Batch],
-    known_themes: Sequence[Tuple[str, str]],
-    audit_path: Optional[Path] = None,
+    batches: list[_Batch],
+    known_themes: Sequence[tuple[str, str]],
+    audit_path: Path | None = None,
 ) -> NoveltyFilterResult:
     """Drop cluster batches whose theme is already covered (ADR-0074).
 
