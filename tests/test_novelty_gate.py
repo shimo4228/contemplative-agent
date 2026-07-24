@@ -280,7 +280,7 @@ class TestNoveltyGateFallback:
         assert decision.admit is False
         assert decision.reason == "embed_failed_fallback"
 
-    def test_partial_history_embeddings_still_compute(self, gate, monkeypatch):  # noqa
+    def test_partial_history_embeddings_still_compute(self, gate, monkeypatch):
         _no_deficit(gate, monkeypatch)
         # Draft + some priors get embeddings; one prior has no cached embedding
         # and the embed call for that one cannot run because the gate uses the
