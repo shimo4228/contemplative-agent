@@ -24,7 +24,12 @@ from contemplative_agent.adapters.moltbook.verification import (
     submit_verification,
 )
 from contemplative_agent.adapters.moltbook.verification_parse import (
+    _ABSTAIN,
+    _EXPLICIT_TAIL_RULES,
+    _IMPLICIT_RULES,
     _collapse_repeats,
+    _resolve_operation,
+    _Rule,
     code_parse_challenge,
 )
 
@@ -1279,6 +1284,33 @@ class TestCodeParse:
     )
     def test_collapse_repeats(self, raw, expected):
         assert _collapse_repeats(raw) == expected
+
+
+class TestRuleTableTotality:
+    """Both grammar tables must end in an unconditional row.
+
+    ``_resolve_operation`` raises rather than returning ``None`` when it walks
+    off the end of a table, and that raise is NOT caught by
+    ``code_parse_challenge``'s ``except _Abstain`` — so a non-total table
+    would turn untrusted CAPTCHA text into a crash in the caller instead of
+    the documented fail-closed abstain. The invariant only lives in a comment
+    otherwise, and a future amendment inserting a row after the terminal one
+    (or reordering it) would break it silently. Pin it here instead.
+    """
+
+    @pytest.mark.parametrize(
+        ("name", "rules"),
+        [("implicit", _IMPLICIT_RULES), ("explicit", _EXPLICIT_TAIL_RULES)],
+    )
+    def test_table_ends_in_an_unconditional_row(self, name, rules):
+        # A context of the wrong type entirely: an unconditional predicate
+        # ignores it, anything else would touch an attribute and raise.
+        assert rules[-1].when(object()) is True, f"{name} table has no terminal row"
+
+    def test_driver_refuses_to_fall_off_a_non_total_table(self):
+        never_fires = (_Rule("never", lambda _c: False, lambda _c: _ABSTAIN),)
+        with pytest.raises(AssertionError, match="not total"):
+            _resolve_operation(never_fires, object())
 
 
 class TestReasoningFallbackRegression:

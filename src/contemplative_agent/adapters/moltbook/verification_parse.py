@@ -1105,7 +1105,8 @@ _EXPLICIT_TAIL_RULES: tuple[_Rule[_ExplicitCtx], ...] = (
     # what proves it.
     _Rule(
         "adjacent_multiplicative_tail_overrides_change_verb",
-        lambda c: bool(c.contradicting) and c.mul_override,
+        # mul_override already requires a non-empty ``contradicting``.
+        lambda c: c.mul_override,
         lambda c: _answer(_compute_chain(c.operands, [_MUL])),
     ),
     _Rule(

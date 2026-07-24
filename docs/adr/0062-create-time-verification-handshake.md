@@ -279,6 +279,62 @@ commit. The corpus has grown from 1272 to 2149 unique challenges since the
 eighth amendment; these are new grammar failures accumulated since, and closing
 them is an eleventh amendment, not a refactor.
 
+Tenth amendment, part two 2026-07-25: structural only — no grammar change. The
+tenth amendment removed the *duplication* between the two resolution branches;
+this removes the thing that made the duplication easy to introduce. `_resolve`
+and `_resolve_implicit` were imperative if/return cascades of 26 and 27
+branches, and nothing in their shape said where the next amendment goes. The
+branch count is unchanged and is not a target — every one of those branches was
+carved out of a real server-rejected answer across nine amendments. What
+changed is the representation: two ordered rule tables (`_EXPLICIT_TAIL_RULES`,
+4 rows; `_IMPLICIT_RULES`, 14 rows — one row per original `return`), each row a
+name plus a predicate plus a result, walked in order by one driver
+(`_resolve_operation`). The next amendment adds a row, and the `when` column
+says where.
+
+Two design points are load-bearing:
+
+- **The verdict type is tri-state.** A rule that abstains and a rule that does
+  not apply both look like `None` downstream, so a plain `... -> str | None`
+  table would let an abstaining guard fall through and answer where the grammar
+  says stay silent. `_Decision.stop` separates them. Most of the rules across
+  nine amendments *are* abstains, so this collapse would not have been an edge
+  case. `_answer()` wraps `_compute_chain`'s out-of-domain `None` for the same
+  reason: a fired rule with no answer still stops.
+- **Not everything became a table.** The position classification that used to
+  open `_resolve` (fold the events into per-gap and tail buckets, collapse,
+  check ambiguity) is a fold, not a decision cascade — its abstains are guard
+  clauses of the classification itself and cannot be predicates over a context
+  the loop has not finished building. It moved out to `_classify_positions` and
+  stayed imperative, with a docstring saying why. Rules decide what an
+  arrangement means; that function decides what the arrangement is.
+
+Flattening nested conditionals is where a guard silently widens its reach, so
+every outer condition became a named context field that each flattened row
+re-states, and each block of rows is exhaustive over its own signal. Context is
+derived eagerly, which is observationally identical here because every helper
+involved is pure, non-raising, and bounded (the same bounds that answer the
+adversarial-input DoS question).
+
+One rule is not a straight transcription: the adjacent-multiplicative override
+used to rewrite the chain to `*` and fall into the subtract-vs-"combined"
+guard, which is inert after an override since a multiply is never a subtract.
+The row answers directly. It is called out at the row because the differential
+replay, not reading, is what proves it.
+
+Verified by the same differential gate as the tenth amendment (2149/2149
+agreement with the frozen pre-refactor baseline), plus a cross-model review
+that independently fuzzed 20,000 randomized challenges through both versions
+and found no divergence. `replay_parser.py` still reports exactly 7 wrong /
+382 abstained / 1755 correct — unchanged, which is the point.
+
+`_resolve_operation` raises rather than abstaining if a table is not total, and
+that raise is not caught by `code_parse_challenge`'s `except _Abstain` — so a
+non-total table would turn untrusted CAPTCHA text into a crash instead of the
+documented fail-closed abstain. That invariant is now a test
+(`TestRuleTableTotality`) rather than a comment, demonstrated to fire by
+temporarily making a terminal row conditional.
+
 ## Date
 
 2026-06-26
