@@ -2,7 +2,9 @@
 
 The following are methodological principles applied by the `weekly-report-diagnosis` skill
 when generating code-level findings (F1 structural / F2 identity-level / F3 observations).
-Principle 3 (quote-based depth) also applies to the upstream `weekly-analysis` weekly report.
+Principles 3 (quote-based depth) and 5 (deterministic input for cross-entry claims) also
+apply to the upstream `weekly-analysis` weekly report — Principle 5 was written from a
+failure that occurred there, and that report receives this file at generation time.
 Violations should self-correct before publication.
 
 ## Principle 1 — No post-generation filter as recommendation
@@ -44,6 +46,39 @@ treat this as evidence that (a) it violates one of the above principles, or (b) 
 signal is being mis-categorized. Re-frame as F2 (identity-level question) or F3 (observation).
 Do not re-propose the same mechanism with stronger urgency — escalation is itself a closed
 loop.
+
+## Principle 5 — Cross-entry claims rest on deterministic input, not on recall
+
+A claim that spans entries or dates — the same body published twice, one
+counterparty engaged on N consecutive days, a phrase recurring across a week —
+is a *structural* property. Whether two strings are identical, or whether two
+records share a date, is settled by byte comparison, not by reading. Claims of
+this shape must cite a deterministic input (the state invariant check, the
+duplicate scan, an explicit grep), never cross-entry recall.
+
+Single-entry claims are exempt and remain the analytical center: one entry's
+quote, its relation, and its signal are verifiable by construction against the
+source daily report.
+
+This principle exists because cross-entry claims are where this report has
+actually failed, twice, on the same surface:
+
+- **2026-06-15** — a "6-day consecutive re-reply to one post" was six distinct
+  interlocutors. The lesson was recorded in the appendix below as a rejected
+  *mechanism*; the reporting failure that produced it was not.
+- **2026-07-25** — "the first cross-day byte-identical outputs in the record"
+  paired four real 07-23 entries with an invented 07-21 occurrence. Verified
+  against all 141 days of episode logs (9043 published records): zero bodies
+  have ever been published on more than one day.
+
+Both passed review as prose because each *individual* quote was real. Only the
+pairing was fabricated, and only a comparison could have caught it.
+
+When the deterministic input for a cross-entry claim does not exist, say what
+would settle it and withhold the claim from the summary. Naming the check as
+undeterminable and then leading with the finding anyway is the failure mode
+this principle names — an unverified claim carries less weight in the report,
+not more.
 
 ## Appendix — Concrete mechanisms previously surfaced and rejected
 
