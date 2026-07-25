@@ -49,8 +49,12 @@ from pathlib import Path
 from _md import md_safe
 
 # Episode-log day files only. `*.bak` never matches (`.jsonl.bak`), and neither
-# do the sibling `audit.jsonl` / `skill-usage-*.jsonl`.
-_DAY_FILE_RE = re.compile(r"^\d{4}-\d\d-\d\d\.jsonl$")
+# do the sibling `audit.jsonl` / `skill-usage-*.jsonl`. Explicit [0-9] rather
+# than \d: on a str pattern \d is Unicode-aware and admits fullwidth or
+# Arabic-Indic digits, which would then be copied from the filename into the
+# render. The dates are called self-controlled, so the pattern should enforce
+# that structurally instead of relying on who happens to write the directory.
+_DAY_FILE_RE = re.compile(r"^[0-9]{4}-[0-9]{2}-[0-9]{2}\.jsonl$")
 
 # The agent's own published output. follow / unfollow / upvote carry no body.
 PUBLISHED_ACTIONS = ("post", "reply", "comment")
@@ -130,17 +134,23 @@ def collect(log_dir: Path) -> tuple[list[Published], dict[str, int]]:
     for path in _day_files(log_dir):
         date = path.name[: len("YYYY-MM-DD")]
         try:
-            # errors="replace" keeps a byte-level corruption from aborting the
-            # file; the replacement changes that body's digest, which can only
-            # hide an identity, never invent one.
-            with path.open(encoding="utf-8", errors="replace") as fh:
-                lines = list(fh)
+            raw = path.read_bytes()
         except OSError:
             skipped["unreadable_file"] += 1
             continue
 
-        for line in lines:
-            if not line.strip():
+        for raw_line in raw.splitlines():
+            if not raw_line.strip():
+                continue
+            try:
+                # Strict, not errors="replace": lossy decoding maps distinct
+                # invalid byte sequences onto the same U+FFFD string, which
+                # would let two different bodies collide into an invented
+                # duplicate. A scan whose purpose is to refuse unsupported
+                # identity claims must not manufacture one.
+                line = raw_line.decode("utf-8")
+            except UnicodeDecodeError:
+                skipped["bad_encoding"] += 1
                 continue
             try:
                 record = json.loads(line)
@@ -166,7 +176,19 @@ def collect(log_dir: Path) -> tuple[list[Published], dict[str, int]]:
             if not content.strip():
                 skipped["empty_content"] += 1
                 continue
-            digest = hashlib.sha256(content.encode("utf-8")).hexdigest()[:DIGEST_LEN]
+            try:
+                encoded = content.encode("utf-8")
+            except UnicodeEncodeError:
+                # A lone UTF-16 surrogate survives json.loads (the file bytes
+                # are plain ASCII escape syntax) and only fails here. Left
+                # uncaught it would abort the whole scan on one poisoned
+                # record — and since episode logs are never deleted, the scan
+                # would stay dead every week after, invisibly: the shell
+                # discards stderr and falls back to "not available". Skip and
+                # count, like every other fault.
+                skipped["bad_unicode"] += 1
+                continue
+            digest = hashlib.sha256(encoded).hexdigest()[:DIGEST_LEN]
             bodies.append(Published(date=date, action=action, digest=digest))
 
     return bodies, dict(skipped)
@@ -270,10 +292,22 @@ def render_markdown(result: ScanResult, *, start: str, end: str, top: int) -> st
         # misreading a count; it was leading with a cross-day claim while
         # calling the check undeterminable. A claim of that shape is now
         # contradicted by a line that can be quoted back at it.
-        lines.append(
-            "No body has ever been published on more than one day, so any claim "
-            "of a cross-day identical output is false and must be withdrawn."
-        )
+        #
+        # But the sentence is only as absolute as the coverage. Skipped records
+        # could hold the missing occurrence, and this scan exists to refuse
+        # claims wider than their evidence — including its own.
+        if result.skipped:
+            lines.append(
+                "No body was published on more than one day among the bodies "
+                "read, but records were skipped (see below), so this is not a "
+                "claim about the full record."
+            )
+        else:
+            lines.append(
+                "No body has ever been published on more than one day, so any "
+                "claim of a cross-day identical output is false and must be "
+                "withdrawn."
+            )
     intra_bodies = sum(g.count for g in result.intra_day_window)
     lines.append(
         f"Intra-day exact repeats in window: {len(result.intra_day_window)} groups "

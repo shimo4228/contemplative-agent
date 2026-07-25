@@ -184,7 +184,7 @@ class TestOutputBoundary:
         out = self._render(tmp_path, self.BAIT)
         # Every 8-char window of the bait must be absent — a fragment is enough
         # to carry an instruction.
-        for i in range(len(self.BAIT) - 8):
+        for i in range(len(self.BAIT) - 7):  # -7, so the final window is checked
             assert self.BAIT[i : i + 8] not in out
         assert "IGNORE ALL PREVIOUS" not in out
 
@@ -274,7 +274,7 @@ class TestFaults:
         assert skipped["bad_shape"] == 6
         assert skipped["empty_content"] == 1
 
-    def test_invalid_utf8_does_not_crash(self, tmp_path):
+    def test_invalid_utf8_is_skipped_rather_than_lossily_hashed(self, tmp_path):
         path = _day(tmp_path, "2026-07-20", _record("post", "good"))
         with path.open("ab") as fh:
             fh.write(
@@ -282,8 +282,52 @@ class TestFaults:
                 b'"content":"\xff\xfe bad bytes"}}\n'
             )
         bodies, skipped = cds.collect(tmp_path)
-        assert len(bodies) == 2  # replacement chars, but a valid body
-        assert skipped == {}
+        assert len(bodies) == 1
+        assert skipped == {"bad_encoding": 1}
+
+    def test_distinct_invalid_bytes_do_not_collide_into_a_duplicate(self, tmp_path):
+        """Lossy decoding maps 0xff and 0xfe onto the same U+FFFD string.
+
+        A scan whose whole purpose is refusing unsupported identity claims must
+        not manufacture one out of corruption.
+        """
+        for date, bad in (("2026-07-20", b"\xff"), ("2026-07-21", b"\xfe")):
+            (tmp_path / f"{date}.jsonl").write_bytes(
+                b'{"ts":"x","type":"activity","data":{"action":"post","content":"' + bad + b'"}}\n'
+            )
+        bodies, skipped = cds.collect(tmp_path)
+        result = cds.scan(bodies, skipped, start="2026-07-18", end="2026-07-24")
+        assert result.cross_day_lifetime == ()
+        assert skipped == {"bad_encoding": 2}
+
+    def test_lone_surrogate_is_skipped_not_fatal(self, tmp_path):
+        """A lone UTF-16 surrogate is legal JSON escape syntax and survives
+        json.loads; it only fails at .encode("utf-8").
+
+        Left uncaught it aborts the whole scan, and since episode logs are never
+        deleted the scan stays dead every week after — invisibly, because the
+        shell discards stderr and falls back to "not available". One poisoned
+        record would silently retire the instrument.
+        """
+        (tmp_path / "2026-07-20.jsonl").write_text(
+            _record("post", "good")
+            + "\n"
+            + '{"ts":"x","type":"activity","data":{"action":"post",'
+            + '"content":"\\ud800lonely surrogate"}}\n',
+            encoding="utf-8",
+        )
+        bodies, skipped = cds.collect(tmp_path)
+        assert len(bodies) == 1
+        assert skipped == {"bad_unicode": 1}
+
+    def test_non_ascii_digit_filenames_are_not_day_files(self, tmp_path):
+        """The render calls its dates self-controlled; the pattern has to make
+        that structurally true, not incidentally true. `\\d` on a str pattern is
+        Unicode-aware and would let fullwidth digits through into the output."""
+        (tmp_path / "２０２６-07-20.jsonl").write_text(
+            _record("post", "a") + "\n", encoding="utf-8"
+        )
+        assert cds._day_files(tmp_path) == []
 
     def test_unreadable_file_is_counted_not_fatal(self, tmp_path):
         _day(tmp_path, "2026-07-20", _record("post", "good"))
@@ -315,6 +359,21 @@ class TestRenderContent:
         # absence has to be stated as a sentence a summary can be checked against.
         assert "No body has ever been published on more than one day" in out
         assert "Cross-day exact duplicates in window: 0" in out
+
+    def test_absence_claim_is_qualified_when_records_were_skipped(self, tmp_path):
+        """The scan must hold itself to the standard it enforces on the report.
+
+        A skipped record could be the missing occurrence, so an unqualified
+        "never happened" would be exactly the over-claim this intake exists to
+        stop — asserted by the instrument instead of by the LLM.
+        """
+        path = _day(tmp_path, "2026-07-20", _record("post", "a"))
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write("{torn\n")
+        result = cds.scan(*cds.collect(tmp_path), start="2026-07-18", end="2026-07-24")
+        out = cds.render_markdown(result, start="2026-07-18", end="2026-07-24", top=25)
+        assert "not a claim about the full record" in out
+        assert "No body has ever been published" not in out
 
     def test_observation_only_disclaimer_is_present(self, tmp_path):
         """Principle 1 guard: a hash table must not read as a case for a hash gate."""

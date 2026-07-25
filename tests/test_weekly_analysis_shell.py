@@ -130,6 +130,22 @@ class TestSuccessfulRunCommits:
         assert "a fresh anomaly type" in state
         assert _pending_files(home) == []
 
+    def test_a_clean_sweep_commits_an_empty_baseline(self, tmp_path):
+        """An anomaly-free week is a real reading, not a missing one.
+
+        write_state writes an empty file when nothing is found; keeping the
+        previous counts instead would make a signature that stopped and came
+        back read as recurring, with its delta measured against stale numbers.
+        """
+        home = _make_home(tmp_path)
+        (home / "logs" / "agent.log").write_text(
+            "[10:00:00] INFO nothing wrong here\n[10:01:00] DEBUG idle\n", encoding="utf-8"
+        )
+        result = _run(home, _stub_claude(tmp_path, exit_code=0, body="# Weekly\n"), tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        assert _state(home).read_text(encoding="utf-8") == ""
+
     def test_translation_failure_does_not_roll_back_the_state(self, tmp_path):
         """The .ja.md pass is best-effort and must not gate the baseline.
 

@@ -314,7 +314,12 @@ echo "Size: $(wc -c < "$OUTPUT") bytes"
 # --- Commit the sweep's novelty baseline (only now that a report exists) ---
 # Deliberately ahead of the Japanese translation: the translation is
 # best-effort and is not a condition for having observed this week's novelty.
-if [[ -s "$SWEEP_PENDING" ]]; then
+# -e, not -s: a clean sweep legitimately emits an empty snapshot, and that is a
+# real baseline — rejecting it would keep last week's counts, so a signature that
+# stopped and came back would read as recurring with a delta against stale
+# numbers. The file exists only if the sweep ran to completion (write_state is
+# its last step), which is the condition being tested.
+if [[ -e "$SWEEP_PENDING" ]]; then
     if mv "$SWEEP_PENDING" "$SWEEP_STATE"; then
         echo "Anomaly sweep state committed: $SWEEP_STATE"
     else
