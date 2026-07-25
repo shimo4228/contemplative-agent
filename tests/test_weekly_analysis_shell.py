@@ -158,6 +158,42 @@ class TestSuccessfulRunCommits:
         assert _state(home).read_text(encoding="utf-8") != SEEDED_STATE
 
 
+class TestPromptAssembly:
+    def test_all_three_deterministic_intakes_reach_the_prompt(self, tmp_path):
+        """The intakes are only worth building if they are actually in the call.
+
+        Wiring is one line per intake in the shell and nothing else would fail
+        if it were dropped — the report would just quietly go back to asserting
+        cross-entry facts from recall.
+        """
+        home = _make_home(tmp_path)
+        # An episode log for the duplicate scan to read.
+        (home / "logs" / f"{END_DATE}.jsonl").write_text(
+            '{"ts": "2026-07-24T10:00:00+00:00", "type": "activity", '
+            '"data": {"action": "post", "content": "a body"}}\n',
+            encoding="utf-8",
+        )
+        captured = tmp_path / "prompt.txt"
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        stub = bin_dir / "claude"
+        stub.write_text(
+            f'#!/bin/bash\ncat >> "{captured}"\nprintf "# Weekly\\n"\n', encoding="utf-8"
+        )
+        stub.chmod(0o755)
+
+        result = _run(home, bin_dir, tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        prompt = captured.read_text(encoding="utf-8")
+        assert "## Log Anomaly Sweep" in prompt
+        assert "## State Invariant Check" in prompt
+        assert "## Cross-Day Duplicate Scan" in prompt
+        assert "No duplicate scan available" not in prompt
+        # The scan's boundary holds end to end: the body it hashed stays out.
+        assert "a body" not in prompt.split("## Daily Reports")[0]
+
+
 class TestPreflight:
     def test_missing_claude_fails_before_the_collection_pass(self, tmp_path):
         """Regression pin for 2026-07-25: the binary moved to ~/.local/bin and

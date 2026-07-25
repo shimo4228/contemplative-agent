@@ -238,6 +238,27 @@ else
     INVARIANTS="## State Invariant Check"$'\n\n'"No invariant check available."
 fi
 
+# --- Cross-day duplicate scan (deterministic identity check, 2026-07-25) ---
+# The report's C — Duplicate section asserts facts that span entries and days,
+# which is the one place it has actually failed: twice it published a cross-entry
+# claim that is not in the artifacts (2026-06-15, 2026-07-25). Byte-identity is a
+# structural property, so it is measured here rather than recalled there.
+#
+# This is the only intake that reads the episode logs. The boundary is the
+# output: digests, counts, filename-derived dates and a fixed action vocabulary
+# — never body text, post ids or counterparty names (ADR-0083). Holds no state,
+# so a failed run costs nothing. Observability only.
+DUP_SCAN=""
+if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
+    DUP_SCAN=$(python3 "$PROJECT_ROOT/scripts/cross_day_duplicate_scan.py" \
+        --log-dir "$MOLTBOOK_HOME/logs" --start "$START_DATE" --end "$END_DATE" \
+        --top 25 2>/dev/null || true)
+    if [[ -n "$DUP_SCAN" ]]; then
+        echo "Included cross-day duplicate scan"
+    fi
+fi
+[[ -z "$DUP_SCAN" ]] && DUP_SCAN="## Cross-Day Duplicate Scan"$'\n\n'"No duplicate scan available."
+
 # --- Build prompt ---
 SYSTEM_PROMPT=$(cat "$PROMPT_TEMPLATE")
 
@@ -250,6 +271,8 @@ $STATE_DIFF
 $ANOMALY_SWEEP
 
 $INVARIANTS
+
+$DUP_SCAN
 
 $PREV_REPORTS
 
