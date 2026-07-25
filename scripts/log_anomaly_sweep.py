@@ -17,8 +17,14 @@ Security (load-bearing):
   truncated), not verbatim log bodies, to shrink the injection surface further.
 
 State: a TSV ``count<TAB>signature`` snapshot of the previous sweep, used to
-compute the NEW flag and the per-signature delta.
+compute the NEW flag and the per-signature delta. Committing it is an
+irreversible side effect — the Δ / 🆕 columns are defined against it, so a run
+that commits the snapshot and then fails to produce anything spends the week's
+novelty baseline for nobody. ``--no-update --emit-state PATH`` writes the
+snapshot aside; the caller promotes it (atomic rename) only after its own work
+has succeeded.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -37,9 +43,7 @@ from _md import md_safe
 # call) out of the sweep; the ranking (novelty + delta) handles the rest.
 _LEVEL_RE = re.compile(r"\b(DEBUG|INFO|WARNING|ERROR|CRITICAL)\b")
 _ATTENTION_LEVELS = {"WARNING", "ERROR", "CRITICAL"}
-_CRITICAL_RE = re.compile(
-    r"done_reason=length|truncat|num_ctx|\b429\b|backoff", re.IGNORECASE
-)
+_CRITICAL_RE = re.compile(r"done_reason=length|truncat|num_ctx|\b429\b|backoff", re.IGNORECASE)
 
 
 def _is_signal(line: str) -> bool:
@@ -47,6 +51,7 @@ def _is_signal(line: str) -> bool:
         return True
     m = _LEVEL_RE.search(line)
     return bool(m and m.group(1) in _ATTENTION_LEVELS)
+
 
 # Files we are allowed to read. Episode logs (YYYY-MM-DD.jsonl) are excluded by
 # construction: we never glob "*.jsonl".
@@ -203,8 +208,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--state", type=Path, required=True, help="sweep state TSV path")
     parser.add_argument("--top", type=int, default=25, help="rows to render (default 25)")
     parser.add_argument(
-        "--no-update", action="store_true",
+        "--no-update",
+        action="store_true",
         help="do not write the state file (dry sweep)",
+    )
+    parser.add_argument(
+        "--emit-state",
+        type=Path,
+        default=None,
+        help="write the snapshot to this path instead of committing it; pair "
+        "with --no-update so the caller can promote it (atomic rename) "
+        "only after the work this sweep fed has actually succeeded",
     )
     args = parser.parse_args(argv)
 
@@ -213,6 +227,8 @@ def main(argv: list[str] | None = None) -> int:
     print(render_markdown(findings, args.top))
     if not args.no_update:
         write_state(args.state, findings)
+    if args.emit_state is not None:
+        write_state(args.emit_state, findings)
     return 0
 
 

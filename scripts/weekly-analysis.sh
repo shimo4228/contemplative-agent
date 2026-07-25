@@ -201,12 +201,23 @@ fi
 # the last sweep, so latent operational bugs surface week over week without a
 # full multi-agent audit. Read-only; NEVER reads episode logs (injection
 # boundary). Observability only — a failure must not break the weekly report.
+#
+# The sweep's state is NOT committed here. Its whole value is the Δ / 🆕
+# columns, both defined against the last committed snapshot, so a run that
+# spends the baseline and then dies leaves the *next* run measuring novelty
+# against a partial window — nobody ever observes that week's real novelty.
+# That happened twice in a row (07-18 session limit, 07-25 missing PATH).
+# Emit the snapshot aside and promote it after the report lands.
 ANOMALY_SWEEP=""
 SWEEP_STATE="$REPORT_DIR/.anomaly-sweep-state.tsv"
+SWEEP_PENDING="$REPORT_DIR/.anomaly-sweep-state.pending.$$"
+OUTPUT_TMP=""   # set at the generate step; named here so the trap can cover it
+trap 'rm -f "$SWEEP_PENDING" ${OUTPUT_TMP:+"$OUTPUT_TMP"}' EXIT
 if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
     mkdir -p "$REPORT_DIR"
     ANOMALY_SWEEP=$(python3 "$PROJECT_ROOT/scripts/log_anomaly_sweep.py" \
-        --log-dir "$MOLTBOOK_HOME/logs" --state "$SWEEP_STATE" --top 25 2>/dev/null || true)
+        --log-dir "$MOLTBOOK_HOME/logs" --state "$SWEEP_STATE" --top 25 \
+        --no-update --emit-state "$SWEEP_PENDING" 2>/dev/null || true)
     if [[ -n "$ANOMALY_SWEEP" ]]; then
         echo "Included log anomaly sweep"
     fi
@@ -258,7 +269,6 @@ OUTPUT="$REPORT_DIR/weekly-${END_DATE}.md"
 # "previous report". 2026-07-25: that is exactly what happened.
 echo "Running claude -p (this may take a few minutes)..."
 OUTPUT_TMP="${OUTPUT}.tmp.$$"
-trap 'rm -f "$OUTPUT_TMP"' EXIT
 
 if ! echo "$USER_PROMPT" | claude -p \
     --system-prompt "$SYSTEM_PROMPT" \
@@ -277,6 +287,17 @@ mv "$OUTPUT_TMP" "$OUTPUT"
 
 echo "Report generated: $OUTPUT"
 echo "Size: $(wc -c < "$OUTPUT") bytes"
+
+# --- Commit the sweep's novelty baseline (only now that a report exists) ---
+# Deliberately ahead of the Japanese translation: the translation is
+# best-effort and is not a condition for having observed this week's novelty.
+if [[ -s "$SWEEP_PENDING" ]]; then
+    if mv "$SWEEP_PENDING" "$SWEEP_STATE"; then
+        echo "Anomaly sweep state committed: $SWEEP_STATE"
+    else
+        echo "WARNING: sweep state promote failed; next run compares against a wider window" >&2
+    fi
+fi
 
 # --- Japanese version (best-effort; must never break the canonical English report) ---
 # English weekly-<date>.md stays canonical (it is what next weeks' prompts re-read);

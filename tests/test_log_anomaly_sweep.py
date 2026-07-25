@@ -3,6 +3,7 @@
 The sweep is the cheap, deterministic companion to a full multi-agent audit:
 intake existing log signal, ranked by novelty then frequency delta.
 """
+
 from __future__ import annotations
 
 import sys
@@ -49,10 +50,7 @@ class TestAnalyze:
         assert total == 3
 
     def test_new_signature_outranks_higher_count_recurring(self):
-        lines = (
-            ["WARNING recurring noisy thing"] * 10
-            + ["ERROR brand new failure mode"]
-        )
+        lines = ["WARNING recurring noisy thing"] * 10 + ["ERROR brand new failure mode"]
         prev = {las.normalize("WARNING recurring noisy thing"): 8}
         findings = las.analyze(lines, prev)
         # The new error (count 1) must rank above the recurring warning
@@ -83,13 +81,109 @@ class TestState:
         assert las.read_state(tmp_path / "nope.tsv") == {}
 
 
+class TestEmitState:
+    """``--emit-state`` writes a *pending* snapshot the caller promotes later.
+
+    The weekly script runs the sweep during collection but must not spend the
+    week's novelty baseline until the report itself has been promoted (a failed
+    generate step used to consume it anyway — findings F1.2, two consecutive
+    weeks). Emitting the snapshot to a side path lets the shell commit it with
+    an atomic rename after ``mv`` of the report.
+    """
+
+    @staticmethod
+    def _log_dir(tmp_path):
+        d = tmp_path / "logs"
+        d.mkdir()
+        (d / "agent.log").write_text(
+            "ERROR boom\nERROR boom\nWARNING flaky thing\n", encoding="utf-8"
+        )
+        return d
+
+    def test_emit_state_writes_pending_and_leaves_state_untouched(self, tmp_path, capsys):
+        state = tmp_path / "sweep.tsv"
+        state.write_text("99\tstale signature\n", encoding="utf-8")
+        pending = tmp_path / "sweep.tsv.pending"
+
+        rc = las.main(
+            [
+                "--log-dir",
+                str(self._log_dir(tmp_path)),
+                "--state",
+                str(state),
+                "--no-update",
+                "--emit-state",
+                str(pending),
+            ]
+        )
+        capsys.readouterr()
+
+        assert rc == 0
+        assert state.read_text(encoding="utf-8") == "99\tstale signature\n"
+        assert las.read_state(pending)[las.normalize("ERROR boom")] == 2
+
+    def test_pending_snapshot_matches_write_state_output(self, tmp_path, capsys):
+        log_dir = self._log_dir(tmp_path)
+        pending = tmp_path / "pending.tsv"
+        direct = tmp_path / "direct.tsv"
+
+        las.main(
+            [
+                "--log-dir",
+                str(log_dir),
+                "--state",
+                str(tmp_path / "unused.tsv"),
+                "--no-update",
+                "--emit-state",
+                str(pending),
+            ]
+        )
+        capsys.readouterr()
+        las.write_state(direct, las.analyze(las.iter_allowed_log_lines(log_dir), {}))
+
+        assert pending.read_bytes() == direct.read_bytes()
+
+    def test_emit_state_alone_does_not_suppress_the_normal_state_write(self, tmp_path, capsys):
+        """Back-compat pin: only ``--no-update`` gates the ``--state`` write."""
+        state = tmp_path / "sweep.tsv"
+        pending = tmp_path / "pending.tsv"
+
+        las.main(
+            [
+                "--log-dir",
+                str(self._log_dir(tmp_path)),
+                "--state",
+                str(state),
+                "--emit-state",
+                str(pending),
+            ]
+        )
+        capsys.readouterr()
+
+        assert las.read_state(state)[las.normalize("ERROR boom")] == 2
+        assert pending.is_file()
+
+    def test_without_emit_state_no_side_file_appears(self, tmp_path, capsys):
+        state = tmp_path / "sweep.tsv"
+        las.main(
+            [
+                "--log-dir",
+                str(self._log_dir(tmp_path)),
+                "--state",
+                str(state),
+                "--no-update",
+            ]
+        )
+        capsys.readouterr()
+        assert not state.exists()
+        assert list(tmp_path.glob("*.pending*")) == []
+
+
 class TestAllowedFilesOnly:
     """Load-bearing security boundary: episode logs are NEVER read."""
 
     def test_episode_jsonl_is_not_read(self, tmp_path):
-        (tmp_path / "agent-launchd.log").write_text(
-            "WARNING something failed\n", encoding="utf-8"
-        )
+        (tmp_path / "agent-launchd.log").write_text("WARNING something failed\n", encoding="utf-8")
         (tmp_path / "audit.jsonl").write_text(
             '{"command":"distill"} ERROR audit anomaly\n', encoding="utf-8"
         )
