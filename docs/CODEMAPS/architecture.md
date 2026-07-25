@@ -384,6 +384,25 @@ ViewRegistry.find_by_view("constitutional", get_live_patterns())
 
 `epistemic_counts` = `{generated, unknown}` tally; the kind is derived at read-time from `provenance.source_type` — never persisted. Since ADR-0060 distill ingests only `activity` records (comment/reply/post), and `_episode_source_kind` maps every activity to `self`, every distilled pattern is `self_reflection → generated`. The external world (the post engaged with, the other agent's comment) still enters distillation — but as grounding *text inside* the rich render, not as a provenance kind, and it was never counted by this tally. ADR-0082 retired the third key: `observed` had been structurally zero since ADR-0060 and read as an external-grounding metric it never was, so the key and its `external_reply` arm are gone rather than annotated (an `external_reply` row now degrades to `unknown`). Records written before 2026-07-25 still carry `observed`; read the tally with `.get(key, 0)`, not a fixed key set.
 
+### weekly-analysis  [`scripts/weekly-analysis.sh`, ADR-0040]
+
+Runs outside the agent process (launchd → `claude -p`), assembling a prompt from operator-facing artifacts plus **three deterministic intakes**, then a diagnosis companion (`weekly-report-diagnosis` skill) produces the F sections.
+
+```
+collect: daily comment-reports + data-repo state diff + previous N reports
+       + log_anomaly_sweep.py    (event stream: *.log + audit.jsonl; novelty state)
+       + state_invariant_check.py (accumulated state: knowledge.json / agents.json)
+       + cross_day_duplicate_scan.py (published-body identity: episode logs → digests)
+generate: claude -p → weekly-<end>.md.tmp
+promote:  mv tmp → weekly-<end>.md        (atomic; a failure leaves the prior report)
+       →  mv sweep-state.pending → sweep-state   (novelty baseline committed ONLY here)
+translate: best-effort .ja.md (sonnet); failure never rolls back the two promotes
+```
+
+Order is load-bearing. The sweep's Δ / 🆕 columns are defined against its last committed snapshot, so it runs `--no-update --emit-state` and the baseline is committed after the report lands — a run that produces nothing must spend nothing (findings F1.2; two consecutive weeks lost). The invariant check and the duplicate scan hold no state and are absolute readings, so they need no such ordering.
+
+Injection boundary: the sweep and the invariant check must never read episode logs. The duplicate scan does, and is the only intake permitted to — it emits **only** 12-hex SHA-256 digests, counts, filename-derived dates and the fixed `{post, reply, comment}` vocabulary (ADR-0083, gated by `TestOutputBoundary`). All three are observability: a failure degrades to a "not available" stub and never breaks the report.
+
 ### meditate  [`adapters/meditation/`]
 
 ```
