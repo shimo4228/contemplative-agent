@@ -71,20 +71,21 @@ def pattern_id(p: dict) -> str:
 
 
 # ADR-0050 read-time derivation: epistemic kind is a pure function of
-# source_type, never persisted. {observed, generated} only — "asserted"
-# was rejected (needs semantic judgment, not derivable from record type).
+# source_type, never persisted. "asserted" was rejected (needs semantic
+# judgment, not derivable from record type). The ``observed`` kind and its
+# ``external_reply`` arm were retired in ADR-0082 — unreachable since
+# ADR-0060, so the key only invited misreading as an external-grounding
+# metric. An ``external_reply`` row now falls through to ``unknown``.
 _EPISTEMIC_KIND_BY_SOURCE: dict[str, str] = {
     "self_reflection": "generated",
     "mixed": "generated",  # any self contribution taints the batch
-    "external_reply": "observed",
 }
 
 
 def epistemic_kind_for(p: dict) -> str | None:
-    """Derive the epistemic kind of a pattern row (ADR-0050).
+    """Derive the epistemic kind of a pattern row (ADR-0050, ADR-0082).
 
-    Returns ``"generated"`` for self-narrative provenance,
-    ``"observed"`` for externally received content, ``None`` when the
+    Returns ``"generated"`` for self-narrative provenance, ``None`` when the
     source is unknown or unrecorded (legacy rows included).
     """
     provenance = p.get("provenance") or {}
@@ -93,22 +94,21 @@ def epistemic_kind_for(p: dict) -> str | None:
 
 
 def epistemic_counts_for(patterns: list[dict]) -> dict[str, int]:
-    """Tally epistemic kinds over pattern rows (ADR-0050).
+    """Tally epistemic kinds over pattern rows (ADR-0050, ADR-0082).
 
-    All three keys are always present so audit.jsonl records keep a
-    stable shape for offline analysis; ``None`` kinds count as
-    ``"unknown"``.
+    Both keys are always present so audit.jsonl records keep a stable shape
+    for offline analysis; ``None`` kinds count as ``"unknown"``.
 
-    Read this as a *provenance-kind* tally (self-narrative vs external-reply
-    source record), NOT as an external-grounding presence metric. Since
-    ADR-0060 distill ingests only ``activity`` records and maps every activity
-    to ``self`` → ``generated``, ``observed`` is structurally **zero** (review
-    2026-06-27 M2). The external world (the post engaged with, the other
-    agent's comment) still enters distillation, but as grounding *text inside*
-    the rich render, not as an ``observed`` kind — so ``observed == 0`` does
-    not mean "no external grounding". See architecture.md / ADR-0060.
+    Read this as a *provenance-kind* tally (self-narrative vs unrecorded
+    source), NOT as an external-grounding presence metric. The external world
+    (the post engaged with, the other agent's comment) enters distillation as
+    grounding *text inside* the rich render, and was never counted here.
+
+    Records written before ADR-0082 also carry an ``observed`` key that is
+    structurally zero; offline readers should use ``.get(...)`` rather than
+    assume a fixed key set.
     """
-    counts = {"observed": 0, "generated": 0, "unknown": 0}
+    counts = {"generated": 0, "unknown": 0}
     for p in patterns:
         kind = epistemic_kind_for(p)
         counts[kind or "unknown"] += 1
@@ -234,10 +234,7 @@ class KnowledgeStore:
 
     def get_live_patterns_since(self, since: str) -> list[dict]:
         """Return live patterns distilled at or after the given ISO timestamp."""
-        return [
-            p for p in self._filter_since(since, self._learned_patterns)
-            if is_live(p)
-        ]
+        return [p for p in self._filter_since(since, self._learned_patterns) if is_live(p)]
 
     def load(self) -> None:
         """Load knowledge from JSON file.
@@ -337,10 +334,12 @@ class KnowledgeStore:
                 self._learned_patterns.append(_entry_from_dict(item))
             elif isinstance(item, str):
                 # Bare string — legacy format
-                self._learned_patterns.append({
-                    "pattern": item,
-                    "distilled": "unknown",
-                })
+                self._learned_patterns.append(
+                    {
+                        "pattern": item,
+                        "distilled": "unknown",
+                    }
+                )
 
 
 def _entry_from_dict(item: dict) -> dict:
@@ -395,4 +394,3 @@ def _entry_from_dict(item: dict) -> dict:
     # read. Legacy files with these fields load cleanly and
     # the fields are silently dropped on next save.
     return entry
-

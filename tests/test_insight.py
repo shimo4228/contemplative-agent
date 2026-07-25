@@ -516,6 +516,7 @@ class TestExtractInsightLineageADR0050:
         ks.add_learned_pattern(
             "ext-0",
             embedding=_unit_vec(8, 1),
+            # ADR-0082 retired the observed kind — this tallies as unknown
             provenance={"source_type": "external_reply"},
         )
         ks.save()
@@ -524,7 +525,7 @@ class TestExtractInsightLineageADR0050:
         result = extract_insight(knowledge_store=ks, full=True)
         assert isinstance(result, InsightResult)
         counts = result.skills[0].epistemic_counts
-        assert counts == {"observed": 1, "generated": 2, "unknown": 0}
+        assert counts == {"generated": 2, "unknown": 1}
 
     @patch("contemplative_agent.core.insight._extract_skill")
     def test_incremental_mode_still_carries_ids(self, mock_skill, tmp_path) -> None:
@@ -782,7 +783,6 @@ class TestNoveltyChunking:
         is possible — every cluster fails open with an audit reason (the
         quantitative trigger for a future retrieval design)."""
         import json as _json
-
 
         batches = self._batches(2)
         audit = tmp_path / "insight-novelty.jsonl"

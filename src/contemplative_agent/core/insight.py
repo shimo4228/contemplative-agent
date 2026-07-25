@@ -59,8 +59,8 @@ class SkillResult:
 
     ADR-0050: ``pattern_ids`` carries the content-hash ids of the cluster
     members actually passed to the LLM (kept members only), and
-    ``epistemic_counts`` their observed/generated tally — both flow into
-    the approval gate and audit.jsonl.
+    ``epistemic_counts`` their generated/unknown tally (ADR-0082) — both
+    flow into the approval gate and audit.jsonl.
     """
 
     text: str
@@ -88,9 +88,7 @@ class InsightResult:
     skipped_known: int = 0
 
 
-def _extract_skill(
-    patterns: list[str], topic: str = "mixed"
-) -> tuple[str, str | None] | None:
+def _extract_skill(patterns: list[str], topic: str = "mixed") -> tuple[str, str | None] | None:
     """Extract one skill from patterns via LLM.
 
     Returns ``(skill_text, thinking)`` — the reasoning trace rides along
@@ -441,7 +439,9 @@ def extract_insight(
     fail_open_topics: frozenset[str] = frozenset()
     known_themes = insight_novelty._load_known_themes(skills_dir, staged_ledger_path)
     if known_themes:
-        gate = insight_novelty._filter_novel_batches(batches, known_themes, audit_path=novelty_audit_path)
+        gate = insight_novelty._filter_novel_batches(
+            batches, known_themes, audit_path=novelty_audit_path
+        )
         batches = list(gate.novel)
         skipped_known = gate.skipped_known
         fail_open_topics = gate.fail_open_topics

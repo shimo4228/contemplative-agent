@@ -159,15 +159,11 @@ class TestApprovalLineageADR0050:
                 True,
                 "# Skill",
                 source_ids=["abc123def456", "0123456789ab"],
-                epistemic_counts={"observed": 1, "generated": 2, "unknown": 0},
+                epistemic_counts={"generated": 2, "unknown": 1},
             )
         record = json.loads(audit_path.read_text().strip())
         assert record["source_ids"] == ["abc123def456", "0123456789ab"]
-        assert record["epistemic_counts"] == {
-            "observed": 1,
-            "generated": 2,
-            "unknown": 0,
-        }
+        assert record["epistemic_counts"] == {"generated": 2, "unknown": 1}
 
     def test_log_approval_lineage_fields_always_present(self, tmp_path):
         """Nullable but always present — stable record shape for analysis."""
@@ -189,7 +185,7 @@ class TestApprovalLineageADR0050:
             filename="s.md",
             target_path=skills_dir / "s.md",
             pattern_ids=("a1a1a1a1a1a1", "b2b2b2b2b2b2"),
-            epistemic_counts={"observed": 0, "generated": 2, "unknown": 0},
+            epistemic_counts={"generated": 2, "unknown": 0},
         )
         with (
             patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit_path),
@@ -198,11 +194,7 @@ class TestApprovalLineageADR0050:
             _run_approval_loop([item], command="insight", target_dir=skills_dir)
         record = json.loads(audit_path.read_text().strip())
         assert record["source_ids"] == ["a1a1a1a1a1a1", "b2b2b2b2b2b2"]
-        assert record["epistemic_counts"] == {
-            "observed": 0,
-            "generated": 2,
-            "unknown": 0,
-        }
+        assert record["epistemic_counts"] == {"generated": 2, "unknown": 0}
 
     def test_run_approval_loop_plumbs_rule_source_ids(self, tmp_path):
         """RuleResult exposes source_ids (skill filenames), not pattern_ids."""
@@ -235,7 +227,7 @@ class TestApprovalLineageADR0050:
             "# A",
             target,
             source_ids=["c3c3c3c3c3c3"],
-            epistemic_counts={"observed": 1, "generated": 0, "unknown": 0},
+            epistemic_counts={"generated": 1, "unknown": 0},
         )
         with (
             patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
@@ -246,11 +238,7 @@ class TestApprovalLineageADR0050:
 
         meta = json.loads((staged_dir / "a.md.meta.json").read_text())
         assert meta["source_ids"] == ["c3c3c3c3c3c3"]
-        assert meta["epistemic_counts"] == {
-            "observed": 1,
-            "generated": 0,
-            "unknown": 0,
-        }
+        assert meta["epistemic_counts"] == {"generated": 1, "unknown": 0}
         # Stage-time audit record already carries lineage.
         stage_record = json.loads(audit.read_text().strip().splitlines()[-1])
         assert stage_record["decision"] == "staged"
@@ -269,11 +257,41 @@ class TestApprovalLineageADR0050:
         assert adopted_record["decision"] == "approved"
         assert adopted_record["source"] == "stage-adopted"
         assert adopted_record["source_ids"] == ["c3c3c3c3c3c3"]
-        assert adopted_record["epistemic_counts"] == {
-            "observed": 1,
-            "generated": 0,
-            "unknown": 0,
-        }
+        assert adopted_record["epistemic_counts"] == {"generated": 1, "unknown": 0}
+
+    def test_adopt_passes_through_pre_adr0082_meta_verbatim(self, tmp_path):
+        """ADR-0082 is non-retroactive: meta.json staged before the retirement
+        still carries ``observed`` and must adopt unchanged. Guards the claim
+        that the 78 files staged on 2026-07-25 stay adoptable."""
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        staged_dir.mkdir(parents=True)
+        (staged_dir / "legacy.md").write_text("# Legacy")
+        legacy_counts = {"observed": 0, "generated": 4, "unknown": 0}
+        (staged_dir / "legacy.md.meta.json").write_text(
+            json.dumps(
+                {
+                    "target": str(tmp_path / "skills" / "legacy.md"),
+                    "command": "insight",
+                    "seq": 1,
+                    "source_ids": ["d4d4d4d4d4d4"],
+                    "epistemic_counts": legacy_counts,
+                }
+            )
+        )
+
+        args = argparse.Namespace(yes=False)
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=["y"]),
+        ):
+            _handle_adopt_staged(args, MagicMock())
+
+        record = json.loads(audit.read_text().strip().splitlines()[-1])
+        assert record["decision"] == "approved"
+        assert record["epistemic_counts"] == legacy_counts
 
 
 class TestCollisionFreePathH5:

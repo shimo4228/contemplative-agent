@@ -150,9 +150,7 @@ class TestAddLearnedPatternADR0021:
             "source_episode_ids": ["2026-04-15#1"],
             "pipeline_version": "distill@0.21",
         }
-        store.add_learned_pattern(
-            "reflective note on boundless care", provenance=prov
-        )
+        store.add_learned_pattern("reflective note on boundless care", provenance=prov)
         p = store.get_raw_patterns()[0]
         assert p["provenance"] == prov
 
@@ -275,9 +273,7 @@ class TestEffectiveImportance:
         now = datetime.now(timezone.utc)
         plain = {"distilled": now.isoformat(timespec="minutes")}
         with_legacy = {**plain, "trust_score": 0.3, "importance": 0.2}
-        assert effective_importance(with_legacy) == pytest.approx(
-            effective_importance(plain)
-        )
+        assert effective_importance(with_legacy) == pytest.approx(effective_importance(plain))
 
     def test_aged_pattern_decays_monotonically(self):
         """Batch G regression (ultracode sweep 2026-06-23): the aged branch
@@ -294,8 +290,8 @@ class TestEffectiveImportance:
         # Strictly decreasing with age.
         assert fresh > d10 > d30 > d60
         # Known points of 0.95**days (decay-only, ADR-0056).
-        assert d10 == pytest.approx(0.95 ** 10, abs=1e-3)
-        assert d60 == pytest.approx(0.95 ** 60, abs=1e-3)
+        assert d10 == pytest.approx(0.95**10, abs=1e-3)
+        assert d60 == pytest.approx(0.95**60, abs=1e-3)
         # ~58-day half-life: 0.95**~13.5 ≈ 0.5.
         assert at_age(13.5) == pytest.approx(0.5, abs=0.02)
 
@@ -345,10 +341,12 @@ class TestFilterSinceBadTimestampADR0021:
         store.add_learned_pattern(
             "good pattern with a properly formatted distilled timestamp field",
         )
-        store._learned_patterns.append({
-            "pattern": "broken record with malformed distilled",
-            "distilled": "not-a-real-iso",
-        })
+        store._learned_patterns.append(
+            {
+                "pattern": "broken record with malformed distilled",
+                "distilled": "not-a-real-iso",
+            }
+        )
 
         result = store.get_live_patterns_since("2020-01-01T00:00:00+00:00")
         assert any("good pattern" in p["pattern"] for p in result)
@@ -360,10 +358,12 @@ class TestFilterSinceBadTimestampADR0021:
         # silently drop the pattern. Both sides are now coerced to UTC, so a
         # naive timestamp clearly after the since-bound is kept.
         store = KnowledgeStore(path=tmp_path / "k.json")
-        store._learned_patterns.append({
-            "pattern": "recent pattern stamped with a tz-naive distilled time",
-            "distilled": "2026-06-20T12:00:00",  # naive (no offset)
-        })
+        store._learned_patterns.append(
+            {
+                "pattern": "recent pattern stamped with a tz-naive distilled time",
+                "distilled": "2026-06-20T12:00:00",  # naive (no offset)
+            }
+        )
         result = store.get_live_patterns_since("2026-06-01T00:00:00+00:00")  # aware
         assert any("recent pattern" in p["pattern"] for p in result)
 
@@ -374,7 +374,10 @@ class TestPatternIdADR0050:
     def test_stable_for_same_dict(self):
         from contemplative_agent.core.knowledge_store import pattern_id
 
-        p = {"pattern": "observed a recurring greeting style", "distilled": "2026-06-05T10:00+00:00"}
+        p = {
+            "pattern": "observed a recurring greeting style",
+            "distilled": "2026-06-05T10:00+00:00",
+        }
         assert pattern_id(p) == pattern_id(dict(p))
 
     def test_twelve_hex_chars(self):
@@ -391,7 +394,10 @@ class TestPatternIdADR0050:
         from contemplative_agent.core.knowledge_store import pattern_id
 
         old = {"pattern": "agents prefer short replies", "distilled": "2026-06-05T10:00+00:00"}
-        revised = {"pattern": "agents prefer short replies in technical threads", "distilled": "2026-06-05T10:00+00:00"}
+        revised = {
+            "pattern": "agents prefer short replies in technical threads",
+            "distilled": "2026-06-05T10:00+00:00",
+        }
         assert pattern_id(old) != pattern_id(revised)
 
     def test_differs_on_timestamp_change(self):
@@ -409,14 +415,24 @@ class TestPatternIdADR0050:
 
 
 class TestEpistemicKindForADR0050:
-    """ADR-0050 — 2-valued read-time derivation from provenance.source_type."""
+    """ADR-0050 — read-time derivation from provenance.source_type.
 
-    @pytest.mark.parametrize("source_type,expected", [
-        ("self_reflection", "generated"),
-        ("mixed", "generated"),
-        ("external_reply", "observed"),
-        ("unknown", None),
-    ], ids=["self-reflection", "mixed", "external-reply", "unknown"])
+    ADR-0082 retired the ``observed`` kind and its ``external_reply`` arm:
+    unreachable since ADR-0060, and the key read as an external-grounding
+    metric it never was. ``external_reply`` now falls through to ``unknown``
+    — asserted here so re-adding the arm is a deliberate act, not a drift.
+    """
+
+    @pytest.mark.parametrize(
+        "source_type,expected",
+        [
+            ("self_reflection", "generated"),
+            ("mixed", "generated"),
+            ("external_reply", None),
+            ("unknown", None),
+        ],
+        ids=["self-reflection", "mixed", "external-reply-retired", "unknown"],
+    )
     def test_mapping(self, source_type, expected):
         from contemplative_agent.core.knowledge_store import epistemic_kind_for
 
@@ -431,23 +447,32 @@ class TestEpistemicKindForADR0050:
 
 
 class TestEpistemicCountsForADR0050:
-    def test_counts_all_three_keys_always_present(self):
+    def test_counts_both_keys_always_present(self):
         from contemplative_agent.core.knowledge_store import epistemic_counts_for
 
         patterns = [
             {"provenance": {"source_type": "self_reflection"}},
             {"provenance": {"source_type": "self_reflection"}},
-            {"provenance": {"source_type": "external_reply"}},
+            {"provenance": {"source_type": "external_reply"}},  # ADR-0082: → unknown
             {"provenance": {"source_type": "unknown"}},
             {},  # legacy row without provenance
         ]
         counts = epistemic_counts_for(patterns)
-        assert counts == {"observed": 1, "generated": 2, "unknown": 2}
+        assert counts == {"generated": 2, "unknown": 3}
 
     def test_empty_input(self):
         from contemplative_agent.core.knowledge_store import epistemic_counts_for
 
-        assert epistemic_counts_for([]) == {"observed": 0, "generated": 0, "unknown": 0}
+        assert epistemic_counts_for([]) == {"generated": 0, "unknown": 0}
+
+    def test_observed_key_is_retired(self):
+        """ADR-0082 — the key is gone from the emitted shape, not merely zero."""
+        from contemplative_agent.core.knowledge_store import epistemic_counts_for
+
+        assert "observed" not in epistemic_counts_for([])
+        assert "observed" not in epistemic_counts_for(
+            [{"provenance": {"source_type": "external_reply"}}]
+        )
 
 
 class TestFilterSinceInclusiveM12:
@@ -458,18 +483,22 @@ class TestFilterSinceInclusiveM12:
 
     def test_same_minute_pattern_is_included(self, tmp_path: Path):
         store = KnowledgeStore(path=tmp_path / "k.json")
-        store._learned_patterns.append({
-            "pattern": "pattern distilled in the exact marker minute boundary",
-            "distilled": "2026-07-06T12:34+00:00",
-        })
+        store._learned_patterns.append(
+            {
+                "pattern": "pattern distilled in the exact marker minute boundary",
+                "distilled": "2026-07-06T12:34+00:00",
+            }
+        )
         result = store.get_live_patterns_since("2026-07-06T12:34+00:00")
         assert len(result) == 1
 
     def test_earlier_pattern_still_excluded(self, tmp_path: Path):
         store = KnowledgeStore(path=tmp_path / "k.json")
-        store._learned_patterns.append({
-            "pattern": "old pattern distilled well before the marker minute",
-            "distilled": "2026-07-06T12:33+00:00",
-        })
+        store._learned_patterns.append(
+            {
+                "pattern": "old pattern distilled well before the marker minute",
+                "distilled": "2026-07-06T12:33+00:00",
+            }
+        )
         result = store.get_live_patterns_since("2026-07-06T12:34+00:00")
         assert result == []

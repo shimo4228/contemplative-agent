@@ -207,8 +207,8 @@ class IdentityResult:
 
     ADR-0050: ``pattern_ids`` carries the content-hash ids of the
     view-matched input patterns; ``epistemic_counts`` their
-    observed/generated tally — the headline metric for how much of the
-    identity input is self-generated narrative.
+    generated/unknown tally (ADR-0082) — the headline metric for how much of
+    the identity input is self-generated narrative.
     """
 
     text: str

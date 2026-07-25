@@ -2,7 +2,7 @@
 
 ## Status
 
-partially-superseded-by ADR-0051 (Decision 2 "no trust change" retired 2026-06-05 — trust weighting removed entirely). The taxonomy, lineage plumbing, and no-write-back decisions remain in effect.
+partially-superseded-by ADR-0051 (Decision 2 "no trust change" retired 2026-06-05 — trust weighting removed entirely), ADR-0082 (the `observed` kind and the `epistemic_counts` schema retired 2026-07-25 — unreachable since ADR-0060; the tally is now `{generated, unknown}`). The remaining taxonomy, lineage plumbing, and no-write-back decisions remain in effect.
 
 ## Date
 

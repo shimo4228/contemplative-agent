@@ -29,7 +29,7 @@ class AmendmentResult:
 
     ADR-0050: ``pattern_ids`` carries the content-hash ids of the
     view-matched input patterns; ``epistemic_counts`` their
-    observed/generated tally.
+    generated/unknown tally (ADR-0082).
     """
 
     text: str

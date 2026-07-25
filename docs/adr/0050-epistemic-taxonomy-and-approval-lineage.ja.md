@@ -2,7 +2,7 @@
 
 ## Status
 
-partially-superseded-by ADR-0051 (Decision 2「trust は変更しない」を 2026-06-05 に撤回 — trust 重み自体を全廃)。taxonomy・系譜配管・write-back 不採用の決定は有効のまま。
+partially-superseded-by ADR-0051 (Decision 2「trust は変更しない」を 2026-06-05 に撤回 — trust 重み自体を全廃)、ADR-0082 (`observed` kind と `epistemic_counts` スキーマを 2026-07-25 に退役 — ADR-0060 以降到達不能。tally は `{generated, unknown}` になった)。残りの taxonomy・系譜配管・write-back 不採用の決定は有効のまま。
 
 ## Date
 

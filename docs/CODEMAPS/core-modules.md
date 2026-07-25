@@ -61,7 +61,7 @@ RuleResult(text, filename, target_path, source_ids)                            #
 RulesDistillResult(rules, dropped_count)
 ```
 
-ADR-0050: `pattern_ids` = content-hash ids of input patterns; `epistemic_counts` = `{observed, generated, unknown}` tally derived from `provenance.source_type` (never persisted); `source_ids` (RuleResult) = skill filenames of the batch.
+ADR-0050: `pattern_ids` = content-hash ids of input patterns; `epistemic_counts` = `{generated, unknown}` tally derived from `provenance.source_type` (never persisted; ADR-0082 retired the third `observed` key); `source_ids` (RuleResult) = skill filenames of the batch.
 
 ## EpisodeLog Schema (JSONL)
 
@@ -95,7 +95,7 @@ File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0056):
 - `gated` is behavioural (insight clustering skips gated rows); no per-pattern view telemetry is persisted (`last_classified_at` / `last_view_matches` never existed in code — removed from this doc 2026-07-03).
 - `trust_score` / `trust_updated_at` retired by ADR-0051; `importance` retired by ADR-0056 (legacy rows shed all three fields on next save).
 - `category` field removed by ADR-0026.
-- `provenance.source_type` is stamped at distill time (ADR-0050/0060). The enum values are valid in type space, but post-ADR-0060 per-episode distill new patterns are stamped `self_reflection` / `external_reply`; the ADR-0050 `observed` epistemic kind is structurally absent for new patterns (interaction records are filtered out before distill), so `epistemic_counts` is effectively a generated/unknown split.
+- `provenance.source_type` is stamped at distill time (ADR-0050/0060). The enum values are valid in type space, but post-ADR-0060 per-episode distill new patterns are stamped `self_reflection` / `external_reply`; the `observed` epistemic kind was structurally absent for new patterns (interaction records are filtered out before distill), so ADR-0082 retired the kind and its `external_reply` arm — `epistemic_counts` is now a `{generated, unknown}` split, and an `external_reply` row tallies as `unknown`. The `external_reply` **source_type** itself is kept: it is a provenance record, a separate layer from the epistemic tally.
 
 ## Thresholds (canonical: `core/thresholds.py`)
 

@@ -76,13 +76,13 @@ def _log_approval(
             lineage-tracked command has ≥1 input by construction, so
             "tracked but empty" does not occur and null uniformly means
             "no lineage attached".
-        epistemic_counts: Provenance-kind tally (observed/generated/unknown)
-            of the artifact's input patterns (ADR-0050). Always present in the
-            record (null when not applicable; empty dicts normalize to null,
-            same rationale). NOT an external-grounding metric: since ADR-0060
-            ``observed`` is structurally zero (review 2026-06-27 M2), so a 0 here
-            does not mean the inputs lacked external grounding — see
-            ``epistemic_counts_for`` and architecture.md.
+        epistemic_counts: Provenance-kind tally (generated/unknown) of the
+            artifact's input patterns (ADR-0050, ADR-0082). Always present in
+            the record (null when not applicable; empty dicts normalize to
+            null, same rationale). NOT an external-grounding metric — external
+            content enters as grounding text inside the rich render and was
+            never counted here. Records written before ADR-0082 also carry a
+            structurally-zero ``observed`` key; read with ``.get(...)``.
     """
     if approved is None:
         decision = "staged"

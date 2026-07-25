@@ -40,9 +40,15 @@ test governs removal:
 - ADR-0072 removed the grounding-composition instrument shipped days earlier:
   under per-episode distillation its reading is constant, and a constant
   reading changes no action.
-- The M2 `epistemic_counts` repair stays deferred "until a decision consumes
-  the reading" (task ledger T-M2) — an instrument without a consumer is not
-  built early.
+- The M2 `epistemic_counts` repair was deferred "until a decision consumes the
+  reading" — an instrument without a consumer is not built early. It resolved
+  the other way (ADR-0082, 2026-07-25): the `observed` key was **retired**
+  rather than repaired, after a reader aggregated the permanently-zero field
+  and drew the exact wrong conclusion M2 had predicted. The lesson qualifies
+  the deferral rule: a constant reading changes no action only while nobody
+  reads it. Once it is persisted where readers meet it, a dead field has a
+  running cost, and the fix is deletion — a docstring warning next to the
+  producer never travels with the value into the data file.
 
 ## Invariants (from ADR-0071, Decision 6)
 

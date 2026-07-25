@@ -19,8 +19,8 @@ def _matching_view_registry():
     row-level category filter.
     """
     registry = MagicMock()
-    registry.find_by_view.side_effect = (
-        lambda name, candidates: list(candidates) if name == "constitutional" else []
+    registry.find_by_view.side_effect = lambda name, candidates: (
+        list(candidates) if name == "constitutional" else []
     )
     return registry
 
@@ -81,13 +81,13 @@ def _setup_constitution(tmp_path):
 
 
 class TestAmendConstitution:
-
     def test_no_constitutional_patterns_returns_early(self, tmp_path):
         ks = KnowledgeStore(path=tmp_path / "knowledge.json")
         const_dir = _setup_constitution(tmp_path)
 
         result = amend_constitution(
-            knowledge_store=ks, constitution_dir=const_dir,
+            knowledge_store=ks,
+            constitution_dir=const_dir,
             view_registry=_matching_view_registry(),
         )
         assert isinstance(result, str)
@@ -99,7 +99,8 @@ class TestAmendConstitution:
         const_dir = _setup_constitution(tmp_path)
 
         result = amend_constitution(
-            knowledge_store=ks, constitution_dir=const_dir,
+            knowledge_store=ks,
+            constitution_dir=const_dir,
         )
         assert isinstance(result, str)
         assert "ViewRegistry" in result
@@ -112,41 +113,50 @@ class TestAmendConstitution:
         const_dir = _setup_constitution(tmp_path)
 
         result = amend_constitution(
-            knowledge_store=ks2, constitution_dir=const_dir,
+            knowledge_store=ks2,
+            constitution_dir=const_dir,
             view_registry=_matching_view_registry(),
         )
         assert isinstance(result, str)
         assert "Insufficient" in result
         assert f"1/{MIN_PATTERNS_REQUIRED}" in result
 
-    @patch("contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
-           "Amend: {current_constitution}\nPatterns: {constitutional_patterns}")
+    @patch(
+        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
+    )
     def test_no_constitution_file_returns_early(self, tmp_path):
         ks = _make_constitutional_knowledge(tmp_path)
         empty_dir = tmp_path / "empty_constitution"
         empty_dir.mkdir()
 
         result = amend_constitution(
-            knowledge_store=ks, constitution_dir=empty_dir,
+            knowledge_store=ks,
+            constitution_dir=empty_dir,
             view_registry=_matching_view_registry(),
         )
         assert isinstance(result, str)
         assert "No constitution file" in result
 
-    @patch("contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
-           "Amend: {current_constitution}\nPatterns: {constitutional_patterns}")
+    @patch(
+        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
+    )
     def test_no_constitution_dir_returns_early(self, tmp_path):
         ks = _make_constitutional_knowledge(tmp_path)
 
         result = amend_constitution(
-            knowledge_store=ks, constitution_dir=None,
+            knowledge_store=ks,
+            constitution_dir=None,
             view_registry=_matching_view_registry(),
         )
         assert isinstance(result, str)
         assert "No constitution directory" in result
 
-    @patch("contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
-           "Amend: {current_constitution}\nPatterns: {constitutional_patterns}")
+    @patch(
+        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
+    )
     @patch("contemplative_agent.core.constitution.generate_full")
     def test_returns_amendment_result(self, mock_generate, tmp_path):
         mock_generate.return_value = GenerationOutput(text=AMENDED_CONSTITUTION)
@@ -155,7 +165,8 @@ class TestAmendConstitution:
         original = (const_dir / "contemplative-axioms.md").read_text()
 
         result = amend_constitution(
-            knowledge_store=ks, constitution_dir=const_dir,
+            knowledge_store=ks,
+            constitution_dir=const_dir,
             view_registry=_matching_view_registry(),
         )
         assert isinstance(result, AmendmentResult)
@@ -166,8 +177,10 @@ class TestAmendConstitution:
         assert (const_dir / "contemplative-axioms.md").read_text() == original
         assert not (const_dir / ".last_constitution_amend").exists()
 
-    @patch("contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
-           "Amend: {current_constitution}\nPatterns: {constitutional_patterns}")
+    @patch(
+        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
+    )
     @patch("contemplative_agent.core.constitution.generate_full", return_value=None)
     def test_llm_failure_returns_error(self, mock_generate, tmp_path):
         ks = _make_constitutional_knowledge(tmp_path)
@@ -175,15 +188,18 @@ class TestAmendConstitution:
         original = (const_dir / "contemplative-axioms.md").read_text()
 
         result = amend_constitution(
-            knowledge_store=ks, constitution_dir=const_dir,
+            knowledge_store=ks,
+            constitution_dir=const_dir,
             view_registry=_matching_view_registry(),
         )
         assert isinstance(result, str)
         assert "LLM failed" in result
         assert (const_dir / "contemplative-axioms.md").read_text() == original
 
-    @patch("contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
-           "Amend: {current_constitution}\nPatterns: {constitutional_patterns}")
+    @patch(
+        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
+    )
     @patch("contemplative_agent.core.constitution.generate_full")
     def test_forbidden_pattern_returns_string(self, mock_generate, tmp_path):
         mock_generate.return_value = GenerationOutput(text="My api_key is secret.")
@@ -192,7 +208,8 @@ class TestAmendConstitution:
         original = (const_dir / "contemplative-axioms.md").read_text()
 
         result = amend_constitution(
-            knowledge_store=ks, constitution_dir=const_dir,
+            knowledge_store=ks,
+            constitution_dir=const_dir,
             view_registry=_matching_view_registry(),
         )
         # Validation failure returns str, not AmendmentResult
@@ -206,7 +223,8 @@ class TestAmendConstitution:
         const_dir = _setup_constitution(tmp_path)
 
         result = amend_constitution(
-            knowledge_store=ks, constitution_dir=const_dir,
+            knowledge_store=ks,
+            constitution_dir=const_dir,
             view_registry=_matching_view_registry(),
         )
         assert isinstance(result, str)
@@ -218,7 +236,8 @@ class TestAmendConstitution:
         const_dir = _setup_constitution(tmp_path)
 
         result = amend_constitution(
-            knowledge_store=ks, constitution_dir=const_dir,
+            knowledge_store=ks,
+            constitution_dir=const_dir,
             view_registry=_empty_view_registry(),
         )
         assert isinstance(result, str)
@@ -236,7 +255,8 @@ class TestAmendConstitutionLineageADR0050:
         const_dir = _setup_constitution(tmp_path)
 
         result = amend_constitution(
-            knowledge_store=ks, constitution_dir=const_dir,
+            knowledge_store=ks,
+            constitution_dir=const_dir,
             view_registry=_matching_view_registry(),
         )
         assert isinstance(result, AmendmentResult)
@@ -244,24 +264,24 @@ class TestAmendConstitutionLineageADR0050:
         live = ks.get_live_patterns()
         assert set(result.pattern_ids) == {pattern_id(p) for p in live}
         # Default provenance is unknown → everything tallies as unknown.
-        assert result.epistemic_counts == {
-            "observed": 0, "generated": 0, "unknown": len(live),
-        }
+        assert result.epistemic_counts == {"generated": 0, "unknown": len(live)}
 
 
 class TestTruncationPolicyH1:
     """Bug-audit 2026-07-06 H1: constitution amendment passes
     drop_truncated=True."""
 
-    @patch("contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
-           "Amend: {current_constitution}\nPatterns: {constitutional_patterns}")
-    @patch("contemplative_agent.core.constitution.generate_full",
-           return_value=None)
+    @patch(
+        "contemplative_agent.core.constitution.CONSTITUTION_AMEND_PROMPT",
+        "Amend: {current_constitution}\nPatterns: {constitutional_patterns}",
+    )
+    @patch("contemplative_agent.core.constitution.generate_full", return_value=None)
     def test_amend_drops_truncated(self, mock_generate, tmp_path):
         ks = _make_constitutional_knowledge(tmp_path)
         const_dir = _setup_constitution(tmp_path)
         amend_constitution(
-            knowledge_store=ks, constitution_dir=const_dir,
+            knowledge_store=ks,
+            constitution_dir=const_dir,
             view_registry=_matching_view_registry(),
         )
         assert mock_generate.call_args.kwargs["drop_truncated"] is True

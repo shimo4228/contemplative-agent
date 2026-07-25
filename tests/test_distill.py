@@ -1281,8 +1281,9 @@ class TestDistillIdentityLineageADR0050:
                 "provenance": {"source_type": "self_reflection"},
             },
             {
-                "pattern": "externally observed pattern",
+                "pattern": "externally sourced pattern",
                 "distilled": "2026-06-05T10:00+00:00",
+                # ADR-0082 retired the observed kind — this tallies as unknown
                 "provenance": {"source_type": "external_reply"},
             },
         ]
@@ -1298,4 +1299,4 @@ class TestDistillIdentityLineageADR0050:
         )
         assert isinstance(result, IdentityResult)
         assert set(result.pattern_ids) == {pattern_id(p) for p in matched}
-        assert result.epistemic_counts == {"observed": 1, "generated": 1, "unknown": 0}
+        assert result.epistemic_counts == {"generated": 1, "unknown": 1}
