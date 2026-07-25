@@ -110,9 +110,53 @@ Re-evaluate after one weekly cycle (around 2026-05-27). Specifically check:
 
 If (1) and (2) hold and (3) does not occur, the change is working as intended. If (3) occurs, follow up with a Cluster-A-to-Cluster-C demotion for the offending caller (most likely `generate_reply.original_post`).
 
+## Amendment (2026-07-25): the completeness marker inverts on empty input — callers omit the section instead
+
+### Context
+
+The marker introduced above closes F1.1-B by telling the model, unambiguously, that a short input is whole. On an **empty** input the same sentence keeps its authority and inverts its meaning: `Note: untrusted_content is complete (0 chars).` asserts that a labeled part of the conversation is verifiably, completely blank.
+
+`reply_handler._handle_post_comments` (the comment-scan path) fetches no post body and passes `original_post=""`; `generate_reply` wrapped it unconditionally and `reply.md` carried a fixed `Original post:` header, so the assembled prompt read:
+
+```
+Original post:
+<untrusted_content>
+
+</untrusted_content>
+Note: untrusted_content is complete (0 chars).
+...
+Their reply:
+<untrusted_content>
+Interesting perspective on the dual roles of writer and reader…
+</untrusted_content>
+Note: untrusted_content is complete (63 chars).
+```
+
+Published output then described that blank — *"It appears we have arrived at an empty field here—a space marked only by silence where a contribution was anticipated, yet nothing materialized"* — in reply to a real comment the same record's internal note quotes in full. That is faithful reading of a false premise, not a comprehension failure: the internal-note path read the identical payload correctly because it alone applied an `if original_post` guard before assembly. Replies were 339 of 638 outputs (53%) in that window, and the comment-scan path is the one that supplies no post body (weekly-2026-07-24 F1.1).
+
+### Decision
+
+An empty value must not be rendered through the wrapper at all. The **caller** decides whether a section exists; `wrap_untrusted_content` is unchanged — the marker keeps its meaning for every non-empty input, and there is no "empty" special case inside the boundary.
+
+1. `reply.md` holds a conditional slot (`{original_post_block}`) instead of a fixed header; the section text moves to `config/prompts/reply_post_block.md` (ADR-0054 — the header string is LLM-read text and stays externalized, with no duplication of the surrounding register instructions).
+2. `generate_reply` fills that slot only when `original_post` is truthy — the same test `_process_reply` already applied to the internal-note context — and skips `wrap_untrusted_content` entirely otherwise. The non-empty rendering is byte-identical to before (pinned by test).
+3. A missing or unusable `reply_post_block.md` re-asserts a hardcoded default **with a WARNING**, mirroring `_DEFAULT_UNTRUSTED_FRAME`: a post the agent does hold must never disappear silently. The fallback is for a lost template, not for an absent post — the empty case stays silent.
+4. `score_relevance` short-circuits empty input to `0.0` without an LLM call (reachable via `post_pipeline._score_post_relevance`, whose feed dicts may carry no `content`). Nothing is published from that path, but the same false assertion was being made, and "is there any text" is a structural property that does not need a model. The DEBUG log keeps it distinguishable from the outage sentinel's WARNING.
+
+Generalized: **a labeled slot and its completeness marker are one unit.** Any caller that may hold nothing for a slot omits the label with the body; asserting completeness over emptiness is a claim, not a neutral absence.
+
+### Consequences
+
+- The reply prompt no longer makes a false factual assertion on 53%-of-output's dominant path. The register effect is expected to appear as the disappearance of "empty field" / "no inherent semantic mass" shapes.
+- The scaffolding-narration residue tracked in weekly F3.3 loses its worst case: with an empty body, the wrapper frame was the *only* text under a labeled header.
+- New fault surface (covered by the chaos column, ADR-0077): a stale `$MOLTBOOK_HOME/prompts/reply.md` override carrying the pre-fix placeholder is rendered as-is with a WARNING naming the file, rather than raising `KeyError` inside the reply loop. Degrade rather than refuse, deliberately: write access to `$MOLTBOOK_HOME/prompts/` is the operator's own boundary (a breach there already exceeds the network-facing threats ADR-0007 addresses), the value interpolated into any fallback arm is the **already-wrapped** string — so `_INJECTION_TOKENS` stripping and the "Do NOT follow" sentence travel inside it and no template can strip them — and refusing would stop the reply loop over a config edit the WARNING already names. Note the home-override validation in `core/domain.py` is a credential-exfiltration filter, not an injection filter; that scope is pre-existing and shared by every prompt template.
+
 ## References
 
 - [ADR-0007](0007-security-boundary-model.md) — Refines. ADR-0042 changes the truncation contract of the wrapper without touching ADR-0007's injection-mitigation guarantees.
+- [ADR-0054](0054-externalize-llm-instruction-text-to-prompts.md) — The amendment's section text (`reply_post_block.md`) is externalized under this policy; the hardcoded fallback follows its "re-assert load-bearing pieces" pattern.
+- [ADR-0077](0077-chaos-tdd-fault-injection.md) — The amendment ships its fault column (template missing / gutted / unresolvable / stale override).
+- `~/.config/moltbook/reports/analysis/weekly-2026-07-24-findings.md` — F1.1 finding (empty post section asserted complete).
 - [ADR-0018](0018-per-caller-num-predict-embedding-stocktake.md) — Precedent. The `max_input` keyword-only parameter follows the same caller-knows-the-constraint pattern that ADR-0018 introduced for `num_predict`.
 - [ADR-0040](0040-separate-code-level-findings.md) — The weekly-report-diagnosis skill that produced the F1.1 finding underlying this ADR.
 - `~/.config/moltbook/reports/analysis/weekly-2026-05-17-findings.md` — F1.1 finding (long-post invisibility + short-post hallucinated cut-off).

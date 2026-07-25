@@ -26,6 +26,7 @@ class _LazyPrompts:
         "COMMENT_PROMPT": "comment",
         "COOPERATION_POST_PROMPT": "cooperation_post",
         "REPLY_PROMPT": "reply",
+        "REPLY_POST_BLOCK_PROMPT": "reply_post_block",
         "POST_TITLE_PROMPT": "post_title",
         "TOPIC_SUMMARY_PROMPT": "topic_summary",
         "SUBMOLT_SELECTION_PROMPT": "submolt_selection",

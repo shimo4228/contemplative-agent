@@ -92,7 +92,11 @@ class TestLoadPromptTemplates:
         assert "{post_content}" in templates.relevance
         assert "{post_content}" in templates.comment
         assert "{feed_seeds}" in templates.cooperation_post
-        assert "{original_post}" in templates.reply
+        # The post section is a conditional slot the caller fills from
+        # reply_post_block.md — the reply template itself no longer carries a
+        # post placeholder (weekly-2026-07-24 F1.1).
+        assert "{original_post_block}" in templates.reply
+        assert "{original_post}" in templates.reply_post_block
         assert "{feed_seed_text}" in templates.post_title
         assert "{post_content}" in templates.topic_summary
         assert "{submolt_list}" in templates.submolt_selection

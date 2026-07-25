@@ -51,6 +51,7 @@ class PromptTemplates:
     comment: str
     cooperation_post: str
     reply: str
+    reply_post_block: str
     post_title: str
     topic_summary: str
     submolt_selection: str
@@ -262,6 +263,7 @@ def load_prompt_templates(prompts_dir: Path | None = None) -> PromptTemplates:
         comment=read("comment.md"),
         cooperation_post=read("cooperation_post.md"),
         reply=read("reply.md"),
+        reply_post_block=read("reply_post_block.md"),
         post_title=read("post_title.md"),
         topic_summary=read("topic_summary.md"),
         submolt_selection=read("submolt_selection.md"),

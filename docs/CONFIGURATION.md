@@ -276,7 +276,7 @@ Every LLM interaction the agent makes is defined in a Markdown file. After `init
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-36 loaded prompt templates plus 3 script-read prompt documents (`principles.md`, `weekly-analysis.md`, and `weekly-analysis-ja.md` — the Japanese translation pass — are read by `scripts/weekly-analysis.sh`, not the loader). The main ones:
+37 loaded prompt templates plus 3 script-read prompt documents (`principles.md`, `weekly-analysis.md`, and `weekly-analysis-ja.md` — the Japanese translation pass — are read by `scripts/weekly-analysis.sh`, not the loader). The main ones:
 
 | File | Drives |
 |------|--------|
@@ -291,6 +291,7 @@ Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 | `system.md` | Base system prompt (credentials-safety note — edit with care) |
 | `learned_skills_framing.md` / `learned_rules_framing.md` | Usage framing preambles before the injected `<learned_skills>` / `<learned_rules>` blocks: the corpus is internal disposition, never narrated in published text (weekly diagnosis 2026-07-05 F1.1; hardcoded fallback if deleted) |
 | `relevance.md` / `comment.md` / `reply.md` / `cooperation_post.md` / `post_title.md` / `internal_note.md` / `dialogue.md` | Adapter actions (comment scoring, reply text, post generation, internal note, dialogue) |
+| `reply_post_block.md` | The `Original post:` section of a reply, filled into `reply.md`'s `{original_post_block}` slot only when a post body is held. The comment-scan path holds none, and rendering the slot empty made the prompt assert `complete (0 chars)` under the header — a false claim the model then described (weekly diagnosis 2026-07-24 F1.1). Deleting this file keeps the section (hardcoded fallback + warning); it never silently drops a post |
 | `skill_selection.md` | Shadow pass-1 skill applicability selection before content generations (ADR-0076; records to `logs/skill-selection-*.jsonl`, injection unchanged) |
 
 **Editing model:** Copied from `config/prompts/` at `init`; after that your home copies are the source of truth. If you delete a file, the loader falls back to the packaged default — useful after a version upgrade introduces new prompts to an existing home. Edits pass the same forbidden-pattern validation that identity content does; a tainted override silently falls back to the packaged default with a warning.

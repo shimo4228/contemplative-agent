@@ -22,7 +22,6 @@ from ...core.prompts import (
     INTERNAL_NOTE_PROMPT,
     POST_TITLE_PROMPT,
     RELEVANCE_PROMPT,
-    REPLY_PROMPT,
     SUBMOLT_SELECTION_PROMPT,
     TOPIC_SUMMARY_PROMPT,
 )
@@ -50,7 +49,26 @@ def _resolve_domain_prompt(template: str) -> str:
 
 
 def score_relevance(post_text: str) -> float:
-    """Score a post's relevance to domain topics (0.0 to 1.0)."""
+    """Score a post's relevance to domain topics (0.0 to 1.0).
+
+    An empty body short-circuits to 0.0 without an LLM call: a feed post dict
+    with no ``content`` reaches here via ``post_pipeline._score_post_relevance``
+    (``feed_manager`` filters those earlier, that path does not), and wrapping
+    "" asserts ``complete (0 chars)`` at the model — the same false-assertion
+    class as the reply path's empty post section (weekly-2026-07-24 F1.1).
+    "Is there any text" is a structural property, so code answers it rather
+    than the LLM (skill: when-code-when-llm).
+    """
+    if not post_text.strip():
+        # DEBUG, not WARNING: an empty feed post is a normal condition, and
+        # this 0.0 must stay distinguishable from the outage sentinel below —
+        # both land in the relevance distribution a retune reads.
+        logger.debug(
+            "Empty post text — scoring 0.0 without an LLM call "
+            "(reason=empty_input, not a low score)"
+        )
+        return 0.0
+
     prompt = _resolve_domain_prompt(RELEVANCE_PROMPT).format(
         post_content=wrap_untrusted_content(post_text, max_input=1000),
     )
@@ -262,6 +280,90 @@ def generate_cooperation_post(
     )
 
 
+# ADR-0054 safety net, same shape as core/llm/guard.py's
+# _DEFAULT_UNTRUSTED_FRAME: the externalized reply templates are the canonical
+# text, and these minimal skeletons re-assert only the load-bearing property —
+# both the post (when held) and the comment reach the model — if a template
+# goes missing or is edited into something unusable.
+_DEFAULT_REPLY_POST_BLOCK = "Original post:\n{original_post}"
+_DEFAULT_REPLY_PROMPT = (
+    "Write a reply to the following conversation.\n\n"
+    "{original_post_block}Their reply:\n{their_comment}"
+)
+
+
+def _reply_post_block(wrapped_post: str) -> str:
+    """Render the ``Original post:`` section, or ``""`` when there is no post.
+
+    The comment-scan path fetches no post body (``_handle_post_comments``
+    passes ``original_post=""``), and an empty string rendered through
+    ``wrap_untrusted_content`` produces an empty ``<untrusted_content>`` block
+    plus ``Note: untrusted_content is complete (0 chars).`` under the section
+    header — ADR-0042's completeness marker inverted into authoritative
+    testimony that a labeled part of the conversation is verifiably blank. The
+    model then faithfully described that blank in reply to a real comment
+    (weekly-2026-07-24 F1.1). So the section is omitted whole, on the same
+    ``if original_post`` test ``_process_reply`` already applies to the
+    internal-note context one function up.
+
+    The section text is externalized (ADR-0054). A missing or hand-edited
+    template re-asserts the hardcoded default with a WARNING rather than
+    dropping a real post body silently — the load-bearing property here is
+    that a post the agent *does* hold always reaches the model.
+    """
+    if not wrapped_post:
+        return ""
+
+    from ...core.prompts import REPLY_POST_BLOCK_PROMPT
+
+    template = REPLY_POST_BLOCK_PROMPT
+    if not (template and "{original_post}" in template):
+        logger.warning("reply_post_block prompt missing its post slot; using hardcoded default")
+        template = _DEFAULT_REPLY_POST_BLOCK
+    try:
+        block = template.format(original_post=wrapped_post)
+    except (KeyError, IndexError, ValueError):
+        logger.warning(
+            "reply_post_block prompt has unresolvable placeholders; using hardcoded default"
+        )
+        block = _DEFAULT_REPLY_POST_BLOCK.format(original_post=wrapped_post)
+    # The loader strips templates, so the blank line separating this section
+    # from "Their reply:" is layout glue and lives here, not in the .md.
+    return f"{block}\n\n"
+
+
+def _render_reply_prompt(wrapped_post: str, wrapped_comment: str) -> str:
+    """Assemble the reply prompt with a conditional post section."""
+    from ...core.prompts import REPLY_PROMPT
+
+    template = REPLY_PROMPT
+    if "{original_post}" in template:
+        # A $MOLTBOOK_HOME/prompts/reply.md override written before the post
+        # slot became conditional. Render it verbatim rather than raising
+        # KeyError inside the reply loop, and name the file to update.
+        logger.warning(
+            "reply prompt template predates the conditional post slot "
+            "(carries the pre-fix post placeholder); rendering it as-is — a "
+            "$MOLTBOOK_HOME/prompts/reply.md override should be updated to "
+            "the post-block slot"
+        )
+        try:
+            return template.format(original_post=wrapped_post, their_comment=wrapped_comment)
+        except (KeyError, IndexError, ValueError):
+            template = _DEFAULT_REPLY_PROMPT
+    try:
+        return template.format(
+            original_post_block=_reply_post_block(wrapped_post),
+            their_comment=wrapped_comment,
+        )
+    except (KeyError, IndexError, ValueError):
+        logger.warning("reply prompt has unresolvable placeholders; using hardcoded default")
+        return _DEFAULT_REPLY_PROMPT.format(
+            original_post_block=_reply_post_block(wrapped_post),
+            their_comment=wrapped_comment,
+        )
+
+
 def generate_reply(
     original_post: str,
     their_comment: str,
@@ -269,6 +371,10 @@ def generate_reply(
     think: bool = False,
 ) -> GenerationOutput:
     """Generate a reply that continues a conversation thread.
+
+    ``original_post`` is ``""`` on the comment-scan path, which fetches no post
+    body; the post section is then omitted rather than rendered empty (see
+    :func:`_reply_post_block`).
 
     Returns a :class:`GenerationOutput` (``.text`` reply, ``.thinking`` trace
     when ``think=True``); see :func:`generate_comment`.
@@ -279,17 +385,18 @@ def generate_reply(
     # neither branch truncates real content — they are NUM_CTX safety valves
     # only (worst-case ASCII ≈16.7K tok via _estimate_tokens /3, well under the
     # 32768 budget; a pathological all-CJK max is skipped by generate()'s guard).
-    wrapped_post = wrap_untrusted_content(original_post, max_input=MAX_POST_LENGTH)
+    wrapped_post = (
+        wrap_untrusted_content(original_post, max_input=MAX_POST_LENGTH) if original_post else ""
+    )
     wrapped_comment = wrap_untrusted_content(their_comment, max_input=MAX_COMMENT_LENGTH)
     # ADR-0076 shadow observation / ADR-0081 enforcement (see generate_comment).
-    selection = shadow_observe_skill_selection(
-        f"{wrapped_post}\n\n{wrapped_comment}", generation_caller="moltbook.reply"
-    )
+    # The selection situation keeps its pre-F1.1 shape when a post is present
+    # (enforcement went live 2026-07-24; the observation window should not be
+    # perturbed by this fix) and drops the separator when it is not.
+    situation = f"{wrapped_post}\n\n{wrapped_comment}" if wrapped_post else wrapped_comment
+    selection = shadow_observe_skill_selection(situation, generation_caller="moltbook.reply")
     system = _selection_system(selection)
-    prompt = REPLY_PROMPT.format(
-        original_post=wrapped_post,
-        their_comment=wrapped_comment,
-    )
+    prompt = _render_reply_prompt(wrapped_post, wrapped_comment)
     # chars_per_token=1.5 (audit M2): same CJK output budget as the comment
     # path — see generate_comment.
     return generate_for_api(
