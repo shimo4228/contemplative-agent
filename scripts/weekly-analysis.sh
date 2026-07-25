@@ -43,6 +43,18 @@ START_DATE=$(date -j -f %Y-%m-%d -v-"$((DAYS - 1))"d "$END_DATE" +%Y-%m-%d)
 
 echo "Analysis period: $START_DATE to $END_DATE ($DAYS days)"
 
+# --- Preflight: the whole script exists to feed `claude -p` ---
+# launchd does not inherit the login shell's PATH, and Claude Code's native
+# installer moved the binary to ~/.local/bin. Discovering that at the generate
+# step (line ~250) burns the full collection pass first and — before the
+# temp-file write below — left a 0-byte report behind. Fail here instead.
+if ! command -v claude >/dev/null 2>&1; then
+    echo "ERROR: 'claude' not found on PATH ($PATH)." >&2
+    echo "       Under launchd, add its directory to the plist's EnvironmentVariables PATH" >&2
+    echo "       (config/launchd/com.moltbook.weekly-analysis.plist), then reinstall the schedule." >&2
+    exit 1
+fi
+
 # --- Collect daily reports ---
 DAILY_REPORTS=""
 FOUND=0
@@ -154,6 +166,7 @@ PREV_FOUND=0
 PREV_DATES=$(
     for f in "$REPORT_DIR"/weekly-????-??-??.md; do
         [[ -e "$f" ]] || continue          # unmatched glob stays literal
+        [[ -s "$f" ]] || continue          # 0-byte leftovers from a failed run
         d=$(basename "$f" .md)
         d=${d#weekly-}
         if [[ "$d" < "$END_DATE" ]]; then  # strictly before this run's end
@@ -238,11 +251,29 @@ mkdir -p "$REPORT_DIR"
 OUTPUT="$REPORT_DIR/weekly-${END_DATE}.md"
 
 # --- Run claude ---
+# Write to a temp file and promote on success. A direct `> "$OUTPUT"` truncates
+# the target before the command runs, so any failure (or a run killed mid-flight)
+# leaves a 0-byte weekly-<date>.md that reads as a report: the diagnosis skill
+# has no E section to work from, and next week's glob feeds it back as an empty
+# "previous report". 2026-07-25: that is exactly what happened.
 echo "Running claude -p (this may take a few minutes)..."
-echo "$USER_PROMPT" | claude -p \
+OUTPUT_TMP="${OUTPUT}.tmp.$$"
+trap 'rm -f "$OUTPUT_TMP"' EXIT
+
+if ! echo "$USER_PROMPT" | claude -p \
     --system-prompt "$SYSTEM_PROMPT" \
     --output-format text \
-    > "$OUTPUT"
+    > "$OUTPUT_TMP"; then
+    echo "ERROR: claude -p failed; leaving any previous $OUTPUT untouched" >&2
+    exit 1
+fi
+
+if [[ ! -s "$OUTPUT_TMP" ]]; then
+    echo "ERROR: claude -p exited 0 but produced no output; $OUTPUT left untouched" >&2
+    exit 1
+fi
+
+mv "$OUTPUT_TMP" "$OUTPUT"
 
 echo "Report generated: $OUTPUT"
 echo "Size: $(wc -c < "$OUTPUT") bytes"

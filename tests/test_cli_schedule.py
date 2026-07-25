@@ -15,6 +15,7 @@ from contemplative_agent.cli.schedule import (
     _do_install_backup_schedule,
     _do_install_distill_schedule,
     _do_install_schedule,
+    _do_install_weekly_analysis_schedule,
     _do_uninstall_schedule,
     _remove_stale_schedule_jobs,
 )
@@ -217,6 +218,48 @@ class TestInstallBackupSchedule:
         # Verify all placeholders were replaced
         for placeholder in ("{{PROJECT_ROOT}}", "{{WEEKDAY}}", "{{HOUR}}", "{{LOG_PATH}}"):
             assert placeholder not in content
+
+
+class TestInstallWeeklyAnalysisSchedule:
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_install_creates_weekly_analysis_plist(self, mock_run, plist_sandbox):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+
+        _do_install_weekly_analysis_schedule(weekday=6, hour=9)
+
+        content = plist_sandbox["LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH"].read_text()
+        assert "weekly-analysis.sh" in content
+        assert "<integer>6</integer>" in content
+        assert "<integer>9</integer>" in content
+        for placeholder in (
+            "{{PROJECT_ROOT}}",
+            "{{USER_LOCAL_BIN}}",
+            "{{WEEKDAY}}",
+            "{{HOUR}}",
+            "{{LOG_PATH}}",
+        ):
+            assert placeholder not in content
+
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_weekly_analysis_path_reaches_claude(self, mock_run, plist_sandbox):
+        """Regression pin for the 2026-07-25 incident: the template hardcoded
+        ``/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin``. When Claude Code's
+        native installer moved the binary to ~/.local/bin, the scheduled job
+        died with ``claude: command not found`` and left a 0-byte weekly report
+        that read as a successful run. The script's whole purpose is to shell
+        out to ``claude``, so its PATH must cover that directory."""
+        import re
+        from pathlib import Path
+
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+
+        _do_install_weekly_analysis_schedule(weekday=6, hour=9)
+
+        content = plist_sandbox["LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH"].read_text()
+        match = re.search(r"<key>PATH</key>\s*<string>([^<]*)</string>", content)
+        assert match, "weekly-analysis plist declares no PATH"
+        path_entries = match.group(1).split(":")
+        assert str(Path.home() / ".local" / "bin") in path_entries
 
 
 class TestUninstallScheduleBoth:

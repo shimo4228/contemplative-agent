@@ -19,7 +19,7 @@
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>PATH</key>
-		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<string>{{USER_LOCAL_BIN}}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
 	</dict>
 
 	<key>StartCalendarInterval</key>

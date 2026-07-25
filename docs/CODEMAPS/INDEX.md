@@ -110,7 +110,7 @@ As of **2026-07-25** — values are measured, never carried forward from a previ
 |--------|-------|
 | Total `.py` files | 74 (66 non-`__init__` + 8 `__init__`) |
 | LOC | ~21361 |
-| Test files | 60 (1984 tests collected) |
+| Test files | 60 (1986 tests collected) |
 | Core modules | 32 (platform-independent; incl. `llm/` package as one row) |
 | Moltbook adapter modules | 16 |
 | Meditation adapter modules | 4 |

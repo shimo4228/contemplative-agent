@@ -96,6 +96,10 @@ def _install_plist(
     plist_content = template
     for key, value in {
         "{{VENV_BIN}}": xml_escape(str(venv_bin)),
+        # Claude Code's native installer lands in ~/.local/bin, which launchd's
+        # PATH does not cover by default. Jobs that shell out to `claude` need
+        # it explicitly or they die with "command not found" (2026-07-25).
+        "{{USER_LOCAL_BIN}}": xml_escape(str(Path.home() / ".local" / "bin")),
         "{{PROJECT_ROOT}}": xml_escape(str(project_root)),
         "{{LOG_PATH}}": xml_escape(str(log_path)),
         **substitutions,
