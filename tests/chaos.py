@@ -38,6 +38,11 @@ EXC_TIMEOUT = "exc_timeout"  # raises requests.exceptions.ReadTimeout
 EXC_CONNECTION = "exc_connection"  # raises requests.exceptions.ConnectionError
 TRUNCATED = "truncated"  # finish_reason="length" (num_predict hit)
 SHAPE_VIOLATION = "shape_violation"  # valid JSON, wrong {"patterns": [str]} shape
+# Not a fault: a well-formed response carrying the model's verdict that the
+# episode evidences nothing durable. Kept in the vocabulary so schedules mix
+# it with real faults — the pipeline must keep the two apart (a routine week
+# must never read as a backend outage), and only a schedule can prove that.
+JUDGED_EMPTY = "judged_empty"
 
 FAULT_VOCABULARY = (
     OK,
@@ -47,6 +52,7 @@ FAULT_VOCABULARY = (
     EXC_CONNECTION,
     TRUNCATED,
     SHAPE_VIOLATION,
+    JUDGED_EMPTY,
 )
 
 # Faults that surface to distill as generate() -> None (reason=llm_none).
@@ -161,6 +167,8 @@ class ChaosBackend:
             return BackendResult(text=self._ok_text(idx), finish_reason="length")
         if fault == SHAPE_VIOLATION:
             return BackendResult(text=json.dumps(["not", "the", "expected", "shape"]))
+        if fault == JUDGED_EMPTY:
+            return BackendResult(text=json.dumps({"patterns": []}))
         raise ValueError(f"unknown fault {fault!r}")
 
 

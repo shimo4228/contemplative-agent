@@ -19,15 +19,19 @@ import logging
 from unittest.mock import patch
 
 import numpy as np
+import pytest
 from hypothesis import example, given, strategies as st
 
 from contemplative_agent.core.distill import (
     ABSTAIN_EMPTY_RENDER,
     ABSTAIN_LLM_NONE,
+    ABSTAIN_NOTHING_DURABLE,
     ABSTAIN_SHAPE_VIOLATION,
     _distill_episodes,
     _distill_one,
+    _extract_patterns,
     _parse_patterns,
+    _postgate_enabled,
 )
 from contemplative_agent.core.llm import (
     CIRCUIT_FAILURE_THRESHOLD,
@@ -37,6 +41,7 @@ from contemplative_agent.core.llm import (
 from contemplative_agent.core.memory import KnowledgeStore
 from tests.chaos import (
     EXC_TIMEOUT,
+    JUDGED_EMPTY,
     LLM_NONE_FAULTS,
     NONE,
     OK,
@@ -158,6 +163,188 @@ class TestDistillOneAbstainReasons:
         assert not isinstance(out, str)
         assert out is not None
         assert len(out.patterns) == 1
+
+
+class TestJudgedAbstain:
+    """A legitimate empty extraction is a JUDGMENT, not a failure.
+
+    The prompt has always offered ``{"patterns": []}`` for a routine episode,
+    but that verdict had no reason code and no tally: ``_distill_one``
+    returned a ``_BatchOutput`` with zero patterns and the run summary
+    reported "all N episodes produced output". Measured over 1,700 live
+    episodes it fired twice (0.1%) while yield sat on the prompt example's
+    arity — evidence that the abstain path was competing with the output
+    format rather than being chosen. It is now a first-class reason code so
+    the rate is readable, and it must stay separable from the three FAULT
+    reasons (llm_none / shape_violation / empty_render): conflating them
+    would make a backend outage look like a quiet week.
+    """
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_empty_patterns_is_a_reason_code_not_a_batch_output(self, mock_generate, caplog):
+        mock_generate.return_value = json.dumps({"patterns": []})
+        with caplog.at_level(logging.INFO, logger="contemplative_agent.core.distill"):
+            result = _distill_one(_episode())
+        assert result == ABSTAIN_NOTHING_DURABLE
+        assert "reason=nothing_durable" in caplog.text
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_judged_abstain_records_the_parse_mode(self, mock_generate, caplog):
+        """A backend ignoring ``format=`` can yield an empty bullet scan,
+        which is an unusable response rather than a verdict. Both land on
+        the same reason code, so the mode is logged to keep the measured
+        abstain rate honest."""
+        mock_generate.return_value = "I could not find anything to report."
+        with caplog.at_level(logging.INFO, logger="contemplative_agent.core.distill"):
+            result = _distill_one(_episode())
+        assert result == ABSTAIN_NOTHING_DURABLE
+        assert "parse=bullet_fallback" in caplog.text
+
+    @patch("contemplative_agent.core.distill.generate")
+    def test_null_and_missing_patterns_remain_shape_violations(self, mock_generate):
+        """An empty list is a verdict; a null or a missing key is a
+        malformed response. Only the first may count as a judged abstain."""
+        for raw in ('{"patterns": null}', "{}", '{"pattern": []}'):
+            mock_generate.return_value = raw
+            assert _distill_one(_episode()) == ABSTAIN_SHAPE_VIOLATION
+
+    def test_judged_abstain_is_not_tallied_as_a_fault(self, caplog):
+        schedule = [OK, JUDGED_EMPTY, OK, JUDGED_EMPTY, JUDGED_EMPTY]
+        with caplog.at_level(logging.INFO, logger="contemplative_agent.core.distill"):
+            result = _run_schedule(schedule)
+
+        assert len(result.results) == schedule.count(OK)
+        # The fault WARNING must not fire: nothing failed this run.
+        assert "episodes abstained" not in caplog.text
+        assert "llm_none=" not in caplog.text
+        # The yield line reports the verdict count instead.
+        assert "nothing_durable=3" in caplog.text
+
+    def test_faults_and_judged_abstains_are_reported_separately(self, caplog):
+        schedule = [OK, NONE, JUDGED_EMPTY, SHAPE_VIOLATION, JUDGED_EMPTY]
+        with caplog.at_level(logging.INFO, logger="contemplative_agent.core.distill"):
+            _run_schedule(schedule)
+
+        # Fault tally counts only the two real failures — not the verdicts.
+        assert "2/5 episodes abstained" in caplog.text
+        assert "llm_none=1" in caplog.text
+        assert "shape_violation=1" in caplog.text
+        assert "nothing_durable=2" in caplog.text
+
+    def test_judged_abstain_does_not_open_the_circuit(self):
+        """A week of routine episodes must not look like a backend outage."""
+        schedule = [JUDGED_EMPTY] * (CIRCUIT_FAILURE_THRESHOLD + 3) + [OK]
+        result = _run_schedule(schedule)
+        assert len(result.results) == 1
+
+
+class TestPostGate:
+    """The durability verdict runs AFTER distillation, on the produced patterns.
+
+    Measured 2026-07-26 (40 episodes, offline replay): asking the same
+    question BEFORE distilling never said no (0/40) — naming a worthwhile
+    moment costs nothing when you never have to write it. Producing the
+    pattern is the evidence requirement, so the judge needs the artifact in
+    hand. Per-pattern, so a two-pattern episode where only one is grounded
+    keeps one.
+
+    Fail-open everywhere: the gate can only ever REMOVE patterns a distiller
+    already produced, so a broken gate must degrade to today's behavior
+    (keep everything) and say so with a reason code — never silently drop.
+    """
+
+    def _episode_patterns(self, gate_output):
+        """Distill one episode with a gate returning ``gate_output``."""
+        with patch("contemplative_agent.core.distill.generate") as gen:
+            gen.side_effect = [
+                json.dumps(
+                    {"patterns": [f"Pattern {n} about quoting concrete details" for n in (1, 2)]}
+                ),
+                gate_output,
+            ]
+            return _distill_one(_episode(), postgate=True)
+
+    def test_gate_keeps_only_the_selected_patterns(self):
+        out = self._episode_patterns(json.dumps({"keep": [2]}))
+        assert not isinstance(out, str)
+        assert [p for p in out.patterns] == ["Pattern 2 about quoting concrete details"]
+
+    def test_gate_dropping_everything_is_a_judged_abstain(self, caplog):
+        with caplog.at_level(logging.INFO, logger="contemplative_agent.core.distill"):
+            out = self._episode_patterns(json.dumps({"keep": []}))
+        assert out == ABSTAIN_NOTHING_DURABLE
+        assert "reason=nothing_durable" in caplog.text
+
+    def test_out_of_range_indices_are_ignored_not_crashed(self):
+        out = self._episode_patterns(json.dumps({"keep": [1, 7, 0, -3]}))
+        assert not isinstance(out, str)
+        assert len(out.patterns) == 1
+
+    @pytest.mark.parametrize(
+        "gate_output",
+        [None, "not json at all", "[1, 2]", '{"keep": "1,2"}', '{"kept": [1]}', '{"keep": null}'],
+    )
+    def test_unusable_gate_verdict_keeps_everything_with_a_reason(self, gate_output, caplog):
+        """A gate that fails must not silently prune the corpus."""
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.distill"):
+            out = self._episode_patterns(gate_output)
+        assert not isinstance(out, str)
+        assert len(out.patterns) == 2
+        assert "postgate" in caplog.text
+
+    def test_gate_is_not_called_when_distill_produced_nothing(self):
+        """No artifact to judge — the gate call would be wasted."""
+        with patch("contemplative_agent.core.distill.generate") as gen:
+            gen.side_effect = [json.dumps({"patterns": []})]
+            out = _distill_one(_episode(), postgate=True)
+        assert out == ABSTAIN_NOTHING_DURABLE
+        assert gen.call_count == 1
+
+    def test_direct_callers_opt_in_explicitly(self):
+        """``_distill_one`` itself defaults to no gate; the pipeline decides."""
+        with patch("contemplative_agent.core.distill.generate") as gen:
+            gen.side_effect = [
+                json.dumps({"patterns": ["A grounded pattern about quoting details"]})
+            ]
+            out = _distill_one(_episode())
+        assert not isinstance(out, str)
+        assert gen.call_count == 1
+
+
+class TestPostGateDefault:
+    """The production default is ON, and flipping it back must not pass silently.
+
+    The suite runs with the gate forced off (conftest ``_distill_postgate_off``)
+    so schedule-driven tests keep a one-call-per-episode contract. This class
+    removes that override and asserts the real default, because the reason for
+    defaulting on is operational: ADR-0081's counterpart flag lives in the
+    launchd plist, and ``install-schedule`` silently drops it when re-run from
+    a shell that does not export it. A default that can be lost by omission is
+    the failure this guards.
+    """
+
+    def test_default_is_on_with_no_env_var(self, monkeypatch):
+        monkeypatch.delenv("MOLTBOOK_DISTILL_POSTGATE", raising=False)
+        assert _postgate_enabled() is True
+
+    def test_only_an_explicit_zero_opts_out(self, monkeypatch):
+        monkeypatch.setenv("MOLTBOOK_DISTILL_POSTGATE", "0")
+        assert _postgate_enabled() is False
+        for truthy in ("1", "", "false", "off"):
+            monkeypatch.setenv("MOLTBOOK_DISTILL_POSTGATE", truthy)
+            assert _postgate_enabled() is True, truthy
+
+    def test_pipeline_spends_a_second_call_per_producing_episode(self, monkeypatch):
+        """End-to-end proof the default reaches the pipeline, not just the helper."""
+        monkeypatch.delenv("MOLTBOOK_DISTILL_POSTGATE", raising=False)
+        with patch("contemplative_agent.core.distill.generate") as gen:
+            gen.side_effect = [
+                json.dumps({"patterns": ["A grounded pattern about quoting concrete details"]}),
+                json.dumps({"keep": [1]}),
+            ]
+            result = _extract_patterns([_episode()])
+        assert gen.call_count == 2
+        assert len(result.provenance) == 1
 
 
 # ---------------------------------------------------------------------------

@@ -232,6 +232,9 @@ Per-episode distill  [ADR-0060; one LLM call per episode, no batching]
       → JSON {"patterns":[...]}
       (prompt asks for a first-person, moment-indexed register + forbids
        meta-statements about inextractability — return [] instead; ADR-0072.
+       This prompt is deliberately UNCHANGED by the ADR-0084 durability gate:
+       every rewrite of it moved register and abstain rate together, so the
+       verdict was moved out instead of tuned in.
        Bug-audit 2026-07-06: a num_predict-capped generation is dropped —
        explicit per-episode failure — instead of silently parsing a cut JSON
        body (H1; all internal pipelines now pass drop_truncated=True).
@@ -241,14 +244,45 @@ Per-episode distill  [ADR-0060; one LLM call per episode, no batching]
        or non-string "patterns") abstains as shape_violation instead of
        bullet-scanning the JSON (H2 superseded for JSON bodies); the bullet
        fallback survives only for genuinely non-JSON bodies, tagged
-       parse=bullet_fallback. The summary WARNING tallies abstains per
-       reason; embed-degradation carries reason=embed_failed. Chaos tests
+       parse=bullet_fallback. A zero-pattern episode abstains with the one
+       reason that is a VERDICT rather than a fault (reason=nothing_durable,
+       logged with parse= so an empty bullet scan stays distinguishable from
+       a judged empty list); it is tallied APART from the three fault reasons
+       so a routine week never reads as a backend outage, and it does not
+       count as a circuit-breaker failure. The summary WARNING tallies the
+       fault abstains only, and an always-emitted INFO yield line reports
+       episodes-that-yielded plus nothing_durable — replacing "all N episodes
+       produced output", which counted a judged abstain as output and is why
+       the 0.1% verdict rate stayed invisible;
+       embed-degradation carries reason=embed_failed. Chaos tests
        (tests/chaos.py + test_llm_chaos.py / test_distill_chaos.py) pin the
        fault catalog F1-F5, and llm-calls telemetry stamps a sparse
        error_kind on failure rows)
     → _is_valid_pattern() gate: length floor + extraction-failure
       meta-statement phrase filter (validity, not value; rejects logged with
       reason; ADR-0072); provenance = that one episode's source_type + ts
+    → durability postgate  [ADR-0084; ON by default (MOLTBOOK_DISTILL_POSTGATE=0
+      opts out — a plist-carried flag silently reverts on install-schedule)
+      AND only when the episode produced at least one pattern — an empty extraction is
+      already a verdict and would spend a call on nothing]
+      LLM(DISTILL_POSTGATE_PROMPT, format={"keep":[int]}, num_predict=300)
+      over the episode PLUS its numbered patterns → keeps the listed ones.
+      The judge sees the artifact, which is the whole point: the same
+      question asked BEFORE distilling answered "durable" 40/40 in the
+      offline replay, because naming a worthwhile moment costs nothing when
+      you never have to write it. Producing the pattern is the evidence.
+      Per-pattern, so a two-pattern episode with one grounded pattern keeps
+      one — which is also what unpins yield from the distill prompt
+      example's arity. Fails OPEN with reason=postgate_llm_none /
+      postgate_parse / postgate_shape: this gate can only REMOVE rows the
+      distiller already produced, so a broken gate must degrade to keeping
+      everything, never silently prune research data. Dropping the last
+      pattern lands on the same reason=nothing_durable verdict as a
+      model-authored empty list.
+      Replay reading (40 episodes, 2026-07-26): 74 → 59 patterns, judged
+      abstain 0% → 5%, register at or above baseline (I+perception-verb
+      86.4% vs 72.8%, median length 358 vs 357) — the dropped patterns are
+      the ones lacking a concrete moment, so trimming raises what remains.
   (recurrence is NOT pre-clustered here — it surfaces downstream when `insight`
    clusters patterns into skills; episode-level near-duplication is rare and the
    pattern-level dedup below already absorbs it)

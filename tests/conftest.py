@@ -55,6 +55,25 @@ _hyp_settings.load_profile("ci")
 
 
 @pytest.fixture(autouse=True)
+def _distill_postgate_off(monkeypatch):
+    """Default the ADR-0084 durability gate OFF for the suite.
+
+    The gate is ON in production, but it adds a second LLM call per
+    pattern-producing episode. Every schedule-driven distill test maps
+    ``schedule[i]`` to the i-th episode, and most others hand ``generate`` a
+    side_effect list sized one-per-episode — with the gate on, those tests
+    would silently be exercising two concerns at once (backend fault tallying
+    AND the gate), which is the coupling this ADR exists to remove.
+
+    The gate is covered where it belongs: ``TestPostGate`` drives
+    ``_distill_one(postgate=True)`` directly, and
+    ``TestPostGateDefault`` asserts that with no env var set the production
+    default really is on — so flipping the default back cannot pass silently.
+    """
+    monkeypatch.setenv("MOLTBOOK_DISTILL_POSTGATE", "0")
+
+
+@pytest.fixture(autouse=True)
 def _reset_llm_circuit_breaker():
     """Reset the LLM circuit breaker between tests.
 

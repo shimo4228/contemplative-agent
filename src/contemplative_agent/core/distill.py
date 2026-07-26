@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json as json_mod
 import logging
+import os
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass, field
@@ -62,16 +63,35 @@ _PATTERNS_SCHEMA = {
     "required": ["patterns"],
 }
 
-# Per-episode abstain reason codes (ADR-0075: failures carry a reason code,
-# no silent fallback; introduced by the ADR-0077 chaos-TDD pilot). Emitted in
+# Per-episode abstain reason codes (ADR-0075: an episode that produces no
+# pattern says why, no silent fallback; introduced by the ADR-0077 chaos-TDD
+# pilot). The first three are faults; see ABSTAIN_NOTHING_DURABLE below for
+# the one that is a judgment. Emitted in
 # machine-greppable WARNING lines ("reason=<code>") and tallied per-reason in
 # the distill summary. Literal-typed so a typo at a future call site fails
 # type check instead of silently minting a new reason.
-AbstainReason = Literal["llm_none", "empty_render", "shape_violation"]
+AbstainReason = Literal["llm_none", "empty_render", "shape_violation", "nothing_durable"]
 ParseMode = Literal["json", "bullet_fallback", "shape_violation"]
 ABSTAIN_LLM_NONE: AbstainReason = "llm_none"  # generate() returned None (fault or drop)
 ABSTAIN_EMPTY_RENDER: AbstainReason = "empty_render"  # episode rendered to an empty prompt
 ABSTAIN_SHAPE_VIOLATION: AbstainReason = "shape_violation"  # valid JSON, wrong shape
+
+# The one reason that is a VERDICT, not a failure: the model read the episode
+# and judged that it evidences nothing worth carrying forward. The prompt has
+# always offered that verdict, but it had no reason code and no tally —
+# ``_distill_one`` returned a zero-pattern batch and the run summary said
+# "all N episodes produced output". Measured over 1,700 live episodes it fired
+# twice (0.1%) while per-episode yield sat on the prompt example's arity, so
+# the yield tracked activity rather than what was learned. It is tallied apart
+# from the three fault reasons above: a routine week and a backend outage must
+# never read the same.
+ABSTAIN_NOTHING_DURABLE: AbstainReason = "nothing_durable"
+
+# Reasons that mean something BROKE (as opposed to a judged abstain). The
+# distill summary's failure WARNING counts exactly these.
+FAULT_ABSTAIN_REASONS: frozenset[str] = frozenset(
+    {ABSTAIN_LLM_NONE, ABSTAIN_EMPTY_RENDER, ABSTAIN_SHAPE_VIOLATION}
+)
 
 # Embedding-based dedup thresholds live in ``core/thresholds.py`` since
 # ADR-0035 PR2; re-exported under the historical names here so existing call
@@ -426,7 +446,84 @@ def _parse_patterns(raw: str) -> tuple[list[str], ParseMode]:
     return raw_patterns, "bullet_fallback"
 
 
-def _distill_one(record: dict) -> _BatchOutput | AbstainReason:
+_POSTGATE_ENV = "MOLTBOOK_DISTILL_POSTGATE"
+
+
+def _postgate_enabled() -> bool:
+    """On by default; ``MOLTBOOK_DISTILL_POSTGATE=0`` opts out.
+
+    ADR-0081 shipped its counterpart flag default-off and routed production
+    through the launchd plist's EnvironmentVariables. That mechanism silently
+    reverts: ``install-schedule`` regenerates the plist from a template and
+    only re-emits the flag if it happens to be exported in the invoking shell
+    (``cli/schedule.py``), so any later re-install from a plain shell turns
+    enforcement back off with no error and no log line — which is why the
+    flag had to be manually re-verified against the live plist on 2026-07-25.
+    Defaulting ON removes the class: the researched design is what runs, and
+    the opt-out is an explicit act rather than an omission. The gate fails
+    open at every step, so the downside of it being on is bounded by today's
+    behavior.
+    """
+    return os.environ.get(_POSTGATE_ENV) != "0"
+
+
+_POSTGATE_SCHEMA = {
+    "type": "object",
+    "properties": {"keep": {"type": "array", "items": {"type": "integer"}}},
+    "required": ["keep"],
+}
+
+
+def _postgate(rendered: str, patterns: list[str]) -> list[str]:
+    """Judge the PRODUCED patterns and return the ones worth keeping.
+
+    The distill prompt asks for patterns and gets them: writing something
+    plausible is easier than returning nothing, which is why the verdict it
+    already offers fired on 2 of 1,700 live episodes. Asking the same
+    question BEFORE distilling does not fix that — an offline replay over 40
+    episodes (2026-07-26) had a standalone pre-distill gate answer "durable"
+    40/40, because naming a worthwhile moment costs nothing when you never
+    have to write it. Producing the pattern IS the evidence, so the judge
+    runs after production with the artifact in hand.
+
+    Per-pattern: a two-pattern episode where only one is grounded keeps one,
+    which is also what unpins yield from the prompt example's arity.
+
+    Fails OPEN — this gate can only ever remove patterns the distiller
+    already produced, so every failure path keeps all of them and says why
+    (ADR-0075: no silent fallback). A gate that silently pruned on a parse
+    error would delete research data with no trace.
+    """
+    from .prompts import DISTILL_POSTGATE_PROMPT
+
+    numbered = "\n\n".join(f"{i}. {p}" for i, p in enumerate(patterns, 1))
+    result = generate(
+        DISTILL_POSTGATE_PROMPT.format(episode=rendered, patterns=numbered),
+        system=get_distill_system_prompt(),
+        num_predict=300,
+        format=_POSTGATE_SCHEMA,
+        caller="distill.postgate",
+        drop_truncated=True,
+    )
+    if result is None:
+        logger.warning("Episode distill postgate abstained: reason=postgate_llm_none — keeping all")
+        return patterns
+    try:
+        data = json_mod.loads(strip_code_fence(result))
+    except (json_mod.JSONDecodeError, TypeError):
+        logger.warning("Episode distill postgate abstained: reason=postgate_parse — keeping all")
+        return patterns
+    keep = data.get("keep") if isinstance(data, dict) else None
+    if not isinstance(keep, list):
+        logger.warning("Episode distill postgate abstained: reason=postgate_shape — keeping all")
+        return patterns
+    # Out-of-range and non-integer entries are dropped, not clamped: a judge
+    # cannot keep a pattern it was not shown.
+    wanted = {k for k in keep if isinstance(k, int) and not isinstance(k, bool)}
+    return [p for i, p in enumerate(patterns, 1) if i in wanted]
+
+
+def _distill_one(record: dict, postgate: bool = False) -> _BatchOutput | AbstainReason:
     """Distill one engagement episode; ``_BatchOutput`` or an abstain reason.
 
     ADR-0060: a single LLM call over the rich, world-grounded render of one
@@ -437,6 +534,11 @@ def _distill_one(record: dict) -> _BatchOutput | AbstainReason:
     ``ABSTAIN_*`` reason code, never a bare None, so the caller tallies
     them per reason (ADR-0075). Per-episode provenance (one episode's
     source kind and timestamp) replaces the per-batch summary.
+
+    Not every reason is a failure: an episode the model judged to evidence
+    nothing durable returns ``ABSTAIN_NOTHING_DURABLE``. It travels the same
+    return channel because the outcome is the same (no pattern), but the
+    caller must keep it out of the fault tally.
     """
     record_type = record.get("type", "unknown")
     data = record.get("data", {}) or {}
@@ -472,6 +574,15 @@ def _distill_one(record: dict) -> _BatchOutput | AbstainReason:
     patterns = [p for p in raw_patterns if _is_valid_pattern(p)]
     rejected = len(raw_patterns) - len(patterns)
 
+    # Durability gate (ADR-0084): only when there is an artifact to judge —
+    # an empty extraction is already a verdict and a gate call would be spent
+    # on nothing.
+    if postgate and patterns:
+        before = len(patterns)
+        patterns = _postgate(rendered, patterns)
+        if len(patterns) != before:
+            logger.info("Episode %s postgate kept %d/%d pattern(s)", ts[:16], len(patterns), before)
+
     logger.info(
         "Episode %s (prompt %d chars) → %d patterns (%d rejected)",
         ts[:16],
@@ -479,6 +590,20 @@ def _distill_one(record: dict) -> _BatchOutput | AbstainReason:
         len(patterns),
         rejected,
     )
+    if not patterns:
+        # A judged abstain, not a fault — but the parse mode decides how much
+        # the verdict is worth. Under ``format=`` an empty list is the model's
+        # answer; a backend that ignores it can leave an empty bullet scan,
+        # which is an unusable response wearing the same shape. Both land here
+        # (neither yields a pattern), so the mode is logged to keep a measured
+        # abstain rate honest rather than silently inflated.
+        logger.info(
+            "Episode distill abstained: reason=%s parse=%s ts=%s",
+            ABSTAIN_NOTHING_DURABLE,
+            parse_mode,
+            ts[:16],
+        )
+        return ABSTAIN_NOTHING_DURABLE
     return _BatchOutput(
         refined=result,
         patterns=tuple(patterns),
@@ -518,7 +643,7 @@ def _extract_patterns(records: list[dict]) -> _ExtractResult:
     abstained: Counter[str] = Counter()
 
     for record in records:
-        out = _distill_one(record)
+        out = _distill_one(record, postgate=_postgate_enabled())
         if isinstance(out, str):
             abstained[out] += 1
             continue
@@ -540,19 +665,27 @@ def _extract_patterns(records: list[dict]) -> _ExtractResult:
     # fault burst from a parse-layer problem and from a clean low-yield run.
     # The episodes are not retried; their content is only reachable in a
     # future run if the window still covers them.
-    if abstained:
+    faults = sum(count for reason, count in abstained.items() if reason in FAULT_ABSTAIN_REASONS)
+    if faults:
         logger.warning(
             "Episode distill summary: %d/%d episodes abstained "
             "(llm_none=%d shape_violation=%d empty_render=%d); "
             "their patterns are lost for this run",
-            sum(abstained.values()),
+            faults,
             len(records),
             abstained[ABSTAIN_LLM_NONE],
             abstained[ABSTAIN_SHAPE_VIOLATION],
             abstained[ABSTAIN_EMPTY_RENDER],
         )
-    else:
-        logger.info("Episode distill summary: all %d episodes produced output", len(records))
+    # Always emitted, faults or not: this is the yield reading. The line it
+    # replaces ("all N episodes produced output") counted a judged abstain as
+    # output, which is why the 0.1% verdict rate stayed invisible.
+    logger.info(
+        "Episode distill yield: %d/%d episodes yielded patterns (nothing_durable=%d)",
+        len(records) - sum(abstained.values()),
+        len(records),
+        abstained[ABSTAIN_NOTHING_DURABLE],
+    )
 
     return _ExtractResult(
         provenance=tuple(provenance),

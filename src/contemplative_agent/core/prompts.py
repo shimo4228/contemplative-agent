@@ -36,6 +36,7 @@ class _LazyPrompts:
         "INSIGHT_NOVELTY_SYSTEM_PROMPT": "insight_novelty_system",
         "MEDITATION_INTERPRET_PROMPT": "meditation_interpret",
         "DISTILL_EPISODE_PROMPT": "distill_episode",
+        "DISTILL_POSTGATE_PROMPT": "distill_postgate",
         "RULES_DISTILL_PROMPT": "rules_distill",
         "RULES_DISTILL_REFINE_PROMPT": "rules_distill_refine",
         "CONSTITUTION_AMEND_PROMPT": "constitution_amend",

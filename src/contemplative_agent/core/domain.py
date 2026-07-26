@@ -62,6 +62,7 @@ class PromptTemplates:
     insight_novelty_system: str = ""
     meditation_interpret: str = ""
     distill_episode: str = ""
+    distill_postgate: str = ""
     rules_distill: str = ""
     rules_distill_refine: str = ""
     constitution_amend: str = ""
@@ -274,6 +275,7 @@ def load_prompt_templates(prompts_dir: Path | None = None) -> PromptTemplates:
         insight_novelty_system=read("insight_novelty_system.md", required=False),
         meditation_interpret=read("meditation_interpret.md", required=False),
         distill_episode=read("distill_episode.md", required=False),
+        distill_postgate=read("distill_postgate.md", required=False),
         rules_distill=read("rules_distill.md", required=False),
         rules_distill_refine=read("rules_distill_refine.md", required=False),
         constitution_amend=read("constitution_amend.md", required=False),
