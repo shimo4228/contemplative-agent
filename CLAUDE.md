@@ -107,6 +107,7 @@ git tracked = clone 先にも付いてくる repo 同梱の運用版 skill。CA 
 | `shadow-mode-validation` | なし（CA 固有） | shadow-mode 検証（ADR-0076 系）の設計ノウハウ — 候補判断機構を観測専用で並走させ would-be 判断を記録し、enforcement をデータで決める。観測対象を抑止しない隔離（circuit_shield）、幻覚の一級データ化、kill switch 内蔵、exit 基準の予約 |
 | `chaos-tdd-fault-injection` | [chaos-tdd-fault-injection](https://github.com/shimo4228/chaos-tdd-fault-injection)（汎用化 fork） | chaos-TDD（ADR-0077 系）の設計ノウハウ — 運用障害履歴から fault カタログを起こし、既存 seam（LLMBackend Protocol / requests 層）に決定論的に注入、fault テストが望ましいガード挙動を先に主張して最小ガードを同 PR で出荷する。production hook 新設禁止・実 sleep 禁止・telemetry/reason トークンでの定常状態 assert |
 | `apple-silicon-local-llm-serving` | なし（CA 固有） | Apple Silicon ローカル LLM ランタイム選択（mlx_lm.server vs Ollama）の判断軸 |
+| `llm-pipeline-layering` | なし（CA 固有） | 小型ローカル LLM のコール分割の設計ノウハウ — 仕事の**種類**で割る（抽出→整形、生成時でなく保存時に検証、constrained decoding の適用順 enum > 配列 > 使わない）に加え、**順序**で割る（成果物を judge するコールは成果物の後に置く。前に置くと judge する証拠が無く degenerate に yes を返す — ADR-0084 の 5 アーム実測）。reasoning model の CoT を answer-only 制約で潰さない件も同居 |
 | `agent-run` | なし（CA 固有） | `/agent-run <時間> [backend] [provider]` でエージェントをバックグラウンド起動。backend = ollama（既定）/ cloud（sibling `contemplative-agent-cloud`）/ mlx（sibling `contemplative-agent-mlx`、Apple Silicon 対話用）。silent fallback 禁止 |
 
 ## API レート制限
