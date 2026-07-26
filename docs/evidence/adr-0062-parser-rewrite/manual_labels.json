@@ -1,4 +1,10 @@
 {
+  "03861657d567e67188311f66e9673e50756234180d5b6b8c3eafda4aae6ef355": {
+    "answer": null,
+    "challenge_b64": "QV0gTG9PYkJzVC1lUiBzV2lNbVNeIGlOfiBjT29MZCBXYVRlUnsgYU5kLSBkSXNQbEF5Uy8gZE9tSW5BbkNlfCBiWSBQdVNoSW5HIDxhTj4gb1RoRXIgTG8uYiBTdCBFcnJyLCBJdFMgQ2xBd1MgYVBwTHleIGZPckNlIElzIFQgaElyVCB5IFQgaFIgZUUgTmVXVG9OcyBdIGFOZC0gdEhlIE90SGVSIENsQXcgSXMgUyBlViBlTiBOZVdUb05zLCBIb1cvIG1VY0ggPHRPdEFsPiBDbEF3LSBGb1JjZX4/",
+    "note": "server anomaly: 40.00 (33+7, the only natural reading) was historically REJECTED by the server. Twin 06b428962fef92f5 (\"lobsters claws exert thirty five newtons and the other claw exerts twelve newtons how much total force\") was ACCEPTED at 47.00 = 35+12 -- same shape, and it confirms plural \"claws\" does not double the first operand. 376 accepted challenges share the \"other claw ... total\" additive family.",
+    "source": "UNRESOLVABLE (2026-07-26, ADR-0062 11th amendment): the server rejected the only twin-confirmed answer 40.00 = 33+7"
+  },
   "03fd805319c91f0d87511d4b4916a1cb626d3a62befdad73294128f39274fd98": {
     "answer": "64.00",
     "challenge_b64": "QV0gbE9vT2JCc1MgdEVyJyBTXiBjTGFXIF0gZVhlUnJUcyAvIHRIaVJyVHkgVHdPIE5vb1RvTnMgfiBhTmQgeyBpVHMgfSBtT29MdEluRy0gSW5DckVhU2VTIFwgZk9yQ2UgQnkgPCB0V3dPbyA+IFRpTWVTLCB3SGFUIF0gaVMgXCB0SGUgTmVXIH4gZk9yQ2U/",
@@ -139,6 +145,12 @@
     "challenge_b64": "QV0gTG9Pb2JiU3N0VHRFcnItIENsTGFXd14gRXhYZXJ0VHMvIFR3V2VOdFR5LSBGaUl2RWV+IE5lRXdUb09uTnN7IEFuTmQtIFRoSGVSZS8gQXJSZWV8IFRoSHJFZTwgQ2xMYVd3UywgLVdoSGFUXiBJcy8gVG9PdFRhTGx+IEZvT3JDZT8=",
     "source": "twin-confirmed against server-accepted same-shape challenge (round 7, 2026-07-09): claw-count multiplier, zero additive \"N claws\" in corpus"
   },
+  "6661823aedeadca21820060ca3f33f93b6bb46ee94775d6e956665a5a5bd3b44": {
+    "answer": null,
+    "challenge_b64": "QV0gbE9vXmJTdC1FciBTW3dJbVMgLyBhVCB0V2VOdFkgbUVedEVyUyB+IGFOZF0gbE9vLmJTc1QgZVJyUiBSZUR1Q2VTIHZFbEF3Q2lUeSBCeSBmSWZUZUVuIHsgdW0gfSBoT3cvIG1VY0ggbkV3LSB2RWxPb0NpVHk/IDw=",
+    "note": "server anomaly: 5.00 (20-15) was REJECTED. The question word is \"how much new velocity\", and twins d06a5d4a3beab3f1 (\"drag reduces speed by seven ... what is the new speed\" = 16.00 = 23-7) and 1b80279208cc1837 (20-7 = 13.00) were ACCEPTED for that shape. The additive alternative 35.00 has no twin: 61fd7e4bacdf405b reads as add (23+7 = 30.00) only because it asks for the \"plus total\" speed, not a new velocity.",
+    "source": "UNRESOLVABLE (2026-07-26, ADR-0062 11th amendment): the server rejected the only twin-confirmed answer 5.00 = 20-15"
+  },
   "678acba8a631f03a15b73d354e45ad2d9d8472297baca68d08ca49dfac7d4c3e": {
     "answer": null,
     "challenge_b64": "VGhJc10gTG9PYlN0RXItIENsQXdeIEZvUmNFXSBPZl4gVHdFblR5IFRoUmVFIE5vT29Ub09uU34gQW5EXSBUaEUvIE90SGVSLSBDbEF3XiBGb1JjRV0gT2ZeIEZvVXIgTm9Pb1RvT25TPCwgVG9UYUwtIEZvUmNFPw==",
@@ -265,6 +277,12 @@
     "answer": "18.00",
     "challenge_b64": "QV0gbE9vT2JTc1R0RXJeIFNbd0kgbVNdIGFULyBUIHdFZU4gdFl5fiBGIGlWIGV7IG1FIHRFclN9IHBFcnwgc0VjT25ELH4gdEhlTi0gTCBvU3NFcy8gUyBlViBlTjwgbUUgdEVyUz4gcEVyXCBzRWNPbkQsXSB3SGFUXiBJc1wgdEhlLSBOIGVXfiBTcEVlRD8=",
     "source": "manual (hand-solved from decoded text, 2026-07-07)"
+  },
+  "cb59e6844b3d5844a4c5062149252ce5949102621a318020fb4f83194c427cab": {
+    "answer": null,
+    "challenge_b64": "TG8uXWJTdC1FciBMby5vQmJTc1NzVGVSIFZlTG8uT29DaVR5WSBJc1NeIFRoSXJUeVkgRml2RV0gQ2VOdEltRXRFclMvIFBlUnwgU2VDb05kU34gQnVUXCBEdUUgVG9PIERyQWdHIEl0VCBMb1NzRXNTLSBUd0VsVmV7IENlTnRJfW1FdEVyUywgV2hBdFM8IFRoRS8gTmVXfiBWZUxvLk9jSXRZPw==",
+    "note": "server anomaly: 23.00 (35-12) was REJECTED. Twin d06a5d4a3beab3f1 (\"but drag reduces speed by seven ... what is the new speed\" = 16.00 = 23-7) was ACCEPTED for the same drag-reduces-then-ask-for-new-velocity shape; 87 accepted challenges share the drag/loses subtractive family.",
+    "source": "UNRESOLVABLE (2026-07-26, ADR-0062 11th amendment): the server rejected the only twin-confirmed answer 23.00 = 35-12"
   },
   "cc5cebefc5b61108785ad6a929d31d4833e0c6e35de15678c11e5275acf9df6b": {
     "answer": "30.00",

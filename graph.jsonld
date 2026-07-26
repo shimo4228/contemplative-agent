@@ -769,7 +769,7 @@
         "ADR",
         "TechArticle"
       ],
-      "name": "ADR-0062: Create-Time Content-Verification Handshake via LLM Reasoning; Gate Recording on Visibility",
+      "name": "ADR-0062: Create-Time Content-Verification Handshake with Hybrid LLM/Code Solver; Gate Recording on Visibility",
       "identifier": "ADR-0062",
       "status": "accepted",
       "datePublished": "2026-06-26",

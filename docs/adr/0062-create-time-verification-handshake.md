@@ -335,6 +335,113 @@ documented fail-closed abstain. That invariant is now a test
 (`TestRuleTableTotality`) rather than a comment, demonstrated to fire by
 temporarily making a terminal row conditional.
 
+Eleventh amendment 2026-07-26: the grammar change the tenth deferred. The
+ground-truth gate had been failing since 2026-07-15 and the failure grew with
+the corpus — 7 wrong at 2149 unique challenges, 9 at 2236 eleven days later,
+because the corpus is live traffic and new grammar failures accrue while the
+old ones sit. Every one of the nine was a single audit record on `code_parse`
+answered and rejected by the server, so none was inherited from the retired
+`llm_reason` path.
+
+Six were grammar; three were not. **Every grammar fix is an abstain.** No new
+reading was added, because for each shape two readings are attested and the
+corpus cannot say which the server wants — the standing rule that a wrong
+parse is worse than `None` decides it:
+
+- **Additive cues are read as a set.** `_TailSignals.contradicts_subtraction`
+  matched the literal word `combined` while `_ADDITIVE_CUES` has three
+  members, so a `total`-cued subtract chain walked straight past the guard
+  built to stop it and submitted 17.00. Deriving a signal once (the tenth
+  amendment's fix) was never the same thing as lexicalising it once. Both
+  branches read the property, so both rows close together; corpus-wide there
+  are exactly three subtract-chain-with-cue challenges and the other two were
+  already abstaining, so the coverage cost is zero.
+- **A long chain broken by a connective abstains.** `_resolve`'s grammar
+  requires operands and operations to interleave strictly; an `and` inside a
+  gap of a chain longer than two operands is a clause boundary, meaning two
+  statements glued into one fold. Both server-rejected long chains have one
+  (3703.00 folded a scene speed into a stated product; 3920.00 folded a
+  duplicate quantity into an amplifier chain); the corpus's one correct
+  three-operand chain, `453e7b97`, has none. The predicate carries no
+  threshold, which is why it was preferred over the gap-width caps that scored
+  identically on this corpus.
+- **A `*` inside a unit phrase is punctuation, not an operation.** The
+  obfuscator drops symbols anywhere, including between a quantity and its own
+  unit noun: "thirty two `*` newtons and another sixteen newtons ... total?"
+  is an addition wearing a product's punctuation, and reading the symbol as
+  the operation submitted 512.00 for a 48.00 question. The tell is positional
+  — the atom after the symbol is the same unit noun that follows the other
+  operand — not lexical; in every corpus-accepted `*`-with-`and` challenge the
+  symbol follows the unit noun instead. Restricted to `*` deliberately: the
+  corpus has one accepted `+` inside a unit phrase (`fe8bb27e`) where the
+  additive and implicit-add readings coincide. A stray `*` inverts the answer;
+  a stray `+` cannot.
+- **A broken tens+unit compound poisons the parse.** `_scan` merges whole
+  atoms and drops what it cannot match, so a mangled half of a two-word number
+  does not fail loudly — it vanishes and the surviving half becomes the
+  operand. Two wrongs came from this: `treee` collapses to `tre`, three
+  letters, below every fuzzy tier, leaving 20 - 7 = 13.00 where 23 - 7 was
+  meant; `trween` collapses to `trwen`, two edits from every canonical and
+  every collapsed number word — beyond any widening of the fuzzy tiers — so
+  only the split unit half survived and 3 + 5 = 8.00 went out. This is round
+  8's near-miss poisoning one size down. The two arms are not equally
+  evidenced, and the code says so: the first confirms a tens word and judges
+  the residue beside it, while the second cannot — nothing proves `trwen`
+  was ever a tens word — so it matches the leftover silhouette (a split
+  single-digit operand opening the challenge behind a long unmatched
+  residue) under four corpus-tuned conjuncts. Dropping any one of them costs
+  real answers: without the first-operand restriction three, without the
+  single-digit bound 53, and admitting two-letter fragments nine more. The
+  three-letter floor is safe only
+  because the guard is bound to one position, the slot where the compound's
+  other half belongs; run globally it would fire on `the` (one edit from
+  collapsed `three`) and silence most of the corpus. `the`, `ton` and `tons`
+  join the fuzzy stopwords for the same reason — verified no-ops for
+  `_match_fuzzy`, so naming them costs no coverage and makes the guard's blast
+  radius explicit rather than incidental.
+
+The other three were server anomalies, and are labeled `UNRESOLVABLE` rather
+than fixed. Each is the only arithmetically natural reading, each was
+twin-confirmed against an accepted challenge of the same shape — 40.00 against
+`06b428962fef92f5` (which also settles that a plural "claws" does not double
+the first operand), 5.00 and 23.00 against `d06a5d4a3beab3f1` — and each was
+rejected anyway. That brings known-unresolvable to 8 of 2236 (0.36%). Four of
+the eight are now the same "X and Y, total force" additive shape, which is
+worth watching as a possible server-side pattern rather than random flake.
+
+Verified by running `differential_replay.py` before each step, as the tenth
+amendment instructed: the movement set was exactly the intended challenges at
+every step and nothing else moved, six in total. The ground-truth gate then
+went to **2236 unique / 1836 parsed (82.1%) / 400 abstained / 1828 correct /
+0 wrong / 0 unlabeled / 8 known-unresolvable — HARD GATE: PASS**. Correct is
+unchanged at 1828; coverage fell 82.4% → 82.1%, which is the whole price.
+
+The review round caught what the corpus structurally could not. Both new
+guards first shipped comparing RAW atoms, so the obfuscation layers this
+module handles everywhere else stepped straight around them: letter doubling
+turned the split fragment `t` into `tt` and Arm B stopped firing
+(`trween tt hree` → 8.00 again), and a unit noun split differently at its two
+occurrences (`* new tons ... newtons`) slipped past the unit-phrase guard
+(→ 512.00 again). Neither shape exists in the corpus, so neither replay gate
+could have found them — a gate built from live traffic proves what happened,
+never what the same generator can produce next. Both now compare collapsed
+forms, and the unit-phrase comparison merges up to two unclaimed atoms per
+side, bounded so a cue or operand can never be swallowed into a "unit noun".
+Both fixes moved zero challenges in the corpus: pure precision. The
+python-review round separately sharpened Arm B's documentation, which had
+claimed to detect a tens+unit compound while checking only shape and
+position, and a security-review note added two adversarial-input fixtures
+covering the new guards' worst-case loops directly rather than by
+complexity-class analogy.
+
+One existing test asserted the losing side of this. It fixed
+`"twenty five newtons and slows by seven newtons what is total force"` at
+18.00 on the premise that a trailing `total` is inert scene noise — the exact
+shape whose subtract reading the server rejected. Its comment also still
+referenced `_try_and_as_add` and `_ConjunctionEvent`, gone since the sixth
+amendment's rewrite. It now asserts the abstain, and is the only test in the
+suite the amendment moved.
+
 ## Date
 
 2026-06-26

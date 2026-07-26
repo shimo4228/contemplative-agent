@@ -1,4 +1,4 @@
-"""FROZEN SNAPSHOT of verification_parse.py before the resolve-stage split.
+"""FROZEN SNAPSHOT of verification_parse.py after the round-9 grammar.
 
 Not imported by the package — this exists only so
 ``differential_replay.py`` can run the old and new parsers side by side over
@@ -6,98 +6,23 @@ the local audit corpus and require them to agree on every challenge. Delete it
 once the next grammar amendment lands and this baseline stops being the
 "previous behaviour" anyone wants to diff against.
 
-Baseline commit: ADR-0062 9th amendment (2026-07-25).
+Baseline commit: ADR-0062 11th amendment (2026-07-26). The previous baseline
+was the 9th amendment's pre-refactor parser; the 10th amendment's rule-table
+refactor and this amendment's six abstains have both been proven against it,
+so it is retired here rather than carried forward.
+
+Only one line differs from the module it snapshots: the package-relative
+``from .config import ...`` becomes an absolute import, because this file is
+loaded by path and never enters the package namespace.
 """
 
 from __future__ import annotations
 
-
-"""Deterministic parser for Moltbook's obfuscated arithmetic CAPTCHA.
-
-Rewritten 2026-07-07 (ADR-0062, 5th amendment) from the 601-challenge audit
-corpus (docs/evidence/adr-0062-parser-rewrite/). The previous grammar grew by
-per-failure patching; this version derives its rules from the corpus-observed
-obfuscation layers instead:
-
-- letter doubling (``ttwweennttyy``) — collapsed before lexicon lookup;
-- word splitting (``tw en ty th ree``) — whole-atom merges, bounded by the
-  longest lexicon word, never by a fragment-count window;
-- leet substitution (``f0rce``) — ``0`` maps to ``o`` before scanning;
-- homophone misspelling (``fife``, ``twenny``, ``thrirty``) — bounded fuzzy
-  matching (edit distance 1 after collapse, minimum lengths, unique result);
-  a misspelled number word that stayed invisible made the old parser submit
-  a confidently wrong answer, the only deterministic-path wrongs in the
-  corpus;
-- duplicated number words (``fourteen fourteen``) — adjacent equal values
-  collapse to one;
-- multi-step phrasing (``gains eight ... increases by seven``) — operands
-  and operations must interleave strictly (num op num [op num ...]) and are
-  left-folded;
-- implicit operations in the question tail (``... what is the total
-  force?`` / ``... what is the product?`` / ``twelve newtons less``) —
-  resolved only under the connective/unit/adjacency guards below.
-
-Round 7 (2026-07-09, ADR-0062 7th amendment) extends the grammar from the
-post-rewrite failure round of the live corpus:
-
-- multiplicative markers (``by a factor of seven`` / ``doubled by two`` /
-  ``each detects two``) — a marker word makes the surrounding pair a
-  product, and beats a generic change-verb (``increases``/``accelerates``)
-  in the same gap; a NON-adjacent trailing marker is scene noise and is
-  ignored;
-- adjacent ``times`` tail after a change-verb gap (``increases it by three
-  times``) — corpus-accepted twins show the server means multiply;
-- count multipliers (``and three claws`` / ``has two claws``) — a claw
-  count after the second operand multiplies the per-claw magnitude (every
-  corpus-accepted example is a product, none an add);
-- explicit arithmetic instructions (``what is the sum of these`` /
-  ``please add them``) — waive the like-unit guard that otherwise blocks
-  an implicit add across unlike units;
-- contradiction abstains — ``slows`` against a trailing ``combined`` cue,
-  and a bare possessed count (``it has two, whats total``) whose noun was
-  mangled away, both abstain instead of guessing;
-- number-word fuzzy vs the collapsed canonical spelling (``fowr teen`` ->
-  ``fowrten`` -> fourteen) for merged tokens of >= 6 letters, mirroring
-  what operation verbs already do.
-
-Round 8 (2026-07-15, ADR-0062 8th amendment) extends the grammar from the
-post-round-7 failure round (the five live code_parse wrongs, 2026-07-10..14):
-
-- number-word near-miss poisoning (``thyree`` / ``qthreee``) — a 4-5 letter
-  token one edit from a COLLAPSED number word sits below the collapsed-fuzzy
-  floor and used to drop silently; it now poisons the whole parse (abstain)
-  instead of leaving a confident wrong answer;
-- decimal composition (``five point five``) — a ``point`` lexeme between an
-  integer operand and an adjacent bare unit digit composes a decimal value;
-  a ``point`` adjacent to an operand that cannot compose abstains, a distant
-  one is scene noise;
-- transposed multiplicative markers (``duoubbles`` -> ``duobles``) — marker
-  words additionally match at one adjacent transposition, which plain
-  distance-1 fuzzy cannot see;
-- restatement collapse (``speed is twenty three`` after ``twenty three``) —
-  equal-value consecutive operands with an event-free gap collapse to one,
-  the operand-level extension of ``_dedup_numbers``; the mangled
-  restatement verb ``speed is`` (merged: ``speedis``, one edit from
-  ``speeds``) joins the fuzzy stopwords so it cannot fill the gap as an op.
-
-It stays precision-first: a parsed answer is returned only when the whole
-event stream fits the grammar; every ambiguity abstains (``None``) so the
-LLM chain still runs. A wrong code parse is worse than ``None``.
-
-Matching is whole-token equality (or distance-1 fuzzy) over merged whole
-atoms, never substring matching: ``antenna`` never yields ``ten`` because it
-never *equals* (nor is within one edit of) ``ten``.
-
-The challenge text is untrusted. This parser never executes or interprets it
-as instructions — it only matches obfuscated number words and arithmetic
-cues, is length-bounded against a malicious oversized payload, and fails
-closed to ``None``.
-"""
-
-
 import re
+from collections.abc import Callable
+from dataclasses import dataclass
 from decimal import Decimal, DivisionByZero, InvalidOperation
-from typing import NamedTuple, Optional, Union
+from typing import Generic, NamedTuple, TypeVar
 
 from contemplative_agent.adapters.moltbook.config import (
     MAX_CHALLENGE_INPUT as _MAX_INPUT,
@@ -298,6 +223,19 @@ _FUZZY_MIN_OP = 6
 # than _FUZZY_MIN_TOKEN because the collapsed target is one edit "cheaper".
 _FUZZY_MIN_NUM_COLLAPSED = 6
 
+# Round 9: floors for the broken tens+unit compound guard. These reach BELOW
+# _FUZZY_MIN_TOKEN, which is only safe because the guard is bound to one
+# position — the slot where a compound's other half belongs. Run globally, a
+# three-letter tier would fire on "the" and silence most of the corpus.
+_MIN_COMPOUND_SLOT_TOKEN = 3
+_MIN_TENS_SLOT_RESIDUE = 5
+
+# How many atoms the unit-phrase guard may merge when comparing the noun after
+# a symbol with the noun after the other operand. Two covers the corpus's
+# splitting ("new tons"); more would start swallowing scene prose into a
+# "unit noun" and abstain on real products.
+_MAX_UNIT_PHRASE_ATOMS = 2
+
 # How many atoms past the second operand a postfix operator may sit and still
 # bind to it ("twelve <unit> less", "three times <that>") — one intervening
 # unit/filler atom, no more. A farther trailing operation word is question
@@ -331,6 +269,16 @@ _FUZZY_STOPWORDS = {
     # twice and 53.00 submitted for a 23 + 7 challenge). Stopwords compare
     # against the collapsed merged token, hence the collapsed spelling.
     "spedis",
+    # Round 9: consulted by the broken-compound guard, which reaches below
+    # _FUZZY_MIN_TOKEN and so meets short prose words the fuzzy matcher never
+    # sees. "the" collapses to "the", one edit from collapsed "three"
+    # ("thre"); "ton" is one edit from "ten" (and a unit noun, so it sits
+    # exactly where the guard looks). Verified no-ops for _match_fuzzy — every
+    # entry is below its floors — so naming them here costs no coverage and
+    # makes the guard's blast radius explicit rather than incidental.
+    "the",
+    "ton",
+    "tons",
 }
 
 # Round 8: the decimal connective ("five point five"). A single word, not a
@@ -438,7 +386,7 @@ class _OpEvent(NamedTuple):
     # Canonical lexicon word that produced this event (None for symbol ops
     # and fuzzy matches). Only exact-match words drive word-keyed rules
     # (the "add" imperative), so fuzzy recovery does not need to carry one.
-    word: Optional[str] = None
+    word: str | None = None
 
 
 class _AndEvent(NamedTuple):
@@ -458,19 +406,19 @@ class _PointEvent(NamedTuple):
     atom_index: int
 
 
-_Event = Union[_NumEvent, _OpEvent, _AndEvent, _CueEvent, _MulMarkerEvent, _PointEvent]
+_Event = _NumEvent | _OpEvent | _AndEvent | _CueEvent | _MulMarkerEvent | _PointEvent
 
 
 class _Operand(NamedTuple):
     # int for whole numbers; Decimal once a "point" composition merged a
     # fractional part in (round 8). _compute_chain already folds through
     # Decimal either way.
-    value: Union[int, Decimal]
+    value: int | Decimal
     atom_start: int
     atom_end: int
 
 
-def code_parse_challenge(challenge_text: str) -> Optional[str]:
+def code_parse_challenge(challenge_text: str) -> str | None:
     """Parse the finite CAPTCHA grammar deterministically.
 
     Returns the answer formatted to two decimals (e.g. ``"44.00"``) only when
@@ -483,7 +431,9 @@ def code_parse_challenge(challenge_text: str) -> Optional[str]:
     normalized = challenge_text.lower().replace("0", "o")
     atoms = _ATOM_RE.findall(normalized)
     try:
-        events = _dedup_numbers(_scan(atoms))
+        scanned = _scan(atoms)
+        _poison_broken_tens_compound(scanned, atoms)
+        events = _dedup_numbers(scanned)
         operands = _compose_operands(events)
         operands = _dedup_operands(_apply_points(operands, events, atoms), events, atoms)
         return _resolve(operands, events, atoms)
@@ -493,13 +443,13 @@ def code_parse_challenge(challenge_text: str) -> Optional[str]:
 
 class _Lexeme(NamedTuple):
     kind: str
-    value: Union[int, str, None] = None
+    value: int | str | None = None
     # Canonical lexicon word behind the match, where a rule needs it
     # (op imperatives, cue "sum"); None for fuzzy ops and non-word kinds.
-    word: Optional[str] = None
+    word: str | None = None
 
 
-def _match_exact(token: str) -> Optional[_Lexeme]:
+def _match_exact(token: str) -> _Lexeme | None:
     """Look up a collapsed merged token in the exact lexicons."""
     if token in _NUMBER_WORDS:
         return _Lexeme("num", _NUMBER_WORDS[token])
@@ -516,7 +466,7 @@ def _match_exact(token: str) -> Optional[_Lexeme]:
     return None
 
 
-def _match_fuzzy(token: str) -> Optional[_Lexeme]:
+def _match_fuzzy(token: str) -> _Lexeme | None:
     """Recover a homophone-misspelled number word or operation verb.
 
     Edit distance exactly 1 after collapse, with per-kind length floors.
@@ -527,7 +477,7 @@ def _match_fuzzy(token: str) -> Optional[_Lexeme]:
     """
     if token in _FUZZY_STOPWORDS:
         return None
-    results: set[tuple[str, Union[int, str]]] = set()
+    results: set[tuple[str, int | str]] = set()
     if len(token) >= _FUZZY_MIN_TOKEN:
         for word, value in _CANONICAL_NUMBERS.items():
             if _within_one_edit(token, word):
@@ -663,6 +613,94 @@ def _scan(atoms: list[str]) -> list[_Event]:
     return events
 
 
+def _event_atoms(events: list[_Event]) -> set[int]:
+    """Every atom index already claimed by a recognized lexeme."""
+    claimed: set[int] = set()
+    for event in events:
+        if isinstance(event, _NumEvent):
+            claimed.update(range(event.atom_start, event.atom_end + 1))
+        else:
+            claimed.add(event.atom_index)
+    return claimed
+
+
+def _near_a_number_word(token: str) -> bool:
+    """Whether a collapsed token is one edit from some collapsed number word."""
+    return any(_within_one_edit(token, word) for word in _NUMBER_WORDS)
+
+
+def _poison_broken_tens_compound(events: list[_Event], atoms: list[str]) -> None:
+    """Abstain when a tens+unit compound lost one half to the obfuscator.
+
+    Round 9. ``_scan`` merges whole atoms and drops what it cannot match, so
+    a mangled half of a two-word number does not fail loudly — it vanishes,
+    and the surviving half becomes the operand. Two live wrongs came from
+    exactly this: "twenty treee meters ... slows by seven" answered 13.00
+    (20 - 7) because "treee" collapses to "tre", three letters, below every
+    fuzzy tier; "trween t hree ... increases by five" answered 8.00 (3 + 5)
+    because "trween" is two edits from every number word and simply went
+    away. Both are the round-8 near-miss doctrine one size down: a token that
+    is nearly a number poisons the parse rather than being guessed into a
+    value — and a token that ate a number must not leave the parse looking
+    complete.
+
+    The three-letter floor is safe here only because it is bound to a
+    position: the slot where the compound's other half belongs.
+
+    The two arms differ in how much they actually verify. Arm A confirms a
+    tens word is present and only then judges the residue beside it. Arm B
+    cannot: ``trwen`` is two edits from every number word, so nothing proves
+    the vanished token was ever a tens word. It is a positional heuristic —
+    a split single-digit operand opening the challenge behind a long
+    unmatched residue — and its four conjuncts are corpus-tuned bounds on
+    that shape, not evidence about what the residue meant.
+    """
+    claimed = _event_atoms(events)
+
+    for event in events:
+        # Arm A — the unit half is garbled: a tens word, then a short residue
+        # that is nearly a number ("twenty" + "tre").
+        if not isinstance(event, _NumEvent) or not event.is_tens:
+            continue
+        slot = event.atom_end + 1
+        if slot >= len(atoms) or slot in claimed:
+            continue
+        token = _collapse_repeats(atoms[slot])
+        if token in _FUZZY_STOPWORDS or len(token) < _MIN_COMPOUND_SLOT_TOKEN:
+            continue
+        if _near_a_number_word(token):
+            raise _Abstain
+
+    # Arm B — shape only. "trween" collapses to "trwen", two edits from every
+    # number word and every collapsed form, so no widening of the fuzzy tiers
+    # reaches it and nothing here can confirm it was a tens word at all. What
+    # the guard actually matches is the leftover silhouette: a split unit half
+    # ("t" + "hree" = 3) opening the challenge with a long unmatched residue
+    # in front of it.
+    # All four conjuncts are load-bearing against the corpus: without the
+    # first-operand restriction three correct answers die on trailing verbs
+    # ("applies", "strikes", "exert"); without the single-digit bound, 53;
+    # and admitting two-letter fragments costs nine more.
+    nums = [e for e in events if isinstance(e, _NumEvent)]
+    if not nums:
+        return
+    first = nums[0]
+    if not 1 <= first.value <= 9 or first.atom_end == first.atom_start:
+        return
+    # Collapsed, not raw: letter doubling is a first-class obfuscation layer,
+    # so the split fragment arrives as "t" or "tt" indifferently and a raw
+    # length check would let "trween tt hree" walk out with 8.00 — the exact
+    # answer this arm exists to stop (found by codex-review). Everything else
+    # in this module compares collapsed forms; this line was the outlier.
+    if len(_collapse_repeats(atoms[first.atom_start])) != 1:
+        return
+    before = first.atom_start - 1
+    if before < 0 or before in claimed:
+        return
+    if len(_collapse_repeats(atoms[before])) >= _MIN_TENS_SLOT_RESIDUE:
+        raise _Abstain
+
+
 def _dedup_numbers(events: list[_Event]) -> list[_Event]:
     """Drop a number event that immediately repeats the previous one.
 
@@ -698,7 +736,7 @@ def _compose_operands(events: list[_Event]) -> list[_Operand]:
     two`` still reads forty).
     """
     operands: list[_Operand] = []
-    pending: Optional[_NumEvent] = None
+    pending: _NumEvent | None = None
     interrupted = False
 
     def flush() -> None:
@@ -859,19 +897,147 @@ def _dedup_operands(
     return deduped
 
 
-def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -> Optional[str]:
-    """Fit ops/cues around the operands and compute, or abstain.
+class _TailSignals(NamedTuple):
+    """What follows the last operand, as both resolution branches read it.
 
-    Grammar: operands and explicit operations must interleave strictly —
-    every gap between consecutive operands carries exactly one agreed
-    operation, and anything after the last operand must be consistent with
-    it. A two-operand challenge with an empty gap may still resolve through
-    the guarded implicit rules (question-tail add/multiply, adjacent postfix
-    operator).
+    The explicit-chain branch and the implicit two-operand branch each used to
+    re-derive these from the raw event lists, and the two derivations drifted
+    twice: the non-adjacent-marker noise rule was implemented in one branch
+    only (found by codex-review) and so was the subtract-vs-"combined"
+    contradiction guard (found by python-reviewer). Both were real
+    server-rejected answers. Deriving once and handing the result to both
+    branches is what makes a third such divergence impossible rather than
+    merely unlikely.
     """
-    if len(operands) < 2:
-        return None
 
+    word_ops: tuple[_OpEvent, ...]
+    marks: tuple[_MulMarkerEvent, ...]
+    cues: tuple[_CueEvent, ...]
+    last_atom_end: int
+
+    def is_adjacent(self, atom_index: int) -> bool:
+        """Whether a trailing token sits close enough to modify the operand.
+
+        Distance is the whole distinction between an operator and scene noise:
+        "...factors what is total force?" is an implicit add, while an adjacent
+        marker multiplies.
+        """
+        return atom_index - self.last_atom_end <= _POSTFIX_ADJACENCY
+
+    @property
+    def mult_ops(self) -> list[_OpEvent]:
+        return [op for op in self.word_ops if op.op == _MUL]
+
+    @property
+    def sub_ops(self) -> list[_OpEvent]:
+        return [op for op in self.word_ops if op.op == _SUB]
+
+    @property
+    def other_ops(self) -> list[_OpEvent]:
+        return [op for op in self.word_ops if op.op not in (_MUL, _SUB)]
+
+    @property
+    def adjacent_marks(self) -> list[_MulMarkerEvent]:
+        """Trailing multiplicative markers close enough to count as evidence."""
+        return [m for m in self.marks if self.is_adjacent(m.atom_index)]
+
+    @property
+    def contradicts_subtraction(self) -> bool:
+        """A trailing additive cue against a subtract reading.
+
+        Every corpus-accepted additive cue is additive and the subtract
+        reading was server-rejected, so this abstains rather than guessing —
+        in both branches, which is the point.
+
+        Round 9: this read ``c.word == "combined"`` — one member of
+        ``_ADDITIVE_CUES`` standing in for the set. A challenge cued with
+        "total" walked straight past the guard and submitted the subtract
+        reading, which the server rejected. Deriving the signal once was
+        never the same thing as lexicalising it once.
+        """
+        return any(c.word in _ADDITIVE_CUES for c in self.cues)
+
+
+class _Decision(NamedTuple):
+    """A rule's verdict, with ``stop`` carrying the whole point of the type.
+
+    A rule that abstains and a rule that does not apply both look like
+    ``None`` downstream, and a plain ``... -> str | None`` table cannot tell
+    them apart: the abstaining rule would fall through to later rules and
+    answer where the grammar says stay silent. Nine amendments' worth of
+    guards are abstains, so that collapse would not be a subtle regression —
+    it would be most of them.
+    """
+
+    stop: bool
+    answer: str | None
+
+
+_ABSTAIN = _Decision(stop=True, answer=None)
+"""The rule fires and the parser stays silent."""
+
+
+def _answer(value: str | None) -> _Decision:
+    """The rule fires with a computed answer — ``None`` included.
+
+    ``_compute_chain`` returns ``None`` for an out-of-domain step (negative
+    intermediate, division by zero). That is a fired rule producing no
+    answer, not a rule declining to apply, so it must stop too.
+    """
+    return _Decision(stop=True, answer=value)
+
+
+_Ctx = TypeVar("_Ctx")
+
+
+@dataclass(frozen=True)
+class _Rule(Generic[_Ctx]):
+    """One grammar rule: when it applies, and what it decides.
+
+    ``when`` and ``then`` stay separate so the table reads as a column of
+    conditions — that column is the answer to "which row does my next
+    amendment go in, and where".
+    """
+
+    name: str
+    when: Callable[[_Ctx], bool]
+    then: Callable[[_Ctx], _Decision]
+
+
+def _resolve_operation(rules: tuple[_Rule[_Ctx], ...], ctx: _Ctx) -> str | None:
+    """Walk an ordered rule table and return the first firing rule's answer.
+
+    Order is the grammar: earlier rows are the more specific readings. Every
+    table ends in an unconditional terminal row, so falling off the end is a
+    table-authoring bug, never a parse outcome.
+    """
+    for rule in rules:
+        if rule.when(ctx):
+            decision = rule.then(ctx)
+            if decision.stop:
+                return decision.answer
+    raise AssertionError("rule table is not total — it must end in a terminal row")
+
+
+class _Positions(NamedTuple):
+    """Where every event sits relative to the operands, once and for all."""
+
+    filled: list[set[str]]
+    """Per-gap operation sets, change-verb collapsed, guaranteed unambiguous."""
+    tail: _TailSignals
+    ands: list[_AndEvent]
+
+
+def _classify_positions(operands: list[_Operand], events: list[_Event]) -> _Positions | None:
+    """Fold the event stream into per-gap and tail buckets, or abstain.
+
+    Deliberately NOT part of the rule tables below. This is a fold, not a
+    decision cascade: the four abstains here are guard clauses of the
+    classification itself, and they cannot be written as predicates over a
+    context because the context is precisely what this loop is building.
+    Rules decide what the arrangement MEANS; this decides what the
+    arrangement IS.
+    """
     ops = [e for e in events if isinstance(e, _OpEvent)]
     ands = [e for e in events if isinstance(e, _AndEvent)]
     cues = [e for e in events if isinstance(e, _CueEvent)]
@@ -936,146 +1102,445 @@ def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -
     if any(len(f) > 1 for f in filled):
         return None
 
-    tail_cues = [c for c in cues if c.atom_index > last.atom_end]
+    return _Positions(
+        filled=filled,
+        tail=_TailSignals(
+            word_ops=tuple(tail_word_ops),
+            marks=tuple(tail_marks),
+            cues=tuple(c for c in cues if c.atom_index > last.atom_end),
+            last_atom_end=last.atom_end,
+        ),
+        ands=ands,
+    )
+
+
+@dataclass(frozen=True)
+class _ExplicitCtx:
+    """Everything the explicit-chain tail rules read, derived once."""
+
+    operands: list[_Operand]
+    chain: list[str]
+    tail: _TailSignals
+    contradicting: list[_OpEvent]
+    """Tail operations that do not restate the chain's last step."""
+    mul_override: bool
+    """Whether those contradicting tail ops are the one attested exception."""
+    and_inside_chain: bool
+    """Whether a clause-joining "and" sits in one of the operand gaps."""
+    mul_symbol_in_unit_phrase: bool
+    """Whether a gap's lone "*" sits between a number and its own unit noun."""
+
+
+def _unit_phrase_variants(atoms: list[str], start: int, stop: int, claimed: set[int]) -> list[str]:
+    """Collapsed merges of the first few unclaimed atoms from ``start``.
+
+    Word splitting is a first-class obfuscation layer, and it is applied per
+    occurrence: the same noun arrives as "newtons" in one place and "new
+    tons" in another. Comparing single atoms therefore misses the repetition
+    that the unit-phrase guard is built on (found by codex-review). Merging
+    is bounded and stops at the first atom already claimed by a lexeme, so a
+    cue or operand can never be swallowed into a "unit noun".
+    """
+    variants: list[str] = []
+    merged = ""
+    for index in range(start, min(stop, start + _MAX_UNIT_PHRASE_ATOMS)):
+        if index in claimed:
+            break
+        merged += atoms[index]
+        variants.append(_collapse_repeats(merged))
+    return variants
+
+
+def _same_unit_noun(left: list[str], right: list[str]) -> bool:
+    """Whether two unit phrases are the same noun under the obfuscator."""
+    return any(
+        a == b or (len(a) >= _FUZZY_MIN_TOKEN and _within_one_edit(a, b))
+        for a in left
+        for b in right
+    )
+
+
+def _mul_symbol_inside_unit_phrase(
+    atoms: list[str], operands: list[_Operand], events: list[_Event]
+) -> bool:
+    """Whether a "*" separates an operand from the unit noun both operands share.
+
+    Round 9. ``*`` is a real multiply symbol, but the obfuscator also drops
+    it inside a quantity's own unit phrase: "thirty two * newtons and another
+    sixteen newtons ... total?" is an addition wearing a product's punctuation,
+    and reading the symbol as the operation submitted 512.00 for a 48.00
+    question. The tell is positional, not lexical — the atom after the symbol
+    is the same unit noun that follows the right operand, so the symbol sits
+    between a number and its unit rather than between two quantities. In every
+    corpus-accepted ``*``-with-"and" challenge the symbol follows the unit noun
+    instead.
+
+    Restricted to ``*`` on purpose: the corpus has one attested ``+`` inside a
+    unit phrase where the additive and implicit-add readings coincide and the
+    answer was accepted. A stray ``*`` inverts the answer; a stray ``+`` cannot.
+    """
+    ops = [e for e in events if isinstance(e, _OpEvent)]
+    claimed = _event_atoms(events)
+    for left, right in zip(operands, operands[1:], strict=False):
+        gap = [op for op in ops if left.atom_end < op.atom_index < right.atom_start]
+        if len(gap) != 1:
+            continue
+        symbol = gap[0]
+        if not symbol.is_symbol or symbol.op != _MUL:
+            continue
+        after_symbol = _unit_phrase_variants(
+            atoms, symbol.atom_index + 1, right.atom_start, claimed
+        )
+        after_right = _unit_phrase_variants(atoms, right.atom_end + 1, len(atoms), claimed)
+        if _same_unit_noun(after_symbol, after_right):
+            return True
+    return False
+
+
+def _and_inside_chain(operands: list[_Operand], ands: list[_AndEvent]) -> bool:
+    """Whether an "and" falls strictly between two consecutive operands."""
+    return any(
+        left.atom_end < a.atom_index < right.atom_start
+        for a in ands
+        for left, right in zip(operands, operands[1:], strict=False)
+    )
+
+
+def _explicit_context(
+    operands: list[_Operand],
+    chain: list[str],
+    tail: _TailSignals,
+    ands: list[_AndEvent],
+    events: list[_Event],
+    atoms: list[str],
+) -> _ExplicitCtx:
+    contradicting = [op for op in tail.word_ops if _normalize_op(op.op) != _normalize_op(chain[-1])]
+    return _ExplicitCtx(
+        operands=operands,
+        chain=chain,
+        tail=tail,
+        contradicting=contradicting,
+        mul_override=(
+            chain == [_ADD_CHANGE]
+            and bool(contradicting)
+            and all(op.op == _MUL for op in contradicting)
+            and any(tail.is_adjacent(op.atom_index) for op in contradicting)
+        ),
+        and_inside_chain=_and_inside_chain(operands, ands),
+        mul_symbol_in_unit_phrase=_mul_symbol_inside_unit_phrase(atoms, operands, events),
+    )
+
+
+# Ordered grammar for a fully specified chain — every gap carries one agreed
+# operation, and what follows the last operand must be consistent with it.
+_EXPLICIT_TAIL_RULES: tuple[_Rule[_ExplicitCtx], ...] = (
+    # Tail operations must restate the last step ("gains eight more") or be a
+    # multiplicative/divisive contradiction — then abstain. One exception
+    # (round 7, twin-confirmed): an ADJACENT multiplicative tail after a
+    # single change-verb gap ("increases it by three times") overrides the
+    # change-verb to multiply.
+    #
+    # In the cascade this rewrote the chain to [_MUL] and fell into the
+    # subtract-vs-"combined" guard below; _normalize_op(_MUL) is never _SUB,
+    # so that guard was inert after an override and answering here is exactly
+    # equivalent. This is the one place the table short-circuits a
+    # fall-through rather than transcribing it — the differential replay is
+    # what proves it.
+    _Rule(
+        "adjacent_multiplicative_tail_overrides_change_verb",
+        # mul_override already requires a non-empty ``contradicting``.
+        lambda c: c.mul_override,
+        lambda c: _answer(_compute_chain(c.operands, [_MUL])),
+    ),
+    # Round 9. A chain longer than two operands whose gaps are broken by an
+    # "and" is two statements glued into one fold, not one arithmetic
+    # sentence: "swims at twenty three cm ... AND its claws exert ... the
+    # product twenty three * seven" folded the scene speed into the product
+    # and submitted 3703.00. This docstring's own grammar — operands and
+    # operations interleave STRICTLY — is what an intervening clause boundary
+    # breaks. The corpus's only correct three-operand chain has no "and" in
+    # any gap; both server-rejected ones do.
+    _Rule(
+        "long_chain_broken_by_a_connective",
+        lambda c: len(c.operands) > 2 and c.and_inside_chain,
+        lambda _c: _ABSTAIN,
+    ),
+    # Round 9. See _mul_symbol_inside_unit_phrase: the gap's lone "*" is
+    # punctuation inside a quantity's unit phrase, not the operation between
+    # two quantities. Two readings are attested for the shape, so abstain.
+    _Rule(
+        "multiplicative_symbol_inside_a_unit_phrase",
+        lambda c: c.mul_symbol_in_unit_phrase,
+        lambda _c: _ABSTAIN,
+    ),
+    _Rule(
+        "tail_operation_contradicts_the_chain",
+        lambda c: bool(c.contradicting),
+        lambda _c: _ABSTAIN,
+    ),
+    # A subtraction chain against a trailing additive cue ("another lobster
+    # slows by fifteen ... what's the combined velocity?") is contradictory:
+    # every corpus-accepted additive cue is additive, and the subtract reading
+    # was server-rejected — abstain, never guess. Round 9 widened the cue from
+    # the single word "combined" to all of _ADDITIVE_CUES; a "total"-cued
+    # challenge had been walking past this row.
+    _Rule(
+        "subtraction_chain_against_additive_cue",
+        lambda c: (
+            any(_normalize_op(op) == _SUB for op in c.chain) and c.tail.contradicts_subtraction
+        ),
+        lambda _c: _ABSTAIN,
+    ),
+    _Rule(
+        "explicit_chain",
+        lambda _c: True,
+        lambda c: _answer(_compute_chain(c.operands, [_normalize_op(op) for op in c.chain])),
+    ),
+)
+
+
+def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -> str | None:
+    """Fit ops/cues around the operands and compute, or abstain.
+
+    Grammar: operands and explicit operations must interleave strictly —
+    every gap between consecutive operands carries exactly one agreed
+    operation, and anything after the last operand must be consistent with
+    it. A two-operand challenge with an empty gap may still resolve through
+    the guarded implicit rules (question-tail add/multiply, adjacent postfix
+    operator).
+    """
+    if len(operands) < 2:
+        return None
+
+    positions = _classify_positions(operands, events)
+    if positions is None:
+        return None
+    filled, tail, ands = positions.filled, positions.tail, positions.ands
 
     if all(filled):
-        chain = [next(iter(f)) for f in filled]
-        # Tail operations must restate the last step ("gains eight more") or
-        # be a multiplicative/divisive contradiction — then abstain. One
-        # exception (round 7, twin-confirmed): an ADJACENT multiplicative
-        # tail after a single change-verb gap ("increases it by three
-        # times") overrides the change-verb to multiply.
-        contradicting = [
-            op for op in tail_word_ops if _normalize_op(op.op) != _normalize_op(chain[-1])
-        ]
-        if contradicting:
-            override = (
-                chain == [_ADD_CHANGE]
-                and all(op.op == _MUL for op in contradicting)
-                and any(op.atom_index - last.atom_end <= _POSTFIX_ADJACENCY for op in contradicting)
-            )
-            if not override:
-                return None
-            chain = [_MUL]
-        # A subtraction chain against a trailing "combined" cue ("another
-        # lobster slows by fifteen ... what's the combined velocity?") is
-        # contradictory: every corpus-accepted "combined" is additive, and
-        # the subtract reading was server-rejected — abstain, never guess.
-        if any(_normalize_op(op) == _SUB for op in chain) and any(
-            c.word == "combined" for c in tail_cues
-        ):
-            return None
-        return _compute_chain(operands, [_normalize_op(op) for op in chain])
+        return _resolve_operation(
+            _EXPLICIT_TAIL_RULES,
+            _explicit_context(operands, [next(iter(f)) for f in filled], tail, ands, events, atoms),
+        )
 
     if len(operands) != 2 or any(filled):
         # Chains (3+) never resolve implicitly; a half-filled two-operand
         # read is contradictory.
         return None
-    return _resolve_implicit(operands, tail_word_ops, tail_marks, ands, tail_cues, atoms)
+    return _resolve_implicit(operands, tail, ands, atoms)
 
 
-def _resolve_implicit(
+@dataclass(frozen=True)
+class _ImplicitCtx:
+    """Everything the implicit two-operand rules read, derived once.
+
+    The nested conditions of the old cascade become named fields here, and
+    each flattened rule re-states the field it sits under. That is what keeps
+    an inner abstain from leaking into a later branch when the nesting goes
+    away.
+    """
+
+    operands: list[_Operand]
+    tail: _TailSignals
+    and_between: bool
+    cue_after: bool
+    sub_tail: list[_OpEvent]
+    other_tail: list[_OpEvent]
+    has_mult_signal: bool
+    mult_adjacent: bool
+    sub_all_adjacent: bool
+    imperative_add: bool
+    count_noun_after: bool
+    unit_first: str | None
+    unit_second: str | None
+    possessed_bare_count: bool
+    explicit_add: bool
+    like_units: bool
+
+
+def _implicit_context(
     operands: list[_Operand],
-    tail_word_ops: list[_OpEvent],
-    tail_marks: list[_MulMarkerEvent],
+    tail: _TailSignals,
     ands: list[_AndEvent],
-    tail_cues: list[_CueEvent],
     atoms: list[str],
-) -> Optional[str]:
-    """Resolve two operands with no explicit operation between them.
+) -> _ImplicitCtx:
+    """Derive the implicit-rule facts eagerly.
 
-    Priority: a multiplicative signal (specific) beats the additive question
-    cue (generic); a postfix subtraction requires immediate adjacency; the
-    implicit add requires the connective, the cue, and the unit guard —
-    unless an explicit arithmetic instruction ("sum" / "add them") waives
-    the unit guard.
+    Every helper involved is pure and cannot raise ``_Abstain`` (the raises
+    all sit upstream, in operand building), and each lookback is bounded, so
+    computing them all up front is observationally identical to the lazy
+    cascade this replaces.
     """
     first, second = operands
-    and_between = any(first.atom_end < a.atom_index < second.atom_start for a in ands)
-    cue_after = bool(tail_cues)
+    mult_tail = tail.mult_ops
+    other_tail = tail.other_ops
 
-    mult_tail = [op for op in tail_word_ops if op.op == _MUL]
-    sub_tail = [op for op in tail_word_ops if op.op == _SUB]
-    other_tail = [op for op in tail_word_ops if op.op not in (_MUL, _SUB)]
+    # A trailing multiplicative marker counts as evidence only when adjacent —
+    # unlike a trailing multiplicative VERB, whose non-adjacent "what is the
+    # product?" question form is corpus-attested. A between-operand marker was
+    # already folded into the gap by _classify_positions and never reaches here.
+    adjacent_marks = tail.adjacent_marks
 
-    # A trailing multiplicative marker counts as evidence only when ADJACENT
-    # to the second operand — unlike a trailing multiplicative VERB, whose
-    # non-adjacent "what is the product?" question form is corpus-attested,
-    # a distant marker is scene noise ("...physicx factors what is total
-    # force?" is an implicit add) exactly as in the explicit-chain path
-    # (found by codex-review: the noise rule was applied to one path only).
-    # A between-operand marker was already folded into the gap by _resolve
-    # and never reaches here.
-    adjacent_marks = [m for m in tail_marks if m.atom_index - second.atom_end <= _POSTFIX_ADJACENCY]
-    if mult_tail or adjacent_marks:
-        if sub_tail:
-            return None
-        adjacent = bool(adjacent_marks) or any(
-            op.atom_index - second.atom_end <= _POSTFIX_ADJACENCY for op in mult_tail
-        )
-        if and_between or adjacent:
-            return _compute_chain(operands, [_MUL])
-        return None
-    if sub_tail:
-        if other_tail:
-            return None
-        # The same subtract-vs-"combined" contradiction the explicit-chain
-        # path abstains on (found by python-reviewer: the guard covered one
-        # path only).
-        if any(c.word == "combined" for c in tail_cues):
-            return None
-        if all(op.atom_index - second.atom_end <= _POSTFIX_ADJACENCY for op in sub_tail):
-            return _compute_chain(operands, [_SUB])
-        return None
-    # A bare trailing additive verb ("... how many more?") is question
-    # framing, not an operator — except the imperative "please add them",
-    # an explicit instruction which resolves the add below.
-    imperative_add = bool(other_tail) and all(op.word in _IMPERATIVE_ADD_WORDS for op in other_tail)
-    if other_tail and not imperative_add:
-        return None
-
-    # Count multiplier: "twenty five newtons and three claws" — a claw
-    # count directly after the second operand multiplies the per-claw
-    # magnitude (every corpus-accepted example is a product).
-    if and_between and cue_after and _count_noun_after(atoms, second.atom_end):
-        return _compute_chain(operands, [_MUL])
-
-    # Implicit add: "X <unit> and Y <unit>, what is the total?"
-    if not (and_between and (cue_after or imperative_add)):
-        return None
     unit_first = _adjacent_atom(atoms, first.atom_end)
     unit_second = _adjacent_atom(atoms, second.atom_end)
-    if unit_first is None or unit_second is None:
-        return None
-    # A same-subject bare possessed count ("...and it has twoo, whats total
-    # force?") is ambiguous: corpus "has" adds when another entity holds the
-    # quantity ("the weaker claw has fourteen") but multiplies when the same
-    # subject possesses a count of claws, and here the count noun was
-    # mangled away — abstain rather than guess either way. The lookback is
-    # merge-aware ("i t ha s two" still reads as "it has"; found by
-    # codex-review: a raw single-atom check missed the split form).
-    if unit_second in _QUESTION_TOKENS and _possessed_bare_count(atoms, second):
-        return None
-    # An explicit arithmetic instruction ("what is the sum of these" /
-    # "please add them") waives the like-unit guard: the corpus pairs
-    # unlike quantities (velocity + force) under an explicit sum, and the
-    # multiplicative reading was server-rejected.
-    explicit_add = imperative_add or any(c.word == "sum" for c in tail_cues)
     # Fuzzy unit pairing needs the same length floor as every other fuzzy
     # comparison in this module: two short noise fragments ("me"/"ne") sit
     # one edit apart far too easily. Exact equality has no floor (the corpus
     # abbreviates units down to "cm", and equal short units are real signal).
-    like_units = unit_first == unit_second or (
-        len(unit_first) >= _FUZZY_MIN_TOKEN
-        and len(unit_second) >= _FUZZY_MIN_TOKEN
-        and _within_one_edit(unit_first, unit_second)
+    like_units = unit_first is not None and (
+        unit_first == unit_second
+        or (
+            unit_second is not None
+            and len(unit_first) >= _FUZZY_MIN_TOKEN
+            and len(unit_second) >= _FUZZY_MIN_TOKEN
+            and _within_one_edit(unit_first, unit_second)
+        )
     )
-    if not (like_units or unit_second in _QUESTION_TOKENS or explicit_add):
-        return None
-    return _compute_chain(operands, [_ADD])
+
+    # A bare trailing additive verb ("... how many more?") is question
+    # framing, not an operator — except the imperative "please add them",
+    # an explicit instruction which resolves the add below.
+    imperative_add = bool(other_tail) and all(op.word in _IMPERATIVE_ADD_WORDS for op in other_tail)
+    sub_tail = tail.sub_ops
+
+    return _ImplicitCtx(
+        operands=operands,
+        tail=tail,
+        and_between=any(first.atom_end < a.atom_index < second.atom_start for a in ands),
+        cue_after=bool(tail.cues),
+        sub_tail=sub_tail,
+        other_tail=other_tail,
+        has_mult_signal=bool(mult_tail or adjacent_marks),
+        mult_adjacent=bool(adjacent_marks)
+        or any(tail.is_adjacent(op.atom_index) for op in mult_tail),
+        sub_all_adjacent=all(tail.is_adjacent(op.atom_index) for op in sub_tail),
+        imperative_add=imperative_add,
+        count_noun_after=_count_noun_after(atoms, second.atom_end),
+        unit_first=unit_first,
+        unit_second=unit_second,
+        possessed_bare_count=_possessed_bare_count(atoms, second),
+        # An explicit arithmetic instruction ("what is the sum of these" /
+        # "please add them") waives the like-unit guard: the corpus pairs
+        # unlike quantities (velocity + force) under an explicit sum, and the
+        # multiplicative reading was server-rejected.
+        explicit_add=imperative_add or any(c.word == "sum" for c in tail.cues),
+        like_units=like_units,
+    )
 
 
-def _adjacent_atom(atoms: list[str], atom_end: int) -> Optional[str]:
+# Ordered grammar for two operands with no explicit operation between them.
+# Priority: a multiplicative signal (specific) beats the additive question
+# cue (generic); a postfix subtraction requires immediate adjacency; the
+# implicit add requires the connective, the cue, and the unit guard — unless
+# an explicit arithmetic instruction ("sum" / "add them") waives it.
+#
+# Each block below is exhaustive over its own signal, which is what replaces
+# the old nesting: nothing falls out of the multiplicative block into the
+# subtraction block.
+_IMPLICIT_RULES: tuple[_Rule[_ImplicitCtx], ...] = (
+    # --- multiplicative signal --------------------------------------------
+    _Rule(
+        "multiplicative_signal_conflicts_with_subtraction",
+        lambda c: c.has_mult_signal and bool(c.sub_tail),
+        lambda _c: _ABSTAIN,
+    ),
+    _Rule(
+        "multiplicative_signal_supported_by_connective_or_adjacency",
+        lambda c: c.has_mult_signal and (c.and_between or c.mult_adjacent),
+        lambda c: _answer(_compute_chain(c.operands, [_MUL])),
+    ),
+    _Rule(
+        "multiplicative_signal_unsupported",
+        lambda c: c.has_mult_signal,
+        lambda _c: _ABSTAIN,
+    ),
+    # --- postfix subtraction ----------------------------------------------
+    _Rule(
+        "postfix_subtraction_mixed_with_another_operation",
+        lambda c: bool(c.sub_tail) and bool(c.other_tail),
+        lambda _c: _ABSTAIN,
+    ),
+    # A subtraction against a trailing additive cue ("another lobster slows
+    # by fifteen ... what's the combined velocity?") is contradictory: every
+    # corpus-accepted additive cue is additive, and the subtract reading was
+    # server-rejected — abstain, never guess. Round 9 widened the cue from the
+    # single word "combined" to all of _ADDITIVE_CUES.
+    _Rule(
+        "postfix_subtraction_against_additive_cue",
+        lambda c: bool(c.sub_tail) and c.tail.contradicts_subtraction,
+        lambda _c: _ABSTAIN,
+    ),
+    _Rule(
+        "postfix_subtraction_adjacent",
+        lambda c: bool(c.sub_tail) and c.sub_all_adjacent,
+        lambda c: _answer(_compute_chain(c.operands, [_SUB])),
+    ),
+    _Rule(
+        "postfix_subtraction_not_adjacent",
+        lambda c: bool(c.sub_tail),
+        lambda _c: _ABSTAIN,
+    ),
+    # --- additive readings -------------------------------------------------
+    _Rule(
+        "trailing_additive_verb_is_question_framing",
+        lambda c: bool(c.other_tail) and not c.imperative_add,
+        lambda _c: _ABSTAIN,
+    ),
+    # Count multiplier: "twenty five newtons and three claws" — a claw count
+    # directly after the second operand multiplies the per-claw magnitude
+    # (every corpus-accepted example is a product).
+    _Rule(
+        "count_noun_after_second_operand_multiplies",
+        lambda c: c.and_between and c.cue_after and c.count_noun_after,
+        lambda c: _answer(_compute_chain(c.operands, [_MUL])),
+    ),
+    # Implicit add: "X <unit> and Y <unit>, what is the total?"
+    _Rule(
+        "implicit_add_needs_connective_and_cue",
+        lambda c: not (c.and_between and (c.cue_after or c.imperative_add)),
+        lambda _c: _ABSTAIN,
+    ),
+    _Rule(
+        "implicit_add_needs_a_unit_on_both_operands",
+        lambda c: c.unit_first is None or c.unit_second is None,
+        lambda _c: _ABSTAIN,
+    ),
+    # A same-subject bare possessed count ("...and it has twoo, whats total
+    # force?") is ambiguous: corpus "has" adds when another entity holds the
+    # quantity ("the weaker claw has fourteen") but multiplies when the same
+    # subject possesses a count of claws, and here the count noun was mangled
+    # away — abstain rather than guess either way. The lookback is merge-aware
+    # ("i t ha s two" still reads as "it has"; found by codex-review: a raw
+    # single-atom check missed the split form).
+    _Rule(
+        "same_subject_possessed_bare_count_is_ambiguous",
+        lambda c: c.unit_second in _QUESTION_TOKENS and c.possessed_bare_count,
+        lambda _c: _ABSTAIN,
+    ),
+    _Rule(
+        "implicit_add_needs_like_units_or_an_explicit_instruction",
+        lambda c: not (c.like_units or c.unit_second in _QUESTION_TOKENS or c.explicit_add),
+        lambda _c: _ABSTAIN,
+    ),
+    _Rule(
+        "implicit_add",
+        lambda _c: True,
+        lambda c: _answer(_compute_chain(c.operands, [_ADD])),
+    ),
+)
+
+
+def _resolve_implicit(
+    operands: list[_Operand],
+    tail: _TailSignals,
+    ands: list[_AndEvent],
+    atoms: list[str],
+) -> str | None:
+    """Resolve two operands with no explicit operation between them."""
+    return _resolve_operation(_IMPLICIT_RULES, _implicit_context(operands, tail, ands, atoms))
+
+
+def _adjacent_atom(atoms: list[str], atom_end: int) -> str | None:
     """Collapsed form of the atom immediately after ``atom_end``, if any."""
     if atom_end + 1 >= len(atoms):
         return None
@@ -1119,7 +1584,7 @@ def _count_noun_after(atoms: list[str], atom_end: int) -> bool:
     return _collapse_repeats(atoms[atom_end + 1] + atoms[atom_end + 2]) == _COUNT_NOUN
 
 
-def _compute_chain(operands: list[_Operand], chain: list[str]) -> Optional[str]:
+def _compute_chain(operands: list[_Operand], chain: list[str]) -> str | None:
     """Left-fold the operand values, abstaining on any out-of-domain step.
 
     The physical-count CAPTCHA domain is non-negative: a negative

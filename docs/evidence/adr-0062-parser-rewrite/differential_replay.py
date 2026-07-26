@@ -62,6 +62,12 @@ def _load_baseline() -> Callable[[str], str | None]:
     if spec is None or spec.loader is None:
         raise RuntimeError(f"cannot load baseline parser from {BASELINE}")
     module = importlib.util.module_from_spec(spec)
+    # Register before exec: with ``from __future__ import annotations`` a
+    # frozen dataclass resolves its field types lazily through
+    # ``sys.modules[cls.__module__]``, which is None for a module loaded by
+    # path alone. The baseline has carried dataclasses since the round-9
+    # refresh, so without this the loader dies in dataclasses._is_type.
+    sys.modules[spec.name] = module
     spec.loader.exec_module(module)
     return module.code_parse_challenge
 

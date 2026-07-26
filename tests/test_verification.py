@@ -298,7 +298,71 @@ _AUDIT_R8_DUOBLES_B64 = (
 # whats total force?" = 75.00 ("duoubbles" collapses to "duobles" — an
 # adjacent transposition of "doubles", invisible to plain distance-1
 # fuzzy — so the marker dropped and 25 + 3 = 28.00 was submitted —
-# REJECTED. Round 7 twin: "doubled by two" = multiply, ACCEPTED shape).
+# REJECTED. Round 8 fixed it; Round 7 twin: "doubled by two" = multiply).
+
+# --- Round 9 (2026-07-26, ADR-0062 11th amendment). The six post-round-8
+# challenges where code_parse submitted a wrong answer. Every one of them
+# now abstains: two readings are attested for each shape, so the grammar
+# stays silent rather than pick one. The three remaining ground-truth
+# failures were server anomalies and are labeled UNRESOLVABLE in
+# manual_labels.json, not fixed here.
+
+_AUDIT_R9_SUB_VS_TOTAL_CUE_B64 = (
+    "QV0gbE9vT2JTc3RUdEVyUiBzXnRyVSBnR2xMZVMgd0l0SC8gY0xsQXdXIGZPb1JjRWUg"
+    "dFdlTnRZIFRoUmVFZSBuRXVUb05zLSBhTmRdIGFOIG9UaEhlUiBsT29PYlNzdFRlUiBs"
+    "T3NFc34gc0l4WCBuRXVUb05zLCB3SGFUIGlTPCB0SGU+IFRvVGFMIGNMbEF3VyBmT29S"
+    "Y0VlPw=="
+)  # "...claw force twenty three neutons and another lobster loses six
+# neutons, what is the total claw force?" — the subtract reading 17.00 was
+# submitted and REJECTED. The guard for this existed but read the single
+# word "combined"; the cue here is "total".
+
+_AUDIT_R9_AND_BREAKS_PRODUCT_B64 = (
+    "QV0gbE8gYi1TdEVyIFN3SSBtU14gYVQvIHRXIGVOIHRZIFRoUmVFXSBjRWVNbUVlVHRF"
+    "clMgUGVSLyBzTyBuRH4gQW5EfCBpVCdTIENsQXdTIEV4RXJUIExvT29Pb05nIEZvUmNl"
+    "UywgSG9XLyBtVWNIIElzIFRoRSBQYUlyV2lTZSBUb1RhTCBXaEVuIFRhS2VOIEFzIEEg"
+    "UGhZc0l4QWwgUHJPZFVjVDogdFcvZU4gdFkgVGhSZUUgKiBTZVYgZU4/Pw=="
+)  # "...swims at twenty three centimeters per second AND its claws exert
+# ... the pairwise total taken as a physical product: twenty three * seven?"
+# — the scene speed folded into the product and 23 * 23 * 7 = 3703.00 was
+# submitted — REJECTED.
+
+_AUDIT_R9_AND_BREAKS_AMPLIFIER_B64 = (
+    "QV0gTCBvT2JCc1N0VGVFclIgQyBsQXdXIGZPIHJDZUUgaVMgQSBwUHJPeFggaU1hVGVF"
+    "bFkgRiBvUiB0RWVOIE4gZVd3VHRPb05zLCBCdVReIHRIaVMgbE9vT2JCc1N0VGVFclIn"
+    "IHMgQ2xBd1cgc1RySWtFZVMgd0l0SCBGIG9SIHRFZU5uLUYgb1JjRSBBIG1QbElmSWlF"
+    "cl4gYU5kXSB0SGUgUmVTdUx0IEFuR2xFIG1VbFRpUGxJaUVzIEYgb1IgY0UgYlkgKiBG"
+    "IG9SdFkgKiBzRXZFbiwgSG9XLyBtVWNIIFMgdEF0SWMgRm9SY0UgaVMgcFJvRHVDZUQ/"
+)  # "...claw force is approximately fourteen newtons, but this lobster's
+# claw strikes with fourteen-force amplifier AND the result angle multiplies
+# force by * forty * seven..." — 14 * 40 * 7 = 3920.00 was submitted —
+# REJECTED. Same signature: a clause boundary inside a three-operand chain.
+
+_AUDIT_R9_MUL_IN_UNIT_PHRASE_B64 = (
+    "QV0gbE9vQmJTc1R0RWVSciBeZVhlUnJUcyB1bV0gdEhpUnJUeSBUd09vICogbkVlV3dU"
+    "b09uUyB+YU5kXSBhTm5PdEhlUiB7c0lpWHhUZUVlTiAvIG5FZVd3VG9PblMgLXdIYVR9"
+    "IGlTIHRIZV0gdE90QWFMbD8gPHVtPg=="
+)  # "...exerts um thirty two * newtons and another sixteen newtons what is
+# the total?" — the "*" sits between the operand and its own unit noun, and
+# reading it as the operation submitted 32 * 16 = 512.00 — REJECTED.
+
+_AUDIT_R9_BROKEN_UNIT_HALF_B64 = (
+    "QV0gTG8uQnNUIEVyUnIgU153SW1TWyBhVC8gdFdlTnRZIFRyRWVFIG1FfXRFclN8IHBF"
+    "clwgU2VDb05kfiBiVXQtIFNsT3dTeyBiWS8gc0V2RW4gPCBtRXRFclMsIHVNbSwgaE1t"
+    "PiBXaEF0XSBJc14gVGhFIE5lVy0gVmVMb09jSXRZPw=="
+)  # "...swims at twenty TREEE meters per second but slows by seven..." —
+# "treee" collapses to "tre", three letters, below every fuzzy tier, so the
+# unit half of "twenty three" vanished and 20 - 7 = 13.00 was submitted —
+# REJECTED.
+
+_AUDIT_R9_BROKEN_TENS_HALF_B64 = (
+    "TG9dYi1TdEVyIFN3SW1TXiBhVC8gVHJXZUVuIFQgaFJlRSBjRSBtTWVUZVJzIFBlUiBz"
+    "RWNPbkR+LCBBZlRlUlwgTW9MdEluRyBpVCBJbkNyRWFTZVN8IGJZPCBGaVZlPiBjRSBt"
+    "TWVUZVJzIFBlUiBzRWNPbkR7LH0gV2hBdCBJcyBUaEUgbkV3IFNwRWVEPw=="
+)  # "...swims at TRWEEN t hree centimeters per second, after molting it
+# increases by five..." — "trween" collapses to "trwen", two edits from
+# every number word and every collapsed form, so the tens half was
+# unreachable and 3 + 5 = 8.00 was submitted — REJECTED.
 
 
 def _decode_untrusted(challenge_b64: str) -> str:
@@ -837,8 +901,27 @@ class TestCodeParse:
 
     @pytest.mark.parametrize(
         "challenge",
-        ["a " * 1000, "a" * 4000, "tw en ty " * 220, "+ " * 1000],
-        ids=["single-letter-atoms", "one-huge-atom", "near-word-flood", "symbol-flood"],
+        [
+            "a " * 1000,
+            "a" * 4000,
+            "tw en ty " * 220,
+            "+ " * 1000,
+            # Round 9: a maximally long alternating operand/operation chain,
+            # which is what the resolve-stage guards loop over (operand pairs
+            # x ops). The other four floods never build one, so without this
+            # the new guards' worst case rested on complexity-class analogy
+            # (security-reviewer).
+            "one plus " * 250,
+            "one and " * 250,
+        ],
+        ids=[
+            "single-letter-atoms",
+            "one-huge-atom",
+            "near-word-flood",
+            "symbol-flood",
+            "long-operand-chain",
+            "long-connective-chain",
+        ],
     )
     def test_bounded_runtime_on_adversarial_input(self, challenge):
         # The scanner's merge window is bounded by collapsed token length AND
@@ -965,6 +1048,147 @@ class TestCodeParse:
         # confident wrong answer. Round 8 poisons the parse instead.
         challenge = _decode_untrusted(fixture_b64)
         assert code_parse_challenge(challenge) is None
+
+    # --- Round 9 (2026-07-26): the six post-round-8 corpus wrongs. CI never
+    # sees the local audit corpus, so these fixtures are the only durable
+    # evidence that the ground-truth gate closed.
+
+    @pytest.mark.parametrize(
+        "fixture_b64",
+        [
+            _AUDIT_R9_SUB_VS_TOTAL_CUE_B64,
+            _AUDIT_R9_AND_BREAKS_PRODUCT_B64,
+            _AUDIT_R9_AND_BREAKS_AMPLIFIER_B64,
+            _AUDIT_R9_MUL_IN_UNIT_PHRASE_B64,
+            _AUDIT_R9_BROKEN_UNIT_HALF_B64,
+            _AUDIT_R9_BROKEN_TENS_HALF_B64,
+        ],
+        ids=[
+            "subtract-chain-vs-total-cue",
+            "and-breaks-product-chain",
+            "and-breaks-amplifier-chain",
+            "mul-symbol-inside-unit-phrase",
+            "broken-unit-half-poisons",
+            "broken-tens-half-poisons",
+        ],
+    )
+    def test_regression_round9_corpus_failures_abstain(self, fixture_b64):
+        challenge = _decode_untrusted(fixture_b64)
+        assert code_parse_challenge(challenge) is None
+
+    @pytest.mark.parametrize(
+        "challenge",
+        [
+            # A subtract chain under any additive cue, not just "combined".
+            "twenty three newtons and another lobster loses six newtons,"
+            " what is the total claw force?",
+            "twenty three newtons and another lobster loses six newtons,"
+            " what is the sum claw force?",
+            # A three-operand chain stepped over by a clause boundary.
+            "a lobster swims at twenty three meters per second and its claws"
+            " exert force, what is the product twenty three * seven?",
+            # "*" between an operand and its own unit noun, the same noun
+            # that follows the second operand.
+            "a lobster exerts thirty two * newtons and another sixteen newtons, what is the total?",
+            # A tens word whose unit half collapsed below every fuzzy tier.
+            "a lobster swims at twenty tre meters per second but slows by"
+            " seven meters, what is the new velocity?",
+            # A split single-digit first operand behind a long unmatched
+            # residue — the tens half is gone beyond lexical reach.
+            "trween t hree centimeters per second, after molting it"
+            " increases by five, what is the new speed?",
+        ],
+        ids=[
+            "sub-chain-vs-total",
+            "sub-chain-vs-sum",
+            "and-inside-three-operand-chain",
+            "mul-symbol-in-unit-phrase",
+            "broken-unit-half",
+            "broken-tens-half",
+        ],
+    )
+    def test_round9_guards_abstain(self, challenge):
+        assert code_parse_challenge(challenge) is None
+
+    @pytest.mark.parametrize(
+        "challenge",
+        [
+            # Letter doubling on the split fragment ("t" arriving as "tt").
+            "trween tt hree centimeters per second, after molting it"
+            " increases by five, what is the new speed?",
+            "trween t hhree centimeters per second, after molting it"
+            " increases by five, what is the new speed?",
+            # The shared unit noun split differently at its two occurrences.
+            "a lobster exerts thirty two * new tons and another sixteen"
+            " newtons, what is the total?",
+            "a lobster exerts thirty two * newtons and another sixteen"
+            " new tons, what is the total?",
+            "a lobster exerts thirty two * n ewtons and another sixteen"
+            " newtons, what is the total?",
+        ],
+        ids=[
+            "doubled-split-fragment-tt",
+            "doubled-split-fragment-hhree",
+            "unit-noun-split-after-symbol",
+            "unit-noun-split-after-operand",
+            "unit-noun-split-one-letter",
+        ],
+    )
+    def test_round9_guards_survive_the_obfuscation_layers(self, challenge):
+        # Both round-9 guards first shipped comparing RAW atoms, so ordinary
+        # letter doubling and word splitting — layers this module handles
+        # everywhere else — walked straight through them and produced the
+        # same confident wrong answers the guards exist to stop
+        # (codex-review). A guard that the obfuscator can step around is not
+        # a guard; these fix the comparison at collapsed, merged forms.
+        assert code_parse_challenge(challenge) is None
+
+    @pytest.mark.parametrize(
+        "challenge,expected",
+        [
+            # A three-operand chain with no clause boundary still folds —
+            # the shape of 453e7b97, the corpus's one correct long chain.
+            (
+                "a lobster claw force is forty plus seven newtons, it"
+                " increases by seven, what is the force?",
+                "54.00",
+            ),
+            # An additive cue over an ADDITIVE chain is agreement, not
+            # contradiction — the subtract guard must not widen to this.
+            (
+                "a lobster claw exerts thirty two newtons and another claw"
+                " adds twelve newtons, what is the total force?",
+                "44.00",
+            ),
+            # "*" AFTER the shared unit noun is a real multiply.
+            (
+                "a lobster exerts thirty two newtons * and another sixteen, how much force?",
+                "512.00",
+            ),
+            # A tens word followed by a stopword-listed short token is prose,
+            # not a mangled unit half.
+            (
+                "a lobster claw force is twenty and the other claw adds"
+                " seven newtons, what is the total?",
+                "27.00",
+            ),
+            # A split first operand with a SHORT residue in front stays
+            # readable — arm B's five-letter floor is what spares it.
+            (
+                "um t hree newtons and another claw adds five newtons, what is the total force?",
+                "8.00",
+            ),
+        ],
+        ids=[
+            "clean-three-operand-chain",
+            "additive-cue-over-additive-chain",
+            "mul-symbol-after-unit-noun",
+            "tens-then-stopword",
+            "short-residue-before-split-operand",
+        ],
+    )
+    def test_round9_guards_preserve_existing_readings(self, challenge, expected):
+        assert code_parse_challenge(challenge) == expected
 
     @pytest.mark.parametrize(
         "challenge,expected",
@@ -1233,18 +1457,19 @@ class TestCodeParse:
     def test_round7_review_hardening_abstains(self, challenge):
         assert code_parse_challenge(challenge) is None
 
-    def test_and_as_add_guard0_never_overrides_explicit_verb_cue(self):
-        # "slows" already registers as a real operation (len(operations)==1),
-        # so _resolve()'s existing single-operation path handles this --
-        # _try_and_as_add is never reached, by construction of the
-        # `if len(operations) == 0` gate. The co-occurring "and"/"total"
-        # tokens are inert (_ConjunctionEvent/_CueEvent are skipped in the
-        # main fold) and must not change the pre-existing subtract result.
+    def test_subtract_verb_against_a_total_cue_abstains(self):
+        # Round 9. This asserted "18.00" — the subtract reading, on the
+        # premise that a trailing "total" is inert scene noise. The corpus
+        # says otherwise: 46a9e0a1 is this exact shape ("twenty three neutons
+        # and another lobster loses six neutons, what is the total claw
+        # force?") and the server rejected 17.00. Two readings are attested
+        # for the shape, so the grammar abstains under
+        # subtraction_chain_against_additive_cue rather than pick one.
         assert (
             code_parse_challenge(
                 "twenty five newtons and slows by seven newtons what is total force"
             )
-            == "18.00"
+            is None
         )
 
     @pytest.mark.parametrize(

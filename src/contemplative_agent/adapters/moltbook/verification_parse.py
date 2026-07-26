@@ -66,6 +66,25 @@ post-round-7 failure round (the five live code_parse wrongs, 2026-07-10..14):
   restatement verb ``speed is`` (merged: ``speedis``, one edit from
   ``speeds``) joins the fuzzy stopwords so it cannot fill the gap as an op.
 
+Round 9 (2026-07-26, ADR-0062 11th amendment) closes the six live code_parse
+wrongs that accumulated after round 8 (2026-07-15..25). Every one of them is
+an abstain — no new reading was added, because for each shape two readings
+are attested and the corpus cannot say which the server wants:
+
+- additive cues are read as a set — the subtract-vs-cue contradiction guard
+  matched the single word ``combined`` while ``_ADDITIVE_CUES`` has three
+  members, so a ``total``-cued subtract chain walked past it;
+- a chain of more than two operands broken by an ``and`` in one of its gaps
+  abstains — a clause boundary means two statements glued, not one fold;
+- a ``*`` between an operand and its own unit noun (the same noun that
+  follows the other operand) is punctuation inside a quantity, not the
+  operation between two quantities;
+- a tens+unit compound with one half mangled away poisons the parse instead
+  of answering on the surviving half — the round-8 near-miss doctrine one
+  size down, positionally bound so the three-letter floor stays safe. Where
+  the vanished half is beyond lexical reach entirely (``trween``), the guard
+  matches the leftover shape rather than confirming a tens word.
+
 It stays precision-first: a parsed answer is returned only when the whole
 event stream fits the grammar; every ambiguity abstains (``None``) so the
 LLM chain still runs. A wrong code parse is worse than ``None``.
@@ -285,6 +304,19 @@ _FUZZY_MIN_OP = 6
 # than _FUZZY_MIN_TOKEN because the collapsed target is one edit "cheaper".
 _FUZZY_MIN_NUM_COLLAPSED = 6
 
+# Round 9: floors for the broken tens+unit compound guard. These reach BELOW
+# _FUZZY_MIN_TOKEN, which is only safe because the guard is bound to one
+# position — the slot where a compound's other half belongs. Run globally, a
+# three-letter tier would fire on "the" and silence most of the corpus.
+_MIN_COMPOUND_SLOT_TOKEN = 3
+_MIN_TENS_SLOT_RESIDUE = 5
+
+# How many atoms the unit-phrase guard may merge when comparing the noun after
+# a symbol with the noun after the other operand. Two covers the corpus's
+# splitting ("new tons"); more would start swallowing scene prose into a
+# "unit noun" and abstain on real products.
+_MAX_UNIT_PHRASE_ATOMS = 2
+
 # How many atoms past the second operand a postfix operator may sit and still
 # bind to it ("twelve <unit> less", "three times <that>") — one intervening
 # unit/filler atom, no more. A farther trailing operation word is question
@@ -318,6 +350,16 @@ _FUZZY_STOPWORDS = {
     # twice and 53.00 submitted for a 23 + 7 challenge). Stopwords compare
     # against the collapsed merged token, hence the collapsed spelling.
     "spedis",
+    # Round 9: consulted by the broken-compound guard, which reaches below
+    # _FUZZY_MIN_TOKEN and so meets short prose words the fuzzy matcher never
+    # sees. "the" collapses to "the", one edit from collapsed "three"
+    # ("thre"); "ton" is one edit from "ten" (and a unit noun, so it sits
+    # exactly where the guard looks). Verified no-ops for _match_fuzzy — every
+    # entry is below its floors — so naming them here costs no coverage and
+    # makes the guard's blast radius explicit rather than incidental.
+    "the",
+    "ton",
+    "tons",
 }
 
 # Round 8: the decimal connective ("five point five"). A single word, not a
@@ -470,7 +512,9 @@ def code_parse_challenge(challenge_text: str) -> str | None:
     normalized = challenge_text.lower().replace("0", "o")
     atoms = _ATOM_RE.findall(normalized)
     try:
-        events = _dedup_numbers(_scan(atoms))
+        scanned = _scan(atoms)
+        _poison_broken_tens_compound(scanned, atoms)
+        events = _dedup_numbers(scanned)
         operands = _compose_operands(events)
         operands = _dedup_operands(_apply_points(operands, events, atoms), events, atoms)
         return _resolve(operands, events, atoms)
@@ -648,6 +692,94 @@ def _scan(atoms: list[str]) -> list[_Event]:
         if not matched:
             i += 1
     return events
+
+
+def _event_atoms(events: list[_Event]) -> set[int]:
+    """Every atom index already claimed by a recognized lexeme."""
+    claimed: set[int] = set()
+    for event in events:
+        if isinstance(event, _NumEvent):
+            claimed.update(range(event.atom_start, event.atom_end + 1))
+        else:
+            claimed.add(event.atom_index)
+    return claimed
+
+
+def _near_a_number_word(token: str) -> bool:
+    """Whether a collapsed token is one edit from some collapsed number word."""
+    return any(_within_one_edit(token, word) for word in _NUMBER_WORDS)
+
+
+def _poison_broken_tens_compound(events: list[_Event], atoms: list[str]) -> None:
+    """Abstain when a tens+unit compound lost one half to the obfuscator.
+
+    Round 9. ``_scan`` merges whole atoms and drops what it cannot match, so
+    a mangled half of a two-word number does not fail loudly — it vanishes,
+    and the surviving half becomes the operand. Two live wrongs came from
+    exactly this: "twenty treee meters ... slows by seven" answered 13.00
+    (20 - 7) because "treee" collapses to "tre", three letters, below every
+    fuzzy tier; "trween t hree ... increases by five" answered 8.00 (3 + 5)
+    because "trween" is two edits from every number word and simply went
+    away. Both are the round-8 near-miss doctrine one size down: a token that
+    is nearly a number poisons the parse rather than being guessed into a
+    value — and a token that ate a number must not leave the parse looking
+    complete.
+
+    The three-letter floor is safe here only because it is bound to a
+    position: the slot where the compound's other half belongs.
+
+    The two arms differ in how much they actually verify. Arm A confirms a
+    tens word is present and only then judges the residue beside it. Arm B
+    cannot: ``trwen`` is two edits from every number word, so nothing proves
+    the vanished token was ever a tens word. It is a positional heuristic —
+    a split single-digit operand opening the challenge behind a long
+    unmatched residue — and its four conjuncts are corpus-tuned bounds on
+    that shape, not evidence about what the residue meant.
+    """
+    claimed = _event_atoms(events)
+
+    for event in events:
+        # Arm A — the unit half is garbled: a tens word, then a short residue
+        # that is nearly a number ("twenty" + "tre").
+        if not isinstance(event, _NumEvent) or not event.is_tens:
+            continue
+        slot = event.atom_end + 1
+        if slot >= len(atoms) or slot in claimed:
+            continue
+        token = _collapse_repeats(atoms[slot])
+        if token in _FUZZY_STOPWORDS or len(token) < _MIN_COMPOUND_SLOT_TOKEN:
+            continue
+        if _near_a_number_word(token):
+            raise _Abstain
+
+    # Arm B — shape only. "trween" collapses to "trwen", two edits from every
+    # number word and every collapsed form, so no widening of the fuzzy tiers
+    # reaches it and nothing here can confirm it was a tens word at all. What
+    # the guard actually matches is the leftover silhouette: a split unit half
+    # ("t" + "hree" = 3) opening the challenge with a long unmatched residue
+    # in front of it.
+    # All four conjuncts are load-bearing against the corpus: without the
+    # first-operand restriction three correct answers die on trailing verbs
+    # ("applies", "strikes", "exert"); without the single-digit bound, 53;
+    # and admitting two-letter fragments costs nine more.
+    nums = [e for e in events if isinstance(e, _NumEvent)]
+    if not nums:
+        return
+    first = nums[0]
+    if not 1 <= first.value <= 9 or first.atom_end == first.atom_start:
+        return
+    # Collapsed, not raw: letter doubling is a first-class obfuscation layer,
+    # so the split fragment arrives as "t" or "tt" indifferently and a raw
+    # length check would let "trween tt hree" walk out with 8.00 — the exact
+    # answer this arm exists to stop (found by codex-review). Everything else
+    # in this module compares collapsed forms; this line was the outlier.
+    if len(_collapse_repeats(atoms[first.atom_start])) != 1:
+        return
+    before = first.atom_start - 1
+    if before < 0 or before in claimed:
+        return
+    if len(_collapse_repeats(atoms[before])) >= _MIN_TENS_SLOT_RESIDUE:
+        raise _Abstain
 
 
 def _dedup_numbers(events: list[_Event]) -> list[_Event]:
@@ -892,13 +1024,19 @@ class _TailSignals(NamedTuple):
 
     @property
     def contradicts_subtraction(self) -> bool:
-        """A trailing "combined" cue against a subtract reading.
+        """A trailing additive cue against a subtract reading.
 
-        Every corpus-accepted "combined" is additive and the subtract reading
-        was server-rejected, so this abstains rather than guessing — in both
-        branches, which is the point.
+        Every corpus-accepted additive cue is additive and the subtract
+        reading was server-rejected, so this abstains rather than guessing —
+        in both branches, which is the point.
+
+        Round 9: this read ``c.word == "combined"`` — one member of
+        ``_ADDITIVE_CUES`` standing in for the set. A challenge cued with
+        "total" walked straight past the guard and submitted the subtract
+        reading, which the server rejected. Deriving the signal once was
+        never the same thing as lexicalising it once.
         """
-        return any(c.word == "combined" for c in self.cues)
+        return any(c.word in _ADDITIVE_CUES for c in self.cues)
 
 
 class _Decision(NamedTuple):
@@ -1068,10 +1206,94 @@ class _ExplicitCtx:
     """Tail operations that do not restate the chain's last step."""
     mul_override: bool
     """Whether those contradicting tail ops are the one attested exception."""
+    and_inside_chain: bool
+    """Whether a clause-joining "and" sits in one of the operand gaps."""
+    mul_symbol_in_unit_phrase: bool
+    """Whether a gap's lone "*" sits between a number and its own unit noun."""
+
+
+def _unit_phrase_variants(atoms: list[str], start: int, stop: int, claimed: set[int]) -> list[str]:
+    """Collapsed merges of the first few unclaimed atoms from ``start``.
+
+    Word splitting is a first-class obfuscation layer, and it is applied per
+    occurrence: the same noun arrives as "newtons" in one place and "new
+    tons" in another. Comparing single atoms therefore misses the repetition
+    that the unit-phrase guard is built on (found by codex-review). Merging
+    is bounded and stops at the first atom already claimed by a lexeme, so a
+    cue or operand can never be swallowed into a "unit noun".
+    """
+    variants: list[str] = []
+    merged = ""
+    for index in range(start, min(stop, start + _MAX_UNIT_PHRASE_ATOMS)):
+        if index in claimed:
+            break
+        merged += atoms[index]
+        variants.append(_collapse_repeats(merged))
+    return variants
+
+
+def _same_unit_noun(left: list[str], right: list[str]) -> bool:
+    """Whether two unit phrases are the same noun under the obfuscator."""
+    return any(
+        a == b or (len(a) >= _FUZZY_MIN_TOKEN and _within_one_edit(a, b))
+        for a in left
+        for b in right
+    )
+
+
+def _mul_symbol_inside_unit_phrase(
+    atoms: list[str], operands: list[_Operand], events: list[_Event]
+) -> bool:
+    """Whether a "*" separates an operand from the unit noun both operands share.
+
+    Round 9. ``*`` is a real multiply symbol, but the obfuscator also drops
+    it inside a quantity's own unit phrase: "thirty two * newtons and another
+    sixteen newtons ... total?" is an addition wearing a product's punctuation,
+    and reading the symbol as the operation submitted 512.00 for a 48.00
+    question. The tell is positional, not lexical — the atom after the symbol
+    is the same unit noun that follows the right operand, so the symbol sits
+    between a number and its unit rather than between two quantities. In every
+    corpus-accepted ``*``-with-"and" challenge the symbol follows the unit noun
+    instead.
+
+    Restricted to ``*`` on purpose: the corpus has one attested ``+`` inside a
+    unit phrase where the additive and implicit-add readings coincide and the
+    answer was accepted. A stray ``*`` inverts the answer; a stray ``+`` cannot.
+    """
+    ops = [e for e in events if isinstance(e, _OpEvent)]
+    claimed = _event_atoms(events)
+    for left, right in zip(operands, operands[1:], strict=False):
+        gap = [op for op in ops if left.atom_end < op.atom_index < right.atom_start]
+        if len(gap) != 1:
+            continue
+        symbol = gap[0]
+        if not symbol.is_symbol or symbol.op != _MUL:
+            continue
+        after_symbol = _unit_phrase_variants(
+            atoms, symbol.atom_index + 1, right.atom_start, claimed
+        )
+        after_right = _unit_phrase_variants(atoms, right.atom_end + 1, len(atoms), claimed)
+        if _same_unit_noun(after_symbol, after_right):
+            return True
+    return False
+
+
+def _and_inside_chain(operands: list[_Operand], ands: list[_AndEvent]) -> bool:
+    """Whether an "and" falls strictly between two consecutive operands."""
+    return any(
+        left.atom_end < a.atom_index < right.atom_start
+        for a in ands
+        for left, right in zip(operands, operands[1:], strict=False)
+    )
 
 
 def _explicit_context(
-    operands: list[_Operand], chain: list[str], tail: _TailSignals
+    operands: list[_Operand],
+    chain: list[str],
+    tail: _TailSignals,
+    ands: list[_AndEvent],
+    events: list[_Event],
+    atoms: list[str],
 ) -> _ExplicitCtx:
     contradicting = [op for op in tail.word_ops if _normalize_op(op.op) != _normalize_op(chain[-1])]
     return _ExplicitCtx(
@@ -1085,6 +1307,8 @@ def _explicit_context(
             and all(op.op == _MUL for op in contradicting)
             and any(tail.is_adjacent(op.atom_index) for op in contradicting)
         ),
+        and_inside_chain=_and_inside_chain(operands, ands),
+        mul_symbol_in_unit_phrase=_mul_symbol_inside_unit_phrase(atoms, operands, events),
     )
 
 
@@ -1109,17 +1333,40 @@ _EXPLICIT_TAIL_RULES: tuple[_Rule[_ExplicitCtx], ...] = (
         lambda c: c.mul_override,
         lambda c: _answer(_compute_chain(c.operands, [_MUL])),
     ),
+    # Round 9. A chain longer than two operands whose gaps are broken by an
+    # "and" is two statements glued into one fold, not one arithmetic
+    # sentence: "swims at twenty three cm ... AND its claws exert ... the
+    # product twenty three * seven" folded the scene speed into the product
+    # and submitted 3703.00. This docstring's own grammar — operands and
+    # operations interleave STRICTLY — is what an intervening clause boundary
+    # breaks. The corpus's only correct three-operand chain has no "and" in
+    # any gap; both server-rejected ones do.
+    _Rule(
+        "long_chain_broken_by_a_connective",
+        lambda c: len(c.operands) > 2 and c.and_inside_chain,
+        lambda _c: _ABSTAIN,
+    ),
+    # Round 9. See _mul_symbol_inside_unit_phrase: the gap's lone "*" is
+    # punctuation inside a quantity's unit phrase, not the operation between
+    # two quantities. Two readings are attested for the shape, so abstain.
+    _Rule(
+        "multiplicative_symbol_inside_a_unit_phrase",
+        lambda c: c.mul_symbol_in_unit_phrase,
+        lambda _c: _ABSTAIN,
+    ),
     _Rule(
         "tail_operation_contradicts_the_chain",
         lambda c: bool(c.contradicting),
         lambda _c: _ABSTAIN,
     ),
-    # A subtraction chain against a trailing "combined" cue ("another lobster
+    # A subtraction chain against a trailing additive cue ("another lobster
     # slows by fifteen ... what's the combined velocity?") is contradictory:
-    # every corpus-accepted "combined" is additive, and the subtract reading
-    # was server-rejected — abstain, never guess.
+    # every corpus-accepted additive cue is additive, and the subtract reading
+    # was server-rejected — abstain, never guess. Round 9 widened the cue from
+    # the single word "combined" to all of _ADDITIVE_CUES; a "total"-cued
+    # challenge had been walking past this row.
     _Rule(
-        "subtraction_chain_against_combined_cue",
+        "subtraction_chain_against_additive_cue",
         lambda c: (
             any(_normalize_op(op) == _SUB for op in c.chain) and c.tail.contradicts_subtraction
         ),
@@ -1154,7 +1401,7 @@ def _resolve(operands: list[_Operand], events: list[_Event], atoms: list[str]) -
     if all(filled):
         return _resolve_operation(
             _EXPLICIT_TAIL_RULES,
-            _explicit_context(operands, [next(iter(f)) for f in filled], tail),
+            _explicit_context(operands, [next(iter(f)) for f in filled], tail, ands, events, atoms),
         )
 
     if len(operands) != 2 or any(filled):
@@ -1294,12 +1541,13 @@ _IMPLICIT_RULES: tuple[_Rule[_ImplicitCtx], ...] = (
         lambda c: bool(c.sub_tail) and bool(c.other_tail),
         lambda _c: _ABSTAIN,
     ),
-    # A subtraction against a trailing "combined" cue ("another lobster slows
+    # A subtraction against a trailing additive cue ("another lobster slows
     # by fifteen ... what's the combined velocity?") is contradictory: every
-    # corpus-accepted "combined" is additive, and the subtract reading was
-    # server-rejected — abstain, never guess.
+    # corpus-accepted additive cue is additive, and the subtract reading was
+    # server-rejected — abstain, never guess. Round 9 widened the cue from the
+    # single word "combined" to all of _ADDITIVE_CUES.
     _Rule(
-        "postfix_subtraction_against_combined_cue",
+        "postfix_subtraction_against_additive_cue",
         lambda c: bool(c.sub_tail) and c.tail.contradicts_subtraction,
         lambda _c: _ABSTAIN,
     ),

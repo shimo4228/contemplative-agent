@@ -126,19 +126,30 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │      math challenge; solve_challenge first runs a deterministic code parser
  │      (code_parse_challenge, rewritten 2026-07-07 from the 601-challenge audit
  │      corpus — ADR-0062 6th amendment; grammar extended 2026-07-09 on 792
- │      challenges — 7th amendment) that normalizes leet 0→o, merges split
+ │      challenges — 7th, 2026-07-15 on 1272 — 8th, 2026-07-26 on 2236 — 11th)
+ │      that normalizes leet 0→o, merges split
  │      fragments bounded by collapsed token length, recovers misspelled number
  │      words / operation verbs at edit distance 1 (canonical or, for tokens
  │      ≥ 6 letters, collapsed spellings; prose stopwords; ambiguity poisons
- │      the parse), dedups doubled number words, left-folds strictly
+ │      the parse, as does a near-miss number word — including a tens+unit
+ │      compound whose other half was mangled away, matched by the residue
+ │      beside a tens word or, where the residue is beyond lexical reach, by
+ │      the leftover shape of a split opening operand), composes decimals
+ │      ("five point five"), dedups doubled number words and equal-value
+ │      restatements, left-folds strictly
  │      interleaved N-step chains, resolves trailing total/sum/product cues,
  │      adjacent postfix operators, multiplicative markers (factor / doubled /
  │      each / a claw count after the second operand — markers beat generic
  │      change-verbs like "increases" in the same gap; non-adjacent trailing
  │      markers are noise), waives the like-unit guard under an explicit
  │      "sum" / "add them" instruction, and abstains (None) on any ambiguity,
- │      including corpus-attested contradictions ("slows" vs "combined", bare
- │      "it has N") (replay: coverage 83.2%, zero wrong submissions); only
+ │      including corpus-attested contradictions (a subtract chain under any
+ │      additive cue, a 3+ operand chain broken by a clause "and", a "*"
+ │      inside a unit phrase, bare "it has N"). Resolution is two ordered
+ │      rule tables walked by one driver, each ending in an unconditional
+ │      terminal row (ADR-0062 10th amendment part two; a non-total table
+ │      raises rather than abstaining, gated by TestRuleTableTotality)
+ │      (replay 2026-07-26: coverage 82.1%, zero wrong submissions); only
  │      then does it ask the LLM for a short numeric expression and validate it
  │      in Python (solver order: code_parse → llm_extract → abstain, ADR-0062
  │      9th amendment — the free-reasoning fallback was retired after the
