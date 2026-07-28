@@ -41,6 +41,9 @@ def main() -> int:
         if not sep or not key:
             print(f"ERROR: --field expects KEY=VALUE, got: {field!r}", file=sys.stderr)
             return 1
+        if key in ("ts", "run_id", "event"):
+            print(f"ERROR: --field must not overwrite reserved key {key!r}", file=sys.stderr)
+            return 1
         record[key] = value
 
     try:

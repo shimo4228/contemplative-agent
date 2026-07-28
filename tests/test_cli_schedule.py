@@ -538,3 +538,37 @@ class TestWeeklyPipelineSchedule:
         )
         assert not pipeline.exists()
         assert not watchdog.exists()
+
+
+class TestWeeklyPipelineValidationOrder:
+    """M9-shaped guard for the new flags: invalid --weekly-pipeline-* values
+    must reject before ANY schedule is installed (2026-07-29 review)."""
+
+    def test_invalid_pipeline_day_installs_nothing(self):
+        from contemplative_agent.cli.schedule import _handle_install_schedule
+
+        args = argparse.Namespace(
+            uninstall=False,
+            interval=6,
+            session=30,
+            distill_hour=3,
+            no_distill=False,
+            weekly_analysis=False,
+            weekly_insight=False,
+            weekly_backup=False,
+            weekly_pipeline=True,
+            weekly_pipeline_day=9,  # invalid (>6)
+            weekly_pipeline_hour=9,
+            watchdog=False,
+        )
+        parser = argparse.ArgumentParser()
+        with (
+            patch("contemplative_agent.cli.schedule._do_install_schedule") as mock_session,
+            patch(
+                "contemplative_agent.cli.schedule._do_install_weekly_pipeline_schedule"
+            ) as mock_pipeline,
+        ):
+            with pytest.raises(SystemExit):
+                _handle_install_schedule(args, parser)
+        mock_session.assert_not_called()
+        mock_pipeline.assert_not_called()

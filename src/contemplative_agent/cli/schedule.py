@@ -520,8 +520,12 @@ def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--weekly-insight-day",
         type=int,
-        default=1,
-        help="Day of week for weekly insight (0=Sun..6=Sat, default: 1=Mon)",
+        default=6,
+        help=(
+            "Day of week for weekly insight (0=Sun..6=Sat, default: 6=Sat — "
+            "matches the watchdog's fixed Saturday anchor and the production "
+            "schedule; ADR-0074's original Monday default was retired 2026-07-29)"
+        ),
     )
     parser.add_argument(
         "--weekly-insight-hour",

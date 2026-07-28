@@ -131,3 +131,36 @@ session, an advisory insight-staging review, and a decision packet
   contract (`parse_findings.py`); its SKILL.md says so. The skill's own
   out-of-scope ("F1 is a plan, not a code change") is unchanged — the fix
   happens in a different session, which is the role boundary working.
+
+## Amendment (2026-07-29): four-reviewer hardening round
+
+The initial implementation shipped without the review chain (a process
+failure, caught by the operator). A post-commit round — code-reviewer,
+python-reviewer, security-reviewer, and codex (cross-model) — surfaced
+convergent findings; the load-bearing repairs, now part of this decision:
+
+- **Actual-scope enforcement**: the exported patch's real touched files are
+  re-checked deterministically; a code-scope patch touching anything outside
+  `src/ scripts/ tests/` is escalated to the full-text gate
+  (`SCOPE_ESCALATED`), and a prompt-scope patch touching code paths is
+  Verify-gated. Declared scope alone routed what the human sees — the gap a
+  prompt-injected fix session could have used to slip a governance-file edit
+  past the gate as a table row.
+- **Session capability narrowing**: no `Bash(python3:*)` / `Bash(uv run:*)`
+  grants (arbitrary execution defeats a read-only allowlist); `Edit`/`Write`
+  path-scoped to the worktree; `--add-dir` scoped to `reports/` + `logs/`
+  (diagnosis) and `skills/` (insight) so `credentials.json` is outside every
+  unattended session's granted tree; finding bodies wrapped as
+  `<untrusted_finding>` (ADR-0007 continuity).
+- **Fail-forward made total**: every artifact read survives non-UTF-8 bytes
+  with a reason code (`*_UNREADABLE`); traversal-shaped path references are
+  rejected at extraction; the single-line `**Code reference**:` form (half of
+  historical findings) now parses; Verify steps are individually bounded;
+  same-week reruns are excluded from the P4 recurrence baseline and get
+  cleared patch dirs; the watchdog skips unscheduled jobs and notifies on
+  recovery.
+
+Residual risk (accepted, documented): a fix session can still execute
+arbitrary code *inside* the worktree via test files under `uv run pytest`,
+and network egress from test code is not blocked — the boundary is the
+exported-diff review plus the human gate, not process isolation.

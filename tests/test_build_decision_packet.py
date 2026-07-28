@@ -322,3 +322,79 @@ def test_pipeline_audit_cli_appends_event(tmp_path: Path):
     assert rec["event"] == "fix_result"
     assert rec["fix_id"] == "F1.2"
     assert "ts" in rec
+
+
+def test_check_improvement_excludes_same_week_records(tmp_path: Path):
+    # A same-week rerun must not compare the run against its own earlier
+    # attempt (2026-07-29 review): the baseline is last week, not last record.
+    metrics = tmp_path / "m.jsonl"
+    metrics.write_text(
+        json.dumps({"phase": "auto", "week_end": "2026-07-17", "reason_codes": ["A"]})
+        + "\n"
+        + json.dumps({"phase": "auto", "week_end": "2026-07-24", "reason_codes": ["B"]})
+        + "\n",
+        encoding="utf-8",
+    )
+    # Without exclusion this would fire on B (self-comparison).
+    assert bdp.check_improvement(metrics, current_codes=["B"], end_date="2026-07-24") == {
+        "fired": False,
+        "codes": [],
+    }
+    # The true last-week record still participates.
+    assert bdp.check_improvement(metrics, current_codes=["A"], end_date="2026-07-24") == {
+        "fired": True,
+        "codes": ["A"],
+    }
+
+
+def test_unreadable_inputs_degrade_to_reason_codes(tmp_path: Path):
+    # Fail-forward survives non-UTF-8 bytes in every upstream artifact
+    # (2026-07-29 review, CRITICAL: UnicodeDecodeError escaped every handler).
+    paths = _write_inputs(tmp_path)
+    paths["audit"].write_bytes(b"\xff\xfe garbage")
+    bad_insight = tmp_path / "bad-insight.md"
+    bad_insight.write_bytes(b"\x80\x81")
+    bad_findings = tmp_path / "bad-findings.json"
+    bad_findings.write_bytes(b"\xff{}")
+    text = _build(paths, insight_review=bad_insight, findings=bad_findings)
+    assert "AUDIT_UNREADABLE" in text
+    assert "INSIGHT_REVIEW_UNREADABLE" in text
+    assert "DIAGNOSIS_UNAVAILABLE" in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert "AUDIT_UNREADABLE" in rec["reason_codes"]
+
+
+def test_recommend_count_is_heading_anchored(tmp_path: Path):
+    # A stray "RECOMMEND:" in body prose must not inflate the inventory count.
+    paths = _write_inputs(tmp_path)
+    paths["insight"].write_text(
+        "## 1. skill-a — RECOMMEND: adopt\n\n"
+        "the phrase RECOMMEND: reject appears in prose here\n\n"
+        "## 2. skill-b — RECOMMEND: reject\n\nreason\n",
+        encoding="utf-8",
+    )
+    _build(paths)
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["insight_items"] == 2
+
+
+def test_pipeline_audit_rejects_reserved_keys(tmp_path: Path):
+    log = tmp_path / "audit.jsonl"
+    result = subprocess.run(
+        [
+            sys.executable,
+            str(AUDIT_SCRIPT),
+            "--log",
+            str(log),
+            "--run-id",
+            RUN_ID,
+            "--event",
+            "x",
+            "--field",
+            "run_id=spoofed",
+        ],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1
+    assert not log.exists()

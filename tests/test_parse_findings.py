@@ -147,3 +147,44 @@ def test_cli_missing_file_exits_nonzero(tmp_path: Path):
     )
     assert result.returncode != 0
     assert result.stdout == ""
+
+
+def test_single_line_code_reference_extracts_path():
+    # The SKILL.md template's canonical single-line form — used by ~half the
+    # historical findings; missing it silently disabled auto-fix for them
+    # (2026-07-29 review, HIGH).
+    text = (
+        "## F1. X\n\n### F1.1. Single-line reference\n\n"
+        "**Code reference**: `scripts/weekly-analysis.sh:146-162` (具体ファイル + 行)\n\n"
+        "**Structural change**: fix it.\n"
+    )
+    findings = pf.parse_findings(text)
+    assert findings[0].paths == ("scripts/weekly-analysis.sh",)
+    assert findings[0].scope == "code"
+
+
+def test_traversal_path_rejected_and_routed_to_prompt():
+    # `src/../../etc/x.py` startswith("src/") — a string check alone would
+    # classify it as code scope (2026-07-29 review, CRITICAL).
+    text = (
+        "## F1. X\n\n### F1.1. Traversal\n\n"
+        "**Code reference**:\n"
+        "- `src/../../../etc/cron.d/evil.py:1` — nope\n\n"
+        "**Structural change**: n/a.\n"
+    )
+    findings = pf.parse_findings(text)
+    assert findings[0].paths == ()
+    assert findings[0].scope == "prompt"
+
+
+def test_cli_unreadable_bytes_exit_nonzero_no_traceback(tmp_path: Path):
+    bad = tmp_path / "weekly-x-findings.md"
+    bad.write_bytes(b"\xff\xfe\x00 invalid utf-8 \x80")
+    result = subprocess.run(
+        [sys.executable, str(SCRIPT), str(bad)],
+        capture_output=True,
+        text=True,
+    )
+    assert result.returncode == 1
+    assert "Traceback" not in result.stderr
+    assert "unreadable" in result.stderr

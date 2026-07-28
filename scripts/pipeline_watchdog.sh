@@ -37,6 +37,12 @@ RESULTS=()   # "OK<TAB>job<TAB>detail" / "FAIL<TAB>job<TAB>detail"
 
 ok()   { RESULTS+=("OK	$1	$2"); }
 fail() { RESULTS+=("FAIL	$1	$2"); }
+skip() { RESULTS+=("SKIP	$1	$2"); }
+
+# A job whose plist is not installed is not a failure — a subset install
+# (declarative reconcile removes unflagged jobs) would otherwise read as
+# permanently broken (2026-07-29 codex review P2).
+scheduled() { [[ -f "$HOME/Library/LaunchAgents/com.moltbook.$1.plist" ]]; }
 
 mtime_of() { stat -f %m "$1" 2>/dev/null || echo 0; }
 size_of()  { stat -f %z "$1" 2>/dev/null || echo 0; }
@@ -82,49 +88,67 @@ if (( 10#$HOUR < 5 )); then
 else
     distill_day=$(date +%Y-%m-%d)
 fi
-log_healthy "distill" "$LOG_DIR/distill-launchd.log" \
-    "$(epoch_at "$distill_day" "03:00")" "$distill_day"
-
-# --- insight: Sat 08:00 (deadline 09:00) ---
-insight_sat=$(anchor_sat 9)
-log_healthy "insight" "$LOG_DIR/insight-launchd.log" \
-    "$(epoch_at "$insight_sat" "07:30")" "Sat $insight_sat"
-
-# --- weekly report: Sat 09:00, deadline 12:00; artifact = weekly-<Fri>.md ---
-report_sat=$(anchor_sat 12)
-report_end=$(date -j -f %Y-%m-%d -v-1d "$report_sat" +%Y-%m-%d 2>/dev/null)
-report_file="$REPORT_DIR/weekly-${report_end}.md"
-report_size=$(size_of "$report_file")
-if (( report_size >= MIN_REPORT_BYTES )); then
-    ok "weekly-report" "weekly-${report_end}.md (${report_size} bytes)"
-elif [[ -f "$report_file" ]]; then
-    # The exact 2026-07-25 failure shape: file exists, content does not.
-    fail "weekly-report" "weekly-${report_end}.md is ${report_size} bytes (expected >= ${MIN_REPORT_BYTES})"
+if scheduled distill; then
+    log_healthy "distill" "$LOG_DIR/distill-launchd.log" \
+        "$(epoch_at "$distill_day" "03:00")" "$distill_day"
 else
-    fail "weekly-report" "weekly-${report_end}.md not found (expected by Sat 12:00)"
+    skip "distill" "not scheduled"
 fi
 
-# --- decision packet: chain end, deadline Sat 13:00 ---
-packet_sat=$(anchor_sat 13)
-packet_end=$(date -j -f %Y-%m-%d -v-1d "$packet_sat" +%Y-%m-%d 2>/dev/null)
-packet_file="$REPORT_DIR/weekly-${packet_end}-packet.md"
-packet_size=$(size_of "$packet_file")
-if (( packet_size >= MIN_PACKET_BYTES )); then
-    ok "weekly-packet" "weekly-${packet_end}-packet.md (${packet_size} bytes)"
-elif [[ -f "$packet_file" ]]; then
-    fail "weekly-packet" "weekly-${packet_end}-packet.md is ${packet_size} bytes (expected >= ${MIN_PACKET_BYTES})"
+# --- insight: Sat 08:00 (deadline 09:00) ---
+if scheduled insight; then
+    insight_sat=$(anchor_sat 9)
+    log_healthy "insight" "$LOG_DIR/insight-launchd.log" \
+        "$(epoch_at "$insight_sat" "07:30")" "Sat $insight_sat"
 else
-    fail "weekly-packet" "weekly-${packet_end}-packet.md not found — the unattended chain died before its fail-forward target (expected by Sat 13:00)"
+    skip "insight" "not scheduled"
+fi
+
+# --- weekly report + packet: both terminal artifacts of com.moltbook.weekly-pipeline ---
+if scheduled weekly-pipeline; then
+    # report: Sat 09:00, deadline 12:00; artifact = weekly-<Fri>.md
+    report_sat=$(anchor_sat 12)
+    report_end=$(date -j -f %Y-%m-%d -v-1d "$report_sat" +%Y-%m-%d 2>/dev/null)
+    report_file="$REPORT_DIR/weekly-${report_end}.md"
+    report_size=$(size_of "$report_file")
+    if (( report_size >= MIN_REPORT_BYTES )); then
+        ok "weekly-report" "weekly-${report_end}.md (${report_size} bytes)"
+    elif [[ -f "$report_file" ]]; then
+        # The exact 2026-07-25 failure shape: file exists, content does not.
+        fail "weekly-report" "weekly-${report_end}.md is ${report_size} bytes (expected >= ${MIN_REPORT_BYTES})"
+    else
+        fail "weekly-report" "weekly-${report_end}.md not found (expected by Sat 12:00)"
+    fi
+
+    # decision packet: chain end, deadline Sat 13:00
+    packet_sat=$(anchor_sat 13)
+    packet_end=$(date -j -f %Y-%m-%d -v-1d "$packet_sat" +%Y-%m-%d 2>/dev/null)
+    packet_file="$REPORT_DIR/weekly-${packet_end}-packet.md"
+    packet_size=$(size_of "$packet_file")
+    if (( packet_size >= MIN_PACKET_BYTES )); then
+        ok "weekly-packet" "weekly-${packet_end}-packet.md (${packet_size} bytes)"
+    elif [[ -f "$packet_file" ]]; then
+        fail "weekly-packet" "weekly-${packet_end}-packet.md is ${packet_size} bytes (expected >= ${MIN_PACKET_BYTES})"
+    else
+        fail "weekly-packet" "weekly-${packet_end}-packet.md not found — the unattended chain died before its fail-forward target (expected by Sat 13:00)"
+    fi
+else
+    skip "weekly-report" "not scheduled (weekly-pipeline plist absent)"
+    skip "weekly-packet" "not scheduled (weekly-pipeline plist absent)"
 fi
 
 # --- backup: Mon 10:00, deadline 11:00 ---
-days_since_mon=$(( (WEEKDAY - 1 + 7) % 7 ))
-if (( days_since_mon == 0 )) && (( 10#$HOUR < 11 )); then
-    days_since_mon=7
+if scheduled backup; then
+    days_since_mon=$(( (WEEKDAY - 1 + 7) % 7 ))
+    if (( days_since_mon == 0 )) && (( 10#$HOUR < 11 )); then
+        days_since_mon=7
+    fi
+    backup_mon=$(date -v-"${days_since_mon}"d +%Y-%m-%d)
+    log_healthy "backup" "$LOG_DIR/backup-launchd.log" \
+        "$(epoch_at "$backup_mon" "09:30")" "Mon $backup_mon"
+else
+    skip "backup" "not scheduled"
 fi
-backup_mon=$(date -v-"${days_since_mon}"d +%Y-%m-%d)
-log_healthy "backup" "$LOG_DIR/backup-launchd.log" \
-    "$(epoch_at "$backup_mon" "09:30")" "Mon $backup_mon"
 
 # --- Previous FAIL set (for notification dedup), then rewrite status ---
 prev_fails=""
@@ -142,6 +166,8 @@ STATUS_TMP="$STATUS.tmp.$$"
         IFS=$'\t' read -r verdict job detail <<< "$line"
         if [[ "$verdict" == "OK" ]]; then
             echo "- ✅ ${job} — ${detail}"
+        elif [[ "$verdict" == "SKIP" ]]; then
+            echo "- ➖ ${job} — ${detail}"
         else
             echo "- ❌ ${job} — ${detail}"
             fail_count=$((fail_count + 1))
@@ -168,9 +194,15 @@ if [[ -n "$cur_fails" ]]; then
     cur_fails=$(printf '%s' "${cur_fails%,}" | tr ',' '\n' | sort | tr '\n' ',')
 fi
 
-if [[ -n "$cur_fails" && "$cur_fails" != "$prev_fails" ]]; then
-    failing=$(echo "${cur_fails%,}" | tr ',' ' ')
-    /usr/bin/osascript -e "display notification \"failing: ${failing} — see PIPELINE-STATUS.md\" with title \"Moltbook pipeline\"" 2>/dev/null
+if [[ "$cur_fails" != "$prev_fails" ]]; then
+    if [[ -n "$cur_fails" ]]; then
+        failing=$(echo "${cur_fails%,}" | tr ',' ' ')
+        /usr/bin/osascript -e "display notification \"failing: ${failing} — see PIPELINE-STATUS.md\" with title \"Moltbook pipeline\"" 2>/dev/null
+    elif [[ -n "$prev_fails" ]]; then
+        # Recovery is a state change too — without this the operator learns
+        # the pipeline healed only by reading the status file.
+        /usr/bin/osascript -e "display notification \"recovered — all pipelines healthy\" with title \"Moltbook pipeline\"" 2>/dev/null
+    fi
 fi
 
 echo "watchdog: $(grep -c '^- ' "$STATUS") checks, failures: ${cur_fails:-none}"

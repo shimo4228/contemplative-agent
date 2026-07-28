@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,19 +39,42 @@ from pathlib import Path
 DIAGNOSIS_UNAVAILABLE = "DIAGNOSIS_UNAVAILABLE"
 INSIGHT_REVIEW_UNAVAILABLE = "INSIGHT_REVIEW_UNAVAILABLE"
 
+# The insight-recommendation prompt's machine contract: one section heading
+# per candidate, `## <n>. <name> — RECOMMEND: adopt|reject`.
+_RECOMMEND_HEADING = re.compile(r"^## .+ RECOMMEND: (adopt|reject)\s*$", re.MULTILINE)
+
+
+def _safe_read_text(path: Path) -> str | None:
+    """Read a text file, degrading unreadable bytes to None.
+
+    Fail-forward requires that no upstream artifact — however corrupt — can
+    take the packet builder down with an exception (2026-07-29 review,
+    CRITICAL: UnicodeDecodeError is a ValueError, not an OSError, and slipped
+    through every read path).
+    """
+    try:
+        return path.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError):
+        return None
+
 
 def _read_jsonl(path: Path) -> list[dict]:
     if not path.is_file():
         return []
+    text = _safe_read_text(path)
+    if text is None:
+        return []  # unreadable log reads as empty; callers surface a reason code
     records = []
-    for line in path.read_text(encoding="utf-8").splitlines():
+    for line in text.splitlines():
         line = line.strip()
         if not line:
             continue
         try:
-            records.append(json.loads(line))
+            record = json.loads(line)
         except json.JSONDecodeError:
             continue  # a corrupt line must not take the packet down with it
+        if isinstance(record, dict):
+            records.append(record)
     return records
 
 
@@ -63,29 +87,45 @@ def _append_jsonl(path: Path, record: dict) -> None:
 def _load_findings(path: Path | None) -> dict | None:
     if path is None or not path.is_file():
         return None
-    try:
-        return json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
+    text = _safe_read_text(path)
+    if text is None:
         return None
+    try:
+        data = json.loads(text)
+    except ValueError:  # json.JSONDecodeError is a ValueError subclass
+        return None
+    return data if isinstance(data, dict) else None
 
 
-def check_improvement(metrics: Path, current_codes: list[str] | None = None) -> dict:
+def check_improvement(
+    metrics: Path,
+    current_codes: list[str] | None = None,
+    end_date: str | None = None,
+) -> dict:
     """P4-shaped recurrence: the same reason code two weeks running.
 
     With ``current_codes`` (the orchestrator's pre-build call) the current
     week is compared against the last recorded auto record; without it, the
     last two recorded auto records are compared (post-hoc inspection).
+
+    ``end_date`` excludes records of the current week from the baseline —
+    without it, a same-week rerun after a crash compares the run against its
+    own earlier attempt and fires a false P4 signal (2026-07-29 review).
     """
     auto = [r for r in _read_jsonl(metrics) if r.get("phase") == "auto"]
     if current_codes is not None:
+        if end_date is not None:
+            auto = [r for r in auto if r.get("week_end") != end_date]
         if not auto:
             return {"fired": False, "codes": []}
-        last, prev_codes = auto[-1], current_codes
+        baseline_codes = auto[-1].get("reason_codes", [])
+        candidate_codes = current_codes
     else:
         if len(auto) < 2:
             return {"fired": False, "codes": []}
-        last, prev_codes = auto[-2], auto[-1].get("reason_codes", [])
-    codes = sorted(set(last.get("reason_codes", [])) & set(prev_codes))
+        baseline_codes = auto[-2].get("reason_codes", [])
+        candidate_codes = auto[-1].get("reason_codes", [])
+    codes = sorted(set(baseline_codes) & set(candidate_codes))
     return {"fired": bool(codes), "codes": codes}
 
 
@@ -131,17 +171,19 @@ def build_packet(
     improvement: Path | None,
     out: Path,
 ) -> None:
-    events = [r for r in _read_jsonl(audit) if r.get("run_id") == run_id]
-    fix_results = [e for e in events if e.get("event") == "fix_result"]
-    verdicts = {
-        e.get("fix_id"): e.get("verdict", "") for e in events if e.get("event") == "review_result"
-    }
-
     reason_codes: list[str] = []
 
     def add_reason(code: str) -> None:
         if code and code not in reason_codes:
             reason_codes.append(code)
+
+    if audit.is_file() and _safe_read_text(audit) is None:
+        add_reason("AUDIT_UNREADABLE")
+    events = [r for r in _read_jsonl(audit) if r.get("run_id") == run_id]
+    fix_results = [e for e in events if e.get("event") == "fix_result"]
+    verdicts = {
+        e.get("fix_id"): e.get("verdict", "") for e in events if e.get("event") == "review_result"
+    }
 
     for event in events:
         add_reason(event.get("reason", ""))
@@ -157,17 +199,32 @@ def build_packet(
 
     insight_text: str | None = None
     if insight_review is not None and insight_review.is_file():
-        insight_text = insight_review.read_text(encoding="utf-8")
+        insight_text = _safe_read_text(insight_review)
+        if insight_text is None:
+            add_reason("INSIGHT_REVIEW_UNREADABLE")
     else:
         add_reason(INSIGHT_REVIEW_UNAVAILABLE)
-    insight_items = insight_text.count("RECOMMEND:") if insight_text else 0
+    # Line-anchored to the documented section-heading contract — a stray
+    # "RECOMMEND:" in body prose must not inflate the human-facing count
+    # (2026-07-29 review: the count is code-owned, not an LLM-obeyed promise).
+    insight_items = len(_RECOMMEND_HEADING.findall(insight_text)) if insight_text else 0
 
     prompt_patches = (
         sorted(prompt_patches_dir.glob("*.patch")) if prompt_patches_dir.is_dir() else []
     )
+    # Read up front so an unreadable patch lands in the header reason list
+    # and the metrics record, not only in the section that failed to render.
+    prompt_patch_texts: list[tuple[Path, str | None]] = []
+    for patch in prompt_patches:
+        patch_text = _safe_read_text(patch)
+        if patch_text is None:
+            add_reason("PATCH_UNREADABLE")
+        prompt_patch_texts.append((patch, patch_text))
     improvement_text: str | None = None
     if improvement is not None and improvement.is_file():
-        improvement_text = improvement.read_text(encoding="utf-8")
+        improvement_text = _safe_read_text(improvement)
+        if improvement_text is None:
+            add_reason("IMPROVEMENT_UNREADABLE")
 
     patch_ready = [e for e in fix_results if e.get("result") == "patch_ready"]
     failed = [e for e in fix_results if e.get("result") == "failed"]
@@ -234,13 +291,16 @@ def build_packet(
 
     lines.append("## 3. Prompt-scope diffs (full text — behavior-shaping)")
     lines.append("")
-    if prompt_patches:
-        for patch in prompt_patches:
+    if prompt_patch_texts:
+        for patch, patch_text in prompt_patch_texts:
             lines.append(f"### {patch.name}")
             lines.append("")
-            lines.append("```diff")
-            lines.append(patch.read_text(encoding="utf-8").rstrip())
-            lines.append("```")
+            if patch_text is None:
+                lines.append(f"（PATCH_UNREADABLE — `{patch}` を直接確認してください）")
+            else:
+                lines.append("```diff")
+                lines.append(patch_text.rstrip())
+                lines.append("```")
             lines.append("")
     else:
         lines.append("（なし）")
@@ -315,6 +375,11 @@ def main() -> int:
         default=None,
         help="comma-separated reason codes of the current (not yet recorded) run",
     )
+    p_check.add_argument(
+        "--end-date",
+        default=None,
+        help="current week's end date — excludes same-week records from the baseline",
+    )
 
     p_gate = sub.add_parser("gate-record", help="append the phase:gate metrics record")
     p_gate.add_argument("--metrics", type=Path, required=True)
@@ -349,7 +414,11 @@ def main() -> int:
             if args.current_codes is not None
             else None
         )
-        print(json.dumps(check_improvement(args.metrics, current_codes=current)))
+        print(
+            json.dumps(
+                check_improvement(args.metrics, current_codes=current, end_date=args.end_date)
+            )
+        )
     elif args.command == "gate-record":
         append_gate_record(
             args.metrics,

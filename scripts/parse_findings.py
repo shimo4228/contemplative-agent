@@ -25,7 +25,7 @@ import json
 import re
 import sys
 from dataclasses import asdict, dataclass
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 CODE_PREFIXES = ("src/", "scripts/", "tests/")
 
@@ -70,15 +70,27 @@ def extract_paths(body: str) -> tuple[str, ...]:
     in_block = False
     for line in body.splitlines():
         if _CODE_REF_MARKER.match(line):
+            # The marker line itself may carry the path (single-line form
+            # `**Code reference**: \`path.py:LINE\`` — the SKILL.md template's
+            # canonical shape, used by ~half the historical findings). Do NOT
+            # `continue` past it, or those findings extract zero paths and
+            # silently route to prompt scope (2026-07-29 review, HIGH).
             in_block = True
-            continue
-        if in_block and (_BOLD_FIELD.match(line) or _SECTION_HEADING.match(line)):
+        elif in_block and (_BOLD_FIELD.match(line) or _SECTION_HEADING.match(line)):
             break
-        if not in_block:
+        elif not in_block:
             continue
         for match in _PATH_TOKEN.finditer(line):
             resolved = _resolve_ellipsis(match.group(1), paths[-1] if paths else None)
-            if resolved is not None and resolved not in paths:
+            if resolved is None:
+                continue
+            # Findings are LLM output: a `..` segment would let a token like
+            # `src/../../etc/x.py` pass the code-prefix check by string
+            # comparison (2026-07-29 review, CRITICAL). Reject rather than
+            # normalize — a traversal-shaped reference is never a fix target.
+            if ".." in PurePosixPath(resolved).parts:
+                continue
+            if resolved not in paths:
                 paths.append(resolved)
     return tuple(paths)
 
@@ -134,7 +146,13 @@ def main() -> int:
         print(f"ERROR: findings file not found: {args.findings_md}", file=sys.stderr)
         return 1
 
-    text = args.findings_md.read_text(encoding="utf-8")
+    try:
+        text = args.findings_md.read_text(encoding="utf-8")
+    except (OSError, UnicodeDecodeError) as exc:
+        # "never an exception" (docstring): unreadable bytes degrade to a
+        # clean error the orchestrator maps to PARSE_FAIL, not a traceback.
+        print(f"ERROR: findings file unreadable: {exc}", file=sys.stderr)
+        return 1
     result = {
         "source": str(args.findings_md),
         "counts": section_counts(text),

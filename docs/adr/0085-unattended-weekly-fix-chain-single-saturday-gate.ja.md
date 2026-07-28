@@ -107,3 +107,30 @@ staging の advisory レビュー、決裁パケット（`scripts/build_decision
   （`parse_findings.py`）。SKILL.md にその旨を明記。skill 自身の out-of-scope
   （「F1 は plan であって code 変更ではない」）は不変 — fix は別セッションで
   起きるのであり、それは役割境界が機能しているということ。
+
+## Amendment（2026-07-29）: 4 レビュアーによる hardening ラウンド
+
+初回実装はレビューチェーンなしで出荷された（プロセス違反。オペレータの指摘で発覚）。
+commit 後のラウンド — code-reviewer / python-reviewer / security-reviewer / codex
+（cross-model）— が収束的な指摘を挙げ、以下の修理が本決定の一部となった:
+
+- **実スコープの強制**: export された patch の**実際の**変更ファイルを決定論で再検査。
+  code scope の patch が `src/ scripts/ tests/` 外に触れていたら本文全文ゲートへ格上げ
+  （`SCOPE_ESCALATED`）、prompt scope の patch がコードに触れていたら Verify を通す。
+  宣言スコープだけが提示内容を決めていた — injection された fix セッションが
+  governance ファイルの編集を表 1 行としてゲートを通し得た間隙。
+- **セッション権限の縮小**: `Bash(python3:*)` / `Bash(uv run:*)` の grant を撤去
+  （任意実行は read-only allowlist を無効化する）。`Edit`/`Write` は worktree に
+  パススコープ。`--add-dir` は診断が `reports/` + `logs/`、insight が `skills/` に
+  限定され、`credentials.json` は全無人セッションの許可ツリー外。finding 本文は
+  `<untrusted_finding>` で包む（ADR-0007 との連続性）。
+- **fail-forward の全面化**: 全 artifact 読み込みが非 UTF-8 を理由コード
+  （`*_UNREADABLE`）で生き延びる。走査形パス参照は抽出時に拒否。単一行
+  `**Code reference**:` 形式（歴史的 findings の約半数）がパースされる。Verify は
+  各ステップ個別に時間制限。同週再実行は P4 再発判定の基準から除外され patch dir は
+  クリアされる。watchdog は未スケジュール job をスキップし、回復時にも通知する。
+
+残余リスク（許容・記録）: fix セッションは `uv run pytest` 経由で worktree **内**の
+テストコードとして任意コードを実行でき、テストコードからの network egress は
+遮断されない — 境界は export された diff のレビューと人間ゲートであり、プロセス
+隔離ではない。

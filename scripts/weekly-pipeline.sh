@@ -34,6 +34,7 @@ MAX_FIX_ATTEMPTS="${PIPELINE_MAX_FIX_ATTEMPTS:-2}"
 MAX_FIX_TARGETS="${PIPELINE_MAX_FIX_TARGETS:-5}"
 DIAGNOSIS_TIMEOUT="${PIPELINE_DIAGNOSIS_TIMEOUT:-1800}"
 FIX_TIMEOUT="${PIPELINE_FIX_TIMEOUT:-1200}"
+VERIFY_TIMEOUT="${PIPELINE_VERIFY_TIMEOUT:-900}"
 REVIEW_TIMEOUT="${PIPELINE_REVIEW_TIMEOUT:-600}"
 INSIGHT_TIMEOUT="${PIPELINE_INSIGHT_TIMEOUT:-900}"
 IMPROVE_TIMEOUT="${PIPELINE_IMPROVE_TIMEOUT:-900}"
@@ -73,6 +74,13 @@ REASONS=""          # accumulated reason codes (comma separated)
 IMPROVEMENT_ARG=()  # set only when the improvement stage produced a file
 
 mkdir -p "$RUN_LOG_DIR" "$PATCH_DIR" "$PROMPT_PATCH_DIR"
+# Session transcripts and patches can carry sensitive content the sessions
+# saw; keep them owner-only (2026-07-29 security review H2).
+chmod 700 "$RUN_LOG_DIR" "$PATCH_DIR" "$PROMPT_PATCH_DIR" 2>/dev/null || true
+# The patch dirs are keyed by END_DATE, not RUN_ID: a same-week rerun would
+# otherwise present leftovers from a previous attempt as this run's output
+# (2026-07-29 codex review P2). This run owns the week's dirs — clear them.
+rm -f "$PATCH_DIR"/*.patch "$PROMPT_PATCH_DIR"/*.patch 2>/dev/null || true
 
 # --- Helpers ---
 audit() {  # audit <event> [k=v ...]
@@ -149,15 +157,34 @@ if [[ ! -s "$REPORT_PATH" ]]; then
 fi
 
 # --- Stage 2: diagnosis (separate session; the skill writes findings itself) ---
-if stage_enabled diagnosis && [[ ! -s "$FINDINGS_MD" ]]; then
+# Completeness = the file terminates in the skill's mandatory closing section.
+# A bare -s check would adopt a partial file from a timeout-killed previous
+# attempt as a finished diagnosis (2026-07-29 review).
+findings_complete() {
+    [[ -s "$FINDINGS_MD" ]] && grep -q '^## Diagnosis Metadata' "$FINDINGS_MD"
+}
+
+if stage_enabled diagnosis && ! findings_complete; then
+    if [[ -s "$FINDINGS_MD" ]]; then
+        mv "$FINDINGS_MD" "$FINDINGS_MD.incomplete.$$" 2>/dev/null || true
+        audit stage_result stage=diagnosis result=note reason=FINDINGS_INCOMPLETE_REPLACED
+        echo "[$RUN_ID] stage 2: previous findings incomplete — set aside, regenerating"
+    fi
     if deadline_exceeded; then
         add_reason CHAIN_DEADLINE
         audit stage_result stage=diagnosis result=skipped reason=CHAIN_DEADLINE
     else
         echo "[$RUN_ID] stage 2: diagnosis"
+        # --add-dir is scoped to reports/ + logs/, NOT $MOLTBOOK_HOME: the home
+        # root holds credentials.json, and this session's input chain reaches
+        # back to external SNS content (2026-07-29 security review C2). No
+        # python3/network-capable Bash grant — every scoped command below is
+        # read-only, so an injected instruction has no execution or egress
+        # surface (C1).
         with_timeout "$DIAGNOSIS_TIMEOUT" claude -p "/weekly-report-diagnosis $REPORT_PATH" \
-            --add-dir "$MOLTBOOK_HOME" \
-            --allowedTools "Read,Glob,Grep,Write,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(grep:*),Bash(ls:*),Bash(wc:*),Bash(head:*),Bash(tail:*),Bash(stat:*),Bash(python3:*)" \
+            --add-dir "$MOLTBOOK_HOME/reports" \
+            --add-dir "$MOLTBOOK_HOME/logs" \
+            --allowedTools "Read,Glob,Grep,Write,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(grep:*),Bash(ls:*),Bash(wc:*),Bash(head:*),Bash(tail:*),Bash(stat:*)" \
             --output-format text \
             > "$RUN_LOG_DIR/diagnosis.log" 2>&1
         diag_rc=$?
@@ -169,7 +196,7 @@ if stage_enabled diagnosis && [[ ! -s "$FINDINGS_MD" ]]; then
             echo "WARNING: diagnosis failed (rc=$diag_rc) — continuing to packet" >&2
         fi
     fi
-elif [[ -s "$FINDINGS_MD" ]]; then
+elif findings_complete; then
     echo "[$RUN_ID] stage 2: findings already exist, reusing $FINDINGS_MD"
     audit stage_result stage=diagnosis result=reused
 else
@@ -185,23 +212,28 @@ if [[ -s "$FINDINGS_MD" ]]; then
         audit stage_result stage=parse result=fail reason=PARSE_FAIL
         rm -f "$FINDINGS_JSON"
     fi
+else
+    audit stage_result stage=parse result=skipped
 fi
 
 # --- Stage 4: fix (one worktree + fresh claude context per F1) ---
 run_verify() {  # run_verify <worktree> <logfile>
     local wt="$1" log="$2"
+    # Each step is individually bounded: an unbounded Verify (network-stalled
+    # uv sync, hung test) would blow straight through the chain deadline,
+    # which is only checked between attempts (2026-07-29 review, HIGH).
     (
         cd "$wt" || exit 1
         # uv.lock is gitignored, so the worktree checkout lacks it; the copy
         # happens at worktree add. Fall back to an unpinned sync if absent.
         if [[ -f uv.lock ]]; then
-            uv sync --frozen -q >> "$log" 2>&1 || { echo "VERIFY: uv sync failed" >> "$log"; exit 1; }
+            with_timeout "$VERIFY_TIMEOUT" uv sync --frozen -q >> "$log" 2>&1 || { echo "VERIFY: uv sync failed" >> "$log"; exit 1; }
         else
-            uv sync -q >> "$log" 2>&1 || { echo "VERIFY: uv sync failed" >> "$log"; exit 1; }
+            with_timeout "$VERIFY_TIMEOUT" uv sync -q >> "$log" 2>&1 || { echo "VERIFY: uv sync failed" >> "$log"; exit 1; }
         fi
-        uv run -q ruff check src/ tests/ scripts/ >> "$log" 2>&1 || { echo "VERIFY: ruff failed" >> "$log"; exit 1; }
-        uv run -q lint-imports >> "$log" 2>&1 || { echo "VERIFY: lint-imports failed" >> "$log"; exit 1; }
-        uv run -q pytest tests/ -q -x >> "$log" 2>&1 || { echo "VERIFY: pytest failed" >> "$log"; exit 1; }
+        with_timeout "$VERIFY_TIMEOUT" uv run -q ruff check src/ tests/ scripts/ >> "$log" 2>&1 || { echo "VERIFY: ruff failed" >> "$log"; exit 1; }
+        with_timeout "$VERIFY_TIMEOUT" uv run -q lint-imports >> "$log" 2>&1 || { echo "VERIFY: lint-imports failed" >> "$log"; exit 1; }
+        with_timeout "$VERIFY_TIMEOUT" uv run -q pytest tests/ -q -x >> "$log" 2>&1 || { echo "VERIFY: pytest failed" >> "$log"; exit 1; }
     )
 }
 
@@ -224,7 +256,14 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
 
     local attempt=1 passed=0
     local prompt_file="$RUN_LOG_DIR/fix-$safe_fid-prompt.md"
-    cp "$bodyfile" "$prompt_file"
+    # The finding text descends from external SNS content via the weekly
+    # report's E section — wrap it as untrusted data before it becomes the
+    # prompt of a tool-using session (ADR-0007; 2026-07-29 security review H1).
+    {
+        echo "<untrusted_finding>"
+        cat "$bodyfile"
+        echo "</untrusted_finding>"
+    } > "$prompt_file"
     while (( attempt <= MAX_FIX_ATTEMPTS )); do
         if deadline_exceeded; then
             add_reason CHAIN_DEADLINE
@@ -234,11 +273,16 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
             return
         fi
         echo "[$RUN_ID]   $fid attempt $attempt ($scope)"
+        # Edit/Write are path-scoped to the worktree (cwd): a bare grant would
+        # let an injected finding write outside the worktree — invisible to
+        # Verify, the reviewer, and the exported patch (2026-07-29 security
+        # review C3). Bash is limited to the two Verify tools; no generic
+        # `uv run:*` (it reaches `uv run python -c ...`).
         (
             cd "$wt" || exit 1
             with_timeout "$FIX_TIMEOUT" claude -p "$(cat "$prompt_file")" \
                 --system-prompt "$(cat "$PROMPTS/fix-implementation.md")" \
-                --allowedTools "Read,Glob,Grep,Edit,Write,Bash(uv run:*),Bash(git diff:*),Bash(git status:*),Bash(ls:*),Bash(grep:*)" \
+                --allowedTools "Read,Glob,Grep,Edit(./**),Write(./**),Bash(uv run pytest:*),Bash(uv run ruff:*),Bash(git diff:*),Bash(git status:*),Bash(ls:*),Bash(grep:*)" \
                 --output-format text
         ) > "$fixlog-attempt$attempt.log" 2>&1
         local rc=$?
@@ -250,8 +294,17 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
             break
         fi
         if [[ "$scope" == "prompt" ]]; then
-            passed=1   # prompt-scope diffs are not Verify-gated; the human reads full text
-            break
+            # A prompt-scope finding may still have produced code edits (mixed
+            # references). A pure-prompt diff needs no Verify — the human reads
+            # it full text — but untested code changes must never be marked
+            # ready (2026-07-29 codex review P2).
+            local touches_code
+            touches_code=$(cd "$wt" && git add -A >/dev/null 2>&1; git diff --cached --name-only \
+                | grep -E '^(src|scripts|tests)/' || true)
+            if [[ -z "$touches_code" ]]; then
+                passed=1
+                break
+            fi
         fi
         if run_verify "$wt" "$fixlog-verify$attempt.log"; then
             audit fix_attempt fix_id="$fid" attempt="$attempt" result=verify_pass
@@ -261,7 +314,9 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
         audit fix_attempt fix_id="$fid" attempt="$attempt" result=verify_fail
         # Never retry on identical input: feed the failure back (bounded).
         {
+            echo "<untrusted_finding>"
             cat "$bodyfile"
+            echo "</untrusted_finding>"
             echo ""
             echo "## Verify failure output (previous attempt $attempt — fix the cause, do not weaken checks)"
             echo '```'
@@ -274,6 +329,23 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
     if [[ $passed -eq 1 ]]; then
         local out_dir="$PATCH_DIR"
         [[ "$scope" == "prompt" ]] && out_dir="$PROMPT_PATCH_DIR"
+        # Post-hoc scope check on the ACTUAL touched files — the declared
+        # scope was computed from the finding text before the session ran.
+        # A code-scope patch that also touches a behavior-shaping path would
+        # otherwise reach the gate as a summary row, bypassing the full-text
+        # rule (2026-07-29 security review C4). Deterministic, code-owned.
+        if [[ "$scope" == "code" ]]; then
+            local out_of_scope
+            out_of_scope=$(cd "$wt" && git add -A >/dev/null 2>&1; git diff --cached --name-only \
+                | grep -Ev '^(src|scripts|tests)/' || true)
+            if [[ -n "$out_of_scope" ]]; then
+                out_dir="$PROMPT_PATCH_DIR"
+                add_reason SCOPE_ESCALATED
+                audit scope_escalation fix_id="$fid" \
+                    files="$(printf '%s' "$out_of_scope" | tr '\n' ' ')"
+                echo "[$RUN_ID]   $fid escalated to full-text gate (touched: $out_of_scope)"
+            fi
+        fi
         local patch="$out_dir/$safe_fid.patch"
         if (cd "$wt" && git add -A && git diff --cached) > "$patch" 2>>"$fixlog-export.log" \
                 && [[ -s "$patch" ]]; then
@@ -334,9 +406,15 @@ if stage_enabled fix && [[ -s "$FINDINGS_JSON" ]]; then
         targeted=0
         while IFS=$'\t' read -r fid scope pathlist; do
             if [[ -n "$FINDINGS_ISO" && -n "$pathlist" ]]; then
+                # noglob: path tokens come from LLM-authored text; a stray
+                # `*` would glob-expand against the repo before reaching git
+                # (2026-07-29 security review H3). Splitting is intentional.
+                set -f
                 # shellcheck disable=SC2086 — pathlist is intentionally split
-                if [[ -n $(git -C "$PROJECT_ROOT" log --oneline -1 \
-                        --since="$FINDINGS_ISO" -- $pathlist 2>/dev/null) ]]; then
+                stale_hit=$(git -C "$PROJECT_ROOT" log --oneline -1 \
+                        --since="$FINDINGS_ISO" -- $pathlist 2>/dev/null)
+                set +f
+                if [[ -n "$stale_hit" ]]; then
                     add_reason FINDING_STALE
                     audit fix_result fix_id="$fid" scope="$scope" result=skipped \
                         attempts=0 reason=FINDING_STALE
@@ -346,7 +424,9 @@ if stage_enabled fix && [[ -s "$FINDINGS_JSON" ]]; then
             fi
             if (( targeted >= MAX_FIX_TARGETS )); then
                 add_reason BUDGET_EXHAUSTED
-                audit fix_result fix_id="$fid" scope="$scope" result=failed \
+                # skipped, not failed: an over-cap finding was never attempted
+                # and must not read as an error in the gate's fix table.
+                audit fix_result fix_id="$fid" scope="$scope" result=skipped \
                     attempts=0 reason=BUDGET_EXHAUSTED
                 continue
             fi
@@ -399,9 +479,12 @@ if stage_enabled insight; then
             done
         } > "$RUN_LOG_DIR/insight-input.md"
         INSIGHT_TMP="$INSIGHT_REVIEW.tmp.$$"
+        # Staged items are already inlined in the prompt; --add-dir grants
+        # only the adopted-skill store (dedup judgment), not the home root
+        # with credentials.json (2026-07-29 security review C2).
         if with_timeout "$INSIGHT_TIMEOUT" claude -p "$(cat "$RUN_LOG_DIR/insight-input.md")" \
                 --system-prompt "$(cat "$PROMPTS/insight-recommendation.md")" \
-                --add-dir "$MOLTBOOK_HOME" \
+                --add-dir "$MOLTBOOK_HOME/skills" \
                 --allowedTools "Read,Glob,Grep" \
                 --output-format text \
                 > "$INSIGHT_TMP" 2>"$RUN_LOG_DIR/insight.err" \
@@ -420,11 +503,17 @@ fi
 
 # --- Stage 6: improvement check (P4-shaped, fires on 2-week recurrence) ---
 # The orchestrator knows extra codes the builder will add for missing files.
-[[ -s "$FINDINGS_JSON" ]] || add_reason DIAGNOSIS_UNAVAILABLE
-[[ -s "$INSIGHT_REVIEW" ]] || add_reason INSIGHT_REVIEW_UNAVAILABLE
+# Gated on stage_enabled: a deliberately disabled stage is not a failure and
+# must not feed the recurrence detector (2026-07-29 review).
+if stage_enabled diagnosis && [[ ! -s "$FINDINGS_JSON" ]]; then
+    add_reason DIAGNOSIS_UNAVAILABLE
+fi
+if stage_enabled insight && [[ ! -s "$INSIGHT_REVIEW" ]]; then
+    add_reason INSIGHT_REVIEW_UNAVAILABLE
+fi
 if stage_enabled improve && [[ -n "$REASONS" ]] && ! deadline_exceeded; then
     fired=$(python3 "$SCRIPTS/build_decision_packet.py" check-improvement \
-        --metrics "$METRICS" --current-codes "$REASONS" 2>/dev/null)
+        --metrics "$METRICS" --current-codes "$REASONS" --end-date "$END_DATE" 2>/dev/null)
     if [[ "$fired" == *'"fired": true'* ]]; then
         echo "[$RUN_ID] stage 6: improvement proposal (recurrence: $fired)"
         {
