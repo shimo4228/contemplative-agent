@@ -276,7 +276,7 @@ Every LLM interaction the agent makes is defined in a Markdown file. After `init
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-38 loaded prompt templates plus 3 script-read prompt documents (`principles.md`, `weekly-analysis.md`, and `weekly-analysis-ja.md` — the Japanese translation pass — are read by `scripts/weekly-analysis.sh`, not the loader). The main ones:
+38 loaded prompt templates plus 7 script-read prompt documents (`principles.md`, `weekly-analysis.md`, and `weekly-analysis-ja.md` — the Japanese translation pass — are read by `scripts/weekly-analysis.sh`; `fix-implementation.md`, `fix-review.md`, `insight-recommendation.md`, and `pipeline-improvement.md` are read by `scripts/weekly-pipeline.sh` (ADR-0085) — none by the loader). The main ones:
 
 | File | Drives |
 |------|--------|
@@ -368,8 +368,19 @@ contemplative-agent install-schedule --distill-hour 5                   # Distil
 contemplative-agent install-schedule --no-distill                       # Sessions only, no distillation
 contemplative-agent install-schedule --weekly-insight                   # + weekly staged insight (Mon 08:00, ADR-0074)
 contemplative-agent install-schedule --weekly-backup                    # + weekly runtime backup to a PRIVATE mirror repo (Mon 10:00)
+contemplative-agent install-schedule --weekly-pipeline                  # + unattended weekly chain (Sat 09:00, ADR-0085; replaces --weekly-analysis)
+contemplative-agent install-schedule --watchdog                         # + pipeline watchdog (pure bash; daily 04:30 + Sat 12:30/13:30 + Mon 11:00)
 contemplative-agent install-schedule --uninstall                        # Remove schedule
 ```
+
+`--weekly-pipeline` and `--weekly-analysis` are mutually exclusive: the chain
+(`scripts/weekly-pipeline.sh`) runs `weekly-analysis.sh` as its own Stage 1,
+then diagnosis → fix (worktree + Verify) → insight review → decision packet.
+Nothing in the chain commits or adopts — promotion happens in the Saturday
+`/weekly-gate` session. Stage selection for a shadow rollout:
+`MOLTBOOK_PIPELINE_STAGES=report,diagnosis,insight,packet` (no `fix`). The
+watchdog writes `reports/PIPELINE-STATUS.md` and posts a Notification Center
+alert when the failure set changes.
 
 The weekly backup (`scripts/backup-runtime.sh`) rsync-mirrors MOLTBOOK_HOME —
 including `logs/`, which `sync-data` deliberately excludes from the public data
@@ -382,7 +393,7 @@ procedure.
 
 Valid intervals: 1, 2, 3, 4, 6, 8, 12, 24 hours.
 
-`install-schedule` manages the agent, distill, weekly-analysis, insight, and backup plists. One plist under `config/launchd/` is outside its scope: `com.moltbook.ollama-restart.plist` is installed and updated manually via `launchctl`, and `--uninstall` does not touch it. It restarts the local `ollama serve` nightly at 23:55 — starting `ollama serve` directly (no GUI app) with `AbandonProcessGroup` so the daemon survives its parent exiting. The repo copy is the reference template: when the live plist changes, mirror it here in the same change.
+`install-schedule` manages the agent, distill, weekly-analysis, insight, backup, weekly-pipeline, and watchdog plists — declaratively: re-running it removes any optional job whose flag is not passed, so always pass the full desired set. One plist under `config/launchd/` is outside its scope: `com.moltbook.ollama-restart.plist` is installed and updated manually via `launchctl`, and `--uninstall` does not touch it. It restarts the local `ollama serve` nightly at 23:55 — starting `ollama serve` directly (no GUI app) with `AbandonProcessGroup` so the daemon survives its parent exiting. The repo copy is the reference template: when the live plist changes, mirror it here in the same change.
 
 ---
 

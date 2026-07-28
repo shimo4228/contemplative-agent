@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.moltbook.watchdog</string>
+
+	<!-- Pure bash by design (ADR-0085): the watchdog must not share PATH
+	     dependencies (claude, uv) with the jobs it verifies. -->
+	<key>ProgramArguments</key>
+	<array>
+		<string>bash</string>
+		<string>{{PROJECT_ROOT}}/scripts/pipeline_watchdog.sh</string>
+	</array>
+
+	<key>WorkingDirectory</key>
+	<string>{{PROJECT_ROOT}}</string>
+
+	<!-- Daily liveness check after distill, plus the Saturday chain
+	     deadlines (report 12:30, packet 13:30) and the Monday backup
+	     deadline. Anchored checks keep a failure visible all week, so a
+	     missed firing here only delays detection to the next entry. -->
+	<key>StartCalendarInterval</key>
+	<array>
+		<dict>
+			<key>Hour</key>
+			<integer>4</integer>
+			<key>Minute</key>
+			<integer>30</integer>
+		</dict>
+		<dict>
+			<key>Weekday</key>
+			<integer>6</integer>
+			<key>Hour</key>
+			<integer>12</integer>
+			<key>Minute</key>
+			<integer>30</integer>
+		</dict>
+		<dict>
+			<key>Weekday</key>
+			<integer>6</integer>
+			<key>Hour</key>
+			<integer>13</integer>
+			<key>Minute</key>
+			<integer>30</integer>
+		</dict>
+		<dict>
+			<key>Weekday</key>
+			<integer>1</integer>
+			<key>Hour</key>
+			<integer>11</integer>
+			<key>Minute</key>
+			<integer>0</integer>
+		</dict>
+	</array>
+
+	<key>StandardOutPath</key>
+	<string>{{LOG_PATH}}</string>
+	<key>StandardErrorPath</key>
+	<string>{{LOG_PATH}}</string>
+</dict>
+</plist>

@@ -90,6 +90,7 @@ Records of key design decisions for this project.
 | [0082](0082-retire-observed-epistemic-key.md) | Retire the `observed` Epistemic Key — Delete the Dead Field, Not the Warning About It | accepted | 2026-07-25 |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.md) | Episode Logs Enter the Weekly Prompt as Hashes Only | accepted | 2026-07-25 |
 | [0084](0084-post-distill-durability-gate.md) | Post-Distill Durability Gate — Judge the Produced Patterns, Not the Episode | accepted | 2026-07-26 |
+| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.md) | Unattended Weekly Fix Chain with a Single Saturday Gate | accepted | 2026-07-29 |
 
 ## ADR Types
 

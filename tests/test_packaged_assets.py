@@ -27,9 +27,20 @@ def _repo_root() -> Path:
 
 REPO_ROOT = _repo_root()
 
-# Prompt documents consumed by scripts/weekly-analysis.sh rather than the
-# PromptTemplates registry. A stem listed here must name its consumer.
-SCRIPT_READ_PROMPTS = {"principles", "weekly-analysis", "weekly-analysis-ja"}
+# Prompt documents consumed by scripts rather than the PromptTemplates
+# registry. A stem listed here must name its consumer:
+# - principles / weekly-analysis / weekly-analysis-ja → scripts/weekly-analysis.sh
+# - fix-implementation / fix-review / insight-recommendation /
+#   pipeline-improvement → scripts/weekly-pipeline.sh (ADR-0085)
+SCRIPT_READ_PROMPTS = {
+    "principles",
+    "weekly-analysis",
+    "weekly-analysis-ja",
+    "fix-implementation",
+    "fix-review",
+    "insight-recommendation",
+    "pipeline-improvement",
+}
 
 
 def _prompt_stems() -> set[str]:
@@ -51,10 +62,7 @@ class TestPackagedPrompts:
     def test_every_registry_field_has_a_packaged_default(self):
         fields = {f.name for f in dataclasses.fields(PromptTemplates)}
         missing = fields - _prompt_stems()
-        assert not missing, (
-            f"PromptTemplates fields without a packaged default: "
-            f"{sorted(missing)}"
-        )
+        assert not missing, f"PromptTemplates fields without a packaged default: {sorted(missing)}"
 
 
 class TestDocClaims:
@@ -62,17 +70,13 @@ class TestDocClaims:
         """docs/CONFIGURATION.md#pipeline-prompts--view-seeds is the single
         place that states prompt counts (README / llms.txt / CODEMAPS point
         here instead of repeating numbers); this pins that one claim."""
-        text = (REPO_ROOT / "docs" / "CONFIGURATION.md").read_text(
-            encoding="utf-8"
-        )
+        text = (REPO_ROOT / "docs" / "CONFIGURATION.md").read_text(encoding="utf-8")
         match = re.search(
             r"(\d+)\s+loaded\s+prompt\s+templates\s+plus\s+(\d+)\s+"
             r"script-read\s+prompt\s+documents",
             text,
         )
-        assert match, (
-            "canonical inventory sentence not found in docs/CONFIGURATION.md"
-        )
+        assert match, "canonical inventory sentence not found in docs/CONFIGURATION.md"
         assert int(match.group(1)) == len(dataclasses.fields(PromptTemplates))
         assert int(match.group(2)) == len(SCRIPT_READ_PROMPTS)
 

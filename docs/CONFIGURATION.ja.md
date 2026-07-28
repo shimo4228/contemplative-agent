@@ -230,6 +230,8 @@ contemplative-agent install-schedule                          # 6時間間隔、
 contemplative-agent install-schedule --interval 4 --session 90  # カスタム: 4時間間隔、90分セッション
 contemplative-agent install-schedule --distill-hour 5         # 蒸留を 05:00 に
 contemplative-agent install-schedule --no-distill             # セッションのみ
+contemplative-agent install-schedule --weekly-pipeline        # + 無人 weekly チェーン（土 09:00、ADR-0085。--weekly-analysis を置換）
+contemplative-agent install-schedule --watchdog               # + パイプライン watchdog（純 bash、毎日 04:30 + 土 12:30/13:30 + 月 11:00）
 contemplative-agent install-schedule --uninstall              # スケジュール削除
 ```
 

@@ -121,6 +121,18 @@ findings 生成後、同じ内容の日本語版を `weekly-{end-date}-findings.
 - E からの source quote・コード参照 (`path:line`)・識別子は英語原文のまま。地の文だけ訳す（普通の日本語で、カタカナ乱用しない）
 - 構造（F1/F2/F3、見出し階層）は英語版と 1:1 対応
 
+### 機械可読契約（2026-07-29 追加、ADR-0085）
+
+F1 セクションの見出し構造と **Code reference** ブロックは、無人チェーンの
+`scripts/parse_findings.py` が消費する**機械可読の契約**である:
+
+- `### F1.N. {title}` の見出し形式を崩さない（`F1.N.` の後にピリオド + 半角スペース）
+- fix 対象のファイルは必ず `**Code reference**:` ブロック内にバッククォートで
+  `path/to/file.py:LINE` 形式で列挙する（ここに無いパスは fix 対象にならない）
+- 逆に、fix 対象で**ない**ファイル（TASKS.md・ADR 等への言及）を Code reference
+  ブロックに入れない — `src/` `scripts/` `tests/` に閉じるかどうかで自動 fix の
+  可否（code / prompt scope）が決まる
+
 ### 出力フォーマット
 
 ```markdown

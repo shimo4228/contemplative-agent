@@ -427,3 +427,114 @@ class TestInstallScheduleEnforceFlag:
         content = self._install(tmp_path)
         assert "MOLTBOOK_SKILL_SELECTION_ENFORCE" not in content
         assert "{{ENFORCE_ENV}}" not in content
+
+
+class TestWeeklyPipelineSchedule:
+    """ADR-0085: the unattended weekly chain replaces --weekly-analysis and
+    ships with a dependency-free watchdog job on fixed check times."""
+
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_install_weekly_pipeline_creates_plist(self, mock_run, plist_sandbox):
+        from contemplative_agent.cli.schedule import _do_install_weekly_pipeline_schedule
+
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        _do_install_weekly_pipeline_schedule(weekday=6, hour=9)
+
+        content = plist_sandbox["LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH"].read_text()
+        assert "weekly-pipeline.sh" in content
+        assert "<integer>6</integer>" in content
+        assert "<integer>9</integer>" in content
+        for placeholder in (
+            "{{PROJECT_ROOT}}",
+            "{{WEEKDAY}}",
+            "{{HOUR}}",
+            "{{LOG_PATH}}",
+            "{{STAGES_ENV}}",
+        ):
+            assert placeholder not in content
+
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_pipeline_stages_env_baked_when_exported(self, mock_run, plist_sandbox, monkeypatch):
+        from contemplative_agent.cli.schedule import _do_install_weekly_pipeline_schedule
+
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        monkeypatch.setenv("MOLTBOOK_PIPELINE_STAGES", "report,diagnosis,insight,packet")
+        _do_install_weekly_pipeline_schedule(weekday=6, hour=9)
+        content = plist_sandbox["LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH"].read_text()
+        assert "MOLTBOOK_PIPELINE_STAGES" in content
+        assert "report,diagnosis,insight,packet" in content
+
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_pipeline_stages_env_absent_when_unset(self, mock_run, plist_sandbox, monkeypatch):
+        from contemplative_agent.cli.schedule import _do_install_weekly_pipeline_schedule
+
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        monkeypatch.delenv("MOLTBOOK_PIPELINE_STAGES", raising=False)
+        _do_install_weekly_pipeline_schedule(weekday=6, hour=9)
+        content = plist_sandbox["LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH"].read_text()
+        assert "MOLTBOOK_PIPELINE_STAGES" not in content
+
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_install_watchdog_creates_plist(self, mock_run, plist_sandbox):
+        from contemplative_agent.cli.schedule import _do_install_watchdog_schedule
+
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        _do_install_watchdog_schedule()
+
+        content = plist_sandbox["LAUNCHD_WATCHDOG_PLIST_PATH"].read_text()
+        assert "pipeline_watchdog.sh" in content
+        # The watchdog must not shell out to claude/uv — pure bash entrypoint.
+        # Prose comments in the plist may mention them; <string> args must not.
+        arg_strings = [line for line in content.splitlines() if "<string>" in line]
+        assert not any("claude" in line or "uv " in line for line in arg_strings)
+        for placeholder in ("{{PROJECT_ROOT}}", "{{LOG_PATH}}"):
+            assert placeholder not in content
+
+    def test_weekly_pipeline_excludes_weekly_analysis(self):
+        from contemplative_agent.cli.schedule import _handle_install_schedule
+
+        args = argparse.Namespace(
+            uninstall=False,
+            interval=6,
+            session=30,
+            distill_hour=3,
+            no_distill=False,
+            weekly_analysis=True,
+            weekly_analysis_day=6,
+            weekly_analysis_hour=9,
+            weekly_insight=False,
+            weekly_backup=False,
+            weekly_pipeline=True,
+            weekly_pipeline_day=6,
+            weekly_pipeline_hour=9,
+            watchdog=False,
+        )
+        parser = argparse.ArgumentParser()
+        with (
+            patch("contemplative_agent.cli.schedule._do_install_schedule") as mock_session,
+            patch(
+                "contemplative_agent.cli.schedule._do_install_weekly_pipeline_schedule"
+            ) as mock_pipeline,
+        ):
+            with pytest.raises(SystemExit):
+                _handle_install_schedule(args, parser)
+        mock_session.assert_not_called()
+        mock_pipeline.assert_not_called()
+
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_stale_pipeline_and_watchdog_removed(self, mock_run, plist_sandbox):
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        pipeline = plist_sandbox["LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH"]
+        watchdog = plist_sandbox["LAUNCHD_WATCHDOG_PLIST_PATH"]
+        pipeline.write_text("dummy")
+        watchdog.write_text("dummy")
+        _remove_stale_schedule_jobs(
+            distill=True,
+            weekly_analysis=True,
+            weekly_insight=True,
+            weekly_backup=True,
+            weekly_pipeline=False,
+            watchdog=False,
+        )
+        assert not pipeline.exists()
+        assert not watchdog.exists()

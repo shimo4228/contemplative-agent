@@ -36,6 +36,12 @@ LAUNCHD_INSIGHT_LABEL = "com.moltbook.insight"
 LAUNCHD_BACKUP_LABEL = "com.moltbook.backup"
 
 
+LAUNCHD_WEEKLY_PIPELINE_LABEL = "com.moltbook.weekly-pipeline"
+
+
+LAUNCHD_WATCHDOG_LABEL = "com.moltbook.watchdog"
+
+
 LAUNCHD_PLIST_DIR = Path.home() / "Library" / "LaunchAgents"
 
 
@@ -52,6 +58,12 @@ LAUNCHD_INSIGHT_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_INSIGHT_LABEL}.plist
 
 
 LAUNCHD_BACKUP_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_BACKUP_LABEL}.plist"
+
+
+LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_WEEKLY_PIPELINE_LABEL}.plist"
+
+
+LAUNCHD_WATCHDOG_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_WATCHDOG_LABEL}.plist"
 
 
 def _build_calendar_intervals(interval_hours: int) -> str:
@@ -245,6 +257,67 @@ def _do_install_backup_schedule(weekday: int, hour: int) -> None:
     print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly runtime backup)")
 
 
+def _do_install_weekly_pipeline_schedule(weekday: int, hour: int) -> None:
+    """Install launchd plist for the unattended weekly chain (ADR-0085).
+
+    Runs ``scripts/weekly-pipeline.sh``: report → diagnosis → fix → insight
+    review → decision packet. Replaces ``--weekly-analysis`` (the chain runs
+    weekly-analysis.sh as its own Stage 1); the two flags are mutually
+    exclusive. Nothing in the chain commits or adopts — the Saturday
+    ``/weekly-gate`` session remains the single human gate.
+
+    ADR-0085 shadow rollout: exporting ``MOLTBOOK_PIPELINE_STAGES`` in the
+    installing shell bakes it into the plist (same mechanism as ADR-0081's
+    enforcement flag — and with the same known sharp edge: a later re-install
+    without the export silently reverts to the full chain, which here is the
+    intended graduation direction).
+    """
+    stages_env = ""
+    stages = os.environ.get("MOLTBOOK_PIPELINE_STAGES")
+    if stages:
+        stages_env = (
+            f"\n\t\t<key>MOLTBOOK_PIPELINE_STAGES</key>\n\t\t<string>{xml_escape(stages)}</string>"
+        )
+
+    _install_plist(
+        template_name="com.moltbook.weekly-pipeline.plist",
+        plist_path=LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH,
+        log_name="weekly-pipeline-launchd.log",
+        substitutions={
+            "{{WEEKDAY}}": str(weekday),
+            "{{HOUR}}": str(hour),
+            "{{STAGES_ENV}}": stages_env,
+        },
+    )
+
+    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    print(f"Installed: {LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH}")
+    print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly unattended chain)")
+    if stages:
+        print(f"Stage selection (shadow mode): {stages}")
+
+
+def _do_install_watchdog_schedule() -> None:
+    """Install launchd plist for the pipeline watchdog (ADR-0085).
+
+    Runs ``scripts/pipeline_watchdog.sh``: pure-bash verification that every
+    scheduled job produced its terminal artifact, written to
+    ``reports/PIPELINE-STATUS.md`` plus a Notification Center alert on a
+    changed failure set. The check times are fixed in the template (daily
+    04:30 + Sat 12:30/13:30 + Mon 11:00) because they are anchored to the
+    other jobs' deadlines, not operator preference.
+    """
+    _install_plist(
+        template_name="com.moltbook.watchdog.plist",
+        plist_path=LAUNCHD_WATCHDOG_PLIST_PATH,
+        log_name="watchdog-launchd.log",
+        substitutions={},
+    )
+
+    print(f"Installed: {LAUNCHD_WATCHDOG_PLIST_PATH}")
+    print("Schedule: daily 04:30 + Sat 12:30/13:30 + Mon 11:00 (pipeline watchdog)")
+
+
 def _unload_and_remove_plist(plist_path: Path, label: str) -> bool:
     """Unload and delete one launchd plist; True when a file was removed."""
     if not plist_path.exists():
@@ -262,7 +335,7 @@ def _unload_and_remove_plist(plist_path: Path, label: str) -> bool:
 
 
 def _do_uninstall_schedule() -> None:
-    """Uninstall launchd plists (session + distill + weekly-analysis + insight + backup)."""
+    """Uninstall all launchd plists (session + optional jobs)."""
     removed = False
 
     for plist_path, label in [
@@ -271,6 +344,8 @@ def _do_uninstall_schedule() -> None:
         (LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH, "weekly-analysis"),
         (LAUNCHD_INSIGHT_PLIST_PATH, "insight"),
         (LAUNCHD_BACKUP_PLIST_PATH, "backup"),
+        (LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH, "weekly-pipeline"),
+        (LAUNCHD_WATCHDOG_PLIST_PATH, "watchdog"),
     ]:
         removed = _unload_and_remove_plist(plist_path, label) or removed
 
@@ -279,7 +354,13 @@ def _do_uninstall_schedule() -> None:
 
 
 def _remove_stale_schedule_jobs(
-    *, distill: bool, weekly_analysis: bool, weekly_insight: bool, weekly_backup: bool
+    *,
+    distill: bool,
+    weekly_analysis: bool,
+    weekly_insight: bool,
+    weekly_backup: bool,
+    weekly_pipeline: bool = False,
+    watchdog: bool = False,
 ) -> None:
     """Remove previously-installed optional jobs whose flag is off this run.
 
@@ -300,6 +381,12 @@ def _remove_stale_schedule_jobs(
         print("  (stale insight schedule removed: flag not set on this run)")
     if not weekly_backup and _unload_and_remove_plist(LAUNCHD_BACKUP_PLIST_PATH, "backup"):
         print("  (stale backup schedule removed: flag not set on this run)")
+    if not weekly_pipeline and _unload_and_remove_plist(
+        LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH, "weekly-pipeline"
+    ):
+        print("  (stale weekly-pipeline schedule removed: flag not set on this run)")
+    if not watchdog and _unload_and_remove_plist(LAUNCHD_WATCHDOG_PLIST_PATH, "watchdog"):
+        print("  (stale watchdog schedule removed: flag not set on this run)")
 
 
 def _handle_install_schedule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -331,6 +418,16 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
                 parser.error("--weekly-backup-day must be 0 (Sun) to 6 (Sat)")
             if args.weekly_backup_hour < 0 or args.weekly_backup_hour > 23:
                 parser.error("--weekly-backup-hour must be between 0 and 23")
+        if args.weekly_pipeline:
+            # The chain runs weekly-analysis.sh as its own Stage 1; installing
+            # both would fire the report twice (and race the .anomaly-sweep
+            # state promote).
+            if args.weekly_analysis:
+                parser.error("--weekly-pipeline replaces --weekly-analysis (mutually exclusive)")
+            if args.weekly_pipeline_day < 0 or args.weekly_pipeline_day > 6:
+                parser.error("--weekly-pipeline-day must be 0 (Sun) to 6 (Sat)")
+            if args.weekly_pipeline_hour < 0 or args.weekly_pipeline_hour > 23:
+                parser.error("--weekly-pipeline-hour must be between 0 and 23")
         # Reconcile before installing (round-2 R2-M1): drop optional jobs
         # from a previous install whose flag is off this run, so the command
         # describes the complete desired schedule set.
@@ -339,6 +436,8 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
             weekly_analysis=args.weekly_analysis,
             weekly_insight=args.weekly_insight,
             weekly_backup=args.weekly_backup,
+            weekly_pipeline=args.weekly_pipeline,
+            watchdog=args.watchdog,
         )
         _do_install_schedule(interval=args.interval, session=args.session)
         if not args.no_distill:
@@ -358,6 +457,13 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
                 weekday=args.weekly_backup_day,
                 hour=args.weekly_backup_hour,
             )
+        if args.weekly_pipeline:
+            _do_install_weekly_pipeline_schedule(
+                weekday=args.weekly_pipeline_day,
+                hour=args.weekly_pipeline_hour,
+            )
+        if args.watchdog:
+            _do_install_watchdog_schedule()
 
 
 def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
@@ -442,6 +548,34 @@ def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=10,
         help="Hour to run weekly backup (0-23, default: 10 — outside agent-session hours)",
+    )
+    parser.add_argument(
+        "--weekly-pipeline",
+        action="store_true",
+        help=(
+            "Install the unattended weekly chain (ADR-0085: report → diagnosis → "
+            "fix → insight review → decision packet). Replaces --weekly-analysis."
+        ),
+    )
+    parser.add_argument(
+        "--weekly-pipeline-day",
+        type=int,
+        default=6,
+        help="Day of week for the weekly chain (0=Sun..6=Sat, default: 6=Sat)",
+    )
+    parser.add_argument(
+        "--weekly-pipeline-hour",
+        type=int,
+        default=9,
+        help="Hour to run the weekly chain (0-23, default: 9)",
+    )
+    parser.add_argument(
+        "--watchdog",
+        action="store_true",
+        help=(
+            "Install the pipeline watchdog (pure-bash artifact checks → "
+            "reports/PIPELINE-STATUS.md + Notification Center; fixed times)"
+        ),
     )
 
 

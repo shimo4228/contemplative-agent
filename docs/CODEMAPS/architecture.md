@@ -448,6 +448,27 @@ Order is load-bearing. The sweep's Δ / 🆕 columns are defined against its las
 
 Injection boundary: the sweep and the invariant check must never read episode logs. The duplicate scan does, and is the only intake permitted to — it emits **only** 12-hex SHA-256 digests, counts, filename-derived dates and the fixed `{post, reply, comment}` vocabulary (ADR-0083, gated by `TestOutputBoundary`). All three are observability: a failure degrades to a "not available" stub and never breaks the report.
 
+### weekly-pipeline  [`scripts/weekly-pipeline.sh`, ADR-0085]
+
+The unattended Saturday chain wrapping weekly-analysis as its Stage 1. Every LLM stage is a separate fresh-context `claude -p` session (role separation across sessions, not inside one); everything the human reads is computed by deterministic scripts. The chain never commits, pushes, or adopts.
+
+```
+Stage 1 report:    weekly-analysis.sh (unchanged, above)
+Stage 2 diagnosis: claude -p "/weekly-report-diagnosis <report>" → weekly-<end>-findings.md
+Stage 3 parse:     parse_findings.py → F1 list + scope (code | prompt; ambiguity → prompt)
+Stage 4 fix:       per code-scope F1: git worktree @ HEAD → claude -p (fix-implementation.md)
+                   → orchestrator-run Verify (uv sync --frozen / ruff / lint-imports / pytest)
+                   → ≤2 attempts (retry input includes Verify failure) → export .patch
+                   → advisory review session (fix-review.md) → VERDICT into packet
+                   prompt-scope F1: draft diff only, no Verify, full text at the gate
+Stage 5 insight:   read-only recommendation pass over .staged/ (insight-recommendation.md)
+Stage 6 improve:   only when the same reason code recurred 2 consecutive runs (check-improvement)
+Stage 7 packet:    build_decision_packet.py → weekly-<end>-packet.md
+                   + phase:"auto" record → logs/pipeline-metrics.jsonl
+```
+
+Bounds: ≤5 findings/week, per-session timeouts, 3h wall-clock deadline. Fail-forward: every stage failure becomes a reason code and the packet is still built (only a missing Stage-1 report aborts). Audit: every event → `logs/weekly-pipeline-audit.jsonl` (ADR-0075; the packet builder replays it). Promotion is the Saturday `/weekly-gate` session: apply → re-Verify → single human commit, prompt diffs full-text, `adopt-staged`, then a `phase:"gate"` metrics record. `scripts/pipeline_watchdog.sh` (pure bash, no claude/uv PATH dependency) checks each job's terminal artifact on anchored deadlines and rewrites `reports/PIPELINE-STATUS.md` + Notification Center on a changed failure set.
+
 ### meditate  [`adapters/meditation/`]
 
 ```
