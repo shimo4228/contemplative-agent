@@ -137,6 +137,14 @@ select = ["E4", "E7", "E9", "F", "B", "I", "T20", "UP"]
 # Keep explicit `X as X` re-export blocks (core/llm/__init__.py) compact
 # instead of one import statement per name.
 combine-as-imports = true
+# Declare the first-party roots instead of letting ruff infer them from what
+# happens to exist on disk. `.claude/verify.sh --staged` checks the *index*
+# by materializing only the staged files into a tmpdir, so a commit that
+# stages tests without src/ would leave `contemplative_agent` unresolvable
+# there — inferred as third-party, and every test file then fails I001 on a
+# section split that full mode considers correct (2026-07-31, 14 false
+# positives). Declaring it makes staged and full mode agree by construction.
+known-first-party = ["contemplative_agent", "tests"]
 
 [tool.ruff.lint.per-file-ignores]
 # Console-UI seams where print IS the interface, not stray logging.
