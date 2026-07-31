@@ -65,6 +65,10 @@ dev = [
     "ruff>=0.16",
     "pyright>=1.1.380",
     "import-linter>=2.0",
+    # 機械ゲート (.claude/verify.sh) が使う。版の正本をここに集約し、ローカルと CI で
+    # 同じものが走るようにする。選定根拠と再調査トリガーは .claude/verify.md
+    "bandit>=1.9.4",
+    "pip-audit>=2.9",
 ]
 
 [tool.importlinter]

@@ -74,3 +74,6 @@ integrations/skills/
 !.claude/skills/
 .claude/skills/silent-llm-calls-in-tests/
 !.claude/commands/
+# 機械ゲートの入口と選定記録は CI / 他クローンからも要るので track する
+!.claude/verify.sh
+!.claude/verify.md
