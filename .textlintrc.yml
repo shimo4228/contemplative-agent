@@ -1,35 +1,53 @@
 # textlint — .claude/verify.sh の prose category（staged のみ）。
 # 選定の経緯と実測値は .claude/verify.md。
 #
-# 方針: **目で見えない文字化けだけ**を止める。人間のレビューで気づける層
-# （一文が長い、読点が多い、二重否定）は入れない — この repo には既に文体の
-# 正本があり（ハーネス側 writing-ecosystem の Voice 規約、docs/glossary.md の
-# 訳語規約）、preset の編集方針を並べると「第 2 の権威」になって、毎回どちらが
-# 正しいかを判断する羽目になる。
+# 選定基準は **人間のレビューで気づけないか、規約として明文化済みか** の 2 つ。
+# 「一文が長い」「読点が多い」は読めば分かるので機械に持たせない — 持たせると
+# 既存の Voice 規約（ハーネス側 writing-ecosystem、docs/glossary.md の訳語規約）と
+# 競合する第 2 の権威になり、毎回どちらが正しいかを判断する羽目になる。
 #
-# 導入時点の違反は 0 件（日本語を含む tracked .md 107 本で実測、2026-07-31）。
-# これは drain すべき負債が無いという意味であり、**ゲートを入れるのに最も安い
-# タイミング**でもある。ここで得るのは過去の修正ではなく将来の退行防止。
+# 導入時の違反は 0 件（日本語を含む tracked .md 107 本、2026-07-31 実測）。
+# 0 件は「ゲートが緩い」ではなく「コーパスが既にきれい」で、有効な全ルールが
+# 違反を注入すると発火することを確認済み。0 件は入れない理由ではなく、
+# drain コストなしでゲートを立てられる最も安いタイミングである。
 rules:
   preset-ja-technical-writing:
-    # --- 有効: 混入すると読めるのに気づけない層 ---
+    # --- 有効 1: 混入しても目で気づけない文字化け ---
     # 出所は web からの copy-paste、macOS のファイル名（NFD）、レガシー資料。
-    # 実測 0 件だが、違反を注入して 3 ルールの発火を確認済み。
     no-hankaku-kana: true              # ﾊﾝｶｸ ｶﾅ
     no-zero-width-spaces: true         # U+200B
     no-nfd: true                       # 濁点が合成文字（が = か + ゛）
     no-invalid-control-character: true # 制御文字
     no-dropping-the-ra: true           # ら抜き言葉
 
+    # --- 有効 2: 明文化済みの規約（好みではない）---
+    # 「1 つの doc の中で文体を混ぜない」。preferIn* を **空にして**、
+    # である / ですます のどちらを採るかは doc ごとの判断に残し、混在だけを止める。
+    #
+    # 既定値のままだと使えない: textlint は 本文=ですます / 箇条書き=である という
+    # 別の意見を持っており、規約どおり全体を ですます で書いた README.ja.md が
+    # 18 件上がる。実測では tracked 107 本中 106 本が である で一貫し、README.ja.md
+    # だけが ですます で一貫していて、コーパスは既に規約を満たしていた。
+    # （per-file の overrides でも書けそうに見えるが、textlint 15.7 の overrides は
+    #   ルール option の上書きに効かない — files パターン 4 種を試して全て 73 件のまま。）
+    #
+    # 検出範囲は である / です の明示コピュラ。「〜だ。」「〜ている。」は拾わない。
+    no-mix-dearu-desumasu:
+      preferInHeader: ""
+      preferInBody: ""
+      preferInList: ""
+
     # --- 無効: 文体の判断であって、既存の Voice 規約と競合する ---
-    sentence-length: false             # 既定 100 字だと日本語 6156 文中 621 文が該当
+    # 閾値を緩めても効かない: max=300 でも 109 件。密度の高い文はこのコーパスの
+    # 文体そのもので、どの閾値でも 100 件超の drain と Voice 規約との衝突になる。
+    sentence-length: false
+    # 195 件 / 75 ファイル。中身は「箇条書きに句点を打たない」という一貫した記法。
+    ja-no-mixed-period: false
     max-comma: false
     max-ten: false
     max-kanji-continuous-len: false
     arabic-kanji-numbers: false
-    no-mix-dearu-desumasu: false       # だ/である と ですます の使い分けは規約側が持つ
-    ja-no-mixed-period: false
-    no-doubled-joshi: false
+    no-doubled-joshi: false            # 254 件。著者の文体であって欠陥ではない
     no-doubled-conjunction: false
     no-doubled-conjunctive-particle-ga: false
     no-double-negative-ja: false       # 「〜ないわけではない」は精密な表現として使う
@@ -38,10 +56,10 @@ rules:
     ja-no-redundant-expression: false
     ja-no-abusage: false
 
-    # --- 無効: この repo の記法に対して偽陽性しか出さない（実測）---
+    # --- 無効: この repo の記法に対して偽陽性しか出さない（全件確認）---
     # 日本語 prose を手で折り返すので、（ が行末で ） が次行に来る。25 件全てこれ。
     no-unmatched-pair: false
     # 「経路 a、b、c」の列挙ラベルを「不自然なアルファベット」として上げる。
     ja-unnatural-alphabet: false
-    # glossary.md の中国語訳カラム（反事实实验）を「同語の連続」として上げる。
+    # docs/glossary.md の中国語訳カラム（反事实实验）を「同語の連続」として上げる。
     ja-no-successive-word: false
