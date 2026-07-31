@@ -1,0 +1,9 @@
+# 除外の判定基準は .markdownlint-cli2.jsonc と同じ —
+# 「repo が所有し、かつ document であるか」。理由は .claude/verify.md。
+config/prompts/**
+config/templates/**
+docs/evidence/**
+integrations/skills/**
+.notes/**
+.venv/**
+node_modules/**

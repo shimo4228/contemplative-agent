@@ -22,6 +22,7 @@
 | test | pytest（+ pytest-cov / hypothesis） | full | block |
 | shell | shellcheck `-S style` | staged + full | block |
 | markdown | markdownlint-cli2 | staged + full | block（未導入なら skip） |
+| prose (ja) | textlint + preset-ja-technical-writing | staged | block（未導入なら skip） |
 
 ### 選定理由と再調査トリガー
 
@@ -62,15 +63,12 @@ ratchet 完了。8099 → 0（内訳は下記「markdown の drain」）。ル�
 実行可否は **実行ファイルの有無**で判定する — 未導入なら告げて skip し、ネットワーク取得は
 起こさない。グローバル導入 (`npm i -g markdownlint-cli2`) かローカル `node_modules/.bin` を見る。
 
-日本語 prose の文法チェック（textlint + preset-ja-technical-writing）は **2026-07-31 に
-再検討して見送り**。理由が「false positive が多そう」から実測に変わった:
-textlint が決定論的に拾える層（全角英数字・連続句読点・全角スペース・三点リーダの表記ゆれ）は
-169 本の日本語 .md に対して**実測 0 件**で、drain すべき負債が存在しない。残るのは preset の
-意見の層（既定の文長 100 字で日本語 6156 文中 621 文が該当）で、これは `writing-ecosystem` の
-Voice 規約・glossary の訳語規約という**既存の編集方針と競合する第 2 の権威**になる。
-再検討の条件: 上の構造的 4 項目が実測で発生し始めたとき。あるいは preset ではなく
-`textlint-rule-prh` で **自分の規約**（固有名詞の表記、禁止カタカナ語）を強制する形なら、
-権威の衝突が起きないので別途検討してよい。
+**prose — textlint + preset-ja-technical-writing（staged のみ、block）**
+有効ルールと除外の理由は `.textlintrc.yml` に各行のコメントとして書いてある。
+**staged 限定**なのは、これが repo 全体を測る category ではなく**これから書くものへの
+ratchet** だから。導入時の違反は 0 件なので full mode に上げることもできるが、
+「今後書くものを守る」という約束を狭く保つために広げていない。
+再調査: 12 ヶ月経過 / preset の rule 構成が変わったとき。
 
 ## 導入時に見つかった既存負債（2026-07-31 に drain 済み）
 
@@ -143,6 +141,35 @@ MD041 は「h1 の上に言語切替行を置く二言語規約」なのでル�
 実測で `--fix` がモデル出力サンプルから行末空白を落とした）、`integrations/skills/**`（ADR-0013 で
 棚上げ・gitignored。repo が所有しない資産をゲートで縛ると clone 先で FAIL しうる）、
 `.venv/**`・`**/*.local.md`。判定基準は **repo が所有し、かつ document であるか**。
+
+## prose ゲートの導入判断（2026-07-31）
+
+一度「見送り」と書いてから同日中に**入れる側へ覆した**ので、その理由を残す。
+
+見送りの根拠は「決定論的に拾える層が実測 0 件だから、drain すべき負債が無い」だった。
+これは**間違い**で、0 件は入れない理由ではなく**入れるのに最も安いタイミング**である。
+ゲートの価値は過去を直すことではなく将来の退行を止めることなので、負債ゼロと価値ゼロを
+混同していた。staged 限定という枠を足すと、対象が「今後書くもの」に閉じてさらに安くなる。
+
+そのうえで、preset をそのまま入れる案は実測で否定された（日本語を含む tracked .md 107 本）:
+
+| 構成 | 違反数 |
+|---|---|
+| preset 全体 | 2629（`sentence-length` が 1795） |
+| 意見の層を落とした構造サブセット | 38 |
+| 偽陽性を出すルールも落とした最終構成 | **0** |
+
+38 → 0 の差は全て**この repo の記法に対する偽陽性**だった:
+
+- `no-unmatched-pair` 25 件 — 日本語 prose を手で折り返すため `（` が行末、`）` が次行に来る
+- `ja-no-successive-word` — `docs/glossary.md` の中国語訳カラム（反事实实验）を同語連続と判定
+- `ja-unnatural-alphabet` — 「経路 a、b、c」の列挙ラベルを不自然なアルファベットと判定
+
+残した 5 ルール（半角カナ / ゼロ幅スペース / NFD / 制御文字 / ら抜き）は、
+**人間のレビューで気づけない**という一点で選んでいる。一文の長さや読点の数は読めば分かるので
+機械に持たせる必要がなく、持たせると既存の Voice 規約と競合する第 2 の権威になる。
+
+導入時に違反を一時注入して 3 ルールの発火と commit ブロックを実証済み（カナリアは撤去）。
 
 ## CI
 

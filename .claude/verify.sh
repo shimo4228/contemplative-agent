@@ -74,6 +74,14 @@ elif [[ -x "$ROOT/node_modules/.bin/markdownlint-cli2" ]]; then
   MDLINT="$ROOT/node_modules/.bin/markdownlint-cli2"
 fi
 
+# textlint (prose) も同じ判定。設定は .textlintrc.yml / .textlintignore。
+TEXTLINT=""
+if command -v textlint >/dev/null 2>&1; then
+  TEXTLINT=$(command -v textlint)
+elif [[ -x "$ROOT/node_modules/.bin/textlint" ]]; then
+  TEXTLINT="$ROOT/node_modules/.bin/textlint"
+fi
+
 # ---------------------------------------------------------------- staged mode
 if [[ "$MODE" == "staged" ]]; then
   staged=$(git -C "$ROOT" diff --cached --name-only --diff-filter=ACMR 2>/dev/null)
@@ -90,7 +98,7 @@ if [[ "$MODE" == "staged" ]]; then
   done <<< "$staged"
 
   # ツール設定も index 側から。無いと既定値で判定して偽陽性になる
-  for cfg in pyproject.toml .markdownlint-cli2.jsonc; do
+  for cfg in pyproject.toml .markdownlint-cli2.jsonc .textlintrc.yml .textlintignore; do
     git -C "$ROOT" show ":$cfg" > "$TMP/$cfg" 2>/dev/null || true
     [[ -s "$TMP/$cfg" ]] || rm -f "$TMP/$cfg"
   done
@@ -124,6 +132,19 @@ if [[ "$MODE" == "staged" ]]; then
       check markdown "$MDLINT" $md
     else
       warn "[verify] markdownlint-cli2 不在 — markdown lint をスキップ (npm i -g markdownlint-cli2)"
+    fi
+  fi
+
+  # prose (textlint): **staged のみ** — repo 全体を測る category ではなく、
+  # これから書くものに対する ratchet として置いている。目に見えない文字化け
+  # (半角カナ / ゼロ幅スペース / NFD / 制御文字) と ら抜きだけを見る。文体の
+  # 判断は入れない (理由と実測は .claude/verify.md、有効ルールは .textlintrc.yml)。
+  if [[ -n "$md" ]]; then
+    if [[ -n "$TEXTLINT" ]]; then
+      # shellcheck disable=SC2086
+      check prose "$TEXTLINT" $md
+    else
+      warn "[verify] textlint 不在 — prose lint をスキップ (npm i -g textlint textlint-rule-preset-ja-technical-writing)"
     fi
   fi
 
