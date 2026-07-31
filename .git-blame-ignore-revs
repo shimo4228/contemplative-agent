@@ -1,0 +1,12 @@
+# Commits that only reformat — no semantic change. `git blame` should look
+# through them to the revision that actually wrote the line.
+#
+# Local setup (once):
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs
+# GitHub applies this file to its blame view automatically.
+#
+# Only add a commit here after proving it is formatting-only (compare the
+# parsed AST of every changed file across the commit, not just the diff).
+
+# style: ruff format を repo 全体に適用 (2026-07-31, 40 files, AST identical)
+e7928c01ea16e3f97fb0144bf705969e144f775c
