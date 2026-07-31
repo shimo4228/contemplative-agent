@@ -8,7 +8,7 @@ Bird's-eye view of the entire codebase. For deep dives, see
 
 ## Module Dependency Graph
 
-```
+```text
 cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ and adapters/
     __init__.py (127L)        -- global flags + COMMANDS aggregation + tier dispatch + main
     registry.py (97L)         -- CommandSpec / Tier: each module declares its own commands
@@ -131,7 +131,7 @@ config/                           -- externalized templates (domain-swappable, g
 
 ## CLI Commands
 
-```
+```text
 contemplative-agent init [--template <character>] [--config-dir PATH]
 contemplative-agent register [--username U] [--password P]
 contemplative-agent status
@@ -235,7 +235,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 ## Security Boundaries
 
-```
+```text
 External Input              Validation
 --------------              ----------
 post_id                     VALID_ID_PATTERN ([A-Za-z0-9_-]+)

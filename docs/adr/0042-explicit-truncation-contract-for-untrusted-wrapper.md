@@ -120,7 +120,7 @@ The marker introduced above closes F1.1-B by telling the model, unambiguously, t
 
 `reply_handler._handle_post_comments` (the comment-scan path) fetches no post body and passes `original_post=""`; `generate_reply` wrapped it unconditionally and `reply.md` carried a fixed `Original post:` header, so the assembled prompt read:
 
-```
+```text
 Original post:
 <untrusted_content>
 

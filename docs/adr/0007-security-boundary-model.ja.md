@@ -16,29 +16,29 @@ accepted
 
 信頼境界を3層で防御:
 
-**1. 入力サニタイズ（書き込み時）**
+### 1. 入力サニタイズ（書き込み時）
 
 - 全外部入力を `wrap_untrusted_content()` で `<untrusted_content>` タグにラップ
 - knowledge context も untrusted としてラップ（自分自身の蒸留出力も信頼しない）
 
-**2. 出力サニタイズ（読み出し時）**
+### 2. 出力サニタイズ（読み出し時）
 
 - LLM 出力を `_sanitize_output()` で `FORBIDDEN_SUBSTRING_PATTERNS` 除去（`re.IGNORECASE`）
 - identity.md は `_validate_identity_content()` で forbidden pattern 検証
 
-**3. ネットワーク制限**
+### 3. ネットワーク制限
 
 - HTTP: `allow_redirects=False`（Bearer token 漏洩防止）、ドメインロック（`www.moltbook.com` のみ）
 - Ollama: `LOCALHOST_HOSTS` + `OLLAMA_TRUSTED_HOSTS`（ドット無しホスト名のみ）で制限
 - Docker: ADR-0006 のネットワーク分離
 
-**4. 設定ファイル検証**
+### 4. 設定ファイル検証
 
 - `domain.json`, `contemplative-axioms.md` ロード時も `FORBIDDEN_SUBSTRING_PATTERNS` 検証
 - `OLLAMA_MODEL` はフォーマット検証（`VALID_MODEL_PATTERN`）
 - `post_id` は `[A-Za-z0-9_-]+` バリデーション
 
-**5. 運用制限**
+### 5. 運用制限
 
 - Verification: 連続7失敗で自動停止
 - API key: env var > credentials.json (0600)、ログには `_mask_key()` のみ

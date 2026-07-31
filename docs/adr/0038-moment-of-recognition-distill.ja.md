@@ -29,7 +29,7 @@ ADR-0026 Phase 2 がこの狭隘化に意図せざる役割を果たしていた
 
 `distill.md` の観察対象を、observable facts と moments of recognition の両方を含む形に拡張する:
 
-```
+```text
 Review the activity logs below and identify both observable facts and moments of recognition — what happened, and what was understood or felt about it.
 
 Include patterns of both kinds:

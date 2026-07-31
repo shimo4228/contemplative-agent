@@ -9,7 +9,7 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
 
 ## System Diagram
 
-```
+```text
   config/ (templates, git-managed)       ~/.config/moltbook/ (MOLTBOOK_HOME, runtime)
     domain.json  prompts/*.md              knowledge.json  embeddings.sqlite  identity.md
     views/*.md   templates/<char>/       constitution/  views/  prompts/  skills/  rules/
@@ -103,7 +103,7 @@ groups records by id instead of inferring runs from time gaps.
 
 ## Data Flow — Session Execution
 
-```
+```text
 CLI → Agent.run_session(autonomy_level, session_mins)
  ├─ ReplyHandler._run_reply_cycle()
  │    internal_note (ADR-0045) → reply → POST → verify → EpisodeLog
@@ -214,7 +214,7 @@ All offline distillation LLM calls (distill / insight / rules-distill / constitu
 
 ### distill  [`core/distill.py`]
 
-```
+```text
 Input: EpisodeLog.read_range(days=N)
   type="insight" records EXCLUDED at read  [ADR-0052: retired session
   summaries; historical records stay in the log but never re-distill]
@@ -326,7 +326,7 @@ Excerpt caps + RICH_ACTIONS live in `core/episode_render.py` (ADR-0060; extracte
 
 ### distill-identity  [`core/distill.py: distill_identity()`]
 
-```
+```text
 ViewRegistry.find_by_view("self_reflection", get_raw_patterns())
   cosine(pattern_emb, self_reflection_centroid)
   threshold from view frontmatter | top_k=50   [PURE COSINE, no importance weight]
@@ -348,7 +348,7 @@ No Stage 2 refine. No importance-ranked input. One LLM call only.
 
 ### insight  [`core/insight.py: extract_insight()`]
 
-```
+```text
 Input: incremental — KnowledgeStore.get_live_patterns_since(.last_insight marker)
   [is_live: valid_until is None; gated=True excluded before clustering]
   missing marker → REFUSE (no silent full recluster; --full is the deliberate
@@ -412,7 +412,7 @@ cluster cap). Weekly automation: `install-schedule --weekly-insight`
 
 ### rules-distill  [`core/rules_distill.py: distill_rules()`]
 
-```
+```text
 skills/*.md (MIN=3) → embed_texts → cluster(CLUSTER_THRESHOLD_RULES=0.65)
   → batches (MAX_BATCH=10)
   → generate_full(RULES_DISTILL_PROMPT) → generate_full(RULES_DISTILL_REFINE_PROMPT)  [both think-ON, ADR-0069]
@@ -422,7 +422,7 @@ skills/*.md (MIN=3) → embed_texts → cluster(CLUSTER_THRESHOLD_RULES=0.65)
 
 ### amend-constitution  [`core/constitution.py`]
 
-```
+```text
 ViewRegistry.find_by_view("constitutional", get_live_patterns())
   MIN_PATTERNS_REQUIRED=3 gate
 → generate_full(CONSTITUTION_AMEND_PROMPT)  [think-ON, ADR-0069]
@@ -440,7 +440,7 @@ ViewRegistry.find_by_view("constitutional", get_live_patterns())
 
 Runs outside the agent process (launchd → `claude -p`), assembling a prompt from operator-facing artifacts plus **three deterministic intakes**, then a diagnosis companion (`weekly-report-diagnosis` skill) produces the F sections.
 
-```
+```text
 collect: daily comment-reports + data-repo state diff + previous N reports
        + log_anomaly_sweep.py    (event stream: *.log + audit.jsonl; novelty state)
        + state_invariant_check.py (accumulated state: knowledge.json / agents.json)
@@ -459,7 +459,7 @@ Injection boundary: the sweep and the invariant check must never read episode lo
 
 The unattended Saturday chain wrapping weekly-analysis as its Stage 1. Every LLM stage is a separate fresh-context `claude -p` session (role separation across sessions, not inside one); everything the human reads is computed by deterministic scripts. The chain never commits, pushes, or adopts.
 
-```
+```text
 Stage 1 report:    weekly-analysis.sh (unchanged, above)
 Stage 2 diagnosis: claude -p "/weekly-report-diagnosis <report>" → weekly-<end>-findings.md
 Stage 3 parse:     parse_findings.py → F1 list + scope (code | prompt; ambiguity → prompt)
@@ -478,7 +478,7 @@ Bounds: ≤5 findings/week, per-session timeouts, 3h wall-clock deadline. Fail-f
 
 ### meditate  [`adapters/meditation/`]
 
-```
+```text
 EpisodeLog → pomdp.build_matrices() → A/B/C/D (numpy)
 → meditate(matrices, config)
   flat single-level POMDP; expected-free-energy policy selection
@@ -492,7 +492,7 @@ EpisodeLog → pomdp.build_matrices() → A/B/C/D (numpy)
 
 ## Memory Architecture (3-Layer)
 
-```
+```text
 Layer 1: EpisodeLog  ~/.config/moltbook/logs/YYYY-MM-DD.jsonl  (append-only)
   record_type: post | comment | interaction | action | session
                | insight (historical only — generation retired, ADR-0052)

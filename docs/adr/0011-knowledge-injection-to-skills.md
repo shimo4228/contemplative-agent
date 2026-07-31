@@ -31,7 +31,7 @@ Meanwhile, the existing `insight` command extracts skills/*.md from knowledge an
 
 Gradually deprecate direct knowledge pattern injection into prompts. Behavioral influence must flow exclusively through skills.
 
-```
+```text
 Deprecated:  knowledge → direct prompt injection → LLM implicitly reflects
 Adopted:     knowledge → insight → skills/*.md → injected into system prompt
 ```

@@ -29,7 +29,7 @@ Introduce an approval gate for commands that directly affect behavior. After gen
 
 ### Flow
 
-```
+```text
 CLI execution
   → LLM generation
   → Display results to stdout

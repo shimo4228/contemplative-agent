@@ -71,7 +71,7 @@ defaults が key property: `IdentityResult(text=..., target_path=...)` を構築
 
 `_handle_migrate_patterns`（ADR-0021）をパターン源に:
 
-```
+```bash
 contemplative-agent migrate-identity              # migration を走らせる
 contemplative-agent migrate-identity --dry-run    # プレビューのみ
 ```

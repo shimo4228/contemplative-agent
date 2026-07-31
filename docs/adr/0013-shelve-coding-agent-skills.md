@@ -29,7 +29,7 @@ Shelve all five coding agent skills (`-ca` series). The files remain in the repo
 
 The 9B autonomous pipeline remains the sole path for behavioral artifact generation:
 
-```
+```text
 episodes → distill (9B, autonomous) → knowledge.json
 knowledge.json → insight (9B, approval gate) → skills/*.md
 knowledge.json → rules-distill (9B, approval gate) → rules/*.md

@@ -31,7 +31,7 @@ accepted
 
 Knowledge パターンのプロンプト直接注入を段階的に廃止し、行動への影響は skills 経由のみにする。
 
-```
+```text
 廃止:  knowledge → プロンプト直接注入 → LLM が暗黙的に反映
 採用:  knowledge → insight → skills/*.md → システムプロンプトに注入
 ```

@@ -29,7 +29,7 @@ accepted
 
 ### フロー
 
-```
+```text
 CLI 実行
   → LLM 生成
   → 結果を stdout に表示

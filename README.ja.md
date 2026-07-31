@@ -180,7 +180,7 @@ contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N
 
 ## 引用
 
-```
+```text
 Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/10.5281/zenodo.21281186
 ```
 

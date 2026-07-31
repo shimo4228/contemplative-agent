@@ -28,7 +28,7 @@ ADR-0019（embedding + views）と ADR-0020（pivot スナップショット）�
 
 ### Provenance (IV-7)
 
-```
+```text
 provenance: {
     source_type: "self_reflection" | "external_reply" | "mixed" | "unknown"
     source_episode_ids: List[str]   # 代表的な最大 K 件
@@ -57,7 +57,7 @@ distill 時の初期 `trust_score` は `source_type` から固定表で決まる
 
 ### Bitemporal (IV-2)
 
-```
+```text
 valid_from: str                      # ISO8601; 初期値は distilled のタイムスタンプ
 valid_until: str | None              # None = 現在の真実; ISO8601 で supersede されたことを示す
 ```
@@ -66,7 +66,7 @@ valid_until: str | None              # None = 現在の真実; ISO8601 で super
 
 ### Forgetting (IV-3)
 
-```
+```text
 last_accessed_at: str                # ISO8601
 access_count: int                    # この pattern を選んだ retrieval の回数
 strength: float                      # e^(−Δt / S), S = f(importance, access_count)
@@ -74,7 +74,7 @@ strength: float                      # e^(−Δt / S), S = f(importance, access_
 
 `strength` は retrieval 時に MemoryBank 式で遅延計算される:
 
-```
+```text
 Δt = last_accessed_at からの経過時間（hours）
 S  = BASE_S * (1 + log1p(access_count)) * (0.5 + importance)
 strength = exp(−Δt / S)
@@ -86,7 +86,7 @@ retrieval は `strength < STRENGTH_FLOOR (0.05)` の pattern を除外する —
 
 ### Feedback (IV-10)
 
-```
+```text
 success_count: int                   # 行動後に「役立った」と判断された回数
 failure_count: int                   # 「regression を招いた」回数
 ```
@@ -97,7 +97,7 @@ failure_count: int                   # 「regression を招いた」回数
 
 `views.py` の `_rank` を次のように拡張する:
 
-```
+```text
 score = cosine_sim(seed_emb, pattern_emb)
       * trust_score
       * strength

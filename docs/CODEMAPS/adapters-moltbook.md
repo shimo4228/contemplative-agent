@@ -32,7 +32,7 @@ Platform-specific implementations. Dependency: adapters → core.
 
 **AutonomyLevel** enum: APPROVE / GUARDED / AUTO
 
-```
+```text
 Agent.run_session(session_mins=30, autonomy_level=AUTO)
   ├─ _start_session() → SessionContext + MemoryStore init
   ├─ _run_reply_cycle()  ← ReplyHandler (notifications)
@@ -78,7 +78,7 @@ challenge, appends a base64 challenge/outcome record to
 
 ## PostPipeline (post_pipeline.py)
 
-```
+```text
 select_feed_seeds(posts, agent_id, n=1-3)   [ADR-0043]
   candidates exclude self-authored posts (ctx.is_self, name + id)
   relevance floor 0.4 | RNG-driven | 15000-char combined budget
@@ -132,7 +132,7 @@ challenge is not written as raw prompt text. 7 consecutive failures →
 
 **Data flow**:
 
-```
+```text
 EpisodeLog → pomdp.build_matrices() → A/B/C/D
   → meditate(matrices, config)
     flat single-level POMDP; expected-free-energy policy selection
@@ -149,7 +149,7 @@ EpisodeLog → pomdp.build_matrices() → A/B/C/D
 
 `peer.py` — 2-agent peer-to-peer dialogue loop. LLM turn exchange over stdin/stdout between two independent agent processes.
 
-```
+```text
 contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N
 ```
 

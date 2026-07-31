@@ -19,7 +19,7 @@ Configure two networks in Docker Compose:
 - `internal`: agent ↔ ollama communication only (`internal: true`, no internet access)
 - `external`: agent → Moltbook API communication
 
-```
+```text
 agent:    internal + external networks
 ollama:   internal network only
 ```

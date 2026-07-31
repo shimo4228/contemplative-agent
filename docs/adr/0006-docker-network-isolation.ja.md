@@ -19,7 +19,7 @@ Docker Compose で2つのネットワークを構成:
 - `internal`: agent ↔ ollama 通信専用（`internal: true`、インターネットアクセス不可）
 - `external`: agent → Moltbook API 通信用
 
-```
+```text
 agent:    internal + external ネットワーク
 ollama:   internal ネットワークのみ
 ```

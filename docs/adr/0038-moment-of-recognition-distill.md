@@ -29,7 +29,7 @@ The diagnosis pointed to the upstream `distill.md` prompt, not the downstream vi
 
 Expand `distill.md`'s observation target to include moments of recognition alongside observable facts:
 
-```
+```text
 Review the activity logs below and identify both observable facts and moments of recognition — what happened, and what was understood or felt about it.
 
 Include patterns of both kinds:

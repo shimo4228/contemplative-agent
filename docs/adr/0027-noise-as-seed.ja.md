@@ -24,7 +24,7 @@ ADR-0026 で binary gate が完成した: `core/distill.py` の `_classify_episo
 
 本 ADR のスコープを詰める過程で、もう 1 つ重要な観察が浮上した。以前のプラン素案 (`~/.claude/plans/wondrous-gliding-feigenbaum.md`) は Phase 1 schema として `{noise_sim, const_sim, view_centroids_hash, ...}` を、Phase 3 式として `salience = 1 - max(noise_sim, const_sim, *view_sims)` を提案していた。両方とも `const_sim` を `noise_sim` と並ぶ特別な軸として扱っている。この非対称性は ADR-0026 以前の 3 値 classify (`noise` / `constitutional` / `uncategorized`) の残滓であり、当時は constitutional 軸が first-class な state field だった。ADR-0026 後にはこの非対称性に根拠がない: `constitutional` は多数ある view のうちの 1 つに過ぎず、`_classify_episodes` レイヤで特権的な地位は持たない。正しい定式化は全 view を統一的に扱う:
 
-```
+```text
 salience(episode) = 1 - max(cosine(episode, centroid(v)) for v in all_views)
 ```
 
@@ -81,7 +81,7 @@ binary `noise_sim >= NOISE_THRESHOLD` を、salience 分布の両側に対する
 
 各 episode について全ベクトルを計算:
 
-```
+```text
 salience = 1 - max(cosine(episode, centroid(v)) for v in all_views)
 ```
 

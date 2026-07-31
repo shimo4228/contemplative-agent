@@ -71,7 +71,7 @@ For the `adopt-staged` branch, the current file is read **before** `write_restri
 
 Patterned after `_handle_migrate_patterns` (ADR-0021):
 
-```
+```bash
 contemplative-agent migrate-identity              # run migration
 contemplative-agent migrate-identity --dry-run    # preview only
 ```

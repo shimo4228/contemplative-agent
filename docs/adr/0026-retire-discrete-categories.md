@@ -119,7 +119,7 @@ Each phase is independently revertable:
 
 `drop_category_field` is idempotent. Running it twice on a legacy file produces the same result. Running it on a Phase-3 file with no `category` fields is a no-op. The CLI reports "already migrated" in that case.
 
-```
+```bash
 contemplative-agent migrate-categories --dry-run   # count only
 contemplative-agent migrate-categories             # actually migrate
 ```

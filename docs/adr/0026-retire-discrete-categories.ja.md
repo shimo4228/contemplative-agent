@@ -119,7 +119,7 @@ pattern-level の `category` フィールドを 3 段階の Phase で段階的�
 
 `drop_category_field` は冪等。legacy ファイルで 2 回実行しても同じ結果。`category` フィールドなしの Phase-3 ファイルで実行すると no-op。CLI はその場合「already migrated」を報告する。
 
-```
+```bash
 contemplative-agent migrate-categories --dry-run   # 件数のみ
 contemplative-agent migrate-categories             # 実際に移行
 ```

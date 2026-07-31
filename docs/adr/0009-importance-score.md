@@ -45,7 +45,7 @@ Introduce an importance score for KnowledgeStore patterns and change prompt inje
 
 ### Time Decay (lazy)
 
-```
+```text
 effective_importance = importance * (0.95 ^ days_since_distilled)
 ```
 

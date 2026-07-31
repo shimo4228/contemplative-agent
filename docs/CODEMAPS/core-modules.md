@@ -134,7 +134,7 @@ All output passes `_sanitize_output()`. All external inputs → `wrap_untrusted_
 
 `ViewRegistry` seed files under `~/.config/moltbook/views/` (user) or `config/views/` (packaged fallback):
 
-```
+```yaml
 ---
 threshold: 0.55
 top_k: 50

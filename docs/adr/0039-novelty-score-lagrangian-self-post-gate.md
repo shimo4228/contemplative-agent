@@ -34,7 +34,7 @@ Replace `is_duplicate_title`'s boolean Jaccard gate at the post pipeline with a 
 
 Let `c` be the candidate draft, `H` the recent self-post history (≤50 records). For each `p ∈ H` with age `Δt_days(p)`:
 
-```
+```text
 sim_decayed(c, p) = cos_sim(emb(c), emb(p)) · exp(-Δt_days(p) / τ)
 novelty(c)        = 1.0 - max_{p ∈ H} sim_decayed(c, p)
 deficit           = max(0.0, target_rate - actual_7d_rate)

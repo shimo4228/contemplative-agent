@@ -22,7 +22,7 @@ Automated security scan of the Contemplative Agent (CA) codebase using three ind
 
 ## pip-audit: Dependency Vulnerabilities
 
-```
+```text
 No known vulnerabilities found
 ```
 

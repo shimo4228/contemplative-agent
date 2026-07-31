@@ -16,7 +16,7 @@ Prompt templates, behavior rules, and domain configuration were intermixed. The 
 
 Split `config/` into three role-based directories:
 
-```
+```text
 config/prompts/        ← "Do this task" (LLM task instruction templates, 13 files)
 config/rules/          ← "Behave this way" (behavior principles & content)
   contemplative/       ←   CCAI axiom preset

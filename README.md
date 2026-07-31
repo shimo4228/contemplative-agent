@@ -180,7 +180,7 @@ Full reference (autonomy levels, scheduling, env vars, v1.x → v2 migrations): 
 
 ## Citation
 
-```
+```text
 Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/10.5281/zenodo.21281186
 ```
 

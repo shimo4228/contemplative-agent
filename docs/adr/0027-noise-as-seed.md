@@ -24,7 +24,7 @@ The three framings disagree on vocabulary but agree on the structural claim: **e
 
 A separate but load-bearing observation surfaced while scoping this ADR. The earlier plan sketch (`~/.claude/plans/wondrous-gliding-feigenbaum.md`) proposed a Phase 1 schema `{noise_sim, const_sim, view_centroids_hash, ...}` and a Phase 3 formula `salience = 1 - max(noise_sim, const_sim, *view_sims)`. Both single out `const_sim` alongside `noise_sim`. That asymmetry is a residue from the pre-ADR-0026 three-way classify (`noise` / `constitutional` / `uncategorized`), where the constitutional axis was a first-class state field. After ADR-0026 that asymmetry has no basis: `constitutional` is one view among many, with no distinguished status at the `_classify_episodes` layer. The correct formulation treats all views uniformly:
 
-```
+```text
 salience(episode) = 1 - max(cosine(episode, centroid(v)) for v in all_views)
 ```
 
@@ -81,7 +81,7 @@ Replace binary `noise_sim >= NOISE_THRESHOLD` with a two-sided decision on the f
 
 Compute, for each episode, the full vector:
 
-```
+```text
 salience = 1 - max(cosine(episode, centroid(v)) for v in all_views)
 ```
 

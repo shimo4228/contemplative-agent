@@ -28,7 +28,7 @@ Extend the pattern dict in `knowledge.json` with nine optional fields, grouped b
 
 ### Provenance (IV-7)
 
-```
+```text
 provenance: {
     source_type: "self_reflection" | "external_reply" | "mixed" | "unknown"
     source_episode_ids: List[str]   # up to K most representative
@@ -57,7 +57,7 @@ The score is adjusted by: `+0.05` when a downstream approval gate (identity / sk
 
 ### Bitemporal (IV-2)
 
-```
+```text
 valid_from: str                      # ISO8601; initial = distilled timestamp
 valid_until: str | None              # None = current truth; ISO8601 when superseded
 ```
@@ -66,7 +66,7 @@ valid_until: str | None              # None = current truth; ISO8601 when supers
 
 ### Forgetting (IV-3)
 
-```
+```text
 last_accessed_at: str                # ISO8601
 access_count: int                    # retrievals that selected this pattern
 strength: float                      # e^(−Δt / S), S = f(importance, access_count)
@@ -74,7 +74,7 @@ strength: float                      # e^(−Δt / S), S = f(importance, access_
 
 `strength` is computed lazily on retrieval using MemoryBank's formula:
 
-```
+```text
 Δt = hours since last_accessed_at
 S  = BASE_S * (1 + log1p(access_count)) * (0.5 + importance)
 strength = exp(−Δt / S)
@@ -86,7 +86,7 @@ Retrieval excludes patterns with `strength < STRENGTH_FLOOR (0.05)` — soft-arc
 
 ### Feedback (IV-10)
 
-```
+```text
 success_count: int                   # post-action signals of "this helped"
 failure_count: int                   # "this caused a regression"
 ```
@@ -97,7 +97,7 @@ Populated asynchronously by a new `feedback.py` post-action updater that reads e
 
 `views.py` `_rank` is extended:
 
-```
+```text
 score = cosine_sim(seed_emb, pattern_emb)
       * trust_score
       * strength

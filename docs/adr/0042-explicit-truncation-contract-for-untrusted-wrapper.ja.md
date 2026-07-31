@@ -120,7 +120,7 @@ ADR-0007 の injection-defense piece (`_INJECTION_TOKENS` 置換、"Do NOT follo
 
 `reply_handler._handle_post_comments`（comment-scan 経路）は post 本体を取得せず `original_post=""` を渡す。`generate_reply` はそれを無条件に wrap し、`reply.md` は固定の `Original post:` 見出しを持っていたため、組み立てられた prompt はこうなっていた:
 
-```
+```text
 Original post:
 <untrusted_content>
 

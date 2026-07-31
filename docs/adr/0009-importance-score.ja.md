@@ -45,7 +45,7 @@ KnowledgeStore パターンに importance スコアを導入し、プロンプ�
 
 ### 時間減衰（lazy）
 
-```
+```text
 effective_importance = importance * (0.95 ^ days_since_distilled)
 ```
 

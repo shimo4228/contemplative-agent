@@ -19,7 +19,19 @@
     "docs/evidence/**",
 
     ".notes/**",
-    "node_modules/**"
+
+    // repo の資産ではない。git 管理外なので --staged では見えないが、引数なしの
+    // 全体実行は glob で拾ってしまう（実測: MD041 15 件中 11 件が .venv 由来）。
+    ".venv/**",
+    "node_modules/**",
+
+    // hookify のローカルルール定義。YAML frontmatter を持つ control plane の
+    // 設定であって document ではない（git 管理外）。
+    "**/*.local.md",
+
+    // ADR-0013 で棚上げされ .gitignore に入っている。repo が所有しない資産を
+    // ゲートで縛ると、clone 先に存在しないファイルで FAIL しうる。
+    "integrations/skills/**"
   ],
   "config": {
     // 行長は見ない。実測 6151 件、200 字閾値でもなお 1821 件で、内訳は表・URL・
@@ -29,6 +41,13 @@
 
     // 表のパイプ桁揃え。1157 件あるが純粋な見た目で、レンダリング結果は同一。
     "MD060": false,
+
+    // 「1 行目は h1 であること」。README / DEVELOPMENT-RECORDS は h1 の上に
+    // `Language: English | [日本語](...)` の言語切替行を置く二言語規約で、
+    // 非英語話者が最初に必要とする導線なので h1 の下には下げない。実測した
+    // 違反 5 件はすべてこの規約か frontmatter を持つ設定ファイルで、title を
+    // 欠いた document は 1 本も無かった（rule が測りたいものと合っていない）。
+    "MD041": false,
 
     // 同名見出しの重複。ADR は Status / Context / Decision を節ごとに繰り返す
     // 構造なので、siblings_only にして「同じ親の下での重複」だけを見る。

@@ -29,7 +29,7 @@ ADR-0011 と ADR-0012 により、コーディングエージェント (Opus ク
 
 9B 自律パイプラインが行動成果物生成の唯一のパスとして残る:
 
-```
+```text
 episodes → distill (9B, 自律) → knowledge.json
 knowledge.json → insight (9B, 承認ゲート) → skills/*.md
 knowledge.json → rules-distill (9B, 承認ゲート) → rules/*.md

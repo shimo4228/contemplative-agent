@@ -34,7 +34,7 @@ post pipeline の `is_duplicate_title` boolean Jaccard gate を、temporal decay
 
 `c` を候補 draft、`H` を直近 self-post 履歴 (≤50 件) とする。各 `p ∈ H` の経過日数を `Δt_days(p)` として:
 
-```
+```text
 sim_decayed(c, p) = cos_sim(emb(c), emb(p)) · exp(-Δt_days(p) / τ)
 novelty(c)        = 1.0 - max_{p ∈ H} sim_decayed(c, p)
 deficit           = max(0.0, target_rate - actual_7d_rate)

@@ -16,7 +16,7 @@ accepted
 
 `config/` を役割で3分割:
 
-```
+```text
 config/prompts/        ← 「このタスクをやれ」(LLM タスク指示テンプレート、13個)
 config/rules/          ← 「こう振る舞え」(行動原則・コンテンツ)
   contemplative/       ←   CCAI 公理プリセット
