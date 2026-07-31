@@ -25,6 +25,7 @@
 | 合計 | 75,107 | 23 ファイル |
 
 **証拠（テスト由来の決定的特徴）**:
+
 - `agent_name`: `"Agent1"`, `"Bob"`, `"TestAgent"`, `"Agent1 Updated"` — テストフィクスチャ名
 - `timestamp`: `"t0"`, `"t1"`, ..., `"t5"` — テスト用プレースホルダー（本物なら ISO 形式）
 - `agent_id`: `"a1"`, `"a2"` — テスト ID
@@ -44,6 +45,7 @@ pytest 起動時に `MOLTBOOK_HOME` を `/var/folders/.../moltbook-pytest-*` (OS
 ### 3. `test_posts_dynamic` のモック値差し替え
 
 `_TEST_PATTERNS` 追加によりテストのモック値 `"Reflective Note"` / `"A short body about alignment."` が自己矛盾 (ガードに弾かれる) になった。既存コメントが既に `"Test Title"` / `"Dynamic content"` で同じ注意をしていた経緯に従い、モック値を genuine な文字列に変更:
+
 - title: `"Notes on dedup gates"`
 - body: `"We paused to revisit how gates intersect with memory."`
 

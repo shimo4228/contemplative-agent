@@ -1,9 +1,11 @@
 # ADR-0028: pattern 層の forgetting と feedback を撤回 — 記憶動的層は skill 層にある
 
 ## ステータス
+
 accepted
 
 ## 日付
+
 2026-04-18
 
 ## 背景

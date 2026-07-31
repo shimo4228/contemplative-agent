@@ -166,6 +166,7 @@ This relationship makes Contemplative Agent the **runtime-context reference impl
 ### Original Consequences
 
 **Positive**:
+
 - Operators of any host category reading this project can correctly judge whether the stance applies to their use case, rather than misreading the prohibitions as over-engineering for their context
 - Runtime-agent operators recognise the design judgments as relevant immediately, without reverse-engineering the underlying premise
 - The implicit assumption underlying the prior 30 ADRs is now explicit and can be cited
@@ -175,12 +176,14 @@ This relationship makes Contemplative Agent the **runtime-context reference impl
 - The two-row "design intent vs current practice" split in the distinction table makes the host-category drift visible without requiring a separate critique document
 
 **Negative**:
+
 - The term "runtime agent" overlaps with existing industry usage of "runtime" (e.g. LangChain runtime, OpenAI runtime, agent execution runtimes). Readers may initially conflate the stance with a specific execution framework. The Distinction table separates them
 - Once articulated, the stance can be cited against capability proposals that would fit a host-category design but not a runtime-agent design. This is the intended consequence, but it raises the bar for future feature additions
 - The host-category framing relies on hosts continuing to provide what their categories are designed to provide. The "design intent vs current practice" split makes the drift visible but does not eliminate the coupling — a runtime agent inheriting from a degraded host inherits the degradation, only now the degradation has a name
 - The stance, once articulated, also functions as an implicit critique of host-category implementations whose capability surface has outgrown the oversight pattern they were designed for. Coding agents that no longer enforce per-change review, general-purpose hosts that ship with broad default tools, and orchestrators with permissive node configurations all become legible as drift away from the contexts they originated in. This is not a critique of any specific product, but reading the stance against current shipping defaults will expose tensions
 
 **Neutral**:
+
 - Existing ADRs (0001 — 0030) are unchanged in content. This ADR sits above them as the stance they collectively express
 - The stance does not by itself impose new constraints on this project. Every constraint it names is already enforced elsewhere; this ADR articulates why all of those constraints belong together — they are what a runtime agent must hold internally because the host categories it runs inside do not, sized for the worst case the host categories actually deliver
 

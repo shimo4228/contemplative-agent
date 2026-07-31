@@ -1,9 +1,11 @@
 # ADR-0010: 研究データ同期
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-03-25
 
 ## Context

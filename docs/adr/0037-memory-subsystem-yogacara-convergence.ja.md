@@ -1,9 +1,11 @@
 # ADR-0037: メモリ subsystem は唯識フレームに収束した — 論文借用機構の退役
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-05-05
 
 ## Context

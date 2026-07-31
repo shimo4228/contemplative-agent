@@ -46,12 +46,14 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 All frozen (immutable) with type hints.
 
 **core/memory.py** — Domain models:
+
 ```python
 Interaction(timestamp, agent_id, agent_name, type, direction)
 PostRecord(timestamp, post_id, title, topic)
 ```
 
 **ADR-0012 Result types** — generated results; file writing done by cli/ (approval.py / adopt.py) after approval:
+
 ```python
 AmendmentResult(text, target_path, marker_dir, pattern_ids, epistemic_counts)  # constitution.py
 IdentityResult(text, target_path, pattern_ids, epistemic_counts)               # distill.py
@@ -66,15 +68,18 @@ ADR-0050: `pattern_ids` = content-hash ids of input patterns; `epistemic_counts`
 ## EpisodeLog Schema (JSONL)
 
 Daily log at `logs/YYYY-MM-DD.jsonl`. Each record:
+
 ```json
 {"type": "post|comment|interaction|action|insight|session", "ts": "...", ...}
 ```
+
 `record_type` filter: `EpisodeLog.read_range(days=3, record_type="interaction")`.
 Embedding sidecar (`embeddings.sqlite`, ADR-0019) indexes episode summaries.
 
 ## KnowledgeStore Schema (JSON)
 
 File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0056):
+
 ```json
 {
   "pattern": "…",
@@ -90,6 +95,7 @@ File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0056):
 ```
 
 **Invariants**:
+
 - `valid_until=null` means live; superseded rows keep their timestamp (bitemporal soft-invalidate).
 - `effective_importance = 0.95^days_since_distilled` (or `0.1` for an unknown timestamp) — pure time decay; the distill-time LLM `importance` rating was retired by ADR-0056, so the stored base is no longer read.
 - `gated` is behavioural (insight clustering skips gated rows); no per-pattern view telemetry is persisted (`last_classified_at` / `last_view_matches` never existed in code — removed from this doc 2026-07-03).
@@ -113,6 +119,7 @@ File: `~/.config/moltbook/knowledge.json`. Each pattern (post-ADR-0056):
 **Configuration**: `configure(identity_path, ollama_url, axiom_prompt, model, backend=None)`
 
 **LLMBackend Protocol** (`runtime_checkable`):
+
 ```python
 class LLMBackend(Protocol):
     def generate(self, prompt: str, system: str, num_predict: int,
@@ -126,6 +133,7 @@ All output passes `_sanitize_output()`. All external inputs → `wrap_untrusted_
 ## Views Mechanism (ADR-0019)
 
 `ViewRegistry` seed files under `~/.config/moltbook/views/` (user) or `config/views/` (packaged fallback):
+
 ```
 ---
 threshold: 0.55

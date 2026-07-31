@@ -1,9 +1,11 @@
 # ADR-0042: `wrap_untrusted_content` の truncation を明示的契約に変える
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-05-20
 
 ## Context

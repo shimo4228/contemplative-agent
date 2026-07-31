@@ -1,9 +1,11 @@
 # ADR-0035: ADR-0019 移行 CLI のサンセットと artifact 抽出の統合
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-05-05
 
 ## Context

@@ -1,9 +1,11 @@
 # ADR-0030: Identity Block 分離と History 配線の撤回 — Single Responsibility
 
 ## Status
+
 accepted — ADR-0024 と ADR-0025 を supersede
 
 ## Date
+
 2026-04-18
 
 ## Context
@@ -57,6 +59,7 @@ disk 上の `~/.config/moltbook/identity.md` は手を付けない — 既に復
 ## Consequences
 
 **Positive**:
+
 - ~1000 LOC の dead scaffolding 削除 (実装 + テスト)
 - 内部 issue tracker から永続 TODO 2 件 (D3, D4) が消える
 - `identity.md` は本来の役割に戻る: 1 ファイル、1 責務。新しい kind の state はそのセマンティクスに合う層 (新 view、新 skill、新 rule、新 episode schema) に配置される — identity に sub-address を切って押し込まれない
@@ -64,10 +67,12 @@ disk 上の `~/.config/moltbook/identity.md` は手を付けない — 既に復
 - `prompt-model-match` 制約 (memory) — 将来追加される block ごとのプロンプトを `qwen3.5:9b` 自身に書かせなければならない拘束 — が、ユーザーのいない作業ラインのブロッカーとして機能しなくなる
 
 **Negative**:
+
 - 後から identity.md 内に addressable な sub-structure が必要になるケースが出たら、土台を作り直す必要がある。再実装コストは 2 日程度; 現状の土台を残し続けるコストは、以後すべてのアーキテクチャレビューで背負い続ける。トレードオフは撤回側に倒れる
 - ADR-0024 の参考文献 (Letta, A-Mem, Memento) は撤回後も bibliography に残る。それらのシステムは意図的に identity 隣接 block に state を pack する設計; このプロジェクトは採らなかった。将来の読者が「何が検討され、なぜ採用されなかったか」を見られるように残す
 
 **Neutral**:
+
 - ADR-0019 (embedding + views) と ADR-0020 (snapshots) は無関係。`self_reflection` view は今後も `distill_identity` にパターンを流す; 変わるのは disk 上の write-back 形式のみ
 - ADR-0026 (カテゴリ廃止) と ADR-0027 (noise as seed) は block 形式 identity に機能依存していないので影響なし
 

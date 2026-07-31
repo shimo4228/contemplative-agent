@@ -1,9 +1,11 @@
 # ADR-0037: Memory Subsystem Converges to the Yogācāra Frame; Paper-Borrowed Mechanisms Retired
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-05-05
 
 ## Context

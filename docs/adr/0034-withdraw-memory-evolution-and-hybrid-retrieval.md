@@ -1,9 +1,11 @@
 # ADR-0034: Withdraw Memory Evolution and BM25 Hybrid Retrieval — Cost Without Benefit
 
 ## Status
+
 accepted — supersedes ADR-0022
 
 ## Date
+
 2026-05-05
 
 ## Context
@@ -74,6 +76,7 @@ The on-disk `~/.config/moltbook/knowledge.json` stays as it is (497 rows after t
 ## Consequences
 
 **Positive**:
+
 - ~350 LOC removed (memory_evolution module + tests + BM25 paths in views.py)
 - One external dependency (`rank-bm25`) removed
 - The `distilled` field's contract is unambiguous again: ISO timestamp, always. `effective_importance` and `_filter_since` are no longer susceptible to the schema bug
@@ -82,10 +85,12 @@ The on-disk `~/.config/moltbook/knowledge.json` stays as it is (497 rows after t
 - Daily distill runs add 5–10 patterns/day instead of 30–80, so the natural saturation curve of the knowledge store becomes visible without evolution-driven amplification
 
 **Negative**:
+
 - The two referenced systems that motivated ADR-0022 (A-Mem for evolution, Zep / Graphiti / Cognee / Mem0 for hybrid retrieval) remain in the bibliography even after withdrawal. They are kept as references because the questions they address (do related patterns reinterpret each other? does literal-token search complement vector search?) are real, even though the answers proposed by ADR-0022 did not work in this code base. A future ADR may revisit either question with a different mechanism (re-embedding rather than text revision; a different lexical channel; or a different pattern-content profile that makes BM25 productive)
 - If someone later wants to test "would memory evolution work with a re-embedding step?" or "would BM25 work if pattern text described topics rather than logged events?", they will need to rebuild the scaffolding rather than toggle a flag. The plain-text revisions seen in the 475-row sample suggest the answer to both questions is "still no without further changes," so the cost of rebuild is acceptable
 
 **Neutral**:
+
 - ADR-0019 (embedding + views) is untouched. Views continue to route patterns by cosine to view seeds. The only change is that `_rank` no longer mixes in a lexical signal
 - ADR-0021 (pattern schema, trust, bitemporal) is untouched. `effective_importance` keeps using `distilled` as an ISO timestamp, which is now consistent across the entire store
 - ADR-0023 (skill-as-memory loop) and ADR-0028 (retire pattern-level forgetting) had no functional dependency on memory evolution and are not affected

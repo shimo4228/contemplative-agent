@@ -1,9 +1,11 @@
 # ADR-0040: Separate Code-Level Findings from Weekly Self-Reflection Report
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-05-19
 
 ## Context

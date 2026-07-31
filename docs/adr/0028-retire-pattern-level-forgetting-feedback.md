@@ -1,9 +1,11 @@
 # ADR-0028: Retire Pattern-Level Forgetting and Feedback — Memory Dynamics Belong to the Skill Layer
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-04-18
 
 ## Context
@@ -21,13 +23,13 @@ Post-landing audit ([evidence/adr-0021/implementation-audit-20260418.md](../evid
 
 Investigation revealed two overlapping reasons:
 
-### 1. The retrieval model the design assumes does not exist in this agent.
+### 1. The retrieval model the design assumes does not exist in this agent
 
 ADR-0021's forgetting/feedback loop assumes patterns are retrieved on every action turn, so access counts and outcome attribution can accumulate. In contemplative-moltbook, patterns are only touched in **batch pipelines** (`distill`, `insight`, `amend-constitution`, `distill-identity`) — not in the agent's hot path. The reply/post live loop reads from `memory.episodes` and `constitution`, not from `knowledge.json` patterns. Only two call sites of `ViewRegistry.find_by_view` exist in the entire codebase (`distill.py:226` inside `distill_identity`; `constitution.py:75` inside `amend_constitution`), both gated behind rarely-run CLI subcommands.
 
 Since retrieval frequency is the unit of forgetting and action attribution is the unit of feedback, **this agent has neither in the pattern layer**.
 
-### 2. The correct layer for memory dynamics is already armed by ADR-0023.
+### 2. The correct layer for memory dynamics is already armed by ADR-0023
 
 ADR-0023 (Skill-as-Memory Loop) landed on 2026-04-16 alongside ADR-0021. The skill layer — where `skill_router` selects a skill per action and logs outcomes to `skill-usage-YYYY-MM-DD.jsonl` — is exactly the **per-turn retrieval loop** that ADR-0021's design assumed. Skills are the live memory unit; patterns are upstream raw material distilled from episodes.
 
@@ -39,7 +41,7 @@ ADR-0023 (Skill-as-Memory Loop) landed on 2026-04-16 alongside ADR-0021. The ski
 
 The pattern-layer and skill-layer fields duplicate the same concept. The pattern layer's implementation is dormant; the skill layer's is live. Keeping both invites drift and misleads maintainers.
 
-### 3. ADR-0021 itself admitted this dependency but never closed the loop.
+### 3. ADR-0021 itself admitted this dependency but never closed the loop
 
 ADR-0021 L90 notes: *"Populated asynchronously by a new feedback.py post-action updater... attribution requires ADR-0023 skill router log, so updater is stub-only in this ADR."* ADR-0023 shipped skill-level feedback, not pattern-level attribution. The step that would have linked outcome → skill → pattern(s) — tracking which patterns generated which skills inside `insight` — was never built. The gap between stub and live has remained.
 

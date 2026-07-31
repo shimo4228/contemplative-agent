@@ -1,9 +1,11 @@
 # ADR-0016: insight = narrow generator / skill-stocktake = broad consolidator
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-04-11
 
 ## Context
@@ -15,6 +17,7 @@ insight パイプラインには、それぞれ別の品質問題を解こうと
 3. **Rarity スコアリング** (`_score_rarity_existing`, `_score_rarity_batch`, `DISTILL_RARITY_PROMPT`): LLM で新規性を数値化し、`importance * rarity` のソート tiebreaker として使用
 
 2026-04-11 の実測 (214 パターン):
+
 - 7 subcat バッチ → 22 スキル抽出
 - ユーザー選別で 6/22 採用 (選別率 27%)
 - 選別所感: 「22 スキルはほぼ同内容」— Emptiness 公理が「30 パターンを 1 スキルに凝縮する」プロセスで具体性を溶解している

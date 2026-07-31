@@ -1,9 +1,11 @@
 # ADR-0011: Knowledge 直接注入の廃止 — Skills 経由への移行
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-03-26
 
 ## Context
@@ -19,6 +21,7 @@ accepted
 5. **トークンコスト**: 50パターン × 100-200 tokens = 5000-10000 tokens がプロンプトに無差別追加
 
 一方、既存の `insight` コマンドは knowledge から skills/*.md を抽出し、LLM のシステムプロンプトに注入している。skills は:
+
 - 人間が読める Markdown
 - `--dry-run` で事前確認可能
 - 直接編集可能
@@ -61,6 +64,7 @@ Knowledge は蒸留パイプラインの中間成果物として保持するが�
 ## Consequences
 
 **良い結果**:
+
 - エージェントの行動変化が全て人間の確認を経由する（Human in the loop）
 - 変更の追跡が可能（git diff で skills の変化を確認）
 - AKC の設計思想と完全に整合
@@ -68,6 +72,7 @@ Knowledge は蒸留パイプラインの中間成果物として保持するが�
 - README の "with minimal, purposeful human oversight" と一貫
 
 **注意が必要**:
+
 - insight の実行頻度を上げる必要がある（現在は手動のみ）
 - skills のカバレッジが十分か継続的に検証が必要
 - knowledge → skills の変換精度（insight の品質）が行動品質のボトルネックになりうる

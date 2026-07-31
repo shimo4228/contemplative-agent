@@ -1,9 +1,11 @@
 # ADR-0022: Memory Evolution + Hybrid Retrieval
 
 ## Status
+
 withdrawn (by [ADR-0034](0034-withdraw-memory-evolution-and-hybrid-retrieval.md) on 2026-05-05)
 
 ## Date
+
 2026-04-16
 
 ## Context

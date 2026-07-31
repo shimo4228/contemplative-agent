@@ -1,9 +1,11 @@
 # ADR-0011: Deprecating Direct Knowledge Injection — Migration to Skills
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-03-26
 
 ## Context
@@ -19,6 +21,7 @@ Problems:
 5. **Token cost**: 50 patterns × 100–200 tokens = 5,000–10,000 tokens added indiscriminately to the prompt
 
 Meanwhile, the existing `insight` command extracts skills/*.md from knowledge and injects them into the LLM system prompt. Skills are:
+
 - Human-readable Markdown
 - Previewable via `--dry-run`
 - Directly editable
@@ -61,6 +64,7 @@ Knowledge is retained as an intermediate artifact of the distillation pipeline b
 ## Consequences
 
 **Positive outcomes**:
+
 - All agent behavior changes pass through human review (human in the loop)
 - Changes are trackable (verify skills changes via git diff)
 - Fully aligned with AKC design philosophy
@@ -68,6 +72,7 @@ Knowledge is retained as an intermediate artifact of the distillation pipeline b
 - Consistent with the README's "with minimal, purposeful human oversight"
 
 **Requires attention**:
+
 - Insight execution frequency needs to increase (currently manual only)
 - Continuous verification that skills coverage is sufficient
 - Knowledge → skills conversion accuracy (insight quality) may become a bottleneck for behavior quality

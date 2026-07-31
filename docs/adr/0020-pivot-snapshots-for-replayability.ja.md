@@ -1,9 +1,11 @@
 # ADR-0020: Pivot スナップショットで再現可能性を確保
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-04-16
 
 ## Context

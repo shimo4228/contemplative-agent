@@ -1,9 +1,11 @@
 # ADR-0010: Research Data Sync
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-03-25
 
 ## Context

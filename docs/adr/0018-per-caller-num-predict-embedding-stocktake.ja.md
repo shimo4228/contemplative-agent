@@ -1,9 +1,11 @@
 # ADR-0018: Per-Caller num_predict + Embedding-Only Stocktake
 
 ## Status
+
 accepted (2026-05-04 amended — 末尾の Amendment セクション参照)
 
 ## Date
+
 2026-04-15
 
 ## Context
@@ -42,6 +44,7 @@ def generate(
 `None` 時は 8192 にフォールバック (後方互換)。`num_ctx` はグローバルに 32768 維持 — system prompt が 13K トークンある以上下げられないし、下げれば silent prefix truncation が再発する。
 
 18 箇所の caller を calibrated な値に移行:
+
 - 20 (classify)
 - 30-100 (relevance / submolt / title / summary / novelty)
 - 250-600 (comment / reply / post / extract_topics)

@@ -1,9 +1,11 @@
 # ADR-0036: Sunset Skill-as-Memory Loop — Retire Router, Usage Log, and Reflect
 
 ## Status
+
 accepted — supersedes ADR-0023
 
 ## Date
+
 2026-05-05
 
 ## Context

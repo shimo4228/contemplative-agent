@@ -1,9 +1,11 @@
 # ADR-0054: Externalize LLM Instruction Text to `config/prompts/` with a Hardcoded Fallback for the Injection Boundary
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-06-09
 
 ## Context
@@ -35,28 +37,35 @@ The change is **behavior-preserving**: the externalized text is byte-identical t
 ## Alternatives Considered
 
 ### 1. Keep the injection text in code; externalize only the non-security strings
+
 Rejected. The untrusted wrapper is the most valuable observability target (it shapes how every external input is framed). Leaving it in code makes the value-layer observation only partially clean.
 
 ### 2. Externalize the wrapper like any other prompt, with no special fallback
+
 Rejected. A missing or gutted `untrusted_wrapper.md` — or a tampered `$MOLTBOOK_HOME/prompts/` home override that passes the credential-only validator — would silently drop the injection defense. The fallback makes the defense un-removable through the prompt path.
 
 ### 3. Externalize `_INJECTION_TOKENS` too
+
 Rejected. The tokens are a transform applied to input, not LLM-read instruction text; externalizing them yields no observability benefit and fragments the defense across code + config.
 
 ## Consequences
 
 ### Positive
+
 - All LLM-read instruction text is observable and editable in the prompt layer; the value-layer observation is no longer muddied by instructions hidden in code.
 - The injection defense provably survives a missing, empty, gutted, or malformed-placeholder template, and a tampered home override — verified by golden + fallback tests (`tests/test_llm.py`, plus stocktake/dialogue fallback tests). A security review confirmed the boundary is intact and that `.format(body=...)` introduces no injection vector (the body is a substituted value, never re-parsed).
 - Behavior is byte-identical on every path (golden tests).
 
 ### Negative
+
 - Slight indirection: the wrapper text is loaded + validated rather than inline. The three extra files for the wrapper are the cost of full marker observability.
 
 ### Convention
+
 A one-line rule in CLAUDE.md「開発原則」points here: **LLM-read instruction text goes to `config/prompts/`, not code; sanitization transforms stay in code.** This is the actionable form; this ADR is the rationale home.
 
 ## References
+
 - [ADR-0003](0003-config-directory-design.md) — Precedent. Established `config/prompts/` for LLM task instructions; this ADR extends it to the last hardcoded strings.
 - [ADR-0007](0007-security-boundary-model.md) — Refines. Preserves the injection-defense guarantees of `wrap_untrusted_content`.
 - [ADR-0042](0042-explicit-truncation-contract-for-untrusted-wrapper.md) — Refines. The wrapper text moved by this ADR is the text ADR-0042 last shaped; the load-bearing pieces it identifies are preserved and now protected by a code fallback.

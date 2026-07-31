@@ -1,9 +1,11 @@
 # ADR-0019: 離散カテゴリの廃止 → embedding + views
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-04-15
 
 ## Context

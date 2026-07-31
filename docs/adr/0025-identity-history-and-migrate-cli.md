@@ -3,9 +3,11 @@
 > **Superseded by [ADR-0030](0030-withdraw-identity-blocks.md) (2026-04-18).** `identity_history.jsonl` was never written to in the live environment; ADR-0020 snapshots + `audit.jsonl` already cover the auditability surface this ADR was intended to close. Body retained for the historical record.
 
 ## Status
+
 superseded-by 0030
 
 ## Date
+
 2026-04-16
 
 ## Context

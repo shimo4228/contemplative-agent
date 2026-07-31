@@ -1,9 +1,11 @@
 # ADR-0042: Explicit Truncation Contract for `wrap_untrusted_content`
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-05-20
 
 ## Context

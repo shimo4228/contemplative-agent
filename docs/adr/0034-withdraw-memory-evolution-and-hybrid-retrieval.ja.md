@@ -1,9 +1,11 @@
 # ADR-0034: 記憶進化 + BM25 ハイブリッド検索の撤回 — コストに対し効果が見えない
 
 ## Status
+
 accepted — supersedes ADR-0022
 
 ## Date
+
 2026-05-05
 
 ## Context
@@ -76,6 +78,7 @@ ADR-0022 を全体撤回する。IV-4 (memory evolution) と IV-5 (BM25 hybrid r
 ## Consequences
 
 **Positive**:
+
 - ~350 LOC 削除 (memory_evolution module + tests + views.py BM25 path)
 - 外部依存 1 つ (`rank-bm25`) 削除
 - `distilled` field の契約が再び明確: 常に ISO timestamp。`effective_importance` と `_filter_since` が schema bug の影響を受けない
@@ -84,10 +87,12 @@ ADR-0022 を全体撤回する。IV-4 (memory evolution) と IV-5 (BM25 hybrid r
 - daily distill が 5-10 patterns/日 (evolution 暴走なし) になり、knowledge store の自然な飽和曲線が evolution 駆動の増幅なしに観察できる
 
 **Negative**:
+
 - ADR-0022 が動機付けに引いた 2 系統 (memory evolution の A-Mem、hybrid retrieval の Zep / Graphiti / Cognee / Mem0) は撤回後も bibliography に残る。それらが扱う問い (関連 pattern は互いを再解釈するか? literal token 検索は vector 検索を補完するか?) 自体は real だが、ADR-0022 の答えは本 codebase で機能しなかった。将来 ADR が異なる機構で再訪する可能性 (text revision の代わりに re-embedding、別 lexical channel、または BM25 を生産的にする pattern-content profile) はある
 - 後で「re-embedding ステップ込みで memory evolution は機能するか?」「pattern text が log event でなく topic を記述すれば BM25 は効くか?」を試したい場合、flag toggle ではなく scaffold を再構築する必要がある。475 行サンプルから読み取れる plain-text revision の質を踏まえると、両問いの答えは「追加変更なしには依然 No」と推定でき、再構築コストは許容できる
 
 **Neutral**:
+
 - ADR-0019 (embedding + views) は触らない。view は引き続き cosine で view seed に pattern をルーティング。`_rank` が lexical 信号を mix しなくなるだけ
 - ADR-0021 (pattern schema, trust, bitemporal) は触らない。`effective_importance` は引き続き `distilled` を ISO timestamp として使用、ストア全体で一貫
 - ADR-0023 (skill-as-memory loop), ADR-0028 (pattern-level forgetting 撤回) は memory evolution に依存していなかったため影響なし

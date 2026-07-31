@@ -1,9 +1,11 @@
 # ADR-0014: Retiring system-spec.md
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-04-01
 
 ## Context

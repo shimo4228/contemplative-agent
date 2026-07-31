@@ -1,9 +1,11 @@
 # ADR-0027: Noise as Seed — binary gate から salience-based forgetting へ
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-04-16
 
 ## Context

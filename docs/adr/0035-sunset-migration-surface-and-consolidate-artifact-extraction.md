@@ -1,9 +1,11 @@
 # ADR-0035: Sunset ADR-0019 Migration Surface and Consolidate Artifact Extraction
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-05-05
 
 ## Context

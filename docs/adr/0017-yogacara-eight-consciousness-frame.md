@@ -1,9 +1,11 @@
 # ADR-0017: Yogācāra Eight-Consciousness Model as Architectural Frame
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-04-11
 
 ## Context

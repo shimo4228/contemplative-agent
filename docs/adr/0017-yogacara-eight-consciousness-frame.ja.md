@@ -1,9 +1,11 @@
 # ADR-0017: 唯識八識モデルを設計の枠組みとする
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-04-11
 
 ## Context

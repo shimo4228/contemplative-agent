@@ -9,9 +9,11 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 ## Quick Navigation
 
 ### 1. [architecture.md](architecture.md) — System Overview
+
 **Read first.** High-level architecture, system diagram, causal-chain data flows with gates and thresholds.
 
 **Topics**:
+
 - Project type & stats (see [Statistics](#statistics))
 - System diagram (core/ + adapters/moltbook/ + adapters/meditation/ + adapters/dialogue/)
 - Import rules (adapters → core, cli/ is only exception)
@@ -31,9 +33,11 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 ---
 
 ### 2. [moltbook-agent.md](moltbook-agent.md) — Agent Details & API
+
 **Most comprehensive.** Module dependency graph, CLI commands, LLM functions, security boundaries.
 
 **Topics**:
+
 - Full module dependency graph with line counts
 - 20+ key classes
 - CLI commands
@@ -47,9 +51,11 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 ---
 
 ### 3. [core-modules.md](core-modules.md) — Core Layer Deep Dive
+
 **Platform-independent foundation.** The modules providing base functionality.
 
 **Topics**:
+
 - Core modules with LOC and purpose
 - ADR-0012 Result types (with ADR-0050 pattern_ids / epistemic_counts fields)
 - EpisodeLog + KnowledgeStore schemas (post-ADR-0051: no trust_score)
@@ -63,9 +69,11 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 ---
 
 ### 4. [adapters-moltbook.md](adapters-moltbook.md) — Adapter Layer
+
 **Platform-specific implementation.** Moltbook + Meditation + Dialogue.
 
 **Topics**:
+
 - Moltbook adapter modules
 - Session orchestration (AutonomyLevel: APPROVE/GUARDED/AUTO)
 - PostPipeline gate chain (feed_seeder → NoveltyGate → test-content → body-hash)
@@ -77,6 +85,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
 ---
 
 ### 5. [dependencies.md](dependencies.md) — External Dependencies
+
 Package versions, external services, optional add-ons.
 
 **Use when**: Checking versions, auditing dependencies.
@@ -86,16 +95,19 @@ Package versions, external services, optional add-ons.
 ## Key Files by Task
 
 ### Implementing a New Feature
+
 1. [architecture.md](architecture.md) — understand data flow and gates
 2. [moltbook-agent.md](moltbook-agent.md) — module dependency graph
 3. [core-modules.md](core-modules.md) or [adapters-moltbook.md](adapters-moltbook.md)
 
 ### Debugging Session Flow
+
 1. [moltbook-agent.md](moltbook-agent.md) — CLI commands + LLM surface
 2. [adapters-moltbook.md](adapters-moltbook.md) — Session Orchestration
 3. [architecture.md](architecture.md) — Session execution flow
 
 ### Understanding Memory / Distillation
+
 1. [architecture.md](architecture.md) — causal-chain Data Flow (distill/identity/insight sections)
 2. [core-modules.md](core-modules.md) — KnowledgeStore schema + threshold table
 3. [moltbook-agent.md](moltbook-agent.md) — Persistent State Files

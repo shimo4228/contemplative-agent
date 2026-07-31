@@ -1,9 +1,11 @@
 # ADR-0018: Per-Caller num_predict + Embedding-Only Stocktake
 
 ## Status
+
 accepted (amended 2026-05-04 — see Amendment section below)
 
 ## Date
+
 2026-04-15
 
 ## Context

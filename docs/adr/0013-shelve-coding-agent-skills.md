@@ -1,9 +1,11 @@
 # ADR-0013: Shelving Coding Agent Skills (-ca Series)
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-03-28
 
 ## Context
@@ -62,12 +64,14 @@ These observations may generalize to any AI agent self-improvement loop where be
 ## Consequences
 
 **Positive outcomes**:
+
 - Behavioral artifacts (skills, rules, identity, constitution) are generated independently of user conversational context
 - The approval gate returns to its intended role: accept or reject, not co-author
 - Reduced complexity in the integrations layer
 - Clarifies the role boundary: coding agents maintain *code*, the 9B pipeline maintains *behavioral artifacts*
 
 **Requires attention**:
+
 - The 9B model's output quality remains the bottleneck for behavioral artifact quality
 - If the 9B pipeline proves insufficient, the contamination problem must be solved structurally (e.g., async generation with binary-only gate) rather than by re-introducing conversational coding agent skills
 - Shelved skills may be revived if a clean separation between generation and approval is achieved

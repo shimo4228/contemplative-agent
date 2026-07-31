@@ -20,7 +20,7 @@ H4 である。
 observation（insight episode 経由）。蒸留時、`_episode_source_kind`
 （`distill.py:433–441`）は post / insight / activity レコードを `"self"` に分類し、
 `_derive_source_type` が全 self バッチを `self_reflection` に写像、trust map
-（`knowledge_store.py:33–38`）は `self_reflection` に base trust **0.9** —— 
+（`knowledge_store.py:33–38`）は `self_reflection` に base trust **0.9** ——
 `external_reply` の 0.55 を上回る最高帯 —— を割り当てる。pattern の provenance dict に
 は、観測された外部事実と自己生成ナラティブを区別するものが何もない。高 trust の自己ナラ
 ティブはその後、将来の system prompt に再注入され、`self_reflection` view 経由で

@@ -13,6 +13,7 @@ origin: auto-extracted
 ## Problem
 
 Small models can't handle "extract + format" in a single generate() call. Results:
+
 - Prompt-only format instructions are ignored (~50% of the time)
 - Constrained decoding (Ollama `format`) guarantees structure but **degrades content quality** — model capacity is consumed by structure enforcement
 - Few-shot examples can **worsen** output by consuming context on a small model
@@ -30,6 +31,7 @@ refined = generate(refine_prompt.format(raw_output=result), max_length=4000)
 ```
 
 Each layer has a simple task. Like neural network layers:
+
 - Step 1 = hidden layer (feature extraction)
 - Step 2 = output layer (formatting)
 - Quality gate = activation function (threshold filter)
@@ -125,10 +127,12 @@ model to pay for it, the no-path is decorative.**
 ## Applicability of Constrained Decoding
 
 Ollama `format` is still valuable for:
+
 - Short outputs: relevance scoring (`{"score": 0.85}`), yes/no decisions, category selection
 - Tasks where structure IS the task (not a secondary concern)
 
 Avoid `format` for:
+
 - Long-form generation (patterns, summaries, identity, posts)
 - Tasks requiring creativity or deep comprehension
 
@@ -164,6 +168,7 @@ Evidence — solving an obfuscated 2-number arithmetic CAPTCHA, qwen3.5:9b:
 | Free reasoning, extract the **last** number in code | **6/6** correct (34–90s warm) |
 
 Pattern for CoT-dependent tasks (arithmetic, de-obfuscation, multi-step parse):
+
 - Prompt "reason step by step; on the final line output only the answer." Leave
   output **unconstrained** (no `format`, no answer-only).
 - Extract the final value in code (`re.findall(r"-?\d+...", out)[-1]`) — the

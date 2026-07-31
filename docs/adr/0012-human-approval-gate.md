@@ -1,9 +1,11 @@
 # ADR-0012: Human Approval Gate for Behavior-Modifying Commands
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-03-26
 
 ## Context
@@ -52,11 +54,13 @@ AKC (Agent Knowledge Cycle) is a self-improvement loop predicated on human overs
 ## Consequences
 
 **Positive outcomes**:
+
 - Human-in-the-loop is structurally enforced (no `--auto` means it cannot be bypassed)
 - The non-reproducibility problem of probabilistic generation is resolved (approval is given to the actual generated result)
 - `--dry-run` semantics are clarified (simulation mode for distill only)
 
 **Requires attention**:
+
 - CLI interactive prompts cannot be used in CI/CD pipelines (behavior-modifying commands should not be auto-executed in CI anyway)
 - When Claude Code is the orchestrator, the approval flow implementation needs consideration (re-execute after reading stdout results, or a different interface)
 

@@ -3,9 +3,11 @@
 > **[ADR-0030](0030-withdraw-identity-blocks.ja.md) に supersede された (2026-04-18)。** 単一責任原則の観点から撤回: 複数の concern (`persona_core`、`current_goals`、将来の block) を 1 ファイルに詰め込み、その内部に sub-addressing を再構築するのは、周囲のメモリ stack が既に責務ごとに層を提供している状況では、concern を分離すべき場所として間違っている。履歴として本文は保持。
 
 ## Status
+
 superseded-by 0030
 
 ## Date
+
 2026-04-16
 
 ## Context
@@ -110,6 +112,7 @@ parser は **stdlib のみ**（ADR-0023 の `skill_frontmatter.py` と同じ規�
 ## Consequences
 
 **Positive**:
+
 - per-block distill（次 ADR）、agent-edit ツール（次 ADR）、identity introspection のブロックを外す — 各ブロックは名前で独立に addressing できる。
 - history ログにより、identity は ADR-0021 で pattern が、ADR-0023 で skill が得たのと同じ監査性を得る。
 - Legacy ファイルと既存 11 テンプレは migration ゼロで動き続ける。
@@ -117,11 +120,13 @@ parser は **stdlib のみ**（ADR-0023 の `skill_frontmatter.py` と同じ規�
 - parser レベルの YAML フォールバックにより、壊れた identity.md は system prompt 構築をクラッシュさせず「legacy whole-file」にデグレードする。
 
 **Negative / risks**:
+
 - migration が全ユーザに浸透するまで 2 コードパス（legacy vs block）が共存する。バグ表面はやや広いが、両パスがテストされ、legacy パスは「ファイル全体を読む」セマンティクスに折り畳まれる（既存と同じ）ので緩和。
 - `identity_history.jsonl` は上限なく伸びる。許容: エントリ 1 件 ~200 bytes、distill ごとに 1 件、ADR-0021 が memory artefact は no-delete を決めている。
 - `identity_blocks` は新しい小モジュール。ADR-0023 の `skill_frontmatter` 選択と一貫する — 同じ stdlib のみ parser ファミリーで、3 dataclass 分のメタデータのために `PyYAML` runtime 依存を避ける justification がある。
 
 **Deferred（この ADR では扱わない）**:
+
 - `contemplative-agent migrate-identity` CLI サブコマンド。
 - per-block distill routing（例: `current_goals` を `persona_core` とは別の pattern view から distill）。
 - 走行中のエージェントがターン内で 1 ブロックを更新する `agent-edit` ツール（承認ゲート付き）。

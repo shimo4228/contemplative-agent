@@ -1,9 +1,11 @@
 # ADR-0029: Retire Dormant Provenance Elements — `user_input` / `external_post` / `sanitized`
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-04-18
 
 ## Context

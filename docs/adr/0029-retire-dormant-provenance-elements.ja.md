@@ -1,9 +1,11 @@
 # ADR-0029: dormant な provenance 要素を撤回 — `user_input` / `external_post` / `sanitized`
 
 ## ステータス
+
 accepted
 
 ## 日付
+
 2026-04-18
 
 ## 背景

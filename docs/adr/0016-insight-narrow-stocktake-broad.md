@@ -1,9 +1,11 @@
 # ADR-0016: Insight as Narrow Generator, Stocktake as Broad Consolidator
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-04-11
 
 ## Context
@@ -15,6 +17,7 @@ The insight pipeline had accumulated three tightly-coupled mechanisms that each 
 3. **Rarity scoring** (`_score_rarity_existing`, `_score_rarity_batch`, `DISTILL_RARITY_PROMPT`): an LLM-scored novelty value used only as a tiebreaker in `importance * rarity` sorting.
 
 Empirical result (2026-04-11 run, 214 patterns):
+
 - 7 subcategory batches → 22 extracted skills
 - User manual selection kept 6/22 (27% retention)
 - Selection feedback: "22 skills were nearly identical" — the Emptiness axiom dissolves specificity when 30 patterns collapse into 1 skill.

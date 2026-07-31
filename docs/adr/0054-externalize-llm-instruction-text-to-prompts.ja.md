@@ -1,9 +1,11 @@
 # ADR-0054: LLM 指示テキストを `config/prompts/` へ外出しし、injection 境界にはハードコードの fallback を持たせる
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-06-09
 
 ## Context
@@ -35,28 +37,35 @@ LLM が読む指示テキストを `config/prompts/` へ外出しする。既存
 ## Alternatives Considered
 
 ### 1. injection テキストはコードに残し、非セキュリティの文字列だけ外出しする
+
 却下。untrusted wrapper は最も価値のある observability ターゲットである (すべての外部入力がどう frame されるかを規定する)。これをコードに残すと、値層の観察が部分的にしかクリーンにならない。
 
 ### 2. wrapper を他の prompt と同様に外出しし、特別な fallback を持たせない
+
 却下。`untrusted_wrapper.md` が欠落または中身を抜かれた場合 — あるいは credential のみを検査する validator を通過する改竄された `$MOLTBOOK_HOME/prompts/` home override — があると、injection 防御が静かに脱落する。fallback は防御を prompt 経路からは取り除けないものにする。
 
 ### 3. `_INJECTION_TOKENS` も外出しする
+
 却下。これらの token は入力に適用される変換であって、LLM が読む指示テキストではない; 外出ししても observability の利点はなく、防御が code + config に分断される。
 
 ## Consequences
 
 ### Positive
+
 - LLM が読むすべての指示テキストが prompt 層で観察可能かつ編集可能になる; 値層の観察がコードに隠れた指示によって濁ることがなくなる。
 - injection 防御が、欠落・空・中身抜き・placeholder 不正のテンプレート、および改竄された home override を確実に生き延びる — golden + fallback テスト (`tests/test_llm.py`、加えて stocktake/dialogue の fallback テスト) で検証済み。セキュリティレビューにより、境界が保たれていること、そして `.format(body=...)` が injection vector を導入しないこと (body は置換される値であって、再パースされることはない) を確認した。
 - すべての経路で振る舞いが byte-identical である (golden テスト)。
 
 ### Negative
+
 - わずかな間接化: wrapper テキストが inline ではなくロード + 検証される。wrapper のための三つの追加ファイルは、marker の完全な observability の対価である。
 
 ### Convention
+
 CLAUDE.md「開発原則」の一行ルールがここを指す: **LLM が読む指示テキストは `config/prompts/` へ、コードには置かない; サニタイズ変換はコードに残す。** これが actionable な形であり、この ADR が rationale の home である。
 
 ## References
+
 - [ADR-0003](0003-config-directory-design.ja.md) — Precedent。LLM タスク指示のための `config/prompts/` を確立した; この ADR はそれを最後のハードコード文字列群へ拡張する。
 - [ADR-0007](0007-security-boundary-model.ja.md) — Refines。`wrap_untrusted_content` の injection 防御の保証を維持する。
 - [ADR-0042](0042-explicit-truncation-contract-for-untrusted-wrapper.ja.md) — Refines。この ADR が移した wrapper テキストは ADR-0042 が最後に形を与えたテキストである; ADR-0042 が特定した load-bearing な部分は保持され、いまやコードの fallback によって保護される。

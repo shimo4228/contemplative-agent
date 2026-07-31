@@ -37,7 +37,7 @@ This repository is the operational implementation of two companion research proj
 Conversational entry points: ask this repo on [DeepWiki](https://deepwiki.com/shimo4228/contemplative-agent) or connect an agent via [GitMCP](https://gitmcp.io/shimo4228/contemplative-agent).
 
 For the canonical relationship map of shimo4228's research ecosystem, see:
-https://github.com/shimo4228/shimo4228/blob/main/graph.jsonld
+<https://github.com/shimo4228/shimo4228/blob/main/graph.jsonld>
 
 </details>
 

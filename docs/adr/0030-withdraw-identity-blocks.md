@@ -1,9 +1,11 @@
 # ADR-0030: Withdraw Identity Block Separation and History Wiring — Single Responsibility
 
 ## Status
+
 accepted — supersedes ADR-0024 and ADR-0025
 
 ## Date
+
 2026-04-18
 
 ## Context
@@ -57,6 +59,7 @@ The on-disk `~/.config/moltbook/identity.md` stays untouched — it is already i
 ## Consequences
 
 **Positive**:
+
 - ~1000 LOC of dead scaffolding removed (implementation + tests)
 - Two permanent TODO entries (D3, D4) disappear from the internal issue tracker
 - `identity.md` returns to its intended role: one file, one concern. New kinds of agent state get placed in the layer that matches their semantics (a new view, a new skill, a new rule, a new episode schema), not shoved into identity with a sub-address
@@ -64,10 +67,12 @@ The on-disk `~/.config/moltbook/identity.md` stays untouched — it is already i
 - The `prompt-model-match` constraint (memory), which would have forced every future block to be prompted by `qwen3.5:9b` itself, stops being a blocker for a line of work that had no users
 
 **Negative**:
+
 - If a concrete need for addressable sub-structure inside identity.md does emerge later, the scaffold has to be rebuilt. The reimplementation cost is ~2 days of work; the ongoing cost of carrying the current scaffold through every future architectural review outweighs that. The trade favours withdrawal
 - ADR-0024 references (Letta, A-Mem, Memento) remain in the bibliography even after withdrawal. Those systems pack state into identity-adjacent blocks on purpose; this project does not, and the reference is preserved so future readers can see what was considered and why it was not adopted
 
 **Neutral**:
+
 - ADR-0019 (embedding + views) and ADR-0020 (snapshots) are untouched. The `self_reflection` view still routes patterns into `distill_identity`; only the write-back format on disk changes
 - ADR-0026 (retire discrete categories) and ADR-0027 (noise as seed) have no functional dependency on block-format identity and are not affected
 

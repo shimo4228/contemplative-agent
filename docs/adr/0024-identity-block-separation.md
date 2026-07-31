@@ -3,9 +3,11 @@
 > **Superseded by [ADR-0030](0030-withdraw-identity-blocks.md) (2026-04-18).** The block scheme was withdrawn on single-responsibility grounds: packing multiple concerns (`persona_core`, `current_goals`, future blocks) into a single file and rebuilding sub-addressing inside it is the wrong place to separate concerns when the surrounding memory stack already offers a layer per responsibility. Body retained for the historical record.
 
 ## Status
+
 superseded-by 0030
 
 ## Date
+
 2026-04-16
 
 ## Context
@@ -110,6 +112,7 @@ Blocks are **trusted** (same as today's identity.md). Frontmatter metadata is ge
 ## Consequences
 
 **Positive**:
+
 - Unblocks per-block distill (next ADR), agent-edit tool (next ADR), and identity introspection — each block is independently addressable by name.
 - History log gives identity the same auditability that patterns got in ADR-0021 and skills got in ADR-0023.
 - Legacy files and 11 existing templates continue to work with zero migration.
@@ -117,11 +120,13 @@ Blocks are **trusted** (same as today's identity.md). Frontmatter metadata is ge
 - Parser-level YAML fallback means a corrupted identity.md degrades to "legacy whole-file" rather than crashing the system prompt build.
 
 **Negative / risks**:
+
 - Two code paths (legacy vs block) exist until migration is universal. Bug surface slightly larger; mitigated because both paths are covered by tests and the legacy path collapses to "read the whole file" semantics that we already had.
 - `identity_history.jsonl` grows without bound. Acceptable: each entry is ~200 bytes, one per distill, and ADR-0021 already committed us to no-delete on memory artifacts.
 - `identity_blocks` is a new small module. That's consistent with ADR-0023's `skill_frontmatter` choice — same family of stdlib-only parsers, justified by avoiding a `PyYAML` runtime dep for three dataclasses worth of metadata.
 
 **Deferred (not in this ADR)**:
+
 - `contemplative-agent migrate-identity` CLI subcommand.
 - Per-block distill routing (e.g. distilling `current_goals` from a different pattern view than `persona_core`).
 - `agent-edit` tool that lets the running agent update one block within a turn (approval-gated).

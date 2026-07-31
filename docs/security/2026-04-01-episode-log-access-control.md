@@ -12,6 +12,7 @@
 ### Method
 
 3つの専門エージェントを並列実行し、異なる視点でコードベースを監査:
+
 - **security-reviewer**: セキュリティ脆弱性、信頼境界、パーミッション
 - **python-reviewer**: Pythonコード品質、型安全性、イディオム
 - **refactor-cleaner**: デッドコード、不要な複雑性、一貫性
@@ -96,6 +97,7 @@ Three PreToolUse hooks installed in `~/.claude/settings.json`:
 | Grep | `Grep` | `~/.claude/hooks/block-episode-logs-grep.sh` | `Grep` tool targeting the logs directory |
 
 **Design decisions**:
+
 - Hooks fire deterministically (100%), unlike CLAUDE.md rules (~50-80%)
 - `Glob` is not blocked — it returns only file paths, not content
 - `wc -l` and `ls` on the logs directory remain allowed (metadata, not content)
@@ -104,6 +106,7 @@ Three PreToolUse hooks installed in `~/.claude/settings.json`:
 ### URL defanging in reports (Finding 2)
 
 Added `_defang_urls()` to `report.py`:
+
 - `https://` → `hxxps://`, `http://` → `hxxp://`
 - First `.` in domain → `[.]`
 - Safe domains (`moltbook.com`, `www.moltbook.com`) are excluded

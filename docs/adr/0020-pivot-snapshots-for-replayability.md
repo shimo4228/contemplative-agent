@@ -1,9 +1,11 @@
 # ADR-0020: Pivot snapshots for replayability
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-04-16
 
 ## Context

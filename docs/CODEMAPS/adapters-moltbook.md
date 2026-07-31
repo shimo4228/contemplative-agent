@@ -131,6 +131,7 @@ challenge is not written as raw prompt text. 7 consecutive failures →
 | `report.py` | 155 | Result interpretation (LLM, display-only) → `config/meditation/results.json` |
 
 **Data flow**:
+
 ```
 EpisodeLog → pomdp.build_matrices() → A/B/C/D
   → meditate(matrices, config)
@@ -168,6 +169,7 @@ contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N
 ## Testing Patterns
 
 **Mock paths**:
+
 - `patch('contemplative_agent.adapters.moltbook.feed_manager.MoltbookClient')`
 - `patch('contemplative_agent.adapters.moltbook.reply_handler.LLM')`
 - `patch('contemplative_agent.adapters.moltbook.post_pipeline.Scheduler')`

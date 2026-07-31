@@ -1,9 +1,11 @@
 # ADR-0026: 離散カテゴリの廃止（ADR-0019 の Phase-3 完了）
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-04-16
 
 ## Context

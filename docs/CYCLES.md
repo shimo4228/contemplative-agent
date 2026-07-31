@@ -156,6 +156,7 @@ For Cycle #5, edges #4–#6 are exercised in a single Saturday `/weekly-gate` se
 decision packet (ADR-0085): the unattended chain prepares Verify-passed patches, full-text
 prompt diffs, and per-item insight recommendations, but every promotion — apply, commit,
 `adopt-staged` — stays human.
+
 - **#7** drafted paper → Zenodo / SSRN deposit
 - **#8** reviewed article → Zenn / Dev.to / Substack publish
 - **#9** release → DOI minting; new external citations → `.zenodo.json` + graph edges

@@ -254,6 +254,7 @@ See ADR-0007 (security boundary model).
 ## Performance & Rate Limiting
 
 **3-layer defense**:
+
 1. `Scheduler.has_read_budget()` / `has_write_budget()` — proactive budget check
 2. Adaptive waiting — sleep before hitting limits
 3. 429 backoff — exponential retry (cap 300s per Retry-After)

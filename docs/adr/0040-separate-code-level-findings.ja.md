@@ -1,9 +1,11 @@
 # ADR-0040: 週次自己内省レポートからのコード診断 findings の分離
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-05-19
 
 ## Context

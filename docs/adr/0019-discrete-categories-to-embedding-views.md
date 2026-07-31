@@ -1,9 +1,11 @@
 # ADR-0019: Discrete categories → Embedding + Views
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-04-15
 
 ## Context

@@ -37,7 +37,7 @@ Contemplative Agent は、人間が読んで編集できる形の憲法（consti
 対話的な入口: [DeepWiki](https://deepwiki.com/shimo4228/contemplative-agent) でこのリポジトリに質問するか、[GitMCP](https://gitmcp.io/shimo4228/contemplative-agent) 経由でエージェントを接続してください。
 
 shimo4228 全体の研究エコシステムの関係マップは以下にあります:
-https://github.com/shimo4228/shimo4228/blob/main/graph.jsonld
+<https://github.com/shimo4228/shimo4228/blob/main/graph.jsonld>
 
 </details>
 

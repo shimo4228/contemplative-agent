@@ -1,15 +1,19 @@
 # ADR-0008: Two-Stage Distill Pipeline
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-03-22
 
 ## Context
+
 When the 9B model (qwen3.5:9b) was asked to perform both "extract patterns from episodes" and "format as JSON" in a single generate() call, it either produced hollow content or broken formatting. Distill success rate was 2/10; identity distill output was corrupted every time.
 
 ## Decision
+
 Split a single generate() call into two stages:
 
 - **Step 1**: Free-form output (no constraints; full capacity devoted to the creative task)
@@ -29,6 +33,7 @@ Full trial-and-error record:
 5. **Two-stage without `format` + quality gate** → Adopted as the final solution
 
 ## Consequences
+
 - Distill success rate: 2/10 → 12/16
 - Identity distill: consistently broken → stable 3-paragraph plain text
 - Batch size is 30 (50 is too heavy); Ollama timeout is 600s (processing time doubled with two stages)

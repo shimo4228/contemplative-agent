@@ -1,15 +1,19 @@
 # ADR-0008: 2段階蒸留パイプライン
 
 ## Status
+
 accepted
 
 ## Date
+
 2026-03-22
 
 ## Context
+
 9B モデル（qwen3.5:9b）に「エピソードからパターン抽出」と「JSON フォーマット整形」を1回の generate() で同時に要求すると、能力不足で中身がスカスカになるか、フォーマットが崩れるかのどちらかだった。distill の成功率は 2/10、identity distill は毎回出力が壊れていた。
 
 ## Decision
+
 1回の generate() を2段階に分離:
 
 - **Step 1**: 自由出力（制約なし、創造的タスクに全振り）
@@ -29,6 +33,7 @@ identity distill も同構造（Step 1 は `get_default_system_prompt()` を使�
 5. **2段階 format なし + 品質ゲート** → 最終形として採用
 
 ## Consequences
+
 - distill 成功率: 2/10 → 12/16
 - identity distill: 毎回壊れる → plain text 3段落に安定
 - バッチサイズは 30（50 だと重い）、Ollama timeout は 600s（2段階で処理時間倍）

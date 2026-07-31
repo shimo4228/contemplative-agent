@@ -2,6 +2,7 @@
 # Architecture
 
 ## Project Type
+
 Python CLI agent: core/adapter separation + 3-layer memory + embedding views (ADR-0019) + pivot snapshots (ADR-0020) + pattern provenance/bitemporal (ADR-0021) + trust retirement (ADR-0051). Generation pluggable via `LLMBackend` Protocol (default: Ollama; add-on: `contemplative-agent-cloud`).
 
 **Stats**: see [INDEX.md § Statistics](INDEX.md#statistics)
@@ -38,18 +39,23 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
 ```
 
 ## Import Rule
+
 `core/ ← adapters/ ← cli/` (one direction). The `cli/` package (composition root; formerly the single-file cli.py, split per ADR-0079) is the only layer importing both. Meditation/dialogue adapters depend on core/ only; they do not import moltbook adapter.
 
 ## Init-Time Copy
+
 `contemplative-agent init [--template NAME]` copies every runtime Markdown from `config/` into `MOLTBOOK_HOME`. Template-derived: `constitution/`, `skills/`, `rules/`. Shared: `prompts/`, `views/`. Existing dirs never overwritten.
 
 ## LLM Backend
+
 `core/llm/` package (ADR-0079): `backend.py` `LLMBackend` Protocol: `generate(prompt, system, num_predict, format, *, temperature)` → `Optional[BackendResult]` (`text` + `finish_reason` + `eval_count`), plus read-only `model` (served id, ADR-0065) and `context_window` (token ceiling, ADR-0066) properties. Module-level `_backend` slot set via `configure(backend=...)`. Sanitization, circuit breaker, and the `drop_truncated` truncation gate (from `finish_reason`) are applied by the **caller** (`_generate_via_backend`), uniformly across backends. A backend-aware context-budget pre-flight (`_generate_impl`, before dispatch; audit C2) guards est `system+prompt+num_predict` against the backend's `context_window` (`NUM_CTX` on the Ollama path; a backend omitting the property is unguarded) — Ollama would front-truncate the value layer, a memory-bounded injected backend would overrun its window. Over-budget `num_predict` is **clamped** to the remaining window (WARNING + `num_predict_requested` in telemetry); the call is skipped only when input alone leaves < `MIN_CLAMPED_NUM_PREDICT` (2048) output tokens (2026-07-10 fix: the skip-only guard suppressed every self-post for 24h after a 13-skill adoption grew the system prompt to ~20.3K tok). Default `_backend=None` → built-in Ollama HTTP path; an add-on (e.g. `contemplative-agent-cloud`) injects an alternative via `configure(backend=...)`. SSRF allowlist shared via `validate_trusted_url()`.
 
 ## Immutability
+
 All DTOs `frozen=True`. Required by approval-gate diff pipeline and bitemporal invariants.
 
 ## Observability
+
 Every feature with external I/O, LLM calls, or heuristic decisions ships a replayable
 append-only JSONL audit log in the same PR (untrusted raw input as base64 + sha256,
 decision path, categorical reason codes, outcome; no silent fallbacks) — ADR-0075.
@@ -174,6 +180,7 @@ Embedding stays `nomic-embed-text` (`OLLAMA_EMBEDDING_MODEL`), generation-only.
 **Reasoning trace (`think`)**: a per-call `think` flag (default False; toggles
 Ollama `think`) requests the model's reasoning trace,
 secret-scrubbed but never published. Two regimes (ADR-0068, ADR-0069):
+
 - *Autonomous content paths* (comment / reply / cooperation post) and the
   scheduled `distill` stay **think-OFF** (latency / stability). When a caller
   opts in, `core/llm.generate_for_api` returns `GenerationOutput(text, thinking)`
@@ -525,5 +532,6 @@ Pivot Snapshots  MOLTBOOK_HOME/snapshots/{cmd}_{ts}/
 | Maintain | `context-sync` (Claude Code skill) + sync-data | — |
 
 ## Entry Points
+
 - `contemplative-agent` → `contemplative_agent.cli:main`
 - Tests: `pytest tests/ -v`

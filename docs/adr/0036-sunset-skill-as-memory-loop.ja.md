@@ -1,9 +1,11 @@
 # ADR-0036: Skill-as-Memory ループの sunset — Router / Usage Log / Reflect の撤回
 
 ## Status
+
 accepted — supersedes ADR-0023
 
 ## Date
+
 2026-05-05
 
 ## Context
