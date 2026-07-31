@@ -67,11 +67,11 @@ class TestGetMany:
         assert store.get_many([]) == {}
 
     def test_id_list_beyond_sqlite_variable_limit(self, store):
-        """Ids are expanded by json_each(), not bound one variable each.
+        """Ids are staged in a TEMP table, not bound one variable each.
 
         SQLITE_MAX_VARIABLE_NUMBER (999 by default) would cap a literal
         "IN (?,?,...)" query; this asserts a request well past that ceiling
-        still resolves in one round trip.
+        resolves without chunking.
         """
         ids = [f"e{i}" for i in range(1500)]
         store.upsert_many(
@@ -81,6 +81,38 @@ class TestGetMany:
         result = store.get_many([*ids, "missing"])
         assert set(result.keys()) == set(ids)
         np.testing.assert_array_almost_equal(result["e1499"], [1499.0])
+
+    @pytest.mark.parametrize(
+        "episode_id",
+        [
+            'quote"inside',
+            "back\\slash",
+            'both\\"mixed',
+            "改行\nと非ASCII",
+            "",
+        ],
+        ids=["quote", "backslash", "mixed", "non-ascii", "empty"],
+    )
+    def test_ids_with_sql_and_json_metacharacters_round_trip(self, store, episode_id):
+        """Ids are data, never SQL text.
+
+        post_id is server-issued (Moltbook API), so the characters that would
+        matter if the id ever reached the query as text — quotes, backslashes,
+        non-ASCII — are pinned here rather than argued in a comment. They are
+        bound parameters into the staging table, never concatenated.
+        """
+        store.upsert(episode_id, "2026-04-15T07:00:00Z", np.array([0.5], dtype=np.float32))
+        result = store.get_many([episode_id, "absent"])
+        assert set(result.keys()) == {episode_id}
+        np.testing.assert_array_almost_equal(result[episode_id], [0.5])
+
+    def test_duplicate_ids_yield_one_row_each(self, store):
+        """Membership test against a PRIMARY KEY — never a row-multiplying join."""
+        store.upsert("a", "2026-04-15T07:00:00Z", np.array([0.1], dtype=np.float32))
+        store.upsert("b", "2026-04-15T07:01:00Z", np.array([0.2], dtype=np.float32))
+        result = store.get_many(["a", "a", "b", "a"])
+        assert set(result.keys()) == {"a", "b"}
+        np.testing.assert_array_almost_equal(result["a"], [0.1])
 
 
 class TestUtilities:

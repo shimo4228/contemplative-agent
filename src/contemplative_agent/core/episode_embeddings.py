@@ -12,7 +12,6 @@ renames and re-reads.
 
 from __future__ import annotations
 
-import json
 import logging
 import os
 import sqlite3
@@ -122,14 +121,22 @@ class EpisodeEmbeddingStore:
             return None
         return np.frombuffer(row[0], dtype=np.float32)
 
-    # The id list is passed as a single JSON parameter and expanded by SQLite's
-    # json_each() (json1, built in since SQLite 3.38). This keeps the query
-    # string a compile-time constant — no variable-length "IN (?,?,...)" to
-    # build — so there is no SQLITE_MAX_VARIABLE_NUMBER ceiling to chunk around
-    # and no string-built SQL for a reader (or bandit B608) to have to reason about.
+    # The wanted ids are staged in a connection-local TEMP table and joined
+    # against, rather than expanded into a variable-length "IN (?,?,...)".
+    # Every statement below is a compile-time constant, so there is no
+    # string-built SQL for a reader (or bandit B608) to reason about and no
+    # SQLITE_MAX_VARIABLE_NUMBER ceiling to chunk around.
+    #
+    # json_each() would do this in one statement but is only a default build-in
+    # from SQLite 3.38 (2022), and python's sqlite3 links whatever libsqlite3
+    # the host ships — Ubuntu 22.04 is 3.37, Debian 11 is 3.34. The old
+    # placeholder form worked on any build, so depending on json1 here would
+    # trade a lint finding for a portability regression on a hot read path.
+    _STAGE_SCHEMA = "CREATE TEMP TABLE IF NOT EXISTS wanted_ids (episode_id TEXT PRIMARY KEY)"
+    _STAGE_INSERT = "INSERT OR IGNORE INTO wanted_ids (episode_id) VALUES (?)"
     _SELECT_BY_IDS = (
         "SELECT episode_id, vector FROM episode_embeddings "
-        "WHERE episode_id IN (SELECT value FROM json_each(?))"
+        "WHERE episode_id IN (SELECT episode_id FROM wanted_ids)"
     )
 
     def get_many(self, episode_ids: list[str]) -> dict[str, np.ndarray]:
@@ -138,7 +145,12 @@ class EpisodeEmbeddingStore:
         if self._db_path is None or not self._db_path.exists() or not episode_ids:
             return {}
         with self._connect() as conn:
-            rows = conn.execute(self._SELECT_BY_IDS, (json.dumps(episode_ids),)).fetchall()
+            # TEMP lives in the per-connection temp schema and _connect() opens
+            # a fresh connection per call, so the staging table cannot leak
+            # between calls or be observed by another caller.
+            conn.execute(self._STAGE_SCHEMA)
+            conn.executemany(self._STAGE_INSERT, ((eid,) for eid in episode_ids))
+            rows = conn.execute(self._SELECT_BY_IDS).fetchall()
         return {eid: np.frombuffer(blob, dtype=np.float32) for eid, blob in rows}
 
     def count(self) -> int:
