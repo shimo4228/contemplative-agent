@@ -15,9 +15,15 @@
 
 set -uo pipefail
 
-# root は cwd でなく **自分自身の位置**から決める。hook は任意の cwd から呼ぶので、
-# cwd 起点だと別 repo を検査してしまう (2026-07-31 に実測。無言で PASS する fail-open だった)
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P) || exit 2
+# root の決め方 (契約): VERIFY_REPO_ROOT があればそれ。承認機構 (verify_allow.py) は
+# 照合済みバイト列を一時ファイルに置いて実行する (TOCTOU 回避) ため、そのとき BASH_SOURCE は
+# repo を指さない。無ければ **自分自身の位置**から決める — cwd 起点にすると hook 経由で
+# 別 repo を検査して無言で PASS する fail-open になる (2026-07-31 実測)
+if [[ -n "${VERIFY_REPO_ROOT:-}" ]]; then
+  ROOT="$VERIFY_REPO_ROOT"
+else
+  ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P) || exit 2
+fi
 git -C "$ROOT" rev-parse --show-toplevel >/dev/null 2>&1 || { echo "[verify] git repo ではない"; exit 2; }
 MODE=full
 [[ "${1:-}" == "--staged" ]] && MODE=staged
