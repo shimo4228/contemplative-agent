@@ -66,6 +66,22 @@ class TestGetMany:
         store.upsert("a", "2026-04-15T07:00:00Z", np.array([0.1], dtype=np.float32))
         assert store.get_many([]) == {}
 
+    def test_id_list_beyond_sqlite_variable_limit(self, store):
+        """Ids are expanded by json_each(), not bound one variable each.
+
+        SQLITE_MAX_VARIABLE_NUMBER (999 by default) would cap a literal
+        "IN (?,?,...)" query; this asserts a request well past that ceiling
+        still resolves in one round trip.
+        """
+        ids = [f"e{i}" for i in range(1500)]
+        store.upsert_many(
+            (eid, "2026-04-15T07:00:00Z", np.array([float(i)], dtype=np.float32))
+            for i, eid in enumerate(ids)
+        )
+        result = store.get_many([*ids, "missing"])
+        assert set(result.keys()) == set(ids)
+        np.testing.assert_array_almost_equal(result["e1499"], [1499.0])
+
 
 class TestUtilities:
     def test_count_starts_at_zero(self, store):

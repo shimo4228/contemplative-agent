@@ -12,6 +12,7 @@ renames and re-reads.
 
 from __future__ import annotations
 
+import json
 import logging
 import os
 import sqlite3
@@ -121,36 +122,31 @@ class EpisodeEmbeddingStore:
             return None
         return np.frombuffer(row[0], dtype=np.float32)
 
-    _SQLITE_VARIABLE_LIMIT = 500  # SQLITE_MAX_VARIABLE_NUMBER default is 999
+    # The id list is passed as a single JSON parameter and expanded by SQLite's
+    # json_each() (json1, built in since SQLite 3.38). This keeps the query
+    # string a compile-time constant — no variable-length "IN (?,?,...)" to
+    # build — so there is no SQLITE_MAX_VARIABLE_NUMBER ceiling to chunk around
+    # and no string-built SQL for a reader (or bandit B608) to have to reason about.
+    _SELECT_BY_IDS = (
+        "SELECT episode_id, vector FROM episode_embeddings "
+        "WHERE episode_id IN (SELECT value FROM json_each(?))"
+    )
 
     def get_many(self, episode_ids: list[str]) -> dict[str, np.ndarray]:
-        """Bulk fetch. Missing ids are absent from the result dict.
-
-        Chunks the IN clause to stay under SQLite's variable limit.
-        """
+        """Bulk fetch. Missing ids are absent from the result dict."""
         self._ensure_initialized()
         if self._db_path is None or not self._db_path.exists() or not episode_ids:
             return {}
-        result: dict[str, np.ndarray] = {}
         with self._connect() as conn:
-            for start in range(0, len(episode_ids), self._SQLITE_VARIABLE_LIMIT):
-                chunk = episode_ids[start : start + self._SQLITE_VARIABLE_LIMIT]
-                placeholders = ",".join("?" * len(chunk))
-                rows = conn.execute(
-                    f"SELECT episode_id, vector FROM episode_embeddings WHERE episode_id IN ({placeholders})",
-                    chunk,
-                ).fetchall()
-                result.update({eid: np.frombuffer(blob, dtype=np.float32) for eid, blob in rows})
-        return result
+            rows = conn.execute(self._SELECT_BY_IDS, (json.dumps(episode_ids),)).fetchall()
+        return {eid: np.frombuffer(blob, dtype=np.float32) for eid, blob in rows}
 
     def count(self) -> int:
         self._ensure_initialized()
         if self._db_path is None or not self._db_path.exists():
             return 0
         with self._connect() as conn:
-            row = conn.execute(
-                "SELECT COUNT(*) FROM episode_embeddings"
-            ).fetchone()
+            row = conn.execute("SELECT COUNT(*) FROM episode_embeddings").fetchone()
         return int(row[0]) if row else 0
 
     def clear(self) -> None:
