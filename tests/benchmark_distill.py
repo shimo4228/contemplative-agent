@@ -127,7 +127,9 @@ def _collect_metrics_from_logs(
             total_updated = int(m.group(1))
 
         # Dry-run summary — authoritative skip / would-update when not persisting
-        m = re.search(r"Dry run — (\d+) patterns found, (\d+) skipped, (\d+) would soft-invalidate", msg)
+        m = re.search(
+            r"Dry run — (\d+) patterns found, (\d+) skipped, (\d+) would soft-invalidate", msg
+        )
         if m:
             total_skipped = int(m.group(2))
             total_updated = int(m.group(3))
@@ -173,6 +175,7 @@ def run_benchmark(dataset: str = "synthetic", output: str | None = None) -> Dist
 
     # Fresh knowledge store (in-memory, no persistence)
     import tempfile
+
     tmp_dir = Path(tempfile.mkdtemp())
     knowledge = KnowledgeStore(path=tmp_dir / "knowledge.json")
     knowledge.load()
@@ -246,8 +249,10 @@ def _print_report(report: DistillBenchmarkReport) -> None:
 
     if report.pattern_lengths:
         lens = report.pattern_lengths
-        print(f"  Pattern len: mean={sum(lens)/len(lens):.0f}, "
-              f"min={min(lens)}, max={max(lens)}, n={len(lens)}")
+        print(
+            f"  Pattern len: mean={sum(lens) / len(lens):.0f}, "
+            f"min={min(lens)}, max={max(lens)}, n={len(lens)}"
+        )
 
     print()
 
@@ -274,7 +279,7 @@ def compare_reports(path_a: str, path_b: str) -> None:
     ]
 
     print(f"\n  {'Metric':<20} {'Before':>10} {'After':>10} {'Delta':>10}")
-    print(f"  {'-'*20} {'-'*10} {'-'*10} {'-'*10}")
+    print(f"  {'-' * 20} {'-' * 10} {'-' * 10} {'-' * 10}")
 
     for label, key in fields:
         va = a.get(key, 0)
@@ -291,7 +296,9 @@ def main() -> None:
     sub = parser.add_subparsers(dest="command", required=True)
 
     run_parser = sub.add_parser("run", help="Run benchmark")
-    run_parser.add_argument("--dataset", default="real_sample", help="Dataset name (default: real_sample)")
+    run_parser.add_argument(
+        "--dataset", default="real_sample", help="Dataset name (default: real_sample)"
+    )
     run_parser.add_argument("--output", "-o", help="Output JSON filename (saved in results/)")
 
     cmp_parser = sub.add_parser("compare", help="Compare two result files")

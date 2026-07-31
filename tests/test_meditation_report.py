@@ -73,7 +73,9 @@ class TestInterpretAndSave:
             return_value=llm_response,
         ):
             output = interpret_and_save(
-                result, results_path, dry_run=True,
+                result,
+                results_path,
+                dry_run=True,
                 prompt_template="Test: {meditation_summary}",
             )
         assert "more focused on mid-session" in output
@@ -89,7 +91,9 @@ class TestInterpretAndSave:
             return_value=llm_response,
         ):
             interpret_and_save(
-                result, results_path, dry_run=False,
+                result,
+                results_path,
+                dry_run=False,
                 prompt_template="Test: {meditation_summary}",
             )
         assert results_path.exists()
@@ -109,7 +113,9 @@ class TestInterpretAndSave:
             return_value="- test\n",
         ):
             interpret_and_save(
-                result, results_path, dry_run=False,
+                result,
+                results_path,
+                dry_run=False,
                 prompt_template="Test: {meditation_summary}",
             )
         data = json.loads(results_path.read_text())
@@ -125,7 +131,9 @@ class TestInterpretAndSave:
             return_value=None,
         ):
             output = interpret_and_save(
-                result, results_path, dry_run=False,
+                result,
+                results_path,
+                dry_run=False,
                 prompt_template="Test: {meditation_summary}",
             )
         assert "LLM returned no output" in output

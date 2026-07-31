@@ -356,9 +356,7 @@ class Agent:
             return False
         return True
 
-    def _confirm_action(
-        self, description: str, content: str, *, title: str | None = None
-    ) -> bool:
+    def _confirm_action(self, description: str, content: str, *, title: str | None = None) -> bool:
         """Ask for user confirmation based on autonomy level.
 
         ``title`` is the agent's own LLM-generated post title (post path only).

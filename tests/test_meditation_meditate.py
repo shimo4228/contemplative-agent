@@ -20,13 +20,16 @@ from contemplative_agent.adapters.meditation.pomdp import POMDPMatrices
 def _make_simple_matrices() -> POMDPMatrices:
     """Create simple, well-conditioned POMDP matrices for testing."""
     # A: slightly informative likelihood (not uniform, not degenerate)
-    A = np.array([
-        [0.4, 0.1, 0.2, 0.3],  # no_response
-        [0.2, 0.3, 0.3, 0.2],  # low_engagement
-        [0.1, 0.4, 0.3, 0.2],  # high_engagement
-        [0.1, 0.1, 0.1, 0.2],  # new_connection
-        [0.2, 0.1, 0.1, 0.1],  # no_input (uniform-ish)
-    ], dtype=np.float64)
+    A = np.array(
+        [
+            [0.4, 0.1, 0.2, 0.3],  # no_response
+            [0.2, 0.3, 0.3, 0.2],  # low_engagement
+            [0.1, 0.4, 0.3, 0.2],  # high_engagement
+            [0.1, 0.1, 0.1, 0.2],  # new_connection
+            [0.2, 0.1, 0.1, 0.1],  # no_input (uniform-ish)
+        ],
+        dtype=np.float64,
+    )
     # Normalize columns
     A = A / A.sum(axis=0, keepdims=True)
 
@@ -72,7 +75,9 @@ class TestMeditate:
         matrices = _make_simple_matrices()
         result = meditate(matrices)
         np.testing.assert_allclose(
-            result.initial_beliefs, tuple(matrices.D.tolist()), atol=1e-10,
+            result.initial_beliefs,
+            tuple(matrices.D.tolist()),
+            atol=1e-10,
         )
 
     def test_final_beliefs_are_valid_distribution(self):
@@ -140,10 +145,14 @@ class TestMeditate:
         matrices = _make_simple_matrices()
 
         config_low = MeditationConfig(
-            meditation_cycles=10, temporal_decay=0.5, convergence_epsilon=0.0,
+            meditation_cycles=10,
+            temporal_decay=0.5,
+            convergence_epsilon=0.0,
         )
         config_high = MeditationConfig(
-            meditation_cycles=10, temporal_decay=0.99, convergence_epsilon=0.0,
+            meditation_cycles=10,
+            temporal_decay=0.99,
+            convergence_epsilon=0.0,
         )
 
         result_low = meditate(matrices, config=config_low)

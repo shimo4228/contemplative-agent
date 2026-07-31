@@ -29,7 +29,9 @@ class TestLoadCredentials:
 
     def test_no_credentials(self, monkeypatch, tmp_path):
         monkeypatch.delenv("MOLTBOOK_API_KEY", raising=False)
-        with patch("contemplative_agent.adapters.moltbook.auth.CREDENTIALS_PATH", tmp_path / "nope.json"):
+        with patch(
+            "contemplative_agent.adapters.moltbook.auth.CREDENTIALS_PATH", tmp_path / "nope.json"
+        ):
             result = load_credentials()
             assert result is None
 

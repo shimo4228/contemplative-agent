@@ -18,6 +18,7 @@ texts in knowledge.json are the agent's own distilled self-content (already the
 input to distill/identity LLMs), so truncated samples are included; raw external
 bodies never appear here.
 """
+
 from __future__ import annotations
 
 import argparse
@@ -91,42 +92,50 @@ def check_knowledge(patterns: list[dict]) -> list[InvariantResult]:
             if f in SUNSET_FIELDS:
                 field_hits[f] += 1
     if field_hits:
-        detail = ", ".join(
-            f"{f}×{n} ({SUNSET_FIELDS[f]})" for f, n in field_hits.most_common()
+        detail = ", ".join(f"{f}×{n} ({SUNSET_FIELDS[f]})" for f, n in field_hits.most_common())
+        results.append(
+            InvariantResult(
+                "sunset_fields",
+                _WARN,
+                f"{sum(field_hits.values())} patterns carry retired fields: {detail}",
+            )
         )
-        results.append(InvariantResult(
-            "sunset_fields", _WARN,
-            f"{sum(field_hits.values())} patterns carry retired fields: {detail}",
-        ))
     else:
-        results.append(InvariantResult(
-            "sunset_fields", _OK, "no retired ADR fields present"))
+        results.append(InvariantResult("sunset_fields", _OK, "no retired ADR fields present"))
 
     # 2. Required fields — corruption if missing.
     bad_required = [
-        p for p in patterns
-        if not isinstance(p.get("pattern"), str) or not p.get("pattern")
-        or "distilled" not in p
+        p
+        for p in patterns
+        if not isinstance(p.get("pattern"), str) or not p.get("pattern") or "distilled" not in p
     ]
     if bad_required:
-        results.append(InvariantResult(
-            "required_fields", _FAIL,
-            f"{len(bad_required)} patterns missing a valid pattern/distilled field",
-        ))
+        results.append(
+            InvariantResult(
+                "required_fields",
+                _FAIL,
+                f"{len(bad_required)} patterns missing a valid pattern/distilled field",
+            )
+        )
     else:
-        results.append(InvariantResult(
-            "required_fields", _OK, f"all {total} patterns have pattern+distilled"))
+        results.append(
+            InvariantResult("required_fields", _OK, f"all {total} patterns have pattern+distilled")
+        )
 
     # 3. Timestamp validity (live patterns).
     bad_ts = [p for p in live if not _is_aware_or_naive_parseable(p.get("distilled", ""))]
     if bad_ts:
-        results.append(InvariantResult(
-            "timestamp_validity", _FAIL,
-            f"{len(bad_ts)}/{len(live)} live patterns have unparseable distilled timestamp",
-        ))
+        results.append(
+            InvariantResult(
+                "timestamp_validity",
+                _FAIL,
+                f"{len(bad_ts)}/{len(live)} live patterns have unparseable distilled timestamp",
+            )
+        )
     else:
-        results.append(InvariantResult(
-            "timestamp_validity", _OK, f"all {len(live)} live timestamps parseable"))
+        results.append(
+            InvariantResult("timestamp_validity", _OK, f"all {len(live)} live timestamps parseable")
+        )
 
     # 4. Duplicate live pattern texts (dedup leak).
     texts = Counter(p.get("pattern", "") for p in live)
@@ -134,34 +143,45 @@ def check_knowledge(patterns: list[dict]) -> list[InvariantResult]:
     if dups:
         extra = sum(c - 1 for c in dups.values())
         samples = tuple(t[:_SAMPLE_MAXLEN] for t in list(dups)[:_MAX_SAMPLES])
-        results.append(InvariantResult(
-            "duplicate_live_texts", _WARN,
-            f"{len(dups)} live texts duplicated ({extra} redundant rows) — dedup leak",
-            samples,
-        ))
+        results.append(
+            InvariantResult(
+                "duplicate_live_texts",
+                _WARN,
+                f"{len(dups)} live texts duplicated ({extra} redundant rows) — dedup leak",
+                samples,
+            )
+        )
     else:
-        results.append(InvariantResult(
-            "duplicate_live_texts", _OK, "no duplicate live pattern texts"))
+        results.append(
+            InvariantResult("duplicate_live_texts", _OK, "no duplicate live pattern texts")
+        )
 
     # 5. Missing embedding among live (cannot participate in cosine dedup/views).
     no_emb = [p for p in live if not p.get("embedding")]
     if no_emb:
-        results.append(InvariantResult(
-            "missing_embedding", _FAIL,
-            f"{len(no_emb)}/{len(live)} live patterns have no embedding",
-        ))
+        results.append(
+            InvariantResult(
+                "missing_embedding",
+                _FAIL,
+                f"{len(no_emb)}/{len(live)} live patterns have no embedding",
+            )
+        )
     else:
-        results.append(InvariantResult(
-            "missing_embedding", _OK, f"all {len(live)} live patterns embedded"))
+        results.append(
+            InvariantResult("missing_embedding", _OK, f"all {len(live)} live patterns embedded")
+        )
 
     # 6. Soft-invalidated ratio (tombstone build-up; grows by design).
     invalid = total - len(live)
     ratio = (invalid / total) if total else 0.0
     level = _WARN if ratio >= _SOFT_INVALID_WARN_RATIO else _INFO
-    results.append(InvariantResult(
-        "soft_invalidated_ratio", level,
-        f"{invalid}/{total} ({ratio:.1%}) soft-invalidated (tombstones, ADR-0021)",
-    ))
+    results.append(
+        InvariantResult(
+            "soft_invalidated_ratio",
+            level,
+            f"{invalid}/{total} ({ratio:.1%}) soft-invalidated (tombstones, ADR-0021)",
+        )
+    )
 
     return results
 
@@ -173,11 +193,14 @@ def check_agents(agents: dict) -> list[InvariantResult]:
         return [InvariantResult("agents_followed", _FAIL, "followed is not a list")]
     dup = len(followed) - len(set(followed))
     if dup:
-        return [InvariantResult(
-            "agents_followed", _WARN,
-            f"followed has {dup} duplicate entries ({len(followed)} total)")]
-    return [InvariantResult(
-        "agents_followed", _OK, f"{len(followed)} followed agents, all unique")]
+        return [
+            InvariantResult(
+                "agents_followed",
+                _WARN,
+                f"followed has {dup} duplicate entries ({len(followed)} total)",
+            )
+        ]
+    return [InvariantResult("agents_followed", _OK, f"{len(followed)} followed agents, all unique")]
 
 
 def _load_typed(path: Path, expected: type, default: Any) -> Any:

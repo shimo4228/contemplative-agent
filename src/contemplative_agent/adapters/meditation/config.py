@@ -7,27 +7,27 @@ from dataclasses import dataclass
 # --- POMDP State Space (intentionally coarse) ---
 # Actions: what the agent did (maps to Episode Log record types)
 ACTION_STATES: tuple[str, ...] = (
-    "idle",        # No meaningful action (session start/end, follow/unfollow)
-    "read_feed",   # Consumed content (upvote without comment)
-    "comment",     # Responded to another agent's post
-    "reply",       # Replied to a notification
-    "post",        # Created original content
-    "reflect",     # Session insight / distill
+    "idle",  # No meaningful action (session start/end, follow/unfollow)
+    "read_feed",  # Consumed content (upvote without comment)
+    "comment",  # Responded to another agent's post
+    "reply",  # Replied to a notification
+    "post",  # Created original content
+    "reflect",  # Session insight / distill
 )
 
 # Outcomes: what happened after the action (derived from subsequent records)
 OUTCOME_STATES: tuple[str, ...] = (
-    "no_response",      # No engagement received within window
-    "low_engagement",   # Few interactions back (1-2)
+    "no_response",  # No engagement received within window
+    "low_engagement",  # Few interactions back (1-2)
     "high_engagement",  # Active conversation (3+)
-    "new_connection",   # Interaction with previously unknown agent
+    "new_connection",  # Interaction with previously unknown agent
 )
 
 # Contexts: hidden state representing session phase
 CONTEXT_STATES: tuple[str, ...] = (
-    "early_session",     # First third of session
-    "mid_session",       # Middle third
-    "late_session",      # Final third
+    "early_session",  # First third of session
+    "mid_session",  # Middle third
+    "late_session",  # Final third
     "between_sessions",  # Non-active time
 )
 

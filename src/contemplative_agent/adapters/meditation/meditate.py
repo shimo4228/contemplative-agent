@@ -92,9 +92,7 @@ def _expected_free_energy(
     risk = 0.0
     for i in range(len(predicted_obs)):
         if predicted_obs[i] > 1e-16:
-            risk += predicted_obs[i] * (
-                np.log(predicted_obs[i]) - np.log(c_dist[i] + 1e-16)
-            )
+            risk += predicted_obs[i] * (np.log(predicted_obs[i]) - np.log(c_dist[i] + 1e-16))
 
     return float(ambiguity + risk)
 
@@ -123,10 +121,7 @@ def _meditation_cycle(
     beliefs = config.temporal_decay * posterior + (1 - config.temporal_decay) * uniform
 
     # Step 3: Evaluate expected free energy for each action
-    efe = np.array([
-        _expected_free_energy(A, B, C, beliefs, a)
-        for a in range(NUM_ACTIONS)
-    ])
+    efe = np.array([_expected_free_energy(A, B, C, beliefs, a) for a in range(NUM_ACTIONS)])
 
     # Convert to policy distribution (softmax of negative EFE)
     neg_efe = -efe
@@ -196,9 +191,7 @@ def meditate(
     for cycle in range(min(config.meditation_cycles, config.max_cycles)):
         prev_beliefs = beliefs.copy()
 
-        beliefs, pruned_count = _meditation_cycle(
-            A, B, C, beliefs, uniform, no_input_idx, config
-        )
+        beliefs, pruned_count = _meditation_cycle(A, B, C, beliefs, uniform, no_input_idx, config)
         total_pruned += pruned_count
 
         trajectory.append(tuple(beliefs.tolist()))
@@ -207,7 +200,9 @@ def meditate(
         # Convergence check
         convergence_delta = float(np.abs(beliefs - prev_beliefs).sum())
         if convergence_delta < config.convergence_epsilon:
-            logger.info("Meditation converged at cycle %d (delta=%.6f)", cycles_run, convergence_delta)
+            logger.info(
+                "Meditation converged at cycle %d (delta=%.6f)", cycles_run, convergence_delta
+            )
             break
 
     entropy_final = _entropy(beliefs)
@@ -215,7 +210,10 @@ def meditate(
     if cycles_run > 0:
         logger.info(
             "Meditation complete: %d cycles, entropy %.4f → %.4f, %d policies pruned",
-            cycles_run, entropy_initial, entropy_final, total_pruned,
+            cycles_run,
+            entropy_initial,
+            entropy_final,
+            total_pruned,
         )
 
     return MeditationResult(

@@ -91,13 +91,13 @@ class AdaptiveBackoffConfig:
     One cycle consumes ~3-5 requests with /home-based approach.
     """
 
-    base_cycle_wait: float = 60.0         # Normal cycle interval (seconds)
-    max_cycle_wait: float = 600.0         # Maximum backoff (10 minutes)
-    backoff_multiplier: float = 2.0       # Exponential backoff multiplier
-    decay_factor: float = 0.5             # Shrink factor on clean cycle
-    remaining_threshold: int = 10         # Start slowing when <= 10 remaining
-    read_budget_reserve: int = 5          # In-cycle: stop GET when <= 5 remaining
-    write_budget_reserve: int = 3         # In-cycle: stop POST when <= 3 remaining
+    base_cycle_wait: float = 60.0  # Normal cycle interval (seconds)
+    max_cycle_wait: float = 600.0  # Maximum backoff (10 minutes)
+    backoff_multiplier: float = 2.0  # Exponential backoff multiplier
+    decay_factor: float = 0.5  # Shrink factor on clean cycle
+    remaining_threshold: int = 10  # Start slowing when <= 10 remaining
+    read_budget_reserve: int = 5  # In-cycle: stop GET when <= 5 remaining
+    write_budget_reserve: int = 3  # In-cycle: stop POST when <= 3 remaining
     # Upvote without comment if relevance >= this (and < comment threshold).
     # 0.70 since 2026-06-05: the identity-prompt scorer (audit fix #2) emits
     # a coarse scale — 0.1 steps up to 0.80, then jumps to 1.00; nothing

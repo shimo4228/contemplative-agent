@@ -586,9 +586,7 @@ class TestEnforcement:
         files = sorted(audit_dir.glob("skill-selection-*.jsonl"))
         assert files
         return [
-            json.loads(line)
-            for f in files
-            for line in f.read_text(encoding="utf-8").splitlines()
+            json.loads(line) for f in files for line in f.read_text(encoding="utf-8").splitlines()
         ]
 
     @patch("contemplative_agent.core.skill_selection.generate")

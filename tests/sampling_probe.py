@@ -56,17 +56,17 @@ SYSTEM_PROMPT = (
 # Sweep main axis = top_k (top_k=0 means "no limit"); min_p is the safety valve
 # applied once the tail is opened. One variable at a time, per the plan.
 PROFILES: dict[str, dict[str, float]] = {
-    "base":            {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0},
-    "topk-40":         {"temperature": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.0},
-    "topk-100":        {"temperature": 1.0, "top_p": 0.95, "top_k": 100, "min_p": 0.0},
-    "topk-open":       {"temperature": 1.0, "top_p": 0.95, "top_k": 0, "min_p": 0.0},
+    "base": {"temperature": 1.0, "top_p": 0.95, "top_k": 20, "min_p": 0.0},
+    "topk-40": {"temperature": 1.0, "top_p": 0.95, "top_k": 40, "min_p": 0.0},
+    "topk-100": {"temperature": 1.0, "top_p": 0.95, "top_k": 100, "min_p": 0.0},
+    "topk-open": {"temperature": 1.0, "top_p": 0.95, "top_k": 0, "min_p": 0.0},
     "topk-open-topp1": {"temperature": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.0},
-    "topk-open-minp":  {"temperature": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.05},
+    "topk-open-minp": {"temperature": 1.0, "top_p": 1.0, "top_k": 0, "min_p": 0.05},
     # temp axis — vary ONLY temperature from base, holding top_k=20 / top_p=0.95.
     # top_k=20 doubles as a runaway cap at high temp, so min_p stays off until a
     # collapse actually shows (then add the safety valve, per the plan).
-    "temp-13":         {"temperature": 1.3, "top_p": 0.95, "top_k": 20, "min_p": 0.0},
-    "temp-15":         {"temperature": 1.5, "top_p": 0.95, "top_k": 20, "min_p": 0.0},
+    "temp-13": {"temperature": 1.3, "top_p": 0.95, "top_k": 20, "min_p": 0.0},
+    "temp-15": {"temperature": 1.5, "top_p": 0.95, "top_k": 20, "min_p": 0.0},
 }
 
 
@@ -143,9 +143,7 @@ def probe_one(prompt: str, params: dict[str, float], seed: int) -> dict:
     return resp.json()
 
 
-def run_probe(
-    profile: str, seeds: list[int], suite: str, output: str | None
-) -> ProbeReport:
+def run_probe(profile: str, seeds: list[int], suite: str, output: str | None) -> ProbeReport:
     """Run one profile across the suite × seeds and persist the report."""
     if profile not in PROFILES:
         print(f"Unknown profile: {profile}. Run list-profiles.")
@@ -182,9 +180,7 @@ def run_probe(
                 )
             )
 
-    report = ProbeReport(
-        profile=profile, params=params, model=MODEL, suite=suite, samples=samples
-    )
+    report = ProbeReport(profile=profile, params=params, model=MODEL, suite=suite, samples=samples)
     _save(report, profile, output)
     print_report(report)
     return report
@@ -210,8 +206,10 @@ def print_report(report: ProbeReport) -> None:
     print("=" * 70)
 
     for s in report.samples:
-        print(f"\n  [{s.post_id} seed={s.seed}] "
-              f"{s.eval_count} tok @ {s.tok_per_sec} tok/s ({s.eval_seconds}s)")
+        print(
+            f"\n  [{s.post_id} seed={s.seed}] "
+            f"{s.eval_count} tok @ {s.tok_per_sec} tok/s ({s.eval_seconds}s)"
+        )
         print(f"    ┌ {s.opening}")
 
     if report.samples:
@@ -219,8 +217,7 @@ def print_report(report: ProbeReport) -> None:
         print("\n  " + "-" * 66)
         print(f"  mean tok/s:        {_mean([s.tok_per_sec for s in report.samples]):.1f}")
         print(f"  mean output toks:  {_mean([float(s.eval_count) for s in report.samples]):.0f}")
-        print(f"  opening diversity: {len(sigs)}/{len(report.samples)} "
-              f"unique first-3-words")
+        print(f"  opening diversity: {len(sigs)}/{len(report.samples)} unique first-3-words")
     print()
 
 
@@ -249,9 +246,11 @@ def compare(name_a: str, name_b: str) -> None:
         sigs = {_opening_signature(s["output"]) for s in samples}
         mean_tok_s = _mean([s["tok_per_sec"] for s in samples])
         mean_out = _mean([float(s["eval_count"]) for s in samples])
-        print(f"  {label:<22} mean {mean_tok_s:5.1f} tok/s | "
-              f"mean {mean_out:4.0f} out-toks | "
-              f"opening diversity {len(sigs)}/{len(samples)}")
+        print(
+            f"  {label:<22} mean {mean_tok_s:5.1f} tok/s | "
+            f"mean {mean_out:4.0f} out-toks | "
+            f"opening diversity {len(sigs)}/{len(samples)}"
+        )
     print()
 
 

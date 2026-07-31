@@ -301,9 +301,7 @@ class TestPostComment:
         """Log-injection guard: a hostile server cannot forge log lines via
         \\n in the error field (single-line, unlike the HTTP body path)."""
         client = MoltbookClient(api_key="test-key")
-        resp = self._resp(
-            {"success": False, "error": "bad\n[FAKE] forged log line"}
-        )
+        resp = self._resp({"success": False, "error": "bad\n[FAKE] forged log line"})
         with patch.object(client._session, "request", return_value=resp):
             with pytest.raises(MoltbookClientError) as exc_info:
                 client.post_comment("p1", "hello")
@@ -460,6 +458,7 @@ class TestRateLimitBudget:
 
         assert client.recent_429_count == 1
 
+
 class TestDualRateLimit:
     """Tests for GET/POST separated rate limiting."""
 
@@ -561,6 +560,7 @@ class TestMarkNotificationsRead:
         client = MoltbookClient(api_key="test-key")
         assert client.mark_notifications_read_by_post("../hack") is False
 
+
 class TestUpvote:
     def test_upvote_post_success(self):
         client = MoltbookClient(api_key="test-key")
@@ -653,9 +653,7 @@ class TestContentlessWriteSoftFail:
 
     def test_subscribe_soft_fail_returns_false(self, caplog):
         client = MoltbookClient(api_key="test-key")
-        with patch.object(
-            client._session, "request", return_value=self._soft_fail_resp()
-        ):
+        with patch.object(client._session, "request", return_value=self._soft_fail_resp()):
             with caplog.at_level(
                 logging.WARNING,
                 logger="contemplative_agent.adapters.moltbook.client",
@@ -665,23 +663,17 @@ class TestContentlessWriteSoftFail:
 
     def test_mark_read_soft_fail_returns_false(self):
         client = MoltbookClient(api_key="test-key")
-        with patch.object(
-            client._session, "request", return_value=self._soft_fail_resp()
-        ):
+        with patch.object(client._session, "request", return_value=self._soft_fail_resp()):
             assert client.mark_notifications_read_by_post("post-123") is False
 
     def test_upvote_post_soft_fail_returns_false(self):
         client = MoltbookClient(api_key="test-key")
-        with patch.object(
-            client._session, "request", return_value=self._soft_fail_resp()
-        ):
+        with patch.object(client._session, "request", return_value=self._soft_fail_resp()):
             assert client.upvote_post("post-123") is False
 
     def test_upvote_comment_soft_fail_returns_false(self):
         client = MoltbookClient(api_key="test-key")
-        with patch.object(
-            client._session, "request", return_value=self._soft_fail_resp()
-        ):
+        with patch.object(client._session, "request", return_value=self._soft_fail_resp()):
             assert client.upvote_comment("comment-456") is False
 
 
@@ -888,14 +880,18 @@ class TestPostCommentVerificationSurfacing:
 
     def test_verification_nested_under_comment(self):
         client = MoltbookClient(api_key="k")
-        resp = _resp({
-            "success": True,
-            "comment": {
-                "id": "c1",
-                "verification": {"verification_code": "moltbook_verify_x",
-                                 "challenge_text": "noise"},
-            },
-        })
+        resp = _resp(
+            {
+                "success": True,
+                "comment": {
+                    "id": "c1",
+                    "verification": {
+                        "verification_code": "moltbook_verify_x",
+                        "challenge_text": "noise",
+                    },
+                },
+            }
+        )
         with patch.object(client._session, "request", return_value=resp):
             created = client.post_comment("p1", "hi")
         assert created["verification"]["verification_code"] == "moltbook_verify_x"
@@ -904,12 +900,16 @@ class TestPostCommentVerificationSurfacing:
         # If the API puts verification at the root (not inside "comment"), it is
         # folded into the returned dict so the caller's gate still fires.
         client = MoltbookClient(api_key="k")
-        resp = _resp({
-            "success": True,
-            "comment": {"id": "c1"},
-            "verification": {"verification_code": "moltbook_verify_x",
-                             "challenge_text": "noise"},
-        })
+        resp = _resp(
+            {
+                "success": True,
+                "comment": {"id": "c1"},
+                "verification": {
+                    "verification_code": "moltbook_verify_x",
+                    "challenge_text": "noise",
+                },
+            }
+        )
         with patch.object(client._session, "request", return_value=resp):
             created = client.post_comment("p1", "hi")
         assert created["verification"]["verification_code"] == "moltbook_verify_x"
@@ -937,8 +937,10 @@ class TestApiInstrumentation:
             status=201,
         )
         captured: list = []
-        with patch.object(client._session, "request", return_value=resp), \
-             patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)):
+        with (
+            patch.object(client._session, "request", return_value=resp),
+            patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)),
+        ):
             client.post("/posts", json={"title": "t", "content": "SECRET BODY TEXT"})
         assert len(captured) == 1
         rec = captured[0]
@@ -948,14 +950,17 @@ class TestApiInstrumentation:
         assert rec["content_status"] == {"verification_status": "pending"}
         # The audit log must never carry untrusted free-text body content.
         import json as _json
+
         assert "SECRET BODY TEXT" not in _json.dumps(rec)
 
     def test_soft_fail_flagged(self):
         client = MoltbookClient(api_key="k")
         resp = _resp({"success": False, "error": "nope"}, status=200)
         captured: list = []
-        with patch.object(client._session, "request", return_value=resp), \
-             patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)):
+        with (
+            patch.object(client._session, "request", return_value=resp),
+            patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)),
+        ):
             client.get("/feed")
         assert captured[0]["soft_fail"] is True
         assert captured[0]["error"] == "nope"
@@ -964,12 +969,14 @@ class TestApiInstrumentation:
         client = MoltbookClient(api_key="k")
         resp = _resp({"foo": 1}, status=200)  # GET /agents/me depends on "agent"
         captured: list = []
-        with patch.object(client._session, "request", return_value=resp), \
-             patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)), \
-             caplog.at_level(
-                 logging.WARNING,
-                 logger="contemplative_agent.adapters.moltbook.client",
-             ):
+        with (
+            patch.object(client._session, "request", return_value=resp),
+            patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)),
+            caplog.at_level(
+                logging.WARNING,
+                logger="contemplative_agent.adapters.moltbook.client",
+            ),
+        ):
             client.get("/agents/me")
         assert "API drift" in caplog.text
         assert captured[0]["drift_missing"] == ["agent"]
@@ -981,12 +988,14 @@ class TestApiInstrumentation:
         resp = _resp({"error": "Not found", "message": "x"}, status=404)
         resp.text = "Not found"
         captured: list = []
-        with patch.object(client._session, "request", return_value=resp), \
-             patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)), \
-             caplog.at_level(
-                 logging.WARNING,
-                 logger="contemplative_agent.adapters.moltbook.client",
-             ):
+        with (
+            patch.object(client._session, "request", return_value=resp),
+            patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)),
+            caplog.at_level(
+                logging.WARNING,
+                logger="contemplative_agent.adapters.moltbook.client",
+            ),
+        ):
             with pytest.raises(MoltbookClientError):
                 client.post("/posts/abc/comments", json={"content": "hi"})
         assert "API drift" not in caplog.text
@@ -996,16 +1005,20 @@ class TestApiInstrumentation:
         client = MoltbookClient(api_key="k")
         resp = _resp({"success": True, "post": {"id": "x"}}, status=200)
         captured: list = []
-        with patch.object(client._session, "request", return_value=resp), \
-             patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)):
+        with (
+            patch.object(client._session, "request", return_value=resp),
+            patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)),
+        ):
             client.get("/posts/9a1d74d9-3c21-4294-bb0d-cda2f4fedcd8")
         assert captured[0]["endpoint"] == "GET /posts/{id}"
 
     def test_instrumentation_failure_never_breaks_request(self):
         client = MoltbookClient(api_key="k")
         resp = _resp({"success": True, "agent": {}}, status=200)
-        with patch.object(client._session, "request", return_value=resp), \
-             patch(_AUDIT_TARGET, side_effect=OSError("disk full")):
+        with (
+            patch.object(client._session, "request", return_value=resp),
+            patch(_AUDIT_TARGET, side_effect=OSError("disk full")),
+        ):
             out = client.get("/agents/me")  # must not raise
         assert out is resp
 
@@ -1105,10 +1118,9 @@ class TestTerminal429CountM5:
         ok.headers = {}
         ok.text = "{}"
         ok.json.return_value = {}
-        with patch.object(
-            client._session, "request", side_effect=[limited, ok]
-        ), patch(
-            "contemplative_agent.adapters.moltbook.client.time.sleep"
+        with (
+            patch.object(client._session, "request", side_effect=[limited, ok]),
+            patch("contemplative_agent.adapters.moltbook.client.time.sleep"),
         ):
             client.get("/test")
         assert client.recent_429_count == 0
@@ -1124,10 +1136,9 @@ class TestTerminal429CountM5:
         limited.headers = {"Retry-After": "0"}
         limited.text = "rate limited"
         limited.json.return_value = {}
-        with patch.object(
-            client._session, "request", return_value=limited
-        ), patch(
-            "contemplative_agent.adapters.moltbook.client.time.sleep"
+        with (
+            patch.object(client._session, "request", return_value=limited),
+            patch("contemplative_agent.adapters.moltbook.client.time.sleep"),
         ):
             with pytest.raises(MoltbookClientError):
                 client.get("/test")
@@ -1145,11 +1156,14 @@ class TestApiAuditTransportAndRetry:
 
         client = MoltbookClient(api_key="k")
         captured: list = []
-        with patch.object(
-            client._session,
-            "request",
-            side_effect=_requests.ConnectionError("boom"),
-        ), patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)):
+        with (
+            patch.object(
+                client._session,
+                "request",
+                side_effect=_requests.ConnectionError("boom"),
+            ),
+            patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)),
+        ):
             with pytest.raises(MoltbookClientError, match="Request failed"):
                 client.get("/posts")
         assert len(captured) == 1
@@ -1165,11 +1179,11 @@ class TestApiAuditTransportAndRetry:
         resp_429.text = ""
         resp_200 = _resp({}, status=200)
         captured: list = []
-        with patch.object(
-            client._session, "request", side_effect=[resp_429, resp_200]
-        ), patch(
-            "contemplative_agent.adapters.moltbook.client.time.sleep"
-        ), patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)):
+        with (
+            patch.object(client._session, "request", side_effect=[resp_429, resp_200]),
+            patch("contemplative_agent.adapters.moltbook.client.time.sleep"),
+            patch(_AUDIT_TARGET, side_effect=lambda path, rec: captured.append(rec)),
+        ):
             client.get("/posts")
         retried = [r for r in captured if r.get("retried")]
         assert len(retried) == 1
@@ -1183,9 +1197,11 @@ class TestApiAuditTransportAndRetry:
     def test_audit_write_failure_never_breaks_request(self, caplog):
         client = MoltbookClient(api_key="k")
         resp_200 = _resp({}, status=200)
-        with patch.object(client._session, "request", return_value=resp_200), patch(
-            _AUDIT_TARGET, side_effect=OSError("disk full")
-        ), caplog.at_level(logging.WARNING):
+        with (
+            patch.object(client._session, "request", return_value=resp_200),
+            patch(_AUDIT_TARGET, side_effect=OSError("disk full")),
+            caplog.at_level(logging.WARNING),
+        ):
             result = client.get("/posts")
         assert result.status_code == 200
         assert "API audit record failed" in caplog.text

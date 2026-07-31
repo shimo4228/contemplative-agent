@@ -54,9 +54,7 @@ def _nodes_of(kind: str) -> list[dict]:
 
 class TestGraphIntegrity:
     def test_adr_nodes_match_adr_files_bidirectionally(self):
-        node_paths = {
-            n["@id"].removeprefix(BLOB_PREFIX) for n in _nodes_of("ADR")
-        }
+        node_paths = {n["@id"].removeprefix(BLOB_PREFIX) for n in _nodes_of("ADR")}
         file_paths = {
             f"docs/adr/{p.name}"
             for p in (REPO_ROOT / "docs" / "adr").glob("[0-9]*.md")
@@ -85,9 +83,7 @@ class TestGraphIntegrity:
                 rel = node_id.removeprefix(BLOB_PREFIX).split("#", 1)[0]
                 if not (REPO_ROOT / rel).is_file():
                     broken.append(node_id)
-        assert not broken, (
-            f"graph.jsonld @ids pointing at nonexistent repo files: {broken}"
-        )
+        assert not broken, f"graph.jsonld @ids pointing at nonexistent repo files: {broken}"
 
     def test_node_ids_are_unique(self):
         ids = [n["@id"] for n in _nodes() if "@id" in n]

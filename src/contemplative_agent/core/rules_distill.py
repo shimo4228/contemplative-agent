@@ -58,9 +58,7 @@ class RulesDistillResult:
     dropped_count: int
 
 
-def _read_skills(
-    skills_dir: Path, since: str | None = None
-) -> list[tuple[str, str]]:
+def _read_skills(skills_dir: Path, since: str | None = None) -> list[tuple[str, str]]:
     """Read skill file contents from *skills_dir*.
 
     Args:
@@ -240,9 +238,7 @@ def _build_skill_clusters(
     # Singletons collectively form one "other" batch only if the pool is
     # large enough to attempt rule synthesis. Otherwise drop.
     if len(singletons) >= MIN_SKILLS_REQUIRED:
-        batches.append(
-            [(p["filename"], p["pattern"]) for p in singletons[:MAX_RULES_BATCH]]
-        )
+        batches.append([(p["filename"], p["pattern"]) for p in singletons[:MAX_RULES_BATCH]])
     return batches
 
 
@@ -288,7 +284,9 @@ def distill_rules(
     skill_items = _read_skills(skills_dir, since=since)
 
     if not since and not full:
-        logger.info("No previous rules-distill run found, processing all %d skills", len(skill_items))
+        logger.info(
+            "No previous rules-distill run found, processing all %d skills", len(skill_items)
+        )
 
     if len(skill_items) < MIN_SKILLS_REQUIRED:
         return (
@@ -305,7 +303,8 @@ def distill_rules(
 
     logger.info(
         "Processing %d skills in %d cluster batches",
-        len(skill_items), len(batches),
+        len(skill_items),
+        len(batches),
     )
 
     rule_results: list[RuleResult] = []
@@ -380,7 +379,9 @@ def _distill_one_batch(
     dropped = 0
     for rule_text in individual_rules:
         if not validate_identity_content(rule_text):
-            logger.warning("Batch %d/%d: forbidden pattern in rule, dropping", batch_idx + 1, n_batches)
+            logger.warning(
+                "Batch %d/%d: forbidden pattern in rule, dropping", batch_idx + 1, n_batches
+            )
             dropped += 1
             continue
 
@@ -393,11 +394,13 @@ def _distill_one_batch(
             dropped += 1
             continue
 
-        rules.append(RuleResult(
-            text=rule_text,
-            filename=resolved.filename,
-            target_path=resolved.target_path,
-            source_ids=batch_source_ids,
-            thinking=thinking,
-        ))
+        rules.append(
+            RuleResult(
+                text=rule_text,
+                filename=resolved.filename,
+                target_path=resolved.target_path,
+                source_ids=batch_source_ids,
+                thinking=thinking,
+            )
+        )
     return rules, dropped, 0

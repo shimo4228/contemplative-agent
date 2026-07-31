@@ -16,9 +16,7 @@ def _pat(text: str, embedding: list[float], days_old: float = 0.0) -> dict:
     ago the pattern was distilled) — not a stored importance rating — is what
     orders patterns within a cluster.
     """
-    distilled = (
-        datetime.now(timezone.utc) - timedelta(days=days_old)
-    ).isoformat()
+    distilled = (datetime.now(timezone.utc) - timedelta(days=days_old)).isoformat()
     return {
         "pattern": text,
         "embedding": list(embedding),
@@ -60,9 +58,7 @@ class TestSingleCluster:
     def test_all_similar_merge(self):
         # 5 vectors on the same axis → cosine 1 pairwise → single cluster.
         pats = [_pat(f"x{i}", _axis_vec(8, 1)) for i in range(5)]
-        clusters, singletons = cluster_patterns(
-            pats, threshold=0.7, min_size=3, max_size=10
-        )
+        clusters, singletons = cluster_patterns(pats, threshold=0.7, min_size=3, max_size=10)
         assert len(clusters) == 1
         assert len(clusters[0]) == 5
         assert singletons == []
@@ -72,9 +68,7 @@ class TestAllSingletons:
     def test_orthogonal_vectors_are_singletons(self):
         # 5 mutually orthogonal vectors → cosine 0 pairwise → no cluster.
         pats = [_pat(f"o{i}", _axis_vec(8, i + 1)) for i in range(5)]
-        clusters, singletons = cluster_patterns(
-            pats, threshold=0.7, min_size=3, max_size=10
-        )
+        clusters, singletons = cluster_patterns(pats, threshold=0.7, min_size=3, max_size=10)
         assert clusters == []
         assert len(singletons) == 5
 
@@ -83,13 +77,8 @@ class TestMaxSizeCap:
     def test_large_cluster_is_sliced_to_max_size(self):
         # 15 patterns on same axis — single cluster exceeds max_size=10.
         # b0 is newest, b14 oldest (ADR-0056: decay orders the slice).
-        pats = [
-            _pat(f"b{i}", _axis_vec(8, 1), days_old=i * 0.5)
-            for i in range(15)
-        ]
-        clusters, singletons = cluster_patterns(
-            pats, threshold=0.7, min_size=3, max_size=10
-        )
+        pats = [_pat(f"b{i}", _axis_vec(8, 1), days_old=i * 0.5) for i in range(15)]
+        clusters, singletons = cluster_patterns(pats, threshold=0.7, min_size=3, max_size=10)
         assert len(clusters) == 1
         assert len(clusters[0]) == 10
         # Top-10 by effective_importance (= least decayed) — newest kept.
@@ -117,17 +106,13 @@ class TestMinSizeFallback:
 
 class TestEdgeCases:
     def test_empty_input(self):
-        clusters, singletons = cluster_patterns(
-            [], threshold=0.7, min_size=3, max_size=10
-        )
+        clusters, singletons = cluster_patterns([], threshold=0.7, min_size=3, max_size=10)
         assert clusters == []
         assert singletons == []
 
     def test_single_pattern(self):
         pats = [_pat("lonely", _axis_vec(8, 1))]
-        clusters, singletons = cluster_patterns(
-            pats, threshold=0.7, min_size=3, max_size=10
-        )
+        clusters, singletons = cluster_patterns(pats, threshold=0.7, min_size=3, max_size=10)
         assert clusters == []
         assert singletons == pats
 
@@ -155,13 +140,8 @@ class TestClusterInternalSort:
         # ADR-0056: intra-cluster order is effective_importance = pure decay,
         # so the freshest (smallest days_old) must come first.
         ages = [4.0, 0.5, 2.0, 7.0, 1.0]
-        pats = [
-            _pat(f"p{i}", _axis_vec(8, 1), days_old=age)
-            for i, age in enumerate(ages)
-        ]
-        clusters, _ = cluster_patterns(
-            pats, threshold=0.7, min_size=3, max_size=10
-        )
+        pats = [_pat(f"p{i}", _axis_vec(8, 1), days_old=age) for i, age in enumerate(ages)]
+        clusters, _ = cluster_patterns(pats, threshold=0.7, min_size=3, max_size=10)
         assert len(clusters) == 1
         got_ages = [p["distilled"] for p in clusters[0]]
         # Sorted by decay desc == sorted by distilled timestamp desc (newest first).

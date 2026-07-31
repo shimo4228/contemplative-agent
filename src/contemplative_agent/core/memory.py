@@ -255,9 +255,7 @@ class MemoryStore:
         after the visibility-verification handshake succeeds (ADR-0063); the
         flag scopes the NoveltyGate comparison to visible posts.
         """
-        return self._posts.record(
-            timestamp, post_id, title, topic_summary, content_hash, verified
-        )
+        return self._posts.record(timestamp, post_id, title, topic_summary, content_hash, verified)
 
     def get_recent_posts(self, limit: int = 50, verified_only: bool = False) -> list[PostRecord]:
         """Return recent self-post records (oldest→newest), capped at ``limit``.

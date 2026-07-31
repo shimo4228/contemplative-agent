@@ -38,11 +38,13 @@ def format_meditation_summary(result: MeditationResult) -> str:
         change = final - initial
         lines.append(f"  {name}: {initial:.3f} → {final:.3f} ({change:+.3f})")
 
-    lines.extend([
-        "",
-        "### Action Space",
-        f"Actions: {', '.join(ACTION_STATES)}",
-    ])
+    lines.extend(
+        [
+            "",
+            "### Action Space",
+            f"Actions: {', '.join(ACTION_STATES)}",
+        ]
+    )
 
     return "\n".join(lines)
 
@@ -80,6 +82,7 @@ def _load_interpret_template(prompt_template: str | None) -> str | None:
         return prompt_template
     try:
         from ...core import prompts
+
         return prompts.MEDITATION_INTERPRET_PROMPT
     except AttributeError:
         # AttributeError is the lazy proxy's "this prompt key isn't configured"

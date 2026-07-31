@@ -260,10 +260,11 @@ class TestRepoRoot:
 # ADR-0081: description-audit phase (advisory-only) in the skill stocktake
 # ---------------------------------------------------------------------------
 
+
 class TestStocktakeDescriptionPhase:
     def _write_skill(self, d, name, description="A narrow skill"):
         (d / name).write_text(
-            f"---\nname: {name[:-3]}\ndescription: \"{description}\"\n---\n\n# T\n\nbody",
+            f'---\nname: {name[:-3]}\ndescription: "{description}"\n---\n\n# T\n\nbody',
             encoding="utf-8",
         )
 
@@ -296,9 +297,7 @@ class TestStocktakeDescriptionPhase:
 
         self._write_skill(tmp_path, "s.md")
         before = (tmp_path / "s.md").read_text(encoding="utf-8")
-        with patch(
-            "contemplative_agent.core.stocktake.audit_skill_description"
-        ) as mock_audit:
+        with patch("contemplative_agent.core.stocktake.audit_skill_description") as mock_audit:
             _stocktake_description_phase(
                 [("s.md", "body")],
                 target_dir=tmp_path,
@@ -314,9 +313,7 @@ class TestStocktakeDescriptionPhase:
         from contemplative_agent.cli.stocktake_cmd import _stocktake_description_phase
 
         (tmp_path / "s.md").write_text("# Title only\n\nbody", encoding="utf-8")
-        with patch(
-            "contemplative_agent.core.stocktake.audit_skill_description"
-        ) as mock_audit:
+        with patch("contemplative_agent.core.stocktake.audit_skill_description") as mock_audit:
             _stocktake_description_phase(
                 [("s.md", "body")],
                 target_dir=tmp_path,
@@ -343,9 +340,7 @@ class TestCodexReviewFixes20260724:
         (tmp_path / "kept.md").write_text("# K\n\nbody", encoding="utf-8")
         issues = [QualityIssue(filename="kept.md", reason="too short")]
         with (
-            patch(
-                "contemplative_agent.cli.approval._approve_delete", return_value=False
-            ),
+            patch("contemplative_agent.cli.approval._approve_delete", return_value=False),
             patch("contemplative_agent.cli.approval._log_approval"),
         ):
             dropped = _stocktake_drop_phase(
@@ -363,12 +358,8 @@ class TestCodexReviewFixes20260724:
     def test_load_selection_reading_empty_window_is_none(self, tmp_path, monkeypatch):
         from contemplative_agent.cli import stocktake_cmd
 
-        monkeypatch.setattr(
-            stocktake_cmd.config, "EPISODE_LOG_DIR", tmp_path / "logs"
-        )
-        monkeypatch.setattr(
-            stocktake_cmd.config, "SKILLS_DIR", tmp_path / "skills"
-        )
+        monkeypatch.setattr(stocktake_cmd.config, "EPISODE_LOG_DIR", tmp_path / "logs")
+        monkeypatch.setattr(stocktake_cmd.config, "SKILLS_DIR", tmp_path / "skills")
         assert stocktake_cmd._load_selection_reading() is None
 
     def test_description_phase_audits_body_from_disk(self, tmp_path):

@@ -118,9 +118,7 @@ class TestComputeNovelty:
 def gate(tmp_path):
     """A NoveltyGate wired with sidecar in tmp + real MemoryStore."""
     store = EpisodeEmbeddingStore(tmp_path / "embeddings.sqlite")
-    mem = MemoryStore(
-        path=tmp_path / "agents.json", log_dir=tmp_path / "logs"
-    )
+    mem = MemoryStore(path=tmp_path / "agents.json", log_dir=tmp_path / "logs")
     return NoveltyGate(
         embed_store=store,
         memory=mem,
@@ -156,30 +154,22 @@ def _patch_embed(
             return None
         return np.stack([r for r in results if r is not None]).astype(np.float32)
 
-    monkeypatch.setattr(
-        "contemplative_agent.adapters.moltbook.novelty.embed_one", single
-    )
-    monkeypatch.setattr(
-        "contemplative_agent.adapters.moltbook.novelty.embed_texts", batch
-    )
+    monkeypatch.setattr("contemplative_agent.adapters.moltbook.novelty.embed_one", single)
+    monkeypatch.setattr("contemplative_agent.adapters.moltbook.novelty.embed_texts", batch)
 
 
 def _no_deficit(gate, monkeypatch):
     """Pin actual_7d_rate ≥ target so the Lagrangian term is 0 — lets a
     test exercise the pure novelty path without the deficit slack.
     """
-    monkeypatch.setattr(
-        gate._memory, "get_post_rate_7d", lambda: 5.0
-    )
+    monkeypatch.setattr(gate._memory, "get_post_rate_7d", lambda: 5.0)
 
 
 class TestNoveltyGateEvaluate:
     def test_empty_history_admits(self, gate, monkeypatch):
         _patch_embed(monkeypatch, _vec())
         _no_deficit(gate, monkeypatch)
-        decision = gate.evaluate(
-            "Title", "summary", "body", recent_records=[]
-        )
+        decision = gate.evaluate("Title", "summary", "body", recent_records=[])
         assert decision.admit is True
         assert decision.reason == "admit"
         assert decision.novelty == pytest.approx(1.0)
@@ -232,9 +222,7 @@ class TestNoveltyGateLagrangian:
             prior.topic_summary,
         )
         # Force deficit = 3.0 (silent week) → score = 0 + 0.20*3 = 0.60 ≥ 0.35
-        monkeypatch.setattr(
-            gate._memory, "get_post_rate_7d", lambda: 0.0
-        )
+        monkeypatch.setattr(gate._memory, "get_post_rate_7d", lambda: 0.0)
         decision = gate.evaluate("Title", "summary", "body", [prior])
         assert decision.admit is True
         assert decision.deficit == pytest.approx(3.0)
@@ -250,9 +238,7 @@ class TestNoveltyGateLagrangian:
             prior.topic_summary,
         )
         # Above target → deficit clamped to 0
-        monkeypatch.setattr(
-            gate._memory, "get_post_rate_7d", lambda: 5.0
-        )
+        monkeypatch.setattr(gate._memory, "get_post_rate_7d", lambda: 5.0)
         decision = gate.evaluate("Title", "summary", "body", [prior])
         assert decision.admit is False
         assert decision.deficit == pytest.approx(0.0)
@@ -274,9 +260,7 @@ class TestNoveltyGateFallback:
         _patch_embed(monkeypatch, lambda _t: None)
         # Identical title → Jaccard self ≈ 1.0 ≥ 0.45 → fallback rejects
         prior = _rec(_iso(_now()), "Same Title Here", "summary text", pid="p1")
-        decision = gate.evaluate(
-            "Same Title Here", "summary text", "body", [prior]
-        )
+        decision = gate.evaluate("Same Title Here", "summary text", "body", [prior])
         assert decision.admit is False
         assert decision.reason == "embed_failed_fallback"
 
@@ -294,9 +278,7 @@ class TestNoveltyGateFallback:
             return target_vec
 
         _patch_embed(monkeypatch, embed_fn)
-        seeded_prior = _rec(
-            _iso(_now() - timedelta(days=1)), "Seeded", pid="p_seeded"
-        )
+        seeded_prior = _rec(_iso(_now() - timedelta(days=1)), "Seeded", pid="p_seeded")
         gate.record(
             seeded_prior.post_id,
             seeded_prior.timestamp,
@@ -305,12 +287,8 @@ class TestNoveltyGateFallback:
         )
         # An "unseeded" prior whose embedding will be backfilled at evaluate time
         # When the gate backfills, embed_fn returns target_vec → identical to draft
-        unseeded_prior = _rec(
-            _iso(_now() - timedelta(days=2)), "Unseeded", pid="p_unseeded"
-        )
-        decision = gate.evaluate(
-            "Title", "summary", "body", [seeded_prior, unseeded_prior]
-        )
+        unseeded_prior = _rec(_iso(_now() - timedelta(days=2)), "Unseeded", pid="p_unseeded")
+        decision = gate.evaluate("Title", "summary", "body", [seeded_prior, unseeded_prior])
         # Both priors end up with target_vec → near-zero novelty → reject
         assert decision.admit is False
         assert decision.novelty < 0.1
@@ -340,24 +318,18 @@ class TestNoveltyGateRecord:
 
 class TestPostRate7d:
     def test_empty_history_returns_zero(self, tmp_path):
-        mem = MemoryStore(
-            path=tmp_path / "a.json", log_dir=tmp_path / "logs"
-        )
+        mem = MemoryStore(path=tmp_path / "a.json", log_dir=tmp_path / "logs")
         assert mem.get_post_rate_7d() == 0.0
 
     def test_seven_recent_posts_returns_one_per_day(self, tmp_path):
-        mem = MemoryStore(
-            path=tmp_path / "a.json", log_dir=tmp_path / "logs"
-        )
+        mem = MemoryStore(path=tmp_path / "a.json", log_dir=tmp_path / "logs")
         ts = _iso(_now())
         for i in range(7):
             mem.record_post(ts, f"p{i}", "title", "summary", "h" * 16)
         assert mem.get_post_rate_7d() == pytest.approx(1.0)
 
     def test_old_posts_excluded(self, tmp_path):
-        mem = MemoryStore(
-            path=tmp_path / "a.json", log_dir=tmp_path / "logs"
-        )
+        mem = MemoryStore(path=tmp_path / "a.json", log_dir=tmp_path / "logs")
         old_ts = _iso(_now() - timedelta(days=10))
         new_ts = _iso(_now())
         mem.record_post(old_ts, "p_old", "t", "s", "h" * 16)
@@ -365,9 +337,7 @@ class TestPostRate7d:
         assert mem.get_post_rate_7d() == pytest.approx(1.0 / 7.0)
 
     def test_malformed_timestamp_skipped(self, tmp_path):
-        mem = MemoryStore(
-            path=tmp_path / "a.json", log_dir=tmp_path / "logs"
-        )
+        mem = MemoryStore(path=tmp_path / "a.json", log_dir=tmp_path / "logs")
         mem._posts.history.append(
             PostRecord(
                 timestamp="not-iso",
@@ -395,9 +365,7 @@ def _ollama_available() -> bool:
         return False
 
 
-@pytest.mark.skipif(
-    not _ollama_available(), reason="Ollama embedding model unavailable"
-)
+@pytest.mark.skipif(not _ollama_available(), reason="Ollama embedding model unavailable")
 class TestNoveltyGateCalibration:
     """The 19 near-duplicate titles must mostly reject at θ=0.35.
 
@@ -408,12 +376,8 @@ class TestNoveltyGateCalibration:
         from tests.test_dedup import REPORT_TITLES  # noqa: WPS433
 
         store = EpisodeEmbeddingStore(tmp_path / "embeddings.sqlite")
-        mem = MemoryStore(
-            path=tmp_path / "a.json", log_dir=tmp_path / "logs"
-        )
-        gate = NoveltyGate(
-            embed_store=store, memory=mem, theta=0.35
-        )
+        mem = MemoryStore(path=tmp_path / "a.json", log_dir=tmp_path / "logs")
+        gate = NoveltyGate(embed_store=store, memory=mem, theta=0.35)
 
         rejected = 0
         priors: list[PostRecord] = []

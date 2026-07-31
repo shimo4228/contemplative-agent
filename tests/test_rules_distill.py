@@ -37,13 +37,16 @@ def _mock_embed_texts(monkeypatch):
     ``MAX_RULES_BATCH`` overflow into a second "singletons" batch. No
     real Ollama call is made.
     """
+
     def _fake(texts):
         if not texts:
             return np.zeros((0, 8), dtype=np.float32)
         vec = np.ones((len(texts), 8), dtype=np.float32) / np.sqrt(8.0)
         return vec
+
     monkeypatch.setattr(
-        "contemplative_agent.core.rules_distill.embed_texts", _fake,
+        "contemplative_agent.core.rules_distill.embed_texts",
+        _fake,
     )
 
 
@@ -51,9 +54,7 @@ def _mock_embed_texts(monkeypatch):
 # Fixtures
 # ---------------------------------------------------------------------------
 
-GOOD_RULES_RESPONSE_STAGE1 = (
-    "Analysis: The skills reveal a principle about asking questions first."
-)
+GOOD_RULES_RESPONSE_STAGE1 = "Analysis: The skills reveal a principle about asking questions first."
 
 GOOD_RULES_RESPONSE_STAGE2 = (
     "# Engagement Practices\n"
@@ -110,6 +111,7 @@ def _make_skills_dir(tmp_path: Path, n: int = 5) -> Path:
 # Unit tests: strip_frontmatter
 # ---------------------------------------------------------------------------
 
+
 class TestStripFrontmatter:
     def test_with_frontmatter(self):
         result = strip_frontmatter(SKILL_WITH_FRONTMATTER)
@@ -131,6 +133,7 @@ class TestStripFrontmatter:
 # ---------------------------------------------------------------------------
 # Unit tests: split_frontmatter
 # ---------------------------------------------------------------------------
+
 
 class TestSplitFrontmatter:
     def test_with_frontmatter(self):
@@ -187,6 +190,7 @@ class TestSplitFrontmatter:
 # Unit tests: synthesize_frontmatter
 # ---------------------------------------------------------------------------
 
+
 class TestSynthesizeFrontmatter:
     def test_name_is_title_slug(self):
         fm = synthesize_frontmatter("# My Cool Skill\n\nbody")
@@ -197,10 +201,7 @@ class TestSynthesizeFrontmatter:
         assert "origin: auto-extracted" in fm
 
     def test_description_from_context_first_sentence(self):
-        body = (
-            "# Skill\n\n"
-            "**Context:** Applies during high-density windows. Extra detail here.\n"
-        )
+        body = "# Skill\n\n**Context:** Applies during high-density windows. Extra detail here.\n"
         fm = synthesize_frontmatter(body)
         assert 'description: "Applies during high-density windows."' in fm
 
@@ -209,10 +210,7 @@ class TestSynthesizeFrontmatter:
         assert 'description: "Solo Skill"' in fm
 
     def test_description_sanitizes_double_quotes(self):
-        body = (
-            '# Skill\n\n'
-            '**Context:** Handles the "trembling reality" of context shifts.\n'
-        )
+        body = '# Skill\n\n**Context:** Handles the "trembling reality" of context shifts.\n'
         fm = synthesize_frontmatter(body)
         # Only the wrapping pair of double quotes survives; inner ones become '.
         assert fm.count('"') == 2
@@ -230,6 +228,7 @@ class TestSynthesizeFrontmatter:
 # ---------------------------------------------------------------------------
 # Unit tests: _read_skills
 # ---------------------------------------------------------------------------
+
 
 class TestReadSkills:
     def test_reads_all_skills(self, tmp_path):
@@ -269,6 +268,7 @@ class TestReadSkills:
         old.write_text("# Old\nOld content.")
         # Set mtime to the past
         import os
+
         os.utime(old, (1000000000, 1000000000))
         new = skills_dir / "new.md"
         new.write_text("# New\nNew content.")
@@ -287,6 +287,7 @@ class TestReadSkills:
 # ---------------------------------------------------------------------------
 # Unit tests: _extract_rules
 # ---------------------------------------------------------------------------
+
 
 class TestSlugify:
     def test_basic(self):
@@ -422,9 +423,7 @@ class TestDistillRulesRespectsNoRulesMarker:
     from 'LLM error' in the final message."""
 
     @patch("contemplative_agent.core.rules_distill.generate_full")
-    def test_all_empty_batches_returns_valid_empty_message(
-        self, mock_generate, tmp_path
-    ):
+    def test_all_empty_batches_returns_valid_empty_message(self, mock_generate, tmp_path):
         """When every batch returns the no-rules marker (and no batch
         actually failed), the final message must NOT say 'Failed to
         extract' — that would mislead the user into thinking the LLM
@@ -434,25 +433,19 @@ class TestDistillRulesRespectsNoRulesMarker:
             GenerationOutput(text="# No Universal Rules Found"),
         ]
         skills_dir = _make_skills_dir(tmp_path, n=5)
-        result = distill_rules(
-            skills_dir=skills_dir, rules_dir=tmp_path / "rules"
-        )
+        result = distill_rules(skills_dir=skills_dir, rules_dir=tmp_path / "rules")
         assert isinstance(result, str)
         assert "No universal rules extracted" in result
         assert "Failed to extract" not in result
 
     @patch("contemplative_agent.core.rules_distill.generate_full")
-    def test_actual_failure_still_says_failed(
-        self, mock_generate, tmp_path
-    ):
+    def test_actual_failure_still_says_failed(self, mock_generate, tmp_path):
         """When Stage 1 actually fails (LLM returns None), the final
         message must preserve the 'Failed to extract' wording so the
         user knows something broke."""
         mock_generate.return_value = None
         skills_dir = _make_skills_dir(tmp_path, n=5)
-        result = distill_rules(
-            skills_dir=skills_dir, rules_dir=tmp_path / "rules"
-        )
+        result = distill_rules(skills_dir=skills_dir, rules_dir=tmp_path / "rules")
         assert isinstance(result, str)
         assert "Failed to extract" in result
 
@@ -460,6 +453,7 @@ class TestDistillRulesRespectsNoRulesMarker:
 # ---------------------------------------------------------------------------
 # Integration tests
 # ---------------------------------------------------------------------------
+
 
 class TestDistillRules:
     def test_no_skills_dir(self):
@@ -557,14 +551,17 @@ class TestBuildSkillClusters:
 
     def test_multi_cluster_with_explicit_embeddings(self, monkeypatch):
         """Two distinct axes → two clusters."""
+
         def _fake(texts):
             out = np.zeros((len(texts), 8), dtype=np.float32)
             for i, t in enumerate(texts):
                 axis = 1 if t.startswith("a") else 2
                 out[i, axis] = 1.0
             return out
+
         monkeypatch.setattr(
-            "contemplative_agent.core.rules_distill.embed_texts", _fake,
+            "contemplative_agent.core.rules_distill.embed_texts",
+            _fake,
         )
         skills = [(f"{t}.md", t) for t in ["a1", "a2", "a3", "b1", "b2", "b3"]]
         batches = _build_skill_clusters(skills)
@@ -639,7 +636,9 @@ class TestIncrementalMode:
         # Write a marker in the future so incremental would find 0 skills
         (rules_dir / ".last_rules_distill").write_text("2099-01-01T00:00+00:00\n")
         result = distill_rules(
-            skills_dir=skills_dir, rules_dir=rules_dir, full=True,
+            skills_dir=skills_dir,
+            rules_dir=rules_dir,
+            full=True,
         )
         assert isinstance(result, RulesDistillResult)
         assert "Ask Before Reacting" in result.rules[0].text
@@ -695,8 +694,10 @@ class TestRulesLineageADR0050:
                 axis = 1 if t.startswith("a") else 2
                 out[i, axis] = 1.0
             return out
+
         monkeypatch.setattr(
-            "contemplative_agent.core.rules_distill.embed_texts", _fake,
+            "contemplative_agent.core.rules_distill.embed_texts",
+            _fake,
         )
         items = [(f"{t}.md", t) for t in ["a1", "a2", "a3", "b1", "b2", "b3"]]
         batches = _build_skill_clusters(items)

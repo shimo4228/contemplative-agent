@@ -61,8 +61,10 @@ class Scheduler:
             # reset a counter (e.g. comments_today → 0 bypasses the daily
             # cap). Load what is present but say so.
             expected = (
-                "last_post_time", "last_comment_time",
-                "comments_today", "day_start",
+                "last_post_time",
+                "last_comment_time",
+                "comments_today",
+                "day_start",
             )
             missing = [k for k in expected if k not in data]
             if missing:
@@ -70,7 +72,8 @@ class Scheduler:
                     "Rate state %s is missing field(s) %s — those counters "
                     "reset to defaults (daily caps may be under-enforced "
                     "until the next save)",
-                    self._state_path.name, missing,
+                    self._state_path.name,
+                    missing,
                 )
             self._last_post_time = data.get("last_post_time", 0.0)
             self._last_comment_time = data.get("last_comment_time", 0.0)

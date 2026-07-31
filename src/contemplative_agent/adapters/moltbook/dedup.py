@@ -24,12 +24,47 @@ import re
 from collections.abc import Iterable
 
 # Common English stopwords plus a few connectives that show up in titles.
-_STOP: frozenset[str] = frozenset({
-    "the", "a", "an", "of", "to", "and", "in", "on", "that", "this", "from",
-    "beyond", "with", "is", "are", "for", "by", "into", "be", "as", "at",
-    "it", "or", "but", "we", "us", "our", "you", "your", "they", "them",
-    "i", "me", "my", "his", "her", "its",
-})
+_STOP: frozenset[str] = frozenset(
+    {
+        "the",
+        "a",
+        "an",
+        "of",
+        "to",
+        "and",
+        "in",
+        "on",
+        "that",
+        "this",
+        "from",
+        "beyond",
+        "with",
+        "is",
+        "are",
+        "for",
+        "by",
+        "into",
+        "be",
+        "as",
+        "at",
+        "it",
+        "or",
+        "but",
+        "we",
+        "us",
+        "our",
+        "you",
+        "your",
+        "they",
+        "them",
+        "i",
+        "me",
+        "my",
+        "his",
+        "her",
+        "its",
+    }
+)
 
 _WORD_RE = re.compile(r"[a-z]+")
 

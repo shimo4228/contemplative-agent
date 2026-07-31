@@ -1,4 +1,5 @@
 """Tests for scripts/state_invariant_check.py — deterministic state drift check."""
+
 from __future__ import annotations
 
 import json
@@ -49,13 +50,11 @@ class TestRequiredAndTimestamp:
         assert r.level == sic._FAIL
 
     def test_unparseable_timestamp_is_fail(self):
-        r = _result(sic.check_knowledge([_live("p", distilled="not-a-date")]),
-                    "timestamp_validity")
+        r = _result(sic.check_knowledge([_live("p", distilled="not-a-date")]), "timestamp_validity")
         assert r.level == sic._FAIL
 
     def test_unknown_timestamp_is_fail(self):
-        r = _result(sic.check_knowledge([_live("p", distilled="unknown")]),
-                    "timestamp_validity")
+        r = _result(sic.check_knowledge([_live("p", distilled="unknown")]), "timestamp_validity")
         assert r.level == sic._FAIL
 
     def test_clean_timestamps_ok(self):
@@ -98,8 +97,7 @@ class TestSoftInvalidatedRatio:
 
     def test_high_ratio_is_warn(self):
         patterns = [_live("live")] + [
-            {**_live(f"old{i}"), "valid_until": "2026-06-21T00:00:00+00:00"}
-            for i in range(4)
+            {**_live(f"old{i}"), "valid_until": "2026-06-21T00:00:00+00:00"} for i in range(4)
         ]  # 4/5 = 80% tombstoned
         r = _result(sic.check_knowledge(patterns), "soft_invalidated_ratio")
         assert r.level == sic._WARN
@@ -125,9 +123,7 @@ class TestLoadAndRender:
         (tmp_path / "knowledge.json").write_text(
             json.dumps([_live("persisted pattern")]), encoding="utf-8"
         )
-        (tmp_path / "agents.json").write_text(
-            json.dumps({"followed": ["x"]}), encoding="utf-8"
-        )
+        (tmp_path / "agents.json").write_text(json.dumps({"followed": ["x"]}), encoding="utf-8")
         # An episode log present in the same tree must be ignored.
         (tmp_path / "2026-06-23.jsonl").write_text(
             json.dumps({"data": {"pattern": "injection bait"}}), encoding="utf-8"

@@ -47,9 +47,7 @@ class EpisodeLog:
         except OSError as exc:
             logger.warning("Failed to write episode log: %s", exc)
 
-    def read_range(
-        self, days: int = 1, record_type: str | None = None
-    ) -> list[dict[str, Any]]:
+    def read_range(self, days: int = 1, record_type: str | None = None) -> list[dict[str, Any]]:
         """Read records from the last N days.
 
         Args:

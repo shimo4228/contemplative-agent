@@ -111,9 +111,9 @@ class TestRankAndQuery:
     def test_rank_filters_by_threshold_and_top_k(self):
         seed = np.array([1.0, 0.0], dtype=np.float32)
         candidates = [
-            {"pattern": "a", "embedding": [1.0, 0.0]},   # sim=1.0
-            {"pattern": "b", "embedding": [0.7, 0.7]},   # sim≈0.707
-            {"pattern": "c", "embedding": [0.0, 1.0]},   # sim=0.0
+            {"pattern": "a", "embedding": [1.0, 0.0]},  # sim=1.0
+            {"pattern": "b", "embedding": [0.7, 0.7]},  # sim≈0.707
+            {"pattern": "c", "embedding": [0.0, 1.0]},  # sim=0.0
             {"pattern": "d", "embedding": [-1.0, 0.0]},  # sim=-1.0
         ]
         result = ViewRegistry._rank(seed, candidates, threshold=0.5, top_k=2)
@@ -122,7 +122,7 @@ class TestRankAndQuery:
     def test_rank_skips_patterns_without_embedding(self):
         seed = np.array([1.0, 0.0], dtype=np.float32)
         candidates = [
-            {"pattern": "x"},                            # no embedding → skip
+            {"pattern": "x"},  # no embedding → skip
             {"pattern": "y", "embedding": [1.0, 0.0]},
         ]
         result = ViewRegistry._rank(seed, candidates, threshold=0.0, top_k=None)
@@ -162,6 +162,7 @@ class TestRankAndQuery:
         c = reg.get_centroid("alpha")
         assert c is not None
         np.testing.assert_array_almost_equal(c, [0.5, 0.5])
+
 
 class TestRankPureCosineADR0051:
     """ADR-0051: _rank is pure cosine + bitemporal gate. Trust is gone."""

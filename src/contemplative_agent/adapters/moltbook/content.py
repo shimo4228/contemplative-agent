@@ -44,9 +44,7 @@ class ContentManager:
         """Record content as posted, so a later identical text is deduped."""
         self._posted_hashes.add(_content_hash(content))
 
-    def create_comment(
-        self, post_text: str, *, think: bool = False
-    ) -> GenerationOutput:
+    def create_comment(self, post_text: str, *, think: bool = False) -> GenerationOutput:
         """Generate a (deduped) comment, surfacing the reasoning trace.
 
         Returns a :class:`GenerationOutput`: ``.text`` is None on

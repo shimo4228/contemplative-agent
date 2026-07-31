@@ -263,9 +263,12 @@ def build_matrices(
             continue
 
         action = classify_action(record)
-        subsequent = records[i + 1:]
+        subsequent = records[i + 1 :]
         outcome = classify_outcome(
-            record, subsequent, known_agents=known_agents, config=config,
+            record,
+            subsequent,
+            known_agents=known_agents,
+            config=config,
         )
         session_start, session_end = _find_session_for_record(record, sessions)
         context = classify_context(record, session_start, session_end)

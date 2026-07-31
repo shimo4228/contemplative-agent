@@ -925,9 +925,7 @@ class TestDescReasonScrub:
             audit_skill_description,
         )
 
-        mock_generate.return_value = GenerationOutput(
-            text="\x1b[31mbroader\x1b[0m: " + "x" * 1000
-        )
+        mock_generate.return_value = GenerationOutput(text="\x1b[31mbroader\x1b[0m: " + "x" * 1000)
         reason = audit_skill_description(
             ("s.md", "desc", "body"), "audit {name} {description} {skill}"
         )

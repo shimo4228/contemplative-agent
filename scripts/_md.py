@@ -1,4 +1,5 @@
 """Shared Markdown-neutralizer for scripts/ LLM-facing reports."""
+
 from __future__ import annotations
 
 

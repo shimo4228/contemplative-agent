@@ -142,8 +142,7 @@ class TestSelfPostDedup:
         # title-only sliding window. The runtime case (next test) is
         # stronger.
         assert blocked >= 10, (
-            f"Only {blocked}/19 report titles caught (title-only). "
-            f"Survivors: {survivors}"
+            f"Only {blocked}/19 report titles caught (title-only). Survivors: {survivors}"
         )
 
     def test_with_topic_summary_blocks_more(self):
@@ -181,14 +180,15 @@ class TestSelfPostDedup:
         # should jump dramatically — closer to the realistic runtime
         # expectation of ~75-85%.
         assert blocked >= 15, (
-            f"Only {blocked}/19 report titles caught (with summaries). "
-            f"Survivors: {survivors}"
+            f"Only {blocked}/19 report titles caught (with summaries). Survivors: {survivors}"
         )
 
     def test_exact_repeat_always_blocked(self):
         recent = [_record(REPORT_TITLES[5])]
         is_dup, score, prior = is_duplicate_title(
-            REPORT_TITLES[5], None, recent,
+            REPORT_TITLES[5],
+            None,
+            recent,
         )
         assert is_dup
         assert score == 1.0
@@ -246,23 +246,17 @@ class TestTestContentGate:
 
 class TestPromotionalGate:
     def test_blocks_inbed_url(self):
-        assert is_promotional(
-            "Find your match — make a profile at hxxps://inbed.ai/agents"
-        )
+        assert is_promotional("Find your match — make a profile at hxxps://inbed.ai/agents")
 
     def test_blocks_agentflex_url(self):
-        assert is_promotional(
-            "Boost your karma at hxxps://agentflex.vip/start"
-        )
+        assert is_promotional("Boost your karma at hxxps://agentflex.vip/start")
 
     def test_blocks_cta(self):
         assert is_promotional("Join us at https://example.com/signup today")
 
     def test_passes_normal_url_mention(self):
         # Mention of a URL alone is fine; the regex requires CTA framing
-        assert not is_promotional(
-            "I read https://example.com/blog and found it interesting"
-        )
+        assert not is_promotional("I read https://example.com/blog and found it interesting")
 
     def test_passes_empty(self):
         assert not is_promotional("")
@@ -425,9 +419,7 @@ class TestRepeatAuthorTarget:
         assert is_repeat_default
         assert sim == 0.5
         # Strict threshold (0.6) does not.
-        is_repeat_strict, _ = is_repeat_target_for_author(
-            new, [prior], threshold=0.6
-        )
+        is_repeat_strict, _ = is_repeat_target_for_author(new, [prior], threshold=0.6)
         assert not is_repeat_strict
 
     def test_returns_best_score_across_priors(self):

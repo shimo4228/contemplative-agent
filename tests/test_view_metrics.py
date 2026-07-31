@@ -64,10 +64,10 @@ class TestViewSupply:
     def test_counts_and_percentiles_are_exact(self) -> None:
         registry = _FakeRegistry({"self_reflection": np.array([1.0, 0.0, 0.0], dtype=np.float32)})
         patterns = [
-            _pat([1.0, 0.0, 0.0]),   # cos 1.0
-            _pat([0.0, 1.0, 0.0]),   # cos 0.0
-            _pat([0.6, 0.8, 0.0]),   # cos 0.6
-            _pat(None),              # skipped (no embedding)
+            _pat([1.0, 0.0, 0.0]),  # cos 1.0
+            _pat([0.0, 1.0, 0.0]),  # cos 0.0
+            _pat([0.6, 0.8, 0.0]),  # cos 0.6
+            _pat(None),  # skipped (no embedding)
         ]
         supplies = compute_view_supply(patterns, registry, views=("self_reflection",))
         assert len(supplies) == 1
@@ -112,9 +112,7 @@ class TestDiversity:
             _pat([0.0, 1.0]),
             _pat(None),  # counted as skipped
         ]
-        d = compute_diversity(
-            patterns, cluster_threshold=0.9, min_size=2, max_size=10
-        )
+        d = compute_diversity(patterns, cluster_threshold=0.9, min_size=2, max_size=10)
         assert d.n == 3
         assert d.skipped == 1
         assert d.pairwise_mean == pytest.approx(1.0 / 3.0)
@@ -209,10 +207,12 @@ class TestDiversity:
 
 class TestNearestView:
     def test_picks_highest_cosine_view(self) -> None:
-        registry = _FakeRegistry({
-            "self_reflection": np.array([1.0, 0.0], dtype=np.float32),
-            "constitutional": np.array([0.0, 1.0], dtype=np.float32),
-        })
+        registry = _FakeRegistry(
+            {
+                "self_reflection": np.array([1.0, 0.0], dtype=np.float32),
+                "constitutional": np.array([0.0, 1.0], dtype=np.float32),
+            }
+        )
         got = nearest_view(_pat([0.6, 0.8]), registry)
         assert got is not None
         name, sim = got

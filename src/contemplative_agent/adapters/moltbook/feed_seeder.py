@@ -81,7 +81,4 @@ def select_feed_seeds(
 
 
 def _combined_length(seeds: Sequence[dict]) -> int:
-    return sum(
-        len(s.get("title", "") or "") + len(s.get("content", "") or "")
-        for s in seeds
-    )
+    return sum(len(s.get("title", "") or "") + len(s.get("content", "") or "") for s in seeds)

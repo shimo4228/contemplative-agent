@@ -61,7 +61,11 @@ def _window_for_one_block(batches) -> int:
         _estimate_tokens(insight_novelty._cluster_block(topic, patterns) + "\n\n")
         for topic, patterns, _ in batches
     )
-    return insight_novelty._NOVELTY_OUTPUT_RESERVE + insight_novelty._novelty_fixed_tokens(known_lines) + max_block
+    return (
+        insight_novelty._NOVELTY_OUTPUT_RESERVE
+        + insight_novelty._novelty_fixed_tokens(known_lines)
+        + max_block
+    )
 
 
 def _run_gate(schedule, batches, audit_path=None):

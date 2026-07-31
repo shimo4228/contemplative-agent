@@ -85,9 +85,7 @@ class TestClassifyAction:
 
 def _ts(offset_seconds: float = 0) -> str:
     """Generate ISO timestamp with offset from now."""
-    dt = datetime(2026, 3, 20, 12, 0, 0, tzinfo=timezone.utc) + timedelta(
-        seconds=offset_seconds
-    )
+    dt = datetime(2026, 3, 20, 12, 0, 0, tzinfo=timezone.utc) + timedelta(seconds=offset_seconds)
     return dt.isoformat()
 
 
@@ -150,9 +148,7 @@ class TestClassifyOutcome:
             }
         ]
         known = {"existing-agent"}
-        assert (
-            classify_outcome(record, subsequent, known_agents=known) == "new_connection"
-        )
+        assert classify_outcome(record, subsequent, known_agents=known) == "new_connection"
 
     def test_known_agent_not_new_connection(self):
         record = {"ts": _ts(0)}
@@ -164,9 +160,7 @@ class TestClassifyOutcome:
             }
         ]
         known = {"known-agent"}
-        assert (
-            classify_outcome(record, subsequent, known_agents=known) == "low_engagement"
-        )
+        assert classify_outcome(record, subsequent, known_agents=known) == "low_engagement"
 
     def test_sent_interactions_not_counted(self):
         """Only received interactions count as responses."""
@@ -258,9 +252,7 @@ class TestBuildMatrices:
         np.testing.assert_allclose(matrices.A.sum(axis=0), 1.0, atol=1e-10)
         # B slices should sum to 1
         for a in range(NUM_ACTIONS):
-            np.testing.assert_allclose(
-                matrices.B[:, :, a].sum(axis=0), 1.0, atol=1e-10
-            )
+            np.testing.assert_allclose(matrices.B[:, :, a].sum(axis=0), 1.0, atol=1e-10)
         # D should sum to 1
         np.testing.assert_allclose(matrices.D.sum(), 1.0, atol=1e-10)
 
@@ -304,11 +296,12 @@ class TestBuildMatrices:
         # (within the 300s response window) by a response from a never-seen
         # agent, so new_connection must accumulate signal.
         records = [
-            {"ts": _ts(0), "type": "activity",
-             "data": {"action": "comment", "post_id": "p1"}},
-            {"ts": _ts(60), "type": "interaction",
-             "data": {"direction": "received", "agent_id": "newbie",
-                      "agent_name": "Newbie"}},
+            {"ts": _ts(0), "type": "activity", "data": {"action": "comment", "post_id": "p1"}},
+            {
+                "ts": _ts(60),
+                "type": "interaction",
+                "data": {"direction": "received", "agent_id": "newbie", "agent_name": "Newbie"},
+            },
         ]
         log = _make_log(tmp_path, records)
         matrices = build_matrices(log, days=1)
@@ -355,19 +348,21 @@ class TestNoInputRowUniformH8:
         # fix, A[no_input, early_session] << A[no_input, late_session].
         records = [{"ts": base, "type": "session", "data": {"event": "start"}}]
         for i in range(30):
-            records.append({
-                "ts": _ts(60 + i),
-                "type": "activity",
-                "data": {"action": "comment", "post_id": f"p{i}"},
-            })
-        records.append({
-            "ts": _ts(3500),
-            "type": "activity",
-            "data": {"action": "comment", "post_id": "late"},
-        })
+            records.append(
+                {
+                    "ts": _ts(60 + i),
+                    "type": "activity",
+                    "data": {"action": "comment", "post_id": f"p{i}"},
+                }
+            )
         records.append(
-            {"ts": _ts(3600), "type": "session", "data": {"event": "end"}}
+            {
+                "ts": _ts(3500),
+                "type": "activity",
+                "data": {"action": "comment", "post_id": "late"},
+            }
         )
+        records.append({"ts": _ts(3600), "type": "session", "data": {"event": "end"}})
         log = _make_log(tmp_path, records)
         matrices = build_matrices(log, days=1)
 

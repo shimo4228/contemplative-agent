@@ -121,8 +121,13 @@ class TestSnapshotRetention:
         snaps = tmp_path / "snapshots"
         snaps.mkdir()
         # ts_compact-style names sort chronologically by name.
-        for ts in ("20260101T000000", "20260102T000000", "20260103T000000",
-                   "20260104T000000", "20260105T000000"):
+        for ts in (
+            "20260101T000000",
+            "20260102T000000",
+            "20260103T000000",
+            "20260104T000000",
+            "20260105T000000",
+        ):
             (snaps / f"distill_{ts}").mkdir()
         _prune_snapshots(snaps, keep=2)
         remaining = sorted(p.name for p in snaps.iterdir())
@@ -136,8 +141,8 @@ class TestSnapshotRetention:
         snaps = tmp_path / "snapshots"
         snaps.mkdir()
         (snaps / "amend-constitution_20260105T000000").mkdir()  # newest
-        (snaps / "rules-distill_20260103T000000").mkdir()       # middle
-        (snaps / "distill_20260101T000000").mkdir()             # oldest
+        (snaps / "rules-distill_20260103T000000").mkdir()  # middle
+        (snaps / "distill_20260101T000000").mkdir()  # oldest
         _prune_snapshots(snaps, keep=2)
         remaining = sorted(p.name for p in snaps.iterdir())
         assert remaining == [
@@ -150,8 +155,7 @@ class TestSnapshotRetention:
         # Pre-seed older snapshot dirs (deterministic names sort before a
         # current-time write), then write one real snapshot.
         layout["snapshots"].mkdir()
-        for ts in ("20200101T000000", "20200102T000000",
-                   "20200103T000000", "20200104T000000"):
+        for ts in ("20200101T000000", "20200102T000000", "20200103T000000", "20200104T000000"):
             (layout["snapshots"] / f"distill_{ts}").mkdir()
         path = write_snapshot(
             command="distill",
@@ -297,7 +301,9 @@ class TestWriteSnapshot:
             view_registry=view_registry,
         )
         assert path is not None
-        assert (path / "prompts" / "distill.md").read_text(encoding="utf-8") == "distill prompt content"
+        assert (path / "prompts" / "distill.md").read_text(
+            encoding="utf-8"
+        ) == "distill prompt content"
         assert (path / "skills" / "inquiry.md").read_text(encoding="utf-8") == "skill content"
         assert (path / "rules" / "hold-lightly.md").read_text(encoding="utf-8") == "rule content"
         assert (path / "identity.md").read_text(encoding="utf-8") == "identity content"
@@ -347,7 +353,10 @@ class TestWriteSnapshot:
             os.chmod(unwritable.parent, 0o700)
 
     def test_returns_none_on_oserror_after_snap_dir_created(
-        self, layout, view_registry, monkeypatch,
+        self,
+        layout,
+        view_registry,
+        monkeypatch,
     ):
         """ADR-0020 / snapshot.py:162-164 — once snap_dir.mkdir succeeds, any
         later OSError (copy / npz / manifest write) is swallowed and

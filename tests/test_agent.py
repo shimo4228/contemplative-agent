@@ -3688,9 +3688,7 @@ class TestPostPipelineSelectionOrdering:
 
         def _body(*args, **kwargs):
             order.append("body")
-            return GenerationOutput(
-                text="We paused to revisit how gates intersect with memory."
-            )
+            return GenerationOutput(text="We paused to revisit how gates intersect with memory.")
 
         def _title(*args, **kwargs):
             order.append("title")

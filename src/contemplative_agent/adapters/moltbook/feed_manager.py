@@ -445,9 +445,7 @@ class FeedManager:
         """
         ctx = self._ctx
         posted = False
-        with client_error_guard(
-            f"comment on {post_id[:12]}", on_rate_limited=ctx.set_rate_limited
-        ):
+        with client_error_guard(f"comment on {post_id[:12]}", on_rate_limited=ctx.set_rate_limited):
             # post_comment verifies the response envelope (audit H2): a
             # body-level failure raises and never reaches the records below.
             created = client.post_comment(post_id, comment)

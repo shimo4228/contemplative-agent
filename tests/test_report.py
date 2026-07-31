@@ -24,9 +24,42 @@ class TestExtractEntries:
     def test_classifies_comment_reply_post(self, tmp_path):
         jsonl = tmp_path / "test.jsonl"
         lines = [
-            json.dumps({"ts": "2026-03-14T01:00:00", "type": "activity", "data": {"action": "comment", "post_id": "p1", "content": "Nice post", "relevance": "0.95"}}),
-            json.dumps({"ts": "2026-03-14T02:00:00", "type": "activity", "data": {"action": "reply", "post_id": "p2", "content": "Thanks", "target_agent": "bob"}}),
-            json.dumps({"ts": "2026-03-14T03:00:00", "type": "activity", "data": {"action": "post", "post_id": "p3", "title": "My Post", "content": "Hello"}}),
+            json.dumps(
+                {
+                    "ts": "2026-03-14T01:00:00",
+                    "type": "activity",
+                    "data": {
+                        "action": "comment",
+                        "post_id": "p1",
+                        "content": "Nice post",
+                        "relevance": "0.95",
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "ts": "2026-03-14T02:00:00",
+                    "type": "activity",
+                    "data": {
+                        "action": "reply",
+                        "post_id": "p2",
+                        "content": "Thanks",
+                        "target_agent": "bob",
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "ts": "2026-03-14T03:00:00",
+                    "type": "activity",
+                    "data": {
+                        "action": "post",
+                        "post_id": "p3",
+                        "title": "My Post",
+                        "content": "Hello",
+                    },
+                }
+            ),
         ]
         jsonl.write_text("\n".join(lines), encoding="utf-8")
 
@@ -40,7 +73,10 @@ class TestExtractEntries:
 
     def test_skips_malformed_json(self, tmp_path):
         jsonl = tmp_path / "test.jsonl"
-        jsonl.write_text('not valid json\n{"ts":"t","type":"activity","data":{"action":"comment","post_id":"p1","content":"ok"}}\n', encoding="utf-8")
+        jsonl.write_text(
+            'not valid json\n{"ts":"t","type":"activity","data":{"action":"comment","post_id":"p1","content":"ok"}}\n',
+            encoding="utf-8",
+        )
 
         _, comments, replies, posts = _parse_log(jsonl)
         assert len(comments) == 1
@@ -56,7 +92,10 @@ class TestExtractEntries:
 
     def test_skips_blank_lines(self, tmp_path):
         jsonl = tmp_path / "test.jsonl"
-        jsonl.write_text('\n\n{"ts":"t","type":"activity","data":{"action":"post","post_id":"p1","title":"T","content":"C"}}\n\n', encoding="utf-8")
+        jsonl.write_text(
+            '\n\n{"ts":"t","type":"activity","data":{"action":"post","post_id":"p1","title":"T","content":"C"}}\n\n',
+            encoding="utf-8",
+        )
 
         _, _, _, posts = _parse_log(jsonl)
         assert len(posts) == 1
@@ -67,9 +106,13 @@ class TestExtractSessionMeta:
         """First-seen session meta values are kept; later sessions only fill gaps."""
         jsonl = tmp_path / "test.jsonl"
         lines = [
-            json.dumps({"type": "session", "data": {"event": "start", "domain": "first", "model": "a"}}),
+            json.dumps(
+                {"type": "session", "data": {"event": "start", "domain": "first", "model": "a"}}
+            ),
             json.dumps({"type": "activity", "data": {"action": "comment"}}),
-            json.dumps({"type": "session", "data": {"event": "start", "domain": "second", "extra": "new"}}),
+            json.dumps(
+                {"type": "session", "data": {"event": "start", "domain": "second", "extra": "new"}}
+            ),
         ]
         jsonl.write_text("\n".join(lines), encoding="utf-8")
 
@@ -87,14 +130,19 @@ class TestExtractSessionMeta:
 
     def test_ignores_session_end(self, tmp_path):
         jsonl = tmp_path / "test.jsonl"
-        jsonl.write_text('{"type": "session", "data": {"event": "end", "actions_count": 5}}\n', encoding="utf-8")
+        jsonl.write_text(
+            '{"type": "session", "data": {"event": "end", "actions_count": 5}}\n', encoding="utf-8"
+        )
 
         meta, _, _, _ = _parse_log(jsonl)
         assert meta == {}
 
     def test_skips_malformed_json(self, tmp_path):
         jsonl = tmp_path / "test.jsonl"
-        jsonl.write_text('bad json\n{"type": "session", "data": {"event": "start", "domain": "ok"}}\n', encoding="utf-8")
+        jsonl.write_text(
+            'bad json\n{"type": "session", "data": {"event": "start", "domain": "ok"}}\n',
+            encoding="utf-8",
+        )
 
         meta, _, _, _ = _parse_log(jsonl)
         assert meta["domain"] == "ok"
@@ -152,64 +200,96 @@ class TestBuildReport:
         assert "**Configuration**" not in report
 
     def test_formats_comments(self):
-        comments = [{
-            "ts": "2026-03-14T10:00:00", "post_id": "abc123def456",
-            "content": "Great", "relevance": "0.95", "context": "the original",
-            "counterparty": "alice", "internal_note": "noticed a tension",
-        }]
+        comments = [
+            {
+                "ts": "2026-03-14T10:00:00",
+                "post_id": "abc123def456",
+                "content": "Great",
+                "relevance": "0.95",
+                "context": "the original",
+                "counterparty": "alice",
+                "internal_note": "noticed a tension",
+            }
+        ]
         report = _build_report("2026-03-14", comments, [], [])
         assert "## Comments (1 total)" in report
         # Unified header: kind · counterparty · post8 · relevance
         assert "COMMENT" in report
         assert "with alice" in report
-        assert "abc123de" in report          # post_id truncated to 8
+        assert "abc123de" in report  # post_id truncated to 8
         assert "relevance 0.95" in report
         assert "**Internal note:**" in report  # ADR-0045 note now surfaced
         assert "noticed a tension" in report
 
     def test_formats_comment_thinking(self):
-        comments = [{
-            "ts": "2026-03-14T10:00:00", "post_id": "abc123def456",
-            "content": "Great", "relevance": "0.95", "context": "the original",
-            "counterparty": "alice", "internal_note": "",
-            "thinking": "weighing two readings of the post",
-        }]
+        comments = [
+            {
+                "ts": "2026-03-14T10:00:00",
+                "post_id": "abc123def456",
+                "content": "Great",
+                "relevance": "0.95",
+                "context": "the original",
+                "counterparty": "alice",
+                "internal_note": "",
+                "thinking": "weighing two readings of the post",
+            }
+        ]
         report = _build_report("2026-03-14", comments, [], [])
         assert "**Thinking:**" in report
         assert "weighing two readings of the post" in report
 
     def test_thinking_hidden_when_empty(self):
-        comments = [{
-            "ts": "2026-03-14T10:00:00", "post_id": "abc123def456",
-            "content": "Great", "relevance": "0.95", "context": "",
-            "counterparty": "alice", "internal_note": "", "thinking": "",
-        }]
+        comments = [
+            {
+                "ts": "2026-03-14T10:00:00",
+                "post_id": "abc123def456",
+                "content": "Great",
+                "relevance": "0.95",
+                "context": "",
+                "counterparty": "alice",
+                "internal_note": "",
+                "thinking": "",
+            }
+        ]
         report = _build_report("2026-03-14", comments, [], [])
         assert "**Thinking:**" not in report
 
     def test_formats_replies(self):
-        replies = [{
-            "ts": "2026-03-14T11:00:00", "post_id": "xyz", "content": "Reply text",
-            "counterparty": "alice", "context": "Their msg",
-            "relevance": "", "internal_note": "",
-        }]
+        replies = [
+            {
+                "ts": "2026-03-14T11:00:00",
+                "post_id": "xyz",
+                "content": "Reply text",
+                "counterparty": "alice",
+                "context": "Their msg",
+                "relevance": "",
+                "internal_note": "",
+            }
+        ]
         report = _build_report("2026-03-14", [], replies, [])
         assert "## Replies (1 total)" in report
         assert "REPLY" in report
         assert "with alice" in report
         assert "Their msg" in report
-        assert "relevance —" in report       # replies are not relevance-scored
+        assert "relevance —" in report  # replies are not relevance-scored
 
     def test_formats_posts(self):
-        posts = [{
-            "ts": "2026-03-14T12:00:00", "post_id": "p1", "title": "My Title",
-            "content": "Post body", "submolt": "alignment",
-            "counterparty": "", "relevance": "", "internal_note": "",
-        }]
+        posts = [
+            {
+                "ts": "2026-03-14T12:00:00",
+                "post_id": "p1",
+                "title": "My Title",
+                "content": "Post body",
+                "submolt": "alignment",
+                "counterparty": "",
+                "relevance": "",
+                "internal_note": "",
+            }
+        ]
         report = _build_report("2026-03-14", [], [], posts)
         assert "## Self Posts (1 total)" in report
         assert "POST" in report
-        assert "with self" in report          # self-authored
+        assert "with self" in report  # self-authored
         assert "**Title:** My Title" in report
         assert "**Submolt:** alignment" in report
 
@@ -217,17 +297,41 @@ class TestBuildReport:
         # The false-positive guard: two replies on ONE post to DIFFERENT
         # counterparties must be distinguishable (a thread, not a re-reply).
         replies = [
-            {"ts": "2026-03-14T11:00:00", "post_id": "shared", "content": "r1",
-             "counterparty": "alice", "context": "", "relevance": "", "internal_note": ""},
-            {"ts": "2026-03-15T11:00:00", "post_id": "shared", "content": "r2",
-             "counterparty": "bob", "context": "", "relevance": "", "internal_note": ""},
+            {
+                "ts": "2026-03-14T11:00:00",
+                "post_id": "shared",
+                "content": "r1",
+                "counterparty": "alice",
+                "context": "",
+                "relevance": "",
+                "internal_note": "",
+            },
+            {
+                "ts": "2026-03-15T11:00:00",
+                "post_id": "shared",
+                "content": "r2",
+                "counterparty": "bob",
+                "context": "",
+                "relevance": "",
+                "internal_note": "",
+            },
         ]
         report = _build_report("2026-03-14", [], replies, [])
         assert "with alice" in report
         assert "with bob" in report
 
     def test_summary_section(self):
-        comments = [{"ts": "t", "post_id": "p", "content": "c", "relevance": "0.92", "context": "", "counterparty": "", "internal_note": ""}]
+        comments = [
+            {
+                "ts": "t",
+                "post_id": "p",
+                "content": "c",
+                "relevance": "0.92",
+                "context": "",
+                "counterparty": "",
+                "internal_note": "",
+            }
+        ]
         report = _build_report("2026-03-14", comments, [], [])
         assert "## Summary" in report
         assert "Comments: 1" in report
@@ -239,9 +343,40 @@ class TestBuildReport:
         assert "Comments: 0" in report
 
     def test_defangs_urls_in_all_sections(self):
-        comments = [{"ts": "t", "post_id": "p", "content": "See https://evil.com", "relevance": "0.9", "context": "Visit https://phish.io", "counterparty": "a", "internal_note": ""}]
-        replies = [{"ts": "t", "post_id": "p", "content": "Reply https://bad.org", "counterparty": "a", "context": "Check https://spam.net", "relevance": "", "internal_note": ""}]
-        posts = [{"ts": "t", "post_id": "p", "title": "T", "content": "Post https://malware.xyz", "submolt": "", "counterparty": "", "relevance": "", "internal_note": ""}]
+        comments = [
+            {
+                "ts": "t",
+                "post_id": "p",
+                "content": "See https://evil.com",
+                "relevance": "0.9",
+                "context": "Visit https://phish.io",
+                "counterparty": "a",
+                "internal_note": "",
+            }
+        ]
+        replies = [
+            {
+                "ts": "t",
+                "post_id": "p",
+                "content": "Reply https://bad.org",
+                "counterparty": "a",
+                "context": "Check https://spam.net",
+                "relevance": "",
+                "internal_note": "",
+            }
+        ]
+        posts = [
+            {
+                "ts": "t",
+                "post_id": "p",
+                "title": "T",
+                "content": "Post https://malware.xyz",
+                "submolt": "",
+                "counterparty": "",
+                "relevance": "",
+                "internal_note": "",
+            }
+        ]
         report = _build_report("2026-03-14", comments, replies, posts)
         assert "https://evil.com" not in report
         assert "hxxps://evil[.]com" in report
@@ -256,7 +391,22 @@ class TestGenerateReport:
         log_dir = tmp_path / "logs"
         log_dir.mkdir()
         jsonl = log_dir / "2026-03-14.jsonl"
-        jsonl.write_text(json.dumps({"ts": "t", "type": "activity", "data": {"action": "comment", "post_id": "p1", "content": "Hi", "relevance": "0.9"}}) + "\n", encoding="utf-8")
+        jsonl.write_text(
+            json.dumps(
+                {
+                    "ts": "t",
+                    "type": "activity",
+                    "data": {
+                        "action": "comment",
+                        "post_id": "p1",
+                        "content": "Hi",
+                        "relevance": "0.9",
+                    },
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
         output_dir = tmp_path / "reports"
         result = generate_report(log_dir, output_dir, date="2026-03-14")
@@ -287,7 +437,17 @@ class TestGenerateReport:
         log_dir = tmp_path / "logs"
         log_dir.mkdir()
         jsonl = log_dir / "2026-03-14.jsonl"
-        jsonl.write_text(json.dumps({"ts": "t", "type": "activity", "data": {"action": "post", "post_id": "p1", "title": "T", "content": "C"}}) + "\n", encoding="utf-8")
+        jsonl.write_text(
+            json.dumps(
+                {
+                    "ts": "t",
+                    "type": "activity",
+                    "data": {"action": "post", "post_id": "p1", "title": "T", "content": "C"},
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
 
         output_dir = tmp_path / "nested" / "reports"
         result = generate_report(log_dir, output_dir, date="2026-03-14")
@@ -300,8 +460,30 @@ class TestGenerateReport:
         log_dir.mkdir()
         jsonl = log_dir / "2026-03-14.jsonl"
         lines = [
-            json.dumps({"type": "session", "data": {"event": "start", "domain": "test", "axioms_enabled": True, "llm_backend": "ollama", "llm_model": "qwen3.5:9b"}}),
-            json.dumps({"ts": "t", "type": "activity", "data": {"action": "comment", "post_id": "p1", "content": "Hi", "relevance": "0.9"}}),
+            json.dumps(
+                {
+                    "type": "session",
+                    "data": {
+                        "event": "start",
+                        "domain": "test",
+                        "axioms_enabled": True,
+                        "llm_backend": "ollama",
+                        "llm_model": "qwen3.5:9b",
+                    },
+                }
+            ),
+            json.dumps(
+                {
+                    "ts": "t",
+                    "type": "activity",
+                    "data": {
+                        "action": "comment",
+                        "post_id": "p1",
+                        "content": "Hi",
+                        "relevance": "0.9",
+                    },
+                }
+            ),
         ]
         jsonl.write_text("\n".join(lines), encoding="utf-8")
 
@@ -319,7 +501,22 @@ class TestGenerateAllReports:
         log_dir.mkdir()
         for date in ["2026-03-13", "2026-03-14"]:
             jsonl = log_dir / f"{date}.jsonl"
-            jsonl.write_text(json.dumps({"ts": "t", "type": "activity", "data": {"action": "comment", "post_id": "p1", "content": "Hi", "relevance": "0.9"}}) + "\n", encoding="utf-8")
+            jsonl.write_text(
+                json.dumps(
+                    {
+                        "ts": "t",
+                        "type": "activity",
+                        "data": {
+                            "action": "comment",
+                            "post_id": "p1",
+                            "content": "Hi",
+                            "relevance": "0.9",
+                        },
+                    }
+                )
+                + "\n",
+                encoding="utf-8",
+            )
 
         output_dir = tmp_path / "reports"
         results = generate_all_reports(log_dir, output_dir)
@@ -341,11 +538,15 @@ class TestConfigChangeFlagM7:
     def _write_log(tmp_path, sessions):
         lines = []
         for meta in sessions:
-            lines.append(json.dumps({
-                "ts": "2026-07-06T00:00:00+00:00",
-                "type": "session",
-                "data": {"event": "start", **meta},
-            }))
+            lines.append(
+                json.dumps(
+                    {
+                        "ts": "2026-07-06T00:00:00+00:00",
+                        "type": "session",
+                        "data": {"event": "start", **meta},
+                    }
+                )
+            )
         path = tmp_path / "2026-07-06.jsonl"
         path.write_text("\n".join(lines) + "\n", encoding="utf-8")
         return path
@@ -353,10 +554,13 @@ class TestConfigChangeFlagM7:
     def test_conflicting_domain_sets_flag(self, tmp_path):
         from contemplative_agent.core.report import _parse_log
 
-        path = self._write_log(tmp_path, [
-            {"domain": "A", "axioms_enabled": False},
-            {"domain": "B", "axioms_enabled": True},
-        ])
+        path = self._write_log(
+            tmp_path,
+            [
+                {"domain": "A", "axioms_enabled": False},
+                {"domain": "B", "axioms_enabled": True},
+            ],
+        )
         meta, _, _, _ = _parse_log(path)
         assert meta["_config_changed"] is True
         assert meta["domain"] == "A"  # first-seen still wins for values
@@ -364,10 +568,13 @@ class TestConfigChangeFlagM7:
     def test_same_config_does_not_flag(self, tmp_path):
         from contemplative_agent.core.report import _parse_log
 
-        path = self._write_log(tmp_path, [
-            {"domain": "A", "duration_minutes": 30},
-            {"domain": "A", "duration_minutes": 60},  # volatile key differs
-        ])
+        path = self._write_log(
+            tmp_path,
+            [
+                {"domain": "A", "duration_minutes": 30},
+                {"domain": "A", "duration_minutes": 60},  # volatile key differs
+            ],
+        )
         meta, _, _, _ = _parse_log(path)
         assert "_config_changed" not in meta
 
@@ -375,7 +582,10 @@ class TestConfigChangeFlagM7:
         from contemplative_agent.core.report import _build_report
 
         text = _build_report(
-            "2026-07-06", [], [], [],
+            "2026-07-06",
+            [],
+            [],
+            [],
             session_meta={"domain": "A", "_config_changed": True},
         )
         assert "configuration changed mid-day" in text
@@ -388,8 +598,14 @@ class TestSummaryRelevanceGuard:
     def test_summary_skips_malformed_relevance(self, caplog):
         import logging as _logging
 
-        base = {"ts": "t", "post_id": "p", "content": "c", "context": "",
-                "counterparty": "", "internal_note": ""}
+        base = {
+            "ts": "t",
+            "post_id": "p",
+            "content": "c",
+            "context": "",
+            "counterparty": "",
+            "internal_note": "",
+        }
         comments = [
             {**base, "relevance": "0.92"},
             {**base, "relevance": "not-a-number"},

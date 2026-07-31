@@ -81,4 +81,3 @@ prompt-size budget.
 # core/stocktake._find_duplicate_groups), which discriminates on concrete
 # behavior instead of vapor-dominated cosine; the former
 # SIM_CLUSTER_THRESHOLD was removed with that change.
-
