@@ -410,7 +410,10 @@ if stage_enabled fix && [[ -s "$FINDINGS_JSON" ]]; then
                 # `*` would glob-expand against the repo before reaching git
                 # (2026-07-29 security review H3). Splitting is intentional.
                 set -f
-                # shellcheck disable=SC2086 — pathlist is intentionally split
+                # pathlist is intentionally word-split into separate git
+                # pathspec arguments (directive must stay on its own line —
+                # an em-dash after it silently voids it, SC1125).
+                # shellcheck disable=SC2086
                 stale_hit=$(git -C "$PROJECT_ROOT" log --oneline -1 \
                         --since="$FINDINGS_ISO" -- $pathlist 2>/dev/null)
                 set +f

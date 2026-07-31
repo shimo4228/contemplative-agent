@@ -29,7 +29,6 @@ STATUS="$MOLTBOOK_HOME/reports/PIPELINE-STATUS.md"
 MIN_REPORT_BYTES=1024
 MIN_PACKET_BYTES=1024
 
-NOW_EPOCH=$(date +%s)
 HOUR=$(date +%H)
 WEEKDAY=$(date +%u)   # Mon=1 .. Sun=7 (Sat=6)
 
