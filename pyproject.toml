@@ -55,7 +55,9 @@ reportUnreachable = "none"
 # Dev tooling lives here (uv auto-syncs the `dev` group on `uv run` / `uv sync`),
 # so `uv run pytest` / `uv run ruff` / `uv run pyright` work without extra flags.
 dev = [
-    "pytest>=7.0",
+    # Floor is a security floor, not a feature floor: 9.0.2 and below carry
+    # PYSEC-2026-1845 (pip-audit, 2026-07-31).
+    "pytest>=9.0.3",
     "pytest-cov>=4.0",
     "hypothesis>=6.100",
     "responses>=0.23.0",
@@ -69,6 +71,18 @@ dev = [
     # 同じものが走るようにする。選定根拠と再調査トリガーは .claude/verify.md
     "bandit>=1.9.4",
     "pip-audit>=2.9",
+]
+
+[tool.uv]
+# Security floors for packages we do not depend on directly (they arrive via
+# requests / pytest / pip-audit). uv.lock is gitignored here, so a lock bump
+# alone would not survive a clone — these constraints are the durable record
+# of the 2026-07-31 pip-audit drain. Drop an entry once the ecosystem floor
+# has moved past it on its own.
+constraint-dependencies = [
+    "urllib3>=2.7.0",    # PYSEC-2026-141, PYSEC-2026-142
+    "idna>=3.15",        # PYSEC-2026-215
+    "pygments>=2.20.0",  # PYSEC-2026-2987
 ]
 
 [tool.importlinter]
