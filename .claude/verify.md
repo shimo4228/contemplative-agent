@@ -21,7 +21,7 @@
 | dependency | pip-audit（project venv を直接監査） | full | block |
 | test | pytest（+ pytest-cov / hypothesis） | full | block |
 | shell | shellcheck `-S style` | staged + full | block |
-| markdown | markdownlint-cli2 | staged | **advisory**（未導入なら skip） |
+| markdown | markdownlint-cli2 | staged + full | block（未導入なら skip） |
 
 ### 選定理由と再調査トリガー
 
@@ -56,12 +56,21 @@ uv-secure は開発側が deprecated 表明済みで採用しない。
 素通りするため。導入時の既存負債は 14 本中 2 件のみで drain 可能な量だった。
 再調査: 12 ヶ月経過。
 
-**markdown — markdownlint-cli2（advisory）**
-346 本の .md に初日から block を掛けると回避の作法が育つので **ratchet 中**。
-commit 境界でのネットワーク取得を避けるため `npx --no-install`（未導入なら skip して告げる）。
-日本語 prose の文法チェック（textlint + preset-ja-technical-writing）は false positive が
-多く advisory 運用が前提になるため、markdown 構造の drain が済むまで導入しない。
-昇格条件: 既存 .md の違反を drain し切ったら `check` に上げる。
+**markdown — markdownlint-cli2（block、2026-07-31 に advisory から昇格）**
+ratchet 完了。8099 → 0（内訳は下記「markdown の drain」）。ルール選択と除外の理由は
+`.markdownlint-cli2.jsonc` に各項目のコメントとして書いてある（ここに二重に持たない）。
+実行可否は **実行ファイルの有無**で判定する — 未導入なら告げて skip し、ネットワーク取得は
+起こさない。グローバル導入 (`npm i -g markdownlint-cli2`) かローカル `node_modules/.bin` を見る。
+
+日本語 prose の文法チェック（textlint + preset-ja-technical-writing）は **2026-07-31 に
+再検討して見送り**。理由が「false positive が多そう」から実測に変わった:
+textlint が決定論的に拾える層（全角英数字・連続句読点・全角スペース・三点リーダの表記ゆれ）は
+169 本の日本語 .md に対して**実測 0 件**で、drain すべき負債が存在しない。残るのは preset の
+意見の層（既定の文長 100 字で日本語 6156 文中 621 文が該当）で、これは `writing-ecosystem` の
+Voice 規約・glossary の訳語規約という**既存の編集方針と競合する第 2 の権威**になる。
+再検討の条件: 上の構造的 4 項目が実測で発生し始めたとき。あるいは preset ではなく
+`textlint-rule-prh` で **自分の規約**（固有名詞の表記、禁止カタカナ語）を強制する形なら、
+権威の衝突が起きないので別途検討してよい。
 
 ## 導入時に見つかった既存負債（2026-07-31 に drain 済み）
 
@@ -80,6 +89,7 @@ commit 境界でのネットワーク取得を避けるため `npx --no-install`
 | 項目 | 内容 | commit |
 |---|---|---|
 | staged mode の I001 偽陽性 | staged mode は index を tmpdir へ**部分展開**するため、src 本体を含まず test だけを stage した commit では ruff の isort が `contemplative_agent` を third-party に誤分類し、full mode が正とみなす import 順に I001 が出る（実測 14 件）。`[tool.ruff.lint.isort] known-first-party` を宣言して、分類をファイルシステムの実在から切り離した。`verify.sh` 側は無変更 | `7ef9c92` |
+| markdown 未導入判定の破綻 | 「未導入なら skip して告げる」を npx の失敗メッセージの文字列照合（`*"npm ERR"*` 等）で実装していたが、npm が表記を `npm error` に変えたため照合が外れ、**配管エラーが `[markdown advisory]` として lint 指摘の顔で出ていた**。実行ファイルの有無で判定する形に変更（ツールの出力文言に依存する判定を残さない） | 下記 |
 
 この種の「full mode は通るが staged mode だけ落ちる」は、部分展開が前提を欠くことに起因する。
 同型の症状（設定ファイル不在による既定値判定、パッケージ解決の失敗）を見たら、まず
@@ -96,6 +106,43 @@ TEMP テーブル方式へ差し替えて解消。
 
 **教訓**: 「ゲートを黙らせる書き換え」は、ゲートが見ていない軸（配布先の実行環境、
 依存の可用性）を代償にしうる。決定論ゲートの全 PASS は review の代替にならない。
+
+## markdown の drain（2026-07-31、advisory → block）
+
+| 段階 | 違反数 |
+|---|---|
+| 既定ルールのまま | 8099 |
+| `.markdownlint-cli2.jsonc` 適用後 | 593 |
+| `--fix` 適用後 | 96 |
+| 手作業 drain 後 | **0**（214 ファイル） |
+
+内訳の大半は MD013/line-length 6151 と MD060/table-column-style 1157 で、どちらも
+レンダリング結果に影響しない層（前者は 200 字閾値でもなお 1821 件で、長さは意図的）。
+残り 96 件は MD040（コードフェンスの言語指定）71・MD036（太字の疑似見出し）10・
+MD041（1 行目が h1 でない）15 で、MD040 は 1 件ずつ中身を読んで
+`text` / `bash` / `yaml` を割り当て、MD036 は ADR-0007 の `**N. …**` を h3 に変換、
+MD041 は「h1 の上に言語切替行を置く二言語規約」なのでルール側を無効化した。
+
+### auto-fix に判断を任せて壊した 3 件（適用前に検分して差し戻し）
+
+| ルール | auto-fix がやったこと | なぜ壊れるか |
+|---|---|---|
+| MD038 | `` `- ` `` → `` `-` `` | ADR-0062 の「`- ` パーサー破損」の記述で、**空白そのものが記述対象**だった |
+| MD029 | `4. 5. 6.` → `1. 2. 3.` | 先行する列挙の続きとして意図的に 4 から始めていた |
+| MD004 | `- ` → `+ ` | 既定 `consistent` は**ファイル内で最初のマーカー**に合わせるため、repo 全体ではむしろ不揃いになった |
+
+3 件とも設定側で無効化・固定した（`MD004` は `"style": "dash"` に固定）。
+これはハーネス側 rule `common/patterns.md` の enumerate / decide 分割そのもので、
+**lint は列挙して報告するところまで、どれを採るかは判断**に属する。auto-fix は
+「機械には見えない軸」（その空白が有意か、その番号が参照されるか）で静かに壊す。
+
+### 検査対象から外したもの
+
+`config/prompts/**`・`config/templates/**`（LLM が読む固定 apparatus であって document ではない
+— プレースホルダ `<answer>` が MD033 として上がる）、`docs/evidence/**`（起きたことの逐語記録。
+実測で `--fix` がモデル出力サンプルから行末空白を落とした）、`integrations/skills/**`（ADR-0013 で
+棚上げ・gitignored。repo が所有しない資産をゲートで縛ると clone 先で FAIL しうる）、
+`.venv/**`・`**/*.local.md`。判定基準は **repo が所有し、かつ document であるか**。
 
 ## CI
 

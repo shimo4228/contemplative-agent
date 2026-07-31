@@ -62,6 +62,18 @@ BANDIT_FMT=(-f custom --msg-template '{relpath}:{line} [{test_id}] {msg}')
 # drain 可能な量。未クォート変数 SC2086 は info 相当なので warning 閾値では素通りする
 SHELLCHECK=(shellcheck -S style)
 
+# markdown lint の実行可否は **実行ファイルの有無** で決める。以前は npx を呼んで
+# 失敗メッセージを文字列照合していたが (`*"npm ERR"*` 等)、npm が表記を "npm error" に
+# 変えた時点で照合が外れ、未導入という配管エラーが「markdown の指摘」として報告されて
+# いた (2026-07-31 実測)。ツールの出力文言に依存する判定を残さない。
+# ネットワーク取得は起こさない — 見つからなければ告げて skip する。
+MDLINT=""
+if command -v markdownlint-cli2 >/dev/null 2>&1; then
+  MDLINT=$(command -v markdownlint-cli2)
+elif [[ -x "$ROOT/node_modules/.bin/markdownlint-cli2" ]]; then
+  MDLINT="$ROOT/node_modules/.bin/markdownlint-cli2"
+fi
+
 # ---------------------------------------------------------------- staged mode
 if [[ "$MODE" == "staged" ]]; then
   staged=$(git -C "$ROOT" diff --cached --name-only --diff-filter=ACMR 2>/dev/null)
@@ -104,18 +116,14 @@ if [[ "$MODE" == "staged" ]]; then
     fi
   fi
 
-  # advisory (ratchet 中): 検出しても commit は止めない。drain 後に check へ昇格する。
-  # --no-install: commit 境界でネットワーク取得を起こさない。未導入なら黙って寝かせず告げる
-  if [[ -n "$md" ]] && command -v npx >/dev/null 2>&1; then
-    # shellcheck disable=SC2086
-    if md_out=$(npx --no-install markdownlint-cli2 $md 2>&1); then
-      :
+  # 2026-07-31 に advisory から block へ昇格 (既存 .md の違反を drain し切ったため)。
+  # 何を検査対象から外しているかは .markdownlint-cli2.jsonc の ignores が正本。
+  if [[ -n "$md" ]]; then
+    if [[ -n "$MDLINT" ]]; then
+      # shellcheck disable=SC2086
+      check markdown "$MDLINT" $md
     else
-      case "$md_out" in
-        *"could not determine executable"*|*"not found"*|*"npm ERR"*)
-          warn "[verify] markdownlint-cli2 未導入 — markdown lint をスキップ (npm i -g markdownlint-cli2)" ;;
-        *) warn "[markdown advisory] $md_out" ;;
-      esac
+      warn "[verify] markdownlint-cli2 不在 — markdown lint をスキップ (npm i -g markdownlint-cli2)"
     fi
   fi
 
@@ -137,6 +145,15 @@ if command -v shellcheck >/dev/null 2>&1; then
   [[ -n "$sh_files" ]] && check shell "${SHELLCHECK[@]}" $sh_files
 else
   warn "[verify] shellcheck 不在 — shell lint をスキップ (brew install shellcheck)"
+fi
+
+# markdown は 2026-07-31 の drain まで staged だけの advisory だったので、全体検査から
+# 漏れていた (staged で触ったファイルしか見ない = repo 全体の状態を誰も測らない)。
+# 引数なしで呼ぶと .markdownlint-cli2.jsonc の globs / ignores がそのまま効く。
+if [[ -n "$MDLINT" ]]; then
+  check markdown "$MDLINT"
+else
+  warn "[verify] markdownlint-cli2 不在 — markdown lint をスキップ (npm i -g markdownlint-cli2)"
 fi
 
 # 依存監査: uv が同期した project venv をそのまま監査する。
