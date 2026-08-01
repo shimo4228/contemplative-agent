@@ -17,21 +17,30 @@ step.
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from .text_utils import extract_title, slugify
+from .text_utils import extract_title, slugify, split_frontmatter
 
 logger = logging.getLogger(__name__)
+
+_FRONTMATTER_NAME_RE = re.compile(r"^name:.*$", re.MULTILINE)
 
 
 @dataclass(frozen=True)
 class ResolvedArtifactPath:
-    """A title-derived filename plus its safe target path."""
+    """A title-derived filename plus its safe target path.
+
+    ``slug`` is the date-free stem of ``filename`` — the single token the
+    caller can write back into the body's frontmatter so filename and
+    declared identity cannot diverge.
+    """
 
     filename: str
     target_path: Path
+    slug: str
 
 
 def resolve_artifact_path(
@@ -60,9 +69,35 @@ def resolve_artifact_path(
     today = date.today().strftime("%Y%m%d")
     filename = f"{slug}-{today}.md"
     if target_dir is None:
-        return ResolvedArtifactPath(filename=filename, target_path=Path(filename))
+        return ResolvedArtifactPath(filename=filename, target_path=Path(filename), slug=slug)
     path = target_dir / filename
     if not path.resolve().is_relative_to(target_dir.resolve()):
         logger.error("%s path escape attempt: %s", label, path)
         return None
-    return ResolvedArtifactPath(filename=filename, target_path=path)
+    return ResolvedArtifactPath(filename=filename, target_path=path, slug=slug)
+
+
+def canonicalize_frontmatter_name(text: str, slug: str) -> str:
+    """Return *text* with its frontmatter ``name:`` scalar set to *slug*.
+
+    The extraction prompt emits two free-form identity strings: the
+    frontmatter ``name:`` and the ``# `` heading. Only the heading decides
+    the filename (:func:`resolve_artifact_path`), while ``skill_theme``
+    reads the frontmatter name — so a candidate could be filed, selected
+    and ledgered under three different tokens. Rewriting the scalar with
+    the resolved slug at stage time makes filename, declared name and
+    ledger identity the same token by construction; the heading stays as
+    the human-readable title (it is what pass-2 injection carries).
+
+    Bodies without frontmatter are returned unchanged — ``skill_theme``
+    already falls back to the filename stem for those.
+    """
+    frontmatter, body = split_frontmatter(text)
+    if not frontmatter:
+        return text
+    rewritten, count = _FRONTMATTER_NAME_RE.subn(f"name: {slug}", frontmatter, count=1)
+    if count == 0:
+        lines = frontmatter.split("\n")
+        lines.insert(1, f"name: {slug}")
+        rewritten = "\n".join(lines)
+    return f"{rewritten}\n\n{body}"

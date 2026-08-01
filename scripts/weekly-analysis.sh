@@ -143,10 +143,24 @@ if [[ -d "$DATA_REPO/.git" ]]; then
         fi
 
         # Knowledge pattern count
+        #
+        # Provenance is stamped into the line because this count is NOT the one
+        # the state invariant check reports (ADR-0075): these are *committed
+        # snapshots* of the data repo, taken at the last sync commit at or before
+        # each window bound, while the invariant check reads the *live* store at
+        # report-generation time — typically a day of accumulation later, and it
+        # counts tombstones too. Three numbers, three questions; unlabelled they
+        # read as a contradiction (findings F1.4).
         STATE_DIFF+="### knowledge.json"$'\n'
         count_start=$(git show "$start_commit":knowledge.json 2>/dev/null | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "N/A")
         count_end=$(git show "$end_commit":knowledge.json 2>/dev/null | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "N/A")
-        STATE_DIFF+="Pattern count: $count_start (start) -> $count_end (end)"$'\n\n'
+        start_sha=$(git rev-parse --short=7 "$start_commit" 2>/dev/null || echo "unknown")
+        end_sha=$(git rev-parse --short=7 "$end_commit" 2>/dev/null || echo "unknown")
+        start_cdate=$(git log -1 --format=%cI "$start_commit" 2>/dev/null || echo "unknown")
+        end_cdate=$(git log -1 --format=%cI "$end_commit" 2>/dev/null || echo "unknown")
+        STATE_DIFF+="Pattern count (data repo, committed snapshots — rows in knowledge.json, tombstones included):"$'\n'
+        STATE_DIFF+="$count_start (start, commit $start_sha @ $start_cdate) -> $count_end (end, commit $end_sha @ $end_cdate)"$'\n\n'
+        STATE_DIFF+="Not comparable to the State Invariant Check totals below, which read the live store at report-generation time."$'\n\n'
     else
         STATE_DIFF="No state diff available (insufficient git history)."
     fi

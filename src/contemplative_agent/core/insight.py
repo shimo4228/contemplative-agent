@@ -25,7 +25,7 @@ from pathlib import Path
 
 from . import insight_novelty, llm
 from ._io import read_run_marker, write_run_marker
-from .artifact_extraction import resolve_artifact_path
+from .artifact_extraction import canonicalize_frontmatter_name, resolve_artifact_path
 from .clustering import cluster_patterns
 from .insight_novelty import (
     _Batch,
@@ -591,6 +591,11 @@ def _extract_one_batch(
     )
     if resolved is None:
         return None
+
+    # One canonical identity: the frontmatter name becomes the resolved slug,
+    # so filename, selector key and ledger entry cannot diverge (the heading
+    # stays as the human-readable title).
+    skill_text = canonicalize_frontmatter_name(skill_text, resolved.slug)
 
     return SkillResult(
         text=skill_text,

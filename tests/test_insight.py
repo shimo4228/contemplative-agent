@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from contemplative_agent.core import insight_novelty
+from contemplative_agent.core.artifact_extraction import canonicalize_frontmatter_name
 from contemplative_agent.core.insight import (
     FULL_RECLUSTER_WARN_N,
     InsightResult,
@@ -16,6 +17,7 @@ from contemplative_agent.core.insight import (
     _extract_skill,
     _select_patterns,
     extract_insight,
+    skill_theme,
 )
 from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.memory import KnowledgeStore
@@ -109,6 +111,68 @@ class TestSlugify:
 
     def test_max_length(self) -> None:
         assert len(slugify("a" * 100)) <= 50
+
+
+# ---------------------------------------------------------------------------
+# Frontmatter name canonicalization (one identity per staged skill)
+# ---------------------------------------------------------------------------
+
+
+# Same shape as GOOD_SKILL_RESPONSE, but the frontmatter name and the heading
+# disagree — the divergence measured on the live store 2026-08-01.
+DIVERGENT_NAME_RESPONSE = (
+    "---\n"
+    "name: trace-structural-authority\n"
+    'description: "Trace where authority in a structure comes from"\n'
+    "origin: auto-extracted\n"
+    "---\n"
+    "\n"
+    "# Structure Authority Tracing\n"
+    "\n"
+    "**Context:** When a claim rests on an unnamed authority\n"
+    "\n"
+    "## Problem\n"
+    "Authority claims stay unexamined\n"
+    "\n"
+    "## Solution\n"
+    "Trace the claim to its source\n"
+)
+
+
+class TestCanonicalizeFrontmatterName:
+    def test_rewrites_diverging_name_to_slug(self) -> None:
+        out = canonicalize_frontmatter_name(DIVERGENT_NAME_RESPONSE, "structure-authority-tracing")
+        assert skill_theme(out)[0] == "structure-authority-tracing"
+        # Heading and the other scalars survive untouched.
+        assert extract_title(out) == "Structure Authority Tracing"
+        assert skill_theme(out)[1] == "Trace where authority in a structure comes from"
+        assert "origin: auto-extracted" in out
+
+    def test_inserts_name_when_frontmatter_lacks_one(self) -> None:
+        text = '---\ndescription: "d"\n---\n\n# My Skill\n\nbody'
+        out = canonicalize_frontmatter_name(text, "my-skill")
+        assert skill_theme(out)[0] == "my-skill"
+        assert skill_theme(out)[1] == "d"
+
+    def test_body_without_frontmatter_is_unchanged(self) -> None:
+        text = "# My Skill\n\nbody"
+        assert canonicalize_frontmatter_name(text, "my-skill") == text
+
+
+class TestStagedSkillIdentityInvariant:
+    @patch(
+        "contemplative_agent.core.llm.generate_full",
+        return_value=GenerationOutput(text=DIVERGENT_NAME_RESPONSE),
+    )
+    def test_declared_name_equals_filename_stem(self, _mock_generate, knowledge_store) -> None:
+        """skill_theme(text)[0] == filename stem minus the date suffix."""
+        result = extract_insight(knowledge_store=knowledge_store, full=True)
+        assert isinstance(result, InsightResult)
+        skill = result.skills[0]
+        today = date.today().strftime("%Y%m%d")
+        assert skill.filename == f"structure-authority-tracing-{today}.md"
+        stem_without_date = Path(skill.filename).stem.removesuffix(f"-{today}")
+        assert skill_theme(skill.text)[0] == stem_without_date
 
 
 # ---------------------------------------------------------------------------

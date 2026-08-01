@@ -453,6 +453,8 @@ translate: best-effort .ja.md (sonnet); failure never rolls back the two promote
 
 Order is load-bearing. The sweep's Δ / 🆕 columns are defined against its last committed snapshot, so it runs `--no-update --emit-state` and the baseline is committed after the report lands — a run that produces nothing must spend nothing (findings F1.2; two consecutive weeks lost). The invariant check and the duplicate scan hold no state and are absolute readings, so they need no such ordering.
 
+The sweep's signature is keyed on **level + message**, with the dotted `%(name)s` module path dropped for lines in the runtime's own log format, and hex-shaped ids squashed to `#` alongside digit runs. The 80-character cap is the reason: the module path alone runs to ~47 characters, so keying on it spent the budget on the address and truncated the predicate — `"reply on <id> created but verification failed"` rendered as `"reply on <id> created"`, a failure displayed as its own opposite (findings F1.1). Excluding the name also makes the instrument refactor-invariant: a pure module move (`7c96e0f`) used to reset every affected signature to 🆕, i.e. the Δ / 🆕 columns measured the codebase rather than the runtime (findings F1.2).
+
 Injection boundary: the sweep and the invariant check must never read episode logs. The duplicate scan does, and is the only intake permitted to — it emits **only** 12-hex SHA-256 digests, counts, filename-derived dates and the fixed `{post, reply, comment}` vocabulary (ADR-0083, gated by `TestOutputBoundary`). All three are observability: a failure degrades to a "not available" stub and never breaks the report.
 
 ### weekly-pipeline  [`scripts/weekly-pipeline.sh`, ADR-0085]

@@ -227,8 +227,23 @@ def load_state(home: Path) -> tuple[list[dict], dict]:
 _LEVEL_ICON = {_OK: "✅", _INFO: "ℹ️", _WARN: "⚠️", _FAIL: "❌"}
 
 
-def render_markdown(results: list[InvariantResult]) -> str:
+def render_markdown(results: list[InvariantResult], *, read_at: str | None = None) -> str:
+    """Render the invariant table.
+
+    ``read_at`` stamps *when* the live store was read. Without it the counts
+    below silently compete with the committed-snapshot counts in the weekly
+    report's state diff, which are a different source measured at a different
+    moment (ADR-0075: the reading exists, the label that makes it usable does
+    not — findings F1.4).
+    """
     lines = ["## State Invariant Check", ""]
+    source = "live store" if read_at is None else f"live store, read at {read_at}"
+    lines.append(
+        f"Source: {source} — `total` counts every row in `knowledge.json`, "
+        "so total = live + tombstones (ADR-0021). Committed-snapshot counts "
+        "elsewhere in this report are a different source and moment."
+    )
+    lines.append("")
     fails = sum(1 for r in results if r.level == _FAIL)
     warns = sum(1 for r in results if r.level == _WARN)
     if fails:
@@ -262,7 +277,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--home", type=Path, required=True, help="MOLTBOOK_HOME")
     args = parser.parse_args(argv)
     results = run(args.home)
-    print(render_markdown(results))
+    read_at = datetime.now().astimezone().isoformat(timespec="seconds")
+    print(render_markdown(results, read_at=read_at))
     # Exit non-zero only on a hard FAIL so a caller can gate on corruption;
     # WARN/INFO are reporting-only.
     return 1 if any(r.level == _FAIL for r in results) else 0

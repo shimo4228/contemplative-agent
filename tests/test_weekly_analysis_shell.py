@@ -209,6 +209,56 @@ class TestPromptAssembly:
         # The scan's boundary holds end to end: the body it hashed stays out.
         assert "a body" not in prompt.split("## Daily Reports")[0]
 
+    def test_pattern_count_line_names_its_source_and_commits(self, tmp_path):
+        """findings F1.4: the state diff's pattern counts are committed snapshots
+        of the data repo, the invariant check's are the live store at generation
+        time. Unlabelled, the two disagree by a day of accumulation plus the
+        tombstones and a reader cannot tell which answers which question."""
+        home = _make_home(tmp_path)
+        data_repo = tmp_path / "fakehome" / "MyAI_Lab" / "contemplative-agent-data"
+        data_repo.mkdir(parents=True)
+
+        def git(*a: str, when: str | None = None) -> None:
+            env = {
+                **os.environ,
+                "GIT_CONFIG_GLOBAL": "/dev/null",
+                "GIT_CONFIG_SYSTEM": "/dev/null",
+            }
+            if when:
+                # `git log --before` filters on the *committer* date, so pinning
+                # only the author date would leave both commits stamped "now".
+                env["GIT_AUTHOR_DATE"] = when
+                env["GIT_COMMITTER_DATE"] = when
+            subprocess.run(["git", *a], cwd=data_repo, check=True, capture_output=True, env=env)
+
+        git("init", "-q")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "t")
+        (data_repo / "knowledge.json").write_text("[]", encoding="utf-8")
+        git("add", "knowledge.json")
+        git("commit", "-qm", "start", when="2026-07-18T00:00:00+0900")
+        (data_repo / "knowledge.json").write_text('[{"pattern": "a"}]', encoding="utf-8")
+        git("commit", "-qam", "end", when=f"{END_DATE}T00:00:00+0900")
+
+        captured = tmp_path / "prompt.txt"
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        stub = bin_dir / "claude"
+        stub.write_text(
+            f'#!/bin/bash\ncat >> "{captured}"\nprintf "# Weekly\\n"\n', encoding="utf-8"
+        )
+        stub.chmod(0o755)
+
+        result = _run(home, bin_dir, tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        prompt = captured.read_text(encoding="utf-8")
+        assert "Pattern count (data repo, committed snapshots" in prompt
+        assert "0 (start, commit " in prompt
+        assert "1 (end, commit " in prompt
+        # The label that makes the count usable: which store, measured when.
+        assert "live store at report-generation time" in prompt
+
 
 class TestPreflight:
     def test_missing_claude_fails_before_the_collection_pass(self, tmp_path):

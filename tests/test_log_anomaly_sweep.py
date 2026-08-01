@@ -31,6 +31,43 @@ class TestNormalize:
         assert sig.startswith("error circuit breaker open")
 
 
+class TestRuntimeFormatSignature:
+    """The publish-verification failure must survive the length cap.
+
+    The runtime format is ``%(asctime)s [%(levelname)s] %(name)s: %(message)s``
+    with a ~47-char dotted module path; keying the signature on the rendered
+    line truncated ``created but verification failed`` to ``created``, so a
+    failure rendered as a success (findings F1.1).
+    """
+
+    LINE = (
+        "2026-07-25 09:12:33,123 [WARNING] "
+        "contemplative_agent.adapters.moltbook.publish: "
+        "Reply on 836e1237-a5b2 created but verification failed; not recording"
+    )
+
+    def test_outcome_clause_survives_the_length_cap(self):
+        sig = las.normalize(self.LINE)
+        assert "verification failed" in sig
+        assert "contemplative_agent" not in sig
+        assert sig.startswith("[warning] reply on ")
+
+    def test_comma_milliseconds_do_not_leak_into_the_signature(self):
+        assert not las.normalize(self.LINE).startswith(",")
+
+    def test_id_shaped_tokens_squash_like_digit_runs(self):
+        other = self.LINE.replace("836e1237-a5b2", "91ab77de-0c31")
+        assert las.normalize(self.LINE) == las.normalize(other)
+
+    def test_distinct_predicates_stay_distinct(self):
+        comment = self.LINE.replace("Reply on", "Comment on")
+        assert las.normalize(self.LINE) != las.normalize(comment)
+
+    def test_hex_letter_words_are_not_mistaken_for_ids(self):
+        sig = las.normalize("[WARNING] mod.name: a decade of facade beef")
+        assert "decade" in sig and "facade" in sig
+
+
 class TestAnalyze:
     def test_non_signal_lines_ignored(self):
         lines = ["just a normal info line", "starting session", "all good"]

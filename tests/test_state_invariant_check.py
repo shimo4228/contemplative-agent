@@ -153,6 +153,17 @@ class TestLoadAndRender:
         assert "`with`" not in out
         assert "\\|" in out
 
+    def test_render_stamps_the_source_and_moment_of_the_counts(self):
+        """findings F1.4: the report carried three counts of the same store from
+        two sources and labelled none of them. The header must say which store
+        this table read, when, and that `total` includes tombstones — otherwise
+        it reads as contradicting the state diff's committed-snapshot counts."""
+        out = sic.render_markdown(
+            sic.check_knowledge([_live("p")]), read_at="2026-08-01T09:00:00+09:00"
+        )
+        assert "live store, read at 2026-08-01T09:00:00+09:00" in out
+        assert "total = live + tombstones" in out
+
     def test_run_endtoend_on_missing_home_is_clean(self, tmp_path):
         # No state files → empty pattern list → no corruption, no crash.
         results = sic.run(tmp_path / "nonexistent")

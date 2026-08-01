@@ -58,10 +58,32 @@ def _is_signal(line: str) -> bool:
 _LOG_GLOB = "*.log"
 _AUDIT_NAME = "audit.jsonl"
 
-_TS_ISO_RE = re.compile(r"^\[?\d{4}-\d\d-\d\d[T ][\d:.\-+Z]*\]?\s*")
+# ``[\d:.,\-+Z]`` (note the comma): ``logging``'s default asctime renders
+# milliseconds as ``2026-07-25 09:12:33,123``. Without the comma the ``,123``
+# survived the strip and landed at the head of every signature, spending
+# budget the message needed.
+_TS_ISO_RE = re.compile(r"^\[?\d{4}-\d\d-\d\d[T ][\d:.,\-+Z]*\]?\s*")
 _TS_CLOCK_RE = re.compile(r"^\[?\d\d:\d\d:\d\d[.,]?\d*\]?\s*")
 _DIGITS_RE = re.compile(r"\d+")
 _WS_RE = re.compile(r"\s+")
+
+# The runtime's log format (``cli/runtime.py``) is
+# ``%(asctime)s [%(levelname)s] %(name)s: %(message)s``; ``%(name)s`` is a
+# dotted module path up to ~47 chars. Keying the signature on the *address*
+# rather than the predicate pushed the outcome clause past the length cap
+# ("... created but verification failed" truncated to "... created" — a
+# failure rendered as its own opposite). Match the known format and drop the
+# module path; lines that do not match fall back to prefix stripping.
+_RUNTIME_LINE_RE = re.compile(
+    r"^\[(?P<level>DEBUG|INFO|WARNING|ERROR|CRITICAL)\]\s+"
+    r"(?P<name>[A-Za-z_][\w.]*):\s*(?P<message>.*)$"
+)
+
+# Hex-shaped ids (uuid fragments, sha digests) vary per item the way digit runs
+# do, so they must squash the same way or every item gets its own signature.
+# The lookahead requires at least one digit so English words made only of
+# ``a-f`` letters ("decade", "facade") are not mistaken for ids.
+_HEXID_RE = re.compile(r"\b(?=[0-9a-f]*\d)[0-9a-f]{6,}(?:-[0-9a-f]{4,})*\b")
 
 _SIG_MAXLEN = 80
 
@@ -79,14 +101,22 @@ class Finding:
 def normalize(line: str) -> str:
     """Collapse a log line into a stable signature.
 
-    Strips the leading timestamp / clock prefix, lowercases, squashes digit
-    runs to ``#`` (so numeric variation — counts, ids, ports — groups), and
-    truncates. Agent-name variation is intentionally *not* squashed; minor
-    over-splitting is safer than over-merging distinct anomalies.
+    Strips the leading timestamp / clock prefix and — for lines in the
+    runtime's own log format — the dotted ``%(name)s`` module path, so the
+    length cap covers the predicate ("... created but verification failed")
+    instead of the address. Lowercases, squashes digit runs and hex-shaped ids
+    to ``#`` (so per-item variation groups), and truncates. Agent-name
+    variation is intentionally *not* squashed; minor over-splitting is safer
+    than over-merging distinct anomalies.
     """
     s = _TS_ISO_RE.sub("", line)
     s = _TS_CLOCK_RE.sub("", s)
-    s = s.strip().lower()
+    s = s.strip()
+    m = _RUNTIME_LINE_RE.match(s)
+    if m is not None:
+        s = f"[{m.group('level')}] {m.group('message')}"
+    s = s.lower()
+    s = _HEXID_RE.sub("#", s)
     s = _DIGITS_RE.sub("#", s)
     s = _WS_RE.sub(" ", s).strip()
     return s[:_SIG_MAXLEN]
@@ -196,7 +226,8 @@ def render_markdown(findings: list[Finding], top: int) -> str:
         lines.append(f"| {flag} | {f.count} | {f.delta:+d} | `{sig}` |")
     lines.append("")
     lines.append(
-        "_Signatures are normalized (timestamps stripped, digits squashed). "
+        "_Signatures are normalized (timestamps and module paths stripped, "
+        "digits and ids squashed). "
         "Source: self-written logs only; episode logs are never read._"
     )
     return "\n".join(lines) + "\n"
