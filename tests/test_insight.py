@@ -9,7 +9,10 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from contemplative_agent.core import insight_novelty
-from contemplative_agent.core.artifact_extraction import canonicalize_frontmatter_name
+from contemplative_agent.core.artifact_extraction import (
+    canonicalize_frontmatter_name,
+    resolve_artifact_path,
+)
 from contemplative_agent.core.insight import (
     FULL_RECLUSTER_WARN_N,
     InsightResult,
@@ -158,6 +161,27 @@ class TestCanonicalizeFrontmatterName:
         text = "# My Skill\n\nbody"
         assert canonicalize_frontmatter_name(text, "my-skill") == text
 
+    def test_only_the_top_level_name_key_is_rewritten(self) -> None:
+        """A ``name:`` nested inside a block scalar must survive.
+
+        The rewrite is a regex, not a YAML parse, so pin the boundary it
+        relies on: block-scalar content is indented, and the pattern is
+        anchored at column 0 (findings F1.3 review).
+        """
+        text = (
+            "---\n"
+            "description: |\n"
+            "  name: not the identity, prose inside a scalar\n"
+            "name: stale-declared-name\n"
+            "---\n"
+            "\n"
+            "# My Skill\n"
+        )
+        out = canonicalize_frontmatter_name(text, "my-skill")
+        assert "  name: not the identity, prose inside a scalar" in out
+        assert "name: stale-declared-name" not in out
+        assert skill_theme(out)[0] == "my-skill"
+
 
 class TestStagedSkillIdentityInvariant:
     @patch(
@@ -173,6 +197,40 @@ class TestStagedSkillIdentityInvariant:
         assert skill.filename == f"structure-authority-tracing-{today}.md"
         stem_without_date = Path(skill.filename).stem.removesuffix(f"-{today}")
         assert skill_theme(skill.text)[0] == stem_without_date
+
+    def test_invariant_holds_for_every_file_a_store_is_written_with(self, tmp_path) -> None:
+        """The finding specified the invariant over *every* file in the store,
+        not one fresh candidate. Materialize a store through the real
+        resolve + canonicalize path and walk all of it (findings F1.3 review).
+
+        This guards the write path. Files already in the live store predate
+        the canonicalization and are not repaired by it — that gap is tracked
+        separately, not silently asserted away here.
+        """
+        headings_and_names = [
+            ("Structure Authority Tracing", "trace-structural-authority"),
+            ("Mapping Epistemic Boundaries", "articulate-epistemic-boundaries"),
+            ("Deconstruct Foundational Claims", "cross-reference-foundational-claims"),
+            ("Subjective Attention Calibration", "internal-process-audit"),
+        ]
+        for heading, declared in headings_and_names:
+            body = (
+                f'---\nname: {declared}\ndescription: "d"\norigin: auto-extracted\n---\n'
+                f"\n# {heading}\n\nbody\n"
+            )
+            resolved = resolve_artifact_path(body, tmp_path, label="test")
+            assert resolved is not None
+            resolved.target_path.write_text(
+                canonicalize_frontmatter_name(body, resolved.slug), encoding="utf-8"
+            )
+
+        written = sorted(tmp_path.glob("*.md"))
+        assert len(written) == len(headings_and_names)
+        today = date.today().strftime("%Y%m%d")
+        for path in written:
+            stem_without_date = path.stem.removesuffix(f"-{today}")
+            declared_name = skill_theme(path.read_text(encoding="utf-8"))[0]
+            assert declared_name == stem_without_date, f"{path.name} declares {declared_name}"
 
 
 # ---------------------------------------------------------------------------

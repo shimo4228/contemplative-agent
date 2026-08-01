@@ -1,4 +1,4 @@
-<!-- Generated: 2026-07-18 | Files scanned: 30 core modules | Token estimate: ~3196 -->
+<!-- Generated: 2026-08-01 | Files scanned: 31 core modules | Token estimate: ~3596 -->
 # Core Modules Codemap
 
 Platform-independent foundation (no Moltbook dependencies). All imports flow: adapters → core.
@@ -7,7 +7,7 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 
 | Module | LOC | Purpose |
 |--------|-----|---------|
-| `_io.py` | 237 | `write_restricted`, `truncate`, `archive_before_write` |
+| `_io.py` | 285 | `write_restricted`, `truncate`, `archive_before_write` |
 | `run_context.py` | 35 | ADR-0078: mints process-wide `run_id` (uuid4) at import; `set_session_id`/`clear` for the active `run` session; read by `core/_io.py`'s `append_jsonl_restricted` to stamp every JSONL record |
 | `config.py` | 47 | `FORBIDDEN_SUBSTRING_PATTERNS`, `VALID_ID_PATTERN`, `MAX_COMMENT_LENGTH` |
 | `domain.py` | 403 | `DomainConfig`, `PromptTemplates` (reads `MOLTBOOK_HOME/prompts/` overrides with packaged fallback), constitution loader |
@@ -25,19 +25,19 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `snapshot.py` | 218 | `write_snapshot()` + `collect_thresholds()` — pivot snapshots (ADR-0020) |
 | `scheduler.py` | 210 | Rate limit state, `has_read_budget`/`has_write_budget`, persistence |
 | `constitution.py` | 152 | `amend_constitution() → AmendmentResult`. ADR-0033 layer-separation framing. ADR-0050 lineage fields. |
-| `distill.py` | 797 | `distill()` (per-episode grounded distill: activity-only scope via `episode_render._is_rich_episode`, one LLM call per episode, no noise gate; ADR-0060, importance-scoring step retired ADR-0056); `_is_valid_pattern` validity gate (length floor + extraction-failure meta-statement phrase filter, ADR-0072); `distill_identity()` (single-stage, self_reflection view, whole-file write, ADR-0030). ADR-0050 lineage fields on all result types. Re-exports `render_episode` / `summarize_record` from `episode_render.py` (public names; ADR-0079 Phase 3b). |
+| `distill.py` | 931 | `distill()` (per-episode grounded distill: activity-only scope via `episode_render._is_rich_episode`, one LLM call per episode, no noise gate; ADR-0060, importance-scoring step retired ADR-0056); `_postgate()` durability postgate (ADR-0084); `_is_valid_pattern` validity gate (length floor + extraction-failure meta-statement phrase filter, ADR-0072); `distill_identity()` (single-stage, self_reflection view, whole-file write, ADR-0030). ADR-0050 lineage fields on all result types. Re-exports `render_episode` / `summarize_record` from `episode_render.py` (public names; ADR-0079 Phase 3b). |
 | `pattern_dedup.py` | 165 | Embedding-cosine dedup decisions for distilled patterns (add / update / skip / skip-new against live pool + current batch; ADR-0019/0021/0056). Extracted from distill.py (ADR-0079 Phase 3b); does not import distill. |
 | `episode_render.py` | 182 | Episode→prompt-text projection for distillation (`render_episode`, `summarize_record`, rich-episode scope, source-type derivation). Extracted from distill.py (ADR-0079 Phase 3b); does not import distill. |
-| `insight.py` | 603 | `extract_insight() → InsightResult`; global embedding clustering, no view batching (ADR-0050); ADR-0074 weekly-staged flow: `.last_insight` marker guard refuses an implicit full recluster, novelty gate delegated to `insight_novelty.py`, `--stage` writes a pending-review ledger consumed by `adopt-staged`. Re-exports `skill_theme` (public name; ADR-0079 Phase 3a). |
-| `insight_novelty.py` | 467 | ADR-0074 LLM novelty gate for staged insight: known-theme loading, token-budget chunk packing, covered-id parsing, novelty audit log (`skipped_known`). Extracted from insight.py (ADR-0079 Phase 3a); does not import insight. Namespace note: distinct from `adapters/moltbook/novelty.py` (feed novelty). |
-| `skill_selection.py` | 472 | ADR-0076 shadow instrument: `select_applicable_skills()` pass-1 LLM pick over the skill catalog (name+description only, identity-only system prompt — no learned vocabulary fed back to the judge), `shadow_observe_skill_selection()` fire-and-log wrapper under `circuit_shield()` (never gates injection), audit → `logs/skill-selection-YYYY-MM-DD.jsonl`; `read_skill_selection_log()` / `format_skill_selection_report()` back `report --skill-selection`. ADR-0081 enforcement (implemented 2026-07-24, same day as the deciding first reading): `enforcement_enabled()` reads `MOLTBOOK_SKILL_SELECTION_ENFORCE=1` at call time; `shadow_observe_skill_selection()` returns the selected names (empty tuple = inject nothing) only under flag + judged verdict, else `None` = full injection (fail-open, kill switch, shadow); every record carries `enforced`; `selected_skills_block()` builds the pass-2 bodies (skill_theme identity match + frontmatter strip + forbidden-pattern validation) consumed by `llm.build_system_prompt_with_skills()` |
+| `insight.py` | 609 | `extract_insight() → InsightResult`; global embedding clustering, no view batching (ADR-0050); ADR-0074 weekly-staged flow: `.last_insight` marker guard refuses an implicit full recluster, novelty gate delegated to `insight_novelty.py`, `--stage` writes a pending-review ledger consumed by `adopt-staged`. Re-exports `skill_theme` (public name; ADR-0079 Phase 3a). |
+| `insight_novelty.py` | 456 | ADR-0074 LLM novelty gate for staged insight: known-theme loading, token-budget chunk packing, covered-id parsing, novelty audit log (`skipped_known`). Extracted from insight.py (ADR-0079 Phase 3a); does not import insight. Namespace note: distinct from `adapters/moltbook/novelty.py` (feed novelty). |
+| `skill_selection.py` | 542 | ADR-0076 shadow instrument: `select_applicable_skills()` pass-1 LLM pick over the skill catalog (name+description only, identity-only system prompt — no learned vocabulary fed back to the judge), `shadow_observe_skill_selection()` fire-and-log wrapper under `circuit_shield()` (never gates injection), audit → `logs/skill-selection-YYYY-MM-DD.jsonl`; `read_skill_selection_log()` / `format_skill_selection_report()` back `report --skill-selection`. ADR-0081 enforcement (implemented 2026-07-24, same day as the deciding first reading): `enforcement_enabled()` reads `MOLTBOOK_SKILL_SELECTION_ENFORCE=1` at call time; `shadow_observe_skill_selection()` returns the selected names (empty tuple = inject nothing) only under flag + judged verdict, else `None` = full injection (fail-open, kill switch, shadow); every record carries `enforced`; `selected_skills_block()` builds the pass-2 bodies (skill_theme identity match + frontmatter strip + forbidden-pattern validation) consumed by `llm.build_system_prompt_with_skills()` |
 | `rules_distill.py` | 404 | `distill_rules() → RulesDistillResult`; Practice/Rationale B-layer format (ADR-0048) |
-| `stocktake.py` | 504 | Skill/rule audit: single-call LLM grouping (ADR-0046), `merge_group()` union-of-patterns, `CANNOT_MERGE` reject, singleton trigger-altitude clean (ADR-0048) |
+| `stocktake.py` | 619 | Skill/rule audit: single-call LLM grouping (ADR-0046), `merge_group()` union-of-patterns, `CANNOT_MERGE` reject, singleton trigger-altitude clean (ADR-0048), `audit_skill_description()` usage/description audit (ADR-0081) |
 | `report.py` | 321 | `generate_report()` JSONL → Markdown activity summary |
 | `metrics.py` | 189 | Session metrics aggregation |
 | `text_utils.py` | 169 | Shared Markdown helpers (`slugify`, `extract_title`, `strip_frontmatter`, `synthesize_frontmatter`) — ADR-0035 PR2, ADR-0048 |
 | `thresholds.py` | 84 | Centralized thresholds with ADR/calibration annotations. `snapshot.collect_thresholds` reads from here. |
-| `artifact_extraction.py` | 69 | Shared `extract_title → slugify → path-escape guard` chain (ADR-0035 PR3a) |
+| `artifact_extraction.py` | 103 | Shared `extract_title → slugify → path-escape guard` chain (ADR-0035 PR3a) |
 
 **Note**: `forgetting.py` was deleted (ADR-0051); `is_live` moved to `knowledge_store.py`. Aggregate counts: [INDEX.md § Statistics](INDEX.md#statistics).
 
@@ -56,10 +56,10 @@ PostRecord(timestamp, post_id, title, topic)
 
 ```python
 AmendmentResult(text, target_path, marker_dir, pattern_ids, epistemic_counts)  # constitution.py
-IdentityResult(text, target_path, pattern_ids, epistemic_counts)               # distill.py
-SkillResult(text, filename, target_path, pattern_ids, epistemic_counts)         # insight.py
+IdentityResult(text, target_path, pattern_ids, epistemic_counts)  # distill.py
+SkillResult(text, filename, target_path, pattern_ids, epistemic_counts)  # insight.py
 InsightResult(skills, dropped_count, skipped_known)  # skipped_known: ADR-0074 novelty gate
-RuleResult(text, filename, target_path, source_ids)                            # rules_distill.py
+RuleResult(text, filename, target_path, source_ids)  # rules_distill.py
 RulesDistillResult(rules, dropped_count)
 ```
 

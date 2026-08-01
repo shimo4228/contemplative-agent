@@ -17,7 +17,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from ._io import read_run_marker, write_run_marker
-from .artifact_extraction import resolve_artifact_path
+from .artifact_extraction import canonicalize_frontmatter_name, resolve_artifact_path
 from .clustering import cluster_patterns
 from .embeddings import embed_texts
 from .llm import generate_full, get_distill_system_prompt, validate_identity_content
@@ -393,6 +393,16 @@ def _distill_one_batch(
         if resolved is None:
             dropped += 1
             continue
+
+        # Same one-canonical-identity rule as the skill path (findings F1.3):
+        # filename and declared name must be the same token. **Today this is a
+        # no-op here** — `_split_rules` builds each rule as `# {name}\n\n{body}`
+        # with no frontmatter, and `canonicalize_frontmatter_name` returns
+        # frontmatter-less bodies unchanged. It is wired anyway so the two
+        # `resolve_artifact_path` callers cannot diverge the moment rules grow
+        # a frontmatter block; the asymmetry is declared rather than silent
+        # (python-reviewer, 2026-08-01).
+        rule_text = canonicalize_frontmatter_name(rule_text, resolved.slug)
 
         rules.append(
             RuleResult(

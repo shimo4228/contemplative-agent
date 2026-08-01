@@ -31,7 +31,7 @@ Summarize changes to the agent's internal state during this period:
 - **Constitution**: Were axioms amended? What changed?
 - **Skills**: List all skills at period end. Note any added/removed/modified.
 - **Rules**: List all rules at period end. Note any added/removed/modified.
-- **Knowledge**: Pattern count at start vs end.
+- **Knowledge**: Pattern count at start vs end. Carry the source label the input gives you — the state diff reports *committed snapshots of the data repo* (with commit sha and date), the invariant check reports the *live store at report-generation time* (whose `total` includes tombstones). These answer different questions and legitimately differ; report each with its label rather than treating the gap as a contradiction or picking one as canonical.
 - **Operational drift** (from the provided *Log Anomaly Sweep* and *State Invariant Check*): surface any anomaly type flagged 🆕 (new since last sweep) or sharply spiking (high Δ), and any invariant at ⚠️ WARN or ❌ FAIL. These are deterministic signals — report them as observations (what changed, how much); proposing fixes belongs to the downstream diagnosis step, not this report.
 
 If state diffs are provided, analyze them. If not, note "no state data available."

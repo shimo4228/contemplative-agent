@@ -488,6 +488,30 @@ class TestDistillRules:
         assert "Failed to extract" in result
 
     @patch("contemplative_agent.core.rules_distill.generate_full")
+    def test_rule_bodies_carry_no_frontmatter_so_canonicalization_is_inert(
+        self, mock_generate, tmp_path
+    ):
+        """Pins *why* the sibling call site is a no-op rather than asserting a
+        guarantee it does not provide (python-reviewer, 2026-08-01).
+
+        `_split_rules` emits `# {name}\\n\\n{body}`, so there is no `name:`
+        scalar to reconcile and the skill path's divergence class cannot arise
+        here. If rules ever grow a frontmatter block this test fails, which is
+        the signal to pin the identity invariant on this path too.
+        """
+        mock_generate.side_effect = [
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),
+            GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE2),
+        ]
+        skills_dir = _make_skills_dir(tmp_path, n=5)
+        result = distill_rules(skills_dir=skills_dir, rules_dir=tmp_path / "rules")
+        assert isinstance(result, RulesDistillResult)
+        assert result.rules
+        for rule in result.rules:
+            frontmatter, _ = split_frontmatter(rule.text)
+            assert frontmatter == "", f"{rule.filename} grew frontmatter"
+
+    @patch("contemplative_agent.core.rules_distill.generate_full")
     def test_returns_rules_result(self, mock_generate, tmp_path):
         mock_generate.side_effect = [
             GenerationOutput(text=GOOD_RULES_RESPONSE_STAGE1),

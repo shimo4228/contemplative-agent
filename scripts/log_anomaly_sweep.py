@@ -58,10 +58,14 @@ def _is_signal(line: str) -> bool:
 _LOG_GLOB = "*.log"
 _AUDIT_NAME = "audit.jsonl"
 
-# ``[\d:.,\-+Z]`` (note the comma): ``logging``'s default asctime renders
-# milliseconds as ``2026-07-25 09:12:33,123``. Without the comma the ``,123``
-# survived the strip and landed at the head of every signature, spending
-# budget the message needed.
+# ``[\d:.,\-+Z]`` (note the comma): ``logging``'s *default* asctime renders
+# milliseconds as ``2026-07-25 09:12:33,123``, and without the comma the
+# ``,123`` would survive the strip and sit at the head of the signature.
+# This runtime does not produce that shape — ``cli/runtime.py`` sets
+# ``datefmt="%H:%M:%S"``, so its own lines carry no date and no milliseconds
+# and are stripped by ``_TS_CLOCK_RE`` below. The comma is defensive breadth
+# for the other producers the sweep globs (launchd / cron stderr, third-party
+# libraries configured elsewhere), not a repair of an observed leak.
 _TS_ISO_RE = re.compile(r"^\[?\d{4}-\d\d-\d\d[T ][\d:.,\-+Z]*\]?\s*")
 _TS_CLOCK_RE = re.compile(r"^\[?\d\d:\d\d:\d\d[.,]?\d*\]?\s*")
 _DIGITS_RE = re.compile(r"\d+")
@@ -74,9 +78,15 @@ _WS_RE = re.compile(r"\s+")
 # ("... created but verification failed" truncated to "... created" — a
 # failure rendered as its own opposite). Match the known format and drop the
 # module path; lines that do not match fall back to prefix stripping.
+#
+# ``name`` requires a dot. The sweep globs every ``*.log`` under the home, not
+# only this runtime's, and a bare ``[WARNING] Failed: API error 404`` would
+# otherwise parse as name=``Failed`` / message=``API error 404`` — silently
+# eating the first word of the predicate on any producer that writes a level
+# prefix without a logger name.
 _RUNTIME_LINE_RE = re.compile(
     r"^\[(?P<level>DEBUG|INFO|WARNING|ERROR|CRITICAL)\]\s+"
-    r"(?P<name>[A-Za-z_][\w.]*):\s*(?P<message>.*)$"
+    r"(?P<name>[A-Za-z_]\w*(?:\.\w+)+):\s*(?P<message>.*)$"
 )
 
 # Hex-shaped ids (uuid fragments, sha digests) vary per item the way digit runs
@@ -90,36 +100,54 @@ _SIG_MAXLEN = 80
 
 @dataclass(frozen=True)
 class Finding:
-    """One normalized anomaly type with its frequency and novelty."""
+    """One normalized anomaly type with its frequency and novelty.
+
+    ``origins`` is the set of logger names the signature was observed under.
+    It is **display-only**: it never enters the signature, the state file or
+    the novelty computation, so a module rename changes this column and not
+    the 🆕 / Δ reading. It exists because dropping the name from the key
+    merges the same message emitted by different subsystems into one row —
+    the reader still needs to see that ``Connection refused`` came from both
+    the publish adapter and the embedding client.
+    """
 
     signature: str
     count: int
     delta: int
     is_new: bool
+    origins: tuple[str, ...] = ()
 
 
-def normalize(line: str) -> str:
-    """Collapse a log line into a stable signature.
+def normalize_with_origin(line: str) -> tuple[str, str]:
+    """Collapse a log line into ``(signature, origin)``.
 
     Strips the leading timestamp / clock prefix and — for lines in the
-    runtime's own log format — the dotted ``%(name)s`` module path, so the
-    length cap covers the predicate ("... created but verification failed")
-    instead of the address. Lowercases, squashes digit runs and hex-shaped ids
-    to ``#`` (so per-item variation groups), and truncates. Agent-name
-    variation is intentionally *not* squashed; minor over-splitting is safer
+    runtime's own log format — lifts out the dotted ``%(name)s`` module path,
+    which is returned separately and never keyed, so the length cap covers
+    the predicate ("... created but verification failed") instead of the
+    address. Lowercases, squashes digit runs and hex-shaped ids to ``#`` (so
+    per-item variation groups), and truncates. Agent-name variation *inside
+    the message* is intentionally not squashed; minor over-splitting is safer
     than over-merging distinct anomalies.
     """
     s = _TS_ISO_RE.sub("", line)
     s = _TS_CLOCK_RE.sub("", s)
     s = s.strip()
+    origin = ""
     m = _RUNTIME_LINE_RE.match(s)
     if m is not None:
+        origin = m.group("name")
         s = f"[{m.group('level')}] {m.group('message')}"
     s = s.lower()
     s = _HEXID_RE.sub("#", s)
     s = _DIGITS_RE.sub("#", s)
     s = _WS_RE.sub(" ", s).strip()
-    return s[:_SIG_MAXLEN]
+    return s[:_SIG_MAXLEN], origin
+
+
+def normalize(line: str) -> str:
+    """Collapse a log line into a stable signature (logger name excluded)."""
+    return normalize_with_origin(line)[0]
 
 
 def analyze(lines: Iterable[str], prev_counts: dict[str, int]) -> list[Finding]:
@@ -130,13 +158,17 @@ def analyze(lines: Iterable[str], prev_counts: dict[str, int]) -> list[Finding]:
     since last sweep. Sort: NEW first, then largest delta, then largest count.
     """
     counts: Counter[str] = Counter()
+    origins: dict[str, list[str]] = {}
     for line in lines:
         if not _is_signal(line):
             continue
-        sig = normalize(line)
+        sig, origin = normalize_with_origin(line)
         if not sig:
             continue
         counts[sig] += 1
+        seen = origins.setdefault(sig, [])
+        if origin and origin not in seen:
+            seen.append(origin)
 
     findings: list[Finding] = []
     for sig, count in counts.items():
@@ -152,6 +184,7 @@ def analyze(lines: Iterable[str], prev_counts: dict[str, int]) -> list[Finding]:
                 count=count,
                 delta=count - prev,
                 is_new=(prev == 0),
+                origins=tuple(origins.get(sig, ())),
             )
         )
     findings.sort(key=lambda f: (not f.is_new, -f.delta, -f.count))
@@ -216,18 +249,22 @@ def render_markdown(findings: list[Finding], top: int) -> str:
         f"by novelty then frequency delta:"
     )
     lines.append("")
-    lines.append("| New | Count | Δ | Signature (normalized) |")
-    lines.append("|----|------|----|------------------------|")
+    lines.append("| New | Count | Δ | Signature (normalized) | Origin |")
+    lines.append("|----|------|----|------------------------|--------|")
     for f in findings[:top]:
         flag = "🆕" if f.is_new else ""
         # Neutralize Markdown breakers so a signature cannot break out of its
-        # code span in the downstream LLM prompt.
+        # code span in the downstream LLM prompt. The origin column is built
+        # from the same untrusted line, so it is escaped the same way.
         sig = md_safe(f.signature)
-        lines.append(f"| {flag} | {f.count} | {f.delta:+d} | `{sig}` |")
+        origin = md_safe(", ".join(f.origins)) if f.origins else "—"
+        lines.append(f"| {flag} | {f.count} | {f.delta:+d} | `{sig}` | {origin} |")
     lines.append("")
     lines.append(
         "_Signatures are normalized (timestamps and module paths stripped, "
-        "digits and ids squashed). "
+        "digits and ids squashed). Origin is display-only — it does not enter "
+        "the signature, so a module rename cannot reset the Δ / 🆕 baseline, "
+        "and one row may list several subsystems emitting the same message. "
         "Source: self-written logs only; episode logs are never read._"
     )
     return "\n".join(lines) + "\n"
