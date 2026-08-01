@@ -26,6 +26,35 @@ if [ ! -d "$MOLTBOOK_HOME" ]; then
     exit 1
 fi
 
+# Bound the agent's launchd log (T-LOG-DEBUG-CONTENT).
+#
+# Unlike ollama-serve.log this one is NOT excluded from the mirror below: it is
+# the agent's own stderr — session reports, rate-limit decisions, the WARNING
+# that catches a silently-dead gate — so it is research-adjacent and belongs in
+# the restore set. Rotating bounds it instead; gzip makes eight generations
+# cheap.
+#
+# Here rather than in the agent job because launchd opens StandardOutPath
+# before exec: a job that renamed its own log would leave launchd writing into
+# the renamed inode. This script is the natural owner anyway — keeping the
+# mirror pushable is the same concern that made ollama-serve.log an exclusion.
+#
+# Placed ABOVE the backup-repo checks on purpose (cross-model review
+# 2026-08-01): rotation needs nothing but MOLTBOOK_HOME, and every check below
+# can `exit 1`. Downstream of them, a missing backup checkout or a remote gone
+# public would stop rotating too — leaving the log to grow unbounded for as
+# long as the misconfiguration lasts, which is exactly when nobody is watching
+# it. The mirror simply picks up the rotated generation on the next run.
+#
+# Weekly is enough now that `-v` is gone from the plist (the DEBUG stream was
+# the bulk of the growth). `|| echo` because `set -e` is on and a failed
+# rotation must not stop the backup: an unbounded log costs disk, a missing
+# off-site copy costs the episode logs this script exists to protect.
+# rotate-log.sh refuses while a session still holds the file open, so a run
+# landing inside a session window skips loudly instead of truncating.
+"$SCRIPT_DIR/rotate-log.sh" "$MOLTBOOK_HOME/logs/agent-launchd.log" 8 \
+    || echo "ERROR: agent-launchd log rotation failed; continuing with backup" >&2
+
 if [ ! -d "$BACKUP_REPO/.git" ]; then
     echo "ERROR: Backup repo not found at $BACKUP_REPO" >&2
     echo "Create it with: gh repo create <owner>/contemplative-agent-runtime-backup --private --clone" >&2

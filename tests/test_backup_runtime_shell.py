@@ -55,6 +55,16 @@ OLLAMA_ROTATED = "logs/ollama-serve.log.1.gz"
 NEAR_PREFIX = "logs/ollama-serve.logger.jsonl"
 EPISODE_LOG = "logs/2026-01-01.jsonl"
 
+# T-LOG-DEBUG-CONTENT. The agent's own launchd log is mirrored (unlike
+# ollama-serve.log) but bounded here, because the job that writes it cannot
+# rotate it — launchd holds the fd open from before exec.
+AGENT_LOG = "logs/agent-launchd.log"
+AGENT_ROTATED = "logs/agent-launchd.log.1.gz"
+# Quarantined evidence of the DEBUG-content leak, named OUTSIDE the `.N.gz`
+# ring on purpose so rotation never ages it out.
+AGENT_QUARANTINE = "logs/agent-launchd.log.quarantine-2026-08-01.gz"
+QUARANTINE_BYTES = b"\x1f\x8b\x08 the contaminated generations, preserved"
+
 
 def _git(repo: Path, *args: str) -> str:
     return subprocess.run(
@@ -80,6 +90,8 @@ def _make_home(tmp_path: Path) -> Path:
     (home / OLLAMA_LOG).write_text("slot launch_slot_: id 0\n" * 100, encoding="utf-8")
     (home / OLLAMA_ROTATED).write_bytes(b"\x1f\x8b\x08 not really gzip, only the name matters")
     (home / NEAR_PREFIX).write_text('{"type":"near-prefix"}\n', encoding="utf-8")
+    (home / AGENT_LOG).write_text("12:00:00 [INFO] agent: === Session Report ===\n" * 50)
+    (home / AGENT_QUARANTINE).write_bytes(QUARANTINE_BYTES)
     (home / EPISODE_LOG).write_text('{"type":"episode"}\n', encoding="utf-8")
     (home / "logs" / "api-audit.jsonl").write_text('{"type":"api"}\n', encoding="utf-8")
     (home / "reports" / "weekly.md").write_text("# Weekly\n", encoding="utf-8")
@@ -222,3 +234,84 @@ def test_research_data_is_still_mirrored_and_the_secret_is_not(tmp_path: Path) -
     assert "credentials.json" not in tracked
     # knowledge.json is regenerated embedding-free rather than mirrored.
     assert "embedding" not in (repo / "knowledge.json").read_text(encoding="utf-8")
+
+
+class TestAgentLaunchdLogRotation:
+    """T-LOG-DEBUG-CONTENT: the agent's launchd log is bounded, not excluded.
+
+    It carries the agent's own session reports and warnings, so it belongs in
+    the restore set — but nothing rotated it, and it had reached 74 MB. The
+    rotation lives here rather than in the agent job because launchd opens
+    StandardOutPath before exec: a job renaming its own log would leave launchd
+    writing into the renamed inode.
+    """
+
+    def test_live_log_is_rotated_into_a_compressed_generation(self, tmp_path: Path) -> None:
+        home = _make_home(tmp_path)
+        repo = _make_backup_repo(tmp_path)
+
+        result = _run(home, repo, tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        tracked = _tracked(repo)
+        assert AGENT_ROTATED in tracked, "the live log was not rotated before the mirror"
+        assert AGENT_LOG not in tracked, "the unbounded live log still reached the mirror"
+
+    def test_quarantined_evidence_is_never_rotated_or_dropped(self, tmp_path: Path) -> None:
+        """The whole point of naming it outside the `.N.gz` ring: rotation must
+        not touch it, and the mirror must still carry it."""
+        home = _make_home(tmp_path)
+        repo = _make_backup_repo(tmp_path)
+
+        result = _run(home, repo, tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        assert (home / AGENT_QUARANTINE).read_bytes() == QUARANTINE_BYTES
+        assert AGENT_QUARANTINE in _tracked(repo)
+
+    def test_rotation_still_happens_when_the_backup_repo_is_missing(self, tmp_path: Path) -> None:
+        """Rotation must not sit downstream of the backup-repo preconditions.
+
+        Every check below the MOLTBOOK_HOME one can `exit 1` — a missing backup
+        checkout, a remote gone public. If rotation were placed after them, a
+        misconfiguration would stop bounding the log for as long as it lasted,
+        which is precisely the window where nobody is watching disk growth
+        (cross-model review 2026-08-01).
+        """
+        home = _make_home(tmp_path)
+        missing = tmp_path / "no-such-backup-repo"
+
+        env = dict(os.environ)
+        env["MOLTBOOK_HOME"] = str(home)
+        env["MOLTBOOK_BACKUP_REPO"] = str(missing)
+        result = subprocess.run(
+            ["bash", str(SCRIPT)],
+            capture_output=True,
+            text=True,
+            env=env,
+            cwd=REPO_ROOT,
+            timeout=300,
+        )
+
+        assert result.returncode != 0, "a missing backup repo must still be an error"
+        assert not (home / AGENT_LOG).exists(), "the log was left unrotated"
+        assert (home / (AGENT_LOG + ".1.gz")).exists(), "no rotated generation was produced"
+
+    def test_failed_rotation_does_not_stop_the_backup(self, tmp_path: Path) -> None:
+        """`set -e` is on. An unbounded log costs disk; a missing off-site copy
+        costs the episode logs this script exists to protect — so rotation
+        failure must be loud and non-blocking.
+
+        A symlink at the log path is rotate-log.sh's own refusal case (gzip
+        follows symlinks), which makes it the honest way to fail the step.
+        """
+        home = _make_home(tmp_path)
+        repo = _make_backup_repo(tmp_path)
+        (home / AGENT_LOG).unlink()
+        (home / AGENT_LOG).symlink_to(home / EPISODE_LOG)
+
+        result = _run(home, repo, tmp_path)
+
+        assert result.returncode == 0, "a failed rotation aborted the backup"
+        assert "ERROR" in result.stderr, "a failed rotation was silent"
+        assert EPISODE_LOG in _tracked(repo), "the backup did not complete its real work"
