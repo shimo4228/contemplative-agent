@@ -15,9 +15,62 @@ code/ADR/task）と #6（実装 diff → commit）の両方をここで一括決
 
 ### Step 0. Pipeline status（必須・最初）
 
+2 段構え。(a) と (b) は**別の問いに答える** — (a) は「いま決裁するこの run は全段完走したか」、
+(b) は「周辺ジョブは各自の締切までに成果物を出したか」。片方をもう片方の代わりにしない。
+
+#### (a) 決裁対象 run の完走確認（audit log が正）
+
+決裁する packet の `{end-date}`（`weekly-{end-date}-packet.md`）を使い、
+`$MOLTBOOK_HOME/logs/weekly-pipeline-audit.jsonl` から当該 run の全 `stage_result` と
+`chain_end` を確認する（run_id は `weekly-{end-date}-HHMMSS` 形式。同一週の再実行が
+ありうるので最新 run_id を採る）:
+
+```bash
+python3 - "${MOLTBOOK_HOME:-$HOME/.config/moltbook}/logs/weekly-pipeline-audit.jsonl" {end-date} <<'EOF'
+import json, sys
+path, end_date = sys.argv[1], sys.argv[2]
+events = [json.loads(l) for l in open(path)]
+prefix = f"weekly-{end_date}-"
+run_ids = sorted({e["run_id"] for e in events if e.get("run_id", "").startswith(prefix)})
+if not run_ids:
+    sys.exit(f"NO RUN for {end_date}: audit has no run_id {prefix}* (chain never started)")
+run_id = run_ids[-1]
+ev = [e for e in events if e.get("run_id") == run_id]
+extra = f"  (earlier attempts: {', '.join(run_ids[:-1])})" if len(run_ids) > 1 else ""
+print(f"run_id: {run_id}{extra}")
+bad = []
+for e in ev:
+    if e["event"] == "stage_result":
+        note = f"  reason={e['reason']}" if e.get("reason") else ""
+        print(f"  stage {e['stage']}: {e['result']}{note}")
+        if e["result"] != "ok":
+            bad.append(f"stage {e['stage']}={e['result']}")
+end = [e for e in ev if e["event"] == "chain_end"]
+if end:
+    print(f"  chain_end: {end[-1]['result']}  reasons={end[-1].get('reasons', '-')}")
+    if end[-1]["result"] != "ok":
+        bad.append(f"chain_end={end[-1]['result']}")
+else:
+    bad.append("chain_end MISSING (run died mid-chain)")
+print("VERDICT:", "PRESENT BEFORE DECIDING -> " + "; ".join(bad) if bad else "run completed clean")
+EOF
+```
+
+`chain_end` が無い（途中死）、または `result != ok` の stage がある場合は、**決裁より先に**
+該当行をユーザーに提示する。`skipped` / `reused` は fail-forward の正常系でもある
+（例: `improve skipped reason=NO_RECURRENCE`）— reason code とともに提示し、packet の
+空欄が「対象なし」なのか「生成失敗」なのかを packet 冒頭の reason codes と照合して切り分ける。
+
+#### (b) 周辺ジョブ（distill / insight / backup）
+
 `$MOLTBOOK_HOME/reports/PIPELINE-STATUS.md` を読む。❌ があれば**決裁より先に**
-ユーザーに提示する（チェーンが部分死している週は、packet の空欄が「対象なし」ではなく
-「生成失敗」でありうる — reason codes を packet 冒頭と照合する）。
+ユーザーに提示する。
+
+**誤読注意**: PIPELINE-STATUS.md の weekly 系 2 行（weekly-report / weekly-packet）は、
+**土曜午前（締切 Sat 12:00 / 13:00 より前）は前週の成果物を映すのが正常**。watchdog の
+`anchor_sat()`（`scripts/pipeline_watchdog.sh:76-82`）は締切前は前週を anchor する設計で、
+status が答える問いは「各ジョブは締切までに成果物を出したか」— 当日 run の完走は
+答えない。「✅ ばかりだから当日 run も健全」と読まないこと（当日 run の完走は (a) のみが正）。
 
 ### Step 1. Packet の提示
 
