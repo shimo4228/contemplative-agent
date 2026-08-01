@@ -63,6 +63,22 @@ fi
 #                                  with scripts/restore-embed-knowledge.py).
 #                                  Historical *.bak.* stay as-is: static
 #                                  blobs, committed once, no churn.
+#   logs/ollama-serve.log        — the local Ollama daemon's own stderr, plus
+#   logs/ollama-serve.log.N.gz     its rotated generations. Re-derivable
+#                                  operational noise from an external process,
+#                                  not research data — and at 96 MB on
+#                                  2026-08-01 it was one weekly run away from
+#                                  failing the push and stalling the off-site
+#                                  copy of the episode logs this backup exists
+#                                  to protect (T-LOGROT-OLLAMA). Rotation keeps
+#                                  the local copies bounded; nothing about them
+#                                  is irreplaceable. The two patterns are
+#                                  deliberate: leading `/` anchors them to the
+#                                  transfer root (unlike the unanchored
+#                                  basenames above), and matching the exact name
+#                                  plus numeric generations keeps a future
+#                                  ollama-serve.logger.jsonl from being swept
+#                                  out by a wider `.log*` glob.
 # Everything else — logs/, reports/ (including .private/), snapshots/,
 # skills/, views/, agents.json — is state and goes in: a restore should need
 # nothing but this repo, a re-issued credential, and one re-embed run.
@@ -72,6 +88,8 @@ rsync -a --delete \
     --exclude='.gitignore' \
     --exclude='credentials.json' \
     --exclude='knowledge.json' \
+    --exclude='/logs/ollama-serve.log' \
+    --exclude='/logs/ollama-serve.log.[0-9]*.gz' \
     --exclude='.run.lock' \
     --exclude='.staged.lock' \
     --exclude='__pycache__/' \
@@ -91,6 +109,14 @@ cd "$BACKUP_REPO"
 # hand would survive and keep being pushed. Remove it here; `git add -A`
 # below then stages the deletion if it was tracked.
 rm -f credentials.json
+
+# Same trap, and this one is not hypothetical: logs/ollama-serve.log was
+# mirrored until 2026-08-01, so the excluded-but-present copy would sit in the
+# worktree forever and keep being pushed. The glob also collects rotated
+# generations. Deleting here only drops them from the mirror going forward —
+# history still holds the old blobs, which is fine: GitHub's limit applies to
+# newly pushed objects.
+rm -f logs/ollama-serve.log logs/ollama-serve.log.[0-9]*.gz
 
 git add -A
 

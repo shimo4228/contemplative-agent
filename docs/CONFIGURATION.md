@@ -388,12 +388,15 @@ repo — into the git repo at `MOLTBOOK_BACKUP_REPO` (default
 `~/MyAI_Lab/contemplative-agent-runtime-backup`) and pushes it. The backup repo
 must stay **private forever**: episode logs are raw untrusted external content.
 `credentials.json` is excluded — a restore needs this repo plus a re-issued
-credential. See `docs/runbooks/runtime-backup-restore.md` for the restore
-procedure.
+credential. `logs/ollama-serve.log*` is excluded too: the local daemon's own
+stderr is re-derivable operational noise, and at 96 MB it was one weekly run
+from crossing GitHub's 100 MB hard limit and stalling the off-site copy of the
+episode logs this backup exists to protect. See
+`docs/runbooks/runtime-backup-restore.md` for the restore procedure.
 
 Valid intervals: 1, 2, 3, 4, 6, 8, 12, 24 hours.
 
-`install-schedule` manages the agent, distill, weekly-analysis, insight, backup, weekly-pipeline, and watchdog plists — declaratively: re-running it removes any optional job whose flag is not passed, so always pass the full desired set. One plist under `config/launchd/` is outside its scope: `com.moltbook.ollama-restart.plist` is installed and updated manually via `launchctl`, and `--uninstall` does not touch it. It restarts the local `ollama serve` nightly at 23:55 — starting `ollama serve` directly (no GUI app) with `AbandonProcessGroup` so the daemon survives its parent exiting. The repo copy is the reference template: when the live plist changes, mirror it here in the same change.
+`install-schedule` manages the agent, distill, weekly-analysis, insight, backup, weekly-pipeline, and watchdog plists — declaratively: re-running it removes any optional job whose flag is not passed, so always pass the full desired set. One plist under `config/launchd/` is outside its scope: `com.moltbook.ollama-restart.plist` is installed and updated manually via `launchctl`, and `--uninstall` does not touch it. It restarts the local `ollama serve` nightly at 23:55 — starting `ollama serve` directly (no GUI app) with `AbandonProcessGroup` so the daemon survives its parent exiting. Between the `pkill` and the restart it calls `scripts/rotate-log.sh <path> 7`, which moves `ollama-serve.log` aside and gzips it, keeping seven compressed generations: that is the one moment in the day when the writer is dead, so the job that owns the log also rotates it. Rotation failures are chained with `;` so they can never stop the daemon from starting, and are prefixed `ERROR:` so the weekly anomaly sweep sees them. `RunAtLoad` is set, so `launchctl load` restarts Ollama on the spot — reload it outside a scheduled session window. The repo copy is the reference template: when the live plist changes, mirror it here in the same change.
 
 ---
 

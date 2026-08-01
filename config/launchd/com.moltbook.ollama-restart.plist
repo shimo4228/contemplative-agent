@@ -3,7 +3,18 @@
 <!-- Managed manually via launchctl, NOT by `contemplative-agent
      install-schedule`. Reference template for the live copy in
      ~/Library/LaunchAgents — mirror live changes here in the same change.
-     See docs/CONFIGURATION.md#macos-scheduling-launchd. -->
+     See docs/CONFIGURATION.md#macos-scheduling-launchd.
+
+     The job rotates ollama-serve.log before restarting the daemon: it is the
+     process that opens the log with `>>`, and the `pkill` above the rotation
+     has already released the writer, so this is the one safe moment in the
+     day to move the file aside (T-LOGROT-OLLAMA, 2026-08-01).
+
+     RunAtLoad mirrors the live copy, which has carried it since install: the
+     daemon comes back after a login or a `launchctl load` instead of waiting
+     for the next 23:55 slot. Note the side effect — loading this job restarts
+     Ollama immediately, so reload it outside a scheduled session window. -->
+
 <plist version="1.0">
 <dict>
 	<key>Label</key>
@@ -12,13 +23,16 @@
 	<key>AbandonProcessGroup</key>
 	<true/>
 
+	<key>RunAtLoad</key>
+	<true/>
+
 	<key>ProgramArguments</key>
 	<array>
 		<string>/usr/bin/caffeinate</string>
 		<string>-s</string>
 		<string>bash</string>
 		<string>-c</string>
-		<string>pkill -f 'Ollama.app/Contents/MacOS/Ollama'; pkill -f 'ollama serve'; sleep 30; /usr/local/bin/ollama serve >> {{LOG_DIR}}/ollama-serve.log 2>&amp;1 &amp; sleep 20; curl -s http://localhost:11434/api/tags > /dev/null</string>
+		<string>pkill -f 'Ollama.app/Contents/MacOS/Ollama'; pkill -f 'ollama serve'; sleep 30; {{PROJECT_ROOT}}/scripts/rotate-log.sh {{LOG_DIR}}/ollama-serve.log 7; /usr/local/bin/ollama serve >> {{LOG_DIR}}/ollama-serve.log 2>&amp;1 &amp; sleep 20; curl -s http://localhost:11434/api/tags > /dev/null</string>
 	</array>
 
 	<key>StartCalendarInterval</key>
