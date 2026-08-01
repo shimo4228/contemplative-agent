@@ -19,6 +19,7 @@ import logging
 import math
 import os
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -34,15 +35,21 @@ from . import prompting as _prompting
 from .backend import (
     _DEFAULT_OLLAMA_MODEL as _DEFAULT_OLLAMA_MODEL,
     _DEFAULT_OLLAMA_URL as _DEFAULT_OLLAMA_URL,
+    BACKEND_FRAMING_RESERVE as BACKEND_FRAMING_RESERVE,
     CIRCUIT_COOLDOWN_SECONDS as CIRCUIT_COOLDOWN_SECONDS,
     CIRCUIT_FAILURE_THRESHOLD as CIRCUIT_FAILURE_THRESHOLD,
+    MAX_CHARS_PER_TOKEN as MAX_CHARS_PER_TOKEN,
     MIN_CLAMPED_NUM_PREDICT as MIN_CLAMPED_NUM_PREDICT,
     NUM_CTX as NUM_CTX,
     SAMPLING_TOP_K as SAMPLING_TOP_K,
     SAMPLING_TOP_P as SAMPLING_TOP_P,
+    TOKEN_COUNT_FALLBACK_REASONS as TOKEN_COUNT_FALLBACK_REASONS,
+    TOKEN_COUNT_SOURCE_BACKEND as TOKEN_COUNT_SOURCE_BACKEND,
+    TOKEN_COUNT_SOURCE_ESTIMATOR as TOKEN_COUNT_SOURCE_ESTIMATOR,
     BackendResult as BackendResult,
     GenerationOutput as GenerationOutput,
     LLMBackend as LLMBackend,
+    TokenCountingBackend as TokenCountingBackend,
     _circuit as _circuit,
     circuit_shield as circuit_shield,
 )
@@ -352,6 +359,15 @@ def _generate_full(request: GenerationRequest) -> GenerationOutput | None:
         # per-call prompt-cache hit rate. Populated by backends that report a
         # prompt cache; None on the Ollama path (no cache reporting).
         "cached_tokens": None,
+        # How the C2 pre-flight measured this call's input, and the total it
+        # used (ADR-0087). Both stay None when the guard did not run at all —
+        # a backend that declares no context_window is unguarded (ADR-0066),
+        # and reporting an estimate it never consulted would be a fiction.
+        # Sitting next to prompt_eval_count (the real input-token count Ollama
+        # reports afterwards), input_tokens makes each row self-sufficient for
+        # calibrating the estimator offline.
+        "token_count_source": None,
+        "input_tokens": None,
     }
     started = time.monotonic()
     try:
@@ -359,6 +375,135 @@ def _generate_full(request: GenerationRequest) -> GenerationOutput | None:
     finally:
         tel["duration_ms"] = int((time.monotonic() - started) * 1000)
         _emit_telemetry(tel)
+
+
+@dataclass(frozen=True)
+class _InputTokenMeasurement:
+    """How the C2 pre-flight measured this call's input, and with what.
+
+    ``source`` is one of ``TOKEN_COUNT_SOURCE_*``. ``fallback_reason`` is
+    populated only when a backend counter existed and its value was
+    rejected — a backend with no counter is the default, not a fallback, and
+    stamping a reason for it would bury the real faults in noise.
+    """
+
+    system: int
+    prompt: int
+    source: str
+    fallback_reason: str | None = None
+
+    @property
+    def total(self) -> int:
+        return self.system + self.prompt
+
+
+def _coerce_token_count(value: object, text: str) -> tuple[int | None, str | None]:
+    """``(count, None)`` when *value* is usable for *text*, else ``(None, reason)``.
+
+    Rejects ``bool`` explicitly: it is an ``int`` subclass, so a backend
+    returning ``True`` would otherwise be read as "1 token". Rejects ``0``
+    for text that has content — no real tokenizer charges nothing for a
+    non-blank string, and an under-count is the direction that defeats the
+    guard rather than tightening it.
+    """
+    if isinstance(value, bool) or not isinstance(value, int):
+        return None, ("counter_none" if value is None else "counter_type")
+    if value < 0:
+        return None, "counter_negative"
+    if not text.strip():
+        # Blank text carries no content to under-report, so any non-negative
+        # count is acceptable — including 0. The two checks below are about
+        # text that says something.
+        return value, None
+    if value == 0:
+        return None, "counter_degenerate"
+    # Shape alone is not enough. A well-typed, positive, wildly-too-small count
+    # passes every check above and then tells the guard the input is nearly
+    # free — the most likely way this guard gets defeated in practice is not
+    # malice but a mis-calibrated tokenizer in a sibling backend. Bound it by
+    # tokenization density rather than by a tuned ratio against the estimator:
+    # no real vocabulary has 50-character tokens, so a count below this is
+    # reporting something that is not tokens.
+    if value * MAX_CHARS_PER_TOKEN < len(text):
+        return None, "counter_implausible"
+    return value, None
+
+
+def _measure_input_tokens(system: str, prompt: str) -> _InputTokenMeasurement:
+    """Measure the pre-flight's two inputs, preferring the backend's tokenizer.
+
+    ``_estimate_tokens`` is a deliberate upper bound (ASCII 3 chars/tok, CJK
+    2 tok/char — ADR-0066 §5 hardened it that way when under-counting was the
+    only failure that mattered). A 2026-08-01 measurement against Apple's
+    ``SystemLanguageModel.token_count`` put its over-count at 1.73-1.95x on
+    this agent's own corpora, which on a small-window backend is the
+    difference between using the window and refusing to call at all
+    (a 4,096 window admits ~1,140 real tokens = 28% of itself). A backend
+    that can count for real is therefore preferred — but never trusted
+    blindly (ADR-0087).
+
+    Both halves are always attempted and validated afterwards, never
+    short-circuited: mixing a measured system prompt with an estimated user
+    prompt yields a budget that describes neither, so the two are adopted or
+    rejected together. When both fail, the system-side reason is reported —
+    a stable choice a replay can predict, rather than whichever ran last.
+
+    A counter fault never touches the circuit breaker: failing to *measure*
+    a call is not the call failing, the same reasoning that keeps
+    over-budget skips off the breaker.
+    """
+    counter = getattr(_backend, "count_tokens", None) if _backend is not None else None
+    if not callable(counter):
+        # No capability (the built-in Ollama path, or a backend that declares
+        # no tokenizer). Ollama exposes no /api/tokenize as of 0.30.11 —
+        # upstream ollama#12030 is still open — so the estimator is the only
+        # pre-flight measure available there.
+        return _InputTokenMeasurement(
+            system=_estimate_tokens(system),
+            prompt=_estimate_tokens(prompt),
+            source=TOKEN_COUNT_SOURCE_ESTIMATOR,
+        )
+
+    counted: list[int] = []
+    reason: str | None = None
+    for text in (system, prompt):
+        try:
+            value = counter(text)
+        except Exception as exc:
+            # Type only, never str(exc): the argument is the prompt, and a
+            # tokenizer that echoes its input in the message would pipe
+            # untrusted external content into the log stream (the shape of the
+            # 2026-08-01 agent-launchd.log contamination).
+            logger.warning("Backend count_tokens() raised %s", type(exc).__name__)
+            reason = reason or "counter_exception"
+            continue
+        count, invalid = _coerce_token_count(value, text)
+        if count is None:
+            logger.warning(
+                "Backend count_tokens() returned an unusable value (%s); "
+                "falling back to the token estimator (audit C2).",
+                invalid,
+            )
+            reason = reason or invalid
+            continue
+        counted.append(count)
+
+    # `len(counted) == 2` is redundant today (every loop iteration either
+    # appends or sets a reason) and is kept deliberately: it states the
+    # atomicity invariant locally, so a later refactor that lets one half
+    # short-circuit cannot silently produce a half-measured budget.
+    if reason is None and len(counted) == 2:
+        return _InputTokenMeasurement(
+            system=counted[0],
+            prompt=counted[1],
+            source=TOKEN_COUNT_SOURCE_BACKEND,
+        )
+    return _InputTokenMeasurement(
+        system=_estimate_tokens(system),
+        prompt=_estimate_tokens(prompt),
+        source=TOKEN_COUNT_SOURCE_ESTIMATOR,
+        fallback_reason=reason,
+    )
 
 
 def _generate_impl(request: GenerationRequest, tel: dict[str, Any]) -> GenerationOutput | None:
@@ -388,18 +533,32 @@ def _generate_impl(request: GenerationRequest, tel: dict[str, Any]) -> Generatio
     # breaker is left untouched.
     ctx_window = getattr(_backend, "context_window", None) if _backend is not None else NUM_CTX
     if ctx_window is not None:
-        est_system = _estimate_tokens(resolved.system)
-        est_prompt = _estimate_tokens(resolved.prompt)
-        available = ctx_window - est_system - est_prompt
+        # Measured with the backend's own tokenizer when it has one, else the
+        # conservative estimator (ADR-0087). Which one was used is recorded,
+        # never inferred: the two differ by 1.73-1.95x on this agent's
+        # corpora, so a clamp value is unreadable offline without its source.
+        measured = _measure_input_tokens(resolved.system, resolved.prompt)
+        tel["token_count_source"] = measured.source
+        tel["input_tokens"] = measured.total
+        if measured.fallback_reason is not None:
+            tel["token_count_fallback_reason"] = measured.fallback_reason
+        # Withhold framing headroom only when the input was counted for real.
+        # An exact count invites clamping to the exact remainder, which puts
+        # input + output flush against the window with nothing left for the
+        # chat template the backend wraps them in. The estimator path keeps its
+        # arithmetic unchanged — its over-count is already a far larger reserve.
+        reserve = BACKEND_FRAMING_RESERVE if measured.source == TOKEN_COUNT_SOURCE_BACKEND else 0
+        available = ctx_window - measured.total - reserve
         if resolved.num_predict > available:
             if available < MIN_CLAMPED_NUM_PREDICT:
                 logger.warning(
-                    "Skipping LLM call: estimated input %d tok (system≈%d + "
+                    "Skipping LLM call: %s input %d tok (system≈%d + "
                     "prompt≈%d) leaves %d tok < clamp floor %d in context "
                     "window %d (audit C2).",
-                    est_system + est_prompt,
-                    est_system,
-                    est_prompt,
+                    measured.source,
+                    measured.total,
+                    measured.system,
+                    measured.prompt,
                     available,
                     MIN_CLAMPED_NUM_PREDICT,
                     ctx_window,
@@ -409,16 +568,18 @@ def _generate_impl(request: GenerationRequest, tel: dict[str, Any]) -> Generatio
             # Degrade the output budget instead of suppressing the action:
             # a skip here silenced every self-post for 24+ hours when a skill
             # adoption grew the system prompt past the old guard (2026-07-09).
-            # The estimate over-counts input (audit C2), so the clamped value
-            # is conservative; real posts sit far below it.
+            # On the estimator the clamped value is conservative (the estimate
+            # over-counts input, audit C2); on a real backend count it is the
+            # actual remaining budget.
             logger.warning(
-                "Clamping num_predict %d -> %d: estimated input %d tok "
+                "Clamping num_predict %d -> %d: %s input %d tok "
                 "(system≈%d + prompt≈%d) in context window %d (audit C2).",
                 resolved.num_predict,
                 available,
-                est_system + est_prompt,
-                est_system,
-                est_prompt,
+                measured.source,
+                measured.total,
+                measured.system,
+                measured.prompt,
                 ctx_window,
             )
             tel["num_predict_requested"] = resolved.num_predict

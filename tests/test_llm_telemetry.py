@@ -66,6 +66,11 @@ EXPECTED_FIELDS = {
     "eval_count",
     "cached_tokens",
     "think",
+    # Which measure the C2 pre-flight actually used, and the value it used.
+    # None on both when the guard did not run (backend with no declared
+    # context_window). ADR-0087.
+    "token_count_source",
+    "input_tokens",
     # 共有 writer (_io.append_jsonl_restricted) が全 JSONL にスタンプする
     # 実行識別子（ADR-0078 follow-up）。session 中は session_id も付く
     "run_id",
@@ -183,6 +188,50 @@ class TestTelemetryFailurePaths:
         assert record["outcome"] == "ok"
         assert record["num_predict_requested"] == 13384
         assert record["num_predict"] == NUM_CTX - 20000 - 1000
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_ollama_path_records_the_estimator_as_the_source(self, mock_post, telemetry_dir):
+        """The Ollama path has no tokenizer to reach for, so every row says
+        so explicitly rather than leaving the reader to infer it."""
+        from contemplative_agent.core.llm import _estimate_tokens
+
+        mock_post.return_value = _mock_ok_response()
+        assert generate("test prompt", system="sys") is not None
+        record = _read_records(telemetry_dir)[0]
+        assert record["token_count_source"] == "estimator"
+        assert record["input_tokens"] == _estimate_tokens("sys") + _estimate_tokens("test prompt")
+        # Absence of a counter is the default, not a fallback from one.
+        assert "token_count_fallback_reason" not in record
+
+    def test_backend_counter_records_backend_source_and_measured_total(self, telemetry_dir):
+        from tests.chaos import TokenCountingChaosBackend, real_token_count
+
+        configure(backend=TokenCountingChaosBackend(model="counting-model"))
+        assert generate("test prompt", system="sys") is not None
+        record = _read_records(telemetry_dir)[0]
+        assert record["token_count_source"] == "backend"
+        assert record["input_tokens"] == real_token_count("sys") + real_token_count("test prompt")
+        assert "token_count_fallback_reason" not in record
+
+    def test_unguarded_backend_records_neither(self, telemetry_dir):
+        """A backend with no declared context_window is not budget-guarded at
+        all (ADR-0066 graceful degrade), so there is no measurement to
+        report — None, not a fabricated estimate."""
+        from contemplative_agent.core.llm import BackendResult
+
+        class UnguardedBackend:
+            model = "unguarded-model"
+
+            def generate(
+                self, prompt, system, num_predict, format, *, temperature=1.0, think=False
+            ):
+                return BackendResult(text="delegated")
+
+        configure(backend=UnguardedBackend())  # type: ignore[arg-type]
+        assert generate("test") == "delegated"
+        record = _read_records(telemetry_dir)[0]
+        assert record["token_count_source"] is None
+        assert record["input_tokens"] is None
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_unclamped_call_has_no_requested_field(self, mock_post, telemetry_dir):

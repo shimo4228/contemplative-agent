@@ -1,8 +1,9 @@
-"""Chaos fault-injection tests for the LLM layer (ADR-0077, F1 + F4 + F5).
+"""Chaos fault-injection tests for the LLM layer (ADR-0077, F1 + F4 + F5 + F6).
 
 HTTP-path faults (F1 read-timeout, F4 Ollama-side 429) are injected with the
 ``responses`` library on the URL the code under test actually resolves;
-backend-path faults ride ``configure(backend=ChaosBackend(...))``. Steady
+backend-path faults (F5 circuit sequences, F6 a misbehaving ``count_tokens``
+capability) ride ``configure(backend=...)`` with a chaos backend. Steady
 state is asserted on the telemetry channel (``outcome`` / ``error_kind`` in
 ``llm-calls-{date}.jsonl``) rather than implementation internals, per the
 ADR-0075 doctrine that the audit log must answer "why did this call fail?"
@@ -19,6 +20,7 @@ import time
 
 import pytest
 import responses as responses_lib
+from hypothesis import given, settings, strategies as st
 
 from contemplative_agent.core.llm import (
     CIRCUIT_FAILURE_THRESHOLD,
@@ -29,12 +31,20 @@ from contemplative_agent.core.llm import (
     reset_llm_config,
 )
 from tests.chaos import (
+    COUNT_EXC,
+    COUNT_FAULT_REASONS,
+    COUNT_IMPLAUSIBLE,
+    COUNT_NEGATIVE,
+    COUNT_NONE,
+    COUNT_OK,
+    COUNT_ZERO,
     EXC_CONNECTION,
     EXC_TIMEOUT,
     NONE,
     OK,
     SHAPE_VIOLATION,
     ChaosBackend,
+    TokenCountingChaosBackend,
     add_generate_429,
     add_generate_timeout,
 )
@@ -178,6 +188,196 @@ class TestBackendFaultTelemetry:
         record = _read_records(telemetry_dir)[0]
         assert record["outcome"] == "ok"
         assert "error_kind" not in record  # sparse field: failure rows only
+
+
+class TestTokenCounterFaults:
+    """F6: the optional ``count_tokens`` capability misbehaves.
+
+    A backend's tokenizer sits inside the C2 pre-flight, so its failure modes
+    are budget-guard failure modes. The desired behavior for every one of them
+    is the same: fall back to ``_estimate_tokens``, stamp a reason code, and
+    keep guarding. The dangerous outcome is not a wrong number — it is a
+    *trusted* wrong number, because under-counting sends over-window input
+    into Ollama front-truncation / a memory-bounded backend's KV overrun,
+    which is exactly what the guard exists to prevent (ADR-0066).
+    """
+
+    @staticmethod
+    def _backend(count_schedule, *, window=32768):
+        return TokenCountingChaosBackend(
+            model="counting-model",
+            context_window=window,
+            count_schedule=list(count_schedule),
+        )
+
+    # Long enough on both halves that the ratio-based implausibility check can
+    # express; the shape faults are length-independent.
+    LONG = "x" * 3000
+
+    @pytest.mark.parametrize("fault", sorted(COUNT_FAULT_REASONS))
+    def test_every_count_fault_falls_back_with_its_reason(self, fault, telemetry_dir):
+        # Both halves are measured before validation, so a single-entry
+        # schedule breaks the system count and leaves the prompt count clean.
+        configure(backend=self._backend([fault]))
+
+        assert generate(self.LONG, system=self.LONG) is not None
+        record = _read_records(telemetry_dir)[0]
+        assert record["token_count_source"] == "estimator"
+        assert record["token_count_fallback_reason"] == COUNT_FAULT_REASONS[fault]
+
+    @pytest.mark.parametrize("fault", sorted(COUNT_FAULT_REASONS))
+    def test_count_fault_never_records_a_circuit_failure(self, fault):
+        """A tokenizer fault is not a generation fault. Scoring it would let
+        a broken counter open the breaker and suppress healthy generation —
+        the same reasoning that keeps over-budget skips off the breaker."""
+        reset_llm_config()
+        configure(backend=self._backend([fault]))
+        try:
+            generate(self.LONG, system=self.LONG)
+            assert _circuit._consecutive_failures == 0
+        finally:
+            reset_llm_config()
+
+    def test_implausibly_small_count_is_rejected(self, telemetry_dir):
+        """A well-typed, positive, wildly-too-small count is the most likely
+        real-world way this guard gets defeated — not malice but a
+        mis-calibrated tokenizer in a sibling backend (wrong unit, wrong
+        divisor). Shape validation alone accepts it, and the guard would then
+        compute the budget as if the input were nearly free and send
+        over-window input into the front-truncation / KV overrun it exists to
+        prevent. Rejected by a chars-per-token ceiling no real tokenizer can
+        clear (2026-08-01 security review)."""
+        configure(backend=self._backend([COUNT_IMPLAUSIBLE, COUNT_IMPLAUSIBLE]))
+
+        assert generate(self.LONG, system=self.LONG) is not None
+        record = _read_records(telemetry_dir)[0]
+        assert record["token_count_source"] == "estimator"
+        assert record["token_count_fallback_reason"] == "counter_implausible"
+
+    def test_compressible_text_is_not_mistaken_for_a_broken_counter(self):
+        """The ceiling is a structural impossibility bound, not a calibration
+        guess: a genuinely efficient tokenization of repetitive text must stay
+        accepted. Rejecting it would only lose the headroom win, but it would
+        also fill telemetry with faults that are not faults."""
+        from contemplative_agent.core.llm import MAX_CHARS_PER_TOKEN, _measure_input_tokens
+
+        text = "a" * 3000
+        efficient = len(text) // (MAX_CHARS_PER_TOKEN - 1)  # just inside the ceiling
+
+        class EfficientBackend:
+            model = "efficient-model"
+            context_window = 32768
+
+            def count_tokens(self, text_arg):
+                return efficient
+
+            def generate(
+                self, prompt, system, num_predict, format, *, temperature=1.0, think=False
+            ):  # pragma: no cover - not reached
+                raise AssertionError("generate() must not run here")
+
+        reset_llm_config()
+        configure(backend=EfficientBackend())  # type: ignore[arg-type]
+        try:
+            measurement = _measure_input_tokens(text, text)
+            assert measurement.source == "backend"
+            assert measurement.fallback_reason is None
+        finally:
+            reset_llm_config()
+
+    @pytest.mark.parametrize("broken_index", [0, 1])
+    def test_one_broken_half_estimates_both(self, broken_index, telemetry_dir):
+        """Measurement is atomic. Mixing a measured system prompt with an
+        estimated user prompt yields a budget that describes neither."""
+        from contemplative_agent.core.llm import _estimate_tokens, _measure_input_tokens
+
+        schedule = [COUNT_OK, COUNT_OK]
+        schedule[broken_index] = COUNT_NONE
+        configure(backend=self._backend(schedule))
+
+        measurement = _measure_input_tokens("system text", "prompt text")
+        assert measurement.source == "estimator"
+        assert measurement.system == _estimate_tokens("system text")
+        assert measurement.prompt == _estimate_tokens("prompt text")
+
+    def test_first_failure_wins_the_reason_code(self, telemetry_dir):
+        """Two different faults in one call report the system-side one — a
+        stable, replayable choice rather than whichever ran last."""
+        configure(backend=self._backend([COUNT_NEGATIVE, COUNT_NONE]))
+
+        generate("ping", system="s")
+        record = _read_records(telemetry_dir)[0]
+        assert record["token_count_fallback_reason"] == "counter_negative"
+
+    def test_broken_counter_does_not_disable_the_guard(self):
+        """The fallback keeps the ceiling: an over-window prompt is still
+        skipped when the counter is broken, using the estimator's verdict."""
+        reset_llm_config()
+        backend = self._backend([COUNT_EXC] * 2, window=4096)
+        configure(backend=backend)
+        try:
+            assert generate("x" * 200000, system="s") is None
+            assert backend.calls == []
+        finally:
+            reset_llm_config()
+
+    def test_zero_is_accepted_for_blank_text(self):
+        """0 is only degenerate for text with content — a blank string
+        legitimately costs nothing, and rejecting it would make a
+        whitespace-only half look like a broken tokenizer.
+
+        Exercised at ``_measure_input_tokens`` rather than through
+        ``generate()``: a falsy ``system=`` is replaced by the built system
+        prompt during ``resolve()``, so a blank half never reaches the guard
+        from that direction."""
+        from contemplative_agent.core.llm import _measure_input_tokens
+
+        reset_llm_config()
+        configure(backend=self._backend([COUNT_ZERO, COUNT_OK]))
+        try:
+            measurement = _measure_input_tokens("   ", "ping")
+            assert measurement.source == "backend"
+            assert measurement.system == 0
+            assert measurement.fallback_reason is None
+        finally:
+            reset_llm_config()
+
+    @settings(max_examples=60, deadline=None)
+    @given(
+        value=st.one_of(
+            st.booleans(),  # int subclass, but not a count
+            st.text(max_size=8),
+            st.floats(),  # incl. integral floats like 3.0
+            st.lists(st.integers(), max_size=3),
+        )
+    )
+    def test_no_non_int_return_is_ever_trusted(self, value):
+        """Fuzz the capability's return type: nothing outside ``int`` may
+        reach the budget arithmetic. ``None`` is excluded here only because
+        it has its own reason code (covered by the parametrized cases)."""
+        from contemplative_agent.core.llm import _estimate_tokens, _measure_input_tokens
+
+        class FuzzBackend:
+            model = "fuzz-model"
+            context_window = 32768
+
+            def count_tokens(self, text):
+                return value
+
+            def generate(
+                self, prompt, system, num_predict, format, *, temperature=1.0, think=False
+            ):  # pragma: no cover - never reached in this test
+                raise AssertionError("generate() must not run here")
+
+        reset_llm_config()
+        configure(backend=FuzzBackend())  # type: ignore[arg-type]
+        try:
+            measurement = _measure_input_tokens("system", "prompt")
+            assert measurement.source == "estimator"
+            assert measurement.fallback_reason == "counter_type"
+            assert measurement.system == _estimate_tokens("system")
+        finally:
+            reset_llm_config()
 
 
 class TestCircuitSequencesF5:

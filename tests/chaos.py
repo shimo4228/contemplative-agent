@@ -17,6 +17,7 @@ Determinism discipline:
 from __future__ import annotations
 
 import json
+import math
 import os
 import random
 from dataclasses import dataclass, field
@@ -170,6 +171,112 @@ class ChaosBackend:
         if fault == JUDGED_EMPTY:
             return BackendResult(text=json.dumps({"patterns": []}))
         raise ValueError(f"unknown fault {fault!r}")
+
+
+# ---------------------------------------------------------------------------
+# TokenCountingChaosBackend — optional count_tokens capability, fault-injected
+# ---------------------------------------------------------------------------
+
+COUNT_OK = "count_ok"
+COUNT_EXC = "count_exc"  # count_tokens() raises
+COUNT_NONE = "count_none"  # returns None
+COUNT_TYPE = "count_type"  # returns a non-int ("123")
+COUNT_BOOL = "count_bool"  # returns True — an int subclass that is not a count
+COUNT_NEGATIVE = "count_negative"  # returns -1
+COUNT_ZERO = "count_zero"  # returns 0 for non-blank text (degenerate)
+# Well-typed, positive, and wildly too small — a mis-calibrated tokenizer
+# (wrong unit, off-by-orders divisor) rather than a broken one. Expresses only
+# on text longer than MAX_CHARS_PER_TOKEN chars, since the check is a ratio.
+COUNT_IMPLAUSIBLE = "count_implausible"
+
+COUNT_FAULT_VOCABULARY = (
+    COUNT_OK,
+    COUNT_EXC,
+    COUNT_NONE,
+    COUNT_TYPE,
+    COUNT_BOOL,
+    COUNT_NEGATIVE,
+    COUNT_ZERO,
+    COUNT_IMPLAUSIBLE,
+)
+
+# Fault -> the reason code the guard must stamp on telemetry when it rejects
+# that count and falls back to the estimator. Lets a schedule-driven test
+# compute the expected reason from the schedule alone.
+COUNT_FAULT_REASONS = {
+    COUNT_EXC: "counter_exception",
+    COUNT_NONE: "counter_none",
+    COUNT_TYPE: "counter_type",
+    COUNT_BOOL: "counter_type",
+    COUNT_NEGATIVE: "counter_negative",
+    COUNT_ZERO: "counter_degenerate",
+    COUNT_IMPLAUSIBLE: "counter_implausible",
+}
+
+
+def real_token_count(text: str) -> int:
+    """Stand-in for a real tokenizer: cheaper than ``_estimate_tokens``.
+
+    ASCII at ~4 chars/tok and non-ASCII at ~1.1 tok/char, against the
+    estimator's deliberately conservative 3 chars/tok and 2 tok/char. The
+    resulting over-count ratio is ~1.33x for pure ASCII and ~1.82x for pure
+    CJK — the band the 2026-08-01 Apple ``SystemLanguageModel.token_count``
+    measurement found in production corpora (1.73-1.95x on Japanese-dominant
+    input). Deterministic and dependency-free, so a fault test can predict
+    the guard's arithmetic exactly.
+    """
+    ascii_count = sum(1 for ch in text if ord(ch) < 128)
+    non_ascii = len(text) - ascii_count
+    # Integer arithmetic throughout: ``ceil(n * 1.1)`` in float would make
+    # 1200 -> 1321 (1320.0000000000002), and a test predicting the guard's
+    # clamp value must not hinge on binary-float representation.
+    return math.ceil(ascii_count / 4) + (non_ascii * 11 + 9) // 10
+
+
+@dataclass
+class TokenCountingChaosBackend(ChaosBackend):
+    """``ChaosBackend`` plus the optional ``count_tokens`` capability.
+
+    A separate class rather than a flag on ``ChaosBackend``: the base class
+    must keep NOT satisfying ``TokenCountingBackend`` so the existing chaos
+    suite keeps exercising the estimator path unchanged.
+
+    ``count_schedule`` is consumed per ``count_tokens()`` call. The guard
+    measures the system prompt first and the user prompt second and always
+    attempts both (it validates after, not during), so within one guarded
+    ``generate()`` index 0 is the system prompt and index 1 is the user
+    prompt. Calls beyond the schedule return a clean count.
+    """
+
+    count_schedule: list[str] = field(default_factory=list)
+    count_calls: list[str] = field(default_factory=list)
+
+    def count_tokens(self, text: str) -> int:
+        idx = len(self.count_calls)
+        self.count_calls.append(text)
+        fault = self.count_schedule[idx] if idx < len(self.count_schedule) else COUNT_OK
+        if fault == COUNT_OK:
+            return real_token_count(text)
+        if fault == COUNT_EXC:
+            raise RuntimeError("chaos: tokenizer unavailable")
+        if fault == COUNT_NONE:
+            return None  # type: ignore[return-value]
+        if fault == COUNT_TYPE:
+            return "123"  # type: ignore[return-value]
+        if fault == COUNT_BOOL:
+            return True  # type: ignore[return-value]
+        if fault == COUNT_NEGATIVE:
+            return -1
+        if fault == COUNT_ZERO:
+            return 0
+        if fault == COUNT_IMPLAUSIBLE:
+            return 1
+        raise ValueError(f"unknown count fault {fault!r}")
+
+
+def count_fault_schedules(min_size: int = 1, max_size: int = 6) -> st.SearchStrategy[list[str]]:
+    """Sequences over the count-fault vocabulary."""
+    return st.lists(st.sampled_from(COUNT_FAULT_VOCABULARY), min_size=min_size, max_size=max_size)
 
 
 # ---------------------------------------------------------------------------

@@ -162,6 +162,74 @@ class LLMBackend(Protocol):
         ...
 
 
+@runtime_checkable
+class TokenCountingBackend(LLMBackend, Protocol):
+    """Optional capability: exact input-token counting for the C2 pre-flight.
+
+    Deliberately NOT a member of :class:`LLMBackend`. Protocols are
+    structural, so a member declared there is required of every implementer
+    regardless of whether it carries a default body — and a backend with no
+    tokenizer is legitimate (the built-in Ollama path; any HTTP-only
+    provider). Requiring it would break the sibling ``contemplative-agent-cloud``
+    / ``-mlx`` backends at type-check time for a capability they cannot
+    honor. Splitting it out gives a backend that CAN count a typed target
+    pyright verifies, while the guard resolves it structurally at runtime
+    (``getattr`` + ``callable``) and falls back to ``_estimate_tokens``
+    otherwise — the same tolerate-absence discipline as ``context_window``
+    (ADR-0066), one layer looser.
+    """
+
+    def count_tokens(self, text: str) -> int:
+        """Tokens *text* costs as input under the served model's tokenizer.
+
+        Raising is permitted: the caller catches it, falls back to the
+        estimator, and records the reason. A returned value that is not a
+        plain non-negative ``int`` — ``None``, a ``str``, a ``bool``, a
+        negative, or ``0`` for text that has content — is rejected the same
+        way. The guard never trusts an implausible count because
+        under-counting is the failure direction that sends over-window input
+        into Ollama front-truncation or a memory-bounded backend's KV
+        overrun, which is what the guard exists to prevent.
+        """
+        ...
+
+
+# Reason codes stamped on telemetry when a backend counter existed but its
+# value was not used. Absence of a counter is NOT in this vocabulary — that
+# is the default, not a fallback from something.
+TOKEN_COUNT_FALLBACK_REASONS = (
+    "counter_exception",  # count_tokens() raised
+    "counter_none",  # returned None
+    "counter_type",  # returned a non-int (incl. bool, an int subclass)
+    "counter_negative",  # returned a negative count
+    "counter_degenerate",  # returned 0 for text that has content
+    "counter_implausible",  # positive but below any real tokenizer's density
+)
+
+# Chars per token above which a reported count cannot be a real tokenization.
+# A structural impossibility bound, NOT a calibration guess: no production BPE
+# vocabulary contains tokens anywhere near 50 characters long, so a count
+# implying a longer average token means the backend is reporting something
+# other than tokens (wrong unit, wrong divisor, an order-of-magnitude bug).
+# Deliberately far above any real density — a genuinely efficient tokenization
+# of repetitive text must stay accepted, since a false rejection only loses the
+# headroom and fills telemetry with faults that are not faults.
+MAX_CHARS_PER_TOKEN = 50
+
+# Output-budget headroom withheld when the input was counted for real.
+# count_tokens() measures the two texts; the backend then renders them into a
+# chat template whose role separators and control tokens no caller-side count
+# sees. Clamping num_predict to the exact measured remainder would put
+# input + output at precisely context_window and let that framing tip it over.
+# Not applied on the estimator path, whose 1.73-1.95x over-count is already a
+# reserve many times this size (ADR-0087).
+BACKEND_FRAMING_RESERVE = 64
+
+# Values of the telemetry field ``token_count_source``.
+TOKEN_COUNT_SOURCE_BACKEND = "backend"
+TOKEN_COUNT_SOURCE_ESTIMATOR = "estimator"
+
+
 class _CircuitBreaker:
     """Simple circuit breaker for LLM requests.
 

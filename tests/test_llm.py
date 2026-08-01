@@ -952,6 +952,171 @@ class TestGenerateBudgetClamp:
             reset_llm_config()
 
 
+class TestBudgetGuardTokenCounting:
+    """The C2 guard measures with the backend's real tokenizer when it has
+    one (``TokenCountingBackend.count_tokens``) and falls back to
+    ``_estimate_tokens`` otherwise — the same tolerate-absence discipline as
+    ``context_window`` (ADR-0066).
+
+    Why it matters: ``_estimate_tokens`` is a deliberate upper bound (ASCII
+    3 chars/tok, CJK 2 tok/char), and a 2026-08-01 measurement against
+    Apple's ``SystemLanguageModel.token_count`` put its over-count at
+    1.73-1.95x on this agent's own corpora (identity 232->134,
+    constitution 867->453, rules 516->264, 37 skills 31,009->17,958). On a
+    small-window backend that ratio is the difference between using the
+    window and refusing to call at all."""
+
+    def setup_method(self):
+        from contemplative_agent.core.llm import reset_llm_config
+
+        reset_llm_config()
+
+    def teardown_method(self):
+        from contemplative_agent.core.llm import reset_llm_config
+
+        reset_llm_config()
+
+    @staticmethod
+    def _backend(window, *, count_schedule=None):
+        from tests.chaos import TokenCountingChaosBackend
+
+        return TokenCountingChaosBackend(
+            model="counting-model",
+            context_window=window,
+            count_schedule=list(count_schedule or []),
+        )
+
+    def test_real_count_rescues_a_call_the_estimator_would_have_skipped(self):
+        """Regression fixture for the 1.73-1.95x finding.
+
+        A 4,096-token window with a CJK-dominant prompt: the estimator scores
+        the input at ~2,400 tok, leaving less than MIN_CLAMPED_NUM_PREDICT and
+        skipping the call outright — 72% of the window thrown away. The real
+        count is ~1,320, which leaves a usable output budget, so the call is
+        clamped and served instead of suppressed."""
+        from contemplative_agent.core.llm import (
+            BACKEND_FRAMING_RESERVE,
+            MIN_CLAMPED_NUM_PREDICT,
+            _estimate_tokens,
+            configure,
+        )
+        from tests.chaos import real_token_count
+
+        window = 4096
+        system = "s"
+        prompt = "瞑" * 1200
+
+        # Precondition: on the estimator alone this input IS skipped.
+        estimated_available = window - _estimate_tokens(system) - _estimate_tokens(prompt)
+        assert estimated_available < MIN_CLAMPED_NUM_PREDICT
+
+        backend = self._backend(window)
+        configure(backend=backend)
+        assert generate(prompt, system=system) is not None
+
+        expected = (
+            window - real_token_count(system) - real_token_count(prompt) - BACKEND_FRAMING_RESERVE
+        )
+        assert expected >= MIN_CLAMPED_NUM_PREDICT  # the measured budget is usable
+        assert backend.calls[0]["num_predict"] == expected
+
+    def test_measured_budget_reserves_headroom_for_backend_framing(self):
+        """`count_tokens` measures the two texts, but the backend renders them
+        into a chat template with role separators and control tokens that no
+        caller-side count sees. Clamping to the exact measured remainder would
+        put input + output at exactly the window and let that framing tip it
+        over — reintroducing the overrun the guard prevents (2026-08-01
+        cross-model review). The estimator path needs no reserve: its 1.73-1.95x
+        over-count already is one."""
+        from contemplative_agent.core.llm import BACKEND_FRAMING_RESERVE, configure
+        from tests.chaos import real_token_count
+
+        window = 32768
+        backend = self._backend(window)
+        configure(backend=backend)
+        assert generate("y" * 3000, system="x" * 60000, num_predict=window) is not None
+
+        sent = backend.calls[0]["num_predict"]
+        measured = real_token_count("x" * 60000) + real_token_count("y" * 3000)
+        assert sent == window - measured - BACKEND_FRAMING_RESERVE
+        assert sent + measured < window  # strictly inside, never flush to the edge
+
+    def test_counter_receives_the_resolved_system_then_prompt(self):
+        """Both halves of the budget are measured, system first — the guard
+        must not measure one and estimate the other."""
+        from contemplative_agent.core.llm import configure
+
+        backend = self._backend(32768)
+        configure(backend=backend)
+        generate("user prompt", system="system prompt")
+        assert backend.count_calls == ["system prompt", "user prompt"]
+
+    def test_real_count_still_skips_when_the_measured_input_is_genuinely_over(self):
+        """Measuring for real relaxes the guard; it does not remove it. Input
+        that overruns the window by real count is still skipped before the
+        backend is reached (the front-truncation / KV-overrun this exists to
+        prevent)."""
+        from contemplative_agent.core.llm import configure
+
+        backend = self._backend(4096)
+        configure(backend=backend)
+        assert generate("瞑" * 5000, system="s") is None
+        assert backend.calls == []
+
+    def test_backend_without_counter_uses_the_estimator(self):
+        """A backend that implements only LLMBackend keeps the pre-existing
+        behavior — this is the sibling-repo non-breakage guarantee
+        (contemplative-agent-cloud / -mlx inject via configure(backend=...)
+        and implement no tokenizer)."""
+        from contemplative_agent.core.llm import (
+            MIN_CLAMPED_NUM_PREDICT,
+            _estimate_tokens,
+            configure,
+        )
+        from tests.chaos import ChaosBackend
+
+        window = 4096
+        system = "s"
+        prompt = "瞑" * 1200
+        assert window - _estimate_tokens(system) - _estimate_tokens(prompt) < (
+            MIN_CLAMPED_NUM_PREDICT
+        )
+
+        backend = ChaosBackend(context_window=window)
+        assert not hasattr(backend, "count_tokens")
+        configure(backend=backend)
+        assert generate(prompt, system=system) is None  # estimator verdict, unchanged
+        assert backend.calls == []
+
+    def test_non_callable_count_tokens_attribute_is_ignored(self):
+        """``count_tokens`` present but not callable is not a capability.
+        Resolution is getattr + callable(), never a bare truthiness check."""
+        from contemplative_agent.core.llm import BackendResult, configure
+
+        class WeirdBackend:
+            model = "weird-model"
+            context_window = 32768
+            count_tokens = "not a function"
+
+            def generate(
+                self, prompt, system, num_predict, format, *, temperature=1.0, think=False
+            ):
+                return BackendResult(text="delegated")
+
+        configure(backend=WeirdBackend())  # type: ignore[arg-type]
+        assert generate("小", system="s") == "delegated"
+
+    def test_ollama_path_is_unchanged(self):
+        """The built-in Ollama path has no counter to reach for — Ollama
+        0.30.11 exposes no /api/tokenize (upstream ollama#12030 is still
+        open), so the estimator remains its only pre-flight measure."""
+        from contemplative_agent.core.llm import _measure_input_tokens
+
+        measurement = _measure_input_tokens("system", "prompt")
+        assert measurement.source == "estimator"
+        assert measurement.fallback_reason is None
+
+
 class TestSystemPromptBudgetReading:
     """Read-only budget instrument (ADR-0071 style): projects the system
     prompt token estimate after a value-layer adoption so the operator sees
