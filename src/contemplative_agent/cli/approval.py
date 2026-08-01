@@ -30,6 +30,7 @@ AuditSource = Literal[
     "direct",
     "stage",
     "stage-adopted",
+    "stage-adopted-names",
     "stage-adopted-auto",
     "direct-remove",
     "direct-remove-auto",
@@ -58,9 +59,16 @@ def _log_approval(
         source: Execution path identifier.
             - "direct": approval gate was invoked inline during the command run.
             - "stage": written to staging dir (decision deferred).
-            - "stage-adopted": adopted interactively from staging via `adopt-staged`.
+            - "stage-adopted": adopted interactively from staging via `adopt-staged`
+              (a human answered the y/N prompt for this item).
+            - "stage-adopted-names": adopted via `adopt-staged --adopt-names FILE`
+              (per-item selection transcribed from a human decision, but no
+              prompt was shown in this process — the provenance is the names
+              file, not a TTY. Distinct so the audit trail never conflates the
+              two; 2026-08-01 security review C1).
             - "stage-adopted-auto": adopted from staging via `adopt-staged --yes`
-              (no human prompt; used by non-TTY coding-agent workflows).
+              (no human prompt, blanket adoption; used by non-TTY coding-agent
+              workflows).
             - "direct-remove": manual removal via `remove-skill` (interactive).
             - "direct-remove-auto": manual removal via `remove-skill --yes`.
         snapshot_path: Pivot snapshot directory written at run start (ADR-0020).

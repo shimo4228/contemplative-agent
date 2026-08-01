@@ -17,7 +17,7 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
     runtime.py (134L)         -- shared helpers, _repo_root()
     approval.py (223L)        -- approval-gate loop + audit.jsonl writer (ADR-0012)
     staging.py (181L)         -- insight --stage / pending-review staging dir
-    adopt.py (485L)           -- adopt-staged / remove-skill commands
+    adopt.py (675L)           -- adopt-staged / remove-skill commands
     stocktake_cmd.py (840L)   -- skill-stocktake / rules-stocktake commands
     memory_cmds.py (539L)     -- distill / insight / rules-distill / amend-constitution / distill-identity commands
     session_cmds.py (537L)    -- init / report / generate-report / meditate / sync-data / dialogue / dialogue-peer
@@ -142,7 +142,7 @@ contemplative-agent run [--session M] [--approve|--guarded|--auto]
 contemplative-agent distill [--days N] [--dry-run] [--file PATH ...]
 contemplative-agent distill-identity [--stage]
 contemplative-agent insight [--stage] [--full]   -- incremental needs .last_insight marker; LLM novelty gate; --stage refuses on pending review (ADR-0074)
-contemplative-agent adopt-staged
+contemplative-agent adopt-staged [-y] [--adopt-names FILE [--reject-rest]]   -- per-item non-interactive path matches by staged filename (audit source stage-adopted-names); unknown/empty names abort before any destructive op (T-ADOPT-PERITEM)
 contemplative-agent remove-skill <name> [--reason TEXT]
 contemplative-agent rules-distill [--full]
 contemplative-agent amend-constitution

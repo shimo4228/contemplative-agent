@@ -286,6 +286,62 @@ def _print_system_budget_for_staged(meta_files: Sequence[Path], data_root: Path)
         )
 
 
+def _staged_name(meta_file: Path) -> str:
+    """The staged item's name: its content filename (sidecar minus suffix)."""
+    return meta_file.name[: -len(".meta.json")]
+
+
+def _read_adopt_names(names_file: Path) -> list[str]:
+    """Read the ``--adopt-names`` file (one staged filename per line).
+
+    Blank lines and surrounding whitespace are ignored; duplicates collapse.
+    An unreadable file aborts with exit code 2 — falling back to "adopt
+    nothing" or, worse, "adopt everything" would silently invert the
+    operator's per-item decision (T-ADOPT-PERITEM).
+    """
+    try:
+        raw = names_file.read_text(encoding="utf-8")
+    except (OSError, ValueError) as err:
+        # ValueError covers UnicodeDecodeError — same clean-abort contract as
+        # an unreadable file (2026-08-01 security review L1).
+        print(f"Error: cannot read --adopt-names file {names_file}: {err}", file=sys.stderr)
+        sys.exit(2)
+    seen: dict[str, None] = {}
+    for line in raw.splitlines():
+        name = line.strip()
+        if name:
+            seen.setdefault(name)
+    if not seen:
+        # An empty selection is a writer bug (truncated write, crashed
+        # producer), not a valid decision: combined with --reject-rest it
+        # would silently delete the ENTIRE staging queue while logging each
+        # item as an individually decided rejection (2026-08-01 security
+        # review C2, reproduced). Abort exactly like the unreadable case.
+        print(
+            f"Error: --adopt-names file {names_file} contains no names; "
+            "aborting (an empty selection is never a decision).",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    return list(seen)
+
+
+def _quarantine_invalid_sidecar(meta_file: Path) -> None:
+    """Quarantine an unparseable/invalid sidecar instead of leaving it.
+
+    An invalid meta counts toward the ADR-0074 pending guard, so a single
+    corrupt sidecar would otherwise block every future --stage run
+    permanently (codex review 2026-07-09). Rename preserves the bytes for
+    inspection while removing it from the pending count.
+    """
+    quarantined = meta_file.with_name(meta_file.name + ".invalid")
+    try:
+        meta_file.rename(quarantined)
+        print(f"  Quarantined invalid sidecar → {quarantined.name}")
+    except OSError as err:
+        print(f"  Could not quarantine {meta_file.name}: {err}", file=sys.stderr)
+
+
 def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     """Walk the staging dir, run each staged file through the approval gate,
     and write accepted files to their target paths. Rejected and accepted
@@ -298,23 +354,103 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     Auto-approved entries are recorded in the audit log with
     ``source="stage-adopted-auto"`` so they can be distinguished from
     interactively reviewed adoptions.
+
+    With ``--adopt-names FILE`` (T-ADOPT-PERITEM) the items named in FILE
+    (one staged filename per line) are adopted non-interactively, matched by
+    name so the caller never depends on the iteration order (seq order, not
+    packet numbering — the 2026-08-01 y/n-pipe gate nearly adopted the wrong
+    items over exactly that mismatch). All names are verified against the
+    staged set BEFORE any destructive operation: one unknown name aborts the
+    whole run with the offending names listed and staging untouched. Items
+    not listed are left staged by default; ``--reject-rest`` makes their
+    rejection explicit (forgetting the flag errs on the safe side). These
+    adoptions are recorded with ``source="stage-adopted-names"`` — per-item
+    selection (unlike the blanket ``--yes`` batch) but transcribed rather
+    than prompted, so the audit trail keeps the provenance distinct from a
+    TTY y/N session (2026-08-01 security review C1). An empty names file
+    aborts: combined with ``--reject-rest`` it would otherwise wipe the
+    whole staging queue (C2).
     """
     yes = getattr(args, "yes", False)
+    adopt_names_file = getattr(args, "adopt_names", None)
+    reject_rest = getattr(args, "reject_rest", False)
+
+    if adopt_names_file and yes:
+        print(
+            "Error: --adopt-names and --yes are mutually exclusive "
+            "(per-item selection vs adopt-everything).",
+            file=sys.stderr,
+        )
+        sys.exit(2)
+    if reject_rest and not adopt_names_file:
+        print("Error: --reject-rest requires --adopt-names.", file=sys.stderr)
+        sys.exit(2)
+
+    # None = process every staged item (interactive or --yes);
+    # a set = per-item selection by staged filename.
+    adopt_names: set[str] | None = None
+    if adopt_names_file:
+        adopt_names = set(_read_adopt_names(Path(adopt_names_file)))
+
     audit_source: AuditSource = "stage-adopted-auto" if yes else "stage-adopted"
+    if adopt_names is not None:
+        # Per-item selection, but transcribed — no prompt shown in this
+        # process. A distinct source keeps the audit trail honest about
+        # provenance (2026-08-01 security review C1).
+        audit_source = "stage-adopted-names"
 
     if not config.STAGED_DIR.exists():
+        if adopt_names:
+            print(
+                "Error: no staging directory — unknown staged item name(s): "
+                + ", ".join(sorted(adopt_names)),
+                file=sys.stderr,
+            )
+            sys.exit(2)
         print("No staging directory.")
         return
 
     meta_files = sorted(config.STAGED_DIR.glob("*.meta.json"), key=_staged_sort_key)
     if not meta_files:
+        if adopt_names:
+            print(
+                "Error: no staged files — unknown staged item name(s): "
+                + ", ".join(sorted(adopt_names)),
+                file=sys.stderr,
+            )
+            sys.exit(2)
         print("No staged files.")
         return
 
-    data_root = config.MOLTBOOK_DATA_DIR.resolve()
-    _print_system_budget_for_staged(meta_files, data_root)
+    if adopt_names is not None:
+        # Verify EVERY requested name before any unlink / adopt / reject /
+        # quarantine — a single typo must not half-apply the batch.
+        staged_names = {_staged_name(meta_file) for meta_file in meta_files}
+        unknown = sorted(adopt_names - staged_names)
+        if unknown:
+            print(
+                "Error: unknown staged item name(s): " + ", ".join(unknown),
+                file=sys.stderr,
+            )
+            print("No changes made; staging left untouched.", file=sys.stderr)
+            sys.exit(2)
 
-    if yes:
+    data_root = config.MOLTBOOK_DATA_DIR.resolve()
+    # In per-item mode, project the budget for the items actually being
+    # adopted — unselected items either stay staged or are rejected, and
+    # neither outcome changes the system prompt.
+    instrument_metas = meta_files
+    if adopt_names is not None:
+        instrument_metas = [mf for mf in meta_files if _staged_name(mf) in adopt_names]
+    _print_system_budget_for_staged(instrument_metas, data_root)
+
+    if adopt_names is not None:
+        rest_fate = "rejected" if reject_rest else "left staged"
+        print(
+            f"Per-item mode (--adopt-names): adopting {len(adopt_names)} of "
+            f"{len(meta_files)} staged item(s); the rest are {rest_fate}."
+        )
+    elif yes:
         print(
             f"Auto-approve mode (--yes): adopting {len(meta_files)} staged item(s) without prompts."
         )
@@ -322,20 +458,48 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     adopted = 0
     rejected = 0
     skipped = 0
+    left = 0
+    reject_failures = 0
     for meta_file in meta_files:
+        if adopt_names is not None and _staged_name(meta_file) not in adopt_names:
+            if not reject_rest:
+                left += 1
+                continue
+            item = _load_staged_item(meta_file, data_root)
+            if item is None:
+                _quarantine_invalid_sidecar(meta_file)
+                skipped += 1
+                continue
+            # Unlink BEFORE logging: an audit row claiming "rejected" for an
+            # item still sitting in staging is worse than a removed item with
+            # a missing row (2026-08-01 security review H1 — the new branch
+            # must not extend the pre-existing log-then-mutate ordering).
+            try:
+                item.content_file.unlink(missing_ok=True)
+                meta_file.unlink(missing_ok=True)
+            except OSError as err:
+                print(
+                    f"  Could not reject {item.content_file.name}: {err}",
+                    file=sys.stderr,
+                )
+                reject_failures += 1
+                continue
+            approval._log_approval(
+                item.command,
+                item.target,
+                False,
+                item.text,
+                source=audit_source,
+                source_ids=item.source_ids,
+                epistemic_counts=item.epistemic_counts,
+            )
+            print(f"  Rejected (not in --adopt-names): {item.content_file.name}")
+            rejected += 1
+            continue
+
         item = _load_staged_item(meta_file, data_root)
         if item is None:
-            # Quarantine instead of leaving the sidecar in place: an invalid
-            # meta counts toward the ADR-0074 pending guard, so a single
-            # corrupt sidecar would otherwise block every future --stage run
-            # permanently (codex review 2026-07-09). Rename preserves the
-            # bytes for inspection while removing it from the pending count.
-            quarantined = meta_file.with_name(meta_file.name + ".invalid")
-            try:
-                meta_file.rename(quarantined)
-                print(f"  Quarantined invalid sidecar → {quarantined.name}")
-            except OSError as err:
-                print(f"  Could not quarantine {meta_file.name}: {err}", file=sys.stderr)
+            _quarantine_invalid_sidecar(meta_file)
             skipped += 1
             continue
 
@@ -343,10 +507,11 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         print(f"[{item.command}] {item.content_file.name} -> {item.target}")
         print(item.text)
 
+        approve_without_prompt = yes or adopt_names is not None
         if item.action == "drop":
-            ok = _adopt_drop_item(item, yes=yes, audit_source=audit_source)
+            ok = _adopt_drop_item(item, yes=approve_without_prompt, audit_source=audit_source)
         else:
-            ok = _adopt_write_item(item, yes=yes, audit_source=audit_source)
+            ok = _adopt_write_item(item, yes=approve_without_prompt, audit_source=audit_source)
         if ok:
             adopted += 1
         else:
@@ -355,7 +520,16 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         item.content_file.unlink(missing_ok=True)
         meta_file.unlink(missing_ok=True)
 
-    print(f"\n--- Summary: {adopted} adopted, {rejected} rejected, {skipped} skipped ---")
+    summary = f"\n--- Summary: {adopted} adopted, {rejected} rejected, {skipped} skipped"
+    if reject_failures:
+        summary += f", {reject_failures} reject FAILURES (still staged)"
+    if adopt_names is not None:
+        summary += f", {left} left staged"
+    print(summary + " ---")
+    if reject_failures:
+        # A non-interactive caller must not read a partially applied batch as
+        # success (2026-08-01 security review H1).
+        sys.exit(1)
 
 
 def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
@@ -440,6 +614,22 @@ def _add_adopt_staged_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Auto-approve all staged items without prompting "
         "(for non-TTY / coding-agent workflows where stdin is not interactive)",
+    )
+    parser.add_argument(
+        "--adopt-names",
+        metavar="FILE",
+        help="Adopt exactly the staged items named in FILE (one staged filename "
+        "per line), non-interactively. Names are matched against staged item "
+        "filenames, so callers never depend on the iteration order. Any unknown "
+        "name aborts the whole run before anything is touched. Items not listed "
+        "are left staged unless --reject-rest is given. Mutually exclusive with "
+        "--yes.",
+    )
+    parser.add_argument(
+        "--reject-rest",
+        action="store_true",
+        help="With --adopt-names: reject (remove from staging, with an audit "
+        "record) the staged items NOT listed. Default is to leave them staged.",
     )
 
 
