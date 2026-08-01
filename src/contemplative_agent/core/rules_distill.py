@@ -16,7 +16,7 @@ import logging
 from dataclasses import dataclass
 from pathlib import Path
 
-from ._io import read_run_marker, write_run_marker
+from ._io import read_run_marker, strip_to_printable, write_run_marker
 from .artifact_extraction import canonicalize_frontmatter_name, resolve_artifact_path
 from .clustering import cluster_patterns
 from .embeddings import embed_texts
@@ -149,7 +149,7 @@ def _extract_rules(skill_texts: list[str]) -> tuple[str, str | None] | None:
 
     if extract_title(result) is None:
         logger.warning("Rules extraction has no title (# line). Dropping.")
-        logger.debug("Raw LLM output (first 200 chars): %.200s", result)
+        logger.debug("Raw LLM output (first 200 chars): %s", strip_to_printable(result, 200))
         return None
 
     return result, thinking

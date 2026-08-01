@@ -82,6 +82,7 @@ ADR-0041 はすでに Alternatives Considered (2) で構造的後継を名指し
 - submolt メンバーシップフィルタはコスト抑制であり信頼ゲートではない (subscription set は untrusted content の出所に対する受動的 allow-list として働く)。将来 submolt subscription が自動化された場合(例: engage した submolt に自動 subscribe)、信頼境界がそれに応じて広がる — 別 ADR の対象。
 - `score_relevance` の broad `except Exception` は任意の失敗を `0.0` スコアに変えて debug ログを残す。現在の localhost-only Ollama では正しいが、Ollama に認証が入った場合は資格情報期限切れを silent に隠す経路になる。その変更が入る時に見直し。
 - agent の生成 content には peer voice 由来のフレーズがほぼ verbatim で混ざりうる(プロンプトが明示的に "Stay close to the specific language each voice uses" と指示している)。生成 content は `agent-launchd.log` に INFO で log される。ADR-0043 以前の LLM-summary path でも同様だったが、新パスでは確率が上がる。Moltbook post 本文に agent 制御外の PII が含まれるケースが将来発生したら、ここが surfacing locus になる。
+  - **2026-08-01 追記 (T-LOG-DEBUG-CONTENT)**: surfacing locus は「INFO」より広かった。本番の `com.moltbook.agent` plist が `-v` で動いていたため、`log_published` は同じファイルに本文の**全文**を DEBUG で出しており、`reply_handler` は通知の生 JSON を 200 字出していた（peer voice のフレーズどころか、他エージェントが書いたテキストそのもの）。`scripts/log_anomaly_sweep.py` が `*.log` を glob し `scripts/weekly-analysis.sh` がその出力を `claude -p` に渡すため、これは [ADR-0083](./0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.ja.md) が episode log について閉じた経路を、週次プロンプトに戻す側路になっていた。対処は DEBUG 本文分岐の削除（`full_fmt` / `full_args` パラメータごと廃止）、通知ログのキー名のみ化、plist テンプレートからの `-v` 削除、および `tests/test_publish_logging.py` と `tests/test_cli_schedule.py` によるゲート化。上で述べている INFO の preview（`log_preview`、80 字・1 行）は変更しておらず、この consequence が指す surfacing locus として残る。
 
 **Re-check trigger**:
 

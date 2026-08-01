@@ -8,6 +8,7 @@ import time
 from collections.abc import Callable
 from typing import Any
 
+from ...core._io import log_safe_identifier
 from ...core.config import (
     FORBIDDEN_SUBSTRING_PATTERNS,
     FORBIDDEN_WORD_PATTERNS,
@@ -608,7 +609,11 @@ class Agent:
                 continue
             if client.unfollow_agent(name):
                 self._memory.record_unfollow(name)
-                self._ctx.actions_taken.append(f"Unfollowed {name}")
+                # actions_taken is replayed at INFO by _print_report, so an
+                # externally-chosen name goes into the sweep-scanned log
+                # (T-LOG-DEBUG-CONTENT). The episode payload below keeps the
+                # exact name — that store is already treated as untrusted.
+                self._ctx.actions_taken.append(f"Unfollowed {log_safe_identifier(name)}")
                 self._memory.episodes.append(
                     "activity",
                     {
@@ -629,7 +634,7 @@ class Agent:
                 continue
             if client.follow_agent(name):
                 self._memory.record_follow(name)
-                self._ctx.actions_taken.append(f"Followed {name}")
+                self._ctx.actions_taken.append(f"Followed {log_safe_identifier(name)}")
                 self._memory.episodes.append(
                     "activity",
                     {

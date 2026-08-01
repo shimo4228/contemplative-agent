@@ -75,26 +75,24 @@ def verification_of(created: Any) -> Any:
     return created.get("verification") if isinstance(created, dict) else None
 
 
-def log_published(
-    summary_fmt: str,
-    *args: Any,
-    body: str,
-    full_fmt: str,
-    full_args: tuple[Any, ...] | None = None,
-) -> None:
-    """Log a published body: INFO preview, DEBUG full text.
+def log_published(summary_fmt: str, *args: Any, body: str) -> None:
+    """Log a published body as a bounded single-line preview, never in full.
 
     Full bodies in ``*.log`` become anomaly-sweep noise and cross the
-    self-written-log trust boundary (F1.1 2026-07-11), so the canonical full
-    text lives in the episode log and the comment reports instead. A verbose
-    (-v) run does emit the full body at DEBUG — never redirect a -v run's output
-    into the sweep-scanned logs dir.
+    self-written-log trust boundary (F1.1 2026-07-11); the canonical full text
+    lives in the episode log and the comment reports instead.
 
-    ``summary_fmt`` receives ``*args`` plus the char count and the preview;
-    ``full_fmt`` receives ``full_args`` (defaulting to ``args``) plus the body.
-    The override exists because the post path identifies itself by title in the
-    INFO line but by id alone in the DEBUG line — and a format string given the
-    wrong number of arguments does not raise, it silently drops the record.
+    Until 2026-08-01 this also emitted the whole body at DEBUG, guarded only by
+    the docstring instruction "never redirect a -v run's output into the
+    sweep-scanned logs dir" — which the production ``com.moltbook.agent`` plist
+    had been violating, running ``-v`` with both stdout and stderr pointed at
+    ``logs/agent-launchd.log``. Multi-line bodies landed there as prefix-less
+    continuation lines, inside the channel ``log_anomaly_sweep.py`` reads and
+    ``weekly-analysis.sh`` feeds to an LLM (the side channel ADR-0083 closed for
+    episode logs). The DEBUG branch and its ``full_fmt`` / ``full_args``
+    parameters are gone rather than merely unused: an argument that cannot be
+    passed cannot be redirected. Enforced by ``tests/test_publish_logging.py``.
+
+    ``summary_fmt`` receives ``*args`` plus the char count and the preview.
     """
     logger.info(summary_fmt, *args, len(body), log_preview(body))
-    logger.debug(full_fmt, *(args if full_args is None else full_args), body)

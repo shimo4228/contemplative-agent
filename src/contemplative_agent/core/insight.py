@@ -24,7 +24,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from . import insight_novelty, llm
-from ._io import read_run_marker, write_run_marker
+from ._io import read_run_marker, strip_to_printable, write_run_marker
 from .artifact_extraction import canonicalize_frontmatter_name, resolve_artifact_path
 from .clustering import cluster_patterns
 from .insight_novelty import (
@@ -122,7 +122,7 @@ def _extract_skill(patterns: list[str], topic: str = "mixed") -> tuple[str, str 
     text = out.text.strip()
     if extract_title(text) is None:
         logger.warning("Skill has no title, dropping.")
-        logger.debug("Raw LLM output (first 300 chars): %.300s", out.text)
+        logger.debug("Raw LLM output (first 300 chars): %s", strip_to_printable(out.text, 300))
         return None
 
     return text, out.thinking

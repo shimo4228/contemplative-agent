@@ -13,7 +13,7 @@ from collections.abc import Sequence
 
 import numpy as np
 
-from ._io import now_iso
+from ._io import now_iso, strip_to_printable
 from .embeddings import cosine
 from .knowledge_store import is_live
 from .thresholds import SIM_DUPLICATE, SIM_UPDATE
@@ -74,7 +74,14 @@ def _dedup_patterns(
         action = _dedup_action(best_existing_sim, best_existing_pat, best_new_sim, best_new_idx)
         if action == "skip":
             skip_count += 1
-            logger.info("SKIP (%.2f): %s", max(best_existing_sim, best_new_sim), new_text[:60])
+            # Patterns are distilled from episode content, so their text is
+            # downstream of untrusted external input; bound it and drop the
+            # newlines before it reaches the logs dir (T-LOG-DEBUG-CONTENT).
+            logger.info(
+                "SKIP (%.2f): %s",
+                max(best_existing_sim, best_new_sim),
+                strip_to_printable(new_text, 60),
+            )
         elif action == "update":
             # ADR-0021: soft-invalidate old, keep row for audit, and ADD the
             # re-observed pattern with a fresh timestamp (no importance boost,
@@ -86,10 +93,14 @@ def _dedup_patterns(
             add_embeddings.append(new_emb)
             add_indices.append(input_idx)
             update_count += 1
-            logger.debug("UPDATE (%.2f): invalidate + re-add: %s", best_existing_sim, new_text[:60])
+            logger.debug(
+                "UPDATE (%.2f): invalidate + re-add: %s",
+                best_existing_sim,
+                strip_to_printable(new_text, 60),
+            )
         elif action == "skip_new":
             skip_count += 1
-            logger.debug("SKIP-NEW (%.2f): %s", best_new_sim, new_text[:60])
+            logger.debug("SKIP-NEW (%.2f): %s", best_new_sim, strip_to_printable(new_text, 60))
         else:
             add_patterns.append(new_text)
             add_embeddings.append(new_emb)

@@ -2,12 +2,12 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 
+from ...core._io import log_safe_identifier
 from ...core.config import VALID_ID_PATTERN
 from ...core.scheduler import Scheduler
 from .client import MoltbookClient
@@ -109,10 +109,17 @@ class ReplyHandler:
         logger.debug("Fetched %d notification(s) from API", len(notifications))
 
         for i, notif in enumerate(notifications):
+            # Shape, not values. This used to dump 200 chars of the raw
+            # notification JSON, which carries other agents' comment and post
+            # text — external content entering `logs/agent-launchd.log`, the
+            # one file the harness classifies as self-written and lets Claude
+            # Code read (`~/.claude/hooks/_episode-log-common.sh`). What the
+            # line is actually for is the notification's shape, and the keys
+            # answer that without quoting anyone (T-LOG-DEBUG-CONTENT).
             logger.debug(
-                "Notification[%d] raw: %.200s",
+                "Notification[%d] keys: %s",
                 i,
-                json.dumps(notif, ensure_ascii=False, default=str),
+                ",".join(sorted(notif)) if isinstance(notif, dict) else type(notif).__name__,
             )
 
             if time.time() >= end_time or self._ctx.is_rate_limited:
@@ -311,18 +318,24 @@ class ReplyHandler:
             # the episode-scan fallback in _build_commented_cache stores post_ids,
             # not reply keys, so it does not dedup against pre-change replies.
             ctx.memory.record_commented(reply_key)
-            ctx.actions_taken.append(f"Replied to {replier_name} on {post_id}")
+            # The counterparty's display name is as attacker-controlled as the
+            # body was, and both of its consumers below end at INFO in the
+            # sweep-scanned log — so dropping `-v` does not cover it
+            # (T-LOG-DEBUG-CONTENT, security review). `actions_taken` is
+            # replayed line by line at session end (agent.py _print_report).
+            safe_replier = log_safe_identifier(replier_name)
+            ctx.actions_taken.append(f"Replied to {safe_replier} on {post_id}")
             # Preview only: full bodies in *.log become anomaly-sweep noise
             # and cross the self-written-log trust boundary (F1.1 2026-07-11).
-            # Canonical full text: episode log below + comment-reports. Verbose
-            # (-v) runs emit the DEBUG full body: never redirect a -v run's
-            # output into the sweep-scanned logs dir.
+            # Canonical full text: episode log below + comment-reports. No
+            # full-body log path remains at any level — the DEBUG branch that
+            # produced one is gone, parameters included (T-LOG-DEBUG-CONTENT);
+            # tests/test_publish_logging.py is what holds that now.
             log_published(
                 ">> Reply to %s on %s: %d chars: %s",
-                replier_name,
+                safe_replier,
                 post_id[:12],
                 body=reply,
-                full_fmt=">> Reply full body to %s on %s:\n%s",
             )
             ctx.memory.episodes.append(
                 "activity",

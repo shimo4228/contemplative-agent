@@ -433,16 +433,15 @@ class PostPipeline:
             ctx.actions_taken.append(f"Posted: {title}")
             # Preview only: full bodies in *.log become anomaly-sweep noise
             # and cross the self-written-log trust boundary (F1.1 2026-07-11).
-            # Canonical full text: episode log below + comment-reports. Verbose
-            # (-v) runs emit the DEBUG full body: never redirect a -v run's
-            # output into the sweep-scanned logs dir.
+            # Canonical full text: episode log below + comment-reports. No
+            # full-body log path remains at any level — the DEBUG branch that
+            # produced one is gone, parameters included (T-LOG-DEBUG-CONTENT);
+            # tests/test_publish_logging.py is what holds that now.
             log_published(
                 ">> New post [%s] (id=%s): %d chars: %s",
                 title,
                 post_id,
                 body=content,
-                full_fmt=">> New post full body (id=%s):\n%s",
-                full_args=(post_id,),
             )
             ctx.memory.episodes.append(
                 "activity",

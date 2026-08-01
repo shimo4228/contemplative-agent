@@ -8,6 +8,7 @@ import time
 from collections.abc import Callable
 from datetime import datetime, timezone
 
+from ...core._io import log_safe_identifier
 from ...core.config import VALID_ID_PATTERN
 from ...core.domain import DomainConfig
 from ...core.scheduler import Scheduler
@@ -340,7 +341,7 @@ class FeedManager:
             logger.info(
                 "Skipped post %s: author %s rate-limited (3+ comments/24h)",
                 post_id[:12],
-                author_name,
+                log_safe_identifier(author_name),
             )
             return False
 
@@ -465,14 +466,14 @@ class FeedManager:
             ctx.actions_taken.append(f"Commented on {post_id} (relevance: {score:.2f})")
             # Preview only: full bodies in *.log become anomaly-sweep noise
             # and cross the self-written-log trust boundary (F1.1 2026-07-11).
-            # Canonical full text: episode log below + comment-reports. Verbose
-            # (-v) runs emit the DEBUG full body: never redirect a -v run's
-            # output into the sweep-scanned logs dir.
+            # Canonical full text: episode log below + comment-reports. No
+            # full-body log path remains at any level — the DEBUG branch that
+            # produced one is gone, parameters included (T-LOG-DEBUG-CONTENT);
+            # tests/test_publish_logging.py is what holds that now.
             log_published(
                 ">> Comment on %s: %d chars: %s",
                 post_id[:12],
                 body=comment,
-                full_fmt=">> Comment full body on %s:\n%s",
             )
             author = post.get("author") or {}
             # Live feed posts carry author.name but typically not author.id

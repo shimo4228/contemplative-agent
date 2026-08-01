@@ -6,6 +6,7 @@ import logging
 import re
 from dataclasses import dataclass
 
+from ...core._io import strip_to_printable
 from ...core.config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH, MAX_POST_TITLE_LENGTH
 from ...core.domain import get_domain_config, resolve_prompt
 from ...core.llm import (
@@ -127,10 +128,17 @@ def score_relevance_detailed(
             # Audit L2: a value outside the 0-1 contract ("topic 5",
             # "8/10") is a wrong-scale answer, not a high score. Clamping
             # it to 1.0 failed toward acting; reject toward not acting.
-            logger.warning("Relevance score out of range, rejecting: %s", result[:80])
+            logger.warning(
+                "Relevance score out of range, rejecting: %s",
+                strip_to_printable(result, 80),
+            )
             return RelevanceScore(0.0, "out_of_range")
         return RelevanceScore(max(0.0, score), "scored")
-    logger.warning("Could not parse relevance score: %s", result)
+    # WARNING, so this survives a non-verbose production run. The model is
+    # scoring untrusted feed text; an unparseable answer is exactly the case
+    # where it may be echoing that text back, so bound it and drop the newlines
+    # before it reaches a log the weekly sweep reads (T-LOG-DEBUG-CONTENT).
+    logger.warning("Could not parse relevance score: %s", strip_to_printable(result, 200))
     return RelevanceScore(0.0, "unparseable")
 
 
@@ -540,8 +548,12 @@ def select_submolt(
     # longer match and silently misroute the post.
     for name in sorted(submolts, key=len, reverse=True):
         if name in cleaned:
-            logger.info("Submolt %r matched as substring of LLM output %r", name, cleaned)
+            logger.info(
+                "Submolt %r matched as substring of LLM output %r",
+                name,
+                strip_to_printable(cleaned, 200),
+            )
             return name
 
-    logger.warning("LLM returned unrecognized submolt: %s", result)
+    logger.warning("LLM returned unrecognized submolt: %s", strip_to_printable(result, 200))
     return None

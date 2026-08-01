@@ -14,6 +14,7 @@ from contemplative_agent.core._io import (
     acquire_run_lock,
     append_jsonl_restricted,
     b64_audit_fields,
+    log_safe_identifier,
     now_iso,
     strip_code_fence,
     truncate,
@@ -284,3 +285,38 @@ class TestB64AuditFields:
             "challenge_bytes",
             "challenge_truncated",
         }
+
+
+class TestLogSafeIdentifier:
+    """Externally-authored display names must not be able to forge log lines.
+
+    The published-body leak (T-LOG-DEBUG-CONTENT) was closed first; the
+    2026-08-01 security review then found the same attack available through the
+    counterparty's display name, which reaches the launchd log at INFO — so it
+    survives a non-verbose run, unlike the body path.
+    """
+
+    def test_newline_cannot_start_a_forged_line(self):
+        out = log_safe_identifier("alice\nWARNING backoff triggered")
+        assert "\n" not in out
+        assert "\r" not in out
+
+    def test_ansi_escape_removed(self):
+        assert "\x1b" not in log_safe_identifier("bob\x1b[31mred")
+
+    def test_bounded(self):
+        assert len(log_safe_identifier("x" * 500)) <= 64
+
+    def test_ordinary_name_untouched(self):
+        assert log_safe_identifier("alice_42") == "alice_42"
+
+    def test_all_non_ascii_name_becomes_placeholder(self):
+        """Stripping to ASCII empties it, and a hole in the sentence reads as
+        a bug — say what happened instead."""
+        assert log_safe_identifier("日本語だけの名前") == "<unprintable>"
+
+    def test_whitespace_only_name_becomes_placeholder(self):
+        assert log_safe_identifier("   ") == "<unprintable>"
+
+    def test_custom_placeholder(self):
+        assert log_safe_identifier("", placeholder="<anon>") == "<anon>"

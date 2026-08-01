@@ -10,7 +10,6 @@
 		<string>/usr/bin/caffeinate</string>
 		<string>-s</string>
 		<string>{{VENV_BIN}}/contemplative-agent</string>
-		<string>-v</string>
 		<string>--auto</string>
 		<string>run</string>
 		<string>--session</string>

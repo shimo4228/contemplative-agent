@@ -5,6 +5,7 @@ Split from the single-file test_cli.py alongside the cli/ package split
 """
 
 import argparse
+import re
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -654,3 +655,74 @@ class TestInstallSubmoltScanSchedule:
             with pytest.raises(SystemExit):
                 main()
         assert not any(p.exists() for p in plist_sandbox.values())
+
+
+class TestLaunchdTemplatesStayNonVerbose:
+    """No scheduled job may run verbose (T-LOG-DEBUG-CONTENT).
+
+    Every template routes both StandardOutPath and StandardErrorPath to
+    ``{{LOG_PATH}}``, which ``_install_plist`` always resolves under
+    ``MOLTBOOK_DATA_DIR/logs`` — the directory ``scripts/log_anomaly_sweep.py``
+    globs and ``scripts/weekly-analysis.sh`` feeds to an LLM. So "verbose +
+    logs-dir redirection" reduces to "verbose at all", and the check is a
+    property of the templates rather than of the installed plists (which live
+    outside the repo and cannot be gated here).
+
+    ``publish.log_published``'s docstring stated this as prose from weekly
+    2026-07-11 F1.1 and the production ``com.moltbook.agent`` plist violated it
+    for weeks. Prose is not a gate.
+    """
+
+    VERBOSE_FLAGS = {"-v", "--verbose", "-vv", "-vvv"}
+
+    def _templates(self):
+        from contemplative_agent.cli import runtime
+
+        template_dir = runtime._repo_root() / "config" / "launchd"
+        templates = sorted(template_dir.glob("*.plist"))
+        assert templates, f"no launchd templates found under {template_dir}"
+        return templates
+
+    def test_no_template_passes_a_verbose_flag(self):
+        offenders = []
+        for template in self._templates():
+            block = re.search(
+                r"<key>ProgramArguments</key>\s*<array>(.*?)</array>",
+                template.read_text(encoding="utf-8"),
+                re.DOTALL,
+            )
+            assert block, f"{template.name} has no ProgramArguments array"
+            args = re.findall(r"<string>([^<]*)</string>", block.group(1))
+            for arg in args:
+                if arg.strip() in self.VERBOSE_FLAGS:
+                    offenders.append(f"{template.name}: {arg.strip()}")
+        assert not offenders, (
+            "launchd templates must not run verbose — DEBUG output lands in the "
+            f"sweep-scanned logs dir: {offenders}"
+        )
+
+    def test_every_template_redirects_into_the_logs_dir(self):
+        """Guards the reduction the test above relies on. If a future template
+        writes somewhere else, 'verbose implies leak' stops holding and this
+        fails loudly instead of letting the check quietly over-scope."""
+        for template in self._templates():
+            content = template.read_text(encoding="utf-8")
+            for key in ("StandardOutPath", "StandardErrorPath"):
+                match = re.search(rf"<key>{key}</key>\s*<string>([^<]*)</string>", content)
+                assert match, f"{template.name} has no {key}"
+                target = match.group(1)
+                # Two placeholder shapes. ``{{LOG_PATH}}`` is code-backed:
+                # _install_plist computes it under MOLTBOOK_DATA_DIR/logs.
+                # ``{{LOG_DIR}}/<name>.log`` is NOT — it appears only in
+                # com.moltbook.ollama-restart.plist, which install-schedule
+                # deliberately does not manage (installed by hand via
+                # launchctl; docs/CONFIGURATION.md). Nothing in src/
+                # substitutes it, so accepting it here is a convention check,
+                # not a resolved-path guarantee. That is tolerable because
+                # that job does not run the contemplative-agent CLI at all
+                # (it is `bash -c pkill … ; ollama serve`), so the verbose
+                # flag this class exists to catch cannot apply to it.
+                assert target == "{{LOG_PATH}}" or target.startswith("{{LOG_DIR}}/"), (
+                    f"{template.name} {key} is {target!r}, which is not a "
+                    "logs-dir placeholder this gate can vouch for"
+                )

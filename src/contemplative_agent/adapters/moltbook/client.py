@@ -434,7 +434,15 @@ class MoltbookClient:
 
         self._record_api_outcome(method, path, response.status_code, _try_json(response))
         if response.status_code >= 400:
-            safe_body = strip_to_printable(response.text, 500, keep_newline=True)
+            # Single-line on purpose. This message becomes `str(exc)` for a
+            # MoltbookClientError that ~15 call sites log at WARNING, i.e. it
+            # survives a non-verbose run and lands in the sweep-scanned log.
+            # A 500-char multi-line body (an HTML error page, or a validation
+            # error echoing submitted content back) would arrive there as
+            # prefix-less continuation lines — the exact shape that made the
+            # published bodies a problem (T-LOG-DEBUG-CONTENT). Collapsed, it
+            # is still diagnostic; multi-line, it is an injection carrier.
+            safe_body = strip_to_printable(response.text, 500)
             raise MoltbookClientError(
                 f"API error {response.status_code}: {safe_body}",
                 status_code=response.status_code,

@@ -185,9 +185,41 @@ def strip_to_printable(value: object, max_len: int, *, keep_newline: bool = Fals
     length. ``keep_newline=True`` preserves ``\\n`` for callers that want
     multi-line context to survive. ``re.sub`` only deletes, so slicing
     before the substitution is equivalent to slicing after.
+
+    Deliberate cost, since callers use this for human-readable previews:
+    ASCII-only means em dashes, curly quotes and any non-Latin script are
+    DELETED, not transliterated. A preview of non-ASCII text can therefore
+    come out empty — silently, because the argument count is still right.
+    That is accepted here: these strings go to logs and audit records whose
+    canonical source is stored elsewhere, and the same width that drops a
+    Japanese sentence is what drops ANSI escapes and homoglyphs. If a caller
+    needs meaning preserved rather than bytes bounded, it wants
+    ``text_utils.log_preview`` (collapses whitespace, keeps Unicode) instead.
     """
     pattern = _PRINTABLE_KEEP_NL_RE if keep_newline else _PRINTABLE_RE
     return pattern.sub("", str(value)[:max_len])
+
+
+_IDENTIFIER_MAX_CHARS = 64
+
+
+def log_safe_identifier(value: object, placeholder: str = "<unprintable>") -> str:
+    """Bound an externally-authored identifier (agent / author name) for a log.
+
+    Display names are attacker-controlled the same way post bodies are, and
+    they were the gap the 2026-08-01 security review found after the body
+    leak was closed: a name containing a newline plus a word the log-anomaly
+    sweep treats as level-agnostic signal ("backoff", "429") reproduces the
+    prefix-less-continuation-line attack through the name field instead of
+    the body field. These reach `logs/agent-launchd.log` at INFO, so they are
+    not covered by dropping ``-v``.
+
+    Differs from a bare ``strip_to_printable`` only in the fallback: a name
+    that is entirely non-ASCII sanitises to the empty string, which turns
+    "Replied to X on Y" into a sentence with a hole in it. Say so instead.
+    """
+    safe = strip_to_printable(value, _IDENTIFIER_MAX_CHARS)
+    return safe if safe.strip() else placeholder
 
 
 def b64_audit_fields(
