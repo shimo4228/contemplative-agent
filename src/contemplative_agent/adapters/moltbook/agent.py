@@ -38,6 +38,7 @@ from .novelty import NoveltyGate
 from .post_pipeline import PostPipeline
 from .reply_handler import ReplyHandler
 from .session_context import SessionContext
+from .submolt_scope import SubmoltScopeScan, scan_submolt_scope
 from .verification import (
     VerificationTracker,
     _sanitize_audit_error,
@@ -432,6 +433,17 @@ class Agent:
         """Check current agent status."""
         client = self._ensure_client()
         return check_claim_status(client)
+
+    def do_submolt_scan(self, sample_size: int) -> SubmoltScopeScan:
+        """Run one read-only submolt-scope sweep (ADR-0086).
+
+        Deliberately not part of ``run_session``: the sweep is ~20 feed reads
+        and a few hundred local LLM calls, which would compete with the
+        session's own work on one Ollama. It has its own schedule, and it
+        changes nothing the session depends on.
+        """
+        client = self._ensure_client()
+        return scan_submolt_scope(client, self._domain, sample_size=sample_size)
 
     def do_solve(self, text: str) -> str | None:
         """Solve a verification challenge (for testing)."""

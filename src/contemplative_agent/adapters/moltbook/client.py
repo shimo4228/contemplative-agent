@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import logging
+import math
 import re
 import time
+from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
 
@@ -54,6 +56,7 @@ _EXPECTED_KEYS: dict[str, frozenset[str]] = {
     "GET /posts/{id}/comments": frozenset({"comments"}),
     "GET /agents/me": frozenset({"agent"}),
     "GET /notifications": frozenset({"notifications"}),
+    "GET /submolts": frozenset({"submolts"}),
     "POST /verify": frozenset({"success"}),
 }
 # Scalar status fields worth recording (enum/bool only — never free text).
@@ -151,6 +154,55 @@ class MoltbookClientError(Exception):
     def __init__(self, message: str, status_code: int | None = None) -> None:
         super().__init__(message)
         self.status_code = status_code
+
+
+@dataclass(frozen=True)
+class SubmoltInfo:
+    """One submolt as the platform lists it (ADR-0086 discovery).
+
+    Only the fields the scope instrument reads. ``post_count`` /
+    ``subscriber_count`` are liveness signals available without spending an
+    LLM call, and ``is_private`` / ``is_nsfw`` let the instrument skip a
+    submolt with a reason instead of collecting a 403.
+    """
+
+    name: str
+    description: str
+    post_count: int
+    subscriber_count: int
+    is_private: bool
+    is_nsfw: bool
+
+
+# Defensive bound on an untrusted listing: every entry costs a feed GET plus
+# `sample_size` LLM calls downstream, and the name is interpolated into a URL.
+# Five times the ~20 submolts the platform actually lists, so hitting it means
+# something is wrong — which is why the overflow is logged, never silent.
+# Lowered from 500 after a security review priced the worst case in local LLM
+# calls rather than requests (2026-08-01); `_MAX_SCORED_PER_SCAN` in
+# `submolt_scope` bounds that side directly.
+_MAX_LISTED_SUBMOLTS = 100
+
+# Listing text is external; it reaches WARNING logs and the terminal report.
+_SUBMOLT_DESCRIPTION_MAX_CHARS = 200
+
+
+def _coerce_count(value: Any) -> int:
+    """Non-negative int from an untrusted scalar; anything else reads 0.
+
+    ``math.isfinite`` is load-bearing, not belt-and-braces: Python's JSON
+    parser accepts the non-standard ``NaN`` / ``Infinity`` literals and hands
+    back floats that pass the type check, on which ``int()`` raises
+    ``ValueError`` / ``OverflowError``. That escapes as neither a
+    ``MoltbookClientError`` nor anything the sweep catches, so a malformed
+    listing would kill a scan without writing its terminal audit record
+    (codex review 2026-08-01).
+    """
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return 0
+    if not math.isfinite(value):
+        return 0
+    return max(0, int(value))
 
 
 class MoltbookClient:
@@ -462,6 +514,69 @@ class MoltbookClient:
 
     def delete(self, path: str, **kwargs: Any) -> requests.Response:
         return self._request("DELETE", path, **kwargs)
+
+    def list_submolts(self) -> tuple[SubmoltInfo, ...]:
+        """List every submolt the platform exposes (ADR-0086).
+
+        A read-only discovery capability with no write counterpart: the scope
+        instrument needs a candidate set, and an agent can only enumerate
+        submolts it already reads otherwise. Subscribing stays driven by the
+        human-curated ``domain.json`` — this method adds no path to change it.
+
+        The listing is untrusted external data whose ``name`` is interpolated
+        into feed URLs downstream, so names are validated here and offenders
+        dropped with a count in the log.
+
+        Raises ``MoltbookClientError`` for transport failures, HTTP errors, and
+        unusable response shapes. An empty tuple therefore means exactly one
+        thing — the platform listed no submolts — which is what lets the
+        instrument report "nothing to scan" and "discovery broke" as different
+        verdicts (ADR-0075: no silent fallback).
+        """
+        response = self.get("/submolts")
+        try:
+            body = response.json()
+        except ValueError as exc:
+            raise MoltbookClientError(f"Submolt listing unparseable: {exc}") from exc
+        entries = body.get("submolts") if isinstance(body, dict) else None
+        if not isinstance(entries, list):
+            raise MoltbookClientError(
+                "Submolt listing has unexpected shape "
+                f"(top-level {type(body).__name__}, submolts "
+                f"{type(entries).__name__})"
+            )
+        if len(entries) > _MAX_LISTED_SUBMOLTS:
+            logger.warning(
+                "%d submolts listed, above the %d bound — scanning the first %d only",
+                len(entries),
+                _MAX_LISTED_SUBMOLTS,
+                _MAX_LISTED_SUBMOLTS,
+            )
+            entries = entries[:_MAX_LISTED_SUBMOLTS]
+        result: list[SubmoltInfo] = []
+        dropped = 0
+        for entry in entries:
+            name = entry.get("name") if isinstance(entry, dict) else None
+            if not isinstance(name, str) or not VALID_SUBMOLT_PATTERN.match(name):
+                dropped += 1
+                continue
+            description = entry.get("description")
+            result.append(
+                SubmoltInfo(
+                    name=name,
+                    description=strip_to_printable(
+                        description if isinstance(description, str) else "",
+                        _SUBMOLT_DESCRIPTION_MAX_CHARS,
+                    ),
+                    post_count=_coerce_count(entry.get("post_count")),
+                    subscriber_count=_coerce_count(entry.get("subscriber_count")),
+                    is_private=bool(entry.get("is_private")),
+                    is_nsfw=bool(entry.get("is_nsfw")),
+                )
+            )
+        if dropped:
+            logger.warning("%d submolt entries dropped (invalid or missing name)", dropped)
+        return tuple(result)
 
     def subscribe_submolt(self, name: str) -> bool:
         """Subscribe to a submolt. Returns True on success or already subscribed."""

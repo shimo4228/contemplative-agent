@@ -1205,3 +1205,149 @@ class TestApiAuditTransportAndRetry:
             result = client.get("/posts")
         assert result.status_code == 200
         assert "API audit record failed" in caplog.text
+
+
+class TestListSubmolts:
+    """Discovery capability (ADR-0086): the scope instrument needs a candidate
+    set, and the listing is external data interpolated into feed URLs — so the
+    shape and the names are both validated at this seam."""
+
+    def _client(self):
+        return MoltbookClient(api_key="k")
+
+    def test_success_normalizes_envelope(self):
+        client = self._client()
+        payload = {
+            "success": True,
+            "count": 2,
+            "total_posts": 99,
+            "submolts": [
+                {
+                    "name": "philosophy",
+                    "description": "Thinking about thinking",
+                    "post_count": 42,
+                    "subscriber_count": 7,
+                    "is_private": False,
+                    "is_nsfw": False,
+                },
+                {
+                    "name": "introductions",
+                    "description": "Say hi",
+                    "post_count": 10,
+                    "subscriber_count": 3,
+                    "is_private": True,
+                    "is_nsfw": True,
+                },
+            ],
+        }
+        with patch.object(client._session, "request", return_value=_resp(payload)):
+            result = client.list_submolts()
+        assert [s.name for s in result] == ["philosophy", "introductions"]
+        assert result[0].post_count == 42
+        assert result[0].subscriber_count == 7
+        assert result[0].is_private is False
+        assert result[1].is_private is True
+        assert result[1].is_nsfw is True
+
+    def test_empty_list_is_not_a_failure(self):
+        """() must mean "the platform listed nothing", never "the call broke" —
+        the instrument reports those as different verdicts."""
+        client = self._client()
+        with patch.object(client._session, "request", return_value=_resp({"submolts": []})):
+            assert client.list_submolts() == ()
+
+    def test_invalid_names_dropped(self, caplog):
+        client = self._client()
+        payload = {
+            "submolts": [
+                {"name": "../../etc/passwd"},
+                {"name": "UPPERCASE"},
+                {"name": ""},
+                {"name": "9leading-digit"},
+                {"name": "ok-one"},
+                {"not_a_name": "x"},
+            ]
+        }
+        with (
+            patch.object(client._session, "request", return_value=_resp(payload)),
+            caplog.at_level(logging.WARNING),
+        ):
+            result = client.list_submolts()
+        assert [s.name for s in result] == ["ok-one"]
+        assert "5 submolt entries dropped" in caplog.text
+
+    def test_non_dict_body_raises(self):
+        client = self._client()
+        with patch.object(client._session, "request", return_value=_resp(["a", "b"])):
+            with pytest.raises(MoltbookClientError, match="unexpected shape"):
+                client.list_submolts()
+
+    def test_submolts_not_a_list_raises(self):
+        client = self._client()
+        with patch.object(client._session, "request", return_value=_resp({"submolts": {"a": 1}})):
+            with pytest.raises(MoltbookClientError, match="unexpected shape"):
+                client.list_submolts()
+
+    def test_missing_submolts_key_raises(self):
+        client = self._client()
+        with patch.object(client._session, "request", return_value=_resp({"success": True})):
+            with pytest.raises(MoltbookClientError, match="unexpected shape"):
+                client.list_submolts()
+
+    def test_unparseable_json_raises(self):
+        client = self._client()
+        resp = _resp({})
+        resp.json.side_effect = ValueError("not json")
+        with patch.object(client._session, "request", return_value=resp):
+            with pytest.raises(MoltbookClientError, match="unparseable"):
+                client.list_submolts()
+
+    def test_oversized_listing_capped_and_logged(self, caplog):
+        """No silent caps: the bound is defensive, so what was dropped is logged."""
+        client = self._client()
+        payload = {"submolts": [{"name": f"s-{i}"} for i in range(600)]}
+        with (
+            patch.object(client._session, "request", return_value=_resp(payload)),
+            caplog.at_level(logging.WARNING),
+        ):
+            result = client.list_submolts()
+        assert len(result) == 100
+        assert "600 submolts listed" in caplog.text
+
+    def test_garbage_scalar_fields_default_without_crashing(self):
+        client = self._client()
+        payload = {
+            "submolts": [
+                {
+                    "name": "weird",
+                    "description": None,
+                    "post_count": "many",
+                    "subscriber_count": None,
+                    "is_private": "yes",
+                }
+            ]
+        }
+        with patch.object(client._session, "request", return_value=_resp(payload)):
+            result = client.list_submolts()
+        assert result[0].post_count == 0
+        assert result[0].subscriber_count == 0
+        assert result[0].description == ""
+        assert result[0].is_private is True
+
+    def test_description_is_scrubbed(self):
+        """Descriptions are untrusted text that reaches logs and the terminal."""
+        client = self._client()
+        payload = {"submolts": [{"name": "ok", "description": "a\x1b[31mred\x00b" + "x" * 500}]}
+        with patch.object(client._session, "request", return_value=_resp(payload)):
+            result = client.list_submolts()
+        assert "\x1b" not in result[0].description
+        assert "\x00" not in result[0].description
+        assert len(result[0].description) <= 200
+
+    def test_http_error_propagates(self):
+        client = self._client()
+        resp = _resp({}, status=500)
+        resp.text = "boom"
+        with patch.object(client._session, "request", return_value=resp):
+            with pytest.raises(MoltbookClientError):
+                client.list_submolts()

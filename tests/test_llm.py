@@ -12,6 +12,7 @@ from contemplative_agent.adapters.moltbook.llm_functions import (
     generate_internal_note,
     generate_reply,
     score_relevance,
+    score_relevance_detailed,
     select_submolt,
     summarize_post_topic,
 )
@@ -2566,3 +2567,62 @@ class TestBuildSystemPromptWithSkills:
             assert "FULL_MARKER" in prompt
         finally:
             reset_llm_config()
+
+
+class TestScoreRelevanceReasonCodes:
+    """ADR-0086: four distinct events all score 0.0, and only one of them is a
+    judgment. The scope instrument measures a distribution, so it must be able
+    to tell them apart — the gating callers may keep ignoring the reason."""
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_real_judgment_is_scored(self, mock_generate):
+        mock_generate.return_value = "0.42"
+        result = score_relevance_detailed("a real post")
+        assert result.score == 0.42
+        assert result.reason == "scored"
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_low_but_real_judgment_is_still_scored(self, mock_generate):
+        """0.0 from the model is a judgment, not a failure — the instrument
+        must not read it as an outage."""
+        mock_generate.return_value = "0.0"
+        result = score_relevance_detailed("a real post")
+        assert result.score == 0.0
+        assert result.reason == "scored"
+
+    def test_empty_input_never_calls_the_llm(self):
+        with patch("contemplative_agent.adapters.moltbook.llm_functions.generate") as mock_generate:
+            result = score_relevance_detailed("   \n\t ")
+        mock_generate.assert_not_called()
+        assert result.score == 0.0
+        assert result.reason == "empty_input"
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_llm_outage_is_distinguishable(self, mock_generate):
+        mock_generate.return_value = None
+        assert score_relevance_detailed("a real post").reason == "llm_unavailable"
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_unparseable_answer(self, mock_generate):
+        mock_generate.return_value = "This is not relevant"
+        result = score_relevance_detailed("a real post")
+        assert result.score == 0.0
+        assert result.reason == "unparseable"
+
+    @pytest.mark.parametrize(
+        "output",
+        ["1.5", "I rate this topic 5 out of 10", "8"],
+        ids=["decimal-over-one", "wrong-scale-prose", "ten-scale-integer"],
+    )
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_out_of_range_answer(self, mock_generate, output):
+        mock_generate.return_value = output
+        result = score_relevance_detailed("a real post")
+        assert result.score == 0.0
+        assert result.reason == "out_of_range"
+
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.generate")
+    def test_wrapper_returns_the_bare_score(self, mock_generate):
+        """The gating path is unchanged: score_relevance is score-only."""
+        mock_generate.return_value = "0.83"
+        assert score_relevance("a real post") == score_relevance_detailed("a real post").score

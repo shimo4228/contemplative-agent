@@ -175,6 +175,32 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
         except Exception as exc:
             logger.warning("Skill-selection reading failed (report unaffected): %s", exc)
 
+    # --submolt-scope: read-only scope reading (ADR-0086). Aggregates
+    # logs/submolt-scope-*.jsonl written by `submolt-scan`; observability
+    # only — wired to no gate, and a broken reading never breaks the report.
+    if getattr(args, "submolt_scope", False):
+        try:
+            from ..adapters.moltbook.submolt_scope import (
+                format_submolt_scope_report,
+                read_submolt_scope_log,
+            )
+            from ..core.domain import get_domain_config
+
+            domain = get_domain_config()
+            # Group by the CURRENT subscribed set, not the label each record
+            # carried when its scan ran: the operator is deciding about the
+            # scope as it stands today (codex review 2026-08-01).
+            reading = read_submolt_scope_log(
+                log_dir,
+                days=args.days,
+                threshold=domain.relevance_threshold,
+                subscribed=domain.subscribed_submolts,
+            )
+            print()
+            print(format_submolt_scope_report(reading))
+        except Exception as exc:
+            logger.warning("Submolt-scope reading failed (report unaffected): %s", exc)
+
 
 def _handle_generate_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     from ..core.report import generate_all_reports, generate_report
@@ -395,6 +421,12 @@ def _add_report_arguments(parser: argparse.ArgumentParser) -> None:
         help="Append the read-only skill-selection shadow reading "
         "(per-skill frequency, never-selected, would-be token reduction; "
         "ADR-0076)",
+    )
+    parser.add_argument(
+        "--submolt-scope",
+        action="store_true",
+        help="Append the read-only submolt-scope reading — subscribed vs "
+        "unsubscribed hit rates from `submolt-scan` sweeps (ADR-0086)",
     )
 
 

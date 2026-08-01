@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     pass
 
 from ..adapters.moltbook import config
+from ..adapters.moltbook.submolt_scope import configure_submolt_scope
 from ..core.domain import (
     DomainConfig,
     load_constitution,
@@ -101,6 +102,10 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
         # generations. Records selections to logs/skill-selection-*.jsonl;
         # injection is unchanged. Leaving audit_dir unset disables it.
         configure_skill_selection(skills_dir=config.SKILLS_DIR, audit_dir=config.EPISODE_LOG_DIR)
+    # ADR-0086: the submolt-scope instrument. Read-only — it samples feeds and
+    # scores them, and is wired to no gate. Leaving audit_dir unset disables it
+    # outright, which is the kill switch.
+    configure_submolt_scope(audit_dir=config.EPISODE_LOG_DIR)
     if config.RULES_DIR.is_dir():
         configure_llm(rules_dir=config.RULES_DIR)
 

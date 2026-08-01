@@ -16,15 +16,16 @@ Platform-specific implementations. Dependency: adapters → core.
 | `reply_handler.py` | 468 | Notification handling, reply generation, posting; pre-action `internal_note` (ADR-0045) |
 | `publish.py` | 100 | The policy every outward write shares: client-error guard (429 -> rate-limited), create-response verification handshake, published-body logging. Record steps stay per-path (dedup granularity, memory records, novelty sidecar, pacing) |
 | `post_pipeline.py` | 480 | feed-seeder → NoveltyGate → test-content gate → body-hash gate → post |
-| `client.py` | 844 | HTTP client (auth, domain lock, retry/429-backoff). No `has_budget`/`unsubscribe_submolt`/`mark_all_notifications_read`/`update_profile`/PATCH — removed. |
+| `client.py` | 944 | HTTP client (auth, domain lock, retry/429-backoff), `list_submolts()` discovery read (ADR-0086). No `has_budget`/`unsubscribe_submolt`/`mark_all_notifications_read`/`update_profile`/PATCH — removed. |
 | `auth.py` | ~106 | Credential management, agent registration |
 | `verification.py` | 560 | Obfuscated math challenge solver chain (code_parse → guarded llm_extract → abstain, ADR-0062 9th amendment), rejected-answer memory, challenge audit logging, failure tracking, auto-stop |
 | `verification_parse.py` | 1693 | Deterministic parser for the finite CAPTCHA grammar (`code_parse_challenge`); precision-first, abstains to None (ADR-0062 11th amendment) |
 | `content.py` | ~78 | Rules-based content, dedup, axiom intro injection |
-| `llm_functions.py` | 509 | Moltbook-specific LLM (select_submolt, context builders) |
+| `llm_functions.py` | 539 | Moltbook-specific LLM (select_submolt, context builders); `score_relevance_detailed()` carries the reason code, `score_relevance()` is its score-only wrapper (ADR-0086) |
 | `dedup.py` | 257 | Deterministic gates: prefix-5 stem + Jaccard, test-content blocklist, promotional URL regex |
 | `novelty.py` | 375 | `NoveltyGate`: embedding-cosine novelty + temporal decay + rate-deficit Lagrangian (ADR-0039) |
 | `feed_seeder.py` | ~84 | `select_feed_seeds`: RNG sampling 1-3 peer posts per submolt, relevance floor 0.4, 15000-char budget (ADR-0043) |
+| `submolt_scope.py` | 496 | ADR-0086 read-only scope instrument: samples + scores every listed submolt (subscribed and not), writes `submolt-scope-*.jsonl`, aggregates for `report --submolt-scope`. Wired to no gate; disabled when `configure_submolt_scope` gets no audit dir |
 
 **Retired (not in codebase)**: `extract_topics` / `check_topic_novelty` (ADR-0043), `topic_keywords` config field (ADR-0044).
 
@@ -99,6 +100,26 @@ Jaccard fallback retained for Ollama-outage path only.
 
 Domain lock (`www.moltbook.com`), `allow_redirects=False`, 429 backoff (cap 300s).
 
+`list_submolts()` (ADR-0086) is the only discovery read: `GET /submolts`,
+validating each `name` against `VALID_SUBMOLT_PATTERN` before it can reach a
+feed URL, bounded at 500 entries with the overflow logged. It raises on
+transport / HTTP / shape failure so an empty tuple means only "the platform
+listed nothing". No write counterpart was added — subscription stays driven by
+`domain.json`.
+
+## Submolt scope instrument (submolt_scope.py)
+
+Read-only sweep behind `contemplative-agent submolt-scan` (own launchd job,
+default Thu 03:00 JST; takes the run lock). Samples one feed page per submolt
+— subscribed ones included, because they are the baseline the unsubscribed
+numbers are read against — scores each post with `score_relevance_detailed()`
+under `circuit_shield()`, and appends `scan_start` / `score` / `scan_end`
+records to `submolt-scope-{date}.jsonl`. Aborts rather than backing off
+through a repeating terminal 429. It never subscribes, never touches
+`subscribed_submolts`, and writes nothing outside its own log — the
+`_passes_content_gates` trust boundary is unchanged, so nothing it observes
+can reach an outward action.
+
 ## Verification (verification.py)
 
 Obfuscated math solver (solver order: `code_parse` → `llm_extract` →
@@ -110,10 +131,13 @@ parser for the finite CAPTCHA grammar that owns the arithmetic and number-word
 reconstruction via whole-token fragment matching and abstains (`None`) on any
 ambiguity. Only on abstention does it try a short LLM-produced `EXPR`/`FINAL`
 pair, accepted only when Python recomputes the same two-decimal answer. When
-neither guarded path produces a submittable answer the solver abstains with
-`abstain_reason="reason_fallback_disabled"` (or `answer_previously_rejected`
-when every produced candidate was already server-rejected) instead of
-guessing. `solve_challenge_result()` also returns `solver_path` for audit/eval use. `record_verification_audit()` writes
+neither guarded path produces a submittable answer the solver abstains instead
+of guessing, with `abstain_reason="reason_fallback_disabled"` when the model
+answered and the guards rejected it, `"llm_none"` when the call produced no
+text at all (backend fault / empty body / open circuit / `drop_truncated`
+drop — ADR-0062 12th amendment; the failure *kind* stays in the
+`llm-calls-{date}.jsonl` telemetry row), or `"answer_previously_rejected"`
+when every produced candidate was already server-rejected. `solve_challenge_result()` also returns `solver_path` for audit/eval use. `record_verification_audit()` writes
 `logs/verification-audit.jsonl` with `challenge_b64`, `challenge_sha256`,
 hashed `verification_code`, answer, `solver_path`, and `/verify` success; the
 challenge is not written as raw prompt text. 7 consecutive failures →

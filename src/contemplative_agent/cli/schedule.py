@@ -41,6 +41,9 @@ LAUNCHD_WEEKLY_PIPELINE_LABEL = "com.moltbook.weekly-pipeline"
 
 LAUNCHD_WATCHDOG_LABEL = "com.moltbook.watchdog"
 
+# ADR-0086: weekly read-only submolt-scope sweep.
+LAUNCHD_SUBMOLT_SCAN_LABEL = "com.moltbook.submolt-scan"
+
 
 LAUNCHD_PLIST_DIR = Path.home() / "Library" / "LaunchAgents"
 
@@ -64,6 +67,7 @@ LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_WEEKLY_PIPEL
 
 
 LAUNCHD_WATCHDOG_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_WATCHDOG_LABEL}.plist"
+LAUNCHD_SUBMOLT_SCAN_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_SUBMOLT_SCAN_LABEL}.plist"
 
 
 def _build_calendar_intervals(interval_hours: int) -> str:
@@ -233,6 +237,29 @@ def _do_install_insight_schedule(weekday: int, hour: int) -> None:
     print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly staged insight)")
 
 
+def _do_install_submolt_scan_schedule(weekday: int, hour: int) -> None:
+    """Install launchd plist for the weekly submolt-scope sweep (ADR-0086).
+
+    Runs ``submolt-scan``: read-only sampling and scoring across every listed
+    submolt, subscribed or not. It writes only its own audit log and takes the
+    run lock, so an unattended firing cannot disturb a session — the reason it
+    is a job of its own rather than a stage inside one.
+    """
+    _install_plist(
+        template_name="com.moltbook.submolt-scan.plist",
+        plist_path=LAUNCHD_SUBMOLT_SCAN_PLIST_PATH,
+        log_name="submolt-scan-launchd.log",
+        substitutions={
+            "{{WEEKDAY}}": str(weekday),
+            "{{HOUR}}": str(hour),
+        },
+    )
+
+    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
+    print(f"Installed: {LAUNCHD_SUBMOLT_SCAN_PLIST_PATH}")
+    print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly submolt-scope sweep)")
+
+
 def _do_install_backup_schedule(weekday: int, hour: int) -> None:
     """Install launchd plist for the weekly runtime backup (macOS only).
 
@@ -346,6 +373,7 @@ def _do_uninstall_schedule() -> None:
         (LAUNCHD_BACKUP_PLIST_PATH, "backup"),
         (LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH, "weekly-pipeline"),
         (LAUNCHD_WATCHDOG_PLIST_PATH, "watchdog"),
+        (LAUNCHD_SUBMOLT_SCAN_PLIST_PATH, "submolt-scan"),
     ]:
         removed = _unload_and_remove_plist(plist_path, label) or removed
 
@@ -361,6 +389,7 @@ def _remove_stale_schedule_jobs(
     weekly_backup: bool,
     weekly_pipeline: bool = False,
     watchdog: bool = False,
+    submolt_scan: bool = False,
 ) -> None:
     """Remove previously-installed optional jobs whose flag is off this run.
 
@@ -387,6 +416,10 @@ def _remove_stale_schedule_jobs(
         print("  (stale weekly-pipeline schedule removed: flag not set on this run)")
     if not watchdog and _unload_and_remove_plist(LAUNCHD_WATCHDOG_PLIST_PATH, "watchdog"):
         print("  (stale watchdog schedule removed: flag not set on this run)")
+    if not submolt_scan and _unload_and_remove_plist(
+        LAUNCHD_SUBMOLT_SCAN_PLIST_PATH, "submolt-scan"
+    ):
+        print("  (stale submolt-scan schedule removed: flag not set on this run)")
 
 
 def _handle_install_schedule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -418,6 +451,11 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
                 parser.error("--weekly-backup-day must be 0 (Sun) to 6 (Sat)")
             if args.weekly_backup_hour < 0 or args.weekly_backup_hour > 23:
                 parser.error("--weekly-backup-hour must be between 0 and 23")
+        if args.weekly_submolt_scan:
+            if args.weekly_submolt_scan_day < 0 or args.weekly_submolt_scan_day > 6:
+                parser.error("--weekly-submolt-scan-day must be 0 (Sun) to 6 (Sat)")
+            if args.weekly_submolt_scan_hour < 0 or args.weekly_submolt_scan_hour > 23:
+                parser.error("--weekly-submolt-scan-hour must be between 0 and 23")
         if args.weekly_pipeline:
             # The chain runs weekly-analysis.sh as its own Stage 1; installing
             # both would fire the report twice (and race the .anomaly-sweep
@@ -438,6 +476,7 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
             weekly_backup=args.weekly_backup,
             weekly_pipeline=args.weekly_pipeline,
             watchdog=args.watchdog,
+            submolt_scan=args.weekly_submolt_scan,
         )
         _do_install_schedule(interval=args.interval, session=args.session)
         if not args.no_distill:
@@ -461,6 +500,11 @@ def _handle_install_schedule(args: argparse.Namespace, parser: argparse.Argument
             _do_install_weekly_pipeline_schedule(
                 weekday=args.weekly_pipeline_day,
                 hour=args.weekly_pipeline_hour,
+            )
+        if args.weekly_submolt_scan:
+            _do_install_submolt_scan_schedule(
+                weekday=args.weekly_submolt_scan_day,
+                hour=args.weekly_submolt_scan_hour,
             )
         if args.watchdog:
             _do_install_watchdog_schedule()
@@ -552,6 +596,29 @@ def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=10,
         help="Hour to run weekly backup (0-23, default: 10 — outside agent-session hours)",
+    )
+    parser.add_argument(
+        "--weekly-submolt-scan",
+        action="store_true",
+        help=(
+            "Also install the weekly submolt-scope sweep (ADR-0086): read-only "
+            "sampling and scoring across every listed submolt, subscribed or not"
+        ),
+    )
+    parser.add_argument(
+        "--weekly-submolt-scan-day",
+        type=int,
+        default=4,
+        help="Day of week for the submolt-scope sweep (0=Sun..6=Sat, default: 4=Thu)",
+    )
+    parser.add_argument(
+        "--weekly-submolt-scan-hour",
+        type=int,
+        default=3,
+        help=(
+            "Hour to run the submolt-scope sweep (0-23, default: 3 — between the "
+            "agent-session hours, clear of the other weekly jobs)"
+        ),
     )
     parser.add_argument(
         "--weekly-pipeline",

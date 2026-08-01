@@ -1,0 +1,46 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.moltbook.submolt-scan</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/caffeinate</string>
+		<string>-s</string>
+		<string>{{VENV_BIN}}/contemplative-agent</string>
+		<string>submolt-scan</string>
+	</array>
+
+	<key>WorkingDirectory</key>
+	<string>{{PROJECT_ROOT}}</string>
+
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>{{VENV_BIN}}:/usr/local/bin:/usr/bin:/bin</string>
+	</dict>
+
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Weekday</key>
+		<integer>{{WEEKDAY}}</integer>
+		<!-- ADR-0086: read-only submolt-scope sweep. Default Thu 03:00 JST —
+		     ~20 feed reads plus a few hundred local LLM calls, so it needs a
+		     window that collides with nothing else on a 16 GB box: between the
+		     0/6/12/18 agent-session hours, and clear of weekly-pipeline (Sat),
+		     insight (Mon 08), backup and distill. The scan takes the run lock,
+		     so an overrun still cannot double-spend the read budget. -->
+		<key>Hour</key>
+		<integer>{{HOUR}}</integer>
+		<key>Minute</key>
+		<integer>0</integer>
+	</dict>
+
+	<key>StandardOutPath</key>
+	<string>{{LOG_PATH}}</string>
+	<key>StandardErrorPath</key>
+	<string>{{LOG_PATH}}</string>
+</dict>
+</plist>

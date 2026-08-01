@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+from dataclasses import dataclass
 
 from ...core.config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH, MAX_POST_TITLE_LENGTH
 from ...core.domain import get_domain_config, resolve_prompt
@@ -48,8 +49,35 @@ def _resolve_domain_prompt(template: str) -> str:
     return resolve_prompt(template, domain)
 
 
-def score_relevance(post_text: str) -> float:
-    """Score a post's relevance to domain topics (0.0 to 1.0).
+@dataclass(frozen=True)
+class RelevanceScore:
+    """One relevance judgment plus why it reads the way it does.
+
+    ``score`` alone is lossy: four distinct events all produce 0.0 (empty
+    body, LLM outage, unparseable answer, out-of-range answer) and only one
+    of them is a judgment. Callers that gate on the number can ignore
+    ``reason``; callers that *measure the distribution* must not, or an
+    Ollama outage reads as "uninteresting feed" (ADR-0075).
+    """
+
+    score: float
+    reason: str
+
+
+def score_relevance_detailed(
+    post_text: str,
+    *,
+    caller: str = "moltbook.score_relevance",
+) -> RelevanceScore:
+    """Score a post's relevance to domain topics (0.0 to 1.0), with a reason.
+
+    ``reason`` is ``scored`` for a real judgment; ``empty_input``,
+    ``llm_unavailable``, ``unparseable`` and ``out_of_range`` each carry 0.0
+    for a different cause.
+
+    ``caller`` is the telemetry tag. It defaults to the production gate's
+    tag; observation-only callers pass their own so their volume stays
+    separable in the per-call telemetry.
 
     An empty body short-circuits to 0.0 without an LLM call: a feed post dict
     with no ``content`` reaches here via ``post_pipeline._score_post_relevance``
@@ -67,7 +95,7 @@ def score_relevance(post_text: str) -> float:
             "Empty post text — scoring 0.0 without an LLM call "
             "(reason=empty_input, not a low score)"
         )
-        return 0.0
+        return RelevanceScore(0.0, "empty_input")
 
     prompt = _resolve_domain_prompt(RELEVANCE_PROMPT).format(
         post_content=wrap_untrusted_content(post_text, max_input=1000),
@@ -78,7 +106,7 @@ def score_relevance(post_text: str) -> float:
         prompt,
         system=get_identity_system_prompt(),
         num_predict=30,
-        caller="moltbook.score_relevance",
+        caller=caller,
     )
     if result is None:
         # LLM unavailable — the 0.0 is a failure sentinel, not a judgment.
@@ -90,7 +118,7 @@ def score_relevance(post_text: str) -> float:
             "Relevance scoring LLM unavailable — returning 0.0 "
             "(reason=llm_unavailable, not a low score)"
         )
-        return 0.0
+        return RelevanceScore(0.0, "llm_unavailable")
 
     match = re.search(r"(\d+(?:\.\d+)?)", result)
     if match:
@@ -100,10 +128,20 @@ def score_relevance(post_text: str) -> float:
             # "8/10") is a wrong-scale answer, not a high score. Clamping
             # it to 1.0 failed toward acting; reject toward not acting.
             logger.warning("Relevance score out of range, rejecting: %s", result[:80])
-            return 0.0
-        return max(0.0, score)
+            return RelevanceScore(0.0, "out_of_range")
+        return RelevanceScore(max(0.0, score), "scored")
     logger.warning("Could not parse relevance score: %s", result)
-    return 0.0
+    return RelevanceScore(0.0, "unparseable")
+
+
+def score_relevance(post_text: str) -> float:
+    """Relevance as a bare number, for the gating callers.
+
+    Thin wrapper over :func:`score_relevance_detailed` — the production
+    behaviour (including every 0.0 sentinel) is unchanged. Reach for the
+    detailed form when the *distribution* is the product, not the gate.
+    """
+    return score_relevance_detailed(post_text).score
 
 
 def generate_internal_note(content: str) -> str:

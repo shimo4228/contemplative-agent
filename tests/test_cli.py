@@ -474,3 +474,97 @@ def _subparsers_action(parser):
         if isinstance(action, argparse._SubParsersAction):
             return action
     raise AssertionError("no subparsers action on the CLI parser")
+
+
+class TestMainSubmoltScan:
+    """CLI surface of the ADR-0086 instrument."""
+
+    def _scan(self, **overrides):
+        from contemplative_agent.adapters.moltbook.submolt_scope import SubmoltScopeScan
+
+        fields = {
+            "verdict": "completed",
+            "scan_id": "abc123",
+            "discovered": 3,
+            "scanned": ("ai", "philosophy"),
+            "skipped": (("hidden", "private"),),
+            "scored": 40,
+        }
+        fields.update(overrides)
+        return SubmoltScopeScan(**fields)
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_default_sample_size_is_the_module_default(self, mock_agent_cls):
+        from contemplative_agent.adapters.moltbook.submolt_scope import DEFAULT_SAMPLE_SIZE
+
+        mock_agent = MagicMock()
+        mock_agent.do_submolt_scan.return_value = self._scan()
+        mock_agent_cls.return_value = mock_agent
+
+        with patch("sys.argv", ["contemplative-agent", "submolt-scan"]):
+            main()
+
+        mock_agent.do_submolt_scan.assert_called_once_with(DEFAULT_SAMPLE_SIZE)
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_custom_sample_size(self, mock_agent_cls):
+        mock_agent = MagicMock()
+        mock_agent.do_submolt_scan.return_value = self._scan()
+        mock_agent_cls.return_value = mock_agent
+
+        with patch("sys.argv", ["contemplative-agent", "submolt-scan", "--sample-size", "5"]):
+            main()
+
+        mock_agent.do_submolt_scan.assert_called_once_with(5)
+
+    @pytest.mark.parametrize("value", ["0", "-1", "101"])
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_out_of_range_sample_size_is_rejected(self, mock_agent_cls, value):
+        mock_agent = MagicMock()
+        mock_agent_cls.return_value = mock_agent
+
+        with patch("sys.argv", ["contemplative-agent", "submolt-scan", "--sample-size", value]):
+            with pytest.raises(SystemExit):
+                main()
+
+        mock_agent.do_submolt_scan.assert_not_called()
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_held_run_lock_skips_the_sweep(self, mock_agent_cls):
+        """The sweep spends the same GET budget a session does — it must not
+        run alongside one."""
+        mock_agent = MagicMock()
+        mock_agent_cls.return_value = mock_agent
+
+        with patch("contemplative_agent.cli.agent_cmds.acquire_run_lock") as mock_lock:
+            mock_lock.return_value.__enter__.return_value = False
+            with patch("sys.argv", ["contemplative-agent", "submolt-scan"]):
+                main()
+
+        mock_agent.do_submolt_scan.assert_not_called()
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_skipped_submolts_are_reported(self, mock_agent_cls, capsys):
+        mock_agent = MagicMock()
+        mock_agent.do_submolt_scan.return_value = self._scan()
+        mock_agent_cls.return_value = mock_agent
+
+        with patch("sys.argv", ["contemplative-agent", "submolt-scan"]):
+            main()
+
+        out = capsys.readouterr().out
+        assert "skipped hidden: private" in out
+        assert "40 posts scored" in out
+
+    @patch("contemplative_agent.cli.agent_cmds.Agent")
+    def test_disabled_verdict_names_the_kill_switch(self, mock_agent_cls, capsys):
+        mock_agent = MagicMock()
+        mock_agent.do_submolt_scan.return_value = self._scan(
+            verdict="disabled", scanned=(), skipped=(), scored=0, discovered=0
+        )
+        mock_agent_cls.return_value = mock_agent
+
+        with patch("sys.argv", ["contemplative-agent", "submolt-scan"]):
+            main()
+
+        assert "Instrument disabled" in capsys.readouterr().out

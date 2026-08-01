@@ -13,6 +13,7 @@ import argparse
 
 from ..adapters.moltbook import config
 from ..adapters.moltbook.agent import Agent
+from ..adapters.moltbook.submolt_scope import DEFAULT_SAMPLE_SIZE
 from ..core._io import acquire_run_lock
 from ..core.domain import DomainConfig, get_domain_config
 from ..core.run_context import new_session_id, set_session_id
@@ -48,6 +49,39 @@ def _handle_solve(
     domain_config: DomainConfig | None,
 ) -> None:
     _build_agent(args, domain_config).do_solve(args.text)
+
+
+def _handle_submolt_scan(
+    args: argparse.Namespace,
+    parser: argparse.ArgumentParser,
+    domain_config: DomainConfig | None,
+) -> None:
+    # 100 = five feed pages' worth per submolt. Above that a single sweep's
+    # local LLM cost stops being weekly-job shaped, and the platform serves
+    # 20 posts per page anyway, so the extra calls would mostly re-score the
+    # same page.
+    if args.sample_size <= 0 or args.sample_size > 100:
+        parser.error("--sample-size must be between 1 and 100")
+    agent = _build_agent(args, domain_config)
+    # The sweep spends the same GET budget a session does, so it takes the
+    # same lock: two processes reading concurrently would double-spend the
+    # rate budget and the scan would starve the session it must not disturb.
+    with acquire_run_lock(config.RUN_LOCK_PATH, blocking=False) as acquired:
+        if not acquired:
+            print(
+                f"Another run/distill process holds the run lock ({config.RUN_LOCK_PATH}); exiting."
+            )
+            return
+        result = agent.do_submolt_scan(args.sample_size)
+    print(
+        f"Submolt scope scan {result.verdict}: {len(result.scanned)} submolts sampled "
+        f"of {result.discovered} listed, {result.scored} posts scored"
+    )
+    for name, reason in result.skipped:
+        print(f"  skipped {name}: {reason}")
+    if result.verdict == "disabled":
+        print("Instrument disabled — no audit dir configured (ADR-0086 kill switch).")
+    print("Read it with: contemplative-agent report --days 30 --submolt-scope")
 
 
 def _handle_run(
@@ -99,6 +133,15 @@ def _add_solve_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("text", help="Obfuscated challenge text")
 
 
+def _add_submolt_scan_arguments(parser: argparse.ArgumentParser) -> None:
+    parser.add_argument(
+        "--sample-size",
+        type=int,
+        default=DEFAULT_SAMPLE_SIZE,
+        help=f"Posts sampled per submolt (default: {DEFAULT_SAMPLE_SIZE})",
+    )
+
+
 COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec(
         name="register",
@@ -127,5 +170,12 @@ COMMANDS: tuple[CommandSpec, ...] = (
         handler=_handle_solve,
         tier=Tier.AGENT,
         add_arguments=_add_solve_arguments,
+    ),
+    CommandSpec(
+        name="submolt-scan",
+        help="Read-only submolt-scope sweep (ADR-0086 instrument; changes nothing)",
+        handler=_handle_submolt_scan,
+        tier=Tier.AGENT,
+        add_arguments=_add_submolt_scan_arguments,
     ),
 )

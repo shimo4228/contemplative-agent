@@ -418,7 +418,14 @@ directly by coding agents. `api-audit.jsonl` records structural API outcomes
 only. `verification-audit.jsonl` records create-time verification challenges for
 solver evaluation: challenge text is stored as `challenge_b64` plus
 `challenge_sha256`, with hashed `verification_code`, answer, `solver_path`, and
-`verify_success`.
+`verify_success`. `submolt-scope-*.jsonl` (ADR-0086) records the read-only
+scope sweep written by `submolt-scan`: one `score` record per sampled post
+(relevance score, reason code, `subscribed` label, body as `content_b64` +
+`content_sha256`) between a `scan_start` and a `scan_end` carrying the run
+verdict plus which submolts were read and which were skipped. Read it with
+`report --days N --submolt-scope`; nothing in it feeds a gate. Set
+`MOLTBOOK_SUBMOLT_SCOPE_DISABLE=1` to neuter an installed sweep without
+uninstalling its launchd job.
 
 ---
 

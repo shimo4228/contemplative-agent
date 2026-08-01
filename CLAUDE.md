@@ -50,6 +50,8 @@ contemplative-agent amend-constitution               # 憲法改正
 contemplative-agent adopt-staged                     # staging → 本配置
 contemplative-agent skill-stocktake / rules-stocktake  # 重複・品質監査
 contemplative-agent generate-report [--all]          # アクティビティレポート
+contemplative-agent submolt-scan [--sample-size N]   # ADR-0086 スコープ計器（read-only。購読中・未購読の全 submolt をサンプルして採点）
+contemplative-agent report --days 30 --submolt-scope # ↑の読み値（購読 vs 未購読の当たり率を並べる）
 contemplative-agent meditate --days 14 --cycles 100  # 瞑想シミュレーション
 contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N  # 2 agent 間のローカル対話（別 MOLTBOOK_HOME 必須、production は拒否）
 contemplative-agent install-schedule [--weekly-pipeline] [--watchdog] [--weekly-insight] [--weekly-backup] [--uninstall]  # --weekly-pipeline は旧 --weekly-analysis を置換（ADR-0085、排他）

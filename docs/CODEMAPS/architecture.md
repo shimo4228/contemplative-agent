@@ -74,7 +74,14 @@ time; read via `report --skill-selection` incl. hallucination rate.
 ADR-0081: with `MOLTBOOK_SKILL_SELECTION_ENFORCE=1` a judged selection
 drives two-pass injection — pass 2 generates under a system prompt whose
 `<learned_skills>` block holds only the selected bodies; every fail-open
-verdict, the kill switch, and flag-off keep full injection), LLM telemetry
+verdict, the kill switch, and flag-off keep full injection),
+`submolt-scope-YYYY-MM-DD.jsonl` (ADR-0086 read-only scope sweep, written by
+`submolt-scan` only: one `scan_start` / N `score` / one `scan_end` per run,
+per-post score + reason code (scored/empty_input/llm_unavailable/
+unparseable/out_of_range) + `subscribed` label + post body base64+sha256;
+scan verdict completed/disabled/discovery_failed/no_submolts/
+aborted_rate_limit/aborted_read_budget/aborted_scored_cap; read via
+`report --submolt-scope`, wired to no gate), LLM telemetry
 caller tags. An
 embedding-model calibration pin (`core/embeddings.py`
 `CALIBRATED_EMBEDDING_MODEL` + three-point anchors, ADR-0071/0072) warns at
@@ -161,8 +168,11 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │      9th amendment — the free-reasoning fallback was retired after the
  │      round-7 audit measured it at 2.3% of traffic with 38% verify success;
  │      past the guarded paths the solver abstains with
- │      abstain_reason=reason_fallback_disabled, or answer_previously_rejected
- │      when every produced candidate was already server-rejected, and the
+ │      abstain_reason=reason_fallback_disabled when the model answered and the
+ │      guards rejected it, llm_none when the call produced no text at all
+ │      (12th amendment — an outage is not a judgment, and the failure kind
+ │      stays in the llm-calls telemetry row), or answer_previously_rejected
+ │      when every produced candidate was already server-rejected; the
  │      abstain still counts toward the failure tracker so grammar drift halts
  │      the session loudly instead of being guessed through)
  │      → POST /verify. Content stays verification_status=pending (invisible)
@@ -481,6 +491,42 @@ Stage 7 packet:    build_decision_packet.py → weekly-<end>-packet.md
 ```
 
 Bounds: ≤5 findings/week, per-session timeouts, 3h wall-clock deadline. Fail-forward: every stage failure becomes a reason code and the packet is still built (only a missing Stage-1 report aborts). Audit: every event → `logs/weekly-pipeline-audit.jsonl` (ADR-0075; the packet builder replays it). Promotion is the Saturday `/weekly-gate` session: apply → re-Verify → single human commit, prompt diffs full-text, `adopt-staged`, then a `phase:"gate"` metrics record. `scripts/pipeline_watchdog.sh` (pure bash, no claude/uv PATH dependency) checks each job's terminal artifact on anchored deadlines and rewrites `reports/PIPELINE-STATUS.md` + Notification Center on a changed failure set.
+
+### submolt-scan  [`adapters/moltbook/submolt_scope.py`, ADR-0086]
+
+```text
+CLI submolt-scan (own launchd job, default Thu 03:00 JST; takes the run lock)
+  client.list_submolts()            GET /submolts — the only discovery read
+  → candidate set = listing ∪ subscribed_submolts   (subscribed = the baseline)
+  → per submolt, in name order:
+      skip is_private / is_nsfw                      reason: private | nsfw
+      abort if terminal 429s ≥ 2 since the sweep began   aborted_rate_limit
+      abort if read budget below reserve                 aborted_read_budget
+      abort if 1000 posts already scored this sweep      aborted_scored_cap
+      GET /submolts/{name}/feed → first sample_size (default 20 = one page)
+        feed error → skip that submolt only           reason: feed_{status}
+      → per post: score_relevance_detailed(caller="moltbook.submolt_scope")
+        inside circuit_shield()
+        → one `score` record (score + reason + subscribed label + body b64)
+  → `scan_end` record with the verdict, `scanned` and `skipped`
+```
+
+Read-only and gate-free by construction: no subscribe, no write of any verb,
+nothing written outside `submolt-scope-*.jsonl`, and the `_passes_content_gates`
+submolt trust boundary is untouched — so no sampled post can reach an outward
+action. `configure_submolt_scope` without an audit dir — or
+`MOLTBOOK_SUBMOLT_SCOPE_DISABLE=1`, the switch an operator can actually reach
+since the CLI always supplies a log dir — disables the whole sweep.
+
+Read with `report --days N --submolt-scope`, which prints subscribed and
+unsubscribed hit rates against `domain.relevance_threshold` side by side,
+grouping by the CURRENT `domain.json` rather than the label each record
+carried when it was written. The reading separates "judged low" from "not
+judged" — a row with no real judgments reports no percentage at all — so a
+scorer outage cannot read as an irrelevant feed, and it keeps a row for every
+submolt the sweep touched, including one whose feed came back empty or 403'd.
+That last part is the dead-submolt signal: dropping those rows is how the
+first smoke run reported 19 submolts after scanning 20.
 
 ### meditate  [`adapters/meditation/`]
 

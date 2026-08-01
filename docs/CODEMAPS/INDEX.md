@@ -120,11 +120,11 @@ As of **2026-08-01** — values are measured, never carried forward from a previ
 
 | Metric | Value |
 |--------|-------|
-| Total `.py` files | 74 (66 non-`__init__` + 8 `__init__`) |
-| LOC | ~22329 |
-| Test files | 64 (2154 tests collected) |
+| Total `.py` files | 75 (67 non-`__init__` + 8 `__init__`) |
+| LOC | ~23511 |
+| Test files | 67 (2298 tests collected) |
 | Core modules | 31 (platform-independent; incl. `llm/` package as one row) |
-| Moltbook adapter modules | 16 |
+| Moltbook adapter modules | 17 |
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |
 | CLI package modules | 11 (`cli/` excl. `__init__.py`, split from single `cli.py` per ADR-0079; `registry.py` + `agent_cmds.py` added when subcommand declaration moved out of `main`) |

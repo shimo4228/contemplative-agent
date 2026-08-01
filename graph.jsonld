@@ -2296,7 +2296,7 @@
         "ADR",
         "TechArticle"
       ],
-      "name": "ADR-0084: Post-Distill Durability Gate \u2014 Judge the Produced Patterns, Not the Episode",
+      "name": "ADR-0084: Post-Distill Durability Gate — Judge the Produced Patterns, Not the Episode",
       "identifier": "ADR-0084",
       "status": "accepted",
       "datePublished": "2026-07-26",
@@ -2330,6 +2330,26 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0050-epistemic-taxonomy-and-approval-lineage.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0074-weekly-staged-insight.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0077-chaos-tdd-fault-injection.md"
+      ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0086-submolt-scope-instrument-before-autonomy.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0086: Submolt Scope — Instrument the Question Before Handing Over the Answer",
+      "identifier": "ADR-0086",
+      "status": "accepted",
+      "datePublished": "2026-08-01",
+      "description": "Builds a read-only submolt-scope instrument instead of granting the agent autonomy over which submolts it works in. Context: the scope is eight names an operator picked by hand, and three code facts block handing that choice over. (1) subscribed_submolts is one field doing two structurally different jobs — feed source in feed_manager.fetch_feed (read-only, reversible) and trust boundary in _passes_content_gates (a post outside the set is dropped before scoring, so it can never be commented on), the very gate ADR-0044 declined to relax as 'an intentional scope boundary, not a bug'; autonomy over the reading side is therefore silently autonomy over the acting side. (2) There is no evidence to choose on: every score in the production relevance distribution comes from a post that already passed that gate, so the hit rate outside the current eight is unmeasured by construction. (3) Subscription is a one-way ratchet — unsubscribe_submolt was deleted under security by absence (ADR-0007), so an agent with subscribe and no unsubscribe can only widen its own scope. A read-only probe established that GET /submolts lists 20 submolts (12 outside the subscribed eight) and that an unsubscribed submolt's feed returns a full page without subscribing, so observation costs no write capability. Decision: add exactly one read capability (MoltbookClient.list_submolts), split the relevance scorer into score_relevance_detailed() carrying a reason code (scored / empty_input / llm_unavailable / unparseable / out_of_range) with score_relevance() as its unchanged score-only wrapper, and ship adapters/moltbook/submolt_scope.py — a sweep that samples one feed page from every listed submolt AND every subscribed one (the subscribed set is the baseline the rest is read against), scores each with the production scorer, and appends scan_start / score / scan_end records to logs/submolt-scope-{date}.jsonl. Exposed as contemplative-agent submolt-scan (own launchd job, Thu 03:00 JST, takes the run lock) and report --submolt-scope. Constrained by construction: configure_submolt_scope without an audit_dir disables it entirely, scoring runs inside circuit_shield(), a repeating terminal 429 aborts the sweep rather than backing off through it (a rate limit is a policy signal), and nothing sampled enters the episode log, pattern store, or identity. The _passes_content_gates trust boundary is untouched. Rejected alternatives: autonomous subscribe/unsubscribe now (moves the boundary ADR-0044 declined to move, needs a removed write capability back, and runs on no evidence); relaxing the submolt filter and letting the 0.80 relevance threshold do the work (the two gates fail differently — the threshold is a small local model's probabilistic judgment with several documented ways to return a number that is not a judgment, the list is a deterministic boundary that holds when the scorer is degraded); observing inside the session cycle (~400 local LLM calls contending with the session's own generations on one 16 GB Ollama); sampling only unsubscribed submolts (halves cost, produces unreadable numbers with no baseline); doing nothing (viable, but the operator is choosing blind — nobody knows what the other twelve submolts contain). Consequences: the scope question becomes empirical and the reading doubles as a liveness check on the current eight; every future reading of the relevance number can separate a low judgment from a broken scorer, a latent defect in all prior readings; the reading is only as good as the scorer, so identity drift shifts the hit rates under it (same limitation ADR-0044 recorded); first-page sampling biases toward feed order, with post_count and subscriber_count reported alongside so a quiet submolt stays distinguishable from a recency slice. Follow-ups: if the unsubscribed set reads as uninteresting, retire the instrument (signal-first applies to removal too); otherwise split the field into feed-source and trust-boundary keys, then run an ADR-0076 style shadow in which the agent proposes a scope that is recorded but not executed — restoring unsubscribe_submolt belongs to that later step.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0007-security-boundary-model.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0044-remove-topic-keywords.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0076-skill-selection-shadow-instrument.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0077-chaos-tdd-fault-injection.md"
       ]
     },

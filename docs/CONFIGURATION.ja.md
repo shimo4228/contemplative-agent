@@ -50,10 +50,26 @@ contemplative-agent skill-stocktake                    # スキルの重複・�
 contemplative-agent rules-stocktake                    # ルールの重複・低品質を監査
 ```
 
+### 計器（read-only。ゲートには一切繋がない）
+
+```bash
+contemplative-agent submolt-scan                       # ADR-0086 スコープ計器: 列挙された全 submolt（購読中・未購読とも）
+                                                       # から feed 1 ページをサンプルし本番スコアラで採点
+contemplative-agent report --days 30 --submolt-scope   # その読み値（購読 vs 未購読の当たり率を並べて表示）
+```
+
+書き込みは自身の監査ログ (`submolt-scope-*.jsonl`) のみ。投稿本文は base64 +
+sha256 で保存され、`reason` コード（`scored` / `empty_input` /
+`llm_unavailable` / `unparseable` / `out_of_range`）により「低い判断」と
+「壊れたスコアラ」が区別できる。エージェントが行動してよい submolt の範囲は
+この計器では一切変わらない。`MOLTBOOK_SUBMOLT_SCOPE_DISABLE=1` を立てると、
+launchd job を残したまま sweep だけを無効化できる。
+
 ### スケジューリング
 
 ```bash
 contemplative-agent install-schedule [--weekly-analysis]
+contemplative-agent install-schedule [--weekly-submolt-scan]   # 既定 木 03:00 JST
 contemplative-agent install-schedule --uninstall
 ```
 

@@ -71,6 +71,7 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
  |    dedup.py (257L)             -- deterministic gates: prefix-5 stem + Jaccard, test-content, promo regex
  |    novelty.py (375L)          -- NoveltyGate: embedding novelty + temporal decay + Lagrangian (ADR-0039)
  |    feed_seeder.py (84L)       -- select_feed_seeds: RNG peer-post sampling per submolt (ADR-0043)
+ |    submolt_scope.py (496L)    -- ADR-0086 read-only submolt-scope instrument (submolt-scan sweep + report --submolt-scope reading)
  |
  -> adapters/meditation/  (experimental)
  |    config.py (55L)             -- state space definition, parameters
@@ -152,7 +153,11 @@ contemplative-agent enrich [--dry-run]    -- no-op since ADR-0019
 contemplative-agent skill-stocktake [--stage]
 contemplative-agent rules-stocktake
 
+# Instruments (read-only, wired to no gate)
+contemplative-agent submolt-scan [--sample-size N]   -- ADR-0086 scope sweep: samples + scores every listed submolt (subscribed and not); takes the run lock
+
 # Reports
+contemplative-agent report [--days N] [--patterns] [--skill-selection] [--submolt-scope]
 contemplative-agent report [--date YYYY-MM-DD]
 contemplative-agent generate-report [--all]
 
@@ -169,6 +174,8 @@ contemplative-agent install-schedule [--interval H] [--session M]
                                      [--weekly-insight-hour H]
                                      [--weekly-backup] [--weekly-backup-day D]
                                      [--weekly-backup-hour H]
+                                     [--weekly-submolt-scan] [--weekly-submolt-scan-day D]
+                                     [--weekly-submolt-scan-hour H]
                                      [--weekly-pipeline] [--weekly-pipeline-day D]
                                      [--weekly-pipeline-hour H]
                                      [--watchdog] [--uninstall]
@@ -194,7 +201,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 **Distillation**: distill_episode (per-episode grounded distill, ADR-0060 — this is the live distill prompt; first-person moment-indexed register instruction since ADR-0072), identity_distill, insight_extraction (naming/vocabulary discipline since ADR-0074), insight_novelty + insight_novelty_system (novelty gate, ADR-0074), rules_distill, rules_distill_refine, constitution_amend (`distill` / `distill_refine` went dead when ADR-0060 replaced the 2-step batch with `distill_episode`; files + mappings deleted in ADR-0072. `distill_importance` retired, ADR-0056)
 
-**Verification**: solver order is `code_parse` → `llm_extract` → abstain (ADR-0062 9th amendment — the free-reasoning `llm_reason` fallback was retired after the round-7 audit measured it at 2.3% of traffic / 38% verify success). `verification.py` wraps the challenge as untrusted and first runs the deterministic `code_parse_challenge()` (in `verification_parse.py`), which owns the finite CAPTCHA grammar's arithmetic / number-word reconstruction and abstains to `None` on any ambiguity. Only on abstention does the LLM propose arithmetic via verification_solve_extract_system (short EXPR/FINAL extraction), accepted only when Python recomputation matches the stated final answer; past that the solver abstains with `abstain_reason="reason_fallback_disabled"` (or `answer_previously_rejected`) instead of guessing. `Agent._handle_verification()` writes `logs/verification-audit.jsonl` with a base64-encoded challenge, SHA-256s, `solver_path`, answer, `/verify` outcome, and the abstain reason in `error`, for corpus-driven solver evaluation (ADR-0062 amendment).
+**Verification**: solver order is `code_parse` → `llm_extract` → abstain (ADR-0062 9th amendment — the free-reasoning `llm_reason` fallback was retired after the round-7 audit measured it at 2.3% of traffic / 38% verify success). `verification.py` wraps the challenge as untrusted and first runs the deterministic `code_parse_challenge()` (in `verification_parse.py`), which owns the finite CAPTCHA grammar's arithmetic / number-word reconstruction and abstains to `None` on any ambiguity. Only on abstention does the LLM propose arithmetic via verification_solve_extract_system (short EXPR/FINAL extraction), accepted only when Python recomputation matches the stated final answer; past that the solver abstains instead of guessing, with `abstain_reason="reason_fallback_disabled"` when the model answered and the guards rejected it, `"llm_none"` when the call produced no text at all (ADR-0062 12th amendment — the failure kind stays in the `llm-calls` telemetry row), or `"answer_previously_rejected"`. `Agent._handle_verification()` writes `logs/verification-audit.jsonl` with a base64-encoded challenge, SHA-256s, `solver_path`, answer, `/verify` outcome, and the abstain reason in `error`, for corpus-driven solver evaluation (ADR-0062 amendment).
 
 **Audit**: stocktake_skills, stocktake_rules (LLM grouping, ADR-0046), stocktake_merge (frontmatter emission, ADR-0048), stocktake_merge_rules, stocktake_clean (singleton trigger-altitude, ADR-0048), stocktake_group_system / stocktake_merge_system / stocktake_clean_system (externalized `system=` prompts, ADR-0054)
 
