@@ -29,15 +29,40 @@ CIRCUIT_COOLDOWN_SECONDS = 120
 
 NUM_CTX = 32768  # Ollama context window (input + output share it). audit C2.
 
-# Floor for the C2 num_predict clamp: when the input leaves less than this
-# many output tokens, clamping would yield a generation so short that publish
-# paths drop it anyway (done_reason=length → audit M2), so the call is skipped
-# instead. 2048 tok ≈ 3-6K chars — comfortably above real post/comment sizes
-# (production p90 post ≈ 2,400 chars), so a clamp that survives this floor
-# still serves full-size content. 2026-07-09 regression: a 13-skill adoption
-# grew the system prompt to ~20.3K tok and the old skip-only guard suppressed
-# every self-post for 24+ hours despite ~11.5K tok of usable output budget.
-MIN_CLAMPED_NUM_PREDICT = 2048
+# Floor for the C2 num_predict clamp: when the input leaves fewer than this
+# many output tokens, the remainder is too small to be worth a generation and
+# the call is skipped instead. That refusal is the floor's ONLY job. It does
+# not predict how long a usable answer is — that question is answered
+# downstream by measurement, not here by guess: drop_truncated (audit M2) sees
+# the actual done_reason=length and drops the fragment, so a call that turns
+# out too short costs one generation rather than being refused in advance.
+#
+# 128 rests on three measured values, not an estimate: generate_for_api's own
+# minimum (max_length/chars_per_token + 50), Ollama's default output length
+# (128 — an unsent num_predict cuts there, which is why this code always sends
+# one), and the observed size of what this agent actually emits (comment
+# output p50 352 / p90 507 tokens, n=2,366, measured with a real tokenizer
+# over reports/comment-reports/). A floor below 507 cannot turn a complete
+# comment away at the door.
+#
+# The floor was 2048 until 2026-08-01 (ADR-0087 amendment). That value carried
+# a second, unvalidated job — the prediction "a usable answer needs 2048
+# tokens" — which measured ~6x over and, on a small-window backend, inverted
+# into an input ceiling (50% of a 4,096 window). Only the prediction was
+# retired.
+#
+# The clamp itself is load-bearing and must stay: num_predict reserves
+# nothing, it is only a stop condition, so a value exceeding the remaining
+# window lets generation run past the edge and Ollama evicts from the FRONT —
+# the system prompt's value layer (identity / axioms) goes first. Clamping to
+# the exact remainder stops generation at the boundary instead.
+#
+# Why a floor exists at all rather than clamping to whatever is left:
+# 2026-07-09 showed the opposite failure. A 13-skill adoption grew the system
+# prompt to ~20.3K tok and the then skip-only guard suppressed every self-post
+# for 24+ hours while ~11.5K tok of output budget sat unused. Skipping is the
+# expensive branch; it is reserved for remainders no generation can use.
+MIN_CLAMPED_NUM_PREDICT = 128
 
 # Fixed sampling policy shared by EVERY backend (single source of truth). The
 # per-call temperature flows through LLMBackend.generate(); top_p/top_k are the

@@ -1,9 +1,10 @@
-"""Chaos fault-injection tests for the LLM layer (ADR-0077, F1 + F4 + F5 + F6).
+"""Chaos fault-injection tests for the LLM layer (ADR-0077, F1 + F4 + F5 + F6 + F7).
 
 HTTP-path faults (F1 read-timeout, F4 Ollama-side 429) are injected with the
 ``responses`` library on the URL the code under test actually resolves;
 backend-path faults (F5 circuit sequences, F6 a misbehaving ``count_tokens``
-capability) ride ``configure(backend=...)`` with a chaos backend. Steady
+capability, F7 a narrow output budget meeting a length-capped generation)
+ride ``configure(backend=...)`` with a chaos backend. Steady
 state is asserted on the telemetry channel (``outcome`` / ``error_kind`` in
 ``llm-calls-{date}.jsonl``) rather than implementation internals, per the
 ADR-0075 doctrine that the audit log must answer "why did this call fail?"
@@ -23,11 +24,14 @@ import responses as responses_lib
 from hypothesis import given, settings, strategies as st
 
 from contemplative_agent.core.llm import (
+    BACKEND_FRAMING_RESERVE,
     CIRCUIT_FAILURE_THRESHOLD,
+    MIN_CLAMPED_NUM_PREDICT,
     LLMBackend,
     _circuit,
     configure,
     generate,
+    generate_for_api,
     reset_llm_config,
 )
 from tests.chaos import (
@@ -43,11 +47,14 @@ from tests.chaos import (
     NONE,
     OK,
     SHAPE_VIOLATION,
+    TRUNCATED,
     ChaosBackend,
     TokenCountingChaosBackend,
     add_generate_429,
     add_generate_timeout,
+    real_token_count,
 )
+from tests.test_llm import PRE_20260801_CLAMP_FLOOR
 from tests.test_llm_telemetry import _read_records
 
 
@@ -433,3 +440,107 @@ class TestCircuitSequencesF5:
             assert _circuit._consecutive_failures == 0
         finally:
             reset_llm_config()
+
+
+class TestNarrowHeadroomTruncationF7:
+    """F7: a narrow output budget meeting a length-capped generation.
+
+    Lowering ``MIN_CLAMPED_NUM_PREDICT`` from 2048 to 128 retired a
+    *prediction* ("a usable answer needs 2048 tokens") that was never
+    validated and measured ~6x over (comment output p50 352 / p90 507,
+    n=2,366). The floor keeps only its cheap job — refusing an absurd
+    remainder — and the question "was this generation actually cut short?"
+    moves downstream to the ``drop_truncated`` gate (audit M2), which
+    measures instead of guessing.
+
+    The behavior that changes is therefore *calls that used to be skipped now
+    run*, and the failure mode they can newly reach is: clamped to a small
+    budget, the model hits ``num_predict`` mid-sentence. This column asserts
+    the desired guarded behavior on that path — the publish path drops the
+    fragment rather than posting it, the drop is not scored as a backend
+    fault, and the skip still fires below the new floor.
+    """
+
+    @staticmethod
+    def _backend(window):
+        return TokenCountingChaosBackend(
+            model="counting-model",
+            context_window=window,
+            schedule=[TRUNCATED],
+        )
+
+    @staticmethod
+    def _headroom(window, system, prompt):
+        """The output budget the guard will compute for this input."""
+        measured = real_token_count(system) + real_token_count(prompt)
+        return window - measured - BACKEND_FRAMING_RESERVE
+
+    def test_clamped_publish_path_drops_the_cut_fragment(self, telemetry_dir):
+        """A call in the newly-opened band runs, is clamped to the real
+        remainder, and — when the model hits that budget mid-sentence — is
+        dropped by the M2 gate instead of published. Trying and measuring,
+        where the old floor guessed and suppressed."""
+        window, system = 4096, "s"
+        prompt = "瞑" * 3210
+        headroom = self._headroom(window, system, prompt)
+        assert (
+            MIN_CLAMPED_NUM_PREDICT <= headroom < PRE_20260801_CLAMP_FLOOR
+        )  # the band that changed
+
+        backend = self._backend(window)
+        configure(backend=backend)
+        out = generate_for_api(
+            prompt, max_length=2000, system=system, chars_per_token=1.5, caller="test.f7"
+        )
+
+        assert out.text is None  # dropped, not posted mid-sentence
+        assert len(backend.calls) == 1  # but the call WAS attempted (old floor: never reached)
+        assert backend.calls[0]["num_predict"] == headroom
+
+        record = _read_records(telemetry_dir)[-1]
+        assert record["outcome"] == "truncated_dropped"  # a measured cut, not a predicted one
+        assert record["num_predict_requested"] > headroom  # the clamp is still readable offline
+
+    def test_the_truncation_drop_is_not_scored_as_a_backend_failure(self, telemetry_dir):
+        """The call succeeded; only its output was unusable. Scoring it would
+        let a run of narrow-headroom calls trip the breaker and suppress
+        healthy generation — the suppression this change exists to remove."""
+        window, system = 4096, "s"
+        prompt = "瞑" * 3210
+        backend = self._backend(window)
+        configure(backend=backend)
+
+        generate_for_api(prompt, max_length=2000, system=system, chars_per_token=1.5)
+        assert len(backend.calls) == 1  # the drop path was actually reached
+        assert _circuit._consecutive_failures == 0
+        assert not _circuit.is_open
+
+    def test_internal_caller_keeps_the_partial_generation(self, telemetry_dir):
+        """``drop_truncated`` is the caller's choice, not the guard's. An
+        internal caller (distill/insight) still receives the cut text and
+        telemetry says so distinctly — the floor must not re-decide this."""
+        window, system = 4096, "s"
+        prompt = "瞑" * 3210
+        backend = self._backend(window)
+        configure(backend=backend)
+
+        assert generate(prompt, system=system) is not None
+        assert _read_records(telemetry_dir)[-1]["outcome"] == "truncated_kept"
+
+    def test_headroom_below_the_new_floor_is_still_skipped(self, telemetry_dir):
+        """The floor keeps its one remaining job. Just under it the call is
+        refused before the backend is reached — lowering the floor relaxed
+        the guard, it did not remove it."""
+        window, system = 4096, "s"
+        prompt = "瞑" * 3550
+        headroom = self._headroom(window, system, prompt)
+        assert 0 < headroom < MIN_CLAMPED_NUM_PREDICT  # positive budget, but an absurd one
+
+        backend = self._backend(window)
+        configure(backend=backend)
+        assert (
+            generate_for_api(prompt, max_length=2000, system=system, chars_per_token=1.5).text
+            is None
+        )
+        assert backend.calls == []
+        assert _read_records(telemetry_dir)[-1]["outcome"] == "budget_exceeded"

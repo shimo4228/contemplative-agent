@@ -6,9 +6,17 @@ accepted — extends [ADR-0066](./0066-backend-aware-context-budget-guard.md)
 
 This ADR adds a measurement source to the guard ADR-0066 built. It **alters none of ADR-0066's
 decisions**: `_estimate_tokens` keeps the constants §5 hardened, `MIN_CLAMPED_NUM_PREDICT` keeps its
-value, and `context_window` stays a member of `LLMBackend`. ADR-0066 remains `accepted` as written.
+value *(superseded 2026-08-01 by the Amendment — the floor is now 128; ADR-0066 never decided this
+constant, so the claim about ADR-0066 still holds)*, and `context_window` stays a member of
+`LLMBackend`. ADR-0066 remains `accepted` as written.
 The one place this ADR declines to follow its precedent — putting the new member on `LLMBackend` —
 is argued in Decision 1 and the first alternative, not assumed.
+
+**Amended 2026-08-01** (same day, separate change): the clamp floor Decision 9 deliberately left
+alone is now resolved — `MIN_CLAMPED_NUM_PREDICT` drops from 2048 to 128. See
+[Amendment: the clamp floor resolved](#amendment-2026-08-01--the-clamp-floor-resolved) at the end of
+this document. Decision 9 and the second Follow-up read as written *at the time of the original
+decision*; the amendment supersedes both.
 
 ## Date
 
@@ -164,7 +172,9 @@ tokenizer.
    bury the real faults. Without the source a clamp value is unreadable offline, because the two
    measures differ by up to 1.95x on this agent's inputs (ADR-0075).
 
-9. **`MIN_CLAMPED_NUM_PREDICT` is not touched.** The clamp floor is the subject of a separate open
+9. **`MIN_CLAMPED_NUM_PREDICT` is not touched.** *(Superseded 2026-08-01 — see the Amendment. The
+   separation of variables this decision protects was honored: the floor moved in its own change,
+   after this one landed.)* The clamp floor is the subject of a separate open
    question (whether 2048 is still the right floor once input is measured for real). Moving the
    measurement and the floor in one change would make their contributions indistinguishable —
    the experiment-hygiene rule of one pipeline variable at a time
@@ -302,10 +312,153 @@ gone.
   version, the same seam accepts it with no change to the guard body — but each generation would
   then cost an extra HTTP round-trip, so adopting it should follow a latency measurement on the
   unattended schedule, not the endpoint's mere existence.
-- **The clamp floor** (`MIN_CLAMPED_NUM_PREDICT`) remains open, now with better inputs: once rows
-  carry `input_tokens` next to `prompt_eval_count`, the estimator's real-world ratio can be read off
-  production telemetry instead of a one-off corpus sample.
+- **The clamp floor** (`MIN_CLAMPED_NUM_PREDICT`) — **resolved 2026-08-01, see the Amendment**
+  (2048 → 128). It was settled from *output*-side measurement (comment sizes p50 352 / p90 507),
+  which needed no telemetry accumulation. The input-side reading this bullet anticipated is still
+  worth taking and still open: once rows carry `input_tokens` next to `prompt_eval_count`, the
+  estimator's real-world ratio can be read off production telemetry instead of a one-off corpus
+  sample. That reading now informs `_estimate_tokens`, not the floor.
 - **`core/insight_novelty.py`** still packs judge chunks against `_estimate_tokens`. It is left
   alone on purpose: the guard relaxing means the packer is now *tighter* than the pre-flight, which
   is the safe direction its own contract already names ("packing tighter than the preflight is
   safe"). Following the packer along is a separate change.
+
+## Amendment (2026-08-01) — the clamp floor resolved
+
+Decision 9 held `MIN_CLAMPED_NUM_PREDICT` fixed at 2048 so that measurement and floor did not move
+in the same change. With the measurement change landed (`a60a0e8`), the floor moves on its own:
+**2048 → 128, and the clamp stays.**
+
+**The floor was doing two jobs.** One is cheap and correct: refuse to start a generation on an
+absurd remainder (six tokens of headroom buys nothing). The other was a **prediction** — "a usable
+answer needs 2048 tokens" — which was never validated, and which this ADR's own Context then
+carried outside the window it was chosen for. Only the prediction is retired.
+
+**What the prediction was worth, measured.** Comment output on this agent runs **p50 352 / p90 507
+tokens** (n=2,366, counted with a real tokenizer over the last 30 days of
+`reports/comment-reports/`). The floor was therefore about **6x** what its own justification
+required. Two other values bound the answer from below: `generate_for_api` derives its own minimum
+as `ceil(max_length / chars_per_token) + 50`, and Ollama's default output length is 128 — an unsent
+`num_predict` is cut there, which is why this code always sends one. 128 is the point below which
+the floor would start turning away a **complete** comment (p90 507), not merely a long one.
+
+**That percentile measurement was also not preserved**, and the same confession the Context makes
+about the tokenizer-ratio table applies here: the count was taken in a scratchpad against Apple's
+`SystemLanguageModel.token_count` over a date-bounded slice of `reports/comment-reports/`, with no
+script written into `docs/evidence/adr-0087/`. A reader can recount the corpus but will not
+reproduce `n=2,366` exactly without the same window and the same entry-type filter. What the choice
+of 128 actually needs from that measurement is weak and robust: that real comment output is in the
+*hundreds* of tokens, not thousands. The two independent bounds (`+50`, Ollama's 128) do not depend
+on it at all. Anyone re-deriving the percentiles should write the probe into
+`docs/evidence/adr-0087/` and link it here.
+
+**Other floor values considered.**
+
+- **507 (comment p90), or some margin above it** — the value that would guarantee the floor never
+  turns away a comment it could have served. Rejected because it re-commits the mistake being
+  retired: it makes the floor predict output size again, just with a better-sourced number. The
+  percentile is a property of one caller (comments) on one model at one point in time; baking it
+  into a constant shared by every caller reintroduces the "chosen inside one context, used outside
+  it" failure. A floor that turns a long comment into a truncation-drop costs one generation and
+  leaves a telemetry row; a floor that predicts costs suppressed actions and leaves nothing.
+- **Remove the floor entirely, clamp to whatever remains** — the cleanest-looking option, and the
+  one the reasoning above almost argues for. Rejected on the 2026-07-09 evidence read the other way:
+  the cheap job is real. A clamp to six tokens spends a full prompt-eval on a generation that cannot
+  say anything, and does so repeatedly, since the condition that produced it persists. Keeping a
+  small floor costs one constant and preserves the `budget_exceeded` telemetry row that makes the
+  condition visible.
+- **Keep 2048** — rejected because nothing supports it. Its stated justification (a chars-to-tokens
+  conversion done with the over-counting estimator) measures ~6x over against a real tokenizer, and
+  the constant has since been carried into a 4,096-token context where it inverts into an input
+  ceiling consuming half the window. The value is not defended by this ADR's own Context; it is
+  criticized by it.
+- **Make the floor a fraction of `context_window`** (e.g. 3%) — attractive because it would scale
+  with the backend instead of being window-specific, which is the exact defect being fixed.
+  Rejected as premature: it is a second variable moving in the same change, and there is one data
+  point (4,096) to fit it to. Reconsider if a third window size ever ships.
+
+**The clamp is untouched, and must be.** `num_predict` reserves nothing; it is a stop condition.
+Sending a value larger than the remaining window does not fail — generation simply runs past the
+edge, and Ollama evicts from the **front**, taking the system prompt's value layer (identity /
+axioms) first. Clamping to the exact remainder stops generation at the boundary instead. Nothing in
+this amendment weakens that; only the threshold at which the guard prefers skipping over clamping
+moves.
+
+**Why the question belongs downstream.** "Is this generation long enough to be usable?" is answered
+by `drop_truncated` (audit M2) from the actual `done_reason=length`, on every API publish path.
+That gate measures; the floor guessed. With both present, the guess was the redundant half — and
+the expensive one, because a skip suppresses an action outright whereas a truncation drop costs one
+generation and is visible in telemetry as `truncated_dropped`. The change is from *predicting* to
+*trying and measuring*.
+
+**Blast radius: near-zero on Ollama, real on a small window.** The floor can only fire once the
+input exceeds `NUM_CTX - floor`. At 32,768 that boundary moves from 30,720 to 32,640 tokens — both
+far above the largest system prompt this agent has ever built (~20.3K tok, the 2026-07-09 outage),
+so no production-shaped Ollama call changes verdict. This is asserted, not assumed:
+`TestClampFloorIsInertOnOllama` pins the boundary against that high-water mark and pins the outage
+shape as unchanged. The change bites where this ADR's Context said it would — on a 4,096-token
+backend, where the same constant consumed **50%** of the window as an output reservation and, per
+that Context, cost more than the estimator's over-count did.
+
+**Fault column** (ADR-0077): the behavior that changes is *calls that used to be skipped now run*,
+so the newly reachable failure is a clamped generation cut mid-sentence.
+`TestNarrowHeadroomTruncationF7` injects it at the `LLMBackend` seam (existing `TRUNCATED` fault,
+no new vocabulary) and asserts the publish path drops the fragment, the drop is not scored against
+the circuit breaker, an internal caller still keeps its partial text, and the floor still skips just
+below itself.
+
+**Left alone deliberately:** `_NOVELTY_OUTPUT_RESERVE` in `core/insight_novelty.py` keeps its 2048,
+now as the judge's own reservation rather than a copy of the floor (its comment is corrected to say
+so). Packing tighter than the pre-flight remains the safe direction, as the third Follow-up above
+already argued.
+
+### Consequences of this amendment
+
+#### Positive
+
+- A small-window backend gets back the ~50% of its window this ADR's own Context identified as
+  consumed by the output reservation — the half the original change explicitly could not recover.
+- The guard stops making a claim it has no basis for. What remains ("this remainder is too small to
+  spend a generation on") is cheap and locally checkable; what left ("a usable answer needs N
+  tokens") was a caller-specific property living in a shared constant.
+- A failure that used to be invisible becomes a telemetry row: where the floor silently skipped, a
+  too-small budget now produces `truncated_dropped` with the clamped value recorded, so the
+  condition is legible offline instead of inferable only from an absence.
+
+#### Negative / accepted risks
+
+- **Truncation-drops replace skips in the newly opened band, and they are not free.** A call clamped
+  to a small budget spends a full prompt-eval before the M2 gate discards its output. On a
+  small-window backend under sustained pressure this converts a silent suppression into a repeated
+  cost. Bounded by the floor still existing, and visible in telemetry — but it is a real cost the
+  old behavior did not pay.
+- **Internal callers see short partial text more often.** `drop_truncated=False` paths
+  (distill / insight) keep a length-capped generation by design and fall back on their own. Their
+  fallbacks now trigger on shorter fragments than before. No external surface is affected; this is a
+  data-quality exposure inside the value-layer pipelines, and it is worth a look if a small-window
+  backend ever runs them.
+- **The M2 gate that now carries this responsibility is conditional on a signal the Protocol makes
+  optional.** `BackendResult.finish_reason` may be `None`, and `_drop_for_output_truncation` returns
+  `False` in that case — so a backend that reports no finish reason bypasses the fail-closed drop
+  entirely and can publish a cut fragment. This is a **pre-existing gap, not one this amendment
+  creates**: it holds at any floor value, and every backend shipping today reports the signal
+  (Ollama `done_reason`; the MLX sibling forwards `finish_reason`). What this amendment changes is
+  *frequency* — the newly opened band is exactly where truncation is likely, so the gap is reachable
+  more often. Tracked separately as `T-FINISHREASON-GATE` rather than folded in here, because
+  closing it is a Protocol-contract decision, not a floor decision.
+- **Explicitly NOT a consequence: the margin against a mis-calibrated backend tokenizer.** A first
+  review pass argued the floor had been a 2048-token backstop against `count_tokens` under-counting,
+  reduced ~11x. That is wrong, and the correction is recorded here because the intuition is
+  natural: the clamp *spends* the remaining budget rather than leaving it as slack, so with an
+  under-count of `delta` the window overrun is `delta − BACKEND_FRAMING_RESERVE` **regardless of the
+  floor**. A probe at both floors confirmed it — identical 335-token overrun at 2048 and at 128 for
+  the same `delta`. `BACKEND_FRAMING_RESERVE` is that backstop and is untouched. The floor only
+  decides skip-versus-clamp; it never appears in the overrun arithmetic.
+
+#### Provenance
+
+- Decided by the repository owner on 2026-08-01 from the output-side measurement above; implemented
+  the same day. Reviewed by python-reviewer (approve), security-reviewer (one HIGH, disproved by the
+  probe recorded above; one MEDIUM, recorded as the internal-caller item), a cross-model reviewer
+  (the `finish_reason` item), and adr-reviewer, whose NEEDS REVISION verdict produced this
+  Consequences section, the alternatives above, and the evidence-gap paragraph.

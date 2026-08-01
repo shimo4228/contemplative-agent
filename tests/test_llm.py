@@ -32,6 +32,19 @@ from contemplative_agent.core.llm import (
 )
 from contemplative_agent.core.memory import POST_TOPIC_SUMMARY_MAX
 
+# The clamp floor before 2026-08-01. Two test modules need it, so it is
+# defined once here: the behavior this change alters is defined by BOTH
+# floors — a call whose remaining output budget lands in
+# [MIN_CLAMPED_NUM_PREDICT, PRE_20260801_CLAMP_FLOOR) was skipped outright
+# before and is attempted now. Naming the old value is what tells the next
+# reader which band changed hands.
+PRE_20260801_CLAMP_FLOOR = 2048
+
+# Largest system prompt this agent has been observed to build: the 2026-07-09
+# 13-skill adoption that caused the outage TestGenerateBudgetClamp pins.
+# Used as the high-water mark the floor must stay clear of on Ollama.
+OBSERVED_MAX_SYSTEM_TOKENS = 20_300
+
 
 def _assert_breaker_saw_no_failure(circuit) -> None:
     """Probe the breaker through its public surface: drive it to one failure
@@ -901,12 +914,16 @@ class TestGenerateBudgetClamp:
     @patch("contemplative_agent.core.llm.requests.post")
     def test_available_below_floor_still_skips(self, mock_post, caplog):
         """When the input leaves less output budget than
-        MIN_CLAMPED_NUM_PREDICT, clamping would produce a uselessly short
-        (and M2-droppable) generation — keep the skip."""
+        MIN_CLAMPED_NUM_PREDICT, the remainder is too small to be worth
+        spending a generation on — keep the skip. Shaped so the budget is
+        positive but under the floor: an input that overruns the window
+        outright would pass this assertion without exercising the floor."""
         from contemplative_agent.core.llm import MIN_CLAMPED_NUM_PREDICT, NUM_CTX
 
-        # ascii/3 estimate: leave available ≈ MIN_CLAMPED_NUM_PREDICT - 1000.
-        system_chars = (NUM_CTX - MIN_CLAMPED_NUM_PREDICT + 1000) * 3
+        # ascii/3 estimate: leave available == MIN_CLAMPED_NUM_PREDICT - 50.
+        target_available = MIN_CLAMPED_NUM_PREDICT - 50
+        assert target_available > 0
+        system_chars = (NUM_CTX - target_available) * 3
         with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
             result = generate("p", system="x" * system_chars, num_predict=8192)
         assert result is None
@@ -952,6 +969,85 @@ class TestGenerateBudgetClamp:
             reset_llm_config()
 
 
+class TestClampFloorIsInertOnOllama:
+    """Lowering MIN_CLAMPED_NUM_PREDICT 2048 -> 128 (2026-08-01) must not
+    change what the production Ollama path does — that is the safety argument
+    for the change, so it is asserted rather than reasoned about.
+
+    Why it holds: NUM_CTX is 32,768, so the floor can only fire once the
+    *estimated* input exceeds NUM_CTX - floor. At 2048 that boundary sat at
+    30,720 tok; at 128 it sits at 32,640. Both are far above the largest
+    system prompt this agent has ever built (~20.3K tok, the 2026-07-09
+    outage), so no production-shaped call changes verdict. The change bites
+    only on a small-window backend, where the same floor consumed half the
+    window (4,096) instead of 0.4% of it."""
+
+    def setup_method(self):
+        from contemplative_agent.core.llm import _circuit
+
+        _circuit.record_success()
+
+    @staticmethod
+    def _ok_resp():
+        mock_resp = MagicMock()
+        mock_resp.json.return_value = {"response": "ok"}
+        mock_resp.raise_for_status.return_value = None
+        return mock_resp
+
+    def test_the_floor_stays_clear_of_the_largest_system_prompt_ever_built(self):
+        """The activation boundary, stated as a number rather than a claim.
+        If a future system prompt approaches it, this test is where that
+        shows up — before an outage does."""
+        from contemplative_agent.core.llm import MIN_CLAMPED_NUM_PREDICT, NUM_CTX
+
+        activation_boundary = NUM_CTX - MIN_CLAMPED_NUM_PREDICT
+        assert activation_boundary > OBSERVED_MAX_SYSTEM_TOKENS
+        # ...and with headroom, not by a hair: the boundary is >50% above it.
+        assert activation_boundary > OBSERVED_MAX_SYSTEM_TOKENS * 1.5
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_the_2026_07_09_outage_shape_is_untouched_by_the_lower_floor(self, mock_post):
+        """The production shape that motivated the clamp takes the identical
+        branch at both floors: its remaining budget (~11.7K tok) sits above
+        the old floor too, so the served num_predict is unchanged."""
+        from contemplative_agent.core.llm import NUM_CTX
+
+        mock_post.return_value = self._ok_resp()
+        assert generate("y" * 3000, system="x" * 60000, num_predict=13384) == "ok"
+
+        sent = mock_post.call_args.kwargs["json"]["options"]["num_predict"]
+        available = NUM_CTX - 20000 - 1000
+        assert sent == available
+        # The old floor would have clamped to exactly the same value.
+        assert available >= PRE_20260801_CLAMP_FLOOR
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_the_newly_opened_band_clamps_and_serves_instead_of_skipping(self, mock_post, caplog):
+        """The one place Ollama behavior does change, pinned deliberately:
+        a remainder between the two floors used to be refused and is now
+        spent. Reaching it needs ~30.7K tok of estimated input — beyond any
+        production system prompt, which is why the path above holds."""
+        from contemplative_agent.core.llm import (
+            MIN_CLAMPED_NUM_PREDICT,
+            NUM_CTX,
+            _estimate_tokens,
+        )
+
+        prompt = "p"
+        system = "x" * ((NUM_CTX - (MIN_CLAMPED_NUM_PREDICT + PRE_20260801_CLAMP_FLOOR) // 2) * 3)
+        available = NUM_CTX - _estimate_tokens(system) - _estimate_tokens(prompt)
+        assert MIN_CLAMPED_NUM_PREDICT <= available < PRE_20260801_CLAMP_FLOOR
+
+        mock_post.return_value = self._ok_resp()
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
+            result = generate(prompt, system=system, num_predict=8192)
+
+        assert result == "ok"  # old floor: None
+        sent = mock_post.call_args.kwargs["json"]["options"]["num_predict"]
+        assert sent == available
+        assert "Clamping num_predict" in caplog.text
+
+
 class TestBudgetGuardTokenCounting:
     """The C2 guard measures with the backend's real tokenizer when it has
     one (``TokenCountingBackend.count_tokens``) and falls back to
@@ -990,9 +1086,9 @@ class TestBudgetGuardTokenCounting:
         """Regression fixture for the 1.73-1.95x finding.
 
         A 4,096-token window with a CJK-dominant prompt: the estimator scores
-        the input at ~2,400 tok, leaving less than MIN_CLAMPED_NUM_PREDICT and
-        skipping the call outright — 72% of the window thrown away. The real
-        count is ~1,320, which leaves a usable output budget, so the call is
+        the input at ~4,000 tok, leaving less than MIN_CLAMPED_NUM_PREDICT and
+        skipping the call outright — most of the window thrown away. The real
+        count is ~2,200, which leaves a usable output budget, so the call is
         clamped and served instead of suppressed."""
         from contemplative_agent.core.llm import (
             BACKEND_FRAMING_RESERVE,
@@ -1004,7 +1100,7 @@ class TestBudgetGuardTokenCounting:
 
         window = 4096
         system = "s"
-        prompt = "瞑" * 1200
+        prompt = "瞑" * 2000
 
         # Precondition: on the estimator alone this input IS skipped.
         estimated_available = window - _estimate_tokens(system) - _estimate_tokens(prompt)
@@ -1077,7 +1173,7 @@ class TestBudgetGuardTokenCounting:
 
         window = 4096
         system = "s"
-        prompt = "瞑" * 1200
+        prompt = "瞑" * 2000
         assert window - _estimate_tokens(system) - _estimate_tokens(prompt) < (
             MIN_CLAMPED_NUM_PREDICT
         )

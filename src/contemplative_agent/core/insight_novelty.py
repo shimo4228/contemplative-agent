@@ -46,8 +46,13 @@ _NOVELTY_SAMPLE_CHARS = 300
 _NOVELTY_CTX_WINDOW = llm.NUM_CTX
 
 
-# Matches llm.MIN_CLAMPED_NUM_PREDICT: below this output floor the preflight
-# refuses the call anyway, so budgeting less would re-create the failure.
+# The judge's own output reservation — how much of the window a chunk must
+# leave for the verdict it asks for. It equalled llm.MIN_CLAMPED_NUM_PREDICT
+# until 2026-08-01, when that floor dropped to 128 and stopped predicting
+# output size at all (ADR-0087 amendment). The value stays here on purpose:
+# packing tighter than the pre-flight is the safe direction (the packer can
+# only refuse work the guard would have served, never the reverse), and
+# re-deriving it from the judge's real verdict sizes is a separate change.
 _NOVELTY_OUTPUT_RESERVE = 2048
 
 

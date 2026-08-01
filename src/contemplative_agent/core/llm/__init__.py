@@ -258,7 +258,10 @@ def generate(
     kept in telemetry as ``num_predict_requested``). Only when the input
     alone leaves less than the clamp floor is the call skipped (None) —
     skip rather than front-truncate the value layer (Ollama) or overrun an
-    injected backend's context window.
+    injected backend's context window. Surviving the floor is not a promise
+    that the budget suffices: a clamped generation may still hit its budget
+    mid-sentence, and that is judged after the fact from ``done_reason``
+    (``drop_truncated``, audit M2), not predicted by the floor.
 
     If an ``LLMBackend`` was injected via ``configure(backend=...)``, the
     raw generation is delegated to it; otherwise the built-in Ollama HTTP
