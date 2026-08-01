@@ -4,6 +4,38 @@
 
 accepted
 
+Amended 2026-08-01: the catalog extends to the verification solver
+(`tests/test_verification_chaos.py`, rows F-VER-1 … F-VER-7), after the
+insight novelty gate (F-NOV-1 … F-NOV-5). Both ride the pilot's seams
+unchanged. Three findings worth carrying forward. First, the gap was invisible
+by feature coverage: `test_verification.py` is one of the largest files in
+the suite, and every one of its LLM cases patched `verification.generate`
+outright, so the real `core.llm.generate` path — and with it `drop_truncated`,
+the gate that keeps a mid-sentence number from being submitted to the
+CAPTCHA endpoint — was asserted only as a kwarg, never as behavior. Grepping
+for the fault rather than the feature — the catalog-building step this
+ADR's Context performs, rather than any one enumerated Decision — is what
+surfaced it. Second, the TDD contract fired as designed: F-VER-1 asserted a
+reason code that did not exist, because the solver folded "the LLM returned
+nothing" into the abstain code that claims to describe the solver's own
+judgment — the same telemetry-indistinguishability shape the pilot found in
+`error_kind`. The minimal guard shipped in the same PR as ADR-0062's twelfth
+amendment.
+
+Third, recorded against this amendment's own work: the first draft of the
+verification column reproduced the defect described above. A test named
+`test_drop_truncated_is_requested_on_the_solver_call` asserted `num_predict`
+and `temperature` on the captured backend call — but `drop_truncated` is
+applied caller-side in `core.llm` and never reaches the `LLMBackend` seam, so
+the flag the test was named for was unpinned, and setting it to `False` left
+the test green. A high-effort review pass caught it by mutation. The lesson
+generalizes past this file: when a guard is enforced at a *different* layer
+than the seam a fault is injected at, asserting on the injection seam proves
+nothing about the guard — assert on the observable channel instead (here the
+telemetry `outcome`, which reads `truncated_dropped` only when the gate
+fires). Both the replacement and the `not raw` / `raw is None` row added
+alongside it were validated by mutating production and confirming RED.
+
 ## Date
 
 2026-07-13

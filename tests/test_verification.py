@@ -475,10 +475,16 @@ class TestSolveChallenge:
         gen.assert_called_once()
 
     def test_llm_unavailable_abstains(self):
+        # INVERTED by ADR-0062's twelfth amendment (chaos-TDD F-VER-1). This case
+        # asserted "reason_fallback_disabled" while the LLM call had produced
+        # no text at all, so a backend outage was recorded as a statement
+        # about the solver's judgment — and that code's daily count is the
+        # revival reading for the retired reasoning fallback (T-VER-ABSTAIN).
+        # The two are now distinct; see test_verification_chaos.py F-VER-1.
         with patch(_SOLVE_TARGET, side_effect=[None]) as gen:
             result = solve_challenge_result("noise")
         assert result.answer is None
-        assert result.abstain_reason == "reason_fallback_disabled"
+        assert result.abstain_reason == "llm_none"
         gen.assert_called_once()
 
     def test_unparseable_output_abstains(self):

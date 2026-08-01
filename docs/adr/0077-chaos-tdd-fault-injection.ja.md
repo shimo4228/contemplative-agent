@@ -4,6 +4,33 @@
 
 accepted
 
+2026-08-01 追記: カタログを verification solver へ拡張した
+（`tests/test_verification_chaos.py`、F-VER-1〜F-VER-7）。insight novelty gate
+（F-NOV-1〜F-NOV-5）に続く 2 例目で、いずれも pilot の seam をそのまま使う。
+持ち越す発見が 3 つある。第一に、この穴は機能カバレッジでは見えなかった:
+`test_verification.py` はスイート最大級のファイルでありながら、LLM 経路の全ケースが
+`verification.generate` を丸ごと patch していたため、実物の `core.llm.generate` 経路 —
+つまり途中で切れた数値を CAPTCHA エンドポイントへ送らせないゲートである
+`drop_truncated` — は kwarg として主張されるだけで、挙動として一度も検査されていなかった。
+機能ではなく fault を grep する（本 ADR の Context が行うカタログ構築の手順であって、
+列挙された個々の Decision ではない）ことで浮上した。第二に、TDD 契約が
+設計どおり発火した: F-VER-1 は存在しない reason code を主張した。solver が
+「LLM が何も返さなかった」を、solver 自身の判断を述べると称する abstain コードへ
+畳み込んでいたためで、pilot が `error_kind` で見つけた telemetry 識別不能と同じ形である。
+最小ガードは ADR-0062 第 12 amendment として同 PR で出荷した。
+
+第三に、本追記自身の作業に対する記録: verification 列の初稿は、上で述べた欠陥そのものを
+再現していた。`test_drop_truncated_is_requested_on_the_solver_call` という名のテストは、
+捕捉した backend 呼び出しの `num_predict` と `temperature` を assert していた — しかし
+`drop_truncated` は `core.llm` の呼び出し側で適用され `LLMBackend` seam には到達しないため、
+テスト名が主張するフラグは pin されておらず、`False` にしてもテストは緑のままだった。
+high effort のレビューが mutation で検出した。教訓はこのファイルを超えて一般化する:
+ガードが fault の注入 seam とは**別の層**で強制されているとき、注入 seam に対する assert は
+ガードについて何も証明しない — 代わりに観測可能なチャネルに assert する（ここでは
+telemetry の `outcome`。ゲートが発火したときだけ `truncated_dropped` になる）。
+置き換えたテストと、併せて追加した `not raw` / `raw is None` の行は、いずれも production を
+mutate して RED を確認したうえで採用した。
+
 ## Date
 
 2026-07-13

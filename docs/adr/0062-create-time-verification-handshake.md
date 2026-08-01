@@ -442,6 +442,54 @@ referenced `_try_and_as_add` and `_ConjunctionEvent`, gone since the sixth
 amendment's rewrite. It now asserts the abstain, and is the only test in the
 suite the amendment moved.
 
+Twelfth amendment 2026-08-01: `abstain_reason` splits in two. Past the
+guarded paths the solver emitted `reason_fallback_disabled` whether the LLM
+had spoken and been rejected or had returned nothing at all — a backend
+fault, an empty body, an open circuit breaker, or a trace dropped by
+`drop_truncated` all landed on the code whose daily count the ninth
+amendment reserved as its own revival criterion. The code claims to describe
+the solver's judgment; an outage is not a judgment, so the reading was
+measuring two different things through one number. Calls that produce no
+text now report `abstain_reason="llm_none"`, and `reason_fallback_disabled`
+means what it says: the model answered and the guards rejected it. WHICH
+kind of call failure occurred stays in the `llm-calls-{date}.jsonl`
+telemetry row (`outcome` / `error_kind`, `caller="moltbook.verify_solve"`) —
+the audit column only has to keep "said nothing" apart from "said something
+unusable", so no new log field is added. `answer_previously_rejected` keeps
+priority over both: a produced-but-rejected candidate is the more
+informative signal even when the LLM call also failed.
+
+Measured before the split, over the window in which the code has existed at
+all — 2026-07-20 (the ninth amendment's retirement date) through 08-01, 1,126
+of the audit log's 2,863 records, the corpus itself running from 06-28:
+`reason_fallback_disabled` fired 6 times total — 2 on 07-20, then 1 each on
+07-21, 07-23, 07-25 and 07-29. That is 0.5% of attempts in the window, or
+~0.46/day, against the 2.3% of traffic and steady 1-5/day the retired
+`llm_reason` path had carried. Re-derive by filtering the log on
+`error == "reason_fallback_disabled"` and bucketing `ts` by UTC date.
+
+This is a *preliminary* read: the ninth amendment reserved ~2 weeks from
+07-20 for the T-VER-ABSTAIN decision, and that window does not close until
+2026-08-03. On the evidence so far the split does not change the verdict —
+the count reads dry with or without it — which is precisely why it was safe
+to ship the split before the reading rather than after: it cannot tip a
+decision it does not move, and waiting would have spent another two weeks
+producing numbers with the ambiguity still baked in. What it buys is the
+*next* reading. Records written before this amendment carry
+`reason_fallback_disabled` for both causes, so any reading that crosses
+2026-08-01 must sum the two codes.
+
+Found by writing the solver's chaos-TDD fault column (ADR-0077), which the
+solver had lacked despite parsing untrusted LLM output: `test_verification.py`
+patched `verification.generate` in every LLM case, so nothing exercised the
+real `core.llm.generate` path and a `drop_truncated` regression — the gate
+that keeps a mid-sentence number from being submitted to `/verify` — would
+have left the suite green. `tests/test_verification_chaos.py` injects
+F-VER-1 … F-VER-7 at the existing `LLMBackend` and `requests` seams. One
+existing test asserted the losing side: `test_llm_unavailable_abstains`
+fed `generate` a `None` and expected `reason_fallback_disabled`; it now
+expects `llm_none`, and is the only test in the suite this amendment moved.
+
 ## Date
 
 2026-06-26

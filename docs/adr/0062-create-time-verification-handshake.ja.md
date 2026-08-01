@@ -297,6 +297,44 @@ what is total force"` を 18.00 に固定しており、根拠は「末尾の `t
 `_try_and_as_add` / `_ConjunctionEvent` を参照したままだった。現在は abstain を主張しており、
 この amendment がスイート中で動かした唯一のテストである。
 
+第12 amendment 2026-08-01: `abstain_reason` を 2 つに分割する。guarded path を抜けた先で、
+solver は「LLM が答えてガードが却下した」場合と「LLM が何も返さなかった」場合の両方に
+`reason_fallback_disabled` を出していた — バックエンド障害・空応答・サーキットブレーカ open・
+`drop_truncated` による切り捨て破棄のいずれもが、第 9 amendment が自身の復活基準として予約した
+コードに着地していた。このコードは solver の判断を述べると称するが、障害は判断ではない。つまり
+1 つの数値で異なる 2 つのものを測っていた。テキストを生まなかった呼び出しは
+`abstain_reason="llm_none"` を報告するようになり、`reason_fallback_disabled` は文字どおり
+「モデルが答え、ガードが却下した」だけを意味する。呼び出し失敗の**種別**は
+`llm-calls-{date}.jsonl` の telemetry 行（`outcome` / `error_kind`、
+`caller="moltbook.verify_solve"`）に残る — 監査列は「何も言わなかった」と「使えないことを
+言った」を分離できれば足りるので、新しいログフィールドは追加しない。
+`answer_previously_rejected` は両者に対して優先を保つ（候補が出て却下された事実の方が、
+LLM 呼び出しも失敗していた場合ですら情報量が多い）。
+
+分割前の実測。窓はこのコードが存在した期間そのもの — 2026-07-20（第 9 amendment の退役日）から
+08-01 まで、監査ログ全 2,863 レコード中の 1,126 件（corpus 自体は 06-28 から始まる）:
+`reason_fallback_disabled` は計 6 件 — 07-20 に 2 件、07-21 / 07-23 / 07-25 / 07-29 に各 1 件。
+窓内の試行の 0.5%、~0.46/日 であり、退役した `llm_reason` が担っていた traffic 2.3% ・
+1〜5/日 に対して枯れている。再導出はログを `error == "reason_fallback_disabled"` で絞り、
+`ts` を UTC 日付で bucket するだけでよい。
+
+これは**予備的な**読みである: 第 9 amendment は T-VER-ABSTAIN の判断のために 07-20 から ~2 週間を
+予約しており、その窓は 2026-08-03 まで閉じない。現時点の証拠では分割は判定を変えない
+（分割の有無にかかわらず枯れて読める）— だからこそ読みの**前**に分割を出荷して安全だった。
+動かさない判断を覆すことはできず、待てば曖昧さを抱えたままの数値をさらに 2 週間積むだけになる。
+分割が買うのは**次回以降**の読みである。本 amendment 以前のレコードは両方の原因に
+`reason_fallback_disabled` を持つため、2026-08-01 をまたぐ読みは 2 コードを合算する必要がある。
+
+発見経路は solver の chaos-TDD fault column（ADR-0077）の作成である。untrusted な LLM 出力を
+parse するにもかかわらず solver には fault column が無かった: `test_verification.py` は LLM 経路の
+全ケースで `verification.generate` を patch しており、実物の `core.llm.generate` を通す経路が
+存在しなかった。そのため `drop_truncated`（途中で切れた数値を `/verify` に送らせないゲート）が
+回帰してもスイートは緑のままだったはずである。`tests/test_verification_chaos.py` が既存の
+`LLMBackend` / `requests` seam に F-VER-1〜F-VER-7 を注入する。既存テスト 1 本が負けた側を
+主張していた: `test_llm_unavailable_abstains` は `generate` に `None` を与えて
+`reason_fallback_disabled` を期待していたが、現在は `llm_none` を期待する。この amendment が
+スイート中で動かした唯一のテストである。
+
 ## Date
 
 2026-06-26

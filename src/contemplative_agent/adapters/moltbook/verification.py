@@ -120,8 +120,16 @@ class VerificationSolveResult:
     answer: str | None
     solver_path: Literal["code_parse", "llm_extract", "none"]
     challenge_sha256: str
-    # Categorical reason for a None answer, e.g. "reason_fallback_disabled"
-    # or "answer_previously_rejected".
+    # Categorical reason for a None answer. This comment is the only in-code
+    # enumeration of what can appear in the audit log's `error` column for an
+    # abstain, so anything reading that column (a report, a filter, the
+    # weekly diagnosis) keys off this list — keep it complete:
+    #   "reason_fallback_disabled"  the model answered, the guards rejected it
+    #   "llm_none"                  the call produced no text (12th amendment;
+    #                               pre-2026-08-01 records fold this into
+    #                               reason_fallback_disabled — sum both when a
+    #                               reading crosses that boundary)
+    #   "answer_previously_rejected" every candidate was already server-rejected
     # Optional/additive: existing solver_path="none" cases (empty challenge,
     # no parseable answer) leave this None, unchanged from before this field
     # existed. Threaded into the audit log's existing `error` column (see
@@ -149,12 +157,27 @@ _rejected_answers_cache: dict[str, tuple[int, dict[str, set[str]]]] = {}
 _REJECTED_ERROR_MARKER = "incorrect answer"
 
 # Abstain reason emitted when both guarded paths (code_parse, llm_extract)
-# produce no answer. The free-reasoning fallback that used to run here was
-# retired by ADR-0062's 9th amendment (round-7 audit: 2.3% of traffic at 38%
-# verify success — sub-coin-flip guessing). The daily count of this code in
-# the audit log's error column is the revival/confirmation reading
-# (task ledger T-VER-ABSTAIN).
+# RAN and produced no answer. The free-reasoning fallback that used to run
+# here was retired by ADR-0062's 9th amendment (round-7 audit: 2.3% of
+# traffic at 38% verify success — sub-coin-flip guessing). The daily count of
+# this code in the audit log's error column is the revival/confirmation
+# reading (task ledger T-VER-ABSTAIN).
 _ABSTAIN_REASON_FALLBACK_DISABLED = "reason_fallback_disabled"
+
+# Abstain reason emitted when the solver's single LLM call produced no usable
+# text at all — backend fault, empty response, an open circuit breaker, or a
+# trace dropped by ``drop_truncated``. Split out by ADR-0062's twelfth amendment
+# (chaos-TDD fault column F-VER-1): this is a statement about the *call*,
+# whereas _ABSTAIN_REASON_FALLBACK_DISABLED is a statement about the
+# *solver's judgment*, and folding an outage into the latter inflated the very
+# number T-VER-ABSTAIN reads to decide whether to revive a reasoning path.
+# WHICH kind of call failure it was stays in the llm-calls-{date}.jsonl
+# telemetry row (outcome / error_kind, caller="moltbook.verify_solve") — this
+# column only has to keep "the LLM said nothing" apart from "the LLM spoke and
+# the guards rejected it". Audit records written before the amendment carry
+# reason_fallback_disabled for both; a longitudinal reading must sum the two
+# across that boundary.
+_ABSTAIN_REASON_LLM_NONE = "llm_none"
 
 
 def _load_rejected_answers(challenge_sha256: str, path: Path | None = None) -> frozenset[str]:
@@ -224,9 +247,11 @@ def solve_challenge_result(challenge_text: str) -> VerificationSolveResult:
     each short-circuits on a validated, non-rejected answer. When neither
     guarded path produces one, the solver abstains with a reason code instead
     of guessing (ADR-0062 9th amendment — the free-reasoning fallback was
-    retired). ``temperature=0`` keeps the arithmetic deterministic and
-    ``drop_truncated=True`` fails closed on a cut-off trace rather than pulling
-    a number from incomplete work.
+    retired); an abstain caused by the LLM call producing no text at all
+    carries a *different* code from one caused by the guards rejecting what
+    it said (twelfth amendment). ``temperature=0`` keeps the arithmetic
+    deterministic, and ``drop_truncated=True`` fails closed on a cut-off trace
+    rather than pulling a number from incomplete work.
     """
     challenge_sha256 = _sha256_text(challenge_text)
     if not challenge_text:
@@ -305,6 +330,25 @@ def solve_challenge_result(challenge_text: str) -> VerificationSolveResult:
             solver_path="none",
             challenge_sha256=challenge_sha256,
             abstain_reason="answer_previously_rejected",
+        )
+    if not raw:
+        # The call itself produced nothing (backend fault, empty response,
+        # open circuit, or a drop_truncated cut). `not raw` rather than
+        # `raw is None`: llm.py rejects a whitespace-only body to None, but
+        # _sanitize_output strips <think> blocks, so a body that was ONLY a
+        # reasoning trace returns "" — also "the LLM said nothing", and it
+        # must not fall through to the judgment code below (python-reviewer).
+        # Reported apart from the guarded-path verdict so an outage cannot
+        # masquerade as solver judgment.
+        logger.warning(
+            "Verification solver abstaining: the solve call returned no text "
+            "(see llm-calls telemetry for the failure kind)"
+        )
+        return VerificationSolveResult(
+            answer=None,
+            solver_path="none",
+            challenge_sha256=challenge_sha256,
+            abstain_reason=_ABSTAIN_REASON_LLM_NONE,
         )
     logger.warning(
         "Verification solver abstaining: no guarded path produced an answer "
