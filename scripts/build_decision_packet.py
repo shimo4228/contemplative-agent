@@ -44,6 +44,20 @@ INSIGHT_REVIEW_UNAVAILABLE = "INSIGHT_REVIEW_UNAVAILABLE"
 _RECOMMEND_HEADING = re.compile(r"^## .+ RECOMMEND: (adopt|reject)\s*$", re.MULTILINE)
 
 
+def _fence(body: str, info: str = "") -> tuple[str, str]:
+    """A code-fence pair guaranteed not to collide with ``body``.
+
+    Review bodies are free-form LLM prose that routinely quotes code in its
+    own ``` fences; a hardcoded three-backtick fence would close early and
+    spill the rest of the body into the packet's raw Markdown (2026-08-01
+    python review, HIGH). The fence is one backtick longer than the longest
+    backtick run in the body (minimum three).
+    """
+    longest = max((len(m) for m in re.findall(r"`+", body)), default=0)
+    marks = "`" * max(3, longest + 1)
+    return f"{marks}{info}", marks
+
+
 def _safe_read_text(path: Path) -> str | None:
     """Read a text file, degrading unreadable bytes to None.
 
@@ -170,6 +184,7 @@ def build_packet(
     insight_review: Path | None,
     improvement: Path | None,
     out: Path,
+    run_log_dir: Path | None = None,
 ) -> None:
     reason_codes: list[str] = []
 
@@ -181,8 +196,17 @@ def build_packet(
         add_reason("AUDIT_UNREADABLE")
     events = [r for r in _read_jsonl(audit) if r.get("run_id") == run_id]
     fix_results = [e for e in events if e.get("event") == "fix_result"]
+    # One review_result per round (T-PIPELINE-REVIEWLOOP), chronological. The
+    # reviewer column shows the WHOLE history — a loop whose final verdict is
+    # APPROVE must not erase the CONCERNS that drove a re-entry (2026-08-01
+    # gate: the concern body was the information the human decided without).
+    review_history: dict[str, list[dict]] = {}
+    for e in events:
+        if e.get("event") == "review_result":
+            review_history.setdefault(str(e.get("fix_id", "?")), []).append(e)
     verdicts = {
-        e.get("fix_id"): e.get("verdict", "") for e in events if e.get("event") == "review_result"
+        fid: "→".join(str(e.get("verdict", "")) for e in evts)
+        for fid, evts in review_history.items()
     }
 
     for event in events:
@@ -225,6 +249,27 @@ def build_packet(
         improvement_text = _safe_read_text(improvement)
         if improvement_text is None:
             add_reason("IMPROVEMENT_UNREADABLE")
+
+    # Final-round review bodies, read up front so an unreadable log lands in
+    # the header reason list and the metrics record (same rationale as the
+    # patch reads above). Earlier rounds stay on disk; their verdicts appear
+    # in the history column.
+    review_notes: list[tuple[str, str | None, Path]] = []  # (fid, body, log_path)
+    if run_log_dir is not None:
+        for fid, evts in review_history.items():
+            rnd = str(evts[-1].get("round", "")).strip()
+            safe_fid = fid.replace("/", "_")
+            log_name = f"fix-{safe_fid}-review{rnd}.log" if rnd else f"fix-{safe_fid}-review.log"
+            log_path = run_log_dir / log_name
+            body = _safe_read_text(log_path)
+            if body is None:
+                add_reason("REVIEW_LOG_UNREADABLE")
+            review_notes.append((fid, body, log_path))
+        # Pin the notes to the fix-table order — review_history preserves
+        # review-event order, which the bash flow keeps aligned with
+        # fix_result order but nothing here enforces (2026-08-01 review).
+        table_order = {str(e.get("fix_id", "?")): i for i, e in enumerate(fix_results)}
+        review_notes.sort(key=lambda note: table_order.get(note[0], len(table_order)))
 
     patch_ready = [e for e in fix_results if e.get("result") == "patch_ready"]
     failed = [e for e in fix_results if e.get("result") == "failed"]
@@ -279,7 +324,7 @@ def build_packet(
         lines.append("| finding | scope | attempts | result | reviewer | patch / reason |")
         lines.append("|---|---|---|---|---|---|")
         for event in fix_results:
-            fid = event.get("fix_id", "?")
+            fid = str(event.get("fix_id", "?"))  # match review_history's key type
             tail = event.get("patch") or event.get("reason") or ""
             lines.append(
                 f"| {fid} | {event.get('scope', '?')} | {event.get('attempts', '?')} "
@@ -288,6 +333,28 @@ def build_packet(
     else:
         lines.append("（fix 対象なし）")
     lines.append("")
+
+    if review_notes:
+        # Subsection (not a numbered section): downstream consumers reference
+        # the packet by its numbered headings, which stay stable.
+        lines.append("### Review notes (final round, full text)")
+        lines.append("")
+        lines.append(
+            "レビュー本文は LLM 出力（finding 由来の連鎖）— 検査者の所見であって"
+            "承認ではない。CONCERNS のまま採用する判断は人間に属する。"
+        )
+        lines.append("")
+        for fid, body, log_path in review_notes:
+            lines.append(f"#### {fid} — {verdicts.get(fid, '—')}")
+            lines.append("")
+            if body is None:
+                lines.append(f"（REVIEW_LOG_UNREADABLE — `{log_path}` を直接確認してください）")
+            else:
+                open_fence, close_fence = _fence(body, "text")
+                lines.append(open_fence)
+                lines.append(body.rstrip())
+                lines.append(close_fence)
+            lines.append("")
 
     lines.append("## 3. Prompt-scope diffs (full text — behavior-shaping)")
     lines.append("")
@@ -298,9 +365,10 @@ def build_packet(
             if patch_text is None:
                 lines.append(f"（PATCH_UNREADABLE — `{patch}` を直接確認してください）")
             else:
-                lines.append("```diff")
+                open_fence, close_fence = _fence(patch_text, "diff")
+                lines.append(open_fence)
                 lines.append(patch_text.rstrip())
-                lines.append("```")
+                lines.append(close_fence)
             lines.append("")
     else:
         lines.append("（なし）")
@@ -336,9 +404,10 @@ def build_packet(
     if improvement_text:
         lines.append("## 6. Pipeline improvement proposal (full text — behavior-shaping)")
         lines.append("")
-        lines.append("```diff")
+        open_fence, close_fence = _fence(improvement_text, "diff")
+        lines.append(open_fence)
         lines.append(improvement_text.rstrip())
-        lines.append("```")
+        lines.append(close_fence)
         lines.append("")
 
     lines.append("## Audit trail")
@@ -367,6 +436,12 @@ def main() -> int:
     p_build.add_argument("--insight-review", type=Path, default=None)
     p_build.add_argument("--improvement", type=Path, default=None)
     p_build.add_argument("--out", type=Path, required=True)
+    p_build.add_argument(
+        "--run-log-dir",
+        type=Path,
+        default=None,
+        help="run log dir holding fix-<fid>-review<N>.log — inlines final-round review bodies",
+    )
 
     p_check = sub.add_parser("check-improvement", help="P4-shaped recurrence trigger")
     p_check.add_argument("--metrics", type=Path, required=True)
@@ -406,6 +481,7 @@ def main() -> int:
             insight_review=args.insight_review,
             improvement=args.improvement,
             out=args.out,
+            run_log_dir=args.run_log_dir,
         )
         print(f"Packet written: {args.out}")
     elif args.command == "check-improvement":

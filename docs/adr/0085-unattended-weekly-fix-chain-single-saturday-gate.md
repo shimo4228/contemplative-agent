@@ -59,10 +59,12 @@ session, an advisory insight-staging review, and a decision packet
    conversational context). The reviewer's verdict is advisory input to the
    human gate — there is no LLM-only approval path.
 4. **Bounded iteration** (coding-style Iteration Bounds): ≤ 2 fix attempts
-   per finding (the retry input includes the Verify failure output — never
-   the same input twice), ≤ 5 findings per week, per-session timeouts, and a
-   3-hour wall-clock deadline; every bound exhaustion becomes a reason code
-   in the packet, not a silent drop.
+   per round, across ≤ 1 + MAX_REVIEW_ROUNDS rounds per finding (retry input
+   includes the Verify failure output — never the same input twice; revised
+   by the 2026-08-01 amendment from the original flat "≤ 2 per finding"),
+   ≤ 5 findings per week, per-session timeouts, and a 3-hour wall-clock
+   deadline; every bound exhaustion becomes a reason code in the packet, not
+   a silent drop.
 5. **Fail-forward to the packet.** Every stage failure is a reason code; the
    packet is always attempted (only a missing Stage-1 report aborts). A
    missing packet therefore means "chain never ran / died hard", which is
@@ -164,3 +166,78 @@ Residual risk (accepted, documented): a fix session can still execute
 arbitrary code *inside* the worktree via test files under `uv run pytest`,
 and network egress from test code is not blocked — the boundary is the
 exported-diff review plus the human gate, not process isolation.
+
+## Amendment (2026-08-01): review feedback loop (T-PIPELINE-REVIEWLOOP)
+
+The first gated week (packet `weekly-2026-07-31`) exposed an asymmetry in the
+original design: Verify failures fed back into a bounded retry, but the
+review was a dead end — one invocation, one grepped `VERDICT:` line, body
+discarded. F1.1's CONCERNS body contained three real defects (a regression
+test asserting a line shape production never emits, a comment describing a
+non-observed leak as fact, a `_RUNTIME_LINE_RE` over-match), none of which
+reached the packet; the human adopted the patch without that information.
+Review becomes a bounded loop, symmetric with Verify:
+
+- **Re-entry**: a `CONCERNS` verdict feeds the full review body back into a
+  fresh fix session in the same worktree (`<untrusted_review>`-wrapped — the
+  body chains from the finding text, same rationale as
+  `<untrusted_finding>`). Budget: `MAX_REVIEW_ROUNDS` re-entry rounds
+  (default 1) — orthogonal to `MAX_FIX_ATTEMPTS`, which is re-granted per
+  round so one flaky Verify cannot starve the concern feedback. The
+  re-review input includes the previous review, and the review prompt gains
+  a check 0: do not keep CONCERNS alive by restating addressed points.
+- **CONCERNS never blocks export** (operator decision, 2026-08-01, rejecting
+  the alternative of demoting a final-CONCERNS patch to `failed`): the final
+  patch stays `patch_ready` whatever the verdict — the reviewer is an
+  inspector, not an approver (human-gate.md); demotion would create the
+  LLM-only rejection path this ADR's commitment 3 forbids in the approve
+  direction. What changes is what the human sees: the packet's fix table
+  shows the whole verdict history (`CONCERNS→APPROVE`), and a "Review notes"
+  subsection inlines the final round's full review body
+  (`--run-log-dir`; unreadable log → `REVIEW_LOG_UNREADABLE`, fail-forward).
+- **Monotonicity / rollback**: each round's verified diff is snapshotted; a
+  re-entry round that cannot re-pass Verify (or dies, or hits the deadline)
+  rolls back to the previous round's verified diff
+  (`REVIEW_ROUND_ABANDONED`) instead of turning a working patch into a
+  failure. An unchanged diff after re-entry is not re-reviewed (never retry
+  on identical input); the standing CONCERNS stays on record
+  (`DIFF_UNCHANGED`).
+- **Anti-appeasement clause** in fix-implementation.md: on re-entry the
+  implementer must address each point or explicitly rebut it in its summary
+  without changing code — and must never weaken a test, assertion, or check
+  to satisfy the reviewer. The 07-31 counterexample: F1.3's "test is
+  narrower than the finding asked" concern, mechanically satisfied, would
+  have ballooned into a store-wide rewrite.
+- **REVIEW_FAIL is terminal** (no verdict line → nothing to feed back), and
+  prompt-scope findings remain outside the review path (they are full-text
+  gated already).
+- **Trust-link hardening** (2026-08-01 security + code review round): the
+  loop turns the reviewer's output from a read-only sink into an input of a
+  tool-using session, so (a) the review session's own input now wraps the
+  finding in `<untrusted_finding>` and fix-review.md gains an explicit
+  data-not-instructions clause; (b) a forged `</untrusted_review>` inside
+  the reviewer's body is neutralized before re-injection; (c) every embedded
+  fence (packet inlines, review input) is sized to outrun the longest
+  backtick run in its body; (d) the post-hoc scope check reads the
+  git-computed touched-path snapshot of the chosen round instead of parsing
+  diff text — binary changes and pure renames emit no `---`/`+++` headers,
+  and `diff.noprefix` blinds a text parse entirely (both bypasses reproduced
+  in review; regression-pinned by F-REV-6).
+
+Fault column: `tests/test_weekly_pipeline_shell.py` (F-REV-1..5) drives the
+real script with stubbed `claude`/`uv` binaries — the first tests ever to
+execute weekly-pipeline.sh, closing the same gap `test_weekly_analysis_shell.py`
+closed for its Stage 1 after the July shell-layer defects.
+
+This amendment revises Decision commitment 4: the fix-attempt bound is now
+per round, not per finding. Worst-case cost per finding grows from 1 review
+to `MAX_FIX_ATTEMPTS × (1 + MAX_REVIEW_ROUNDS)` fix sessions +
+`(1 + MAX_REVIEW_ROUNDS)` reviews (4 sessions + 2 reviews at defaults); the
+3-hour chain deadline remains the hard stop, and a deadline hit during a
+re-entry round rolls back rather than aborting. Second-order cost: extra
+rounds spend wall-clock inside the same deadline, so a concern-heavy week
+can complete fewer of its ≤ 5 findings end-to-end than the pre-loop chain.
+Residual risk (accepted): the symmetric failure to implementer appeasement —
+a reviewer satisfied by a diff that touches the flagged lines without
+removing the defect — has no mechanical guard; the mitigation is that the
+human now reads the final review body, not a 4-char verdict.

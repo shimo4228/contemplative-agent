@@ -467,8 +467,12 @@ Stage 2 diagnosis: claude -p "/weekly-report-diagnosis <report>" → weekly-<end
 Stage 3 parse:     parse_findings.py → F1 list + scope (code | prompt; ambiguity → prompt)
 Stage 4 fix:       per code-scope F1: git worktree @ HEAD → claude -p (fix-implementation.md)
                    → orchestrator-run Verify (uv sync --frozen / ruff / lint-imports / pytest)
-                   → ≤2 attempts (retry input includes Verify failure) → export .patch
-                   → advisory review session (fix-review.md) → VERDICT into packet
+                   → ≤2 attempts/round (retry input includes Verify failure) → diff snapshot
+                   → advisory review (fix-review.md); CONCERNS feeds back into ≤1 re-entry
+                   round (unchanged diff → no re-review; a round that breaks Verify rolls
+                   back to the previous verified diff) → export .patch. ALL round verdicts
+                   + the final review body are inlined in the packet — CONCERNS never
+                   blocks export (inspector, not approver)
                    prompt-scope F1: draft diff only, no Verify, full text at the gate
 Stage 5 insight:   read-only recommendation pass over .staged/ (insight-recommendation.md)
 Stage 6 improve:   only when the same reason code recurred 2 consecutive runs (check-improvement)

@@ -378,6 +378,116 @@ def test_recommend_count_is_heading_anchored(tmp_path: Path):
     assert rec["insight_items"] == 2
 
 
+def _write_review_loop_audit(paths: dict[str, Path]) -> None:
+    """Audit shape produced by the review loop (T-PIPELINE-REVIEWLOOP):
+    one review_result per round, in chronological order."""
+    paths["audit"].write_text(
+        "\n".join(
+            [
+                _audit_line(
+                    "fix_result",
+                    fix_id="F1.2",
+                    scope="code",
+                    result="patch_ready",
+                    attempts="2",
+                    patch="patches/weekly-2026-07-24/F1.2.patch",
+                ),
+                _audit_line("review_result", fix_id="F1.2", round="1", verdict="CONCERNS"),
+                _audit_line("review_result", fix_id="F1.2", round="2", verdict="APPROVE"),
+            ]
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+
+
+def test_reviewer_column_shows_round_history(tmp_path: Path):
+    # 2026-08-01 gate failure: a loop whose final verdict is APPROVE must not
+    # erase the CONCERNS history — that reproduces the very information loss
+    # the loop exists to fix.
+    paths = _write_inputs(tmp_path)
+    _write_review_loop_audit(paths)
+    text = _build(paths)
+    assert "CONCERNS→APPROVE" in text
+
+
+def test_review_notes_inline_final_round_body(tmp_path: Path):
+    # The human gate reads the reviewer's reasoning, not a 4-char verdict
+    # (07-31 F1.1: three real defects hidden behind "CONCERNS").
+    paths = _write_inputs(tmp_path)
+    _write_review_loop_audit(paths)
+    run_logs = tmp_path / "run-logs"
+    run_logs.mkdir()
+    (run_logs / "fix-F1.2-review1.log").write_text(
+        "VERDICT: CONCERNS\n- round-1 concern about the regression test\n", encoding="utf-8"
+    )
+    (run_logs / "fix-F1.2-review2.log").write_text(
+        "VERDICT: APPROVE\n- round-2 concerns addressed\n", encoding="utf-8"
+    )
+    text = _build(paths, run_log_dir=run_logs)
+    assert "Review notes" in text
+    # Final round full text is inlined; earlier rounds stay on disk (their
+    # verdicts appear in the history column).
+    assert "round-2 concerns addressed" in text
+    assert "round-1 concern about the regression test" not in text
+
+
+def test_review_notes_absent_without_run_log_dir(tmp_path: Path):
+    # Backward compatibility: an old-style invocation (no --run-log-dir)
+    # renders the same packet as before the loop existed.
+    paths = _write_inputs(tmp_path)
+    _write_review_loop_audit(paths)
+    text = _build(paths)
+    assert "Review notes" not in text
+    assert "REVIEW_LOG_UNREADABLE" not in text
+
+
+def test_review_log_unreadable_degrades_to_reason_code(tmp_path: Path):
+    # Fail-forward: a reviewed fix whose log vanished still enters the packet,
+    # with the gap named instead of hidden.
+    paths = _write_inputs(tmp_path)
+    _write_review_loop_audit(paths)
+    run_logs = tmp_path / "run-logs"
+    run_logs.mkdir()  # review2 log deliberately absent
+    text = _build(paths, run_log_dir=run_logs)
+    assert "REVIEW_LOG_UNREADABLE" in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert "REVIEW_LOG_UNREADABLE" in rec["reason_codes"]
+
+
+def test_legacy_single_review_event_without_round(tmp_path: Path):
+    # Pre-loop audit lines carry no round field; the reviewer column must
+    # render them unchanged (the 07-24 packet is replayable).
+    paths = _write_inputs(tmp_path)
+    text = _build(paths)
+    rows = [line for line in text.splitlines() if line.startswith("| F1.2 ")]
+    assert len(rows) == 1
+    assert "APPROVE" in rows[0]
+    assert "→" not in rows[0]
+
+
+def test_review_body_with_backtick_fence_stays_contained(tmp_path: Path):
+    # LLM review prose routinely quotes code in its own ``` fences; the
+    # packet's fence must outrun the body's longest backtick run or the rest
+    # of the review spills into raw packet Markdown (2026-08-01 review, HIGH).
+    paths = _write_inputs(tmp_path)
+    _write_review_loop_audit(paths)
+    run_logs = tmp_path / "run-logs"
+    run_logs.mkdir()
+    (run_logs / "fix-F1.2-review1.log").write_text("VERDICT: CONCERNS\n", encoding="utf-8")
+    (run_logs / "fix-F1.2-review2.log").write_text(
+        "VERDICT: APPROVE\n- quoted repro:\n```python\nassert x\n```\ntail line\n",
+        encoding="utf-8",
+    )
+    text = _build(paths, run_log_dir=run_logs)
+    start = text.index("#### F1.2")
+    section = text[start : text.index("## 3.")]
+    # The body (including its inner fence) sits inside a longer outer fence.
+    assert "````text" in section
+    assert section.count("````") == 2
+    assert "tail line" in section
+
+
 def test_pipeline_audit_rejects_reserved_keys(tmp_path: Path):
     log = tmp_path / "audit.jsonl"
     result = subprocess.run(

@@ -32,6 +32,10 @@ WORKTREE_ROOT="$MOLTBOOK_HOME/pipeline/worktrees"
 # Iteration bounds (ADR-0085; all overridable for tests)
 MAX_FIX_ATTEMPTS="${PIPELINE_MAX_FIX_ATTEMPTS:-2}"
 MAX_FIX_TARGETS="${PIPELINE_MAX_FIX_TARGETS:-5}"
+# CONCERNS-driven re-entry fix sessions per finding (T-PIPELINE-REVIEWLOOP);
+# reviews run at most MAX_REVIEW_ROUNDS+1 times. Orthogonal to
+# MAX_FIX_ATTEMPTS, which bounds Verify retries within one round.
+MAX_REVIEW_ROUNDS="${PIPELINE_MAX_REVIEW_ROUNDS:-1}"
 DIAGNOSIS_TIMEOUT="${PIPELINE_DIAGNOSIS_TIMEOUT:-1800}"
 FIX_TIMEOUT="${PIPELINE_FIX_TIMEOUT:-1200}"
 VERIFY_TIMEOUT="${PIPELINE_VERIFY_TIMEOUT:-900}"
@@ -112,6 +116,18 @@ with_timeout() {  # with_timeout <seconds> <cmd...>
     else
         "$@"   # same degradation as weekly-analysis.sh's translate guard
     fi
+}
+
+fence_for() {  # fence_for <file> — a backtick fence longer than any run in <file>
+    # Diffs of this very repo contain ``` runs (prompt files, fenced strings in
+    # tests); a hardcoded three-backtick fence would close early and let the
+    # remainder of the embedded content render as prompt text (2026-08-01
+    # security review H1).
+    local longest
+    longest=$(grep -o '`\{1,\}' "$1" 2>/dev/null \
+        | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }')
+    (( longest < 2 )) && longest=2
+    printf '%.0s`' $(seq 1 $((longest + 1)))
 }
 
 # --- Preflight (same rationale as weekly-analysis.sh: fail before burning work) ---
@@ -254,8 +270,12 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
     # every attempt-1 Verify died on the missing lockfile).
     [[ -f "$PROJECT_ROOT/uv.lock" ]] && cp "$PROJECT_ROOT/uv.lock" "$wt/uv.lock"
 
-    local attempt=1 passed=0
     local prompt_file="$RUN_LOG_DIR/fix-$safe_fid-prompt.md"
+    # base_prompt holds what STARTED the current round (finding, plus the
+    # reviewer concerns on a re-entry). Verify-failure retries rebuild
+    # prompt_file from it so the concerns survive a failed attempt
+    # (2026-08-01 codex review P2).
+    local base_prompt="$RUN_LOG_DIR/fix-$safe_fid-base-prompt.md"
     # The finding text descends from external SNS content via the weekly
     # report's E section — wrap it as untrusted data before it becomes the
     # prompt of a tool-using session (ADR-0007; 2026-07-29 security review H1).
@@ -264,123 +284,248 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
         cat "$bodyfile"
         echo "</untrusted_finding>"
     } > "$prompt_file"
-    while (( attempt <= MAX_FIX_ATTEMPTS )); do
-        if deadline_exceeded; then
-            add_reason CHAIN_DEADLINE
-            audit fix_result fix_id="$fid" scope="$scope" result=failed \
-                attempts="$((attempt - 1))" reason=CHAIN_DEADLINE
-            git -C "$PROJECT_ROOT" worktree remove --force "$wt" >/dev/null 2>&1
-            return
-        fi
-        echo "[$RUN_ID]   $fid attempt $attempt ($scope)"
-        # Edit/Write are path-scoped to the worktree (cwd): a bare grant would
-        # let an injected finding write outside the worktree — invisible to
-        # Verify, the reviewer, and the exported patch (2026-07-29 security
-        # review C3). Bash is limited to the two Verify tools; no generic
-        # `uv run:*` (it reaches `uv run python -c ...`).
-        (
-            cd "$wt" || exit 1
-            with_timeout "$FIX_TIMEOUT" claude -p "$(cat "$prompt_file")" \
-                --system-prompt "$(cat "$PROMPTS/fix-implementation.md")" \
-                --allowedTools "Read,Glob,Grep,Edit(./**),Write(./**),Bash(uv run pytest:*),Bash(uv run ruff:*),Bash(git diff:*),Bash(git status:*),Bash(ls:*),Bash(grep:*)" \
-                --output-format text
-        ) > "$fixlog-attempt$attempt.log" 2>&1
-        local rc=$?
-        if [[ $rc -ne 0 ]]; then
-            # 124 is coreutils timeout's exit code
-            local code=FIX_SESSION_FAIL; [[ $rc -eq 124 ]] && code=FIX_TIMEOUT
-            add_reason "$code"
-            audit fix_attempt fix_id="$fid" attempt="$attempt" result=session_fail reason="$code"
-            break
-        fi
-        if [[ "$scope" == "prompt" ]]; then
-            # A prompt-scope finding may still have produced code edits (mixed
-            # references). A pure-prompt diff needs no Verify — the human reads
-            # it full text — but untested code changes must never be marked
-            # ready (2026-07-29 codex review P2).
-            local touches_code
-            touches_code=$(cd "$wt" && git add -A >/dev/null 2>&1; git diff --cached --name-only \
-                | grep -E '^(src|scripts|tests)/' || true)
-            if [[ -z "$touches_code" ]]; then
+    cp "$prompt_file" "$base_prompt"
+
+    # --- fix / Verify / review rounds (T-PIPELINE-REVIEWLOOP, ADR-0085) ---
+    # round 0 is the original fix; round N>=1 is a re-entry answering review
+    # N's CONCERNS. Verify retries (MAX_FIX_ATTEMPTS) are re-granted per round
+    # — a shared pool would let one flaky Verify starve the concern feedback.
+    # Monotonicity: a round that cannot produce a verified diff rolls back to
+    # the previous round's verified one instead of destroying it.
+    local round=0 passed=0 rolled_back=0 total_attempts=0
+    local diff_prev="" diff_cur="" names_prev="" names_cur=""
+    while :; do
+        local attempt=1 fail_code=""
+        passed=0
+        while (( attempt <= MAX_FIX_ATTEMPTS )); do
+            if deadline_exceeded; then
+                add_reason CHAIN_DEADLINE
+                fail_code=CHAIN_DEADLINE
+                if (( round == 0 )); then
+                    audit fix_result fix_id="$fid" scope="$scope" result=failed \
+                        attempts="$total_attempts" reason=CHAIN_DEADLINE
+                    git -C "$PROJECT_ROOT" worktree remove --force "$wt" >/dev/null 2>&1
+                    return
+                fi
+                break
+            fi
+            total_attempts=$((total_attempts + 1))
+            echo "[$RUN_ID]   $fid round $round attempt $attempt ($scope)"
+            # Edit/Write are path-scoped to the worktree (cwd): a bare grant would
+            # let an injected finding write outside the worktree — invisible to
+            # Verify, the reviewer, and the exported patch (2026-07-29 security
+            # review C3). Bash is limited to the two Verify tools; no generic
+            # `uv run:*` (it reaches `uv run python -c ...`).
+            (
+                cd "$wt" || exit 1
+                with_timeout "$FIX_TIMEOUT" claude -p "$(cat "$prompt_file")" \
+                    --system-prompt "$(cat "$PROMPTS/fix-implementation.md")" \
+                    --allowedTools "Read,Glob,Grep,Edit(./**),Write(./**),Bash(uv run pytest:*),Bash(uv run ruff:*),Bash(git diff:*),Bash(git status:*),Bash(ls:*),Bash(grep:*)" \
+                    --output-format text
+            ) > "$fixlog-attempt$total_attempts.log" 2>&1
+            local rc=$?
+            if [[ $rc -ne 0 ]]; then
+                # 124 is coreutils timeout's exit code
+                fail_code=FIX_SESSION_FAIL; [[ $rc -eq 124 ]] && fail_code=FIX_TIMEOUT
+                add_reason "$fail_code"
+                audit fix_attempt fix_id="$fid" attempt="$total_attempts" \
+                    result=session_fail reason="$fail_code"
+                break
+            fi
+            if [[ "$scope" == "prompt" ]]; then
+                # A prompt-scope finding may still have produced code edits (mixed
+                # references). A pure-prompt diff needs no Verify — the human reads
+                # it full text — but untested code changes must never be marked
+                # ready (2026-07-29 codex review P2).
+                local touches_code
+                touches_code=$(cd "$wt" && git add -A >/dev/null 2>&1; git diff --cached --name-only \
+                    | grep -E '^(src|scripts|tests)/' || true)
+                if [[ -z "$touches_code" ]]; then
+                    passed=1
+                    break
+                fi
+            fi
+            if run_verify "$wt" "$fixlog-verify$total_attempts.log"; then
+                audit fix_attempt fix_id="$fid" attempt="$total_attempts" result=verify_pass
                 passed=1
                 break
             fi
+            audit fix_attempt fix_id="$fid" attempt="$total_attempts" result=verify_fail
+            # Never retry on identical input: feed the failure back (bounded).
+            # Rebuilt from base_prompt, not from scratch — on a re-entry round
+            # the reviewer concerns must survive the retry (codex P2).
+            {
+                cat "$base_prompt"
+                echo ""
+                echo "## Verify failure output (previous attempt — fix the cause, do not weaken checks)"
+                echo '```'
+                tail -n 120 "$fixlog-verify$total_attempts.log"
+                echo '```'
+            } > "$prompt_file"
+            attempt=$((attempt + 1))
+        done
+
+        if (( passed == 0 )); then
+            if (( round > 0 )) && [[ -s "$diff_prev" ]]; then
+                # Roll back: the previous round's diff already passed Verify;
+                # a failed re-entry must not cost the gate a working patch.
+                add_reason REVIEW_ROUND_ABANDONED
+                audit review_round_abandoned fix_id="$fid" round="$round" \
+                    reason=REVIEW_ROUND_ABANDONED detail="${fail_code:-VERIFY_FAIL_MAX_ATTEMPTS}"
+                echo "[$RUN_ID]   $fid round $round abandoned — keeping round $((round - 1)) diff"
+                rolled_back=1
+                passed=1
+                break
+            fi
+            if [[ -z "$fail_code" ]]; then
+                add_reason VERIFY_FAIL_MAX_ATTEMPTS
+                audit fix_result fix_id="$fid" scope="$scope" result=failed \
+                    attempts="$total_attempts" reason=VERIFY_FAIL_MAX_ATTEMPTS
+            else
+                audit fix_result fix_id="$fid" scope="$scope" result=failed \
+                    attempts="$total_attempts" reason="$fail_code"
+            fi
+            git -C "$PROJECT_ROOT" worktree remove --force "$wt" >/dev/null 2>&1
+            git -C "$PROJECT_ROOT" worktree prune >/dev/null 2>&1
+            return
         fi
-        if run_verify "$wt" "$fixlog-verify$attempt.log"; then
-            audit fix_attempt fix_id="$fid" attempt="$attempt" result=verify_pass
-            passed=1
+
+        # Snapshot this round's verified diff AND its touched-path list. The
+        # export at the bottom and the scope check read the snapshots, never
+        # live worktree state — after a rollback the worktree holds the
+        # abandoned round. The path list comes from git (--name-only), not
+        # from parsing the diff text: binary changes and pure renames emit no
+        # `--- a/`/`+++ b/` header lines, which would blind a text-parsed
+        # scope check (2026-08-01 security review C1).
+        diff_cur="$fixlog-diff-round$round.patch"
+        names_cur="$fixlog-names-round$round.txt"
+        (cd "$wt" && git add -A && git diff --cached) > "$diff_cur" 2>>"$fixlog-export.log"
+        (cd "$wt" && git diff --cached --name-only) > "$names_cur" 2>>"$fixlog-export.log"
+
+        [[ "$scope" != "code" ]] && break
+        if deadline_exceeded; then
+            if (( round > 0 )); then
+                # The re-entry diff passed Verify but its re-review never ran:
+                # exporting it would pair a CONCERNS verdict (and review body)
+                # with a diff the reviewer never saw. Roll back to keep the
+                # packet's verdict↔diff coherent (2026-08-01 codex review P2).
+                rolled_back=1
+                add_reason REVIEW_ROUND_ABANDONED
+                audit review_round_abandoned fix_id="$fid" round="$round" \
+                    reason=REVIEW_ROUND_ABANDONED detail=CHAIN_DEADLINE
+            fi
             break
         fi
-        audit fix_attempt fix_id="$fid" attempt="$attempt" result=verify_fail
-        # Never retry on identical input: feed the failure back (bounded).
+
+        if (( round > 0 )) && cmp -s "$diff_prev" "$diff_cur"; then
+            # Never retry on identical input: re-reviewing an unchanged diff
+            # can only repeat the same verdict. The implementer's rebuttal
+            # stays in its attempt log; the standing CONCERNS stays on record.
+            # round is on the review axis (the review that was NOT run),
+            # matching review_result's numbering (2026-08-01 code review).
+            audit review_skipped fix_id="$fid" round="$((round + 1))" detail=DIFF_UNCHANGED
+            echo "[$RUN_ID]   $fid round $round: diff unchanged — review not repeated"
+            break
+        fi
+
+        local review_n=$((round + 1))
+        local review_input="$RUN_LOG_DIR/fix-$safe_fid-review$review_n-input.md"
+        # The finding descends from external SNS content — the reviewer gets
+        # it wrapped exactly like the implementer does, and the diff fence is
+        # sized to outrun any backtick run inside the diff (2026-08-01
+        # security review H1).
+        local diff_fence
+        diff_fence=$(fence_for "$diff_cur")
+        {
+            echo "<untrusted_finding>"
+            cat "$bodyfile"
+            echo "</untrusted_finding>"
+            if (( round > 0 )); then
+                echo ""
+                echo "## Previous review (round $round) — check whether the new diff addresses it"
+                cat "$fixlog-review$round.log"
+                echo ""
+                echo "## Implementer's response to that review (its session summary — may rebut points instead of changing code)"
+                tail -n 60 "$fixlog-attempt$total_attempts.log"
+            fi
+            echo ""
+            echo "## Diff under review"
+            echo "${diff_fence}diff"
+            cat "$diff_cur"
+            echo "$diff_fence"
+        } > "$review_input"
+        with_timeout "$REVIEW_TIMEOUT" claude -p \
+            --system-prompt "$(cat "$PROMPTS/fix-review.md")" \
+            --allowedTools "Read,Glob,Grep" \
+            --output-format text \
+            < "$review_input" \
+            > "$fixlog-review$review_n.log" 2>&1
+        verdict=$(grep -m1 '^VERDICT:' "$fixlog-review$review_n.log" | sed 's/^VERDICT: *//')
+        [[ -z "$verdict" ]] && verdict="REVIEW_FAIL"
+        audit review_result fix_id="$fid" round="$review_n" verdict="$verdict"
+        # APPROVE ends the loop; REVIEW_FAIL is terminal too — no body to feed.
+        [[ "$verdict" != "CONCERNS" ]] && break
+        (( round >= MAX_REVIEW_ROUNDS )) && break
+
+        # Re-entry: the review body becomes bounded feedback. It chains from
+        # the finding text, so it is wrapped as untrusted data (same H1
+        # rationale as the finding itself).
         {
             echo "<untrusted_finding>"
             cat "$bodyfile"
             echo "</untrusted_finding>"
             echo ""
-            echo "## Verify failure output (previous attempt $attempt — fix the cause, do not weaken checks)"
-            echo '```'
-            tail -n 120 "$fixlog-verify$attempt.log"
-            echo '```'
+            echo "## Reviewer concerns (round $review_n) — address each point, or rebut it in your summary; never weaken checks to satisfy the reviewer"
+            echo "<untrusted_review>"
+            # A reviewer output containing the literal closing tag would let
+            # everything after it masquerade as trusted prompt text in the
+            # tool-using fix session — neutralize the tag pair (2026-08-01
+            # security review H1).
+            sed 's@</\{0,1\}untrusted_review>@[stripped-tag]@g' "$fixlog-review$review_n.log"
+            echo "</untrusted_review>"
         } > "$prompt_file"
-        attempt=$((attempt + 1))
+        cp "$prompt_file" "$base_prompt"   # new round, new retry baseline
+        diff_prev="$diff_cur"
+        names_prev="$names_cur"
+        round=$((round + 1))
     done
 
-    if [[ $passed -eq 1 ]]; then
-        local out_dir="$PATCH_DIR"
-        [[ "$scope" == "prompt" ]] && out_dir="$PROMPT_PATCH_DIR"
-        # Post-hoc scope check on the ACTUAL touched files — the declared
-        # scope was computed from the finding text before the session ran.
-        # A code-scope patch that also touches a behavior-shaping path would
-        # otherwise reach the gate as a summary row, bypassing the full-text
-        # rule (2026-07-29 security review C4). Deterministic, code-owned.
-        if [[ "$scope" == "code" ]]; then
-            local out_of_scope
-            out_of_scope=$(cd "$wt" && git add -A >/dev/null 2>&1; git diff --cached --name-only \
-                | grep -Ev '^(src|scripts|tests)/' || true)
-            if [[ -n "$out_of_scope" ]]; then
-                out_dir="$PROMPT_PATCH_DIR"
-                add_reason SCOPE_ESCALATED
-                audit scope_escalation fix_id="$fid" \
-                    files="$(printf '%s' "$out_of_scope" | tr '\n' ' ')"
-                echo "[$RUN_ID]   $fid escalated to full-text gate (touched: $out_of_scope)"
-            fi
+    # --- export the chosen diff (this round's, or the rollback target) ---
+    local chosen_diff="$diff_cur" chosen_names="$names_cur"
+    if (( rolled_back )); then
+        chosen_diff="$diff_prev"
+        chosen_names="$names_prev"
+    fi
+    local out_dir="$PATCH_DIR"
+    [[ "$scope" == "prompt" ]] && out_dir="$PROMPT_PATCH_DIR"
+    # Post-hoc scope check on the ACTUAL exported diff — the declared scope
+    # was computed from the finding text before the session ran. A code-scope
+    # patch that also touches a behavior-shaping path would otherwise reach
+    # the gate as a summary row, bypassing the full-text rule (2026-07-29
+    # security review C4). Deterministic, code-owned. Reads the git-computed
+    # touched-path snapshot of the chosen round, never worktree state (after
+    # a rollback they differ) and never the diff text (binary changes and
+    # pure renames have no ---/+++ headers — 2026-08-01 security review C1).
+    if [[ "$scope" == "code" ]]; then
+        local out_of_scope
+        out_of_scope=$(grep -Ev '^(src|scripts|tests)/' "$chosen_names" 2>/dev/null || true)
+        if [[ -n "$out_of_scope" ]]; then
+            out_dir="$PROMPT_PATCH_DIR"
+            add_reason SCOPE_ESCALATED
+            audit scope_escalation fix_id="$fid" \
+                files="$(printf '%s' "$out_of_scope" | tr '\n' ' ')"
+            echo "[$RUN_ID]   $fid escalated to full-text gate (touched: $out_of_scope)"
         fi
-        local patch="$out_dir/$safe_fid.patch"
-        if (cd "$wt" && git add -A && git diff --cached) > "$patch" 2>>"$fixlog-export.log" \
-                && [[ -s "$patch" ]]; then
-            audit fix_result fix_id="$fid" scope="$scope" result=patch_ready \
-                attempts="$attempt" patch="$patch"
-            if [[ "$scope" == "code" ]] && ! deadline_exceeded; then
-                {
-                    cat "$bodyfile"
-                    echo ""
-                    echo "## Diff under review"
-                    echo '```diff'
-                    cat "$patch"
-                    echo '```'
-                } | with_timeout "$REVIEW_TIMEOUT" claude -p \
-                    --system-prompt "$(cat "$PROMPTS/fix-review.md")" \
-                    --allowedTools "Read,Glob,Grep" \
-                    --output-format text \
-                    > "$fixlog-review.log" 2>&1
-                verdict=$(grep -m1 '^VERDICT:' "$fixlog-review.log" | sed 's/^VERDICT: *//')
-                [[ -z "$verdict" ]] && verdict="REVIEW_FAIL"
-                audit review_result fix_id="$fid" verdict="$verdict"
-            fi
-        else
-            rm -f "$patch"
-            add_reason EMPTY_DIFF
-            audit fix_result fix_id="$fid" scope="$scope" result=failed \
-                attempts="$attempt" reason=EMPTY_DIFF
-        fi
-    elif (( attempt > MAX_FIX_ATTEMPTS )); then
-        add_reason VERIFY_FAIL_MAX_ATTEMPTS
-        audit fix_result fix_id="$fid" scope="$scope" result=failed \
-            attempts="$MAX_FIX_ATTEMPTS" reason=VERIFY_FAIL_MAX_ATTEMPTS
+    fi
+    local patch="$out_dir/$safe_fid.patch"
+    if cp "$chosen_diff" "$patch" 2>>"$fixlog-export.log" && [[ -s "$patch" ]]; then
+        audit fix_result fix_id="$fid" scope="$scope" result=patch_ready \
+            attempts="$total_attempts" patch="$patch"
     else
+        rm -f "$patch"
+        add_reason EMPTY_DIFF
         audit fix_result fix_id="$fid" scope="$scope" result=failed \
-            attempts="$attempt" reason="${code:-FIX_SESSION_FAIL}"
+            attempts="$total_attempts" reason=EMPTY_DIFF
     fi
 
     git -C "$PROJECT_ROOT" worktree remove --force "$wt" >/dev/null 2>&1
@@ -568,6 +713,7 @@ if python3 "$SCRIPTS/build_decision_packet.py" build \
         --prompt-patches-dir "$PROMPT_PATCH_DIR" \
         ${INSIGHT_ARG[@]+"${INSIGHT_ARG[@]}"} \
         ${IMPROVEMENT_ARG[@]+"${IMPROVEMENT_ARG[@]}"} \
+        --run-log-dir "$RUN_LOG_DIR" \
         --out "$PACKET" > "$RUN_LOG_DIR/packet.log" 2>&1; then
     audit chain_end result=ok packet="$PACKET" reasons="${REASONS:-none}"
     echo "[$RUN_ID] packet: $PACKET"

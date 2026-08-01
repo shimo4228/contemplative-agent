@@ -50,10 +50,12 @@ staging の advisory レビュー、決裁パケット（`scripts/build_decision
    fresh-context `claude -p` 起動（ADR-0013 の失敗機構は*共有された*会話文脈
    だった）。レビュアの verdict は人間ゲートへの参考情報 — LLM 単独の承認経路は
    存在しない。
-4. **有界の反復**（coding-style の Iteration Bounds）: 1 finding あたり fix 試行
-   ≤ 2（再試行の入力には Verify 失敗出力を含める — 同一入力の再試行はしない）、
-   週 ≤ 5 findings、セッション毎 timeout、全体 3 時間の wall-clock deadline。
-   上限到達はすべて reason code として packet に載る。
+4. **有界の反復**（coding-style の Iteration Bounds）: fix 試行はラウンドあたり
+   ≤ 2、finding あたり ≤ 1 + MAX_REVIEW_ROUNDS ラウンド（再試行の入力には Verify
+   失敗出力を含める — 同一入力の再試行はしない。2026-08-01 Amendment が原文の
+   「1 finding あたり ≤ 2」から改訂）、週 ≤ 5 findings、セッション毎 timeout、
+   全体 3 時間の wall-clock deadline。上限到達はすべて reason code として packet
+   に載る。
 5. **packet への fail-forward。** 全 stage の失敗は reason code になり、packet は
    常に生成を試みる（Stage 1 のレポート欠如のみ abort）。したがって packet の不在は
    「チェーンが起動しなかった/即死した」ことを意味し、それこそが watchdog の検査対象。
@@ -134,3 +136,67 @@ commit 後のラウンド — code-reviewer / python-reviewer / security-reviewe
 テストコードとして任意コードを実行でき、テストコードからの network egress は
 遮断されない — 境界は export された diff のレビューと人間ゲートであり、プロセス
 隔離ではない。
+
+## Amendment (2026-08-01): review フィードバックループ (T-PIPELINE-REVIEWLOOP)
+
+初のゲート週（packet `weekly-2026-07-31`）が原設計の非対称を露呈した: Verify 失敗は
+有界リトライに戻るのに、review は終端 — 1 回起動して `VERDICT:` 行だけを grep し、
+本文は捨てられていた。F1.1 の CONCERNS 本文には実欠陥 3 件（本番が出さない行形を
+検査する回帰テスト / 起きていない漏れを事実として書くコメント / `_RUNTIME_LINE_RE`
+の過剰マッチ）が含まれていたが packet に届かず、人間はその情報なしに採用を決裁した。
+review を Verify と対称の有界ループにする:
+
+- **再突入**: `CONCERNS` verdict は review 本文全文を同一 worktree の新しい fix
+  セッションに戻す（`<untrusted_review>` で包む — 本文は finding テキストから連鎖
+  するため `<untrusted_finding>` と同じ根拠）。予算は `MAX_REVIEW_ROUNDS` 再突入
+  ラウンド（既定 1）で、`MAX_FIX_ATTEMPTS` とは直交 — 後者はラウンドごとに再付与
+  され、1 回の flaky Verify が concern フィードバックを飢えさせない。re-review の
+  入力には前回 review を含め、review プロンプトに check 0 を追加: 対処済みの指摘の
+  蒸し返しで CONCERNS を維持しない。
+- **CONCERNS は export を止めない**（2026-08-01 のオペレータ決裁 — 最終 CONCERNS の
+  patch を `failed` に降格する代替案を却下）: 最終 verdict が
+  何であれ patch は `patch_ready` のまま — reviewer は検査者であって承認者ではない
+  （human-gate.md）。降格は本 ADR コミットメント 3 が approve 方向で禁じた LLM 単独
+  経路を reject 方向に作ることになる。変わるのは人間が見るもの: packet の fix
+  テーブルは verdict 履歴全体（`CONCERNS→APPROVE`）を示し、「Review notes」小節が
+  最終ラウンドの review 本文全文を inline する（`--run-log-dir`。読めないログは
+  `REVIEW_LOG_UNREADABLE` で fail-forward）。
+- **単調性 / 巻き戻し**: 各ラウンドの verify 済み diff をスナップショットし、再突入
+  ラウンドが Verify を再通過できない（またはセッション死・deadline 到達）場合は
+  前ラウンドの verify 済み diff に巻き戻す（`REVIEW_ROUND_ABANDONED`）— 動く patch
+  を失敗に変えない。再突入後に diff が不変なら re-review しない（同一入力にリトライ
+  しない）。既存の CONCERNS は記録に残る（`DIFF_UNCHANGED`）。
+- **迎合防止条項** を fix-implementation.md に追加: 再突入時、implementer は各指摘に
+  対処するか、不同意ならサマリで明示的に反論してコードを変えない — そして reviewer を
+  黙らせるためにテスト・assertion・検査を緩めることは決してしない。07-31 の反例:
+  F1.3 の「テストが finding の求めた範囲より狭い」を機械的に満たすと store 全件改修に
+  膨らんでいた。
+- **REVIEW_FAIL は終端**（verdict 行なし → 戻す本文がない）。prompt-scope findings は
+  引き続き review 経路の外（既に全文ゲート対象）。
+- **信頼リンクの強化**（2026-08-01 の security + code review ラウンド）: ループは
+  reviewer の出力を read-only の終点から tool-using セッションの入力に変えるため、
+  (a) review セッション自身の入力も finding を `<untrusted_finding>` で包み、
+  fix-review.md に data-not-instructions 条項を明記 (b) reviewer 本文内の偽装
+  `</untrusted_review>` は再注入前に無害化 (c) 埋め込み fence（packet の inline・
+  review 入力）は本文中の最長 backtick 連より長く取る (d) 事後 scope チェックは
+  diff テキストのパースでなく、選択 round の git 計算による touched-path
+  snapshot を読む — binary 変更と pure rename は `---`/`+++` ヘッダを出さず、
+  `diff.noprefix` はテキストパースを全盲にする（いずれもレビューで再現済み、
+  F-REV-6 で回帰固定）。
+
+fault column: `tests/test_weekly_pipeline_shell.py`（F-REV-1..5）が stub の
+`claude`/`uv` で実 script を駆動する — weekly-pipeline.sh を実行する初のテストであり、
+7 月のシェル層欠陥の後に `test_weekly_analysis_shell.py` が Stage 1 に対して塞いだ
+のと同じギャップを塞ぐ。
+
+本 Amendment は Decision コミットメント 4 を改訂する: fix 試行の上限は finding
+あたりでなくラウンドあたりになる。finding あたりの最悪コストは review 1 回から
+`MAX_FIX_ATTEMPTS × (1 + MAX_REVIEW_ROUNDS)` fix セッション +
+`(1 + MAX_REVIEW_ROUNDS)` review（既定値で 4 セッション + review 2 回）に増える。
+3 時間のチェーン deadline がハードストップのまま残り、再突入ラウンド中の deadline
+到達は中断でなく巻き戻しになる。二次コスト: 追加ラウンドは同じ deadline 内の
+wall-clock を消費するため、concern の多い週は ≤ 5 findings のうち完走できる数が
+ループ導入前より減りうる。残余リスク（許容）: implementer 迎合の対称形 —
+指摘された行に触れただけで欠陥が残る diff に reviewer が満足する — への機械的
+ガードは無い。緩和は、人間が 4 文字の verdict でなく最終 review 本文を読むように
+なったこと自体。
