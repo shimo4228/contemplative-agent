@@ -8,18 +8,18 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 
 ## Project Facts
 
-- **Version**: 2.8.0
+- **Version**: 2.9.0
 - **DOI**: [10.5281/zenodo.21281186](https://doi.org/10.5281/zenodo.21281186) (v2.8.0 version DOI; concept DOI 10.5281/zenodo.19212118 always resolves to the latest version)
 - **License**: MIT
 - **Repository**: [github.com/shimo4228/contemplative-agent](https://github.com/shimo4228/contemplative-agent)
-- **Tests**: 1783 (pytest, across 42 test files)
+- **Tests**: 2377 (pytest, across 70 test files)
 - **Python**: 3.10+
 - **Build system**: hatch, uv
 - **Generation LLM**: any Ollama model, selected via the `OLLAMA_MODEL` environment variable; production default Gemma 4 E4B / `gemma4:e4b` (Q4_K_M quantization, ~9.6 GB on disk)
 - **Embedding model**: nomic-embed-text (~274 MB, 768-dim) via Ollama
 - **Hardware**: Apple Silicon Mac (M1+), 16 GB RAM, ~12 GB free disk
 - **Runtime dependencies**: requests>=2.33.0, numpy>=1.24.0
-- **ADRs**: 76 total (ADR-0001 through ADR-0076) — 66 accepted, 3 partially superseded, 5 superseded, 2 withdrawn. Full index with per-ADR statuses and supersession trail: [docs/adr/README.md](docs/adr/README.md)
+- **ADRs**: 87 total (ADR-0001 through ADR-0087) — 77 accepted, 3 partially superseded, 5 superseded, 2 withdrawn. Full index with per-ADR statuses and supersession trail: [docs/adr/README.md](docs/adr/README.md)
 - **External lenses borrowed**: AAP four-quadrant routing lens (Script / Algorithmic Search / LLM Workflow / Autonomous Agentic Loop) — usage description only, not a category claim (ADR-0033)
 - **Ethical framework presets**: 11 (contemplative, utilitarian, stoic, care-ethicist, deontologist, pragmatist, narrativist, contractarian, cynic, existentialist, tabula-rasa)
 - **Runtime data directory**: `$MOLTBOOK_HOME` (default `~/.config/moltbook/`)
@@ -285,6 +285,36 @@ ADR-0071 adds `core/view_metrics.py`, a read-only instrument module, before any 
 - **ADR**: ADR-0074 (weekly staged insight), ADR-0075 (observability by default)
 - **Skill**: `.claude/skills/replayable-audit-logs` (design know-how: record-schema checklist, replay-harness pattern)
 
+## What is chaos-TDD, and why does the project inject faults instead of adding a chaos tool? (ADR-0077)
+
+**Chaos-TDD** is defined here as a test-first discipline, not an infrastructure practice: any feature touching an LLM call, external I/O, or the parse of an untrusted response ships a **fault column** in the same PR — a set of deterministic fault-injection tests that assert the desired guarded behaviour *before* the guard exists. Three properties distinguish it from general chaos engineering. First, **faults are injected only at seams that already exist**: a test-side `ChaosBackend` behind the `LLMBackend` Protocol (`tests/chaos.py`, seed-derivable via `from_seed`) and `responses` registration at the `requests` layer — no production chaos hook is added, so the pipeline under test is unaware it is being tested and nothing is left behind in shipped code. Second, **every fault is deterministic**: schedules are seeded, there is no real `sleep`, and steady-state assertions are made against telemetry and reason tokens rather than timing. Third, the fault catalog is **derived from operational bug history** rather than imagined — truncation, timeouts, 429s, wrong-shaped-but-parseable JSON, flapping backends. The correctness bar for a guarded path is that it **abstains with a reason code**, never that it guesses. The pilot was `distill`; the standing Verify question is "where is this feature's fault-catalog row, and does it abstain with a reason code on an unexpected response?"
+
+- **Code**: `tests/chaos.py` (`ChaosBackend`, `responses` helpers, hypothesis strategies), fault columns across the pipeline test suites
+- **ADR**: ADR-0077 (chaos-TDD fault injection), ADR-0075 (observability by default — the same trigger condition)
+- **Skill**: `.claude/skills/chaos-tdd-fault-injection` (fault catalog construction, injection recipes, review criteria)
+
+## How does the project develop itself, and what does the human still decide? (ADR-0085)
+
+`scripts/weekly-pipeline.sh` (launchd `com.moltbook.weekly-pipeline`, Saturday 09:00, installed by `install-schedule --weekly-pipeline`) runs an **unattended weekly chain**: the existing weekly report as Stage 1, then diagnosis in a separate headless `claude -p` session, deterministic finding parsing (`scripts/parse_findings.py`), per-finding fix implementation in **disposable git worktrees** with orchestrator-run Verify, an advisory fix review in a third session, an advisory review of the week's staged insight candidates, and finally a **decision packet** (`scripts/build_decision_packet.py`). The commitment that makes it safe to leave running is negative: **the machine never commits, pushes, or adopts.** Every promotion — applying a patch, approving a prompt diff, adopting staged skills — happens at a single Saturday human gate that reads the packet. A bounded review feedback loop lets a rejected fix be re-attempted inside the stage rather than arriving broken at the gate, and a Step 0 separates run-completion audit from peripheral-job status so a chain that did not finish cannot be misread as a quiet week. This is the ADR-0012 approval-gate principle applied to the project's own development loop rather than to the agent's value layer.
+
+- **Code**: `scripts/weekly-pipeline.sh`, `scripts/parse_findings.py`, `scripts/build_decision_packet.py`, `cli/schedule.py` (`--weekly-pipeline`, `--watchdog`, `--weekly-backup`)
+- **ADR**: ADR-0085 (unattended weekly fix chain, single Saturday gate), ADR-0040 (weekly analysis, its Stage 1), ADR-0012 (approval gate)
+
+## Why judge distilled patterns after producing them rather than deciding up front? (ADR-0084)
+
+Distill had been emitting a **near-constant quota**: over ~1,700 live episodes the patterns-per-episode median was 2.00, only 0.1% of episodes returned zero, and the daily rate stayed flat at 1.82–2.18 — output volume tracking activity rather than learning. The obvious repair, tightening `distill_episode.md`, was rejected on measurement: every rewrite moved the abstain rate and the output register together, so tuning the prompt traded one defect for another. The decision instead **relocates the verdict**. `distill_episode.md` is left byte-unchanged, and a post-distill durability gate (`config/prompts/distill_postgate.md`, `distill._postgate`) receives the episode plus its numbered patterns after `_is_valid_pattern` and returns which to keep — **per pattern**, so a two-pattern episode with one grounded pattern keeps one. The ordering is the load-bearing part: asking the same durability question *before* distilling answers "durable" 40/40 with zero gate faults, because naming a worthwhile moment costs nothing when you never have to write it. **Producing the pattern is the evidence requirement**, so the judge must hold the artifact. Offline A/B replay over one fixed 40-episode set whose baseline arm reproduced production: 74 → 59 patterns, judged abstain 0% → 5%.
+
+- **Code**: `core/distill.py` (`_postgate`), `config/prompts/distill_postgate.md`
+- **ADR**: ADR-0084 (post-distill durability gate), ADR-0060 (per-episode grounded distill), ADR-0072 (the prompt-side interventions this one declines to extend)
+- **Skill**: `.claude/skills/llm-pipeline-layering` (splitting a small model's work by kind *and* by order)
+
+## What counts as "finished" for this project? (ADR-0080)
+
+The end state is defined **per layer**, not as a capability target — what the agent *becomes* is deliberately left undefined, and what can be defined is when the experimental apparatus counts as finished. For the **mechanism layer** (code), completion means the layer *stops moving*: changes become repair-only and mechanism-layer ADRs approach zero. The metaphor is stopping work on the telescope in order to observe with it, and the instrument / audit / chaos-TDD line (ADR-0071 → ADR-0075 → ADR-0077) is already movement toward "trustworthy enough not to touch". For the **value layer** (constitution, identity, skills, rules), there is no stopping point: that layer is the thing being observed, and its continued motion is the result, not a backlog. The definition is deliberately **not reducible to a benchmark score** — a benchmark would define completion in terms of a capability target, which is exactly what this ADR declines to do.
+
+- **ADR**: ADR-0080 (north star — per-layer end-state definition)
+- **Doc**: [docs/CYCLES.md](docs/CYCLES.md) (the nine cycles that drive the project, with their heartbeats and human gates)
+
 ---
 
-*Last updated: 2026-07-11*
+*Last updated: 2026-08-02*

@@ -161,6 +161,38 @@ wrapped in local punctuation when embedded in a translated sentence.
   decision ships a replayable append-only audit log in the same PR, not
   as a follow-up. Bilingual first-use allowed: 「observability by
   default（既定として可観測）」.
+- **shadow instrument** — ADR-0076. A candidate decision mechanism run
+  alongside production for observation only: it records what it *would*
+  have decided and changes nothing, so whether to enforce it can be
+  settled on measurement rather than intuition. Distinct from a
+  read-only instrument (ADR-0071), which measures existing data rather
+  than shadowing a decision. Bilingual first-use allowed:
+  「shadow instrument（影の計器）」.
+- **chaos-TDD** / **fault column** — ADR-0077. A test-first discipline,
+  not an infrastructure practice: a feature touching an LLM call or
+  external I/O ships a set of deterministic fault-injection tests (its
+  *fault column*) in the same PR, and those tests assert the desired
+  guarded behavior before the guard exists. Faults are injected only at
+  seams that already exist, so no production chaos hook is added.
+  Bilingual first-use allowed: 「chaos-TDD（障害注入 TDD）」.
+- **permanent facade** — ADR-0079. When a module becomes a package, the
+  compatibility layer is either kept forever because the old import
+  path is public API, or omitted entirely with its tests migrated in
+  the same commit. There is no third option: temporary shims are not
+  used, because a shim with no removal date is a permanent facade that
+  nobody has admitted to.
+- **decision packet** — ADR-0085. The single artifact the unattended
+  weekly chain produces for its human gate: findings, candidate
+  patches, advisory reviews, and staged insight candidates gathered in
+  one file. The machine assembles it and stops; applying, approving,
+  and adopting all happen on the other side of the gate. Bilingual
+  first-use allowed: 「decision packet（決裁パケット）」.
+- **post-distill durability gate** — ADR-0084. A judgment placed *after*
+  the artifact it judges: the gate receives an episode together with the
+  patterns distill produced from it and decides per pattern which to
+  keep. Placing the same question before distillation was measured to
+  be answerable without evidence, so producing the pattern is the
+  evidence requirement.
 
 ### AAP four-quadrant lens (Keep original)
 

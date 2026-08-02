@@ -2,7 +2,7 @@
 # Codemaps Index
 
 Comprehensive architectural documentation for the Contemplative Agent project.
-**Last Updated**: 2026-08-01 | **Codebase**: see [Statistics](#statistics)
+**Last Updated**: 2026-08-02 | **Codebase**: see [Statistics](#statistics)
 
 ---
 
@@ -116,12 +116,12 @@ Package versions, external services, optional add-ons.
 
 ## Statistics
 
-As of **2026-08-01** — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
+As of **2026-08-02** (v2.9.0 release gate; live recount) — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
 
 | Metric | Value |
 |--------|-------|
 | Total `.py` files | 75 (67 non-`__init__` + 8 `__init__`) |
-| LOC | ~23769 |
+| LOC | ~23852 |
 | Test files | 70 (2377 tests collected) |
 | Core modules | 31 (platform-independent; incl. `llm/` package as one row) |
 | Moltbook adapter modules | 17 |

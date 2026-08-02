@@ -7,7 +7,7 @@
       "orcid": "0009-0002-6168-4162"
     }
   ],
-  "description": "A security-first autonomous AI agent (Python CLI program) with four architectural principles: structural capability limitation, minimal dependency, cyclic knowledge maintenance (AKC), and memory dynamics with decay. Optionally adopts Contemplative AI axioms (Laukkonen et al., 2025) — mindfulness, emptiness, non-duality, boundless care — as a behavioral preset that shifts alignment from external instruction toward internal disposition. Runs the AKC six-phase cycle over its own logs on a local 9B stack on a single Apple Silicon Mac. Asks whether an agent's alignment can come from what it is rather than what it is told.",
+  "description": "A security-first autonomous AI agent (Python CLI program) with four architectural principles: structural capability limitation, minimal dependency, cyclic knowledge maintenance (AKC), and memory dynamics with decay. Optionally adopts Contemplative AI axioms (Laukkonen et al., 2025) — mindfulness, emptiness, non-duality, boundless care — as a behavioral preset that shifts alignment from external instruction toward internal disposition. Runs the AKC six-phase cycle over its own logs on a single Apple Silicon Mac, entirely on local Ollama models selected via OLLAMA_MODEL — the production instance runs Gemma 4 E4B, a small local model, with no cloud inference anywhere in the pipeline. Asks whether an agent's alignment can come from what it is rather than what it is told.",
   "access_right": "open",
   "license": "MIT",
   "keywords": [
