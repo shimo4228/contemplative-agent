@@ -349,6 +349,41 @@ class _CircuitBreaker:
 _circuit = _CircuitBreaker()
 
 
+@dataclass(frozen=True)
+class CircuitReading:
+    """Read-only view of the breaker's state at one instant.
+
+    An instrument in the ADR-0071 sense: a reading over existing state that
+    adds no mechanism and feeds no gate. It exists because the conformance
+    kit (``contemplative_agent.testing``) has to assert which calls the
+    breaker counted — "a truncation drop is not a failure" is a claim about
+    the counter, and no black-box observation expresses it without also
+    exercising the threshold, which is a different claim.
+
+    Before this, the sibling backends read ``_circuit._consecutive_failures``
+    directly, so a rename inside :class:`_CircuitBreaker` broke three
+    repositories silently. The reading is the supported surface; the
+    attribute names behind it are not.
+    """
+
+    consecutive_failures: int
+    is_open: bool
+
+
+def circuit_reading() -> CircuitReading:
+    """Return the breaker's current :class:`CircuitReading`.
+
+    Reading ``is_open`` consults the cooldown clock exactly as the guarded
+    generation path does, so a reading taken after the cooldown elapsed
+    reports the half-open state (``consecutive_failures`` still at the
+    threshold, ``is_open`` False) rather than a contradiction.
+    """
+    return CircuitReading(
+        consecutive_failures=_circuit._consecutive_failures,
+        is_open=_circuit.is_open,
+    )
+
+
 @contextmanager
 def circuit_shield() -> Iterator[None]:
     """Suspend circuit-breaker *accounting* for the duration of the block.

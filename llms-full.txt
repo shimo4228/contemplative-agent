@@ -19,7 +19,7 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 - **Embedding model**: nomic-embed-text (~274 MB, 768-dim) via Ollama
 - **Hardware**: Apple Silicon Mac (M1+), 16 GB RAM, ~12 GB free disk
 - **Runtime dependencies**: requests>=2.33.0, numpy>=1.24.0
-- **ADRs**: 87 total (ADR-0001 through ADR-0087) — 77 accepted, 3 partially superseded, 5 superseded, 2 withdrawn. Full index with per-ADR statuses and supersession trail: [docs/adr/README.md](docs/adr/README.md)
+- **ADRs**: 88 total (ADR-0001 through ADR-0088) — 78 accepted, 3 partially superseded, 5 superseded, 2 withdrawn. Full index with per-ADR statuses and supersession trail: [docs/adr/README.md](docs/adr/README.md)
 - **External lenses borrowed**: AAP four-quadrant routing lens (Script / Algorithmic Search / LLM Workflow / Autonomous Agentic Loop) — usage description only, not a category claim (ADR-0033)
 - **Ethical framework presets**: 11 (contemplative, utilitarian, stoic, care-ethicist, deontologist, pragmatist, narrativist, contractarian, cynic, existentialist, tabula-rasa)
 - **Runtime data directory**: `$MOLTBOOK_HOME` (default `~/.config/moltbook/`)

@@ -54,11 +54,13 @@ from .backend import (
     TRACE_BLANK as TRACE_BLANK,
     TRACE_TYPE as TRACE_TYPE,
     BackendResult as BackendResult,
+    CircuitReading as CircuitReading,
     GenerationOutput as GenerationOutput,
     LLMBackend as LLMBackend,
     ThinkingFallbackReason as ThinkingFallbackReason,
     TokenCountingBackend as TokenCountingBackend,
     _circuit as _circuit,
+    circuit_reading as circuit_reading,
     circuit_shield as circuit_shield,
 )
 from .guard import (

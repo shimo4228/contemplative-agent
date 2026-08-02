@@ -42,6 +42,8 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
 
 `core/ ← adapters/ ← cli/` (one direction). The `cli/` package (composition root; formerly the single-file cli.py, split per ADR-0079) is the only layer importing both. Meditation/dialogue adapters depend on core/ only; they do not import moltbook adapter.
 
+`testing/` (the ADR-0088 conformance kit) is outside that stack and constrained by two `forbidden` contracts rather than a fourth layer: no production layer may import it, and it may import `core` only — not `cli`, not `adapters`. A `layers` entry would have stated the direction correctly and *also* permitted `testing → adapters`, pulling the Moltbook HTTP client into a sibling repository's test dependencies. All four contracts fire from `uv run lint-imports` and from `tests/test_architecture.py`.
+
 ## Init-Time Copy
 
 `contemplative-agent init [--template NAME]` copies every runtime Markdown from `config/` into `MOLTBOOK_HOME`. Template-derived: `constitution/`, `skills/`, `rules/`. Shared: `prompts/`, `views/`. Existing dirs never overwritten.

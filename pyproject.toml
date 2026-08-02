@@ -112,6 +112,30 @@ modules = [
     "contemplative_agent.adapters.dialogue",
 ]
 
+# ADR-0088: the conformance kit ships in the wheel (siblings import it) but
+# is not production code. Two forbidden contracts rather than a fourth
+# `layers` entry: layers would state the direction correctly and ALSO permit
+# testing -> adapters, which would drag the Moltbook HTTP client into a
+# sibling's test dependencies. What is wanted is a narrow ban on each side.
+[[tool.importlinter.contracts]]
+name = "Testing kit is a leaf (ADR-0088): production layers never import it"
+type = "forbidden"
+source_modules = [
+    "contemplative_agent.cli",
+    "contemplative_agent.adapters",
+    "contemplative_agent.core",
+]
+forbidden_modules = ["contemplative_agent.testing"]
+
+[[tool.importlinter.contracts]]
+name = "Testing kit depends on core only (ADR-0088)"
+type = "forbidden"
+source_modules = ["contemplative_agent.testing"]
+forbidden_modules = [
+    "contemplative_agent.cli",
+    "contemplative_agent.adapters",
+]
+
 [tool.ruff]
 target-version = "py310"
 line-length = 100
@@ -151,5 +175,6 @@ known-first-party = ["contemplative_agent", "tests"]
 "src/contemplative_agent/cli/**" = ["T20"]                      # CLI user output
 "src/contemplative_agent/adapters/moltbook/agent.py" = ["T20"]  # ADR-0012 approval-gate TTY display
 "src/contemplative_agent/adapters/dialogue/peer.py" = ["T20"]   # stderr turn progress
+"src/contemplative_agent/testing/__main__.py" = ["T20"]         # ADR-0088 conformance CLI
 "tests/**" = ["T20"]
 "scripts/**" = ["T20"]

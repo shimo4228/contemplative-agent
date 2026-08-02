@@ -53,6 +53,16 @@ def _nodes_of(kind: str) -> list[dict]:
 
 
 class TestGraphIntegrity:
+    def test_url_relationships_are_coerced_to_iri_edges(self):
+        graph = json.loads((REPO_ROOT / "graph.jsonld").read_text(encoding="utf-8"))
+        context = graph["@context"]
+
+        for relationship in ("citation", "subjectOf"):
+            assert context[relationship] == {
+                "@id": f"https://schema.org/{relationship}",
+                "@type": "@id",
+            }
+
     def test_adr_nodes_match_adr_files_bidirectionally(self):
         node_paths = {n["@id"].removeprefix(BLOB_PREFIX) for n in _nodes_of("ADR")}
         file_paths = {

@@ -93,6 +93,7 @@
 | [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.ja.md) | 無人 weekly fix チェーンと土曜単一ゲート | accepted | 2026-07-29 |
 | [0086](0086-submolt-scope-instrument-before-autonomy.ja.md) | Submolt スコープ — 答えを渡す前に問いを計器化する | accepted | 2026-08-01 |
 | [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.ja.md) | コンテキスト予算ガードに任意の `count_tokens` capability を足す | accepted — 0066 を拡張 | 2026-08-01 |
+| [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.ja.md) | `LLMBackend` 契約の適合キットを出荷物に入れる | accepted | 2026-08-02 |
 
 ## ADR の種別
 

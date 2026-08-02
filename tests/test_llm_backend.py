@@ -12,8 +12,10 @@ from dataclasses import dataclass, field
 from contemplative_agent.core.llm import (
     CIRCUIT_FAILURE_THRESHOLD,
     BackendResult,
+    CircuitReading,
     LLMBackend,
     _circuit,
+    circuit_reading,
     configure,
     generate,
     reset_llm_config,
@@ -166,6 +168,32 @@ class TestBackendInjection:
 
         generate("p", system="s")  # success
         assert _circuit._consecutive_failures == 0
+
+    def test_circuit_reading_matches_the_private_counter(self):
+        """The supported read of breaker state (ADR-0088).
+
+        Siblings read ``_circuit._consecutive_failures`` directly, so a
+        rename inside ``_CircuitBreaker`` broke three repositories silently.
+        The reading is the surface the conformance kit asserts against; this
+        test is what keeps it honest.
+        """
+        assert circuit_reading() == CircuitReading(consecutive_failures=0, is_open=False)
+
+        configure(backend=FakeBackend(responses=[None]))
+        generate("p", system="s")
+
+        reading = circuit_reading()
+        assert reading.consecutive_failures == _circuit._consecutive_failures == 1
+        assert reading.is_open is False
+
+    def test_circuit_reading_reports_the_open_breaker(self):
+        configure(backend=FakeBackend(responses=[None] * CIRCUIT_FAILURE_THRESHOLD))
+        for _ in range(CIRCUIT_FAILURE_THRESHOLD):
+            generate("p", system="s")
+
+        reading = circuit_reading()
+        assert reading.is_open is True
+        assert reading.consecutive_failures == CIRCUIT_FAILURE_THRESHOLD
 
     def test_reset_clears_backend(self):
         backend = FakeBackend(responses=["never reached"])
