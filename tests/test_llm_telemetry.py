@@ -66,6 +66,10 @@ EXPECTED_FIELDS = {
     "eval_count",
     "cached_tokens",
     "think",
+    # Which channel supplied the requested reasoning trace, or "absent" when
+    # none did. None when the capture guard never ran (think=False, or a call
+    # that failed before its success tail). ADR-0068 amendment.
+    "thinking_source",
     # Which measure the C2 pre-flight actually used, and the value it used.
     # None on both when the guard did not run (backend with no declared
     # context_window). ADR-0087.
@@ -316,3 +320,94 @@ class TestTelemetryIsolation:
         generate_for_api("test", 200, caller="moltbook.comment")
         record = _read_records(telemetry_dir)[0]
         assert record["caller"] == "moltbook.comment"
+
+
+class TestThinkingTraceTelemetry:
+    """The think row says whether the requested trace actually arrived.
+
+    ``think`` alone records the REQUEST. Without a companion outcome field a
+    row saying ``think: true`` is identical whether the trace was captured or
+    silently lost, which is what let a snapshot manifest claim think while its
+    ``reasoning.md`` was missing with no reason recorded (ADR-0068 amendment).
+    """
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_think_off_leaves_the_guard_unrun(self, mock_post, telemetry_dir):
+        """Absence of a request is the default, not a fallback from one — so
+        the dense field stays None and no reason is stamped. Pinning this is
+        what keeps a future "warn whenever a trace is missing" from firing on
+        every production row."""
+        mock_post.return_value = _mock_ok_response(thinking="unrequested")
+        generate("test")
+        record = _read_records(telemetry_dir)[0]
+        assert record["thinking_source"] is None
+        assert "thinking_fallback_reason" not in record
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_dedicated_field_records_its_channel(self, mock_post, telemetry_dir):
+        mock_post.return_value = _mock_ok_response(thinking="reasoning here")
+        generate("test", think=True)
+        record = _read_records(telemetry_dir)[0]
+        assert record["thinking_source"] == "field"
+        assert "thinking_fallback_reason" not in record
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_inline_fallback_records_its_channel(self, mock_post, telemetry_dir):
+        """A trace recovered from the text is a successful capture, but from
+        the weaker channel — worth telling apart when calibrating which
+        backends actually honor the flag."""
+        mock_post.return_value = _mock_ok_response(text="<think>inline</think>answer")
+        generate("test", think=True)
+        record = _read_records(telemetry_dir)[0]
+        assert record["thinking_source"] == "inline"
+        assert "thinking_fallback_reason" not in record
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_absent_trace_is_recorded_with_its_reason(self, mock_post, telemetry_dir):
+        mock_post.return_value = _mock_ok_response()
+        generate("test", think=True)
+        record = _read_records(telemetry_dir)[0]
+        assert record["thinking_source"] == "absent"
+        assert record["thinking_fallback_reason"] == "trace_absent"
+        assert record["outcome"] == "ok"  # the generation succeeded; only the trace is missing
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_blank_trace_is_distinct_from_an_absent_one(self, mock_post, telemetry_dir):
+        """A channel that carried whitespace worked; its content did not. The
+        first is a model behavior, the second a backend that never populates
+        the field — collapsing them would hide which one is happening."""
+        mock_post.return_value = _mock_ok_response(thinking="   \n ")
+        generate("test", think=True)
+        assert _read_records(telemetry_dir)[0]["thinking_fallback_reason"] == "trace_blank"
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_a_missing_trace_makes_no_claim_about_the_run(self, mock_post, telemetry_dir, caplog):
+        """A run can make several think-ON calls (rules-distill 2, stocktake 4),
+        so one empty trace does not mean the run wrote no reasoning.md. The
+        per-call warning must not assert otherwise — a false diagnosis handed
+        out from inside the observability path (codex-review 2026-08-02)."""
+        mock_post.return_value = _mock_ok_response()
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
+            generate("test", think=True)
+        assert "reason=trace_absent" in caplog.text
+        assert "reasoning.md" not in caplog.text
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_failed_call_leaves_the_guard_unrun(self, mock_post, telemetry_dir):
+        """A row that never reached the success tail has no trace to explain;
+        ``outcome`` already answers why. Stamping a trace reason here would
+        double-count one fault under two fields."""
+        mock_post.return_value = _mock_ok_response(text="")
+        generate("test", think=True)
+        record = _read_records(telemetry_dir)[0]
+        assert record["outcome"] == "empty"
+        assert record["thinking_source"] is None
+        assert "thinking_fallback_reason" not in record
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_trace_content_never_reaches_telemetry(self, mock_post, telemetry_dir):
+        """The ADR-0065 metadata-only contract survives the new fields: they
+        are closed enumerations over provenance, never the trace itself."""
+        mock_post.return_value = _mock_ok_response(thinking="SECRET-TRACE-CONTENT")
+        generate("test", think=True)
+        assert "SECRET-TRACE-CONTENT" not in json.dumps(_read_records(telemetry_dir)[0])

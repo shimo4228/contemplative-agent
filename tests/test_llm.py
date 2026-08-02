@@ -1610,6 +1610,29 @@ class TestThinkParameter:
         assert out.text == "answer"
         assert out.thinking is None
 
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_think_false_says_nothing_about_the_missing_trace(self, mock_post, caplog):
+        """The capture guard is silent under the default-off contract. A call
+        that never asked for a trace has nothing to fall back from, so warning
+        here would put a reason on every production row and bury the real
+        ones. Pinned explicitly rather than left an accident of control flow."""
+        mock_post.return_value = self._ollama(response="answer")
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
+            generate_for_api("p", max_length=200)  # think defaults False
+        assert "reason=trace_" not in caplog.text
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_missing_trace_under_think_still_returns_the_text(self, mock_post, caplog):
+        """The generation is not the casualty. A backend that ignores think
+        loses its research artifact and says so; the published text is
+        unaffected (ADR-0068 amendment)."""
+        mock_post.return_value = self._ollama(response="answer")
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
+            out = generate_for_api("p", max_length=200, think=True)
+        assert out.text == "answer"
+        assert out.thinking is None
+        assert "reason=trace_absent" in caplog.text
+
 
 class TestGenerateFull:
     """ADR-0069: generate_full() is the internal trace-keeping entry — like

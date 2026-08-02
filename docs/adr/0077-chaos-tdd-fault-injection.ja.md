@@ -31,6 +31,20 @@ telemetry の `outcome`。ゲートが発火したときだけ `truncated_droppe
 置き換えたテストと、併せて追加した `not raw` / `raw is None` の行は、いずれも production を
 mutate して RED を確認したうえで採用した。
 
+2026-08-02 追補: LLM 層そのものに 8 本目の列
+（`tests/test_llm_chaos.py::TestThinkingTraceFaultsF8`）。要求した推論トレースの
+到達を対象とし、注入は `tests/chaos.py` の `ThinkingChaosBackend`。持ち帰る点が 2 つ。
+第一に、新しい fault をどこに置くかについて: 独自の injector を必要とした capability は
+これで 2 つ目であり、決め手は「これは fault か?」ではなく「共有語彙に足すと無関係な
+property テストが fault ごとの集計を導出し直す羽目になるか?」だった — 共有語彙は
+カタログではなく schedule の契約である。第二に、この列は
+`test_vocabulary_has_no_dead_codes` を追加した。宣言された全理由コードが注入可能な
+fault で到達可能であることを assert する。pilot 自身の `TOKEN_COUNT_FALLBACK_REASONS` は
+export されているが fault との対応を assert されていない。どの fault からも produce
+できない理由コードはゲートの服を着たドキュメントであり、カタログはそれに気づくべき場所である。
+[ADR-0068 追補](./0068-per-call-think-flag-and-thinking-trace-capture.ja.md#追補-2026-08-02--取得結果を観測可能にする)
+を参照。
+
 ## Date
 
 2026-07-13

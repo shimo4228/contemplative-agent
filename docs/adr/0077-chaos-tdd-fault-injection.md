@@ -36,6 +36,21 @@ telemetry `outcome`, which reads `truncated_dropped` only when the gate
 fires). Both the replacement and the `not raw` / `raw is None` row added
 alongside it were validated by mutating production and confirming RED.
 
+Amended 2026-08-02: an eighth column on the LLM layer itself
+(`tests/test_llm_chaos.py::TestThinkingTraceFaultsF8`), covering delivery of a
+requested reasoning trace, with a `ThinkingChaosBackend` in `tests/chaos.py`.
+Two notes worth carrying. First, on where a new fault belongs: this is the
+second capability to need its own injector rather than a `FAULT_VOCABULARY`
+member, and the deciding question was not "is it a fault?" but "would adding
+it force unrelated property tests to re-derive their per-fault tallies?" —
+the shared vocabulary is a schedule contract, not a catalog. Second, the
+column added `test_vocabulary_has_no_dead_codes`, asserting every declared
+reason code is reachable by an injectable fault. The pilot's own
+`TOKEN_COUNT_FALLBACK_REASONS` is exported and never asserted against its
+faults; a reason code no fault can produce is documentation wearing a gate's
+clothes, and the catalog is the natural place to notice that. See the
+[ADR-0068 amendment](./0068-per-call-think-flag-and-thinking-trace-capture.md#amendment-2026-08-02--the-capture-outcome-becomes-observable).
+
 ## Date
 
 2026-07-13

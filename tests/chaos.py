@@ -20,7 +20,7 @@ import json
 import math
 import os
 import random
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 import requests
 import responses as responses_lib
@@ -277,6 +277,126 @@ class TokenCountingChaosBackend(ChaosBackend):
 def count_fault_schedules(min_size: int = 1, max_size: int = 6) -> st.SearchStrategy[list[str]]:
     """Sequences over the count-fault vocabulary."""
     return st.lists(st.sampled_from(COUNT_FAULT_VOCABULARY), min_size=min_size, max_size=max_size)
+
+
+# ---------------------------------------------------------------------------
+# ThinkingChaosBackend — reasoning-trace delivery, fault-injected
+# ---------------------------------------------------------------------------
+
+THINK_OK = "think_ok"  # dedicated BackendResult.thinking carries a trace
+THINK_INLINE = "think_inline"  # no dedicated field; a <think> block in the text
+THINK_MISSING = "think_missing"  # think honored by nobody: no field, no block
+THINK_BLANK = "think_blank"  # field present, whitespace-only
+THINK_TYPE = "think_type"  # field carries a dict instead of a str
+# A wrongly-typed field AND a usable inline block. The only fault where a
+# reason is stamped while a trace is still captured, which is what proves
+# thinking_source and thinking_fallback_reason are independent fields rather
+# than two spellings of one verdict.
+THINK_TYPE_INLINE = "think_type_inline"
+# A blank dedicated field AND a usable inline block. The dedicated channel is
+# truthy but carries nothing, so a guard that judges emptiness only after
+# choosing a channel would let it shadow the inline trace and then report the
+# discarded result as blank (codex-review 2026-08-02, P2).
+THINK_BLANK_INLINE = "think_blank_inline"
+
+THINK_FAULT_VOCABULARY = (
+    THINK_OK,
+    THINK_INLINE,
+    THINK_MISSING,
+    THINK_BLANK,
+    THINK_TYPE,
+    THINK_TYPE_INLINE,
+    THINK_BLANK_INLINE,
+)
+
+# Fault -> the reason code the capture guard must stamp. Faults absent from
+# this map deliver a usable trace and must stamp no reason at all.
+THINK_FAULT_REASONS = {
+    THINK_MISSING: "trace_absent",
+    THINK_BLANK: "trace_blank",
+    THINK_TYPE: "trace_type",
+    THINK_TYPE_INLINE: "trace_type",
+    THINK_BLANK_INLINE: "trace_blank",
+}
+
+# Fault -> the dense ``thinking_source`` value. Every think=True call records
+# one, including the ones that captured nothing ("absent").
+THINK_FAULT_SOURCES = {
+    THINK_OK: "field",
+    THINK_INLINE: "inline",
+    THINK_TYPE_INLINE: "inline",
+    THINK_MISSING: "absent",
+    THINK_BLANK: "absent",
+    THINK_TYPE: "absent",
+    THINK_BLANK_INLINE: "inline",
+}
+
+# Faults after which GenerationOutput.thinking must still be non-None.
+THINK_FAULTS_KEEPING_TRACE = frozenset(
+    {THINK_OK, THINK_INLINE, THINK_TYPE_INLINE, THINK_BLANK_INLINE}
+)
+
+_THINK_TRACE = "chaos reasoning trace: weighed the options, picked the second."
+
+
+@dataclass
+class ThinkingChaosBackend(ChaosBackend):
+    """``ChaosBackend`` plus fault-injected reasoning-trace delivery.
+
+    A separate class rather than a flag on ``ChaosBackend``, and no entry in
+    ``FAULT_VOCABULARY``: the base class must keep never populating
+    ``.thinking`` so the existing chaos suite keeps exercising the no-trace
+    path, and the shared vocabulary is iterated by the distill and insight
+    property tests whose per-fault tallies would have to be re-derived for a
+    new member.
+
+    ``think_schedule`` is consumed per ``generate()`` call, in step with the
+    base ``schedule``. Calls beyond it deliver a clean trace.
+    """
+
+    think_schedule: list[str] = field(default_factory=list)
+
+    def generate(
+        self,
+        prompt: str,
+        system: str,
+        num_predict: int,
+        format: dict | None,
+        *,
+        temperature: float = 1.0,
+        think: bool = False,
+    ) -> BackendResult | None:
+        idx = len(self.calls)  # before super() appends this call
+        result = super().generate(
+            prompt, system, num_predict, format, temperature=temperature, think=think
+        )
+        fault = self.think_schedule[idx] if idx < len(self.think_schedule) else THINK_OK
+        if result is None or fault not in THINK_FAULT_VOCABULARY:
+            if fault not in THINK_FAULT_VOCABULARY:
+                raise ValueError(f"unknown think fault {fault!r}")
+            return result
+        if fault == THINK_OK:
+            return replace(result, thinking=_THINK_TRACE)
+        if fault == THINK_INLINE:
+            return replace(result, text=f"<think>{_THINK_TRACE}</think>{result.text}")
+        if fault == THINK_MISSING:
+            return result  # base class leaves .thinking None and emits no block
+        if fault == THINK_BLANK:
+            return replace(result, thinking="   \n  ")
+        if fault == THINK_TYPE:
+            return replace(result, thinking={"unexpected": "shape"})  # type: ignore[arg-type]
+        if fault == THINK_BLANK_INLINE:
+            return replace(
+                result,
+                text=f"<think>{_THINK_TRACE}</think>{result.text}",
+                thinking="   \n  ",
+            )
+        # THINK_TYPE_INLINE
+        return replace(
+            result,
+            text=f"<think>{_THINK_TRACE}</think>{result.text}",
+            thinking={"unexpected": "shape"},  # type: ignore[arg-type]
+        )
 
 
 # ---------------------------------------------------------------------------

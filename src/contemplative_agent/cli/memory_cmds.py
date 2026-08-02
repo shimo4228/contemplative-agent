@@ -145,6 +145,13 @@ def _take_snapshot(
     )
 
 
+# Why no reasoning.md was written. Deliberately NOT the core layer's trace
+# reason codes: this layer sees only empty strings and cannot tell trace_absent
+# from trace_blank, so reusing one here would assert more than it can support.
+_REASONING_SKIP_NO_SECTIONS = "no_think_calls"  # the command made no think-ON call
+_REASONING_SKIP_ALL_EMPTY = "all_traces_empty"  # calls ran, every trace came back empty
+
+
 def _write_reasoning(
     snapshot_path: Path | None,
     sections: Sequence[tuple[str, str | None]],
@@ -165,6 +172,15 @@ def _write_reasoning(
         return
     from ..core.report import defang_urls
 
+    if not sections:
+        # Not a fault: a think-ON command can legitimately make no think-ON
+        # call (skill-stocktake with nothing to merge). Said out loud because
+        # the resulting absence of reasoning.md is byte-identical to the
+        # failure case below, and the operator sees only the directory.
+        logger.info(
+            "No reasoning sections for %s: reason=%s", snapshot_path, _REASONING_SKIP_NO_SECTIONS
+        )
+        return
     blocks: list[str] = []
     seen: set[str] = set()
     for title, trace in sections:
@@ -173,6 +189,16 @@ def _write_reasoning(
         seen.add(trace)
         blocks.append(f"## {title}\n\n{defang_urls(trace)}")
     if not blocks:
+        # Calls ran and every trace came back empty. Which channel failed and
+        # why is per-call knowledge this layer does not have (it sees only
+        # empty strings) — that is on the llm-calls row, hence the pointer
+        # rather than a core reason code reused at the wrong altitude.
+        logger.warning(
+            "No reasoning trace to write under %s: reason=%s "
+            "(per-call reason in logs/llm-calls-*.jsonl)",
+            snapshot_path,
+            _REASONING_SKIP_ALL_EMPTY,
+        )
         return
     try:
         (snapshot_path / "reasoning.md").write_text(

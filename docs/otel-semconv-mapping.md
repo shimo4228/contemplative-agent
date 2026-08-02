@@ -27,7 +27,7 @@ Written by `core/llm.py:_emit_telemetry` (one record per LLM call).
 | `run_id` (one per process; stamped on every audit record by the shared writer) | trace grouping key (`ca.convert.grouping = "run-id"`) |
 | `session_id` (present while an agent session is active) | `session.id` (general semconv) |
 | `input_tokens` (what the C2 pre-flight measured, *before* the call) | none — `gen_ai.usage.input_tokens` is the provider-reported count and is already mapped from `prompt_eval_count`; conflating a pre-flight estimate with a billed count would corrupt both → `ca.audit.*` |
-| `caller`, `prompt_sha256`, `think`, `cached_tokens`, `token_count_source`, `token_count_fallback_reason` ([ADR-0087](adr/0087-optional-token-counting-capability-for-the-context-budget-guard.md)), … | no semconv equivalent → custom `ca.audit.*` namespace |
+| `caller`, `prompt_sha256`, `think`, `thinking_source`, `thinking_fallback_reason` ([ADR-0068](adr/0068-per-call-think-flag-and-thinking-trace-capture.md) amendment), `cached_tokens`, `token_count_source`, `token_count_fallback_reason` ([ADR-0087](adr/0087-optional-token-counting-capability-for-the-context-budget-guard.md)), … | no semconv equivalent → custom `ca.audit.*` namespace |
 
 The fields with no standard equivalent are exactly the research-replay
 fields: `caller` keys the replay corpus by pipeline stage, `prompt_sha256`

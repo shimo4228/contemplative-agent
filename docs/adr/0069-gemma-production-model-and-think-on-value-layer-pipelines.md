@@ -77,7 +77,10 @@ behavior-shaping run a snapshot exists to make reproducible.
    `thinking` field). think is hard-coded per command (the decision is settled);
    a CLI flag can be added later if A/B is wanted.
 
-4. **Persist the trace to `reasoning.md` in the snapshot directory.** Each
+4. **Persist the trace to `reasoning.md` in the snapshot directory.** *(A missing `reasoning.md`
+   now carries a reason — `no_think_calls` vs `all_traces_empty` — and the per-call reason
+   lives on the `llm-calls` row; see the [ADR-0068 amendment](./0068-per-call-think-flag-and-thinking-trace-capture.md#amendment-2026-08-02--the-capture-outcome-becomes-observable),
+   which also reaffirms Decision 5's manifest `think` as input config and leaves it unchanged.)* Each
    command writes its run's reasoning (URL-defanged like the episode report;
    already secret-scrubbed by `_sanitize_thinking`) to
    `snapshots/{cmd}_{ts}/reasoning.md`, a sibling of `manifest.json`. The

@@ -17,7 +17,9 @@ compliance) so tests/chaos.py has no untested logic.
 from __future__ import annotations
 
 import json
+import logging
 import time
+from unittest.mock import MagicMock, patch
 
 import pytest
 import responses as responses_lib
@@ -27,11 +29,13 @@ from contemplative_agent.core.llm import (
     BACKEND_FRAMING_RESERVE,
     CIRCUIT_FAILURE_THRESHOLD,
     MIN_CLAMPED_NUM_PREDICT,
+    THINKING_FALLBACK_REASONS,
     LLMBackend,
     _circuit,
     configure,
     generate,
     generate_for_api,
+    generate_full,
     reset_llm_config,
 )
 from tests.chaos import (
@@ -47,8 +51,17 @@ from tests.chaos import (
     NONE,
     OK,
     SHAPE_VIOLATION,
+    THINK_BLANK_INLINE,
+    THINK_FAULT_REASONS,
+    THINK_FAULT_SOURCES,
+    THINK_FAULT_VOCABULARY,
+    THINK_FAULTS_KEEPING_TRACE,
+    THINK_MISSING,
+    THINK_OK,
+    THINK_TYPE_INLINE,
     TRUNCATED,
     ChaosBackend,
+    ThinkingChaosBackend,
     TokenCountingChaosBackend,
     add_generate_429,
     add_generate_timeout,
@@ -544,3 +557,147 @@ class TestNarrowHeadroomTruncationF7:
         )
         assert backend.calls == []
         assert _read_records(telemetry_dir)[-1]["outcome"] == "budget_exceeded"
+
+
+class TestThinkingTraceFaultsF8:
+    """F8: a call asks for a reasoning trace and does not get a usable one.
+
+    ``think=True`` is a per-call request, so its non-delivery is a fallback
+    from something — unlike an absent ``count_tokens``, which is a default.
+    Until now every way of not delivering one collapsed into ``thinking=None``
+    with ``tel["think"]`` still true, so a manifest claiming ``"think": true``
+    could sit beside a missing ``reasoning.md`` with nothing recording why.
+    Measured on the operator's own store: 6 of 100 snapshot runs declared
+    think, and one of those six has no ``reasoning.md``.
+
+    The desired guarded behavior for every fault here is the same: return the
+    generated text unharmed, record WHICH channel the trace came from, record
+    WHY it was not delivered as-is, and leave the circuit breaker alone — a
+    trace that never arrived is not a failed call.
+    """
+
+    @staticmethod
+    def _backend(think_schedule):
+        return ThinkingChaosBackend(
+            model="thinking-model",
+            think_schedule=list(think_schedule),
+        )
+
+    @pytest.mark.parametrize("fault", sorted(THINK_FAULT_VOCABULARY))
+    def test_every_trace_fault_records_its_source(self, fault, telemetry_dir):
+        """The dense field is written on every think=True call, including the
+        ones that captured nothing — an absent trace must be a recorded
+        "absent", not an unwritten field indistinguishable from think=False."""
+        configure(backend=self._backend([fault]))
+
+        out = generate_full("p", system="s", think=True)
+        assert out is not None
+        record = _read_records(telemetry_dir)[0]
+        assert record["thinking_source"] == THINK_FAULT_SOURCES[fault]
+        assert record["outcome"] == "ok"  # the generation itself succeeded
+
+    @pytest.mark.parametrize("fault", sorted(THINK_FAULT_REASONS))
+    def test_every_trace_fault_records_its_reason(self, fault, telemetry_dir):
+        configure(backend=self._backend([fault]))
+
+        assert generate_full("p", system="s", think=True) is not None
+        record = _read_records(telemetry_dir)[0]
+        assert record["thinking_fallback_reason"] == THINK_FAULT_REASONS[fault]
+
+    @pytest.mark.parametrize("fault", sorted(THINK_FAULTS_KEEPING_TRACE))
+    def test_a_delivered_trace_survives_the_guard(self, fault, telemetry_dir):
+        """The guard must not become a second way to lose the trace."""
+        configure(backend=self._backend([fault]))
+
+        out = generate_full("p", system="s", think=True)
+        assert out is not None and out.thinking
+
+    def test_clean_capture_stamps_no_reason(self, telemetry_dir):
+        """Sparse field discipline: a trace that arrived as-is is not a
+        fallback from anything, so the row carries no reason at all."""
+        configure(backend=self._backend([THINK_OK]))
+
+        assert generate_full("p", system="s", think=True) is not None
+        record = _read_records(telemetry_dir)[0]
+        assert record["thinking_source"] == "field"
+        assert "thinking_fallback_reason" not in record
+
+    @pytest.mark.parametrize("fault", sorted(THINK_FAULT_REASONS))
+    def test_trace_fault_never_records_a_circuit_failure(self, fault):
+        """Losing a research artifact is not a backend outage. Scoring it
+        would let a non-thinking backend open the breaker and suppress
+        healthy generation — the same reasoning that keeps counter faults
+        (ADR-0087) and over-budget skips off the breaker."""
+        reset_llm_config()
+        configure(backend=self._backend([fault]))
+        try:
+            generate_full("p", system="s", think=True)
+            assert _circuit._consecutive_failures == 0
+        finally:
+            reset_llm_config()
+
+    def test_missing_trace_logs_a_greppable_reason(self, telemetry_dir, caplog):
+        configure(backend=self._backend([THINK_MISSING]))
+
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core.llm"):
+            assert generate_full("p", system="s", think=True) is not None
+        assert "reason=trace_absent" in caplog.text
+
+    def test_type_fault_still_adopts_the_inline_trace(self, telemetry_dir):
+        """First-reason-wins: the row explains why the source is ``inline``
+        rather than ``field`` even though a trace was captured. The two
+        fields are independent, not two spellings of one verdict."""
+        configure(backend=self._backend([THINK_TYPE_INLINE]))
+
+        out = generate_full("p", system="s", think=True)
+        assert out is not None and out.thinking
+        record = _read_records(telemetry_dir)[0]
+        assert record["thinking_source"] == "inline"
+        assert record["thinking_fallback_reason"] == "trace_type"
+
+    @patch("contemplative_agent.core.llm.requests.post")
+    def test_non_str_ollama_thinking_does_not_crash(self, mock_post, telemetry_dir):
+        """The built-in path reads ``data.get("thinking")`` straight off
+        untrusted JSON. Before the guard a non-str reached ``_scrub_secrets``
+        and raised AttributeError — AFTER ``outcome="ok"`` had been stamped,
+        so the record claimed success while the caller got an exception."""
+        resp = MagicMock()
+        resp.json.return_value = {"response": "answer", "thinking": {"oops": 1}}
+        resp.raise_for_status.return_value = None
+        mock_post.return_value = resp
+
+        out = generate_full("p", system="s", think=True)
+        assert out is not None and out.text == "answer"
+        assert out.thinking is None
+        record = _read_records(telemetry_dir)[0]
+        assert record["thinking_fallback_reason"] == "trace_type"
+
+    def test_think_off_rows_carry_neither_field(self, telemetry_dir):
+        """The default-off contract expressed in telemetry. A call that never
+        asked for a trace has nothing to fall back from, so the dense field
+        stays None and no reason is stamped — this is the assertion a naive
+        "always warn on a missing trace" would fail."""
+        configure(backend=self._backend([THINK_MISSING]))
+
+        assert generate_full("p", system="s") is not None  # think defaults False
+        record = _read_records(telemetry_dir)[0]
+        assert record["thinking_source"] is None
+        assert "thinking_fallback_reason" not in record
+
+    def test_a_blank_field_does_not_shadow_the_inline_channel(self, telemetry_dir):
+        """A whitespace-only dedicated field is truthy but carries nothing, so
+        it must fall through like an absent one rather than winning the channel
+        choice and taking a usable inline trace down with it. The reason still
+        records that the field carried something (codex-review 2026-08-02)."""
+        configure(backend=self._backend([THINK_BLANK_INLINE]))
+
+        out = generate_full("p", system="s", think=True)
+        assert out is not None and out.thinking  # the inline trace survived
+        record = _read_records(telemetry_dir)[0]
+        assert record["thinking_source"] == "inline"
+        assert record["thinking_fallback_reason"] == "trace_blank"
+
+    def test_vocabulary_has_no_dead_codes(self):
+        """Every declared reason must be producible by an injectable fault.
+        A code no fault can reach is documentation pretending to be a gate."""
+        assert set(THINK_FAULT_REASONS.values()) == set(THINKING_FALLBACK_REASONS)

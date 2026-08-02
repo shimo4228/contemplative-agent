@@ -6,6 +6,7 @@ Split from the single-file test_cli.py alongside the cli/ package split
 
 import argparse
 import json
+import logging
 from unittest.mock import MagicMock, patch
 
 from contemplative_agent.cli.memory_cmds import _write_reasoning
@@ -32,9 +33,24 @@ class TestWriteReasoning:
         content = (tmp_path / "reasoning.md").read_text()
         assert content.count("same trace") == 1
 
-    def test_skips_empty_and_none_traces(self, tmp_path):
-        _write_reasoning(tmp_path, [("a", None), ("b", "")])
+    def test_skips_empty_and_none_traces(self, tmp_path, caplog):
+        """The file is still not written — but the absence now has a reason.
+        Without one it is byte-identical to a run that made no think-ON call,
+        and the operator sees only the directory (ADR-0068 amendment)."""
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.cli.memory_cmds"):
+            _write_reasoning(tmp_path, [("a", None), ("b", "")])
         assert not (tmp_path / "reasoning.md").exists()
+        assert "reason=all_traces_empty" in caplog.text
+
+    def test_no_sections_is_reported_as_a_verdict_not_a_fault(self, tmp_path, caplog):
+        """A think-ON command that legitimately made no think-ON call (e.g.
+        skill-stocktake with nothing to merge). INFO, not WARNING: nothing
+        broke, and the two absences must not read alike."""
+        with caplog.at_level(logging.INFO, logger="contemplative_agent.cli.memory_cmds"):
+            _write_reasoning(tmp_path, [])
+        assert not (tmp_path / "reasoning.md").exists()
+        assert "reason=no_think_calls" in caplog.text
+        assert "reason=all_traces_empty" not in caplog.text
 
     def test_noop_when_snapshot_path_none(self):
         # No snapshot (e.g. --dry-run) → nothing to do, no crash.

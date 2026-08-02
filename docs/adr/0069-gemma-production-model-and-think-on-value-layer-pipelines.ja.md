@@ -71,7 +71,10 @@ snapshot が再現可能にするために存在する種類の、振る舞い�
    載せる。think はコマンドごとにハードコードされる（判断は確定済み）。A/B を望むなら CLI フラグは
    後から追加できる。
 
-4. **trace を snapshot ディレクトリの `reasoning.md` に永続化する。** 各コマンドは、その run の
+4. **trace を snapshot ディレクトリの `reasoning.md` に永続化する。** *(`reasoning.md` の欠落は
+   理由を伴うようになった — `no_think_calls` か `all_traces_empty` か。呼び出し単位の理由は
+   `llm-calls` 行にある。[ADR-0068 追補](./0068-per-call-think-flag-and-thinking-trace-capture.ja.md#追補-2026-08-02--取得結果を観測可能にする)
+   を参照。同追補は決定 5 の manifest `think` を入力設定として再確認し、変更しない。)* 各コマンドは、その run の
    reasoning（episode report と同様に URL を defang 済み。`_sanitize_thinking` によりすでに
    secret を除去済み）を `manifest.json` の兄弟である `snapshots/{cmd}_{ts}/reasoning.md` に書き出す。
    manifest は入力のみのまま（単一責務）で、trace は出力である。対話的な承認ゲートも reasoning を

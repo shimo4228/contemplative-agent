@@ -9,7 +9,7 @@ import time
 from collections.abc import Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass
-from typing import Protocol, runtime_checkable
+from typing import Literal, Protocol, runtime_checkable
 
 logger = logging.getLogger(__name__)
 
@@ -253,6 +253,49 @@ BACKEND_FRAMING_RESERVE = 64
 # Values of the telemetry field ``token_count_source``.
 TOKEN_COUNT_SOURCE_BACKEND = "backend"
 TOKEN_COUNT_SOURCE_ESTIMATOR = "estimator"
+
+
+# Reason codes stamped on telemetry when a call requested a reasoning trace
+# (``think=True``) and did not get a usable one. think=False is NOT in this
+# vocabulary — a call that never asked has nothing to fall back from, and a
+# reason on every production row would bury the real ones.
+#
+# Nor does this vocabulary say anything about a backend's NATURE. Each code is
+# a statement about what was observed on THIS call, which is what keeps it
+# valid if a capability marker ever lands (T-BACKEND-CONTRACT-KIT): a marker
+# would only SUBTRACT ``trace_absent`` rows for backends that never claimed to
+# produce traces, leaving the codes and their consumers unchanged.
+ThinkingFallbackReason = Literal["trace_absent", "trace_blank", "trace_type"]
+
+# think=True, but neither the dedicated field nor an inline <think> block
+# carried anything. The generation itself succeeded.
+TRACE_ABSENT: ThinkingFallbackReason = "trace_absent"
+# A trace arrived and sanitization left nothing. In practice a whitespace-only
+# trace: _scrub_secrets REPLACES matches with "[REDACTED]" rather than deleting
+# them, so a trace that was entirely a credential survives as non-empty.
+# Separate from trace_absent because the diagnosis differs — the channel worked
+# and the content did not, which is a model behavior rather than a backend bug.
+TRACE_BLANK: ThinkingFallbackReason = "trace_blank"
+# The dedicated trace field was not a str. Rejected BEFORE _sanitize_thinking,
+# which would otherwise reach re.sub()/str.lower() on a non-str and raise —
+# after the caller had already stamped outcome="ok".
+TRACE_TYPE: ThinkingFallbackReason = "trace_type"
+
+THINKING_FALLBACK_REASONS: tuple[ThinkingFallbackReason, ...] = (
+    TRACE_ABSENT,
+    TRACE_BLANK,
+    TRACE_TYPE,
+)
+
+# Values of the telemetry field ``thinking_source``: which channel the captured
+# trace came from, or that none did. None (the field's default) means the
+# capture guard never ran — think=False, or a call that failed before it.
+# Deliberately not "backend": TOKEN_COUNT_SOURCE_BACKEND already spends that
+# word on the injected backend's tokenizer, while this channel covers the
+# built-in Ollama response field too. The name says which channel, not who.
+THINKING_SOURCE_FIELD = "field"
+THINKING_SOURCE_INLINE = "inline"
+THINKING_SOURCE_ABSENT = "absent"
 
 
 class _CircuitBreaker:
