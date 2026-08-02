@@ -12,6 +12,8 @@ import numpy as np
 import pytest
 
 import contemplative_agent.core.snapshot as snapshot_mod
+from contemplative_agent.core._io import append_jsonl_restricted
+from contemplative_agent.core.run_context import RUN_ID, set_session_id
 from contemplative_agent.core.snapshot import (
     _copy_markdown_tree,
     _prune_snapshots,
@@ -238,6 +240,73 @@ class TestWriteSnapshot:
         manifest = json.loads((path / "manifest.json").read_text())
         assert manifest["generation_model"] is None
         assert manifest["think"] is False
+
+    def test_manifest_carries_the_run_id(self, layout, view_registry):
+        """The snapshot joins to its own telemetry. Without an execution id the
+        join runs through audit.jsonl (which has both snapshot_path and run_id),
+        and a run that produced no artifacts never writes an audit row — leaving
+        only ts-proximity. run_id is input-side metadata, so it belongs in the
+        manifest under the same responsibility as generation_model (ADR-0069
+        decision 5)."""
+        path = write_snapshot(
+            command="insight",
+            views_dir=layout["views"],
+            constitution_dir=layout["constitution"],
+            snapshots_dir=layout["snapshots"],
+            view_registry=view_registry,
+        )
+        assert path is not None
+        manifest = json.loads((path / "manifest.json").read_text())
+        assert manifest["run_id"] == RUN_ID
+
+    def test_manifest_run_id_matches_the_audit_writer(self, layout, view_registry, tmp_path):
+        """Same value, same key, so one join works across both artifacts — the
+        point of the field. A manifest stamped from a different source would
+        look joinable and silently pair nothing."""
+        path = write_snapshot(
+            command="insight",
+            views_dir=layout["views"],
+            constitution_dir=layout["constitution"],
+            snapshots_dir=layout["snapshots"],
+            view_registry=view_registry,
+        )
+        log = tmp_path / "llm-calls-test.jsonl"
+        append_jsonl_restricted(log, {"caller": "insight.skill_extract"})
+
+        assert path is not None
+        manifest = json.loads((path / "manifest.json").read_text())
+        record = json.loads(log.read_text().splitlines()[0])
+        assert manifest["run_id"] == record["run_id"]
+
+    def test_manifest_omits_session_id_outside_a_session(self, layout, view_registry):
+        """Sparse, exactly like the audit writer's: absent means no agent
+        session was active. A permanently-null key would be noise — snapshots
+        are taken by manually-invoked commands, never inside the `run` loop."""
+        path = write_snapshot(
+            command="insight",
+            views_dir=layout["views"],
+            constitution_dir=layout["constitution"],
+            snapshots_dir=layout["snapshots"],
+            view_registry=view_registry,
+        )
+        assert path is not None
+        assert "session_id" not in json.loads((path / "manifest.json").read_text())
+
+    def test_manifest_carries_session_id_inside_a_session(self, layout, view_registry):
+        set_session_id("sess-abc123")
+        try:
+            path = write_snapshot(
+                command="insight",
+                views_dir=layout["views"],
+                constitution_dir=layout["constitution"],
+                snapshots_dir=layout["snapshots"],
+                view_registry=view_registry,
+            )
+            assert path is not None
+            manifest = json.loads((path / "manifest.json").read_text())
+            assert manifest["session_id"] == "sess-abc123"
+        finally:
+            set_session_id(None)
 
     def test_centroids_npz_roundtrips(self, layout, view_registry):
         path = write_snapshot(

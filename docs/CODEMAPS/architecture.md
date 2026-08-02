@@ -213,7 +213,9 @@ an already-stamped `outcome="ok"`. Losing a trace never scores a circuit
 failure: the generation succeeded, only its artifact is missing. The snapshot
 manifest still records `generation_model` + `think` as the run's **input**
 config (ADR-0069) beside `embedding_model` — deliberately not a claim that a
-trace exists; `_write_reasoning` distinguishes "no think-ON call"
+trace exists — plus `run_id` (and `session_id` while a session is active), the
+same keys every audit record carries, so a snapshot joins directly to its own
+`llm-calls` rows rather than through `audit.jsonl`; `_write_reasoning` distinguishes "no think-ON call"
 (`reason=no_think_calls`, INFO) from "calls ran, all traces empty"
 (`reason=all_traces_empty`, WARNING) when it writes no `reasoning.md`.
 

@@ -20,6 +20,7 @@ from typing import Literal
 import numpy as np
 
 from .embeddings import EMBEDDING_DIM, _get_embedding_model
+from .run_context import RUN_ID, current_session_id
 from .views import ViewRegistry
 
 logger = logging.getLogger(__name__)
@@ -113,6 +114,10 @@ def write_snapshot(
     (``_take_snapshot`` passes ``served_model()`` and the command's think state)
     so this writer stays decoupled from the LLM module.
 
+    ``run_id`` (and ``session_id`` while a session is active) are stamped here,
+    matching the keys every audit record carries, so a snapshot joins directly
+    to its own ``llm-calls`` rows instead of through ``audit.jsonl``.
+
     Returns the snapshot directory on success, ``None`` on any failure.
     Snapshots are observability — callers must not rely on snapshot
     success for correctness.
@@ -142,6 +147,16 @@ def write_snapshot(
         manifest = {
             "command": command,
             "ts": ts_iso,
+            # Which process execution produced this snapshot. Same key, same
+            # value as every audit record (ADR-0078 follow-up), so one join
+            # reaches this run's llm-calls rows directly. Stamped here rather
+            # than inherited: the manifest is a document written with
+            # write_text, not a JSONL record, so it never passes through
+            # append_jsonl_restricted where the other producers get it for
+            # free. Input-side metadata, so it sits under the same
+            # responsibility as generation_model (ADR-0069 decision 5) and
+            # makes no claim about what the run produced.
+            "run_id": RUN_ID,
             # Generation model + think state for this run (ADR-0069). The
             # embedding model has always been recorded; the generation model and
             # per-run think setting close the reproducibility gap so a snapshot
@@ -160,6 +175,13 @@ def write_snapshot(
             "rules_dir": str(rules_dir) if rules_dir is not None else None,
             "identity_path": str(identity_path) if identity_path is not None else None,
         }
+        # Sparse, matching append_jsonl_restricted: the key's absence means no
+        # agent session was active. Every snapshot-taking command is invoked
+        # manually today, so a dense null here would be a field that is always
+        # null and teaches a reader nothing.
+        session_id = current_session_id()
+        if session_id is not None:
+            manifest["session_id"] = session_id
         # manifest.json is written LAST and marks the snapshot complete: a dir
         # without it is partial. Write to a temp name then rename so a reader
         # never sees a half-written manifest.

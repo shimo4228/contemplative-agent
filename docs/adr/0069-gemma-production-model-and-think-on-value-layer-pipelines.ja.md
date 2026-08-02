@@ -85,6 +85,9 @@ snapshot が再現可能にするために存在する種類の、振る舞い�
    `core/llm.served_model()` から）と `think` を得る — manifest が埋め込みレンズは記録していたが
    生成モデルや think state は記録していなかった再現性のギャップを埋める。`audit.jsonl` はすでに
    `snapshot_path` を参照しているので、model/think は重複なしに manifest から解決できる。
+   *(2026-08-02: この間接は不要になった — manifest 自身が `run_id`（全 audit レコードと同じキー）を
+   持つので join は直接になる。成果物ゼロで終わり `audit.jsonl` に行を残さなかった run でも辿れる。
+   `run_id` は入力側のメタデータなので、本決定の「入力のみ」という責務を乱さない。)*
 
 6. **`skill-stocktake` / `rules-stocktake` に snapshot を与える。** 両ハンドラはいまや
    `_take_snapshot(..., think=True)` を呼び、従前の欠落を修正し、それらの `reasoning.md` に他の

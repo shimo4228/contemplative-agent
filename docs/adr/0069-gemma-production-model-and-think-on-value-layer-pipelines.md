@@ -94,7 +94,11 @@ behavior-shaping run a snapshot exists to make reproducible.
    reproducibility gap where the manifest recorded the embedding lens but not the
    generation model or think state. `audit.jsonl` already references
    `snapshot_path`, so model/think are resolvable from the manifest without
-   duplication.
+   duplication. *(2026-08-02: that indirection is now unnecessary — the manifest
+   carries `run_id` itself, the same key every audit record has, so the join is
+   direct. It also survives a run that produced no artifacts and therefore wrote
+   no `audit.jsonl` row. `run_id` is input-side metadata and does not disturb
+   this decision's input-only responsibility.)*
 
 6. **Give `skill-stocktake` / `rules-stocktake` a snapshot.** Both handlers now
    call `_take_snapshot(..., think=True)`, fixing the prior omission and giving
