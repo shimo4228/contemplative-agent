@@ -34,7 +34,7 @@ ADR-0040 は診断の自動化を意図的に開けたままにしていた（�
 診断（既存 skill を別の headless `claude -p` セッションで）、決定論的 F1 パース
 （`scripts/parse_findings.py`）、使い捨て git worktree での per-finding 修正実装と
 オーケストレータ実行の Verify、第 3 セッションでの advisory fix レビュー、insight
-staging の advisory レビュー、決裁パケット（`scripts/build_decision_packet.py`）を
+staging の advisory レビュー、承認パケット（`scripts/build_decision_packet.py`）を
 連結する。コミットする約束事:
 
 1. **機械は commit も push も adopt もしない。** 昇格はすべて土曜の `/weekly-gate`
@@ -68,7 +68,7 @@ staging の advisory レビュー、決裁パケット（`scripts/build_decision
    面は持たない: 大部分のセッションはこのパイプラインと無関係であり、status は消費
    される場所で読む — gate セッションの Step 0。
 7. **自己計測と減衰付き自己修正ループ。** `logs/pipeline-metrics.jsonl` に実行毎の
-   `phase:"auto"` と決裁毎の `phase:"gate"`（adopt/reject 数、推奨一致率 — F1 的中率
+   `phase:"auto"` と承認毎の `phase:"gate"`（adopt/reject 数、推奨一致率 — F1 的中率
    = adopted / patch-ready）を記録。pipeline 改善提案は同一 reason code が 2 週連続
    したときのみ起草され（診断 skill の P4 と同型）、それ自体も本文全文ゲート。計測は
    毎週、自己編集は証拠があるときだけ — 毎週の自己修正は Scaffold Dissolution の逆行。
@@ -87,7 +87,7 @@ staging の advisory レビュー、決裁パケット（`scripts/build_decision
    *注釈するだけ*（read-only 推奨）で、ADR-0050 はこれを正当と枠付け済み。
 4. **失敗面としての session-start hook。** レビューで却下: 大部分の Claude セッションは
    このパイプラインと無関係で、全セッション注入はノイズ。status ファイル + gate Step 0 +
-   通知センターが 3 つの読取時点（任意時 / 決裁時 / 失敗時）をカバーする。
+   通知センターが 3 つの読取時点（任意時 / 承認時 / 失敗時）をカバーする。
 
 ## Consequences
 
@@ -143,7 +143,7 @@ commit 後のラウンド — code-reviewer / python-reviewer / security-reviewe
 有界リトライに戻るのに、review は終端 — 1 回起動して `VERDICT:` 行だけを grep し、
 本文は捨てられていた。F1.1 の CONCERNS 本文には実欠陥 3 件（本番が出さない行形を
 検査する回帰テスト / 起きていない漏れを事実として書くコメント / `_RUNTIME_LINE_RE`
-の過剰マッチ）が含まれていたが packet に届かず、人間はその情報なしに採用を決裁した。
+の過剰マッチ）が含まれていたが packet に届かず、人間はその情報なしに採用を承認した。
 review を Verify と対称の有界ループにする:
 
 - **再突入**: `CONCERNS` verdict は review 本文全文を同一 worktree の新しい fix
@@ -153,7 +153,7 @@ review を Verify と対称の有界ループにする:
   され、1 回の flaky Verify が concern フィードバックを飢えさせない。re-review の
   入力には前回 review を含め、review プロンプトに check 0 を追加: 対処済みの指摘の
   蒸し返しで CONCERNS を維持しない。
-- **CONCERNS は export を止めない**（2026-08-01 のオペレータ決裁 — 最終 CONCERNS の
+- **CONCERNS は export を止めない**（2026-08-01 のオペレータ承認 — 最終 CONCERNS の
   patch を `failed` に降格する代替案を却下）: 最終 verdict が
   何であれ patch は `patch_ready` のまま — reviewer は検査者であって承認者ではない
   （human-gate.md）。降格は本 ADR コミットメント 3 が approve 方向で禁じた LLM 単独

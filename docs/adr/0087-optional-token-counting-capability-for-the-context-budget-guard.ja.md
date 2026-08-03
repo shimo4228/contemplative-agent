@@ -425,7 +425,7 @@ clamp すれば生成は境界で止まる。本追補はそこには一切触�
 
 #### Provenance
 
-- 2026-08-01 に repo オーナーが上記の出力側実測から決裁し、同日実装。レビューは python-reviewer
+- 2026-08-01 に repo オーナーが上記の出力側実測から承認し、同日実装。レビューは python-reviewer
   （approve）、security-reviewer（HIGH 1 件 — 上記のプローブで反証、MEDIUM 1 件 — 内部呼び出し元の
   項として記録）、cross-model reviewer（`finish_reason` の項）、adr-reviewer（NEEDS REVISION 判定が
   この Consequences 節・上の Alternatives・証拠欠落の段落を生んだ）。

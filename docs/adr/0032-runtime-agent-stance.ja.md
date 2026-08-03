@@ -109,7 +109,7 @@ accepted — コードベース全体に既に実現されている設計姿勢�
 | 非決定性 | 許容 (人間が修正) | 許容 (replan / retry) | 許容 (user が inspect) | 許容 (user が介入) | 隔離・監査必須 |
 | 例外処理 | 「やってみる」が許される | retry / replan 分岐 | user-mediated | user-mediated | 停止 + ログが必須 |
 | 権限境界 | プロンプトで調整 | ノードごとに設定 | ツールごとに設定 | OS レベル sandboxing | コード上の制約で固定 |
-| 責任帰属 | 開発者 | framework user | host operator | operating user | 決裁ルート / 制度的 |
+| 責任帰属 | 開発者 | framework user | host operator | operating user | 意思決定ルート / 制度的 |
 | 例 | Claude Code, Aider, Cursor | LangChain, LangGraph, AutoGen | OpenClaw, Open WebUI, MCP host | Computer Use, Operator | Contemplative Agent, 監視エージェント, 自律トレーディング |
 
 この区別はスペクトラムでも成熟度の段階でもない。最初の 4 カテゴリはランタイムエージェントが中で動ける **ホスト** であり、5 つ目は実際に本番タスクを実行する層。ランタイムエージェントは「ハーデニングされたコーディングエージェント」でも「制約されたオーケストレーター」でもない — ホストが供給できない、または実態として供給しないものを内部で持たなければならないという理由で区別される、別種類の artifact である。

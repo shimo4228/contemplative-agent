@@ -186,7 +186,7 @@ wrapped in local punctuation when embedded in a translated sentence.
   patches, advisory reviews, and staged insight candidates gathered in
   one file. The machine assembles it and stops; applying, approving,
   and adopting all happen on the other side of the gate. Bilingual
-  first-use allowed: 「decision packet（決裁パケット）」.
+  first-use allowed: 「decision packet（承認パケット）」.
 - **post-distill durability gate** — ADR-0084. A judgment placed *after*
   the artifact it judges: the gate receives an episode together with the
   patterns distill produced from it and decides per pattern which to

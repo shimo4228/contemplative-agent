@@ -1,26 +1,26 @@
 ---
 name: weekly-gate
-description: 土曜の単一決裁セッション（ADR-0085）。無人 weekly チェーンが生成した決裁パケット（weekly-{end-date}-packet.md）を読み、code patch の apply → Verify → 単一 commit、prompt diff の本文承認、insight staging の adopt-staged、gate メトリクスの記録までを 1 セッションで行う。Use when the user says 「週次の決裁をする」「packet をレビューする」/weekly-gate, or on Saturday after the unattended chain has produced a decision packet.
+description: 土曜の単一承認セッション（ADR-0085）。無人 weekly チェーンが生成した承認パケット（weekly-{end-date}-packet.md）を読み、code patch の apply → Verify → 単一 commit、prompt diff の本文承認、insight staging の adopt-staged、gate メトリクスの記録までを 1 セッションで行う。Use when the user says 「週次の承認をする」「packet をレビューする」/weekly-gate, or on Saturday after the unattended chain has produced a decision packet.
 origin: shimo4228
 user-invocable: true
 ---
 
-# Weekly Gate — 土曜の単一決裁セッション
+# Weekly Gate — 土曜の単一承認セッション
 
 無人チェーン（`scripts/weekly-pipeline.sh`、ADR-0085）は **commit も adopt もしない**。
 このセッションが週 1 回の人間ゲートであり、CYCLES.md の昇格エッジ #5（findings →
-code/ADR/task）と #6（実装 diff → commit）の両方をここで一括決裁する。
+code/ADR/task）と #6（実装 diff → commit）の両方をここで一括承認する。
 
 ## 手順
 
 ### Step 0. Pipeline status（必須・最初）
 
-2 段構え。(a) と (b) は**別の問いに答える** — (a) は「いま決裁するこの run は全段完走したか」、
+2 段構え。(a) と (b) は**別の問いに答える** — (a) は「いま承認するこの run は全段完走したか」、
 (b) は「周辺ジョブは各自の締切までに成果物を出したか」。片方をもう片方の代わりにしない。
 
-#### (a) 決裁対象 run の完走確認（audit log が正）
+#### (a) 承認対象 run の完走確認（audit log が正）
 
-決裁する packet の `{end-date}`（`weekly-{end-date}-packet.md`）を使い、
+承認する packet の `{end-date}`（`weekly-{end-date}-packet.md`）を使い、
 `$MOLTBOOK_HOME/logs/weekly-pipeline-audit.jsonl` から当該 run の全 `stage_result` と
 `chain_end` を確認する（run_id は `weekly-{end-date}-HHMMSS` 形式。同一週の再実行が
 ありうるので最新 run_id を採る）:
@@ -56,14 +56,14 @@ print("VERDICT:", "PRESENT BEFORE DECIDING -> " + "; ".join(bad) if bad else "ru
 EOF
 ```
 
-`chain_end` が無い（途中死）、または `result != ok` の stage がある場合は、**決裁より先に**
+`chain_end` が無い（途中死）、または `result != ok` の stage がある場合は、**承認より先に**
 該当行をユーザーに提示する。`skipped` / `reused` は fail-forward の正常系でもある
 （例: `improve skipped reason=NO_RECURRENCE`）— reason code とともに提示し、packet の
 空欄が「対象なし」なのか「生成失敗」なのかを packet 冒頭の reason codes と照合して切り分ける。
 
 #### (b) 周辺ジョブ（distill / insight / backup）
 
-`$MOLTBOOK_HOME/reports/PIPELINE-STATUS.md` を読む。❌ があれば**決裁より先に**
+`$MOLTBOOK_HOME/reports/PIPELINE-STATUS.md` を読む。❌ があれば**承認より先に**
 ユーザーに提示する。
 
 **誤読注意**: PIPELINE-STATUS.md の weekly 系 2 行（weekly-report / weekly-packet）は、
@@ -85,19 +85,19 @@ diff 本文は求められない限り出さない（human-gate.md: 実装コー
 承認されたものについて:
 
 1. `git apply --check <patch>` — 失敗（stale）なら **defer**: 理由を記録して飛ばす。
-   このセッションで再実装しない（実装者と決裁者の分離）
+   このセッションで再実装しない（実装者と承認者の分離）
 2. 全承認 patch を apply したら、**repo で Verify を再実行**
    （`uv run ruff check src/ tests/ scripts/` → `uv run lint-imports` → `uv run pytest tests/ -q`）
 3. 全 PASS で **単一 commit**（1 Bash call = 1 git コマンド、git-workflow skill 準拠）。
    commit message に採用 patch の finding ID を列挙。`plan との差分` の 3 値を宣言
-4. push は commit 後にユーザー確認の同じ決裁内で実施（main 直 push、branch/PR なし）
+4. push は commit 後にユーザー確認の同じ承認セッション内で実施（main 直 push、branch/PR なし）
 
 ### Step 3. Prompt diffs（本文全文で判断）
 
 packet に inline されている prompt-scope diff を**全文のまま**提示（behavior-shaping
 artifact — 要約に畳まない）。承認されたものだけ apply し、Step 2 と同じ commit に含める。
 
-### Step 4. Insight staging（adopt-staged は人間の決裁で実行）
+### Step 4. Insight staging（adopt-staged は人間の承認で実行）
 
 packet の推奨（RECOMMEND: adopt/reject + 理由）を item ごとに提示し判断を仰ぐ。
 
@@ -115,7 +115,7 @@ Step 2 の commit に含める。却下なら理由を聞いて記録。
 
 ### Step 6. Gate メトリクスの記録（必須・最後）
 
-決裁結果を集計して記録する（recommendation_matches = 機械推奨と人間判断が一致した件数）:
+承認結果を集計して記録する（recommendation_matches = 機械推奨と人間判断が一致した件数）:
 
 ```bash
 python3 scripts/build_decision_packet.py gate-record \
