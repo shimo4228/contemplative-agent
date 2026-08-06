@@ -20,6 +20,12 @@
 
     ".notes/**",
 
+    // eval 層の prompt 資産スナップショット (identity/constitution/skills/rules)。
+    // 実運用 MOLTBOOK_HOME からの逐語コピーで、docs/evidence と同じく
+    // 「記録であって整形対象ではない」。judge prompt も config/prompts と同種の
+    // LLM 向け apparatus (ADR-0089)。
+    "evals/fixtures/**",
+
     // repo の資産ではない。git 管理外なので --staged では見えないが、引数なしの
     // 全体実行は glob で拾ってしまう（実測: MD041 15 件中 11 件が .venv 由来）。
     ".venv/**",

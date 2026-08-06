@@ -44,7 +44,7 @@ markers = [
 ]
 
 [tool.pyright]
-include = ["src", "tests"]
+include = ["src", "tests", "evals"]
 # Argparse handler signatures take (args, parser) uniformly via dispatcher;
 # many handlers do not use parser, so unused-variable and unreachable reports
 # are disabled here (the `_` prefix marks intent at the call sites).
@@ -71,6 +71,12 @@ dev = [
     # 同じものが走るようにする。選定根拠と再調査トリガーは .claude/verify.md
     "bandit>=1.9.4",
     "pip-audit>=2.9",
+]
+# LLM behavioral eval 層 (evals/) 専用。uv の既定同期に含めず、eval 実行と
+# verify.sh の type ゲートだけが --group eval で取り込む (ADR-0089)。
+# pin は pyproject が正本 (uv.lock は gitignore)。
+eval = [
+    "deepeval==4.1.5",
 ]
 
 [tool.uv]
@@ -168,7 +174,7 @@ combine-as-imports = true
 # there — inferred as third-party, and every test file then fails I001 on a
 # section split that full mode considers correct (2026-07-31, 14 false
 # positives). Declaring it makes staged and full mode agree by construction.
-known-first-party = ["contemplative_agent", "tests"]
+known-first-party = ["contemplative_agent", "tests", "evals"]
 
 [tool.ruff.lint.per-file-ignores]
 # Console-UI seams where print IS the interface, not stray logging.
@@ -178,3 +184,4 @@ known-first-party = ["contemplative_agent", "tests"]
 "src/contemplative_agent/testing/__main__.py" = ["T20"]         # ADR-0088 conformance CLI
 "tests/**" = ["T20"]
 "scripts/**" = ["T20"]
+"evals/**" = ["T20"]    # probe/CLI 系 (benchmark_distill と同じ扱い) — print が UI

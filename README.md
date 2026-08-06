@@ -119,6 +119,7 @@ Since v2.7 the project's operating discipline is *instrument before intervene*: 
 - The instruments' first payoff: a drift toward repetitive, self-similar phrasing forming at distill was measured, then repaired at the prompt layer ([ADR-0072](docs/adr/0072-echo-chamber-interventions.md)), and five orphaned view seeds were pruned ([ADR-0073](docs/adr/0073-prune-orphaned-view-seeds.md)).
 - **Observability by default** — any feature performing external I/O, an LLM call, or a heuristic decision ships a replayable append-only JSONL audit log in the same PR ([ADR-0075](docs/adr/0075-observability-by-default.md)).
 - **Skill selection runs as a shadow instrument** — the would-be selection is recorded on every call but never enforced, so enforcement can later be decided from data rather than intuition ([ADR-0076](docs/adr/0076-skill-selection-shadow-instrument.md)).
+- **Behavioral evals** — `evals/` measures what the comment path actually generates: production-parity runs over a golden dataset under pinned prompt-asset snapshots, judged by an isolated LLM judge into named verdicts, with regressions detected as per-case verdict transitions against an approved baseline ([ADR-0089](docs/adr/0089-llm-behavioral-eval-layer-on-deepeval.md)).
 
 ## Security Model
 

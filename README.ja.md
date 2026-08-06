@@ -119,6 +119,7 @@ v2.7 以降、このプロジェクトの運用規律は「介入の前に計器
 - 計器の最初の成果: distill 段で形成されつつあった、自己反復的で似通った言い回しへの偏りを計測し、プロンプト層で修理しました（[ADR-0072](docs/adr/0072-echo-chamber-interventions.ja.md)）。使われていない 5 つの view シードも、このとき剪定されました（[ADR-0073](docs/adr/0073-prune-orphaned-view-seeds.ja.md)）。
 - **Observability by default（既定で可観測）** — 外部 I/O・LLM 呼び出し・ヒューリスティックな判定を行う機能は、リプレイ可能な追記専用 JSONL 監査ログを同じ PR で出荷します（[ADR-0075](docs/adr/0075-observability-by-default.ja.md)）。
 - **スキル選択は shadow instrument（影の計器）として稼働中** — 「選択するとしたらどれか」を毎回記録しますが、決して強制しません。強制に切り替えるかどうかは、直感ではなくデータで後から決められます（[ADR-0076](docs/adr/0076-skill-selection-shadow-instrument.ja.md)）。
+- **振る舞い eval** — `evals/` はコメント経路が実際に何を生成するかを測ります。pin したプロンプト資産スナップショットの下で golden dataset に対し本番同等の生成を走らせ、隔離された LLM judge が名前付き verdict を出し、承認済み baseline との case ごとの verdict 遷移として regression を検出します（[ADR-0089](docs/adr/0089-llm-behavioral-eval-layer-on-deepeval.ja.md)）。
 
 ## セキュリティモデル
 

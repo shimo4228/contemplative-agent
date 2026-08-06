@@ -63,6 +63,13 @@ results*.json
 
 # Benchmark results (local accumulation, not tracked)
 tests/fixtures/benchmark/results/
+
+# Eval run outputs (local accumulation; approved baselines live in evals/baselines/)
+evals/results/
+# deepeval cache/keystore — contained per-run under evals/results/, but any
+# import from the repo root would recreate it here (and its keystore stores
+# API keys in plaintext); never track it
+.deepeval/
 *.bak
 .last_insight
 
