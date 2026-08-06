@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Files scanned: 74 | Token estimate: ~9179 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-07 (weekly-pipeline dead-code intake) | Files scanned: 74 | Token estimate: ~9179 -->
 # Architecture
 
 ## Project Type
@@ -504,10 +504,15 @@ Stage 4 fix:       per code-scope F1: git worktree @ HEAD → claude -p (fix-imp
                    blocks export (inspector, not approver)
                    prompt-scope F1: draft diff only, no Verify, full text at the gate
 Stage 5 insight:   read-only recommendation pass over .staged/ (insight-recommendation.md)
-Stage 6 improve:   only when the same reason code recurred 2 consecutive runs (check-improvement)
-Stage 7 packet:    build_decision_packet.py → weekly-<end>-packet.md
+Stage 6 deadcode:  dead_code_scan.py (vulture over the repo checkout; 5th deterministic
+                   intake — detection only, feeds the packet directly; runs before
+                   improve so a recurring scan failure feeds the P4 detector)
+Stage 7 improve:   only when the same reason code recurred 2 consecutive runs (check-improvement)
+Stage 8 packet:    build_decision_packet.py → weekly-<end>-packet.md
                    + phase:"auto" record → logs/pipeline-metrics.jsonl
 ```
+
+The dead-code scan (2026-08-07, T-DEADCODE-INTAKE) is the fifth deterministic intake, and the only one wired into the pipeline rather than into weekly-analysis: its output goes straight to the packet builder (`--dead-code`, JSON), deliberately bypassing the diagnosis→fix LLM stages so an unattended session can never author a deletion patch — false positives are structurally unavoidable (CLI entry points, `config/prompts/*.md` dynamic loads via `getattr`, `typing.Protocol` indirection, the sibling-consumed `testing/` kit), so deletion is always a Saturday-gate human commit (delete / whitelist / defer, per candidate). Vulture policy is single-sourced in pyproject `[tool.vulture]` (scan paths include tests/ and evals/ for reference resolution; `dead_code_scan.py` reports src/ and scripts/ only) with exemptions in `.vulture_whitelist.py`. Signal-first: a zero-candidate week renders no packet section (the count still lands in the metrics record, a scan fault abstains with `DEADCODE_SCAN_FAIL`, and a partially-unparseable vulture output degrades loudly with `DEADCODE_PARTIAL_PARSE` — never a silent zero or a silently-incomplete list). It reads only the repo checkout, never episode logs. The retirement-ADR sweep (`substrate-migration-sweep`) remains the primary cleanup moment; this intake is the net under it.
 
 Bounds: ≤5 findings/week, per-session timeouts, 3h wall-clock deadline. Fail-forward: every stage failure becomes a reason code and the packet is still built (only a missing Stage-1 report aborts). Audit: every event → `logs/weekly-pipeline-audit.jsonl` (ADR-0075; the packet builder replays it). Promotion is the Saturday `/weekly-gate` session: apply → re-Verify → single human commit, prompt diffs full-text, `adopt-staged`, then a `phase:"gate"` metrics record. `scripts/pipeline_watchdog.sh` (pure bash, no claude/uv PATH dependency) checks each job's terminal artifact on anchored deadlines and rewrites `reports/PIPELINE-STATUS.md` + Notification Center on a changed failure set.
 

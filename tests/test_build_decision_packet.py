@@ -508,3 +508,183 @@ def test_pipeline_audit_rejects_reserved_keys(tmp_path: Path):
     )
     assert result.returncode == 1
     assert not log.exists()
+
+
+# --- Dead-code intake (T-DEADCODE-INTAKE) --------------------------------
+# Signal-first: the section and its inventory line exist only on weeks with
+# candidates; a quiet week is silent in the packet but still countable in
+# the metrics record (zero vs scan-failure stays distinguishable via reason
+# codes). Deletion is never authored here — detection only.
+
+
+def _dead_code_json(tmp_path: Path, candidates: list[dict]) -> Path:
+    path = tmp_path / "dead-code.json"
+    path.write_text(
+        json.dumps(
+            {
+                "tool": "vulture",
+                "report_prefixes": ["src/", "scripts/"],
+                "count": len(candidates),
+                "candidates": candidates,
+                "unparsed_lines": 0,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_dead_code_section_rendered_when_candidates_exist(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    dc = _dead_code_json(
+        tmp_path,
+        [
+            {
+                "file": "src/contemplative_agent/core/foo.py",
+                "line": 12,
+                "message": "unused function 'orphan'",
+                "confidence": 60,
+            }
+        ],
+    )
+    text = _build(paths, dead_code=dc)
+    assert "dead code candidate: 1" in text
+    assert "## 5. Dead code candidates" in text
+    assert "unused function 'orphan'" in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["dead_code_candidates"] == 1
+
+
+def test_dead_code_zero_week_is_silent(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    dc = _dead_code_json(tmp_path, [])
+    text = _build(paths, dead_code=dc)
+    assert "Dead code candidates" not in text
+    assert "dead code candidate:" not in text
+    # The renumbered fixed headings hold on a quiet week (5 is a gap).
+    assert "## 6. Pipeline metrics" in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    # Scanned clean is 0 — distinguishable from the not-scanned None below.
+    assert rec["dead_code_candidates"] == 0
+
+
+def test_dead_code_absent_arg_keeps_packet_unchanged(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    text = _build(paths)
+    assert "Dead code candidates" not in text
+    assert "DEADCODE_UNREADABLE" not in text
+    assert "dead code —(not scanned)" in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    # Not scanned must never read as "scanned clean" (2026-08-07 review).
+    assert rec["dead_code_candidates"] is None
+
+
+def test_dead_code_partial_scan_stderr_is_surfaced(tmp_path: Path):
+    # F-DC-7 downstream: vulture skipped input files (stderr) — the gate
+    # must see the coverage gap, not a clean-looking table.
+    paths = _write_inputs(tmp_path)
+    path = tmp_path / "dead-code.json"
+    path.write_text(
+        json.dumps(
+            {
+                "tool": "vulture",
+                "count": 1,
+                "candidates": [
+                    {
+                        "file": "src/contemplative_agent/core/foo.py",
+                        "line": 12,
+                        "message": "unused function 'orphan'",
+                        "confidence": 60,
+                    }
+                ],
+                "unparsed_lines": 0,
+                "stderr_lines": 2,
+            }
+        ),
+        encoding="utf-8",
+    )
+    text = _build(paths, dead_code=path)
+    assert "DEADCODE_PARTIAL_SCAN" in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert "DEADCODE_PARTIAL_SCAN" in rec["reason_codes"]
+
+
+def test_dead_code_non_dict_rows_are_dropped_not_fatal(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    path = tmp_path / "dead-code.json"
+    path.write_text(
+        json.dumps({"tool": "vulture", "candidates": ["oops", 42]}),
+        encoding="utf-8",
+    )
+    text = _build(paths, dead_code=path)
+    assert "Dead code candidates" not in text  # nothing renderable survived
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["dead_code_candidates"] == 0
+
+
+def test_dead_code_unreadable_degrades_to_reason_code(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    bad = tmp_path / "dead-code.json"
+    bad.write_bytes(b"\xff not json")
+    text = _build(paths, dead_code=bad)
+    assert "DEADCODE_UNREADABLE" in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert "DEADCODE_UNREADABLE" in rec["reason_codes"]
+
+
+def test_dead_code_partial_parse_is_surfaced_not_silent(tmp_path: Path):
+    # A vulture format drift that breaks only some lines must degrade loudly:
+    # reason code in the header + metrics, caveat in the section (codex P2).
+    paths = _write_inputs(tmp_path)
+    path = tmp_path / "dead-code.json"
+    path.write_text(
+        json.dumps(
+            {
+                "tool": "vulture",
+                "count": 1,
+                "candidates": [
+                    {
+                        "file": "src/contemplative_agent/core/foo.py",
+                        "line": 12,
+                        "message": "unused function 'orphan'",
+                        "confidence": 60,
+                    }
+                ],
+                "unparsed_lines": 3,
+            }
+        ),
+        encoding="utf-8",
+    )
+    text = _build(paths, dead_code=path)
+    assert "DEADCODE_PARTIAL_PARSE" in text
+    assert "3 行が契約形式に一致せず未解釈" in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert "DEADCODE_PARTIAL_PARSE" in rec["reason_codes"]
+
+
+def test_dead_code_count_is_code_owned_not_json_claimed(tmp_path: Path):
+    # The human-facing count is computed from the candidate rows, never
+    # trusted from the JSON's own "count" field.
+    paths = _write_inputs(tmp_path)
+    path = tmp_path / "dead-code.json"
+    path.write_text(
+        json.dumps(
+            {
+                "tool": "vulture",
+                "count": 99,
+                "candidates": [
+                    {
+                        "file": "scripts/old_tool.py",
+                        "line": 3,
+                        "message": "unused variable 'LEGACY_FLAG'",
+                        "confidence": 100,
+                    }
+                ],
+            }
+        ),
+        encoding="utf-8",
+    )
+    text = _build(paths, dead_code=path)
+    assert "dead code candidate: 1" in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["dead_code_candidates"] == 1

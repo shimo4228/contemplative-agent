@@ -1,7 +1,8 @@
 #!/bin/bash
 # Unattended weekly chain (ADR-0085): report → diagnosis → fix → insight
-# review → decision packet. Human involvement is compressed into the single
-# Saturday gate (/weekly-gate); nothing here commits, pushes, or adopts.
+# review → dead-code scan → improvement check → decision packet. Human
+# involvement is compressed into the single Saturday gate (/weekly-gate);
+# nothing here commits, pushes, or adopts.
 #
 # Fail-forward: every stage failure becomes a reason code in the audit log
 # and the run continues to the packet, which is always attempted. The one
@@ -42,9 +43,10 @@ VERIFY_TIMEOUT="${PIPELINE_VERIFY_TIMEOUT:-900}"
 REVIEW_TIMEOUT="${PIPELINE_REVIEW_TIMEOUT:-600}"
 INSIGHT_TIMEOUT="${PIPELINE_INSIGHT_TIMEOUT:-900}"
 IMPROVE_TIMEOUT="${PIPELINE_IMPROVE_TIMEOUT:-900}"
+DEADCODE_TIMEOUT="${PIPELINE_DEADCODE_TIMEOUT:-300}"
 CHAIN_DEADLINE_SECONDS="${PIPELINE_DEADLINE_SECONDS:-10800}"   # 09:00 → 12:00
 
-STAGES="${MOLTBOOK_PIPELINE_STAGES:-report,diagnosis,fix,insight,improve,packet}"
+STAGES="${MOLTBOOK_PIPELINE_STAGES:-report,diagnosis,fix,insight,deadcode,improve,packet}"
 
 END_DATE=""
 DAYS=7
@@ -649,7 +651,68 @@ else
     audit stage_result stage=insight_review result=skipped
 fi
 
-# --- Stage 6: improvement check (P4-shaped, fires on 2-week recurrence) ---
+# --- Stage 6: dead-code scan (5th deterministic intake; detection ONLY) ---
+# T-DEADCODE-INTAKE: unlike the four report-side intakes (weekly-analysis.sh),
+# this one feeds the packet DIRECTLY, deliberately bypassing the diagnosis→fix
+# LLM stages — a dead-code candidate must never become an F1 finding that the
+# unattended fix stage turns into a deletion patch (deletion is structurally
+# a Saturday-gate human commit; false positives are unavoidable: CLI entry
+# points, config/prompts/*.md dynamic loads, Protocol indirection).
+# Read-only over the repo checkout; vulture policy lives in pyproject
+# [tool.vulture], exemptions in .vulture_whitelist.py. Observability only —
+# a scan fault becomes a reason code, never a missing packet, and never a
+# silent zero (dead_code_scan.py abstains nonzero on unparseable output; a
+# PARTIAL parse is not a fault but is surfaced as DEADCODE_PARTIAL_PARSE).
+# Runs BEFORE the improvement check so a recurring scan failure can feed the
+# P4 recurrence detector (2026-08-07 codex review P2).
+# Written OUTSIDE $MOLTBOOK_HOME/logs: next week's diagnosis session gets
+# --add-dir over logs/, and the detection/deletion separation should be an
+# access boundary, not just "not wired in" (2026-08-07 code review M3). The
+# stable per-week path doubles as the code-owned artifact the Saturday gate
+# cross-checks the packet's §5 against (security review H1).
+DEADCODE_JSON="$MOLTBOOK_HOME/pipeline/dead-code/dead-code-$END_DATE.json"
+DEADCODE_ARG=()
+if stage_enabled deadcode; then
+    if deadline_exceeded; then
+        add_reason CHAIN_DEADLINE
+        audit stage_result stage=deadcode result=skipped reason=CHAIN_DEADLINE
+    else
+        echo "[$RUN_ID] stage 6: dead-code scan"
+        mkdir -p "$(dirname "$DEADCODE_JSON")"
+        # --no-sync: the chain must never resolve/install packages from the
+        # network unattended (security review M1) — a missing vulture then
+        # fails loud as DEADCODE_SCAN_FAIL instead of auto-installing.
+        if (cd "$PROJECT_ROOT" && with_timeout "$DEADCODE_TIMEOUT" \
+                uv run --no-sync -q python scripts/dead_code_scan.py) \
+                > "$DEADCODE_JSON" 2>"$RUN_LOG_DIR/deadcode.err"; then
+            dc_counts=$(python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+print(len(data['candidates']), data.get('unparsed_lines', 0), data.get('stderr_lines', 0))
+" "$DEADCODE_JSON" 2>/dev/null || echo "")
+            if [[ -n "$dc_counts" ]]; then
+                read -r dc_count dc_unparsed dc_stderr <<< "$dc_counts"
+                DEADCODE_ARG=(--dead-code "$DEADCODE_JSON")
+                [[ "$dc_unparsed" != "0" ]] && add_reason DEADCODE_PARTIAL_PARSE
+                [[ "$dc_stderr" != "0" ]] && add_reason DEADCODE_PARTIAL_SCAN
+                audit stage_result stage=deadcode result=ok \
+                    candidates="$dc_count" unparsed="$dc_unparsed" stderr_lines="$dc_stderr"
+            else
+                add_reason DEADCODE_SCAN_FAIL
+                audit stage_result stage=deadcode result=fail reason=DEADCODE_SCAN_FAIL
+                rm -f "$DEADCODE_JSON"
+            fi
+        else
+            add_reason DEADCODE_SCAN_FAIL
+            audit stage_result stage=deadcode result=fail reason=DEADCODE_SCAN_FAIL
+            rm -f "$DEADCODE_JSON"
+        fi
+    fi
+else
+    audit stage_result stage=deadcode result=skipped
+fi
+
+# --- Stage 7: improvement check (P4-shaped, fires on 2-week recurrence) ---
 # The orchestrator knows extra codes the builder will add for missing files.
 # Gated on stage_enabled: a deliberately disabled stage is not a failure and
 # must not feed the recurrence detector (2026-07-29 review).
@@ -663,7 +726,7 @@ if stage_enabled improve && [[ -n "$REASONS" ]] && ! deadline_exceeded; then
     fired=$(python3 "$SCRIPTS/build_decision_packet.py" check-improvement \
         --metrics "$METRICS" --current-codes "$REASONS" --end-date "$END_DATE" 2>/dev/null)
     if [[ "$fired" == *'"fired": true'* ]]; then
-        echo "[$RUN_ID] stage 6: improvement proposal (recurrence: $fired)"
+        echo "[$RUN_ID] stage 7: improvement proposal (recurrence: $fired)"
         {
             echo "Recurring reason codes: $fired"
             echo ""
@@ -697,8 +760,8 @@ else
     audit stage_result stage=improve result=skipped
 fi
 
-# --- Stage 7: decision packet (always attempted — the fail-forward target) ---
-echo "[$RUN_ID] stage 7: decision packet"
+# --- Stage 8: decision packet (always attempted — the fail-forward target) ---
+echo "[$RUN_ID] stage 8: decision packet"
 FINDINGS_ARG=()
 [[ -s "$FINDINGS_JSON" ]] && FINDINGS_ARG=(--findings "$FINDINGS_JSON")
 INSIGHT_ARG=()
@@ -713,6 +776,7 @@ if python3 "$SCRIPTS/build_decision_packet.py" build \
         --prompt-patches-dir "$PROMPT_PATCH_DIR" \
         ${INSIGHT_ARG[@]+"${INSIGHT_ARG[@]}"} \
         ${IMPROVEMENT_ARG[@]+"${IMPROVEMENT_ARG[@]}"} \
+        ${DEADCODE_ARG[@]+"${DEADCODE_ARG[@]}"} \
         --run-log-dir "$RUN_LOG_DIR" \
         --out "$PACKET" > "$RUN_LOG_DIR/packet.log" 2>&1; then
     audit chain_end result=ok packet="$PACKET" reasons="${REASONS:-none}"

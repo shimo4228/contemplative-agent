@@ -71,6 +71,11 @@ dev = [
     # 同じものが走るようにする。選定根拠と再調査トリガーは .claude/verify.md
     "bandit>=1.9.4",
     "pip-audit>=2.9",
+    # 週次 dead-code intake (scripts/dead_code_scan.py) が使う。ruff が構造的に
+    # 検出できない unused function/class/method/attribute を担う（選定 2026-08-07、
+    # search-first: MIT / stdlib+toml のみ / 2026-03 v2.16）。検出のみ — 削除は
+    # 土曜ゲートの人間承認（T-DEADCODE-INTAKE）。
+    "vulture>=2.16",
 ]
 # LLM behavioral eval 層 (evals/) 専用。uv の既定同期に含めず、eval 実行と
 # verify.sh の type ゲートだけが --group eval で取り込む (ADR-0089)。
@@ -90,6 +95,14 @@ constraint-dependencies = [
     "idna>=3.15",        # PYSEC-2026-215
     "pygments>=2.20.0",  # PYSEC-2026-2987
 ]
+
+[tool.vulture]
+# 週次 dead-code intake (scripts/dead_code_scan.py) と手動 `uv run vulture` の共通正本
+# (T-DEADCODE-INTAKE)。tests/ evals/ は参照解決のために scan へ含める — テストだけが
+# 使う src コードを偽陽性にしないため。報告の絞り込み (src/ scripts/ のみ) は
+# dead_code_scan.py 側の決定論コードが行う。偽陽性の免除は .vulture_whitelist.py
+# (追記・削除は土曜ゲートの人間 commit)。検出のみ — 自動削除は構造的に存在しない。
+paths = ["src", "scripts", "tests", "evals", ".vulture_whitelist.py"]
 
 [tool.importlinter]
 root_packages = ["contemplative_agent"]

@@ -185,6 +185,7 @@ def build_packet(
     improvement: Path | None,
     out: Path,
     run_log_dir: Path | None = None,
+    dead_code: Path | None = None,
 ) -> None:
     reason_codes: list[str] = []
 
@@ -250,6 +251,40 @@ def build_packet(
         if improvement_text is None:
             add_reason("IMPROVEMENT_UNREADABLE")
 
+    # Dead-code intake (T-DEADCODE-INTAKE): detection only — deletion is a
+    # human commit at the Saturday gate. The count is code-owned (computed
+    # from the candidate rows, never trusted from the JSON's own field).
+    dead_code_candidates: list[dict] = []
+    dead_code_scanned = False
+    dead_code_unparsed = 0
+    dead_code_skipped_inputs = 0
+    dead_code_parsed_total: int | None = None
+    if dead_code is not None:
+        dc_data = _load_findings(dead_code)  # same safe-load contract as findings
+        raw = dc_data.get("candidates") if dc_data is not None else None
+        if isinstance(raw, list) and dc_data is not None:
+            dead_code_scanned = True
+            dead_code_candidates = [c for c in raw if isinstance(c, dict)]
+            parsed_total = dc_data.get("parsed_total")
+            if isinstance(parsed_total, int):
+                dead_code_parsed_total = parsed_total
+            # A partially degraded scan is not a clean one — the gate must
+            # see that the list may be incomplete (2026-08-07 reviews: no
+            # silent fallback). Two doors: stdout lines that failed the
+            # format contract (PARTIAL_PARSE) and input files vulture could
+            # not read, reported on stderr while still exiting 3
+            # (PARTIAL_SCAN).
+            unparsed = dc_data.get("unparsed_lines", 0)
+            if isinstance(unparsed, int) and unparsed > 0:
+                dead_code_unparsed = unparsed
+                add_reason("DEADCODE_PARTIAL_PARSE")
+            skipped = dc_data.get("stderr_lines", 0)
+            if isinstance(skipped, int) and skipped > 0:
+                dead_code_skipped_inputs = skipped
+                add_reason("DEADCODE_PARTIAL_SCAN")
+        else:
+            add_reason("DEADCODE_UNREADABLE")
+
     # Final-round review bodies, read up front so an unreadable log lands in
     # the header reason list and the metrics record (same rationale as the
     # patch reads above). Earlier rounds stay on disk; their verdicts appear
@@ -291,6 +326,10 @@ def build_packet(
         "verify_fail": len(failed),
         "insight_items": insight_items,
         "improvement_fired": improvement_text is not None,
+        # None = not scanned this run; 0 = scanned clean. Collapsing the two
+        # would make the longitudinal read undecidable (2026-08-07 review).
+        "dead_code_candidates": len(dead_code_candidates) if dead_code_scanned else None,
+        "dead_code_parsed_total": dead_code_parsed_total,
         "reason_codes": reason_codes,
     }
     history = [r for r in _read_jsonl(metrics) if r.get("phase") == "auto"]
@@ -316,6 +355,12 @@ def build_packet(
     lines.append(f"- prompt diff: {len(prompt_patches)} 件（本文全文を下に提示 — 個別承認）")
     lines.append(f"- insight: {insight_items} 件（`adopt-staged` の対象）")
     lines.append(f"- pipeline improvement: {1 if improvement_text else 0} 件")
+    if dead_code_candidates:
+        # Signal-first: quiet weeks add no inventory line and no section.
+        lines.append(
+            f"- dead code candidate: {len(dead_code_candidates)} 件"
+            "（検出のみ — 削除・whitelist の判断は人間）"
+        )
     lines.append("")
 
     lines.append("## 2. Code fixes (unattended, Verify-passed where noted)")
@@ -377,19 +422,83 @@ def build_packet(
     lines.append("## 4. Insight staging review")
     lines.append("")
     if insight_text:
+        # Fenced like every other LLM body in the packet. This was the one
+        # raw inline: its source chains from staged items distilled from
+        # external SNS content, and an unfenced body could forge a "## 5"
+        # section heading — including a fake dead-code candidate table the
+        # gate now attaches a deletion procedure to (2026-08-07 security
+        # review H1). The gate's RECOMMEND parsing reads the on-disk file,
+        # not the packet, so fencing changes nothing downstream.
+        open_fence, close_fence = _fence(insight_text, "text")
+        lines.append(open_fence)
         lines.append(insight_text.rstrip())
+        lines.append(close_fence)
     else:
         lines.append(f"（{INSIGHT_REVIEW_UNAVAILABLE} — staging が空か、推奨生成が失敗）")
     lines.append("")
 
-    lines.append("## 5. Pipeline metrics")
+    if dead_code_candidates:
+        # Section number 5 is reserved for this intake; on zero-candidate
+        # weeks it is simply absent (signal-first) and metrics stays 6.
+        lines.append("## 5. Dead code candidates (detection only)")
+        lines.append("")
+        lines.append(
+            "週次 vulture スキャン（第 5 決定論 intake、`scripts/dead_code_scan.py`）の"
+            "読み値。**削除はここでは行われていない** — 候補ごとの判断"
+            "（削除 / `.vulture_whitelist.py` へ免除追記 / 保留）は土曜ゲートの"
+            "人間 commit で行う。偽陽性は構造的に不可避（CLI entry point・"
+            "`config/prompts/*.md` 動的ロード・Protocol 間接参照）。"
+        )
+        lines.append("")
+        if dead_code_unparsed:
+            lines.append(
+                f"**注意 (DEADCODE_PARTIAL_PARSE)**: vulture 出力のうち "
+                f"{dead_code_unparsed} 行が契約形式に一致せず未解釈 — "
+                "この一覧は不完全の可能性がある（出力形式の変化を疑う）。"
+            )
+            lines.append("")
+        if dead_code_skipped_inputs:
+            lines.append(
+                f"**注意 (DEADCODE_PARTIAL_SCAN)**: vulture が {dead_code_skipped_inputs} 行の"
+                " stderr を出した（parse できなかった入力ファイル等）— "
+                "スキャン対象に漏れがある可能性がある（run log の deadcode.err / "
+                "dead-code.json を確認）。"
+            )
+            lines.append("")
+
+        def _cell(value: object) -> str:
+            # Repo-derived identifiers cannot carry `|`, but a malformed JSON
+            # value must not be able to break the table shape.
+            return str(value).replace("|", "\\|").replace("\n", " ")
+
+        lines.append("| file | line | finding | confidence |")
+        lines.append("|---|---|---|---|")
+
+        def _confidence(cand: dict) -> int:
+            value = cand.get("confidence")
+            return value if isinstance(value, int) else 0
+
+        for cand in sorted(dead_code_candidates, key=_confidence, reverse=True):
+            lines.append(
+                f"| `{_cell(cand.get('file', '?'))}` | {_cell(cand.get('line', '?'))} "
+                f"| {_cell(cand.get('message', '?'))} | {_cell(cand.get('confidence', '?'))}% |"
+            )
+        lines.append("")
+
+    lines.append("## 6. Pipeline metrics")
     lines.append("")
     lines.append(
         f"- this week: F1 {auto_record['f1_total']} "
         f"(code {auto_record['f1_code']} / prompt {auto_record['f1_prompt']}), "
         f"fix attempted {auto_record['fix_attempted']}, "
         f"patch ready {auto_record['fix_patch_ready']}, "
-        f"verify fail {auto_record['verify_fail']}"
+        f"verify fail {auto_record['verify_fail']}, "
+        "dead code "
+        + (
+            str(auto_record["dead_code_candidates"])
+            if auto_record["dead_code_candidates"] is not None
+            else "—(not scanned)"
+        )
     )
     if history:
         ready = sum(r.get("fix_patch_ready", 0) for r in history)
@@ -402,7 +511,7 @@ def build_packet(
     lines.append("")
 
     if improvement_text:
-        lines.append("## 6. Pipeline improvement proposal (full text — behavior-shaping)")
+        lines.append("## 7. Pipeline improvement proposal (full text — behavior-shaping)")
         lines.append("")
         open_fence, close_fence = _fence(improvement_text, "diff")
         lines.append(open_fence)
@@ -441,6 +550,12 @@ def main() -> int:
         type=Path,
         default=None,
         help="run log dir holding fix-<fid>-review<N>.log — inlines final-round review bodies",
+    )
+    p_build.add_argument(
+        "--dead-code",
+        type=Path,
+        default=None,
+        help="dead_code_scan.py JSON — candidates section appears only when non-empty",
     )
 
     p_check = sub.add_parser("check-improvement", help="P4-shaped recurrence trigger")
@@ -482,6 +597,7 @@ def main() -> int:
             improvement=args.improvement,
             out=args.out,
             run_log_dir=args.run_log_dir,
+            dead_code=args.dead_code,
         )
         print(f"Packet written: {args.out}")
     elif args.command == "check-improvement":
