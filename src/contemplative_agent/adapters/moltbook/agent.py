@@ -55,6 +55,12 @@ logger = logging.getLogger(__name__)
 # ANSI escape sequence pattern for terminal output sanitization
 _ANSI_ESCAPE = re.compile(r"\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])")
 
+# The only /home dashboard fields the adapter may retain. The platform can
+# deliver third-party "standing instruction" briefings in other fields
+# (check_in, since 2026-08) — an unapproved instruction channel that must be
+# dropped at the fetch boundary (T-HOME-STANDING-INSTRUCTIONS).
+_HOME_ALLOWED_KEYS = ("your_account", "activity_on_your_posts")
+
 
 class AutonomyLevel(str, enum.Enum):
     APPROVE = "approve"
@@ -160,9 +166,28 @@ class Agent:
 
         Replaces the old _fetch_own_agent_id (which called /agents/me)
         with a single /home call that also provides activity data.
+
+        The payload is projected onto _HOME_ALLOWED_KEYS before it is
+        stored: everything else in the dashboard (the `check_in` role
+        briefings a submolt moderator can attach, announcements,
+        what_to_do_next) is third-party instruction text with no approval
+        gate on our side, and must not stay live in agent state
+        (T-HOME-STANDING-INSTRUCTIONS; gated by
+        tests/test_home_field_allowlist.py).
         """
         home = client.get_home()
-        self._home_data = home
+        self._home_data = {k: home[k] for k in _HOME_ALLOWED_KEYS if k in home}
+        if home and not self._home_data:
+            # A non-empty dashboard with no allowlisted key means the platform
+            # renamed the fields we consume — the /home reply path silently
+            # degrades to the fallback cycle unless someone can see this.
+            # Count only: the dropped key names are platform-controlled text
+            # and *.log is swept into LLM-facing reports.
+            logger.warning(
+                "/home payload had no allowlisted keys (%d keys dropped); "
+                "home-based reply cycle disabled this session",
+                len(home),
+            )
 
         # Extract agent ID and name from your_account. The name is the
         # operative self-identification key on live data (feed posts and

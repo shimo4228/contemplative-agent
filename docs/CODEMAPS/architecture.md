@@ -463,24 +463,28 @@ ViewRegistry.find_by_view("constitutional", get_live_patterns())
 
 ### weekly-analysis  [`scripts/weekly-analysis.sh`, ADR-0040]
 
-Runs outside the agent process (launchd → `claude -p`), assembling a prompt from operator-facing artifacts plus **three deterministic intakes**, then a diagnosis companion (`weekly-report-diagnosis` skill) produces the F sections.
+Runs outside the agent process (launchd → `claude -p`), assembling a prompt from operator-facing artifacts plus **four deterministic intakes**, then a diagnosis companion (`weekly-report-diagnosis` skill) produces the F sections.
 
 ```text
 collect: daily comment-reports + data-repo state diff + previous N reports
        + log_anomaly_sweep.py    (event stream: *.log + audit.jsonl; novelty state)
        + state_invariant_check.py (accumulated state: knowledge.json / agents.json)
        + cross_day_duplicate_scan.py (published-body identity: episode logs → digests)
+       + api_drift_scan.py       (platform schema drift: api-audit.jsonl keys; vocab state)
 generate: claude -p → weekly-<end>.md.tmp
 promote:  mv tmp → weekly-<end>.md        (atomic; a failure leaves the prior report)
        →  mv sweep-state.pending → sweep-state   (novelty baseline committed ONLY here)
-translate: best-effort .ja.md (sonnet); failure never rolls back the two promotes
+       →  mv api-drift-state.pending → api-drift-state   (same discipline)
+translate: best-effort .ja.md (sonnet); failure never rolls back the promotes
 ```
 
-Order is load-bearing. The sweep's Δ / 🆕 columns are defined against its last committed snapshot, so it runs `--no-update --emit-state` and the baseline is committed after the report lands — a run that produces nothing must spend nothing (findings F1.2; two consecutive weeks lost). The invariant check and the duplicate scan hold no state and are absolute readings, so they need no such ordering.
+Order is load-bearing. The sweep's Δ / 🆕 columns and the drift scan's new/removed pairs are defined against their last committed snapshots, so both run `--no-update --emit-state` and their baselines are committed after the report lands — a run that produces nothing must spend nothing (findings F1.2; two consecutive weeks lost). The invariant check and the duplicate scan hold no state and are absolute readings, so they need no such ordering.
+
+The drift scan (2026-08-06) diffs the per-endpoint response-key vocabulary the client already records in `api-audit.jsonl` (2xx envelopes only, so outages do not read as schema changes) and tracks the `POST /verify` consecutive-failure run against the platform's 10-failure suspension rule. It exists because the platform ships API changes unannounced (observed: the `check_in` key appearing on `/home` in 2026-08, carrying role "standing instructions" — a third-party injection channel the adapter deliberately never consumes, gated by `tests/test_home_field_allowlist.py`). The spec (`skill.md`) is untrusted external text: it is never fetched in the unattended chain, and on drift the rendered section directs the re-read to the Saturday gate.
 
 The sweep's signature is keyed on **level + message**, with the dotted `%(name)s` module path dropped for lines in the runtime's own log format, and hex-shaped ids squashed to `#` alongside digit runs. The 80-character cap is the reason: the module path alone runs to ~47 characters, so keying on it spent the budget on the address and truncated the predicate — `"reply on <id> created but verification failed"` rendered as `"reply on <id> created"`, a failure displayed as its own opposite (findings F1.1). Excluding the name also makes the instrument refactor-invariant: a pure module move (`7c96e0f`) used to reset every affected signature to 🆕, i.e. the Δ / 🆕 columns measured the codebase rather than the runtime (findings F1.2). The trade is that the same message from two subsystems now merges into one row, so the logger name is carried as a display-only `Origin` column — it never enters the signature, the state file or the novelty computation, so the reader keeps the distinction the key deliberately drops.
 
-Injection boundary: the sweep and the invariant check must never read episode logs. The duplicate scan does, and is the only intake permitted to — it emits **only** 12-hex SHA-256 digests, counts, filename-derived dates and the fixed `{post, reply, comment}` vocabulary (ADR-0083, gated by `TestOutputBoundary`). All three are observability: a failure degrades to a "not available" stub and never breaks the report.
+Injection boundary: the sweep, the invariant check and the drift scan must never read episode logs (the drift scan reads only the self-written `api-audit.jsonl`; the platform-controlled key names it renders are Markdown-escaped and length-capped). The duplicate scan does, and is the only intake permitted to — it emits **only** 12-hex SHA-256 digests, counts, filename-derived dates and the fixed `{post, reply, comment}` vocabulary (ADR-0083, gated by `TestOutputBoundary`). All four are observability: a failure degrades to a "not available" stub and never breaks the report.
 
 ### weekly-pipeline  [`scripts/weekly-pipeline.sh`, ADR-0085]
 

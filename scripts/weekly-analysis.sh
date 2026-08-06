@@ -225,8 +225,11 @@ fi
 ANOMALY_SWEEP=""
 SWEEP_STATE="$REPORT_DIR/.anomaly-sweep-state.tsv"
 SWEEP_PENDING="$REPORT_DIR/.anomaly-sweep-state.pending.$$"
+# Named here (not in the API drift block below) because the trap on the next
+# line must cover it; keep them together if either block moves.
+DRIFT_PENDING="$REPORT_DIR/.api-drift-state.pending.$$"
 OUTPUT_TMP=""   # set at the generate step; named here so the trap can cover it
-trap 'rm -f "$SWEEP_PENDING" ${OUTPUT_TMP:+"$OUTPUT_TMP"}' EXIT
+trap 'rm -f "$SWEEP_PENDING" "$DRIFT_PENDING" ${OUTPUT_TMP:+"$OUTPUT_TMP"}' EXIT
 if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
     mkdir -p "$REPORT_DIR"
     ANOMALY_SWEEP=$(python3 "$PROJECT_ROOT/scripts/log_anomaly_sweep.py" \
@@ -237,6 +240,32 @@ if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
     fi
 fi
 [[ -z "$ANOMALY_SWEEP" ]] && ANOMALY_SWEEP="## Log Anomaly Sweep"$'\n\n'"No log sweep available."
+
+# --- API drift scan (platform schema-change detection, 2026-08-06) ---
+# Deterministic diff of the per-endpoint response-key vocabulary recorded in
+# api-audit.jsonl (self-written) against the last scan's snapshot, so a
+# platform-side API change (a new /home key like check_in, a dropped field)
+# surfaces here instead of being discovered when something breaks. The spec
+# (skill.md) is untrusted external text and is NEVER fetched in this chain —
+# on drift, the rendered section directs the re-read to the Saturday gate.
+# Same state discipline as the anomaly sweep: emit aside, promote after the
+# report lands. Observability only — a failure must not break the report.
+API_DRIFT=""
+DRIFT_STATE="$REPORT_DIR/.api-drift-state.tsv"
+if [[ -f "$MOLTBOOK_HOME/logs/api-audit.jsonl" ]]; then
+    mkdir -p "$REPORT_DIR"
+    # The --start/--end window is load-bearing: the audit log never rotates,
+    # so an unwindowed union is monotone and a key the platform DROPPED could
+    # never be detected (current ⊇ previous always).
+    API_DRIFT=$(python3 "$PROJECT_ROOT/scripts/api_drift_scan.py" \
+        --audit "$MOLTBOOK_HOME/logs/api-audit.jsonl" --state "$DRIFT_STATE" \
+        --start "$START_DATE" --end "$END_DATE" \
+        --top 25 --no-update --emit-state "$DRIFT_PENDING" 2>/dev/null || true)
+    if [[ -n "$API_DRIFT" ]]; then
+        echo "Included API drift scan"
+    fi
+fi
+[[ -z "$API_DRIFT" ]] && API_DRIFT="## API Drift Scan"$'\n\n'"No API drift scan available."
 
 # --- State invariant check (structural drift detection, 2026-06-24) ---
 # Deterministic "this should hold" checks over knowledge.json / agents.json
@@ -283,6 +312,8 @@ $PRINCIPLES
 $STATE_DIFF
 
 $ANOMALY_SWEEP
+
+$API_DRIFT
 
 $INVARIANTS
 
@@ -338,6 +369,16 @@ if [[ -e "$SWEEP_PENDING" ]]; then
         echo "Anomaly sweep state committed: $SWEEP_STATE"
     else
         echo "WARNING: sweep state promote failed; next run compares against a wider window" >&2
+    fi
+fi
+
+# Same promote-after-report discipline for the API drift baseline: spending it
+# before a report exists would mean this week's drift was observed by nobody.
+if [[ -e "$DRIFT_PENDING" ]]; then
+    if mv "$DRIFT_PENDING" "$DRIFT_STATE"; then
+        echo "API drift state committed: $DRIFT_STATE"
+    else
+        echo "WARNING: drift state promote failed; next run re-reports this week's drift" >&2
     fi
 fi
 
