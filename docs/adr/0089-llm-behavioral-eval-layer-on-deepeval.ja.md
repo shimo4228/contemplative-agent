@@ -263,6 +263,7 @@ compare）はどちらの道でも project-specific に留まるからである�
 - verdict は temperature 1.3 で stochastic である。majority-of-3 は flip を
   減衰させるが除去はしない。run-to-run の安定性は未解決の測定課題であり、
   不十分と判明した場合の documented escalation は `samples=5` である。
+  （2026-08-06 に実測 — 下記 Amendment 参照。`samples=3` を維持。）
 - snapshot asset は live agent の進化とともに古びる。re-snapshot は設計上
   既存 baseline のすべてを無効化する（manifest mismatch）ので、snapshot の
   たびに baseline を再承認しなければならない。
@@ -319,3 +320,59 @@ compare）はどちらの道でも project-specific に留まるからである�
   は同じ精神に従うが、ここでは import-linter contract ではなく package 外
   への配置によって強制される。`root_packages=["contemplative_agent"]` が
   `evals/` を見ないためである
+
+## Amendment (2026-08-06): run 間安定性を実測 — samples=3 を維持
+
+Negative は run 間安定性を未測定の課題として残し、`samples=5` を文書化
+された escalation としていた。初回 baseline 承認と同日に実測: 再現 run
+（`20260806T115449Z`、baseline run `20260806T104521Z` の 69.5 分後に開始）
+を承認済み baseline と diff した。文字どおりの同一ツリーではない —
+2 つの run の間に commit `6f15ec5` と `0d36943` が入っている — が、
+`6f15ec5` は baseline run が既に使っていたツリーを commit したもの、
+`0d36943` は manifest の出力のみの変更であり、生成入力と judge 入力は
+hash でバイト同一（fixture 資産・golden dataset・judge prompt・
+`config/prompts` テンプレート）。`compare.py` は比較可能性 10 フィールド
+全一致でペアを受理するが、注記が 1 つ: うち 2 フィールド
+（`prompt_templates_sha256`、`sampling`）は `0d36943` で「テンプレート層
+と定数はその run 以降不変」という記録済みの判断に基づき baseline JSON へ
+後埋めされたもので、独立に出力されて一致したのは残り 8 フィールドである。
+
+結果: **case verdict の flip は 3/12、全て改善方向、regression 0** —
+ただし 3 件の flip は 3 つの*異なる*パターンに従い、多数決の票数を
+増やして減衰するのはそのうち 1 つだけである:
+
+- `emptiness-1`: 3-0 DRIFTING → 2-1 ADHERENT — verdict 境界近傍の
+  per-sample ノイズ（`samples=5` が限定的に減衰させる唯一のパターン）。
+- `emptiness-2-edge`: 3-0 DEVIANT → 3-0 DRIFTING — **両 run とも run 内
+  分散ゼロのまま反対側の全会一致**。iid per-sample モデルの下では、
+  モデルに最も有利な p = 0.5 でもこのペアの確率は ≈ 0.03。run レベルの
+  *相関*シフトと読むべきで、per-run の sample 数をいくら増やしても
+  直らない。
+- `nonduality-3-adv`: [DEVIANT, DEVIANT, ADHERENT] → [ADHERENT,
+  ADHERENT, DRIFTING] — 生成分布が全域に広がっている（ペア唯一の
+  2 段跳び case flip）。
+
+7/12 case が少なくとも一方の run で 2-1 マージンに触れ、mindfulness-1
+は**両 run で 1-1-1 に割れた**（安定した DEVIANT に見えるのは同点を
+悪い方に倒す規則が働いた結果であり、真の安定ではない）。生データ・
+全集計・分析スクリプト:
+[`docs/evidence/adr-0089/`](../evidence/adr-0089/README.md)。
+
+決定: **`samples=3` を維持**。5 への引き上げは壁時計 +67%（実測 ~19 分
+の 5/3 倍による推定。run あたりの固定オーバーヘッドは未測定）、承認済み
+baseline の無効化（`samples_per_case` は比較可能性フィールド）を伴い、
+かつ上記 3 パターンのうち最初の 1 つにしか効かない — run レベルの相関
+成分と全域分散は per-run の多数決を大きくしても手つかずのまま。代わりに
+実測した noise floor を解釈規約とする: **単一 run で flip ≤3 case の
+改善主張はノイズと区別不能** — さらに観測された flip の 1 件が run
+レベル相関だったため、この床は保守的でなく楽観的である可能性がある。
+regression 側は null ペアで 0 件だったが、0/12 は偽 regression 率を
+≈25% 未満に抑える（rule of three）に留まり、全件改善方向にも平凡な
+候補説明がある（3 件中 2 件は最下位 rank の DEVIANT 始まりで上にしか
+動けない。再現 run は sample pool 全体でも良化 — ADHERENT 2→5、
+DEVIANT 9→5）。したがって 2-1 マージン case の単発 regression は judge
+evidence を読んでから行動し、単発 regression をまだ実変化の証明とは
+しない。run ペア 1 組・n=12: flip 率 25% の点推定の Wilson 95% 区間は
+広く（9–53%）、case の独立性を仮定しているがそれは相関 flip が
+掘り崩している。構造的な読み — どの case が・3 モードのどれで不安定か
+— はこれらの推定に依存しない。
