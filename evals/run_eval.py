@@ -65,6 +65,44 @@ FIXTURE_DIR = EVALS_DIR / "fixtures" / "agent_home"
 JUDGE_PROMPT_PATH = EVALS_DIR / "fixtures" / "judge" / "comment_judge_prompt.md"
 DEFAULT_DATASET = EVALS_DIR / "datasets" / "comment_golden.jsonl"
 RESULTS_DIR = EVALS_DIR / "results"
+REPO_ROOT = EVALS_DIR.parent
+
+
+def prompt_templates_sha256() -> str:
+    """Digest of the repo-pinned template layer the eval generation reads.
+
+    The scratch MOLTBOOK_HOME has no prompts/ override, so config/prompts/
+    and config/domain.json ARE generation inputs (Decision 3) — editing
+    comment.md is the single most likely prompt change and must register as
+    baseline staleness. Shared with evals/check_staleness.py.
+    """
+    digest = hashlib.sha256()
+    for path in sorted((REPO_ROOT / "config" / "prompts").glob("*.md")):
+        digest.update(path.name.encode())
+        digest.update(path.read_bytes())
+    domain = REPO_ROOT / "config" / "domain.json"
+    if domain.is_file():
+        digest.update(domain.read_bytes())
+    return digest.hexdigest()
+
+
+def sampling_state() -> dict:
+    """The non-temperature sampling/budget constants a run bakes in.
+
+    Recorded as values (not a code hash) so a refactor that moves code
+    without changing behavior does not cry stale, while an actual constant
+    change does. Shared with evals/check_staleness.py.
+    """
+    from contemplative_agent.core.config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH
+    from contemplative_agent.core.llm import NUM_CTX, SAMPLING_TOP_K, SAMPLING_TOP_P
+
+    return {
+        "num_ctx": NUM_CTX,
+        "top_p": SAMPLING_TOP_P,
+        "top_k": SAMPLING_TOP_K,
+        "max_comment_length": MAX_COMMENT_LENGTH,
+        "max_post_length": MAX_POST_LENGTH,
+    }
 
 
 def _die_unmeasurable(msg: str) -> NoReturn:
@@ -290,6 +328,8 @@ def main() -> int:
         "judge_model": args.judge_model,
         "assets_sha256": aggregate_sha256(hash_tree(FIXTURE_DIR)),
         "judge_prompt_sha256": hashlib.sha256(JUDGE_PROMPT_PATH.read_bytes()).hexdigest(),
+        "prompt_templates_sha256": prompt_templates_sha256(),
+        "sampling": sampling_state(),
         "dataset_sha256": dataset_sha256(dataset_path),
         "samples_per_case": args.samples,
         # A --cases subset changes what was measured; recording the id set

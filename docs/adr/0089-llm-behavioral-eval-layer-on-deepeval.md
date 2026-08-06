@@ -283,7 +283,24 @@ comparison offline and schema-stable.
   always-on in production, `run_eval` must call
   `configure_skill_selection` to keep parity (Decision 4).
 - Manual-run trigger: prompt-asset, model, sampling, or generation-path
-  changes (Decision 7); eval stays out of `verify.sh` by design.
+  changes (Decision 7); eval stays out of `verify.sh` by design. The
+  *detection* of most triggers is mechanical (added same day, after the
+  first baseline approval): `evals/check_staleness.py` compares the newest
+  approved baseline's manifest against the tree's current state — fixture
+  assets, golden dataset, judge prompt, `config/prompts/*.md` +
+  `domain.json` (the scratch MOLTBOOK_HOME has no override, so the repo
+  template layer IS a generation input), the sampling/budget constants
+  (`NUM_CTX`, top-p/k, length caps), temperature, and the served model —
+  and `verify.sh` full mode surfaces divergence as a warning. Advisory
+  only, never a FAIL: the instrument and the trigger flag are separated so
+  the expensive check is prompted by the cheap gate, while the decision to
+  run stays human. Two deliberate limits: a staged-mode commit notice was
+  tried and removed — the harness `verify-precommit` hook discards gate
+  output on PASS, so it was dead wiring on the normal path; and
+  generation-path *code* changes that alter behavior without touching any
+  recorded constant remain a prose-and-human trigger, because a code hash
+  would cry stale on every refactor and train the reader to ignore the
+  warning.
 - Generalizing an "eval" axis into `verify-bootstrap`'s gate menu is
   explicitly out of scope for this ADR; `contemplative-agent` is the pilot.
 

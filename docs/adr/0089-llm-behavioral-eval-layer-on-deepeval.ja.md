@@ -275,7 +275,21 @@ compare）はどちらの道でも project-specific に留まるからである�
   always-on になったとき、parity を保つために `run_eval` は
   `configure_skill_selection` を呼ばなければならない（Decision 4）。
 - 手動 run の trigger: prompt-asset、model、sampling、generation-path の変更
-  （Decision 7）。eval は設計上 `verify.sh` の外に留まる。
+  （Decision 7）。eval は設計上 `verify.sh` の外に留まる。trigger の大半の
+  **検出**は機械化した（初回 baseline 承認と同日の追補）:
+  `evals/check_staleness.py` が最新の承認済み baseline の manifest を tree の
+  現在の状態 — fixture 資産、golden dataset、judge prompt、
+  `config/prompts/*.md` + `domain.json`（scratch MOLTBOOK_HOME に override が
+  無いので repo のテンプレ層**が**生成入力である）、sampling/予算定数
+  （`NUM_CTX`、top-p/k、長さ上限）、温度、served model — と突き合わせ、
+  `verify.sh` full mode が乖離を warning として表面化する。advisory のみで
+  FAIL には決してしない: 計器と引き金フラグを分離し、高価な検査は安い gate に
+  催促させ、回すかの判断は人間が持つ。意図的な限界が 2 つ: staged mode の
+  commit 通知は試作の上で撤去した — harness の `verify-precommit` hook は
+  PASS 時に gate 出力を捨てるため、正常経路では届かない死んだ配線だった。
+  また、記録済み定数に触れずに挙動を変える生成経路の**コード**変更は
+  prose + 人間判断のトリガーに留める — コード hash は refactor のたびに
+  stale を叫び、読者に warning を無視する訓練を施してしまうからである。
 - 「eval」軸を `verify-bootstrap` の gate メニューへ一般化することは、この
   ADR では明示的に scope 外である。`contemplative-agent` が pilot である。
 

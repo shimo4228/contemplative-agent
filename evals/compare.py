@@ -33,6 +33,8 @@ COMPARABILITY_FIELDS = frozenset(
         "judge_model",
         "assets_sha256",
         "judge_prompt_sha256",
+        "prompt_templates_sha256",
+        "sampling",
         "dataset_sha256",
         "samples_per_case",
         "case_ids",

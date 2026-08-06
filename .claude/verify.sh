@@ -169,4 +169,11 @@ check deps "${UV[@]}" pip-audit --progress-spinner off
 
 check test "${UV[@]}" pytest -q
 
+# ADR-0089: eval baseline の鮮度検査 (advisory)。stale でも FAIL しない — eval は遅く
+# 確率的で、回すかの判断は人間が持つ。ここは「baseline が現在の系を代表しなくなった」
+# の決定論的検出だけ (sha256 + 定数比較、deepeval 不要、秒で完了)
+if ! staleness_out=$("${UV[@]}" python evals/check_staleness.py 2>&1); then
+  warn "$staleness_out"
+fi
+
 exit $FAIL
