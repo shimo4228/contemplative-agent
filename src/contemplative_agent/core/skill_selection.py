@@ -22,6 +22,7 @@ vocabulary back into the judge).
 
 from __future__ import annotations
 
+import difflib
 import json
 import logging
 import re
@@ -78,16 +79,53 @@ _NONE_SENTINEL = "none"
 # CJK preserved.
 _NAME_MAX_CHARS = 80
 _DESCRIPTION_MAX_CHARS = 300
+# Rows of the rejected-name tally the report renders before summarising the
+# rest. Bounds the *output*, never the reading — see the renderer.
+_REJECTED_NAME_RENDER_LIMIT = 50
 
-_CONTROL_CHARS_RE = re.compile(r"[\x00-\x08\x0b-\x1f\x7f]|\x1b")
+# C0 (TAB and LF included — see below), DEL, C1, and the Unicode format
+# characters that act as line breaks or reorder a rendered line.
+#
+# TAB and LF were excluded until 2026-08-08 (the class was
+# ``[\x00-\x08\x0b-\x1f\x7f]``, which straddles both). That held only
+# because every caller happened to feed it text already split on
+# newlines. It stopped holding when the rejected-name tally began
+# rendering one report line per entry: a single embedded ``\n`` forges an
+# additional, indistinguishable row — demonstrated end-to-end by two
+# independent reviews. The same hole was live in ``load_skill_catalog``'s
+# description scrub, where ``_render_catalog`` joins on ``\n`` and a
+# newline in a description forges catalog lines in the selection prompt.
+#
+# The bidi and zero-width block is here for this instrument specifically:
+# its whole job is to let a human compare a hallucinated name against a
+# real one by eye, and RLO/ZWSP defeat exactly that comparison while
+# leaving two visually identical rows counting separately.
+_CONTROL_CHARS_RE = re.compile(
+    "["
+    "\x00-\x1f\x7f-\x9f"  # C0 (incl. TAB/LF), DEL, C1
+    "\u200b-\u200f"  # zero-width space/joiners, LRM/RLM
+    "\u2028\u2029"  # line/paragraph separator
+    "\u202a-\u202e"  # bidi embedding/override
+    "\u2060-\u2064\u2066-\u2069"  # word joiner, invisible ops, bidi isolates
+    "\ufeff"  # BOM / zero-width no-break space
+    "]"
+)
 
 
 def _scrub_control(value: str, max_len: int) -> str:
-    """Drop control characters (terminal/ANSI injection guard), cap length.
+    """Collapse whitespace, drop control characters, cap length.
 
     CJK-preserving counterpart to ``strip_to_printable`` for fields where
-    non-ASCII content is legitimate (descriptions, hallucinated names)."""
-    return _CONTROL_CHARS_RE.sub("", value)[:max_len]
+    non-ASCII content is legitimate (descriptions, hallucinated names).
+
+    Whitespace is collapsed before the character class runs so the result
+    is guaranteed to be a single line: callers render one of these per
+    report line, and "no control characters" is a weaker promise than
+    "cannot span lines" — the character class alone would still let a
+    future addition to the class be forgotten. Same shape as
+    ``stocktake._scrub_reason`` (security review 2026-07-24), which
+    reached this conclusion first."""
+    return _CONTROL_CHARS_RE.sub("", " ".join(value.split()))[:max_len]
 
 
 _skills_dir: Path | None = None
@@ -550,6 +588,47 @@ class SkillSelectionDay:
 
 
 @dataclass(frozen=True)
+class RejectedNameTally:
+    """One hallucinated name, how often it was emitted, and how far it sits
+    from the nearest name actually in the catalog.
+
+    The rate alone (``hallucination_records``) cannot separate the three
+    mechanisms the 2026-08-08 reading found behind it — wordform variance
+    on a name that *is* in the catalog (``identify-`` for ``identifying-``),
+    substitution of a different word (``translate-`` for ``trace-``), and
+    text bled in from elsewhere in the prompt (constitution clauses
+    arriving as skill names). Distance to the nearest catalog entry
+    separates them at a glance: near-1.0 is wordform, mid-range is
+    substitution, low is bleed.
+
+    Deliberately *not* classified here. Which bucket a name falls in is a
+    judgment, and an instrument that assigns it would be one step from
+    being read as a verdict (ADR-0071 / ``read-only-instruments``: the
+    instrument reports, the human decides).
+
+    ``similarity`` is surface (orthographic) distance from ``difflib``, not
+    embedding cosine — on purpose. The embedding layer exists to resolve
+    "structural similarity hidden by vocabulary variation"
+    (``embeddings.py``); here vocabulary variation *is* the signal, and a
+    semantic measure would collapse the wordform and substitution cases
+    into each other.
+    """
+
+    name: str
+    # Emissions, not records: one judged record that emitted the same
+    # bogus name twice counts twice, so this does not sum to
+    # ``hallucination_records``.
+    count: int
+    # Nearest catalog name, or ``""`` both when the catalog could not be
+    # read (``skills_dir=None``) and when nothing in it resembles the name
+    # at all. The renderer tells those two apart; neither fabricates a
+    # match.
+    nearest: str
+    # 0.0 when ``nearest`` is empty. Never used as a threshold anywhere.
+    similarity: float
+
+
+@dataclass(frozen=True)
 class SkillSelectionReading:
     """Read-only aggregate over the shadow log (ADR-0071 instrument).
 
@@ -596,9 +675,23 @@ class SkillSelectionReading:
     #
     # Matched on exact name, so a skill renamed mid-window reports the
     # exposure of its new name — near zero, i.e. it reads as newly adopted.
-    # The pending frontmatter-name backfill will do exactly that; read the
-    # first window after it with that in mind.
+    # Any bulk rename would do exactly that; read the first window after
+    # one with that in mind. (The frontmatter-name backfill that used to be
+    # named here as pending was dropped on 2026-08-08 — it moved every
+    # renamed name *away* from what the selector emits.)
     never_selected_exposure: tuple[tuple[str, int], ...]
+    # Hallucinated names themselves, not just how many records had one.
+    # Added 2026-08-08 after a third ad-hoc script was needed to answer a
+    # question the instrument already held the data for.
+    rejected_name_tally: tuple[RejectedNameTally, ...]
+    # Whether a catalog was readable at all. Without it the reading cannot
+    # tell "measured, and nothing resembled it" from "there was no ruler":
+    # both leave ``RejectedNameTally.similarity`` at 0.0, and the first
+    # render of this tally claimed the former in both cases — so an
+    # unreadable ``skills_dir`` would have read as the value-layer-bleed
+    # signature, which is the single worst misreading this tally can
+    # produce (cross-model review, 2026-08-08).
+    catalog_available: bool
 
 
 def read_skill_selection_log(
@@ -630,6 +723,11 @@ def read_skill_selection_log(
     # whole window has been read, and the current catalog is resolved later
     # still.
     exposure_counts: dict[str, int] = {}
+    # Names the selector emitted that matched nothing. Scrubbed here as
+    # well as at the write seam: the writer sanitises what *it* appends,
+    # but this reader parses a file on disk, and the global rule treats the
+    # agent's own store as untrusted regardless of who wrote it.
+    rejected_counts: dict[str, int] = {}
     days_seen: list[SkillSelectionDay] = []
     if log_dir.is_dir():
         for path in sorted(log_dir.glob("skill-selection-*.jsonl")):
@@ -693,9 +791,23 @@ def read_skill_selection_log(
                 if not selected:
                     judged_empty_records += 1
                     day_judged_empty += 1
-                if rec.get("rejected_names"):
+                rejected = rec.get("rejected_names")
+                if rejected:
                     hallucination_records += 1
                     day_hallucinations += 1
+                # Counted separately from the record tally above: a record
+                # whose ``rejected_names`` is truthy but unusable (wrong
+                # type, non-string entries) still *is* a hallucination
+                # record. Folding the two would let a malformed field
+                # quietly lower the rate.
+                if isinstance(rejected, list):
+                    for name in rejected:
+                        if not isinstance(name, str):
+                            continue
+                        clean = _scrub_control(name, _NAME_MAX_CHARS)
+                        if not clean:
+                            continue
+                        rejected_counts[clean] = rejected_counts.get(clean, 0) + 1
                 full = rec.get("full_skill_tokens")
                 would_be = rec.get("would_be_skill_tokens")
                 if isinstance(full, int) and isinstance(would_be, int):
@@ -716,6 +828,46 @@ def read_skill_selection_log(
     catalog_names = [e.name for e in load_skill_catalog(skills_dir)]
     never_selected = tuple(name for name in catalog_names if name not in skill_counts)
     never_selected_exposure = tuple((name, exposure_counts.get(name, 0)) for name in never_selected)
+
+    def _nearest(name: str) -> tuple[str, float]:
+        """Closest catalog name by surface similarity, with its ratio.
+
+        No cutoff: a name with no close match is exactly the interesting
+        case (value-layer bleed), so its distance is worth reporting.
+
+        Scored in one explicit pass rather than ``get_close_matches`` plus
+        a second ``ratio()``. ``SequenceMatcher.ratio()`` is **not
+        symmetric**, and the two calls take their operands in opposite
+        orders — so on roughly 1% of realistic kebab-case names the
+        printed similarity would not be the score that picked the winner,
+        and a reader comparing rows would see an inconsistency with no
+        way to explain it. That lands precisely on the wordform-versus-
+        substitution boundary this tally exists to discriminate.
+
+        Ties break toward the alphabetically first name; a name that
+        matches nothing at all reports no nearest rather than the
+        alphabetical accident ``get_close_matches`` would hand back.
+        """
+        if not catalog_names:
+            return "", 0.0
+        matcher = difflib.SequenceMatcher(autojunk=False)
+        matcher.set_seq2(name)
+        best_name, best_ratio = "", 0.0
+        for candidate in sorted(catalog_names):
+            matcher.set_seq1(candidate)
+            ratio = matcher.ratio()
+            if ratio > best_ratio:
+                best_name, best_ratio = candidate, ratio
+        return best_name, best_ratio
+
+    def _tally(name: str, count: int) -> RejectedNameTally:
+        nearest, similarity = _nearest(name)
+        return RejectedNameTally(name=name, count=count, nearest=nearest, similarity=similarity)
+
+    rejected_name_tally = tuple(
+        _tally(name, count)
+        for name, count in sorted(rejected_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    )
 
     def _pct(values: list[int], q: float) -> float:
         if not values:
@@ -738,11 +890,46 @@ def read_skill_selection_log(
         judged_empty_records=judged_empty_records,
         per_day=tuple(sorted(days_seen, key=lambda d: d.date)),
         never_selected_exposure=never_selected_exposure,
+        rejected_name_tally=rejected_name_tally,
+        catalog_available=bool(catalog_names),
     )
 
 
-def format_skill_selection_report(reading: SkillSelectionReading) -> str:
-    """Render the reading for the ``report --skill-selection`` flag."""
+def format_skill_selection_report(
+    reading: SkillSelectionReading, *, include_rejected_names: bool = False
+) -> str:
+    """Render the reading. ``include_rejected_names`` is a trust decision.
+
+    This renderer has two consumers with different trust requirements, and
+    the difference is not phrasing — it is who reads the output:
+
+    - ``report --skill-selection`` prints to a terminal for a human, who
+      is the only reader that needs the hallucinated strings themselves
+      (comparing their spelling against real names is the whole point of
+      the tally). It passes ``include_rejected_names=True``.
+    - ``scripts/weekly-analysis.sh`` pastes the same report into the
+      weekly prompt, which an unattended chain reads before writing code
+      patches (ADR-0085). It takes the default.
+
+    A rejected name is, by definition, a string that matched nothing in
+    the catalog: free text from a model whose prompt embeds untrusted post
+    bodies. The 2026-08-08 reading measured this happening — 12% of
+    rejected names were fragments bled from elsewhere in the prompt. Every
+    other string this renderer emits comes from a closed, self-written
+    vocabulary (catalog names via ``strip_to_printable``, fixed verdict
+    tokens), so the tally would be the first arbitrary model output to
+    reach that prompt. ADR-0083's precedent for the same tension — the
+    cross-day duplicate scan — sends digests rather than content.
+
+    The default is the restrictive one so a new caller is safe by
+    omission, and the weekly script needs no knowledge of the boundary it
+    is on the wrong side of.
+
+    Withholding the names costs the weekly reader little: the *shape* of
+    the tally — how many distinct names, how many emissions, and how far
+    each sits from which real skill — is rendered either way, because the
+    nearest name is a catalog name and the distance is a float.
+    """
     lines = [
         "## Skill-selection reading (ADR-0076 instrument, ADR-0081 enforcement)",
         "",
@@ -796,6 +983,56 @@ def format_skill_selection_report(reading: SkillSelectionReading) -> str:
         lines.append("Selection frequency:")
         for name, count in reading.per_skill:
             lines.append(f"- {name}: {count}")
+    if reading.rejected_name_tally:
+        lines.append("")
+        lines.append("Rejected names (emitted, matched no catalog entry):")
+        if not include_rejected_names:
+            lines.append(
+                "  (names withheld — this renderer's default. They are model "
+                "output shaped by untrusted input; `report --skill-selection` "
+                "shows them. Shape below is catalog names and distances only.)"
+            )
+        shown = reading.rejected_name_tally[:_REJECTED_NAME_RENDER_LIMIT]
+        for entry in shown:
+            if entry.nearest:
+                nearest_text = (
+                    f"nearest catalog name `{entry.nearest}` (similarity {entry.similarity:.2f})"
+                )
+            elif reading.catalog_available:
+                # Measured against a real catalog and nothing came close:
+                # the value-layer-bleed signature. Rendering this as
+                # `nearest \`x\` (similarity 0.00)` read as a match claim.
+                nearest_text = "no catalog name resembles it"
+            else:
+                # No ruler. Must not be reported as the line above — a
+                # broken skills_dir would then read as bleed.
+                nearest_text = "no catalog to compare against"
+            # The name is the only untrusted half of the row; dropping it
+            # still leaves the distance and which real skill it is near,
+            # which is what "did wordform slips concentrate on three
+            # skills, or is text bleeding in?" actually needs.
+            head = f"{entry.name}: " if include_rejected_names else ""
+            lines.append(f"- {head}{entry.count} emissions — {nearest_text}")
+        hidden = reading.rejected_name_tally[_REJECTED_NAME_RENDER_LIMIT:]
+        if hidden:
+            # Bounding the *rendering*, not the reading: the dataclass
+            # still carries every row. Prose bleed — the degenerate mode
+            # this tally exists to detect — is exactly the mode that emits
+            # thousands of unique names, so an uncapped section would
+            # explode the one artifact it is meant to inform. Silently
+            # truncating would read as "that was all of it".
+            lines.append(
+                f"- … and {len(hidden)} more distinct names "
+                f"({sum(e.count for e in hidden)} emissions), not shown"
+            )
+        lines.append(
+            "  Counts are emissions, not records — one record can emit the same "
+            "name twice, so these do not sum to the Hallucination line above. "
+            "Similarity is surface (orthographic), not semantic: near 1.00 is a "
+            "wordform slip on a name that IS in the catalog, mid-range is a "
+            "different word, low means the text came from somewhere other than "
+            "the catalog. Which bucket a row falls in is the reader's call."
+        )
     if reading.never_selected_exposure:
         lines.append("")
         lines.append("Never selected in window (stocktake candidates):")

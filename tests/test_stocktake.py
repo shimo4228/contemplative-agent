@@ -785,6 +785,8 @@ def _make_reading(**overrides):
         enforced_records=1299,
         per_day=(),
         never_selected_exposure=(("ghost-skill", 1300),),
+        rejected_name_tally=(),
+        catalog_available=True,
     )
     return replace(base, **overrides) if overrides else base
 

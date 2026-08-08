@@ -171,7 +171,10 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
                 skills_dir=config.SKILLS_DIR if config.SKILLS_DIR.is_dir() else None,
             )
             print()
-            print(format_skill_selection_report(reading))
+            # Terminal output for a human, who is the reader the rejected
+            # names exist for. The weekly intake takes the default and
+            # gets the same reading without them — see the renderer.
+            print(format_skill_selection_report(reading, include_rejected_names=True))
         except Exception as exc:
             logger.warning("Skill-selection reading failed (report unaffected): %s", exc)
 

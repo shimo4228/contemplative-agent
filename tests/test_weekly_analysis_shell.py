@@ -247,7 +247,14 @@ class TestPromptAssembly:
             "ts": f"{END_DATE}T10:00:00+00:00",
             "verdict": "judged",
             "selected": ["fabricated-benchmark-guard"],
-            "rejected_names": [],
+            # Non-empty on purpose. This gate read as green for a week
+            # while asserting nothing about rejected names, and a rejected
+            # name is the one string in this reading that is free model
+            # output rather than a catalog name — i.e. the one that can
+            # carry a post-body fragment. `format_skill_selection_report`
+            # withholds them unless a caller opts in; the weekly intake
+            # must not opt in.
+            "rejected_names": ["REJECTED-MARKER-from-an-untrusted-post"],
             "full_skill_tokens": 1000,
             "would_be_skill_tokens": 100,
             # The reader ignores fields it does not aggregate; a plaintext
@@ -274,6 +281,10 @@ class TestPromptAssembly:
         assert "No skill-selection reading available" not in prompt
         assert "fabricated-benchmark-guard: 1" in prompt
         assert "SITUATION-MARKER" not in prompt
+        # The tally's shape reaches the prompt; the untrusted half does not.
+        assert "REJECTED-MARKER" not in prompt
+        assert "Rejected names" in prompt
+        assert "1 emissions" in prompt
 
     def test_pattern_count_line_names_its_source_and_commits(self, tmp_path):
         """findings F1.4: the state diff's pattern counts are committed snapshots
