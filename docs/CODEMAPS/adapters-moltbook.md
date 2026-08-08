@@ -140,7 +140,12 @@ drop — ADR-0062 12th amendment; the failure *kind* stays in the
 when every produced candidate was already server-rejected. `solve_challenge_result()` also returns `solver_path` for audit/eval use. `record_verification_audit()` writes
 `logs/verification-audit.jsonl` with `challenge_b64`, `challenge_sha256`,
 hashed `verification_code`, answer, `solver_path`, and `/verify` success; the
-challenge is not written as raw prompt text. 7 consecutive failures →
+challenge is not written as raw prompt text. A create-time handshake also
+carries `action` (`comment` / `reply` / `post`, threaded explicitly from the
+three `passes_verification` call sites — never parsed back out of the log
+line), `target_sha256` (digest only, ADR-0083) and `content_recorded`, so the
+handshake-failure rate splits into "cost the agent a visible body" vs "was
+solved on retry"; all three are `None` off the create path. 7 consecutive failures →
 `SessionContext.rate_limited = True` → auto-stop session.
 
 ---

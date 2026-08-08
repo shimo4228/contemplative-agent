@@ -15,6 +15,7 @@ macOS-only: the script uses BSD ``date -j``.
 
 from __future__ import annotations
 
+import json
 import os
 import shutil
 import subprocess
@@ -32,6 +33,7 @@ SCRIPT = REPO_ROOT / "scripts" / "weekly-analysis.sh"
 
 END_DATE = "2026-07-24"
 SEEDED_STATE = "7\t[warning] seeded signature\n"
+SEEDED_CORPUS = "5000\t300\told-rotated.log\n"
 
 
 def _make_home(tmp_path: Path) -> Path:
@@ -50,6 +52,9 @@ def _make_home(tmp_path: Path) -> Path:
     )
     (home / "reports" / "analysis" / ".anomaly-sweep-state.tsv").write_text(
         SEEDED_STATE, encoding="utf-8"
+    )
+    (home / "reports" / "analysis" / ".anomaly-sweep-state.tsv.corpus.tsv").write_text(
+        SEEDED_CORPUS, encoding="utf-8"
     )
     return home
 
@@ -91,6 +96,10 @@ def _state(home: Path) -> Path:
     return home / "reports" / "analysis" / ".anomaly-sweep-state.tsv"
 
 
+def _corpus(home: Path) -> Path:
+    return home / "reports" / "analysis" / ".anomaly-sweep-state.tsv.corpus.tsv"
+
+
 def _pending_files(home: Path) -> list[Path]:
     return list((home / "reports" / "analysis").glob(".anomaly-sweep-state.pending*"))
 
@@ -102,6 +111,7 @@ class TestFailedRunSpendsNothing:
 
         assert result.returncode != 0, result.stdout
         assert _state(home).read_text(encoding="utf-8") == SEEDED_STATE
+        assert _corpus(home).read_text(encoding="utf-8") == SEEDED_CORPUS
         assert not (home / "reports" / "analysis" / f"weekly-{END_DATE}.md").exists()
         assert _pending_files(home) == [], "pending snapshot leaked past the trap"
 
@@ -145,6 +155,23 @@ class TestSuccessfulRunCommits:
 
         assert result.returncode == 0, result.stderr
         assert _state(home).read_text(encoding="utf-8") == ""
+
+    def test_corpus_census_is_promoted_in_lockstep_with_the_state(self, tmp_path):
+        """The census is the snapshot's measurement basis (findings F1.1).
+
+        Promoting one without the other is worse than promoting neither: next
+        week's provenance line would compare fresh counts against a census of a
+        corpus that no longer exists, and assert the comparison as fact.
+        """
+        home = _make_home(tmp_path)
+        result = _run(home, _stub_claude(tmp_path, exit_code=0, body="# Weekly\n"), tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        assert _state(home).read_text(encoding="utf-8") != SEEDED_STATE
+        census = _corpus(home).read_text(encoding="utf-8")
+        assert census != SEEDED_CORPUS, "census was never committed beside the state"
+        # agent.log holds the two anomaly lines _make_home seeded.
+        assert census == "2\t2\tagent.log\n"
 
     def test_translation_failure_does_not_roll_back_the_state(self, tmp_path):
         """The .ja.md pass is best-effort and must not gate the baseline.
@@ -208,6 +235,45 @@ class TestPromptAssembly:
         assert "No duplicate scan available" not in prompt
         # The scan's boundary holds end to end: the body it hashed stays out.
         assert "a body" not in prompt.split("## Daily Reports")[0]
+
+    def test_skill_selection_reading_reaches_the_prompt_names_only(self, tmp_path):
+        """findings F1.4: the pass-1 selection log was the one instrument not in
+        the prompt — the report inferred *selected* from output vocabulary. The
+        intake must carry skill names and counts, and never the selection
+        situation strings, which are built from untrusted post bodies
+        (ADR-0083 boundary, held by the renderer)."""
+        home = _make_home(tmp_path)
+        record = {
+            "ts": f"{END_DATE}T10:00:00+00:00",
+            "verdict": "judged",
+            "selected": ["fabricated-benchmark-guard"],
+            "rejected_names": [],
+            "full_skill_tokens": 1000,
+            "would_be_skill_tokens": 100,
+            # The reader ignores fields it does not aggregate; a plaintext
+            # situation here proves the renderer emits names and counts only.
+            "prompt": "SITUATION-MARKER an untrusted post body",
+        }
+        (home / "logs" / f"skill-selection-{END_DATE}.jsonl").write_text(
+            json.dumps(record) + "\n", encoding="utf-8"
+        )
+        captured = tmp_path / "prompt.txt"
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        stub = bin_dir / "claude"
+        stub.write_text(
+            f'#!/bin/bash\ncat >> "{captured}"\nprintf "# Weekly\\n"\n', encoding="utf-8"
+        )
+        stub.chmod(0o755)
+
+        result = _run(home, bin_dir, tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        prompt = captured.read_text(encoding="utf-8")
+        assert "## Skill-selection shadow reading" in prompt
+        assert "No skill-selection reading available" not in prompt
+        assert "fabricated-benchmark-guard: 1" in prompt
+        assert "SITUATION-MARKER" not in prompt
 
     def test_pattern_count_line_names_its_source_and_commits(self, tmp_path):
         """findings F1.4: the state diff's pattern counts are committed snapshots

@@ -14,7 +14,13 @@ from .client import MoltbookClient
 from .config import ADAPTIVE_BACKOFF
 from .dedup import is_promotional
 from .llm_functions import generate_internal_note, generate_reply
-from .publish import client_error_guard, log_published, passes_verification, verification_of
+from .publish import (
+    VerificationHandler,
+    client_error_guard,
+    log_published,
+    passes_verification,
+    verification_of,
+)
 from .session_context import SessionContext
 
 logger = logging.getLogger(__name__)
@@ -88,7 +94,7 @@ class ReplyHandler:
         ctx: SessionContext,
         confirm_action: Callable[[str, str], bool],
         confirm_side_effect: Callable[[str], bool],
-        handle_verification: Callable[[dict], bool],
+        handle_verification: VerificationHandler,
     ) -> None:
         self._ctx = ctx
         self._confirm_action = confirm_action
@@ -309,6 +315,8 @@ class ReplyHandler:
                 verification_of(created),
                 self._handle_verification,
                 description=f"Reply on {post_id[:12]}",
+                action="reply",
+                target_id=post_id,
             ):
                 return
             ctx.commented_posts.add(reply_key)

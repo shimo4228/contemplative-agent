@@ -153,18 +153,31 @@ def _delete_adopted_sources(target: Path, sources: Sequence[str]) -> None:
 def _adopt_write_item(item: _StagedItem, *, yes: bool, audit_source: AuditSource) -> bool:
     """Write the staged text to its target after approval; True when adopted."""
     from ..core._io import write_restricted
+    from ..core.artifact_extraction import canonicalize_frontmatter_name, slug_from_stem
 
     # H5 collision guard — exempt when a stocktake merge deliberately reuses
     # one of its own source names (merge-into-source overwrite).
     target = item.target
     if target.name not in (item.sources or ()):
         target = approval._collision_free_path(target, item.text)
+    # One-canonical-identity invariant, established AT the write boundary
+    # (weekly 2026-08-08 F1.3): the extraction-time canonicalization
+    # (insight/rules-distill) is a producer convention, not an invariant —
+    # text staged before that fix landed, staged by a future producer that
+    # skips it, or renamed by the collision guard just above would all enter
+    # the live store with a frontmatter ``name:`` that ``ls`` never shows.
+    # Idempotent normalization, not a gate: an already-canonical candidate
+    # (and any body without frontmatter — identity, constitution, legacy
+    # rules) passes through byte-identical, and nothing is rejected.
+    text = canonicalize_frontmatter_name(item.text, slug_from_stem(target.stem))
     approved = True if yes else approval._approve_write(target)
     approval._log_approval(
         item.command,
         target,
         approved,
-        item.text,
+        # Log the canonicalized text — the audit row's content hash must
+        # match the bytes actually written to the durable store.
+        text,
         source=audit_source,
         source_ids=item.source_ids,
         epistemic_counts=item.epistemic_counts,
@@ -173,7 +186,7 @@ def _adopt_write_item(item: _StagedItem, *, yes: bool, audit_source: AuditSource
         print("Skipped.")
         return False
     target.parent.mkdir(parents=True, exist_ok=True)
-    to_write = item.text if item.text.endswith("\n") else item.text + "\n"
+    to_write = text if text.endswith("\n") else text + "\n"
     write_restricted(target, to_write)
     # skill-stocktake merges pass the original filenames in `sources`
     # so they get deleted once the merged result is adopted.

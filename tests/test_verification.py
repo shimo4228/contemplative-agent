@@ -1625,6 +1625,88 @@ class TestVerificationAudit:
         assert record["error"] == "baderror"
 
 
+class TestVerificationAuditActionColumns:
+    """Weekly F1.2 2026-08-08: an orphaned publish must be countable.
+
+    A create-time handshake failure leaves a body visible on-platform that the
+    agent deliberately does not record (``publish.passes_verification``). Before
+    these columns its only trace was a WARNING line the log sweep lowercases,
+    squashes and truncates — so the weekly report could state its recorded-body
+    denominator only as a floor ("at least 15"). ``action`` /
+    ``target_sha256`` / ``content_recorded`` make the same event countable and
+    joinable per kind.
+    """
+
+    _SOLVED = VerificationSolveResult(
+        answer="15.00",
+        solver_path="code_parse",
+        challenge_sha256="challenge-sha",
+    )
+
+    def test_action_and_recorded_flag_land_in_the_record(self):
+        record = _verification_audit_record(
+            challenge_text="noise",
+            verification_code="moltbook_verify_v1",
+            solve_result=self._SOLVED,
+            verify_success=False,
+            error="verify_rejected",
+            action="comment",
+            target_id="post-abc123",
+            content_recorded=False,
+        )
+
+        assert record["action"] == "comment"
+        assert record["content_recorded"] is False
+        assert record["target_sha256"] == _sha256_text("post-abc123")
+
+    def test_raw_target_id_never_reaches_the_record(self):
+        # ADR-0083 output-boundary discipline: the count and the joinability
+        # are what is needed, not the identifier.
+        record = _verification_audit_record(
+            challenge_text="noise",
+            verification_code="moltbook_verify_v1",
+            solve_result=self._SOLVED,
+            verify_success=True,
+            error=None,
+            action="post",
+            target_id="post-abc123",
+            content_recorded=True,
+        )
+
+        assert "post-abc123" not in json.dumps(record)
+
+    def test_non_create_time_handshake_leaves_the_columns_none(self):
+        # Dense field, sparse meaning: None reads as "not a create-time
+        # handshake / unknown", never as "no body was at stake". Records
+        # written before this change carry None for the same reason, so a
+        # longitudinal count must not read None as a zero.
+        record = _verification_audit_record(
+            challenge_text="noise",
+            verification_code="moltbook_verify_v1",
+            solve_result=self._SOLVED,
+            verify_success=True,
+            error=None,
+        )
+
+        assert record["action"] is None
+        assert record["target_sha256"] is None
+        assert record["content_recorded"] is None
+
+    def test_columns_are_always_present_so_a_reader_can_count(self):
+        # Dense (always-emitted) rather than conditionally added: a reading
+        # that must divide "orphaned" by "all handshakes" cannot tell a missing
+        # key from an absent value.
+        record = _verification_audit_record(
+            challenge_text="noise",
+            verification_code="moltbook_verify_v1",
+            solve_result=self._SOLVED,
+            verify_success=True,
+            error=None,
+        )
+
+        assert {"action", "target_sha256", "content_recorded"} <= record.keys()
+
+
 class TestRejectedAnswerSuppression:
     """Round 8: a previously server-rejected answer is never resubmitted.
 

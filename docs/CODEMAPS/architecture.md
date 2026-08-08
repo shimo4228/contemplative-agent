@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-07 (weekly-pipeline dead-code intake) | Files scanned: 74 | Token estimate: ~9179 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-08 (weekly-analysis skill-selection intake) | Files scanned: 74 | Token estimate: ~9179 -->
 # Architecture
 
 ## Project Type
@@ -181,7 +181,12 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │      until verified, so memory/NoveltyGate recording happens ONLY after
  │      success (posts, comments, replies). Each challenge outcome is also
  │      appended to logs/verification-audit.jsonl with challenge_b64 +
- │      challenge_sha256, solver_path, answer, and verify_success.
+ │      challenge_sha256, solver_path, answer, and verify_success — plus
+ │      action (comment/reply/post), target_sha256 (digest only, ADR-0083)
+ │      and content_recorded for create-time handshakes, so a body published
+ │      on-platform but deliberately left unrecorded is countable per kind
+ │      instead of surviving only as a WARNING line the log sweep normalizes
+ │      (weekly F1.2 2026-08-08).
  └─ MemoryStore.record() → EpisodeLog (append-only JSONL)
 ```
 
@@ -463,28 +468,33 @@ ViewRegistry.find_by_view("constitutional", get_live_patterns())
 
 ### weekly-analysis  [`scripts/weekly-analysis.sh`, ADR-0040]
 
-Runs outside the agent process (launchd → `claude -p`), assembling a prompt from operator-facing artifacts plus **four deterministic intakes**, then a diagnosis companion (`weekly-report-diagnosis` skill) produces the F sections.
+Runs outside the agent process (launchd → `claude -p`), assembling a prompt from operator-facing artifacts plus **five deterministic intakes**, then a diagnosis companion (`weekly-report-diagnosis` skill) produces the F sections.
 
 ```text
 collect: daily comment-reports + data-repo state diff + previous N reports
-       + log_anomaly_sweep.py    (event stream: *.log + audit.jsonl; novelty state)
+       + log_anomaly_sweep.py    (event stream: *.log + audit.jsonl; novelty state + corpus census)
        + state_invariant_check.py (accumulated state: knowledge.json / agents.json)
        + cross_day_duplicate_scan.py (published-body identity: episode logs → digests)
        + api_drift_scan.py       (platform schema drift: api-audit.jsonl keys; vocab state)
+       + skill-selection reading (pass-1 selection log: skill-selection-*.jsonl → names
+                                  and counts; package renderer via `uv run --no-sync`)
 generate: claude -p → weekly-<end>.md.tmp
 promote:  mv tmp → weekly-<end>.md        (atomic; a failure leaves the prior report)
        →  mv sweep-state.pending → sweep-state   (novelty baseline committed ONLY here)
+       →  mv sweep-state.pending.corpus.tsv → sweep-state.corpus.tsv  (lockstep; see below)
        →  mv api-drift-state.pending → api-drift-state   (same discipline)
 translate: best-effort .ja.md (sonnet); failure never rolls back the promotes
 ```
 
-Order is load-bearing. The sweep's Δ / 🆕 columns and the drift scan's new/removed pairs are defined against their last committed snapshots, so both run `--no-update --emit-state` and their baselines are committed after the report lands — a run that produces nothing must spend nothing (findings F1.2; two consecutive weeks lost). The invariant check and the duplicate scan hold no state and are absolute readings, so they need no such ordering.
+Order is load-bearing. The sweep's Δ / 🆕 columns and the drift scan's new/removed pairs are defined against their last committed snapshots, so both run `--no-update --emit-state` and their baselines are committed after the report lands — a run that produces nothing must spend nothing (findings F1.2; two consecutive weeks lost). The invariant check, the duplicate scan and the skill-selection reading hold no state and are absolute readings, so they need no such ordering.
 
 The drift scan (2026-08-06) diffs the per-endpoint response-key vocabulary the client already records in `api-audit.jsonl` (2xx envelopes only, so outages do not read as schema changes) and tracks the `POST /verify` consecutive-failure run against the platform's 10-failure suspension rule. It exists because the platform ships API changes unannounced (observed: the `check_in` key appearing on `/home` in 2026-08, carrying role "standing instructions" — a third-party injection channel the adapter deliberately never consumes, gated by `tests/test_home_field_allowlist.py`). The spec (`skill.md`) is untrusted external text: it is never fetched in the unattended chain, and on drift the rendered section directs the re-read to the Saturday gate.
 
 The sweep's signature is keyed on **level + message**, with the dotted `%(name)s` module path dropped for lines in the runtime's own log format, and hex-shaped ids squashed to `#` alongside digit runs. The 80-character cap is the reason: the module path alone runs to ~47 characters, so keying on it spent the budget on the address and truncated the predicate — `"reply on <id> created but verification failed"` rendered as `"reply on <id> created"`, a failure displayed as its own opposite (findings F1.1). Excluding the name also makes the instrument refactor-invariant: a pure module move (`7c96e0f`) used to reset every affected signature to 🆕, i.e. the Δ / 🆕 columns measured the codebase rather than the runtime (findings F1.2). The trade is that the same message from two subsystems now merges into one row, so the logger name is carried as a display-only `Origin` column — it never enters the signature, the state file or the novelty computation, so the reader keeps the distinction the key deliberately drops.
 
-Injection boundary: the sweep, the invariant check and the drift scan must never read episode logs (the drift scan reads only the self-written `api-audit.jsonl`; the platform-controlled key names it renders are Markdown-escaped and length-capped). The duplicate scan does, and is the only intake permitted to — it emits **only** 12-hex SHA-256 digests, counts, filename-derived dates and the fixed `{post, reply, comment}` vocabulary (ADR-0083, gated by `TestOutputBoundary`). All four are observability: a failure degrades to a "not available" stub and never breaks the report.
+The sweep has **no time window**: it counts every line each allowed file currently holds, so a row's `Count` spans that file's lifetime — and the files rotate on different schedules (`ollama-serve.log` nightly since 2026-08-01, `agent-launchd.log` weekly via `backup-runtime.sh`, the one-shot `insight-` / `distill-launchd.log` never), which makes two rows of one table not necessarily commensurable. Rotation also moves the novelty baseline: lines leave the `*.log` glob, counts fall, and known signatures re-appear as 🆕 — once a rare footnote, the steady state since nightly rotation shipped. Filtering by timestamp would discard signal, so the instrument states its basis instead (findings F1.1, 2026-08-07): a per-file **corpus census** (name, lines read, signal lines) is written to a sidecar `<state>.corpus.tsv` — a sidecar because `read_state` silently drops any state-file line whose first field is not an int, so a header row there would vanish on read — and rendered above the table beside the previous sweep's three figures, with an explicit "🆕 and Δ are not comparable to last week's" sentence when the corpus lost more than 10% of its lines. The census is written *before* its snapshot (the snapshot's existence is the shell's "sweep completed" signal) and promoted in lockstep with it; if the pair breaks, the shell deletes the old census so the next run reports "no previous census" rather than asserting a comparison against a corpus that no longer exists.
+
+Injection boundary: the sweep, the invariant check and the drift scan must never read episode logs (the drift scan reads only the self-written `api-audit.jsonl`; the platform-controlled key names it renders are Markdown-escaped and length-capped). The duplicate scan does, and is the only intake permitted to — it emits **only** 12-hex SHA-256 digests, counts, filename-derived dates and the fixed `{post, reply, comment}` vocabulary (ADR-0083, gated by `TestOutputBoundary`). The skill-selection reading (2026-08-08, findings F1.4) reads the self-written `skill-selection-*.jsonl` shadow log (ADR-0076): the *selected* middle link between *installed* (state diff) and *vocabulary in output* (section E) was already logged per publish action but never supplied to the report. Its records embed the selection situation — untrusted post bodies — so the renderer (`format_skill_selection_report`, the same one behind `report --skill-selection`) emits skill names and counts only, never the situation strings (same ADR-0083 boundary; gated by `test_skill_selection_reading_reaches_the_prompt_names_only`). All five are observability: a failure degrades to a "not available" stub and never breaks the report.
 
 ### weekly-pipeline  [`scripts/weekly-pipeline.sh`, ADR-0085]
 
@@ -504,7 +514,7 @@ Stage 4 fix:       per code-scope F1: git worktree @ HEAD → claude -p (fix-imp
                    blocks export (inspector, not approver)
                    prompt-scope F1: draft diff only, no Verify, full text at the gate
 Stage 5 insight:   read-only recommendation pass over .staged/ (insight-recommendation.md)
-Stage 6 deadcode:  dead_code_scan.py (vulture over the repo checkout; 5th deterministic
+Stage 6 deadcode:  dead_code_scan.py (vulture over the repo checkout; 6th deterministic
                    intake — detection only, feeds the packet directly; runs before
                    improve so a recurring scan failure feeds the P4 detector)
 Stage 7 improve:   only when the same reason code recurred 2 consecutive runs (check-improvement)

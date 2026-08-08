@@ -28,6 +28,11 @@ logger = logging.getLogger(__name__)
 
 _FRONTMATTER_NAME_RE = re.compile(r"^name:.*$", re.MULTILINE)
 
+# Inverse of the ``<slug>-YYYYMMDD.md`` naming that resolve_artifact_path
+# composes, plus the optional ``-N`` counter that the adopt-time collision
+# guard (cli.approval._collision_free_path) may append after the date.
+_DATED_STEM_RE = re.compile(r"^(?P<slug>.+)-\d{8}(?P<counter>-\d+)?$")
+
 
 @dataclass(frozen=True)
 class ResolvedArtifactPath:
@@ -75,6 +80,23 @@ def resolve_artifact_path(
         logger.error("%s path escape attempt: %s", label, path)
         return None
     return ResolvedArtifactPath(filename=filename, target_path=path, slug=slug)
+
+
+def slug_from_stem(stem: str) -> str:
+    """Return the date-free identity token for a final target filename stem.
+
+    Inverts :func:`resolve_artifact_path`'s ``<slug>-YYYYMMDD`` naming while
+    preserving a trailing ``-N`` collision counter: a collision-renamed file
+    (``foo-20260801-2.md``) must carry a declared name distinct from the file
+    it collided with (``foo`` vs ``foo-2``), or the two would re-collide in
+    every consumer that keys on the declared name (``skill_theme`` selector
+    key, novelty dedup, stocktake clustering). Stems without a date suffix
+    (identity/constitution targets, legacy names) are returned unchanged.
+    """
+    m = _DATED_STEM_RE.match(stem)
+    if not m:
+        return stem
+    return m.group("slug") + (m.group("counter") or "")
 
 
 def canonicalize_frontmatter_name(text: str, slug: str) -> str:

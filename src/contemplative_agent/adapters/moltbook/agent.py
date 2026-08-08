@@ -41,6 +41,8 @@ from .reply_handler import ReplyHandler
 from .session_context import SessionContext
 from .submolt_scope import SubmoltScopeScan, scan_submolt_scope
 from .verification import (
+    VerificationAction,
+    VerificationSolveResult,
     VerificationTracker,
     _sanitize_audit_error,
     record_verification_audit,
@@ -492,7 +494,13 @@ class Agent:
     # Verification
     # ------------------------------------------------------------------
 
-    def _handle_verification(self, verification: dict) -> bool:
+    def _handle_verification(
+        self,
+        verification: dict,
+        *,
+        action: VerificationAction | None = None,
+        target_id: str | None = None,
+    ) -> bool:
         """Solve and submit a content-verification challenge.
 
         ``verification`` is the object Moltbook embeds in a create-response
@@ -501,6 +509,15 @@ class Agent:
         ``verification_code`` (the opaque submission handle). Returns True
         when the content was verified (or no action was needed); False when
         solving or submission failed (caller leaves the content unrecorded).
+
+        ``action`` / ``target_id`` are threaded by ``passes_verification``'s
+        call sites so every audit record written here states which create kind
+        it gated and (as a digest) which target — the countable trace of an
+        orphaned publish (weekly F1.2 2026-08-08). ``content_recorded`` in
+        those records mirrors this method's return value, because that IS the
+        caller contract: True ⇒ the caller records the body, False ⇒ it
+        deliberately records nothing. Left None when ``action`` is None (a
+        non-create-time invocation has no body at stake).
 
         Deliberately NOT routed through _confirm_side_effect (audit H1):
         verification is a platform anti-bot handshake required for created
@@ -520,6 +537,23 @@ class Agent:
         challenge_text = raw_challenge if isinstance(raw_challenge, str) else ""
         verification_code = raw_code if isinstance(raw_code, str) else ""
 
+        def _audit(
+            solve_result: VerificationSolveResult,
+            *,
+            verify_success: bool,
+            error: str | None = None,
+        ) -> None:
+            record_verification_audit(
+                challenge_text=challenge_text,
+                verification_code=verification_code,
+                solve_result=solve_result,
+                verify_success=verify_success,
+                error=error,
+                action=action,
+                target_id=target_id,
+                content_recorded=verify_success if action is not None else None,
+            )
+
         if not challenge_text or not verification_code:
             # Key names are server-controlled — sanitize before they touch
             # the plain application log or the audit error field.
@@ -532,10 +566,8 @@ class Agent:
             # (and can auto-stop the session), so without a record a
             # server-side shape change would be indistinguishable in
             # verification-audit.jsonl from verification not happening at all.
-            record_verification_audit(
-                challenge_text=challenge_text,
-                verification_code=verification_code,
-                solve_result=unsolved_result(challenge_text),
+            _audit(
+                unsolved_result(challenge_text),
                 verify_success=False,
                 error="malformed_verification_object keys=" + keys_repr,
             )
@@ -545,10 +577,8 @@ class Agent:
         solve_result = solve_challenge_result(challenge_text)
         answer = solve_result.answer
         if answer is None:
-            record_verification_audit(
-                challenge_text=challenge_text,
-                verification_code=verification_code,
-                solve_result=solve_result,
+            _audit(
+                solve_result,
                 verify_success=False,
                 error=solve_result.abstain_reason or "solve_failed",
             )
@@ -559,12 +589,7 @@ class Agent:
         try:
             result = submit_verification(client, verification_code, answer)
             if result.get("success"):
-                record_verification_audit(
-                    challenge_text=challenge_text,
-                    verification_code=verification_code,
-                    solve_result=solve_result,
-                    verify_success=True,
-                )
+                _audit(solve_result, verify_success=True)
                 self._verification.record_success()
                 logger.info("Verification submitted and accepted")
                 return True
@@ -572,24 +597,12 @@ class Agent:
             # injection in agent-launchd.log (same care as client.py).
             safe_error = _sanitize_audit_error(str(result.get("error", "")))
             logger.warning("Verification rejected: %s", safe_error)
-            record_verification_audit(
-                challenge_text=challenge_text,
-                verification_code=verification_code,
-                solve_result=solve_result,
-                verify_success=False,
-                error=safe_error or "verify_rejected",
-            )
+            _audit(solve_result, verify_success=False, error=safe_error or "verify_rejected")
             self._verification.record_failure()
             return False
         except (MoltbookClientError, ValueError) as exc:
             logger.error("Verification submission failed: %s", exc)
-            record_verification_audit(
-                challenge_text=challenge_text,
-                verification_code=verification_code,
-                solve_result=solve_result,
-                verify_success=False,
-                error=str(exc),
-            )
+            _audit(solve_result, verify_success=False, error=str(exc))
             self._verification.record_failure()
             return False
 

@@ -27,7 +27,7 @@ from .llm_functions import (
     summarize_post_topic,
 )
 from .novelty import NoveltyGate
-from .publish import client_error_guard, log_published, passes_verification
+from .publish import VerificationHandler, client_error_guard, log_published, passes_verification
 from .session_context import SessionContext
 
 logger = logging.getLogger(__name__)
@@ -88,7 +88,7 @@ class PostPipeline:
         get_feed: Callable[[], list[dict]],
         confirm_action: Callable[..., bool],
         novelty_gate: NoveltyGate,
-        handle_verification: Callable[[dict], bool],
+        handle_verification: VerificationHandler,
     ) -> None:
         self._ctx = ctx
         self._domain = domain
@@ -422,6 +422,8 @@ class PostPipeline:
                 post_data.get("verification"),
                 self._handle_verification,
                 description=f"Post (id={post_id})",
+                action="post",
+                target_id=post_id,
             ):
                 return
             # Past this gate the post is provably created AND visible, so record

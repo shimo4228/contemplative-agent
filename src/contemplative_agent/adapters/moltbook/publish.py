@@ -20,12 +20,31 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, Protocol
 
 from ...core.text_utils import log_preview
 from .client import MoltbookClientError
+from .verification import VerificationAction
 
 logger = logging.getLogger(__name__)
+
+
+class VerificationHandler(Protocol):
+    """The create-time handshake callback (``agent._handle_verification``).
+
+    ``action`` / ``target_id`` identify what the handshake gates so the
+    verification audit record can carry them as data (weekly F1.2 2026-08-08)
+    instead of the caller dropping them into a log format string the sweep
+    normalizes into uncountability.
+    """
+
+    def __call__(
+        self,
+        verification: dict,
+        *,
+        action: VerificationAction | None = None,
+        target_id: str | None = None,
+    ) -> bool: ...
 
 
 @contextmanager
@@ -47,9 +66,11 @@ def client_error_guard(action: str, *, on_rate_limited: Callable[[], None]) -> I
 
 def passes_verification(
     verification: Any,
-    handle_verification: Callable[[dict], bool],
+    handle_verification: VerificationHandler,
     *,
     description: str,
+    action: VerificationAction,
+    target_id: str,
 ) -> bool:
     """Solve the create-response challenge, if the response carries one.
 
@@ -60,11 +81,17 @@ def passes_verification(
     write instead silences the agent: it dedups future attempts against content
     nobody ever saw.
 
+    ``action`` and ``target_id`` are required precisely because a failure
+    records nothing: the audit record is then the ONLY countable trace that a
+    published body was orphaned, and it needs the create kind and a joinable
+    target digest to say so (weekly F1.2 2026-08-08). The WARNING below stays
+    as the human-readable trace; it is no longer the only one.
+
     A trusted-bypass response carries no ``verification`` key and passes.
     """
     if verification is None:
         return True
-    if handle_verification(verification):
+    if handle_verification(verification, action=action, target_id=target_id):
         return True
     logger.warning("%s created but verification failed; not recording", description)
     return False

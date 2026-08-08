@@ -27,6 +27,13 @@ Fault catalog rows exercised here:
 - F-VER-6 challenge-injected obedience (bare number, no EXPR)
                                              -> fails closed, nothing submitted
 - F-VER-7 corrupt rejected-answer audit log  -> fails open, solve still runs
+- F-VER-8 the audit WRITE fails               -> swallowed, but the remaining
+                                                warning still names the create
+                                                kind (weekly F1.2 2026-08-08:
+                                                the audit row is now the only
+                                                countable trace of an orphaned
+                                                publish, so losing it silently
+                                                re-opens the hole)
 
 TDD contract (ADR-0062 twelfth amendment): F-VER-1 asserts a reason code that
 did not exist when this file was written. The solver folded "the LLM
@@ -44,6 +51,7 @@ shapes pinned as ``@example``, and no test sleeps.
 from __future__ import annotations
 
 import json
+import logging
 import time
 
 import pytest
@@ -56,8 +64,10 @@ from contemplative_agent.adapters.moltbook.verification import (
     _ABSTAIN_REASON_LLM_NONE,
     _EXTRACT_NUM_PREDICT,
     _sha256_text,
+    record_verification_audit,
     solve_challenge,
     solve_challenge_result,
+    unsolved_result,
 )
 from contemplative_agent.core.llm import configure, generate, reset_llm_config
 from tests.chaos import (
@@ -513,6 +523,99 @@ class TestCorruptRejectedLogFVer7:
 
         result, _ = _solve_with([OK])
         assert result.answer == OK_ANSWER
+
+
+class TestUnwritableAuditLogFVer8:
+    """F-VER-8: the audit write itself is the thing that failed.
+
+    Weekly F1.2 2026-08-08 makes the audit row the countable trace of an
+    orphaned publish — a body created on-platform that the agent deliberately
+    does not record. That promotes the writer's own failure into a fault worth
+    a catalog row: if the row is lost, the remaining log line must still say
+    WHICH create kind was at stake, or a lost orphan is indistinguishable from
+    a handshake that never happened (precisely the uncountability this change
+    exists to close).
+
+    The write is best-effort by design — a full disk must not abort a session
+    mid-publish — so the desired behaviour is "swallow, but say enough".
+    """
+
+    def _failing_writer(self, monkeypatch):
+        from contemplative_agent.adapters.moltbook import verification as verification_mod
+
+        def _boom(path, record):
+            raise OSError("No space left on device")
+
+        monkeypatch.setattr(verification_mod, "append_jsonl_restricted", _boom)
+
+    def test_lost_audit_row_still_names_the_action(self, monkeypatch, caplog):
+        self._failing_writer(monkeypatch)
+
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent"):
+            record_verification_audit(
+                challenge_text=NOISE_CHALLENGE,
+                verification_code="moltbook_verify_x",
+                solve_result=unsolved_result(NOISE_CHALLENGE),
+                verify_success=False,
+                error="solve_failed",
+                action="comment",
+                target_id="post1",
+                content_recorded=False,
+            )
+
+        messages = [r.getMessage() for r in caplog.records]
+        assert any("action=comment" in m for m in messages), messages
+
+    def test_lost_audit_row_for_a_non_create_handshake_says_so(self, monkeypatch, caplog):
+        # The counterpart reading: no body was at stake here, and the line must
+        # not imply one was.
+        self._failing_writer(monkeypatch)
+
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent"):
+            record_verification_audit(
+                challenge_text=NOISE_CHALLENGE,
+                verification_code="moltbook_verify_x",
+                solve_result=unsolved_result(NOISE_CHALLENGE),
+                verify_success=False,
+                error="solve_failed",
+            )
+
+        messages = [r.getMessage() for r in caplog.records]
+        assert any("action=none" in m for m in messages), messages
+
+    def test_write_failure_never_escapes_to_the_publish_path(self, monkeypatch):
+        # Best-effort by contract: the handshake's own verdict, not the audit
+        # writer's, decides whether a body gets recorded.
+        self._failing_writer(monkeypatch)
+
+        record_verification_audit(
+            challenge_text=NOISE_CHALLENGE,
+            verification_code="moltbook_verify_x",
+            solve_result=unsolved_result(NOISE_CHALLENGE),
+            verify_success=False,
+            action="post",
+            target_id="new-post-123",
+            content_recorded=False,
+        )
+
+    def test_raw_target_id_stays_out_of_the_failure_line(self, monkeypatch, caplog):
+        # ADR-0083: the digest is joinable, the identifier is not emitted —
+        # including on the degraded path, which is the easy place to leak it.
+        self._failing_writer(monkeypatch)
+
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent"):
+            record_verification_audit(
+                challenge_text=NOISE_CHALLENGE,
+                verification_code="moltbook_verify_x",
+                solve_result=unsolved_result(NOISE_CHALLENGE),
+                verify_success=False,
+                action="reply",
+                target_id="post-abc123",
+                content_recorded=False,
+            )
+
+        for record in caplog.records:
+            assert "post-abc123" not in record.getMessage()
 
 
 class TestSolverNeverEscapesItsVocabulary:

@@ -1017,6 +1017,114 @@ class TestAdoptStagedNamesFlag:
         assert (skills / "a.md").exists()
 
 
+class TestAdoptCanonicalizesFrontmatterName:
+    """Weekly 2026-08-08 F1.3: the one-canonical-identity invariant must be
+    established at the write boundary (_adopt_write_item), not inherited from
+    the producer. Two divergence sources survived at that boundary:
+
+    1. text staged BEFORE extraction-time canonicalization existed (the
+       2026-08-01 straddle: staged 00:16 UTC, fix landed 02:05, adopted 02:37)
+       was written verbatim with a diverging ``name:``;
+    2. a collision rename (`-2` suffix) changed the filename after the
+       producer had canonicalized, minting a fresh divergence.
+    """
+
+    DIVERGENT = (
+        "---\n"
+        "name: assume-perfect-adversarial-understanding\n"
+        'description: "d"\n'
+        "origin: auto-extracted\n"
+        "---\n"
+        "\n"
+        "# Mandating Structural Integrity Axioms\n"
+        "\n"
+        "body\n"
+    )
+
+    def _adopt(self, tmp_path, items):
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        args = argparse.Namespace(yes=True)
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+        ):
+            _stage_results(items, command="insight")
+            _handle_adopt_staged(args, MagicMock())
+
+    def test_staged_divergent_name_is_canonicalized_at_write(self, tmp_path):
+        """Divergence source 1: a pre-canonicalization (or future
+        non-canonicalizing producer) body must not enter the store verbatim."""
+        target = tmp_path / "skills" / "mandating-structural-integrity-axioms-20260801.md"
+        self._adopt(
+            tmp_path,
+            [
+                StageItem(
+                    "mandating-structural-integrity-axioms-20260801.md", self.DIVERGENT, target
+                )
+            ],
+        )
+        written = target.read_text()
+        assert "name: mandating-structural-integrity-axioms\n" in written
+        assert "assume-perfect-adversarial-understanding" not in written
+        # Heading (human-readable title) survives untouched.
+        assert "# Mandating Structural Integrity Axioms" in written
+
+    def test_collision_rename_recanonicalizes_to_final_stem(self, tmp_path):
+        """Divergence source 2: the `-2` collision rename happens after the
+        producer canonicalized, so the write must re-derive the name from the
+        FINAL stem — and the two files must not share a declared name."""
+        canonical = '---\nname: dup-skill\ndescription: "d"\n---\n\n# Dup Skill\n\nfirst body\n'
+        collider = '---\nname: dup-skill\ndescription: "d"\n---\n\n# Dup Skill\n\nsecond body\n'
+        target = tmp_path / "skills" / "dup-skill-20260801.md"
+        self._adopt(
+            tmp_path,
+            [
+                StageItem("dup-skill-20260801.md", canonical, target),
+                StageItem("dup-skill-20260801.md", collider, target),
+            ],
+        )
+        first = (tmp_path / "skills" / "dup-skill-20260801.md").read_text()
+        second = (tmp_path / "skills" / "dup-skill-20260801-2.md").read_text()
+        assert "name: dup-skill\n" in first
+        assert "name: dup-skill-2\n" in second
+
+    def test_body_without_frontmatter_passes_through_unchanged(self, tmp_path):
+        """Normalization, not a gate: identity/constitution-shaped prose and
+        legacy bodies without frontmatter are written byte-identical."""
+        target = tmp_path / "identity.md"
+        self._adopt(tmp_path, [StageItem("identity.md", "I am prose.\n", target)])
+        assert target.read_text() == "I am prose.\n"
+
+    def test_audit_log_hashes_the_written_text(self, tmp_path):
+        """The audit row must describe the bytes in the durable store, not
+        the pre-normalization staged text (replayable-audit-logs)."""
+        import hashlib
+
+        target = tmp_path / "skills" / "mandating-structural-integrity-axioms-20260801.md"
+        self._adopt(
+            tmp_path,
+            [
+                StageItem(
+                    "mandating-structural-integrity-axioms-20260801.md", self.DIVERGENT, target
+                )
+            ],
+        )
+        decisions = [
+            json.loads(line)
+            for line in (tmp_path / "logs" / "audit.jsonl").read_text().strip().splitlines()
+        ]
+        adopted = [d for d in decisions if d["source"] == "stage-adopted-auto"]
+        assert len(adopted) == 1
+        written = target.read_text()
+        assert adopted[0]["content_hash"] == (hashlib.sha256(written.encode()).hexdigest()[:16])
+        # ...and it must NOT be the hash of the pre-normalization staged text.
+        assert (
+            adopted[0]["content_hash"] != (hashlib.sha256(self.DIVERGENT.encode()).hexdigest()[:16])
+        )
+
+
 class TestAdoptionOrderForCollisionPair:
     """Codex review round-2 P2: adopt-staged must process a collision pair in
     staging order — a plain name sort put dup-2.md.meta.json first ('-' < '.')

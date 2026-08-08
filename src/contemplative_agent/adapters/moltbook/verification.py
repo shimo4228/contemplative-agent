@@ -112,6 +112,15 @@ _NUMBER_PATTERN = r"-?\d+(?:\.\d+)?"
 _EXPR_PATTERN = re.compile(rf"\(?\s*({_NUMBER_PATTERN})\s*([+*/xX-])\s*({_NUMBER_PATTERN})\s*\)?")
 VERIFICATION_AUDIT_PATH = EPISODE_LOG_DIR / "verification-audit.jsonl"
 
+# Kinds of create-time handshake (weekly F1.2 2026-08-08). The audit record's
+# `action` column carries one of these when the record comes from a
+# create-response handshake, threaded explicitly from the publish call sites —
+# never parsed back out of a log/description string. None means "not from a
+# create-time handshake" (a direct solve, or any row written before the field
+# existed), so a longitudinal reading must treat None as unknown, not as
+# "no content at stake".
+VerificationAction = Literal["comment", "reply", "post"]
+
 
 @dataclass(frozen=True)
 class VerificationSolveResult:
@@ -369,12 +378,25 @@ def record_verification_audit(
     solve_result: VerificationSolveResult,
     verify_success: bool,
     error: str | None = None,
+    action: VerificationAction | None = None,
+    target_id: str | None = None,
+    content_recorded: bool | None = None,
 ) -> None:
     """Append a best-effort verification corpus/audit record.
 
     The raw challenge is stored as base64, not free text, so direct log reads do
     not become a prompt-injection path. Decode it only inside an explicit
     untrusted-content evaluation harness.
+
+    ``action`` / ``target_id`` / ``content_recorded`` (weekly F1.2 2026-08-08)
+    make an orphaned publish countable: a create-time handshake failure leaves
+    a body visible on-platform that the agent deliberately does not record
+    (``publish.passes_verification``), and before these fields its only trace
+    was a WARNING line the log sweep normalizes into uncountability. The weekly
+    report's recorded-bodies denominator can now be reconciled exactly instead
+    of stated as a floor. ``target_id`` is stored as ``target_sha256`` only —
+    the count and the joinability are needed, never the raw identifier
+    (ADR-0083 boundary discipline).
     """
     try:
         record = _verification_audit_record(
@@ -383,12 +405,24 @@ def record_verification_audit(
             solve_result=solve_result,
             verify_success=verify_success,
             error=error,
+            action=action,
+            target_id=target_id,
+            content_recorded=content_recorded,
         )
         append_jsonl_restricted(VERIFICATION_AUDIT_PATH, record)
     except Exception as exc:
         # WARNING (not debug): a persistently broken audit writer must be
         # visible at default log levels (observability sweep 2026-07-10).
-        logger.warning("Verification audit record failed: %s", exc)
+        #
+        # The action kind rides the message (F-VER-8, weekly F1.2): when the
+        # audit write is what failed, this line is the only remaining trace of
+        # a create-time handshake, and a trace that cannot say WHICH kind of
+        # body was at stake is indistinguishable from a handshake that never
+        # happened — the exact uncountability this change exists to close. The
+        # kind is a closed vocabulary of our own literals, never server text,
+        # so it is safe to log unsanitized (the digest and the raw target id
+        # both stay out).
+        logger.warning("Verification audit record failed (action=%s): %s", action or "none", exc)
 
 
 def unsolved_result(challenge_text: str) -> VerificationSolveResult:
@@ -414,6 +448,9 @@ def _verification_audit_record(
     solve_result: VerificationSolveResult,
     verify_success: bool,
     error: str | None,
+    action: VerificationAction | None = None,
+    target_id: str | None = None,
+    content_recorded: bool | None = None,
 ) -> dict[str, Any]:
     record: dict[str, Any] = {
         "ts": now_iso("seconds"),
@@ -431,6 +468,14 @@ def _verification_audit_record(
         "solver_path": solve_result.solver_path,
         "solve_success": solve_result.answer is not None,
         "verify_success": verify_success,
+        # Which create kind this handshake gated (None: not create-time), the
+        # target as a digest ONLY (ADR-0083 — joinable, never identifying),
+        # and whether the caller went on to record the body. Together these
+        # turn "≥N orphaned publishes" from a log-sweep floor into an exact,
+        # per-kind count (weekly F1.2 2026-08-08).
+        "action": action,
+        "target_sha256": _sha256_text(target_id) if target_id else None,
+        "content_recorded": content_recorded,
         "error": _sanitize_audit_error(error) if error else None,
     }
     return record

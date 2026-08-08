@@ -3660,6 +3660,205 @@ class TestHandleVerificationMalformedObject:
         assert "malformed_verification_object" in kwargs["error"]
 
 
+class TestVerificationAuditActionThreading:
+    """Weekly F1.2 2026-08-08: each create-time handshake states its own kind.
+
+    The three ``passes_verification`` call sites already held the create kind
+    and the target id — and dropped both into a ``description`` format string
+    that only ever reached a WARNING line, which the log sweep lowercases,
+    squashes and truncates. So ``verification-audit.jsonl`` could answer "how
+    many handshakes failed" but not "how many published bodies were orphaned,
+    of which kind", and the weekly report had to state its denominator as a
+    floor.
+
+    These pin the threading at the real call sites (not at
+    ``passes_verification`` in isolation): the defect was in what the callers
+    passed, so a test that supplies the arguments itself would have stayed
+    green. ``content_recorded`` mirrors the handshake verdict because that IS
+    the caller contract — pass ⇒ the body is recorded, fail ⇒ nothing is.
+    """
+
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge_result",
+        return_value=_solve_result(None),
+    )
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
+    def test_orphaned_comment_is_countable_by_kind(
+        self, mock_score, mock_solve, mock_audit, tmp_path
+    ):
+        """The defect's own scenario: a comment created on-platform whose
+        handshake failed, which the agent deliberately does not record."""
+        content = MagicMock()
+        agent, client, scheduler = _make_agent(tmp_path, content=content)
+        content.create_comment.return_value = GenerationOutput(text="Great insight")
+        client.post_comment.return_value = {
+            "id": "c-new",
+            "verification": {
+                "verification_code": "moltbook_verify_x",
+                "challenge_text": "noise",
+            },
+        }
+
+        result = agent._feed_manager.engage_with_post(
+            {"content": "text", "id": "post1"}, client, scheduler
+        )
+
+        assert result is False
+        kwargs = mock_audit.call_args.kwargs
+        assert kwargs["action"] == "comment"
+        assert kwargs["target_id"] == "post1"
+        # The body is visible on-platform but unrecorded — the whole point of
+        # the column: this row is the orphan's only countable trace.
+        assert kwargs["content_recorded"] is False
+
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.submit_verification",
+        return_value={"success": True},
+    )
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge_result",
+        return_value=_solve_result("15.00"),
+    )
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.time")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.random")
+    @patch("contemplative_agent.adapters.moltbook.feed_manager.score_relevance", return_value=0.95)
+    def test_verified_comment_is_marked_recorded(
+        self, mock_score, mock_random, mock_time, mock_solve, mock_submit, mock_audit, tmp_path
+    ):
+        """The other half of the split the report needs: a handshake failure
+        that cost a visible body vs one that did not."""
+        mock_random.uniform.return_value = 60.0
+        content = MagicMock()
+        agent, client, scheduler = _make_agent(tmp_path, content=content)
+        content.create_comment.return_value = GenerationOutput(text="Great insight")
+        client.post_comment.return_value = {
+            "id": "c-new",
+            "verification": {
+                "verification_code": "moltbook_verify_x",
+                "challenge_text": "noise",
+            },
+        }
+
+        result = agent._feed_manager.engage_with_post(
+            {"content": "text", "id": "post1"}, client, scheduler
+        )
+
+        assert result is True
+        kwargs = mock_audit.call_args.kwargs
+        assert kwargs["action"] == "comment"
+        assert kwargs["content_recorded"] is True
+
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge_result",
+        return_value=_solve_result(None),
+    )
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="My reply"),
+    )
+    def test_orphaned_reply_is_countable_by_kind(
+        self, mock_reply, mock_solve, mock_audit, tmp_path
+    ):
+        agent, client, scheduler = _make_agent(tmp_path)
+        client.get_notifications.return_value = [
+            {
+                "type": "comment",
+                "id": "n1",
+                "post_id": "p1",
+                "content": "Nice post!",
+                "post_content": "Original content",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            }
+        ]
+        client.get_post_comments.return_value = []
+        client.post_comment.return_value = {
+            "id": "c-new",
+            "verification": {
+                "verification_code": "moltbook_verify_x",
+                "challenge_text": "noise",
+            },
+        }
+
+        agent._reply_handler.run_cycle(client, scheduler, time.time() + 3600)
+
+        kwargs = mock_audit.call_args.kwargs
+        assert kwargs["action"] == "reply"
+        assert kwargs["target_id"] == "p1"
+        assert kwargs["content_recorded"] is False
+        # The reply is genuinely unrecorded — otherwise "orphaned" would be
+        # the wrong word for what the column counts.
+        assert not any("Replied to" in a for a in agent._ctx.actions_taken)
+
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    @patch(
+        "contemplative_agent.adapters.moltbook.agent.solve_challenge_result",
+        return_value=_solve_result(None),
+    )
+    @patch(
+        "contemplative_agent.adapters.moltbook.post_pipeline.select_submolt",
+        return_value="philosophy",
+    )
+    @patch(
+        "contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic",
+        return_value="reflection on alignment",
+    )
+    @patch(
+        "contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title",
+        return_value="Notes on dedup gates",
+    )
+    @patch(
+        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
+        return_value=0.8,
+    )
+    def test_orphaned_post_is_countable_by_kind(
+        self,
+        mock_score,
+        mock_title,
+        mock_summarize,
+        mock_submolt,
+        mock_solve,
+        mock_audit,
+        tmp_path,
+    ):
+        content = MagicMock()
+        gate = _RecordingNoveltyGate()
+        agent, client, scheduler = _make_agent(tmp_path, content=content, novelty_gate=gate)
+        content.create_cooperation_post.return_value = GenerationOutput(
+            text="We paused to revisit how gates intersect with memory."
+        )
+
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {
+            "posts": [{"title": "t", "content": "c", "id": "p1", "submolt_name": "philosophy"}]
+        }
+        post_resp = MagicMock()
+        post_resp.json.return_value = {
+            "success": True,
+            "post": {
+                "id": "new-post-123",
+                "verification_status": "pending",
+                "verification": {
+                    "verification_code": "moltbook_verify_x",
+                    "challenge_text": "noise",
+                },
+            },
+        }
+        client.get.return_value = feed_resp
+        client.post.return_value = post_resp
+
+        agent._post_pipeline.run_cycle(client, scheduler)
+
+        kwargs = mock_audit.call_args.kwargs
+        assert kwargs["action"] == "post"
+        assert kwargs["target_id"] == "new-post-123"
+        assert kwargs["content_recorded"] is False
+        assert gate.recorded == []
+
+
 class TestPostPipelineSelectionOrdering:
     """ADR-0081 Decision 2 regression pin: post_title reuses the
     cooperation_post pass's skill selection via a module-level hand-off in

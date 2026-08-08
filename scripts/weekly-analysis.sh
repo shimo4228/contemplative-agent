@@ -225,11 +225,16 @@ fi
 ANOMALY_SWEEP=""
 SWEEP_STATE="$REPORT_DIR/.anomaly-sweep-state.tsv"
 SWEEP_PENDING="$REPORT_DIR/.anomaly-sweep-state.pending.$$"
+# The corpus census: which files, how many lines, how many signal lines the
+# counts were computed over. The sweep derives both paths as <state>.corpus.tsv
+# (log_anomaly_sweep.corpus_state_path), so these two must mirror the two above.
+SWEEP_CORPUS="$SWEEP_STATE.corpus.tsv"
+SWEEP_PENDING_CORPUS="$SWEEP_PENDING.corpus.tsv"
 # Named here (not in the API drift block below) because the trap on the next
 # line must cover it; keep them together if either block moves.
 DRIFT_PENDING="$REPORT_DIR/.api-drift-state.pending.$$"
 OUTPUT_TMP=""   # set at the generate step; named here so the trap can cover it
-trap 'rm -f "$SWEEP_PENDING" "$DRIFT_PENDING" ${OUTPUT_TMP:+"$OUTPUT_TMP"}' EXIT
+trap 'rm -f "$SWEEP_PENDING" "$SWEEP_PENDING_CORPUS" "$DRIFT_PENDING" ${OUTPUT_TMP:+"$OUTPUT_TMP"}' EXIT
 if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
     mkdir -p "$REPORT_DIR"
     ANOMALY_SWEEP=$(python3 "$PROJECT_ROOT/scripts/log_anomaly_sweep.py" \
@@ -302,6 +307,59 @@ if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
 fi
 [[ -z "$DUP_SCAN" ]] && DUP_SCAN="## Cross-Day Duplicate Scan"$'\n\n'"No duplicate scan available."
 
+# --- Skill-selection shadow reading (pass-1 selection intake, 2026-08-08) ---
+# Deterministic aggregate of logs/skill-selection-*.jsonl (the ADR-0076 shadow
+# writer). Without it the report sees *installed* (state diff) and *vocabulary
+# in output* (its own reading of E) and has to infer the middle link —
+# *selected* — from vocabulary matching, even though selection is already
+# logged per publish action. Renders names and counts only via the existing
+# `report --skill-selection` renderer (selection frequency, verdict
+# distribution, hallucination rate, never-selected tail); the situation
+# strings in the log are built from untrusted post bodies and never enter the
+# prompt (ADR-0083 boundary, held by the renderer). Read-only over the log and
+# skills dir — no selection behavior changes, so the open T-SKILLSEL window is
+# unaffected. Observability only — a failure must not break the weekly report.
+# `uv run --no-sync`, not bare python3: the renderer lives in the package
+# (venv-only imports), same invocation shape as weekly-pipeline.sh's
+# dead-code intake; launchd's plist PATH already covers uv (~/.local/bin).
+SKILL_SELECTION=""
+if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
+    SKILL_SELECTION=$(uv run --project "$PROJECT_ROOT" --no-sync -q python - \
+        "$MOLTBOOK_HOME" "$START_DATE" <<'PY' 2>/dev/null || true
+import sys
+from datetime import date, datetime, timezone
+from pathlib import Path
+
+from contemplative_agent.core.skill_selection import (
+    format_skill_selection_report,
+    read_skill_selection_log,
+)
+
+home = Path(sys.argv[1])
+start = date.fromisoformat(sys.argv[2])
+# The reader windows by days-back-from-today (UTC); anchor the cutoff to the
+# report window's start date. For scheduled runs (end = yesterday) this is
+# exact; for backfill runs the window has no upper bound, which the rendered
+# "Window: last N days" line states honestly.
+days = max((datetime.now(timezone.utc).date() - start).days, 1)
+skills_dir = home / "skills"
+print(
+    format_skill_selection_report(
+        read_skill_selection_log(
+            home / "logs",
+            days=days,
+            skills_dir=skills_dir if skills_dir.is_dir() else None,
+        )
+    )
+)
+PY
+    )
+    if [[ -n "$SKILL_SELECTION" ]]; then
+        echo "Included skill-selection reading"
+    fi
+fi
+[[ -z "$SKILL_SELECTION" ]] && SKILL_SELECTION="## Skill-selection shadow reading (ADR-0076)"$'\n\n'"No skill-selection reading available."
+
 # --- Build prompt ---
 SYSTEM_PROMPT=$(cat "$PROMPT_TEMPLATE")
 
@@ -318,6 +376,8 @@ $API_DRIFT
 $INVARIANTS
 
 $DUP_SCAN
+
+$SKILL_SELECTION
 
 $PREV_REPORTS
 
@@ -367,6 +427,18 @@ echo "Size: $(wc -c < "$OUTPUT") bytes"
 if [[ -e "$SWEEP_PENDING" ]]; then
     if mv "$SWEEP_PENDING" "$SWEEP_STATE"; then
         echo "Anomaly sweep state committed: $SWEEP_STATE"
+        # In lockstep with the snapshot, never on its own: the census is the
+        # snapshot's measurement basis, so a stale census beside fresh counts
+        # would make next week's provenance line assert a corpus comparison
+        # that never happened — the exact mis-reading it exists to prevent.
+        # The sweep writes the census before the snapshot, so reaching here
+        # with no census means the pair was broken, not merely incomplete.
+        if [[ -e "$SWEEP_PENDING_CORPUS" ]] && mv "$SWEEP_PENDING_CORPUS" "$SWEEP_CORPUS"; then
+            echo "Anomaly sweep corpus census committed: $SWEEP_CORPUS"
+        else
+            rm -f "$SWEEP_CORPUS"
+            echo "WARNING: sweep corpus census missing or unpromotable; next run reports no previous census rather than a stale one" >&2
+        fi
     else
         echo "WARNING: sweep state promote failed; next run compares against a wider window" >&2
     fi

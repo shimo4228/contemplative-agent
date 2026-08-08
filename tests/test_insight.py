@@ -12,6 +12,7 @@ from contemplative_agent.core import insight_novelty
 from contemplative_agent.core.artifact_extraction import (
     canonicalize_frontmatter_name,
     resolve_artifact_path,
+    slug_from_stem,
 )
 from contemplative_agent.core.insight import (
     FULL_RECLUSTER_WARN_N,
@@ -181,6 +182,24 @@ class TestCanonicalizeFrontmatterName:
         assert "  name: not the identity, prose inside a scalar" in out
         assert "name: stale-declared-name" not in out
         assert skill_theme(out)[0] == "my-skill"
+
+
+class TestSlugFromStem:
+    """slug_from_stem inverts resolve_artifact_path's naming at adopt time."""
+
+    def test_strips_date_suffix(self) -> None:
+        assert slug_from_stem("my-skill-20260801") == "my-skill"
+
+    def test_keeps_collision_counter(self) -> None:
+        """A collision-renamed file (`-2` from _collision_free_path) must map
+        to a declared name distinct from the file it collided with —
+        `foo` vs `foo-2` — or every declared-name consumer re-collides."""
+        assert slug_from_stem("my-skill-20260801-2") == "my-skill-2"
+
+    def test_stem_without_date_is_unchanged(self) -> None:
+        # identity/constitution targets and legacy names carry no date suffix.
+        assert slug_from_stem("identity") == "identity"
+        assert slug_from_stem("dup") == "dup"
 
 
 class TestStagedSkillIdentityInvariant:

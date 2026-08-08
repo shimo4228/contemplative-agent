@@ -22,7 +22,13 @@ from .config import (
 from .content import ContentManager
 from .dedup import is_promotional, is_repeat_target_for_author
 from .llm_functions import generate_internal_note, score_relevance
-from .publish import client_error_guard, log_published, passes_verification, verification_of
+from .publish import (
+    VerificationHandler,
+    client_error_guard,
+    log_published,
+    passes_verification,
+    verification_of,
+)
 from .session_context import SessionContext
 
 logger = logging.getLogger(__name__)
@@ -45,7 +51,7 @@ class FeedManager:
         get_content: Callable[[], ContentManager],
         confirm_action: Callable[[str, str], bool],
         confirm_side_effect: Callable[[str], bool],
-        handle_verification: Callable[[dict], bool],
+        handle_verification: VerificationHandler,
     ) -> None:
         self._ctx = ctx
         self._domain = domain
@@ -455,6 +461,8 @@ class FeedManager:
                 verification_of(created),
                 self._handle_verification,
                 description=f"Comment on {post_id[:12]}",
+                action="comment",
+                target_id=post_id,
             ):
                 return False
             # Record the dedup hash only now that the comment is actually posted
