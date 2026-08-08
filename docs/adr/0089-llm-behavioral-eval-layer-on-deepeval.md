@@ -555,14 +555,14 @@ in ascending order of what they would have caught:
   complaint. There is no tree-side substitute — the flag is read from the
   environment at call time, so no repo state can stand in for it. Narrower
   than it sounds: it reads the session-agent plist only, and cannot see
-  whether `launchctl` has that job loaded.
+  whether `launchctl` has that job loaded. *(Retired 2026-08-08: the flag this compared against was itself retired when the ADR-0081 rollout closed, so the tree-vs-deployment axis it covered closes with it — the injection regime is now decided entirely by in-tree wiring. See the [ADR-0081 amendment](./0081-skill-selection-two-pass-injection-enforcement.md).)*
 
 Two gaps remain open, named rather than closed. Pass 1 brought its own
 sampling constant `_SELECTION_NUM_PREDICT = 400` onto the generation path,
 and `sampling_state()` does not record it — a change there would not
 register as staleness (the pass-1 *template* is covered, falling inside
 `prompt_templates_sha256`'s glob). And `deployment_mismatch` covers only
-the one plist named above.
+the one plist named above. *(Retired 2026-08-08: the flag this compared against was itself retired when the ADR-0081 rollout closed, so the tree-vs-deployment axis it covered closes with it — the injection regime is now decided entirely by in-tree wiring. See the [ADR-0081 amendment](./0081-skill-selection-two-pass-injection-enforcement.md).)*
 
 The staleness checker's own docstring had accurately declared this gap —
 "generation-path code changes that alter behavior without touching any

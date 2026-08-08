@@ -84,8 +84,13 @@ _MAX_SCORED_PER_SCAN = 1000
 _POST_ID_MAX_CHARS = 64
 
 # Set to "1" to neuter an installed sweep without uninstalling its launchd
-# job — read at configure time so a plist edit is enough (same shape as
-# ADR-0081's MOLTBOOK_SKILL_SELECTION_ENFORCE).
+# job — read at configure time so a plist edit is enough. ADR-0081's
+# MOLTBOOK_SKILL_SELECTION_ENFORCE had this shape and was retired on
+# 2026-08-08; the failure mode it left behind is worth inheriting knowingly
+# rather than by copying — a bare `install-schedule` re-run regenerates the
+# plist without the variable, with no error and no log line. That is
+# survivable here (losing this flag re-enables a read-only sweep) and was
+# not there (losing that one silently changed what the agent published).
 DISABLE_ENV_VAR = "MOLTBOOK_SUBMOLT_SCOPE_DISABLE"
 
 # Telemetry tag for this instrument's scoring calls, kept apart from the

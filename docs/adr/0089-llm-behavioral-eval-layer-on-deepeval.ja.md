@@ -518,13 +518,13 @@ pass 1 は LLM 呼び出しなので、2026-08-06 amendment が安定性のた�
   非 macOS）は沈黙であって苦情ではない。木の側に代替は存在しない —— フラグは呼び出し
   時に環境から読まれるので、いかなる repo state もその代理にならない。名前が示唆する
   より狭い: session-agent の plist 1 本しか読まず、`launchctl` がその job をロードして
-  いるかは見えない。
+  いるかは見えない。 *（2026-08-08 に退役: この検査が比較していたフラグ自体が ADR-0081 の rollout 完了とともに退役したため、カバーしていた tree-vs-deployment 軸も同時に閉じた — 注入レジームは完全にツリー内の配線で決まるようになった。[ADR-0081 amendment](./0081-skill-selection-two-pass-injection-enforcement.ja.md) 参照。）*
 
 塞がず名前だけ付けた穴が 2 つ残る。pass 1 は自身の sampling 定数
 `_SELECTION_NUM_PREDICT = 400` を生成経路に持ち込んだが、`sampling_state()` はこれを
 記録しない —— ここが変わっても staleness には出ない（pass-1 の*テンプレート*は
 `prompt_templates_sha256` の glob に入るので covered）。そして `deployment_mismatch`
-は上記の plist 1 本しか見ない。
+は上記の plist 1 本しか見ない。 *（2026-08-08 に退役: この検査が比較していたフラグ自体が ADR-0081 の rollout 完了とともに退役したため、カバーしていた tree-vs-deployment 軸も同時に閉じた — 注入レジームは完全にツリー内の配線で決まるようになった。[ADR-0081 amendment](./0081-skill-selection-two-pass-injection-enforcement.ja.md) 参照。）*
 
 staleness checker 自身の docstring は、この穴を正確に自己申告していた ——
 「recorded constant に触れずに挙動を変える生成経路のコード変更 —— そのトリガーは

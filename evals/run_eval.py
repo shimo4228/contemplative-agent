@@ -172,7 +172,7 @@ def _preflight(fixture: Path, judge_bin: str) -> None:
 
     # Regime sentinel, same discipline as the identity one above. Two parts,
     # because the configuration reading alone is nearly tautological — it
-    # inspects the two globals _configure_pinned_assets just set. The
+    # inspects the module global _configure_pinned_assets just set. The
     # precondition check is what gives it teeth: an empty catalog or an
     # unloadable selection template sends every call back to full-corpus
     # injection while the configuration still reports two_pass_selected, so
@@ -271,11 +271,10 @@ def _configure_pinned_assets(fixture: Path, selection_audit_dir: Path) -> None:
     # names what is pinned, _preflight asserts the wiring enacted it, and the
     # manifest records it so a future divergence is a diff, not a memory.
     #
-    # NOTE: this mutates process-global os.environ, which the function name
-    # does not imply. In-process callers (tests) must restore it themselves —
-    # monkeypatch.delenv(raising=False) does NOT, because pytest records no
-    # undo entry when the name was absent to begin with.
-    os.environ["MOLTBOOK_SKILL_SELECTION_ENFORCE"] = "1"
+    # Enacting the pin used to require setting MOLTBOOK_SKILL_SELECTION_ENFORCE
+    # here. The flag retired on 2026-08-08, so configuring the selector against
+    # the fixture is now the whole of it — and the pin can no longer disagree
+    # with an inherited environment, which is what made the flag worth setting.
     selection_audit_dir.mkdir(parents=True, exist_ok=True)
     # Guarded like its sibling above: with skills/ absent the catalog is
     # empty, every call falls back to full-corpus injection, and only
@@ -396,11 +395,11 @@ def main() -> int:
     os.environ["DEEPEVAL_CACHE_FOLDER"] = str(run_dir / ".deepeval")
     for key in ("CONFIDENT_API_KEY", "DEEPEVAL_API_KEY", "DEEPEVAL_RESULTS_FOLDER"):
         os.environ.pop(key, None)
-    # MOLTBOOK_SKILL_SELECTION_ENFORCE is deliberately NOT scrubbed here any
-    # more: _configure_pinned_assets sets it to the pinned regime, so the
-    # inherited value is overwritten rather than dropped. Scrubbing it was
-    # half of what made the eval measure full-corpus injection while
-    # production ran two-pass (ADR-0089 amendment).
+    # MOLTBOOK_SKILL_SELECTION_ENFORCE is neither set nor scrubbed here: the
+    # flag retired on 2026-08-08, so an inherited value means nothing to the
+    # code under measurement. Scrubbing it was half of what made the eval
+    # measure full-corpus injection while production ran two-pass (ADR-0089
+    # amendment); retiring the flag removed the axis rather than the mistake.
     os.chdir(run_dir)  # second containment wall for anything cwd-relative
 
     cases = load_dataset(dataset_path)

@@ -598,13 +598,25 @@ def format_stocktake_report(result: StocktakeResult, label: str) -> str:
     usage = result.selection_usage
     if usage is not None:
         lines.append("")
-        lines.append(f"SKILL USAGE (selection window {usage.days}d, {usage.records} records):")
+        lines.append(
+            f"SKILL USAGE (selection window {usage.days}d, {usage.records} records, "
+            f"{usage.judged_records} judged):"
+        )
         for name, count in sorted(usage.per_skill, key=lambda kv: (kv[1], kv[0])):
             lines.append(f"  {name}: selected {count}x")
-        if usage.never_selected:
-            lines.append("  Never selected in window (check records count first):")
-            for name in usage.never_selected:
-                lines.append(f"    {name}")
+        if usage.never_selected_exposure:
+            # Exposure, not a bare list: this is the surface the human
+            # retirement gate reads, so "adopted yesterday" and "offered a
+            # thousand times and refused" must not look the same here.
+            # Imported here rather than at module level: the type-only
+            # import above exists to keep this module free of a runtime
+            # dependency on the instrument, and the phrasing is needed on
+            # exactly one branch.
+            from .skill_selection import format_never_selected_exposure
+
+            lines.append("  Never selected in window:")
+            for name, exposure in usage.never_selected_exposure:
+                lines.append(f"    {name}: {format_never_selected_exposure(exposure, usage)}")
 
     # Summary
     merge_file_count = sum(len(g.filenames) for g in result.merge_groups)

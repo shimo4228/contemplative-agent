@@ -398,12 +398,17 @@ class TestRemoveStaleScheduleJobs:
         mock_run.assert_not_called()
 
 
-class TestInstallScheduleEnforceFlag:
-    """ADR-0081 rollout: launchd does not inherit shell exports, so
-    install-schedule must propagate MOLTBOOK_SKILL_SELECTION_ENFORCE from
-    the installing shell into the session plist's EnvironmentVariables
-    (codex review 2026-07-24 P1 — without this, production silently stays
-    in shadow mode after the documented post-smoke rollout)."""
+class TestInstallScheduleCarriesNoEnforceFlag:
+    """The ADR-0081 rollout flag retired on 2026-08-08, and with it the
+    plist's ability to lose enforcement silently.
+
+    The flag was propagated from the installing shell because launchd does
+    not inherit exports (codex review 2026-07-24 P1). The mechanism worked,
+    but it meant a plain `install-schedule` re-run dropped enforcement with
+    no error and no log line — the defect T-PLIST-FLAG-REVERT tracked.
+    Retiring the flag removes the failure mode by removing the switch, so
+    the plist must now carry the name under no circumstances, including
+    when the installing shell still exports it."""
 
     def _install(self, tmp_path):
         plist_path = tmp_path / "com.moltbook.agent.plist"
@@ -415,15 +420,15 @@ class TestInstallScheduleEnforceFlag:
         return plist_path.read_text()
 
     @patch("contemplative_agent.cli.schedule.subprocess.run")
-    def test_flag_set_in_shell_lands_in_plist(self, mock_run, tmp_path, monkeypatch):
+    def test_stale_shell_export_does_not_reach_the_plist(self, mock_run, tmp_path, monkeypatch):
         mock_run.return_value = MagicMock(returncode=0, stderr="")
         monkeypatch.setenv("MOLTBOOK_SKILL_SELECTION_ENFORCE", "1")
         content = self._install(tmp_path)
-        assert "MOLTBOOK_SKILL_SELECTION_ENFORCE" in content
+        assert "MOLTBOOK_SKILL_SELECTION_ENFORCE" not in content
         assert "{{ENFORCE_ENV}}" not in content
 
     @patch("contemplative_agent.cli.schedule.subprocess.run")
-    def test_flag_unset_leaves_plist_clean(self, mock_run, tmp_path, monkeypatch):
+    def test_plist_is_clean_without_the_export(self, mock_run, tmp_path, monkeypatch):
         mock_run.return_value = MagicMock(returncode=0, stderr="")
         monkeypatch.delenv("MOLTBOOK_SKILL_SELECTION_ENFORCE", raising=False)
         content = self._install(tmp_path)

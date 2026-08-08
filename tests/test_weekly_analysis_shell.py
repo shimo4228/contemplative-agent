@@ -270,7 +270,7 @@ class TestPromptAssembly:
 
         assert result.returncode == 0, result.stderr
         prompt = captured.read_text(encoding="utf-8")
-        assert "## Skill-selection shadow reading" in prompt
+        assert "## Skill-selection reading" in prompt
         assert "No skill-selection reading available" not in prompt
         assert "fabricated-benchmark-guard: 1" in prompt
         assert "SITUATION-MARKER" not in prompt

@@ -147,3 +147,134 @@ unattended scheduled session (prototype-before-scale).
   instrument this ADR enforces
 - [ADR-0074](./0074-weekly-staged-insight.md) — skill-corpus growth path
   whose pressure motivates enforcement
+
+## Amendment (2026-08-08): the rollout closed, and the flag retired with it
+
+The second reading window ([`skillsel-reading-2026-08-08.md`](../evidence/adr-0081/skillsel-reading-2026-08-08.md), 30 days
+/ 9,357 records) closed the rollout Decision item 4 opened. Since the
+production switch on 2026-07-24 the selector has run enforced on
+**1,316 of 1,316 judged actions across 15 consecutive days**, with
+fail-open at zero for 26 days, judged-empty at zero, and every
+hallucinated name rejected without reaching a body. `MOLTBOOK_SKILL_SELECTION_ENFORCE`
+is therefore removed: a judged verdict now enforces unconditionally, the
+plist template no longer carries the key, and `install-schedule` no longer
+propagates it.
+
+### The measurement artefact this also corrects
+
+The ledger task tracking this retirement (`T-PLIST-FLAG-REVERT`) recorded,
+from a 2026-08-01 reading, that "enforcement was effective on only 818 of
+2,141 judged actions, the remaining 1,323 having reverted to full injection
+through flag absence" — read as evidence that the plist was silently losing
+the flag, and that ADR-0081's 83% reduction was not landing as designed.
+
+It was neither. That 30-day window began on 07-02, so 22 of its days
+preceded the 07-24 switch. The non-enforced records are not a flag that
+went missing; they are a flag that had not yet been turned on. Day-level
+counts show the rollout staircase intact — 0% through 07-22, 12.1% on
+07-23, 75.3% on 07-24, 100% every day since — and no enforcement loss in
+the window at all. The reduction landed as designed (p50 87.0%
+post-enforcement).
+
+The silent-loss *mechanism* was real (a bare `install-schedule` re-run
+regenerated the plist without the flag, with no error and no log line); the
+*damage* was never observed. Retiring the flag removes the mechanism rather
+than mitigating it, which is why options (a) "re-read the flag from the
+existing plist" and (b) "print the effective flags after install" are moot.
+
+### Fail-open's destination, stated rather than redesigned
+
+Decision item 3's degradation path — a failed selector falls back to
+full-corpus injection — no longer fits the context window at the live
+corpus size (45 skills, 35,992 tokens against `NUM_CTX` 32,768, measured
+from the audit log's own `full_skill_tokens`). The audit-C2 budget guard
+detects the overflow and skips the call, so the path that was designed to
+*degrade* now *abstains*.
+
+The reading settles what to do about it: fail-open has fired zero times in
+26 days, and the only occurrence in the whole window is the 2026-07-12
+circuit-breaker incident already diagnosed in the first reading. Building a
+fallback destination for a failure that is not occurring would be
+scaffolding ahead of signal. **This ADR therefore accepts fail-open =
+skipped call as the specified behaviour** rather than designing around it,
+and states the consequence the earlier text did not:
+
+- **There is no longer a route back to "corpus injected, selector off".**
+  That was what the flag's off position meant, and it is precisely the
+  configuration that no longer fits the window. Fail-open lands in the same
+  place — which is why the flag's removal costs nothing that was still
+  available.
+- The ADR-0076 kill switch (leaving `configure_skill_selection`'s
+  `audit_dir` unset) is *not* that route and does not overflow. It is
+  reachable in production only through the absent-skills-directory branch at
+  `cli/runtime.py:99`, which also skips `configure_llm(skills_dir=...)`, so
+  there is no corpus to inject and generation proceeds with no learned
+  skills at all. It disables the selector by removing its subject, not by
+  widening injection. Do not read it as a fail-safe that restores the full
+  corpus, and do not read the sentence above as saying it stops generation.
+- Revisit if fail-open becomes non-rare, or if the corpus shrinks back
+  under `NUM_CTX` and the original degradation is available again.
+
+### Consequences of removing the switch
+
+- Positive: the injection regime is now decided entirely by in-tree code
+  (`cli/runtime.py` configures the selector whenever the skills directory
+  exists). No deployment artefact can move it, which is why the eval's
+  `deployment_mismatch` check — added on 2026-08-08 precisely because a
+  launchd plist could — retired in the same change. A check that cannot
+  fire is not coverage; it reads as coverage.
+- Negative: enforcement can no longer be switched off while keeping the
+  learned corpus injected. Rolling back two-pass injection is a code
+  change, not a configuration change — and the kill switch is not a
+  substitute, because it removes the corpus rather than injecting it (see
+  the section above). Accepted because the rollback destination stopped
+  being reachable when the corpus outgrew the window, which happened before
+  the flag was removed and independently of it.
+- Neutral: `full_corpus_shadow_observed` becomes unreachable but survives
+  as a literal, because eval baselines approved before this date record it.
+- Neutral: launchd plists installed before this change still carry the key.
+  It is inert; re-running `install-schedule` clears it.
+
+### Instrument changes shipping with this
+
+The reading needed two ad-hoc scripts because `report --skill-selection`
+could not answer three of its four questions. All three now ship, in the
+spirit of Decision item 6:
+
+- **Enforced count.** Every audit record carries `enforced`, but the report
+  aggregated only verdicts — so the rollout could only be read as "the
+  selector succeeded", never as "the success was used". This is the field
+  the misreading above turned on.
+- **Day-level breakdown.** A single aggregate over a window that straddles
+  a regime change reads as a steady state. It misled the first reading
+  (83.6% fail-open that was one incident) and the second (51.5% enforced
+  across a window whose second half was 100%; 2.2% hallucination across a
+  catalog that went 19 → 45). Windows only get longer as the corpus grows.
+- **Never-selected exposure.** The report told the operator to "check the
+  records count first" while holding the only copy of that count. Three of
+  this window's four never-selected skills turned out to be merely new;
+  one — `pre-processing-state-validation`, offered 1,316 times over 15 days
+  — is the real signal.
+
+### What the reading did *not* license
+
+- Hallucinated names rose from 0.57% of judged (catalogs of 19 and 24) to
+  7.72% (catalog of 37), and over 90% of them are morphological variants of
+  real skill names (`identify-` for `identifying-`, `detecting-` for
+  `detect-`) rather than invention. The correlate is catalog size, not
+  enforcement. The mechanism is not settled — it is confounded with the
+  17-of-24 frontmatter-name mismatches tracked as `T-SKILLNAME-BACKFILL`,
+  whose already-approved application doubles as the natural experiment.
+  No selector change here.
+- The top three skills still take 77.2% / 73.8% / 65.6% of judged actions
+  after the catalog grew 2.4×, which strengthens the over-broad-description
+  hypothesis. The stocktake description audit that acts on it already
+  shipped in 2026-07-24; running it is a value-layer intervention that must
+  not move at the same time as the pending constitution amendment
+  (ADR-0056, one variable at a time).
+
+## References (amendment)
+
+- [`skillsel-reading-2026-08-08.md`](../evidence/adr-0081/skillsel-reading-2026-08-08.md) — the reading this amendment acts on
+- [ADR-0089](./0089-llm-behavioral-eval-layer-on-deepeval.md) — eval layer
+  whose `deployment_mismatch` check retires here

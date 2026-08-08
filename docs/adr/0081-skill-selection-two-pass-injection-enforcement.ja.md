@@ -74,3 +74,50 @@ flag-off 出荷を採って却下 — enforcement は本番生成品質に影響
 
 - [ADR-0076](./0076-skill-selection-shadow-instrument.ja.md) — 本 ADR が enforcement する shadow 計器
 - [ADR-0074](./0074-weekly-staged-insight.ja.md) — enforcement の動機となる skill corpus 成長経路
+
+## Amendment (2026-08-08): rollout は完了し、flag もともに退役した
+
+第 2 回読み窓（[`skillsel-reading-2026-08-08.md`](../evidence/adr-0081/skillsel-reading-2026-08-08.md)、30 日 / 9,357 レコード）が、Decision 4 項の開いた rollout を閉じた。2026-07-24 の本番切り替え以降、selector は **judged 1,316 件中 1,316 件・15 日連続で enforced** で走っており、fail-open は 26 日間ゼロ、judged-empty はゼロ、幻覚名は 1 件も body に到達せず reject されている。よって `MOLTBOOK_SKILL_SELECTION_ENFORCE` を削除する。judged verdict は無条件に enforcement され、plist テンプレートは当該キーを持たず、`install-schedule` はそれを伝播しない。
+
+### 併せて訂正される測定アーティファクト
+
+本退役を追跡していた台帳タスク（`T-PLIST-FLAG-REVERT`）は、2026-08-01 の読みから「judged 2,141 件のうち enforcement が効いたのは 818 件で、残り 1,323 件はフラグ不在によりフル注入に戻っていた」と記録していた。これは plist が黙ってフラグを失っている証拠、かつ ADR-0081 の 83% 削減が設計どおり効いていない証拠として読まれていた。
+
+どちらでもなかった。その 30 日窓は 07-02 に始まっており、22 日分は 07-24 の切り替え**以前**である。非 enforced レコードは「消えたフラグ」ではなく「まだ入れていないフラグ」だった。日次カウントは rollout の階段をそのまま示している — 07-22 まで 0%、07-23 に 12.1%、07-24 に 75.3%、以降毎日 100% — 窓内に enforcement の喪失は 1 件も無い。削減も設計どおり効いていた（enforcement 後 p50 87.0%）。
+
+silent loss の**機構**は実在した（素の `install-schedule` 再実行が、エラーもログ行も出さずフラグ抜きで plist を再生成する）。ただし**被害**は一度も観測されていない。フラグ退役は機構を緩和するのではなく除去するので、選択肢 (a)「既存 plist からフラグを読み直す」と (b)「install 後に有効フラグを print する」は無意味になる。
+
+### fail-open の行き先 — 再設計ではなく明記
+
+Decision 3 項の劣化経路（selector 失敗時に full corpus 注入へフォールバック）は、現行 corpus サイズでは context 窓に収まらない（skill 45 件 = 35,992 tok 対 `NUM_CTX` 32,768。監査ログ自身の `full_skill_tokens` から実測）。audit-C2 の budget guard が超過を検出して呼び出しごと skip するため、**劣化**するはずの経路が**棄権**するようになっている。
+
+読みはその扱いを決着させる。fail-open は 26 日間 0 件で、窓内の唯一の発生は初回読みで既に診断済みの 2026-07-12 circuit-breaker インシデントである。発生していない障害の退避先を作るのは signal に先行する足場になる。**よって本 ADR は fail-open = 呼び出し skip を仕様として受け入れる**。再設計はせず、旧文が述べていなかった帰結を明記する:
+
+- **「corpus は注入したまま selector だけ切る」経路はもう存在しない。** それこそがフラグの off 位置の意味であり、まさにその構成が窓に収まらなくなった。fail-open も同じ場所に着地する — だからフラグ除去は、まだ使えたものを何も失っていない。
+- ADR-0076 の kill switch（`configure_skill_selection` の `audit_dir` 未設定）は**その経路ではなく、溢れもしない**。本番で到達しうるのは `cli/runtime.py:99` の skills ディレクトリ不在の分岐だけで、その分岐は `configure_llm(skills_dir=...)` も同時に飛ばすため、注入する corpus がそもそも存在せず、生成は「学習 skill ゼロ」で通る。kill switch は注入を広げるのではなく**対象を取り除くことで** selector を無効化する。full corpus に戻す fail-safe と読んではならないし、上の一文を「生成が止まる」と読んでもならない。
+- fail-open が稀でなくなった場合、または corpus が `NUM_CTX` 以下に戻って元の劣化経路が再び使える場合に再検討する。
+
+### switch を除去することの帰結
+
+- Positive: 注入レジームは完全にツリー内コードで決まるようになった（`cli/runtime.py` が skills ディレクトリの存在だけで selector を配線する）。deployment 側の成果物がこれを動かすことはできないので、まさに launchd plist がそれを動かせたために 2026-08-08 に追加された eval の `deployment_mismatch` 検査も同じ変更で退役する。発火しえない検査はカバレッジではなく、カバレッジに見えるだけである。
+- Negative: 学習 corpus を注入したまま enforcement だけを切ることはできなくなった。二段注入のロールバックは設定変更でなくコード変更になる — kill switch は代替にならない（corpus を注入するのでなく取り除くため。上節参照）。ロールバック先は corpus が窓を超えた時点で到達不能になっており、それはフラグ除去より前に、かつフラグとは独立に起きていたため、これを受け入れる。
+- Neutral: `full_corpus_shadow_observed` は到達不能になるが literal は残す。本日以前に承認された eval ベースラインがこれを記録しているため。
+- Neutral: 本変更以前に install された launchd plist は当該キーを保持し続ける。無害であり、`install-schedule` を再実行すれば消える。
+
+### 同梱する計器の変更
+
+本読みは ad-hoc スクリプト 2 本を要した。`report --skill-selection` が 4 つの問いのうち 3 つに答えられなかったためである。Decision 6 項の趣旨に沿って 3 つとも同梱する:
+
+- **enforced カウント**。全監査レコードが `enforced` を持つが、report は verdict しか集計していなかった。よって rollout は「selector が成功した」としか読めず、「その成功が使われた」は読めなかった。上記の読み違えはまさにこのフィールドで決まる。
+- **日次内訳**。レジーム変化を跨ぐ窓の単一集計は定常状態に見える。初回読み（1 インシデントだった 83.6% fail-open）と第 2 回読み（後半が 100% の窓での 51.5% enforced、19 → 45 に増えた catalog を跨ぐ 2.2% 幻覚率）の両方を誤らせた。窓は corpus が育つほど長くなる。
+- **never-selected の露出レコード数**。report は「まず records count を確認せよ」と運用者に投げながら、その count を自分だけが持っていた。今窓の never-selected 4 件のうち 3 件は単に新しいだけと判明し、残る 1 件 — 15 日間 1,316 回提示された `pre-processing-state-validation` — が本当の signal である。
+
+### 読みが許可**しなかった**もの
+
+- 幻覚名は judged の 0.57%（catalog 19 件・24 件）から 7.72%（catalog 37 件）へ上昇し、その 9 割超は作話ではなく実在 skill 名の語形変化（`identifying-` に対する `identify-`、`detect-` に対する `detecting-`）である。相関するのは catalog サイズであって enforcement ではない。機構は未確定 — `T-SKILLNAME-BACKFILL` が追跡する frontmatter name 不一致 24 件中 17 件と交絡しており、その適用（既に承認済み）自体が自然実験を兼ねる。ここでは selector を変更しない。
+- catalog が 2.4 倍に育った後も上位 3 skill は judged の 77.2% / 73.8% / 65.6% を占めており、description 過広仮説を強める。それに介入する stocktake の description 監査は 2026-07-24 に出荷済みで、実行は値層への介入にあたるため、保留中の憲法改正と同時に動かしてはならない（ADR-0056、変数は一度に一つ）。
+
+## References (amendment)
+
+- [`skillsel-reading-2026-08-08.md`](../evidence/adr-0081/skillsel-reading-2026-08-08.md) — 本 amendment が依拠する読み
+- [ADR-0089](./0089-llm-behavioral-eval-layer-on-deepeval.ja.md) — `deployment_mismatch` 検査がここで退役する eval 層

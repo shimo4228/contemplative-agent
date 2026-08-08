@@ -22,7 +22,7 @@
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>PATH</key>
-		<string>{{VENV_BIN}}:/usr/local/bin:/usr/bin:/bin</string>{{ENFORCE_ENV}}
+		<string>{{VENV_BIN}}:/usr/local/bin:/usr/bin:/bin</string>
 	</dict>
 
 	<key>StartCalendarInterval</key>

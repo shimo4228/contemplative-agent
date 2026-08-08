@@ -98,9 +98,16 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
 
     if config.SKILLS_DIR.is_dir():
         configure_llm(skills_dir=config.SKILLS_DIR)
-        # ADR-0076: shadow skill-selection observation for content
-        # generations. Records selections to logs/skill-selection-*.jsonl;
-        # injection is unchanged. Leaving audit_dir unset disables it.
+        # ADR-0076/0081: pass-1 skill selection for content generations.
+        # Records selections to logs/skill-selection-*.jsonl AND decides
+        # injection — a judged selection makes pass 2 carry only the
+        # selected bodies (unconditional since the 2026-08-08 flag
+        # retirement). This call is therefore the whole of what determines
+        # the injection regime, which is why the eval stopped comparing its
+        # pin against the launchd plist. Leaving audit_dir unset disables
+        # the selector; note it is gated on the same skills-dir condition as
+        # configure_llm above, so it cannot be unset while a corpus is
+        # still configured for injection.
         configure_skill_selection(skills_dir=config.SKILLS_DIR, audit_dir=config.EPISODE_LOG_DIR)
     # ADR-0086: the submolt-scope instrument. Read-only — it samples feeds and
     # scores them, and is wired to no gate. Leaving audit_dir unset disables it

@@ -221,19 +221,31 @@ and recur in later windows; deferrals are recorded in
 
 You can also hand-write skill files and place them in the directory.
 
-Injection (ADR-0076/0081): every adopted skill body is injected into the
-generation system prompt by default. Setting
-`MOLTBOOK_SKILL_SELECTION_ENFORCE=1` (env, read at call time) switches the
-three observed publish paths (comment / reply / cooperation post, with
-post_title reusing cooperation post's selection) to two-pass injection —
-a pass-1 LLM selection picks the applicable skills and pass 2 generates
-with only those bodies. Any selector failure falls back to full injection;
-unset (default) keeps shadow-only observation. The selection log
-(`logs/skill-selection-*.jsonl`) marks each record with `enforced`.
-launchd does not inherit shell exports, so for the production schedule
-re-run `contemplative-agent install-schedule` with the flag exported —
-the installer bakes it into the session plist's `EnvironmentVariables`
-(re-run without it to turn enforcement back off).
+Injection (ADR-0076/0081): the three observed publish paths (comment /
+reply / cooperation post, with post_title reusing cooperation post's
+selection) use two-pass injection — a pass-1 LLM selection picks the
+applicable skills and pass 2 generates with only those bodies. The
+selection log (`logs/skill-selection-*.jsonl`) marks each record with
+`enforced`.
+
+This is unconditional, and **there is no setting that turns it off.** It was
+gated behind `MOLTBOOK_SKILL_SELECTION_ENFORCE` during rollout; the flag
+retired on 2026-08-08 once the second reading window showed 15 consecutive
+days at 100% enforced with zero fail-open, so the name is now inert wherever
+it is still set. Rolling two-pass injection back is a code change — no
+environment variable or CLI flag reaches it. The ADR-0076 kill switch
+(leaving `configure_skill_selection`'s `audit_dir` unset) is also not
+settable from configuration: `cli/runtime.py` derives it from whether the
+skills directory exists, and the same condition gates skill injection, so
+removing the directory disables the selector *and* leaves nothing to inject
+— generation then runs with no learned skills rather than with all of them.
+
+Any selector failure (fail-open, empty catalog, unloadable template) does
+fall back to full-corpus injection, and **at the current corpus size that
+fallback no longer fits the context window** (45 skills ≈ 36K tokens against
+`NUM_CTX` 32,768), so the audit-C2 budget guard skips the call rather than
+degrading it. In practice fail-open has not fired since 2026-07-13. See the
+ADR-0081 amendment (2026-08-08).
 
 ### Rules
 

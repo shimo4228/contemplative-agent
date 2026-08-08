@@ -16,6 +16,10 @@ Two properties are pinned here, and the split matters:
 * ``_configure_pinned_assets`` must *enact* that name. Without this half the
   constant could drift from the wiring and lie in the manifest — the same
   class of defect one layer up.
+
+The flag itself retired on 2026-08-08, which is why nothing here sets or
+isolates it any more: the regime now follows from the wiring alone, so the
+pin and the enacted regime cannot be separated by an environment.
 """
 
 from __future__ import annotations
@@ -30,18 +34,9 @@ from evals.run_eval import FIXTURE_DIR, INJECTION_REGIME, _configure_pinned_asse
 
 
 @pytest.fixture
-def clean_config(monkeypatch, tmp_path):
-    """Isolate both halves of the regime state.
-
-    ``setenv``, not ``delenv(raising=False)``: ``_configure_pinned_assets``
-    assigns the enforcement flag into the real ``os.environ``, and pytest's
-    ``delenv`` registers no undo entry when the name was absent, so the
-    assignment would survive teardown and leave enforcement globally ON for
-    every later test in the process. ``setenv`` does register an undo.
-    """
+def clean_config(tmp_path):
     reset_llm_config()
     skill_selection.reset_skill_selection()
-    monkeypatch.setenv("MOLTBOOK_SKILL_SELECTION_ENFORCE", "")
     yield tmp_path / "audit"
     reset_llm_config()
     skill_selection.reset_skill_selection()
@@ -61,41 +56,40 @@ class TestPinnedRegime:
         _configure_pinned_assets(FIXTURE_DIR, clean_config)
         assert skill_selection.configured_injection_regime() == INJECTION_REGIME
 
-    def test_configuring_does_not_leak_the_flag_past_teardown(self, clean_config):
-        """Guard on the fixture itself.
-
-        ``_configure_pinned_assets`` writes the enforcement flag into the
-        real environment. If that escaped the test, every later test in the
-        process would silently run with ADR-0081 enforcement ON and
-        "default off" would stop being a testable property of the suite.
-        """
+    def test_configuring_mutates_no_process_global_environment(self, clean_config):
+        """``_configure_pinned_assets`` used to assign the enforcement flag
+        into the real ``os.environ``, which leaked past teardown unless the
+        fixture pre-seeded the name — a hazard worth keeping pinned now that
+        no fixture guards against it. Snapshot comparison rather than a
+        single-name check: any process-global write from a function named
+        "configure pinned assets" is the defect."""
+        before = dict(os.environ)
         _configure_pinned_assets(FIXTURE_DIR, clean_config)
-        assert os.environ["MOLTBOOK_SKILL_SELECTION_ENFORCE"] == "1"
-        # The assertion that matters is in the fixture's monkeypatch undo;
-        # this test exists so a fixture regression has somewhere to fail.
+        assert dict(os.environ) == before
+
+    def test_stale_export_cannot_move_the_regime(self, clean_config, monkeypatch):
+        """The retired name is inert: the pin is enacted by wiring alone."""
+        monkeypatch.setenv("MOLTBOOK_SKILL_SELECTION_ENFORCE", "0")
+        _configure_pinned_assets(FIXTURE_DIR, clean_config)
+        assert skill_selection.configured_injection_regime() == INJECTION_REGIME
 
     def test_unconfigured_selection_reports_full_corpus(self, clean_config):
-        """The pre-fix state, named — the kill switch alone forces full injection
-        regardless of the enforcement flag."""
+        """The surviving kill switch: with ``audit_dir`` unset the selector is
+        off entirely, which under ADR-0081 means full injection."""
         assert skill_selection.configured_injection_regime() == skill_selection.REGIME_FULL_CORPUS
 
-    def test_shadow_mode_still_injects_the_full_corpus(self, clean_config, monkeypatch):
-        """Shadow observation is not a third injection behaviour: the selector
-        runs and is recorded, but ``_selection_system(None)`` still yields the
-        full corpus. Named separately so a manifest can distinguish
-        'never observed' from 'observed, not enforced'."""
-        monkeypatch.setenv("MOLTBOOK_SKILL_SELECTION_ENFORCE", "")
-        skill_selection.configure_skill_selection(
-            skills_dir=FIXTURE_DIR / "skills", audit_dir=clean_config
-        )
-        regime = skill_selection.configured_injection_regime()
-        assert regime == skill_selection.REGIME_FULL_CORPUS_SHADOW
+    def test_shadow_regime_literal_survives_for_historical_manifests(self):
+        """``full_corpus_shadow_observed`` is unreachable since the flag
+        retired, but baselines approved before 2026-08-08 record it. The
+        literal has to stay resolvable so the compare layer can tell
+        'incomparable' from 'unrecognised'."""
+        assert skill_selection.REGIME_FULL_CORPUS_SHADOW == "full_corpus_shadow_observed"
 
 
 class TestConfiguredRegimeIsACeilingNotAnOutcome:
     """The distinction the first version of this change got wrong.
 
-    ``configured_injection_regime()`` reads two globals; four further
+    ``configured_injection_regime()`` reads one global; four further
     conditions can still route an individual call back to full-corpus
     injection. Two of them are deterministic and belong in a preflight.
     """
@@ -104,9 +98,9 @@ class TestConfiguredRegimeIsACeilingNotAnOutcome:
         empty = tmp_path / "no-skills"
         empty.mkdir()
         skill_selection.configure_skill_selection(skills_dir=empty, audit_dir=clean_config)
-        assert skill_selection.configured_injection_regime() in (
-            skill_selection.REGIME_TWO_PASS_SELECTED,
-            skill_selection.REGIME_FULL_CORPUS_SHADOW,
+        assert (
+            skill_selection.configured_injection_regime()
+            == skill_selection.REGIME_TWO_PASS_SELECTED
         )
         unmet = skill_selection.selection_preconditions_unmet()
         assert unmet is not None and "empty skill catalog" in unmet

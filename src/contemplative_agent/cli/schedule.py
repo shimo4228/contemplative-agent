@@ -154,15 +154,12 @@ def _do_install_schedule(interval: int, session: int) -> None:
         print("Error: install-schedule is only supported on macOS (launchd).", file=sys.stderr)
         sys.exit(1)
 
-    # ADR-0081 rollout: launchd does not inherit shell exports, so the
-    # enforcement flag must be baked into the plist's EnvironmentVariables
-    # at install time. Re-run install-schedule with the flag exported to
-    # turn enforcement on for the production schedule (and without it to
-    # turn it back off).
-    enforce_env = ""
-    if os.environ.get("MOLTBOOK_SKILL_SELECTION_ENFORCE") == "1":
-        enforce_env = "\n\t\t<key>MOLTBOOK_SKILL_SELECTION_ENFORCE</key>\n\t\t<string>1</string>"
-
+    # The ADR-0081 rollout flag used to be baked into the plist's
+    # EnvironmentVariables here, because launchd does not inherit shell
+    # exports. That made a plain re-run of install-schedule drop enforcement
+    # silently — no error, no log line — which is why the live plist had to
+    # be diffed by hand on 2026-07-25. The flag retired on 2026-08-08 with
+    # the rollout, so there is nothing to propagate and nothing to lose.
     log_path = _install_plist(
         template_name="com.moltbook.agent.plist",
         plist_path=LAUNCHD_PLIST_PATH,
@@ -170,7 +167,6 @@ def _do_install_schedule(interval: int, session: int) -> None:
         substitutions={
             "{{SESSION_MINUTES}}": str(session),
             "{{CALENDAR_INTERVALS}}": _build_calendar_intervals(interval),
-            "{{ENFORCE_ENV}}": enforce_env,
         },
     )
 
@@ -178,8 +174,7 @@ def _do_install_schedule(interval: int, session: int) -> None:
     schedule_str = ", ".join(f"{h:02d}:00" for h in hours)
     print(f"Installed: {LAUNCHD_PLIST_PATH}")
     print(f"Schedule: every {interval}h ({schedule_str}), {session}min sessions")
-    if enforce_env:
-        print("Skill-selection enforcement: ON (ADR-0081 two-pass injection)")
+    print("Skill-selection: ADR-0081 two-pass injection (unconditional)")
     print(f"Logs: {log_path}")
 
 

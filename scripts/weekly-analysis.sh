@@ -307,7 +307,7 @@ if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
 fi
 [[ -z "$DUP_SCAN" ]] && DUP_SCAN="## Cross-Day Duplicate Scan"$'\n\n'"No duplicate scan available."
 
-# --- Skill-selection shadow reading (pass-1 selection intake, 2026-08-08) ---
+# --- Skill-selection reading (pass-1 selection intake, 2026-08-08) ---
 # Deterministic aggregate of logs/skill-selection-*.jsonl (the ADR-0076 shadow
 # writer). Without it the report sees *installed* (state diff) and *vocabulary
 # in output* (its own reading of E) and has to infer the middle link —
@@ -358,7 +358,7 @@ PY
         echo "Included skill-selection reading"
     fi
 fi
-[[ -z "$SKILL_SELECTION" ]] && SKILL_SELECTION="## Skill-selection shadow reading (ADR-0076)"$'\n\n'"No skill-selection reading available."
+[[ -z "$SKILL_SELECTION" ]] && SKILL_SELECTION="## Skill-selection reading (ADR-0076 instrument, ADR-0081 enforcement)"$'\n\n'"No skill-selection reading available."
 
 # --- Build prompt ---
 SYSTEM_PROMPT=$(cat "$PROMPT_TEMPLATE")

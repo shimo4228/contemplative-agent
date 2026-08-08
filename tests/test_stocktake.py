@@ -776,10 +776,15 @@ def _make_reading(**overrides):
         per_skill=(("busy-skill", 920), ("quiet-skill", 2)),
         never_selected=("ghost-skill",),
         hallucination_records=7,
+        judged_records=1299,
+        judged_empty_records=0,
         selected_count_p50=5.0,
         selected_count_p90=6.0,
         token_reduction_p50=15000.0,
         token_reduction_p90=17000.0,
+        enforced_records=1299,
+        per_day=(),
+        never_selected_exposure=(("ghost-skill", 1300),),
     )
     return replace(base, **overrides) if overrides else base
 
