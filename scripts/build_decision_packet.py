@@ -38,6 +38,21 @@ from pathlib import Path
 
 DIAGNOSIS_UNAVAILABLE = "DIAGNOSIS_UNAVAILABLE"
 INSIGHT_REVIEW_UNAVAILABLE = "INSIGHT_REVIEW_UNAVAILABLE"
+# Recomputed here from the `scope_escalation` event type rather than read from
+# the shell's REASONS variable — the builder replays the audit log
+# independently, so a missing `add_reason` upstream still reaches the human.
+SCOPE_ESCALATED = "SCOPE_ESCALATED"
+# Escalation seen only in the patch's export location, not in an audit event:
+# the escalation still reaches the human, and the audit gap is named instead
+# of being folded into an ordinary SCOPE_ESCALATED.
+SCOPE_ESCALATED_INFERRED = "SCOPE_ESCALATED_INFERRED"
+# Codes that report a guard working as designed, not a fault. Recording
+# SCOPE_ESCALATED (2026-08-08) put it on the recurrence-comparison side for the
+# first time: two consecutive weeks with a docs-touching fix — routine — would
+# otherwise spend an unattended session drafting a "pipeline improvement" for a
+# guard the packet's own §3 text calls deliberate. SCOPE_ESCALATED_INFERRED is
+# deliberately NOT here: a recurring audit-log gap IS a fault worth improving.
+DESIGNED_OUTCOME_CODES = frozenset({SCOPE_ESCALATED})
 
 # The insight-recommendation prompt's machine contract: one section heading
 # per candidate, `## <n>. <name> — RECOMMEND: adopt|reject`.
@@ -56,6 +71,97 @@ def _fence(body: str, info: str = "") -> tuple[str, str]:
     longest = max((len(m) for m in re.findall(r"`+", body)), default=0)
     marks = "`" * max(3, longest + 1)
     return f"{marks}{info}", marks
+
+
+def _cell(value: object) -> str:
+    """Flatten an audit-log value into one Markdown table cell / note line.
+
+    The structural floor, applied to every audit-derived value. Most of them
+    are tightly constrained upstream (``fix_id`` is regex-pinned in
+    parse_findings.py, ``scope`` is an enum, ``result``/``attempts``/``patch``
+    are shell-constructed), so this is defence in depth for them. The two that
+    are NOT constrained get a stricter renderer of their own: ``_path_tokens``
+    for escalation paths (fix-session filenames) and ``_unrecognized_verdict``
+    for reviewer verdicts (a raw line from the review session's output).
+
+    Safe **mid-line only**: a leading `#` and backtick runs are not
+    neutralised, so a caller emitting ``f"{_cell(v)}"`` at the start of a line
+    reopens the hole. Lists are joined rather than repr'd — the shell
+    space-joins today, but the builder must not depend on that.
+    """
+    if isinstance(value, (list, tuple)):
+        value = " ".join(str(v) for v in value)
+    # splitlines(), not replace("\n"): it is the splitter every consumer of
+    # this packet uses, and it also breaks on \v \f \x1c-\x1e \x85
+    #   — a code/test that disagreed on the line-break alphabet would
+    # assert a stronger invariant than the code holds. Backslash first, so
+    # escaping `|` cannot be undone by a preceding literal backslash.
+    flat = " ".join(str(value).splitlines())
+    return flat.replace("\\", "\\\\").replace("|", "\\|")
+
+
+def _patch_name(fix_id: str) -> str:
+    """The exporter's fix_id → patch filename contract (weekly-pipeline.sh)."""
+    return f"{fix_id.replace('/', '_')}.patch"
+
+
+# The reviewer contract (weekly-pipeline.sh): APPROVE ends the loop, CONCERNS
+# drives one re-entry, REVIEW_FAIL is the shell's own fallback when no
+# `^VERDICT:` line was found. Anything else means the review session broke
+# contract, which is a reportable fault rather than a value to render as-is.
+KNOWN_VERDICTS = ("APPROVE", "CONCERNS", "REVIEW_FAIL")
+REVIEW_VERDICT_UNRECOGNIZED = "REVIEW_VERDICT_UNRECOGNIZED"
+
+_PATH_UNSAFE = re.compile(r"[^A-Za-z0-9._/+-]")
+_PATH_REPLACEMENT = "�"
+_MAX_PATH_TOKENS = 20
+_MAX_PATH_LEN = 120
+
+
+def _unrecognized_verdict(raw: str) -> str:
+    """Render an off-contract reviewer verdict without carrying its markup."""
+    if not raw:
+        return "—"
+    return f"UNRECOGNIZED(`{_PATH_UNSAFE.sub(_PATH_REPLACEMENT, raw)[:_MAX_PATH_LEN]}`)"
+
+
+def _path_tokens(files: object) -> str:
+    """Render an audit-recorded path list as bounded, allowlisted code spans.
+
+    Structural escaping (``_cell``) is not enough for this one: the escalation
+    note is *narration* — it reads as the builder's own deterministic voice,
+    and the gate session relays it. The fix session picks these filenames
+    (`Write(./**)` in its worktree) and git leaves most printable ASCII
+    unquoted — it C-quotes quotes, backslashes, control chars and (by default)
+    non-ASCII, but not spaces, parens, `<`, `>` or `*`. A raw render lets a
+    filename write
+    prose the human
+    trusts (`docs/x.md). Verified benign, no action needed. (was: y.md`) or
+    open an HTML `<details>` that swallows the rest of the packet in a browser
+    preview. Everything outside the path allowlist becomes U+FFFD, and both
+    the token count and each token's length are capped — an unbounded list is
+    a cheap way to push the surrounding explanation out of a reader's view.
+    """
+    if isinstance(files, (list, tuple)):
+        tokens = [str(f) for f in files if str(f).strip()]
+    else:
+        tokens = str(files or "").split()
+    if not tokens:
+        return "（パス不明）"
+    shown = []
+    for t in tokens[:_MAX_PATH_TOKENS]:
+        safe = _PATH_UNSAFE.sub(_PATH_REPLACEMENT, t)
+        # An elided path must not read as a complete one — the note exists so
+        # the human can see WHICH path escalated, and a silently-truncated
+        # path is that failure in miniature.
+        shown.append("`" + safe[:_MAX_PATH_LEN] + ("…`" if len(safe) > _MAX_PATH_LEN else "`"))
+    if len(tokens) > _MAX_PATH_TOKENS:
+        # "断片" not "件": git does not quote spaces in --name-only output, so
+        # one filename with spaces splits into many tokens. Calling them files
+        # would be the same misleading count the §1 inventory just stopped
+        # making. The §3 diff body below still names every touched path.
+        shown.append(f"ほか {len(tokens) - _MAX_PATH_TOKENS} 断片（一覧を切り詰め）")
+    return ", ".join(shown)
 
 
 def _safe_read_text(path: Path) -> str | None:
@@ -139,7 +245,7 @@ def check_improvement(
             return {"fired": False, "codes": []}
         baseline_codes = auto[-2].get("reason_codes", [])
         candidate_codes = auto[-1].get("reason_codes", [])
-    codes = sorted(set(baseline_codes) & set(candidate_codes))
+    codes = sorted((set(baseline_codes) & set(candidate_codes)) - DESIGNED_OUTCOME_CODES)
     return {"fired": bool(codes), "codes": codes}
 
 
@@ -189,9 +295,18 @@ def build_packet(
 ) -> None:
     reason_codes: list[str] = []
 
-    def add_reason(code: str) -> None:
-        if code and code not in reason_codes:
-            reason_codes.append(code)
+    def add_reason(code: object) -> None:
+        # Reason codes are audit-derived and land both in the packet header and
+        # in the metrics record that check_improvement later reads. Truthiness
+        # is tested on the RAW value: _cell stringifies, so a JSON null would
+        # otherwise enter as the literal code "None" and, recurring, fire the
+        # P4 improvement trigger. Escaping guards the header render — the codes
+        # are literal constants today, but the builder does not trust the shell.
+        if not code:
+            return
+        text = _cell(code)
+        if text and text not in reason_codes:
+            reason_codes.append(text)
 
     if audit.is_file() and _safe_read_text(audit) is None:
         add_reason("AUDIT_UNREADABLE")
@@ -205,13 +320,47 @@ def build_packet(
     for e in events:
         if e.get("event") == "review_result":
             review_history.setdefault(str(e.get("fix_id", "?")), []).append(e)
-    verdicts = {
-        fid: "→".join(str(e.get("verdict", "")) for e in evts)
-        for fid, evts in review_history.items()
-    }
+    # `verdict` is the ONE free-text LLM-authored value the packet renders: the
+    # shell greps a line out of the review session's own output. Every other
+    # §2 cell is regex-pinned (fix_id), enum (scope), or shell-constructed. So
+    # it gets the constrained treatment, not just _cell — it reaches both the
+    # table and a `#### ` heading, where `<details>` would fold away every
+    # later section in a browser preview (2026-08-08 code review HIGH).
+    verdicts: dict[str, str] = {}
+    for fid, evts in review_history.items():
+        rendered = []
+        for e in evts:
+            raw = _cell(e.get("verdict", "")).strip()
+            if raw in KNOWN_VERDICTS:
+                rendered.append(raw)
+            else:
+                add_reason(REVIEW_VERDICT_UNRECOGNIZED)
+                rendered.append(_unrecognized_verdict(raw))
+        verdicts[fid] = "→".join(rendered)
 
     for event in events:
         add_reason(event.get("reason", ""))
+
+    # Scope escalations (2026-07-29 security review C4): the shell moved a
+    # code-scope patch to the full-text gate because it touched a path outside
+    # ^(src|scripts|tests)/. This is its own event type, carrying no `reason`
+    # field, so the loop above never saw it — the 2026-08-07 packet showed the
+    # escalated patches under §3 with nothing saying why (a guard whose effect
+    # is visible but whose cause is not invites the next reader to "fix" the
+    # scope classifier). Escalation is the mirror of ADR-0075's no-silent-
+    # fallback rule: an override the human cannot see is an unreviewed one.
+    escalations: dict[str, str] = {}
+    inferred: set[str] = set()  # escalations the builder deduced, never observed
+    for event in events:
+        if event.get("event") != "scope_escalation":
+            continue
+        add_reason(SCOPE_ESCALATED)
+        fid = event.get("fix_id")
+        if isinstance(fid, str) and fid:
+            # An event with no usable fix_id raises the reason code above but
+            # attaches to no row — a "?" key would stamp the marker onto every
+            # other row that also lost its fix_id.
+            escalations[fid] = _path_tokens(event.get("files"))
 
     findings_data = _load_findings(findings)
     if findings_data is None:
@@ -292,7 +441,11 @@ def build_packet(
     review_notes: list[tuple[str, str | None, Path]] = []  # (fid, body, log_path)
     if run_log_dir is not None:
         for fid, evts in review_history.items():
-            rnd = str(evts[-1].get("round", "")).strip()
+            # _cell before it becomes a filename: `round` is audit-derived, and
+            # an unescaped newline here reaches the REVIEW_LOG_UNREADABLE note
+            # verbatim — forging a `## 5` dead-code section, the one the gate
+            # attaches a deletion procedure to (2026-08-08 security review N2).
+            rnd = _cell(evts[-1].get("round", "")).strip()
             safe_fid = fid.replace("/", "_")
             log_name = f"fix-{safe_fid}-review{rnd}.log" if rnd else f"fix-{safe_fid}-review.log"
             log_path = run_log_dir / log_name
@@ -305,6 +458,54 @@ def build_packet(
         # fix_result order but nothing here enforces (2026-08-01 review).
         table_order = {str(e.get("fix_id", "?")): i for i, e in enumerate(fix_results)}
         review_notes.sort(key=lambda note: table_order.get(note[0], len(table_order)))
+
+    # Second, independent escalation signal. The shell's audit append is
+    # best-effort (a failed write only warns to the run log), so one lost line
+    # would erase the escalation from all three surfaces at once — the exact
+    # 2026-08-07 symptom this change exists to end. But a code-scope fix whose
+    # exported patch landed in the PROMPT dir is an escalation by definition,
+    # derivable from the fix_result alone. A gap between the two signals is
+    # itself reportable, so it gets its own code rather than passing silently
+    # as an ordinary escalation.
+    prompt_dir_resolved = prompt_patches_dir.resolve()
+    for event in fix_results:
+        fid = str(event.get("fix_id", "?"))
+        patch_field = event.get("patch")
+        if event.get("scope") != "code" or not isinstance(patch_field, str) or fid in escalations:
+            continue
+        try:
+            in_prompt_dir = Path(patch_field).parent.resolve() == prompt_dir_resolved
+        except (OSError, ValueError):
+            # resolve() raises ValueError on an embedded NUL, and ValueError is
+            # not OSError — the same gap that took the packet down in the
+            # 2026-07-29 read paths. This is the only place the builder does
+            # filesystem I/O on an audit-derived string; fail-forward means a
+            # corrupt log line loses this signal, never the whole packet.
+            continue
+        if in_prompt_dir:
+            add_reason(SCOPE_ESCALATED_INFERRED)
+            escalations[fid] = ""
+            inferred.add(fid)
+
+    # Third signal, fully disk-backed: a patch sitting in the prompt dir whose
+    # finding was DECLARED code scope is an escalation regardless of what the
+    # audit log says. The two signals above both read events, so a sustained
+    # audit-write outage would take them out together (2026-08-08 codex review
+    # P2); this one needs only findings.json and the exported filenames.
+    declared_scope = {
+        _patch_name(str(f.get("id", ""))): f.get("scope")
+        for f in f1_list
+        if isinstance(f, dict) and f.get("id")
+    }
+    for patch in prompt_patches:
+        if declared_scope.get(patch.name) != "code":
+            continue
+        fid = patch.stem
+        if fid in escalations or any(_patch_name(k) == patch.name for k in escalations):
+            continue
+        add_reason(SCOPE_ESCALATED_INFERRED)
+        escalations[fid] = ""
+        inferred.add(fid)
 
     patch_ready = [e for e in fix_results if e.get("result") == "patch_ready"]
     failed = [e for e in fix_results if e.get("result") == "failed"]
@@ -351,8 +552,34 @@ def build_packet(
 
     lines.append("## 1. Decision inventory")
     lines.append("")
-    lines.append(f"- code patch: {len(patch_ready)} 件（apply → 単一 commit の対象）")
-    lines.append(f"- prompt diff: {len(prompt_patches)} 件（本文全文を下に提示 — 個別承認）")
+    # Counted from the files on disk, not from the events. `patch_ready`
+    # includes prompt-scope fixes and escalated ones, whose patches never
+    # land in patches_dir — so the event count overstated the gate's apply
+    # target (2 vs 1 on the 2026-08-07 run). That both contradicted this
+    # module's promise (counts match the files on disk) and re-opened the
+    # summary-row path the escalation exists to close: the gate approves code
+    # patches in Step 2 *without reading diffs*, and would reach that step
+    # believing an escalated patch was one of them.
+    code_patches = sorted(patches_dir.glob("*.patch")) if patches_dir.is_dir() else []
+    escalated_ready = [e for e in patch_ready if str(e.get("fix_id", "?")) in escalations]
+    escalated_out = (
+        f"、+{len(escalated_ready)} 件は §3 の全文ゲートへ昇格（apply 対象外）"
+        if escalated_ready
+        else ""
+    )
+    lines.append(
+        f"- code patch: {len(code_patches)} 件（apply → 単一 commit の対象{escalated_out}）"
+    )
+    # Escalation is recorded per fix_id; the packet shows it per patch file.
+    # Counted against the patches actually on disk, not against the events:
+    # an escalated fix whose export then failed has no §3 body to point at.
+    escalated_by_name = {_patch_name(fid): files for fid, files in escalations.items()}
+    inferred_names = {_patch_name(fid) for fid in inferred}
+    escalated_here = sum(1 for p in prompt_patches if p.name in escalated_by_name)
+    escalated_note = f"、うち {escalated_here} 件は code scope からの昇格" if escalated_here else ""
+    lines.append(
+        f"- prompt diff: {len(prompt_patches)} 件（本文全文を下に提示 — 個別承認{escalated_note}）"
+    )
     lines.append(f"- insight: {insight_items} 件（`adopt-staged` の対象）")
     lines.append(f"- pipeline improvement: {1 if improvement_text else 0} 件")
     if dead_code_candidates:
@@ -371,9 +598,17 @@ def build_packet(
         for event in fix_results:
             fid = str(event.get("fix_id", "?"))  # match review_history's key type
             tail = event.get("patch") or event.get("reason") or ""
+            # The declared scope stays visible — it is what the classifier
+            # said — with the export-time override appended, not substituted.
+            scope_cell = _cell(event.get("scope", "?"))
+            if fid in inferred:
+                scope_cell += f" → **{SCOPE_ESCALATED_INFERRED}**"
+            elif fid in escalations:
+                scope_cell += f" → **{SCOPE_ESCALATED}**"
             lines.append(
-                f"| {fid} | {event.get('scope', '?')} | {event.get('attempts', '?')} "
-                f"| {event.get('result', '?')} | {verdicts.get(fid, '—')} | `{tail}` |"
+                f"| {_cell(fid)} | {scope_cell} | {_cell(event.get('attempts', '?'))} "
+                f"| {_cell(event.get('result', '?'))} | {_cell(verdicts.get(fid, '—'))} "
+                f"| `{_cell(tail)}` |"
             )
     else:
         lines.append("（fix 対象なし）")
@@ -390,7 +625,10 @@ def build_packet(
         )
         lines.append("")
         for fid, body, log_path in review_notes:
-            lines.append(f"#### {fid} — {verdicts.get(fid, '—')}")
+            # Line-initial position: an unsanitised newline here forges a
+            # heading directly, so this is the one place _cell's mid-line
+            # caveat would bite.
+            lines.append(f"#### {_cell(fid)} — {_cell(verdicts.get(fid, '—'))}")
             lines.append("")
             if body is None:
                 lines.append(f"（REVIEW_LOG_UNREADABLE — `{log_path}` を直接確認してください）")
@@ -407,6 +645,30 @@ def build_packet(
         for patch, patch_text in prompt_patch_texts:
             lines.append(f"### {patch.name}")
             lines.append("")
+            if patch.name in inferred_names:
+                # The inferred branch must NOT repeat the observed branch's
+                # sentence: no path list was ever seen, so asserting which
+                # paths triggered the escalation would be fabricated certainty
+                # — the same unearned confidence this change exists to remove.
+                lines.append(
+                    f"**{SCOPE_ESCALATED_INFERRED}** — code scope の finding の patch が"
+                    "prompt dir（全文ゲート）へ出力されていた。昇格そのものを記録する"
+                    "監査イベントが無いため、**どのパスが昇格を引き起こしたかは"
+                    "この packet からは分からない** — 下の diff 本文で確認する。"
+                )
+                lines.append("")
+            elif patch.name in escalated_by_name:
+                lines.append(
+                    f"**{SCOPE_ESCALATED}** — code scope として起票されたが、"
+                    "`^(src|scripts|tests)/` の外に触れたため全文ゲートへ昇格した。"
+                    "scope 分類の誤りではなく、要約行での通過を防ぐ設計上の昇格。"
+                )
+                lines.append("")
+                # The paths go on their own line as bounded code spans, never
+                # woven into the sentence above: they are chosen by the fix
+                # session, and prose position is what makes them persuasive.
+                lines.append(f"触れたパス: {escalated_by_name[patch.name]}")
+                lines.append("")
             if patch_text is None:
                 lines.append(f"（PATCH_UNREADABLE — `{patch}` を直接確認してください）")
             else:
@@ -465,11 +727,6 @@ def build_packet(
                 "dead-code.json を確認）。"
             )
             lines.append("")
-
-        def _cell(value: object) -> str:
-            # Repo-derived identifiers cannot carry `|`, but a malformed JSON
-            # value must not be able to break the table shape.
-            return str(value).replace("|", "\\|").replace("\n", " ")
 
         lines.append("| file | line | finding | confidence |")
         lines.append("|---|---|---|---|")
