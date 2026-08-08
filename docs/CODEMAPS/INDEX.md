@@ -116,13 +116,13 @@ Package versions, external services, optional add-ons.
 
 ## Statistics
 
-As of **2026-08-06** (ADR-0089 eval-layer addition; live recount) — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
+As of **2026-08-08** (live recount) — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
 
 | Metric | Value |
 |--------|-------|
 | Total `.py` files | 79 (70 non-`__init__` + 9 `__init__`) |
-| LOC | ~25126 |
-| Test files | 75 (2530 tests collected) |
+| LOC | ~25289 |
+| Test files | 81 (2704 tests collected) |
 | Eval layer modules | 7 (`evals/` excl. `__init__.py`; outside `src/` and outside the wheel — measures LLM output quality, ADR-0089) |
 | Core modules | 31 (platform-independent; incl. `llm/` package as one row) |
 | Moltbook adapter modules | 17 |
