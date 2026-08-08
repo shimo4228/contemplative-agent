@@ -36,6 +36,7 @@ sleeps, and no reliance on wall-clock ordering.
 
 from __future__ import annotations
 
+import itertools
 import json
 import logging
 from dataclasses import dataclass
@@ -560,7 +561,14 @@ class TestReading:
         path = log_dir / f"submolt-scope-{date}.jsonl"
         path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
 
-    def _score_row(self, submolt, score, subscribed=False, reason="scored"):
+    _seq = itertools.count()
+
+    def _score_row(self, submolt, score, subscribed=False, reason="scored", post_id=None):
+        # Distinct post_id by default so this legacy suite runs in the
+        # production regime. Every one of the 418 real records carries one;
+        # without this the whole class took the cannot-dedup branch and
+        # would have stayed green if dedup regressed entirely (python
+        # review, 2026-08-08). Pass post_id=... explicitly to test sharing.
         return {
             "event": "score",
             "scan_id": "s1",
@@ -568,6 +576,7 @@ class TestReading:
             "subscribed": subscribed,
             "score": score,
             "reason": reason,
+            "post_id": post_id if post_id is not None else f"post-{next(self._seq)}",
         }
 
     def test_hit_rate_and_percentiles(self, tmp_path):
@@ -663,6 +672,260 @@ class TestReading:
         )
         assert "Subscribed" in text and "Not subscribed" in text
         assert "philosophy" in text and "crypto" in text
+
+
+class TestPostDeduplication:
+    """The sweep samples the first page of each feed. A low-traffic submolt
+    returns the same posts week after week, and the reader counted every
+    score event — so repeating the sweep inflated ``scored`` without adding
+    a single independent sample, while looking like accumulating evidence.
+
+    The 2026-08-08 reading stopped at one sweep partly for this reason: the
+    question it left open is whether the submolt ordering is stable across
+    weeks, and that question cannot be answered by re-scoring the same page.
+    """
+
+    def _write(self, log_dir, rows, date="2099-01-01"):
+        log_dir.mkdir(parents=True, exist_ok=True)
+        path = log_dir / f"submolt-scope-{date}.jsonl"
+        path.write_text("\n".join(json.dumps(r) for r in rows) + "\n", encoding="utf-8")
+
+    def _row(self, submolt, score, post_id, *, subscribed=False, reason="scored", scan="s1"):
+        row = {
+            "event": "score",
+            "scan_id": scan,
+            "submolt": submolt,
+            "subscribed": subscribed,
+            "score": score,
+            "reason": reason,
+        }
+        if post_id is not None:
+            row["post_id"] = post_id
+        return row
+
+    def test_a_post_scored_twice_counts_once(self, tmp_path):
+        self._write(
+            tmp_path,
+            [
+                self._row("ai", 0.9, "p1"),
+                self._row("ai", 0.9, "p1"),
+                self._row("ai", 0.2, "p2"),
+            ],
+        )
+        r = next(
+            x
+            for x in read_submolt_scope_log(tmp_path, days=99999, threshold=0.8).per_submolt
+            if x.name == "ai"
+        )
+        assert r.scored == 2
+        assert r.records == 2
+        assert r.duplicate_records == 1
+        assert r.hit_rate == pytest.approx(0.5)
+
+    def test_dedup_spans_scans_and_files(self, tmp_path):
+        """The case that matters: a weekly sweep re-reading the same page."""
+        end = {"event": "scan_end", "verdict": "completed", "scanned": ["crypto"]}
+        for day, scan in (("2099-01-01", "s1"), ("2099-01-08", "s2"), ("2099-01-15", "s3")):
+            self._write(tmp_path, [self._row("crypto", 0.3, "p1", scan=scan), end], date=day)
+        r = next(
+            x
+            for x in read_submolt_scope_log(tmp_path, days=99999, threshold=0.8).per_submolt
+            if x.name == "crypto"
+        )
+        assert r.scored == 1, "three sweeps of one unchanged page is one sample, not three"
+        assert r.duplicate_records == 2
+        # The divergence is what makes the row honest: read three times,
+        # one distinct post. Collapsing both would hide the re-reading.
+        assert r.sampled_scans == 3
+
+    def test_the_same_post_in_two_submolts_counts_in_each(self, tmp_path):
+        """Dedup is per submolt: the metric is a per-submolt hit rate, and a
+        cross-posted item genuinely appeared in both feeds."""
+        self._write(tmp_path, [self._row("ai", 0.9, "p1"), self._row("agents", 0.9, "p1")])
+        reading = read_submolt_scope_log(tmp_path, days=99999, threshold=0.8)
+        for name in ("ai", "agents"):
+            r = next(x for x in reading.per_submolt if x.name == name)
+            assert r.scored == 1
+            assert r.duplicate_records == 0
+
+    def test_a_judged_rescore_supersedes_an_earlier_failure(self, tmp_path):
+        """A re-score after an LLM failure is the FIRST judgment of that
+        sample, not a second one. Keeping the failure let one outage sweep
+        zero out every post it touched for the rest of the 30-day window —
+        fault F-SCOPE-5, weekly sweep, and low-traffic submolts (the rows
+        this instrument exists to characterise) return the same page each
+        time (python review, 2026-08-08)."""
+        self._write(
+            tmp_path,
+            [
+                self._row("ai", None, "p1", reason="llm_failure", scan="s1"),
+                self._row("ai", 0.95, "p1", scan="s2"),
+            ],
+        )
+        r = next(
+            x
+            for x in read_submolt_scope_log(tmp_path, days=99999, threshold=0.8).per_submolt
+            if x.name == "ai"
+        )
+        assert r.scored == 1, "the log holds a 0.95 for p1; the reading must not hide it"
+        assert r.above_threshold == 1
+        assert r.records == 1
+        assert r.duplicate_records == 1
+        assert dict(r.reasons) == {"scored": 1}
+
+    def test_a_claimed_score_that_is_not_numeric_does_not_outrank_a_real_one(self, tmp_path):
+        """``reason == "scored"`` alone does not make a record a judgment."""
+        self._write(
+            tmp_path,
+            [
+                self._row("ai", "not-a-number", "p1", scan="s1"),
+                self._row("ai", 0.95, "p1", scan="s2"),
+            ],
+        )
+        r = next(
+            x
+            for x in read_submolt_scope_log(tmp_path, days=99999, threshold=0.8).per_submolt
+            if x.name == "ai"
+        )
+        assert r.scored == 1
+        assert r.p50 == pytest.approx(0.95)
+
+    def test_the_subscription_label_is_taken_from_dropped_records_too(self, tmp_path):
+        """The label describes the submolt, not the post, so dedup must not
+        decide it. Untested before: the legacy label test uses rows with no
+        post_id, so it never reached the dedup branch and would have stayed
+        green if the assignment moved below the drop."""
+        self._write(
+            tmp_path,
+            [
+                self._row("ai", 0.9, "p1", subscribed=False, scan="s1"),
+                self._row("ai", 0.9, "p1", subscribed=True, scan="s2"),
+            ],
+        )
+        r = next(
+            x
+            for x in read_submolt_scope_log(tmp_path, days=99999, threshold=0.8).per_submolt
+            if x.name == "ai"
+        )
+        assert r.subscribed is True
+        assert r.records == 1
+
+    def test_the_first_reading_of_a_post_is_the_one_kept(self, tmp_path):
+        """The scorer is an LLM, so a re-score can differ. Keeping the first
+        makes the reading a function of when the window opened rather than of
+        how many times the sweep happened to run."""
+        self._write(
+            tmp_path,
+            [self._row("ai", 0.9, "p1", scan="s1"), self._row("ai", 0.1, "p1", scan="s2")],
+        )
+        r = next(
+            x
+            for x in read_submolt_scope_log(tmp_path, days=99999, threshold=0.8).per_submolt
+            if x.name == "ai"
+        )
+        assert r.p50 == pytest.approx(0.9)
+        assert r.above_threshold == 1
+
+    def test_records_without_a_post_id_are_all_counted_and_warned(self, tmp_path, caplog):
+        """Cannot prove they are duplicates, so they are kept — but silently
+        keeping them would let a writer-side schema change quietly restore
+        the inflation this fix removes."""
+        self._write(tmp_path, [self._row("ai", 0.9, None), self._row("ai", 0.9, None)])
+        with caplog.at_level(logging.WARNING):
+            r = next(
+                x
+                for x in read_submolt_scope_log(tmp_path, days=99999, threshold=0.8).per_submolt
+                if x.name == "ai"
+            )
+        assert r.scored == 2
+        assert r.duplicate_records == 0
+        assert any("post_id" in rec.getMessage() for rec in caplog.records)
+
+    def test_unjudged_resamples_are_deduplicated_too(self, tmp_path):
+        """A re-sampled post that failed to score is still a re-sample."""
+        self._write(
+            tmp_path,
+            [
+                self._row("ai", None, "p1", reason="llm_failure"),
+                self._row("ai", None, "p1", reason="llm_failure"),
+            ],
+        )
+        r = next(
+            x
+            for x in read_submolt_scope_log(tmp_path, days=99999, threshold=0.8).per_submolt
+            if x.name == "ai"
+        )
+        assert r.records == 1
+        assert r.duplicate_records == 1
+
+    def test_report_surfaces_the_resample_share(self, tmp_path):
+        self._write(
+            tmp_path,
+            [
+                self._row("ai", 0.9, "p1", scan="s1"),
+                self._row("ai", 0.9, "p1", scan="s2"),
+                self._row("ai", 0.2, "p2", scan="s1"),
+            ],
+        )
+        reading = read_submolt_scope_log(tmp_path, days=99999, threshold=0.8)
+        text = format_submolt_scope_report(reading)
+        # The arithmetic is the part a future edit gets wrong: the
+        # denominator is score events (2 distinct + 1 dropped), not records.
+        assert "1/3 resampled" in text
+
+    def test_a_cap_length_post_id_is_not_trusted_for_dedup(self, tmp_path, caplog):
+        """The writer caps post_id at ``_POST_ID_MAX_CHARS``, so two ids
+        sharing that prefix arrive identical and would collapse into one —
+        an undercount with no symptom. The reader cannot tell a truncated id
+        from a naturally cap-length one, so it declines to dedup either and
+        says so (cross-model review, 2026-08-08)."""
+        cap = submolt_scope_mod._POST_ID_MAX_CHARS
+        at_cap = "a" * cap
+        self._write(tmp_path, [self._row("ai", 0.9, at_cap), self._row("ai", 0.9, at_cap)])
+        with caplog.at_level(logging.WARNING):
+            r = next(
+                x
+                for x in read_submolt_scope_log(tmp_path, days=99999, threshold=0.8).per_submolt
+                if x.name == "ai"
+            )
+        assert r.scored == 2, "identical-looking ids at the cap must not be merged"
+        assert r.duplicate_records == 0
+        assert any("post_id" in rec.getMessage() for rec in caplog.records)
+
+    def test_a_post_id_below_the_cap_still_dedups(self, tmp_path):
+        """Guards the fix from over-reaching: normal ids (36 chars in
+        production against a cap of 64) must still deduplicate."""
+        below = "b" * (submolt_scope_mod._POST_ID_MAX_CHARS - 1)
+        self._write(tmp_path, [self._row("ai", 0.9, below), self._row("ai", 0.9, below)])
+        r = next(
+            x
+            for x in read_submolt_scope_log(tmp_path, days=99999, threshold=0.8).per_submolt
+            if x.name == "ai"
+        )
+        assert r.scored == 1
+        assert r.duplicate_records == 1
+
+    def test_resample_share_shows_even_when_nothing_was_judged(self, tmp_path):
+        """An outage window where every post failed to score can still be
+        re-reading the same page — and that is exactly when the operator is
+        deciding whether to run the sweep again."""
+        self._write(
+            tmp_path,
+            [
+                self._row("ai", None, "p1", reason="llm_failure", scan="s1"),
+                self._row("ai", None, "p1", reason="llm_failure", scan="s2"),
+            ],
+        )
+        reading = read_submolt_scope_log(tmp_path, days=99999, threshold=0.8)
+        row = next(x for x in reading.per_submolt if x.name == "ai")
+        assert row.hit_rate is None
+        assert row.duplicate_records == 1
+        assert "resampled" in format_submolt_scope_report(reading)
+
+    def test_no_duplicates_renders_nothing_extra(self, tmp_path):
+        self._write(tmp_path, [self._row("ai", 0.9, "p1"), self._row("ai", 0.2, "p2")])
+        reading = read_submolt_scope_log(tmp_path, days=99999, threshold=0.8)
+        assert "resampled" not in format_submolt_scope_report(reading)
 
 
 class TestReviewFindings:

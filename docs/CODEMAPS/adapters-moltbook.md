@@ -25,7 +25,7 @@ Platform-specific implementations. Dependency: adapters → core.
 | `dedup.py` | 257 | Deterministic gates: prefix-5 stem + Jaccard, test-content blocklist, promotional URL regex |
 | `novelty.py` | 375 | `NoveltyGate`: embedding-cosine novelty + temporal decay + rate-deficit Lagrangian (ADR-0039) |
 | `feed_seeder.py` | ~84 | `select_feed_seeds`: RNG sampling 1-3 peer posts per submolt, relevance floor 0.4, 15000-char budget (ADR-0043) |
-| `submolt_scope.py` | 496 | ADR-0086 read-only scope instrument: samples + scores every listed submolt (subscribed and not), writes `submolt-scope-*.jsonl`, aggregates for `report --submolt-scope`. Wired to no gate; disabled when `configure_submolt_scope` gets no audit dir |
+| `submolt_scope.py` | 662 | ADR-0086 read-only scope instrument: samples + scores every listed submolt (subscribed and not), writes `submolt-scope-*.jsonl`, aggregates for `report --submolt-scope` over **distinct posts** (`post_id` dedup per submolt, re-sample share reported). Wired to no gate; disabled when `configure_submolt_scope` gets no audit dir |
 
 **Retired (not in codebase)**: `extract_topics` / `check_topic_novelty` (ADR-0043), `topic_keywords` config field (ADR-0044).
 
@@ -119,6 +119,23 @@ through a repeating terminal 429. It never subscribes, never touches
 `subscribed_submolts`, and writes nothing outside its own log — the
 `_passes_content_gates` trust boundary is unchanged, so nothing it observes
 can reach an outward action.
+
+`read_submolt_scope_log()` counts **distinct posts, not score events**: it
+deduplicates on `post_id` per submolt across every scan in the window, and
+reports what it dropped as `duplicate_records` (rendered per row as
+`N/M resampled`). Because the sweep takes one feed page, a low-traffic
+submolt would otherwise return the same posts every week and grow `scored`
+without adding an independent sample — accumulating re-reads that read as
+accumulating evidence. Surfacing the share rather than only correcting it
+makes "another sweep will not move this row" a reading rather than an
+assumption, which is what decides whether repeating the 16-minute sweep buys
+anything. First occurrence wins, so the reading is a function of when the
+window opened rather than of how many times the sweep ran. Records with no
+`post_id` cannot be shown to be re-samples and are kept, with one warning
+per read naming the count — a writer-side schema change that dropped the
+field would otherwise silently restore the inflation. Measured 2026-08-08:
+418 records, all carrying `post_id`, zero overlap between two sweeps a week
+apart, so the guard is currently inert.
 
 ## Verification (verification.py)
 

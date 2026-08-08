@@ -189,3 +189,71 @@ instrument is cheap, reversible, and answers that for both.
   style shadow in which the agent proposes a scope and the proposal is
   recorded without being executed. Restoring `unsubscribe_submolt` belongs to
   that later step, not this one.
+
+## Amendment (2026-08-08): the reading counts distinct posts, not score events
+
+The first real sweep ran on 2026-08-08 — seven days after Phase 1 shipped,
+and the first time this instrument measured anything. The weekly job named
+in the Decision had never been installed, so the record until then was one
+`--sample-size 2` smoke. That gap is itself a finding: an instrument built
+and then not scheduled reads exactly like one that was never built, and
+nothing in the design made the absence visible.
+
+The reading it produced exposed a counting defect. `read_submolt_scope_log`
+tallied every score event, and the sweep samples one feed page per submolt —
+so a low-traffic submolt returns the same posts every week and repeating the
+sweep grew `scored` without adding an independent sample, while presenting
+as accumulating evidence. The reader now deduplicates on `post_id` per
+submolt across the window and reports the drops as `duplicate_records`,
+rendered per row as `N/M resampled`.
+
+Reporting the share rather than only correcting it is the point. A high
+share says "another sweep will not move this row", which is what decides
+whether the 16-minute sweep is worth repeating — a fact about the
+instrument's own usefulness, and the kind of thing an instrument should be
+able to say about itself.
+
+Three rules the fix had to get right, each of which was wrong in a first
+draft and caught in review:
+
+- **A judged record supersedes an earlier unjudged one for the same post.**
+  Keying on first-seen alone let an outage sweep (fault F-SCOPE-5) claim
+  every post it touched, so a later successful re-score was discarded as a
+  duplicate — the log holding a 0.95 while the reading said nothing was
+  judged, for the rest of a 30-day window. Among *judged* records first
+  still wins, so appending a sweep never rewrites an existing row.
+- **A `post_id` at the write cap is not trusted as an identity key.**
+  `_POST_ID_MAX_CHARS` was log hygiene and is now identity; two ids sharing
+  that prefix would merge into one post and undercount with no symptom. The
+  reader cannot distinguish a truncated id from a naturally cap-length one,
+  so it declines to dedup either. Measured: production ids are 36 chars.
+- **The un-dedupable count reaches the read-out, not just the log.** The
+  scenario the guard exists for is a writer-side schema change silently
+  restoring the inflation; on the scheduled path a logger warning lands in a
+  launchd stderr file the operator is instructed not to open, so the count
+  is carried on the reading and rendered (ADR-0075's shape).
+
+Measured on the two sweeps available: 418 score records, every one carrying
+a `post_id`, and **zero overlap** between sweeps a week apart. The dedup is
+therefore inert on current data — a guard, not a correction. It also
+weakens the argument that motivated ordering it before scheduling: the one
+week of evidence says feeds turn over fast enough for repeats to yield
+fresh samples. The instrument now measures that directly, so the question
+does not need to be settled in advance.
+
+### What the first reading did and did not license
+
+It did not license a scope change. The subscribed set outscores the rest
+(mean 0.757 vs 0.620, Cohen's d = 0.448), the relevance scorer does
+discriminate between submolts (η² = 0.235 with a topically sensible
+ordering), and six unsubscribed submolts sit at or above the weaker half of
+the subscribed eight — but all of it rests on one sweep of one feed page,
+so the stability of that ordering is unmeasured.
+
+It did remove the retirement argument. The alternative "the unsubscribed
+side turns out to be boring, so take the instrument out" is not what the
+data shows, so signal-first does not currently support removal either.
+
+Phase 2 (splitting scope into a read set and a respond set) and Phase 3
+(shadow scope proposals) remain where the Decision left them. One sweep
+cannot support them, and this amendment does not move that line.

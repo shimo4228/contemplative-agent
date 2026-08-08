@@ -80,7 +80,12 @@ _MAX_TERMINAL_429 = 2
 # ~400-call design point; hitting it is logged, never silent.
 _MAX_SCORED_PER_SCAN = 1000
 
-# Post ids reach the log as plain text.
+# Post ids reach the log as plain text. Since 2026-08-08 this is also an
+# **identity key**: `read_submolt_scope_log` deduplicates on the stored
+# string, so widening the platform's id format has to be evaluated against
+# dedup and not only against log width. Two ids sharing a 64-char prefix
+# would arrive identical; the reader refuses to dedup anything at the cap
+# rather than merge distinct posts. Measured 2026-08-08: ids are 36 chars.
 _POST_ID_MAX_CHARS = 64
 
 # Set to "1" to neuter an installed sweep without uninstalling its launchd
@@ -364,13 +369,17 @@ def scan_submolt_scope(
 class SubmoltReading:
     """One submolt's aggregate over the window.
 
-    Three counts that must not be collapsed into each other:
+    Four counts that must not be collapsed into each other:
     ``sampled_scans`` is how often the sweep actually read this submolt's
-    feed, ``records`` how many posts it got back, and ``scored`` how many of
-    those produced a real judgment. A submolt can be sampled and return
+    feed, ``records`` how many **distinct posts** those reads yielded,
+    ``duplicate_records`` how many score events were dropped as re-samples
+    of a post already represented, and ``scored`` how many of the distinct
+    posts produced a real judgment. A submolt can be sampled and return
     nothing (quiet or dead — a liveness finding, and the reason it still
-    appears here with zero records), or return posts that the scorer failed
-    on (an outage, not an irrelevant feed).
+    appears here with zero records), return posts that the scorer failed on
+    (an outage, not an irrelevant feed), or be read repeatedly and yield the
+    same page every time (``sampled_scans`` 3 with ``records`` 1 — a fact
+    about the sweep's usefulness, not about the feed's relevance).
 
     ``skips`` carries the per-reason count of scans that never read the feed
     at all (private / nsfw / feed_403 …).
@@ -380,7 +389,18 @@ class SubmoltReading:
     subscribed: bool
     sampled_scans: int
     skips: tuple[tuple[str, int], ...]
+    # Distinct posts seen, not score events. See ``duplicate_records``.
     records: int
+    # Score events dropped because the post was already counted for this
+    # submolt. The sweep samples the first page of a feed, so a low-traffic
+    # submolt returns the same posts every week: counting each event would
+    # grow ``scored`` without adding one independent sample, while reading
+    # as accumulating evidence. Surfaced rather than merely fixed, because
+    # a high share here is the signal "repeating the sweep is not buying
+    # anything for this submolt" — which is a fact about the instrument's
+    # own usefulness, and the reason the 2026-08-08 reading stopped at one
+    # sweep.
+    duplicate_records: int
     scored: int
     above_threshold: int
     reasons: tuple[tuple[str, int], ...]
@@ -411,6 +431,14 @@ class SubmoltScopeReading:
     scans: tuple[tuple[str, int], ...]
     threshold: float
     per_submolt: tuple[SubmoltReading, ...]
+    # Score records whose post_id could not serve as an identity key, so
+    # dedup could not run on them. Carried in the reading and rendered, not
+    # only logged: the scenario it warns about is a writer-side schema
+    # change silently restoring the inflation, and on the scheduled path a
+    # logger warning goes to a launchd stderr file the operator is
+    # instructed not to open (python review, 2026-08-08). ADR-0075's shape
+    # — the reason belongs in the read-out.
+    records_without_post_id: int
 
     @property
     def subscribed(self) -> tuple[SubmoltReading, ...]:
@@ -445,6 +473,16 @@ def read_submolt_scope_log(
     both findings, and dropping them would hide exactly the dead-submolt
     signal this instrument claims to provide.
 
+    Counts **distinct posts, not score events**: records are deduplicated on
+    ``post_id`` per submolt across every scan in the window, and the drops
+    are reported as ``duplicate_records``. Among judged records the first
+    wins, so appending a sweep never rewrites an existing row — but a judged
+    record supersedes an earlier unjudged one for the same post, because a
+    re-score after a failure is that sample's first judgment rather than a
+    second one. Records whose ``post_id`` cannot serve as an identity key
+    (absent, or at the write cap and possibly truncated) are all kept and
+    counted in ``records_without_post_id``.
+
     ``subscribed`` is the operator's **current** ``domain.json`` set and
     decides which side of the report a submolt appears on — the reader is
     deciding about the scope as it stands now, not as it stood when a given
@@ -461,10 +499,28 @@ def read_submolt_scope_log(
     reasons: dict[str, dict[str, int]] = {}
     scores: dict[str, list[float]] = {}
     above: dict[str, int] = {}
+    # submolt -> post_id -> the one record that represents that post.
+    chosen: dict[str, dict[str, dict[str, Any]]] = {}
+    # Records whose post_id cannot serve as an identity key; all kept.
+    undedupable: dict[str, list[dict[str, Any]]] = {}
+    duplicates: dict[str, int] = {}
+    missing_post_id = 0
 
     def _bump(table: dict[str, dict[str, int]], name: str, key: str) -> None:
         table.setdefault(name, {})
         table[name][key] = table[name].get(key, 0) + 1
+
+    def _is_judged(rec: dict[str, Any]) -> bool:
+        """Did this record carry an actual score, not just an attempt?
+
+        ``reason == "scored"`` alone is not enough: a record can claim to be
+        scored and carry a non-numeric ``score``, and treating that as a
+        judgment would let it outrank a genuine one.
+        """
+        if str(rec.get("reason", "unknown")) != "scored":
+            return False
+        score = rec.get("score")
+        return isinstance(score, (int, float)) and not isinstance(score, bool)
 
     if log_dir.is_dir():
         for path in sorted(log_dir.glob(f"{_LOG_PREFIX}*.jsonl")):
@@ -509,18 +565,81 @@ def read_submolt_scope_log(
                 name = rec.get("submolt")
                 if not isinstance(name, str) or not name:
                     continue
+                # The label is an observation about the submolt, not about
+                # the post, so it is taken from every record including the
+                # ones dedup drops — otherwise the fallback label would
+                # depend on which post happened to be sampled first.
                 subscribed_label[name] = bool(rec.get("subscribed"))
-                records[name] = records.get(name, 0) + 1
-                reason = str(rec.get("reason", "unknown"))
-                _bump(reasons, name, reason)
-                if reason != "scored":
+                # Selection only. Counting happens after the whole window is
+                # read, because which record wins for a post is not knowable
+                # from the record alone: a judged one supersedes an earlier
+                # unjudged one, and that cannot be expressed by a streaming
+                # accumulator without un-counting what it already added.
+                post_id = rec.get("post_id")
+                # A post_id sitting exactly at the writer's cap may have been
+                # truncated (`_POST_ID_MAX_CHARS`, applied at write time), and
+                # two ids sharing that prefix would collapse into one — an
+                # undercount with no symptom. The reader cannot tell a
+                # truncated id from one that is naturally cap-length, so it
+                # treats both as un-dedupable rather than risk merging
+                # distinct posts. Measured 2026-08-08: every id is 36 chars
+                # against a cap of 64, so this branch is currently unreachable
+                # — kept because the ids come from the platform and the
+                # failure it guards is a silently wrong number in an
+                # instrument whose only product is numbers.
+                if (
+                    not isinstance(post_id, str)
+                    or not post_id
+                    or len(post_id) >= _POST_ID_MAX_CHARS
+                ):
+                    # Cannot prove it is a re-sample, so keep it. Never
+                    # silently: a writer-side schema change that dropped or
+                    # shortened post_id would otherwise quietly restore the
+                    # inflation this dedup removes, and the reading would
+                    # look richer for it.
+                    missing_post_id += 1
+                    undedupable.setdefault(name, []).append(rec)
                     continue
-                score = rec.get("score")
-                if not isinstance(score, (int, float)) or isinstance(score, bool):
+                bucket = chosen.setdefault(name, {})
+                previous = bucket.get(post_id)
+                if previous is None:
+                    bucket[post_id] = rec
                     continue
-                scores.setdefault(name, []).append(float(score))
-                if score >= threshold:
-                    above[name] = above.get(name, 0) + 1
+                duplicates[name] = duplicates.get(name, 0) + 1
+                # A re-score after a failed one is the FIRST judgment of that
+                # sample, not a second one — keeping the failure would let a
+                # single outage sweep zero out every post it touched for the
+                # rest of the 30-day window (fault F-SCOPE-5, and the sweep
+                # is weekly). Among judged records first still wins, so
+                # appending a sweep never rewrites an existing row.
+                if _is_judged(rec) and not _is_judged(previous):
+                    bucket[post_id] = rec
+
+    # Counting pass. Runs over the selected records so every tally below
+    # describes distinct posts, and so the judged-supersedes-unjudged rule
+    # above lands in all of them at once rather than in whichever one the
+    # loop happened to reach first.
+    for name in set(chosen) | set(undedupable):
+        picked = list(chosen.get(name, {}).values()) + undedupable.get(name, [])
+        records[name] = len(picked)
+        for rec in picked:
+            _bump(reasons, name, str(rec.get("reason", "unknown")))
+            if not _is_judged(rec):
+                continue
+            score = float(rec["score"])
+            scores.setdefault(name, []).append(score)
+            if score >= threshold:
+                above[name] = above.get(name, 0) + 1
+
+    if missing_post_id:
+        logger.warning(
+            "submolt scope reading: %d score records had no usable post_id (absent, "
+            "or at the %d-char write cap and possibly truncated) and could not be "
+            "deduplicated — repeat sweeps of the same feed page will inflate their "
+            "submolt's sample count",
+            missing_post_id,
+            _POST_ID_MAX_CHARS,
+        )
 
     current = set(subscribed) if subscribed is not None else None
     names = set(records) | set(sampled_scans) | set(skips)
@@ -537,6 +656,7 @@ def read_submolt_scope_log(
                 name in current if current is not None else subscribed_label.get(name, False)
             ),
             sampled_scans=sampled_scans.get(name, 0),
+            duplicate_records=duplicates.get(name, 0),
             skips=tuple(sorted(skips.get(name, {}).items())),
             records=records.get(name, 0),
             scored=len(scores.get(name, [])),
@@ -552,7 +672,21 @@ def read_submolt_scope_log(
         scans=tuple(sorted(scan_verdicts.items())),
         threshold=threshold,
         per_submolt=per_submolt,
+        records_without_post_id=missing_post_id,
     )
+
+
+def _resample_note(r: SubmoltReading) -> str:
+    """``[N/M resampled]``, or empty when nothing was re-sampled.
+
+    Rendered on judged and unjudged rows alike: an outage window where every
+    post failed to score can still be re-reading the same page, and that is
+    exactly when an operator is deciding whether to run the sweep again.
+    """
+    if not r.duplicate_records:
+        return ""
+    total = r.records + r.duplicate_records
+    return f"  [{r.duplicate_records}/{total} resampled, already counted]"
 
 
 def _format_row(r: SubmoltReading) -> str:
@@ -560,17 +694,21 @@ def _format_row(r: SubmoltReading) -> str:
     if r.hit_rate is None:
         if r.records:
             unscored = ", ".join(f"{k}: {v}" for k, v in r.reasons)
-            return f"- {r.name}: {r.records} sampled, none judged — {unscored}"
+            return f"- {r.name}: {r.records} sampled, none judged — {unscored}{_resample_note(r)}"
         if r.skips:
             detail = ", ".join(f"{k} ×{v}" for k, v in r.skips)
-            return f"- {r.name}: not read — {detail}"
+            return f"- {r.name}: not read — {detail}{_resample_note(r)}"
         if r.sampled_scans:
-            return f"- {r.name}: read {r.sampled_scans}×, feed returned no posts"
+            return f"- {r.name}: read {r.sampled_scans}×, feed returned no posts{_resample_note(r)}"
         return f"- {r.name}: never sampled in this window"
     detail = ""
     if r.scored < r.records:
         unscored = ", ".join(f"{k}: {v}" for k, v in r.reasons if k != "scored")
         detail = f"  [{r.records - r.scored} not judged — {unscored}]"
+    # Attached to the row rather than the header: the share is per submolt,
+    # and a high one says "another sweep will not move this row" — which is
+    # what decides whether repeating the 16-minute sweep is worth it.
+    detail += _resample_note(r)
     if r.skips:
         detail += "  [not read: " + ", ".join(f"{k} ×{v}" for k, v in r.skips) + "]"
     return (
@@ -597,6 +735,13 @@ def format_submolt_scope_report(reading: SubmoltScopeReading) -> str:
     ]
     if reading.scans:
         lines.append("Scans: " + ", ".join(f"{v}: {n}" for v, n in reading.scans))
+    if reading.records_without_post_id:
+        lines.append(
+            f"⚠ {reading.records_without_post_id} score records had no usable post_id "
+            f"(absent, or at the {_POST_ID_MAX_CHARS}-char write cap and possibly "
+            "truncated) — those could not be deduplicated, so repeat sweeps of the "
+            "same feed page inflate their submolt's sample count."
+        )
     if not reading.per_submolt:
         lines.append("")
         lines.append("No submolts observed in the window.")
