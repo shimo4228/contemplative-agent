@@ -60,6 +60,20 @@ from evals.snapshot_assets import SnapshotError, aggregate_sha256, hash_tree
 
 SCHEMA_VERSION = 1
 
+# The skill-injection regime this eval reproduces (ADR-0081 two-pass
+# enforcement, which is what the launchd plist runs). Recorded in every
+# manifest and compared by check_staleness, so the question the 2026-08-06
+# baseline could not answer — "which injection regime was this measured
+# under?" — is now answerable from the artefact alone. Changing this value
+# changes the system under measurement and must invalidate the baseline.
+#
+# Spelled as a literal, not imported from core.skill_selection: nothing from
+# contemplative_agent may be imported at this module's load time (the
+# MOLTBOOK_HOME capture hazard documented above the deterministic-core
+# imports). tests/test_eval_injection_regime.py holds the two names together
+# — a test is the right seam for that link, an import is not.
+INJECTION_REGIME = "two_pass_selected"
+
 EVALS_DIR = Path(__file__).resolve().parent
 FIXTURE_DIR = EVALS_DIR / "fixtures" / "agent_home"
 JUDGE_PROMPT_PATH = EVALS_DIR / "fixtures" / "judge" / "comment_judge_prompt.md"
@@ -156,19 +170,92 @@ def _preflight(fixture: Path, judge_bin: str) -> None:
             "fallback?) — sentinel line not found"
         )
 
+    # Regime sentinel, same discipline as the identity one above. Two parts,
+    # because the configuration reading alone is nearly tautological — it
+    # inspects the two globals _configure_pinned_assets just set. The
+    # precondition check is what gives it teeth: an empty catalog or an
+    # unloadable selection template sends every call back to full-corpus
+    # injection while the configuration still reports two_pass_selected, so
+    # the manifest would claim a regime the run never enacted. That is the
+    # 2026-08-06 defect one layer down.
+    from contemplative_agent.core.skill_selection import (
+        configured_injection_regime,
+        selection_preconditions_unmet,
+    )
 
-def _configure_pinned_assets(fixture: Path) -> None:
+    configured = configured_injection_regime()
+    if configured != INJECTION_REGIME:
+        _die_unmeasurable(
+            f"injection regime mismatch: pinned {INJECTION_REGIME!r} but the "
+            f"configured wiring permits {configured!r}"
+        )
+    if INJECTION_REGIME == "two_pass_selected":
+        unmet = selection_preconditions_unmet()
+        if unmet is not None:
+            _die_unmeasurable(
+                f"pinned regime {INJECTION_REGIME!r} is unreachable: {unmet} — "
+                f"every sample would fall back to full-corpus injection while "
+                f"the manifest claimed otherwise"
+            )
+
+    # Fail-open headroom. When the pass-1 selector fails per call
+    # (fail_open_llm / fail_open_parse — inherently not preflightable),
+    # ADR-0081 degrades to full-corpus injection. A corpus that no longer
+    # fits NUM_CTX turns that graceful degradation into a budget_exceeded
+    # skip: the sample is lost, and because aggregate_case only needs a
+    # strict majority (2 of 3), one loss per case is absorbed into a smaller
+    # denominator rather than surfaced. Warn rather than die — the run is
+    # valid as long as the selector holds, and the manifest records how many
+    # observations actually fell back, so the absorption is auditable after
+    # the fact instead of invisible.
+    from contemplative_agent.core.llm import MIN_CLAMPED_NUM_PREDICT, NUM_CTX, _estimate_tokens
+    from contemplative_agent.core.llm.prompting import _build_system_prompt
+
+    # Mirror the real audit-C2 condition rather than the laxer
+    # "corpus >= window": the guard skips when what remains after the input
+    # cannot even meet the clamp floor, which bites before the corpus alone
+    # overflows. No BACKEND_FRAMING_RESERVE term — the guard withholds it
+    # only when a backend counted for real, and the Ollama path this eval
+    # runs on has no tokenizer (ADR-0087), so the estimator's own over-count
+    # is the reserve. The post's tokens are excluded because they vary per
+    # case; this is the headroom before any prompt, so it reads optimistic
+    # by design and a warning here is strictly worse in practice.
+    full_corpus_tokens = _estimate_tokens(_build_system_prompt())
+    headroom = NUM_CTX - full_corpus_tokens
+    if headroom < MIN_CLAMPED_NUM_PREDICT:
+        print(
+            f"[eval] WARNING: full-corpus fallback would be skipped, not degraded "
+            f"({full_corpus_tokens} tok leaves {headroom} < clamp floor "
+            f"{MIN_CLAMPED_NUM_PREDICT} in NUM_CTX {NUM_CTX}) — any fail-open "
+            f"selection this run loses its sample. Check "
+            f"manifest.injection_observed.fell_back before trusting the verdicts.",
+            file=sys.stderr,
+        )
+
+
+def _configure_pinned_assets(fixture: Path, selection_audit_dir: Path) -> None:
     """Mirror the production wiring (cli/runtime.py + moltbook agent.py),
     but source every evolving asset from the pinned fixture.
 
-    Deliberately NOT configured: telemetry_dir (no writes), skill selection
-    (production runs it in shadow mode — selection is always None there, so
-    skipping configure_skill_selection reproduces the production system
-    prompt exactly; revisit when enforcement goes always-on, see ADR-0089),
-    submolt scope (read-only instrument, irrelevant here).
+    Skill selection is wired here, not skipped. The original version left it
+    unconfigured on the premise that "production runs it in shadow mode" —
+    already false when written (ADR-0081 enforcement shipped in ``0723726``,
+    the plist carried the flag from 2026-08-01), so the eval injected the
+    whole corpus against a production that injects a selection. Both halves
+    of that divergence were structural rather than environmental: without
+    ``configure_skill_selection`` the ``audit_dir`` kill switch forces full
+    injection no matter what the flag says.
+
+    ``selection_audit_dir`` points at the run directory, so each run keeps
+    the selections it actually made — the evidence for *why* two runs
+    differ, alongside the verdicts of *how*.
+
+    Still deliberately NOT configured: telemetry_dir (no writes), submolt
+    scope (read-only instrument, irrelevant here).
     """
     from contemplative_agent.core.domain import load_constitution
     from contemplative_agent.core.llm import configure
+    from contemplative_agent.core.skill_selection import configure_skill_selection
 
     configure(identity_path=fixture / "identity.md")
     clauses = load_constitution(fixture / "constitution")
@@ -178,6 +265,24 @@ def _configure_pinned_assets(fixture: Path) -> None:
         configure(skills_dir=fixture / "skills")
     if (fixture / "rules").is_dir():
         configure(rules_dir=fixture / "rules")
+
+    # Pin the regime rather than inherit it: an eval whose measured system
+    # depends on the caller's environment is not reproducible. INJECTION_REGIME
+    # names what is pinned, _preflight asserts the wiring enacted it, and the
+    # manifest records it so a future divergence is a diff, not a memory.
+    #
+    # NOTE: this mutates process-global os.environ, which the function name
+    # does not imply. In-process callers (tests) must restore it themselves —
+    # monkeypatch.delenv(raising=False) does NOT, because pytest records no
+    # undo entry when the name was absent to begin with.
+    os.environ["MOLTBOOK_SKILL_SELECTION_ENFORCE"] = "1"
+    selection_audit_dir.mkdir(parents=True, exist_ok=True)
+    # Guarded like its sibling above: with skills/ absent the catalog is
+    # empty, every call falls back to full-corpus injection, and only
+    # _preflight's precondition check stands between that and a manifest
+    # claiming a regime the run never took.
+    if (fixture / "skills").is_dir():
+        configure_skill_selection(skills_dir=fixture / "skills", audit_dir=selection_audit_dir)
 
 
 def _judge_sample(
@@ -291,7 +396,11 @@ def main() -> int:
     os.environ["DEEPEVAL_CACHE_FOLDER"] = str(run_dir / ".deepeval")
     for key in ("CONFIDENT_API_KEY", "DEEPEVAL_API_KEY", "DEEPEVAL_RESULTS_FOLDER"):
         os.environ.pop(key, None)
-    os.environ.pop("MOLTBOOK_SKILL_SELECTION_ENFORCE", None)
+    # MOLTBOOK_SKILL_SELECTION_ENFORCE is deliberately NOT scrubbed here any
+    # more: _configure_pinned_assets sets it to the pinned regime, so the
+    # inherited value is overwritten rather than dropped. Scrubbing it was
+    # half of what made the eval measure full-corpus injection while
+    # production ran two-pass (ADR-0089 amendment).
     os.chdir(run_dir)  # second containment wall for anything cwd-relative
 
     cases = load_dataset(dataset_path)
@@ -304,7 +413,7 @@ def main() -> int:
             _die_unmeasurable(f"unknown case ids: {sorted(unknown)}")
         cases = [c for c in cases if c.id in wanted]
 
-    _configure_pinned_assets(FIXTURE_DIR)
+    _configure_pinned_assets(FIXTURE_DIR, run_dir / "skill-selection")
     _preflight(FIXTURE_DIR, "claude")
 
     from contemplative_agent.adapters.moltbook.llm_functions import COMMENT_TEMPERATURE
@@ -329,6 +438,7 @@ def main() -> int:
         "assets_sha256": aggregate_sha256(hash_tree(FIXTURE_DIR)),
         "judge_prompt_sha256": hashlib.sha256(JUDGE_PROMPT_PATH.read_bytes()).hexdigest(),
         "prompt_templates_sha256": prompt_templates_sha256(),
+        "injection_regime": INJECTION_REGIME,
         "sampling": sampling_state(),
         "dataset_sha256": dataset_sha256(dataset_path),
         "samples_per_case": args.samples,
@@ -395,6 +505,40 @@ def main() -> int:
             }
         )
         _write_run(run, run_path)  # incremental: an abort keeps every finished case
+
+    # The regime a run *took*, read back from the selection audit it wrote.
+    # manifest.injection_regime is a pin (intent); this is the observation.
+    # Without it, per-call fail-opens would silently reduce each case's
+    # denominator — aggregate_case needs only a strict majority, so one lost
+    # sample per case never surfaces — while the manifest still asserted the
+    # pinned regime for the whole run. Recorded outside `manifest` on
+    # purpose: compare.py treats manifest fields as comparability keys, and
+    # two runs with different fail-open counts are still comparable.
+    from contemplative_agent.core.skill_selection import observed_injection_outcomes
+
+    run["injection_observed"] = observed_injection_outcomes(run_dir / "skill-selection")
+    observed = run["injection_observed"]
+    # Expected one selection per generation attempt. A *missing* record is
+    # not the same as a recorded fallback and must not read as clean: when
+    # shadow_observe_skill_selection hits an internal exception (including a
+    # failed audit write) it degrades to None — full-corpus injection — and
+    # writes nothing. Counting only `fell_back` would let such a run claim
+    # the pinned regime with no warning at all, which is exactly the silent
+    # fallback CLAUDE.md's observability rule prohibits.
+    expected_observations = sum(len(c["samples"]) for c in case_records)
+    unobserved = expected_observations - observed.get("records", 0)
+    observed["expected"] = expected_observations
+    observed["unobserved"] = unobserved
+    if observed.get("fell_back") or unobserved:
+        print(
+            f"[eval] WARNING: injection regime not uniform across this run — "
+            f"{observed['fell_back']} recorded fallback(s) and {unobserved} "
+            f"unrecorded selection(s) out of {expected_observations} generation "
+            f"attempts (verdicts: {observed['verdicts']}). Those generations did "
+            f"not run under the regime the manifest pins; do not approve this "
+            f"run as a baseline without accounting for them.",
+            file=sys.stderr,
+        )
 
     _write_run(run, run_path)
     print(f"[eval] normalized run written: {run_path}", flush=True)

@@ -102,6 +102,9 @@ hard-couple を一因として agent-chaos を却下した — あれは chaos �
    の system prompt を bit-for-bit 再現できる。Revisit trigger:
    `MOLTBOOK_SKILL_SELECTION_ENFORCE` が production で always-on になったとき、
    eval も追随しなければならない。
+   *（2026-08-08 に反証 —— shadow mode という前提は書かれた時点で既に偽であり、
+   トリガーは発火し得なかった。eval は現在レジームを pin し記録する。後述の
+   Amendment を参照。）*
 
 5. **隔離された `claude -p` subprocess で judge する。** harness の
    llm-as-judge 設計に従う: binary check 群を evidence として、名前を持つ
@@ -275,6 +278,8 @@ compare）はどちらの道でも project-specific に留まるからである�
 - Revisit trigger: `MOLTBOOK_SKILL_SELECTION_ENFORCE` が production で
   always-on になったとき、parity を保つために `run_eval` は
   `configure_skill_selection` を呼ばなければならない（Decision 4）。
+  *（発火しなかった —— 条件は書かれた時点で既に成立していた。後述の Amendment が
+  supersede する。）*
 - 手動 run の trigger: prompt-asset、model、sampling、generation-path の変更
   （Decision 7）。eval は設計上 `verify.sh` の外に留まる。trigger の大半の
   **検出**は機械化した（初回 baseline 承認と同日の追補）:
@@ -376,3 +381,240 @@ evidence を読んでから行動し、単発 regression をまだ実変化の�
 広く（9–53%）、case の独立性を仮定しているがそれは相関 flip が
 掘り崩している。構造的な読み — どの case が・3 モードのどれで不安定か
 — はこれらの推定に依存しない。
+
+## Amendment (2026-08-08): eval は存在しない系を測っていた
+
+Decision 4 は `configure_skill_selection` を呼ばないことを prose で正当化していた
+—— 本番は selection を shadow mode で走らせるので selection は常に `None`、
+よって呼ばないことが「production の system prompt を bit-for-bit 再現する」。
+再検討トリガーも付いていた ——「`MOLTBOOK_SKILL_SELECTION_ENFORCE` が本番で
+always-on になったら eval も追随する」。
+
+**この前提は書かれた時点で既に偽であり、トリガーは原理的に発火し得なかった。**
+ADR-0081 two-pass injection enforcement は 2026-07-24 に `0723726` で実装済みで、
+launchd plist は 2026-08-01 から `MOLTBOOK_SKILL_SELECTION_ENFORCE=1` を持っていた
+（同日に plist 生成へ触れた repo 側 commit は `9f7086d`。インストール済み plist 自体は
+マシンローカルであり clone から検証できない）—— eval 層が `6f15ec5` で出荷され最初の
+baseline が承認される 5 日前である。
+トリガーは既に過去になった条件について未来形で書かれていた。これは prose トリガー
+一般の失敗様式である: prose トリガーは**遷移**を検出するものであり、書かれる前に
+成立していた条件には検出すべき遷移が存在しない。
+
+分岐は環境要因ではなく構造的だった。2 つの独立した機構が eval を full-corpus 経路へ
+強制していた: `shadow_observe_skill_selection` は `audit_dir` 未設定時に `None` へ
+短絡する（`configure_skill_selection` 自体に内蔵されたキルスイッチ）。さらに
+`run_eval` が DeepEval の telemetry キーと並べて
+`MOLTBOOK_SKILL_SELECTION_ENFORCE` を環境から除去していた。フラグを継承させるだけ
+でも不十分であり、フラグ抜きで selection を configure するだけでも不十分だった。
+
+### 差は実際には何だったか
+
+「注入されるスキルが少し違う」ではない。`_estimate_tokens` で `NUM_CTX` = 32,768
+に対して実測:
+
+| レジーム | system prompt | headroom |
+|---|---:|---:|
+| identity + axioms + rules、skill 0 本 | 1,687 | 31,081 |
+| **eval が測っていたもの**（37 件 fixture、full corpus） | **29,870** | **2,898** |
+| 本番が走らせているもの（ADR-0081 選択） | **4,558**（p50） | **28,210** |
+| 45 件 fixture、full corpus | 34,264 | **−1,496** |
+
+選択の行は定数ではなく分布である —— `select_applicable_skills` は数値キャップを
+適用しない。修正後の run が実際に記録した 72 件の選択で再計算: 選択 2〜7 本
+（p50 5.0、平均 4.5）、system prompt 2,710〜6,678 tok。
+
+「注入スキルが違う」という枠組みが取り逃す帰結が 2 つある:
+
+1. **プロンプト内容だけでなく出力予算のレジームが違っていた。** headroom 2,898 では
+   audit-C2 の事前検査が post を足す前に `num_predict` を残余へクランプする。本番は
+   ≈26,800 なので一切クランプしない。baseline は、本番が課さない予算の下で生成する
+   モデルを測っていた。
+
+2. **fixture の貼り替えだけを行えば eval は死んでいた。** live corpus は 2026-08-08
+   に 45 件へ達した。full-corpus レジームのまま貼り込むと入力推定が窓を超え、
+   `available` が負になり、audit-C2 ガードが全呼び出しを `budget_exceeded` で skip
+   する —— 36 サンプル全て `generation_failed`、測定は何も残らない。古びた fixture に
+   対する自明に見える対処は、単独で行えば欠陥そのものより厳密に悪かった。
+
+3 つ目の帰結は**提示され、そして修正後の run によって反証された**。推測より反証の
+ほうが有用なので記録する。2026-08-06 baseline は 36 サンプル中 34 件で
+`register_natural` に失敗しており、これは `core/llm/prompting.py` の learned-skills
+framing 前文が対抗して書かれた corpus 過積載の病理（「公開コメントが skill 起動の
+足場で始まる」）—— まさに ADR-0081 の two-pass injection が緩和するために存在する
+もの —— に見えた。レジームを修正しても動かなかった。各ペアの両 run をプールした
+72 サンプルで `register_natural` は 65/72 → 70/72 —— 横ばいから微悪化であり、修正後の
+両 run では同一の 35/36 である。支配的な失敗モードは**注入レジームから独立**である。
+それを駆動しているものは生成温度（ADR-0047 の 1.3）・identity・constitution の側に
+あり、どのスキルが注入されるかではない。eval の最大の信号は初めからスキルの話では
+なかった。
+
+他の項目が改善したかどうかは、片腕の読みが示唆するより弱い。ペアごと 72 サンプルで
+プールすると:
+
+| check | 旧ペア（base, repl） | 修正後ペア（A, B） | プール |
+|---|---|---|---|
+| `axiom_consistent` | 2, 2 | 0, 0 | 4 → 0 |
+| `persona_intact` | 9, 5 | 4, 6 | 14 → 10（範囲が重複） |
+| `engages_post` | 1, 0 | 0, 2 | 1 → **2、悪化** |
+| `register_natural` | 34, 31 | 35, 35 | 65 → **70、悪化** |
+
+明確に分離するのは `axiom_consistent` だけである。`persona_intact` は 2 ペアの範囲が
+重なり、2 つの check は逆方向へ動いた。本 amendment の初期稿は「9 → 4、2 → 0、1 → 0」
+—— 旧 baseline と run A だけの比較 —— を引きながら、同じ段落で不利な
+`register_natural` には**両** run を使っていた。これは証拠の選択であり、正直な言明は
+より狭い: **レジーム修正は系を劣化させなかった。`axiom_consistent` を超えて、この
+ペアは改善を示せない。**
+
+### 決定
+
+**eval は注入レジームを継承せず pin し、pin を記録する。**
+`run_eval.INJECTION_REGIME` は `two_pass_selected`。`_configure_pinned_assets` は
+fixture に対して `configure_skill_selection` を enforcement フラグ付きで呼び、
+selection audit を run ディレクトリへ向けるので、各 run は自分が行った選択を保持
+する。これは Decision 4 の「意図的に呼ばない」条項とその再検討トリガーを supersede
+する。
+
+pass 1 は LLM 呼び出しなので、2026-08-06 amendment が安定性のために調整したばかりの
+ゲートに 2 つ目の run 間変動要因を持ち込む。それを避ける代案は 2 つあり、却下理由は
+それぞれ異なる。
+
+*case ごとの選択を fixture へ凍結する* は忠実性で却下する: `evals/generation.py` の
+契約は**アダプタが publish に使う関数そのものを走らせる**ことであり、pass 1 を pin
+するには `generate_comment` の内部に eval 専用の注入シームが要る —— 今直している欠陥を
+1 階層下で作り直すことになる。また**予測された**分散増を根拠に忠実性を捨てるのは、
+本プロジェクトの計器→介入の順序を反転させる。よって分散は捨てるのでなく測った。後の
+読みで分散が許容できないと判明した場合の fallback として記録に残す。
+
+*両レジームを測る* はシームを必要とせず、原理で却下したのではない —— コストで先送り
+した。run のペアがもう 1 組要り（壁時計 ≈2 × 30 分 + 各 36 回の judge 呼び出し）、
+そして**本変更が未解決として受け入れるレジーム対 fixture の交絡を解消できる唯一の
+選択肢**である。後の読みでその帰属が必要になったとき —— 例えば後述の verdict 分布の
+圧縮が問題だと分かったとき —— 復活させること。
+
+### ドリフトを機械的に検出可能にする
+
+より深い欠陥は「レジームが間違っていたこと」ではなく「**記録されていなかった**こと」
+である: 2026-08-06 baseline は自分がどのレジームで生成されたかを答えられない。
+4 つの変更を、それが何を捕捉できたかの昇順で挙げる:
+
+- `injection_regime` を manifest フィールドかつ `check_staleness.py` の covered signal
+  にした。古い baseline はこのフィールドを持たないので diverged と読まれる。これは
+  正しい —— それらは比較可能ではない。
+- `_preflight` は、configure された配線が pin されたレジームを許さないとき、**および**
+  そこへ到達するための決定論的な前提条件が満たされないとき（catalog が空、selection
+  template がロード不能）に実行を拒否する。前者だけではほぼ同語反復である ——
+  `_configure_pinned_assets` が直前にセットした 2 つの global を読むだけだからで、
+  `core.skill_selection` の読み値を `configured_injection_regime()` と命名したのは
+  それを明示するためである: これは**結果ではなく天井**を報告する。
+- `injection_observed` は、run 自身が書いた selection audit を読み戻して、その run の
+  生成が**実際に何をしたか**を記録する。manifest のレジームは意図であり、これは観測
+  である。これが無いと、per-call の fail-open が各 case の分母を黙って縮める ——
+  `aggregate_case` は厳密多数決しか要求しないので case あたり 1 件の欠損は表面化しない
+  —— 一方で manifest は run 全体について pin されたレジームを主張し続ける。
+- `check_staleness.deployment_mismatch()` は eval の pin をインストール済み launchd
+  plist と照合する。**4 つのうち元のドリフトを捕捉できた唯一のもの**である。ドリフトは
+  マシンローカルなデプロイ成果物に住んでおり、他の staleness 信号はすべて baseline を
+  **木**と比較するからである。構造上 best-effort: plist 不在（fresh clone / CI /
+  非 macOS）は沈黙であって苦情ではない。木の側に代替は存在しない —— フラグは呼び出し
+  時に環境から読まれるので、いかなる repo state もその代理にならない。名前が示唆する
+  より狭い: session-agent の plist 1 本しか読まず、`launchctl` がその job をロードして
+  いるかは見えない。
+
+塞がず名前だけ付けた穴が 2 つ残る。pass 1 は自身の sampling 定数
+`_SELECTION_NUM_PREDICT = 400` を生成経路に持ち込んだが、`sampling_state()` はこれを
+記録しない —— ここが変わっても staleness には出ない（pass-1 の*テンプレート*は
+`prompt_templates_sha256` の glob に入るので covered）。そして `deployment_mismatch`
+は上記の plist 1 本しか見ない。
+
+staleness checker 自身の docstring は、この穴を正確に自己申告していた ——
+「recorded constant に触れずに挙動を変える生成経路のコード変更 —— そのトリガーは
+prose + 人間の判断のまま」。穴は開示された上で放置された。これは誠実だが防御には
+なっていなかった。**穴の正確な自己申告は、穴を塞ぐことの代替にならない。**
+
+### 実測
+
+修正後レジームでの full run 2 本（各 12 case × 3 sample）。生データと分析は
+[`docs/evidence/adr-0089/`](../evidence/adr-0089/README.md):
+
+| 読み | 旧レジームのペア（2026-08-06） | 修正後レジームのペア |
+|---|---|---|
+| case verdict flip | 3/12、**全て改善方向・regression 0** | **1/12、しかも regression**（`care-3-adv` DRIFTING → DEVIANT） |
+| ≥1 run で全会一致でなかった case | 8/12 | 8/12 |
+| sample プール | A2/D25/V9 → A5/D26/V5 | A0/D32/V4 → A1/D29/V6 |
+| 最頻 verdict に乗った case | 8/12、7/12 | **12/12、11/12** |
+| `register_natural` の No | 34/36 → 31/36 | 35/36 → 35/36 |
+| 観測された selection | 未測定 | 72/72 `judged`、fail-open 0 |
+
+読みは 4 つあり、**重要な 2 つは不利**である。
+
+**唯一の flip は偽アラームであり、しかも前回 amendment が警告したプロファイル
+そのものである。** 両 run は同一の木であり —— 構成上あらゆる flip がノイズである
+null ペア —— この 1 件は regression 方向へ動き、`persona_intact` が 2-1 マージンで
+決めた。このゲートが regression 検出器として使えるかを決める性質において、修正後
+レジームは偽アラーム 0/12 → **1/12** である。初期稿のように方向を落として「flip 率が
+下がった」と報告することは、読みを反転させる。
+
+**「flip 率が下がった」は支持できない。** 1/12 の Wilson 95% は 1.5〜35.4% で、
+3/12 の 8.9〜53.2% に完全に内包される。P(flip ≤1 | n=12、真の率 25%) = 0.16。この
+観測は**変化なし**と完全に整合する。データが支持するのは *大きな分散増なら見えた
+だろう、中程度なら見えない* まで。選択の凍結へ後退しない根拠には足り、two-pass の
+ほうが安定だと言うには足りない。
+
+**同じ向きに働く交絡があり、それ自体が negative である。** verdict 分布が圧縮した:
+run A は 12/12 case に DRIFTING を与え、run B は 11/12。旧ペアの 8/12・7/12 に対して
+である。多数決ランクの変化を数える指標は、質量がほぼ 1 つのランクに乗ると自動的に
+下がる。よって「1/12 < 3/12」には「分散が増えていない」と同程度以上にもっともらしい
+別解釈があり、そちらはより悪い知らせである: **12 の case が 1 つの verdict を返すのは、
+regression ゲートとして case ごとの判別解像度がほぼゼロということである。** 圧縮が
+two-pass 生成の実性質なのか単なる 1 draw なのかは、1 ペアからは答えられない。
+
+**2 つのペアは同条件の draw ではない。** run 間の間隔は 69.5 分（旧）対 31.5 分
+（修正後）。前回 amendment の中心的な構造的発見は run レベルの*相関*シフトであり、
+半分の間隔しか空いていないペアはそれを駆動するものに晒される度合いが小さい。これも
+修正後ペアの flip 数を下方へバイアスする。
+
+構造的にはゲートは以前と同じく脆い: 一貫した定義（「少なくとも一方の run で全会一致
+でない」）を当てると**両ペアとも 8/12** であり、case の 3 分の 2 は 1 サンプルで決まる。
+旧ペアの解釈規約（*単一 run で flip ≤3 case の改善主張はノイズと区別不能*）は誤った
+レジームの下で測られたものであり、転用せず測り直すべきである。今回の 1/12 は 1 つの
+draw であって床ではない。
+
+コスト: pass 1 はサンプルごとに Ollama 呼び出しを 1 回追加する（既定 run で 36 回）。
+Decision 7 と Negative の項目は full run のコストを「約 19 分」と記録しているが、その
+数字は退役したレジームを指しており、現在は**古い**。どちらの run JSON も所要時間を
+記録していないため、ここで得られる上界は A→B の開始間隔から run A ≤31.5 分まで。
+再測定は次の run に委ねる。
+
+2026-08-06 baseline はこれらの run と**比較可能ではなく**、差分を取ることもできない:
+`compare.py` は manifest 不一致を incomparable（exit 2）と扱う。これは正しい挙動で
+ある —— 異なる 2 つの系にまたがって「regression」を計算することこそが誤りであって、
+防御されるべき対象ではない。よって新しい baseline は差分ではなく新しい起点であり、
+その承認は人間のゲートのままである。
+
+ただし、manifest にレジームを記録しただけでは**比較不能にはならなかった**:
+`compare.py` は `COMPARABILITY_FIELDS` から比較可能性を決めており、その集合に無い
+フィールドはゲートが無視するフィールドである。2026-08-06 baseline は
+`assets_sha256`（再スナップショット）で divergence したので、その理由だけで既に
+弾かれていた —— つまり防御は働いているように見えて、無関係なフィールドに依存して
+いた。fixture が不変だったなら、full-corpus baseline は two-pass run と綺麗に比較
+され、異なる 2 つの系の間の差分を報告していた。`injection_regime` は現在
+comparability contract に入っている。一般化すれば、これは本 amendment 自身の主題が
+1 階層下で再来したものである: **成果物に記録された事実は、ゲートが強制する事実では
+ない** —— ゲートには別途伝えなければならない。
+
+本変更では 2 つの変数が同時に動いた: レジーム修正と fixture 再スナップショット
+（37 → 45 件）。verdict の変化をどちらに帰属させるかは判別できない。分離しなかったのは、
+代替の腕 —— 旧 37 件 fixture × 新レジーム —— もまた存在しない系を測るからである
+（本番は 45 件を持つ）。production 忠実な構成は測った 1 つだけである。
+
+### 新たに判明した運用上の露出（記録のみ、修正はしない）
+
+45 件が live になった結果、ADR-0081 の fail-open 経路はもう context 窓に入らない:
+pass-1 selector が失敗すると注入は推定 34,264 tok の full corpus へ degrade するが、
+audit-C2 ガードはそれを劣化しつつ成功する生成ではなく `budget_exceeded` の skip に
+変える。graceful degradation は静かに hard stop になっていた —— eval だけでなく本番も
+同様であり、これはいかなる決定によってでもなく corpus の成長が越えた閾値である。
+`_preflight` は fallback が skip される状況で警告を出すようになり、
+`injection_observed` によって発生が監査可能になった。修正は ADR-0081 の fail-open の
+退避先と corpus 成長ポリシーの問題であって eval の問題ではないため、
+`T-FAILOPEN-OVERFLOW` として追跡する。

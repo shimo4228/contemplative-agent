@@ -122,7 +122,7 @@ As of **2026-08-08** (live recount) — values are measured, never carried forwa
 |--------|-------|
 | Total `.py` files | 79 (70 non-`__init__` + 9 `__init__`) |
 | LOC | ~25289 |
-| Test files | 81 (2704 tests collected) |
+| Test files | 82 (2731 tests collected) |
 | Eval layer modules | 7 (`evals/` excl. `__init__.py`; outside `src/` and outside the wheel — measures LLM output quality, ADR-0089) |
 | Core modules | 31 (platform-independent; incl. `llm/` package as one row) |
 | Moltbook adapter modules | 17 |

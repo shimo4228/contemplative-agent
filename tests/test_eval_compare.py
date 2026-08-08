@@ -98,6 +98,22 @@ class TestCompareRuns:
         with pytest.raises(IncomparableRunsError, match=field):
             compare_runs(base, cur)
 
+    def test_a_regime_change_alone_makes_runs_incomparable(self):
+        """ADR-0089 amendment: two injection regimes are two systems.
+
+        Named rather than left to the parametrized sweep above because the
+        scenario is specific and was a real hole: recording
+        ``injection_regime`` in the manifest did not make regimes
+        incomparable until the field was added to the comparability
+        contract. Every other manifest field matches here — exactly the case
+        that would have compared cleanly and reported a delta between two
+        different systems.
+        """
+        base = _run([_case("a", "ADHERENT")], injection_regime="full_corpus")
+        cur = _run([_case("a", "DEVIANT")], injection_regime="two_pass_selected")
+        with pytest.raises(IncomparableRunsError, match="injection_regime"):
+            compare_runs(base, cur)
+
     def test_deepeval_version_is_informational_only(self):
         base = _run([_case("a", "ADHERENT")])
         cur = _run([_case("a", "ADHERENT")], deepeval_version="9.9.9")

@@ -57,7 +57,12 @@ forcing the C2 budget guard to clamp `num_predict` on `cooperation_post`.
    second selector call.
 3. Fail-open semantics: any selector failure (`fail_open_llm`,
    `fail_open_parse`, `empty_catalog`, `no_template`) falls back to
-   full-corpus injection — exactly today's behavior. Hallucinated
+   full-corpus injection — exactly today's behavior.
+   *(No longer true as of 2026-08-08: with 45 skills the full corpus
+   exceeds `NUM_CTX`, so the fallback is skipped as `budget_exceeded`
+   rather than degraded. A threshold crossed by corpus growth, not by any
+   decision. See the ADR-0089 Amendment (2026-08-08) and
+   `T-FAILOPEN-OVERFLOW`; the enforcement decision below is unaffected.)* Hallucinated
    (non-catalog) names remain rejected and are never resolved to bodies. A
    judged-but-empty selection injects no skill bodies (an empty selection
    is a judgment, not a failure).
@@ -119,6 +124,9 @@ unattended scheduled session (prototype-before-scale).
 
 - Selection errors now affect generation quality — mitigated by
   fail-open-to-full-injection and by the continuing audit log.
+  *(The first mitigation lapsed on 2026-08-08 — see the note on Decision 3.
+  A fail-open now loses the generation instead of degrading it, so this
+  bound no longer holds as stated.)*
 - The selection→generation→distill→skills loop becomes self-referential,
   which is the explicit subject of the next reading window.
 - T-INSIGHT-NOVELTY's rejected "~500 tok always-injected" premise changes

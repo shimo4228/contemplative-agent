@@ -1,10 +1,16 @@
-"""Skill-selection shadow instrument (ADR-0076).
+"""Skill-selection instrument and pass-1 selector (ADR-0076, ADR-0081).
 
-Pass-1 LLM applicability selection over the learned-skill catalog, run in
-shadow mode: the selection is recorded to an append-only audit log and has
-zero effect on what the system prompt injects. The log feeds the
-``report --skill-selection`` reading (ADR-0071 style) that will inform a
-later enforcement decision.
+Pass-1 LLM applicability selection over the learned-skill catalog. Every
+selection is recorded to an append-only audit log; whether it also feeds
+back into injection depends on the ADR-0081 rollout flag, so this module
+has two live regimes rather than one — see ``configured_injection_regime()``,
+which is
+the single place that names them. It shipped shadow-only (ADR-0076,
+recorded but inert) and gained flag-gated two-pass enforcement in
+``0723726`` (ADR-0081); the launchd plist has carried the flag since
+2026-08-01. Prose that still describes this module as shadow-only is stale
+— a 2026-08-08 eval defect traced back to exactly that (ADR-0089
+amendment).
 
 Design constraints inherited from ADR-0036: applicability is a semantic
 judgment, so it belongs to the LLM (mechanism-vs-value-split) — no cosine
@@ -22,7 +28,7 @@ import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal, TypeAlias
 
 import numpy as np
 
@@ -269,6 +275,114 @@ def enforcement_enabled() -> bool:
     import os
 
     return os.environ.get("MOLTBOOK_SKILL_SELECTION_ENFORCE") == "1"
+
+
+# The three states of "what reaches <learned_skills>". Named because the
+# distinction that matters downstream is *what was injected*, not whether
+# the selector ran: shadow observation records a selection and still injects
+# the whole corpus, so it is a full-corpus regime with a log, not a third
+# injection behaviour. Consumed by the eval manifest (ADR-0089 amendment) —
+# a run that cannot say which of these it measured is not comparable to one
+# that can.
+InjectionRegime: TypeAlias = Literal[
+    "full_corpus", "full_corpus_shadow_observed", "two_pass_selected"
+]
+
+REGIME_FULL_CORPUS: InjectionRegime = "full_corpus"
+REGIME_FULL_CORPUS_SHADOW: InjectionRegime = "full_corpus_shadow_observed"
+REGIME_TWO_PASS_SELECTED: InjectionRegime = "two_pass_selected"
+
+
+def configured_injection_regime() -> InjectionRegime:
+    """The regime this module's *configuration* permits — not the regime any
+    particular call ends up taking.
+
+    Derived from the two conditions ``shadow_observe_skill_selection``
+    short-circuits on before it does any work, in the same order: the kill
+    switch (``audit_dir`` unset) wins over the flag, so an enforcement flag
+    set against an unconfigured instrument still means full injection.
+
+    **This is a ceiling, not an outcome.** ``two_pass_selected`` here means
+    "two-pass injection is reachable", and four further conditions can still
+    send an individual call back to full-corpus injection: an empty catalog,
+    an unloadable selection template, and the two fail-open verdicts
+    (``fail_open_llm`` / ``fail_open_parse``), none of which are visible to
+    a configuration reading. Callers that need the regime a call *actually
+    took* must read the per-call ``enforced`` field in the selection audit
+    log; ``observed_injection_outcomes()`` aggregates that for a run. Naming
+    this function for the outcome would repeat, one layer down, the defect
+    ADR-0089's amendment exists to fix.
+    """
+    if _audit_dir is None:
+        return REGIME_FULL_CORPUS
+    return REGIME_TWO_PASS_SELECTED if enforcement_enabled() else REGIME_FULL_CORPUS_SHADOW
+
+
+def selection_preconditions_unmet() -> str | None:
+    """Why two-pass injection could not be reached even under the flag, or
+    ``None`` when the deterministic preconditions hold.
+
+    Covers the two short-circuits that are knowable *before* any LLM call —
+    an empty catalog and an unloadable selection template. The two fail-open
+    verdicts are per-call and inherently not preflightable; they are visible
+    only after the fact, in the audit log. Returned as a reason string
+    rather than a bool so a caller can put the cause in its own diagnostic
+    (silent-fallback prohibition, ADR-0075).
+    """
+    if not load_skill_catalog(_skills_dir):
+        return f"empty skill catalog at {_skills_dir}"
+    try:
+        if not _load_selection_template().strip():
+            return "selection prompt template is empty"
+    except Exception as exc:  # template registry failure is a precondition failure
+        return f"selection prompt template unloadable: {type(exc).__name__}: {exc}"
+    return None
+
+
+def observed_injection_outcomes(audit_dir: Path) -> dict[str, Any]:
+    """Counts of what injection each recorded observation *actually* took.
+
+    The configured regime is an intent; this is the outcome. Every record
+    carries ``enforced`` (whether the selection fed back into injection), so
+    a run can report how many of its generations really ran two-pass and how
+    many fell back to the full corpus — the difference
+    ``configured_injection_regime()`` structurally cannot see.
+
+    Counts and verdict names only. The records embed the selection situation
+    (untrusted post bodies, base64) and must never be rendered by an
+    aggregate, the same boundary ``format_skill_selection_report`` observes
+    (ADR-0083). An unreadable or absent directory yields zeroes with a
+    reason rather than an exception — this is an instrument, and a broken
+    instrument must not break its subject.
+    """
+    out: dict[str, Any] = {"records": 0, "enforced": 0, "fell_back": 0, "verdicts": {}}
+    if not audit_dir.is_dir():
+        out["unavailable"] = f"no selection audit directory at {audit_dir}"
+        return out
+    for path in sorted(audit_dir.glob("skill-selection-*.jsonl")):
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError as exc:
+            out["unavailable"] = f"unreadable {path.name}: {exc}"
+            continue
+        for line in lines:
+            if not line.strip():
+                continue
+            try:
+                record = json.loads(line)
+            except ValueError:
+                out["verdicts"]["UNPARSEABLE_RECORD"] = (
+                    out["verdicts"].get("UNPARSEABLE_RECORD", 0) + 1
+                )
+                continue
+            out["records"] += 1
+            verdict = str(record.get("verdict", "MISSING_VERDICT"))
+            out["verdicts"][verdict] = out["verdicts"].get(verdict, 0) + 1
+            if record.get("enforced"):
+                out["enforced"] += 1
+            else:
+                out["fell_back"] += 1
+    return out
 
 
 def selected_skills_block(selected: tuple[str, ...]) -> str:

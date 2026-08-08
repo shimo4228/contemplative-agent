@@ -38,6 +38,14 @@ COMPARABILITY_FIELDS = frozenset(
         "dataset_sha256",
         "samples_per_case",
         "case_ids",
+        # ADR-0089 amendment (2026-08-08): two runs under different skill
+        # injection regimes measure different systems, so their verdicts are
+        # not a delta. Recording the regime in the manifest is not enough —
+        # comparability is decided here, and a field the contract omits is a
+        # field the gate ignores. Without this entry a full-corpus baseline
+        # would silently compare against a two_pass_selected run whenever the
+        # other fields happened to match.
+        "injection_regime",
     }
 )
 
