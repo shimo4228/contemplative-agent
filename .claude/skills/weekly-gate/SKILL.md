@@ -101,12 +101,39 @@ artifact — 要約に畳まない）。承認されたものだけ apply し、
 
 packet の推奨（RECOMMEND: adopt/reject + 理由）を item ごとに提示し判断を仰ぐ。
 
-- **全件 adopt** で合意 → `contemplative-agent adopt-staged --yes`（audit には
-  `stage-adopted-auto` として残る）
-- **部分採用** → per-item の監査記録は対話プロンプトが担うため、ユーザーに
-  ターミナルでの `contemplative-agent adopt-staged` 対話実行を依頼する
-  （`--yes` は全件一括のみ。staging ファイルの直接削除は ADR-0012 の
-  auditable-CLI 原則に反するので行わない）
+判断が固まったら、合意の形に対応する経路を選ぶ。どれも ADR-0012 の per-item 監査要件を
+満たす（監査 source が経路ごとに分かれるので、後から「どう決めたか」を復元できる）:
+
+| 合意の形 | コマンド | audit source |
+|---|---|---|
+| 全件 adopt | `contemplative-agent adopt-staged --yes` | `stage-adopted-auto` |
+| 部分採用（非対話、既定） | `contemplative-agent adopt-staged --adopt-names FILE [--reject-rest]` | `stage-adopted-names` |
+| 部分採用（ユーザーがターミナルで対話実行） | `contemplative-agent adopt-staged` | `stage-adopted` |
+
+部分採用は非対話で完結する（`--adopt-names`）ので、ユーザーへ対話実行を依頼する必要は
+ない。FILE は adopt する staged item の**ファイル名を 1 行 1 件**で列挙する。名前の正本は
+`ls "$MOLTBOOK_HOME/.staged/"*.md`（packet §4 の見出し名は LLM 記述の散文で、衝突時の
+`-N` 接尾辞も付かないため、そのまま転記しない）。照合はファイル名で行うため反復順に
+依存しない。`--yes` とは排他。
+
+**`--reject-rest` は既定で付ける。** 列挙されなかった item を監査記録付きで reject する。
+省略すると残りは staged のまま残り、`_stage_results_locked`（ADR-0074 の pending ガード）が
+**翌週の insight batch 全体を拒否する** — 翌週の packet §4 が空になり、「候補なし」と
+誤読される。意図的に 1 週間持ち越す場合だけ省略し、その判断を記録する。
+
+**安全側に倒れる性質**（ゲートで効くので理解して使う）:
+
+- 未知の名前が 1 つでもあれば、**何も触らずに abort** する（typo が「その item だけ
+  reject される」形で通らない）
+- FILE が空・読めない場合も abort する。`--reject-rest` との組合せで staging 全体を
+  「個別に判断した reject」として消し去るのを防ぐため（2026-08-01 security review C2）
+- `--reject-rest` を `--adopt-names` なしで単独指定するのは拒否される
+
+staging ファイルの直接削除は ADR-0012 の auditable-CLI 原則に反するので行わない。
+
+この 3 分岐の遵守は skill-comply で 1 度測っている（`--yes` への転落は観測されず、
+明示的に `--yes` を勧める prompt でも押し返した。ただし無誘導の段は分岐に到達せず
+未決）— [docs/evidence/weekly-gate-step4-comply-20260808/](../../../docs/evidence/weekly-gate-step4-comply-20260808/README.md)。
 
 ### Step 5. Dead code candidates（packet 5 節があれば）
 
