@@ -670,3 +670,130 @@ decision. `_preflight` now warns when the fallback would be skipped, and
 `injection_observed` makes the occurrence auditable. Fixing it is a
 question about ADR-0081's fail-open destination and the corpus growth
 policy, not about the eval, and is tracked as `T-FAILOPEN-OVERFLOW`.
+
+## Amendment (2026-08-08b): the staleness check counted templates the eval never reads
+
+`prompt_templates_sha256` globbed `config/prompts/*.md` wholesale. The
+script-read documents among them — `principles`, `weekly-analysis`,
+`weekly-analysis-ja`, `fix-implementation`, `fix-review`,
+`insight-recommendation`, `pipeline-improvement` — have no `PromptTemplates`
+field and are read only by `scripts/weekly-analysis.sh` and
+`scripts/weekly-pipeline.sh`. Editing one reported the approved baseline as
+stale for a change that cannot move a single measured verdict. (The
+loaded-versus-script-read split is inventoried canonically in
+[docs/CONFIGURATION.md](../CONFIGURATION.md), pinned by
+`test_configuration_canonical_counts_match_reality`; it stood at 38 and 7
+when this was written.)
+
+The amendment above did not address this. Narrowing one staleness signal
+inside the PR that repaired another would have muddied which change fixed
+what, so it was left for a separate change — this one.
+
+The cost of the false positive was never a blocked commit — `verify.sh`
+surfaces staleness as a warning by design. It was that a check which cries
+wolf trains its reader to dismiss it, and the defect the previous amendment
+repaired *was* a dismissed prose trigger. Growing a second instance of that
+failure mode in the same series was the thing to avoid.
+
+### Allowlist, not an exclusion list
+
+The hash input is now derived from the `PromptTemplates` field names
+(`evals/run_eval.hashed_prompt_paths`). A hand-written exclusion list would
+have been a second copy of `tests/test_packaged_assets.SCRIPT_READ_PROMPTS`
+with nothing keeping the two in agreement. Deriving from the registry means
+a new template is covered the moment it gains a field, and a script-only
+document is excluded the moment `test_every_prompt_file_is_consumed` forces
+it into the other bucket at PR time.
+
+The residual risk runs in the detection-miss direction: a template read
+directly by generation-path code without a `PromptTemplates` field would be
+silently excluded. The orphan guard makes the *un-bucketed* case a PR-time
+error; a template mis-filed into `SCRIPT_READ_PROMPTS` with a plausible
+consumer comment would still pass it, so for that case the guard is PR-time
+review rather than a check. Two guards added here narrow it further:
+`test_each_field_loads_the_file_named_after_it` asserts the loader's 38
+hand-written `read("<name>.md")` calls actually match their field names —
+`hashed_prompt_paths` derives the hash input from field names and would
+otherwise hash the wrong file, which is worse than missing one — and
+`test_every_script_read_prompt_has_a_real_script_consumer` turns
+`SCRIPT_READ_PROMPTS`' "must name its consumer" from prose into a check,
+since this change made that set load-bearing for the digest.
+
+`prompt_templates_sha256` also gained its first divergence test — it had
+none, which is how a comparability field's definition could be narrowed
+with nothing asserting the narrowing still registered — and a set of
+digest-sensitivity tests. The selection tests alone would all have passed
+against a mutant that ignored the allowlist and globbed all 45 again
+(verified by running exactly that mutation); the sensitivity tests fail it.
+
+### What this does not fix
+
+Registry membership is not generation-path membership. The comment face
+loads a single-digit number of templates — `comment`, the untrusted
+wrapper/marker set, `skill_selection`, and the two framing templates —
+so editing `distill.md` or `rules_distill.md` still reports this baseline
+stale for a change that cannot move a measured verdict. The false-positive
+surface went from 45 to 38, not to 8.
+
+Hashing only the templates the measured face actually loads was the third
+option and is not taken. There is no registry to derive that set from — it
+would be a hand-written list keyed to one face, needing revision every time
+the generation path changes and every time a second face lands (the distill
+face is already reserved). That is the exclusion-list maintenance problem
+with a narrower blast radius and a face-specific twist, traded for a
+false-positive class that is much rarer than the one just closed: the
+script-read documents are edited by the weekly pipeline work, the distill
+templates are not.
+
+### Back-filling the approved baseline
+
+Changing the definition changes the value (`10de30ee…` → `6fdb301f…`), so
+the approved `comment_golden-2026-08-08` baseline stopped matching the tree
+and `compare.py` would have rejected it as incomparable. The value was
+back-filled rather than re-measured, on a stronger basis than the
+`0d36943` precedent above — but the strength comes from a step that has to
+be stated, because the obvious argument does not carry it.
+
+Recomputing the *new* metric against the tree at the baseline's own commit
+(`1dec2d6`) yields `6fdb301f…`, and `config/prompts/` and `config/domain.json`
+have no commits between `1dec2d6` and now. On its own that establishes the
+value *at that commit*, and the baseline run finished at 05:35 UTC while
+`1dec2d6` landed ~1.5 h later with the tree uncommitted in between — which
+is the same run-versus-commit inference `0d36943` rested on, not a
+replacement for it.
+
+What closes the gap is the run's own emitted value. Recomputing the *old*
+wholesale-glob metric at `1dec2d6` reproduces `10de30ee…`, byte-identical to
+the scalar this change replaces. The run therefore measured that commit's
+tree, and the new-rule recomputation over the same tree is what the run
+would have recorded had this rule existed then. `0d36943` had no run-emitted
+value under the definition being introduced and so could not make this
+argument.
+
+**The reusable condition**, since this is now the second back-fill: a
+comparability field's definition may be narrowed with a back-fill instead of
+a re-run when the new value is deterministically recomputable from committed
+tree state *and* the run's own old value reproduces there. The second half is
+what pins the artefact to the tree; without it the back-fill is a judgment
+call, which is fine but should be labelled as one.
+
+Nothing else in the baseline moved: 12 cases, all verdicts intact.
+`check_staleness.py` exits 0 after the change.
+
+Two classes of artefact do keep the old-definition value, deliberately. The
+superseded `comment_golden-2026-08-06` baseline was already incomparable for
+lacking `injection_regime`. The published run records under
+`docs/evidence/adr-0089/` — `regime-run-A-20260808T053509Z.json` and its B
+pair, the very runs this baseline was promoted from — still carry
+`10de30ee…`, so `compare.py` now rejects a baseline-versus-evidence
+comparison on the field this change touched. That is the right behaviour for
+an evidence file, which records what a run emitted rather than what the
+definition later became, but it means the earlier claim to make here — "no
+artefact newly breaks" — would have been false. What does not break is any
+*approved baseline*; a reader diffing the evidence copies against the
+baseline will hit exit 2 and should read this paragraph as the reason.
+
+A field whose meaning changed while its name did not is the untidy part of
+this fix, accepted because the alternative — a new field name plus a
+compatibility branch in `compare.py` — carries more permanent complexity
+than the stale historical scalars it would avoid.

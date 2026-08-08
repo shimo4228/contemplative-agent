@@ -28,6 +28,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import hashlib
 import json
 import os
@@ -82,16 +83,55 @@ RESULTS_DIR = EVALS_DIR / "results"
 REPO_ROOT = EVALS_DIR.parent
 
 
+def hashed_prompt_paths() -> list[Path]:
+    """The prompt documents that count as eval inputs, sorted.
+
+    Derived from the ``PromptTemplates`` field names rather than a glob of
+    ``config/prompts/*.md``. Seven of those files have no field and are read
+    only by ``scripts/weekly-analysis.sh`` and ``scripts/weekly-pipeline.sh``,
+    never reaching the agent's generation path, so the glob reported the
+    baseline stale for edits that could not move a single measured verdict
+    (2026-08-08b amendment). Staleness never blocks, so the cost of the false
+    positive was not a broken gate — it was training the reader to dismiss
+    the warning, which is the same failure the amendment that introduced this
+    check was written to repair.
+
+    Allowlist rather than a hand-written exclusion list: an exclusion list
+    would be a second copy of ``tests/test_packaged_assets.
+    SCRIPT_READ_PROMPTS`` with nothing holding the two in agreement. Deriving
+    from the registry means a new template is covered the moment it gains a
+    field, and a new script-only document is excluded the moment the orphan
+    guard in that same test forces it into the other bucket.
+
+    Deliberate residual risk: a template read directly by generation-path
+    code *without* a ``PromptTemplates`` field would be silently excluded —
+    the detection-miss direction. That orphan guard makes it a PR-time error
+    rather than a quiet drift, which is why the allowlist is acceptable here
+    and would not be without it. ``tests/test_eval_prompt_glob.py`` pins both
+    the selection and the digest's response to it.
+
+    Imported lazily for the reason given above the deterministic-core
+    imports: nothing from ``contemplative_agent`` may load at this module's
+    import time (MOLTBOOK_HOME capture hazard). Same shape as
+    :func:`sampling_state`.
+    """
+    from contemplative_agent.core.domain import PromptTemplates
+
+    stems = {f.name for f in dataclasses.fields(PromptTemplates)}
+    return sorted(p for p in (REPO_ROOT / "config" / "prompts").glob("*.md") if p.stem in stems)
+
+
 def prompt_templates_sha256() -> str:
     """Digest of the repo-pinned template layer the eval generation reads.
 
-    The scratch MOLTBOOK_HOME has no prompts/ override, so config/prompts/
-    and config/domain.json ARE generation inputs (Decision 3) — editing
-    comment.md is the single most likely prompt change and must register as
-    baseline staleness. Shared with evals/check_staleness.py.
+    The scratch MOLTBOOK_HOME has no prompts/ override, so the registry's
+    templates and config/domain.json ARE generation inputs (Decision 3) —
+    editing comment.md is the single most likely prompt change and must
+    register as baseline staleness. Which templates count is
+    :func:`hashed_prompt_paths`. Shared with evals/check_staleness.py.
     """
     digest = hashlib.sha256()
-    for path in sorted((REPO_ROOT / "config" / "prompts").glob("*.md")):
+    for path in hashed_prompt_paths():
         digest.update(path.name.encode())
         digest.update(path.read_bytes())
     domain = REPO_ROOT / "config" / "domain.json"

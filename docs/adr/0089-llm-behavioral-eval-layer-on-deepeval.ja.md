@@ -618,3 +618,110 @@ audit-C2 ガードはそれを劣化しつつ成功する生成ではなく `bud
 `injection_observed` によって発生が監査可能になった。修正は ADR-0081 の fail-open の
 退避先と corpus 成長ポリシーの問題であって eval の問題ではないため、
 `T-FAILOPEN-OVERFLOW` として追跡する。
+
+## Amendment (2026-08-08b): staleness 検査が eval の読まない template まで数えていた
+
+`prompt_templates_sha256` は `config/prompts/*.md` を一括 glob していた。うち script が読む
+文書 —— `principles` / `weekly-analysis` / `weekly-analysis-ja` / `fix-implementation` /
+`fix-review` / `insight-recommendation` / `pipeline-improvement` —— は `PromptTemplates` の
+フィールドを持たず、`scripts/weekly-analysis.sh` と `scripts/weekly-pipeline.sh` だけが読む。
+その 1 本を編集しただけで、測定される verdict を 1 つも動かしえない変更に対して承認済み
+baseline が古いと報告されていた。（loaded と script-read の内訳の正本は
+[docs/CONFIGURATION.md](../CONFIGURATION.md)、`test_configuration_canonical_counts_match_reality`
+が機械的に固定する。本稿執筆時点で 38 と 7。）
+
+上の amendment はこれに手を付けていない。ある staleness 信号を修理する PR の中で別の
+staleness 信号を狭めると、どちらの変更が何を直したのかが濁るため、別の変更に回した ——
+それが本稿である。
+
+誤検知の代償は commit の阻害ではない。`verify.sh` は設計上 staleness を warning として
+扱う。代償は、鳴りすぎる検査が読み手を「無視する」よう訓練することであり、直前の
+amendment が修理した欠陥そのものが**黙殺された散文トリガー**だった。同じ失敗モードを
+同じ系列の中で二例目に育てることが、避けるべきことだった。
+
+### 除外リストではなく allowlist
+
+ハッシュ対象は `PromptTemplates` のフィールド名から導出するようにした
+（`evals/run_eval.hashed_prompt_paths`）。手書きの除外リストは
+`tests/test_packaged_assets.SCRIPT_READ_PROMPTS` の 2 つ目の複製になり、両者の一致を
+保証するものが存在しない。registry から導出すれば、新しい template はフィールドを得た
+瞬間に対象へ入り、新しい script 専用文書は同じテストの orphan guard がもう一方の bucket へ
+強制した瞬間に除外される。
+
+残存リスクは検知漏れ方向にある: `PromptTemplates` のフィールドを持たずに生成経路の
+コードが直読みする template は黙って除外される。orphan guard が error にできるのは
+**bucket に入っていない**場合であり、もっともらしい consumer コメントを付けて
+`SCRIPT_READ_PROMPTS` へ**誤って**入れた場合は通ってしまう —— その場合の guard は
+検査ではなく PR 時のレビューである。本稿で 2 つの guard を追加して範囲を狭めた:
+`test_each_field_loads_the_file_named_after_it` は loader の 38 本の手書き
+`read("<name>.md")` がフィールド名と一致することを検査する（`hashed_prompt_paths` は
+フィールド名からハッシュ対象を導くので、ここが崩れると**別のファイルをハッシュする** ——
+取りこぼしより悪い）。`test_every_script_read_prompt_has_a_real_script_consumer` は
+`SCRIPT_READ_PROMPTS` の「consumer を明記せよ」を散文から検査に変える。本変更でこの集合が
+digest にとって load-bearing になったためである。
+
+`prompt_templates_sha256` は初めて divergence テストを得た —— これまで 1 本も無く、
+それが comparability field の定義を、狭めても検知に出ることを誰も主張しないまま
+変更できた理由である。あわせて digest 感度のテストを追加した。選択のテストだけでは、
+allowlist を無視して 45 本を glob し直す mutant に対して全部 pass してしまう
+（実際にその mutation を走らせて確認した）。感度テストはこれを落とす。
+
+### 本変更が直さないもの
+
+registry のメンバーであることは生成経路のメンバーであることを意味しない。comment face が
+実際にロードする template は一桁本（`comment`、untrusted の wrapper / marker 群、
+`skill_selection`、framing 2 本）であり、`distill.md` や `rules_distill.md` を編集しても
+やはり「測定される verdict を動かしえない変更」で baseline が古いと報告される。
+誤検知の面は 45 → 38 になったのであって 8 にはなっていない。
+
+測定対象の face が実際にロードする template だけをハッシュする案が第 3 の選択肢であり、
+採らなかった。導出元になる registry が存在せず、1 つの face に紐づく手書きリストになるため、
+生成経路が変わるたびと 2 つ目の face が入るたびに改訂が要る（distill face は予約済み）。
+これは除外リストの保守問題を blast radius だけ狭めて face 依存の捻りを足したものであり、
+引き換えに閉じる誤検知は今回閉じたものよりはるかに稀である —— script 読みの文書は週次
+パイプラインの作業で編集されるが、distill の template はされない。
+
+### 承認済み baseline の back-fill
+
+定義を変えると値が変わる（`10de30ee…` → `6fdb301f…`）ので、承認済み
+`comment_golden-2026-08-08` は tree と一致しなくなり、`compare.py` は比較不能として
+これを拒否することになる。再測定でなく back-fill を採ったが、その根拠は `0d36943` の
+先例より強い —— ただし強さの出どころは明示を要する一段にあり、自明な議論の方では
+足りない。
+
+baseline 自身の commit（`1dec2d6`）の木に対して**新しい**metric を再計算すると
+`6fdb301f…` が得られ、`config/prompts/` と `config/domain.json` には `1dec2d6` 以降の
+commit が無い。これだけでは**その commit における**値を示すに留まる。baseline run は
+05:35 UTC に終わり、`1dec2d6` はその約 1.5 時間後に、間のツリーを未コミットのまま
+landed している —— これは `0d36943` が依拠したのと同じ run 対 commit の推論であって、
+その代替ではない。
+
+隙間を閉じるのは run 自身が出力した値である。`1dec2d6` の木に対して**古い**一括 glob の
+metric を再計算すると `10de30ee…` が再現し、本変更が置き換えるスカラーと byte 単位で
+一致する。したがって run はその commit の木を測っており、同じ木に対する新ルールの再計算は
+「当時この規則があれば run が記録していたはずの値」である。`0d36943` には導入しようとする
+定義の下での run 出力値が存在せず、この議論ができなかった。
+
+**再利用可能な条件**（back-fill はこれで 2 度目なので明記する）: comparability field の
+定義は、新しい値が commit 済みの木の状態から決定論的に再計算でき、**かつ** run 自身の
+古い値がそこで再現するとき、再実行でなく back-fill で狭めてよい。後半が artefact を木に
+固定する部分であり、これが無ければ back-fill は判断であって、判断であること自体は
+構わないがそう明記すべきである。
+
+baseline の他の部分は動いていない: 12 ケース、全 verdict そのまま。変更後
+`check_staleness.py` は exit 0。
+
+古い定義の値を保持し続ける artefact が 2 種類あり、これは意図的である。退役した
+`comment_golden-2026-08-06` は `injection_regime` を欠くため元から比較不能だった。
+`docs/evidence/adr-0089/` に公開されている run 記録 ——
+`regime-run-A-20260808T053509Z.json` と B の対、まさにこの baseline の昇格元 —— は
+`10de30ee…` を保持しているので、`compare.py` は baseline 対 evidence の比較を、本変更が
+触れたそのフィールドで拒否するようになった。evidence ファイルは定義が後にどうなったかでなく
+run が何を出力したかを記録するものなので挙動としては正しいが、ここで書きたくなる
+「新たに壊れる artefact は無い」は偽になる。壊れないのは**承認済み baseline** である。
+evidence の写しを baseline と diff した読者は exit 2 を踏むので、その理由として本段落を
+読んでほしい。
+
+名前は同じまま意味が変わったフィールドが本修正の untidy な部分であり、受け入れた。
+代替 —— 新しいフィールド名 + `compare.py` の互換分岐 —— が回避する古いスカラーより、
+恒久的な複雑さの方が大きいためである。

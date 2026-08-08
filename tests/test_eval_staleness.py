@@ -21,6 +21,7 @@ def _manifest(**overrides) -> dict:
         "temperature": 1.3,
         "assets_sha256": "aaa",
         "judge_prompt_sha256": "bbb",
+        "prompt_templates_sha256": "ddd",
         "dataset_sha256": "ccc",
         "injection_regime": "two_pass_selected",
     }
@@ -39,6 +40,11 @@ class TestDivergences:
             "temperature",
             "assets_sha256",
             "judge_prompt_sha256",
+            # Untested until 2026-08-08 despite being a comparability field,
+            # which is how its definition could be narrowed with nothing
+            # asserting that narrowing still registered as divergence.
+            # What it hashes is pinned separately in test_eval_prompt_glob.
+            "prompt_templates_sha256",
             "dataset_sha256",
             # ADR-0089 amendment: the 2026-08-06 baseline could not say which
             # injection regime it measured, so a silent switch to two-pass

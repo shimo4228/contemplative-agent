@@ -7,7 +7,7 @@
     "judge_model": "claude-sonnet-5",
     "assets_sha256": "f29f85d31baa57a9e7fe4428ecda3ec291199fd7b322d81f65d9e026aa5c111d",
     "judge_prompt_sha256": "3b575f5355df50e6c9c511fe55b9ade8df5c9f5cab7ad55b48b986f958295b0a",
-    "prompt_templates_sha256": "10de30ee6de7b3cc3390415894900af124e40a7940593d52412158a9325ee9d7",
+    "prompt_templates_sha256": "6fdb301f0a1c0f4c0a494f7280c53dbdd63b1af1db870ca5aebb23826a8adbbf",
     "injection_regime": "two_pass_selected",
     "sampling": {
       "num_ctx": 32768,
