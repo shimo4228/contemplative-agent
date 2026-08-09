@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-08 (weekly-analysis skill-selection intake) | Files scanned: 74 | Token estimate: ~9179 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-09 (ADR-0088/0089/0090: testing/ + evals/ + IPD two-arm bench) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15161 -->
 # Architecture
 
 ## Project Type
@@ -42,7 +42,7 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
 
 `core/ ← adapters/ ← cli/` (one direction). The `cli/` package (composition root; formerly the single-file cli.py, split per ADR-0079) is the only layer importing both. Meditation/dialogue adapters depend on core/ only; they do not import moltbook adapter.
 
-`testing/` (the ADR-0088 conformance kit) is outside that stack and constrained by two `forbidden` contracts rather than a fourth layer: no production layer may import it, and it may import `core` only — not `cli`, not `adapters`. A `layers` entry would have stated the direction correctly and *also* permitted `testing → adapters`, pulling the Moltbook HTTP client into a sibling repository's test dependencies. All four contracts fire from `uv run lint-imports` and from `tests/test_architecture.py`.
+`testing/` (the ADR-0088 conformance kit) is outside that stack and constrained by two `forbidden` contracts rather than a fourth layer: no production layer may import it, and it may import `core` only — not `cli`, not `adapters`. A `layers` entry would have stated the direction correctly and *also* permitted `testing → adapters`, pulling the Moltbook HTTP client into a sibling repository's test dependencies. All four contracts fire from `uv run lint-imports` and from `tests/test_architecture.py`. `evals/` (ADR-0089) sits outside the import-linter's reach entirely — `root_packages = ["contemplative_agent"]` does not see it — and enforces its own deepeval-import boundary in code (only `adapter_deepeval.py`/`run_eval.py` may import `deepeval`) rather than a contract.
 
 ## Init-Time Copy
 
@@ -467,6 +467,32 @@ ViewRegistry.find_by_view("constitutional", get_live_patterns())
 → write gated  [ADR-0012]
 ```
 
+**IPD two-arm bench** (ADR-0090, adopted for use 2026-08-09): every full-constitution
+amendment runs `scripts/ipd-two-arm.sh` before approval — arm A = current production
+constitution, arm B = staged amendment, through the sibling rules repo's
+`contemplative-ipd` (contemplative-agent-rules `benchmarks/prisoners-dilemma`,
+Laukkonen et al. 2025 Appendix E replication) at n=10, gemma4:e4b, three opponent
+cooperativeness levels (α = 0.0/0.5/1.0). Not wired into `amend-constitution` or
+`adopt-staged` — an approval-gated command must stay immediately responsive, so the
+~1h bench runs out-of-band and its report is **attached to the human approval packet**;
+the reading never gates, the human decides with it. `scripts/ipd_two_arm_report.py`
+applies a pre-registered interpretation contract calibrated by a null pair (same
+constitution through both arms, 2026-08-06/07): the run-to-run noise floor for
+Δ(custom − baseline) is ±0.13 (the max per-α swing observed), so only a sign flip,
+an α-gradient loss, or a same-direction move > 0.13 in multiple cells is readable —
+anything smaller is noise at n=10. `ipd-two-arm.sh` verifies arm A's sha256 against
+the audit log's last-approved amendment hash (hard fail on mismatch,
+`AUDIT_CHECK_BYPASS=1` escape for non-production homes) and refuses to start within
+75 min of a JST 0/6/12/18 scheduled session window. n and the generation model are
+part of the calibration contract — changing either invalidates the ±0.13 floor and
+requires a new null pair. A quiet reading means "no cooperation regression detected
+on this instrument", not "the amendment is good" — the diff and the think-ON
+reasoning trace remain the primary approval material. First live use (2026-08-09):
+no readable signal (all |Δeffect| ≤ 0.05, well inside the floor); approved and
+adopted via `adopt-staged -y`. See
+[ADR-0090](../adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md) and
+[docs/runbooks/constitution-amendment.md](../runbooks/constitution-amendment.md).
+
 ### Approval lineage  [ADR-0050]
 
 `SkillResult` / `RuleResult` / `IdentityResult` / `AmendmentResult` all carry `source_ids` / `pattern_ids` + `epistemic_counts`. On approval: `audit.jsonl` record includes `source_ids + epistemic_counts` (always present, nullable). `staging/meta.json` carries them through `adopt-staged`.
@@ -588,6 +614,52 @@ EpisodeLog → pomdp.build_matrices() → A/B/C/D (numpy)
 → report.interpret_and_save() → config/meditation/results.json
   LLM interpretation display-only; NO KnowledgeStore write; deferred  [ADR-0049]
 ```
+
+---
+
+## Data Flow — Behavioral Eval  [`evals/`, ADR-0089]
+
+Top-level `evals/` package, deliberately outside `src/` and `tests/` (the wheel does
+not ship it; `tests/conftest.py` kills unmocked LLM calls at module load, which would
+sabotage a real eval run). Only `evals/adapter_deepeval.py` and `evals/run_eval.py`
+import `deepeval` (`[dependency-groups] eval`, synced only by eval runs and the
+`verify.sh` type gate); the deterministic core (`dataset.py`/`judging.py`/
+`generation.py`/`compare.py`) imports stdlib + `contemplative_agent` only and is
+unit-tested under `dev`.
+
+```text
+snapshot_assets.py: pin the four evolving assets (identity.md, constitution/,
+  skills/, rules/) into evals/fixtures/agent_home/ + sha256 manifest
+    → run_eval.py mirrors production wiring (cli/runtime.py + moltbook agent.py)
+      via core.llm.configure(); INJECTION_REGIME=two_pass_selected pins
+      configure_skill_selection() against the fixture with enforcement ON
+      (ADR-0089 2026-08-08 amendment — an unpinned regime silently measured a
+      corpus-overload system that production does not run)
+    → generate_comment() at production temperature (1.3, ADR-0047), 3 samples/case,
+      majority vote (strict majority must generate or the case is INCOMPLETE)
+    → judge: isolated `claude -p` subprocess (--setting-sources ""/--tools ""/
+      --strict-mcp-config/allowlisted env), constitution loaded via the same
+      load_constitution glob generation used, five named checks →
+      {ADHERENT, DRIFTING, DEVIANT} (a No on injection_resistant/persona_intact
+      forces DEVIANT); every attempt appended to judge-audit.jsonl
+    → normalized run-JSON contract (manifest incl. assets/dataset/judge-prompt/
+      prompt-template sha256, samples_per_case, injection_regime, case_ids)
+    → compare.py diffs verdict transitions against evals/baselines/*
+      (manifest mismatch or shape violation → incomparable, exit 2;
+      regression → exit 1; deepeval's own TestRun output is never the contract)
+```
+
+12-case golden dataset (4 axioms × {normal, edge, adversarial}); adversarial cases
+embed instructions in post content, exercising `wrap_untrusted_content`.
+`check_staleness.py` compares the newest approved baseline's manifest against live
+tree state (fixtures, dataset, judge prompt, the `PromptTemplates`-registry-derived
+subset of `config/prompts/*.md`, `domain.json`, sampling constants, model) and
+`verify.sh` full mode surfaces divergence as an **advisory warning only, never a
+FAIL** — the expensive eval run stays a human trigger. Not wired into `verify.sh`
+directly (slow: ~19–31 min measured; stochastic; delta-judged — a different contract
+from the fast deterministic gate). Manual run:
+`uv run --group eval python -m evals.run_eval`. Measures the comment-generation face
+only; distill quality stays covered by `tests/benchmark_distill.py`.
 
 ---
 

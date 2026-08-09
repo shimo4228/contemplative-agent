@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Files scanned: 63 non-__init__ modules | Token estimate: ~5242 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-09 (added testing/ + evals/ layers, LOC refresh) | Files scanned: 75 non-__init__ modules (67 src/ + 8 evals/) | Token estimate: ~6159 -->
 # Moltbook Agent Codemap
 
 Bird's-eye view of the entire codebase. For deep dives, see
@@ -13,80 +13,105 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
     __init__.py (135L)        -- global flags + COMMANDS aggregation + tier dispatch + main
     registry.py (104L)        -- CommandSpec / Tier: each module declares its own commands
     __main__.py (7L)          -- `python -m contemplative_agent` entry
-    agent_cmds.py (131L)      -- register / status / run / solve (Agent tier; run holds the run lock + session_id)
-    runtime.py (134L)         -- shared helpers, _repo_root()
-    approval.py (223L)        -- approval-gate loop + audit.jsonl writer (ADR-0012)
+    agent_cmds.py (181L)      -- register / status / run / solve (Agent tier; run holds the run lock + session_id)
+    runtime.py (146L)         -- shared helpers, _repo_root()
+    approval.py (231L)        -- approval-gate loop + audit.jsonl writer (ADR-0012)
     staging.py (181L)         -- insight --stage / pending-review staging dir
-    adopt.py (675L)           -- adopt-staged / remove-skill commands
+    adopt.py (688L)           -- adopt-staged / remove-skill commands
     stocktake_cmd.py (840L)   -- skill-stocktake / rules-stocktake commands
-    memory_cmds.py (539L)     -- distill / insight / rules-distill / amend-constitution / distill-identity commands
-    session_cmds.py (537L)    -- init / report / generate-report / meditate / sync-data / dialogue / dialogue-peer
-    schedule.py (594L)        -- install-schedule / launchd plist generation (ADR-0085: --weekly-pipeline + --watchdog)
+    memory_cmds.py (565L)     -- distill / insight / rules-distill / amend-constitution / distill-identity commands
+    session_cmds.py (572L)    -- init / report / generate-report / meditate / sync-data / dialogue / dialogue-peer
+    schedule.py (656L)        -- install-schedule / launchd plist generation (ADR-0085: --weekly-pipeline + --watchdog)
  -> core/
- |    _io.py (285L)                -- file I/O (write_restricted, truncate, archive_before_write)
- |    run_context.py (35L)         -- ADR-0078: mints process-wide run_id; set/clear session_id, read by _io.py writer
- |    config.py (47L)             -- security constants (FORBIDDEN_*, VALID_*, MAX_*)
- |    domain.py (403L)            -- DomainConfig + PromptTemplates + constitution loader
- |    prompts.py (74L)            -- lazy-loading proxy to config/prompts/*.md
- |    llm/ (package, 1677L, ADR-0079) -- __init__.py facade (transport+generation) + backend.py (Protocol+circuit breaker) + prompting.py (system-prompt assembly) + guard.py (sanitize/SSRF) + request.py (frozen GenerationRequest/ResolvedRequest); identity.md read as single blob (ADR-0030)
- |    embeddings.py (148L)         -- /api/embed wrapper (nomic-embed-text) + cosine + embed_one/embed_texts
- |    episode_embeddings.py (162L)-- EpisodeEmbeddingStore (SQLite sidecar, ADR-0019)
- |    episode_log.py (91L)      -- Layer 1: append-only JSONL episode storage
- |    knowledge_store.py (399L)   -- Layer 2: patterns JSON + provenance/bitemporal (ADR-0021; trust retired ADR-0051); is_live/effective_importance/pattern_id/epistemic_counts (ADR-0050)
+ |    _io.py (317L)                -- file I/O (write_restricted, truncate, archive_before_write)
+ |    run_context.py (34L)         -- ADR-0078: mints process-wide run_id; set/clear session_id, read by _io.py writer
+ |    config.py (46L)             -- security constants (FORBIDDEN_*, VALID_*, MAX_*)
+ |    domain.py (406L)            -- DomainConfig + PromptTemplates + constitution loader
+ |    prompts.py (77L)            -- lazy-loading proxy to config/prompts/*.md
+ |    llm/ (package, 2121L, ADR-0079) -- __init__.py facade (transport+generation) + backend.py (Protocol+circuit breaker) + prompting.py (system-prompt assembly) + guard.py (sanitize/SSRF) + request.py (frozen GenerationRequest/ResolvedRequest); identity.md read as single blob (ADR-0030)
+ |    embeddings.py (147L)         -- /api/embed wrapper (nomic-embed-text) + cosine + embed_one/embed_texts
+ |    episode_embeddings.py (170L)-- EpisodeEmbeddingStore (SQLite sidecar, ADR-0019)
+ |    episode_log.py (89L)      -- Layer 1: append-only JSONL episode storage
+ |    knowledge_store.py (396L)   -- Layer 2: patterns JSON + provenance/bitemporal (ADR-0021; trust retired ADR-0051); is_live/effective_importance/pattern_id/epistemic_counts (ADR-0050)
  |    memory.py (289L)            -- Layer 3 facade (delegates to memory_repos.py) + Interaction/PostRecord (Insight retired, ADR-0052)
  |    memory_repos.py (427L)     -- InteractionIndex / FollowState / PostHistory / CommentLedger, the four stores behind the facade (split from memory.py, ADR-0079)
  |    views.py (344L)             -- ViewRegistry (seed_from + ${VAR}, lazy centroid cache, pure cosine rank — ADR-0051)
- |    snapshot.py (218L)          -- write_snapshot + collect_thresholds (pivot snapshots, ADR-0020)
- |    scheduler.py (210L)         -- rate limit scheduling, persistence
+ |    snapshot.py (240L)          -- write_snapshot + collect_thresholds (pivot snapshots, ADR-0020)
+ |    scheduler.py (213L)         -- rate limit scheduling, persistence
  |    distill.py (931L)           -- per-episode grounded distill orchestration (ADR-0060) + identity distill (single-stage, ADR-0050) + durability postgate (ADR-0084); rendering/dedup extracted per ADR-0079
- |    pattern_dedup.py (165L)     -- embedding-cosine add/update/skip dedup decisions, extracted from distill.py (ADR-0079)
- |    episode_render.py (182L)    -- episode→prompt-text projection, extracted from distill.py (ADR-0079)
+ |    pattern_dedup.py (177L)     -- embedding-cosine add/update/skip dedup decisions, extracted from distill.py (ADR-0079)
+ |    episode_render.py (181L)    -- episode→prompt-text projection, extracted from distill.py (ADR-0079)
  |    insight.py (609L)           -- global clustering → behavior skill extraction (ADR-0050); novelty gate extracted per ADR-0079
- |    insight_novelty.py (456L)   -- ADR-0074 LLM novelty gate, extracted from insight.py (ADR-0079)
- |    skill_selection.py (542L)   -- ADR-0076 shadow pass-1 skill-selection instrument + ADR-0081 two-pass injection enforcement
- |    rules_distill.py (404L)     -- Practice/Rationale B-layer rules synthesis (ADR-0048)
- |    constitution.py (152L)      -- constitutional amendment; ADR-0033 framing + ADR-0050 lineage
+ |    insight_novelty.py (461L)   -- ADR-0074 LLM novelty gate, extracted from insight.py (ADR-0079)
+ |    skill_selection.py (1058L)   -- ADR-0076 shadow pass-1 skill-selection instrument + ADR-0081 two-pass injection enforcement
+ |    rules_distill.py (416L)     -- Practice/Rationale B-layer rules synthesis (ADR-0048)
+ |    constitution.py (151L)      -- constitutional amendment; ADR-0033 framing + ADR-0050 lineage
  |    stocktake.py (619L)         -- skill/rule audit: LLM grouping (ADR-0046), merge/quality, singleton clean (ADR-0048), usage/description audit
  |    report.py (321L)            -- activity report generation (JSONL → Markdown)
  |    metrics.py (189L)           -- session metrics aggregation
- |    view_metrics.py (387L)      -- read-only pattern-composition instruments: consumed-view supply + seed-independent diversity (ADR-0071/0072)
- |    text_utils.py (169L)         -- shared Markdown helpers [ADR-0035 PR2, ADR-0048]
- |    thresholds.py (84L)         -- centralized thresholds with ADR + calibration annotations [ADR-0035 PR2]
- |    artifact_extraction.py (103L)-- shared extract_title → slugify → path-escape guard chain [ADR-0035 PR3a]
- |    clustering.py (139L)       -- average-linkage cosine agglomerative clustering (numpy-only)
+ |    view_metrics.py (388L)      -- read-only pattern-composition instruments: consumed-view supply + seed-independent diversity (ADR-0071/0072)
+ |    text_utils.py (168L)         -- shared Markdown helpers [ADR-0035 PR2, ADR-0048]
+ |    thresholds.py (83L)         -- centralized thresholds with ADR + calibration annotations [ADR-0035 PR2]
+ |    artifact_extraction.py (125L)-- shared extract_title → slugify → path-escape guard chain [ADR-0035 PR3a]
+ |    clustering.py (137L)       -- average-linkage cosine agglomerative clustering (numpy-only)
  |
  -> adapters/moltbook/
  |    config.py (113L)             -- URLs, paths, timeouts, rate limits
- |    agent.py (851L)             -- session orchestrator (feed/reply/post cycles)
+ |    agent.py (906L)             -- session orchestrator (feed/reply/post cycles)
  |    session_context.py (133L)    -- shared session state contract
- |    feed_manager.py (535L)      -- feed fetch, scoring, engagement, ID dedup, promo + author rate limit
- |    reply_handler.py (468L)     -- notification reply processing; pre-action internal_note (ADR-0045)
- |    post_pipeline.py (480L)     -- feed-seeder → NoveltyGate → test-content + body-hash gates → post
- |    client.py (844L)            -- HTTP client (auth, domain lock, retry/429-backoff)
+ |    feed_manager.py (544L)      -- feed fetch, scoring, engagement, ID dedup, promo + author rate limit
+ |    reply_handler.py (489L)     -- notification reply processing; pre-action internal_note (ADR-0045)
+ |    post_pipeline.py (481L)     -- feed-seeder → NoveltyGate → test-content + body-hash gates → post
+ |    client.py (967L)            -- HTTP client (auth, domain lock, retry/429-backoff)
  |    auth.py (106L)              -- credential management, register
- |    verification.py (560L)      -- math solver chain (code_parse → guarded LLM → abstain) + challenge audit log
+ |    verification.py (649L)      -- math solver chain (code_parse → guarded LLM → abstain) + challenge audit log
  |    verification_parse.py (1693L)-- deterministic finite-grammar CAPTCHA parser (code_parse_challenge; ADR-0062 11th amendment)
  |    content.py (78L)            -- rules-based content + axiom intro injection
- |    llm_functions.py (509L)     -- Moltbook-specific LLM functions
+ |    llm_functions.py (559L)     -- Moltbook-specific LLM functions
  |    dedup.py (257L)             -- deterministic gates: prefix-5 stem + Jaccard, test-content, promo regex
- |    novelty.py (375L)          -- NoveltyGate: embedding novelty + temporal decay + Lagrangian (ADR-0039)
+ |    novelty.py (374L)          -- NoveltyGate: embedding novelty + temporal decay + Lagrangian (ADR-0039)
  |    feed_seeder.py (84L)       -- select_feed_seeds: RNG peer-post sampling per submolt (ADR-0043)
- |    submolt_scope.py (496L)    -- ADR-0086 read-only submolt-scope instrument (submolt-scan sweep + report --submolt-scope reading)
+ |    submolt_scope.py (761L)    -- ADR-0086 read-only submolt-scope instrument (submolt-scan sweep + report --submolt-scope reading)
  |
  -> adapters/meditation/  (experimental)
- |    config.py (55L)             -- state space definition, parameters
- |    pomdp.py (323L)             -- JSONL → POMDP matrices (numpy)
- |    meditate.py (231L)          -- Active Inference loop (flat single-level POMDP, ADR-0049)
- |    report.py (155L)            -- result interpretation (display-only) → results.json
+ |    config.py (54L)             -- state space definition, parameters
+ |    pomdp.py (326L)             -- JSONL → POMDP matrices (numpy)
+ |    meditate.py (228L)          -- Active Inference loop (flat single-level POMDP, ADR-0049)
+ |    report.py (157L)            -- result interpretation (display-only) → results.json
  |
  -> adapters/dialogue/
       peer.py (190L)             -- 2-agent peer-to-peer dialogue loop (stdin/stdout, independent processes)
+
+ -> testing/  (ADR-0088, shipped in the wheel but not production code)
+      __init__.py (83L)          -- public entry: run_conformance(backend) -> ConformanceReport
+      __main__.py (198L)         -- `python -m contemplative_agent.testing --backend pkg.mod:Name` CLI
+      backend_contract.py (619L) -- the LLMBackend Protocol conformance checks a sibling backend
+                                    (contemplative-agent-cloud / -mlx) must pass; imports stdlib +
+                                    core.llm only -- no pytest, no adapters, no cli
+      backend_probe.py (139L)    -- construct/introspect a backend class from a dotted path string
+    Two import-linter `forbidden` contracts (not a fourth `layers` tier): no production layer
+    imports testing/, and testing/ imports core only. Invoked via
+    `scripts/check-sibling-backends.sh`, not the daily verify.sh (constructs sibling code).
 
 config/                           -- externalized templates (domain-swappable, git-managed)
   domain.json                     -- submolts, thresholds
   prompts/*.md                    -- LLM prompt templates with {placeholders}
   views/*.md                      -- seed-text view definitions (packaged fallback for ADR-0019; consumed set only, ADR-0073)
   templates/<character>/          -- ethical framework templates (one dir per character)
+
+evals/                            -- LLM behavioral eval layer (ADR-0089), outside src/ and the
+                                      wheel; deterministic core imports stdlib + contemplative_agent
+                                      only, only adapter_deepeval.py/run_eval.py import deepeval
+  dataset.py / judging.py / generation.py / compare.py   -- deterministic core (unit-tested, dev group)
+  adapter_deepeval.py / run_eval.py                       -- deepeval wiring, `[dependency-groups] eval`
+  check_staleness.py                -- compares approved baseline's manifest against tree state
+                                        (fixtures/dataset/judge-prompt/prompt-templates/domain.json/
+                                        sampling/model/injection_regime); advisory warning in verify.sh
+  snapshot_assets.py                -- pins identity.md/constitution/skills/rules into
+                                        evals/fixtures/agent_home/ + sha256 manifest before scoring
+  baselines/                        -- approved comparison baselines (human-approved, not auto-committed)
+  Manual run only (`uv run --group eval python -m evals.run_eval`); not wired into verify.sh
+  (slow + stochastic). See architecture.md § Data Flow -- Behavioral Eval.
 
 ~/.config/moltbook/               -- runtime data (env var MOLTBOOK_HOME)
   identity.md                     -- agent persona (updated by distill-identity)

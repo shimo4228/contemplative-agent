@@ -8,18 +8,18 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 
 ## Project Facts
 
-- **Version**: 2.9.0
+- **Version**: 2.10.0
 - **DOI**: [10.5281/zenodo.21755684](https://doi.org/10.5281/zenodo.21755684) (v2.9.0 version DOI; concept DOI 10.5281/zenodo.19212118 always resolves to the latest version)
 - **License**: MIT
 - **Repository**: [github.com/shimo4228/contemplative-agent](https://github.com/shimo4228/contemplative-agent)
-- **Tests**: 2377 (pytest, across 70 test files)
+- **Tests**: 2792 (pytest, across 84 test files)
 - **Python**: 3.10+
 - **Build system**: hatch, uv
 - **Generation LLM**: any Ollama model, selected via the `OLLAMA_MODEL` environment variable; production default Gemma 4 E4B / `gemma4:e4b` (Q4_K_M quantization, ~9.6 GB on disk)
 - **Embedding model**: nomic-embed-text (~274 MB, 768-dim) via Ollama
 - **Hardware**: Apple Silicon Mac (M1+), 16 GB RAM, ~12 GB free disk
 - **Runtime dependencies**: requests>=2.33.0, numpy>=1.24.0
-- **ADRs**: 88 total (ADR-0001 through ADR-0088) — 78 accepted, 3 partially superseded, 5 superseded, 2 withdrawn. Full index with per-ADR statuses and supersession trail: [docs/adr/README.md](docs/adr/README.md)
+- **ADRs**: 90 total (ADR-0001 through ADR-0090) — 80 accepted, 3 partially superseded, 5 superseded, 2 withdrawn. Full index with per-ADR statuses and supersession trail: [docs/adr/README.md](docs/adr/README.md)
 - **External lenses borrowed**: AAP four-quadrant routing lens (Script / Algorithmic Search / LLM Workflow / Autonomous Agentic Loop) — usage description only, not a category claim (ADR-0033)
 - **Ethical framework presets**: 11 (contemplative, utilitarian, stoic, care-ethicist, deontologist, pragmatist, narrativist, contractarian, cynic, existentialist, tabula-rasa)
 - **Runtime data directory**: `$MOLTBOOK_HOME` (default `~/.config/moltbook/`)
@@ -315,6 +315,22 @@ The end state is defined **per layer**, not as a capability target — what the 
 - **ADR**: ADR-0080 (north star — per-layer end-state definition)
 - **Doc**: [docs/CYCLES.md](docs/CYCLES.md) (the nine cycles that drive the project, with their heartbeats and human gates)
 
+## How is the quality of the LLM's own output measured, and how is the backend contract kept honest? (ADR-0088 / ADR-0089)
+
+Two measurement layers added in v2.10.0 close the same class of gap from two sides. **ADR-0089** adds a top-level `evals/` layer (on DeepEval) that measures what `generate_comment()` actually produces: production-parity generation over a 12-case golden dataset (4 axioms × normal/edge/adversarial) under **pinned prompt-asset snapshots**, judged by an isolated `claude -p` against the snapshot constitution into **named verdicts** — binary checks kept as evidence, never aggregated into a score — with regressions detected as per-case verdict transitions against an approved baseline. It sits deliberately outside `verify.sh` (slow, stochastic, delta-judged) and outside `tests/` (conftest kills unmocked LLM calls); `evals/check_staleness.py` mechanically detects when the approved baseline no longer matches the tree and surfaces that as a warning while the decision to re-run stays human. **ADR-0088** makes the `LLMBackend` Protocol checkable by the party with the motive to check it: five Protocol changes had accumulated over three months without reaching either sibling backend repo, so the conformance kit ships **inside the wheel** (`contemplative_agent.testing`, stdlib + `core.llm` imports only, pytest-independent) and is run from main at release time — `python -m contemplative_agent.testing --backend pkg.mod:Name` or `./scripts/check-sibling-backends.sh`.
+
+- **Code**: `evals/` (runner, judge adapter, staleness check), `src/contemplative_agent/testing/`, `scripts/check-sibling-backends.sh`
+- **ADR**: ADR-0089 (behavioral eval layer), ADR-0088 (shipped conformance kit), ADR-0087 / ADR-0066 (the backend seam being conformance-checked)
+- **Runbook**: [docs/runbooks/sibling-backend-conformance.md](docs/runbooks/sibling-backend-conformance.md)
+
+## What does the human at the constitution-amendment gate see besides a text diff? (ADR-0090)
+
+Since v2.10.0: a behavioral reading. `amend-constitution` is the deepest value-layer intervention the agent performs on itself, and until ADR-0090 its human approval gate (ADR-0012) had exactly two pieces of material — the text diff and trust. The **IPD two-arm bench** (`scripts/ipd-two-arm.sh` + `scripts/ipd_two_arm_report.py`) runs the current constitution and the staged amendment as two arms of the same iterated-prisoner's-dilemma bench and prints the comparison; a **null-pair calibration** (the same constitution in both arms, run twice) measures the bench's own noise floor so a between-arm difference smaller than the bench's noise is not mistaken for a behavioral change. The instrument is read-only with respect to the runtime — nothing under `core/` / `adapters/` / `cli/` changes — and its report carries an audit-hash check tying it to the exact arms it read. The first live use is recorded in the ADR: the 2026-08-09 amendment was adopted with the two-arm reading and the null-pair calibration in hand. Evidence (both arms' raw JSON, the null runs, provenance) lives under `docs/evidence/adr-0090/`, and the amendment procedure is a runbook (`docs/runbooks/constitution-amendment.md`).
+
+- **Code**: `scripts/ipd-two-arm.sh`, `scripts/ipd_two_arm_report.py`, `tests/test_ipd_two_arm_report.py`
+- **ADR**: ADR-0090 (IPD two-arm bench), ADR-0012 (the approval gate it feeds), ADR-0071 (the instrument-before-intervention lineage)
+- **Evidence**: [docs/evidence/adr-0090/](docs/evidence/adr-0090/)
+
 ---
 
-*Last updated: 2026-08-02*
+*Last updated: 2026-08-09*

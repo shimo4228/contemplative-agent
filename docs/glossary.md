@@ -193,6 +193,27 @@ wrapped in local punctuation when embedded in a translated sentence.
   keep. Placing the same question before distillation was measured to
   be answerable without evidence, so producing the pattern is the
   evidence requirement.
+- **conformance kit** — ADR-0088. The `LLMBackend` contract checks
+  shipped *inside* the wheel (`contemplative_agent.testing`) so sibling
+  backend repositories import them rather than hand-copy them, and so
+  the party that publishes a contract change — main, at release — can
+  run them against siblings that go untouched for months. Bilingual
+  first-use allowed: 「conformance kit（適合検査キット）」.
+- **behavioral eval layer** — ADR-0089. The top-level `evals/` layer
+  that measures what the LLM component actually generates:
+  production-parity runs over a golden dataset under pinned
+  prompt-asset snapshots, an isolated LLM judge issuing *named
+  verdicts* (binary checks as evidence, no score aggregation), and
+  regressions read as per-case verdict transitions against an approved
+  baseline. Deliberately outside both `verify.sh` and `tests/`.
+- **IPD two-arm bench** — ADR-0090. The constitution-amendment
+  instrument: the current and the staged constitution run as two arms
+  of the same iterated-prisoner's-dilemma bench, and the reading joins
+  the text diff at the human approval gate. A **null-pair
+  calibration** — the same constitution in both arms, run twice —
+  measures the bench's own noise floor before any between-arm
+  difference is trusted. Bilingual first-use allowed:
+  「IPD two-arm bench（IPD 二腕ベンチ）」.
 
 ### AAP four-quadrant lens (Keep original)
 
