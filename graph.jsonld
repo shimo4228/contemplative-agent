@@ -2424,6 +2424,27 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0090: An IPD Two-Arm Instrument for Constitution Amendments",
+      "identifier": "ADR-0090",
+      "status": "accepted",
+      "datePublished": "2026-08-09",
+      "description": "Attaches a behavioral reading to the human approval gate for constitution amendments: the contemplative-ipd bench (paper Appendix E replication in the rules repo) runs as a two-arm comparison — arm A the current production constitution, arm B the staged amendment — between amend-constitution --stage and adopt-staged. A 2026-08-06 null pair (same constitution, two full runs, n=10, gemma4:e4b) pre-registered the interpretation contract before first live use: run-to-run noise floor ±0.13 on the primary metric delta(custom−baseline); readable signals are only a sign flip, alpha-gradient loss, or same-direction moves >0.13 in multiple cells. Deliberately NOT wired into either CLI command and the reading does NOT gate adoption — an approval-gated command must not embed a ~2h LLM step plus a cross-repo dependency, and mechanizing a weak n=10 signal into a hard veto would invert the ADR-0071 principle that instruments read while humans decide (same instrument-then-human shape as the ADR-0085 weekly gate). n=10 is part of the calibration contract: changing it invalidates the floor and requires a new null pair. Also records the 2026-08-09 amendment run, the instrument's first live use.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0056-retire-importance-llm-scoring.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0069-gemma-production-model-and-think-on-value-layer-pipelines.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0085-unattended-weekly-fix-chain-single-saturday-gate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0089-llm-behavioral-eval-layer-on-deepeval.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",
