@@ -1,0 +1,494 @@
+{
+  "protocol": "paper",
+  "model": "LLM(gemma4:e4b+baseline)",
+  "num_simulations": 10,
+  "num_rounds": 10,
+  "elapsed_seconds": 3151.680516719818,
+  "statistics": {
+    "alpha_0.0": {
+      "anova_f_statistic": 4.199999999999999,
+      "anova_p_value": 0.05528621136059303,
+      "tukey_summary": " Multiple Comparison of Means - Tukey HSD, FWER=0.05 \n=====================================================\n group1  group2 meandiff p-adj   lower  upper  reject\n-----------------------------------------------------\nbaseline custom     0.07 0.0553 -0.0018 0.1418  False\n-----------------------------------------------------",
+      "variants": {
+        "baseline": {
+          "mean_rate": 0.02,
+          "std_dev": 0.04216370213557839,
+          "sample_size": 10,
+          "mean_diff_from_baseline": 0.0,
+          "cohens_d": 0.0
+        },
+        "custom": {
+          "mean_rate": 0.09,
+          "std_dev": 0.09944289260117531,
+          "sample_size": 10,
+          "mean_diff_from_baseline": 0.06999999999999999,
+          "cohens_d": 0.9165151389911681
+        }
+      }
+    },
+    "alpha_0.5": {
+      "anova_f_statistic": 5.5479452054794525,
+      "anova_p_value": 0.03004730913750517,
+      "tukey_summary": "Multiple Comparison of Means - Tukey HSD, FWER=0.05\n===================================================\n group1  group2 meandiff p-adj lower  upper  reject\n---------------------------------------------------\nbaseline custom     0.15  0.03 0.0162 0.2838   True\n---------------------------------------------------",
+      "variants": {
+        "baseline": {
+          "mean_rate": 0.05,
+          "std_dev": 0.07071067811865477,
+          "sample_size": 10,
+          "mean_diff_from_baseline": 0.0,
+          "cohens_d": 0.0
+        },
+        "custom": {
+          "mean_rate": 0.20000000000000004,
+          "std_dev": 0.18856180831641264,
+          "sample_size": 10,
+          "mean_diff_from_baseline": 0.15000000000000002,
+          "cohens_d": 1.0533703247651756
+        }
+      }
+    },
+    "alpha_1.0": {
+      "anova_f_statistic": 54.75999999999997,
+      "anova_p_value": 7.303240299278396e-07,
+      "tukey_summary": "Multiple Comparison of Means - Tukey HSD, FWER=0.05\n=================================================\n group1  group2 meandiff p-adj lower upper reject\n-------------------------------------------------\nbaseline custom     0.37   0.0 0.265 0.475   True\n-------------------------------------------------",
+      "variants": {
+        "baseline": {
+          "mean_rate": 0.01,
+          "std_dev": 0.03162277660168379,
+          "sample_size": 10,
+          "mean_diff_from_baseline": 0.0,
+          "cohens_d": 0.0
+        },
+        "custom": {
+          "mean_rate": 0.38,
+          "std_dev": 0.15491933384829668,
+          "sample_size": 10,
+          "mean_diff_from_baseline": 0.37,
+          "cohens_d": 3.3093806066996887
+        }
+      }
+    }
+  },
+  "simulations": [
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.0,
+      "total_score": 20,
+      "opponent_score": 10
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.1,
+      "total_score": 23,
+      "opponent_score": 14
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.0,
+      "total_score": 20,
+      "opponent_score": 10
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.0,
+      "total_score": 20,
+      "opponent_score": 10
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.0,
+      "total_score": 20,
+      "opponent_score": 10
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.0,
+      "total_score": 20,
+      "opponent_score": 10
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.0,
+      "total_score": 20,
+      "opponent_score": 10
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.0,
+      "total_score": 20,
+      "opponent_score": 10
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.0,
+      "total_score": 20,
+      "opponent_score": 10
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.1,
+      "total_score": 23,
+      "opponent_score": 14
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.0,
+      "total_score": 38,
+      "opponent_score": 4
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.2,
+      "total_score": 43,
+      "opponent_score": 9
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.0,
+      "total_score": 41,
+      "opponent_score": 3
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.0,
+      "total_score": 47,
+      "opponent_score": 1
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.0,
+      "total_score": 32,
+      "opponent_score": 6
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.1,
+      "total_score": 48,
+      "opponent_score": 4
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.1,
+      "total_score": 35,
+      "opponent_score": 10
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.0,
+      "total_score": 38,
+      "opponent_score": 4
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.0,
+      "total_score": 41,
+      "opponent_score": 3
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.1,
+      "total_score": 33,
+      "opponent_score": 9
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.0,
+      "total_score": 50,
+      "opponent_score": 0
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.0,
+      "total_score": 50,
+      "opponent_score": 0
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.0,
+      "total_score": 50,
+      "opponent_score": 0
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.0,
+      "total_score": 50,
+      "opponent_score": 0
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.0,
+      "total_score": 50,
+      "opponent_score": 0
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.0,
+      "total_score": 50,
+      "opponent_score": 0
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.0,
+      "total_score": 50,
+      "opponent_score": 0
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.0,
+      "total_score": 50,
+      "opponent_score": 0
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.1,
+      "total_score": 51,
+      "opponent_score": 3
+    },
+    {
+      "variant": "baseline",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.0,
+      "total_score": 50,
+      "opponent_score": 0
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.0,
+      "total_score": 20,
+      "opponent_score": 10
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.0,
+      "total_score": 20,
+      "opponent_score": 10
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.1,
+      "total_score": 23,
+      "opponent_score": 14
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.3,
+      "total_score": 29,
+      "opponent_score": 22
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.1,
+      "total_score": 23,
+      "opponent_score": 14
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.2,
+      "total_score": 26,
+      "opponent_score": 18
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.0,
+      "total_score": 20,
+      "opponent_score": 10
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.0,
+      "total_score": 20,
+      "opponent_score": 10
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.1,
+      "total_score": 23,
+      "opponent_score": 14
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.0,
+      "cooperation_rate": 0.1,
+      "total_score": 23,
+      "opponent_score": 14
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.1,
+      "total_score": 39,
+      "opponent_score": 7
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.2,
+      "total_score": 47,
+      "opponent_score": 11
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.0,
+      "total_score": 41,
+      "opponent_score": 3
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.7,
+      "total_score": 56,
+      "opponent_score": 23
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.2,
+      "total_score": 34,
+      "opponent_score": 12
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.2,
+      "total_score": 49,
+      "opponent_score": 7
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.1,
+      "total_score": 33,
+      "opponent_score": 9
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.2,
+      "total_score": 42,
+      "opponent_score": 11
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.1,
+      "total_score": 42,
+      "opponent_score": 6
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 0.5,
+      "cooperation_rate": 0.2,
+      "total_score": 36,
+      "opponent_score": 13
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.6,
+      "total_score": 56,
+      "opponent_score": 18
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.5,
+      "total_score": 55,
+      "opponent_score": 15
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.4,
+      "total_score": 54,
+      "opponent_score": 12
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.2,
+      "total_score": 52,
+      "opponent_score": 6
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.4,
+      "total_score": 54,
+      "opponent_score": 12
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.4,
+      "total_score": 54,
+      "opponent_score": 12
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.3,
+      "total_score": 53,
+      "opponent_score": 9
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.2,
+      "total_score": 52,
+      "opponent_score": 6
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.2,
+      "total_score": 52,
+      "opponent_score": 6
+    },
+    {
+      "variant": "custom",
+      "opponent_alpha": 1.0,
+      "cooperation_rate": 0.6,
+      "total_score": 56,
+      "opponent_score": 18
+    }
+  ]
+}

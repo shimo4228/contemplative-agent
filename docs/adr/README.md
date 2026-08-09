@@ -95,7 +95,7 @@ Records of key design decisions for this project.
 | [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.md) | An Optional `count_tokens` Capability for the Context-Budget Guard | accepted — extends 0066 | 2026-08-01 |
 | [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.md) | A Shipped Conformance Kit for the `LLMBackend` Contract | accepted | 2026-08-02 |
 | [0089](0089-llm-behavioral-eval-layer-on-deepeval.md) | An LLM Behavioral Eval Layer on DeepEval | accepted | 2026-08-06 |
-| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.md) | An IPD Two-Arm Instrument for Constitution Amendments | accepted | 2026-08-09 |
+| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.md) | Run an IPD Two-Arm Bench Before Adopting a Constitution Amendment | accepted | 2026-08-09 |
 
 ## ADR Types
 

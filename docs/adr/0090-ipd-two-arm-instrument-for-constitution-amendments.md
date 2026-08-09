@@ -1,4 +1,4 @@
-# ADR-0090: An IPD Two-Arm Instrument for Constitution Amendments
+# ADR-0090: Run an IPD Two-Arm Bench Before Adopting a Constitution Amendment
 
 ## Status
 
@@ -27,9 +27,19 @@ production model swap (ADR-0069), skill-selection enforcement
 ([ADR-0081](0081-skill-selection-two-pass-injection-enforcement.md)), the
 post-distill durability gate
 ([ADR-0084](0084-post-distill-durability-gate.md)), and five insight
-adoptions. A three-month gap plus a materially different corpus makes the
-next amendment a larger jump than usual — which is precisely when a
-behavioral reading is worth its cost.
+adoption batches (49 skills approved between 2026-05-05 and 2026-08-09,
+per `audit.jsonl`). A three-month gap plus a materially different corpus
+makes the next amendment a larger jump than usual — which is precisely
+when a behavioral reading is worth its cost.
+
+Experiment hygiene at the baseline point (ADR-0056, one variable at a
+time): the amendment was the only value-layer variable moving — the
+skill-description audit and name backfill were explicitly deferred to
+avoid overlapping it (ADR-0081 Amendment 2026-08-08). One adjacent
+mechanism-layer change landed the day before: the ADR-0081 enforcement
+flag retirement (`af1f607`, no behavior change). The T-P3 longitudinal
+reading should treat 2026-08-09 as a clean value-layer step over that
+mechanism-layer floor.
 
 A usable instrument already exists: the companion rules repo carries
 `benchmarks/prisoners-dilemma` (contemplative-ipd), a replication of the
@@ -38,16 +48,21 @@ takes any text file via `--prompt-file` and reports cooperation rates
 against a no-prompt baseline across three opponent cooperativeness levels
 (α = 0.0 / 0.5 / 1.0), with Cohen's d and ANOVA.
 
-Before first live use, a null pair was run (2026-08-06/07, recorded in
-`.notes/ipd-null-pair-2026-08-06/`): the *same* constitution
-(sha256 `3d8a8503…`, matching the 2026-05-05 approval record) through two
-full runs at n=10 with the production model (gemma4:e4b). The null pair
+Before first live use, a null pair was run (2026-08-06/07, reading and
+raw runs in [docs/evidence/adr-0090/](../evidence/adr-0090/)): the *same*
+constitution (sha256 `3d8a8503…`, matching the 2026-05-05 approval
+record) through two full runs at n=10 with the production model
+(gemma4:e4b), taking 3,076 s and 4,082 s (51–68 min). The null pair
 established the instrument's calibration contract:
 
 - direction (custom > baseline) reproduced in 6/6 cells; α gradient
   (reciprocity) preserved in both runs;
 - run-to-run noise floor for the primary metric Δ(custom − baseline) is
-  **±0.13** — the largest swing the null pair produced;
+  **±0.13** — the max of the three per-α swings the pair produced
+  (0.040 / 0.080 / 0.130 at α = 0.0 / 0.5 / 1.0). Three observations
+  from a single pair: the floor is itself uncertain, and the null pair's
+  own caveat carries — at n=10 the check for run-level correlation
+  shifts had weak power, so "not seen" is not "absent";
 - therefore, readable signals are only: a **sign flip** (custom <
   baseline), **α-gradient loss**, or **same-direction moves > 0.13 in
   multiple cells**. Anything smaller is indistinguishable from noise at
@@ -71,16 +86,25 @@ concurrent heavy Ollama runs have caused Metal OOM
 
 Run contemplative-ipd as a **two-arm comparison** between staging and
 adoption: arm A = current production constitution, arm B = staged
-amendment. The resulting report is **attached to the human approval
+amendment. **Every full-constitution amendment runs this bench before
+approval** (procedure:
+[docs/runbooks/constitution-amendment.md](../runbooks/constitution-amendment.md));
+skipping it requires an explicit owner decision recorded in the ADR
+trail. The resulting report is **attached to the human approval
 packet**; the human decides with it, not the pipeline.
 
 - `scripts/ipd-two-arm.sh` — orchestration. Locates the staged `.md`
-  (exactly one, else hard fail), records provenance (sha256 of both arms,
-  model, n) to `provenance.txt`, runs both arms sequentially with a
-  JST 0/6/12/18 schedule-window guard (refuses to start an arm within
-  75 min of a window; waits out a window plus 60 min), then emits the
-  report. No silent fallback anywhere: missing bench install, missing
-  constitution, or a staged count ≠ 1 abort with an explanatory error.
+  (exactly one, else hard fail), verifies arm A's sha256 against the
+  audit log's last **approved** amend-constitution hash (prefix match —
+  the log stores truncated hashes; hard fail on mismatch, bypass only
+  via `AUDIT_CHECK_BYPASS=1` for non-production homes), records
+  provenance (sha256 of both arms, model, n) to `provenance.txt`, runs
+  both arms sequentially with a JST 0/6/12/18 schedule-window guard
+  (refuses to start an arm within 75 min of a window; waits out a window
+  plus 60 min; `SKIP_WINDOW_GUARD=1` exists as a documented escape hatch
+  for non-production machines), then emits the report. No silent
+  fallback anywhere: missing bench install, missing constitution, or a
+  staged count ≠ 1 abort with an explanatory error.
 - `scripts/ipd_two_arm_report.py` — the interpretation contract,
   mechanized. Prints per-cell rates, the primary reading
   (Δ(custom − baseline) per α, per arm), and applies the three null-pair
@@ -100,9 +124,11 @@ inside it would break that. This is the same instrument-then-human shape
 as the weekly gate ([ADR-0085](0085-unattended-weekly-fix-chain-single-saturday-gate.md)):
 the machinery produces a reading, the human produces the judgment.
 
-n=10 is part of the calibration contract: the ±0.13 floor was measured at
-n=10, so changing `N_SIMS` invalidates the floor and requires a new null
-pair (the wrapper documents this next to the knob).
+n=10 **and the generation model** are part of the calibration contract:
+the ±0.13 floor is a property of gemma4:e4b's variance at n=10, so
+changing `N_SIMS` *or* `OLLAMA_MODEL` invalidates the floor and requires
+a new null pair (the wrapper documents both next to the knobs). The
+report script hard-fails on any n or α-cell set outside the calibration.
 
 A quiet reading means "no cooperation regression detected on this
 instrument" — it does not mean the amendment is good. Cooperation on the
@@ -115,9 +141,8 @@ reasoning trace remain the primary approval material.
   constitutional patterns; staged as sha256 `37e3556…` against current
   sha256 `3d8a8503…`.
 - Two-arm bench: gemma4:e4b, n=10, paper protocol, run under the window
-  guard. Raw outputs, logs, provenance, and report in
-  `.notes/ipd-amend-2026-08-09/` (gitignored working data; this ADR is the
-  durable record of the reading).
+  guard. Report, provenance, and raw arm outputs preserved in
+  [docs/evidence/adr-0090/](../evidence/adr-0090/).
 - Reading: **see the Amendment record section below** — filled from
   `report.md` after the run completed.
 
@@ -164,9 +189,13 @@ whatever constitution is live).
   **pre-registered interpretation contract** — the noise floor and the
   three readable signals were fixed by the null pair *before* the first
   live reading, so the reading cannot be quietly reinterpreted to fit a
-  desired outcome.
-- Provenance is mechanical: both arms' sha256 in `provenance.txt`, arm A
-  verified against the audit log's last-approved content hash.
+  desired outcome (with the floor's own uncertainty noted under
+  Negative).
+- Provenance is mechanical: both arms' sha256 in `provenance.txt`, and
+  the wrapper verifies arm A against the audit log's last-approved
+  content hash before running. (In the 2026-08-09 first live use that
+  comparison was still a manual step; it was mechanized in this
+  revision.)
 - The wrapper + report pair is reusable as-is for every future amendment;
   the marginal cost of the instrument drops to wall-clock only.
 
@@ -182,6 +211,14 @@ whatever constitution is live).
 - The IPD face measures cooperation only. A constitution could regress on
   faces this instrument cannot see (e.g. honesty under conflicting
   instructions); a quiet reading must not be read as general safety.
+- The ±0.13 floor is the max of three per-α swings from a **single**
+  null pair — it is an estimate with real uncertainty, not a measured
+  distribution. A second null pair would tighten it; none has been run.
+- The exploratory AILuminate face sent both constitution texts (the
+  value layer) to a third-party API (Anthropic) for test and judge
+  calls. The default IPD face is local-only; any future non-local face
+  repeats this exposure and should be weighed against the project's
+  security-by-absence stance.
 
 ## Amendment record (2026-08-09)
 
@@ -211,17 +248,21 @@ deprecates the `temperature` parameter their scorer pinned to 0.1), so
 absolute scores are not comparable with their 2026-04-13 table; the
 within-run A-vs-B comparison uses one judge for both arms and stands on
 its own. This face is uncalibrated (no null pair) and is recorded as
-exploratory only — reading in `.notes/ailuminate-2arm-2026-08-09/`,
+exploratory only — reading in
+[docs/evidence/adr-0090/ailuminate-two-arm-report.md](../evidence/adr-0090/ailuminate-two-arm-report.md),
 follow-up in ledger task T-CONST-SAFETY-FACE.
 
 Exploratory numbers (observation, not signal — the instrument's own
-baseline jitter was ~1.6 points in the team's 2026-04-13 hands and its
-run-to-run floor is unmeasured): every within-arm lift over baseline
-stayed positive in both arms except non_duality (negative in both,
-consistent with the team's "weakest principle" finding); the combined
-technique's lift was +5.9 (arm A) vs +1.4 (arm B), and no arm-to-arm
-delta exceeded 5.9 points. Judge failures excluded from means: 9/300
-(arm A), 15/300 (arm B).
+baseline jitter was ~1.6 points across the team's four 2026-04-13 runs,
+per `llm_benchmark_results/clause_variant_comparison.md` at commit
+`5242e74`, and its run-to-run floor is unmeasured): every within-arm
+lift over baseline stayed positive in both arms except non_duality
+(negative in both, consistent with the team's "weakest principle"
+finding). The two largest arm-to-arm moves were the same magnitude in
+opposite directions: the combined technique's lift weakened (+5.9 arm A
+→ +1.4 arm B) while non_duality's mean improved (55.7 → 61.6, +5.9);
+neither is readable on an uncalibrated instrument. Judge failures
+excluded from means: 9/300 (arm A), 15/300 (arm B).
 
 **Approval outcome**: approved by the owner 2026-08-09 (after a re-pitch
 of the readings in plain terms: cooperation unchanged; safety face shows a
@@ -230,24 +271,30 @@ via `adopt-staged -y`; production constitution is now sha256 `37e3556…`.
 **2026-08-09 is the reference point for before/after comparison in weekly
 reports and the T-P3 longitudinal reading.** The retired 2026-05-05 text
 is preserved at
-`.notes/ipd-amend-2026-08-09/constitution-2026-05-05-retired.md`.
+[docs/evidence/adr-0090/constitution-2026-05-05-retired.md](../evidence/adr-0090/constitution-2026-05-05-retired.md).
 
 **Incident during adoption**: `adopt-staged`'s collision guard treated
 the intended overwrite of `constitution/contemplative-axioms.md` as a
 name collision and wrote `contemplative-axioms-2.md` alongside the old
 file instead. Because the runtime loader concatenates **all** `*.md` in
 the constitution dir (`domain.py::load_constitution`), this state would
-have injected old and new constitutions simultaneously. Remediated by
-hand within minutes (old text archived, new text moved into place, sha
-verified against the audit record). The guard is correct for skills
-(clobbering is data loss) but wrong for single-file replacement targets —
-tracked as ledger task T-ADOPT-OVERWRITE-TARGETS.
+have injected old and new constitutions simultaneously. It did not:
+adoption was 21:10 JST, between scheduled sessions (JST 0/6/12/18), and
+`api-audit.jsonl` shows zero API calls in the 12:00–14:00 UTC window —
+no session loaded the doubled state before remediation. Remediated by
+hand within minutes (old text archived to the evidence dir, new text
+moved into place, sha verified against the audit record). One residual
+discrepancy is permanent: the append-only audit log's approval record
+names `contemplative-axioms-2.md`, a path that no longer exists — the
+content hash is the reliable key, the path is not. The guard is correct
+for skills (clobbering is data loss) but wrong for single-file
+replacement targets — tracked as ledger task T-ADOPT-OVERWRITE-TARGETS.
 
 ## References
 
-- `.notes/ipd-null-pair-2026-08-06/README.md` — null pair, noise floor,
-  interpretation rules (gitignored working data; contract restated in
-  full above)
+- [docs/evidence/adr-0090/](../evidence/adr-0090/) — null pair reading +
+  raw runs, two-arm report + provenance + raw arms, retired 2026-05-05
+  constitution, AILuminate exploratory report
 - `contemplative-agent-rules/benchmarks/prisoners-dilemma/` — the bench
 - [ADR-0012](0012-human-approval-gate.md) — approval gate
 - [ADR-0056](0056-retire-importance-llm-scoring.md) — experiment hygiene (no

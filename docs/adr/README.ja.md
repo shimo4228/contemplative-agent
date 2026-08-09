@@ -95,7 +95,7 @@
 | [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.ja.md) | コンテキスト予算ガードに任意の `count_tokens` capability を足す | accepted — 0066 を拡張 | 2026-08-01 |
 | [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.ja.md) | `LLMBackend` 契約の適合キットを出荷物に入れる | accepted | 2026-08-02 |
 | [0089](0089-llm-behavioral-eval-layer-on-deepeval.ja.md) | DeepEval を土台にした LLM 行動 eval 層 | accepted | 2026-08-06 |
-| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md) | 憲法改正のための IPD 2 アーム計器 | accepted | 2026-08-09 |
+| [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md) | 憲法改正の採択前に IPD 2 アームベンチを回す | accepted | 2026-08-09 |
 
 ## ADR の種別
 

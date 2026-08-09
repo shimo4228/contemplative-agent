@@ -20,10 +20,15 @@
 # Env:
 #   MOLTBOOK_HOME   data dir (default ~/.config/moltbook)
 #   BENCH_DIR       prisoners-dilemma checkout (default sibling rules repo)
-#   OLLAMA_MODEL    generation model (default gemma4:e4b, ADR-0069)
+#   OLLAMA_MODEL    generation model (default gemma4:e4b, ADR-0069). Part of
+#                   the calibration contract: the ±0.13 noise floor was
+#                   measured on gemma4:e4b — changing the model invalidates
+#                   the floor and requires a new null pair, same as N_SIMS
 #   N_SIMS          simulations per cell (default 10 = null-pair calibration;
 #                   changing it invalidates the ±0.13 noise floor)
 #   SKIP_WINDOW_GUARD=1  disable the JST 0/6/12/18 schedule-session guard
+#   AUDIT_CHECK_BYPASS=1 skip the arm A ↔ audit-log hash comparison (only
+#                   for non-production MOLTBOOK_HOMEs with no audit history)
 set -euo pipefail
 
 REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
@@ -79,6 +84,37 @@ STAGED_CONST="$staged_list"
 mkdir -p "$OUTDIR"
 sha_current=$(shasum -a 256 "$CURRENT_CONST" | cut -d' ' -f1)
 sha_staged=$(shasum -a 256 "$STAGED_CONST" | cut -d' ' -f1)
+
+# Arm A must BE the last-approved constitution: compare its hash against the
+# newest amend-constitution record in the audit log. A mismatch means the
+# "current" arm is not what the approval history says is live — reading the
+# bench against it would attribute the wrong baseline to the amendment.
+AUDIT_LOG="$MOLTBOOK_HOME/logs/audit.jsonl"
+if [ "${AUDIT_CHECK_BYPASS:-0}" != "1" ]; then
+    [ -f "$AUDIT_LOG" ] || { echo "ERROR: audit log not found at $AUDIT_LOG (set AUDIT_CHECK_BYPASS=1 only for non-production homes)" >&2; exit 1; }
+    last_approved=$(python3 -c "
+import json, sys
+last = None
+for line in open('$AUDIT_LOG', encoding='utf-8'):
+    try:
+        d = json.loads(line)
+    except json.JSONDecodeError:
+        continue
+    # decision=='approved' only: at two-arm time the newest record is the
+    # just-staged NEW text, whose hash must NOT be compared against arm A
+    if d.get('command') == 'amend-constitution' and d.get('decision') == 'approved' and d.get('content_hash'):
+        last = d['content_hash']
+print(last or '')")
+    if [ -z "$last_approved" ]; then
+        echo "ERROR: no approved amend-constitution record with content_hash in $AUDIT_LOG" >&2; exit 1
+    fi
+    # the audit log stores a truncated (16-hex) content_hash — compare prefixes
+    if [ "$last_approved" != "${sha_current:0:${#last_approved}}" ]; then
+        echo "ERROR: arm A hash $sha_current does not match the audit log's last approved amend-constitution hash $last_approved — the on-disk constitution is not the last-approved text" >&2
+        exit 1
+    fi
+    echo "[audit] arm A matches last-approved constitution hash ($last_approved…)"
+fi
 {
     echo "started: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     echo "model: $OLLAMA_MODEL  n=$N_SIMS"
