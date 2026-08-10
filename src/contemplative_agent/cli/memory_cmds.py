@@ -476,6 +476,57 @@ def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.Argum
         write_run_marker(result.marker_dir, ".last_constitution_amend")
 
 
+def _handle_shadow_constitution(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
+    """Read-only shadow synthesis (ADR-0092): no approval gate, no staging.
+
+    The command never writes to the constitution — its only write is the
+    append-only instrument record — so the ADR-0012 gate machinery that wraps
+    the other value-layer handlers deliberately does not appear here.
+    """
+    from ..core.constitution_shadow import synthesize_shadow_constitution
+    from ..core.memory import KnowledgeStore
+
+    knowledge_store = KnowledgeStore(path=config.KNOWLEDGE_PATH)
+    constitution_dir = args.constitution_dir or config.CONSTITUTION_DIR
+    view_registry = _load_view_registry(args)
+    result = synthesize_shadow_constitution(
+        knowledge_store=knowledge_store,
+        constitution_dir=constitution_dir,
+        view_registry=view_registry,
+        log_path=config.EPISODE_LOG_DIR / "constitution-shadow.jsonl",
+    )
+    if isinstance(result, str):
+        print(result)
+        return
+    if not result.validation_passed:
+        # Flag BEFORE the body so a reader (or a pipe) meets the warning first.
+        print("[validation_failed] Recorded as instrument data; text shown for reading only.\n")
+    print(result.text)
+    print("\n--- Divergence reading ---")
+    if result.cosine_vs_current is not None:
+        print(
+            f"cosine vs current constitution: {result.cosine_vs_current:.3f} "
+            f"(current sha256 {result.current_sha256[:12]})"
+        )
+    else:
+        print(f"unavailable ({result.cosine_reason})")
+    # Instrument ambiguity note (ADR-0071 discipline): carried in the output
+    # itself so a reader cannot mistake convergence for independent support.
+    print(
+        "note: input patterns were formed under the live constitution "
+        "(action-time axioms), selected by a view seeded from it, and "
+        "rendered under the same shape constraints the amend prompt imposes, "
+        "so convergence is partially circular — divergent clauses are the "
+        "primary signal (ADR-0092)."
+    )
+    print(
+        "note: this text is an instrument reading, NOT an amendment candidate — "
+        "adoption goes only through amend-constitution (approval lineage, ADR-0012/0050)."
+    )
+    if result.thinking:
+        print(f"\n--- Reasoning ---\n{result.thinking}")
+
+
 def _add_distill_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--days", type=int, default=1, help="Days of episodes to process (default: 1)"
@@ -544,6 +595,15 @@ COMMANDS: tuple[CommandSpec, ...] = (
         handler=_handle_amend_constitution,
         tier=Tier.LLM_FULL,
         add_arguments=_add_stage_argument,
+    ),
+    CommandSpec(
+        name="shadow-constitution",
+        help=(
+            "Synthesize a patterns-only shadow constitution (current one NOT injected) "
+            "and record its divergence from the live text — read-only instrument, ADR-0092"
+        ),
+        handler=_handle_shadow_constitution,
+        tier=Tier.LLM_FULL,
     ),
     CommandSpec(
         name="insight",

@@ -23,6 +23,26 @@ logger = logging.getLogger(__name__)
 MIN_PATTERNS_REQUIRED = 3
 
 
+def render_constitutional_patterns(matched: list[dict]) -> str:
+    """Render view-matched patterns as prompt bullets, chat-control tokens stripped.
+
+    Patterns are distilled from episodes that embed untrusted external content,
+    so a pattern can carry template-breakout tokens (security review 2026-08-11).
+    Shared by both constitution arms — ``amend_constitution`` and the ADR-0092
+    shadow synthesis, where the patterns are the prompt's *sole* content — so
+    the two prompts stay comparable and the strip cannot drift apart.
+    """
+    from .llm import _INJECTION_TOKENS
+
+    lines = []
+    for p in matched:
+        text = str(p["pattern"])
+        for token in _INJECTION_TOKENS:
+            text = text.replace(token, "")
+        lines.append(f"- {text}")
+    return "\n".join(lines)
+
+
 @dataclass(frozen=True)
 class AmendmentResult:
     """Result of a successful constitution amendment generation.
@@ -91,7 +111,7 @@ def amend_constitution(
         logger.info(msg)
         return msg
 
-    constitutional_text = "\n".join(f"- {p['pattern']}" for p in matched)
+    constitutional_text = render_constitutional_patterns(matched)
 
     if not CONSTITUTION_AMEND_PROMPT:
         msg = "constitution_amend.md prompt template not found."

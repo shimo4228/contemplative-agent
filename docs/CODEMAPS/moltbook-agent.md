@@ -19,7 +19,7 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
     staging.py (181L)         -- insight --stage / pending-review staging dir
     adopt.py (688L)           -- adopt-staged / remove-skill commands
     stocktake_cmd.py (840L)   -- skill-stocktake / rules-stocktake commands
-    memory_cmds.py (565L)     -- distill / insight / rules-distill / amend-constitution / distill-identity commands
+    memory_cmds.py (620L)     -- distill / insight / rules-distill / amend-constitution / shadow-constitution / distill-identity commands
     session_cmds.py (572L)    -- init / report / generate-report / meditate / sync-data / dialogue / dialogue-peer
     schedule.py (656L)        -- install-schedule / launchd plist generation (ADR-0085: --weekly-pipeline + --watchdog)
  -> core/
@@ -172,6 +172,7 @@ contemplative-agent adopt-staged [-y] [--adopt-names FILE [--reject-rest]]   -- 
 contemplative-agent remove-skill <name> [--reason TEXT]
 contemplative-agent rules-distill [--full]
 contemplative-agent amend-constitution
+contemplative-agent shadow-constitution   -- ADR-0092 read-only instrument: patterns-only synthesis (current constitution NOT in the prompt), divergence cosine + sha256 baked into logs/constitution-shadow.jsonl; no approval gate (writes only the record)
 contemplative-agent enrich [--dry-run]    -- no-op since ADR-0019
 
 # Audit
@@ -224,7 +225,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 **Engagement & posting**: system, relevance, comment, reply, cooperation_post, post_title, topic_summary, submolt_selection, internal_note (ADR-0045), dialogue (peer loop) — `session_insight` retired and deleted (ADR-0052)
 
-**Distillation**: distill_episode (per-episode grounded distill, ADR-0060 — this is the live distill prompt; first-person moment-indexed register instruction since ADR-0072), identity_distill, insight_extraction (naming/vocabulary discipline since ADR-0074), insight_novelty + insight_novelty_system (novelty gate, ADR-0074), rules_distill, rules_distill_refine, constitution_amend (`distill` / `distill_refine` went dead when ADR-0060 replaced the 2-step batch with `distill_episode`; files + mappings deleted in ADR-0072. `distill_importance` retired, ADR-0056)
+**Distillation**: distill_episode (per-episode grounded distill, ADR-0060 — this is the live distill prompt; first-person moment-indexed register instruction since ADR-0072), identity_distill, insight_extraction (naming/vocabulary discipline since ADR-0074), insight_novelty + insight_novelty_system (novelty gate, ADR-0074), rules_distill, rules_distill_refine, constitution_amend, constitution_synthesize (ADR-0092 shadow instrument — patterns-only, no `{current_constitution}` placeholder by design) (`distill` / `distill_refine` went dead when ADR-0060 replaced the 2-step batch with `distill_episode`; files + mappings deleted in ADR-0072. `distill_importance` retired, ADR-0056)
 
 **Verification**: solver order is `code_parse` → `llm_extract` → abstain (ADR-0062 9th amendment — the free-reasoning `llm_reason` fallback was retired after the round-7 audit measured it at 2.3% of traffic / 38% verify success). `verification.py` wraps the challenge as untrusted and first runs the deterministic `code_parse_challenge()` (in `verification_parse.py`), which owns the finite CAPTCHA grammar's arithmetic / number-word reconstruction and abstains to `None` on any ambiguity. Only on abstention does the LLM propose arithmetic via verification_solve_extract_system (short EXPR/FINAL extraction), accepted only when Python recomputation matches the stated final answer; past that the solver abstains instead of guessing, with `abstain_reason="reason_fallback_disabled"` when the model answered and the guards rejected it, `"llm_none"` when the call produced no text at all (ADR-0062 12th amendment — the failure kind stays in the `llm-calls` telemetry row), or `"answer_previously_rejected"`. `Agent._handle_verification()` writes `logs/verification-audit.jsonl` with a base64-encoded challenge, SHA-256s, `solver_path`, answer, `/verify` outcome, and the abstain reason in `error`, for corpus-driven solver evaluation (ADR-0062 amendment).
 

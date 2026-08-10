@@ -97,6 +97,7 @@ Records of key design decisions for this project.
 | [0089](0089-llm-behavioral-eval-layer-on-deepeval.md) | An LLM Behavioral Eval Layer on DeepEval | accepted | 2026-08-06 |
 | [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.md) | Run an IPD Two-Arm Bench Before Adopting a Constitution Amendment | accepted | 2026-08-09 |
 | [0091](0091-value-layer-cadence-in-the-weekly-chain.md) | Value-Layer Cadence in the Weekly Chain | accepted | 2026-08-10 |
+| [0092](0092-shadow-constitution-instrument.md) | Shadow Constitution Instrument — Patterns-Only Synthesis, Observe-Only | accepted | 2026-08-11 |
 
 ## ADR Types
 

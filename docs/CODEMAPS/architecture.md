@@ -493,6 +493,18 @@ adopted via `adopt-staged -y`. See
 [ADR-0090](../adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md) and
 [docs/runbooks/constitution-amendment.md](../runbooks/constitution-amendment.md).
 
+A third kind of gate material comes from the shadow constitution instrument
+(`core/constitution_shadow.py`, CLI `shadow-constitution`,
+[ADR-0092](../adr/0092-shadow-constitution-instrument.md)): a patterns-only
+synthesis whose prompt deliberately omits the current constitution, with a
+divergence reading (embedding cosine + sha256 of the live text it was read
+against) baked into the append-only `logs/constitution-shadow.jsonl` record.
+Observe-only and CLI-opt-in — no approval gate (its only write is the record),
+no scheduled wiring until ≥ 2 manual runs prove the readings readable. The
+reading is partially circular (patterns formed under action-time axioms, view
+seeded from the live constitution), so divergent clauses, not convergent ones,
+carry the signal; the CLI prints that note with every reading.
+
 ### Approval lineage  [ADR-0050]
 
 `SkillResult` / `RuleResult` / `IdentityResult` / `AmendmentResult` all carry `source_ids` / `pattern_ids` + `epistemic_counts`. On approval: `audit.jsonl` record includes `source_ids + epistemic_counts` (always present, nullable). `staging/meta.json` carries them through `adopt-staged`.

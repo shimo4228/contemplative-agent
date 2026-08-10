@@ -2467,6 +2467,30 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0092-shadow-constitution-instrument.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0092: Shadow Constitution Instrument — Patterns-Only Synthesis, Observe-Only",
+      "identifier": "ADR-0092",
+      "status": "accepted",
+      "datePublished": "2026-08-11",
+      "description": "Answers a question the anchored amendment arm structurally cannot: what constitution does accumulated experience support on its own, when the current text is not in the prompt? A read-only shadow instrument (core/constitution_shadow.py, CLI shadow-constitution) mirrors amend_constitution's retrieval and guards (same constitutional view, same MIN_PATTERNS_REQUIRED, think-ON) but its prompt (config/prompts/constitution_synthesize.md) receives ONLY the patterns — the live constitution is read solely to bake a divergence reading (embedding cosine + sha256 of the text it was read against) into an append-only replayable JSONL record (logs/constitution-shadow.jsonl; b64+sha256 prompt/output/thinking, reason codes on every abstain, validation_failed kept as first-class hallucination data). Observe-only with no approval gate because its only write is the record; kill switch is config absence; no scheduled wiring until >=2 manual runs prove the readings readable (ADR-0071 invariant 5). Consumer is the human at the next amend-constitution gate; reserved readings are cosine trend, shadow run-to-run noise floor (ADR-0090 null-pair precedent), clause-level qualitative diff, and validation-failure rate — thresholds deferred until data exists. Known structural limit, printed with every reading: patterns were formed under the live constitution (action-time axioms, ADR-0058) and the constitutional view is seeded from it, so convergence is partially circular — divergent clauses, not convergent ones, carry the signal. Replacing the amendment's injection outright was rejected: patterns are a friction-biased sample (silent values leave no patterns) and a baseless proposal destroys the diff-reviewability the ADR-0012 gate depends on.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0026-retire-discrete-categories.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0058-value-injection-at-action-time.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0076-skill-selection-shadow-instrument.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0077-chaos-tdd-fault-injection.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0080-north-star-layered-end-state.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0091-value-layer-cadence-in-the-weekly-chain.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",

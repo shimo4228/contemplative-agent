@@ -16,6 +16,17 @@ skipping it needs an explicit owner decision recorded in the ADR trail.
 
 ## Steps
 
+0. **Shadow readings** (third gate material,
+   [ADR-0092](../adr/0092-shadow-constitution-instrument.md)): before
+   staging, read the accumulated `logs/constitution-shadow.jsonl` series —
+   ideally ≥ 2 `contemplative-agent shadow-constitution` runs taken since
+   the last amendment (schedule-window rules above apply to each run; one
+   run is wiring proof, not evidence). The divergent clauses and the free
+   section inventory are candidate material for the amendment; the cosine
+   is readable only against the reserved anchors (ADR-0092 Decision 5).
+   The shadow text itself is NEVER an amendment candidate — it has no
+   approval lineage; adoption goes only through the staged amend path
+   below.
 1. **Stage**: `contemplative-agent amend-constitution --stage`
    (non-TTY safe; refuses if staging already holds an unreviewed batch).
 2. **Bench**: `scripts/ipd-two-arm.sh [OUTDIR]` — verifies arm A against

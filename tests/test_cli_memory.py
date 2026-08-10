@@ -198,3 +198,72 @@ class TestLoadViewRegistryPlaceholderKey:
         view = registry.get("constitutional")
         assert view is not None
         assert view.seed_text == "LIVE CONSTITUTION CLAUSE"  # not the fallback body
+
+
+class TestShadowConstitutionCLI:
+    """ADR-0092: read-only wiring — no approval gate, log path under EPISODE_LOG_DIR."""
+
+    def _result(self, **overrides):
+        import dataclasses
+
+        from contemplative_agent.core.constitution_shadow import ShadowConstitutionResult
+
+        base = ShadowConstitutionResult(
+            text='# Shadow\n\nP:\n- "clause"',
+            validation_passed=True,
+            cosine_vs_current=0.812,
+            cosine_reason="ok",
+            current_sha256="a" * 64,
+            pattern_ids=("id1",),
+            epistemic_counts={"generated": 0, "unknown": 1},
+            thinking="trace",
+        )
+        return dataclasses.replace(base, **overrides)
+
+    def _invoke(self, capsys):
+        from contemplative_agent.adapters.moltbook import config
+        from contemplative_agent.cli.memory_cmds import _handle_shadow_constitution
+
+        args = argparse.Namespace(constitution_dir=None)
+        with patch(
+            "contemplative_agent.cli.memory_cmds._load_view_registry",
+            return_value=MagicMock(),
+        ):
+            _handle_shadow_constitution(args, MagicMock())
+        out = capsys.readouterr().out
+        return out, config
+
+    @patch("contemplative_agent.core.constitution_shadow.synthesize_shadow_constitution")
+    def test_happy_path_prints_reading_and_logs_under_episode_dir(self, mock_synth, capsys):
+        mock_synth.return_value = self._result()
+        out, config = self._invoke(capsys)
+        assert "# Shadow" in out
+        assert "cosine vs current constitution: 0.812" in out
+        assert "partially circular" in out  # ambiguity note travels in the output
+        assert "NOT an amendment candidate" in out  # adoption-ban carrier (ADR-0092)
+        assert "--- Reasoning ---" in out
+        assert (
+            mock_synth.call_args.kwargs["log_path"]
+            == config.EPISODE_LOG_DIR / "constitution-shadow.jsonl"
+        )
+
+    @patch("contemplative_agent.core.constitution_shadow.synthesize_shadow_constitution")
+    def test_string_result_printed_verbatim(self, mock_synth, capsys):
+        mock_synth.return_value = "Insufficient constitutional patterns (1/3)."
+        out, _ = self._invoke(capsys)
+        assert "Insufficient constitutional patterns" in out
+        assert "Divergence" not in out
+
+    @patch("contemplative_agent.core.constitution_shadow.synthesize_shadow_constitution")
+    def test_validation_failure_is_flagged(self, mock_synth, capsys):
+        mock_synth.return_value = self._result(validation_passed=False)
+        out, _ = self._invoke(capsys)
+        assert "[validation_failed]" in out
+
+    @patch("contemplative_agent.core.constitution_shadow.synthesize_shadow_constitution")
+    def test_missing_cosine_reports_reason(self, mock_synth, capsys):
+        mock_synth.return_value = self._result(
+            cosine_vs_current=None, cosine_reason="embed_unavailable"
+        )
+        out, _ = self._invoke(capsys)
+        assert "unavailable (embed_unavailable)" in out

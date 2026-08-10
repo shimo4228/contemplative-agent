@@ -40,6 +40,7 @@ class _LazyPrompts:
         "RULES_DISTILL_PROMPT": "rules_distill",
         "RULES_DISTILL_REFINE_PROMPT": "rules_distill_refine",
         "CONSTITUTION_AMEND_PROMPT": "constitution_amend",
+        "CONSTITUTION_SYNTHESIZE_PROMPT": "constitution_synthesize",
         "STOCKTAKE_SKILLS_PROMPT": "stocktake_skills",
         "STOCKTAKE_RULES_PROMPT": "stocktake_rules",
         "STOCKTAKE_MERGE_PROMPT": "stocktake_merge",
