@@ -1,8 +1,8 @@
 #!/bin/bash
 # Unattended weekly chain (ADR-0085): report → diagnosis → fix → insight
-# review → dead-code scan → improvement check → decision packet. Human
-# involvement is compressed into the single Saturday gate (/weekly-gate);
-# nothing here commits, pushes, or adopts.
+# review → value-layer due check → dead-code scan → improvement check →
+# decision packet. Human involvement is compressed into the single Saturday
+# gate (/weekly-gate); nothing here commits, pushes, or adopts.
 #
 # Fail-forward: every stage failure becomes a reason code in the audit log
 # and the run continues to the packet, which is always attempted. The one
@@ -44,9 +44,10 @@ REVIEW_TIMEOUT="${PIPELINE_REVIEW_TIMEOUT:-600}"
 INSIGHT_TIMEOUT="${PIPELINE_INSIGHT_TIMEOUT:-900}"
 IMPROVE_TIMEOUT="${PIPELINE_IMPROVE_TIMEOUT:-900}"
 DEADCODE_TIMEOUT="${PIPELINE_DEADCODE_TIMEOUT:-300}"
+IDENTITY_TIMEOUT="${PIPELINE_IDENTITY_TIMEOUT:-900}"
 CHAIN_DEADLINE_SECONDS="${PIPELINE_DEADLINE_SECONDS:-10800}"   # 09:00 → 12:00
 
-STAGES="${MOLTBOOK_PIPELINE_STAGES:-report,diagnosis,fix,insight,deadcode,improve,packet}"
+STAGES="${MOLTBOOK_PIPELINE_STAGES:-report,diagnosis,fix,insight,valuelayer,deadcode,improve,packet}"
 
 END_DATE=""
 DAYS=7
@@ -63,6 +64,12 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 [[ -z "$END_DATE" ]] && END_DATE=$(date -v-1d +%Y-%m-%d)
+# END_DATE flows into artifact paths and the value-layer --as-of; validate
+# the shape once here for every consumer (2026-08-10 security review L5).
+if ! [[ "$END_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo "ERROR: --end-date must be YYYY-MM-DD (got: $END_DATE)" >&2
+    exit 1
+fi
 
 RUN_ID="weekly-${END_DATE}-$(date +%H%M%S)"
 RUN_LOG_DIR="$MOLTBOOK_HOME/logs/weekly-pipeline/$RUN_ID"
@@ -651,6 +658,131 @@ else
     audit stage_result stage=insight_review result=skipped
 fi
 
+# --- Stage 5b: value-layer cadence (read-only due check + monthly identity staging) ---
+# The due check is a deterministic reading over the ADR-0012 approval audit
+# log (value_layer_due_check.py). Identity staging fires only when ALL of:
+#   (1) the interval has elapsed (due=true),
+#   (2) this is a live run (END_DATE == yesterday) — a --end-date backfill
+#       must never fire a real LLM run off a stale-dated reading and reset
+#       the genuine cadence clock (code review 2026-08-10 HIGH),
+#   (3) the weekly insight job has COMPLETED today (.last_insight marker is
+#       fresh). The insight job starts 08:00 but writes to staging only
+#       after 1-2h of generation, INSIDE this chain's window — without this
+#       guard, staging identity into the momentarily-empty dir would make
+#       the ADR-0074 pending guard discard the whole arriving insight batch
+#       (adr review 2026-08-10 CRITICAL). Marker-fresh ⟹ insight's staging
+#       write already happened ("ledger first, marker last"), so
+#   (4) staging is empty — is then race-free against the scheduled producer.
+# Every deferral is a packet-visible reason code; the Saturday gate can run
+# the distill manually right after adopt-staged empties staging. Adoption
+# always stays at the gate. The constitution reading is informational only:
+# an amendment is a deliberate, benched event (ADR-0090 /
+# docs/runbooks/constitution-amendment.md) and must never be fired from an
+# unattended chain.
+VALUE_LAYER_JSON="$MOLTBOOK_HOME/pipeline/value-layer/value-layer-$END_DATE.json"
+VALUE_LAYER_ARG=()
+INSIGHT_MARKER="$MOLTBOOK_HOME/skills/.last_insight"
+INSIGHT_MARKER_MAX_AGE="${PIPELINE_INSIGHT_MARKER_MAX_AGE:-21600}"  # 6h: insight 08:00 → deadline 12:00
+if stage_enabled valuelayer; then
+    if deadline_exceeded; then
+        add_reason CHAIN_DEADLINE
+        audit stage_result stage=valuelayer result=skipped reason=CHAIN_DEADLINE
+    else
+        echo "[$RUN_ID] stage 5b: value-layer due check"
+        mkdir -p "$(dirname "$VALUE_LAYER_JSON")"
+        chmod 700 "$(dirname "$VALUE_LAYER_JSON")" 2>/dev/null || true
+        if python3 "$SCRIPTS/value_layer_due_check.py" \
+                --audit "$MOLTBOOK_HOME/logs/audit.jsonl" \
+                --knowledge "$MOLTBOOK_HOME/knowledge.json" \
+                --staged-dir "$STAGED_DIR" \
+                --as-of "$END_DATE" \
+                > "$VALUE_LAYER_JSON" 2>"$RUN_LOG_DIR/valuelayer.err"; then
+            vl_reading=$(python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+print(str(data['identity']['due']).lower(),
+      str(data['constitution']['due']).lower(),
+      data['staging_pending'])
+" "$VALUE_LAYER_JSON" 2>/dev/null || echo "")
+            if [[ -n "$vl_reading" ]]; then
+                read -r vl_identity_due vl_constitution_due vl_staging_pending <<< "$vl_reading"
+                VALUE_LAYER_ARG=(--value-layer "$VALUE_LAYER_JSON")
+                audit stage_result stage=valuelayer result=ok \
+                    identity_due="$vl_identity_due" \
+                    constitution_due="$vl_constitution_due" \
+                    staging_pending="$vl_staging_pending"
+                insight_fresh=$(python3 -c "
+import sys
+from datetime import datetime, timezone
+try:
+    with open(sys.argv[1], encoding='utf-8') as fh:
+        ts = datetime.fromisoformat(fh.read().strip())
+    if ts.tzinfo is None:
+        ts = ts.replace(tzinfo=timezone.utc)
+    age = (datetime.now(timezone.utc) - ts).total_seconds()
+    print('true' if 0 <= age <= float(sys.argv[2]) else 'false')
+except Exception:
+    print('false')
+" "$INSIGHT_MARKER" "$INSIGHT_MARKER_MAX_AGE" 2>/dev/null || echo false)
+                if [[ "$vl_identity_due" == "true" ]]; then
+                    if [[ "$END_DATE" != "$(date -v-1d +%Y-%m-%d)" ]]; then
+                        add_reason IDENTITY_BACKFILL_SKIP
+                        audit stage_result stage=identity result=skipped \
+                            reason=IDENTITY_BACKFILL_SKIP
+                    elif [[ "$insight_fresh" != "true" ]]; then
+                        add_reason IDENTITY_INSIGHT_PENDING
+                        audit stage_result stage=identity result=skipped \
+                            reason=IDENTITY_INSIGHT_PENDING
+                    elif [[ "$vl_staging_pending" != "0" ]]; then
+                        add_reason IDENTITY_STAGING_BUSY
+                        audit stage_result stage=identity result=skipped \
+                            reason=IDENTITY_STAGING_BUSY
+                    else
+                        echo "[$RUN_ID] stage 5b: identity distill (interval elapsed)"
+                        (cd "$PROJECT_ROOT" && with_timeout "$IDENTITY_TIMEOUT" \
+                            uv run --no-sync -q contemplative-agent distill-identity --stage) \
+                            > "$RUN_LOG_DIR/identity.log" 2>&1
+                        # The CLI exits 0 on a staging refusal and on an LLM
+                        # failure alike — the staged files are the ground
+                        # truth, and BOTH halves must exist: adopt-staged
+                        # discovers candidates through the .meta.json sidecar,
+                        # so a timeout kill between the two writes (or a
+                        # pre-existing orphan .md) must read as fail, not as
+                        # an adoptable candidate (codex review 2026-08-10 P2).
+                        if [[ -f "$STAGED_DIR/identity.md" \
+                                && -f "$STAGED_DIR/identity.md.meta.json" ]]; then
+                            audit stage_result stage=identity result=ok
+                        # A concurrent producer winning the CLI's flock is an
+                        # ADR-0074 designed outcome, not an LLM fault — keep
+                        # the two apart or the P4 detector counts a working
+                        # guard as a recurring failure (code review M).
+                        elif grep -q "refusing this batch (ADR-0074)" \
+                                "$RUN_LOG_DIR/identity.log" 2>/dev/null; then
+                            add_reason IDENTITY_STAGING_RACE
+                            audit stage_result stage=identity result=skipped \
+                                reason=IDENTITY_STAGING_RACE
+                        else
+                            add_reason IDENTITY_STAGE_FAIL
+                            audit stage_result stage=identity result=fail \
+                                reason=IDENTITY_STAGE_FAIL
+                        fi
+                    fi
+                fi
+            else
+                add_reason VALUE_LAYER_CHECK_FAIL
+                audit stage_result stage=valuelayer result=fail reason=VALUE_LAYER_CHECK_FAIL
+                rm -f "$VALUE_LAYER_JSON"
+            fi
+        else
+            add_reason VALUE_LAYER_CHECK_FAIL
+            audit stage_result stage=valuelayer result=fail reason=VALUE_LAYER_CHECK_FAIL
+            rm -f "$VALUE_LAYER_JSON"
+        fi
+    fi
+else
+    audit stage_result stage=valuelayer result=skipped
+fi
+
 # --- Stage 6: dead-code scan (5th deterministic intake; detection ONLY) ---
 # T-DEADCODE-INTAKE: unlike the four report-side intakes (weekly-analysis.sh),
 # this one feeds the packet DIRECTLY, deliberately bypassing the diagnosis→fix
@@ -777,6 +909,7 @@ if python3 "$SCRIPTS/build_decision_packet.py" build \
         ${INSIGHT_ARG[@]+"${INSIGHT_ARG[@]}"} \
         ${IMPROVEMENT_ARG[@]+"${IMPROVEMENT_ARG[@]}"} \
         ${DEADCODE_ARG[@]+"${DEADCODE_ARG[@]}"} \
+        ${VALUE_LAYER_ARG[@]+"${VALUE_LAYER_ARG[@]}"} \
         --run-log-dir "$RUN_LOG_DIR" \
         --out "$PACKET" > "$RUN_LOG_DIR/packet.log" 2>&1; then
     audit chain_end result=ok packet="$PACKET" reasons="${REASONS:-none}"

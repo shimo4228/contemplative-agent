@@ -1146,3 +1146,196 @@ def test_reason_code_cannot_forge_a_heading_from_the_header(tmp_path: Path):
         )
     text = _build(paths)
     assert not any(ln.startswith("## 5.") for ln in text.splitlines())
+
+
+# --- Value layer cadence (identity / constitution) ---
+
+
+def _value_layer_json(
+    tmp_path: Path,
+    *,
+    identity_due: bool = False,
+    identity_days: int | None = 51,
+    constitution_due: bool = False,
+    constitution_days: int | None = 96,
+    patterns_since: int | None = 120,
+    staging_pending: int = 0,
+) -> Path:
+    path = tmp_path / "value-layer.json"
+    path.write_text(
+        json.dumps(
+            {
+                "as_of": "2026-07-24",
+                "identity": {
+                    "last_run_ts": "2026-06-03T00:00:00+00:00",
+                    "days_since": identity_days,
+                    "interval_days": 28,
+                    "due": identity_due,
+                    "reason": "INTERVAL_ELAPSED" if identity_due else "NOT_DUE",
+                },
+                "constitution": {
+                    "last_adopted_ts": "2026-04-19T00:00:00+00:00",
+                    "days_since": constitution_days,
+                    "interval_days": 84,
+                    "due": constitution_due,
+                    "reason": "INTERVAL_ELAPSED" if constitution_due else "NOT_DUE",
+                    "patterns_since": patterns_since,
+                },
+                "staging_pending": staging_pending,
+                "malformed_audit_lines": 0,
+                "reasons": [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_value_layer_identity_staged_reaches_inventory_and_section(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    with paths["audit"].open("a", encoding="utf-8") as fh:
+        fh.write(_audit_line("stage_result", stage="identity", result="ok") + "\n")
+    vl = _value_layer_json(tmp_path, identity_due=True)
+    text = _build(paths, value_layer=vl)
+    assert "identity candidate: 1" in text
+    assert "## 8. Value layer cadence" in text
+    assert "adopt-staged" in text.split("## 8.")[1]
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["identity_due"] is True
+    assert rec["constitution_due"] is False
+
+
+def test_value_layer_identity_deferred_names_the_manual_path(tmp_path: Path):
+    # ADR-0074: one unreviewed batch at a time — when insight got there first,
+    # the gate must see the deferral AND the manual recovery (run distill after
+    # adopt-staged empties staging), not silently wait a month.
+    paths = _write_inputs(tmp_path)
+    with paths["audit"].open("a", encoding="utf-8") as fh:
+        fh.write(
+            _audit_line(
+                "stage_result",
+                stage="identity",
+                result="skipped",
+                reason="IDENTITY_STAGING_BUSY",
+            )
+            + "\n"
+        )
+    vl = _value_layer_json(tmp_path, identity_due=True, staging_pending=2)
+    text = _build(paths, value_layer=vl)
+    section = text.split("## 8.")[1]
+    assert "IDENTITY_STAGING_BUSY" in section
+    assert "distill-identity" in section
+    assert "identity candidate:" not in text.split("## 8.")[0]
+
+
+def test_value_layer_identity_stage_fail_is_visible(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    with paths["audit"].open("a", encoding="utf-8") as fh:
+        fh.write(
+            _audit_line(
+                "stage_result", stage="identity", result="fail", reason="IDENTITY_STAGE_FAIL"
+            )
+            + "\n"
+        )
+    vl = _value_layer_json(tmp_path, identity_due=True)
+    text = _build(paths, value_layer=vl)
+    assert "IDENTITY_STAGE_FAIL" in text.split("## 8.")[1]
+
+
+def test_value_layer_constitution_due_points_to_runbook_not_automation(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    vl = _value_layer_json(tmp_path, constitution_due=True)
+    text = _build(paths, value_layer=vl)
+    section = text.split("## 8.")[1]
+    assert "docs/runbooks/constitution-amendment.md" in section
+    assert "ADR-0090" in section
+    assert "96 日前" in section
+    assert "patterns since adoption: 120" in section
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["constitution_due"] is True
+
+
+def test_value_layer_quiet_week_is_silent(tmp_path: Path):
+    # Signal-first: neither due and nothing attempted → no section, but the
+    # metrics record still carries the readings for the longitudinal read.
+    paths = _write_inputs(tmp_path)
+    vl = _value_layer_json(tmp_path)
+    text = _build(paths, value_layer=vl)
+    assert "Value layer cadence" not in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["identity_due"] is False
+    assert rec["constitution_due"] is False
+
+
+def test_value_layer_absent_arg_keeps_packet_unchanged(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    text = _build(paths)
+    assert "Value layer cadence" not in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    # Not read must never look like "read as not due" (same None discipline
+    # as dead_code_candidates).
+    assert rec["identity_due"] is None
+    assert rec["constitution_due"] is None
+
+
+def test_value_layer_unreadable_degrades_to_reason_code(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    bad = tmp_path / "value-layer.json"
+    bad.write_text("{not json", encoding="utf-8")
+    text = _build(paths, value_layer=bad)
+    assert "VALUE_LAYER_UNREADABLE" in text.split("## 1.")[0]
+    assert "Value layer cadence" not in text
+
+
+def test_value_layer_instrument_reasons_reach_the_header(tmp_path: Path):
+    # Degraded cadence evidence must not read as a clean run (codex review
+    # 2026-08-10): the instrument's own reasons ride into reason_codes,
+    # prefixed so the gate can tell the two audit logs apart.
+    paths = _write_inputs(tmp_path)
+    vl = _value_layer_json(tmp_path)
+    data = json.loads(vl.read_text(encoding="utf-8"))
+    data["reasons"] = ["KNOWLEDGE_UNAVAILABLE", "FUTURE_TIMESTAMP"]
+    vl.write_text(json.dumps(data), encoding="utf-8")
+    text = _build(paths, value_layer=vl)
+    header = text.split("## 1.")[0]
+    assert "VALUE_LAYER_KNOWLEDGE_UNAVAILABLE" in header
+    assert "VALUE_LAYER_FUTURE_TIMESTAMP" in header
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert "VALUE_LAYER_KNOWLEDGE_UNAVAILABLE" in rec["reason_codes"]
+
+
+def test_value_layer_schema_drift_is_named(tmp_path: Path):
+    # A read-but-unrecognized shape must not look like a quiet week.
+    paths = _write_inputs(tmp_path)
+    bad = tmp_path / "value-layer.json"
+    bad.write_text(json.dumps({"identity": {"due": "yes"}, "reasons": []}), encoding="utf-8")
+    text = _build(paths, value_layer=bad)
+    assert "VALUE_LAYER_SCHEMA" in text.split("## 1.")[0]
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["identity_due"] is None
+
+
+def test_value_layer_section_renders_even_when_instrument_unreadable(tmp_path: Path):
+    # The §1 inventory line references §8; the section must exist whenever
+    # an identity stage event does, even if the JSON was unreadable.
+    paths = _write_inputs(tmp_path)
+    with paths["audit"].open("a", encoding="utf-8") as fh:
+        fh.write(_audit_line("stage_result", stage="identity", result="ok") + "\n")
+    bad = tmp_path / "value-layer.json"
+    bad.write_text("{not json", encoding="utf-8")
+    text = _build(paths, value_layer=bad)
+    assert "identity candidate: 1" in text
+    assert "## 8. Value layer cadence" in text
+    assert "VALUE_LAYER_UNREADABLE" in text.split("## 1.")[0]
+
+
+def test_value_layer_unknown_reason_renders_constrained(tmp_path: Path):
+    # The reason cell is narration; off-contract values must not read as
+    # authoritative prose (same treatment as review verdicts).
+    paths = _write_inputs(tmp_path)
+    vl = _value_layer_json(tmp_path, identity_due=True)
+    data = json.loads(vl.read_text(encoding="utf-8"))
+    data["identity"]["reason"] = "totally made up"
+    vl.write_text(json.dumps(data), encoding="utf-8")
+    text = _build(paths, value_layer=vl)
+    assert "UNRECOGNIZED" in text.split("## 8.")[1]

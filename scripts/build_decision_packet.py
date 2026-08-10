@@ -52,7 +52,30 @@ SCOPE_ESCALATED_INFERRED = "SCOPE_ESCALATED_INFERRED"
 # otherwise spend an unattended session drafting a "pipeline improvement" for a
 # guard the packet's own §3 text calls deliberate. SCOPE_ESCALATED_INFERRED is
 # deliberately NOT here: a recurring audit-log gap IS a fault worth improving.
-DESIGNED_OUTCOME_CODES = frozenset({SCOPE_ESCALATED})
+# IDENTITY_STAGING_BUSY / IDENTITY_INSIGHT_PENDING recur by design on every
+# week the insight batch holds the ADR-0074 staging slot (observed: every
+# Saturday since 2026-07-18) — counting them would burn a weekly unattended
+# improve session on a working guard, the exact failure this set exists for
+# (code review 2026-08-10 HIGH).
+DESIGNED_OUTCOME_CODES = frozenset(
+    {SCOPE_ESCALATED, "IDENTITY_STAGING_BUSY", "IDENTITY_INSIGHT_PENDING"}
+)
+
+# §8 renders the instrument's `reason` fields as narration; they are literal
+# enums upstream, but the builder does not trust the file — off-contract
+# values get the same UNRECOGNIZED(...) treatment as review verdicts
+# (2026-08-10 security review L3).
+KNOWN_VALUE_LAYER_REASONS = frozenset(
+    {
+        "INTERVAL_ELAPSED",
+        "NOT_DUE",
+        "NO_PRIOR_RUN",
+        "NO_PRIOR_ADOPTION",
+        "NO_AUDIT_RECORDS",
+        "UNPARSABLE_HISTORY",
+        "FUTURE_TIMESTAMP",
+    }
+)
 
 # The insight-recommendation prompt's machine contract: one section heading
 # per candidate, `## <n>. <name> — RECOMMEND: adopt|reject`.
@@ -292,6 +315,7 @@ def build_packet(
     out: Path,
     run_log_dir: Path | None = None,
     dead_code: Path | None = None,
+    value_layer: Path | None = None,
 ) -> None:
     reason_codes: list[str] = []
 
@@ -434,6 +458,50 @@ def build_packet(
         else:
             add_reason("DEADCODE_UNREADABLE")
 
+    # Value-layer cadence intake (`value_layer_due_check.py`, read-only):
+    # readings only. Identity staging is the shell's move (audited as
+    # stage=identity), amendment stays a deliberate human event (ADR-0090) —
+    # the builder renders state and next steps, it never claims an action.
+    value_layer_data: dict | None = None
+    if value_layer is not None:
+        vl_data = _load_findings(value_layer)  # same safe-load contract
+        if vl_data is None:
+            add_reason("VALUE_LAYER_UNREADABLE")
+        else:
+            value_layer_data = vl_data
+            # The instrument's own partial-fault codes (AUDIT_PARTIAL_PARSE,
+            # KNOWLEDGE_UNAVAILABLE) must reach the header and the metrics
+            # record — degraded cadence evidence must not read as a clean run
+            # (codex review 2026-08-10 P2). Prefixed so the gate can tell the
+            # instrument's audit log (ADR-0012 audit.jsonl) from the
+            # pipeline's own; bounded and _cell-escaped because the builder
+            # does not trust the file contents.
+            vl_reasons = vl_data.get("reasons")
+            if isinstance(vl_reasons, list):
+                for code in vl_reasons[:8]:
+                    if isinstance(code, str):
+                        add_reason(f"VALUE_LAYER_{code}")
+            # Read-but-unrecognized is its own fault: a schema drift that
+            # collapses due into None must not look like a quiet week.
+            for vl_section in ("identity", "constitution"):
+                vl_sub = vl_data.get(vl_section)
+                if not isinstance(vl_sub, dict) or not isinstance(vl_sub.get("due"), bool):
+                    add_reason("VALUE_LAYER_SCHEMA")
+                    break
+
+    def _vl(section: str, key: str) -> object:
+        if value_layer_data is None:
+            return None
+        sub = value_layer_data.get(section)
+        return sub.get(key) if isinstance(sub, dict) else None
+
+    identity_due = _vl("identity", "due")
+    constitution_due = _vl("constitution", "due")
+    identity_event: dict | None = None
+    for event in events:
+        if event.get("event") == "stage_result" and event.get("stage") == "identity":
+            identity_event = event
+
     # Final-round review bodies, read up front so an unreadable log lands in
     # the header reason list and the metrics record (same rationale as the
     # patch reads above). Earlier rounds stay on disk; their verdicts appear
@@ -531,6 +599,10 @@ def build_packet(
         # would make the longitudinal read undecidable (2026-08-07 review).
         "dead_code_candidates": len(dead_code_candidates) if dead_code_scanned else None,
         "dead_code_parsed_total": dead_code_parsed_total,
+        # None = instrument didn't run/read this week; never collapses into a
+        # false "not due" (same discipline as dead_code_candidates).
+        "identity_due": identity_due if isinstance(identity_due, bool) else None,
+        "constitution_due": constitution_due if isinstance(constitution_due, bool) else None,
         "reason_codes": reason_codes,
     }
     history = [r for r in _read_jsonl(metrics) if r.get("phase") == "auto"]
@@ -581,6 +653,10 @@ def build_packet(
         f"- prompt diff: {len(prompt_patches)} 件（本文全文を下に提示 — 個別承認{escalated_note}）"
     )
     lines.append(f"- insight: {insight_items} 件（`adopt-staged` の対象）")
+    identity_staged = identity_event is not None and identity_event.get("result") == "ok"
+    if identity_staged:
+        # Signal-first: months without an identity run add no inventory line.
+        lines.append("- identity candidate: 1 件（staging 済み — `adopt-staged` の対象、§8 参照）")
     lines.append(f"- pipeline improvement: {1 if improvement_text else 0} 件")
     if dead_code_candidates:
         # Signal-first: quiet weeks add no inventory line and no section.
@@ -776,6 +852,102 @@ def build_packet(
         lines.append(close_fence)
         lines.append("")
 
+    # Section number 8 is reserved for the value-layer cadence intake; on
+    # weeks with no signal (nothing due, nothing attempted) it is absent.
+    # It renders whenever the §1 inventory can reference it (an identity
+    # stage event exists) even if the instrument JSON was unreadable — the
+    # packet must never point at a section that does not exist.
+    identity_signal = identity_event is not None or identity_due is True
+
+    def _vl_cell(section: str, key: str) -> str:
+        value = _vl(section, key)
+        if value is None:
+            return "—"
+        if key == "reason" and value not in KNOWN_VALUE_LAYER_REASONS:
+            return _unrecognized_verdict(_cell(value))
+        return _cell(value)
+
+    if identity_signal or constitution_due is True:
+        lines.append("## 8. Value layer cadence (identity / constitution)")
+        lines.append("")
+        lines.append(
+            "`scripts/value_layer_due_check.py`（read-only 計器）の読み値。"
+            "due は「間隔が経過した」という読み値であって判断ではない — "
+            "identity の採用も憲法改正の起動も人間に属する。"
+        )
+        lines.append("")
+        if value_layer_data is None:
+            lines.append(
+                "（計器の読み値は利用不可 — header の VALUE_LAYER_UNREADABLE / "
+                "VALUE_LAYER_CHECK_FAIL を参照。以下は audit イベントのみ）"
+            )
+            lines.append("")
+        if identity_signal:
+            lines.append("### Identity distill（月次）")
+            lines.append("")
+            lines.append(
+                f"- last run: {_vl_cell('identity', 'last_run_ts')}"
+                f"（{_vl_cell('identity', 'days_since')} 日前 / "
+                f"interval {_vl_cell('identity', 'interval_days')} 日 / "
+                f"reason {_vl_cell('identity', 'reason')}）"
+            )
+            if identity_staged:
+                lines.append(
+                    "- this run: **staged** — `identity.md` が staging にある。"
+                    "§4 の insight と同じく `adopt-staged` で承認/棄却する"
+                )
+            elif identity_event is not None and identity_event.get("result") == "skipped":
+                reason = _cell(identity_event.get("reason", "?"))
+                if reason in ("IDENTITY_STAGING_BUSY", "IDENTITY_STAGING_RACE"):
+                    lines.append(
+                        f"- this run: **deferred ({reason})** — staging に"
+                        "未レビュー batch がある（ADR-0074: 1 batch 上限）。"
+                        "このゲートで `adopt-staged` により staging を空にした後、"
+                        "`contemplative-agent distill-identity --stage` を手動実行して"
+                        "同ゲートで承認するか、翌週の自動再試行に任せる"
+                    )
+                elif reason == "IDENTITY_INSIGHT_PENDING":
+                    lines.append(
+                        "- this run: **deferred (IDENTITY_INSIGHT_PENDING)** — 同日の "
+                        "insight ジョブの完了マーカーが未検出（レース防止ガード）。"
+                        "insight ジョブを廃止している環境では自動 staging は発火しない"
+                        "ので、このゲートで手動実行する"
+                    )
+                elif reason == "IDENTITY_BACKFILL_SKIP":
+                    lines.append(
+                        "- this run: skipped（IDENTITY_BACKFILL_SKIP — backfill 実行の"
+                        "ため、過去日付の読みから LLM 実行は発火させない）"
+                    )
+                else:
+                    lines.append(f"- this run: skipped（{reason}）")
+            elif identity_event is not None:
+                lines.append(
+                    f"- this run: **failed ({_cell(identity_event.get('reason', '?'))})** — "
+                    "run log の `identity.log` を確認"
+                )
+            else:
+                lines.append(
+                    "- this run: not attempted（stage 無効か chain deadline — "
+                    "due は翌週へ持ち越し）"
+                )
+            lines.append("")
+        if constitution_due is True:
+            lines.append("### Constitution amendment — due")
+            lines.append("")
+            lines.append(
+                f"- last adopted: {_vl_cell('constitution', 'last_adopted_ts')}"
+                f"（{_vl_cell('constitution', 'days_since')} 日前 / "
+                f"interval {_vl_cell('constitution', 'interval_days')} 日）"
+            )
+            lines.append(f"- patterns since adoption: {_vl_cell('constitution', 'patterns_since')}")
+            lines.append(
+                "- 改正は自動化しない熟慮イベント: `docs/runbooks/constitution-amendment.md` "
+                "の手順（stage → IPD two-arm bench → 承認 → adopt → 単一ファイル検証）に"
+                "従う。bench は ADR-0090 で必須。前提: 他の value-layer 変更が in-flight "
+                "でないこと（ADR-0056）"
+            )
+            lines.append("")
+
     lines.append("## Audit trail")
     lines.append("")
     lines.append(f"- events: `{audit}`（run_id `{run_id}`）")
@@ -813,6 +985,12 @@ def main() -> int:
         type=Path,
         default=None,
         help="dead_code_scan.py JSON — candidates section appears only when non-empty",
+    )
+    p_build.add_argument(
+        "--value-layer",
+        type=Path,
+        default=None,
+        help="value_layer_due_check.py JSON — cadence section appears only on signal",
     )
 
     p_check = sub.add_parser("check-improvement", help="P4-shaped recurrence trigger")
@@ -855,6 +1033,7 @@ def main() -> int:
             out=args.out,
             run_log_dir=args.run_log_dir,
             dead_code=args.dead_code,
+            value_layer=args.value_layer,
         )
         print(f"Packet written: {args.out}")
     elif args.command == "check-improvement":

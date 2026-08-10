@@ -283,7 +283,8 @@ def _do_install_weekly_pipeline_schedule(weekday: int, hour: int) -> None:
     """Install launchd plist for the unattended weekly chain (ADR-0085).
 
     Runs ``scripts/weekly-pipeline.sh``: report → diagnosis → fix → insight
-    review → decision packet. Replaces ``--weekly-analysis`` (the chain runs
+    review → value-layer due check (ADR-0091) → dead-code scan → improvement
+    check → decision packet. Replaces ``--weekly-analysis`` (the chain runs
     weekly-analysis.sh as its own Stage 1); the two flags are mutually
     exclusive. Nothing in the chain commits or adopts — the Saturday
     ``/weekly-gate`` session remains the single human gate.
@@ -620,7 +621,8 @@ def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help=(
             "Install the unattended weekly chain (ADR-0085: report → diagnosis → "
-            "fix → insight review → decision packet). Replaces --weekly-analysis."
+            "fix → insight review → value-layer due check → dead-code scan → "
+            "improvement check → decision packet). Replaces --weekly-analysis."
         ),
     )
     parser.add_argument(

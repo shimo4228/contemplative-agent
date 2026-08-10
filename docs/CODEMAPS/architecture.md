@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-09 (ADR-0088/0089/0090: testing/ + evals/ + IPD two-arm bench) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15161 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-10 (ADR-0091: value-layer cadence stage 5b) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15300 -->
 # Architecture
 
 ## Project Type
@@ -551,12 +551,36 @@ Stage 4 fix:       per code-scope F1: git worktree @ HEAD → claude -p (fix-imp
                    (SCOPE_ESCALATED), so it faces the full-text gate, not a summary row
                    prompt-scope F1: draft diff only, no Verify, full text at the gate
 Stage 5 insight:   read-only recommendation pass over .staged/ (insight-recommendation.md)
+Stage 5b valuelayer: value_layer_due_check.py (read-only cadence reading over the
+                   ADR-0012 audit log: identity due @27d since last run of any
+                   decision, amendment due @83d since last adoption — anchored to
+                   as-of = run day − 1, so 27/83 = exactly 4/12 Saturday weeks —
+                   plus staging_pending; unknown state abstains nonzero, anomalous
+                   clocks are named: FUTURE_TIMESTAMP / UNPARSABLE_HISTORY /
+                   NO_AUDIT_RECORDS; knowledge.json loads lazily, only on an
+                   adoption baseline). Identity staging fires only when due AND
+                   live run (--end-date backfill → IDENTITY_BACKFILL_SKIP) AND
+                   the same-day insight job COMPLETED (.last_insight marker fresh
+                   ≤6h, else IDENTITY_INSIGHT_PENDING — the insight job starts
+                   08:00 but stages 09:16-10:14, inside this chain's window;
+                   marker-fresh ⟹ its staging write already happened, closing the
+                   race where identity would occupy the ADR-0074 slot and the
+                   arriving 50-106-item insight batch gets discarded) AND staging
+                   empty (else IDENTITY_STAGING_BUSY). Ground truth = the complete
+                   .staged/identity.md + .meta.json pair (the CLI exits 0 on
+                   refusal and LLM failure alike; a concurrent producer's flock
+                   win reads IDENTITY_STAGING_RACE, not IDENTITY_STAGE_FAIL).
+                   BUSY/PENDING are DESIGNED_OUTCOME_CODES (excluded from P4).
+                   Constitution side is readings-only, never automated
+                   (ADR-0090/0091); packet names the manual gate recovery
 Stage 6 deadcode:  dead_code_scan.py (vulture over the repo checkout; 5th deterministic
                    intake — detection only, feeds the packet directly; runs before
                    improve so a recurring scan failure feeds the P4 detector)
 Stage 7 improve:   only when the same reason code recurred 2 consecutive runs (check-improvement)
-Stage 8 packet:    build_decision_packet.py → weekly-<end>-packet.md
-                   + phase:"auto" record → logs/pipeline-metrics.jsonl
+Stage 8 packet:    build_decision_packet.py → weekly-<end>-packet.md (§8 value-layer
+                   cadence section, signal-first) + phase:"auto" record →
+                   logs/pipeline-metrics.jsonl (identity_due / constitution_due,
+                   None = not read this week)
 ```
 
 The dead-code scan (2026-08-07, T-DEADCODE-INTAKE) is the fifth deterministic intake, and the only one wired into the pipeline rather than into weekly-analysis: its output goes straight to the packet builder (`--dead-code`, JSON), deliberately bypassing the diagnosis→fix LLM stages so an unattended session can never author a deletion patch — false positives are structurally unavoidable (CLI entry points, `config/prompts/*.md` dynamic loads via `getattr`, `typing.Protocol` indirection, the sibling-consumed `testing/` kit), so deletion is always a Saturday-gate human commit (delete / whitelist / defer, per candidate). Vulture policy is single-sourced in pyproject `[tool.vulture]` (scan paths include tests/ and evals/ for reference resolution; `dead_code_scan.py` reports src/ and scripts/ only) with exemptions in `.vulture_whitelist.py`. Signal-first: a zero-candidate week renders no packet section (the count still lands in the metrics record, a scan fault abstains with `DEADCODE_SCAN_FAIL`, and a partially-unparseable vulture output degrades loudly with `DEADCODE_PARTIAL_PARSE` — never a silent zero or a silently-incomplete list). It reads only the repo checkout, never episode logs. The retirement-ADR sweep (`substrate-migration-sweep`) remains the primary cleanup moment; this intake is the net under it.

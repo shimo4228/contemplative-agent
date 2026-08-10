@@ -241,3 +241,16 @@ Residual risk (accepted): the symmetric failure to implementer appeasement —
 a reviewer satisfied by a diff that touches the flagged lines without
 removing the defect — has no mechanical guard; the mitigation is that the
 human now reads the final review body, not a 4-char verdict.
+
+## Amendment (2026-08-10): value-layer cadence stage (ADR-0091)
+
+[ADR-0091](0091-value-layer-cadence-in-the-weekly-chain.md) adds stage 5b
+(`valuelayer`) to this chain: a read-only cadence reading plus, behind
+live-run / insight-completion / staging-empty guards, an unattended
+`distill-identity --stage`. That is a new action class for this chain —
+unattended LLM *generation of a value-layer artifact*, which this ADR's
+decision did not contemplate (its scope was code fixes and read-only
+reviews). The single-Saturday-gate commitment is unchanged: staging is not
+adoption (ADR-0012), and every value-layer candidate still crosses the
+same `adopt-staged` gate. Details, guards and the race analysis live in
+ADR-0091.

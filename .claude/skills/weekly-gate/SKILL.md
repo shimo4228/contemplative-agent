@@ -131,6 +131,10 @@ packet の推奨（RECOMMEND: adopt/reject + 理由）を item ごとに提示�
 
 staging ファイルの直接削除は ADR-0012 の auditable-CLI 原則に反するので行わない。
 
+**identity.md が staged にある場合**（ADR-0091 の月次 identity staging）: insight と
+同じ adopt-staged 経路で承認/棄却する。identity は skill と違い「1 候補 = 全置換」
+なので、本文と reasoning（packet §8 / snapshot）を読んでから判断する。
+
 この 3 分岐の遵守は skill-comply で 1 度測っている（`--yes` への転落は観測されず、
 明示的に `--yes` を勧める prompt でも押し返した。ただし無誘導の段は分岐に到達せず
 未決）— [docs/evidence/weekly-gate-step4-comply-20260808/](../../../docs/evidence/weekly-gate-step4-comply-20260808/README.md)。
@@ -167,6 +171,26 @@ candidate ごとに 3 択を仰ぐ:
 
 packet 7 節の pipeline 改善 diff を全文提示。採用なら pipeline 定義ファイルに apply し
 Step 2 の commit に含める。却下なら理由を聞いて記録。
+
+### Step 6b. Value layer cadence（packet §8 があれば）
+
+`scripts/value_layer_due_check.py`（read-only 計器、ADR-0091）の読み値。静かな週は
+§8 ごと存在しない（無音が正常）。出るのは次の 3 パターン:
+
+1. **identity staged** — Step 4 の adopt-staged で扱い済みのはず。未処理なら戻る
+2. **identity deferred（IDENTITY_STAGING_BUSY / IDENTITY_INSIGHT_PENDING /
+   IDENTITY_STAGING_RACE）** — ADR-0074 の単一 batch ガード、または「同日の
+   insight ジョブ完了待ち」レース防止ガード（ADR-0091）で defer された。この
+   セッションで拾うなら、Step 4 の adopt-staged で staging を空にした**後**に
+   `contemplative-agent distill-identity --stage` を実行し、staged された
+   identity.md を同セッションで adopt-staged する（翌週の自動再試行に任せても
+   よい — due は持続する）。insight ジョブを廃止した環境では自動 staging は
+   構造的に発火しないため、この手動経路が正規ルートになる
+3. **constitution due** — 情報表示のみ。改正を起動するかは人間の判断で、起動する
+   場合はこのセッションでは**やらない** — `docs/runbooks/constitution-amendment.md`
+   の手順（stage → ADR-0090 IPD bench 約 2h → 承認 → adopt → 単一ファイル検証）を
+   別途スケジュールする。ADR-0056: 同じ週に identity と constitution を両方
+   採用しない
 
 ### Step 7. Gate メトリクスの記録（必須・最後）
 

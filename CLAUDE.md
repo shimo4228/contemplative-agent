@@ -43,10 +43,10 @@ uv run lint-imports
 contemplative-agent --help
 contemplative-agent init [--template stoic]          # MOLTBOOK_HOME を初期化
 contemplative-agent distill [--dry-run] [--days 3]   # 記憶蒸留
-contemplative-agent distill-identity                 # アイデンティティ蒸留（承認ゲート付き）
+contemplative-agent distill-identity                 # アイデンティティ蒸留（承認ゲート付き。月次は weekly chain が自動 staging — ADR-0091）
 contemplative-agent insight [--stage] [--full]       # 行動スキル抽出
 contemplative-agent rules-distill [--full]           # 行動ルール蒸留
-contemplative-agent amend-constitution               # 憲法改正
+contemplative-agent amend-constitution               # 憲法改正（自動化しない熟慮イベント。due 読み値は weekly packet §8 — ADR-0090/0091）
 contemplative-agent adopt-staged                     # staging → 本配置
 contemplative-agent skill-stocktake / rules-stocktake  # 重複・品質監査
 contemplative-agent generate-report [--all]          # アクティビティレポート

@@ -200,3 +200,14 @@ wall-clock を消費するため、concern の多い週は ≤ 5 findings のう
 指摘された行に触れただけで欠陥が残る diff に reviewer が満足する — への機械的
 ガードは無い。緩和は、人間が 4 文字の verdict でなく最終 review 本文を読むように
 なったこと自体。
+
+## Amendment（2026-08-10）: value 層周期ステージ（ADR-0091）
+
+[ADR-0091](0091-value-layer-cadence-in-the-weekly-chain.ja.md) が本チェーンに
+stage 5b（`valuelayer`）を追加した: read-only の周期読み値と、live-run /
+insight 完了 / staging 空きの 3 ガードの背後での無人 `distill-identity --stage`。
+これは本チェーンにとって新しい行為クラス — value 層 artifact の無人 LLM 生成 —
+であり、本 ADR の決定（スコープは code fix と read-only レビュー）は想定して
+いなかった。単一土曜ゲートの約束は不変: staging は採用ではなく（ADR-0012）、
+value 層の候補は全て同じ `adopt-staged` ゲートを通る。詳細・ガード・レース分析は
+ADR-0091 を参照。

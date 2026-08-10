@@ -2445,6 +2445,28 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0091-value-layer-cadence-in-the-weekly-chain.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0091: Value-Layer Cadence in the Weekly Chain",
+      "identifier": "ADR-0091",
+      "status": "accepted",
+      "datePublished": "2026-08-10",
+      "description": "Gives the two slow value layers a measured cadence inside the ADR-0085 weekly chain, without adding any new human gate. A read-only instrument (scripts/value_layer_due_check.py, ADR-0071/0075 style, as-of injected so readings replay offline) derives from the ADR-0012 approval audit log how long since the last distill-identity run (any decision; interval 28 days — since ADR-0057 the identity is distilled fresh from the self-reflection corpus, so the run interval is the parameter deciding how much experience folds into one self-description) and since the last adopted constitution amendment (decision=approved; interval 84 days, from the observed 96-day 2026-05-05→2026-08-09 cycle). Pipeline stage 5b stages a fresh identity candidate via distill-identity --stage only when due AND staging is empty — ADR-0074 allows one unreviewed batch and the Saturday 08:00 insight batch usually holds the slot, so contention defers with a packet-visible IDENTITY_STAGING_BUSY and the gate can run the distill manually after adopt-staged empties staging; the on-disk .staged/identity.md is the ground truth because the CLI exits 0 on refusal and LLM failure alike. The constitution side is deliberately readings-only (days since adoption, pattern delta): an amendment stays a deliberate, benched human event (ADR-0090 IPD two-arm bench, runbook, T-ADOPT-OVERWRITE-TARGETS manual verification, ADR-0056 one-variable discipline) — the chain's job is to make due visible, never to act. The decision packet gains a signal-first §8 cadence section and the metrics record gains identity_due / constitution_due with None-vs-false discipline. A missing audit log abstains nonzero: unknown state must never read as due and fire an unattended LLM run.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0012-human-approval-gate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0056-retire-importance-llm-scoring.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0057-identity-from-self-reflection-corpus-alone.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0074-weekly-staged-insight.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0085-unattended-weekly-fix-chain-single-saturday-gate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",
