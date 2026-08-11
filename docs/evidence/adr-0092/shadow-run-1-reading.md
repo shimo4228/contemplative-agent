@@ -53,6 +53,9 @@ approval lineage; adoption goes only through `amend-constitution`
   IPD bench against the live constitution — no readable signal; the
   cooperation effect survived the care-axiom absence
   ([ipd-shadow-reading.md](ipd-shadow-reading.md)).
+- Interpretive layer over the combined readings (generator/corollary
+  factorization, 同体大悲 reading, the reverse-arrow caveat):
+  [interpretation-notes.md](interpretation-notes.md).
 
 ## Floor anchor (measured 2026-08-11 — the ADR-0092 Decision 5(c) reading)
 
