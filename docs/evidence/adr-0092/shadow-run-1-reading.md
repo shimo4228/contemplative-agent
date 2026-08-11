@@ -54,6 +54,31 @@ approval lineage; adoption goes only through `amend-constitution`
   cooperation effect survived the care-axiom absence
   ([ipd-shadow-reading.md](ipd-shadow-reading.md)).
 
+## Floor anchor (measured 2026-08-11 — the ADR-0092 Decision 5(c) reading)
+
+Cosine vs the live constitution, `nomic-embed-text`, one `embed_texts`
+batch. Same-genre anchors are the shipped `config/templates/*/constitution`
+files (constitution-shaped, different value content — reproducible from the
+repo); unrelated anchors are three synthetic non-technical documents
+(recipe / transit notice / climate summary, ~500–600 chars — note the
+shorter length regime).
+
+| band | cosine vs live |
+|---|---|
+| shadow run 1 / run 2 | **0.814 / 0.798** |
+| same-genre band (10 value templates) | 0.664 – 0.754 (tabula-rasa outlier 0.577) |
+| unrelated floor | 0.424 – 0.491 |
+
+With the scale in place, the cosine becomes readable: **the shadow sits
+0.05–0.06 above the top of the same-genre band** (utilitarian, 0.754) —
+3–4× the 0.016 run-to-run noise floor. The shadow↔live similarity is not
+explained by shared constitutional form alone; there is content convergence
+beyond "another constitution", while staying well short of near-identity —
+consistent with the qualitative reading (themes re-derived, wording free).
+Side reading: the care-ethicist template (0.716) is no closer to the live
+constitution than utilitarian (0.754) — explicit care vocabulary alone does
+not move this metric.
+
 ## Readings (run 1)
 
 - **Section inventory fully re-derived** — the dimension the amendment arm
