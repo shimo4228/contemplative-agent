@@ -49,6 +49,10 @@ approval lineage; adoption goes only through `amend-constitution`
 - **Boundless Care absent in both runs** (0 occurrences of
   care / compassion / suffering in either text) — the friction-bias
   observation replicates.
+- Follow-up behavioral reading: the run-1 text was put through the ADR-0090
+  IPD bench against the live constitution — no readable signal; the
+  cooperation effect survived the care-axiom absence
+  ([ipd-shadow-reading.md](ipd-shadow-reading.md)).
 
 ## Readings (run 1)
 
