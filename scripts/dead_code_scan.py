@@ -32,6 +32,8 @@ import subprocess
 import sys
 from collections.abc import Callable, Sequence
 
+from _scan import ScanError
+
 # vulture's stable pyflakes-shaped output line (verified against 2.16):
 #   src/foo.py:12: unused function 'bar' (60% confidence)
 _LINE_RE = re.compile(
@@ -45,15 +47,6 @@ _OK_RETURNCODES = (0, 3)
 # scanned for reference resolution, not reported (test hygiene is a
 # different instrument's job).
 _REPORT_PREFIXES = ("src/", "scripts/")
-
-
-class ScanError(Exception):
-    """A scan-level fault: the reading is unavailable, not zero."""
-
-    def __init__(self, reason: str, detail: str = "") -> None:
-        super().__init__(f"{reason}: {detail}" if detail else reason)
-        self.reason = reason
-        self.detail = detail
 
 
 # Internal bound so the standalone CLI cannot hang forever; the pipeline

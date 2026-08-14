@@ -316,6 +316,8 @@ def build_packet(
     run_log_dir: Path | None = None,
     dead_code: Path | None = None,
     value_layer: Path | None = None,
+    docs_scan: Path | None = None,
+    ledger_watch: Path | None = None,
 ) -> None:
     reason_codes: list[str] = []
 
@@ -489,6 +491,66 @@ def build_packet(
                     add_reason("VALUE_LAYER_SCHEMA")
                     break
 
+    # Docs-consistency intake (ADR-0093): detection only — any doc edit is a
+    # human commit at the Saturday gate. The count is code-owned (computed
+    # from the finding rows, never trusted from the JSON's own field).
+    docs_findings: list[dict] = []
+    docs_scanned = False
+    docs_error_count = 0
+    if docs_scan is not None:
+        ds_data = _load_findings(docs_scan)  # same safe-load contract
+        raw = ds_data.get("findings") if ds_data is not None else None
+        if isinstance(raw, list) and ds_data is not None:
+            docs_scanned = True
+            docs_findings = [f for f in raw if isinstance(f, dict)]
+            ds_errors = ds_data.get("errors")
+            if isinstance(ds_errors, list) and ds_errors:
+                # A partially degraded scan is not a clean one (same door as
+                # DEADCODE_PARTIAL_PARSE): a git fault or unreadable file
+                # means the finding list may be incomplete.
+                docs_error_count = len(ds_errors)
+                add_reason("DOCSCAN_PARTIAL")
+            elif ds_errors is not None and not isinstance(ds_errors, list):
+                # Schema drift in the errors field must not read as a clean
+                # scan (2026-08-14 code review L2).
+                docs_error_count = 1
+                add_reason("DOCSCAN_PARTIAL")
+        else:
+            add_reason("DOCSCAN_UNREADABLE")
+
+    # Ledger-watch intake (ADR-0093): readings over the task ledger's blocked
+    # rows. fired=True means an unblock condition may now hold — acting on it
+    # stays a human decision at the gate.
+    ledger_watches: list[dict] = []
+    ledger_scanned = False
+    ledger_parse_errors = 0
+    if ledger_watch is not None:
+        lw_data = _load_findings(ledger_watch)  # same safe-load contract
+        raw = lw_data.get("watches") if lw_data is not None else None
+        if isinstance(raw, list) and lw_data is not None:
+            ledger_scanned = True
+            ledger_watches = [w for w in raw if isinstance(w, dict)]
+            lw_errors = lw_data.get("errors")
+            if isinstance(lw_errors, list) and lw_errors:
+                ledger_parse_errors = len(lw_errors)
+                add_reason("LEDGERWATCH_PARTIAL")
+            elif lw_errors is not None and not isinstance(lw_errors, list):
+                # Same schema-drift door as DOCSCAN_PARTIAL above.
+                ledger_parse_errors = 1
+                add_reason("LEDGERWATCH_PARTIAL")
+        else:
+            add_reason("LEDGERWATCH_UNREADABLE")
+    ledger_fired = [w for w in ledger_watches if w.get("fired") is True]
+    # fired=None is a per-watch fault (UNREACHABLE / PARSE_ERROR / …): the
+    # condition state is unknown, which must not read as "still blocked".
+    ledger_faults = [w for w in ledger_watches if w.get("fired") is None]
+    if ledger_faults:
+        # Runtime faults must reach the header reason list and the metrics
+        # record — a Saturday with GitHub unreachable would otherwise record
+        # fired=0 with no code, invisible to the P4 recurrence detector
+        # (2026-08-14 code review M1).
+        add_reason("LEDGERWATCH_FAULTS")
+
     def _vl(section: str, key: str) -> object:
         if value_layer_data is None:
             return None
@@ -603,6 +665,9 @@ def build_packet(
         # false "not due" (same discipline as dead_code_candidates).
         "identity_due": identity_due if isinstance(identity_due, bool) else None,
         "constitution_due": constitution_due if isinstance(constitution_due, bool) else None,
+        # Same None-vs-0 discipline for the two repo-plane intakes (ADR-0093).
+        "docs_findings": len(docs_findings) if docs_scanned else None,
+        "ledger_watch_fired": len(ledger_fired) if ledger_scanned else None,
         "reason_codes": reason_codes,
     }
     history = [r for r in _read_jsonl(metrics) if r.get("phase") == "auto"]
@@ -663,6 +728,17 @@ def build_packet(
         lines.append(
             f"- dead code candidate: {len(dead_code_candidates)} 件"
             "（検出のみ — 削除・whitelist の判断は人間）"
+        )
+    if docs_findings:
+        # Signal-first: quiet weeks add no inventory line and no section.
+        lines.append(
+            f"- docs consistency: {len(docs_findings)} 件"
+            "（検出のみ — doc 修正は人間 commit、§9 参照）"
+        )
+    if ledger_fired:
+        lines.append(
+            f"- ledger watch fired: {len(ledger_fired)} 件"
+            "（blocked 解除条件が動いた可能性 — 着手判断は人間、§10 参照）"
         )
     lines.append("")
 
@@ -948,6 +1024,81 @@ def build_packet(
             )
             lines.append("")
 
+    # Section number 9 is reserved for the docs-consistency intake; on clean
+    # weeks it is absent (signal-first). It also renders when the scan itself
+    # partially failed — a degraded reading must not disappear.
+    if docs_findings or docs_error_count:
+        lines.append("## 9. Docs consistency (detection only)")
+        lines.append("")
+        lines.append(
+            "週次 docs 整合性スキャン（第 6 決定論 intake、"
+            "`scripts/docs_consistency_scan.py`）の読み値。**doc の修正はここでは"
+            "行われていない** — 各 finding の判断（修正 / 例外として容認 / 保留）は"
+            "土曜ゲートの人間 commit で行う。検査対象は自筆 docs のみ"
+            "（`enja_drift` = ADR の en が ja より後に commit / "
+            "`broken_link` = 相対リンク断線 / `notes_ref` = ADR から gitignored な "
+            "`.notes/` への参照）。"
+        )
+        lines.append("")
+        if docs_error_count:
+            lines.append(
+                f"**注意 (DOCSCAN_PARTIAL)**: スキャン中に {docs_error_count} 件の"
+                "検査エラー（git 失敗・読めないファイル等）— この一覧は不完全の"
+                "可能性がある（scan JSON の `errors` を確認）。"
+            )
+            lines.append("")
+        lines.append("| check | file | line | detail |")
+        lines.append("|---|---|---|---|")
+
+        def _tick(value: object) -> str:
+            # _cell escapes pipes/newlines but not backticks; `file` renders
+            # inside a code span and `detail` quotes link targets from doc
+            # text, so a stray backtick could open inline markdown mid-cell
+            # (2026-08-14 security review LOW — defence-in-depth, the corpus
+            # is self-authored). Same neutralization as _md.md_safe.
+            return _cell(str(value).replace("`", "'"))
+
+        for f in sorted(
+            docs_findings, key=lambda f: (str(f.get("check", "")), str(f.get("file", "")))
+        ):
+            line_no = f.get("line")
+            lines.append(
+                f"| {_cell(f.get('check', '?'))} | `{_tick(f.get('file', '?'))}` "
+                f"| {_cell(line_no) if line_no is not None else '—'} "
+                f"| {_tick(f.get('detail', '?'))} |"
+            )
+        lines.append("")
+
+    # Section number 10 is reserved for the ledger-watch intake; it renders
+    # only when a condition fired, a watch faulted (state unknown ≠ still
+    # blocked), or an annotation failed to parse.
+    if ledger_fired or ledger_faults or ledger_parse_errors:
+        lines.append("## 10. Ledger condition watch")
+        lines.append("")
+        lines.append(
+            "台帳 watch 照合（第 7 決定論 intake、`scripts/ledger_condition_scan.py`）"
+            "の読み値。`.notes/TASKS.md` の blocked 行に注釈された解除条件の現在状態。"
+            "**fired = 条件が動いた可能性の読み値であって着手指示ではない** — "
+            "着手判断は人間に属する。"
+        )
+        lines.append("")
+        if ledger_parse_errors:
+            lines.append(
+                f"**注意 (LEDGERWATCH_PARTIAL)**: {ledger_parse_errors} 件の watch 注釈が"
+                "解釈不能 — `.notes/TASKS.md` の注釈構文を確認。"
+            )
+            lines.append("")
+        lines.append("| task | type | target | status | fired | reason |")
+        lines.append("|---|---|---|---|---|---|")
+        for w in ledger_fired + ledger_faults:
+            fired_cell = "🔔 fired" if w.get("fired") is True else "?（判定不能）"
+            lines.append(
+                f"| {_cell(w.get('task', '?'))} | {_cell(w.get('type', '?'))} "
+                f"| `{_cell(w.get('target', '?'))}` | {_cell(w.get('status') or '—')} "
+                f"| {fired_cell} | {_cell(w.get('reason') or '—')} |"
+            )
+        lines.append("")
+
     lines.append("## Audit trail")
     lines.append("")
     lines.append(f"- events: `{audit}`（run_id `{run_id}`）")
@@ -992,6 +1143,18 @@ def main() -> int:
         default=None,
         help="value_layer_due_check.py JSON — cadence section appears only on signal",
     )
+    p_build.add_argument(
+        "--docs-scan",
+        type=Path,
+        default=None,
+        help="docs_consistency_scan.py JSON — section appears only on findings/errors",
+    )
+    p_build.add_argument(
+        "--ledger-watch",
+        type=Path,
+        default=None,
+        help="ledger_condition_scan.py JSON — section appears only on fired/faulted watches",
+    )
 
     p_check = sub.add_parser("check-improvement", help="P4-shaped recurrence trigger")
     p_check.add_argument("--metrics", type=Path, required=True)
@@ -1034,6 +1197,8 @@ def main() -> int:
             run_log_dir=args.run_log_dir,
             dead_code=args.dead_code,
             value_layer=args.value_layer,
+            docs_scan=args.docs_scan,
+            ledger_watch=args.ledger_watch,
         )
         print(f"Packet written: {args.out}")
     elif args.command == "check-improvement":

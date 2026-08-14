@@ -211,3 +211,14 @@ insight 完了 / staging 空きの 3 ガードの背後での無人 `distill-ide
 いなかった。単一土曜ゲートの約束は不変: staging は採用ではなく（ADR-0012）、
 value 層の候補は全て同じ `adopt-staged` ゲートを通る。詳細・ガード・レース分析は
 ADR-0091 を参照。
+
+## Amendment（2026-08-14）: repo 面決定論 intake（ADR-0093）
+
+[ADR-0093](0093-repo-plane-deterministic-intakes.ja.md) が stage 6b
+（`docsscan`）と 6c（`ledgerwatch`）を追加した: dead-code stage の契約に
+乗った検出専用の決定論 intake 2 本で、packet へ直結する。stage 6c は本
+チェーン**初のネットワーク egress**（api.github.com とローカル probe への
+有界ステータス読み。応答は閉じた語彙へ写像され、応答本文は packet に
+到達しない）— 本 ADR の決定が想定していなかった行為クラスである。
+単一土曜ゲートの約束は不変。`MOLTBOOK_PIPELINE_STAGES` から `ledgerwatch`
+を外せば egress なしの姿勢に戻る。詳細は ADR-0093。

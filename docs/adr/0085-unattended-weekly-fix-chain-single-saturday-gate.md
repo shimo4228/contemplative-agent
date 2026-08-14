@@ -254,3 +254,15 @@ reviews). The single-Saturday-gate commitment is unchanged: staging is not
 adoption (ADR-0012), and every value-layer candidate still crosses the
 same `adopt-staged` gate. Details, guards and the race analysis live in
 ADR-0091.
+
+## Amendment (2026-08-14): repo-plane deterministic intakes (ADR-0093)
+
+[ADR-0093](0093-repo-plane-deterministic-intakes.md) adds stages 6b
+(`docsscan`) and 6c (`ledgerwatch`): two deterministic detection-only
+intakes feeding the packet directly, on the dead-code stage's contract.
+Stage 6c is this chain's **first network egress** (bounded status reads of
+api.github.com and local probes; responses mapped to a closed vocabulary,
+no response text reaches the packet) — an action class this ADR's decision
+did not contemplate. The single-Saturday-gate commitment is unchanged;
+disabling `ledgerwatch` in `MOLTBOOK_PIPELINE_STAGES` restores the
+no-egress posture. Details in ADR-0093.

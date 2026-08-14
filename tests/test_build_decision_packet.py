@@ -1339,3 +1339,229 @@ def test_value_layer_unknown_reason_renders_constrained(tmp_path: Path):
     vl.write_text(json.dumps(data), encoding="utf-8")
     text = _build(paths, value_layer=vl)
     assert "UNRECOGNIZED" in text.split("## 8.")[1]
+
+
+# --- Repo-plane intakes (ADR-0093): docs consistency + ledger watch ---------
+
+
+def _docs_scan_json(tmp_path: Path, findings: list[dict], errors: list[dict] | None = None) -> Path:
+    path = tmp_path / "docs-consistency.json"
+    path.write_text(
+        json.dumps(
+            {
+                "findings": findings,
+                "count": len(findings),
+                "readings": {"codemaps": []},
+                "errors": errors or [],
+                "scanned_files": 5,
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def _ledger_watch_json(
+    tmp_path: Path, watches: list[dict], errors: list[dict] | None = None
+) -> Path:
+    path = tmp_path / "ledger-watch.json"
+    path.write_text(
+        json.dumps(
+            {
+                "watches": watches,
+                "watch_count": len(watches),
+                "fired_count": sum(1 for w in watches if w.get("fired") is True),
+                "errors": errors or [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_docs_section_rendered_when_findings_exist(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    ds = _docs_scan_json(
+        tmp_path,
+        [
+            {
+                "check": "enja_drift",
+                "file": "docs/adr/0053-x.md",
+                "line": None,
+                "detail": "en committed after ja",
+            }
+        ],
+    )
+    text = _build(paths, docs_scan=ds)
+    assert "## 9. Docs consistency" in text
+    assert "docs consistency: 1 件" in text
+    assert "enja_drift" in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["docs_findings"] == 1
+
+
+def test_docs_clean_week_is_silent(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    ds = _docs_scan_json(tmp_path, [])
+    text = _build(paths, docs_scan=ds)
+    assert "## 9." not in text
+    assert "docs consistency" not in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["docs_findings"] == 0  # scanned clean, not "not scanned"
+
+
+def test_docs_absent_arg_is_none_in_metrics(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    _build(paths)
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["docs_findings"] is None
+
+
+def test_docs_unreadable_degrades_to_reason_code(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    bad = tmp_path / "docs-consistency.json"
+    bad.write_text("{not json", encoding="utf-8")
+    text = _build(paths, docs_scan=bad)
+    assert "DOCSCAN_UNREADABLE" in text.split("## 1.")[0]
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["docs_findings"] is None
+
+
+def test_docs_partial_errors_render_warning_section(tmp_path: Path):
+    # A degraded scan renders even with zero findings — the gate must see
+    # that the clean-looking week may be an incomplete reading.
+    paths = _write_inputs(tmp_path)
+    ds = _docs_scan_json(
+        tmp_path, [], errors=[{"check": "enja_drift", "reason": "GIT_FAIL", "detail": "x"}]
+    )
+    text = _build(paths, docs_scan=ds)
+    assert "## 9. Docs consistency" in text
+    assert "DOCSCAN_PARTIAL" in text
+
+
+def test_ledger_fired_watch_renders_section(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    lw = _ledger_watch_json(
+        tmp_path,
+        [
+            {
+                "task": "T-OLLAMA-TOKENIZE",
+                "type": "gh-pr",
+                "target": "ollama/ollama#12030",
+                "status": "merged",
+                "fired": True,
+                "reason": None,
+            },
+            {
+                "task": "T-B",
+                "type": "file-exists",
+                "target": "~/x.env",
+                "status": "absent",
+                "fired": False,
+                "reason": None,
+            },
+        ],
+    )
+    text = _build(paths, ledger_watch=lw)
+    assert "## 10. Ledger condition watch" in text
+    assert "ledger watch fired: 1 件" in text
+    assert "T-OLLAMA-TOKENIZE" in text
+    assert "T-B |" not in text  # still-blocked rows stay out (signal-first)
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["ledger_watch_fired"] == 1
+
+
+def test_ledger_all_still_blocked_is_silent(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    lw = _ledger_watch_json(
+        tmp_path,
+        [
+            {
+                "task": "T-A",
+                "type": "gh-pr",
+                "target": "o/r#1",
+                "status": "open",
+                "fired": False,
+                "reason": None,
+            }
+        ],
+    )
+    text = _build(paths, ledger_watch=lw)
+    assert "## 10." not in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["ledger_watch_fired"] == 0
+
+
+def test_ledger_faulted_watch_renders_with_reason(tmp_path: Path):
+    # fired=None means "state unknown", which must not read as still-blocked.
+    paths = _write_inputs(tmp_path)
+    lw = _ledger_watch_json(
+        tmp_path,
+        [
+            {
+                "task": "T-A",
+                "type": "gh-pr",
+                "target": "o/r#1",
+                "status": None,
+                "fired": None,
+                "reason": "UNREACHABLE",
+            }
+        ],
+    )
+    text = _build(paths, ledger_watch=lw)
+    assert "## 10. Ledger condition watch" in text
+    assert "UNREACHABLE" in text
+    assert "判定不能" in text
+
+
+def test_ledger_unreadable_degrades_to_reason_code(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    bad = tmp_path / "ledger-watch.json"
+    bad.write_text("{not json", encoding="utf-8")
+    _build(paths, ledger_watch=bad)
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert "LEDGERWATCH_UNREADABLE" in rec["reason_codes"]
+    assert rec["ledger_watch_fired"] is None
+
+
+def test_ledger_parse_errors_surface_partial(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    lw = _ledger_watch_json(
+        tmp_path, [], errors=[{"task": "T-X", "reason": "MALFORMED_WATCH", "detail": "x"}]
+    )
+    text = _build(paths, ledger_watch=lw)
+    assert "## 10. Ledger condition watch" in text
+    assert "LEDGERWATCH_PARTIAL" in text
+
+
+def test_ledger_faults_raise_a_reason_code(tmp_path: Path):
+    # A Saturday with GitHub unreachable must not record fired=0 with no
+    # code — the P4 recurrence detector reads reason codes only
+    # (2026-08-14 code review M1).
+    paths = _write_inputs(tmp_path)
+    lw = _ledger_watch_json(
+        tmp_path,
+        [
+            {
+                "task": "T-A",
+                "type": "gh-pr",
+                "target": "o/r#1",
+                "status": None,
+                "fired": None,
+                "reason": "UNREACHABLE",
+            }
+        ],
+    )
+    _build(paths, ledger_watch=lw)
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert "LEDGERWATCH_FAULTS" in rec["reason_codes"]
+
+
+def test_non_list_errors_field_degrades_not_clean(tmp_path: Path):
+    # Schema drift in the errors field must not read as a clean scan
+    # (2026-08-14 code review L2).
+    paths = _write_inputs(tmp_path)
+    ds = tmp_path / "docs-consistency.json"
+    ds.write_text(json.dumps({"findings": [], "errors": "GIT_FAIL: everything"}), encoding="utf-8")
+    text = _build(paths, docs_scan=ds)
+    assert "DOCSCAN_PARTIAL" in text.split("## 1.")[0]

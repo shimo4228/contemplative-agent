@@ -2491,6 +2491,18 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0093-repo-plane-deterministic-intakes.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0093: Repo-Plane Deterministic Intakes — Docs Consistency and Ledger Condition Watch",
+      "identifier": "ADR-0093",
+      "status": "accepted",
+      "datePublished": "2026-08-14",
+      "description": "Two gaps exposed by a structured consideration of scheduled cloud agents (Boris Cherny's routines, 2026-08): nothing systematically reads the docs corpus (two observed instances of refuted-but-unmarked claims), and blocked-task unblock conditions are written once and never polled. Adds two deterministic intakes to the unattended weekly chain, mirroring the dead-code stage's contract: stage 6b docs_consistency_scan.py (enja_drift / broken_link / notes_ref findings + CODEMAPS freshness readings over self-authored docs; stateless nag-until-fixed) and stage 6c ledger_condition_scan.py (watch: annotations on ledger rows — gh-pr / http-status / file-exists — with responses mapped to a closed vocabulary so no platform-controlled string reaches the packet). Packet sections 9/10 render signal-first; metrics keep the None-vs-0 discipline. The cloud-agent concept itself imports nothing (0 of 11 routine archetypes; proposer/promoter split already exists as Cycle #5); the analysis is preserved as evidence."
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",

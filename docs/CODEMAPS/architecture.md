@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-10 (ADR-0091: value-layer cadence stage 5b) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15300 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-14 (ADR-0093: repo-plane intakes stages 6b/6c) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -588,14 +588,28 @@ Stage 5b valuelayer: value_layer_due_check.py (read-only cadence reading over th
 Stage 6 deadcode:  dead_code_scan.py (vulture over the repo checkout; 5th deterministic
                    intake — detection only, feeds the packet directly; runs before
                    improve so a recurring scan failure feeds the P4 detector)
+Stage 6b docsscan: docs_consistency_scan.py (6th deterministic intake, ADR-0093 —
+                   self-authored docs corpus only: enja_drift / broken_link /
+                   notes_ref findings + CODEMAPS/CYCLES freshness readings;
+                   stateless nag-until-fixed; faults degrade to DOCSCAN_PARTIAL /
+                   abstain DOCSCAN_FAIL)
+Stage 6c ledgerwatch: ledger_condition_scan.py (7th deterministic intake, ADR-0093 —
+                   `watch:` annotations on .notes/TASKS.md blocked rows: gh-pr /
+                   http(-post)-status / file-exists; bounded network reads with
+                   responses mapped to a closed vocabulary {open,closed,merged} —
+                   no response text ever reaches the packet; per-watch faults
+                   degrade with reason codes, fired=null renders as unknown)
 Stage 7 improve:   only when the same reason code recurred 2 consecutive runs (check-improvement)
 Stage 8 packet:    build_decision_packet.py → weekly-<end>-packet.md (§8 value-layer
-                   cadence section, signal-first) + phase:"auto" record →
-                   logs/pipeline-metrics.jsonl (identity_due / constitution_due,
-                   None = not read this week)
+                   cadence, §9 docs consistency, §10 ledger watch — all
+                   signal-first) + phase:"auto" record →
+                   logs/pipeline-metrics.jsonl (identity_due / constitution_due /
+                   docs_findings / ledger_watch_fired, None = not read this week)
 ```
 
 The dead-code scan (2026-08-07, T-DEADCODE-INTAKE) is the fifth deterministic intake, and the only one wired into the pipeline rather than into weekly-analysis: its output goes straight to the packet builder (`--dead-code`, JSON), deliberately bypassing the diagnosis→fix LLM stages so an unattended session can never author a deletion patch — false positives are structurally unavoidable (CLI entry points, `config/prompts/*.md` dynamic loads via `getattr`, `typing.Protocol` indirection, the sibling-consumed `testing/` kit), so deletion is always a Saturday-gate human commit (delete / whitelist / defer, per candidate). Vulture policy is single-sourced in pyproject `[tool.vulture]` (scan paths include tests/ and evals/ for reference resolution; `dead_code_scan.py` reports src/ and scripts/ only) with exemptions in `.vulture_whitelist.py`. Signal-first: a zero-candidate week renders no packet section (the count still lands in the metrics record, a scan fault abstains with `DEADCODE_SCAN_FAIL`, and a partially-unparseable vulture output degrades loudly with `DEADCODE_PARTIAL_PARSE` — never a silent zero or a silently-incomplete list). It reads only the repo checkout, never episode logs. The retirement-ADR sweep (`substrate-migration-sweep`) remains the primary cleanup moment; this intake is the net under it.
+
+The two repo-plane intakes (2026-08-14, ADR-0093) reuse the same contract — JSON to the packet builder, diagnosis→fix bypass, action reserved to the gate. Stage 6b scans only self-authored docs (no untrusted text), so its findings render as a plain §9 table; it is deliberately stateless (a repairable finding should nag weekly until fixed — contrast api_drift_scan's flag-once, whose subject is not this repo's to repair) and deliberately absent from verify.sh (git-backed doc auditing is weekly-cadence work, not per-commit work; one `git log --name-only` walk serves every enja pair). Stage 6c is the one intake with network egress: bounded GETs whose responses are mapped inside the scan to a closed status vocabulary, so no platform-controlled string can reach the packet the gate session reads; `fired=null` (UNREACHABLE / PARSE_ERROR / SCHEMA_DRIFT / HTTP_ERROR) renders as unknown rather than passing as still-blocked. It runs here precisely because the ledger is local and gitignored — no cloud agent can see it.
 
 Bounds: ≤5 findings/week, per-session timeouts, 3h wall-clock deadline. Fail-forward: every stage failure becomes a reason code and the packet is still built (only a missing Stage-1 report aborts). Audit: every event → `logs/weekly-pipeline-audit.jsonl` (ADR-0075; the packet builder replays it). The replay derives reason codes from the events themselves, not from the shell's `REASONS` variable — including `SCOPE_ESCALATED`, which is carried by its own `scope_escalation` event type rather than a `reason` field, and so was silently dropped until 2026-08-08. An escalation surfaces in the header reason list, as a `→ SCOPE_ESCALATED` marker appended to (never substituted for) the declared scope in the §2 fix table, and as a note plus bounded path list under the escalated patch's §3 heading. It is also **absent from the §1 code-patch count**, which the same change re-based from `patch_ready` events onto `patches_dir.glob("*.patch")` — the events counted escalated *and* prompt-scope fixes whose patches never land there (2 vs 1 file on the 2026-08-07 run), and an escalated patch counted as an apply target could be approved in Step 2, where code patches are approved without reading diffs, before ever reaching its §3 full text. Escalation is the mirror of the no-silent-fallback rule: an override the human cannot see is an unreviewed one, and an unexplained one invites the next reader to "fix" the scope classifier instead. Because the shell's audit append is best-effort, escalation is also derived from two fallback signals, both reported as `SCOPE_ESCALATED_INFERRED` so the audit-log gap is named rather than fail-open: a `scope=code` fix whose exported patch landed in the prompt dir, and — for a sustained outage that loses the `fix_result` too — a prompt-dir patch whose finding was *declared* code scope in `findings.json`, which needs no audit events at all.
 

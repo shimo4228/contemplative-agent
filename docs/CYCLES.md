@@ -1,7 +1,7 @@
 <!--
 FRESHNESS
-  generated: 2026-07-20
-  source-commit: 33e24c4
+  generated: 2026-08-14
+  source-commit: 75f40b8
   method: hand-authored from graph.jsonld (concept layer) + launchd plists + weekly/daily driver scripts + harness role contracts + sibling-repo DOIs; north-star section points to ADR-0080 (canonical)
   refresh: re-verify the master table rows and operating model against live assets (see "Sources & verification" at the bottom) after any change to schedules, pipelines, orchestration contracts, or the research-program repo set
 -->
@@ -94,7 +94,7 @@ not reducible to any benchmark suite (ADR-0080's benchmark non-reducibility clau
 | 2 | **Wiki refresh** | weekly Mon 09:00 — `com.shimo.wiki-refresh` | wiki maintenance / re-synthesis | — | Obsidian Vault `wiki/` | Vault |
 | 3 | **Product operation** | every 6h, 00/06/12/18 JST — `com.moltbook.agent` | live sessions → episode logs / comment-reports | — | `logs/`, `reports/comment-reports/` | CA runtime (`MOLTBOOK_HOME`) |
 | 4 | **Product metabolism (AKC)** | distill daily; insight weekly (staged) — `com.moltbook.distill` / `.insight`; identity monthly (staged by cycle 5's chain, ADR-0091); constitution amendment on due-reading, human-initiated (ADR-0090/0091; shadow readings as third gate material, ADR-0092) | Extract (distill) / Curate (insight) | `adopt-staged` (approval gate, ADR-0012) | `knowledge.json`, identity / skills / rules / constitution | CA + data repo |
-| 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-pipeline` (+ `com.moltbook.watchdog`, ADR-0085) | unattended chain: report → diagnosis → fix (worktree + Verify) → insight review → value-layer due check (+ monthly identity staging, ADR-0091) → dead-code scan → decision packet | `/weekly-gate` Saturday session: apply + single commit, prompt diffs full-text, `adopt-staged` | `reports/analysis/weekly-*.md`, `-findings.md`, `-packet.md`, `PIPELINE-STATUS.md` | CA |
+| 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-pipeline` (+ `com.moltbook.watchdog`, ADR-0085) | unattended chain: report → diagnosis → fix (worktree + Verify) → insight review → value-layer due check (+ monthly identity staging, ADR-0091) → dead-code scan → docs-consistency + ledger-watch scans (ADR-0093) → decision packet | `/weekly-gate` Saturday session: apply + single commit, prompt diffs full-text, `adopt-staged` | `reports/analysis/weekly-*.md`, `-findings.md`, `-packet.md`, `PIPELINE-STATUS.md` | CA |
 | 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | pre-commit diff approval | code, tests, ADR, CODEMAPS | CA |
 | 7 | **Crystallization → papers** | on demand | essays → position-paper drafting → independent parallel review → citation gate | deposit (human) | position papers (DOI-registered) — index in [hub](https://github.com/shimo4228/shimo4228#papers) | AKC / AAP repos |
 | 8 | **Diffusion (publishing)** | on demand | collect-context → article-writing → editor / reviewer / fact-check → ja-to-en → substack | publish (human) | Zenn (ja) / Dev.to (en) / Substack essays | `zenn-content/` |
@@ -223,6 +223,7 @@ Each master-table row corresponds to a live asset. To re-verify after changes:
 - Schedules: `ls ~/Library/LaunchAgents/com.*` and `config/launchd/*.plist`
 - Cycle #5 driver: `scripts/weekly-pipeline.sh` (wraps `scripts/weekly-analysis.sh`),
   `scripts/parse_findings.py`, `scripts/build_decision_packet.py`, `scripts/pipeline_watchdog.sh`,
+  `scripts/docs_consistency_scan.py`, `scripts/ledger_condition_scan.py` (ADR-0093),
   `config/prompts/weekly-analysis.md` / `fix-implementation.md` / `fix-review.md` /
   `insight-recommendation.md` / `pipeline-improvement.md`,
   `.claude/skills/weekly-report-diagnosis/SKILL.md`, `.claude/skills/weekly-gate/SKILL.md`;

@@ -299,3 +299,50 @@ def test_f_rev_5_missing_verdict_is_terminal(tmp_path: Path):
     # No body to feed back → exactly one fix session ran.
     assert _stub_file(env, "fix_count").read_text().strip() == "1"
     assert [e["result"] for e in _events(env, "fix_result")] == ["patch_ready"]
+
+
+def test_repo_plane_intakes_feed_the_packet(tmp_path: Path):
+    # ADR-0093 stages 6b/6c: docs scan runs read-only over THIS repo checkout;
+    # the ledger watch reads a fixture ledger via MOLTBOOK_LEDGER_PATH with a
+    # file-exists condition — the shell test never touches the network.
+    env = _make_env(tmp_path, fix_behavior=[], verdicts=[])
+    env["MOLTBOOK_PIPELINE_STAGES"] = "docsscan,ledgerwatch,packet"
+    fired_file = tmp_path / "cloud.env"
+    fired_file.write_text("", encoding="utf-8")
+    ledger = tmp_path / "TASKS.md"
+    ledger.write_text(
+        f"| T-STUB-WATCH | blocked | x | `watch: file-exists {fired_file}` | y |\n",
+        encoding="utf-8",
+    )
+    env["MOLTBOOK_LEDGER_PATH"] = str(ledger)
+
+    proc = _run(env)
+    assert proc.returncode == 0, proc.stderr
+
+    stages = {e["stage"]: e for e in _events(env, "stage_result")}
+    assert stages["docsscan"]["result"] == "ok"
+    assert stages["ledgerwatch"]["result"] == "ok"
+    assert stages["ledgerwatch"]["fired"] == "1"
+    home = Path(env["MOLTBOOK_HOME"])
+    assert (home / "pipeline" / "docs-consistency" / f"docs-consistency-{END_DATE}.json").is_file()
+    assert (home / "pipeline" / "ledger-watch" / f"ledger-watch-{END_DATE}.json").is_file()
+
+    text = _packet_text(env)
+    assert "## 10. Ledger condition watch" in text
+    assert "T-STUB-WATCH" in text
+
+
+def test_ledgerwatch_scan_failure_degrades_to_reason_code(tmp_path: Path):
+    # F-LW-6 at the chain level: a missing ledger aborts the scan nonzero and
+    # the stage degrades to LEDGERWATCH_FAIL — the packet still builds.
+    env = _make_env(tmp_path, fix_behavior=[], verdicts=[])
+    env["MOLTBOOK_PIPELINE_STAGES"] = "ledgerwatch,packet"
+    env["MOLTBOOK_LEDGER_PATH"] = str(tmp_path / "missing-ledger.md")
+
+    proc = _run(env)
+    assert proc.returncode == 0, proc.stderr
+
+    stages = {e["stage"]: e for e in _events(env, "stage_result")}
+    assert stages["ledgerwatch"]["result"] == "fail"
+    assert stages["ledgerwatch"]["reason"] == "LEDGERWATCH_FAIL"
+    assert "LEDGERWATCH_FAIL" in _packet_text(env)

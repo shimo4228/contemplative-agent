@@ -44,10 +44,15 @@ REVIEW_TIMEOUT="${PIPELINE_REVIEW_TIMEOUT:-600}"
 INSIGHT_TIMEOUT="${PIPELINE_INSIGHT_TIMEOUT:-900}"
 IMPROVE_TIMEOUT="${PIPELINE_IMPROVE_TIMEOUT:-900}"
 DEADCODE_TIMEOUT="${PIPELINE_DEADCODE_TIMEOUT:-300}"
+DOCSCAN_TIMEOUT="${PIPELINE_DOCSCAN_TIMEOUT:-180}"
+LEDGERWATCH_TIMEOUT="${PIPELINE_LEDGERWATCH_TIMEOUT:-120}"
 IDENTITY_TIMEOUT="${PIPELINE_IDENTITY_TIMEOUT:-900}"
 CHAIN_DEADLINE_SECONDS="${PIPELINE_DEADLINE_SECONDS:-10800}"   # 09:00 → 12:00
 
-STAGES="${MOLTBOOK_PIPELINE_STAGES:-report,diagnosis,fix,insight,valuelayer,deadcode,improve,packet}"
+STAGES="${MOLTBOOK_PIPELINE_STAGES:-report,diagnosis,fix,insight,valuelayer,deadcode,docsscan,ledgerwatch,improve,packet}"
+# The ledger is repo-local by convention (rule: task-tracking); overridable
+# so tests can point the scan at a fixture ledger.
+LEDGER_PATH="${MOLTBOOK_LEDGER_PATH:-}"
 
 END_DATE=""
 DAYS=7
@@ -844,6 +849,97 @@ else
     audit stage_result stage=deadcode result=skipped
 fi
 
+# --- Stage 6b: docs-consistency scan (6th deterministic intake; ADR-0093) ---
+# Same detection/repair separation as the dead-code intake: the scan feeds
+# the packet directly, bypassing the diagnosis→fix LLM stages — a doc edit is
+# structurally a Saturday-gate human commit. Reads only the repo checkout's
+# own self-authored docs (no untrusted text). stdlib-only → python3, no uv.
+# Observability only — a scan fault becomes DOCSCAN_FAIL, never a missing
+# packet, and never a silent "docs all clean" (the scan abstains nonzero).
+DOCSCAN_JSON="$MOLTBOOK_HOME/pipeline/docs-consistency/docs-consistency-$END_DATE.json"
+DOCSCAN_ARG=()
+if stage_enabled docsscan; then
+    if deadline_exceeded; then
+        add_reason CHAIN_DEADLINE
+        audit stage_result stage=docsscan result=skipped reason=CHAIN_DEADLINE
+    else
+        echo "[$RUN_ID] stage 6b: docs-consistency scan"
+        mkdir -p "$(dirname "$DOCSCAN_JSON")"
+        if with_timeout "$DOCSCAN_TIMEOUT" python3 \
+                "$SCRIPTS/docs_consistency_scan.py" --repo "$PROJECT_ROOT" \
+                > "$DOCSCAN_JSON" 2>"$RUN_LOG_DIR/docsscan.err"; then
+            ds_counts=$(python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+print(data['count'], len(data.get('errors', [])))
+" "$DOCSCAN_JSON" 2>/dev/null || echo "")
+            if [[ -n "$ds_counts" ]]; then
+                read -r ds_count ds_errors <<< "$ds_counts"
+                DOCSCAN_ARG=(--docs-scan "$DOCSCAN_JSON")
+                audit stage_result stage=docsscan result=ok \
+                    findings="$ds_count" errors="$ds_errors"
+            else
+                add_reason DOCSCAN_FAIL
+                audit stage_result stage=docsscan result=fail reason=DOCSCAN_FAIL
+                rm -f "$DOCSCAN_JSON"
+            fi
+        else
+            add_reason DOCSCAN_FAIL
+            audit stage_result stage=docsscan result=fail reason=DOCSCAN_FAIL
+            rm -f "$DOCSCAN_JSON"
+        fi
+    fi
+else
+    audit stage_result stage=docsscan result=skipped
+fi
+
+# --- Stage 6c: ledger condition watch (7th deterministic intake; ADR-0093) ---
+# Polls the machine-checkable unblock conditions annotated on blocked rows of
+# the local task ledger (.notes/TASKS.md — gitignored, which is why this can
+# only run here and never in a cloud agent). Network use is bounded reads of
+# status fields mapped to a closed vocabulary inside the scan — no package
+# resolution, no response text reaches the packet (ADR-0093). Acting on a
+# fired condition stays a human decision at the gate. Observability only.
+LEDGERWATCH_JSON="$MOLTBOOK_HOME/pipeline/ledger-watch/ledger-watch-$END_DATE.json"
+LEDGERWATCH_ARG=()
+if stage_enabled ledgerwatch; then
+    if deadline_exceeded; then
+        add_reason CHAIN_DEADLINE
+        audit stage_result stage=ledgerwatch result=skipped reason=CHAIN_DEADLINE
+    else
+        echo "[$RUN_ID] stage 6c: ledger condition watch"
+        mkdir -p "$(dirname "$LEDGERWATCH_JSON")"
+        LEDGER_ARG=()
+        [[ -n "$LEDGER_PATH" ]] && LEDGER_ARG=(--ledger "$LEDGER_PATH")
+        if with_timeout "$LEDGERWATCH_TIMEOUT" python3 \
+                "$SCRIPTS/ledger_condition_scan.py" \
+                ${LEDGER_ARG[@]+"${LEDGER_ARG[@]}"} \
+                > "$LEDGERWATCH_JSON" 2>"$RUN_LOG_DIR/ledgerwatch.err"; then
+            lw_counts=$(python3 -c "
+import json, sys
+data = json.load(open(sys.argv[1]))
+print(data['watch_count'], data['fired_count'], len(data.get('errors', [])))
+" "$LEDGERWATCH_JSON" 2>/dev/null || echo "")
+            if [[ -n "$lw_counts" ]]; then
+                read -r lw_count lw_fired lw_errors <<< "$lw_counts"
+                LEDGERWATCH_ARG=(--ledger-watch "$LEDGERWATCH_JSON")
+                audit stage_result stage=ledgerwatch result=ok \
+                    watches="$lw_count" fired="$lw_fired" errors="$lw_errors"
+            else
+                add_reason LEDGERWATCH_FAIL
+                audit stage_result stage=ledgerwatch result=fail reason=LEDGERWATCH_FAIL
+                rm -f "$LEDGERWATCH_JSON"
+            fi
+        else
+            add_reason LEDGERWATCH_FAIL
+            audit stage_result stage=ledgerwatch result=fail reason=LEDGERWATCH_FAIL
+            rm -f "$LEDGERWATCH_JSON"
+        fi
+    fi
+else
+    audit stage_result stage=ledgerwatch result=skipped
+fi
+
 # --- Stage 7: improvement check (P4-shaped, fires on 2-week recurrence) ---
 # The orchestrator knows extra codes the builder will add for missing files.
 # Gated on stage_enabled: a deliberately disabled stage is not a failure and
@@ -910,6 +1006,8 @@ if python3 "$SCRIPTS/build_decision_packet.py" build \
         ${IMPROVEMENT_ARG[@]+"${IMPROVEMENT_ARG[@]}"} \
         ${DEADCODE_ARG[@]+"${DEADCODE_ARG[@]}"} \
         ${VALUE_LAYER_ARG[@]+"${VALUE_LAYER_ARG[@]}"} \
+        ${DOCSCAN_ARG[@]+"${DOCSCAN_ARG[@]}"} \
+        ${LEDGERWATCH_ARG[@]+"${LEDGERWATCH_ARG[@]}"} \
         --run-log-dir "$RUN_LOG_DIR" \
         --out "$PACKET" > "$RUN_LOG_DIR/packet.log" 2>&1; then
     audit chain_end result=ok packet="$PACKET" reasons="${REASONS:-none}"
