@@ -2,8 +2,12 @@
 
 ## Status
 
-accepted (amended 2026-06-06; Decision 6 のゲートは充足 — LLM 採点は
-[ADR-0056](./0056-retire-importance-llm-scoring.ja.md) で退役した)
+partially-superseded-by ADR-0056 (観測時の手応え — distill 時の LLM 採点 — を Decision 6 の実測
+ゲート充足を受けて 2026-06-17 に退役。三つの判断時点は二つに減った)。2026-06-06 に amend 済み。
+Decision 2 (gate と score は別機構のまま)、Decision 4 の原則 (昇格は再抽出によるもので、score の
+書き換えによらない)、Decision 5 (propagation map) は有効のまま。Decision 3 の「保存フィールドの
+意味の再定義」と Decision 4 の write-once 条項は moot — ADR-0056 Decision 3 が `importance` の
+書き込み自体を止めたため。
 
 ## Date
 

@@ -29,11 +29,11 @@
 | [0021](0021-pattern-schema-trust-temporal-forgetting-feedback.ja.md) | Pattern スキーマ拡張 — Provenance / Bitemporal / Forgetting / Feedback | partially-superseded-by 0028, 0029, 0051 | 2026-04-16 |
 | [0022](0022-memory-evolution-and-hybrid-retrieval.ja.md) | Memory Evolution + Hybrid Retrieval (BM25) | withdrawn-by 0034 | 2026-04-16 |
 | [0023](0023-skill-as-memory-loop.ja.md) | Skill-as-Memory ループ — Router / Usage Log / Reflective Write | superseded-by 0036 | 2026-04-16 |
-| [0024](0024-identity-block-separation.ja.md) | Identity Block Separation — Frontmatter で addressing する persona ブロック | proposed | 2026-04-16 |
-| [0025](0025-identity-history-and-migrate-cli.ja.md) | Identity History ログ配線 + migrate-identity CLI | proposed | 2026-04-16 |
+| [0024](0024-identity-block-separation.ja.md) | Identity Block Separation — Frontmatter で addressing する persona ブロック | superseded-by 0030 | 2026-04-16 |
+| [0025](0025-identity-history-and-migrate-cli.ja.md) | Identity History ログ配線 + migrate-identity CLI | superseded-by 0030 | 2026-04-16 |
 | [0026](0026-retire-discrete-categories.ja.md) | 離散カテゴリの廃止（ADR-0019 の Phase-3 完了） | accepted | 2026-04-16 |
 | [0027](0027-noise-as-seed.ja.md) | Noise as Seed — binary gate から salience-based forgetting へ | accepted | 2026-04-16 |
-| [0028](0028-retire-pattern-level-forgetting-feedback.ja.md) | pattern 層の forgetting と feedback を撤回 — 記憶動的層は skill 層にある | proposed | 2026-04-18 |
+| [0028](0028-retire-pattern-level-forgetting-feedback.ja.md) | pattern 層の forgetting と feedback を撤回 — 記憶動的層は skill 層にある | accepted | 2026-04-18 |
 | [0029](0029-retire-dormant-provenance-elements.ja.md) | dormant な provenance 要素を撤回 — `user_input` / `external_post` / `sanitized` | accepted | 2026-04-18 |
 | [0030](0030-withdraw-identity-blocks.ja.md) | Identity Block 分離と History 配線の撤回 — Single Responsibility | accepted — ADR-0024 と ADR-0025 を supersede | 2026-04-18 |
 | [0031](0031-classification-as-query.ja.md) | Classification as Query — 自己改善メモリの substrate 原則 | accepted | 2026-04-27 |
@@ -55,10 +55,10 @@
 | [0047](0047-comment-sampling-temperature.ja.md) | 外向きコメント生成のサンプリング温度引き上げ | accepted | 2026-05-30 |
 | [0048](0048-trigger-altitude-skill-lifecycle.ja.md) | スキルライフサイクル全体のトリガー高度化 | accepted | 2026-06-02 |
 | [0049](0049-meditation-active-inference-fidelity-and-deferral.ja.md) | 瞑想アダプタ — Beautiful Loop 忠実性監査と忠実な再実装の保留 | accepted | 2026-06-03 |
-| [0050](0050-epistemic-taxonomy-and-approval-lineage.ja.md) | Epistemic taxonomy と承認系譜 — steering なしの可観測性 | partially-superseded-by 0051 | 2026-06-05 |
+| [0050](0050-epistemic-taxonomy-and-approval-lineage.ja.md) | Epistemic taxonomy と承認系譜 — steering なしの可観測性 | partially-superseded-by 0051, 0082 | 2026-06-05 |
 | [0051](0051-retire-trust-weighting.ja.md) | trust 重みの全廃 — 純 cosine 検索と bitemporal のみの生死判定 | accepted | 2026-06-05 |
 | [0052](0052-retire-session-insight.ja.md) | セッション洞察生成の退役 — identity が承認済み継続性チャネルである | accepted | 2026-06-05 |
-| [0053](0053-importance-encoding-time-significance.ja.md) | 観測時の手応えとしての importance — 三つの判断時点と再観察による昇格 | accepted (amended 2026-06-06) | 2026-06-06 |
+| [0053](0053-importance-encoding-time-significance.ja.md) | 観測時の手応えとしての importance — 三つの判断時点と再観察による昇格 | partially-superseded-by 0056 | 2026-06-06 |
 | [0054](0054-externalize-llm-instruction-text-to-prompts.ja.md) | LLM 指示テキストを `config/prompts/` へ外出しし、injection 境界にはハードコードの fallback を持たせる | accepted | 2026-06-09 |
 | [0055](0055-counterparty-identity-by-author-name.ja.md) | author name による counterparty 識別と activity/report スキーマの統一 | accepted | 2026-06-15 |
 | [0056](0056-retire-importance-llm-scoring.ja.md) | distill 時の importance LLM 採点を撤去 — 抽出重みは純粋な time decay に | accepted | 2026-06-17 |

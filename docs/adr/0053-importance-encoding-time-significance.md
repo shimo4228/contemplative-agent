@@ -2,8 +2,12 @@
 
 ## Status
 
-accepted (amended 2026-06-06; Decision 6 gate satisfied — the LLM rating was retired by
-[ADR-0056](./0056-retire-importance-llm-scoring.md))
+partially-superseded-by ADR-0056 (encoding-time significance — the distill-time LLM rating —
+retired 2026-06-17 once Decision 6's measurement gate was satisfied; the three judgment points
+reduce to two). Amended 2026-06-06. Decision 2 (gate and score stay separate mechanisms),
+Decision 4's principle (promotion by re-extraction, never by score mutation) and Decision 5 (the
+propagation map) remain in effect. Decision 3's redefinition of the stored field and Decision 4's
+write-once clause are moot: ADR-0056 Decision 3 stopped writing `importance` altogether.
 
 ## Date
 
