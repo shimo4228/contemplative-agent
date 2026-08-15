@@ -32,8 +32,10 @@ import argparse
 import json as json_mod
 import logging
 import sys
+from collections import Counter
 from collections.abc import Sequence
 from dataclasses import dataclass
+from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
@@ -568,56 +570,88 @@ def _quarantine_invalid_sidecar(meta_file: Path) -> None:
         print(f"  Could not quarantine {meta_file.name}: {err}", file=sys.stderr)
 
 
-def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
-    """Walk the staging dir, run each staged file through the approval gate,
-    and write accepted files to their target paths. Rejected and accepted
-    items are both removed from staging to avoid repeated prompts on rerun.
+class _Outcome(Enum):
+    """What happened to one staged item — the dispatch's whole return channel.
 
-    With ``--yes`` (``args.yes == True``) the interactive prompts are
-    skipped and every staged item is auto-approved. This is the path that
-    coding agents (Claude Code, etc.) use because their bash sandbox is
-    non-TTY: ``input()`` would otherwise return EOF and reject everything.
-    Auto-approved entries are recorded in the audit log with
-    ``source="stage-adopted-auto"`` so they can be distinguished from
-    interactively reviewed adoptions.
+    An enum rather than eight counter variables threaded through one loop:
+    the summary and the exit code are both functions of the tally, and with
+    the counters inline every new branch had to remember to increment the
+    right one. Three of these mean "the operator asked for something that did
+    not happen", which is exactly the exit-1 condition, so that verdict is
+    read off the values instead of restated as a boolean expression.
+    """
 
-    Exit codes: 1 when part of what was asserted did not happen — a reject or
-    hold that failed, or an item whose sidecar would not load under ``--yes``
-    or ``--adopt-names``. Only the bare interactive run downgrades that last
-    case to a skip, because there a human reads the stderr line. Two rough
-    edges follow from the quarantine that accompanies it: re-running the same
-    ``--adopt-names`` file afterwards aborts with ``exit 2, "unknown staged
-    item name(s)"`` rather than anything about corruption (the sidecar has
-    been renamed ``*.invalid``), and when the quarantine rename itself fails
-    the summary still reads "quarantined, not applied" while the item stays in
-    the ADR-0074 pending count. Exit 1 is the right verdict in both.
+    # `auto()` and not strings: the summary labels live in
+    # `_report_adopt_outcomes` and nothing reads `.value`, so string values
+    # would read as if editing them changed the output — and two members
+    # sharing one would silently ALIAS, merging two outcomes in the Counter and
+    # double-counting a summary field with no error anywhere (2026-08-16 code
+    # review LOW).
+    ADOPTED = auto()
+    REJECTED = auto()
+    HELD = auto()
+    SKIPPED = auto()
+    LEFT = auto()
+    REJECT_FAILED = auto()
+    HOLD_FAILED = auto()
+    ADOPT_FAILED = auto()
 
-    With ``--adopt-names FILE`` (T-ADOPT-PERITEM) the items named in FILE
-    (one staged filename per line) are adopted non-interactively, matched by
-    name so the caller never depends on the iteration order (seq order, not
-    packet numbering — the 2026-08-01 y/n-pipe gate nearly adopted the wrong
-    items over exactly that mismatch). All names are verified against the
-    staged set BEFORE any destructive operation: one unknown name aborts the
-    whole run with the offending names listed and staging untouched. Items
-    not listed are left staged by default; ``--reject-rest`` makes their
-    rejection explicit (forgetting the flag errs on the safe side). These
-    adoptions are recorded with ``source="stage-adopted-names"`` — per-item
-    selection (unlike the blanket ``--yes`` batch) but transcribed rather
-    than prompted, so the audit trail keeps the provenance distinct from a
-    TTY y/N session (2026-08-01 security review C1). An empty names file
-    aborts: combined with ``--reject-rest`` it would otherwise wipe the
-    whole staging queue (C2).
+    @property
+    def is_failure(self) -> bool:
+        """True when what was asserted did not happen (exit 1).
 
-    With ``--hold-names FILE`` (T-ADOPT-HOLD) the named items are left in
-    staging with a ``decision="held"`` audit row. The gate has always offered
-    three answers — approve / reject / hold — but the CLI carried a
-    dichotomy, so holding one item meant leaving the entire remainder staged,
-    un-rejected and unrecorded. The two files compose: adopt some, hold some,
-    ``--reject-rest`` for everything else, one invocation, one decision each.
-    A name in both files aborts rather than picking a winner. Held items
-    deliberately still count toward the ADR-0074 pending guard, so a hold
-    still defers the next batch — the change is that the block is now a
-    recorded choice the guard can name (2026-08-15 decision).
+        Not the same as "not adopted": SKIPPED and LEFT are outcomes nobody
+        asserted against, and counting them here would fail a bare
+        interactive run that simply declined an item.
+        """
+        return self in (_Outcome.REJECT_FAILED, _Outcome.HOLD_FAILED, _Outcome.ADOPT_FAILED)
+
+
+@dataclass(frozen=True)
+class _AdoptPlan:
+    """The reconciled request — every flag resolved, every name verified.
+
+    Built before the first destructive operation, which is the property that
+    matters: `--adopt-names` with one typo must leave staging untouched, and
+    that can only be guaranteed by finishing the reconciliation before the
+    loop starts rather than by checking as it goes.
+
+    ``adopt_names is None`` means "every staged item" (a bare interactive run
+    or ``--yes``); a set means per-item selection by staged filename.
+    """
+
+    meta_files: list[Path]
+    adopt_names: set[str] | None
+    hold_names: set[str]
+    reject_rest: bool
+    yes: bool
+    audit_source: AuditSource
+    data_root: Path
+
+    @property
+    def per_item(self) -> bool:
+        return self.adopt_names is not None
+
+    @property
+    def instrument_metas(self) -> list[Path]:
+        """The items whose adoption the budget instrument should project.
+
+        In per-item mode the unselected items either stay staged or are
+        rejected, and neither outcome changes the system prompt.
+        """
+        if self.adopt_names is None:
+            return self.meta_files
+        return [mf for mf in self.meta_files if _staged_name(mf) in self.adopt_names]
+
+
+def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
+    """Reconcile the flags into a plan, or report why there is nothing to do.
+
+    Returns ``None`` when the run ends successfully without touching anything
+    (no staging directory, no staged files) — the message is already printed.
+    Exits 2 on a request that cannot be honoured: mutually exclusive flags, a
+    name in both files, or a name matching no staged item. Every one of those
+    happens before the caller's loop, so staging is untouched when they fire.
     """
     yes = getattr(args, "yes", False)
     adopt_names_file = getattr(args, "adopt_names", None)
@@ -638,8 +672,6 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         )
         sys.exit(2)
 
-    # None = process every staged item (interactive or --yes);
-    # a set = per-item selection by staged filename.
     adopt_names: set[str] | None = None
     if adopt_names_file:
         adopt_names = _read_names_file(Path(adopt_names_file), "--adopt-names")
@@ -648,7 +680,7 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         hold_names = _read_names_file(Path(hold_names_file), "--hold-names")
         # Holding without adopting anything is a legitimate week. Normalizing
         # to an empty set (rather than leaving it None) is what keeps the
-        # unlisted items out of the interactive branch below — otherwise
+        # unlisted items out of the interactive branch — otherwise
         # `--hold-names` alone would prompt for every other item.
         if adopt_names is None:
             adopt_names = set()
@@ -683,7 +715,7 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
             )
             sys.exit(2)
         print("No staging directory.")
-        return
+        return None
 
     meta_files = sorted(config.STAGED_DIR.glob("*.meta.json"), key=_staged_sort_key)
     if not meta_files:
@@ -695,7 +727,7 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
             )
             sys.exit(2)
         print("No staged files.")
-        return
+        return None
 
     if adopt_names is not None:
         # Verify EVERY requested name before any unlink / adopt / hold /
@@ -710,167 +742,264 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
             print("No changes made; staging left untouched.", file=sys.stderr)
             sys.exit(2)
 
-    data_root = config.MOLTBOOK_DATA_DIR.resolve()
-    # In per-item mode, project the budget for the items actually being
-    # adopted — unselected items either stay staged or are rejected, and
-    # neither outcome changes the system prompt.
-    instrument_metas = meta_files
-    if adopt_names is not None:
-        instrument_metas = [mf for mf in meta_files if _staged_name(mf) in adopt_names]
-    _print_system_budget_for_staged(instrument_metas, data_root)
+    return _AdoptPlan(
+        meta_files=meta_files,
+        adopt_names=adopt_names,
+        hold_names=hold_names,
+        reject_rest=reject_rest,
+        yes=yes,
+        audit_source=audit_source,
+        data_root=config.MOLTBOOK_DATA_DIR.resolve(),
+    )
 
-    if adopt_names is not None:
-        rest_fate = "rejected" if reject_rest else "left staged"
-        held_note = f", holding {len(hold_names)}" if hold_names else ""
+
+def _hold_one(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
+    """Leave one named item in staging with a recorded ``decision="held"``.
+
+    Called only for names in ``plan.hold_names``; the caller owns that check.
+    """
+    item = _load_staged_item(meta_file, plan.data_root)
+    if item is None:
+        # Deliberately NOT quarantined, unlike every other branch.
+        # Quarantining renames the sidecar out of the pending count, which for
+        # an item the operator asked to KEEP would turn a requested hold into
+        # a silent removal — and let the next batch overwrite the staged
+        # content while the run still exited 0 (codex review 2026-08-15).
+        # Counting it as a hold failure preserves both the item and the
+        # non-zero exit.
         print(
-            f"Per-item mode: adopting {len(adopt_names)} of "
-            f"{len(meta_files)} staged item(s){held_note}; the rest are {rest_fate}."
+            f"  Could not hold {_staged_name(meta_file)}: its sidecar did not load",
+            file=sys.stderr,
         )
-    elif yes:
-        print(
-            f"Auto-approve mode (--yes): adopting {len(meta_files)} staged item(s) without prompts."
-        )
+        return _Outcome.HOLD_FAILED
+    print(f"\n{'=' * 60}")
+    print(f"[{item.command}] {item.content_file.name} -> {item.target}")
+    if _hold_staged_item(item, meta_file, audit_source=plan.audit_source):
+        return _Outcome.HELD
+    return _Outcome.HOLD_FAILED
 
-    adopted = 0
-    rejected = 0
-    held = 0
-    skipped = 0
-    left = 0
-    reject_failures = 0
-    hold_failures = 0
-    adopt_failures = 0
-    for meta_file in meta_files:
-        if _staged_name(meta_file) in hold_names:
-            item = _load_staged_item(meta_file, data_root)
-            if item is None:
-                # Deliberately NOT quarantined, unlike every other branch.
-                # Quarantining renames the sidecar out of the pending count,
-                # which for an item the operator asked to KEEP would turn a
-                # requested hold into a silent removal — and let the next
-                # batch overwrite the staged content while the run still
-                # exited 0 (codex review 2026-08-15). Counting it as a hold
-                # failure preserves both the item and the non-zero exit.
-                print(
-                    f"  Could not hold {_staged_name(meta_file)}: its sidecar did not load",
-                    file=sys.stderr,
-                )
-                hold_failures += 1
-                continue
-            print(f"\n{'=' * 60}")
-            print(f"[{item.command}] {item.content_file.name} -> {item.target}")
-            if _hold_staged_item(item, meta_file, audit_source=audit_source):
-                held += 1
-            else:
-                hold_failures += 1
-            continue
 
-        if adopt_names is not None and _staged_name(meta_file) not in adopt_names:
-            if not reject_rest:
-                left += 1
-                continue
-            item = _load_staged_item(meta_file, data_root)
-            if item is None:
-                _quarantine_invalid_sidecar(meta_file)
-                skipped += 1
-                continue
-            # Unlink BEFORE logging: an audit row claiming "rejected" for an
-            # item still sitting in staging is worse than a removed item with
-            # a missing row (2026-08-01 security review H1 — the new branch
-            # must not extend the pre-existing log-then-mutate ordering).
-            try:
-                item.content_file.unlink(missing_ok=True)
-                meta_file.unlink(missing_ok=True)
-            except OSError as err:
-                print(
-                    f"  Could not reject {item.content_file.name}: {err}",
-                    file=sys.stderr,
-                )
-                reject_failures += 1
-                continue
-            approval._log_approval(
-                item.command,
-                item.target,
-                False,
-                item.text,
-                source=audit_source,
-                source_ids=item.source_ids,
-                epistemic_counts=item.epistemic_counts,
-            )
-            print(f"  Rejected (not in --adopt-names): {item.content_file.name}")
-            rejected += 1
-            continue
+def _reject_unselected(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
+    """Reject one item that ``--adopt-names`` did not select.
 
-        item = _load_staged_item(meta_file, data_root)
-        if item is None:
-            _quarantine_invalid_sidecar(meta_file)
-            if adopt_names is None and not yes:
-                # Bare interactive run: nobody asserted this item should be
-                # adopted, and a human is reading the stderr line above.
-                skipped += 1
-            else:
-                # Either the operator named THIS item or --yes said "adopt
-                # everything staged". Counting the load failure as a plain
-                # skip let a non-interactive caller read a partially applied
-                # batch as success (code review 2026-08-15) — the same hole
-                # the hold branch closes three branches up, and --yes is the
-                # documented path for non-TTY callers. It cannot turn into a
-                # recurring failure: the sidecar is quarantined here, so it is
-                # out of the glob on the next run. Quarantine stays because an
-                # invalid sidecar can never be adopted and leaving it would
-                # block every future --stage run (ADR-0074 pending guard).
-                print(
-                    f"  Could not adopt {_staged_name(meta_file)}: its sidecar did not load",
-                    file=sys.stderr,
-                )
-                adopt_failures += 1
-            continue
-
-        print(f"\n{'=' * 60}")
-        print(f"[{item.command}] {item.content_file.name} -> {item.target}")
-        print(item.text)
-
-        approve_without_prompt = yes or adopt_names is not None
-        if item.action == "drop":
-            ok = _adopt_drop_item(item, yes=approve_without_prompt, audit_source=audit_source)
-        else:
-            ok = _adopt_write_item(
-                item,
-                yes=approve_without_prompt,
-                audit_source=audit_source,
-                data_root=data_root,
-            )
-        if ok:
-            adopted += 1
-        else:
-            rejected += 1
-
+    **Unconditionally destructive — the caller owns the ``--reject-rest``
+    check.** Forgetting the flag is supposed to leave the item staged, and
+    that decision is made in :func:`_dispatch_staged_item`, not here.
+    """
+    item = _load_staged_item(meta_file, plan.data_root)
+    if item is None:
+        _quarantine_invalid_sidecar(meta_file)
+        return _Outcome.SKIPPED
+    # Unlink BEFORE logging: an audit row claiming "rejected" for an item
+    # still sitting in staging is worse than a removed item with a missing row
+    # (2026-08-01 security review H1 — this branch must not extend the
+    # pre-existing log-then-mutate ordering).
+    try:
         item.content_file.unlink(missing_ok=True)
         meta_file.unlink(missing_ok=True)
+    except OSError as err:
+        print(f"  Could not reject {item.content_file.name}: {err}", file=sys.stderr)
+        return _Outcome.REJECT_FAILED
+    approval._log_approval(
+        item.command,
+        item.target,
+        False,
+        item.text,
+        source=plan.audit_source,
+        source_ids=item.source_ids,
+        epistemic_counts=item.epistemic_counts,
+    )
+    print(f"  Rejected (not in --adopt-names): {item.content_file.name}")
+    return _Outcome.REJECTED
 
-    summary = f"\n--- Summary: {adopted} adopted, {rejected} rejected, {skipped} skipped"
-    if hold_names:
-        summary += f", {held} held"
-    if reject_failures:
-        summary += f", {reject_failures} reject FAILURES (still staged)"
-    if hold_failures:
-        summary += f", {hold_failures} hold FAILURES (staged, unrecorded)"
-    if adopt_failures:
-        summary += f", {adopt_failures} adopt FAILURES (quarantined, not applied)"
-    if adopt_names is not None:
-        summary += f", {left} left staged"
+
+def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
+    """Decide and apply one staged item's fate.
+
+    The four fates are ordered by how specific the operator's instruction was:
+    a name in ``--hold-names`` wins, then "not in ``--adopt-names``", then the
+    ordinary approve/reject path.
+
+    **Two rough edges follow from the quarantine on the adopt-failure path**,
+    recorded here because nothing rediscovers them cheaply:
+
+    - re-running the same ``--adopt-names`` file afterwards aborts with
+      ``exit 2, "unknown staged item name(s)"`` and says nothing about
+      corruption — the sidecar has been renamed ``*.invalid``, so the name no
+      longer matches anything staged. An operator who regenerates the names
+      file from the same packet reads that as "the packet is out of sync with
+      staging", which is the wrong repair;
+    - when the quarantine rename itself fails, the summary still reads
+      "quarantined, not applied" while the item stays in the ADR-0074 pending
+      count.
+
+    Exit 1 is the right verdict in both.
+    """
+    name = _staged_name(meta_file)
+    if name in plan.hold_names:
+        return _hold_one(meta_file, plan)
+
+    if plan.adopt_names is not None and name not in plan.adopt_names:
+        if not plan.reject_rest:
+            return _Outcome.LEFT
+        return _reject_unselected(meta_file, plan)
+
+    item = _load_staged_item(meta_file, plan.data_root)
+    if item is None:
+        _quarantine_invalid_sidecar(meta_file)
+        if not plan.per_item and not plan.yes:
+            # Bare interactive run: nobody asserted this item should be
+            # adopted, and a human is reading the stderr line above.
+            return _Outcome.SKIPPED
+        # Either the operator named THIS item or --yes said "adopt everything
+        # staged". Counting the load failure as a plain skip let a
+        # non-interactive caller read a partially applied batch as success
+        # (code review 2026-08-15) — the same hole the hold branch closes, and
+        # --yes is the documented path for non-TTY callers. It cannot turn
+        # into a recurring failure: the sidecar is quarantined here, so it is
+        # out of the glob on the next run. Quarantine stays because an invalid
+        # sidecar can never be adopted and leaving it would block every future
+        # --stage run (ADR-0074 pending guard).
+        print(
+            f"  Could not adopt {name}: its sidecar did not load",
+            file=sys.stderr,
+        )
+        return _Outcome.ADOPT_FAILED
+
+    print(f"\n{'=' * 60}")
+    print(f"[{item.command}] {item.content_file.name} -> {item.target}")
+    print(item.text)
+
+    approve_without_prompt = plan.yes or plan.per_item
+    if item.action == "drop":
+        ok = _adopt_drop_item(item, yes=approve_without_prompt, audit_source=plan.audit_source)
+    else:
+        ok = _adopt_write_item(
+            item,
+            yes=approve_without_prompt,
+            audit_source=plan.audit_source,
+            data_root=plan.data_root,
+        )
+
+    item.content_file.unlink(missing_ok=True)
+    meta_file.unlink(missing_ok=True)
+    return _Outcome.ADOPTED if ok else _Outcome.REJECTED
+
+
+def _report_adopt_outcomes(tally: Counter[_Outcome], plan: _AdoptPlan) -> None:
+    """Print the summary and set the exit code.
+
+    The exit code follows from the tally alone. **The summary also needs the
+    plan**, because ``held`` and ``left staged`` are shown whenever they were
+    REQUESTED, including as zero — ``0 held`` beside ``1 hold FAILURES`` is the
+    line that tells the operator a requested hold produced nothing, and
+    ``if tally[HELD]`` would drop exactly that case. Said explicitly because
+    the earlier wording claimed "from the tally alone" of both, which invites a
+    cleanup that removes the parameter and silently deletes those two clauses
+    (2026-08-16 code review MEDIUM).
+    """
+    summary = (
+        f"\n--- Summary: {tally[_Outcome.ADOPTED]} adopted, "
+        f"{tally[_Outcome.REJECTED]} rejected, {tally[_Outcome.SKIPPED]} skipped"
+    )
+    if plan.hold_names:
+        summary += f", {tally[_Outcome.HELD]} held"
+    if tally[_Outcome.REJECT_FAILED]:
+        summary += f", {tally[_Outcome.REJECT_FAILED]} reject FAILURES (still staged)"
+    if tally[_Outcome.HOLD_FAILED]:
+        summary += f", {tally[_Outcome.HOLD_FAILED]} hold FAILURES (staged, unrecorded)"
+    if tally[_Outcome.ADOPT_FAILED]:
+        summary += f", {tally[_Outcome.ADOPT_FAILED]} adopt FAILURES (quarantined, not applied)"
+    if plan.per_item:
+        summary += f", {tally[_Outcome.LEFT]} left staged"
     print(summary + " ---")
-    if held or hold_failures:
+
+    still_staged = tally[_Outcome.HELD] + tally[_Outcome.HOLD_FAILED]
+    if still_staged:
         # Say the cost at the point of decision, not next Saturday when the
         # weekly batch quietly fails to stage (ADR-0074 pending guard). Failed
         # holds are still sitting in staging, so they block just the same.
         print(
-            f"{held + hold_failures} item(s) still in staging: the next insight "
+            f"{still_staged} item(s) still in staging: the next insight "
             "batch will be refused until they are decided."
         )
-    if reject_failures or hold_failures or adopt_failures:
+    if any(tally[outcome] for outcome in _Outcome if outcome.is_failure):
         # A non-interactive caller must not read a partially applied batch as
         # success (2026-08-01 security review H1).
         sys.exit(1)
+
+
+def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
+    """Walk the staging dir, run each staged file through the approval gate,
+    and write accepted files to their target paths. Rejected and accepted
+    items are both removed from staging to avoid repeated prompts on rerun.
+
+    Three steps, and each is a separate function because they fail in
+    different ways: :func:`_resolve_adopt_plan` reconciles the flags and can
+    still refuse with staging untouched, :func:`_dispatch_staged_item` applies
+    exactly one item and reports an :class:`_Outcome`, and
+    :func:`_report_adopt_outcomes` derives the summary and the exit code from
+    the tally.
+
+    With ``--yes`` (``args.yes == True``) the interactive prompts are
+    skipped and every staged item is auto-approved. This is the path that
+    coding agents (Claude Code, etc.) use because their bash sandbox is
+    non-TTY: ``input()`` would otherwise return EOF and reject everything.
+    Auto-approved entries are recorded in the audit log with
+    ``source="stage-adopted-auto"`` so they can be distinguished from
+    interactively reviewed adoptions.
+
+    With ``--adopt-names FILE`` (T-ADOPT-PERITEM) the items named in FILE
+    (one staged filename per line) are adopted non-interactively, matched by
+    name so the caller never depends on the iteration order (seq order, not
+    packet numbering — the 2026-08-01 y/n-pipe gate nearly adopted the wrong
+    items over exactly that mismatch). Items not listed are left staged by
+    default; ``--reject-rest`` makes their rejection explicit (forgetting the
+    flag errs on the safe side). These adoptions are recorded with
+    ``source="stage-adopted-names"`` — per-item selection (unlike the blanket
+    ``--yes`` batch) but transcribed rather than prompted, so the audit trail
+    keeps the provenance distinct from a TTY y/N session (2026-08-01 security
+    review C1). An empty names file aborts: combined with ``--reject-rest`` it
+    would otherwise wipe the whole staging queue (C2).
+
+    With ``--hold-names FILE`` (T-ADOPT-HOLD) the named items are left in
+    staging with a ``decision="held"`` audit row. The gate has always offered
+    three answers — approve / reject / hold — but the CLI carried a
+    dichotomy, so holding one item meant leaving the entire remainder staged,
+    un-rejected and unrecorded. The two files compose: adopt some, hold some,
+    ``--reject-rest`` for everything else, one invocation, one decision each.
+    A name in both files aborts rather than picking a winner. Held items
+    deliberately still count toward the ADR-0074 pending guard, so a hold
+    still defers the next batch — the change is that the block is now a
+    recorded choice the guard can name (2026-08-15 decision).
+
+    Exit codes: 2 when the request itself cannot be honoured (see
+    :func:`_resolve_adopt_plan`), 1 when part of what was asserted did not
+    happen (see :meth:`_Outcome.is_failure`).
+    """
+    plan = _resolve_adopt_plan(args)
+    if plan is None:
+        return
+
+    _print_system_budget_for_staged(plan.instrument_metas, plan.data_root)
+
+    if plan.adopt_names is not None:
+        rest_fate = "rejected" if plan.reject_rest else "left staged"
+        held_note = f", holding {len(plan.hold_names)}" if plan.hold_names else ""
+        print(
+            f"Per-item mode: adopting {len(plan.adopt_names)} of "
+            f"{len(plan.meta_files)} staged item(s){held_note}; the rest are {rest_fate}."
+        )
+    elif plan.yes:
+        print(
+            f"Auto-approve mode (--yes): adopting "
+            f"{len(plan.meta_files)} staged item(s) without prompts."
+        )
+
+    tally: Counter[_Outcome] = Counter(
+        _dispatch_staged_item(meta_file, plan) for meta_file in plan.meta_files
+    )
+    _report_adopt_outcomes(tally, plan)
 
 
 def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:

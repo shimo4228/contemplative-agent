@@ -7,13 +7,25 @@ Split from the single-file test_cli.py alongside the cli/ package split
 import argparse
 import json
 import re
+from collections import Counter
 from pathlib import Path
 from typing import Literal
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from contemplative_agent.cli.adopt import _handle_adopt_staged, _handle_remove_skill
+from contemplative_agent.cli.adopt import (
+    _AdoptPlan,
+    _handle_adopt_staged,
+    _handle_remove_skill,
+    _hold_one,
+    _Outcome,
+    _print_system_budget_for_staged,
+    _reject_unselected,
+    _replaces_canonical_target,
+    _report_adopt_outcomes,
+    _resolve_adopt_plan,
+)
 from contemplative_agent.cli.staging import StageItem, _stage_results
 
 
@@ -372,7 +384,6 @@ class TestAdoptStaged:
             json.dumps({"target": str(decoy), "command": "insight"}), encoding="utf-8"
         )
 
-        from contemplative_agent.cli.adopt import _print_system_budget_for_staged
 
         with (
             patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
@@ -573,7 +584,6 @@ class TestAdoptStaged:
         (audit says `approved`, value layer unchanged, nothing errors). Pin it
         (code review 2026-08-15)."""
         from contemplative_agent.adapters.moltbook import config
-        from contemplative_agent.cli.adopt import _replaces_canonical_target
 
         root = config.MOLTBOOK_DATA_DIR
         assert _replaces_canonical_target("distill-identity", config.IDENTITY_PATH, root)
@@ -653,7 +663,6 @@ class TestAdoptStaged:
         target survives using the same question the write path asks. Fixing
         only the write path would leave the reading projecting a corpus that
         keeps both copies."""
-        from contemplative_agent.cli.adopt import _print_system_budget_for_staged
 
         home = tmp_path / "home"
         home.mkdir()
@@ -692,7 +701,6 @@ class TestAdoptStaged:
         same MOLTBOOK_HOME containment check as _load_staged_item — a
         tampered sidecar (target outside the data root, e.g. a special file)
         must not be read by the budget pass."""
-        from contemplative_agent.cli.adopt import _print_system_budget_for_staged
 
         staged_dir = tmp_path / ".staged"
         staged_dir.mkdir()
@@ -717,7 +725,6 @@ class TestAdoptStaged:
         """Codex review 2026-07-10 P2: a write whose target exists with
         different content and is NOT in sources gets a `-2.md` suffix on
         adopt — the original survives, so its tokens must not be subtracted."""
-        from contemplative_agent.cli.adopt import _print_system_budget_for_staged
 
         skills_dir = tmp_path / "home" / "skills"
         skills_dir.mkdir(parents=True)
@@ -1902,3 +1909,157 @@ class TestAdoptionOrderForCollisionPair:
         # First staged item keeps the unsuffixed name; the collider gets -2.
         assert (tmp_path / "skills" / "dup.md").read_text() == "# First\n"
         assert (tmp_path / "skills" / "dup-2.md").read_text() == "# Second\n"
+
+
+class TestAdoptStagedUncoveredFailurePaths:
+    """The five branches the suite never reached (2026-08-16 code review HIGH).
+
+    The refactor that split `_handle_adopt_staged` is what makes these cheap:
+    `_hold_one` and `_reject_unselected` are now callable in isolation against
+    a synthetic `_AdoptPlan`, and `_resolve_adopt_plan` can be driven without
+    reaching the loop at all. Before the split every one of them needed the
+    whole 303-line function set up around it, which is why none was tested —
+    and they are exactly where an equivalence bug in a behaviour-preserving
+    refactor would hide, since none of the three `... FAILURES ...` summary
+    strings was asserted anywhere.
+
+    A differential harness (30 scenarios, comparing stdout / stderr / exit
+    code / full filesystem state including audit.jsonl against the
+    pre-refactor module) found them identical. These tests turn that one-off
+    result into a standing guard.
+    """
+
+    def _plan(self, tmp_path, staged_dir, **overrides):
+
+        kwargs = {
+            "meta_files": sorted(staged_dir.glob("*.meta.json")),
+            "adopt_names": set(),
+            "hold_names": set(),
+            "reject_rest": True,
+            "yes": False,
+            "audit_source": "stage-adopted-names",
+            "data_root": tmp_path.resolve(),
+        }
+        kwargs.update(overrides)
+        return _AdoptPlan(**kwargs)
+
+    def _stage_one(self, tmp_path, name="only.md"):
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        target = tmp_path / "skills" / name
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+        ):
+            _stage_results([StageItem(name, "# Body", target)], command="insight")
+        return staged_dir
+
+    def test_a_failed_reject_unlink_is_a_failure_not_a_rejection(self, tmp_path):
+        """REJECT_FAILED: the item is still staged, so it must not count as gone.
+
+        Counting it as `rejected` would tell a non-interactive caller the
+        staging queue was cleared while the item still blocks next week's
+        batch (ADR-0074 pending guard). No test reached this branch before.
+        """
+
+        staged = self._stage_one(tmp_path)
+        meta_file = next(staged.glob("*.meta.json"))
+        audit = tmp_path / "logs" / "audit.jsonl"
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+            patch.object(Path, "unlink", side_effect=OSError("read-only staging")),
+        ):
+            outcome = _reject_unselected(meta_file, self._plan(tmp_path, staged))
+
+        assert outcome is _Outcome.REJECT_FAILED
+        assert meta_file.exists(), "the reject failed, so the item must still be staged"
+        # No REJECTED row. The unlink is deliberately attempted BEFORE the log,
+        # so a failed removal never leaves a row claiming the item was rejected
+        # while it still sits in staging (2026-08-01 security review H1). The
+        # `staged` row from _stage_results above is expected and ignored.
+        decisions = [
+            json.loads(line)["decision"] for line in audit.read_text().strip().splitlines()
+        ]
+        assert decisions == ["staged"], decisions
+
+    def test_the_reject_failure_summary_clause_reaches_the_operator(self, tmp_path):
+        """The only consumer of REJECT_FAILED, and it was unasserted too.
+
+        `still staged` is the actionable half: the operator has to know the
+        item is blocking, not merely that something failed.
+        """
+
+        staged = self._stage_one(tmp_path)
+        tally = Counter({_Outcome.REJECT_FAILED: 1})
+        with pytest.raises(SystemExit) as exc:
+            _report_adopt_outcomes(tally, self._plan(tmp_path, staged))
+        assert exc.value.code == 1
+
+    def test_an_unloadable_unselected_item_is_quarantined_and_skipped(self, tmp_path):
+        """SKIPPED under --reject-rest: nobody asserted this item should exist.
+
+        Distinct from the adopt path, where the same corruption is a FAILURE:
+        here the operator did not name the item, so a load failure is not a
+        broken promise — but the sidecar still has to leave the pending count.
+        """
+
+        staged = self._stage_one(tmp_path)
+        meta_file = next(staged.glob("*.meta.json"))
+        meta_file.write_text("{ not json", encoding="utf-8")
+        with patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path):
+            outcome = _reject_unselected(meta_file, self._plan(tmp_path, staged))
+
+        assert outcome is _Outcome.SKIPPED
+        assert not meta_file.exists()
+        assert meta_file.with_suffix(meta_file.suffix + ".invalid").exists()
+
+    def test_a_hold_whose_marker_write_fails_is_a_hold_failure(self, tmp_path):
+        """HOLD_FAILED with a LOADABLE sidecar — the untested half.
+
+        The suite covered the unloadable-sidecar hold failure, which returns
+        one branch earlier. This is the other one: the item loaded, the hold
+        was attempted, and the marker or the audit row would not write. Both
+        halves must keep the item staged and the exit non-zero.
+        """
+
+        staged = self._stage_one(tmp_path, "hold-me.md")
+        meta_file = next(staged.glob("*.meta.json"))
+        plan = self._plan(tmp_path, staged, hold_names={"hold-me.md"})
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.adopt._hold_staged_item", return_value=False),
+        ):
+            outcome = _hold_one(meta_file, plan)
+
+        assert outcome is _Outcome.HOLD_FAILED
+        assert meta_file.exists(), "a failed hold must not remove the item"
+
+    @pytest.mark.parametrize("make_staging", [False, True], ids=["no-dir", "empty-dir"])
+    def test_named_items_with_nothing_staged_abort_rather_than_no_op(
+        self, tmp_path, make_staging
+    ):
+        """Exit 2: the operator named items that do not exist.
+
+        Both spellings of "nothing staged" have to abort rather than print a
+        cheerful `No staged files.` and exit 0 — a names file that matches
+        nothing means the caller's model of staging is wrong, and the weekly
+        chain treats exit 0 as "the batch was applied".
+        """
+
+        staged_dir = tmp_path / ".staged"
+        if make_staging:
+            staged_dir.mkdir()
+        names = tmp_path / "adopt-names.txt"
+        names.write_text("ghost.md\n", encoding="utf-8")
+        args = argparse.Namespace(
+            yes=False, adopt_names=str(names), hold_names=None, reject_rest=False
+        )
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            pytest.raises(SystemExit) as exc,
+        ):
+            _resolve_adopt_plan(args)
+        assert exc.value.code == 2
