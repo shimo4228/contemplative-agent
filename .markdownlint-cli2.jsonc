@@ -26,6 +26,14 @@
     // LLM 向け apparatus (ADR-0089)。
     "evals/fixtures/**",
 
+    // 台帳 fixture (tests/fixtures/ledger/) は **意図的に不正な Markdown**。
+    // legacy-table.md は移行前の表を凍結したもので、code span 内の裸の `|` が
+    // 8 列に読める状態そのものが assertion（MD056 が正しく検出している）。
+    // rendered.md は `render_ledger` の出力を凍結したもので、`<br>` も blockquote の
+    // 空行も render が実際に出すバイト列。整形すれば test が測るものが消える。
+    // evals/fixtures と同じ「記録であって整形対象ではない」区分。
+    "tests/fixtures/**",
+
     // repo の資産ではない。git 管理外なので --staged では見えないが、引数なしの
     // 全体実行は glob で拾ってしまう（実測: MD041 15 件中 11 件が .venv 由来）。
     ".venv/**",

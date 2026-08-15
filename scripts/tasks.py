@@ -36,14 +36,18 @@ pattern would drift, and the failure would be silent (§10 reporting `fired 0`
 forever, the shape ADR-0077 forbids).
 
 Discovered during migration: the pre-migration table was **already malformed as
-GFM**. Two rows carried an unescaped `|` inside a backtick code span
-(`` `O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW` ``) and one used `|Δ効果|` as
+GFM**, in two ways. One row carried an unescaped `|` inside a backtick code
+span (`` `O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW` ``) and one used `|Δ効果|` as
 absolute-value notation; a renderer reads both as extra columns. Nothing caught
 it because no human renders the file and the scanner reads only the first two
 cells. The render therefore escapes **every** pipe in a cell — so a task-file
-author writes a bare `|` and never has to know the projection's rules — while
-`split_row` still tolerates bare pipes inside code spans, the shape the old
-table contained and the render no longer produces.
+author writes a bare `|` and never has to know the projection's rules.
+
+Reading is dialect-aware as a result (`split_row(legacy=…)`, 2026-08-15). Only
+the legacy dialect tolerates bare pipes inside code spans, because only the old
+table contained them; the rendered dialect treats every bare `|` as a column
+break, which is what makes a rendered ledger readable back into the store — the
+disaster recovery, since the store is gitignored.
 """
 
 from __future__ import annotations
@@ -149,14 +153,14 @@ class Task:
 # --------------------------------------------------------------------------
 
 
-def _mask(raw: str) -> str:
+def _mask(raw: str, legacy: bool) -> str:
     """Hide pipes that are body text, so the remaining ones are columns.
 
-    Two sources of body-text pipes: escaped ones (`\\|`, what this module's own
-    render emits) and bare ones inside a code span. The latter is not valid GFM
-    — a renderer reads them as columns — but the pre-migration table contained
-    exactly that, so reading it has to tolerate the shape the render no longer
-    produces.
+    In the rendered dialect there is exactly one source of body-text pipes:
+    escaped ones (`\\|`, what this module's own render emits). `legacy` adds the
+    second one the pre-migration table had — bare pipes inside a code span,
+    which is not valid GFM (a renderer reads them as columns) but is the shape
+    that table actually contained.
     """
     if _SENTINEL in raw:
         raise MalformedRow(f"row contains control characters: {raw[:60]!r}")
@@ -164,7 +168,7 @@ def _mask(raw: str) -> str:
     def hide_span(match: re.Match[str]) -> str:
         return match.group(0).replace("\\|", _SENTINEL).replace("|", _SENTINEL)
 
-    masked = _SPAN_RE.sub(hide_span, raw)
+    masked = _SPAN_RE.sub(hide_span, raw) if legacy else raw
     return masked.replace("\\|", _SENTINEL)
 
 
@@ -172,21 +176,62 @@ def _unmask(cell: str) -> str:
     return cell.replace(_SENTINEL, "|")
 
 
-def split_row(line: str) -> list[str]:
-    """Split a ledger row into its 5 cells, treating code spans as body text.
+def split_row(line: str, *, legacy: bool = False) -> list[str]:
+    """Split a ledger row into its 5 cells.
+
+    **Two dialects, and the caller knows which one it holds.** The default is
+    what `render_row` emits: every pipe in a cell is escaped, so a bare `|` is
+    always a column break and backticks carry no meaning at all. `legacy=True`
+    reads the pre-migration table, where body pipes sat bare inside backtick
+    code spans — there a code span hides its pipes, and an unpaired backtick is
+    refused because the cell boundaries genuinely cannot be recovered without
+    guessing which side of it the author meant.
+
+    Applying the legacy guard to rendered input had a cost that only showed up
+    after the migration landed: a body containing a single literal backtick
+    renders fine and then fails to read back, which closes the one route from a
+    rendered ledger back to the store. The store is gitignored, so that route
+    *is* the disaster recovery (2026-08-15 code review LOW).
 
     Raises MalformedRow rather than truncating: a half-migrated task is worse
-    than a loud failure, and the two rows this was written for would otherwise
-    lose their bodies silently.
+    than a loud failure, and the two rows the legacy dialect was written for
+    would otherwise lose their bodies silently.
+
+    **Stated limit of the rendered dialect: the cell count is the only
+    integrity check.** A row damaged so that a lost separator is cancelled out
+    by a stray bare pipe still splits into five cells, with the wrong contents
+    (2026-08-15 cross-model review P1). Two candidate extra checks were tried
+    and rejected, both because they refuse *legitimate* rows:
+
+    - masking code spans, as the legacy dialect does — two cells each holding
+      one backtick pair across the column break between them, so a valid row
+      collapses; that is the recovery breakage this change exists to remove;
+    - re-rendering the parsed cells and demanding the bytes match — any older
+      render whose spacing differed would then fail every row at once, turning
+      a partial recovery into no recovery.
+
+    The input is a file this module generated, so the residual risk is a
+    hand-corrupted ledger, and there is no signal that separates that from a
+    legal one. Left documented rather than half-guarded.
     """
     raw = line.strip()
     probe = _TASK_STATUS_PROBE.search(raw)
     tid = probe.group(1) if probe else "?"
     if not raw.startswith("|") or not raw.endswith("|"):
         raise MalformedRow(f"{tid}: row is not pipe-delimited: {raw[:60]!r}")
-    if raw.count("`") % 2:
+    if legacy and raw.count("`") % 2:
         raise MalformedRow(f"{tid}: unterminated code span (odd backtick count)")
-    cells = [c.strip() for c in _mask(raw)[1:-1].split("|")]
+    masked = _mask(raw, legacy)
+    # `endswith("|")` was checked on `raw` but the delimiters were stripped
+    # positionally from `masked`. A row ending `\|` masks its last two bytes
+    # into one sentinel, and `[1:-1]` then removed that sentinel as if it were
+    # the closing delimiter — so a 4-column row was accepted as 5 cells with
+    # the last one silently truncated, the exact truncation this function's
+    # contract refuses (2026-08-15 code review HIGH, reproduced in both
+    # dialects). Re-check on the string the slice actually applies to.
+    if not (masked.startswith("|") and masked.endswith("|")):
+        raise MalformedRow(f"{tid}: 行末/行頭の区切りがエスケープされている: {raw[-20:]!r}")
+    cells = [c.strip() for c in masked[1:-1].split("|")]
     if len(cells) != _CELLS:
         raise MalformedRow(f"{tid}: expected {_CELLS} cells, got {len(cells)}")
     return [_unmask(c) for c in cells]
@@ -245,6 +290,15 @@ def parse_task_file(text: str) -> Task:
             f"{meta['id']}: unknown state {word!r} "
             f"(vocabulary: {', '.join(STATES + TERMINAL_STATES)})"
         )
+    if "|" in state:
+        # `render_row` escapes the three body cells but not `state`, and only
+        # the first word is vocabulary-checked — so `done 2026|08|15` rendered
+        # a 7-cell row. Loud here, but the scanner's `([^|]*)` reads the state
+        # as `done 2026` and moves on, so a *blocked* row would drop out of the
+        # watch contract with no error: `fired 0` forever, the shape ADR-0077
+        # forbids (2026-08-15 code review MEDIUM). Refused rather than escaped
+        # — the scanner reads that cell raw, so an escape would break it.
+        raise MalformedTask(f"{meta['id']}: state に `|` は置けない: {state!r}")
     tid = meta.pop("id")
 
     # Keep both offsets. Reconstructing the previous section's end from the next
@@ -359,13 +413,26 @@ def render_ledger(tasks: list[Task]) -> str:
     return "\n".join(out).rstrip("\n") + "\n"
 
 
-def load_tasks_from_ledger(ledger: Path) -> list[Task]:
-    """Read the legacy single-table ledger. Migration input only."""
+def load_tasks_from_ledger(ledger: Path, *, legacy: bool = False) -> list[Task]:
+    """Read a single-table ledger back into tasks.
+
+    Two callers, two dialects. `legacy=True` is the one-shot migration reading
+    the pre-migration table (`migrate_ledger.py`). The default reads a ledger
+    this module rendered — the disaster-recovery direction, since the store is
+    gitignored and a rendered `TASKS.md` is the only artifact left if it is lost.
+    """
     tasks: list[Task] = []
     for index, line in enumerate(ledger.read_text(encoding="utf-8").split("\n"), start=1):
         if not line.startswith("| T-"):
             continue
-        tid, state, summary, condition, detail = split_row(line)
+        tid, state, summary, condition, detail = split_row(line, legacy=legacy)
+        word = state.split()[0] if state.split() else ""
+        if word not in STATES and word not in TERMINAL_STATES:
+            # Without this a mis-split writes a garbage token into `state:`, and
+            # since `load_store` is all-or-nothing the *whole* store then fails
+            # to load until a human finds the row by hand. Naming the bad row at
+            # read time keeps a recovery usable (2026-08-15 security review LOW).
+            raise MalformedRow(f"{tid}: 状態語彙にない値: {word!r}（行 {index}）")
         tasks.append(
             Task(
                 id=tid,
@@ -388,6 +455,25 @@ def store_dir(root: Path) -> Path:
     return root / ".notes" / "tasks"
 
 
+def _inside_store(store: Path, path: Path) -> bool:
+    """Does `path` actually live in the store, following every link?
+
+    `_TASK_ID_RE` closes textual traversal but nothing closed symlinks, and
+    both halves were reachable (2026-08-15 security review MEDIUM, both
+    reproduced): `.notes/tasks/T-LEAK.md -> ../secret.txt` made `show T-LEAK`
+    print that file — routing around the Read tool's permission layer and the
+    episode-log guards, which match on the Read path or the command string and
+    see neither here — while a symlinked `.notes/tasks` directory made
+    `write_store` create files outside the repo, since `Path.mkdir(exist_ok=
+    True)` and `is_dir()` both follow links.
+    """
+    store_real = store.resolve()
+    try:
+        return path.resolve().parent == store_real and not store.is_symlink()
+    except OSError:
+        return False
+
+
 def load_store(store: Path) -> list[Task]:
     """Read every task file. A broken file aborts — never a partial ledger.
 
@@ -400,6 +486,8 @@ def load_store(store: Path) -> list[Task]:
     for path in sorted(store.glob("*.md")):
         if not _TASK_ID_RE.match(path.stem):
             raise MalformedTask(f"{path.name}: file name is not a task id")
+        if not _inside_store(store, path):
+            raise MalformedTask(f"{path.name}: store の外を指している（symlink）")
         try:
             task = parse_task_file(path.read_text(encoding="utf-8"))
         except (MalformedTask, OSError) as exc:
@@ -434,8 +522,36 @@ def write_store(store: Path, tasks: list[Task], only: set[str] | None = None) ->
     task another session edited in between. Callers that changed a few tasks
     must pass `only`; a full write is for migration, where the store is being
     created rather than updated.
+
+    **A full write requires an empty store**, because creation-only is what it
+    claims to be. Checking only for ids *outside* the write set was not enough:
+    a second migration run reads the projection, finds exactly the same ids,
+    passes that check, and overwrites every task file from a table that never
+    carried `origin` / `state_since` / `aged_from` — silently resetting the
+    intake measurement ADR-0094 exists to collect (2026-08-15 cross-model
+    review P1, reproduced: meta went from 3 keys to `{'seq'}`). It does not
+    prune either: deleting task files here would make a stale snapshot
+    destructive, and the store has no git history to restore from.
+
+    The emptiness check is not atomic against another process creating a file
+    between the glob and the writes. Left as is deliberately — a full write
+    happens once, by hand, and the cross-session case this module actually
+    guards is the `only=` path.
+
+    Validation runs over the whole write set before the first file is written,
+    so a bad **id** late in the list cannot leave a half-written store behind.
+    Residual, deliberately not closed: an I/O failure partway through the write
+    loop still leaves the earlier files in place. Each file is individually
+    atomic (`_atomic_write`); the batch is not.
     """
     store.mkdir(parents=True, exist_ok=True)
+    if store.is_symlink():
+        # `mkdir(exist_ok=True)` succeeds on a symlink-to-directory and
+        # `mkstemp(dir=…)` + `os.replace` then write through it, so a repo that
+        # points `.notes/tasks` outside itself gets files created there. The
+        # per-file symlink was already defeated by `os.replace`; the directory
+        # was not (2026-08-15 security review MEDIUM, reproduced).
+        raise MalformedTask(f"{store} は symlink — store の外へ書くことになる")
     seen: set[str] = set()
     for task in tasks:
         if not _TASK_ID_RE.match(task.id):
@@ -444,7 +560,28 @@ def write_store(store: Path, tasks: list[Task], only: set[str] | None = None) ->
             # Two tasks mapping to one filename lose one of them while the
             # caller still reports the full count.
             raise MalformedTask(f"{task.id}: duplicate id in the write set")
+        if _SENTINEL in task.summary + task.condition + task.detail + task.state:
+            # NUL is `_mask`'s sentinel, so a body carrying one renders a row
+            # that `split_row` refuses **forever** — the ledger becomes
+            # permanently unreadable by the recovery path, with nothing said at
+            # write time. Refused on the way in rather than on the way out;
+            # reads stay permissive so an already-poisoned store still loads
+            # (2026-08-15 code review MEDIUM).
+            raise MalformedTask(f"{task.id}: 本文に制御文字 (NUL) がある")
         seen.add(task.id)
+    if only is not None and only - seen:
+        # A typo'd `only` silently wrote nothing and returned 0 — the same
+        # shape as the full-write laxity fixed just below (code review LOW).
+        raise MalformedTask(f"only に書き込み対象外の id: {', '.join(sorted(only - seen))}")
+    if only is None:
+        present = sorted(path.name for path in store.glob("*.md"))
+        if present:
+            raise MalformedTask(
+                f"store が空ではない（{len(present)} 件、例: {', '.join(present[:3])}）。"
+                "全件書き込みは store を作る操作なので、既存 store の更新には "
+                "only= で対象 id を渡す。作り直す意図なら先に手で退避する。"
+            )
+    for task in tasks:
         if only is not None and task.id not in only:
             continue
         _atomic_write(store / f"{task.id}.md", render_task_file(task))
@@ -583,10 +720,19 @@ def apply_aging(tasks: list[Task], today: str) -> list[Task]:
 
 _SUMMARY_CHARS = 90
 _MARKUP_RE = re.compile(r"\*\*|`|<br>")
+# C0 + DEL + C1 + 行区切り + ZWSP/bidi — the same class `claims.py::safe` uses.
+# Task bodies are self-authored but routinely quote outside text (error output,
+# a pasted log, an upstream PR title), and an ESC that survives into `ready`'s
+# one-line summary is not inert: it is terminal control, so a single row can
+# repaint the listing. A first version stopped at C0/DEL/C1 while claiming
+# parity with `safe`; U+202E then survived into a line printed raw, and the
+# 90-char elision can cut mid-override with no isolate reset (2026-08-15
+# security review LOW). The two sets are kept literally identical.
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f  ​-‏‪-‮⁦-⁩]")
 
 
 def _one_line(text: str) -> str:
-    flat = _MARKUP_RE.sub("", text).replace("\n", " ").strip()
+    flat = " ".join(_CONTROL_RE.sub(" ", _MARKUP_RE.sub("", text)).split())
     return flat[:_SUMMARY_CHARS] + ("…" if len(flat) > _SUMMARY_CHARS else "")
 
 
@@ -603,9 +749,13 @@ def cmd_show(args, root: Path) -> int:
     if not _TASK_ID_RE.match(args.task):
         print(f"Error: task id の形式が不正です: {args.task!r}", file=sys.stderr)
         return 2
-    path = store_dir(root) / f"{args.task}.md"
+    store = store_dir(root)
+    path = store / f"{args.task}.md"
     if not path.is_file():
         print(f"Error: {args.task} は store にありません", file=sys.stderr)
+        return 2
+    if not _inside_store(store, path):
+        print(f"Error: {args.task} は store の外を指しています（symlink）", file=sys.stderr)
         return 2
     print(path.read_text(encoding="utf-8"), end="")
     return 0

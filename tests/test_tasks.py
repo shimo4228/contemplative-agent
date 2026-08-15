@@ -20,13 +20,16 @@ just reports `fired 0` forever. That is the same failure shape ADR-0077 forbids
 (a broken scan must never read as "no conditions fired"), so it is fixed here
 by test rather than by prose.
 
-Discovered while migrating (2026-08-15): **the pre-migration ledger is already
-malformed as GFM.** Two rows carry an unescaped `|` inside a backtick code span
-(`` `O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW` ``), which a Markdown renderer reads as
-extra columns — T-WRITE-TMP-NOFOLLOW splits into 8 cells instead of 5. Nothing
-caught it because no human renders the file and the scanner only reads the
-first two cells. The split must therefore protect code spans, and the render
-must escape them, or migration silently shreds two rows' bodies.
+Discovered while migrating (2026-08-15): **the pre-migration ledger was already
+malformed as GFM**, in two different ways. T-WRITE-TMP-NOFOLLOW carried an
+unescaped `|` inside a backtick code span — the real row is
+`` `O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW` ``, three extra pipes, which a Markdown
+renderer reads as 8 cells instead of 5.
+T-EFFECT-NOISE used `|Δ効果|` as absolute-value notation in plain prose, which
+no code-span tolerance can recover, so that one had to be escaped by hand
+before the migration would run. Nothing caught either because no human renders
+the file and the scanner reads only the first two cells. Both shapes are frozen
+in `tests/fixtures/ledger/legacy-table.md`.
 
 Fault column (chaos-TDD, ADR-0077 — faults degrade loudly or not at all):
 
@@ -42,13 +45,33 @@ Fault column (chaos-TDD, ADR-0077 — faults degrade loudly or not at all):
           (a silent default would age tasks on a schedule nobody chose)
 - F-TL-8  a task with no `state_since` is reported as undecidable, never as
           "not yet due" — the same None-vs-0 discipline the weekly intakes use
+- F-TL-13 a rendered row round-trips back into a task even when its body holds
+          a lone backtick — the store is gitignored, so reading a rendered
+          ledger back IS the disaster recovery
+- F-TL-14 a full `write_store` needs an empty store — creation-only means
+          creation-only, never a silent overwrite or a leftover orphan
+- F-TL-15 a control character in a body cannot reach the terminal through the
+          one-line summary
+- F-TL-16 a second migration run cannot reset `origin` / `state_since` from
+          the projection, which never carried them
+
+**F-TL-6 runs on every machine, not just the author's.** It used to read
+`.notes/TASKS.md`, which is gitignored — so the consumer-compatibility
+guarantee skipped silently everywhere else, which is the same "reads as pass"
+shape ADR-0077 forbids. Both dialects now have a checked-in fixture under
+`tests/fixtures/ledger/`, and the live ledger is an extra pass when present.
+
+The scanner is also imported and called directly rather than driven through a
+subprocess: the old version spawned `ledger_condition_scan.py` twice and let it
+hit the real network, while comparing only `parse_watches`'s pure output. Rule
+`common/debugging.md` treats rate limits as a policy signal, so a test suite
+must not generate avoidable upstream traffic.
 """
 
 from __future__ import annotations
 
 import json
 import re
-import subprocess
 import sys
 from pathlib import Path
 
@@ -57,9 +80,12 @@ import pytest
 # scripts/ is not a package; import the module by path.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
 
+import ledger_condition_scan  # noqa: E402  # pyright: ignore[reportMissingImports]
+import migrate_ledger  # noqa: E402  # pyright: ignore[reportMissingImports]
 import tasks  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 REPO = Path(__file__).resolve().parent.parent
+FIXTURES = REPO / "tests" / "fixtures" / "ledger"
 
 
 # --------------------------------------------------------------------------
@@ -79,16 +105,27 @@ class TestSplitRow:
         ]
 
     def test_pipe_inside_a_backtick_span_is_body_text(self):
-        """F-TL-1 — the real T-WRITE-TMP-NOFOLLOW shape."""
+        """F-TL-1 — the real T-WRITE-TMP-NOFOLLOW shape, legacy dialect only."""
         line = "| T-BAR | done | 固定名 + `O_WRONLY|O_CREAT|O_EXCL` を実装 | — | `abc1234` |"
-        cells = tasks.split_row(line)
+        cells = tasks.split_row(line, legacy=True)
         assert len(cells) == 5
         assert cells[2] == "固定名 + `O_WRONLY|O_CREAT|O_EXCL` を実装"
 
     def test_multiple_backtick_spans_on_one_row(self):
         line = "| T-BAZ | ready | `a|b` と `c|d` | `e|f` | `g|h` |"
-        cells = tasks.split_row(line)
+        cells = tasks.split_row(line, legacy=True)
         assert cells == ["T-BAZ", "ready", "`a|b` と `c|d`", "`e|f`", "`g|h`"]
+
+    def test_a_code_span_is_not_special_in_the_rendered_dialect(self):
+        """The render escapes every pipe, so a span holds no column secrets.
+
+        Reading the same legacy row without `legacy=True` splits on the bare
+        pipes — which is correct for rendered input and wrong for that row,
+        and is exactly why the dialect is a parameter rather than a heuristic.
+        """
+        line = "| T-BAR | done | `O_WRONLY|O_CREAT` | — | x |"
+        with pytest.raises(tasks.MalformedRow):
+            tasks.split_row(line)
 
     def test_escaped_pipe_unescapes_back_to_a_bare_pipe(self):
         """Symmetric with render_row, which escapes every pipe in a cell.
@@ -108,10 +145,36 @@ class TestSplitRow:
             tasks.split_row("| T-FOO | ready | 3 列しかない |")
         assert "T-FOO" in str(exc.value)
 
-    def test_unterminated_backtick_raises_rather_than_swallowing_the_row(self):
-        """An odd backtick would otherwise protect everything to end-of-line."""
+    def test_unterminated_backtick_raises_in_the_legacy_dialect(self):
+        """There a bare pipe may belong to the span, so the cells are a guess."""
         with pytest.raises(tasks.MalformedRow):
-            tasks.split_row("| T-FOO | ready | 開いたまま `span | なし | — |")
+            tasks.split_row("| T-FOO | ready | 開いたまま `span | なし | — |", legacy=True)
+
+    @pytest.mark.parametrize("legacy", [False, True], ids=["rendered", "legacy"])
+    def test_an_escaped_trailing_delimiter_is_refused_not_truncated(self, legacy):
+        """The contract is 'raise rather than truncate', in both dialects.
+
+        `endswith("|")` was checked on the raw row while `[1:-1]` was applied
+        to the masked one, so a row ending `\\|` had its sentinel stripped as
+        if it were the closing delimiter — a 4-column row read as 5 cells with
+        the last silently cut (2026-08-15 code review HIGH).
+        """
+        with pytest.raises(tasks.MalformedRow):
+            tasks.split_row(r"| T-A | ready | a | b | c\|", legacy=legacy)
+
+    def test_a_lone_backtick_reads_fine_in_the_rendered_dialect(self):
+        """F-TL-13 — the disaster-recovery regression.
+
+        `render_row` escapes every body pipe, so backticks decide nothing and
+        the odd-backtick refusal only ever rejected a legal row. It mattered
+        because `load_tasks_from_ledger` on a rendered ledger is the one way
+        back to a store that git does not track.
+        """
+        task = tasks.Task(
+            id="T-FOO", state="ready", summary="閉じない ` が 1 個", condition="a | b", detail="—"
+        )
+        row = tasks.render_row(task)
+        assert tasks.split_row(row) == ["T-FOO", "ready", "閉じない ` が 1 個", "a | b", "—"]
 
 
 # --------------------------------------------------------------------------
@@ -217,6 +280,20 @@ class TestTaskFile:
         with pytest.raises(tasks.MalformedTask) as exc:
             tasks.parse_task_file(f"---\nid: T-FOO\nstate: ready\n---\n\n{body}")
         assert "more than once" in str(exc.value)
+
+    def test_a_pipe_in_the_state_cell_is_refused(self):
+        """Only the first word of `state` was vocabulary-checked and the cell
+        is never escaped, so `done 2026|08|15` rendered a 7-cell row. The
+        scanner's `([^|]*)` reads that as `done 2026` and moves on, so a
+        blocked row would leave the watch contract with no error — `fired 0`
+        forever (2026-08-15 code review MEDIUM)."""
+        text = (
+            "---\nid: T-FOO\nstate: done 2026|08|15\n---\n\n"
+            "## タスク\n\nx\n\n## 着手条件\n\ny\n\n## 詳細\n\nz\n"
+        )
+        with pytest.raises(tasks.MalformedTask) as exc:
+            tasks.parse_task_file(text)
+        assert "state" in str(exc.value)
 
     def test_done_state_carries_its_date(self):
         task = tasks.Task(
@@ -401,16 +478,137 @@ class TestStoreGuards:
         with pytest.raises(tasks.MalformedTask):
             tasks.write_store(tmp_path, [self._t("T-A"), self._t("T-A")])
 
+    def test_a_bad_id_late_in_the_set_leaves_no_half_written_store(self, tmp_path):
+        """Validation used to run interleaved with writing."""
+        bad = tasks.Task(id="../escape", state="ready", summary="a", condition="-", detail="-")
+        with pytest.raises(tasks.MalformedTask):
+            tasks.write_store(tmp_path, [self._t("T-A"), bad])
+        assert not list(tmp_path.glob("*.md"))
+
+    def test_a_full_write_over_a_populated_store_is_refused(self, tmp_path):
+        """F-TL-14 — a full write is creation, so it needs an empty store.
+
+        Refusing rather than pruning: deleting task files here would make a
+        stale in-memory snapshot destructive, and the store has no git history
+        to restore from.
+        """
+        tasks.write_store(tmp_path, [self._t("T-A"), self._t("T-B")])
+        with pytest.raises(tasks.MalformedTask) as exc:
+            tasks.write_store(tmp_path, [self._t("T-A")])
+        assert "T-B" in str(exc.value)
+        assert (tmp_path / "T-B.md").is_file()
+
+    def test_a_second_migration_run_cannot_reset_the_intake_metadata(self, tmp_path):
+        """F-TL-16 — the identical-ids case an orphan check waved through.
+
+        Re-running the migration reads the *projection*, which never carried
+        `origin` / `state_since` / `aged_from`. With only an orphan check the
+        ids matched, the write was allowed, and every task silently lost the
+        fields ADR-0094 exists to measure (2026-08-15 cross-model review P1,
+        reproduced: 3 meta keys became 1).
+        """
+        store = tmp_path / "store"
+        original = tasks.Task(
+            id="T-A",
+            state="ready",
+            summary="x",
+            condition="y",
+            detail="z",
+            meta={"seq": "1", "origin": "review", "state_since": "2026-08-15"},
+        )
+        tasks.write_store(store, [original])
+        ledger = tmp_path / "TASKS.md"
+        ledger.write_text(tasks.render_ledger([original]), encoding="utf-8")
+
+        with pytest.raises(tasks.MalformedTask):
+            tasks.write_store(store, tasks.load_tasks_from_ledger(ledger))
+        assert tasks.load_store(store)[0].meta == original.meta
+
+    def test_a_scoped_write_does_not_trip_the_orphan_guard(self, tmp_path):
+        """`only=` is the update path; every other file is meant to survive."""
+        tasks.write_store(tmp_path, [self._t("T-A"), self._t("T-B")])
+        tasks.write_store(tmp_path, [self._t("T-A")], only={"T-A"})
+        assert (tmp_path / "T-B.md").is_file()
+
+    def test_an_unreadable_task_file_aborts_the_whole_load(self, tmp_path):
+        """All-or-nothing: a skipped file looks identical to a finished task."""
+        tasks.write_store(tmp_path, [self._t("T-A")])
+        (tmp_path / "T-DIR.md").mkdir()
+        with pytest.raises(tasks.MalformedTask) as exc:
+            tasks.load_store(tmp_path)
+        assert "T-DIR.md" in str(exc.value)
+
+    def test_a_frontmatter_id_that_disagrees_with_the_filename_aborts(self, tmp_path):
+        tasks.write_store(tmp_path, [self._t("T-A")])
+        (tmp_path / "T-A.md").write_text(
+            tasks.render_task_file(self._t("T-OTHER")), encoding="utf-8"
+        )
+        with pytest.raises(tasks.MalformedTask) as exc:
+            tasks.load_store(tmp_path)
+        assert "T-OTHER" in str(exc.value)
+
+    def test_a_symlinked_store_directory_is_refused(self, tmp_path):
+        """`mkdir(exist_ok=True)` and `is_dir()` both follow links, so the
+        per-file `os.replace` guard did not cover the directory case."""
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        store = tmp_path / "store"
+        store.symlink_to(outside, target_is_directory=True)
+        with pytest.raises(tasks.MalformedTask):
+            tasks.write_store(store, [self._t("T-A")])
+        assert not list(outside.iterdir())
+
+    def test_a_symlinked_task_file_is_not_read_out_of_the_store(self, tmp_path, capsys):
+        """`_TASK_ID_RE` closed textual traversal; symlinks stayed open, and
+        this path routes around the Read tool and the episode-log guards."""
+        secret = tmp_path / "secret.md"
+        secret.write_text("SECRET", encoding="utf-8")
+        store = tasks.store_dir(tmp_path)
+        store.mkdir(parents=True)
+        (store / "T-LEAK.md").symlink_to(secret)
+        assert tasks.main(["--root", str(tmp_path), "show", "T-LEAK"]) == 2
+        assert "SECRET" not in capsys.readouterr().out
+        with pytest.raises(tasks.MalformedTask):
+            tasks.load_store(store)
+
+    def test_a_control_character_cannot_enter_the_store(self, tmp_path):
+        """NUL is `_mask`'s sentinel, so a body carrying one renders a row the
+        recovery path refuses forever. Refused on the way in."""
+        poisoned = tasks.Task(id="T-A", state="ready", summary="a\x00b", condition="-", detail="-")
+        with pytest.raises(tasks.MalformedTask):
+            tasks.write_store(tmp_path, [poisoned])
+        assert not list(tmp_path.glob("*.md"))
+
+    def test_an_only_set_naming_an_absent_id_is_refused(self, tmp_path):
+        """A typo'd `only` used to write nothing and exit 0."""
+        tasks.write_store(tmp_path, [self._t("T-A")])
+        with pytest.raises(tasks.MalformedTask):
+            tasks.write_store(tmp_path, [self._t("T-A")], only={"T-NOPE"})
+
+    def test_an_interrupted_write_leaves_no_temp_file_behind(self, tmp_path, monkeypatch):
+        """`load_store` is all-or-nothing, so a stray `.tmp` is not harmless —
+        it is a `*.md`-adjacent artifact of a write that must fully unwind."""
+
+        def explode(*_):
+            raise RuntimeError("boom")
+
+        monkeypatch.setattr(tasks.os, "replace", explode)
+        with pytest.raises(RuntimeError):
+            tasks.write_store(tmp_path, [self._t("T-A")])
+        assert not list(tmp_path.iterdir())
+
     def test_writes_replace_a_symlink_rather_than_writing_through_it(self, tmp_path):
         outside = tmp_path / "outside.md"
         outside.write_text("元の内容", encoding="utf-8")
         store = tmp_path / "store"
         store.mkdir()
         (store / "T-A.md").symlink_to(outside)
-        tasks.write_store(store, [self._t("T-A")])
+        # `only=` because a full write now requires an empty store; the write
+        # path under test (`_atomic_write`) is the same either way.
+        tasks.write_store(store, [self._t("T-A")], only={"T-A"})
         assert outside.read_text(encoding="utf-8") == "元の内容"
 
-    def test_render_refuses_an_empty_store(self, tmp_path, capsys):
+    def test_render_refuses_an_empty_store(self, tmp_path):
         """F-TL-12 — an absent store globs to nothing and renders as a valid
         empty table, so `render --output` replaced the ledger with a husk and
         exited 0. The store is gitignored: nothing to restore from."""
@@ -460,13 +658,148 @@ class TestAge:
 # --------------------------------------------------------------------------
 
 
-class TestAgainstTheRealLedger:
-    """Migration must not change what the weekly chain reads."""
+def _readings(text: str) -> dict:
+    """What the seventh intake sees in a ledger, as a comparable value.
 
-    def test_every_row_of_the_live_ledger_splits_into_five_cells(self):
+    `parse_watches` is imported and called, not driven through a subprocess.
+    The old version spawned the scanner twice and let it reach the real network
+    while comparing only this pure surface — cost with no assertion behind it,
+    and rule `common/debugging.md` treats rate limits as a policy signal rather
+    than something a test suite may spend freely.
+    """
+    watches, errors = ledger_condition_scan.parse_watches(text)
+    return {
+        "count": len(watches),
+        "watches": sorted((w.task, w.type, w.args) for w in watches),
+        "errors": sorted((e["task"], e["reason"]) for e in errors),
+    }
+
+
+class TestRenderedFixture:
+    """F-TL-6 — the only direct consumer must not notice a render change.
+
+    Checked in precisely because `.notes/` is gitignored: the version of this
+    class that read the live ledger skipped silently on every machine but the
+    author's, so the guarantee it names was unenforced everywhere it mattered.
+    """
+
+    def _text(self) -> str:
+        return (FIXTURES / "rendered.md").read_text(encoding="utf-8")
+
+    def test_the_scanner_reads_exactly_the_watches_the_fixture_declares(self):
+        """Pinned, not derived — a render that drops a watch must fail here."""
+        assert _readings(self._text()) == {
+            "count": 2,
+            "watches": [
+                (
+                    "T-LOCAL-PROBE",
+                    "http-post-status",
+                    ("http://localhost:11434/api/tokenize", "404"),
+                ),
+                ("T-UPSTREAM-PR", "gh-pr", ("example/example#1",)),
+            ],
+            "errors": [("T-BAD-WATCH", "MALFORMED_WATCH")],
+        }
+
+    def test_a_residual_watch_on_a_finished_row_is_not_polled(self):
+        """Only `blocked` rows are in the watch contract (ADR-0093)."""
+        text = self._text()
+        assert "T-RESIDUAL-WATCH" in text
+        assert all(w[0] != "T-RESIDUAL-WATCH" for w in _readings(text)["watches"])
+
+    def test_readings_survive_a_load_and_re_render(self):
+        """The round trip the disaster recovery would perform."""
+        text = self._text()
+        loaded = tasks.load_tasks_from_ledger(FIXTURES / "rendered.md")
+        assert _readings(tasks.render_ledger(loaded)) == _readings(text)
+
+    def test_every_row_round_trips_through_a_task_file(self, tmp_path):
+        """rendered ledger → store → rendered ledger, byte-identical rows.
+
+        The right-hand side is the **frozen fixture**, not another call to
+        `render_ledger`. Deriving both sides from the current renderer made the
+        assertion pass even if the renderer dropped a task — the exact loss the
+        test claims to detect (2026-08-15 cross-model review P2).
+        """
+        loaded = tasks.load_tasks_from_ledger(FIXTURES / "rendered.md")
+        tasks.write_store(tmp_path, loaded)
+        rows = lambda text: [ln for ln in text.split("\n") if ln.startswith("| T-")]  # noqa: E731
+        assert rows(tasks.render_ledger(tasks.load_store(tmp_path))) == rows(self._text())
+
+    def test_every_row_pairs_its_id_with_its_state_on_one_line(self):
+        """The scanner's two structural demands, checked per row.
+
+        `parse_watches` iterates splitlines() and `_TASK_STATUS_RE` wants both
+        cells on that same line, so a render that wraps rows reports `fired 0`
+        forever instead of failing. Counting IDs alone would not catch it — a
+        wrapped row still begins with its ID.
+        """
+        rows = [ln for ln in self._text().split("\n") if ln.startswith("| T-")]
+        paired = [tasks._TASK_STATUS_PROBE.search(row) for row in rows]
+        assert len(rows) == 8
+        assert all(m is not None for m in paired)
+        assert {m.group(2).strip().split()[0] for m in paired if m} == {
+            "blocked",
+            "observing",
+            "ready",
+            "candidate",
+            "done",
+        }
+
+
+class TestLegacyFixture:
+    """The pre-migration dialect, frozen — both malformed rows included."""
+
+    def _path(self) -> Path:
+        return FIXTURES / "legacy-table.md"
+
+    def test_every_row_splits_into_five_cells(self):
+        bad = []
+        for line in self._path().read_text(encoding="utf-8").split("\n"):
+            if not line.startswith("| T-"):
+                continue
+            try:
+                tasks.split_row(line, legacy=True)
+            except tasks.MalformedRow as exc:
+                bad.append(str(exc))
+        assert not bad, f"rows that cannot migrate cleanly: {bad}"
+
+    def test_the_code_span_row_needs_the_legacy_dialect(self):
+        """Read as rendered it blows up — that is what `legacy=` buys."""
+        with pytest.raises(tasks.MalformedRow):
+            tasks.load_tasks_from_ledger(self._path())
+
+    def test_absolute_value_notation_is_refused_even_in_the_legacy_dialect(self):
+        """The row the operator had to hand-fix before migration would run.
+
+        Legacy tolerance covers bare pipes inside a **code span**; `|Δ効果|` sat
+        in plain prose, so the cells cannot be recovered. Refusing is the whole
+        reason it got noticed instead of losing its body silently.
+        """
+        raw = "| T-EFFECT-NOISE | observing | 解釈規約: |Δ効果| < 0.13 | 4 週 | — |"
+        with pytest.raises(tasks.MalformedRow) as exc:
+            tasks.split_row(raw, legacy=True)
+        assert "T-EFFECT-NOISE" in str(exc.value)
+
+    def test_migration_preserves_the_scanner_readings(self):
+        """F-TL-6 across the dialect boundary, which is where it was earned."""
+        before = _readings(self._path().read_text(encoding="utf-8"))
+        migrated = tasks.load_tasks_from_ledger(self._path(), legacy=True)
+        assert _readings(tasks.render_ledger(migrated)) == before
+
+    def test_the_body_pipes_survive_the_migration(self):
+        migrated = {t.id: t for t in tasks.load_tasks_from_ledger(self._path(), legacy=True)}
+        assert "`O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW`" in migrated["T-WRITE-TMP-NOFOLLOW"].summary
+        assert "|Δ効果|" in migrated["T-EFFECT-NOISE"].summary
+
+
+class TestAgainstTheRealLedger:
+    """A bonus pass on the author's machine. The fixtures carry the contract."""
+
+    def test_the_live_ledger_still_reads_in_the_rendered_dialect(self):
         ledger = REPO / ".notes" / "TASKS.md"
         if not ledger.is_file():
-            pytest.skip("ledger absent")
+            pytest.skip("ledger absent (gitignored — the fixtures cover the contract)")
         bad = []
         for line in ledger.read_text(encoding="utf-8").split("\n"):
             if not line.startswith("| T-"):
@@ -475,39 +808,217 @@ class TestAgainstTheRealLedger:
                 tasks.split_row(line)
             except tasks.MalformedRow as exc:
                 bad.append(str(exc))
-        assert not bad, f"rows that cannot migrate cleanly: {bad}"
+        assert not bad, f"rows the recovery path cannot read: {bad}"
 
-    def test_scanner_readings_are_identical_before_and_after_render(self, tmp_path):
-        """F-TL-6 — the only direct consumer must not notice the migration."""
+    def test_live_readings_survive_a_re_render(self):
         ledger = REPO / ".notes" / "TASKS.md"
         if not ledger.is_file():
-            pytest.skip("ledger absent")
-
-        def scan(path: Path) -> dict:
-            out = subprocess.run(
-                [
-                    sys.executable,
-                    str(REPO / "scripts" / "ledger_condition_scan.py"),
-                    "--ledger",
-                    str(path),
-                ],
-                capture_output=True,
-                text=True,
-                timeout=180,
-            )
-            assert out.returncode == 0, out.stderr
-            data = json.loads(out.stdout)
-            # `status`/`fired` depend on live network state; compare the parse
-            # surface only — which tasks carry which watches.
-            return {
-                "count": data["watch_count"],
-                "watches": sorted((w["task"], w["type"], w["target"]) for w in data["watches"]),
-                "errors": sorted((e["task"], e["reason"]) for e in data["errors"]),
-            }
-
-        before = scan(ledger)
-        rendered = tmp_path / "TASKS.md"
-        rendered.write_text(
-            tasks.render_ledger(tasks.load_tasks_from_ledger(ledger)), encoding="utf-8"
+            pytest.skip("ledger absent (gitignored — the fixtures cover the contract)")
+        text = ledger.read_text(encoding="utf-8")
+        assert _readings(tasks.render_ledger(tasks.load_tasks_from_ledger(ledger))) == _readings(
+            text
         )
-        assert scan(rendered) == before
+
+
+# --------------------------------------------------------------------------
+# CLI — the query surface a session actually calls
+# --------------------------------------------------------------------------
+
+
+@pytest.fixture
+def root(tmp_path):
+    """A repo root whose store holds one task per state that queries care about."""
+    store = tasks.store_dir(tmp_path)
+    tasks.write_store(
+        store,
+        [
+            tasks.Task(
+                id="T-READY",
+                state="ready",
+                summary="**着手可**な行 `tasks.py`",
+                condition="なし",
+                detail="—",
+                meta={"seq": "1", "state_since": "2026-08-14"},
+            ),
+            tasks.Task(
+                id="T-STALE",
+                state="ready",
+                summary="窓を過ぎた行",
+                condition="なし",
+                detail="—",
+                meta={"seq": "2", "state_since": "2026-01-01", "stale_after": "21d"},
+            ),
+            tasks.Task(
+                id="T-WAIT",
+                state="deferred",
+                summary="日付待ち",
+                condition="—",
+                detail="—",
+                meta={"seq": "3", "defer_until": "2026-08-14"},
+            ),
+        ],
+    )
+    return tmp_path
+
+
+class TestCli:
+    def test_ready_lists_only_ready_rows_one_line_each(self, root, capsys):
+        assert tasks.main(["--root", str(root), "ready"]) == 0
+        out = capsys.readouterr().out
+        assert [ln.split()[0] for ln in out.splitlines()] == ["T-READY", "T-STALE"]
+        # Markup is stripped: the point of `ready` is a scannable line.
+        assert "**" not in out and "`" not in out
+
+    def test_ready_honours_the_limit(self, root, capsys):
+        tasks.main(["--root", str(root), "ready", "--limit", "1"])
+        assert capsys.readouterr().out.count("\n") == 1
+
+    def test_ready_is_silent_on_an_empty_frontier(self, tmp_path, capsys):
+        tasks.store_dir(tmp_path).mkdir(parents=True)
+        assert tasks.main(["--root", str(tmp_path), "ready"]) == 0
+        assert capsys.readouterr().out == ""
+
+    def test_show_prints_the_file_verbatim(self, root, capsys):
+        assert tasks.main(["--root", str(root), "show", "T-READY"]) == 0
+        out = capsys.readouterr().out
+        assert out == (tasks.store_dir(root) / "T-READY.md").read_text(encoding="utf-8")
+
+    def test_show_refuses_an_absent_id(self, root, capsys):
+        assert tasks.main(["--root", str(root), "show", "T-NOPE"]) == 2
+        assert "store にありません" in capsys.readouterr().err
+
+    def test_render_writes_the_projection(self, root, tmp_path):
+        out = tmp_path / "out.md"
+        assert tasks.main(["--root", str(root), "render", "--output", str(out)]) == 0
+        assert "| T-READY " in out.read_text(encoding="utf-8")
+
+    def test_render_prints_when_no_output_is_given(self, root, capsys):
+        assert tasks.main(["--root", str(root), "render"]) == 0
+        assert "| T-READY " in capsys.readouterr().out
+
+    def test_render_allow_empty_is_the_deliberate_escape(self, tmp_path, capsys):
+        tasks.store_dir(tmp_path).mkdir(parents=True)
+        assert tasks.main(["--root", str(tmp_path), "render", "--allow-empty"]) == 0
+        assert "## Pending" in capsys.readouterr().out
+
+    def test_due_reports_both_kinds(self, root, capsys):
+        assert tasks.main(["--root", str(root), "due", "--today", "2026-08-15"]) == 0
+        out = capsys.readouterr().out
+        assert "T-STALE" in out and "→ candidate" in out
+        assert "T-WAIT" in out and "→ ready" in out
+
+    def test_due_json_is_machine_readable(self, root, capsys):
+        tasks.main(["--root", str(root), "due", "--today", "2026-08-15", "--json"])
+        data = json.loads(capsys.readouterr().out)
+        assert data["count"] == 2
+        assert {d["task"] for d in data["due"]} == {"T-STALE", "T-WAIT"}
+
+    def test_due_is_silent_when_nothing_moves_today(self, root, capsys):
+        # Inside every window: T-STALE is 9d idle of 21, T-WAIT's date is months off.
+        tasks.main(["--root", str(root), "due", "--today", "2026-01-10"])
+        assert capsys.readouterr().out == ""
+
+    def test_age_dry_run_reports_without_writing(self, root, capsys):
+        before = (tasks.store_dir(root) / "T-STALE.md").read_text(encoding="utf-8")
+        assert tasks.main(["--root", str(root), "age", "--today", "2026-08-15", "--dry-run"]) == 0
+        assert "T-STALE" in capsys.readouterr().out
+        assert (tasks.store_dir(root) / "T-STALE.md").read_text(encoding="utf-8") == before
+
+    def test_age_writes_only_the_rows_it_moved(self, root, capsys):
+        untouched = (tasks.store_dir(root) / "T-READY.md").read_text(encoding="utf-8")
+        assert tasks.main(["--root", str(root), "age", "--today", "2026-08-15"]) == 0
+        assert "2 件を書き換えた" in capsys.readouterr().out
+        moved = {t.id: t for t in tasks.load_store(tasks.store_dir(root))}
+        assert (moved["T-STALE"].state, moved["T-STALE"].meta["aged_from"]) == (
+            "candidate",
+            "ready",
+        )
+        assert moved["T-WAIT"].state == "ready"
+        assert (tasks.store_dir(root) / "T-READY.md").read_text(encoding="utf-8") == untouched
+
+    def test_age_is_silent_and_writes_nothing_when_nothing_is_due(self, root, capsys):
+        assert tasks.main(["--root", str(root), "age", "--today", "2026-01-10"]) == 0
+        assert capsys.readouterr().out == ""
+
+
+class TestOneLine:
+    def test_markup_and_line_breaks_collapse(self):
+        assert tasks._one_line("**強調**と `code`<br>次の段") == "強調と code次の段"
+
+    def test_long_summaries_are_elided(self):
+        flat = tasks._one_line("あ" * 200)
+        assert len(flat) == tasks._SUMMARY_CHARS + 1 and flat.endswith("…")
+
+    def test_a_control_character_cannot_reach_the_terminal(self):
+        """F-TL-15 — an ESC in a body is terminal control, not inert text.
+
+        Scope is exactly `ready`'s summary line. `show` prints a task file
+        verbatim by contract and `render` prints the projection; neither is
+        covered here.
+        """
+        flat = tasks._one_line("色を\x1b[31m変える\x07")
+        assert "\x1b" not in flat and "\x07" not in flat
+        assert "変える" in flat
+
+    def test_the_stripped_set_matches_the_journal_side(self):
+        """The comment claims parity with `claims.py::safe`; a first version
+        stopped at C0/C1 and let U+202E through into a raw-printed line."""
+        flat = tasks._one_line("先頭‮後ろ​ 次")
+        assert all(ch not in flat for ch in ("‮", "​", " "))
+        assert "先頭" in flat and "次" in flat
+
+
+# --------------------------------------------------------------------------
+# Migration script — scaffolding, but the only writer of the initial store
+# --------------------------------------------------------------------------
+
+
+class TestMigrateLedger:
+    def _root(self, tmp_path: Path) -> Path:
+        (tmp_path / ".notes").mkdir()
+        (tmp_path / ".notes" / "TASKS.md").write_text(
+            (FIXTURES / "legacy-table.md").read_text(encoding="utf-8"), encoding="utf-8"
+        )
+        return tmp_path
+
+    def test_dry_run_writes_nothing(self, tmp_path, capsys):
+        root = self._root(tmp_path)
+        assert migrate_ledger.main(["--root", str(root), "--dry-run", "--today", "2026-08-15"]) == 0
+        assert "何も書いていない" in capsys.readouterr().out
+        assert not tasks.store_dir(root).exists()
+
+    def test_migration_stamps_state_since_and_leaves_origin_unset(self, tmp_path, capsys):
+        root = self._root(tmp_path)
+        assert migrate_ledger.main(["--root", str(root), "--today", "2026-08-15"]) == 0
+        assert "書いた: 4 ファイル" in capsys.readouterr().out
+        migrated = {t.id: t for t in tasks.load_store(tasks.store_dir(root))}
+        assert set(migrated) == {
+            "T-WRITE-TMP-NOFOLLOW",
+            "T-EFFECT-NOISE",
+            "T-UPSTREAM-PR",
+            "T-PLAIN",
+        }
+        assert migrated["T-PLAIN"].meta["state_since"] == "2026-08-15"
+        # A guessed origin would poison the intake measurement the field exists
+        # for, so an absent key must stay absent.
+        assert "origin" not in migrated["T-PLAIN"].meta
+
+    def test_a_row_that_cannot_split_aborts_the_whole_migration(self, tmp_path, capsys):
+        root = self._root(tmp_path)
+        ledger = root / ".notes" / "TASKS.md"
+        ledger.write_text(
+            ledger.read_text(encoding="utf-8") + "| T-BROKEN | ready | 3 列 |\n", encoding="utf-8"
+        )
+        assert migrate_ledger.main(["--root", str(root), "--today", "2026-08-15"]) == 1
+        assert "MIGRATE_FAIL" in capsys.readouterr().err
+        assert not tasks.store_dir(root).exists()
+
+    def test_the_diff_report_pairs_rows_by_id_not_position(self, tmp_path, capsys):
+        """Terminal rows move to the Done section, so a positional zip would
+        report a near-total change count with a false explanation — and that
+        number is the operator's only evidence for an unrecoverable step."""
+        root = self._root(tmp_path)
+        migrate_ledger.main(["--root", str(root), "--dry-run", "--today", "2026-08-15"])
+        out = capsys.readouterr().out
+        assert "rows: 4 → 4" in out
+        assert "台帳のみ" not in out and "store のみ" not in out

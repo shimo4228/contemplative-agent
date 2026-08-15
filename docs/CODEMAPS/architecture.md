@@ -614,8 +614,11 @@ Stage 6c ledgerwatch: ledger_condition_scan.py (7th deterministic intake, ADR-00
                    .notes/tasks/). This intake is the only direct parser of the
                    table, so its grammar — one task per line, ID and 状態 cells
                    on that same line, watch spans inline — constrains the
-                   render; pinned by a test that re-runs this scanner against
-                   the rendered table and compares its parse surface.
+                   render; pinned by a test that imports this scanner's
+                   parse_watches and compares its parse surface against a
+                   checked-in fixture ledger (tests/fixtures/ledger/, both
+                   dialects — .notes/ is gitignored, so a test reading the live
+                   ledger would skip silently everywhere else).
 Stage 7 improve:   only when the same reason code recurred 2 consecutive runs (check-improvement)
 Stage 8 packet:    build_decision_packet.py → weekly-<end>-packet.md (§2 fix table +
                    per-finding diagnosis headings from findings.json, §8 value-layer

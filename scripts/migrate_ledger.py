@@ -38,7 +38,11 @@ from tasks import MalformedRow, Task, load_tasks_from_ledger, render_ledger, sto
 
 def migrate(root: Path, today: str) -> list[Task]:
     ledger = root / ".notes" / "TASKS.md"
-    raw = load_tasks_from_ledger(ledger)
+    # `legacy=True`: this script's input is the pre-migration table, the one
+    # dialect where a bare `|` inside a code span is body text. A ledger this
+    # repo has already rendered reads with the default dialect instead — that
+    # direction is disaster recovery, not migration, and belongs to tasks.py.
+    raw = load_tasks_from_ledger(ledger, legacy=True)
     return [
         Task(
             id=t.id,

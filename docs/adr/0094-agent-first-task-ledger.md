@@ -167,9 +167,12 @@ address last-write-wins, and the measurement says trimming is the wrong lever.
 - `origin` / `parent` become measurable at filing time. The previous attempt
   to ask "where is the work coming from" fell back to regex over prose and
   produced numbers whose accuracy could not be guaranteed.
-- The GFM defect is fixed on the way through: the render escapes pipes inside
-  code spans, and a row that will not split into five cells aborts migration
-  rather than migrating half a task.
+- The GFM defect is fixed on the way through: the render escapes **every** pipe
+  in a cell, not only those inside code spans (the second malformed row used
+  `|Δ効果|` in plain prose, which code-span escaping does not reach), and a row
+  that will not split into five cells aborts migration rather than migrating
+  half a task. Reading is therefore dialect-aware — only the legacy dialect
+  tolerates bare pipes inside code spans, since only the old table had them.
 
 **Negative:**
 
