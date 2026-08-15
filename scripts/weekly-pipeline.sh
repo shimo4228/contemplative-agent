@@ -60,6 +60,153 @@ AUDIT="$MOLTBOOK_HOME/logs/weekly-pipeline-audit.jsonl"
 METRICS="$MOLTBOOK_HOME/logs/pipeline-metrics.jsonl"
 WORKTREE_ROOT="$MOLTBOOK_HOME/pipeline/worktrees"
 
+# --- Per-session permission denies (T-CHAIN-PERM-SWEEP, 2026-08-15) ---------
+# Six mechanics decide how a `claude -p` session is bounded. The first three
+# were verified for stage 2 (T-DIAG-WRITE-SCOPE); the rest were found while
+# converting the remaining four sites. All were checked against the real
+# binary, not read from docs:
+#
+# 1. --allowedTools only ADDS. It narrows neither the ambient permission mode
+#    nor the settings-file allow rules, and those rules are consulted BEFORE
+#    the mode. The operator's ~/.claude/settings.json carries 106 allow rules
+#    and zero denies, so every session inherits git/tee/cp/curl/claude/…
+#    regardless of what --allowedTools says.
+# 2. Only DENY rules outrank both. A narrow deny beats a broad ambient allow:
+#    with `Bash(uv:*)` allowed ambiently, `Bash(uv run python:*)` in the deny
+#    list still refuses `uv run python -c ...` while `uv run pytest` passes.
+# 3. File writes are gated by Edit(...) rules only, and those rules cover
+#    every file-editing tool including Write — the CLI prints this itself
+#    when handed a Write(...) pattern. The stage 4 grant that used to carry
+#    `Write(./**)` alongside `Edit(./**)` was therefore inert, and dropping
+#    it changes nothing but the warning in the fix log.
+# 4. The Bash tool statically parses `>` redirection targets and refuses any
+#    outside the session's working directories, independent of the permission
+#    rules. So a narrow prefix allow is NOT an arbitrary-write primitive via
+#    redirection. What still is: commands that write via FLAGS, which the
+#    parser cannot see — `git log --output=`, `tee`, `cp`, `sed -i`,
+#    `curl -o`. Those are what the deny lists below name.
+# 5. Denying `Bash` denies the NAME, not the capability. Several other tools
+#    reach a shell, and a session that has lost Bash still holds them:
+#    `Monitor` runs its `command` field in the same shell (verified — it
+#    created a file with Bash denied), `Agent`/`Workflow` dispatch subagents
+#    whose own definitions carry Bash, `CronCreate`/`RemoteTrigger` schedule
+#    runs, and every configured MCP server is live (Gmail send, Drive write,
+#    HF upload, browser automation). Enumerating those in a deny list is a
+#    losing game — a new tool name reopens the hole silently.
+#    `--tools` is the allowlist that closes it structurally: it bounds the
+#    available built-in tool SET, so the indirect executors are simply not
+#    there. `--strict-mcp-config` with no `--mcp-config` does the same for
+#    MCP. The deny lists are kept underneath as defence in depth and because
+#    they express what `--tools` cannot: per-path Read scoping and Bash
+#    command prefixes.
+# 6. A Bash deny list cannot be completed at all while the ambient allow list
+#    is loaded, because `Bash(uv:*)` is a universal wrapper: with `tee` in the
+#    deny list, `echo x | uv run --no-project -- tee <any absolute path>` was
+#    PERMITTED and wrote the file. `uv` cannot be denied — this stage's Verify
+#    runs `uv run pytest`. Prefixes are brittle the same way (`uv run python`
+#    denied, `uv run python3` and `uv run --no-project python` permitted).
+#    `--setting-sources project` is the fix, and unlike an isolated
+#    CLAUDE_CONFIG_DIR it needs no credential provisioning: it keeps auth and
+#    simply does not load the user layer — 106 allow rules, the `hooks` block,
+#    and `additionalDirectories`, which had silently made three unrelated
+#    projects (g-kentei-ios, zenn-content, Ableton preferences) working
+#    directories of every unattended session. `local` goes with it, which
+#    matters: `.claude/settings.local.json` grants `Bash(python3 -)`.
+#    In a fresh worktree the CLI also reports the workspace as untrusted and
+#    ignores even the project allow list, so stage 4 ends up bounded by its
+#    own `--allowedTools` alone. Cost: the user `hooks` stop firing, including
+#    `block-episode-logs-grep.sh` — replaced below by explicit Read denies on
+#    stage 2, the one session holding --add-dir over those logs.
+#
+# READONLY_DENY is for the three sessions whose whole job is to read and emit
+# text (fix review, insight review, improvement proposal). They are handed
+# their input inline or on stdin, reference no network source, and never
+# write — so Bash goes wholesale, exactly as in stage 2. credentials.json and
+# the raw episode logs are denied to the Read tool by name because --add-dir
+# bounds the workspace, not Read: without this, any session can read the
+# 2026-08 prompt-injection channel (CLAUDE.md security policy) whether or not
+# it was granted the directory.
+# Tool SETS (mechanic 5). Every session below also passes --strict-mcp-config
+# with no --mcp-config, which drops all MCP servers.
+READONLY_TOOLS="Read,Glob,Grep"
+FIX_TOOLS="Read,Glob,Grep,Edit,Write,Bash"
+# Stage 2 is driven by a slash command, so it keeps Skill. Write is in the SET
+# because the findings files it authors do not exist yet and Edit only modifies
+# an existing file — but Write is not separately *granted*: its permission
+# comes from the two exact-file Edit rules, which by mechanic 3 cover every
+# file-editing tool. Leaving Write out would have left the stage unable to
+# produce fresh findings while every focused test still passed, because the
+# shell test's stub writes the files itself (cross-model review 2026-08-15).
+DIAG_TOOLS="Read,Glob,Grep,Edit,Write,Skill"
+
+READONLY_DENY="Bash,WebFetch,WebSearch,NotebookEdit,Edit,Write"
+READONLY_DENY="$READONLY_DENY,Read(/$MOLTBOOK_HOME/credentials.json)"
+READONLY_DENY="$READONLY_DENY,Read(/$MOLTBOOK_HOME/logs/**)"
+
+# FIX_DENY is for the one session that must write (stage 4, inside a throwaway
+# worktree). Read what it is NOT first: this stage is NOT contained by
+# permission rules and cannot be. Bash cannot go wholesale — Verify runs
+# inside the session — and `uv run pytest` collects `tests/test_*.py` that
+# this same session just authored from untrusted finding text, so the session
+# holds arbitrary in-process code execution by construction: sockets,
+# `os.rename` outside the worktree, `subprocess`. A command-prefix denylist
+# cannot bound a session that executes code it wrote. Containment here rests
+# on the throwaway worktree (nothing merges from it), the exported patch, and
+# the Saturday human gate — not on this list. Durable containment needs
+# process-level sandboxing (code review 2026-08-15 HIGH; the same overclaim
+# the old stage-2 C1 comment made and this file has now made twice).
+#
+# What the list IS: hygiene, removing ambient grants the stage has no use for
+# so the easy paths are shut, in three groups:
+#   flag-writers that defeat mechanic 4 (git --output, tee, cp, mv, ln, touch,
+#     mkdir, sed -i, patch, zip/unzip, xxd -r, plutil);
+#   egress, which matters because the finding text this session is handed is
+#     untrusted (curl, wget, gh, rclone, open/code/zed, WebFetch, WebSearch);
+#   privilege and control-plane reach (security = macOS keychain, launchctl =
+#     the schedule that runs this chain, pkill = the watchdog, claude = an
+#     unbounded child session, and the ~/.claude script/hook runners).
+# `uv run python:*` is denied specifically: ambient `Bash(uv:*)` re-grants the
+# generic `uv run` this stage's allow list deliberately withheld, and
+# `uv run python -c ...` is arbitrary code execution. `git` goes entirely —
+# `git log --output=<path> --format=tformat:<content>` forges audit.jsonl,
+# which ADR-0091 made the control input for the identity-due read.
+FIX_DENY="WebFetch,WebSearch,NotebookEdit"
+FIX_DENY="$FIX_DENY,Bash(git:*),Bash(gh:*),Bash(tee:*),Bash(cp:*),Bash(mv:*)"
+FIX_DENY="$FIX_DENY,Bash(ln:*),Bash(touch:*),Bash(mkdir:*),Bash(sed:*),Bash(awk:*)"
+FIX_DENY="$FIX_DENY,Bash(patch:*),Bash(zip:*),Bash(unzip:*),Bash(xxd:*),Bash(plutil:*)"
+FIX_DENY="$FIX_DENY,Bash(curl:*),Bash(wget:*),Bash(rclone:*),Bash(open:*),Bash(code:*),Bash(zed:*)"
+FIX_DENY="$FIX_DENY,Bash(security:*),Bash(launchctl:*),Bash(pkill:*),Bash(claude:*)"
+FIX_DENY="$FIX_DENY,Bash(uv run python:*),Bash(uv run sh:*),Bash(uv run bash:*)"
+FIX_DENY="$FIX_DENY,Bash(uv pip:*),Bash(uvx:*),Bash(.venv/bin/*:*)"
+# Package managers are egress plus install-time code execution; `find -exec`
+# is both an executor and a flag-writer; `pre-commit` runs hooks from a
+# repo-local config this very session can write (code review 2026-08-15).
+FIX_DENY="$FIX_DENY,Bash(pip:*),Bash(pip3:*),Bash(npm:*),Bash(pnpm:*),Bash(brew:*)"
+FIX_DENY="$FIX_DENY,Bash(find:*),Bash(pre-commit:*),Bash(swift:*),Bash(xcrun:*),Bash(xcodebuild:*)"
+FIX_DENY="$FIX_DENY,Bash(bash ~/.claude/hooks/:*),Bash(bash ~/.claude/scripts/:*)"
+FIX_DENY="$FIX_DENY,Bash(bash ~/.claude/tests/:*),Bash(python3 ~/.claude/skills/:*)"
+FIX_DENY="$FIX_DENY,Bash(python3 scripts/hooks/:*)"
+FIX_DENY="$FIX_DENY,Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/logs/**)"
+# Named subtrees, NOT `Edit(/$MOLTBOOK_HOME/**)`: $WORKTREE_ROOT lives at
+# $MOLTBOOK_HOME/pipeline/worktrees, so the blanket form denied the fix
+# session its own working tree — deny outranks `Edit(./**)`, so every fix
+# attempt would have failed while the permission tests still passed
+# (cross-model review 2026-08-15). These are the value layer and the control
+# inputs; `pipeline/` is deliberately absent.
+FIX_DENY="$FIX_DENY,Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**)"
+FIX_DENY="$FIX_DENY,Edit(/$MOLTBOOK_HOME/skills/**),Edit(/$MOLTBOOK_HOME/rules/**)"
+FIX_DENY="$FIX_DENY,Edit(/$MOLTBOOK_HOME/constitution/**),Edit(/$MOLTBOOK_HOME/identity.md)"
+FIX_DENY="$FIX_DENY,Edit(/$MOLTBOOK_HOME/knowledge.json),Edit(/$MOLTBOOK_HOME/credentials.json)"
+FIX_DENY="$FIX_DENY,Edit(/$MOLTBOOK_HOME/reports/**),Edit(/$MOLTBOOK_HOME/views/**)"
+# With mechanic 6 in force the ambient list is no longer loaded, so the deny
+# entries above are hygiene rather than the boundary: the boundary is
+# `--tools` plus each invocation's own `--allowedTools`. They are kept because
+# they cost nothing and they still bind if a future change re-admits the user
+# layer. What is NOT closed: stage 4 runs `uv run pytest`, which imports test
+# files that session just wrote, so it holds arbitrary in-process code
+# execution regardless of any list. Containment there is the throwaway
+# worktree, the exported patch, and the Saturday human gate.
+
 # Iteration bounds (ADR-0085; all overridable for tests)
 MAX_FIX_ATTEMPTS="${PIPELINE_MAX_FIX_ATTEMPTS:-2}"
 MAX_FIX_TARGETS="${PIPELINE_MAX_FIX_TARGETS:-5}"
@@ -283,17 +430,41 @@ if stage_enabled diagnosis && ! findings_complete; then
         # content the session was given to read. (The old C1 comment asserted no
         # egress surface; that half was false too.)
         #
+        # The three new Read denies replace machine enforcement this stage used
+        # to inherit: `--setting-sources project` stops the user `hooks` block
+        # from loading, and with it the harness hook that refuses reads of the
+        # raw episode logs. This is the one session holding --add-dir over
+        # $MOLTBOOK_HOME/logs, so the CLAUDE.md ban on those files (the daily
+        # per-date JSONL and its .bak — the 2026-08 prompt-injection channel —
+        # plus agent-launchd.log) needs a rule here instead. Scoped by the
+        # year prefix rather than the whole directory, because the skill
+        # legitimately reads audit.jsonl and the instrument logs alongside
+        # them and no non-episode file there starts with a year. Read denies
+        # cover the Grep tool too (verified, 2026-08-15 security review).
+        #
         # The Edit deny rules below are redundancy for the Edit face only —
-        # they do NOT gate Bash. Converting the other four claude -p sites is
-        # T-CHAIN-PERM-SWEEP; the durable fix for the inherited allow list is
-        # config isolation, which needs credential provisioning (an isolated
-        # CLAUDE_CONFIG_DIR is unauthenticated).
+        # they do NOT gate Bash. The other four claude -p sites were converted
+        # in T-CHAIN-PERM-SWEEP (2026-08-15), which also found two mechanics
+        # this stage's original three did not cover (both recorded in full at
+        # the top of this file). The second of them corrects a claim that used
+        # to live here: denying `Bash` denies the NAME, not the capability —
+        # `Monitor` runs its `command` field in the same shell and was
+        # verified writing a file with `Bash` in the deny list, and
+        # `Agent`/`Workflow`/`CronCreate` plus every MCP server were likewise
+        # still live. So this stage now carries `--tools "$DIAG_TOOLS"` and
+        # `--strict-mcp-config` as well; the tool-set allowlist, not the deny
+        # list, is what actually removes the indirect executors. It keeps its
+        # own allow/deny spelling because it is the only session whose Edit
+        # grant names two exact files.
         with_timeout "$DIAGNOSIS_TIMEOUT" claude -p "/weekly-report-diagnosis $REPORT_PATH" \
             --add-dir "$MOLTBOOK_HOME/reports" \
             --add-dir "$MOLTBOOK_HOME/logs" \
             --permission-mode manual \
+            --tools "$DIAG_TOOLS" \
+            --strict-mcp-config \
+            --setting-sources project \
             --allowedTools "Read,Glob,Grep,Edit(/$REPORT_DIR/weekly-$END_DATE-findings.md),Edit(/$REPORT_DIR/weekly-$END_DATE-findings.ja.md)" \
-            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$MOLTBOOK_HOME/credentials.json),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$REPORT_DIR/patches/**),Edit(/$REPORT_DIR/weekly-$END_DATE-packet.md),Edit(/$REPORT_DIR/weekly-$END_DATE-insight-review.md),Edit(/$REPORT_DIR/weekly-$END_DATE.md)" \
+            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/logs/20*.jsonl),Read(/$MOLTBOOK_HOME/logs/20*.jsonl.bak),Read(/$MOLTBOOK_HOME/logs/agent-launchd.log),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$REPORT_DIR/patches/**),Edit(/$REPORT_DIR/weekly-$END_DATE-packet.md),Edit(/$REPORT_DIR/weekly-$END_DATE-insight-review.md),Edit(/$REPORT_DIR/weekly-$END_DATE.md)" \
             --output-format text \
             > "$RUN_LOG_DIR/diagnosis.log" 2>&1
         diag_rc=$?
@@ -404,16 +575,30 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
             fi
             total_attempts=$((total_attempts + 1))
             echo "[$RUN_ID]   $fid round $round attempt $attempt ($scope)"
-            # Edit/Write are path-scoped to the worktree (cwd): a bare grant would
+            # Edit is path-scoped to the worktree (cwd): a bare grant would
             # let an injected finding write outside the worktree — invisible to
             # Verify, the reviewer, and the exported patch (2026-07-29 security
             # review C3). Bash is limited to the two Verify tools; no generic
             # `uv run:*` (it reaches `uv run python -c ...`).
+            #
+            # The allow list alone never expressed that: it only adds, and the
+            # ambient allow rules re-granted everything it withheld — including
+            # the generic `uv run` and `git`, whose `--output=` flag is a
+            # write-anywhere primitive that the redirection parser cannot see
+            # (T-CHAIN-PERM-SWEEP; see $FIX_DENY at the top for the four
+            # mechanics). `git diff` / `git status` are withdrawn with it: the
+            # harness already computes the diff this session would have asked
+            # for, and Read/Grep cover the rest.
             (
                 cd "$wt" || exit 1
                 with_timeout "$FIX_TIMEOUT" claude -p "$(cat "$prompt_file")" \
                     --system-prompt "$(cat "$PROMPTS/fix-implementation.md")" \
-                    --allowedTools "Read,Glob,Grep,Edit(./**),Write(./**),Bash(uv run pytest:*),Bash(uv run ruff:*),Bash(git diff:*),Bash(git status:*),Bash(ls:*),Bash(grep:*)" \
+                    --permission-mode manual \
+                    --tools "$FIX_TOOLS" \
+                    --strict-mcp-config \
+                    --setting-sources project \
+                    --allowedTools "Read,Glob,Grep,Edit(./**),Bash(uv run pytest:*),Bash(uv run ruff:*),Bash(ls:*),Bash(grep:*)" \
+                    --disallowedTools "$FIX_DENY" \
                     --output-format text
             ) > "$fixlog-attempt$total_attempts.log" 2>&1
             local rc=$?
@@ -547,9 +732,20 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
             cat "$diff_cur"
             echo "$diff_fence"
         } > "$review_input"
+        # Read-only session: the diff and the implementer's summary are already
+        # on stdin, so it needs no Bash and no network. --allowedTools alone did
+        # not express that — it only ADDS, so the ambient allow list (106 rules,
+        # zero denies as of 2026-08-15) kept Bash/WebFetch/WebSearch live and the
+        # absent --permission-mode left the ambient mode in charge. Only deny
+        # rules outrank both, hence $READONLY_DENY (T-CHAIN-PERM-SWEEP).
         with_timeout "$REVIEW_TIMEOUT" claude -p \
             --system-prompt "$(cat "$PROMPTS/fix-review.md")" \
+            --permission-mode manual \
+            --tools "$READONLY_TOOLS" \
+            --strict-mcp-config \
+            --setting-sources project \
             --allowedTools "Read,Glob,Grep" \
+            --disallowedTools "$READONLY_DENY" \
             --output-format text \
             < "$review_input" \
             > "$fixlog-review$review_n.log" 2>&1
@@ -726,7 +922,12 @@ if stage_enabled insight; then
         if with_timeout "$INSIGHT_TIMEOUT" claude -p "$(cat "$RUN_LOG_DIR/insight-input.md")" \
                 --system-prompt "$(cat "$PROMPTS/insight-recommendation.md")" \
                 --add-dir "$MOLTBOOK_HOME/skills" \
+                --permission-mode manual \
+                --tools "$READONLY_TOOLS" \
+                --strict-mcp-config \
+                --setting-sources project \
                 --allowedTools "Read,Glob,Grep" \
+                --disallowedTools "$READONLY_DENY" \
                 --output-format text \
                 > "$INSIGHT_TMP" 2>"$RUN_LOG_DIR/insight.err" \
                 && grep -q "RECOMMEND:" "$INSIGHT_TMP"; then
@@ -1049,7 +1250,12 @@ if stage_enabled improve && [[ -n "$REASONS" ]] && ! deadline_exceeded; then
         if (cd "$PROJECT_ROOT" && with_timeout "$IMPROVE_TIMEOUT" claude -p \
                 "$(cat "$RUN_LOG_DIR/improve-input.md")" \
                 --system-prompt "$(cat "$PROMPTS/pipeline-improvement.md")" \
+                --permission-mode manual \
+                --tools "$READONLY_TOOLS" \
+                --strict-mcp-config \
+                --setting-sources project \
                 --allowedTools "Read,Glob,Grep" \
+                --disallowedTools "$READONLY_DENY" \
                 --output-format text) > "$IMPROVE_TMP" 2>"$RUN_LOG_DIR/improve.err" \
                 && [[ -s "$IMPROVE_TMP" ]]; then
             mv "$IMPROVE_TMP" "$IMPROVEMENT"
