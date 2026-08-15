@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted — partially-supersedes ADR-0053（encoding-time significance — distill 時の LLM 評点 — を退役。存続範囲は ADR-0053 の Status が持つ）
 
 ## Date
 

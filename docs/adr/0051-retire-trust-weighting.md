@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted — partially-supersedes ADR-0021 (trust weighting — `trust_score` / `TRUST_BASE_BY_SOURCE` / `TRUST_FLOOR` — retired) and ADR-0050 (Decision 2 "no trust change" retired); each superseded ADR's Status carries its own surviving scope
 
 ## Date
 

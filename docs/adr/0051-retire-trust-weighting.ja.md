@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted — partially-supersedes ADR-0021（trust weighting — `trust_score` / `TRUST_BASE_BY_SOURCE` / `TRUST_FLOOR` — を退役）および ADR-0050（Decision 2「trust を変更しない」を退役）。存続範囲は各被 supersede ADR の Status が持つ
 
 ## Date
 

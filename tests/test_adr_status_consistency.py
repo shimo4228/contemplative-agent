@@ -52,15 +52,30 @@ Cross-node reciprocity is deliberately *not* asserted: ADR-0034 leads with
 and each node matches its own prose. Whether a withdrawal is also a
 supersession is a vocabulary judgment, not a defect a test should force.
 
-The cost of that scoping is real and should not be read away: six
-``partiallySupersededBy`` claims have no forward half, so an LLM traversing
-``partiallySupersedes`` does not reach ADR-0028 / 0029 / 0051 (from ADR-0021),
-ADR-0051 (from ADR-0050), ADR-0056 (from ADR-0053), or ADR-0070 (from
-ADR-0065) — the last being a genuine disagreement, since ADR-0070's body says
-it "completes the supersession of ADR-0065's MLX portions" while its Status
-names only ADR-0006 and ADR-0064. Partial-supersede traversal is one-way
-today; closing it means editing five more ADRs across five faces each
-(T-ADR-PARTIAL-RECIPROCITY in the task ledger).
+Partial supersession is the one place where reciprocity IS asserted, because
+there the two halves are the same claim in two directions rather than two
+vocabulary choices. Six ``partiallySupersededBy`` edges had no forward half
+until 2026-08-15, so an LLM traversing ``partiallySupersedes`` reached none of
+ADR-0028 / 0029 / 0051 (from ADR-0021), ADR-0051 (from ADR-0050), ADR-0056
+(from ADR-0053) or ADR-0070 (from ADR-0065). The last was a genuine
+disagreement rather than an omission: ADR-0070's body said it "completes the
+supersession of ADR-0065's MLX portions" while its Status named only ADR-0006
+and ADR-0064, so the abbreviated faces and the full one disagreed and no
+head-comparison could see it. All five ADRs now carry the forward half across
+their five faces (T-ADR-PARTIAL-RECIPROCITY), and
+``test_partial_supersede_edges_are_reciprocal`` keeps it that way — adding one
+half of a partial supersede without the other is now a failure, not a slow
+drift back to prose-only traversal.
+
+What that test does NOT check is that the two halves agree on *scope*, which
+is a semantic agreement between prose faces and out of reach here. It is a
+convention instead, documented under "Status line conventions": the forward
+half names only what it retired, and the surviving scope lives on the backward
+half, the one face that stays correct as later partial supersessions land.
+The 2026-08-15 review caught all four new forward halves stating it wrongly —
+three had replicated ADR-0021's residue *after all three* supersessions onto
+ADRs whose own bodies still used the trust surface — so the convention is
+newer than the reciprocity gate and is not enforced by it.
 """
 
 from __future__ import annotations
@@ -358,4 +373,41 @@ def test_graph_edges_match_their_own_status_prose(adr: str) -> None:
         f"ADR-{adr} graph edges disagree with its own Status {status!r}: "
         f"expected {expected or 'no supersede-family edge'}, found "
         f"{actual or 'none'} (see docs/adr/README.md '### Status line conventions')"
+    )
+
+
+@pytest.mark.unit
+def test_partial_supersede_edges_are_reciprocal() -> None:
+    """Every ``partiallySupersededBy`` must have its forward half, and vice versa.
+
+    Unlike the supersedes/withdrawnBy pairing, the two halves of a partial
+    supersede are not a vocabulary choice — they are one claim stated from
+    each end. Recording only the backward half is what left ``0021 → 0028 /
+    0029 / 0051``, ``0050 → 0051``, ``0053 → 0056`` and ``0065 → 0070``
+    unreachable by forward traversal, so the README's promise that an LLM can
+    follow the lineage without parsing prose held only for full supersessions
+    (T-ADR-PARTIAL-RECIPROCITY, closed 2026-08-15).
+
+    Asserted over the edges rather than the prose because the prose faces are
+    already pinned to the edges per node: a missing half fails here, and a
+    half added to the graph without its Status sentence fails above.
+    """
+    backward: set[tuple[str, str]] = set()
+    forward: set[tuple[str, str]] = set()
+    for adr, node in GRAPH_NODES.items():
+        for target in _edge_refs(node, "partiallySupersededBy"):
+            backward.add((target, adr))  # (superseder, superseded)
+        for target in _edge_refs(node, "partiallySupersedes"):
+            forward.add((adr, target))
+
+    missing_forward = sorted(backward - forward)
+    missing_backward = sorted(forward - backward)
+    assert not missing_forward, (
+        "partiallySupersededBy with no forward half — forward traversal cannot "
+        f"reach these: {[f'{a} partially-supersedes {b}' for a, b in missing_forward]}"
+    )
+    assert not missing_backward, (
+        "partiallySupersedes with no backward half — the superseded ADR's own "
+        "Status does not say a section retired: "
+        f"{[f'{b} partially-superseded-by {a}' for a, b in missing_backward]}"
     )

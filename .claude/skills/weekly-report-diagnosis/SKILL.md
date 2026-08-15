@@ -199,6 +199,16 @@ F1 セクションの見出し構造と **Code reference** ブロックは、無
 - 実装そのもの (F1 提案は plan であって code 変更ではない)
 - 過去レポートの bulk 再診断 (1 weekly に対する診断のみ)
 - weekly レポート本体への追記
+- **値層 (skills / rules / identity / 憲法) の内容がセキュリティ境界を侵すという指摘** —
+  構造的に成立しない。封じ込め・サニタイズ・制御文字除去はすべてコード側にあり
+  (`cli/adopt.py::_target_inside_data_root` / `core/llm/guard.py` /
+  `core/episode_render.py` / `core/skill_selection.py`)、値層は生成文に影響するだけで
+  これらを動かせない。LLM の判断が書き込み・公開・権限取得を許可する経路が存在しない
+  (security by absence — 境界を守るのでなく越える手段を持たせない設計)。
+  「この rule が危険な操作を誘発する」「この skill が fail-closed を軟化させる」は、
+  権限を持つエージェントの脅威モデルを持ち込んだカテゴリ違いで、著者が繰り返し
+  訂正している型 (2026-08-15 指示)。値層について書くなら軸は
+  **生成文の質・一貫性・観察対象としての意味** であり、それは F2 / F3 に属する
 
 ---
 
@@ -212,6 +222,7 @@ F1 セクションの見出し構造と **Code reference** ブロックは、無
 - [ ] 過去 N 週の findings と重複していないか (Principle 4)
 - [ ] CODEMAP / ADR / 各層を「読んでから」F を書いたか — 推測で書いていないか
 - [ ] F1 妥当性 self-check を各 F1 で満たしているか
+- [ ] 値層の内容を「セキュリティ境界を侵す」軸で論じていないか (Out-of-scope 節)
 - [ ] Diagnosis Metadata セクションに実際に読んだファイルを列挙したか
 
 ---

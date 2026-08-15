@@ -2,7 +2,7 @@
 
 ## ステータス
 
-accepted
+accepted — partially-supersedes ADR-0021（休眠していた Provenance 要素 `user_input` / `external_post` / `sanitized` を退役。存続範囲は ADR-0021 の Status が持つ）
 
 ## 日付
 

@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted — partially-supersedes ADR-0021 (Forgetting IV-3 and Feedback IV-10 retired; ADR-0021's Status carries the surviving scope)
 
 ## Date
 

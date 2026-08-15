@@ -33,8 +33,8 @@ Records of key design decisions for this project.
 | [0025](0025-identity-history-and-migrate-cli.md) | Identity History Log Wiring + migrate-identity CLI | superseded-by 0030 | 2026-04-16 |
 | [0026](0026-retire-discrete-categories.md) | Retire Discrete Categories (Phase-3 Completion of ADR-0019) | partially-superseded-by 0060 | 2026-04-16 |
 | [0027](0027-noise-as-seed.md) | Noise as Seed — From Binary Gate to Salience-Based Forgetting | superseded-by 0060 | 2026-04-16 |
-| [0028](0028-retire-pattern-level-forgetting-feedback.md) | Retire Pattern-Level Forgetting and Feedback — Memory Dynamics Belong to the Skill Layer | accepted | 2026-04-18 |
-| [0029](0029-retire-dormant-provenance-elements.md) | Retire Dormant Provenance Elements — `user_input` / `external_post` / `sanitized` | accepted | 2026-04-18 |
+| [0028](0028-retire-pattern-level-forgetting-feedback.md) | Retire Pattern-Level Forgetting and Feedback — Memory Dynamics Belong to the Skill Layer | accepted — partially-supersedes 0021 | 2026-04-18 |
+| [0029](0029-retire-dormant-provenance-elements.md) | Retire Dormant Provenance Elements — `user_input` / `external_post` / `sanitized` | accepted — partially-supersedes 0021 | 2026-04-18 |
 | [0030](0030-withdraw-identity-blocks.md) | Withdraw Identity Block Separation and History Wiring — Single Responsibility | accepted — supersedes 0024 and 0025 | 2026-04-18 |
 | [0031](0031-classification-as-query.md) | Classification as Query — Substrate Principle for Self-Improving Memory | accepted | 2026-04-27 |
 | [0032](0032-runtime-agent-stance.md) | Stance — Contemplative Agent as a Runtime Agent | withdrawn — tension with contemplative axioms (ADR-0002) | 2026-04-27 |
@@ -56,12 +56,12 @@ Records of key design decisions for this project.
 | [0048](0048-trigger-altitude-skill-lifecycle.md) | Trigger-Altitude for Skill Lifecycle | accepted | 2026-06-02 |
 | [0049](0049-meditation-active-inference-fidelity-and-deferral.md) | Meditation Adapter — Beautiful Loop Fidelity Audit and Deferral of Faithful Re-Implementation | accepted | 2026-06-03 |
 | [0050](0050-epistemic-taxonomy-and-approval-lineage.md) | Epistemic Taxonomy and Approval Lineage — Observability Without Steering | partially-superseded-by 0051, 0082 | 2026-06-05 |
-| [0051](0051-retire-trust-weighting.md) | Retire Trust Weighting — Pure Cosine Retrieval and Bitemporal-Only Liveness | accepted | 2026-06-05 |
+| [0051](0051-retire-trust-weighting.md) | Retire Trust Weighting — Pure Cosine Retrieval and Bitemporal-Only Liveness | accepted — partially-supersedes 0021, 0050 | 2026-06-05 |
 | [0052](0052-retire-session-insight.md) | Retire Session Insight Generation — Identity Is the Approved Continuity Channel | accepted | 2026-06-05 |
 | [0053](0053-importance-encoding-time-significance.md) | Importance as Encoding-Time Significance — Three Judgment Points and Re-observation Promotion | partially-superseded-by 0056 | 2026-06-06 |
 | [0054](0054-externalize-llm-instruction-text-to-prompts.md) | Externalize LLM Instruction Text to `config/prompts/` with Hardcoded Fallback for the Injection Boundary | accepted | 2026-06-09 |
 | [0055](0055-counterparty-identity-by-author-name.md) | Counterparty Identity by Author Name; Unified Activity/Report Schema | accepted | 2026-06-15 |
-| [0056](0056-retire-importance-llm-scoring.md) | Retire the Distill-Time Importance LLM Rating — Extraction Weight Is Pure Time Decay | accepted | 2026-06-17 |
+| [0056](0056-retire-importance-llm-scoring.md) | Retire the Distill-Time Importance LLM Rating — Extraction Weight Is Pure Time Decay | accepted — partially-supersedes 0053 | 2026-06-17 |
 | [0057](0057-identity-from-self-reflection-corpus-alone.md) | Distill Identity From the Self-Reflection Corpus Alone — Drop the Prior-Identity Seed and Redundant Axiom Injection `[AKC: Promote]` | accepted | 2026-06-20 |
 | [0058](0058-value-injection-at-action-time.md) | Value-Layer Injection Belongs to Action Time, Not Distillation `[AKC: Extract/Curate/Promote]` | accepted | 2026-06-20 |
 | [0059](0059-remove-dead-reply-history.md) | Remove the Dead Reply-History Mechanism | accepted | 2026-06-22 |
@@ -75,7 +75,7 @@ Records of key design decisions for this project.
 | [0067](0067-keep-ollama-for-unattended-production.md) | Keep Ollama as the Production Generation Backend — mlx_lm.server Unfit for Unattended Continuous Use on 16 GB Apple Silicon | accepted — partially-supersedes 0065 | 2026-06-28 |
 | [0068](0068-per-call-think-flag-and-thinking-trace-capture.md) | Per-Call `think` Flag and Reasoning-Trace Capture to the Episode Log | accepted | 2026-06-28 |
 | [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.md) | Adopt gemma4:e4b as the Production Generation Model and Run the Value-Layer Pipelines think-ON | accepted | 2026-06-28 |
-| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md) | Retire the MLX Backend to a Sibling Repo and Remove Docker from Main | accepted — supersedes 0006, 0064 | 2026-06-28 |
+| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md) | Retire the MLX Backend to a Sibling Repo and Remove Docker from Main | accepted — supersedes 0006, 0064; partially-supersedes 0065 | 2026-06-28 |
 | [0071](0071-read-only-pattern-composition-instruments.md) | Read-Only Pattern-Composition Instruments (View Supply / Diversity / Grounding) | accepted | 2026-07-03 |
 | [0072](0072-echo-chamber-interventions.md) | Echo-Chamber Interventions — Register Instruction, Corpus-Grown Seed, Extraction-Failure Guard | accepted | 2026-07-03 |
 | [0073](0073-prune-orphaned-view-seeds.md) | Prune the Five Orphaned View Seeds | accepted | 2026-07-03 |
@@ -160,7 +160,9 @@ The Status field follows established phrasing so that the index, ADR bodies, and
 - `withdrawn by ADR-NNNN` — retracted because a later ADR judged this approach incorrect
 - `withdrawn (YYYY-MM-DD)` — retracted in-place, typically same-day or by the same author; the body preserves the withdrawal reason
 
-The relationship phrases (`supersedes`, `superseded-by`, `withdrawn by`, `partially-supersedes`, `partially-superseded-by`) are mirrored as typed edges (`supersedes`, `supersededBy`, `withdrawnBy`, `partiallySupersedes`, `partiallySupersededBy`) in `graph.jsonld` so LLMs can traverse the supersede / withdrawal chain without parsing prose. A node's edges must match its own Status prose — a bare `accepted` node carries no supersede-family edge — and `tests/test_adr_status_consistency.py` enforces that alongside head agreement across all five faces. The mirror is per-node: full supersessions and withdrawals are reciprocal today, but six partial supersessions record only the backward half, so `partiallySupersedes` traversal is one-way until T-ADR-PARTIAL-RECIPROCITY closes it.
+The relationship phrases (`supersedes`, `superseded-by`, `withdrawn by`, `partially-supersedes`, `partially-superseded-by`) are mirrored as typed edges (`supersedes`, `supersededBy`, `withdrawnBy`, `partiallySupersedes`, `partiallySupersededBy`) in `graph.jsonld` so LLMs can traverse the supersede / withdrawal chain without parsing prose. A node's edges must match its own Status prose — a bare `accepted` node carries no supersede-family edge — and `tests/test_adr_status_consistency.py` enforces that alongside head agreement across all five faces. The mirror is per-node, with one cross-node rule: partial supersessions must carry both halves, because the two are one claim stated from each end rather than a vocabulary choice. Six of them recorded only the backward half until 2026-08-15 (T-ADR-PARTIAL-RECIPROCITY); `test_partial_supersede_edges_are_reciprocal` now fails on a half added without its counterpart. Whether a withdrawal should also read as a supersession stays a judgment call and is not asserted.
+
+**Which half states which scope.** A partial supersession has two scopes — what was retired, and what still stands — and they belong on different faces. The **forward** half (on the newer ADR) names only what *it* retired. The **surviving** scope lives on the **backward** half (on the superseded ADR), because that is the only face that can stay correct as later partial supersessions land: ADR-0021's residue today is what survived ADR-0028, ADR-0029 *and* ADR-0051, so replicating it onto any one of them would have each claim a state that was not true on its own date. No test can check this — it is a semantic agreement between two prose faces — so it is a convention, written here because the 2026-08-15 review caught all four new forward halves stating it wrongly before the convention existed. Prose inside a body describing a scoped supersession uses `supersedes X in part`, the form the Status parser also accepts; a bare `superseded` on a scoped subject reads as a full retirement.
 
 ## Guidelines
 

@@ -2,7 +2,7 @@
 
 ## ステータス
 
-accepted
+accepted — partially-supersedes ADR-0021（Forgetting IV-3 と Feedback IV-10 を退役。存続範囲は ADR-0021 の Status が持つ）
 
 ## 日付
 

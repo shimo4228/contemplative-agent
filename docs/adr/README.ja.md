@@ -33,8 +33,8 @@
 | [0025](0025-identity-history-and-migrate-cli.ja.md) | Identity History ログ配線 + migrate-identity CLI | superseded-by 0030 | 2026-04-16 |
 | [0026](0026-retire-discrete-categories.ja.md) | 離散カテゴリの廃止（ADR-0019 の Phase-3 完了） | partially-superseded-by 0060 | 2026-04-16 |
 | [0027](0027-noise-as-seed.ja.md) | Noise as Seed — binary gate から salience-based forgetting へ | superseded-by 0060 | 2026-04-16 |
-| [0028](0028-retire-pattern-level-forgetting-feedback.ja.md) | pattern 層の forgetting と feedback を撤回 — 記憶動的層は skill 層にある | accepted | 2026-04-18 |
-| [0029](0029-retire-dormant-provenance-elements.ja.md) | dormant な provenance 要素を撤回 — `user_input` / `external_post` / `sanitized` | accepted | 2026-04-18 |
+| [0028](0028-retire-pattern-level-forgetting-feedback.ja.md) | pattern 層の forgetting と feedback を撤回 — 記憶動的層は skill 層にある | accepted — partially-supersedes 0021 | 2026-04-18 |
+| [0029](0029-retire-dormant-provenance-elements.ja.md) | dormant な provenance 要素を撤回 — `user_input` / `external_post` / `sanitized` | accepted — partially-supersedes 0021 | 2026-04-18 |
 | [0030](0030-withdraw-identity-blocks.ja.md) | Identity Block 分離と History 配線の撤回 — Single Responsibility | accepted — supersedes 0024 and 0025 | 2026-04-18 |
 | [0031](0031-classification-as-query.ja.md) | Classification as Query — 自己改善メモリの substrate 原則 | accepted | 2026-04-27 |
 | [0032](0032-runtime-agent-stance.ja.md) | Stance — Contemplative Agent はランタイムエージェントである | withdrawn — contemplative axioms (ADR-0002) との tension | 2026-04-27 |
@@ -56,12 +56,12 @@
 | [0048](0048-trigger-altitude-skill-lifecycle.ja.md) | スキルライフサイクル全体のトリガー高度化 | accepted | 2026-06-02 |
 | [0049](0049-meditation-active-inference-fidelity-and-deferral.ja.md) | 瞑想アダプタ — Beautiful Loop 忠実性監査と忠実な再実装の保留 | accepted | 2026-06-03 |
 | [0050](0050-epistemic-taxonomy-and-approval-lineage.ja.md) | Epistemic taxonomy と承認系譜 — steering なしの可観測性 | partially-superseded-by 0051, 0082 | 2026-06-05 |
-| [0051](0051-retire-trust-weighting.ja.md) | trust 重みの全廃 — 純 cosine 検索と bitemporal のみの生死判定 | accepted | 2026-06-05 |
+| [0051](0051-retire-trust-weighting.ja.md) | trust 重みの全廃 — 純 cosine 検索と bitemporal のみの生死判定 | accepted — partially-supersedes 0021, 0050 | 2026-06-05 |
 | [0052](0052-retire-session-insight.ja.md) | セッション洞察生成の退役 — identity が承認済み継続性チャネルである | accepted | 2026-06-05 |
 | [0053](0053-importance-encoding-time-significance.ja.md) | 観測時の手応えとしての importance — 三つの判断時点と再観察による昇格 | partially-superseded-by 0056 | 2026-06-06 |
 | [0054](0054-externalize-llm-instruction-text-to-prompts.ja.md) | LLM 指示テキストを `config/prompts/` へ外出しし、injection 境界にはハードコードの fallback を持たせる | accepted | 2026-06-09 |
 | [0055](0055-counterparty-identity-by-author-name.ja.md) | author name による counterparty 識別と activity/report スキーマの統一 | accepted | 2026-06-15 |
-| [0056](0056-retire-importance-llm-scoring.ja.md) | distill 時の importance LLM 採点を撤去 — 抽出重みは純粋な time decay に | accepted | 2026-06-17 |
+| [0056](0056-retire-importance-llm-scoring.ja.md) | distill 時の importance LLM 採点を撤去 — 抽出重みは純粋な time decay に | accepted — partially-supersedes 0053 | 2026-06-17 |
 | [0057](0057-identity-from-self-reflection-corpus-alone.ja.md) | アイデンティティを self-reflection コーパスのみから蒸留する — 前アイデンティティの種と冗長な公理注入を外す `[AKC: Promote]` | accepted | 2026-06-20 |
 | [0058](0058-value-injection-at-action-time.ja.md) | value 層の注入は「行動時」に属し、「蒸留時」には属さない `[AKC: Extract/Curate/Promote]` | accepted | 2026-06-20 |
 | [0059](0059-remove-dead-reply-history.ja.md) | 死んでいた reply 履歴機構の撤去 | accepted | 2026-06-22 |
@@ -75,7 +75,7 @@
 | [0067](0067-keep-ollama-for-unattended-production.ja.md) | 本番生成バックエンドを Ollama に固定する — 16GB Apple Silicon の無人連続運用では mlx_lm.server は不適 | accepted — partially-supersedes 0065 | 2026-06-28 |
 | [0068](0068-per-call-think-flag-and-thinking-trace-capture.ja.md) | per-call の think フラグと推論トレースのエピソードログ保存 | accepted | 2026-06-28 |
 | [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.ja.md) | gemma4:e4b を本番生成モデルに採用し、値層パイプラインを think-ON で実行 | accepted | 2026-06-28 |
-| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.ja.md) | MLX backend を sibling repo へ退役し Docker を main から削除 | accepted — supersedes 0006, 0064 | 2026-06-28 |
+| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.ja.md) | MLX backend を sibling repo へ退役し Docker を main から削除 | accepted — supersedes 0006, 0064; partially-supersedes 0065 | 2026-06-28 |
 | [0071](0071-read-only-pattern-composition-instruments.ja.md) | 読み取り専用のパターン組成計器（view supply / 多様性 / grounding） | accepted | 2026-07-03 |
 | [0072](0072-echo-chamber-interventions.ja.md) | echo chamber への介入 — レジスタ指示・corpus 育ちの seed・抽出失敗ガード | accepted | 2026-07-03 |
 | [0073](0073-prune-orphaned-view-seeds.ja.md) | 孤児化した 5 つの view seed を削除する | accepted | 2026-07-03 |
@@ -173,9 +173,22 @@ index en / index ja / `graph.jsonld` の 5 面で先頭の語が一致するこ�
 参照先 ADR 番号が一致すること、graph の型付きエッジがそのノード自身の Status 散文と
 一致すること — 素の `accepted` なノードは supersede 系のエッジを持たない）。
 
-対応はノード単位である。全面 supersede と撤回は現時点で双方向に揃っているが、部分 supersede は
-6 件が後ろ向きの半分しか記録していないため、`partiallySupersedes` の traversal は片方向に留まる
-（T-ADR-PARTIAL-RECIPROCITY で解消予定）。
+対応は原則ノード単位だが、部分 supersede だけはノード横断で双方向を要求する。前向きと後ろ向きは
+語彙の選択肢ではなく、同じ主張を両端から述べたものだからである。6 件が後ろ向きの半分しか
+記録していなかったが 2026-08-15 に解消し（T-ADR-PARTIAL-RECIPROCITY）、片側だけを足すと
+`test_partial_supersede_edges_are_reciprocal` が落ちる。撤回を supersede とも読むべきかは
+判断の問題として残し、検査しない。
+
+**どちらの半分がどちらの範囲を書くか。** 部分 supersede には「退役させた範囲」と「存続する範囲」の
+2 つがあり、書く面が違う。**前向き**の半分（新しい ADR 側）は**自分が退役させた範囲だけ**を書く。
+**存続する範囲**は**後ろ向き**の半分（supersede された ADR 側）が持つ — 後から別の部分 supersede が
+着地しても正しくあり続けられる唯一の面だからである。ADR-0021 の今日の残余は ADR-0028・ADR-0029・
+ADR-0051 の 3 つを経た後のものなので、どれか 1 本の面に複製すると、その ADR の日付時点では
+真でなかった状態を主張することになる。これは 2 つの散文面の意味的な一致なので**検査できない** —
+規約として書き残す（2026-08-15 のレビューが、規約が無いまま書かれた前向き半分 4 本すべてで
+これを取り違えているのを検出したため）。本文中で範囲つきの supersede を述べるときは
+`supersedes X in part` を使う（Status のパーサも受ける形）。範囲つきの対象に素の `superseded` を
+当てると全面退役として読まれる。
 
 ## 運用ルール
 

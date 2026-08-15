@@ -70,11 +70,14 @@ behavior?" (the IPD reading says behavior survives without it) and becomes:
 
 ## Discriminating experiments (named, not yet run)
 
-- **T-CARE-DISSOC** (task ledger): dialogue two-arm on distress-themed
-  seeds — shadow-constitution home vs live-constitution home. If a care
-  register appears on the shadow side despite the absent vocabulary, the
-  corollary regenerates from the generator (内包説 confirmed at the
-  behavior layer, where IPD cannot see).
+- **Dialogue two-arm on distress-themed seeds** — shadow-constitution home
+  vs live-constitution home. If a care register appears on the shadow side
+  despite the absent vocabulary, the corollary regenerates from the
+  generator (内包説 confirmed at the behavior layer, where IPD cannot see).
+  Carried as a task until 2026-08-15, when the owner dropped it: it is
+  curiosity-driven, needs multi-seed runs outside the JST 0/6/12/18 session
+  windows on 16 GB, and nothing downstream waits on the answer. Recorded
+  here as a named experiment, not as scheduled work.
 - **Converse IPD** (unscheduled): bench the care-ethicist template — care
   vocabulary *without* the non-dual generator. No cooperation effect would
   be direct evidence that care-without-dissolved-boundary does not become

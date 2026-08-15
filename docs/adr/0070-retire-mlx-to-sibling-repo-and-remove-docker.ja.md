@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — ADR-0064（MLX 生成バックエンド）と ADR-0006（Docker network isolation）を supersede する。ADR-0065 の MLX 部分の supersession を完了させる（served-model-id テレメトリ契約は存続）。ADR-0067 の Decision #3 を改訂する（main に温存していた opt-in MLX エントリポイントを削除し、移設する）
+accepted — supersedes ADR-0064（MLX 生成バックエンド）と ADR-0006（Docker network isolation）。partially-supersedes ADR-0065（残る MLX バックエンド参照。ADR-0067 が始めた supersession を完了させる。served-model-id テレメトリ契約は存続）。ADR-0067 の Decision #3 を改訂する（main に温存していた opt-in MLX エントリポイントを削除し、移設する）
 
 ## Date
 
@@ -60,9 +60,9 @@ accepted — ADR-0064（MLX 生成バックエンド）と ADR-0006（Docker net
    `apple-silicon-local-llm-serving` skill は、MLX コードがどこに置かれるかとは独立に再利用可能な
    Apple-Silicon-runtime の判断として残す。
 
-6. **Supersession。** ADR-0064 と ADR-0006 は本 ADR により supersede される。ADR-0065 の launchd
-   半分は既に revert 済み（ADR-0067）であり、その MLX バックエンド参照も今 supersede されるが、
-   served-model-id テレメトリ契約は存続する。ADR-0066（context guard）と ADR-0068（per-call think
+6. **Supersession。** ADR-0064 と ADR-0006 は本 ADR により supersede される。ADR-0065 は部分的に
+   supersede される（supersedes in part）— launchd 半分は既に revert 済み（ADR-0067）で、MLX
+   バックエンド参照が本 ADR で退役し、served-model-id テレメトリ契約は存続する。ADR-0066（context guard）と ADR-0068（per-call think
    flag）は backend 非依存であり無改変である。
 
 ## Alternatives Considered
@@ -133,7 +133,7 @@ main のバージョンを pin して追従し続けねばならない — 研�
 
 - [ADR-0064](./0064-mlx-generation-backend.md) — opt-in MLX backend；本 ADR により **superseded**
 - [ADR-0006](./0006-docker-network-isolation.md) — Docker network isolation；本 ADR により **superseded**
-- [ADR-0065](./0065-mlx-ondemand-launchd-and-telemetry-model-contract.md) — launchd 配線は ADR-0067 で revert 済み；MLX バックエンド参照は本 ADR で superseded；served-model-id テレメトリ契約は存続
+- [ADR-0065](./0065-mlx-ondemand-launchd-and-telemetry-model-contract.md) — 本 ADR により **部分的に supersede**（superseded in part）: launchd 配線は ADR-0067 で revert 済み、MLX バックエンド参照は本 ADR で退役；served-model-id テレメトリ契約は存続
 - [ADR-0066](./0066-backend-aware-context-budget-guard.md) — backend-aware context guard；backend 非依存、無改変
 - [ADR-0067](./0067-keep-ollama-for-unattended-production.md) — MLX を opt-in のまま温存した（Decision #3）；本 ADR はその in-tree コードを削除して退役を完了させる
 - [ADR-0007](./0007-security-boundary-model.md) — security-by-absence / reversibility 姿勢

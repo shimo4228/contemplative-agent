@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — supersedes ADR-0064 (MLX generation backend) and ADR-0006 (Docker network isolation); completes the supersession of ADR-0065's MLX portions (the served-model-id telemetry contract is retained); revises ADR-0067 Decision #3 (the opt-in MLX entry points it kept in main are removed and relocated)
+accepted — supersedes ADR-0064 (MLX generation backend) and ADR-0006 (Docker network isolation); partially-supersedes ADR-0065 (its remaining MLX-backend references, completing the supersession ADR-0067 began; the served-model-id telemetry contract is retained); revises ADR-0067 Decision #3 (the opt-in MLX entry points it kept in main are removed and relocated)
 
 ## Date
 
@@ -66,9 +66,10 @@ git history is the migration source for both; nothing is lost.
    as reusable Apple-Silicon-runtime judgment independent of where the MLX code
    lives.
 
-6. **Supersession.** ADR-0064 and ADR-0006 are superseded by this ADR. ADR-0065's
-   launchd half was already reverted (ADR-0067); its MLX-backend references are now
-   superseded too, while its served-model-id telemetry contract is retained.
+6. **Supersession.** ADR-0064 and ADR-0006 are superseded by this ADR. ADR-0065 is
+   superseded in part: its launchd half was already reverted (ADR-0067) and its
+   MLX-backend references go here, while its served-model-id telemetry contract is
+   retained.
    ADR-0066 (context guard) and ADR-0068 (per-call think flag) are backend-neutral
    and unchanged.
 
@@ -148,7 +149,7 @@ code lives.
 
 - [ADR-0064](./0064-mlx-generation-backend.md) — opt-in MLX backend; **superseded** by this ADR
 - [ADR-0006](./0006-docker-network-isolation.md) — Docker network isolation; **superseded** by this ADR
-- [ADR-0065](./0065-mlx-ondemand-launchd-and-telemetry-model-contract.md) — launchd wiring reverted by ADR-0067; MLX-backend references superseded here; served-model-id telemetry contract retained
+- [ADR-0065](./0065-mlx-ondemand-launchd-and-telemetry-model-contract.md) — **superseded in part** by this ADR: launchd wiring reverted by ADR-0067, MLX-backend references retired here; served-model-id telemetry contract retained
 - [ADR-0066](./0066-backend-aware-context-budget-guard.md) — backend-aware context guard; backend-neutral, unchanged
 - [ADR-0067](./0067-keep-ollama-for-unattended-production.md) — kept MLX opt-in (Decision #3); this ADR completes the retirement by removing that in-tree code
 - [ADR-0007](./0007-security-boundary-model.md) — security-by-absence / reversibility posture

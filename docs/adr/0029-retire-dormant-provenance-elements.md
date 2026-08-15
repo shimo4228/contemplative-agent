@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted — partially-supersedes ADR-0021 (the dormant Provenance elements `user_input` / `external_post` / `sanitized` retired; ADR-0021's Status carries the surviving scope)
 
 ## Date
 

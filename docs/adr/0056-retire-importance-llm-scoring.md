@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted — partially-supersedes ADR-0053 (encoding-time significance — the distill-time LLM rating — retired; ADR-0053's Status carries the surviving scope)
 
 ## Date
 
@@ -114,7 +114,7 @@ the next save. A migration command would be code to write, run, and then retire.
 
 ### Neutral / Follow-ups
 
-- `graph.jsonld` gains an ADR-0056 node (`refines` ADR-0053, `alignsWith` ADR-0051); the ADR-0009
+- `graph.jsonld` gains an ADR-0056 node (`extends` + `partiallySupersedes` ADR-0053, `alignsWith` ADR-0051); the ADR-0009
   and ADR-0053 node descriptions and the AKC phase-mapping node (distill "3-step … + importance" →
   "2-step") are updated in the same change per the dual-update convention.
 - `docs/CODEMAPS/` Data Flow (distill Step 3, insight ordering, `effective_importance`) is refreshed
