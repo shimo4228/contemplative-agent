@@ -892,16 +892,24 @@ class TestAtomicWrite:
         assert not (tmp_path / "knowledge.json.tmp").exists()
         assert path.exists()
 
-    def test_original_survives_write_failure(self, tmp_path):
+    def test_original_survives_write_failure(self, tmp_path, monkeypatch):
         path = tmp_path / "knowledge.json"
         ks = KnowledgeStore(path=path)
         ks.add_learned_pattern("Pattern1")
         ks.save()
         original_content = path.read_text()
 
-        # Simulate write failure by making tmp path a directory
-        tmp_file = path.with_suffix(".json.tmp")
-        tmp_file.mkdir()
+        # Fail at the publish step. Previously this test parked a directory
+        # at the predictable "knowledge.json.tmp"; the temp file now carries
+        # an unpredictable name (T-WRITE-TMP-NOFOLLOW), which is the whole
+        # point — nothing can be planted at it in advance. The property under
+        # test is unchanged: a failed write leaves the original untouched.
+        import contemplative_agent.core._io as io_mod
+
+        def _boom(src, dst):
+            raise OSError("simulated interruption")
+
+        monkeypatch.setattr(io_mod.os, "replace", _boom)
 
         ks.add_learned_pattern("Pattern2")
         with pytest.raises(OSError):
@@ -909,6 +917,7 @@ class TestAtomicWrite:
 
         # Original should be intact
         assert path.read_text() == original_content
+        assert list(tmp_path.glob("*.tmp")) == []
 
     def test_atomic_write_permissions(self, tmp_path):
         path = tmp_path / "knowledge.json"

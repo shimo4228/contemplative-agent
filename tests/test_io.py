@@ -3,6 +3,7 @@
 import base64
 import hashlib
 import json
+import logging
 import os
 import re
 import stat
@@ -130,14 +131,6 @@ class TestWriteRestricted:
         write_restricted(path, "second")
         assert path.read_text(encoding="utf-8") == "second"
 
-    def test_umask_restored_after_call(self, tmp_path):
-        original = os.umask(0o022)
-        try:
-            write_restricted(tmp_path / "f.md", "x")
-            assert os.umask(0o022) == 0o022
-        finally:
-            os.umask(original)
-
 
 class TestAppendJsonlRestricted:
     def test_creates_parent_directory(self, tmp_path):
@@ -204,13 +197,236 @@ class TestWriteRestrictedAtomicM11:
             write_restricted(target, "new body")
 
         assert target.read_text(encoding="utf-8") == "original body"
-        assert not (tmp_path / "skill.md.tmp").exists()
+        assert list(tmp_path.glob("*.tmp")) == []
 
     def test_no_tmp_file_left_on_success(self, tmp_path):
         target = tmp_path / "rule.md"
         write_restricted(target, "body")
         assert target.read_text(encoding="utf-8") == "body"
         assert list(tmp_path.glob("*.tmp")) == []
+
+
+class TestWriteRestrictedTmpNoFollow:
+    """T-WRITE-TMP-NOFOLLOW: the temp file must never be a path an attacker
+    can occupy in advance.
+
+    ``os.replace`` is symlink-safe (it replaces the link itself), so the
+    *target* was never the exposure — the predictable ``<target>.tmp``
+    sibling was. A pre-placed symlink there converted "may write inside
+    MOLTBOOK_HOME" into "may write any path on the filesystem", the one
+    write path in the staging -> adopt chain that crossed the boundary.
+    """
+
+    def test_a_symlink_at_the_old_predictable_name_is_inert(self, tmp_path):
+        """The exploit, replayed: pre-place the link the old code followed."""
+        home = tmp_path / "home"
+        home.mkdir()
+        outside = tmp_path / "outside" / "victim.txt"
+        outside.parent.mkdir()
+        outside.write_text("untouched", encoding="utf-8")
+
+        target = home / "identity.md"
+        (home / "identity.md.tmp").symlink_to(outside)
+
+        write_restricted(target, "new identity")
+
+        assert outside.read_text(encoding="utf-8") == "untouched"
+        assert target.read_text(encoding="utf-8") == "new identity"
+
+    def test_a_dangling_link_at_the_old_name_creates_nothing(self, tmp_path):
+        home = tmp_path / "home"
+        home.mkdir()
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        planted = outside / "created-by-attacker.md"
+
+        target = home / "identity.md"
+        (home / "identity.md.tmp").symlink_to(planted)
+
+        write_restricted(target, "new identity")
+
+        assert not planted.exists()
+        assert target.read_text(encoding="utf-8") == "new identity"
+
+    def test_a_hardlink_at_the_old_name_is_inert(self, tmp_path):
+        """``O_NOFOLLOW`` does not see hardlinks — only the unpredictable
+        name does (code review 2026-08-15: the old code wrote straight
+        through one of these too)."""
+        home = tmp_path / "home"
+        home.mkdir()
+        outside = tmp_path / "victim.txt"
+        outside.write_text("untouched", encoding="utf-8")
+        os.link(outside, home / "rule.md.tmp")
+
+        write_restricted(home / "rule.md", "body")
+
+        assert outside.read_text(encoding="utf-8") == "untouched"
+        assert (home / "rule.md").read_text(encoding="utf-8") == "body"
+
+    def test_the_temp_file_is_opened_exclusively_and_without_following(self, tmp_path):
+        """Defence in depth pinned by inspection, deliberately.
+
+        With an unpredictable name no behavioural test can distinguish these
+        flags — that is the point of the name. They are what keeps the write
+        safe if a future change reintroduces a guessable path, so assert
+        their presence rather than pretend a black-box test covers them.
+        """
+        seen: dict[str, int] = {}
+        real_open = os.open
+
+        def _record(path, flags, mode=0o777, **kwargs):
+            if str(path).endswith(".tmp"):
+                seen["mode"] = mode
+                seen["flags"] = flags
+            return real_open(path, flags, mode, **kwargs)
+
+        monkeypatch = pytest.MonkeyPatch()
+        monkeypatch.setattr(os, "open", _record)
+        try:
+            write_restricted(tmp_path / "rule.md", "body")
+        finally:
+            monkeypatch.undo()
+
+        assert "mode" in seen, "the temp file was not opened through os.open"
+        assert seen["mode"] == 0o600
+        assert seen["flags"] & os.O_EXCL
+        assert seen["flags"] & os.O_NOFOLLOW
+
+    def test_a_leftover_temp_file_does_not_block_the_write(self, tmp_path):
+        """A hard kill leaves an orphan behind; it must not be load-bearing."""
+        target = tmp_path / "skill.md"
+        stale = tmp_path / "skill.md.abc123.tmp"
+        stale.write_text("truncated leftover", encoding="utf-8")
+
+        write_restricted(target, "body")
+
+        assert target.read_text(encoding="utf-8") == "body"
+        assert stale.exists(), "an unrelated orphan is not this function's to delete"
+
+    def test_symlinked_target_itself_is_replaced_not_followed(self, tmp_path):
+        """Unchanged contract, pinned: ``os.replace`` swaps the link, and
+        ``_replaces_canonical_target`` (cli/adopt.py) relies on exactly that."""
+        outside = tmp_path / "victim.txt"
+        outside.write_text("untouched", encoding="utf-8")
+        target = tmp_path / "identity.md"
+        target.symlink_to(outside)
+
+        write_restricted(target, "new identity")
+
+        assert outside.read_text(encoding="utf-8") == "untouched"
+        assert not target.is_symlink()
+        assert target.read_text(encoding="utf-8") == "new identity"
+
+    def test_an_interleaved_writer_cannot_publish_half_a_file(self, tmp_path):
+        """The M11 contract under concurrency (code review 2026-08-15).
+
+        What this pins is **temp-name isolation**: a nested write runs to
+        completion inside the outer one's ``os.replace``, and the outer
+        replace must still find its own inode. Under the old shared name the
+        inner writer's replace consumed it and the outer raised
+        ``FileNotFoundError``, so this catches the regression — but through
+        the exception, not through the asserted splice. The splice itself
+        (publishing the other writer's half-written bytes) needs real
+        interleaving at the *write* step and is not reproduced here.
+        """
+        target = tmp_path / "identity.md"
+        target.write_text("previous identity\n", encoding="utf-8")
+        inner = "B" * 4096
+
+        real_replace = os.replace
+        calls: list[str] = []
+
+        def _replace_with_an_interleaved_writer(src, dst):
+            if not calls:
+                calls.append("outer")
+                write_restricted(target, inner)
+            return real_replace(src, dst)
+
+        monkeypatch = pytest.MonkeyPatch()
+        monkeypatch.setattr(os, "replace", _replace_with_an_interleaved_writer)
+        try:
+            write_restricted(target, "A" * 4096)
+        finally:
+            monkeypatch.undo()
+
+        published = target.read_text(encoding="utf-8")
+        assert published in ("A" * 4096, inner), "published a spliced file"
+        assert list(tmp_path.glob("*.tmp")) == []
+
+    def test_mode_is_pinned_to_0600_under_a_hostile_umask(self, tmp_path):
+        """Not "at most 0600" — exactly 0600.
+
+        A umask can only clear bits, so world-readability was never the risk
+        once the mode moved onto the create call. The residual is the other
+        direction: an ambient umask carrying 0o200 would leave the agent
+        unable to rewrite its own identity file.
+        """
+        original = os.umask(0o377)
+        try:
+            target = tmp_path / "rule.md"
+            write_restricted(target, "body")
+        finally:
+            os.umask(original)
+
+        assert stat.S_IMODE(target.stat().st_mode) == 0o600
+
+    def test_a_permissive_leftover_cannot_publish_its_own_mode(self, tmp_path):
+        """The old fixed name reused whatever inode was sitting there, so a
+        0666 leftover published a 0666 value-layer file."""
+        target = tmp_path / "rule.md"
+        (tmp_path / "rule.md.tmp").write_text("leftover", encoding="utf-8")
+        (tmp_path / "rule.md.tmp").chmod(0o666)
+
+        write_restricted(target, "body")
+
+        assert stat.S_IMODE(target.stat().st_mode) == 0o600
+
+    def test_an_unencodable_payload_leaves_no_orphan(self, tmp_path):
+        """Fault catalog (ADR-0077): the failure is a ValueError, not an OSError.
+
+        ``handle.write`` raises ``UnicodeEncodeError`` on a lone surrogate,
+        which an ``except OSError`` cleanup does not see. With a unique temp
+        name the orphan it left was permanent, and the path is reachable from
+        attacker-controlled data — ``cli/adopt.py::_mark_sidecar_held``
+        re-serialises a user-writable sidecar, so one orphan per attempt.
+        """
+        target = tmp_path / "identity.md"
+
+        with pytest.raises(UnicodeEncodeError):
+            write_restricted(target, "\ud800")
+
+        assert list(tmp_path.glob("*.tmp")) == []
+        assert not target.exists()
+
+    def test_a_failure_taking_the_descriptor_leaves_neither_fd_nor_orphan(
+        self, tmp_path, monkeypatch
+    ):
+        """The other new failure path: ``mkstemp`` handed us an fd and a file,
+        and ``os.fdopen`` did not take ownership of either."""
+        import contemplative_agent.core._io as io_mod
+
+        def _boom(*_args, **_kwargs):
+            raise MemoryError("simulated")
+
+        monkeypatch.setattr(io_mod.os, "fdopen", _boom)
+        with pytest.raises(MemoryError):
+            write_restricted(tmp_path / "rule.md", "body")
+        monkeypatch.undo()
+
+        assert list(tmp_path.glob("*.tmp")) == []
+        # A leaked fd would still pin the unlinked inode; the cheap
+        # observable is that the writer keeps working afterwards.
+        write_restricted(tmp_path / "rule.md", "body")
+        assert (tmp_path / "rule.md").read_text(encoding="utf-8") == "body"
+
+    def test_an_ordinary_write_is_silent(self, tmp_path, caplog):
+        """No log line for the normal path. Pinned because the previous
+        design emitted a WARNING on a guard whose negative half nothing
+        asserted — mutating it to ``if True`` kept the suite green (code
+        review 2026-08-15), so every write would have reported an attack."""
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.core._io"):
+            write_restricted(tmp_path / "rule.md", "body")
+        assert not caplog.records
 
 
 class TestB64AuditFields:

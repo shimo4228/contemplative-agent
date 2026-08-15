@@ -10,8 +10,106 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 from contemplative_agent.cli.adopt import _handle_adopt_staged
-from contemplative_agent.cli.approval import _approve_delete, _log_approval
+from contemplative_agent.cli.approval import _approve_delete, _log_approval, _log_decision
 from contemplative_agent.cli.staging import StageItem, _stage_results
+
+
+def _log_held(command, path, content, **kwargs):
+    """Call the shared writer the way `_hold_staged_item` does."""
+    kwargs.setdefault("source", "direct")
+    kwargs.setdefault("snapshot_path", None)
+    kwargs.setdefault("reason", None)
+    kwargs.setdefault("source_ids", None)
+    kwargs.setdefault("epistemic_counts", None)
+    return _log_decision("held", command, path, content, **kwargs)
+
+
+class TestLogHold:
+    """T-ADOPT-HOLD: "the human could not decide" is a fourth decision.
+
+    ``approved: bool | None`` covers approved / rejected / staged only, so a
+    hold used to leave no trace at all — indistinguishable in audit.jsonl
+    from an item nobody ever looked at, which is exactly what ADR-0012's
+    per-item requirement (reconstruct afterwards how each item was decided)
+    forbids.
+    """
+
+    def test_records_held_decision(self, tmp_path):
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit_path):
+            _log_held("insight", Path("skills/foo.md"), "# Skill content")
+
+        record = json.loads(audit_path.read_text().strip())
+        assert record["decision"] == "held"
+        assert record["command"] == "insight"
+        assert record["path"] == "skills/foo.md"
+
+    def test_held_is_neither_approved_nor_rejected(self, tmp_path):
+        """The two audit consumers key on these exact strings: the ADR-0093
+        approval join counts ``== "approved"`` and the due check filters on a
+        decision allowlist. A hold must fall through both."""
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit_path):
+            _log_held("insight", Path("a.md"), "content")
+
+        record = json.loads(audit_path.read_text().strip())
+        assert record["decision"] not in ("approved", "rejected", "staged")
+
+    def test_carries_the_same_fields_as_an_approval(self, tmp_path):
+        """A held row must stay replayable: same schema, different verdict."""
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit_path):
+            _log_approval("insight", Path("a.md"), True, "content")
+            _log_held(
+                "insight",
+                Path("b.md"),
+                "content",
+                source="stage-adopted-names",
+                source_ids=["p1"],
+                epistemic_counts={"generated": 2},
+            )
+
+        approved_rec, held_rec = (
+            json.loads(line) for line in audit_path.read_text().strip().splitlines()
+        )
+        # Pinned as an explicit set, not `== set(approved_rec)`: both rows come
+        # from one dict literal, so comparing them to each other cannot fail
+        # when a field is dropped from that literal — which is the worry
+        # (code review 2026-08-15).
+        assert set(held_rec) == {
+            "ts",
+            "command",
+            "path",
+            "decision",
+            "source",
+            "content_hash",
+            "snapshot_path",
+            "reason",
+            "source_ids",
+            "epistemic_counts",
+            "run_id",
+        }
+        assert set(approved_rec) == set(held_rec)
+        assert held_rec["source"] == "stage-adopted-names"
+        assert held_rec["source_ids"] == ["p1"]
+        assert held_rec["epistemic_counts"] == {"generated": 2}
+
+    def test_content_hash_matches_an_approval_of_the_same_text(self, tmp_path):
+        """Hold now, adopt next week: the two rows must join on content.
+
+        A change detector rather than a proof — one ``sha256`` line serves
+        both verdicts today, so this can only fail if the two ever stop
+        sharing ``_log_decision`` (code review 2026-08-15).
+        """
+        audit_path = tmp_path / "logs" / "audit.jsonl"
+        with patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit_path):
+            _log_held("insight", Path("a.md"), "same body")
+            _log_approval("insight", Path("a.md"), True, "same body")
+
+        held_rec, approved_rec = (
+            json.loads(line) for line in audit_path.read_text().strip().splitlines()
+        )
+        assert held_rec["content_hash"] == approved_rec["content_hash"]
 
 
 class TestLogApproval:

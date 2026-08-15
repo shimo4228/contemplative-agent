@@ -13,6 +13,7 @@ import json
 import logging
 import os
 import re
+import tempfile
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import datetime, timezone
@@ -79,27 +80,60 @@ def strip_code_fence(text: str) -> str:
 
 
 def write_restricted(path: Path, content: str) -> None:
-    """Atomically write content to a file with 0600 permissions.
+    """Atomically write *content* to *path* with mode 0600.
 
-    Uses umask to ensure the file is never world-readable, even briefly.
-    Note: os.umask() is process-wide and not thread-safe.
+    Publishes through a unique temp file in the target's own directory plus
+    ``os.replace``, so a reader never observes a partial file (bug-audit
+    2026-07-06 M11 — process interruption, not power loss; there is no
+    ``fsync``). On any failure the temp file is removed and the exception
+    re-raised; callers keep their own raise-vs-warn policy.
 
-    Atomic since bug-audit 2026-07-06 M11 (``.tmp`` sibling + ``os.replace``):
-    a process interruption mid-write previously left a truncated
-    skill/rule/constitution file that the next curation run silently
-    consumed. On failure the temp file is removed and the ``OSError``
-    re-raised.
+    ``os.replace`` is symlink-safe (it swaps a symlinked *target* itself,
+    which ``cli/adopt.py::_replaces_canonical_target`` depends on), so the
+    temp file was the only write here that could be redirected. It comes from
+    ``tempfile.mkstemp`` — ``O_CREAT|O_EXCL|O_NOFOLLOW``, mode 0600 — rather
+    than a ``Path.write_text`` to a predictable ``<target>.tmp``, which
+    followed whatever symlink or hardlink was planted there. The
+    unpredictable NAME is what makes those flags unfalsifiable: there is no
+    path left for an attacker to occupy in advance, and no shared name for
+    two concurrent writers to truncate each other through
+    (T-WRITE-TMP-NOFOLLOW; see the commit for the four failure modes the
+    fixed name carried).
+
+    Two costs, both deliberate. A unique name is not self-cleaning: an
+    interruption between create and replace leaves an orphan
+    ``<name>.<random>.tmp`` that no later write reuses, which is why the
+    publish scripts exclude ``*.tmp``. And 0600 is pinned with ``fchmod`` on
+    the fd rather than a process-wide ``os.umask`` — umask is not
+    thread-safe, and it makes the mode exactly 0600 instead of "at most"
+    (an ambient 0o200 would leave the agent unable to rewrite its identity).
+    ``append_jsonl_restricted`` below still takes the umask route; its append
+    mode only touches permissions when creating the file.
     """
-    tmp_path = path.with_suffix(path.suffix + ".tmp")
-    old_umask = os.umask(0o177)
+    fd, tmp_name = tempfile.mkstemp(dir=path.parent, prefix=path.name + ".", suffix=".tmp")
+    tmp_path = Path(tmp_name)
     try:
-        tmp_path.write_text(content, encoding="utf-8")
-        os.replace(str(tmp_path), str(path))
-    except OSError:
+        os.fchmod(fd, 0o600)
+        handle = os.fdopen(fd, "w", encoding="utf-8")
+    except BaseException:
+        # ``fdopen`` takes ownership of the fd only once it returns; until
+        # then this frame owns it, and the file it names is already on disk.
+        os.close(fd)
         tmp_path.unlink(missing_ok=True)
         raise
-    finally:
-        os.umask(old_umask)
+    try:
+        with handle:
+            handle.write(content)
+        os.replace(str(tmp_path), str(path))
+    except BaseException:
+        # NOT ``except OSError``: encoding the content raises
+        # ``UnicodeEncodeError`` (a ValueError), and with a unique name the
+        # orphan it left was permanent rather than reclaimed by the next
+        # write. Reachable from `cli/adopt.py::_mark_sidecar_held`, which
+        # re-serialises a user-writable sidecar, so a lone surrogate in it
+        # produced one orphan per attempt (both reviews, 2026-08-15).
+        tmp_path.unlink(missing_ok=True)
+        raise
 
 
 def append_jsonl_restricted(path: Path, record: dict[str, Any]) -> None:

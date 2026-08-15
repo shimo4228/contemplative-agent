@@ -240,6 +240,43 @@ class TestStageResultsPendingGuardADR0074:
         assert not (staged_dir / "new.md").exists()
         assert "adopt-staged" in capsys.readouterr().out
 
+    def test_a_held_item_still_blocks_but_the_refusal_names_it(self, tmp_path, capsys):
+        """T-ADOPT-HOLD, 2026-08-15 decision: a hold keeps deferring the next
+        batch — what changes is that the refusal can say the deferral was
+        chosen. Without this, next week's packet §4 comes up empty and reads
+        as "no candidates" rather than "you held three".
+        """
+        staged_dir, patches = self._ctx(tmp_path)
+        staged_dir.mkdir(parents=True)
+        (staged_dir / "held.md").write_text("# Held\n")
+        (staged_dir / "held.md.meta.json").write_text(
+            '{"target": "x", "seq": 1, "held": true, "held_at": "2026-08-15T00:00:00+00:00"}\n'
+        )
+        (staged_dir / "plain.md").write_text("# Plain\n")
+        (staged_dir / "plain.md.meta.json").write_text('{"target": "y", "seq": 2}\n')
+
+        item = StageItem("new.md", "# New", tmp_path / "skills" / "new.md")
+        with patches[0], patches[1], patches[2]:
+            ok = _stage_results([item], command="insight")
+
+        assert ok is False
+        out = capsys.readouterr().out
+        assert "2 unreviewed" in out
+        assert "(1 of them explicitly held at a past gate)" in out
+        assert (staged_dir / "held.md.meta.json").exists()
+
+    def test_an_unheld_batch_does_not_claim_a_hold(self, tmp_path, capsys):
+        staged_dir, patches = self._ctx(tmp_path)
+        staged_dir.mkdir(parents=True)
+        (staged_dir / "old.md").write_text("# Old\n")
+        (staged_dir / "old.md.meta.json").write_text('{"target": "x", "seq": 1}\n')
+
+        item = StageItem("new.md", "# New", tmp_path / "skills" / "new.md")
+        with patches[0], patches[1], patches[2]:
+            _stage_results([item], command="insight")
+
+        assert "held" not in capsys.readouterr().out
+
     def test_proceeds_when_no_pending_meta(self, tmp_path):
         staged_dir, patches = self._ctx(tmp_path)
         staged_dir.mkdir(parents=True)

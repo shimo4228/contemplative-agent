@@ -70,10 +70,40 @@ def _pending_staged_count() -> int:
 
     Keyed on ``*.meta.json`` sidecars — an ``.md`` without its sidecar is an
     orphan, not a pending batch (adopt-staged pairs on the sidecar too).
+
+    Held items (T-ADOPT-HOLD) are counted like any other: a hold defers the
+    decision, and deferring is exactly what the guard exists to notice. They
+    are only broken out separately in the refusal message below, so the
+    operator can tell a batch nobody reached from one they chose to keep.
     """
     if not config.STAGED_DIR.exists():
         return 0
     return len(list(config.STAGED_DIR.glob("*.meta.json")))
+
+
+def _held_staged_count() -> int:
+    """How many pending sidecars carry the ``held`` marker.
+
+    Unparseable sidecars count as not-held: the adopt loop quarantines them
+    and they are already reported by ``_pending_staged_count``. Reporting
+    only, never a gate — which is why the ``isinstance`` matters: a sidecar
+    holding valid JSON that is not an object (``[]``, ``"x"``, ``3``) parses
+    fine and then raises ``AttributeError`` on ``.get``, which ``ValueError``
+    does not catch. Since this runs on the refusal path, that turned every
+    staging producer — including the weekly chain — into a traceback instead
+    of a clean refusal (security review 2026-08-15, reproduced).
+    """
+    if not config.STAGED_DIR.exists():
+        return 0
+    held = 0
+    for meta_file in config.STAGED_DIR.glob("*.meta.json"):
+        try:
+            meta = json_mod.loads(meta_file.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if isinstance(meta, dict) and meta.get("held") is True:
+            held += 1
+    return held
 
 
 def _stage_results(items: list[StageItem], command: str) -> bool:
@@ -109,9 +139,14 @@ def _stage_results_locked(items: list[StageItem], command: str) -> bool:
     """Body of :func:`_stage_results`; caller holds ``STAGED_LOCK_PATH``."""
     pending = _pending_staged_count()
     if pending:
+        held = _held_staged_count()
+        # Name the held share: without it this reads as "the last batch was
+        # never reviewed", and next week's packet section comes up empty as
+        # if no candidates existed (T-ADOPT-HOLD).
+        held_note = f" ({held} of them explicitly held at a past gate)" if held else ""
         print(
-            f"Staging holds {pending} unreviewed item(s) from a previous run — "
-            "refusing to overwrite them (ADR-0074). Review with "
+            f"Staging holds {pending} unreviewed item(s) from a previous run"
+            f"{held_note} — refusing to overwrite them (ADR-0074). Review with "
             "`contemplative-agent adopt-staged` first."
         )
         return False

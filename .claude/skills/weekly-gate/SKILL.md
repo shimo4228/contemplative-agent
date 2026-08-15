@@ -108,7 +108,7 @@ reject 群 — group 単位にする理由はそこに書く）。各項目で�
 | code patch / prompt diff | commit するので git 履歴から復元可能 |
 | insight adopt | `adopt-staged` の監査記録が残る。store から後で削除可能 |
 | insight reject | staging から消える。同種の候補は次の batch で再提起されうる |
-| insight 保留 | **item 単位では表現できない**（batch ごと持ち越すと翌週の staging が止まる）— Step 4 |
+| insight 保留 | item 単位で staging に残る（`--hold-names`、監査 `decision="held"`）。ただし翌週の staging は止まる — Step 4 |
 | dead code 削除 | 復元可能だが非対称 — Step 5 |
 | identity 採用 | 1 候補 = 全置換。前版は snapshot に残る |
 | constitution 改正 | このセッションではやらない（Step 6b） |
@@ -176,23 +176,20 @@ cluster を明示している（実例: "tension-detection group (#1, #11, #20, 
 group 単位が Step 1b の「項目単位」の唯一の例外なのは、reject の判断根拠が group 内で
 同一（同じ store skill に覆われている）だからで、adopt 側には適用しない。
 
-**この区分の「保留」は item 単位で表現できない。** CLI が持つのは二分法だけで
-（`--adopt-names` に挙げた分 vs それ以外）、それ以外は `--reject-rest` の有無で
-「全部 reject」か「全部 staged 残留」のどちらかに倒れる。**hold と reject を同じ週に
-混在させる経路は無い** — 混ぜようとすると、reject したはずの item まで staged に残り、
-監査記録も残らないまま翌週を塞ぐ。
+**この区分の保留は item 単位で表現できる**（`--hold-names`、T-ADOPT-HOLD で 2026-08-15 に
+CLI を 3 状態化）。adopt / hold / reject を同じ週に混在させてよく、それぞれ 1 行ずつ
+`audit.jsonl` に残る（`decision` = `approved` / `held` / `rejected`）。保留を
+「何も起きていない」と区別できない状態は解消済みなので、**保留を代償の交渉にしない**。
 
-したがって保留したい item が出たら、次の 2 つを**代償ごと提示して**選んでもらう:
+残る代償は 1 つだけで、これは提示する: **保留した item は翌週の insight staging を
+止める**。`_stage_results_locked`（ADR-0074 の pending ガード）は held を含めて数えるので、
+翌週 §4 が空になる。ただし拒否メッセージが「N 件中 M 件は過去のゲートで明示的に保留」と
+名指しするため、「候補なし」との誤読は起きない。`adopt-staged` も実行直後に同じことを
+言う。したがって保留の説明は次の 1 文で足りる:
 
-1. **batch ごと持ち越す**（`--reject-rest` を省略）— 保留したい item を残せるが、
-   staging に残った item は `_stage_results_locked`（ADR-0074）が**翌週の insight
-   staging の作成そのものを拒否**する根拠になる。翌週 §4 が空になり「候補なし」と
-   誤読されるので、来週の自分に向けてその旨を記録する
-2. **この週で決め切る**（`--reject-rest` を付ける）— 保留を諦め、迷った item を
-   adopt か reject に倒す。同種の候補は次の batch で再提起されうる（可逆性表）
+> 保留すると staging に残り、来週の insight 候補生成は 1 回止まります（理由はログに残ります）。
 
-item 単位の hold は CLI 側の 3 状態化（`--hold-names` 相当）が要り、ADR-0012 の
-per-item 監査要件を満たす設計が別途必要 — このセッションではやらない。
+保留を選ぶのに説明を求めないという Step 1b の規約はそのまま適用する。
 
 判断が固まったら、合意の形に対応する経路を選ぶ。どれも ADR-0012 の per-item 監査要件を
 満たす（監査 source が経路ごとに分かれるので、後から「どう決めたか」を復元できる）:
@@ -200,19 +197,21 @@ per-item 監査要件を満たす設計が別途必要 — このセッション
 | 合意の形 | コマンド | audit source |
 |---|---|---|
 | 全件 adopt | `contemplative-agent adopt-staged --yes` | `stage-adopted-auto` |
-| 部分採用（非対話、既定） | `contemplative-agent adopt-staged --adopt-names FILE [--reject-rest]` | `stage-adopted-names` |
+| 部分採用（非対話、既定） | `contemplative-agent adopt-staged --adopt-names FILE [--hold-names FILE] [--reject-rest]` | `stage-adopted-names` |
 | 部分採用（ユーザーがターミナルで対話実行） | `contemplative-agent adopt-staged` | `stage-adopted` |
 
-部分採用は非対話で完結する（`--adopt-names`）ので、ユーザーへ対話実行を依頼する必要は
-ない。FILE は adopt する staged item の**ファイル名を 1 行 1 件**で列挙する。名前の正本は
-`ls "$MOLTBOOK_HOME/.staged/"*.md`（packet §4 の見出し名は LLM 記述の散文で、衝突時の
-`-N` 接尾辞も付かないため、そのまま転記しない）。照合はファイル名で行うため反復順に
-依存しない。`--yes` とは排他。
+対話実行が持つのは y/N の 2 状態だけなので、**保留が 1 件でもあれば非対話経路を使う**。
+部分採用は非対話で完結する（`--adopt-names` / `--hold-names`）ので、ユーザーへ対話実行を
+依頼する必要はない。各 FILE は該当する staged item の**ファイル名を 1 行 1 件**で列挙する。
+名前の正本は `ls "$MOLTBOOK_HOME/.staged/"*.md`（packet §4 の見出し名は LLM 記述の散文で、
+衝突時の `-N` 接尾辞も付かないため、そのまま転記しない）。照合はファイル名で行うため
+反復順に依存しない。`--yes` とは排他。同じ名前を両方の FILE に書くと**何も触らずに
+中断する**（どちらを優先するか機械が決めない）。未知の名前が 1 つでもあれば同様に中断する。
 
-**`--reject-rest` は既定で付ける。** 列挙されなかった item を監査記録付きで reject する。
-省略すると残りは staged のまま残り、`_stage_results_locked`（ADR-0074 の pending ガード）が
-**翌週の insight batch 全体を拒否する** — 翌週の packet §4 が空になり、「候補なし」と
-誤読される。意図的に 1 週間持ち越す場合だけ省略し、その判断を記録する。
+**`--reject-rest` は既定で付ける。** どちらの FILE にも挙げられなかった item を監査記録付きで
+reject する。省略すると残りは staged のまま**監査記録なしで**残る — 保留したいものは
+`--hold-names` に挙げる（そちらは記録が残る）。`--reject-rest` の省略は、区分丸ごと
+1 週間持ち越すと決めたときだけ使い、その判断を記録する。
 
 **安全側に倒れる性質**（ゲートで効くので理解して使う）:
 
@@ -220,7 +219,10 @@ per-item 監査要件を満たす設計が別途必要 — このセッション
   reject される」形で通らない）
 - FILE が空・読めない場合も abort する。`--reject-rest` との組合せで staging 全体を
   「個別に判断した reject」として消し去るのを防ぐため（2026-08-01 security review C2）
-- `--reject-rest` を `--adopt-names` なしで単独指定するのは拒否される
+- `--reject-rest` を `--adopt-names` / `--hold-names` のどちらも無しで単独指定するのは
+  拒否される（「全部 reject」を 1 フラグで起こさせない）
+- 保留に失敗した item（sidecar を書けない等）があると exit code が非 0 になる。
+  「保留したつもりで記録が無い」状態を成功として読ませないため
 
 staging ファイルの直接削除は ADR-0012 の auditable-CLI 原則に反するので行わない。
 

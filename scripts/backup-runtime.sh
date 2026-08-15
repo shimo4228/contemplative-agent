@@ -111,6 +111,11 @@ fi
 # Everything else — logs/, reports/ (including .private/), snapshots/,
 # skills/, views/, agents.json — is state and goes in: a restore should need
 # nothing but this repo, a re-issued credential, and one re-embed run.
+# `*.tmp` is the exception that is not state: write_restricted publishes
+# through `<basename>.<random>.tmp` (T-WRITE-TMP-NOFOLLOW, 2026-08-15), so an
+# interrupted write leaves an orphan whose name matches none of the exact
+# basenames above — including the credentials.json and knowledge.json rules
+# this list depends on.
 rsync -a --delete \
     --exclude='.git/' \
     --exclude='README.md' \
@@ -121,6 +126,7 @@ rsync -a --delete \
     --exclude='/logs/ollama-serve.log.[0-9]*.gz' \
     --exclude='.run.lock' \
     --exclude='.staged.lock' \
+    --exclude='*.tmp' \
     --exclude='__pycache__/' \
     --exclude='.DS_Store' \
     "$MOLTBOOK_HOME/" "$BACKUP_REPO/"

@@ -9,10 +9,7 @@ import hashlib
 import logging
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Literal
-
-if TYPE_CHECKING:
-    pass
+from typing import Any, Literal
 
 from ..adapters.moltbook import config
 from ..core._io import (
@@ -35,6 +32,25 @@ AuditSource = Literal[
     "direct-remove",
     "direct-remove-auto",
 ]
+
+
+# The verdict recorded in ``audit.jsonl``. ``source`` says which path reached
+# the gate; this says what the gate decided. ``held`` (T-ADOPT-HOLD,
+# 2026-08-15) is the state a bool cannot carry: the human looked at the item
+# and did not decide. It is deliberately NOT a flavour of "rejected" — the
+# ADR-0093 approval join counts ``decision == "approved"`` and
+# ``value_layer_due_check``'s constitution branch filters on a decision
+# allowlist, so a fourth value falls through both rather than being miscounted
+# as an approval by either.
+#
+# One consumer DOES count it, and the comment used to say otherwise: the same
+# script's identity branch passes ``decisions=None``, so a held
+# ``distill-identity`` row moves ``last_run_ts`` forward and defers the next
+# generation by the length of the deferral. Fail-safe in direction (nothing
+# fires, and a hold blocks staging anyway) but the reading loses its meaning —
+# tracked as T-HELD-IDENTITY-CADENCE rather than changed here, since what the
+# cadence should count is the owner's call, not this module's.
+Decision = Literal["staged", "approved", "rejected", "held"]
 
 
 def _log_approval(
@@ -93,11 +109,49 @@ def _log_approval(
             structurally-zero ``observed`` key; read with ``.get(...)``.
     """
     if approved is None:
-        decision = "staged"
+        decision: Decision = "staged"
     elif approved:
         decision = "approved"
     else:
         decision = "rejected"
+    _log_decision(
+        decision,
+        command,
+        path,
+        content,
+        source=source,
+        snapshot_path=snapshot_path,
+        reason=reason,
+        source_ids=source_ids,
+        epistemic_counts=epistemic_counts,
+    )
+
+
+def _log_decision(
+    decision: Decision,
+    command: str,
+    path: Path,
+    content: str,
+    *,
+    source: AuditSource,
+    snapshot_path: Path | None,
+    reason: str | None,
+    source_ids: Sequence[str] | None,
+    epistemic_counts: dict[str, int] | None,
+) -> bool:
+    """Append one audit record; False when it did not reach disk.
+
+    Single owner of the row shape, so no verdict can grow (or lose) a field
+    the others have — a replay harness keying on a field only approvals
+    carry would silently skip every hold.
+
+    The return value exists for ``hold``, whose entire durable evidence is
+    this row plus a sidecar marker: swallowing the write failure left the
+    file saying held with nothing in the audit log and the process exiting 0
+    (security review 2026-08-15). Adopt and reject ignore it — their own
+    mutation is the evidence — so the historical log-and-continue behaviour
+    is unchanged for every existing caller.
+    """
     record = {
         "ts": now_iso(timespec="seconds"),
         "command": command,
@@ -114,6 +168,8 @@ def _log_approval(
         append_jsonl_restricted(AUDIT_LOG_PATH, record)
     except OSError:
         logger.warning("Failed to write audit log: %s", AUDIT_LOG_PATH)
+        return False
+    return True
 
 
 def _approve(prompt: str) -> bool:

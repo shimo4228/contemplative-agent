@@ -6,6 +6,7 @@ Split from the single-file test_cli.py alongside the cli/ package split
 
 import argparse
 import json
+import re
 from pathlib import Path
 from typing import Literal
 from unittest.mock import MagicMock, patch
@@ -306,6 +307,97 @@ class TestAdoptStaged:
         assert (staged_dir / "evil.md.meta.json.invalid").exists()
         assert not (staged_dir / "evil.md.meta.json").exists()
 
+    def test_adopt_rejects_an_outward_target_that_resolves_back_inside(self, tmp_path, capsys):
+        """The containment check must bound what the WRITE touches.
+
+        ``os.replace`` and ``Path.unlink`` act on the literal path — they
+        swap or remove the link itself, never the referent — so checking only
+        ``target.resolve()`` let a symlink sitting OUTSIDE the store and
+        pointing back in pass as "inside", after which the adoption landed
+        outside MOLTBOOK_HOME (security review 2026-08-15, reproduced). Same
+        literal-versus-resolved mismatch codex found in
+        ``_replaces_canonical_target`` on the same day, in the other
+        direction.
+        """
+        home = tmp_path / "home"
+        (home / "skills").mkdir(parents=True)
+        canonical = home / "skills" / "real.md"
+        canonical.write_text("# real\n", encoding="utf-8")
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        decoy = outside / "decoy.md"
+        decoy.symlink_to(canonical)
+
+        staged_dir = home / ".staged"
+        staged_dir.mkdir()
+        (staged_dir / "evil.md").write_text("pwned\n", encoding="utf-8")
+        (staged_dir / "evil.md.meta.json").write_text(
+            json.dumps({"target": str(decoy), "command": "insight"}), encoding="utf-8"
+        )
+
+        audit = home / "logs" / "audit.jsonl"
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", home),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+            patch("builtins.input", side_effect=[]),
+        ):
+            _handle_adopt_staged(argparse.Namespace(yes=False), MagicMock())
+
+        assert "escapes MOLTBOOK_HOME" in capsys.readouterr().err
+        assert decoy.is_symlink(), "the write replaced a path outside the store"
+        assert canonical.read_text(encoding="utf-8") == "# real\n"
+
+    def test_the_budget_reading_excludes_what_the_loop_will_refuse(self, tmp_path, capsys):
+        """The instrument projects what adoption WILL do, so it has to share
+        the loop's containment test. It kept its own resolve-only check, so
+        an item the loop rejects for escaping MOLTBOOK_HOME was still counted
+        in the figure the operator approves against (codex review
+        2026-08-15) — the same two-sites-must-agree shape as the previous
+        commit's budget projection.
+        """
+        home = tmp_path / "home"
+        (home / "skills").mkdir(parents=True)
+        canonical = home / "skills" / "real.md"
+        canonical.write_text("# real\n" + ("word " * 400), encoding="utf-8")
+        outside = tmp_path / "outside"
+        outside.mkdir()
+        decoy = outside / "decoy.md"
+        decoy.symlink_to(canonical)
+
+        staged_dir = home / ".staged"
+        staged_dir.mkdir()
+        (staged_dir / "evil.md").write_text("pwned " * 400, encoding="utf-8")
+        (staged_dir / "evil.md.meta.json").write_text(
+            json.dumps({"target": str(decoy), "command": "insight"}), encoding="utf-8"
+        )
+
+        from contemplative_agent.cli.adopt import _print_system_budget_for_staged
+
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", home),
+        ):
+            _print_system_budget_for_staged(list(staged_dir.glob("*.meta.json")), home.resolve())
+            with_escaper = capsys.readouterr().out
+            _print_system_budget_for_staged([], home.resolve())
+            empty = capsys.readouterr().out
+
+        def _projected(out: str) -> str:
+            match = re.search(r"→ ≈([\d,]+) tok", out)
+            assert match, f"no budget reading in output: {out!r}"
+            return match.group(1)
+
+        assert _projected(with_escaper) == _projected(empty)
+
+    def test_adopt_still_accepts_an_ordinary_target_inside_the_store(self, tmp_path):
+        """Guard against over-tightening: the normal path must still adopt."""
+        skills = tmp_path / "skills"
+        target = skills / "plain.md"
+        staged = self._stage_one(tmp_path, filename="plain.md", text="# plain", target=target)
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        assert target.read_text(encoding="utf-8") == "# plain\n"
+
     def test_adopt_blocks_source_path_traversal(self, tmp_path):
         """Suspicious source filenames in meta.json must not delete arbitrary files."""
         skills_dir = tmp_path / "skills"
@@ -485,7 +577,9 @@ class TestAdoptStaged:
 
         root = config.MOLTBOOK_DATA_DIR
         assert _replaces_canonical_target("distill-identity", config.IDENTITY_PATH, root)
-        assert _replaces_canonical_target("amend-constitution", config.CONSTITUTION_DIR / "x.md", root)
+        assert _replaces_canonical_target(
+            "amend-constitution", config.CONSTITUTION_DIR / "x.md", root
+        )
 
     def test_an_additive_command_targeting_a_same_named_file_elsewhere(self, tmp_path):
         """The "same basename in another directory" case: an `insight` skill
@@ -1244,6 +1338,369 @@ class TestAdoptStagedNamesFlag:
         names_file.write_text("\n  a.md  \n\n", encoding="utf-8")
         self._run_adopt_names(tmp_path, staged, [], names_file=names_file)
         assert (skills / "a.md").exists()
+
+
+class TestAdoptStagedHoldNames:
+    """Tests for `adopt-staged --hold-names FILE` (T-ADOPT-HOLD).
+
+    The gate offers three answers — approve / reject / hold — but the CLI
+    carried a dichotomy: items in ``--adopt-names`` versus the rest, whose
+    fate ``--reject-rest`` set for ALL of them at once. Holding one item
+    therefore meant leaving the entire remainder staged, un-rejected and
+    unrecorded, so the next week's staging run hit the ADR-0074 pending
+    guard for a reason nothing in the audit trail explained.
+
+    Hold means: left in staging untouched, with a ``decision="held"`` audit
+    row (ADR-0012) and a marker on the sidecar so the pending guard can name
+    what is blocking it. Held items deliberately still block next week's
+    staging (2026-08-15 decision) — the change is that the block is now a
+    recorded choice rather than an accident.
+    """
+
+    def _stage_batch(self, tmp_path, items, command="insight"):
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+        ):
+            _stage_results(items, command=command)
+        return staged_dir
+
+    def _run(
+        self,
+        tmp_path: Path,
+        staged_dir,
+        *,
+        adopt=None,
+        hold=None,
+        reject_rest: bool = False,
+        yes: bool = False,
+    ):
+        def _write(names, filename):
+            if names is None:
+                return None
+            path = tmp_path / filename
+            path.write_text("".join(f"{n}\n" for n in names), encoding="utf-8")
+            return str(path)
+
+        args = argparse.Namespace(
+            yes=yes,
+            adopt_names=_write(adopt, "adopt-names.txt"),
+            hold_names=_write(hold, "hold-names.txt"),
+            reject_rest=reject_rest,
+        )
+        audit = tmp_path / "logs" / "audit.jsonl"
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+            patch("builtins.input") as mock_input,
+        ):
+            _handle_adopt_staged(args, MagicMock())
+            mock_input.assert_not_called()
+
+    def _audit(self, tmp_path):
+        audit = tmp_path / "logs" / "audit.jsonl"
+        if not audit.exists():
+            return []
+        return [json.loads(line) for line in audit.read_text().strip().splitlines()]
+
+    def _decisions(self, tmp_path):
+        """Map target filename -> the last decision recorded for it."""
+        out = {}
+        for rec in self._audit(tmp_path):
+            out[Path(rec["path"]).name] = rec["decision"]
+        return out
+
+    def _three_items(self, tmp_path):
+        skills = tmp_path / "skills"
+        return skills, [
+            StageItem("adopt-me.md", "# Adopt", skills / "adopt-me.md"),
+            StageItem("hold-me.md", "# Hold", skills / "hold-me.md"),
+            StageItem("reject-me.md", "# Reject", skills / "reject-me.md"),
+        ]
+
+    def test_adopt_hold_and_reject_coexist_in_one_run(self, tmp_path):
+        """The defect this closes: three outcomes, one invocation."""
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+
+        self._run(tmp_path, staged, adopt=["adopt-me.md"], hold=["hold-me.md"], reject_rest=True)
+
+        assert (skills / "adopt-me.md").read_text() == "# Adopt\n"
+        assert not (skills / "hold-me.md").exists()
+        assert not (skills / "reject-me.md").exists()
+        # adopted and rejected leave staging; only the held item stays
+        assert not (staged / "adopt-me.md.meta.json").exists()
+        assert not (staged / "reject-me.md.meta.json").exists()
+        assert (staged / "hold-me.md").read_text() == "# Hold\n"
+        assert (staged / "hold-me.md.meta.json").exists()
+
+    def test_each_outcome_is_individually_recorded(self, tmp_path):
+        """ADR-0012: reconstruct afterwards how each item was decided."""
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+
+        self._run(tmp_path, staged, adopt=["adopt-me.md"], hold=["hold-me.md"], reject_rest=True)
+
+        assert self._decisions(tmp_path) == {
+            "adopt-me.md": "approved",
+            "hold-me.md": "held",
+            "reject-me.md": "rejected",
+        }
+
+    def test_held_row_keeps_the_per_item_provenance(self, tmp_path):
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+
+        self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
+
+        held = [rec for rec in self._audit(tmp_path) if rec["decision"] == "held"]
+        assert len(held) == 1
+        assert held[0]["source"] == "stage-adopted-names"
+        assert held[0]["path"] == str(skills / "hold-me.md")
+
+    def test_hold_names_alone_needs_no_adopt_names(self, tmp_path):
+        """A week where nothing is adopted is a legitimate outcome."""
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+
+        self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
+
+        assert not skills.exists(), "nothing was adopted, so no target dir"
+        assert (staged / "hold-me.md.meta.json").exists()
+        assert not (staged / "adopt-me.md.meta.json").exists()
+
+    def test_unheld_unadopted_items_are_still_left_staged_without_reject_rest(self, tmp_path):
+        """--reject-rest stays opt-in: forgetting it must not start deleting."""
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+
+        self._run(tmp_path, staged, adopt=["adopt-me.md"], hold=["hold-me.md"])
+
+        assert (skills / "adopt-me.md").exists()
+        assert (staged / "hold-me.md.meta.json").exists()
+        assert (staged / "reject-me.md.meta.json").exists()
+        assert self._decisions(tmp_path)["reject-me.md"] == "staged"
+
+    def test_a_held_item_is_marked_on_its_sidecar(self, tmp_path):
+        """The marker is what lets the ADR-0074 pending guard say WHY it is
+        refusing: an audit row alone lives in a different file the staging
+        run does not read."""
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+
+        self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
+
+        meta = json.loads((staged / "hold-me.md.meta.json").read_text())
+        assert meta["held"] is True
+        assert meta["held_at"]
+        # the fields the adopt loop needs must survive the rewrite
+        assert meta["target"] == str(skills / "hold-me.md")
+        assert meta["command"] == "insight"
+
+    def test_a_held_item_can_be_adopted_on_a_later_run(self, tmp_path):
+        """Hold is a deferral, not a terminal state."""
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+        self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
+
+        self._run(tmp_path, staged, adopt=["hold-me.md"], reject_rest=True)
+
+        assert (skills / "hold-me.md").read_text() == "# Hold\n"
+        decisions = [rec["decision"] for rec in self._audit(tmp_path)]
+        assert decisions.count("held") == 1
+        assert decisions.count("approved") == 1
+
+    def test_a_held_drop_item_deletes_nothing(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        victim = skills / "victim.md"
+        victim.write_text("# Victim\n", encoding="utf-8")
+        staged = self._stage_batch(
+            tmp_path,
+            [StageItem("victim.md", "# Victim", victim, action="drop")],
+            command="skill-stocktake",
+        )
+
+        self._run(tmp_path, staged, hold=["victim.md"], reject_rest=True)
+
+        assert victim.read_text() == "# Victim\n"
+        assert (staged / "victim.md.meta.json").exists()
+        assert self._decisions(tmp_path)["victim.md"] == "held"
+
+    def test_a_symlinked_sidecar_is_refused_rather_than_copied_back(self, tmp_path):
+        """Hold is the only outcome that reads a sidecar and writes it back,
+        so it is the only one where a symlinked sidecar would copy an outside
+        file's bytes into `.staged/` for whoever planted the link to read."""
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+
+        secret = tmp_path / "outside-secret.json"
+        secret.write_text(
+            json.dumps({"target": str(skills / "hold-me.md"), "command": "insight"}),
+            encoding="utf-8",
+        )
+        sidecar = staged / "hold-me.md.meta.json"
+        sidecar.unlink()
+        sidecar.symlink_to(secret)
+
+        with pytest.raises(SystemExit) as exc:
+            self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
+
+        assert exc.value.code == 1
+        assert sidecar.is_symlink()
+        assert "held" not in [rec["decision"] for rec in self._audit(tmp_path)]
+
+    def test_an_unloadable_requested_hold_fails_instead_of_vanishing(self, tmp_path):
+        """A hold the operator asked for must not be quarantined away.
+
+        Quarantining renames the sidecar out of the ADR-0074 pending count,
+        so a corrupt sidecar would turn "keep this" into a silent removal —
+        and the run still exited 0, letting automation read the hold as done
+        while the next batch overwrote the staged content (codex review
+        2026-08-15).
+        """
+        _, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+        (staged / "hold-me.md.meta.json").write_text("{ not json", encoding="utf-8")
+
+        with pytest.raises(SystemExit) as exc:
+            self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
+
+        assert exc.value.code == 1
+        assert (staged / "hold-me.md.meta.json").exists(), "the requested hold was destroyed"
+        assert not (staged / "hold-me.md.meta.json.invalid").exists()
+        assert (staged / "hold-me.md").exists()
+
+    def test_the_marker_lands_on_the_snapshot_that_was_audited(self, tmp_path):
+        """One read, not two.
+
+        Re-reading the sidecar at mark time let a rewrite between the two
+        reads receive the marker while the audit row still described the item
+        loaded before it — the file would say held and the row would name a
+        different target (codex review 2026-08-15).
+        """
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+        sidecar = staged / "hold-me.md.meta.json"
+        original = json.loads(sidecar.read_text())
+
+        import contemplative_agent.cli.adopt as adopt_mod
+
+        real_mark = adopt_mod._mark_sidecar_held
+
+        def _rewrite_then_mark(meta_file, meta):
+            # A concurrent staging writer swaps the sidecar out from under us
+            # after the load and before the mark.
+            meta_file.write_text(
+                json.dumps({"target": "/etc/passwd", "command": "attacker", "seq": 99}),
+                encoding="utf-8",
+            )
+            return real_mark(meta_file, meta)
+
+        with patch.object(adopt_mod, "_mark_sidecar_held", _rewrite_then_mark):
+            self._run(tmp_path, staged, hold=["hold-me.md"], reject_rest=True)
+
+        marked = json.loads(sidecar.read_text())
+        assert marked["target"] == original["target"]
+        assert marked["command"] == original["command"]
+        assert marked["seq"] == original["seq"]
+        assert marked["held"] is True
+
+        held = [rec for rec in self._audit(tmp_path) if rec["decision"] == "held"]
+        assert held[0]["path"] == str(skills / "hold-me.md")
+
+    def test_a_name_in_both_files_aborts_before_any_destruction(self, tmp_path):
+        """Adopt and hold are contradictory answers for one item; guessing a
+        precedence would silently pick one of the human's two statements."""
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+        audit_before = self._audit(tmp_path)
+
+        with pytest.raises(SystemExit) as exc:
+            self._run(tmp_path, staged, adopt=["hold-me.md"], hold=["hold-me.md"], reject_rest=True)
+
+        assert exc.value.code == 2
+        assert not (skills / "hold-me.md").exists()
+        assert (staged / "reject-me.md.meta.json").exists()
+        assert self._audit(tmp_path) == audit_before
+
+    def test_unknown_hold_name_aborts_before_any_destruction(self, tmp_path):
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+        audit_before = self._audit(tmp_path)
+
+        with pytest.raises(SystemExit) as exc:
+            self._run(tmp_path, staged, adopt=["adopt-me.md"], hold=["ghost.md"], reject_rest=True)
+
+        assert exc.value.code == 2
+        assert not (skills / "adopt-me.md").exists()
+        assert (staged / "adopt-me.md.meta.json").exists()
+        assert self._audit(tmp_path) == audit_before
+
+    def test_hold_names_and_yes_are_mutually_exclusive(self, tmp_path):
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+
+        with pytest.raises(SystemExit) as exc:
+            self._run(tmp_path, staged, hold=["hold-me.md"], yes=True)
+
+        assert exc.value.code == 2
+        assert not (skills / "hold-me.md").exists()
+
+    def test_empty_hold_names_file_aborts_untouched(self, tmp_path):
+        """Same contract as --adopt-names: an empty selection is a writer bug,
+        and with --reject-rest it would silently wipe the whole queue."""
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+
+        with pytest.raises(SystemExit) as exc:
+            self._run(tmp_path, staged, hold=[], reject_rest=True)
+
+        assert exc.value.code == 2
+        assert (staged / "reject-me.md.meta.json").exists()
+
+    def _projected_tokens(self, out: str) -> int:
+        """Pull the projected figure out of the adopt-gate budget reading."""
+        match = re.search(r"→ ≈([\d,]+) tok after this batch", out)
+        assert match, f"no budget reading in output: {out!r}"
+        return int(match.group(1).replace(",", ""))
+
+    def test_budget_reading_ignores_held_items(self, tmp_path, capsys):
+        """A held item does not enter the store, so it must not enter the
+        projection either — the reading is what the operator approves against.
+
+        The two arms differ only in the OUTCOME of the same item. Comparing
+        "held" against "left out of the names file" instead would pass with
+        the feature deleted entirely, since the filter excludes both
+        (code review 2026-08-15).
+        """
+
+        def _run_batch(root: Path, adopt, hold):
+            root.mkdir(exist_ok=True)
+            _, items = self._three_items(root)
+            staged = self._stage_batch(root, items)
+            self._run(root, staged, adopt=adopt, hold=hold, reject_rest=True)
+            return self._projected_tokens(capsys.readouterr().out)
+
+        held = _run_batch(tmp_path / "held", ["adopt-me.md"], ["hold-me.md"])
+        adopted = _run_batch(tmp_path / "adopted", ["adopt-me.md", "hold-me.md"], None)
+
+        assert held < adopted, "a held item was counted in the projection"
+
+    def test_summary_counts_held_separately(self, tmp_path, capsys):
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+
+        self._run(tmp_path, staged, adopt=["adopt-me.md"], hold=["hold-me.md"], reject_rest=True)
+
+        out = capsys.readouterr().out
+        assert "1 adopted" in out
+        assert "1 held" in out
+        assert "1 rejected" in out
 
 
 class TestAdoptCanonicalizesFrontmatterName:

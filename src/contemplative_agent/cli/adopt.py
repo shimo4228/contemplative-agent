@@ -1,6 +1,29 @@
 """adopt-staged / remove-skill: promote or drop staged value-layer items.
 
 Extracted verbatim from the single-file cli.py (ADR-0079 Phase 2).
+
+Threat model (recorded 2026-08-15 with the T-WRITE-TMP-NOFOLLOW fix, which
+closed the one exception). The adversary is whoever can write ``.staged/``:
+the sidecar is user-writable between stage and adopt, so ``target``,
+``command``, ``action`` and ``sources`` are all attacker-chosen. What that
+buys them is bounded to MOLTBOOK_HOME and no further.
+
+* ``target`` is containment-checked twice in ``_load_staged_item`` — once
+  resolved, once literal-with-resolved-parent — because reads follow symlinks
+  and writes do not. Either check alone leaks in one direction.
+* ``sources`` is otherwise unvalidated, but ``_delete_adopted_sources``
+  requires each name to resolve into the target's own directory, so the reach
+  is "any file beside the target", not any file.
+* ``action: drop`` unlinks the target with no allowlist — again any file in
+  the store, and ``unlink`` removes a link rather than its referent.
+
+Deliberately no additional gate: each of these is a subset of what writing
+``.staged/`` already grants, and a guessed allowlist would fail closed on
+legitimate curation (a stocktake merge names arbitrary sibling skills)
+without removing a capability. The primitives that did exceed the store —
+``write_restricted``'s predictable temp sibling, which followed a pre-placed
+symlink *or hardlink* to an arbitrary path — are fixed at the writer
+(``core/_io.py``), not papered over here.
 """
 
 from __future__ import annotations
@@ -8,14 +31,12 @@ from __future__ import annotations
 import argparse
 import json as json_mod
 import logging
+import os
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
-from typing import TYPE_CHECKING
-
-if TYPE_CHECKING:
-    pass
+from typing import Any
 
 from ..adapters.moltbook import config
 from ..core.domain import (
@@ -36,7 +57,14 @@ INSIGHT_STAGED_LEDGER_PATH = config.MOLTBOOK_DATA_DIR / "logs" / "insight-staged
 
 @dataclass(frozen=True)
 class _StagedItem:
-    """One staged artifact parsed from its ``.meta.json`` sidecar."""
+    """One staged artifact parsed from its ``.meta.json`` sidecar.
+
+    ``meta`` carries the raw sidecar object the rest of the fields were
+    validated from, so an outcome that has to WRITE the sidecar back (hold)
+    marks the same snapshot it audits. Re-reading the file instead let a
+    concurrent rewrite land the marker on new metadata while the audit row
+    described the old item (codex review 2026-08-15).
+    """
 
     content_file: Path
     target: Path
@@ -46,14 +74,81 @@ class _StagedItem:
     sources: list[str]
     source_ids: Sequence[str] | None
     epistemic_counts: dict[str, int] | None
+    meta: dict[str, Any]
+
+
+def _read_sidecar(meta_file: Path) -> dict[str, Any] | None:
+    """The one read of a staged sidecar; None when it is not a usable object.
+
+    Single owner so the adopt loop, the sort key and the budget instrument
+    cannot disagree about which sidecars exist — the instrument's whole job
+    is to project what the loop will do, so a file one of them refuses must
+    not be counted by the other (both reviews, 2026-08-15).
+
+    ``O_NOFOLLOW`` rather than an ``is_symlink`` guard: the guard was
+    lstat-then-open, and the hold outcome writes this object back into
+    ``.staged/``, so losing that race copied an outside file's bytes into a
+    directory the adversary reads. No producer writes a symlinked sidecar.
+
+    ``isinstance`` rather than ``.get`` on the parse result: a sidecar
+    holding valid JSON that is not an object (``[]``, ``"x"``, ``3``) parses
+    and then raises ``AttributeError``, which no caller's ``except (OSError,
+    ValueError)`` catches — one such file wedged ``adopt-staged``, and
+    through the ADR-0074 pending guard, all future staging.
+    """
+    try:
+        fd = os.open(meta_file, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        return None
+    try:
+        with os.fdopen(fd, encoding="utf-8") as handle:
+            meta = json_mod.load(handle)
+    except (OSError, ValueError):
+        return None
+    return meta if isinstance(meta, dict) else None
+
+
+def _target_inside_data_root(target: Path, data_root: Path) -> bool:
+    """Containment for a staged target, on BOTH readings of the path.
+
+    The operations disagree about which reading they mean, so the check has
+    to satisfy each. ``_print_system_budget_for_staged`` READS the target and
+    a read follows every link, so the referent must be inside. The write
+    (``write_restricted`` -> ``os.replace``) and the drop (``unlink``) act on
+    the LITERAL path — they swap or remove the link itself, never its
+    referent — so the literal location must be inside too. The parent IS
+    resolved on the literal side, because ``os.replace`` follows parent
+    symlinks; the same idiom ``_replaces_canonical_target`` settled on for
+    the mirror-image bug found the same day.
+
+    Checking only the referent let a symlink sitting OUTSIDE the store and
+    pointing back in pass as "inside", after which the adoption landed
+    outside (security review 2026-08-15, reproduced). Checking only the
+    literal path would let a link inside the store expose an outside file to
+    the reader.
+
+    One predicate shared by the loader and the budget instrument, because
+    the instrument's whole job is to project what the loop will do: an item
+    the loop refuses must not appear in the reading the operator approves
+    against (codex review 2026-08-15).
+    """
+    try:
+        return target.resolve().is_relative_to(data_root) and (
+            target.parent.resolve() / target.name
+        ).is_relative_to(data_root)
+    except OSError:
+        return False
 
 
 def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:
-    """Parse and validate one staged entry; None (with a printed reason) on skip."""
-    try:
-        meta = json_mod.loads(meta_file.read_text(encoding="utf-8"))
-    except (OSError, ValueError) as err:
-        print(f"  Skipped (meta read error): {meta_file.name}: {err}")
+    """Parse and validate one staged entry; None (with a printed reason) on skip.
+
+    Enforces the module's containment boundary; see the module docstring for
+    what the adversary can reach once past it.
+    """
+    meta = _read_sidecar(meta_file)
+    if meta is None:
+        print(f"  Skipped (meta unreadable, not an object, or a symlink): {meta_file.name}")
         return None
 
     target_str = meta.get("target")
@@ -65,11 +160,7 @@ def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:
     target = Path(target_str)
     # Defense in depth: the meta.json is user-writable between stage and
     # adopt, so re-verify the target still lives inside MOLTBOOK_HOME.
-    try:
-        inside = target.resolve().is_relative_to(data_root)
-    except OSError:
-        inside = False
-    if not inside:
+    if not _target_inside_data_root(target, data_root):
         print(
             f"Error: staged target escapes MOLTBOOK_HOME: {target}",
             file=sys.stderr,
@@ -98,6 +189,7 @@ def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:
         # the adopt-time audit entry so deferred approval keeps lineage.
         source_ids=meta.get("source_ids") or None,
         epistemic_counts=meta.get("epistemic_counts") or None,
+        meta=meta,
     )
 
 
@@ -286,10 +378,8 @@ def _staged_sort_key(meta_file: Path) -> tuple[int, str]:
     by ``_stage_results``; metas without it (pre-seq batches, corrupt
     sidecars) sort last by name, preserving the old order among themselves.
     """
-    try:
-        seq = json_mod.loads(meta_file.read_text(encoding="utf-8")).get("seq")
-    except (OSError, ValueError):
-        seq = None
+    meta = _read_sidecar(meta_file)
+    seq = meta.get("seq") if meta is not None else None
     return (seq if isinstance(seq, int) else sys.maxsize, meta_file.name)
 
 
@@ -325,11 +415,13 @@ def _print_system_budget_for_staged(meta_files: Sequence[Path], data_root: Path)
         replaced_texts: list[str] = []
         for meta_file in meta_files:
             try:
-                meta = json_mod.loads(meta_file.read_text(encoding="utf-8"))
-                if not meta.get("target"):
+                meta = _read_sidecar(meta_file)
+                if meta is None or not meta.get("target"):
                     continue
                 target = Path(meta["target"])
-                if not _inside_data_root(target):
+                # The loop's own containment test, so the projection cannot
+                # count an item the loop will refuse (codex 2026-08-15).
+                if not _target_inside_data_root(target, data_root):
                     continue
                 sources = meta.get("sources") or []
                 if meta.get("action", "merge") == "drop":
@@ -391,12 +483,16 @@ def _staged_name(meta_file: Path) -> str:
     return meta_file.name[: -len(".meta.json")]
 
 
-def _read_adopt_names(names_file: Path) -> list[str]:
-    """Read the ``--adopt-names`` file (one staged filename per line).
+def _read_names_file(names_file: Path, flag: str) -> list[str]:
+    """Read a per-item selection file (one staged filename per line).
+
+    Shared by ``--adopt-names`` and ``--hold-names`` so the two cannot drift
+    on the abort contracts below; ``flag`` only names the offender in the
+    messages.
 
     Blank lines and surrounding whitespace are ignored; duplicates collapse.
-    An unreadable file aborts with exit code 2 — falling back to "adopt
-    nothing" or, worse, "adopt everything" would silently invert the
+    An unreadable file aborts with exit code 2 — falling back to "select
+    nothing" or, worse, "select everything" would silently invert the
     operator's per-item decision (T-ADOPT-PERITEM).
     """
     try:
@@ -404,7 +500,7 @@ def _read_adopt_names(names_file: Path) -> list[str]:
     except (OSError, ValueError) as err:
         # ValueError covers UnicodeDecodeError — same clean-abort contract as
         # an unreadable file (2026-08-01 security review L1).
-        print(f"Error: cannot read --adopt-names file {names_file}: {err}", file=sys.stderr)
+        print(f"Error: cannot read {flag} file {names_file}: {err}", file=sys.stderr)
         sys.exit(2)
     seen: dict[str, None] = {}
     for line in raw.splitlines():
@@ -418,12 +514,75 @@ def _read_adopt_names(names_file: Path) -> list[str]:
         # item as an individually decided rejection (2026-08-01 security
         # review C2, reproduced). Abort exactly like the unreadable case.
         print(
-            f"Error: --adopt-names file {names_file} contains no names; "
+            f"Error: {flag} file {names_file} contains no names; "
             "aborting (an empty selection is never a decision).",
             file=sys.stderr,
         )
         sys.exit(2)
     return list(seen)
+
+
+def _mark_sidecar_held(meta_file: Path, meta: dict[str, Any]) -> bool:
+    """Stamp ``held`` / ``held_at`` onto the sidecar; False (loudly) on failure.
+
+    The audit row records the decision, but it lands in ``logs/audit.jsonl``,
+    which the next staging run never reads. The marker is what lets the
+    ADR-0074 pending guard say *why* it is refusing to stage a new batch
+    instead of reporting an anonymous count of leftovers. Every other key is
+    preserved verbatim — ``seq`` in particular, which drives adoption order.
+
+    ``meta`` is the snapshot ``_load_staged_item`` validated, deliberately
+    NOT a fresh read: re-reading let a sidecar rewritten in between receive
+    the marker while ``_log_hold`` described the item loaded before it, so
+    the file said held and the audit row named a different target (codex
+    review 2026-08-15).
+    """
+    from ..core._io import now_iso, write_restricted
+
+    marked = dict(meta)
+    marked["held"] = True
+    marked["held_at"] = now_iso(timespec="seconds")
+    try:
+        write_restricted(meta_file, json_mod.dumps(marked, ensure_ascii=False) + "\n")
+    except (OSError, ValueError) as err:
+        print(f"  Could not mark {meta_file.name} as held: {err}", file=sys.stderr)
+        return False
+    return True
+
+
+def _hold_staged_item(item: _StagedItem, meta_file: Path, *, audit_source: AuditSource) -> bool:
+    """Leave the item staged, on the record. True when the hold stuck.
+
+    The third answer the gate has always offered and the CLI never carried
+    (T-ADOPT-HOLD). Marking precedes logging for the same reason the reject
+    branch unlinks before logging (2026-08-01 security review H1): an audit
+    row describing an outcome that did not reach disk is worse than a
+    disk change with no row.
+    """
+    if not _mark_sidecar_held(meta_file, item.meta):
+        return False
+    if not approval._log_decision(
+        "held",
+        item.command,
+        item.target,
+        item.text,
+        source=audit_source,
+        snapshot_path=None,
+        reason=None,
+        source_ids=item.source_ids,
+        epistemic_counts=item.epistemic_counts,
+    ):
+        # The marker landed but the row did not. A hold whose only evidence
+        # is a file the audit trail never mentions is exactly the state this
+        # feature exists to end, so it is a failure, not a success with a
+        # warning (security review 2026-08-15).
+        print(
+            f"  Held {item.content_file.name} on disk but could not record it in the audit log",
+            file=sys.stderr,
+        )
+        return False
+    print(f"  Held (in --hold-names): {item.content_file.name}")
+    return True
 
 
 def _quarantine_invalid_sidecar(meta_file: Path) -> None:
@@ -470,27 +629,60 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     TTY y/N session (2026-08-01 security review C1). An empty names file
     aborts: combined with ``--reject-rest`` it would otherwise wipe the
     whole staging queue (C2).
+
+    With ``--hold-names FILE`` (T-ADOPT-HOLD) the named items are left in
+    staging with a ``decision="held"`` audit row. The gate has always offered
+    three answers — approve / reject / hold — but the CLI carried a
+    dichotomy, so holding one item meant leaving the entire remainder staged,
+    un-rejected and unrecorded. The two files compose: adopt some, hold some,
+    ``--reject-rest`` for everything else, one invocation, one decision each.
+    A name in both files aborts rather than picking a winner. Held items
+    deliberately still count toward the ADR-0074 pending guard, so a hold
+    still defers the next batch — the change is that the block is now a
+    recorded choice the guard can name (2026-08-15 decision).
     """
     yes = getattr(args, "yes", False)
     adopt_names_file = getattr(args, "adopt_names", None)
+    hold_names_file = getattr(args, "hold_names", None)
     reject_rest = getattr(args, "reject_rest", False)
 
-    if adopt_names_file and yes:
+    if yes and (adopt_names_file or hold_names_file):
         print(
-            "Error: --adopt-names and --yes are mutually exclusive "
+            "Error: --adopt-names / --hold-names and --yes are mutually exclusive "
             "(per-item selection vs adopt-everything).",
             file=sys.stderr,
         )
         sys.exit(2)
-    if reject_rest and not adopt_names_file:
-        print("Error: --reject-rest requires --adopt-names.", file=sys.stderr)
+    if reject_rest and not (adopt_names_file or hold_names_file):
+        print(
+            "Error: --reject-rest requires --adopt-names or --hold-names.",
+            file=sys.stderr,
+        )
         sys.exit(2)
 
     # None = process every staged item (interactive or --yes);
     # a set = per-item selection by staged filename.
     adopt_names: set[str] | None = None
     if adopt_names_file:
-        adopt_names = set(_read_adopt_names(Path(adopt_names_file)))
+        adopt_names = set(_read_names_file(Path(adopt_names_file), "--adopt-names"))
+    hold_names: set[str] = set()
+    if hold_names_file:
+        hold_names = set(_read_names_file(Path(hold_names_file), "--hold-names"))
+        # Holding without adopting anything is a legitimate week. Normalizing
+        # to an empty set (rather than leaving it None) is what keeps the
+        # unlisted items out of the interactive branch below — otherwise
+        # `--hold-names` alone would prompt for every other item.
+        if adopt_names is None:
+            adopt_names = set()
+
+    both = sorted(hold_names & (adopt_names or set()))
+    if both:
+        print(
+            "Error: named in both --adopt-names and --hold-names: " + ", ".join(both),
+            file=sys.stderr,
+        )
+        print("No changes made; staging left untouched.", file=sys.stderr)
+        sys.exit(2)
 
     audit_source: AuditSource = "stage-adopted-auto" if yes else "stage-adopted"
     if adopt_names is not None:
@@ -499,11 +691,16 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         # provenance (2026-08-01 security review C1).
         audit_source = "stage-adopted-names"
 
+    # Every name the operator asked about, whatever the verdict — the
+    # existence check below must not pass a typo just because it landed in
+    # the hold file rather than the adopt file.
+    requested_names = (adopt_names or set()) | hold_names
+
     if not config.STAGED_DIR.exists():
-        if adopt_names:
+        if requested_names:
             print(
                 "Error: no staging directory — unknown staged item name(s): "
-                + ", ".join(sorted(adopt_names)),
+                + ", ".join(sorted(requested_names)),
                 file=sys.stderr,
             )
             sys.exit(2)
@@ -512,10 +709,10 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
 
     meta_files = sorted(config.STAGED_DIR.glob("*.meta.json"), key=_staged_sort_key)
     if not meta_files:
-        if adopt_names:
+        if requested_names:
             print(
                 "Error: no staged files — unknown staged item name(s): "
-                + ", ".join(sorted(adopt_names)),
+                + ", ".join(sorted(requested_names)),
                 file=sys.stderr,
             )
             sys.exit(2)
@@ -523,10 +720,10 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         return
 
     if adopt_names is not None:
-        # Verify EVERY requested name before any unlink / adopt / reject /
-        # quarantine — a single typo must not half-apply the batch.
+        # Verify EVERY requested name before any unlink / adopt / hold /
+        # reject / quarantine — a single typo must not half-apply the batch.
         staged_names = {_staged_name(meta_file) for meta_file in meta_files}
-        unknown = sorted(adopt_names - staged_names)
+        unknown = sorted(requested_names - staged_names)
         if unknown:
             print(
                 "Error: unknown staged item name(s): " + ", ".join(unknown),
@@ -546,9 +743,10 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
 
     if adopt_names is not None:
         rest_fate = "rejected" if reject_rest else "left staged"
+        held_note = f", holding {len(hold_names)}" if hold_names else ""
         print(
-            f"Per-item mode (--adopt-names): adopting {len(adopt_names)} of "
-            f"{len(meta_files)} staged item(s); the rest are {rest_fate}."
+            f"Per-item mode: adopting {len(adopt_names)} of "
+            f"{len(meta_files)} staged item(s){held_note}; the rest are {rest_fate}."
         )
     elif yes:
         print(
@@ -557,10 +755,36 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
 
     adopted = 0
     rejected = 0
+    held = 0
     skipped = 0
     left = 0
     reject_failures = 0
+    hold_failures = 0
     for meta_file in meta_files:
+        if _staged_name(meta_file) in hold_names:
+            item = _load_staged_item(meta_file, data_root)
+            if item is None:
+                # Deliberately NOT quarantined, unlike every other branch.
+                # Quarantining renames the sidecar out of the pending count,
+                # which for an item the operator asked to KEEP would turn a
+                # requested hold into a silent removal — and let the next
+                # batch overwrite the staged content while the run still
+                # exited 0 (codex review 2026-08-15). Counting it as a hold
+                # failure preserves both the item and the non-zero exit.
+                print(
+                    f"  Could not hold {_staged_name(meta_file)}: its sidecar did not load",
+                    file=sys.stderr,
+                )
+                hold_failures += 1
+                continue
+            print(f"\n{'=' * 60}")
+            print(f"[{item.command}] {item.content_file.name} -> {item.target}")
+            if _hold_staged_item(item, meta_file, audit_source=audit_source):
+                held += 1
+            else:
+                hold_failures += 1
+            continue
+
         if adopt_names is not None and _staged_name(meta_file) not in adopt_names:
             if not reject_rest:
                 left += 1
@@ -626,12 +850,24 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         meta_file.unlink(missing_ok=True)
 
     summary = f"\n--- Summary: {adopted} adopted, {rejected} rejected, {skipped} skipped"
+    if hold_names:
+        summary += f", {held} held"
     if reject_failures:
         summary += f", {reject_failures} reject FAILURES (still staged)"
+    if hold_failures:
+        summary += f", {hold_failures} hold FAILURES (staged, unrecorded)"
     if adopt_names is not None:
         summary += f", {left} left staged"
     print(summary + " ---")
-    if reject_failures:
+    if held or hold_failures:
+        # Say the cost at the point of decision, not next Saturday when the
+        # weekly batch quietly fails to stage (ADR-0074 pending guard). Failed
+        # holds are still sitting in staging, so they block just the same.
+        print(
+            f"{held + hold_failures} item(s) still in staging: the next insight "
+            "batch will be refused until they are decided."
+        )
+    if reject_failures or hold_failures:
         # A non-interactive caller must not read a partially applied batch as
         # success (2026-08-01 security review H1).
         sys.exit(1)
@@ -731,10 +967,22 @@ def _add_adopt_staged_arguments(parser: argparse.ArgumentParser) -> None:
         "--yes.",
     )
     parser.add_argument(
+        "--hold-names",
+        metavar="FILE",
+        help="Hold exactly the staged items named in FILE (one staged filename "
+        "per line): leave them in staging, but record a 'held' decision for "
+        "each so the deferral is on the audit trail rather than looking like "
+        "an item nobody reviewed. Composes with --adopt-names and "
+        "--reject-rest; a name in both files aborts. Held items still block "
+        "the next insight batch (ADR-0074), which is now reported rather than "
+        "discovered a week later. Mutually exclusive with --yes.",
+    )
+    parser.add_argument(
         "--reject-rest",
         action="store_true",
-        help="With --adopt-names: reject (remove from staging, with an audit "
-        "record) the staged items NOT listed. Default is to leave them staged.",
+        help="With --adopt-names / --hold-names: reject (remove from staging, "
+        "with an audit record) the staged items NOT listed in either. Default "
+        "is to leave them staged.",
     )
 
 

@@ -24,6 +24,13 @@ fi
 # NOTE: hand-maintained governance/metadata files live in the data repo, NOT in
 # MOLTBOOK_HOME. They MUST be excluded here, otherwise `rsync --delete` removes
 # them on every sync. Keep this list in step with the data repo's static files.
+#
+# `*.tmp` is load-bearing, not tidiness: every other exclusion matches an exact
+# basename, while write_restricted publishes through `<basename>.<random>.tmp`
+# (T-WRITE-TMP-NOFOLLOW, 2026-08-15) and an interrupted write leaves one behind
+# permanently. Without it an orphan of credentials.json — or of the raw
+# 130 MB knowledge.json, whose embeddings the export boundary below strips —
+# would be pushed to this PUBLIC repo under a name no other rule covers.
 rsync -a --delete \
     --exclude='.git/' \
     --exclude='.gitignore' \
@@ -45,6 +52,7 @@ rsync -a --delete \
     --exclude='knowledge.json' \
     --exclude='knowledge.backups/' \
     --exclude='*.bak.*' \
+    --exclude='*.tmp' \
     --exclude='__pycache__/' \
     --exclude='.DS_Store' \
     --exclude='reports/.private/' \
