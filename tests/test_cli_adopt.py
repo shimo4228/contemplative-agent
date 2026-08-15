@@ -350,6 +350,235 @@ class TestAdoptStaged:
         assert target.read_text().startswith("# A cleaned")
         assert not (skills_dir / "a-2.md").exists()
 
+    def test_identity_adoption_replaces_the_canonical_file(self, tmp_path):
+        """Regression (T-ADOPT-OVERWRITE-TARGETS, 2 live occurrences): the H5
+        collision guard exists to stop one generated artifact from silently
+        clobbering another, but `distill-identity` and `amend-constitution`
+        exist *to* replace their canonical file. Treating that intent as a
+        collision minted `identity-2.md` / `contemplative-axioms-2.md`, and
+        the runtime reads `identity.md` by fixed path — so the adoption was
+        recorded `approved` while the live value layer never changed
+        (2026-08-15 Saturday gate; the 2026-08-09 constitution occurrence was
+        worse, since the constitution dir is read by glob)."""
+        target = tmp_path / "identity.md"
+        target.write_text("# old identity", encoding="utf-8")
+        staged = self._stage_one(
+            tmp_path,
+            filename="identity.md",
+            text="# new identity",
+            target=target,
+            command="distill-identity",
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        assert target.read_text().startswith("# new identity")
+        assert not (tmp_path / "identity-2.md").exists()
+
+    def test_constitution_adoption_replaces_in_place(self, tmp_path):
+        """Same intent, and the shape that actually caused harm: the runtime
+        concatenates every `*.md` in the constitution dir, so a `-2.md` twin
+        injects the old and new constitutions at once."""
+        const_dir = tmp_path / "constitution"
+        const_dir.mkdir()
+        target = const_dir / "contemplative-axioms.md"
+        target.write_text("# old axioms", encoding="utf-8")
+        staged = self._stage_one(
+            tmp_path,
+            filename="contemplative-axioms.md",
+            text="# new axioms",
+            target=target,
+            command="amend-constitution",
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        assert target.read_text().startswith("# new axioms")
+        assert sorted(p.name for p in const_dir.glob("*.md")) == ["contemplative-axioms.md"]
+
+    def test_replacement_audit_path_matches_the_staged_target(self, tmp_path):
+        """What made the failure silent: the audit row honestly recorded the
+        renamed path, so `staged` (identity.md) and `approved` (identity-2.md)
+        pointed at different files for the same content hash — and neither
+        shape of the ADR-0093 approval join catches that. Its identity section
+        matches on the exact filename (`_matches_section`,
+        `scripts/value_layer_approval_join.py:113-123`), so the `approved` row
+        for `identity-2.md` belongs to **no** section and vanishes from the
+        join entirely, leaving the identity section reading as if only a
+        `staged` row existed; the constitution section is directory-shaped, so
+        the `contemplative-axioms-2.md` twin lands in the right section and
+        the alarm clears on a row that named a different file. Two different
+        blind spots, one cause: the record must not be able to diverge from
+        the staged target in the first place."""
+        target = tmp_path / "identity.md"
+        target.write_text("# old identity", encoding="utf-8")
+        staged = self._stage_one(
+            tmp_path,
+            filename="identity.md",
+            text="# new identity",
+            target=target,
+            command="distill-identity",
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        rows = [
+            json.loads(line)
+            for line in (tmp_path / "logs" / "audit.jsonl").read_text().splitlines()
+            if line.strip()
+        ]
+        by_decision = {r["decision"]: r for r in rows}
+        assert by_decision["approved"]["path"] == by_decision["staged"]["path"]
+        assert by_decision["approved"]["path"] == str(target)
+
+    def test_the_command_alone_holds_the_guard_at_the_canonical_path(self, tmp_path):
+        """The command dimension, pinned where nothing else is holding it.
+
+        Code review 2026-08-15 (mutation-verified): the `skills/identity.md`
+        test below passes even against a command-blind predicate, because the
+        *location* bound already saves it — so half the threat model was
+        unpinned by a green suite. Here the target IS the canonical path, so
+        only the command name stands between a tampered sidecar
+        (`{"command": "insight", "target": "<root>/identity.md"}`) and an
+        in-place overwrite of the live identity."""
+        target = tmp_path / "identity.md"
+        target.write_text("# a real identity", encoding="utf-8")
+        staged = self._stage_one(
+            tmp_path,
+            filename="identity.md",
+            text="# a generated skill",
+            target=target,
+            command="insight",
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        assert target.read_text().startswith("# a real identity")
+        assert (tmp_path / "identity-2.md").exists()
+
+    def test_a_non_md_target_in_the_constitution_dir_keeps_the_guard(self, tmp_path):
+        """The `.md` suffix check is load-bearing, not decorative.
+
+        The constitution dir holds `.last_constitution_amend` — the ADR-0091
+        cadence marker written by `write_run_marker` at the end of a real
+        amendment. Without the suffix check a tampered sidecar aimed at it
+        would overwrite the marker with staged prose, resetting the amendment
+        interval the value-layer due instrument reads (code review
+        2026-08-15, mutation-verified: dropping the check passed every test)."""
+        const_dir = tmp_path / "constitution"
+        const_dir.mkdir()
+        marker = const_dir / ".last_constitution_amend"
+        marker.write_text("2026-03-28", encoding="utf-8")
+        staged = self._stage_one(
+            tmp_path,
+            filename=".last_constitution_amend",
+            text="# staged prose",
+            target=marker,
+            command="amend-constitution",
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        assert marker.read_text().startswith("2026-03-28")
+
+    def test_the_predicate_agrees_with_the_configured_canonical_paths(self):
+        """The predicate re-derives `identity.md` and `constitution/` as string
+        literals rather than importing `config.IDENTITY_PATH` — deliberately,
+        since the constants are import-time and the tests patch
+        `MOLTBOOK_DATA_DIR` underneath them. That agreement is otherwise
+        implicit: if the canonical location ever moves, the predicate silently
+        returns False and adoption regresses to *exactly* the 2026-08-15 shape
+        (audit says `approved`, value layer unchanged, nothing errors). Pin it
+        (code review 2026-08-15)."""
+        from contemplative_agent.adapters.moltbook import config
+        from contemplative_agent.cli.adopt import _replaces_canonical_target
+
+        root = config.MOLTBOOK_DATA_DIR
+        assert _replaces_canonical_target("distill-identity", config.IDENTITY_PATH, root)
+        assert _replaces_canonical_target("amend-constitution", config.CONSTITUTION_DIR / "x.md", root)
+
+    def test_an_additive_command_targeting_a_same_named_file_elsewhere(self, tmp_path):
+        """The "same basename in another directory" case: an `insight` skill
+        that happens to slugify to `identity.md` must not clobber whatever
+        sits at `skills/identity.md`. (Held by the location bound; the command
+        dimension is pinned by the canonical-path test above.)"""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        target = skills_dir / "identity.md"
+        target.write_text("# a real skill", encoding="utf-8")
+        staged = self._stage_one(
+            tmp_path,
+            filename="identity.md",
+            text="# a different skill",
+            target=target,
+            command="insight",
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        assert target.read_text().startswith("# a real skill")
+        assert (skills_dir / "identity-2.md").exists()
+
+    def test_a_replacement_command_pointed_elsewhere_keeps_the_guard(self, tmp_path):
+        """The sidecar is user-writable between stage and adopt, so the
+        exemption is bounded by location as well as command: `distill-identity`
+        may overwrite `identity.md` and nothing else. A tampered meta cannot
+        borrow the replacement intent to clobber an arbitrary file."""
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        target = skills_dir / "victim.md"
+        target.write_text("# keep me", encoding="utf-8")
+        staged = self._stage_one(
+            tmp_path,
+            filename="victim.md",
+            text="# clobbered",
+            target=target,
+            command="distill-identity",
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        assert target.read_text().startswith("# keep me")
+        assert (skills_dir / "victim-2.md").exists()
+
+    def test_a_symlink_aimed_at_the_canonical_file_keeps_the_guard(self, tmp_path):
+        """Codex cross-model review 2026-08-15 (proven by execution): the
+        predicate must judge the path the write actually lands on. The write
+        goes through ``os.replace`` on the *unresolved* target, so a symlinked
+        leaf is replaced itself, not its referent — resolving the leaf granted
+        the exemption to `skills/victim.md -> ../identity.md`, clobbered that
+        out-of-location path, and left `identity.md` untouched while the
+        budget reading subtracted the referent's tokens."""
+        canonical = tmp_path / "identity.md"
+        canonical.write_text("# canonical identity", encoding="utf-8")
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        alias = skills_dir / "victim.md"
+        alias.symlink_to(canonical)
+        staged = self._stage_one(
+            tmp_path,
+            filename="victim.md",
+            text="# clobbered",
+            target=alias,
+            command="distill-identity",
+        )
+        self._run_adopt(tmp_path, staged, inputs=["y"])
+        # Neither file takes the write in place: the guard diverts it.
+        assert canonical.read_text().startswith("# canonical identity")
+        assert alias.is_symlink()
+        assert (skills_dir / "victim-2.md").exists()
+
+    def test_budget_reading_subtracts_the_replaced_canonical_file(self, tmp_path, capsys):
+        """Same-PR sweep: the budget projection decides whether the existing
+        target survives using the same question the write path asks. Fixing
+        only the write path would leave the reading projecting a corpus that
+        keeps both copies."""
+        from contemplative_agent.cli.adopt import _print_system_budget_for_staged
+
+        home = tmp_path / "home"
+        home.mkdir()
+        target = home / "identity.md"
+        target.write_text("b" * 1500, encoding="utf-8")  # 500 tok — replaced
+        staged_dir = tmp_path / ".staged"
+        staged_dir.mkdir()
+        (staged_dir / "identity.md").write_text("c" * 300)  # +100 tok
+        (staged_dir / "identity.md.meta.json").write_text(
+            json.dumps({"target": str(target), "command": "distill-identity"})
+        )
+        with patch(
+            "contemplative_agent.core.llm.prompting._build_system_prompt",
+            return_value="a" * 3000,  # 1000 tok
+        ):
+            _print_system_budget_for_staged([staged_dir / "identity.md.meta.json"], data_root=home)
+        out = capsys.readouterr().out
+        assert "≈1,000 tok → ≈600 tok" in out  # +100 and -500
+
     def test_adopt_prints_system_budget_reading(self, tmp_path, capsys):
         """The adopt gate shows the read-only system-prompt budget projection
         (2026-07-09: a 13-skill batch was approved blind and grew the system

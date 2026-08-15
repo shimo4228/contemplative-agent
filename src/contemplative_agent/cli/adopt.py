@@ -101,6 +101,66 @@ def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:
     )
 
 
+# Staging commands that own a canonical file and exist to replace it. Kept as
+# a named set so the operator warning below and the predicate cannot drift.
+# ``value_layer_due_check.py`` enumerates a wider identity vocabulary
+# (``distill-identity-ca``, the shelved ADR-0013 coding-agent path); it has no
+# live staging producer, so it cannot reach here — reviving it means adding it
+# in both places (code review 2026-08-15).
+_REPLACEMENT_COMMANDS = frozenset({"distill-identity", "amend-constitution"})
+
+
+def _replaces_canonical_target(command: str, target: Path, data_root: Path) -> bool:
+    """True when this staged write is *meant* to overwrite the file it names.
+
+    The H5 collision guard (``approval._collision_free_path``) protects
+    generated artifacts: two insight batches can slugify to the same
+    ``<slug>-YYYYMMDD.md``, and the second write must not silently clobber
+    the first. ``distill-identity`` and ``amend-constitution`` invert that —
+    each owns exactly one canonical file and replacing it is the whole point,
+    so the guard turns an approved amendment into an inert twin
+    (``identity-2.md`` / ``contemplative-axioms-2.md``). Two live
+    occurrences: 2026-08-09 (constitution — harmful, since the runtime
+    concatenates every ``*.md`` in that dir, so both texts were injected at
+    once) and 2026-08-15 (identity — silent, since ``IDENTITY_PATH`` is a
+    fixed single path, so the twin is never read and the value layer simply
+    never changed while ``audit.jsonl`` said ``approved``).
+
+    Bounded by **location as well as command**: the sidecar is user-writable
+    between stage and adopt (same threat model as ``_load_staged_item``'s
+    containment check), so a tampered ``command`` cannot borrow the
+    replacement intent to clobber an arbitrary file — ``distill-identity``
+    may overwrite ``identity.md`` and nothing else, ``amend-constitution``
+    only a ``*.md`` sitting directly in the constitution dir. A custom
+    ``--constitution-dir`` outside that location, and a symlinked canonical
+    path, both keep the old guarded behaviour: conservative, and adopt-staged
+    has no way to learn which custom dir a past run used. That fallback is
+    the very silence this function exists to end, so ``_adopt_write_item``
+    says so out loud when it happens rather than minting a quiet twin.
+    """
+    try:
+        # Resolve the PARENT but keep the final component literal: the write
+        # lands via ``write_restricted`` → ``os.replace`` on the unresolved
+        # path, which replaces a symlinked leaf *itself* rather than its
+        # referent. Resolving the leaf would grant the exemption to
+        # ``skills/victim.md -> ../identity.md``, clobber that out-of-location
+        # path, and leave the canonical file untouched while the budget
+        # reading subtracted the referent (codex review 2026-08-15, proven by
+        # execution). Parent symlinks are resolved because ``os.replace``
+        # does follow those.
+        if target.is_symlink():
+            return False
+        resolved = target.parent.resolve() / target.name
+        root = data_root.resolve()
+    except OSError:
+        return False
+    if command == "distill-identity":
+        return resolved == root / "identity.md"
+    if command == "amend-constitution":
+        return resolved.suffix == ".md" and resolved.parent == root / "constitution"
+    return False
+
+
 def _adopt_drop_item(item: _StagedItem, *, yes: bool, audit_source: AuditSource) -> bool:
     """Delete the drop target after approval; True when adopted."""
     approved = True if yes else approval._approve_delete(item.target)
@@ -150,16 +210,39 @@ def _delete_adopted_sources(target: Path, sources: Sequence[str]) -> None:
             print(f"  Deleted {src_name}")
 
 
-def _adopt_write_item(item: _StagedItem, *, yes: bool, audit_source: AuditSource) -> bool:
+def _adopt_write_item(
+    item: _StagedItem, *, yes: bool, audit_source: AuditSource, data_root: Path
+) -> bool:
     """Write the staged text to its target after approval; True when adopted."""
     from ..core._io import write_restricted
     from ..core.artifact_extraction import canonicalize_frontmatter_name, slug_from_stem
 
     # H5 collision guard — exempt when a stocktake merge deliberately reuses
-    # one of its own source names (merge-into-source overwrite).
+    # one of its own source names (merge-into-source overwrite), or when the
+    # staging command owns its target and replacing it is the intent
+    # (T-ADOPT-OVERWRITE-TARGETS; see _replaces_canonical_target).
     target = item.target
-    if target.name not in (item.sources or ()):
+    replaces_canonical = _replaces_canonical_target(item.command, target, data_root)
+    if target.name not in (item.sources or ()) and not replaces_canonical:
         target = approval._collision_free_path(target, item.text)
+    # Say what the write destroys, BEFORE the gate. The rename this exemption
+    # removes was also the operator's only signal that an existing file was in
+    # the way ("Name collision: … writing identity-2.md instead"); without it
+    # a destructive in-place replace and a fresh create print the same prompt,
+    # and --yes / --adopt-names print nothing at all (security review
+    # 2026-08-15, observability regression on the one path this change makes
+    # destructive).
+    if replaces_canonical and target.is_file():
+        print(f"  Replacing existing {target.name} ({target.stat().st_size:,} bytes)")
+    elif item.command in _REPLACEMENT_COMMANDS and target != item.target:
+        # The fallback fired: a symlinked canonical path or a custom
+        # constitution dir. Adoption still records `approved`, but the live
+        # value layer will NOT change — exactly the 2026-08-15 shape.
+        print(
+            f"  Note: {item.command} could not replace {item.target.name} in place "
+            f"(symlink or non-canonical location); writing {target.name}, "
+            "which the runtime does not read"
+        )
     # One-canonical-identity invariant, established AT the write boundary
     # (weekly 2026-08-08 F1.3): the extraction-time canonicalization
     # (insight/rules-distill) is a producer convention, not an invariant —
@@ -258,12 +341,16 @@ def _print_system_budget_for_staged(meta_files: Sequence[Path], data_root: Path)
                 new_texts.append(text)
                 # Subtract the existing target only when adoption really
                 # replaces it: an in-place rewrite/merge (target listed in
-                # sources) or an idempotent identical write. A same-name,
+                # sources), a canonical replacement (identity / constitution),
+                # or an idempotent identical write. A same-name,
                 # different-content, non-source target gets a `-N.md` suffix
                 # from approval._collision_free_path and the original survives —
                 # subtracting it would under-project (codex 2026-07-10 P2).
+                # This asks the same question as the write path above, so the
+                # two cannot disagree about whether the old text survives.
                 if target.exists() and (
                     target.name in sources
+                    or _replaces_canonical_target(meta.get("command") or "", target, data_root)
                     or target.read_text(encoding="utf-8").strip() == text.strip()
                 ):
                     replaced_texts.append(target.read_text(encoding="utf-8"))
@@ -524,7 +611,12 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         if item.action == "drop":
             ok = _adopt_drop_item(item, yes=approve_without_prompt, audit_source=audit_source)
         else:
-            ok = _adopt_write_item(item, yes=approve_without_prompt, audit_source=audit_source)
+            ok = _adopt_write_item(
+                item,
+                yes=approve_without_prompt,
+                audit_source=audit_source,
+                data_root=data_root,
+            )
         if ok:
             adopted += 1
         else:
