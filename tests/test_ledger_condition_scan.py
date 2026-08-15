@@ -193,6 +193,22 @@ class TestUnterminatedWatchSpan:
             blob = json.dumps(errors, ensure_ascii=False)
             assert not any(ch in blob for ch in poison), errors
 
+    def test_the_watch_target_is_sanitised_too_not_only_the_error_detail(self):
+        """`target` is the *other* field carrying ledger text verbatim, and it
+        goes further than `detail`: it reaches packet §10, which a human reads
+        at the Saturday gate, and `build_decision_packet._cell` neutralises
+        pipes and line breaks but not control characters. The first version of
+        `_printable`'s docstring claimed `detail` was the only such field, and
+        `target` was unsanitised because of it (2026-08-15 security review)."""
+        # Only the non-printable characters are the hazard; `[31m` is inert
+        # text and must survive, so asserting over the whole escape sequence
+        # would fail on the half that is supposed to pass through.
+        control = "\x1b\x7f‮​"
+        watch = lcs.Watch(task="T-X", type="file-exists", args=(f"/tmp/{control}[31mx",))
+        result = lcs.run_watch(watch, lambda *_a, **_k: (200, b""))
+        assert not any(ch in result["target"] for ch in control)
+        assert result["target"].startswith("/tmp/") and result["target"].endswith("[31mx")
+
     def test_a_whitespace_run_after_an_opener_does_not_backtrack(self):
         """`\\s*` and `[^`]+` overlap, so an opener trailed by whitespace with
         no closing backtick was quadratic — 811ms at 16k spaces, 4x per

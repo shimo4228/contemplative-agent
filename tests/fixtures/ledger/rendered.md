@@ -45,6 +45,7 @@
 | T-EFFECT-NOISE | observing | 解釈規約: \|Δ効果\| < 0.13 はノイズとして読まない | 4 週分の読み値 | [ADR-0071](../../../docs/adr/0071-read-only-pattern-composition-instruments.md) |
 | T-LONE-BACKTICK | ready | 本文に閉じない ` が 1 個だけある行 | なし | 災害復旧 (rendered → store) の回帰 |
 | T-MULTILINE-CELL | candidate | A 段<br>**B 段**: 続き<br>C 段 | 採否判断前 | — |
+| T-ESCAPE-BACKSLASH | ready | 本文が `grep 'a\\\|b'` のように backslash + pipe を含む行 | なし | regex / shell の引用: `[^\\\|]`、`sed 's/\\\|/…/'` |
 
 ## Done / Dropped
 

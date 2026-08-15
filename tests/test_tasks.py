@@ -61,6 +61,10 @@ Fault column (chaos-TDD, ADR-0077 — faults degrade loudly or not at all):
           everywhere; a zero-argument `` `watch:` `` is also how prose *names*
           the annotation, so it is refused only where it would be silent —
           on a blocked row
+- F-TL-18 a body holding a backslash immediately before a pipe round-trips —
+          the render→read cycle is the disaster recovery, and the escape that
+          kept itself idempotent made that shape indistinguishable from an
+          escaped pipe, dropping the backslash in silence
 
 **F-TL-6 runs on every machine, not just the author's.** It used to read
 `.notes/TASKS.md`, which is gitignored — so the consumer-compatibility
@@ -77,12 +81,14 @@ must not generate avoidable upstream traffic.
 
 from __future__ import annotations
 
+import ast
 import json
 import re
 import sys
 from pathlib import Path
 
 import pytest
+from hypothesis import example, given, strategies as st
 
 # scripts/ is not a package; import the module by path.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
@@ -153,9 +159,16 @@ class TestSplitRow:
         assert "T-FOO" in str(exc.value)
 
     def test_unterminated_backtick_raises_in_the_legacy_dialect(self):
-        """There a bare pipe may belong to the span, so the cells are a guess."""
-        with pytest.raises(tasks.MalformedRow):
+        """There a bare pipe may belong to the span, so the cells are a guess.
+
+        The message is asserted, not just the type: an odd backtick count also
+        leaves `in_span` set at end of row, which swallows the closing
+        delimiter and trips the edge check — so deleting the explicit refusal
+        still raises, just with a reason that names the wrong thing (code
+        review LOW, surviving mutation)."""
+        with pytest.raises(tasks.MalformedRow) as exc:
             tasks.split_row("| T-FOO | ready | 開いたまま `span | なし | — |", legacy=True)
+        assert "backtick" in str(exc.value)
 
     @pytest.mark.parametrize("legacy", [False, True], ids=["rendered", "legacy"])
     def test_an_escaped_trailing_delimiter_is_refused_not_truncated(self, legacy):
@@ -168,6 +181,33 @@ class TestSplitRow:
         """
         with pytest.raises(tasks.MalformedRow):
             tasks.split_row(r"| T-A | ready | a | b | c\|", legacy=legacy)
+
+    def test_an_escaped_delimiter_on_a_six_column_row_is_refused(self):
+        """The cell count alone does not catch this, which is why the edges are
+        checked separately: a 6-column row whose last cell ends `\\|` scans to
+        seven pieces, and `[1:-1]` then yields exactly five — the sixth cell
+        dropped in silence, the truncation this function's contract refuses."""
+        with pytest.raises(tasks.MalformedRow) as exc:
+            tasks.split_row(r"| T-A | ready | a | b | c | d\|")
+        assert "区切り" in str(exc.value)
+
+    def test_an_unrecognised_escape_is_read_as_a_literal_backslash(self):
+        """The backward-compatibility branch, and the reason it is a tolerance
+        rather than a refusal. `render_row` never emits `\\d` — but a ledger
+        rendered *before* the 2026-08-15 scheme did, since that render left
+        backslashes alone. Refusing here would turn a readable old ledger into
+        an unreadable one, on the disaster-recovery path, for a shape that was
+        legal when it was written."""
+        cells = tasks.split_row(r"| T-A | ready | \d+ と C:\tmp | なし | — |")
+        assert cells[2] == r"\d+ と C:\tmp"
+
+    def test_a_double_backslash_is_two_backslashes_in_the_legacy_dialect(self):
+        """The dialect boundary the escape change had to respect. `\\\\` is an
+        escape only in the rendered dialect; the pre-migration table was
+        hand-written prose where a backslash meant itself, so consuming pairs
+        there would silently halve them."""
+        assert tasks.split_row(r"| T-A | done | C:\\tmp | — | x |", legacy=True)[2] == r"C:\\tmp"
+        assert tasks.split_row(r"| T-A | done | C:\\tmp | — | x |")[2] == r"C:\tmp"
 
     def test_a_lone_backtick_reads_fine_in_the_rendered_dialect(self):
         """F-TL-13 — the disaster-recovery regression.
@@ -382,9 +422,107 @@ class TestRenderLedger:
         assert tasks.split_row(row)[2] == task.summary
 
     def test_rendering_twice_does_not_accumulate_escapes(self):
+        """render → read → render is stable. Note this is *round-trip*
+        stability, not `_escape_cell` idempotence — the two were conflated, and
+        only the first is a property this module needs."""
         once = tasks.render_row(self._task("T-A", "ready", summary="a | b"))
         twice = tasks.render_row(tasks.Task(*tasks.split_row(once)))
         assert once == twice
+
+    def test_a_backslash_before_a_pipe_survives_the_round_trip(self):
+        """F-TL-18 — the collision, in the shape that produced it.
+
+        The old `_escape_cell` folded `\\|` onto itself to stay idempotent, so
+        a body containing `a\\|b` rendered to bytes indistinguishable from an
+        escaped pipe and read back as `a|b`. Silent, and on the one path that
+        turns a rendered ledger back into a store — the disaster recovery,
+        since the store is gitignored (2026-08-15 code review HIGH).
+
+        Not hypothetical by the time it was fixed: the task file that *filed*
+        this defect quotes `re.sub(r"\\\\?\\|", ...)` and the live ledger was
+        already reading it back as a different regex.
+        """
+        for body in (r"a\|b", r"grep 'a\|b'", "\\", r"\\", r"\|", r"a\\|b", r"[^\|]"):
+            task = self._task("T-A", "ready", summary=body, condition=body, detail=body)
+            assert tasks.split_row(tasks.render_row(task))[2:] == [body, body, body], body
+
+    def test_the_escape_is_applied_exactly_once(self):
+        """Idempotence was traded away, so "exactly one caller" became load-
+        bearing: a second call would double every backslash in the cell and the
+        cell would still *look* fine. Checked against the module's AST rather
+        than by convention, because the failure is silent corruption rather
+        than an error (`render_row` being the only caller was verified by hand
+        in the 2026-08-15 review — this keeps it true)."""
+        source = (REPO / "scripts" / "tasks.py").read_text(encoding="utf-8")
+        callers = set()
+        for node in ast.walk(ast.parse(source)):
+            if not isinstance(node, ast.FunctionDef):
+                continue
+            for inner in ast.walk(node):
+                if (
+                    isinstance(inner, ast.Call)
+                    and isinstance(inner.func, ast.Name)
+                    and inner.func.id == "_escape_cell"
+                ):
+                    callers.add(node.name)
+        assert callers == {"render_row"}
+
+    def test_the_escape_is_deliberately_not_idempotent(self):
+        """The counterpart to the test above: applying it twice really does
+        change the bytes. Pinned so that "re-introduce idempotence" cannot look
+        like a harmless cleanup — it is the defect."""
+        assert tasks._escape_cell(tasks._escape_cell("a|b")) != tasks._escape_cell("a|b")
+
+    # `conftest.py` pins hypothesis at `derandomize=True, max_examples=50`, so
+    # this is a fixed 50-example set — and measured against that profile it
+    # produced **zero** bodies containing `\|`, the collision shape the whole
+    # change is about. The repo's own convention (conftest: known failure
+    # shapes are pinned with explicit `@example`) is what closes that; without
+    # these the docstring would claim a sweep the suite does not carry
+    # (2026-08-15 code review MEDIUM, measured).
+    @example(body="a\\|b")
+    @example(body="\\\\")
+    @example(body="a\\\\|b")
+    @example(body="\\\\\\|")  # odd run before a pipe — the silent-loss shape
+    @example(body="\\|\\\\")
+    @given(
+        # Tokens rather than characters: `<br>` is one unit a cell really uses,
+        # and `st.text(alphabet=…)` only accepts single characters.
+        body=st.lists(st.sampled_from(list("ab\\|` <>") + ["<br>", "あ"]), max_size=16).map("".join)
+    )
+    def test_any_body_survives_the_render_read_round_trip(self, body):
+        """After this change the rendered dialect loses nothing, over an
+        adversarial alphabet — backslash, pipe, backtick, and the `<br>` a cell
+        uses for in-cell line breaks — plus the collision shapes pinned above.
+
+        Scoped to bodies carrying no `watch:` opener, which this alphabet
+        cannot produce: `render_row` checks annotations before it escapes
+        anything, so such a body may legitimately raise rather than round-trip.
+
+        Up to `.strip()`, and that bound is the honest statement rather than a
+        weakening to make the test pass: `render_row` pads with `" | "` and
+        `split_row` strips, so a cell's edge whitespace is indistinguishable
+        from separator padding. Nothing can carry it — and nothing needs to,
+        because `parse_task_file` strips section bodies on the way in, so the
+        store never holds a body with edge whitespace. (Found by hypothesis on
+        the first run, which is the argument for the property test.)
+        """
+        task = tasks.Task(id="T-A", state="ready", summary=body, condition="x", detail=body)
+        assert tasks.split_row(tasks.render_row(task))[2] == body.strip()
+
+    def test_a_ledger_rendered_by_the_old_scheme_fails_loudly_not_quietly(self):
+        """The one-way step this change forces, pinned in the direction that
+        matters. Pre-2026-08-15 renders escaped pipes and left backslashes
+        alone, so `\\\\|` on the wire — a body's double backslash followed by a
+        real pipe — now reads as one backslash plus a column break. That is a
+        cell-count mismatch, i.e. a refusal, not a silent re-interpretation;
+        one live row hit exactly this (`expected 5 cells, got 8`) and was
+        closed by re-rendering the projection from the store."""
+        old_render = r"| T-A | ready | text.replace("
+        old_render += r'"|","\\|") | なし | — |'
+        with pytest.raises(tasks.MalformedRow) as exc:
+            tasks.split_row(old_render)
+        assert "cells" in str(exc.value)
 
     @pytest.mark.parametrize(
         "cell", ["summary", "condition", "detail", "state"], ids=lambda c: f"in-{c}"
@@ -461,6 +599,119 @@ class TestRenderLedger:
         assert "no-argument" in str(exc.value)
         for state in ("ready", "candidate", "deferred", "observing", "done 2026-08-15"):
             assert tasks.render_row(self._task("T-A", state, summary=live))
+
+    @pytest.mark.parametrize(
+        "target",
+        [
+            r"file-exists C:\tmp\a.env",
+            "file-exists /a|b.env",
+            "file-exists ~/.config/moltbook/<br>cloud.env",
+        ],
+        ids=["backslash", "pipe", "br"],
+    )
+    @pytest.mark.parametrize("cell", ["summary", "condition", "detail"], ids=lambda c: f"in-{c}")
+    def test_a_watch_target_holding_something_the_projection_rewrites_is_refused(
+        self, target, cell
+    ):
+        """Visible but wrong — the other half of the same silence.
+
+        The scanner reads the *rendered* row, so a target containing anything
+        the projection rewrites arrives as different bytes: measured,
+        `/a|b.env` is polled as `/a\\|b.env`, `C:\\tmp\\a.env` as
+        `C:\\\\tmp\\\\a.env`, and a target wrapped across two lines in the task
+        file as `~/.config/moltbook/<br>cloud.env`. All resolve to
+        file-not-found — `fired False` on a target nobody wrote.
+
+        Three rewrites, not two: `<br>` comes from `parse_task_file`, not from
+        `_escape_cell`, and the first version of the guard asked only about the
+        escaping. That was the reachable miss — wrapping a long path inside a
+        code span is ordinary authoring (2026-08-15 code review HIGH).
+
+        Parametrised over the cells because the guard is a per-cell loop and
+        the previous per-cell loop in this same function had exactly this gap.
+        It is not hypothetical here: **all of the live blocked annotations sit
+        in `condition`**, so a mutation restricting the loop to `summary` left
+        the suite green while disabling the guard for every annotation the repo
+        actually has (2026-08-15 code review MEDIUM).
+        """
+        kw = {"summary": "本文", "condition": "なし", "detail": "—"}
+        kw[cell] = f"待ち `watch: {target}`"
+        task = self._task("T-A", "blocked", **kw)
+        with pytest.raises(tasks.MalformedTask) as exc:
+            tasks.render_row(task)
+        assert "polling" in str(exc.value)
+
+    def test_every_span_in_a_cell_is_checked_not_only_the_first(self):
+        """A cell may carry two annotations; `finditer` must reach both. With
+        only the first checked, a good span in front of a bad one disarmed the
+        guard and the suite stayed green (code review LOW)."""
+        task = self._task(
+            "T-A",
+            "blocked",
+            condition="`watch: file-exists /ok.env` と `watch: file-exists /a|b.env`",
+        )
+        with pytest.raises(tasks.MalformedTask):
+            tasks.render_row(task)
+
+    def test_an_id_the_scanner_would_read_as_two_cells_is_refused(self):
+        """The repair that destroyed the signal, end to end.
+
+        The ID cell is emitted raw and `load_tasks_from_ledger` — the recovery
+        direction — never applied `_TASK_ID_RE`. So a row whose ID cell held an
+        escaped pipe recovered as the id `T-A|Y`, re-rendered *unescaped*, and
+        the scanner then read the id as `T-A` and the state as `Y`: not
+        blocked, out of the watch contract, silent. The input row had produced
+        a loud MALFORMED_WATCH, so recovering it is what lost the signal
+        (2026-08-15 security review LOW).
+        """
+        row = r"| T-A\|Y | blocked | 待ち `watch: file-exists /tmp/f` | x | y |"
+        recovered = tasks.split_row(row)
+        assert recovered[0] == "T-A|Y"  # the shape the recovery really yields
+        task = tasks.Task(*recovered)
+        with pytest.raises(tasks.MalformedTask) as exc:
+            tasks.render_row(task)
+        assert "task id" in str(exc.value)
+
+    def test_every_live_and_fixture_id_passes_the_render_check(self):
+        """The negative half — a guard this late must not reject the corpus."""
+        rows = tasks.load_tasks_from_ledger(FIXTURES / "rendered.md")
+        assert rows and all(tasks.render_row(t) for t in rows)
+
+    def test_the_rewrite_guard_is_not_applied_to_the_unescaped_state_cell(self):
+        """`render_row` emits `state` raw, so `_ESCAPED_CHARS` describes
+        nothing there: a backslash in a state-cell target renders
+        byte-identically and the scanner polls exactly what was written.
+        Refusing it was a guard naming the wrong set (2026-08-15 security
+        review LOW). Reachable only through `load_tasks_from_ledger`, since
+        `parse_task_file` refuses backticks in `state`."""
+        task = tasks.Task(
+            id="T-A",
+            state=r"blocked `watch: file-exists C:\a`",
+            summary="x",
+            condition="-",
+            detail="-",
+        )
+        row = tasks.render_row(task)
+        assert r"C:\a" in row
+
+    def test_the_declared_rewrite_set_is_what_the_escape_actually_rewrites(self):
+        """`_ESCAPED_CHARS` is the watch guard's model of `_escape_cell`. The
+        comment says it is kept beside it so it cannot fall behind; nothing
+        enforced that, and the two sit ~190 lines apart."""
+        rewritten = {ch for ch in map(chr, range(0x80)) if tasks._escape_cell(ch) != ch}
+        assert rewritten == set(tasks._ESCAPED_CHARS)
+
+    def test_an_ordinary_watch_target_still_renders(self):
+        """The negative half — the guard must not refuse the live shapes."""
+        for target in ("gh-pr example/example#1", "file-exists ~/.config/moltbook/cloud.env"):
+            assert tasks.render_row(self._task("T-A", "blocked", summary=f"待ち `watch: {target}`"))
+
+    def test_a_wrong_target_is_only_refused_where_it_would_be_polled(self):
+        """Blocked rows only: an unpolled annotation cannot be wrong yet, and
+        a finished row's residual target is not the render's business."""
+        summary = "待ち `watch: file-exists /a|b.env`"
+        for state in ("ready", "deferred", "done 2026-08-15"):
+            assert tasks.render_row(self._task("T-A", state, summary=summary))
 
     def test_the_refusal_arrives_before_the_row_reaches_a_file(self):
         """Through `render_ledger`, not just `render_row`: `cmd_render` writes
@@ -677,10 +928,29 @@ class TestStoreGuards:
         with pytest.raises(tasks.MalformedTask):
             tasks.load_store(store)
 
-    def test_a_control_character_cannot_enter_the_store(self, tmp_path):
-        """NUL is `_mask`'s sentinel, so a body carrying one renders a row the
-        recovery path refuses forever. Refused on the way in."""
-        poisoned = tasks.Task(id="T-A", state="ready", summary="a\x00b", condition="-", detail="-")
+    @pytest.mark.parametrize(
+        "char",
+        ["\x00", "\x0b", "\x0c", "\x1c", "\x1d", "\x1e", "\x85", " ", " "],
+        ids=["NUL", "VT", "FF", "FS", "GS", "RS", "NEL", "LS", "PS"],
+    )
+    def test_a_control_character_cannot_enter_the_store(self, tmp_path, char):
+        """Refused on the way in — and NUL alone is not the set.
+
+        The guard began as NUL-only because NUL was the reader's substitution
+        sentinel. That sentinel is gone; what remains is the "one task is one
+        line" contract, and **every character after NUL here splits a rendered
+        row for `str.splitlines()`**, which is what `parse_watches` iterates.
+        Each therefore makes the scanner see two lines where
+        `load_tasks_from_ledger` (splitting on `"\\n"`) still sees one task —
+        the two consumers disagreeing about how many rows the file has, in
+        silence on any row carrying no watch (2026-08-15 code review MEDIUM).
+
+        Parametrised because a NUL-only case cannot tell the two versions of
+        this guard apart: the narrowed one passed the whole suite.
+        """
+        poisoned = tasks.Task(
+            id="T-A", state="ready", summary=f"a{char}b", condition="-", detail="-"
+        )
         with pytest.raises(tasks.MalformedTask):
             tasks.write_store(tmp_path, [poisoned])
         assert not list(tmp_path.glob("*.md"))
@@ -842,7 +1112,7 @@ class TestRenderedFixture:
         """
         rows = [ln for ln in self._text().split("\n") if ln.startswith("| T-")]
         paired = [tasks._TASK_STATUS_PROBE.search(row) for row in rows]
-        assert len(rows) == 8
+        assert len(rows) == 9
         assert all(m is not None for m in paired)
         assert {m.group(2).strip().split()[0] for m in paired if m} == {
             "blocked",

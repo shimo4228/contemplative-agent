@@ -154,12 +154,16 @@ def default_fetch(url: str, method: str = "GET") -> tuple[int, bytes]:
 def _printable(text: str) -> str:
     """Neutralise control characters in a diagnostic excerpt.
 
-    `errors[].detail` is the one field carrying ledger text verbatim. It never
-    reaches the packet — `build_decision_packet.py` consumes `errors` as a
-    count — but it is retained in `pipeline/ledger-watch/*.json` and printed
-    straight to a terminal when this script is run by hand, and `json.dumps`
-    escapes only C0: DEL, the 8-bit C1 controls, the bidi overrides and ZWSP
-    all survive it literally (2026-08-15 security review LOW, measured).
+    Two fields carry ledger text verbatim: `errors[].detail` and
+    `watches[].target`. `json.dumps` escapes only C0, so DEL, the 8-bit C1
+    controls, the bidi overrides and ZWSP all survive it literally (2026-08-15
+    security review LOW, measured). `detail` is retained in
+    `pipeline/ledger-watch/*.json` and printed straight to a terminal when this
+    script is run by hand; `target` goes further — it reaches **packet §10**,
+    which a human reads at the Saturday gate, and `build_decision_packet._cell`
+    neutralises pipes and line breaks but not control characters. An earlier
+    version of this docstring claimed `detail` was the only such field; that
+    was wrong, and `target` was passing through unsanitised because of it.
 
     `str.isprintable()` rather than a character class copied from
     `tasks.py::_CONTROL_RE` / `claims.py::safe`: it rejects Cc, Cf, Cs, Co, Cn,
@@ -340,7 +344,7 @@ def run_watch(watch: Watch, fetch: Fetch) -> dict:
     return {
         "task": watch.task,
         "type": watch.type,
-        "target": " ".join(watch.args)[:120],
+        "target": _printable(" ".join(watch.args))[:120],
         **result,
     }
 

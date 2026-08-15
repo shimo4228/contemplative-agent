@@ -150,6 +150,17 @@ STEALABLE（宣言された lease の期限切れ）と STALE（期限の宣言�
   code span のエスケープでは届かない）、5 セルに割れない行は移行を中断させる
   （タスクを半分だけ移行しない）。読み側はそのぶん dialect を区別する — code span 内の
   裸の `|` を許すのは legacy dialect だけで、それを含むのは旧表だけだからである。
+  *2026-08-15 に訂正:* 「全ての `|` をエスケープする」だけでは足りなかった。最初の綴りは
+  冪等性のためにエスケープ済みの `|` を自分自身へ畳んでおり、そのせいで本文 `a\|b` は
+  escaped pipe と同じバイト列に render され、読み戻すと `a|b` になった — rendered ledger を
+  store へ戻す唯一の経路で、backslash が黙って消えていた。セルは backslash → pipe の順で
+  エスケープし、読みは左から 1 パスに変え、冪等性は捨てた（`render_row` が唯一の呼び出し元で
+  あることは module の AST を歩くテストが固定する）。復旧時に知っておくこと: その日より
+  **前**に render された台帳は `\\` を含む本文だけ読み戻しがずれるので、同じ commit で
+  projection を store から再生成した。併せて受け入れたこと: code span 内の backslash は
+  **表示上**二重になる。GFM は表のセル内なら code span の中でも `\|` を解釈するが、
+  backslash に対する escape は持たないためである。2 つの要求は両立しない。「読者は agent で、
+  このファイルを render する者はいない」という本 ADR の前提が、byte 側を取る根拠になっている。
 
 **Negative:**
 

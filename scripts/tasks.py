@@ -44,7 +44,10 @@ span (`` `O_WRONLY|O_CREAT|O_EXCL|O_NOFOLLOW` ``) and one used `|Δ効果|` as
 absolute-value notation; a renderer reads both as extra columns. Nothing caught
 it because no human renders the file and the scanner reads only the first two
 cells. The render therefore escapes **every** pipe in a cell — so a task-file
-author writes a bare `|` and never has to know the projection's rules.
+author writes a bare `|` and never has to know the projection's rules — and,
+since 2026-08-15, every backslash first, because escaping only pipes made a
+body containing `a\\|b` indistinguishable from an escaped pipe and dropped the
+backslash on the way back.
 
 Reading is dialect-aware as a result (`split_row(legacy=…)`, 2026-08-15). Only
 the legacy dialect tolerates bare pipes inside code spans, because only the old
@@ -72,6 +75,7 @@ from pathlib import Path
 # what to call a broken one.
 from ledger_condition_scan import (
     _TASK_STATUS_RE as _TASK_STATUS_PROBE,
+    _WATCH_RE as _WATCH_PROBE,
     WATCH_NO_ARGUMENT,
     WATCH_SWALLOWED,
     WATCH_UNTERMINATED,
@@ -113,16 +117,13 @@ STATES = (
 TERMINAL_STATES = ("done", "retired", "dropped", "decided")
 
 _CELLS = 5
-# One sentinel, because escaping is symmetric: `render_row` escapes every pipe
-# in a cell, so in a rendered row a bare `|` is always a column break and an
-# escaped one is always body text. A task-file author writes a bare `|` and
-# never has to know the projection's rules. (An earlier version escaped only
-# pipes inside code spans, which left `|Δ効果|` — absolute-value notation, the
-# exact shape found in the pre-migration table — rendering as extra columns.)
-# Control characters cannot appear in authored prose; _mask asserts that.
-_SENTINEL = "\x00"
+# Escaping is symmetric: `render_row` escapes every pipe in a cell, so in a
+# rendered row a bare `|` is always a column break and an escaped one is always
+# body text. A task-file author writes a bare `|` and never has to know the
+# projection's rules. (An earlier version escaped only pipes inside code spans,
+# which left `|Δ効果|` — absolute-value notation, the exact shape found in the
+# pre-migration table — rendering as extra columns.)
 
-_SPAN_RE = re.compile(r"`[^`]*`")
 # `[ \t]*` and not `\s*`: `\s` matches newlines, so the match would swallow the
 # blank lines after the heading and any offset computed from its end would be
 # short by that many characters (2026-08-15 code review HIGH).
@@ -166,39 +167,102 @@ class Task:
 # --------------------------------------------------------------------------
 
 
-def _mask(raw: str, legacy: bool) -> str:
-    """Hide pipes that are body text, so the remaining ones are columns.
+def _scan_cells(raw: str, legacy: bool) -> list[str]:
+    """One left-to-right pass: consume escapes, break columns on bare pipes.
 
-    In the rendered dialect there is exactly one source of body-text pipes:
-    escaped ones (`\\|`, what this module's own render emits). `legacy` adds the
-    second one the pre-migration table had — bare pipes inside a code span,
-    which is not valid GFM (a renderer reads them as columns) but is the shape
-    that table actually contained.
+    Replaces a sentinel-substitution scheme (`replace("\\\\|", "\\x00")`, split,
+    substitute back) that **cannot** be made correct once a literal backslash is
+    also escaped. `str.replace` scans left to right over the *whole* string with
+    no notion of what already consumed a character, so on `a\\\\\\|b` — body
+    `a\\|b`, three backslashes on the wire — it finds `\\|` at the third
+    backslash and eats the escape's own backslash. A single pass that decides
+    each character once has no such state to lose.
+
+    Returns the raw split including the empty strings outside the leading and
+    trailing delimiters; the caller checks those, which is what makes an escaped
+    edge delimiter a refusal instead of a silent truncation.
     """
-    if _SENTINEL in raw:
-        raise MalformedRow(f"row contains control characters: {raw[:60]!r}")
-
-    def hide_span(match: re.Match[str]) -> str:
-        return match.group(0).replace("\\|", _SENTINEL).replace("|", _SENTINEL)
-
-    masked = _SPAN_RE.sub(hide_span, raw) if legacy else raw
-    return masked.replace("\\|", _SENTINEL)
-
-
-def _unmask(cell: str) -> str:
-    return cell.replace(_SENTINEL, "|")
+    cells: list[str] = []
+    buf: list[str] = []
+    in_span = False
+    index = 0
+    while index < len(raw):
+        char = raw[index]
+        if char == "\\" and index + 1 < len(raw):
+            following = raw[index + 1]
+            if following == "|" or (following == "\\" and not legacy):
+                # `\\` is an escape only in the rendered dialect: the legacy
+                # table was hand-written prose where a backslash meant itself.
+                buf.append(following)
+                index += 2
+                continue
+            # Any other `\X` is a literal backslash followed by X. Not a
+            # refusal, deliberately: `render_row` never emits one, so this
+            # branch only ever sees input from *before* this escaping scheme —
+            # a `C:\path` or a `\d` in a ledger rendered by the old code. That
+            # is the disaster-recovery direction, and refusing there would turn
+            # a readable ledger into an unreadable one for a shape that was
+            # legal when it was written.
+        if legacy and char == "`":
+            # Only the legacy dialect gives backticks meaning. In the rendered
+            # dialect every body pipe is escaped, so a span decides nothing —
+            # and honouring spans there breaks a row whose two cells each carry
+            # one backtick (2026-08-15 code review LOW).
+            in_span = not in_span
+        # `in_span` alone, not `legacy and in_span`: the toggle above is the
+        # dialect gate, so the flag can only ever be set in the legacy dialect.
+        # The two spellings are genuinely equivalent — what the double gate hid
+        # was not a bug but a *mutation*, since breaking either copy left the
+        # other one holding and the suite green. Removing the redundancy is
+        # what makes the remaining gate testable.
+        if char == "|" and not in_span:
+            cells.append("".join(buf))
+            buf = []
+            index += 1
+            continue
+        buf.append(char)
+        index += 1
+    cells.append("".join(buf))
+    return cells
 
 
 def split_row(line: str, *, legacy: bool = False) -> list[str]:
     """Split a ledger row into its 5 cells.
 
     **Two dialects, and the caller knows which one it holds.** The default is
-    what `render_row` emits: every pipe in a cell is escaped, so a bare `|` is
-    always a column break and backticks carry no meaning at all. `legacy=True`
-    reads the pre-migration table, where body pipes sat bare inside backtick
-    code spans — there a code span hides its pipes, and an unpaired backtick is
+    what `render_row` emits: a cell escapes its backslashes and then its pipes,
+    so `\\\\` is a literal backslash, `\\|` a literal pipe, a bare `|` is always
+    a column break, and backticks carry no meaning at all. `legacy=True` reads
+    the pre-migration table, where body pipes sat bare inside backtick code
+    spans — there a code span hides its pipes, and an unpaired backtick is
     refused because the cell boundaries genuinely cannot be recovered without
-    guessing which side of it the author meant.
+    guessing which side of it the author meant. The dialects differ in exactly
+    one escape: `\\\\` is a literal backslash only in the rendered one. `\\|` is
+    an escape in **both**, and must be — the pre-migration table carries a
+    hand-escaped `\\|Δ効果\\|` that the migration depends on decoding. (An
+    earlier wording here said a backslash "meant itself" in the legacy dialect,
+    which would have made that row unmigratable — 2026-08-15 code review LOW.)
+
+    **Reading a ledger rendered *before* 2026-08-15 is a one-way step.** That
+    render escaped pipes and left backslashes alone, so the divergence set is
+    exactly the bodies holding `\\\\` — verified exhaustively over every body of
+    length ≤ 8 in `{a, \\, |}`: 706 agree, 113 refuse, 274 read differently, and
+    no case where the new reader *accepts* what the old one refused.
+
+    Do not use "contains `\\\\|`" as the rule for which of those refuse. It is
+    the intuitive one and it is wrong for 72 of the shapes measured: a body of
+    `\\\\\\|` (three backslashes, then a pipe) reads as `\\|` here where the old
+    reader gave `\\\\|` — silent, and it contains that substring. The verified
+    rule is **parity**: loud iff an *even*-length backslash run of ≥2 sits
+    immediately before a pipe, since only then does the new reader consume the
+    run in pairs and leave the pipe bare, which is a cell-count refusal. Odd
+    runs absorb the pipe into the last escape and lose a backslash quietly.
+    One live row was loud (`expected 5 cells, got 8`).
+
+    All of it is closed by re-rendering the projection from the store, done in
+    the commit that changed the scheme, which is the operation to reach for
+    rather than any grep. The reverse direction — a body holding `\\|` under
+    the old scheme — was already unrecoverable, and is the defect this fixes.
 
     Applying the legacy guard to rendered input had a cost that only showed up
     after the migration landed: a body containing a single literal backtick
@@ -234,29 +298,62 @@ def split_row(line: str, *, legacy: bool = False) -> list[str]:
         raise MalformedRow(f"{tid}: row is not pipe-delimited: {raw[:60]!r}")
     if legacy and raw.count("`") % 2:
         raise MalformedRow(f"{tid}: unterminated code span (odd backtick count)")
-    masked = _mask(raw, legacy)
-    # `endswith("|")` was checked on `raw` but the delimiters were stripped
-    # positionally from `masked`. A row ending `\|` masks its last two bytes
-    # into one sentinel, and `[1:-1]` then removed that sentinel as if it were
-    # the closing delimiter — so a 4-column row was accepted as 5 cells with
-    # the last one silently truncated, the exact truncation this function's
-    # contract refuses (2026-08-15 code review HIGH, reproduced in both
-    # dialects). Re-check on the string the slice actually applies to.
-    if not (masked.startswith("|") and masked.endswith("|")):
-        raise MalformedRow(f"{tid}: 行末/行頭の区切りがエスケープされている: {raw[-20:]!r}")
-    cells = [c.strip() for c in masked[1:-1].split("|")]
-    if len(cells) != _CELLS:
-        raise MalformedRow(f"{tid}: expected {_CELLS} cells, got {len(cells)}")
-    return [_unmask(c) for c in cells]
+    cells = _scan_cells(raw, legacy)
+    # The scan keeps whatever sat outside the edge delimiters, and both sides
+    # must be empty. A positional `[1:-1]` could not tell the difference: a row
+    # ending `\|` had that escaped pipe stripped as if it were the closing
+    # delimiter, so a 4-column row was accepted as 5 cells with the last one
+    # silently truncated — the exact truncation this function's contract
+    # refuses (2026-08-15 code review HIGH, reproduced in both dialects).
+    if len(cells) < 2 or cells[0].strip() or cells[-1].strip():
+        # Only the trailing half can fire through `split_row`, which has already
+        # asserted `raw.startswith("|")` and stripped the line — the other two
+        # conditions are defence for a future second caller, since
+        # `_scan_cells("\\|", legacy=False)` really does return one cell. The
+        # message names the reachable case rather than both (code review LOW).
+        raise MalformedRow(f"{tid}: 行末の区切りがエスケープされている: {raw[-20:]!r}")
+    inner = [c.strip() for c in cells[1:-1]]
+    if len(inner) != _CELLS:
+        raise MalformedRow(f"{tid}: expected {_CELLS} cells, got {len(inner)}")
+    return inner
 
 
 def _escape_cell(text: str) -> str:
-    """Escape every pipe in a cell, so only column breaks stay bare.
+    """Escape a cell's backslashes, then its pipes. **Not idempotent.**
 
-    `\\?\\|` collapses an already-escaped pipe onto the same output, which keeps
-    the function idempotent — rendering twice must not produce `\\\\|`.
+    The previous spelling, `re.sub(r"\\\\?\\|", r"\\\\|", text)`, folded an
+    already-escaped pipe onto itself so that rendering twice was safe. That fold
+    *was* the defect: a body containing `a\\|b` rendered to bytes identical to an
+    escaped pipe, and reading back gave `a|b` — the backslash gone, silently,
+    on the one path that turns a rendered ledger back into a store. Since the
+    store is gitignored, that path is the disaster recovery (2026-08-15 code
+    review HIGH; a 20k-case property sweep found 833 round-trip mismatches, all
+    this shape, and no others in the rendered dialect).
+
+    Idempotence is traded away rather than engineered around, because it was
+    only ever needed if something applied the escape twice, and `render_row` is
+    the sole caller — pinned by a test that walks this module's AST, since the
+    property is now load-bearing and a second caller would corrupt every cell
+    it touched rather than failing.
+
+    Order matters: backslashes first, or the backslash introduced for `\\|`
+    would itself be doubled.
+
+    **Stated consequence: a code span holding a backslash no longer *displays*
+    faithfully.** GFM processes `\\|` inside a table cell even within a code
+    span, so escaped pipes render as pipes — but it offers no escape for a
+    backslash there, so a body's `\\` shows as `\\\\` to anything that renders
+    this file as Markdown (2026-08-15 cross-model review P2, correct about the
+    mechanism). Accepted rather than fixed, because the two requirements are
+    mutually exclusive — a literal backslash cannot be both distinguishable
+    from an escape prefix in the bytes and single when displayed — and
+    ADR-0094 already chose the bytes: the store is gitignored, so recovering it
+    from this projection is the only thing between a lost store and lost work.
+    Nothing renders it either; the one programmatic consumer
+    (`ledger_condition_scan.py`) parses raw text, and no Markdown renderer is
+    installed in this repo.
     """
-    return re.sub(r"\\?\|", r"\\|", text)
+    return text.replace("\\", "\\\\").replace("|", "\\|")
 
 
 # --------------------------------------------------------------------------
@@ -408,6 +505,21 @@ _TABLE_HEAD = "| ID | 状態 | タスク | 着手条件 | 詳細 |\n|----|------
 # The kind vocabulary is the scanner's; only the operator-facing sentence is
 # here. Keyed off the imported constants so a renamed kind fails at import
 # rather than rendering a message with a blank explanation.
+# Exactly what `_escape_cell` rewrites, pinned to it by a test rather than by
+# this comment — the first version said "kept beside it" while sitting ~190
+# lines away, which is not a mechanism (2026-08-15 security review LOW).
+_ESCAPED_CHARS = ("\\", "|")
+# What the projection as a whole rewrites inside a cell, which is a **superset**:
+# `parse_task_file` substitutes `<br>` for a newline before `_escape_cell` ever
+# runs. The watch guard needs this set, not the one above — it asks "does the
+# scanner receive the bytes the author wrote", and the first version answered
+# for the escaping alone. That miss was the reachable one: wrapping a long path
+# inside a code span is ordinary Markdown authoring, and it produced a target of
+# `~/.config/moltbook/<br>cloud.env`, polled as absent forever with no error,
+# whereas a Windows path in a `file-exists` target is not a shape this repo
+# writes (2026-08-15 code review HIGH, reproduced).
+_REWRITTEN_IN_A_CELL = (*_ESCAPED_CHARS, "<br>")
+
 _WATCH_KIND_JA = {
     WATCH_UNTERMINATED: "閉じ backtick が無い",
     WATCH_NO_ARGUMENT: "引数が無い（`watch:` だけ）",
@@ -450,16 +562,25 @@ def _check_watch_spans(task: Task) -> None:
     `watch: x` with no backticks is invisible too, and is *not* refused,
     because it never entered the grammar (nor has any live row written one).
     `` `see watch: x` `` is left alone for the same reason.
+
+    **Visible but wrong is refused too, for the two characters the projection
+    rewrites.** The scanner reads the *rendered* row, so a target containing a
+    character `_escape_cell` transforms arrives at the check as different
+    bytes: `` `watch: file-exists /a|b.env` `` is polled as `/a\\|b.env` and
+    `` C:\\tmp\\a.env `` as `C:\\\\tmp\\\\a.env` — file-not-found, `fired False`,
+    nobody told. The pipe half is as old as the escaping; the backslash half is
+    created by the 2026-08-15 escape change, which is why both are closed in
+    that commit. Blocked rows only: an unpolled annotation cannot be wrong yet.
     """
+    # Visibility is checked on **every** cell the scanner's line-wide scan can
+    # reach, `state` included: it is neither escaped nor covered anywhere else
+    # here, and a guard that reasons *about* the state word while skipping the
+    # cell that word lives in is the same "reads as complete" shape it exists
+    # to close (2026-08-15 security review LOW). `parse_task_file` refuses
+    # backticks in `state` outright, so on the store path this cannot fire; the
+    # path it covers is `load_tasks_from_ledger` → `render_ledger`, which builds
+    # Tasks from split cells and never sees that check.
     for section, cell in (
-        # `state` is in the list because the scanner scans the whole row and
-        # this cell is neither escaped nor covered by anything else here. A
-        # guard that reasons *about* the state word while skipping the cell it
-        # lives in is the same "reads as complete" shape it exists to close
-        # (2026-08-15 security review LOW). `parse_task_file` refuses backticks
-        # in `state` outright, so on the store path this can never fire; the
-        # path it covers is `load_tasks_from_ledger` → `render_ledger`, which
-        # builds Tasks from split cells and never sees that check.
         ("状態", task.state),
         ("タスク", task.summary),
         ("着手条件", task.condition),
@@ -474,9 +595,49 @@ def _check_watch_spans(task: Task) -> None:
                 f"{cell[match.start() : match.start() + 60]!r}。"
                 "見えない注釈は「注釈の無い行」と同じに読まれ、§10 が永久に fired 0 になる。"
             )
+    if task.state_word != "blocked":
+        return
+    # The rewrite check runs on the **escaped** cells only. `state` is emitted
+    # raw, so `_ESCAPED_CHARS` describes nothing there: a backslash in a
+    # state-cell target renders byte-identically and the scanner polls exactly
+    # what was written. Including it refused a legal row with a message that
+    # was false for that cell — a guard naming the wrong set, which is the
+    # thing this function is otherwise built to avoid (2026-08-15 security
+    # review LOW). That cell's real hazard is a bare `|`, and `parse_task_file`
+    # refuses it there.
+    for section, cell in (
+        ("タスク", task.summary),
+        ("着手条件", task.condition),
+        ("詳細", task.detail),
+    ):
+        for match in _WATCH_PROBE.finditer(cell):
+            rewritten = sorted(t for t in _REWRITTEN_IN_A_CELL if t in match.group(1))
+            if rewritten:
+                raise MalformedTask(
+                    f"{task.id}: {section} の watch 対象に {' '.join(rewritten)!r} が入っている: "
+                    f"{match.group(0)[:60]!r}。projection がこれを書き換えるので、"
+                    "scanner は誰も書いていない対象を polling して黙って fired False を返す"
+                    "（`<br>` なら注釈を 1 行に収める）。"
+                )
 
 
 def render_row(task: Task) -> str:
+    if not _TASK_ID_RE.match(task.id):
+        # The ID cell is emitted raw, like `state`, and until 2026-08-15 nothing
+        # on this path constrained it — `_TASK_ID_RE` was applied by
+        # `write_store` and `cmd_show`, but not by `load_tasks_from_ledger`,
+        # which is the recovery direction. So a row whose ID cell held an
+        # escaped pipe recovered as the id `T-A|Y` and re-rendered **unescaped**
+        # as `| T-A|Y | blocked | …`, where `_TASK_STATUS_RE` reads the id as
+        # `T-A` and the state as `Y`. Not blocked, therefore out of the watch
+        # contract, therefore silent — and the input row had produced a loud
+        # MALFORMED_WATCH, so the repair is what destroyed the signal
+        # (2026-08-15 security review LOW, reproduced end to end). All 121 live
+        # ids and all 121 ledger rows pass this.
+        raise MalformedTask(
+            f"{task.id!r} は task id の形式ではない。ID セルは escape されないので、"
+            "この行は scanner から別の id / 状態に見える（黙って watch 契約の外に出る）。"
+        )
     _check_watch_spans(task)
     cells = (
         task.id,
@@ -659,14 +820,33 @@ def write_store(store: Path, tasks: list[Task], only: set[str] | None = None) ->
             # Two tasks mapping to one filename lose one of them while the
             # caller still reports the full count.
             raise MalformedTask(f"{task.id}: duplicate id in the write set")
-        if _SENTINEL in task.summary + task.condition + task.detail + task.state:
-            # NUL is `_mask`'s sentinel, so a body carrying one renders a row
-            # that `split_row` refuses **forever** — the ledger becomes
-            # permanently unreadable by the recovery path, with nothing said at
-            # write time. Refused on the way in rather than on the way out;
-            # reads stay permissive so an already-poisoned store still loads
-            # (2026-08-15 code review MEDIUM).
-            raise MalformedTask(f"{task.id}: 本文に制御文字 (NUL) がある")
+        if _CONTROL_RE.search(task.summary + task.condition + task.detail + task.state):
+            # This began as a NUL-only guard because NUL was `_mask`'s
+            # substitution sentinel: a body carrying one rendered a row
+            # `split_row` refused **forever** (2026-08-15 code review MEDIUM).
+            # The single-pass scanner has no sentinel and that collision is
+            # gone — but the guard's *replacement* rationale, "the same class
+            # `_one_line` and `claims.py::safe` strip", was a parity it did not
+            # have, and the gap was load-bearing: `str.splitlines()` — what
+            # `parse_watches` iterates — also breaks on VT, FF, FS, GS, RS,
+            # NEL, LS and PS. Each of those makes one rendered row into two
+            # lines for the scanner while `load_tasks_from_ledger` (splitting on
+            # `"\n"`) still sees one task, so the two consumers disagree about
+            # how many rows the file has, silently on any row with no watch.
+            # That is the "one task is one line" contract itself. Widened to
+            # `_CONTROL_RE`, which is a superset of both sets and matches the
+            # claim; zero live bodies contain any of it (2026-08-15 code review
+            # MEDIUM, all eight separators reproduced).
+            #
+            # **What it still does not cover, stated rather than implied**:
+            # this function is reached only by `cmd_age` and migration. The
+            # store is hand-edited and `parse_task_file` accepts these
+            # characters, so store → render → TASKS.md → scanner is not gated
+            # here. Deliberate on the read side — strictness is most expensive
+            # on the recovery path, where refusing to load is worse than
+            # loading something odd — and the output side is handled where it
+            # belongs, by `_printable` on the scanner's own emitted fields.
+            raise MalformedTask(f"{task.id}: 本文に制御文字がある（1 行 1 タスクの契約を壊す）")
         seen.add(task.id)
     if only is not None and only - seen:
         # A typo'd `only` silently wrote nothing and returned 0 — the same

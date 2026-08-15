@@ -173,6 +173,21 @@ address last-write-wins, and the measurement says trimming is the wrong lever.
   that will not split into five cells aborts migration rather than migrating
   half a task. Reading is therefore dialect-aware — only the legacy dialect
   tolerates bare pipes inside code spans, since only the old table had them.
+  *Corrected 2026-08-15:* escaping every pipe was not enough, because the first
+  spelling also folded an already-escaped pipe onto itself to stay idempotent —
+  so a body containing `a\|b` rendered to the same bytes as an escaped pipe and
+  read back as `a|b`, losing the backslash in silence on the one path that
+  turns a rendered ledger back into a store. The cell now escapes backslashes
+  and then pipes, reading is a single left-to-right pass, and idempotence is
+  given up (a test walks the module's AST to keep `render_row` the only
+  caller). Consequence to know when recovering: a ledger rendered *before* that
+  date reads back exactly except for bodies holding `\\`, so the projection was
+  re-rendered from the store in the same commit. Accepted alongside it: a body's
+  backslash inside a code span now *displays* doubled, since GFM escapes pipes
+  inside code spans in a table but offers no escape for a backslash. The two
+  requirements are mutually exclusive, and this ADR's premise — the reader is
+  agents, nothing renders the file — is what makes the byte-exact side the one
+  worth having.
 
 **Negative:**
 
