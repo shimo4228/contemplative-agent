@@ -33,7 +33,15 @@ from collections import Counter
 from datetime import date
 from pathlib import Path
 
-from tasks import MalformedRow, Task, load_tasks_from_ledger, render_ledger, store_dir, write_store
+from tasks import (
+    MalformedRow,
+    MalformedTask,
+    Task,
+    load_tasks_from_ledger,
+    render_ledger,
+    store_dir,
+    write_store,
+)
 
 
 def migrate(root: Path, today: str) -> list[Task]:
@@ -67,19 +75,27 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--today", default=date.today().isoformat())
     args = parser.parse_args(argv)
 
+    # `render_ledger` is inside the try, and `MalformedTask` is caught beside
+    # `MalformedRow`: since 2026-08-15 the render itself can refuse a row (a
+    # blocked task whose `watch:` span never closes), and that raise sat
+    # outside the handler — escaping as a bare traceback, past this script's
+    # own "fix the row by hand and re-run" guidance. On the legacy dialect
+    # `split_row`'s odd-backtick refusal fires first and masks it; the rendered
+    # dialect has no such guard by design, so a restore tool built on
+    # `load_tasks_from_ledger` + `render_ledger` inherits the bare traceback
+    # (2026-08-15 security review INFO).
     try:
         tasks = migrate(args.root, args.today)
-    except MalformedRow as exc:
+        states = Counter(t.state_word for t in tasks)
+        store = store_dir(args.root)
+        print(f"tasks: {len(tasks)}  →  {store}")
+        print("  " + "  ".join(f"{k}={v}" for k, v in sorted(states.items())))
+        rendered = render_ledger(tasks)
+    except (MalformedRow, MalformedTask) as exc:
         print(f"MIGRATE_FAIL {exc}", file=sys.stderr)
         print("  この行を手で直してから再実行する（部分移行はしない）", file=sys.stderr)
         return 1
 
-    states = Counter(t.state_word for t in tasks)
-    store = store_dir(args.root)
-    print(f"tasks: {len(tasks)}  →  {store}")
-    print("  " + "  ".join(f"{k}={v}" for k, v in sorted(states.items())))
-
-    rendered = render_ledger(tasks)
     original = (args.root / ".notes" / "TASKS.md").read_text(encoding="utf-8")
 
     # Compare by ID, not by position: render_ledger moves terminal tasks into

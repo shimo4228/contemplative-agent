@@ -30,6 +30,11 @@ Fault column (chaos-TDD, ADR-0077 — the seam is the injectable fetcher):
 - F-LW-6  ledger file missing → abstain (nonzero exit, LEDGERWATCH_FAIL on
           stderr), never an empty "no watches" success
 - F-LW-7  malformed watch expression → fired=None, reason=MALFORMED_WATCH
+- F-LW-8  a `watch:` span on a blocked row that `_WATCH_RE` cannot see —
+          unterminated, zero-argument, or swallowed by a neighbour's closing
+          backtick — is reported as MALFORMED_WATCH under its own kind name,
+          never dropped and never misnamed. A span that fails to match is
+          otherwise indistinguishable from a row carrying no watch at all
 """
 
 from __future__ import annotations
@@ -37,6 +42,7 @@ from __future__ import annotations
 import http.client
 import json
 import sys
+import time
 from pathlib import Path
 
 import pytest
@@ -93,6 +99,129 @@ class TestParseWatches:
         watches, errors = lcs.parse_watches(text)
         assert errors == []
         assert [w.task for w in watches] == ["T-LIVE"]
+
+
+class TestUnterminatedWatchSpan:
+    """F-LW-8 — the failure that reads as success.
+
+    `_WATCH_RE` requires a closing backtick **and** at least one argument
+    character, so an annotation missing either produces no match — and *no
+    match* is exactly what a row with no annotation produces. Left alone, the
+    task waits in §10 at `fired 0` for as long as it stays blocked (2026-08-15
+    code review LOW).
+
+    The kinds are named separately because they share no true sentence. A first
+    version called all of them "unterminated", which was false for the one that
+    closes and false for the one whose closer was taken — a guard against
+    silent failure that misnamed the failure (2026-08-15 code review HIGH).
+    """
+
+    @pytest.mark.parametrize(
+        ("cell", "kind"),
+        [
+            ("上流待ち `watch: gh-pr a/b#1", lcs.WATCH_UNTERMINATED),
+            ("解除条件 `watch:` は後で書く", lcs.WATCH_NO_ARGUMENT),
+        ],
+        ids=["unterminated", "no-argument"],
+    )
+    def test_each_invisible_kind_is_reported_under_its_own_name(self, cell, kind):
+        watches, errors = lcs.parse_watches(f"| T-X | blocked | {cell} | — | y |")
+        assert watches == []
+        assert [(e["task"], e["reason"]) for e in errors] == [("T-X", "MALFORMED_WATCH")]
+        assert f"({kind})" in errors[0]["detail"]
+
+    def test_a_span_swallowed_by_a_neighbour_is_named_not_merely_counted(self):
+        """Three annotations, the middle one eaten by its neighbour's backtick.
+
+        `/a`'s span runs to the backtick that was meant to *open* `/b`, so `/b`
+        disappears and `/c` parses normally: two openers matched, three
+        present. Which one is reported has to come from the offsets — pairing
+        the leftover openers by *count* names `/c`, the one that is fine, and
+        says nothing about `/b`, the one that vanished. A diagnosis pointing at
+        the wrong annotation is worse than none, so the excerpt is asserted.
+        """
+        watches, errors = lcs.parse_watches(
+            "| T-X | blocked | `watch: file-exists /a "
+            "`watch: file-exists /b` `watch: file-exists /c` | — | y |"
+        )
+        assert [(w.task, w.args) for w in watches] == [("T-X", ("/a",)), ("T-X", ("/c",))]
+        assert [e["reason"] for e in errors] == ["MALFORMED_WATCH"]
+        # The excerpt must *begin* at the offender. Asserting mere containment
+        # would pass on the count-paired version too, since an 80-char window
+        # opened at `/c` still reaches `/b`'s text on a row this dense.
+        assert errors[0]["detail"].endswith(
+            f"({lcs.WATCH_SWALLOWED}): `watch: file-exists /b` `watch: file-exists /c` | — | y |"
+        )
+
+    def test_a_well_formed_row_reports_nothing(self):
+        """The negative half: the guard must not fire on the shape it allows."""
+        watches, errors = lcs.parse_watches("| T-X | blocked | `watch: file-exists /a` | — | y |")
+        assert errors == []
+        assert [w.args for w in watches] == [("/a",)]
+
+    def test_the_ledger_header_documenting_the_grammar_is_not_a_fault(self):
+        """`_HEADER` explains the annotation with a bare `` `watch:` ``, which
+        opens and closes with empty args — no `_WATCH_RE` match, and on a line
+        that is not a task row at all. Reporting it would put a permanent
+        phantom entry in §10, which is the same "noise that trains you to
+        ignore the section" failure the scoping exists to avoid."""
+        header = (
+            "> **watch 注釈（ADR-0093）**: 解除条件は `watch:` で始まる backtick スパンで注釈する。"
+        )
+        assert lcs.parse_watches(header) == ([], [])
+
+    def test_the_excerpt_cannot_carry_terminal_control_into_the_artifact(self):
+        """`detail` is the one field that echoes ledger text verbatim, and
+        `json.dumps` escapes only C0 — DEL, the 8-bit C1 controls, the bidi
+        overrides and ZWSP all survive it literally. Bodies are self-authored
+        but routinely quote outside text (pasted logs, upstream titles), and
+        the sinks are a retained JSON artifact and a terminal (2026-08-15
+        security review LOW). Both details are covered, not just the new one.
+        """
+        poison = "\x7f‮​"
+        # Placed INSIDE each excerpt window. The invisible-span excerpt starts
+        # at the opener, so poison written before it is never echoed — a first
+        # version put it there and passed with the sanitiser deleted, which the
+        # mutation sweep caught.
+        rows = [
+            f"| T-X | blocked | 待ち `watch: gh-pr{poison} a/b#1 | — | y |",  # invisible-span
+            f"| T-Y | blocked | `watch: gh-pr{poison}` | — | y |",  # arity detail
+        ]
+        for row in rows:
+            _, errors = lcs.parse_watches(row)
+            assert errors, row
+            blob = json.dumps(errors, ensure_ascii=False)
+            assert not any(ch in blob for ch in poison), errors
+
+    def test_a_whitespace_run_after_an_opener_does_not_backtrack(self):
+        """`\\s*` and `[^`]+` overlap, so an opener trailed by whitespace with
+        no closing backtick was quadratic — 811ms at 16k spaces, 4x per
+        doubling, and `render_row` now runs the pattern three times per blocked
+        task with no timeout above it (2026-08-15 security review LOW).
+
+        The bound is generous by ~1000x: measured 3.3s unbounded vs ~2ms with
+        `\\s{0,8}` at this size.
+        """
+        start = time.perf_counter()
+        lcs.parse_watches("| T-X | blocked | `watch:" + " " * 32000 + "| — | y |")
+        assert time.perf_counter() - start < 1.0
+
+    def test_the_whitespace_bound_does_not_change_what_is_parsed(self):
+        """The deterministic half of the finding above: past the eighth space
+        the run falls into `[^`]+` and is discarded by `.split()`, so a
+        generously-indented annotation still parses to the same watch."""
+        wide = "| T-X | blocked | `watch:" + " " * 20 + "gh-pr a/b#1` | — | y |"
+        watches, errors = lcs.parse_watches(wide)
+        assert errors == []
+        assert [(w.type, w.args) for w in watches] == [("gh-pr", ("a/b#1",))]
+
+    def test_a_non_blocked_row_is_outside_the_contract_entirely(self):
+        """The scan's scope is the watch contract's scope — blocked rows — for
+        every kind, including the invisible ones. The *render* is stricter for
+        the two kinds that are broken markup in any state; this end stays at
+        the contract, because a row out of contract has nothing to report."""
+        row = "| T-DONE | done 2026-08-10 | 本文が `watch: gh-pr a/b#1 でも通る | なし | — |"
+        assert lcs.parse_watches(row) == ([], [])
 
 
 class TestGhPr:

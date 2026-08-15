@@ -54,6 +54,13 @@ Fault column (chaos-TDD, ADR-0077 — faults degrade loudly or not at all):
           one-line summary
 - F-TL-16 a second migration run cannot reset `origin` / `state_since` from
           the projection, which never carried them
+- F-TL-17 a `watch:` annotation the scanner cannot see is refused at render —
+          it would otherwise read as no annotation at all and report `fired 0`
+          for that task forever. Three kinds, two scopes: unterminated and
+          swallowed spans are broken markup in any state and refused
+          everywhere; a zero-argument `` `watch:` `` is also how prose *names*
+          the annotation, so it is refused only where it would be silent —
+          on a blocked row
 
 **F-TL-6 runs on every machine, not just the author's.** It used to read
 `.notes/TASKS.md`, which is gitignored — so the consumer-compatibility
@@ -295,6 +302,22 @@ class TestTaskFile:
             tasks.parse_task_file(text)
         assert "state" in str(exc.value)
 
+    def test_a_backtick_in_the_state_cell_is_refused(self):
+        """The state cell is read raw by the scanner, which scans the whole
+        row — so a backtick there is not decoration. `state: blocked
+        `watch: file-exists /etc/hosts`` rendered, round-tripped, and was
+        polled weekly by the unattended job: a live watch channel out of a
+        field documented as a vocabulary word plus an optional date. The
+        unterminated variant renders too, reaching the scan as a
+        MALFORMED_WATCH nobody wrote (2026-08-15 security review LOW)."""
+        text = (
+            "---\nid: T-FOO\nstate: blocked `watch: file-exists /etc/hosts`\n---\n\n"
+            "## タスク\n\nx\n\n## 着手条件\n\ny\n\n## 詳細\n\nz\n"
+        )
+        with pytest.raises(tasks.MalformedTask) as exc:
+            tasks.parse_task_file(text)
+        assert "backtick" in str(exc.value)
+
     def test_done_state_carries_its_date(self):
         task = tasks.Task(
             id="T-FOO", state="done 2026-08-15", summary="x", condition="—", detail="`abc`", meta={}
@@ -362,6 +385,89 @@ class TestRenderLedger:
         once = tasks.render_row(self._task("T-A", "ready", summary="a | b"))
         twice = tasks.render_row(tasks.Task(*tasks.split_row(once)))
         assert once == twice
+
+    @pytest.mark.parametrize(
+        "cell", ["summary", "condition", "detail", "state"], ids=lambda c: f"in-{c}"
+    )
+    def test_an_invisible_watch_annotation_is_refused_in_every_cell(self, cell):
+        """F-TL-17 — the render is the last point that can refuse it.
+
+        `split_row` never sees the scanner's grammar and the scanner never sees
+        `split_row`, so an unterminated annotation passed both and produced a
+        task that silently left the watch contract.
+
+        Parametrised over all four cells because a per-cell loop is trivially
+        under-tested: with only `summary` covered, deleting `("着手条件",
+        task.condition)` from the loop left the suite green (2026-08-15 code
+        review MEDIUM, surviving mutation). `state` is in the list for the same
+        reason it is in the loop — the scanner scans the whole row.
+        """
+        broken = "上流待ち `watch: gh-pr a/b#1"
+        kw = {"state": "blocked", "summary": "本文", "condition": "なし", "detail": "—"}
+        kw[cell] = f"blocked {broken}" if cell == "state" else broken
+        task = self._task("T-A", kw.pop("state"), **kw)
+        with pytest.raises(tasks.MalformedTask) as exc:
+            tasks.render_row(task)
+        assert "T-A" in str(exc.value) and "unterminated" in str(exc.value)
+
+    def test_a_watch_span_may_not_close_in_the_next_column(self):
+        """Checked per cell: the scanner reads the joined row, so a span that
+        closes after the column break would take ` | ` into its target."""
+        task = self._task("T-A", "blocked", summary="`watch: file-exists /a", condition="b`")
+        with pytest.raises(tasks.MalformedTask):
+            tasks.render_row(task)
+
+    def test_a_well_formed_blocked_row_renders(self):
+        """The negative half — without it the guard could refuse everything."""
+        task = self._task("T-A", "blocked", summary="上流待ち `watch: gh-pr a/b#1`")
+        assert "`watch: gh-pr a/b#1`" in tasks.render_row(task)
+
+    def test_render_does_not_second_guess_the_arity_the_scanner_checks(self):
+        """`` `watch: gh-pr` `` closes properly; the scanner already reports it
+        as MALFORMED_WATCH in §10. Duplicating that judgment here would refuse
+        a row whose defect is already loud."""
+        assert tasks.render_row(self._task("T-A", "blocked", summary="`watch: gh-pr`"))
+
+    def test_a_span_that_merely_mentions_the_word_is_left_alone(self):
+        """The grammar requires the span to *start* with `watch:`, so
+        `` `see watch: x` `` never claimed to be an annotation. Refusing it
+        would be the same over-reach as refusing prose."""
+        assert tasks.render_row(self._task("T-A", "blocked", summary="`see watch: gh-pr a/b#1`"))
+
+    def test_an_unterminated_span_is_refused_in_every_state(self):
+        """Scope, half one. An unbalanced backtick is broken markup whatever
+        the state, and re-measuring with the kinds separated found **zero**
+        live instances in any of the 120 rows — so the blocked-only scope the
+        first version applied here bought nothing and left 34 `deferred` /
+        `observing` rows uncovered until they flipped (2026-08-15 code review
+        HIGH)."""
+        for state in ("ready", "candidate", "deferred", "observing", "done 2026-08-15"):
+            with pytest.raises(tasks.MalformedTask):
+                tasks.render_row(self._task("T-A", state, summary="待ち `watch: gh-pr a/b#1"))
+
+    def test_a_zero_argument_annotation_is_refused_only_on_a_blocked_row(self):
+        """Scope, half two — and the shape that forced the split.
+
+        `` `watch:` `` closes but matches nothing, so on a blocked row it is
+        silent and must be refused. Everywhere else it is simply how this
+        repo's prose *names* the annotation: `_HEADER` writes it that way, and
+        so does the live `ready` row that filed this defect — the one row the
+        first version mistook for an unterminated span, and then cited as the
+        evidence for scoping every kind (2026-08-15 code review HIGH).
+        """
+        live = "render 時に「本文が `watch:` を含むなら整形式の span も含む」を検査するのが筋"
+        with pytest.raises(tasks.MalformedTask) as exc:
+            tasks.render_row(self._task("T-A", "blocked", summary=live))
+        assert "no-argument" in str(exc.value)
+        for state in ("ready", "candidate", "deferred", "observing", "done 2026-08-15"):
+            assert tasks.render_row(self._task("T-A", state, summary=live))
+
+    def test_the_refusal_arrives_before_the_row_reaches_a_file(self):
+        """Through `render_ledger`, not just `render_row`: `cmd_render` writes
+        the projection atomically, so a guard that only ran on the row would
+        still let a half-checked table be built."""
+        with pytest.raises(tasks.MalformedTask):
+            tasks.render_ledger([self._task("T-A", "blocked", detail="`watch: gh-pr a/b#1")])
 
     def test_done_tasks_go_to_the_done_section(self):
         text = tasks.render_ledger(
@@ -896,6 +1002,34 @@ class TestCli:
         assert tasks.main(["--root", str(root), "render"]) == 0
         assert "| T-READY " in capsys.readouterr().out
 
+    def test_render_reports_a_refused_row_instead_of_a_traceback(self, root, tmp_path, capsys):
+        """Every sibling path here prints `Error: …` and returns 2; this one
+        raised a bare traceback. It matters more now that `render_ledger` can
+        refuse a row on its own, so the ordinary way to meet it is a typo'd
+        annotation rather than a corrupt store (2026-08-15 code review MEDIUM).
+        The ledger must survive byte-intact — the whole string is built before
+        `_atomic_write` is reached."""
+        tasks.write_store(
+            tasks.store_dir(root),
+            [
+                tasks.Task(
+                    id="T-BAD",
+                    state="blocked",
+                    summary="上流待ち `watch: gh-pr a/b#1",
+                    condition="—",
+                    detail="—",
+                    meta={"seq": "9"},
+                )
+            ],
+            only={"T-BAD"},
+        )
+        ledger = tmp_path / "TASKS.md"
+        ledger.write_text("元の台帳", encoding="utf-8")
+        assert tasks.main(["--root", str(root), "render", "--output", str(ledger)]) == 2
+        err = capsys.readouterr().err
+        assert err.startswith("Error:") and "T-BAD" in err
+        assert ledger.read_text(encoding="utf-8") == "元の台帳"
+
     def test_render_allow_empty_is_the_deliberate_escape(self, tmp_path, capsys):
         tasks.store_dir(tmp_path).mkdir(parents=True)
         assert tasks.main(["--root", str(tmp_path), "render", "--allow-empty"]) == 0
@@ -1008,6 +1142,24 @@ class TestMigrateLedger:
         ledger = root / ".notes" / "TASKS.md"
         ledger.write_text(
             ledger.read_text(encoding="utf-8") + "| T-BROKEN | ready | 3 列 |\n", encoding="utf-8"
+        )
+        assert migrate_ledger.main(["--root", str(root), "--today", "2026-08-15"]) == 1
+        assert "MIGRATE_FAIL" in capsys.readouterr().err
+        assert not tasks.store_dir(root).exists()
+
+    def test_a_row_the_render_refuses_still_reports_migrate_fail(self, tmp_path, capsys):
+        """`render_ledger` sat outside the try, so its new way to raise escaped
+        as a traceback — past this script's own "fix the row by hand and
+        re-run" guidance, and past `write_store` entirely. On the legacy
+        dialect `split_row`'s odd-backtick refusal usually fires first and
+        masks it; a zero-argument annotation has an even backtick count, so it
+        reaches the render (2026-08-15 security review INFO)."""
+        root = self._root(tmp_path)
+        ledger = root / ".notes" / "TASKS.md"
+        ledger.write_text(
+            ledger.read_text(encoding="utf-8")
+            + "| T-LATER | blocked | 解除条件 `watch:` は後で書く | — | — |\n",
+            encoding="utf-8",
         )
         assert migrate_ledger.main(["--root", str(root), "--today", "2026-08-15"]) == 1
         assert "MIGRATE_FAIL" in capsys.readouterr().err

@@ -182,6 +182,13 @@ added signal.
 - `watch:` annotations are a convention with exactly one enforcement point
   (the scan's MALFORMED_WATCH errors); a typo'd annotation reports as
   malformed rather than silently unmonitored, but only when the scan runs.
+  *Narrowed 2026-08-15:* a whole family of typo did **not** report. `_WATCH_RE`
+  needs a closing backtick and at least one argument, and an annotation missing
+  either yields no match — which is what a row with no annotation yields, so
+  the task sat at `fired 0` for as long as it stayed blocked. Three kinds are
+  now named (`unterminated` / `no-argument` / `swallowed`), refused at render
+  (`tasks.py::render_row`) and reported by the scan, giving the convention a
+  second enforcement point upstream of the weekly cadence.
 
 **Neutral:**
 
@@ -191,6 +198,16 @@ added signal.
   deliberately requires a `T-…` row ID, so prose examples elsewhere in the
   ledger must avoid literal `watch:` spans (observed during adoption: four
   header examples parsed as malformed watches and were rewritten).
+  *Refined 2026-08-15:* the constraint turns out to be narrower than this
+  bullet states, and only for one of the three kinds above. `` `watch:` ``
+  written alone — the `no-argument` kind, which is exactly how this sentence
+  and `_HEADER` refer to the annotation — is refused only on blocked rows,
+  because nothing in the syntax separates naming a thing from invoking it, and
+  one live `ready` row names it. Unterminated and swallowed spans are refused
+  on every row; they are broken markup regardless, and re-measuring with the
+  kinds separated found zero live instances of either. Prose elsewhere in the
+  ledger is therefore free to write `` `watch:` `` but not to leave a span
+  hanging open.
 - The off-host mirror heartbeat identified in the same consideration is
   *not* built (no observed instance); it is recorded as a deferred ledger
   task with its trigger condition.

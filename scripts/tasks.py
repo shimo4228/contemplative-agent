@@ -33,7 +33,10 @@ grammar constrains every render: one task is one line, the ID cell and the 状�
 cell share that line, and only `blocked` rows are polled. `_TASK_STATUS_PROBE`
 is imported from that module rather than restated here — a second copy of the
 pattern would drift, and the failure would be silent (§10 reporting `fired 0`
-forever, the shape ADR-0077 forbids).
+forever, the shape ADR-0077 forbids). For the same reason `render_row` refuses
+a `watch:` annotation the scanner cannot see — the grammar needs a closing
+backtick *and* an argument, and a span missing either renders cleanly and then
+reads as no annotation at all.
 
 Discovered during migration: the pre-migration table was **already malformed as
 GFM**, in two ways. One row carried an unescaped `|` inside a backtick code
@@ -62,8 +65,18 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
 
-# The scanner owns the row grammar; import its pattern instead of restating it.
-from ledger_condition_scan import _TASK_STATUS_RE as _TASK_STATUS_PROBE
+# The scanner owns the row grammar; import from it instead of restating it.
+# `invisible_watch_openers` is the same predicate the scan reports on, and the
+# kind constants are its vocabulary, so render-time refusal and weekly
+# detection cannot disagree about what a well-formed annotation is — nor about
+# what to call a broken one.
+from ledger_condition_scan import (
+    _TASK_STATUS_RE as _TASK_STATUS_PROBE,
+    WATCH_NO_ARGUMENT,
+    WATCH_SWALLOWED,
+    WATCH_UNTERMINATED,
+    invisible_watch_openers,
+)
 
 __all__ = [
     "MalformedRow",
@@ -299,6 +312,17 @@ def parse_task_file(text: str) -> Task:
         # forbids (2026-08-15 code review MEDIUM). Refused rather than escaped
         # — the scanner reads that cell raw, so an escape would break it.
         raise MalformedTask(f"{meta['id']}: state に `|` は置けない: {state!r}")
+    if "`" in state:
+        # Same cell, same reason, one layer further. The scanner's `_WATCH_RE`
+        # scans the whole row, so a backtick here is not decoration: `state:
+        # blocked ``watch: file-exists /etc/hosts`` renders, round-trips, and
+        # is polled weekly by the unattended job — a live watch channel out of
+        # a field documented as a vocabulary word plus an optional date. The
+        # unterminated variant renders too, and reaches the scanner as a
+        # MALFORMED_WATCH the author never wrote (2026-08-15 security review
+        # LOW). Refused rather than escaped, because the scanner reads this
+        # cell raw. Zero live tasks carry one.
+        raise MalformedTask(f"{meta['id']}: state に backtick は置けない: {state!r}")
     tid = meta.pop("id")
 
     # Keep both offsets. Reconstructing the previous section's end from the next
@@ -373,12 +397,87 @@ _HEADER = """# TASKS — contemplative-agent
 > 条件が動いたら packet §10 に載る。着手判断は人間のまま。
 > 照合されるのは **状態が blocked の行だけ**（done/ready 等に移った行の残存注釈は
 > polling されない）。`http-post-status` の URL は loopback（localhost）限定。
+> span は **同じセル内で閉じ**、引数を 1 つ以上持つこと。どちらを欠いても scanner には
+> 「注釈の無い行」と同じに見えるので、render が拒否する。閉じていない span は全ての行で、
+> 引数の無い `watch:` は blocked 行でのみ拒否する（`watch:` だけの形は、この header の
+> ように注釈そのものを指す散文でも使うため）。
 """
 
 _TABLE_HEAD = "| ID | 状態 | タスク | 着手条件 | 詳細 |\n|----|------|--------|----------|------|"
 
+# The kind vocabulary is the scanner's; only the operator-facing sentence is
+# here. Keyed off the imported constants so a renamed kind fails at import
+# rather than rendering a message with a blank explanation.
+_WATCH_KIND_JA = {
+    WATCH_UNTERMINATED: "閉じ backtick が無い",
+    WATCH_NO_ARGUMENT: "引数が無い（`watch:` だけ）",
+    WATCH_SWALLOWED: "隣の span に閉じ backtick を食われている",
+}
+
+
+def _check_watch_spans(task: Task) -> None:
+    """`watch:` annotations that the scanner cannot see are refused here.
+
+    `ledger_condition_scan._WATCH_RE` requires a closing backtick and at least
+    one argument character, so an annotation missing either renders without
+    complaint and is then read as *no annotation at all* — §10 reports
+    `fired 0` for that task forever, the shape ADR-0077 forbids. Nothing else
+    covered it: the scanner never calls `split_row`, and the odd-backtick
+    refusal that used to sit in `split_row` was a legacy-dialect cell-boundary
+    guard, not a watch guard (2026-08-15 code review LOW).
+
+    Checked **per cell**, so a span whose closing backtick sits in the next
+    column is refused too: the scanner reads the joined row and would silently
+    take the column separator as part of the target.
+
+    **Scope is per kind, and each half is measured on its own.** A first
+    version refused all three kinds on blocked rows only, justified by "one
+    live row quotes a broken annotation" — which was a misreading. Re-measured
+    with the kinds separated (2026-08-15 code review HIGH): `unterminated` and
+    `swallowed` have **zero** live instances in any of the 120 rows, so
+    scoping them bought nothing while leaving 34 `deferred` / `observing` rows
+    uncovered until they flip; they are refused everywhere, since an
+    unbalanced backtick is broken markup whatever the state. `no-argument` has
+    exactly one live instance — a `ready` row, and `_HEADER` uses the same
+    idiom — because `` `watch:` `` is simply how this repo's prose *names* the
+    annotation. That one stays blocked-only, which is the scanner's own scope
+    and the point at which the annotation starts to mean anything.
+
+    Arity is **not** checked here. `` `watch: gh-pr` `` is under-specified but
+    `_WATCH_RE` matches it, so §10 reports MALFORMED_WATCH and the render stays
+    out of a judgment the scanner makes better. The line is visibility, not
+    correctness — and it is drawn at the grammar, not at the word: a bare
+    `watch: x` with no backticks is invisible too, and is *not* refused,
+    because it never entered the grammar (nor has any live row written one).
+    `` `see watch: x` `` is left alone for the same reason.
+    """
+    for section, cell in (
+        # `state` is in the list because the scanner scans the whole row and
+        # this cell is neither escaped nor covered by anything else here. A
+        # guard that reasons *about* the state word while skipping the cell it
+        # lives in is the same "reads as complete" shape it exists to close
+        # (2026-08-15 security review LOW). `parse_task_file` refuses backticks
+        # in `state` outright, so on the store path this can never fire; the
+        # path it covers is `load_tasks_from_ledger` → `render_ledger`, which
+        # builds Tasks from split cells and never sees that check.
+        ("状態", task.state),
+        ("タスク", task.summary),
+        ("着手条件", task.condition),
+        ("詳細", task.detail),
+    ):
+        for match, kind in invisible_watch_openers(cell):
+            if kind == WATCH_NO_ARGUMENT and task.state_word != "blocked":
+                continue
+            raise MalformedTask(
+                f"{task.id}: {section} の watch 注釈が scanner から見えない"
+                f"（{kind}: {_WATCH_KIND_JA[kind]}）: "
+                f"{cell[match.start() : match.start() + 60]!r}。"
+                "見えない注釈は「注釈の無い行」と同じに読まれ、§10 が永久に fired 0 になる。"
+            )
+
 
 def render_row(task: Task) -> str:
+    _check_watch_spans(task)
     cells = (
         task.id,
         task.state,
@@ -762,7 +861,19 @@ def cmd_show(args, root: Path) -> int:
 
 
 def cmd_render(args, root: Path) -> int:
-    tasks = load_store(store_dir(root))
+    # `load_store` and `render_ledger` share one handler because they raise the
+    # same exception for the same reason — a task the projection cannot
+    # honestly represent — and every sibling path in this file reports
+    # `Error: …` + exit 2 rather than a traceback. It matters more since
+    # 2026-08-15, when `render_ledger` gained its own way to refuse a row: the
+    # ordinary way to meet this is now a typo'd annotation, not a corrupt store
+    # (2026-08-15 code review MEDIUM). The ledger is untouched either way — the
+    # whole string is built before `_atomic_write` is reached.
+    try:
+        tasks = load_store(store_dir(root))
+    except MalformedTask as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        return 2
     if not tasks and not args.allow_empty:
         # An absent store globs to nothing and renders as a valid empty table,
         # so `render --output` over the ledger replaced 171KB with a 1.5KB husk
@@ -774,7 +885,15 @@ def cmd_render(args, root: Path) -> int:
             file=sys.stderr,
         )
         return 2
-    text = render_ledger(tasks)
+    try:
+        text = render_ledger(tasks)
+    except MalformedTask as exc:
+        print(f"Error: {exc}", file=sys.stderr)
+        print(
+            "  台帳は書き換えていない。該当タスクを .notes/tasks/ で直してから再実行する。",
+            file=sys.stderr,
+        )
+        return 2
     if args.output:
         _atomic_write(args.output, text)
     else:

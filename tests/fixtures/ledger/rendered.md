@@ -9,6 +9,10 @@
 > (the scanner reads rows only), so `_HEADER` can drift without this file
 > noticing; do not read an unchanged header as a passing check.
 >
+> **This note block is spliced *inside* `_HEADER`**, between its title line and
+> its first paragraph — a naive "render and overwrite" deletes it (done once,
+> 2026-08-15, caught by the diff). Regenerate the table rows, then re-splice.
+>
 
 > **このファイルは生成物**。正本は `.notes/tasks/T-*.md`（1 タスク 1 ファイル）で、
 > `python3 scripts/tasks.py render` が再生成する。ここを直接編集しても次の render で消える。
@@ -25,6 +29,10 @@
 > 条件が動いたら packet §10 に載る。着手判断は人間のまま。
 > 照合されるのは **状態が blocked の行だけ**（done/ready 等に移った行の残存注釈は
 > polling されない）。`http-post-status` の URL は loopback（localhost）限定。
+> span は **同じセル内で閉じ**、引数を 1 つ以上持つこと。どちらを欠いても scanner には
+> 「注釈の無い行」と同じに見えるので、render が拒否する。閉じていない span は全ての行で、
+> 引数の無い `watch:` は blocked 行でのみ拒否する（`watch:` だけの形は、この header の
+> ように注釈そのものを指す散文でも使うため）。
 
 
 ## Pending

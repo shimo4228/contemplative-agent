@@ -619,6 +619,21 @@ Stage 6c ledgerwatch: ledger_condition_scan.py (7th deterministic intake, ADR-00
                    checked-in fixture ledger (tests/fixtures/ledger/, both
                    dialects — .notes/ is gitignored, so a test reading the live
                    ledger would skip silently everywhere else).
+                   A `watch:` span _WATCH_RE cannot see is refused by tasks.py
+                   render_row AND reported here as MALFORMED_WATCH
+                   (2026-08-15): no match is what a row with no annotation
+                   produces, so the task would sit at fired 0 for as long as it
+                   stayed blocked. Three kinds under one predicate,
+                   invisible_watch_openers, which both ends import from this
+                   module together with the kind constants — the reason string
+                   names the kind, since "unterminated" is false for two of
+                   them. unterminated / swallowed are broken markup in any
+                   state and render refuses them on every row (0 live
+                   instances across 120); no-argument (`watch:` alone) is also
+                   how prose names the annotation — _HEADER and one live ready
+                   row write it — so render refuses it only on blocked rows.
+                   The scan stays blocked-only for all three: a row outside the
+                   watch contract has nothing to report.
 Stage 7 improve:   only when the same reason code recurred 2 consecutive runs (check-improvement)
 Stage 8 packet:    build_decision_packet.py → weekly-<end>-packet.md (§2 fix table +
                    per-finding diagnosis headings from findings.json, §8 value-layer

@@ -20,6 +20,14 @@ Grammar — one backtick code span per condition, anywhere in a ledger row:
     `watch: http-post-status http://localhost:11434/api/tokenize 404`
     `watch: file-exists ~/.config/moltbook/cloud.env`
 
+On a **blocked** row an opening `` `watch: `` whose span never closes is
+reported as MALFORMED_WATCH rather than ignored: an unterminated span fails to
+match and is then indistinguishable from a row carrying no watch at all. The
+scope is deliberately blocked-rows-only — the header above documents the
+grammar with a bare `` `watch:` ``, and a non-blocked row may describe a broken
+annotation in prose. `scripts/tasks.py` refuses the same shape at render time,
+importing both halves of the pattern from here so the two cannot drift apart.
+
 ``fired`` semantics: True = the observed state moved toward "the unblock
 condition may now hold" (PR merged/closed, unexpected HTTP status, file now
 present) — gate attention warranted. False = still blocked. None = the check
@@ -66,7 +74,43 @@ _USER_AGENT = "contemplative-agent-ledger-watch"
 # rejected as malformed (2026-08-14 security review MEDIUM).
 _POST_HOSTS = ("localhost", "127.0.0.1", "::1")
 
-_WATCH_RE = re.compile(r"`watch:\s*([^`]+)`")
+# `\s{0,8}` and not `\s*`: the two quantifiers overlap on whitespace, so an
+# opener followed by a whitespace run with no closing backtick backtracks
+# quadratically — measured 51ms / 202ms / 811ms at 4k / 8k / 16k spaces, a
+# clean 4x per doubling. Harmless while only `parse_watches` ran it (the
+# unattended stage is timeout-bounded and degrades to LEDGERWATCH_FAIL), but
+# `tasks.py::render_row` now runs it three times per blocked task, and
+# `tasks.py render` has no timeout: a 40k-space body made one render take
+# 5.16s. The bound is semantics-preserving — anything past the eighth space
+# falls into `[^`]+` and is discarded by `.split()` — verified identical match
+# offsets and parsed args across the grammar's shapes, including tab
+# separators, 20-space indents and the swallowed-neighbour case
+# (2026-08-15 security review LOW).
+_WATCH_RE = re.compile(r"`watch:\s{0,8}([^`]+)`")
+# The *opening* half of the same grammar, so an annotation that starts and
+# never closes can be told apart from prose that never started one. `_WATCH_RE`
+# alone cannot: an unterminated span simply fails to match, and a failed match
+# is indistinguishable from a row carrying no watch at all — §10 reports
+# `fired 0` forever, the shape ADR-0077 forbids (2026-08-15 code review LOW).
+# Lives here, next to the pattern it is the prefix of, because `tasks.py`
+# imports both for its render-time refusal: a second copy of either half would
+# drift, and the drift would be silent in exactly the same way.
+_WATCH_OPEN_RE = re.compile(r"`watch:")
+# `` `watch:` `` — closes, but `[^`]+` needs a character, so it matches nothing.
+# Split out from the unterminated case because the two need different scopes:
+# this is how the repo's own prose *names* the annotation (`_HEADER` uses it,
+# and so does the task that filed the defect), while an unbalanced backtick is
+# broken markup in any state.
+_WATCH_EMPTY_RE = re.compile(r"`watch:\s{0,8}`")
+
+# Why an opener produced no match. Each names only what is actually true of it:
+# a first version called all of them "unterminated", which was false for the
+# shape that closes and false for the shape whose closer was taken — the
+# failure-names-the-wrong-reason class this module is meant to be closing
+# (2026-08-15 code review HIGH).
+WATCH_UNTERMINATED = "unterminated"  # no closing backtick at all
+WATCH_NO_ARGUMENT = "no-argument"  # closes immediately: `watch:`
+WATCH_SWALLOWED = "swallowed"  # well-formed alone; a neighbour took its closer
 # Task ID cell followed by the 状態 cell: only `blocked` rows are polled — a
 # task moved to done/ready whose historical annotation survives must stop
 # polling, not alert in §10 forever (2026-08-14 codex review P2).
@@ -107,21 +151,102 @@ def default_fetch(url: str, method: str = "GET") -> tuple[int, bytes]:
         raise OSError("unparseable HTTP response") from exc
 
 
+def _printable(text: str) -> str:
+    """Neutralise control characters in a diagnostic excerpt.
+
+    `errors[].detail` is the one field carrying ledger text verbatim. It never
+    reaches the packet — `build_decision_packet.py` consumes `errors` as a
+    count — but it is retained in `pipeline/ledger-watch/*.json` and printed
+    straight to a terminal when this script is run by hand, and `json.dumps`
+    escapes only C0: DEL, the 8-bit C1 controls, the bidi overrides and ZWSP
+    all survive it literally (2026-08-15 security review LOW, measured).
+
+    `str.isprintable()` rather than a character class copied from
+    `tasks.py::_CONTROL_RE` / `claims.py::safe`: it rejects Cc, Cf, Cs, Co, Cn,
+    Zl, Zp and non-space Zs, which is a strict superset of that class, and a
+    third copy of the class is a third thing to keep in sync.
+    """
+    return "".join(ch if ch.isprintable() else " " for ch in text)
+
+
+def invisible_watch_openers(text: str) -> list[tuple[re.Match[str], str]]:
+    """`watch:` openers the scanner cannot see, each paired with why.
+
+    A well-formed span's `_WATCH_RE` match begins at the same offset as its
+    opener, so an opener that starts no match produced nothing — and nothing is
+    exactly what a row carrying no annotation produces. That is the whole
+    defect: the three shapes below are invisible in the same way, so they are
+    detected here rather than left to the absence of a match.
+
+    They are reported as three kinds rather than one because they do not share
+    a true sentence, and because they do not share a scope. `WATCH_NO_ARGUMENT`
+    is the prose idiom for referring to the annotation and is legal outside a
+    blocked row; the other two are broken markup in any state.
+
+    **Stated limit.** The predicate asks "is this opener a match start", never
+    "does this match's closing backtick belong to this opener". So
+    `` `watch: gh-pr o/r#1 — see `docs/x.md` `` is *not* flagged: the opener
+    matches, closing on the backtick that was meant to open `docs/x.md`, and
+    the swallowed words become extra arguments. That degrades to the arity
+    check — loud — unless the swallowed text happens to split to the type's
+    exact arity. Left documented rather than half-guarded, the same way
+    `split_row` documents its cell-count limit (2026-08-15 code review MEDIUM).
+    """
+    starts = {m.start() for m in _WATCH_RE.finditer(text)}
+    out: list[tuple[re.Match[str], str]] = []
+    for match in _WATCH_OPEN_RE.finditer(text):
+        if match.start() in starts:
+            continue
+        if _WATCH_EMPTY_RE.match(text, match.start()):
+            kind = WATCH_NO_ARGUMENT
+        elif _WATCH_RE.match(text, match.start()):
+            # Well-formed when read from here, yet not a match start — so an
+            # earlier span consumed the backtick this one needed.
+            kind = WATCH_SWALLOWED
+        else:
+            kind = WATCH_UNTERMINATED
+        out.append((match, kind))
+    return out
+
+
 def parse_watches(text: str) -> tuple[list[Watch], list[dict]]:
     """Extract `watch: ...` annotations with their row's task ID."""
     watches: list[Watch] = []
     errors: list[dict] = []
     for line in text.splitlines():
         spans = _WATCH_RE.findall(line)
-        if not spans:
-            continue
         task_match = _TASK_STATUS_RE.search(line)
+        # Unterminated-span detection is scoped to blocked task rows, the exact
+        # scope of the watch contract. Widening it produces false alarms on
+        # lines that were never annotations: the ledger header documents the
+        # grammar with a bare `` `watch:` ``, and a task row may legitimately
+        # *describe* a broken annotation — the row that filed this very defect
+        # does, and it is `ready` (2026-08-15, measured against the live store:
+        # 1 offender across all rows, 0 across the 16 blocked ones).
+        blocked = task_match is not None and task_match.group(2).strip().startswith("blocked")
+        unclosed = invisible_watch_openers(line) if blocked else []
+        if not spans and not unclosed:
+            continue
         task = task_match.group(1) if task_match else None
-        if task_match is not None and not task_match.group(2).strip().startswith("blocked"):
+        if task_match is not None and not blocked:
             # Non-blocked rows are out of the watch contract by definition —
             # not a fault, not a silent skip: the scope is documented in the
             # ledger header and the module docstring.
             continue
+        for match, kind in unclosed:
+            errors.append(
+                {
+                    "task": task or "?",
+                    "reason": "MALFORMED_WATCH",
+                    # The excerpt is a raw slice of the row, so it can run past
+                    # the cell boundary into text the body pasted from
+                    # elsewhere. Kept anyway — pointing at the offending offset
+                    # is the whole value of it, the ledger is self-authored,
+                    # and `_printable` removes what could act on a terminal.
+                    "detail": f"`watch:` span invisible to the scanner ({kind}): "
+                    f"{_printable(line[match.start() : match.start() + 80]).strip()}",
+                }
+            )
         for span in spans:
             parts = span.split()
             if task is None or len(parts) < 2:
@@ -129,7 +254,12 @@ def parse_watches(text: str) -> tuple[list[Watch], list[dict]]:
                     {
                         "task": task or "?",
                         "reason": "MALFORMED_WATCH",
-                        "detail": f"row needs a T-… ID and `watch: <type> <arg…>`: {span.strip()[:80]}",
+                        # Sanitised for the same reason as the sibling detail
+                        # above; this one predates that finding but shares the
+                        # sink, and one sanitised field beside one raw field
+                        # is an invitation to fix the wrong one later.
+                        "detail": "row needs a T-… ID and `watch: <type> <arg…>`: "
+                        f"{_printable(span.strip()[:80])}",
                     }
                 )
                 continue
