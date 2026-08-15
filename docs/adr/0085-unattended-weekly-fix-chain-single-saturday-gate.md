@@ -266,3 +266,5 @@ no response text reaches the packet) — an action class this ADR's decision
 did not contemplate. The single-Saturday-gate commitment is unchanged;
 disabling `ledgerwatch` in `MOLTBOOK_PIPELINE_STAGES` restores the
 no-egress posture. Details in ADR-0093.
+
+*(2026-08-16: stage 6c was retired by [ADR-0095](0095-retire-task-ledger-machinery.md); the chain is back to no network egress. Stage 6b remains.)*

@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+superseded-by ADR-0095 (the store and the claim journal survive as conventions; the projection, aging, candidate intake and the four-week measurement were retired 2026-08-16)
 
 ## Date
 

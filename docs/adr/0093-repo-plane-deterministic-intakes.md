@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — adds `scripts/docs_consistency_scan.py` (stage 6b) and
+partially-superseded-by ADR-0095 (stage 6c ledger condition watch retired 2026-08-16; stage 6b docs-consistency scan remains in effect)
 `scripts/ledger_condition_scan.py` (stage 6c) to the unattended weekly chain
 (ADR-0085), packet sections §9/§10 and metrics fields
 `docs_findings` / `ledger_watch_fired` to `build_decision_packet.py`, and the

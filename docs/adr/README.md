@@ -98,8 +98,9 @@ Records of key design decisions for this project.
 | [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.md) | Run an IPD Two-Arm Bench Before Adopting a Constitution Amendment | accepted | 2026-08-09 |
 | [0091](0091-value-layer-cadence-in-the-weekly-chain.md) | Value-Layer Cadence in the Weekly Chain | accepted | 2026-08-10 |
 | [0092](0092-shadow-constitution-instrument.md) | Shadow Constitution Instrument — Patterns-Only Synthesis, Observe-Only | accepted | 2026-08-11 |
-| [0093](0093-repo-plane-deterministic-intakes.md) | Repo-Plane Deterministic Intakes — Docs Consistency and Ledger Condition Watch | accepted | 2026-08-14 |
-| [0094](0094-agent-first-task-ledger.md) | Agent-First Task Ledger — Store / Journal / Projection | accepted | 2026-08-15 |
+| [0093](0093-repo-plane-deterministic-intakes.md) | Repo-Plane Deterministic Intakes — Docs Consistency and Ledger Condition Watch | partially-superseded-by 0095 | 2026-08-14 |
+| [0094](0094-agent-first-task-ledger.md) | Agent-First Task Ledger — Store / Journal / Projection | superseded-by 0095 | 2026-08-15 |
+| [0095](0095-retire-task-ledger-machinery.md) | Retire the Task-Ledger Machinery — Keep the Store and the Claims, Drop Everything That Parsed | accepted — supersedes 0094; partially-supersedes 0093 | 2026-08-16 |
 
 ## ADR Types
 

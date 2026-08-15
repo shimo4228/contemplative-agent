@@ -222,3 +222,5 @@ ADR-0091 を参照。
 到達しない）— 本 ADR の決定が想定していなかった行為クラスである。
 単一土曜ゲートの約束は不変。`MOLTBOOK_PIPELINE_STAGES` から `ledgerwatch`
 を外せば egress なしの姿勢に戻る。詳細は ADR-0093。
+
+*（2026-08-16: stage 6c は [ADR-0095](0095-retire-task-ledger-machinery.ja.md) で退役。チェーンはネットワーク egress なしに戻った。stage 6b は残る）*

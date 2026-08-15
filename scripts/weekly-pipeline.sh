@@ -58,7 +58,7 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # backfill does not, and from $HOME "project" IS the operator's user settings
 # file — the flag silently becomes a no-op. Stage 4 still cd's into its
 # worktree; this only fixes the starting point (2026-08-16 security review).
-cd "$PROJECT_ROOT"
+cd "$PROJECT_ROOT" || { echo "ERROR: cannot cd to PROJECT_ROOT: $PROJECT_ROOT" >&2; exit 1; }
 SCRIPTS="$PROJECT_ROOT/scripts"
 PROMPTS="$PROJECT_ROOT/config/prompts"
 REPORT_DIR="$MOLTBOOK_HOME/reports/analysis"
@@ -249,14 +249,10 @@ INSIGHT_TIMEOUT="${PIPELINE_INSIGHT_TIMEOUT:-900}"
 IMPROVE_TIMEOUT="${PIPELINE_IMPROVE_TIMEOUT:-900}"
 DEADCODE_TIMEOUT="${PIPELINE_DEADCODE_TIMEOUT:-300}"
 DOCSCAN_TIMEOUT="${PIPELINE_DOCSCAN_TIMEOUT:-180}"
-LEDGERWATCH_TIMEOUT="${PIPELINE_LEDGERWATCH_TIMEOUT:-120}"
 IDENTITY_TIMEOUT="${PIPELINE_IDENTITY_TIMEOUT:-900}"
 CHAIN_DEADLINE_SECONDS="${PIPELINE_DEADLINE_SECONDS:-10800}"   # 09:00 → 12:00
 
-STAGES="${MOLTBOOK_PIPELINE_STAGES:-report,diagnosis,fix,insight,valuelayer,deadcode,docsscan,ledgerwatch,improve,packet}"
-# The ledger is repo-local by convention (rule: task-tracking); overridable
-# so tests can point the scan at a fixture ledger.
-LEDGER_PATH="${MOLTBOOK_LEDGER_PATH:-}"
+STAGES="${MOLTBOOK_PIPELINE_STAGES:-report,diagnosis,fix,insight,valuelayer,deadcode,docsscan,improve,packet}"
 
 END_DATE=""
 DAYS=7
@@ -1218,53 +1214,6 @@ else
     audit stage_result stage=docsscan result=skipped
 fi
 
-# --- Stage 6c: ledger condition watch (7th deterministic intake; ADR-0093) ---
-# Polls the machine-checkable unblock conditions annotated on blocked rows of
-# the local task ledger (.notes/TASKS.md — gitignored, which is why this can
-# only run here and never in a cloud agent). Network use is bounded reads of
-# status fields mapped to a closed vocabulary inside the scan — no package
-# resolution, no response text reaches the packet (ADR-0093). Acting on a
-# fired condition stays a human decision at the gate. Observability only.
-LEDGERWATCH_JSON="$MOLTBOOK_HOME/pipeline/ledger-watch/ledger-watch-$END_DATE.json"
-LEDGERWATCH_ARG=()
-if stage_enabled ledgerwatch; then
-    if deadline_exceeded; then
-        add_reason CHAIN_DEADLINE
-        audit stage_result stage=ledgerwatch result=skipped reason=CHAIN_DEADLINE
-    else
-        echo "[$RUN_ID] stage 6c: ledger condition watch"
-        mkdir -p "$(dirname "$LEDGERWATCH_JSON")"
-        LEDGER_ARG=()
-        [[ -n "$LEDGER_PATH" ]] && LEDGER_ARG=(--ledger "$LEDGER_PATH")
-        if with_timeout "$LEDGERWATCH_TIMEOUT" python3 \
-                "$SCRIPTS/ledger_condition_scan.py" \
-                ${LEDGER_ARG[@]+"${LEDGER_ARG[@]}"} \
-                > "$LEDGERWATCH_JSON" 2>"$RUN_LOG_DIR/ledgerwatch.err"; then
-            lw_counts=$(python3 -c "
-import json, sys
-data = json.load(open(sys.argv[1]))
-print(data['watch_count'], data['fired_count'], len(data.get('errors', [])))
-" "$LEDGERWATCH_JSON" 2>/dev/null || echo "")
-            if [[ -n "$lw_counts" ]]; then
-                read -r lw_count lw_fired lw_errors <<< "$lw_counts"
-                LEDGERWATCH_ARG=(--ledger-watch "$LEDGERWATCH_JSON")
-                audit stage_result stage=ledgerwatch result=ok \
-                    watches="$lw_count" fired="$lw_fired" errors="$lw_errors"
-            else
-                add_reason LEDGERWATCH_FAIL
-                audit stage_result stage=ledgerwatch result=fail reason=LEDGERWATCH_FAIL
-                rm -f "$LEDGERWATCH_JSON"
-            fi
-        else
-            add_reason LEDGERWATCH_FAIL
-            audit stage_result stage=ledgerwatch result=fail reason=LEDGERWATCH_FAIL
-            rm -f "$LEDGERWATCH_JSON"
-        fi
-    fi
-else
-    audit stage_result stage=ledgerwatch result=skipped
-fi
-
 # --- Stage 7: improvement check (P4-shaped, fires on 2-week recurrence) ---
 # The orchestrator knows extra codes the builder will add for missing files.
 # Gated on stage_enabled: a deliberately disabled stage is not a failure and
@@ -1337,7 +1286,6 @@ if python3 "$SCRIPTS/build_decision_packet.py" build \
         ${DEADCODE_ARG[@]+"${DEADCODE_ARG[@]}"} \
         ${VALUE_LAYER_ARG[@]+"${VALUE_LAYER_ARG[@]}"} \
         ${DOCSCAN_ARG[@]+"${DOCSCAN_ARG[@]}"} \
-        ${LEDGERWATCH_ARG[@]+"${LEDGERWATCH_ARG[@]}"} \
         --run-log-dir "$RUN_LOG_DIR" \
         --out "$PACKET" > "$RUN_LOG_DIR/packet.log" 2>&1; then
     audit chain_end result=ok packet="$PACKET" reasons="${REASONS:-none}"

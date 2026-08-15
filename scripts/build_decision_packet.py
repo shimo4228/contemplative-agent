@@ -149,12 +149,12 @@ def _cell(value: object) -> str:
     :func:`_flatten`'s, not restated here.
 
     Control characters are neutralised **here**, not per producer. The
-    per-producer form has already failed once: ``ledger_condition_scan``'s
-    ``_printable`` records that an earlier version treated ``detail`` as the
-    only field needing it, so ``target`` reached §10 raw. A floor every
-    audit-derived value passes through is the only version of this that does
-    not depend on each new producer remembering. The stricter renderers named
-    above keep their own passes as defence in depth.
+    per-producer form has already failed once (the retired ledger-watch
+    intake treated ``detail`` as the only field needing it, so ``target``
+    reached its section raw). A floor every audit-derived value passes
+    through is the only version of this that does not depend on each new
+    producer remembering. The stricter renderers named above keep their own
+    passes as defence in depth.
     """
     # Backslash first, so escaping `|` cannot be undone by a preceding literal
     # backslash. `printable` before both: a substitution that produced a `\` or
@@ -191,7 +191,7 @@ _MAX_TITLE_LEN = 240
 # A heading is prose, so it gets no path-style allowlist (Japanese would not
 # survive one) — but every character class that can open an INLINE construct
 # does get neutralised, because mid-line is exactly where those are legal:
-#   < >    raw HTML. An unclosed <details> is closed by nothing and folds §3-§10
+#   < >    raw HTML. An unclosed <details> is closed by nothing and folds §3-§9
 #          behind a summary line the heading's author wrote (2026-08-08 HIGH,
 #          named verbatim in _path_tokens' docstring, reachable again here).
 #   [ ]    link / image markup — a destination beside a patch row, in the
@@ -265,7 +265,7 @@ def _title_cell(title: object) -> str:
       escapes pipes, and the caller keeps it mid-line, so it cannot open a
       heading, a fence or a table column;
     - **inline structure** — ``_TITLE_UNSAFE`` neutralises what is legal
-      mid-line: raw HTML (an unclosed ``<details>`` folds §3-§10 behind a
+      mid-line: raw HTML (an unclosed ``<details>`` folds §3-§9 behind a
       summary the heading's author wrote), link/image markup, and code spans
       that run past the line break;
     - **invisibility** — ``_TITLE_UNSAFE`` names the bidi and zero-width
@@ -459,7 +459,6 @@ def build_packet(
     dead_code: Path | None = None,
     value_layer: Path | None = None,
     docs_scan: Path | None = None,
-    ledger_watch: Path | None = None,
 ) -> None:
     reason_codes: list[str] = []
 
@@ -693,63 +692,6 @@ def build_packet(
         else:
             add_reason("DOCSCAN_UNREADABLE")
 
-    # Ledger-watch intake (ADR-0093): readings over the task ledger's blocked
-    # rows. fired=True means an unblock condition may now hold — acting on it
-    # stays a human decision at the gate.
-    ledger_watches: list[dict] = []
-    ledger_scanned = False
-    ledger_parse_errors = 0
-    ledger_drift: str | None = None
-    if ledger_watch is not None:
-        lw_data = _load_findings(ledger_watch)  # same safe-load contract
-        raw = lw_data.get("watches") if lw_data is not None else None
-        if isinstance(raw, list) and lw_data is not None:
-            ledger_scanned = True
-            ledger_watches = [w for w in raw if isinstance(w, dict)]
-            # Its own key, its own reason code, its own sentence. Drift means
-            # ".notes/TASKS.md no longer matches the store" — the reading was
-            # taken from the store either way — whereas LEDGERWATCH_PARTIAL
-            # means "a watch annotation is unparseable" and tells the operator
-            # to check annotation syntax. Folding one into the other delivered
-            # a true signal under a false name (2026-08-15 cross-model review).
-            drift = lw_data.get("projection_drift")
-            if isinstance(drift, dict):
-                ledger_drift = str(drift.get("detail", ""))
-                # Deliberately NOT in DESIGNED_OUTCOME_CODES, even though this
-                # code recurs by design the way IDENTITY_STAGING_BUSY does.
-                # `check_improvement` intersects the *shell's* `$REASONS` with
-                # the last recorded auto record, and `$REASONS` is built only by
-                # `weekly-pipeline.sh`'s own `add_reason` — stage 7 runs before
-                # stage 8, so a code added here reaches the baseline side and
-                # never the candidate side, and the intersection cannot contain
-                # it. Measured. Two 2026-08-15 reviewers reached opposite
-                # conclusions about this, one of them by passing
-                # `--current-codes LEDGERWATCH_DRIFT` by hand — which no caller
-                # does — so the reasoning is written down rather than left to be
-                # re-derived. Listing it in that set would document a exemption
-                # the detector does not need and cannot use.
-                add_reason("LEDGERWATCH_DRIFT")
-            lw_errors = lw_data.get("errors")
-            if isinstance(lw_errors, list) and lw_errors:
-                ledger_parse_errors = len(lw_errors)
-                add_reason("LEDGERWATCH_PARTIAL")
-            elif lw_errors is not None and not isinstance(lw_errors, list):
-                # Same schema-drift door as DOCSCAN_PARTIAL above.
-                ledger_parse_errors = 1
-                add_reason("LEDGERWATCH_PARTIAL")
-        else:
-            add_reason("LEDGERWATCH_UNREADABLE")
-    ledger_fired = [w for w in ledger_watches if w.get("fired") is True]
-    # fired=None is a per-watch fault (UNREACHABLE / PARSE_ERROR / …): the
-    # condition state is unknown, which must not read as "still blocked".
-    ledger_faults = [w for w in ledger_watches if w.get("fired") is None]
-    if ledger_faults:
-        # Runtime faults must reach the header reason list and the metrics
-        # record — a Saturday with GitHub unreachable would otherwise record
-        # fired=0 with no code, invisible to the P4 recurrence detector
-        # (2026-08-14 code review M1).
-        add_reason("LEDGERWATCH_FAULTS")
-
     def _vl(section: str, key: str) -> object:
         if value_layer_data is None:
             return None
@@ -860,9 +802,8 @@ def build_packet(
         # false "not due" (same discipline as dead_code_candidates).
         "identity_due": identity_due if isinstance(identity_due, bool) else None,
         "constitution_due": constitution_due if isinstance(constitution_due, bool) else None,
-        # Same None-vs-0 discipline for the two repo-plane intakes (ADR-0093).
+        # Same None-vs-0 discipline for the repo-plane intake (ADR-0093).
         "docs_findings": len(docs_findings) if docs_scanned else None,
-        "ledger_watch_fired": len(ledger_fired) if ledger_scanned else None,
         "reason_codes": reason_codes,
     }
     history = [r for r in _read_jsonl(metrics) if r.get("phase") == "auto"]
@@ -929,11 +870,6 @@ def build_packet(
         lines.append(
             f"- docs consistency: {len(docs_findings)} 件"
             "（検出のみ — doc 修正は人間 commit、§9 参照）"
-        )
-    if ledger_fired:
-        lines.append(
-            f"- ledger watch fired: {len(ledger_fired)} 件"
-            "（blocked 解除条件が動いた可能性 — 着手判断は人間、§10 参照）"
         )
     lines.append("")
 
@@ -1296,49 +1232,6 @@ def build_packet(
             )
         lines.append("")
 
-    # Section number 10 is reserved for the ledger-watch intake; it renders
-    # only when a condition fired, a watch faulted (state unknown ≠ still
-    # blocked), or an annotation failed to parse.
-    #
-    # Deliberately NOT on `ledger_drift`. Nothing auto-renders the projection —
-    # that is the premise of reading the store instead — so any store edit since
-    # the last hand render produces drift, and gating a signal-first section on
-    # it would print a bold 注意 line most weeks. That is the alarm fatigue the
-    # redesign rejected the *fatal* version of, reappearing in the non-fatal
-    # place (2026-08-15 security review LOW). Drift still reaches the header
-    # reason list and the metrics record via `add_reason`, which is the
-    # low-noise channel, and its detail renders here when §10 is already open.
-    if ledger_fired or ledger_faults or ledger_parse_errors:
-        lines.append("## 10. Ledger condition watch")
-        lines.append("")
-        lines.append(
-            "台帳 watch 照合（第 7 決定論 intake、`scripts/ledger_condition_scan.py`）"
-            "の読み値。`.notes/tasks/` を毎回 render した表の blocked 行に注釈された"
-            "解除条件の現在状態（`.notes/TASKS.md` は生成物なので入力ではない）。"
-            "**fired = 条件が動いた可能性の読み値であって着手指示ではない** — "
-            "着手判断は人間に属する。"
-        )
-        lines.append("")
-        if ledger_parse_errors:
-            lines.append(
-                f"**注意 (LEDGERWATCH_PARTIAL)**: {ledger_parse_errors} 件の watch 注釈が"
-                "解釈不能 — `.notes/tasks/` の注釈構文を確認。"
-            )
-            lines.append("")
-        if ledger_drift:
-            lines.append(f"**注意 (LEDGERWATCH_DRIFT)**: {_cell(ledger_drift)}")
-            lines.append("")
-        lines.append("| task | type | target | status | fired | reason |")
-        lines.append("|---|---|---|---|---|---|")
-        for w in ledger_fired + ledger_faults:
-            fired_cell = "🔔 fired" if w.get("fired") is True else "?（判定不能）"
-            lines.append(
-                f"| {_cell(w.get('task', '?'))} | {_cell(w.get('type', '?'))} "
-                f"| `{_cell(w.get('target', '?'))}` | {_cell(w.get('status') or '—')} "
-                f"| {fired_cell} | {_cell(w.get('reason') or '—')} |"
-            )
-        lines.append("")
-
     lines.append("## Audit trail")
     lines.append("")
     lines.append(f"- events: `{audit}`（run_id `{run_id}`）")
@@ -1389,12 +1282,6 @@ def main() -> int:
         default=None,
         help="docs_consistency_scan.py JSON — section appears only on findings/errors",
     )
-    p_build.add_argument(
-        "--ledger-watch",
-        type=Path,
-        default=None,
-        help="ledger_condition_scan.py JSON — section appears only on fired/faulted watches",
-    )
 
     p_check = sub.add_parser("check-improvement", help="P4-shaped recurrence trigger")
     p_check.add_argument("--metrics", type=Path, required=True)
@@ -1443,7 +1330,6 @@ def main() -> int:
             dead_code=args.dead_code,
             value_layer=args.value_layer,
             docs_scan=args.docs_scan,
-            ledger_watch=args.ledger_watch,
         )
         print(f"Packet written: {args.out}")
     elif args.command == "check-improvement":

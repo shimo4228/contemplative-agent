@@ -18,12 +18,12 @@ def printable(text: str, replacement: str = " ") -> str:
 
     ``str.isprintable()`` rather than a hand-written character class: it
     rejects Cc, Cf, Cs, Co, Cn, Zl, Zp and non-space Zs, a strict superset of
-    the C0/DEL/C1/bidi/zero-width class spelled out in ``tasks.py::_CONTROL_RE``
-    and ``claims.py::safe``. One owner, because a second spelling of the class
-    is a second thing to keep in sync — and the classes have already drifted
-    once (an earlier copy passed U+202E while claiming parity). Hand-written
-    classes keep drifting in the same direction: cross-model review found
-    U+061C, U+2060 and U+FEFF outside both of the ones named above on
+    the C0/DEL/C1/bidi/zero-width class spelled out in
+    ``~/.claude/scripts/claims.py::safe``. One owner, because a second spelling
+    of the class is a second thing to keep in sync — and the classes have
+    already drifted once (an earlier copy passed U+202E while claiming parity).
+    Hand-written classes keep drifting in the same direction: cross-model
+    review found U+061C, U+2060 and U+FEFF outside the enumerated ones on
     2026-08-16, which ``isprintable()`` covers without being enumerated.
 
     ``replacement`` is for callers that must show the reader that something was

@@ -218,7 +218,7 @@ def test_finding_title_cannot_open_inline_constructs(tmp_path: Path):
     findings["f1"][1]["title"] = (
         "<details><summary>§3 以降: 変更なし</summary> "
         "![beacon](http://attacker.example/b.png) "
-        "[根拠](http://attacker.example/x) `unclosed ‮​"
+        "[根拠](http://attacker.example/x) `unclosed \u202e\u200b"
     )
     paths["findings"].write_text(json.dumps(findings), encoding="utf-8")
     text = _build(paths)
@@ -230,7 +230,7 @@ def test_finding_title_cannot_open_inline_constructs(tmp_path: Path):
     # No code span: it would run past the line break into the next rows.
     assert "`unclosed" not in text
     # No bidi override / zero-width char to reorder what the approver reads.
-    assert "‮" not in text and "​" not in text
+    assert "\u202e" not in text and "\u200b" not in text
     # The finding is still named — neutralising is not dropping.
     assert "- **F1.2** —" in text
 
@@ -238,9 +238,9 @@ def test_finding_title_cannot_open_inline_constructs(tmp_path: Path):
 def test_cell_is_the_control_character_floor_for_every_audit_value():
     """The structural floor neutralises control characters, not each producer.
 
-    This shape has already failed once in this repo: `ledger_condition_scan`'s
-    `_printable` records a version that treated `detail` as the only field
-    needing the pass, and `target` reached §10 raw. `_cell` is what all 36 call
+    This shape has already failed once in this repo: the retired ledger-watch
+    intake treated `detail` as the only field needing the pass, and `target`
+    reached its section raw. `_cell` is what every call
     sites share, so it is where the class belongs; `_path_tokens`,
     `_unrecognized_verdict` and `_title_cell` keep their own stricter passes as
     defence in depth rather than as the boundary.
@@ -1566,7 +1566,7 @@ def test_value_layer_unknown_reason_renders_constrained(tmp_path: Path):
     assert "UNRECOGNIZED" in text.split("## 8.")[1]
 
 
-# --- Repo-plane intakes (ADR-0093): docs consistency + ledger watch ---------
+# --- Repo-plane intake (ADR-0093): docs consistency ------------------------
 
 
 def _docs_scan_json(tmp_path: Path, findings: list[dict], errors: list[dict] | None = None) -> Path:
@@ -1579,29 +1579,6 @@ def _docs_scan_json(tmp_path: Path, findings: list[dict], errors: list[dict] | N
                 "readings": {"codemaps": []},
                 "errors": errors or [],
                 "scanned_files": 5,
-            }
-        ),
-        encoding="utf-8",
-    )
-    return path
-
-
-def _ledger_watch_json(
-    tmp_path: Path,
-    watches: list[dict],
-    errors: list[dict] | None = None,
-    drift: dict | None = None,
-) -> Path:
-    path = tmp_path / "ledger-watch.json"
-    path.write_text(
-        json.dumps(
-            {
-                "watches": watches,
-                "watch_count": len(watches),
-                "fired_count": sum(1 for w in watches if w.get("fired") is True),
-                "errors": errors or [],
-                "projection_drift": drift,
-                "source": "store",
             }
         ),
         encoding="utf-8",
@@ -1667,211 +1644,6 @@ def test_docs_partial_errors_render_warning_section(tmp_path: Path):
     text = _build(paths, docs_scan=ds)
     assert "## 9. Docs consistency" in text
     assert "DOCSCAN_PARTIAL" in text
-
-
-def test_ledger_fired_watch_renders_section(tmp_path: Path):
-    paths = _write_inputs(tmp_path)
-    lw = _ledger_watch_json(
-        tmp_path,
-        [
-            {
-                "task": "T-OLLAMA-TOKENIZE",
-                "type": "gh-pr",
-                "target": "ollama/ollama#12030",
-                "status": "merged",
-                "fired": True,
-                "reason": None,
-            },
-            {
-                "task": "T-B",
-                "type": "file-exists",
-                "target": "~/x.env",
-                "status": "absent",
-                "fired": False,
-                "reason": None,
-            },
-        ],
-    )
-    text = _build(paths, ledger_watch=lw)
-    assert "## 10. Ledger condition watch" in text
-    assert "ledger watch fired: 1 件" in text
-    assert "T-OLLAMA-TOKENIZE" in text
-    assert "T-B |" not in text  # still-blocked rows stay out (signal-first)
-    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
-    assert rec["ledger_watch_fired"] == 1
-
-
-def test_ledger_watch_target_cannot_reach_the_gate_with_control_characters(tmp_path: Path):
-    """The floor holds on §10's `target` even if its producer forgets.
-
-    NOT an end-to-end proof, and the difference matters: `_ledger_watch_json`
-    writes the intake's JSON by hand, so this exercises `_cell` alone. The
-    scan-side pass has covered `target` since `8265e3c` (2026-08-15) —
-    `ledger_condition_scan.py` truncates it through `_printable`, and
-    `tests/test_ledger_condition_scan.py` asserts that directly. What is tested
-    here is the second layer: `target` is ledger text carried verbatim and
-    `json.dumps` escapes only C0, so DEL, the C1 block, the bidi overrides and
-    ZWSP survive that JSON literally — and §10 is read by a human at the
-    Saturday gate, where a bidi override reorders what the approver sees a
-    watch was pointed at. A floor that does not depend on the producer is what
-    stops the next producer from being the one that forgets (2026-08-16).
-    """
-    paths = _write_inputs(tmp_path)
-    marks = f"{chr(0x202E)}{chr(0x200B)}{chr(0x7F)}{chr(0x85)}"
-    lw = _ledger_watch_json(
-        tmp_path,
-        [
-            {
-                "task": "T-A",
-                "type": "gh-pr",
-                "target": f"ollama/ollama#12030{marks}",
-                "status": "merged",
-                "fired": True,
-                "reason": None,
-            }
-        ],
-    )
-    text = _build(paths, ledger_watch=lw)
-    assert "T-A" in text  # neutralising is not dropping
-    for ch in marks:
-        assert ch not in text, f"U+{ord(ch):04X} reached the gate"
-
-
-def test_ledger_all_still_blocked_is_silent(tmp_path: Path):
-    paths = _write_inputs(tmp_path)
-    lw = _ledger_watch_json(
-        tmp_path,
-        [
-            {
-                "task": "T-A",
-                "type": "gh-pr",
-                "target": "o/r#1",
-                "status": "open",
-                "fired": False,
-                "reason": None,
-            }
-        ],
-    )
-    text = _build(paths, ledger_watch=lw)
-    assert "## 10." not in text
-    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
-    assert rec["ledger_watch_fired"] == 0
-
-
-def test_ledger_faulted_watch_renders_with_reason(tmp_path: Path):
-    # fired=None means "state unknown", which must not read as still-blocked.
-    paths = _write_inputs(tmp_path)
-    lw = _ledger_watch_json(
-        tmp_path,
-        [
-            {
-                "task": "T-A",
-                "type": "gh-pr",
-                "target": "o/r#1",
-                "status": None,
-                "fired": None,
-                "reason": "UNREACHABLE",
-            }
-        ],
-    )
-    text = _build(paths, ledger_watch=lw)
-    assert "## 10. Ledger condition watch" in text
-    assert "UNREACHABLE" in text
-    assert "判定不能" in text
-
-
-def test_ledger_unreadable_degrades_to_reason_code(tmp_path: Path):
-    paths = _write_inputs(tmp_path)
-    bad = tmp_path / "ledger-watch.json"
-    bad.write_text("{not json", encoding="utf-8")
-    _build(paths, ledger_watch=bad)
-    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
-    assert "LEDGERWATCH_UNREADABLE" in rec["reason_codes"]
-    assert rec["ledger_watch_fired"] is None
-
-
-def test_ledger_parse_errors_surface_partial(tmp_path: Path):
-    paths = _write_inputs(tmp_path)
-    lw = _ledger_watch_json(
-        tmp_path, [], errors=[{"task": "T-X", "reason": "MALFORMED_WATCH", "detail": "x"}]
-    )
-    text = _build(paths, ledger_watch=lw)
-    assert "## 10. Ledger condition watch" in text
-    assert "LEDGERWATCH_PARTIAL" in text
-
-
-DRIFT = {"reason": "PROJECTION_DRIFT", "detail": "TASKS.md が store の render と一致しない"}
-
-
-def test_projection_drift_gets_its_own_reason_code(tmp_path: Path):
-    """Drift is not an unparseable annotation. LEDGERWATCH_PARTIAL tells the
-    operator to check `watch:` syntax; drift means the on-disk table no longer
-    matches the store the reading was taken from, and its repair is one
-    `tasks.py render`. Folding it into the same list delivered a true signal
-    under a false name, with the reason and detail discarded (2026-08-15
-    cross-model review P2).
-
-    Asserted on the **metrics record**, not on the packet text: a first version
-    checked that the string `LEDGERWATCH_DRIFT` appeared in the body, which the
-    §10 note prints literally — so deleting the `add_reason` call left the test
-    green while the code never reached the header list or the metrics history
-    (caught by mutation)."""
-    paths = _write_inputs(tmp_path)
-    lw = _ledger_watch_json(tmp_path, [], drift=DRIFT)
-    _build(paths, ledger_watch=lw)
-    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
-    assert "LEDGERWATCH_DRIFT" in rec["reason_codes"]
-    assert "LEDGERWATCH_PARTIAL" not in rec["reason_codes"]
-
-
-def test_drift_alone_does_not_open_section_10(tmp_path: Path):
-    """§10 is signal-first — silent unless a condition needs attention. Nothing
-    auto-renders the projection, so drift is the expected state between hand
-    renders; gating the section on it would print a bold 注意 line most weeks,
-    which is the alarm fatigue the fatal version was rejected for, reappearing
-    in the non-fatal place (2026-08-15 security review LOW)."""
-    paths = _write_inputs(tmp_path)
-    text = _build(paths, ledger_watch=_ledger_watch_json(tmp_path, [], drift=DRIFT))
-    assert "## 10. Ledger condition watch" not in text
-
-
-def test_drift_is_shown_when_section_10_is_open_anyway(tmp_path: Path):
-    """The other half: recording the code without ever showing the repair would
-    make it unactionable for anyone not reading the retained JSON."""
-    paths = _write_inputs(tmp_path)
-    lw = _ledger_watch_json(
-        tmp_path,
-        [{"task": "T-A", "type": "gh-pr", "target": "o/r#1", "fired": True, "reason": None}],
-        drift=DRIFT,
-    )
-    text = _build(paths, ledger_watch=lw)
-    assert "## 10. Ledger condition watch" in text
-    assert "LEDGERWATCH_DRIFT" in text
-    assert "一致しない" in text
-    assert "LEDGERWATCH_PARTIAL" not in text
-
-
-def test_ledger_faults_raise_a_reason_code(tmp_path: Path):
-    # A Saturday with GitHub unreachable must not record fired=0 with no
-    # code — the P4 recurrence detector reads reason codes only
-    # (2026-08-14 code review M1).
-    paths = _write_inputs(tmp_path)
-    lw = _ledger_watch_json(
-        tmp_path,
-        [
-            {
-                "task": "T-A",
-                "type": "gh-pr",
-                "target": "o/r#1",
-                "status": None,
-                "fired": None,
-                "reason": "UNREACHABLE",
-            }
-        ],
-    )
-    _build(paths, ledger_watch=lw)
-    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
-    assert "LEDGERWATCH_FAULTS" in rec["reason_codes"]
 
 
 def test_non_list_errors_field_degrades_not_clean(tmp_path: Path):

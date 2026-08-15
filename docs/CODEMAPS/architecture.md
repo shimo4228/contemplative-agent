@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (control characters refused at render_row / neutralised at the packet's _cell floor; weekly-analysis.sh's two sessions bounded, permission gate widened to the whole chain) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (task-ledger machinery retired — stage 6c ledgerwatch, packet §10 and scripts/tasks.py removed, ADR-0095; control characters neutralised at the packet's _cell floor; weekly-analysis.sh's two sessions bounded, permission gate widened to the whole chain) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -605,125 +605,17 @@ Stage 6b docsscan: docs_consistency_scan.py (6th deterministic intake, ADR-0093 
                    notes_ref findings + CODEMAPS/CYCLES freshness readings;
                    stateless nag-until-fixed; faults degrade to DOCSCAN_PARTIAL /
                    abstain DOCSCAN_FAIL)
-Stage 6c ledgerwatch: ledger_condition_scan.py (7th deterministic intake, ADR-0093 —
-                   `watch:` annotations on blocked rows of the ledger table
-                   rendered from .notes/tasks/ (see "Input is the STORE"
-                   below): gh-pr /
-                   http(-post)-status / file-exists; bounded network reads with
-                   responses mapped to a closed vocabulary {open,closed,merged} —
-                   no response text ever reaches the packet; per-watch faults
-                   degrade with reason codes, fired=null renders as unknown)
-                   Since ADR-0094 .notes/TASKS.md is a render artifact of
-                   scripts/tasks.py (store = one file per task under
-                   .notes/tasks/). This intake is the only direct parser of the
-                   table, so its grammar — one task per line, ID and 状態 cells
-                   on that same line, watch spans inline — constrains the
-                   render; pinned by a test that imports this scanner's
-                   parse_watches and compares its parse surface against a
-                   checked-in fixture ledger (tests/fixtures/ledger/, both
-                   dialects — .notes/ is gitignored, so a test reading the live
-                   ledger would skip silently everywhere else).
-                   A `watch:` span _WATCH_RE cannot see is refused by tasks.py
-                   render_row AND reported here as MALFORMED_WATCH
-                   (2026-08-15): no match is what a row with no annotation
-                   produces, so the task would sit at fired 0 for as long as it
-                   stayed blocked. Three kinds under one predicate,
-                   invisible_watch_openers, which both ends import from this
-                   module together with the kind constants — the reason string
-                   names the kind, since "unterminated" is false for two of
-                   them. unterminated / swallowed are broken markup in any
-                   state and render refuses them on every row (0 live
-                   instances across 120); no-argument (`watch:` alone) is also
-                   how prose names the annotation — _HEADER and one live ready
-                   row write it — so render refuses it only on blocked rows.
-                   The scan stays blocked-only for all three: a row outside the
-                   watch contract has nothing to report.
-                   render_row also refuses _UNRENDERABLE in any of the four
-                   rendered cells (2026-08-16); write_store carries the same
-                   check, but only cmd_age and the one-shot migration reach that
-                   function, while the store is hand-edited and parse_task_file
-                   accepts these characters — so store → render → TASKS.md →
-                   scanner, the path every session uses, was ungated. The set is
-                   the "one task is one line" contract stated exactly: the eight
-                   separators str.splitlines() breaks on (VT FF FS GS RS NEL LS
-                   PS) split one rendered row into two lines for parse_watches
-                   while load_tasks_from_ledger, splitting on "\n", still reads
-                   one task — the watch annotation severed from the id that owns
-                   it, and neither consumer erroring. CR is in the set for Tasks
-                   that never came from a file (read_text normalises it
-                   otherwise); NUL is in it on weaker grounds, as a corruption
-                   marker, its original sentinel reason having expired with the
-                   single-pass scanner. 0 of the 124 live tasks are affected.
-                   **The refusal is NOT the display class.** _CONTROL_RE
-                   (_one_line) covers ​-‏, which includes ZWJ — the
-                   joiner in every modern emoji sequence — so refusing on it
-                   made one pasted PR title enough to leave the whole ledger
-                   unrenderable for all 124 tasks (2026-08-16 code review HIGH,
-                   reproduced). str.isprintable() is worse still on a refusal:
-                   TAB, NBSP, U+00AD, Cn. Everything invisible that does not
-                   break the line is a display problem, and the display class
-                   has holes in both directions (misses U+061C / U+2060 /
-                   U+FEFF / NBSP, over-rejects ZWJ / ZWNJ) — closing it means
-                   moving claims.py::safe in the same step, which is
-                   T-CONTROL-CHAR-FORMAT-CLASS.
-                   The refusal message names the cell, the offset, the codepoint
-                   and an excerpt. Every character in the class is invisible and
-                   render_ledger refuses the whole table on one of them, so a
-                   message giving only the task id makes the operator write a
-                   scanner by hand — the work the guard removes.
-                   Input is the STORE, not the file (2026-08-15, superseding
-                   this intake's input in ADR-0093). No stage re-derives the
-                   projection — sessions render by hand — so parsing
-                   .notes/TASKS.md asked about a cache while the source sat
-                   beside it, and every way that cache could be wrong came out
-                   as a clean fired=0: a week whose tasks.py render failed left
-                   the PREVIOUS table in place, well-formed and parseable,
-                   and the stage recorded result=ok fired=0 over rows the store
-                   no longer had. render_from_store runs `tasks.py render` as a
-                   subprocess (separate process, so no cycle with tasks.py's
-                   import of this module's watch grammar; measured 0.12s,
-                   read-only — render without --output only prints) and the
-                   scan parses its stdout. Timestamp comparison was rejected:
-                   a render can start failing with NO store mutation when the
-                   render side tightens (c16642c and 8265e3c each did), which
-                   every mtime test calls fresh. Abstains: LEDGER_UNRENDERABLE
-                   (carries render's own message, which names the offending
-                   task and cell), RENDER_TIMEOUT, RENDER_UNAVAILABLE;
-                   LEDGER_UNREADABLE survives only for the root=None path. The
-                   on-disk file is still compared and its drift reported as
-                   PROJECTION_DRIFT — never fatal, since the store routinely
-                   runs ahead of the projection between hand renders (claims.py
-                   unions both for that reason) and a fatal drift would fail
-                   most weeks until the alarm meant nothing. Drift travels in
-                   its OWN json key and its own packet code LEDGERWATCH_DRIFT,
-                   not in errors[]: the packet counts errors[] entries as
-                   unparseable watch annotations and prints "check annotation
-                   syntax", so routing drift there delivered a true signal
-                   under a false name. LEDGERWATCH_DRIFT reaches the header
-                   reason list and metrics but does NOT open §10 on its own:
-                   drift is the expected state between hand renders, so gating
-                   a signal-first section on it would print a notice most
-                   weeks; its detail renders when §10 is open for another
-                   cause. --root is derived from --ledger (the
-                   flag the pipeline passes) and is carried in the repair
-                   command, since tasks.py without it renders its DEFAULT
-                   store; the JSON records source=store|file. The abstain
-                   reaches the packet as the stage-level LEDGERWATCH_FAIL;
-                   which abstain it was, and which row caused it, live in the
-                   run log's ledgerwatch.err.
 Stage 7 improve:   only when the same reason code recurred 2 consecutive runs (check-improvement)
 Stage 8 packet:    build_decision_packet.py → weekly-<end>-packet.md (§2 fix table +
                    per-finding diagnosis headings from findings.json, §8 value-layer
-                   cadence, §9 docs consistency, §10 ledger watch — all
-                   signal-first) + phase:"auto" record →
-                   logs/pipeline-metrics.jsonl (identity_due / constitution_due /
-                   docs_findings / ledger_watch_fired, None = not read this week)
+                   cadence, §9 docs consistency — all signal-first; §10 ledger
+                   watch was retired 2026-08-16, ADR-0095) + phase:"auto"
+                   record → logs/pipeline-metrics.jsonl (identity_due /
+                   constitution_due / docs_findings, None = not read this week)
                    _cell is the control-character floor for every audit-derived
-                   value (2026-08-16, via _md.printable) — a SECOND layer, not
-                   the first: stage 6c has passed §10's watch target through its
-                   own _printable since 8265e3c. The floor exists because
-                   per-producer is what failed once already (that same
-                   _printable's docstring records a version treating detail as
+                   value (2026-08-16, via _md.printable). The floor exists
+                   because per-producer is what failed once already (the
+                   retired ledger-watch intake had a version treating detail as
                    the only field needing it, and target reached §10 raw), and
                    because json.dumps escapes only C0, so a producer that
                    forgets ships DEL / C1 / ZWSP / RLO into a packet a human
@@ -757,11 +649,11 @@ The other four sites in `weekly-pipeline.sh` were converted in T-CHAIN-PERM-SWEE
 
 The dead-code scan (2026-08-07, T-DEADCODE-INTAKE) is the fifth deterministic intake, and the only one wired into the pipeline rather than into weekly-analysis: its output goes straight to the packet builder (`--dead-code`, JSON), deliberately bypassing the diagnosis→fix LLM stages so an unattended session can never author a deletion patch — false positives are structurally unavoidable (CLI entry points, `config/prompts/*.md` dynamic loads via `getattr`, `typing.Protocol` indirection, the sibling-consumed `testing/` kit), so deletion is always a Saturday-gate human commit (delete / whitelist / defer, per candidate). Vulture policy is single-sourced in pyproject `[tool.vulture]` (scan paths include tests/ and evals/ for reference resolution; `dead_code_scan.py` reports src/ and scripts/ only) with exemptions in `.vulture_whitelist.py`. Signal-first: a zero-candidate week renders no packet section (the count still lands in the metrics record, a scan fault abstains with `DEADCODE_SCAN_FAIL`, and a partially-unparseable vulture output degrades loudly with `DEADCODE_PARTIAL_PARSE` — never a silent zero or a silently-incomplete list). It reads only the repo checkout, never episode logs. The retirement-ADR sweep (`substrate-migration-sweep`) remains the primary cleanup moment; this intake is the net under it.
 
-The two repo-plane intakes (2026-08-14, ADR-0093) reuse the same contract — JSON to the packet builder, diagnosis→fix bypass, action reserved to the gate. Stage 6b scans only self-authored docs (no untrusted text), so its findings render as a plain §9 table; it is deliberately stateless (a repairable finding should nag weekly until fixed — contrast api_drift_scan's flag-once, whose subject is not this repo's to repair) and deliberately absent from verify.sh (git-backed doc auditing is weekly-cadence work, not per-commit work; one `git log --name-only` walk serves every enja pair). Stage 6c is the one intake with network egress: bounded GETs whose responses are mapped inside the scan to a closed status vocabulary, so no platform-controlled string can reach the packet the gate session reads; `fired=null` (UNREACHABLE / PARSE_ERROR / SCHEMA_DRIFT / HTTP_ERROR) renders as unknown rather than passing as still-blocked. It runs here precisely because the ledger is local and gitignored — no cloud agent can see it.
+The repo-plane intake (2026-08-14, ADR-0093) reuses the same contract — JSON to the packet builder, diagnosis→fix bypass, action reserved to the gate. Stage 6b scans only self-authored docs (no untrusted text), so its findings render as a plain §9 table; it is deliberately stateless (a repairable finding should nag weekly until fixed — contrast api_drift_scan's flag-once, whose subject is not this repo's to repair) and deliberately absent from verify.sh (git-backed doc auditing is weekly-cadence work, not per-commit work; one `git log --name-only` walk serves every enja pair). ADR-0093's second intake — stage 6c, a weekly poll of `watch:` conditions on blocked ledger rows — was retired on 2026-08-16 together with the ledger machinery it read (ADR-0095): it served three real annotations, and the render/re-parse layer it required was where seven of the twelve review-spawned defects of 2026-08-15/16 lived. The task ledger is now plain frontmatter files under `.notes/tasks/` read by `~/.claude/scripts/claims.py ready`; no pipeline stage reads it.
 
 Bounds: ≤5 findings/week, per-session timeouts, 3h wall-clock deadline. Fail-forward: every stage failure becomes a reason code and the packet is still built (only a missing Stage-1 report aborts). Audit: every event → `logs/weekly-pipeline-audit.jsonl` (ADR-0075; the packet builder replays it). The replay derives reason codes from the events themselves, not from the shell's `REASONS` variable — including `SCOPE_ESCALATED`, which is carried by its own `scope_escalation` event type rather than a `reason` field, and so was silently dropped until 2026-08-08. An escalation surfaces in the header reason list, as a `→ SCOPE_ESCALATED` marker appended to (never substituted for) the declared scope in the §2 fix table, and as a note plus bounded path list under the escalated patch's §3 heading. It is also **absent from the §1 code-patch count**, which the same change re-based from `patch_ready` events onto `patches_dir.glob("*.patch")` — the events counted escalated *and* prompt-scope fixes whose patches never land there (2 vs 1 file on the 2026-08-07 run), and an escalated patch counted as an apply target could be approved in Step 2, where code patches are approved without reading diffs, before ever reaching its §3 full text. Escalation is the mirror of the no-silent-fallback rule: an override the human cannot see is an unreviewed one, and an unexplained one invites the next reader to "fix" the scope classifier instead. Because the shell's audit append is best-effort, escalation is also derived from two fallback signals, both reported as `SCOPE_ESCALATED_INFERRED` so the audit-log gap is named rather than fail-open: a `scope=code` fix whose exported patch landed in the prompt dir, and — for a sustained outage that loses the `fix_result` too — a prompt-dir patch whose finding was *declared* code scope in `findings.json`, which needs no audit events at all.
 
-Rendering discipline for audit-derived values: every one of them passes through `_cell` (backslash-then-pipe escaping, `splitlines()` flattening — the same alphabet consumers split on) before reaching a table cell, a note line, or a filename that a note line will quote. **`_cell` neutralises `|` and line breaks but deliberately not `#` or backtick runs, so it is only safe mid-line** — this is the invariant a future editor is most likely to break, and it is why the review-note heading escapes its own values (line-initial position) and why the review `round` is escaped before it is built into a log filename (an unescaped newline there reached the `REVIEW_LOG_UNREADABLE` note verbatim and forged a §5 dead-code section — the one the gate attaches a deletion procedure to). Escalation paths get a stricter treatment still (`_path_tokens`): the fix session names those files itself and git passes printable ASCII through unquoted, so structural escaping alone would let a filename write reassuring prose inside the builder's own narration, or open an HTML `<details>` that folds away later sections in a browser preview. They are emitted on their own line as character-allowlisted (`[A-Za-z0-9._/+-]`, else U+FFFD) backtick spans, capped at 20 whitespace tokens × 120 chars with both limits marked when they bite. The reviewer `verdict` gets the same strict treatment for the same reason — it is one of the two *free-text LLM-authored* values in the packet (the shell greps a line out of the review session's own output, so unlike `fix_id`/`scope`/`patch` it is not repo-derived), and it reaches both the §2 table and a `####` heading; off-contract values render as `UNRECOGNIZED(...)` and raise `REVIEW_VERDICT_UNRECOGNIZED`. The other is the **diagnosis heading** rendered beside each §2 row (2026-08-15): a heading is prose, so `_title_cell` cannot use a path-style allowlist (Japanese would not survive one) and instead neutralises the classes that open an *inline* construct — `<>` (an unclosed `<details>` folds §3–§10 behind a summary the heading's own author wrote), `[]` (link/image markup beside a patch row), backtick (a code span runs past the flattened line break into the rows below), and control/bidi/zero-width characters — then caps at 240 chars with marked elision. Mid-line rendering alone is not the guard here: mid-line is precisely where inline HTML is legal. The inferred branch deliberately renders a *different* §3 note: it observed only the patch's output directory, so repeating the observed branch's "touched a path outside `^(src|scripts|tests)/`" would assert a cause the builder never saw.
+Rendering discipline for audit-derived values: every one of them passes through `_cell` (backslash-then-pipe escaping, `splitlines()` flattening — the same alphabet consumers split on) before reaching a table cell, a note line, or a filename that a note line will quote. **`_cell` neutralises `|` and line breaks but deliberately not `#` or backtick runs, so it is only safe mid-line** — this is the invariant a future editor is most likely to break, and it is why the review-note heading escapes its own values (line-initial position) and why the review `round` is escaped before it is built into a log filename (an unescaped newline there reached the `REVIEW_LOG_UNREADABLE` note verbatim and forged a §5 dead-code section — the one the gate attaches a deletion procedure to). Escalation paths get a stricter treatment still (`_path_tokens`): the fix session names those files itself and git passes printable ASCII through unquoted, so structural escaping alone would let a filename write reassuring prose inside the builder's own narration, or open an HTML `<details>` that folds away later sections in a browser preview. They are emitted on their own line as character-allowlisted (`[A-Za-z0-9._/+-]`, else U+FFFD) backtick spans, capped at 20 whitespace tokens × 120 chars with both limits marked when they bite. The reviewer `verdict` gets the same strict treatment for the same reason — it is one of the two *free-text LLM-authored* values in the packet (the shell greps a line out of the review session's own output, so unlike `fix_id`/`scope`/`patch` it is not repo-derived), and it reaches both the §2 table and a `####` heading; off-contract values render as `UNRECOGNIZED(...)` and raise `REVIEW_VERDICT_UNRECOGNIZED`. The other is the **diagnosis heading** rendered beside each §2 row (2026-08-15): a heading is prose, so `_title_cell` cannot use a path-style allowlist (Japanese would not survive one) and instead neutralises the classes that open an *inline* construct — `<>` (an unclosed `<details>` folds §3–§9 behind a summary the heading's own author wrote), `[]` (link/image markup beside a patch row), backtick (a code span runs past the flattened line break into the rows below), and control/bidi/zero-width characters — then caps at 240 chars with marked elision. Mid-line rendering alone is not the guard here: mid-line is precisely where inline HTML is legal. The inferred branch deliberately renders a *different* §3 note: it observed only the patch's output directory, so repeating the observed branch's "touched a path outside `^(src|scripts|tests)/`" would assert a cause the builder never saw.
 
 Promotion is the Saturday `/weekly-gate` session: apply → re-Verify → single human commit, prompt diffs full-text, `adopt-staged`, then a `phase:"gate"` metrics record. `scripts/pipeline_watchdog.sh` (pure bash, no claude/uv PATH dependency) checks each job's terminal artifact on anchored deadlines and rewrites `reports/PIPELINE-STATUS.md` + Notification Center on a changed failure set. `SCOPE_ESCALATED` is excluded from the P4 recurrence set (`DESIGNED_OUTCOME_CODES`): it reports a guard working as designed, and two routine docs-touching weeks would otherwise spend an unattended session "improving" it. `SCOPE_ESCALATED_INFERRED` is not excluded — a recurring audit-log gap is a real fault.
 

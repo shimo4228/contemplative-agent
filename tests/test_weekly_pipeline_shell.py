@@ -301,120 +301,16 @@ def test_f_rev_5_missing_verdict_is_terminal(tmp_path: Path):
     assert [e["result"] for e in _events(env, "fix_result")] == ["patch_ready"]
 
 
-TASK_FILE = """---
-id: {tid}
-state: {state}
-seq: 1
----
-
-## タスク
-
-{summary}
-
-## 着手条件
-
-なし
-
-## 詳細
-
-—
-"""
-
-
-def _fixture_store(root: Path, tid: str, state: str, summary: str) -> Path:
-    """A real `.notes/` layout under `root`, and the ledger path inside it.
-
-    Task *files*, not a hand-written table: the scan renders the table from the
-    store on every run (ADR-0093 as amended 2026-08-15), so a fixture that
-    faked the projection would exercise none of the path under test. The ledger
-    itself is deliberately left unwritten — the reading does not depend on it,
-    and its absence is reported as PROJECTION_DRIFT rather than a fault.
-    """
-    store = root / ".notes" / "tasks"
-    store.mkdir(parents=True)
-    (store / f"{tid}.md").write_text(
-        TASK_FILE.format(tid=tid, state=state, summary=summary), encoding="utf-8"
-    )
-    return root / ".notes" / "TASKS.md"
-
-
-def test_repo_plane_intakes_feed_the_packet(tmp_path: Path):
-    # ADR-0093 stages 6b/6c: docs scan runs read-only over THIS repo checkout;
-    # the ledger watch renders a fixture store reached via MOLTBOOK_LEDGER_PATH
-    # and polls a file-exists condition — the shell test never touches the
-    # network.
+def test_repo_plane_intake_feeds_the_packet(tmp_path: Path):
+    # ADR-0093 stage 6b: docs scan runs read-only over THIS repo checkout —
+    # the shell test never touches the network.
     env = _make_env(tmp_path, fix_behavior=[], verdicts=[])
-    env["MOLTBOOK_PIPELINE_STAGES"] = "docsscan,ledgerwatch,packet"
-    fired_file = tmp_path / "cloud.env"
-    fired_file.write_text("", encoding="utf-8")
-    ledger = _fixture_store(
-        tmp_path / "repo", "T-STUB-WATCH", "blocked", f"待ち `watch: file-exists {fired_file}`"
-    )
-    env["MOLTBOOK_LEDGER_PATH"] = str(ledger)
+    env["MOLTBOOK_PIPELINE_STAGES"] = "docsscan,packet"
 
     proc = _run(env)
     assert proc.returncode == 0, proc.stderr
 
     stages = {e["stage"]: e for e in _events(env, "stage_result")}
     assert stages["docsscan"]["result"] == "ok"
-    assert stages["ledgerwatch"]["result"] == "ok"
-    assert stages["ledgerwatch"]["fired"] == "1"
     home = Path(env["MOLTBOOK_HOME"])
     assert (home / "pipeline" / "docs-consistency" / f"docs-consistency-{END_DATE}.json").is_file()
-    scan_json = home / "pipeline" / "ledger-watch" / f"ledger-watch-{END_DATE}.json"
-    assert scan_json.is_file()
-    # The stage passes `--ledger` and never `--root`, so this is the only place
-    # a regression in main's root derivation — silently falling back to parsing
-    # the file — would be caught.
-    assert json.loads(scan_json.read_text(encoding="utf-8"))["source"] == "store"
-
-    text = _packet_text(env)
-    assert "## 10. Ledger condition watch" in text
-    assert "T-STUB-WATCH" in text
-
-
-def test_ledgerwatch_unrenderable_store_degrades_to_reason_code(tmp_path: Path):
-    """F-LW-9 at the chain level. One blocked row with a `watch:` span the
-    scanner cannot see stops `tasks.py render` — and before this change the
-    stage did not render at all, so it parsed whatever `.notes/TASKS.md` still
-    held and recorded `result=ok fired=0` over a store that had moved. "The
-    render is broken" reached the gate as "nothing fired" (2026-08-15 code
-    review HIGH). The stage must fail, and the run log must name which row."""
-    env = _make_env(tmp_path, fix_behavior=[], verdicts=[])
-    env["MOLTBOOK_PIPELINE_STAGES"] = "ledgerwatch,packet"
-    ledger = _fixture_store(
-        tmp_path / "repo", "T-STUB-WATCH", "blocked", "待ち `watch: gh-pr a/b#1"
-    )
-    env["MOLTBOOK_LEDGER_PATH"] = str(ledger)
-
-    proc = _run(env)
-    assert proc.returncode == 0, proc.stderr
-
-    stages = {e["stage"]: e for e in _events(env, "stage_result")}
-    assert stages["ledgerwatch"]["result"] == "fail"
-    assert stages["ledgerwatch"]["reason"] == "LEDGERWATCH_FAIL"
-    assert "LEDGERWATCH_FAIL" in _packet_text(env)
-    # Which abstain it was, and which row caused it, survive only here: the
-    # packet sees the stage-level code. A run log that could not answer "why"
-    # would put the diagnosis back on the human it was supposed to reach.
-    err = next((Path(env["MOLTBOOK_HOME"]) / "logs").rglob("ledgerwatch.err")).read_text(
-        encoding="utf-8"
-    )
-    assert "reason=LEDGER_UNRENDERABLE" in err
-    assert "T-STUB-WATCH" in err
-
-
-def test_ledgerwatch_scan_failure_degrades_to_reason_code(tmp_path: Path):
-    # F-LW-6 at the chain level: a missing ledger aborts the scan nonzero and
-    # the stage degrades to LEDGERWATCH_FAIL — the packet still builds.
-    env = _make_env(tmp_path, fix_behavior=[], verdicts=[])
-    env["MOLTBOOK_PIPELINE_STAGES"] = "ledgerwatch,packet"
-    env["MOLTBOOK_LEDGER_PATH"] = str(tmp_path / "missing-ledger.md")
-
-    proc = _run(env)
-    assert proc.returncode == 0, proc.stderr
-
-    stages = {e["stage"]: e for e in _events(env, "stage_result")}
-    assert stages["ledgerwatch"]["result"] == "fail"
-    assert stages["ledgerwatch"]["reason"] == "LEDGERWATCH_FAIL"
-    assert "LEDGERWATCH_FAIL" in _packet_text(env)

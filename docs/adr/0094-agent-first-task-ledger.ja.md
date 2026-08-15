@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+superseded-by ADR-0095（store と claim journal は規約として存続。projection・aging・candidate intake・4 週間の計測は 2026-08-16 に退役）
 
 ## Date
 
