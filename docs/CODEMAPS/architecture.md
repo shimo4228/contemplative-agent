@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-15 (stage 6c reads the task store, not its projection) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (control characters refused at render_row, neutralised at the packet's _cell floor) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -636,6 +636,39 @@ Stage 6c ledgerwatch: ledger_condition_scan.py (7th deterministic intake, ADR-00
                    row write it — so render refuses it only on blocked rows.
                    The scan stays blocked-only for all three: a row outside the
                    watch contract has nothing to report.
+                   render_row also refuses _UNRENDERABLE in any of the four
+                   rendered cells (2026-08-16); write_store carries the same
+                   check, but only cmd_age and the one-shot migration reach that
+                   function, while the store is hand-edited and parse_task_file
+                   accepts these characters — so store → render → TASKS.md →
+                   scanner, the path every session uses, was ungated. The set is
+                   the "one task is one line" contract stated exactly: the eight
+                   separators str.splitlines() breaks on (VT FF FS GS RS NEL LS
+                   PS) split one rendered row into two lines for parse_watches
+                   while load_tasks_from_ledger, splitting on "\n", still reads
+                   one task — the watch annotation severed from the id that owns
+                   it, and neither consumer erroring. CR is in the set for Tasks
+                   that never came from a file (read_text normalises it
+                   otherwise); NUL is in it on weaker grounds, as a corruption
+                   marker, its original sentinel reason having expired with the
+                   single-pass scanner. 0 of the 124 live tasks are affected.
+                   **The refusal is NOT the display class.** _CONTROL_RE
+                   (_one_line) covers ​-‏, which includes ZWJ — the
+                   joiner in every modern emoji sequence — so refusing on it
+                   made one pasted PR title enough to leave the whole ledger
+                   unrenderable for all 124 tasks (2026-08-16 code review HIGH,
+                   reproduced). str.isprintable() is worse still on a refusal:
+                   TAB, NBSP, U+00AD, Cn. Everything invisible that does not
+                   break the line is a display problem, and the display class
+                   has holes in both directions (misses U+061C / U+2060 /
+                   U+FEFF / NBSP, over-rejects ZWJ / ZWNJ) — closing it means
+                   moving claims.py::safe in the same step, which is
+                   T-CONTROL-CHAR-FORMAT-CLASS.
+                   The refusal message names the cell, the offset, the codepoint
+                   and an excerpt. Every character in the class is invisible and
+                   render_ledger refuses the whole table on one of them, so a
+                   message giving only the task id makes the operator write a
+                   scanner by hand — the work the guard removes.
                    Input is the STORE, not the file (2026-08-15, superseding
                    this intake's input in ADR-0093). No stage re-derives the
                    projection — sessions render by hand — so parsing
@@ -683,6 +716,31 @@ Stage 8 packet:    build_decision_packet.py → weekly-<end>-packet.md (§2 fix 
                    signal-first) + phase:"auto" record →
                    logs/pipeline-metrics.jsonl (identity_due / constitution_due /
                    docs_findings / ledger_watch_fired, None = not read this week)
+                   _cell is the control-character floor for every audit-derived
+                   value (2026-08-16, via _md.printable) — a SECOND layer, not
+                   the first: stage 6c has passed §10's watch target through its
+                   own _printable since 8265e3c. The floor exists because
+                   per-producer is what failed once already (that same
+                   _printable's docstring records a version treating detail as
+                   the only field needing it, and target reached §10 raw), and
+                   because json.dumps escapes only C0, so a producer that
+                   forgets ships DEL / C1 / ZWSP / RLO into a packet a human
+                   reads at the gate. The stricter renderers (_path_tokens,
+                   _unrecognized_verdict, _title_cell) keep their own passes.
+                   _title_cell runs its U+FFFD marking BEFORE _cell: the floor
+                   substitutes a space, so the other order erased the approver's
+                   only sign that a heading was rewritten. That marking is
+                   _TITLE_UNSAFE's enumeration PLUS printable with a U+FFFD
+                   replacement — the enumeration missed U+061C / U+2060 /
+                   U+FEFF, so deciding the marking by the same predicate the
+                   floor uses is what keeps it from falling behind again.
+                   The reviewer verdict is tested for KNOWN_VERDICTS membership
+                   on the UNNEUTRALISED value (_flatten, not _cell). Putting the
+                   floor upstream of that test made `APPROVE<ZWSP>` strip to a
+                   clean APPROVE and deleted REVIEW_VERDICT_UNRECOGNIZED — a
+                   contract break rendered as an approval, on the one cell §2's
+                   code-scope rows are approved from without reading a diff
+                   (introduced and closed 2026-08-16, security review HIGH).
 ```
 
 Per-session permissions (2026-08-15, T-DIAG-WRITE-SCOPE). An `--allowedTools` list is **not a sandbox**: it only ever ADDS. It narrows neither the ambient permission mode nor the settings-file allow rules — and those rules are consulted *before* the mode, so they survive `--permission-mode manual` too. Verified against the real binary on 2026-08-15: with `manual` pinned and no Bash grant at all, an ambient `Bash(tee:*)` from the operator's `~/.claude/settings.json` still executed `echo … | tee <path>`. **Only deny rules outrank both the allow rules and the mode**, which makes them the sole control here that does not depend on the invoking environment's config. Two spelling mechanics complete the picture: file writes are gated **only** by `Edit(pattern)` rules (a `Write(pattern)` rule parses but matches nothing, so it reads as a boundary while granting nothing), and a leading `//` marks an absolute path — losing one slash silently re-anchors a rule at the project root, where an allow grants nothing (loud) and a deny protects nothing (silent).

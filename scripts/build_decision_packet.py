@@ -36,6 +36,8 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+from _md import printable
+
 DIAGNOSIS_UNAVAILABLE = "DIAGNOSIS_UNAVAILABLE"
 # Per-finding counterpart of the above: the run produced findings.json, but
 # this row's id is not in it (or its heading is empty). A named state, not
@@ -106,6 +108,28 @@ def _fence(body: str, info: str = "") -> tuple[str, str]:
     return f"{marks}{info}", marks
 
 
+def _flatten(value: object) -> str:
+    """An audit-log value as ONE LINE, with nothing neutralised.
+
+    Split out of :func:`_cell` for the callers that must see the ORIGINAL
+    characters: ``_title_cell``, which marks inline markup before the floor can
+    substitute it away, and the reviewer-verdict check, which tests membership
+    in a contract and must not be handed a laundered value.
+
+    Lists are joined rather than repr'd — the shell space-joins today, but the
+    builder must not depend on that, and it must not be a second place that
+    decides it either.
+
+    ``splitlines()``, not ``replace("\n")``: it is the splitter every consumer
+    of this packet uses, and it also breaks on \v \f \x1c-\x1e \x85 and
+    U+2028/U+2029 — a code/test that disagreed on the line-break alphabet would
+    assert a stronger invariant than the code holds.
+    """
+    if isinstance(value, (list, tuple)):
+        value = " ".join(str(v) for v in value)
+    return " ".join(str(value).splitlines())
+
+
 def _cell(value: object) -> str:
     """Flatten an audit-log value into one Markdown table cell / note line.
 
@@ -121,18 +145,25 @@ def _cell(value: object) -> str:
 
     Safe **mid-line only**: a leading `#` and backtick runs are not
     neutralised, so a caller emitting ``f"{_cell(v)}"`` at the start of a line
-    reopens the hole. Lists are joined rather than repr'd — the shell
-    space-joins today, but the builder must not depend on that.
+    reopens the hole. Flattening to one line — including the list rule — is
+    :func:`_flatten`'s, not restated here.
+
+    Control characters are neutralised **here**, not per producer. The
+    per-producer form has already failed once: ``ledger_condition_scan``'s
+    ``_printable`` records that an earlier version treated ``detail`` as the
+    only field needing it, so ``target`` reached §10 raw. A floor every
+    audit-derived value passes through is the only version of this that does
+    not depend on each new producer remembering. The stricter renderers named
+    above keep their own passes as defence in depth.
     """
-    if isinstance(value, (list, tuple)):
-        value = " ".join(str(v) for v in value)
-    # splitlines(), not replace("\n"): it is the splitter every consumer of
-    # this packet uses, and it also breaks on \v \f \x1c-\x1e \x85
-    #   — a code/test that disagreed on the line-break alphabet would
-    # assert a stronger invariant than the code holds. Backslash first, so
-    # escaping `|` cannot be undone by a preceding literal backslash.
-    flat = " ".join(str(value).splitlines())
-    return flat.replace("\\", "\\\\").replace("|", "\\|")
+    # Backslash first, so escaping `|` cannot be undone by a preceding literal
+    # backslash. `printable` before both: a substitution that produced a `\` or
+    # a `|` would otherwise go unescaped and silently give the table a column.
+    # THIS CALL passes the default space, which cannot; the parameter exists
+    # (`_title_cell` uses U+FFFD), so the safety is a property of the argument
+    # here rather than of the function — do not pass a replacement containing
+    # `\` or `|` (2026-08-16 code review MEDIUM).
+    return printable(_flatten(value)).replace("\\", "\\\\").replace("|", "\\|")
 
 
 def _patch_name(fix_id: str) -> str:
@@ -230,13 +261,18 @@ def _title_cell(title: object) -> str:
     It is LLM prose in the builder's narrating voice, the same class
     ``_path_tokens`` guards, and it needs both halves of that guard:
 
-    - **block structure** — ``_cell`` flattens line breaks and escapes pipes,
-      and the caller keeps it mid-line, so it cannot open a heading, a fence
-      or a table column;
+    - **block structure** — ``_flatten`` collapses line breaks and ``_cell``
+      escapes pipes, and the caller keeps it mid-line, so it cannot open a
+      heading, a fence or a table column;
     - **inline structure** — ``_TITLE_UNSAFE`` neutralises what is legal
       mid-line: raw HTML (an unclosed ``<details>`` folds §3-§10 behind a
-      summary the heading's author wrote), link/image markup, code spans that
-      run past the line break, and bidi/control characters.
+      summary the heading's author wrote), link/image markup, and code spans
+      that run past the line break;
+    - **invisibility** — ``_TITLE_UNSAFE`` names the bidi and zero-width
+      characters it knew about, and ``printable`` covers the ones no
+      enumeration keeps up with. Both replace with U+FFFD rather than a space,
+      which is what separates this from ``_cell``'s floor: here the approver
+      has to be able to SEE that the heading was rewritten.
 
     The length is capped because an unbounded heading pushes the table it
     explains out of view, and elision is marked — a silently cut heading reads
@@ -247,8 +283,28 @@ def _title_cell(title: object) -> str:
     """
     # None (no such id) and "" (parsed, empty heading) are the same fact to the
     # approver, and _cell would render the former as the literal "None". Passed
-    # unstringified so a list still reaches _cell's join, not a repr.
-    flat = _TITLE_UNSAFE.sub(_PATH_REPLACEMENT, _cell(title or "")).strip()
+    # unstringified so a list still reaches the shared join, not a repr.
+    #
+    # Both marking passes run BEFORE _cell, not after. _cell's floor
+    # substitutes a space, so running it first left them with nothing to match
+    # and turned a U+FFFD — the approver's only sign that a heading was
+    # rewritten — into an invisible space. This is the human gate; a tampered
+    # heading has to read as one.
+    #
+    # And `printable` beside `_TITLE_UNSAFE`, because the enumerated class is
+    # not complete and enumerations of this class keep proving not to be:
+    # U+061C, U+2060 and U+FEFF are all outside _TITLE_UNSAFE, all silently
+    # swallowed by the floor, and all found by cross-model review rather than
+    # by writing the class out again (2026-08-16). `printable` decides what the
+    # floor would remove by the same predicate the floor uses, so the marking
+    # cannot fall behind it. A heading is a single line by contract, so marking
+    # line breaks here rather than flattening them is the same judgement —
+    # _TITLE_UNSAFE's \x00-\x1f already did it for \n, and this extends it to
+    # U+2028/U+2029, which it did not cover.
+    marked = printable(
+        _TITLE_UNSAFE.sub(_PATH_REPLACEMENT, _flatten(title or "")), _PATH_REPLACEMENT
+    )
+    flat = _cell(marked).strip()
     if not flat:
         return f"（{DIAGNOSIS_TITLE_MISSING} — findings.json にこの ID の見出しが無い）"
     if len(flat) > _MAX_TITLE_LEN:
@@ -443,11 +499,22 @@ def build_packet(
     for fid, evts in review_history.items():
         rendered = []
         for e in evts:
-            raw = _cell(e.get("verdict", "")).strip()
+            # `_flatten`, NOT `_cell`: the membership test decides whether this
+            # is a contract-abiding verdict, and `_cell`'s floor substitutes a
+            # space for every non-printable — so `.strip()` then removed it and
+            # `APPROVE​` tested equal to `APPROVE`. Measured 2026-08-16:
+            # adding the floor turned `UNRECOGNIZED(…)` plus a header reason
+            # code into a clean approval, on the one cell the gate's code-scope
+            # rows are approved from without reading a diff (security review
+            # HIGH, introduced by that same commit). Same discipline as
+            # `_vl_cell` below, which compares the unrendered value.
+            raw = _flatten(e.get("verdict", "")).strip()
             if raw in KNOWN_VERDICTS:
                 rendered.append(raw)
             else:
                 add_reason(REVIEW_VERDICT_UNRECOGNIZED)
+                # `_unrecognized_verdict` allowlists to [A-Za-z0-9._/+-] and
+                # marks the rest U+FFFD, so the raw value is what it wants.
                 rendered.append(_unrecognized_verdict(raw))
         verdicts[fid] = "→".join(rendered)
 

@@ -206,10 +206,14 @@ class TestUnterminatedWatchSpan:
     def test_the_watch_target_is_sanitised_too_not_only_the_error_detail(self):
         """`target` is the *other* field carrying ledger text verbatim, and it
         goes further than `detail`: it reaches packet §10, which a human reads
-        at the Saturday gate, and `build_decision_packet._cell` neutralises
-        pipes and line breaks but not control characters. The first version of
-        `_printable`'s docstring claimed `detail` was the only such field, and
-        `target` was unsanitised because of it (2026-08-15 security review)."""
+        at the Saturday gate. The first version of `_printable`'s docstring
+        claimed `detail` was the only such field, and `target` was unsanitised
+        because of it (2026-08-15 security review).
+
+        Since 2026-08-16 `build_decision_packet._cell` also neutralises this
+        class, so §10 has two layers. This assertion is still the load-bearing
+        one for `detail`, which reaches a terminal directly and passes through
+        no packet code at all."""
         # Only the non-printable characters are the hazard; `[31m` is inert
         # text and must survive, so asserting over the whole escape sequence
         # would fail on the half that is supposed to pass through.

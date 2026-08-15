@@ -92,9 +92,13 @@ from _scan import ScanError
 # `watches[].target`. `json.dumps` escapes only C0, so DEL, the 8-bit C1
 # controls, the bidi overrides and ZWSP all survive it literally. `detail` is
 # retained in `pipeline/ledger-watch/*.json` and printed straight to a terminal
-# when this script is run by hand; `target` goes further — it reaches packet
-# §10, which a human reads at the Saturday gate, and `build_decision_packet.
-# _cell` neutralises pipes and line breaks but not control characters.
+# when this script is run by hand — which `build_decision_packet` never sees,
+# so this pass is the only one covering it. `target` goes further, reaching
+# packet §10 where a human reads it at the Saturday gate; since 2026-08-16
+# `build_decision_packet._cell` neutralises control characters there too, so
+# for that field the two are layers rather than a single line of defence. Kept
+# on both sides deliberately: the packet floor is not this script's to rely on,
+# and `detail` proves the point — nothing downstream guards it at all.
 
 _TIMEOUT = 10
 # 256KB: the GitHub pulls payload (nested repo objects + PR description) can

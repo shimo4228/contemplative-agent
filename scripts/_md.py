@@ -13,7 +13,7 @@ def md_safe(s: str) -> str:
     return s.replace("|", "\\|").replace("`", "'")
 
 
-def printable(text: str) -> str:
+def printable(text: str, replacement: str = " ") -> str:
     """Neutralise control characters in text that reaches a terminal or a human.
 
     ``str.isprintable()`` rather than a hand-written character class: it
@@ -21,11 +21,20 @@ def printable(text: str) -> str:
     the C0/DEL/C1/bidi/zero-width class spelled out in ``tasks.py::_CONTROL_RE``
     and ``claims.py::safe``. One owner, because a second spelling of the class
     is a second thing to keep in sync — and the classes have already drifted
-    once (an earlier copy passed U+202E while claiming parity).
+    once (an earlier copy passed U+202E while claiming parity). Hand-written
+    classes keep drifting in the same direction: cross-model review found
+    U+061C, U+2060 and U+FEFF outside both of the ones named above on
+    2026-08-16, which ``isprintable()`` covers without being enumerated.
+
+    ``replacement`` is for callers that must show the reader that something was
+    removed rather than merely remove it — pass U+FFFD where an invisible
+    substitution would let a rewritten line read as an original one. A space is
+    the default because most callers are flattening a cell, where a marker on
+    every line break would be noise.
 
     Separate from :func:`md_safe`: this one is about what can *act* on a
     terminal or reorder a line, that one is about what breaks Markdown
     structure. Fields that are both rendered into a table and printed raw want
     both.
     """
-    return "".join(ch if ch.isprintable() else " " for ch in text)
+    return "".join(ch if ch.isprintable() else replacement for ch in text)

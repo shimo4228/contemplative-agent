@@ -65,6 +65,13 @@ Fault column (chaos-TDD, ADR-0077 — faults degrade loudly or not at all):
           the render→read cycle is the disaster recovery, and the escape that
           kept itself idempotent made that shape indistinguishable from an
           escaped pipe, dropping the backslash in silence
+- F-TL-19 a control character in a body is refused at RENDER, in all four
+          rendered cells. `write_store` had carried the same check since
+          2026-08-15, but only `cmd_age` and the migration reach it, so the
+          path every session uses (hand-edited store → render → TASKS.md →
+          scanner) was ungated. The two consumers read such a row differently
+          — `splitlines()` sees two lines, `"\n".split()` sees one task — and
+          neither errors, which is F-TL-17's silence in a second form
 
 **F-TL-6 runs on every machine, not just the author's.** It used to read
 `.notes/TASKS.md`, which is gitignored — so the consumer-compatibility
@@ -386,6 +393,92 @@ class TestRenderLedger:
         text = tasks.render_ledger([self._task("T-A", "ready", summary="長い" * 400)])
         rows = [ln for ln in text.split("\n") if ln.startswith("| T-A ")]
         assert len(rows) == 1
+
+    # The characters `str.splitlines()` breaks on that `"\n".split()` does not.
+    # Named individually rather than as a class so a set narrowed to C0 fails
+    # here on the four that are not C0.
+    #
+    # CR is the ninth and is deliberately absent: `Path.read_text` universal-
+    # newline-translates it to LF before either consumer sees the file, so the
+    # two do NOT disagree about it. It is in `_UNRENDERABLE` all the same, for
+    # the Tasks that never came from a file (2026-08-16 code review LOW).
+    _SPLITLINES_ONLY = (
+        "\v",
+        "\f",
+        "\x1c",
+        "\x1d",
+        "\x1e",
+        "\x85",
+        "\u2028",
+        "\u2029",
+    )
+
+    @pytest.mark.parametrize("sep", _SPLITLINES_ONLY)
+    @pytest.mark.parametrize("cell", ["state", "summary", "condition", "detail"])
+    def test_a_separator_the_two_consumers_read_differently_is_refused(self, sep, cell):
+        """F-TL-19. The "one task is one line" contract, decided where it lives.
+
+        `write_store` carried this check from 2026-08-15, but only `cmd_age`
+        and the one-shot migration reach it. The store is hand-edited and
+        `parse_task_file` accepts these characters, so the path every session
+        uses — store → render → TASKS.md → scanner — was ungated (2026-08-16).
+
+        Parametrised over all four rendered cells because `state` is emitted
+        raw while the other three go through `_escape_cell`, and a guard
+        written against the escaped ones only would leave the cell the
+        scanner's `_TASK_STATUS_RE` actually reads.
+        """
+        cells = {"state": "ready", "summary": "本文", "condition": "なし", "detail": "—"}
+        cells[cell] = f"前{sep}後"
+        task = self._task("T-A", cells.pop("state"), **cells)
+        with pytest.raises(tasks.MalformedTask) as exc:
+            tasks.render_row(task)
+        message = str(exc.value)
+        # Located, not merely detected: every character in this class is
+        # invisible, the cell can run to several KB, and `render_ledger`
+        # refuses the whole table on one of them. A message giving only the id
+        # makes the operator write a scanner by hand — the work this guard
+        # exists to remove (2026-08-16 code review HIGH).
+        assert "T-A" in message
+        assert f"U+{ord(sep):04X}" in message, message
+        assert "前" in message and "後" in message, message
+
+    def test_an_emoji_is_not_refused(self):
+        """The over-rejection that a wider refusal set would have shipped.
+
+        U+200D ZWJ is the joiner in every modern emoji sequence and is required
+        orthography in Persian and several Indic scripts, and it sits inside
+        `_CONTROL_RE`'s `\\u200b-\\u200f` range. Refusing on that class made one
+        pasted PR title enough to leave `tasks.py render` failing for all 124
+        tasks, with the offending character invisible (2026-08-16 code review
+        HIGH). The refusal set is the line contract, which ZWJ does not touch.
+        """
+        emoji = f"fix {chr(0x1F469)}{chr(0x200D)}{chr(0x1F4BB)} workflow"
+        row = tasks.render_row(self._task("T-A", "ready", summary=emoji))
+        assert emoji in row
+        assert len(row.splitlines()) == 1
+
+    def test_the_two_consumers_really_do_disagree_about_such_a_row(self):
+        """Why the refusal above is not merely tidiness.
+
+        Asserted on a row built by hand rather than by disabling the guard:
+        the claim is about the CHARACTER, so it stays true no matter what
+        `render_row` does with it. `parse_watches` iterates `splitlines()` and
+        sees two lines — with the `watch:` annotation severed from the id that
+        owns it — while `load_tasks_from_ledger` splits on `"\\n"` and sees one
+        task. Neither errors. The scanner reports a `MALFORMED_WATCH` against
+        no id, or nothing at all on a row with no annotation.
+        """
+        row = "| T-A | blocked | 待ち\u2028`watch: file-exists /tmp/f` | x | y |"
+        assert len(row.splitlines()) == 2
+        assert len(row.split("\n")) == 1
+        # The half that matters, asserted rather than described: the scanner
+        # does not merely see two lines, it loses the id the annotation belongs
+        # to, so nothing downstream can act on the row it reports.
+        watches, errors = ledger_condition_scan.parse_watches(row)
+        assert watches == []
+        assert [e["reason"] for e in errors] == ["MALFORMED_WATCH"]
+        assert errors[0]["task"] == "?"
 
     def test_id_and_state_share_the_row_so_the_scanner_can_pair_them(self):
         text = tasks.render_ledger([self._task("T-A", "blocked")])

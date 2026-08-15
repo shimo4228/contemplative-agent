@@ -126,7 +126,67 @@ _SECTIONS = ("タスク", "着手条件", "詳細")
 # Same shape claims.py enforces. Without it `show ../../secret` read arbitrary
 # `.md` files with no permission prompt, and `write_store` followed a symlinked
 # T-X.md out of the store (2026-08-15 security review MEDIUM, both reproduced).
-_TASK_ID_RE = re.compile(r"^T-[A-Z0-9][A-Z0-9-]*$")
+# `\Z` and not `$`: `$` also matches before a trailing newline, so `"T-A\n"`
+# passed — the one hole in "every rendered cell is checked", since the id cell
+# is covered by this regex rather than by `_UNRENDERABLE` (2026-08-16 code
+# review LOW).
+_TASK_ID_RE = re.compile(r"^T-[A-Z0-9][A-Z0-9-]*\Z")
+
+# Characters a rendered row cannot survive. Two reasons, kept distinct:
+#
+# 1. Everything after NUL is a character `str.splitlines()` breaks on that
+#    `"\n".split()` does not. **This, exactly, is the "one task is one line"
+#    contract** — the projection has two consumers that split it differently
+#    (`parse_watches` by the first, `load_tasks_from_ledger` by the second), so
+#    a cell holding one of these is a row they disagree about, silently,
+#    neither of them erroring.
+# 2. NUL is here on different grounds, and weaker ones. It entered as the only
+#    member, because it was `_mask`'s substitution sentinel and a body carrying
+#    one rendered a row `split_row` refused forever; the single-pass scanner
+#    has no sentinel and NUL now round-trips (verified 2026-08-16). What keeps
+#    it is that a NUL in a Markdown body means the store file is corrupt rather
+#    than merely odd, and the write is the cheapest place to notice.
+#
+# CR is in the set although a file read through `Path.read_text` cannot deliver
+# one — universal newlines translate it to LF before either consumer sees it.
+# It is here for the Tasks that never came from a file: `split_row` on a string
+# a caller assembled, and `apply_aging`'s rewrites.
+#
+# **Deliberately NOT the wider control/format class.** `_CONTROL_RE` below is
+# the display class, and using it as the refusal — which is what the first
+# version of this guard did — refuses `👩\u200d💻`: U+200D ZWJ is inside its
+# `\u200b-\u200f` range and is the joiner in every modern emoji sequence, as
+# well as required orthography in Persian and several Indic scripts. One
+# pasted PR title would have made the whole ledger unrenderable for all 124
+# tasks (2026-08-16 code review HIGH, reproduced). `str.isprintable()` is worse
+# still on a refusal: it adds TAB, NBSP, U+00AD and Cn. Everything invisible
+# that does NOT break the line is a display problem, and display is where it is
+# handled — imperfectly, see `_CONTROL_RE`.
+_UNRENDERABLE = "\x00\r\v\f\x1c\x1d\x1e\x85\u2028\u2029"
+
+# C0 + DEL + C1 + 行区切り + ZWSP/bidi — the same class `claims.py::safe` uses.
+# Task bodies are self-authored but routinely quote outside text (error output,
+# a pasted log, an upstream PR title), and an ESC that survives into `ready`'s
+# one-line summary is not inert: it is terminal control, so a single row can
+# repaint the listing. A first version stopped at C0/DEL/C1 while claiming
+# parity with `safe`; U+202E then survived into a line printed raw, and the
+# 90-char elision can cut mid-override with no isolate reset (2026-08-15
+# security review LOW). The two sets are kept literally identical.
+#
+# **A display class, and only that.** It SUBSTITUTES, in `_one_line`, on a path
+# that may not fail on a body it can neutralise. It is not the refusal — see
+# `_UNRENDERABLE` for why using it as one refuses current-day emoji.
+#
+# Two known holes, neither closable here alone (2026-08-16, cross-model and
+# code review). U+061C, U+2060, U+FEFF and NBSP are outside it, and outside
+# `claims.py::safe` with which it is kept literally identical — so they reach a
+# `ready` line invisibly. And it over-rejects in the other direction: ZWJ and
+# ZWNJ are inside `​-‏`, so an emoji sequence in a summary already
+# prints split. The complete-and-correct predicate is `str.isprintable()`,
+# owned by `_md.printable`, but adopting it means moving `safe` in the same
+# step because that parity is what the comment above promises.
+# T-CONTROL-CHAR-FORMAT-CLASS, not a widening smuggled in here.
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f  ​-‏‪-‮⁦-⁩]")
 
 
 def state_word(state: str) -> str:
@@ -502,6 +562,57 @@ _WATCH_KIND_JA = {
 }
 
 
+def _unrenderable_problems(task: Task) -> list[str]:
+    """Characters that make one rendered row into two lines for one consumer.
+
+    The "one task is one line" contract, decided at the render because that is
+    where the line exists. `write_store` carries the same check, but the only
+    callers reaching it are `cmd_age` and the one-shot migration: the store is
+    hand-edited and `parse_task_file` accepts these characters, so store →
+    render → TASKS.md → scanner — the path every session uses — was ungated
+    until 2026-08-16 (U+2028 reproduced end to end). Zero of the 124 live
+    tasks are affected.
+
+    What it costs when it fires: `parse_watches` iterates `str.splitlines()`
+    and sees two lines, with the `watch:` annotation severed from the id that
+    owns it; `load_tasks_from_ledger` splits on `"\\n"` and sees one task.
+    Neither errors — the scan reports `MALFORMED_WATCH` against the id `?`, or
+    nothing at all on a row carrying no annotation.
+
+    **Located, not merely detected.** Every character in this class is
+    invisible by construction, in a cell that can run to several KB, and
+    `render_ledger` refuses the whole table on one of them — so an operator
+    told only "this task has a control character" has to write a scanner by
+    hand, which is the work the guard exists to remove (2026-08-16 code review
+    HIGH). The section, the offset, the codepoint and an excerpt are all named,
+    matching `_watch_span_problems` below.
+
+    The id cell is absent from the loop on purpose: `_TASK_ID_RE` constrains it
+    to `[A-Z0-9-]`, anchored with `\\Z` so a trailing newline cannot slip past.
+    """
+    problems = []
+    for section, cell in (
+        ("状態", task.state),
+        ("タスク", task.summary),
+        ("着手条件", task.condition),
+        ("詳細", task.detail),
+    ):
+        for index, char in enumerate(cell):
+            if char in _UNRENDERABLE:
+                why = (
+                    "本文の NUL は store ファイルの破損を意味する"
+                    if char == "\x00"
+                    else "`str.splitlines()` はここで行を割り、`\"\\n\".split()` は割らないので、"
+                    "この行は scanner と読み手で行数が食い違う（どちらも例外を出さない）"
+                )
+                problems.append(
+                    f"{task.id}: {section} の {index} 文字目に U+{ord(char):04X} がある。"
+                    f"{why}。周辺: {cell[max(0, index - 30) : index + 30]!r}"
+                )
+                break
+    return problems
+
+
 def _watch_span_problems(task: Task) -> list[str]:
     """`watch:` annotations that the scanner cannot see are refused here.
 
@@ -620,7 +731,7 @@ def render_row(task: Task) -> str:
             f"{task.id!r} は task id の形式ではない。ID セルは escape されないので、"
             "この行は scanner から別の id / 状態に見える（黙って watch 契約の外に出る）。"
         )
-    problems = _watch_span_problems(task)
+    problems = _unrenderable_problems(task) + _watch_span_problems(task)
     if problems:
         # `; ` and not a newline: `render_ledger` joins rows with a newline and
         # a two-space indent, so wrapping here too made a row's second problem
@@ -836,33 +947,30 @@ def write_store(store: Path, tasks: list[Task], only: set[str] | None = None) ->
             # Two tasks mapping to one filename lose one of them while the
             # caller still reports the full count.
             raise MalformedTask(f"{task.id}: duplicate id in the write set")
-        if _CONTROL_RE.search(task.summary + task.condition + task.detail + task.state):
-            # This began as a NUL-only guard because NUL was `_mask`'s
-            # substitution sentinel: a body carrying one rendered a row
-            # `split_row` refused **forever** (2026-08-15 code review MEDIUM).
-            # The single-pass scanner has no sentinel and that collision is
-            # gone — but the guard's *replacement* rationale, "the same class
-            # `_one_line` and `claims.py::safe` strip", was a parity it did not
-            # have, and the gap was load-bearing: `str.splitlines()` — what
-            # `parse_watches` iterates — also breaks on VT, FF, FS, GS, RS,
-            # NEL, LS and PS. Each of those makes one rendered row into two
-            # lines for the scanner while `load_tasks_from_ledger` (splitting on
-            # `"\n"`) still sees one task, so the two consumers disagree about
-            # how many rows the file has, silently on any row with no watch.
-            # That is the "one task is one line" contract itself. Widened to
-            # `_CONTROL_RE`, which is a superset of both sets and matches the
-            # claim; zero live bodies contain any of it (2026-08-15 code review
-            # MEDIUM, all eight separators reproduced).
+        problems = _unrenderable_problems(task)
+        if problems:
+            # Defence in depth, not the boundary. Until 2026-08-16 this was the
+            # only check of the class and it sat off the path: only `cmd_age`
+            # and the one-shot migration reach this function, while the store is
+            # hand-edited and `parse_task_file` accepts these characters. The
+            # contract belongs to the rendered table, so `render_row` decides
+            # it; this stays because refusing at the earlier point names the
+            # file being written rather than the row being rendered.
             #
-            # **What it still does not cover, stated rather than implied**:
-            # this function is reached only by `cmd_age` and migration. The
-            # store is hand-edited and `parse_task_file` accepts these
-            # characters, so store → render → TASKS.md → scanner is not gated
-            # here. Deliberate on the read side — strictness is most expensive
-            # on the recovery path, where refusing to load is worse than
-            # loading something odd — and the output side is handled where it
-            # belongs, by `_printable` on the scanner's own emitted fields.
-            raise MalformedTask(f"{task.id}: 本文に制御文字がある（1 行 1 タスクの契約を壊す）")
+            # It began as a NUL-only guard, because NUL was `_mask`'s
+            # substitution sentinel and a body carrying one rendered a row
+            # `split_row` refused **forever** (2026-08-15 code review MEDIUM).
+            # The single-pass scanner has no sentinel, and NUL now round-trips;
+            # the guard's surviving reason is the line contract alone, so it
+            # names exactly that set rather than the wider display class, which
+            # would refuse a task body for containing an emoji (2026-08-16 code
+            # review HIGH).
+            #
+            # Still deliberately absent on the READ side (`load_store`,
+            # `load_tasks_from_ledger`): strictness is most expensive on the
+            # recovery path, where refusing to load is worse than loading
+            # something odd.
+            raise MalformedTask("; ".join(problems))
         seen.add(task.id)
     if only is not None and only - seen:
         # A typo'd `only` silently wrote nothing and returned 0 — the same
@@ -1015,15 +1123,6 @@ def apply_aging(tasks: list[Task], today: str) -> list[Task]:
 
 _SUMMARY_CHARS = 90
 _MARKUP_RE = re.compile(r"\*\*|`|<br>")
-# C0 + DEL + C1 + 行区切り + ZWSP/bidi — the same class `claims.py::safe` uses.
-# Task bodies are self-authored but routinely quote outside text (error output,
-# a pasted log, an upstream PR title), and an ESC that survives into `ready`'s
-# one-line summary is not inert: it is terminal control, so a single row can
-# repaint the listing. A first version stopped at C0/DEL/C1 while claiming
-# parity with `safe`; U+202E then survived into a line printed raw, and the
-# 90-char elision can cut mid-override with no isolate reset (2026-08-15
-# security review LOW). The two sets are kept literally identical.
-_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f-\x9f  ​-‏‪-‮⁦-⁩]")
 
 
 def _one_line(text: str) -> str:

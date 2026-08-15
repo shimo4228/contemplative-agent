@@ -235,6 +235,67 @@ def test_finding_title_cannot_open_inline_constructs(tmp_path: Path):
     assert "- **F1.2** —" in text
 
 
+def test_cell_is_the_control_character_floor_for_every_audit_value():
+    """The structural floor neutralises control characters, not each producer.
+
+    This shape has already failed once in this repo: `ledger_condition_scan`'s
+    `_printable` records a version that treated `detail` as the only field
+    needing the pass, and `target` reached §10 raw. `_cell` is what all 36 call
+    sites share, so it is where the class belongs; `_path_tokens`,
+    `_unrecognized_verdict` and `_title_cell` keep their own stricter passes as
+    defence in depth rather than as the boundary.
+
+    Named individually because a regex narrowed to C0 — the spelling that
+    produced the earlier miss — still passes DEL, the C1 block, the bidi
+    overrides and the zero-width characters.
+    """
+    for name, cp in (
+        ("ESC", 0x1B),
+        ("DEL", 0x7F),
+        ("C1 NEL", 0x85),
+        ("ZWSP", 0x200B),
+        ("RLO", 0x202E),
+        ("LS", 0x2028),
+    ):
+        out = bdp._cell(f"a{chr(cp)}b")
+        assert chr(cp) not in out, f"{name} survived _cell"
+        assert out == "a b", f"{name}: {out!r}"
+    # Structure is still escaped, and the list rule still lives in one place —
+    # tuple as well as list, since `_path_tokens`-adjacent producers reach both.
+    assert bdp._cell(r"a|b\c") == r"a\|b\\c"
+    assert bdp._cell(["x", "y"]) == "x y"
+    assert bdp._cell(("x", "y")) == "x y"
+    assert bdp._title_cell(("x", "y")) == "x y"
+
+
+def test_title_keeps_the_visible_marker_the_floor_would_have_erased():
+    """`_TITLE_UNSAFE` runs BEFORE `_cell`, and the order is load-bearing.
+
+    `_cell`'s floor substitutes a space. Run first, it leaves the control /
+    bidi / zero-width third of `_TITLE_UNSAFE` with nothing to match, and the
+    U+FFFD that tells the approver a heading was rewritten becomes an invisible
+    space. §2 is the human gate; a tampered heading has to read as one.
+    """
+    assert bdp._title_cell(f"a{chr(0x202E)}b") == "a�b"
+    assert bdp._title_cell("a<details>b") == "a�details�b"
+    # The three the ENUMERATED class misses. `_TITLE_UNSAFE` does not list them
+    # and the floor would have swallowed each into a space, so the marking is
+    # `printable`'s — decided by the same predicate the floor uses, which is
+    # why it cannot fall behind it again (cross-model review 2026-08-16).
+    for cp in (0x061C, 0x2060, 0xFEFF):
+        assert bdp._title_cell(f"a{chr(cp)}b") == "a�b", f"U+{cp:04X} unmarked"
+    # The pre-existing behaviour for a value that is not a string is unchanged.
+    assert bdp._title_cell(["x", "y"]) == "x y"
+    assert bdp.DIAGNOSIS_TITLE_MISSING in bdp._title_cell(None)
+    # A line break is FLATTENED to a space, not marked — `_flatten` runs first
+    # and it owns the line-break alphabet, so every cell in the packet treats
+    # these the same way. Unchanged behaviour, pinned because the marking pass
+    # added above is the obvious place to start marking them by accident, and
+    # a U+FFFD on every wrapped heading would be noise rather than evidence.
+    assert bdp._title_cell(f"a{chr(10)}b") == "a b"
+    assert bdp._title_cell(f"a{chr(0x2028)}b") == "a b"
+
+
 def test_finding_title_is_length_capped(tmp_path: Path):
     """An unbounded heading is a cheap way to push the table out of view."""
     paths = _write_inputs(tmp_path)
@@ -1108,6 +1169,39 @@ def test_reviewer_verdict_is_constrained_to_its_contract(tmp_path: Path):
     assert "| F1.2 " in text and "APPROVE |" in text
 
 
+def test_an_invisible_suffix_does_not_launder_a_verdict_into_the_contract(tmp_path: Path):
+    """The membership test reads the value, never the neutralised rendering.
+
+    Introduced and caught within one commit (2026-08-16 security review HIGH):
+    making `_cell` the control-character floor put it UPSTREAM of this check,
+    where its space substitution plus `.strip()` turned `APPROVE<invisible>`
+    into `APPROVE` — a reportable contract break rendered as a clean approval,
+    with the header reason code gone too.
+
+    That cell is load-bearing at the gate: §2 tells the approver that
+    code-scope rows carry no §3 diff body and are applied in Step 2 without
+    reading diffs, so the reviewer column IS the material the decision rests
+    on. Visible characters (the sibling test above) cannot see this — the
+    regression is only reachable through characters that render as nothing.
+
+    One case per build directory rather than one build with five events: a
+    laundered verdict is INVISIBLE in the output, so a shared build would let
+    one surviving `UNRECOGNIZED(` satisfy the assertion for all five.
+    """
+    for cp in (0x200B, 0x202E, 0x7F, 0xFEFF, 0x00AD):
+        case = tmp_path / f"u{cp:04x}"
+        case.mkdir()
+        paths = _write_inputs(case)
+        with paths["audit"].open("a", encoding="utf-8") as fh:
+            fh.write(
+                _audit_line("review_result", fix_id="F1.3", verdict=f"APPROVE{chr(cp)}") + "\n"
+            )
+        text = _build(paths)
+        assert "UNRECOGNIZED(" in text, f"U+{cp:04X} laundered into a clean verdict"
+        assert "REVIEW_VERDICT_UNRECOGNIZED" in text.split("## 1.")[0], f"U+{cp:04X}"
+        assert chr(cp) not in text, f"U+{cp:04X} reached the packet"
+
+
 def test_designed_escalation_does_not_fire_the_improvement_trigger(tmp_path: Path):
     # A docs-touching fix two weeks running is routine. P4 exists to catch
     # faults; spending an unattended session "improving" a guard that worked
@@ -1605,6 +1699,42 @@ def test_ledger_fired_watch_renders_section(tmp_path: Path):
     assert "T-B |" not in text  # still-blocked rows stay out (signal-first)
     rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
     assert rec["ledger_watch_fired"] == 1
+
+
+def test_ledger_watch_target_cannot_reach_the_gate_with_control_characters(tmp_path: Path):
+    """The floor holds on §10's `target` even if its producer forgets.
+
+    NOT an end-to-end proof, and the difference matters: `_ledger_watch_json`
+    writes the intake's JSON by hand, so this exercises `_cell` alone. The
+    scan-side pass has covered `target` since `8265e3c` (2026-08-15) —
+    `ledger_condition_scan.py` truncates it through `_printable`, and
+    `tests/test_ledger_condition_scan.py` asserts that directly. What is tested
+    here is the second layer: `target` is ledger text carried verbatim and
+    `json.dumps` escapes only C0, so DEL, the C1 block, the bidi overrides and
+    ZWSP survive that JSON literally — and §10 is read by a human at the
+    Saturday gate, where a bidi override reorders what the approver sees a
+    watch was pointed at. A floor that does not depend on the producer is what
+    stops the next producer from being the one that forgets (2026-08-16).
+    """
+    paths = _write_inputs(tmp_path)
+    marks = f"{chr(0x202E)}{chr(0x200B)}{chr(0x7F)}{chr(0x85)}"
+    lw = _ledger_watch_json(
+        tmp_path,
+        [
+            {
+                "task": "T-A",
+                "type": "gh-pr",
+                "target": f"ollama/ollama#12030{marks}",
+                "status": "merged",
+                "fired": True,
+                "reason": None,
+            }
+        ],
+    )
+    text = _build(paths, ledger_watch=lw)
+    assert "T-A" in text  # neutralising is not dropping
+    for ch in marks:
+        assert ch not in text, f"U+{ord(ch):04X} reached the gate"
 
 
 def test_ledger_all_still_blocked_is_silent(tmp_path: Path):
