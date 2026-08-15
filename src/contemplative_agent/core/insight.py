@@ -27,10 +27,7 @@ from . import insight_novelty, llm
 from ._io import read_run_marker, strip_to_printable, write_run_marker
 from .artifact_extraction import canonicalize_frontmatter_name, resolve_artifact_path
 from .clustering import cluster_patterns
-from .insight_novelty import (
-    _Batch,
-    skill_theme as skill_theme,  # public re-export (consumers: skill_selection, cli)
-)
+from .insight_novelty import _Batch
 from .knowledge_store import (
     effective_importance,
     epistemic_counts_for,

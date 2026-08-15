@@ -34,7 +34,6 @@ from typing import Any, Literal, TypeAlias
 import numpy as np
 
 from ._io import append_jsonl_restricted, b64_audit_fields, now_iso, strip_to_printable
-from .insight import skill_theme
 from .llm import (
     _estimate_tokens,
     circuit_shield,
@@ -42,7 +41,7 @@ from .llm import (
     get_identity_system_prompt,
     validate_identity_content,
 )
-from .text_utils import strip_frontmatter
+from .text_utils import skill_theme, strip_frontmatter
 
 logger = logging.getLogger(__name__)
 

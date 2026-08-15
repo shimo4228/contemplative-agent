@@ -314,7 +314,7 @@ def _append_insight_ledger(skills: Sequence[SkillResult]) -> None:
     window stays unconsumed rather than consumed-but-unremembered.
     """
     from ..core._io import append_jsonl_restricted, now_iso
-    from ..core.insight import skill_theme
+    from ..core.text_utils import skill_theme
 
     for s in skills:
         name, description = skill_theme(s.text, fallback_name=Path(s.filename).stem)

@@ -392,12 +392,30 @@ def test_c_scope_7_flags_still_exist_in_the_real_cli():
     Marked `live_cli` (was `unit` until 2026-08-15): it spawns the real binary
     too, so the reasons C-SCOPE-8 is kept out of the fix loop's Verify apply to
     it unchanged — `--help` is a cheaper spawn, not a different kind of one.
+
+    **The whole chain's flag alarm, not this file's.** The diagnosis suite
+    carried a second copy (D-SCOPE-8) spawning the same `--help` for an
+    overlapping flag list; one alarm covering the union is one spawn and one
+    list to keep true. The mode-value half came from there: every session in
+    `weekly-pipeline.sh` is asserted to pin a mode by C-SCOPE-1, so checking
+    each pinned value against the help text covers what D-SCOPE-8 checked for
+    one session, over all of them.
     """
     help_text = subprocess.run(
         ["claude", "--help"], capture_output=True, text=True, timeout=120
     ).stdout
-    for flag in ("--tools", "--strict-mcp-config", "--permission-mode", "--disallowedTools"):
+    for flag in (
+        "--tools",
+        "--strict-mcp-config",
+        "--permission-mode",
+        "--allowedTools",
+        "--disallowedTools",
+    ):
         assert flag in help_text, f"{flag} is no longer a claude CLI flag"
+    # C-SCOPE-1 pins every session to this one mode as a bare word, so the
+    # value to check is the literal it asserts rather than a per-invocation
+    # read (`_flag_value` wants a quoted value and would not match it).
+    assert '"manual"' in help_text, "'manual' is no longer a --permission-mode choice"
 
 
 def _cli_init_event(spec: str, config_dir: Path) -> tuple[dict | None, str]:

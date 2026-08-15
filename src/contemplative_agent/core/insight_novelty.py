@@ -17,7 +17,7 @@ from pathlib import Path
 
 from . import llm
 from ._io import strip_code_fence
-from .text_utils import skill_theme as skill_theme  # public re-export (consumers: insight, cli)
+from .text_utils import skill_theme
 
 logger = logging.getLogger(__name__)
 

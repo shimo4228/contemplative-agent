@@ -117,12 +117,6 @@ STATES = (
 TERMINAL_STATES = ("done", "retired", "dropped", "decided")
 
 _CELLS = 5
-# Escaping is symmetric: `render_row` escapes every pipe in a cell, so in a
-# rendered row a bare `|` is always a column break and an escaped one is always
-# body text. A task-file author writes a bare `|` and never has to know the
-# projection's rules. (An earlier version escaped only pipes inside code spans,
-# which left `|Δ効果|` — absolute-value notation, the exact shape found in the
-# pre-migration table — rendering as extra columns.)
 
 # `[ \t]*` and not `\s*`: `\s` matches newlines, so the match would swallow the
 # blank lines after the heading and any offset computed from its end would be
@@ -133,6 +127,16 @@ _SECTIONS = ("タスク", "着手条件", "詳細")
 # `.md` files with no permission prompt, and `write_store` followed a symlinked
 # T-X.md out of the store (2026-08-15 security review MEDIUM, both reproduced).
 _TASK_ID_RE = re.compile(r"^T-[A-Z0-9][A-Z0-9-]*$")
+
+
+def state_word(state: str) -> str:
+    """The vocabulary word of a state cell, without a trailing date.
+
+    One derivation, because the two parsers and `Task.state_word` all have to
+    agree on where the word ends — a state format that grew a second token
+    would otherwise be read three ways.
+    """
+    return next(iter(state.split()), "")
 
 
 class MalformedRow(Exception):
@@ -155,7 +159,7 @@ class Task:
     @property
     def state_word(self) -> str:
         """The vocabulary word, without a trailing date (`done 2026-08-15`)."""
-        return self.state.split()[0] if self.state.split() else ""
+        return state_word(self.state)
 
     @property
     def is_terminal(self) -> bool:
@@ -170,13 +174,9 @@ class Task:
 def _scan_cells(raw: str, legacy: bool) -> list[str]:
     """One left-to-right pass: consume escapes, break columns on bare pipes.
 
-    Replaces a sentinel-substitution scheme (`replace("\\\\|", "\\x00")`, split,
-    substitute back) that **cannot** be made correct once a literal backslash is
-    also escaped. `str.replace` scans left to right over the *whole* string with
-    no notion of what already consumed a character, so on `a\\\\\\|b` — body
-    `a\\|b`, three backslashes on the wire — it finds `\\|` at the third
-    backslash and eats the escape's own backslash. A single pass that decides
-    each character once has no such state to lose.
+    A single pass rather than sentinel substitution, because once a literal
+    backslash is escaped too, no `str.replace` scheme can be made correct: it
+    has no notion of what already consumed a character (see `_escape_cell`).
 
     Returns the raw split including the empty strings outside the leading and
     trailing delimiters; the caller checks those, which is what makes an escaped
@@ -243,32 +243,17 @@ def split_row(line: str, *, legacy: bool = False) -> list[str]:
     earlier wording here said a backslash "meant itself" in the legacy dialect,
     which would have made that row unmigratable — 2026-08-15 code review LOW.)
 
-    **Reading a ledger rendered *before* 2026-08-15 is a one-way step.** That
-    render escaped pipes and left backslashes alone, so the divergence set is
-    exactly the bodies holding `\\\\` — verified exhaustively over every body of
-    length ≤ 8 in `{a, \\, |}`: 706 agree, 113 refuse, 274 read differently, and
-    no case where the new reader *accepts* what the old one refused.
+    **Reading a ledger rendered *before* 2026-08-15 is a one-way step**, since
+    that render escaped pipes and left backslashes alone. What survives, what
+    fails loudly and what fails silently is measured in
+    `docs/evidence/adr-0094/escape-scheme-migration-20260815.md`; the recovery
+    is to re-render from the store, not to grep the old bytes.
 
-    Do not use "contains `\\\\|`" as the rule for which of those refuse. It is
-    the intuitive one and it is wrong for 72 of the shapes measured: a body of
-    `\\\\\\|` (three backslashes, then a pipe) reads as `\\|` here where the old
-    reader gave `\\\\|` — silent, and it contains that substring. The verified
-    rule is **parity**: loud iff an *even*-length backslash run of ≥2 sits
-    immediately before a pipe, since only then does the new reader consume the
-    run in pairs and leave the pipe bare, which is a cell-count refusal. Odd
-    runs absorb the pipe into the last escape and lose a backslash quietly.
-    One live row was loud (`expected 5 cells, got 8`).
-
-    All of it is closed by re-rendering the projection from the store, done in
-    the commit that changed the scheme, which is the operation to reach for
-    rather than any grep. The reverse direction — a body holding `\\|` under
-    the old scheme — was already unrecoverable, and is the defect this fixes.
-
-    Applying the legacy guard to rendered input had a cost that only showed up
-    after the migration landed: a body containing a single literal backtick
-    renders fine and then fails to read back, which closes the one route from a
-    rendered ledger back to the store. The store is gitignored, so that route
-    *is* the disaster recovery (2026-08-15 code review LOW).
+    Backticks carry no meaning in the rendered dialect, and applying the legacy
+    guard there closed the one route from a rendered ledger back to the store:
+    a body containing a single literal backtick renders fine and then fails to
+    read back. The store is gitignored, so that route *is* the disaster
+    recovery.
 
     Raises MalformedRow rather than truncating: a half-migrated task is worse
     than a loud failure, and the two rows the legacy dialect was written for
@@ -321,20 +306,14 @@ def split_row(line: str, *, legacy: bool = False) -> list[str]:
 def _escape_cell(text: str) -> str:
     """Escape a cell's backslashes, then its pipes. **Not idempotent.**
 
-    The previous spelling, `re.sub(r"\\\\?\\|", r"\\\\|", text)`, folded an
-    already-escaped pipe onto itself so that rendering twice was safe. That fold
-    *was* the defect: a body containing `a\\|b` rendered to bytes identical to an
-    escaped pipe, and reading back gave `a|b` — the backslash gone, silently,
-    on the one path that turns a rendered ledger back into a store. Since the
-    store is gitignored, that path is the disaster recovery (2026-08-15 code
-    review HIGH; a 20k-case property sweep found 833 round-trip mismatches, all
-    this shape, and no others in the rendered dialect).
-
-    Idempotence is traded away rather than engineered around, because it was
-    only ever needed if something applied the escape twice, and `render_row` is
-    the sole caller — pinned by a test that walks this module's AST, since the
-    property is now load-bearing and a second caller would corrupt every cell
-    it touched rather than failing.
+    Idempotence is traded away deliberately. A fold that made a second render
+    safe (`re.sub(r"\\\\?\\|", r"\\\\|", text)`) also made a body containing
+    `a\\|b` render to bytes identical to an escaped pipe, so reading back gave
+    `a|b` with the backslash silently gone — on the one path that turns a
+    rendered ledger back into a store, which is the disaster recovery since the
+    store is gitignored. `render_row` is the sole caller, pinned by a test that
+    walks this module's AST: the property is load-bearing now, and a second
+    caller would corrupt every cell it touched rather than failing.
 
     Order matters: backslashes first, or the backslash introduced for `\\|`
     would itself be doubled.
@@ -342,16 +321,12 @@ def _escape_cell(text: str) -> str:
     **Stated consequence: a code span holding a backslash no longer *displays*
     faithfully.** GFM processes `\\|` inside a table cell even within a code
     span, so escaped pipes render as pipes — but it offers no escape for a
-    backslash there, so a body's `\\` shows as `\\\\` to anything that renders
-    this file as Markdown (2026-08-15 cross-model review P2, correct about the
-    mechanism). Accepted rather than fixed, because the two requirements are
-    mutually exclusive — a literal backslash cannot be both distinguishable
-    from an escape prefix in the bytes and single when displayed — and
-    ADR-0094 already chose the bytes: the store is gitignored, so recovering it
-    from this projection is the only thing between a lost store and lost work.
-    Nothing renders it either; the one programmatic consumer
-    (`ledger_condition_scan.py`) parses raw text, and no Markdown renderer is
-    installed in this repo.
+    backslash there, so a body's `\\` shows as `\\\\` to any Markdown renderer.
+    Accepted rather than fixed: the two requirements are mutually exclusive — a
+    literal backslash cannot be both distinguishable from an escape prefix in
+    the bytes and single when displayed — and ADR-0094 chose the bytes. Nothing
+    renders this file anyway; the one programmatic consumer
+    (`ledger_condition_scan.py`) parses raw text.
     """
     return text.replace("\\", "\\\\").replace("|", "\\|")
 
@@ -394,7 +369,7 @@ def parse_task_file(text: str) -> Task:
             raise MalformedTask(f"frontmatter is missing `{required}`")
 
     state = meta.pop("state")
-    word = state.split()[0] if state.split() else ""
+    word = state_word(state)
     if word not in STATES and word not in TERMINAL_STATES:
         raise MalformedTask(
             f"{meta['id']}: unknown state {word!r} "
@@ -727,7 +702,7 @@ def load_tasks_from_ledger(ledger: Path, *, legacy: bool = False) -> list[Task]:
         if not line.startswith("| T-"):
             continue
         tid, state, summary, condition, detail = split_row(line, legacy=legacy)
-        word = state.split()[0] if state.split() else ""
+        word = state_word(state)
         if word not in STATES and word not in TERMINAL_STATES:
             # Without this a mis-split writes a garbage token into `state:`, and
             # since `load_store` is all-or-nothing the *whole* store then fails

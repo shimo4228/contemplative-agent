@@ -406,9 +406,8 @@ def _stocktake_description_phase(
     selection count) annotates each finding so near-always-selected skills
     — the over-broad suspects — are visible next to the verdict.
     """
-    from ..core.insight import skill_theme
     from ..core.stocktake import audit_skill_description
-    from ..core.text_utils import split_frontmatter
+    from ..core.text_utils import skill_theme, split_frontmatter
 
     targets = [name for name, _ in items if name not in skip_names]
     if not targets:

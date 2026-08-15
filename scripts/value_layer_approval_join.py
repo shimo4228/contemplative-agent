@@ -43,16 +43,15 @@ Security / boundary (load-bearing):
 from __future__ import annotations
 
 import argparse
-import json
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
 
-# Which path shapes belong to which state-diff section. Matched on path
-# components rather than a prefix: the audit log records absolute paths from
-# whatever MOLTBOOK_HOME was live at write time, which is not necessarily the
-# home this scan runs against (backfill runs, relocated data dirs).
+from _audit import parse_records, parse_ts
+from _md import md_safe, printable
+
+# Which path shapes belong to which state-diff section.
 _SECTIONS = ("identity", "constitution", "skills", "rules")
 
 _FIELD_CAP = 80
@@ -93,24 +92,14 @@ class Reading:
     window_end: str
 
 
-def _parse_ts(raw: object) -> datetime | None:
-    """ISO-8601 -> aware UTC. Naive input is read as UTC.
-
-    The ``Z`` replace exists for the ``requires-python = ">=3.10"`` floor;
-    3.11+ ``fromisoformat`` accepts it natively.
-    """
-    if not isinstance(raw, str):
-        return None
-    try:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
-
-
 def _matches_section(raw_path: object, section: str) -> bool:
+    """Does this audit record's path belong to `section`?
+
+    Matched on path components rather than a prefix: the audit log records
+    absolute paths from whatever MOLTBOOK_HOME was live at write time, which is
+    not necessarily the home this scan runs against (backfill runs, relocated
+    data dirs).
+    """
     if not isinstance(raw_path, str) or not raw_path:
         return False
     parts = PurePosixPath(raw_path).parts
@@ -124,15 +113,20 @@ def _matches_section(raw_path: object, section: str) -> bool:
 
 
 def _clean(value: object) -> str:
-    """Render one audit field: non-printables squashed, capped, pipe-escaped."""
+    """Render one audit field: non-printables squashed, capped, Markdown-safed.
+
+    Both neutralisers, because this lands in a table an LLM reads: `printable`
+    for what could act on a terminal or reorder the line, `md_safe` for what
+    breaks the table cell or the code span around it.
+    """
     if value is None:
         return "—"
-    text = "".join(ch if ch.isprintable() else " " for ch in str(value)).strip()
+    text = printable(str(value)).strip()
     if not text:
         return "—"
     if len(text) > _FIELD_CAP:
         text = text[: _FIELD_CAP - 1] + "…"
-    return text.replace("|", "\\|")
+    return md_safe(text)
 
 
 def load_records(audit_path: Path) -> tuple[list[dict[str, Any]], int]:
@@ -140,7 +134,11 @@ def load_records(audit_path: Path) -> tuple[list[dict[str, Any]], int]:
 
     A missing or unreadable log raises rather than returning empty: "no
     records" and "cannot tell" are the two states this instrument exists to
-    keep apart.
+    keep apart. That decision stays here; `_audit.parse_records` owns only the
+    line grammar, which must match `value_layer_due_check` because both feed
+    the same packet. `errors="replace"` rather than an abstain on a decode
+    fault: this reading is an annotation beside a diff, so a single mangled
+    byte should cost that record's legibility, not the whole section.
     """
     if not audit_path.is_file():
         raise JoinUnavailable("audit-log-missing")
@@ -148,22 +146,7 @@ def load_records(audit_path: Path) -> tuple[list[dict[str, Any]], int]:
         text = audit_path.read_text(encoding="utf-8", errors="replace")
     except OSError:
         raise JoinUnavailable("audit-log-unreadable") from None
-    records: list[dict[str, Any]] = []
-    unparsable = 0
-    for line in text.splitlines():
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            record = json.loads(line)
-        except ValueError:
-            unparsable += 1
-            continue
-        if isinstance(record, dict):
-            records.append(record)
-        else:
-            unparsable += 1
-    return records, unparsable
+    return parse_records(text)
 
 
 def build_reading(
@@ -189,7 +172,7 @@ def build_reading(
         # Pre-2026-04 records use ``timestamp``; value_layer_due_check.py
         # recognizes both, so this must too or the two readings disagree.
         raw_ts = record.get("ts") or record.get("timestamp")
-        parsed = _parse_ts(raw_ts)
+        parsed = parse_ts(raw_ts)
         if parsed is None:
             unparsable += 1
             continue
@@ -301,8 +284,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     try:
-        start = _parse_ts(args.start)
-        end = _parse_ts(args.end)
+        start = parse_ts(args.start)
+        end = parse_ts(args.end)
         if start is None or end is None:
             raise JoinUnavailable("window-unparsable")
         records, unparsable = load_records(args.audit)

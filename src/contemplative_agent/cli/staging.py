@@ -7,13 +7,11 @@ from __future__ import annotations
 
 import json as json_mod
 import logging
+import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal
-
-if TYPE_CHECKING:
-    pass
+from typing import Any, Literal
 
 from ..adapters.moltbook import config
 from ..core._io import (
@@ -81,29 +79,53 @@ def _pending_staged_count() -> int:
     return len(list(config.STAGED_DIR.glob("*.meta.json")))
 
 
+def read_sidecar(meta_file: Path) -> dict[str, Any] | None:
+    """The one read of a staged sidecar; None when it is not a usable object.
+
+    Lives beside the writer (`_stage_results`) so the format has one owner,
+    and is shared by every reader — the adopt loop, the sort key, the budget
+    instrument and the pending-guard's held count. They must not disagree
+    about which sidecars exist: the instrument's whole job is to project what
+    the loop will do, so a file one of them refuses must not be counted by
+    another (both reviews, 2026-08-15).
+
+    ``O_NOFOLLOW`` rather than an ``is_symlink`` guard: the guard was
+    lstat-then-open, and the hold outcome writes this object back into
+    ``.staged/``, so losing that race copied an outside file's bytes into a
+    directory the adversary reads. No producer writes a symlinked sidecar.
+
+    ``isinstance`` rather than ``.get`` on the parse result: a sidecar
+    holding valid JSON that is not an object (``[]``, ``"x"``, ``3``) parses
+    and then raises ``AttributeError``, which no caller's ``except (OSError,
+    ValueError)`` catches — one such file wedged ``adopt-staged``, and
+    through the ADR-0074 pending guard, all future staging.
+    """
+    try:
+        fd = os.open(meta_file, os.O_RDONLY | os.O_NOFOLLOW)
+    except OSError:
+        return None
+    try:
+        with os.fdopen(fd, encoding="utf-8") as handle:
+            meta = json_mod.load(handle)
+    except (OSError, ValueError):
+        return None
+    return meta if isinstance(meta, dict) else None
+
+
 def _held_staged_count() -> int:
     """How many pending sidecars carry the ``held`` marker.
 
     Unparseable sidecars count as not-held: the adopt loop quarantines them
     and they are already reported by ``_pending_staged_count``. Reporting
-    only, never a gate — which is why the ``isinstance`` matters: a sidecar
-    holding valid JSON that is not an object (``[]``, ``"x"``, ``3``) parses
-    fine and then raises ``AttributeError`` on ``.get``, which ``ValueError``
-    does not catch. Since this runs on the refusal path, that turned every
-    staging producer — including the weekly chain — into a traceback instead
-    of a clean refusal (security review 2026-08-15, reproduced).
+    only, never a gate.
     """
     if not config.STAGED_DIR.exists():
         return 0
-    held = 0
-    for meta_file in config.STAGED_DIR.glob("*.meta.json"):
-        try:
-            meta = json_mod.loads(meta_file.read_text(encoding="utf-8"))
-        except (OSError, ValueError):
-            continue
-        if isinstance(meta, dict) and meta.get("held") is True:
-            held += 1
-    return held
+    return sum(
+        1
+        for meta_file in config.STAGED_DIR.glob("*.meta.json")
+        if (read_sidecar(meta_file) or {}).get("held") is True
+    )
 
 
 def _stage_results(items: list[StageItem], command: str) -> bool:

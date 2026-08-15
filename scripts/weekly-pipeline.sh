@@ -775,7 +775,7 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
             --tools "$READONLY_TOOLS" \
             --strict-mcp-config \
             --setting-sources project \
-            --allowedTools "Read,Glob,Grep" \
+            --allowedTools "$READONLY_TOOLS" \
             --disallowedTools "$READONLY_DENY" \
             --output-format text \
             < "$review_input" \
@@ -957,7 +957,7 @@ if stage_enabled insight; then
                 --tools "$READONLY_TOOLS" \
                 --strict-mcp-config \
                 --setting-sources project \
-                --allowedTools "Read,Glob,Grep" \
+                --allowedTools "$READONLY_TOOLS" \
                 --disallowedTools "$READONLY_DENY" \
                 --output-format text \
                 > "$INSIGHT_TMP" 2>"$RUN_LOG_DIR/insight.err" \
@@ -1285,7 +1285,7 @@ if stage_enabled improve && [[ -n "$REASONS" ]] && ! deadline_exceeded; then
                 --tools "$READONLY_TOOLS" \
                 --strict-mcp-config \
                 --setting-sources project \
-                --allowedTools "Read,Glob,Grep" \
+                --allowedTools "$READONLY_TOOLS" \
                 --disallowedTools "$READONLY_DENY" \
                 --output-format text) > "$IMPROVE_TMP" 2>"$RUN_LOG_DIR/improve.err" \
                 && [[ -s "$IMPROVE_TMP" ]]; then

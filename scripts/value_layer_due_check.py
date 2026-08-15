@@ -37,9 +37,11 @@ import argparse
 import json
 import sys
 from collections.abc import Callable
-from datetime import date, datetime, timezone
+from datetime import date, datetime
 from pathlib import Path
 from typing import Any
+
+from _audit import parse_records, parse_ts
 
 _IDENTITY_COMMANDS = frozenset({"distill-identity", "distill-identity-ca"})
 _AMEND_COMMAND = "amend-constitution"
@@ -77,30 +79,11 @@ class CheckError(Exception):
         self.reason = reason
 
 
-def _parse_ts(raw: object) -> datetime | None:
-    """Parse an ISO-8601 timestamp, normalized to aware UTC; naive = UTC.
-
-    The ``Z`` replace exists for the ``requires-python = ">=3.10"`` floor —
-    3.11+ ``fromisoformat`` accepts it natively. ``astimezone`` matters for
-    the day arithmetic downstream: ``.date()`` on a non-UTC offset would
-    shift the day boundary and flip ``due`` at the interval edge.
-    """
-    if not isinstance(raw, str):
-        return None
-    try:
-        parsed = datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except ValueError:
-        return None
-    if parsed.tzinfo is None:
-        return parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
-
-
 def _record_ts(record: dict) -> tuple[str, datetime] | None:
     raw = record.get("ts") or record.get("timestamp")
     if not isinstance(raw, str):
         return None
-    parsed = _parse_ts(raw)
+    parsed = parse_ts(raw)
     if parsed is None:
         return None
     return raw, parsed
@@ -286,7 +269,7 @@ def build_reading(
             patterns_since = 0
             for pattern in loaded:
                 distilled = (
-                    _parse_ts(pattern.get("distilled")) if isinstance(pattern, dict) else None
+                    parse_ts(pattern.get("distilled")) if isinstance(pattern, dict) else None
                 )
                 if distilled is not None and distilled > adopted_at:
                     patterns_since += 1
@@ -316,7 +299,13 @@ def build_reading(
 
 
 def _load_audit(path: Path) -> tuple[list[dict], int]:
-    """Load audit records; malformed lines are counted, not fatal."""
+    """Load audit records; malformed lines are counted, not fatal.
+
+    Strict decode, unlike `value_layer_approval_join`: this reading drives a
+    due/not-due verdict, so a log it cannot read in full must abstain rather
+    than answer from the part that decoded. The line grammar is shared
+    (`_audit.parse_records`) because both readings land in the same packet.
+    """
     if not path.is_file():
         raise CheckError("AUDIT_MISSING", str(path))
     try:
@@ -326,21 +315,7 @@ def _load_audit(path: Path) -> tuple[list[dict], int]:
     # invalid byte must abstain, not traceback.
     except (OSError, UnicodeDecodeError) as exc:
         raise CheckError("AUDIT_UNREADABLE", str(exc)) from exc
-    records: list[dict] = []
-    malformed = 0
-    for line in text.splitlines():
-        if not line.strip():
-            continue
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            malformed += 1
-            continue
-        if isinstance(record, dict):
-            records.append(record)
-        else:
-            malformed += 1
-    return records, malformed
+    return parse_records(text)
 
 
 def _load_patterns(path: Path) -> list[dict] | None:

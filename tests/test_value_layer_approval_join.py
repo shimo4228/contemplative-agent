@@ -36,7 +36,7 @@ END = "2026-08-08T23:00:00+09:00"
 
 
 def _ts(raw: str) -> datetime:
-    parsed = vlaj._parse_ts(raw)
+    parsed = vlaj.parse_ts(raw)
     assert parsed is not None
     return parsed
 
@@ -383,5 +383,5 @@ class TestCli:
         assert "FREE-TEXT-MARKER" not in result.stdout
 
     def test_timezone_naive_stamps_are_read_as_utc(self):
-        parsed = vlaj._parse_ts("2026-08-03T03:00:00")
+        parsed = vlaj.parse_ts("2026-08-03T03:00:00")
         assert parsed == datetime(2026, 8, 3, 3, 0, tzinfo=timezone.utc)

@@ -140,10 +140,8 @@ def synthesize_frontmatter(body: str, *, origin: str = "auto-extracted") -> str:
     return f'---\nname: {name}\ndescription: "{description}"\norigin: {origin}\n---'
 
 
-_FRONTMATTER_SCALAR_RE = {
-    "name": re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE),
-    "description": re.compile(r'^description:\s*"?(.*?)"?\s*$', re.MULTILINE),
-}
+_FM_NAME_RE = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
+_FM_DESCRIPTION_RE = re.compile(r'^description:\s*"?(.*?)"?\s*$', re.MULTILINE)
 
 
 def skill_theme(text: str, fallback_name: str = "skill") -> tuple[str, str]:
@@ -160,9 +158,9 @@ def skill_theme(text: str, fallback_name: str = "skill") -> tuple[str, str]:
     name = None
     description = None
     if frontmatter:
-        m = _FRONTMATTER_SCALAR_RE["name"].search(frontmatter)
+        m = _FM_NAME_RE.search(frontmatter)
         name = m.group(1).strip() if m else None
-        m = _FRONTMATTER_SCALAR_RE["description"].search(frontmatter)
+        m = _FM_DESCRIPTION_RE.search(frontmatter)
         description = m.group(1).strip() if m else None
     title = extract_title(body or text)
     return (name or fallback_name, description or title or "")

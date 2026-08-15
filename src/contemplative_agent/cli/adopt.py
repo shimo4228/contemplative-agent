@@ -31,7 +31,6 @@ from __future__ import annotations
 import argparse
 import json as json_mod
 import logging
-import os
 import sys
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -45,6 +44,7 @@ from ..core.domain import (
 from . import approval
 from .approval import AuditSource
 from .registry import CommandSpec, Tier
+from .staging import read_sidecar
 
 logger = logging.getLogger(__name__)
 
@@ -75,37 +75,6 @@ class _StagedItem:
     source_ids: Sequence[str] | None
     epistemic_counts: dict[str, int] | None
     meta: dict[str, Any]
-
-
-def _read_sidecar(meta_file: Path) -> dict[str, Any] | None:
-    """The one read of a staged sidecar; None when it is not a usable object.
-
-    Single owner so the adopt loop, the sort key and the budget instrument
-    cannot disagree about which sidecars exist — the instrument's whole job
-    is to project what the loop will do, so a file one of them refuses must
-    not be counted by the other (both reviews, 2026-08-15).
-
-    ``O_NOFOLLOW`` rather than an ``is_symlink`` guard: the guard was
-    lstat-then-open, and the hold outcome writes this object back into
-    ``.staged/``, so losing that race copied an outside file's bytes into a
-    directory the adversary reads. No producer writes a symlinked sidecar.
-
-    ``isinstance`` rather than ``.get`` on the parse result: a sidecar
-    holding valid JSON that is not an object (``[]``, ``"x"``, ``3``) parses
-    and then raises ``AttributeError``, which no caller's ``except (OSError,
-    ValueError)`` catches — one such file wedged ``adopt-staged``, and
-    through the ADR-0074 pending guard, all future staging.
-    """
-    try:
-        fd = os.open(meta_file, os.O_RDONLY | os.O_NOFOLLOW)
-    except OSError:
-        return None
-    try:
-        with os.fdopen(fd, encoding="utf-8") as handle:
-            meta = json_mod.load(handle)
-    except (OSError, ValueError):
-        return None
-    return meta if isinstance(meta, dict) else None
 
 
 def _target_inside_data_root(target: Path, data_root: Path) -> bool:
@@ -146,7 +115,7 @@ def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:
     Enforces the module's containment boundary; see the module docstring for
     what the adversary can reach once past it.
     """
-    meta = _read_sidecar(meta_file)
+    meta = read_sidecar(meta_file)
     if meta is None:
         print(f"  Skipped (meta unreadable, not an object, or a symlink): {meta_file.name}")
         return None
@@ -378,7 +347,7 @@ def _staged_sort_key(meta_file: Path) -> tuple[int, str]:
     by ``_stage_results``; metas without it (pre-seq batches, corrupt
     sidecars) sort last by name, preserving the old order among themselves.
     """
-    meta = _read_sidecar(meta_file)
+    meta = read_sidecar(meta_file)
     seq = meta.get("seq") if meta is not None else None
     return (seq if isinstance(seq, int) else sys.maxsize, meta_file.name)
 
@@ -415,7 +384,7 @@ def _print_system_budget_for_staged(meta_files: Sequence[Path], data_root: Path)
         replaced_texts: list[str] = []
         for meta_file in meta_files:
             try:
-                meta = _read_sidecar(meta_file)
+                meta = read_sidecar(meta_file)
                 if meta is None or not meta.get("target"):
                     continue
                 target = Path(meta["target"])
@@ -440,12 +409,14 @@ def _print_system_budget_for_staged(meta_files: Sequence[Path], data_root: Path)
                 # subtracting it would under-project (codex 2026-07-10 P2).
                 # This asks the same question as the write path above, so the
                 # two cannot disagree about whether the old text survives.
-                if target.exists() and (
-                    target.name in sources
-                    or _replaces_canonical_target(meta.get("command") or "", target, data_root)
-                    or target.read_text(encoding="utf-8").strip() == text.strip()
-                ):
-                    replaced_texts.append(target.read_text(encoding="utf-8"))
+                if target.exists():
+                    existing = target.read_text(encoding="utf-8")
+                    if (
+                        target.name in sources
+                        or _replaces_canonical_target(meta.get("command") or "", target, data_root)
+                        or existing.strip() == text.strip()
+                    ):
+                        replaced_texts.append(existing)
                 for src_name in sources:
                     src_path = target.parent / src_name
                     if src_path != target and _inside_data_root(src_path) and src_path.exists():
@@ -483,7 +454,7 @@ def _staged_name(meta_file: Path) -> str:
     return meta_file.name[: -len(".meta.json")]
 
 
-def _read_names_file(names_file: Path, flag: str) -> list[str]:
+def _read_names_file(names_file: Path, flag: str) -> set[str]:
     """Read a per-item selection file (one staged filename per line).
 
     Shared by ``--adopt-names`` and ``--hold-names`` so the two cannot drift
@@ -502,12 +473,8 @@ def _read_names_file(names_file: Path, flag: str) -> list[str]:
         # an unreadable file (2026-08-01 security review L1).
         print(f"Error: cannot read {flag} file {names_file}: {err}", file=sys.stderr)
         sys.exit(2)
-    seen: dict[str, None] = {}
-    for line in raw.splitlines():
-        name = line.strip()
-        if name:
-            seen.setdefault(name)
-    if not seen:
+    names = {name for line in raw.splitlines() if (name := line.strip())}
+    if not names:
         # An empty selection is a writer bug (truncated write, crashed
         # producer), not a valid decision: combined with --reject-rest it
         # would silently delete the ENTIRE staging queue while logging each
@@ -519,7 +486,7 @@ def _read_names_file(names_file: Path, flag: str) -> list[str]:
             file=sys.stderr,
         )
         sys.exit(2)
-    return list(seen)
+    return names
 
 
 def _mark_sidecar_held(meta_file: Path, meta: dict[str, Any]) -> bool:
@@ -675,10 +642,10 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     # a set = per-item selection by staged filename.
     adopt_names: set[str] | None = None
     if adopt_names_file:
-        adopt_names = set(_read_names_file(Path(adopt_names_file), "--adopt-names"))
+        adopt_names = _read_names_file(Path(adopt_names_file), "--adopt-names")
     hold_names: set[str] = set()
     if hold_names_file:
-        hold_names = set(_read_names_file(Path(hold_names_file), "--hold-names"))
+        hold_names = _read_names_file(Path(hold_names_file), "--hold-names")
         # Holding without adopting anything is a legitimate week. Normalizing
         # to an empty set (rather than leaving it None) is what keeps the
         # unlisted items out of the interactive branch below — otherwise

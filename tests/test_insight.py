@@ -21,11 +21,10 @@ from contemplative_agent.core.insight import (
     _extract_skill,
     _select_patterns,
     extract_insight,
-    skill_theme,
 )
 from contemplative_agent.core.llm import GenerationOutput
 from contemplative_agent.core.memory import KnowledgeStore
-from contemplative_agent.core.text_utils import extract_title, slugify
+from contemplative_agent.core.text_utils import extract_title, skill_theme, slugify
 
 # ---------------------------------------------------------------------------
 # Fixtures

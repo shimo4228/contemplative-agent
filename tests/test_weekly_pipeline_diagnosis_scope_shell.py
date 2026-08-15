@@ -57,7 +57,6 @@ from __future__ import annotations
 
 import fnmatch
 import os
-import shutil
 import stat
 import subprocess
 import sys
@@ -159,6 +158,25 @@ def _diagnosis_argv(tmp_path: Path) -> tuple[list[str], dict]:
     return [a for a in raw.split("\0") if a != ""], env
 
 
+@pytest.fixture(scope="module")
+def diagnosis_argv(tmp_path_factory) -> tuple[list[str], dict]:
+    """One pipeline run, shared by every D-SCOPE assertion below.
+
+    What is under test is the argv the diagnosis stage hands ``claude``, and
+    one run produces it. ``_make_env`` scrubs the developer's ``PIPELINE_*`` /
+    ``MOLTBOOK_*`` overrides and builds everything else from fixed literals, so
+    a second run is byte-identical to the first by construction — running it
+    twelve times re-derived a value already in hand and cost ~0.63s each
+    (6.98s -> 0.7s for the file).
+
+    Module scope, not session: the tests below only read ``argv`` and format
+    probe paths out of ``env``, so there is no state to isolate between them.
+    ``test_d_scope_11`` still drives its own invocations, since varying
+    ``MOLTBOOK_HOME`` is the thing it asserts about.
+    """
+    return _diagnosis_argv(tmp_path_factory.mktemp("diagnosis-scope"))
+
+
 def _flag_value(argv: list[str], flag: str) -> str:
     """Fetch a flag's value, failing loudly if the flag is gone.
 
@@ -257,14 +275,14 @@ def _writable(argv: list[str], path: str) -> bool:
     return any(_matches(p, path) for p in _rules(allow, "Edit"))
 
 
-def test_d_scope_1_findings_outputs_stay_writable(tmp_path: Path):
+def test_d_scope_1_findings_outputs_stay_writable(diagnosis_argv):
     """The two files the diagnosis skill emits must remain in scope.
 
     Over-tightening here is the expensive failure: the stage would abstain
     with DIAGNOSIS_FAIL and the week's F sections would be missing until the
     Saturday gate noticed.
     """
-    argv, env = _diagnosis_argv(tmp_path)
+    argv, env = diagnosis_argv
     analysis = f"{env['MOLTBOOK_HOME']}/reports/analysis"
 
     for name in (f"weekly-{END_DATE}-findings.md", f"weekly-{END_DATE}-findings.ja.md"):
@@ -274,7 +292,7 @@ def test_d_scope_1_findings_outputs_stay_writable(tmp_path: Path):
         )
 
 
-def test_d_scope_2_control_inputs_and_gate_artifacts_are_out_of_scope(tmp_path: Path):
+def test_d_scope_2_control_inputs_and_gate_artifacts_are_out_of_scope(diagnosis_argv):
     """Everything the session does not author must be unreachable.
 
     `logs/` holds ADR-0091's identity-due control input and `.staged/` is what
@@ -283,7 +301,7 @@ def test_d_scope_2_control_inputs_and_gate_artifacts_are_out_of_scope(tmp_path: 
     reads the past three weeks as its own duplicate-detection baseline, so a
     writable past week lets the session edit the corpus it is judged against.
     """
-    argv, env = _diagnosis_argv(tmp_path)
+    argv, env = diagnosis_argv
     home = env["MOLTBOOK_HOME"]
     forbidden = _protected_paths(env) + [
         f"{home}/reports/analysis/weekly-{OTHER_DATE}-findings.md",
@@ -298,12 +316,12 @@ def test_d_scope_2_control_inputs_and_gate_artifacts_are_out_of_scope(tmp_path: 
     )
 
 
-def test_d_scope_3_no_unscoped_or_inert_file_write_grant(tmp_path: Path):
+def test_d_scope_3_no_unscoped_or_inert_file_write_grant(diagnosis_argv):
     """A bare grant is unbounded; a `Write(...)` rule is inert.
 
     Both read as a boundary and neither is one, so both are rejected here.
     """
-    argv, _ = _diagnosis_argv(tmp_path)
+    argv, _ = diagnosis_argv
     allow = _flag_value(argv, "--allowedTools")
 
     unexpected = _bare_tools(allow) - EXPECTED_BARE_TOOLS
@@ -314,16 +332,16 @@ def test_d_scope_3_no_unscoped_or_inert_file_write_grant(tmp_path: Path):
     )
 
 
-def test_d_scope_4_session_runs_under_an_explicit_restrictive_mode(tmp_path: Path):
+def test_d_scope_4_session_runs_under_an_explicit_restrictive_mode(diagnosis_argv):
     """Necessary but not sufficient — settings allow rules outrank the mode."""
-    argv, _ = _diagnosis_argv(tmp_path)
+    argv, _ = diagnosis_argv
     mode = _flag_value(argv, "--permission-mode")
     assert mode in {"manual", "plan"}, (
         f"diagnosis stage must pin a non-permissive permission mode, got {mode!r}"
     )
 
 
-def test_d_scope_5_deny_rules_cover_every_protected_artifact(tmp_path: Path):
+def test_d_scope_5_deny_rules_cover_every_protected_artifact(diagnosis_argv):
     """Deny outranks the allow rules AND the mode — the only ambient-proof control.
 
     The probe list is deliberately the same one D-SCOPE-2 uses. D-SCOPE-2 is
@@ -332,14 +350,14 @@ def test_d_scope_5_deny_rules_cover_every_protected_artifact(tmp_path: Path):
     rationale for carrying them (surviving an ambient grant) quietly stopped
     being true.
     """
-    argv, env = _diagnosis_argv(tmp_path)
+    argv, env = diagnosis_argv
     deny = _rules(_flag_value(argv, "--disallowedTools"), "Edit")
 
     uncovered = [p for p in _protected_paths(env) if not any(_matches(r, p) for r in deny)]
     assert not uncovered, f"no deny rule covers {uncovered}; deny={deny}"
 
 
-def test_d_scope_5b_the_api_key_is_denied_to_the_reader(tmp_path: Path):
+def test_d_scope_5b_the_api_key_is_denied_to_the_reader(diagnosis_argv):
     """`--add-dir` bounds the workspace, not Read — the key needs its own deny.
 
     The ambient bare `Read` allow is consulted before the mode, so this session
@@ -348,7 +366,7 @@ def test_d_scope_5b_the_api_key_is_denied_to_the_reader(tmp_path: Path):
     data repo by sync-research-data.sh while `credentials.json` is excluded —
     read-then-author would launder the key into a published artifact.
     """
-    argv, env = _diagnosis_argv(tmp_path)
+    argv, env = diagnosis_argv
     deny = _rules(_flag_value(argv, "--disallowedTools"), "Read")
     probe = f"{env['MOLTBOOK_HOME']}/credentials.json"
     assert any(_matches(p, probe) for p in deny), (
@@ -356,7 +374,7 @@ def test_d_scope_5b_the_api_key_is_denied_to_the_reader(tmp_path: Path):
     )
 
 
-def test_d_scope_6_bash_is_denied_wholesale(tmp_path: Path):
+def test_d_scope_6_bash_is_denied_wholesale(diagnosis_argv):
     """An allow list cannot bound Bash here, so there must not be one.
 
     `Bash(git log:*)` reads as read-only and is an arbitrary-write primitive
@@ -364,7 +382,7 @@ def test_d_scope_6_bash_is_denied_wholesale(tmp_path: Path):
     re-grant `git`, `tee`, `cp`, `ln` and `curl` regardless of what this
     invocation lists. Only a wholesale deny is bounded and non-drifting.
     """
-    argv, _ = _diagnosis_argv(tmp_path)
+    argv, _ = diagnosis_argv
     allow = _flag_value(argv, "--allowedTools")
     deny = _flag_value(argv, "--disallowedTools")
 
@@ -376,7 +394,7 @@ def test_d_scope_6_bash_is_denied_wholesale(tmp_path: Path):
     )
 
 
-def test_d_scope_6b_network_tools_are_denied(tmp_path: Path):
+def test_d_scope_6b_network_tools_are_denied(diagnosis_argv):
     """This session reads untrusted episode logs; it must not be able to send.
 
     `WebFetch`/`WebSearch` are ambiently allowed, so omitting them from the
@@ -384,20 +402,20 @@ def test_d_scope_6b_network_tools_are_denied(tmp_path: Path):
     is the one stage holding `--add-dir` over the raw logs — egress here is an
     exfiltration path for content the session was deliberately given to read.
     """
-    argv, _ = _diagnosis_argv(tmp_path)
+    argv, _ = diagnosis_argv
     deny = _bare_tools(_flag_value(argv, "--disallowedTools"))
     for tool in ("WebFetch", "WebSearch"):
         assert tool in deny, f"{tool} must be denied for the diagnosis session; deny={deny}"
 
 
-def test_d_scope_7_path_rules_use_the_absolute_form(tmp_path: Path):
+def test_d_scope_7_path_rules_use_the_absolute_form(diagnosis_argv):
     """`//abs` anchors at the filesystem root; `/abs` anchors at the project.
 
     Losing one slash silently re-anchors every rule: the allow rule would grant
     nothing and the deny rules would protect nothing, while the path strings
     still look right.
     """
-    argv, _ = _diagnosis_argv(tmp_path)
+    argv, _ = diagnosis_argv
     for flag in ("--allowedTools", "--disallowedTools"):
         for pattern in _rules(_flag_value(argv, flag), "Edit"):
             assert pattern.startswith("//"), (
@@ -405,14 +423,14 @@ def test_d_scope_7_path_rules_use_the_absolute_form(tmp_path: Path):
             )
 
 
-def test_d_scope_9_workspace_stays_off_the_home_root(tmp_path: Path):
+def test_d_scope_9_workspace_stays_off_the_home_root(diagnosis_argv):
     """`--add-dir $MOLTBOOK_HOME` would re-open the 2026-07-29 C2 surface.
 
     Write scoping would not catch that regression — every assertion above
     would still pass — but the home root is where credentials.json and the
     runtime state live.
     """
-    argv, env = _diagnosis_argv(tmp_path)
+    argv, env = diagnosis_argv
     home = env["MOLTBOOK_HOME"]
     added = [argv[i + 1] for i, a in enumerate(argv) if a == "--add-dir" and i + 1 < len(argv)]
 
@@ -422,13 +440,13 @@ def test_d_scope_9_workspace_stays_off_the_home_root(tmp_path: Path):
     )
 
 
-def test_d_scope_10_invocation_is_the_diagnosis_skill(tmp_path: Path):
+def test_d_scope_10_invocation_is_the_diagnosis_skill(diagnosis_argv):
     """Pins which session the argv above belongs to.
 
     The stub records to one fixed path, so a future `claude` call in another
     enabled stage would silently retarget every assertion in this module.
     """
-    argv, _ = _diagnosis_argv(tmp_path)
+    argv, _ = diagnosis_argv
     prompt = _flag_value(argv, "-p")
     assert prompt.startswith("/weekly-report-diagnosis"), (
         f"recorded argv is not the diagnosis session: {prompt!r}"
@@ -464,26 +482,8 @@ def test_d_scope_11_unsafe_home_is_rejected_before_any_work(tmp_path: Path, home
     assert "MOLTBOOK_HOME" in proc.stderr, f"rejection must name the cause: {proc.stderr}"
 
 
-@pytest.mark.live_cli
-@pytest.mark.skipif(shutil.which("claude") is None, reason="claude CLI not installed")
-def test_d_scope_8_flags_and_mode_still_exist_in_the_real_cli(tmp_path: Path):
-    """Drift alarm on the CLI contract — not proof that the spec parses.
-
-    The stub exits 0 on any argv, so a renamed flag or a retired mode value
-    would otherwise surface only as a weekly DIAGNOSIS_FAIL. Help text proves
-    the names still exist; that the comma-separated rules parse and bind as
-    intended is established by the manual end-to-end run, not here.
-
-    Marked `live_cli` 2026-08-15: every test that spawns the real binary carries
-    it, so `weekly-pipeline.sh`'s fix loop can exclude the whole class in one
-    expression rather than by naming tests.
-    """
-    argv, _ = _diagnosis_argv(tmp_path)
-    help_text = subprocess.run(
-        ["claude", "--help"], capture_output=True, text=True, timeout=120
-    ).stdout
-
-    for flag in ("--permission-mode", "--allowedTools", "--disallowedTools"):
-        assert flag in help_text, f"{flag} is no longer a claude CLI flag"
-    mode = _flag_value(argv, "--permission-mode")
-    assert f'"{mode}"' in help_text, f"{mode!r} is no longer a --permission-mode choice"
+# D-SCOPE-8 (the `claude --help` drift alarm on the flag names and the mode
+# value) lived here and now lives once, as C-SCOPE-7 in
+# test_weekly_pipeline_session_scope_shell.py. It spawned the same binary for an
+# overlapping flag list, and the mode-value check it made for this one session
+# is made there for every session in the chain.
