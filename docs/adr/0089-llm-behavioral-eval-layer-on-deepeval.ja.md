@@ -17,10 +17,10 @@ full mode が新設の `eval` dependency group を sync した状態で pyright 
 format / lint / type / arch / security / deps / test、加えて shell と
 markdown）と LLM コードレビュー chain があるが、この ADR の時点で、LLM
 コンポーネントが実際に生成するものの品質を測るものは何もない。実際には、
-prompt の改訂は手作業で検証されてきた: `.notes/` には replay-distill
-v2–v5 のログ、`tests/sampling_probe.py` の side-by-side の目視、apple-fm
-の A/B メモがあり、prompt 変更のたびに繰り返される手動の replay-and-stare
-ワークフローだった。
+prompt の改訂は手作業で検証されてきた: replay-distill v2–v5 のログ、
+`tests/sampling_probe.py` の side-by-side の目視、apple-fm の A/B メモ —
+いずれも checkout ではなく著者の手元の作業ノートにあり、prompt 変更の
+たびに繰り返される手動の replay-and-stare ワークフローだった。
 
 `evals/` パスを占有する eval 層はこれが 2 代目である。promptfoo の
 prompt-regression harness が 2026-06-10 から 2026-07-03 までそこにあり、
@@ -32,7 +32,7 @@ batch distill pipeline を regression-test していた — もう走らない p
 テストする dead scaffolding である。あの判断は harness の**対象**についての
 ものであって、eval 層についてのものではない。この ADR は、空いたパスを別の
 面（distill ではなく comment 生成）と、production の entry point だけを
-import する runner で再占有する。`.notes/TASKS.md` の T-C1（axiom-removal
+import する runner で再占有する。ローカルのタスク台帳の T-C1（axiom-removal
 A/B、「evals/ 削除済み → 再構築してから」で blocked）は前提条件の一部を
 ここで取り戻すが、その distill 面は引き続き scope 外である。
 
@@ -233,8 +233,8 @@ compare）はどちらの道でも project-specific に留まるからである�
 ### Positive
 
 - prompt と model の変更が、目視ではなく反復可能な regression signal
-  （case ごとの verdict transition）を得る。これは従来 `.notes/` にログ
-  されていた手動 replay ワークフローの形式化である。authoring 時点では
+  （case ごとの verdict transition）を得る。これは従来、手元の作業ノートに
+  しか残っていなかった手動 replay ワークフローの形式化である。authoring 時点では
   machinery は整っているが baseline はまだ commit されていない —
   `evals/baselines/` は最初の人間承認済み full run で populate され、それ
   までは regression gate は operational でない。

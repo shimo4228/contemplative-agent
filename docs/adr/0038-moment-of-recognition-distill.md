@@ -51,7 +51,7 @@ Committed in `2e59762`. Dry-run smoke on three days of production episodes produ
 
 2. **Revive the `distill_constitutional` path.** ADR-0026 retired the three-way classification deliberately; reviving it would unwind the binary-gating + query-time-routing architecture that ADR-0026 / ADR-0027 / ADR-0031 jointly establish. The moment-of-recognition vocabulary can be re-introduced without restoring the discarded path structure.
 
-3. **Adapter-level instrumentation (pre-action reflection logs).** The most structurally honest solution: have the agent log its internal noting *before* selecting an action, so episode records contain first-person material rather than relying on post-hoc reconstruction. This is a larger change to the Moltbook adapter contract and remains open as a future ADR (Gap 2 in `.notes/self-reflection-pipeline-future-work-2026-05-13.md`). The present ADR addresses what can be improved at the distill prompt layer alone.
+3. **Adapter-level instrumentation (pre-action reflection logs).** The most structurally honest solution: have the agent log its internal noting *before* selecting an action, so episode records contain first-person material rather than relying on post-hoc reconstruction. This is a larger change to the Moltbook adapter contract and remains open as a future ADR — this ADR's deferred **Gap 2**. The present ADR addresses what can be improved at the distill prompt layer alone.
 
 4. **Add a separate `distill_recognition.md` prompt and route both prompts in parallel.** Considered but rejected. ADR-0026's lesson was that path multiplication produces drift between paths (the constitutional path's vocabulary was dropped precisely because it lived in a separate file that fell out of sight during the consolidation). A single prompt that admits both registers is more durable.
 
@@ -76,7 +76,7 @@ Committed in `2e59762`. Dry-run smoke on three days of production episodes produ
 
 **Re-check trigger**:
 
-- Two to four weeks after this ADR (`2026-05-27` ~ `2026-06-10`), production `knowledge.json` will contain enough new-prompt-era patterns for qualitative assessment. The check: do `self_reflection` view top-15 retrievals contain moment-of-recognition narratives at a meaningful rate, and does `distill_identity` output reduce its operational-vocabulary leakage as a result? Procedure recorded in `.notes/self-reflection-pipeline-future-work-2026-05-13.md`.
+- Two to four weeks after this ADR (`2026-05-27` ~ `2026-06-10`), production `knowledge.json` will contain enough new-prompt-era patterns for qualitative assessment. The check: do `self_reflection` view top-15 retrievals contain moment-of-recognition narratives at a meaningful rate, and does `distill_identity` output reduce its operational-vocabulary leakage as a result?
 
 ## Related
 

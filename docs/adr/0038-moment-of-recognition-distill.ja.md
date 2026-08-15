@@ -51,7 +51,7 @@ If nothing notable exists in the batch, output nothing.
 
 2. **`distill_constitutional` path を復活させる。** ADR-0026 は意図して 3-way 分類を retire した。復活させると ADR-0026 / ADR-0027 / ADR-0031 が共同で確立する binary-gating + query-time-routing アーキテクチャを巻き戻すことになる。Moment-of-recognition 語彙は、廃止された path 構造を復元せずに再導入できる。
 
-3. **Adapter-level instrumentation (pre-action reflection log)。** 構造的に最も誠実な解決: agent が action 選択 **前** に internal noting を log する。これでエピソード記録に 1 人称素材が含まれるようになり、post-hoc reconstruction に依存しなくて済む。これは Moltbook adapter の contract への大きな変更で、将来の ADR として open のまま残す (`.notes/self-reflection-pipeline-future-work-2026-05-13.md` の Gap 2)。本 ADR は distill prompt 層のみで改善できる範囲を扱う。
+3. **Adapter-level instrumentation (pre-action reflection log)。** 構造的に最も誠実な解決: agent が action 選択 **前** に internal noting を log する。これでエピソード記録に 1 人称素材が含まれるようになり、post-hoc reconstruction に依存しなくて済む。これは Moltbook adapter の contract への大きな変更で、本 ADR の deferred **Gap 2** として将来の ADR に open のまま残す。本 ADR は distill prompt 層のみで改善できる範囲を扱う。
 
 4. **別 prompt `distill_recognition.md` を作成し、両 prompt を並行 routing する。** 検討の上 reject。ADR-0026 の教訓は、path を multiplexing すると path 間に drift が生じるということだった (constitutional path の語彙が drop されたのは、まさに別ファイルにあって統合時に視界から外れたから)。両 register を 1 prompt に admit させる方が durable。
 
@@ -76,7 +76,7 @@ If nothing notable exists in the batch, output nothing.
 
 **Re-check trigger**:
 
-- 本 ADR から 2-4 週間後 (`2026-05-27` ~ `2026-06-10`)、production `knowledge.json` には新プロンプト時代の pattern が質的評価に十分な量で蓄積される。確認項目: `self_reflection` view の top-15 retrieval に moment-of-recognition narrative が意味ある割合で含まれているか、その結果 `distill_identity` 出力の operational-vocabulary 漏洩が減少しているか。手順は `.notes/self-reflection-pipeline-future-work-2026-05-13.md` に記録済み。
+- 本 ADR から 2-4 週間後 (`2026-05-27` ~ `2026-06-10`)、production `knowledge.json` には新プロンプト時代の pattern が質的評価に十分な量で蓄積される。確認項目: `self_reflection` view の top-15 retrieval に moment-of-recognition narrative が意味ある割合で含まれているか、その結果 `distill_identity` 出力の operational-vocabulary 漏洩が減少しているか。
 
 ## Related
 

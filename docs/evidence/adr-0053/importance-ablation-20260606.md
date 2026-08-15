@@ -84,7 +84,7 @@ store (**822 patterns**, up from 764). The verdict held:
 
 The pre-registered "small difference" criterion is still met. With the §B1
 threshold-retune observation window closed and validated
-(`.notes/b1-retune-effect-2026-06-17.md`), the single remaining gate condition
+([evidence](../adr-0056/b1-retune-effect-20260617.md)), the single remaining gate condition
 was satisfied, and the distill-time LLM rating was **retired by
 [ADR-0056](../../adr/0056-retire-importance-llm-scoring.md)**:
 `effective_importance` is now pure time decay (`0.95^days`).

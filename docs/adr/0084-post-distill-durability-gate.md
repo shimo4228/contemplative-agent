@@ -108,7 +108,8 @@ that pipeline variables change one at a time.
 ### Measurement
 
 Offline A/B replay over one fixed, deterministically-sampled set of 40 episodes
-(`.notes/replay-distill-abstain-20260726.py`; read-only, production unwired).
+([`replay-distill-abstain-20260726.py`](../evidence/adr-0084/replay-distill-abstain-20260726.py);
+read-only, production unwired).
 The baseline arm reproduced the production reading (median 2, zero-rate 0.0%,
 mean 1.83 vs production 1.82–2.18), which is what licenses attributing the
 other arms' deltas to their change. Register baseline is 890 production

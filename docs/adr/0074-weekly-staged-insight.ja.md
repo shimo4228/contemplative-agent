@@ -171,8 +171,8 @@ centroid 水準（0.795–0.902 vs 中央値 0.830）でもメンバー平均水
 `llm.py` の C2 preflight が呼び出しを拒否（出力フロアが確保できない）、gate は
 fail-open ポリシーに従い、117 クラスタ全部が抽出へ流れた — 106 候補が staged、
 レビュー結果 **0 採用 / 106 却下**
-（`.notes/insight-candidate-review-2026-07-18.md`、アーカイブ
-`insight-staged-20260718-before-review.tar.gz`）。このミスマッチは初回限りでは
+（[レビュー記録](../evidence/adr-0074/insight-candidate-review-20260718.md)）。
+このミスマッチは初回限りでは
 なく定常的: 増分窓は日次 ~118 新規 live パターンで、ledger が decision-agnostic
 なため既知一覧は単調増加する。
 
@@ -214,8 +214,7 @@ fail-open ポリシーに従い、117 クラスタ全部が抽出へ流れた �
 
 本 amendment は embedding gate 却下を**覆さない**: いかなる類似度閾値も抑制に
 使わない。retrieval 支援判定（embedding は列挙、LLM が判定）、日次 consolidation
-層、`recall@k` 評価は open question のまま
-（`.notes/insight-novelty-gate-redesign-open-questions-2026-07-18.md`）。
+層、`recall@k` 評価は open question のまま。
 ADR-0076 skill-selection shadow の読み（~2026-07-24）が注入経済を確定させ、
 次回スケジュール実行が「chunking だけで足りるか」を実測するまで意図的に延期 —
 却下済み 106 候補は ledger 上の既知テーマとなったため、gate の初回正常判定が

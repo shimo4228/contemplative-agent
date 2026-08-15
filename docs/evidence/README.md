@@ -20,6 +20,9 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `adr-0067/` | MLX vs Ollama production A/B telemetry + prefill degradation + upstream failure-mode survey | ADR-0067 / 0065 |
 | `adr-0090/` | IPD null pair (noise floor) + amendment two-arm run + retired 2026-05-05 constitution + AILuminate exploratory report | ADR-0090 |
 | `adr-0068/` | gemma4:e4b think-on/off vs qwen3.5:9b comment-generation A/B (latency + codex blind judge) | ADR-0068 |
+| `adr-0056/` | §B1 relevance-retune effect measurement (the first gate condition) | ADR-0056 |
+| `adr-0074/` | Incremental-window simulations + novelty calibration; the 2026-07-18 staged-candidate adoption review | ADR-0074 |
+| `adr-0084/` | Offline A/B replay script for the post-distill durability gate | ADR-0084 |
 
 ## 昇格ワークフロー
 

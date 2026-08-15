@@ -151,8 +151,8 @@ roles (retrieval weight, future gate) permanently misleading.
   weight and future gate — are explicitly closed; ADR-0009 receives a forward link and
   remains accepted (its decay design and write-once stance survive unchanged).
 - The retirement question now has evidence and a gate instead of an open-ended doubt. The
-  pending decision is tracked in `.notes/remaining-issues` (§C experiments) with the two
-  named gate conditions.
+  pending decision was closed by [ADR-0056](./0056-retire-importance-llm-scoring.md), which
+  records the disposition of each named gate condition.
 - The gate-vs-score disambiguation (Decision 2) and the propagation map (Decision 5) give
   future readers a single place to trace where importance does and does not operate —
   replacing the scattered, partially obsolete ADR-0009 prose.

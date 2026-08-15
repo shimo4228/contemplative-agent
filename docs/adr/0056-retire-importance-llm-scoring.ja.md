@@ -22,7 +22,7 @@ production の 764 パターンに対する ablation (decay-only 変種との Ke
 2026-06-17 時点でゲート条件はすべて満たされた:
 
 - **§B1 窓が閉じ、効果が検証された。** 2026-06-05 の relevance retune は 12 日の窓で効果が確認された
-  (`.notes/b1-retune-effect-2026-06-17.md`): 通過率 26.9% → 57.7%、コメント頻度の回復、clamp 汚染
+  ([evidence](../evidence/adr-0056/b1-retune-effect-20260617.md)): 通過率 26.9% → 57.7%、コメント頻度の回復、clamp 汚染
   なし。観測窓はもう開いていないので、第二の変数を導入してよい。
 - **成長した corpus での ablation 再実行。** `docs/evidence/adr-0053/importance-ablation.py` を 822
   パターン (764 から増加) に対して再実行しても、事前登録した「差が小」基準を保った: Kendall tau

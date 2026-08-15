@@ -22,7 +22,8 @@ position paper shipping, was removed by ADR-0053's same-day amendment.
 As of 2026-06-17 all gate conditions are met:
 
 - **§B1 window closed and validated.** The 2026-06-05 relevance retune was confirmed effective
-  over a 12-day window (`.notes/b1-retune-effect-2026-06-17.md`): pass rate 26.9% → 57.7%, comment
+  over a 12-day window
+  ([evidence](../evidence/adr-0056/b1-retune-effect-20260617.md)): pass rate 26.9% → 57.7%, comment
   frequency recovered, no clamp contamination. The observation window is no longer open, so a
   second variable can be introduced.
 - **Ablation re-run on the grown corpus.** Re-running

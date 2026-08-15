@@ -198,3 +198,4 @@ known-first-party = ["contemplative_agent", "tests", "evals"]
 "tests/**" = ["T20"]
 "scripts/**" = ["T20"]
 "evals/**" = ["T20"]    # probe/CLI 系 (benchmark_distill と同じ扱い) — print が UI
+"docs/evidence/**" = ["T20"]  # 昇格した一回限りの計測スクリプト — 進捗と読み値の print が UI

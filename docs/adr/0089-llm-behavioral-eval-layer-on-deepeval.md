@@ -17,10 +17,10 @@ The repo has a battery of deterministic quality gates (`verify.sh`:
 format / lint / type / arch / security / deps / test, plus shell and
 markdown) and LLM code review chains, but as of this ADR nothing measures
 the quality of what the LLM component actually generates. In practice,
-prompt revisions were validated by hand: `.notes/` holds replay-distill
-v2–v5 logs, `tests/sampling_probe.py` side-by-side eyeballing, and apple-fm
-A/B notes — a manual replay-and-stare workflow repeated at every prompt
-change.
+prompt revisions were validated by hand — replay-distill v2–v5 logs,
+`tests/sampling_probe.py` side-by-side eyeballing, and apple-fm A/B notes,
+all kept in the author's local working notes rather than the checkout — a
+manual replay-and-stare workflow repeated at every prompt change.
 
 This is the second eval layer to occupy the `evals/` path. A promptfoo
 prompt-regression harness lived there from 2026-06-10 to 2026-07-03, when
@@ -31,10 +31,10 @@ that [ADR-0060](./0060-per-episode-grounded-distill.md) had already retired
 — dead scaffolding testing a pipeline that no longer ran. That judgment was
 about the harness's *target*, not about eval layers; this ADR reoccupies
 the cleared path with a different face (comment generation, not distill)
-and a runner that imports only the production entry point. `.notes/TASKS.md`
-T-C1 (axiom-removal A/B, blocked on "evals/ 削除済み → 再構築してから")
-regains part of its precondition here, though its distill face remains out
-of scope.
+and a runner that imports only the production entry point. The local task
+ledger's T-C1 entry (axiom-removal A/B, blocked on "evals/ 削除済み →
+再構築してから") regains part of its precondition here, though its distill
+face remains out of scope.
 
 The four prompt assets (`identity.md`, `constitution/`, `skills/`, `rules/`)
 are rewritten by the agent itself over time (distill, constitution
@@ -241,7 +241,7 @@ comparison offline and schema-stable.
 
 - Prompt and model changes get a repeatable regression signal (verdict
   transitions per case) instead of eyeballing, formalizing the manual
-  replay workflow previously logged in `.notes/`. At authoring time the
+  replay workflow that previously lived only in local working notes. At authoring time the
   machinery is in place but no baseline is committed yet — `evals/baselines/`
   is populated by the first human-approved full run, and the regression
   gate is not operational until then.

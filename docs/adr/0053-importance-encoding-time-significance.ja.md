@@ -74,7 +74,7 @@ propagation map の文書化だけ行い、ADR-0009 の本文はそのままに�
 ### Positive
 
 - 文書と実装が再び一致する。ADR-0009 の二つの消滅した役割 — 検索の重みと将来のゲート — は明示的に閉じられ、ADR-0009 は forward link を得て accepted のまま残る (減衰設計と write-once の立場は無傷で生き続ける)。
-- 退役の問いが、開いたままの疑念ではなく証拠とゲートを持つようになった。保留中の決定は `.notes/remaining-issues` (§C 実験) で二つのゲート条件とともに追跡される。
+- 退役の問いが、開いたままの疑念ではなく証拠とゲートを持つようになった。保留中の決定は [ADR-0056](./0056-retire-importance-llm-scoring.ja.md) が閉じ、そこに挙げた各ゲート条件の帰趨はそちらに記録されている。
 - gate-vs-score の区別 (Decision 2) と propagation map (Decision 5) により、将来の読者は importance がどこで働きどこで働かないかを一箇所で辿れる — 散在し部分的に陳腐化した ADR-0009 の記述を置き換える。
 
 ### Negative

@@ -186,8 +186,8 @@ inventory (60 themes) plus 117 cluster samples into one 40,074-token prompt
 against the 32,768-token window. `llm.py`'s C2 preflight refused the call
 (no output floor left), the gate followed its fail-open policy, and all 117
 clusters flowed to extraction — 106 staged candidates, reviewed
-**0 adopted / 106 rejected** (`.notes/insight-candidate-review-2026-07-18.md`,
-archive `insight-staged-20260718-before-review.tar.gz`). The mismatch is
+**0 adopted / 106 rejected**
+([review](../evidence/adr-0074/insight-candidate-review-20260718.md)). The mismatch is
 steady-state, not first-run-only: the incremental window averages ~118 new
 live patterns/day, and the known inventory grows monotonically because the
 ledger is decision-agnostic.
@@ -237,8 +237,7 @@ ledger is decision-agnostic.
 This amendment does **not** reverse the embedding-gate rejection: no
 similarity threshold suppresses anything. Retrieval-assisted judging
 (embedding as enumeration, LLM as verdict), daily consolidation layers, and
-`recall@k` evaluation stay open questions
-(`.notes/insight-novelty-gate-redesign-open-questions-2026-07-18.md`),
+`recall@k` evaluation stay open questions,
 deliberately deferred until the ADR-0076 skill-selection shadow reading
 (~2026-07-24) settles the injection economics and the next scheduled run
 measures whether chunking alone suffices — the 106 rejected candidates now

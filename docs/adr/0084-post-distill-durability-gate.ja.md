@@ -94,7 +94,8 @@ LLM 失敗とタイトル無しでしか drop しない。したがって ADR-00
 ### 測定
 
 決定論的にサンプリングした 40 エピソードの固定集合に対するオフライン A/B replay
-(`.notes/replay-distill-abstain-20260726.py`、read-only・本番非配線)。baseline アームが本番の
+([`replay-distill-abstain-20260726.py`](../evidence/adr-0084/replay-distill-abstain-20260726.py)、
+read-only・本番非配線)。baseline アームが本番の
 読み値を再現した (中央値 2、ゼロ率 0.0%、平均 1.83 に対し本番 1.82–2.18)。これが他アームの
 差分をその変更に帰属させる根拠になる。register の baseline は本番 890 pattern で、LLM
 コールなしで測定。fault は全アームでゼロ。
