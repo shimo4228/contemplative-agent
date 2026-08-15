@@ -122,7 +122,19 @@ GET 60 req/min、POST 30 req/min（分離クォータ）。3 層防御（`has_re
 
 ## 残課題
 
-pending タスクの正本はローカルの `.notes/TASKS.md`（単一台帳、gitignored。2026-07-06 規約化 — rule `~/.claude/rules/common/task-tracking.md`、棚卸しは `/task-stocktake`）。詳細は台帳行のリンク先（handoff / `.notes/archive/` / ADR）に置き、ここに状態・件数を複製しない。旧 `remaining-issues-*.md` は `.notes/archive/` に退役済み。
+pending タスクの正本は **`.notes/tasks/T-XXX.md`（1 タスク 1 ファイル、gitignored）**。
+**`.notes/TASKS.md` は生成物** — `python3 scripts/tasks.py render` が再生成するので、
+直接編集しても次の render で消える（[ADR-0094](docs/adr/0094-agent-first-task-ledger.md)、
+2026-08-15。それ以前は単一台帳が正本だった）。
+
+**全件を読まない。** `python3 scripts/tasks.py ready`（着手可）/ `due`（今日状態が動きうる行）で問う
+（実測: 台帳全文 105,471 字 → `ready` 242 字）。1 件の全文は `tasks.py show T-XXX`。
+
+着手前に `python3 ~/.claude/scripts/claims.py claim T-XXX --label "…"`、手放すとき
+`release --outcome done|abandoned|handoff`、起票したら `spawn --origin … [--parent …]`
+（`.notes/claims.jsonl`、並行セッション用）。規約は rule
+`~/.claude/rules/common/task-tracking.md`、棚卸しは `/task-stocktake`。
+詳細は台帳行のリンク先（handoff / `.notes/archive/` / ADR）に置き、ここに状態・件数を複製しない。
 
 ## 関連リポジトリ
 

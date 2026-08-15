@@ -99,6 +99,7 @@ Records of key design decisions for this project.
 | [0091](0091-value-layer-cadence-in-the-weekly-chain.md) | Value-Layer Cadence in the Weekly Chain | accepted | 2026-08-10 |
 | [0092](0092-shadow-constitution-instrument.md) | Shadow Constitution Instrument — Patterns-Only Synthesis, Observe-Only | accepted | 2026-08-11 |
 | [0093](0093-repo-plane-deterministic-intakes.md) | Repo-Plane Deterministic Intakes — Docs Consistency and Ledger Condition Watch | accepted | 2026-08-14 |
+| [0094](0094-agent-first-task-ledger.md) | Agent-First Task Ledger — Store / Journal / Projection | accepted | 2026-08-15 |
 
 ## ADR Types
 

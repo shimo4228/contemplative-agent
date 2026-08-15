@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-14 (ADR-0093: repo-plane intakes stages 6b/6c) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-15 (ADR-0094: task ledger store/journal/projection) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -604,6 +604,13 @@ Stage 6c ledgerwatch: ledger_condition_scan.py (7th deterministic intake, ADR-00
                    responses mapped to a closed vocabulary {open,closed,merged} —
                    no response text ever reaches the packet; per-watch faults
                    degrade with reason codes, fired=null renders as unknown)
+                   Since ADR-0094 .notes/TASKS.md is a render artifact of
+                   scripts/tasks.py (store = one file per task under
+                   .notes/tasks/). This intake is the only direct parser of the
+                   table, so its grammar — one task per line, ID and 状態 cells
+                   on that same line, watch spans inline — constrains the
+                   render; pinned by a test that re-runs this scanner against
+                   the rendered table and compares its parse surface.
 Stage 7 improve:   only when the same reason code recurred 2 consecutive runs (check-improvement)
 Stage 8 packet:    build_decision_packet.py → weekly-<end>-packet.md (§2 fix table +
                    per-finding diagnosis headings from findings.json, §8 value-layer
