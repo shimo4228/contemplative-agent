@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+superseded-by [ADR-0060](./0060-per-episode-grounded-distill.ja.md) — ADR-0060 は 2026-06-23 に ingest 時の noise gate を全廃した。本 ADR の 3 つの Phase はすべてこの gate を前提にしている。Phase 1 の noise-log writer は出荷後に削除され、Phase 2 と Phase 3 は未実装のまま実装不能になった — `NOISE_THRESHOLD` も `noise-*.jsonl` も view centroid の再読み込みも `src/` に残っておらず、Phase 3 はさらに [ADR-0051](./0051-retire-trust-weighting.ja.md) が全廃した `trust_score` に依存していた。本文は当時の記録として保存する。
 
 ## Date
 

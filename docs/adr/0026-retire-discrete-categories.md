@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by [ADR-0060](./0060-per-episode-grounded-distill.md) — on 2026-06-23 ADR-0060 removed ingest-time noise gating entirely, retiring the `core/distill.py` half of Phase 2 (`_classify_episodes`, `_ClassifiedRecords`, `NOISE_THRESHOLD`; ADR-0060's prose calls this "Step 0", a label that appears nowhere in this ADR). Phase 1, Phase 3, and Phase 2's `core/constitution.py` half — view-based retrieval in `amend_constitution` — remain in effect. Separately, the Migration section's `migrate-categories` CLI was retired by [ADR-0035](./0035-sunset-migration-surface-and-consolidate-artifact-extraction.md).
 
 ## Date
 

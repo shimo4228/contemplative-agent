@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted — partially-supersedes [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.md)
 
 supersedes [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.md) in part
 (the `epistemic_counts` schema and the `external_reply` → `observed` arm of the

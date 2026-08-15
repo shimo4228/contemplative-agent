@@ -2,7 +2,7 @@
 
 ## Status
 
-withdrawn ([ADR-0034](0034-withdraw-memory-evolution-and-hybrid-retrieval.ja.md) により 2026-05-05 撤回)
+withdrawn by [ADR-0034](0034-withdraw-memory-evolution-and-hybrid-retrieval.ja.md) — 2026-05-05 撤回
 
 ## Date
 

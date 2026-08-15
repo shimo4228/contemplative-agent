@@ -6,8 +6,19 @@ the same way the doc's "Measured by" line prescribes, and emits a
 code, the update decision stays human (AKC Maintain). Refresh the table (and
 its "As of" date) when a warning fires.
 
-Rows with an ambiguous counting convention (e.g. "Core modules ... incl.
-``llm/`` package as one row") are deliberately not checked.
+Every module-count row is checked. "Core modules" used to be exempt because
+its convention was unstated ("incl. ``llm/`` package as one row" left it
+unclear whether the package contributed 1 or 4); the 2026-08-15 refresh spelled
+the convention out as "31 top-level modules + 4 in the ``llm/`` package", which
+is the same ``! -name '__init__.py'`` count every other package row uses, so
+the row joined the check. Rows that point elsewhere instead of carrying a
+number (CLI commands, prompt templates) have nothing to compare.
+
+One row measures outside what the doc's "Measured by" line spells out: the
+eval layer lives at repo-root ``evals/``, not under ``src/contemplative_agent/``,
+and ``_count_py`` recurses, so a stray ``.py`` dropped into ``evals/results``
+or ``evals/fixtures`` would shift the count. Warning-only, so the blast radius
+is one spurious line in the drift warning.
 """
 
 from __future__ import annotations
@@ -80,6 +91,21 @@ def test_index_statistics_match_reality_warning_only() -> None:
         _collected_test_count(),
     )
     for label, pkg, pattern in (
+        (
+            "Core modules",
+            src / "contemplative_agent" / "core",
+            r"\| Core modules \| (\d+)",
+        ),
+        (
+            "Testing kit modules",
+            src / "contemplative_agent" / "testing",
+            r"\| Testing kit modules \| (\d+)",
+        ),
+        (
+            "Eval layer modules",
+            PROJECT_ROOT / "evals",
+            r"\| Eval layer modules \| (\d+)",
+        ),
         (
             "Moltbook adapter modules",
             adapters / "moltbook",

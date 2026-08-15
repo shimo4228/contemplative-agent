@@ -6,18 +6,18 @@
 
 | ADR | タイトル | Status | Date |
 |-----|---------|--------|------|
-| [0001](0001-core-adapter-separation.md) | Core/Adapter 分離 | accepted | 2026-03-10 |
-| [0002](0002-paper-faithful-ccai.md) | 論文準拠 CCAI 適用 | accepted | 2026-03-12 |
-| [0003](0003-config-directory-design.md) | Config ディレクトリ設計 | accepted | 2026-03-12 |
-| [0004](0004-three-layer-memory.md) | 3層メモリアーキテクチャ `[AKC: Extract/Curate/Promote]` | accepted | 2026-03-17 |
-| [0005](0005-session-context-refactoring.md) | SessionContext リファクタリング | accepted | 2026-03-14 |
-| [0006](0006-docker-network-isolation.md) | Docker ネットワーク分離 | superseded-by 0070 | 2026-03-14 |
-| [0007](0007-security-boundary-model.md) | セキュリティ境界モデル | accepted | 2026-03-12 |
-| [0008](0008-two-stage-distill-pipeline.md) | 2段階蒸留パイプライン `[AKC: Extract]` | accepted | 2026-03-22 |
-| [0009](0009-importance-score.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 |
-| [0010](0010-research-data-sync.md) | 研究データ同期 | accepted | 2026-03-25 |
-| [0011](0011-knowledge-injection-to-skills.md) | Knowledge 直接注入の廃止 → Skills 経由 `[AKC: Curate]` | accepted | 2026-03-26 |
-| [0012](0012-human-approval-gate.md) | 行動変更コマンドの人間承認ゲート `[AKC: Curate/Promote]` | accepted | 2026-03-26 |
+| [0001](0001-core-adapter-separation.ja.md) | Core/Adapter 分離 | accepted | 2026-03-10 |
+| [0002](0002-paper-faithful-ccai.ja.md) | 論文準拠 CCAI 適用 | accepted | 2026-03-12 |
+| [0003](0003-config-directory-design.ja.md) | Config ディレクトリ設計 | accepted | 2026-03-12 |
+| [0004](0004-three-layer-memory.ja.md) | 3層メモリアーキテクチャ `[AKC: Extract/Curate/Promote]` | accepted | 2026-03-17 |
+| [0005](0005-session-context-refactoring.ja.md) | SessionContext リファクタリング | accepted | 2026-03-14 |
+| [0006](0006-docker-network-isolation.ja.md) | Docker ネットワーク分離 | superseded-by 0070 | 2026-03-14 |
+| [0007](0007-security-boundary-model.ja.md) | セキュリティ境界モデル | accepted | 2026-03-12 |
+| [0008](0008-two-stage-distill-pipeline.ja.md) | 2段階蒸留パイプライン `[AKC: Extract]` | accepted | 2026-03-22 |
+| [0009](0009-importance-score.ja.md) | KnowledgeStore Importance Score `[AKC: Extract/Quality Gate]` | accepted | 2026-03-24 |
+| [0010](0010-research-data-sync.ja.md) | 研究データ同期 | accepted | 2026-03-25 |
+| [0011](0011-knowledge-injection-to-skills.ja.md) | Knowledge 直接注入の廃止 → Skills 経由 `[AKC: Curate]` | accepted | 2026-03-26 |
+| [0012](0012-human-approval-gate.ja.md) | 行動変更コマンドの人間承認ゲート `[AKC: Curate/Promote]` | accepted | 2026-03-26 |
 | [0013](0013-shelve-coding-agent-skills.ja.md) | コーディングエージェントスキルのお蔵入り `[AKC: Curate/Promote]` | accepted | 2026-03-28 |
 | [0014](0014-retire-system-spec.ja.md) | system-spec.md の廃止 `[AKC: Maintain]` | accepted | 2026-04-01 |
 | [0015](0015-one-external-adapter-per-agent.ja.md) | 1エージェント1外部アダプタ原則 | accepted | 2026-04-08 |
@@ -31,17 +31,17 @@
 | [0023](0023-skill-as-memory-loop.ja.md) | Skill-as-Memory ループ — Router / Usage Log / Reflective Write | superseded-by 0036 | 2026-04-16 |
 | [0024](0024-identity-block-separation.ja.md) | Identity Block Separation — Frontmatter で addressing する persona ブロック | superseded-by 0030 | 2026-04-16 |
 | [0025](0025-identity-history-and-migrate-cli.ja.md) | Identity History ログ配線 + migrate-identity CLI | superseded-by 0030 | 2026-04-16 |
-| [0026](0026-retire-discrete-categories.ja.md) | 離散カテゴリの廃止（ADR-0019 の Phase-3 完了） | accepted | 2026-04-16 |
-| [0027](0027-noise-as-seed.ja.md) | Noise as Seed — binary gate から salience-based forgetting へ | accepted | 2026-04-16 |
+| [0026](0026-retire-discrete-categories.ja.md) | 離散カテゴリの廃止（ADR-0019 の Phase-3 完了） | partially-superseded-by 0060 | 2026-04-16 |
+| [0027](0027-noise-as-seed.ja.md) | Noise as Seed — binary gate から salience-based forgetting へ | superseded-by 0060 | 2026-04-16 |
 | [0028](0028-retire-pattern-level-forgetting-feedback.ja.md) | pattern 層の forgetting と feedback を撤回 — 記憶動的層は skill 層にある | accepted | 2026-04-18 |
 | [0029](0029-retire-dormant-provenance-elements.ja.md) | dormant な provenance 要素を撤回 — `user_input` / `external_post` / `sanitized` | accepted | 2026-04-18 |
-| [0030](0030-withdraw-identity-blocks.ja.md) | Identity Block 分離と History 配線の撤回 — Single Responsibility | accepted — ADR-0024 と ADR-0025 を supersede | 2026-04-18 |
+| [0030](0030-withdraw-identity-blocks.ja.md) | Identity Block 分離と History 配線の撤回 — Single Responsibility | accepted — supersedes 0024 and 0025 | 2026-04-18 |
 | [0031](0031-classification-as-query.ja.md) | Classification as Query — 自己改善メモリの substrate 原則 | accepted | 2026-04-27 |
 | [0032](0032-runtime-agent-stance.ja.md) | Stance — Contemplative Agent はランタイムエージェントである | withdrawn — contemplative axioms (ADR-0002) との tension | 2026-04-27 |
 | [0033](0033-aap-quadrant-lens-usage-note.ja.md) | Note — AAP の 4 象限レンズを usage description として借用 | accepted (note) | 2026-05-01 |
-| [0034](0034-withdraw-memory-evolution-and-hybrid-retrieval.ja.md) | Memory Evolution と BM25 Hybrid Retrieval の撤回 — コストに対し効果が見えない | accepted — ADR-0022 を supersede | 2026-05-05 |
+| [0034](0034-withdraw-memory-evolution-and-hybrid-retrieval.ja.md) | Memory Evolution と BM25 Hybrid Retrieval の撤回 — コストに対し効果が見えない | accepted — supersedes 0022 | 2026-05-05 |
 | [0035](0035-sunset-migration-surface-and-consolidate-artifact-extraction.ja.md) | ADR-0019 Migration Surface の sunset と artifact extraction の統合 | accepted | 2026-05-05 |
-| [0036](0036-sunset-skill-as-memory-loop.ja.md) | Skill-as-Memory ループの sunset — Router / Usage Log / Reflect の撤回 | accepted — ADR-0023 を supersede | 2026-05-05 |
+| [0036](0036-sunset-skill-as-memory-loop.ja.md) | Skill-as-Memory ループの sunset — Router / Usage Log / Reflect の撤回 | accepted — supersedes 0023 | 2026-05-05 |
 | [0037](0037-memory-subsystem-yogacara-convergence.ja.md) | メモリ subsystem は唯識フレームに収束した — 論文借用機構の退役 | accepted | 2026-05-05 |
 | [0038](0038-moment-of-recognition-distill.ja.md) | Distill の観察対象に moments of recognition を再導入する `[AKC: Extract]` | accepted | 2026-05-13 |
 | [0039](0039-novelty-score-lagrangian-self-post-gate.ja.md) | self-post gate を連続値 novelty スコア + rate-deficit Lagrangian に置換 | accepted | 2026-05-19 |
@@ -65,7 +65,7 @@
 | [0057](0057-identity-from-self-reflection-corpus-alone.ja.md) | アイデンティティを self-reflection コーパスのみから蒸留する — 前アイデンティティの種と冗長な公理注入を外す `[AKC: Promote]` | accepted | 2026-06-20 |
 | [0058](0058-value-injection-at-action-time.ja.md) | value 層の注入は「行動時」に属し、「蒸留時」には属さない `[AKC: Extract/Curate/Promote]` | accepted | 2026-06-20 |
 | [0059](0059-remove-dead-reply-history.ja.md) | 死んでいた reply 履歴機構の撤去 | accepted | 2026-06-22 |
-| [0060](0060-per-episode-grounded-distill.ja.md) | エピソード単位の grounded distill — バッチ抽出 + noise gate を「engagement エピソード 1 件 = grounded な LLM 1 コール」に置換 | accepted | 2026-06-23 |
+| [0060](0060-per-episode-grounded-distill.ja.md) | エピソード単位の grounded distill — バッチ抽出 + noise gate を「engagement エピソード 1 件 = grounded な LLM 1 コール」に置換 | accepted — supersedes 0027; partially-supersedes 0026 | 2026-06-23 |
 | [0061](0061-action-time-untrusted-cap-at-platform-limits.ja.md) | action 時 untrusted 入力 cap を platform field 上限に統一; 内省ノートは全文を読む | accepted | 2026-06-23 |
 | [0062](0062-create-time-verification-handshake.ja.md) | 作成時コンテンツ検証ハンドシェイク（LLM/コード併用ソルバ）と、可視化を条件とする記録ゲート | accepted | 2026-06-26 |
 | [0063](0063-novelty-gate-verified-only-comparison.ja.md) | NoveltyGate の比較対象を verified（可視）投稿のみにスコープする | accepted | 2026-06-26 |
@@ -75,7 +75,7 @@
 | [0067](0067-keep-ollama-for-unattended-production.ja.md) | 本番生成バックエンドを Ollama に固定する — 16GB Apple Silicon の無人連続運用では mlx_lm.server は不適 | accepted — partially-supersedes 0065 | 2026-06-28 |
 | [0068](0068-per-call-think-flag-and-thinking-trace-capture.ja.md) | per-call の think フラグと推論トレースのエピソードログ保存 | accepted | 2026-06-28 |
 | [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.ja.md) | gemma4:e4b を本番生成モデルに採用し、値層パイプラインを think-ON で実行 | accepted | 2026-06-28 |
-| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.ja.md) | MLX backend を sibling repo へ退役し Docker を main から削除 | accepted | 2026-06-28 |
+| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.ja.md) | MLX backend を sibling repo へ退役し Docker を main から削除 | accepted — supersedes 0006, 0064 | 2026-06-28 |
 | [0071](0071-read-only-pattern-composition-instruments.ja.md) | 読み取り専用のパターン組成計器（view supply / 多様性 / grounding） | accepted | 2026-07-03 |
 | [0072](0072-echo-chamber-interventions.ja.md) | echo chamber への介入 — レジスタ指示・corpus 育ちの seed・抽出失敗ガード | accepted | 2026-07-03 |
 | [0073](0073-prune-orphaned-view-seeds.ja.md) | 孤児化した 5 つの view seed を削除する | accepted | 2026-07-03 |
@@ -87,7 +87,7 @@
 | [0079](0079-module-reorganization-package-splits.ja.md) | モジュール再編 — package 分割・恒久 facade・サイズ上限の文書化された例外 | accepted | 2026-07-18 |
 | [0080](0080-north-star-layered-end-state.ja.md) | North Star — 層別の最終状態定義（能力目標にしない） | accepted | 2026-07-20 |
 | [0081](0081-skill-selection-two-pass-injection-enforcement.ja.md) | skill 選択の二段注入 enforcement | accepted | 2026-07-24 |
-| [0082](0082-retire-observed-epistemic-key.ja.md) | `observed` エピステミックキーの退役 — 警告ではなく死んだフィールドを消す | accepted | 2026-07-25 |
+| [0082](0082-retire-observed-epistemic-key.ja.md) | `observed` エピステミックキーの退役 — 警告ではなく死んだフィールドを消す | accepted — partially-supersedes 0050 | 2026-07-25 |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.ja.md) | エピソードログは週次プロンプトへハッシュとしてのみ入る | accepted | 2026-07-25 |
 | [0084](0084-post-distill-durability-gate.ja.md) | 蒸留後の durability ゲート — エピソードではなく、生成されたパターンを judge する | accepted | 2026-07-26 |
 | [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.ja.md) | 無人 weekly fix チェーンと土曜単一ゲート | accepted | 2026-07-29 |
@@ -124,7 +124,7 @@
 # ADR-NNNN: タイトル
 
 ## Status
-accepted / superseded by ADR-XXXX / deprecated
+accepted / proposed / withdrawn / superseded-by ADR-NNNN
 
 ## Date
 YYYY-MM-DD
@@ -140,11 +140,50 @@ YYYY-MM-DD
 
 ## Consequences
 この判断の結果どうなったか
+
+## References
+- `ADR-NNNN`（`NNNN-slug.md`）— 関係を一行で（supersedes / refines / depends-on / precedent）
+- 外部ソース（論文・先行事例・エビデンス）
 ```
+
+### Status 行の語彙
+
+Status 欄は決まった言い回しに従う。index・ADR 本文・`graph.jsonld` を同期させるための語彙なので、
+以下のいずれかを使う（語は英語のまま、後続の説明だけ日本語にしてよい）:
+
+- `accepted` — 現在有効
+- `accepted — supersedes ADR-NNNN` — 先行 ADR を置き換える（置き換えられた側の index 行は
+  `superseded-by ADR-NNNN` になる）
+- `accepted — partially-supersedes ADR-NNNN[, ADR-NNNN]` — 先行 ADR の特定の節だけを置き換える
+  （旧側の index 行は `partially-superseded-by ADR-NNNN` になる。どの節かは本文に書く）
+- `accepted (note)` — 観測的・限定的な ADR。長期の規則を約束しない
+- `accepted (amended YYYY-MM-DD)` — 本文を改訂した。詳細は ADR 内の Amendment 節
+- `partially-superseded-by ADR-NNNN[, ADR-NNNN]` — 一部の節だけ置き換えられた。残りは有効
+- `superseded-by ADR-NNNN` — 全面的に置き換えられた。本文は原文のまま保存する
+- `withdrawn by ADR-NNNN` — 後続 ADR がこのアプローチを誤りと判断して撤回した
+- `withdrawn (YYYY-MM-DD)` — その場で撤回した（多くは同日・同一著者）。本文に撤回理由を残す
+
+関係を表す語（`supersedes` / `superseded-by` / `withdrawn by` / `partially-supersedes` /
+`partially-superseded-by`）は `graph.jsonld` の型付きエッジ（`supersedes` / `supersededBy` /
+`withdrawnBy` / `partiallySupersedes` / `partiallySupersededBy`）と対応させる。LLM が散文を
+解析せずに supersede / 撤回の系譜を辿れるようにするため。
+
+この語彙は `tests/test_adr_status_consistency.py` が機械検査する（本文 en / 本文 ja /
+index en / index ja / `graph.jsonld` の 5 面で先頭の語が一致すること、後方 supersede では
+参照先 ADR 番号が一致すること、graph の型付きエッジがそのノード自身の Status 散文と
+一致すること — 素の `accepted` なノードは supersede 系のエッジを持たない）。
+
+対応はノード単位である。全面 supersede と撤回は現時点で双方向に揃っているが、部分 supersede は
+6 件が後ろ向きの半分しか記録していないため、`partiallySupersedes` の traversal は片方向に留まる
+（T-ADR-PARTIAL-RECIPROCITY で解消予定）。
 
 ## 運用ルール
 
 - 番号は連番（0001〜）、時系列順
 - 既存 ADR の変更は新 ADR で supersede する（上書きしない）
+- ある ADR が他を supersede / 撤回したら、古い側の Status を新しい ADR に向けて更新する
+  （一行の編集。本文は書き換えない）
 - 小さな判断は記録不要。アーキテクチャ・データモデル・セキュリティに影響する判断のみ
+- 新規 ADR を追加したら `graph.jsonld` にもノード（と supersede / 撤回のエッジ）を追加し、
+  LLM 向けナレッジグラフを追従させる
 - `/sync-context` で ADR index とファイルの整合性をチェックできる

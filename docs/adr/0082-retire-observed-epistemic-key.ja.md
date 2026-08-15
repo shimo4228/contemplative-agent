@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted — partially-supersedes [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.ja.md)
 
 [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.ja.md) を部分的に supersede する
 （`epistemic_counts` のスキーマと、read-time derivation の `external_reply` → `observed` の枝）。

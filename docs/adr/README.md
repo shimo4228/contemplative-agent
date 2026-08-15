@@ -31,8 +31,8 @@ Records of key design decisions for this project.
 | [0023](0023-skill-as-memory-loop.md) | Skill-as-Memory Loop — Router, Usage Log, Reflective Write | superseded-by 0036 | 2026-04-16 |
 | [0024](0024-identity-block-separation.md) | Identity Block Separation — Frontmatter-Addressed Persona Blocks | superseded-by 0030 | 2026-04-16 |
 | [0025](0025-identity-history-and-migrate-cli.md) | Identity History Log Wiring + migrate-identity CLI | superseded-by 0030 | 2026-04-16 |
-| [0026](0026-retire-discrete-categories.md) | Retire Discrete Categories (Phase-3 Completion of ADR-0019) | accepted | 2026-04-16 |
-| [0027](0027-noise-as-seed.md) | Noise as Seed — From Binary Gate to Salience-Based Forgetting | accepted | 2026-04-16 |
+| [0026](0026-retire-discrete-categories.md) | Retire Discrete Categories (Phase-3 Completion of ADR-0019) | partially-superseded-by 0060 | 2026-04-16 |
+| [0027](0027-noise-as-seed.md) | Noise as Seed — From Binary Gate to Salience-Based Forgetting | superseded-by 0060 | 2026-04-16 |
 | [0028](0028-retire-pattern-level-forgetting-feedback.md) | Retire Pattern-Level Forgetting and Feedback — Memory Dynamics Belong to the Skill Layer | accepted | 2026-04-18 |
 | [0029](0029-retire-dormant-provenance-elements.md) | Retire Dormant Provenance Elements — `user_input` / `external_post` / `sanitized` | accepted | 2026-04-18 |
 | [0030](0030-withdraw-identity-blocks.md) | Withdraw Identity Block Separation and History Wiring — Single Responsibility | accepted — supersedes 0024 and 0025 | 2026-04-18 |
@@ -65,7 +65,7 @@ Records of key design decisions for this project.
 | [0057](0057-identity-from-self-reflection-corpus-alone.md) | Distill Identity From the Self-Reflection Corpus Alone — Drop the Prior-Identity Seed and Redundant Axiom Injection `[AKC: Promote]` | accepted | 2026-06-20 |
 | [0058](0058-value-injection-at-action-time.md) | Value-Layer Injection Belongs to Action Time, Not Distillation `[AKC: Extract/Curate/Promote]` | accepted | 2026-06-20 |
 | [0059](0059-remove-dead-reply-history.md) | Remove the Dead Reply-History Mechanism | accepted | 2026-06-22 |
-| [0060](0060-per-episode-grounded-distill.md) | Per-Episode Grounded Distill — Replace Batch Extract + Noise Gate with One Grounded LLM Call per Engagement Episode | accepted | 2026-06-23 |
+| [0060](0060-per-episode-grounded-distill.md) | Per-Episode Grounded Distill — Replace Batch Extract + Noise Gate with One Grounded LLM Call per Engagement Episode | accepted — supersedes 0027; partially-supersedes 0026 | 2026-06-23 |
 | [0061](0061-action-time-untrusted-cap-at-platform-limits.md) | Action-Time Untrusted Input Caps at Platform Field Limits; Internal Note Reads the Full Body | accepted | 2026-06-23 |
 | [0062](0062-create-time-verification-handshake.md) | Create-Time Content-Verification Handshake with Hybrid LLM/Code Solver; Gate Recording on Visibility | accepted | 2026-06-26 |
 | [0063](0063-novelty-gate-verified-only-comparison.md) | Scope the NoveltyGate Comparison to Verified (Visible) Posts | accepted | 2026-06-26 |
@@ -75,7 +75,7 @@ Records of key design decisions for this project.
 | [0067](0067-keep-ollama-for-unattended-production.md) | Keep Ollama as the Production Generation Backend — mlx_lm.server Unfit for Unattended Continuous Use on 16 GB Apple Silicon | accepted — partially-supersedes 0065 | 2026-06-28 |
 | [0068](0068-per-call-think-flag-and-thinking-trace-capture.md) | Per-Call `think` Flag and Reasoning-Trace Capture to the Episode Log | accepted | 2026-06-28 |
 | [0069](0069-gemma-production-model-and-think-on-value-layer-pipelines.md) | Adopt gemma4:e4b as the Production Generation Model and Run the Value-Layer Pipelines think-ON | accepted | 2026-06-28 |
-| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md) | Retire the MLX Backend to a Sibling Repo and Remove Docker from Main | accepted | 2026-06-28 |
+| [0070](0070-retire-mlx-to-sibling-repo-and-remove-docker.md) | Retire the MLX Backend to a Sibling Repo and Remove Docker from Main | accepted — supersedes 0006, 0064 | 2026-06-28 |
 | [0071](0071-read-only-pattern-composition-instruments.md) | Read-Only Pattern-Composition Instruments (View Supply / Diversity / Grounding) | accepted | 2026-07-03 |
 | [0072](0072-echo-chamber-interventions.md) | Echo-Chamber Interventions — Register Instruction, Corpus-Grown Seed, Extraction-Failure Guard | accepted | 2026-07-03 |
 | [0073](0073-prune-orphaned-view-seeds.md) | Prune the Five Orphaned View Seeds | accepted | 2026-07-03 |
@@ -87,7 +87,7 @@ Records of key design decisions for this project.
 | [0079](0079-module-reorganization-package-splits.md) | Module Reorganization — Package Splits, Permanent Facades, and Documented Size-Cap Exceptions | accepted | 2026-07-18 |
 | [0080](0080-north-star-layered-end-state.md) | North Star — Per-Layer End-State Definition, Not a Capability Target | accepted | 2026-07-20 |
 | [0081](0081-skill-selection-two-pass-injection-enforcement.md) | Skill-Selection Two-Pass Injection Enforcement | accepted | 2026-07-24 |
-| [0082](0082-retire-observed-epistemic-key.md) | Retire the `observed` Epistemic Key — Delete the Dead Field, Not the Warning About It | accepted | 2026-07-25 |
+| [0082](0082-retire-observed-epistemic-key.md) | Retire the `observed` Epistemic Key — Delete the Dead Field, Not the Warning About It | accepted — partially-supersedes 0050 | 2026-07-25 |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.md) | Episode Logs Enter the Weekly Prompt as Hashes Only | accepted | 2026-07-25 |
 | [0084](0084-post-distill-durability-gate.md) | Post-Distill Durability Gate — Judge the Produced Patterns, Not the Episode | accepted | 2026-07-26 |
 | [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.md) | Unattended Weekly Fix Chain with a Single Saturday Gate | accepted | 2026-07-29 |
@@ -152,6 +152,7 @@ The Status field follows established phrasing so that the index, ADR bodies, and
 
 - `accepted` — currently in effect
 - `accepted — supersedes ADR-NNNN` — replaces an earlier ADR (the index also lists the replaced ADR with `superseded-by ADR-NNNN`)
+- `accepted — partially-supersedes ADR-NNNN[, ADR-NNNN]` — replaces only specific sections of an earlier ADR (the index also lists the older ADR with `partially-superseded-by ADR-NNNN`; name the scope in the ADR body)
 - `accepted (note)` — observational / narrow ADR that does not commit the project to a long-lived rule
 - `accepted (amended YYYY-MM-DD)` — body amended; see the Amendment section in the ADR
 - `partially-superseded-by ADR-NNNN[, ADR-NNNN]` — only specific sections were replaced; surviving sections remain in effect
@@ -159,7 +160,7 @@ The Status field follows established phrasing so that the index, ADR bodies, and
 - `withdrawn by ADR-NNNN` — retracted because a later ADR judged this approach incorrect
 - `withdrawn (YYYY-MM-DD)` — retracted in-place, typically same-day or by the same author; the body preserves the withdrawal reason
 
-The relationship phrases (`supersedes`, `superseded-by`, `withdrawn by`, `partially-superseded-by`) are mirrored as typed edges (`supersedes`, `supersededBy`, `withdrawnBy`, `partiallySupersededBy`) in `graph.jsonld` so LLMs can traverse the supersede / withdrawal chain without parsing prose.
+The relationship phrases (`supersedes`, `superseded-by`, `withdrawn by`, `partially-supersedes`, `partially-superseded-by`) are mirrored as typed edges (`supersedes`, `supersededBy`, `withdrawnBy`, `partiallySupersedes`, `partiallySupersededBy`) in `graph.jsonld` so LLMs can traverse the supersede / withdrawal chain without parsing prose. A node's edges must match its own Status prose — a bare `accepted` node carries no supersede-family edge — and `tests/test_adr_status_consistency.py` enforces that alongside head agreement across all five faces. The mirror is per-node: full supersessions and withdrawals are reciprocal today, but six partial supersessions record only the backward half, so `partiallySupersedes` traversal is one-way until T-ADR-PARTIAL-RECIPROCITY closes it.
 
 ## Guidelines
 

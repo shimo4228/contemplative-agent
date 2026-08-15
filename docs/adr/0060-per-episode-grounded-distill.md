@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted — supersedes [ADR-0027](./0027-noise-as-seed.md); partially-supersedes [ADR-0026](./0026-retire-discrete-categories.md) Phase 2 (its `core/distill.py` half)
 
 ## Date
 
@@ -202,6 +202,11 @@ the `SIM_UPDATE` branch of the unchanged pattern-level dedup step.
   gate is absent — per the CLAUDE.md freshness rule, update in the same PR.
 - `graph.jsonld` gains an ADR-0060 node (`supersedes` ADR-0026 Step 0 and ADR-0027 Phase 1;
   `alignsWith` ADR-0031, ADR-0058, ADR-0019) — deferred to the dual-update at release.
+  **Amendment (2026-08-15)**: the edge shipped as `partiallySupersedes`, not `supersedes` — a
+  scoped supersede had no forward vocabulary term until this date, so the graph recorded it as a
+  full one while ADR-0026 and ADR-0027 still read `accepted` on every face. "Step 0" is this
+  ADR's own label; ADR-0026 numbers the affected material Phase 2 (its `core/distill.py` half),
+  and each target's own Status line now carries the authoritative scope.
 - This ADR supersedes ADR-0026 Step 0 (binary ingest-time noise gate) and ADR-0027 Phase 1
   (noise-log writer).
 

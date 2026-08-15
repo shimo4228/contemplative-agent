@@ -14,7 +14,7 @@ node-to-file bijection and ``@id`` resolvability, never the Status value;
 ``scripts/docs_consistency_scan.py`` compares *commit timestamps*, so a pair
 edited in one commit reads clean no matter what it says.
 
-Two assertions, both narrow enough to stay quiet on legitimate localization:
+Three assertions, all narrow enough to stay quiet on legitimate localization:
 
 1. The **relation head** (the typed vocabulary term documented at
    ``docs/adr/README.md`` "Status line conventions") is identical on every face. The
@@ -24,20 +24,43 @@ Two assertions, both narrow enough to stay quiet on legitimate localization:
    machine-traversable (README.md: the phrases are mirrored as typed edges "so
    LLMs can traverse the supersede / withdrawal chain without parsing prose").
 
-Known coverage gaps, deliberately not closed here so the gate does not read as
-broader than it is (T-ADR-STATUS-GATE in the task ledger):
+3. The graph's **typed edges** agree with that node's own Status prose — and a
+   node whose Status claims no relation carries no supersede-family edge. That
+   last clause is the one with teeth: ADR-0060 read a bare ``accepted`` while
+   its node claimed to fully supersede ADR-0026 and ADR-0027, and nothing on
+   any face contradicted it.
 
-- **The withdrawal chain is unchecked.** ``withdrawn-by`` is absent from
-  ``_HEADS``, so it collapses into bare ``withdrawn`` and never reaches the
-  target comparison. Adding it requires normalizing ADR-0022's body Status,
-  which spells the relation as prose ("withdrawn (by ADR-0034 …)" / 「… により」)
-  rather than the documented ``withdrawn-by ADR-NNNN`` form.
-- **The typed graph edges are not read** — only the graph's ``status`` string
-  is. ``supersedes`` / ``supersededBy`` / ``partiallySupersededBy`` /
-  ``withdrawnBy`` already disagree with the prose in at least four places
-  (ADR-0060's node claims ``supersedes`` ADR-0026 and ADR-0027, both of which
-  read ``accepted`` on all five faces), and reconciling them needs a human
-  decision about which side is right, not a test.
+Both coverage gaps this module shipped with on 2026-08-15 are now closed
+(T-ADR-STATUS-GATE), each having needed a corpus edit first:
+
+- The **withdrawal chain** required normalizing ADR-0022's body Status, which
+  buried the relation in a parenthetical ("withdrawn (by ADR-0034 …)" /
+  「… により」) where ``_head`` could only see bare ``withdrawn`` while the index
+  said ``withdrawn-by``. It now leads with the documented phrase.
+- The **typed edges** disagreed with the prose in three places, all one root
+  cause: a partial supersede has a backward vocabulary term
+  (``partially-superseded-by``) but had no forward one, so ADR-0060 and
+  ADR-0082 recorded scoped supersessions as full ``supersedes`` edges and
+  ADR-0067's ``partially-supersedes`` Status produced no edge at all.
+  ``partiallySupersedes`` now exists in the graph's ``@context`` and in the
+  README's Status vocabulary, and ADR-0026 / ADR-0027 carry the backward half
+  (author's call, 2026-08-15: follow the ADR-0021 / 0050 / 0065 precedent so a
+  reader of the older ADR learns from its Status line that a section retired).
+
+Cross-node reciprocity is deliberately *not* asserted: ADR-0034 leads with
+``supersedes ADR-0022`` while ADR-0022 leads with ``withdrawn by ADR-0034``,
+and each node matches its own prose. Whether a withdrawal is also a
+supersession is a vocabulary judgment, not a defect a test should force.
+
+The cost of that scoping is real and should not be read away: six
+``partiallySupersededBy`` claims have no forward half, so an LLM traversing
+``partiallySupersedes`` does not reach ADR-0028 / 0029 / 0051 (from ADR-0021),
+ADR-0051 (from ADR-0050), ADR-0056 (from ADR-0053), or ADR-0070 (from
+ADR-0065) — the last being a genuine disagreement, since ADR-0070's body says
+it "completes the supersession of ADR-0065's MLX portions" while its Status
+names only ADR-0006 and ADR-0064. Partial-supersede traversal is one-way
+today; closing it means editing five more ADRs across five faces each
+(T-ADR-PARTIAL-RECIPROCITY in the task ledger).
 """
 
 from __future__ import annotations
@@ -51,22 +74,22 @@ import pytest
 REPO = Path(__file__).resolve().parents[1]
 ADR_DIR = REPO / "docs" / "adr"
 
-# Order matters: a head that is a prefix of another must come after it.
-# Nothing here is a prefix of anything else today, but adding "withdrawn-by"
-# (see the coverage note in the module docstring) would have to precede
-# "withdrawn".
+# Order matters: a head that is a prefix of another must come first —
+# "withdrawn-by" ahead of "withdrawn", or every withdrawal-by-ADR collapses
+# into the bare form and drops out of the target comparison below.
 _HEADS = (
     "partially-superseded-by",
     "superseded-by",
+    "withdrawn-by",
     "withdrawn",
     "accepted",
     "proposed",
     "rejected",
 )
-# Heads whose ADR references are a backward supersede chain and must be
-# traversable. Forward phrases ("accepted — supersedes 0024") are excluded:
-# they are authored on the newer ADR and carry different semantics.
-_BACKWARD = {"partially-superseded-by", "superseded-by"}
+# Heads whose ADR references are a backward chain and must be traversable.
+# Forward phrases ("accepted — supersedes 0024") are excluded: they are
+# authored on the newer ADR and carry different semantics.
+_BACKWARD = {"partially-superseded-by", "superseded-by", "withdrawn-by"}
 
 _ADR_FILE = re.compile(r"^(\d{4})-.+\.md$")
 _INDEX_ROW = re.compile(r"^\|\s*\[(\d{4})\]\([^)]+\)\s*\|(?:[^|]*)\|([^|]*)\|")
@@ -125,15 +148,21 @@ def _index_cells(readme: Path) -> dict[str, str]:
     return cells
 
 
-def _graph_status() -> dict[str, str]:
+def _graph_nodes() -> dict[str, dict]:
     graph = json.loads((REPO / "graph.jsonld").read_text(encoding="utf-8"))
     nodes = graph.get("@graph", graph)
-    out = {}
-    for node in nodes:
-        ident = str(node.get("identifier", ""))
-        if ident.startswith("ADR-") and "status" in node:
-            out[ident[4:]] = str(node["status"])
-    return out
+    return {
+        str(node["identifier"])[4:]: node
+        for node in nodes
+        if str(node.get("identifier", "")).startswith("ADR-")
+    }
+
+
+GRAPH_NODES = _graph_nodes()
+
+
+def _graph_status() -> dict[str, str]:
+    return {num: str(node["status"]) for num, node in GRAPH_NODES.items() if "status" in node}
 
 
 def _faces() -> list[tuple[str, dict[str, str]]]:
@@ -245,3 +274,88 @@ def test_supersede_targets_agree_across_faces(adr: str) -> None:
                 f"ADR-{adr} {label} does not name supersede target(s) "
                 f"{sorted(missing)} that the index and graph claim"
             )
+
+
+# Status relation phrase -> the graph edge that mirrors it.
+_EDGE_FOR_PHRASE = {
+    "partially-superseded-by": "partiallySupersededBy",
+    "superseded-by": "supersededBy",
+    "withdrawn-by": "withdrawnBy",
+    "partially-supersedes": "partiallySupersedes",
+    "supersedes": "supersedes",
+}
+_SUPERSEDE_EDGES = frozenset(_EDGE_FOR_PHRASE.values())
+# Longest phrase first, or "partially-superseded-by" is read as "superseded-by"
+# and "partially-supersedes" as "supersedes" — collapsing a scoped supersede
+# into a full one, which is the very defect this module exists to catch. Each
+# hyphen also matches a space: the corpus writes both ("withdrawn by ADR-0034").
+_PHRASE_RE = re.compile(
+    "|".join(p.replace("-", "[- ]") for p in sorted(_EDGE_FOR_PHRASE, key=len, reverse=True))
+)
+# ADR numbers immediately following a relation phrase, as a run: "ADR-0006,
+# ADR-0064" / "0067 and 0070". Anchored rather than scanning the whole clause
+# so scope prose that cites an ADR as a *reason* ("… see ADR-0031") is not
+# mistaken for a supersede target.
+_REF_RUN_RE = re.compile(r"[\s,/]*(?:and\s+)?(?:adr-)?(0\d{3})")
+
+
+def _expected_edges(status: str, adr: str) -> dict[str, set[str]]:
+    """The typed edges a Status string obliges its graph node to carry.
+
+    Multi-relation statuses are real — ADR-0060 fully supersedes ADR-0027 while
+    only partially superseding ADR-0026 — so each phrase binds the ADR numbers
+    that follow *it*, never every number in the string.
+    """
+    text = re.sub(r"\s+", " ", status).lower()
+    found = list(_PHRASE_RE.finditer(text))
+    edges: dict[str, set[str]] = {}
+    for i, match in enumerate(found):
+        stop = found[i + 1].start() if i + 1 < len(found) else len(text)
+        clause = text[match.end() : stop]
+        edge = _EDGE_FOR_PHRASE[match.group(0).replace(" ", "-")]
+        # "supersedes X in part" is the same claim as "partially-supersedes X"
+        # (ADR-0082's body writes it that way); honour the scope, not the verb.
+        if edge == "supersedes" and "in part" in clause:
+            edge = "partiallySupersedes"
+        refs, pos = set(), 0
+        while ref := _REF_RUN_RE.match(clause, pos):
+            refs.add(ref.group(1))
+            pos = ref.end()
+        refs -= {adr}
+        if refs:
+            edges.setdefault(edge, set()).update(refs)
+    return edges
+
+
+def _edge_refs(node: dict, key: str) -> set[str]:
+    """ADR numbers a typed edge points at, read off the target filenames."""
+    value = node.get(key, [])
+    targets = [value] if isinstance(value, str) else value
+    return {m.group(1) for t in targets if (m := re.search(r"/(\d{4})-[^/]*\.md$", str(t)))}
+
+
+@pytest.mark.unit
+@pytest.mark.parametrize("adr", sorted(GRAPH_NODES))
+def test_graph_edges_match_their_own_status_prose(adr: str) -> None:
+    """A node's typed edges must say what its own Status says — no more.
+
+    Read alone, ``status`` and the edges are each plausible; only together do
+    they contradict. ADR-0060 read a bare ``accepted`` while carrying a full
+    ``supersedes`` edge onto two ADRs that also read ``accepted``, so an LLM
+    traversing the graph saw a retirement no prose face confirmed.
+
+    Asserted per node, never across nodes: whether ADR-0034's ``supersedes``
+    obliges ADR-0022 to answer with ``supersededBy`` rather than the
+    ``withdrawnBy`` it carries is a vocabulary judgment (see module docstring).
+    """
+    node = GRAPH_NODES[adr]
+    status = str(node.get("status", ""))
+    assert status, f"ADR-{adr} graph node has no status field"
+
+    expected = _expected_edges(status, adr)
+    actual = {key: _edge_refs(node, key) for key in _SUPERSEDE_EDGES if key in node}
+    assert actual == expected, (
+        f"ADR-{adr} graph edges disagree with its own Status {status!r}: "
+        f"expected {expected or 'no supersede-family edge'}, found "
+        f"{actual or 'none'} (see docs/adr/README.md '### Status line conventions')"
+    )

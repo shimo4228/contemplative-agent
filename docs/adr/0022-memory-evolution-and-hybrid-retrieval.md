@@ -2,7 +2,7 @@
 
 ## Status
 
-withdrawn (by [ADR-0034](0034-withdraw-memory-evolution-and-hybrid-retrieval.md) on 2026-05-05)
+withdrawn by [ADR-0034](0034-withdraw-memory-evolution-and-hybrid-retrieval.md) on 2026-05-05
 
 ## Date
 

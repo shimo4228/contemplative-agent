@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by [ADR-0060](./0060-per-episode-grounded-distill.ja.md) — ADR-0060 は 2026-06-23 に ingest 時の noise gate を全廃し、Phase 2 の `core/distill.py` 側（`_classify_episodes`、`_ClassifiedRecords`、`NOISE_THRESHOLD`）を退役させた（ADR-0060 の散文はこれを "Step 0" と呼ぶが、その名称は本 ADR には存在しない）。Phase 1、Phase 3、および Phase 2 の `core/constitution.py` 側 — `amend_constitution` の view ベース検索 — は引き続き有効。なお Migration 節の `migrate-categories` CLI は別途 [ADR-0035](./0035-sunset-migration-surface-and-consolidate-artifact-extraction.ja.md) が退役させている。
 
 ## Date
 

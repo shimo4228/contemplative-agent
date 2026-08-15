@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+superseded-by [ADR-0060](./0060-per-episode-grounded-distill.md) — on 2026-06-23 ADR-0060 removed the ingest-time noise gate entirely, and all three phases of this ADR presuppose that gate. Phase 1's noise-log writer shipped and was deleted; Phases 2 and 3 were never built and are now unbuildable — no `NOISE_THRESHOLD`, no `noise-*.jsonl`, and no view-centroid reload survive in `src/`, and Phase 3 additionally rested on the `trust_score` that [ADR-0051](./0051-retire-trust-weighting.md) retired. Body preserved as the original record.
 
 ## Date
 

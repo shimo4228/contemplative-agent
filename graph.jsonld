@@ -91,6 +91,10 @@
       "@id": "shimo:partiallySupersededBy",
       "@type": "@id"
     },
+    "partiallySupersedes": {
+      "@id": "shimo:partiallySupersedes",
+      "@type": "@id"
+    },
     "embodiesAxiom": {
       "@id": "shimo:embodiesAxiom",
       "@type": "@id"
@@ -735,13 +739,11 @@
       ],
       "name": "ADR-0060: Per-Episode Grounded Distill — Replace Batch Extract + Noise Gate with One Grounded LLM Call per Engagement Episode",
       "identifier": "ADR-0060",
-      "status": "accepted",
+      "status": "accepted — supersedes ADR-0027; partially-supersedes ADR-0026",
       "datePublished": "2026-06-23",
       "description": "Replaces the batch-extract distill pipeline and its ingest-time noise gate with one grounded LLM call per engagement episode. Since the project's first day distill never read the full text of the agent's posts/comments: its material was summarize_record's digest (internal_note full + content_summary[:80] + title + an action label), discarding original_post, the other agent's comment, and the agent's own output that activity records carry — so knowledge/identity/skills/rules were built mainly from the agent's introspection about the world (internal_note), not the world, the structural root of the self-referential register collapse the weekly diagnosis kept chasing (~120 of ~2,946 available chars/episode were used, a 24x idle). The batch step (30 episodes → one extract call → a refine call) averaged the LLM into a modal register, a flattening engine. A read-only measurement prototype (scripts/proto_grounded_distill.py; .notes/proto-distill-measurement-2026-06-22.md) over a 3-day window drove the design: (1) the briefly-locked clustering design's reinforce branch cannot fire — episode-vs-pattern cosine is cross-modal (instance vs generalization), maxing at 0.765 < the 0.80 threshold; (2) genuine episode-level near-duplication is only ~3.4% at cosine 0.90, so clustering saves ~4 calls per 3-day window; (3) loose clustering (threshold 0.70) FLATTENED — a 10-episode cluster collapsed into thematic abstractions, reproducing the register collapse being repaired; (4) singletons (one episode → one call) produced grounded, specific patterns and correctly returned [] on routine episodes. Conclusion: clustering does not earn its complexity, and recurrence is already insight's job (it clusters patterns→skills). Decision: (a) scope filter _is_rich_episode = activity records for {comment, reply, post} only, dropping the redundant short paired interaction/post records and the template sparse actions (upvote/follow/unfollow); (b) remove the noise gate entirely (_classify_episodes, _ClassifiedRecords, _view_centroids_hash, _write_noise_log, the noise-*.jsonl writer, NOISE_THRESHOLD, and distill()'s view_registry/log_dir params) — keeping noise out of retrieval is the view centroids' job at query time per ADR-0031; (c) render each episode richly (render_episode: original_post + their_comment + the agent's own content/title + internal_note full), each external field excerpted by a new boundary-aware truncate_boundary at ~p90-calibrated caps (original_post 4700, their_comment 1500, content 4700), internal_note uncapped; (d) one LLM call per episode (_distill_one) with an Ollama structured-output schema (_PATTERNS_SCHEMA) that removes the malformed-JSON the 2-step bullet fallback absorbed; (e) per-episode provenance; (f) the embed → cosine dedup → store tail is unchanged — pattern-level dedup (SIM_DUPLICATE 0.90 / SIM_UPDATE 0.80) is what prevents duplicate-pattern accumulation, so a recurring episode's pattern is caught here without episode pre-clustering. Cost: ~14x more LLM calls (~115 per 3-day window vs ~8), ~12 min/day on qwen3.5:9b (per-episode calls are ~17s, small context, no swap), accepted as the honest price of grounding. epistemic_counts shifts: every distilled episode is an activity → _episode_source_kind=self → self_reflection → generated, so observed is now structurally zero (the external world enters as grounding text, not a provenance kind). Rejected: the clustering design (reinforce can't fire, ~3.4% near-dup, clustering flattens); keeping the noise gate (redundant with ADR-0031 + insight's own defense); enriching the digest while keeping batch-extract (the averaging machine remains); lowering the reinforce threshold to ~0.72 (marks half the pool as already-known against old-register patterns; the recency-refresh is already the dedup UPDATE branch). Extends ADR-0058's observe-faithfully intent by actually feeding the external content.",
-      "supersedes": [
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0026-retire-discrete-categories.md",
-        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0027-noise-as-seed.md"
-      ],
+      "supersedes": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0027-noise-as-seed.md",
+      "partiallySupersedes": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0026-retire-discrete-categories.md",
       "extends": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0056-retire-importance-llm-scoring.md",
       "alignsWith": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0031-classification-as-query.md",
@@ -877,7 +879,8 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0064-mlx-generation-backend.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0066-backend-aware-context-budget-guard.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0007-security-boundary-model.md"
-      ]
+      ],
+      "partiallySupersedes": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0065-mlx-ondemand-launchd-and-telemetry-model-contract.md"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0068-per-call-think-flag-and-thinking-trace-capture.md",
@@ -922,7 +925,7 @@
       ],
       "name": "ADR-0070: Retire the MLX Backend to a Sibling Repo and Remove Docker from Main",
       "identifier": "ADR-0070",
-      "status": "accepted",
+      "status": "accepted — supersedes ADR-0006, ADR-0064",
       "datePublished": "2026-06-28",
       "description": "ADR-0067 found mlx_lm.server unfit for unattended production on 16GB Apple Silicon but kept the MLX backend opt-in in main (Decision #3). This ADR retires both MLX and Docker from main. MLX is structurally symmetric with the contemplative-agent-cloud add-on (both implement the LLMBackend Protocol), so it is relocated to a sibling contemplative-agent-mlx repo (follow-up): the in-tree LLM_BACKEND=mlx branch, core/mlx_backend.py, MLX scripts (serve-mlx.sh / run-with-mlx.sh), and tests are deleted, while the LLMBackend Protocol, configure(backend=...), the served-model-id telemetry contract (ADR-0065), and the context-budget guard (ADR-0066) are retained as the backend-neutral cloud injection seam. Docker is an infra wrapper, not a Protocol-injected backend, so its Dockerfile / docker-compose / docker-entrypoint / .dockerignore / setup.sh are removed outright, recoverable by git revert. Evidence (docs/evidence/adr-0064, adr-0067) and the apple-silicon-local-llm-serving skill are retained. Strengthens security-by-absence: the only in-tree generation path is Ollama; every alternative backend is opt-in and out-of-tree.",
       "supersedes": [
@@ -990,9 +993,10 @@
       ],
       "name": "ADR-0026: Retire Discrete Categories (Phase-3 Completion of ADR-0019)",
       "identifier": "ADR-0026",
-      "status": "accepted",
+      "status": "partially-superseded-by ADR-0060",
       "datePublished": "2026-04-16",
-      "description": "Three-phase retirement of the pattern-level `category` field, completing the embedding + view migration introduced by ADR-0019."
+      "description": "Three-phase retirement of the pattern-level `category` field, completing the embedding + view migration introduced by ADR-0019.",
+      "partiallySupersededBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0060-per-episode-grounded-distill.md"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0027-noise-as-seed.md",
@@ -1002,9 +1006,10 @@
       ],
       "name": "ADR-0027: Noise as Seed — From Binary Gate to Salience-Based Forgetting",
       "identifier": "ADR-0027",
-      "status": "accepted",
+      "status": "superseded-by ADR-0060",
       "datePublished": "2026-04-16",
-      "description": "Replace the binary noise gate with salience-based forgetting where low-salience patterns remain reachable as seeds for later re-evaluation. Avoids irreversible deletion of low-confidence material."
+      "description": "Replace the binary noise gate with salience-based forgetting where low-salience patterns remain reachable as seeds for later re-evaluation. Avoids irreversible deletion of low-confidence material.",
+      "supersededBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0060-per-episode-grounded-distill.md"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0028-retire-pattern-level-forgetting-feedback.md",
@@ -2270,9 +2275,9 @@
       ],
       "name": "ADR-0082: Retire the observed Epistemic Key — Delete the Dead Field, Not the Warning About It",
       "identifier": "ADR-0082",
-      "status": "accepted",
+      "status": "accepted — partially-supersedes ADR-0050",
       "datePublished": "2026-07-25",
-      "supersedes": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0050-epistemic-taxonomy-and-approval-lineage.md",
+      "partiallySupersedes": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0050-epistemic-taxonomy-and-approval-lineage.md",
       "description": "Retires the ADR-0050 observed epistemic kind and its external_reply arm, leaving epistemic_counts as a {generated, unknown} tally. ADR-0060 restricted distillation to activity records (all self → self_reflection → generated), making the only external_reply producer unreachable, so observed had been structurally zero across the full audit history (405 records: insight 0/1,618/0, distill-identity 0/231/119 — unknown is genuinely populated and stays). ADR-0071's M2 review documented in 2026-06-27 that observed == 0 misreads as 'no external grounding' (external content enters as grounding text inside the rich render and was never counted by this tally); ADR-0072 deleted the grounding instrument but kept epistemic_counts_for under signal-first deferral. On 2026-07-25 the predicted misreading occurred: a reviewer aggregated observed=0 / generated=324 over the 78 skills staged by the weekly insight run and concluded every staged skill was ungrounded echo. The docstring warnings failed because nothing guarantees the warning is read before the value — the value lives in the data file, the warning in the code that produced it. Decision: (1) remove the external_reply → observed arm entirely, not just the key, so no unreachable mapping remains to re-investigate; epistemic_kind_for uses .get(), so an external_reply row degrades to unknown rather than raising. (2) Keep _derive_source_type's external_reply return value — a provenance record, a separate layer from the epistemic tally; its retirement needs a provenance-side stocktake and is out of scope. (3) Do not rewrite history: audit.jsonl is append-only and .staged/*.meta.json are pending approval artifacts, both keep three-key records; adopt.py passes epistemic_counts through verbatim so the 78 files staged on 2026-07-25 remain adoptable, and offline readers must use .get(key, 0) rather than assume a fixed key set. Zero production read sites change (nothing indexes ['observed'] or assumes arity). Regression guards: external_reply → None, the key's absence from the emitted shape, and verbatim pass-through of a pre-ADR-0082 meta.json. Rejected alternatives: keep the key with an adjacent disclaimer field (more scaffolding around a dead value — a value needing a shipped disclaimer carries no information), retire epistemic_counts wholesale (unknown does vary, and ADR-0072 explicitly decided to keep the function — overturning that needs its own evidence), and continue the signal-first deferral (the misreading incident is itself the signal). The general form: a structural invariant documented only in prose is enforced only probabilistically; enforcement by absence replaces enforcement by documentation, the same shape as the project's security-by-absence stance. Open observation left unmechanized: the reading habit of taking a value from a data file without reading the code that produced it.",
       "isBasedOn": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0050-epistemic-taxonomy-and-approval-lineage.md",
