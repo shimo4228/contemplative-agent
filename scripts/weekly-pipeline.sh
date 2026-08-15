@@ -21,6 +21,36 @@ set -uo pipefail
 
 # --- Config ---
 MOLTBOOK_HOME="${MOLTBOOK_HOME:-$HOME/.config/moltbook}"
+# Stage 2 interpolates this into permission rules, so its shape is load-bearing
+# in two ways the rest of the script does not care about (same reason END_DATE
+# gets a shape check below):
+#
+#   absolute — the rules are built by prefixing `/` to reach the `//absolute`
+#     form. A RELATIVE value renders them single-slash = project-root-anchored,
+#     where the allow rule grants nothing (loud: the stage fails) but the deny
+#     rules protect nothing (silent). A trailing slash is harmless to anchoring
+#     (`//home//reports` still reads as absolute) and is trimmed only so the
+#     rendered rules stay legible.
+#   no permission-spec metacharacters — `,` splits one rule into two malformed
+#     ones, `()[]*?` reshape the glob, and `\` is consumed as a glob escape
+#     (measured: a deny rule over a path containing `\` matched nothing while
+#     the allow rule still matched — the exact "looks correct, protects
+#     nothing" failure this guard exists to prevent). All are legal in a path.
+#     Stated as an ALLOWLIST, for the same reason the test module rejects
+#     blocklists of tool names: a blocklist silently admits whichever
+#     metacharacter the matcher grows next.
+MOLTBOOK_HOME="${MOLTBOOK_HOME%/}"
+if [[ "$MOLTBOOK_HOME" != /* ]]; then
+    echo "ERROR: MOLTBOOK_HOME must be an absolute path (got: $MOLTBOOK_HOME)" >&2
+    exit 1
+fi
+if ! [[ "$MOLTBOOK_HOME" =~ ^[A-Za-z0-9._/@+-]+$ ]]; then
+    echo "ERROR: MOLTBOOK_HOME may only contain [A-Za-z0-9._/@+-] — stage 2 builds" >&2
+    echo "       tool-permission rules from it, and any other character can" >&2
+    echo "       silently reshape a rule into one that protects nothing" >&2
+    echo "       (got: $MOLTBOOK_HOME)" >&2
+    exit 1
+fi
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 SCRIPTS="$PROJECT_ROOT/scripts"
 PROMPTS="$PROJECT_ROOT/config/prompts"
@@ -205,16 +235,65 @@ if stage_enabled diagnosis && ! findings_complete; then
         audit stage_result stage=diagnosis result=skipped reason=CHAIN_DEADLINE
     else
         echo "[$RUN_ID] stage 2: diagnosis"
-        # --add-dir is scoped to reports/ + logs/, NOT $MOLTBOOK_HOME: the home
-        # root holds credentials.json, and this session's input chain reaches
-        # back to external SNS content (2026-07-29 security review C2). No
-        # python3/network-capable Bash grant — every scoped command below is
-        # read-only, so an injected instruction has no execution or egress
-        # surface (C1).
+        # --add-dir is scoped to reports/ + logs/, NOT $MOLTBOOK_HOME (2026-07-29
+        # security review C2). Keep that scoping, but do NOT read it as a read
+        # boundary: --add-dir bounds the workspace, not the Read tool, and the
+        # ambient bare `Read` allow is consulted before the mode — measured
+        # 2026-08-15, this session read an absolute path outside both added
+        # dirs. credentials.json therefore needs an explicit deny, not a
+        # narrow --add-dir. It matters because the one file this session may
+        # author, reports/analysis/weekly-*-findings.md, is rsynced to the
+        # PUBLIC data repo by sync-research-data.sh (which excludes
+        # credentials.json itself, but not reports/analysis/) — read-then-author
+        # is a laundering path from the key to a published artifact.
+        #
+        # What this session must not reach: ADR-0091 made logs/audit.jsonl the
+        # control input for stage 5b's identity-due read, so a write there
+        # forges the trigger for a later unattended LLM run (2026-08-10 review
+        # M1). Three mechanics, all verified against the real binary
+        # 2026-08-15, decide how that is spelled:
+        #
+        # 1. --allowedTools only ever ADDS. It never narrows the ambient
+        #    permission mode, and it never narrows the settings-file allow
+        #    rules, which are consulted BEFORE the mode. So neither the mode
+        #    nor a short allow list can bound this session on its own: with
+        #    `--permission-mode manual` and no Bash grant at all, the operator's
+        #    ~/.claude/settings.json `Bash(tee:*)` still executed
+        #    `echo … | tee <path>`.
+        # 2. Only DENY rules outrank both the allow rules and the mode. They
+        #    are the sole control here that does not depend on ambient config.
+        # 3. File writes are gated by Edit(...) rules; a Write(...) pattern
+        #    parses but matches nothing (the CLI says so itself).
+        #
+        # Hence: writes are pinned to exactly the two files the skill authors,
+        # and Bash is denied WHOLESALE rather than allow-listed. An allow list
+        # could not have held — the read-only-looking `Bash(git log:*)` grant
+        # this stage used to carry is itself an arbitrary-write primitive
+        # (`git log --output=<any path> --format=tformat:<any content>`), and
+        # ambient rules re-grant `git`, `tee`, `cp`, `ln`, `curl` regardless.
+        # The skill needs no Bash: its reading is Read/Glob/Grep, including the
+        # one episode-log grep in its F1 checklist. Redirection and `&&`
+        # chaining do not defeat a Bash prefix rule (also verified), but that
+        # only matters for sessions that still hold one.
+        #
+        # WebFetch/WebSearch are denied for the same reason and by the same
+        # mechanism: they are ambiently allowed, the skill references no network
+        # source, and this is the one session holding --add-dir over the raw
+        # episode logs — so egress here is an exfiltration path for untrusted
+        # content the session was given to read. (The old C1 comment asserted no
+        # egress surface; that half was false too.)
+        #
+        # The Edit deny rules below are redundancy for the Edit face only —
+        # they do NOT gate Bash. Converting the other four claude -p sites is
+        # T-CHAIN-PERM-SWEEP; the durable fix for the inherited allow list is
+        # config isolation, which needs credential provisioning (an isolated
+        # CLAUDE_CONFIG_DIR is unauthenticated).
         with_timeout "$DIAGNOSIS_TIMEOUT" claude -p "/weekly-report-diagnosis $REPORT_PATH" \
             --add-dir "$MOLTBOOK_HOME/reports" \
             --add-dir "$MOLTBOOK_HOME/logs" \
-            --allowedTools "Read,Glob,Grep,Write,Bash(git log:*),Bash(git diff:*),Bash(git show:*),Bash(grep:*),Bash(ls:*),Bash(wc:*),Bash(head:*),Bash(tail:*),Bash(stat:*)" \
+            --permission-mode manual \
+            --allowedTools "Read,Glob,Grep,Edit(/$REPORT_DIR/weekly-$END_DATE-findings.md),Edit(/$REPORT_DIR/weekly-$END_DATE-findings.ja.md)" \
+            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$MOLTBOOK_HOME/credentials.json),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$REPORT_DIR/patches/**),Edit(/$REPORT_DIR/weekly-$END_DATE-packet.md),Edit(/$REPORT_DIR/weekly-$END_DATE-insight-review.md),Edit(/$REPORT_DIR/weekly-$END_DATE.md)" \
             --output-format text \
             > "$RUN_LOG_DIR/diagnosis.log" 2>&1
         diag_rc=$?
