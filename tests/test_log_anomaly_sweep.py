@@ -156,6 +156,126 @@ class TestOriginIsCarriedButNotKeyed:
         assert re.fullmatch(r"[A-Za-z_]\w*(?:\.\w+)+", ok)
 
 
+class TestGeneratedTextDoesNotEnterTheKey:
+    """Preview-bearing families are cut at their payload boundary.
+
+    The producers are correct: ``log_published`` emits a bounded single-line
+    preview on purpose (T-LOG-DEBUG-CONTENT). The residue was on this side —
+    free text survived into the signature, so every published body and every
+    distilled pattern minted its own 🆕 row and body-derived text (downstream
+    of untrusted feed content) reached the state file and the weekly LLM
+    prompt, the side channel ADR-0083 closed for episode logs (findings F1.2
+    2026-08-15).
+
+    Bodies here mention ``backoff`` because that is how an INFO preview
+    reaches the sweep at all: ``_is_signal`` admits it through
+    ``_CRITICAL_RE``, not through its level.
+    """
+
+    # Post ids are written as ``post_id[:12]`` by both publish paths, so the
+    # fixtures carry that truncated shape rather than a whole uuid fragment.
+    # The A/B pairs share an id: body variation is what this class is about.
+    REPLY_A = (
+        "09:12:33 [INFO] contemplative_agent.adapters.moltbook.reply_handler: "
+        ">> Reply to budget_skynet on 836e1237-a5b: 61 chars: "
+        "the observation regarding silence held through the backoff"
+    )
+    REPLY_B = (
+        "10:41:02 [INFO] contemplative_agent.adapters.moltbook.reply_handler: "
+        ">> Reply to budget_skynet on 836e1237-a5b: 48 chars: "
+        "a wholly different sentence about backoff and rest"
+    )
+    COMMENT_A = (
+        "09:12:33 [INFO] contemplative_agent.adapters.moltbook.feed_manager: "
+        ">> Comment on 836e1237-a5b: 33 chars: one body mentioning backoff"
+    )
+    COMMENT_B = (
+        "09:44:10 [INFO] contemplative_agent.adapters.moltbook.feed_manager: "
+        ">> Comment on 836e1237-a5b: 39 chars: another body mentioning backoff"
+    )
+    POST_A = (
+        "09:12:33 [INFO] contemplative_agent.adapters.moltbook.post_pipeline: "
+        ">> New post [On Waiting Without Backoff] (id=836e1237-a5b2): 900 chars: "
+        "the opening line of the post"
+    )
+    POST_B = (
+        "11:03:20 [INFO] contemplative_agent.adapters.moltbook.post_pipeline: "
+        ">> New post [A Note On Backoff And Silence] (id=91ab77de-0c31): 750 chars: "
+        "a different opening line"
+    )
+    PATTERN_A = (
+        "09:12:33 [INFO] contemplative_agent.core.distill: "
+        "Added pattern (source=self_reflection): "
+        "I tend to retry past the point where backoff is the honest answer"
+    )
+    PATTERN_B = (
+        "09:12:34 [INFO] contemplative_agent.core.distill: "
+        "Added pattern (source=self_reflection): "
+        "Silence reads as backoff to a counterparty who cannot see the queue"
+    )
+
+    def test_two_reply_bodies_reach_one_signature(self):
+        assert las.normalize(self.REPLY_A) == las.normalize(self.REPLY_B)
+
+    def test_reply_body_text_does_not_survive_into_the_signature(self):
+        sig = las.normalize(self.REPLY_A)
+        assert "observation" not in sig
+        assert "silence" not in sig
+        assert sig.endswith("chars:")
+
+    def test_the_static_predicate_and_counterparty_survive_the_cut(self):
+        """The cut removes the body, not the event. A row must still say what
+        happened and to whom, or the census stops being readable."""
+        sig = las.normalize(self.REPLY_A)
+        assert sig.startswith("[info] >> reply to budget_skynet on ")
+        assert "chars:" in sig
+
+    def test_comment_previews_aggregate_into_one_row(self):
+        findings = las.analyze([self.COMMENT_A, self.COMMENT_B], {})
+        assert len(findings) == 1
+        assert findings[0].count == 2
+        assert "mentioning" not in findings[0].signature
+
+    def test_generated_post_titles_do_not_survive(self):
+        """``>> New post`` puts the generated title *ahead* of the char count,
+        so cutting at ``chars:`` would have left one-off text in the key."""
+        assert las.normalize(self.POST_A) == las.normalize(self.POST_B)
+        sig = las.normalize(self.POST_A)
+        assert "waiting" not in sig
+        assert "silence" not in sig
+
+    def test_distilled_patterns_aggregate_and_keep_their_source(self):
+        findings = las.analyze([self.PATTERN_A, self.PATTERN_B], {})
+        assert len(findings) == 1
+        sig = findings[0].signature
+        assert findings[0].count == 2
+        assert sig.endswith("(source=self_reflection):")
+        assert "retry" not in sig and "counterparty" not in sig
+
+    def test_a_distinct_source_still_splits_the_pattern_rows(self):
+        other = self.PATTERN_A.replace("source=self_reflection", "source=activity")
+        assert las.normalize(self.PATTERN_A) != las.normalize(other)
+
+    def test_body_text_reaches_neither_the_state_file_nor_the_render(self, tmp_path):
+        """The two carriers the finding names: the snapshot that persists week
+        to week, and the table ``weekly-analysis.sh`` feeds to an LLM."""
+        findings = las.analyze([self.REPLY_A, self.POST_A, self.PATTERN_A], {})
+        state = tmp_path / "sweep.tsv"
+        las.write_state(state, findings)
+        written = state.read_text(encoding="utf-8")
+        rendered = las.render_markdown(findings, top=25, corpus=CORPUS)
+        for leaked in ("observation", "waiting", "opening line", "counterparty"):
+            assert leaked not in written
+            assert leaked not in rendered
+
+    def test_an_unrelated_line_mentioning_chars_is_not_cut(self):
+        """The cut is an allowlist of formats this repo emits, not a general
+        free-text filter: an unknown predicate must survive whole."""
+        line = "09:12:33 [WARNING] mod.name: request body 4000 chars: rejected upstream"
+        sig = las.normalize(line)
+        assert "rejected upstream" in sig
+
+
 class TestAnalyze:
     def test_non_signal_lines_ignored(self):
         lines = ["just a normal info line", "starting session", "all good"]

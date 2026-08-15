@@ -336,6 +336,134 @@ class TestPromptAssembly:
         # The label that makes the count usable: which store, measured when.
         assert "live store at report-generation time" in prompt
 
+    def test_state_diff_sections_carry_their_approval_provenance(self, tmp_path):
+        """findings F1.1: the state diff showed value-layer changes with no
+        approval column, so the report's loudest claim ("whether it passed the
+        approval path is not visible in the data supplied here") was bounded by
+        a data gap that ``logs/audit.jsonl`` had already closed.
+
+        Both halves are pinned: a section with an approved row carries a citable
+        hash, and a section that changed with *no* approved row says so — that
+        absence is the alarm the report could not previously distinguish from
+        the presence. The record's free text (``reason``) and lineage list
+        (``source_ids``) must not ride along into the prompt.
+        """
+        home = _make_home(tmp_path)
+        data_repo = tmp_path / "fakehome" / "MyAI_Lab" / "contemplative-agent-data"
+        (data_repo / "skills").mkdir(parents=True)
+
+        def git(*a: str, when: str | None = None) -> None:
+            env = {
+                **os.environ,
+                "GIT_CONFIG_GLOBAL": "/dev/null",
+                "GIT_CONFIG_SYSTEM": "/dev/null",
+            }
+            if when:
+                env["GIT_AUTHOR_DATE"] = when
+                env["GIT_COMMITTER_DATE"] = when
+            subprocess.run(["git", *a], cwd=data_repo, check=True, capture_output=True, env=env)
+
+        git("init", "-q")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "t")
+        (data_repo / "identity.md").write_text("v1\n", encoding="utf-8")
+        (data_repo / "skills" / "kept.md").write_text("kept\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-qm", "start", when="2026-07-18T00:00:00+0900")
+        # identity.md changed *with* an approval row; skills/ changed without.
+        (data_repo / "identity.md").write_text("v2\n", encoding="utf-8")
+        (data_repo / "skills" / "unapproved.md").write_text("new\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-qm", "end", when=f"{END_DATE}T00:00:00+0900")
+
+        (home / "logs" / "audit.jsonl").write_text(
+            json.dumps(
+                {
+                    "ts": "2026-07-20T02:00:00+00:00",
+                    "command": "distill-identity",
+                    "path": f"{home}/identity.md",
+                    "decision": "approved",
+                    "source": "stage-adopted",
+                    "content_hash": "IDHASH0000000000",
+                    "reason": "FREE-TEXT-MARKER typed by the operator",
+                    "source_ids": ["LINEAGE-MARKER-1"],
+                }
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+
+        captured = tmp_path / "prompt.txt"
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        stub = bin_dir / "claude"
+        stub.write_text(
+            f'#!/bin/bash\ncat >> "{captured}"\nprintf "# Weekly\\n"\n', encoding="utf-8"
+        )
+        stub.chmod(0o755)
+
+        result = _run(home, bin_dir, tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        prompt = captured.read_text(encoding="utf-8")
+        state_diff = prompt.split("## Log Anomaly Sweep")[0]
+        # One block per value-layer section: identity, constitution, skills, rules.
+        assert state_diff.count("**Approval provenance**") == 4
+        assert "IDHASH0000000000" in state_diff
+        assert "NO APPROVED RECORD" in state_diff
+        # The instrument read the log; nothing degraded to "cannot tell".
+        assert "unavailable (reason=" not in state_diff
+        # The record's free text and lineage list stay out of the prompt.
+        assert "FREE-TEXT-MARKER" not in prompt
+        assert "LINEAGE-MARKER-1" not in prompt
+
+    def test_a_missing_audit_log_never_reads_as_a_missing_approval(self, tmp_path):
+        """An unavailable instrument reads zero, not clean (ADR-0077). With no
+        audit log at all, every section must say so with a reason code — the
+        alarm string must never appear, or the weekly report would manufacture
+        a gate-bypass claim out of its own blindness."""
+        home = _make_home(tmp_path)
+        data_repo = tmp_path / "fakehome" / "MyAI_Lab" / "contemplative-agent-data"
+        data_repo.mkdir(parents=True)
+
+        def git(*a: str, when: str | None = None) -> None:
+            env = {
+                **os.environ,
+                "GIT_CONFIG_GLOBAL": "/dev/null",
+                "GIT_CONFIG_SYSTEM": "/dev/null",
+            }
+            if when:
+                env["GIT_AUTHOR_DATE"] = when
+                env["GIT_COMMITTER_DATE"] = when
+            subprocess.run(["git", *a], cwd=data_repo, check=True, capture_output=True, env=env)
+
+        git("init", "-q")
+        git("config", "user.email", "t@example.com")
+        git("config", "user.name", "t")
+        (data_repo / "identity.md").write_text("v1\n", encoding="utf-8")
+        git("add", "-A")
+        git("commit", "-qm", "start", when="2026-07-18T00:00:00+0900")
+        (data_repo / "identity.md").write_text("v2\n", encoding="utf-8")
+        git("commit", "-qam", "end", when=f"{END_DATE}T00:00:00+0900")
+
+        assert not (home / "logs" / "audit.jsonl").exists()
+
+        captured = tmp_path / "prompt.txt"
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        stub = bin_dir / "claude"
+        stub.write_text(
+            f'#!/bin/bash\ncat >> "{captured}"\nprintf "# Weekly\\n"\n', encoding="utf-8"
+        )
+        stub.chmod(0o755)
+
+        result = _run(home, bin_dir, tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        state_diff = captured.read_text(encoding="utf-8").split("## Log Anomaly Sweep")[0]
+        assert "unavailable (reason=audit-log-missing)" in state_diff
+        assert "NO APPROVED RECORD" not in state_diff
+
 
 class TestPreflight:
     def test_missing_claude_fails_before_the_collection_pass(self, tmp_path):

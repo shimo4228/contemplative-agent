@@ -32,6 +32,7 @@ distill_postgate
 rules_distill
 rules_distill_refine
 constitution_amend
+constitution_synthesize  # ADR-0092 shadow 憲法計器（constitution_shadow.py:175）
 stocktake_skills
 stocktake_rules
 stocktake_merge

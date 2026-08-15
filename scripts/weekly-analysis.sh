@@ -92,6 +92,33 @@ if [[ -d "$DATA_REPO/.git" ]]; then
     if [[ -n "$start_commit" ]] && [[ -n "$end_commit" ]] && [[ "$start_commit" != "$end_commit" ]]; then
         echo "State diff: $start_commit (start) -> $end_commit (end)"
 
+        # Commit timestamps bound the approval join below (and label the
+        # knowledge count further down). Computed once so the two readings
+        # cannot drift apart.
+        start_cdate=$(git log -1 --format=%cI "$start_commit" 2>/dev/null || echo "unknown")
+        end_cdate=$(git log -1 --format=%cI "$end_commit" 2>/dev/null || echo "unknown")
+
+        # Approval provenance join (ADR-0012 / ADR-0050, added 2026-08-15).
+        # A value-layer diff alone cannot say whether the change passed the
+        # approval gate — last week's report raised its loudest alarm on
+        # exactly that gap while logs/audit.jsonl (self-written, already read
+        # by this chain's value-layer due check) held the answer. Renders five
+        # dense fields per matching row; never source_ids, never free text,
+        # never target paths. Observability only — a failure must not break
+        # the weekly report, but it must also never read as "no approval",
+        # hence the explicit unavailable line instead of an empty string.
+        approval_join() {  # $1 = section, $2 = changed|unchanged
+            local out
+            out=$(python3 "$PROJECT_ROOT/scripts/value_layer_approval_join.py" \
+                --audit "$MOLTBOOK_HOME/logs/audit.jsonl" \
+                --section "$1" --diff "$2" \
+                --start "$start_cdate" --end "$end_cdate" 2>/dev/null || true)
+            if [[ -z "$out" ]]; then
+                out="**Approval provenance**: unavailable (reason=join-failed). This is NOT evidence that the change above lacks an approval record."
+            fi
+            printf '%s\n' "$out"
+        }
+
         STATE_DIFF+="## Agent State Diff ($START_DATE -> $END_DATE)"$'\n\n'
 
         # Identity
@@ -99,8 +126,10 @@ if [[ -d "$DATA_REPO/.git" ]]; then
         id_diff=$(git diff "$start_commit" "$end_commit" -- identity.md 2>/dev/null || true)
         if [[ -n "$id_diff" ]]; then
             STATE_DIFF+='```diff'$'\n'"$id_diff"$'\n''```'$'\n\n'
+            STATE_DIFF+="$(approval_join identity changed)"$'\n\n'
         else
             STATE_DIFF+="No changes."$'\n\n'
+            STATE_DIFF+="$(approval_join identity unchanged)"$'\n\n'
         fi
 
         # Constitution
@@ -108,8 +137,10 @@ if [[ -d "$DATA_REPO/.git" ]]; then
         const_diff=$(git diff "$start_commit" "$end_commit" -- constitution/ 2>/dev/null || true)
         if [[ -n "$const_diff" ]]; then
             STATE_DIFF+='```diff'$'\n'"$const_diff"$'\n''```'$'\n\n'
+            STATE_DIFF+="$(approval_join constitution changed)"$'\n\n'
         else
             STATE_DIFF+="No changes."$'\n\n'
+            STATE_DIFF+="$(approval_join constitution unchanged)"$'\n\n'
         fi
 
         # Skills
@@ -123,8 +154,10 @@ if [[ -d "$DATA_REPO/.git" ]]; then
             if [[ -n "$skills_diff" ]]; then
                 STATE_DIFF+='```diff'$'\n'"$skills_diff"$'\n''```'$'\n\n'
             fi
+            STATE_DIFF+="$(approval_join skills changed)"$'\n\n'
         else
             STATE_DIFF+="No changes. Files: $(echo "$skills_end" | tr '\n' ', ')"$'\n\n'
+            STATE_DIFF+="$(approval_join skills unchanged)"$'\n\n'
         fi
 
         # Rules
@@ -138,8 +171,10 @@ if [[ -d "$DATA_REPO/.git" ]]; then
             if [[ -n "$rules_diff" ]]; then
                 STATE_DIFF+='```diff'$'\n'"$rules_diff"$'\n''```'$'\n\n'
             fi
+            STATE_DIFF+="$(approval_join rules changed)"$'\n\n'
         else
             STATE_DIFF+="No changes. Files: $(echo "$rules_end" | tr '\n' ', ')"$'\n\n'
+            STATE_DIFF+="$(approval_join rules unchanged)"$'\n\n'
         fi
 
         # Knowledge pattern count
@@ -156,8 +191,8 @@ if [[ -d "$DATA_REPO/.git" ]]; then
         count_end=$(git show "$end_commit":knowledge.json 2>/dev/null | python3 -c "import sys,json; print(len(json.load(sys.stdin)))" 2>/dev/null || echo "N/A")
         start_sha=$(git rev-parse --short=7 "$start_commit" 2>/dev/null || echo "unknown")
         end_sha=$(git rev-parse --short=7 "$end_commit" 2>/dev/null || echo "unknown")
-        start_cdate=$(git log -1 --format=%cI "$start_commit" 2>/dev/null || echo "unknown")
-        end_cdate=$(git log -1 --format=%cI "$end_commit" 2>/dev/null || echo "unknown")
+        # start_cdate / end_cdate come from the approval-join block above —
+        # the same two timestamps label this count and bound that window.
         STATE_DIFF+="Pattern count (data repo, committed snapshots — rows in knowledge.json, tombstones included):"$'\n'
         STATE_DIFF+="$count_start (start, commit $start_sha @ $start_cdate) -> $count_end (end, commit $end_sha @ $end_cdate)"$'\n\n'
         STATE_DIFF+="Not comparable to the State Invariant Check totals below, which read the live store at report-generation time."$'\n\n'

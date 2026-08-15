@@ -15,6 +15,10 @@ Security (load-bearing):
   prompt-injection vector, and this output may be fed to an LLM.
 - Output is normalized signatures (timestamps stripped, digits squashed,
   truncated), not verbatim log bodies, to shrink the injection surface further.
+  Lines whose format ends in generated text — the bounded publish previews and
+  the distill pattern line — are additionally cut at their payload boundary
+  (``_PAYLOAD_CUT_RES``), so that text enters neither the key, the state file
+  nor the prompt.
 
 State: a TSV ``count<TAB>signature`` snapshot of the previous sweep, used to
 compute the NEW flag and the per-signature delta. Committing it is an
@@ -111,6 +115,53 @@ _HEXID_RE = re.compile(r"\b(?=[0-9a-f]*\d)[0-9a-f]{6,}(?:-[0-9a-f]{4,})*\b")
 
 _SIG_MAXLEN = 80
 
+# Message families whose tail is generated text: the three publish previews
+# (``log_published`` in ``adapters/moltbook/publish.py``, already bounded to a
+# single line by ``log_preview``) and the distill pattern line
+# (``core/distill.py``, ``pattern[:80]``). Leaving that tail in the key makes
+# every distinct body its own signature, so the census counts bodies rather
+# than events and each publish mints a one-off 🆕 row; it also carries
+# body-derived text — downstream of untrusted feed content — into the state
+# file and into the prompt ``weekly-analysis.sh`` feeds to an LLM, the same
+# side channel ADR-0083 closed for episode logs. The producers are correct as
+# they stand (the bounded preview is the T-LOG-DEBUG-CONTENT repair, and the
+# operator's live tail wants it); it is this instrument's *key* that must be
+# content-free.
+#
+# Each pattern matches the static head of its family up to and including the
+# boundary its payload starts after; the signature becomes that match, so a
+# family aggregates into one row. Matched against the already-normalized line
+# (lowercased, digit runs and hex ids squashed to ``#``) — hence the lowercase
+# level prefix and the ``#`` char count. Counterparty names are left in, in
+# keeping with the rule above that agent-name variation is not squashed: the
+# name is a fixed-shape address, not a body.
+#
+# ``>> new post`` cuts earlier than its two siblings by necessity: its format
+# is ``>> New post [%s] (id=%s): %d chars: %s``, which puts the generated
+# *title* ahead of the count, so cutting at ``chars:`` would keep one-off
+# generated text in the key — exactly what the cut exists to prevent.
+_LEVEL_PREFIX = r"(?:\[\w+\] )?"
+_PAYLOAD_CUT_RES: tuple[re.Pattern[str], ...] = (
+    re.compile(_LEVEL_PREFIX + r">> reply to .*? chars:"),
+    re.compile(_LEVEL_PREFIX + r">> comment on .*? chars:"),
+    re.compile(_LEVEL_PREFIX + r">> new post"),
+    re.compile(_LEVEL_PREFIX + r"added pattern \(source=[^)]*\):"),
+)
+
+
+def _cut_at_payload_boundary(s: str) -> str:
+    """Drop the generated tail of a known preview-bearing line, if any.
+
+    Returns *s* unchanged when no family matches: the cut is an allowlist of
+    formats this repo emits, not a general free-text filter, so an unknown
+    line keeps the full predicate the sweep exists to surface.
+    """
+    for pattern in _PAYLOAD_CUT_RES:
+        m = pattern.match(s)
+        if m is not None:
+            return m.group(0)
+    return s
+
 
 @dataclass(frozen=True)
 class Finding:
@@ -182,6 +233,10 @@ def normalize_with_origin(line: str) -> tuple[str, str]:
     per-item variation groups), and truncates. Agent-name variation *inside
     the message* is intentionally not squashed; minor over-splitting is safer
     than over-merging distinct anomalies.
+
+    For the known preview-bearing families (``_PAYLOAD_CUT_RES``) the line is
+    additionally cut at its payload boundary, so no generated body or pattern
+    text reaches the signature, the state file or the weekly prompt.
     """
     s = _TS_ISO_RE.sub("", line)
     s = _TS_CLOCK_RE.sub("", s)
@@ -195,6 +250,7 @@ def normalize_with_origin(line: str) -> tuple[str, str]:
     s = _HEXID_RE.sub("#", s)
     s = _DIGITS_RE.sub("#", s)
     s = _WS_RE.sub(" ", s).strip()
+    s = _cut_at_payload_boundary(s)
     return s[:_SIG_MAXLEN], origin
 
 
@@ -441,7 +497,8 @@ def render_markdown(
     lines.append("")
     lines.append(
         "_Signatures are normalized (timestamps and module paths stripped, "
-        "digits and ids squashed). Origin is display-only — it does not enter "
+        "digits and ids squashed, generated bodies and pattern text cut at "
+        "their payload boundary). Origin is display-only — it does not enter "
         "the signature, so a module rename cannot reset the Δ / 🆕 baseline, "
         "and one row may list several subsystems emitting the same message. "
         "Source: self-written logs only; episode logs are never read._"
