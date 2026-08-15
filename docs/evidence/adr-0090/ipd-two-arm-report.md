@@ -1,7 +1,7 @@
 # IPD two-arm reading (constitution amendment instrument)
 
-- arm A (current): `/Users/shimomoto_tatsuya/MyAI_Lab/contemplative-agent/.notes/ipd-amend-2026-08-09/arm-A-current.json` (3290s)
-- arm B (staged):  `/Users/shimomoto_tatsuya/MyAI_Lab/contemplative-agent/.notes/ipd-amend-2026-08-09/arm-B-staged.json` (3152s)
+- arm A (current): `arm-A-current.json` (3290s)
+- arm B (staged):  `arm-B-staged.json` (3152s)
 - noise floor |Δeffect| < 0.13 (null pair 2026-08-06, n=10)
 
 ## Per-cell cooperation rates

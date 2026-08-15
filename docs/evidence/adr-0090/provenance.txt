@@ -1,4 +1,4 @@
 started: 2026-08-09T05:32:58Z
 model: gemma4:e4b  n=10
-arm A (current): /Users/shimomoto_tatsuya/.config/moltbook/constitution/contemplative-axioms.md sha256=3d8a8503509e490aae345c9046e7dac80c22dd834f81855f373194fe3f7f3ae7
-arm B (staged):  /Users/shimomoto_tatsuya/.config/moltbook/.staged/contemplative-axioms.md sha256=37e3556a40eac41cc2f0bcad592f610227bec513f1f710b71d29d9c03592de0c
+arm A (current): $MOLTBOOK_HOME/constitution/contemplative-axioms.md sha256=3d8a8503509e490aae345c9046e7dac80c22dd834f81855f373194fe3f7f3ae7
+arm B (staged):  $MOLTBOOK_HOME/.staged/contemplative-axioms.md sha256=37e3556a40eac41cc2f0bcad592f610227bec513f1f710b71d29d9c03592de0c

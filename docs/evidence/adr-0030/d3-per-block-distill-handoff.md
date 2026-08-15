@@ -117,7 +117,7 @@ prompt を Claude / 人手で書くと、生成時に思考空間の不一致で
 ## Reproduction (動作確認用)
 
 ```bash
-cd /Users/shimomoto_tatsuya/MyAI_Lab/contemplative-moltbook
+cd <repo root>  # このドキュメント作成時のディレクトリ名は contemplative-moltbook
 
 # 現状の distill-identity 動作確認 (persona_core のみ refresh される)
 contemplative-agent distill-identity --stage

@@ -120,6 +120,7 @@ v2.7 以降、このプロジェクトの運用規律は「介入の前に計器
 - **Observability by default（既定で可観測）** — 外部 I/O・LLM 呼び出し・ヒューリスティックな判定を行う機能は、リプレイ可能な追記専用 JSONL 監査ログを同じ PR で出荷します（[ADR-0075](docs/adr/0075-observability-by-default.ja.md)）。
 - **スキル選択は shadow instrument（影の計器）として稼働中** — 「選択するとしたらどれか」を毎回記録しますが、決して強制しません。強制に切り替えるかどうかは、直感ではなくデータで後から決められます（[ADR-0076](docs/adr/0076-skill-selection-shadow-instrument.ja.md)）。
 - **shadow 憲法** — 読み取り専用の計器が、現行憲法をプロンプトから意図的に外したまま、エージェントの蓄積経験だけから憲法を合成します。2 つの本文の乖離が読み値で、次回の憲法改正ゲートで人間が消費します（[ADR-0092](docs/adr/0092-shadow-constitution-instrument.ja.md)）。初回の 2 回の実行では、セクション構成が経験から完全に再導出され（4 つのテーマは両実行で安定）、摩擦を起こさない唯一の公理（Boundless Care）は両方で不在でした — 摩擦バイアス予測どおりの観測と再現です（[読み値](docs/evidence/adr-0092/shadow-run-1-reading.md)）。
+- **改正ベンチ** — 改正を採用する前に、現行憲法と staging 中の憲法を、同じ反復囚人のジレンマ（IPD）ベンチの 2 つの腕として走らせます。その読み値が本文 diff と並んで人間のゲートに出ます（[ADR-0090](docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md)）。同じ憲法どうしを走らせる null ペアでベンチ自身のノイズ床を較正してあるので（|Δeffect| < 0.13）、「静かな読み値」と「鈍い計器」を区別できます。初の実運用となった 2026-08-09 の改正では、読めるシグナルはありませんでした — 全セルが床の内側で、α 勾配も保たれています（[読み値](docs/evidence/adr-0090/ipd-two-arm-report.md)）。この計器は判断に材料を与えるだけで、ゲートはしません。
 - **振る舞い eval** — `evals/` はコメント経路が実際に何を生成するかを測ります。pin したプロンプト資産スナップショットの下で golden dataset に対し本番同等の生成を走らせ、隔離された LLM judge が名前付き verdict を出し、承認済み baseline との case ごとの verdict 遷移として regression を検出します（[ADR-0089](docs/adr/0089-llm-behavioral-eval-layer-on-deepeval.ja.md)）。
 
 ## セキュリティモデル

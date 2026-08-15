@@ -21,6 +21,7 @@ wrapper's tee).
 """
 
 import json
+import os.path
 import sys
 
 NOISE_FLOOR = 0.13
@@ -89,11 +90,15 @@ def effect(cells: dict, a: str) -> float:
 
 
 def header_lines(path_a: str, path_b: str, arm_a: dict, arm_b: dict) -> list:
+    # Basenames, not the paths as given: the run dir is a gitignored scratch dir,
+    # but the report ships to docs/evidence/ next to the very JSONs it names, so
+    # an absolute run-dir path would publish a pointer that resolves nowhere.
+    name_a, name_b = os.path.basename(path_a), os.path.basename(path_b)
     return [
         "# IPD two-arm reading (constitution amendment instrument)",
         "",
-        f"- arm A (current): `{path_a}` ({arm_a['elapsed']:.0f}s, n={arm_a['n']}, {arm_a['model']})",
-        f"- arm B (staged):  `{path_b}` ({arm_b['elapsed']:.0f}s, n={arm_b['n']}, {arm_b['model']})",
+        f"- arm A (current): `{name_a}` ({arm_a['elapsed']:.0f}s, n={arm_a['n']}, {arm_a['model']})",
+        f"- arm B (staged):  `{name_b}` ({arm_b['elapsed']:.0f}s, n={arm_b['n']}, {arm_b['model']})",
         f"- noise floor |Δeffect| < {NOISE_FLOOR} (null pair 2026-08-06, n={CALIBRATED_N})",
         "",
     ]

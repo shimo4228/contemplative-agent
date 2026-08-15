@@ -115,11 +115,14 @@ print(last or '')")
     fi
     echo "[audit] arm A matches last-approved constitution hash ($last_approved…)"
 fi
+# provenance.txt ships to docs/evidence/, so name the arms by their location
+# under MOLTBOOK_HOME rather than by this machine's absolute path — the sha256
+# is what identifies the text, the home prefix is just where it happened to sit.
 {
     echo "started: $(date -u '+%Y-%m-%dT%H:%M:%SZ')"
     echo "model: $OLLAMA_MODEL  n=$N_SIMS"
-    echo "arm A (current): $CURRENT_CONST sha256=$sha_current"
-    echo "arm B (staged):  $STAGED_CONST sha256=$sha_staged"
+    echo "arm A (current): \$MOLTBOOK_HOME/${CURRENT_CONST#"$MOLTBOOK_HOME"/} sha256=$sha_current"
+    echo "arm B (staged):  \$MOLTBOOK_HOME/${STAGED_CONST#"$MOLTBOOK_HOME"/} sha256=$sha_staged"
 } | tee "$OUTDIR/provenance.txt"
 
 run_arm() { # $1=label $2=prompt-file $3=out-json

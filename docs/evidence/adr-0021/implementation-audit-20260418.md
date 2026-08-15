@@ -193,7 +193,7 @@ ADR-0021 前 (83b6a8b^) vs 現在 で `distill --dry-run` / `insight --dry-run` 
 ## Appendix: 実データ集計ソース
 
 ```python
-# /Users/shimomoto_tatsuya/.config/moltbook/knowledge.json を Read し、
+# $MOLTBOOK_HOME/knowledge.json を Read し、
 # 以下の分布を集計した (N=377):
 # - provenance key sets (300/77 split)
 # - source_type (unknown 300 / mixed 60 / self_reflection 17)
