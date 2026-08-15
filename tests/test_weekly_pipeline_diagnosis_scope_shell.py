@@ -464,6 +464,7 @@ def test_d_scope_11_unsafe_home_is_rejected_before_any_work(tmp_path: Path, home
     assert "MOLTBOOK_HOME" in proc.stderr, f"rejection must name the cause: {proc.stderr}"
 
 
+@pytest.mark.live_cli
 @pytest.mark.skipif(shutil.which("claude") is None, reason="claude CLI not installed")
 def test_d_scope_8_flags_and_mode_still_exist_in_the_real_cli(tmp_path: Path):
     """Drift alarm on the CLI contract — not proof that the spec parses.
@@ -472,6 +473,10 @@ def test_d_scope_8_flags_and_mode_still_exist_in_the_real_cli(tmp_path: Path):
     would otherwise surface only as a weekly DIAGNOSIS_FAIL. Help text proves
     the names still exist; that the comma-separated rules parse and bind as
     intended is established by the manual end-to-end run, not here.
+
+    Marked `live_cli` 2026-08-15: every test that spawns the real binary carries
+    it, so `weekly-pipeline.sh`'s fix loop can exclude the whole class in one
+    expression rather than by naming tests.
     """
     argv, _ = _diagnosis_argv(tmp_path)
     help_text = subprocess.run(

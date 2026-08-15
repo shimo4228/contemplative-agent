@@ -58,6 +58,9 @@ tool set or inherits the ambient one.
 - C-SCOPE-6   the deny lists keep the credential and episode-log read scopes
               `--tools` cannot express
 - C-SCOPE-7   the flags still exist in the real CLI (drift alarm)
+- C-SCOPE-8   a declared tool SET resolves in the real CLI to exactly the names
+              it lists — nothing silently dropped, nothing silently added
+              (drift alarm; bare names only, not the deny-list rule heads)
 
 What these cannot prove: they read the invocation's own contract, not the
 operator's `~/.claude/settings.json`, and they do not run the CLI parser.
@@ -84,9 +87,14 @@ the permission layer was never consulted).
 
 from __future__ import annotations
 
+import json
+import os
 import re
 import shutil
+import signal
 import subprocess
+import tempfile
+import threading
 from pathlib import Path
 
 import pytest
@@ -111,6 +119,26 @@ INDIRECT_EXECUTORS = {
     "WebSearch",
     "Artifact",
     "SendUserFile",
+    # Added 2026-08-15 from C-SCOPE-8's enumeration rather than from memory,
+    # which is how the first eleven were written: worktree moves relocate the
+    # session's workspace root (stage 4's containment IS a throwaway worktree),
+    # and the rest reach a schedule, a notification channel, or another
+    # session's output. `--tools default` grants EnterWorktree, ExitWorktree,
+    # ScheduleWakeup, CronList, TaskOutput and TaskStop; the remaining names
+    # here (including several of the original eleven — `Agent`, `ToolSearch`,
+    # `Artifact`, `SendUserFile`, `Monitor`, `RemoteTrigger`) are not grantable
+    # by `--tools` in this build at all. They are kept anyway: this list costs
+    # nothing when a name is ungrantable and is the readable floor if one
+    # returns. The gate that does not depend on this list being current is
+    # C-SCOPE-8's gain assertion, which reads the resolved set.
+    "EnterWorktree",
+    "ExitWorktree",
+    "ScheduleWakeup",
+    "PushNotification",
+    "CronList",
+    "ListAgents",
+    "TaskOutput",
+    "TaskStop",
 }
 
 # Commands whose *flags* write outside the session's directories, defeating
@@ -120,6 +148,11 @@ INDIRECT_EXECUTORS = {
 # bounds it — see the FIX_DENY comment. This set exists to keep the obvious
 # ones from being dropped, and must not be read as a containment claim.
 FLAG_WRITERS = {"git", "tee", "cp", "mv", "ln", "sed", "curl", "wget", "find"}
+
+# Seconds C-SCOPE-8 waits for the CLI's init event. It arrives in ~0.8s with
+# stdin closed; the margin is for a cold start, and the point of the bound is
+# that a hung CLI must not hang the suite.
+_INIT_TIMEOUT_S = 60
 
 
 def _logical_lines(text: str) -> list[str]:
@@ -347,7 +380,7 @@ def test_c_scope_6_read_scopes_survive_in_the_deny_lists():
         )
 
 
-@pytest.mark.unit
+@pytest.mark.live_cli
 @pytest.mark.skipif(shutil.which("claude") is None, reason="claude CLI not installed")
 def test_c_scope_7_flags_still_exist_in_the_real_cli():
     """Drift alarm only: a renamed flag would make the gates above vacuous.
@@ -355,9 +388,218 @@ def test_c_scope_7_flags_still_exist_in_the_real_cli():
     Skipped rather than errored where the CLI is absent: this is a public repo
     and a clone without it must not fail the suite (the sibling scope suite
     uses the same `shutil.which` guard).
+
+    Marked `live_cli` (was `unit` until 2026-08-15): it spawns the real binary
+    too, so the reasons C-SCOPE-8 is kept out of the fix loop's Verify apply to
+    it unchanged — `--help` is a cheaper spawn, not a different kind of one.
     """
     help_text = subprocess.run(
         ["claude", "--help"], capture_output=True, text=True, timeout=120
     ).stdout
     for flag in ("--tools", "--strict-mcp-config", "--permission-mode", "--disallowedTools"):
         assert flag in help_text, f"{flag} is no longer a claude CLI flag"
+
+
+def _cli_init_event(spec: str, config_dir: Path) -> tuple[dict | None, str]:
+    """Ask the real CLI what a `--tools` spec resolves to, and hold its answer.
+
+    `--tools` discards a name it does not recognise in silence: measured
+    2026-08-15, `--tools "Read,Glob,Grep,Edit,Skill,Bogus"` started without a
+    warning and on a zero exit. Case counts too — `read` is dropped exactly like
+    `Bogus`. So the CLI answers "which of these did you honour?" only if asked,
+    and the `system`/`init` event of `--output-format stream-json` is where it
+    answers: it carries the *resolved* set, not an echo of the flag.
+
+    Three properties make it usable from a test. It is emitted before any model
+    call — with the API endpoints pointed at a closed port the enumeration still
+    arrives (`apiKeySource: none`), so this costs no tokens and needs no auth.
+    It does not depend on the setting sources (`''` and `project` gave identical
+    answers), so the probe need not reproduce a session's whole spec. And
+    killing the process on the init line keeps it at ~0.8s.
+
+    The spec below is what makes the spawn inert, and each part was measured
+    rather than assumed (security and code review, 2026-08-15):
+
+    - `--setting-sources ""` genuinely isolates: init reported the default
+      output style while the operator's settings set another, and listed no
+      user or project skills, agents or MCP servers. Unlike `--tools`, a
+      spelling this flag rejects fails LOUDLY (`--setting-sources bogus` exits
+      with `Invalid setting source`), so if a future version stops accepting the
+      empty string this probe returns no init event and the test says so.
+    - `--permission-mode plan` because the session is otherwise CREATED able to
+      hold Bash / Write / Edit at the repo root, with only the unreachable
+      endpoint standing between it and a write. Measured: `plan` leaves the
+      resolved tool list byte-identical, so it cannot skew the answer.
+    - all three base-URL pins, because `ANTHROPIC_BASE_URL` alone stops covering
+      the model call the moment the operator switches to Bedrock or Vertex,
+      which this test could not see. None of them stop non-model traffic
+      (analytics, update checks); the claim here is only "no model call".
+    - a throwaway `CLAUDE_CONFIG_DIR` so the probe's session transcript lands in
+      the test's tmp_path instead of accumulating in the operator's harness.
+      Verified free: no auth is needed to reach init, so the fresh config dir
+      costs nothing.
+    - `stdin=subprocess.DEVNULL`, which is correctness rather than hygiene: with
+      an idle stdin pipe (what `pytest -s` leaves) init took 3.96s instead of
+      0.79s, so an inherited stdin makes the runtime depend on how pytest ran.
+
+    Returns (init event, diagnostics). The event is None if it never came, which
+    is itself drift — of this probe's own contract rather than of a tool name.
+    """
+    env = dict(os.environ)
+    # Not for isolation — for proof that no request can be issued even if the
+    # kill below were to lose a race with the model call. Port 9 (discard) needs
+    # root to bind, so an unprivileged local process cannot stand in for it.
+    for var in ("ANTHROPIC_BASE_URL", "ANTHROPIC_BEDROCK_BASE_URL", "ANTHROPIC_VERTEX_BASE_URL"):
+        env[var] = "http://127.0.0.1:9"
+    env["CLAUDE_CONFIG_DIR"] = str(config_dir)
+    with tempfile.TemporaryFile(mode="w+", encoding="utf-8", errors="replace") as errfile:
+        with subprocess.Popen(
+            [
+                "claude",
+                "-p",
+                "noop",
+                "--output-format",
+                "stream-json",
+                "--verbose",
+                "--strict-mcp-config",
+                "--setting-sources",
+                "",
+                "--permission-mode",
+                "plan",
+                "--tools",
+                spec,
+            ],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=errfile,
+            text=True,
+            env=env,
+            cwd=REPO_ROOT,
+            # Own process group so the watchdog reaps whatever the CLI spawned
+            # before init, not just the CLI. Its promise is that a hung binary
+            # cannot hang the suite, and one process is not the whole hang.
+            start_new_session=True,
+        ) as process:
+
+            def _reap() -> None:
+                # Only while it is still running: `os.killpg` skips the
+                # recycled-pid guard `Popen.kill()` has, so signalling after the
+                # process was reaped could reach an unrelated group.
+                if process.returncode is not None:
+                    return
+                try:
+                    os.killpg(process.pid, signal.SIGKILL)
+                except (ProcessLookupError, PermissionError):
+                    process.kill()
+
+            watchdog = threading.Timer(_INIT_TIMEOUT_S, _reap)
+            watchdog.start()
+            try:
+                assert process.stdout is not None
+                for line in process.stdout:
+                    try:
+                        event = json.loads(line)
+                    except json.JSONDecodeError:
+                        continue  # stray non-JSON output is not a contract break
+                    if event.get("type") == "system" and event.get("subtype") == "init":
+                        return event, ""
+            finally:
+                watchdog.cancel()
+                watchdog.join()  # cancel() does not stop a callback already running
+                _reap()
+                process.wait()
+        errfile.seek(0)
+        # A tail, not the whole stream: this is the CLI's own stderr, and its
+        # auth / onboarding errors are where an account identifier or a login
+        # URL would appear. It surfaces only on failure, and the `live_cli`
+        # marker keeps this test out of the unattended chain's logs.
+        return None, errfile.read()[-500:]
+
+
+@pytest.mark.live_cli
+@pytest.mark.skipif(shutil.which("claude") is None, reason="claude CLI not installed")
+def test_c_scope_8_declared_tool_names_are_exactly_what_the_session_gets(tmp_path: Path):
+    """Drift alarm: `--tools` neither loses nor gains a name behind the spec.
+
+    C-SCOPE-1..3b read the declared sets as text and C-SCOPE-7 reads the flag
+    names, so between them nothing checks what those names RESOLVE to. Both
+    directions are silent failures with no error path:
+
+    - LOST. Rename `Write` and stage 2 cannot author its findings files
+      (`DIAGNOSIS_FAIL`); rename `Edit` and stage 4 exports an empty patch —
+      in both cases on a zero exit, with the allowlist looking as complete as
+      ever.
+    - GAINED. `--tools "default"` is not "the tools I named": it resolves to the
+      WHOLE built-in set — 21 tools measured 2026-08-15, among them `Bash`,
+      `Task`, `Workflow`, `CronCreate`, `ScheduleWakeup`, `SendMessage`,
+      `EnterWorktree`, `WebFetch` and `WebSearch`, precisely the indirect
+      executors mechanic 5 exists to remove. C-SCOPE-2 cannot see it because it
+      greps the declared text, where the only word is `default`. This is the
+      direction the whole file exists to bound, so it is asserted directly
+      rather than left to the accident that `default` is also absent from what
+      resolves.
+
+    **Each declared set is probed on its own, never merged.** The first version
+    probed their union once, on the reasoning that the claim is per-name and one
+    cold start is cheaper than three. It was wrong for exactly the case above:
+    `default` opens the whole set only when it is a spec's SOLE value — measured
+    2026-08-15, `--tools "Read,default"` resolves to `['Read']`, i.e. in company
+    `default` is discarded like any unknown name. So merging the sets disarmed
+    the fail-open before asking about it, and the `gained` assertion could not
+    fire on the one input it exists for. A spec is only meaningful as the whole
+    string a session is handed. (A merged probe also could not have seen a name
+    honoured alone but dropped in company; per-set probing closes that too.)
+
+    One residue remains, admitted rather than closed: `_bare()` drops
+    parameterised entries, so names that appear only inside the deny lists —
+    `WebFetch`, `WebSearch`, `NotebookEdit`, and the `Read(...)` / `Bash(...)`
+    rule heads — are outside this alarm even though C-SCOPE-6 depends on them.
+
+    Marked `live_cli`, not `unit`: it spawns an external credentialed binary and
+    opens a TCP connection, which is not what `unit` means here, and the marker
+    is the only lever anyone has for opting out. It still runs under a bare
+    `pytest`, so `.claude/verify.sh` sees the drift; `weekly-pipeline.sh`'s fix
+    loop deselects it (see the comment there).
+    """
+    variables = _shell_vars()
+    for index, name in enumerate(("READONLY_TOOLS", "FIX_TOOLS", "DIAG_TOOLS")):
+        spec = variables[name]
+        declared = _bare(spec)
+        assert declared, f"{name} declares no tool names at all"
+
+        # A fresh config dir per spec: the CLI writes a session transcript, and
+        # the point of pinning it here is that nothing lands in the operator's
+        # harness.
+        event, diagnostics = _cli_init_event(spec, tmp_path / f"cfg{index}")
+        assert event is not None, (
+            "the claude CLI emitted no `system`/`init` event under "
+            f"--output-format stream-json within {_INIT_TIMEOUT_S}s, so this "
+            f"drift alarm can no longer read the resolved tool set: {diagnostics}"
+        )
+        # Distinguished from an empty list: a schema change that drops the key
+        # would otherwise read as every declared tool having been removed.
+        assert "tools" in event, (
+            "the `system`/`init` event no longer carries a `tools` key, so the "
+            f"resolved tool set is unreadable: {sorted(event)}"
+        )
+        # MCP names cannot appear under --strict-mcp-config, but the claim here
+        # is about the built-in set either way.
+        resolved = {t for t in event["tools"] if not t.startswith("mcp__")}
+
+        # Gain first: a spec that grants MORE than it names is the containment
+        # failure, and it is the direction whose message needs to name what
+        # leaked. `--tools "default"` trips both, and this order reports it as
+        # what it is rather than as a missing tool called "default".
+        gained = resolved - declared
+        assert not gained, (
+            f"{name} resolved to {sorted(gained)} on top of what it names "
+            f"(declared: {sorted(declared)}). A tool set must grant exactly its "
+            'names — `--tools "default"`, alone in a spec, is the spelling that '
+            "opens the whole built-in set instead."
+        )
+        missing = declared - resolved
+        assert not missing, (
+            f"{name} declares {sorted(missing)}, which the CLI dropped from the "
+            f"session's tool set (resolved: {sorted(resolved)}). A session "
+            "declaring it loses that capability silently."
+        )

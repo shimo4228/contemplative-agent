@@ -2,7 +2,7 @@
 
 ## Status
 
-partially-superseded-by ADR-0051 (Decision 2 "no trust change" retired 2026-06-05 — trust weighting removed entirely), ADR-0082 (the `observed` kind and the `epistemic_counts` schema retired 2026-07-25 — unreachable since ADR-0060; the tally is now `{generated, unknown}`). The remaining taxonomy, lineage plumbing, and no-write-back decisions remain in effect.
+partially-superseded-by ADR-0051 (Decision 2's *trust clause* retired 2026-06-05 — the "make no change to trust values" sentence, not the whole decision; trust weighting removed entirely), ADR-0082 (the `observed` kind and the `epistemic_counts` schema retired 2026-07-25 — unreachable since ADR-0060; the tally is now `{generated, unknown}`). The remaining taxonomy, lineage plumbing, and no-write-back decisions remain in effect, and so does Decision 2's *other* half — its **stance**: the self-conditioning loop is observed rather than corrected by intervention, origin recorded and never weighted. Its *measurement* half did not survive. Decision 2 named the `generated`-vs-`observed` composition as the baseline, and that composition is gone: ADR-0082 retired the `observed` arm, leaving a `{generated, unknown}` tally that still varies but can no longer express the contrast Decision 2 measured, and ADR-0072 had already deleted the read-time grounding instrument built on top of it (`epistemic_counts_for` itself was explicitly kept). So Decision 2's closing conditional ("if a trust cap is introduced, this baseline quantifies the before/after effect") is moot rather than retired — ADR-0051 left the cap rejection standing "in spirit" rather than judging it wrong — but unrevivable as written: no trust left to cap and no composition left to compare.
 
 ## Date
 

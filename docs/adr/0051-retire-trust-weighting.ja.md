@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — partially-supersedes ADR-0021（trust weighting — `trust_score` / `TRUST_BASE_BY_SOURCE` / `TRUST_FLOOR` — を退役）および ADR-0050（Decision 2「trust を変更しない」を退役）。存続範囲は各被 supersede ADR の Status が持つ
+accepted — partially-supersedes ADR-0021（trust weighting — `trust_score` / `TRUST_BASE_BY_SOURCE` / `TRUST_FLOOR` — を退役）および ADR-0050（Decision 2 の trust 節を退役 —— 「trust 値は一切変更しない」の一文であって決定全体ではない）。存続範囲は各被 supersede ADR の Status が持つ
 
 ## Date
 
@@ -138,13 +138,18 @@ cap は観察された挙動に反応して出自ベースの親指を逆向き�
   現（「外から薄められない」）が、steering 介入なしに構造的に緩む。
 - 約 100 行と 1 モジュール（`forgetting.py`）を削除。生き残る機構は頭の中に収まる小ささ
   —— cosine / importance × 減衰 / `valid_until` / `source_type`。
-- [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.ja.md) の系譜計装は無傷で蓄
-  積を続ける。`epistemic_counts` は identity 入力構成の観察指標であり続ける。
+- [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.ja.md) の系譜計装は本退役に無傷で蓄
+  積を続ける。（その計装が何の役に立ち続けるかは ADR-0050 自身の Status が持ち、ここに
+  は書かない —— 執筆時点では `epistemic_counts` を構成比の指標と読んでいたが、後の
+  ADR-0082 がそれを偽とした。）
 
 ### Negative
 
-- [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.ja.md) Decision 2 を受理の
-  翌日に部分撤回する。受容: 前提が trust 動態の誤読だった。リポジトリには高速修正の前例
+- 本 ADR は受理の翌日に
+  [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.ja.md) Decision 2 を部分的に
+  supersede する —— その trust 節を。存続範囲は ADR-0050 自身の Status
+  に書かれている（後続の部分 supersede が来ても正しくあり続ける唯一の面）。受容: 前提が
+  trust 動態の誤読だった。リポジトリには高速修正の前例
   があり（ADR-0024/0025 を ADR-0030 で撤回）、Emptiness 公理は決定の reify より revise
   を支持する。
 - 理論上の外部コンテンツ・ランクハンディは消える。正本防御である検疫境界と、ハンディが
@@ -163,11 +168,12 @@ cap は観察された挙動に反応して出自ベースの親指を逆向き�
   [ADR-0021](./0021-pattern-schema-trust-temporal-forgetting-feedback.ja.md) に記録す
   る。snapshot 中の歴史的 `trust_score` 値はすべて、この表を介して
   `provenance.source_type` の純関数として復元できる。
-- 本全廃とは独立に、ADR-0050 の taxonomy が継承する caveat は残る: `_derive_source_type`
-  がバッチ粒度で動き純外部バッチがほぼ発生しないため、`epistemic_counts` の `observed`
-  の腕は実用上 ≈ 0 を示す。`observed ≈ 0` は「純外部の蒸留バッチが構造的に存在しない」
-  と読むこと —— 「外部入力が記憶に届いていない」ではない。外部接触は `mixed` →
-  `generated` のカウント内に存在する。
+- 本全廃とは独立に、ADR-0050 の taxonomy が継承する caveat をここに記録していた:
+  `_derive_source_type` がバッチ粒度で動き純外部バッチがほぼ発生しないため
+  `epistemic_counts` の `observed` の腕は実用上 ≈ 0 を示し、`observed ≈ 0` は「純外部の
+  蒸留バッチが構造的に存在しない」と読む必要がある（「外部入力が記憶に届いていない」で
+  はない）、と。後の ADR-0082 がこの腕自体を削除したため、この読み方の指示にはもう主語
+  が無い。指示が述べていた構造的事実こそ、ADR-0082 が動いた根拠である。
 - `graph.jsonld` と CODEMAPS は dual-update 規約に従い、trust 重み node の除去と
   `is_live()` の移設を反映して更新すべきである（初回コミットでは未実施）。
 - 全廃後のランキング式は
@@ -179,16 +185,18 @@ cap は観察された挙動に反応して出自ベースの親指を逆向き�
 
 - [ADR-0021](./0021-pattern-schema-trust-temporal-forgetting-feedback.ja.md) — Pattern
   スキーマ拡張（Provenance / Bitemporal / Forgetting / Feedback）。ここで退役する trust
-  表面を導入した。IV-7 の trust 小節は superseded、`source_type` と bitemporal 意味論は
-  存続
+  表面を導入した。本 ADR はこれを部分的に supersede する —— IV-7 の trust 小節。存続範囲
+  は ADR-0021 自身の Status にあり、そこには ADR-0028 と ADR-0029 の部分 supersede も
+  着地している。ここに書けば残滓を本 ADR の日付に固定してしまう
 - [ADR-0028](./0028-retire-pattern-level-forgetting-feedback.ja.md) — pattern 層の
   forgetting と feedback を撤回。trust 動態を退役させた。本 ADR はその退役が残した静的
   残滓を除去する
 - [ADR-0029](./0029-retire-dormant-provenance-elements.ja.md) — 休眠 Provenance 要素の退
   役。summarize 境界の検疫を注入防御の正本層と確定し、trust ベースの減衰を冗長にした
 - [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.ja.md) — Epistemic taxonomy
-  と承認系譜。Decision 2（「trust は変更しない」）が本 ADR により部分 supersede。
-  taxonomy・`epistemic_kind_for`・`audit.jsonl` 系譜計装は完全に有効のまま
+  と承認系譜。Decision 2 は本 ADR により部分 supersede —— その trust 節。存続範囲はここに
+  複製せず ADR-0050 の Status が持つ。前向き半分に書いた存続範囲は次の部分 supersede で
+  陳腐化するためで、実際に ADR-0082 の `observed` kind 退役がそうした
 - [ADR-0019](./0019-discrete-categories-to-embedding-views.ja.md) — 離散カテゴリの廃止
   → embedding + views。純 cosine ランキングが回帰する mechanism-vs-value 分離
 - [ADR-0009](./0009-importance-score.ja.md) — KnowledgeStore Importance Score。

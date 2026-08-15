@@ -41,6 +41,13 @@ testpaths = ["tests"]
 markers = [
     "unit: Unit tests",
     "integration: Integration tests",
+    # Spawns the real `claude` binary to read a contract no stub can answer for
+    # (which flags exist; which `--tools` names the CLI actually honours). Runs
+    # by default so an operator's full Verify sees the drift; deselected inside
+    # weekly-pipeline.sh's fix loop, where an unrelated CLI hiccup would abort
+    # `pytest -x` and be attributed to the fix under test. Every test that
+    # spawns the binary must carry it — the exclusion is by class, not by name.
+    "live_cli: Spawns the real claude CLI (external binary, no model call)",
 ]
 
 [tool.pyright]

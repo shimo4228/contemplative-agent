@@ -128,6 +128,26 @@ WORKTREE_ROOT="$MOLTBOOK_HOME/pipeline/worktrees"
 # it was granted the directory.
 # Tool SETS (mechanic 5). Every session below also passes --strict-mcp-config
 # with no --mcp-config, which drops all MCP servers.
+#
+# A name the CLI does not recognise is discarded in SILENCE — measured
+# 2026-08-15: `--tools "Read,Glob,Grep,Edit,Skill,Bogus"` started on a zero
+# exit and the session enumerated only the five real ones. Case counts as much
+# as spelling (`read` is dropped like `Bogus`). So a renamed built-in shrinks a
+# session with no error path: without Write, stage 2 cannot author its findings
+# (DIAGNOSIS_FAIL); without Edit, stage 4 exports an empty patch. C-SCOPE-8 in
+# tests/test_weekly_pipeline_session_scope_shell.py is the alarm — it asks the
+# real CLI which of these names it honours and fails on any that vanished.
+#
+# One value fails OPEN and belongs in the same breath: `--tools "default"` is
+# not "the tools I named", it is the WHOLE built-in set. Measured 2026-08-15
+# against this file's own spelling (--setting-sources project, --permission-mode
+# manual): 21 tools, among them Bash, Task, Workflow, CronCreate, ScheduleWakeup,
+# SendMessage, EnterWorktree, WebFetch and WebSearch — i.e. exactly the indirect
+# executors mechanic 5 removes. (`--tools ""` is the other end and resolves to
+# nothing.) It fails open ONLY as a spec's sole value: `--tools "Read,default"`
+# resolves to `['Read']`, so `default` in company is discarded like any unknown
+# name. Never reach for it to "fix" a session that seems short of a tool; name
+# the tool. C-SCOPE-8 asserts the gain direction per set, so this is caught.
 READONLY_TOOLS="Read,Glob,Grep"
 FIX_TOOLS="Read,Glob,Grep,Edit,Write,Bash"
 # Stage 2 is driven by a slash command, so it keeps Skill. Write is in the SET
@@ -513,7 +533,18 @@ run_verify() {  # run_verify <worktree> <logfile>
         fi
         with_timeout "$VERIFY_TIMEOUT" uv run -q ruff check src/ tests/ scripts/ >> "$log" 2>&1 || { echo "VERIFY: ruff failed" >> "$log"; exit 1; }
         with_timeout "$VERIFY_TIMEOUT" uv run -q lint-imports >> "$log" 2>&1 || { echo "VERIFY: lint-imports failed" >> "$log"; exit 1; }
-        with_timeout "$VERIFY_TIMEOUT" uv run -q pytest tests/ -q -x >> "$log" 2>&1 || { echo "VERIFY: pytest failed" >> "$log"; exit 1; }
+        # `-m "not live_cli"` drops every test that spawns the real claude
+        # binary — the three drift alarms C-SCOPE-7, C-SCOPE-8 and D-SCOPE-8.
+        # Excluded by CLASS, not by name, so a fourth cannot be added without
+        # inheriting the exclusion. Two reasons, both about THIS loop rather
+        # than the tests: under `-x` a CLI hiccup unrelated to the fix —
+        # mid-auto-update, a slow cold start, an init-schema change — would
+        # abort Verify and be reported as "VERIFY: pytest failed", i.e.
+        # attributed to the fix under test; and FIX_DENY denies `Bash(claude:*)`
+        # on the grounds that it is an unbounded child session, which a `claude`
+        # spawned from inside `uv run pytest` would quietly walk around. The
+        # alarms are for the operator's full Verify, not for the fix loop.
+        with_timeout "$VERIFY_TIMEOUT" uv run -q pytest tests/ -q -x -m "not live_cli" >> "$log" 2>&1 || { echo "VERIFY: pytest failed" >> "$log"; exit 1; }
     )
 }
 

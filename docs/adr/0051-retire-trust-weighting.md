@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — partially-supersedes ADR-0021 (trust weighting — `trust_score` / `TRUST_BASE_BY_SOURCE` / `TRUST_FLOOR` — retired) and ADR-0050 (Decision 2 "no trust change" retired); each superseded ADR's Status carries its own surviving scope
+accepted — partially-supersedes ADR-0021 (trust weighting — `trust_score` / `TRUST_BASE_BY_SOURCE` / `TRUST_FLOOR` — retired) and ADR-0050 (Decision 2's trust clause retired — the "make no change to trust values" sentence, not the whole decision); each superseded ADR's Status carries its own surviving scope
 
 ## Date
 
@@ -148,13 +148,16 @@ the name.
   mechanism is small enough to hold in one's head — cosine / importance × decay /
   `valid_until` / `source_type`.
 - [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.md)'s lineage instrumentation
-  is untouched and keeps accumulating; `epistemic_counts` remains the observation metric
-  for identity-input composition.
+  is untouched by this retirement and keeps accumulating. (What that instrumentation is
+  still good for is stated on ADR-0050's own Status, not here — as of writing it read
+  `epistemic_counts` as the composition metric, which ADR-0082 later falsified.)
 
 ### Negative
 
-- [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.md) Decision 2 is partially
-  superseded one day after acceptance. Accepted: the premise was a misreading of trust
+- This ADR supersedes [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.md)
+  Decision 2 in part — its trust clause — one day after acceptance. What survives is
+  stated on ADR-0050's own Status, the only face that stays correct as later partial
+  supersessions land. Accepted: the premise was a misreading of trust
   dynamics. The repository has precedent for fast correction (ADR-0024/0025 withdrawn by
   ADR-0030), and the Emptiness axiom favors revising a decision over reifying it.
 - The theoretical external-content rank handicap is gone. Mitigated by the quarantine
@@ -175,12 +178,13 @@ the name.
   [ADR-0021](./0021-pattern-schema-trust-temporal-forgetting-feedback.md) for historical
   traceability. Any historical `trust_score` value in a snapshot is recoverable as a pure
   function of `provenance.source_type` via this table.
-- Independent of this retirement, the caveat inherited from ADR-0050's taxonomy stands:
-  because `_derive_source_type` operates at batch granularity and pure-external batches
-  essentially never occur, the `observed` arm of `epistemic_counts` will read ≈ 0 in
-  practice. Interpret `observed ≈ 0` as "no pure-external distill batches exist
-  structurally", not as "no external input reached memory" — external contact is present
-  inside `mixed` → `generated` counts.
+- Independent of this retirement, a caveat inherited from ADR-0050's taxonomy was
+  recorded here: because `_derive_source_type` operates at batch granularity and
+  pure-external batches essentially never occur, the `observed` arm of
+  `epistemic_counts` would read ≈ 0 in practice, and `observed ≈ 0` had to be read as
+  "no pure-external distill batches exist structurally" rather than "no external input
+  reached memory". ADR-0082 later removed the arm outright, so the reading instruction
+  no longer has a subject; the structural fact it described is what ADR-0082 acted on.
 - `graph.jsonld` and CODEMAPS should be updated per the dual-update convention to reflect
   the removal of the trust weighting node and the inline migration of `is_live()`. Not
   done in the initial commit.
@@ -193,8 +197,9 @@ the name.
 
 - [ADR-0021](./0021-pattern-schema-trust-temporal-forgetting-feedback.md) — Pattern
   Schema Extension (Provenance / Bitemporal / Forgetting / Feedback); introduced the trust
-  surface retired here. Its IV-7 trust sub-section is superseded; `source_type` and
-  bitemporal semantics survive.
+  surface retired here. This ADR supersedes it in part — its IV-7 trust sub-section. What
+  survives is on ADR-0021's own Status, which is also where ADR-0028's and ADR-0029's
+  partial supersessions land; stating it here would fix a residue to this ADR's date.
 - [ADR-0028](./0028-retire-pattern-level-forgetting-feedback.md) — Retire Pattern-Level
   Forgetting and Feedback; retired trust dynamics. This ADR removes the static residue
   left by that retirement.
@@ -202,9 +207,10 @@ the name.
   Elements; established the `summarize`-boundary quarantine as the canonical
   injection-defense layer, making trust-based dampening redundant.
 - [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.md) — Epistemic Taxonomy and
-  Approval Lineage; Decision 2 ("no trust change") is partially superseded by this ADR.
-  The taxonomy, `epistemic_kind_for`, and `audit.jsonl` lineage instrumentation remain in
-  full effect.
+  Approval Lineage; Decision 2 is superseded in part by this ADR — its trust clause. The
+  surviving scope is on ADR-0050's Status rather than replicated here: a scope written on
+  the forward half goes stale when the next partial supersession lands, as ADR-0082's
+  retirement of the `observed` kind did.
 - [ADR-0019](./0019-discrete-categories-to-embedding-views.md) — Discrete Categories →
   Embedding + Views; the mechanism-vs-value split to which pure-cosine ranking returns.
 - [ADR-0009](./0009-importance-score.md) — Importance Score; `importance` survives

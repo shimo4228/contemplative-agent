@@ -555,7 +555,12 @@ Stage 1 report:    weekly-analysis.sh (unchanged, above)
 Stage 2 diagnosis: claude -p "/weekly-report-diagnosis <report>" → weekly-<end>-findings.md
 Stage 3 parse:     parse_findings.py → F1 list + scope (code | prompt; ambiguity → prompt)
 Stage 4 fix:       per code-scope F1: git worktree @ HEAD → claude -p (fix-implementation.md)
-                   → orchestrator-run Verify (uv sync --frozen / ruff / lint-imports / pytest)
+                   → orchestrator-run Verify (uv sync --frozen / ruff / lint-imports /
+                   pytest -x -m "not live_cli"; the excluded marker is the two drift
+                   alarms that spawn the real claude binary — under -x a CLI hiccup
+                   would abort Verify and be attributed to the fix under test, and
+                   FIX_DENY denies Bash(claude:*) as an unbounded child session. They
+                   run in the operator's full Verify instead)
                    → ≤2 attempts/round (retry input includes Verify failure) → diff snapshot
                    → advisory review (fix-review.md); CONCERNS feeds back into ≤1 re-entry
                    round (unchanged diff → no re-review; a round that breaks Verify rolls

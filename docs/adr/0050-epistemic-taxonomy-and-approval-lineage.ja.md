@@ -2,7 +2,7 @@
 
 ## Status
 
-partially-superseded-by ADR-0051 (Decision 2「trust は変更しない」を 2026-06-05 に撤回 — trust 重み自体を全廃)、ADR-0082 (`observed` kind と `epistemic_counts` スキーマを 2026-07-25 に退役 — ADR-0060 以降到達不能。tally は `{generated, unknown}` になった)。残りの taxonomy・系譜配管・write-back 不採用の決定は有効のまま。
+partially-superseded-by ADR-0051 (Decision 2 の **trust 節**を 2026-06-05 に撤回 — 「trust 値は一切変更しない」の一文であって決定全体ではない。trust 重み自体は全廃)、ADR-0082 (`observed` kind と `epistemic_counts` スキーマを 2026-07-25 に退役 — ADR-0060 以降到達不能。tally は `{generated, unknown}` になった)。残りの taxonomy・系譜配管・write-back 不採用の決定は有効のままで、Decision 2 の**もう半分** —— その**姿勢** —— も同様: 自己条件付けループは介入で矯正せず観察する対象であり、出自は記録するが重み付けしない。他方 Decision 2 の**計測**の半分は残らなかった。Decision 2 がベースラインと名指したのは `generated` 対 `observed` の構成比だが、その構成比はもう無い: ADR-0082 が `observed` 側を退役させ、残った `{generated, unknown}` tally は値としては動くものの Decision 2 が測っていた対比を表せず、その上に載っていた read 時の grounding 計器も ADR-0072 が既に削除している（`epistemic_counts_for` 自体は明示的に存続）。よって Decision 2 末尾の条件節（「将来 trust cap を導入する場合、このベースラインが before/after 効果を定量化する」）は退役ではなく moot だが（ADR-0051 は cap 却下を誤りと断じたのではなく「精神としては今も正しい」と置いた）、書かれた形のままでは復活不能 —— cap すべき trust も、比較すべき構成比も残っていない。
 
 ## Date
 
