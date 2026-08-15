@@ -209,7 +209,7 @@ def _stocktake_drop_phase(
         body = items_dict.get(issue.filename, "")
         if not body:
             # Defensive: quality_issues and items both come from
-            # _read_files, so they should agree. Skip rather than
+            # read_markdown_documents, so they should agree. Skip rather than
             # stage an empty artifact if they ever drift.
             print(f"  Skipped (empty body): {issue.filename}")
             continue
@@ -567,6 +567,21 @@ def _handle_stocktake_result(
     )
 
 
+def _grouping_section(result: StocktakeResult) -> tuple[str, str | None]:
+    """The reasoning.md section for the grouping call.
+
+    A no-verdict run (``grouping_reason`` set) must be legible from the
+    snapshot alone, not only from the terminal: without this line a skipped
+    grouping call left ``reasoning.md`` byte-identical to a clean run and the
+    offline replay (ADR-0075) could not say why the run merged nothing.
+    """
+    text = result.thinking
+    if result.grouping_reason is not None:
+        note = f"no verdict: {result.grouping_reason}"
+        text = f"{text}\n\n{note}" if text else note
+    return ("duplicate grouping", text)
+
+
 def _run_stocktake_phases(run: StocktakeRun, result: StocktakeResult) -> None:
     """Report, then merge -> drop -> clean -> description audit -> persist.
 
@@ -585,7 +600,7 @@ def _run_stocktake_phases(run: StocktakeRun, result: StocktakeResult) -> None:
     if not result.merge_groups and not result.quality_issues and run.clean_prompt is None:
         # Nothing to merge/drop/clean, but the grouping call still reasoned
         # about the corpus — persist that trace (ADR-0069) before returning.
-        memory_cmds._write_reasoning(run.snapshot_path, [("duplicate grouping", result.thinking)])
+        memory_cmds._write_reasoning(run.snapshot_path, [_grouping_section(result)])
         return
 
     items_dict = dict(result.items)
@@ -607,7 +622,7 @@ def _run_stocktake_phases(run: StocktakeRun, result: StocktakeResult) -> None:
 
     # ADR-0069: persist the run's reasoning — grouping (the main judgment) plus
     # each merge / clean / description-audit operation — to reasoning.md.
-    sections: list[tuple[str, str | None]] = [("duplicate grouping", result.thinking)]
+    sections: list[tuple[str, str | None]] = [_grouping_section(result)]
     sections += merge_trace.sections("merge")
     sections += clean_trace.sections("clean")
     sections += desc_trace.sections("description")

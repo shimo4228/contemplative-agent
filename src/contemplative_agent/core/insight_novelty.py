@@ -11,22 +11,15 @@ from __future__ import annotations
 
 import json
 import logging
-import re
 from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
 from . import llm
 from ._io import strip_code_fence
-from .text_utils import extract_title, split_frontmatter
+from .text_utils import skill_theme as skill_theme  # public re-export (consumers: insight, cli)
 
 logger = logging.getLogger(__name__)
-
-_FRONTMATTER_SCALAR_RE = {
-    "name": re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE),
-    "description": re.compile(r'^description:\s*"?(.*?)"?\s*$', re.MULTILINE),
-}
-
 
 # Sample patterns shown to the novelty judge per cluster; enough to convey
 # the theme without ballooning a grouping call past the context budget
@@ -171,26 +164,6 @@ def _pack_novelty_chunks(
     if cur_batches:
         chunks.append((cur_batches, cur_blocks))
     return chunks, unbudgetable
-
-
-def skill_theme(text: str, fallback_name: str = "skill") -> tuple[str, str]:
-    """Return ``(name, description)`` for a skill document.
-
-    Reads the YAML frontmatter scalars when present; falls back to the
-    first Markdown title (and the given name) for legacy bodies without
-    frontmatter. Shared by the novelty gate's known-theme inventory and
-    the CLI's staged-ledger writer so both sides agree on identity.
-    """
-    frontmatter, body = split_frontmatter(text)
-    name = None
-    description = None
-    if frontmatter:
-        m = _FRONTMATTER_SCALAR_RE["name"].search(frontmatter)
-        name = m.group(1).strip() if m else None
-        m = _FRONTMATTER_SCALAR_RE["description"].search(frontmatter)
-        description = m.group(1).strip() if m else None
-    title = extract_title(body or text)
-    return (name or fallback_name, description or title or "")
 
 
 def _load_known_themes(

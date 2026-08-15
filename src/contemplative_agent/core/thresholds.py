@@ -78,6 +78,7 @@ prompt-size budget.
 
 # Note: stocktake no longer uses an embedding-cosine clustering threshold.
 # Duplicate detection reverted to a single LLM grouping call (see
-# core/stocktake._find_duplicate_groups), which discriminates on concrete
-# behavior instead of vapor-dominated cosine; the former
-# SIM_CLUSTER_THRESHOLD was removed with that change.
+# core/stocktake._find_duplicate_groups) instead of vapor-dominated cosine;
+# the former SIM_CLUSTER_THRESHOLD was removed with that change. Since
+# 2026-08-15 the skill pass groups on frontmatter summaries and the merge
+# stage does the concrete-behavior check on full bodies (ADR-0046 amendment).

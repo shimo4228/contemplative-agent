@@ -18,7 +18,7 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
     approval.py (231L)        -- approval-gate loop + audit.jsonl writer (ADR-0012)
     staging.py (181L)         -- insight --stage / pending-review staging dir
     adopt.py (688L)           -- adopt-staged / remove-skill commands
-    stocktake_cmd.py (840L)   -- skill-stocktake / rules-stocktake commands
+    stocktake_cmd.py (855L)   -- skill-stocktake / rules-stocktake commands
     memory_cmds.py (620L)     -- distill / insight / rules-distill / amend-constitution / shadow-constitution / distill-identity commands
     session_cmds.py (572L)    -- init / report / generate-report / meditate / sync-data / dialogue / dialogue-peer
     schedule.py (656L)        -- install-schedule / launchd plist generation (ADR-0085: --weekly-pipeline + --watchdog)
@@ -42,15 +42,15 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
  |    pattern_dedup.py (177L)     -- embedding-cosine add/update/skip dedup decisions, extracted from distill.py (ADR-0079)
  |    episode_render.py (181L)    -- episode→prompt-text projection, extracted from distill.py (ADR-0079)
  |    insight.py (609L)           -- global clustering → behavior skill extraction (ADR-0050); novelty gate extracted per ADR-0079
- |    insight_novelty.py (461L)   -- ADR-0074 LLM novelty gate, extracted from insight.py (ADR-0079)
+ |    insight_novelty.py (434L)   -- ADR-0074 LLM novelty gate, extracted from insight.py (ADR-0079); re-exports text_utils.skill_theme
  |    skill_selection.py (1058L)   -- ADR-0076 shadow pass-1 skill-selection instrument + ADR-0081 two-pass injection enforcement
  |    rules_distill.py (416L)     -- Practice/Rationale B-layer rules synthesis (ADR-0048)
  |    constitution.py (151L)      -- constitutional amendment; ADR-0033 framing + ADR-0050 lineage
- |    stocktake.py (619L)         -- skill/rule audit: LLM grouping (ADR-0046), merge/quality, singleton clean (ADR-0048), usage/description audit
+ |    stocktake.py (718L)         -- skill/rule audit: LLM grouping on frontmatter summaries (ADR-0046 + 2026-08-15 amendment), merge/quality, singleton clean (ADR-0048), usage/description audit
  |    report.py (321L)            -- activity report generation (JSONL → Markdown)
  |    metrics.py (189L)           -- session metrics aggregation
  |    view_metrics.py (388L)      -- read-only pattern-composition instruments: consumed-view supply + seed-independent diversity (ADR-0071/0072)
- |    text_utils.py (168L)         -- shared Markdown helpers [ADR-0035 PR2, ADR-0048]
+ |    text_utils.py (214L)         -- shared Markdown helpers incl. skill_theme + read_markdown_documents [ADR-0035 PR2, ADR-0048]
  |    thresholds.py (83L)         -- centralized thresholds with ADR + calibration annotations [ADR-0035 PR2]
  |    artifact_extraction.py (125L)-- shared extract_title → slugify → path-escape guard chain [ADR-0035 PR3a]
  |    clustering.py (137L)       -- average-linkage cosine agglomerative clustering (numpy-only)
@@ -229,7 +229,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 **Verification**: solver order is `code_parse` → `llm_extract` → abstain (ADR-0062 9th amendment — the free-reasoning `llm_reason` fallback was retired after the round-7 audit measured it at 2.3% of traffic / 38% verify success). `verification.py` wraps the challenge as untrusted and first runs the deterministic `code_parse_challenge()` (in `verification_parse.py`), which owns the finite CAPTCHA grammar's arithmetic / number-word reconstruction and abstains to `None` on any ambiguity. Only on abstention does the LLM propose arithmetic via verification_solve_extract_system (short EXPR/FINAL extraction), accepted only when Python recomputation matches the stated final answer; past that the solver abstains instead of guessing, with `abstain_reason="reason_fallback_disabled"` when the model answered and the guards rejected it, `"llm_none"` when the call produced no text at all (ADR-0062 12th amendment — the failure kind stays in the `llm-calls` telemetry row), or `"answer_previously_rejected"`. `Agent._handle_verification()` writes `logs/verification-audit.jsonl` with a base64-encoded challenge, SHA-256s, `solver_path`, answer, `/verify` outcome, and the abstain reason in `error`, for corpus-driven solver evaluation (ADR-0062 amendment).
 
-**Audit**: stocktake_skills, stocktake_rules (LLM grouping, ADR-0046), stocktake_merge (frontmatter emission, ADR-0048), stocktake_merge_rules, stocktake_clean (singleton trigger-altitude, ADR-0048), stocktake_group_system / stocktake_merge_system / stocktake_clean_system (externalized `system=` prompts, ADR-0054)
+**Audit**: stocktake_skills (LLM grouping over per-skill description + Context summaries, ADR-0046 amendment 2026-08-15), stocktake_rules (LLM grouping over rule bodies, ADR-0046), stocktake_merge (frontmatter emission, ADR-0048), stocktake_merge_rules, stocktake_clean (singleton trigger-altitude, ADR-0048), stocktake_group_system / stocktake_merge_system / stocktake_clean_system (externalized `system=` prompts, ADR-0054)
 
 **Untrusted boundary** (ADR-0054): untrusted_wrapper, untrusted_marker_complete, untrusted_marker_truncated — externalized text for `wrap_untrusted_content`, with a hardcoded code fallback that re-asserts the injection defense if the template is missing or gutted
 

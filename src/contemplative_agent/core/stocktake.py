@@ -1,11 +1,13 @@
 """Stocktake: audit skills and rules for duplicates and quality issues.
 
-Duplicate detection is a single LLM grouping call: all candidate bodies
-go to one ``generate`` request that returns the subsets which genuinely
-describe the same behavior (``{"groups": [{"files": [...], "reason": ...}]}``).
-The LLM reads full bodies, so it discriminates on concrete behavior — two
-skills that share vocabulary or an abstract framing but prescribe distinct
-actions are left in separate groups (or ungrouped) rather than collapsed.
+Duplicate detection is a single LLM grouping call: one ``generate`` request
+returns the subsets which genuinely describe the same behavior
+(``{"groups": [{"files": [...], "reason": ...}]}``). The skill pass sends
+one summary per skill (frontmatter description + Context sentence — see
+``_skill_grouping_evidence``); the rules pass sends the short rule bodies;
+``merge_group`` always reads full bodies and can refuse a group. Shared
+vocabulary or an abstract framing is not grounds for grouping — the prompt
+says so and the merge stage re-checks on the concrete text.
 
 This replaces the embedding-cosine + union-find clustering that shipped in
 316719f: that path was a transitive single-linkage closure whose cosine was
@@ -31,7 +33,7 @@ from typing import TYPE_CHECKING
 
 from ._io import strip_code_fence
 from .llm import generate_full
-from .text_utils import read_markdown_bodies
+from .text_utils import context_summary, read_markdown_documents, skill_theme
 
 if TYPE_CHECKING:
     from .skill_selection import SkillSelectionReading
@@ -85,6 +87,28 @@ class QualityIssue:
     reason: str
 
 
+# Reason codes for a grouping call that produced no verdict. Distinct from an
+# empty ``groups``: "said no duplicates" vs "never spoke" (ADR-0075).
+GROUPING_LLM_UNAVAILABLE = "GROUPING_LLM_UNAVAILABLE"
+GROUPING_UNPARSEABLE = "GROUPING_UNPARSEABLE"
+
+
+@dataclass(frozen=True)
+class GroupingResult:
+    """Outcome of the duplicate-grouping call.
+
+    ``reason`` is None when the LLM returned a parseable verdict (including
+    the "no duplicates" verdict) or when the store was below the dedup
+    floor and no call was needed; otherwise one of the ``GROUPING_*`` codes.
+    ``GROUPING_LLM_UNAVAILABLE`` covers every way ``generate_full`` yields no
+    text — backend error, circuit open, truncation drop, and the C2
+    over-budget *skip* (the 2026-08-15 case); the LLM call log carries which.
+    """
+
+    groups: tuple[MergeGroup, ...]
+    reason: str | None = None
+
+
 @dataclass(frozen=True)
 class StocktakeResult:
     """Result of a stocktake audit."""
@@ -103,18 +127,43 @@ class StocktakeResult:
     # an LLM proposal + human-gate judgment, never a numeric auto-threshold.
     # None for the rules pass and when the instrument log is absent.
     selection_usage: SkillSelectionReading | None = None
+    # Why ``merge_groups`` is empty when it is: None means the grouping call
+    # returned a verdict; a ``GROUPING_*`` code means it never did.
+    grouping_reason: str | None = None
 
 
-def _read_files(directory: Path) -> list[tuple[str, str]]:
-    """Read all .md files from a directory, stripping frontmatter.
+def _skill_grouping_evidence(filename: str, raw: str, body: str) -> str:
+    """The grouping call's evidence for one skill: description + Context.
 
-    Returns list of (filename, body_text) tuples, sorted by name.
+    Grouping used to send every skill body in one call (ADR-0046, so the
+    judge sees concrete behaviour rather than shared vocabulary). That
+    stopped fitting the 32k window at ~40 adopted skills — the 2026-08-15
+    store measured ~36k estimated tokens for 50 — and an over-budget call is
+    skipped, not truncated, so the pass silently found nothing. The
+    frontmatter ``description`` is the audited trigger surface (ADR-0081:
+    the selector's only evidence, checked for fidelity by this same
+    command) and the ``**Context:**`` sentence is the trigger condition; the
+    two summarise a skill in ~100 tokens, so the store can grow past 200
+    before this call approaches the window. Concrete-behaviour
+    discrimination moves one stage down: ``merge_group`` still reads full
+    bodies and may answer ``CANNOT_MERGE``, and the union merge prompt
+    keeps every distinct pattern of an over-grouped set. ADR-0046 amendment
+    2026-08-15.
+
+    ``skill_theme`` supplies the title as the summary for legacy bodies
+    without frontmatter; a missing Context line is simply omitted.
+    ``_format_items`` prefixes the filename, so the evidence is text only.
     """
-    return read_markdown_bodies(directory)
+    _, summary = skill_theme(raw)
+    context = context_summary(body)
+    parts = [summary] if summary else []
+    if context:
+        parts.append(f"Context: {context}")
+    return "\n".join(parts) or Path(filename).stem
 
 
 def _format_items(items: list[tuple[str, str]]) -> str:
-    """Format (filename, body) tuples as LLM input with === separators."""
+    """Format (filename, text) tuples as LLM input with === separators."""
     return "\n\n===\n\n".join(f"**{name}**\n\n{body}" for name, body in items)
 
 
@@ -152,27 +201,29 @@ def _find_duplicate_groups(
     items: list[tuple[str, str]],
     prompt_template: str,
     trace_sink: list[str] | None = None,
-) -> list[MergeGroup]:
+) -> GroupingResult:
     """Detect semantic duplicate groups via a single LLM grouping call.
 
-    All bodies go to one ``generate`` request; the LLM returns the subsets
-    that genuinely describe the same behavior. Because it reads full bodies,
-    it discriminates on concrete behavior rather than shared vocabulary, so
-    it produces several coherent groups (or none) instead of collapsing the
-    whole set into one over-merged blob.
+    All evidence texts go to one ``generate`` request; the LLM returns the
+    subsets that genuinely describe the same behavior. One LLM call rather
+    than embedding union-find (ADR-0046) so the judge can return several
+    coherent groups, or none, instead of chaining the store into one blob.
 
     Args:
-        items: List of (filename, body_text) tuples.
+        items: List of (filename, evidence_text) tuples — the skill pass
+            sends :func:`_skill_grouping_evidence` summaries, the rules
+            pass sends the (short, frontmatter-less) rule bodies.
         prompt_template: Grouping prompt with an ``{items}`` placeholder.
         trace_sink: Optional list. When provided, the call runs think-ON
             (ADR-0069) and the grouping reasoning trace is appended to it.
-            None (the test/default path) keeps the return type a plain list.
 
     Returns:
-        List of MergeGroup. Empty list on LLM failure (safe default).
+        GroupingResult. ``groups`` is empty and ``reason`` is set when the
+        LLM produced no verdict — never silently the same as "no
+        duplicates".
     """
     if len(items) < MIN_FILES_FOR_DEDUP:
-        return []
+        return GroupingResult(groups=())
 
     # Lazy import avoids a core.stocktake -> core.prompts import cycle.
     from .prompts import STOCKTAKE_GROUP_SYSTEM_PROMPT
@@ -189,17 +240,23 @@ def _find_duplicate_groups(
     )
     if text is None:
         logger.warning("LLM failed during stocktake duplicate detection")
-        return []
+        return GroupingResult(groups=(), reason=GROUPING_LLM_UNAVAILABLE)
 
-    return _parse_groups(text, known={name for name, _ in items})
+    parsed = _parse_groups(text, known={name for name, _ in items})
+    if parsed is None:
+        return GroupingResult(groups=(), reason=GROUPING_UNPARSEABLE)
+    return GroupingResult(groups=tuple(parsed))
 
 
-def _parse_groups(raw: str, known: set[str] | None = None) -> list[MergeGroup]:
-    """Parse LLM grouping output into a MergeGroup list.
+def _parse_groups(raw: str, known: set[str] | None = None) -> list[MergeGroup] | None:
+    """Parse LLM grouping output into a MergeGroup list, or None on parse failure.
 
     Attempts JSON extraction (tolerating code fences and surrounding prose).
-    Groups with fewer than two files are dropped. Returns an empty list on
-    parse failure — a malformed response yields no merges rather than an error.
+    Groups with fewer than two files are dropped. Returns None when no JSON
+    could be recovered, or when what was recovered is not a verdict (not an
+    object, or no list-valued ``"groups"``) — a malformed response yields no
+    merges rather than an error, but the caller can tell it apart from the
+    real empty verdict ``{"groups": []}``.
 
     ``known`` (the real filename set) filters hallucinated names BEFORE the
     disjointness claim below — otherwise a group like ["missing.md", "a.md"]
@@ -220,14 +277,22 @@ def _parse_groups(raw: str, known: set[str] | None = None) -> list[MergeGroup]:
                 data = json.loads(text[start:end])
             except json.JSONDecodeError:
                 logger.warning("Could not parse stocktake LLM output as JSON")
-                return []
+                return None
         else:
             logger.warning("No JSON found in stocktake LLM output")
-            return []
+            return None
 
-    groups = data.get("groups", [])
+    # Schema check: a verdict is a JSON object with a list-valued "groups".
+    # ``{}``, ``{"groups": "none"}`` or a bare array are not an empty verdict
+    # but a malformed one (codex review 2026-08-15) — None, so the caller
+    # reports GROUPING_UNPARSEABLE instead of "no duplicates".
+    if not isinstance(data, dict):
+        logger.warning("Stocktake LLM output is not a JSON object")
+        return None
+    groups = data.get("groups")
     if not isinstance(groups, list):
-        return []
+        logger.warning("Stocktake LLM output has no list-valued 'groups'")
+        return None
 
     result: list[MergeGroup] = []
     claimed: set[str] = set()
@@ -490,21 +555,31 @@ def _run_stocktake(
     directory: Path | None,
     group_prompt: str,
     quality_check: Callable[[str, str], QualityIssue | None],
+    grouping_evidence: Callable[[str, str, str], str] | None = None,
 ) -> StocktakeResult:
     """Audit a directory of ``*.md`` files for duplicates and quality issues.
 
-    Shared body for the skill and rule passes: they differ only in the
-    grouping prompt and the per-file quality check.
+    Shared body for the skill and rule passes: they differ in the grouping
+    prompt, the per-file quality check, and what the grouping call is shown
+    — ``grouping_evidence(filename, raw, body)`` builds the per-file
+    evidence (the skill pass passes :func:`_skill_grouping_evidence`); None
+    sends the frontmatter-stripped body, which is what the short rules need.
     """
     if directory is None or not directory.is_dir():
         return StocktakeResult(merge_groups=(), quality_issues=(), total_files=0)
 
-    items = _read_files(directory)
-    if not items:
+    docs = read_markdown_documents(directory)
+    if not docs:
         return StocktakeResult(merge_groups=(), quality_issues=(), total_files=0)
+    items = [(name, body) for name, _raw, body in docs]
+    evidence = (
+        items
+        if grouping_evidence is None
+        else [(name, grouping_evidence(name, raw, body)) for name, raw, body in docs]
+    )
 
     grouping_traces: list[str] = []
-    merge_groups = _find_duplicate_groups(items, group_prompt, grouping_traces)
+    grouping = _find_duplicate_groups(evidence, group_prompt, grouping_traces)
 
     # Structural quality checks
     quality_issues: list[QualityIssue] = []
@@ -514,11 +589,12 @@ def _run_stocktake(
             quality_issues.append(issue)
 
     return StocktakeResult(
-        merge_groups=tuple(merge_groups),
+        merge_groups=grouping.groups,
         quality_issues=tuple(quality_issues),
         total_files=len(items),
         items=tuple(items),
         thinking="\n\n".join(grouping_traces) or None,
+        grouping_reason=grouping.reason,
     )
 
 
@@ -540,7 +616,12 @@ def run_skill_stocktake(
     # Lazy import avoids a core.stocktake -> core.prompts import cycle.
     from . import prompts
 
-    result = _run_stocktake(skills_dir, prompts.STOCKTAKE_SKILLS_PROMPT, _check_skill_quality)
+    result = _run_stocktake(
+        skills_dir,
+        prompts.STOCKTAKE_SKILLS_PROMPT,
+        _check_skill_quality,
+        grouping_evidence=_skill_grouping_evidence,
+    )
     if selection_reading is None:
         return result
     return replace(result, selection_usage=selection_reading)
@@ -582,6 +663,12 @@ def format_stocktake_report(result: StocktakeResult, label: str) -> str:
             files = ", ".join(group.filenames)
             lines.append(f"  Group {i}: {files}")
             lines.append(f"    -> {group.reason}")
+    elif result.grouping_reason is not None:
+        lines.append("")
+        lines.append(
+            f"Duplicate grouping unavailable ({result.grouping_reason}) — "
+            "no merge verdict this run; not the same as 'no duplicates'."
+        )
     else:
         lines.append("")
         lines.append("No duplicates detected.")

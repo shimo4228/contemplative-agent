@@ -20,7 +20,6 @@ from contemplative_agent.core.stocktake import (
     _check_skill_quality,
     _find_duplicate_groups,
     _parse_groups,
-    _read_files,
     clean_skill_triggers,
     format_stocktake_report,
     is_clean_noop,
@@ -29,6 +28,7 @@ from contemplative_agent.core.stocktake import (
     run_rules_stocktake,
     run_skill_stocktake,
 )
+from contemplative_agent.core.text_utils import read_markdown_documents, strip_frontmatter
 
 # ---------------------------------------------------------------------------
 # Fixtures
@@ -144,34 +144,43 @@ def _make_rules_dir(tmp_path: Path, rules: dict[str, str]) -> Path:
 
 
 # ---------------------------------------------------------------------------
-# Unit tests: _read_files
+# Unit tests: read_markdown_documents (the stocktake reader)
 # ---------------------------------------------------------------------------
 
 
-class TestReadFiles:
-    def test_reads_and_strips_frontmatter(self, tmp_path):
+class TestReadMarkdownDocuments:
+    def test_reads_raw_and_stripped_body(self, tmp_path):
         d = tmp_path / "files"
         d.mkdir()
         (d / "test.md").write_text(GOOD_SKILL)
-        items = _read_files(d)
-        assert len(items) == 1
-        assert not items[0][1].startswith("---")
+        docs = read_markdown_documents(d)
+        assert len(docs) == 1
+        name, raw, body = docs[0]
+        assert name == "test.md"
+        assert raw.startswith("---")
+        assert not body.startswith("---")
 
     def test_skips_dotfiles(self, tmp_path):
         d = tmp_path / "files"
         d.mkdir()
-        (d / ".hidden").write_text("hidden")
+        # ``*.md`` glob matches a leading dot, so the dotfile skip is real.
+        (d / ".hidden.md").write_text("# Hidden\nContent here.")
         (d / "visible.md").write_text("# Visible\nContent here.")
-        items = _read_files(d)
-        assert len(items) == 1
+        assert [name for name, _raw, _body in read_markdown_documents(d)] == ["visible.md"]
+
+    def test_skips_empty_body(self, tmp_path):
+        d = tmp_path / "files"
+        d.mkdir()
+        (d / "fm-only.md").write_text("---\nname: x\n---\n")
+        assert read_markdown_documents(d) == []
 
     def test_empty_dir(self, tmp_path):
         d = tmp_path / "files"
         d.mkdir()
-        assert _read_files(d) == []
+        assert read_markdown_documents(d) == []
 
     def test_nonexistent_dir(self, tmp_path):
-        assert _read_files(tmp_path / "nope") == []
+        assert read_markdown_documents(tmp_path / "nope") == []
 
 
 # ---------------------------------------------------------------------------
@@ -182,6 +191,7 @@ class TestReadFiles:
 class TestParseGroups:
     def test_valid_json(self):
         groups = _parse_groups(LLM_MERGE_RESPONSE)
+        assert groups is not None
         assert len(groups) == 1
         assert groups[0].filenames == ("skill-a.md", "skill-b.md")
 
@@ -191,15 +201,26 @@ class TestParseGroups:
     def test_json_in_code_fence(self):
         raw = f"```json\n{LLM_MERGE_RESPONSE}\n```"
         groups = _parse_groups(raw)
+        assert groups is not None
         assert len(groups) == 1
 
     def test_json_embedded_in_prose(self):
         raw = f"Here are the groups:\n{LLM_MERGE_RESPONSE}\nDone."
         groups = _parse_groups(raw)
+        assert groups is not None
         assert len(groups) == 1
 
-    def test_invalid_json(self):
-        assert _parse_groups("not json at all") == []
+    def test_invalid_json_is_none_not_empty(self):
+        # None (no verdict) is distinct from [] (verdict: no duplicates).
+        assert _parse_groups("not json at all") is None
+
+    def test_schema_invalid_json_is_none(self):
+        # Valid JSON that is not a grouping verdict (codex review 2026-08-15).
+        assert _parse_groups("{}") is None
+        assert _parse_groups('{"groups": "none"}') is None
+        assert _parse_groups('[{"files": ["a.md", "b.md"], "reason": "x"}]') is None
+        # The genuine empty verdict stays a list.
+        assert _parse_groups('{"groups": []}') == []
 
     def test_single_file_group_ignored(self):
         raw = json.dumps({"groups": [{"files": ["only-one.md"], "reason": "alone"}]})
@@ -264,15 +285,16 @@ class TestFindDuplicateGroups:
         # Filenames must match the mocked LLM response: _parse_groups now
         # drops names that are not in the known set (codex review 2026-07-06).
         items = [("skill-a.md", "content a"), ("skill-b.md", "content b")]
-        groups = _find_duplicate_groups(items, "prompt {items}")
-        assert len(groups) == 1
+        result = _find_duplicate_groups(items, "prompt {items}")
+        assert len(result.groups) == 1
+        assert result.reason is None
         assert mock_generate.call_count == 1
 
     @patch("contemplative_agent.core.stocktake.generate_full")
     def test_no_duplicates_returns_empty(self, mock_generate):
         mock_generate.return_value = GenerationOutput(text=LLM_NO_MERGE_RESPONSE)
         items = [("a.md", "content a"), ("b.md", "content b")]
-        assert _find_duplicate_groups(items, "prompt {items}") == []
+        assert _find_duplicate_groups(items, "prompt {items}").groups == ()
 
     @patch("contemplative_agent.core.stocktake.generate_full")
     def test_multiple_groups_not_collapsed(self, mock_generate):
@@ -289,18 +311,17 @@ class TestFindDuplicateGroups:
             )
         )
         items = [(f"{c}.md", f"body {c}") for c in "abcd"]
-        groups = _find_duplicate_groups(items, "prompt {items}")
-        assert len(groups) == 2
+        assert len(_find_duplicate_groups(items, "prompt {items}").groups) == 2
 
     @patch("contemplative_agent.core.stocktake.generate_full")
     def test_llm_failure_returns_empty(self, mock_generate):
         mock_generate.return_value = None
         items = [("a.md", "content a"), ("b.md", "content b")]
-        assert _find_duplicate_groups(items, "prompt {items}") == []
+        assert _find_duplicate_groups(items, "prompt {items}").groups == ()
 
     def test_single_file_skips_llm(self):
         items = [("a.md", "content a")]
-        assert _find_duplicate_groups(items, "prompt {items}") == []
+        assert _find_duplicate_groups(items, "prompt {items}").groups == ()
 
     @patch("contemplative_agent.core.stocktake.generate_full")
     def test_grouping_token_budget_has_floor(self, mock_generate):
@@ -684,6 +705,7 @@ class TestParseGroupsDisjointnessH6:
             }
         )
         groups = _parse_groups(text)
+        assert groups is not None
         assert groups[0].filenames == ("a.md", "b.md")
         # Second group loses "a.md" and collapses below the 2-file minimum.
         assert len(groups) == 1
@@ -698,6 +720,7 @@ class TestParseGroupsDisjointnessH6:
             }
         )
         groups = _parse_groups(text)
+        assert groups is not None
         assert len(groups) == 2
         assert groups[1].filenames == ("c.md", "d.md")
 
@@ -721,6 +744,7 @@ class TestParseGroupsDisjointnessH6:
             }
         )
         groups = _parse_groups(text)
+        assert groups is not None
         assert len(groups) == 1
         assert groups[0].filenames == ("a.md", "b.md")
 
@@ -740,6 +764,7 @@ class TestParseGroupsKnownFilterCodex:
             }
         )
         groups = _parse_groups(text, known={"a.md", "b.md"})
+        assert groups is not None
         # First group collapses (missing.md dropped → 1 file); the valid
         # pair must survive with a.md unclaimed.
         assert len(groups) == 1
@@ -754,6 +779,7 @@ class TestParseGroupsKnownFilterCodex:
             }
         )
         groups = _parse_groups(text)
+        assert groups is not None
         assert groups[0].filenames == ("x.md", "y.md")
 
 
@@ -973,3 +999,149 @@ class TestDescAuditUntrustedWrap:
         prompt = mock_generate.call_args.args[0]
         assert wrap_untrusted_content("DESC_MARKER") in prompt
         assert wrap_untrusted_content("BODY_MARKER") in prompt
+
+
+# ---------------------------------------------------------------------------
+# Grouping evidence: frontmatter summaries, not full bodies (2026-08-15).
+# Reproduction and rationale: ``_skill_grouping_evidence`` docstring.
+# ---------------------------------------------------------------------------
+
+
+def _big_skill(i: int) -> str:
+    body_filler = (
+        "The agent notices a shift from a high-level philosophical claim to a "
+        "specific operational mandate and names the structural tension. "
+    ) * 14
+    return (
+        "---\n"
+        f"name: skill-{i:02d}\n"
+        f'description: "Distinct trigger number {i} for the description-only grouping test"\n'
+        "origin: auto-extracted\n"
+        "---\n\n"
+        f"# Skill {i:02d}\n\n"
+        f"**Context:** Context sentence {i}. Second sentence is not evidence.\n\n"
+        f"## Problem\n{body_filler}\n\n"
+        f"## Solution\nBODY-SENTINEL-{i:02d} {body_filler}\n\n"
+        f"## When to Use\n{body_filler}\n"
+    )
+
+
+class TestGroupingEvidence:
+    def test_skill_evidence_is_description_and_context(self):
+        from contemplative_agent.core.stocktake import _skill_grouping_evidence
+
+        text = _skill_grouping_evidence("a.md", GOOD_SKILL, strip_frontmatter(GOOD_SKILL))
+        assert "A test skill" in text
+        assert "Testing context." in text
+        # Body sections stay out of the grouping call.
+        assert "Apply test-driven techniques" not in text
+
+    def test_skill_evidence_falls_back_to_title_for_legacy_body(self):
+        from contemplative_agent.core.stocktake import _skill_grouping_evidence
+
+        text = _skill_grouping_evidence(
+            "legacy.md", GOOD_SKILL_NO_FRONTMATTER, GOOD_SKILL_NO_FRONTMATTER
+        )
+        assert "Another Skill" in text
+        assert "Different context." in text
+        assert "completely different approach" not in text
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_skill_grouping_fits_window_at_store_scale(self, mock_generate, tmp_path):
+        """50 real-sized skills: the grouping prompt must stay far inside the
+        32k window under the conservative estimator (the only pre-flight
+        available on the Ollama path — no /api/tokenize)."""
+        from contemplative_agent.core.llm import _estimate_tokens
+        from contemplative_agent.core.llm.backend import NUM_CTX
+
+        mock_generate.return_value = GenerationOutput(text=LLM_NO_MERGE_RESPONSE)
+        skills_dir = _make_skills_dir(
+            tmp_path, {f"skill-{i:02d}.md": _big_skill(i) for i in range(50)}
+        )
+        result = run_skill_stocktake(skills_dir=skills_dir)
+        assert mock_generate.call_count == 1
+        prompt = mock_generate.call_args.args[0]
+        assert "BODY-SENTINEL-07" not in prompt
+        # The summaries are grouping evidence only: ``result.items`` must keep
+        # the full bodies, because merge / clean write files from them and
+        # delete the originals (code review 2026-08-15).
+        assert len(result.items) == 50
+        assert all("BODY-SENTINEL" in body for _, body in result.items)
+        assert "Distinct trigger number 7" in prompt
+        assert "Context sentence 7." in prompt
+        assert _estimate_tokens(prompt) < NUM_CTX // 4
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_rules_grouping_keeps_full_bodies(self, mock_generate, tmp_path):
+        """Rules carry no frontmatter and are short — the rules pass still
+        groups on the Practice/Rationale text itself."""
+        mock_generate.return_value = GenerationOutput(text=LLM_NO_MERGE_RESPONSE)
+        rules_dir = _make_rules_dir(tmp_path, {"a.md": GOOD_RULE, "b.md": GOOD_RULE})
+        run_rules_stocktake(rules_dir=rules_dir)
+        prompt = mock_generate.call_args.args[0]
+        assert "Always ask clarifying questions" in prompt
+
+
+class TestGroupingUnavailableReason:
+    """A grouping call that never produced a verdict must not read as
+    'no duplicates' (ADR-0075: no silent fallback)."""
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_llm_failure_carries_reason(self, mock_generate):
+        mock_generate.return_value = None
+        items = [("a.md", "content a"), ("b.md", "content b")]
+        result = _find_duplicate_groups(items, "prompt {items}")
+        assert result.groups == ()
+        assert result.reason == "GROUPING_LLM_UNAVAILABLE"
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_unparseable_output_carries_reason(self, mock_generate):
+        mock_generate.return_value = GenerationOutput(text="no json here")
+        items = [("a.md", "content a"), ("b.md", "content b")]
+        result = _find_duplicate_groups(items, "prompt {items}")
+        assert result.groups == ()
+        assert result.reason == "GROUPING_UNPARSEABLE"
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_schema_invalid_output_carries_reason(self, mock_generate):
+        mock_generate.return_value = GenerationOutput(text='{"groups": "none"}')
+        items = [("a.md", "content a"), ("b.md", "content b")]
+        result = _find_duplicate_groups(items, "prompt {items}")
+        assert result.groups == ()
+        assert result.reason == "GROUPING_UNPARSEABLE"
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_real_verdict_has_no_reason(self, mock_generate):
+        mock_generate.return_value = GenerationOutput(text=LLM_NO_MERGE_RESPONSE)
+        items = [("a.md", "content a"), ("b.md", "content b")]
+        result = _find_duplicate_groups(items, "prompt {items}")
+        assert result.groups == ()
+        assert result.reason is None
+
+    def test_below_dedup_floor_has_no_reason(self):
+        result = _find_duplicate_groups([("a.md", "x")], "prompt {items}")
+        assert result.groups == ()
+        assert result.reason is None
+
+    @patch("contemplative_agent.core.stocktake.generate_full")
+    def test_run_skill_stocktake_threads_reason(self, mock_generate, tmp_path):
+        mock_generate.return_value = None
+        skills_dir = _make_skills_dir(tmp_path, {"a.md": GOOD_SKILL, "b.md": GOOD_SKILL})
+        result = run_skill_stocktake(skills_dir=skills_dir)
+        assert result.merge_groups == ()
+        assert result.grouping_reason == "GROUPING_LLM_UNAVAILABLE"
+
+    def test_report_names_unavailable_grouping(self):
+        result = StocktakeResult(
+            merge_groups=(),
+            quality_issues=(),
+            total_files=5,
+            grouping_reason="GROUPING_LLM_UNAVAILABLE",
+        )
+        report = format_stocktake_report(result, "Skill")
+        assert "GROUPING_LLM_UNAVAILABLE" in report
+        assert "No duplicates detected" not in report
+
+    def test_report_default_still_says_no_duplicates(self):
+        result = StocktakeResult(merge_groups=(), quality_issues=(), total_files=5)
+        assert "No duplicates detected" in format_stocktake_report(result, "Skill")

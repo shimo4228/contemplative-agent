@@ -121,6 +121,7 @@ PIDFILE="$OUT_DIR/$LABEL-$STAMP.pid"
     echo "# command: $*"
 } > "$LOG"
 
+# shellcheck disable=SC2016  # $1/$@ are the inner bash -c's positionals, expanded there, not here
 nohup bash -c 'sleep "$1"; shift; exec "$@"' _ "$WAIT_SECONDS" "$@" >> "$LOG" 2>&1 &
 echo $! > "$PIDFILE"
 echo "detached: pid $(cat "$PIDFILE")"

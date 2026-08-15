@@ -170,9 +170,7 @@ _MAX_TITLE_LEN = 240
 #          the heading is a pointer, and findings.md keeps the styled original.
 #   ctrl / bidi / zero-width: ANSI manipulation when the packet is cat'd, and
 #          reordering of what the approver reads.
-_TITLE_UNSAFE = re.compile(
-    r"[<>\[\]`\x00-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069]"
-)
+_TITLE_UNSAFE = re.compile(r"[<>\[\]`\x00-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069]")
 
 
 def _unrecognized_verdict(raw: str) -> str:

@@ -106,8 +106,11 @@ def split_frontmatter(text: str) -> tuple[str, str]:
 _CONTEXT_RE = re.compile(r"^\s*\*\*Context:\*\*\s*(.+)$", re.MULTILINE)
 
 
-def _context_summary(body: str) -> str | None:
-    """First sentence of the ``**Context:**`` line, or ``None`` when absent."""
+def context_summary(body: str) -> str | None:
+    """First sentence of the ``**Context:**`` line, or ``None`` when absent.
+
+    The trigger-condition sentence of a skill body.
+    """
     match = _CONTEXT_RE.search(body)
     if not match:
         return None
@@ -130,20 +133,52 @@ def synthesize_frontmatter(body: str, *, origin: str = "auto-extracted") -> str:
     """
     title = extract_title(body) or "skill"
     name = slugify(title) or "skill"
-    description = _context_summary(body) or title
+    description = context_summary(body) or title
     # YAML double-quoted scalar: collapse whitespace and neutralise inner
     # double quotes so the synthesized line stays parseable.
     description = " ".join(description.split()).replace('"', "'")
     return f'---\nname: {name}\ndescription: "{description}"\norigin: {origin}\n---'
 
 
-def read_markdown_bodies(directory: Path, *, since: str | None = None) -> list[tuple[str, str]]:
-    """Return sorted ``(filename, frontmatter-stripped body)`` for ``*.md``.
+_FRONTMATTER_SCALAR_RE = {
+    "name": re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE),
+    "description": re.compile(r'^description:\s*"?(.*?)"?\s*$', re.MULTILINE),
+}
 
-    Skips dotfiles and empty bodies; logs a warning on unreadable files.
-    When *since* is an ISO timestamp, only files modified after it are
-    included (an unparseable *since* logs a warning and reads all). Shared
-    by the insight / rules-distill / stocktake readers.
+
+def skill_theme(text: str, fallback_name: str = "skill") -> tuple[str, str]:
+    """Return ``(name, description)`` for a skill document.
+
+    Reads the YAML frontmatter scalars when present; falls back to the
+    first Markdown title (and the given name) for legacy bodies without
+    frontmatter. The read-side inverse of :func:`synthesize_frontmatter`.
+    Shared by the novelty gate's known-theme inventory, the staged-ledger
+    writer, the skill selector's catalog and the stocktake grouping
+    evidence so every side agrees on a skill's identity.
+    """
+    frontmatter, body = split_frontmatter(text)
+    name = None
+    description = None
+    if frontmatter:
+        m = _FRONTMATTER_SCALAR_RE["name"].search(frontmatter)
+        name = m.group(1).strip() if m else None
+        m = _FRONTMATTER_SCALAR_RE["description"].search(frontmatter)
+        description = m.group(1).strip() if m else None
+    title = extract_title(body or text)
+    return (name or fallback_name, description or title or "")
+
+
+def read_markdown_documents(
+    directory: Path, *, since: str | None = None
+) -> list[tuple[str, str, str]]:
+    """Return sorted ``(filename, raw text, frontmatter-stripped body)``.
+
+    The one reader behind :func:`read_markdown_bodies` and the stocktake
+    pass, so the file rules live in exactly one place: ``*.md`` only,
+    dotfiles skipped, unreadable files logged and skipped, files whose body
+    is empty after stripping dropped. When *since* is an ISO timestamp, only
+    files modified after it are included (an unparseable *since* logs a
+    warning and reads all). The raw text keeps its frontmatter.
     """
     if not directory.is_dir():
         return []
@@ -153,16 +188,27 @@ def read_markdown_bodies(directory: Path, *, since: str | None = None) -> list[t
             cutoff = datetime.fromisoformat(since).timestamp()
         except ValueError:
             logger.warning("Invalid since timestamp %r, reading all files", since)
-    items: list[tuple[str, str]] = []
+    docs: list[tuple[str, str, str]] = []
     for p in sorted(directory.glob("*.md")):
         if p.name.startswith("."):
             continue
         if cutoff is not None and p.stat().st_mtime < cutoff:
             continue
         try:
-            body = strip_frontmatter(p.read_text(encoding="utf-8")).strip()
-            if body:
-                items.append((p.name, body))
+            raw = p.read_text(encoding="utf-8")
         except OSError:
             logger.warning("Could not read file %s", p)
-    return items
+            continue
+        body = strip_frontmatter(raw).strip()
+        if body:
+            docs.append((p.name, raw, body))
+    return docs
+
+
+def read_markdown_bodies(directory: Path, *, since: str | None = None) -> list[tuple[str, str]]:
+    """Return sorted ``(filename, frontmatter-stripped body)`` for ``*.md``.
+
+    Projection of :func:`read_markdown_documents`. Shared by the
+    rules-distill and stocktake readers.
+    """
+    return [(name, body) for name, _raw, body in read_markdown_documents(directory, since=since)]

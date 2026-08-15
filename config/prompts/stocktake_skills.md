@@ -4,7 +4,7 @@ Your task: identify groups of skills that are **semantically redundant** — the
 
 ## Input
 
-Below are all skill files, separated by `===`. Each starts with its filename.
+Below is one summary per skill, separated by `===`. Each starts with its filename, followed by the skill's one-line description (its trigger-faithful theme) and, when present, its `Context:` sentence (the trigger condition). Full bodies are not shown here — the merge step reads them and can still refuse a group — so judge on the trigger and the behavior the description names, not on shared vocabulary.
 
 {items}
 
@@ -24,6 +24,6 @@ Example:
 
 Only group skills that genuinely describe the same behavior. Skills that share vocabulary, metaphors, or an abstract framing but prescribe **distinct concrete behaviors** (different triggers, different actions) address different problems and must NOT be grouped.
 
-Judge trigger redundancy at **structural altitude**: two triggers that differ only in transient surface identifiers (specific usernames, post IDs, timestamp windows, or saturated relevance scores like ">0.92") but express the same **behavioral SHAPE** are the SAME trigger and ARE evidence of redundancy — group them. Only genuinely distinct behavioral SHAPES stay ungrouped.
+Judge trigger redundancy at **structural altitude**: two descriptions or `Context:` sentences that differ only in transient surface identifiers (specific usernames, post IDs, timestamp windows, or saturated relevance scores like ">0.92") but express the same **behavioral SHAPE** are the SAME trigger and ARE evidence of redundancy — group them. Only genuinely distinct behavioral SHAPES stay ungrouped.
 
 Prefer several small, coherent groups over one large catch-all group; leave a skill ungrouped if it has no genuine twin.

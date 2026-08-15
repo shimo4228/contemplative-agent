@@ -74,6 +74,46 @@ cosine 計算前にスキル本文を前処理して共有語彙を除く。却�
 - 本 ADR が置き換える embedding クラスタリングはコミット `316719f`（2026-04-15）で導入され、独自の ADR には記録されていなかった。その除去をここに記録する。
 - スキルストアが単一グルーピング呼び出しが `num_ctx` を超える規模に育った場合の候補アプローチは 2-pass グルーピング: 軽量な embedding 事前フィルタで候補ペアを作り、そのペアにのみ LLM 判断をかける。
 
+## Amendment (2026-08-15): grouping の証拠は本文全量でなく frontmatter サマリ
+
+上の Consequences が予告していた「単一グルーピング呼び出しは非常に大きなスキルストアでは
+`num_ctx` に制約される」は、「非常に大きな」でなく採用 50 skill で到来した。本文全量の
+grouping プロンプトは推定 36,459 tok で窓 32,768 を超え（Ollama 経路は tokenizer を
+持たないため保守的推定器が唯一の pre-flight — ADR-0087）、`core/llm.generate` が
+`budget_exceeded` で呼び出しをスキップし、`_find_duplicate_groups` は「safe default」の
+空リストを返した。レポートは「No duplicates detected.」と述べる — 本物の判定と区別の
+つかない無言の無判定である。最後に grouping が成功した 2026-07-10 の実行は 19 skill だった。
+
+変更は 2 点、いずれも `core/stocktake.py`:
+
+1. **grouping の証拠 = frontmatter サマリ。** skill パスは skill ごとに 1 サマリ —
+   frontmatter の `description` と `**Context:**` の文（`_skill_grouping_evidence`）— を
+   送る。同じ 50 skill store での実測は推定 7,173 tok で、store が ~200 skill を超えるまで
+   呼び出しは窓に収まる。Decision 1 の根拠「LLM が本文全量を読むので具体的振る舞いで
+   判別する」は一段下へ移る: `merge_group` は今も本文全量を読み `CANNOT_MERGE` を返せ、
+   Decision 2 の union merge は過剰グループ化された集合の個別パターンを全て残すので、
+   サマリ水準の誤グループのコストは人間ゲートに届く幅広い union skill であって、
+   パターンの喪失ではない。`description` がサマリとして正しいのは、ADR-0081 が既に
+   これを selector の唯一の証拠とし、同じこのコマンドにその忠実度を監査させているから
+   である。rules パスは本文全量のまま（rules は frontmatter を持たず各 ~150 tok）。
+2. **無判定に名前を付ける。** `_find_duplicate_groups` は `GroupingResult(groups, reason)` を
+   返す。`reason` は `GROUPING_LLM_UNAVAILABLE`（呼び出し失敗・スキップ・切り詰め）または
+   `GROUPING_UNPARSEABLE`（JSON を回収できない、または回収した JSON が判定の形でない —
+   object でない / list 値の `groups` が無い）で、レポートと snapshot の `reasoning.md` は
+   「No duplicates detected.」の代わりにこれを載せる（ADR-0075: silent fallback 禁止）。
+
+これが残す trade: サマリが結び付け損ねたペアは merge 段に届かないので、サマリ grouping は
+本文全量なら拾えたかもしれない重複を、本物の「重複なし」判定つきで *取りこぼす* 方向に
+倒れうる。緩和は同じコマンド内で走る description 忠実度監査（ADR-0081）。recall の計測は
+まだ無い — 本文全量で最後に回ったのは 2026-07-10 の 19 skill で、本文全量の経路はもう
+比較のために窓へ収まらない。
+
+上の Follow-ups 候補 — embedding 事前フィルタで候補ペアを作り LLM はペアだけ判定 — は
+採らなかった。当時の store（2026-08-14 の insight review は全候補を最近傍の採用 skill に
+対して cosine 0.756–0.878 と計測）では cosine 事前フィルタは store 全体を 1 つの候補集合
+として返し何も削減しない — 本 ADR が最初に退けた over-merge をフィルタと呼び替えたに
+すぎない。サマリは候補集合でなく証拠の方を縮め、LLM を唯一の判定者に保つ。
+
 ## Related
 
 - [ADR-0016](./0016-insight-narrow-stocktake-broad.md) — Insight as Narrow Generator, Stocktake as Broad Consolidator; 本 ADR は stocktake consolidator の重複検出メカニズムを精緻化する。

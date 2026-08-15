@@ -658,3 +658,49 @@ class TestRulesStocktakeDirectMerge:
         assert target.exists(), "merge output was deleted by self-delete bug"
         assert merged_text in target.read_text()
         assert not (rules_dir / "b.md").exists()
+
+
+class TestGroupingSectionInReasoning:
+    """A no-verdict grouping is legible from the snapshot's reasoning.md,
+    not only from stdout (ADR-0075 offline replay)."""
+
+    def test_reason_appended_after_thinking(self):
+        from contemplative_agent.cli.stocktake_cmd import _grouping_section
+        from contemplative_agent.core.stocktake import StocktakeResult
+
+        result = StocktakeResult(
+            merge_groups=(),
+            quality_issues=(),
+            total_files=3,
+            thinking="considered the three",
+            grouping_reason="GROUPING_UNPARSEABLE",
+        )
+        label, text = _grouping_section(result)
+        assert label == "duplicate grouping"
+        assert text is not None
+        assert text.startswith("considered the three")
+        assert "no verdict: GROUPING_UNPARSEABLE" in text
+
+    def test_reason_alone_when_no_thinking(self):
+        from contemplative_agent.cli.stocktake_cmd import _grouping_section
+        from contemplative_agent.core.stocktake import StocktakeResult
+
+        result = StocktakeResult(
+            merge_groups=(),
+            quality_issues=(),
+            total_files=3,
+            grouping_reason="GROUPING_LLM_UNAVAILABLE",
+        )
+        assert _grouping_section(result) == (
+            "duplicate grouping",
+            "no verdict: GROUPING_LLM_UNAVAILABLE",
+        )
+
+    def test_clean_run_unchanged(self):
+        from contemplative_agent.cli.stocktake_cmd import _grouping_section
+        from contemplative_agent.core.stocktake import StocktakeResult
+
+        result = StocktakeResult(
+            merge_groups=(), quality_issues=(), total_files=3, thinking="trace"
+        )
+        assert _grouping_section(result) == ("duplicate grouping", "trace")

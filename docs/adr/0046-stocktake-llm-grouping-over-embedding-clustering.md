@@ -74,6 +74,55 @@ Fix the M1 hang by capping `num_ctx` per caller rather than switching the groupi
 - The embedding-clustering approach this supersedes was introduced in commit `316719f` (2026-04-15) and was never recorded in its own ADR. The removal is recorded here.
 - If the skill store grows to the point where a single grouping call exceeds `num_ctx`, a candidate approach is two-pass grouping: lightweight embedding pre-filtering to produce candidate pairs, followed by LLM judgment on those pairs only.
 
+## Amendment (2026-08-15): grouping evidence is the frontmatter summary, not the full body
+
+The Consequences section above predicted this: "the single grouping call is
+bounded by `num_ctx` for very large skill stores." It arrived at 50 adopted
+skills, not "very large" — the full-body grouping prompt measured 36,459
+estimated tokens against the 32,768 window (the conservative estimator is the
+only pre-flight on the Ollama path, which exposes no tokenizer — ADR-0087), so
+`core/llm.generate` skipped the call as `budget_exceeded` and
+`_find_duplicate_groups` returned its "safe default" empty list. The report
+then said "No duplicates detected." — a silent no-verdict indistinguishable
+from a real one. The last successful grouping run (2026-07-10) had 19 skills.
+
+Two changes, both in `core/stocktake.py`:
+
+1. **Grouping evidence = frontmatter summary.** The skill pass now sends one
+   summary per skill: the frontmatter `description` plus the `**Context:**`
+   sentence (`_skill_grouping_evidence`). Measured on the same 50-skill store:
+   7,173 estimated tokens, i.e. the call fits until the store passes ~200
+   skills. Decision 1's rationale — "the LLM reads full bodies, so it
+   discriminates on concrete behavior" — moves one stage down: `merge_group`
+   still reads full bodies and can answer `CANNOT_MERGE`, and Decision 2's
+   union merge keeps every distinct pattern of an over-grouped set, so the
+   cost of a summary-level false group is a wide union skill at the human
+   gate, not a lost pattern. The `description` is the right summary because
+   ADR-0081 already made it the selector's only evidence and had this same
+   command audit its fidelity. The rules pass keeps full bodies (rules have no
+   frontmatter and are ~150 tokens each).
+2. **A no-verdict is named.** `_find_duplicate_groups` returns
+   `GroupingResult(groups, reason)`; `reason` is `GROUPING_LLM_UNAVAILABLE`
+   (call failed, skipped or truncated) or `GROUPING_UNPARSEABLE` (no JSON
+   recoverable, or JSON that is not a verdict — no object, or no list-valued
+   `groups`), and the report and the snapshot's `reasoning.md` carry it in
+   place of "No duplicates detected." (ADR-0075: no silent fallback).
+
+The trade this leaves open: a pair whose summaries fail to link never reaches
+the merge stage, so summary grouping can *under*-group with a real "no
+duplicates" verdict where full-body grouping might have caught it. The
+mitigation is the description-fidelity audit that runs in the same command
+(ADR-0081); no recall measurement exists yet — the last full-body run was
+2026-07-10 on 19 skills, and the full-body path no longer fits to compare.
+
+The Follow-ups candidate above — embedding pre-filter to candidate pairs, LLM
+on the pairs — was not taken. On the store as it stood (the 2026-08-14 insight
+review measured every candidate at 0.756–0.878 cosine against its nearest
+adopted skill) a cosine pre-filter returns the whole store as one candidate set
+and reduces nothing; it is the same over-merge this ADR rejected in the first
+place, only relabelled as a filter. Summaries shrink the evidence instead of
+the candidate set and keep the LLM as the only judge.
+
 ## Related
 
 - [ADR-0016](./0016-insight-narrow-stocktake-broad.md) — Insight as Narrow Generator, Stocktake as Broad Consolidator; this ADR refines the stocktake consolidator's duplicate-detection mechanism.
