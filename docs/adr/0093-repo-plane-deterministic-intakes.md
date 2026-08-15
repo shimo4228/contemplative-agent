@@ -189,6 +189,44 @@ added signal.
   now named (`unterminated` / `no-argument` / `swallowed`), refused at render
   (`tasks.py::render_row`) and reported by the scan, giving the convention a
   second enforcement point upstream of the weekly cadence.
+- **Superseded 2026-08-15: stage 6c's input is the store, not the file.** As
+  adopted, this intake parsed `.notes/TASKS.md`, which under ADR-0094 became a
+  *projection* of `.notes/tasks/` — and **no stage re-derives it**; sessions
+  render by hand. A week whose `tasks.py render` failed never reaches
+  `_atomic_write`, so the previous table survives intact and parses cleanly:
+  the stage recorded `result=ok watches=N fired=0` over a store it no longer
+  described, with none of the new blocked rows in it. "The render is broken"
+  arrived at the gate as "nothing fired" — this ADR's own forbidden shape, one
+  layer up. Staleness itself predates the finding (a `MalformedTask` anywhere
+  in the store aborts `load_store` the same way), but the trigger descended
+  from "the store is corrupt" to "one blocked row's `watch:` has a typo" when
+  render gained the refusal above.
+  The fix re-derives rather than validates: `render_from_store` runs
+  `tasks.py render` as a subprocess — a separate process, so not the import
+  cycle it would be in-process — and the scan parses its stdout. Measured on
+  the live store: exit 0, 186,038 bytes, byte-identical to the file, 0.12s, no
+  writes (`render` without `--output` only prints). A store that will not
+  render abstains `LEDGER_UNRENDERABLE`, carrying render's own message, which
+  already names the offending task and cell.
+  A timestamp comparison was built first and rejected on two counts. It
+  validates *age*, not *renderability*: a render can begin failing with **no
+  store mutation at all** when the render side tightens — which `c16642c` and
+  `8265e3c` each did — and every mtime test calls that week fresh, while
+  stamping it verified. And its false-stale side would have been the common
+  case, since the store routinely runs ahead of the projection between hand
+  renders (`claims.py` unions both for exactly that reason), so the stage would
+  have failed most weeks until the alarm meant nothing — the original failure
+  returning through the alarm-fatigue door. Re-deriving removes the question
+  instead of answering it: no cache, so no mtime, no clock, no read/replace
+  window, and no list of limits to keep honest.
+  Drift in the on-disk file is still reported (`PROJECTION_DRIFT`, one
+  `tasks.py render --output` to clear) but never fatal — the reading no longer
+  depends on it, and the file is what a human opens. It travels in its own JSON
+  key under its own packet code `LEDGERWATCH_DRIFT`: the packet counts every
+  `errors[]` entry as an unparseable watch annotation and prints "check
+  annotation syntax", so carrying drift there would have delivered a true
+  signal under a false name — the same class as the defect above, one field
+  over.
 
 **Neutral:**
 

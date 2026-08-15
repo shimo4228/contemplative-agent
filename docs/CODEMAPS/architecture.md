@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-15 (ADR-0094: task ledger store/journal/projection) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-15 (stage 6c reads the task store, not its projection) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -604,7 +604,9 @@ Stage 6b docsscan: docs_consistency_scan.py (6th deterministic intake, ADR-0093 
                    stateless nag-until-fixed; faults degrade to DOCSCAN_PARTIAL /
                    abstain DOCSCAN_FAIL)
 Stage 6c ledgerwatch: ledger_condition_scan.py (7th deterministic intake, ADR-0093 —
-                   `watch:` annotations on .notes/TASKS.md blocked rows: gh-pr /
+                   `watch:` annotations on blocked rows of the ledger table
+                   rendered from .notes/tasks/ (see "Input is the STORE"
+                   below): gh-pr /
                    http(-post)-status / file-exists; bounded network reads with
                    responses mapped to a closed vocabulary {open,closed,merged} —
                    no response text ever reaches the packet; per-watch faults
@@ -634,6 +636,46 @@ Stage 6c ledgerwatch: ledger_condition_scan.py (7th deterministic intake, ADR-00
                    row write it — so render refuses it only on blocked rows.
                    The scan stays blocked-only for all three: a row outside the
                    watch contract has nothing to report.
+                   Input is the STORE, not the file (2026-08-15, superseding
+                   this intake's input in ADR-0093). No stage re-derives the
+                   projection — sessions render by hand — so parsing
+                   .notes/TASKS.md asked about a cache while the source sat
+                   beside it, and every way that cache could be wrong came out
+                   as a clean fired=0: a week whose tasks.py render failed left
+                   the PREVIOUS table in place, well-formed and parseable,
+                   and the stage recorded result=ok fired=0 over rows the store
+                   no longer had. render_from_store runs `tasks.py render` as a
+                   subprocess (separate process, so no cycle with tasks.py's
+                   import of this module's watch grammar; measured 0.12s,
+                   read-only — render without --output only prints) and the
+                   scan parses its stdout. Timestamp comparison was rejected:
+                   a render can start failing with NO store mutation when the
+                   render side tightens (c16642c and 8265e3c each did), which
+                   every mtime test calls fresh. Abstains: LEDGER_UNRENDERABLE
+                   (carries render's own message, which names the offending
+                   task and cell), RENDER_TIMEOUT, RENDER_UNAVAILABLE;
+                   LEDGER_UNREADABLE survives only for the root=None path. The
+                   on-disk file is still compared and its drift reported as
+                   PROJECTION_DRIFT — never fatal, since the store routinely
+                   runs ahead of the projection between hand renders (claims.py
+                   unions both for that reason) and a fatal drift would fail
+                   most weeks until the alarm meant nothing. Drift travels in
+                   its OWN json key and its own packet code LEDGERWATCH_DRIFT,
+                   not in errors[]: the packet counts errors[] entries as
+                   unparseable watch annotations and prints "check annotation
+                   syntax", so routing drift there delivered a true signal
+                   under a false name. LEDGERWATCH_DRIFT reaches the header
+                   reason list and metrics but does NOT open §10 on its own:
+                   drift is the expected state between hand renders, so gating
+                   a signal-first section on it would print a notice most
+                   weeks; its detail renders when §10 is open for another
+                   cause. --root is derived from --ledger (the
+                   flag the pipeline passes) and is carried in the repair
+                   command, since tasks.py without it renders its DEFAULT
+                   store; the JSON records source=store|file. The abstain
+                   reaches the packet as the stage-level LEDGERWATCH_FAIL;
+                   which abstain it was, and which row caused it, live in the
+                   run log's ledgerwatch.err.
 Stage 7 improve:   only when the same reason code recurred 2 consecutive runs (check-improvement)
 Stage 8 packet:    build_decision_packet.py → weekly-<end>-packet.md (§2 fix table +
                    per-finding diagnosis headings from findings.json, §8 value-layer

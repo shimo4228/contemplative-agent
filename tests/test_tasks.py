@@ -720,6 +720,54 @@ class TestRenderLedger:
         with pytest.raises(tasks.MalformedTask):
             tasks.render_ledger([self._task("T-A", "blocked", detail="`watch: gh-pr a/b#1")])
 
+    def test_one_render_names_every_broken_row(self):
+        """Aborting on the first offender made a repair cost one render per
+        broken task — and the store is edited by sessions that touch several
+        task files at a time, so N-broken is the ordinary case, not the
+        exotic one (2026-08-15 code review LOW)."""
+        broken = [
+            self._task(tid, "blocked", detail="`watch: gh-pr a/b#1")
+            for tid in ("T-A", "T-B", "T-C")
+        ]
+        with pytest.raises(tasks.MalformedTask) as exc:
+            tasks.render_ledger([*broken, self._task("T-OK", "ready")])
+        assert all(tid in str(exc.value) for tid in ("T-A", "T-B", "T-C"))
+        assert "T-OK" not in str(exc.value)
+
+    def test_the_done_section_is_swept_in_the_same_pass(self):
+        """The two sections render in separate loops; collecting in only one
+        of them would still take two rounds to see everything."""
+        with pytest.raises(tasks.MalformedTask) as exc:
+            tasks.render_ledger(
+                [
+                    self._task("T-PEND", "blocked", detail="`watch: gh-pr a/b#1"),
+                    self._task("T-DONE", "done 2026-08-15", detail="`watch: gh-pr a/b#1"),
+                ]
+            )
+        assert "T-PEND" in str(exc.value) and "T-DONE" in str(exc.value)
+
+    def test_a_row_broken_in_two_cells_names_both_cells(self):
+        with pytest.raises(tasks.MalformedTask) as exc:
+            tasks.render_ledger(
+                [
+                    self._task(
+                        "T-A",
+                        "blocked",
+                        summary="`watch: gh-pr a/b#1",
+                        detail="`watch: file-exists /x|y.env`",
+                    )
+                ]
+            )
+        assert "タスク" in str(exc.value) and "詳細" in str(exc.value)
+        # One refused row, so the leading count says 行 — and both problems sit
+        # on that one line rather than masquerading as a second row.
+        assert str(exc.value).startswith("1 行:")
+        assert len(str(exc.value).split("\n")) == 2
+
+    def test_a_clean_ledger_raises_nothing(self):
+        """The collector must not turn an empty problem list into a refusal."""
+        assert tasks.render_ledger([self._task("T-A", "blocked", detail="`watch: gh-pr a/b#1`")])
+
     def test_done_tasks_go_to_the_done_section(self):
         text = tasks.render_ledger(
             [self._task("T-A", "ready"), self._task("T-B", "done 2026-08-15")]

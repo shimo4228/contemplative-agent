@@ -1493,7 +1493,10 @@ def _docs_scan_json(tmp_path: Path, findings: list[dict], errors: list[dict] | N
 
 
 def _ledger_watch_json(
-    tmp_path: Path, watches: list[dict], errors: list[dict] | None = None
+    tmp_path: Path,
+    watches: list[dict],
+    errors: list[dict] | None = None,
+    drift: dict | None = None,
 ) -> Path:
     path = tmp_path / "ledger-watch.json"
     path.write_text(
@@ -1503,6 +1506,8 @@ def _ledger_watch_json(
                 "watch_count": len(watches),
                 "fired_count": sum(1 for w in watches if w.get("fired") is True),
                 "errors": errors or [],
+                "projection_drift": drift,
+                "source": "store",
             }
         ),
         encoding="utf-8",
@@ -1663,6 +1668,57 @@ def test_ledger_parse_errors_surface_partial(tmp_path: Path):
     text = _build(paths, ledger_watch=lw)
     assert "## 10. Ledger condition watch" in text
     assert "LEDGERWATCH_PARTIAL" in text
+
+
+DRIFT = {"reason": "PROJECTION_DRIFT", "detail": "TASKS.md が store の render と一致しない"}
+
+
+def test_projection_drift_gets_its_own_reason_code(tmp_path: Path):
+    """Drift is not an unparseable annotation. LEDGERWATCH_PARTIAL tells the
+    operator to check `watch:` syntax; drift means the on-disk table no longer
+    matches the store the reading was taken from, and its repair is one
+    `tasks.py render`. Folding it into the same list delivered a true signal
+    under a false name, with the reason and detail discarded (2026-08-15
+    cross-model review P2).
+
+    Asserted on the **metrics record**, not on the packet text: a first version
+    checked that the string `LEDGERWATCH_DRIFT` appeared in the body, which the
+    §10 note prints literally — so deleting the `add_reason` call left the test
+    green while the code never reached the header list or the metrics history
+    (caught by mutation)."""
+    paths = _write_inputs(tmp_path)
+    lw = _ledger_watch_json(tmp_path, [], drift=DRIFT)
+    _build(paths, ledger_watch=lw)
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert "LEDGERWATCH_DRIFT" in rec["reason_codes"]
+    assert "LEDGERWATCH_PARTIAL" not in rec["reason_codes"]
+
+
+def test_drift_alone_does_not_open_section_10(tmp_path: Path):
+    """§10 is signal-first — silent unless a condition needs attention. Nothing
+    auto-renders the projection, so drift is the expected state between hand
+    renders; gating the section on it would print a bold 注意 line most weeks,
+    which is the alarm fatigue the fatal version was rejected for, reappearing
+    in the non-fatal place (2026-08-15 security review LOW)."""
+    paths = _write_inputs(tmp_path)
+    text = _build(paths, ledger_watch=_ledger_watch_json(tmp_path, [], drift=DRIFT))
+    assert "## 10. Ledger condition watch" not in text
+
+
+def test_drift_is_shown_when_section_10_is_open_anyway(tmp_path: Path):
+    """The other half: recording the code without ever showing the repair would
+    make it unactionable for anyone not reading the retained JSON."""
+    paths = _write_inputs(tmp_path)
+    lw = _ledger_watch_json(
+        tmp_path,
+        [{"task": "T-A", "type": "gh-pr", "target": "o/r#1", "fired": True, "reason": None}],
+        drift=DRIFT,
+    )
+    text = _build(paths, ledger_watch=lw)
+    assert "## 10. Ledger condition watch" in text
+    assert "LEDGERWATCH_DRIFT" in text
+    assert "一致しない" in text
+    assert "LEDGERWATCH_PARTIAL" not in text
 
 
 def test_ledger_faults_raise_a_reason_code(tmp_path: Path):

@@ -527,8 +527,13 @@ _WATCH_KIND_JA = {
 }
 
 
-def _check_watch_spans(task: Task) -> None:
+def _watch_span_problems(task: Task) -> list[str]:
     """`watch:` annotations that the scanner cannot see are refused here.
+
+    Returns **every** problem on the task rather than the first. A row can
+    carry a broken annotation in more than one cell, and the caller collects
+    across rows for the same reason: one render should be enough to see the
+    whole repair (2026-08-15 code review LOW).
 
     `ledger_condition_scan._WATCH_RE` requires a closing backtick and at least
     one argument character, so an annotation missing either renders without
@@ -580,6 +585,7 @@ def _check_watch_spans(task: Task) -> None:
     # backticks in `state` outright, so on the store path this cannot fire; the
     # path it covers is `load_tasks_from_ledger` → `render_ledger`, which builds
     # Tasks from split cells and never sees that check.
+    problems: list[str] = []
     for section, cell in (
         ("状態", task.state),
         ("タスク", task.summary),
@@ -589,14 +595,14 @@ def _check_watch_spans(task: Task) -> None:
         for match, kind in invisible_watch_openers(cell):
             if kind == WATCH_NO_ARGUMENT and task.state_word != "blocked":
                 continue
-            raise MalformedTask(
+            problems.append(
                 f"{task.id}: {section} の watch 注釈が scanner から見えない"
                 f"（{kind}: {_WATCH_KIND_JA[kind]}）: "
                 f"{cell[match.start() : match.start() + 60]!r}。"
                 "見えない注釈は「注釈の無い行」と同じに読まれ、§10 が永久に fired 0 になる。"
             )
     if task.state_word != "blocked":
-        return
+        return problems
     # The rewrite check runs on the **escaped** cells only. `state` is emitted
     # raw, so `_ESCAPED_CHARS` describes nothing there: a backslash in a
     # state-cell target renders byte-identically and the scanner polls exactly
@@ -613,12 +619,13 @@ def _check_watch_spans(task: Task) -> None:
         for match in _WATCH_PROBE.finditer(cell):
             rewritten = sorted(t for t in _REWRITTEN_IN_A_CELL if t in match.group(1))
             if rewritten:
-                raise MalformedTask(
+                problems.append(
                     f"{task.id}: {section} の watch 対象に {' '.join(rewritten)!r} が入っている: "
                     f"{match.group(0)[:60]!r}。projection がこれを書き換えるので、"
                     "scanner は誰も書いていない対象を polling して黙って fired False を返す"
                     "（`<br>` なら注釈を 1 行に収める）。"
                 )
+    return problems
 
 
 def render_row(task: Task) -> str:
@@ -638,7 +645,14 @@ def render_row(task: Task) -> str:
             f"{task.id!r} は task id の形式ではない。ID セルは escape されないので、"
             "この行は scanner から別の id / 状態に見える（黙って watch 契約の外に出る）。"
         )
-    _check_watch_spans(task)
+    problems = _watch_span_problems(task)
+    if problems:
+        # `; ` and not a newline: `render_ledger` joins rows with a newline and
+        # a two-space indent, so wrapping here too made a row's second problem
+        # visually identical to a new row's first — and then the count above it
+        # disagreed with the number of lines under it (2026-08-15 code review
+        # LOW).
+        raise MalformedTask("; ".join(problems))
     cells = (
         task.id,
         task.state,
@@ -662,14 +676,41 @@ def _seq(task: Task) -> int:
         return 1 << 30
 
 
+def _render_rows(tasks: list[Task], problems: list[str]) -> list[str]:
+    rows = []
+    for task in tasks:
+        try:
+            rows.append(render_row(task))
+        except MalformedTask as exc:
+            problems.append(str(exc))
+    return rows
+
+
 def render_ledger(tasks: list[Task]) -> str:
+    """Render every row, then refuse **once** naming every offender.
+
+    Aborting on the first bad row made a repair take one render per broken
+    task: fix, re-run, meet the next one. The store is edited by sessions that
+    each touch several task files, so N-broken is the ordinary case and the
+    operator could not see N without walking it (2026-08-15 code review LOW).
+    Collecting costs nothing — the whole string is built in memory and
+    `cmd_render` reaches `_atomic_write` only after this returns, so a
+    half-checked table cannot exist either way.
+    """
     ordered = sorted(tasks, key=_seq)
     pending = [t for t in ordered if not t.is_terminal]
     done = [t for t in ordered if t.is_terminal]
+    problems: list[str] = []
     out = [_HEADER, "", "## Pending", "", _TABLE_HEAD]
-    out += [render_row(t) for t in pending]
+    out += _render_rows(pending, problems)
     out += ["", "## Done / Dropped", "", _TABLE_HEAD]
-    out += [render_row(t) for t in done]
+    out += _render_rows(done, problems)
+    if problems:
+        # 行, not 件: one entry per refused row, and a row can carry several
+        # problems. A count that claimed to be problems while counting rows
+        # would understate the repair the operator is about to do — the very
+        # thing collecting was for (2026-08-15 code review LOW).
+        raise MalformedTask(f"{len(problems)} 行:\n  " + "\n  ".join(problems))
     return "\n".join(out).rstrip("\n") + "\n"
 
 
@@ -1041,6 +1082,12 @@ def cmd_show(args, root: Path) -> int:
 
 
 def cmd_render(args, root: Path) -> int:
+    """Render the store. Without `--output`, **stdout is a machine contract**:
+    `ledger_condition_scan.render_from_store` runs this as a subprocess every
+    week and parses what it prints, so a stray `print()` anywhere on this path
+    lands inside the table it reads (2026-08-15 code review LOW). Exit 2 is
+    "this store cannot be rendered", which that caller maps to a reason code.
+    """
     # `load_store` and `render_ledger` share one handler because they raise the
     # same exception for the same reason — a task the projection cannot
     # honestly represent — and every sibling path in this file reports

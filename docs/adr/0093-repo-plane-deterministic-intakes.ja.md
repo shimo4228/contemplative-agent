@@ -167,6 +167,40 @@ signal を足さずに運用面だけ増やす。
   `fired 0` のままだった。3 種（`unterminated` / `no-argument` / `swallowed`）に
   名前を付け、render（`tasks.py::render_row`）で拒否し、スキャンでも報告する。
   規約の強制点は 2 つになり、うち 1 つは週次より上流にある。
+- **2026-08-15 に supersede: stage 6c の入力は file でなく store。** 採択時この
+  intake は `.notes/TASKS.md` を parse していたが、ADR-0094 以降それは
+  `.notes/tasks/` の **projection** であり、**どの stage もそれを再生成しない**
+  （render は session が手で走らせる）。`tasks.py render` が落ちた週は
+  `_atomic_write` に到達しないので前回の表がそのまま残り、しかもそれは正しく
+  parse される — stage は、もはや写していない store に対して
+  `result=ok watches=N fired=0` を記録し、新しい blocked 行は 1 行も入っていない。
+  「render が壊れている」がゲートには「何も発火していない」として届く。この ADR
+  自身が禁じている形が 1 層上に移っただけになる。staleness 自体は指摘より前から
+  あった（store のどこかに `MalformedTask` があれば `load_store` が同じように
+  落ちる）が、上記の render 拒否が入ったことで、到達経路が「store が壊れている」
+  から「blocked 行 1 本の `watch:` の typo」へ降りた。
+  修正は検証でなく再導出にした: `render_from_store` が `tasks.py render` を
+  subprocess で走らせ（別プロセスなので、in-process なら生じる import 循環に
+  ならない）、その stdout を parse する。live store で実測: exit 0、186,038 bytes、
+  file と byte 一致、0.12 秒、書き込みなし（`--output` 無しの `render` は print
+  するだけ）。render できない store は `LEDGER_UNRENDERABLE` で abstain し、
+  detail には render 自身のメッセージを載せる — そこには既に該当タスクとセルの
+  名前が入っている。
+  timestamp 比較は先に作ったうえで 2 つの理由で退けた。第一に、それが検証するのは
+  **age であって renderability ではない**: render 側の検査が厳しくなると、store が
+  1 バイトも変わらないまま render が落ち始める — `c16642c` と `8265e3c` がまさに
+  それで、mtime による検査はその週を fresh と読み、しかも「検証済み」と刻印する。
+  第二に、false-stale 側が常態になる: 手動 render の合間、store が projection より
+  先行しているのが通常状態で（`claims.py` が両方を union しているのはそのため）、
+  stage はほぼ毎週落ち、やがて警告が何も意味しなくなる — 元の失敗が alarm fatigue
+  の扉から戻ってくる。再導出は問いに答えるのでなく問いを消す: cache が無いので
+  mtime も時計も read/replace 窓も、正直に保つべき limit の一覧も無い。
+  disk 上の file の drift は引き続き報告する（`PROJECTION_DRIFT`、`tasks.py render
+  --output` 1 回で解消）が fatal にはしない — 読み値はもう file に依存しておらず、
+  かつ file は人間が開くものだから。drift は専用の JSON キーと専用の packet コード
+  `LEDGERWATCH_DRIFT` で運ぶ: packet は `errors[]` の各要素を「解釈不能な watch
+  注釈」として数えて「注釈構文を確認」と印字するので、そこに drift を載せると
+  真の signal が偽の名前で届く — 上の欠陥と同じ型が、フィールド 1 つ隣で起きる。
 
 **Neutral:**
 

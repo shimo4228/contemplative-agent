@@ -632,12 +632,36 @@ def build_packet(
     ledger_watches: list[dict] = []
     ledger_scanned = False
     ledger_parse_errors = 0
+    ledger_drift: str | None = None
     if ledger_watch is not None:
         lw_data = _load_findings(ledger_watch)  # same safe-load contract
         raw = lw_data.get("watches") if lw_data is not None else None
         if isinstance(raw, list) and lw_data is not None:
             ledger_scanned = True
             ledger_watches = [w for w in raw if isinstance(w, dict)]
+            # Its own key, its own reason code, its own sentence. Drift means
+            # ".notes/TASKS.md no longer matches the store" — the reading was
+            # taken from the store either way — whereas LEDGERWATCH_PARTIAL
+            # means "a watch annotation is unparseable" and tells the operator
+            # to check annotation syntax. Folding one into the other delivered
+            # a true signal under a false name (2026-08-15 cross-model review).
+            drift = lw_data.get("projection_drift")
+            if isinstance(drift, dict):
+                ledger_drift = str(drift.get("detail", ""))
+                # Deliberately NOT in DESIGNED_OUTCOME_CODES, even though this
+                # code recurs by design the way IDENTITY_STAGING_BUSY does.
+                # `check_improvement` intersects the *shell's* `$REASONS` with
+                # the last recorded auto record, and `$REASONS` is built only by
+                # `weekly-pipeline.sh`'s own `add_reason` — stage 7 runs before
+                # stage 8, so a code added here reaches the baseline side and
+                # never the candidate side, and the intersection cannot contain
+                # it. Measured. Two 2026-08-15 reviewers reached opposite
+                # conclusions about this, one of them by passing
+                # `--current-codes LEDGERWATCH_DRIFT` by hand — which no caller
+                # does — so the reasoning is written down rather than left to be
+                # re-derived. Listing it in that set would document a exemption
+                # the detector does not need and cannot use.
+                add_reason("LEDGERWATCH_DRIFT")
             lw_errors = lw_data.get("errors")
             if isinstance(lw_errors, list) and lw_errors:
                 ledger_parse_errors = len(lw_errors)
@@ -1208,12 +1232,22 @@ def build_packet(
     # Section number 10 is reserved for the ledger-watch intake; it renders
     # only when a condition fired, a watch faulted (state unknown ≠ still
     # blocked), or an annotation failed to parse.
+    #
+    # Deliberately NOT on `ledger_drift`. Nothing auto-renders the projection —
+    # that is the premise of reading the store instead — so any store edit since
+    # the last hand render produces drift, and gating a signal-first section on
+    # it would print a bold 注意 line most weeks. That is the alarm fatigue the
+    # redesign rejected the *fatal* version of, reappearing in the non-fatal
+    # place (2026-08-15 security review LOW). Drift still reaches the header
+    # reason list and the metrics record via `add_reason`, which is the
+    # low-noise channel, and its detail renders here when §10 is already open.
     if ledger_fired or ledger_faults or ledger_parse_errors:
         lines.append("## 10. Ledger condition watch")
         lines.append("")
         lines.append(
             "台帳 watch 照合（第 7 決定論 intake、`scripts/ledger_condition_scan.py`）"
-            "の読み値。`.notes/TASKS.md` の blocked 行に注釈された解除条件の現在状態。"
+            "の読み値。`.notes/tasks/` を毎回 render した表の blocked 行に注釈された"
+            "解除条件の現在状態（`.notes/TASKS.md` は生成物なので入力ではない）。"
             "**fired = 条件が動いた可能性の読み値であって着手指示ではない** — "
             "着手判断は人間に属する。"
         )
@@ -1221,8 +1255,11 @@ def build_packet(
         if ledger_parse_errors:
             lines.append(
                 f"**注意 (LEDGERWATCH_PARTIAL)**: {ledger_parse_errors} 件の watch 注釈が"
-                "解釈不能 — `.notes/TASKS.md` の注釈構文を確認。"
+                "解釈不能 — `.notes/tasks/` の注釈構文を確認。"
             )
+            lines.append("")
+        if ledger_drift:
+            lines.append(f"**注意 (LEDGERWATCH_DRIFT)**: {_cell(ledger_drift)}")
             lines.append("")
         lines.append("| task | type | target | status | fired | reason |")
         lines.append("|---|---|---|---|---|---|")

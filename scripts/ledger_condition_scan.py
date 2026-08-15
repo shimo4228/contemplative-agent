@@ -42,8 +42,31 @@ Security contract (the packet is read by the gate LLM session):
 - Every request is timeout-bounded; a hung endpoint degrades to UNREACHABLE.
 
 Faults degrade per-watch with a reason code (never a crash, never a silent
-skip); only an unreadable ledger abstains nonzero (LEDGERWATCH_FAIL on
-stderr) — a broken scan must never read as "no conditions fired" (ADR-0077).
+skip); only a table this scan cannot vouch for abstains nonzero
+(LEDGERWATCH_FAIL on stderr) — a broken scan must never read as "no conditions
+fired" (ADR-0077).
+
+**The table is re-derived, not read** (2026-08-15, superseding this intake's
+input in ADR-0093). `.notes/TASKS.md` became a projection of `.notes/tasks/`
+under ADR-0094 and nothing on the weekly path re-renders it, so parsing the
+file asked about a cache while the source sat beside it — and every way the
+cache could be wrong came out as a clean `fired 0`. `render_from_store` runs
+`tasks.py render` as a subprocess (no import cycle: separate process) and the
+scan reads its stdout. A store that cannot be rendered abstains with
+LEDGER_UNRENDERABLE, carrying render's own message, which already names the
+offending task and cell; RENDER_FAILED, RENDER_TIMEOUT and RENDER_UNAVAILABLE
+separate "the renderer or its environment fell over" from "the store is bad",
+since those have different repairs. The on-disk file is still compared, and its
+drift reported as PROJECTION_DRIFT — never fatal, since the reading no longer
+depends on it. LEDGER_UNREADABLE survives for the `root=None` path only.
+
+**The cost of re-deriving**, stated because the ADR presents it as pure gain:
+this intake's availability is now coupled to `tasks.py`'s. A renderer bug, an
+interpreter change or a hostile locale takes the whole intake down, where
+reading the file still produced *a* reading. That is the right trade — a
+reading from a table nobody re-derived is what this change exists to stop
+being possible — and `root=None` keeps the escape hatch for a caller holding a
+recovered table, deliberately without a CLI flag for it.
 """
 
 from __future__ import annotations
@@ -51,7 +74,9 @@ from __future__ import annotations
 import argparse
 import http.client
 import json
+import os
 import re
+import subprocess
 import sys
 import urllib.error
 import urllib.parse
@@ -349,11 +374,203 @@ def run_watch(watch: Watch, fetch: Fetch) -> dict:
     }
 
 
-def scan(ledger: Path, fetch: Fetch = default_fetch) -> dict:
+# `tasks.py render` is a separate process, so calling it here is not the import
+# cycle it would be in-process (`tasks.py` imports this module for the watch
+# grammar). Measured on the live store: exit 0, 186,038 bytes, byte-identical to
+# `.notes/TASKS.md`, 0.12s, no writes — `render` without `--output` only prints.
+_TASKS_PY = Path(__file__).resolve().parent / "tasks.py"
+_RENDER_TIMEOUT = 30
+# Enough of `render`'s stderr to name the offending task and cell; it reports
+# every refused row in one pass, so a multi-row repair is legible from one line.
+_RENDER_ERR_CHARS = 2000
+
+
+def render_from_store(root: Path, timeout: float = _RENDER_TIMEOUT) -> str:
+    """The ledger table as a render of the store would produce it *now*.
+
+    `.notes/TASKS.md` is a projection of `.notes/tasks/` (ADR-0094) and
+    **nothing on the weekly path re-derives it** — sessions render by hand. So
+    reading the file asked a question about a cache while the source sat next
+    to it, and every failure of that cache read as a clean zero:
+
+    - `tasks.py render` fails → it never reaches `_atomic_write`, the previous
+      table survives intact, parses cleanly, and the scan reports
+      `result=ok watches=N fired=0` over rows the store no longer has. "The
+      render is broken" arrives at the gate as "nothing fired" — the shape
+      ADR-0077 forbids, one layer up (2026-08-15 code review HIGH).
+    - Worse, and the reason an mtime comparison was not enough: a render can
+      start failing with **no store mutation at all**, when the render side
+      tightens. A task file written weeks ago becomes unrenderable the moment
+      `render_row` gains a refusal — which `c16642c` and `8265e3c` each did.
+      Any freshness test built on timestamps calls that week fresh, and would
+      have stamped it `verified` (2026-08-15 code review HIGH).
+
+    Re-deriving removes the question instead of answering it: there is no cache
+    to be stale, so no mtime, no clock, no read/replace window, and no list of
+    limits to keep honest. A store that cannot be rendered abstains, and that
+    abstain *is* the week's real reading. It also removes the false-stale side,
+    which would have been the common case: the store routinely runs ahead of
+    the projection between renders (`claims.py` unions both for exactly that
+    reason), so a comparison-based gate would have failed most weeks until the
+    alarm meant nothing (2026-08-15 code review MEDIUM).
+    """
+    if not _TASKS_PY.is_file():
+        # Checked before spawning, because CPython exits **2** for "can't open
+        # file" — the same code `cmd_render` uses for "I refuse this store". A
+        # missing renderer would otherwise arrive as LEDGER_UNRENDERABLE and
+        # send the operator looking for a bad task file (found by the
+        # parametrised RENDER_UNAVAILABLE test, which had been asserting the
+        # right code for a path that no longer produced it).
+        raise ScanError("RENDER_UNAVAILABLE", f"renderer が無い: {_TASKS_PY}")
     try:
-        text = ledger.read_text(encoding="utf-8", errors="replace")
+        proc = subprocess.run(  # noqa: S603 — argv list, no shell, fixed interpreter+script
+            # **Two flags must never be added here.**
+            # `--allow-empty`: `cmd_render`'s empty-store refusal is the only
+            # thing that makes an empty or symlinked store abstain.
+            # `_inside_store` runs inside `load_store`'s loop, so a store with
+            # no files never reaches it, and the render would succeed with a
+            # valid empty table — `watch_count 0, source store`, exit 0: the
+            # clean zero this module exists to refuse.
+            # `--output`: this job runs unattended every week. Writing would
+            # make it edit the operator's ledger *and* silence PROJECTION_DRIFT
+            # permanently, since the file would then always match.
+            # Both read as "make the scan more robust" and are the opposite
+            # (2026-08-15 security + code review).
+            [sys.executable, str(_TASKS_PY), "--root", str(root), "render"],
+            capture_output=True,
+            # The parent's `encoding=` decodes the pipe; it does not reach the
+            # child's own stdout encoder. Without pinning that too, a non-UTF-8
+            # locale makes `tasks.py` die encoding the Japanese table — measured
+            # under LC_ALL=en_US.ISO8859-1 — and the traceback then arrives
+            # under LEDGER_UNRENDERABLE, an environment fault wearing a code
+            # that says the store is bad and pointing at a task file that is
+            # fine (2026-08-15 code review MEDIUM).
+            env={**os.environ, "PYTHONUTF8": "1", "PYTHONIOENCODING": "utf-8"},
+            # Explicit UTF-8 rather than the locale's codec with errors=strict:
+            # `text=True` alone makes `subprocess.run` raise UnicodeDecodeError
+            # — a ValueError, so neither handler below catches it and it
+            # escapes `main`'s ScanError handler as a traceback with no reason
+            # code. The content crossing here is Japanese, so a non-UTF-8 locale
+            # does not degrade, it raises. Unreachable on this machine (macOS
+            # reports UTF-8 even under LC_ALL=C, and APFS refuses invalid-UTF-8
+            # filenames) but reachable on Linux, where CI and the sibling repos
+            # run (2026-08-15 security review LOW, exception class confirmed).
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+            stdin=subprocess.DEVNULL,
+        )
+    except subprocess.TimeoutExpired as exc:
+        # Separate from the exit-nonzero code because the repair is different:
+        # a hang is not a task to go fix. The stage is itself timeout-bounded,
+        # so this bound only exists to name the cause before that one hits.
+        raise ScanError("RENDER_TIMEOUT", f"tasks.py render が {timeout}s で終わらない") from exc
     except OSError as exc:
-        raise ScanError("LEDGER_UNREADABLE", str(exc)) from exc
+        raise ScanError("RENDER_UNAVAILABLE", str(exc)) from exc
+    if proc.returncode != 0:
+        # `render`'s own stderr already names the task and the cell, so it is
+        # carried rather than replaced by a code-owned sentence: replacing it
+        # would put the operator back to running the render by hand to find out
+        # which row. Sanitised at the sink in `main`, with everything else.
+        message = " ".join(proc.stderr.split())
+        # Exit 2 is `cmd_render`'s "I refuse this store" — a malformed task
+        # file, a mistyped `watch:`, an empty or vanished store. Any other
+        # nonzero is the renderer or its environment falling over, which is a
+        # different repair and must not arrive wearing a code that says the
+        # store is bad (2026-08-15 code review MEDIUM). Within exit 2 the
+        # causes are NOT split further: telling "typo'd row" from "store is
+        # gone" would mean pattern-matching render's prose, and a reason code
+        # derived from a message is a code that breaks when the message is
+        # reworded. The detail carries the distinction verbatim instead.
+        raise ScanError(
+            "LEDGER_UNRENDERABLE" if proc.returncode == 2 else "RENDER_FAILED",
+            f"tasks.py render exit={proc.returncode}: "
+            # The ellipsis matters: `render_ledger` leads with `N 行:` so the
+            # count survives the cut, but without a marker a reader cannot tell
+            # whether render said exactly this or there was more (2026-08-15
+            # security review INFO).
+            f"{message[:_RENDER_ERR_CHARS]}{'…（以下略）' if len(message) > _RENDER_ERR_CHARS else ''}",
+        )
+    return proc.stdout
+
+
+def projection_drift(ledger: Path, root: Path, rendered: str) -> dict | None:
+    """Whether the on-disk projection still matches what the store renders.
+
+    Reported, never fatal. The reading is over the store, so a stale
+    `.notes/TASKS.md` cannot corrupt it — but it is the file a human opens, and
+    letting it drift silently is how the operator's view and the gate's view
+    come apart.
+
+    **Its own field, not an entry in `errors`.** The packet counts every
+    `errors` entry as an unparseable watch annotation and prints "N 件の watch
+    注釈が解釈不能 — 注釈構文を確認", discarding the reason and detail. Routing
+    drift through there would deliver a true signal under a false name with
+    advice that does not apply to it — the failure-named-wrong class this whole
+    change is about (2026-08-15 cross-model review P2).
+
+    The repair command carries `--root`, because without it `tasks.py` renders
+    its *default* store: for a `--ledger` outside this repo, the suggested
+    command would overwrite that ledger with this repo's tasks (same review,
+    P2).
+    """
+    try:
+        # `errors="replace"`, matching the scan's own read: `read_text` raises
+        # UnicodeDecodeError — a ValueError, not an OSError — on a corrupt file,
+        # and that escaped `main`'s ScanError handler as a traceback with no
+        # reason code (2026-08-15 cross-model review P2). Replacement makes a
+        # corrupt projection compare unequal, which is exactly drift.
+        current = ledger.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return _drift(f"{ledger} を読めない（読み値は store から取った）: {exc}", ledger, root)
+    if current == rendered:
+        return None
+    # The size of the gap, not just its existence. The deleted `LEDGER_STALE`
+    # named the witness file and both timestamps; "they disagree" with no
+    # "how" is the weaker statement, and both strings are already in hand
+    # (2026-08-15 code review LOW).
+    return _drift(
+        f"{ledger} が store の render と一致しない"
+        f"（file {len(current.splitlines())} 行 / render {len(rendered.splitlines())} 行）",
+        ledger,
+        root,
+    )
+
+
+def _drift(what: str, ledger: Path, root: Path) -> dict:
+    return {
+        "reason": "PROJECTION_DRIFT",
+        # `_printable` because this one lands in the retained JSON as well as on
+        # stderr, and `main`'s sink sanitiser only covers the abstain line. The
+        # ledger path is operator-supplied and unconstrained (2026-08-15
+        # cross-model review P3); `parse_watches` sanitises its own details for
+        # the same reason.
+        "detail": _printable(
+            f"{what}（読み値は store から取ったので watch 照合には影響しない）。"
+            f"`python3 scripts/tasks.py --root {root} render --output {ledger}` で揃う。"
+        ),
+    }
+
+
+def scan(ledger: Path, fetch: Fetch = default_fetch, root: Path | None = None) -> dict:
+    """Poll the watch annotations. `root` = re-derive the table from the store.
+
+    `root=None` falls back to reading `ledger` as a file, for a caller holding a
+    table that is not a projection of a live store: a checked-in fixture, or a
+    ledger recovered from a backup after the store was lost (the store is
+    gitignored, so that recovery is real). The result says which happened in
+    `source`, because `fired 0` derived from the store and `fired 0` parsed out
+    of an arbitrary file are different claims and the artifact is retained.
+    """
+    drift = None
+    if root is not None:
+        text = render_from_store(root)
+        drift = projection_drift(ledger, root, text)
+    else:
+        try:
+            text = ledger.read_text(encoding="utf-8", errors="replace")
+        except OSError as exc:
+            raise ScanError("LEDGER_UNREADABLE", str(exc)) from exc
     watches, errors = parse_watches(text)
     # Sequential on purpose: worst case is linear in unreachable endpoints
     # (10s timeout each). Fine at a handful of watches; if the ledger ever
@@ -364,7 +581,20 @@ def scan(ledger: Path, fetch: Fetch = default_fetch) -> dict:
         "watches": results,
         "watch_count": len(results),
         "fired_count": sum(1 for r in results if r["fired"] is True),
+        # `errors` stays exactly what the packet already believes it is: watch
+        # annotations that could not be parsed. Drift is a different claim with
+        # a different repair, so it gets a different key.
         "errors": errors,
+        "projection_drift": drift,
+        # Provenance of the reading. Named for what it is rather than for a
+        # verdict it does not hold: an earlier `ledger_verified` recorded only
+        # that an argument had been supplied, which would have stayed `true`
+        # the first time anything downgraded the check (2026-08-15 code review
+        # LOW). No packet reason code rides on it — the pipeline always renders,
+        # so a code that cannot fire in production would be noise; the shell
+        # test asserts the value instead, which is the only place a regression
+        # in `main`'s derivation could be caught.
+        "source": "store" if root is not None else "file",
     }
 
 
@@ -378,11 +608,53 @@ def main(argv: list[str] | None = None) -> int:
         default=Path(__file__).resolve().parent.parent / ".notes" / "TASKS.md",
         help="task ledger path (default: this repo's .notes/TASKS.md)",
     )
+    parser.add_argument(
+        "--root",
+        type=Path,
+        help=(
+            "repo root whose .notes/tasks/ store the table is rendered from "
+            "(default: derived from --ledger, which lives at <root>/.notes/)"
+        ),
+    )
     args = parser.parse_args(argv)
+    # Derived, never optional. The CLI is the production caller, and the one
+    # thing it must not do is report `fired 0` out of a file nobody re-derived.
+    # `--ledger` stays the flag the pipeline passes (MOLTBOOK_LEDGER_PATH), so
+    # the root comes from it: the ledger lives at `<root>/.notes/TASKS.md`.
+    # `--root` overrides for a table kept somewhere else. There is deliberately
+    # no flag to skip the render — an operator meeting LEDGER_UNRENDERABLE must
+    # not be able to silence it, which is what a `--no-render` escape would be
+    # used for on exactly the week it matters.
+    root = args.root
+    if root is None:
+        # The derivation only holds for the documented layout. Without this
+        # check, `--ledger <repo>/backup/TASKS.md` produced a full reading of
+        # `<repo>/.notes/tasks` labelled `source: store` against a ledger the
+        # caller named somewhere else — visible only through PROJECTION_DRIFT,
+        # which is not what that signal means (2026-08-15 code review LOW). An
+        # explicit `--root` is exempt: naming both is how a caller says they do
+        # not correspond.
+        if args.ledger.parent.name != ".notes":
+            print(
+                f"Error: --ledger は <root>/.notes/TASKS.md の形を想定している: {args.ledger}。"
+                "別の場所の表を照合するなら --root を明示する。",
+                file=sys.stderr,
+            )
+            return 2
+        root = args.ledger.parent.parent
     try:
-        result = scan(args.ledger)
+        result = scan(args.ledger, root=root)
     except ScanError as exc:
-        print(f"LEDGERWATCH_FAIL reason={exc.reason} {exc.detail}", file=sys.stderr)
+        # Sanitised at the sink, not at each raise site. Every abstain detail
+        # carries text this module does not constrain — a store filename, a
+        # path from `--ledger` / `MOLTBOOK_LEDGER_PATH`, an OSError message
+        # embedding either — and this line is printed raw to a terminal and
+        # retained in `ledgerwatch.err`. Guarding per-site left one sanitised
+        # field beside three raw ones, which is what `parse_watches` already
+        # warns is an invitation to fix the wrong one later (2026-08-15
+        # security + code review LOW). One rule, one place, and it covers
+        # reason codes not yet written.
+        print(f"LEDGERWATCH_FAIL reason={exc.reason} {_printable(exc.detail)}", file=sys.stderr)
         return 1
     print(json.dumps(result, ensure_ascii=False, indent=2))
     return 0
