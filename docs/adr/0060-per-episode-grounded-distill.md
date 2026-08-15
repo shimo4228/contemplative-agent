@@ -202,13 +202,18 @@ the `SIM_UPDATE` branch of the unchanged pattern-level dedup step.
   gate is absent — per the CLAUDE.md freshness rule, update in the same PR.
 - `graph.jsonld` gains an ADR-0060 node (`supersedes` ADR-0026 Step 0 and ADR-0027 Phase 1;
   `alignsWith` ADR-0031, ADR-0058, ADR-0019) — deferred to the dual-update at release.
-  **Amendment (2026-08-15)**: the edge shipped as `partiallySupersedes`, not `supersedes` — a
-  scoped supersede had no forward vocabulary term until this date, so the graph recorded it as a
-  full one while ADR-0026 and ADR-0027 still read `accepted` on every face. "Step 0" is this
-  ADR's own label; ADR-0026 numbers the affected material Phase 2 (its `core/distill.py` half),
-  and each target's own Status line now carries the authoritative scope.
+  **Amendment (2026-08-15)**: the node ships two edges, not one — `supersedes` ADR-0027 and
+  `partiallySupersedes` ADR-0026 — and until this date neither was recorded correctly, because a
+  scoped supersede had no forward vocabulary term at all, so the graph wrote both as one full
+  `supersedes` while ADR-0026 and ADR-0027 still read `accepted` on every face. Two scope
+  corrections came with it. "Step 0" is this ADR's own label: ADR-0026 numbers the affected
+  material Phase 2, and only its `core/distill.py` half died — Phase 1, Phase 3, and Phase 2's
+  `core/constitution.py` half remain in effect. ADR-0027 is superseded *in full*, not at Phase 1
+  only: all three of its phases presuppose the ingest gate this ADR removed, and Phases 2–3 were
+  never built. Each target's own Status line carries the authoritative scope.
 - This ADR supersedes ADR-0026 Step 0 (binary ingest-time noise gate) and ADR-0027 Phase 1
-  (noise-log writer).
+  (noise-log writer). **Amendment (2026-08-15)**: understated on both counts — see the scope
+  corrections in the bullet above.
 
 ## References
 

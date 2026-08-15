@@ -80,8 +80,8 @@ reinforce の cosine 閾値を 0.80 から約 0.72 に下げ、観測された e
 
 - 使い捨ての測定スクリプト（`scripts/proto_grounded_distill.py`）は per-episode 設計が production で落ち着いた後に削除した。read-only の測定出力は `docs/evidence/adr-0060/measurement-2026-06-22.md` に保存している。
 - `docs/CODEMAPS/architecture.md` の Data Flow を 1 箇所更新する必要がある: distill 段はリッチエピソード 1 件あたり grounded な LLM 1 コールになり、30 エピソード 1 件あたり 2-step バッチコールではなく、noise gate は不在 — CLAUDE.md 鮮度規約に従い同 PR で更新。
-- `graph.jsonld` に ADR-0060 ノードを追加する（ADR-0026 Step 0 と ADR-0027 Phase 1 を `supersedes`; ADR-0031、ADR-0058、ADR-0019 と `alignsWith`）— リリース時の dual-update に先送り。**Amendment (2026-08-15)**: 実際に出荷されたエッジは `supersedes` ではなく `partiallySupersedes` である — この日まで部分 supersede には前向きの語彙が無く、graph は全面 supersede として記録する一方で ADR-0026 と ADR-0027 は全 5 面で `accepted` のままだった。"Step 0" は本 ADR 独自の呼称で、ADR-0026 側では該当箇所を Phase 2（その `core/distill.py` 側）と番号付けしている。正確なスコープは各対象 ADR の Status 行が持つ。
-- 本 ADR は ADR-0026 Step 0（ingest 時 binary noise gate）と ADR-0027 Phase 1（noise-log writer）を supersede する。
+- `graph.jsonld` に ADR-0060 ノードを追加する（ADR-0026 Step 0 と ADR-0027 Phase 1 を `supersedes`; ADR-0031、ADR-0058、ADR-0019 と `alignsWith`）— リリース時の dual-update に先送り。**Amendment (2026-08-15)**: 出荷されたエッジは 1 本ではなく 2 本 — ADR-0027 を `supersedes`、ADR-0026 を `partiallySupersedes` — であり、この日までどちらも正しく記録されていなかった。部分 supersede に前向きの語彙がそもそも無かったため、graph は両方を 1 本の全面 `supersedes` として書き、ADR-0026 と ADR-0027 は全 5 面で `accepted` のままだった。あわせてスコープの訂正が 2 件。"Step 0" は本 ADR 独自の呼称で、ADR-0026 側では該当箇所を Phase 2 と番号付けしており、死んだのはその `core/distill.py` 側だけ — Phase 1、Phase 3、Phase 2 の `core/constitution.py` 側は存続する。ADR-0027 は Phase 1 だけでなく**全面**が supersede される: 3 つの Phase すべてが本 ADR の撤去した ingest gate を前提にしており、Phase 2/3 は実装されないまま終わった。正確なスコープは各対象 ADR の Status 行が持つ。
+- 本 ADR は ADR-0026 Step 0（ingest 時 binary noise gate）と ADR-0027 Phase 1（noise-log writer）を supersede する。**Amendment (2026-08-15)**: 両方とも過小記述 — 上の bullet のスコープ訂正を参照。
 
 ## References
 
