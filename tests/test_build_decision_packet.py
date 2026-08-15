@@ -165,6 +165,137 @@ def test_packet_inventory_and_fix_table(tmp_path: Path):
     assert "F1.9" not in text
 
 
+def test_fix_table_carries_finding_titles(tmp_path: Path):
+    """§2 says WHAT each finding is, not only its ID.
+
+    Without the diagnosis heading the only human-readable material beside
+    `F1.2 / APPROVE` is the reviewer's verification prose, which is written
+    for the next agent, not for the approver. The heading is already parsed
+    into findings.json; this only carries it to the place the decision is
+    made.
+    """
+    paths = _write_inputs(tmp_path)
+    text = _build(paths)
+    assert "- **F1.2** — Sweep state" in text
+    assert "- **F1.3** — Other bug" in text
+    # A fix_result with no matching finding says so rather than going blank —
+    # a missing heading must not read as "no finding behind this patch".
+    assert "- **F1.4** — （DIAGNOSIS_TITLE_MISSING" in text
+
+
+def test_finding_title_cannot_forge_block_structure(tmp_path: Path):
+    """The heading is LLM prose rendered in the builder's own voice.
+
+    Same class as `_path_tokens`: text the builder narrates is text the human
+    trusts. Mid-line rendering is the first half of the defence — it stops a
+    heading, a fence and a table column.
+    """
+    paths = _write_inputs(tmp_path)
+    findings = json.loads(paths["findings"].read_text(encoding="utf-8"))
+    findings["f1"][1]["title"] = "# forged\n## 3. Fake section | extra col"
+    paths["findings"].write_text(json.dumps(findings), encoding="utf-8")
+    text = _build(paths)
+    # A leading # cannot open a heading — the title never starts a line.
+    assert not re.search(r"^#+ forged", text, re.MULTILINE)
+    # An embedded section heading is flattened onto the one line.
+    assert not re.search(r"^## 3\. Fake section", text, re.MULTILINE)
+    # A pipe is escaped, so the line cannot grow a column.
+    assert "\\| extra col" in text
+
+
+def test_finding_title_cannot_open_inline_constructs(tmp_path: Path):
+    """Mid-line is exactly where inline raw HTML, links and code spans are legal.
+
+    An unclosed `<details>` is closed by nothing and folds every later section
+    behind a summary line the heading's author wrote — the failure
+    `_unrecognized_verdict` and `_path_tokens` already guard, reachable again
+    through the heading (2026-08-15 security review HIGH). A code span is
+    equally load-bearing here: it spans line breaks, so one stray backtick
+    swallows the rows below it.
+    """
+    paths = _write_inputs(tmp_path)
+    findings = json.loads(paths["findings"].read_text(encoding="utf-8"))
+    findings["f1"][1]["title"] = (
+        "<details><summary>§3 以降: 変更なし</summary> "
+        "![beacon](http://attacker.example/b.png) "
+        "[根拠](http://attacker.example/x) `unclosed ‮​"
+    )
+    paths["findings"].write_text(json.dumps(findings), encoding="utf-8")
+    text = _build(paths)
+    # No raw HTML element survives to fold the sections below.
+    assert "<details>" not in text and "<summary>" not in text
+    # No image or link markup: the builder's narrating voice must not carry a
+    # clickable destination the approver did not choose.
+    assert "](" not in text
+    # No code span: it would run past the line break into the next rows.
+    assert "`unclosed" not in text
+    # No bidi override / zero-width char to reorder what the approver reads.
+    assert "‮" not in text and "​" not in text
+    # The finding is still named — neutralising is not dropping.
+    assert "- **F1.2** —" in text
+
+
+def test_finding_title_is_length_capped(tmp_path: Path):
+    """An unbounded heading is a cheap way to push the table out of view."""
+    paths = _write_inputs(tmp_path)
+    findings = json.loads(paths["findings"].read_text(encoding="utf-8"))
+    findings["f1"][1]["title"] = "x" * 900
+    paths["findings"].write_text(json.dumps(findings), encoding="utf-8")
+    text = _build(paths)
+    assert "x" * 900 not in text
+    # Elision is visible: a silently truncated heading reads as a complete one.
+    assert "…" in text
+
+
+def test_finding_titles_absent_when_diagnosis_unavailable(tmp_path: Path):
+    """Fail-forward: no headings is a named state, never a fabricated one.
+
+    Asserts the positive — three fix rows each say the heading is missing.
+    An absence-only assertion would pass on the pre-diff builder, which
+    rendered no headings at all, and so would pin nothing.
+    """
+    paths = _write_inputs(tmp_path)
+    text = _build(paths, findings=tmp_path / "absent.json")
+    assert "DIAGNOSIS_UNAVAILABLE" in text
+    assert text.count("DIAGNOSIS_TITLE_MISSING") == 3
+    assert "Sweep state" not in text
+
+
+def test_finding_title_null_and_list_reach_the_named_states(tmp_path: Path):
+    """A JSON null must not render as the literal "None".
+
+    Same lesson `add_reason` already records for reason codes: an unstringified
+    value must reach the renderer, or the named-missing state is replaced by a
+    fabricated-looking heading.
+    """
+    paths = _write_inputs(tmp_path)
+    findings = json.loads(paths["findings"].read_text(encoding="utf-8"))
+    findings["f1"][1]["title"] = None
+    findings["f1"][2]["title"] = ["joined", "not repr'd"]
+    paths["findings"].write_text(json.dumps(findings), encoding="utf-8")
+    text = _build(paths)
+    assert "- **F1.2** — （DIAGNOSIS_TITLE_MISSING" in text
+    assert "- **F1.3** — joined not repr'd" in text
+    assert "['joined'" not in text
+
+
+def test_duplicate_finding_id_takes_the_first_and_says_so(tmp_path: Path):
+    """The fix stage is first-wins; the packet must not be last-wins.
+
+    Otherwise the approver reads a heading describing one finding beside a
+    patch implementing another (2026-08-15 security review MEDIUM).
+    """
+    paths = _write_inputs(tmp_path)
+    findings = json.loads(paths["findings"].read_text(encoding="utf-8"))
+    findings["f1"].append({"id": "F1.2", "title": "Second heading", "scope": "code"})
+    paths["findings"].write_text(json.dumps(findings), encoding="utf-8")
+    text = _build(paths)
+    assert "- **F1.2** — Sweep state" in text
+    assert "Second heading" not in text
+    # The collision is named, not silently resolved.
+    assert "DIAGNOSIS_TITLE_DUPLICATE" in text
+
+
 def test_prompt_diff_inlined_full_text(tmp_path: Path):
     paths = _write_inputs(tmp_path)
     text = _build(paths)

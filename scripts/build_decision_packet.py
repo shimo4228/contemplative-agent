@@ -37,6 +37,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 DIAGNOSIS_UNAVAILABLE = "DIAGNOSIS_UNAVAILABLE"
+# Per-finding counterpart of the above: the run produced findings.json, but
+# this row's id is not in it (or its heading is empty). A named state, not
+# prose — §2 now asks the gate to refuse ID-only approval, so "no heading"
+# must be as legible as "no diagnosis".
+DIAGNOSIS_TITLE_MISSING = "DIAGNOSIS_TITLE_MISSING"
+# Two `### F1.N.` headings sharing an id: the builder would silently pick one
+# (last-wins) while the fix stage picked the other (first-wins, weekly-
+# pipeline.sh), so the approver could read a heading describing a different
+# finding than the patch implements (2026-08-15 security review MEDIUM).
+DIAGNOSIS_TITLE_DUPLICATE = "DIAGNOSIS_TITLE_DUPLICATE"
 INSIGHT_REVIEW_UNAVAILABLE = "INSIGHT_REVIEW_UNAVAILABLE"
 # Recomputed here from the `scope_escalation` event type rather than read from
 # the shell's REASONS variable — the builder replays the audit log
@@ -102,10 +112,12 @@ def _cell(value: object) -> str:
     The structural floor, applied to every audit-derived value. Most of them
     are tightly constrained upstream (``fix_id`` is regex-pinned in
     parse_findings.py, ``scope`` is an enum, ``result``/``attempts``/``patch``
-    are shell-constructed), so this is defence in depth for them. The two that
-    are NOT constrained get a stricter renderer of their own: ``_path_tokens``
-    for escalation paths (fix-session filenames) and ``_unrecognized_verdict``
-    for reviewer verdicts (a raw line from the review session's output).
+    are shell-constructed), so this is defence in depth for them. The three
+    that are NOT constrained get a stricter renderer of their own:
+    ``_path_tokens`` for escalation paths (fix-session filenames),
+    ``_unrecognized_verdict`` for reviewer verdicts (a raw line from the review
+    session's output), and ``_title_cell`` for diagnosis headings (a free-prose
+    line from the diagnosis markdown).
 
     Safe **mid-line only**: a leading `#` and backtick runs are not
     neutralised, so a caller emitting ``f"{_cell(v)}"`` at the start of a line
@@ -139,6 +151,28 @@ _PATH_UNSAFE = re.compile(r"[^A-Za-z0-9._/+-]")
 _PATH_REPLACEMENT = "�"
 _MAX_PATH_TOKENS = 20
 _MAX_PATH_LEN = 120
+# Measured over the 17 F1 headings in the 2026-07-31..08-14 findings files:
+# max 193, median 164. 240 leaves ~24% headroom on the widest observed heading
+# while still bounding the line, so one heading cannot push the §2 table off a
+# reader's screen. The budget is spent on the ESCAPED form, so a pipe-heavy
+# heading fits fewer source characters than this number suggests.
+_MAX_TITLE_LEN = 240
+# A heading is prose, so it gets no path-style allowlist (Japanese would not
+# survive one) — but every character class that can open an INLINE construct
+# does get neutralised, because mid-line is exactly where those are legal:
+#   < >    raw HTML. An unclosed <details> is closed by nothing and folds §3-§10
+#          behind a summary line the heading's author wrote (2026-08-08 HIGH,
+#          named verbatim in _path_tokens' docstring, reachable again here).
+#   [ ]    link / image markup — a destination beside a patch row, in the
+#          builder's narrating voice, at the moment of approval.
+#   `      code span; it spans line breaks, so one stray backtick swallows the
+#          rows below it. Costs the `audit.jsonl` styling real headings use —
+#          the heading is a pointer, and findings.md keeps the styled original.
+#   ctrl / bidi / zero-width: ANSI manipulation when the packet is cat'd, and
+#          reordering of what the approver reads.
+_TITLE_UNSAFE = re.compile(
+    r"[<>\[\]`\x00-\x1f\x7f-\x9f\u200b-\u200f\u202a-\u202e\u2066-\u2069]"
+)
 
 
 def _unrecognized_verdict(raw: str) -> str:
@@ -185,6 +219,43 @@ def _path_tokens(files: object) -> str:
         # making. The §3 diff body below still names every touched path.
         shown.append(f"ほか {len(tokens) - _MAX_PATH_TOKENS} 断片（一覧を切り詰め）")
     return ", ".join(shown)
+
+
+def _title_cell(title: object) -> str:
+    """Render a diagnosis heading as a bounded, mid-line quotation.
+
+    §2 used to name findings by ID alone, which left the reviewer's
+    verification prose — written for the next agent — as the only readable
+    material at the moment of approval. The heading answers "what is this
+    patch for", so it belongs beside the row.
+
+    It is LLM prose in the builder's narrating voice, the same class
+    ``_path_tokens`` guards, and it needs both halves of that guard:
+
+    - **block structure** — ``_cell`` flattens line breaks and escapes pipes,
+      and the caller keeps it mid-line, so it cannot open a heading, a fence
+      or a table column;
+    - **inline structure** — ``_TITLE_UNSAFE`` neutralises what is legal
+      mid-line: raw HTML (an unclosed ``<details>`` folds §3-§10 behind a
+      summary the heading's author wrote), link/image markup, code spans that
+      run past the line break, and bidi/control characters.
+
+    The length is capped because an unbounded heading pushes the table it
+    explains out of view, and elision is marked — a silently cut heading reads
+    as a whole one. The cap measures the escaped form (so the packet line has a
+    real bound), which can land inside an escape pair; the trailing backslash
+    run is dropped rather than shown, since a lone `\\` on a legibility line is
+    the wart this whole change exists to remove.
+    """
+    # None (no such id) and "" (parsed, empty heading) are the same fact to the
+    # approver, and _cell would render the former as the literal "None". Passed
+    # unstringified so a list still reaches _cell's join, not a repr.
+    flat = _TITLE_UNSAFE.sub(_PATH_REPLACEMENT, _cell(title or "")).strip()
+    if not flat:
+        return f"（{DIAGNOSIS_TITLE_MISSING} — findings.json にこの ID の見出しが無い）"
+    if len(flat) > _MAX_TITLE_LEN:
+        return flat[:_MAX_TITLE_LEN].rstrip("\\") + "…"
+    return flat
 
 
 def _safe_read_text(path: Path) -> str | None:
@@ -283,7 +354,21 @@ def append_gate_record(
     insight_rejected: int,
     recommendation_matches: int,
     recommendation_total: int,
+    patches_held: int | None = None,
+    prompt_diffs_held: int | None = None,
+    insight_held: int | None = None,
 ) -> None:
+    # `held` is the gate's third outcome (weekly-gate Step 1b): the approver
+    # could not decide — most often because the material was not legible. It is
+    # NOT a rejection: folding it into `*_rejected` would record "the human did
+    # not understand this" as "the machine was wrong", biasing the very F1
+    # precision trend that drives the improvement trigger. Held items are also
+    # excluded from `recommendation_total`, so the ratio stays a statement about
+    # decided items.
+    #
+    # Default None, not 0, per the packet's None-vs-0 discipline: a gate session
+    # that predates these fields recorded no holds, which is not the same fact
+    # as a week with zero holds.
     _append_jsonl(
         metrics,
         {
@@ -292,9 +377,12 @@ def append_gate_record(
             "week_end": end_date,
             "patches_adopted": patches_adopted,
             "patches_rejected": patches_rejected,
+            "patches_held": patches_held,
             "prompt_diffs_adopted": prompt_diffs_adopted,
+            "prompt_diffs_held": prompt_diffs_held,
             "insight_adopted": insight_adopted,
             "insight_rejected": insight_rejected,
+            "insight_held": insight_held,
             "recommendation_matches": recommendation_matches,
             "recommendation_total": recommendation_total,
         },
@@ -346,12 +434,13 @@ def build_packet(
     for e in events:
         if e.get("event") == "review_result":
             review_history.setdefault(str(e.get("fix_id", "?")), []).append(e)
-    # `verdict` is the ONE free-text LLM-authored value the packet renders: the
-    # shell greps a line out of the review session's own output. Every other
-    # §2 cell is regex-pinned (fix_id), enum (scope), or shell-constructed. So
-    # it gets the constrained treatment, not just _cell — it reaches both the
-    # table and a `#### ` heading, where `<details>` would fold away every
-    # later section in a browser preview (2026-08-08 code review HIGH).
+    # `verdict` is one of the two free-text LLM-authored values §2 renders (the
+    # other is the diagnosis heading — see `_title_cell`): the shell greps a
+    # line out of the review session's own output. Every other §2 cell is
+    # regex-pinned (fix_id), enum (scope), or shell-constructed. So it gets the
+    # constrained treatment, not just _cell — it reaches both the table and a
+    # `#### ` heading, where `<details>` would fold away every later section in
+    # a browser preview (2026-08-08 code review HIGH).
     verdicts: dict[str, str] = {}
     for fid, evts in review_history.items():
         rendered = []
@@ -396,6 +485,27 @@ def build_packet(
     else:
         f1_list = findings_data.get("f1", [])
         counts = findings_data.get("counts", {"f1": 0, "f2": 0, "f3": 0})
+
+    # One id-keyed index over f1_list, shared by the §2 headings and the
+    # scope-escalation inference below — two walks with independently-drifting
+    # guards is how the packet starts disagreeing with itself.
+    #
+    # FIRST-wins, matching the fix stage's own lookup (weekly-pipeline.sh:
+    # `for f in data['f1']: if f['id'] == ...: break`). Last-wins would let a
+    # second `### F1.2.` heading describe the row while the patch implements
+    # the first. Duplicates are reported, never silently resolved.
+    f1_by_id: dict[str, dict] = {}
+    duplicate_ids: list[str] = []
+    for item in f1_list:
+        if not isinstance(item, dict) or not item.get("id"):
+            continue
+        fid_key = str(item["id"])
+        if fid_key in f1_by_id:
+            duplicate_ids.append(fid_key)
+            continue
+        f1_by_id[fid_key] = item
+    if duplicate_ids:
+        add_reason(DIAGNOSIS_TITLE_DUPLICATE)
 
     insight_text: str | None = None
     if insight_review is not None and insight_review.is_file():
@@ -622,11 +732,7 @@ def build_packet(
     # audit log says. The two signals above both read events, so a sustained
     # audit-write outage would take them out together (2026-08-08 codex review
     # P2); this one needs only findings.json and the exported filenames.
-    declared_scope = {
-        _patch_name(str(f.get("id", ""))): f.get("scope")
-        for f in f1_list
-        if isinstance(f, dict) and f.get("id")
-    }
+    declared_scope = {_patch_name(fid): f.get("scope") for fid, f in f1_by_id.items()}
     for patch in prompt_patches:
         if declared_scope.get(patch.name) != "code":
             continue
@@ -747,6 +853,10 @@ def build_packet(
     if fix_results:
         lines.append("| finding | scope | attempts | result | reviewer | patch / reason |")
         lines.append("|---|---|---|---|---|---|")
+        # The table answers "what happened to this patch"; the headings answer
+        # "what is it for". Both are keyed by fix_id, so they are derived in one
+        # pass — a second walk would re-derive the key and drift from it.
+        heading_lines: list[str] = []
         for event in fix_results:
             fid = str(event.get("fix_id", "?"))  # match review_history's key type
             tail = event.get("patch") or event.get("reason") or ""
@@ -761,6 +871,34 @@ def build_packet(
                 f"| {_cell(fid)} | {scope_cell} | {_cell(event.get('attempts', '?'))} "
                 f"| {_cell(event.get('result', '?'))} | {_cell(verdicts.get(fid, '—'))} "
                 f"| `{_cell(tail)}` |"
+            )
+            # `.get("title")` unstringified: _title_cell takes `object` so that a
+            # JSON null reaches the named-missing state instead of the literal
+            # "None", and a list reaches _cell's join instead of a repr.
+            heading_lines.append(
+                f"- **{_cell(fid)}** — {_title_cell(f1_by_id.get(fid, {}).get('title'))}"
+            )
+        # Out of the table because the heading is a sentence — as a cell it
+        # would crush the columns the gate scans.
+        lines.append("")
+        lines.append(
+            "**各 finding の診断見出し**（診断段の LLM 出力 — その patch が"
+            "何を直すのかの手がかり。承認判断は下の reviewer verdict と、"
+            "§3 に本文がある行（prompt scope と昇格分のみ）はその diff で行う。"
+            "code scope の行に §3 本文は無く、patch は table のパスに置かれている）:"
+        )
+        lines.append("")
+        lines.extend(heading_lines)
+        if duplicate_ids:
+            # The row above shows the FIRST heading (the one the fix stage
+            # implemented); saying so is what keeps the packet honest about
+            # which of the colliding headings the patch belongs to.
+            lines.append("")
+            lines.append(
+                f"**{DIAGNOSIS_TITLE_DUPLICATE}** — findings.md に同じ id の見出しが"
+                f"複数ある（{_cell(sorted(set(duplicate_ids)))}）。上の行は fix 段が"
+                "実装したのと同じ最初の見出しを示す。重複した側の本文は "
+                "findings.md を直接確認する。"
             )
     else:
         lines.append("（fix 対象なし）")
@@ -1179,6 +1317,11 @@ def main() -> int:
     p_gate.add_argument("--insight-rejected", type=int, required=True)
     p_gate.add_argument("--recommendation-matches", type=int, required=True)
     p_gate.add_argument("--recommendation-total", type=int, required=True)
+    # Optional so a session that recorded no holds stays distinguishable from
+    # one that held nothing (None vs 0) — the skill's Step 7 always passes them.
+    p_gate.add_argument("--patches-held", type=int, default=None)
+    p_gate.add_argument("--prompt-diffs-held", type=int, default=None)
+    p_gate.add_argument("--insight-held", type=int, default=None)
 
     args = parser.parse_args()
 
@@ -1223,6 +1366,9 @@ def main() -> int:
             insight_rejected=args.insight_rejected,
             recommendation_matches=args.recommendation_matches,
             recommendation_total=args.recommendation_total,
+            patches_held=args.patches_held,
+            prompt_diffs_held=args.prompt_diffs_held,
+            insight_held=args.insight_held,
         )
         print(f"Gate record appended: {args.metrics}")
     return 0
