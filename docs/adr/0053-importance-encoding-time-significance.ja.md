@@ -2,7 +2,8 @@
 
 ## Status
 
-accepted (amended 2026-06-06)
+accepted (amended 2026-06-06; Decision 6 のゲートは充足 — LLM 採点は
+[ADR-0056](./0056-retire-importance-llm-scoring.ja.md) で退役した)
 
 ## Date
 
@@ -84,6 +85,7 @@ propagation map の文書化だけ行い、ADR-0009 の本文はそのままに�
 
 ### Neutral / Follow-ups
 
+- Decision 6 の実測ゲートは 2026-06-17 に充足された: §B1 閾値 retune の窓が閉じ、成長した corpus での ablation 再実行が基準を保った (tau 0.843、top-5 は一致)。distill 時の LLM 採点は [ADR-0056](./0056-retire-importance-llm-scoring.ja.md) で退役し、`effective_importance` は純粋な時間減衰になった。Decisions 1–5 の三つの判断時点は二つに減る (観測時の手応えが退役した)。
 - AKC P1-5 の昇格の問いは won't-do として閉じた (2026-06-06 Amendment): AKC は — position paper を含めて — importance 機構を扱わない。何も昇格しない。判断は substrate 側の本 ADR に留まる。
 - `graph.jsonld` に ADR-0053 ノードが追加され、[ADR-0009](./0009-importance-score.ja.md)、[ADR-0019](./0019-discrete-categories-to-embedding-views.ja.md)、[ADR-0026](./0026-retire-discrete-categories.ja.md)、[ADR-0027](./0027-noise-as-seed.ja.md)、[ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.ja.md)、[ADR-0051](./0051-retire-trust-weighting.ja.md) へのエッジが両面更新規約に従って本 ADR と同じ変更で張られる。
 - [ADR-0051](./0051-retire-trust-weighting.ja.md) の Neutral が述べた mechanism-vs-value 分離との整合 (「ranking は純粋な embedding 機構に戻り、価値判断は importance と時間減衰に住む」) はこれで精密になった: 観測時の LLM 判断は stored `importance` フィールドに、構造 + embedding の判断は保存ゲートに、cosine は検索順位に、それぞれ住む。
