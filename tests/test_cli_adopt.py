@@ -384,7 +384,6 @@ class TestAdoptStaged:
             json.dumps({"target": str(decoy), "command": "insight"}), encoding="utf-8"
         )
 
-
         with (
             patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", home),
@@ -2037,9 +2036,7 @@ class TestAdoptStagedUncoveredFailurePaths:
         assert meta_file.exists(), "a failed hold must not remove the item"
 
     @pytest.mark.parametrize("make_staging", [False, True], ids=["no-dir", "empty-dir"])
-    def test_named_items_with_nothing_staged_abort_rather_than_no_op(
-        self, tmp_path, make_staging
-    ):
+    def test_named_items_with_nothing_staged_abort_rather_than_no_op(self, tmp_path, make_staging):
         """Exit 2: the operator named items that do not exist.
 
         Both spellings of "nothing staged" have to abort rather than print a
