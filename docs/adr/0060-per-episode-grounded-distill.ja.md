@@ -73,14 +73,14 @@ reinforce の cosine 閾値を 0.80 から約 0.72 に下げ、観測された e
 
 - 1 回の run あたり LLM コールが約 14 倍（3 日窓あたり約 115 vs 従来約 8）になり、`qwen3.5:9b` で約 12 分/日。これは per-episode grounding の正直な対価で、日次バッチとして許容する。
 - knowledge がより速く・より粒度細かく育つ（distill した 1 エピソードあたり約 1 パターン）。日次 `insight` は `get_live_patterns_since`（総量でなく run 間窓のみ）で bound される; pattern レベル dedup（SIM_DUPLICATE 0.90 / SIM_UPDATE 0.80）が重複蓄積を絞る; decay ランキング（`0.95^days`）が working set を最近に保つ; no-delete 方針がパターンを研究データとして保持する。これらの緩和は既存。
-- `insight --full` は live パターンプール全体を O(N²) で再クラスタするので、プールが速く育つにつれ遅くなる。これはパターン増加の高速化が早く顕在化させる既存問題。コストが効いてきたら、`--full` 候補を既存の decay floor（約 58 日）でフィルタするのが緩和策。
+- `insight --full` は live パターンプール全体を再クラスタするので、プールが速く育つにつれ遅くなる。コストの主因は `clustering.py` の素朴な agglomerative merge（`_merge_clusters`）で、最大 N-1 回の merge のたびに残る全クラスタ対を走査し直す — 最悪 ~O(N³) であって、O(N²) の cosine 行列ではない（review 2026-06-27 の M4 で訂正。本 ADR の以前の草稿は O(N²) と書いていた）。これはパターン増加の高速化が早く顕在化させる既存問題。`insight` は live パターンが `FULL_RECLUSTER_WARN_N` を超えると advisory な警告を出すようになった。コストが効いてきたら、`--full` 候補を既存の decay floor（約 58 日）でフィルタするか、merge をキャッシュ付き priority-queue agglomeration（~O(N² log N)）に置き換えるのが緩和策。**Amendment（2026-07-09）**: [ADR-0074](./0074-weekly-staged-insight.ja.md) がこの M4 の改善を実施した — `_merge_clusters` は厳密な Lance-Williams agglomeration になり（merge 1 回あたりベクトル化 O(N) 行更新 + O(N²) `argmax`、分割結果は不変）、上記の素朴な走査と最悪 ~O(N³) は退役し、priority-queue の緩和策は不要になった。2026-07-09 の live プール（N=1798）は 1 秒未満でクラスタリングされる（素朴なループでは数時間かかっていた）。
 - `epistemic_counts` が構造的に変わる: distill した全エピソードは activity レコード（`_episode_source_kind=self` → `self_reflection` → `generated`）なので、`observed` provenance kind は構造的にゼロになる。external な世界内容はエピソード render 内の grounding テキストとして入り、別個の provenance kind としては入らない。これはデータ損失ではなく文書・監視上の論点。
 
 ### Neutral / Follow-ups
 
 - 使い捨ての測定スクリプト（`scripts/proto_grounded_distill.py`）は per-episode 設計が production で落ち着いた後に削除した。read-only の測定出力は `docs/evidence/adr-0060/measurement-2026-06-22.md` に保存している。
 - `docs/CODEMAPS/architecture.md` の Data Flow を 1 箇所更新する必要がある: distill 段はリッチエピソード 1 件あたり grounded な LLM 1 コールになり、30 エピソード 1 件あたり 2-step バッチコールではなく、noise gate は不在 — CLAUDE.md 鮮度規約に従い同 PR で更新。
-- `graph.jsonld` に ADR-0060 ノードを追加する（ADR-0026 Step 0 と ADR-0027 Phase 1 を `supersedes`; ADR-0031、ADR-0058、ADR-0019 と `alignsWith`）。
+- `graph.jsonld` に ADR-0060 ノードを追加する（ADR-0026 Step 0 と ADR-0027 Phase 1 を `supersedes`; ADR-0031、ADR-0058、ADR-0019 と `alignsWith`）— リリース時の dual-update に先送り。
 - 本 ADR は ADR-0026 Step 0（ingest 時 binary noise gate）と ADR-0027 Phase 1（noise-log writer）を supersede する。
 
 ## References

@@ -181,6 +181,11 @@ the `SIM_UPDATE` branch of the unchanged pattern-level dedup step.
   emits an advisory warning past `FULL_RECLUSTER_WARN_N` live patterns. Mitigation, if the cost
   bites, is filtering `--full` candidates by the existing decay floor (approximately 58 days), or
   replacing the merge with a cached priority-queue agglomeration (~O(N² log N)).
+  **Amendment (2026-07-09)**: [ADR-0074](./0074-weekly-staged-insight.md) delivered this M4
+  upgrade — `_merge_clusters` is now an exact Lance-Williams agglomeration (one vectorized O(N)
+  row update plus an O(N²) `argmax` per merge, partitions unchanged), so the naive rescan and the
+  ~O(N³) worst case described above are retired and the priority-queue mitigation is moot. The
+  2026-07-09 live pool (N=1798) clusters in under a second where the naive loop needed hours.
 - `epistemic_counts` shifts structurally: every distilled episode is an activity record
   (`_episode_source_kind=self` → `self_reflection` → `generated`), so the `observed` provenance
   kind is now structurally zero. External world content enters as grounding text within the
