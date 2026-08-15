@@ -278,6 +278,160 @@ def test_identity_takes_latest_of_multiple_records() -> None:
     assert reading["identity"]["due"] is False
 
 
+# --- Identity cadence counts generation, not gate decisions
+# (T-HELD-IDENTITY-CADENCE, owner's call 2026-08-15) ---
+
+
+def _identity_reading(records: list[dict]) -> dict:
+    return vldc.build_reading(
+        audit_records=records,
+        patterns=[],
+        staging_pending=0,
+        as_of="2026-08-09",
+        identity_interval_days=27,
+        amendment_interval_days=84,
+    )["identity"]
+
+
+def test_held_identity_row_does_not_advance_cadence() -> None:
+    """A hold says the human did not decide — it is not a generation event.
+
+    Before the fix the identity branch passed ``decisions=None``, so the
+    ``held`` row (written at the gate, weeks after the distill ran) moved
+    ``last_run_ts`` forward and deferred the next generation by exactly the
+    length of the deferral.
+    """
+    identity = _identity_reading(
+        [
+            {
+                "ts": "2026-07-01T00:00:00+00:00",
+                "command": "distill-identity",
+                "decision": "staged",
+                "source": "stage",
+            },
+            {
+                "ts": "2026-08-08T00:00:00+00:00",
+                "command": "distill-identity",
+                "decision": "held",
+                "source": "stage-adopted-names",
+            },
+        ]
+    )
+    assert identity["last_run_ts"] == "2026-07-01T00:00:00+00:00"
+    assert identity["due"] is True
+
+
+def test_gate_adoption_row_does_not_advance_cadence() -> None:
+    """Same for ``approved``/``rejected`` reached via the staging gate.
+
+    The generation ran on 07-01; the human deciding it on 08-08 must not
+    restart the 27-day clock, or a slow gate silently stretches the cadence.
+    """
+    for decision in ("approved", "rejected"):
+        identity = _identity_reading(
+            [
+                {
+                    "ts": "2026-07-01T00:00:00+00:00",
+                    "command": "distill-identity",
+                    "decision": "staged",
+                    "source": "stage",
+                },
+                {
+                    "ts": "2026-08-08T00:00:00+00:00",
+                    "command": "distill-identity",
+                    "decision": decision,
+                    "source": "stage-adopted",
+                },
+            ]
+        )
+        assert identity["last_run_ts"] == "2026-07-01T00:00:00+00:00", decision
+        assert identity["due"] is True, decision
+
+
+def test_direct_run_advances_cadence_without_a_staged_row() -> None:
+    """``distill-identity`` without ``--stage`` writes no ``staged`` row.
+
+    Generation and approval happen in one interactive run, so the ``approved``
+    row IS the generation timestamp. A decision allowlist of ``{"staged"}``
+    would drop it and leave the reading claiming no run ever happened —
+    the weekly chain would then stage another identity next week.
+    """
+    identity = _identity_reading(
+        [
+            {
+                "ts": "2026-08-05T00:00:00+00:00",
+                "command": "distill-identity",
+                "decision": "approved",
+                "source": "direct",
+            }
+        ]
+    )
+    assert identity["last_run_ts"] == "2026-08-05T00:00:00+00:00"
+    assert identity["due"] is False
+
+
+def test_only_gate_decisions_reads_as_no_prior_generation() -> None:
+    """Gate rows alone are not evidence a distill ran inside this log.
+
+    Fail-safe direction: unknown-but-nonempty history falls into the
+    bootstrap branch (due), it does not silently pin the clock to a gate.
+    """
+    identity = _identity_reading(
+        [
+            {
+                "ts": "2026-08-08T00:00:00+00:00",
+                "command": "distill-identity",
+                "decision": "held",
+                "source": "stage-adopted-names",
+            },
+            {
+                "ts": "2026-08-08T00:00:00+00:00",
+                "command": "insight",
+                "decision": "approved",
+                "source": "stage-adopted",
+            },
+        ]
+    )
+    assert identity["last_run_ts"] is None
+    assert identity["due"] is True
+
+
+def test_a_row_predating_the_source_field_counts_as_a_generation() -> None:
+    """Pre-2026 records have no `source`; the only writer then was direct.
+
+    Pinned explicitly rather than left to older fixtures that happen to omit
+    the key — a routine fixture cleanup would otherwise drop the coverage
+    silently (code review 2026-08-15).
+    """
+    identity = _identity_reading(
+        [{"ts": "2026-08-05T00:00:00+00:00", "command": "distill-identity", "decision": "approved"}]
+    )
+    assert identity["last_run_ts"] == "2026-08-05T00:00:00+00:00"
+
+
+def test_an_unrecognised_audit_source_abstains_instead_of_reading_as_never_run() -> None:
+    """Fail-safe against `AuditSource` growing a value this script never saw.
+
+    Skipping the row would leave no generation found and nothing counted, so
+    the bootstrap arm would report `due=True` with `NO_PRIOR_RUN` — firing an
+    unattended distill every week while claiming a history that exists is
+    absent. Unknown must abstain, as it already does for unparsable rows.
+    """
+    identity = _identity_reading(
+        [
+            {
+                "ts": "2026-08-05T00:00:00+00:00",
+                "command": "distill-identity",
+                "decision": "staged",
+                "source": "stage-via-some-future-path",
+            }
+        ]
+    )
+    assert identity["last_run_ts"] is None
+    assert identity["due"] is False
+    assert identity["reason"] == "UNPARSABLE_HISTORY"
+
+
 # --- Constitution cadence ---
 
 

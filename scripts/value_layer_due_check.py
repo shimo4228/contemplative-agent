@@ -5,10 +5,14 @@ Read-only over three stores the agent already writes: the ADR-0012 approval
 audit log (``logs/audit.jsonl``), ``knowledge.json`` and the staging dir
 (ADR-0074).  Emits one JSON reading on stdout for the weekly pipeline:
 
-- ``identity``: days since the last ``distill-identity`` run (any decision —
-  the cadence gates *generation*, not adoption) and whether the monthly
-  interval has elapsed.  The pipeline stages a fresh candidate only when
-  this is due AND staging is empty; adoption stays at the Saturday gate.
+- ``identity``: days since the last ``distill-identity`` run and whether the
+  monthly interval has elapsed.  The cadence gates *generation*, not
+  adoption, so it counts rows whose ``source`` was stamped when the distill
+  ran (``stage``/``direct``) and ignores every ``stage-adopted*`` row — a
+  gate deciding on 08-08 an item generated on 07-01 must not restart the
+  clock, whatever it decided (T-HELD-IDENTITY-CADENCE).  The pipeline stages
+  a fresh candidate only when this is due AND staging is empty; adoption
+  stays at the Saturday gate.
 - ``constitution``: days since the last *adopted* amendment
   (``decision="approved"``) plus the pattern-count delta since then.
   Informational only — an amendment is a deliberate, benched event
@@ -39,6 +43,30 @@ from typing import Any
 
 _IDENTITY_COMMANDS = frozenset({"distill-identity", "distill-identity-ca"})
 _AMEND_COMMAND = "amend-constitution"
+
+# Audit sources written AT generation time, as opposed to later at the gate.
+# ``source`` records which path reached the gate (cli/approval.py): ``stage``
+# is stamped when the distill run stages its output, ``direct`` when the run
+# generates and approves in one interactive pass. Every ``stage-adopted*``
+# source is written later, when a human decides an item generated earlier.
+#
+# The identity cadence measures "how long since the last identity distillation
+# RAN" (T-HELD-IDENTITY-CADENCE, owner's call 2026-08-15), so it filters on
+# this rather than on ``decision``. Filtering on decision cannot express it:
+# ``approved`` is written at generation time on the direct path but at the
+# gate on the staged path, and a decision allowlist of ``{"staged"}`` would
+# silently stop counting direct runs — a generation that happened would not
+# advance the clock and the weekly chain would stage another one.
+#
+# Selecting on source is also stable against the decision vocabulary growing:
+# ``held`` (the 4th value, 2026-08-15) and any 5th value are gate decisions
+# and fall outside this set by construction.
+_GENERATION_SOURCES = frozenset({"stage", "direct"})
+# Sources written at the gate, on content generated earlier. Enumerated rather
+# than treated as "anything not a generation source" so that an audit source
+# this script has never heard of reads as unknown history and abstains,
+# instead of quietly reading as "no distill ever ran".
+_GATE_SOURCES = frozenset({"stage-adopted", "stage-adopted-names", "stage-adopted-auto"})
 
 
 class CheckError(Exception):
@@ -79,9 +107,28 @@ def _record_ts(record: dict) -> tuple[str, datetime] | None:
 
 
 def _latest(
-    records: list[dict], *, commands: frozenset[str], decisions: frozenset[str] | None
+    records: list[dict],
+    *,
+    commands: frozenset[str],
+    decisions: frozenset[str] | None,
+    sources: frozenset[str] | None = None,
 ) -> tuple[tuple[str, datetime] | None, int]:
-    """Latest matching record's (raw_ts, parsed_ts) + count of unparsable matches."""
+    """Latest matching record's (raw_ts, parsed_ts) + count of unparsable matches.
+
+    ``decisions`` selects on what the gate decided, ``sources`` on which path
+    wrote the row; both are optional and AND-ed. A record with no ``source``
+    key predates the field, when the only writer was the direct path — so it
+    reads as ``"direct"`` rather than being dropped by a source allowlist.
+
+    A matching row whose ``source`` is recognised by neither ``sources`` nor
+    ``_GATE_SOURCES`` counts as unparsable rather than being skipped. Skipping
+    it would be fail-OPEN: with no generation row found and nothing counted,
+    the caller's bootstrap arm reads "no prior run" and fires an unattended
+    generation every week, under a reason code that says the history is empty
+    when it is not (code review 2026-08-15). ``AuditSource`` is a growing
+    ``Literal``, so this is the vocabulary risk the source filter trades the
+    decision-vocabulary risk for — named, not eliminated.
+    """
     best: tuple[str, datetime] | None = None
     unparsable = 0
     for record in records:
@@ -94,6 +141,12 @@ def _latest(
             continue
         if decisions is not None and record.get("decision") not in decisions:
             continue
+        if sources is not None:
+            source = record.get("source") or "direct"
+            if source not in sources:
+                if source not in _GATE_SOURCES:
+                    unparsable += 1
+                continue
         stamped = _record_ts(record)
         if stamped is None:
             unparsable += 1
@@ -173,7 +226,10 @@ def build_reading(
     reasons: list[str] = []
 
     identity_last, identity_unparsable = _latest(
-        audit_records, commands=_IDENTITY_COMMANDS, decisions=None
+        audit_records,
+        commands=_IDENTITY_COMMANDS,
+        decisions=None,
+        sources=_GENERATION_SOURCES,
     )
     # Matching records existed but none carried a parseable timestamp: the
     # history is unknown, not absent. Unknown must never read as "due" and

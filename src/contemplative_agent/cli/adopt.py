@@ -614,6 +614,17 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     ``source="stage-adopted-auto"`` so they can be distinguished from
     interactively reviewed adoptions.
 
+    Exit codes: 1 when part of what was asserted did not happen — a reject or
+    hold that failed, or an item whose sidecar would not load under ``--yes``
+    or ``--adopt-names``. Only the bare interactive run downgrades that last
+    case to a skip, because there a human reads the stderr line. Two rough
+    edges follow from the quarantine that accompanies it: re-running the same
+    ``--adopt-names`` file afterwards aborts with ``exit 2, "unknown staged
+    item name(s)"`` rather than anything about corruption (the sidecar has
+    been renamed ``*.invalid``), and when the quarantine rename itself fails
+    the summary still reads "quarantined, not applied" while the item stays in
+    the ADR-0074 pending count. Exit 1 is the right verdict in both.
+
     With ``--adopt-names FILE`` (T-ADOPT-PERITEM) the items named in FILE
     (one staged filename per line) are adopted non-interactively, matched by
     name so the caller never depends on the iteration order (seq order, not
@@ -760,6 +771,7 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     left = 0
     reject_failures = 0
     hold_failures = 0
+    adopt_failures = 0
     for meta_file in meta_files:
         if _staged_name(meta_file) in hold_names:
             item = _load_staged_item(meta_file, data_root)
@@ -824,7 +836,26 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         item = _load_staged_item(meta_file, data_root)
         if item is None:
             _quarantine_invalid_sidecar(meta_file)
-            skipped += 1
+            if adopt_names is None and not yes:
+                # Bare interactive run: nobody asserted this item should be
+                # adopted, and a human is reading the stderr line above.
+                skipped += 1
+            else:
+                # Either the operator named THIS item or --yes said "adopt
+                # everything staged". Counting the load failure as a plain
+                # skip let a non-interactive caller read a partially applied
+                # batch as success (code review 2026-08-15) — the same hole
+                # the hold branch closes three branches up, and --yes is the
+                # documented path for non-TTY callers. It cannot turn into a
+                # recurring failure: the sidecar is quarantined here, so it is
+                # out of the glob on the next run. Quarantine stays because an
+                # invalid sidecar can never be adopted and leaving it would
+                # block every future --stage run (ADR-0074 pending guard).
+                print(
+                    f"  Could not adopt {_staged_name(meta_file)}: its sidecar did not load",
+                    file=sys.stderr,
+                )
+                adopt_failures += 1
             continue
 
         print(f"\n{'=' * 60}")
@@ -856,6 +887,8 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
         summary += f", {reject_failures} reject FAILURES (still staged)"
     if hold_failures:
         summary += f", {hold_failures} hold FAILURES (staged, unrecorded)"
+    if adopt_failures:
+        summary += f", {adopt_failures} adopt FAILURES (quarantined, not applied)"
     if adopt_names is not None:
         summary += f", {left} left staged"
     print(summary + " ---")
@@ -867,7 +900,7 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
             f"{held + hold_failures} item(s) still in staging: the next insight "
             "batch will be refused until they are decided."
         )
-    if reject_failures or hold_failures:
+    if reject_failures or hold_failures or adopt_failures:
         # A non-interactive caller must not read a partially applied batch as
         # success (2026-08-01 security review H1).
         sys.exit(1)

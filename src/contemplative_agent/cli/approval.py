@@ -43,13 +43,13 @@ AuditSource = Literal[
 # allowlist, so a fourth value falls through both rather than being miscounted
 # as an approval by either.
 #
-# One consumer DOES count it, and the comment used to say otherwise: the same
-# script's identity branch passes ``decisions=None``, so a held
-# ``distill-identity`` row moves ``last_run_ts`` forward and defers the next
-# generation by the length of the deferral. Fail-safe in direction (nothing
-# fires, and a hold blocks staging anyway) but the reading loses its meaning —
-# tracked as T-HELD-IDENTITY-CADENCE rather than changed here, since what the
-# cadence should count is the owner's call, not this module's.
+# The same script's identity branch does not filter on decision at all: the
+# cadence there measures when a distill last RAN, so it selects on ``source``
+# (``stage``/``direct`` are stamped at generation time, every
+# ``stage-adopted*`` later at the gate). ``held`` therefore falls outside it
+# by construction, as would a 5th decision value — the reading does not need
+# to learn this vocabulary (T-HELD-IDENTITY-CADENCE, owner's call
+# 2026-08-15).
 Decision = Literal["staged", "approved", "rejected", "held"]
 
 

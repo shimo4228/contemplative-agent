@@ -1575,6 +1575,73 @@ class TestAdoptStagedHoldNames:
         assert not (staged / "hold-me.md.meta.json.invalid").exists()
         assert (staged / "hold-me.md").exists()
 
+    def test_an_unloadable_requested_adopt_fails_instead_of_exiting_zero(self, tmp_path):
+        """T-ADOPT-NAMED-SKIP-EXIT: the sibling hole in the adopt branch.
+
+        The operator named this item: "adopt it". The main branch quarantined
+        an unloadable sidecar, counted it as a plain ``skipped`` and let the
+        run exit 0, so a non-interactive caller read a partially applied
+        batch as success — three branches away from the hold path, which
+        already exits 1 for exactly this (code review 2026-08-15 round 2).
+
+        Quarantine is still correct here (unlike for a hold): an invalid
+        sidecar can never be adopted, and leaving it in place would block
+        every future ``--stage`` run via the ADR-0074 pending guard. What
+        changes is that the failure is visible in the exit code.
+        """
+        skills, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+        (staged / "adopt-me.md.meta.json").write_text("{ not json", encoding="utf-8")
+
+        with pytest.raises(SystemExit) as exc:
+            self._run(tmp_path, staged, adopt=["adopt-me.md"], reject_rest=True)
+
+        assert exc.value.code == 1
+        assert not (skills / "adopt-me.md").exists(), "nothing should have been written"
+        assert (staged / "adopt-me.md.meta.json.invalid").exists()
+        assert "approved" not in [rec["decision"] for rec in self._audit(tmp_path)]
+
+    def test_an_unloadable_item_under_yes_also_fails(self, tmp_path):
+        """``--yes`` is the documented non-TTY path, so it must signal too.
+
+        ``--yes`` asserts "adopt everything staged", which makes a quarantined
+        item just as much a partially applied batch as a named one. The first
+        version of this fix exempted ``--yes`` on the theory that one stale
+        sidecar would make every auto-approve run fail; review pointed out
+        that it cannot recur, because the sidecar is quarantined out of the
+        glob on this very run (code review 2026-08-15).
+        """
+        _, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+        (staged / "adopt-me.md.meta.json").write_text("{ not json", encoding="utf-8")
+
+        with pytest.raises(SystemExit) as exc:
+            self._run(tmp_path, staged, yes=True)
+
+        assert exc.value.code == 1
+        assert (staged / "adopt-me.md.meta.json.invalid").exists()
+        # …and the very next run is clean: the corrupt sidecar is gone.
+        self._run(tmp_path, staged, yes=True)
+
+    def test_a_bare_interactive_run_still_only_skips(self, tmp_path):
+        """No ``--yes``, no ``--adopt-names``: nobody asserted anything.
+
+        A human is at the prompt reading the stderr line, so the corrupt
+        sidecar stays a quarantined skip rather than a nonzero exit.
+        """
+        _, items = self._three_items(tmp_path)
+        staged = self._stage_batch(tmp_path, items)
+        for name in ("hold-me", "reject-me"):
+            (staged / f"{name}.md.meta.json").unlink()
+            (staged / f"{name}.md").unlink()
+        (staged / "adopt-me.md.meta.json").write_text("{ not json", encoding="utf-8")
+
+        # The sole remaining item fails to load, so no prompt is ever reached
+        # (the shared runner asserts input() was never called).
+        self._run(tmp_path, staged)
+
+        assert (staged / "adopt-me.md.meta.json.invalid").exists()
+
     def test_the_marker_lands_on_the_snapshot_that_was_audited(self, tmp_path):
         """One read, not two.
 
