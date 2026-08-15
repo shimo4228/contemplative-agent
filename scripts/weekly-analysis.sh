@@ -8,10 +8,110 @@
 #   ./scripts/weekly-analysis.sh --end-date 2026-03-30 --days 10  # custom range
 set -euo pipefail
 
+# --- Unattended session scope (T-WEEKLY-ANALYSIS-SESSION-SCOPE, 2026-08-16) ---
+# This script starts two `claude -p` sessions — the report and its Japanese
+# translation — and until 2026-08-16 neither carried a single permission flag.
+# They are the two the T-CHAIN-PERM-SWEEP conversion missed: that sweep bounded
+# the five sessions in weekly-pipeline.sh and its gate reads that ONE file, so
+# stage 1 handing this script the work put these outside the invariant while
+# the gate's own docstring claimed "a sixth session added later cannot ship
+# without one". Both run unattended, from weekly-pipeline.sh stage 1 and from
+# this script's own launchd plist.
+#
+# Both get `--tools ""` — the CLI's documented spelling for "disable all
+# tools", measured 2026-08-16 to resolve to zero built-in tools. Both sessions
+# receive everything they read on stdin and write nothing; the shell does the
+# reading and the redirection.
+#
+# ADR-0040 already lists what this session does not have access to (source,
+# ADRs, the full text of the value layers, CODEMAPS) — but it is describing
+# what the PROMPT contains, and the session could reach all four through the
+# ambient allow list the whole time. `--tools ""` is the first thing that makes
+# that list true of the session's capability, so it is a real tightening rather
+# than a formality, and a later reader should not relax it as decorative.
+#
+# The other three flags close what `--tools` cannot. Without
+# `--setting-sources project` each session loads the operator's user layer —
+# 106 allow rules and `additionalDirectories`, which had silently made three
+# unrelated projects working directories of every unattended session;
+# `--strict-mcp-config` with no `--mcp-config` removes the configured MCP
+# servers, which `--tools` does not reach; `--permission-mode manual` refuses
+# rather than auto-approving whatever is left.
+#
+# **The report session's model and output style change here, and that is a
+# decision rather than a side effect** (owner's call, 2026-08-16). `model` and
+# `outputStyle` are USER settings, so dropping that layer moves them. Measured
+# with the operator's real settings file, tools empty in both runs:
+#
+#   --setting-sources user,project,local  model=claude-fable-5     style=Explanatory
+#   --setting-sources project             model=claude-opus-5[1m]  style=default
+#
+# The translation session is unaffected on the model half — it pins
+# `--model sonnet`. The report session is not, and it is the chain's primary
+# artifact: stage 2 diagnosis reads it, and `weekly-analysis.sh` feeds up to
+# three previous reports back into the next week's prompt (ADR-0040). So
+# **reports ending 2026-08-16 or later are a different instrument from the ones
+# before**: bigger context window, no Explanatory style, different model.
+# Week-over-week prose comparison and any longitudinal read of the E section
+# must treat that date as a boundary rather than as a signal. Recorded here,
+# in docs/CODEMAPS/architecture.md, and left unpinned deliberately — pinning
+# `--model` would have preserved a personal interactive preference that reached
+# the unattended chain by the same accident as the 106 allow rules.
+#
+# One more thing that layer could carry: this settings file today has no
+# `apiKeyHelper` and no `env` block, which is WHY "keeps auth" holds. Add
+# either later and both sessions lose authentication silently — under launchd
+# that is `claude -p failed` and no weekly report.
+#
+# No `--disallowedTools`. A deny list over an empty tool set denies nothing
+# that exists, and the entries worth sharing (`READONLY_DENY`'s per-path Read
+# scopes) live in weekly-pipeline.sh — this script runs standalone too, so
+# reaching them would mean either a second copy to drift or a sourced fragment,
+# both of which buy nothing here. The user `hooks` that `--setting-sources`
+# drops need no compensation for the same reason: there is no Read tool to gate.
+
 # --- Config ---
 MOLTBOOK_HOME="${MOLTBOOK_HOME:-$HOME/.config/moltbook}"
 DATA_REPO="$HOME/MyAI_Lab/contemplative-agent-data"
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# `--setting-sources project` resolves "project" against the CWD, so the flag's
+# whole effect depends on where this script was started from. Both launchd
+# plists set WorkingDirectory to PROJECT_ROOT, but the usage header above
+# advertises manual invocation — and run from $HOME, `.claude/settings.json`
+# IS the operator's user settings file, so the flag loads the exact 106 allow
+# rules, additionalDirectories and hooks it exists to drop. Measured
+# 2026-08-16: same binary, same flags, `Ignoring 3` from here vs `Ignoring 106`
+# from $HOME. Nothing in this script is CWD-relative, so pinning it costs
+# nothing and makes the flag mean the same thing however the script is started
+# (security review MEDIUM).
+cd "$PROJECT_ROOT"
+
+# `with_timeout <secs> <cmd...>`, the same shape weekly-pipeline.sh uses. It
+# replaced a `run_claude_translate()` wrapper whose body held `claude -p "$@"`
+# twice: the flags lived at the CALL site, so neither line inside the function
+# carried a scope, and a gate reading invocations line by line could see no
+# spec to check. A helper that forwards the whole command puts the invocation —
+# and its scope — on one line (T-WEEKLY-ANALYSIS-SESSION-SCOPE). Defined up
+# here rather than beside the translation because the report session needs it
+# too.
+with_timeout() {  # with_timeout <seconds> <cmd...>
+    local secs="$1"; shift
+    if command -v timeout >/dev/null 2>&1; then
+        timeout "$secs" "$@"
+    else
+        "$@"   # degradation when coreutils is absent from launchd's PATH
+    fi
+}
+
+# The chain's largest session ran uncapped until 2026-08-16, so a hung CLI
+# stalled the whole unattended chain until the watchdog noticed a missing
+# packet. Sized from the three real runs in the pipeline audit log — the WHOLE
+# stage, collection and translation included, took 18m43s / 16m09s / 19m19s —
+# so 45 min is ~2.3x the widest observed for the stage and more than that for
+# the session alone. A hang detector, not a budget: if it ever fires on real
+# work the number is wrong, not the report.
+REPORT_TIMEOUT_SECONDS=2700
+TRANSLATE_TIMEOUT_SECONDS=900
 PROMPT_TEMPLATE="$PROJECT_ROOT/config/prompts/weekly-analysis.md"
 PRINCIPLES_FILE="$PROJECT_ROOT/config/prompts/principles.md"
 REPORT_DIR="$MOLTBOOK_HOME/reports/analysis"
@@ -433,9 +533,17 @@ OUTPUT="$REPORT_DIR/weekly-${END_DATE}.md"
 echo "Running claude -p (this may take a few minutes)..."
 OUTPUT_TMP="${OUTPUT}.tmp.$$"
 
-if ! echo "$USER_PROMPT" | claude -p \
+# `--tools ""` — see the session-scope block near the top of this file. This
+# session is handed everything it reads inline on stdin and writes nothing: the
+# shell interpolates the state diff, the sweeps and the previous reports into
+# $USER_PROMPT, and the redirection below is what creates the file.
+if ! echo "$USER_PROMPT" | with_timeout "$REPORT_TIMEOUT_SECONDS" claude -p \
     --system-prompt "$SYSTEM_PROMPT" \
     --output-format text \
+    --permission-mode manual \
+    --tools "" \
+    --strict-mcp-config \
+    --setting-sources project \
     > "$OUTPUT_TMP"; then
     echo "ERROR: claude -p failed; leaving any previous $OUTPUT untouched" >&2
     exit 1
@@ -495,24 +603,21 @@ fi
 # does not need the session's larger model. Failure is logged, never fatal.
 # timeout guards the unattended launchd job against a hung CLI call; when the
 # coreutils binary is absent from launchd's PATH the call degrades to no cap.
-TRANSLATE_TIMEOUT_SECONDS=900
-run_claude_translate() {
-    if command -v timeout >/dev/null 2>&1; then
-        timeout "$TRANSLATE_TIMEOUT_SECONDS" claude -p "$@"
-    else
-        claude -p "$@"
-    fi
-}
-
 TRANSLATE_PROMPT="$PROJECT_ROOT/config/prompts/weekly-analysis-ja.md"
 OUTPUT_JA="$REPORT_DIR/weekly-${END_DATE}.ja.md"
 if [[ -f "$TRANSLATE_PROMPT" ]]; then
     TRANSLATE_SYSTEM_PROMPT=$(cat "$TRANSLATE_PROMPT")
     echo "Translating report to Japanese (model: sonnet)..."
-    if run_claude_translate \
+    # `--tools ""` — a translation is a pure text transform: English report on
+    # stdin, Japanese on stdout, nothing read and nothing written.
+    if with_timeout "$TRANSLATE_TIMEOUT_SECONDS" claude -p \
         --model sonnet \
         --system-prompt "$TRANSLATE_SYSTEM_PROMPT" \
         --output-format text \
+        --permission-mode manual \
+        --tools "" \
+        --strict-mcp-config \
+        --setting-sources project \
         < "$OUTPUT" > "$OUTPUT_JA" && [[ -s "$OUTPUT_JA" ]]; then
         en_bytes=$(wc -c < "$OUTPUT")
         ja_bytes=$(wc -c < "$OUTPUT_JA")

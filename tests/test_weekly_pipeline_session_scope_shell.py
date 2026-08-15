@@ -1,11 +1,40 @@
 """Fault column for every unattended session's permission boundary (T-CHAIN-PERM-SWEEP).
 
-`weekly-pipeline.sh` starts five `claude -p` sessions. Stage 2 got a verified
-boundary in T-DIAG-WRITE-SCOPE (gated semantically by the sibling
-`test_weekly_pipeline_diagnosis_scope_shell.py`); the other four carried
-`--allowedTools "Read,Glob,Grep"` and nothing else, which expresses no bound at
-all. These tests hold the *shared* invariant across all five, so a sixth
-session added later cannot ship without one.
+The weekly chain starts **seven** `claude -p` sessions across **two** scripts:
+five in `weekly-pipeline.sh`, and two more in `scripts/weekly-analysis.sh`,
+which stage 1 runs as `bash "$SCRIPTS/weekly-analysis.sh"`. Stage 2 got a
+verified boundary in T-DIAG-WRITE-SCOPE (gated semantically by the sibling
+`test_weekly_pipeline_diagnosis_scope_shell.py`); the other four in that file
+carried `--allowedTools "Read,Glob,Grep"` and nothing else, which expresses no
+bound at all.
+
+**The two in weekly-analysis.sh were outside this file until 2026-08-16**, and
+that is the correction worth reading before the mechanics below. This module
+asserted in its own docstring that "a sixth session added later cannot ship
+without one" while two sessions were already shipping without one, carrying no
+mode, no tool set, no MCP isolation and no setting-source isolation — because
+the tests read ONE file and the invariant is about a chain. The unit of the
+invariant is now "every unattended session the chain starts", and C-SCOPE-0
+derives the exec list from every covered script rather than trusting a
+hand-kept tuple, so the sentence above is enforced instead of asserted
+(T-WEEKLY-ANALYSIS-SESSION-SCOPE). Enforced within the spellings C-SCOPE-0 can
+see — it names them, and naming them is the part the original claim skipped.
+
+Those two get `--tools ""` — the CLI's spelling for "no tools", measured to
+resolve to zero built-in tools, and re-measured by C-SCOPE-8 wherever that runs
+(`live_cli`, so: a bare `pytest` and `.claude/verify.sh` yes; the chain's own
+stage-4 Verify no, and a clone without the CLI no). They are pure text
+transforms — stdin in, stdout out, the shell doing the reading and the
+redirecting. ADR-0040 asserted as much of the report session's PROMPT ("the LLM
+does not have access to" source, ADRs, the full value-layer text, CODEMAPS);
+`--tools ""` is the first thing that makes it true of the session's CAPABILITY,
+which the 106 ambient allow rules had left open the whole time. It is a real
+tightening, not a formality.
+
+One rule about the gate follows, and it is deliberately not numbered among the
+six mechanics below, which are properties of the binary: an empty tool set
+takes no deny list, because a deny list bounds tools and there are none to
+bound — so C-SCOPE-1 requires one only where the tool set is non-empty.
 
 Six mechanics decide whether a session is bounded. All were verified against
 the real binary on 2026-08-15; the last three were found during this sweep:
@@ -46,8 +75,12 @@ improvement stages, each of which needs a full chain run. What matters here is
 structural and readable statically — that no session declares an unbounded
 tool set or inherits the ambient one.
 
+- C-SCOPE-0   every script a COVERED script execs is itself covered (so the
+              set grows transitively; `source`, literal absolute paths and
+              `claude` spawned from a Python helper stay outside it)
 - C-SCOPE-1   every `claude -p` invocation pins a tool set, a mode, MCP
-              isolation, setting-source isolation and a deny list
+              isolation, setting-source isolation, and a deny list where the
+              tool set is non-empty
 - C-SCOPE-1b  each invocation gets the spec written *for it*
 - C-SCOPE-2   no declared tool set contains an indirect executor
 - C-SCOPE-3   only the fix session gets Bash
@@ -101,6 +134,11 @@ import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SCRIPT = REPO_ROOT / "scripts" / "weekly-pipeline.sh"
+# Every script the chain executes, because the invariant is "every unattended
+# session in the weekly chain" and not "every line of one file". C-SCOPE-0
+# derives the chain's real exec list and fails if this tuple has fallen behind
+# it, so a third script cannot be added and quietly stay outside.
+CHAIN_SCRIPTS = (SCRIPT, REPO_ROOT / "scripts" / "weekly-analysis.sh")
 
 # Built-in tools that reach a shell, a subagent, a schedule or the network by
 # some name other than "Bash". An allowlist of *tool sets* is the control, so
@@ -161,10 +199,57 @@ def _logical_lines(text: str) -> list[str]:
     return joined.splitlines()
 
 
-def _invocations() -> list[str]:
-    lines = [ln for ln in _logical_lines(SCRIPT.read_text(encoding="utf-8")) if "claude -p" in ln]
-    # Comments mention `claude -p` too; keep only executed commands.
-    return [ln for ln in lines if not ln.strip().startswith("#")]
+_SINGLE_QUOTED = re.compile(r"'[^']*'")
+_ESCAPED_QUOTE = re.compile(r'\\"')
+
+
+def _command_offsets(line: str) -> list[int]:
+    """Offsets on this logical line where `claude -p` is EXECUTED, not mentioned.
+
+    Comments are one kind of mention. The other is a quoted one —
+    `echo "Running claude -p (this may take a few minutes)..."`, of which
+    weekly-analysis.sh has three; counting those as invocations would fail
+    every session assertion on progress messages.
+
+    **A heuristic, and its residue is stated rather than implied**, because the
+    first version's was not and code review broke it four ways in one pass. It
+    masks single-quoted spans and escaped quotes before counting `"` parity, so
+    `echo 'run claude -p later'` and `echo "he said \\"claude -p\\""` are
+    mentions; it returns EVERY offset, not the first, so
+    `echo "starting claude -p" && claude -p …` cannot hide a real session
+    behind a mention; and the caller emits one invocation per offset, so
+    `claude -p … && claude -p …` is two. All four of those shipped an
+    unbounded eighth session past the green suite when the check was
+    `line.index(...)` plus `"` parity alone (2026-08-16 code review HIGH,
+    mutations A and B).
+
+    Still open, and fail-OPEN: a heredoc body is not shell quoting, so prose
+    inside one that says `claude -p` reads as a command. That direction adds a
+    phantom invocation and fails C-SCOPE-1's count — loud, if cryptic — which
+    is why it is left rather than parsed.
+    """
+    if line.strip().startswith("#"):
+        return []
+    masked = _SINGLE_QUOTED.sub(lambda m: " " * len(m.group()), _ESCAPED_QUOTE.sub("  ", line))
+    return [
+        m.start()
+        for m in re.finditer("claude -p", masked)
+        if masked.count('"', 0, m.start()) % 2 == 0
+    ]
+
+
+def _invocations() -> list[tuple[Path, str]]:
+    """Every executed `claude -p` in the chain, paired with its script.
+
+    One entry per occurrence and sliced from it, so a second invocation
+    chained onto the same logical line gets its own flag reads instead of
+    inheriting the first one's.
+    """
+    found = []
+    for script in CHAIN_SCRIPTS:
+        for line in _logical_lines(script.read_text(encoding="utf-8")):
+            found.extend((script, line[offset:]) for offset in _command_offsets(line))
+    return found
 
 
 def _flag_value(invocation: str, flag: str) -> str:
@@ -211,6 +296,50 @@ def _bare(spec: str) -> set[str]:
 
 
 @pytest.mark.unit
+def test_c_scope_0_every_script_the_chain_executes_is_covered_here():
+    """The invariant is the chain's sessions, not one file's lines.
+
+    This file used to read `weekly-pipeline.sh` alone while asserting, in its
+    own docstring, that "a sixth session added later cannot ship without one".
+    That was already false when it was written: stage 1 is
+    `bash "$SCRIPTS/weekly-analysis.sh"`, and the two unattended sessions in
+    THAT script carried no permission flag at all — no mode, no tool set, no
+    MCP isolation, no setting-source isolation (T-WEEKLY-ANALYSIS-SESSION-SCOPE).
+
+    A hardcoded `CHAIN_SCRIPTS` would repeat the failure the first time a
+    fourth script joined, so the list is checked against what the chain
+    actually execs.
+
+    **Scanned over every covered script, not just the entry point.** The first
+    version read `weekly-pipeline.sh` alone — which is the same defect one
+    level down, and both reviewers demonstrated it: a `bash "$SCRIPTS/x.sh"`
+    added to `weekly-analysis.sh` left all ten tests green while an eighth
+    unattended session ran with the full built-in tool set (2026-08-16, code
+    review HIGH / security review MEDIUM, mutation D). Scanning the covered set
+    makes this transitive: a script only enters `CHAIN_SCRIPTS` once its own
+    sessions are gated, and from then on its execs are read too.
+    """
+    # Both variable spellings, because weekly-analysis.sh has no `$SCRIPTS` —
+    # it writes `"$PROJECT_ROOT/scripts/…"` — so a sibling added there would
+    # have been invisible twice over: wrong file, and a form the pattern could
+    # not match. Still NOT caught, admitted rather than implied: `source`, a
+    # literal absolute path, and a Python helper in the chain that spawns
+    # `claude` itself. Verified 2026-08-16 that the chain contains none.
+    pattern = re.compile(r'bash "\$\{?(?:SCRIPTS|PROJECT_ROOT/scripts)\}?/([A-Za-z0-9._-]+\.sh)"')
+    execed = set()
+    for script in CHAIN_SCRIPTS:
+        execed |= {m.group(1) for m in pattern.finditer(script.read_text(encoding="utf-8"))}
+    assert execed, "the chain no longer execs any sibling script by these spellings"
+    covered = {s.name for s in CHAIN_SCRIPTS}
+    assert execed <= covered, (
+        f"the chain execs {sorted(execed - covered)}, which no test in this file reads. "
+        "Bound any `claude -p` in there the way the sessions above are bound, then add "
+        "the script to CHAIN_SCRIPTS — a helper with no sessions still has to be listed, "
+        "because this gate cannot tell the two apart without reading it."
+    )
+
+
+@pytest.mark.unit
 def test_c_scope_1b_each_session_gets_the_spec_written_for_it():
     """Presence of a spec is not the claim — the claim is *which* spec.
 
@@ -227,18 +356,42 @@ def test_c_scope_1b_each_session_gets_the_spec_written_for_it():
         "fix-review.md": ("$READONLY_TOOLS", "$READONLY_DENY"),
         "insight-recommendation.md": ("$READONLY_TOOLS", "$READONLY_DENY"),
         "pipeline-improvement.md": ("$READONLY_TOOLS", "$READONLY_DENY"),
+        # weekly-analysis.sh. Both are pure text transforms — everything they
+        # read arrives on stdin, everything they emit leaves on stdout — so the
+        # tool set is the empty string, the CLI's spelling for "no tools", and
+        # there is no deny list because there is nothing to deny.
+        #
+        # Both tokens sit AFTER `claude -p`, which `_invocations` slices from.
+        # The report session's obvious identifier, `$USER_PROMPT`, is on the
+        # pipe's left-hand side and would not survive the slice — and the slice
+        # is what stops a chained second invocation from reading the first
+        # one's flags.
+        '"$SYSTEM_PROMPT"': ("", None),
+        '"$TRANSLATE_SYSTEM_PROMPT"': ("", None),
     }
     seen = set()
-    for inv in _invocations():
+    for script, inv in _invocations():
         tokens = [t for t in expected if t in inv]
-        assert len(tokens) == 1, f"cannot identify session: {inv.strip()[:120]}"
+        assert len(tokens) == 1, f"cannot identify session: {script.name}: {inv.strip()[:120]}"
         token = tokens[0]
         seen.add(token)
         want_tools, want_deny = expected[token]
         assert _flag_value(inv, "--tools") == want_tools, (
             f"{token} runs with the wrong tool set: {_flag_value(inv, '--tools')}"
         )
-        if want_deny is not None:
+        if not want_tools:
+            # Not "no opinion": an empty-tool session must not silently acquire
+            # a deny list, since that is the shape a reviewer counts as scope
+            # and there is nothing here for it to bound. Keyed on the empty
+            # tool set, not on `want_deny is None` — the diagnosis session also
+            # maps to None (its deny list is inline rather than a variable) and
+            # a `want_tools` short-circuit made this always-true for it, so the
+            # comment described two of the three cases it covered (2026-08-16
+            # code review LOW).
+            assert "--disallowedTools" not in inv, (
+                f"{token} grew a deny list over an empty tool set"
+            )
+        elif want_deny is not None:
             assert _flag_value(inv, "--disallowedTools") == want_deny, (
                 f"{token} runs with the wrong deny list"
             )
@@ -249,17 +402,27 @@ def test_c_scope_1b_each_session_gets_the_spec_written_for_it():
 def test_c_scope_1_every_session_pins_a_bounded_contract():
     """No `claude -p` may inherit the ambient configuration by omission."""
     invocations = _invocations()
-    assert len(invocations) == 5, f"expected 5 sessions, found {len(invocations)}"
-    for inv in invocations:
-        head = inv.strip()[:80]
+    assert len(invocations) == 7, f"expected 7 sessions, found {len(invocations)}"
+    for script, inv in invocations:
+        head = f"{script.name}: {inv.strip()[:80]}"
         assert "--permission-mode manual" in inv, f"no explicit mode: {head}"
         assert "--strict-mcp-config" in inv, f"MCP servers left live: {head}"
         assert "--setting-sources project" in inv, (
             f"inherits the operator's ambient allow list, hooks and additionalDirectories: {head}"
         )
-        # Raises if absent, so a renamed flag fails here rather than silently.
-        assert _flag_value(inv, "--tools"), f"empty tool set: {head}"
-        assert _flag_value(inv, "--disallowedTools"), f"empty deny list: {head}"
+        # `_flag_value` raises when the flag is ABSENT, which is the case this
+        # guards; the value itself is not asserted non-empty. `--tools ""` is
+        # the CLI's documented spelling for "disable all tools" and resolves to
+        # zero built-in tools (measured 2026-08-16, and asserted against the
+        # real binary by C-SCOPE-8) — the strongest bound there is, so reading
+        # it as an unset spec would have refused the two sessions that need
+        # nothing.
+        tools = _flag_value(inv, "--tools")
+        # A deny list bounds tools; with none granted there is nothing for it
+        # to bound, and requiring one would be scope-shaped text that expresses
+        # no scope — the same emptiness C-SCOPE-4 rejects in `Write(...)`.
+        if tools:
+            assert _flag_value(inv, "--disallowedTools"), f"empty deny list: {head}"
 
 
 @pytest.mark.unit
@@ -301,11 +464,20 @@ def test_c_scope_4_no_allow_list_carries_an_inert_write_rule():
     """Mechanic 3: `Write(pattern)` reads as a boundary and grants nothing.
 
     Keeping one is worse than having no rule — a reviewer counts it as scope.
+
+    Skipped on the two empty-tool sessions, and gated on THAT fact rather than
+    on the flag being absent. `if "--allowedTools" not in inv: continue` reads
+    the same and is not: this is the only static reader of that flag in the
+    file, so renaming it repo-wide made every invocation skip and the gate
+    check nothing, silently — `_flag_value`'s whole reason for raising, undone
+    by its caller (2026-08-16 code review MEDIUM, mutation C).
     """
-    for inv in _invocations():
+    for script, inv in _invocations():
+        if not _flag_value(inv, "--tools"):
+            continue  # no tools granted, so no grant to spell inertly
         allowed = _flag_value(inv, "--allowedTools")
         offenders = [e for e in _entries(allowed) if e.startswith("Write(")]
-        assert not offenders, f"inert Write rule in {inv.strip()[:80]}: {offenders}"
+        assert not offenders, f"inert Write rule in {script.name}: {inv.strip()[:80]}: {offenders}"
 
 
 @pytest.mark.unit
@@ -580,6 +752,21 @@ def test_c_scope_8_declared_tool_names_are_exactly_what_the_session_gets(tmp_pat
     loop deselects it (see the comment there).
     """
     variables = _shell_vars()
+    # The empty spec is probed too, and it is the one this file's newest claim
+    # rests on: weekly-analysis.sh's two sessions declare `--tools ""` and
+    # nothing else bounds their tool set. C-SCOPE-1 reads that as the strongest
+    # possible bound; if a future CLI treated the empty string as "unset" and
+    # opened the built-in set — the `default` fail-open in another spelling —
+    # every other assertion about those two sessions would be vacuous.
+    event, diagnostics = _cli_init_event("", tmp_path / "cfg-empty")
+    assert event is not None, f"no init event for the empty tool spec: {diagnostics}"
+    assert "tools" in event, f"init event carries no `tools` key: {sorted(event)}"
+    opened = {t for t in event["tools"] if not t.startswith("mcp__")}
+    assert not opened, (
+        f'--tools "" resolved to {sorted(opened)} instead of no tools at all. '
+        "The two weekly-analysis sessions declare exactly this and nothing else."
+    )
+
     for index, name in enumerate(("READONLY_TOOLS", "FIX_TOOLS", "DIAG_TOOLS")):
         spec = variables[name]
         declared = _bare(spec)

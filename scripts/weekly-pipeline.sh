@@ -52,6 +52,13 @@ if ! [[ "$MOLTBOOK_HOME" =~ ^[A-Za-z0-9._/@+-]+$ ]]; then
     exit 1
 fi
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+# Same reason as weekly-analysis.sh: `--setting-sources project` resolves
+# "project" against the CWD, so every session's isolation below depends on
+# where this script was started. The plist pins WorkingDirectory, a hand-run
+# backfill does not, and from $HOME "project" IS the operator's user settings
+# file — the flag silently becomes a no-op. Stage 4 still cd's into its
+# worktree; this only fixes the starting point (2026-08-16 security review).
+cd "$PROJECT_ROOT"
 SCRIPTS="$PROJECT_ROOT/scripts"
 PROMPTS="$PROJECT_ROOT/config/prompts"
 REPORT_DIR="$MOLTBOOK_HOME/reports/analysis"
@@ -362,6 +369,13 @@ audit chain_start end_date="$END_DATE" stages="$STAGES"
 echo "[$RUN_ID] chain start (stages: $STAGES)"
 
 # --- Stage 1: report ---
+# **Two more unattended sessions live in there.** weekly-analysis.sh starts its
+# own `claude -p` for the report and another for the ja translation, so the
+# permission mechanics above do not describe the whole chain and the five specs
+# below are not all of it. Those two carried no flags at all until 2026-08-16
+# precisely because this block reads as the complete account
+# (T-WEEKLY-ANALYSIS-SESSION-SCOPE); they are bounded in that file, and
+# C-SCOPE-0 now fails if a script this chain execs is not gated.
 if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
     echo "[$RUN_ID] stage 1: weekly-analysis"
     if bash "$SCRIPTS/weekly-analysis.sh" --end-date "$END_DATE" --days "$DAYS" \
