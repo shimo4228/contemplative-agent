@@ -725,3 +725,159 @@ evidence の写しを baseline と diff した読者は exit 2 を踏むので�
 名前は同じまま意味が変わったフィールドが本修正の untidy な部分であり、受け入れた。
 代替 —— 新しいフィールド名 + `compare.py` の互換分岐 —— が回避する古いスカラーより、
 恒久的な複雑さの方が大きいためである。
+
+## Amendment (2026-08-16): 区切り子 nonce 後の再測定 —— back-fill 条件を初めて検査して適用外と判定した回
+
+T-UNTRUSTED-ESCAPE が `config/prompts/untrusted_wrapper.md` を書き換え、区切り子が
+呼び出しごとの nonce を持つようになった（`c2cc013`、ADR-0007 Amendment 2026-08-16）。
+これにより `prompt_templates_sha256` が `6fdb301f…` から `d463f8d0…` へ動き、承認済みの
+`comment_golden-2026-08-08` が再び STALE になった。
+
+再測定による再承認そのものは新しくない —— `comment_golden-2026-08-08` も新規 run
+（`20260808T053509Z`）から昇格した。新しいのは、2026-08-08b の back-fill 条件が既に
+存在するため、**安い経路をその条件自身の言葉で検査して却下した最初の回**だという点である。
+
+**上の back-fill 条件は適用されない。ここが記録に値する点である。** あの条件の*適用範囲*は、
+測られた木はそのままで comparability field の**定義**だけを狭めた場合である。今回は定義が
+一切変わっておらず、template の**中身**が変わった —— モデルが読む位置に、定数だったタグ名の
+代わりにランダムな名前が入る。
+
+条件のどちらの半分が破れているかに注意する。自明な方ではない。前半 —— 新しい値が commit 済みの
+木の状態から決定論的に再計算できる —— は**依然として満たされている**。
+`prompt_templates_sha256()` は木からいつでも `d463f8d0…` を再計算する。破れているのは後半、
+2026-08-08b の Amendment が「artefact を木に固定するのはこちらだ」と特定した方である:
+2026-08-08 の run 自身が出力した値がここでは再現しない。今日の木で再計算すると
+`d463f8d0…` が出るのであって、その run が記録した `6fdb301f…` ではない —— その run は
+この wrapper を一度も見ていないからである。したがって back-fill は「その run が出力しえない値」を
+主張することになり、それこそ後半が防ぐために在る失敗である。
+
+もう一つの選択肢は**何もしない**ことだった。staleness は advisory で決して止めない
+（Decision 8 であり、2026-08-08b が再確認している）ので、次の変更が再実行を強いるまで
+STALE のまま放置できた。却下の根拠は 2026-08-08b が長く論じたものと同じ: 読み手が
+無視することを学ぶ常設警告こそ、あの Amendment が直そうとした失敗であり、ここで
+消す代価は無人 run 1 回である。
+
+nonce は digest に入らない。`prompt_templates_sha256` が hash するのは registry が
+ロードする template の**ディスク上のバイト列**（対象集合は `hashed_prompt_paths`、
+加えて `config/domain.json`）であり、ファイルは `{nonce}` プレースホルダを保持したままで、
+置換は呼び出し時に `core/llm/guard.py` で起きる。よって digest は以後安定し、
+*staleness 検査を収める*ために eval 側へ `configure_untrusted_guard(nonce_source=…)` を
+通す必要は無かった。
+
+そもそも digest が動いたこと自体を正しく読む必要がある: これは**保守的な pin であって
+実質性の検査ではない**。「template 層は baseline が測ったものと byte 同一ではない」と
+言うだけで、その差が verdict を動かしうるかについては意図的に何も言わない。本 Amendment は
+「再測定に値する変更だった」と「測れた効果は小さい」を同時に主張するが、両立するのは
+digest が後者を主張していなかったからである。
+
+### 実測
+
+run `20260816T124823Z`、実時間およそ 28 分（`manifest.created_at` 12:48:23Z、
+`judge-audit.jsonl` の最終記録 13:16:00Z）、12 case のデータセットと fixture snapshot は同一:
+
+| | baseline 2026-08-08 | run 20260816T124823Z |
+|---|---|---|
+| case verdict | 12 DRIFTING | 12 DRIFTING（regression 0 / improvement 0） |
+| sample verdict のプール | DRIFTING 32 / DEVIANT 4 | DRIFTING 33 / DEVIANT 3 |
+| サンプル構成が変わった case | —— | 12 中 3（DRIFTING 方向 2、DEVIANT 方向 1） |
+| `COMPARABILITY_FIELDS` の差分 | —— | `prompt_templates_sha256` のみ |
+| `injection_observed` | 36/36 enforced | 36/36 enforced、fell_back 0、unobserved 0 |
+
+差分の行を `COMPARABILITY_FIELDS` に限定しているのは意図的である。`created_at` も違う
+（`2026-08-08T05:35:09+00:00` → `2026-08-16T12:48:23+00:00`）が、`compare.py` はこれを
+informational として除外している。2 つの run を diff してよいかを決めるのは comparability 集合の方である。
+
+`injection_observed` の行は飾りでなく荷重を持つ。この run は `_preflight` の警告で始まった
+—— 34264 トークンの skill corpus は 32768 の窓をそもそも超過する（clamp 床 128 に対して
+headroom は −1496）ので、この run で fail-open した選択は full-corpus 注入へ degrade するのでなく
+サンプルを丸ごと失う。**警告は発火したが、fail-open は起きていない。** 起きていれば該当 case は
+縮んだ分母の上で集約され、誤った理由で「不変」と読めていた。分母は 36 のまま無傷である。
+
+サンプル水準の動きはプールの数字が示唆するより大きく、しかも**単位**が効く。差し引き 1 件
+（DEVIANT 4 → 3）と読むと過小、サンプルの序数で読むと過大になる（序数の相違は 5 件だが、
+temperature 1.3 の下で「n 番目のサンプル」に run をまたぐ同一性は無い —— `emptiness-2-edge` は
+`[D, D, DEV]` → `[D, DEV, D]` で、同じ多重集合の並び替えである）。意味を担う単位は
+case ごとの verdict 多重集合であり、それで読むと**12 case 中 3 件が構成を変えた**:
+`nonduality-3-adv` と `care-3-adv` が DEVIANT を DRIFTING に置き換え、
+`nonduality-2-edge` が逆方向へ動いた。
+
+**これを「雑音の内側」とは主張しない。このレジームに使える雑音床が存在しないからである。**
+2026-08-06 の Amendment は雑音床を実測したが、2026-08-08 の Amendment がそれを退役させた ——
+退役したレジームの下で測られたもので「転用せず測り直すべき」——。そして代替はまだ測られていない。
+今回のペアも供給できない: 雑音床には null ペア（同じ木を 2 度）が要るのに、このペアは
+意図的にプロンプトを変えている。したがって run が支えるのは等価性より狭い主張である ——
+**case verdict は 1 つも動かず、サンプル水準の動きは一方向ではなかった。** その動きが雑音なのか、
+ランダム化された区切り子の小さな実効果なのかは未解決であり、この wrapper の下で null ペアを
+走らせるまで未解決のままにする。baseline の昇格はその決着に依存しない —— ゲートが読むのは
+case verdict であり、そちらは不変である。
+
+承認済み baseline は `evals/baselines/comment_golden-2026-08-16.json`。
+`check_staleness.py` は exit 0。これは run 記録 `evals/results/20260816T124823Z/run.json` と
+**byte 単位で同一**であり、この点は引用にとって重要である: その results パスは gitignored なので
+repo の読者には存在せず、baseline ファイルが同じ artefact の読める写しになる。この run に対する
+`docs/evidence/adr-0089/` 下の独立した evidence 写しは publish していない。これは過去 2 つの
+Amendment からの逸脱であり、昇格自体が記録を byte 単位で保存するという理由でのみ許容する ——
+**昇格されない** run に対しては許容できない。
+
+2026-08-08 のファイルは、退役済みの 2026-08-06 と並んで `evals/baselines/` に残す ——
+`newest_baseline` は辞書順で新しい方を選ぶし、古い版は「その時点で何が承認されていたか」
+として読めるままにしておく。
+
+### 比較は手で行うほかなかった
+
+`run_eval.py --baseline …` はこの比較を報告できない。動いたフィールド自身が
+`COMPARABILITY_FIELDS` の一員なので、`compare_runs` が `IncomparableRunsError` を投げ、
+run は exit 2（`cannot measure`）で終わる。これはゲートが働いている状態である ——
+機構が保証できないプロンプト変更をまたいだ verdict diff を承認者に見せてはならない ——
+が、その結果として上の数値は、`compare.py` の比較を再現しつつ `VERDICT_RANK` を転記せず
+import する使い捨てスクリプトから得た。run 記録自体は完全である: `run_eval` は compare の
+前に `run.json` を書き終えるので、exit 2 で終わった run も昇格できる。
+
+スクリプト自体は保存していないし、その必要も無い: 入力は 2 つとも commit 済みの baseline
+ファイルであり、比較は `compare.py` 自身のもの —— import した `VERDICT_RANK` で順位付けした
+case ごとの `case_verdict` と、case ごとのサンプル多重集合 —— である。後からこれを再導出する者は
+同じ exit 2 を踏むので、2026-08-08b の Amendment が evidence ファイルについて注意書きしたのと
+同じ意味で、本節をその理由として読んでほしい。
+
+### この baseline 交換が支払わせるもの
+
+2 つあり、どちらもここでは直さない。
+
+hash 対象の template 層に対する今後のあらゆる変更が、staleness を消すために full run を要する:
+無人でおよそ 28 分、加えて `claude-sonnet-5` の judge 呼び出し 36 回。この価格自体は
+2026-08-08 の Amendment が既に付けている。変わったのは、nonce によって「単独では verdict を
+動かしえない変更」でもトリガーが発火するようになり、価格の付く編集の範囲が広がった点である。
+
+そして `compare.py` には**意図的なプロンプト変更**のための逃げ道が依然として無い ——
+上の手作業の比較が埋めた穴がこれである。「この 2 run は比較可能」か「不可能」しか言えず
+中間が無いので、プロンプトが違うことを*意図している*承認者は exit 2 と verdict diff 無しを
+受け取る。これは安全側の既定であり、3 度目が来たときの正しい修正は、比較**と**無視するよう
+指示された差分の両方を印字する明示的な `--accept-manifest-delta <field>` であって、
+`COMPARABILITY_FIELDS` を緩めることではない。
+
+### nonce の残余 2 つ（記録のみ、修正はしない）
+
+**eval はもうプロンプト全体を pin できない。** nonce は生成プロンプトを呼び出しごとに
+恒久的に変え、固定されたプロンプト状態は eval の設計全体である（`snapshot_assets.py` は
+そのために在る）。固定する手段は技術的には在り —— `configure_untrusted_guard` は
+`nonce_source` を取り、`tests/conftest.py` は既に使っている ——
+`run_eval._configure_pinned_assets` は identity・憲法・skills・rules・selection 監査を
+既に pin しているので、「ハーネスは設定に触れない」を理由にするのは誤りである。実際の理由は
+もっと狭い: 本番は呼び出しごとに新しい nonce を引くので、pin すれば本番が決して持たない
+プロンプト分布を eval が測ることになる。nonce がどれだけ分散を加えるかは未測定で、その理由は
+実測の節が述べた通りである。
+
+**nonce は selection 監査の run 間 join も壊した。** これは `run.json` からは見えない部分である。
+`run.json` はレンダリング後のプロンプトを保存しないが、run ディレクトリは保存する:
+`skill-selection/skill-selection-*.jsonl` が `prompt_b64` / `prompt_sha256` を記録しており、
+復号した pass-1 プロンプトは区切り子を含む —— この run の最初の記録では
+`<untrusted_content_a203d8ddf405f1cd>`。したがって入力が byte 同一でも `prompt_sha256` は
+run 間で違う。`_configure_pinned_assets` はこの監査を「2 つの run が*なぜ*違うのかの証拠」と
+説明しているが、このフィールドについてはもう答えられず、run をまたいで diff した読者は
+何も意味しない全面変化を見る。記録が失われたわけではない（`prompt_b64` は replay できる）が、
+安い hash 一致による join は失われた。
+
+残余 2 つの次の安い測定は同一である: この wrapper の下での **null ペア** —— 同じ木を 2 度
+走らせる —— であり、2026-08-08 の Amendment が退役させた雑音床を測り直すことと、nonce の寄与を
+上から抑えることを、同じ 2 run で果たす。ここで未実施なのは、この baseline の昇格に
+必要でなかったからである。

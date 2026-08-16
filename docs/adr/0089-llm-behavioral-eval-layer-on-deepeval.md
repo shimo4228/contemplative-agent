@@ -797,3 +797,183 @@ A field whose meaning changed while its name did not is the untidy part of
 this fix, accepted because the alternative — a new field name plus a
 compatibility branch in `compare.py` — carries more permanent complexity
 than the stale historical scalars it would avoid.
+
+## Amendment (2026-08-16): re-measured after the delimiter nonce — the first time the back-fill condition was tested and found inapplicable
+
+T-UNTRUSTED-ESCAPE rewrote `config/prompts/untrusted_wrapper.md` to carry a
+per-call nonce in its delimiters (`c2cc013`, ADR-0007 amendment 2026-08-16),
+which moved `prompt_templates_sha256` from `6fdb301f…` to `d463f8d0…` and put
+the approved `comment_golden-2026-08-08` baseline back into STALE.
+
+Re-approval by re-measurement is not itself new — `comment_golden-2026-08-08`
+was promoted from a fresh run (`20260808T053509Z`). What is new is that the
+2026-08-08b back-fill condition now exists, so for the first time the cheap
+route had to be tested and rejected on its own terms rather than simply not
+being available.
+
+**The back-fill condition above does not apply, and this is the point worth
+recording.** Its *scope* is a comparability field whose **definition** was
+narrowed while the measured tree stayed put. Here no definition changed: the
+template's **content** changed, and the model now reads a randomized tag name
+where it read a constant one.
+
+Note which half of the condition fails, because it is not the obvious one. The
+first half — the new value is deterministically recomputable from committed
+tree state — is still satisfied; `prompt_templates_sha256()` recomputes
+`d463f8d0…` from the tree any time. What fails is the second half, the one the
+2026-08-08b amendment identified as the part that actually pins an artefact to
+a tree: the 2026-08-08 run's own emitted value does *not* reproduce here.
+Recomputing at today's tree yields `d463f8d0…`, not the `6fdb301f…` that run
+recorded — because that run never saw this wrapper. So a back-fill would be
+asserting a value the run could not have emitted, which is the failure mode
+the second half exists to prevent.
+
+The other option was to do nothing. Staleness is advisory and never blocks
+(that is Decision 8, and 2026-08-08b restates it), so the stale baseline could
+have been left standing until some later change forced a re-run. Rejected on
+the ground 2026-08-08b argued at length: a standing warning that the reader
+learns to dismiss is the failure that amendment was written to repair, and the
+cost of clearing it here is one unattended run.
+
+The nonce does not enter the digest. `prompt_templates_sha256` hashes the
+registry-loaded template *bytes on disk* — selection by `hashed_prompt_paths`,
+plus `config/domain.json` — and the file keeps the `{nonce}` placeholder;
+substitution happens at call time in `core/llm/guard.py`. So the digest is
+stable from here on, and no eval-side `configure_untrusted_guard(nonce_source=…)`
+pin was needed for the *staleness* check to settle.
+
+That the digest moved at all is therefore worth reading correctly: it is a
+**conservative pin, not a materiality test**. It says the template layer is not
+byte-identical to what the baseline measured, and deliberately says nothing
+about whether the difference can move a verdict. This amendment argues both
+that the change was worth re-measuring and that its measured effect is small;
+those are consistent only because the digest was never claiming the second.
+
+### Measured
+
+Run `20260816T124823Z`, ~28 minutes wall clock (`manifest.created_at`
+12:48:23Z, last `judge-audit.jsonl` record 13:16:00Z), same 12-case dataset and
+fixture snapshot:
+
+| | baseline 2026-08-08 | run 20260816T124823Z |
+|---|---|---|
+| case verdicts | 12 DRIFTING | 12 DRIFTING (0 regressions, 0 improvements) |
+| sample-verdict pool | DRIFTING 32 / DEVIANT 4 | DRIFTING 33 / DEVIANT 3 |
+| cases whose sample composition changed | — | 3 of 12 (2 toward DRIFTING, 1 toward DEVIANT) |
+| `COMPARABILITY_FIELDS` deltas | — | `prompt_templates_sha256` only |
+| `injection_observed` | 36/36 enforced | 36/36 enforced, 0 fell_back, 0 unobserved |
+
+The delta row is scoped to `COMPARABILITY_FIELDS` deliberately: `created_at`
+differs too (`2026-08-08T05:35:09+00:00` → `2026-08-16T12:48:23+00:00`), and
+`compare.py` excludes it as informational. It is the comparability set that
+decides whether two runs may be diffed at all.
+
+The `injection_observed` row is load-bearing rather than decorative. The run
+opened with `_preflight`'s warning that the 34264-token skill corpus overflows
+the 32768 context outright (headroom −1496 against a clamp floor of 128), so a
+fail-open selection this run would have lost its sample rather than degrading
+to full-corpus injection. The warning fired; **no fail-open did**. Had one, the
+affected cases would have been aggregated over a shrunken denominator and could
+have read "unchanged" for the wrong reason. The denominator is intact at 36.
+
+The sample-level movement is larger than the pool counts suggest, and the unit
+matters. Reading it as a net of one (DEVIANT 4 → 3) understates it; reading it
+by sample ordinal overstates it (five ordinals differ, but a sample index has
+no identity across runs at temperature 1.3 — `emptiness-2-edge` went
+`[D, D, DEV]` → `[D, DEV, D]`, the same multiset reordered). The unit that
+carries meaning is the per-case verdict multiset, and by that reading **3 of 12
+cases changed composition**: `nonduality-3-adv` and `care-3-adv` each traded a
+DEVIANT for a DRIFTING, `nonduality-2-edge` went the other way.
+
+**This is not claimed to be within noise, because no usable noise floor exists
+for this regime.** The 2026-08-06 amendment measured one, but the 2026-08-08
+amendment retired it — measured under the superseded injection regime, "to be
+re-derived rather than carried over" — and no replacement has been measured.
+The current pair cannot supply one either: a noise floor needs a null pair
+(same tree twice), and this pair deliberately changes the prompt. So what the
+run supports is narrower than equivalence: **no case verdict moved, and the
+sample-level movement did not go one way.** Whether that movement is noise or a
+small real effect of randomized delimiters is unresolved and stays unresolved
+until a null pair is run under this wrapper. Promoting the baseline does not
+depend on settling it — the gate reads case verdicts, and those are unchanged.
+
+`evals/baselines/comment_golden-2026-08-16.json` is the approved baseline;
+`check_staleness.py` exits 0. It is **byte-identical to the run record**
+`evals/results/20260816T124823Z/run.json`, which matters for citation: that
+results path is gitignored, so it does not exist for a reader of the repo, and
+the baseline file is the readable copy of the same artefact. No separate
+evidence copy under `docs/evidence/adr-0089/` was published for this run, which
+is a departure from both prior amendments — accepted here only because the
+promotion itself preserves the record byte for byte, and it would not be
+acceptable for a run that is *not* promoted.
+
+The 2026-08-08 file stays in `evals/baselines/` alongside the superseded
+2026-08-06 one — `newest_baseline` sorts lexicographically and picks the new
+file, and the older ones remain readable as what was approved then.
+
+### The comparison had to be made by hand
+
+`run_eval.py --baseline …` cannot report this comparison: the field that moved
+is itself a `COMPARABILITY_FIELDS` member, so `compare_runs` raised
+`IncomparableRunsError` and the run exited 2 (`cannot measure`). That is the
+gate working — an approver must not be shown a verdict diff across a prompt
+change the machinery cannot vouch for — but it means the numbers above came
+from a throwaway script that reproduced `compare.py`'s comparison while
+importing `VERDICT_RANK` rather than transcribing it. The run record itself is
+complete regardless: `run_eval` writes `run.json` before the compare step, so
+an exit-2 run is still promotable.
+
+The script itself is not preserved, and does not need to be: both of its inputs
+are committed baseline files, and the comparison is `compare.py`'s own — per-case
+`case_verdict` ranked by the imported `VERDICT_RANK`, plus the per-case sample
+multisets. Anyone re-deriving it hits the same exit 2 and should read this
+section as the reason, the same way the 2026-08-08b amendment flagged the
+evidence files.
+
+### What this baseline swap costs
+
+Two things, neither of them fixed here.
+
+Every future change to the hashed template layer now needs a full re-run to
+clear staleness: ~28 minutes unattended plus 36 `claude-sonnet-5` judge calls.
+The 2026-08-08 amendment priced this already; what changes is that the nonce
+made the trigger fire for a change that could not move a verdict on its own,
+so the price is now attached to a wider class of edits.
+
+And `compare.py` still has no affordance for a deliberate prompt change — the
+gap the hand comparison above had to fill. It can say "these two runs are
+comparable" or "they are not", with nothing between, so an approver who
+*intends* the prompt to differ gets exit 2 and no verdict diff. That is the
+safe default, and the right fix if this recurs a third time is an explicit
+`--accept-manifest-delta <field>` that prints the comparison **and** the delta
+it was told to ignore — not a widening of `COMPARABILITY_FIELDS`.
+
+### Two residuals of the nonce, recorded not fixed
+
+**The eval can no longer pin the whole prompt.** The nonce makes the generation
+prompt differ on every call, permanently, and a pinned prompt state is the
+eval's whole design (that is what `snapshot_assets.py` exists for). Pinning it
+is technically available — `configure_untrusted_guard` takes a `nonce_source`
+and `tests/conftest.py` already uses it — and `run_eval._configure_pinned_assets`
+already pins identity, constitution, skills, rules and the selection audit, so
+"the harness does not configure things" would be a false reason. The actual
+reason is narrower: production draws a fresh nonce on every call, so a pinned
+nonce would have the eval measure a prompt distribution production never has.
+How much variance the nonce contributes is unmeasured, for the reason the
+Measured section gives.
+
+**The nonce also broke a cross-run join in the selection audit**, which is the
+part not visible from `run.json`. `run.json` stores no rendered prompt, but the
+run directory does: `skill-selection/skill-selection-*.jsonl` records
+`prompt_b64` / `prompt_sha256`, and the decoded pass-1 prompt carries the
+delimiters — `<untrusted_content_a203d8ddf405f1cd>` in this run's first record.
+So `prompt_sha256` now differs between two runs given byte-identical inputs.
+`_configure_pinned_assets` describes that audit as the evidence for *why* two
+runs differ; on this field it can no longer answer, and a reader diffing it
+across runs will see universal change that means nothing. The record is not
+lost — `prompt_b64` still replays — but the cheap hash-equality join is gone.
+
+Both residuals have the same cheap next measurement: a **null pair** under this
+wrapper — the same tree run twice — which would re-derive the noise floor the
+2026-08-08 amendment retired *and* bound the nonce's contribution, in the same
+two runs. Left undone here because promoting this baseline did not require it.
