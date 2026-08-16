@@ -353,12 +353,20 @@ _circuit = _CircuitBreaker()
 class CircuitReading:
     """Read-only view of the breaker's state at one instant.
 
-    An instrument in the ADR-0071 sense: a reading over existing state that
-    adds no mechanism and feeds no gate. It exists because the conformance
-    kit (``contemplative_agent.testing``) has to assert which calls the
-    breaker counted — "a truncation drop is not a failure" is a claim about
-    the counter, and no black-box observation expresses it without also
-    exercising the threshold, which is a different claim.
+    A reading over existing state that adds no mechanism. It exists because
+    the conformance kit (``contemplative_agent.testing``) has to assert which
+    calls the breaker counted — "a truncation drop is not a failure" is a
+    claim about the counter, and no black-box observation expresses it
+    without also exercising the threshold, which is a different claim.
+
+    It started as a pure ADR-0071 instrument ("feeds no gate"), and since
+    2026-08-16 it is not one: the reply loops read ``is_open`` to stop
+    scanning candidates they cannot answer (T-REPLY-PACING,
+    ``adapters/moltbook/reply_handler.py``). That consumer is control plane,
+    not observability, so the instrument framing no longer describes this
+    class — a caller may act on the reading. What has NOT changed is the
+    direction: reading it never mutates the breaker, and no caller may write
+    breaker state through it.
 
     Before this, the sibling backends read ``_circuit._consecutive_failures``
     directly, so a rename inside :class:`_CircuitBreaker` broke three

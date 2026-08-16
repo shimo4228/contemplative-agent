@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 
 from ...core._io import log_safe_identifier
 from ...core.config import VALID_ID_PATTERN
+from ...core.llm import circuit_reading
 from ...core.scheduler import Scheduler
 from .client import MoltbookClient
 from .config import ADAPTIVE_BACKOFF
@@ -134,6 +135,18 @@ class ReplyHandler:
                 break
             if not client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve):
                 logger.info("Rate limit budget low, pausing reply processing")
+                break
+            # Generation was this loop's only pacer; an open breaker returns
+            # from it in microseconds, and the scan runs at full speed
+            # (2026-07-12: 6,621 candidates in an hour, nothing published).
+            # A break, not a backoff — the breaker owns the clock and the
+            # candidates carry to the next session, as the write-budget break
+            # above already does. The other three loops carry the same line;
+            # position within the column is not load-bearing (all four are
+            # side-effect-free and all break). T-REPLY-PACING; the incident
+            # numbers live in tests/test_reply_chaos.py and architecture.md.
+            if circuit_reading().is_open:
+                logger.info("Circuit breaker open, pausing reply processing")
                 break
 
             validated = self._validated_notification(notif, i)
@@ -399,6 +412,9 @@ class ReplyHandler:
             if not client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve):
                 logger.info("Rate limit budget low, pausing comment processing")
                 break
+            if circuit_reading().is_open:  # see run_cycle (T-REPLY-PACING)
+                logger.info("Circuit breaker open, pausing comment processing")
+                break
 
             fields = extract_agent_fields(comment)
             reply_key, handled = self._reply_dedup(post_id, fields["id"])
@@ -450,6 +466,9 @@ class ReplyHandler:
             if not client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve):
                 logger.info("Write budget low, pausing home-based reply processing")
                 break
+            if circuit_reading().is_open:  # see run_cycle (T-REPLY-PACING)
+                logger.info("Circuit breaker open, pausing home-based reply processing")
+                break
 
             post_id = item.get("post_id", "")
             if not post_id or not VALID_ID_PATTERN.match(post_id):
@@ -484,6 +503,9 @@ class ReplyHandler:
                 break
             if not client.has_write_budget(ADAPTIVE_BACKOFF.write_budget_reserve):
                 logger.info("Rate limit budget low, pausing own post comment check")
+                break
+            if circuit_reading().is_open:  # see run_cycle (T-REPLY-PACING)
+                logger.info("Circuit breaker open, pausing own post comment check")
                 break
 
             self._handle_post_comments(client, scheduler, post_id, end_time)

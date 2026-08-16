@@ -129,6 +129,19 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │     → full injection, which now overflows NUM_CTX and is skipped by the
  │     audit-C2 guard); same for comment and cooperation_post below;
  │     post_title reuses cooperation_post's selection, no second call]
+ │    [this cycle's four candidate loops (notifications, a post's comments,
+ │     /home activity, own posts) open with the same stateless guard column:
+ │     end_time / rate-limited → can_comment → write budget → circuit-breaker
+ │     open. The last is 2026-08-16 (T-REPLY-PACING): generation latency was
+ │     the loops' only pacer, so an open breaker (which returns in
+ │     microseconds) let 2026-07-12 scan 6,621 candidates in an hour — nothing
+ │     published, 29,007 circuit_open rows. A break, not a backoff: the
+ │     breaker owns the clock (half-open after CIRCUIT_COOLDOWN_SECONDS) and
+ │     the candidates carry to the next session, as the write-budget break
+ │     already does. Scope is the reply cycle ONLY — the feed-engagement loop
+ │     and select_feed_seeds below have the same unpaced shape and do NOT
+ │     carry this guard (T-FEED-PACING); read the column as fixed here, not
+ │     as a property of the session]
  ├─ Agent._run_feed_cycle()
  │    fetch → promo filter → own-author skip (name-keyed + id belt-and-braces;
  │      live feed lacks author.id) → ID dedup → per-author cap (3/24h)
