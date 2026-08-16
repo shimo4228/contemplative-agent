@@ -24,6 +24,7 @@ from ..core.domain import (
     set_domain_config_cache,
 )
 from ..core.llm import configure as configure_llm
+from ..core.llm import configure_untrusted_guard
 from ..core.skill_selection import configure_skill_selection
 
 logger = logging.getLogger(__name__)
@@ -113,6 +114,13 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     # scores them, and is wired to no gate. Leaving audit_dir unset disables it
     # outright, which is the kill switch.
     configure_submolt_scope(audit_dir=config.EPISODE_LOG_DIR)
+    # T-OBS-INJ: injection-token removals inside wrap_untrusted_content. Wired
+    # unconditionally, unlike the selector above — the reading this log exists
+    # for is "is the guard still on the path", and a conditional wire makes a
+    # run of zeroes mean either "no attacks" or "not configured this time",
+    # which is the ambiguity the log was added to remove. nonce_source stays
+    # unset so production draws from the system CSPRNG.
+    configure_untrusted_guard(audit_dir=config.EPISODE_LOG_DIR)
     if config.RULES_DIR.is_dir():
         configure_llm(rules_dir=config.RULES_DIR)
 

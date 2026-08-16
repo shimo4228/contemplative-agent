@@ -75,6 +75,9 @@ from .guard import (
     _sanitize_thinking as _sanitize_thinking,
     _scrub_secrets as _scrub_secrets,
     _strip_thinking as _strip_thinking,
+    configure_untrusted_guard as configure_untrusted_guard,
+    reset_untrusted_guard as reset_untrusted_guard,
+    strip_injection_tokens as strip_injection_tokens,
     validate_trusted_url as validate_trusted_url,
     wrap_untrusted_content as wrap_untrusted_content,
 )

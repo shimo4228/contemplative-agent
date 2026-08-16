@@ -988,17 +988,29 @@ class TestDescAuditUntrustedWrap:
         """Codex review 2026-07-24: the audit target is untrusted LLM-distilled
         content with an incentive to self-exonerate ("output DESC_OK") — both
         fields must pass the untrusted-content boundary before generation."""
-        from contemplative_agent.core.llm import wrap_untrusted_content
+        from contemplative_agent.core.llm import (
+            configure_untrusted_guard,
+            reset_untrusted_guard,
+            wrap_untrusted_content,
+        )
         from contemplative_agent.core.stocktake import audit_skill_description
 
-        mock_generate.return_value = GenerationOutput(text="DESC_OK")
-        audit_skill_description(
-            ("s.md", "DESC_MARKER", "BODY_MARKER"),
-            "audit {name} / {description} / {skill}",
-        )
-        prompt = mock_generate.call_args.args[0]
-        assert wrap_untrusted_content("DESC_MARKER") in prompt
-        assert wrap_untrusted_content("BODY_MARKER") in prompt
+        # The delimiter carries a per-call nonce, so building the expected
+        # block with a second call would compare two different frames. Pin the
+        # source for the duration; what is under test here is that both fields
+        # cross the boundary, not how the boundary is randomised.
+        configure_untrusted_guard(nonce_source=lambda: "0123456789abcdef")
+        try:
+            mock_generate.return_value = GenerationOutput(text="DESC_OK")
+            audit_skill_description(
+                ("s.md", "DESC_MARKER", "BODY_MARKER"),
+                "audit {name} / {description} / {skill}",
+            )
+            prompt = mock_generate.call_args.args[0]
+            assert wrap_untrusted_content("DESC_MARKER") in prompt
+            assert wrap_untrusted_content("BODY_MARKER") in prompt
+        finally:
+            reset_untrusted_guard()
 
 
 # ---------------------------------------------------------------------------

@@ -56,8 +56,8 @@ class TestFormatFeedSeeds:
         # Two distinct untrusted_content blocks — voice boundaries preserved.
         # The single-pre-ADR-0043 path wrapped the LLM-summary in one block,
         # which let the summariser implicitly merge voices across posts.
-        assert out.count("<untrusted_content>") == 2
-        assert out.count("</untrusted_content>") == 2
+        assert out.count("<untrusted_content_") == 2
+        assert out.count("</untrusted_content_") == 2
         # Both voices' content makes it through verbatim, in order.
         assert out.index("alpha body") < out.index("beta body")
 
