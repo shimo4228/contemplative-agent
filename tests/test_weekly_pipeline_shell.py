@@ -189,6 +189,13 @@ def _stub_file(env: dict, name: str) -> Path:
     return Path(env["STUB_STATE"]) / name
 
 
+def _run_log_root(env: dict) -> Path:
+    # weekly-pipeline.sh: RUN_LOG_DIR="$MOLTBOOK_HOME/logs/weekly-pipeline/$RUN_ID".
+    # The run id is timestamped, so the test pins the parent it must sit under
+    # rather than recomputing it.
+    return Path(env["MOLTBOOK_HOME"]) / "logs" / "weekly-pipeline"
+
+
 def test_f_rev_1_concerns_then_reentry_then_approve(tmp_path: Path):
     env = _make_env(tmp_path, fix_behavior=["edit", "edit"], verdicts=["CONCERNS", "APPROVE"])
     proc = _run(env)
@@ -196,6 +203,15 @@ def test_f_rev_1_concerns_then_reentry_then_approve(tmp_path: Path):
 
     reviews = _events(env, "review_result")
     assert [(e["round"], e["verdict"]) for e in reviews] == [("1", "CONCERNS"), ("2", "APPROVE")]
+    # Each event carries the log the shell just wrote, so the builder opens that
+    # path instead of rebuilding the name from fix_id + round under a second,
+    # divergent rule (T-PACKET-LOG-PATH-FROM-SHELL). The packet assertion below
+    # already fails if this breaks, but only as a symptom — this names the
+    # producer half of the contract.
+    for event in reviews:
+        log = Path(event["log"])
+        assert log.is_file(), event
+        assert log.is_relative_to(_run_log_root(env)), event
     results = _events(env, "fix_result")
     assert [e["result"] for e in results] == ["patch_ready"]
 

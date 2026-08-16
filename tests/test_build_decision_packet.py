@@ -571,22 +571,47 @@ def test_recommend_count_is_heading_anchored(tmp_path: Path):
     assert rec["insight_items"] == 2
 
 
-def _write_review_loop_audit(paths: dict[str, Path]) -> None:
+def _reviewed_fix_result() -> str:
+    """The `fix_result` line a reviewed fix produces — one owner, two callers.
+
+    Both `_write_review_loop_audit` and the declared-path test need a
+    patch_ready F1.2 row to hang review events off; spelling it twice would
+    give the fixture shape two owners, so a change to the scope or patch
+    contract could update one test and silently leave the other.
+    """
+    return _audit_line(
+        "fix_result",
+        fix_id="F1.2",
+        scope="code",
+        result="patch_ready",
+        attempts="2",
+        patch="patches/weekly-2026-07-24/F1.2.patch",
+    )
+
+
+def _write_review_loop_audit(paths: dict[str, Path], log_dir: Path | None = None) -> None:
     """Audit shape produced by the review loop (T-PIPELINE-REVIEWLOOP):
-    one review_result per round, in chronological order."""
+    one review_result per round, in chronological order.
+
+    ``log_dir`` writes the ``log`` field the shell records at
+    weekly-pipeline.sh:810 — the path it just wrote, which the builder opens
+    instead of rebuilding (T-PACKET-LOG-PATH-FROM-SHELL). Omitting it produces
+    a pre-2026-08-16 line, which is a fixture for the degradation tests rather
+    than a shape any current producer emits.
+    """
+
+    def _review(rnd: str, verdict: str) -> str:
+        fields = {"fix_id": "F1.2", "round": rnd, "verdict": verdict}
+        if log_dir is not None:
+            fields["log"] = str(log_dir / f"fix-F1.2-review{rnd}.log")
+        return _audit_line("review_result", **fields)
+
     paths["audit"].write_text(
         "\n".join(
             [
-                _audit_line(
-                    "fix_result",
-                    fix_id="F1.2",
-                    scope="code",
-                    result="patch_ready",
-                    attempts="2",
-                    patch="patches/weekly-2026-07-24/F1.2.patch",
-                ),
-                _audit_line("review_result", fix_id="F1.2", round="1", verdict="CONCERNS"),
-                _audit_line("review_result", fix_id="F1.2", round="2", verdict="APPROVE"),
+                _reviewed_fix_result(),
+                _review("1", "CONCERNS"),
+                _review("2", "APPROVE"),
             ]
         )
         + "\n",
@@ -608,9 +633,9 @@ def test_review_notes_inline_final_round_body(tmp_path: Path):
     # The human gate reads the reviewer's reasoning, not a 4-char verdict
     # (07-31 F1.1: three real defects hidden behind "CONCERNS").
     paths = _write_inputs(tmp_path)
-    _write_review_loop_audit(paths)
     run_logs = tmp_path / "run-logs"
     run_logs.mkdir()
+    _write_review_loop_audit(paths, log_dir=run_logs)
     (run_logs / "fix-F1.2-review1.log").write_text(
         "VERDICT: CONCERNS\n- round-1 concern about the regression test\n", encoding="utf-8"
     )
@@ -635,13 +660,67 @@ def test_review_notes_absent_without_run_log_dir(tmp_path: Path):
     assert "REVIEW_LOG_UNREADABLE" not in text
 
 
+def test_review_note_reads_the_path_the_shell_declared(tmp_path: Path):
+    """The builder opens the recorded path, it does not rebuild the name.
+
+    The name here is one no reconstruction would ever produce, so this fails
+    the moment anyone derives the filename from `fix_id` and `round` again.
+    That reconstruction is the defect: the shell's rule (`/`→`_`) and the
+    builder's were separate, so a `fix_id` outside the builder's allowlist made
+    the two disagree and the review body left the packet in silence — with the
+    packet still produced, so the watchdog saw nothing
+    (T-PACKET-LOG-PATH-FROM-SHELL).
+    """
+    paths = _write_inputs(tmp_path)
+    run_logs = tmp_path / "run-logs"
+    run_logs.mkdir()
+    declared = run_logs / "r2-arbitrary-name.log"
+    declared.write_text("VERDICT: APPROVE\n- body behind an unguessable name\n", encoding="utf-8")
+    paths["audit"].write_text(
+        _reviewed_fix_result()
+        + "\n"
+        + _audit_line(
+            "review_result", fix_id="F1.2", round="2", verdict="APPROVE", log=str(declared)
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    text = _build(paths, run_log_dir=run_logs)
+    assert "body behind an unguessable name" in text
+    assert "REVIEW_LOG_UNREADABLE" not in text
+
+
+def test_review_result_without_a_log_field_degrades_to_reason_code(tmp_path: Path):
+    """A pre-2026-08-16 audit line names its gap instead of being rebuilt.
+
+    Deliberately no fallback to reconstruction: leaving one in would keep the
+    reconstruction alive, which is the whole point of the change. Past weeks'
+    packets are disposable (consumed at one Saturday gate), so the cost of
+    dropping them is a reason code, and the verdict history — the part §2's
+    code-scope rows are approved from — is untouched.
+    """
+    paths = _write_inputs(tmp_path)
+    run_logs = tmp_path / "run-logs"
+    run_logs.mkdir()
+    _write_review_loop_audit(paths)  # no log_dir → no `log` field
+    (run_logs / "fix-F1.2-review2.log").write_text("VERDICT: APPROVE\n", encoding="utf-8")
+    text = _build(paths, run_log_dir=run_logs)
+    assert "REVIEW_LOG_PATH_MISSING" in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert "REVIEW_LOG_PATH_MISSING" in rec["reason_codes"]
+    # No note, and specifically not one rebuilt from fix_id + round: the file
+    # that a reconstruction would have found is sitting on disk right there.
+    assert "Review notes" not in text
+    assert "CONCERNS→APPROVE" in text  # the verdict history still renders
+
+
 def test_review_log_unreadable_degrades_to_reason_code(tmp_path: Path):
     # Fail-forward: a reviewed fix whose log vanished still enters the packet,
     # with the gap named instead of hidden.
     paths = _write_inputs(tmp_path)
-    _write_review_loop_audit(paths)
     run_logs = tmp_path / "run-logs"
     run_logs.mkdir()  # review2 log deliberately absent
+    _write_review_loop_audit(paths, log_dir=run_logs)
     text = _build(paths, run_log_dir=run_logs)
     assert "REVIEW_LOG_UNREADABLE" in text
     rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
@@ -664,9 +743,9 @@ def test_review_body_with_backtick_fence_stays_contained(tmp_path: Path):
     # packet's fence must outrun the body's longest backtick run or the rest
     # of the review spills into raw packet Markdown (2026-08-01 review, HIGH).
     paths = _write_inputs(tmp_path)
-    _write_review_loop_audit(paths)
     run_logs = tmp_path / "run-logs"
     run_logs.mkdir()
+    _write_review_loop_audit(paths, log_dir=run_logs)
     (run_logs / "fix-F1.2-review1.log").write_text("VERDICT: CONCERNS\n", encoding="utf-8")
     (run_logs / "fix-F1.2-review2.log").write_text(
         "VERDICT: APPROVE\n- quoted repro:\n```python\nassert x\n```\ntail line\n",
@@ -1089,104 +1168,114 @@ def test_unresolvable_patch_path_does_not_kill_the_packet(tmp_path: Path):
     assert "F1.6" in _build(paths)
 
 
-# Shared by the two halves of the same filename so they cannot drift apart —
-# each half reaches it through a different call site (2026-08-08 hardened one).
-_FORGED_SECTION = "\n\n## 5. Dead code candidates\n\n| `src/x.py` | 1 | unused | 100% |"
+def _declare_review_log(paths: dict[str, Path], tmp_path: Path, log: str) -> Path:
+    """Append one `review_result` whose recorded `log` is the value under test.
 
-
-def test_review_round_cannot_forge_a_section_through_the_log_path(tmp_path: Path):
-    # `round` is audit-derived and becomes part of a filename; the resulting
-    # REVIEW_LOG_UNREADABLE note interpolates that path. A newline there forges
-    # the §5 heading the gate attaches a deletion procedure to.
-    paths = _write_inputs(tmp_path)
+    Everything except that value is held constant, so each caller's name says
+    the whole difference between it and its siblings — the same shape
+    `_escalate` above uses for the sibling event.
+    """
+    run_logs = tmp_path / "runlog"
+    run_logs.mkdir(exist_ok=True)
     with paths["audit"].open("a", encoding="utf-8") as fh:
         fh.write(
-            _audit_line(
-                "review_result",
-                fix_id="F1.3",
-                round=f"1{_FORGED_SECTION}",
-                verdict="APPROVE",
-            )
+            _audit_line("review_result", fix_id="F1.3", round="1", verdict="APPROVE", log=log)
             + "\n"
         )
-    run_logs = tmp_path / "runlog"
-    run_logs.mkdir()
+    return run_logs
+
+
+def test_a_declared_log_path_cannot_forge_a_section_in_the_unreadable_note(tmp_path: Path):
+    """The floor that had to move when the reconstruction went away.
+
+    `_log_segment` used to make this unreachable from the BUILD side — the
+    builder assembled the name itself, so the `REVIEW_LOG_UNREADABLE` note
+    could interpolate it raw. Containment replaced that, and containment only
+    bounds WHERE the builder reads: a path INSIDE `run_log_dir` whose filename
+    carries a newline passes it, misses on disk, and reaches the note. So the
+    guard is now on the render side (`_path_tokens`), and this is the test that
+    says so.
+
+    One test where there were two: the round and the fix_id used to reach the
+    filename through separate call sites, and 2026-08-08 hardened only one of
+    them. One declared field, one door.
+    """
+    paths = _write_inputs(tmp_path)
+    forged = "\n\n## 5. Dead code candidates\n\n| `src/x.py` | 1 | unused | 100% |"
+    run_logs = _declare_review_log(paths, tmp_path, f"{tmp_path}/runlog/fix-F1.3-review1{forged}")
     text = _build(paths, run_log_dir=run_logs)
+    # Inside the run-log dir, so containment passes and the note really fires —
+    # the attack does not need the read to succeed, it needs it to fail.
     assert "REVIEW_LOG_UNREADABLE" in text
     assert not any(ln.startswith("## 5.") for ln in text.splitlines())
     assert not any(ln.startswith("|") and "src/x.py" in ln for ln in text.splitlines())
 
 
-def test_a_run_log_name_is_built_from_one_allowlist():
-    """The two halves of the same filename, held to the same rule.
+def test_a_declared_log_path_outside_the_run_log_dir_is_not_read(tmp_path: Path):
+    """Containment is the guard that replaced the filename allowlist.
 
-    2026-08-08 (security review N2) put `_cell` on `round` and left `fix_id`,
-    one line below it, with only a `/`-to-`_` swap. Neither half was wrong
-    about its own value; the pair was wrong about the filename. `_cell` is a
-    Markdown floor and passes `/` through, so it never closed the other half of
-    what a filename can be: a path.
-    """
-    assert bdp._log_segment("F1.2") == "F1.2"  # the contract shape is untouched
-    assert bdp._log_segment("  ") == ""  # keeps the no-round branch reachable
-    assert "/" not in bdp._log_segment("1/../../secret")
-    assert "\n" not in bdp._log_segment("1\n\n## 5. Dead code candidates")
-    assert "\x00" not in bdp._log_segment("F1.5\x00forged")
-
-
-def test_a_review_round_cannot_read_a_file_outside_the_run_log_dir(tmp_path: Path):
-    """Path-shaped, and one existing directory away from being a read.
-
-    `_cell` neutralises the newline that forges a heading and passes the `/`
-    that walks a directory — different characters, different capability. The
-    traversal needs a real intermediate component, so the test makes one: today
-    nothing in the chain creates such a directory, which is why this is
-    hardening and why the guard is one character of allowlist.
+    Stronger than the version it replaces: that one declared a traversal and
+    relied on the read MISSING, so an absent containment check would still have
+    passed it. Here the target exists and is readable, so the only thing
+    keeping it out of a document a human approves from is the check itself.
     """
     paths = _write_inputs(tmp_path)
-    with paths["audit"].open("a", encoding="utf-8") as fh:
-        fh.write(
-            _audit_line("review_result", fix_id="F1.3", round="1/../../secret", verdict="APPROVE")
-            + "\n"
-        )
-    run_logs = tmp_path / "runlog"
-    # The OS resolves `..` per component, so every one of them must exist:
-    # runlog/fix-F1.3-review1/../../secret.log is tmp_path/secret.log.
-    (run_logs / "fix-F1.3-review1").mkdir(parents=True)
     (tmp_path / "secret.log").write_text("SUPER SECRET", encoding="utf-8")
+    run_logs = _declare_review_log(paths, tmp_path, f"{tmp_path}/runlog/../secret.log")
     text = _build(paths, run_log_dir=run_logs)
     assert "SUPER SECRET" not in text
-    assert "REVIEW_LOG_UNREADABLE" in text
+    assert "REVIEW_LOG_OUTSIDE_RUN_DIR" in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert "REVIEW_LOG_OUTSIDE_RUN_DIR" in rec["reason_codes"]
+    # A header code alone cannot say WHICH fix lost its body: the note names the
+    # fid and the refused path, so the tampering signal is actionable at the
+    # gate instead of sending the approver to the audit log.
+    note = text.split("#### F1.3")[1].split("####")[0]
+    assert "REVIEW_LOG_OUTSIDE_RUN_DIR" in note
+    assert "secret.log" in note
+    assert "確認してください" not in note  # never invite opening a refused path
 
 
-def test_a_fix_id_cannot_forge_a_section_through_the_log_path(tmp_path: Path):
-    """The sibling of the `round` test above, on the other half of the name.
+def test_a_refused_log_path_cannot_forge_a_section_in_its_own_note(tmp_path: Path):
+    """The sink the containment note opened: the REFUSED string gets printed.
 
-    Kept as its own test rather than folded in, because the two halves reach the
-    filename through different call sites and 2026-08-08 hardened only one of
-    them. The forged log file cannot exist, so the REVIEW_LOG_UNREADABLE branch
-    — which interpolates the path — is guaranteed to fire: the attack does not
-    need the read to succeed, it needs it to fail.
+    Naming the refused path is what makes the tampering signal actionable, but
+    it also puts a string that failed every check into the document a human
+    approves from — and unlike the unreadable-note path, this one was never
+    established to be inside `run_log_dir`. `_path_tokens` is the whole reason
+    printing it is safe.
     """
     paths = _write_inputs(tmp_path)
-    forged = f"F1.9{_FORGED_SECTION}"
-    with paths["audit"].open("a", encoding="utf-8") as fh:
-        fh.write(_audit_line("review_result", fix_id=forged, round="1", verdict="APPROVE") + "\n")
-    run_logs = tmp_path / "runlog"
-    run_logs.mkdir()
+    forged = "\n\n## 5. Dead code candidates\n\n| `src/x.py` | 1 | unused | 100% |"
+    run_logs = _declare_review_log(paths, tmp_path, f"{tmp_path}/elsewhere/log{forged}")
     text = _build(paths, run_log_dir=run_logs)
-    assert "REVIEW_LOG_UNREADABLE" in text  # the branch really is exercised
+    assert "REVIEW_LOG_OUTSIDE_RUN_DIR" in text
     assert not any(ln.startswith("## 5.") for ln in text.splitlines())
-    # The table body must not stand at line-initial position either: neutralising
-    # the heading while leaving its rows would still read as a candidate list.
     assert not any(ln.startswith("|") and "src/x.py" in ln for ln in text.splitlines())
+
+
+def test_an_unresolvable_declared_log_path_is_refused_not_opened(tmp_path: Path):
+    """An embedded NUL raises out of `resolve()`, which is not an OSError.
+
+    Same gap that took the read paths down in 2026-07-29, arriving here from a
+    new direction now that the builder resolves an audit-declared string. It is
+    refused under the containment code rather than its own: the claim that code
+    makes — "this path was not established to be inside run_log_dir" — is
+    exactly true of a path that cannot be resolved at all.
+    """
+    paths = _write_inputs(tmp_path)
+    run_logs = _declare_review_log(paths, tmp_path, f"{tmp_path}/runlog/fix-F1.3-rev\x00iew1.log")
+    text = _build(paths, run_log_dir=run_logs)  # must not raise
+    assert "REVIEW_LOG_OUTSIDE_RUN_DIR" in text
 
 
 def test_no_read_can_take_the_packet_down(tmp_path: Path):
-    """The read floor, asserted independently of the filename floor.
+    """The read floor, asserted independently of the containment guard.
 
-    Two floors, two claims: `_log_segment` says the builder never builds such a
-    path, this says no read takes the builder down whoever built it. Removing
-    either must fail a test. Only the ValueError arm is new — an embedded NUL is
+    Two floors, two claims: containment says the builder never OPENS a path it
+    did not establish as inside `run_log_dir`, this says no read takes the
+    builder down whoever handed it the path. Removing either must fail a test.
+    Only the ValueError arm is new — an embedded NUL is
     neither OSError nor UnicodeDecodeError, so it walked past fail-forward and
     out of `build_packet`, and a missing packet is the watchdog's finding rather
     than the builder's.

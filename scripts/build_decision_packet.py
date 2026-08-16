@@ -142,7 +142,10 @@ def _cell(value: object) -> str:
     **Where the floor is the whole defence, and where it is not.** Three audit
     values are written outside this repo's control and get a stricter renderer
     ON TOP of this one: ``_title_cell``, ``_unrecognized_verdict``,
-    ``_path_tokens``. File bodies bypass this floor entirely — see ``_fence``.
+    ``_path_tokens``. The last of those also carries the recorded run-log path,
+    which is repo-written but reaches the note line at the one position this
+    floor does not cover — see the ``REVIEW_LOG_UNREADABLE`` note in §2.
+    File bodies bypass this floor entirely — see ``_fence``.
 
     Every other audit value is a shell literal or is pinned upstream, and for
     those this floor is all they get. That is the decision, not an omission: a
@@ -153,8 +156,9 @@ def _cell(value: object) -> str:
     Safe **mid-line only**: a leading `#` and backtick runs are not
     neutralised, so a caller emitting ``f"{_cell(v)}"`` at the start of a line
     reopens the hole. Flattening to one line — including the list rule — is
-    :func:`_flatten`'s, not restated here. Values that become a *filename*
-    rather than a cell need :func:`_log_segment` instead: this one passes ``/``.
+    :func:`_flatten`'s, not restated here. Values that are *paths* rather than
+    cells need :func:`_path_tokens` instead: this one passes ``/``, and it
+    escapes for Markdown rather than for a reader deciding what was opened.
     """
     # Backslash first, so escaping `|` cannot be undone by a preceding literal
     # backslash. `printable` before both: a substitution that produced a `\` or
@@ -167,58 +171,25 @@ def _cell(value: object) -> str:
 
 
 def _patch_name(fix_id: str) -> str:
-    """The exporter's fix_id → patch filename contract (weekly-pipeline.sh:850).
+    """The exporter's fix_id → patch filename contract (weekly-pipeline.sh:866).
 
-    Kept on the shell's own rule rather than :func:`_log_segment`'s stricter one:
-    this output is only ever COMPARED against a name on disk, never joined and
-    opened, so agreeing with the writer matters more than being safe to open.
-    The two rules diverging at all is the reconstruction problem that helper's
-    docstring names (T-PACKET-LOG-PATH-FROM-SHELL).
+    Still a reconstruction, and deliberately left as one when the run-log path
+    stopped being rebuilt (2026-08-16). A different defect class: after that
+    change the patch name has ONE rule spelled identically on both sides, where
+    the run-log name had two incompatible rules held apart only by
+    ``parse_findings.py``'s pin. Same-rule-twice is a maintenance risk;
+    different-rules-twice was a live divergence. This output is also only ever
+    COMPARED against a name on disk, never joined and opened.
+
+    Swapping in the audit's own ``patch`` field is blocked at ONE of the four
+    call sites, not all: the third escalation signal below reads the exported
+    filenames precisely because it must survive an audit-write outage. The
+    ``escalated_by_name`` / ``inferred_names`` uses are already keyed off
+    audit-derived ``escalations``, so they would spend no independence that is
+    not already spent. That the conflict is partial is what makes it decidable
+    — T-PACKET-PATCH-NAME-FROM-SHELL holds the trade.
     """
     return f"{fix_id.replace('/', '_')}.patch"
-
-
-# One alphabet, two classes: `_PATH_UNSAFE` (below) renders a path and keeps
-# `/`; this one BUILDS a name and cannot. Derived rather than re-spelled so a
-# character added for rendering cannot silently fail to follow, or vice versa.
-_PATH_CHARS = "A-Za-z0-9._+-"
-_SEGMENT_UNSAFE = re.compile(rf"[^{_PATH_CHARS}]")
-# 4 + 120 + 7 + 120 + 4 = 255 = NAME_MAX. Its own name rather than
-# `_MAX_PATH_LEN`'s: that one budgets a reader's line, this one budgets a path
-# the builder opens, and an overflow here lands in `_safe_read_text`'s OSError.
-_MAX_SEGMENT_LEN = 120
-
-
-def _log_segment(value: object) -> str:
-    """An audit-derived value as ONE component of a run-log filename.
-
-    Both halves of ``fix-<fid>-review<n>.log`` come through here, so what may
-    become part of a filename is one decision. Splitting it is what failed: the
-    2026-08-08 security review (N2) put ``_cell`` on ``round`` and left
-    ``fix_id`` one line below it with only a ``/``-to-``_`` swap. Neither half
-    was wrong about its own value; the pair was wrong about the filename —
-    ``_cell`` escapes for Markdown and passes ``/``, so it neutralised the
-    newline that forges a heading in the ``REVIEW_LOG_UNREADABLE`` note and
-    left the separator that walks out of the run-log dir.
-
-    The allowlist also shuts the NUL door before a path exists, which is the
-    build-side half of ``_safe_read_text``'s widened catch; that function's
-    docstring owns the rationale for the pair.
-
-    **This is a reader reconstructing a name a writer chose** — the shell builds
-    the same string at weekly-pipeline.sh:564-565 with a laxer rule (``/`` only),
-    as does :func:`_patch_name` for the exported patch. All three agree while
-    ``fix_id`` is pinned to ``F1.\\d+``; if that pin ever loosens they diverge and
-    the review body goes missing from the packet rather than loudly failing.
-    The deeper form is for the shell to record the path it wrote
-    (it already does for ``patch``) — see T-PACKET-LOG-PATH-FROM-SHELL.
-
-    Truncation is unmarked because this string is not a rendering: it is the
-    path the builder really opened, and the note quotes the shortened form.
-    ``.strip()`` before substituting keeps whitespace-only input falsy, so the
-    no-round filename stays reachable.
-    """
-    return _SEGMENT_UNSAFE.sub("_", _flatten(value).strip())[:_MAX_SEGMENT_LEN]
 
 
 # The reviewer contract (weekly-pipeline.sh): APPROVE ends the loop, CONCERNS
@@ -228,10 +199,31 @@ def _log_segment(value: object) -> str:
 KNOWN_VERDICTS = ("APPROVE", "CONCERNS", "REVIEW_FAIL")
 REVIEW_VERDICT_UNRECOGNIZED = "REVIEW_VERDICT_UNRECOGNIZED"
 
-_PATH_UNSAFE = re.compile(rf"[^{_PATH_CHARS}/]")  # `_SEGMENT_UNSAFE` plus `/`
+# The run-log ladder, in the order the review-note loop walks it: nothing
+# declared / declared but not containable / containable but unreadable. Three
+# codes because they are expected to behave differently over time — the first
+# is designed to RETIRE as pre-2026-08-16 weeks age out, the second should
+# never fire at all, the third is an ordinary fail-forward gap. A code expected
+# to go quiet and a code expected to stay silent cannot share a bucket without
+# making both unreadable, the same reason the metrics record below keeps "not
+# scanned" distinct from "scanned clean".
+REVIEW_LOG_PATH_MISSING = "REVIEW_LOG_PATH_MISSING"
+REVIEW_LOG_OUTSIDE_RUN_DIR = "REVIEW_LOG_OUTSIDE_RUN_DIR"
+REVIEW_LOG_UNREADABLE = "REVIEW_LOG_UNREADABLE"
+
+# The path alphabet: what a rendered path may keep. Everything else becomes
+# U+FFFD, including the newline that would forge a heading and the `<` that
+# would open a `<details>`.
+_PATH_CHARS = "A-Za-z0-9._+-"
+_PATH_UNSAFE = re.compile(rf"[^{_PATH_CHARS}/]")
 _PATH_REPLACEMENT = "�"
 _MAX_PATH_TOKENS = 20
 _MAX_PATH_LEN = 120
+# The run-log note prints an ABSOLUTE path (~107 chars here), so it gets its own
+# budget rather than `_MAX_PATH_LEN`'s, which was sized for the repo-relative
+# names a fix session picks. Same number as `_MAX_TITLE_LEN` and the same job:
+# bound one reader's line without eliding the thing the line exists to show.
+_MAX_LOG_PATH_LEN = 240
 # Measured over the 17 F1 headings in the 2026-07-31..08-14 findings files:
 # max 193, median 164. 240 leaves ~24% headroom on the widest observed heading
 # while still bounding the line, so one heading cannot push the §2 table off a
@@ -261,8 +253,16 @@ def _unrecognized_verdict(raw: str) -> str:
     return f"UNRECOGNIZED(`{_PATH_UNSAFE.sub(_PATH_REPLACEMENT, raw)[:_MAX_PATH_LEN]}`)"
 
 
-def _path_tokens(files: object) -> str:
+def _path_tokens(files: object, max_len: int = _MAX_PATH_LEN) -> str:
     """Render an audit-recorded path list as bounded, allowlisted code spans.
+
+    Two callers, one claim: **a path rendered inside the builder's own
+    narration, whoever chose it.** The escalation note below is the first; the
+    second is the ``REVIEW_LOG_UNREADABLE`` note, whose path the shell chose
+    rather than a fix session. That one is checked for containment before it is
+    opened, and containment is not a renderer — it bounds where the builder
+    READS and says nothing about what a name may PRINT, so a path legitimately
+    inside the run-log dir still arrives here unneutralised.
 
     Structural escaping (``_cell``) is not enough for this one: the escalation
     note is *narration* — it reads as the builder's own deterministic voice,
@@ -277,6 +277,13 @@ def _path_tokens(files: object) -> str:
     preview. Everything outside the path allowlist becomes U+FFFD, and both
     the token count and each token's length are capped — an unbounded list is
     a cheap way to push the surrounding explanation out of a reader's view.
+
+    ``max_len`` is a parameter because the two callers render different-sized
+    values against the same purpose. The default fits the repo-relative names
+    a fix session picks. An ABSOLUTE path needs more: the run-log note runs
+    ~107 characters on this machine, so the default would leave ~13 characters
+    of headroom and then hand the operator a truncated, unopenable path — in
+    the note whose only job is to let them open it.
     """
     if isinstance(files, (list, tuple)):
         tokens = [str(f) for f in files if str(f).strip()]
@@ -290,7 +297,7 @@ def _path_tokens(files: object) -> str:
         # An elided path must not read as a complete one — the note exists so
         # the human can see WHICH path escalated, and a silently-truncated
         # path is that failure in miniature.
-        shown.append("`" + safe[:_MAX_PATH_LEN] + ("…`" if len(safe) > _MAX_PATH_LEN else "`"))
+        shown.append("`" + safe[:max_len] + ("…`" if len(safe) > max_len else "`"))
     if len(tokens) > _MAX_PATH_TOKENS:
         # "断片" not "件": git does not quote spaces in --name-only output, so
         # one filename with spaces splits into many tokens. Calling them files
@@ -377,9 +384,10 @@ def _safe_read_text(path: Path) -> str | None:
     ``build_packet``, and a missing packet is the watchdog's finding
     (`scripts/pipeline_watchdog.sh`), not the builder's. It reads as "the chain
     died", so a fault the packet exists to REPORT would arrive as the absence of
-    the report. No producer can reach it today (``_log_segment`` floors the
-    filename, and both its inputs are pinned upstream); this is the read-side
-    half of that guard, not a repair of an observed failure.
+    the report. No producer can reach it today: the run-log path is resolved
+    for the containment check before it is opened, and ``resolve()`` raises on
+    the NUL first — so this is the second door on one input, not a repair of an
+    observed failure.
 
     Widening is narrow in practice: the only ``ValueError`` this adds is the
     embedded-NUL path, and it is not silent — the callers that surface a
@@ -779,19 +787,51 @@ def build_packet(
     # the header reason list and the metrics record (same rationale as the
     # patch reads above). Earlier rounds stay on disk; their verdicts appear
     # in the history column.
-    review_notes: list[tuple[str, str | None, Path]] = []  # (fid, body, log_path)
+    # (fid, body, rendered path span, code) — code is "" when a body was read.
+    # A degraded note carries the fid and the path, because a header reason code
+    # alone cannot say WHICH fix lost its review body: the gate would see
+    # "something was refused" with no way to recover what without opening the
+    # audit log, and REVIEW_LOG_OUTSIDE_RUN_DIR is the tampering signal.
+    review_notes: list[tuple[str, str | None, str, str]] = []
     if run_log_dir is not None:
+        # The path comes off the event (`log`, weekly-pipeline.sh) and is
+        # checked for containment here; it is not rebuilt from fix_id + round.
+        # Why that matters is at the producer — the one place a future editor
+        # changes the name — and in architecture.md's Rendering discipline
+        # (T-PACKET-LOG-PATH-FROM-SHELL).
+        run_log_root = run_log_dir.resolve()
         for fid, evts in review_history.items():
-            # Both halves through the same floor before either becomes a
-            # filename — see _log_segment for why splitting that decision failed.
-            rnd = _log_segment(evts[-1].get("round", ""))
-            safe_fid = _log_segment(fid)
-            log_name = f"fix-{safe_fid}-review{rnd}.log" if rnd else f"fix-{safe_fid}-review.log"
-            log_path = run_log_dir / log_name
+            declared = evts[-1].get("log")
+            if not isinstance(declared, str) or not declared.strip():
+                # No fallback to the old reconstruction, deliberately: leaving
+                # one in is how the reconstruction survives. Pre-2026-08-16
+                # audit lines lose their review bodies, which costs nothing
+                # durable — a packet is consumed at one Saturday gate.
+                add_reason(REVIEW_LOG_PATH_MISSING)
+                continue
+            try:
+                log_path = Path(declared).resolve()
+            except (OSError, ValueError):
+                # `resolve()` raises ValueError on an embedded NUL — see
+                # `_safe_read_text` for why that arm is not an OSError.
+                log_path = None
+            # One claim, one code, one exit: a path that cannot be resolved was
+            # never established to be inside run_log_dir either. The REFUSED
+            # string is what the note shows — `_path_tokens` is what makes
+            # printing an unvetted path safe, and the resolved form does not
+            # exist here.
+            if log_path is None or not log_path.is_relative_to(run_log_root):
+                add_reason(REVIEW_LOG_OUTSIDE_RUN_DIR)
+                span = _path_tokens([declared], max_len=_MAX_LOG_PATH_LEN)
+                review_notes.append((fid, None, span, REVIEW_LOG_OUTSIDE_RUN_DIR))
+                continue
             body = _safe_read_text(log_path)
+            code = ""
             if body is None:
-                add_reason("REVIEW_LOG_UNREADABLE")
-            review_notes.append((fid, body, log_path))
+                add_reason(REVIEW_LOG_UNREADABLE)
+                code = REVIEW_LOG_UNREADABLE
+            span = _path_tokens([str(log_path)], max_len=_MAX_LOG_PATH_LEN)
+            review_notes.append((fid, body, span, code))
         # Pin the notes to the fix-table order — review_history preserves
         # review-event order, which the bash flow keeps aligned with
         # fix_result order but nothing here enforces (2026-08-01 review).
@@ -817,9 +857,12 @@ def build_packet(
         except (OSError, ValueError):
             # resolve() raises ValueError on an embedded NUL, and ValueError is
             # not OSError — the same gap that took the packet down in the
-            # 2026-07-29 read paths. This is the only place the builder does
-            # filesystem I/O on an audit-derived string; fail-forward means a
-            # corrupt log line loses this signal, never the whole packet.
+            # 2026-07-29 read paths. One of the two places the builder resolves
+            # an audit-derived string; the other is the run-log path above, and
+            # it names its failure with a reason code because a lost review
+            # body is a hole in the packet. This one is silent on purpose: it
+            # is the second of three escalation signals, so fail-forward here
+            # loses redundancy, not information.
             continue
         if in_prompt_dir:
             add_reason(SCOPE_ESCALATED_INFERRED)
@@ -1007,14 +1050,22 @@ def build_packet(
             "承認ではない。CONCERNS のまま採用する判断は人間に属する。"
         )
         lines.append("")
-        for fid, body, log_path in review_notes:
+        for fid, body, path_span, code in review_notes:
             # Line-initial position: an unsanitised newline here forges a
             # heading directly, so this is the one place _cell's mid-line
             # caveat would bite.
             lines.append(f"#### {_cell(fid)} — {_cell(verdicts.get(fid, '—'))}")
             lines.append("")
-            if body is None:
-                lines.append(f"（REVIEW_LOG_UNREADABLE — `{log_path}` を直接確認してください）")
+            if code == REVIEW_LOG_OUTSIDE_RUN_DIR:
+                # Deliberately NOT "確認してください": the path was refused, so
+                # telling the operator to open it would hand a hostile string
+                # the one action the guard exists to prevent.
+                lines.append(
+                    f"（{code} — 記録された path {path_span} は run log dir の外を指す。"
+                    "読み込みを拒否した。開かず audit を確認）"
+                )
+            elif body is None:
+                lines.append(f"（{code} — {path_span} を直接確認してください）")
             else:
                 open_fence, close_fence = _fence(body, "text")
                 lines.append(open_fence)
@@ -1330,7 +1381,8 @@ def main() -> int:
         "--run-log-dir",
         type=Path,
         default=None,
-        help="run log dir holding fix-<fid>-review<N>.log — inlines final-round review bodies",
+        help="run log dir the recorded review-log paths must resolve inside "
+        "— inlines final-round review bodies",
     )
     p_build.add_argument(
         "--dead-code",

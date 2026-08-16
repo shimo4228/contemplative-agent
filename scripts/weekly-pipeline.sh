@@ -749,6 +749,18 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
 
         local review_n=$((round + 1))
         local review_input="$RUN_LOG_DIR/fix-$safe_fid-review$review_n-input.md"
+        # One naming rule, spelled once per round it names — `review_log` for
+        # every use of THIS round's log (including the audit `log` field) and
+        # `prev_review_log` for the one read of the previous round's. Loose
+        # expansions would keep an intra-function copy of the cross-language
+        # divergence these variables exist to end, in two shapes: change the
+        # redirect target and the audit records a path nobody wrote (the packet
+        # builds without the review body again), or miss the prev-round site
+        # and round 2 is reviewed with no memory of round 1's concerns —
+        # silently, because `cat` failing writes to stderr and there is no
+        # `set -e` (T-PACKET-LOG-PATH-FROM-SHELL).
+        local review_log="$fixlog-review$review_n.log"
+        local prev_review_log="$fixlog-review$round.log"  # only read when round > 0
         # The finding descends from external SNS content — the reviewer gets
         # it wrapped exactly like the implementer does, and the diff fence is
         # sized to outrun any backtick run inside the diff (2026-08-01
@@ -762,7 +774,7 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
             if (( round > 0 )); then
                 echo ""
                 echo "## Previous review (round $round) — check whether the new diff addresses it"
-                cat "$fixlog-review$round.log"
+                cat "$prev_review_log"
                 echo ""
                 echo "## Implementer's response to that review (its session summary — may rebut points instead of changing code)"
                 tail -n 60 "$fixlog-attempt$total_attempts.log"
@@ -789,10 +801,14 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
             --disallowedTools "$READONLY_DENY" \
             --output-format text \
             < "$review_input" \
-            > "$fixlog-review$review_n.log" 2>&1
-        verdict=$(grep -m1 '^VERDICT:' "$fixlog-review$review_n.log" | sed 's/^VERDICT: *//')
+            > "$review_log" 2>&1
+        verdict=$(grep -m1 '^VERDICT:' "$review_log" | sed 's/^VERDICT: *//')
         [[ -z "$verdict" ]] && verdict="REVIEW_FAIL"
-        audit review_result fix_id="$fid" round="$review_n" verdict="$verdict"
+        # `log` carries the path just written, the same way the patch export
+        # below carries `patch`, so the builder opens it instead of rebuilding
+        # the name under a second, divergent rule.
+        audit review_result fix_id="$fid" round="$review_n" verdict="$verdict" \
+            log="$review_log"
         # APPROVE ends the loop; REVIEW_FAIL is terminal too — no body to feed.
         [[ "$verdict" != "CONCERNS" ]] && break
         (( round >= MAX_REVIEW_ROUNDS )) && break
@@ -811,7 +827,7 @@ fix_one() {  # fix_one <fid> <scope> <bodyfile>
             # everything after it masquerade as trusted prompt text in the
             # tool-using fix session — neutralize the tag pair (2026-08-01
             # security review H1).
-            sed 's@</\{0,1\}untrusted_review>@[stripped-tag]@g' "$fixlog-review$review_n.log"
+            sed 's@</\{0,1\}untrusted_review>@[stripped-tag]@g' "$review_log"
             echo "</untrusted_review>"
         } > "$prompt_file"
         cp "$prompt_file" "$base_prompt"   # new round, new retry baseline
