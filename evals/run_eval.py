@@ -150,6 +150,14 @@ def sampling_state() -> dict:
     from contemplative_agent.core.config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH
     from contemplative_agent.core.llm import NUM_CTX, SAMPLING_TOP_K, SAMPLING_TOP_P
 
+    # Deliberately omitted, to be added on the NEXT baseline retake:
+    # ``_SELECTION_NUM_PREDICT`` (core/skill_selection.py). ADR-0089's
+    # two-pass reproduction made it an input to the generation path, so
+    # changing it should cry stale and today does not. It is not added now
+    # because this dict is a comparability field: a new key marks every
+    # existing baseline STALE the moment it lands, and the 2026-08-08 A/B
+    # artifact would have died the day it was approved. Add it in the same
+    # PR that re-takes the baseline (2026-08-16 判断).
     return {
         "num_ctx": NUM_CTX,
         "top_p": SAMPLING_TOP_P,
