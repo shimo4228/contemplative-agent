@@ -1089,6 +1089,11 @@ def test_unresolvable_patch_path_does_not_kill_the_packet(tmp_path: Path):
     assert "F1.6" in _build(paths)
 
 
+# Shared by the two halves of the same filename so they cannot drift apart —
+# each half reaches it through a different call site (2026-08-08 hardened one).
+_FORGED_SECTION = "\n\n## 5. Dead code candidates\n\n| `src/x.py` | 1 | unused | 100% |"
+
+
 def test_review_round_cannot_forge_a_section_through_the_log_path(tmp_path: Path):
     # `round` is audit-derived and becomes part of a filename; the resulting
     # REVIEW_LOG_UNREADABLE note interpolates that path. A newline there forges
@@ -1099,7 +1104,7 @@ def test_review_round_cannot_forge_a_section_through_the_log_path(tmp_path: Path
             _audit_line(
                 "review_result",
                 fix_id="F1.3",
-                round="1\n\n## 5. Dead code candidates\n\n| `src/x.py` | 1 | unused | 90% |",
+                round=f"1{_FORGED_SECTION}",
                 verdict="APPROVE",
             )
             + "\n"
@@ -1109,6 +1114,85 @@ def test_review_round_cannot_forge_a_section_through_the_log_path(tmp_path: Path
     text = _build(paths, run_log_dir=run_logs)
     assert "REVIEW_LOG_UNREADABLE" in text
     assert not any(ln.startswith("## 5.") for ln in text.splitlines())
+    assert not any(ln.startswith("|") and "src/x.py" in ln for ln in text.splitlines())
+
+
+def test_a_run_log_name_is_built_from_one_allowlist():
+    """The two halves of the same filename, held to the same rule.
+
+    2026-08-08 (security review N2) put `_cell` on `round` and left `fix_id`,
+    one line below it, with only a `/`-to-`_` swap. Neither half was wrong
+    about its own value; the pair was wrong about the filename. `_cell` is a
+    Markdown floor and passes `/` through, so it never closed the other half of
+    what a filename can be: a path.
+    """
+    assert bdp._log_segment("F1.2") == "F1.2"  # the contract shape is untouched
+    assert bdp._log_segment("  ") == ""  # keeps the no-round branch reachable
+    assert "/" not in bdp._log_segment("1/../../secret")
+    assert "\n" not in bdp._log_segment("1\n\n## 5. Dead code candidates")
+    assert "\x00" not in bdp._log_segment("F1.5\x00forged")
+
+
+def test_a_review_round_cannot_read_a_file_outside_the_run_log_dir(tmp_path: Path):
+    """Path-shaped, and one existing directory away from being a read.
+
+    `_cell` neutralises the newline that forges a heading and passes the `/`
+    that walks a directory — different characters, different capability. The
+    traversal needs a real intermediate component, so the test makes one: today
+    nothing in the chain creates such a directory, which is why this is
+    hardening and why the guard is one character of allowlist.
+    """
+    paths = _write_inputs(tmp_path)
+    with paths["audit"].open("a", encoding="utf-8") as fh:
+        fh.write(
+            _audit_line("review_result", fix_id="F1.3", round="1/../../secret", verdict="APPROVE")
+            + "\n"
+        )
+    run_logs = tmp_path / "runlog"
+    # The OS resolves `..` per component, so every one of them must exist:
+    # runlog/fix-F1.3-review1/../../secret.log is tmp_path/secret.log.
+    (run_logs / "fix-F1.3-review1").mkdir(parents=True)
+    (tmp_path / "secret.log").write_text("SUPER SECRET", encoding="utf-8")
+    text = _build(paths, run_log_dir=run_logs)
+    assert "SUPER SECRET" not in text
+    assert "REVIEW_LOG_UNREADABLE" in text
+
+
+def test_a_fix_id_cannot_forge_a_section_through_the_log_path(tmp_path: Path):
+    """The sibling of the `round` test above, on the other half of the name.
+
+    Kept as its own test rather than folded in, because the two halves reach the
+    filename through different call sites and 2026-08-08 hardened only one of
+    them. The forged log file cannot exist, so the REVIEW_LOG_UNREADABLE branch
+    — which interpolates the path — is guaranteed to fire: the attack does not
+    need the read to succeed, it needs it to fail.
+    """
+    paths = _write_inputs(tmp_path)
+    forged = f"F1.9{_FORGED_SECTION}"
+    with paths["audit"].open("a", encoding="utf-8") as fh:
+        fh.write(_audit_line("review_result", fix_id=forged, round="1", verdict="APPROVE") + "\n")
+    run_logs = tmp_path / "runlog"
+    run_logs.mkdir()
+    text = _build(paths, run_log_dir=run_logs)
+    assert "REVIEW_LOG_UNREADABLE" in text  # the branch really is exercised
+    assert not any(ln.startswith("## 5.") for ln in text.splitlines())
+    # The table body must not stand at line-initial position either: neutralising
+    # the heading while leaving its rows would still read as a candidate list.
+    assert not any(ln.startswith("|") and "src/x.py" in ln for ln in text.splitlines())
+
+
+def test_no_read_can_take_the_packet_down(tmp_path: Path):
+    """The read floor, asserted independently of the filename floor.
+
+    Two floors, two claims: `_log_segment` says the builder never builds such a
+    path, this says no read takes the builder down whoever built it. Removing
+    either must fail a test. Only the ValueError arm is new — an embedded NUL is
+    neither OSError nor UnicodeDecodeError, so it walked past fail-forward and
+    out of `build_packet`, and a missing packet is the watchdog's finding rather
+    than the builder's.
+    """
+    assert bdp._safe_read_text(Path("a\x00b")) is None  # ValueError, not OSError
+    assert bdp._safe_read_text(tmp_path / "nope") is None  # OSError, the anchor
 
 
 def test_escalation_inferred_from_declared_scope_without_any_audit_event(tmp_path: Path):

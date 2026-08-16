@@ -133,28 +133,28 @@ def _flatten(value: object) -> str:
 def _cell(value: object) -> str:
     """Flatten an audit-log value into one Markdown table cell / note line.
 
-    The structural floor, applied to every audit-derived value. Most of them
-    are tightly constrained upstream (``fix_id`` is regex-pinned in
-    parse_findings.py, ``scope`` is an enum, ``result``/``attempts``/``patch``
-    are shell-constructed), so this is defence in depth for them. The three
-    that are NOT constrained get a stricter renderer of their own:
-    ``_path_tokens`` for escalation paths (fix-session filenames),
-    ``_unrecognized_verdict`` for reviewer verdicts (a raw line from the review
-    session's output), and ``_title_cell`` for diagnosis headings (a free-prose
-    line from the diagnosis markdown).
+    The structural floor every audit value passes through, so that a new
+    producer cannot reach a table cell by being forgotten. The per-producer
+    form has already failed once: the retired ledger-watch intake treated
+    ``detail`` as the only field needing it, and ``target`` reached its section
+    raw.
+
+    **Where the floor is the whole defence, and where it is not.** Three audit
+    values are written outside this repo's control and get a stricter renderer
+    ON TOP of this one: ``_title_cell``, ``_unrecognized_verdict``,
+    ``_path_tokens``. File bodies bypass this floor entirely — see ``_fence``.
+
+    Every other audit value is a shell literal or is pinned upstream, and for
+    those this floor is all they get. That is the decision, not an omission: a
+    finding that one of them could forge packet structure needs a hand-edited
+    audit log, and an actor who can hand-edit that log can write the packet
+    directly (2026-08-16, T-PACKET-FLOOR-BYPASS).
 
     Safe **mid-line only**: a leading `#` and backtick runs are not
     neutralised, so a caller emitting ``f"{_cell(v)}"`` at the start of a line
     reopens the hole. Flattening to one line — including the list rule — is
-    :func:`_flatten`'s, not restated here.
-
-    Control characters are neutralised **here**, not per producer. The
-    per-producer form has already failed once (the retired ledger-watch
-    intake treated ``detail`` as the only field needing it, so ``target``
-    reached its section raw). A floor every audit-derived value passes
-    through is the only version of this that does not depend on each new
-    producer remembering. The stricter renderers named above keep their own
-    passes as defence in depth.
+    :func:`_flatten`'s, not restated here. Values that become a *filename*
+    rather than a cell need :func:`_log_segment` instead: this one passes ``/``.
     """
     # Backslash first, so escaping `|` cannot be undone by a preceding literal
     # backslash. `printable` before both: a substitution that produced a `\` or
@@ -167,8 +167,58 @@ def _cell(value: object) -> str:
 
 
 def _patch_name(fix_id: str) -> str:
-    """The exporter's fix_id → patch filename contract (weekly-pipeline.sh)."""
+    """The exporter's fix_id → patch filename contract (weekly-pipeline.sh:850).
+
+    Kept on the shell's own rule rather than :func:`_log_segment`'s stricter one:
+    this output is only ever COMPARED against a name on disk, never joined and
+    opened, so agreeing with the writer matters more than being safe to open.
+    The two rules diverging at all is the reconstruction problem that helper's
+    docstring names (T-PACKET-LOG-PATH-FROM-SHELL).
+    """
     return f"{fix_id.replace('/', '_')}.patch"
+
+
+# One alphabet, two classes: `_PATH_UNSAFE` (below) renders a path and keeps
+# `/`; this one BUILDS a name and cannot. Derived rather than re-spelled so a
+# character added for rendering cannot silently fail to follow, or vice versa.
+_PATH_CHARS = "A-Za-z0-9._+-"
+_SEGMENT_UNSAFE = re.compile(rf"[^{_PATH_CHARS}]")
+# 4 + 120 + 7 + 120 + 4 = 255 = NAME_MAX. Its own name rather than
+# `_MAX_PATH_LEN`'s: that one budgets a reader's line, this one budgets a path
+# the builder opens, and an overflow here lands in `_safe_read_text`'s OSError.
+_MAX_SEGMENT_LEN = 120
+
+
+def _log_segment(value: object) -> str:
+    """An audit-derived value as ONE component of a run-log filename.
+
+    Both halves of ``fix-<fid>-review<n>.log`` come through here, so what may
+    become part of a filename is one decision. Splitting it is what failed: the
+    2026-08-08 security review (N2) put ``_cell`` on ``round`` and left
+    ``fix_id`` one line below it with only a ``/``-to-``_`` swap. Neither half
+    was wrong about its own value; the pair was wrong about the filename —
+    ``_cell`` escapes for Markdown and passes ``/``, so it neutralised the
+    newline that forges a heading in the ``REVIEW_LOG_UNREADABLE`` note and
+    left the separator that walks out of the run-log dir.
+
+    The allowlist also shuts the NUL door before a path exists, which is the
+    build-side half of ``_safe_read_text``'s widened catch; that function's
+    docstring owns the rationale for the pair.
+
+    **This is a reader reconstructing a name a writer chose** — the shell builds
+    the same string at weekly-pipeline.sh:564-565 with a laxer rule (``/`` only),
+    as does :func:`_patch_name` for the exported patch. All three agree while
+    ``fix_id`` is pinned to ``F1.\\d+``; if that pin ever loosens they diverge and
+    the review body goes missing from the packet rather than loudly failing.
+    The deeper form is for the shell to record the path it wrote
+    (it already does for ``patch``) — see T-PACKET-LOG-PATH-FROM-SHELL.
+
+    Truncation is unmarked because this string is not a rendering: it is the
+    path the builder really opened, and the note quotes the shortened form.
+    ``.strip()`` before substituting keeps whitespace-only input falsy, so the
+    no-round filename stays reachable.
+    """
+    return _SEGMENT_UNSAFE.sub("_", _flatten(value).strip())[:_MAX_SEGMENT_LEN]
 
 
 # The reviewer contract (weekly-pipeline.sh): APPROVE ends the loop, CONCERNS
@@ -178,7 +228,7 @@ def _patch_name(fix_id: str) -> str:
 KNOWN_VERDICTS = ("APPROVE", "CONCERNS", "REVIEW_FAIL")
 REVIEW_VERDICT_UNRECOGNIZED = "REVIEW_VERDICT_UNRECOGNIZED"
 
-_PATH_UNSAFE = re.compile(r"[^A-Za-z0-9._/+-]")
+_PATH_UNSAFE = re.compile(rf"[^{_PATH_CHARS}/]")  # `_SEGMENT_UNSAFE` plus `/`
 _PATH_REPLACEMENT = "�"
 _MAX_PATH_TOKENS = 20
 _MAX_PATH_LEN = 120
@@ -313,16 +363,33 @@ def _title_cell(title: object) -> str:
 
 
 def _safe_read_text(path: Path) -> str | None:
-    """Read a text file, degrading unreadable bytes to None.
+    """Read a text file, degrading unreadable bytes AND unopenable paths to None.
 
     Fail-forward requires that no upstream artifact — however corrupt — can
     take the packet builder down with an exception (2026-07-29 review,
     CRITICAL: UnicodeDecodeError is a ValueError, not an OSError, and slipped
     through every read path).
+
+    ``ValueError``, which subsumes ``UnicodeDecodeError``. The same gap has cost
+    this module twice — the decode above, and ``resolve()`` on an embedded NUL
+    in the escalation inference below — and ``open()`` is the third shape it
+    could take: a NUL in a built filename raises ``ValueError`` out of
+    ``build_packet``, and a missing packet is the watchdog's finding
+    (`scripts/pipeline_watchdog.sh`), not the builder's. It reads as "the chain
+    died", so a fault the packet exists to REPORT would arrive as the absence of
+    the report. No producer can reach it today (``_log_segment`` floors the
+    filename, and both its inputs are pinned upstream); this is the read-side
+    half of that guard, not a repair of an observed failure.
+
+    Widening is narrow in practice: the only ``ValueError`` this adds is the
+    embedded-NUL path, and it is not silent — the callers that surface a
+    degraded read turn None into a named reason code. (``_read_jsonl`` turns it
+    into ``[]`` instead, which for the metrics file suppresses the P4 trigger
+    rather than naming it. Pre-existing, and unreachable by the same argument.)
     """
     try:
         return path.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
+    except (OSError, ValueError):
         return None
 
 
@@ -467,8 +534,10 @@ def build_packet(
         # in the metrics record that check_improvement later reads. Truthiness
         # is tested on the RAW value: _cell stringifies, so a JSON null would
         # otherwise enter as the literal code "None" and, recurring, fire the
-        # P4 improvement trigger. Escaping guards the header render — the codes
-        # are literal constants today, but the builder does not trust the shell.
+        # P4 improvement trigger. That null is the real defect this guard has
+        # caught; the _cell call is the module-wide floor doing its ordinary
+        # job on a shell-written value, not a claim that these codes are a
+        # threat surface (see _cell's scope paragraph).
         if not code:
             return
         text = _cell(code)
@@ -650,8 +719,9 @@ def build_packet(
             # record — degraded cadence evidence must not read as a clean run
             # (codex review 2026-08-10 P2). Prefixed so the gate can tell the
             # instrument's audit log (ADR-0012 audit.jsonl) from the
-            # pipeline's own; bounded and _cell-escaped because the builder
-            # does not trust the file contents.
+            # pipeline's own. Bounded because a separate process writes this
+            # file and a long list would push the header out of view; escaped
+            # by the same floor every audit value passes.
             vl_reasons = vl_data.get("reasons")
             if isinstance(vl_reasons, list):
                 for code in vl_reasons[:8]:
@@ -712,12 +782,10 @@ def build_packet(
     review_notes: list[tuple[str, str | None, Path]] = []  # (fid, body, log_path)
     if run_log_dir is not None:
         for fid, evts in review_history.items():
-            # _cell before it becomes a filename: `round` is audit-derived, and
-            # an unescaped newline here reaches the REVIEW_LOG_UNREADABLE note
-            # verbatim — forging a `## 5` dead-code section, the one the gate
-            # attaches a deletion procedure to (2026-08-08 security review N2).
-            rnd = _cell(evts[-1].get("round", "")).strip()
-            safe_fid = fid.replace("/", "_")
+            # Both halves through the same floor before either becomes a
+            # filename — see _log_segment for why splitting that decision failed.
+            rnd = _log_segment(evts[-1].get("round", ""))
+            safe_fid = _log_segment(fid)
             log_name = f"fix-{safe_fid}-review{rnd}.log" if rnd else f"fix-{safe_fid}-review.log"
             log_path = run_log_dir / log_name
             body = _safe_read_text(log_path)
