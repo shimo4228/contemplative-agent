@@ -86,17 +86,20 @@ rejected: it leaves `</untrusted_content>` guessable, which is the half that
 matters. `configure_untrusted_guard(nonce_source=…)` makes the draw injectable
 for deterministic tests and offline replay.
 
-The ADR-0054 template check now requires `{nonce}` alongside `{body}` and the
-defense sentence. Without that, one edit to
-`config/prompts/untrusted_wrapper.md` silently restores a guessable tag.
+The ADR-0054 template check now runs on the **rendered output**: the frame
+must bind the nonce into both delimiters and must still carry the body. Slot
+presence was the original form and is not what ships — see addendum items 3
+and the `{body}` regression below for why each placeholder was an insufficient
+proxy for the property it stood for.
 
 ### 2. Token removal is demoted and iterated
 
 `_INJECTION_TOKENS` removal was a single pass, which **produced the token it
 had just removed**: deleting the inner copy of
 `</untrusted</untrusted_content>_content>` joins `</untrusted` to `_content>`.
-Reproduced 2026-08-16 across all four tokens at every interior split point (53
-cases). It now iterates to a fixed point, bounded at 8 passes, saturation
+Reproduced 2026-08-16 across all four tokens at every interior split point (51
+cases). It now iterates to an actual fixed point — the 8-pass ceiling was
+itself a hole and was removed the same day (addendum item 1) — with saturation
 reported rather than swallowed, and it is defense-in-depth rather than the
 primary defense. A static tuple also cannot cover case variants, zero-width
 characters, spacing, or rival chat templates (`<start_of_turn>`,
@@ -174,3 +177,13 @@ The same pass showed the log could not answer its own question: with
 detection-only records, an empty file reads identically for "no attacks" and
 "the guard is no longer called", which is the failure T-OBS-INJ names. One
 `guard_alive` record per process supplies the missing half.
+
+5. **A required slot was lost in the rewrite.** Replacing the slot list with
+   the rendered-output check re-established only its nonce half. Because
+   `str.format` ignores unused kwargs, a frame carrying both nonce delimiters
+   and no `{body}` renders cleanly: the peer's post disappears from every
+   prompt on the seam, and the ADR-0042 completeness marker then asserts
+   `untrusted_content is complete (N chars)` over the hole — affirmative false
+   testimony that a blank block is verifiably whole, the exact inversion that
+   marker exists to prevent. The check now asserts the body survives into the
+   rendered frame as well.

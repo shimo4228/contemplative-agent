@@ -402,7 +402,7 @@ Per-episode distill  [ADR-0060; one LLM call per episode, no batching]
       (injection defense + max_input cap); the agent's own content/title use
       truncate_boundary() at its EXCERPT_CAP, internal_note is full/un-capped.
       The header's `target_agent` is the counterparty's display name — also
-      peer-authored — and goes through `_safe_peer_name()`: injection-token
+      peer-authored — and goes through `safe_peer_name()`: injection-token
       strip + `_io.scrub_control` (single line guaranteed, CJK preserved), not
       a frame, since it is one header token (T-UNTRUSTED-ESCAPE, 2026-08-16).
       The content/title exemption is a REGISTER decision, not a safety claim:
