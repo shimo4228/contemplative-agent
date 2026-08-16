@@ -282,6 +282,12 @@ def _handle_distill_identity(args: argparse.Namespace, _parser: argparse.Argumen
     from ..core.distill import distill_identity
     from ..core.memory import KnowledgeStore
 
+    # ADR-0074 fast-fail (see staging._refuse_if_pending): the staging write
+    # lives in _handle_single_result, which runs after distill_identity has
+    # already spent its LLM call.
+    if getattr(args, "stage", False) and staging._refuse_if_pending("distill-identity"):
+        return
+
     knowledge_store = KnowledgeStore(path=config.KNOWLEDGE_PATH)
     view_registry = _load_view_registry(args)
     knowledge_store.load()
@@ -336,13 +342,7 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
     # ADR-0074 fast-fail: extraction burns one LLM call per cluster, so
     # check the pending-staging guard BEFORE any expensive work rather
     # than letting staging._stage_results refuse after the fact.
-    pending = staging._pending_staged_count() if getattr(args, "stage", False) else 0
-    if pending:
-        print(
-            f"Staging holds {pending} unreviewed item(s) — "
-            "skipping this insight run (ADR-0074). Review with "
-            "`contemplative-agent adopt-staged` first."
-        )
+    if getattr(args, "stage", False) and staging._refuse_if_pending("insight"):
         return
 
     knowledge_store = KnowledgeStore(path=config.KNOWLEDGE_PATH)
@@ -412,6 +412,10 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
 def _handle_rules_distill(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     from ..core.rules_distill import _write_last_run, distill_rules
 
+    # ADR-0074 fast-fail (see staging._refuse_if_pending).
+    if getattr(args, "stage", False) and staging._refuse_if_pending("rules-distill"):
+        return
+
     snapshot_path = _take_snapshot(args, "rules-distill", _load_view_registry(args), think=True)
     result = distill_rules(
         skills_dir=config.SKILLS_DIR,
@@ -452,6 +456,12 @@ def _handle_rules_distill(args: argparse.Namespace, _parser: argparse.ArgumentPa
 def _handle_amend_constitution(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     from ..core.constitution import amend_constitution
     from ..core.memory import KnowledgeStore
+
+    # ADR-0074 fast-fail (see staging._refuse_if_pending). Rare in practice —
+    # amendment is a human-attended deliberation event — but it shares the
+    # _handle_single_result staging tail with distill-identity.
+    if getattr(args, "stage", False) and staging._refuse_if_pending("amend-constitution"):
+        return
 
     knowledge_store = KnowledgeStore(path=config.KNOWLEDGE_PATH)
     constitution_dir = args.constitution_dir or config.CONSTITUTION_DIR

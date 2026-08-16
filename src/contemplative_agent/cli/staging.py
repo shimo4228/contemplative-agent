@@ -128,6 +128,55 @@ def _held_staged_count() -> int:
     )
 
 
+def _held_note() -> str:
+    """Parenthetical naming the explicitly-held share of a pending batch.
+
+    Both refusal messages need it (T-ADOPT-HOLD): without it a refusal reads
+    as "the last batch was never reviewed", and next week's packet section
+    comes up empty as if no candidates existed. Shared rather than written
+    twice because since T-GUARD it is usually the *producer-side* message
+    the operator sees — the write-time one is no longer reached on the
+    pending path, so a note living only there would go dark.
+    """
+    held = _held_staged_count()
+    return f" ({held} of them explicitly held at a past gate)" if held else ""
+
+
+def _refuse_if_pending(command: str) -> bool:
+    """ADR-0074 fast-fail: True when a pending batch should abort this run.
+
+    Producers call this at the top of their handler, BEFORE the LLM work,
+    and return early when it is True. ``_stage_results`` refuses again at
+    write time, so this is an efficiency guard, not the invariant itself:
+    without it the batch is discarded anyway, just after the generation
+    calls have been paid for.
+
+    The early return does skip more than LLM spend: a producer that would
+    have run to completion and been refused at the tail also printed its
+    report and its reasoning trace on the way. Those are lost too. Accepted
+    cost — they describe a batch that was never going to be staged.
+
+    Deliberately not folded into ``_stage_results``: by the time a producer
+    reaches that call its LLM work is done. The staging call sites live in
+    shared approval/staging tails (``_handle_single_result``,
+    ``_run_stocktake_phases``) while every LLM call sits one frame up in the
+    command handler, so "where staging is written" and "where the guard
+    pays off" are different places (T-GUARD).
+
+    Only meaningful under ``--stage``; callers gate on the flag so the
+    interactive path — which never writes to the staging dir — is unaffected.
+    """
+    pending = _pending_staged_count()
+    if not pending:
+        return False
+    print(
+        f"Staging holds {pending} unreviewed item(s){_held_note()} — "
+        f"skipping this {command} run (ADR-0074). Review with "
+        "`contemplative-agent adopt-staged` first."
+    )
+    return True
+
+
 def _stage_results(items: list[StageItem], command: str) -> bool:
     """Write generated results to the staging directory for external approval.
 
@@ -159,16 +208,14 @@ def _stage_results(items: list[StageItem], command: str) -> bool:
 
 def _stage_results_locked(items: list[StageItem], command: str) -> bool:
     """Body of :func:`_stage_results`; caller holds ``STAGED_LOCK_PATH``."""
+    # Authoritative half of the invariant; producers also fast-fail before
+    # their LLM work. Neither is redundant with the other — see
+    # _refuse_if_pending's docstring before deleting either (T-GUARD).
     pending = _pending_staged_count()
     if pending:
-        held = _held_staged_count()
-        # Name the held share: without it this reads as "the last batch was
-        # never reviewed", and next week's packet section comes up empty as
-        # if no candidates existed (T-ADOPT-HOLD).
-        held_note = f" ({held} of them explicitly held at a past gate)" if held else ""
         print(
             f"Staging holds {pending} unreviewed item(s) from a previous run"
-            f"{held_note} — refusing to overwrite them (ADR-0074). Review with "
+            f"{_held_note()} — refusing to overwrite them (ADR-0074). Review with "
             "`contemplative-agent adopt-staged` first."
         )
         return False

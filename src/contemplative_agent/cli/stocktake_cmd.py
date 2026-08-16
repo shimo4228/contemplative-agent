@@ -773,6 +773,12 @@ def _handle_skill_stocktake(args: argparse.Namespace, _parser: argparse.Argument
     from ..core import prompts
     from ..core.stocktake import run_skill_stocktake
 
+    # ADR-0074 fast-fail (see staging._refuse_if_pending). Must precede
+    # run_skill_stocktake: its whole-corpus grouping call is the most
+    # expensive request in the run.
+    if getattr(args, "stage", False) and staging._refuse_if_pending("skill-stocktake"):
+        return
+
     snapshot_path = memory_cmds._take_snapshot(args, "skill-stocktake", think=True)
     result = run_skill_stocktake(
         skills_dir=config.SKILLS_DIR,
@@ -801,6 +807,11 @@ def _handle_rules_stocktake(args: argparse.Namespace, _parser: argparse.Argument
     """
     from ..core import prompts
     from ..core.stocktake import run_rules_stocktake
+
+    # ADR-0074 fast-fail (see staging._refuse_if_pending). Shares
+    # skill-stocktake's staging call site but has its own grouping call.
+    if getattr(args, "stage", False) and staging._refuse_if_pending("rules-stocktake"):
+        return
 
     snapshot_path = memory_cmds._take_snapshot(args, "rules-stocktake", think=True)
     result = run_rules_stocktake(rules_dir=config.RULES_DIR)

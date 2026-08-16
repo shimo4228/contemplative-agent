@@ -544,6 +544,21 @@ carry the signal; the CLI prints that note with every reading.
 
 `epistemic_counts` = `{generated, unknown}` tally; the kind is derived at read-time from `provenance.source_type` — never persisted. Since ADR-0060 distill ingests only `activity` records (comment/reply/post), and `_episode_source_kind` maps every activity to `self`, every distilled pattern is `self_reflection → generated`. The external world (the post engaged with, the other agent's comment) still enters distillation — but as grounding *text inside* the rich render, not as a provenance kind, and it was never counted by this tally. ADR-0082 retired the third key: `observed` had been structurally zero since ADR-0060 and read as an external-grounding metric it never was, so the key and its `external_reply` arm are gone rather than annotated (an `external_reply` row now degrades to `unknown`). Records written before 2026-07-25 still carry `observed`; read the tally with `.get(key, 0)`, not a fixed key set.
 
+### Staging pending guard  [ADR-0074]
+
+Invariant: **staging holds at most one unreviewed batch.** Enforced at two points, for two different reasons.
+
+| point | where | role |
+|---|---|---|
+| write time | `cli/staging.py::_stage_results_locked` (the lock itself is acquired by its caller `_stage_results`) | Authoritative. Runs under `STAGED_LOCK_PATH`, returns `False`, and is what actually prevents the per-batch wipe from destroying candidates awaiting review. |
+| producer entry | `cli/staging.py::_refuse_if_pending`, called from each `--stage` handler | Efficiency only. Returns early before the LLM work; without it the batch is discarded anyway, just after the generation calls are paid for. Also forgoes the run's report and reasoning trace — accepted, since they describe a batch that was never going to be staged. |
+
+All six `--stage` producers call the producer-side guard as their first act: `distill-identity`, `amend-constitution`, `rules-distill` (`cli/memory_cmds.py`), `insight` (same file, the original ADR-0074 site), `skill-stocktake`, `rules-stocktake` (`cli/stocktake_cmd.py`).
+
+The guard sits in the **handler**, not beside the staging write. The four `_stage_results` call sites live in shared approval/staging tails (`_handle_single_result`, `_run_stocktake_phases`) that are entered *after* their producer's LLM call has completed — for stocktake that means after the whole-corpus grouping request, the most expensive call in the run. Counting staging call sites therefore undercounts and mislocates the guard (T-GUARD, 2026-08-16).
+
+Guard is gated on `--stage`: the interactive path never writes to the staging dir, so a pending batch does not concern it. Regression coverage asserts zero calls at the LLM **backend** boundary (`tests/test_staging_pending_guard.py`), paired with anchors proving the same fixture reaches the backend when staging is empty — a refusal-only assertion stays green when the refusal arrives after the LLM ran, which is the regression being prevented.
+
 ### weekly-analysis  [`scripts/weekly-analysis.sh`, ADR-0040]
 
 Runs outside the agent process (launchd → `claude -p`), assembling a prompt from operator-facing artifacts plus **six deterministic intakes**, then a diagnosis companion (`weekly-report-diagnosis` skill) produces the F sections.
