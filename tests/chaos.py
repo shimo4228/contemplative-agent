@@ -445,6 +445,50 @@ def add_embed_timeout(rsps: responses_lib.RequestsMock) -> None:
     )
 
 
+def add_embed_ok(rsps: responses_lib.RequestsMock, n: int, dim: int = 4) -> None:
+    """A well-formed response with one row per requested text.
+
+    Not a fault — registered here beside the embed faults so a test can pair
+    the healthy baseline with the degraded ones from one import. The healthy
+    and the short body are the SAME body at different row counts, so they
+    share one literal: a later change to the embed response shape must not be
+    applicable to one and forgotten on the other.
+    """
+    rsps.add(
+        responses_lib.POST,
+        ollama_url("/api/embed"),
+        status=200,
+        json={"embeddings": [[0.1] * dim for _ in range(n)]},
+    )
+
+
+def add_embed_bad_json(rsps: responses_lib.RequestsMock) -> None:
+    """200 whose body is not JSON at all — e.g. a proxy's HTML error page.
+
+    Distinct from ``add_embed_missing_field``: the body never parses, so the
+    failure surfaces as ``requests.exceptions.JSONDecodeError`` — which is a
+    ``RequestException`` subclass, the trap ``_classify_embed_error`` exists
+    to avoid.
+    """
+    rsps.add(
+        responses_lib.POST,
+        ollama_url("/api/embed"),
+        status=200,
+        body="<html>502 upstream</html>",
+        content_type="text/html",
+    )
+
+
+def add_embed_missing_field(rsps: responses_lib.RequestsMock) -> None:
+    """200 with no ``embeddings`` key — parses as JSON, carries no vectors."""
+    rsps.add(
+        responses_lib.POST,
+        ollama_url("/api/embed"),
+        status=200,
+        json={"model": "nomic-embed-text"},
+    )
+
+
 def add_embed_ragged(rsps: responses_lib.RequestsMock) -> None:
     """Rows of unequal dimension — np.asarray(dtype=float32) must fail."""
     rsps.add(
@@ -457,12 +501,7 @@ def add_embed_ragged(rsps: responses_lib.RequestsMock) -> None:
 
 def add_embed_short(rsps: responses_lib.RequestsMock, n_returned: int, dim: int = 4) -> None:
     """Fewer rows than requested texts (M < N) — parses fine, wrong length."""
-    rsps.add(
-        responses_lib.POST,
-        ollama_url("/api/embed"),
-        status=200,
-        json={"embeddings": [[0.1] * dim for _ in range(n_returned)]},
-    )
+    add_embed_ok(rsps, n=n_returned, dim=dim)
 
 
 # ---------------------------------------------------------------------------

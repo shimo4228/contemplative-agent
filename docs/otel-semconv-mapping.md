@@ -12,7 +12,20 @@ through a standard vocabulary.
 
 ## Core mapping — `llm-calls-{date}.jsonl`
 
-Written by `core/llm.py:_emit_telemetry` (one record per LLM call).
+Written by `core/llm/__init__.py:_emit_telemetry` (one record per LLM call).
+Two kinds of row share the file, told apart by `caller`: generation rows
+(`caller` = the pipeline stage, e.g. `distill.category`) and embedding rows
+(`caller = "embed"`, written by `core/embeddings.py:embed_texts` through the
+`emit_llm_telemetry` seam). Embedding rows carry only the fields an embedding
+call has — `ts` / `caller` / `model` / `batch_size` / `input_chars` / `rows` /
+`duration_ms` / `outcome`, a sparse `error_kind`, and the `run_id` /
+`session_id` the shared writer stamps on every record — rather than the
+generation schema padded with nulls; `batch_size` / `input_chars` / `rows` have
+no semconv equivalent and belong to `ca.audit.*`. Their `error_kind` shares the
+generation path's fault classes where the fault exists on both (`bad_url`,
+`bad_json`, `timeout`, `http_*`, `connection`) and adds two an embedding
+response can have alone: `missing_embeddings` and `bad_array`. The rows below
+the shared keys therefore describe the generation kind.
 
 | audit log field | OTel attribute |
 |---|---|
@@ -51,3 +64,11 @@ The full mapping (verification-audit, api-audit, exclusion list and
 rationale) lives next to the code that implements and tests it:
 [contemplative-agent-otel `docs/mapping.md`](https://github.com/shimo4228/contemplative-agent-otel/blob/main/docs/mapping.md)
 — the offline JSONL→OTLP converter ([ADR-0078](adr/0078-otel-connection-via-vocabulary-and-offline-export.md)).
+
+> **Consumer lag (2026-08-16).** That converter loads every row of
+> `llm-calls-*.jsonl` as one record type with no `caller` discriminator, so it
+> currently exports embedding rows as `text_completion` spans and drops
+> `batch_size` / `input_chars` / `rows`. Producer and consumer are out of step
+> until the converter learns the second row kind; any per-day count taken over
+> this file in the meantime must filter on `caller` to avoid mixing the two
+> populations.

@@ -13,14 +13,25 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests
+import responses as responses_lib
 
 from contemplative_agent.core import llm as llm_module
+from contemplative_agent.core.embeddings import _get_embedding_model, embed_one, embed_texts
 from contemplative_agent.core.llm import (
     NUM_CTX,
     configure,
     generate,
     generate_for_api,
     reset_llm_config,
+)
+from tests.chaos import (
+    add_embed_429,
+    add_embed_bad_json,
+    add_embed_missing_field,
+    add_embed_ok,
+    add_embed_ragged,
+    add_embed_short,
+    add_embed_timeout,
 )
 
 CANARY = "SECRET-PROMPT-BODY-MARKER-9e1c"
@@ -320,6 +331,182 @@ class TestTelemetryIsolation:
         generate_for_api("test", 200, caller="moltbook.comment")
         record = _read_records(telemetry_dir)[0]
         assert record["caller"] == "moltbook.comment"
+
+
+class TestEmbedTelemetry:
+    """Embed calls land on the same channel, tagged ``caller="embed"``.
+
+    The failure paths already carried reason-bearing warnings before this
+    (embeddings.py logs a distinct message per failure kind, and distill
+    tallies ``reason=embed_failed``), so what was missing is the QUANTITATIVE
+    row: batch size, input size, duration, outcome. Without it a distill run's
+    wall clock cannot be split between generation and embedding.
+
+    Row shape is deliberately NOT the generate row's: the generate-only fields
+    (num_predict, prompt_eval_count, thinking_source, …) would all be None
+    here, and a column of Nones states structure that does not exist. The
+    shared keys are the ones both kinds of call actually have.
+    """
+
+    EXPECTED_FIELDS = {
+        "ts",
+        "caller",
+        "model",
+        "batch_size",
+        "input_chars",
+        "rows",
+        "duration_ms",
+        "outcome",
+        "run_id",
+    }
+
+    @responses_lib.activate
+    def test_ok_row_has_all_fields(self, telemetry_dir):
+        add_embed_ok(responses_lib.mock, n=2)
+        assert embed_texts(["alpha", "bravo!"]) is not None
+
+        records = _read_records(telemetry_dir)
+        assert len(records) == 1
+        record = records[0]
+        assert set(record) == self.EXPECTED_FIELDS
+        assert record["caller"] == "embed"
+        assert record["outcome"] == "ok"
+        assert record["model"] == _get_embedding_model()
+        assert record["batch_size"] == 2
+        assert record["input_chars"] == len("alpha") + len("bravo!")
+        assert record["rows"] == 2
+        assert isinstance(record["duration_ms"], int)
+
+    @responses_lib.activate
+    def test_embed_one_emits_exactly_one_row(self, telemetry_dir):
+        """``embed_one`` delegates to ``embed_texts``, so instrumenting both
+        would bill one HTTP call twice. Pinning the count here is what keeps a
+        later 'add it to embed_one too' from double-counting."""
+        add_embed_ok(responses_lib.mock, n=1)
+        assert embed_one("solo") is not None
+        records = _read_records(telemetry_dir)
+        assert len(records) == 1
+        assert records[0]["batch_size"] == 1
+
+    def test_empty_input_emits_nothing(self, telemetry_dir):
+        """No HTTP call happens, so there is no call to observe. A row here
+        would report a duration for work that never left the process."""
+        assert embed_texts([]) is not None
+        assert _read_records(telemetry_dir) == []
+
+    @responses_lib.activate
+    def test_disabled_when_dir_not_configured(self):
+        """Same no-op contract the generate path has: telemetry off by default.
+
+        Asserts the writer was never reached rather than globbing a directory
+        that was never configured — the latter passes whatever the code does."""
+        reset_llm_config()
+        add_embed_ok(responses_lib.mock, n=1)
+        with patch("contemplative_agent.core.llm.append_jsonl_restricted") as mock_append:
+            assert embed_texts(["text"]) is not None
+        mock_append.assert_not_called()
+
+    @responses_lib.activate
+    def test_embedded_text_never_written(self, telemetry_dir):
+        """ADR-0065 metadata-only contract. The embedded texts are the same
+        untrusted external content the prompt bodies are — patterns distilled
+        from other agents' posts — so writing them here would make telemetry a
+        second injection path for the analysis sessions that read it back."""
+        add_embed_ok(responses_lib.mock, n=1)
+        embed_texts([f"pattern containing {CANARY}"])
+        # A row must exist first: "the canary is absent" is also true of a
+        # file that was never written, which would pass while proving nothing.
+        assert len(_read_records(telemetry_dir)) == 1
+        for path in telemetry_dir.glob("llm-calls-*.jsonl"):
+            assert CANARY not in path.read_text(encoding="utf-8")
+
+
+class TestEmbedTelemetryFaultColumn:
+    """ADR-0077 fault column: every embed failure kind reaches telemetry with
+    a reason code, and shared faults carry the generate path's own words (see
+    ``_embed_impl`` for why)."""
+
+    @responses_lib.activate
+    def test_429_records_its_http_class(self, telemetry_dir):
+        add_embed_429(responses_lib.mock)
+        assert embed_texts(["a"]) is None
+        record = _read_records(telemetry_dir)[0]
+        assert record["outcome"] == "error"
+        assert record["error_kind"] == "http_429"
+        assert record["rows"] is None
+
+    @responses_lib.activate
+    def test_timeout_records_timeout(self, telemetry_dir):
+        add_embed_timeout(responses_lib.mock)
+        assert embed_texts(["a"]) is None
+        assert _read_records(telemetry_dir)[0]["error_kind"] == "timeout"
+
+    @responses_lib.activate
+    def test_unparsable_body_records_bad_json_not_a_transport_class(self, telemetry_dir):
+        """Regression for the isinstance-ordering trap: requests wraps a JSON
+        decode failure in ``JSONDecodeError``, which IS a ``RequestException``,
+        so classifying transport-first reports a generic ``request_error`` and
+        makes ``bad_json`` unreachable. The generate path names this fault
+        ``bad_json``; so must this one."""
+        add_embed_bad_json(responses_lib.mock)
+        assert embed_texts(["a"]) is None
+        record = _read_records(telemetry_dir)[0]
+        assert record["outcome"] == "error"
+        assert record["error_kind"] == "bad_json"
+
+    @responses_lib.activate
+    def test_missing_embeddings_field_has_its_own_code(self, telemetry_dir):
+        """A 200 that carries no vectors is not a transport fault and not a
+        parse fault — collapsing it into either would hide a model/endpoint
+        mismatch behind a network diagnosis."""
+        add_embed_missing_field(responses_lib.mock)
+        assert embed_texts(["a"]) is None
+        record = _read_records(telemetry_dir)[0]
+        assert record["outcome"] == "error"
+        assert record["error_kind"] == "missing_embeddings"
+
+    @responses_lib.activate
+    def test_ragged_rows_record_bad_array(self, telemetry_dir):
+        add_embed_ragged(responses_lib.mock)
+        assert embed_texts(["a", "b"]) is None
+        assert _read_records(telemetry_dir)[0]["error_kind"] == "bad_array"
+
+    @responses_lib.activate
+    def test_untrusted_url_records_bad_url(self, telemetry_dir, monkeypatch):
+        """``responses`` is activated with NO endpoint registered on purpose:
+        the guard must reject this before the socket, so any request at all is
+        the failure. Without the mock, a regression in the URL guard would send
+        a real POST to an external host for 60s instead of failing locally —
+        the exact behavior this test exists to forbid."""
+        monkeypatch.setenv("OLLAMA_BASE_URL", "http://evil.example.com")
+        assert embed_texts(["a"]) is None
+        assert len(responses_lib.calls) == 0
+        record = _read_records(telemetry_dir)[0]
+        assert record["outcome"] == "error"
+        assert record["error_kind"] == "bad_url"
+
+    @responses_lib.activate
+    def test_short_row_count_is_ok_but_visibly_short(self, telemetry_dir):
+        """The transport succeeded, so the row is ``ok``; ``rows`` below
+        ``batch_size`` is what makes the degradation countable offline."""
+        add_embed_short(responses_lib.mock, n_returned=1)
+        assert embed_texts(["a", "b", "c"]) is not None
+        record = _read_records(telemetry_dir)[0]
+        assert record["outcome"] == "ok"
+        assert record["batch_size"] == 3
+        assert record["rows"] == 1
+
+    @responses_lib.activate
+    def test_write_failure_does_not_break_embedding(self, telemetry_dir, caplog):
+        """Telemetry is observation; it must never take down the thing it
+        observes. Inherited from ``_emit_telemetry``, asserted through the new
+        seam so the delegation cannot be replaced by a bare write later."""
+        add_embed_ok(responses_lib.mock, n=1)
+        with patch("contemplative_agent.core.llm.append_jsonl_restricted") as mock_append:
+            mock_append.side_effect = OSError("disk full")
+            with caplog.at_level(logging.WARNING):
+                assert embed_texts(["a"]) is not None
+        assert "Failed to write LLM telemetry" in caplog.text
 
 
 class TestThinkingTraceTelemetry:

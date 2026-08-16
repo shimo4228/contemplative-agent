@@ -11,11 +11,14 @@ from __future__ import annotations
 
 import logging
 import os
+import time
+from typing import Any
 
 import numpy as np
 import requests
 
-from .llm import _get_ollama_url
+from ._io import now_iso
+from .llm import _classify_request_error, _get_ollama_url, emit_llm_telemetry
 
 logger = logging.getLogger(__name__)
 
@@ -74,19 +77,100 @@ def embed_texts(texts: list[str]) -> np.ndarray | None:
     On any failure (network, model missing, malformed response), returns
     None — caller is expected to handle gracefully (skip similarity-based
     work).
+
+    Every call past the empty-input shortcut is recorded on the shared
+    per-call telemetry channel as ``caller="embed"`` (see :func:`_embed_impl`).
+    The shortcut itself returns before the record is built: it does no work to
+    attribute, and a row reporting a duration for it would be a fiction. A
+    call rejected by the URL guard IS recorded — it was a call, it just failed
+    before the socket.
     """
     if not texts:
         return np.zeros((0, 0), dtype=np.float32)
 
+    tel: dict[str, Any] = {
+        "ts": now_iso(timespec="seconds"),
+        # Separates embedding cost from generation cost in one log — the
+        # reading this instrument exists for (a distill run's wall clock split
+        # between the two). Same key the generate rows use, so one grouping
+        # answers both questions.
+        "caller": "embed",
+        # The model that actually served THIS row. Embedding runs on its own
+        # model (OLLAMA_EMBEDDING_MODEL), independent of the generation model,
+        # and the ADR-0071/0072 calibration is pinned to that identity — a row
+        # whose model is unrecorded cannot be read against a calibration.
+        "model": _get_embedding_model(),
+        "batch_size": len(texts),
+        # Size of the input, never the input. len() of untrusted text is not
+        # untrusted text (ADR-0065 metadata-only).
+        "input_chars": sum(len(t) for t in texts),
+        # Rows actually returned. Stays None on every failure path, and a
+        # short response (M < N) leaves it below batch_size — the one
+        # degradation that parses cleanly and is otherwise only visible in the
+        # caller's own guard (distill.py compares shape[0]).
+        "rows": None,
+        "duration_ms": None,
+        # Default covers unexpected exceptions, matching _generate_full: any
+        # path that does not explicitly claim success records as an error.
+        "outcome": "error",
+    }
+    started = time.monotonic()
+    try:
+        return _embed_impl(texts, tel)
+    finally:
+        tel["duration_ms"] = int((time.monotonic() - started) * 1000)
+        emit_llm_telemetry(tel)
+
+
+def _classify_embed_error(exc: requests.RequestException | ValueError) -> str:
+    """Fault class for a failed embed POST, in the generate path's vocabulary.
+
+    The unparsable-body case must be tested FIRST. ``response.json()`` raises
+    ``requests.exceptions.JSONDecodeError``, which is *itself* a
+    ``RequestException`` (MRO: JSONDecodeError -> InvalidJSONError ->
+    RequestException), so asking "transport error?" first swallows it and
+    reports a generic ``request_error`` — the ``bad_json`` code would be
+    unreachable and the two row kinds would name one fault two ways, which is
+    the exact failure sharing the vocabulary is meant to prevent.
+    ``_post_ollama`` is not exposed to this because it splits the POST and the
+    ``.json()`` into separate ``try`` blocks; this path catches both together,
+    so the ordering has to do that work instead.
+    """
+    if isinstance(exc, (requests.exceptions.InvalidJSONError, ValueError)):
+        return "bad_json"
+    return _classify_request_error(exc)
+
+
+def _embed_impl(texts: list[str], tel: dict[str, Any]) -> np.ndarray | None:
+    """Body of :func:`embed_texts`; mutates *tel* with outcome metadata.
+
+    Each failure already logs a distinct human-readable line; what is stamped
+    here is the machine-readable counterpart. ``error_kind`` is sparse (failure
+    rows only) and reuses the generation path's vocabulary wherever the fault
+    exists on both — ``bad_url`` and ``bad_json`` are literally the tokens
+    ``_post_ollama`` writes — so one ``llm-calls`` file reads under one set of
+    words. ``missing_embeddings`` and ``bad_array`` extend it: they are faults
+    only an embedding response can have, and folding them into a shared code
+    would trade a precise diagnosis for a false sense of a closed enum.
+
+    The circuit breaker is deliberately untouched, as it always has been on
+    this path: embedding failures degrade their callers (dedup, views,
+    novelty) rather than gate them, and wiring a breaker here would be a
+    behavior change smuggled in with an instrument.
+    """
     try:
         base_url = _get_ollama_url()
     except ValueError as exc:
         logger.error("Invalid Ollama URL for embedding: %s", exc)
+        tel["error_kind"] = "bad_url"
         return None
 
     url = f"{base_url}/api/embed"
     payload = {
-        "model": _get_embedding_model(),
+        # Read from the record, not from the environment a second time: the
+        # model this row REPORTS and the model the request ASKS FOR are then
+        # one value, not two reads of a mutable env that happen to agree.
+        "model": tel["model"],
         "input": texts,
     }
     try:
@@ -95,18 +179,25 @@ def embed_texts(texts: list[str]) -> np.ndarray | None:
         data = response.json()
     except (requests.RequestException, ValueError) as exc:
         logger.warning("Embedding request failed: %s", exc)
+        tel["error_kind"] = _classify_embed_error(exc)
         return None
 
     embeddings = data.get("embeddings")
     if not isinstance(embeddings, list) or not embeddings:
         logger.warning("Embedding response missing 'embeddings' field")
+        tel["error_kind"] = "missing_embeddings"
         return None
 
     try:
-        return np.asarray(embeddings, dtype=np.float32)
+        array = np.asarray(embeddings, dtype=np.float32)
     except (TypeError, ValueError) as exc:
         logger.warning("Could not parse embeddings array: %s", exc)
+        tel["error_kind"] = "bad_array"
         return None
+
+    tel["outcome"] = "ok"
+    tel["rows"] = array.shape[0]
+    return array
 
 
 def embed_one(text: str) -> np.ndarray | None:

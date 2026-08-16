@@ -209,6 +209,22 @@ def _emit_telemetry(record: dict[str, Any]) -> None:
         logger.warning("Failed to write LLM telemetry: %s", exc)
 
 
+def emit_llm_telemetry(record: dict[str, Any]) -> None:
+    """Public seam over :func:`_emit_telemetry` for other ``core`` modules.
+
+    ``core.embeddings`` records its own calls on this channel
+    (``caller="embed"``). It routes through here rather than writing the file
+    itself so that within this channel the no-op condition, the failure
+    swallowing, and above all the date rotation have one owner — a second copy
+    of the rotation rule would drift the moment either side changed its
+    filename or its granularity.
+
+    The metadata-only contract of :func:`_emit_telemetry` binds every caller of
+    this seam: whatever text the call embedded stays out of the record.
+    """
+    _emit_telemetry(record)
+
+
 def generate(
     prompt: str,
     system: str | None = None,
