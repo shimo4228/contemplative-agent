@@ -5,7 +5,10 @@ Split from the single-file test_cli.py alongside the cli/ package split
 """
 
 import argparse
+import plistlib
 import re
+import shlex
+from pathlib import PurePosixPath
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,6 +24,97 @@ from contemplative_agent.cli.schedule import (
     _do_uninstall_schedule,
     _remove_stale_schedule_jobs,
 )
+
+# Shell punctuation that abuts a command name without a space around it, so
+# `$(claude`, `f|claude` and `tool=claude` all reduce to `claude` below. The
+# split deliberately over-approximates: for a must-NOT-appear assertion,
+# naming one token too many is safe and missing one is not.
+_SHELL_OPERATORS = re.compile(r"[|&;()<>`$=]+")
+
+
+def _launchd_argv(content: str) -> list[str]:
+    """Everything launchd will execute, read as plist elements.
+
+    Reading ``<string>`` *lines* instead made the check sensitive to what the
+    repo root happens to spell: a root under ``.claude/worktrees/`` puts
+    ``claude`` into WorkingDirectory and into path arguments, and neither
+    invokes anything (T-VERIFY-WORKTREE-PLIST, 2026-08-16). ``Program`` and
+    ``ProgramArguments`` are the two keys launchd executes from, so reading
+    them as elements states the claim instead of approximating it.
+
+    Rendered plists only. Six of the nine ``config/launchd/`` templates spell
+    a placeholder inside ``<integer>{{WEEKDAY}}</integer>``, which plistlib
+    rejects on type (they are well-formed XML), so the template scans below
+    stay on regex.
+    """
+    plist = plistlib.loads(content.encode("utf-8"))
+    argv = [plist["Program"]] if "Program" in plist else []
+    argv += plist.get("ProgramArguments", [])
+    assert argv, "plist declares neither Program nor ProgramArguments"
+    return argv
+
+
+def _invoked_commands(argv: list[str]) -> set[str]:
+    """Command names ``argv`` can execute, inline shell included.
+
+    Basenames, so a *path* spelling a command's name never counts. Word split
+    and operator split, so ``bash -c "echo $(claude -p x)"`` still does —
+    ``config/launchd/com.moltbook.ollama-restart.plist`` already ships an
+    inline ``bash -c`` blob with pipes and redirects, so that shape is one
+    this template family demonstrably reaches for.
+    """
+    names = set()
+    for element in argv:
+        try:
+            words = shlex.split(element)
+        except ValueError:  # unbalanced quotes — treat the element as one word
+            words = [element]
+        for word in words:
+            names.update(
+                PurePosixPath(fragment).name
+                for fragment in _SHELL_OPERATORS.split(word)
+                if fragment
+            )
+    return names
+
+
+class TestInvokedCommands:
+    """What the watchdog's claim is able to catch, stated on its own.
+
+    The watchdog exists because ``claude`` was missing from launchd's PATH on
+    2026-07-25, so one that shells out to it dies of the cause it exists to
+    report (the HARD CONSTRAINT at ``scripts/pipeline_watchdog.sh``:12-16).
+    Pinning both directions is what keeps the path-insensitive form from
+    reading as a weakening of that claim.
+    """
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            pytest.param(["claude", "-p", "check the pipeline"], id="bare-name"),
+            pytest.param(["/opt/homebrew/bin/uv", "run", "python", "-c", "pass"], id="path-to-uv"),
+            pytest.param(["bash", "-c", "claude -p 'check it'"], id="inline-shell"),
+            pytest.param(["bash", "-c", "echo $(claude -p x)"], id="command-substitution"),
+            pytest.param(["bash", "-c", "cat report.md|claude -p x"], id="pipe-without-spaces"),
+            pytest.param(["bash", "-c", "'/opt/homebrew/bin/uv' run x"], id="quoted-path"),
+            pytest.param(["bash", "-c", 'tool=claude; "$tool" -p x'], id="variable-indirection"),
+        ],
+    )
+    def test_an_invocation_is_caught(self, argv):
+        assert {"claude", "uv"} & _invoked_commands(argv)
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            pytest.param(
+                ["bash", "/Users/x/contemplative-agent/.claude/worktrees/wt/scripts/w.sh"],
+                id="worktree-repo-root",
+            ),
+            pytest.param(["bash", "/Users/x/.claude/skills/uv/run.sh"], id="names-as-directories"),
+        ],
+    )
+    def test_a_path_is_not_an_invocation(self, argv):
+        assert not {"claude", "uv"} & _invoked_commands(argv)
 
 
 class TestBuildCalendarIntervals:
@@ -491,11 +585,40 @@ class TestWeeklyPipelineSchedule:
         content = plist_sandbox["LAUNCHD_WATCHDOG_PLIST_PATH"].read_text()
         assert "pipeline_watchdog.sh" in content
         # The watchdog must not shell out to claude/uv — pure bash entrypoint.
-        # Prose comments in the plist may mention them; <string> args must not.
-        arg_strings = [line for line in content.splitlines() if "<string>" in line]
-        assert not any("claude" in line or "uv " in line for line in arg_strings)
+        argv = _launchd_argv(content)
+        assert PurePosixPath(argv[0]).name == "bash"
+        assert not {"claude", "uv"} & _invoked_commands(argv)
         for placeholder in ("{{PROJECT_ROOT}}", "{{LOG_PATH}}"):
             assert placeholder not in content
+
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_watchdog_check_survives_a_repo_root_holding_claude(
+        self, mock_run, plist_sandbox, tmp_path
+    ):
+        """A repo root under ``.claude/worktrees/`` must not read as an invocation.
+
+        Every parallel session runs from a git worktree at
+        ``<repo>/.claude/worktrees/<name>``, so ``{{PROJECT_ROOT}}`` carries the
+        substring ``claude`` into WorkingDirectory and into the script argument.
+        The old line-wise substring scan failed all five worktree sessions on
+        2026-08-16 and made the machine gate unusable there
+        (T-VERIFY-WORKTREE-PLIST). Driven through the real producer, not a
+        hand-built plist, so the path shape itself is what is pinned.
+        """
+        from contemplative_agent.cli import runtime
+        from contemplative_agent.cli.schedule import _do_install_watchdog_schedule
+
+        worktree_root = tmp_path / "contemplative-agent" / ".claude" / "worktrees" / "wt"
+        (worktree_root / ".venv" / "bin").mkdir(parents=True)
+        (worktree_root / "config").symlink_to(runtime._repo_root() / "config")
+
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+        with patch.object(runtime, "_repo_root", return_value=worktree_root):
+            _do_install_watchdog_schedule()
+
+        content = plist_sandbox["LAUNCHD_WATCHDOG_PLIST_PATH"].read_text()
+        assert "claude" in content, "fixture no longer reproduces the worktree path shape"
+        assert not {"claude", "uv"} & _invoked_commands(_launchd_argv(content))
 
     def test_weekly_pipeline_excludes_weekly_analysis(self):
         from contemplative_agent.cli.schedule import _handle_install_schedule
