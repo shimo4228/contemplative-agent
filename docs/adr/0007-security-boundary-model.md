@@ -139,3 +139,38 @@ path.
 A nonce prevents literal forgery of the boundary. **It does not prevent a model
 from disregarding the frame on meaning.** No claim beyond that is made, in this
 ADR or in the code.
+
+### Amendment addendum (same day) — three defects the review chain found in the fix
+
+The repair above was itself reviewed by a second model and a security pass.
+Three findings, all reproduced, all inside the new code:
+
+1. **The strip's own bound was a hole.** Eight passes saturated at a 108-byte
+   payload — nine nested copies of `<|im_start|>` — after which a live token
+   was returned fail-open. Measuring the alternative priced the trade: running
+   to the true fixed point on the deepest 40000-char input this seam can
+   receive costs 0.3 s, three orders below the Ollama call it precedes. The
+   ceiling bought a fraction of a second and sold a permanent hole. It is now
+   an unreachable structural backstop, not a policy bound.
+2. **Filter after every transform.** `episode_render.safe_peer_name` stripped
+   tokens and *then* scrubbed control characters, so a zero-width space inside
+   `</untrusted_content>` hid the token from the strip and the scrub
+   reassembled it — the same single-pass defect this amendment closes, one
+   stage later, introduced by the fix. Ordering is the invariant.
+3. **Validate the property, not a proxy for it.** The template check asked
+   whether `{nonce}` appeared in the frame. A frame that keeps the defense
+   sentence and `{body}` while parking `{nonce}` in a decorative line satisfies
+   that and emits constant delimiters. The check now runs on the rendered
+   output: both delimiters must carry the nonce.
+
+A fourth, from the cross-model pass: the audit sink could **abort generation**.
+It sits inside the function every external string crosses, and a remote peer
+decides whether a write is attempted at all by including `</untrusted_content>`
+in a post — so an unwritable `audit_dir` handed an outsider a switch on the
+functional path. The sink now never raises; failures warn with
+`reason=audit_write_failed`.
+
+The same pass showed the log could not answer its own question: with
+detection-only records, an empty file reads identically for "no attacks" and
+"the guard is no longer called", which is the failure T-OBS-INJ names. One
+`guard_alive` record per process supplies the missing half.

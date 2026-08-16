@@ -143,30 +143,63 @@ The delimiter therefore carries a **per-call 64-bit nonce**
 composed before that value exists, and there is no oracle. `nonce_source` is
 injectable via `configure_untrusted_guard()` for deterministic tests and for
 offline replay of a recorded frame. The externalized template
-(`config/prompts/untrusted_wrapper.md`, ADR-0054) must contain `{body}` **and
-`{nonce}`** plus the defense sentence or the hardcoded frame is re-asserted —
-without the `{nonce}` check, one template edit silently restores a guessable
-closing tag.
+(`config/prompts/untrusted_wrapper.md`, ADR-0054) is validated on its
+**rendered output**, not its placeholders: the frame must actually bind the
+nonce into both delimiters, or the hardcoded frame is re-asserted. Checking
+that `{nonce}` merely appears in the template was the wrong proxy — a frame
+keeping the defense sentence and `{body}` while parking `{nonce}` in a
+decorative line passes every placeholder check and emits constant delimiters
+(security review 2026-08-16).
 
 Token removal (`strip_injection_tokens`, shared with
-`constitution.render_constitutional_patterns`) is now defense-in-depth rather
-than the primary defense, and **iterates to a fixed point** (bounded at 8
-passes, saturation reported as `reason=strip_saturated`). A single pass could
+`constitution.render_constitutional_patterns` and
+`episode_render.safe_peer_name`) is now defense-in-depth rather than the
+primary defense, and **iterates to an actual fixed point**. A single pass could
 produce the token it just removed: deleting the inner copy of
 `</untrusted</untrusted_content>_content>` joins the surviving halves. That
 defect shipped 2026-03-12 and survived five months because every test asserted
 "the function removes the token" — true throughout — and none asserted "the
 attacker cannot reconstruct one".
 
-Removals are counted and appended to `logs/injection-detect-{date}.jsonl`
-(T-OBS-INJ) **only when at least one token was removed**, so file size tracks
-attack frequency rather than traffic. Metadata only — token kinds and counts,
-`content_sha256`, `content_bytes`, the nonce — deliberately narrower than the
-b64+sha256 default, because the question is whether the guard fired, not what
-the payload said. The wire in `cli/runtime.py` is **unconditional** (unlike the
-skill selector beside it): the reading this log exists for is "is the guard
-still on the path", and a conditional wire would make a run of zeroes mean
-either "no attacks" or "not configured".
+Two ordering rules the same review established, both learned by reintroducing
+the defect one stage later:
+
+- **The bound is not a policy knob.** A ceiling of 8 passes saturated at a
+  108-byte payload and returned a live token fail-open. Running to the true
+  fixed point costs 0.3 s on the deepest 40000-char input this seam can
+  receive, three orders below the Ollama call it precedes.
+- **Filter after every transform.** `safe_peer_name` stripped and then
+  scrubbed, so a zero-width space inside `</untrusted_content>` hid the token
+  from the strip and the scrub reassembled it. Any transform placed after the
+  strip reopens the original hole.
+
+`logs/injection-detect-{date}.jsonl` (T-OBS-INJ) carries **two record types**,
+and the reading is the pair:
+
+- `guard_alive` — one per process, on the first wrap. Says the guard was
+  reached.
+- `injection_tokens_removed` — only when at least one token was removed, so
+  detection volume tracks attack frequency rather than traffic. Metadata only
+  (token kinds and counts, `content_sha256`, `content_bytes`, nonce, `ts`) —
+  deliberately narrower than the b64+sha256 default, because the question is
+  whether the guard fired, not what the payload said.
+
+The heartbeat exists because detection records alone cannot answer the
+question this log was built for. A file with no lines reads identically for
+"no attacks arrived" and "`wrap_untrusted_content` is no longer on the path",
+and the second is the failure mode T-OBS-INJ names — removing the call leaves
+every unit test green. `guard_alive` present with zero detections means quiet;
+`guard_alive` absent means go look at the wiring (cross-model review,
+2026-08-16). The wire in `cli/runtime.py::_configure_llm_runtime` is also
+placed in the tier both LLM command classes share, not in the full-setup
+function `Tier.LLM_RUNTIME_ONLY` skips — `skill-stocktake` is that tier and
+wraps two untrusted fields per skill.
+
+The audit sink **never raises into the caller**. It sits inside the function
+every external string crosses, and a remote peer chooses whether a write is
+attempted at all by putting `</untrusted_content>` in a post; an unwritable
+`audit_dir` would otherwise hand an outsider a switch on generation. Failures
+warn with `reason=audit_write_failed`.
 
 **Limit, stated in code and ADR:** a nonce stops literal forgery. It does not
 stop a model from disregarding the frame on meaning.

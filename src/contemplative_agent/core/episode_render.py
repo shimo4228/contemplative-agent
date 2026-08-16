@@ -43,11 +43,20 @@ def safe_peer_name(value: object) -> str:
     That is the residue this accepts: the defect was a name able to leave its
     line and stand where the operator's instruction stands, not a name being
     describable.
+
+    **Order is load-bearing: filter AFTER every transform.** Stripping first
+    and scrubbing second reconstructed the very tokens the strip had removed —
+    ``</untrusted\\u200b_content>`` is not a token, so the strip passed it, and
+    the scrub then deleted the zero-width space and handed the assembled
+    ``</untrusted_content>`` to the prompt. That is the same shape as the
+    single-pass defect this whole change exists to close, one stage later
+    (security review 2026-08-16). Any transform placed after the strip
+    reopens it.
     """
     if not value:
         return ""
-    stripped = strip_injection_tokens(str(value)).text
-    return scrub_control(stripped, IDENTIFIER_MAX_CHARS)
+    scrubbed = scrub_control(str(value), IDENTIFIER_MAX_CHARS)
+    return strip_injection_tokens(scrubbed).text
 
 
 # Input scope (ADR-0060): distill learns only from substantive engagement
