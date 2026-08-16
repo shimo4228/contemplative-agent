@@ -176,3 +176,70 @@ stopped reading. The autonomous setup's real cost is not tokens per task but
 infrastructure built for the agent with the owner's budget. The instrument for
 that is a size/existence question at the start of infra work, not a review at
 the end.
+
+## Amendment (2026-08-16): the state vocabulary had no owner — four open states, entry conditions instead of names
+
+The stocktake run the day this ADR landed measured three failures the decision
+above does not prevent, all of them in the vocabulary rather than the
+machinery.
+
+**1. Decision 3's premise is not true of the implementation.** It says the
+`state:` vocabulary is "the vocabulary `claims.py` already declares" and that
+`claims.py` being the sibling of `claim` / `release` / `spawn` gives "the state
+vocabulary one owner". `claims.py` declares `EVENTS`, `OUTCOMES`, `ORIGINS` and
+`PRODUCER_REQUIRED_ORIGINS`; it declares no state vocabulary at all. `ready` is
+the default string of `--state`, and the state is read as an opaque token. The
+vocabulary was in fact written out in four documents (this ADR en/ja, skill
+`task-stocktake`, rule `task-tracking.md`) and consumed by a fifth (skill
+`weekly-report-diagnosis`), owned by none. **The canonical owner is now skill
+`task-stocktake`**; every other document refers to it and stops restating it.
+
+**2. `deferred` and `observing` are retired.** `deferred` held 42% of the store
+(19 of 45) and was doing five jobs at once — piggyback ("next time you touch
+X"), signal-first ("if the waste actually happens"), dependency on another
+task, effectively-decided, and external-event. It was also the only open state
+that could be written with an empty entry condition (`T-L`'s read `—`), so
+whatever nobody wanted to decide landed there. `observing` was retired for the
+opposite reason: no operational split from `blocked` survived examination. The
+first draft justified it as "observing rots, blocked does not", which is false —
+`T-OBS-REL` (blocked) held the condition "bundle with the retune decision at
+T-B1's window", and that premise moved the moment `T-B1` closed.
+
+Open states are now `candidate` / `ready` / `in_progress` / `blocked`.
+Terminal states are unchanged.
+
+**3. Names were the wrong lever; entry conditions are the right one.** The
+first draft moved all 19 rows into `blocked` and would have moved the failure
+modes with them. `blocked` now admits only tasks where **condition satisfaction
+alone moves the row to `ready`** — anything that still needs a
+should-we-do-this decision afterwards is `candidate`, and a risk that would be
+rediscovered by its own occurrence is `dropped` rather than kept as a note to
+one's future self. The condition must name what is being waited on, where to
+check it, and the transition on satisfaction. Grammatically-named but
+uncheckable conditions ("when it becomes necessary", "when maintenance cost
+materialises") do not qualify.
+
+**4. Event conditions must include deletion.** When a condition waits on a
+*change* to an internal artifact, its removal or replacement also settles it
+(→ `retired`). `T-B4` waited on "a change to the view seed text"; ADR-0073
+deleted that seed, so the trigger could never fire, and the row survived a
+month and a half. A time window is always decidable by elapsed time; an event
+condition is not unless "it fired" and "its source is gone" are distinguished.
+
+**5. Piggyback items do not belong in the ledger.** Where the condition is
+"next time this file is touched", the note goes at the code site. Over the
+window measured, two such tasks had their target files changed 12 times with no
+hit — `T-OBS-INJ`'s `core/llm/__init__.py` changed 8 times, once being the
+split of that file into the `core/llm/` package, which moved the very code the
+task was about, and the audit log it asked for was still not added. The ledger
+has no path to whoever edits the file, and Decision 3's "nothing else reads the
+ledger programmatically" is exactly why. This is not to be solved by adding
+delivery machinery.
+
+Decision 2's enumeration and Decision 4's parked-state list are amended
+accordingly; Decision 3's reader command is unchanged, only its claim about
+ownership. Consumer updated in the same change: skill `weekly-report-diagnosis`
+queried `--state observing` and screened `blocked` / `deferred` / `observing`
+rows to avoid re-proposing an intervention already parked — pointed at a state
+that no longer exists, that stage returns nothing and reads as "no intervention
+is parked".

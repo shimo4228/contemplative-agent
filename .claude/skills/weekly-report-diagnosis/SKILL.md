@@ -37,10 +37,12 @@ Context 膨張を避けるため、以下の順序で読む。途中で十分な
 - `config/prompts/principles.md` (methodology guard)
 - `docs/CODEMAPS/INDEX.md` (codebase index, file-level)
 - `docs/adr/README.md` (ADR index, decision history)
-- `.notes/tasks/T-*.md` (タスク台帳、1 タスク 1 ファイル。状態別の列挙は `python3 ~/.claude/scripts/claims.py ready --state observing` 等)。2 つの理由で必須: (1) `observing` / `deferred` 行が
-  今週のシグナルを既に予約・却下していないか (重複 F1 / 再提起の防止 — Done 節の完了記録が
-  レポートの「operator-facing データからは判定できない」を閉じることも多い)、(2) 観察系タスク
-  (例: 「weekly レポート診断時に見る」と指定された watch) がこの診断の入力になっているか
+- `.notes/tasks/T-*.md` (タスク台帳、1 タスク 1 ファイル。状態別の列挙は `python3 ~/.claude/scripts/claims.py ready --state blocked` と `--state candidate`)。2 つの理由で必須: (1) `blocked` / `candidate` 行が
+  今週のシグナルを既に予約・却下していないか (重複 F1 / 再提起の防止 — `archive/tasks/` の
+  終端記録がレポートの「operator-facing データからは判定できない」を閉じることも多い)、
+  (2) 観察系タスク (例: 「weekly レポート診断時に読む」と再開条件に書かれたもの) が
+  この診断の入力になっているか。**`observing` / `deferred` は 2026-08-16 に廃止**
+  (ADR-0095 Amendment) — 開状態は `candidate` / `ready` / `in_progress` / `blocked` の 4 つ
 
 ### Step 2. F1 候補が出たら (構造提案)
 
@@ -99,7 +101,7 @@ operator が判断する「問い」を立てるための material:
 - [ ] そのコード変更が既に実装済みでないか (例: cut-off 境界マークは `wrap_untrusted_content()` で実装済み)
 - [ ] そのパラメータが既に effective でないか (例: `num_predict` は median 応答 ~400 tokens に対し 3384 tokens の上限で 12% しか使われていない)
 - [ ] 関連 ADR で同じ提案が withdrawn / rejected されていないか (ADR-0022 / ADR-0034 retrieval 関連、ADR-0028 forgetting 関連等)
-- [ ] `.notes/tasks/` で同じ介入が pending (`blocked` / `deferred` / `observing`) または Done/Dropped になっていないか。台帳に既にある介入は F1 として再提案せず、台帳行への参照 1 行にとどめる
+- [ ] `.notes/tasks/` で同じ介入が pending (`blocked` / `candidate`) または `archive/tasks/` で終端 (`done` / `decided` / `dropped` / `retired`) になっていないか。台帳に既にある介入は F1 として再提案せず、台帳行への参照 1 行にとどめる
 - [ ] retrieval / shared state を触る提案なら、呼び出し元を grep して間接経路か直接経路か確認したか (例: `views._rank` は distill 系のみから呼ばれる)
 - [ ] 「re-reply / same-post duplicate」を F1 化する前に、`$MOLTBOOK_HOME/logs/YYYY-MM-DD.jsonl` で当該 `post_id` の interaction レコードを grep し、相手 (`agent_name`) が日ごとに別人かを確認したか。別人なら多者間スレッドであって re-reply ではない → F3 / drop (2026-06-15 検証済み: #836e1237 の「6 日連続 re-reply」は 6 人の別 agent だった。post 単位 reply dedup は principles.md Appendix で rejected)
 
