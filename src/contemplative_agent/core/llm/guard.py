@@ -11,9 +11,10 @@ import secrets
 from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import Any, NamedTuple
 from urllib.parse import urlparse
 
+from .._io import now_iso
 from ..config import FORBIDDEN_ASSIGNMENT_RE, FORBIDDEN_SUBSTRING_PATTERNS
 
 logger = logging.getLogger(__name__)
@@ -169,17 +170,36 @@ _MAX_STRIP_PASSES = 8
 _NONCE_BYTES = 8
 
 
-def strip_injection_tokens(text: str) -> tuple[str, dict[str, int], bool]:
+class StripResult(NamedTuple):
+    """Outcome of one removal pass-set.
+
+    A named result rather than a bare tuple because two of the three call
+    sites want only ``text``; ``r.text`` reads better there than three
+    throwaway locals shaped for the caller that does use the rest.
+    """
+
+    text: str
+    counts: dict[str, int]
+    saturated: bool
+
+
+def strip_injection_tokens(text: str) -> StripResult:
     """Remove chat-control tokens until the text stops changing.
 
-    Returns ``(stripped, counts_by_token, saturated)``. ``counts_by_token``
-    holds only the tokens actually seen, so an empty dict means "nothing was
-    removed" — the caller uses that to keep the audit log proportional to
-    attack frequency instead of to traffic.
+    ``counts`` holds only the tokens actually seen, so an empty dict means
+    "nothing was removed" — the wrapper uses that to keep its audit log
+    proportional to attack frequency instead of to traffic.
 
-    Sole owner of the removal so the two call sites (this wrapper and
-    ``core.constitution.render_constitutional_patterns``) cannot drift apart;
-    they were independent single-pass copies before.
+    Sole owner of the removal so the three call sites (this wrapper,
+    ``constitution.render_constitutional_patterns``,
+    ``episode_render.safe_peer_name``) cannot drift apart; the first two were
+    independent single-pass copies before.
+
+    **Saturation warns from here, not from the caller.** A payload nested
+    deeper than the ceiling leaves a live token behind, and ADR-0075 forbids
+    letting that pass silently. Reporting it at the one place that knows it
+    happened is what makes all three sites honest — bolted onto the wrapper it
+    covered one of them.
     """
     counts: dict[str, int] = {}
     body = text
@@ -191,9 +211,17 @@ def strip_injection_tokens(text: str) -> tuple[str, dict[str, int], bool]:
                 counts[token] = counts.get(token, 0) + hits
                 body = body.replace(token, "")
         if body == before:
-            return body, counts, False
+            break
+    # Derived, never asserted: the loop above may have exited early (clean) or
+    # run out of passes. A hand-written ``False`` on the early path is the kind
+    # of duplicate that goes quietly wrong when the loop body changes.
     saturated = any(token in body for token in _INJECTION_TOKENS)
-    return body, counts, saturated
+    if saturated:
+        logger.warning(
+            "injection-token strip saturated after %d passes: reason=strip_saturated",
+            _MAX_STRIP_PASSES,
+        )
+    return StripResult(body, counts, saturated)
 
 
 # Module state, configured from the composition root (``cli/runtime.py``) with
@@ -234,6 +262,7 @@ def _append_injection_audit(record: dict[str, Any]) -> None:
 
     date_str = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     append_jsonl_restricted(_audit_dir / f"injection-detect-{date_str}.jsonl", record)
+
 
 # Code-side defaults for the untrusted wrapper. The canonical text lives in
 # ``config/prompts/untrusted_wrapper.md`` (+ marker files) so it is observable
@@ -333,7 +362,8 @@ def wrap_untrusted_content(
             raw_len=raw_len,
         )
 
-    body, removed, saturated = strip_injection_tokens(body)
+    stripped = strip_injection_tokens(body)
+    body = stripped.text
     nonce = (_nonce_source or _default_nonce)()
 
     # Written only when something was actually removed, so the file's size
@@ -342,26 +372,29 @@ def wrap_untrusted_content(
     # "this guard is no longer on the path", and unit tests answer neither —
     # they prove the function works when called, not that it is still called
     # (T-OBS-INJ).
-    if removed:
+    #
+    # ``_audit_dir`` is checked here as well as inside the writer so an
+    # unconfigured process does not pay a SHA-256 over a 40000-char post to
+    # build a record that is then dropped.
+    if stripped.counts and _audit_dir is not None:
         # Metadata only, deliberately narrower than the b64+sha256 default for
         # untrusted text (CLAUDE.md observability): the question here is
         # whether the guard fired, not what the payload said, so the payload
-        # is identified by digest and never stored.
+        # is identified by digest and never stored. ``ts`` is explicit — the
+        # shared writer stamps run/session ids but not a time, and a filename
+        # date is not enough to order events within a session.
+        raw = post_text.encode("utf-8")
         _append_injection_audit(
             {
                 "event": "injection_tokens_removed",
-                "tokens": removed,
-                "total_removed": sum(removed.values()),
-                "saturated": saturated,
+                "ts": now_iso(),
+                "tokens": stripped.counts,
+                "total_removed": sum(stripped.counts.values()),
+                "saturated": stripped.saturated,
                 "nonce": nonce,
-                "content_sha256": hashlib.sha256(post_text.encode("utf-8")).hexdigest(),
-                "content_bytes": len(post_text.encode("utf-8")),
+                "content_sha256": hashlib.sha256(raw).hexdigest(),
+                "content_bytes": len(raw),
             }
-        )
-    if saturated:
-        logger.warning(
-            "untrusted_content strip saturated after %d passes: reason=strip_saturated",
-            _MAX_STRIP_PASSES,
         )
 
     # Trust the externalized frame only if it carries every required slot and

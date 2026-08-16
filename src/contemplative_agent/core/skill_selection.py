@@ -25,7 +25,6 @@ from __future__ import annotations
 import difflib
 import json
 import logging
-import re
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
@@ -87,18 +86,6 @@ _DESCRIPTION_MAX_CHARS = 300
 # Rows of the rejected-name tally the report renders before summarising the
 # rest. Bounds the *output*, never the reading — see the renderer.
 _REJECTED_NAME_RENDER_LIMIT = 50
-
-def _scrub_control(value: str, max_len: int) -> str:
-    """Local name for the shared scrub; see ``_io.scrub_control``.
-
-    The character class and the collapse-before-class ordering moved to
-    ``core/_io.py`` on 2026-08-16 (next to ``strip_to_printable`` /
-    ``log_safe_identifier``) when a third caller —
-    ``episode_render._safe_peer_name`` — needed it. Behaviour is unchanged;
-    the rationale for including TAB/LF and the bidi/zero-width block moved
-    with the class, including the parts written for this instrument.
-    """
-    return scrub_control(value, max_len)
 
 
 _skills_dir: Path | None = None
@@ -166,7 +153,7 @@ def load_skill_catalog(skills_dir: Path | None) -> tuple[SkillCatalogEntry, ...]
         entries.append(
             SkillCatalogEntry(
                 name=strip_to_printable(name, _NAME_MAX_CHARS),
-                description=_scrub_control(description, _DESCRIPTION_MAX_CHARS),
+                description=scrub_control(description, _DESCRIPTION_MAX_CHARS),
                 body_tokens=_estimate_tokens(text),
             )
         )
@@ -253,7 +240,7 @@ def select_applicable_skills(
             # Hallucinated names are raw LLM output shaped by untrusted
             # input; scrub before they enter the plaintext audit field
             # (the unscrubbed original survives in output_b64 for replay).
-            rejected.append(_scrub_control(line, _NAME_MAX_CHARS))
+            rejected.append(scrub_control(line, _NAME_MAX_CHARS))
     return SkillSelectionResult(
         verdict="judged",
         selected=tuple(sorted(selected)),
@@ -777,7 +764,7 @@ def read_skill_selection_log(
                     for name in rejected:
                         if not isinstance(name, str):
                             continue
-                        clean = _scrub_control(name, _NAME_MAX_CHARS)
+                        clean = scrub_control(name, _NAME_MAX_CHARS)
                         if not clean:
                             continue
                         rejected_counts[clean] = rejected_counts.get(clean, 0) + 1

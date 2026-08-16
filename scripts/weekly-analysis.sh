@@ -190,6 +190,18 @@ echo "Found $FOUND daily reports"
 # The delimiter is a per-run nonce for the same reason core/llm/guard.py uses
 # one: with a constant, a report body could close the block itself and stand
 # where the instruction above it stands (T-UNTRUSTED-ESCAPE, 2026-08-16).
+#
+# Two deliberate divergences from wrap_untrusted_content, named so a reader
+# does not take this for a faithful copy:
+#   1. No `{marker}` completeness note. That marker exists to stop truncation
+#      hallucination on a bounded excerpt; this block is never truncated.
+#   2. No `strip_injection_tokens`. `_INJECTION_TOKENS` are local chat-template
+#      markers (`<|im_start|>`, `<|endoftext|>`); the consumer here is
+#      `claude -p`, not the Ollama path those tokens belong to.
+# Deliberately NOT reimplemented by shelling into the package (the precedent
+# at the skill-selection renderer below): that renderer degrades to a stub on
+# failure, whereas an empty $DAILY_REPORTS silently produces a wrong report.
+# A frame this path can always build beats a faithful one it can fail to.
 REPORT_NONCE=$(od -An -N8 -tx1 /dev/urandom | tr -d ' \n')
 DAILY_REPORTS_FRAMED="<untrusted_content_${REPORT_NONCE}>
 ${DAILY_REPORTS}

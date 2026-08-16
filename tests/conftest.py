@@ -74,6 +74,39 @@ def _distill_postgate_off(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _reset_untrusted_guard():
+    """Reset the untrusted wrapper's module state between tests.
+
+    Both fields leak in the same direction if left set: a pinned
+    ``nonce_source`` makes a later test's delimiter predictable, and a stale
+    ``audit_dir`` points a later test's detection lines at a torn-down tmpdir.
+    Autouse rather than per-test try/finally so a new suite is isolated by
+    default — the same reason the circuit-breaker reset below is autouse.
+    """
+    from contemplative_agent.core.llm import reset_untrusted_guard
+
+    reset_untrusted_guard()
+    yield
+    reset_untrusted_guard()
+
+
+@pytest.fixture
+def pinned_nonce():
+    """Pin the delimiter nonce so a test can assert on an exact string.
+
+    Production draws one per call from the system CSPRNG, which is the whole
+    point (see ``TestUntrustedDelimiterForgery``); byte-identical assertions
+    need it fixed. The injectable source exists for this and for offline
+    replay of a recorded frame. Teardown is handled by the autouse reset above.
+    """
+    from contemplative_agent.core.llm import configure_untrusted_guard
+
+    value = "0123456789abcdef"
+    configure_untrusted_guard(nonce_source=lambda: value)
+    return value
+
+
+@pytest.fixture(autouse=True)
 def _reset_llm_circuit_breaker():
     """Reset the LLM circuit breaker between tests.
 

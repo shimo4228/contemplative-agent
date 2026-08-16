@@ -42,8 +42,7 @@ def render_constitutional_patterns(matched: list[dict]) -> str:
         # verified *here* — this prompt carries no frame, so a reconstructed
         # closing tag would have nothing to close — so this is a consolidation,
         # not a security fix. It exists so the two strips cannot drift again.
-        text, _counts, _saturated = strip_injection_tokens(str(p["pattern"]))
-        lines.append(f"- {text}")
+        lines.append(f"- {strip_injection_tokens(str(p['pattern'])).text}")
     return "\n".join(lines)
 
 

@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 
 from ._io import write_restricted
+from .episode_render import safe_peer_name
 
 logger = logging.getLogger(__name__)
 
@@ -160,7 +161,14 @@ def _entry_lines(i: int, kind: str, e: dict[str, Any]) -> list[str]:
     the structure. ``Title`` / ``Submolt`` appear only when present (posts).
     All external text is URL-defanged.
     """
-    cp = (e.get("counterparty", "") or "").strip()
+    # Same field, same treatment as the distill header (T-UNTRUSTED-ESCAPE C).
+    # ``counterparty`` is ``target_agent`` — the peer's display name, authored
+    # off-platform. It is rendered into a ``### `` heading below, and this file
+    # is ``comment-report-*.md``, which weekly-analysis.sh feeds to an LLM as
+    # $DAILY_REPORTS and CLAUDE.md designates as the human's canonical read
+    # path. A newline in the name forges an entry row in both. Note the
+    # surrounding fields already get ``defang_urls``; this one got nothing.
+    cp = safe_peer_name(e.get("counterparty", ""))
     if cp and cp != "unknown":
         counterparty = cp
     else:

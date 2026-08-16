@@ -23,8 +23,7 @@ from ..core.domain import (
     reset_caches,
     set_domain_config_cache,
 )
-from ..core.llm import configure as configure_llm
-from ..core.llm import configure_untrusted_guard
+from ..core.llm import configure as configure_llm, configure_untrusted_guard
 from ..core.skill_selection import configure_skill_selection
 
 logger = logging.getLogger(__name__)
@@ -71,6 +70,16 @@ def _configure_llm_runtime() -> None:
     """
     # Per-call telemetry (llm-calls-{date}.jsonl) alongside the episode log.
     configure_llm(telemetry_dir=config.EPISODE_LOG_DIR)
+    # T-OBS-INJ: injection-token removals inside wrap_untrusted_content. It
+    # belongs in this shared subset rather than in _configure_llm_and_domain
+    # for the same reason the log exists at all: Tier.LLM_RUNTIME_ONLY skips
+    # that function, and `skill-stocktake` / `rules-stocktake` are that tier
+    # while core/stocktake.py wraps two untrusted fields per skill. Wiring it
+    # one tier up left exactly the blind spot the reading was added to
+    # remove — a run of zeroes that could mean "no attacks" or "this command
+    # never configured the guard". nonce_source stays unset so production
+    # draws from the system CSPRNG.
+    configure_untrusted_guard(audit_dir=config.EPISODE_LOG_DIR)
     # Calibration drift guard (ADR-0071/0072): a same-dimension embedding
     # model swap invalidates every calibrated similarity threshold while
     # passing all shape checks — surface it loudly, never gate on it.
@@ -114,13 +123,6 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     # scores them, and is wired to no gate. Leaving audit_dir unset disables it
     # outright, which is the kill switch.
     configure_submolt_scope(audit_dir=config.EPISODE_LOG_DIR)
-    # T-OBS-INJ: injection-token removals inside wrap_untrusted_content. Wired
-    # unconditionally, unlike the selector above — the reading this log exists
-    # for is "is the guard still on the path", and a conditional wire makes a
-    # run of zeroes mean either "no attacks" or "not configured this time",
-    # which is the ambiguity the log was added to remove. nonce_source stays
-    # unset so production draws from the system CSPRNG.
-    configure_untrusted_guard(audit_dir=config.EPISODE_LOG_DIR)
     if config.RULES_DIR.is_dir():
         configure_llm(rules_dir=config.RULES_DIR)
 

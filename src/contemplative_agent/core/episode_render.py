@@ -10,19 +10,18 @@ from __future__ import annotations
 
 import logging
 
-from ._io import scrub_control, truncate_boundary
+from ._io import IDENTIFIER_MAX_CHARS, scrub_control, truncate_boundary
 from .config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH
 from .llm import strip_injection_tokens, wrap_untrusted_content
 
 logger = logging.getLogger(__name__)
 
-# Peer display names on the platform are short. 64 matches
-# ``_io._IDENTIFIER_MAX_CHARS``, the bound the log sink already applies to the
-# same field, so the two sinks cannot disagree about what "a name" is.
-_PEER_NAME_MAX_CHARS = 64
+# Imported, not copied: the log sink already bounds this same field at
+# IDENTIFIER_MAX_CHARS, and a duplicated literal is precisely the form that
+# lets the two sinks disagree about what "a name" is the moment either moves.
 
 
-def _safe_peer_name(value: object) -> str:
+def safe_peer_name(value: object) -> str:
     """Bound another agent's display name before it reaches a distill prompt.
 
     ``target_agent`` is the counterparty's name off the platform
@@ -47,8 +46,9 @@ def _safe_peer_name(value: object) -> str:
     """
     if not value:
         return ""
-    stripped, _counts, _saturated = strip_injection_tokens(str(value))
-    return scrub_control(stripped, _PEER_NAME_MAX_CHARS)
+    stripped = strip_injection_tokens(str(value)).text
+    return scrub_control(stripped, IDENTIFIER_MAX_CHARS)
+
 
 # Input scope (ADR-0060): distill learns only from substantive engagement
 # episodes — comment / reply / post activity records, which carry real
@@ -159,7 +159,7 @@ def render_episode(record_type: str, data: dict) -> str:
     # line instead is the wrapper's per-call nonce — a recited constant closes
     # nothing.
     # The header is assembled from ``target_agent``, which is NOT self-authored
-    # (see _safe_peer_name).
+    # (see safe_peer_name).
     op = data.get("original_post")
     if op:
         parts.append(
@@ -189,7 +189,7 @@ def render_episode(record_type: str, data: dict) -> str:
     if not parts:
         return summarize_record(record_type, data)
 
-    target = _safe_peer_name(data.get("target_agent", ""))
+    target = safe_peer_name(data.get("target_agent", ""))
     header = f"[{action} {target}]" if target else f"[{action}]"
     return header + "\n" + "\n\n".join(parts)
 
@@ -209,7 +209,7 @@ def summarize_record(record_type: str, data: dict) -> str:
     # the "" fallthrough keeps it out of any prompt.
     elif record_type == "activity":
         action = data.get("action", "unknown")
-        target = _safe_peer_name(data.get("target_agent", data.get("post_id", "")))
+        target = safe_peer_name(data.get("target_agent", data.get("post_id", "")))
         base = f"{action} {target}".strip()
         # ADR-0045: the behavioural fact and the pre-action internal note
         # coexist on one line so distill sees "what happened, and what was

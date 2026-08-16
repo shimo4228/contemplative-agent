@@ -246,7 +246,7 @@ def strip_to_printable(value: object, max_len: int, *, keep_newline: bool = Fals
 # The same hole was live in ``load_skill_catalog``'s description scrub, where
 # ``_render_catalog`` joins on ``\n``. It is live again wherever an
 # externally-authored name is rendered into a structured line, which is why
-# ``episode_render._safe_peer_name`` joined in 2026-08-16.
+# ``episode_render.safe_peer_name`` joined in 2026-08-16.
 #
 # The bidi and zero-width block earns its place wherever a human is expected
 # to compare two rendered strings by eye: RLO/ZWSP defeat exactly that
@@ -286,7 +286,7 @@ def scrub_control(value: str, max_len: int) -> str:
     return CONTROL_CHARS_RE.sub("", " ".join(value.split()))[:max_len]
 
 
-_IDENTIFIER_MAX_CHARS = 64
+IDENTIFIER_MAX_CHARS = 64
 
 
 def log_safe_identifier(value: object, placeholder: str = "<unprintable>") -> str:
@@ -304,7 +304,7 @@ def log_safe_identifier(value: object, placeholder: str = "<unprintable>") -> st
     that is entirely non-ASCII sanitises to the empty string, which turns
     "Replied to X on Y" into a sentence with a hole in it. Say so instead.
     """
-    safe = strip_to_printable(value, _IDENTIFIER_MAX_CHARS)
+    safe = strip_to_printable(value, IDENTIFIER_MAX_CHARS)
     return safe if safe.strip() else placeholder
 
 
