@@ -84,3 +84,11 @@ integrations/skills/
 # 機械ゲートの入口と選定記録は CI / 他クローンからも要るので track する
 !.claude/verify.sh
 !.claude/verify.md
+# hook 実体も同じ理由で track する — 追跡済みの .codex/hooks/ symlink がここを指すので、
+# 非追跡のままだと clone と worktree で必ず dangling し、shell 段が落ちる
+# (T-VERIFY-WORKTREE-DANGLING-SH)。追跡は「追跡物が参照する 1 本」に限る — 残りの
+# ローカル hook は従来どおり手元限定。なお Claude Code 側の配線 (.claude/settings.json)
+# は非追跡のままなので、clone でこの hook を起動するのは Codex 側 (.codex/hooks.json) だけ
+!.claude/hooks/
+.claude/hooks/*
+!.claude/hooks/codemap-freshness-check.sh
