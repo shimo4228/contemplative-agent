@@ -8,7 +8,10 @@ repair in ADR-0041.
 
 Design:
 - Pure function. No I/O. ``score_relevance`` is injected so unit tests stay
-  Ollama-free and the same selector can be reused across call sites.
+  Ollama-free and the same selector can be reused across call sites. The
+  ``should_continue`` pacing predicate is injected for the same reason: the
+  scan has to be stoppable from outside without the selector learning what
+  a circuit breaker is (T-FEED-PACING).
 - RNG is injected (``numpy.random.Generator``) so the production loop gets a
   fresh draw per cycle while tests can pin a seed for determinism.
 - Combined-length budget is a *soft* fallback: the selector drops trailing
@@ -28,6 +31,10 @@ import numpy as np
 logger = logging.getLogger(__name__)
 
 
+def _always_continue() -> bool:
+    return True
+
+
 def select_feed_seeds(
     posts: Sequence[dict],
     *,
@@ -36,6 +43,7 @@ def select_feed_seeds(
     target_count: int = 3,
     relevance_floor: float = 0.4,
     char_budget: int = 15000,
+    should_continue: Callable[[], bool] = _always_continue,
 ) -> list[dict]:
     """Pick up to ``target_count`` peer posts as direct seeds.
 
@@ -54,6 +62,14 @@ def select_feed_seeds(
     max = 3,857 chars — so in practice the budget rarely binds. This budget
     is soft (binds only when >1 seed survives); the hard per-seed cap is
     ``SEED_MAX_INPUT`` in ``format_feed_seeds`` (audit L6).
+
+    ``should_continue`` is consulted before each candidate is scored and ends
+    the walk when it answers False, keeping whatever was accepted so far. The
+    walk's only other exit is ``target_count`` accepts, so a scorer that has
+    stopped judging (an LLM outage returns 0.0 for everything) would otherwise
+    take it through the entire candidate list at full speed — the shape of the
+    2026-07-12 incident (T-FEED-PACING). The caller decides what "keep going"
+    means; production passes the circuit breaker's reading.
     """
     if not posts:
         return []
@@ -61,6 +77,12 @@ def select_feed_seeds(
     rng.shuffle(indices)
     accepted: list[dict] = []
     for idx in indices:
+        if not should_continue():
+            logger.info(
+                "Seed selection stopped after %d candidate(s): caller asked to stop",
+                len(accepted),
+            )
+            break
         post = posts[idx]
         try:
             score = score_relevance(post)

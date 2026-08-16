@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from ...core._io import log_safe_identifier
 from ...core.config import VALID_ID_PATTERN
 from ...core.domain import DomainConfig
+from ...core.llm import circuit_reading
 from ...core.scheduler import Scheduler
 from .client import MoltbookClient, MoltbookClientError
 from .config import (
@@ -121,6 +122,15 @@ class FeedManager:
         API returns the challenge in the create-response, never as a
         ``verification_challenge`` field on a fetched feed post.
         """
+        if circuit_reading().is_open:
+            # Entry guard, before the two source fetches: engagement is gated
+            # on score_relevance, so an open breaker means every post the
+            # fetches pay for would be scored 0.0 and skipped. The loop below
+            # carries the same reading for a breaker that opens mid-scan
+            # (T-FEED-PACING).
+            logger.info("Circuit breaker open, skipping feed cycle")
+            return
+
         seen_ids: set[str] = set()
         all_posts: list[dict] = []
 
@@ -144,6 +154,17 @@ class FeedManager:
                 break
             if not client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve):
                 logger.info("Read budget low, pausing feed engagement")
+                break
+            # score_relevance was this loop's only pacer, and an open breaker
+            # returns its 0.0 sentinel in microseconds. That 0.0 is below
+            # upvote_only_threshold, so nothing downstream fires either (no
+            # full-body fetch, no note, no upvote) — the break forfeits no
+            # work, and the posts carry to the next cycle as the read-budget
+            # break above already lets them. Same line and same reasoning as
+            # the reply cycle's guard column; see reply_handler.run_cycle for
+            # the incident this repairs (T-REPLY-PACING / T-FEED-PACING).
+            if circuit_reading().is_open:
+                logger.info("Circuit breaker open, pausing feed engagement")
                 break
             self.engage_with_post(post, client, scheduler)
 

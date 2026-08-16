@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (task-ledger machinery retired — stage 6c ledgerwatch, packet §10 and scripts/tasks.py removed, ADR-0095; control characters neutralised at the packet's _cell floor; weekly-analysis.sh's two sessions bounded, permission gate widened to the whole chain; run-log path recorded by the shell instead of rebuilt in the packet builder) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (task-ledger machinery retired — stage 6c ledgerwatch, packet §10 and scripts/tasks.py removed, ADR-0095; control characters neutralised at the packet's _cell floor; weekly-analysis.sh's two sessions bounded, permission gate widened to the whole chain; run-log path recorded by the shell instead of rebuilt in the packet builder; the feed-engagement loop and the post cycle join the reply loops in reading the circuit breaker, T-FEED-PACING) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -138,10 +138,10 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │     published, 29,007 circuit_open rows. A break, not a backoff: the
  │     breaker owns the clock (half-open after CIRCUIT_COOLDOWN_SECONDS) and
  │     the candidates carry to the next session, as the write-budget break
- │     already does. Scope is the reply cycle ONLY — the feed-engagement loop
- │     and select_feed_seeds below have the same unpaced shape and do NOT
- │     carry this guard (T-FEED-PACING); read the column as fixed here, not
- │     as a property of the session]
+ │     already does. The other two unpaced loops were closed the same day by
+ │     T-FEED-PACING (feed engagement and the post cycle, below), each with
+ │     the reading at its own head — the guard is per-loop, never a property
+ │     the session confers]
  ├─ Agent._run_feed_cycle()
  │    fetch → promo filter → own-author skip (name-keyed + id belt-and-braces;
  │      live feed lacks author.id) → ID dedup → per-author cap (3/24h)
@@ -149,9 +149,29 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │    → fetch full body  [ADR-0061; before the note, not just the comment]
  │    → internal_note + comment (read the FULL post, not the preview)
  │    → Scheduler budget gate → POST → verify
+ │    [breaker read TWICE (T-FEED-PACING): at cycle entry, before the two
+ │     source fetches, so an already-open breaker costs no GET; and at the
+ │     loop head after end_time / rate-limited / read budget, for one that
+ │     opens mid-scan. Scoring was this loop's pacer; while the breaker is
+ │     open every post scores the 0.0 sentinel, which is below
+ │     upvote_only_threshold, so the full-body fetch, the note and the upvote
+ │     all stay silent and the break forfeits no work. Nothing marks a
+ │     below-threshold post as seen, so an unguarded loop re-scans the same
+ │     set every cycle]
  ├─ PostPipeline._run_post_cycle()
+ │    [entry guard: can_post → write budget → circuit-breaker open
+ │     (T-FEED-PACING). Everything from seed selection onward is an LLM call,
+ │     so an already-open breaker skips the cycle before it spends a feed GET
+ │     or files "no relevance-passing seeds in feed" for an outage. A breaker
+ │     that opens LATER is invisible to an entry guard, so the selector also
+ │     takes a should_continue predicate, and the empty-seed verdict re-reads
+ │     the breaker to name the outage instead of blaming the feed — see below]
  │    feed_seeder.select_feed_seeds()        [ADR-0043]
  │      relevance ≥ 0.4 | RNG 1-3 posts | 15000-char budget
+ │      | should_continue predicate, consulted per candidate: the walk's only
+ │        other exit is target_count accepts, which an all-0.0 scorer never
+ │        reaches. Injected (production passes the breaker reading), so the
+ │        selector keeps its pure/no-I/O contract
  │    → generate_cooperation_post (title + body)
  │    → _passes_deterministic_gates (order as in code):
  │      is_test_content() → NoveltyGate.evaluate() [ADR-0039]

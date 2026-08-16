@@ -12,6 +12,7 @@ import numpy as np
 
 from ...core.config import VALID_ID_PATTERN, VALID_SUBMOLT_PATTERN
 from ...core.domain import DomainConfig
+from ...core.llm import circuit_reading
 from ...core.scheduler import Scheduler
 from .client import MoltbookClient, envelope_ok
 from .config import ADAPTIVE_BACKOFF
@@ -108,6 +109,17 @@ class PostPipeline:
             return
         if not client.has_write_budget(reserve=ADAPTIVE_BACKOFF.write_budget_reserve):
             logger.info("Rate limit budget low, skipping post cycle")
+            return
+        # Every step from seed selection onward is an LLM call, so an open
+        # breaker makes this cycle unproductive before it starts. Stopping
+        # here rather than inside select_feed_seeds is what keeps that
+        # selector the pure, injection-only function its contract promises —
+        # and it avoids recording "no relevance-passing seeds in feed" for an
+        # outage, which files a fault about the model as a judgment about the
+        # feed (the ADR-0075 misattribution class). The reply and feed loops
+        # carry the same reading at their loop head (T-FEED-PACING).
+        if circuit_reading().is_open:
+            logger.info("Circuit breaker open, skipping post cycle")
             return
         self._run_dynamic_post(client, scheduler)
 
@@ -225,7 +237,28 @@ class PostPipeline:
             candidates,
             rng=np.random.default_rng(),
             score_relevance=_score_post_relevance,
+            # The entry guard in run_cycle only sees a breaker that was
+            # already open; this one covers the incident's own shape, where
+            # the outage begins while the selector is still scoring. Injected
+            # rather than read inside the selector so it keeps its no-I/O
+            # contract (T-FEED-PACING).
+            should_continue=lambda: not circuit_reading().is_open,
         )
+        if circuit_reading().is_open:
+            # The breaker opened while the selector was scoring. Say that,
+            # rather than falling through to the verdict below — an outage
+            # recorded as "the feed had nothing relevant" is the ADR-0075
+            # misattribution the entry guard exists to prevent, and the entry
+            # guard structurally cannot see a breaker that opens later.
+            # Whatever partial set the walk accepted is dropped with it:
+            # every step after this one is an LLM call, so the seeds cannot
+            # be used this cycle, and the next one re-samples the feed.
+            logger.info(
+                "post-seeding: circuit breaker opened during seed selection "
+                "(candidates=%d), skipping post cycle",
+                len(candidates),
+            )
+            return []
         if not feed_seeds:
             logger.info(
                 "post-seeding: no relevance-passing seeds in feed "

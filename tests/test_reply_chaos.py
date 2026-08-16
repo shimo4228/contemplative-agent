@@ -1,4 +1,9 @@
-"""Chaos fault-injection tests for the reply loops (ADR-0077).
+"""Chaos fault-injection tests for the loops the LLM used to pace (ADR-0077).
+
+The file is named for the reply cycle because that is where the incident was
+first repaired; the fault class is not reply-specific, so the feed-engagement
+loop and the post cycle's seed selection are exercised here too (they share
+the fixture, the seam, and the steady-state channel).
 
 The reply cycle's four candidate loops each open with the same stateless
 guard column (end_time / rate-limited / can_comment / write budget). None of
@@ -29,6 +34,20 @@ Fault catalog rows exercised here:
   any one guard line turns exactly one case red)
 - F-REP-2 breaker opens mid-cycle (the incident's own shape) -> the loop stops
   within the candidate that tripped it instead of scanning the remainder
+- F-FEED-1 / F-FEED-2 the same two shapes on the feed-engagement loop, whose
+  pacer was ``score_relevance`` rather than the reply generation. Its
+  outage sentinel is 0.0, which is below ``upvote_only_threshold``, so an open
+  breaker also silences the note, the full-body fetch and the upvote — the
+  break forfeits no work (T-FEED-PACING)
+- F-SEED-1 breaker already open when the post cycle starts -> it returns
+  before ``select_feed_seeds``. Keyed on the feed fetch, not on telemetry:
+  entering would also spend a GET and record "no relevance-passing seeds in
+  feed", filing an outage as a judgment about the feed (the ADR-0075
+  misattribution class)
+- F-SEED-2 breaker opens while the selector is scoring -> the walk ends there.
+  The entry guard structurally cannot see this, and ``select_feed_seeds``'s
+  only other exit is ``target_count`` accepts, which an all-0.0 scorer never
+  reaches; measured 25 rows on 30 candidates before the pacing predicate
 
 Determinism: explicit single-fault schedules (``NONE`` — a backend hard
 failure, already a member of ``CIRCUIT_FAILING_FAULTS``), no test sleeps, and
@@ -38,6 +57,7 @@ no wall-clock dependence beyond an ``end_time`` an hour out.
 from __future__ import annotations
 
 import time
+from unittest.mock import patch
 
 import pytest
 
@@ -94,6 +114,17 @@ def _comment(i: int) -> dict:
         "agent_id": f"a{i}",
         "agent_name": f"Peer{i}",
     }
+
+
+def _feed_post(i: int) -> dict:
+    """A post that clears every engagement gate, so scoring is what stops it.
+
+    No ``submolt_name`` (the subscribed-submolt gate only fires on a truthy
+    one) and no author (an empty name skips the per-author history gates), so
+    the only thing standing between this post and an LLM call is the guard
+    under test.
+    """
+    return {"id": f"f{i}", "content": f"A thought about the {i}th thing."}
 
 
 def _notification(i: int) -> dict:
@@ -193,4 +224,124 @@ class TestBreakerOpensMidCycleF2:
         # 1). Asserted as a bound rather than that 1, so the case keeps stating
         # "does not scale with CANDIDATES" if the per-candidate call count
         # changes.
+        assert _circuit_open_rows(tmp_path) <= CIRCUIT_FAILURE_THRESHOLD
+
+
+def _feed_posts() -> list[dict]:
+    return [_feed_post(i) for i in range(CANDIDATES)]
+
+
+def _seed_candidates(agent) -> list[dict]:
+    """The same posts, stamped with a submolt the post cycle subscribes to.
+
+    ``PostPipeline._seed_candidates`` drops anything outside the subscribed
+    list, so the feed loop's submolt-less posts would never reach the
+    selector.
+    """
+    subs = agent._domain.subscribed_submolts
+    return [{**post, "submolt_name": subs[0] if subs else ""} for post in _feed_posts()]
+
+
+def _feed_agent(tmp_path):
+    """An agent whose read budget and following feed stay out of the way."""
+    agent, client, scheduler = _make_agent(tmp_path)
+    client.has_read_budget.return_value = True
+    client.get_following_feed.return_value = []
+    return agent, client, scheduler
+
+
+class TestFeedLoopBreakerF1F2:
+    """F-FEED-1 / F-FEED-2: the feed-engagement loop's pacer was scoring.
+
+    ``score_relevance`` runs on every post the gates admit and is the only
+    LLM call the loop makes while the breaker is open — the 0.0 sentinel is
+    below ``upvote_only_threshold``, so the note, the full-body fetch and the
+    upvote never follow it. One row per candidate, so the row count is the
+    scan.
+    """
+
+    @pytest.mark.usefixtures("chaos")
+    def test_feed_loop_exits_when_breaker_already_open(self, tmp_path):
+        agent, client, scheduler = _feed_agent(tmp_path)
+        fm = agent._feed_manager
+
+        _trip_breaker()
+
+        with patch.object(fm, "get_feed", return_value=_feed_posts()) as get_feed:
+            fm.run_cycle(client, scheduler, time.time() + 3600)
+
+        # Keyed on the fetches too: both feed sources are paid for before the
+        # loop is entered, so a loop-head-only guard would still spend a GET
+        # per cycle for the whole outage.
+        client.get_following_feed.assert_not_called()
+        get_feed.assert_not_called()
+        # Zero, not a delta: _trip_breaker's own calls all reach the backend,
+        # so they short-circuit nothing (same reasoning as F-REP-1).
+        assert _circuit_open_rows(tmp_path) == 0
+
+    @pytest.mark.usefixtures("chaos")
+    def test_feed_loop_stops_within_the_tripping_candidate(self, tmp_path):
+        agent, client, scheduler = _feed_agent(tmp_path)
+        fm = agent._feed_manager
+
+        with patch.object(fm, "get_feed", return_value=_feed_posts()):
+            fm.run_cycle(client, scheduler, time.time() + 3600)
+
+        assert circuit_reading().is_open
+        # Unguarded, every candidate past the tripping one adds a row and the
+        # count scales with CANDIDATES. Guarded, the loop breaks at the top of
+        # the next iteration. Asserted as a bound rather than 0 so the case
+        # keeps stating "does not scale with CANDIDATES" if the per-candidate
+        # call count changes.
+        assert _circuit_open_rows(tmp_path) <= CIRCUIT_FAILURE_THRESHOLD
+
+
+class TestPostCycleBreakerF1:
+    """F-SEED-1: the post cycle returns before it starts sampling seeds.
+
+    ``select_feed_seeds`` walks its shuffled candidates until ``target_count``
+    are accepted; with every score 0.0 nothing is ever accepted, so it walks
+    all of them. Everything downstream of it is an LLM call too, so an open
+    breaker makes the whole cycle unproductive — the guard belongs at the
+    cycle's existing early-return column, which leaves the selector the pure,
+    injection-only function its contract promises.
+    """
+
+    @pytest.mark.usefixtures("chaos")
+    def test_post_cycle_exits_when_breaker_already_open(self, tmp_path):
+        agent, client, scheduler = _make_agent(tmp_path)
+        fm = agent._feed_manager
+
+        _trip_breaker()
+
+        with patch.object(fm, "get_feed", return_value=_seed_candidates(agent)) as get_feed:
+            agent._post_pipeline.run_cycle(client, scheduler)
+
+        # Keyed on the fetch as well as the telemetry: the cycle must not pay
+        # a feed GET, and must not log a seed verdict, for a cycle it cannot
+        # finish. The stub rides FeedManager.get_feed, the seam the pipeline's
+        # injected get_feed closes over (agent.py), rather than the pipeline's
+        # own private attribute.
+        get_feed.assert_not_called()
+        assert _circuit_open_rows(tmp_path) == 0
+
+    @pytest.mark.usefixtures("chaos")
+    def test_seed_selection_stops_when_the_breaker_opens_mid_scan(self, tmp_path):
+        """F-SEED-2: the entry guard cannot see a breaker that opens later.
+
+        The incident's own shape, and the one the entry guard structurally
+        misses: the cycle starts with the breaker closed, the outage begins
+        while the selector is scoring candidates, and from then on nothing is
+        ever accepted — ``len(accepted) >= target_count`` cannot end the walk,
+        so it runs to the end of the candidate list.
+        """
+        agent, client, scheduler = _make_agent(tmp_path)
+        fm = agent._feed_manager
+
+        with patch.object(fm, "get_feed", return_value=_seed_candidates(agent)):
+            agent._post_pipeline.run_cycle(client, scheduler)
+
+        assert circuit_reading().is_open
+        # Same bound as the reply and feed mid-cycle cases: what remains after
+        # the tripping candidate must not scale with the candidate count.
         assert _circuit_open_rows(tmp_path) <= CIRCUIT_FAILURE_THRESHOLD

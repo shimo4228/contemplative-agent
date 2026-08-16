@@ -169,6 +169,28 @@ class TestSelectFeedSeeds:
         run2 = run(42)
         assert [p["id"] for p in run1] == [p["id"] for p in run2]
 
+    def test_should_continue_ends_the_walk_and_keeps_what_was_accepted(self):
+        # The pacing contract (T-FEED-PACING): with every candidate passing
+        # the floor and target_count out of reach, target_count cannot end the
+        # walk — only the predicate can. Scored posts count the calls, so the
+        # assertion is on how far the scan got, not just on the result.
+        posts = [_post(f"t{i}", "x" * 100, post_id=f"p{i}") for i in range(20)]
+        scored: list[str] = []
+
+        def score(post: dict) -> float:
+            scored.append(post["id"])
+            return 1.0
+
+        result = select_feed_seeds(
+            posts,
+            rng=np.random.default_rng(0),
+            score_relevance=score,
+            target_count=len(posts) + 1,
+            should_continue=lambda: len(scored) < 3,
+        )
+        assert len(scored) == 3
+        assert [p["id"] for p in result] == scored
+
     def test_empty_input_returns_empty(self):
         result = select_feed_seeds(
             [],

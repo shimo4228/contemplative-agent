@@ -360,13 +360,15 @@ class CircuitReading:
     without also exercising the threshold, which is a different claim.
 
     It started as a pure ADR-0071 instrument ("feeds no gate"), and since
-    2026-08-16 it is not one: the reply loops read ``is_open`` to stop
-    scanning candidates they cannot answer (T-REPLY-PACING,
-    ``adapters/moltbook/reply_handler.py``). That consumer is control plane,
-    not observability, so the instrument framing no longer describes this
-    class — a caller may act on the reading. What has NOT changed is the
-    direction: reading it never mutates the breaker, and no caller may write
-    breaker state through it.
+    2026-08-16 it is not one: the session's candidate loops read ``is_open``
+    to stop scanning work they cannot do while the LLM is unavailable — the
+    four reply loops (T-REPLY-PACING, ``adapters/moltbook/reply_handler.py``),
+    the feed-engagement loop and the post cycle's entry guard (T-FEED-PACING,
+    ``adapters/moltbook/feed_manager.py`` and ``post_pipeline.py``). Those
+    consumers are control plane, not observability, so the instrument framing
+    no longer describes this class — a caller may act on the reading. What has
+    NOT changed is the direction: reading it never mutates the breaker, and no
+    caller may write breaker state through it.
 
     Before this, the sibling backends read ``_circuit._consecutive_failures``
     directly, so a rename inside :class:`_CircuitBreaker` broke three
