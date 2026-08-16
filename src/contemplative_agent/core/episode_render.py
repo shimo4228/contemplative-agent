@@ -10,11 +10,45 @@ from __future__ import annotations
 
 import logging
 
-from ._io import truncate_boundary
+from ._io import scrub_control, truncate_boundary
 from .config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH
-from .llm import wrap_untrusted_content
+from .llm import strip_injection_tokens, wrap_untrusted_content
 
 logger = logging.getLogger(__name__)
+
+# Peer display names on the platform are short. 64 matches
+# ``_io._IDENTIFIER_MAX_CHARS``, the bound the log sink already applies to the
+# same field, so the two sinks cannot disagree about what "a name" is.
+_PEER_NAME_MAX_CHARS = 64
+
+
+def _safe_peer_name(value: object) -> str:
+    """Bound another agent's display name before it reaches a distill prompt.
+
+    ``target_agent`` is the counterparty's name off the platform
+    (``feed_manager`` reads ``author.name``, ``reply_handler`` the replier's),
+    so it is attacker-controlled exactly like a post body — the codebase
+    already treats it that way on the log sink (``reply_handler`` calls
+    ``log_safe_identifier`` before writing it). It reached the prompt sink raw:
+    a name holding a newline plus a sentence puts free text in the render's
+    header position, above the framed blocks.
+
+    A frame would be the wrong shape for one header token, so it gets
+    ``scrub_control`` (single line guaranteed, length-capped) plus the shared
+    injection-token strip. NOT ``log_safe_identifier``: that one is ASCII-only
+    and would delete a Japanese peer's name outright — the right trade for a
+    log preview whose canonical text is stored elsewhere, the wrong one for a
+    string the distill model reads as content.
+
+    What survives is bounded free text inside the ``[action name]`` brackets.
+    That is the residue this accepts: the defect was a name able to leave its
+    line and stand where the operator's instruction stands, not a name being
+    describable.
+    """
+    if not value:
+        return ""
+    stripped, _counts, _saturated = strip_injection_tokens(str(value))
+    return scrub_control(stripped, _PEER_NAME_MAX_CHARS)
 
 # Input scope (ADR-0060): distill learns only from substantive engagement
 # episodes — comment / reply / post activity records, which carry real
@@ -113,8 +147,19 @@ def render_episode(record_type: str, data: dict) -> str:
     # record), so they must be wrapped here before reaching the distill LLM —
     # otherwise a malicious peer post could steer pattern extraction into
     # skills/rules/identity/constitution. The agent's own ``title`` /
-    # ``content`` / ``internal_note`` are self-authored and stay un-wrapped so
-    # extraction remains faithful to the agent's own register.
+    # ``content`` / ``internal_note`` stay un-wrapped so extraction remains
+    # faithful to the agent's own register.
+    #
+    # That exemption is a register decision, NOT a safety claim, and the
+    # difference matters (2026-08-16). "Self-authored" does not mean
+    # "attacker-free": ``content`` is a reply this agent generated *in response
+    # to* attacker-controlled text, so a peer who gets the reply model to
+    # recite a delimiter puts that delimiter in a field nothing wraps. Keeping
+    # the exemption means accepting that, not disproving it. What holds the
+    # line instead is the wrapper's per-call nonce — a recited constant closes
+    # nothing.
+    # The header is assembled from ``target_agent``, which is NOT self-authored
+    # (see _safe_peer_name).
     op = data.get("original_post")
     if op:
         parts.append(
@@ -144,7 +189,7 @@ def render_episode(record_type: str, data: dict) -> str:
     if not parts:
         return summarize_record(record_type, data)
 
-    target = data.get("target_agent", "")
+    target = _safe_peer_name(data.get("target_agent", ""))
     header = f"[{action} {target}]" if target else f"[{action}]"
     return header + "\n" + "\n\n".join(parts)
 
@@ -164,7 +209,7 @@ def summarize_record(record_type: str, data: dict) -> str:
     # the "" fallthrough keeps it out of any prompt.
     elif record_type == "activity":
         action = data.get("action", "unknown")
-        target = data.get("target_agent", data.get("post_id", ""))
+        target = _safe_peer_name(data.get("target_agent", data.get("post_id", "")))
         base = f"{action} {target}".strip()
         # ADR-0045: the behavioural fact and the pre-action internal note
         # coexist on one line so distill sees "what happened, and what was

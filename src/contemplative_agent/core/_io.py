@@ -234,6 +234,58 @@ def strip_to_printable(value: object, max_len: int, *, keep_newline: bool = Fals
     return pattern.sub("", str(value)[:max_len])
 
 
+# C0 (TAB and LF included), DEL, C1, and the Unicode format characters that
+# act as line breaks or reorder a rendered line.
+#
+# TAB and LF were excluded until 2026-08-08 (the class was
+# ``[\x00-\x08\x0b-\x1f\x7f]``, which straddles both). That held only because
+# every caller happened to feed it text already split on newlines. It stopped
+# holding when the skill-selection rejected-name tally began rendering one
+# report line per entry: a single embedded ``\n`` forges an additional,
+# indistinguishable row — demonstrated end-to-end by two independent reviews.
+# The same hole was live in ``load_skill_catalog``'s description scrub, where
+# ``_render_catalog`` joins on ``\n``. It is live again wherever an
+# externally-authored name is rendered into a structured line, which is why
+# ``episode_render._safe_peer_name`` joined in 2026-08-16.
+#
+# The bidi and zero-width block earns its place wherever a human is expected
+# to compare two rendered strings by eye: RLO/ZWSP defeat exactly that
+# comparison while leaving two visually identical rows distinct.
+CONTROL_CHARS_RE = re.compile(
+    "["
+    "\x00-\x1f\x7f-\x9f"  # C0 (incl. TAB/LF), DEL, C1
+    "\u200b-\u200f"  # zero-width space/joiners, LRM/RLM
+    "\u2028\u2029"  # line/paragraph separator
+    "\u202a-\u202e"  # bidi embedding/override
+    "\u2060-\u2064\u2066-\u2069"  # word joiner, invisible ops, bidi isolates
+    "\ufeff"  # BOM / zero-width no-break space
+    "]"
+)
+
+
+def scrub_control(value: str, max_len: int) -> str:
+    """Collapse whitespace, drop control characters, cap length.
+
+    CJK-preserving counterpart to ``strip_to_printable`` for fields where
+    non-ASCII content is legitimate (peer display names, descriptions,
+    hallucinated names). ``strip_to_printable`` is ASCII-only by design and
+    would delete a Japanese name outright — correct for a log preview whose
+    canonical source is stored elsewhere, wrong for anything the model reads
+    as content.
+
+    Whitespace is collapsed before the character class runs so the result is
+    guaranteed to be a single line: "no control characters" is a weaker
+    promise than "cannot span lines", and the class alone would still let a
+    future addition to it be forgotten.
+
+    Lives here, next to ``strip_to_printable`` / ``log_safe_identifier``,
+    because it is the third member of that family; it was written twice
+    independently first (``skill_selection._scrub_control`` 2026-08-08,
+    ``stocktake._scrub_reason`` security review 2026-07-24).
+    """
+    return CONTROL_CHARS_RE.sub("", " ".join(value.split()))[:max_len]
+
+
 _IDENTIFIER_MAX_CHARS = 64
 
 

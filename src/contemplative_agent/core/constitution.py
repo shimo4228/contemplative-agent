@@ -32,13 +32,17 @@ def render_constitutional_patterns(matched: list[dict]) -> str:
     shadow synthesis, where the patterns are the prompt's *sole* content — so
     the two prompts stay comparable and the strip cannot drift apart.
     """
-    from .llm import _INJECTION_TOKENS
+    from .llm import strip_injection_tokens
 
     lines = []
     for p in matched:
-        text = str(p["pattern"])
-        for token in _INJECTION_TOKENS:
-            text = text.replace(token, "")
+        # Shared with the wrapper's strip since 2026-08-16. The local copy was
+        # a single ``replace`` pass, which is the shape that lets a nested
+        # payload reconstruct the token it just deleted. No attack path was
+        # verified *here* — this prompt carries no frame, so a reconstructed
+        # closing tag would have nothing to close — so this is a consolidation,
+        # not a security fix. It exists so the two strips cannot drift again.
+        text, _counts, _saturated = strip_injection_tokens(str(p["pattern"]))
         lines.append(f"- {text}")
     return "\n".join(lines)
 

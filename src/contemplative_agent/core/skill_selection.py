@@ -33,7 +33,13 @@ from typing import Any, Literal, TypeAlias
 
 import numpy as np
 
-from ._io import append_jsonl_restricted, b64_audit_fields, now_iso, strip_to_printable
+from ._io import (
+    append_jsonl_restricted,
+    b64_audit_fields,
+    now_iso,
+    scrub_control,
+    strip_to_printable,
+)
 from .llm import (
     _estimate_tokens,
     circuit_shield,
@@ -82,49 +88,17 @@ _DESCRIPTION_MAX_CHARS = 300
 # rest. Bounds the *output*, never the reading — see the renderer.
 _REJECTED_NAME_RENDER_LIMIT = 50
 
-# C0 (TAB and LF included — see below), DEL, C1, and the Unicode format
-# characters that act as line breaks or reorder a rendered line.
-#
-# TAB and LF were excluded until 2026-08-08 (the class was
-# ``[\x00-\x08\x0b-\x1f\x7f]``, which straddles both). That held only
-# because every caller happened to feed it text already split on
-# newlines. It stopped holding when the rejected-name tally began
-# rendering one report line per entry: a single embedded ``\n`` forges an
-# additional, indistinguishable row — demonstrated end-to-end by two
-# independent reviews. The same hole was live in ``load_skill_catalog``'s
-# description scrub, where ``_render_catalog`` joins on ``\n`` and a
-# newline in a description forges catalog lines in the selection prompt.
-#
-# The bidi and zero-width block is here for this instrument specifically:
-# its whole job is to let a human compare a hallucinated name against a
-# real one by eye, and RLO/ZWSP defeat exactly that comparison while
-# leaving two visually identical rows counting separately.
-_CONTROL_CHARS_RE = re.compile(
-    "["
-    "\x00-\x1f\x7f-\x9f"  # C0 (incl. TAB/LF), DEL, C1
-    "\u200b-\u200f"  # zero-width space/joiners, LRM/RLM
-    "\u2028\u2029"  # line/paragraph separator
-    "\u202a-\u202e"  # bidi embedding/override
-    "\u2060-\u2064\u2066-\u2069"  # word joiner, invisible ops, bidi isolates
-    "\ufeff"  # BOM / zero-width no-break space
-    "]"
-)
-
-
 def _scrub_control(value: str, max_len: int) -> str:
-    """Collapse whitespace, drop control characters, cap length.
+    """Local name for the shared scrub; see ``_io.scrub_control``.
 
-    CJK-preserving counterpart to ``strip_to_printable`` for fields where
-    non-ASCII content is legitimate (descriptions, hallucinated names).
-
-    Whitespace is collapsed before the character class runs so the result
-    is guaranteed to be a single line: callers render one of these per
-    report line, and "no control characters" is a weaker promise than
-    "cannot span lines" — the character class alone would still let a
-    future addition to the class be forgotten. Same shape as
-    ``stocktake._scrub_reason`` (security review 2026-07-24), which
-    reached this conclusion first."""
-    return _CONTROL_CHARS_RE.sub("", " ".join(value.split()))[:max_len]
+    The character class and the collapse-before-class ordering moved to
+    ``core/_io.py`` on 2026-08-16 (next to ``strip_to_printable`` /
+    ``log_safe_identifier``) when a third caller —
+    ``episode_render._safe_peer_name`` — needed it. Behaviour is unchanged;
+    the rationale for including TAB/LF and the bidi/zero-width block moved
+    with the class, including the parts written for this instrument.
+    """
+    return scrub_control(value, max_len)
 
 
 _skills_dir: Path | None = None
