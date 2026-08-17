@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-09 (LOC refresh + module-count header fix) | Files scanned: 22 adapter modules (17 moltbook + 4 meditation + 1 dialogue) | Token estimate: ~3051 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (Error Handling: circuit breaker is now also a per-loop pacing guard, T-REPLY-PACING/T-FEED-PACING) | Files scanned: 22 adapter modules (17 moltbook + 4 meditation + 1 dialogue) | Token estimate: ~3051 -->
 # Adapters Codemap
 
 Platform-specific implementations. Dependency: adapters → core.
@@ -210,7 +210,7 @@ contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N
 - `MoltbookClientError`: `status_code` attribute for 400/429 detection
 - Rate limiting: Scheduler budget check → proactive sleep → 429 backoff
 - Verification: 7 failures → `SessionContext.rate_limited = True`
-- Circuit breaker (core/llm/backend.py): 5 LLM failures → 120s cooldown
+- Circuit breaker (core/llm/backend.py): 5 LLM failures → 120s cooldown; since 2026-08-16 (T-REPLY-PACING/T-FEED-PACING) `circuit_reading().is_open` is also read as a pacing guard — ReplyHandler's 4 candidate loops, FeedManager's entry+loop-head, and PostPipeline's entry guard + injected `should_continue` on `select_feed_seeds` all break early on an open breaker instead of scanning at generation-microsecond speed (see architecture.md Data Flow — Session Execution for the full column)
 
 ## Testing Patterns
 

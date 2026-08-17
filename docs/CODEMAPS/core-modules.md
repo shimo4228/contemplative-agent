@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-09 (LOC refresh) | Files scanned: 31 core modules | Token estimate: ~4161 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (added constitution_shadow.py row, ADR-0092 — pre-existing module missing from this table) | Files scanned: 31 core modules | Token estimate: ~4161 -->
 # Core Modules Codemap
 
 Platform-independent foundation (no Moltbook dependencies). All imports flow: adapters → core.
@@ -25,6 +25,7 @@ Platform-independent foundation (no Moltbook dependencies). All imports flow: ad
 | `snapshot.py` | 240 | `write_snapshot()` + `collect_thresholds()` — pivot snapshots (ADR-0020) |
 | `scheduler.py` | 213 | Rate limit state, `has_read_budget`/`has_write_budget`, persistence |
 | `constitution.py` | 151 | `amend_constitution() → AmendmentResult`. ADR-0033 layer-separation framing. ADR-0050 lineage fields. |
+| `constitution_shadow.py` | 278 | ADR-0092 read-only instrument: `synthesize_shadow_constitution()` runs the amendment's retrieval path but synthesizes a constitution WITHOUT injecting the live one — divergence (sha256 + embedding cosine) is the reading. Writes only `logs/constitution-shadow.jsonl`; no approval gate, never feeds the amend-constitution write path. |
 | `distill.py` | 931 | `distill()` (per-episode grounded distill: activity-only scope via `episode_render._is_rich_episode`, one LLM call per episode, no noise gate; ADR-0060, importance-scoring step retired ADR-0056); `_postgate()` durability postgate (ADR-0084); `_is_valid_pattern` validity gate (length floor + extraction-failure meta-statement phrase filter, ADR-0072); `distill_identity()` (single-stage, self_reflection view, whole-file write, ADR-0030). ADR-0050 lineage fields on all result types. Re-exports `render_episode` / `summarize_record` from `episode_render.py` (public names; ADR-0079 Phase 3b). |
 | `pattern_dedup.py` | 177 | Embedding-cosine dedup decisions for distilled patterns (add / update / skip / skip-new against live pool + current batch; ADR-0019/0021/0056). Extracted from distill.py (ADR-0079 Phase 3b); does not import distill. |
 | `episode_render.py` | 181 | Episode→prompt-text projection for distillation (`render_episode`, `summarize_record`, rich-episode scope, source-type derivation). Extracted from distill.py (ADR-0079 Phase 3b); does not import distill. |

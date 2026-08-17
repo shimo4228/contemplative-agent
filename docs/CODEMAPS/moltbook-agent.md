@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-09 (added testing/ + evals/ layers, LOC refresh) | Files scanned: 75 non-__init__ modules (67 src/ + 8 evals/) | Token estimate: ~6159 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (added constitution_shadow.py, publish.py — both pre-existing modules missing from this graph; LOC refresh) | Files scanned: 79 non-__init__ modules (71 src/ + 8 evals/) | Token estimate: ~6159 -->
 # Moltbook Agent Codemap
 
 Bird's-eye view of the entire codebase. For deep dives, see
@@ -46,6 +46,7 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
  |    skill_selection.py (1058L)   -- ADR-0076 shadow pass-1 skill-selection instrument + ADR-0081 two-pass injection enforcement
  |    rules_distill.py (416L)     -- Practice/Rationale B-layer rules synthesis (ADR-0048)
  |    constitution.py (151L)      -- constitutional amendment; ADR-0033 framing + ADR-0050 lineage
+ |    constitution_shadow.py (278L) -- ADR-0092 read-only shadow instrument: patterns-only synthesis (no live constitution injected), divergence cosine/sha256 -> logs/constitution-shadow.jsonl
  |    stocktake.py (718L)         -- skill/rule audit: LLM grouping on frontmatter summaries (ADR-0046 + 2026-08-15 amendment), merge/quality, singleton clean (ADR-0048), usage/description audit
  |    report.py (321L)            -- activity report generation (JSONL → Markdown)
  |    metrics.py (189L)           -- session metrics aggregation
@@ -62,6 +63,7 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
  |    feed_manager.py (544L)      -- feed fetch, scoring, engagement, ID dedup, promo + author rate limit
  |    reply_handler.py (489L)     -- notification reply processing; pre-action internal_note (ADR-0045)
  |    post_pipeline.py (481L)     -- feed-seeder → NoveltyGate → test-content + body-hash gates → post
+ |    publish.py (125L)           -- shared outward-write policy: 429->rate-limited guard, create-response verification handshake, published-body logging
  |    client.py (967L)            -- HTTP client (auth, domain lock, retry/429-backoff)
  |    auth.py (106L)              -- credential management, register
  |    verification.py (649L)      -- math solver chain (code_parse → guarded LLM → abstain) + challenge audit log

@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (task-ledger machinery retired — stage 6c ledgerwatch, packet §10 and scripts/tasks.py removed, ADR-0095; control characters neutralised at the packet's _cell floor; weekly-analysis.sh's two sessions bounded, permission gate widened to the whole chain; run-log path recorded by the shell instead of rebuilt in the packet builder; the feed-engagement loop and the post cycle join the reply loops in reading the circuit breaker, T-FEED-PACING) | Files scanned: 87 (79 src/ + 8 evals/) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (task-ledger machinery retired — stage 6c ledgerwatch, packet §10 and scripts/tasks.py removed, ADR-0095; control characters neutralised at the packet's _cell floor; weekly-analysis.sh's two sessions bounded, permission gate widened to the whole chain; run-log path recorded by the shell instead of rebuilt in the packet builder; the feed-engagement loop and the post cycle join the reply loops in reading the circuit breaker, T-FEED-PACING) | Files scanned: 79 (71 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -21,8 +21,8 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
       _io  config  domain  prompts  llm(+LLMBackend)  embeddings
       episode_embeddings  episode_log  knowledge_store  memory  memory_repos
       views  snapshot  scheduler  distill  pattern_dedup  episode_render
-      insight  insight_novelty  skill_selection  constitution  rules_distill
-      stocktake  report  metrics  view_metrics  clustering  text_utils
+      insight  insight_novelty  skill_selection  constitution  constitution_shadow
+      rules_distill  stocktake  report  metrics  view_metrics  clustering  text_utils
       thresholds  artifact_extraction  run_context
     adapters/moltbook/
       agent  session_context  feed_manager  reply_handler  post_pipeline
@@ -144,12 +144,20 @@ composed before that value exists, and there is no oracle. `nonce_source` is
 injectable via `configure_untrusted_guard()` for deterministic tests and for
 offline replay of a recorded frame. The externalized template
 (`config/prompts/untrusted_wrapper.md`, ADR-0054) is validated on its
-**rendered output**, not its placeholders: the frame must actually bind the
-nonce into both delimiters, or the hardcoded frame is re-asserted. Checking
-that `{nonce}` merely appears in the template was the wrong proxy — a frame
-keeping the defense sentence and `{body}` while parking `{nonce}` in a
-decorative line passes every placeholder check and emits constant delimiters
-(security review 2026-08-16).
+**rendered output**, not its placeholders (`_frame_is_sound`): the frame must
+actually bind the nonce into both delimiters AND still carry the body, or the
+hardcoded frame is re-asserted. Checking that `{nonce}` merely appears in the
+template was the wrong proxy — a frame keeping the defense sentence and
+`{body}` while parking `{nonce}` in a decorative line passes every
+placeholder check and emits constant delimiters (security review
+2026-08-16). The body check is a same-day follow-up fix: the nonce rewrite
+above briefly dropped it, so a frame with sound nonce delimiters but no
+`{body}` rendered cleanly (`str.format` ignores unused kwargs), deleted the
+peer's post from all 20+ call sites, and let the ADR-0042 completeness
+marker assert `is complete (N chars)` over the resulting hole — the exact
+inversion that marker exists to prevent (T-UNTRUSTED-ESCAPE, `728f6d6`). An
+empty body is a legitimate rendered state (`llm_functions._reply_post_block`)
+and passes this check trivially.
 
 Token removal (`strip_injection_tokens`, shared with
 `constitution.render_constitutional_patterns` and
