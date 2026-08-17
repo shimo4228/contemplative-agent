@@ -73,10 +73,18 @@ def extract_notification_fields(notif: dict) -> dict:
                 or notif.get("relatedPostId")
                 or notif.get("target_id", "")
             ),
+            # The trailing `or ""` is what makes this field a ``str``, not the
+            # `.get(k, "")` default: that default only fires on a *missing*
+            # key, so `original_content: null` — a shape the platform does
+            # send — walked the whole chain and yielded None. Readers downstream
+            # take this as text (the has-a-post test calls ``.strip()``), so the
+            # coercion belongs here at the parse boundary rather than in every
+            # reader (T-REPLY-BLANKPOST).
             "post_content": (
                 notif.get("post_content")
                 or notif.get("postContent")
-                or notif.get("original_content", "")
+                or notif.get("original_content")
+                or ""
             ),
         }
     )
@@ -277,10 +285,22 @@ class ReplyHandler:
         because the notification payload carries no comment id — see the
         courtesy-upvote guard below.
         """
-        # Promotional gate. _handle_post_comments passes original_post=""
-        # (no body fetched in that path) — guard against running the regex
-        # on an empty string just to return False.
-        if is_promotional(their_content) or (original_post and is_promotional(original_post)):
+        # Where whitespace becomes absence for everything this function decides
+        # (T-REPLY-BLANKPOST). _handle_post_comments passes original_post=""
+        # (no body fetched there), and a body of " \n " is empty in every sense
+        # that matters here, so both read as "no post". Only the decision is
+        # normalized: the raw value is what reaches generate_internal_note,
+        # generate_reply and the episode record, since a real post must not have
+        # its own whitespace edited on the way to the model. generate_reply
+        # applies the same .strip() test to its `Original post:` section, so the
+        # note and the reply never disagree about whether a post exists. The
+        # raw body persists into the episode record, so the distill render
+        # downstream still gates on its own truthiness test — out of scope here.
+        has_post = bool(original_post.strip())
+
+        # Promotional gate — guard against running the regex on a body that is
+        # not there just to return False.
+        if is_promotional(their_content) or (has_post and is_promotional(original_post)):
             logger.info("Skipped promotional reply target: %s", post_id[:12])
             return
 
@@ -288,7 +308,7 @@ class ReplyHandler:
 
         # Pre-action reflection (ADR-0045): note what we noticed in their
         # comment (and the post it sits on) before composing a reply.
-        note_context = f"{original_post}\n\n{their_content}" if original_post else their_content
+        note_context = f"{original_post}\n\n{their_content}" if has_post else their_content
         note = generate_internal_note(note_context)
 
         generated = generate_reply(

@@ -349,8 +349,11 @@ def _reply_post_block(wrapped_post: str) -> str:
     testimony that a labeled part of the conversation is verifiably blank. The
     model then faithfully described that blank in reply to a real comment
     (weekly-2026-07-24 F1.1). So the section is omitted whole, on the same
-    ``if original_post`` test ``_process_reply`` already applies to the
-    internal-note context one function up.
+    ``original_post.strip()`` test ``_process_reply`` applies to the
+    internal-note context one function up. A whitespace-only body reaches
+    ``""`` by that test too: its marker reads ``complete (1 chars)`` rather
+    than ``(0 chars)`` — true, not a false assertion — but it is the same
+    labeled blank to the model (T-REPLY-BLANKPOST).
 
     The section text is externalized (ADR-0054). A missing or hand-edited
     template re-asserts the hardcoded default with a WARNING rather than
@@ -420,7 +423,8 @@ def generate_reply(
 
     ``original_post`` is ``""`` on the comment-scan path, which fetches no post
     body; the post section is then omitted rather than rendered empty (see
-    :func:`_reply_post_block`).
+    :func:`_reply_post_block`). A body that is only whitespace takes that same
+    path — the section is present exactly when ``original_post.strip()`` is.
 
     Returns a :class:`GenerationOutput` (``.text`` reply, ``.thinking`` trace
     when ``think=True``); see :func:`generate_comment`.
@@ -431,8 +435,17 @@ def generate_reply(
     # neither branch truncates real content — they are NUM_CTX safety valves
     # only (worst-case ASCII ≈16.7K tok via _estimate_tokens /3, well under the
     # 32768 budget; a pathological all-CJK max is skipped by generate()'s guard).
+    # ``.strip()`` decides *whether* a post exists; the raw value is what gets
+    # wrapped. A whitespace-only body is semantically empty, so it takes the
+    # no-post path rather than rendering `is complete (1 chars)` under an
+    # `Original post:` header (T-REPLY-BLANKPOST). Stripping the value instead
+    # would move bytes in the replies that carry a real post — wrap_untrusted_content
+    # embeds the body verbatim and counts raw_len. ``_process_reply`` normalizes
+    # its own has-a-post decisions the same way, so both sides agree.
     wrapped_post = (
-        wrap_untrusted_content(original_post, max_input=MAX_POST_LENGTH) if original_post else ""
+        wrap_untrusted_content(original_post, max_input=MAX_POST_LENGTH)
+        if original_post.strip()
+        else ""
     )
     wrapped_comment = wrap_untrusted_content(their_comment, max_input=MAX_COMMENT_LENGTH)
     # ADR-0076 shadow observation / ADR-0081 enforcement (see generate_comment).

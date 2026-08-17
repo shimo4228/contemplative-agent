@@ -2375,6 +2375,123 @@ class TestRunReplyCycle:
 
         client.post_comment.assert_not_called()
 
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note",
+        return_value="noticed something",
+    )
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="My reply"),
+    )
+    def test_whitespace_only_post_gives_note_the_comment_alone(
+        self, mock_reply, mock_note, tmp_path
+    ):
+        # T-REPLY-BLANKPOST: the note context and the reply prompt must agree on
+        # whether a post exists. A whitespace-only body used to be truthy here,
+        # so the note received " \n \n\nthanks for sharing" — a labeled blank
+        # glued to a real comment — while generate_reply rendered the matching
+        # blank `Original post:` section. Both now read it as "no post".
+        agent, client, scheduler = _make_agent(tmp_path)
+        client.get_notifications.return_value = [
+            {
+                "type": "comment",
+                "id": "n1",
+                "post_id": "p1",
+                "content": "thanks for sharing",
+                "post_content": " \n ",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            }
+        ]
+        client.get_post_comments.return_value = []
+
+        agent._reply_handler.run_cycle(client, scheduler, time.time() + 3600)
+
+        mock_note.assert_called_once_with("thanks for sharing")
+
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note",
+        return_value="noticed something",
+    )
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="My reply"),
+    )
+    def test_real_post_still_joins_the_note_context(self, mock_reply, mock_note, tmp_path):
+        # The other column: a post that is present must still be prefixed, and
+        # verbatim — the has-a-post decision is normalized, the value is not.
+        agent, client, scheduler = _make_agent(tmp_path)
+        client.get_notifications.return_value = [
+            {
+                "type": "comment",
+                "id": "n1",
+                "post_id": "p1",
+                "content": "thanks for sharing",
+                "post_content": " Original content ",
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            }
+        ]
+        client.get_post_comments.return_value = []
+
+        agent._reply_handler.run_cycle(client, scheduler, time.time() + 3600)
+
+        mock_note.assert_called_once_with(" Original content \n\nthanks for sharing")
+
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_internal_note",
+        return_value="noticed something",
+    )
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="My reply"),
+    )
+    def test_null_post_content_does_not_abort_the_batch(self, mock_reply, mock_note, tmp_path):
+        # Fault column (ADR-0077) for the parse boundary: the platform sends
+        # `original_content: null`, and dict.get's default only fires on a
+        # *missing* key, so the fallback chain used to hand None downstream.
+        # Truthiness absorbed that; a has-a-post test that calls .strip() does
+        # not. The blast radius is the reason this is a fault row and not a
+        # nicety — the AttributeError escapes _process_reply into the cycle
+        # step, so one malformed notification would drop every later reply in
+        # the batch. The second notification here is the assertion.
+        agent, client, scheduler = _make_agent(tmp_path)
+        client.get_notifications.return_value = [
+            {
+                "type": "comment",
+                "id": "n1",
+                "post_id": "p1",
+                "content": "thanks for sharing",
+                "original_content": None,
+                "agent_id": "a1",
+                "agent_name": "Alice",
+            },
+            {
+                "type": "comment",
+                "id": "n2",
+                "post_id": "p2",
+                "content": "and another",
+                "post_content": "Original content",
+                "agent_id": "a2",
+                "agent_name": "Bob",
+            },
+        ]
+        client.get_post_comments.return_value = []
+
+        agent._reply_handler.run_cycle(client, scheduler, time.time() + 3600)
+
+        # The null body reads as "no post", and the batch survives it.
+        mock_note.assert_any_call("thanks for sharing")
+        assert client.post_comment.call_count == 2
+
+    def test_null_post_content_extracts_as_empty_string(self):
+        # The coercion is at the parse boundary, so it is assertable without
+        # driving a cycle: the field's declared type is str.
+        fields = extract_notification_fields(
+            {"type": "comment", "id": "n1", "post_id": "p1", "original_content": None}
+        )
+        assert fields["post_content"] == ""
+
 
 class TestCheckOwnPostComments:
     """Tests for the fallback comment-polling mechanism."""
