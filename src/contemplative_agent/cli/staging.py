@@ -163,6 +163,13 @@ def _refuse_if_pending(command: str) -> bool:
     command handler, so "where staging is written" and "where the guard
     pays off" are different places (T-GUARD).
 
+    Equally deliberate in the other direction: the call stays per-handler and
+    is not hoisted up into ``main()``'s dispatch. Tests and scripts reach the
+    handlers directly without passing through ``main()``, so a hoisted guard
+    would leave that whole entry path unguarded. The per-handler contract is
+    pinned by ``tests/test_staging_pending_guard.py``'s
+    ``TestEveryStageProducerIsGuarded`` (T-GUARD).
+
     Only meaningful under ``--stage``; callers gate on the flag so the
     interactive path — which never writes to the staging dir — is unaffected.
     """

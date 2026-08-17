@@ -332,6 +332,11 @@ def _stage_producer_specs():
 
 
 class TestEveryStageProducerIsGuarded:
+    """Pin the guard's per-handler placement, which is intentional rather than
+    a missed refactor: these tests call the handlers directly, as scripts do,
+    so hoisting ``_refuse_if_pending`` into ``main()``'s dispatch would leave
+    that entry path unguarded (T-GUARD)."""
+
     def test_registry_lists_the_expected_producers(self):
         """Pin the set, so a new --stage command is a visible decision rather
         than a silent addition that the loop below happens to cover."""
