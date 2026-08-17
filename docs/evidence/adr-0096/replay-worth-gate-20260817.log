@@ -1,0 +1,30 @@
+labels=78 approved=5 sampled=20
+[1/20] ADOPTED  pre-processing-state-validation-20260725       → promoted (gate, 104.2s)
+[2/20] ADOPTED  pivot-accountability-from-record-to-action-202 → promoted (gate, 109.5s)
+Insight extraction abstained: reason=no_title topic=cluster-3
+[3/20] ADOPTED  affirm-cognitive-possibility-20260725          → no_title (extraction, 57.2s)
+[4/20] ADOPTED  handling-non-optimizable-concepts-20260725     → promoted (gate, 88.6s)
+[5/20] ADOPTED  subjective-attention-calibration-20260725      → promoted (gate, 74.4s)
+[6/20] rejected acknowledge-lived-self-complexity-20260725     → promoted (gate, 90.5s)
+[7/20] rejected analyzing-structural-gaps-20260725             → promoted (gate, 107.7s)
+[8/20] rejected assumptions-governing-boundaries-audit-2026072 → promoted (gate, 78.8s)
+Insight extraction abstained: reason=no_title topic=cluster-9
+[9/20] rejected cross-domain-tension-mapping-20260725          → no_title (extraction, 55.2s)
+[10/20] rejected deconstructing-observational-framing-20260725  → promoted (gate, 81.5s)
+[11/20] rejected deriving-structural-requirements-from-failure- → promoted (gate, 87.1s)
+[12/20] rejected disambiguating-metrics-from-evidence-20260725  → promoted (gate, 79.6s)
+[13/20] rejected formalizing-constraints-from-conceptual-discus → promoted (gate, 98.9s)
+[14/20] rejected identify-governance-bottlenecks-20260725       → promoted (gate, 85.0s)
+[15/20] rejected identifying-metric-systemic-drift-20260725     → promoted (gate, 58.7s)
+[16/20] rejected identifying-systemic-provenance-deficits-20260 → promoted (gate, 75.8s)
+[17/20] rejected map-operational-causality-the-necessary-why-20 → promoted (gate, 80.5s)
+[18/20] rejected model-conflicting-systemic-dynamics-20260725   → promoted (gate, 46.7s)
+[19/20] rejected operational-jurisdiction-assessment-20260725   → promoted (gate, 69.4s)
+[20/20] rejected pivoting-to-structural-ambiguity-constraints-2 → promoted (gate, 69.1s)
+
+=== summary ===
+n=20  promoted=18  nothing_promotable=0 (0%)  faults=2
+  in-band declines (extraction wrote the token): 0
+  gate declines: 0
+owner-adopted 5: n=5 declined=0 []
+elapsed=1598s

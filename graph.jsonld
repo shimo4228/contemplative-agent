@@ -2545,6 +2545,18 @@
       "description": "Deletes the task-ledger machinery ADR-0094 built thirty hours earlier — the Markdown-table projection and its two-dialect re-parser (scripts/tasks.py), the weekly stage 6c ledger condition scan (ADR-0093's second intake), the migration, packet §10, and 2,400 lines of tests — keeping only the store convention (.notes/tasks/T-XXX.md with a state: frontmatter and free prose) and the global claims journal, to which a `ready` listing is added (~70 lines). Trigger: the author asked why bug-fixing never finished; claims.jsonl lineage showed 12 review-spawned tasks reproducing at 1.3 per closure, 7 of them defects in the ledger tool itself, all 7 in the projection layer, none in the agent. The 4 requirements (per-repo state, ready listing, cross-session claims, weekly condition polling) were met by a directory listing plus claims.py; requirement 4 protected three real watch annotations. Names three shape errors — a projection kept for weak reasons, a threat model (symlink / control chars / traversal) applied to a file only the author's session writes, and instruments attached before there was a user — and the deeper cause: scratch code plus an unattended review chain with no step asking whether the tool should exist or how large it should be. Adds a closure rule (out-of-diff findings filed only at HIGH+, else one commit-message line) that ends ADR-0094 D6's four-week measurement early, and returns condition polling to the Saturday gate. Alternatives (keep store layer only, globalise tasks.py, adopt Backlog.md/HZL/tkr/Issues, fix stage 6c input, add a gate instead of deleting) considered; external tools stay the first thing to evaluate if requirements grow."
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0096-insight-promotion-worth-abstain.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0096: Promotion-Worth Abstain at Insight Time — Judge the Produced Skill, List the Surprise",
+      "identifier": "ADR-0096",
+      "status": "proposed",
+      "datePublished": "2026-08-17",
+      "description": "Completes ADR-0053's promotion-worth judgment, which had no channel for \"no\": insight_extraction.md opened with a production order and _extract_skill dropped a cluster only on an LLM failure or a missing title, so on 2026-07-25 all 84 gate-surviving clusters that produced a titled document became candidates and none were dropped on worth (owner then adopted 5 of 78). Adds (a) an in-band NOTHING-PROMOTABLE abstain to the extraction prompt without reframing its first line, and (b) a post-extraction worth gate (config/prompts/insight_worth.md, insight._worth_gate) that judges the PRODUCED skill — ADR-0084 measured that the same question asked before production answers yes 40/40. A judged abstain becomes the reason code nothing_promotable, tallied apart from four fault reasons, and the split decides control flow: a fault-bearing empty run preserves the incremental window, an all-verdict empty run advances the marker. On by default (MOLTBOOK_INSIGHT_WORTHGATE=0 opts out); fails open with reason=worthgate_*. Separately, core/insight_surprise.py enumerates each candidate's distance from the last 1000 distilled patterns (s_mean / s_nn, LLM-free) into the staging sidecar and the run log as MATERIAL for the human gate — no threshold, no reordering, and deliberately no z-normalization: the 2026-08-17 calibration found a raw max-cosine spread of 0.108 at p50 0.806 that z-scoring inflates to ~5 sd, manufacturing discrimination the data does not contain."
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",

@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (added constitution_shadow.py, publish.py — both pre-existing modules missing from this graph; LOC refresh) | Files scanned: 79 non-__init__ modules (71 src/ + 8 evals/) | Token estimate: ~6159 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-17 (added insight_surprise.py, ADR-0096) | Files scanned: 80 non-__init__ modules (72 src/ + 8 evals/) | Token estimate: ~6159 -->
 # Moltbook Agent Codemap
 
 Bird's-eye view of the entire codebase. For deep dives, see
@@ -41,8 +41,9 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
  |    distill.py (931L)           -- per-episode grounded distill orchestration (ADR-0060) + identity distill (single-stage, ADR-0050) + durability postgate (ADR-0084); rendering/dedup extracted per ADR-0079
  |    pattern_dedup.py (177L)     -- embedding-cosine add/update/skip dedup decisions, extracted from distill.py (ADR-0079)
  |    episode_render.py (181L)    -- episode→prompt-text projection, extracted from distill.py (ADR-0079)
- |    insight.py (609L)           -- global clustering → behavior skill extraction (ADR-0050); novelty gate extracted per ADR-0079
+ |    insight.py (983L)           -- global clustering → behavior skill extraction (ADR-0050); novelty gate extracted per ADR-0079; ADR-0096 promotion-worth abstain + worth gate
  |    insight_novelty.py (434L)   -- ADR-0074 LLM novelty gate, extracted from insight.py (ADR-0079); re-exports text_utils.skill_theme
+ |    insight_surprise.py (267L)  -- ADR-0096 read-only surprise reading over the recent distillation window; enumerated for the human gate, never applied
  |    skill_selection.py (1058L)   -- ADR-0076 shadow pass-1 skill-selection instrument + ADR-0081 two-pass injection enforcement
  |    rules_distill.py (416L)     -- Practice/Rationale B-layer rules synthesis (ADR-0048)
  |    constitution.py (151L)      -- constitutional amendment; ADR-0033 framing + ADR-0050 lineage

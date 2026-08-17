@@ -32,6 +32,7 @@ class _LazyPrompts:
         "SUBMOLT_SELECTION_PROMPT": "submolt_selection",
         "IDENTITY_DISTILL_PROMPT": "identity_distill",
         "INSIGHT_EXTRACTION_PROMPT": "insight_extraction",
+        "INSIGHT_WORTH_PROMPT": "insight_worth",
         "INSIGHT_NOVELTY_PROMPT": "insight_novelty",
         "INSIGHT_NOVELTY_SYSTEM_PROMPT": "insight_novelty_system",
         "MEDITATION_INTERPRET_PROMPT": "meditation_interpret",

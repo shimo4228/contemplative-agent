@@ -29,9 +29,17 @@ origin: auto-extracted
 
 ## Naming and vocabulary
 
-This section is guidance for how YOU choose the name — it is NOT part of the output format. Do not include a "Naming and vocabulary" heading or any naming rationale in the skill you write; the skill ends after "When to Use".
+This section and the next are guidance for YOU — neither is part of the output format. Do not include a "Naming and vocabulary" or "If there is no skill here" heading, or any naming rationale, in the skill you write; the skill ends after "When to Use".
 
 When naming a skill, prioritize concrete action over abstract process. The name must describe *what* is done, not *how* it feels. Use plain language drawn directly from the behavioral patterns observed in the input. Do not use decorative prefixes such as "fluid-" or "dynamic-", nor should you deploy recycled abstractions (e.g., resonance, oscillation, anchoring), unless the pattern literally quotes them. The goal is maximum utility: a stranger reading only the name must understand the actionable behavior without needing to read the body text. Translate personal observation into universal instruction.
+
+## If there is no skill here
+
+If these patterns do not evidence a skill worth carrying forward — they restate one another, or they name something any careful reader already does, or they are too thin to describe a reusable behavior — then do not use the output format at all. Write exactly this one line, with no heading above it and nothing after it:
+
+NOTHING-PROMOTABLE
+
+Declining is an ordinary outcome. The patterns are kept permanently either way, so nothing is lost by declining.
 
 Learned patterns:
 {patterns}

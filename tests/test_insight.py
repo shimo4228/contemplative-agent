@@ -8,7 +8,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from contemplative_agent.core import insight_novelty
+from contemplative_agent.core import insight, insight_novelty
 from contemplative_agent.core.artifact_extraction import (
     canonicalize_frontmatter_name,
     resolve_artifact_path,
@@ -267,13 +267,15 @@ class TestExtractSkill:
 
     @patch("contemplative_agent.core.llm.generate_full")
     def test_llm_failure(self, mock_generate) -> None:
+        # ADR-0096: a reason code replaces the bare None, so the caller can
+        # tell a broken call from a judged decline.
         mock_generate.return_value = None
-        assert _extract_skill(["p1"]) is None
+        assert _extract_skill(["p1"]) == insight.ABSTAIN_LLM_NONE
 
     @patch("contemplative_agent.core.llm.generate_full")
-    def test_no_title_returns_none(self, mock_generate) -> None:
+    def test_no_title_returns_the_fault_reason(self, mock_generate) -> None:
         mock_generate.return_value = GenerationOutput(text="some text without a title line")
-        assert _extract_skill(["p1"]) is None
+        assert _extract_skill(["p1"]) == insight.ABSTAIN_NO_TITLE
 
     @patch("contemplative_agent.core.llm.generate_full")
     def test_passes_topic_to_prompt(self, mock_generate) -> None:
@@ -695,7 +697,7 @@ class TestTruncationPolicyH1:
 
     @patch("contemplative_agent.core.llm.generate_full", return_value=None)
     def test_extract_skill_drops_truncated(self, mock_generate) -> None:
-        assert _extract_skill(["p1"]) is None
+        assert _extract_skill(["p1"]) == insight.ABSTAIN_LLM_NONE
         assert mock_generate.call_args.kwargs["drop_truncated"] is True
 
 

@@ -288,7 +288,7 @@ Every LLM interaction the agent makes is defined in a Markdown file. After `init
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-39 loaded prompt templates plus 7 script-read prompt documents (`principles.md`, `weekly-analysis.md`, and `weekly-analysis-ja.md` — the Japanese translation pass — are read by `scripts/weekly-analysis.sh`; `fix-implementation.md`, `fix-review.md`, `insight-recommendation.md`, and `pipeline-improvement.md` are read by `scripts/weekly-pipeline.sh` (ADR-0085) — none by the loader). The main ones:
+40 loaded prompt templates plus 7 script-read prompt documents (`principles.md`, `weekly-analysis.md`, and `weekly-analysis-ja.md` — the Japanese translation pass — are read by `scripts/weekly-analysis.sh`; `fix-implementation.md`, `fix-review.md`, `insight-recommendation.md`, and `pipeline-improvement.md` are read by `scripts/weekly-pipeline.sh` (ADR-0085) — none by the loader). The main ones:
 
 | File | Drives |
 |------|--------|
@@ -296,6 +296,7 @@ Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 | `distill_postgate.md` | Per-pattern durability verdict on what `distill_episode.md` produced — keeps the grounded patterns, drops the ones written to fill the space. On by default (`MOLTBOOK_DISTILL_POSTGATE=0` opts out); fails open (keeps all) with a `reason=postgate_*` line |
 | `verification_solve_extract_system.md` | Create-time math challenge solving: guarded expression extraction (the free-reasoning fallback was retired by ADR-0062's 9th amendment — past this path the solver abstains) |
 | `insight_extraction.md` | Skill extraction from uncategorized patterns (naming/vocabulary discipline, ADR-0074) |
+| `insight_worth.md` | Promotion-worth verdict on the skill `insight_extraction.md` produced — ADR-0053 puts this judgment at insight time, and until ADR-0096 there was no channel for "no". On by default (`MOLTBOOK_INSIGHT_WORTHGATE=0` opts out); fails open (promotes) with a `reason=worthgate_*` line |
 | `insight_novelty.md` / `insight_novelty_system.md` | Novelty gate: one grouping call judging which candidate clusters an existing or previously staged skill theme already covers (ADR-0074; fails open) |
 | `rules_distill.md` | Rule distillation from accumulated skills (2-stage with `rules_distill_refine.md`) |
 | `identity_distill.md` | Identity update from knowledge (1-stage, ADR-0030) |

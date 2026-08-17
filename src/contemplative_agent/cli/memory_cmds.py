@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 # ADR-0075: one record per novelty-gate judge run (prompt + raw output as
 # base64+sha256) so a covered→drop decision is replayable offline.
 INSIGHT_NOVELTY_AUDIT_PATH = config.MOLTBOOK_DATA_DIR / "logs" / "insight-novelty.jsonl"
+INSIGHT_WORTH_AUDIT_PATH = config.MOLTBOOK_DATA_DIR / "logs" / "insight-worth.jsonl"
 
 
 def _handle_distill(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -336,6 +337,7 @@ def _append_insight_ledger(skills: Sequence[SkillResult]) -> None:
 
 
 def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
+    from ..core import insight as insight_mod
     from ..core.insight import extract_insight, write_last_insight
     from ..core.memory import KnowledgeStore
 
@@ -355,6 +357,7 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         instrument_views=view_registry,
         staged_ledger_path=adopt.INSIGHT_STAGED_LEDGER_PATH,
         novelty_audit_path=INSIGHT_NOVELTY_AUDIT_PATH,
+        worth_audit_path=INSIGHT_WORTH_AUDIT_PATH,
     )
     if isinstance(result, str):
         print(result)
@@ -362,11 +365,16 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
     _write_reasoning(snapshot_path, [(s.filename, s.thinking) for s in result.skills])
 
     if not result.skills:
-        # Every cluster was already covered. The window WAS considered, so
+        # Every cluster was already covered, or every novel one was judged not
+        # worth promoting (ADR-0096). Either way the window WAS considered, so
         # the marker still advances (ADR-0074) — otherwise the incremental
-        # window would grow without bound across quiet weeks.
+        # window would grow without bound across quiet weeks. A fault-bearing
+        # run never reaches here: extract_insight returns an error string.
         write_last_insight(config.SKILLS_DIR)
-        print(f"\n--- Summary: 0 novel clusters ({result.skipped_known} already covered) ---")
+        print(
+            f"\n--- Summary: 0 candidates ({result.skipped_known} already covered, "
+            f"{result.abstained[insight_mod.ABSTAIN_NOTHING_PROMOTABLE]} not promotable) ---"
+        )
         return
 
     if getattr(args, "stage", False):
@@ -378,6 +386,7 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
                     s.target_path,
                     source_ids=list(s.pattern_ids),
                     epistemic_counts=dict(s.epistemic_counts),
+                    surprise=s.surprise.as_dict() if s.surprise else {},
                 )
                 for s in result.skills
             ],
@@ -405,7 +414,9 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
     write_last_insight(config.SKILLS_DIR)
     print(
         f"\n--- Summary: {written} written, {len(result.skills) - written} skipped, "
-        f"{result.dropped_count} dropped, {result.skipped_known} already covered ---"
+        f"{result.abstained[insight_mod.ABSTAIN_NOTHING_PROMOTABLE]} not promotable, "
+        f"{result.fault_count} dropped on a fault, "
+        f"{result.skipped_known} already covered ---"
     )
 
 

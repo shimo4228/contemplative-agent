@@ -350,7 +350,6 @@ class TestStagingHardeningCodexR20260709:
                     target_path=skills_dir / "x-20260709.md",
                 ),
             ),
-            dropped_count=0,
         )
         args = argparse.Namespace(stage=True, full=False)
         with (

@@ -101,6 +101,7 @@
 | [0093](0093-repo-plane-deterministic-intakes.ja.md) | repo 面の決定論 intake — docs 整合性と台帳条件 watch | partially-superseded-by 0095 | 2026-08-14 |
 | [0094](0094-agent-first-task-ledger.ja.md) | エージェント優先のタスク台帳 — store / journal / projection | superseded-by 0095 | 2026-08-15 |
 | [0095](0095-retire-task-ledger-machinery.ja.md) | タスク台帳機構の退役 — store と claims を残し、パースするものを全部落とす | accepted — supersedes 0094; partially-supersedes 0093 | 2026-08-16 |
+| [0096](0096-insight-promotion-worth-abstain.ja.md) | insight 時の promotion-worth abstain — 生成された skill を judge し、surprise は材料として列挙する | proposed | 2026-08-17 |
 
 ## ADR の種別
 

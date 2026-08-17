@@ -51,6 +51,13 @@ class StageItem:
     deliberately distinct from `sources` — `sources` has delete-on-adopt
     semantics, lineage is record-only and rides through meta.json into
     the adopt-time audit entry.
+
+    `surprise` is the ADR-0096 read-only reading for an insight candidate. It
+    rides the same sidecar because that sidecar is already where the reviewer
+    meets the item: `adopt-staged` prints it above the artifact at the human
+    gate (`cli/adopt.py::_adopt_one`), and `weekly-pipeline.sh` stage 5 `cat`s
+    every sidecar into the insight-review prompt. Nothing branches on it — it
+    is material, not a filter.
     """
 
     filename: str
@@ -61,6 +68,7 @@ class StageItem:
     command: str | None = None
     source_ids: list[str] = field(default_factory=list)
     epistemic_counts: dict[str, int] = field(default_factory=dict)
+    surprise: dict[str, float | int] = field(default_factory=dict)
 
 
 def _pending_staged_count() -> int:
@@ -271,6 +279,10 @@ def _stage_results_locked(items: list[StageItem], command: str) -> bool:
             meta["source_ids"] = list(item.source_ids)
         if item.epistemic_counts:
             meta["epistemic_counts"] = dict(item.epistemic_counts)
+        # ADR-0096: the surprise reading travels with the candidate to the
+        # human gate. Read-only — no consumer branches on it.
+        if item.surprise:
+            meta["surprise"] = dict(item.surprise)
         # Derive the sidecar from the collision-resolved name so the
         # .md ↔ .meta.json pairing adopt-staged relies on stays intact.
         meta_file = config.STAGED_DIR / f"{staged_file.name}.meta.json"

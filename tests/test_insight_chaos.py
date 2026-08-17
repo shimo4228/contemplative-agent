@@ -1,4 +1,4 @@
-"""Chaos fault-injection tests for the insight novelty gate (ADR-0077).
+"""Chaos fault-injection tests for the insight gates (ADR-0077).
 
 TDD contract: these tests state the DESIRED guarded behavior first — the
 token-bounded chunked novelty judge (grill 2026-07-18) must fail open per
@@ -13,6 +13,9 @@ Fault catalog rows exercised here:
 - F-NOV-3 truncated judge output (TRUNCATED + drop_truncated) → fail_open_llm
 - F-NOV-4 known-inventory budget overflow → fail_open_budget, no LLM call
 - F-NOV-5 fail-open flood → extraction cap defers beyond the configured N
+- F-WORTH-* the ADR-0096 promotion-worth gate (bottom of file) — every
+  unusable verdict promotes and names its reason; a broken judge is never
+  recorded as "nothing was worth promoting"
 
 Determinism: explicit fault schedules only; the chunk split is forced by a
 patched context window computed from the same token estimator the packer
@@ -22,7 +25,10 @@ uses (no magic numbers).
 from __future__ import annotations
 
 import json
+import logging
 from unittest.mock import patch
+
+import pytest
 
 from contemplative_agent.core import insight, insight_novelty
 from contemplative_agent.core.llm import (
@@ -31,7 +37,7 @@ from contemplative_agent.core.llm import (
     configure,
     reset_llm_config,
 )
-from tests.chaos import NONE, OK, SHAPE_VIOLATION, TRUNCATED, ChaosBackend
+from tests.chaos import EMPTY, NONE, OK, SHAPE_VIOLATION, TRUNCATED, ChaosBackend
 
 KNOWN = [("skill-a", "handles consensus friction")]
 
@@ -172,3 +178,164 @@ class TestOkPathStillWorksThroughBackend:
             reset_llm_config()
         assert result.novel == ()
         assert result.skipped_known == 1
+
+
+# ---------------------------------------------------------------------------
+# ADR-0096 promotion-worth gate — fault column
+# ---------------------------------------------------------------------------
+#
+# F-WORTH-1 gate backend hard failure (NONE)        → worthgate_llm_none, promote
+# F-WORTH-2 gate returns non-JSON (EMPTY)           → worthgate_parse, promote
+# F-WORTH-3 gate returns wrong shape (SHAPE_VIOLATION) → worthgate_shape, promote
+# F-WORTH-4 gate answer truncated (TRUNCATED)       → worthgate_llm_none, promote
+# F-WORTH-5 extraction declines in-band             → judged verdict, not a fault
+#
+# Steady state is asserted through observable channels only: the reason token
+# in the log line and the per-reason tally on InsightResult.
+
+
+_CHAOS_SKILL = """---
+name: chaos-candidate
+description: "a candidate produced under fault injection"
+origin: auto-extracted
+---
+
+# Chaos Candidate
+
+**Context:** under fault injection
+
+## Problem
+The gate may fail.
+
+## Solution
+Fail open and say why.
+
+## When to Use
+Whenever the judge is unusable.
+"""
+
+
+class WorthChaosBackend(ChaosBackend):
+    """Extraction on even calls, worth-gate verdict on odd calls.
+
+    The schedule therefore addresses the gate at odd indices, which is where
+    every fault in this column belongs — a broken judge must never look like
+    a judged decline.
+    """
+
+    def _ok_text(self, idx: int) -> str:
+        return _CHAOS_SKILL if idx % 2 == 0 else json.dumps({"promote": False})
+
+
+def _one_cluster_store(tmp_path):
+    from contemplative_agent.core.memory import KnowledgeStore
+
+    ks = KnowledgeStore(path=tmp_path / "knowledge.json")
+    for i in range(4):
+        ks.add_learned_pattern(
+            f"chaos pattern {i} long enough to clear the validity gate",
+            embedding=[1.0, 0.0, 0.0, 0.0],
+        )
+    ks.save()
+    return ks
+
+
+def _run_insight(schedule, tmp_path):
+    reset_llm_config()
+    configure(backend=WorthChaosBackend(schedule=list(schedule)))
+    try:
+        return insight.extract_insight(
+            knowledge_store=_one_cluster_store(tmp_path), skills_dir=tmp_path, full=True
+        )
+    finally:
+        reset_llm_config()
+
+
+class TestWorthGateFailsOpen:
+    @pytest.fixture(autouse=True)
+    def _gate_on(self, monkeypatch) -> None:
+        """Undo conftest's suite-wide opt-out — this column drives the gate."""
+        monkeypatch.delenv(insight._WORTHGATE_ENV, raising=False)
+
+    @pytest.mark.parametrize(
+        ("gate_fault", "reason"),
+        [
+            (NONE, "worthgate_llm_none"),
+            # A blank verdict is absorbed one layer down (llm returns None on
+            # an empty response), so it lands on llm_none rather than parse.
+            (EMPTY, "worthgate_llm_none"),
+            (SHAPE_VIOLATION, "worthgate_shape"),
+            (TRUNCATED, "worthgate_llm_none"),
+        ],
+    )
+    def test_unusable_verdict_promotes_and_names_the_reason(
+        self, gate_fault, reason, tmp_path, caplog
+    ) -> None:
+        with caplog.at_level(logging.WARNING):
+            result = _run_insight([OK, gate_fault], tmp_path)
+        assert not isinstance(result, str)
+        assert len(result.skills) == 1  # degraded to pre-ADR-0096 behavior
+        assert f"reason={reason}" in caplog.text
+        assert result.abstained[insight.ABSTAIN_NOTHING_PROMOTABLE] == 0
+
+    def test_a_working_gate_declining_is_a_verdict_not_a_fault(self, tmp_path) -> None:
+        result = _run_insight([OK, OK], tmp_path)
+        assert not isinstance(result, str)
+        assert result.skills == ()
+        assert result.abstained[insight.ABSTAIN_NOTHING_PROMOTABLE] == 1
+        assert (
+            sum(c for r, c in result.abstained.items() if r in insight.FAULT_ABSTAIN_REASONS) == 0
+        )
+
+    def test_extraction_fault_never_reads_as_a_decline(self, tmp_path) -> None:
+        """A dead backend must not be recorded as "nothing was worth
+        promoting" — that is the whole point of the fault/verdict split."""
+        result = _run_insight([NONE], tmp_path)
+        assert isinstance(result, str)  # window preserved, marker not advanced
+
+
+class TestWorthGateDisabledPath:
+    def test_opt_out_makes_no_gate_call_at_all(self, tmp_path, monkeypatch) -> None:
+        monkeypatch.setenv(insight._WORTHGATE_ENV, "0")
+        backend = WorthChaosBackend(schedule=[OK])
+        reset_llm_config()
+        configure(backend=backend)
+        try:
+            result = insight.extract_insight(
+                knowledge_store=_one_cluster_store(tmp_path), skills_dir=tmp_path, full=True
+            )
+        finally:
+            reset_llm_config()
+        assert not isinstance(result, str)
+        assert len(result.skills) == 1
+        assert len(backend.calls) == 1  # extraction only
+
+    def test_prose_verdict_is_a_parse_fault_and_still_promotes(
+        self, tmp_path, caplog, monkeypatch
+    ) -> None:
+        """F-WORTH-2: a judge that answers in prose (the `format=` constraint
+        ignored) must fail open with `worthgate_parse`, not be read as a no."""
+        monkeypatch.delenv(insight._WORTHGATE_ENV, raising=False)
+
+        class ProseGateBackend(WorthChaosBackend):
+            def generate(
+                self, prompt, system, num_predict, format, *, temperature=1.0, think=False
+            ):
+                idx = len(self.calls)
+                self.calls.append({"prompt": prompt})
+                if idx % 2 == 0:
+                    return BackendResult(text=_CHAOS_SKILL)
+                return BackendResult(text="I think this one is probably not worth promoting.")
+
+        reset_llm_config()
+        configure(backend=ProseGateBackend())
+        try:
+            with caplog.at_level(logging.WARNING):
+                result = insight.extract_insight(
+                    knowledge_store=_one_cluster_store(tmp_path), skills_dir=tmp_path, full=True
+                )
+        finally:
+            reset_llm_config()
+        assert not isinstance(result, str)
+        assert len(result.skills) == 1
+        assert "reason=worthgate_parse" in caplog.text

@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (task-ledger machinery retired — stage 6c ledgerwatch, packet §10 and scripts/tasks.py removed, ADR-0095; control characters neutralised at the packet's _cell floor; weekly-analysis.sh's two sessions bounded, permission gate widened to the whole chain; run-log path recorded by the shell instead of rebuilt in the packet builder; the feed-engagement loop and the post cycle join the reply loops in reading the circuit breaker, T-FEED-PACING) | Files scanned: 79 (71 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (task-ledger machinery retired — stage 6c ledgerwatch, packet §10 and scripts/tasks.py removed, ADR-0095; control characters neutralised at the packet's _cell floor; weekly-analysis.sh's two sessions bounded, permission gate widened to the whole chain; run-log path recorded by the shell instead of rebuilt in the packet builder; the feed-engagement loop and the post cycle join the reply loops in reading the circuit breaker, T-FEED-PACING) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 80 (72 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -21,7 +21,8 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
       _io  config  domain  prompts  llm(+LLMBackend)  embeddings
       episode_embeddings  episode_log  knowledge_store  memory  memory_repos
       views  snapshot  scheduler  distill  pattern_dedup  episode_render
-      insight  insight_novelty  skill_selection  constitution  constitution_shadow
+      insight  insight_novelty  insight_surprise  skill_selection  constitution
+      constitution_shadow
       rules_distill  stocktake  report  metrics  view_metrics  clustering  text_utils
       thresholds  artifact_extraction  run_context
     adapters/moltbook/
@@ -571,13 +572,42 @@ FAIL-OPEN EXTRACTION CAP  [ADR-0074 amendment 2026-07-18]
   windows); deferral recorded in insight-novelty.jsonl
   (reason=review_budget_deferred, topics + sizes + pattern_ids)
 
+SURPRISE READING  [ADR-0096; read-only, LLM-free, core/insight_surprise.py]
+  per surviving cluster: centroid vs the SURPRISE_REF_K (1000) most recently
+  distilled live patterns, own members masked out (unmasked, max cos pins to
+  1.0 and every candidate reads alike)
+  s_mean = 1 − mean cos (ranked on this — steadier and less k-sensitive than
+  s_nn per the 2026-08-17 calibration); s_nn = 1 − max cos
+  NO threshold, NO z-normalization (raw spread 0.108 at p50 0.806 becomes
+  ~5 sd when z-scored — manufactured discrimination); each reading carries
+  ref_cos_p50 / ref_cos_spread as its ambiguity note
+  batches are NOT reordered, capped or filtered by it — enumeration only
+  (read-only-instruments invariant 1); rides the staging *.meta.json sidecar
+  (already inlined into weekly stage 5) + one batch log block
+
 Per novel cluster → generate_full(INSIGHT_EXTRACTION_PROMPT, topic="cluster-N")  [think-ON, ADR-0069]
   system = axioms-only (no skill corpus injected — audit H6 fix, a2bebfe;
   the novelty gate reads themes, generation never does)
+  → in-band abstain: output "NOTHING-PROMOTABLE" → nothing_promotable  [ADR-0096]
   → validate_identity_content()
-  → SkillResult(text, filename, target_path, pattern_ids, epistemic_counts, thinking)  [ADR-0050; per-skill thinking → reasoning.md, ADR-0069]
+  → WORTH GATE  [ADR-0096; on by default, MOLTBOOK_INSIGHT_WORTHGATE=0 opts out]
+     generate(INSIGHT_WORTH_PROMPT, format={"promote": bool}) over the PRODUCED
+     skill + its cluster patterns (never the adopted corpus — coverage is the
+     novelty gate's axis); promote=false → nothing_promotable
+     fails OPEN (promotes) with reason=worthgate_llm_none|_parse|_shape
+  → SkillResult(text, filename, target_path, pattern_ids, epistemic_counts, thinking, surprise)  [ADR-0050; per-skill thinking → reasoning.md, ADR-0069; surprise ADR-0096]
 
-→ InsightResult  →  --stage: pending guard (staging holds ≤ 1 unreviewed batch)
+Abstain tally  [ADR-0096, ADR-0075 shape]
+  faults: llm_none / no_title / forbidden_content / path_unresolved
+  verdict: nothing_promotable — tallied APART (FAULT_ABSTAIN_REASONS)
+  always-emitted yield line: "Insight extraction yield: N/M cluster(s) yielded
+  skills (nothing_promotable=K)"; fault WARNING only when faults occurred
+  empty run WITH a fault → error string, marker NOT advanced (window survives
+  a backend outage); empty run with no fault → empty InsightResult, marker
+  advances (the window WAS considered — same rule as an all-covered gate)
+
+→ InsightResult(skills, dropped_count, skipped_known, abstained)
+   →  --stage: pending guard (staging holds ≤ 1 unreviewed batch)
    → staging + marker advance + ledger append; interactive: per-file approval
    [ADR-0012], marker advances after the loop  [ADR-0074]
 ```

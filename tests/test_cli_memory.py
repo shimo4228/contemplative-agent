@@ -120,7 +120,6 @@ class TestInsightStagePathADR0074:
                         target_path=skills_dir / "fresh-theme-20260709.md",
                     ),
                 ),
-                dropped_count=0,
             )
 
         args = argparse.Namespace(stage=True, full=False)
@@ -163,7 +162,7 @@ class TestInsightStagePathADR0074:
     def test_all_covered_advances_marker_without_staging(self, tmp_path):
         from contemplative_agent.core.insight import InsightResult
 
-        empty = InsightResult(skills=(), dropped_count=0, skipped_known=3)
+        empty = InsightResult(skills=(), skipped_known=3)
         staged_dir, skills_dir, ledger, _ = self._run(tmp_path, empty)
         assert (skills_dir / ".last_insight").exists()
         assert not ledger.exists()

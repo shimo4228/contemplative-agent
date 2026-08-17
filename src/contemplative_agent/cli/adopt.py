@@ -813,6 +813,45 @@ def _reject_unselected(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
     return _Outcome.REJECTED
 
 
+def _print_surprise(surprise: object) -> None:
+    """Show the ADR-0096 reading above the artifact at the human gate.
+
+    Read-only material for this decision, not a recommendation:
+    ``ref cos spread`` is the ambiguity note — a narrow spread means the rank
+    separates very little (see ``core/insight_surprise.py``).
+
+    Every field is coerced rather than formatted straight from the sidecar. The
+    sidecar is the one input this command treats as adversary-writable between
+    stage and adopt, and a non-numeric value in a ``%.4f`` slot would raise out
+    of the batch loop, leaving the remaining items staged and — via the
+    ADR-0074 pending guard — blocking every future ``--stage`` run.
+    """
+    if not isinstance(surprise, dict):
+        return
+
+    def _num(key: str) -> float | None:
+        value = surprise.get(key)
+        return (
+            float(value)
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+            else None
+        )
+
+    fields = {
+        key: _num(key)
+        for key in ("rank", "of", "s_mean", "s_nn", "ref_k", "ref_cos_p50", "ref_cos_spread")
+    }
+    if any(v is None for v in fields.values()):
+        print("  surprise: sidecar reading unusable (non-numeric field) — ignored")
+        return
+    print(
+        f"  surprise: rank {fields['rank']:.0f}/{fields['of']:.0f} pre-gate clusters, "
+        f"s_mean={fields['s_mean']:.4f} s_nn={fields['s_nn']:.4f} "
+        f"(ref k={fields['ref_k']:.0f} cos p50={fields['ref_cos_p50']:.3f} "
+        f"spread={fields['ref_cos_spread']:.3f})"
+    )
+
+
 def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
     """Decide and apply one staged item's fate.
 
@@ -868,6 +907,7 @@ def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
 
     print(f"\n{'=' * 60}")
     print(f"[{item.command}] {item.content_file.name} -> {item.target}")
+    _print_surprise(item.meta.get("surprise"))
     print(item.text)
 
     approve_without_prompt = plan.yes or plan.per_item
