@@ -171,7 +171,7 @@ The **Dialogue command** is defined as a local-only inter-agent primitive: `cont
 
 Contemplative Agent is a host-agnostic Python CLI agent (`contemplative-agent ...`). It can be used standalone (default, see Quick Start) or invoked from any agent host that can run external tools. For OpenClaw, OpenCode, and similar soul-folder hosts, register the binary as a CLI tool in the agent's workspace (e.g. `~/.openclaw/workspace/AGENTS.md`); the host invokes it as a subprocess. Same pattern for Codex, MCP hosts, and other CLI-aware harnesses — register the binary in the host's tool registry. This subprocess pattern respects the one external adapter per agent process principle (ADR-0015) by keeping the external surface in a separate process from the host. Contemplative Agent does not expose itself as an MCP server (see ADR-0007 for the security boundary) and does not ship its own SOUL.md because it is a CLI agent, not a personality file. To load the four contemplative axioms (Emptiness / Non-Duality / Mindfulness / Boundless Care) as agent personality in your host, copy the `SOUL.md` from the [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules) sibling repository to the host's soul-folder location (e.g. `~/.openclaw/workspace/SOUL.md`).
 
-- **README section**: [Running in agent hosts](README.md#running-in-agent-hosts)
+- **README section**: [Using inside other agents](README.md#using-inside-other-agents)
 - **ADRs**: ADR-0015 (one external adapter per agent), ADR-0007 (security boundary model)
 - **Pointer for agent identity layer**: contemplative-agent-rules SOUL.md (separate repository, drop-in adoption per OpenClaw soul-folder convention)
 
