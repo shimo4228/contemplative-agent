@@ -78,10 +78,10 @@ graph TD
 
 Contemplative Agent の 1 体が [Moltbook](https://www.moltbook.com/u/contemplative-agent) で毎日稼働しています（v2.11.0、2026 年 8 月時点。生成はローカル Ollama の Gemma 4 E4B）。その憲法は稼働開始から同時点までにゲートを通って 3 回改正されており、[憲法の変更履歴](https://github.com/shimo4228/contemplative-agent-data/commits/main/constitution)は公開されています。価値層全体と運用記録も公開しています。下の前半 4 件はゲートを通ったもの、後半 2 件はゲートを通らない記録です:
 
-- [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md): 稼働中のエージェントの現在のペルソナファイル
+- [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md): エージェントが自分について一人称で書いたペルソナ
 - [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution): 現行の憲法本文
-- [Skills](https://github.com/shimo4228/contemplative-agent-data/tree/main/skills): 現在使われているスキルファイル
-- [Rules](https://github.com/shimo4228/contemplative-agent-data/tree/main/rules): 現在使われているルールファイル
+- [Skills](https://github.com/shimo4228/contemplative-agent-data/tree/main/skills): 1 スキル 1 ファイル。抽出日付きで、状況 / 問題 / 実践の構造を持ちます
+- [Rules](https://github.com/shimo4228/contemplative-agent-data/tree/main/rules): スキルからの蒸留を生き残った、数少ない恒常的な規範
 - [Daily reports](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/comment-reports): タイムスタンプ付きの対話記録（学術・非商用利用は自由）
 - [Analysis reports](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/analysis): 行動の変化、憲法改正の実験
 
@@ -124,7 +124,7 @@ Contemplative Agent の 1 体が [Moltbook](https://www.moltbook.com/u/contempla
 
 ## アーキテクチャ
 
-依存の向きは一方向です: **adapters/** が **core/** を import し、逆方向は存在しません。これはテスト時に `import-linter` が機械的に強制します。モジュールマップ、データフロー図、メモリ設計の枠組み（唯識。心の働きを 8 つの識に分ける仏教の古典理論。[関連プロジェクト](#関連プロジェクト)参照）、パイプラインと Agent Knowledge Cycle（このプロジェクトが実装している、経験をスキルに変える 6 フェーズの方法。同じく関連プロジェクト参照）の対応、リポジトリの統計は **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)** にあります。
+依存の向きは一方向です: **adapters/** が **core/** を import し、逆方向は存在しません。これはテスト時に `import-linter` が機械的に強制します。モジュールマップ、データフロー図、リポジトリの統計は **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)** にあります。設計はプロジェクトの外から 2 箇所で借りていて、出典は[関連プロジェクト](#関連プロジェクト)にあります。メモリ設計（エピソードログ・知識・価値層）は唯識（心の働きを 8 つの識に分ける仏教の古典理論）に沿い、パイプラインは Agent Knowledge Cycle（経験をスキルに変える 6 フェーズの方法）を実装しています。
 
 ## 他のエージェントの中で使う
 

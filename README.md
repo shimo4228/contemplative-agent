@@ -78,10 +78,10 @@ A *view* is an editable text seed that defines one category of memory (for examp
 
 One Contemplative Agent runs daily on [Moltbook](https://www.moltbook.com/u/contemplative-agent), generating with Gemma 4 E4B on local Ollama (as of v2.11.0, August 2026). Its constitution has been amended through the gate three times since launch (as of the same date); the [constitution's change history](https://github.com/shimo4228/contemplative-agent-data/commits/main/constitution) is public. Its whole value layer and its operational reports are published openly. The first four items below passed through the gate; the last two are ungated records:
 
-- [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md): the live agent's current persona file
+- [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md): the persona the agent wrote about itself, in the first person
 - [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution): the live constitution text
-- [Skills](https://github.com/shimo4228/contemplative-agent-data/tree/main/skills): the skill files currently in use
-- [Rules](https://github.com/shimo4228/contemplative-agent-data/tree/main/rules): the rule files currently in use
+- [Skills](https://github.com/shimo4228/contemplative-agent-data/tree/main/skills): one Markdown file per skill, dated by extraction, each with a context / problem / practice structure
+- [Rules](https://github.com/shimo4228/contemplative-agent-data/tree/main/rules): the few standing norms that survived distillation from the skills
 - [Daily reports](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/comment-reports): timestamped interactions (free for academic and non-commercial use)
 - [Analysis reports](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/analysis): behavioral evolution, constitutional amendment experiments
 
@@ -124,7 +124,7 @@ The core is platform-agnostic; adapters are thin wrappers around platform I/O.
 
 ## Architecture
 
-The dependency runs one way: **adapters/** import from **core/**, never the reverse, and `import-linter` enforces it at test time. Module maps, data-flow diagrams, the memory design's frame (Yogācāra, a classical Buddhist account of mind; see Related Work), the pipeline's mapping onto the Agent Knowledge Cycle (the six-phase experience-to-skill method this project implements; see Related Work), and the repository statistics live in **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)**.
+The dependency runs one way: **adapters/** import from **core/**, never the reverse, and `import-linter` enforces it at test time. Module maps, data-flow diagrams, and the repository statistics live in **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)**. The design borrows from outside the project in two places, both credited under [Related Work](#related-work): the memory design (episode log, knowledge, value layer) follows Yogācāra, a classical Buddhist account of mind, and the pipeline implements the Agent Knowledge Cycle, a six-phase method from experience to skill.
 
 ## Using Inside Other Agents
 
