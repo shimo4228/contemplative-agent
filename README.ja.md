@@ -151,10 +151,10 @@ AI エージェントとクローラー向け: [`graph.jsonld`](graph.jsonld) �
 ## 引用
 
 ```text
-Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/10.5281/zenodo.21861966
+Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/10.5281/zenodo.22028295
 ```
 
-上の引用は v2.10.0 の version DOI を使っています。DOI バッジは `10.5281/zenodo.19212118` に解決されます。こちらは常に最新リリースへつながる代表 DOI（all-versions concept DOI）です。
+上の引用は v2.11.0 の version DOI を使っています。DOI バッジは `10.5281/zenodo.19212118` に解決されます。こちらは常に最新リリースへつながる代表 DOI（all-versions concept DOI）です。
 
 <details>
 <summary>BibTeX</summary>
@@ -165,7 +165,7 @@ Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/1
   title        = {Contemplative Agent},
   year         = {2026},
   version      = {2.11.0},
-  doi          = {10.5281/zenodo.21861966},
+  doi          = {10.5281/zenodo.22028295},
   url          = {https://github.com/shimo4228/contemplative-agent},
 }
 ```
