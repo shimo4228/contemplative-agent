@@ -16,7 +16,7 @@ Contemplative Agent は、人間が読んで編集できる形の憲法（consti
 
 エージェントが価値をどう蓄積し書き換えるかを調べている人や、端から端まで読み切れる規模の、推論をローカルで行う自律エージェントが欲しい人には、このリポジトリのコードとログがそのまま材料になります。
 
-ループ全体は Python の CLI で、Ollama が配信する任意のローカル LLM で動きます。Apple Silicon Mac 1 台（M1 以降、16 GB）の小型モデルでも持ちこたえます。クラウドの LLM も、LLM の API キーも、シェル実行も使いません（ネットワーク上の相手は投稿先の SNS だけです）。
+ループ全体は Python の CLI で、Ollama が配信する任意のローカル LLM で動きます。Apple Silicon Mac 1 台（M1 以降、16 GB）の小型モデルでも持ちこたえます。クラウドの LLM も、LLM の API キーも、シェル実行も使いません。localhost の Ollama を除けば、ネットワーク上の相手は投稿先の SNS だけです。
 
 現在は Moltbook（AI エージェントだけが投稿する SNS）で動いています。Moltbook はエージェントが行動し、応答を受ける場であって、目的ではありません。この場を選んだのは、価値観が他のエージェントとの会話でどう振る舞うかに表れるからです。そして受け手の側に人間がいないので、実験がうまくいかなくてもその影響が人に届くことはありません。既定の憲法はプリセットの倫理枠組みの 1 つである Contemplative AI の四公理です（出典は[関連プロジェクト](#関連プロジェクト)。別のプリセットから始める方法はクイックスタートにあります）。
 
@@ -78,16 +78,16 @@ graph TD
 
 Contemplative Agent の 1 体が [Moltbook](https://www.moltbook.com/u/contemplative-agent) で毎日稼働しています（v2.11.0、2026 年 8 月時点。生成はローカル Ollama の Gemma 4 E4B）。その憲法は稼働開始から同時点までにゲートを通って 3 回改正されており、[憲法の変更履歴](https://github.com/shimo4228/contemplative-agent-data/commits/main/constitution)は公開されています。価値層全体と運用記録も公開しています。下の前半 4 件はゲートを通ったもの、後半 2 件はゲートを通らない記録です:
 
-- [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md): 蒸留されたペルソナ
-- [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution): 倫理原則。Contemplative AI の四公理から出発
-- [Skills](https://github.com/shimo4228/contemplative-agent-data/tree/main/skills): 再利用できる行動の型。`insight` が抽出
-- [Rules](https://github.com/shimo4228/contemplative-agent-data/tree/main/rules): 短い恒常的な規範。スキルから蒸留
+- [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md): 稼働中のエージェントの現在のペルソナファイル
+- [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution): 現行の憲法本文
+- [Skills](https://github.com/shimo4228/contemplative-agent-data/tree/main/skills): 現在使われているスキルファイル
+- [Rules](https://github.com/shimo4228/contemplative-agent-data/tree/main/rules): 現在使われているルールファイル
 - [Daily reports](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/comment-reports): タイムスタンプ付きの対話記録（学術・非商用利用は自由）
 - [Analysis reports](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/analysis): 行動の変化、憲法改正の実験
 
 ## 主な機能
 
-各項目の末尾に、その判断を記録した ADR を付けています。一覧は [docs/adr/](docs/adr/README.md) にあります。
+判断を記録した項目には、末尾にその ADR を付けています。一覧は [docs/adr/](docs/adr/README.md) にあります。
 
 - **人間ゲート付きの価値層。** 昇格のたびにゲートをどう通ったかの記録が残り、承認された値は蒸留時に焼き込まれるのではなく行動時にプロンプトへ読み込まれます（[ADR-0012](docs/adr/0012-human-approval-gate.ja.md)）。
 - **エピソード単位の蒸留。** エンゲージメントのエピソード 1 件につき LLM を 1 回呼び、要約ではなくエピソード全体を読みます。ノイズは取り込み時ではなくクエリ時に view で濾します（[ADR-0060](docs/adr/0060-per-episode-grounded-distill.ja.md)）。
@@ -124,7 +124,7 @@ Contemplative Agent の 1 体が [Moltbook](https://www.moltbook.com/u/contempla
 
 ## アーキテクチャ
 
-コードベース全体を貫く不変条件が 1 つあります: **core/** はプラットフォーム非依存で、**adapters/** が core に依存します。逆方向の依存はありません。モジュールマップ、データフロー図、リポジトリの統計は **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)** にあります。メモリ設計の枠組みは唯識の八識モデル（心の働きを 8 つの識に分ける仏教の古典理論）から借りています（[ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.ja.md)）。パイプラインが Agent Knowledge Cycle（このプロジェクトが実装している、経験をスキルに変える 6 フェーズの方法。[関連プロジェクト](#関連プロジェクト)参照）にどう対応するかは [architecture.md#akc-mapping](docs/CODEMAPS/architecture.md#akc-mapping) にあります。
+依存の向きは一方向です: **adapters/** が **core/** を import し、逆方向は存在しません。これはテスト時に `import-linter` が機械的に強制します。モジュールマップ、データフロー図、メモリ設計の枠組み（唯識。心の働きを 8 つの識に分ける仏教の古典理論。[関連プロジェクト](#関連プロジェクト)参照）、パイプラインと Agent Knowledge Cycle（このプロジェクトが実装している、経験をスキルに変える 6 フェーズの方法。同じく関連プロジェクト参照）の対応、リポジトリの統計は **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)** にあります。
 
 ## 他のエージェントの中で使う
 

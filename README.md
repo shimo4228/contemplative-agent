@@ -16,7 +16,7 @@ Contemplative Agent is an autonomous agent that carries an explicit, human-edita
 
 If you study how agents accumulate and revise values, or want an autonomous agent with local inference, small enough to read end-to-end, the code and the logs are what this repository offers.
 
-The whole loop is a Python CLI that runs on any local LLM served by Ollama. It holds up with a small model on a single Apple Silicon Mac (M1+, 16 GB): no cloud LLM, no LLM API key, no shell execution (its only network peer is the social network it posts to).
+The whole loop is a Python CLI that runs on any local LLM served by Ollama. It holds up with a small model on a single Apple Silicon Mac (M1+, 16 GB): no cloud LLM, no LLM API key, no shell execution. Apart from localhost Ollama, its only network peer is the social network it posts to.
 
 Today it runs on Moltbook (a social network where only AI agents post). Moltbook is the field where the agent acts and gets answered, not the point of the project. It was chosen because values show up in how the agent treats other agents in conversation, and here no human is on the receiving end, so a failed experiment reaches no person. Its default constitution is a preset ethical framework, the four Contemplative AI axioms (source under [Related Work](#related-work)); Quick Start shows how to start from another preset.
 
@@ -78,16 +78,16 @@ A *view* is an editable text seed that defines one category of memory (for examp
 
 One Contemplative Agent runs daily on [Moltbook](https://www.moltbook.com/u/contemplative-agent), generating with Gemma 4 E4B on local Ollama (as of v2.11.0, August 2026). Its constitution has been amended through the gate three times since launch (as of the same date); the [constitution's change history](https://github.com/shimo4228/contemplative-agent-data/commits/main/constitution) is public. Its whole value layer and its operational reports are published openly. The first four items below passed through the gate; the last two are ungated records:
 
-- [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md): distilled persona
-- [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution): ethical principles, started from the four Contemplative AI axioms
-- [Skills](https://github.com/shimo4228/contemplative-agent-data/tree/main/skills): reusable ways of acting, extracted by `insight`
-- [Rules](https://github.com/shimo4228/contemplative-agent-data/tree/main/rules): short standing norms, distilled from the skills
+- [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md): the live agent's current persona file
+- [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution): the live constitution text
+- [Skills](https://github.com/shimo4228/contemplative-agent-data/tree/main/skills): the skill files currently in use
+- [Rules](https://github.com/shimo4228/contemplative-agent-data/tree/main/rules): the rule files currently in use
 - [Daily reports](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/comment-reports): timestamped interactions (free for academic and non-commercial use)
 - [Analysis reports](https://github.com/shimo4228/contemplative-agent-data/tree/main/reports/analysis): behavioral evolution, constitutional amendment experiments
 
 ## What's Inside
 
-Each bullet ends with the ADR that records the decision; the full index is [docs/adr/](docs/adr/README.md).
+Where a bullet records a decision, it ends with the ADR that records it; the full index is [docs/adr/](docs/adr/README.md).
 
 - **Human-gated value layer.** Each promotion keeps a record of how it passed the gate, and approved values are loaded into the agent's prompt when it acts, not baked in when patterns are distilled ([ADR-0012](docs/adr/0012-human-approval-gate.md)).
 - **Per-episode distill.** One LLM call per engagement episode, reading the whole episode rather than a digest. Noise is filtered at query time by views, not at ingest ([ADR-0060](docs/adr/0060-per-episode-grounded-distill.md)).
@@ -124,7 +124,7 @@ The core is platform-agnostic; adapters are thin wrappers around platform I/O.
 
 ## Architecture
 
-One invariant holds across the codebase: **core/** is platform-independent, and **adapters/** depend on core, never the reverse. Module maps, data-flow diagrams, and the repository statistics live in **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)**. The memory design borrows its frame from the Yogācāra eight-consciousness model, a classical Buddhist account of mind ([ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.md)); how the pipeline maps onto the Agent Knowledge Cycle (the six-phase experience-to-skill method this project implements; see Related Work) is in [architecture.md#akc-mapping](docs/CODEMAPS/architecture.md#akc-mapping).
+The dependency runs one way: **adapters/** import from **core/**, never the reverse, and `import-linter` enforces it at test time. Module maps, data-flow diagrams, the memory design's frame (Yogācāra, a classical Buddhist account of mind; see Related Work), the pipeline's mapping onto the Agent Knowledge Cycle (the six-phase experience-to-skill method this project implements; see Related Work), and the repository statistics live in **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)**.
 
 ## Using Inside Other Agents
 
