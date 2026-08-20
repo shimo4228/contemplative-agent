@@ -168,6 +168,12 @@ wrapped in local punctuation when embedded in a translated sentence.
   read-only instrument (ADR-0071), which measures existing data rather
   than shadowing a decision. Bilingual first-use allowed:
   「shadow instrument（影の計器）」.
+- **shadow constitution** — ADR-0092. A constitution synthesized from the
+  agent's stored constitutional patterns alone, with the live constitution
+  text withheld from the model, compared to the live text by cosine and
+  logged as a read-only reading before an amendment decision. A shadow
+  instrument (ADR-0076) applied to the constitution rather than to a
+  decision. Bilingual first-use allowed: 「shadow constitution（影の憲法）」.
 - **chaos-TDD** / **fault column** — ADR-0077. A test-first discipline,
   not an infrastructure practice: a feature touching an LLM call or
   external I/O ships a set of deterministic fault-injection tests (its

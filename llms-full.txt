@@ -8,18 +8,18 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 
 ## Project Facts
 
-- **Version**: 2.10.0
+- **Version**: 2.11.0
 - **DOI**: [10.5281/zenodo.21861966](https://doi.org/10.5281/zenodo.21861966) (v2.10.0 version DOI; concept DOI 10.5281/zenodo.19212118 always resolves to the latest version)
 - **License**: MIT
 - **Repository**: [github.com/shimo4228/contemplative-agent](https://github.com/shimo4228/contemplative-agent)
-- **Tests**: 2792 (pytest, across 84 test files)
+- **Tests**: 3609 (pytest, across 98 test files)
 - **Python**: 3.10+
 - **Build system**: hatch, uv
 - **Generation LLM**: any Ollama model, selected via the `OLLAMA_MODEL` environment variable; production default Gemma 4 E4B / `gemma4:e4b` (Q4_K_M quantization, ~9.6 GB on disk)
 - **Embedding model**: nomic-embed-text (~274 MB, 768-dim) via Ollama
 - **Hardware**: Apple Silicon Mac (M1+), 16 GB RAM, ~12 GB free disk
 - **Runtime dependencies**: requests>=2.33.0, numpy>=1.24.0
-- **ADRs**: 90 total (ADR-0001 through ADR-0090) — 80 accepted, 3 partially superseded, 5 superseded, 2 withdrawn. Full index with per-ADR statuses and supersession trail: [docs/adr/README.md](docs/adr/README.md)
+- **ADRs**: 96 total (ADR-0001 through ADR-0096); per-ADR status lives only in the index. Full index with per-ADR statuses and supersession trail: [docs/adr/README.md](docs/adr/README.md)
 - **External lenses borrowed**: AAP four-quadrant routing lens (Script / Algorithmic Search / LLM Workflow / Autonomous Agentic Loop) — usage description only, not a category claim (ADR-0033)
 - **Ethical framework presets**: 11 (contemplative, utilitarian, stoic, care-ethicist, deontologist, pragmatist, narrativist, contractarian, cynic, existentialist, tabula-rasa)
 - **Runtime data directory**: `$MOLTBOOK_HOME` (default `~/.config/moltbook/`)
@@ -330,6 +330,26 @@ Since v2.10.0: a behavioral reading. `amend-constitution` is the deepest value-l
 - **Code**: `scripts/ipd-two-arm.sh`, `scripts/ipd_two_arm_report.py`, `tests/test_ipd_two_arm_report.py`
 - **ADR**: ADR-0090 (IPD two-arm bench), ADR-0012 (the approval gate it feeds), ADR-0071 (the instrument-before-intervention lineage)
 - **Evidence**: [docs/evidence/adr-0090/](docs/evidence/adr-0090/)
+
+---
+
+## What is the shadow constitution, and what does it add to the amendment gate? (ADR-0092)
+
+Since v2.11.0: a second reading that does not depend on the model reading its own constitution. `contemplative-agent shadow-constitution` runs the same `constitutional`-view retrieval as `amend-constitution` but with a prompt that never shows the live constitution text; the model synthesizes a constitution from the stored patterns alone, and the instrument records the cosine between that shadow and the live text in `logs/constitution-shadow.jsonl`. It is observe-only: nothing is written to the value layer, and the command is safe against a production `MOLTBOOK_HOME`. The reading answers "what would the agent's own accumulated patterns say its constitution is, if nobody told it?", and the distance between that and the live text is material for the next amendment decision. Calibration anchors (unrelated-text cosine 0.42–0.49, same-genre band) are recorded so a single number can be placed on a scale. ADR-0091 sits beside it: `scripts/value_layer_due_check.py` reads the audit log, the knowledge store, and the staging directory and emits one JSON reading of which value-layer work is due, so the weekly chain stages the monthly identity distill automatically and the Saturday packet carries the due readings; amendments remain a deliberate human event.
+
+- **Code**: `core/constitution_shadow.py`, `cli/` (`shadow-constitution` subcommand), `scripts/value_layer_due_check.py`, `tests/test_constitution_shadow.py`
+- **ADR**: ADR-0092 (shadow constitution), ADR-0091 (value-layer cadence), ADR-0090 (IPD bench), ADR-0076 (the shadow-instrument form)
+- **Evidence**: [docs/evidence/adr-0092/](docs/evidence/adr-0092/)
+
+---
+
+## What happened to the task ledger between ADR-0094 and ADR-0095?
+
+ADR-0094 (2026-08-14) built a three-layer task ledger: a store (one Markdown file per task, frontmatter `state:`), an append-only journal, and a rendered projection table, with a weekly-chain stage that watched ledger conditions. Two days later ADR-0095 retired everything that parsed: the projection renderer, the scan, the migration, `TASKS.md`, weekly stage 6c, and the `ledger_watch_fired` metric. The machinery had reached about 5,000 lines in two days and was filing its own bugs into the ledger it rendered. What remains is the store (`.notes/tasks/T-XXX.md`) and a global `claims.py` for parallel sessions (claim / release / spawn with a 24-hour lease). ADR-0094 is kept, superseded, as the record of why. The same ADR writes down the filing rule that came out of the episode: review findings outside a commit's diff are filed only at HIGH severity and above, and only after the producer-to-sink path has been quoted with `file:line`; everything else goes into the commit message and is dropped. Bloated ledgers are solved by archiving, not by mechanism.
+
+- **Code**: `~/.claude/scripts/claims.py` (harness-side), `.notes/tasks/` (gitignored store)
+- **ADR**: ADR-0095 (retire), ADR-0094 (superseded), ADR-0093 (the repo-plane intake whose ledger-watch half was removed)
+- **Evidence**: [docs/evidence/adr-0094/](docs/evidence/adr-0094/)
 
 ---
 

@@ -76,7 +76,7 @@ A *view* is an editable text seed that defines one category of memory (for examp
 
 ## Live Agent
 
-One Contemplative Agent runs daily on [Moltbook](https://www.moltbook.com/u/contemplative-agent), generating with Gemma 4 E4B on local Ollama (as of v2.10.0, August 2026). Its constitution has been amended through the gate three times since launch (as of the same date); the [constitution's change history](https://github.com/shimo4228/contemplative-agent-data/commits/main/constitution) is public. Its whole value layer and its operational reports are published openly. The first four items below passed through the gate; the last two are ungated records:
+One Contemplative Agent runs daily on [Moltbook](https://www.moltbook.com/u/contemplative-agent), generating with Gemma 4 E4B on local Ollama (as of v2.11.0, August 2026). Its constitution has been amended through the gate three times since launch (as of the same date); the [constitution's change history](https://github.com/shimo4228/contemplative-agent-data/commits/main/constitution) is public. Its whole value layer and its operational reports are published openly. The first four items below passed through the gate; the last two are ungated records:
 
 - [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md): distilled persona
 - [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution): ethical principles, started from the four Contemplative AI axioms
@@ -164,7 +164,7 @@ The citation above uses the v2.10.0 version DOI. The DOI badge resolves to `10.5
   author       = {Shimomoto, Tatsuya},
   title        = {Contemplative Agent},
   year         = {2026},
-  version      = {2.10.0},
+  version      = {2.11.0},
   doi          = {10.5281/zenodo.21861966},
   url          = {https://github.com/shimo4228/contemplative-agent},
 }
