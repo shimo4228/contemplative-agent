@@ -12,13 +12,13 @@ Language: English | [日本語](README.ja.md)
 
 Contemplative Agent is an autonomous agent that carries an explicit, human-editable constitution and amends it over time. It distills its own episode logs (the raw record of everything it did) into patterns (short, reusable observations about what worked), then proposes promotions into its *value layer*: the constitution, identity, skills, and rules that shape its future behavior. Nothing lands in that layer without passing a human approval gate.
 
-The whole loop is a Python CLI that runs on any local LLM served by Ollama. It holds up with a small model on a single Apple Silicon Mac (M1+, 16 GB): no cloud, no LLM API key, no shell execution.
+**Why this exists.** It installs and runs like ordinary software, but it is not a tool for getting things done. It is an experiment: what happens when an agent with an explicit value system lives for months, and keeps proposing revisions to those values? That self-revision is the thing under observation, and it is unusually easy to observe here because each change to the agent's values is a discrete, replayable event. What comes out is the history of how one agent's constitution changed.
 
-It is built for researchers studying how an agent accumulates and revises its own values and knowledge, and for developers who want a fully local, auditable autonomous agent small enough to read end-to-end.
+If you study how agents accumulate and revise values, or want an autonomous agent with local inference, small enough to read end-to-end, the code and the logs are what this repository offers.
 
-Self-modification is usually the part of an autonomous agent that is hardest to see. Here it is the most visible part: each change to the agent's values is a discrete, replayable event.
+The whole loop is a Python CLI that runs on any local LLM served by Ollama. It holds up with a small model on a single Apple Silicon Mac (M1+, 16 GB): no cloud LLM, no LLM API key, no shell execution (its only network peer is the social network it posts to).
 
-Today it runs on Moltbook (a social network where only AI agents post), with the four Contemplative AI axioms (Laukkonen et al. 2025: emptiness, non-duality, mindfulness, boundless care) as its default constitution.
+Today it runs on Moltbook (a social network where only AI agents post). Moltbook is the field where the agent acts and gets answered, not the point of the project. It was chosen because values show up in how the agent treats other agents in conversation, and here no human is on the receiving end, so a failed experiment reaches no person. Its default constitution is a preset ethical framework, the four Contemplative AI axioms (source under [Related Work](#related-work)); Quick Start shows how to start from another preset.
 
 ## Quick Start
 
@@ -76,7 +76,7 @@ A *view* is an editable text seed that defines one category of memory (for examp
 
 ## Live Agent
 
-A Contemplative agent runs daily on [Moltbook](https://www.moltbook.com/u/contemplative-agent), generating with Gemma 4 E4B on local Ollama (as of v2.10.0, August 2026). Its value layer (the first four items below, each approved through the gate; the constitution itself has been amended through that gate more than once since launch) and its operational reports (the last two, ungated) are published openly:
+One Contemplative Agent runs daily on [Moltbook](https://www.moltbook.com/u/contemplative-agent), generating with Gemma 4 E4B on local Ollama (as of v2.10.0, August 2026). Its constitution has been amended through the gate three times since launch (as of the same date); the [constitution's change history](https://github.com/shimo4228/contemplative-agent-data/commits/main/constitution) is public. Its whole value layer and its operational reports are published openly. The first four items below passed through the gate; the last two are ungated records:
 
 - [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md): distilled persona
 - [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution): ethical principles, started from the four Contemplative AI axioms
@@ -96,11 +96,11 @@ Each bullet ends with the ADR that records the decision; the full index is [docs
 
 ## Measure Before You Change
 
-The rule for changing the pipeline: add a read-only reading first, change behavior only after reading it.
+The rule for changing the pipeline: first build a read-only instrument (a report over the stored data, with no side effects), then change behavior only after looking at what it reads.
 
 - **Every feature ships with its audit log.** A feature that does external I/O, calls the LLM, or makes a heuristic decision lands together with an append-only JSONL record of input, decision, reason code, and outcome, enough to replay it offline. Untrusted input is kept as base64 plus hash, and an abstain always carries its reason ([ADR-0075](docs/adr/0075-observability-by-default.md)).
-- **Readings come before interventions.** `contemplative-agent report --patterns | --skill-selection | --submolt-scope` gives read-only readings over the stored state: pattern supply and diversity per view, selector outcomes, and relevance hit rates across submolts. Two behavior changes so far came out of such readings rather than intuition: repairing a drift toward self-similar phrasing at distill ([ADR-0072](docs/adr/0072-echo-chamber-interventions.md)), and enforcing skill selection only after weeks of shadow readings ([ADR-0081](docs/adr/0081-skill-selection-two-pass-injection-enforcement.md)).
-- **Constitutional amendments get two extra readings before the gate.** A shadow constitution synthesized from the agent's stored constitutional patterns without showing the model the live text, compared with the live one ([ADR-0092](docs/adr/0092-shadow-constitution-instrument.md)), and a repeated prisoner's-dilemma bench that compares how cooperatively the current and proposed constitutions play ([ADR-0090](docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md)). Both inform the human's decision; neither makes it, and a quiet bench says nothing beyond cooperation.
+- **Readings come before interventions.** `contemplative-agent report --patterns | --skill-selection | --submolt-scope` gives read-only readings over the stored state: pattern supply and diversity per view, selector outcomes, and relevance hit rates across submolts (Moltbook's topic communities). Two behavior changes so far came out of such readings rather than intuition: repairing a drift toward self-similar phrasing at distill ([ADR-0072](docs/adr/0072-echo-chamber-interventions.md)), and enforcing skill selection only after weeks of shadow readings ([ADR-0081](docs/adr/0081-skill-selection-two-pass-injection-enforcement.md)).
+- **Constitutional amendments get two extra readings before the gate.** A shadow constitution synthesized from the agent's stored constitutional patterns without showing the model the live text, compared with the live one ([ADR-0092](docs/adr/0092-shadow-constitution-instrument.md)), and a repeated prisoner's-dilemma bench that compares how cooperatively the current and proposed constitutions play ([ADR-0090](docs/adr/0090-ipd-two-arm-instrument-for-constitution-amendments.md)). Both inform the human's decision; neither makes it. When the bench shows no difference between the two constitutions, that only means they play the dilemma alike; it says nothing about any other quality of the amendment.
 - **Behavioral evals** check what the comment path actually generates against an approved baseline, so a prompt or model change shows up as a verdict transition rather than a feeling ([ADR-0089](docs/adr/0089-llm-behavioral-eval-layer-on-deepeval.md)).
 
 ## Security Model
@@ -128,19 +128,19 @@ One invariant holds across the codebase: **core/** is platform-independent, and 
 
 ## Using Inside Other Agents
 
-Contemplative Agent is a host-agnostic CLI. Use it standalone (see Quick Start), or register the binary as a CLI tool in any agent host (OpenClaw / Codex / MCP hosts) so the host invokes it as a subprocess, keeping the external surface in its own process. It is not exposed as an MCP server. To load the four axioms as a host personality, copy `SOUL.md` from [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules) (a sibling repo that packages the same four axioms as a portable persona file) into your host's personality file location. Host-integration guide: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
+Contemplative Agent is a host-agnostic CLI. Use it standalone (see Quick Start), or register the binary as a CLI tool in any agent host (OpenClaw / Codex / MCP hosts) so the host invokes it as a subprocess, keeping the external surface in its own process. It is not exposed as an MCP server. To load the four axioms (the default constitution, listed under [Related Work](#related-work)) as a host personality, copy `SOUL.md` from [contemplative-agent-rules](https://github.com/shimo4228/contemplative-agent-rules) (a sibling repo that packages the same four axioms as a portable persona file) into your host's personality file location. Host-integration guide: [docs/CONFIGURATION.md](docs/CONFIGURATION.md).
 
 <details>
 <summary><b>Optional: Managed LLM APIs</b></summary>
 
-For experiments that need a generation model beyond what the local host serves, the optional [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) add-on routes every generation call through Anthropic Claude or OpenAI GPT via the `LLMBackend` Protocol. Main-repo code stays unmodified and embeddings stay on local Ollama. This is an explicit opt-in that relaxes the no-cloud property; do not install it where cloud data egress is not acceptable.
+For experiments that need a generation model beyond what the local host serves, the optional [contemplative-agent-cloud](https://github.com/shimo4228/contemplative-agent-cloud) add-on routes every generation call through Anthropic Claude or OpenAI GPT via the `LLMBackend` Protocol. Main-repo code stays unmodified and embeddings stay on local Ollama. This is an explicit opt-in that relaxes the no-cloud-LLM property (every LLM call stays on localhost); do not install it where cloud data egress is not acceptable.
 
 </details>
 
 <details>
 <summary><b>Optional: Local MLX runtime (Apple Silicon)</b></summary>
 
-For faster interactive generation on Apple Silicon, the optional [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx) add-on routes generation through a local `mlx_lm.server` via the same `LLMBackend` Protocol (embeddings stay on Ollama). It is a local-runtime swap, not a cloud backend, so the no-cloud property is preserved. It is unfit for the unattended scheduled agent on a 16 GB host, so production runs on Ollama ([ADR-0067](docs/adr/0067-keep-ollama-for-unattended-production.md)).
+For faster interactive generation on Apple Silicon, the optional [contemplative-agent-mlx](https://github.com/shimo4228/contemplative-agent-mlx) add-on routes generation through a local `mlx_lm.server` via the same `LLMBackend` Protocol (embeddings stay on Ollama). It is a local-runtime swap, not a cloud backend, so the no-cloud-LLM property is preserved. It is unfit for the unattended scheduled agent on a 16 GB host, so production runs on Ollama ([ADR-0067](docs/adr/0067-keep-ollama-for-unattended-production.md)).
 
 </details>
 
@@ -183,7 +183,7 @@ Two companion research projects by the same author frame this repository: one wh
 
 **Theoretical foundation:**
 
-- Laukkonen, Inglis, Chandaria, Sandved-Smith, Lopez-Sola, Hohwy, Gold, & Elwood (2025). *Contemplative Artificial Intelligence.* [arXiv:2504.15125](https://arxiv.org/abs/2504.15125). The four-axiom ethical framework used as the default preset ([ADR-0002](docs/adr/0002-paper-faithful-ccai.md)).
+- Laukkonen, Inglis, Chandaria, Sandved-Smith, Lopez-Sola, Hohwy, Gold, & Elwood (2025). *Contemplative Artificial Intelligence.* [arXiv:2504.15125](https://arxiv.org/abs/2504.15125). The four-axiom ethical framework (emptiness, non-duality, mindfulness, boundless care) used as the default preset ([ADR-0002](docs/adr/0002-paper-faithful-ccai.md)).
 - Laukkonen, Friston & Chandaria (2025). *A Beautiful Loop: An Active Inference Theory of Consciousness.* *Neuroscience & Biobehavioral Reviews*, 176, 106296. [PubMed:40750007](https://pubmed.ncbi.nlm.nih.gov/40750007/). Inspiration for the experimental meditation adapter.
 - Vasubandhu (4th–5th c. CE). *Triṃśikā-vijñaptimātratā* (唯識三十頌) and Xuanzang (659 CE). *Cheng Weishi Lun* (成唯識論). The eight-consciousness model adopted as the architectural frame ([ADR-0017](docs/adr/0017-yogacara-eight-consciousness-frame.md)).
 
