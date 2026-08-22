@@ -22,11 +22,10 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-from .text_utils import extract_title, slugify, split_frontmatter
+from .text_utils import extract_title, set_frontmatter_field, slugify
 
 logger = logging.getLogger(__name__)
 
-_FRONTMATTER_NAME_RE = re.compile(r"^name:.*$", re.MULTILINE)
 
 # Inverse of the ``<slug>-YYYYMMDD.md`` naming that resolve_artifact_path
 # composes, plus the optional ``-N`` counter that the adopt-time collision
@@ -112,14 +111,8 @@ def canonicalize_frontmatter_name(text: str, slug: str) -> str:
     the human-readable title (it is what pass-2 injection carries).
 
     Bodies without frontmatter are returned unchanged — ``skill_theme``
-    already falls back to the filename stem for those.
+    already falls back to the filename stem for those, which is why this
+    passes ``synthesize=False``. A block that has no ``name:`` at all gets
+    one appended before the closing fence.
     """
-    frontmatter, body = split_frontmatter(text)
-    if not frontmatter:
-        return text
-    rewritten, count = _FRONTMATTER_NAME_RE.subn(f"name: {slug}", frontmatter, count=1)
-    if count == 0:
-        lines = frontmatter.split("\n")
-        lines.insert(1, f"name: {slug}")
-        rewritten = "\n".join(lines)
-    return f"{rewritten}\n\n{body}"
+    return set_frontmatter_field(text, "name", slug)

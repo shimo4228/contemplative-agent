@@ -139,6 +139,55 @@ def synthesize_frontmatter(body: str, *, origin: str = "auto-extracted") -> str:
     return f'---\nname: {name}\ndescription: "{description}"\norigin: {origin}\n---'
 
 
+def set_frontmatter_field(text: str, key: str, value: str, *, synthesize: bool = False) -> str:
+    """Return *text* with the top-level ``key: value`` scalar set in its frontmatter.
+
+    The one set-or-insert. Two callers had grown their own — the adopt-time
+    name canonicalization (``artifact_extraction``) and the ADR-0097 archive
+    exit's supersede stamps (``cli/adopt``) — and ``_adopt_write_item`` called
+    both on the same text ten lines apart (code review 2026-08-22). A pure
+    text transform belongs here beside :func:`split_frontmatter` and
+    :func:`synthesize_frontmatter`, which both copies already imported.
+
+    Matching is anchored at column 0, deliberately: the frontmatter is read
+    by regex, never parsed as YAML, so a ``key:`` indented inside a block
+    scalar is prose and must survive (pinned by
+    ``test_only_the_top_level_name_key_is_rewritten``). A key that is absent
+    is appended before the closing ``---``, which keeps the emitted
+    name/description/origin order intact when a lineage field joins them.
+
+    *synthesize* decides what a body with no frontmatter gets. The default
+    returns it unchanged — ``skill_theme`` already falls back to the filename
+    stem, so canonicalizing a name into a block nobody wrote would invent
+    identity rather than align it. Callers that need the field to be findable
+    afterwards (an archived legacy skill whose ``superseded_by:`` is its only
+    pointer home) pass ``True`` and get a block holding **only that field**.
+
+    Deliberately not :func:`synthesize_frontmatter` for that case: it fills in
+    ``name`` / ``description`` / ``origin``, and ``origin: auto-extracted`` is
+    the harness's vocabulary for extraction-pipeline output. Stamping it on a
+    hand-written skill fabricates provenance, and since restoring from the
+    archive is a plain ``mv``, the false claim comes back into the store
+    (silent-failure review 2026-08-22 MEDIUM). Add the field asked for and
+    nothing else.
+    """
+    frontmatter, body = split_frontmatter(text)
+    if not frontmatter:
+        if not synthesize:
+            return text
+        frontmatter = "---\n---"
+    lines = frontmatter.split("\n")
+    prefix = f"{key}:"
+    for i, line in enumerate(lines):
+        if line.startswith(prefix):
+            lines[i] = f"{key}: {value}"
+            break
+    else:
+        # lines[0] and lines[-1] are the ``---`` fences.
+        lines.insert(len(lines) - 1, f"{key}: {value}")
+    return "\n".join(lines) + "\n\n" + body
+
+
 _FM_NAME_RE = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
 _FM_DESCRIPTION_RE = re.compile(r'^description:\s*"?(.*?)"?\s*$', re.MULTILINE)
 

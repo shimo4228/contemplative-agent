@@ -29,8 +29,13 @@ AuditSource = Literal[
     "stage-adopted",
     "stage-adopted-names",
     "stage-adopted-auto",
+    "stage-archived-names",
     "direct-remove",
     "direct-remove-auto",
+    "direct-archive",
+    "direct-archive-auto",
+    "direct-purge",
+    "direct-purge-auto",
 ]
 
 
@@ -85,8 +90,30 @@ def _log_approval(
             - "stage-adopted-auto": adopted from staging via `adopt-staged --yes`
               (no human prompt, blanket adoption; used by non-TTY coding-agent
               workflows).
-            - "direct-remove": manual removal via `remove-skill` (interactive).
-            - "direct-remove-auto": manual removal via `remove-skill --yes`.
+            - "stage-archived-names": a store skill retired by
+              `adopt-staged --archive-names FILE` — MOVED to `skills/.archive/`,
+              not deleted (ADR-0097 D5). Transcribed like
+              "stage-adopted-names": the decision is the names file, and no
+              prompt is ever shown for an archive.
+            - "direct-remove": a live store skill DELETED via
+              `remove-skill --delete` (interactive).
+            - "direct-remove-auto": the same with `--yes`.
+            - "direct-archive": a live store skill retired via `remove-skill`
+              — MOVED to `skills/.archive/`, restorable with `mv`
+              (interactive).
+            - "direct-archive-auto": the same with `--yes`.
+            - "direct-purge": a file ALREADY in `skills/.archive/` deleted via
+              `remove-skill --delete` (interactive). The archive is otherwise
+              never pruned, so this is the one path that destroys retired
+              text and it gets its own value rather than sharing
+              "direct-remove".
+            - "direct-purge-auto": the same with `--yes`.
+
+            The three retirement outcomes are separated HERE, in a
+            categorical field, and not by whether the row's ``path`` happens
+            to sit under `.archive/`: a path convention is not a contract,
+            and `direct-purge` rows carry an `.archive/` path while meaning
+            the opposite of an archive (silent-failure review 2026-08-22).
         snapshot_path: Pivot snapshot directory written at run start (ADR-0020).
             ``None`` when the command did not produce a snapshot.
         reason: Human-provided justification for the action. Required for
