@@ -178,16 +178,19 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     if getattr(args, "skill_selection", False):
         try:
             from ..core.skill_selection import (
+                format_never_selected_report,
                 format_skill_selection_report,
+                read_never_selected,
                 read_skill_selection_log,
             )
 
+            skills_dir = config.SKILLS_DIR if config.SKILLS_DIR.is_dir() else None
             reading = read_skill_selection_log(
                 log_dir,
                 days=None if since is not None else days,
                 since=since,
                 until=until,
-                skills_dir=config.SKILLS_DIR if config.SKILLS_DIR.is_dir() else None,
+                skills_dir=skills_dir,
                 # Read-only: only the mechanism split of rejected names
                 # consults them (is a foreign token constitution / identity
                 # vocabulary?). Absent or unreadable → the split abstains
@@ -206,6 +209,28 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
             # names exist for. The weekly intake takes the default and
             # gets the same reading without them — see the renderer.
             print(format_skill_selection_report(reading, include_rejected_names=True))
+            # The windowed reading above cannot answer "is this skill an
+            # archive candidate": most of its never-selected list is dormant
+            # (selected before the window opened), and archiving one of those
+            # WOULD change judged behaviour. The whole-history reading is what
+            # separates the two (ADR-0097 D5); the weekly packet renders the
+            # same numbers, this prints them outside the chain.
+            print()
+            print(
+                format_never_selected_report(
+                    read_never_selected(
+                        log_dir,
+                        # The same window arguments, resolved by the same
+                        # function: --since/--until move both readings, so
+                        # the dormant cut and the window above never name
+                        # different fortnights.
+                        days=None if since is not None else days,
+                        since=since,
+                        until=until,
+                        skills_dir=skills_dir,
+                    )
+                )
+            )
         except Exception as exc:
             logger.warning("Skill-selection reading failed (report unaffected): %s", exc)
 
@@ -479,8 +504,8 @@ def _add_report_arguments(parser: argparse.ArgumentParser) -> None:
         "--skill-selection",
         action="store_true",
         help="Append the read-only skill-selection shadow reading "
-        "(per-skill frequency, never-selected, would-be token reduction; "
-        "ADR-0076)",
+        "(per-skill frequency, would-be token reduction; ADR-0076) and the "
+        "whole-history never-selected exit reading (ADR-0097 D5)",
     )
     parser.add_argument(
         "--submolt-scope",

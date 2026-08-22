@@ -69,8 +69,40 @@ SCOPE_ESCALATED_INFERRED = "SCOPE_ESCALATED_INFERRED"
 # Saturday since 2026-07-18) — counting them would burn a weekly unattended
 # improve session on a working guard, the exact failure this set exists for
 # (code review 2026-08-10 HIGH).
+# NEVER_SELECTED_BELOW_FLOOR (ADR-0097 D5) joins them: skills were never
+# selected but none had accumulated the 600 judged exposures that make
+# "never selected" mean anything, so the reading proposes nothing. That is the
+# floor doing its job, and it recurs by design in every week following an
+# adoption — counting it would spend an unattended improve session on a guard
+# whose own section calls the outcome deliberate.
 DESIGNED_OUTCOME_CODES = frozenset(
-    {SCOPE_ESCALATED, "IDENTITY_STAGING_BUSY", "IDENTITY_INSIGHT_PENDING"}
+    {
+        SCOPE_ESCALATED,
+        "IDENTITY_STAGING_BUSY",
+        "IDENTITY_INSIGHT_PENDING",
+        "NEVER_SELECTED_BELOW_FLOOR",
+    }
+)
+
+# ADR-0097 D5 never-selected intake. The reading is produced under the venv
+# (`core.skill_selection.never_selected_reading_json`) because it needs the
+# selection-log grammar and the catalog loader; this module only renders it.
+NEVER_SELECTED_UNREADABLE = "NEVER_SELECTED_UNREADABLE"
+# Rows that do not match the contract the section is rendered from — a strict
+# row without an integer exposure, or a floor that is not a positive integer.
+# The strict list is the one list a human archives from, so a row the builder
+# cannot re-check against the declared floor is dropped and named, never shown.
+NEVER_SELECTED_SCHEMA = "NEVER_SELECTED_SCHEMA"
+# The instrument's own closed vocabulary, re-emitted into the header so a
+# degraded exit reading does not read as a clean week. Anything outside it is
+# schema drift.
+KNOWN_NEVER_SELECTED_REASONS = frozenset(
+    {
+        "NEVER_SELECTED_NO_CATALOG",
+        "NEVER_SELECTED_NO_HISTORY",
+        "NEVER_SELECTED_BELOW_FLOOR",
+        "NEVER_SELECTED_FULL_TOKENS_UNKNOWN",
+    }
 )
 
 # §8 renders the instrument's `reason` fields as narration; they are literal
@@ -88,6 +120,14 @@ KNOWN_VALUE_LAYER_REASONS = frozenset(
         "FUTURE_TIMESTAMP",
     }
 )
+
+# The rules layer's own vocabulary (ADR-0097 D2), kept apart from the cadence
+# one rather than merged into it: `OK` is a legitimate rules state and a
+# nonsense identity reason, and one union set would have made the second read
+# as contract-abiding. `OK` / `RULES_EMPTY` / `RULES_DIR_MISSING` are states of
+# the layer, not faults; only RULES_UNREADABLE reaches the header, and the
+# instrument — not this list — decides that.
+KNOWN_RULES_REASONS = frozenset({"OK", "RULES_EMPTY", "RULES_DIR_MISSING", "RULES_UNREADABLE"})
 
 # The insight-recommendation prompt's machine contract: one section heading
 # per candidate, `## <n>. <name> — RECOMMEND: adopt|reject`.
@@ -534,6 +574,7 @@ def build_packet(
     dead_code: Path | None = None,
     value_layer: Path | None = None,
     docs_scan: Path | None = None,
+    skill_selection: Path | None = None,
 ) -> None:
     reason_codes: list[str] = []
 
@@ -770,6 +811,63 @@ def build_packet(
         else:
             add_reason("DOCSCAN_UNREADABLE")
 
+    # Never-selected intake (ADR-0097 D5): listing only — the archive move is
+    # a human decision at the Saturday gate, made with `adopt-staged
+    # --archive-names`. Every count below is computed from the rows, and the
+    # exposure floor is re-applied here rather than trusted from the
+    # producer's classification: the strict list is the one list a human acts
+    # on, so a row this module cannot re-check is dropped and named.
+    ns_data: dict | None = None
+    ns_floor: int | None = None
+    ns_strict: list[dict] = []
+    ns_dormant: list[dict] = []
+    ns_below_floor: list[dict] = []
+    if skill_selection is not None:
+        ns_data = _load_findings(skill_selection)  # same safe-load contract
+        if ns_data is None:
+            add_reason(NEVER_SELECTED_UNREADABLE)
+        else:
+            raw_floor = ns_data.get("exposure_floor")
+            if isinstance(raw_floor, int) and not isinstance(raw_floor, bool) and raw_floor > 0:
+                ns_floor = raw_floor
+            else:
+                # Without a floor there is no criterion the strict rows were
+                # selected by, so they are not shown at all. The dormant
+                # reading does not depend on it and survives.
+                add_reason(NEVER_SELECTED_SCHEMA)
+
+            def _ns_rows(key: str) -> list[dict]:
+                raw = ns_data.get(key) if ns_data is not None else None
+                return [r for r in raw if isinstance(r, dict)] if isinstance(raw, list) else []
+
+            def _ns_exposure(row: dict) -> int | None:
+                value = row.get("judged_exposure")
+                if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
+                    return value
+                return None
+
+            ns_dormant = _ns_rows("dormant")
+            ns_below_floor = _ns_rows("below_floor")
+            if ns_floor is not None:
+                for row in _ns_rows("strict"):
+                    exposure = _ns_exposure(row)
+                    if exposure is None or exposure < ns_floor:
+                        add_reason(NEVER_SELECTED_SCHEMA)
+                        continue
+                    ns_strict.append(row)
+            ns_reasons = ns_data.get("reasons")
+            if isinstance(ns_reasons, list):
+                for code in ns_reasons[:8]:
+                    if isinstance(code, str) and code in KNOWN_NEVER_SELECTED_REASONS:
+                        add_reason(code)
+                    elif code:
+                        add_reason(NEVER_SELECTED_SCHEMA)
+            elif ns_reasons is not None:
+                # Same door as DOCSCAN_PARTIAL's non-list `errors`: a reasons
+                # field this cannot walk would otherwise open the section
+                # while contributing no codes, which reads as a clean run.
+                add_reason(NEVER_SELECTED_SCHEMA)
+
     def _vl(section: str, key: str) -> object:
         if value_layer_data is None:
             return None
@@ -778,6 +876,29 @@ def build_packet(
 
     identity_due = _vl("identity", "due")
     constitution_due = _vl("constitution", "due")
+
+    # Rules layer (ADR-0097 D2). A missing `rules` key means the instrument was
+    # not asked for it (no --rules-dir) — not scanned, rendered as nothing.
+    # `issues` are rendered, never raised as header reason codes: a rule file
+    # that lost its `**Practice:**` heading is a content problem for a human,
+    # and putting it on the recurrence channel would burn an unattended
+    # improve session drafting a pipeline patch for it.
+    rules_raw = value_layer_data.get("rules") if value_layer_data is not None else None
+    rules_data = rules_raw if isinstance(rules_raw, dict) else None
+    if rules_raw is not None and rules_data is None:
+        # Present but unwalkable: without this the section would silently
+        # vanish and the week would read as "the layer was never scanned".
+        add_reason("VALUE_LAYER_SCHEMA")
+    rules_issues: list[dict] = []
+    if rules_data is not None:
+        raw_issues = rules_data.get("issues")
+        if isinstance(raw_issues, list):
+            rules_issues = [i for i in raw_issues if isinstance(i, dict)]
+    rules_reason = rules_data.get("reason") if rules_data is not None else None
+    # Signal-first: a clean, quiet rules layer opens no section of its own. It
+    # still rides along whenever §8 renders for another reason, which is where
+    # the standing count and mtime are worth their space.
+    rules_signal = rules_data is not None and (bool(rules_issues) or rules_reason != "OK")
     identity_event: dict | None = None
     for event in events:
         if event.get("event") == "stage_result" and event.get("stage") == "identity":
@@ -915,6 +1036,12 @@ def build_packet(
         "constitution_due": constitution_due if isinstance(constitution_due, bool) else None,
         # Same None-vs-0 discipline for the repo-plane intake (ADR-0093).
         "docs_findings": len(docs_findings) if docs_scanned else None,
+        # ADR-0097 D8 reads decisions off record counts, not calendar weeks, so
+        # the exit needs a longitudinal series: how many strict candidates the
+        # floor surfaced each week, and how many structural issues the rules
+        # layer carried. Both None when the intake did not run.
+        "never_selected_strict": len(ns_strict) if ns_data is not None else None,
+        "rules_issues": len(rules_issues) if rules_data is not None else None,
         "reason_codes": reason_codes,
     }
     history = [r for r in _read_jsonl(metrics) if r.get("phase") == "auto"]
@@ -981,6 +1108,19 @@ def build_packet(
         lines.append(
             f"- docs consistency: {len(docs_findings)} 件"
             "（検出のみ — doc 修正は人間 commit、§9 参照）"
+        )
+    if ns_strict:
+        # Signal-first: a week whose floor surfaced nobody adds no line. The
+        # dormant reading never gets an inventory line — it is not a decision
+        # the gate makes, and listing it here would read as one.
+        lines.append(
+            f"- never-selected skill: {len(ns_strict)} 件"
+            "（検出のみ — archive の判断は人間、§10 参照）"
+        )
+    if rules_issues:
+        lines.append(
+            f"- rules layer: {len(rules_issues)} 件の構造 issue"
+            "（検出のみ — 修正は人間 commit、§8 参照）"
         )
     lines.append("")
 
@@ -1221,12 +1361,17 @@ def build_packet(
         value = _vl(section, key)
         if value is None:
             return "—"
-        if key == "reason" and value not in KNOWN_VALUE_LAYER_REASONS:
-            return _unrecognized_verdict(_cell(value))
+        if key == "reason":
+            # Per-section vocabulary: the rules layer's states and the
+            # cadence layers' states are disjoint, and checking each against
+            # the other's set would let a drifted value pass as contractual.
+            known = KNOWN_RULES_REASONS if section == "rules" else KNOWN_VALUE_LAYER_REASONS
+            if value not in known:
+                return _unrecognized_verdict(_cell(value))
         return _cell(value)
 
-    if identity_signal or constitution_due is True:
-        lines.append("## 8. Value layer cadence (identity / constitution)")
+    if identity_signal or constitution_due is True or rules_signal:
+        lines.append("## 8. Value layer cadence (identity / constitution / rules)")
         lines.append("")
         lines.append(
             "`scripts/value_layer_due_check.py`（read-only 計器）の読み値。"
@@ -1305,6 +1450,43 @@ def build_packet(
                 "でないこと（ADR-0056）"
             )
             lines.append("")
+        if rules_data is not None:
+            # Rendered whenever §8 exists, not only on its own signal: the
+            # count and the mtime are the standing maintenance reading the
+            # layer got in exchange for losing its generator (ADR-0097 D2),
+            # and riding an already-open section costs the packet nothing.
+            lines.append("### Rules layer（maintenance reading）")
+            lines.append("")
+            lines.append(
+                "ADR-0097 D2 で `rules-distill` / `rules-stocktake` は退役した。"
+                "rules 層に残る所有者はこの決定論的な読み値だけで、**ここでは何も"
+                "修正されていない** — 構造 issue の扱い（修正 / 容認 / 保留）は"
+                "土曜ゲートの人間 commit で行う。新しい rule は family promotion"
+                "（ADR-0097 D7）からのみ入る。"
+            )
+            lines.append("")
+            days_since = _vl("rules", "days_since_newest")
+            lines.append(
+                f"- files: {_vl_cell('rules', 'files')} 本 / "
+                f"newest mtime: {_vl_cell('rules', 'newest_mtime')}"
+                + (f"（{_cell(days_since)} 日前）" if days_since is not None else "")
+                + f" / state: {_vl_cell('rules', 'reason')}"
+            )
+            if rules_issues:
+                lines.append(
+                    f"- 構造 issue: {len(rules_issues)} 件"
+                    "（B 層の Practice/Rationale 形式を満たさない）"
+                )
+                lines.append("")
+                lines.append("| rule file | reason |")
+                lines.append("|---|---|")
+                for issue in sorted(rules_issues, key=lambda i: str(i.get("file", ""))):
+                    lines.append(
+                        f"| `{_cell(issue.get('file', '?'))}` | {_cell(issue.get('reason', '?'))} |"
+                    )
+            else:
+                lines.append("- 構造 issue: 0 件")
+            lines.append("")
 
     # Section number 9 is reserved for the docs-consistency intake; on clean
     # weeks it is absent (signal-first). It also renders when the scan itself
@@ -1349,6 +1531,150 @@ def build_packet(
                 f"| {_cell(line_no) if line_no is not None else '—'} "
                 f"| {_tick(f.get('detail', '?'))} |"
             )
+        lines.append("")
+
+    # Section number 10 is reserved for the never-selected exit reading
+    # (ADR-0097 D5); a week with nothing in any population and no degraded
+    # reading is simply absent (signal-first).
+    def _ns(section: str, key: str) -> object:
+        if ns_data is None:
+            return None
+        sub = ns_data.get(section)
+        return sub.get(key) if isinstance(sub, dict) else None
+
+    def _ns_cell(section: str, key: str) -> str:
+        value = _ns(section, key)
+        return "—" if value is None else _cell(value)
+
+    ns_signal = ns_data is not None and bool(
+        ns_strict or ns_dormant or ns_below_floor or ns_data.get("reasons")
+    )
+    if ns_signal and ns_data is not None:
+        lines.append("## 10. Never-selected skills (archive candidates — detection only)")
+        lines.append("")
+        lines.append(
+            "選択ログ（`logs/skill-selection-*.jsonl`）全履歴の読み値"
+            "（ADR-0097 D5、`core/skill_selection.py`）。**archive はここでは"
+            "行われていない** — 候補ごとの判断（archive / 保留）と理由の記録は"
+            "土曜ゲートの人間が `adopt-staged --archive-names` で行う。"
+            "この節は列挙するだけで、順位も閾値判定も持たない。"
+        )
+        lines.append("")
+        lines.append(
+            f"読み取り範囲: {_ns_cell('history', 'files')} 日分のログ"
+            f"（{_ns_cell('history', 'first_day')} … {_ns_cell('history', 'last_day')}）、"
+            f"judged {_ns_cell('history', 'judged')} / "
+            f"records {_ns_cell('history', 'records')}、"
+            f"catalog {_ns_cell('catalog', 'size')} skills"
+        )
+        lines.append("")
+        # The caveat is printed BESIDE the candidates, not in a footnote: the
+        # behaviour-neutrality argument ("never selected ⇒ never injected ⇒
+        # removing it cannot change judged behaviour") holds for judged
+        # actions only, and the fail-open path injects the full corpus. Both
+        # numbers are printed so the reader can check the claim instead of
+        # taking it on faith (the Codex challenge in ADR-0097's Context).
+        lines.append(
+            "**behaviour-neutrality は judged な action についてのみ成り立つ** — "
+            "fail-open した action には全 corpus が注入される。判断材料:"
+        )
+        lines.append("")
+        # The instrument windows by `days` (today − N) or by explicit UTC
+        # calendar bounds (`since`/`until`, T-SKILLSEL-REPORT-WINDOW). Naming
+        # a bounded window as "直近 N 日" would misreport it by a day and hide
+        # a backfill entirely — which is the trap the explicit mode exists to
+        # avoid, so the packet must not re-introduce it in its own prose.
+        ns_since, ns_until = _ns("window", "since"), _ns("window", "until")
+        ns_span = (
+            f"{_cell(ns_since)} … {_cell(ns_until)}"
+            if ns_since
+            else f"直近 {_ns_cell('window', 'days')} 日"
+        )
+        lines.append(
+            f"- {ns_span}の fail-open: "
+            f"{_ns_cell('window', 'fail_open')} / "
+            f"{_ns_cell('window', 'records')} records"
+        )
+        full_tokens = _ns("corpus", "full_skill_tokens")
+        num_ctx = _ns("corpus", "num_ctx")
+        if isinstance(full_tokens, int) and isinstance(num_ctx, int) and full_tokens > 0:
+            # A mechanism statement tied to the two printed numbers, not a
+            # judgment about archiving: when the corpus exceeds the context
+            # window the fail-open path abstains rather than injects (ADR-0081
+            # amendment). The reader can see which side of it this week is on.
+            relation = (
+                f"NUM_CTX {num_ctx:,} を超える — fail-open は注入せず abstain する"
+                f"（ADR-0081 amendment）"
+                if full_tokens >= num_ctx
+                else f"NUM_CTX {num_ctx:,} に収まる — fail-open が起きれば"
+                "archive 候補も再注入される"
+            )
+            lines.append(f"- full corpus {full_tokens:,} tok は {relation}")
+        else:
+            lines.append(
+                "- full corpus のトークン数が読めない"
+                "（NEVER_SELECTED_FULL_TOKENS_UNKNOWN）— "
+                f"NUM_CTX との比較は不可。NUM_CTX は {_ns_cell('corpus', 'num_ctx')}"
+            )
+        lines.append("")
+        floor_text = _cell(ns_floor) if ns_floor is not None else "—"
+        lines.append(f"### Strict（全履歴で 0 回選択 かつ judged exposure ≥ {floor_text}）")
+        lines.append("")
+        if ns_floor is None:
+            lines.append(
+                f"（{NEVER_SELECTED_SCHEMA} — exposure floor が読めないため候補一覧を"
+                "表示しない。読み値の JSON を直接確認する）"
+            )
+        elif ns_strict:
+            lines.append(
+                f"下の {len(ns_strict)} 件は「一度も注入されていない」— 外しても "
+                "judged な生成は変わらない。理由の記録は必須（`remove-skill --reason`）。"
+            )
+            lines.append("")
+            lines.append("| skill | judged exposure (history) |")
+            lines.append("|---|---|")
+            for row in sorted(
+                ns_strict,
+                key=lambda r: (-int(r.get("judged_exposure", 0)), str(r.get("name", ""))),
+            ):
+                lines.append(
+                    f"| `{_cell(row.get('name', '?'))}` "
+                    f"| {_cell(row.get('judged_exposure', '?'))} |"
+                )
+        else:
+            lines.append("（該当なし）")
+        if ns_below_floor:
+            exposures = [
+                r.get("judged_exposure")
+                for r in ns_below_floor
+                if isinstance(r.get("judged_exposure"), int)
+            ]
+            highest = max(exposures) if exposures else 0
+            lines.append("")
+            lines.append(
+                f"床未満: 一度も選ばれていない skill が他に {len(ns_below_floor)} 件"
+                f"（最大 exposure {highest}）。まだ候補ではない — 提示された回数が"
+                "少なすぎて「選ばれていない」が何も意味しない（ADR-0097 D8）。"
+            )
+        lines.append("")
+        lines.append(f"### Dormant（{ns_span}は 0 回、以前は選択あり）")
+        lines.append("")
+        lines.append(
+            "**読み値のみ。archive 候補ではない** — 過去に選択された skill を"
+            "外すと judged な生成が変わる。"
+        )
+        lines.append("")
+        if ns_dormant:
+            lines.append("| skill | judged exposure (window) | last selected |")
+            lines.append("|---|---|---|")
+            for row in sorted(ns_dormant, key=lambda r: str(r.get("name", ""))):
+                last = row.get("last_selected") or "—"
+                lines.append(
+                    f"| `{_cell(row.get('name', '?'))}` "
+                    f"| {_cell(row.get('window_exposure', '?'))} | {_cell(last)} |"
+                )
+        else:
+            lines.append("（該当なし）")
         lines.append("")
 
     lines.append("## Audit trail")
@@ -1402,6 +1728,16 @@ def main() -> int:
         default=None,
         help="docs_consistency_scan.py JSON — section appears only on findings/errors",
     )
+    p_build.add_argument(
+        "--skill-selection",
+        type=Path,
+        default=None,
+        help="never-selected reading JSON (ADR-0097 D5) — section appears only on "
+        "signal. Produced under the venv, e.g.: uv run python -c 'import json,"
+        "pathlib;from contemplative_agent.core.skill_selection import "
+        "read_never_selected,never_selected_reading_json;"
+        "print(json.dumps(never_selected_reading_json(read_never_selected(...))))'",
+    )
 
     p_check = sub.add_parser("check-improvement", help="P4-shaped recurrence trigger")
     p_check.add_argument("--metrics", type=Path, required=True)
@@ -1450,6 +1786,7 @@ def main() -> int:
             dead_code=args.dead_code,
             value_layer=args.value_layer,
             docs_scan=args.docs_scan,
+            skill_selection=args.skill_selection,
         )
         print(f"Packet written: {args.out}")
     elif args.command == "check-improvement":

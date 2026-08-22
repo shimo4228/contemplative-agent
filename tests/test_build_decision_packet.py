@@ -1827,3 +1827,459 @@ def test_non_list_errors_field_degrades_not_clean(tmp_path: Path):
     ds.write_text(json.dumps({"findings": [], "errors": "GIT_FAIL: everything"}), encoding="utf-8")
     text = _build(paths, docs_scan=ds)
     assert "DOCSCAN_PARTIAL" in text.split("## 1.")[0]
+
+
+# --- Rules layer maintenance reading (ADR-0097 D2, inside §8) ---
+
+
+def _value_layer_with_rules(tmp_path: Path, rules: dict | None, **kwargs) -> Path:
+    path = _value_layer_json(tmp_path, **kwargs)
+    data = json.loads(path.read_text(encoding="utf-8"))
+    if rules is not None:
+        data["rules"] = rules
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
+def test_rules_issues_open_section_8_on_their_own(tmp_path: Path):
+    """The layer lost its generator (ADR-0097 D2); the packet is the only
+    place its structural state is now reported, so it must not need an
+    identity or amendment week to be visible."""
+    paths = _write_inputs(tmp_path)
+    vl = _value_layer_with_rules(
+        tmp_path,
+        {
+            "files": 2,
+            "newest_mtime": "2026-04-11T00:00:00+00:00",
+            "days_since_newest": 104,
+            "issues": [{"file": "b-layer.md", "reason": 'missing "**Practice:**" section'}],
+            "reason": "OK",
+        },
+    )
+    text = _build(paths, value_layer=vl)
+    assert "## 8. Value layer cadence (identity / constitution / rules)" in text
+    section = text.split("## 8.")[1]
+    assert "### Rules layer" in section
+    assert "b-layer.md" in section
+    assert 'missing "**Practice:**" section' in section
+    assert "files: 2" in section
+    assert "104 日前" in section
+    # Counted by the builder from the rows, and surfaced up front.
+    assert "rules layer: 1 件の構造 issue" in text
+
+
+def test_clean_rules_layer_rides_along_but_opens_nothing(tmp_path: Path):
+    """Signal-first: a quiet, well-formed layer adds no section of its own,
+    but the standing count/mtime ride an already-open §8 for free."""
+    paths = _write_inputs(tmp_path)
+    clean = {
+        "files": 2,
+        "newest_mtime": "2026-04-11T00:00:00+00:00",
+        "days_since_newest": 104,
+        "issues": [],
+        "reason": "OK",
+    }
+    quiet = _build(paths, value_layer=_value_layer_with_rules(tmp_path, clean))
+    assert not any(ln.startswith("## 8.") for ln in quiet.splitlines())
+
+    (tmp_path / "two").mkdir()
+    paths2 = _write_inputs(tmp_path / "two")
+    loud = _build(
+        paths2,
+        value_layer=_value_layer_with_rules(tmp_path / "two", clean, constitution_due=True),
+    )
+    assert "### Rules layer" in loud
+    assert "構造 issue: 0 件" in loud
+    assert "rules layer:" not in loud.split("## 2.")[0]  # no inventory line
+
+
+def test_rules_layer_state_is_named_not_guessed(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    vl = _value_layer_with_rules(
+        tmp_path,
+        {
+            "files": 0,
+            "newest_mtime": None,
+            "days_since_newest": None,
+            "issues": [],
+            "reason": "RULES_DIR_MISSING",
+        },
+    )
+    text = _build(paths, value_layer=vl)
+    assert "state: RULES_DIR_MISSING" in text.split("## 8.")[1]
+    # A named state, not an UNRECOGNIZED(...) rendering.
+    assert "UNRECOGNIZED" not in text.split("## 8.")[1]
+
+
+def test_unknown_rules_reason_is_marked_unrecognized(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    vl = _value_layer_with_rules(
+        tmp_path,
+        {"files": 1, "newest_mtime": None, "issues": [], "reason": "RULES_HAUNTED"},
+    )
+    text = _build(paths, value_layer=vl)
+    assert "UNRECOGNIZED(`RULES_HAUNTED`)" in text.split("## 8.")[1]
+
+
+def test_rules_vocabulary_is_not_accepted_for_the_cadence_layers(tmp_path: Path):
+    """`OK` is a legitimate rules state and a nonsense identity reason — one
+    union allowlist would have let the second read as contract-abiding."""
+    paths = _write_inputs(tmp_path)
+    vl = _value_layer_json(tmp_path, constitution_due=True)
+    data = json.loads(vl.read_text(encoding="utf-8"))
+    data["identity"]["reason"] = "OK"
+    data["rules"] = {"files": 1, "newest_mtime": None, "issues": [], "reason": "OK"}
+    vl.write_text(json.dumps(data), encoding="utf-8")
+    with paths["audit"].open("a", encoding="utf-8") as fh:
+        fh.write(_audit_line("stage_result", stage="identity", result="ok") + "\n")
+    section = _build(paths, value_layer=vl).split("## 8.")[1]
+    assert "UNRECOGNIZED(`OK`)" in section.split("### Rules layer")[0]
+    assert "state: OK" in section.split("### Rules layer")[1]
+
+
+def test_rules_unreadable_reaches_the_packet_header(tmp_path: Path):
+    """The instrument decides which rules state is a fault; the builder
+    carries it through with the VALUE_LAYER_ prefix like every other one."""
+    paths = _write_inputs(tmp_path)
+    vl = _value_layer_json(tmp_path)
+    data = json.loads(vl.read_text(encoding="utf-8"))
+    data["rules"] = {
+        "files": 1,
+        "newest_mtime": None,
+        "issues": [],
+        "reason": "RULES_UNREADABLE",
+        "unreadable_files": 1,
+    }
+    data["reasons"] = ["RULES_UNREADABLE"]
+    vl.write_text(json.dumps(data), encoding="utf-8")
+    text = _build(paths, value_layer=vl)
+    assert "VALUE_LAYER_RULES_UNREADABLE" in text.split("## 1.")[0]
+    assert "state: RULES_UNREADABLE" in text.split("## 8.")[1]
+
+
+def test_unwalkable_rules_field_is_named_not_silently_dropped(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    vl = _value_layer_with_rules(tmp_path, None)
+    data = json.loads(vl.read_text(encoding="utf-8"))
+    data["rules"] = "two files, all fine"
+    vl.write_text(json.dumps(data), encoding="utf-8")
+    text = _build(paths, value_layer=vl)
+    assert "VALUE_LAYER_SCHEMA" in text.split("## 1.")[0]
+    assert "### Rules layer" not in text
+
+
+def test_unwalkable_never_selected_reasons_field_is_named(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    ns = tmp_path / "never-selected.json"
+    ns.write_text(
+        json.dumps({"exposure_floor": 600, "strict": [], "reasons": "everything is fine"}),
+        encoding="utf-8",
+    )
+    text = _build(paths, skill_selection=ns)
+    assert "NEVER_SELECTED_SCHEMA" in text.split("## 1.")[0]
+
+
+def test_rules_metrics_field_distinguishes_not_scanned_from_clean(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    _build(paths, value_layer=_value_layer_json(tmp_path))
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["rules_issues"] is None
+
+    (tmp_path / "two").mkdir()
+    paths2 = _write_inputs(tmp_path / "two")
+    _build(
+        paths2,
+        value_layer=_value_layer_with_rules(
+            tmp_path / "two",
+            {"files": 2, "newest_mtime": None, "issues": [], "reason": "OK"},
+        ),
+    )
+    rec2 = json.loads(paths2["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec2["rules_issues"] == 0
+
+
+# --- Never-selected exit reading (ADR-0097 D5, §10) ---
+
+
+def _never_selected_json(
+    tmp_path: Path,
+    *,
+    strict: list[dict] | None = None,
+    dormant: list[dict] | None = None,
+    below_floor: list[dict] | None = None,
+    exposure_floor: object = 600,
+    full_skill_tokens: int = 38867,
+    fail_open: int = 0,
+    reasons: list[str] | None = None,
+    since: str | None = None,
+    until: str | None = None,
+) -> Path:
+    path = tmp_path / "never-selected.json"
+    path.write_text(
+        json.dumps(
+            {
+                "exposure_floor": exposure_floor,
+                "strict": strict or [],
+                "dormant": dormant or [],
+                "below_floor": below_floor or [],
+                "history": {
+                    "files": 44,
+                    "records": 3716,
+                    "judged": 3690,
+                    "first_day": "2026-07-10",
+                    "last_day": "2026-08-22",
+                },
+                "window": {
+                    "days": 14,
+                    "since": since,
+                    "until": until,
+                    "records": 620,
+                    "judged": 606,
+                    "fail_open": fail_open,
+                },
+                "corpus": {"full_skill_tokens": full_skill_tokens, "num_ctx": 32768},
+                "catalog": {"size": 57, "available": True},
+                "reasons": reasons or [],
+            }
+        ),
+        encoding="utf-8",
+    )
+    return path
+
+
+def test_builder_allowlist_matches_the_instruments_vocabulary():
+    """The builder cannot import the package (it runs under system python3),
+    so its allowlist is a copy — pinned here rather than left to vigilance."""
+    from contemplative_agent.core.skill_selection import NEVER_SELECTED_REASONS
+
+    assert bdp.KNOWN_NEVER_SELECTED_REASONS == set(NEVER_SELECTED_REASONS)
+
+
+def test_strict_candidates_are_listed_with_the_neutrality_caveat(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(
+        tmp_path,
+        strict=[
+            {"name": "pre-processing-state-validation", "judged_exposure": 2531},
+            {"name": "assume-perfect-adversarial-understanding", "judged_exposure": 1845},
+        ],
+    )
+    text = _build(paths, skill_selection=ns)
+    assert "never-selected skill: 2 件" in text
+    assert "## 10. Never-selected skills" in text
+    section = text.split("## 10.")[1]
+    assert "pre-processing-state-validation" in section
+    assert "2531" in section
+    # The caveat lives beside the candidates, with both numbers printed.
+    assert "fail-open" in section and "0 / 620 records" in section
+    assert "38,867 tok" in section and "NUM_CTX 32,768 を超える" in section
+
+
+def test_dormant_is_rendered_as_a_reading_never_a_candidate(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(
+        tmp_path,
+        dormant=[
+            {
+                "name": "internal-process-audit",
+                "judged_exposure": 3000,
+                "window_exposure": 606,
+                "last_selected": "2026-08-03",
+            }
+        ],
+    )
+    text = _build(paths, skill_selection=ns)
+    section = text.split("## 10.")[1]
+    assert "internal-process-audit" in section
+    assert "2026-08-03" in section
+    assert "archive 候補ではない" in section
+    # Dormant never reaches the inventory — it is not a decision the gate makes.
+    assert "never-selected skill:" not in text.split("## 2.")[0]
+
+
+def test_below_floor_is_counted_not_listed(tmp_path: Path):
+    """The floor selects what gets LISTED; a name under it is not yet a
+    candidate and must not appear as one (ADR-0097 D8)."""
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(
+        tmp_path,
+        below_floor=[
+            {"name": "adopted-last-week", "judged_exposure": 120},
+            {"name": "adopted-yesterday", "judged_exposure": 8},
+        ],
+        reasons=["NEVER_SELECTED_BELOW_FLOOR"],
+    )
+    text = _build(paths, skill_selection=ns)
+    section = text.split("## 10.")[1]
+    assert "他に 2 件" in section
+    assert "最大 exposure 120" in section
+    assert "adopted-last-week" not in section
+
+
+def test_below_floor_reason_is_a_designed_outcome(tmp_path: Path):
+    """It recurs by design after every adoption — counting it would spend an
+    unattended improve session on the floor doing its job."""
+    assert "NEVER_SELECTED_BELOW_FLOOR" in bdp.DESIGNED_OUTCOME_CODES
+    metrics = tmp_path / "m.jsonl"
+    for _ in range(2):
+        metrics.write_text(
+            "\n".join(
+                json.dumps(
+                    {
+                        "phase": "auto",
+                        "week_end": w,
+                        "reason_codes": ["NEVER_SELECTED_BELOW_FLOOR"],
+                    }
+                )
+                for w in ("2026-08-15", "2026-08-22")
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+    assert bdp.check_improvement(metrics)["fired"] is False
+
+
+def test_strict_row_below_the_declared_floor_is_dropped_and_named(tmp_path: Path):
+    """The builder re-applies the floor rather than trusting the producer's
+    classification — the strict list is the one list a human archives from."""
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(
+        tmp_path,
+        strict=[
+            {"name": "legitimate", "judged_exposure": 900},
+            {"name": "smuggled-in", "judged_exposure": 3},
+            {"name": "no-number", "judged_exposure": "many"},
+        ],
+    )
+    text = _build(paths, skill_selection=ns)
+    section = text.split("## 10.")[1]
+    assert "legitimate" in section
+    assert "smuggled-in" not in section
+    assert "no-number" not in section
+    assert "NEVER_SELECTED_SCHEMA" in text.split("## 1.")[0]
+    assert "never-selected skill: 1 件" in text
+
+
+def test_missing_floor_withholds_the_strict_list_entirely(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(
+        tmp_path,
+        strict=[{"name": "unverifiable", "judged_exposure": 900}],
+        dormant=[{"name": "d", "judged_exposure": 10, "window_exposure": 5, "last_selected": "x"}],
+        exposure_floor=None,
+    )
+    text = _build(paths, skill_selection=ns)
+    section = text.split("## 10.")[1]
+    assert "unverifiable" not in section
+    assert "NEVER_SELECTED_SCHEMA" in section
+    # The dormant reading does not depend on the floor and survives.
+    assert "d" in section
+
+
+def test_corpus_within_num_ctx_says_fail_open_would_reinject(tmp_path: Path):
+    """The mechanism statement follows the numbers, both ways — the reader
+    must be able to see which side of NUM_CTX this week is on."""
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(
+        tmp_path,
+        strict=[{"name": "quiet", "judged_exposure": 700}],
+        full_skill_tokens=12000,
+        fail_open=3,
+    )
+    section = _build(paths, skill_selection=ns).split("## 10.")[1]
+    assert "NUM_CTX 32,768 に収まる" in section
+    assert "再注入される" in section
+    assert "3 / 620 records" in section
+
+
+def test_unknown_corpus_size_abstains_from_the_comparison(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(
+        tmp_path,
+        strict=[{"name": "quiet", "judged_exposure": 700}],
+        full_skill_tokens=0,
+        reasons=["NEVER_SELECTED_FULL_TOKENS_UNKNOWN"],
+    )
+    text = _build(paths, skill_selection=ns)
+    assert "NEVER_SELECTED_FULL_TOKENS_UNKNOWN" in text.split("## 1.")[0]
+    assert "NUM_CTX との比較は不可" in text.split("## 10.")[1]
+
+
+def test_quiet_week_renders_no_section(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    text = _build(paths, skill_selection=_never_selected_json(tmp_path))
+    assert not any(ln.startswith("## 10.") for ln in text.splitlines())
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["never_selected_strict"] == 0
+
+
+def test_absent_arg_keeps_packet_unchanged_and_metrics_none(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    text = _build(paths)
+    assert "## 10." not in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["never_selected_strict"] is None
+
+
+def test_unreadable_never_selected_json_degrades_to_a_reason_code(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    bad = tmp_path / "never-selected.json"
+    bad.write_text("{not json", encoding="utf-8")
+    text = _build(paths, skill_selection=bad)
+    assert "NEVER_SELECTED_UNREADABLE" in text.split("## 1.")[0]
+    assert "## 10." not in text
+    rec = json.loads(paths["metrics"].read_text(encoding="utf-8").splitlines()[0])
+    assert rec["never_selected_strict"] is None
+
+
+def test_instrument_reasons_reach_the_header_and_drift_is_named(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(
+        tmp_path,
+        reasons=["NEVER_SELECTED_NO_CATALOG", "NEVER_SELECTED_FROM_THE_FUTURE"],
+    )
+    header = _build(paths, skill_selection=ns).split("## 1.")[0]
+    assert "NEVER_SELECTED_NO_CATALOG" in header
+    assert "NEVER_SELECTED_FROM_THE_FUTURE" not in header
+    assert "NEVER_SELECTED_SCHEMA" in header
+
+
+def test_hostile_skill_name_cannot_forge_a_section(tmp_path: Path):
+    """Store skill names are LLM-distilled text. §10 renders them inside a
+    table cell, so the module-wide floor has to hold there too: the row stays
+    one line and the forged heading never reaches line-initial position."""
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(
+        tmp_path,
+        strict=[{"name": "evil|\n## 11. Fake section\n", "judged_exposure": 900}],
+        dormant=[
+            {
+                "name": "also-evil\n## 12. Also fake\n",
+                "judged_exposure": 10,
+                "window_exposure": 5,
+                "last_selected": "2026-08-\n## 13. Nope",
+            }
+        ],
+    )
+    text = _build(paths, skill_selection=ns)
+    headings = [ln for ln in text.splitlines() if ln.startswith("## ")]
+    assert not any("Fake" in h or "fake" in h or "Nope" in h for h in headings)
+    # The pipe is escaped too, so the forged cell cannot split the row.
+    assert "| `evil\\|" in text
+
+
+def test_explicit_window_bounds_are_named_not_reported_as_last_n_days(tmp_path: Path):
+    """The instrument's second window mode (T-SKILLSEL-REPORT-WINDOW) is a
+    UTC calendar range; calling it "直近 N 日" would misreport it by a day and
+    hide a backfill, the exact trap that mode exists to avoid."""
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(
+        tmp_path,
+        strict=[{"name": "quiet", "judged_exposure": 700}],
+        since="2026-08-08",
+        until="2026-08-22",
+    )
+    section = _build(paths, skill_selection=ns).split("## 10.")[1]
+    assert "2026-08-08 … 2026-08-22の fail-open" in section
+    assert "直近" not in section
+    assert "### Dormant（2026-08-08 … 2026-08-22は 0 回" in section

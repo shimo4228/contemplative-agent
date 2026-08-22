@@ -659,3 +659,154 @@ def test_unparsable_amendment_history_named_distinctly() -> None:
     )
     assert reading["constitution"]["due"] is False
     assert reading["constitution"]["reason"] == "UNPARSABLE_HISTORY"
+
+
+# --- Rules layer (ADR-0097 D2) ---
+#
+# `rules-distill` / `rules-stocktake` were retired as LLM generators; this
+# deterministic reading is the only maintenance owner the layer has left. The
+# structural check is a MIRROR of core.stocktake._check_rule_quality — the
+# script runs under the system python3, which has no contemplative_agent on
+# its path — so the first test below pins the two together.
+
+GOOD_RULE = (
+    "# Verify Before Work\n\n"
+    "**Practice:** Confirm the premise in code before starting a ledger task.\n\n"
+    "**Rationale:** Three of the last ten tasks were already done when they "
+    "were picked up, and the ledger entry was the only thing that still said "
+    "otherwise. Reading the code first costs a minute and closes the entry.\n"
+)
+
+
+def _rules_dir(tmp_path: Path, files: dict[str, str]) -> Path:
+    rules = tmp_path / "rules"
+    rules.mkdir()
+    for name, body in files.items():
+        (rules / name).write_text(body, encoding="utf-8")
+    return rules
+
+
+def test_local_rule_check_agrees_with_the_canonical_one() -> None:
+    """The duplication is deliberate (system python3 cannot import the
+    package) — so it is pinned, not left to vigilance. A change to one and
+    not the other fails here."""
+    from contemplative_agent.core.stocktake import _check_rule_quality as canonical
+
+    bodies = {
+        "good.md": GOOD_RULE,
+        "short.md": "Brief.",
+        "no-practice.md": "x" * 250 + "\n\n**Rationale:** because.\n",
+        "no-rationale.md": "x" * 250 + "\n\n**Practice:** do it.\n",
+        "exactly-200.md": "y" * 200,
+        "199.md": "y" * 199,
+    }
+    for name, body in bodies.items():
+        mine = vldc._check_rule_quality(body)
+        theirs = canonical(name, body)
+        assert mine == (theirs.reason if theirs is not None else None), name
+
+
+def test_rules_reading_counts_mtime_and_issues(tmp_path: Path) -> None:
+    rules = _rules_dir(tmp_path, {"good.md": GOOD_RULE, "bad.md": "too short"})
+    paths = _write_inputs(
+        tmp_path,
+        audit_lines=[_audit_line("distill-identity", "2026-08-01T00:00:00+00:00", source="stage")],
+    )
+    reading = _reading(_run(paths, "--rules-dir", str(rules)))
+    assert reading["rules"]["files"] == 2
+    assert reading["rules"]["reason"] == "OK"
+    assert reading["rules"]["issues"] == [{"file": "bad.md", "reason": "body < 200 chars"}]
+    assert reading["rules"]["newest_mtime"] is not None
+    # Measured against --as-of, not the wall clock: the reading replays.
+    assert reading["rules"]["days_since_newest"] is not None
+    # A content problem is NOT a chain fault — it must not reach the header
+    # reason list, where the packet's recurrence trigger would spend an
+    # unattended improve session on it.
+    assert reading["reasons"] == []
+
+
+def test_rules_key_absent_when_not_asked_for(tmp_path: Path) -> None:
+    """No --rules-dir = not scanned. The packet keeps that apart from
+    scanned-and-clean, so the key must be missing rather than null."""
+    paths = _write_inputs(
+        tmp_path,
+        audit_lines=[_audit_line("distill-identity", "2026-08-01T00:00:00+00:00", source="stage")],
+    )
+    assert "rules" not in _reading(_run(paths))
+
+
+def test_missing_rules_dir_is_a_state_not_a_header_fault(tmp_path: Path) -> None:
+    """A store with no rules would otherwise emit the same code every week
+    and fire the packet's recurrence trigger on a working system."""
+    paths = _write_inputs(
+        tmp_path,
+        audit_lines=[_audit_line("distill-identity", "2026-08-01T00:00:00+00:00", source="stage")],
+    )
+    reading = _reading(_run(paths, "--rules-dir", str(tmp_path / "absent")))
+    assert reading["rules"]["reason"] == "RULES_DIR_MISSING"
+    assert reading["rules"]["files"] == 0
+    assert reading["reasons"] == []
+
+
+def test_empty_rules_dir_named_apart_from_missing(tmp_path: Path) -> None:
+    rules = _rules_dir(tmp_path, {})
+    paths = _write_inputs(
+        tmp_path,
+        audit_lines=[_audit_line("distill-identity", "2026-08-01T00:00:00+00:00", source="stage")],
+    )
+    reading = _reading(_run(paths, "--rules-dir", str(rules)))
+    assert reading["rules"]["reason"] == "RULES_EMPTY"
+    assert reading["rules"]["files"] == 0
+    assert reading["rules"]["newest_mtime"] is None
+    assert reading["rules"]["days_since_newest"] is None
+
+
+def test_unreadable_rule_file_is_a_header_fault(tmp_path: Path) -> None:
+    """ "I could not read what is there" IS a fault — unlike an empty layer,
+    it means the reading is incomplete."""
+    rules = _rules_dir(tmp_path, {"good.md": GOOD_RULE})
+    (rules / "binary.md").write_bytes(b"\xff\xfe not utf-8")
+    paths = _write_inputs(
+        tmp_path,
+        audit_lines=[_audit_line("distill-identity", "2026-08-01T00:00:00+00:00", source="stage")],
+    )
+    reading = _reading(_run(paths, "--rules-dir", str(rules)))
+    assert reading["rules"]["reason"] == "RULES_UNREADABLE"
+    assert reading["rules"]["unreadable_files"] == 1
+    assert reading["rules"]["files"] == 1
+    assert "RULES_UNREADABLE" in reading["reasons"]
+
+
+def test_rules_reading_skips_dotfiles_and_frontmatter(tmp_path: Path) -> None:
+    """Same file rules as read_markdown_documents: dotfiles out, the check
+    runs on the frontmatter-stripped body."""
+    rules = _rules_dir(
+        tmp_path,
+        {
+            ".hidden.md": "short",
+            "front.md": "---\nname: front\n---\n\n" + GOOD_RULE,
+            "empty-body.md": "---\nname: e\n---\n",
+        },
+    )
+    reading = vldc.read_rules_layer(rules)
+    assert reading is not None
+    assert reading["files"] == 1
+    assert reading["issues"] == []
+
+
+def test_rules_days_since_newest_uses_as_of(tmp_path: Path) -> None:
+    reading = vldc.build_reading(
+        audit_records=[{"ts": "2026-08-01T00:00:00+00:00", "command": "distill-identity"}],
+        patterns=[],
+        staging_pending=0,
+        as_of="2026-08-22",
+        identity_interval_days=27,
+        amendment_interval_days=83,
+        rules={
+            "files": 2,
+            "newest_mtime": "2026-04-11T00:00:00+00:00",
+            "issues": [],
+            "reason": "OK",
+        },
+    )
+    assert reading["rules"]["days_since_newest"] == 133
