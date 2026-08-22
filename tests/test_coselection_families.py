@@ -91,6 +91,23 @@ def hand_log(tmp_path: Path) -> Path:
     return log_dir
 
 
+def _reading_multi(log_dir: Path, spans: list[tuple[str, str]], **kwargs) -> dict:
+    windows = tuple(
+        cf.load_window(log_dir, date.fromisoformat(start), date.fromisoformat(end))
+        for start, end in spans
+    )
+    return cf.build_reading(
+        windows,
+        thresholds=cf.Thresholds(0.6, 0.7, 0.4),
+        min_co_exposure=cf.DEFAULT_MIN_CO_EXPOSURE,
+        min_selections=cf.DEFAULT_MIN_SELECTIONS,
+        condition="co-exposed",
+        families=kwargs.pop("families", (("core", (A, B)),)),
+        top=cf.DEFAULT_TOP,
+        overlapping=False,
+    )
+
+
 def _reading(log_dir: Path, **kwargs) -> dict:
     families = kwargs.pop("families", ())
     window = kwargs.pop("window", ("2026-08-15", "2026-08-16"))
@@ -119,7 +136,7 @@ class TestHandComputedWindow:
         assert window["records"] == 220
         assert window["judged"] == 200
         assert window["judged_analyzed"] == 200
-        assert window["enforced"] == 200
+        assert window["enforced_of_judged"] == 200
 
     def test_out_of_window_day_is_excluded(self, hand_log):
         window = _reading(hand_log)["windows"][0]
@@ -183,7 +200,11 @@ class TestSupportRule:
         reported = {(p["a"], p["b"]) for p in window["sibling_pairs"]}
         reported |= {(p["specific"], p["general"]) for p in window["subcase_pairs"]}
         assert not any(C in pair for pair in reported)
-        assert window["pairs_below_support"] >= 1
+        assert window["pairs_below_selections"] >= 1
+        assert (
+            window["pairs_below_support"]
+            == window["pairs_below_co_exposure"] + window["pairs_below_selections"]
+        )
 
     def test_low_co_exposure_pair_is_withheld(self, tmp_path):
         """B joins the catalog only on the second day, so the pair was jointly
@@ -193,7 +214,8 @@ class TestSupportRule:
         _write(log_dir, "2026-08-16", [_record([A, B], catalog=[A, B]) for _ in range(40)])
         window = _reading(log_dir)["windows"][0]
         assert window["sibling_pairs_total"] == 0
-        assert window["pairs_below_support"] == 1
+        assert window["pairs_below_co_exposure"] == 1
+        assert window["pairs_below_selections"] == 0
         assert window["catalog_signatures"] == 2
 
     def test_support_rule_is_printed(self, hand_log):
@@ -226,6 +248,46 @@ class TestConditioning:
         assert co_exposed["sibling_pairs"][0]["selected_window"][A] == 240
 
 
+class TestConditionWindowArithmetic:
+    def test_window_condition_reproduces_the_plain_ratio(self, hand_log):
+        """ADR-0097's Context quotes count(a and b)/count(a); pin that form.
+
+        On the hand-computed log the catalog never changes, so the two
+        conditions must agree exactly — which is why the ADR's numbers are
+        reproducible under either flag on a stable week.
+        """
+        windowed = _reading(hand_log, condition="window")["windows"][0]
+        co_exposed = _reading(hand_log, condition="co-exposed")["windows"][0]
+        pair = windowed["sibling_pairs"][0]
+        assert pair["a_selected"] == 150
+        assert pair["b_selected"] == 130
+        assert pair["p_b_given_a"] == pytest.approx(100 / 150, abs=1e-4)
+        assert pair["p_a_given_b"] == pytest.approx(100 / 130, abs=1e-4)
+        assert windowed["sibling_pairs"] == co_exposed["sibling_pairs"]
+        assert windowed["subcase_pairs"] == co_exposed["subcase_pairs"]
+
+    def test_the_condition_in_force_is_printed(self, hand_log):
+        assert _reading(hand_log, condition="window")["condition"] == "window"
+
+
+class TestTopTruncation:
+    def test_the_cap_in_force_is_printed(self, hand_log):
+        reading = _reading(hand_log, top=1)
+        assert reading["top"] == 1
+
+    def test_top_zero_prints_every_pair(self, tmp_path):
+        """Six mutually co-selected skills make 15 sibling pairs."""
+        log_dir = tmp_path / "logs"
+        names = [f"skill-{i}" for i in range(6)]
+        _write(log_dir, "2026-08-15", [_record(names, catalog=names) for _ in range(200)])
+        full = _reading(log_dir, top=0)["windows"][0]
+        capped = _reading(log_dir, top=4)["windows"][0]
+        assert full["sibling_pairs_total"] == 15
+        assert len(full["sibling_pairs"]) == 15
+        assert capped["sibling_pairs_total"] == 15
+        assert len(capped["sibling_pairs"]) == 4
+
+
 class TestFamilies:
     def test_any_of_rate(self, hand_log):
         """A or B is selected in 100 + 40 + 10 + 30 = 180 of 200 judged."""
@@ -236,6 +298,32 @@ class TestFamilies:
         assert family["any_of_rate"] == pytest.approx(0.9)
         assert family["per_member_selected"] == {A: 150, B: 130}
         assert family["members_absent_from_catalog"] == []
+        assert family["judged_with_a_member_exposed"] == 200
+        assert family["any_of_rate_over_exposed"] == pytest.approx(0.9)
+
+    def test_partial_member_exposure_is_named_beside_the_diluted_rate(self, tmp_path):
+        """A member adopted mid-window dilutes the headline rate downward.
+
+        The member is offered for only the last 200 of 600 judged records and
+        is selected in every one of them. The Decision 7 denominator stays
+        ``judged_analyzed`` (0.3333), but the exposure and the rate over it
+        are printed beside it and PARTIAL_FAMILY_EXPOSURE is raised, so the
+        dilution cannot be mistaken for a weak family.
+        """
+        log_dir = tmp_path / "logs"
+        _write(log_dir, "2026-08-15", [_record([A], catalog=[A]) for _ in range(400)])
+        _write(log_dir, "2026-08-16", [_record([A, B], catalog=[A, B]) for _ in range(200)])
+        reading = _reading(log_dir, families=(("core", (B,)),))
+        family = reading["windows"][0]["families"][0]
+        assert family["judged_analyzed"] == 600
+        assert family["any_of_selected"] == 200
+        assert family["any_of_rate"] == pytest.approx(0.3333, abs=1e-4)
+        assert family["judged_with_a_member_exposed"] == 200
+        assert family["any_of_rate_over_exposed"] == pytest.approx(1.0)
+        # Total absence would have been caught by the older field; partial
+        # exposure is exactly the case it cannot see.
+        assert family["members_absent_from_catalog"] == []
+        assert "PARTIAL_FAMILY_EXPOSURE" in reading["reasons"]
 
     def test_absent_member_is_named_not_silently_zero(self, hand_log):
         reading = _reading(hand_log, families=(("core", (A, "zeta-nine")),))
@@ -381,6 +469,33 @@ class TestFaultColumn:
         assert excinfo.value.reason == "CATALOG_TOO_LARGE"
 
 
+class TestEmptyWindowIsNotNoSignal:
+    def test_one_empty_window_among_several_degrades_and_is_named(self, hand_log):
+        reading = _reading_multi(
+            hand_log, [("2026-08-15", "2026-08-16"), ("2026-08-17", "2026-08-18")]
+        )
+        populated, empty = reading["windows"]
+        assert populated["judged_analyzed"] == 200
+        assert empty["judged_analyzed"] == 0
+        assert "WINDOW_EMPTY" in empty["reasons"]
+        # "no data" must not print as a rate of 0.0.
+        assert empty["families"][0]["any_of_rate"] is None
+        assert empty["families"][0]["any_of_rate_ci95"] is None
+        assert "WINDOW_EMPTY" in reading["reasons"]
+
+
+class TestDeterminism:
+    def test_the_same_log_produces_a_byte_identical_reading(self, hand_log):
+        first = json.dumps(_reading(hand_log, families=(("core", (A, B)),)), sort_keys=False)
+        second = json.dumps(_reading(hand_log, families=(("core", (A, B)),)), sort_keys=False)
+        assert first == second
+
+    def test_no_module_reads_the_wall_clock(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        for forbidden in ("date.today", "datetime.now", "datetime.utcnow", "time.time"):
+            assert forbidden not in source
+
+
 class TestAbstains:
     def test_no_judged_records_is_an_abstain_not_an_empty_reading(self, tmp_path):
         log_dir = tmp_path / "logs"
@@ -464,14 +579,29 @@ class TestWilson:
     def test_zero_trials_is_none_not_zero(self):
         assert cf.wilson_ci(0, 0) is None
 
+    def test_impossible_counts_abstain_instead_of_raising(self):
+        assert cf.wilson_ci(5, 3) is None
+        assert cf.wilson_ci(-1, 10) is None
+
+    def test_matches_a_reference_interval(self):
+        """Reference Wilson score intervals, computed independently."""
+        assert cf.wilson_ci(13, 20) == [0.4329, 0.8188]
+        assert cf.wilson_ci(27, 30) == [0.7438, 0.9654]
+        assert cf.wilson_ci(0, 10) == [0.0, 0.2775]
+        assert cf.wilson_ci(10, 10) == [0.7225, 1.0]
+
     def test_documented_floor_interval(self):
         """The docstring's support-rule justification, pinned.
 
-        At 20 trials a 0.65 estimate reaches down to ~0.43 (above the 0.4
-        sub-case band); at 13 it reaches ~0.385 (inside it).
+        The claim is about a 0.65 estimate: at n=20 its interval reaches down
+        to 0.4329 (clear of the <= 0.4 sub-case band) and at n=13 it reaches
+        0.3854 (inside it), so 20 is where the sibling and sub-case readings
+        stay distinguishable. The n=13 case uses the nearest integer count
+        (8/13 = 0.615) and lands lower still, so the claim holds a fortiori.
         """
-        low_20, _ = cf.wilson_ci(13, 20)  # 13/20 = 0.65
-        low_13, _ = cf.wilson_ci(8, 13)  # 8/13 ~= 0.615
+        low_20, _ = cf.wilson_ci(13, 20)  # 13/20 = 0.65 exactly
+        low_13, _ = cf.wilson_ci(8, 13)
+        assert low_20 == 0.4329
         assert low_20 > 0.4
         assert low_13 < 0.4
 

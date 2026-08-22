@@ -135,6 +135,10 @@ class WindowData:
     unreadable_files: int
     records: int
     judged: int
+    # Counted over ``judged``, not over ``judged_analyzed``: enforcement is a
+    # property of the record the selector wrote, decided before this reading
+    # could tell whether the catalog was usable. The output names it
+    # ``enforced_of_judged`` so it is not summed against the analysed set.
     enforced: int
     judged_records: tuple[JudgedRecord, ...]
     signatures: tuple[tuple[str, ...], ...]
@@ -169,7 +173,10 @@ def wilson_ci(successes: int, trials: int) -> list[float] | None:
     ``scripts/_stats.py`` would be a third import edge for ten lines of
     textbook arithmetic.
     """
-    if trials <= 0:
+    if trials <= 0 or successes < 0 or successes > trials:
+        # An impossible count is a caller bug, and ``math.sqrt`` of the
+        # negative variance it implies would surface as a domain error rather
+        # than as the abstain this instrument owes its reader.
         return None
     p = successes / trials
     denom = 1.0 + _Z95 * _Z95 / trials
@@ -397,12 +404,13 @@ def _pair_rows(
     min_co_exposure: int,
     min_selections: int,
     condition: str,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int, int]:
-    """Sibling rows, sub-case rows, pairs considered, pairs below support."""
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int, tuple[int, int]]:
+    """Sibling rows, sub-case rows, pairs considered, (below co-exposure, below selections)."""
     siblings: list[dict[str, Any]] = []
     subcases: list[dict[str, Any]] = []
     considered = 0
-    below_support = 0
+    below_co_exposure = 0
+    below_selections = 0
 
     for (first, second), exposure in tallies.co_exposure.items():
         considered += 1
@@ -413,8 +421,15 @@ def _pair_rows(
         else:
             den_first = tallies.selected_with_exposed.get((first, second), 0)
             den_second = tallies.selected_with_exposed.get((second, first), 0)
-        if exposure < min_co_exposure or min(den_first, den_second) < min_selections:
-            below_support += 1
+        # The two clauses are reported apart because their justifications
+        # differ: the first says the pair was barely offered together, the
+        # second says one member was barely picked. A merged count cannot tell
+        # the operator which floor to reconsider.
+        if exposure < min_co_exposure:
+            below_co_exposure += 1
+            continue
+        if min(den_first, den_second) < min_selections:
+            below_selections += 1
             continue
         p_second_given_first = both / den_first
         p_first_given_second = both / den_second
@@ -475,7 +490,7 @@ def _pair_rows(
             row["specific"],
         )
     )
-    return siblings, subcases, considered, below_support
+    return siblings, subcases, considered, (below_co_exposure, below_selections)
 
 
 def _family_rows(
@@ -487,10 +502,17 @@ def _family_rows(
     for signature in window.signatures:
         exposed.update(signature)
     rows: list[dict[str, Any]] = []
+    # Judged records per catalog signature, so a family's exposure can be
+    # summed without a second pass over the records.
     for name, members in families:
         member_set = frozenset(members)
         hits = sum(1 for record in window.judged_records if record.selected & member_set)
         denominator = window.judged_analyzed
+        member_exposed = sum(
+            window.signature_counts[signature_id]
+            for signature_id, signature in enumerate(window.signatures)
+            if member_set & set(signature)
+        )
         rows.append(
             {
                 "name": name,
@@ -501,8 +523,23 @@ def _family_rows(
                 "members_absent_from_catalog": [m for m in members if m not in exposed],
                 "judged_analyzed": denominator,
                 "any_of_selected": hits,
+                # ADR-0097 Decision 7 states its bar over judged records, so
+                # that stays the headline denominator. But a member adopted
+                # mid-window is offered for only part of it, and the records
+                # before its adoption dilute the rate downward with nothing in
+                # the output to show for it — `members_absent_from_catalog`
+                # catches only TOTAL absence. So the exposure is printed
+                # alongside, with the rate over it, and a shortfall raises
+                # PARTIAL_FAMILY_EXPOSURE. The bias is one-directional
+                # (dilution → false negative against the 0.75 bar, never a
+                # false positive), which is why the criterion is left alone
+                # and the reader is given both numbers instead.
+                "judged_with_a_member_exposed": member_exposed,
                 "any_of_rate": round(hits / denominator, 4) if denominator else None,
                 "any_of_rate_ci95": wilson_ci(hits, denominator),
+                "any_of_rate_over_exposed": (
+                    round(hits / member_exposed, 4) if member_exposed else None
+                ),
                 "per_member_selected": {m: tallies.selected_total.get(m, 0) for m in members},
             }
         )
@@ -521,7 +558,7 @@ def build_window_reading(
 ) -> dict[str, Any]:
     """One window's block of the reading (pure; unit-testable)."""
     tallies = tally(window)
-    siblings, subcases, considered, below_support = _pair_rows(
+    siblings, subcases, considered, below = _pair_rows(
         window,
         tallies,
         thresholds=thresholds,
@@ -538,6 +575,8 @@ def build_window_reading(
         reasons.append("WINDOW_EMPTY")
     if any(row["members_absent_from_catalog"] for row in family_rows):
         reasons.append("FAMILY_MEMBER_ABSENT")
+    if any(row["judged_with_a_member_exposed"] < window.judged_analyzed for row in family_rows):
+        reasons.append("PARTIAL_FAMILY_EXPOSURE")
     return {
         "start": window.start,
         "end": window.end,
@@ -545,12 +584,14 @@ def build_window_reading(
         "records": window.records,
         "judged": window.judged,
         "judged_analyzed": window.judged_analyzed,
-        "enforced": window.enforced,
+        "enforced_of_judged": window.enforced,
         "catalog_signatures": len(window.signatures),
         "catalog_size_min": min(catalog_sizes) if catalog_sizes else 0,
         "catalog_size_max": max(catalog_sizes) if catalog_sizes else 0,
         "pairs_considered": considered,
-        "pairs_below_support": below_support,
+        "pairs_below_support": below[0] + below[1],
+        "pairs_below_co_exposure": below[0],
+        "pairs_below_selections": below[1],
         "sibling_pairs_total": len(siblings),
         "sibling_pairs": siblings[:top] if top > 0 else siblings,
         "subcase_pairs_total": len(subcases),
