@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 80 (72 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window incl. the weekly intake, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 80 (72 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -726,7 +726,12 @@ collect: daily comment-reports + data-repo state diff + previous N reports
        + cross_day_duplicate_scan.py (published-body identity: episode logs → digests)
        + api_drift_scan.py       (platform schema drift: api-audit.jsonl keys; vocab state)
        + skill-selection reading (pass-1 selection log: skill-selection-*.jsonl → names
-                                  and counts; package renderer via `uv run --no-sync`)
+                                  and counts; package renderer via `uv run --no-sync`,
+                                  windowed by the report's own --since/--until since
+                                  2026-08-22 — the days-back conversion it replaced left
+                                  a backfill run with no upper bound, and a scheduled
+                                  run also swept the still-open UTC day, so readings
+                                  either side of that date differ at the boundary)
 generate: claude -p → weekly-<end>.md.tmp
 gate:     tmp must carry all five section anchors (## A. … ## E.);
           else exit 1, reason=REPORT_INCOMPLETE missing=<csv>

@@ -22,6 +22,7 @@ import re
 import shutil
 import subprocess
 import sys
+from datetime import date, timedelta
 from pathlib import Path
 
 import pytest
@@ -456,6 +457,63 @@ class TestPromptAssembly:
         assert "REJECTED-MARKER" not in prompt
         assert "Rejected names" in prompt
         assert "1 emissions" in prompt
+
+    def test_skill_selection_window_is_the_report_window(self, tmp_path):
+        """The intake used to convert the window to days-back-from-today, so a
+        backfill run (`--end-date` in the past) had no upper bound and folded
+        every later day into the reading while the prompt still said
+        "last N days". With `--since`/`--until` the reading is the report's
+        own calendar window, and says so."""
+        home = _make_home(tmp_path)
+        start = (date.fromisoformat(END_DATE) - timedelta(days=6)).isoformat()
+        after = (date.fromisoformat(END_DATE) + timedelta(days=1)).isoformat()
+
+        def _record(day: str, name: str) -> str:
+            return (
+                json.dumps(
+                    {
+                        "ts": f"{day}T10:00:00+00:00",
+                        "verdict": "judged",
+                        "selected": [name],
+                        "selected_count": 1,
+                        "rejected_names": [],
+                        "catalog_count": 3,
+                        "catalog_names": [name],
+                        "full_skill_tokens": 1000,
+                        "would_be_skill_tokens": 100,
+                    }
+                )
+                + "\n"
+            )
+
+        (home / "logs" / f"skill-selection-{END_DATE}.jsonl").write_text(
+            _record(END_DATE, "inside-the-window"), encoding="utf-8"
+        )
+        (home / "logs" / f"skill-selection-{after}.jsonl").write_text(
+            _record(after, "after-the-window"), encoding="utf-8"
+        )
+        captured = tmp_path / "prompt.txt"
+        bin_dir = tmp_path / "bin"
+        bin_dir.mkdir(exist_ok=True)
+        stub = bin_dir / "claude"
+        stub.write_text(
+            f'#!/bin/bash\ncat >> "{captured}"\n{_emit_complete_report(tmp_path)}',
+            encoding="utf-8",
+        )
+        stub.chmod(0o755)
+
+        result = _run(home, bin_dir, tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        prompt = captured.read_text(encoding="utf-8")
+        # Scoped to this section: the assembled prompt concatenates other
+        # documents, so a whole-prompt "last 7 days" assertion would be
+        # coupled to text this intake does not own.
+        section = prompt.split("## Skill-selection reading")[1].split("\n## ")[0]
+        assert f"Window: {start} .. {END_DATE} UTC" in section
+        assert "inside-the-window" in section
+        assert "after-the-window" not in section
+        assert "last 7 days" not in section
 
     def test_pattern_count_line_names_its_source_and_commits(self, tmp_path):
         """findings F1.4: the state diff's pattern counts are committed snapshots

@@ -139,6 +139,15 @@ done
 if [[ -z "$END_DATE" ]]; then
     END_DATE=$(date -v-1d +%Y-%m-%d)
 fi
+# Same shape check as weekly-pipeline.sh:274. START_DATE comes back normalised
+# from `date -j`, but END_DATE flows through raw — and since 2026-08-22 it also
+# reaches `date.fromisoformat` in the skill-selection intake, where a loose
+# form ("2026-8-1", which BSD `date` accepts) raises and silently costs the
+# whole section.
+if ! [[ "$END_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
+    echo "ERROR: --end-date must be YYYY-MM-DD (got: $END_DATE)" >&2
+    exit 1
+fi
 START_DATE=$(date -j -f %Y-%m-%d -v-"$((DAYS - 1))"d "$END_DATE" +%Y-%m-%d)
 
 echo "Analysis period: $START_DATE to $END_DATE ($DAYS days)"
@@ -520,9 +529,9 @@ fi
 SKILL_SELECTION=""
 if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
     SKILL_SELECTION=$(uv run --project "$PROJECT_ROOT" --no-sync -q python - \
-        "$MOLTBOOK_HOME" "$START_DATE" <<'PY' 2>/dev/null || true
+        "$MOLTBOOK_HOME" "$START_DATE" "$END_DATE" <<'PY' 2>/dev/null || true
 import sys
-from datetime import date, datetime, timezone
+from datetime import date
 from pathlib import Path
 
 from contemplative_agent.core.skill_selection import (
@@ -531,18 +540,20 @@ from contemplative_agent.core.skill_selection import (
 )
 
 home = Path(sys.argv[1])
-start = date.fromisoformat(sys.argv[2])
-# The reader windows by days-back-from-today (UTC); anchor the cutoff to the
-# report window's start date. For scheduled runs (end = yesterday) this is
-# exact; for backfill runs the window has no upper bound, which the rendered
-# "Window: last N days" line states honestly.
-days = max((datetime.now(timezone.utc).date() - start).days, 1)
+# The report's own inclusive UTC calendar window (2026-08-22,
+# T-SKILLSEL-REPORT-WINDOW). Before that the reader only took days-back-from-
+# today, so this converted the window to a day count: exact for scheduled runs
+# (end = yesterday), but a backfill run had no upper bound and folded every
+# later day into the reading while the prompt still said "last N days".
+since = date.fromisoformat(sys.argv[2])
+until = date.fromisoformat(sys.argv[3])
 skills_dir = home / "skills"
 print(
     format_skill_selection_report(
         read_skill_selection_log(
             home / "logs",
-            days=days,
+            since=since,
+            until=until,
             skills_dir=skills_dir if skills_dir.is_dir() else None,
         )
     )
