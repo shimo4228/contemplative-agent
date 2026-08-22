@@ -53,7 +53,7 @@ graph TD
     K -->|distill-identity| G
     K -->|amend-constitution| G
     subgraph VL["Value layer: every write passes the gate"]
-        Skills -->|"rules-distill (gated)"| Rules
+        Skills -.->|"family promotion (gated, reserved)"| Rules
         Identity
         Constitution
     end
@@ -68,7 +68,7 @@ In short: `distill` reads each episode and writes patterns into one knowledge st
 |---|---|---|
 | `distill` | patterns in the knowledge store | no |
 | `insight` | skills: reusable ways of acting, extracted from patterns | yes |
-| `rules-distill` | rules: short standing norms, distilled from the skills | yes |
+| (hand-written today) | rules: short standing norms. Promotion from a family of skills the selector always picks together is decided but not yet built ([ADR-0097](docs/adr/0097-consolidator-dissolution-and-skill-store-exit.md)) | yes |
 | `distill-identity` | identity: the agent's distilled persona | yes |
 | `amend-constitution` | constitutional amendments | yes |
 

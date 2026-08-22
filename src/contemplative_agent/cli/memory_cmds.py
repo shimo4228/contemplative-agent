@@ -1,4 +1,6 @@
-"""Memory-pipeline subcommands: distill / enrich / insight / rules-distill / amend-constitution.
+"""Memory-pipeline subcommands: distill / enrich / insight / amend-constitution.
+
+(``rules-distill`` was retired by ADR-0097.)
 
 Extracted verbatim from the single-file cli.py (ADR-0079 Phase 2).
 """
@@ -30,7 +32,6 @@ logger = logging.getLogger(__name__)
 # ADR-0075: one record per novelty-gate judge run (prompt + raw output as
 # base64+sha256) so a covered→drop decision is replayable offline.
 INSIGHT_NOVELTY_AUDIT_PATH = config.MOLTBOOK_DATA_DIR / "logs" / "insight-novelty.jsonl"
-INSIGHT_WORTH_AUDIT_PATH = config.MOLTBOOK_DATA_DIR / "logs" / "insight-worth.jsonl"
 
 
 def _handle_distill(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
@@ -163,8 +164,8 @@ def _write_reasoning(
     it is written beside the run's input snapshot (durable, per-run, co-located
     with the input state that produced it) rather than in the input manifest,
     keeping the manifest's single responsibility. Each section is
-    ``(title, trace)``; identical traces are de-duplicated (rules-distill shares
-    one batch trace across its rules), empty traces skipped, and nothing is
+    ``(title, trace)``; identical traces are de-duplicated (a batch trace may be
+    shared across several artifacts), empty traces skipped, and nothing is
     written when no section has content. Traces are already secret-scrubbed
     (``GenerationOutput.thinking``); URL-defanged here like the episode report,
     since the trace is untrusted model output.
@@ -357,7 +358,6 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         instrument_views=view_registry,
         staged_ledger_path=adopt.INSIGHT_STAGED_LEDGER_PATH,
         novelty_audit_path=INSIGHT_NOVELTY_AUDIT_PATH,
-        worth_audit_path=INSIGHT_WORTH_AUDIT_PATH,
     )
     if isinstance(result, str):
         print(result)
@@ -365,8 +365,8 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
     _write_reasoning(snapshot_path, [(s.filename, s.thinking) for s in result.skills])
 
     if not result.skills:
-        # Every cluster was already covered, or every novel one was judged not
-        # worth promoting (ADR-0096). Either way the window WAS considered, so
+        # Every cluster was already covered, or every novel one declined in-band
+        # (ADR-0096 Decision 1). Either way the window WAS considered, so
         # the marker still advances (ADR-0074) — otherwise the incremental
         # window would grow without bound across quiet weeks. A fault-bearing
         # run never reaches here: extract_insight returns an error string.
@@ -386,7 +386,6 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
                     s.target_path,
                     source_ids=list(s.pattern_ids),
                     epistemic_counts=dict(s.epistemic_counts),
-                    surprise=s.surprise.as_dict() if s.surprise else {},
                 )
                 for s in result.skills
             ],
@@ -417,50 +416,6 @@ def _handle_insight(args: argparse.Namespace, _parser: argparse.ArgumentParser) 
         f"{result.abstained[insight_mod.ABSTAIN_NOTHING_PROMOTABLE]} not promotable, "
         f"{result.fault_count} dropped on a fault, "
         f"{result.skipped_known} already covered ---"
-    )
-
-
-def _handle_rules_distill(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
-    from ..core.rules_distill import _write_last_run, distill_rules
-
-    # ADR-0074 fast-fail (see staging._refuse_if_pending).
-    if getattr(args, "stage", False) and staging._refuse_if_pending("rules-distill"):
-        return
-
-    snapshot_path = _take_snapshot(args, "rules-distill", _load_view_registry(args), think=True)
-    result = distill_rules(
-        skills_dir=config.SKILLS_DIR,
-        rules_dir=config.RULES_DIR,
-        full=args.full,
-    )
-    if isinstance(result, str):
-        print(result)
-        return
-    _write_reasoning(snapshot_path, [(r.filename, r.thinking) for r in result.rules])
-    if getattr(args, "stage", False):
-        staging._stage_results(
-            [
-                StageItem(
-                    r.filename,
-                    r.text,
-                    r.target_path,
-                    source_ids=list(r.source_ids),
-                )
-                for r in result.rules
-            ],
-            command="rules-distill",
-        )
-        return
-    written = approval._run_approval_loop(
-        result.rules,
-        command="rules-distill",
-        target_dir=config.RULES_DIR,
-        snapshot_path=snapshot_path,
-    )
-    if written > 0:
-        _write_last_run(config.RULES_DIR)
-    print(
-        f"\n--- Summary: {written} written, {len(result.rules) - written} skipped, {result.dropped_count} dropped ---"
     )
 
 
@@ -570,13 +525,6 @@ def _add_stage_argument(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_full_and_stage_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "--full", action="store_true", help="Process all patterns (not just new ones)"
-    )
-    _add_stage_argument(parser)
-
-
 def _add_insight_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "--full", action="store_true", help="Process all patterns (default: new only)"
@@ -602,13 +550,6 @@ COMMANDS: tuple[CommandSpec, ...] = (
         handler=_handle_distill_identity,
         tier=Tier.LLM_FULL,
         add_arguments=_add_stage_argument,
-    ),
-    CommandSpec(
-        name="rules-distill",
-        help="Distill universal behavioral rules from skill files",
-        handler=_handle_rules_distill,
-        tier=Tier.LLM_FULL,
-        add_arguments=_add_full_and_stage_arguments,
     ),
     CommandSpec(
         name="amend-constitution",

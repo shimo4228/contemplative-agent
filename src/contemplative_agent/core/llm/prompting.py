@@ -87,7 +87,7 @@ def get_distill_system_prompt() -> str:
     """Base system prompt for all distillation / extraction — axioms NOT injected.
 
     ADR-0058: value layers belong to action time, not distillation time. Every
-    distillation stage (distill, insight, rules_distill, constitution amend,
+    distillation stage (distill, insight, constitution amend,
     identity) reads material that is already value-shaped — self-generated
     records were produced under the full action prompt (identity + axioms +
     skills + rules), and downstream corpora (patterns → skills → rules) are

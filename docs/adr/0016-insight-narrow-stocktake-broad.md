@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0097 (the stocktake-as-broad-consolidator half retired 2026-08-22 — consolidation moved to the Saturday gate; insight-as-narrow-generator, the BATCH_SIZE=10 cap, the self-reflection routing and the rarity removal remain in effect)
 
 ## Date
 

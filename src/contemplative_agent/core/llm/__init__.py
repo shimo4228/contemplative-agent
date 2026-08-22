@@ -327,8 +327,8 @@ def generate_full(
     """Like :func:`generate` but returns the full :class:`GenerationOutput`.
 
     Internal trace-keeping entry point (ADR-0069): the value-layer pipelines
-    that run with ``think=True`` (insight / rules-distill / amend-constitution /
-    distill-identity / skill-stocktake / rules-stocktake) need the reasoning
+    that run with ``think=True`` (insight / amend-constitution /
+    distill-identity / skill-stocktake) need the reasoning
     trace, which :func:`generate` discards when it projects to ``.text``. This
     is the internal analogue of :func:`generate_for_api` (which serves the
     publish seam) — same shared core (:func:`_generate_full`), no platform
@@ -881,7 +881,7 @@ def _capture_thinking(reasoning: object, text: str) -> _ThinkingCapture:
         # trace_blank — blank is a claim about a channel that DID carry.
         reason = reason or TRACE_ABSENT
         # Scoped to this call, deliberately. A run can make several think-ON
-        # calls (rules-distill 2, stocktake 4), so one missing trace does not
+        # calls (stocktake: one per audited skill), so one missing trace does not
         # mean the run's reasoning.md is missing — asserting that here would
         # hand the operator a false diagnosis from inside the observability
         # path. Which artifacts a run ended up with is _write_reasoning's to say.

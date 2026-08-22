@@ -53,7 +53,7 @@ graph TD
     K -->|distill-identity| G
     K -->|amend-constitution| G
     subgraph VL["価値層: 書き込みは必ずゲートを通る"]
-        Skills["スキル"] -->|"rules-distill（ゲート付き）"| Rules["ルール"]
+        Skills["スキル"] -.->|"family 昇格（ゲート付き・未実装）"| Rules["ルール"]
         Identity["アイデンティティ"]
         Constitution["憲法"]
     end
@@ -68,7 +68,7 @@ graph TD
 |---|---|---|
 | `distill` | ナレッジストアのパターン | なし |
 | `insight` | スキル: パターンから取り出した、再利用できる行動の型 | あり |
-| `rules-distill` | ルール: スキルから蒸留した短い恒常的な規範 | あり |
+| （今は手書き） | ルール: 短い恒常的な規範。selector がいつも一緒に選ぶスキルの家族からの昇格は決定済みだが未実装（[ADR-0097](docs/adr/0097-consolidator-dissolution-and-skill-store-exit.ja.md)） | あり |
 | `distill-identity` | アイデンティティ: 蒸留されたペルソナ | あり |
 | `amend-constitution` | 憲法の改正案 | あり |
 

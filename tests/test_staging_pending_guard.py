@@ -125,7 +125,7 @@ def _skill_corpus(directory, count=4):
 
 
 # ---------------------------------------------------------------------------
-# memory_cmds producers: distill-identity / amend-constitution / rules-distill
+# memory_cmds producers: distill-identity / amend-constitution
 # ---------------------------------------------------------------------------
 
 
@@ -211,101 +211,6 @@ class TestAmendConstitutionPendingGuard:
         assert "adopt-staged" in capsys.readouterr().out
 
 
-class TestRulesDistillPendingGuard:
-    def _run(self, tmp_path, *, prefill):
-        staged_dir = tmp_path / ".staged"
-        skills_dir = _skill_corpus(tmp_path / "skills")
-        rules_dir = tmp_path / "rules"
-        rules_dir.mkdir(parents=True, exist_ok=True)
-        if prefill:
-            _prefill_staging(staged_dir)
-        args = argparse.Namespace(stage=True, full=True, constitution_dir=None)
-        with (
-            _chaos_backend() as backend,
-            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
-            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
-            patch("contemplative_agent.adapters.moltbook.config.SKILLS_DIR", skills_dir),
-            patch("contemplative_agent.adapters.moltbook.config.RULES_DIR", rules_dir),
-            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", tmp_path / "audit.jsonl"),
-            patch("contemplative_agent.cli.memory_cmds._load_view_registry", return_value=None),
-            patch(
-                "contemplative_agent.cli.memory_cmds._take_snapshot", return_value=None
-            ) as snapshot,
-        ):
-            from contemplative_agent.cli.memory_cmds import _handle_rules_distill
-
-            _handle_rules_distill(args, MagicMock())
-        return backend, snapshot
-
-    def test_reaches_llm_when_staging_empty(self, tmp_path):
-        backend, _ = self._run(tmp_path, prefill=False)
-        assert len(backend.calls) >= 1
-
-    def test_skips_llm_when_staging_pending(self, tmp_path, capsys):
-        backend, snapshot = self._run(tmp_path, prefill=True)
-        assert backend.calls == []
-        snapshot.assert_not_called()
-        assert "adopt-staged" in capsys.readouterr().out
-
-
-# ---------------------------------------------------------------------------
-# stocktake_cmd producers: skill-stocktake / rules-stocktake
-#
-# These two share the ``stocktake_cmd.py:620`` staging call site, which is why
-# a table built from ``grep _stage_results`` showed only one of them. They are
-# separate handlers with separate LLM calls, so they need separate guards.
-# ---------------------------------------------------------------------------
-
-
-class TestStocktakePendingGuard:
-    def _run(self, tmp_path, which, *, prefill):
-        staged_dir = tmp_path / ".staged"
-        target_dir = _skill_corpus(tmp_path / which)
-        if prefill:
-            _prefill_staging(staged_dir)
-        args = argparse.Namespace(stage=True)
-        config_key = "SKILLS_DIR" if which == "skills" else "RULES_DIR"
-        with (
-            _chaos_backend() as backend,
-            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
-            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
-            patch(f"contemplative_agent.adapters.moltbook.config.{config_key}", target_dir),
-            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", tmp_path / "audit.jsonl"),
-            patch(
-                "contemplative_agent.cli.stocktake_cmd._load_selection_reading",
-                return_value=None,
-            ),
-            patch(
-                "contemplative_agent.cli.memory_cmds._take_snapshot", return_value=None
-            ) as snapshot,
-        ):
-            from contemplative_agent.cli import stocktake_cmd
-
-            handler = (
-                stocktake_cmd._handle_skill_stocktake
-                if which == "skills"
-                else stocktake_cmd._handle_rules_stocktake
-            )
-            handler(args, MagicMock())
-        return backend, snapshot
-
-    @pytest.mark.parametrize("which", ["skills", "rules"])
-    def test_reaches_llm_when_staging_empty(self, tmp_path, which):
-        """Anchor. Also pins *where* the guard must go: this call is the
-        whole-corpus grouping request, and it completes before
-        ``_run_stocktake_phases`` — the function the staging call site lives
-        in — so a guard placed there would not prevent it."""
-        backend, _ = self._run(tmp_path, which, prefill=False)
-        assert len(backend.calls) >= 1
-
-    @pytest.mark.parametrize("which", ["skills", "rules"])
-    def test_skips_llm_when_staging_pending(self, tmp_path, which, capsys):
-        backend, snapshot = self._run(tmp_path, which, prefill=True)
-        assert backend.calls == []
-        snapshot.assert_not_called()
-        assert "adopt-staged" in capsys.readouterr().out
-
-
 # ---------------------------------------------------------------------------
 # Mechanical net over the registry, so the producer list is not maintained by
 # hand here as well. The per-producer tests above assert the guard *works*;
@@ -344,10 +249,7 @@ class TestEveryStageProducerIsGuarded:
         assert names == {
             "distill-identity",
             "amend-constitution",
-            "rules-distill",
             "insight",
-            "skill-stocktake",
-            "rules-stocktake",
         }
 
     @pytest.mark.parametrize("spec", _stage_producer_specs(), ids=lambda s: s.name)
@@ -367,36 +269,3 @@ class TestEveryStageProducerIsGuarded:
         guard.assert_called_once_with(spec.name)
         snapshot.assert_not_called()
         assert backend.calls == []
-
-
-# ---------------------------------------------------------------------------
-# The guard is opt-in on --stage, exactly as the insight path has always been:
-# without --stage the run ends at the interactive approval prompt and never
-# touches the staging dir, so a pending batch is none of its business.
-# ---------------------------------------------------------------------------
-
-
-class TestGuardIsScopedToStageFlag:
-    def test_stocktake_without_stage_still_runs_with_pending_staging(self, tmp_path):
-        """rules-stocktake, whose no-clean_prompt path returns before any
-        interactive approval — the flag scoping is what is under test here,
-        not the approval loop."""
-        staged_dir = tmp_path / ".staged"
-        _prefill_staging(staged_dir)
-        rules_dir = _skill_corpus(tmp_path / "rules")
-        args = argparse.Namespace(stage=False)
-        with (
-            _chaos_backend() as backend,
-            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
-            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
-            patch("contemplative_agent.adapters.moltbook.config.RULES_DIR", rules_dir),
-            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", tmp_path / "audit.jsonl"),
-            patch("contemplative_agent.cli.memory_cmds._take_snapshot", return_value=None),
-            # The no-stage path is interactive; decline every prompt rather
-            # than let it read stdin under pytest capture.
-            patch("contemplative_agent.cli.approval._approve", return_value=False),
-        ):
-            from contemplative_agent.cli.stocktake_cmd import _handle_rules_stocktake
-
-            _handle_rules_stocktake(args, MagicMock())
-        assert len(backend.calls) >= 1

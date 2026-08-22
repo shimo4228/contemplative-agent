@@ -1,4 +1,4 @@
-"""Markdown text helpers shared by insight / rules-distill / stocktake / cli.
+"""Markdown text helpers shared by insight / stocktake / cli.
 
 Promoted from `core/insight.py` and `core/rules_distill.py` in ADR-0035 PR2.
 The promotion breaks the `stocktake → rules_distill` import edge that
@@ -59,7 +59,7 @@ def slugify(title: str) -> str:
 def extract_title(body: str) -> str | None:
     """Return the first ``# `` heading text, or ``None`` when absent.
 
-    Used by insight, rules-distill, and the stocktake merge writer to
+    Used by insight and the artifact writers to
     derive a stable filename from generated artifact bodies.
     """
     for line in body.splitlines():
@@ -72,7 +72,7 @@ def strip_frontmatter(text: str) -> str:
     """Strip a leading YAML frontmatter block (``---`` delimited).
 
     Returns *text* unchanged when there is no frontmatter. Used by
-    rules-distill (skill input parsing) and stocktake (skill body
+    stocktake (skill body
     comparison).
     """
     return split_frontmatter(text)[1]
@@ -87,10 +87,9 @@ def split_frontmatter(text: str) -> tuple[str, str]:
     When *text* has no leading frontmatter (or the block is never closed),
     returns ``("", text)``.
 
-    Complements :func:`strip_frontmatter`: the stocktake clean phase needs
-    the frontmatter half so it can re-attach a singleton's original
-    metadata (``name`` / ``description`` / ``origin`` and any reflection
-    bookkeeping) after rewriting only the body's triggers.
+    Complements :func:`strip_frontmatter` for callers that need the
+    frontmatter half — the description audit reads the declared
+    ``name`` / ``description`` beside the body it judges.
     """
     lines = text.split("\n")
     if not lines or lines[0].strip() != "---":
@@ -123,8 +122,8 @@ def context_summary(body: str) -> str | None:
 def synthesize_frontmatter(body: str, *, origin: str = "auto-extracted") -> str:
     """Build a minimal YAML frontmatter block for a body that lacks one.
 
-    Used by the stocktake clean phase for legacy skills written before
-    merge emitted frontmatter. ``name`` is the title slug, ``description``
+    For legacy skills written before frontmatter was emitted. ``name`` is
+    the title slug, ``description``
     is the first sentence of the ``**Context:**`` line (falling back to the
     title), and ``origin`` records the distillation source. The returned
     block carries both ``---`` delimiters and no trailing newline, mirroring
@@ -151,8 +150,8 @@ def skill_theme(text: str, fallback_name: str = "skill") -> tuple[str, str]:
     first Markdown title (and the given name) for legacy bodies without
     frontmatter. The read-side inverse of :func:`synthesize_frontmatter`.
     Shared by the novelty gate's known-theme inventory, the staged-ledger
-    writer, the skill selector's catalog and the stocktake grouping
-    evidence so every side agrees on a skill's identity.
+    writer, the skill selector's catalog and the stocktake description
+    audit so every side agrees on a skill's identity.
     """
     frontmatter, body = split_frontmatter(text)
     name = None
@@ -171,7 +170,7 @@ def read_markdown_documents(
 ) -> list[tuple[str, str, str]]:
     """Return sorted ``(filename, raw text, frontmatter-stripped body)``.
 
-    The one reader behind :func:`read_markdown_bodies` and the stocktake
+    The one reader behind the stocktake
     pass, so the file rules live in exactly one place: ``*.md`` only,
     dotfiles skipped, unreadable files logged and skipped, files whose body
     is empty after stripping dropped. When *since* is an ISO timestamp, only
@@ -201,12 +200,3 @@ def read_markdown_documents(
         if body:
             docs.append((p.name, raw, body))
     return docs
-
-
-def read_markdown_bodies(directory: Path, *, since: str | None = None) -> list[tuple[str, str]]:
-    """Return sorted ``(filename, frontmatter-stripped body)`` for ``*.md``.
-
-    Projection of :func:`read_markdown_documents`. Shared by the
-    rules-distill and stocktake readers.
-    """
-    return [(name, body) for name, _raw, body in read_markdown_documents(directory, since=since)]

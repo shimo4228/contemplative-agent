@@ -526,7 +526,7 @@ class TestInjectionDetectionLog:
         """The wire must sit in ``_configure_llm_runtime``, not one tier up.
 
         ``Tier.LLM_RUNTIME_ONLY`` skips ``_configure_llm_and_domain``, and
-        ``skill-stocktake`` / ``rules-stocktake`` are that tier while
+        ``skill-stocktake`` is that tier while
         ``core/stocktake.py`` wraps two untrusted fields per skill. Wiring it in
         the full-setup function left exactly the blind spot the log exists to
         remove: a run of zeroes that could mean "no attacks" or "this command

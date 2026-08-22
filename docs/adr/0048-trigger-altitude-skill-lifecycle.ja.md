@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0097（stage 2 と 3 — merge 時と clean 時のトリガー一般化 — は 2026-08-22 に退役。stage 1（抽出 prompt の構造トリガー）と frontmatter の扱いは効力を保つ）
 
 ## Date
 

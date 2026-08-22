@@ -240,7 +240,7 @@ project as a usage-description aid, not as a category claim (ADR-0033).
 - `distill` — Extract (behavioral / constitutional knowledge)
 - `distill-identity` — Promote (whole-file identity)
 - `insight` — Curate (extract skills from patterns)
-- `rules-distill` — Promote (skills → rules)
+- family promotion (gate step, ADR-0097 — decided, entry point reserved for slice 2) — Promote (co-selected skill family → one rule; replaced `rules-distill`)
 - `amend-constitution` — Curate (constitutional knowledge → constitution)
 - `adopt-staged` — Promote (staging → active)
 - `meditate` — adapter-specific (meditation simulation)

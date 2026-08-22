@@ -58,28 +58,18 @@ class PromptTemplates:
     internal_note: str = ""
     identity_distill: str = ""
     insight_extraction: str = ""
-    insight_worth: str = ""
     insight_novelty: str = ""
     insight_novelty_system: str = ""
     meditation_interpret: str = ""
     distill_episode: str = ""
     distill_postgate: str = ""
-    rules_distill: str = ""
-    rules_distill_refine: str = ""
     constitution_amend: str = ""
     constitution_synthesize: str = ""
-    stocktake_skills: str = ""
-    stocktake_rules: str = ""
-    stocktake_merge: str = ""
     stocktake_merge_rules: str = ""
-    stocktake_clean: str = ""
     stocktake_description: str = ""
     untrusted_wrapper: str = ""
     untrusted_marker_complete: str = ""
     untrusted_marker_truncated: str = ""
-    stocktake_group_system: str = ""
-    stocktake_merge_system: str = ""
-    stocktake_clean_system: str = ""
     stocktake_description_system: str = ""
     dialogue: str = ""
     verification_solve_extract_system: str = ""
@@ -273,28 +263,18 @@ def load_prompt_templates(prompts_dir: Path | None = None) -> PromptTemplates:
         internal_note=read("internal_note.md", required=False),
         identity_distill=read("identity_distill.md", required=False),
         insight_extraction=read("insight_extraction.md", required=False),
-        insight_worth=read("insight_worth.md", required=False),
         insight_novelty=read("insight_novelty.md", required=False),
         insight_novelty_system=read("insight_novelty_system.md", required=False),
         meditation_interpret=read("meditation_interpret.md", required=False),
         distill_episode=read("distill_episode.md", required=False),
         distill_postgate=read("distill_postgate.md", required=False),
-        rules_distill=read("rules_distill.md", required=False),
-        rules_distill_refine=read("rules_distill_refine.md", required=False),
         constitution_amend=read("constitution_amend.md", required=False),
         constitution_synthesize=read("constitution_synthesize.md", required=False),
-        stocktake_skills=read("stocktake_skills.md", required=False),
-        stocktake_rules=read("stocktake_rules.md", required=False),
-        stocktake_merge=read("stocktake_merge.md", required=False),
         stocktake_merge_rules=read("stocktake_merge_rules.md", required=False),
-        stocktake_clean=read("stocktake_clean.md", required=False),
         stocktake_description=read("stocktake_description.md", required=False),
         untrusted_wrapper=read("untrusted_wrapper.md", required=False),
         untrusted_marker_complete=read("untrusted_marker_complete.md", required=False),
         untrusted_marker_truncated=read("untrusted_marker_truncated.md", required=False),
-        stocktake_group_system=read("stocktake_group_system.md", required=False),
-        stocktake_merge_system=read("stocktake_merge_system.md", required=False),
-        stocktake_clean_system=read("stocktake_clean_system.md", required=False),
         stocktake_description_system=read("stocktake_description_system.md", required=False),
         dialogue=read("dialogue.md", required=False),
         verification_solve_extract_system=read(

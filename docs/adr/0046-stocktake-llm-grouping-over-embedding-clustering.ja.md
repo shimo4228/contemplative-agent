@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0097（grouping 呼び出しと union merge は 2026-08-22 に stocktake の grouping / merge 段とともに退役。「embedding cosine はこの corpus を過剰統合する」という知見は効力を保ち、ADR-0074 / ADR-0097 が引く）
 
 ## Date
 

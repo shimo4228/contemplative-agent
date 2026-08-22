@@ -35,10 +35,8 @@ SnapshotCommand = Literal[
     "distill",
     "distill-identity",
     "insight",
-    "rules-distill",
     "amend-constitution",
     "skill-stocktake",
-    "rules-stocktake",
 ]
 
 _COMPACT_TS_FORMAT = "%Y%m%dT%H%M%S%fZ"

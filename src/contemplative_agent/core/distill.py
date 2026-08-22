@@ -327,7 +327,7 @@ def distill_identity(
     # distinct error message (the str arm of the return contract) rather than
     # echoing the rejected/tainted body — which a caller (and the CLI, which
     # prints any str result) would otherwise surface as if it were valid output.
-    # Mirrors the hard-drop behaviour of the sibling insight / rules_distill pipelines.
+    # Mirrors the hard-drop behaviour of the sibling insight pipeline.
     if not validate_identity_content(new_identity):
         logger.warning("Generated identity failed validation; discarding")
         return "Generated identity failed forbidden-pattern validation; discarded."

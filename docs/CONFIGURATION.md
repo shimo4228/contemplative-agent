@@ -34,7 +34,6 @@ contemplative-agent run --session 60       # Run a session (feed → replies →
 contemplative-agent distill --days 3       # Extract patterns from episode logs
 contemplative-agent distill-identity       # Distill identity from knowledge (block-aware)
 contemplative-agent insight                # Extract behavioral skills
-contemplative-agent rules-distill          # Synthesize rules from skills
 contemplative-agent amend-constitution     # Propose constitution updates
 contemplative-agent adopt-staged           # Promote staged artifacts to live config
 ```
@@ -53,8 +52,7 @@ contemplative-agent generate-report --all                    # Regenerate activi
 ### Introspection & Maintenance
 
 ```bash
-contemplative-agent skill-stocktake                    # Audit skills for duplicates / low quality
-contemplative-agent rules-stocktake                    # Audit rules for duplicates / low quality
+contemplative-agent skill-stocktake                    # Report skill quality + usage; audit descriptions
 ```
 
 ### Scheduling
@@ -251,20 +249,23 @@ ADR-0081 amendment (2026-08-08).
 
 Location: `MOLTBOOK_HOME/rules/*.md`
 
-```bash
-contemplative-agent rules-distill        # Distill rules from accumulated skills
-contemplative-agent rules-distill --full # Process all patterns
-contemplative-agent rules-distill --stage # Staged approval
-```
-
-You can also hand-write rule files and place them in the directory.
+Rules are hand-written, or promoted at the Saturday gate from a family of
+skills the selector always picks together (ADR-0097 Decision 7, reserved for
+that decision's slice 2). The `rules-distill` generator was retired by
+ADR-0097: it passed 20 of 48 skills to the LLM, never compared its output
+against the existing rules or the constitution, and had no path to retire the
+skill whose content moved.
 
 ### Auditing for Duplicates
 
 ```bash
-contemplative-agent skill-stocktake      # Detect and merge duplicate skills
-contemplative-agent rules-stocktake      # Detect and merge duplicate rules
+contemplative-agent skill-stocktake      # Quality report + usage reading + description audit
 ```
+
+Read-only since ADR-0097: it writes nothing and stages nothing. Duplicate
+detection now comes from the selection log (skills the selector always picks
+together), and removal is a human act at the Saturday gate (`remove-skill`
+today; an archive path is reserved in ADR-0097 Decision 5).
 
 ### Coding Agent Skills (-ca)
 
@@ -288,7 +289,7 @@ Every LLM interaction the agent makes is defined in a Markdown file. After `init
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-40 loaded prompt templates plus 7 script-read prompt documents (`principles.md`, `weekly-analysis.md`, and `weekly-analysis-ja.md` — the Japanese translation pass — are read by `scripts/weekly-analysis.sh`; `fix-implementation.md`, `fix-review.md`, `insight-recommendation.md`, and `pipeline-improvement.md` are read by `scripts/weekly-pipeline.sh` (ADR-0085) — none by the loader). The main ones:
+30 loaded prompt templates plus 7 script-read prompt documents (`principles.md`, `weekly-analysis.md`, and `weekly-analysis-ja.md` — the Japanese translation pass — are read by `scripts/weekly-analysis.sh`; `fix-implementation.md`, `fix-review.md`, `insight-recommendation.md`, and `pipeline-improvement.md` are read by `scripts/weekly-pipeline.sh` (ADR-0085) — none by the loader). The main ones:
 
 | File | Drives |
 |------|--------|
@@ -296,12 +297,11 @@ Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 | `distill_postgate.md` | Per-pattern durability verdict on what `distill_episode.md` produced — keeps the grounded patterns, drops the ones written to fill the space. On by default (`MOLTBOOK_DISTILL_POSTGATE=0` opts out); fails open (keeps all) with a `reason=postgate_*` line |
 | `verification_solve_extract_system.md` | Create-time math challenge solving: guarded expression extraction (the free-reasoning fallback was retired by ADR-0062's 9th amendment — past this path the solver abstains) |
 | `insight_extraction.md` | Skill extraction from uncategorized patterns (naming/vocabulary discipline, ADR-0074) |
-| `insight_worth.md` | Promotion-worth verdict on the skill `insight_extraction.md` produced — ADR-0053 puts this judgment at insight time, and until ADR-0096 there was no channel for "no". On by default (`MOLTBOOK_INSIGHT_WORTHGATE=0` opts out); fails open (promotes) with a `reason=worthgate_*` line |
 | `insight_novelty.md` / `insight_novelty_system.md` | Novelty gate: one grouping call judging which candidate clusters an existing or previously staged skill theme already covers (ADR-0074; fails open) |
-| `rules_distill.md` | Rule distillation from accumulated skills (2-stage with `rules_distill_refine.md`) |
 | `identity_distill.md` | Identity update from knowledge (1-stage, ADR-0030) |
 | `constitution_amend.md` | Constitution amendment proposals |
-| `stocktake_skills.md` / `stocktake_rules.md` / `stocktake_merge.md` / `stocktake_merge_rules.md` / `stocktake_clean.md` / `stocktake_description.md` | Duplicate detection, merge, cleaning, and description-fidelity audit (ADR-0081) for skills / rules |
+| `stocktake_description.md` / `stocktake_description_system.md` | Description-fidelity audit (ADR-0081) — the one LLM call left in `skill-stocktake` after ADR-0097 retired grouping / merge / clean and the rules pass |
+| `stocktake_merge_rules.md` | Shared-core synthesis of a co-selection family into one Practice/Rationale rule — the prompt for family-to-rule promotion (ADR-0097 Decision 7; `rules-distill` / `rules-stocktake` were retired) |
 | `system.md` | Base system prompt (credentials-safety note — edit with care) |
 | `learned_skills_framing.md` / `learned_rules_framing.md` | Usage framing preambles before the injected `<learned_skills>` / `<learned_rules>` blocks: the corpus is internal disposition, never narrated in published text (weekly diagnosis 2026-07-05 F1.1; hardcoded fallback if deleted) |
 | `relevance.md` / `comment.md` / `reply.md` / `cooperation_post.md` / `post_title.md` / `internal_note.md` / `dialogue.md` | Adapter actions (comment scoring, reply text, post generation, internal note, dialogue) |
@@ -333,7 +333,7 @@ Seed text describing the semantic centroid...
 
 ### Audit trail
 
-After any behavior-producing command (`distill`, `distill-identity`, `insight`, `rules-distill`, `amend-constitution`), a pivot snapshot is written to `MOLTBOOK_HOME/snapshots/<command>_<timestamp>/` containing:
+After any behavior-producing command (`distill`, `distill-identity`, `insight`, `amend-constitution`), a pivot snapshot is written to `MOLTBOOK_HOME/snapshots/<command>_<timestamp>/` containing:
 
 - `views/`, `constitution/`, `prompts/`, `skills/`, `rules/`, `identity.md` — full inference-time context
 - `centroids.npz` — view centroid embeddings at that moment

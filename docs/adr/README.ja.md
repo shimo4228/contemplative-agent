@@ -21,7 +21,7 @@
 | [0013](0013-shelve-coding-agent-skills.ja.md) | コーディングエージェントスキルのお蔵入り `[AKC: Curate/Promote]` | accepted | 2026-03-28 |
 | [0014](0014-retire-system-spec.ja.md) | system-spec.md の廃止 `[AKC: Maintain]` | accepted | 2026-04-01 |
 | [0015](0015-one-external-adapter-per-agent.ja.md) | 1エージェント1外部アダプタ原則 | accepted | 2026-04-08 |
-| [0016](0016-insight-narrow-stocktake-broad.ja.md) | insight = narrow generator / skill-stocktake = broad consolidator `[AKC: Extract/Curate]` | accepted | 2026-04-11 |
+| [0016](0016-insight-narrow-stocktake-broad.ja.md) | insight = narrow generator / skill-stocktake = broad consolidator `[AKC: Extract/Curate]` | partially-superseded-by ADR-0097 | 2026-04-11 |
 | [0017](0017-yogacara-eight-consciousness-frame.ja.md) | 唯識八識モデルを設計の枠組みとする | accepted | 2026-04-11 |
 | [0018](0018-per-caller-num-predict-embedding-stocktake.ja.md) | caller 別 num_predict + embedding-only stocktake | accepted | 2026-04-15 |
 | [0019](0019-discrete-categories-to-embedding-views.ja.md) | 離散カテゴリ廃止 → Embedding + Views `[AKC: Promote]` | accepted | 2026-04-15 |
@@ -51,9 +51,9 @@
 | [0043](0043-per-post-seeding-for-self-post-generation.ja.md) | self-post 生成への peer post 直接シーディング | accepted | 2026-05-21 |
 | [0044](0044-remove-topic-keywords.ja.md) | `topic_keywords` の全面削除 | accepted | 2026-05-23 |
 | [0045](0045-pre-action-internal-note.ja.md) | エピソード層での pre-action `internal_note` 記録（ADR-0038 の Gap 2 を閉じる） | accepted | 2026-05-25 |
-| [0046](0046-stocktake-llm-grouping-over-embedding-clustering.ja.md) | Stocktake の重複検出 — embedding クラスタリングではなく LLM グルーピング | accepted | 2026-05-30 |
+| [0046](0046-stocktake-llm-grouping-over-embedding-clustering.ja.md) | Stocktake の重複検出 — embedding クラスタリングではなく LLM グルーピング | partially-superseded-by ADR-0097 | 2026-05-30 |
 | [0047](0047-comment-sampling-temperature.ja.md) | 外向きコメント生成のサンプリング温度引き上げ | accepted | 2026-05-30 |
-| [0048](0048-trigger-altitude-skill-lifecycle.ja.md) | スキルライフサイクル全体のトリガー高度化 | accepted | 2026-06-02 |
+| [0048](0048-trigger-altitude-skill-lifecycle.ja.md) | スキルライフサイクル全体のトリガー高度化 | partially-superseded-by ADR-0097 | 2026-06-02 |
 | [0049](0049-meditation-active-inference-fidelity-and-deferral.ja.md) | 瞑想アダプタ — Beautiful Loop 忠実性監査と忠実な再実装の保留 | accepted | 2026-06-03 |
 | [0050](0050-epistemic-taxonomy-and-approval-lineage.ja.md) | Epistemic taxonomy と承認系譜 — steering なしの可観測性 | partially-superseded-by 0051, 0082 | 2026-06-05 |
 | [0051](0051-retire-trust-weighting.ja.md) | trust 重みの全廃 — 純 cosine 検索と bitemporal のみの生死判定 | accepted — partially-supersedes 0021, 0050 | 2026-06-05 |
@@ -101,7 +101,8 @@
 | [0093](0093-repo-plane-deterministic-intakes.ja.md) | repo 面の決定論 intake — docs 整合性と台帳条件 watch | partially-superseded-by 0095 | 2026-08-14 |
 | [0094](0094-agent-first-task-ledger.ja.md) | エージェント優先のタスク台帳 — store / journal / projection | superseded-by 0095 | 2026-08-15 |
 | [0095](0095-retire-task-ledger-machinery.ja.md) | タスク台帳機構の退役 — store と claims を残し、パースするものを全部落とす | accepted — supersedes 0094; partially-supersedes 0093 | 2026-08-16 |
-| [0096](0096-insight-promotion-worth-abstain.ja.md) | insight 時の promotion-worth abstain — 生成された skill を judge し、surprise は材料として列挙する | proposed | 2026-08-17 |
+| [0096](0096-insight-promotion-worth-abstain.ja.md) | insight 時の promotion-worth abstain — 生成された skill を judge し、surprise は材料として列挙する | partially-superseded-by ADR-0097 | 2026-08-17 |
+| [0097](0097-consolidator-dissolution-and-skill-store-exit.ja.md) | 統合器の解体と skill store の出口 — 引き算、出口、語彙の順に | accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096 | 2026-08-22 |
 
 ## ADR の種別
 

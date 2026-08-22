@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0097 (stages 2 and 3 — merge-time and clean-time trigger generalization — retired 2026-08-22; stage 1, structural triggers in the extraction prompt, and the frontmatter-handling decision remain in effect)
 
 ## Date
 

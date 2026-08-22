@@ -9,7 +9,6 @@ import json
 import re
 from collections import Counter
 from pathlib import Path
-from typing import Literal
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -205,12 +204,11 @@ class TestAdoptStaged:
         text: str,
         target: Path,
         command: str = "insight",
-        sources: list[str] | None = None,
     ) -> Path:
         """Write one staged file + meta.json for the adopt-staged tests."""
         staged_dir = tmp_path / ".staged"
         audit = tmp_path / "logs" / "audit.jsonl"
-        item = StageItem(filename, text, target, sources=list(sources or []))
+        item = StageItem(filename, text, target)
         with (
             patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
             patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
@@ -275,29 +273,6 @@ class TestAdoptStaged:
         assert "stage-adopted" in sources
         adopted = [d for d in decisions if d["source"] == "stage-adopted"]
         assert adopted[-1]["decision"] == "approved"
-
-    def test_adopt_deletes_merge_sources(self, tmp_path):
-        """skill-stocktake merge: adopting should delete the original files."""
-        skills_dir = tmp_path / "skills"
-        skills_dir.mkdir()
-        orig1 = skills_dir / "orig1.md"
-        orig2 = skills_dir / "orig2.md"
-        orig1.write_text("# orig1")
-        orig2.write_text("# orig2")
-
-        target = skills_dir / "merged.md"
-        staged = self._stage_one(
-            tmp_path,
-            filename="merged.md",
-            text="# merged",
-            target=target,
-            command="skill-stocktake",
-            sources=["orig1.md", "orig2.md"],
-        )
-        self._run_adopt(tmp_path, staged, inputs=["y"])
-        assert target.exists()
-        assert not orig1.exists()
-        assert not orig2.exists()
 
     def test_adopt_rejects_escaping_target(self, tmp_path, capsys):
         """Tampered meta.json pointing outside MOLTBOOK_HOME must be rejected."""
@@ -407,50 +382,6 @@ class TestAdoptStaged:
         staged = self._stage_one(tmp_path, filename="plain.md", text="# plain", target=target)
         self._run_adopt(tmp_path, staged, inputs=["y"])
         assert target.read_text(encoding="utf-8") == "# plain\n"
-
-    def test_adopt_blocks_source_path_traversal(self, tmp_path):
-        """Suspicious source filenames in meta.json must not delete arbitrary files."""
-        skills_dir = tmp_path / "skills"
-        skills_dir.mkdir()
-        # victim file outside skills/ that should NOT be deleted
-        victim = tmp_path / "victim.md"
-        victim.write_text("keep me")
-
-        target = skills_dir / "merged.md"
-        staged = self._stage_one(
-            tmp_path,
-            filename="merged.md",
-            text="# merged",
-            target=target,
-            command="skill-stocktake",
-            sources=["../victim.md"],
-        )
-        self._run_adopt(tmp_path, staged, inputs=["y"])
-        assert target.exists()
-        assert victim.exists()  # traversal blocked
-
-    def test_adopt_clean_rewrite_overwrites_in_place(self, tmp_path):
-        """Regression (2026-07-10): a staged skill-stocktake clean rewrite
-        targets its own original file. The collision guard must recognize the
-        self-source and overwrite in place — the pre-fix behavior minted a
-        `-2.md` duplicate for all 10 rewrites of a batch, doubling the corpus
-        the stocktake was meant to shrink."""
-        skills_dir = tmp_path / "skills"
-        skills_dir.mkdir()
-        (skills_dir / "a.md").write_text("# A original")
-
-        target = skills_dir / "a.md"
-        staged = self._stage_one(
-            tmp_path,
-            filename="a.md",
-            text="# A cleaned",
-            target=target,
-            command="skill-stocktake-clean",
-            sources=["a.md"],
-        )
-        self._run_adopt(tmp_path, staged, inputs=["y"])
-        assert target.read_text().startswith("# A cleaned")
-        assert not (skills_dir / "a-2.md").exists()
 
     def test_identity_adoption_replaces_the_canonical_file(self, tmp_path):
         """Regression (T-ADOPT-OVERWRITE-TARGETS, 2 live occurrences): the H5
@@ -765,165 +696,6 @@ class TestAdoptStaged:
             self._run_adopt(tmp_path, staged, inputs=["y"])
         assert target.exists()
 
-    def test_adopt_preserves_target_when_source_name_matches(self, tmp_path):
-        """Regression: when a merged target has the same basename as one of
-        its sources (e.g. merged title slugifies back to the dominant
-        original's filename), the delete loop must skip that source so the
-        freshly-written merge survives."""
-        skills_dir = tmp_path / "skills"
-        skills_dir.mkdir()
-        # Two original skills; the merged target name matches the first one
-        (skills_dir / "a.md").write_text("# A original")
-        (skills_dir / "b.md").write_text("# B original")
-
-        target = skills_dir / "a.md"  # collides with sources[0]
-        staged = self._stage_one(
-            tmp_path,
-            filename="a.md",
-            text="# Merged\n\nnew body",
-            target=target,
-            command="skill-stocktake",
-            sources=["a.md", "b.md"],
-        )
-        self._run_adopt(tmp_path, staged, inputs=["y"])
-        # Merged file survived (guard worked)
-        assert target.exists(), "merged target deleted by self-delete bug"
-        assert "Merged" in target.read_text()
-        # The other (non-colliding) source is deleted
-        assert not (skills_dir / "b.md").exists()
-
-
-class TestAdoptStagedDrop:
-    """Tests for adopt-staged handling of drop actions."""
-
-    def _stage_one(
-        self,
-        tmp_path,
-        *,
-        filename: str,
-        text: str,
-        target: Path,
-        command: str = "skill-stocktake-drop",
-        action: Literal["merge", "drop"] = "drop",
-    ) -> Path:
-        staged_dir = tmp_path / ".staged"
-        audit = tmp_path / "logs" / "audit.jsonl"
-        item = StageItem(filename, text, target, action=action)
-        with (
-            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
-            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
-            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
-        ):
-            _stage_results([item], command=command)
-        return staged_dir
-
-    def _run_adopt(self, tmp_path, staged_dir, *, inputs: list[str]):
-        audit = tmp_path / "logs" / "audit.jsonl"
-        args = argparse.Namespace(yes=False)
-        with (
-            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
-            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
-            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
-            patch("builtins.input", side_effect=inputs),
-        ):
-            _handle_adopt_staged(args, MagicMock())
-
-    def test_adopt_drop_approved_deletes_target(self, tmp_path):
-        skills_dir = tmp_path / "skills"
-        skills_dir.mkdir()
-        target = skills_dir / "low-quality.md"
-        target.write_text("# Low quality skill\nshort")
-
-        staged = self._stage_one(
-            tmp_path,
-            filename="low-quality.md",
-            text="# Low quality skill\nshort",
-            target=target,
-        )
-        self._run_adopt(tmp_path, staged, inputs=["y"])
-        assert not target.exists(), "target should be deleted on drop approval"
-
-    def test_adopt_drop_rejected_keeps_target(self, tmp_path):
-        skills_dir = tmp_path / "skills"
-        skills_dir.mkdir()
-        target = skills_dir / "low-quality.md"
-        target.write_text("# Low quality skill\nshort")
-
-        staged = self._stage_one(
-            tmp_path,
-            filename="low-quality.md",
-            text="# Low quality skill\nshort",
-            target=target,
-        )
-        self._run_adopt(tmp_path, staged, inputs=["n"])
-        assert target.exists(), "target should be kept on drop rejection"
-
-    def test_adopt_drop_logs_audit(self, tmp_path):
-        skills_dir = tmp_path / "skills"
-        skills_dir.mkdir()
-        target = skills_dir / "low-quality.md"
-        target.write_text("# LQ")
-
-        audit = tmp_path / "logs" / "audit.jsonl"
-        staged = self._stage_one(
-            tmp_path,
-            filename="low-quality.md",
-            text="# LQ",
-            target=target,
-        )
-        self._run_adopt(tmp_path, staged, inputs=["y"])
-
-        lines = audit.read_text().strip().splitlines()
-        decisions = [json.loads(line) for line in lines]
-        adopted = [d for d in decisions if d["source"] == "stage-adopted"]
-        assert len(adopted) >= 1
-        assert adopted[-1]["decision"] == "approved"
-        assert adopted[-1]["command"] == "skill-stocktake-drop"
-
-    def test_adopt_drop_already_absent_is_noop(self, tmp_path):
-        """Drop of non-existent file should not error."""
-        skills_dir = tmp_path / "skills"
-        skills_dir.mkdir()
-        target = skills_dir / "gone.md"  # does not exist
-
-        staged = self._stage_one(
-            tmp_path,
-            filename="gone.md",
-            text="# Ghost",
-            target=target,
-        )
-        # Should not raise
-        self._run_adopt(tmp_path, staged, inputs=["y"])
-
-    def test_adopt_mixed_merge_and_drop(self, tmp_path):
-        """Merge + drop items coexist in the same staging batch."""
-        skills_dir = tmp_path / "skills"
-        skills_dir.mkdir()
-        merge_target = skills_dir / "merged.md"
-        drop_target = skills_dir / "low-q.md"
-        drop_target.write_text("# low quality")
-
-        staged_dir = tmp_path / ".staged"
-        audit = tmp_path / "logs" / "audit.jsonl"
-        merge_item = StageItem("merged.md", "# Merged body", merge_target)
-        drop_item = StageItem(
-            "low-q.md",
-            "# low quality",
-            drop_target,
-            action="drop",
-            command="skill-stocktake-drop",
-        )
-        with (
-            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
-            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
-            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
-        ):
-            _stage_results([merge_item, drop_item], command="skill-stocktake")
-
-        self._run_adopt(tmp_path, staged_dir, inputs=["y", "y"])
-        assert merge_target.exists(), "merged file should be written"
-        assert not drop_target.exists(), "drop target should be deleted"
-
 
 class TestAdoptStagedYesFlag:
     """Tests for `adopt-staged --yes` non-interactive auto-approval.
@@ -978,82 +750,6 @@ class TestAdoptStagedYesFlag:
         assert len(adopted) == 1
         assert adopted[0]["decision"] == "approved"
         assert adopted[0]["command"] == "insight"
-
-    def test_yes_flag_approves_drop_without_prompt(self, tmp_path):
-        skills_dir = tmp_path / "skills"
-        skills_dir.mkdir()
-        target = skills_dir / "low-quality.md"
-        target.write_text("# low quality body")
-        staged_dir = tmp_path / ".staged"
-        item = StageItem(
-            "low-quality.md",
-            "# low quality body",
-            target,
-            action="drop",
-            command="skill-stocktake-drop",
-        )
-        with (
-            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
-            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
-            patch(
-                "contemplative_agent.cli.approval.AUDIT_LOG_PATH",
-                tmp_path / "logs" / "audit.jsonl",
-            ),
-        ):
-            _stage_results([item], command="skill-stocktake")
-
-        self._run_adopt_yes(tmp_path, staged_dir)
-
-        assert not target.exists(), "drop target should be deleted under --yes"
-        assert not (staged_dir / "low-quality.md.meta.json").exists()
-
-        audit_lines = (tmp_path / "logs" / "audit.jsonl").read_text().strip().splitlines()
-        decisions = [json.loads(line) for line in audit_lines]
-        adopted = [d for d in decisions if d["source"] == "stage-adopted-auto"]
-        assert len(adopted) == 1
-        assert adopted[0]["decision"] == "approved"
-        assert adopted[0]["command"] == "skill-stocktake-drop"
-
-    def test_yes_flag_approves_mixed_merge_and_drop(self, tmp_path):
-        skills_dir = tmp_path / "skills"
-        skills_dir.mkdir()
-        merge_target = skills_dir / "merged.md"
-        drop_target = skills_dir / "low-q.md"
-        drop_target.write_text("# low quality")
-        staged_dir = tmp_path / ".staged"
-
-        merge_item = StageItem("merged.md", "# Merged body", merge_target)
-        drop_item = StageItem(
-            "low-q.md",
-            "# low quality",
-            drop_target,
-            action="drop",
-            command="skill-stocktake-drop",
-        )
-        with (
-            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
-            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
-            patch(
-                "contemplative_agent.cli.approval.AUDIT_LOG_PATH",
-                tmp_path / "logs" / "audit.jsonl",
-            ),
-        ):
-            _stage_results([merge_item, drop_item], command="skill-stocktake")
-
-        self._run_adopt_yes(tmp_path, staged_dir)
-
-        assert merge_target.exists(), "merge should be written under --yes"
-        assert not drop_target.exists(), "drop should be deleted under --yes"
-        # staging fully cleared
-        assert list(staged_dir.glob("*.meta.json")) == []
-
-        audit_lines = (tmp_path / "logs" / "audit.jsonl").read_text().strip().splitlines()
-        decisions = [json.loads(line) for line in audit_lines]
-        adopted = [d for d in decisions if d["source"] == "stage-adopted-auto"]
-        assert len(adopted) == 2
-        commands = sorted(d["command"] for d in adopted)
-        assert commands == ["skill-stocktake", "skill-stocktake-drop"]
-        assert all(d["decision"] == "approved" for d in adopted)
 
 
 class TestAdoptStagedNamesFlag:
@@ -1204,46 +900,6 @@ class TestAdoptStagedNamesFlag:
         ]
         assert len(rest) == 1
         assert rest[0]["decision"] == "rejected"
-
-    def test_reject_rest_keeps_drop_target(self, tmp_path):
-        """Rejecting an unselected drop item must keep its target file."""
-        skills = tmp_path / "skills"
-        skills.mkdir()
-        drop_target = skills / "low-q.md"
-        drop_target.write_text("# low quality")
-        items = [
-            StageItem("keep.md", "# Keep", skills / "keep.md"),
-            StageItem(
-                "low-q.md",
-                "# low quality",
-                drop_target,
-                action="drop",
-                command="skill-stocktake-drop",
-            ),
-        ]
-        staged = self._stage_batch(tmp_path, items)
-        self._run_adopt_names(tmp_path, staged, ["keep.md"], reject_rest=True)
-        assert drop_target.exists(), "rejected drop must keep its target"
-        assert not (staged / "low-q.md.meta.json").exists()
-
-    def test_selected_drop_item_deletes_target(self, tmp_path):
-        skills = tmp_path / "skills"
-        skills.mkdir()
-        drop_target = skills / "low-q.md"
-        drop_target.write_text("# low quality")
-        items = [
-            StageItem(
-                "low-q.md",
-                "# low quality",
-                drop_target,
-                action="drop",
-                command="skill-stocktake-drop",
-            ),
-        ]
-        staged = self._stage_batch(tmp_path, items)
-        self._run_adopt_names(tmp_path, staged, ["low-q.md"])
-        assert not drop_target.exists()
-        assert not (staged / "low-q.md.meta.json").exists()
 
     def test_audit_source_is_stage_adopted_names(self, tmp_path):
         """Per-item selection is transcribed, not prompted: the audit trail
@@ -1527,23 +1183,6 @@ class TestAdoptStagedHoldNames:
         decisions = [rec["decision"] for rec in self._audit(tmp_path)]
         assert decisions.count("held") == 1
         assert decisions.count("approved") == 1
-
-    def test_a_held_drop_item_deletes_nothing(self, tmp_path):
-        skills = tmp_path / "skills"
-        skills.mkdir()
-        victim = skills / "victim.md"
-        victim.write_text("# Victim\n", encoding="utf-8")
-        staged = self._stage_batch(
-            tmp_path,
-            [StageItem("victim.md", "# Victim", victim, action="drop")],
-            command="skill-stocktake",
-        )
-
-        self._run(tmp_path, staged, hold=["victim.md"], reject_rest=True)
-
-        assert victim.read_text() == "# Victim\n"
-        assert (staged / "victim.md.meta.json").exists()
-        assert self._decisions(tmp_path)["victim.md"] == "held"
 
     def test_a_symlinked_sidecar_is_refused_rather_than_copied_back(self, tmp_path):
         """Hold is the only outcome that reads a sidecar and writes it back,
@@ -2068,3 +1707,59 @@ class TestAdoptStagedUncoveredFailurePaths:
         ):
             _resolve_adopt_plan(args)
         assert exc.value.code == 2
+
+
+class TestRetiredSidecarKeysAreRefused:
+    """ADR-0097: a sidecar written by a retired producer must not be adopted.
+
+    ``action: "drop"`` and ``sources`` lost their handlers with the stocktake
+    merge / clean / drop producers. Read as an ordinary write, a drop item
+    would be *written* as a `-2.md` twin of the skill it was approved to
+    delete, and logged as an approved write — the opposite of the decision.
+    """
+
+    def _stage_legacy(self, tmp_path, meta_extra: dict) -> tuple[Path, Path]:
+        staged_dir = tmp_path / ".staged"
+        staged_dir.mkdir(parents=True)
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        target = skills / "low-q.md"
+        target.write_text("# low quality\n", encoding="utf-8")
+        (staged_dir / "low-q.md").write_text("# low quality\n", encoding="utf-8")
+        meta = {"target": str(target), "command": "skill-stocktake-drop", "seq": 1, **meta_extra}
+        (staged_dir / "low-q.md.meta.json").write_text(json.dumps(meta), encoding="utf-8")
+        return staged_dir, target
+
+    def _run(self, tmp_path, staged_dir):
+        """A refusal is a failure outcome, so the command exits nonzero — a
+        non-interactive caller must not read a skipped item as applied."""
+        args = argparse.Namespace(yes=True)
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch(
+                "contemplative_agent.cli.approval.AUDIT_LOG_PATH",
+                tmp_path / "logs" / "audit.jsonl",
+            ),
+            pytest.raises(SystemExit) as exc,
+        ):
+            _handle_adopt_staged(args, MagicMock())
+        assert exc.value.code == 1
+
+    def test_a_drop_sidecar_is_refused_not_written(self, tmp_path, capsys):
+        staged_dir, target = self._stage_legacy(tmp_path, {"action": "drop"})
+        self._run(tmp_path, staged_dir)
+        err = capsys.readouterr().err
+        assert "retired action" in err and "ADR-0097" in err
+        # Neither deleted (no handler) nor twinned (no silent write).
+        assert target.read_text() == "# low quality\n"
+        assert not (target.parent / "low-q-2.md").exists()
+
+    def test_a_sources_sidecar_is_refused_not_written(self, tmp_path, capsys):
+        staged_dir, target = self._stage_legacy(tmp_path, {"sources": ["orig.md"]})
+        orig = target.parent / "orig.md"
+        orig.write_text("# orig\n", encoding="utf-8")
+        self._run(tmp_path, staged_dir)
+        assert "retired sources" in capsys.readouterr().err
+        assert orig.exists(), "a refused item must not delete anything"
+        assert not (target.parent / "low-q-2.md").exists()

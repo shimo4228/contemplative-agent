@@ -295,13 +295,25 @@ class TestApprovalLineageADR0050:
         assert record["epistemic_counts"] == {"generated": 2, "unknown": 0}
 
     def test_run_approval_loop_plumbs_rule_source_ids(self, tmp_path):
-        """RuleResult exposes source_ids (skill filenames), not pattern_ids."""
+        """A result exposing source_ids (filenames), not pattern_ids, is plumbed as-is.
+
+        The original producer of this shape (``rules-distill``) was retired by
+        ADR-0097; the approval loop's lineage contract outlives it.
+        """
+        from dataclasses import dataclass
+
         from contemplative_agent.cli.approval import _run_approval_loop
-        from contemplative_agent.core.rules_distill import RuleResult
+
+        @dataclass(frozen=True)
+        class _RuleLike:
+            text: str
+            filename: str
+            target_path: Path
+            source_ids: tuple[str, ...]
 
         audit_path = tmp_path / "logs" / "audit.jsonl"
         rules_dir = tmp_path / "rules"
-        item = RuleResult(
+        item = _RuleLike(
             text="# R",
             filename="r.md",
             target_path=rules_dir / "r.md",

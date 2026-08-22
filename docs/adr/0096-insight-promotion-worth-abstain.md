@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+partially-superseded-by ADR-0097 (Decisions 2 and 10–12 — the post-extraction worth judge and the surprise instrument — retired 2026-08-22 by this ADR's own pre-registered fallback after the first production reading read 46/46 promote; Decisions 1 and 4–8 — the in-band NOTHING-PROMOTABLE abstain, the reason code, the yield line, the fault/verdict control-flow split — remain in effect)
 
 ## Date
 

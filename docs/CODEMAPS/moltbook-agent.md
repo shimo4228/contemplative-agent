@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-17 (added insight_surprise.py, ADR-0096) | Files scanned: 80 non-__init__ modules (72 src/ + 8 evals/) | Token estimate: ~6159 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-22 (ADR-0097: rules-distill / rules-stocktake retired, insight_surprise.py and rules_distill.py removed, skill-stocktake reduced) | Files scanned: 80 non-__init__ modules (72 src/ + 8 evals/) | Token estimate: ~6159 -->
 # Moltbook Agent Codemap
 
 Bird's-eye view of the entire codebase. For deep dives, see
@@ -18,8 +18,8 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
     approval.py (231L)        -- approval-gate loop + audit.jsonl writer (ADR-0012)
     staging.py (181L)         -- insight --stage / pending-review staging dir
     adopt.py (688L)           -- adopt-staged / remove-skill commands
-    stocktake_cmd.py (855L)   -- skill-stocktake / rules-stocktake commands
-    memory_cmds.py (620L)     -- distill / insight / rules-distill / amend-constitution / shadow-constitution / distill-identity commands
+    stocktake_cmd.py (197L)   -- skill-stocktake (quality report + usage reading + description audit; ADR-0097 retired rules-stocktake and the merge/clean/stage phases)
+    memory_cmds.py (587L)     -- distill / insight / amend-constitution / shadow-constitution / distill-identity commands (rules-distill retired by ADR-0097)
     session_cmds.py (572L)    -- init / report / generate-report / meditate / sync-data / dialogue / dialogue-peer
     schedule.py (656L)        -- install-schedule / launchd plist generation (ADR-0085: --weekly-pipeline + --watchdog)
  -> core/
@@ -41,14 +41,12 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
  |    distill.py (931L)           -- per-episode grounded distill orchestration (ADR-0060) + identity distill (single-stage, ADR-0050) + durability postgate (ADR-0084); rendering/dedup extracted per ADR-0079
  |    pattern_dedup.py (177L)     -- embedding-cosine add/update/skip dedup decisions, extracted from distill.py (ADR-0079)
  |    episode_render.py (181L)    -- episode→prompt-text projection, extracted from distill.py (ADR-0079)
- |    insight.py (983L)           -- global clustering → behavior skill extraction (ADR-0050); novelty gate extracted per ADR-0079; ADR-0096 promotion-worth abstain + worth gate
+ |    insight.py (744L)           -- global clustering → behavior skill extraction (ADR-0050); novelty gate extracted per ADR-0079; ADR-0096 in-band abstain (the separate worth judge retired by ADR-0097)
  |    insight_novelty.py (434L)   -- ADR-0074 LLM novelty gate, extracted from insight.py (ADR-0079); re-exports text_utils.skill_theme
- |    insight_surprise.py (267L)  -- ADR-0096 read-only surprise reading over the recent distillation window; enumerated for the human gate, never applied
  |    skill_selection.py (1058L)   -- ADR-0076 shadow pass-1 skill-selection instrument + ADR-0081 two-pass injection enforcement
- |    rules_distill.py (416L)     -- Practice/Rationale B-layer rules synthesis (ADR-0048)
  |    constitution.py (151L)      -- constitutional amendment; ADR-0033 framing + ADR-0050 lineage
  |    constitution_shadow.py (278L) -- ADR-0092 read-only shadow instrument: patterns-only synthesis (no live constitution injected), divergence cosine/sha256 -> logs/constitution-shadow.jsonl
- |    stocktake.py (718L)         -- skill/rule audit: LLM grouping on frontmatter summaries (ADR-0046 + 2026-08-15 amendment), merge/quality, singleton clean (ADR-0048), usage/description audit
+ |    stocktake.py (335L)         -- skill quality report + ADR-0081 usage reading + description audit (ADR-0097 reduced it: no grouping / merge / clean); run_rules_quality_check for the rules layer's maintenance reading
  |    report.py (321L)            -- activity report generation (JSONL → Markdown)
  |    metrics.py (189L)           -- session metrics aggregation
  |    view_metrics.py (388L)      -- read-only pattern-composition instruments: consumed-view supply + seed-independent diversity (ADR-0071/0072)
@@ -123,7 +121,7 @@ evals/                            -- LLM behavioral eval layer (ADR-0089), outsi
   constitution/                   -- ethical principles
   views/*.md                      -- user-customised seed views
   skills/*.md                     -- behavior patterns (insight)
-  rules/*.md                      -- universal rules (rules-distill, Practice/Rationale)
+  rules/*.md                      -- universal rules (Practice/Rationale; promoted from co-selection families via stocktake_merge_rules.md — ADR-0097 D7)
   snapshots/{cmd}_{ts}/           -- pivot snapshots (ADR-0020: manifest + views + constitution + centroids.npz)
   logs/YYYY-MM-DD.jsonl           -- daily episode log (append-only, 0600)
   logs/audit.jsonl                -- approval history incl. snapshot_path + source_ids + epistemic_counts (ADR-0020/0050)
@@ -173,14 +171,12 @@ contemplative-agent distill-identity [--stage]
 contemplative-agent insight [--stage] [--full]   -- incremental needs .last_insight marker; LLM novelty gate; --stage refuses on pending review (ADR-0074)
 contemplative-agent adopt-staged [-y] [--adopt-names FILE [--reject-rest]]   -- per-item non-interactive path matches by staged filename (audit source stage-adopted-names); unknown/empty names abort before any destructive op (T-ADOPT-PERITEM)
 contemplative-agent remove-skill <name> [--reason TEXT]
-contemplative-agent rules-distill [--full]
 contemplative-agent amend-constitution
 contemplative-agent shadow-constitution   -- ADR-0092 read-only instrument: patterns-only synthesis (current constitution NOT in the prompt), divergence cosine + sha256 baked into logs/constitution-shadow.jsonl; no approval gate (writes only the record)
 contemplative-agent enrich [--dry-run]    -- no-op since ADR-0019
 
-# Audit
-contemplative-agent skill-stocktake [--stage]
-contemplative-agent rules-stocktake
+# Audit (read-only since ADR-0097: quality report + usage reading + advisory description audit)
+contemplative-agent skill-stocktake
 
 # Instruments (read-only, wired to no gate)
 contemplative-agent submolt-scan [--sample-size N]   -- ADR-0086 scope sweep: samples + scores every listed submolt (subscribed and not); takes the run lock
@@ -228,11 +224,11 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 **Engagement & posting**: system, relevance, comment, reply, cooperation_post, post_title, topic_summary, submolt_selection, internal_note (ADR-0045), dialogue (peer loop) — `session_insight` retired and deleted (ADR-0052)
 
-**Distillation**: distill_episode (per-episode grounded distill, ADR-0060 — this is the live distill prompt; first-person moment-indexed register instruction since ADR-0072), identity_distill, insight_extraction (naming/vocabulary discipline since ADR-0074), insight_novelty + insight_novelty_system (novelty gate, ADR-0074), rules_distill, rules_distill_refine, constitution_amend, constitution_synthesize (ADR-0092 shadow instrument — patterns-only, no `{current_constitution}` placeholder by design) (`distill` / `distill_refine` went dead when ADR-0060 replaced the 2-step batch with `distill_episode`; files + mappings deleted in ADR-0072. `distill_importance` retired, ADR-0056)
+**Distillation**: distill_episode (per-episode grounded distill, ADR-0060 — this is the live distill prompt; first-person moment-indexed register instruction since ADR-0072), identity_distill, insight_extraction (naming/vocabulary discipline since ADR-0074), insight_novelty + insight_novelty_system (novelty gate, ADR-0074), constitution_amend, constitution_synthesize (ADR-0092 shadow instrument — patterns-only, no `{current_constitution}` placeholder by design) (`distill` / `distill_refine` went dead when ADR-0060 replaced the 2-step batch with `distill_episode`; files + mappings deleted in ADR-0072. `distill_importance` retired, ADR-0056; `insight_worth`, `rules_distill`, `rules_distill_refine` retired, ADR-0097)
 
 **Verification**: solver order is `code_parse` → `llm_extract` → abstain (ADR-0062 9th amendment — the free-reasoning `llm_reason` fallback was retired after the round-7 audit measured it at 2.3% of traffic / 38% verify success). `verification.py` wraps the challenge as untrusted and first runs the deterministic `code_parse_challenge()` (in `verification_parse.py`), which owns the finite CAPTCHA grammar's arithmetic / number-word reconstruction and abstains to `None` on any ambiguity. Only on abstention does the LLM propose arithmetic via verification_solve_extract_system (short EXPR/FINAL extraction), accepted only when Python recomputation matches the stated final answer; past that the solver abstains instead of guessing, with `abstain_reason="reason_fallback_disabled"` when the model answered and the guards rejected it, `"llm_none"` when the call produced no text at all (ADR-0062 12th amendment — the failure kind stays in the `llm-calls` telemetry row), or `"answer_previously_rejected"`. `Agent._handle_verification()` writes `logs/verification-audit.jsonl` with a base64-encoded challenge, SHA-256s, `solver_path`, answer, `/verify` outcome, and the abstain reason in `error`, for corpus-driven solver evaluation (ADR-0062 amendment).
 
-**Audit**: stocktake_skills (LLM grouping over per-skill description + Context summaries, ADR-0046 amendment 2026-08-15), stocktake_rules (LLM grouping over rule bodies, ADR-0046), stocktake_merge (frontmatter emission, ADR-0048), stocktake_merge_rules, stocktake_clean (singleton trigger-altitude, ADR-0048), stocktake_group_system / stocktake_merge_system / stocktake_clean_system (externalized `system=` prompts, ADR-0054)
+**Audit**: stocktake_description + stocktake_description_system (ADR-0081 description-fidelity audit — the one LLM call left in `skill-stocktake`), stocktake_merge_rules (shared-core synthesis, kept as the family-to-rule promotion prompt — ADR-0097 D7). `stocktake_skills` / `stocktake_rules` / `stocktake_merge` / `stocktake_clean` and their three `*_system` prompts were retired by ADR-0097
 
 **Untrusted boundary** (ADR-0054): untrusted_wrapper, untrusted_marker_complete, untrusted_marker_truncated — externalized text for `wrap_untrusted_content`, with a hardcoded code fallback that re-asserts the injection defense if the template is missing or gutted
 
@@ -270,7 +266,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 | `constitution/*.md` | Markdown | `MOLTBOOK_HOME` | Ethical clauses |
 | `views/*.md` | Markdown | `MOLTBOOK_HOME` | User-editable seed views |
 | `skills/*.md` | Markdown | `MOLTBOOK_HOME` | Behavior patterns (insight) |
-| `rules/*.md` | Markdown | `MOLTBOOK_HOME` | Universal rules (rules-distill) |
+| `rules/*.md` | Markdown | `MOLTBOOK_HOME` | Universal rules (Practice/Rationale; family promotion, ADR-0097) |
 | `snapshots/{cmd}_{ts}/` | dir | `MOLTBOOK_HOME` | Pivot snapshots (ADR-0020) |
 | `history/identity/` | Markdown | `MOLTBOOK_HOME` | Identity archives |
 | `logs/audit.jsonl` | JSONL | `MOLTBOOK_HOME` | Approval history + source_ids + epistemic_counts (ADR-0020/0050) |

@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-16 (task-ledger machinery retired — stage 6c ledgerwatch, packet §10 and scripts/tasks.py removed, ADR-0095; control characters neutralised at the packet's _cell floor; weekly-analysis.sh's two sessions bounded, permission gate widened to the whole chain; run-log path recorded by the shell instead of rebuilt in the packet builder; the feed-engagement loop and the post cycle join the reply loops in reading the circuit breaker, T-FEED-PACING) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 80 (72 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 80 (72 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -21,9 +21,9 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
       _io  config  domain  prompts  llm(+LLMBackend)  embeddings
       episode_embeddings  episode_log  knowledge_store  memory  memory_repos
       views  snapshot  scheduler  distill  pattern_dedup  episode_render
-      insight  insight_novelty  insight_surprise  skill_selection  constitution
+      insight  insight_novelty  skill_selection  constitution
       constitution_shadow
-      rules_distill  stocktake  report  metrics  view_metrics  clustering  text_utils
+      stocktake  report  metrics  view_metrics  clustering  text_utils
       thresholds  artifact_extraction  run_context
     adapters/moltbook/
       agent  session_context  feed_manager  reply_handler  post_pipeline
@@ -348,8 +348,8 @@ secret-scrubbed but never published. Two regimes (ADR-0068, ADR-0069):
   opts in, `core/llm.generate_for_api` returns `GenerationOutput(text, thinking)`
   and the publish seam stores the trace on the `activity` episode beside
   `internal_note` (untrusted regime); `report.py` renders a `**Thinking:**` block.
-- *Manual value-layer pipelines* (insight / rules-distill / amend-constitution /
-  distill-identity / skill-stocktake / rules-stocktake) run **think-ON** via
+- *Manual value-layer pipelines* (insight / amend-constitution /
+  distill-identity / skill-stocktake) run **think-ON** via
   `core/llm.generate_full` (the internal `GenerationOutput`-returning entry). The
   trace rides on the result object and is written to
   `snapshots/{cmd}_{ts}/reasoning.md` (URL-defanged) + shown at the approval gate.
@@ -383,9 +383,9 @@ prompt text; any decoder must re-wrap it as untrusted content before LLM use.
 
 ## Data Flow — Offline Learning
 
-Every behaviour-producing command writes a pivot snapshot (`snapshots/{cmd}_{ts}/`) at run start (ADR-0020) and threads its path into `audit.jsonl`. The manifest records `generation_model` + `think` (ADR-0069). The six **think-ON** value-layer commands (insight / rules-distill / amend-constitution / distill-identity / skill-stocktake / rules-stocktake) also write their reasoning trace to `reasoning.md` in the snapshot dir; the autonomous `distill` stays think-OFF.
+Every behaviour-producing command writes a pivot snapshot (`snapshots/{cmd}_{ts}/`) at run start (ADR-0020) and threads its path into `audit.jsonl`. The manifest records `generation_model` + `think` (ADR-0069). The four **think-ON** value-layer commands (insight / amend-constitution / distill-identity / skill-stocktake; `rules-distill` / `rules-stocktake` were retired by ADR-0097) also write their reasoning trace to `reasoning.md` in the snapshot dir; the autonomous `distill` stays think-OFF.
 
-All offline distillation LLM calls (distill / insight / rules-distill / constitution amend / distill-identity) run under a **base-only system prompt** — the four axioms are NOT injected. Value layers belong to action time only; `get_distill_system_prompt` is base-only since ADR-0058 (their inputs are already value-shaped, and fresh external observation should be extracted faithfully, not re-interpreted through a value lens). Axioms are injected only at action time (`_build_system_prompt`, `get_identity_system_prompt`).
+All offline distillation LLM calls (distill / insight / constitution amend / distill-identity) run under a **base-only system prompt** — the four axioms are NOT injected. Value layers belong to action time only; `get_distill_system_prompt` is base-only since ADR-0058 (their inputs are already value-shaped, and fresh external observation should be extracted faithfully, not re-interpreted through a value lens). Axioms are injected only at action time (`_build_system_prompt`, `get_identity_system_prompt`).
 
 ### distill  [`core/distill.py`]
 
@@ -572,30 +572,16 @@ FAIL-OPEN EXTRACTION CAP  [ADR-0074 amendment 2026-07-18]
   windows); deferral recorded in insight-novelty.jsonl
   (reason=review_budget_deferred, topics + sizes + pattern_ids)
 
-SURPRISE READING  [ADR-0096; read-only, LLM-free, core/insight_surprise.py]
-  per surviving cluster: centroid vs the SURPRISE_REF_K (1000) most recently
-  distilled live patterns, own members masked out (unmasked, max cos pins to
-  1.0 and every candidate reads alike)
-  s_mean = 1 − mean cos (ranked on this — steadier and less k-sensitive than
-  s_nn per the 2026-08-17 calibration); s_nn = 1 − max cos
-  NO threshold, NO z-normalization (raw spread 0.108 at p50 0.806 becomes
-  ~5 sd when z-scored — manufactured discrimination); each reading carries
-  ref_cos_p50 / ref_cos_spread as its ambiguity note
-  batches are NOT reordered, capped or filtered by it — enumeration only
-  (read-only-instruments invariant 1); rides the staging *.meta.json sidecar
-  (already inlined into weekly stage 5) + one batch log block
-
 Per novel cluster → generate_full(INSIGHT_EXTRACTION_PROMPT, topic="cluster-N")  [think-ON, ADR-0069]
   system = axioms-only (no skill corpus injected — audit H6 fix, a2bebfe;
   the novelty gate reads themes, generation never does)
-  → in-band abstain: output "NOTHING-PROMOTABLE" → nothing_promotable  [ADR-0096]
+  → in-band abstain: output "NOTHING-PROMOTABLE" → nothing_promotable  [ADR-0096 D1;
+     the separate post-extraction WORTH JUDGE and the SURPRISE READING were
+     retired by ADR-0097 after the judge's own pre-registered refutation fired
+     (46/46 promote on the first production run) — extraction is the only LLM
+     call per cluster]
   → validate_identity_content()
-  → WORTH GATE  [ADR-0096; on by default, MOLTBOOK_INSIGHT_WORTHGATE=0 opts out]
-     generate(INSIGHT_WORTH_PROMPT, format={"promote": bool}) over the PRODUCED
-     skill + its cluster patterns (never the adopted corpus — coverage is the
-     novelty gate's axis); promote=false → nothing_promotable
-     fails OPEN (promotes) with reason=worthgate_llm_none|_parse|_shape
-  → SkillResult(text, filename, target_path, pattern_ids, epistemic_counts, thinking, surprise)  [ADR-0050; per-skill thinking → reasoning.md, ADR-0069; surprise ADR-0096]
+  → SkillResult(text, filename, target_path, pattern_ids, epistemic_counts, thinking)  [ADR-0050; per-skill thinking → reasoning.md, ADR-0069]
 
 Abstain tally  [ADR-0096, ADR-0075 shape]
   faults: llm_none / no_title / forbidden_content / path_unresolved
@@ -620,15 +606,29 @@ ADR-0031 consumption note). Every eligible cluster becomes a batch (no top-N
 cluster cap). Weekly automation: `install-schedule --weekly-insight`
 (launchd, default Mon 08:00; a pending review makes the run a no-op).
 
-### rules-distill  [`core/rules_distill.py: distill_rules()`]
+### skill-stocktake  [`core/stocktake.py`, `cli/stocktake_cmd.py`]  (reduced by ADR-0097)
 
 ```text
-skills/*.md (MIN=3) → embed_texts → cluster(CLUSTER_THRESHOLD_RULES=0.65)
-  → batches (MAX_BATCH=10)
-  → generate_full(RULES_DISTILL_PROMPT) → generate_full(RULES_DISTILL_REFINE_PROMPT)  [both think-ON, ADR-0069]
-  → RuleResult(text, filename, target_path, source_ids, thinking)  [ADR-0050; source_ids=skill filenames; per-batch thinking (both stages) → reasoning.md, ADR-0069]
-→ write gated  [ADR-0012]
+skills/*.md → read_markdown_documents → _check_skill_quality (deterministic:
+  body ≥ 200 chars, "## Problem", "## Solution") → StocktakeResult(quality_issues, items)
+  + selection_usage = read_skill_selection_log(days=14)  [ADR-0081 usage dimension;
+    statistics only — never a gate or auto-retire threshold]
+→ format_stocktake_report (LOW QUALITY + SKILL USAGE incl. never-selected exposure)
+→ description audit, one generate_full(STOCKTAKE_DESC_PROMPT) per skill  [ADR-0081;
+  think-ON; advisory — prints mismatch reasons, writes nothing; per-skill trace → reasoning.md]
 ```
+
+No grouping, merge, clean or staging: ADR-0097 dissolved them (summary
+grouping with no recall measurement; union merge produced over-broad skills;
+clean rewrote 14/47 byte-identically and inserted boilerplate into 3). Duplicate
+structure is read from the selection log (co-selection families); retirement and
+consolidation happen at the Saturday gate — today `remove-skill`; the archive
+exit is reserved (slice 2: `skills/.archive/`, `adopt-staged --archive-names`,
+packet never-selected section). `rules-distill`
+and `rules-stocktake` were retired in the same decision; the rules layer keeps
+`_check_rule_quality` (`run_rules_quality_check`) as a deterministic maintenance
+reading, and `stocktake_merge_rules.md` stays as the prompt for family-to-rule
+promotion (ADR-0097 D7).
 
 ### amend-constitution  [`core/constitution.py`]
 
@@ -693,9 +693,11 @@ Invariant: **staging holds at most one unreviewed batch.** Enforced at two point
 | write time | `cli/staging.py::_stage_results_locked` (the lock itself is acquired by its caller `_stage_results`) | Authoritative. Runs under `STAGED_LOCK_PATH`, returns `False`, and is what actually prevents the per-batch wipe from destroying candidates awaiting review. |
 | producer entry | `cli/staging.py::_refuse_if_pending`, called from each `--stage` handler | Efficiency only. Returns early before the LLM work; without it the batch is discarded anyway, just after the generation calls are paid for. Also forgoes the run's report and reasoning trace — accepted, since they describe a batch that was never going to be staged. |
 
-All six `--stage` producers call the producer-side guard as their first act: `distill-identity`, `amend-constitution`, `rules-distill` (`cli/memory_cmds.py`), `insight` (same file, the original ADR-0074 site), `skill-stocktake`, `rules-stocktake` (`cli/stocktake_cmd.py`).
+All three `--stage` producers call the producer-side guard as their first act: `distill-identity`, `amend-constitution` (`cli/memory_cmds.py`) and `insight` (same file, the original ADR-0074 site). `rules-distill`, `skill-stocktake --stage` and `rules-stocktake` were retired by ADR-0097.
 
-The guard sits in the **handler**, not beside the staging write. The four `_stage_results` call sites live in shared approval/staging tails (`_handle_single_result`, `_run_stocktake_phases`) that are entered *after* their producer's LLM call has completed — for stocktake that means after the whole-corpus grouping request, the most expensive call in the run. Counting staging call sites therefore undercounts and mislocates the guard (T-GUARD, 2026-08-16).
+ADR-0097 also narrowed what a sidecar can ask for: `sources` (delete the merge's originals on adopt), `action: drop` (unlink the target) and the per-item `command` override went with the stocktake producers that wrote them, so **adoption is a write and nothing else**. The exit reserved by ADR-0097 Decision 5 arrives as an explicit `adopt-staged` argument, never as a field a staged file carries.
+
+The guard sits in the **handler**, not beside the staging write. The `_stage_results` call sites live in shared approval/staging tails (`_handle_single_result`) that are entered *after* their producer's LLM call has completed. Counting staging call sites therefore undercounts and mislocates the guard (T-GUARD, 2026-08-16).
 
 Guard is gated on `--stage`: the interactive path never writes to the staging dir, so a pending batch does not concern it. Regression coverage asserts zero calls at the LLM **backend** boundary (`tests/test_staging_pending_guard.py`), paired with anchors proving the same fixture reaches the backend when staging is empty — a refusal-only assertion stays green when the refusal arrives after the LLM ran, which is the regression being prevented.
 
@@ -994,7 +996,7 @@ Pivot Snapshots  MOLTBOOK_HOME/snapshots/{cmd}_{ts}/
 | Research | Feed fetch + relevance scoring | feed_manager.py |
 | Extract | `distill` (per-episode grounded distill + embedding dedup) | distill.py |
 | Curate | `insight` (global clustering → skills) | insight.py, clustering.py |
-| Curate | `rules-distill` (skills → Practice/Rationale rules) | rules_distill.py |
+| Curate | family-to-rule promotion (co-selection family → one Practice/Rationale rule via `stocktake_merge_rules.md`; `rules-distill` retired by ADR-0097) | stocktake_merge_rules.md |
 | Curate | `amend-constitution` (constitutional view → ethics) | constitution.py |
 | Promote | `distill-identity` (self_reflection view → persona) | distill.py, views.py |
 | Measure | Pivot snapshots + `last_view_matches` telemetry | snapshot.py |

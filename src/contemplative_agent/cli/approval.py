@@ -68,7 +68,7 @@ def _log_approval(
     """Append approval decision to audit log.
 
     Args:
-        command: The CLI subcommand name (e.g. "insight", "rules-distill").
+        command: The CLI subcommand name (e.g. "insight", "distill-identity").
         path: Final target path for the generated content.
         approved: True = accepted, False = rejected, None = staged (not yet decided).
         content: Full text of the generated artifact (for hashing).

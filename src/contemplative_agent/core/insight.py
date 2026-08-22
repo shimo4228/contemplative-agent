@@ -1,8 +1,10 @@
 """Insight extraction: synthesize learned patterns into behavioral skills.
 
 Global embedding cluster per run. Each cluster → one LLM skill
-extraction call. Cross-cluster synthesis and quality control are
-deferred to skill-stocktake (external).
+extraction call, and that call is the only one per cluster: ADR-0097
+retired the separate post-extraction worth judge, leaving the in-band
+``NOTHING-PROMOTABLE`` abstain (ADR-0096 Decision 1). Quality control after
+adoption is the Saturday gate's, not a batch consolidator's (ADR-0097).
 
 The view concept (ADR-0019) does not shape extraction: insight works
 directly on ``gated != True`` live patterns so that any clustering
@@ -12,33 +14,31 @@ singletons log their nearest *consumed* view (``view_metrics``) so the
 operator can see what skill extraction discards; nothing is gated,
 ranked, or rescued by it. (The former claims that views drive distill's
 noise gate and stocktake's merge went stale: ADR-0060 removed the noise
-gate and ADR-0046 moved stocktake grouping to a single LLM call.)
+gate and ADR-0097 retired stocktake's grouping and merge stages.)
 """
 
 from __future__ import annotations
 
-import json as json_mod
 import logging
 import os
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Literal
 
-from . import insight_novelty, insight_surprise, llm
-from ._io import read_run_marker, strip_code_fence, strip_to_printable, write_run_marker
+from . import insight_novelty, llm
+from ._io import read_run_marker, strip_to_printable, write_run_marker
 from .artifact_extraction import canonicalize_frontmatter_name, resolve_artifact_path
 from .clustering import cluster_patterns
 from .insight_novelty import _Batch
-from .insight_surprise import SurpriseReading
 from .knowledge_store import (
     effective_importance,
     epistemic_counts_for,
     pattern_id,
 )
 from .memory import KnowledgeStore
-from .prompts import INSIGHT_EXTRACTION_PROMPT, INSIGHT_WORTH_PROMPT
+from .prompts import INSIGHT_EXTRACTION_PROMPT
 from .text_utils import extract_title
 from .thresholds import CLUSTER_THRESHOLD_INSIGHT as CLUSTER_THRESHOLD, MAX_BATCH as BATCH_SIZE
 from .view_metrics import ViewLookup, nearest_view
@@ -68,15 +68,17 @@ ABSTAIN_NO_TITLE: InsightAbstainReason = "no_title"  # output has no extractable
 ABSTAIN_FORBIDDEN_CONTENT: InsightAbstainReason = "forbidden_content"  # identity-guard hit
 ABSTAIN_PATH_UNRESOLVED: InsightAbstainReason = "path_unresolved"  # no writable target path
 
-# The one reason that is a VERDICT, not a failure: the cluster was read and
-# judged to evidence nothing worth carrying as a standing skill. ADR-0053
-# canonicalizes promotion worth as an insight-time LLM judgment, but until
-# ADR-0096 the implementation had no channel for "no" — the prompt opened with
-# a production order and the only drops were an LLM failure and a missing
-# title, so the question answered was "could a titled document be produced?".
-# On 2026-07-25, 78 of 84 gate-surviving clusters produced one and none were
-# dropped on worth. Tallied apart from the four fault reasons above: a routine
-# week and a backend outage must never read the same.
+# The one reason that is a VERDICT, not a failure: the extraction call read the
+# cluster and declined in-band (ADR-0096 Decision 1). ADR-0053 canonicalizes
+# promotion worth as an insight-time judgment, but until ADR-0096 the
+# implementation had no channel for "no" — the prompt opened with a production
+# order and the only drops were an LLM failure and a missing title, so the
+# question answered was "could a titled document be produced?". ADR-0096's
+# separate post-extraction worth JUDGE was retired by ADR-0097 after its own
+# pre-registered refutation fired (46/46 promote on the first production run);
+# the in-band abstain channel is what remains. Tallied apart from the four
+# fault reasons above: a routine week and a backend outage must never read the
+# same.
 ABSTAIN_NOTHING_PROMOTABLE: InsightAbstainReason = "nothing_promotable"
 
 # Reasons that mean something BROKE (as opposed to a judged abstain). Also the
@@ -96,14 +98,6 @@ FAULT_ABSTAIN_REASONS: frozenset[InsightAbstainReason] = frozenset(
 # first non-empty line so a model that decorates it (bold, fence, trailing
 # period) is still read as declining rather than as a titleless fault.
 _ABSTAIN_TOKEN = "NOTHING-PROMOTABLE"
-
-_WORTHGATE_ENV = "MOLTBOOK_INSIGHT_WORTHGATE"
-
-_WORTHGATE_SCHEMA = {
-    "type": "object",
-    "properties": {"promote": {"type": "boolean"}},
-    "required": ["promote"],
-}
 
 # Above this live-pattern count, ``insight --full`` emits an advisory warning.
 # Clustering itself is cheap since the ADR-0074 Lance-Williams merge; the cost
@@ -130,10 +124,6 @@ class SkillResult:
     # ADR-0069: the reasoning trace for this skill (insight runs think-ON).
     # Per-skill (one LLM call per cluster), None when think was off / no trace.
     thinking: str | None = None
-    # ADR-0096: the read-only surprise reading for this candidate's cluster —
-    # material for the reviewer, never a filter. None when the cluster had no
-    # usable embedding (a missing reading is honest; an invented one is not).
-    surprise: SurpriseReading | None = None
 
 
 @dataclass(frozen=True)
@@ -149,15 +139,10 @@ class InsightResult:
     skills: tuple[SkillResult, ...]
     skipped_known: int = 0
     # ADR-0096: per-reason abstain tally — the single source for how many
-    # clusters yielded nothing and why. ``dropped_count`` and ``fault_count``
-    # are derived from it rather than stored, so a new reason code cannot be
-    # counted in one and missed by the other.
+    # clusters yielded nothing and why. ``fault_count`` is derived from it
+    # rather than stored, so a new reason code cannot be counted in one place
+    # and missed in another.
     abstained: Counter[InsightAbstainReason] = field(default_factory=Counter)
-
-    @property
-    def dropped_count(self) -> int:
-        """Clusters that yielded no candidate, for any reason."""
-        return sum(self.abstained.values())
 
     @property
     def fault_count(self) -> int:
@@ -245,142 +230,6 @@ def _extract_skill(
     logger.warning("Insight extraction abstained: reason=%s topic=%s", ABSTAIN_NO_TITLE, topic)
     logger.debug("Raw LLM output (first 300 chars): %s", strip_to_printable(out.text, 300))
     return ABSTAIN_NO_TITLE
-
-
-def _worthgate_enabled() -> bool:
-    """On by default; ``MOLTBOOK_INSIGHT_WORTHGATE=0`` opts out.
-
-    The default-ON reasoning is ADR-0084 Decision 7's and lives there once
-    (a default-off flag routed through the launchd plist silently reverts on
-    the next ``install-schedule``; see ``distill._postgate_enabled``). The gate
-    fails open at every step, so the cost of it being on is bounded by
-    pre-ADR-0096 behavior.
-    """
-    return os.environ.get(_WORTHGATE_ENV) != "0"
-
-
-_MAX_WORTH_AUDIT_BYTES = 128 * 1024
-
-
-def _append_worth_audit(
-    audit_path: Path | None,
-    *,
-    verdict: str,
-    topic: str,
-    pattern_ids: Sequence[str],
-    prompt: str,
-    raw_output: str | None,
-) -> None:
-    """Best-effort replay record for one worth verdict (ADR-0075/0096).
-
-    The same argument the novelty gate's record rests on, one stage later: a
-    ``promote: false`` removes the candidate before any human sees it, and the
-    candidate text is not kept anywhere else — only the cluster's patterns
-    survive. Without the exact prompt and raw output, a gate that starts
-    declining good candidates leaves nothing to diagnose from, and the
-    aggregate yield line cannot say *which* ones. ``verdict``: "promote" |
-    "decline" | "worthgate_llm_none" | "worthgate_parse" | "worthgate_shape".
-    """
-    if audit_path is None:
-        return
-    try:
-        from ._io import append_jsonl_restricted, b64_audit_fields, now_iso
-
-        record: dict = {
-            "ts": now_iso("seconds"),
-            "verdict": verdict,
-            "topic": topic,
-            "pattern_ids": list(pattern_ids),
-            **b64_audit_fields("prompt", prompt, max_bytes=_MAX_WORTH_AUDIT_BYTES),
-            **b64_audit_fields("output", raw_output, max_bytes=_MAX_WORTH_AUDIT_BYTES),
-        }
-        append_jsonl_restricted(audit_path, record)
-    except Exception as exc:  # instrumentation must never break insight
-        logger.warning("insight worth audit record failed: %s", exc)
-
-
-def _worth_gate(
-    skill_text: str,
-    patterns: list[str],
-    *,
-    topic: str = "",
-    pattern_ids: Sequence[str] = (),
-    audit_path: Path | None = None,
-) -> bool:
-    """Judge the PRODUCED skill and answer whether it is worth promoting.
-
-    ADR-0084 measured this shape one layer down: a standalone gate asked
-    BEFORE distilling answered "durable" on 40 of 40 episodes, because naming
-    a worthwhile moment costs nothing when you never have to write it, while
-    the same question asked after production fired on 5%. Producing the
-    artifact IS the evidence requirement, so the judge runs after extraction
-    with the candidate in hand.
-
-    Deliberately NOT given the adopted-skill corpus: whether a theme is
-    already covered is ADR-0074's novelty gate, which runs before extraction.
-    This gate answers the intrinsic question — is there a reusable behavior
-    here at all — and stacking coverage into it would double-count one axis
-    while leaving the other still unasked.
-
-    Fails OPEN with a greppable reason (ADR-0075: no silent fallback). This
-    gate can only ever remove a candidate the extractor already produced, so
-    every failure path must degrade to pre-ADR-0096 behavior; a gate that
-    silently declined on a parse error would discard a week of review material
-    with no trace.
-
-    The parse below deliberately does NOT carry ``distill``'s brace-salvage
-    (``text.find("{")``): under ``format=`` a prose answer means the structured
-    constraint was ignored, and digging a verdict out of prose would count an
-    unusable response as a judgment. It fails open instead, which costs one
-    kept candidate and keeps the abstain rate honest.
-
-    Both inputs are framed with ``wrap_untrusted_content``. Neither is external
-    text directly — the patterns are distilled and the candidate is this
-    system's own generation — but both descend from platform content, and this
-    is the first insight-stage call whose output *decides* something rather
-    than generating text. ``stocktake.audit_skill_description`` frames a
-    generated artifact for the same reason before judging it.
-    """
-    prompt = INSIGHT_WORTH_PROMPT.format(
-        skill=llm.wrap_untrusted_content(skill_text),
-        patterns=llm.wrap_untrusted_content("\n".join(f"- {p}" for p in patterns)),
-    )
-    result = llm.generate(
-        prompt,
-        system=llm.get_distill_system_prompt(),
-        num_predict=300,
-        format=_WORTHGATE_SCHEMA,
-        caller="insight.worth_gate",
-        drop_truncated=True,
-    )
-
-    def _record(verdict: str, raw: str | None) -> None:
-        _append_worth_audit(
-            audit_path,
-            verdict=verdict,
-            topic=topic,
-            pattern_ids=pattern_ids,
-            prompt=prompt,
-            raw_output=raw,
-        )
-
-    if result is None:
-        logger.warning("Insight worth gate abstained: reason=worthgate_llm_none — promoting")
-        _record("worthgate_llm_none", None)
-        return True
-    try:
-        data = json_mod.loads(strip_code_fence(result))
-    except (json_mod.JSONDecodeError, TypeError):
-        logger.warning("Insight worth gate abstained: reason=worthgate_parse — promoting")
-        _record("worthgate_parse", result)
-        return True
-    promote = data.get("promote") if isinstance(data, dict) else None
-    if not isinstance(promote, bool):
-        logger.warning("Insight worth gate abstained: reason=worthgate_shape — promoting")
-        _record("worthgate_shape", result)
-        return True
-    _record("promote" if promote else "decline", result)
-    return promote
 
 
 def _cluster_score(cluster: list[dict]) -> float:
@@ -630,7 +479,6 @@ def extract_insight(
     instrument_views: ViewLookup | None = None,
     staged_ledger_path: Path | None = None,
     novelty_audit_path: Path | None = None,
-    worth_audit_path: Path | None = None,
 ) -> str | InsightResult:
     """Extract behavioral skills from accumulated knowledge.
 
@@ -654,9 +502,6 @@ def extract_insight(
             the novelty gate alongside adopted skills.
         novelty_audit_path: Optional replay log (insight-novelty.jsonl) for
             the novelty gate's judge run (ADR-0075); never gates anything.
-        worth_audit_path: Optional replay log (insight-worth.jsonl) for the
-            ADR-0096 promotion-worth verdicts — the declined candidate's text
-            survives nowhere else.
 
     Returns:
         InsightResult on success (possibly with zero skills when every
@@ -740,21 +585,8 @@ def extract_insight(
         len(batches),
     )
 
-    # ADR-0096 (b): read each surviving cluster's distance from the recent
-    # distillation window BEFORE extraction, so the listing covers every
-    # candidate the reviewer could have seen — including the ones the worth
-    # gate then declines. Code only, no LLM call, and nothing here reorders or
-    # drops a batch: `batches` is untouched.
-    surprise_readings = _read_surprise(
-        batches,
-        patterns_by_id,
-        raw_patterns if full else knowledge_store.get_live_patterns(),
-    )
-    insight_surprise.log_surprise(surprise_readings)
-
     skill_results: list[SkillResult] = []
     abstained: Counter[InsightAbstainReason] = Counter()
-    worth_gate = _worthgate_enabled()
 
     for batch_idx, (topic, batch, batch_pids) in enumerate(batches):
         result = _extract_one_batch(
@@ -765,18 +597,18 @@ def extract_insight(
             len(batches),
             skills_dir,
             patterns_by_id,
-            worth_gate=worth_gate,
-            worth_audit_path=worth_audit_path,
         )
         if isinstance(result, str):
             abstained[result] += 1
         else:
-            # The reading is attached here rather than threaded through
-            # extraction: it is a read-only instrument, and the function that
-            # generates and validates a skill has no business holding it.
-            skill_results.append(replace(result, surprise=surprise_readings.get(topic)))
+            skill_results.append(result)
 
-    faults = sum(count for reason, count in abstained.items() if reason in FAULT_ABSTAIN_REASONS)
+    result = InsightResult(
+        skills=tuple(skill_results),
+        skipped_known=skipped_known,
+        abstained=abstained,
+    )
+    faults = result.fault_count
     if faults:
         logger.warning(
             "Insight extraction summary: %d/%d cluster(s) abstained on a fault (%s); "
@@ -788,7 +620,7 @@ def extract_insight(
     # Always emitted, faults or not: this is the yield reading. Before
     # ADR-0096 a cluster that produced no candidate was only ever a failure,
     # so there was no line in which a judged decline could appear — which is
-    # why a 0% worth-drop rate stayed invisible while being the whole defect.
+    # why a 0% decline rate stayed invisible while being the whole defect.
     logger.info(
         "Insight extraction yield: %d/%d cluster(s) yielded skills (nothing_promotable=%d)",
         len(skill_results),
@@ -806,56 +638,7 @@ def extract_insight(
     # read and judged unworthy. The window WAS considered, so this travels the
     # same channel as the novelty gate's all-covered result and the caller
     # advances the marker.
-    return InsightResult(
-        skills=tuple(skill_results),
-        skipped_known=skipped_known,
-        abstained=abstained,
-    )
-
-
-def _read_surprise(
-    batches: Sequence[_Batch],
-    patterns_by_id: dict[str, dict],
-    reference_patterns: list[dict],
-) -> dict[str, SurpriseReading]:
-    """Surprise readings for the surviving clusters (ADR-0096, read-only).
-
-    The cluster members are looked up in this run's window (``patterns_by_id``,
-    already built by the caller), but the reference window is drawn from the
-    whole live store: "far from what was distilled lately" is only meaningful
-    against the store's recent history, and an incremental run's own window is
-    mostly the candidates themselves.
-
-    Degrades to an empty mapping on any problem — an instrument must never
-    crash its host command (``read-only-instruments`` invariant 3).
-    """
-    try:
-        members = {
-            topic: [
-                patterns_by_id[pid]["embedding"]
-                for pid in pids
-                if pid in patterns_by_id and patterns_by_id[pid].get("embedding")
-            ]
-            for topic, _patterns, pids in batches
-        }
-        # Mask THIS RUN's whole window, not just the cluster's kept members.
-        # ``cluster_patterns`` demotes everything past ``max_size`` into
-        # singletons, and those rows stay live: they are cosine >= 0.70
-        # neighbours of the very centroid being measured and, being the newest
-        # rows, they land in the reference window — which would make the
-        # largest clusters read as the least surprising for a reason that has
-        # nothing to do with surprise. It also restores the calibration's own
-        # definition, where the reference was strictly what was distilled
-        # BEFORE the run.
-        window_ids = set(patterns_by_id)
-        return insight_surprise.compute_surprise(
-            members,
-            reference_patterns,
-            exclude={topic: window_ids for topic, _patterns, _pids in batches},
-        )
-    except Exception as exc:  # instrumentation must never break insight
-        logger.warning("insight surprise reading failed: %s", exc)
-        return {}
+    return result
 
 
 def _select_patterns(
@@ -903,17 +686,13 @@ def _extract_one_batch(
     n_batches: int,
     skills_dir: Path | None,
     patterns_by_id: dict[str, dict],
-    *,
-    worth_gate: bool,
-    worth_audit_path: Path | None = None,
 ) -> SkillResult | InsightAbstainReason:
     """Extract + validate one cluster batch; an ``ABSTAIN_*`` reason when not.
 
     ADR-0096: every non-yielding path names itself, so the caller can tally
-    faults apart from the judged ``nothing_promotable`` verdict. ``worth_gate``
-    is keyword-only with no default on purpose — a default would silently
-    restore pre-ADR-0096 behavior for a call site that forgot it, which is the
-    class ``_worthgate_enabled`` exists to remove.
+    faults apart from the judged ``nothing_promotable`` verdict (the
+    extraction call's in-band decline — the only verdict path left after
+    ADR-0097 retired the post-extraction worth judge).
     """
     logger.info(
         "Batch %d/%d [%s]: %d patterns",
@@ -938,9 +717,6 @@ def _extract_one_batch(
         )
         return ABSTAIN_FORBIDDEN_CONTENT
 
-    # Path resolution first: it is pure string work, and a candidate that has
-    # no writable target is already out — spending a gate call to judge it
-    # would burn a generation on a verdict nobody can act on.
     resolved = resolve_artifact_path(
         skill_text,
         skills_dir,
@@ -948,23 +724,6 @@ def _extract_one_batch(
     )
     if resolved is None:
         return ABSTAIN_PATH_UNRESOLVED
-
-    # ADR-0096: the promotion-worth verdict, with the produced skill in hand.
-    if worth_gate and not _worth_gate(
-        skill_text,
-        batch,
-        topic=topic,
-        pattern_ids=batch_pids,
-        audit_path=worth_audit_path,
-    ):
-        logger.info(
-            "Batch %d/%d [%s]: abstained reason=%s stage=worth_gate",
-            batch_idx + 1,
-            n_batches,
-            topic,
-            ABSTAIN_NOTHING_PROMOTABLE,
-        )
-        return ABSTAIN_NOTHING_PROMOTABLE
 
     # One canonical identity: the frontmatter name becomes the resolved slug,
     # so filename, selector key and ledger entry cannot diverge (the heading

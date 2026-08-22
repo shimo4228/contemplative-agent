@@ -74,24 +74,6 @@ def _distill_postgate_off(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
-def _insight_worthgate_off(monkeypatch):
-    """Default the ADR-0096 promotion-worth gate OFF for the suite.
-
-    Same reasoning, one layer up: the gate is ON in production and adds a
-    second LLM call — through ``llm.generate``, not the ``llm.generate_full``
-    that every existing insight test patches. Left on, those tests would reach
-    a real backend for the gate and pass only because it fails open, silently
-    exercising extraction and the gate at once.
-
-    The gate is covered where it belongs: ``tests/test_insight_worth.py``
-    drives ``_worth_gate`` and the tally directly, ``TestWorthGateDefault``
-    asserts the production default really is on (so flipping it back cannot
-    pass silently), and the chaos column drives it through a real backend.
-    """
-    monkeypatch.setenv("MOLTBOOK_INSIGHT_WORTHGATE", "0")
-
-
-@pytest.fixture(autouse=True)
 def _reset_untrusted_guard():
     """Reset the untrusted wrapper's module state between tests.
 

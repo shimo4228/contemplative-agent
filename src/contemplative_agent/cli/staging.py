@@ -11,7 +11,7 @@ import os
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Literal
+from typing import Any
 
 from ..adapters.moltbook import config
 from ..core._io import (
@@ -33,42 +33,23 @@ STAGED_LOCK_PATH = config.MOLTBOOK_DATA_DIR / ".staged.lock"
 class StageItem:
     """One artifact pending external approval in the staging dir.
 
-    `sources` is set by skill-stocktake merges (original skill filenames
-    that `adopt-staged` deletes when the merged result is accepted) and by
-    stocktake clean rewrites (the rewrite's own filename, so adoption
-    overwrites in place instead of minting a `-2.md` collision copy).
-    All other commands leave it empty.
+    `source_ids` / `epistemic_counts` are ADR-0050 lineage metadata:
+    record-only, riding through meta.json into the adopt-time audit entry.
 
-    `action` distinguishes merge (write) from drop (delete) operations.
-
-    `command` overrides the batch command name passed to `_stage_results`.
-    Used by stocktake handlers to mix merge ("skill-stocktake") and drop
-    ("skill-stocktake-drop") items in a single staging batch — needed
-    because `_stage_results` wipes the staging dir on every call, so a
-    second call would erase the first batch.
-
-    `source_ids` / `epistemic_counts` are ADR-0050 lineage metadata,
-    deliberately distinct from `sources` — `sources` has delete-on-adopt
-    semantics, lineage is record-only and rides through meta.json into
-    the adopt-time audit entry.
-
-    `surprise` is the ADR-0096 read-only reading for an insight candidate. It
-    rides the same sidecar because that sidecar is already where the reviewer
-    meets the item: `adopt-staged` prints it above the artifact at the human
-    gate (`cli/adopt.py::_adopt_one`), and `weekly-pipeline.sh` stage 5 `cat`s
-    every sidecar into the insight-review prompt. Nothing branches on it — it
-    is material, not a filter.
+    ADR-0097 removed `sources` (delete-on-adopt of a merge's originals),
+    `action` (merge vs drop) and the per-item `command` override with the
+    stocktake merge / clean / drop producers that were their only writers.
+    Every surviving producer stages one artifact per target under the batch
+    command, so adoption is a write and nothing else. The exit reserved by
+    ADR-0097 Decision 5 archives through an explicit `adopt-staged`
+    argument, not through a sidecar field.
     """
 
     filename: str
     text: str
     target_path: Path
-    sources: list[str] = field(default_factory=list)
-    action: Literal["merge", "drop"] = "merge"
-    command: str | None = None
     source_ids: list[str] = field(default_factory=list)
     epistemic_counts: dict[str, int] = field(default_factory=dict)
-    surprise: dict[str, float | int] = field(default_factory=dict)
 
 
 def _pending_staged_count() -> int:
@@ -248,7 +229,6 @@ def _stage_results_locked(items: list[StageItem], command: str) -> bool:
                 file=sys.stderr,
             )
             continue
-        item_command = item.command or command
         # Same H5 collision guard as the direct / adopt write paths (round-2
         # R2-H1): two same-slug items in one batch previously clobbered each
         # other's .md + .meta.json in the staging dir — adopt-staged only
@@ -263,33 +243,25 @@ def _stage_results_locked(items: list[StageItem], command: str) -> bool:
         staged_file.write_text(text, encoding="utf-8")
         meta: dict[str, object] = {
             "target": str(item.target_path),
-            "command": item_command,
+            "command": command,
             # Adoption order (codex review round-2 P2): without it,
             # adopt-staged's name sort processes "dup-2.md" before "dup.md"
             # ('-' < '.'), swapping a collision pair's final target names.
             "seq": seq,
         }
-        if item.sources:
-            meta["sources"] = list(item.sources)
-        if item.action != "merge":
-            meta["action"] = item.action
         # ADR-0050: lineage rides through meta.json so adopt-staged can
         # attach it to the adopt-time audit entry.
         if item.source_ids:
             meta["source_ids"] = list(item.source_ids)
         if item.epistemic_counts:
             meta["epistemic_counts"] = dict(item.epistemic_counts)
-        # ADR-0096: the surprise reading travels with the candidate to the
-        # human gate. Read-only — no consumer branches on it.
-        if item.surprise:
-            meta["surprise"] = dict(item.surprise)
         # Derive the sidecar from the collision-resolved name so the
         # .md ↔ .meta.json pairing adopt-staged relies on stays intact.
         meta_file = config.STAGED_DIR / f"{staged_file.name}.meta.json"
         meta_file.write_text(json_mod.dumps(meta, indent=2) + "\n", encoding="utf-8")
         staged_paths.append((staged_file, item.target_path))
         approval._log_approval(
-            item_command,
+            command,
             item.target_path,
             None,
             text,

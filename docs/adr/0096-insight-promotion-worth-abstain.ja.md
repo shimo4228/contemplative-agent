@@ -2,7 +2,7 @@
 
 ## Status
 
-proposed
+partially-superseded-by ADR-0097（Decision 2 と 10–12 — 抽出後の worth 判定者と surprise 計器 — は、初回本番の読みが 46/46 promote だったことで本 ADR 自身の事前登録 fallback により 2026-08-22 に退役。Decision 1 と 4–8 — in-band の NOTHING-PROMOTABLE abstain、理由コード、yield 行、fault / verdict の制御分岐 — は効力を保つ）
 
 ## Date
 

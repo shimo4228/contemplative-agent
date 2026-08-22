@@ -73,7 +73,7 @@ def _configure_llm_runtime() -> None:
     # T-OBS-INJ: injection-token removals inside wrap_untrusted_content. It
     # belongs in this shared subset rather than in _configure_llm_and_domain
     # for the same reason the log exists at all: Tier.LLM_RUNTIME_ONLY skips
-    # that function, and `skill-stocktake` / `rules-stocktake` are that tier
+    # that function, and `skill-stocktake` is that tier
     # while core/stocktake.py wraps two untrusted fields per skill. Wiring it
     # one tier up left exactly the blind spot the reading was added to
     # remove — a run of zeroes that could mean "no attacks" or "this command

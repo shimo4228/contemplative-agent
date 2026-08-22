@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0097（「stocktake = 広い統合器」の半分は 2026-08-22 に退役 — 統合は土曜ゲートへ移った。「insight = 狭い生成器」、BATCH_SIZE=10、self-reflection の routing、rarity の撤去は効力を保つ）
 
 ## Date
 

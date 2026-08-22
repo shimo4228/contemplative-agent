@@ -1,6 +1,6 @@
 """Average-linkage agglomerative cosine clustering (ADR-0019 companion).
 
-Used by ``insight`` and ``rules_distill`` to turn an embedded corpus
+Used by ``insight`` to turn an embedded corpus
 into sub-topic buckets without a predefined axis (view). The only
 knobs are a cosine threshold (when to stop merging) and min/max
 cluster size.

@@ -1,6 +1,6 @@
 """Shared step for resolving an LLM artifact body to a safe file path.
 
-Both ``insight`` and ``rules-distill`` produce Markdown bodies that need
+``insight`` (and, before ADR-0097, ``rules-distill``) produces Markdown bodies that need
 the same chain: ``extract_title → slugify → path-escape guard``. This
 module hosts that chain so a fix (for example, tightening the path
 guard) only needs to land in one place.

@@ -13,9 +13,9 @@ Fault catalog rows exercised here:
 - F-NOV-3 truncated judge output (TRUNCATED + drop_truncated) → fail_open_llm
 - F-NOV-4 known-inventory budget overflow → fail_open_budget, no LLM call
 - F-NOV-5 fail-open flood → extraction cap defers beyond the configured N
-- F-WORTH-* the ADR-0096 promotion-worth gate (bottom of file) — every
-  unusable verdict promotes and names its reason; a broken judge is never
-  recorded as "nothing was worth promoting"
+- F-ABSTAIN-* the in-band promotion abstain (bottom of file) — a decline is a
+  verdict, a dead backend is a fault, and extraction is the only call per
+  cluster (ADR-0097 retired the separate worth judge)
 
 Determinism: explicit fault schedules only; the chunk split is forced by a
 patched context window computed from the same token estimator the packer
@@ -25,10 +25,7 @@ uses (no magic numbers).
 from __future__ import annotations
 
 import json
-import logging
 from unittest.mock import patch
-
-import pytest
 
 from contemplative_agent.core import insight, insight_novelty
 from contemplative_agent.core.llm import (
@@ -37,7 +34,7 @@ from contemplative_agent.core.llm import (
     configure,
     reset_llm_config,
 )
-from tests.chaos import EMPTY, NONE, OK, SHAPE_VIOLATION, TRUNCATED, ChaosBackend
+from tests.chaos import NONE, OK, SHAPE_VIOLATION, TRUNCATED, ChaosBackend
 
 KNOWN = [("skill-a", "handles consensus friction")]
 
@@ -181,17 +178,17 @@ class TestOkPathStillWorksThroughBackend:
 
 
 # ---------------------------------------------------------------------------
-# ADR-0096 promotion-worth gate — fault column
+# In-band promotion abstain (ADR-0096 Decision 1, kept by ADR-0097) — fault column
 # ---------------------------------------------------------------------------
 #
-# F-WORTH-1 gate backend hard failure (NONE)        → worthgate_llm_none, promote
-# F-WORTH-2 gate returns non-JSON (EMPTY)           → worthgate_parse, promote
-# F-WORTH-3 gate returns wrong shape (SHAPE_VIOLATION) → worthgate_shape, promote
-# F-WORTH-4 gate answer truncated (TRUNCATED)       → worthgate_llm_none, promote
-# F-WORTH-5 extraction declines in-band             → judged verdict, not a fault
+# F-ABSTAIN-1 extraction declines in-band (OK text = token) → judged verdict, not a fault
+# F-ABSTAIN-2 extraction backend hard failure (NONE)       → error string, window preserved
+# F-ABSTAIN-3 extraction returns an untitled prose blob     → no_title fault, not a decline
 #
-# Steady state is asserted through observable channels only: the reason token
-# in the log line and the per-reason tally on InsightResult.
+# ADR-0097 retired the post-extraction worth judge, so the extraction call is
+# the only LLM call per cluster: the schedule addresses it directly. Steady
+# state is asserted through observable channels only: the reason token in the
+# log line and the per-reason tally on InsightResult.
 
 
 _CHAOS_SKILL = """---
@@ -215,16 +212,16 @@ Whenever the judge is unusable.
 """
 
 
-class WorthChaosBackend(ChaosBackend):
-    """Extraction on even calls, worth-gate verdict on odd calls.
-
-    The schedule therefore addresses the gate at odd indices, which is where
-    every fault in this column belongs — a broken judge must never look like
-    a judged decline.
-    """
+class DecliningExtractionBackend(ChaosBackend):
+    """Extraction that declines in-band on every OK call."""
 
     def _ok_text(self, idx: int) -> str:
-        return _CHAOS_SKILL if idx % 2 == 0 else json.dumps({"promote": False})
+        return "NOTHING-PROMOTABLE"
+
+
+class ProducingExtractionBackend(ChaosBackend):
+    def _ok_text(self, idx: int) -> str:
+        return _CHAOS_SKILL
 
 
 def _one_cluster_store(tmp_path):
@@ -240,9 +237,9 @@ def _one_cluster_store(tmp_path):
     return ks
 
 
-def _run_insight(schedule, tmp_path):
+def _run_insight(backend, tmp_path):
     reset_llm_config()
-    configure(backend=WorthChaosBackend(schedule=list(schedule)))
+    configure(backend=backend)
     try:
         return insight.extract_insight(
             knowledge_store=_one_cluster_store(tmp_path), skills_dir=tmp_path, full=True
@@ -251,35 +248,9 @@ def _run_insight(schedule, tmp_path):
         reset_llm_config()
 
 
-class TestWorthGateFailsOpen:
-    @pytest.fixture(autouse=True)
-    def _gate_on(self, monkeypatch) -> None:
-        """Undo conftest's suite-wide opt-out — this column drives the gate."""
-        monkeypatch.delenv(insight._WORTHGATE_ENV, raising=False)
-
-    @pytest.mark.parametrize(
-        ("gate_fault", "reason"),
-        [
-            (NONE, "worthgate_llm_none"),
-            # A blank verdict is absorbed one layer down (llm returns None on
-            # an empty response), so it lands on llm_none rather than parse.
-            (EMPTY, "worthgate_llm_none"),
-            (SHAPE_VIOLATION, "worthgate_shape"),
-            (TRUNCATED, "worthgate_llm_none"),
-        ],
-    )
-    def test_unusable_verdict_promotes_and_names_the_reason(
-        self, gate_fault, reason, tmp_path, caplog
-    ) -> None:
-        with caplog.at_level(logging.WARNING):
-            result = _run_insight([OK, gate_fault], tmp_path)
-        assert not isinstance(result, str)
-        assert len(result.skills) == 1  # degraded to pre-ADR-0096 behavior
-        assert f"reason={reason}" in caplog.text
-        assert result.abstained[insight.ABSTAIN_NOTHING_PROMOTABLE] == 0
-
-    def test_a_working_gate_declining_is_a_verdict_not_a_fault(self, tmp_path) -> None:
-        result = _run_insight([OK, OK], tmp_path)
+class TestInBandAbstainThroughBackend:
+    def test_a_decline_is_a_verdict_not_a_fault(self, tmp_path) -> None:
+        result = _run_insight(DecliningExtractionBackend(schedule=[OK]), tmp_path)
         assert not isinstance(result, str)
         assert result.skills == ()
         assert result.abstained[insight.ABSTAIN_NOTHING_PROMOTABLE] == 1
@@ -290,52 +261,13 @@ class TestWorthGateFailsOpen:
     def test_extraction_fault_never_reads_as_a_decline(self, tmp_path) -> None:
         """A dead backend must not be recorded as "nothing was worth
         promoting" — that is the whole point of the fault/verdict split."""
-        result = _run_insight([NONE], tmp_path)
+        result = _run_insight(ProducingExtractionBackend(schedule=[NONE]), tmp_path)
         assert isinstance(result, str)  # window preserved, marker not advanced
 
-
-class TestWorthGateDisabledPath:
-    def test_opt_out_makes_no_gate_call_at_all(self, tmp_path, monkeypatch) -> None:
-        monkeypatch.setenv(insight._WORTHGATE_ENV, "0")
-        backend = WorthChaosBackend(schedule=[OK])
-        reset_llm_config()
-        configure(backend=backend)
-        try:
-            result = insight.extract_insight(
-                knowledge_store=_one_cluster_store(tmp_path), skills_dir=tmp_path, full=True
-            )
-        finally:
-            reset_llm_config()
+    def test_one_llm_call_per_cluster(self, tmp_path) -> None:
+        """ADR-0097: no second judge call follows a produced skill."""
+        backend = ProducingExtractionBackend(schedule=[OK])
+        result = _run_insight(backend, tmp_path)
         assert not isinstance(result, str)
         assert len(result.skills) == 1
-        assert len(backend.calls) == 1  # extraction only
-
-    def test_prose_verdict_is_a_parse_fault_and_still_promotes(
-        self, tmp_path, caplog, monkeypatch
-    ) -> None:
-        """F-WORTH-2: a judge that answers in prose (the `format=` constraint
-        ignored) must fail open with `worthgate_parse`, not be read as a no."""
-        monkeypatch.delenv(insight._WORTHGATE_ENV, raising=False)
-
-        class ProseGateBackend(WorthChaosBackend):
-            def generate(
-                self, prompt, system, num_predict, format, *, temperature=1.0, think=False
-            ):
-                idx = len(self.calls)
-                self.calls.append({"prompt": prompt})
-                if idx % 2 == 0:
-                    return BackendResult(text=_CHAOS_SKILL)
-                return BackendResult(text="I think this one is probably not worth promoting.")
-
-        reset_llm_config()
-        configure(backend=ProseGateBackend())
-        try:
-            with caplog.at_level(logging.WARNING):
-                result = insight.extract_insight(
-                    knowledge_store=_one_cluster_store(tmp_path), skills_dir=tmp_path, full=True
-                )
-        finally:
-            reset_llm_config()
-        assert not isinstance(result, str)
-        assert len(result.skills) == 1
-        assert "reason=worthgate_parse" in caplog.text
+        assert len(backend.calls) == 1

@@ -143,6 +143,8 @@ class TestSnapshotRetention:
         snaps = tmp_path / "snapshots"
         snaps.mkdir()
         (snaps / "amend-constitution_20260105T000000").mkdir()  # newest
+        # A historical command name: pruning globs directories, so snapshots
+        # written before ADR-0097 retired the command must still prune.
         (snaps / "rules-distill_20260103T000000").mkdir()  # middle
         (snaps / "distill_20260101T000000").mkdir()  # oldest
         _prune_snapshots(snaps, keep=2)

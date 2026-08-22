@@ -3,24 +3,27 @@
 Extracted verbatim from the single-file cli.py (ADR-0079 Phase 2).
 
 Threat model (recorded 2026-08-15 with the T-WRITE-TMP-NOFOLLOW fix, which
-closed the one exception). The adversary is whoever can write ``.staged/``:
-the sidecar is user-writable between stage and adopt, so ``target``,
-``command``, ``action`` and ``sources`` are all attacker-chosen. What that
-buys them is bounded to MOLTBOOK_HOME and no further.
+closed the one exception; narrowed 2026-08-22 by ADR-0097). The adversary is
+whoever can write ``.staged/``: the sidecar is user-writable between stage
+and adopt, so ``target`` and ``command`` are attacker-chosen. What that buys
+them is bounded to MOLTBOOK_HOME and no further.
 
 * ``target`` is containment-checked twice in ``_load_staged_item`` — once
   resolved, once literal-with-resolved-parent — because reads follow symlinks
   and writes do not. Either check alone leaks in one direction.
-* ``sources`` is otherwise unvalidated, but ``_delete_adopted_sources``
-  requires each name to resolve into the target's own directory, so the reach
-  is "any file beside the target", not any file.
-* ``action: drop`` unlinks the target with no allowlist — again any file in
-  the store, and ``unlink`` removes a link rather than its referent.
+* Adoption is a **write and nothing else**. The two delete primitives this
+  command used to honor from the sidecar — ``sources`` (delete the merge's
+  originals) and ``action: drop`` (unlink the target) — went with the
+  stocktake merge / clean / drop producers ADR-0097 retired. A sidecar
+  naming either is **refused** in ``_load_staged_item`` rather than silently
+  read as an ordinary write: ignoring the key would turn an approved
+  deletion into an approved duplicate. Removal, when it returns as the
+  ADR-0097 Decision 5 archive exit, arrives through an explicit
+  ``adopt-staged`` argument the operator types, never through a field a
+  staged file carries.
 
-Deliberately no additional gate: each of these is a subset of what writing
-``.staged/`` already grants, and a guessed allowlist would fail closed on
-legitimate curation (a stocktake merge names arbitrary sibling skills)
-without removing a capability. The primitives that did exceed the store —
+Deliberately no additional gate on ``target``: it is a subset of what writing
+``.staged/`` already grants. The primitives that did exceed the store —
 ``write_restricted``'s predictable temp sibling, which followed a pre-placed
 symlink *or hardlink* to an arbitrary path — are fixed at the writer
 (``core/_io.py``), not papered over here.
@@ -72,8 +75,6 @@ class _StagedItem:
     target: Path
     command: str
     text: str
-    action: str
-    sources: list[str]
     source_ids: Sequence[str] | None
     epistemic_counts: dict[str, int] | None
     meta: dict[str, Any]
@@ -128,6 +129,23 @@ def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:
         print(f"  Skipped (invalid meta): {meta_file.name}")
         return None
 
+    # A sidecar written before ADR-0097 can still ask for a delete
+    # (``action: "drop"``) or name a merge's originals (``sources``). Nothing
+    # honors those keys any more, so adopting such an item would quietly do
+    # the opposite of what the operator approved: a drop item would be
+    # *written* — as a `-2.md` twin of the skill it was meant to remove — and
+    # a clean rewrite would twin its own original instead of replacing it,
+    # both recorded in audit.jsonl as approved writes. Refuse instead; the
+    # batch is re-stageable once the producer is gone.
+    legacy = [key for key in ("action", "sources") if meta.get(key)]
+    if legacy:
+        print(
+            f"  Skipped (sidecar asks for retired {'/'.join(legacy)} handling, "
+            f"ADR-0097): {meta_file.name}",
+            file=sys.stderr,
+        )
+        return None
+
     target = Path(target_str)
     # Defense in depth: the meta.json is user-writable between stage and
     # adopt, so re-verify the target still lives inside MOLTBOOK_HOME.
@@ -154,8 +172,6 @@ def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:
         target=target,
         command=command,
         text=text,
-        action=meta.get("action", "merge"),
-        sources=meta.get("sources") or [],
         # ADR-0050: lineage staged alongside the artifact; attach it to
         # the adopt-time audit entry so deferred approval keeps lineage.
         source_ids=meta.get("source_ids") or None,
@@ -224,55 +240,6 @@ def _replaces_canonical_target(command: str, target: Path, data_root: Path) -> b
     return False
 
 
-def _adopt_drop_item(item: _StagedItem, *, yes: bool, audit_source: AuditSource) -> bool:
-    """Delete the drop target after approval; True when adopted."""
-    approved = True if yes else approval._approve_delete(item.target)
-    approval._log_approval(
-        item.command,
-        item.target,
-        approved,
-        item.text,
-        source=audit_source,
-        source_ids=item.source_ids,
-        epistemic_counts=item.epistemic_counts,
-    )
-    if not approved:
-        print("  Kept.")
-        return False
-    if item.target.exists():
-        item.target.unlink()
-        print(f"  Deleted {item.target.name}")
-    else:
-        print(f"  Already absent: {item.target.name}")
-    return True
-
-
-def _delete_adopted_sources(target: Path, sources: Sequence[str]) -> None:
-    """Delete the merge's original filenames once the merged result is adopted."""
-    target_parent = target.parent.resolve()
-    try:
-        target_resolved = target.resolve()
-    except OSError:
-        target_resolved = target
-    for src_name in sources:
-        src_path = (target.parent / src_name).resolve()
-        try:
-            same_dir = src_path.parent == target_parent
-        except OSError:
-            same_dir = False
-        if not same_dir:
-            print(f"  Skipped source delete (outside target dir): {src_name}")
-            continue
-        # Guard: when the merged title collides with an original
-        # filename, src_path == target. Skip so we don't delete
-        # the file we just wrote.
-        if src_path == target_resolved:
-            continue
-        if src_path.exists():
-            src_path.unlink()
-            print(f"  Deleted {src_name}")
-
-
 def _adopt_write_item(
     item: _StagedItem, *, yes: bool, audit_source: AuditSource, data_root: Path
 ) -> bool:
@@ -280,13 +247,14 @@ def _adopt_write_item(
     from ..core._io import write_restricted
     from ..core.artifact_extraction import canonicalize_frontmatter_name, slug_from_stem
 
-    # H5 collision guard — exempt when a stocktake merge deliberately reuses
-    # one of its own source names (merge-into-source overwrite), or when the
-    # staging command owns its target and replacing it is the intent
-    # (T-ADOPT-OVERWRITE-TARGETS; see _replaces_canonical_target).
+    # H5 collision guard — exempt when the staging command owns its target and
+    # replacing it is the intent (T-ADOPT-OVERWRITE-TARGETS; see
+    # _replaces_canonical_target). The other former exemption, a stocktake
+    # merge reusing one of its own source names, went with that producer
+    # (ADR-0097).
     target = item.target
     replaces_canonical = _replaces_canonical_target(item.command, target, data_root)
-    if target.name not in (item.sources or ()) and not replaces_canonical:
+    if not replaces_canonical:
         target = approval._collision_free_path(target, item.text)
     # Say what the write destroys, BEFORE the gate. The rename this exemption
     # removes was also the operator's only signal that an existing file was in
@@ -334,9 +302,6 @@ def _adopt_write_item(
     target.parent.mkdir(parents=True, exist_ok=True)
     to_write = text if text.endswith("\n") else text + "\n"
     write_restricted(target, to_write)
-    # skill-stocktake merges pass the original filenames in `sources`
-    # so they get deleted once the merged result is adopted.
-    _delete_adopted_sources(target, item.sources)
     return True
 
 
@@ -373,12 +338,6 @@ def _print_system_budget_for_staged(meta_files: Sequence[Path], data_root: Path)
     loop would quarantine.
     """
 
-    def _inside_data_root(path: Path) -> bool:
-        try:
-            return path.resolve().is_relative_to(data_root.resolve())
-        except OSError:
-            return False
-
     try:
         from ..core.llm import system_prompt_budget_reading
 
@@ -394,35 +353,24 @@ def _print_system_budget_for_staged(meta_files: Sequence[Path], data_root: Path)
                 # count an item the loop will refuse (codex 2026-08-15).
                 if not _target_inside_data_root(target, data_root):
                     continue
-                sources = meta.get("sources") or []
-                if meta.get("action", "merge") == "drop":
-                    if target.exists():
-                        replaced_texts.append(target.read_text(encoding="utf-8"))
-                    continue
                 content_file = meta_file.parent / meta_file.name[: -len(".meta.json")]
                 text = content_file.read_text(encoding="utf-8")
                 new_texts.append(text)
                 # Subtract the existing target only when adoption really
-                # replaces it: an in-place rewrite/merge (target listed in
-                # sources), a canonical replacement (identity / constitution),
-                # or an idempotent identical write. A same-name,
-                # different-content, non-source target gets a `-N.md` suffix
-                # from approval._collision_free_path and the original survives —
+                # replaces it: a canonical replacement (identity /
+                # constitution) or an idempotent identical write. A same-name,
+                # different-content target gets a `-N.md` suffix from
+                # approval._collision_free_path and the original survives —
                 # subtracting it would under-project (codex 2026-07-10 P2).
                 # This asks the same question as the write path above, so the
                 # two cannot disagree about whether the old text survives.
                 if target.exists():
                     existing = target.read_text(encoding="utf-8")
                     if (
-                        target.name in sources
-                        or _replaces_canonical_target(meta.get("command") or "", target, data_root)
+                        _replaces_canonical_target(meta.get("command") or "", target, data_root)
                         or existing.strip() == text.strip()
                     ):
                         replaced_texts.append(existing)
-                for src_name in sources:
-                    src_path = target.parent / src_name
-                    if src_path != target and _inside_data_root(src_path) and src_path.exists():
-                        replaced_texts.append(src_path.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 continue
         # adopt-staged is a Tier-1 (no-LLM-setup) command, so mirror the
@@ -813,45 +761,6 @@ def _reject_unselected(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
     return _Outcome.REJECTED
 
 
-def _print_surprise(surprise: object) -> None:
-    """Show the ADR-0096 reading above the artifact at the human gate.
-
-    Read-only material for this decision, not a recommendation:
-    ``ref cos spread`` is the ambiguity note — a narrow spread means the rank
-    separates very little (see ``core/insight_surprise.py``).
-
-    Every field is coerced rather than formatted straight from the sidecar. The
-    sidecar is the one input this command treats as adversary-writable between
-    stage and adopt, and a non-numeric value in a ``%.4f`` slot would raise out
-    of the batch loop, leaving the remaining items staged and — via the
-    ADR-0074 pending guard — blocking every future ``--stage`` run.
-    """
-    if not isinstance(surprise, dict):
-        return
-
-    def _num(key: str) -> float | None:
-        value = surprise.get(key)
-        return (
-            float(value)
-            if isinstance(value, (int, float)) and not isinstance(value, bool)
-            else None
-        )
-
-    fields = {
-        key: _num(key)
-        for key in ("rank", "of", "s_mean", "s_nn", "ref_k", "ref_cos_p50", "ref_cos_spread")
-    }
-    if any(v is None for v in fields.values()):
-        print("  surprise: sidecar reading unusable (non-numeric field) — ignored")
-        return
-    print(
-        f"  surprise: rank {fields['rank']:.0f}/{fields['of']:.0f} pre-gate clusters, "
-        f"s_mean={fields['s_mean']:.4f} s_nn={fields['s_nn']:.4f} "
-        f"(ref k={fields['ref_k']:.0f} cos p50={fields['ref_cos_p50']:.3f} "
-        f"spread={fields['ref_cos_spread']:.3f})"
-    )
-
-
 def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
     """Decide and apply one staged item's fate.
 
@@ -907,19 +816,15 @@ def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
 
     print(f"\n{'=' * 60}")
     print(f"[{item.command}] {item.content_file.name} -> {item.target}")
-    _print_surprise(item.meta.get("surprise"))
     print(item.text)
 
     approve_without_prompt = plan.yes or plan.per_item
-    if item.action == "drop":
-        ok = _adopt_drop_item(item, yes=approve_without_prompt, audit_source=plan.audit_source)
-    else:
-        ok = _adopt_write_item(
-            item,
-            yes=approve_without_prompt,
-            audit_source=plan.audit_source,
-            data_root=plan.data_root,
-        )
+    ok = _adopt_write_item(
+        item,
+        yes=approve_without_prompt,
+        audit_source=plan.audit_source,
+        data_root=plan.data_root,
+    )
 
     item.content_file.unlink(missing_ok=True)
     meta_file.unlink(missing_ok=True)

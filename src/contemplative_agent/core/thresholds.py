@@ -50,35 +50,22 @@ blocking a fresh re-observation via residual cosine similarity, letting
 the re-observed insight re-enter as a fresh record (ADR-0053 §4).
 """
 
-# --- Insight / rules-distill clustering ------------------------------------
+# --- Insight clustering ------------------------------------------------------
 
 CLUSTER_THRESHOLD_INSIGHT: float = 0.70
 """Cosine threshold for grouping patterns into one ``insight`` skill batch.
 
 Calibration: ``docs/evidence/adr-0009/threshold-calibration-20260417.md``.
-Pattern text is short; cosine sits higher than skill-text side, so this
-runs above ``CLUSTER_THRESHOLD_RULES``.
-"""
-
-CLUSTER_THRESHOLD_RULES: float = 0.65
-"""Cosine threshold for grouping skills into one ``rules-distill`` batch.
-
-Skill text is longer than pattern text, so the cosine distribution sits
-lower than the pattern side. Tune via dry run if rules-distill batches
-become too narrow / too wide.
+Pattern text is short, so cosine sits higher than it would on skill text.
 """
 
 MAX_BATCH: int = 10
-"""Maximum patterns/skills passed to one LLM extract call.
+"""Maximum patterns passed to one LLM extract call (``insight`` ``BATCH_SIZE``).
 
-Used by both ``insight`` (``BATCH_SIZE``) and ``rules-distill``
-(``MAX_RULES_BATCH``); kept identical so the two callers share a single
-prompt-size budget.
+(``rules-distill``, the other consumer, was retired by ADR-0097.)
 """
 
-# Note: stocktake no longer uses an embedding-cosine clustering threshold.
-# Duplicate detection reverted to a single LLM grouping call (see
-# core/stocktake._find_duplicate_groups) instead of vapor-dominated cosine;
-# the former SIM_CLUSTER_THRESHOLD was removed with that change. Since
-# 2026-08-15 the skill pass groups on frontmatter summaries and the merge
-# stage does the concrete-behavior check on full bodies (ADR-0046 amendment).
+# Note: stocktake has no clustering threshold. Embedding-cosine grouping was
+# replaced by a single LLM grouping call in ADR-0046 (the former
+# SIM_CLUSTER_THRESHOLD went with it), and ADR-0097 retired that call too —
+# duplicate structure is now read from the selection log (co-selection).

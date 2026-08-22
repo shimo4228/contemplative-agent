@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-17 | Total codemaps: 5 | Token estimate: ~3922 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-22 | Total codemaps: 5 | Token estimate: ~3922 -->
 # Codemaps Index
 
 Comprehensive architectural documentation for the Contemplative Agent project.
@@ -22,7 +22,7 @@ Comprehensive architectural documentation for the Contemplative Agent project.
   - distill (per-episode grounded distill: one LLM call per engagement episode, no noise gate, + embedding dedup; ADR-0060, importance step retired ADR-0056)
   - distill-identity (single-stage, pure cosine retrieval)
   - insight (global clustering, NOT per-view)
-  - rules-distill, amend-constitution
+  - amend-constitution; skill-stocktake (quality report + usage reading + description audit — ADR-0097 retired rules-distill / rules-stocktake and the merge / clean stages)
   - ADR-0050 approval lineage (source_ids / epistemic_counts into audit.jsonl)
   - ADR-0090 IPD two-arm bench (behavioral reading before every constitution-amendment approval)
 - Behavioral eval layer (`evals/`, ADR-0089 — comment-generation regression detector on DeepEval, outside the wheel)

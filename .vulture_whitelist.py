@@ -12,7 +12,10 @@
 # 2026-08-07 の較正スキャン（29 件、全て構造的偽陽性）から起こした。
 #
 # 較正 baseline (2026-08-07, vulture 2.16): parsed_total 157（全て tests/ evals/
-# の行 = 報告対象外）、報告 (src/ scripts/) 0、免除 30 名。将来の「ずっと 0」が
+# の行 = 報告対象外）、報告 (src/ scripts/) 0、免除 30 名。2026-08-22 に ADR-0097 で
+# 退役した 10 名（insight_worth / rules_distill / rules_distill_refine /
+# stocktake_skills / _rules / _merge / _clean / _group_system / _merge_system /
+# _clean_system）を削除し、免除 20 名。将来の「ずっと 0」が
 # 健全なのか計器の故障（prefix drift 等）なのかは、この baseline と metrics
 # record の dead_code_parsed_total を突き合わせて判断する。
 #
@@ -25,27 +28,17 @@
 internal_note
 identity_distill
 insight_extraction
-insight_worth  # insight worth gate (insight.py:344 INSIGHT_WORTH_PROMPT)
 insight_novelty_system
 meditation_interpret
 distill_episode
 distill_postgate
-rules_distill
-rules_distill_refine
 constitution_amend
 constitution_synthesize  # ADR-0092 shadow 憲法計器（constitution_shadow.py:175）
-stocktake_skills
-stocktake_rules
-stocktake_merge
 stocktake_merge_rules
-stocktake_clean
 stocktake_description
 untrusted_wrapper
 untrusted_marker_complete
 untrusted_marker_truncated
-stocktake_group_system
-stocktake_merge_system
-stocktake_clean_system
 stocktake_description_system
 dialogue
 learned_skills_framing

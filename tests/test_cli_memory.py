@@ -10,9 +10,6 @@ import logging
 from unittest.mock import MagicMock, patch
 
 from contemplative_agent.cli.memory_cmds import _write_reasoning
-from contemplative_agent.cli.stocktake_cmd import (
-    _handle_stocktake_result,
-)
 
 
 class TestWriteReasoning:
@@ -28,7 +25,7 @@ class TestWriteReasoning:
         assert "second reason" in content
 
     def test_dedupes_identical_traces(self, tmp_path):
-        # rules-distill shares one batch trace across its rules — write it once.
+        # A batch trace shared across several artifacts is written once.
         _write_reasoning(tmp_path, [("rule 1", "same trace"), ("rule 2", "same trace")])
         content = (tmp_path / "reasoning.md").read_text()
         assert content.count("same trace") == 1
@@ -61,33 +58,13 @@ class TestWriteReasoning:
         content = (tmp_path / "reasoning.md").read_text()
         assert "https://evil.example.com/x" not in content
 
-    def test_stocktake_grouping_trace_written_to_reasoning_md(self, tmp_path):
-        """ADR-0069 integration: a stocktake run with nothing to merge/drop
-        still persists its grouping reasoning to reasoning.md beside the snapshot."""
-        from contemplative_agent.core.stocktake import StocktakeResult
-
-        result = StocktakeResult(
-            merge_groups=(),
-            quality_issues=(),
-            total_files=3,
-            items=(),
-            thinking="these three rules are genuinely distinct",
-        )
-        # rules path: clean_prompt=None → early return after writing the trace.
-        _handle_stocktake_result(
-            MagicMock(),
-            result,
-            target_dir=tmp_path / "rules",
-            label="Rules",
-            merge_prompt="m {candidates}",
-            command_prefix="rules-stocktake",
-            fallback_title="merged-rule",
-            clean_prompt=None,
-            snapshot_path=tmp_path,
-        )
+    def test_stocktake_description_traces_written_to_reasoning_md(self, tmp_path):
+        """ADR-0069 integration: the stocktake's description-audit traces land
+        in reasoning.md beside the snapshot, one section per audited skill."""
+        _write_reasoning(tmp_path, [("description a.md", "the description is narrower")])
         content = (tmp_path / "reasoning.md").read_text()
-        assert "## duplicate grouping" in content
-        assert "these three rules are genuinely distinct" in content
+        assert "## description a.md" in content
+        assert "narrower" in content
 
 
 class TestInsightStagePathADR0074:

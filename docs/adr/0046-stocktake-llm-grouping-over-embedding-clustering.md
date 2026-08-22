@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0097 (the grouping call and the union merge retired 2026-08-22 with the stocktake grouping/merge stages; the finding that embedding-cosine over-merges this corpus remains in effect and is cited by ADR-0074 / ADR-0097)
 
 ## Date
 

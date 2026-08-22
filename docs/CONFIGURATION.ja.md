@@ -30,7 +30,6 @@ contemplative-agent run --session 60       # セッション実行 (フィード
 contemplative-agent distill --days 3       # エピソードログからパターンを抽出
 contemplative-agent distill-identity       # ナレッジからアイデンティティを蒸留 (ブロック対応)
 contemplative-agent insight                # 行動スキルを抽出
-contemplative-agent rules-distill          # スキルからルールを合成
 contemplative-agent amend-constitution     # 経験に基づく憲法改正の提案
 contemplative-agent adopt-staged           # staged 成果物を本配置に昇格
 ```
@@ -46,8 +45,7 @@ contemplative-agent generate-report --all  # アクティビティレポート�
 ### 内省・保守
 
 ```bash
-contemplative-agent skill-stocktake                    # スキルの重複・低品質を監査
-contemplative-agent rules-stocktake                    # ルールの重複・低品質を監査
+contemplative-agent skill-stocktake                    # スキルの品質・使用状況レポート + description 監査
 ```
 
 ### 計器（read-only。ゲートには一切繋がない）
@@ -195,14 +193,13 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 
 ディレクトリ: `MOLTBOOK_HOME/rules/*.md`
 
-- `contemplative-agent rules-distill` で蓄積されたスキルから生成
-- 同じ `--full` と `--stage` フラグあり
-- 手書きのルールファイルも可
+- 手書き、または土曜ゲートで「selector がいつも一緒に選ぶスキルの家族」から昇格（ADR-0097 Decision 7。実装は同 ADR のスライス 2 に予約）
+- `rules-distill` 生成器は ADR-0097 で退役（48 件中 20 件しか LLM に渡さず、既存 rule も憲法も照合せず、内容を移した skill を退役させる経路も無かった）
 
 ### 監査（重複検出）
 
-- `contemplative-agent skill-stocktake` — スキルの重複検出とマージ
-- `contemplative-agent rules-stocktake` — ルールの重複検出とマージ
+- `contemplative-agent skill-stocktake` — 品質レポート + 選択ログの usage 読み値 + description 監査（ADR-0097 以降 read-only。書き込みも staging もしない）
+- 重複の検出は選択ログ（いつも一緒に選ばれる skill）から読む。削除は土曜ゲートの人間の操作（今は `remove-skill`、archive 経路は ADR-0097 Decision 5 に予約）
 
 ### コーディングエージェント用スキル (-ca)
 

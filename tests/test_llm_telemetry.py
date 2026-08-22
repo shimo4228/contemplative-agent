@@ -569,7 +569,7 @@ class TestThinkingTraceTelemetry:
 
     @patch("contemplative_agent.core.llm.requests.post")
     def test_a_missing_trace_makes_no_claim_about_the_run(self, mock_post, telemetry_dir, caplog):
-        """A run can make several think-ON calls (rules-distill 2, stocktake 4),
+        """A run can make several think-ON calls (stocktake: one per audited skill),
         so one empty trace does not mean the run wrote no reasoning.md. The
         per-call warning must not assert otherwise — a false diagnosis handed
         out from inside the observability path (codex-review 2026-08-02)."""
