@@ -29,8 +29,9 @@ bounded to MOLTBOOK_HOME and no further.
   cannot remove anything from the store; the worst they reach is the write
   they already had. The one place a staged item influences an archive is the
   *lineage stamp*: an operator-typed pairing may point an archived file's
-  ``superseded_by:`` at a staged item's name, which changes text inside
-  ``skills/.archive/`` and no path.
+  ``superseded_by:`` at a staged item's name. That rewrites the archived
+  file's frontmatter — adding a minimal block when it had none, announced at
+  the time — and reaches no path; a standalone archive is byte-identical.
 * The archive is a **move**, so both ends are containment-checked with the
   same ``_target_inside_data_root`` predicate the write path uses, and a
   symlinked source is refused outright rather than relocated. It writes the
@@ -281,6 +282,22 @@ _ARCHIVE_REFUSED_ALREADY_ARCHIVED = "ARCHIVE_REFUSED_ALREADY_ARCHIVED"
 _ARCHIVE_SUCCESSOR_NOT_ADOPTED = "ARCHIVE_SUCCESSOR_NOT_ADOPTED"
 _ARCHIVE_WRITE_FAILED = "ARCHIVE_WRITE_FAILED"
 _ARCHIVE_SOURCE_LEFT_BEHIND = "ARCHIVE_SOURCE_LEFT_BEHIND"
+# The move succeeded and its audit row did not reach disk. The only failure
+# here where the store DID shrink, so it cannot be retried blindly and is not
+# rolled back — putting the file back would delete from `.archive/`.
+_ARCHIVE_UNRECORDED = "ARCHIVE_UNRECORDED"
+# A paired archive whose destination the collision guard would rename. The
+# survivor's ``supersedes:`` is fixed before the guard runs, so it would name
+# ``.archive/old.md`` while the retirement landed at ``.archive/old-2.md`` —
+# pointing a reader at an unrelated earlier retirement.
+_ARCHIVE_REFUSED_LINEAGE_AMBIGUOUS = "ARCHIVE_REFUSED_LINEAGE_AMBIGUOUS"
+# The archive directory cannot hold a file: it is a regular file, or a link
+# out of the store. Knowable before the move, so the dry run checks it too.
+_ARCHIVE_REFUSED_BAD_DESTINATION = "ARCHIVE_REFUSED_BAD_DESTINATION"
+# ``approval._collision_free_path`` exhausted its 98 suffixes. It raises
+# rather than returning, and `.archive/` is never pruned by design, so the
+# collision space only grows — caught here so one name cannot kill the loop.
+_ARCHIVE_REFUSED_NO_FREE_NAME = "ARCHIVE_REFUSED_NO_FREE_NAME"
 
 
 @dataclass(frozen=True)
@@ -348,6 +365,42 @@ def _archive_dir(data_root: Path) -> Path:
     return _skills_dir(data_root) / config.SKILLS_ARCHIVE_DIRNAME
 
 
+def _writes_into_the_store(target: Path, data_root: Path) -> bool:
+    """True when a staged item's target is a file directly in ``skills/``.
+
+    The gate on a supersede successor: ADR-0097 D5 scopes both frontmatter
+    halves to skills, and ``superseded_by: <name>`` only means anything if a
+    ``mv`` back into ``skills/`` restores the pair. Applied twice on purpose —
+    once in the plan for a fail-fast message with nothing touched, once at the
+    write on the snapshot the write actually uses.
+
+    The sidecar's ``target`` is attacker-chosen, so the loop's own containment
+    test runs before the parent is compared; this is never a second, weaker
+    reader of that field (module docstring).
+    """
+    return _target_inside_data_root(target, data_root) and _resolved_or_self(
+        target.parent
+    ) == _resolved_or_self(_skills_dir(data_root))
+
+
+def _archive_destination_refusal(destination: Path, data_root: Path) -> str | None:
+    """Why the archive cannot hold *destination*, or None. Knowable pre-move.
+
+    Split out so the ``remove-skill`` dry run answers the same question the
+    real invocation will (Codex P2 #2): the preview used to promise an archive
+    that then failed with ``ARCHIVE_WRITE_FAILED`` because ``skills/.archive``
+    was a regular file, or with ``ARCHIVE_REFUSED_OUTSIDE`` because it was a
+    link out of the store. Only checks that need no file content, so it is
+    safe to run before anything is read.
+    """
+    if not _target_inside_data_root(destination, data_root):
+        return _ARCHIVE_REFUSED_OUTSIDE
+    parent = destination.parent
+    if parent.exists() and not parent.is_dir():
+        return _ARCHIVE_REFUSED_BAD_DESTINATION
+    return None
+
+
 def _archive_skill_file(
     source: Path, *, data_root: Path, superseded_by: str | None
 ) -> _ArchiveResult:
@@ -379,7 +432,7 @@ def _archive_skill_file(
     The directory is created lazily here, on the first archive.
     """
     from ..core._io import write_restricted
-    from ..core.text_utils import set_frontmatter_field
+    from ..core.text_utils import set_frontmatter_field, split_frontmatter
 
     if source.is_symlink():
         return _ArchiveResult(reason=_ARCHIVE_REFUSED_SYMLINK)
@@ -393,10 +446,43 @@ def _archive_skill_file(
         return _ArchiveResult(reason=_ARCHIVE_REFUSED_UNREADABLE, detail=str(err))
 
     if superseded_by:
-        text = set_frontmatter_field(text, "superseded_by", superseded_by, synthesize=True)
-    destination = approval._collision_free_path(_archive_dir(data_root) / source.name, text)
+        stamped = set_frontmatter_field(text, "superseded_by", superseded_by, synthesize=True)
+        if not split_frontmatter(text)[0]:
+            # The one case where archiving is not byte-preserving. Said out
+            # loud: a standalone archive copies the file verbatim, and an
+            # operator should not discover a rewrite by diffing the archive.
+            print(
+                f"  Adding a frontmatter block to {source.name} (it had none) "
+                f"to carry superseded_by: {superseded_by}"
+            )
+        text = stamped
+    intended = _archive_dir(data_root) / source.name
+    if refusal := _archive_destination_refusal(intended, data_root):
+        return _ArchiveResult(reason=refusal, detail=str(intended))
+    try:
+        destination = approval._collision_free_path(intended, text)
+    except RuntimeError as err:
+        # Escapes every frame otherwise, killing the loop before
+        # ``_report_adopt_outcomes`` — no summary, remaining archives skipped,
+        # applied ones unreported (code review 2026-08-22 LOW).
+        return _ArchiveResult(reason=_ARCHIVE_REFUSED_NO_FREE_NAME, detail=str(err))
     if not _target_inside_data_root(destination, data_root):
         return _ArchiveResult(reason=_ARCHIVE_REFUSED_OUTSIDE)
+    if superseded_by and destination.name != source.name:
+        # The survivor's ``supersedes:`` was fixed before this rename could be
+        # known — it has to be inside the bytes the audit row hashes — so it
+        # names ``source.name`` while the retirement would land beside an
+        # unrelated earlier one. Refuse rather than write a pointer to the
+        # wrong file; the operator moves the older retirement aside and
+        # re-runs (silent-failure review 2026-08-22 MEDIUM 7).
+        return _ArchiveResult(
+            reason=_ARCHIVE_REFUSED_LINEAGE_AMBIGUOUS,
+            detail=(
+                f"{intended.name} is taken by different content, so the retirement "
+                f"would land at {destination.name} while the survivor says "
+                f"'supersedes: {source.name}'"
+            ),
+        )
     # The one check the containment predicate cannot make: both ends inside
     # the data root is satisfied when they are the SAME file, and then the
     # write-then-unlink below destroys the only copy. The H5 guard causes
@@ -1028,14 +1114,48 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
         # Store names, not staged names — a different namespace with the same
         # contract: one typo must leave every skill where it is. Derived from
         # MOLTBOOK_DATA_DIR at call time for the same reason
-        # ``_handle_remove_skill`` does. ``glob`` is non-recursive, so a name
-        # already inside ``.archive/`` reads as unknown, which is right: it
-        # has already left the store.
+        # ``_handle_remove_skill`` does.
         skills_dir = _skills_dir(data_root)
-        store_names = {p.name for p in skills_dir.glob("*.md")} if skills_dir.is_dir() else set()
+        live = list(skills_dir.glob("*.md")) if skills_dir.is_dir() else []
+        store_names = {p.name for p in live}
+        # A symlinked candidate passes every name check and is then refused by
+        # the primitive — after the successor was adopted with `supersedes:`
+        # stamped on it, leaving the store holding both and the run at exit 1.
+        # Symlink-ness is knowable now, so the "one typo leaves every skill
+        # where it is" contract covers it (code review 2026-08-22 MEDIUM).
+        symlinked = sorted(archive_targets & {p.name for p in live if p.is_symlink()})
+        if symlinked:
+            _abort_request(
+                "--archive-names names symlink(s), not skills; name the referent instead",
+                symlinked,
+            )
+        # Already retired by an earlier run: a no-op, not a typo. Re-running a
+        # packet after a partial archive used to abort exit 2 with "unknown
+        # skill name(s)", which misdiagnosed the state, pointed at the wrong
+        # repair, and — because the abort is pre-loop — also stopped the
+        # staged items in the same invocation from being adopted (silent-
+        # failure review 2026-08-22 MEDIUM). Dropped from the request here,
+        # before the successor checks, so a re-run retries only what is left.
+        archive_dir = _archive_dir(data_root)
+        archived_names = (
+            {p.name for p in archive_dir.glob("*.md")} if archive_dir.is_dir() else set()
+        )
+        already = sorted((archive_targets - store_names) & archived_names)
+        if already:
+            print(
+                "Already in the archive, nothing to do for: " + ", ".join(already),
+                file=sys.stderr,
+            )
+            for name in already:
+                del archive_specs[name]
+            archive_targets = set(archive_specs)
         unknown_skills = sorted(archive_targets - store_names)
         if unknown_skills:
-            _abort_request("unknown skill name(s) for --archive-names", unknown_skills)
+            _abort_request(
+                "unknown skill name(s) for --archive-names (not in the store, and not "
+                "already in .archive/)",
+                unknown_skills,
+            )
 
     audit_source: AuditSource = "stage-adopted-auto" if yes else "stage-adopted"
     if adopt_names is not None:
@@ -1108,7 +1228,6 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
         # The sidecar's `target` is attacker-chosen, so it gets the loop's own
         # containment test before its parent is compared — never a second,
         # weaker reader of that field (module docstring).
-        skills_root = _resolved_or_self(_skills_dir(data_root))
         not_skills = []
         for meta_file in meta_files:
             name = _staged_name(meta_file)
@@ -1116,12 +1235,7 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
                 continue
             meta = read_sidecar(meta_file)
             target_str = (meta or {}).get("target")
-            target = Path(target_str) if target_str else None
-            if (
-                target is None
-                or not _target_inside_data_root(target, data_root)
-                or _resolved_or_self(target.parent) != skills_root
-            ):
+            if not target_str or not _writes_into_the_store(Path(target_str), data_root):
                 not_skills.append(name)
         if not_skills:
             _abort_request(
@@ -1259,13 +1373,32 @@ def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _ItemResult:
     print(f"[{item.command}] {item.content_file.name} -> {item.target}")
     print(item.text)
 
+    supersedes = plan.supersedes.get(name, ())
+    if supersedes and not _writes_into_the_store(item.target, plan.data_root):
+        # The plan checked this too, but against a FRESH sidecar read; the
+        # write uses the snapshot `_load_staged_item` validated, and a
+        # `.staged/` rewrite in between defeats a check made on the other one
+        # (silent-failure review 2026-08-22 LOW 10 — reproduced with a
+        # concurrent rewrite, which archived a skill with
+        # `superseded_by: identity-2.md`). The invariant belongs on the bytes
+        # being written, the same snapshot discipline `_mark_sidecar_held`
+        # established. The plan-time copy stays: it fails fast with a message
+        # that names the offending item, before anything is touched.
+        print(
+            f"  Could not adopt {name}: it supersedes {', '.join(supersedes)} but does "
+            f"not write into the skill store ({item.target})",
+            file=sys.stderr,
+        )
+        _quarantine_invalid_sidecar(meta_file)
+        return _ItemResult(_Outcome.ADOPT_FAILED)
+
     approve_without_prompt = plan.yes or plan.per_item
     adopted_as = _adopt_write_item(
         item,
         yes=approve_without_prompt,
         audit_source=plan.audit_source,
         data_root=plan.data_root,
-        supersedes=plan.supersedes.get(name, ()),
+        supersedes=supersedes,
     )
 
     item.content_file.unlink(missing_ok=True)
@@ -1343,17 +1476,18 @@ def _archive_named_skills(plan: _AdoptPlan, results: dict[str, _ItemResult]) -> 
             continue
 
         result = _archive_skill_file(source, data_root=plan.data_root, superseded_by=superseded_by)
-        # Always the transcribed source, never `plan.audit_source`: an archive
-        # is decided in the names file and no prompt is ever shown for it,
-        # which is exactly what "stage-adopted-names" means (2026-08-01
-        # security review C1). Inheriting the staged items' source would stamp
-        # an archive-only run as "stage-adopted" — a claim that a human
-        # answered y/N for it.
+        # `stage-archived-names`, never `plan.audit_source`: an archive is
+        # decided in the names file and no prompt is ever shown for it, so
+        # inheriting the staged items' source would stamp an archive-only run
+        # as "stage-adopted" — a claim that a human answered y/N (2026-08-01
+        # security review C1). Its own value rather than "stage-adopted-names"
+        # because the source is what separates a retirement from an adoption
+        # for a reader (silent-failure review 2026-08-22 HIGH).
         moved = _record_archive(
             result,
             command="adopt-staged",
-            name=name,
-            source="stage-adopted-names",
+            source_path=source,
+            source="stage-archived-names",
             reason=(
                 f"superseded by {superseded_by} (ADR-0097 D5 archive exit)"
                 if superseded_by
@@ -1375,47 +1509,82 @@ def _archive_named_skills(plan: _AdoptPlan, results: dict[str, _ItemResult]) -> 
 
 
 def _record_archive(
-    result: _ArchiveResult, *, command: str, name: str, source: AuditSource, reason: str
+    result: _ArchiveResult, *, command: str, source_path: Path, source: AuditSource, reason: str
 ) -> bool:
     """Write the audit row for one finished archive attempt; True when it moved.
 
     Both call sites — the adopt gate and ``remove-skill`` — did these same
     four steps, and the two copies had already produced two sentences for one
-    stray-copy event (code review 2026-08-22). One owner also means the
-    discriminator contract is stated once instead of three times:
+    stray-copy event (code review 2026-08-22).
 
-    **the row's ``path`` is what tells an archive from a delete.** A path
-    under ``.archive/`` is a retirement and points at the file a ``mv`` would
-    restore; a path under ``skills/`` is ``--delete``. That is why the
-    destination is logged rather than the vacated path, and why no new field
-    was added to the shared row shape.
+    **What tells an archive from a delete is ``source``, not ``path``.** The
+    earlier claim (a path under ``.archive/`` means archived) was false and
+    had a live consumer: ``remove-skill --delete`` on a file already in the
+    archive writes an ``.archive/`` path while meaning the opposite, and the
+    two rows were otherwise identical in command, decision, path, hash and
+    run_id (silent-failure review 2026-08-22 HIGH). The categorical field is
+    ``AuditSource`` — ``direct-archive*`` / ``stage-archived-names`` for a
+    move, ``direct-remove*`` for a delete, ``direct-purge*`` for a purge from
+    the archive — which grows the vocabulary without growing the row shape
+    that ``_log_decision`` owns. The destination is still what gets logged
+    for a move, because it names the file a ``mv`` would restore.
 
-    The failure branch still logs when — and only when — bytes reached the
-    archive: recorded as not-approved, because the retirement did not take
-    effect and the skill is still live in the store.
+    **Every outcome writes a row**, including a refusal: the reason codes are
+    the point of ADR-0075, and a refused archive that logs nothing is
+    indistinguishable from a command that never ran. Only a move writes
+    ``approved``; a refusal writes not-approved carrying its code, and a
+    stray copy is named as the path so the leftover bytes are findable.
+
+    Returns True only when the skill actually left the store **and** the row
+    reached disk. A move whose audit write failed is a failure: the store
+    lost a skill, and the whole point of a retirement is the reason attached
+    to it (Codex P2 #1, the same argument ``_hold_staged_item`` makes).
     """
+    name = source_path.name
     if result.destination is None:
         detail = f": {result.detail}" if result.detail else ""
         print(f"  Could not archive {name}: {result.reason}{detail}", file=sys.stderr)
-        if result.stray_copy is not None:
-            approval._log_approval(
-                command=command,
-                path=result.stray_copy,
-                approved=False,
-                content=result.text,
-                source=source,
-                reason=f"{reason} [{result.reason}: copy written, {name} not removed]",
-            )
+        stray = f"; copy written, {name} not removed" if result.stray_copy else ""
+        # The refused path still gets a row. Answering "y" and then hitting a
+        # refusal used to write nothing at all, leaving the log unable to
+        # distinguish it from a command nobody ran, while merely DECLINING
+        # wrote a `rejected` row (silent-failure review 2026-08-22 MEDIUM 8).
+        approval._log_decision(
+            "rejected",
+            command,
+            result.stray_copy if result.stray_copy is not None else source_path,
+            result.text,
+            source=source,
+            snapshot_path=None,
+            reason=f"{reason} [{result.reason}{stray}]",
+            source_ids=None,
+            epistemic_counts=None,
+        )
         return False
-    approval._log_approval(
-        command=command,
-        path=result.destination,
-        approved=True,
-        content=result.text,
+    logged = approval._log_decision(
+        "approved",
+        command,
+        result.destination,
+        result.text,
         source=source,
+        snapshot_path=None,
         reason=reason,
+        source_ids=None,
+        epistemic_counts=None,
     )
     print(f"  Archived {name} → {result.destination}")
+    if not logged:
+        # The move happened and the record did not. Not rolled back — putting
+        # the file back would re-introduce a delete from `.archive/`, the very
+        # act this exit exists to avoid — so it is surfaced as a failure with
+        # both paths named, the way the paired-archive survivor is.
+        print(
+            f"  {_ARCHIVE_UNRECORDED}: {name} left the store for "
+            f"{result.destination} but the audit row did not reach disk. "
+            "The retirement is not on the record; re-record it by hand.",
+            file=sys.stderr,
+        )
+        return False
     return True
 
 
@@ -1592,10 +1761,14 @@ def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentPar
     retention, and it is also the only field that survives to explain the
     retirement once the file is out of the store.
 
-    The audit row distinguishes the two by ``path``: an archive records the
-    destination under ``.archive/`` (the file a ``mv`` would restore), a
-    delete records the path that no longer exists. Neither needs a new field
-    in the shared row shape.
+    The audit row distinguishes the three outcomes by ``source``:
+    ``direct-archive*`` for a move, ``direct-remove*`` for deleting a live
+    skill, ``direct-purge*`` for deleting one already in the archive. **Not by
+    ``path``** — the archive row and the purge row both carry an ``.archive/``
+    path and mean opposite things, which is why the earlier claim was wrong
+    (silent-failure review 2026-08-22). ``AuditSource`` grows; the row shape
+    ``_log_decision`` owns does not. ``path`` still names the file the row is
+    about, which for a move is the one a ``mv`` restores.
 
     With ``--yes`` the interactive prompt is skipped (non-TTY workflows).
     With ``--dry-run`` the target is resolved and printed but nothing is
@@ -1642,18 +1815,30 @@ def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentPar
         sys.exit(1)
 
     delete = getattr(args, "delete", False)
+
+    # BOTH branches refuse a symlink, above the dry run and above the prompt.
+    # This is the silent-failure review's CRITICAL: the refusal used to live
+    # under `if not delete:` and its message offered `--delete` as the way to
+    # "drop the link" — but `target` is the RESOLVED leaf, so `--delete`
+    # unlinked the referent. Reproduced: `remove-skill link --delete --yes`
+    # printed "Removed real.md", destroyed the live skill with no archive and
+    # no recovery, left `link.md` dangling, and wrote an audit row naming a
+    # file the operator never typed.
+    #
+    # Refused rather than made to unlink the link itself, which was the other
+    # option: the row's ``content`` is the referent's bytes, so a row for a
+    # removed *link* would hash text that still exists — a second lie in place
+    # of the first. A symlink is not a skill; `rm` removes one, and this
+    # command stays the entry point for skills only.
+    if literal.is_symlink():
+        print(
+            f"Error: {_ARCHIVE_REFUSED_SYMLINK}: {name} is a symlink, not a skill. "
+            f"Name its referent ({target.name}) to retire that, or remove the link "
+            "with `rm`.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     if not delete:
-        # Both archive refusals sit ABOVE the dry run: a dry run that promises
-        # an archive the real run will refuse is worse than no dry run, and
-        # `target` is already resolved, so the symlink case also printed a
-        # filename the operator never typed (code review 2026-08-22).
-        if literal.is_symlink():
-            print(
-                f"Error: {_ARCHIVE_REFUSED_SYMLINK}: {name} is a symlink; "
-                "archive its referent by name, or use --delete to drop the link.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
         # A file that already left the store has no second exit. `name` is
         # free-form and `.archive/old` resolves inside the skills dir, so the
         # containment check above admits it; archiving it again computed a
@@ -1674,6 +1859,17 @@ def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentPar
     # the final path can differ by that suffix — never by directory, and never
     # by overwriting anything, which is why this is safe to promise up front.
     destination = _archive_dir(data_root) / target.name
+    # Everything about the destination that is knowable without reading the
+    # file is checked HERE, above the dry run, so the preview cannot promise
+    # an archive the real invocation refuses (Codex P2 #2). A dry run is worth
+    # least on the operation where it matters most if it can disagree with the
+    # run; the symlink refusal was hoisted for the same reason.
+    if not delete and (refusal := _archive_destination_refusal(destination, data_root)):
+        print(
+            f"Error: {refusal}: cannot archive {target.name} to {destination}.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
     if getattr(args, "dry_run", False):
         if delete:
@@ -1690,7 +1886,19 @@ def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentPar
         sys.exit(1)
 
     yes = getattr(args, "yes", False)
-    source: AuditSource = "direct-remove-auto" if yes else "direct-remove"
+    # Three outcomes, three categorical sources — a live skill deleted, a
+    # live skill moved to the archive, and a file already in the archive
+    # purged. They used to share `direct-remove*`, so an archive row and a
+    # purge row differed only in operator free text (silent-failure review
+    # 2026-08-22 HIGH). The purge arm is reachable only through `--delete`,
+    # because the archive arm refuses an already-archived source above.
+    purging = _resolved_or_self(target).is_relative_to(_resolved_or_self(_archive_dir(data_root)))
+    if not delete:
+        source: AuditSource = "direct-archive-auto" if yes else "direct-archive"
+    elif purging:
+        source = "direct-purge-auto" if yes else "direct-purge"
+    else:
+        source = "direct-remove-auto" if yes else "direct-remove"
 
     def _record(path: Path, approved: bool) -> None:
         """One row shape for every verdict this handler reaches.
@@ -1698,8 +1906,9 @@ def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentPar
         ``command`` / ``content`` / ``source`` / ``reason`` are fixed for the
         whole invocation, so writing them out per branch only invited the four
         rows to drift apart (code review 2026-08-22). What varies is the
-        verdict and the path — and the path is the archive/delete
-        discriminator, so it stays an explicit argument at every call.
+        verdict and the path. ``source`` carries which of the three
+        retirements this is; ``path`` names the file the row is about and is
+        NOT the discriminator (see ``_record_archive``).
         """
         approval._log_approval(
             command="remove-skill",
@@ -1711,13 +1920,22 @@ def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentPar
         )
 
     if delete:
-        approved = True if yes else approval._approve_delete(target)
-        _record(target, approved)
-        if approved:
-            target.unlink()
-            print(f"Removed {target.name}")
-        else:
+        if not (yes or approval._approve_delete(target)):
+            _record(target, False)
             print("Kept.")
+            return
+        # Unlink BEFORE logging, matching every other destructive branch in
+        # this module (the reject arm's 2026-08-01 H1 ordering, and the new
+        # archive path ten lines down): a row claiming a deletion that did not
+        # reach disk is worse than a deletion with a missing row. This was the
+        # one branch still logging first — pre-existing, aligned while here.
+        try:
+            target.unlink()
+        except OSError as err:
+            print(f"Error: could not remove {target}: {err}", file=sys.stderr)
+            sys.exit(1)
+        _record(target, True)
+        print(f"Removed {target.name}")
         return
 
     if not (yes or approval._approve(f"Archive {target} → {destination}?")):
@@ -1727,7 +1945,11 @@ def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentPar
 
     result = _archive_skill_file(target, data_root=data_root, superseded_by=None)
     if not _record_archive(
-        result, command="remove-skill", name=target.name, source=source, reason=reason
+        result,
+        command="remove-skill",
+        source_path=target,
+        source=source,
+        reason=reason,
     ):
         sys.exit(1)
 

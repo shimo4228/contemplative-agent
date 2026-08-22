@@ -161,13 +161,21 @@ def set_frontmatter_field(text: str, key: str, value: str, *, synthesize: bool =
     stem, so canonicalizing a name into a block nobody wrote would invent
     identity rather than align it. Callers that need the field to be findable
     afterwards (an archived legacy skill whose ``superseded_by:`` is its only
-    pointer home) pass ``True`` and get a synthesized block.
+    pointer home) pass ``True`` and get a block holding **only that field**.
+
+    Deliberately not :func:`synthesize_frontmatter` for that case: it fills in
+    ``name`` / ``description`` / ``origin``, and ``origin: auto-extracted`` is
+    the harness's vocabulary for extraction-pipeline output. Stamping it on a
+    hand-written skill fabricates provenance, and since restoring from the
+    archive is a plain ``mv``, the false claim comes back into the store
+    (silent-failure review 2026-08-22 MEDIUM). Add the field asked for and
+    nothing else.
     """
     frontmatter, body = split_frontmatter(text)
     if not frontmatter:
         if not synthesize:
             return text
-        frontmatter = synthesize_frontmatter(body)
+        frontmatter = "---\n---"
     lines = frontmatter.split("\n")
     prefix = f"{key}:"
     for i, line in enumerate(lines):

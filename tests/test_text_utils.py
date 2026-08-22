@@ -180,12 +180,16 @@ class TestSetFrontmatterField:
         text = "# T\n\nbody"
         assert set_frontmatter_field(text, "name", "n") == text
 
-    def test_synthesize_gives_a_frontmatterless_body_a_block(self):
+    def test_synthesize_adds_the_asked_for_field_and_nothing_else(self):
+        """No fabricated provenance: `origin: auto-extracted` is the harness's
+        word for extraction-pipeline output, and an archived skill comes back
+        into the store with a plain `mv` (silent-failure review MEDIUM 6)."""
         text = "# My Skill\n\n**Context:** When X happens.\n"
         out = set_frontmatter_field(text, "superseded_by", "new.md", synthesize=True)
         block = split_frontmatter(out)[0]
-        assert "superseded_by: new.md" in block
-        assert "name: my-skill" in block
+        assert block == "---\nsuperseded_by: new.md\n---"
+        assert "origin:" not in out
+        assert "name:" not in block
         assert "**Context:** When X happens." in out
 
     def test_the_body_survives_verbatim(self):

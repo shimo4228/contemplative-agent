@@ -330,14 +330,15 @@ class TestArchiveAtTheAdoptGate:
         args = _adopt_args(archive_names=_names_file(tmp_path, "archive.txt", ["old.md"]))
         _run_adopt(tmp_path, tmp_path / ".staged", args)
         row = _audit(tmp_path)[-1]
-        assert Path(row["path"]).parent.name == ".archive"
         assert row["command"] == "adopt-staged"
         assert row["decision"] == "approved"
         assert "ADR-0097 D5 archive exit" in row["reason"]
-        # Transcribed from the names file, never prompted — even here, where
-        # the run carried no --adopt-names and would otherwise be recorded as
-        # an interactive "stage-adopted" session.
-        assert row["source"] == "stage-adopted-names"
+        # `source` is the discriminator, not `path` — a purge from the archive
+        # also carries an `.archive/` path (silent-failure review HIGH 2).
+        # Transcribed from the names file, never prompted, even here where the
+        # run carried no --adopt-names and would otherwise be "stage-adopted".
+        assert row["source"] == "stage-archived-names"
+        assert Path(row["path"]).parent.name == ".archive", "names the file a mv restores"
 
     def test_a_paired_archive_names_its_successor_in_the_audit_reason(self, tmp_path):
         skills = tmp_path / "skills"
@@ -377,22 +378,40 @@ class TestArchiveAtTheAdoptGate:
         assert exc.value.code == 1
         assert old.exists(), "a failed archive must leave the skill in the store"
         captured = capsys.readouterr()
-        assert "ARCHIVE_WRITE_FAILED" in captured.err
+        assert "ARCHIVE_REFUSED_BAD_DESTINATION" in captured.err
         assert "0 archived" in captured.out
         assert "1 archive FAILURES" in captured.out
+        # Every outcome writes a row, refusals included — a refused archive
+        # that logs nothing is indistinguishable from a command nobody ran
+        # (silent-failure review MEDIUM 8).
+        row = _audit(tmp_path)[-1]
+        assert row["decision"] == "rejected"
+        assert "ARCHIVE_REFUSED_BAD_DESTINATION" in row["reason"]
 
-    def test_a_symlinked_store_skill_is_refused_at_the_adopt_gate_too(self, tmp_path):
-        """The primitive refuses it, not just `remove-skill`'s pre-check."""
+    def test_a_symlinked_store_skill_is_refused_at_plan_time(self, tmp_path, capsys):
+        """Code review 2026-08-22 MEDIUM 4.
+
+        The primitive always refused it, but only after the successor had
+        been adopted with `supersedes:` stamped — store holding both, exit 1.
+        Symlink-ness is knowable before anything moves, so it joins the "one
+        typo leaves every skill where it is" contract: exit 2, untouched.
+        """
         skills = tmp_path / "skills"
         real = _make_skill(tmp_path, "real.md", "# Real\n")
         (skills / "link.md").symlink_to(real)
-        args = _adopt_args(archive_names=_names_file(tmp_path, "archive.txt", ["link.md"]))
+        staged = _stage(tmp_path, [StageItem("new.md", "# New", skills / "new.md")])
+        args = _adopt_args(
+            adopt_names=_names_file(tmp_path, "adopt.txt", ["new.md"]),
+            archive_names=_names_file(tmp_path, "archive.txt", ["link.md superseded-by new.md"]),
+        )
         with pytest.raises(SystemExit) as exc:
-            _run_adopt(tmp_path, tmp_path / ".staged", args)
-        assert exc.value.code == 1
+            _run_adopt(tmp_path, staged, args)
+        assert exc.value.code == 2
         assert (skills / "link.md").is_symlink()
         assert real.exists()
-        assert not (skills / ".archive").exists()
+        assert not (skills / "new.md").exists(), "the successor must not be adopted"
+        assert (staged / "new.md").exists()
+        assert "symlink" in capsys.readouterr().err
 
     def test_a_skill_this_run_adopted_into_is_not_archived(self, tmp_path, capsys):
         """Otherwise the approved adoption would vanish into `.archive/`.
@@ -458,7 +477,9 @@ class TestArchiveAtTheAdoptGate:
             _run_adopt(tmp_path, tmp_path / ".staged", args)
         assert exc.value.code == 1
         assert old.read_text() == "# Old\n", "the only copy must survive"
-        assert not _audit(tmp_path), "nothing moved, so nothing to record"
+        row = _audit(tmp_path)[-1]
+        assert row["decision"] == "rejected"
+        assert "ARCHIVE_REFUSED_NOT_A_MOVE" in row["reason"]
 
     def test_a_failed_paired_archive_names_the_stamp_that_needs_repair(self, tmp_path, capsys):
         """The one residual state the ordering cannot prevent, said out loud."""
@@ -481,19 +502,160 @@ class TestArchiveAtTheAdoptGate:
         err = capsys.readouterr().err
         assert "Repair needed" in err and "new.md" in err and "old.md" in err
 
-    def test_the_budget_reading_ignores_an_archive_candidate_it_will_refuse(self, tmp_path, capsys):
-        """A symlinked candidate is refused, so its body must not be subtracted."""
+    def test_the_budget_reading_never_sees_a_candidate_the_loop_refuses(self, tmp_path, capsys):
+        """The instrument keeps its own symlink guard as defence in depth, but
+        the plan aborts first now, so a candidate the loop would refuse cannot
+        reach a reading the operator approves against."""
         skills = tmp_path / "skills"
         real = _make_skill(tmp_path, "real.md", "# Real\n" + ("filler words here. " * 400))
         (skills / "link.md").symlink_to(real)
         args = _adopt_args(archive_names=_names_file(tmp_path, "archive.txt", ["link.md"]))
-        with pytest.raises(SystemExit):
+        with pytest.raises(SystemExit) as exc:
             _run_adopt(tmp_path, tmp_path / ".staged", args)
-        out = capsys.readouterr().out
-        match = re.search(r"≈([\d,]+) tok → ≈([\d,]+) tok after this batch", out)
-        assert match, out
-        current, projected = (int(g.replace(",", "")) for g in match.groups())
-        assert projected == current, "the reading counted a move the loop refuses"
+        assert exc.value.code == 2
+        assert "tok after this batch" not in capsys.readouterr().out
+
+    def test_a_completed_move_with_a_failed_audit_write_is_not_success(self, tmp_path, capsys):
+        """Codex P2 #1. The store lost a skill and the trail said nothing."""
+        skills = tmp_path / "skills"
+        _make_skill(tmp_path, "old.md", "# Old\n")
+        args = _adopt_args(archive_names=_names_file(tmp_path, "archive.txt", ["old.md"]))
+        with (
+            patch(
+                "contemplative_agent.cli.approval.append_jsonl_restricted",
+                side_effect=OSError("read-only fs"),
+            ),
+            pytest.raises(SystemExit) as exc,
+        ):
+            _run_adopt(tmp_path, tmp_path / ".staged", args)
+        assert exc.value.code == 1
+        assert (skills / ".archive" / "old.md").is_file(), "the move happened"
+        captured = capsys.readouterr()
+        assert "ARCHIVE_UNRECORDED" in captured.err
+        assert "1 archive FAILURES" in captured.out
+
+    def test_a_paired_archive_whose_name_is_taken_refuses_rather_than_mispoint(self, tmp_path):
+        """Silent-failure review MEDIUM 7.
+
+        `supersedes:` is fixed before the collision guard runs, so a renamed
+        destination would leave the survivor pointing at `.archive/old.md` —
+        an unrelated earlier retirement — while its own text sits at
+        `.archive/old-2.md`.
+        """
+        skills = tmp_path / "skills"
+        archive = skills / ".archive"
+        archive.mkdir(parents=True)
+        (archive / "old.md").write_text("# An unrelated earlier retirement\n", encoding="utf-8")
+        old = _make_skill(tmp_path, "old.md", "# A different body\n")
+        staged = _stage(tmp_path, [StageItem("new.md", "# New", skills / "new.md")])
+        args = _adopt_args(
+            adopt_names=_names_file(tmp_path, "adopt.txt", ["new.md"]),
+            archive_names=_names_file(tmp_path, "archive.txt", ["old.md superseded-by new.md"]),
+        )
+        with pytest.raises(SystemExit) as exc:
+            _run_adopt(tmp_path, staged, args)
+        assert exc.value.code == 1
+        assert old.exists(), "no mispointed lineage, and nothing moved"
+        assert not (archive / "old-2.md").exists()
+        assert (archive / "old.md").read_text() == "# An unrelated earlier retirement\n"
+        assert "supersedes: old.md" in (skills / "new.md").read_text()
+
+    def test_a_standalone_archive_of_a_legacy_skill_is_byte_identical(self, tmp_path):
+        """No frontmatter is invented when nothing needs to be recorded."""
+        body = "# Hand written\n\nnot from the extraction pipeline\n"
+        _make_skill(tmp_path, "legacy.md", body)
+        args = _adopt_args(archive_names=_names_file(tmp_path, "archive.txt", ["legacy.md"]))
+        _run_adopt(tmp_path, tmp_path / ".staged", args)
+        assert (tmp_path / "skills" / ".archive" / "legacy.md").read_text() == body
+
+    def test_a_paired_archive_never_fabricates_provenance(self, tmp_path, capsys):
+        """Silent-failure review MEDIUM 6.
+
+        `origin: auto-extracted` is the harness's word for extraction-pipeline
+        output. Stamped onto a hand-written skill it is a false claim, and
+        restoring is a plain `mv`, so the claim comes back into the store.
+        """
+        skills = tmp_path / "skills"
+        _make_skill(tmp_path, "legacy.md", "# Hand written\n\nprose\n")
+        staged = _stage(tmp_path, [StageItem("new.md", "# New", skills / "new.md")])
+        args = _adopt_args(
+            adopt_names=_names_file(tmp_path, "adopt.txt", ["new.md"]),
+            archive_names=_names_file(tmp_path, "archive.txt", ["legacy.md superseded-by new.md"]),
+        )
+        _run_adopt(tmp_path, staged, args)
+        archived = (skills / ".archive" / "legacy.md").read_text()
+        assert "superseded_by: new.md" in archived
+        assert "origin:" not in archived
+        assert "name:" not in archived
+        assert "# Hand written" in archived
+        # The one non-byte-identical archive says so rather than being found
+        # by diffing later.
+        assert "Adding a frontmatter block to legacy.md" in capsys.readouterr().out
+
+    def test_an_already_archived_name_is_a_no_op_not_an_abort(self, tmp_path, capsys):
+        """Silent-failure review MEDIUM 5 — re-running a packet after a
+        partial archive must not misdiagnose the state as a typo, and must not
+        block the adoptions sharing the invocation."""
+        skills = tmp_path / "skills"
+        archive = skills / ".archive"
+        archive.mkdir(parents=True)
+        (archive / "done.md").write_text("# Done\n", encoding="utf-8")
+        old = _make_skill(tmp_path, "still-here.md", "# Still\n")
+        staged = _stage(tmp_path, [StageItem("new.md", "# New", skills / "new.md")])
+        args = _adopt_args(
+            adopt_names=_names_file(tmp_path, "adopt.txt", ["new.md"]),
+            archive_names=_names_file(tmp_path, "archive.txt", ["done.md", "still-here.md"]),
+        )
+        _run_adopt(tmp_path, staged, args)
+        assert (skills / "new.md").exists(), "the adoptions must not be blocked"
+        assert not old.exists()
+        assert (archive / "still-here.md").is_file()
+        assert (archive / "done.md").read_text() == "# Done\n", "untouched"
+        assert "Already in the archive" in capsys.readouterr().err
+
+    def test_a_name_that_is_neither_live_nor_archived_still_aborts(self, tmp_path, capsys):
+        _make_skill(tmp_path, "real.md", "# Real\n")
+        args = _adopt_args(archive_names=_names_file(tmp_path, "archive.txt", ["ghost.md"]))
+        with pytest.raises(SystemExit) as exc:
+            _run_adopt(tmp_path, tmp_path / ".staged", args)
+        assert exc.value.code == 2
+        assert "already in .archive/" in capsys.readouterr().err, "names the right repair"
+
+    def test_a_sidecar_rewritten_after_the_plan_cannot_slip_a_non_skill_successor(self, tmp_path):
+        """Silent-failure review LOW 10 — snapshot discipline.
+
+        The plan's successor-is-a-skill gate read a FRESH sidecar; the write
+        uses the snapshot `_load_staged_item` validated. A `.staged/` rewrite
+        in between defeated a check made on the other one: reproduced as
+        `old.md` archived with `superseded_by: identity-2.md`, exit 0. The
+        rewrite is injected at the seam between plan and loop.
+        """
+        skills = tmp_path / "skills"
+        old = _make_skill(tmp_path, "old.md", "# Old\n")
+        staged = _stage(tmp_path, [StageItem("new.md", "# New", skills / "new.md")])
+        meta_file = staged / "new.md.meta.json"
+
+        def _rewrite_sidecar(*_a, **_kw):
+            meta = json.loads(meta_file.read_text())
+            meta["target"] = str(tmp_path / "identity.md")
+            meta_file.write_text(json.dumps(meta), encoding="utf-8")
+
+        args = _adopt_args(
+            adopt_names=_names_file(tmp_path, "adopt.txt", ["new.md"]),
+            archive_names=_names_file(tmp_path, "archive.txt", ["old.md superseded-by new.md"]),
+        )
+        with (
+            patch(
+                "contemplative_agent.cli.adopt._print_system_budget_for_staged",
+                side_effect=_rewrite_sidecar,
+            ),
+            pytest.raises(SystemExit) as exc,
+        ):
+            _run_adopt(tmp_path, staged, args)
+        assert exc.value.code == 1
+        assert old.read_text() == "# Old\n", "the predecessor must stay in the store"
+        assert not (tmp_path / "identity.md").exists(), "the successor must not be written"
+        assert not (skills / ".archive").exists()
 
     def test_the_archive_never_clobbers_an_earlier_retirement(self, tmp_path):
         skills = tmp_path / "skills"
@@ -652,7 +814,10 @@ class TestRemoveSkillArchives:
         assert exc.value.code == 1
         captured = capsys.readouterr()
         assert "would archive" not in captured.out
-        assert "real.md" not in captured.err, "the message must name what the operator typed"
+        # Names what the operator typed first, and the referent only as the
+        # thing to name instead — the earlier message named the referent alone.
+        assert "link.md is a symlink" in captured.err
+        assert "Name its referent (real.md)" in captured.err
 
     def test_dry_run_names_the_archive_destination(self, tmp_path, capsys):
         skill = _make_skill(tmp_path, "stale.md", "# Stale\n")
@@ -696,6 +861,28 @@ class TestRemoveSkillArchives:
         assert not (skills / ".archive").exists()
         assert not _audit(tmp_path)
 
+    def test_delete_never_unlinks_a_symlinks_referent(self, tmp_path, capsys):
+        """Silent-failure review 2026-08-22 CRITICAL.
+
+        The symlink refusal used to say "or use --delete to drop the link".
+        --delete resolved the leaf, so it unlinked the REFERENT: the operator
+        typed `link`, the live skill `real.md` was destroyed with no archive
+        and no recovery, and the audit row named a file they never mentioned.
+        Under --yes, the documented non-TTY path, nothing intervened.
+        """
+        skills = tmp_path / "skills"
+        real = _make_skill(tmp_path, "real.md", "# Real\n")
+        (skills / "link.md").symlink_to(real)
+        with pytest.raises(SystemExit) as exc:
+            self._run(tmp_path, self._args("link", delete=True))
+        assert exc.value.code == 1
+        assert real.read_text() == "# Real\n", "the referent must survive"
+        assert (skills / "link.md").is_symlink()
+        assert not _audit(tmp_path)
+        err = capsys.readouterr().err
+        assert "symlink" in err
+        assert "--delete" not in err, "the message must not recommend what it cannot do"
+
     def test_a_skill_symlinked_out_of_the_store_is_still_an_escape(self, tmp_path):
         skills = tmp_path / "skills"
         skills.mkdir(parents=True, exist_ok=True)
@@ -716,8 +903,9 @@ class TestRemoveSkillArchives:
             self._run(tmp_path, self._args("stale"))
         assert exc.value.code == 1
         assert skill.exists()
+        # Refused above the prompt, so there is no decision to record.
         assert not _audit(tmp_path)
-        assert "ARCHIVE_WRITE_FAILED" in capsys.readouterr().err
+        assert "ARCHIVE_REFUSED_BAD_DESTINATION" in capsys.readouterr().err
 
     def test_a_file_already_in_the_archive_has_no_second_exit(self, tmp_path, capsys):
         """Security review 2026-08-22 MEDIUM, first spelling.
@@ -747,6 +935,58 @@ class TestRemoveSkillArchives:
         self._run(tmp_path, self._args(".archive/old", delete=True))
         assert not (archive / "old.md").exists()
         assert _audit(tmp_path)[-1]["decision"] == "approved"
+
+    def test_the_three_retirements_carry_three_audit_sources(self, tmp_path):
+        """Silent-failure review HIGH 2: `source` is the discriminator.
+
+        `path` cannot be — a purge from the archive carries an `.archive/`
+        path while meaning the opposite of an archive, and the two rows were
+        otherwise identical in command, decision, path, hash and run_id.
+        """
+        _make_skill(tmp_path, "a.md", "# A\n")
+        _make_skill(tmp_path, "b.md", "# B\n")
+        self._run(tmp_path, self._args("a"))  # archive
+        self._run(tmp_path, self._args("b", delete=True))  # delete a live skill
+        self._run(tmp_path, self._args(".archive/a", delete=True))  # purge
+        sources = [r["source"] for r in _audit(tmp_path)]
+        assert sources == ["direct-archive-auto", "direct-remove-auto", "direct-purge-auto"]
+        rows = _audit(tmp_path)
+        assert Path(rows[0]["path"]).parent.name == Path(rows[2]["path"]).parent.name == ".archive"
+
+    def test_the_interactive_sources_drop_the_auto_suffix(self, tmp_path):
+        _make_skill(tmp_path, "a.md", "# A\n")
+        self._run(tmp_path, self._args("a", yes=False), inputs=["y"])
+        assert _audit(tmp_path)[-1]["source"] == "direct-archive"
+
+    def test_a_failed_unlink_on_the_delete_path_writes_no_row(self, tmp_path):
+        """LOW 11: the delete branch logged before unlinking, so a failed
+        unlink left a row claiming a deletion that never reached disk."""
+        skill = _make_skill(tmp_path, "stale.md", "# Stale\n")
+        real_unlink = Path.unlink
+
+        def _refuse(self, *a, **kw):
+            if self == skill:
+                raise OSError("device busy")
+            return real_unlink(self, *a, **kw)
+
+        with patch.object(Path, "unlink", _refuse), pytest.raises(SystemExit) as exc:
+            self._run(tmp_path, self._args("stale", delete=True))
+        assert exc.value.code == 1
+        assert skill.exists()
+        assert not _audit(tmp_path), "no row for a deletion that did not happen"
+
+    def test_dry_run_refuses_an_unusable_archive_destination(self, tmp_path, capsys):
+        """Codex P2 #2: the preview must not promise what the run refuses."""
+        skills = tmp_path / "skills"
+        skill = _make_skill(tmp_path, "stale.md", "# Stale\n")
+        (skills / ".archive").write_text("not a directory", encoding="utf-8")
+        with pytest.raises(SystemExit) as exc:
+            self._run(tmp_path, self._args("stale", dry_run=True))
+        assert exc.value.code == 1
+        captured = capsys.readouterr()
+        assert "would archive" not in captured.out
+        assert "ARCHIVE_REFUSED_BAD_DESTINATION" in captured.err
+        assert skill.exists()
 
     def test_restoring_an_archived_skill_is_a_plain_mv(self, tmp_path):
         skills = tmp_path / "skills"
