@@ -11,28 +11,52 @@ shows a diff* (the alarm), and the log being unreadable (never the alarm) —
 plus the render boundary: ``reason`` is operator free text and ``source_ids``
 is an unbounded lineage list, and neither may ever reach the prompt.
 
+The live-text reconciliation (2026-08-22 F1.2) is pinned beside it: the row
+tally answers "was there an approval row", never "are these the approved
+bytes", so a hand-repaired value layer reads identical to an untouched one.
+The three named states — live text matching an approved row, live text
+matching none, and an approved row with no live file carrying its hash —
+are asserted separately, together with the fact that the tally stays clean
+in the second case (which is why the hash comparison has to exist).
+
+Calibration is pinned beside the states (review, 2026-08-22): the second
+state is also where a shipped default permanently sits — ``init`` copies
+the template value layer in with no audit row — so the rendering must name
+that cause instead of asserting a bypass, and an empty section directory
+must abstain rather than read as reconciled.
+
 Fault column (ADR-0077): a missing or unreadable audit log renders an
-explicit ``unavailable (reason=…)`` line. An unavailable instrument that
-rendered as "no approval record" would manufacture the exact false alarm
-this finding set out to make impossible.
+explicit ``unavailable (reason=…)`` line, and so does an unhashable live
+layer. An unavailable instrument that rendered as "no approval record" (or
+as "matches NO approved row") would manufacture the exact false alarm this
+finding set out to make impossible.
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+import _audit  # noqa: E402  # pyright: ignore[reportMissingImports]
 import value_layer_approval_join as vlaj  # noqa: E402  # pyright: ignore[reportMissingImports]
+import value_layer_due_check as vldc  # noqa: E402  # pyright: ignore[reportMissingImports]
 
 SCRIPT = Path(__file__).resolve().parent.parent / "scripts" / "value_layer_approval_join.py"
 
 HOME = "/Users/someone/.config/moltbook"
 START = "2026-08-01T23:00:00+09:00"
 END = "2026-08-08T23:00:00+09:00"
+# More live files than one reconciliation line may name, so the overflow is
+# exercised rather than assumed.
+_CAP_OVERFLOW = 8
 
 
 def _ts(raw: str) -> datetime:
@@ -57,7 +81,9 @@ def _record(
     }
 
 
-def _reading(records, *, section="skills", changed=True, top=vlaj._DEFAULT_TOP, unparsable=0):
+def _reading(
+    records, *, section="skills", changed=True, top=vlaj._DEFAULT_TOP, unparsable=0, live=None
+):
     return vlaj.build_reading(
         records,
         section=section,
@@ -66,6 +92,7 @@ def _reading(records, *, section="skills", changed=True, top=vlaj._DEFAULT_TOP, 
         end=_ts(END),
         unparsable=unparsable,
         top=top,
+        live=live,
     )
 
 
@@ -106,6 +133,68 @@ class TestSectionMatching:
 
     def test_a_non_string_path_is_skipped_not_crashed(self):
         assert _reading([_record(None, "2026-08-03T03:00:00+00:00")]).rows == ()
+
+    def test_a_renamed_identity_leaf_still_belongs_to_the_identity_section(self):
+        """The one defect class that matters here renames the target.
+
+        Live on 2026-08-15: the H5 collision guard turned an approved
+        ``distill-identity`` write into ``identity-2.md``
+        (``cli/adopt.py::_replaces_canonical_target``). On a leaf-name match
+        that approved row belonged to no section, leaving ``approved 0,
+        staged 1, changed=True`` — this instrument's own maximum-severity
+        output, raised on a question ``audit.jsonl`` had answered.
+        """
+        records = [
+            _record(
+                f"{HOME}/identity.md",
+                "2026-08-03T04:03:59+00:00",
+                command="distill-identity",
+                decision="staged",
+            ),
+            _record(
+                f"{HOME}/identity-2.md",
+                "2026-08-03T04:20:00+00:00",
+                command="distill-identity",
+                content_hash="TWINHASH00000001",
+            ),
+        ]
+        reading = _reading(records, section="identity", changed=True)
+        assert reading.approved == 1
+        assert reading.staged == 1
+        assert reading.unmatched == 0, "a placed row is not also a residual"
+        rendered = vlaj.format_reading(reading)
+        assert "NO APPROVED RECORD" not in rendered
+        assert "TWINHASH00000001" in rendered
+
+    def test_the_identity_command_vocabulary_is_shared_with_the_cadence_reading(self):
+        """One set, not two copies.
+
+        The command arm above places a row the leaf name cannot. If a command
+        rename reached only one of the two readings, that row would be counted
+        by neither — invisible, which is the drop this join was repaired to
+        stop. Pinned on identity (`is`) rather than equality so a re-introduced
+        local copy fails here even while its contents still happen to agree.
+        """
+        assert vlaj.IDENTITY_COMMANDS is _audit.IDENTITY_COMMANDS
+        assert vldc.IDENTITY_COMMANDS is _audit.IDENTITY_COMMANDS
+
+    def test_the_command_arm_does_not_steal_a_directory_section_row(self):
+        """A row inside ``skills/`` stays a skills row whatever its command.
+
+        Counting it twice would let one approval clear two sections' alarms.
+        """
+        records = [
+            _record(
+                f"{HOME}/skills/a-skill.md",
+                "2026-08-03T03:00:00+00:00",
+                command="distill-identity",
+            )
+        ]
+        identity = _reading(records, section="identity")
+        assert identity.rows == ()
+        assert identity.approved == 0
+        assert len(_reading(records, section="skills").rows) == 1
+        assert identity.unmatched == 0
 
 
 class TestWindowing:
@@ -186,6 +275,39 @@ class TestAlarmCondition:
         rendered = vlaj.format_reading(_reading(records, changed=False))
         assert "abc123def4567890" in rendered
         assert "NO APPROVED RECORD" not in rendered
+
+
+class TestUnmatchedRowsAreVisible:
+    """A row this join cannot place must read as "cannot tell", not silence.
+
+    The 08-15 misfire was an *approved* row falling outside every section
+    predicate: the tally emptied and the alarm fired on the emptiness. Any
+    future unanticipated path shape must be visible in the render instead.
+    """
+
+    def test_an_unplaceable_in_window_row_is_counted_and_rendered(self):
+        records = [_record(f"{HOME}/knowledge.json", "2026-08-03T05:00:00+00:00")]
+        for section in ("identity", "constitution", "skills", "rules"):
+            reading = _reading(records, section=section)
+            assert reading.rows == (), section
+            assert reading.unmatched == 1, section
+            assert "matched no section" in vlaj.format_reading(reading), section
+
+    def test_a_malformed_path_is_a_residual_not_a_silent_drop(self):
+        reading = _reading([_record(None, "2026-08-03T03:00:00+00:00")])
+        assert reading.rows == ()
+        assert reading.unmatched == 1
+
+    def test_an_out_of_window_unplaceable_row_is_not_counted(self):
+        """The residual describes this window, like every other tally here."""
+        records = [_record(f"{HOME}/knowledge.json", "2026-08-09T05:00:00+00:00")]
+        assert _reading(records).unmatched == 0
+
+    def test_no_residual_line_when_every_row_is_placed(self):
+        records = [_record(f"{HOME}/skills/s.md", "2026-08-03T03:00:00+00:00")]
+        reading = _reading(records)
+        assert reading.unmatched == 0
+        assert "matched no section" not in vlaj.format_reading(reading)
 
 
 class TestRenderBoundary:
@@ -295,6 +417,10 @@ class TestUnavailableIsNotTheAlarm:
         assert "unavailable (reason=audit-log-missing)" in result.stdout
         assert "NO APPROVED RECORD" not in result.stdout
 
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="chmod(0o000) does not block root, so the fault cannot be injected",
+    )
     def test_unreadable_audit_log_renders_a_reason_code(self, tmp_path):
         audit = tmp_path / "audit.jsonl"
         audit.write_text("{}\n", encoding="utf-8")
@@ -341,6 +467,271 @@ class TestUnavailableIsNotTheAlarm:
         assert unparsable == 2
 
 
+def _digest(text: str) -> str:
+    """The hash ``cli/approval.py:161`` writes for `text`."""
+    return hashlib.sha256(text.encode()).hexdigest()[:16]
+
+
+def _live_home(tmp_path: Path, section: str, files: dict[str, str]) -> Path:
+    home = tmp_path / "home"
+    directory = home if section == "identity" else home / section
+    directory.mkdir(parents=True, exist_ok=True)
+    for name, text in files.items():
+        (home / name).parent.mkdir(parents=True, exist_ok=True)
+        (home / name).write_text(text, encoding="utf-8")
+    return home
+
+
+class TestLiveTextReconciliation:
+    """audit.jsonl records *approvals*, not *writes* (2026-08-22 F1.2)."""
+
+    def test_live_text_matching_an_approved_row_is_the_normal_case(self, tmp_path):
+        text = "approved body\n"
+        home = _live_home(tmp_path, "skills", {"skills/s.md": text})
+        records = [
+            _record(f"{HOME}/skills/s.md", "2026-08-03T03:00:00+00:00", content_hash=_digest(text))
+        ]
+        rendered = vlaj.format_reading(
+            _reading(records, live=vlaj.scan_live(home, "skills"), changed=True)
+        )
+        assert "1 live file(s) hashed, 1 match an approved row" in rendered
+        assert "match NO approved row" not in rendered
+        assert "no live file carrying that hash" not in rendered
+
+    def test_a_hand_repaired_file_matches_no_approved_row(self, tmp_path):
+        """The state the tally cannot see.
+
+        An approval row exists for the section (so the row-count alarm stays
+        silent), but the bytes the runtime reads are not the approved ones —
+        a hand edit, a restore, or an out-of-band write.
+        """
+        home = _live_home(tmp_path, "identity", {"identity.md": "hand-typed replacement\n"})
+        records = [
+            _record(
+                f"{HOME}/identity.md",
+                "2026-08-03T03:00:00+00:00",
+                content_hash=_digest("the text that was actually approved"),
+            )
+        ]
+        reading = _reading(
+            records, section="identity", live=vlaj.scan_live(home, "identity"), changed=True
+        )
+        rendered = vlaj.format_reading(reading)
+        assert reading.approved == 1, "the tally reads clean — that is the whole point"
+        assert "NO APPROVED RECORD" not in rendered
+        assert "1 live file(s) match NO approved row" in rendered
+        assert _digest("hand-typed replacement\n") in rendered
+
+    def test_an_approved_row_with_no_live_file_is_its_own_state(self, tmp_path):
+        """Approved and written, but not what the runtime reads now."""
+        live_text = "the older, still-live body\n"
+        home = _live_home(tmp_path, "skills", {"skills/s.md": live_text})
+        records = [
+            _record(
+                f"{HOME}/skills/s.md",
+                "2026-07-01T03:00:00+00:00",
+                content_hash=_digest(live_text),
+            ),
+            _record(
+                f"{HOME}/skills/s.md",
+                "2026-08-03T03:00:00+00:00",
+                content_hash=_digest("adopted somewhere the runtime does not read"),
+            ),
+        ]
+        rendered = vlaj.format_reading(
+            _reading(records, live=vlaj.scan_live(home, "skills"), changed=True)
+        )
+        assert "1 approved row(s) in this window have no live file carrying that hash" in rendered
+        assert "@2026-08-03T03:00:00+00:00" in rendered
+        assert "match NO approved row" not in rendered, "the live bytes were approved in July"
+
+    def test_a_pre_window_approval_still_counts_as_approved_bytes(self, tmp_path):
+        """Window-scoping the live side would call every untouched file forged."""
+        text = "approved long before the start commit\n"
+        home = _live_home(tmp_path, "rules", {"rules/r.md": text})
+        records = [
+            _record(f"{HOME}/rules/r.md", "2026-05-01T03:00:00+00:00", content_hash=_digest(text))
+        ]
+        rendered = vlaj.format_reading(
+            _reading(records, section="rules", live=vlaj.scan_live(home, "rules"), changed=False)
+        )
+        assert "1 match an approved row" in rendered
+        assert "match NO approved row" not in rendered
+
+    def test_the_adopt_newline_terminator_is_not_a_mismatch(self, tmp_path):
+        """``adopt`` hashes the text and writes it plus a newline.
+
+        Hashing only the bytes on disk would report every newline-terminated
+        adoption as an unapproved hand edit.
+        """
+        text = "body without a trailing newline"
+        home = _live_home(tmp_path, "skills", {"skills/s.md": text + "\n"})
+        records = [
+            _record(f"{HOME}/skills/s.md", "2026-08-03T03:00:00+00:00", content_hash=_digest(text))
+        ]
+        rendered = vlaj.format_reading(
+            _reading(records, live=vlaj.scan_live(home, "skills"), changed=True)
+        )
+        assert "1 match an approved row" in rendered
+        assert "match NO approved row" not in rendered
+
+    def test_a_sibling_beside_the_canonical_identity_is_not_live(self, tmp_path):
+        """``identity-2.md`` is written, approved, and never read by the runtime."""
+        home = _live_home(
+            tmp_path,
+            "identity",
+            {"identity.md": "live body\n", "identity-2.md": "the adopted body\n"},
+        )
+        scan = vlaj.scan_live(home, "identity")
+        assert len(scan.files) == 1
+        assert scan.files[0].digests[0] == _digest("live body\n")
+
+    def test_only_hashes_and_counts_are_rendered_never_content_or_names(self, tmp_path):
+        home = _live_home(
+            tmp_path, "skills", {"skills/SLUG-MARKER-from-a-post.md": "BODY-MARKER text\n"}
+        )
+        rendered = vlaj.format_reading(
+            _reading([], live=vlaj.scan_live(home, "skills"), changed=True)
+        )
+        assert "BODY-MARKER" not in rendered
+        assert "SLUG-MARKER" not in rendered
+        assert "match NO approved row" in rendered
+
+    def test_the_list_of_unmatched_digests_is_capped_not_silent(self, tmp_path):
+        home = _live_home(
+            tmp_path, "skills", {f"skills/s{i}.md": f"body {i}\n" for i in range(_CAP_OVERFLOW)}
+        )
+        rendered = vlaj.format_reading(
+            _reading([], live=vlaj.scan_live(home, "skills"), changed=True)
+        )
+        assert f"{_CAP_OVERFLOW} live file(s) match NO approved row" in rendered
+        assert f"+{_CAP_OVERFLOW - vlaj._RECON_CAP} more" in rendered
+
+    def test_a_never_approved_default_is_named_as_a_cause_not_a_bypass(self, tmp_path):
+        """``init`` copies the template value layer in with no audit row.
+
+        ``cli/session_cmds.py:66`` (constitution / skills / rules) and ``:88``
+        (identity) write no approval record at all, so a shipped default sits
+        in "matches NO approved row" permanently and benignly. Naming only
+        hand repair / restore / out-of-band edit would render that steady
+        state as an accusation every week.
+        """
+        home = _live_home(tmp_path, "constitution", {"constitution/axioms.md": "template body\n"})
+        rendered = vlaj.format_reading(
+            _reading(
+                [],
+                section="constitution",
+                live=vlaj.scan_live(home, "constitution"),
+                changed=False,
+            )
+        )
+        assert "1 live file(s) match NO approved row" in rendered
+        assert "contemplative-agent init" in rendered
+        assert "never had a row" in rendered
+        assert "RISE in it is the signal" in rendered
+
+    def test_the_constitution_scan_declares_the_override_it_cannot_see(self, tmp_path):
+        """``--constitution-dir`` redirects the runtime's read (`cli/runtime.py:105`).
+
+        The scan hashes ``<home>/constitution`` regardless, so the assumption
+        is rendered rather than left implicit. The other sections have no
+        such override and must not carry the caveat.
+        """
+        text = "approved body\n"
+        home = _live_home(tmp_path, "constitution", {"constitution/axioms.md": text})
+        records = [
+            _record(
+                f"{HOME}/constitution/axioms.md",
+                "2026-08-03T03:00:00+00:00",
+                content_hash=_digest(text),
+            )
+        ]
+        rendered = vlaj.format_reading(
+            _reading(
+                records,
+                section="constitution",
+                live=vlaj.scan_live(home, "constitution"),
+                changed=True,
+            )
+        )
+        assert "`--constitution-dir`" in rendered
+
+        skills_home = _live_home(tmp_path / "s", "skills", {"skills/s.md": text})
+        skills_rendered = vlaj.format_reading(
+            _reading([], live=vlaj.scan_live(skills_home, "skills"), changed=True)
+        )
+        assert "--constitution-dir" not in skills_rendered
+
+    @pytest.mark.skipif(
+        hasattr(os, "geteuid") and os.geteuid() == 0,
+        reason="chmod(0o000) does not block root, so the fault cannot be injected",
+    )
+    def test_an_unreadable_live_file_degrades_to_a_count(self, tmp_path):
+        text = "readable\n"
+        home = _live_home(tmp_path, "skills", {"skills/a.md": text, "skills/b.md": "secret\n"})
+        blocked = home / "skills" / "b.md"
+        blocked.chmod(0o000)
+        try:
+            scan = vlaj.scan_live(home, "skills")
+        finally:
+            blocked.chmod(0o600)
+        records = [
+            _record(f"{HOME}/skills/a.md", "2026-08-03T03:00:00+00:00", content_hash=_digest(text))
+        ]
+        rendered = vlaj.format_reading(_reading(records, live=scan, changed=True))
+        assert scan.unreadable == 1
+        assert "1 live file(s) could not be hashed" in rendered
+
+
+class TestReconciliationUnavailableIsNotTheAlarm:
+    def test_a_missing_home_renders_a_reason_code(self, tmp_path):
+        scan = vlaj.scan_live(tmp_path / "absent", "skills")
+        assert scan.reason == "live-home-missing"
+        rendered = vlaj.format_reading(_reading([], live=scan, changed=True))
+        assert "reason=live-home-missing" in rendered
+        assert "match NO approved row" not in rendered
+
+    def test_a_missing_section_directory_renders_a_reason_code(self, tmp_path):
+        home = tmp_path / "home"
+        home.mkdir()
+        scan = vlaj.scan_live(home, "skills")
+        assert scan.reason == "live-dir-missing"
+        assert "match NO approved row" not in vlaj.format_reading(_reading([], live=scan))
+
+    def test_an_empty_section_directory_renders_a_reason_code(self, tmp_path):
+        """Zero files hashed must not read as reconciled.
+
+        It is also the shape a run redirected by ``--constitution-dir``
+        leaves in the default tree, which this scan cannot detect.
+        """
+        home = _live_home(tmp_path, "constitution", {})
+        scan = vlaj.scan_live(home, "constitution")
+        assert scan.reason == "live-dir-empty"
+        rendered = vlaj.format_reading(
+            _reading([], section="constitution", live=scan, changed=True)
+        )
+        assert "reason=live-dir-empty" in rendered
+        assert "match NO approved row" not in rendered
+        assert "Every live file traces" not in rendered
+
+    def test_a_missing_identity_file_renders_a_reason_code(self, tmp_path):
+        home = tmp_path / "home"
+        home.mkdir()
+        scan = vlaj.scan_live(home, "identity")
+        assert scan.reason == "live-identity-missing"
+        assert "match NO approved row" not in vlaj.format_reading(
+            _reading([], section="identity", live=scan)
+        )
+
+    def test_omitting_home_on_the_cli_is_declared_not_skipped(self, tmp_path):
+        audit = tmp_path / "audit.jsonl"
+        audit.write_text("", encoding="utf-8")
+        result = _run_cli(audit, "--diff", "changed")
+        assert result.returncode == 0, result.stderr
+        assert "reason=live-home-not-given" in result.stdout
+        assert "match NO approved row" not in result.stdout
+
+
 def _run_cli(audit: Path, *extra: str, start: str = START) -> subprocess.CompletedProcess[str]:
     return subprocess.run(
         [
@@ -381,6 +772,27 @@ class TestCli:
         assert "**Approval provenance**" in result.stdout
         assert "abc123def4567890" in result.stdout
         assert "FREE-TEXT-MARKER" not in result.stdout
+
+    def test_end_to_end_reconciliation_over_a_real_home(self, tmp_path):
+        home = _live_home(tmp_path, "skills", {"skills/s.md": "hand-typed body\n"})
+        audit = tmp_path / "audit.jsonl"
+        audit.write_text(
+            json.dumps(
+                _record(
+                    f"{HOME}/skills/s.md",
+                    "2026-08-03T03:00:00+00:00",
+                    content_hash=_digest("the approved body\n"),
+                )
+            )
+            + "\n",
+            encoding="utf-8",
+        )
+        result = _run_cli(audit, "--diff", "changed", "--home", str(home))
+        assert result.returncode == 0, result.stderr
+        assert "**Live-text reconciliation**" in result.stdout
+        assert "1 live file(s) match NO approved row" in result.stdout
+        assert _digest("hand-typed body\n") in result.stdout
+        assert "hand-typed body" not in result.stdout
 
     def test_timezone_naive_stamps_are_read_as_utc(self):
         parsed = vlaj.parse_ts("2026-08-03T03:00:00")

@@ -498,16 +498,24 @@ class TestAdoptStaged:
         """What made the failure silent: the audit row honestly recorded the
         renamed path, so `staged` (identity.md) and `approved` (identity-2.md)
         pointed at different files for the same content hash — and neither
-        shape of the ADR-0093 approval join catches that. Its identity section
-        matches on the exact filename (`_matches_section`,
-        `scripts/value_layer_approval_join.py:113-123`), so the `approved` row
-        for `identity-2.md` belongs to **no** section and vanishes from the
-        join entirely, leaving the identity section reading as if only a
-        `staged` row existed; the constitution section is directory-shaped, so
-        the `contemplative-axioms-2.md` twin lands in the right section and
-        the alarm clears on a row that named a different file. Two different
-        blind spots, one cause: the record must not be able to diverge from
-        the staged target in the first place."""
+        shape of the ADR-0093 approval join caught that. Its identity section
+        matched on the exact filename, so the `approved` row for
+        `identity-2.md` belonged to **no** section and vanished from the join
+        entirely, leaving the identity section reading as if only a `staged`
+        row existed; the constitution section is directory-shaped, so the
+        `contemplative-axioms-2.md` twin lands in the right section and the
+        alarm clears on a row that named a different file. Two different blind
+        spots, one cause: the record must not be able to diverge from the
+        staged target in the first place.
+
+        The read side is closed too as of 2026-08-22 (findings F1.1):
+        `_matches_section` now also places an identity row by the command that
+        wrote it, and an in-window row matching no section is rendered as a
+        residual instead of vanishing (`tests/test_value_layer_approval_join.py`
+        :: `test_a_renamed_identity_leaf_still_belongs_to_the_identity_section`,
+        `TestUnmatchedRowsAreVisible`). This test still guards the producer:
+        the log is append-only, so a diverging record stays wrong forever in
+        every future backfill window, whatever the reader can recover."""
         target = tmp_path / "identity.md"
         target.write_text("# old identity", encoding="utf-8")
         staged = self._stage_one(

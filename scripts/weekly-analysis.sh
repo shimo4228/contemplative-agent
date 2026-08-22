@@ -243,10 +243,17 @@ if [[ -d "$DATA_REPO/.git" ]]; then
         # never target paths. Observability only — a failure must not break
         # the weekly report, but it must also never read as "no approval",
         # hence the explicit unavailable line instead of an empty string.
+        #
+        # --home adds the live-text reconciliation (2026-08-22 F1.2): the row
+        # tally answers "was there an approval", the hash comparison answers
+        # "are these the approved bytes". A hand repair leaves the first clean
+        # and only the second can see it. Renders digests and counts, never a
+        # live file's content or path.
         approval_join() {  # $1 = section, $2 = changed|unchanged
             local out
             out=$(python3 "$PROJECT_ROOT/scripts/value_layer_approval_join.py" \
                 --audit "$MOLTBOOK_HOME/logs/audit.jsonl" \
+                --home "$MOLTBOOK_HOME" \
                 --section "$1" --diff "$2" \
                 --start "$start_cdate" --end "$end_cdate" 2>/dev/null || true)
             if [[ -z "$out" ]]; then
@@ -560,6 +567,42 @@ $DAILY_REPORTS_FRAMED"
 mkdir -p "$REPORT_DIR"
 OUTPUT="$REPORT_DIR/weekly-${END_DATE}.md"
 
+# `report_missing_parts <file>` — the report's machine contract, as a csv of the
+# parts that are absent (empty output = complete). Size is not that contract:
+# 2026-08-21 promoted a 37,409-byte report whose first line began mid-sentence
+# ("ior statement implied…") with A, B and C gone, because `claude -p
+# --output-format text` prints only its last assistant turn and the response
+# spanned more than one. It passed `-s`, was translated, was cited by the
+# diagnosis for figures that were not in it, and would have returned as next
+# week's $PREV_REPORTS trend baseline. Whatever truncates the stream, a report
+# missing A-C must read as unavailable rather than as clean (ADR-0077).
+#
+# The two artifacts downstream of this one already have such a predicate —
+# `findings_complete()` and the insight review's `RECOMMEND:` grep, both in
+# weekly-pipeline.sh — and this is the input to both.
+#
+# The anchors are the five section headings this repo's own prompt file defines
+# (config/prompts/weekly-analysis.md, "## A." … "## E."), matched on the letter
+# prefix only: the trailing wording of a heading is the model's to vary, the
+# letter is the format's. They are structure, not content-surface phrases.
+#
+# Nothing else is required — in particular not a level-1 title. The prompt's
+# "# " lines are its own internal headings, never an instruction to emit a
+# document title, and weekly-2026-07-11.md is a complete A-E report that opens
+# with a preamble and no title at all. Requiring one would discard that shape
+# while adding no detection power: the truncation this guard exists for takes
+# the title and A-C together.
+#
+# Plain string accumulation, not an array: /bin/bash on macOS is 3.2, where
+# `${#arr[@]}` on an empty array trips `set -u`.
+report_missing_parts() {  # report_missing_parts <file>
+    local file="$1" letter missing=""
+    for letter in A B C D E; do
+        grep -q "^## $letter\." "$file" || missing="${missing:+$missing,}$letter"
+    done
+    printf '%s' "$missing"
+}
+
 # --- Run claude ---
 # Write to a temp file and promote on success. A direct `> "$OUTPUT"` truncates
 # the target before the command runs, so any failure (or a run killed mid-flight)
@@ -586,7 +629,19 @@ if ! echo "$USER_PROMPT" | with_timeout "$REPORT_TIMEOUT_SECONDS" claude -p \
 fi
 
 if [[ ! -s "$OUTPUT_TMP" ]]; then
-    echo "ERROR: claude -p exited 0 but produced no output; $OUTPUT left untouched" >&2
+    echo "ERROR: claude -p exited 0 but produced no output; reason=REPORT_EMPTY; $OUTPUT left untouched" >&2
+    exit 1
+fi
+
+# Structural completeness, checked before the promote — see report_missing_parts
+# above for what the 0-byte guard cannot see. Same failure handling either way:
+# non-zero exit, previous $OUTPUT untouched, and a reason code in the message so
+# weekly-pipeline.sh's stage accounting can name it in report.log.
+MISSING_PARTS="$(report_missing_parts "$OUTPUT_TMP")"
+if [[ -n "$MISSING_PARTS" ]]; then
+    echo "ERROR: claude -p exited 0 but the report is structurally incomplete;" \
+        "reason=REPORT_INCOMPLETE missing=$MISSING_PARTS" \
+        "bytes=$(wc -c < "$OUTPUT_TMP" | tr -d ' '); $OUTPUT left untouched" >&2
     exit 1
 fi
 

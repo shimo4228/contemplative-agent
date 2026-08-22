@@ -41,9 +41,8 @@ from datetime import date, datetime
 from pathlib import Path
 from typing import Any
 
-from _audit import parse_records, parse_ts
+from _audit import IDENTITY_COMMANDS, parse_records, parse_ts
 
-_IDENTITY_COMMANDS = frozenset({"distill-identity", "distill-identity-ca"})
 _AMEND_COMMAND = "amend-constitution"
 
 # Audit sources written AT generation time, as opposed to later at the gate.
@@ -210,7 +209,7 @@ def build_reading(
 
     identity_last, identity_unparsable = _latest(
         audit_records,
-        commands=_IDENTITY_COMMANDS,
+        commands=IDENTITY_COMMANDS,
         decisions=None,
         sources=_GENERATION_SOURCES,
     )

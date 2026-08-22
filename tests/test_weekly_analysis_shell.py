@@ -15,6 +15,7 @@ macOS-only: the script uses BSD ``date -j``.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -35,6 +36,27 @@ SCRIPT = REPO_ROOT / "scripts" / "weekly-analysis.sh"
 END_DATE = "2026-07-24"
 SEEDED_STATE = "7\t[warning] seeded signature\n"
 SEEDED_CORPUS = "5000\t300\told-rotated.log\n"
+
+# The promote gate's contract: the five section anchors
+# config/prompts/weekly-analysis.md defines. Every stub that expects its report
+# to be promoted must emit them. The title line here is realistic padding (20 of
+# 21 past reports carry one), not part of the contract — see
+# test_a_report_without_a_title_is_still_complete.
+COMPLETE_REPORT = (
+    "# Weekly Analysis Report — Moltbook Agent\n\n"
+    "## A. Quantitative Summary\n\n"
+    "## B. Agent State Snapshot\n\n"
+    "## C. Engagement Patterns\n\n"
+    "## D. Change Points\n\n"
+    "## E. Qualitative Highlights — analytical center\n"
+)
+
+
+def _emit_complete_report(tmp_path: Path) -> str:
+    """A shell line printing a report the promote gate accepts."""
+    body_file = tmp_path / "complete-report.md"
+    body_file.write_text(COMPLETE_REPORT, encoding="utf-8")
+    return f'cat "{body_file}"\n'
 
 
 def _make_home(tmp_path: Path) -> Path:
@@ -122,14 +144,93 @@ class TestFailedRunSpendsNothing:
         result = _run(home, _stub_claude(tmp_path, exit_code=0), tmp_path)
 
         assert result.returncode != 0, result.stdout
+        assert "reason=REPORT_EMPTY" in result.stderr
         assert _state(home).read_text(encoding="utf-8") == SEEDED_STATE
         assert _pending_files(home) == []
+
+
+class TestStructuralCompleteness:
+    """findings F1.3: a head-truncated report passed the ``-s`` guard.
+
+    ``claude -p --output-format text`` prints only the last assistant turn, so a
+    response spanning two turns produced a 37,409-byte file whose first line
+    began mid-sentence with A, B and C missing. It was promoted, translated,
+    cited by the diagnosis for figures it did not contain, and queued as next
+    week's trend baseline. Size cannot see that failure; the section anchors
+    the report format defines can.
+    """
+
+    def test_head_truncated_report_is_not_promoted(self, tmp_path):
+        home = _make_home(tmp_path)
+        # The observed 2026-08-21 shape: the cut lands mid-sentence and
+        # everything after it — D, E — is intact and internally coherent.
+        truncated = (
+            "ior statement implied a sufficient separation between the "
+            "'query source' and the 'data retrieval process'.\n\n"
+            "## D. Change Points\n\nD1: something shifted.\n\n"
+            "## E. Qualitative Highlights — analytical center\n\nAn example.\n"
+        )
+        result = _run(home, _stub_claude(tmp_path, exit_code=0, body=truncated), tmp_path)
+
+        assert result.returncode != 0, result.stdout
+        assert not (home / "reports" / "analysis" / f"weekly-{END_DATE}.md").exists()
+        assert not (home / "reports" / "analysis" / f"weekly-{END_DATE}.ja.md").exists()
+        # A reason code the pipeline's stage accounting can name, and the parts
+        # that were missing.
+        assert "reason=REPORT_INCOMPLETE" in result.stderr
+        assert "missing=A,B,C" in result.stderr
+        # A failed run still spends nothing.
+        assert _state(home).read_text(encoding="utf-8") == SEEDED_STATE
+        assert _corpus(home).read_text(encoding="utf-8") == SEEDED_CORPUS
+        assert _pending_files(home) == []
+
+    def test_a_report_missing_only_its_last_section_is_not_promoted(self, tmp_path):
+        """Tail loss is the same defect from the other end."""
+        home = _make_home(tmp_path)
+        body = COMPLETE_REPORT.split("## E.")[0]
+        result = _run(home, _stub_claude(tmp_path, exit_code=0, body=body), tmp_path)
+
+        assert result.returncode != 0, result.stdout
+        assert "missing=E" in result.stderr
+        assert not (home / "reports" / "analysis" / f"weekly-{END_DATE}.md").exists()
+
+    def test_a_report_without_a_title_is_still_complete(self, tmp_path):
+        """The observed legitimate shape a title rule would have discarded.
+
+        ``weekly-2026-07-11.md`` opens with a preamble and goes straight to
+        ``## A.`` with no ``# `` line anywhere; it is complete A-E and was
+        consumed downstream. The format contract
+        (``config/prompts/weekly-analysis.md``) defines only the five section
+        headings — its own ``# `` lines are prompt-internal — so the gate must
+        require only those, or it fails closed on a good report and aborts
+        stage 1 with ``reason=REPORT_FAIL``.
+        """
+        home = _make_home(tmp_path)
+        body = "I have all seven daily reports in context. Per Principle 3 I authored this directly.\n\n---\n\n"
+        body += COMPLETE_REPORT.split("\n\n", 1)[1]
+        assert not body.startswith("# ") and "\n# " not in body
+        result = _run(home, _stub_claude(tmp_path, exit_code=0, body=body), tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        report = home / "reports" / "analysis" / f"weekly-{END_DATE}.md"
+        assert report.read_text(encoding="utf-8") == body
+
+    def test_a_preamble_before_the_title_is_still_a_complete_report(self, tmp_path):
+        """The majority shape: an opening note, then the title, then A-E."""
+        home = _make_home(tmp_path)
+        body = "I have all seven daily reports in context. Here is the report.\n\n---\n\n"
+        body += COMPLETE_REPORT
+        result = _run(home, _stub_claude(tmp_path, exit_code=0, body=body), tmp_path)
+
+        assert result.returncode == 0, result.stderr
+        report = home / "reports" / "analysis" / f"weekly-{END_DATE}.md"
+        assert report.read_text(encoding="utf-8") == body
 
 
 class TestSuccessfulRunCommits:
     def test_report_promoted_and_sweep_state_updated(self, tmp_path):
         home = _make_home(tmp_path)
-        body = "# Weekly\n\nA. Volume\n\nB. Signals\n"
+        body = COMPLETE_REPORT
         result = _run(home, _stub_claude(tmp_path, exit_code=0, body=body), tmp_path)
 
         assert result.returncode == 0, result.stderr
@@ -152,7 +253,7 @@ class TestSuccessfulRunCommits:
         (home / "logs" / "agent.log").write_text(
             "[10:00:00] INFO nothing wrong here\n[10:01:00] DEBUG idle\n", encoding="utf-8"
         )
-        result = _run(home, _stub_claude(tmp_path, exit_code=0, body="# Weekly\n"), tmp_path)
+        result = _run(home, _stub_claude(tmp_path, exit_code=0, body=COMPLETE_REPORT), tmp_path)
 
         assert result.returncode == 0, result.stderr
         assert _state(home).read_text(encoding="utf-8") == ""
@@ -165,7 +266,7 @@ class TestSuccessfulRunCommits:
         corpus that no longer exists, and assert the comparison as fact.
         """
         home = _make_home(tmp_path)
-        result = _run(home, _stub_claude(tmp_path, exit_code=0, body="# Weekly\n"), tmp_path)
+        result = _run(home, _stub_claude(tmp_path, exit_code=0, body=COMPLETE_REPORT), tmp_path)
 
         assert result.returncode == 0, result.stderr
         assert _state(home).read_text(encoding="utf-8") != SEEDED_STATE
@@ -190,7 +291,7 @@ class TestSuccessfulRunCommits:
             "cat > /dev/null\n"
             f"echo x >> {marker}\n"
             f"if [[ $(wc -l < {marker}) -gt 1 ]]; then exit 1; fi\n"
-            "printf '# Weekly\\n'\n",
+            f"{_emit_complete_report(tmp_path)}",
             encoding="utf-8",
         )
         stub.chmod(0o755)
@@ -220,7 +321,8 @@ class TestDailyReportFraming:
         bin_dir.mkdir(exist_ok=True)
         stub = bin_dir / "claude"
         stub.write_text(
-            f'#!/bin/bash\ncat >> "{captured}"\nprintf "# Weekly\\n"\n', encoding="utf-8"
+            f'#!/bin/bash\ncat >> "{captured}"\n{_emit_complete_report(tmp_path)}',
+            encoding="utf-8",
         )
         stub.chmod(0o755)
 
@@ -250,7 +352,8 @@ class TestDailyReportFraming:
         bin_dir.mkdir(exist_ok=True)
         stub = bin_dir / "claude"
         stub.write_text(
-            f'#!/bin/bash\ncat >> "{captured}"\nprintf "# Weekly\\n"\n', encoding="utf-8"
+            f'#!/bin/bash\ncat >> "{captured}"\n{_emit_complete_report(tmp_path)}',
+            encoding="utf-8",
         )
         stub.chmod(0o755)
 
@@ -284,7 +387,8 @@ class TestPromptAssembly:
         bin_dir.mkdir(exist_ok=True)
         stub = bin_dir / "claude"
         stub.write_text(
-            f'#!/bin/bash\ncat >> "{captured}"\nprintf "# Weekly\\n"\n', encoding="utf-8"
+            f'#!/bin/bash\ncat >> "{captured}"\n{_emit_complete_report(tmp_path)}',
+            encoding="utf-8",
         )
         stub.chmod(0o755)
 
@@ -332,7 +436,8 @@ class TestPromptAssembly:
         bin_dir.mkdir(exist_ok=True)
         stub = bin_dir / "claude"
         stub.write_text(
-            f'#!/bin/bash\ncat >> "{captured}"\nprintf "# Weekly\\n"\n', encoding="utf-8"
+            f'#!/bin/bash\ncat >> "{captured}"\n{_emit_complete_report(tmp_path)}',
+            encoding="utf-8",
         )
         stub.chmod(0o755)
 
@@ -385,7 +490,8 @@ class TestPromptAssembly:
         bin_dir.mkdir(exist_ok=True)
         stub = bin_dir / "claude"
         stub.write_text(
-            f'#!/bin/bash\ncat >> "{captured}"\nprintf "# Weekly\\n"\n', encoding="utf-8"
+            f'#!/bin/bash\ncat >> "{captured}"\n{_emit_complete_report(tmp_path)}',
+            encoding="utf-8",
         )
         stub.chmod(0o755)
 
@@ -410,8 +516,21 @@ class TestPromptAssembly:
         absence is the alarm the report could not previously distinguish from
         the presence. The record's free text (``reason``) and lineage list
         (``source_ids``) must not ride along into the prompt.
+
+        findings F1.2 adds the third half: ``--home`` must reach the join, so
+        the live bytes are hashed against the approved rows. Without that
+        wiring a hand-repaired value layer renders identically to an untouched
+        one, and the block below would only ever answer "was there a row".
         """
         home = _make_home(tmp_path)
+        # The live value layer the runtime reads (identity.md + the three
+        # section directories), so the reconciliation has bytes to hash.
+        identity_text = "the live identity body\n"
+        (home / "identity.md").write_text(identity_text, encoding="utf-8")
+        identity_hash = hashlib.sha256(identity_text.encode()).hexdigest()[:16]
+        for section in ("constitution", "skills", "rules"):
+            (home / section).mkdir()
+            (home / section / "a.md").write_text(f"{section} body\n", encoding="utf-8")
         data_repo = tmp_path / "fakehome" / "MyAI_Lab" / "contemplative-agent-data"
         (data_repo / "skills").mkdir(parents=True)
 
@@ -447,7 +566,7 @@ class TestPromptAssembly:
                     "path": f"{home}/identity.md",
                     "decision": "approved",
                     "source": "stage-adopted",
-                    "content_hash": "IDHASH0000000000",
+                    "content_hash": identity_hash,
                     "reason": "FREE-TEXT-MARKER typed by the operator",
                     "source_ids": ["LINEAGE-MARKER-1"],
                 }
@@ -461,7 +580,8 @@ class TestPromptAssembly:
         bin_dir.mkdir(exist_ok=True)
         stub = bin_dir / "claude"
         stub.write_text(
-            f'#!/bin/bash\ncat >> "{captured}"\nprintf "# Weekly\\n"\n', encoding="utf-8"
+            f'#!/bin/bash\ncat >> "{captured}"\n{_emit_complete_report(tmp_path)}',
+            encoding="utf-8",
         )
         stub.chmod(0o755)
 
@@ -472,8 +592,14 @@ class TestPromptAssembly:
         state_diff = prompt.split("## Log Anomaly Sweep")[0]
         # One block per value-layer section: identity, constitution, skills, rules.
         assert state_diff.count("**Approval provenance**") == 4
-        assert "IDHASH0000000000" in state_diff
+        assert identity_hash in state_diff
         assert "NO APPROVED RECORD" in state_diff
+        # The live bytes were hashed too, and the two answers are distinct:
+        # identity's live text traces to its approved row, while the skills /
+        # constitution / rules bytes trace to none.
+        assert state_diff.count("**Live-text reconciliation**") == 4
+        assert "1 live file(s) hashed, 1 match an approved row" in state_diff
+        assert "1 live file(s) match NO approved row" in state_diff
         # The instrument read the log; nothing degraded to "cannot tell".
         assert "unavailable (reason=" not in state_diff
         # The record's free text and lineage list stay out of the prompt.
@@ -516,7 +642,8 @@ class TestPromptAssembly:
         bin_dir.mkdir(exist_ok=True)
         stub = bin_dir / "claude"
         stub.write_text(
-            f'#!/bin/bash\ncat >> "{captured}"\nprintf "# Weekly\\n"\n', encoding="utf-8"
+            f'#!/bin/bash\ncat >> "{captured}"\n{_emit_complete_report(tmp_path)}',
+            encoding="utf-8",
         )
         stub.chmod(0o755)
 

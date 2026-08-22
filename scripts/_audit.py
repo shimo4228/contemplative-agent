@@ -3,14 +3,15 @@
 Sibling-imported like `_scan.py` and `_md.py` (the scripts/ dir is not a
 package; `python3 scripts/<name>.py` puts it on sys.path).
 
-Only the *line* grammar lives here — how a timestamp is spelled and what makes
-a line a record. The abstain policy does not: `value_layer_due_check` refuses a
-non-UTF-8 log (`AUDIT_UNREADABLE`) while `value_layer_approval_join` decodes
-with `errors="replace"` and continues, and those are deliberate differences in
-what each reading is for. What must NOT differ is the parse, because both feed
-the same weekly packet: if they disagree about which records fall in the
-window, §8 (cadence) and the approval-provenance annotation describe different
-weeks under one heading.
+Only the *line* grammar lives here — how a timestamp is spelled, what makes a
+line a record, and the closed command vocabulary the log is written with. The
+abstain policy does not: `value_layer_due_check` refuses a non-UTF-8 log
+(`AUDIT_UNREADABLE`) while `value_layer_approval_join` decodes with
+`errors="replace"` and continues, and those are deliberate differences in what
+each reading is for. What must NOT differ is the parse, because both feed the
+same weekly packet: if they disagree about which records fall in the window,
+§8 (cadence) and the approval-provenance annotation describe different weeks
+under one heading.
 """
 
 from __future__ import annotations
@@ -18,6 +19,15 @@ from __future__ import annotations
 import json
 from datetime import datetime, timezone
 from typing import Any
+
+# Commands whose write targets the identity layer. `distill-identity-ca` is the
+# shelved ADR-0013 path, kept because the log is append-only. Shared rather
+# than restated per module: `value_layer_due_check` counts these rows to decide
+# the monthly cadence and `value_layer_approval_join` uses them to place a row
+# whose leaf name was renamed by the collision guard — a rename of the command
+# that reached only one of the two would silently re-open the 2026-08-15 drop
+# (a row counted by neither reading is invisible, not loud).
+IDENTITY_COMMANDS = frozenset({"distill-identity", "distill-identity-ca"})
 
 
 def parse_ts(raw: object) -> datetime | None:
