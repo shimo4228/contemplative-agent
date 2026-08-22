@@ -5,6 +5,9 @@ the instrument's whole value is that a human can check its arithmetic against
 the raw records before acting on a family. Every expected number in
 ``TestHandComputedWindow`` is derived in its docstring, not read back from the
 script.
+
+The interval arithmetic itself lives in ``tests/test_stats.py`` (shared with
+the retrieval instrument); what is pinned here is how this reading uses it.
 """
 
 from __future__ import annotations
@@ -31,7 +34,7 @@ D = "delta-four"
 CATALOG = [A, B, C, D]
 
 
-def _record(selected: list[str], *, verdict: str = "judged", catalog: list[str] | None = None):
+def _record(selected, *, verdict: str = "judged", catalog: list[str] | None = None):
     return {
         "ts": "2026-08-15T10:00:00+00:00",
         "generation_caller": "test",
@@ -40,10 +43,10 @@ def _record(selected: list[str], *, verdict: str = "judged", catalog: list[str] 
         "verdict": verdict,
         "enforced": verdict == "judged",
         "selected": selected,
-        "selected_count": len(selected),
+        "selected_count": len(selected) if isinstance(selected, list) else 0,
         "rejected_names": [],
         "full_skill_tokens": 4000,
-        "would_be_skill_tokens": 100 * len(selected),
+        "would_be_skill_tokens": 100,
     }
 
 
@@ -91,31 +94,16 @@ def hand_log(tmp_path: Path) -> Path:
     return log_dir
 
 
-def _reading_multi(log_dir: Path, spans: list[tuple[str, str]], **kwargs) -> dict:
-    windows = tuple(
+def _windows(log_dir: Path, spans):
+    return tuple(
         cf.load_window(log_dir, date.fromisoformat(start), date.fromisoformat(end))
         for start, end in spans
     )
-    return cf.build_reading(
-        windows,
-        thresholds=cf.Thresholds(0.6, 0.7, 0.4),
-        min_co_exposure=cf.DEFAULT_MIN_CO_EXPOSURE,
-        min_selections=cf.DEFAULT_MIN_SELECTIONS,
-        condition="co-exposed",
-        families=kwargs.pop("families", (("core", (A, B)),)),
-        top=cf.DEFAULT_TOP,
-        overlapping=False,
-    )
 
 
-def _reading(log_dir: Path, **kwargs) -> dict:
-    families = kwargs.pop("families", ())
-    window = kwargs.pop("window", ("2026-08-15", "2026-08-16"))
-    windows = (
-        cf.load_window(log_dir, date.fromisoformat(window[0]), date.fromisoformat(window[1])),
-    )
+def _reading_multi(log_dir: Path, spans, **kwargs) -> dict:
     return cf.build_reading(
-        windows,
+        _windows(log_dir, spans),
         thresholds=cf.Thresholds(
             kwargs.pop("sibling_min", cf.DEFAULT_SIBLING_MIN),
             kwargs.pop("subcase_high", cf.DEFAULT_SUBCASE_HIGH),
@@ -123,11 +111,19 @@ def _reading(log_dir: Path, **kwargs) -> dict:
         ),
         min_co_exposure=kwargs.pop("min_co_exposure", cf.DEFAULT_MIN_CO_EXPOSURE),
         min_selections=kwargs.pop("min_selections", cf.DEFAULT_MIN_SELECTIONS),
+        # 1 unless a test is about the floor: these fixtures are deliberately
+        # small, and the production default (500) would put BELOW_JUDGED_FLOOR
+        # in every reasons list and hide the reason each test is checking.
+        min_judged=kwargs.pop("min_judged", 1),
         condition=kwargs.pop("condition", "co-exposed"),
-        families=families,
+        families=kwargs.pop("families", ()),
         top=kwargs.pop("top", cf.DEFAULT_TOP),
-        overlapping=kwargs.pop("overlapping", False),
     )
+
+
+def _reading(log_dir: Path, **kwargs) -> dict:
+    window = kwargs.pop("window", ("2026-08-15", "2026-08-16"))
+    return _reading_multi(log_dir, [window], **kwargs)
 
 
 class TestHandComputedWindow:
@@ -142,7 +138,8 @@ class TestHandComputedWindow:
         window = _reading(hand_log)["windows"][0]
         # The 2026-08-20 file holds 500 C-only records; if the filename filter
         # leaked, judged would be 700 and every rate below would collapse.
-        assert window["files_read"] == 2
+        assert window["days_with_a_log_file"] == 2
+        assert window["days_in_window"] == 2
 
     def test_sibling_pair_matches_hand_arithmetic(self, hand_log):
         """P(B|A) = 100/150 = 0.6667, P(A|B) = 100/130 = 0.7692 — both >= 0.6."""
@@ -187,6 +184,63 @@ class TestHandComputedWindow:
         assert window["catalog_size_min"] == window["catalog_size_max"] == 4
 
 
+class TestWindowCoverage:
+    def test_a_day_with_no_log_file_is_named(self, tmp_path):
+        """A 7-day window over a 3-day log must not read like a full week."""
+        log_dir = tmp_path / "logs"
+        for day in ("2026-08-01", "2026-08-02", "2026-08-03"):
+            _write(log_dir, day, [_record([A, B]) for _ in range(90)])
+        reading = _reading(log_dir, window=("2026-08-01", "2026-08-07"))
+        window = reading["windows"][0]
+        assert window["days_in_window"] == 7
+        assert window["days_with_a_log_file"] == 3
+        assert window["judged_analyzed"] == 270
+        assert "MISSING_LOG_DAYS" in window["reasons"]
+        assert "MISSING_LOG_DAYS" in reading["reasons"]
+
+    def test_a_fully_covered_window_raises_nothing(self, hand_log):
+        reading = _reading(hand_log)
+        assert reading["windows"][0]["reasons"] == []
+        assert reading["reasons"] == []
+
+
+class TestJudgedFloor:
+    def test_a_thin_window_is_not_a_decision_input(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        _write(log_dir, "2026-08-15", [_record([A, B]) for _ in range(88)])
+        reading = _reading(
+            log_dir, window=("2026-08-15", "2026-08-15"), min_judged=cf.FAMILY_MIN_JUDGED
+        )
+        window = reading["windows"][0]
+        assert window["judged_analyzed"] == 88
+        assert window["decision_input"] is False
+        assert window["min_judged"] == 500
+        assert "BELOW_JUDGED_FLOOR" in reading["reasons"]
+
+    def test_a_full_window_is_a_decision_input(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        _write(log_dir, "2026-08-15", [_record([A, B]) for _ in range(600)])
+        window = _reading(
+            log_dir, window=("2026-08-15", "2026-08-15"), min_judged=cf.FAMILY_MIN_JUDGED
+        )["windows"][0]
+        assert window["decision_input"] is True
+        assert "BELOW_JUDGED_FLOOR" not in window["reasons"]
+
+    def test_an_empty_window_reads_as_empty_not_as_thin(self, tmp_path):
+        """WINDOW_EMPTY and BELOW_JUDGED_FLOOR are different diagnoses."""
+        log_dir = tmp_path / "logs"
+        _write(log_dir, "2026-08-15", [_record([A, B]) for _ in range(600)])
+        _write(log_dir, "2026-08-20", [_record([A], verdict="fail_open_llm")])
+        reading = _reading_multi(
+            log_dir,
+            [("2026-08-15", "2026-08-15"), ("2026-08-20", "2026-08-20")],
+            min_judged=cf.FAMILY_MIN_JUDGED,
+        )
+        empty = reading["windows"][1]
+        assert "WINDOW_EMPTY" in empty["reasons"]
+        assert "BELOW_JUDGED_FLOOR" not in empty["reasons"]
+
+
 class TestSupportRule:
     def test_thin_pair_is_withheld_and_counted(self, tmp_path):
         """C is selected 5 times — below the 20-selection floor — so the
@@ -220,32 +274,22 @@ class TestSupportRule:
 
     def test_support_rule_is_printed(self, hand_log):
         reading = _reading(hand_log)
-        assert reading["support_rule"] == {
-            "min_co_exposure": cf.DEFAULT_MIN_CO_EXPOSURE,
-            "min_selections": cf.DEFAULT_MIN_SELECTIONS,
-            "counted_over": "judged records with a usable catalog",
-        }
+        rule = reading["support_rule"]
+        assert rule["min_co_exposure"] == cf.DEFAULT_MIN_CO_EXPOSURE
+        assert rule["min_selections"] == cf.DEFAULT_MIN_SELECTIONS
+        assert rule["min_judged"] == 1
 
-
-class TestConditioning:
-    def test_co_exposed_and_window_denominators_differ_when_catalog_changes(self, tmp_path):
-        """A is selected 240 times overall but only 40 times while B existed.
-
-        ``--condition window`` divides by 240 and reads the pair as weak;
-        ``co-exposed`` divides by 40 and reads it as a sibling. Both
-        denominators are printed either way.
-        """
-        log_dir = tmp_path / "logs"
-        _write(log_dir, "2026-08-15", [_record([A], catalog=[A]) for _ in range(200)])
-        _write(log_dir, "2026-08-16", [_record([A, B], catalog=[A, B]) for _ in range(40)])
-        co_exposed = _reading(log_dir, min_co_exposure=40, min_selections=20)["windows"][0]
-        windowed = _reading(log_dir, min_co_exposure=40, min_selections=20, condition="window")[
-            "windows"
-        ][0]
-        assert co_exposed["sibling_pairs_total"] == 1
-        assert co_exposed["sibling_pairs"][0]["a_selected"] == 40
-        assert windowed["sibling_pairs_total"] == 0
-        assert co_exposed["sibling_pairs"][0]["selected_window"][A] == 240
+    def test_counted_over_names_the_population_the_selection_floor_uses(self, hand_log):
+        """Under co-exposed conditioning the min_selections denominator is the
+        co-exposed subset, not every judged record — the string said the
+        latter for both conditions."""
+        assert (
+            "co-exposed subset"
+            in _reading(hand_log, condition="co-exposed")["support_rule"]["counted_over"]
+        )
+        assert (
+            "all of them" in _reading(hand_log, condition="window")["support_rule"]["counted_over"]
+        )
 
 
 class TestConditionWindowArithmetic:
@@ -269,11 +313,29 @@ class TestConditionWindowArithmetic:
     def test_the_condition_in_force_is_printed(self, hand_log):
         assert _reading(hand_log, condition="window")["condition"] == "window"
 
+    def test_co_exposed_and_window_denominators_differ_when_catalog_changes(self, tmp_path):
+        """A is selected 240 times overall but only 40 times while B existed.
+
+        ``--condition window`` divides by 240 and reads the pair as weak;
+        ``co-exposed`` divides by 40 and reads it as a sibling. Both
+        denominators are printed either way.
+        """
+        log_dir = tmp_path / "logs"
+        _write(log_dir, "2026-08-15", [_record([A], catalog=[A]) for _ in range(200)])
+        _write(log_dir, "2026-08-16", [_record([A, B], catalog=[A, B]) for _ in range(40)])
+        co_exposed = _reading(log_dir, min_co_exposure=40, min_selections=20)["windows"][0]
+        windowed = _reading(log_dir, min_co_exposure=40, min_selections=20, condition="window")[
+            "windows"
+        ][0]
+        assert co_exposed["sibling_pairs_total"] == 1
+        assert co_exposed["sibling_pairs"][0]["a_selected"] == 40
+        assert windowed["sibling_pairs_total"] == 0
+        assert co_exposed["sibling_pairs"][0]["selected_window"][A] == 240
+
 
 class TestTopTruncation:
     def test_the_cap_in_force_is_printed(self, hand_log):
-        reading = _reading(hand_log, top=1)
-        assert reading["top"] == 1
+        assert _reading(hand_log, top=1)["top"] == 1
 
     def test_top_zero_prints_every_pair(self, tmp_path):
         """Six mutually co-selected skills make 15 sibling pairs."""
@@ -338,60 +400,85 @@ class TestFamilies:
         for day in ("2026-08-01", "2026-08-15"):
             records = [_record([A]) for _ in range(500)] + [_record([C]) for _ in range(100)]
             _write(log_dir, day, records)
-        windows = tuple(
-            cf.load_window(log_dir, date.fromisoformat(start), date.fromisoformat(end))
-            for start, end in (("2026-08-01", "2026-08-02"), ("2026-08-15", "2026-08-16"))
-        )
-        reading = cf.build_reading(
-            windows,
-            thresholds=cf.Thresholds(0.6, 0.7, 0.4),
-            min_co_exposure=cf.DEFAULT_MIN_CO_EXPOSURE,
-            min_selections=cf.DEFAULT_MIN_SELECTIONS,
-            condition="co-exposed",
+        reading = _reading_multi(
+            log_dir,
+            [("2026-08-01", "2026-08-01"), ("2026-08-15", "2026-08-15")],
             families=(("core", (A,)),),
-            top=cf.DEFAULT_TOP,
-            overlapping=False,
         )
         criterion = reading["family_criterion"]
         assert criterion["families"]["core"]["qualifying_windows"] == 2
         assert criterion["families"]["core"]["satisfied"] is True
         assert criterion["windows_disjoint"] is True
+        assert criterion["evaluable"] is True
 
-    def test_overlapping_windows_cannot_satisfy_the_criterion(self, tmp_path):
+    def test_one_window_cannot_evaluate_the_criterion(self, hand_log):
+        """`satisfied: null`, not false — "you gave me one window" is not
+        "this family failed the 0.75 bar"."""
+        reading = _reading(hand_log, families=(("core", (A, B)),))
+        criterion = reading["family_criterion"]
+        assert criterion["evaluable"] is False
+        assert criterion["families"]["core"]["satisfied"] is None
+        assert criterion["families"]["core"]["windows_evaluated"] == 1
+
+    def test_overlapping_windows_cannot_evaluate_the_criterion(self, tmp_path):
         log_dir = tmp_path / "logs"
         for day in ("2026-08-01", "2026-08-02"):
             _write(log_dir, day, [_record([A]) for _ in range(600)])
-        windows = tuple(
-            cf.load_window(log_dir, date.fromisoformat(start), date.fromisoformat(end))
-            for start, end in (("2026-08-01", "2026-08-02"), ("2026-08-02", "2026-08-03"))
-        )
-        reading = cf.build_reading(
-            windows,
-            thresholds=cf.Thresholds(0.6, 0.7, 0.4),
-            min_co_exposure=100,
-            min_selections=20,
-            condition="co-exposed",
+        reading = _reading_multi(
+            log_dir,
+            [("2026-08-01", "2026-08-02"), ("2026-08-02", "2026-08-03")],
             families=(("core", (A,)),),
-            top=cf.DEFAULT_TOP,
-            overlapping=True,
         )
-        assert reading["family_criterion"]["families"]["core"]["satisfied"] is False
+        assert reading["family_criterion"]["families"]["core"]["satisfied"] is None
+        assert reading["family_criterion"]["evaluable"] is False
         assert "WINDOWS_OVERLAP" in reading["reasons"]
 
-    def test_windows_overlap_detection(self):
-        disjoint = (
-            (date(2026, 8, 1), date(2026, 8, 7)),
-            (date(2026, 8, 8), date(2026, 8, 14)),
-        )
-        touching = (
-            (date(2026, 8, 1), date(2026, 8, 8)),
-            (date(2026, 8, 8), date(2026, 8, 14)),
-        )
+    def test_overlap_is_derived_from_the_windows_not_supplied(self, tmp_path):
+        """The flag feeds Decision 7's arithmetic, so no caller can set it."""
+        log_dir = tmp_path / "logs"
+        for day in ("2026-08-01", "2026-08-02"):
+            _write(log_dir, day, [_record([A]) for _ in range(10)])
+        disjoint = _windows(log_dir, [("2026-08-01", "2026-08-01"), ("2026-08-02", "2026-08-02")])
+        touching = _windows(log_dir, [("2026-08-01", "2026-08-02"), ("2026-08-02", "2026-08-03")])
         assert cf.windows_overlap(disjoint) is False
         assert cf.windows_overlap(touching) is True
 
 
+class TestEmptyWindowIsNotNoSignal:
+    def test_one_empty_window_among_several_degrades_and_is_named(self, hand_log):
+        reading = _reading_multi(
+            hand_log,
+            [("2026-08-15", "2026-08-16"), ("2026-08-17", "2026-08-18")],
+            families=(("core", (A, B)),),
+        )
+        populated, empty = reading["windows"]
+        assert populated["judged_analyzed"] == 200
+        assert empty["judged_analyzed"] == 0
+        assert "WINDOW_EMPTY" in empty["reasons"]
+        # "no data" must not print as a rate of 0.0.
+        assert empty["families"][0]["any_of_rate"] is None
+        assert empty["families"][0]["any_of_rate_ci95"] is None
+        assert "WINDOW_EMPTY" in reading["reasons"]
+
+
+class TestDeterminism:
+    def test_the_same_log_produces_a_byte_identical_reading(self, hand_log):
+        first = json.dumps(_reading(hand_log, families=(("core", (A, B)),)))
+        second = json.dumps(_reading(hand_log, families=(("core", (A, B)),)))
+        assert first == second
+
+    def test_no_module_reads_the_wall_clock(self):
+        source = SCRIPT.read_text(encoding="utf-8")
+        for forbidden in ("date.today", "datetime.now", "datetime.utcnow", "time.time"):
+            assert forbidden not in source
+
+
 class TestFaultColumn:
+    def test_every_fault_key_is_rendered(self, hand_log):
+        faults = _reading(hand_log)["windows"][0]["parse_faults"]
+        assert set(faults) == set(cf.FAULT_KEYS)
+        assert all(count == 0 for count in faults.values())
+
     def test_malformed_lines_and_records_are_counted_not_fatal(self, tmp_path):
         log_dir = tmp_path / "logs"
         log_dir.mkdir()
@@ -416,6 +503,24 @@ class TestFaultColumn:
         assert window["judged"] == 151
         assert window["judged_analyzed"] == 150
         assert window["parse_faults"]["judged_without_catalog"] == 1
+
+    @pytest.mark.parametrize("selected", [5, True, "a-one", None, {"a": 1}])
+    def test_a_non_list_selection_abstains_that_record_not_the_run(self, tmp_path, selected):
+        """A bare string used to iterate per character (five phantom
+        out-of-catalog faults and a silently empty selection); an int used to
+        traceback out as exit 1 with no reason code."""
+        log_dir = tmp_path / "logs"
+        records = [_record([A, B]) for _ in range(150)]
+        broken = _record([A, B])
+        broken["selected"] = selected
+        _write(log_dir, "2026-08-15", records + [broken])
+        window = _reading(log_dir)["windows"][0]
+        assert window["judged"] == 151
+        assert window["judged_analyzed"] == 150
+        assert window["parse_faults"]["judged_without_usable_selection"] == 1
+        assert window["parse_faults"]["selected_outside_catalog"] == 0
+        # The excluded record must not have bumped the exposure denominators.
+        assert window["sibling_pairs"][0]["co_exposure"] == 150
 
     def test_selection_outside_the_catalog_is_dropped_and_named(self, tmp_path):
         log_dir = tmp_path / "logs"
@@ -458,7 +563,7 @@ class TestFaultColumn:
         _write(log_dir, "2026-08-15", [_record([A, B]) for _ in range(150)])
         (log_dir / "skill-selection-backup.jsonl").write_text("{}\n", encoding="utf-8")
         window = _reading(log_dir)["windows"][0]
-        assert window["files_read"] == 1
+        assert window["days_with_a_log_file"] == 1
 
     def test_oversized_catalog_abstains(self, tmp_path):
         log_dir = tmp_path / "logs"
@@ -467,33 +572,6 @@ class TestFaultColumn:
         with pytest.raises(ScanError) as excinfo:
             cf.load_window(log_dir, date(2026, 8, 15), date(2026, 8, 15))
         assert excinfo.value.reason == "CATALOG_TOO_LARGE"
-
-
-class TestEmptyWindowIsNotNoSignal:
-    def test_one_empty_window_among_several_degrades_and_is_named(self, hand_log):
-        reading = _reading_multi(
-            hand_log, [("2026-08-15", "2026-08-16"), ("2026-08-17", "2026-08-18")]
-        )
-        populated, empty = reading["windows"]
-        assert populated["judged_analyzed"] == 200
-        assert empty["judged_analyzed"] == 0
-        assert "WINDOW_EMPTY" in empty["reasons"]
-        # "no data" must not print as a rate of 0.0.
-        assert empty["families"][0]["any_of_rate"] is None
-        assert empty["families"][0]["any_of_rate_ci95"] is None
-        assert "WINDOW_EMPTY" in reading["reasons"]
-
-
-class TestDeterminism:
-    def test_the_same_log_produces_a_byte_identical_reading(self, hand_log):
-        first = json.dumps(_reading(hand_log, families=(("core", (A, B)),)), sort_keys=False)
-        second = json.dumps(_reading(hand_log, families=(("core", (A, B)),)), sort_keys=False)
-        assert first == second
-
-    def test_no_module_reads_the_wall_clock(self):
-        source = SCRIPT.read_text(encoding="utf-8")
-        for forbidden in ("date.today", "datetime.now", "datetime.utcnow", "time.time"):
-            assert forbidden not in source
 
 
 class TestAbstains:
@@ -550,6 +628,11 @@ class TestAbstains:
             _reading(hand_log, min_co_exposure=support[0], min_selections=support[1])
         assert excinfo.value.reason == "BAD_SUPPORT"
 
+    def test_zero_judged_floor_abstains(self, hand_log):
+        with pytest.raises(ScanError) as excinfo:
+            _reading(hand_log, min_judged=0)
+        assert excinfo.value.reason == "BAD_MIN_JUDGED"
+
     def test_negative_top_abstains(self, hand_log):
         with pytest.raises(ScanError) as excinfo:
             _reading(hand_log, top=-1)
@@ -570,40 +653,8 @@ class TestAbstains:
                 condition="co-exposed",
                 families=(),
                 top=50,
-                overlapping=False,
             )
         assert excinfo.value.reason == "NO_WINDOWS"
-
-
-class TestWilson:
-    def test_zero_trials_is_none_not_zero(self):
-        assert cf.wilson_ci(0, 0) is None
-
-    def test_impossible_counts_abstain_instead_of_raising(self):
-        assert cf.wilson_ci(5, 3) is None
-        assert cf.wilson_ci(-1, 10) is None
-
-    def test_matches_a_reference_interval(self):
-        """Reference Wilson score intervals, computed independently."""
-        assert cf.wilson_ci(13, 20) == [0.4329, 0.8188]
-        assert cf.wilson_ci(27, 30) == [0.7438, 0.9654]
-        assert cf.wilson_ci(0, 10) == [0.0, 0.2775]
-        assert cf.wilson_ci(10, 10) == [0.7225, 1.0]
-
-    def test_documented_floor_interval(self):
-        """The docstring's support-rule justification, pinned.
-
-        The claim is about a 0.65 estimate: at n=20 its interval reaches down
-        to 0.4329 (clear of the <= 0.4 sub-case band) and at n=13 it reaches
-        0.3854 (inside it), so 20 is where the sibling and sub-case readings
-        stay distinguishable. The n=13 case uses the nearest integer count
-        (8/13 = 0.615) and lands lower still, so the claim holds a fortiori.
-        """
-        low_20, _ = cf.wilson_ci(13, 20)  # 13/20 = 0.65 exactly
-        low_13, _ = cf.wilson_ci(8, 13)
-        assert low_20 == 0.4329
-        assert low_20 > 0.4
-        assert low_13 < 0.4
 
 
 class TestCli:
@@ -623,6 +674,8 @@ class TestCli:
             "2026-08-15:2026-08-16",
             "--family",
             f"core={A},{B}",
+            "--min-judged",
+            "1",
         )
         assert result.returncode == 0, result.stderr
         reading = json.loads(result.stdout)
@@ -637,17 +690,24 @@ class TestCli:
         assert window["families"][0]["any_of_rate"] == pytest.approx(0.9)
         assert reading["reasons"] == []
 
+    def test_the_default_judged_floor_warns_on_stderr(self, hand_log):
+        result = self._run("--log-dir", str(hand_log), "--window", "2026-08-15:2026-08-16")
+        assert result.returncode == 0, result.stderr
+        assert "reason=BELOW_JUDGED_FLOOR" in result.stderr
+        assert json.loads(result.stdout)["windows"][0]["decision_input"] is False
+
     def test_missing_log_dir_abstains_with_a_reason_code(self, tmp_path):
         result = self._run("--log-dir", str(tmp_path / "nope"), "--window", "2026-08-15:2026-08-16")
         assert result.returncode == 2
-        assert "LOG_DIR_MISSING" in result.stderr
+        # `reason=` is the scripts/_scan.py contract the weekly chain greps.
+        assert "reason=LOG_DIR_MISSING" in result.stderr
         assert result.stdout == ""
 
     def test_empty_log_dir_abstains(self, tmp_path):
         (tmp_path / "logs").mkdir()
         result = self._run("--log-dir", str(tmp_path / "logs"), "--window", "2026-08-15:2026-08-16")
         assert result.returncode == 2
-        assert "NO_LOG_FILES" in result.stderr
+        assert "reason=NO_LOG_FILES" in result.stderr
 
     def test_two_windows_are_reported_separately(self, hand_log):
         result = self._run(
@@ -657,6 +717,8 @@ class TestCli:
             "2026-08-15:2026-08-16",
             "--window",
             "2026-08-20:2026-08-21",
+            "--min-judged",
+            "1",
         )
         assert result.returncode == 0, result.stderr
         reading = json.loads(result.stdout)

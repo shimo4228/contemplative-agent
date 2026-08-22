@@ -142,8 +142,8 @@ def corpus(tmp_path: Path):
 
 
 def _pairs(review: Path, skills: Path, ledger: Path, *, policy: str = "exclude"):
-    docs, _ = rrm.load_store(skills)
-    rows, _ = rrm.load_candidates(ledger)
+    docs, _unreadable, _dupes = rrm.load_store(skills)
+    rows, _faults = rrm.load_candidates(ledger)
     sections, _ = rrm.parse_review(review.name, review.read_text(encoding="utf-8"))
     return docs, rrm.build_pairs(
         sections,
@@ -367,8 +367,8 @@ class TestGroundTruth:
             "`some-new-thing`.\n",
             day="2026-08-22",
         )
-        docs, _ = rrm.load_store(skills)
-        rows, _ = rrm.load_candidates(ledger)
+        docs, _unreadable, _dupes = rrm.load_store(skills)
+        rows, _faults = rrm.load_candidates(ledger)
         sections = []
         review_days = {}
         for path in (week_one, week_seven):
@@ -385,6 +385,60 @@ class TestGroundTruth:
         # `some-new-thing` belongs to week 1's batch, not week 7's, so in
         # week 7 it is a name the reviewer invented and must stay visible.
         assert "some-new-thing" in stats.unresolved_names
+
+    def test_a_review_is_named_the_day_before_its_own_batch(self):
+        """The defect that saturated ``ledger_row_after_review`` at 100%.
+
+        ``weekly-pipeline.sh`` names a review after ``END_DATE`` = yesterday,
+        while ``insight --stage`` writes that batch's ledger rows on the
+        pipeline morning — so the review's own batch is one day AFTER its
+        filename date. A cutoff at the filename date excluded it by
+        construction: measured on the live corpus, 132 of 135
+        ledger-resolvable rejections took the fallback and all 54 kept pairs
+        came back flagged.
+        """
+        ledger = {"theme": [("2026-08-22T08:00:00+00:00", "this week's batch")]}
+        text, late = rrm._candidate_description(ledger, "theme", date(2026, 8, 21))
+        assert text == "this week's batch"
+        assert late is False
+
+    def test_the_staging_lag_is_a_parameter_not_a_hardcoded_schedule(self):
+        ledger = {"theme": [("2026-08-22T08:00:00+00:00", "this week's batch")]}
+        _text, late = rrm._candidate_description(
+            ledger, "theme", date(2026, 8, 21), staging_lag_days=0
+        )
+        assert late is True
+
+    def test_a_genuine_restaging_is_still_flagged(self):
+        """The guard must keep firing on what it was built for."""
+        ledger = {"theme": [("2026-09-05T00:00:00+00:00", "a later restaging")]}
+        text, late = rrm._candidate_description(ledger, "theme", date(2026, 8, 21))
+        assert text == "a later restaging"
+        assert late is True
+
+    def test_when_every_row_post_dates_the_review_the_nearest_one_wins(self):
+        """Not the latest: with nothing eligible, the earliest row is the one
+        closest to the batch the reviewer actually saw."""
+        ledger = {
+            "theme": [
+                ("2026-09-05T00:00:00+00:00", "first restaging"),
+                ("2026-11-01T00:00:00+00:00", "much later restaging"),
+            ]
+        }
+        text, late = rrm._candidate_description(ledger, "theme", date(2026, 8, 21))
+        assert text == "first restaging"
+        assert late is True
+
+    def test_the_lag_does_not_swallow_a_restaging_one_week_later(self):
+        ledger = {
+            "theme": [
+                ("2026-08-22T08:00:00+00:00", "this week's batch"),
+                ("2026-08-29T08:00:00+00:00", "next week's restaging"),
+            ]
+        }
+        text, late = rrm._candidate_description(ledger, "theme", date(2026, 8, 21))
+        assert text == "this week's batch"
+        assert late is False
 
     def test_ledger_row_nearest_before_the_review_wins(self):
         ledger = {
@@ -414,12 +468,6 @@ class TestRetrievalPrimitives:
     def test_normalization_ignores_punctuation_and_case(self):
         assert rrm.trigrams("Alpha-Beta") == rrm.trigrams("alpha beta")
 
-    def test_cosine_edges(self):
-        assert rrm.cosine([1.0, 0.0], [1.0, 0.0]) == pytest.approx(1.0)
-        assert rrm.cosine([0.0, 0.0], [1.0, 0.0]) == 0.0
-        # A dimension mismatch reads as dissimilar, never as an exception.
-        assert rrm.cosine([1.0, 0.0], [1.0]) == 0.0
-
     def test_rrf_prefers_a_document_ranked_well_by_both(self):
         fused = rrm.rrf_rankings([("a", "b", "c")], [("b", "a", "c")], 60)
         assert fused[0][0] in ("a", "b")
@@ -443,6 +491,8 @@ class TestReading:
             rrf_k=60,
             min_pairs=kwargs.pop("min_pairs", 2),
             name_only_queries="exclude",
+            staging_lag_days=rrm.DEFAULT_STAGING_LAG_DAYS,
+            read_faults={},
             partial_reasons=kwargs.pop("partial_reasons", ()),
         )
 
@@ -489,6 +539,8 @@ class TestReading:
                 rrf_k=60,
                 min_pairs=2,
                 name_only_queries="exclude",
+                staging_lag_days=rrm.DEFAULT_STAGING_LAG_DAYS,
+                read_faults={},
                 partial_reasons=(),
             )
         assert excinfo.value.reason == "NO_LABELLED_PAIRS"
@@ -514,6 +566,8 @@ class TestEmbeddingArm:
             rrf_k=60,
             min_pairs=2,
             name_only_queries="exclude",
+            staging_lag_days=rrm.DEFAULT_STAGING_LAG_DAYS,
+            read_faults={},
             partial_reasons=(),
         )
 
@@ -522,10 +576,12 @@ class TestEmbeddingArm:
         # returns None: the cosine and union arms must go unavailable while
         # the lexical arm still reports.
         reading = self._prepare(corpus, ("lexical", "cosine", "union"))()
-        assert reading["arms"]["cosine"] == {
-            "available": False,
-            "reason": "EMBEDDING_UNAVAILABLE",
-        }
+        cosine_arm = reading["arms"]["cosine"]
+        assert cosine_arm["available"] is False
+        assert cosine_arm["reason"] == "EMBEDDING_UNAVAILABLE"
+        # The model identity is recorded even on the failure path: the run
+        # asked SOME model and the reader must know which.
+        assert cosine_arm["embedding_model"]
         assert reading["arms"]["union"]["available"] is False
         assert reading["arms"]["lexical"]["available"] is True
         assert "EMBEDDING_UNAVAILABLE" in reading["reasons"]
@@ -584,10 +640,8 @@ class TestEmbeddingArm:
             lambda texts: [[1.0] * (4 if len(texts) == len(_SKILLS) else 8)] * len(texts),
         )
         reading = self._prepare(corpus, ("lexical", "cosine", "union"))()
-        assert reading["arms"]["cosine"] == {
-            "available": False,
-            "reason": "EMBEDDING_DEGENERATE",
-        }
+        assert reading["arms"]["cosine"]["available"] is False
+        assert reading["arms"]["cosine"]["reason"] == "EMBEDDING_DEGENERATE"
         assert reading["arms"]["union"]["available"] is False
         assert "EMBEDDING_DEGENERATE" in reading["reasons"]
 
@@ -644,15 +698,15 @@ class TestEmbeddingArm:
         assert reading["arms"]["cosine"]["recall"]["1"]["rate"] == pytest.approx(1.0)
         assert reading["arms"]["union"]["available"] is True
         assert reading["arms"]["union"]["recall"]["1"]["rate"] == pytest.approx(1.0)
-        assert reading["arms"]["cosine"]["docs_truncated_for_embedding"] == 0
-        assert reading["arms"]["cosine"]["queries_truncated_for_embedding"] == 0
+        assert reading["corpus_truncation"]["docs_truncated"] == 0
+        assert reading["corpus_truncation"]["queries_truncated"] == 0
 
     def test_truncation_for_embedding_is_counted_on_both_sides(self, tmp_path, monkeypatch):
         import contemplative_agent.core.embeddings as embeddings
 
         skills = tmp_path / "skills"
         skills.mkdir()
-        long_body = "structural constraint mapping " * (rrm.EMBED_MAX_CHARS // 10)
+        long_body = "structural constraint mapping " * (rrm.MAX_TEXT_CHARS // 10)
         (skills / "structural-constraint-mapping-scm.md").write_text(
             f"---\nname: structural-constraint-mapping-scm\n---\n\n{long_body}",
             encoding="utf-8",
@@ -666,7 +720,7 @@ class TestEmbeddingArm:
                 {
                     "ts": "2026-08-16T08:00:00+00:00",
                     "name": "limiting-factor-search",
-                    "description": "map constraints " * (rrm.EMBED_MAX_CHARS // 8),
+                    "description": "map constraints " * (rrm.MAX_TEXT_CHARS // 8),
                     "filename": "b.md",
                 }
             ],
@@ -692,15 +746,19 @@ class TestEmbeddingArm:
             rrf_k=60,
             min_pairs=1,
             name_only_queries="exclude",
+            staging_lag_days=rrm.DEFAULT_STAGING_LAG_DAYS,
+            read_faults={},
             partial_reasons=(),
         )
-        assert reading["arms"]["cosine"]["docs_truncated_for_embedding"] == 1
-        assert reading["arms"]["cosine"]["queries_truncated_for_embedding"] == 1
+        assert reading["corpus_truncation"]["docs_truncated"] == 1
+        assert reading["corpus_truncation"]["queries_truncated"] == 1
+        assert reading["corpus_truncation"]["longest_original"] > rrm.MAX_TEXT_CHARS
+        assert "CORPUS_TRUNCATED" in reading["reasons"]
 
 
 class TestLoaders:
     def test_frontmatter_name_beats_the_dated_filename(self, tmp_path):
-        docs, unreadable = rrm.load_store(_write_store(tmp_path))
+        docs, unreadable, _dupes = rrm.load_store(_write_store(tmp_path))
         assert unreadable == 0
         assert "internal-process-audit" in {doc.name for doc in docs}
         assert all(not doc.filename.startswith(".") for doc in docs)
@@ -709,7 +767,7 @@ class TestLoaders:
         skills = tmp_path / "skills"
         skills.mkdir()
         (skills / "legacy-skill.md").write_text("# Legacy\n\nbody\n", encoding="utf-8")
-        docs, _ = rrm.load_store(skills)
+        docs, _unreadable, _dupes = rrm.load_store(skills)
         assert docs[0].name == "legacy-skill"
 
     def test_a_body_line_that_looks_like_frontmatter_is_not_the_identity(self, tmp_path):
@@ -723,7 +781,7 @@ class TestLoaders:
             "# Legacy\n\nWhen writing YAML use:\nname: totally-different-identity\n",
             encoding="utf-8",
         )
-        docs, _ = rrm.load_store(skills)
+        docs, _unreadable, _dupes = rrm.load_store(skills)
         assert docs[0].name == "legacy-skill"
 
     def test_frontmatter_block_is_still_read_when_present(self, tmp_path):
@@ -733,7 +791,7 @@ class TestLoaders:
             "---\nname: real-frontmatter-name\n---\n\nname: decoy-in-body\n",
             encoding="utf-8",
         )
-        docs, _ = rrm.load_store(skills)
+        docs, _unreadable, _dupes = rrm.load_store(skills)
         assert docs[0].name == "real-frontmatter-name"
 
     def test_missing_store_abstains(self, tmp_path):
@@ -756,9 +814,11 @@ class TestLoaders:
             + '{"description": "no name"}\n',
             encoding="utf-8",
         )
-        rows, malformed = rrm.load_candidates(path)
-        # Blank lines are not malformed; the three broken records are.
-        assert malformed == 3
+        rows, faults = rrm.load_candidates(path)
+        # Blank lines are not faults; two lines are unparsable and one decoded
+        # to an object with no usable name.
+        assert faults.unparsable_lines == 2
+        assert faults.rows_without_a_name == 1
         assert "suspend-interpretation-upon-premise-doubt" in rows
 
     def test_missing_ledger_abstains(self, tmp_path):
@@ -778,7 +838,7 @@ class TestLoaders:
     def test_undecodable_skill_file_is_counted_not_fatal(self, tmp_path):
         skills = _write_store(tmp_path)
         (skills / "broken.md").write_bytes(b"\xff\xfe not utf-8\n")
-        docs, unreadable = rrm.load_store(skills)
+        docs, unreadable, _dupes = rrm.load_store(skills)
         assert unreadable == 1
         assert len(docs) == len(_SKILLS)
 
@@ -810,6 +870,141 @@ class TestLoaders:
         review = _write_review(tmp_path)
         collected = rrm._collect_reviews([review], review.parent)
         assert collected == [review]
+
+
+class TestSkillThemeParity:
+    """A4: the local join key must not drift from the one the ledger is written with.
+
+    ``load_store`` resolves a skill's identity with a local mirror of
+    ``core.text_utils.skill_theme`` (a module-level package import would break
+    the documented bare-``python3`` lexical workflow), while the other side of
+    the join — the staged ledger — is written with the real one. Two spellings
+    that disagree at the edges is how a labelled pair vanishes with no fault
+    recorded, so they are compared here over the cases where a looser reading
+    diverges.
+    """
+
+    CASES = [
+        "---\nname: proper-frontmatter\ndescription: a real one\n---\n\n# Title\n\nbody\n",
+        # Not an opener: the first line does not strip to exactly ---.
+        "---foo\nname: not-frontmatter\n---\n\n# Legacy Title\n\nbody\n",
+        # Not a closer: a mid-line ---bar must not end the block.
+        "---\nname: unclosed\n---bar\nstill frontmatter?\n",
+        # Frontmatter only, no body — read_markdown_documents would drop this.
+        "---\nname: frontmatter-only\ndescription: nothing follows\n---\n",
+        # Trailing spaces on both delimiters still strip to ---.
+        "---   \nname: padded-delimiters\n---  \n\n# T\n\nbody\n",
+        # No frontmatter at all: the title is the description, name falls back.
+        "# Just A Title\n\nSome body text.\n",
+        # A body line that looks like frontmatter must not become the identity.
+        "# Legacy\n\nWhen writing YAML use:\nname: decoy-in-body\n",
+        # Quoted description scalar.
+        '---\nname: quoted\ndescription: "with quotes"\n---\n\nbody\n',
+        # Nothing at all.
+        "",
+    ]
+
+    @pytest.mark.parametrize("text", CASES)
+    def test_matches_core_skill_theme(self, text):
+        from contemplative_agent.core.text_utils import skill_theme
+
+        assert rrm._skill_theme(text, "fallback-stem") == skill_theme(text, "fallback-stem")
+
+    def test_the_name_is_scrubbed_the_way_the_selector_scrubs_it(self, tmp_path):
+        """The one deliberate addition on top of parity: the same
+        ``strip_to_printable`` the selector applies at the same seam, so a name
+        carrying an ANSI escape joins the way the selector would join it."""
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (skills / "escaped.md").write_text(
+            "---\nname: clean\x1b[31m-name\n---\n\nbody\n", encoding="utf-8"
+        )
+        docs, _unreadable, _dupes = rrm.load_store(skills)
+        assert docs[0].name == "clean[31m-name"
+
+    def test_a_wider_read_error_class_than_the_selector_is_deliberate(self, tmp_path):
+        """``load_skill_catalog`` catches only OSError; UnicodeDecodeError is a
+        ValueError, so a single invalid byte would traceback there."""
+        skills = _write_store(tmp_path)
+        (skills / "bad-bytes.md").write_bytes(b"\xff\xfe\n")
+        docs, unreadable, _dupes = rrm.load_store(skills)
+        assert unreadable == 1
+        assert len(docs) == len(_SKILLS)
+
+
+class TestStoreIntegrity:
+    def test_two_files_sharing_a_frontmatter_name_are_counted(self, tmp_path):
+        """They collapse in every ranking's score dict while corpus_skills
+        still counts both."""
+        skills = _write_store(tmp_path)
+        (skills / "a-duplicate.md").write_text(
+            "---\nname: internal-process-audit\n---\n\nbody\n", encoding="utf-8"
+        )
+        docs, _unreadable, duplicates = rrm.load_store(skills)
+        assert duplicates == 1
+        assert len(docs) == len(_SKILLS) + 1
+
+    def test_a_reviewer_citing_by_filename_still_resolves(self, tmp_path):
+        """The reviewer gets --add-dir over the store, so it sees the dated
+        filenames; a citation by filename must not read as a hallucination."""
+        skills = _write_store(tmp_path)
+        ledger = _write_ledger(tmp_path)
+        review = _write_review(
+            tmp_path,
+            "## 1. limiting-factor-search — RECOMMEND: reject\n"
+            "Covered by `structural-constraint-mapping-scm-2026-06-11`.\n",
+        )
+        _docs, (pairs, stats) = _pairs(review, skills, ledger)
+        assert pairs[0].labels == ("structural-constraint-mapping-scm",)
+        assert stats.unresolved_names == ()
+
+
+class TestLexicalSpreadGuard:
+    def test_a_query_sharing_nothing_is_not_scored_alphabetically(self, corpus):
+        """MEDIUM-1: the degenerate-ranking argument applied to the cheap arm.
+
+        Unlike cosine this does not abstain the whole arm — a trigram query
+        that shares nothing says something about that query, not about the
+        model — so the pair leaves the denominator and is counted.
+        """
+        skills, ledger, review = corpus
+        docs, (pairs, _stats) = _pairs(review, skills, ledger)
+        empty_query = rrm.LabelledPair(
+            review=review.name,
+            candidate="zzz",
+            query="一二三",  # normalizes to nothing
+            query_kind="name-only",
+            labels=("internal-process-audit",),
+        )
+        rankings = rrm.lexical_rankings([*pairs, empty_query], docs)
+        assert rankings[-1] is None
+        assert all(r is not None for r in rankings[:-1])
+        scored = rrm.recall_at_k([*pairs, empty_query], rankings, (1,))
+        assert scored["1"]["pairs"] == len(pairs)
+
+    def test_a_degenerate_query_is_named_in_the_reading(self, tmp_path):
+        skills = _write_store(tmp_path)
+        ledger = _write_ledger(
+            tmp_path,
+            [
+                {
+                    "ts": "2026-08-23T08:00:00+00:00",
+                    "name": "limiting-factor-search",
+                    "description": "一二三",
+                    "filename": "b.md",
+                }
+            ],
+        )
+        review = _write_review(
+            tmp_path,
+            "## 1. limiting-factor-search — RECOMMEND: reject\n"
+            "Covered by `structural-constraint-mapping-scm`.\n",
+        )
+        docs, (pairs, stats) = _pairs(review, skills, ledger)
+        # The candidate name still carries trigrams, so build a bare query.
+        rankings = rrm.lexical_rankings(pairs, docs)
+        assert stats.kept_pairs == 1
+        assert all(r is not None for r in rankings)
 
 
 class TestRrfSensitivity:
@@ -1052,6 +1247,141 @@ class TestCli:
             "excluded": 0,
             "included": 1,
         }
+
+    def test_an_unreadable_skill_file_abstains_by_default(self, corpus):
+        """A shrinking corpus raises recall@k for every surviving pair and
+        re-attributes its rejections to "the reviewer named no store skill" —
+        the permissive direction against this ADR's own decision bar."""
+        skills, ledger, review = corpus
+        (skills / "corrupt.md").write_bytes(b"\xff\xfe\n")
+        result = self._run(
+            "--review",
+            str(review),
+            "--candidates",
+            str(ledger),
+            "--skills-dir",
+            str(skills),
+            "--arm",
+            "lexical",
+            "--min-pairs",
+            "2",
+        )
+        assert result.returncode == 2
+        assert "reason=SKILLS_PARTIAL_READ" in result.stderr
+        assert result.stdout == ""
+
+    def test_allow_partial_store_reads_anyway_and_names_the_magnitudes(self, corpus):
+        skills, ledger, review = corpus
+        (skills / "corrupt.md").write_bytes(b"\xff\xfe\n")
+        result = self._run(
+            "--review",
+            str(review),
+            "--candidates",
+            str(ledger),
+            "--skills-dir",
+            str(skills),
+            "--arm",
+            "lexical",
+            "--min-pairs",
+            "2",
+            "--allow-partial-store",
+        )
+        assert result.returncode == 0, result.stderr
+        reading = json.loads(result.stdout)
+        # The count reaches stdout, not only the boolean the reason carries.
+        assert reading["read_faults"]["unreadable_skill_files"] == 1
+        assert "SKILLS_PARTIAL_READ" in reading["reasons"]
+        assert reading["ground_truth"]["naming_tally_complete"] is False
+
+    def test_read_faults_carries_a_number_for_every_fault_class(self, corpus):
+        skills, ledger, review = corpus
+        result = self._run(
+            "--review",
+            str(review),
+            "--candidates",
+            str(ledger),
+            "--skills-dir",
+            str(skills),
+            "--arm",
+            "lexical",
+            "--min-pairs",
+            "2",
+        )
+        assert result.returncode == 0, result.stderr
+        faults = json.loads(result.stdout)["read_faults"]
+        assert set(faults) == {
+            "unreadable_skill_files",
+            "store_files_sharing_a_name",
+            "unreadable_reviews",
+            "undated_reviews",
+            "duplicate_review_basenames",
+            "review_sections_without_a_candidate_name",
+            "ledger_unparsable_lines",
+            "ledger_rows_without_a_name",
+            "ledger_rows_with_an_unusable_ts",
+        }
+        assert all(isinstance(count, int) for count in faults.values())
+
+    def test_the_staging_lag_assumption_is_echoed_into_the_reading(self, corpus):
+        skills, ledger, review = corpus
+        result = self._run(
+            "--review",
+            str(review),
+            "--candidates",
+            str(ledger),
+            "--skills-dir",
+            str(skills),
+            "--arm",
+            "lexical",
+            "--min-pairs",
+            "2",
+            "--staging-lag-days",
+            "3",
+        )
+        assert result.returncode == 0, result.stderr
+        assert json.loads(result.stdout)["staging_lag_days"] == 3
+
+    def test_a_k_at_or_above_the_corpus_size_is_named(self, corpus):
+        """recall@k is 1.0 by construction there — and the same 1.0 would be
+        read against the >= 0.9 Review-when."""
+        skills, ledger, review = corpus
+        result = self._run(
+            "--review",
+            str(review),
+            "--candidates",
+            str(ledger),
+            "--skills-dir",
+            str(skills),
+            "--arm",
+            "lexical",
+            "--min-pairs",
+            "2",
+            "--k",
+            "1,50",
+        )
+        assert result.returncode == 0, result.stderr
+        reading = json.loads(result.stdout)
+        assert "K_EXCEEDS_CORPUS" in reading["reasons"]
+        assert reading["arms"]["lexical"]["recall"]["50"]["rate"] == pytest.approx(1.0)
+
+    def test_a_cosine_only_failure_keeps_its_root_cause(self, corpus):
+        skills, ledger, review = corpus
+        result = self._run(
+            "--review",
+            str(review),
+            "--candidates",
+            str(ledger),
+            "--skills-dir",
+            str(skills),
+            "--arm",
+            "cosine",
+            "--min-pairs",
+            "2",
+        )
+        assert result.returncode == 2
+        assert "reason=NO_ARM_AVAILABLE" in result.stderr
+        # Not just "cosine": which repair to make.
+        assert "cosine=EMBEDDING_" in result.stderr
 
     def test_no_labelled_pairs_abstains_from_the_cli(self, tmp_path):
         skills = _write_store(tmp_path)

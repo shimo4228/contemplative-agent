@@ -14,7 +14,7 @@ reveals — with no LLM and no embeddings:
   judged actions in which at least one member was selected. This is the
   quantity ADR-0097 Decision 7 promotes a rule on (>= 0.75 over at least two
   *disjoint* windows of >= 500 judged records), so windows are explicit and
-  repeatable and the disjointness is checked rather than assumed.
+  repeatable and the disjointness is derived rather than asserted.
 
 **Instrument, never intervention** (ADR-0071, skill ``read-only-instruments``).
 Nothing here feeds a gate, a ranking, the injector or ``adopt-staged``; the
@@ -33,8 +33,17 @@ Counting rules, all of which are printed beside the rates:
 - **Judged records only.** ``verdict != "judged"`` means the selector never
   answered, so the action neither selected nor refused anything; the same cut
   ``core/skill_selection.py`` makes. A judged record whose ``catalog_names``
-  is unusable is excluded from every statistic and counted separately, so
-  ``judged`` and ``judged_analyzed`` are both reported.
+  or ``selected`` is unusable is excluded from every statistic and counted
+  separately, so ``judged`` and ``judged_analyzed`` are both reported.
+- **Window coverage.** ``days_in_window`` and ``days_with_a_log_file`` are
+  both printed and a shortfall raises ``MISSING_LOG_DAYS``. A quiet day
+  legitimately writes no file, so this is coverage rather than a fault — but
+  a 3/7-covered window otherwise renders with exactly the authority of a
+  7/7 one, and Decision 7 compares windows against each other.
+- **Judged floor.** ``--min-judged`` (default 500, Decision 7's bar) marks
+  each window ``decision_input: false`` and raises ``BELOW_JUDGED_FLOOR``
+  when it is not met, so the headline rate of a mistyped one-day window does
+  not read like the headline rate of a week.
 - **Minimum support** (``support_rule`` in the output). A pair is reported
   only when
 
@@ -52,9 +61,11 @@ Counting rules, all of which are printed beside the rates:
      <= 0.4 sub-case band, so the two classifications stay distinguishable.
      At 13 it reaches 0.385 and they do not.
 
-  The floor is a floor, not a guarantee — every conditional is printed with
-  its own denominator and its 95% Wilson interval, so a thin pair reads as
-  thin even when it clears the rule.
+  The two clauses are reported apart (``pairs_below_co_exposure`` /
+  ``pairs_below_selections``) so the operator knows which floor to
+  reconsider, and the floor is a floor rather than a guarantee — every
+  conditional is printed with its own denominator and its 95% Wilson
+  interval, so a thin pair reads as thin even when it clears the rule.
 - **Conditioning** (``--condition``, default ``co-exposed``). Numerator and
   both denominators are restricted to judged records where *both* names were
   in the catalog, so a skill adopted mid-window is not penalised for the part
@@ -74,7 +85,7 @@ Usage::
 
     python3 scripts/coselection_families.py \\
         --log-dir "$MOLTBOOK_HOME/logs" \\
-        --window 2026-08-15:2026-08-22 \\
+        --window 2026-08-16:2026-08-22 \\
         --family constraint=skill-a,skill-b,skill-c
 """
 
@@ -82,7 +93,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import math
 import sys
 from dataclasses import dataclass
 from datetime import date
@@ -91,7 +101,11 @@ from pathlib import Path
 from typing import Any
 
 from _scan import ScanError
+from _stats import wilson_ci
 
+# The same filename grammar `adapters/moltbook/submolt_scope.py` already names
+# as a constant. Re-declared rather than imported for the bare-`python3`
+# reason given at `load_window`.
 _LOG_PREFIX = "skill-selection-"
 _LOG_GLOB = f"{_LOG_PREFIX}*.jsonl"
 
@@ -114,7 +128,20 @@ FAMILY_MIN_WINDOWS = 2
 # a store 17x today's would still be minutes of silent work — abstain instead.
 _MAX_CATALOG_NAMES = 1000
 
-_Z95 = 1.959964
+# Every parse fault this reading can record, enumerated exactly once. The set
+# used to be spelled out three times (dataclass fields, the sum, the rendered
+# block); an eighth fault meant three edits, and a line forgotten in the sum
+# made that fault silent — the one thing the docstring above says must not
+# happen.
+FAULT_KEYS = (
+    "unreadable_files",
+    "malformed_lines",
+    "non_dict_records",
+    "judged_without_catalog",
+    "judged_without_usable_selection",
+    "selected_outside_catalog",
+    "dropped_selected_entries",
+)
 
 
 @dataclass(frozen=True)
@@ -131,8 +158,8 @@ class WindowData:
 
     start: str
     end: str
-    files_read: int
-    unreadable_files: int
+    days_in_window: int
+    days_with_a_log_file: int
     records: int
     judged: int
     # Counted over ``judged``, not over ``judged_analyzed``: enforcement is a
@@ -143,46 +170,19 @@ class WindowData:
     judged_records: tuple[JudgedRecord, ...]
     signatures: tuple[tuple[str, ...], ...]
     signature_counts: tuple[int, ...]
-    malformed_lines: int
-    non_dict_records: int
-    judged_without_catalog: int
-    selected_outside_catalog: int
-    dropped_selected_entries: int
+    parse_faults: tuple[tuple[str, int], ...]
 
     @property
     def judged_analyzed(self) -> int:
         return len(self.judged_records)
 
     @property
+    def missing_days(self) -> int:
+        return self.days_in_window - self.days_with_a_log_file
+
+    @property
     def faults(self) -> int:
-        return (
-            self.malformed_lines
-            + self.non_dict_records
-            + self.judged_without_catalog
-            + self.selected_outside_catalog
-            + self.dropped_selected_entries
-            + self.unreadable_files
-        )
-
-
-def wilson_ci(successes: int, trials: int) -> list[float] | None:
-    """95% Wilson score interval, rounded to 4 places; None when trials == 0.
-
-    Duplicated verbatim in ``retrieval_recall_measure.py``: both are
-    standalone stdlib instruments run with a bare ``python3``, and a shared
-    ``scripts/_stats.py`` would be a third import edge for ten lines of
-    textbook arithmetic.
-    """
-    if trials <= 0 or successes < 0 or successes > trials:
-        # An impossible count is a caller bug, and ``math.sqrt`` of the
-        # negative variance it implies would surface as a domain error rather
-        # than as the abstain this instrument owes its reader.
-        return None
-    p = successes / trials
-    denom = 1.0 + _Z95 * _Z95 / trials
-    centre = (p + _Z95 * _Z95 / (2 * trials)) / denom
-    half = (_Z95 / denom) * math.sqrt(p * (1 - p) / trials + _Z95 * _Z95 / (4 * trials * trials))
-    return [round(max(0.0, centre - half), 4), round(min(1.0, centre + half), 4)]
+        return sum(count for _, count in self.parse_faults)
 
 
 def parse_window(spec: str) -> tuple[date, date]:
@@ -223,20 +223,32 @@ def load_window(log_dir: Path, start: date, end: date) -> WindowData:
     same reason ``core/skill_selection.py`` does it: the writer derives both
     from one UTC clock, so a record with a damaged timestamp still lands on
     the right day. Broken lines are counted, never fatal.
+
+    **This is the third walk of this log in the repo.** The others are
+    ``core/skill_selection.py::read_skill_selection_log`` (which owns the
+    grammar, being the writer) and ``adapters/moltbook/submolt_scope.py``'s
+    window reader. They are not imported here because this script's documented
+    workflow is a bare ``python3`` invocation with no installed package,
+    matching the other ``scripts/`` intakes. The three have already drifted:
+    submolt_scope guards ``isinstance(rec, dict)``, skill_selection drops
+    malformed lines uncounted, and this one counts seven buckets — so the
+    consolidation worth doing is a shared ``iter_daily_records`` in
+    ``core/skill_selection.py``, not an import edge from here.
+
+    Line splitting is likewise not ``_audit.parse_records``, which the
+    retrieval instrument does use: that helper merges undecodable lines and
+    non-object records into one counter, and this reading reports them apart.
+    Widening its arity would touch the two weekly-packet consumers its own
+    docstring says must not diverge.
     """
+    faults = dict.fromkeys(FAULT_KEYS, 0)
     signature_ids: dict[tuple[str, ...], int] = {}
     signature_counts: list[int] = []
     judged_records: list[JudgedRecord] = []
-    files_read = 0
-    unreadable_files = 0
+    days_with_a_log_file = 0
     records = 0
     judged = 0
     enforced = 0
-    malformed_lines = 0
-    non_dict_records = 0
-    judged_without_catalog = 0
-    selected_outside_catalog = 0
-    dropped_selected_entries = 0
 
     for path in sorted(log_dir.glob(_LOG_GLOB)):
         date_part = path.stem.removeprefix(_LOG_PREFIX)
@@ -246,13 +258,13 @@ def load_window(log_dir: Path, start: date, end: date) -> WindowData:
             continue
         if file_date < start or file_date > end:
             continue
-        files_read += 1
+        days_with_a_log_file += 1
         try:
             text = path.read_text(encoding="utf-8")
         # UnicodeDecodeError is a ValueError, not an OSError — the gap that
         # took build_decision_packet.py down once (2026-07-29 review).
         except (OSError, UnicodeDecodeError):
-            unreadable_files += 1
+            faults["unreadable_files"] += 1
             continue
         for raw_line in text.splitlines():
             line = raw_line.strip()
@@ -261,10 +273,10 @@ def load_window(log_dir: Path, start: date, end: date) -> WindowData:
             try:
                 record = json.loads(line)
             except json.JSONDecodeError:
-                malformed_lines += 1
+                faults["malformed_lines"] += 1
                 continue
             if not isinstance(record, dict):
-                non_dict_records += 1
+                faults["non_dict_records"] += 1
                 continue
             records += 1
             if str(record.get("verdict", "")) != "judged":
@@ -274,17 +286,30 @@ def load_window(log_dir: Path, start: date, end: date) -> WindowData:
                 enforced += 1
             raw_catalog = record.get("catalog_names")
             if not isinstance(raw_catalog, list):
-                judged_without_catalog += 1
+                faults["judged_without_catalog"] += 1
                 continue
             catalog = {name for name in raw_catalog if isinstance(name, str) and name}
             if not catalog:
-                judged_without_catalog += 1
+                faults["judged_without_catalog"] += 1
                 continue
             if len(catalog) > _MAX_CATALOG_NAMES:
                 raise ScanError(
                     "CATALOG_TOO_LARGE",
                     f"{path.name}: {len(catalog)} names exceeds the {_MAX_CATALOG_NAMES} bound",
                 )
+            # ``selected`` gets the same type check ``catalog_names`` gets, and
+            # gets it BEFORE the catalog signature is recorded so an excluded
+            # record cannot still inflate the exposure denominators. A non-list
+            # (``5``, ``true``) used to reach ``for name in ...`` as an uncaught
+            # TypeError — a nonzero exit with no reason code, and exit 1 where
+            # every other fault exits 2. A bare string was worse: it iterated
+            # per character, so ``"a-one"`` booked five phantom out-of-catalog
+            # faults and left a silently empty selection that lowered every
+            # family rate.
+            raw_selected = record.get("selected")
+            if not isinstance(raw_selected, list):
+                faults["judged_without_usable_selection"] += 1
+                continue
             signature = tuple(sorted(catalog))
             signature_id = signature_ids.get(signature)
             if signature_id is None:
@@ -294,16 +319,16 @@ def load_window(log_dir: Path, start: date, end: date) -> WindowData:
             signature_counts[signature_id] += 1
 
             selected: set[str] = set()
-            for name in record.get("selected") or []:
+            for name in raw_selected:
                 if not isinstance(name, str) or not name:
-                    dropped_selected_entries += 1
+                    faults["dropped_selected_entries"] += 1
                     continue
                 if name not in catalog:
                     # The writer validates picks against the catalog, so this
                     # is log corruption rather than selector behaviour; a name
                     # with no exposure would otherwise produce a conditional
                     # with an empty denominator.
-                    selected_outside_catalog += 1
+                    faults["selected_outside_catalog"] += 1
                     continue
                 selected.add(name)
             judged_records.append(JudgedRecord(signature_id, frozenset(selected)))
@@ -312,19 +337,15 @@ def load_window(log_dir: Path, start: date, end: date) -> WindowData:
     return WindowData(
         start=start.isoformat(),
         end=end.isoformat(),
-        files_read=files_read,
-        unreadable_files=unreadable_files,
+        days_in_window=(end - start).days + 1,
+        days_with_a_log_file=days_with_a_log_file,
         records=records,
         judged=judged,
         enforced=enforced,
         judged_records=tuple(judged_records),
         signatures=tuple(signature for signature, _ in ordered),
         signature_counts=tuple(signature_counts),
-        malformed_lines=malformed_lines,
-        non_dict_records=non_dict_records,
-        judged_without_catalog=judged_without_catalog,
-        selected_outside_catalog=selected_outside_catalog,
-        dropped_selected_entries=dropped_selected_entries,
+        parse_faults=tuple((key, faults[key]) for key in FAULT_KEYS),
     )
 
 
@@ -345,8 +366,7 @@ def tally(window: WindowData) -> Tallies:
     co_exposure: dict[tuple[str, str], int] = {}
     selected_with_exposed: dict[tuple[str, str], int] = {}
     # (signature_id, name) -> judged records with that catalog where name was
-    # picked. Grouping by signature keeps the exposure fan-out off the record
-    # loop: the catalog changes a handful of times a week, not per action.
+    # picked.
     selected_by_signature: dict[tuple[int, str], int] = {}
 
     for record in window.judged_records:
@@ -357,6 +377,10 @@ def tally(window: WindowData) -> Tallies:
         for pair in combinations(sorted(record.selected), 2):
             both_selected[pair] = both_selected.get(pair, 0) + 1
 
+    # Both loops below fan out over signatures rather than over records: the
+    # catalog changes a handful of times a week, not per action, so the
+    # exposure arithmetic costs ``#signatures * |catalog|^2`` instead of
+    # ``#records * |catalog|^2``.
     for signature_id, signature in enumerate(window.signatures):
         count = window.signature_counts[signature_id]
         for pair in combinations(signature, 2):
@@ -396,6 +420,17 @@ class Thresholds:
             )
 
 
+@dataclass(frozen=True)
+class PairRows:
+    """Classified pairs plus the two support clauses that withheld the rest."""
+
+    siblings: list[dict[str, Any]]
+    subcases: list[dict[str, Any]]
+    considered: int
+    below_co_exposure: int
+    below_selections: int
+
+
 def _pair_rows(
     window: WindowData,
     tallies: Tallies,
@@ -404,8 +439,7 @@ def _pair_rows(
     min_co_exposure: int,
     min_selections: int,
     condition: str,
-) -> tuple[list[dict[str, Any]], list[dict[str, Any]], int, tuple[int, int]]:
-    """Sibling rows, sub-case rows, pairs considered, (below co-exposure, below selections)."""
+) -> PairRows:
     siblings: list[dict[str, Any]] = []
     subcases: list[dict[str, Any]] = []
     considered = 0
@@ -490,7 +524,7 @@ def _pair_rows(
             row["specific"],
         )
     )
-    return siblings, subcases, considered, (below_co_exposure, below_selections)
+    return PairRows(siblings, subcases, considered, below_co_exposure, below_selections)
 
 
 def _family_rows(
@@ -502,8 +536,6 @@ def _family_rows(
     for signature in window.signatures:
         exposed.update(signature)
     rows: list[dict[str, Any]] = []
-    # Judged records per catalog signature, so a family's exposure can be
-    # summed without a second pass over the records.
     for name, members in families:
         member_set = frozenset(members)
         hits = sum(1 for record in window.judged_records if record.selected & member_set)
@@ -531,7 +563,7 @@ def _family_rows(
                 # catches only TOTAL absence. So the exposure is printed
                 # alongside, with the rate over it, and a shortfall raises
                 # PARTIAL_FAMILY_EXPOSURE. The bias is one-directional
-                # (dilution → false negative against the 0.75 bar, never a
+                # (dilution -> false negative against the 0.75 bar, never a
                 # false positive), which is why the criterion is left alone
                 # and the reader is given both numbers instead.
                 "judged_with_a_member_exposed": member_exposed,
@@ -552,13 +584,14 @@ def build_window_reading(
     thresholds: Thresholds,
     min_co_exposure: int,
     min_selections: int,
+    min_judged: int,
     condition: str,
     families: tuple[tuple[str, tuple[str, ...]], ...],
     top: int,
 ) -> dict[str, Any]:
     """One window's block of the reading (pure; unit-testable)."""
     tallies = tally(window)
-    siblings, subcases, considered, below = _pair_rows(
+    pairs = _pair_rows(
         window,
         tallies,
         thresholds=thresholds,
@@ -568,11 +601,16 @@ def build_window_reading(
     )
     family_rows = _family_rows(window, tallies, families)
     catalog_sizes = [len(signature) for signature in window.signatures]
+    decision_input = window.judged_analyzed >= min_judged
     reasons: list[str] = []
     if window.faults:
         reasons.append("LOG_PARTIAL_PARSE")
+    if window.missing_days:
+        reasons.append("MISSING_LOG_DAYS")
     if window.judged_analyzed == 0:
         reasons.append("WINDOW_EMPTY")
+    elif not decision_input:
+        reasons.append("BELOW_JUDGED_FLOOR")
     if any(row["members_absent_from_catalog"] for row in family_rows):
         reasons.append("FAMILY_MEMBER_ABSENT")
     if any(row["judged_with_a_member_exposed"] < window.judged_analyzed for row in family_rows):
@@ -580,38 +618,47 @@ def build_window_reading(
     return {
         "start": window.start,
         "end": window.end,
-        "files_read": window.files_read,
+        "days_in_window": window.days_in_window,
+        "days_with_a_log_file": window.days_with_a_log_file,
         "records": window.records,
         "judged": window.judged,
         "judged_analyzed": window.judged_analyzed,
+        "decision_input": decision_input,
+        "min_judged": min_judged,
         "enforced_of_judged": window.enforced,
         "catalog_signatures": len(window.signatures),
         "catalog_size_min": min(catalog_sizes) if catalog_sizes else 0,
         "catalog_size_max": max(catalog_sizes) if catalog_sizes else 0,
-        "pairs_considered": considered,
-        "pairs_below_support": below[0] + below[1],
-        "pairs_below_co_exposure": below[0],
-        "pairs_below_selections": below[1],
-        "sibling_pairs_total": len(siblings),
-        "sibling_pairs": siblings[:top] if top > 0 else siblings,
-        "subcase_pairs_total": len(subcases),
-        "subcase_pairs": subcases[:top] if top > 0 else subcases,
+        "pairs_considered": pairs.considered,
+        "pairs_below_support": pairs.below_co_exposure + pairs.below_selections,
+        "pairs_below_co_exposure": pairs.below_co_exposure,
+        "pairs_below_selections": pairs.below_selections,
+        "sibling_pairs_total": len(pairs.siblings),
+        "sibling_pairs": pairs.siblings[:top] if top > 0 else pairs.siblings,
+        "subcase_pairs_total": len(pairs.subcases),
+        "subcase_pairs": pairs.subcases[:top] if top > 0 else pairs.subcases,
         "families": family_rows,
-        "parse_faults": {
-            "unreadable_files": window.unreadable_files,
-            "malformed_lines": window.malformed_lines,
-            "non_dict_records": window.non_dict_records,
-            "judged_without_catalog": window.judged_without_catalog,
-            "selected_outside_catalog": window.selected_outside_catalog,
-            "dropped_selected_entries": window.dropped_selected_entries,
-        },
+        "parse_faults": dict(window.parse_faults),
         "reasons": reasons,
     }
 
 
-def windows_overlap(specs: tuple[tuple[date, date], ...]) -> bool:
-    """True when any two windows share a day (Decision 7 wants disjoint ones)."""
-    for (start_a, end_a), (start_b, end_b) in combinations(specs, 2):
+def windows_overlap(windows: tuple[WindowData, ...]) -> bool:
+    """True when any two windows share a day (Decision 7 wants disjoint ones).
+
+    Derived from the windows themselves rather than accepted as an argument:
+    it feeds ``family_criterion.satisfied``, which is Decision 7's promotion
+    arithmetic, so a caller passing the wrong value would silently flip it.
+
+    One boolean over ALL pairs, deliberately: a third overlapping window
+    disqualifies the criterion even when two others were disjoint and
+    qualifying. That is the conservative direction against a promotion bar,
+    and ``WINDOWS_OVERLAP`` names it, so the operator's repair is to re-run
+    with the disjoint pair rather than to have the instrument guess which
+    windows they meant.
+    """
+    spans = [(date.fromisoformat(w.start), date.fromisoformat(w.end)) for w in windows]
+    for (start_a, end_a), (start_b, end_b) in combinations(spans, 2):
         if start_a <= end_b and start_b <= end_a:
             return True
     return False
@@ -626,7 +673,7 @@ def build_reading(
     condition: str,
     families: tuple[tuple[str, tuple[str, ...]], ...],
     top: int,
-    overlapping: bool,
+    min_judged: int = FAMILY_MIN_JUDGED,
 ) -> dict[str, Any]:
     """Assemble the whole reading from already-loaded windows (pure)."""
     thresholds.validate()
@@ -634,6 +681,8 @@ def build_reading(
         raise ScanError("BAD_CONDITION", condition)
     if min_co_exposure < 1 or min_selections < 1:
         raise ScanError("BAD_SUPPORT", f"{min_co_exposure}/{min_selections}")
+    if min_judged < 1:
+        raise ScanError("BAD_MIN_JUDGED", str(min_judged))
     if top < 0:
         # A negative cap would silently mean "print everything", which is what
         # 0 already says explicitly — two spellings of one behaviour is how a
@@ -645,12 +694,14 @@ def build_reading(
     if len(names) != len(set(names)):
         raise ScanError("BAD_FAMILY_SPEC", f"duplicate family name in {names}")
 
+    overlapping = windows_overlap(windows)
     window_readings = [
         build_window_reading(
             window,
             thresholds=thresholds,
             min_co_exposure=min_co_exposure,
             min_selections=min_selections,
+            min_judged=min_judged,
             condition=condition,
             families=families,
             top=top,
@@ -661,14 +712,18 @@ def build_reading(
         total = sum(reading["records"] for reading in window_readings)
         raise ScanError(
             "NO_JUDGED_RECORDS",
-            f"{total} records read, none judged with a usable catalog",
+            f"{total} records read, none judged with a usable catalog and selection",
         )
 
+    evaluable = not overlapping and len(window_readings) >= FAMILY_MIN_WINDOWS
     criterion_families: dict[str, Any] = {}
-    for name, _members in families:
+    for index, (name, _members) in enumerate(families):
         qualifying = 0
         for reading in window_readings:
-            row = next(r for r in reading["families"] if r["name"] == name)
+            # Positional rather than a name scan: _family_rows emits in
+            # `families` order, and reading back one's own serialized output
+            # by name is a join that can silently miss.
+            row = reading["families"][index]
             rate = row["any_of_rate"]
             if (
                 rate is not None
@@ -679,19 +734,17 @@ def build_reading(
         criterion_families[name] = {
             "windows_evaluated": len(window_readings),
             "qualifying_windows": qualifying,
-            # Arithmetic over the numbers printed above, not a recommendation:
-            # ADR-0097 Decision 7 routes promotion through the human gate, and
-            # this instrument feeds nothing.
-            "satisfied": bool(not overlapping and qualifying >= FAMILY_MIN_WINDOWS),
+            # None, not False, when the criterion cannot be evaluated at all:
+            # one window or overlapping windows is "you did not give me the
+            # evidence", and an operator reading `.satisfied` alone must not
+            # see that as "this family failed the 0.75 bar". Same discipline
+            # as `any_of_rate: null` on a zero denominator.
+            "satisfied": (qualifying >= FAMILY_MIN_WINDOWS) if evaluable else None,
         }
 
-    reasons: list[str] = []
-    if overlapping:
-        reasons.append("WINDOWS_OVERLAP")
+    reasons = ["WINDOWS_OVERLAP"] if overlapping else []
     for reading in window_readings:
-        for code in reading["reasons"]:
-            if code not in reasons:
-                reasons.append(code)
+        reasons.extend(reading["reasons"])
 
     return {
         "condition": condition,
@@ -703,7 +756,12 @@ def build_reading(
         "support_rule": {
             "min_co_exposure": min_co_exposure,
             "min_selections": min_selections,
-            "counted_over": "judged records with a usable catalog",
+            "min_judged": min_judged,
+            "counted_over": (
+                "judged records with a usable catalog and selection; under "
+                f"condition={condition!r} the min_selections floor is counted over "
+                + ("the co-exposed subset of them" if condition == "co-exposed" else "all of them")
+            ),
         },
         "top": top,
         "windows": window_readings,
@@ -712,6 +770,7 @@ def build_reading(
             "min_judged_per_window": FAMILY_MIN_JUDGED,
             "min_windows": FAMILY_MIN_WINDOWS,
             "windows_disjoint": not overlapping,
+            "evaluable": evaluable,
             "families": criterion_families,
         },
         "ambiguity_note": (
@@ -720,7 +779,7 @@ def build_reading(
             "tell those apart. A sibling pair says the selector treats two "
             "skills as interchangeable, not that their procedures are."
         ),
-        "reasons": reasons,
+        "reasons": list(dict.fromkeys(reasons)),
     }
 
 
@@ -750,6 +809,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--subcase-low", type=float, default=DEFAULT_SUBCASE_LOW)
     parser.add_argument("--min-co-exposure", type=int, default=DEFAULT_MIN_CO_EXPOSURE)
     parser.add_argument("--min-selections", type=int, default=DEFAULT_MIN_SELECTIONS)
+    parser.add_argument(
+        "--min-judged",
+        type=int,
+        default=FAMILY_MIN_JUDGED,
+        help="per-window judged floor below which the window is not a decision input",
+    )
     parser.add_argument("--condition", choices=("co-exposed", "window"), default="co-exposed")
     parser.add_argument(
         "--top", type=int, default=DEFAULT_TOP, help="max pairs printed per list (0 = all)"
@@ -769,15 +834,26 @@ def main(argv: list[str] | None = None) -> int:
             thresholds=Thresholds(args.sibling_min, args.subcase_high, args.subcase_low),
             min_co_exposure=args.min_co_exposure,
             min_selections=args.min_selections,
+            min_judged=args.min_judged,
             condition=args.condition,
             families=families,
             top=args.top,
-            overlapping=windows_overlap(specs),
         )
     except ScanError as exc:
-        print(f"coselection_families: {exc}", file=sys.stderr)
+        # `reason=` token per the scripts/_scan.py contract (the weekly chain
+        # greps it out of a stage's .err file); exit 2 matches every other
+        # instrument's "the reading is unavailable".
+        print(f"coselection_families: reason={exc.reason} {exc.detail}", file=sys.stderr)
         return 2
 
+    thin = [w for w in reading["windows"] if not w["decision_input"]]
+    if thin:
+        spans = ", ".join(f"{w['start']}..{w['end']} ({w['judged_analyzed']} judged)" for w in thin)
+        print(
+            f"coselection_families: reason=BELOW_JUDGED_FLOOR {spans} under "
+            f"{args.min_judged} judged — read as context, not as a decision input",
+            file=sys.stderr,
+        )
     print(json.dumps(reading, indent=2))
     return 0
 
