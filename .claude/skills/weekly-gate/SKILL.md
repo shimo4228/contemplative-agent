@@ -106,7 +106,8 @@ reject 群 — group 単位にする理由はそこに書く）。各項目で�
 | 区分 | 取り消し |
 |---|---|
 | code patch / prompt diff | commit するので git 履歴から復元可能 |
-| insight adopt | `adopt-staged` の監査記録が残る。store から後で削除可能 |
+| insight adopt | `adopt-staged` の監査記録が残る。store から後で退役可能 |
+| skill 退役 (archive) | **可逆** — `skills/.archive/` への移動なので `mv` で戻せる（ADR-0097 D5）。`remove-skill --delete` だけが非可逆 |
 | insight reject | staging から消える。同種の候補は次の batch で再提起されうる |
 | insight 保留 | item 単位で staging に残る（`--hold-names`、監査 `decision="held"`）。ただし翌週の staging は止まる — Step 4 |
 | dead code 削除 | 復元可能だが非対称 — Step 5 |
@@ -198,11 +199,19 @@ CLI を 3 状態化）。adopt / hold / reject を同じ週に混在させてよ
 |---|---|---|
 | 全件 adopt | `contemplative-agent adopt-staged --yes` | `stage-adopted-auto` |
 | 部分採用（非対話、既定） | `contemplative-agent adopt-staged --adopt-names FILE [--hold-names FILE] [--reject-rest]` | `stage-adopted-names` |
+| 採用と同時に store の skill を退役 | `contemplative-agent adopt-staged --adopt-names FILE --archive-names FILE` | `stage-archived-names` |
+| 単体の退役 | `contemplative-agent remove-skill <name> --reason TEXT` | `direct-archive` / `direct-archive-auto` |
 | 部分採用（ユーザーがターミナルで対話実行） | `contemplative-agent adopt-staged` | `stage-adopted` |
 
 対話実行が持つのは y/N の 2 状態だけなので、**保留が 1 件でもあれば非対話経路を使う**。
 部分採用は非対話で完結する（`--adopt-names` / `--hold-names`）ので、ユーザーへ対話実行を
 依頼する必要はない。各 FILE は該当する staged item の**ファイル名を 1 行 1 件**で列挙する。
+
+`--archive-names` だけは **staged item でなく store の skill** を指す（1 行 1 件、
+`old.md` か `old.md superseded-by new-staged-name.md`）。退役は削除ではなく
+`skills/.archive/` への移動で、後者の形は両側に `supersedes:` / `superseded_by:` を書く。
+1 つの名前が 3 つの FILE のうち 2 つに現れたら **exit 2 で何も動かない**ので、
+名前の重複は事故でなくエラーとして返ってくる。
 名前の正本は `ls "$MOLTBOOK_HOME/.staged/"*.md`（packet §4 の見出し名は LLM 記述の散文で、
 衝突時の `-N` 接尾辞も付かないため、そのまま転記しない）。照合はファイル名で行うため
 反復順に依存しない。`--yes` とは排他。同じ名前を両方の FILE に書くと**何も触らずに
@@ -271,7 +280,7 @@ commit に含める。却下なら理由を聞いて記録する。
 ### Step 6b. Value layer cadence（packet §8 があれば）
 
 `scripts/value_layer_due_check.py`（read-only 計器、ADR-0091）の読み値。静かな週は
-§8 ごと存在しない（無音が正常）。出るのは次の 3 パターン:
+§8 ごと存在しない（無音が正常）。出るのは次の 4 パターン:
 
 1. **identity staged** — Step 4 の adopt-staged で扱い済みのはず。未処理なら戻る
 2. **identity deferred（IDENTITY_STAGING_BUSY / IDENTITY_INSIGHT_PENDING /
@@ -287,6 +296,38 @@ commit に含める。却下なら理由を聞いて記録する。
    の手順（stage → ADR-0090 IPD bench 約 2h → 承認 → adopt → 単一ファイル検証）を
    別途スケジュールする。ADR-0056: 同じ週に identity と constitution を両方
    採用しない
+4. **rules layer（maintenance reading）** — ADR-0097 が rules の LLM 生成器
+   （`rules-distill` / `rules-stocktake`）を退役させたときに残した所有者。件数・最新
+   mtime・構造 issue（Practice / Rationale の有無）を出すだけで、due 判定はしない。
+   `state:` が `RULES_UNREADABLE` / `RULES_DIR_MISSING` のときは**「構造 issue 0 件」を
+   読まない** — 読めたファイルについての 0 件であって、未読の本数が同じ行に出ている
+
+### Step 6c. Never-selected skills（packet §10 があれば）
+
+`core.skill_selection.read_never_selected` の読み値（ADR-0097 D5）。ここも静かな週は
+節ごと存在しない。**この節は列挙するだけで、archive はこのセッションの人間が行う。**
+
+読む順序を守る:
+
+1. **保留の表示が出ていないか先に見る** — 「populations withheld」や
+   `NEVER_SELECTED_LOG_UNREADABLE` / `NEVER_SELECTED_NO_CATALOG` /
+   `NEVER_SELECTED_SCHEMA` があれば、**その週は archive しない**。読み値が
+   degraded なだけで「候補なし」ではない（`（該当なし）` と区別される描画になっている）
+2. **中立性の但し書きを次に見る** — strict の隣に出る「全履歴の full-corpus 注入:
+   N / M records」がゼロでなければ、その分は注入されている。strict の主張は
+   **judged な action に限った**中立性であって「一度も注入されたことがない」ではない
+3. **Strict だけが archive 候補** — 全履歴で 0 回選択かつ judged exposure ≥ 600
+   （Slote 床）。`contemplative-agent remove-skill <name> --reason TEXT` で
+   `skills/.archive/` へ移動する（削除ではない。戻すのは `mv`）。`--reason` は必須で、
+   これは書式ではなく機能 — 書面の理由を義務づけるまで図書館の除籍は 98% が
+   「念のため」保持された
+4. **Dormant は読み値。archive しない** — 直近窓で 0 回でも過去に選択されている
+   skill を外すと judged な生成が変わる
+5. **床未満（below_floor）も archive しない** — 提示回数が少なすぎて
+   「選ばれていない」が何も意味しない
+
+Step 7 のメトリクスに専用のフラグは無い。退役の記録は `audit.jsonl` の
+`source`（`direct-archive` / `stage-archived-names`）と、翌週の §10 の件数が持つ。
 
 ### Step 7. Gate メトリクスの記録（必須・最後）
 

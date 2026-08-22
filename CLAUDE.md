@@ -47,7 +47,8 @@ contemplative-agent distill-identity                 # アイデンティティ�
 contemplative-agent insight [--stage] [--full]       # 行動スキル抽出
 contemplative-agent amend-constitution               # 憲法改正（自動化しない熟慮イベント。due 読み値は weekly packet §8 — ADR-0090/0091）
 contemplative-agent shadow-constitution              # shadow 憲法計器（ADR-0092。read-only — 現行憲法を注入せずパターンのみから合成し、乖離 cosine を logs/constitution-shadow.jsonl に記録。次回改正ゲートの材料）
-contemplative-agent adopt-staged                     # staging → 本配置
+contemplative-agent adopt-staged [--archive-names FILE]  # staging → 本配置。--archive-names は store の skill を退役（ADR-0097 D5、削除でなく skills/.archive/ への移動）
+contemplative-agent remove-skill <name> --reason TEXT [--delete]  # 単体の退役（既定は archive。--delete だけが非可逆）
 contemplative-agent skill-stocktake                  # 品質レポート + 選択ログの usage 読み値 + description 監査（advisory）。grouping / merge / clean と rules-distill / rules-stocktake は ADR-0097 で退役
 contemplative-agent generate-report [--all]          # アクティビティレポート
 contemplative-agent submolt-scan [--sample-size N]   # ADR-0086 スコープ計器（read-only。購読中・未購読の全 submolt をサンプルして採点）

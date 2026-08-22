@@ -1832,11 +1832,18 @@ def test_non_list_errors_field_degrades_not_clean(tmp_path: Path):
 # --- Rules layer maintenance reading (ADR-0097 D2, inside §8) ---
 
 
-def _value_layer_with_rules(tmp_path: Path, rules: dict | None, **kwargs) -> Path:
+def _value_layer_with_rules(
+    tmp_path: Path, rules: dict | None, *, reasons: list[str] | None = None, **kwargs
+) -> Path:
     path = _value_layer_json(tmp_path, **kwargs)
     data = json.loads(path.read_text(encoding="utf-8"))
     if rules is not None:
         data["rules"] = rules
+    if reasons is not None:
+        # The producer, not the builder, decides which rules states reach the
+        # header (`value_layer_due_check.py`); a fixture that skips them would
+        # test a packet no run can produce.
+        data["reasons"] = sorted({*data.get("reasons", []), *reasons})
     path.write_text(json.dumps(data), encoding="utf-8")
     return path
 
@@ -1898,17 +1905,45 @@ def test_rules_layer_state_is_named_not_guessed(tmp_path: Path):
     vl = _value_layer_with_rules(
         tmp_path,
         {
+            "files": 3,
+            "newest_mtime": None,
+            "days_since_newest": None,
+            "issues": [],
+            "unreadable_files": 3,
+            "reason": "RULES_UNREADABLE",
+        },
+    )
+    text = _build(paths, value_layer=vl)
+    assert "state: RULES_UNREADABLE" in text.split("## 8.")[1]
+    # A named state, not an UNRECOGNIZED(...) rendering.
+    assert "UNRECOGNIZED" not in text.split("## 8.")[1]
+
+
+def test_a_missing_rules_dir_reaches_the_header_without_opening_section_8(tmp_path: Path):
+    """Absence is a header code; only a fault or an issue opens the section.
+
+    A store may legitimately have no ``rules/`` — ``init`` does not create one
+    — so opening §8 on absence would render a body-less "files: 0" section
+    every quiet week, breaking the signal-first invariant that
+    ``test_v4_nothing_due_is_quiet`` holds at the shell level. Where the
+    directory *should* exist, its disappearance still reaches the reader
+    through the header code.
+    """
+    paths = _write_inputs(tmp_path)
+    vl = _value_layer_with_rules(
+        tmp_path,
+        {
             "files": 0,
             "newest_mtime": None,
             "days_since_newest": None,
             "issues": [],
             "reason": "RULES_DIR_MISSING",
         },
+        reasons=["RULES_DIR_MISSING"],
     )
     text = _build(paths, value_layer=vl)
-    assert "state: RULES_DIR_MISSING" in text.split("## 8.")[1]
-    # A named state, not an UNRECOGNIZED(...) rendering.
-    assert "UNRECOGNIZED" not in text.split("## 8.")[1]
+    assert "## 8." not in text
+    assert "VALUE_LAYER_RULES_DIR_MISSING" in text
 
 
 def test_unknown_rules_reason_is_marked_unrecognized(tmp_path: Path):

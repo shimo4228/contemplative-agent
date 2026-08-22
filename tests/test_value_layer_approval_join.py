@@ -1141,6 +1141,25 @@ class TestArchiveExitIsNotAnOrphan:
         rendered = vlaj.format_reading(reading)
         assert "1 retirement(s) and 1 purge(s) of an already-retired file" in rendered
 
+    def test_the_restated_archive_dirname_matches_the_canonical_one(self):
+        """This script is stdlib-only, so the name is a copy — pin the copy.
+
+        `weekly-analysis.sh` invokes it with bare `python3`, where
+        `contemplative_agent` is not importable. Renaming the store's archive
+        directory without this test would silently return every retirement to
+        the orphan bucket, which is the alarm this carve-out exists to stop.
+        """
+        from contemplative_agent.adapters.moltbook import config
+
+        assert vlaj._ARCHIVE_DIRNAME == config.SKILLS_ARCHIVE_DIRNAME
+
+    def test_the_purge_sources_are_real_audit_source_values(self):
+        """A typo here silently reclassifies every purge as a retirement."""
+        from contemplative_agent.cli.approval import AuditSource
+
+        allowed = set(AuditSource.__args__)  # type: ignore[attr-defined]
+        assert vlaj._PURGE_SOURCES <= allowed
+
     def test_an_archive_row_outside_a_known_section_is_still_unplaced(self):
         """The predicate must not rescue a path no section claims."""
         reading = _reading(

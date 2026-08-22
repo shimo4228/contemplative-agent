@@ -1033,10 +1033,15 @@ if stage_enabled valuelayer; then
         echo "[$RUN_ID] stage 5b: value-layer due check"
         mkdir -p "$(dirname "$VALUE_LAYER_JSON")"
         chmod 700 "$(dirname "$VALUE_LAYER_JSON")" 2>/dev/null || true
+        # --rules-dir adds the ADR-0097 rules-layer maintenance reading. The
+        # shell only reads identity/constitution/staging_pending out of the
+        # JSON below, so this is additive: the rules section reaches the human
+        # through the packet, not through this parse.
         if python3 "$SCRIPTS/value_layer_due_check.py" \
                 --audit "$MOLTBOOK_HOME/logs/audit.jsonl" \
                 --knowledge "$MOLTBOOK_HOME/knowledge.json" \
                 --staged-dir "$STAGED_DIR" \
+                --rules-dir "$MOLTBOOK_HOME/rules" \
                 --as-of "$END_DATE" \
                 > "$VALUE_LAYER_JSON" 2>"$RUN_LOG_DIR/valuelayer.err"; then
             vl_reading=$(python3 -c "
@@ -1283,6 +1288,79 @@ else
     audit stage_result stage=improve result=skipped
 fi
 
+# --- Stage 7b: never-selected reading (ADR-0097 D5) ---
+# The store's exit reading: which skills the selector has never picked, split
+# into strict (whole-history 0 selections AND >= the exposure floor — the
+# archive candidates), dormant (0 in the trailing window, selected before —
+# a reading only) and below_floor (not yet offered enough times to judge).
+#
+# Unlike the six deterministic intakes this one runs under the venv: it needs
+# the selection-log grammar and the catalog loader, which `scripts/` cannot
+# import under the bare `python3` the chain uses elsewhere.
+#
+# The flag is passed UNCONDITIONALLY, which breaks the idiom the other intakes
+# follow. Those set `ARG=(--flag "$JSON")` only inside their success branch,
+# and copying that here would make a producer crash yield no flag, therefore
+# no NEVER_SELECTED_UNREADABLE, therefore no section and no header code — a
+# packet that reads "nothing to retire" (unit B silent-failure review,
+# 2026-08-22). The builder's `_load_findings` treats a missing or unparseable
+# file as unreadable and names it, so an absent file is the failure signal.
+#
+# Not behind `stage_enabled`: stage 8 is unconditional ("always attempted — the
+# fail-forward target"), so gating its input on a stage name would let a
+# `MOLTBOOK_PIPELINE_STAGES` selection silently produce a packet whose §10 says
+# nothing to retire. `packet` was in the default STAGES list with no consumer;
+# it stays that way rather than acquiring a meaning here.
+NEVER_SELECTED_JSON="$MOLTBOOK_HOME/pipeline/never-selected/never-selected-$END_DATE.json"
+NEVER_SELECTED_TIMEOUT="${PIPELINE_NEVER_SELECTED_TIMEOUT:-300}"
+echo "[$RUN_ID] stage 7b: never-selected reading"
+mkdir -p "$(dirname "$NEVER_SELECTED_JSON")"
+chmod 700 "$(dirname "$NEVER_SELECTED_JSON")" 2>/dev/null || true
+rm -f "$NEVER_SELECTED_JSON"
+# --no-sync for the same reason as the dead-code scan: the chain must never
+# resolve packages from the network unattended.
+if (cd "$PROJECT_ROOT" && with_timeout "$NEVER_SELECTED_TIMEOUT" \
+        uv run --no-sync -q python -c '
+import json, sys
+from datetime import date, timedelta
+from pathlib import Path
+from contemplative_agent.core.skill_selection import (
+    NEVER_SELECTED_DORMANT_WINDOW_DAYS,
+    never_selected_reading_json,
+    read_never_selected,
+)
+
+# since/until rather than days=: the dormant cut must be anchored to the
+# run END_DATE, not to the wall clock, so a backfill run reads the window it
+# claims to. Both ends inclusive, so since = END_DATE - (N - 1).
+home = Path(sys.argv[1])
+until = date.fromisoformat(sys.argv[2])
+reading = read_never_selected(
+    home / "logs",
+    since=until - timedelta(days=NEVER_SELECTED_DORMANT_WINDOW_DAYS - 1),
+    until=until,
+    skills_dir=home / "skills",
+)
+print(json.dumps(never_selected_reading_json(reading)))
+' "$MOLTBOOK_HOME" "$END_DATE") \
+        > "$NEVER_SELECTED_JSON" 2>"$RUN_LOG_DIR/neverselected.err"; then
+    ns_strict=$(python3 -c "
+import json, sys
+print(len(json.load(open(sys.argv[1]))['strict']))
+" "$NEVER_SELECTED_JSON" 2>/dev/null || echo "")
+    if [[ -n "$ns_strict" ]]; then
+        audit stage_result stage=neverselected result=ok strict="$ns_strict"
+    else
+        add_reason NEVER_SELECTED_SCAN_FAIL
+        audit stage_result stage=neverselected result=fail reason=NEVER_SELECTED_SCAN_FAIL
+        rm -f "$NEVER_SELECTED_JSON"
+    fi
+else
+    add_reason NEVER_SELECTED_SCAN_FAIL
+    audit stage_result stage=neverselected result=fail reason=NEVER_SELECTED_SCAN_FAIL
+    rm -f "$NEVER_SELECTED_JSON"
+fi
+
 # --- Stage 8: decision packet (always attempted — the fail-forward target) ---
 echo "[$RUN_ID] stage 8: decision packet"
 FINDINGS_ARG=()
@@ -1302,6 +1380,7 @@ if python3 "$SCRIPTS/build_decision_packet.py" build \
         ${DEADCODE_ARG[@]+"${DEADCODE_ARG[@]}"} \
         ${VALUE_LAYER_ARG[@]+"${VALUE_LAYER_ARG[@]}"} \
         ${DOCSCAN_ARG[@]+"${DOCSCAN_ARG[@]}"} \
+        --skill-selection "$NEVER_SELECTED_JSON" \
         --run-log-dir "$RUN_LOG_DIR" \
         --out "$PACKET" > "$RUN_LOG_DIR/packet.log" 2>&1; then
     audit chain_end result=ok packet="$PACKET" reasons="${REASONS:-none}"

@@ -806,8 +806,11 @@ def _never_selected_section(
         )
     elif strict:
         out.append(
-            f"下の {len(strict)} 件は「一度も注入されていない」— 外しても "
-            "judged な生成は変わらない。理由の記録は必須（`remove-skill --reason`）。"
+            f"下の {len(strict)} 件は **judged な action では**「一度も注入されて "
+            "いない」ので、外しても judged な生成は変わらない。上の full-corpus "
+            "注入の行がゼロでない限り、これは「一度も注入されたことがない」では "
+            "ない — その分は注入されている。理由の記録は必須"
+            "（`remove-skill --reason`）。"
         )
         out.append("")
         out.append("| skill | judged exposure (history) |")
@@ -1209,7 +1212,19 @@ def build_packet(
     # Signal-first: a clean, quiet rules layer opens no section of its own. It
     # still rides along whenever §8 renders for another reason, which is where
     # the standing count and mtime are worth their space.
-    rules_signal = rules_data is not None and (bool(rules_issues) or rules_reason != "OK")
+    #
+    # RULES_DIR_MISSING is deliberately not a signal here even though it is a
+    # header code. A store may legitimately have no rules directory — `init`
+    # does not create one — so opening §8 on absence would render a
+    # body-less "files: 0" section every quiet week for those homes, which is
+    # the invariant `test_v4_nothing_due_is_quiet` exists to hold. Where the
+    # directory *should* exist, its disappearance still reaches the reader:
+    # the header carries VALUE_LAYER_RULES_DIR_MISSING. RULES_UNREADABLE is a
+    # signal — files are there and could not be read, which is a fault with a
+    # magnitude worth rendering.
+    rules_signal = rules_data is not None and (
+        bool(rules_issues) or rules_reason not in ("OK", "RULES_DIR_MISSING")
+    )
     identity_event: dict | None = None
     for event in events:
         if event.get("event") == "stage_result" and event.get("stage") == "identity":
