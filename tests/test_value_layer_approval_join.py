@@ -797,3 +797,233 @@ class TestCli:
     def test_timezone_naive_stamps_are_read_as_utc(self):
         parsed = vlaj.parse_ts("2026-08-03T03:00:00")
         assert parsed == datetime(2026, 8, 3, 3, 0, tzinfo=timezone.utc)
+
+
+class TestReconciliationTrend:
+    """The unmatched set is compared to the prior reading (2026-08-22 gate).
+
+    The rendering said "a RISE in it is the signal" while holding no prior
+    reading — the rise was left for the operator to compute by eye across
+    two reports. A shipped default that never had a row also re-rendered the
+    full four-causes paragraph every week, which is how a steady line stops
+    being read.
+    """
+
+    def _state(self, tmp_path: Path, **sections) -> Path:
+        path = tmp_path / "state.json"
+        path.write_text(json.dumps(sections), encoding="utf-8")
+        return path
+
+    def test_first_reading_declares_no_prior_and_records_the_set(self, tmp_path):
+        home = _live_home(tmp_path, "skills", {"skills/s.md": "template body\n"})
+        state = tmp_path / "state.json"
+        emit = tmp_path / "pending.json"
+        trend = vlaj.read_trend(state, "skills", END, {_digest("template body\n")})
+        assert trend.prior_end is None
+        assert trend.reason is None
+        rendered = vlaj.format_reading(
+            _reading([], live=vlaj.scan_live(home, "skills"), changed=False), trend=trend
+        )
+        assert "no prior reading" in rendered
+        assert "RISE in it is the signal" in rendered
+        vlaj.emit_state(emit, "skills", END, {_digest("template body\n")}, trend)
+        stored = json.loads(emit.read_text(encoding="utf-8"))
+        assert stored["skills"]["end"] == END
+        assert stored["skills"]["digests"] == [_digest("template body\n")]
+        assert stored["skills"]["unchanged_since"] == END
+
+    def test_an_unchanged_set_folds_to_one_steady_line(self, tmp_path):
+        digest = _digest("template body\n")
+        home = _live_home(tmp_path, "skills", {"skills/s.md": "template body\n"})
+        state = self._state(
+            tmp_path,
+            skills={
+                "end": START,
+                "digests": [digest],
+                "unchanged_since": "2026-07-01T00:00:00+00:00",
+            },
+        )
+        trend = vlaj.read_trend(state, "skills", END, {digest})
+        assert trend.added == 0 and trend.removed == 0
+        assert trend.unchanged_since == "2026-07-01T00:00:00+00:00"
+        rendered = vlaj.format_reading(
+            _reading([], live=vlaj.scan_live(home, "skills"), changed=False), trend=trend
+        )
+        assert "steady" in rendered
+        assert "unchanged since @2026-07-01T00:00:00+00:00" in rendered
+        # The four-causes paragraph is the first reading's; a steady week does
+        # not re-render it, nor does it re-list the digests.
+        assert "FOUR causes" not in rendered
+        assert digest not in rendered
+        assert "⚠️" not in rendered.split("**Live-text reconciliation**")[1]
+
+    def test_a_rise_names_the_delta_and_keeps_the_full_paragraph(self, tmp_path):
+        old = _digest("template body\n")
+        new = _digest("hand-typed body\n")
+        home = _live_home(
+            tmp_path,
+            "skills",
+            {"skills/a.md": "template body\n", "skills/b.md": "hand-typed body\n"},
+        )
+        state = self._state(
+            tmp_path, skills={"end": START, "digests": [old], "unchanged_since": START}
+        )
+        trend = vlaj.read_trend(state, "skills", END, {old, new})
+        assert trend.added == 1 and trend.removed == 0
+        assert trend.unchanged_since is None
+        rendered = vlaj.format_reading(
+            _reading([], live=vlaj.scan_live(home, "skills"), changed=True), trend=trend
+        )
+        assert f"prior reading @{START}: 1" in rendered
+        assert "+1 new, -0 gone" in rendered
+        assert "FOUR causes" in rendered
+
+    def test_a_rerun_of_the_same_window_compares_against_the_reading_before_it(self, tmp_path):
+        digest = _digest("template body\n")
+        state = self._state(
+            tmp_path,
+            skills={
+                "end": END,
+                "digests": [digest],
+                "unchanged_since": END,
+                "previous": {"end": START, "digests": [], "unchanged_since": None},
+            },
+        )
+        trend = vlaj.read_trend(state, "skills", END, {digest})
+        assert trend.prior_end == START
+        assert trend.added == 1
+
+    def test_an_unreadable_state_renders_a_reason_not_a_first_run(self, tmp_path):
+        state = tmp_path / "state.json"
+        state.write_text("{not json", encoding="utf-8")
+        trend = vlaj.read_trend(state, "skills", END, set())
+        assert trend.reason == "state-unparsable"
+        home = _live_home(tmp_path, "skills", {"skills/s.md": "x\n"})
+        rendered = vlaj.format_reading(
+            _reading([], live=vlaj.scan_live(home, "skills"), changed=False), trend=trend
+        )
+        assert "trend unavailable (reason=state-unparsable)" in rendered
+        assert "no prior reading" not in rendered
+
+    def test_emit_merges_sections_into_one_pending_file(self, tmp_path):
+        emit = tmp_path / "pending.json"
+        vlaj.emit_state(emit, "skills", END, {"a" * 16}, vlaj.Trend())
+        vlaj.emit_state(emit, "rules", END, set(), vlaj.Trend())
+        stored = json.loads(emit.read_text(encoding="utf-8"))
+        assert set(stored) == {"skills", "rules"}
+
+    def test_emit_keeps_the_prior_reading_as_previous_for_reruns(self, tmp_path):
+        state = self._state(tmp_path, skills={"end": START, "digests": [], "unchanged_since": None})
+        emit = tmp_path / "pending.json"
+        trend = vlaj.read_trend(state, "skills", END, {"a" * 16})
+        vlaj.emit_state(emit, "skills", END, {"a" * 16}, trend)
+        stored = json.loads(emit.read_text(encoding="utf-8"))
+        assert stored["skills"]["previous"]["end"] == START
+
+    def test_cli_wires_state_and_emit(self, tmp_path):
+        home = _live_home(tmp_path, "skills", {"skills/s.md": "template body\n"})
+        audit = tmp_path / "audit.jsonl"
+        audit.write_text("", encoding="utf-8")
+        state = tmp_path / "state.json"
+        emit = tmp_path / "pending.json"
+        result = _run_cli(
+            audit,
+            "--diff",
+            "unchanged",
+            "--home",
+            str(home),
+            "--state",
+            str(state),
+            "--emit-state",
+            str(emit),
+        )
+        assert result.returncode == 0, result.stderr
+        assert "no prior reading" in result.stdout
+        assert emit.is_file() and not state.exists()
+        # Promote as last week's baseline, re-run: steady.
+        stored = json.loads(emit.read_text(encoding="utf-8"))
+        stored["skills"]["end"] = START
+        state.write_text(json.dumps(stored), encoding="utf-8")
+        result = _run_cli(
+            audit,
+            "--diff",
+            "unchanged",
+            "--home",
+            str(home),
+            "--state",
+            str(state),
+            "--emit-state",
+            str(emit),
+        )
+        assert result.returncode == 0, result.stderr
+        assert "steady" in result.stdout
+        assert "FOUR causes" not in result.stdout
+
+
+class TestTrendBaselineIsNotReset:
+    """Review 2026-08-22: promotion replaces the whole baseline file."""
+
+    def test_an_abstaining_section_carries_its_prior_entry_forward(self, tmp_path):
+        """A section that writes nothing this week (live-dir-empty) must not
+        read as a first reading next week."""
+        state = tmp_path / "state.json"
+        state.write_text(
+            json.dumps(
+                {
+                    "rules": {"end": START, "digests": ["a" * 16], "unchanged_since": START},
+                    "skills": {"end": START, "digests": [], "unchanged_since": START},
+                }
+            ),
+            encoding="utf-8",
+        )
+        emit = tmp_path / "pending.json"
+        trend = vlaj.read_trend(state, "skills", END, set())
+        vlaj.emit_state(emit, "skills", END, set(), trend, state_path=state)
+        stored = json.loads(emit.read_text(encoding="utf-8"))
+        assert stored["rules"] == {"end": START, "digests": ["a" * 16], "unchanged_since": START}
+        assert stored["skills"]["end"] == END
+
+    def test_a_corrupt_pending_file_is_refused_not_replaced(self, tmp_path):
+        emit = tmp_path / "pending.json"
+        emit.write_text("{not json", encoding="utf-8")
+        with pytest.raises(vlaj.JoinUnavailable) as exc:
+            vlaj.emit_state(emit, "skills", END, set(), vlaj.Trend())
+        assert exc.value.reason == "pending-unparsable"
+        assert emit.read_text(encoding="utf-8") == "{not json"
+
+    def test_cli_reports_a_refused_write_after_the_reading(self, tmp_path):
+        home = _live_home(tmp_path, "skills", {"skills/s.md": "x\n"})
+        audit = tmp_path / "audit.jsonl"
+        audit.write_text("", encoding="utf-8")
+        emit = tmp_path / "pending.json"
+        emit.write_text("[]", encoding="utf-8")
+        result = _run_cli(
+            audit, "--diff", "unchanged", "--home", str(home), "--emit-state", str(emit)
+        )
+        assert result.returncode == 0, result.stderr
+        assert result.stdout.rstrip().endswith(
+            "(trend state not written: reason=pending-unparsable)"
+        )
+        assert emit.read_text(encoding="utf-8") == "[]"
+
+    def test_previous_keeps_the_prior_entrys_own_unchanged_since(self, tmp_path):
+        state = tmp_path / "state.json"
+        old_since = "2026-07-01T00:00:00+00:00"
+        state.write_text(
+            json.dumps(
+                {"skills": {"end": START, "digests": ["a" * 16], "unchanged_since": old_since}}
+            ),
+            encoding="utf-8",
+        )
+        emit = tmp_path / "pending.json"
+        # The set changed this week, so this reading's unchanged_since resets…
+        trend = vlaj.read_trend(state, "skills", END, {"b" * 16})
+        assert trend.unchanged_since is None
+        vlaj.emit_state(emit, "skills", END, {"b" * 16}, trend, state_path=state)
+        stored = json.loads(emit.read_text(encoding="utf-8"))
+        # …but the prior entry's own history is carried, so a re-run of this
+        # window that lands back on the old set reports the true date.
+        assert stored["skills"]["previous"]["unchanged_since"] == old_since
+        emit.rename(state)
+        rerun = vlaj.read_trend(state, "skills", END, {"a" * 16})
+        assert rerun.unchanged_since == old_since

@@ -137,6 +137,9 @@ class TestFailedRunSpendsNothing:
         assert _corpus(home).read_text(encoding="utf-8") == SEEDED_CORPUS
         assert not (home / "reports" / "analysis" / f"weekly-{END_DATE}.md").exists()
         assert _pending_files(home) == [], "pending snapshot leaked past the trap"
+        analysis = home / "reports" / "analysis"
+        assert not (analysis / ".approval-join-state.json").exists()
+        assert not list(analysis.glob(".approval-join-state.pending*"))
 
     def test_empty_output_also_leaves_state_untouched(self, tmp_path):
         """``claude`` exiting 0 with no output is the other failure shape."""
@@ -605,6 +608,17 @@ class TestPromptAssembly:
         # The record's free text and lineage list stay out of the prompt.
         assert "FREE-TEXT-MARKER" not in prompt
         assert "LINEAGE-MARKER-1" not in prompt
+        # Gate 2026-08-22: the unmatched set is carried across runs. A first
+        # reading says so in the prompt, and the baseline is promoted (one
+        # entry per section) only after the report landed — the same
+        # emit-aside discipline as the sweep, so no pending file survives.
+        assert "Trend: no prior reading" in state_diff
+        join_state = home / "reports" / "analysis" / ".approval-join-state.json"
+        stored = json.loads(join_state.read_text(encoding="utf-8"))
+        assert set(stored) == {"identity", "constitution", "skills", "rules"}
+        assert stored["identity"]["digests"] == []
+        assert len(stored["skills"]["digests"]) == 1
+        assert not list((home / "reports" / "analysis").glob(".approval-join-state.pending*"))
 
     def test_a_missing_audit_log_never_reads_as_a_missing_approval(self, tmp_path):
         """An unavailable instrument reads zero, not clean (ADR-0077). With no
