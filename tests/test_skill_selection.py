@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import base64
+import datetime as dt
 import difflib
 import json
 import logging
@@ -1783,3 +1784,520 @@ class TestSkillSelectionReviewFixes(TestSkillSelectionWindowAndMechanisms):
         assert reading.value_layer_files == 2
         assert reading.value_layer_missing == (constitution.name,)
         assert constitution.name in ss.format_skill_selection_report(reading)
+
+
+class TestNeverSelectedReading:
+    """ADR-0097 D5: the whole-history exit reading.
+
+    The error this reading exists to avoid is conflating two populations —
+    a skill never selected in a 14-day window is usually one that WAS
+    selected before it, and archiving that changes judged behaviour. Every
+    test below is about keeping the two apart, or about the caveat that
+    travels with them (behaviour-neutrality holds for judged actions only).
+    """
+
+    # An explicit UTC calendar window (resolve_selection_window's second
+    # mode) rather than `days`: the same seam the sibling reading uses,
+    # and the only one that replays identically offline.
+    SINCE = dt.date(2026, 8, 8)
+    UNTIL = dt.date(2026, 8, 22)
+
+    def _write(self, log_dir: Path, day: str, records: list[dict]) -> None:
+        log_dir.mkdir(parents=True, exist_ok=True)
+        with (log_dir / f"skill-selection-{day}.jsonl").open("a", encoding="utf-8") as fh:
+            for rec in records:
+                fh.write(json.dumps(rec) + "\n")
+
+    @staticmethod
+    def _judged(selected: list[str], catalog: list[str], full: int = 40000) -> dict:
+        return {
+            "ts": "2026-08-01T00:00:00+00:00",
+            "verdict": "judged",
+            "enforced": True,
+            "selected": selected,
+            "catalog_names": catalog,
+            "full_skill_tokens": full,
+            "would_be_skill_tokens": 100,
+        }
+
+    def _store(self, tmp_path: Path, names: list[str]) -> Path:
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir(exist_ok=True)
+        for name in names:
+            _write_skill(skills_dir, f"{name}.md", name, f"does {name}")
+        return skills_dir
+
+    def test_strict_and_dormant_are_separate_populations(self, tmp_path):
+        """A skill selected before the window is dormant, never strict."""
+        skills_dir = self._store(tmp_path, ["kept", "dormant-one", "never-one"])
+        log_dir = tmp_path / "logs"
+        catalog = ["kept", "dormant-one", "never-one"]
+        # Old day, outside the 14-day window: dormant-one is chosen here.
+        self._write(
+            log_dir,
+            "2026-07-01",
+            [self._judged(["kept", "dormant-one"], catalog)] * 5,
+        )
+        # In-window days: only `kept` is ever chosen.
+        self._write(log_dir, "2026-08-20", [self._judged(["kept"], catalog)] * 700)
+
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert [e.name for e in reading.strict] == ["never-one"]
+        assert [e.name for e in reading.dormant] == ["dormant-one"]
+        assert reading.strict[0].judged_exposure == 705
+        assert reading.strict[0].last_selected == ""
+        assert reading.dormant[0].window_exposure == 700
+        assert reading.dormant[0].last_selected == "2026-07-01"
+
+    def test_below_floor_is_not_a_candidate(self, tmp_path):
+        """Never selected, but not offered enough times for that to mean
+        anything — listed nowhere, counted separately, named in reasons."""
+        skills_dir = self._store(tmp_path, ["kept", "fresh"])
+        log_dir = tmp_path / "logs"
+        self._write(
+            log_dir,
+            "2026-08-20",
+            [self._judged(["kept"], ["kept", "fresh"])] * 599,
+        )
+
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.strict == ()
+        assert [e.name for e in reading.below_floor] == ["fresh"]
+        assert reading.below_floor[0].judged_exposure == 599
+        assert "NEVER_SELECTED_BELOW_FLOOR" in reading.reasons
+
+    def test_floor_is_inclusive_at_the_boundary(self, tmp_path):
+        """600 is the floor, not the first number above it — the ADR names
+        the smallest round number ABOVE the observed max latency (569)."""
+        skills_dir = self._store(tmp_path, ["kept", "quiet"])
+        log_dir = tmp_path / "logs"
+        self._write(
+            log_dir,
+            "2026-08-20",
+            [self._judged(["kept"], ["kept", "quiet"])] * 600,
+        )
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert [e.name for e in reading.strict] == ["quiet"]
+        assert reading.below_floor == ()
+        assert "NEVER_SELECTED_BELOW_FLOOR" not in reading.reasons
+
+    def test_selection_before_the_history_start_still_disqualifies(self, tmp_path):
+        """The strict cut is over the WHOLE history, not the window: one
+        selection in March keeps a skill out of the archive list forever."""
+        skills_dir = self._store(tmp_path, ["old-favourite"])
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-03-02", [self._judged(["old-favourite"], ["old-favourite"])])
+        self._write(log_dir, "2026-08-20", [self._judged([], ["old-favourite"])] * 900)
+
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.strict == ()
+        assert [e.name for e in reading.dormant] == ["old-favourite"]
+
+    def test_a_name_absent_from_the_window_catalog_is_not_dormant(self, tmp_path):
+        """Not offered is not refused — the 2026-07-12 breaker-open
+        misreading, in the population that would now propose an archive."""
+        skills_dir = self._store(tmp_path, ["retired-from-catalog"])
+        log_dir = tmp_path / "logs"
+        self._write(
+            log_dir,
+            "2026-03-02",
+            [self._judged(["retired-from-catalog"], ["retired-from-catalog"])],
+        )
+        # In-window records exist but never carry the name in the catalog.
+        self._write(log_dir, "2026-08-20", [self._judged([], ["something-else"])] * 50)
+
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.dormant == ()
+        assert reading.strict == ()
+
+    def test_exposure_counts_judged_records_only(self, tmp_path):
+        """A fail-open window offers nothing — it cannot make a candidate."""
+        skills_dir = self._store(tmp_path, ["quiet"])
+        log_dir = tmp_path / "logs"
+        self._write(
+            log_dir,
+            "2026-08-20",
+            [
+                {
+                    "verdict": "fail_open_llm",
+                    "selected": [],
+                    "catalog_names": ["quiet"],
+                }
+            ]
+            * 900,
+        )
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.strict == ()
+        assert reading.below_floor[0].judged_exposure == 0
+        assert reading.window_fail_open == 900
+        assert "NEVER_SELECTED_NO_HISTORY" in reading.reasons
+
+    def test_full_corpus_count_includes_no_template_excludes_empty_catalog(self, tmp_path):
+        """The count is "records that injected the WHOLE corpus", and the
+        producer decides which verdicts those are: ``shadow_observe`` returns
+        None — "keep the full prompt" — for ``fail_open_*`` AND for
+        ``no_template``. ``empty_catalog`` is the asymmetry: it also skips the
+        judgment, but there was no corpus to inject.
+
+        Excluding ``no_template`` is not conservative, it is wrong in the
+        dangerous direction: a week that lost the selection template would
+        print "fail-open: 0 of 700" next to an archive candidate that all 700
+        of those actions injected.
+        """
+        skills_dir = self._store(tmp_path, ["a"])
+        log_dir = tmp_path / "logs"
+        self._write(
+            log_dir,
+            "2026-08-20",
+            [
+                {"verdict": "fail_open_parse", "selected": [], "catalog_names": ["a"]},
+                {"verdict": "fail_open_llm", "selected": [], "catalog_names": ["a"]},
+                {"verdict": "no_template", "selected": [], "catalog_names": ["a"]},
+                {"verdict": "empty_catalog", "selected": [], "catalog_names": []},
+                self._judged(["a"], ["a"]),
+            ],
+        )
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.window_records == 5
+        assert reading.window_judged == 1
+        # 2 fail_open_* + 1 no_template; empty_catalog is the one left out.
+        assert reading.window_fail_open == 3
+        assert reading.history_fail_open == 3
+        # Still not `records - judged` (that would be 4): the residual stays
+        # visible instead of being absorbed.
+        assert reading.window_records - reading.window_judged == 4
+
+    def test_a_lost_template_week_is_not_reported_as_zero_fail_open(self, tmp_path):
+        """The scenario the verdict set exists for, end to end."""
+        skills_dir = self._store(tmp_path, ["a", "quiet"])
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-08-10", [self._judged(["a"], ["a", "quiet"])] * 600)
+        self._write(
+            log_dir,
+            "2026-08-20",
+            [{"verdict": "no_template", "selected": [], "catalog_names": ["a", "quiet"]}] * 700,
+        )
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert [e.name for e in reading.strict] == ["quiet"]
+        assert reading.history_fail_open == 700
+        text = ss.format_never_selected_report(reading)
+        assert "fail-open across the whole history: 700 of 1300 records" in text
+
+    def test_unreadable_catalog_withholds_every_population(self, tmp_path):
+        """No ruler: "never selected" cannot be said of names that could not
+        be enumerated, and must not read as "nothing to archive"."""
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-08-20", [self._judged([], ["ghost"])] * 900)
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=None
+        )
+        assert reading.strict == ()
+        assert reading.dormant == ()
+        assert reading.below_floor == ()
+        assert reading.catalog_available is False
+        assert "NEVER_SELECTED_NO_CATALOG" in reading.reasons
+
+    def test_corpus_size_is_the_latest_observed_not_recomputed(self, tmp_path):
+        """The caveat asks what the SELECTOR saw, so the reading takes the
+        value the writer baked in, latest day wins."""
+        skills_dir = self._store(tmp_path, ["a"])
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-07-01", [self._judged(["a"], ["a"], full=10_000)])
+        self._write(log_dir, "2026-08-20", [self._judged(["a"], ["a"], full=38_867)])
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.history_full_skill_tokens == 38867
+        assert reading.num_ctx == 32768
+        assert "NEVER_SELECTED_FULL_TOKENS_UNKNOWN" not in reading.reasons
+
+    def test_missing_corpus_size_abstains_rather_than_guessing(self, tmp_path):
+        skills_dir = self._store(tmp_path, ["a"])
+        log_dir = tmp_path / "logs"
+        self._write(
+            log_dir,
+            "2026-08-20",
+            [{"verdict": "judged", "selected": ["a"], "catalog_names": ["a"]}],
+        )
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.history_full_skill_tokens == 0
+        assert "NEVER_SELECTED_FULL_TOKENS_UNKNOWN" in reading.reasons
+
+    def test_dropped_rows_degrade_visibly_not_just_without_aborting(self, tmp_path):
+        """Not aborting is half the requirement. The other half is that the
+        reader can see the reading narrowed its own evidence — a dropped row
+        is a judged action this list did not get to look at."""
+        skills_dir = self._store(tmp_path, ["a", "quiet"])
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-08-20", [self._judged(["a"], ["a", "quiet"])] * 600)
+        with (log_dir / "skill-selection-2026-08-20.jsonl").open("a", encoding="utf-8") as fh:
+            fh.write("{broken\n")
+            fh.write("[1, 2]\n")  # valid JSON, not an object
+            fh.write("\n")  # blank lines are not a drop
+        (log_dir / "skill-selection-not-a-date.jsonl").write_text("{}\n", encoding="utf-8")
+
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.history_records == 600
+        assert reading.history_files == 1
+        assert reading.malformed_rows == 2
+        assert reading.unreadable_files == 0
+        assert "NEVER_SELECTED_LOG_PARTIAL" in reading.reasons
+        # Bounded loss: two rows out of six hundred do not withhold the list.
+        assert "NEVER_SELECTED_LOG_UNREADABLE" not in reading.reasons
+        assert [e.name for e in reading.strict] == ["quiet"]
+        assert "Evidence lost: 0 unreadable day(s), 2 unusable row(s)" in (
+            ss.format_never_selected_report(reading)
+        )
+
+    def test_a_lost_day_withholds_the_strict_list(self, tmp_path):
+        """Unbounded loss. The one record that ever selected a name may be in
+        the file that would not open, so the honest answer is not a shorter
+        list — it is no list."""
+        skills_dir = self._store(tmp_path, ["kept", "quiet"])
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-08-10", [self._judged(["kept"], ["kept", "quiet"])] * 600)
+        # The day that ever selected `quiet`, made unopenable.
+        self._write(log_dir, "2026-08-20", [self._judged(["quiet"], ["kept", "quiet"])])
+        (log_dir / "skill-selection-2026-08-20.jsonl").chmod(0o000)
+        try:
+            reading = ss.read_never_selected(
+                log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+            )
+        finally:
+            (log_dir / "skill-selection-2026-08-20.jsonl").chmod(0o644)
+        assert reading.unreadable_files == 1
+        assert "NEVER_SELECTED_LOG_UNREADABLE" in reading.reasons
+        assert "NEVER_SELECTED_LOG_PARTIAL" in reading.reasons
+        assert reading.strict == ()
+        text = ss.format_never_selected_report(reading)
+        assert "WITHHELD (NEVER_SELECTED_LOG_UNREADABLE)" in text
+        assert "- (none)" not in text.split("Strict (")[1].split("Dormant")[0]
+
+    def test_an_undecodable_byte_does_not_escape_the_reading(self, tmp_path):
+        """UnicodeDecodeError is a ValueError, not an OSError. Uncaught it
+        propagates into the CLI's broad handler and the section vanishes with
+        no reason code — indistinguishable from a build without it."""
+        skills_dir = self._store(tmp_path, ["kept", "quiet"])
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-08-10", [self._judged(["kept"], ["kept", "quiet"])] * 600)
+        (log_dir / "skill-selection-2026-08-20.jsonl").write_bytes(b"\xff\xfe not utf-8\n")
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.unreadable_files == 1
+        assert "NEVER_SELECTED_LOG_UNREADABLE" in reading.reasons
+        assert reading.strict == ()
+
+    def test_an_undecodable_skill_file_does_not_escape_the_reading(self, tmp_path):
+        skills_dir = self._store(tmp_path, ["kept"])
+        (skills_dir / "broken.md").write_bytes(b"---\nname: \xff\n---\nbody\n")
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-08-10", [self._judged(["kept"], ["kept"])])
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.catalog_size == 1
+
+    def test_an_empty_window_is_named_and_withholds_dormant(self, tmp_path):
+        """An agent that was down for the requested fortnight: every
+        window-scoped figure reads 0, including a fail-open count a reader
+        would otherwise take as "no full-corpus injection ever happened"."""
+        skills_dir = self._store(tmp_path, ["kept", "quiet"])
+        log_dir = tmp_path / "logs"
+        self._write(
+            log_dir,
+            "2026-07-01",
+            [self._judged(["kept"], ["kept", "quiet"])] * 601
+            + [{"verdict": "fail_open_llm", "selected": [], "catalog_names": ["kept", "quiet"]}]
+            * 40,
+        )
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.window_records == 0
+        assert "NEVER_SELECTED_EMPTY_WINDOW" in reading.reasons
+        assert reading.dormant == ()
+        # The history figure is what the strict list is judged against, and
+        # it is not recoverable by subtraction from the window's.
+        assert reading.history_fail_open == 40
+        text = ss.format_never_selected_report(reading)
+        assert "fail-open across the whole history: 40 of 641 records" in text
+        assert "WITHHELD (NEVER_SELECTED_EMPTY_WINDOW)" in text
+
+    def test_missing_log_dir_reads_as_no_history(self, tmp_path):
+        skills_dir = self._store(tmp_path, ["a"])
+        reading = ss.read_never_selected(
+            tmp_path / "absent", since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.history_files == 0
+        assert "NEVER_SELECTED_NO_HISTORY" in reading.reasons
+        assert reading.strict == ()
+
+    def test_json_projection_carries_rows_not_counts(self, tmp_path):
+        """The packet computes its own counts — a count in a field is a
+        count nobody checked."""
+        skills_dir = self._store(tmp_path, ["kept", "quiet"])
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-08-20", [self._judged(["kept"], ["kept", "quiet"])] * 600)
+        payload = ss.never_selected_reading_json(
+            ss.read_never_selected(
+                log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+            )
+        )
+        # Round-trips through JSON (the packet reads it off disk).
+        payload = json.loads(json.dumps(payload))
+        assert payload["exposure_floor"] == ss.NEVER_SELECTED_EXPOSURE_FLOOR
+        assert [r["name"] for r in payload["strict"]] == ["quiet"]
+        assert payload["strict"][0]["judged_exposure"] == 600
+        assert payload["window"]["fail_open"] == 0
+        assert payload["corpus"]["num_ctx"] == 32768
+        assert payload["catalog"]["size"] == 2
+        assert not any(key.endswith("_count") for key in payload)
+
+    def test_report_names_both_populations_and_the_caveat(self, tmp_path):
+        skills_dir = self._store(tmp_path, ["kept", "quiet", "dormant-one"])
+        log_dir = tmp_path / "logs"
+        catalog = ["kept", "quiet", "dormant-one"]
+        self._write(log_dir, "2026-07-01", [self._judged(["dormant-one"], catalog)])
+        self._write(log_dir, "2026-08-20", [self._judged(["kept"], catalog)] * 600)
+        text = ss.format_never_selected_report(
+            ss.read_never_selected(
+                log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+            )
+        )
+        assert "quiet: offered in 601 judged records" in text
+        assert "NOT archive candidates" in text
+        assert "dormant-one" in text
+        assert "fail-open in 2026-08-08 … 2026-08-22: 0 of 600 records" in text
+        # Both window-scoped lines name the same span — the fail-open count
+        # and the dormant cut are measured under one window, and a reader
+        # must not have to guess whether they are.
+        assert "Dormant (0 selections in 2026-08-08 … 2026-08-22 but" in text
+        assert "full corpus 40,000 tok exceeds NUM_CTX 32,768" in text
+
+    def test_report_flag_prints_both_readings(self, capsys):
+        """`report --skill-selection` is the exit reading's live consumer —
+        the weekly chain does not yet pass it to the packet, and an
+        instrument with no reader is one this repo would not keep."""
+        from contemplative_agent.cli import main
+
+        with (
+            patch("contemplative_agent.core.metrics.compute_metrics"),
+            patch(
+                "contemplative_agent.core.metrics.format_report",
+                return_value="SESSION-METRICS",
+            ),
+            patch(
+                "contemplative_agent.core.skill_selection.format_skill_selection_report",
+                return_value="WINDOW-READING",
+            ),
+            patch(
+                "contemplative_agent.core.skill_selection.format_never_selected_report",
+                return_value="EXIT-READING",
+            ) as mock_exit,
+            patch("sys.argv", ["contemplative-agent", "report", "--skill-selection"]),
+        ):
+            main()
+        out = capsys.readouterr().out
+        assert "WINDOW-READING" in out
+        assert "EXIT-READING" in out
+        mock_exit.assert_called_once()
+
+    def test_windowed_report_no_longer_calls_its_list_candidates(self, tmp_path):
+        """The window reading cannot decide archive candidacy — most of its
+        never-selected list is dormant."""
+        skills_dir = self._store(tmp_path, ["a", "b"])
+        log_dir = tmp_path / "logs"
+        today = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
+        self._write(log_dir, today, [self._judged(["a"], ["a", "b"])])
+        text = ss.format_skill_selection_report(
+            ss.read_skill_selection_log(log_dir, days=14, skills_dir=skills_dir)
+        )
+        assert "not archive candidates" in text
+        assert "stocktake candidates" not in text
+
+    # --- one windowing scheme, not two (rebase onto T-SKILLSEL-REPORT-WINDOW) ---
+
+    def test_both_readings_resolve_the_same_window(self, tmp_path):
+        """The exit reading calls `resolve_selection_window`, so the two
+        readings of one log cannot name different fortnights. If a second
+        windowing implementation is ever added here, this fails."""
+        skills_dir = self._store(tmp_path, ["a"])
+        log_dir = tmp_path / "logs"
+        for day in ("2026-08-07", "2026-08-08", "2026-08-22", "2026-08-23"):
+            self._write(log_dir, day, [self._judged(["a"], ["a"])])
+
+        windowed = ss.read_skill_selection_log(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        exit_reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        # The bound day is in, the day before and the day after are out.
+        assert windowed.records == 2
+        assert exit_reading.window_records == windowed.records
+        assert exit_reading.window_judged == windowed.judged_records
+        assert exit_reading.window_days == windowed.days
+        assert exit_reading.window_since == windowed.window_since
+        assert exit_reading.window_until == windowed.window_until
+        # ...and the whole history is still read, past both bounds.
+        assert exit_reading.history_records == 4
+
+    def test_days_mode_matches_the_sibling_reading(self, tmp_path):
+        skills_dir = self._store(tmp_path, ["a"])
+        log_dir = tmp_path / "logs"
+        today = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
+        self._write(log_dir, today, [self._judged(["a"], ["a"])])
+        windowed = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        exit_reading = ss.read_never_selected(log_dir, days=7, skills_dir=skills_dir)
+        assert exit_reading.window_days == windowed.days == 7
+        assert exit_reading.window_since is None and exit_reading.window_until is None
+        assert exit_reading.window_records == windowed.records == 1
+
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {},
+            {"days": 7, "since": dt.date(2026, 8, 8)},
+            {"until": dt.date(2026, 8, 22)},
+            {"since": dt.date(2026, 8, 23), "until": dt.date(2026, 8, 22)},
+        ],
+    )
+    def test_bad_window_combinations_raise_from_the_shared_resolver(self, tmp_path, kwargs):
+        with pytest.raises(ValueError):
+            ss.read_never_selected(tmp_path / "logs", skills_dir=None, **kwargs)
+
+    def test_dormant_cut_respects_the_upper_bound(self, tmp_path):
+        """A selection AFTER `until` must not un-dormant a skill: the window
+        is what the reader asked about, not "up to now"."""
+        skills_dir = self._store(tmp_path, ["revived"])
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-07-01", [self._judged(["revived"], ["revived"])])
+        self._write(log_dir, "2026-08-20", [self._judged([], ["revived"])] * 3)
+        self._write(log_dir, "2026-08-25", [self._judged(["revived"], ["revived"])])
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert [e.name for e in reading.dormant] == ["revived"]
+        # last_selected is whole-history, and says so by naming the later day.
+        assert reading.dormant[0].last_selected == "2026-08-25"

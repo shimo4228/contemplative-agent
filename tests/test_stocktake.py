@@ -16,7 +16,6 @@ from contemplative_agent.core.stocktake import (
     _check_rule_quality,
     _check_skill_quality,
     format_stocktake_report,
-    run_rules_quality_check,
     run_skill_stocktake,
 )
 from contemplative_agent.core.text_utils import read_markdown_documents
@@ -242,23 +241,30 @@ class TestRunRulesQualityCheck:
         rules_dir = _make_rules_dir(
             tmp_path, {"good.md": GOOD_RULE, "bad.md": MISSING_PRACTICE_RULE}
         )
-        result = run_rules_quality_check(rules_dir=rules_dir)
-        assert [i.filename for i in result.quality_issues] == ["bad.md"]
-        assert result.total_files == 2
+        issues = [
+            _check_rule_quality(name, body)
+            for name, _raw, body in read_markdown_documents(rules_dir)
+        ]
+        assert [i.filename for i in issues if i is not None] == ["bad.md"]
+        assert len(read_markdown_documents(rules_dir)) == 2
         assert mock_generate.call_count == 0
 
     def test_empty_dir(self, tmp_path):
         rules_dir = tmp_path / "rules"
         rules_dir.mkdir()
-        assert run_rules_quality_check(rules_dir=rules_dir).total_files == 0
+        assert read_markdown_documents(rules_dir) == []
 
 
 class TestIndependence:
     def test_skills_and_rules_do_not_mix(self, tmp_path):
+        """The two checks are different contracts (Problem/Solution vs
+        Practice/Rationale) and neither passes the other's files."""
         skills_dir = _make_skills_dir(tmp_path, {"s.md": GOOD_SKILL})
         rules_dir = _make_rules_dir(tmp_path, {"r.md": GOOD_RULE})
         assert run_skill_stocktake(skills_dir=skills_dir).total_files == 1
-        assert run_rules_quality_check(rules_dir=rules_dir).total_files == 1
+        assert _check_rule_quality("r.md", GOOD_RULE) is None
+        assert _check_rule_quality("s.md", GOOD_SKILL) is not None
+        assert run_skill_stocktake(skills_dir=rules_dir).quality_issues
 
 
 # ---------------------------------------------------------------------------

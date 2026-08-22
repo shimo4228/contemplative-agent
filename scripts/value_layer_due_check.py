@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-"""Value-layer cadence instrument — identity / constitution due readings.
+"""Value-layer cadence instrument — identity / constitution / rules readings.
 
-Read-only over three stores the agent already writes: the ADR-0012 approval
-audit log (``logs/audit.jsonl``), ``knowledge.json`` and the staging dir
-(ADR-0074).  Emits one JSON reading on stdout for the weekly pipeline:
+Read-only over four stores the agent already writes: the ADR-0012 approval
+audit log (``logs/audit.jsonl``), ``knowledge.json``, the staging dir
+(ADR-0074) and ``rules/``.  Emits one JSON reading on stdout for the weekly
+pipeline:
 
 - ``identity``: days since the last ``distill-identity`` run and whether the
   monthly interval has elapsed.  The cadence gates *generation*, not
@@ -19,16 +20,29 @@ audit log (``logs/audit.jsonl``), ``knowledge.json`` and the staging dir
   (ADR-0090 / docs/runbooks/constitution-amendment.md), never automated.
 - ``staging_pending``: unreviewed ``*.meta.json`` sidecars in staging, so
   the caller can respect the one-unreviewed-batch invariant (ADR-0074).
+- ``rules`` (only with ``--rules-dir``): file count, newest mtime, counts of
+  what could not be checked (unreadable / empty), and the deterministic
+  structural check over ``rules/*.md``.  ADR-0097 D2 retired ``rules-distill``
+  / ``rules-stocktake`` as LLM generators; this reading is what keeps the
+  rules layer owned.  It is a reading, never a gate — a structural issue is
+  rendered for the human, not counted as a chain fault.
 
 Faults: a missing/unreadable audit log abstains with a reason code on
 stderr and a nonzero exit — an unknown state must never read as "due" and
 fire an unattended LLM run (ADR-0077).  Partial faults (malformed audit
-lines, missing knowledge.json) degrade to counted reasons in the reading.
+lines, missing knowledge.json, an unreadable rule file) degrade to counted
+reasons in the reading.
 
 The audit log carries schema drift: pre-2026-04 records use ``timestamp``
 instead of ``ts`` and ``distill-identity-ca`` as the command name; both are
 recognized.  ``--as-of`` is passed in (no wall-clock read) so a reading is
 reproducible offline from the same inputs.
+
+**stdlib only** (plus the sibling ``_audit`` module): the weekly chain runs
+this as ``python3 scripts/value_layer_due_check.py``, the system interpreter,
+which has no ``contemplative_agent`` on its path.  That is why the rule
+structural check below is re-derived here instead of imported — see
+``_check_rule_quality``.
 """
 
 from __future__ import annotations
@@ -37,7 +51,7 @@ import argparse
 import json
 import sys
 from collections.abc import Callable
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -68,6 +82,134 @@ _GENERATION_SOURCES = frozenset({"stage", "direct"})
 # this script has never heard of reads as unknown history and abstains,
 # instead of quietly reading as "no distill ever ran".
 _GATE_SOURCES = frozenset({"stage-adopted", "stage-adopted-names", "stage-adopted-auto"})
+
+
+# --- rules layer (ADR-0097 D2) -------------------------------------------
+#
+# Mirror of ``contemplative_agent.core.stocktake._check_rule_quality`` and of
+# the file rules in ``core.text_utils.read_markdown_documents``. Re-derived
+# rather than imported because this script runs under the SYSTEM python3 (see
+# the module docstring): importing the package would make the whole reading —
+# identity cadence included — abstain on every unattended run, which is a
+# strictly worse failure than duplicating four constants.
+#
+# The duplication is not left to vigilance: ``tests/test_value_layer_due_check``
+# imports the canonical check and asserts the two agree verdict-for-verdict on
+# the same bodies, so a change to one and not the other fails Verify. Same
+# discipline the read-only-instruments skill prescribes for mirrored constants
+# that cannot be imported.
+_RULE_MIN_BODY_CHARS = 200
+_RULE_REQUIRED_MARKERS = ("**Practice:**", "**Rationale:**")
+
+
+def _strip_frontmatter(text: str) -> str:
+    """Body after a leading ``---`` block; unchanged when there is none."""
+    lines = text.split("\n")
+    if not lines or lines[0].strip() != "---":
+        return text
+    for i, line in enumerate(lines[1:], start=1):
+        if line.strip() == "---":
+            return "\n".join(lines[i + 1 :]).lstrip("\n")
+    return text
+
+
+def _check_rule_quality(body: str) -> str | None:
+    """Structural verdict for one rule body, or None when it is well-formed.
+
+    Rules use the B-layer Practice/Rationale format. Canonical implementation:
+    ``core.stocktake._check_rule_quality`` — keep the two in step.
+    """
+    if len(body) < _RULE_MIN_BODY_CHARS:
+        return f"body < {_RULE_MIN_BODY_CHARS} chars"
+    for marker in _RULE_REQUIRED_MARKERS:
+        if marker not in body:
+            return f'missing "{marker}" section'
+    return None
+
+
+def read_rules_layer(rules_dir: Path | None) -> dict[str, Any] | None:
+    """Count, newest mtime and structural issues over ``rules/*.md``.
+
+    ``None`` when no ``--rules-dir`` was given: not scanned this run, which
+    the packet keeps distinct from scanned-and-clean (the None-vs-0 discipline
+    the dead-code intake already runs on).
+
+    ``reason`` states the layer, not a verdict:
+    ``OK`` / ``RULES_EMPTY`` / ``RULES_DIR_MISSING`` / ``RULES_UNREADABLE``.
+
+    ``RULES_UNREADABLE`` and ``RULES_DIR_MISSING`` reach the caller's
+    ``reasons`` list; ``RULES_EMPTY`` does not. The line between them is not
+    "is it a fault" but "should this path exist": a dir the caller pointed at
+    and that is not there is a wiring typo or a wrong ``MOLTBOOK_HOME``, and
+    that must not sit for months as one cell inside §8 — while a dir that
+    exists and holds no rules is a legitimate state of a young store. The
+    recurrence-noise objection to raising the first is answered where it
+    belongs, in the packet's ``DESIGNED_OUTCOME_CODES``, which exists to
+    separate "visible but expected" from "visible and needs work".
+
+    Two more counts, because a reading that quietly shrinks its own
+    denominator is the failure this whole section is here to prevent:
+    ``unreadable_files`` (present, would not decode) and ``empty_files``
+    (present, no body after frontmatter). Ten rule files truncated to zero
+    bytes are not the same event as a store with no rules, and without
+    ``empty_files`` both render as ``RULES_EMPTY``.
+    """
+    if rules_dir is None:
+        return None
+    if not rules_dir.is_dir():
+        return {
+            "files": 0,
+            "newest_mtime": None,
+            "issues": [],
+            "reason": "RULES_DIR_MISSING",
+            "path": str(rules_dir),
+        }
+    issues: list[dict[str, str]] = []
+    newest: float | None = None
+    files = 0
+    unreadable = 0
+    empty = 0
+    for path in sorted(rules_dir.glob("*.md")):
+        if path.name.startswith("."):
+            continue
+        try:
+            raw = path.read_text(encoding="utf-8")
+            mtime = path.stat().st_mtime
+        # ValueError, which subsumes UnicodeDecodeError — that is not an
+        # OSError, the gap that has cost the sibling readings twice. A rule
+        # file this cannot read must be named, not dropped from the count.
+        except (OSError, ValueError):
+            unreadable += 1
+            continue
+        body = _strip_frontmatter(raw).strip()
+        if not body:
+            # Same drop rule as read_markdown_documents: an empty body is not
+            # a file the structural check has anything to say about — but it
+            # IS a file, and a layer of ten truncated rules must not read
+            # identically to a layer with no rules at all.
+            empty += 1
+            continue
+        files += 1
+        newest = mtime if newest is None else max(newest, mtime)
+        verdict = _check_rule_quality(body)
+        if verdict is not None:
+            issues.append({"file": path.name, "reason": verdict})
+    reason = "OK" if files else "RULES_EMPTY"
+    if unreadable:
+        reason = "RULES_UNREADABLE"
+    return {
+        "files": files,
+        "newest_mtime": (
+            datetime.fromtimestamp(newest, tz=timezone.utc).isoformat()
+            if newest is not None
+            else None
+        ),
+        "unreadable_files": unreadable,
+        "empty_files": empty,
+        "issues": issues,
+        "reason": reason,
+        "path": str(rules_dir),
+    }
 
 
 class CheckError(Exception):
@@ -185,6 +327,7 @@ def build_reading(
     identity_interval_days: int,
     amendment_interval_days: int,
     patterns_loader: Callable[[], list[dict] | None] | None = None,
+    rules: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     """Assemble the reading from already-loaded inputs (pure; unit-testable).
 
@@ -286,8 +429,25 @@ def build_reading(
             if code not in reasons:
                 reasons.append(code)
 
+    # Rules layer (ADR-0097 D2). A maintenance reading, not a cadence: the
+    # layer has no generator any more, so there is no interval to be due
+    # against — what an owner needs is how many files there are, how long they
+    # have stood, and whether they still parse as B-layer rules.
+    rules_section: dict[str, Any] | None = None
+    if rules is not None:
+        # Copied, not mutated in place: build_reading is the pure entry point
+        # and must not write back into an argument the caller still holds.
+        newest = parse_ts(rules.get("newest_mtime"))
+        rules_section = {
+            **rules,
+            "days_since_newest": (as_of_date - newest.date()).days if newest else None,
+        }
+        rules_reason = rules_section.get("reason")
+        if rules_reason in ("RULES_UNREADABLE", "RULES_DIR_MISSING"):
+            reasons.append(str(rules_reason))
+
     malformed = identity_unparsable + amend_unparsable
-    return {
+    reading: dict[str, Any] = {
         "as_of": as_of,
         "identity": identity,
         "constitution": constitution,
@@ -295,6 +455,12 @@ def build_reading(
         "malformed_audit_lines": malformed,
         "reasons": reasons,
     }
+    # Absent, not null, when --rules-dir was not passed: the packet reads a
+    # missing key as "not scanned this run" and renders nothing, which is the
+    # one state a null would collapse into "scanned, found nothing".
+    if rules_section is not None:
+        reading["rules"] = rules_section
+    return reading
 
 
 def _load_audit(path: Path) -> tuple[list[dict], int]:
@@ -340,6 +506,16 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--knowledge", type=Path, required=True, help="knowledge.json")
     parser.add_argument("--staged-dir", type=Path, required=True, help="staging dir (ADR-0074)")
     parser.add_argument("--as-of", required=True, help="reading date, YYYY-MM-DD")
+    # Optional so the reading this script already produced keeps working
+    # unchanged when the caller has not been wired yet: no flag, no `rules`
+    # key, no section in the packet (ADR-0097 D2 — slice 2).
+    parser.add_argument(
+        "--rules-dir",
+        type=Path,
+        default=None,
+        help="rules/*.md — adds the ADR-0097 D2 maintenance reading "
+        "(count, newest mtime, structural check)",
+    )
     # Anchor offset: the weekly chain passes --as-of END_DATE = the day
     # BEFORE the run day, so on the k-th Saturday after a record was written
     # days_since = 7k - 1. The defaults are chosen against that anchor:
@@ -359,6 +535,7 @@ def main(argv: list[str] | None = None) -> int:
             identity_interval_days=args.identity_interval_days,
             amendment_interval_days=args.amendment_interval_days,
             patterns_loader=lambda: _load_patterns(args.knowledge),
+            rules=read_rules_layer(args.rules_dir),
         )
     except CheckError as exc:
         print(f"value_layer_due_check: {exc.reason}: {exc}", file=sys.stderr)

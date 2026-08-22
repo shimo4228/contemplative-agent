@@ -2,14 +2,25 @@
 
 ADR-0097 reduced this module to what survived the consolidator dissolution:
 
-- a deterministic structural check per file (``_check_skill_quality`` /
-  ``_check_rule_quality`` — the rule check is the rules layer's maintenance
-  reading, whose weekly-packet consumer is reserved for ADR-0097 slice 2);
+- a deterministic structural check per file (``_check_skill_quality``, run
+  over the store by ``run_skill_stocktake``; and ``_check_rule_quality``,
+  which this module no longer runs at all — see below);
 - the ADR-0081 description-fidelity audit (``audit_skill_description``), the
   one LLM call left, advisory only;
 - the ADR-0081 usage reading attached to the report (statistics computed by
   code; retirement is a human decision at the Saturday gate on the packet's
   never-selected section — never a numeric auto-threshold).
+
+``_check_rule_quality`` has no caller here, and that is its role rather
+than a gap. ADR-0097 slice 2 put the rules layer's maintenance reading in the
+weekly packet, and the packet's producer (``scripts/value_layer_due_check``)
+runs under the SYSTEM python3 — no ``contemplative_agent`` on its path — so it
+re-derives the two-line check locally. What survives here is the **reference**
+that re-derivation is pinned against: ``tests/test_value_layer_due_check``
+imports this function and asserts the two agree verdict-for-verdict, so a
+change to one and not the other fails Verify. That is a live consumer; it is
+simply not the in-process one the reservation named. The wrapper that named
+it (``run_rules_quality_check``) was deleted with the reservation.
 
 The LLM grouping call, the union merge and the ADR-0048 clean stage were
 retired by ADR-0097: grouping judged from frontmatter summaries with no recall
@@ -23,7 +34,6 @@ from __future__ import annotations
 
 import logging
 import re
-from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import TYPE_CHECKING
@@ -176,31 +186,6 @@ def _check_rule_quality(filename: str, body: str) -> QualityIssue | None:
     return None
 
 
-def _run_stocktake(
-    directory: Path | None,
-    quality_check: Callable[[str, str], QualityIssue | None],
-) -> StocktakeResult:
-    """Audit a directory of ``*.md`` files for structural quality issues."""
-    if directory is None or not directory.is_dir():
-        return StocktakeResult(quality_issues=(), total_files=0)
-
-    docs = read_markdown_documents(directory)
-    if not docs:
-        return StocktakeResult(quality_issues=(), total_files=0)
-
-    quality_issues: list[QualityIssue] = []
-    for filename, _raw, body in docs:
-        issue = quality_check(filename, body)
-        if issue is not None:
-            quality_issues.append(issue)
-
-    return StocktakeResult(
-        quality_issues=tuple(quality_issues),
-        total_files=len(docs),
-        items=tuple(docs),
-    )
-
-
 def run_skill_stocktake(
     skills_dir: Path | None = None,
     selection_reading: SkillSelectionReading | None = None,
@@ -216,21 +201,25 @@ def run_skill_stocktake(
     Returns:
         StocktakeResult with quality issues and the scanned items.
     """
-    result = _run_stocktake(skills_dir, _check_skill_quality)
+    if skills_dir is None or not skills_dir.is_dir():
+        return StocktakeResult(quality_issues=(), total_files=0)
+    docs = read_markdown_documents(skills_dir)
+    if not docs:
+        return StocktakeResult(quality_issues=(), total_files=0)
+
+    quality_issues = tuple(
+        issue
+        for issue in (_check_skill_quality(filename, body) for filename, _raw, body in docs)
+        if issue is not None
+    )
+    result = StocktakeResult(
+        quality_issues=quality_issues,
+        total_files=len(docs),
+        items=tuple(docs),
+    )
     if selection_reading is None:
         return result
     return replace(result, selection_usage=selection_reading)
-
-
-def run_rules_quality_check(rules_dir: Path | None = None) -> StocktakeResult:
-    """Structural check over rules/*.md — the rules layer's maintenance reading.
-
-    ADR-0097 retired ``rules-stocktake`` (LLM grouping and shared-core merge
-    over two files); what the rules layer keeps is this deterministic check.
-    Its consumer, a rules section in the weekly packet, is reserved for that
-    decision's slice 2 — so this has no production caller yet.
-    """
-    return _run_stocktake(rules_dir, _check_rule_quality)
 
 
 def format_stocktake_report(result: StocktakeResult, label: str) -> str:
