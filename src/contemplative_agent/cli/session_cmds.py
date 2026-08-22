@@ -12,6 +12,7 @@ import os
 import stat
 import subprocess
 import sys
+from datetime import date
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -133,8 +134,24 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     from ..core.metrics import compute_metrics, format_report
 
     log_dir = config.MOLTBOOK_DATA_DIR / "logs"
+    # --since/--until are an explicit UTC calendar window for the
+    # skill-selection reading only, exclusive with --days (which is
+    # "today minus N", i.e. N+1 calendar days — the trap they exist to
+    # avoid). Validated here so a bad combination is a usage error, not a
+    # warning swallowed by the instrument's degrade path below.
+    since, until = args.since, args.until
+    if since is not None or until is not None:
+        if not args.skill_selection:
+            _parser.error("--since/--until apply to --skill-selection only")
+        from ..core.skill_selection import resolve_selection_window
+
+        try:
+            resolve_selection_window(args.days, since, until)
+        except ValueError as exc:
+            _parser.error(f"--since/--until: {exc}")
+    days = _DEFAULT_REPORT_DAYS if args.days is None else args.days
     episode_log = EpisodeLog(log_dir=log_dir)
-    report = compute_metrics(episode_log, days=args.days)
+    report = compute_metrics(episode_log, days=days)
     print(format_report(report, fmt=args.format))
 
     # --patterns: read-only pattern-composition instruments (view_metrics).
@@ -167,8 +184,22 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
 
             reading = read_skill_selection_log(
                 log_dir,
-                days=args.days,
+                days=None if since is not None else days,
+                since=since,
+                until=until,
                 skills_dir=config.SKILLS_DIR if config.SKILLS_DIR.is_dir() else None,
+                # Read-only: only the mechanism split of rejected names
+                # consults them (is a foreign token constitution / identity
+                # vocabulary?). Absent or unreadable → the split abstains
+                # with a reason code rather than guessing.
+                value_layer_paths=(
+                    # Same resolution as every other constitution reader
+                    # (`cli/runtime.py`, `cli/memory_cmds.py`): a reading
+                    # that ignored --constitution-dir would measure bleed
+                    # against text the agent is not running on.
+                    args.constitution_dir or config.CONSTITUTION_DIR,
+                    config.IDENTITY_PATH,
+                ),
             )
             print()
             # Terminal output for a human, who is the reader the rejected
@@ -195,7 +226,7 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
             # scope as it stands today (codex review 2026-08-01).
             reading = read_submolt_scope_log(
                 log_dir,
-                days=args.days,
+                days=days,
                 threshold=domain.relevance_threshold,
                 subscribed=domain.subscribed_submolts,
             )
@@ -404,8 +435,34 @@ def _add_init_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
+_DEFAULT_REPORT_DAYS = 7
+
+
 def _add_report_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--days", type=int, default=7, help="Days to look back (default: 7)")
+    # default=None so the handler can tell "--days given" from the default
+    # when checking exclusivity with --since/--until.
+    parser.add_argument(
+        "--days",
+        type=int,
+        default=None,
+        help=f"Days to look back (default: {_DEFAULT_REPORT_DAYS})",
+    )
+    parser.add_argument(
+        "--since",
+        type=date.fromisoformat,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Skill-selection reading only: first UTC calendar day of the window "
+        "(inclusive). Exclusive with --days.",
+    )
+    parser.add_argument(
+        "--until",
+        type=date.fromisoformat,
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Skill-selection reading only: last UTC calendar day of the window "
+        "(inclusive, default: today). Requires --since.",
+    )
     parser.add_argument(
         "--format",
         choices=["text", "md"],

@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 80 (72 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 80 (72 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -77,7 +77,18 @@ time; read via `report --skill-selection`, which reports the hallucination
 rate, the enforced / hallucination / judged-empty shares of judged, a
 per-day breakdown of the same counters, and each never-selected skill's
 exposure in judged records — added 2026-08-08 because a window straddling a
-regime change reads as a steady state without them. ADR-0081: a judged
+regime change reads as a steady state without them. Since 2026-08-22
+(T-SKILLSEL-REPORT-WINDOW) the same reading also takes an explicit UTC
+calendar window (`--since` / `--until`, exclusive with `--days`, which is
+today-minus-N = N+1 days), conditions judged / hallucination / median
+`full_skill_tokens` on `catalog_count` (the rate tracks the regime, not the
+window), and splits rejected names by a fixed four-rule mechanism
+(`wordform` ≥ 0.90 surface similarity / `semantic` / `value_layer` = prose
+or a token outside the catalog name+description vocabulary that occurs in
+the constitution / identity text, read-only) — rows whose rule input is
+missing abstain as `unclassified` with a reason code
+(`catalog_unavailable` / `value_layer_unavailable`) rather than falling
+through; the default renderer still withholds the names. ADR-0081: a judged
 selection drives two-pass injection — pass 2 generates under a system prompt
 whose `<learned_skills>` block holds only the selected bodies. Unconditional
 since 2026-08-08, when the rollout flag retired; every non-judged verdict

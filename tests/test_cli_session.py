@@ -178,6 +178,77 @@ class TestReportSkillSelectionSmoke:
         assert any("skill-selection" in r.message.lower() for r in caplog.records)
 
 
+class TestReportSkillSelectionWindow:
+    """report --skill-selection --since/--until (T-SKILLSEL-REPORT-WINDOW):
+    an explicit UTC calendar window, exclusive with --days, that reaches the
+    reader verbatim; the default --days path is unchanged."""
+
+    def _run(self, argv, mock_read, mock_sel_report):
+        mock_sel_report.return_value = "SKILL-SELECTION-READING"
+        with patch("sys.argv", ["contemplative-agent", "report", *argv]):
+            main()
+
+    @patch("contemplative_agent.core.skill_selection.format_skill_selection_report")
+    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.metrics.format_report")
+    @patch("contemplative_agent.core.metrics.compute_metrics")
+    def test_since_until_reach_the_reader_as_dates(
+        self, mock_metrics, mock_fmt, mock_read, mock_sel_report, capsys
+    ):
+        from datetime import date
+
+        mock_fmt.return_value = "SESSION-METRICS"
+        self._run(
+            ["--skill-selection", "--since", "2026-08-09", "--until", "2026-08-22"],
+            mock_read,
+            mock_sel_report,
+        )
+        kwargs = mock_read.call_args.kwargs
+        assert kwargs["since"] == date(2026, 8, 9)
+        assert kwargs["until"] == date(2026, 8, 22)
+        assert kwargs["days"] is None
+        # Constitution dir + identity file are handed to the reader read-only.
+        assert len(kwargs["value_layer_paths"]) == 2
+        # The episode-metrics window keeps its default when --days is absent.
+        assert mock_metrics.call_args.kwargs["days"] == 7
+        assert "SKILL-SELECTION-READING" in capsys.readouterr().out
+
+    @patch("contemplative_agent.core.skill_selection.format_skill_selection_report")
+    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.metrics.format_report")
+    @patch("contemplative_agent.core.metrics.compute_metrics")
+    def test_days_path_is_unchanged(self, mock_metrics, mock_fmt, mock_read, mock_sel_report):
+        mock_fmt.return_value = "SESSION-METRICS"
+        self._run(["--skill-selection", "--days", "14"], mock_read, mock_sel_report)
+        kwargs = mock_read.call_args.kwargs
+        assert kwargs["days"] == 14
+        assert kwargs.get("since") is None and kwargs.get("until") is None
+        assert mock_metrics.call_args.kwargs["days"] == 14
+
+    @pytest.mark.parametrize(
+        "argv",
+        [
+            ["--skill-selection", "--since", "2026-08-09", "--days", "14"],
+            ["--skill-selection", "--until", "2026-08-22"],
+            ["--skill-selection", "--since", "2026-08-23", "--until", "2026-08-22"],
+            ["--since", "2026-08-09"],
+            ["--skill-selection", "--since", "not-a-date"],
+        ],
+    )
+    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.metrics.format_report")
+    @patch("contemplative_agent.core.metrics.compute_metrics")
+    def test_invalid_window_combinations_are_usage_errors(
+        self, _mock_metrics, mock_fmt, mock_read, argv
+    ):
+        mock_fmt.return_value = "SESSION-METRICS"
+        with patch("sys.argv", ["contemplative-agent", "report", *argv]):
+            with pytest.raises(SystemExit) as exc:
+                main()
+        assert exc.value.code == 2
+        mock_read.assert_not_called()
+
+
 class TestMeditateSmoke:
     """F7: argv parse → Tier-2 config → _handle_meditate wiring.
 
@@ -531,3 +602,33 @@ class TestDialoguePeerShortfallM10:
             return_value=5,
         ):
             _handle_dialogue_peer(self._args(turns=5), MagicMock())
+
+
+class TestReportSkillSelectionValueLayerPaths:
+    """The global --constitution-dir override must reach the mechanism split
+    (code review, 2026-08-22): otherwise an A/B constitution reads against
+    the default path's text, or abstains entirely."""
+
+    @patch("contemplative_agent.core.skill_selection.format_skill_selection_report")
+    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.metrics.format_report")
+    @patch("contemplative_agent.core.metrics.compute_metrics")
+    def test_constitution_dir_override_reaches_the_reading(
+        self, _mock_metrics, mock_fmt, mock_read, mock_sel_report, tmp_path
+    ):
+        mock_fmt.return_value = "SESSION-METRICS"
+        mock_sel_report.return_value = "SKILL-SELECTION-READING"
+        override = tmp_path / "alt-constitution"
+        override.mkdir()
+        with patch(
+            "sys.argv",
+            [
+                "contemplative-agent",
+                "--constitution-dir",
+                str(override),
+                "report",
+                "--skill-selection",
+            ],
+        ):
+            main()
+        assert mock_read.call_args.kwargs["value_layer_paths"][0] == override

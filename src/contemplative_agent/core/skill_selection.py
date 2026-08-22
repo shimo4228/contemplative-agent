@@ -25,8 +25,9 @@ from __future__ import annotations
 import difflib
 import json
 import logging
-from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+import re
+from dataclasses import dataclass, field
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Literal, TypeAlias
 
@@ -46,7 +47,7 @@ from .llm import (
     get_identity_system_prompt,
     validate_identity_content,
 )
-from .text_utils import skill_theme, strip_frontmatter
+from .text_utils import read_markdown_documents, skill_theme, strip_frontmatter
 
 logger = logging.getLogger(__name__)
 
@@ -86,6 +87,42 @@ _DESCRIPTION_MAX_CHARS = 300
 # Rows of the rejected-name tally the report renders before summarising the
 # rest. Bounds the *output*, never the reading — see the renderer.
 _REJECTED_NAME_RENDER_LIMIT = 50
+
+# Hallucination-mechanism split (T-SKILLSEL-REPORT-WINDOW, 2026-08-22). The
+# rule is stated once, here, so a reader can re-derive every row:
+#   1. whitespace or ``/`` in the name → prose, not a slug → ``value_layer``
+#   2. a token outside the catalog vocabulary (frontmatter name +
+#      description — the two scalars the pass-1 prompt is built from) that
+#      does occur in the value layer (constitution / identity) → ``value_layer``
+#   3. surface similarity to the nearest catalog name ≥ the floor → ``wordform``
+#   4. otherwise → ``semantic`` (a different real word swapped in)
+# Rule 2 abstains (``unclassified`` / ``value_layer_unavailable``) when no
+# value-layer text was readable, and every rule but 1 abstains
+# (``catalog_unavailable``) when there is no catalog to measure against.
+# The floor is the third reading's (2026-08-22 §4.2); it is a reporting
+# boundary, never a gate.
+WORDFORM_SIMILARITY_FLOOR = 0.90
+# Value-layer tokens shorter than this are function words and would match
+# almost any slug fragment; the reference classifier used the same cut.
+_VALUE_LAYER_TOKEN_MIN_CHARS = 4
+_TOKEN_SPLIT_RE = re.compile(r"[^a-z0-9]+")
+
+HallucinationMechanism: TypeAlias = Literal["wordform", "semantic", "value_layer", "unclassified"]
+
+
+def _tokens(text: str, *, min_chars: int = 1) -> set[str]:
+    """The one tokenizer behind every vocabulary the split compares:
+    lower-cased, split on anything outside ``[a-z0-9]``."""
+    return {t for t in _TOKEN_SPLIT_RE.split(text.lower()) if len(t) >= min_chars}
+
+
+def _is_prose(name: str) -> bool:
+    """Rule 1: whitespace or a slash means a clause, not a slug."""
+    return " " in name or "/" in name
+
+
+def _is_int(value: Any) -> bool:
+    return isinstance(value, int) and not isinstance(value, bool)
 
 
 _skills_dir: Path | None = None
@@ -561,10 +598,13 @@ class RejectedNameTally:
     separates them at a glance: near-1.0 is wordform, mid-range is
     substitution, low is bleed.
 
-    Deliberately *not* classified here. Which bucket a name falls in is a
-    judgment, and an instrument that assigns it would be one step from
-    being read as a verdict (ADR-0071 / ``read-only-instruments``: the
-    instrument reports, the human decides).
+    Classified since 2026-08-22 (``mechanism``), after two consecutive
+    readings re-derived the same split by hand: the rule is fixed and
+    stated once at ``WORDFORM_SIMILARITY_FLOOR``, so the assignment is a
+    reproducible reading, not a judgment. It still feeds nothing — the
+    instrument reports, the human decides (ADR-0071 /
+    ``read-only-instruments``) — and whenever an input the rule needs is
+    missing the row abstains with a reason code instead of guessing.
 
     ``similarity`` is surface (orthographic) distance from ``difflib``, not
     embedding cosine — on purpose. The embedding layer exists to resolve
@@ -584,8 +624,64 @@ class RejectedNameTally:
     # at all. The renderer tells those two apart; neither fabricates a
     # match.
     nearest: str
-    # 0.0 when ``nearest`` is empty. Never used as a threshold anywhere.
+    # 0.0 when ``nearest`` is empty. Only ``WORDFORM_SIMILARITY_FLOOR``
+    # reads it as a boundary, and that is a reporting bucket, not a gate.
     similarity: float
+    # One of ``HallucinationMechanism``; ``unclassified`` carries a reason
+    # code in ``mechanism_reason`` (``catalog_unavailable`` /
+    # ``value_layer_unavailable``). ``mechanism_note`` is the evidence for
+    # a value-layer / semantic call (the foreign tokens) — it contains
+    # fragments of the name, so it renders only where the name does.
+    mechanism: HallucinationMechanism = "unclassified"
+    mechanism_reason: str = ""
+    mechanism_note: str = ""
+
+
+@dataclass(frozen=True)
+class MechanismTally:
+    """Emissions and distinct names per hallucination mechanism."""
+
+    mechanism: HallucinationMechanism
+    emissions: int
+    distinct: int
+
+
+@dataclass(frozen=True)
+class CatalogRegime:
+    """Judged records conditioned on the catalog size they were offered.
+
+    The catalog moves under adopt / stocktake inside one window, and the
+    third reading (2026-08-22 §4.1) found the hallucination rate tracks
+    the regime, not the window: 0.6% at 19 entries, 20% at 45. The corpus
+    token axis sits beside the entry count because those two moved in
+    opposite directions exactly once (45 → 48 entries, 35,992 → 33,745
+    tokens) and the next window has to say whether that pair reproduces.
+    """
+
+    catalog_count: int
+    judged: int
+    hallucination_records: int
+    # Median of ``full_skill_tokens`` over the judged records that carried
+    # an integer value; ``None`` when none did (``tokens_missing`` says how
+    # many were dropped). Never imputed.
+    full_skill_tokens_median: float | None
+    tokens_missing: int
+    first_date: str
+    last_date: str
+
+
+@dataclass
+class _RegimeAccumulator:
+    """Mutable per-``catalog_count`` counters while the window is read;
+    frozen into ``CatalogRegime`` once it has been. Same shape as the
+    ``day_*`` counters that become ``SkillSelectionDay``."""
+
+    first_date: str
+    last_date: str
+    judged: int = 0
+    hallucination_records: int = 0
+    tokens: list[int] = field(default_factory=list)
+    tokens_missing: int = 0
 
 
 @dataclass(frozen=True)
@@ -652,23 +748,189 @@ class SkillSelectionReading:
     # signature, which is the single worst misreading this tally can
     # produce (cross-model review, 2026-08-08).
     catalog_available: bool
+    # Explicit UTC calendar bounds when the caller windowed by
+    # ``since`` / ``until``; both ``None`` in ``days`` mode. ``days`` is then
+    # the calendar length of the bounded window.
+    window_since: str | None = None
+    window_until: str | None = None
+    # Judged records bucketed by ``catalog_count``, ascending.
+    catalog_regimes: tuple[CatalogRegime, ...] = ()
+    # Judged records with no integer ``catalog_count`` — left out of the
+    # regime table and reported, not folded into a bucket.
+    catalog_count_missing: int = 0
+    mechanism_tally: tuple[MechanismTally, ...] = ()
+    # ``None`` when value-layer text was read; otherwise the reason code the
+    # abstaining rows carry (``value_layer_not_configured`` when the caller
+    # passed no paths, ``value_layer_unreadable`` when none could be read).
+    value_layer_reason: str | None = "value_layer_not_configured"
+    value_layer_files: int = 0
+    # Configured value-layer paths that yielded no text (basenames only —
+    # a home directory is not this instrument's to print). Non-empty with
+    # ``value_layer_reason is None`` is the partial case: the split ran
+    # against an incomplete vocabulary and says so.
+    value_layer_missing: tuple[str, ...] = ()
+
+
+def resolve_selection_window(
+    days: int | None, since: date | None, until: date | None
+) -> tuple[date, date | None, int]:
+    """Return ``(cutoff, upper, calendar_days)``; ``upper`` is ``None`` in
+    ``days`` mode. The one place the window rules live — the CLI calls it
+    to turn a bad flag combination into a usage error.
+
+    ``days`` mode keeps its historical meaning — every file dated on or
+    after ``today - days`` — which is ``days + 1`` calendar days including
+    today; that is the trap the explicit window exists to avoid, and the
+    two modes are exclusive so a caller cannot get both by accident.
+    """
+    if since is None:
+        if until is not None:
+            raise ValueError("until requires since")
+        if days is None:
+            raise ValueError("one of days or since is required")
+        return datetime.now(timezone.utc).date() - timedelta(days=days), None, days
+    if days is not None:
+        raise ValueError("days and since/until are exclusive")
+    upper = until if until is not None else datetime.now(timezone.utc).date()
+    if since > upper:
+        raise ValueError("since must not be after until")
+    return since, upper, (upper - since).days + 1
+
+
+def _read_value_layer_vocabulary(
+    paths: tuple[Path, ...],
+) -> tuple[frozenset[str] | None, int, tuple[str, ...]]:
+    """Tokens (≥ ``_VALUE_LAYER_TOKEN_MIN_CHARS``) of every readable ``*.md``
+    under ``paths`` — a directory through ``read_markdown_documents`` (the
+    file rules of every other value-layer reader in core), a file as
+    itself. Read-only.
+
+    Returns ``(vocabulary, files read, paths that yielded nothing)``.
+    ``vocabulary`` is ``None`` when no file could be read at all, so the
+    caller can tell "configured but unreadable" from "nothing configured";
+    the third element names the *partial* case — a root that yielded
+    nothing, or a directory that yielded fewer documents than it holds
+    ``*.md`` files. That case is the one that silently produces wrong
+    readings: half a value layer still classifies, and a token living only
+    in the missing half reads as ``semantic``.
+    """
+    tokens: set[str] = set()
+    files = 0
+    missing: list[str] = []
+    for root in paths:
+        before = files
+        expected = 0
+        try:
+            if root.is_dir():
+                texts = [raw for _, raw, _ in read_markdown_documents(root)]
+                # ``read_markdown_documents`` skips unreadable files and
+                # drops empty-bodied ones, so "some text came back" is not
+                # "the directory was read": a clause file lost to
+                # permissions leaves its vocabulary out while the count
+                # still looks healthy.
+                expected = len([f for f in root.glob("*.md") if not f.name.startswith(".")])
+            elif root.is_file():
+                # Decoding failures are a ValueError, not an OSError: an
+                # identity file with one bad byte must abstain here, not
+                # take the whole reading down through the caller's
+                # degrade path.
+                texts = [root.read_text(encoding="utf-8")]
+            else:
+                texts = []
+        except (OSError, UnicodeDecodeError):
+            logger.warning("skill selection reading: unreadable value-layer path %s", root.name)
+            texts = []
+        for text in texts:
+            files += 1
+            tokens |= _tokens(text, min_chars=_VALUE_LAYER_TOKEN_MIN_CHARS)
+        if files == before:
+            logger.warning("skill selection reading: value-layer path %s read nothing", root.name)
+            missing.append(root.name)
+        elif files - before < expected:
+            logger.warning(
+                "skill selection reading: value-layer path %s read %d of %d file(s)",
+                root.name,
+                files - before,
+                expected,
+            )
+            missing.append(root.name)
+    if not files:
+        return None, 0, tuple(missing)
+    return frozenset(tokens), files, tuple(missing)
+
+
+def classify_hallucination(
+    name: str,
+    similarity: float,
+    *,
+    catalog_vocabulary: frozenset[str] | None,
+    value_layer_vocabulary: frozenset[str] | None,
+) -> tuple[HallucinationMechanism, str, str]:
+    """Apply the four-rule split documented at ``WORDFORM_SIMILARITY_FLOOR``.
+
+    Returns ``(mechanism, reason, note)``. ``catalog_vocabulary=None``
+    means there was no catalog (no ruler) and ``value_layer_vocabulary=None``
+    means no value-layer text was readable; each abstains exactly the rules
+    that need it, nothing more.
+    """
+    if _is_prose(name):
+        return "value_layer", "", "prose, not a slug"
+    if catalog_vocabulary is None:
+        return "unclassified", "catalog_unavailable", ""
+    # Only tokens long enough to exist in the value-layer vocabulary are
+    # tested against it — otherwise a 3-char foreign token would be reported
+    # as "not in value layer" without ever having been looked up.
+    foreign = sorted(
+        t for t in _tokens(name) - catalog_vocabulary if len(t) >= _VALUE_LAYER_TOKEN_MIN_CHARS
+    )
+    if foreign:
+        if value_layer_vocabulary is None:
+            # Rule 3 needs no value layer, so check it before abstaining: a
+            # misspelling *is* a token outside the catalog vocabulary, and
+            # abstaining first made the weekly packet (which passes no
+            # value-layer paths) call `unclassified` what the terminal
+            # report called `wordform` — the same log line, two answers.
+            # Only names far from every catalog entry, where the choice is
+            # genuinely value_layer vs semantic, still abstain. On the
+            # 2026-08-09..22 window no value-layer name sits at or above the
+            # floor, so this costs no accuracy there; a name that did would
+            # read as wordform without the value layer and value_layer with
+            # it, which the reason code makes visible.
+            if similarity >= WORDFORM_SIMILARITY_FLOOR:
+                return "wordform", "", ""
+            return "unclassified", "value_layer_unavailable", ""
+        bled = [t for t in foreign if t in value_layer_vocabulary]
+        if bled:
+            return "value_layer", "", "foreign token(s) present in value layer: " + ",".join(bled)
+    if similarity >= WORDFORM_SIMILARITY_FLOOR:
+        return "wordform", "", ""
+    note = ("foreign token(s) not in value layer: " + ",".join(foreign)) if foreign else ""
+    return "semantic", "", note
 
 
 def read_skill_selection_log(
     log_dir: Path,
     *,
-    days: int,
+    days: int | None = None,
+    since: date | None = None,
+    until: date | None = None,
     skills_dir: Path | None,
+    value_layer_paths: tuple[Path, ...] = (),
 ) -> SkillSelectionReading:
     """Aggregate ``skill-selection-*.jsonl`` files within the window.
 
-    Files are selected by the date embedded in the filename (same daily
-    rotation as LLM telemetry); broken lines are skipped, never fatal.
-    ``never_selected`` is computed against the *current* catalog, so a
-    skill adopted yesterday with no selections yet will appear — read it
-    alongside ``records`` before drawing conclusions.
+    The window is either ``days`` (files dated on or after ``today - days``,
+    unchanged since the instrument shipped) or an explicit, inclusive UTC
+    calendar range ``since`` .. ``until`` (``until`` defaults to today); the
+    two are exclusive. Files are selected by the date embedded in the
+    filename (same daily rotation as LLM telemetry); broken lines are
+    skipped, never fatal. ``never_selected`` is computed against the
+    *current* catalog, so a skill adopted yesterday with no selections yet
+    will appear — read it alongside ``records`` before drawing conclusions.
+    ``value_layer_paths`` (constitution dir, identity file) are read, never
+    written, and only feed the mechanism split of rejected names.
     """
-    cutoff = datetime.now(timezone.utc).date() - timedelta(days=days)
+    cutoff, upper, window_days = resolve_selection_window(days, since, until)
     verdict_counts: dict[str, int] = {}
     skill_counts: dict[str, int] = {}
     selected_counts: list[int] = []
@@ -689,6 +951,8 @@ def read_skill_selection_log(
     # agent's own store as untrusted regardless of who wrote it.
     rejected_counts: dict[str, int] = {}
     days_seen: list[SkillSelectionDay] = []
+    regimes: dict[int, _RegimeAccumulator] = {}
+    catalog_count_missing = 0
     if log_dir.is_dir():
         for path in sorted(log_dir.glob("skill-selection-*.jsonl")):
             date_part = path.stem.removeprefix("skill-selection-")
@@ -696,7 +960,7 @@ def read_skill_selection_log(
                 file_date = datetime.strptime(date_part, "%Y-%m-%d").date()
             except ValueError:
                 continue
-            if file_date < cutoff:
+            if file_date < cutoff or (upper is not None and file_date > upper):
                 continue
             try:
                 lines = path.read_text(encoding="utf-8").splitlines()
@@ -770,8 +1034,20 @@ def read_skill_selection_log(
                         rejected_counts[clean] = rejected_counts.get(clean, 0) + 1
                 full = rec.get("full_skill_tokens")
                 would_be = rec.get("would_be_skill_tokens")
-                if isinstance(full, int) and isinstance(would_be, int):
+                if _is_int(full) and _is_int(would_be):
                     reductions.append(full - would_be)
+                count = rec.get("catalog_count")
+                if _is_int(count):
+                    regime = regimes.setdefault(count, _RegimeAccumulator(date_part, date_part))
+                    regime.judged += 1
+                    regime.hallucination_records += 1 if rejected else 0
+                    if _is_int(full):
+                        regime.tokens.append(full)
+                    else:
+                        regime.tokens_missing += 1
+                    regime.last_date = date_part
+                else:
+                    catalog_count_missing += 1
             if day_records:
                 days_seen.append(
                     SkillSelectionDay(
@@ -785,9 +1061,31 @@ def read_skill_selection_log(
                     )
                 )
 
-    catalog_names = [e.name for e in load_skill_catalog(skills_dir)]
+    catalog = load_skill_catalog(skills_dir)
+    catalog_names = [e.name for e in catalog]
     never_selected = tuple(name for name in catalog_names if name not in skill_counts)
     never_selected_exposure = tuple((name, exposure_counts.get(name, 0)) for name in never_selected)
+    # Catalog vocabulary = what the pass-1 prompt actually shows (name +
+    # description), plus every name the window's records carried, so a
+    # name renamed away mid-window is still catalog-derived rather than
+    # foreign. Names only for the ruler below — it stays the current
+    # catalog so the tally's nearest and the split's similarity agree.
+    catalog_vocabulary: frozenset[str] | None = None
+    if catalog_names:
+        vocabulary: set[str] = set()
+        for entry in catalog:
+            vocabulary |= _tokens(f"{entry.name} {entry.description}")
+        for name in exposure_counts:
+            vocabulary |= _tokens(name)
+        catalog_vocabulary = frozenset(vocabulary)
+    value_layer_vocabulary, value_layer_files, value_layer_missing = (
+        _read_value_layer_vocabulary(value_layer_paths) if value_layer_paths else (None, 0, ())
+    )
+    value_layer_reason = (
+        None
+        if value_layer_vocabulary is not None
+        else ("value_layer_unreadable" if value_layer_paths else "value_layer_not_configured")
+    )
 
     def _nearest(name: str) -> tuple[str, float]:
         """Closest catalog name by surface similarity, with its ratio.
@@ -822,11 +1120,32 @@ def read_skill_selection_log(
 
     def _tally(name: str, count: int) -> RejectedNameTally:
         nearest, similarity = _nearest(name)
-        return RejectedNameTally(name=name, count=count, nearest=nearest, similarity=similarity)
+        mechanism, reason, note = classify_hallucination(
+            name,
+            similarity,
+            catalog_vocabulary=catalog_vocabulary,
+            value_layer_vocabulary=value_layer_vocabulary,
+        )
+        return RejectedNameTally(
+            name=name,
+            count=count,
+            nearest=nearest,
+            similarity=similarity,
+            mechanism=mechanism,
+            mechanism_reason=reason,
+            mechanism_note=note,
+        )
 
     rejected_name_tally = tuple(
         _tally(name, count)
         for name, count in sorted(rejected_counts.items(), key=lambda kv: (-kv[1], kv[0]))
+    )
+    mechanism_rows: dict[HallucinationMechanism, list[int]] = {}
+    for entry in rejected_name_tally:
+        mechanism_rows.setdefault(entry.mechanism, []).append(entry.count)
+    mechanism_tally = tuple(
+        MechanismTally(mechanism=m, emissions=sum(counts), distinct=len(counts))
+        for m, counts in sorted(mechanism_rows.items(), key=lambda kv: (-sum(kv[1]), kv[0]))
     )
 
     def _pct(values: list[int], q: float) -> float:
@@ -834,8 +1153,21 @@ def read_skill_selection_log(
             return 0.0
         return float(np.percentile(np.asarray(values, dtype=float), q))
 
+    catalog_regimes = tuple(
+        CatalogRegime(
+            catalog_count=count,
+            judged=acc.judged,
+            hallucination_records=acc.hallucination_records,
+            full_skill_tokens_median=_pct(acc.tokens, 50) if acc.tokens else None,
+            tokens_missing=acc.tokens_missing,
+            first_date=acc.first_date,
+            last_date=acc.last_date,
+        )
+        for count, acc in sorted(regimes.items())
+    )
+
     return SkillSelectionReading(
-        days=days,
+        days=window_days,
         records=records,
         verdicts=tuple(sorted(verdict_counts.items())),
         per_skill=tuple(sorted(skill_counts.items(), key=lambda kv: (-kv[1], kv[0]))),
@@ -852,6 +1184,14 @@ def read_skill_selection_log(
         never_selected_exposure=never_selected_exposure,
         rejected_name_tally=rejected_name_tally,
         catalog_available=bool(catalog_names),
+        window_since=cutoff.isoformat() if upper is not None else None,
+        window_until=upper.isoformat() if upper is not None else None,
+        catalog_regimes=catalog_regimes,
+        catalog_count_missing=catalog_count_missing,
+        mechanism_tally=mechanism_tally,
+        value_layer_reason=value_layer_reason,
+        value_layer_files=value_layer_files,
+        value_layer_missing=value_layer_missing,
     )
 
 
@@ -890,10 +1230,16 @@ def format_skill_selection_report(
     each sits from which real skill — is rendered either way, because the
     nearest name is a catalog name and the distance is a float.
     """
+    if reading.window_since is not None:
+        window_text = (
+            f"{reading.window_since} .. {reading.window_until} UTC ({reading.days} calendar days)"
+        )
+    else:
+        window_text = f"last {reading.days} days"
     lines = [
         "## Skill-selection reading (ADR-0076 instrument, ADR-0081 enforcement)",
         "",
-        f"Window: last {reading.days} days — {reading.records} records",
+        f"Window: {window_text} — {reading.records} records",
     ]
     if reading.verdicts:
         verdict_text = ", ".join(f"{v}: {n}" for v, n in reading.verdicts)
@@ -938,11 +1284,83 @@ def format_skill_selection_report(
             "  records = judged + fell-back; all other columns count judged "
             "records only. Which fallback verdicts fired is in `Verdicts` above."
         )
+    if reading.catalog_regimes or reading.catalog_count_missing:
+        lines.append("")
+        lines.append("By catalog size (the rate tracks the regime, not the window):")
+        lines.append(f"{'catalog':>8}{'judged':>8}{'halluc':>8}{'rate':>9}{'tok p50':>10}  days")
+        for regime in reading.catalog_regimes:
+            rate = regime.hallucination_records / regime.judged if regime.judged else 0.0
+            if regime.full_skill_tokens_median is None:
+                tokens_text = "—"
+            else:
+                tokens_text = f"{regime.full_skill_tokens_median:,.0f}"
+            span = (
+                regime.first_date
+                if regime.first_date == regime.last_date
+                else f"{regime.first_date}..{regime.last_date}"
+            )
+            missing = (
+                f" (full_skill_tokens_missing={regime.tokens_missing})"
+                if regime.tokens_missing
+                else ""
+            )
+            lines.append(
+                f"{regime.catalog_count:>8}{regime.judged:>8}{regime.hallucination_records:>8}"
+                f"{rate:>9.1%}{tokens_text:>10}  {span}{missing}"
+            )
+        if reading.catalog_count_missing:
+            lines.append(
+                f"  catalog_count_missing={reading.catalog_count_missing} judged records carried "
+                "no integer catalog_count and are excluded from this table"
+            )
+        lines.append(
+            "  halluc = judged records with ≥1 rejected name; tok p50 = median "
+            "full_skill_tokens the record baked in (corpus size as offered)."
+        )
     if reading.per_skill:
         lines.append("")
         lines.append("Selection frequency:")
         for name, count in reading.per_skill:
             lines.append(f"- {name}: {count}")
+    if reading.mechanism_tally:
+        lines.append("")
+        lines.append("Hallucination by mechanism (emissions over distinct rejected names):")
+        total_emissions = sum(m.emissions for m in reading.mechanism_tally)
+        for tally in reading.mechanism_tally:
+            share = tally.emissions / total_emissions if total_emissions else 0.0
+            lines.append(
+                f"- {tally.mechanism}: {tally.emissions} emissions ({share:.1%}), "
+                f"{tally.distinct} distinct"
+            )
+        if not reading.catalog_available:
+            lines.append(
+                "  no catalog to measure against: every non-prose name is "
+                "`unclassified` (catalog_unavailable), not classified."
+            )
+        if reading.value_layer_reason is not None:
+            lines.append(
+                f"  value-layer rule abstained: {reading.value_layer_reason} — names with "
+                "tokens outside the catalog vocabulary are `unclassified`, not `semantic`."
+            )
+        else:
+            missing = (
+                f"; read nothing from {', '.join(reading.value_layer_missing)}"
+                if reading.value_layer_missing
+                else ""
+            )
+            lines.append(
+                f"  value layer read from {reading.value_layer_files} file(s) "
+                f"(constitution / identity, read-only){missing}."
+            )
+        lines.append(
+            "  Both rulers are the catalog and value layer as they stand *now*, not "
+            "as each record saw them: a window spanning a rename, a rewritten "
+            "description or a constitution amendment classifies older emissions "
+            "against today's text. The audit records carry `catalog_names` (folded "
+            "in above) but no description or value-layer snapshot, so this reading "
+            "is not replayable across such a change — read a regime boundary in the "
+            "table above as a boundary here too (cross-model review, 2026-08-22)."
+        )
     if reading.rejected_name_tally:
         lines.append("")
         lines.append("Rejected names (emitted, matched no catalog entry):")
@@ -972,7 +1390,14 @@ def format_skill_selection_report(
             # which is what "did wordform slips concentrate on three
             # skills, or is text bleeding in?" actually needs.
             head = f"{entry.name}: " if include_rejected_names else ""
-            lines.append(f"- {head}{entry.count} emissions — {nearest_text}")
+            mechanism_text = entry.mechanism
+            if entry.mechanism_reason:
+                mechanism_text += f" ({entry.mechanism_reason})"
+            # The note quotes tokens of the name: same trust boundary as
+            # the name itself.
+            if include_rejected_names and entry.mechanism_note:
+                mechanism_text += f"; {entry.mechanism_note}"
+            lines.append(f"- {head}{entry.count} emissions — {nearest_text} — {mechanism_text}")
         hidden = reading.rejected_name_tally[_REJECTED_NAME_RENDER_LIMIT:]
         if hidden:
             # Bounding the *rendering*, not the reading: the dataclass
@@ -991,7 +1416,9 @@ def format_skill_selection_report(
             "Similarity is surface (orthographic), not semantic: near 1.00 is a "
             "wordform slip on a name that IS in the catalog, mid-range is a "
             "different word, low means the text came from somewhere other than "
-            "the catalog. Which bucket a row falls in is the reader's call."
+            "the catalog. The trailing bucket is the fixed four-rule split "
+            f"(wordform floor {WORDFORM_SIMILARITY_FLOOR:.2f}); `unclassified` rows "
+            "name the input the rule was missing."
         )
     if reading.never_selected_exposure:
         lines.append("")

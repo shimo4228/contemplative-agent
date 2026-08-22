@@ -7,6 +7,7 @@ import difflib
 import json
 import logging
 from pathlib import Path
+from typing import Any
 from unittest.mock import patch
 
 import pytest
@@ -1309,3 +1310,476 @@ class TestEnforcementWiring:
             generate_cooperation_post([{"title": "t", "content": "seed"}])
             generate_post_title("seed")
             assert mock_api.call_args.kwargs.get("system") is None
+
+
+class TestSkillSelectionWindowAndMechanisms:
+    """T-SKILLSEL-REPORT-WINDOW (2026-08-22): three instrument extensions the
+    third reading needed six ad-hoc scripts for — an explicit UTC calendar
+    window, the hallucination rate conditioned on ``catalog_count`` with a
+    corpus-token axis, and the three-mechanism split of rejected names.
+    All read-only (ADR-0071 / ADR-0076); the selector is untouched."""
+
+    @staticmethod
+    def _rec(
+        selected=("skill-a",), *, catalog_count: Any = 45, tokens: Any = 1000, rejected=(), **extra
+    ):
+        # ``Any``: fault rows deliberately pass the wrong type.
+        rec = dict(
+            TestSkillSelectionReading._judged(list(selected), full=tokens, would_be=100),
+            catalog_count=catalog_count,
+            rejected_names=list(rejected),
+            catalog_names=["identifying-structural-tensions", "trace-dependency-failures"],
+        )
+        rec.update(extra)
+        return rec
+
+    def _write(self, log_dir, date, records):
+        TestSkillSelectionReading()._write_log(log_dir, date, records)
+
+    def _catalog_dir(self, tmp_path):
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        _write_skill(
+            skills_dir,
+            "a.md",
+            "identifying-structural-tensions",
+            "identify tensions via system metaphors",
+        )
+        _write_skill(skills_dir, "b.md", "trace-dependency-failures", "trace failures")
+        return skills_dir
+
+    def _value_layer(self, tmp_path):
+        constitution = tmp_path / "constitution"
+        constitution.mkdir()
+        (constitution / "axioms.md").write_text(
+            "Mindfulness: monitor your interpretative process continuously.\n",
+            encoding="utf-8",
+        )
+        identity = tmp_path / "identity.md"
+        identity.write_text("I am a contemplative agent.\n", encoding="utf-8")
+        return (constitution, identity)
+
+    # --- window ---------------------------------------------------------
+
+    def test_since_until_selects_utc_calendar_days_inclusive(self, tmp_path):
+        from datetime import date
+
+        log_dir = tmp_path / "logs"
+        for day in ("2026-08-08", "2026-08-09", "2026-08-22", "2026-08-23"):
+            self._write(log_dir, day, [self._rec(extra_day=day)])
+        reading = ss.read_skill_selection_log(
+            log_dir,
+            since=date(2026, 8, 9),
+            until=date(2026, 8, 22),
+            skills_dir=None,
+        )
+        assert reading.records == 2
+        assert [d.date for d in reading.per_day] == ["2026-08-09", "2026-08-22"]
+        assert reading.days == 14
+        assert reading.window_since == "2026-08-09"
+        assert reading.window_until == "2026-08-22"
+        text = ss.format_skill_selection_report(reading)
+        assert "2026-08-09" in text and "2026-08-22" in text
+        assert "last 14 days" not in text
+
+    def test_days_mode_is_unchanged_and_reports_no_bounds(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        self._write(log_dir, today, [self._rec()])
+        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        assert reading.records == 1
+        assert reading.days == 7
+        assert reading.window_since is None and reading.window_until is None
+        assert "last 7 days" in ss.format_skill_selection_report(reading)
+
+    def test_window_arguments_are_exclusive_and_ordered(self, tmp_path):
+        from datetime import date
+
+        log_dir = tmp_path / "logs"
+        with pytest.raises(ValueError, match="days"):
+            ss.read_skill_selection_log(log_dir, days=7, since=date(2026, 8, 9), skills_dir=None)
+        with pytest.raises(ValueError, match="since"):
+            ss.read_skill_selection_log(log_dir, until=date(2026, 8, 9), skills_dir=None)
+        with pytest.raises(ValueError, match="since"):
+            ss.read_skill_selection_log(
+                log_dir, since=date(2026, 8, 10), until=date(2026, 8, 9), skills_dir=None
+            )
+        with pytest.raises(ValueError, match="days"):
+            ss.read_skill_selection_log(log_dir, skills_dir=None)
+
+    def test_since_alone_runs_through_today(self, tmp_path):
+        from datetime import date, datetime, timezone
+
+        log_dir = tmp_path / "logs"
+        today = datetime.now(timezone.utc).date()
+        self._write(log_dir, today.isoformat(), [self._rec()])
+        self._write(log_dir, "2026-01-01", [self._rec()])
+        reading = ss.read_skill_selection_log(log_dir, since=date(2026, 1, 2), skills_dir=None)
+        assert reading.records == 1
+        assert reading.window_until == today.isoformat()
+
+    def test_empty_window_abstains_cleanly(self, tmp_path):
+        from datetime import date
+
+        reading = ss.read_skill_selection_log(
+            tmp_path / "logs", since=date(2026, 8, 9), until=date(2026, 8, 22), skills_dir=None
+        )
+        assert reading.records == 0
+        assert reading.catalog_regimes == ()
+        assert reading.mechanism_tally == ()
+        text = ss.format_skill_selection_report(reading)
+        assert "0 records" in text
+
+    # --- catalog_count conditioning ---------------------------------------
+
+    def test_catalog_regimes_condition_rate_and_token_median(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        self._write(
+            log_dir,
+            today,
+            [
+                self._rec(catalog_count=45, tokens=100),
+                self._rec(catalog_count=45, tokens=200, rejected=["ghost-a"]),
+                self._rec(catalog_count=45, tokens=300),
+                self._rec(catalog_count=48, tokens=50),
+                self._rec(catalog_count=48, tokens=70, rejected=["ghost-a", "ghost-b"]),
+                {"ts": "t", "verdict": "fail_open_llm", "selected": [], "catalog_count": 45},
+            ],
+        )
+        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        regimes = {r.catalog_count: r for r in reading.catalog_regimes}
+        assert [r.catalog_count for r in reading.catalog_regimes] == [45, 48]
+        assert (regimes[45].judged, regimes[45].hallucination_records) == (3, 1)
+        assert regimes[45].full_skill_tokens_median == pytest.approx(200.0)
+        assert (regimes[48].judged, regimes[48].hallucination_records) == (2, 1)
+        assert regimes[48].full_skill_tokens_median == pytest.approx(60.0)
+        assert reading.catalog_count_missing == 0
+        text = ss.format_skill_selection_report(reading)
+        assert "33.3%" in text and "50.0%" in text
+        assert "200" in text and "60" in text
+
+    def test_catalog_count_missing_is_abstained_not_bucketed(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        no_count = self._rec()
+        del no_count["catalog_count"]
+        self._write(
+            log_dir,
+            today,
+            [no_count, self._rec(catalog_count="45"), self._rec(catalog_count=45)],
+        )
+        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        assert [r.catalog_count for r in reading.catalog_regimes] == [45]
+        assert reading.catalog_regimes[0].judged == 1
+        assert reading.catalog_count_missing == 2
+        text = ss.format_skill_selection_report(reading)
+        assert "catalog_count_missing" in text and "2" in text
+
+    def test_full_skill_tokens_missing_is_counted_not_imputed(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        no_tok = self._rec(catalog_count=45)
+        del no_tok["full_skill_tokens"]
+        self._write(
+            log_dir,
+            today,
+            [
+                no_tok,
+                self._rec(catalog_count=45, tokens=300),
+                self._rec(catalog_count=45, tokens="x"),
+            ],
+        )
+        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        regime = reading.catalog_regimes[0]
+        assert regime.judged == 3
+        assert regime.full_skill_tokens_median == pytest.approx(300.0)
+        assert regime.tokens_missing == 2
+        all_missing = tmp_path / "logs2"
+        self._write(all_missing, today, [dict(no_tok)])
+        regime = ss.read_skill_selection_log(all_missing, days=7, skills_dir=None).catalog_regimes[
+            0
+        ]
+        assert regime.full_skill_tokens_median is None
+        text = ss.format_skill_selection_report(
+            ss.read_skill_selection_log(all_missing, days=7, skills_dir=None)
+        )
+        assert "full_skill_tokens_missing" in text
+
+    # --- mechanism split --------------------------------------------------
+
+    def test_rejected_names_are_split_by_mechanism(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        self._write(
+            log_dir,
+            today,
+            [
+                self._rec(rejected=["identify-structural-tensions"]),
+                self._rec(
+                    rejected=["identify-structural-tensions", "translate-dependency-failures"]
+                ),
+                self._rec(rejected=["interpretative-audit"]),
+                self._rec(rejected=["suspending interpretation upon premise doubt"]),
+            ],
+        )
+        reading = ss.read_skill_selection_log(
+            log_dir,
+            days=7,
+            skills_dir=self._catalog_dir(tmp_path),
+            value_layer_paths=self._value_layer(tmp_path),
+        )
+        by_name = {t.name: t for t in reading.rejected_name_tally}
+        assert by_name["identify-structural-tensions"].mechanism == "wordform"
+        assert by_name["identify-structural-tensions"].similarity >= ss.WORDFORM_SIMILARITY_FLOOR
+        assert by_name["translate-dependency-failures"].mechanism == "semantic"
+        assert by_name["interpretative-audit"].mechanism == "value_layer"
+        assert by_name["suspending interpretation upon premise doubt"].mechanism == "value_layer"
+        assert reading.value_layer_reason is None
+        tally = {m.mechanism: (m.emissions, m.distinct) for m in reading.mechanism_tally}
+        assert tally == {"wordform": (2, 1), "semantic": (1, 1), "value_layer": (2, 2)}
+        text = ss.format_skill_selection_report(reading)
+        assert "wordform" in text and "semantic" in text and "value_layer" in text
+        assert "40.0%" in text  # wordform 2 of 5 emissions
+
+    def test_catalog_description_words_are_catalog_vocabulary(self, tmp_path):
+        """The pass-1 prompt shows (name, description) pairs, so a token that
+        appears only in a description is catalog-derived, not value-layer
+        bleed — even when the value layer also contains it."""
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        constitution, identity = self._value_layer(tmp_path)
+        (constitution / "more.md").write_text("use metaphors wisely\n", encoding="utf-8")
+        self._write(log_dir, today, [self._rec(rejected=["metaphors-of-failures"])])
+        reading = ss.read_skill_selection_log(
+            log_dir,
+            days=7,
+            skills_dir=self._catalog_dir(tmp_path),
+            value_layer_paths=(constitution, identity),
+        )
+        assert reading.rejected_name_tally[0].mechanism == "semantic"
+
+    def test_value_layer_unavailable_abstains_with_reason_code(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        self._write(
+            log_dir,
+            today,
+            [self._rec(rejected=["identify-structural-tensions", "interpretative-audit"])],
+        )
+        skills_dir = self._catalog_dir(tmp_path)
+        not_configured = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        assert not_configured.value_layer_reason == "value_layer_not_configured"
+        by_name = {t.name: t for t in not_configured.rejected_name_tally}
+        # Rule 3 needs no value layer: still decidable.
+        assert by_name["identify-structural-tensions"].mechanism == "wordform"
+        # Rule 2 would need it: abstain, do not fall through to "semantic".
+        assert by_name["interpretative-audit"].mechanism == "unclassified"
+        assert by_name["interpretative-audit"].mechanism_reason == "value_layer_unavailable"
+        tally = {m.mechanism: m.emissions for m in not_configured.mechanism_tally}
+        assert tally == {"wordform": 1, "unclassified": 1}
+        text = ss.format_skill_selection_report(not_configured)
+        assert "value_layer_not_configured" in text
+
+        unreadable = ss.read_skill_selection_log(
+            log_dir,
+            days=7,
+            skills_dir=skills_dir,
+            value_layer_paths=(tmp_path / "nope", tmp_path / "nope.md"),
+        )
+        assert unreadable.value_layer_reason == "value_layer_unreadable"
+        assert "value_layer_unreadable" in ss.format_skill_selection_report(unreadable)
+
+    def test_no_catalog_leaves_every_name_unclassified(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        self._write(log_dir, today, [self._rec(rejected=["identify-structural-tensions"])])
+        reading = ss.read_skill_selection_log(
+            log_dir, days=7, skills_dir=None, value_layer_paths=self._value_layer(tmp_path)
+        )
+        entry = reading.rejected_name_tally[0]
+        assert entry.mechanism == "unclassified"
+        assert entry.mechanism_reason == "catalog_unavailable"
+        assert "catalog_unavailable" in ss.format_skill_selection_report(reading)
+
+    def test_prose_names_are_value_layer_even_when_value_layer_is_absent(self, tmp_path):
+        """Rule 1 (whitespace / slash = prose, not a slug) needs neither
+        ruler nor value layer, so it must not be abstained with them."""
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        self._write(log_dir, today, [self._rec(rejected=["a prose clause here"])])
+        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        assert reading.rejected_name_tally[0].mechanism == "value_layer"
+
+    # --- trust boundary ---------------------------------------------------
+
+    def test_default_renderer_still_withholds_names_in_new_sections(self, tmp_path):
+        """``weekly-analysis.sh`` takes the default; the new sections must
+        not become a second channel for model-emitted strings."""
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        names = ["identify-structural-tensions", "zqxv-audit", "zqxv prose leak"]
+        self._write(log_dir, today, [self._rec(rejected=names)])
+        reading = ss.read_skill_selection_log(
+            log_dir,
+            days=7,
+            skills_dir=self._catalog_dir(tmp_path),
+            value_layer_paths=self._value_layer(tmp_path),
+        )
+        default = ss.format_skill_selection_report(reading)
+        for name in names:
+            assert name not in default
+        assert "zqxv" not in default
+        assert "Hallucination by mechanism" in default
+        human = ss.format_skill_selection_report(reading, include_rejected_names=True)
+        for name in names:
+            assert name in human
+
+
+class TestSkillSelectionMechanismFaults(TestSkillSelectionWindowAndMechanisms):
+    """Fault rows for the mechanism split's inputs (silent-failure review,
+    2026-08-22). Every one of these must abstain with a reason code that
+    reaches the report — never a wrong bucket, never a lost section."""
+
+    def test_undecodable_value_layer_file_abstains_not_crashes(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        self._write(log_dir, today, [self._rec(rejected=["interpretative-audit"])])
+        identity = tmp_path / "identity.md"
+        identity.write_bytes(b"\xff\xfe not utf-8 \x80\x81")
+        reading = ss.read_skill_selection_log(
+            log_dir,
+            days=7,
+            skills_dir=self._catalog_dir(tmp_path),
+            value_layer_paths=(identity,),
+        )
+        assert reading.value_layer_reason == "value_layer_unreadable"
+        assert reading.rejected_name_tally[0].mechanism == "unclassified"
+        assert "value_layer_unreadable" in ss.format_skill_selection_report(reading)
+
+    def test_partly_read_value_layer_names_what_was_missing(self, tmp_path):
+        """A constitution that reads plus an identity file that does not is
+        *not* "value layer available": rule 2 would then measure against half
+        the vocabulary and call an identity-only token `semantic`."""
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        self._write(log_dir, today, [self._rec(rejected=["interpretative-audit"])])
+        constitution, identity = self._value_layer(tmp_path)
+        identity.unlink()
+        reading = ss.read_skill_selection_log(
+            log_dir,
+            days=7,
+            skills_dir=self._catalog_dir(tmp_path),
+            value_layer_paths=(constitution, identity),
+        )
+        assert reading.value_layer_files == 1
+        assert reading.value_layer_missing == ("identity.md",)
+        text = ss.format_skill_selection_report(reading)
+        assert "identity.md" in text
+        # Still classified — the part that was read is a real ruler — but the
+        # gap is named rather than hidden behind a file count.
+        assert reading.rejected_name_tally[0].mechanism == "value_layer"
+
+    def test_mechanism_section_names_the_missing_catalog(self, tmp_path):
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        self._write(log_dir, today, [self._rec(rejected=["ghost-name"])])
+        reading = ss.read_skill_selection_log(
+            log_dir, days=7, skills_dir=None, value_layer_paths=self._value_layer(tmp_path)
+        )
+        section = ss.format_skill_selection_report(reading).split("Hallucination by mechanism")[1]
+        assert "catalog_unavailable" in section
+
+    def test_short_foreign_tokens_are_not_claimed_to_be_checked(self, tmp_path):
+        """The value-layer vocabulary drops tokens under
+        ``_VALUE_LAYER_TOKEN_MIN_CHARS``, so a 3-char foreign token can never
+        match it. Testing it anyway would print "not in value layer" about a
+        word that was never looked up."""
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        constitution, identity = self._value_layer(tmp_path)
+        (constitution / "short.md").write_text("ego and its metaphors\n", encoding="utf-8")
+        self._write(log_dir, today, [self._rec(rejected=["ego-tensions"])])
+        reading = ss.read_skill_selection_log(
+            log_dir,
+            days=7,
+            skills_dir=self._catalog_dir(tmp_path),
+            value_layer_paths=(constitution, identity),
+        )
+        entry = reading.rejected_name_tally[0]
+        assert entry.mechanism == "semantic"
+        assert "ego" not in entry.mechanism_note
+
+    def test_unreadable_value_layer_root_is_logged_not_silent(self, tmp_path, caplog):
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        self._write(log_dir, today, [self._rec(rejected=["ghost-name"])])
+        with caplog.at_level(logging.WARNING):
+            reading = ss.read_skill_selection_log(
+                log_dir,
+                days=7,
+                skills_dir=None,
+                value_layer_paths=(tmp_path / "absent-dir",),
+            )
+        assert reading.value_layer_reason == "value_layer_unreadable"
+        assert reading.value_layer_missing == ("absent-dir",)
+
+
+class TestSkillSelectionReviewFixes(TestSkillSelectionWindowAndMechanisms):
+    """Code-review findings, 2026-08-22: the value layer is optional for the
+    consumer that matters most (the weekly packet), the constitution can be
+    overridden by a CLI flag, and a directory can be read only in part."""
+
+    def test_wordform_is_decided_without_a_value_layer(self, tmp_path):
+        """Rule 3 needs no value layer. Abstaining before checking it made
+        the weekly packet (which passes no value-layer paths) print
+        `unclassified` for the same record `report --skill-selection` calls
+        `wordform` — two renderers disagreeing about one log line."""
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        self._write(
+            log_dir,
+            today,
+            [
+                # A misspelling is a token outside the catalog vocabulary, so
+                # rule 2 fires first — but the name sits at ~0.97 of a real
+                # catalog entry, which rule 3 can settle on its own.
+                self._rec(rejected=["identifing-structural-tensions"]),
+                self._rec(rejected=["wholly-unrelated-invention"]),
+            ],
+        )
+        skills_dir = self._catalog_dir(tmp_path)
+        without = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        by_name = {t.name: t for t in without.rejected_name_tally}
+        assert by_name["identifing-structural-tensions"].mechanism == "wordform"
+        # Far from every catalog name: value_layer vs semantic genuinely
+        # needs the value layer, so this one still abstains.
+        assert by_name["wholly-unrelated-invention"].mechanism == "unclassified"
+        assert by_name["wholly-unrelated-invention"].mechanism_reason == "value_layer_unavailable"
+        with_layer = ss.read_skill_selection_log(
+            log_dir,
+            days=7,
+            skills_dir=skills_dir,
+            value_layer_paths=self._value_layer(tmp_path),
+        )
+        assert {t.name: t.mechanism for t in with_layer.rejected_name_tally}[
+            "identifing-structural-tensions"
+        ] == "wordform"
+
+    def test_partly_read_directory_is_named_as_partial(self, tmp_path):
+        """``read_markdown_documents`` skips unreadable and empty-bodied
+        files internally, so "files > 0" is not "the value layer was read"."""
+        log_dir = tmp_path / "logs"
+        today = TestRejectedNameTally()._today()
+        self._write(log_dir, today, [self._rec(rejected=["interpretative-audit"])])
+        constitution, identity = self._value_layer(tmp_path)
+        (constitution / "empty.md").write_text("---\nname: x\n---\n", encoding="utf-8")
+        reading = ss.read_skill_selection_log(
+            log_dir,
+            days=7,
+            skills_dir=self._catalog_dir(tmp_path),
+            value_layer_paths=(constitution, identity),
+        )
+        assert reading.value_layer_files == 2
+        assert reading.value_layer_missing == (constitution.name,)
+        assert constitution.name in ss.format_skill_selection_report(reading)
