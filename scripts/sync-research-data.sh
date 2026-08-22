@@ -25,6 +25,14 @@ fi
 # MOLTBOOK_HOME. They MUST be excluded here, otherwise `rsync --delete` removes
 # them on every sync. Keep this list in step with the data repo's static files.
 #
+# `.archive/` (ADR-0097 D5) is a deliberate exclusion, not an oversight. What a
+# retirement publishes is not only the retired text — an archived file can carry
+# a `superseded_by:` stamp the live store never had, so mirroring it would
+# publish the *lineage* of every retirement decision as well. It matches at any
+# depth, which is what reaches `skills/.archive/`. `--delete` means an archive
+# published before this rule existed is withdrawn on the next sync (none were:
+# the exit shipped 2026-08-22, after which no archive had run).
+#
 # `*.tmp` is load-bearing, not tidiness: every other exclusion matches an exact
 # basename, while write_restricted publishes through `<basename>.<random>.tmp`
 # (T-WRITE-TMP-NOFOLLOW, 2026-08-15) and an interrupted write leaves one behind
@@ -58,6 +66,7 @@ rsync -a --delete \
     --exclude='reports/.private/' \
     --exclude='.private/' \
     --exclude='.staged/' \
+    --exclude='.archive/' \
     "$MOLTBOOK_HOME/" "$DATA_REPO/"
 
 # knowledge.json is excluded from the rsync above and regenerated here
