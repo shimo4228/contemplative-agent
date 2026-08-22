@@ -25,6 +25,7 @@
 internal_note
 identity_distill
 insight_extraction
+insight_worth  # insight worth gate (insight.py:344 INSIGHT_WORTH_PROMPT)
 insight_novelty_system
 meditation_interpret
 distill_episode

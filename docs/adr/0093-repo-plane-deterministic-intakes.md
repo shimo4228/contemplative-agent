@@ -190,8 +190,8 @@ added signal.
   (`tasks.py::render_row`) and reported by the scan, giving the convention a
   second enforcement point upstream of the weekly cadence.
 - **Superseded 2026-08-15: stage 6c's input is the store, not the file.** As
-  adopted, this intake parsed `.notes/TASKS.md`, which under ADR-0094 became a
-  *projection* of `.notes/tasks/` — and **no stage re-derives it**; sessions
+  adopted, this intake parsed the gitignored `TASKS.md` ledger file, which under
+  ADR-0094 became a *projection* of the gitignored `tasks/` store — and **no stage re-derives it**; sessions
   render by hand. A week whose `tasks.py render` failed never reaches
   `_atomic_write`, so the previous table survives intact and parses cleanly:
   the stage recorded `result=ok watches=N fired=0` over a store it no longer

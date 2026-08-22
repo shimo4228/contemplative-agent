@@ -168,8 +168,8 @@ signal を足さずに運用面だけ増やす。
   名前を付け、render（`tasks.py::render_row`）で拒否し、スキャンでも報告する。
   規約の強制点は 2 つになり、うち 1 つは週次より上流にある。
 - **2026-08-15 に supersede: stage 6c の入力は file でなく store。** 採択時この
-  intake は `.notes/TASKS.md` を parse していたが、ADR-0094 以降それは
-  `.notes/tasks/` の **projection** であり、**どの stage もそれを再生成しない**
+  intake は gitignored の台帳ファイル `TASKS.md` を parse していたが、ADR-0094 以降それは
+  gitignored の `tasks/` store の **projection** であり、**どの stage もそれを再生成しない**
   （render は session が手で走らせる）。`tasks.py render` が落ちた週は
   `_atomic_write` に到達しないので前回の表がそのまま残り、しかもそれは正しく
   parse される — stage は、もはや写していない store に対して
