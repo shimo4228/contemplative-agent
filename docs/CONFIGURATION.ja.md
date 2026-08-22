@@ -199,7 +199,7 @@ cp config/templates/stoic/constitution/* ~/.config/moltbook/constitution/
 ### 監査（重複検出）
 
 - `contemplative-agent skill-stocktake` — 品質レポート + 選択ログの usage 読み値 + description 監査（ADR-0097 以降 read-only。書き込みも staging もしない）
-- 重複の検出は選択ログ（いつも一緒に選ばれる skill）から読む。削除は土曜ゲートの人間の操作（今は `remove-skill`、archive 経路は ADR-0097 Decision 5 に予約）
+- 重複の検出は選択ログ（いつも一緒に選ばれる skill）から読む。退役は土曜ゲートの人間の操作で、削除ではなく**移動**（ADR-0097 Decision 5）: `remove-skill <name> --reason R` が `skills/.archive/` へ archive し（`--delete` は従来どおり unlink）、`adopt-staged --archive-names FILE` が採用ゲートで store の skill を退役させる。store の読み手はすべて `*.md` を非再帰 glob するので、ランタイムは `.archive/` を見ない
 
 ### コーディングエージェント用スキル (-ca)
 

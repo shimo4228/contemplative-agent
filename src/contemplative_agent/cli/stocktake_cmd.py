@@ -4,14 +4,17 @@ ADR-0097 reduced this command to the three things that survived the
 consolidator dissolution. It writes nothing to the store and stages nothing:
 the structural check and the usage reading are code-owned readings, and the
 ADR-0081 description audit is advisory. Retirement and consolidation happen at
-the Saturday gate, not here — today through ``remove-skill``; the archive exit
-(``adopt-staged --archive-names``) and the packet's never-selected and
-co-selection readings are reserved for ADR-0097 slice 2 and do not exist yet.
+the Saturday gate, not here: ``remove-skill --reason`` archives a skill into
+``skills/.archive/`` and ``adopt-staged --archive-names FILE`` retires store
+skills at the adoption gate, while the packet's never-selected and co-selection
+readings say which skills are candidates. All of that is ADR-0097 slice 2 and
+lives elsewhere — this command reports, it does not retire.
 
-``rules-stocktake`` was retired in the same decision; the rules layer keeps a
-deterministic structural check (``core.stocktake.run_rules_quality_check``),
-whose consumer — a rules section in the weekly packet — is reserved for
-ADR-0097 slice 2.
+``rules-stocktake`` was retired in the same decision. The deterministic rule
+check (``core.stocktake._check_rule_quality``) is no longer run here either;
+slice 2 moved the rules reading to the weekly packet, whose producer re-derives
+it under the system interpreter — the chain invokes that script with bare
+``python3`` — and is pinned against this one by test.
 """
 
 from __future__ import annotations

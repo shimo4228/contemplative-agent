@@ -1027,3 +1027,125 @@ class TestTrendBaselineIsNotReset:
         emit.rename(state)
         rerun = vlaj.read_trend(state, "skills", END, {"a" * 16})
         assert rerun.unchanged_since == old_since
+
+
+class TestArchiveExitIsNotAnOrphan:
+    """A retirement into ``skills/.archive/`` is a gated write, not a defect.
+
+    ADR-0097 Decision 5 turns retirement into a *move*, so from the window's
+    audit log a retired skill looks exactly like the third state this join
+    was built to raise: an approved row whose bytes are not live. Left
+    unhandled, the exit would fire that alarm at every gate — and the alarm's
+    own cause list offers three explanations, none of which is "retired".
+    """
+
+    def test_a_retirement_is_counted_apart_and_kept_out_of_the_orphan_set(self, tmp_path):
+        retired = "retired body\n"
+        live = "live body\n"
+        home = _live_home(tmp_path, "skills", {"skills/kept.md": live})
+        records = [
+            _record(
+                f"{HOME}/skills/kept.md",
+                "2026-08-03T03:00:00+00:00",
+                content_hash=_digest(live),
+            ),
+            _record(
+                f"{HOME}/skills/.archive/gone.md",
+                "2026-08-03T04:00:00+00:00",
+                command="remove-skill",
+                content_hash=_digest(retired),
+            ),
+        ]
+        reading = _reading(records, live=vlaj.scan_live(home, "skills"), changed=True)
+        # Still a skills-section approval — the gate approved it.
+        assert reading.approved == 2
+        assert reading.archived == 1
+        rendered = vlaj.format_reading(reading)
+        assert "1 of the approved row(s) wrote under `skills/.archive/`" in rendered
+        assert "1 retirement(s)" in rendered
+        assert "purge" not in rendered.split("Retirement and purge")[0]
+        # The alarm this exit would otherwise manufacture every week.
+        assert "no live file carrying that hash" not in rendered
+
+    def test_without_the_carve_out_the_row_would_read_as_an_orphan(self, tmp_path):
+        """Pins the mechanism, not just the outcome.
+
+        The same bytes under ``skills/`` — a real approved-but-not-live row —
+        must still raise the warning, so the test cannot pass by the
+        reconciliation having been disabled.
+        """
+        gone = "vanished body\n"
+        home = _live_home(tmp_path, "skills", {"skills/kept.md": "live body\n"})
+        records = [
+            _record(
+                f"{HOME}/skills/gone.md",
+                "2026-08-03T04:00:00+00:00",
+                content_hash=_digest(gone),
+            )
+        ]
+        rendered = vlaj.format_reading(
+            _reading(records, live=vlaj.scan_live(home, "skills"), changed=True)
+        )
+        assert "no live file carrying that hash" in rendered
+        assert "wrote under `skills/.archive/`" not in rendered
+
+    def test_a_retirement_still_answers_the_no_approved_record_alarm(self, tmp_path):
+        """An archive-only week shows a diff (the deletion) and must not alarm."""
+        home = _live_home(tmp_path, "skills", {"skills/kept.md": "live body\n"})
+        records = [
+            _record(
+                f"{HOME}/skills/.archive/gone.md",
+                "2026-08-03T04:00:00+00:00",
+                command="remove-skill",
+                content_hash=_digest("retired body\n"),
+            )
+        ]
+        rendered = vlaj.format_reading(
+            _reading(records, live=vlaj.scan_live(home, "skills"), changed=True)
+        )
+        assert "NO APPROVED RECORD" not in rendered
+
+    def test_the_top_cap_reserves_retirements_after_the_other_approvals(self):
+        """The diff above the table no longer shows archives; the header counts them."""
+        records = [
+            _record(
+                f"{HOME}/skills/.archive/gone-{i}.md",
+                f"2026-08-03T0{i}:00:00+00:00",
+                command="remove-skill",
+            )
+            for i in range(1, 4)
+        ]
+        records.append(_record(f"{HOME}/skills/adopted.md", "2026-08-03T09:00:00+00:00"))
+        reading = _reading(records, top=1)
+        assert [row.command for row in reading.rows] == ["insight"]
+        assert reading.truncated == 3
+
+    def test_a_purge_is_separated_from_a_retirement_by_source_not_by_path(self):
+        """Both write under `.archive/`; only `source` says which happened."""
+        records = [
+            _record(
+                f"{HOME}/skills/.archive/gone.md",
+                "2026-08-03T04:00:00+00:00",
+                command="remove-skill",
+                source="direct-archive",
+            ),
+            _record(
+                f"{HOME}/skills/.archive/old.md",
+                "2026-08-03T05:00:00+00:00",
+                command="remove-skill",
+                source="direct-purge-auto",
+            ),
+        ]
+        reading = _reading(records)
+        assert (reading.archived, reading.purged) == (2, 1)
+        rendered = vlaj.format_reading(reading)
+        assert "1 retirement(s) and 1 purge(s) of an already-retired file" in rendered
+
+    def test_an_archive_row_outside_a_known_section_is_still_unplaced(self):
+        """The predicate must not rescue a path no section claims."""
+        reading = _reading(
+            [_record(f"{HOME}/notes/.archive/x.md", "2026-08-03T03:00:00+00:00")],
+            changed=False,
+        )
+        assert reading.archived == 0
+        assert reading.unmatched == 1

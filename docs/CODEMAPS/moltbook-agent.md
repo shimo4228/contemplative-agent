@@ -17,7 +17,7 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
     runtime.py (146L)         -- shared helpers, _repo_root()
     approval.py (231L)        -- approval-gate loop + audit.jsonl writer (ADR-0012)
     staging.py (181L)         -- insight --stage / pending-review staging dir
-    adopt.py (688L)           -- adopt-staged / remove-skill commands
+    adopt.py (~1830L)         -- adopt-staged / remove-skill commands + the ADR-0097 D5 archive exit (skills/.archive/, --archive-names, supersedes:/superseded_by:)
     stocktake_cmd.py (197L)   -- skill-stocktake (quality report + usage reading + description audit; ADR-0097 retired rules-stocktake and the merge/clean/stage phases)
     memory_cmds.py (587L)     -- distill / insight / amend-constitution / shadow-constitution / distill-identity commands (rules-distill retired by ADR-0097)
     session_cmds.py (572L)    -- init / report / generate-report / meditate / sync-data / dialogue / dialogue-peer
@@ -169,8 +169,8 @@ contemplative-agent run [--session M] [--approve|--guarded|--auto]
 contemplative-agent distill [--days N] [--dry-run] [--file PATH ...]
 contemplative-agent distill-identity [--stage]
 contemplative-agent insight [--stage] [--full]   -- incremental needs .last_insight marker; LLM novelty gate; --stage refuses on pending review (ADR-0074)
-contemplative-agent adopt-staged [-y] [--adopt-names FILE [--reject-rest]]   -- per-item non-interactive path matches by staged filename (audit source stage-adopted-names); unknown/empty names abort before any destructive op (T-ADOPT-PERITEM)
-contemplative-agent remove-skill <name> [--reason TEXT]
+contemplative-agent adopt-staged [-y] [--adopt-names FILE [--reject-rest]] [--archive-names FILE]   -- per-item non-interactive path matches by staged filename (audit source stage-adopted-names); unknown/empty names abort before any destructive op (T-ADOPT-PERITEM). --archive-names retires STORE skills after the adoption loop (ADR-0097 D5); lines are `old.md` or `old.md superseded-by new-staged-name.md`, the pairing writing supersedes:/superseded_by:. Same abort contract as the other two name files, and a name appearing in two of the three exits 2 with nothing moved
+contemplative-agent remove-skill <name> --reason TEXT [--delete]   -- archives into skills/.archive/ by default since ADR-0097 D5 (retirement is a move, never an unlink); --delete restores the old unlink. --reason stays mandatory: a written reason is what stops just-in-case retention (CREW)
 contemplative-agent amend-constitution
 contemplative-agent shadow-constitution   -- ADR-0092 read-only instrument: patterns-only synthesis (current constitution NOT in the prompt), divergence cosine + sha256 baked into logs/constitution-shadow.jsonl; no approval gate (writes only the record)
 contemplative-agent enrich [--dry-run]    -- no-op since ADR-0019
@@ -234,7 +234,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 **Experimental**: meditation_interpret
 
-**Script-read (NOT lazy-loaded via `core/prompts.py`)**: `weekly-analysis.md`, `weekly-analysis-ja.md`, `principles.md` live in `config/prompts/` but are embedded by `scripts/weekly-analysis.sh` (the `claude -p` weekly pipeline; `-ja` drives the best-effort Japanese translation pass via `--model sonnet`), not by the agent's prompt loader (ADR-0040). The same script embeds four deterministic intakes rendered by `scripts/`: `log_anomaly_sweep.py`, `state_invariant_check.py`, `cross_day_duplicate_scan.py`, `api_drift_scan.py`; a fifth (`dead_code_scan.py`, T-DEADCODE-INTAKE) and a sixth (`value_layer_due_check.py`, the ADR-0091 value-layer cadence reading) run in `weekly-pipeline.sh` itself and feed the decision packet directly (see [architecture.md § weekly-analysis](architecture.md#weekly-analysis--scriptsweekly-analysissh-adr-0040)).
+**Script-read (NOT lazy-loaded via `core/prompts.py`)**: `weekly-analysis.md`, `weekly-analysis-ja.md`, `principles.md` live in `config/prompts/` but are embedded by `scripts/weekly-analysis.sh` (the `claude -p` weekly pipeline; `-ja` drives the best-effort Japanese translation pass via `--model sonnet`), not by the agent's prompt loader (ADR-0040). The same script embeds four deterministic intakes rendered by `scripts/`: `log_anomaly_sweep.py`, `state_invariant_check.py`, `cross_day_duplicate_scan.py`, `api_drift_scan.py`; a fifth (`dead_code_scan.py`, T-DEADCODE-INTAKE) and a sixth (`value_layer_due_check.py`, the ADR-0091 value-layer cadence reading — which since ADR-0097 also owns the rules-layer maintenance reading behind `--rules-dir`, the LLM generators having been retired) run in `weekly-pipeline.sh` itself and feed the decision packet directly. Separate from all of these are two **operator-run** read-only instruments that no schedule invokes — `scripts/coselection_families.py` (co-selection sibling / sub-case pairs and family any-of rates, ADR-0097 D5/D7) and `scripts/retrieval_recall_measure.py` (offline lexical / cosine / RRF-union recall@k against reviewer-named covering skills, ADR-0097 D6); the author runs them and reads the numbers (see [architecture.md § weekly-analysis](architecture.md#weekly-analysis--scriptsweekly-analysissh-adr-0040)).
 
 ## LLM Function Surface
 

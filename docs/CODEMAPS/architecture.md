@@ -633,13 +633,21 @@ No grouping, merge, clean or staging: ADR-0097 dissolved them (summary
 grouping with no recall measurement; union merge produced over-broad skills;
 clean rewrote 14/47 byte-identically and inserted boilerplate into 3). Duplicate
 structure is read from the selection log (co-selection families); retirement and
-consolidation happen at the Saturday gate — today `remove-skill`; the archive
-exit is reserved (slice 2: `skills/.archive/`, `adopt-staged --archive-names`,
-packet never-selected section). `rules-distill`
-and `rules-stocktake` were retired in the same decision; the rules layer keeps
-`_check_rule_quality` (`run_rules_quality_check`) as a deterministic maintenance
-reading, and `stocktake_merge_rules.md` stays as the prompt for family-to-rule
-promotion (ADR-0097 D7).
+consolidation happen at the Saturday gate. The exit shipped in slice 2:
+retirement is a **move** into `skills/.archive/`, never an unlink — `remove-skill
+<name> --reason R` archives by default (`--delete` keeps the old unlink) and
+`adopt-staged --archive-names FILE` retires store skills after the adoption loop,
+with an optional `old.md superseded-by new.md` pairing that writes
+`supersedes:` / `superseded_by:` frontmatter. The archive set comes only from
+argv; no sidecar field reaches it. `.archive/` is created lazily and is inert to
+the runtime, since every store reader globs `*.md` non-recursively. The packet's
+never-selected reading (Stage 8 §10) is the other half. `rules-distill` and
+`rules-stocktake` were retired in the same decision; the rules layer keeps
+`_check_rule_quality` as a deterministic maintenance reading — its consumer is
+the weekly packet, whose producer re-derives the check under the system
+interpreter and is pinned against this one by test — and
+`stocktake_merge_rules.md` stays as the prompt for family-to-rule promotion
+(ADR-0097 D7).
 
 ### amend-constitution  [`core/constitution.py`]
 
@@ -706,7 +714,7 @@ Invariant: **staging holds at most one unreviewed batch.** Enforced at two point
 
 All three `--stage` producers call the producer-side guard as their first act: `distill-identity`, `amend-constitution` (`cli/memory_cmds.py`) and `insight` (same file, the original ADR-0074 site). `rules-distill`, `skill-stocktake --stage` and `rules-stocktake` were retired by ADR-0097.
 
-ADR-0097 also narrowed what a sidecar can ask for: `sources` (delete the merge's originals on adopt), `action: drop` (unlink the target) and the per-item `command` override went with the stocktake producers that wrote them, so **adoption is a write and nothing else**. The exit reserved by ADR-0097 Decision 5 arrives as an explicit `adopt-staged` argument, never as a field a staged file carries.
+ADR-0097 also narrowed what a sidecar can ask for: `sources` (delete the merge's originals on adopt), `action: drop` (unlink the target) and the per-item `command` override went with the stocktake producers that wrote them, so **adoption is a write and nothing else**. The exit ADR-0097 Decision 5 added arrives as an explicit `adopt-staged --archive-names` argument, never as a field a staged file carries — a sidecar naming `sources` or `action` is refused, not ignored.
 
 The guard sits in the **handler**, not beside the staging write. The `_stage_results` call sites live in shared approval/staging tails (`_handle_single_result`) that are entered *after* their producer's LLM call has completed. Counting staging call sites therefore undercounts and mislocates the guard (T-GUARD, 2026-08-16).
 
@@ -796,7 +804,16 @@ Stage 5b valuelayer: value_layer_due_check.py (read-only cadence reading over th
                    plus staging_pending; unknown state abstains nonzero, anomalous
                    clocks are named: FUTURE_TIMESTAMP / UNPARSABLE_HISTORY /
                    NO_AUDIT_RECORDS; knowledge.json loads lazily, only on an
-                   adoption baseline). Identity staging fires only when due AND
+                   adoption baseline). --rules-dir adds the rules-layer maintenance
+                   reading ADR-0097 left an owner for when it retired the LLM
+                   generators (count / newest mtime / unreadable_files /
+                   empty_files / the deterministic Practice-Rationale structural
+                   check). Only RULES_UNREADABLE and RULES_DIR_MISSING become header
+                   codes — RULES_EMPTY would fire every week on a store that simply
+                   has no rules. The check is re-derived here rather than imported:
+                   the chain runs this script under bare python3, so the canonical
+                   core.stocktake._check_rule_quality is not importable, and a test
+                   pins the two verdict-for-verdict. Identity staging fires only when due AND
                    live run (--end-date backfill → IDENTITY_BACKFILL_SKIP) AND
                    the same-day insight job COMPLETED (.last_insight marker fresh
                    ≤6h, else IDENTITY_INSIGHT_PENDING — the insight job starts
@@ -822,10 +839,33 @@ Stage 6b docsscan: docs_consistency_scan.py (6th deterministic intake, ADR-0093 
 Stage 7 improve:   only when the same reason code recurred 2 consecutive runs (check-improvement)
 Stage 8 packet:    build_decision_packet.py → weekly-<end>-packet.md (§2 fix table +
                    per-finding diagnosis headings from findings.json, §8 value-layer
-                   cadence, §9 docs consistency — all signal-first; §10 ledger
-                   watch was retired 2026-08-16, ADR-0095) + phase:"auto"
+                   cadence + rules-layer maintenance reading, §9 docs consistency,
+                   §10 never-selected skills — all signal-first. §10 was the ledger
+                   watch until it was retired 2026-08-16 (ADR-0095); the number was
+                   reused by ADR-0097 D5 for the store's exit reading, so a §10 in a
+                   packet older than 2026-08-22 is the other thing) + phase:"auto"
                    record → logs/pipeline-metrics.jsonl (identity_due /
-                   constitution_due / docs_findings, None = not read this week)
+                   constitution_due / docs_findings / never_selected_strict /
+                   rules_issues, None = not read this week)
+                   §10 populations (ADR-0097 D5, --skill-selection JSON): strict =
+                   0 selections across the whole log AND >= 600 judged exposures
+                   (the Slote floor, above the observed slowest first selection at
+                   569) = the archive candidates; dormant = 0 in the trailing 14 days
+                   but selected before = a reading only, NOT behaviour-neutral to
+                   archive; below_floor = never selected, not yet exposed enough to
+                   judge. The builder re-applies the floor to every row rather than
+                   trusting the producer's classification, and a row it cannot
+                   re-check is dropped and named. The neutrality caveat printed
+                   beside strict is whole-history (history fail-open count +
+                   history_full_skill_tokens vs NUM_CTX), because strict is a
+                   whole-history population; the window fail-open figure sits beside
+                   dormant. A withheld population renders as withheld, never as
+                   "該当なし" — NEVER_SELECTED_LOG_UNREADABLE (a whole day lost)
+                   withholds strict, NEVER_SELECTED_LOG_PARTIAL (corrupt rows) only
+                   degrades. Unlike the other intakes the never-selected JSON is
+                   produced under the venv (core.skill_selection.read_never_selected
+                   + never_selected_reading_json) and handed to the builder as a
+                   file, because the chain invokes the scripts with bare python3.
                    _cell is the control-character floor for every audit-derived
                    value (2026-08-16, via _md.printable). The floor exists
                    because per-producer is what failed once already (the
@@ -879,7 +919,7 @@ Bounds: ≤5 findings/week, per-session timeouts, 3h wall-clock deadline. Fail-f
 
 Rendering discipline for audit-derived values: every one of them passes through `_cell` (backslash-then-pipe escaping, `splitlines()` flattening — the same alphabet consumers split on) before reaching a table cell or a note line. **`_cell` neutralises `|` and line breaks but deliberately not `#` or backtick runs, so it is only safe mid-line** — this is the invariant a future editor is most likely to break, and it is why the review-note heading escapes its own values (line-initial position). **The run-log path is not built here at all.** The shell records the path it just wrote on the `review_result` event (`log`, weekly-pipeline.sh:810), the same way it already recorded `patch` for the exported diff, and the builder resolves that string and checks it is inside `run_log_dir` (`is_relative_to`) before opening it. It used to rebuild `fix-<fid>-review<n>.log` from `fix_id` and `round`, which put **two sanitisers on one filename** — the shell's `/`-to-`_` swap and a stricter `[A-Za-z0-9._+-]` allowlist in the builder. They agree only while `fix_id` is pinned to `F1.\d+` by `parse_findings.py`; a `fix_id` they disagree about sends the writer and the reader to different files, and the review body leaves the packet in silence while the packet still builds, so the watchdog sees nothing either (2026-08-16, T-PACKET-LOG-PATH-FROM-SHELL). There is **no fallback to the reconstruction** — an audit line with no `log` (a week before this change) raises `REVIEW_LOG_PATH_MISSING` and renders no note, because leaving a fallback in is how the reconstruction survives, and a packet is disposable: it is consumed at one Saturday gate. A recorded path that does not resolve inside the dir raises `REVIEW_LOG_OUTSIDE_RUN_DIR`, kept as a separate code from the missing one so a tampering signal does not age into the same bucket as an expected format gap. Removing the builder-side allowlist moved a floor rather than deleting one: containment bounds *where* the builder reads and says nothing about what a path may *print*, so a name inside `run_log_dir` carrying a newline passes containment, misses on disk and reaches the `REVIEW_LOG_UNREADABLE` note — which is why that note now renders through `_path_tokens` instead of interpolating the path raw. `_safe_read_text` catches `ValueError` alongside `OSError` as the second door on the same input: an embedded NUL raises out of `resolve()` during the containment check, and if it ever reached `open()` instead, a missing packet would read as the watchdog's "the chain died" rather than as the fault the packet exists to report. Escalation paths get a stricter treatment still (`_path_tokens`): the fix session names those files itself and git passes printable ASCII through unquoted, so structural escaping alone would let a filename write reassuring prose inside the builder's own narration, or open an HTML `<details>` that folds away later sections in a browser preview. They are emitted on their own line as character-allowlisted (`[A-Za-z0-9._/+-]`, else U+FFFD) backtick spans, capped at 20 whitespace tokens × 120 chars with both limits marked when they bite. The reviewer `verdict` gets the same strict treatment for the same reason — it is one of the three audit values written outside this repo's control (the shell greps a line out of the review session's own output, so unlike `fix_id`/`scope`/`patch` it is not repo-derived), and it reaches both the §2 table and a `####` heading; off-contract values render as `UNRECOGNIZED(...)` and raise `REVIEW_VERDICT_UNRECOGNIZED`. The three are this verdict, the escalation paths above, and the **diagnosis heading** rendered beside each §2 row (2026-08-15): a heading is prose, so `_title_cell` cannot use a path-style allowlist (Japanese would not survive one) and instead neutralises the classes that open an *inline* construct — `<>` (an unclosed `<details>` folds §3–§9 behind a summary the heading's own author wrote), `[]` (link/image markup beside a patch row), backtick (a code span runs past the flattened line break into the rows below), and control/bidi/zero-width characters — then caps at 240 chars with marked elision. Mid-line rendering alone is not the guard here: mid-line is precisely where inline HTML is legal. The inferred branch deliberately renders a *different* §3 note: it observed only the patch's output directory, so repeating the observed branch's "touched a path outside `^(src|scripts|tests)/`" would assert a cause the builder never saw.
 
-Promotion is the Saturday `/weekly-gate` session: apply → re-Verify → single human commit, prompt diffs full-text, `adopt-staged`, then a `phase:"gate"` metrics record. `scripts/pipeline_watchdog.sh` (pure bash, no claude/uv PATH dependency) checks each job's terminal artifact on anchored deadlines and rewrites `reports/PIPELINE-STATUS.md` + Notification Center on a changed failure set. `SCOPE_ESCALATED` is excluded from the P4 recurrence set (`DESIGNED_OUTCOME_CODES`): it reports a guard working as designed, and two routine docs-touching weeks would otherwise spend an unattended session "improving" it. `SCOPE_ESCALATED_INFERRED` is not excluded — a recurring audit-log gap is a real fault.
+Promotion is the Saturday `/weekly-gate` session: apply → re-Verify → single human commit, prompt diffs full-text, `adopt-staged`, then a `phase:"gate"` metrics record. `scripts/pipeline_watchdog.sh` (pure bash, no claude/uv PATH dependency) checks each job's terminal artifact on anchored deadlines and rewrites `reports/PIPELINE-STATUS.md` + Notification Center on a changed failure set. `SCOPE_ESCALATED` is excluded from the P4 recurrence set (`DESIGNED_OUTCOME_CODES`): it reports a guard working as designed, and two routine docs-touching weeks would otherwise spend an unattended session "improving" it. `SCOPE_ESCALATED_INFERRED` is not excluded — a recurring audit-log gap is a real fault. ADR-0097 added two more to that set for the same reason: `NEVER_SELECTED_BELOW_FLOOR` (a skill withheld from the archive list because it has not been offered 600 times yet — the Slote floor holding) and `VALUE_LAYER_RULES_DIR_MISSING` (visible, but a store may legitimately have no rules directory).
 
 ### submolt-scan  [`adapters/moltbook/submolt_scope.py`, ADR-0086]
 

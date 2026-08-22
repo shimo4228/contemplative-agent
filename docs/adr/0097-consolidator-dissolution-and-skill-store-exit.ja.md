@@ -69,7 +69,14 @@ selector は skill ではなく family を選んでいる。6 skill の「制約
 `structural-constraint-mapping-scm` 0.66/0.77）と、非対称の下位ケース対が 11 組
 （P(b|a) ≥ 0.7 かつ P(a|b) ≤ 0.4、例: `suspend-interpretation-upon-premise-doubt →
 internal-process-audit` 0.96/0.23）が出る — LLM も embedding も使わず
-`logs/skill-selection-*.jsonl` だけから計算できる family 構造である。「制約」family
+`logs/skill-selection-*.jsonl` だけから計算できる family 構造である。
+
+> **注記（2026-08-22、unit C の検証）**: ここの数値は計器より前の探索的な集計で、
+> 最小支持数を宣言していない。`scripts/coselection_families.py` は 3 つの sibling 対を
+> 小数第 3 位まで再現し（0.6277/0.654、0.6396/0.6888、0.6641/0.7695）、下位ケースの
+> 例も一致するが、明示した床のもとで下位ケース対は 11 組ではなく **16 組**と読む。
+> 上の 0.77 は `window` 分母の値で、`--condition co-exposed` では 0.7908 になる。
+> 計器の数値を正本とし、この段落はそれを促した観測として読む。「制約」family
 の 6 skill はそれぞれ固有の手順を持つ（register の切り替え検出、3 段の失敗分析、
 物理 / 注意 / スループットを横断する律速の探索、抽象から測定可能な持続への
 翻訳、境界を条件として読む、接点での前提チェックリスト）。共有しているのは姿勢で
@@ -186,8 +193,9 @@ tokens）は既に NUM_CTX 32,768 を超えているので fail-open は注入�
    名指しされた store skill 全件の実在（不在は reviewer の幻覚として記録）を検査し、
    verdict は提案に留まる — store の変更は明示のゲート引数でしか起きない。新しい
    prompt は初回の本番 run の前に 2026-08-21 の batch で offline replay して検証し、
-   過去 7 週の候補と reviewer の名指しに対する offline の retrieval recall 測定が、
-   code が用意する retrieval 証拠束をそもそも作るかを決める。
+   過去 7 週の候補と reviewer の名指しに対する offline の retrieval recall 測定
+   （`scripts/retrieval_recall_measure.py`、著者が手で走らせる）が、code が用意する
+   retrieval 証拠束をそもそも作るかを決める。
 
 7. **rule 昇格は A′ の形を取る**: co-selection family の any-of 選択率が ≥ 500
    judged の互いに素な窓 2 つ以上で ≥ 0.75 なら（「制約」family は既に該当）、
@@ -216,9 +224,13 @@ tokens）は既に NUM_CTX 32,768 を超えているので fail-open は注入�
 - `insight-novelty.jsonl` に `fail_open_budget` が現れる → known-theme inventory が
   chunking を超えた。ledger の役割に retrieval 補助の再設計か、ledger の剪定が要る。
 - スライス 3 の実在検査で、reviewer が名指しした covering skill の不在 / 誤りが
-  却下の ≥ 10% に出る、または cosine + 字面の retrieval の offline recall@5 が
-  reviewer の名指しに対して ≥ 0.9 で、かつ 08-22 型の miss（同一テーマの変奏を
-  採用）が再発する → code が用意する retrieval 証拠束を reviewer のために建てる。
+  却下の ≥ 10% に出る、または `scripts/retrieval_recall_measure.py` が
+  ラベル付き対 30 組以上で `union` アームの recall@5 ≥ 0.9 を報告し、かつ 08-22 型の
+  miss（同一テーマの変奏を採用）が再発する → code が用意する retrieval 証拠束を
+  reviewer のために建てる。`union` は lexical と cosine の順位を予算 k で
+  reciprocal-rank fusion したものであって、top-k 2 本の集合和ではない — 後者は
+  最大 2k 件を引くので単独アームと recall@k を比較できず、誤った理由でこの閾値を
+  超える。
 - strict never-selected として archive した skill が `.archive/` から 2 回以上
   復元される → 600 露出の床は低すぎる。初選択遅延の分布から読み直す。
 - `rules/` が 5 ファイル前後を超える、または昇格後に生成が instruction-stacking の

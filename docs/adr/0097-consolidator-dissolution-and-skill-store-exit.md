@@ -76,7 +76,17 @@ the 08-15–08-22 window (606 judged) yields three mutually co-selected pairs
 pairs (P(b|a) ≥ 0.7, P(a|b) ≤ 0.4, e.g.
 `suspend-interpretation-upon-premise-doubt → internal-process-audit`
 0.96/0.23) — a family structure computed from
-`logs/skill-selection-*.jsonl` with no LLM and no embeddings. The six
+`logs/skill-selection-*.jsonl` with no LLM and no embeddings.
+
+> **Note (2026-08-22, unit C verification)**: these figures come from the
+> exploratory count that preceded the instrument, which stated no minimum
+> support. `scripts/coselection_families.py` reproduces the three sibling
+> pairs to three decimals (0.6277/0.654, 0.6396/0.6888, 0.6641/0.7695) and
+> the sub-case example exactly, but reads **sixteen** sub-case pairs under
+> its explicit floors rather than eleven. The 0.77 above is the `window`
+> denominator; `--condition co-exposed` gives 0.7908 for that pair. Treat the
+> instrument's numbers as canonical and this paragraph as the observation
+> that prompted it. The six
 constraint-family skills carry distinct procedures (register-switch
 detection; three-level failure analysis; limiting-factor search across
 physical/attention/throughput; abstraction → measurable persistence;
@@ -219,8 +229,9 @@ before verdict vocabulary touches the store.
    only through explicit gate arguments. The new prompt is verified by
    offline replay on the 2026-08-21 batch before its first live run, and an
    offline retrieval-recall measurement over the past seven weeks'
-   candidates and reviewer-named skills decides whether a code-prepared
-   retrieval evidence bundle is built at all.
+   candidates and reviewer-named skills (`scripts/retrieval_recall_measure.py`,
+   operator-run) decides whether a code-prepared retrieval evidence bundle is
+   built at all.
 
 7. **Rule promotion takes form A′**: when a co-selection family's any-of
    selection rate is ≥ 0.75 over at least two disjoint windows of ≥ 500
@@ -256,10 +267,14 @@ before verdict vocabulary touches the store.
   inventory has outgrown chunking; the ledger role needs a
   retrieval-assisted redesign or the ledger needs pruning.
 - The slice-3 existence check finds reviewer-named covering skills absent or
-  wrong in ≥ 10% of rejections, or offline recall@5 of cosine+lexical
-  retrieval against reviewer-named skills is ≥ 0.9 and a miss of the 08-22
-  kind (variants of one theme adopted) recurs → build the code-prepared
-  retrieval evidence bundle for the reviewer.
+  wrong in ≥ 10% of rejections, or `scripts/retrieval_recall_measure.py`
+  reports recall@5 ≥ 0.9 for its `union` arm over at least 30 labelled pairs,
+  and a miss of the 08-22 kind (variants of one theme adopted) recurs → build
+  the code-prepared retrieval evidence bundle for the reviewer. `union` is
+  reciprocal-rank fusion of the lexical and cosine rankings at budget k, not a
+  set union of two top-k lists — the latter spends up to 2k retrievals and its
+  recall@k is not comparable with the single arms', so it would clear this
+  threshold for the wrong reason.
 - A skill archived as strict never-selected is restored from `.archive/`
   more than once → the 600-exposure floor is too low; re-read it from the
   first-selection latency distribution.

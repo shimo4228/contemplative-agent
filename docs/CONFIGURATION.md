@@ -264,8 +264,11 @@ contemplative-agent skill-stocktake      # Quality report + usage reading + desc
 
 Read-only since ADR-0097: it writes nothing and stages nothing. Duplicate
 detection now comes from the selection log (skills the selector always picks
-together), and removal is a human act at the Saturday gate (`remove-skill`
-today; an archive path is reserved in ADR-0097 Decision 5).
+together), and removal is a human act at the Saturday gate. It is a **move**,
+not a delete (ADR-0097 Decision 5): `remove-skill <name> --reason R` archives
+into `skills/.archive/` (`--delete` still unlinks), and `adopt-staged
+--archive-names FILE` retires store skills at the adoption gate. The runtime
+never sees `.archive/` — every store reader globs `*.md` non-recursively.
 
 ### Coding Agent Skills (-ca)
 

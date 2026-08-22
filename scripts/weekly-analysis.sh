@@ -312,12 +312,21 @@ if [[ -d "$DATA_REPO/.git" ]]; then
 
         # Skills
         STATE_DIFF+="### skills/"$'\n'
-        skills_start=$(git ls-tree --name-only "$start_commit" -- skills/ 2>/dev/null | sort || true)
-        skills_end=$(git ls-tree --name-only "$end_commit" -- skills/ 2>/dev/null | sort || true)
+        # ls-tree is non-recursive, so `skills/.archive` appears as one tree
+        # entry beside the files; the diff would additionally re-print every
+        # retired body as an addition next to its deletion from skills/. The
+        # retirement is already visible as that deletion, and the approval
+        # join names it — so the archive is filtered out of both here rather
+        # than doubling the value-layer section (ADR-0097 D5). `sed` not
+        # `grep -v`: an all-archive listing must read as empty, not as a
+        # pipefail under `set -o pipefail`. ls-tree rejects `:(exclude)`
+        # pathspec magic; `git diff` accepts it.
+        skills_start=$(git ls-tree --name-only "$start_commit" -- skills/ 2>/dev/null | sed '/^skills\/\.archive/d' | sort || true)
+        skills_end=$(git ls-tree --name-only "$end_commit" -- skills/ 2>/dev/null | sed '/^skills\/\.archive/d' | sort || true)
         if [[ "$skills_start" != "$skills_end" ]]; then
             STATE_DIFF+="Start: $(echo "$skills_start" | tr '\n' ', ')"$'\n'
             STATE_DIFF+="End: $(echo "$skills_end" | tr '\n' ', ')"$'\n\n'
-            skills_diff=$(git diff "$start_commit" "$end_commit" -- skills/ 2>/dev/null || true)
+            skills_diff=$(git diff "$start_commit" "$end_commit" -- skills/ ':(exclude)skills/.archive' 2>/dev/null || true)
             if [[ -n "$skills_diff" ]]; then
                 STATE_DIFF+='```diff'$'\n'"$skills_diff"$'\n''```'$'\n\n'
             fi

@@ -129,6 +129,22 @@ from _md import md_safe, printable
 _DIR_SECTIONS = ("constitution", "skills", "rules")
 _SECTIONS = ("identity", *_DIR_SECTIONS)
 
+# Retired skills are MOVED under ``skills/.archive/`` rather than unlinked
+# (ADR-0097 Decision 5). Restated here rather than imported from
+# ``adapters/moltbook/config.py::SKILLS_ARCHIVE_DIRNAME``: the weekly chain
+# invokes this script with bare ``python3``, where ``contemplative_agent`` is
+# not on the path. A test pins the two spellings together.
+_ARCHIVE_DIRNAME = ".archive"
+
+# ``source`` is the row's categorical execution path, and ADR-0097 gave it
+# values that separate the two writes that share an ``.archive/`` path: a
+# retirement MOVES a live skill in, a purge DELETES one already there. The
+# path alone cannot tell them apart (unit A silent-failure review, 2026-08-22)
+# — which is why the tally below reads ``source`` and the *exclusion* below
+# reads the path: a source this join has not heard of must still be kept out
+# of the live set, and being under ``.archive/`` is sufficient for that.
+_PURGE_SOURCES = frozenset({"direct-purge", "direct-purge-auto"})
+
 # ``IDENTITY_COMMANDS`` (the commands that own the identity section by
 # construction, whatever leaf their write landed on) is imported from
 # ``_audit`` rather than restated: ``value_layer_due_check`` selects on the same
@@ -370,6 +386,12 @@ class Reading:
     window_start: str
     window_end: str
     reconciliation: Reconciliation | None = None
+    # Approved rows that wrote under ``.archive/``. A subset of ``approved``,
+    # not a fifth decision — kept apart because it is the one approved shape
+    # that is not expected to be live. ``purged`` is in turn a subset of
+    # ``archived``: a delete of a file already retired, not a new retirement.
+    archived: int = 0
+    purged: int = 0
 
 
 def _matches_section(record: dict[str, Any], section: str) -> bool:
@@ -412,6 +434,29 @@ def _matches_section(record: dict[str, Any], section: str) -> bool:
     # A directory-shaped section: some *parent* component carries the name.
     # Checking parents only keeps a file literally named ``skills`` out.
     return section in parts[:-1]
+
+
+def _is_retired(record: dict[str, Any]) -> bool:
+    """Does this row name a file inside a section's ``.archive/``?
+
+    A retirement is a gated mutation of the section, so the row stays in the
+    section's tally — but the bytes are *deliberately* not live, which is the
+    one thing the reconciliation below cannot infer. Left in
+    ``window_approved`` every archive would render as "approved and written,
+    but not what the runtime reads now", under a cause list that does not
+    contain "retired": the exit would manufacture, at every gate, the exact
+    alarm this join exists to raise for real defects.
+
+    Path-shaped, like ``_matches_section`` and for the same reason — the log
+    records absolute paths from whatever home was live at write time. This
+    asks only "is it under an archive directory", which a purge *from* the
+    archive also satisfies; both are correctly out of the live set, so the
+    coarser question is the right one here.
+    """
+    raw_path = record.get("path")
+    if not isinstance(raw_path, str) or not raw_path:
+        return False
+    return _ARCHIVE_DIRNAME in PurePosixPath(raw_path).parts[:-1]
 
 
 def _clean(value: object) -> str:
@@ -570,14 +615,17 @@ def build_reading(
     the join is reproducible offline from the same inputs (ADR-0075). All
     file I/O lives in `load_records` / `scan_live`.
     """
-    selected: list[tuple[datetime, Row]] = []
+    selected: list[tuple[datetime, Row, bool]] = []
     counts = {"approved": 0, "staged": 0, "rejected": 0, "other": 0}
     unmatched = 0
+    archived = 0
+    purged = 0
     # Every approved hash in the log, newest wins; and the in-window subset.
     approved_by_hash: dict[str, tuple[datetime, str]] = {}
     window_approved: list[tuple[datetime, str, str]] = []
     for record in records:
         mine = _matches_section(record, section)
+        retired = mine and _is_retired(record)
         # A row this join cannot place must not read as silence: an unplaced
         # in-window row is counted and rendered, so a path shape the predicate
         # has not anticipated degrades to a visible "cannot tell" instead of
@@ -607,10 +655,18 @@ def build_reading(
             previous = approved_by_hash.get(digest)
             if previous is None or parsed > previous[0]:
                 approved_by_hash[digest] = (parsed, str(raw_ts))
-            if in_window:
+            # A retirement is excluded from the orphan side only: its bytes
+            # are meant to have left ``skills/*.md``. It stays in
+            # ``approved_by_hash`` so a restore from ``.archive/`` still
+            # traces to an approval.
+            if in_window and not retired:
                 window_approved.append((parsed, str(raw_ts), digest))
         if not in_window:
             continue
+        if retired and decision == "approved":
+            archived += 1
+            if record.get("source") in _PURGE_SOURCES:
+                purged += 1
         counts[decision if decision in counts else "other"] += 1
         selected.append(
             (
@@ -622,6 +678,7 @@ def build_reading(
                     source=_clean(record.get("source")),
                     content_hash=_clean(record.get("content_hash")),
                 ),
+                retired,
             )
         )
     # Sort on the parsed timestamp, with the rendered tuple as tie-breaker so
@@ -638,15 +695,24 @@ def build_reading(
         # reserved first, the remaining slots go to the earliest others, and
         # the shown set is re-sorted chronologically so the table still reads
         # as a timeline.
-        approved_rows = [item for item in selected if item[1].decision == "approved"]
+        approved_rows = [
+            item for item in selected if item[1].decision == "approved" and not item[2]
+        ]
+        # Retirements are reserved after the other approvals: the diff above
+        # this table no longer shows them (`weekly-analysis.sh` filters
+        # `.archive/` out of the skills diff), and the header line states
+        # their count, so a cap spent on them buys the reader nothing the
+        # section has not already said.
+        retired_rows = [item for item in selected if item[1].decision == "approved" and item[2]]
         others = [item for item in selected if item[1].decision != "approved"]
         shown = approved_rows[:top]
+        shown.extend(retired_rows[: top - len(shown)])
         shown.extend(others[: top - len(shown)])
         shown.sort(key=lambda item: (item[0], item[1]))
     return Reading(
         section=section,
         changed=changed,
-        rows=tuple(row for _, row in shown),
+        rows=tuple(row for _, row, _ in shown),
         approved=counts["approved"],
         staged=counts["staged"],
         rejected=counts["rejected"],
@@ -659,6 +725,8 @@ def build_reading(
         reconciliation=(
             None if live is None else _reconcile(live, approved_by_hash, window_approved)
         ),
+        archived=archived,
+        purged=purged,
     )
 
 
@@ -788,6 +856,19 @@ def format_reading(reading: Reading, trend: Trend | None = None) -> str:
         f"commit): {total} record(s) — approved {reading.approved}, staged "
         f"{reading.staged}, rejected {reading.rejected}, other {reading.other}."
     ]
+    if reading.archived:
+        retirements = reading.archived - reading.purged
+        detail = f"{retirements} retirement(s)"
+        if reading.purged:
+            detail += f" and {reading.purged} purge(s) of an already-retired file"
+        lines.append(
+            f"{reading.archived} of the approved row(s) wrote under "
+            f"`{reading.section}/.archive/` — {detail} (ADR-0097 D5 exit). Those "
+            "bytes are *meant* not to be live, so they are excluded from the "
+            "reconciliation below: a retirement is not an approved-but-not-live "
+            "finding. Retirement and purge share the path and are told apart by "
+            "the row's `source`, not by where it points."
+        )
     if reading.changed and reading.approved == 0:
         lines.append(
             "⚠️ NO APPROVED RECORD for a section that shows a diff. The state above "
