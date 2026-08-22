@@ -35,6 +35,18 @@ IDENTITY_PATH = MOLTBOOK_DATA_DIR / "identity.md"
 KNOWLEDGE_PATH = MOLTBOOK_DATA_DIR / "knowledge.json"
 AGENTS_PATH = MOLTBOOK_DATA_DIR / "agents.json"
 SKILLS_DIR = MOLTBOOK_DATA_DIR / "skills"
+# ADR-0097 D5: the skill store's exit. A retired skill MOVES here instead of
+# being unlinked, so "removed from the store" and "gone" stop being the same
+# act and restoring is a plain `mv` back. Only the leaf name lives here
+# because the two writers (`cli/adopt.py`'s `remove-skill` and
+# `adopt-staged --archive-names`) derive the store dir from
+# ``MOLTBOOK_DATA_DIR`` at call time rather than from ``SKILLS_DIR``, which
+# is frozen at import and would ignore a per-call / test-patched home.
+# A leading dot so it is invisible to every store reader: they all glob
+# ``*.md`` non-recursively, and ``read_markdown_documents`` skips dotted
+# entries besides. The directory is created lazily at the first archive —
+# an empty one in every fresh ``init`` would advertise an exit nobody used.
+SKILLS_ARCHIVE_DIRNAME = ".archive"
 RULES_DIR = MOLTBOOK_DATA_DIR / "rules"
 CONSTITUTION_DIR = MOLTBOOK_DATA_DIR / "constitution"
 MEDITATION_DIR = MOLTBOOK_DATA_DIR / "meditation"

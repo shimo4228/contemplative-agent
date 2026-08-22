@@ -29,7 +29,13 @@ from contemplative_agent.cli.staging import StageItem, _stage_results
 
 
 class TestHandleRemoveSkill:
-    """`remove-skill` CLI: audit-backed manual skill deletion."""
+    """`remove-skill` CLI: audit-backed manual skill retirement.
+
+    These cover the ``--delete`` path — the irreversible one, unchanged in
+    behaviour by ADR-0097 but no longer the default. The archive default and
+    its own prompt / audit / containment contracts live in
+    ``tests/test_cli_skill_archive.py``.
+    """
 
     @staticmethod
     def _args(
@@ -38,6 +44,7 @@ class TestHandleRemoveSkill:
         reason: str = "obsolete",
         yes: bool = True,
         dry_run: bool = False,
+        delete: bool = True,
     ):
         """Build an argparse.Namespace matching the remove-skill subparser."""
         import argparse
@@ -47,6 +54,7 @@ class TestHandleRemoveSkill:
             reason=reason,
             yes=yes,
             dry_run=dry_run,
+            delete=delete,
         )
 
     @staticmethod
@@ -69,11 +77,16 @@ class TestHandleRemoveSkill:
                 MagicMock(),
             )
         assert not target.exists()
+        assert not (skills_dir / ".archive").exists(), "--delete must not archive"
         record = json.loads(audit_path.read_text().strip())
         assert record["command"] == "remove-skill"
         assert record["decision"] == "approved"
         assert record["source"] == "direct-remove-auto"
         assert record["reason"] == "old pipeline"
+        # The delete row names the path that no longer exists; the archive
+        # row names the destination. That contrast is the discriminator
+        # (ADR-0097 D5) — pinned from both sides.
+        assert Path(record["path"]) == target
 
     def test_prompts_without_yes_approved(self, tmp_path):
         skills_dir = tmp_path / "skills"

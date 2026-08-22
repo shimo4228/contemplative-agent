@@ -40,9 +40,10 @@ class StageItem:
     `action` (merge vs drop) and the per-item `command` override with the
     stocktake merge / clean / drop producers that were their only writers.
     Every surviving producer stages one artifact per target under the batch
-    command, so adoption is a write and nothing else. The exit reserved by
-    ADR-0097 Decision 5 archives through an explicit `adopt-staged`
-    argument, not through a sidecar field.
+    command, so adoption is a write and nothing else. ADR-0097 Decision 5's
+    exit landed as `adopt-staged --archive-names FILE` and deliberately took
+    no field here: a staged file still cannot name anything to remove from
+    the store, and adding one would undo the narrowing above.
     """
 
     filename: str
