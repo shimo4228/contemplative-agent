@@ -6,6 +6,7 @@ from contemplative_agent.core.text_utils import (
     MAX_SLUG_LENGTH,
     extract_title,
     log_preview,
+    set_frontmatter_field,
     slugify,
     split_frontmatter,
     strip_frontmatter,
@@ -146,3 +147,48 @@ class TestLogPreview:
         out = log_preview(("word\n" * 50), limit=20)
         assert out == "word word word word…"
         assert "\n" not in out
+
+
+class TestSetFrontmatterField:
+    """The one set-or-insert, shared by name canonicalization (ADR-0081) and
+    the ADR-0097 supersede stamps. Both had grown a private copy."""
+
+    def test_replaces_an_existing_scalar(self):
+        text = '---\nname: old\ndescription: "d"\n---\n\n# T\n'
+        out = set_frontmatter_field(text, "name", "new")
+        assert "name: new" in out
+        assert "name: old" not in out
+        assert 'description: "d"' in out
+
+    def test_appends_a_missing_key_before_the_closing_fence(self):
+        text = "---\nname: n\norigin: auto-extracted\n---\n\n# T\n"
+        out = set_frontmatter_field(text, "supersedes", "old.md")
+        block = split_frontmatter(out)[0].split("\n")
+        assert block[-2] == "supersedes: old.md"
+        assert block[1:3] == ["name: n", "origin: auto-extracted"], "emitted order survives"
+
+    def test_only_a_column_zero_key_is_matched(self):
+        """The frontmatter is read by regex, never parsed — an indented
+        ``key:`` inside a block scalar is prose and must survive."""
+        text = "---\ndescription: |\n  name: prose inside a scalar\nname: stale\n---\n\n# T\n"
+        out = set_frontmatter_field(text, "name", "fresh")
+        assert "  name: prose inside a scalar" in out
+        assert "name: stale" not in out
+        assert "name: fresh" in out
+
+    def test_a_body_without_frontmatter_is_unchanged_by_default(self):
+        text = "# T\n\nbody"
+        assert set_frontmatter_field(text, "name", "n") == text
+
+    def test_synthesize_gives_a_frontmatterless_body_a_block(self):
+        text = "# My Skill\n\n**Context:** When X happens.\n"
+        out = set_frontmatter_field(text, "superseded_by", "new.md", synthesize=True)
+        block = split_frontmatter(out)[0]
+        assert "superseded_by: new.md" in block
+        assert "name: my-skill" in block
+        assert "**Context:** When X happens." in out
+
+    def test_the_body_survives_verbatim(self):
+        text = "---\nname: n\n---\n\n# T\n\n- a\n- b\n"
+        out = set_frontmatter_field(text, "supersedes", "x.md")
+        assert split_frontmatter(out)[1] == split_frontmatter(text)[1]
