@@ -178,19 +178,16 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     if getattr(args, "skill_selection", False):
         try:
             from ..core.skill_selection import (
-                format_never_selected_report,
                 format_skill_selection_report,
-                read_never_selected,
                 read_skill_selection_log,
             )
 
-            skills_dir = config.SKILLS_DIR if config.SKILLS_DIR.is_dir() else None
             reading = read_skill_selection_log(
                 log_dir,
                 days=None if since is not None else days,
                 since=since,
                 until=until,
-                skills_dir=skills_dir,
+                skills_dir=config.SKILLS_DIR if config.SKILLS_DIR.is_dir() else None,
                 # Read-only: only the mechanism split of rejected names
                 # consults them (is a foreign token constitution / identity
                 # vocabulary?). Absent or unreadable → the split abstains
@@ -209,30 +206,48 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
             # names exist for. The weekly intake takes the default and
             # gets the same reading without them — see the renderer.
             print(format_skill_selection_report(reading, include_rejected_names=True))
+        except Exception as exc:
+            logger.warning("Skill-selection reading failed (report unaffected): %s", exc)
+
+    # The ADR-0097 D5 exit reading, in its OWN try: it answers a different
+    # question over a different scope, and sharing a handler with the block
+    # above made one instrument's failure silently delete the other's output.
+    # Isolation between read-only instruments should be structural, not a
+    # side effect of where the statements happen to sit.
+    if getattr(args, "skill_selection", False):
+        try:
+            from ..core.skill_selection import (
+                NEVER_SELECTED_DORMANT_WINDOW_DAYS,
+                format_never_selected_report,
+                read_never_selected,
+            )
+
             # The windowed reading above cannot answer "is this skill an
             # archive candidate": most of its never-selected list is dormant
             # (selected before the window opened), and archiving one of those
             # WOULD change judged behaviour. The whole-history reading is what
-            # separates the two (ADR-0097 D5); the weekly packet renders the
-            # same numbers, this prints them outside the chain.
+            # separates the two (ADR-0097 D5). The weekly packet will render
+            # the same numbers once the chain passes them; today this is the
+            # only surface that shows them.
             print()
             print(
                 format_never_selected_report(
                     read_never_selected(
                         log_dir,
-                        # The same window arguments, resolved by the same
-                        # function: --since/--until move both readings, so
-                        # the dormant cut and the window above never name
-                        # different fortnights.
-                        days=None if since is not None else days,
+                        # --since/--until move both readings, resolved by the
+                        # same function, so they never name different spans.
+                        # Absent them the dormant cut is the ADR's fortnight,
+                        # NOT the report's --days: this reading is about the
+                        # skill store, and its window is a property of D5.
+                        days=None if since is not None else NEVER_SELECTED_DORMANT_WINDOW_DAYS,
                         since=since,
                         until=until,
-                        skills_dir=skills_dir,
+                        skills_dir=(config.SKILLS_DIR if config.SKILLS_DIR.is_dir() else None),
                     )
                 )
             )
         except Exception as exc:
-            logger.warning("Skill-selection reading failed (report unaffected): %s", exc)
+            logger.warning("Never-selected reading failed (report unaffected): %s", exc)
 
     # --submolt-scope: read-only scope reading (ADR-0086). Aggregates
     # logs/submolt-scope-*.jsonl written by `submolt-scan`; observability

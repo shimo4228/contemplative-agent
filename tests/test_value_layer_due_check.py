@@ -735,9 +735,11 @@ def test_rules_key_absent_when_not_asked_for(tmp_path: Path) -> None:
     assert "rules" not in _reading(_run(paths))
 
 
-def test_missing_rules_dir_is_a_state_not_a_header_fault(tmp_path: Path) -> None:
-    """A store with no rules would otherwise emit the same code every week
-    and fire the packet's recurrence trigger on a working system."""
+def test_missing_rules_dir_reaches_the_header(tmp_path: Path) -> None:
+    """A dir the caller pointed at and that is not there is a wiring typo or
+    a wrong MOLTBOOK_HOME — it must not stand for months as one cell inside
+    §8. The recurrence-noise objection is answered in the packet's
+    DESIGNED_OUTCOME_CODES, not by staying quiet here."""
     paths = _write_inputs(
         tmp_path,
         audit_lines=[_audit_line("distill-identity", "2026-08-01T00:00:00+00:00", source="stage")],
@@ -745,10 +747,12 @@ def test_missing_rules_dir_is_a_state_not_a_header_fault(tmp_path: Path) -> None
     reading = _reading(_run(paths, "--rules-dir", str(tmp_path / "absent")))
     assert reading["rules"]["reason"] == "RULES_DIR_MISSING"
     assert reading["rules"]["files"] == 0
-    assert reading["reasons"] == []
+    assert reading["reasons"] == ["RULES_DIR_MISSING"]
 
 
 def test_empty_rules_dir_named_apart_from_missing(tmp_path: Path) -> None:
+    """A dir that exists and holds no rules is a legitimate state of a young
+    store — the one rules state that does NOT reach the header."""
     rules = _rules_dir(tmp_path, {})
     paths = _write_inputs(
         tmp_path,
@@ -759,6 +763,18 @@ def test_empty_rules_dir_named_apart_from_missing(tmp_path: Path) -> None:
     assert reading["rules"]["files"] == 0
     assert reading["rules"]["newest_mtime"] is None
     assert reading["rules"]["days_since_newest"] is None
+    assert reading["reasons"] == []
+
+
+def test_truncated_rule_files_are_not_an_empty_layer(tmp_path: Path) -> None:
+    """Ten rules truncated to zero bytes is an incident; a store with no
+    rules is a state. Without `empty_files` both render as RULES_EMPTY."""
+    rules = _rules_dir(tmp_path, {"a.md": "", "b.md": "---\nname: b\n---\n"})
+    reading = vldc.read_rules_layer(rules)
+    assert reading is not None
+    assert reading["files"] == 0
+    assert reading["empty_files"] == 2
+    assert reading["reason"] == "RULES_EMPTY"
 
 
 def test_unreadable_rule_file_is_a_header_fault(tmp_path: Path) -> None:
@@ -775,6 +791,34 @@ def test_unreadable_rule_file_is_a_header_fault(tmp_path: Path) -> None:
     assert reading["rules"]["unreadable_files"] == 1
     assert reading["rules"]["files"] == 1
     assert "RULES_UNREADABLE" in reading["reasons"]
+
+
+def test_local_traversal_matches_read_markdown_documents(tmp_path: Path) -> None:
+    """The parity test above pins the rule VERDICTS. The `files:` count is the
+    other half of the reading, and it comes from a second mirrored contract —
+    `core.text_utils.read_markdown_documents`: sorted `*.md`, dotfiles
+    skipped, frontmatter stripped, empty bodies dropped. A traversal change
+    would drift the count with nothing failing."""
+    from contemplative_agent.core.text_utils import read_markdown_documents
+
+    rules = _rules_dir(
+        tmp_path,
+        {
+            "b.md": GOOD_RULE,
+            "a.md": "---\nname: a\n---\n\n" + GOOD_RULE,
+            ".hidden.md": GOOD_RULE,
+            "empty.md": "---\nname: e\n---\n",
+            "not-markdown.txt": GOOD_RULE,
+        },
+    )
+    canonical = read_markdown_documents(rules)
+    mine = vldc.read_rules_layer(rules)
+    assert mine is not None
+    assert mine["files"] == len(canonical) == 2
+    # Same bodies, in the same order, after the same frontmatter strip.
+    assert [vldc._strip_frontmatter((rules / n).read_text()).strip() for n, _, _ in canonical] == [
+        body for _, _, body in canonical
+    ]
 
 
 def test_rules_reading_skips_dotfiles_and_frontmatter(tmp_path: Path) -> None:

@@ -33,6 +33,7 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Callable
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -58,6 +59,18 @@ SCOPE_ESCALATED = "SCOPE_ESCALATED"
 # the escalation still reaches the human, and the audit gap is named instead
 # of being folded into an ordinary SCOPE_ESCALATED.
 SCOPE_ESCALATED_INFERRED = "SCOPE_ESCALATED_INFERRED"
+# The floor withheld every candidate: skills were never selected, but none had
+# been offered the 600 judged times that make "never selected" mean anything
+# (ADR-0097 D5/D8). Named rather than spelled inline because two frozensets
+# below reference it and `DESIGNED_OUTCOME_CODES` names its other members.
+NEVER_SELECTED_BELOW_FLOOR = "NEVER_SELECTED_BELOW_FLOOR"
+# The rules dir the instrument was pointed at does not exist. A wiring typo or
+# a wrong MOLTBOOK_HOME, which must be loud rather than one cell inside §8 —
+# and simultaneously a state a store can legitimately sit in for months, hence
+# both a header reason AND a designed outcome (that set exists to separate
+# "visible but expected" from "visible and needs work").
+VALUE_LAYER_RULES_DIR_MISSING = "VALUE_LAYER_RULES_DIR_MISSING"
+
 # Codes that report a guard working as designed, not a fault. Recording
 # SCOPE_ESCALATED (2026-08-08) put it on the recurrence-comparison side for the
 # first time: two consecutive weeks with a docs-touching fix — routine — would
@@ -80,7 +93,8 @@ DESIGNED_OUTCOME_CODES = frozenset(
         SCOPE_ESCALATED,
         "IDENTITY_STAGING_BUSY",
         "IDENTITY_INSIGHT_PENDING",
-        "NEVER_SELECTED_BELOW_FLOOR",
+        NEVER_SELECTED_BELOW_FLOOR,
+        VALUE_LAYER_RULES_DIR_MISSING,
     }
 )
 
@@ -100,9 +114,28 @@ KNOWN_NEVER_SELECTED_REASONS = frozenset(
     {
         "NEVER_SELECTED_NO_CATALOG",
         "NEVER_SELECTED_NO_HISTORY",
-        "NEVER_SELECTED_BELOW_FLOOR",
+        "NEVER_SELECTED_LOG_PARTIAL",
+        "NEVER_SELECTED_LOG_UNREADABLE",
+        "NEVER_SELECTED_EMPTY_WINDOW",
+        NEVER_SELECTED_BELOW_FLOOR,
         "NEVER_SELECTED_FULL_TOKENS_UNKNOWN",
     }
+)
+
+# Producer reasons under which a population is the absence of a reading, not
+# an empty one. Mirrors `core.skill_selection.NEVER_SELECTED_*_WITHHELD` (this
+# module cannot import it — system python3), pinned by a test. A section that
+# prints 該当なし for one of these is telling the human "nothing to archive"
+# when the truth is "this reading cannot tell you".
+NEVER_SELECTED_STRICT_WITHHELD = frozenset(
+    {
+        "NEVER_SELECTED_NO_CATALOG",
+        "NEVER_SELECTED_NO_HISTORY",
+        "NEVER_SELECTED_LOG_UNREADABLE",
+    }
+)
+NEVER_SELECTED_DORMANT_WITHHELD = frozenset(
+    {"NEVER_SELECTED_NO_CATALOG", "NEVER_SELECTED_EMPTY_WINDOW"}
 )
 
 # §8 renders the instrument's `reason` fields as narration; they are literal
@@ -409,6 +442,45 @@ def _title_cell(title: object) -> str:
     return flat
 
 
+def _sub(data: dict | None, section: str, key: str) -> object:
+    """One nested lookup for every JSON intake: ``data[section][key]``, or
+    ``None`` when any level is absent or not a mapping. Two hand-written
+    copies of this (one per intake) is how the second one grew a dead
+    ``is not None`` guard inside the branch that had already proved it."""
+    if data is None:
+        return None
+    sub = data.get(section)
+    return sub.get(key) if isinstance(sub, dict) else None
+
+
+def _cell_or_dash(value: object) -> str:
+    """``_cell``, with an em dash for a value the intake did not supply.
+    Absence renders as absence, never as the string "None"."""
+    return "—" if value is None else _cell(value)
+
+
+def _nonneg_int(value: object) -> int | None:
+    """A non-negative integer, or ``None``. ``bool`` is excluded on purpose:
+    ``isinstance(True, int)`` is True in Python, so a JSON ``true`` would
+    otherwise become the count 1 (the same trap `core.skill_selection._is_int`
+    exists for, and the same one this file's producer hit)."""
+    if isinstance(value, bool) or not isinstance(value, int) or value < 0:
+        return None
+    return value
+
+
+def _dict_rows(data: dict | None, key: str) -> list[dict]:
+    """``data[key]`` as a list of mappings, dropping everything else.
+
+    Every deterministic intake in this file needs exactly this — the row
+    lists are written by separate processes and the packet trusts none of
+    their shapes."""
+    if data is None:
+        return []
+    raw = data.get(key)
+    return [r for r in raw if isinstance(r, dict)] if isinstance(raw, list) else []
+
+
 def _safe_read_text(path: Path) -> str | None:
     """Read a text file, degrading unreadable bytes AND unopenable paths to None.
 
@@ -556,6 +628,255 @@ def append_gate_record(
             "recommendation_total": recommendation_total,
         },
     )
+
+
+def _rules_subsection(
+    rules_data: dict,
+    issues: list[dict],
+    vl: Callable[[str, str], object],
+    vl_cell: Callable[[str, str], str],
+) -> list[str]:
+    """§8's rules-layer maintenance reading (ADR-0097 D2).
+
+    A module function, like every other renderer in this file, so the section
+    is reachable without assembling a whole packet.
+    """
+    out = [
+        "### Rules layer（maintenance reading）",
+        "",
+        "ADR-0097 D2 で `rules-distill` / `rules-stocktake` は退役した。"
+        "rules 層に残る所有者はこの決定論的な読み値だけで、**ここでは何も"
+        "修正されていない** — 構造 issue の扱い（修正 / 容認 / 保留）は"
+        "土曜ゲートの人間 commit で行う。新しい rule は family promotion"
+        "（ADR-0097 D7）からのみ入る。",
+        "",
+    ]
+    days_since = vl("rules", "days_since_newest")
+    unreadable = _nonneg_int(rules_data.get("unreadable_files")) or 0
+    empty_files = _nonneg_int(rules_data.get("empty_files")) or 0
+    out.append(
+        f"- files: {vl_cell('rules', 'files')} 本 / "
+        f"newest mtime: {vl_cell('rules', 'newest_mtime')}"
+        + (f"（{_cell(days_since)} 日前）" if days_since is not None else "")
+        + f" / state: {vl_cell('rules', 'reason')}"
+    )
+    # The magnitude of what the scan could NOT read, beside the count of what
+    # it could. "state: RULES_UNREADABLE" over "構造 issue: 0 件" told the
+    # reader a clean layer and a five-file blind spot in the same breath.
+    if unreadable or empty_files:
+        parts = []
+        if unreadable:
+            parts.append(f"{unreadable} 本は読めなかった")
+        if empty_files:
+            parts.append(f"{empty_files} 本は本文が空")
+        out.append(f"- 未検査: {' / '.join(parts)}")
+    if issues:
+        out.append(f"- 構造 issue: {len(issues)} 件（B 層の Practice/Rationale 形式を満たさない）")
+        out.append("")
+        out.append("| rule file | reason |")
+        out.append("|---|---|")
+        for issue in sorted(issues, key=lambda i: str(i.get("file", ""))):
+            out.append(f"| `{_cell(issue.get('file', '?'))}` | {_cell(issue.get('reason', '?'))} |")
+    elif unreadable or empty_files:
+        # A zero qualified by what it was counted over. Unqualified, it reads
+        # as "the layer is fine" on the week half of it went unread.
+        out.append(
+            f"- 構造 issue: 0 件（検査できた {vl_cell('rules', 'files')} 本について。"
+            f"上の未検査分は含まない）"
+        )
+    else:
+        out.append("- 構造 issue: 0 件")
+    out.append("")
+    return out
+
+
+def _never_selected_section(
+    ns_data: dict | None,
+    *,
+    strict: list[dict],
+    dormant: list[dict],
+    below_floor: list[dict],
+    floor: int | None,
+    codes: list[str],
+) -> list[str]:
+    """§10 — the ADR-0097 D5 exit reading, listing only.
+
+    ``codes`` are this run's never-selected reason codes (the producer's,
+    plus the ones this module raised re-checking its rows). They are rendered
+    HERE as well as in the header: a code that disqualifies a list is
+    worthless two hundred lines away from the list, and the failure it
+    prevents is a withheld population reading as an empty one.
+    """
+    withheld_strict = [c for c in codes if c in NEVER_SELECTED_STRICT_WITHHELD]
+    withheld_dormant = [c for c in codes if c in NEVER_SELECTED_DORMANT_WITHHELD]
+    # Signal-first, but a builder-raised code counts as signal: a week whose
+    # every strict row was discarded as schema-invalid must not vanish,
+    # leaving a header code with no section to explain it.
+    if ns_data is None or not (strict or dormant or below_floor or codes):
+        return []
+
+    def ns(section: str, key: str) -> object:
+        return _sub(ns_data, section, key)
+
+    def cell(section: str, key: str) -> str:
+        return _cell_or_dash(ns(section, key))
+
+    out = [
+        "## 10. Never-selected skills (archive candidates — detection only)",
+        "",
+        "選択ログ（`logs/skill-selection-*.jsonl`）全履歴の読み値"
+        "（ADR-0097 D5、`core/skill_selection.py`）。**archive はここでは"
+        "行われていない** — 候補ごとの判断（archive / 保留）と理由の記録は"
+        "土曜ゲートの人間が `adopt-staged --archive-names` で行う。"
+        "この節は列挙するだけで、順位も閾値判定も持たない。",
+        "",
+    ]
+    if codes:
+        out.append(f"**reason codes**: {_cell(', '.join(dict.fromkeys(codes)))}")
+        out.append("")
+    unreadable_days = _nonneg_int(ns("history", "unreadable_files")) or 0
+    malformed = _nonneg_int(ns("history", "malformed_rows")) or 0
+    out.append(
+        f"読み取り範囲: {cell('history', 'files')} 日分のログ"
+        f"（{cell('history', 'first_day')} … {cell('history', 'last_day')}）、"
+        f"judged {cell('history', 'judged')} / "
+        f"records {cell('history', 'records')}、"
+        f"catalog {cell('catalog', 'size')} skills"
+    )
+    if unreadable_days or malformed:
+        out.append(
+            f"読めなかった分: {unreadable_days} 日 / {malformed} 行 — 上の件数はこの分を含まない"
+        )
+    out.append("")
+    # The caveat is printed BESIDE the candidates, not in a footnote: the
+    # behaviour-neutrality argument ("never selected ⇒ never injected ⇒
+    # removing it cannot change judged behaviour") holds for judged actions
+    # only, and the full-corpus paths inject everything. Both numbers are
+    # printed so the reader can check the claim instead of taking it on faith
+    # (the Codex challenge in ADR-0097's Context).
+    out.append(
+        "**behaviour-neutrality は judged な action についてのみ成り立つ** — "
+        "fail-open / no_template の action には全 corpus が注入される。判断材料:"
+    )
+    out.append("")
+    # Whole-history, beside the whole-history population. A window figure here
+    # reads 0 for an agent that was down, next to a candidate the corpus
+    # injected hundreds of times.
+    out.append(
+        f"- 全履歴の full-corpus 注入: {cell('history', 'fail_open')} / "
+        f"{cell('history', 'records')} records"
+    )
+    full_tokens = _nonneg_int(ns("corpus", "history_full_skill_tokens"))
+    num_ctx = _nonneg_int(ns("corpus", "num_ctx"))
+    if full_tokens and num_ctx:
+        # A mechanism statement tied to the two printed numbers, not a
+        # judgment about archiving: when the corpus exceeds the context window
+        # the fail-open path abstains rather than injects (ADR-0081
+        # amendment). The reader can see which side of it this week is on.
+        relation = (
+            f"NUM_CTX {num_ctx:,} を超える — fail-open は注入せず abstain する"
+            "（ADR-0081 amendment）"
+            if full_tokens >= num_ctx
+            else f"NUM_CTX {num_ctx:,} に収まる — fail-open が起きれば archive 候補も再注入される"
+        )
+        out.append(f"- full corpus {full_tokens:,} tok（全履歴の最新値）は {relation}")
+    else:
+        out.append(
+            "- full corpus のトークン数が読めない"
+            "（NEVER_SELECTED_FULL_TOKENS_UNKNOWN）— "
+            f"NUM_CTX との比較は不可。NUM_CTX は {cell('corpus', 'num_ctx')}"
+        )
+    out.append("")
+    floor_text = _cell(floor) if floor is not None else "—"
+    out.append(f"### Strict（全履歴で 0 回選択 かつ judged exposure ≥ {floor_text}）")
+    out.append("")
+    if withheld_strict:
+        # Never 該当なし for a withheld population: "nothing to archive" and
+        # "this reading cannot tell you" are the two states the exit's whole
+        # safety margin sits between.
+        out.append(
+            f"**候補一覧は保留（{_cell(', '.join(withheld_strict))}）** — "
+            "この読み値では答えられない。原因を直して再実行するまで archive の"
+            "判断材料にしない。"
+        )
+    elif floor is None:
+        out.append(
+            f"（{NEVER_SELECTED_SCHEMA} — exposure floor が読めないため候補一覧を"
+            "表示しない。読み値の JSON を直接確認する）"
+        )
+    elif strict:
+        out.append(
+            f"下の {len(strict)} 件は「一度も注入されていない」— 外しても "
+            "judged な生成は変わらない。理由の記録は必須（`remove-skill --reason`）。"
+        )
+        out.append("")
+        out.append("| skill | judged exposure (history) |")
+        out.append("|---|---|")
+        for row in sorted(
+            strict,
+            key=lambda r: (-(_nonneg_int(r.get("judged_exposure")) or 0), str(r.get("name", ""))),
+        ):
+            out.append(
+                f"| `{_cell(row.get('name', '?'))}` | {_cell(row.get('judged_exposure', '?'))} |"
+            )
+    else:
+        out.append("（該当なし）")
+    if below_floor:
+        exposures = [
+            e for e in (_nonneg_int(r.get("judged_exposure")) for r in below_floor) if e is not None
+        ]
+        highest = max(exposures) if exposures else 0
+        out.append("")
+        out.append(
+            f"床未満: 一度も選ばれていない skill が他に {len(below_floor)} 件"
+            f"（最大 exposure {highest}）。まだ候補ではない — 提示された回数が"
+            "少なすぎて「選ばれていない」が何も意味しない（ADR-0097 D8）。"
+        )
+    out.append("")
+    ns_since, ns_until = ns("window", "since"), ns("window", "until")
+    # The instrument windows by `days` (today − N) or by explicit UTC calendar
+    # bounds (`since`/`until`, T-SKILLSEL-REPORT-WINDOW). Naming a bounded
+    # window "直近 N 日" would misreport it by a day and hide a backfill —
+    # the trap the explicit mode exists to avoid.
+    span = (
+        f"{_cell(ns_since)} … {_cell(ns_until)}"
+        if ns_since
+        else f"直近 {cell('window', 'days')} 日"
+    )
+    out.append(f"### Dormant（{span}は 0 回、以前は選択あり）")
+    out.append("")
+    out.append(
+        "**読み値のみ。archive 候補ではない** — 過去に選択された skill を"
+        "外すと judged な生成が変わる。"
+    )
+    out.append("")
+    # Window-scoped figures beside the window-scoped population, and judged
+    # beside records so the non-judged residual is visible rather than
+    # something the reader has to infer from two numbers that never meet.
+    out.append(
+        f"- {span}: judged {cell('window', 'judged')} / "
+        f"records {cell('window', 'records')}、うち full-corpus 注入 "
+        f"{cell('window', 'fail_open')}"
+    )
+    out.append("")
+    if withheld_dormant:
+        out.append(f"**一覧は保留（{_cell(', '.join(withheld_dormant))}）** — 窓に読む記録がない。")
+    elif dormant:
+        out.append("| skill | judged exposure (window) | last selected (whole history) |")
+        out.append("|---|---|---|")
+        # Producer order (window exposure descending), not re-sorted: the two
+        # renderers of this reading must not disagree about the order of a
+        # list a human reads down.
+        for row in dormant:
+            out.append(
+                f"| `{_cell(row.get('name', '?'))}` "
+                f"| {_cell(row.get('window_exposure', '?'))} "
+                f"| {_cell(row.get('last_selected') or '—')} |"
+            )
+    else:
+        out.append("（該当なし）")
+    out.append("")
+    return out
 
 
 def build_packet(
@@ -795,7 +1116,7 @@ def build_packet(
         raw = ds_data.get("findings") if ds_data is not None else None
         if isinstance(raw, list) and ds_data is not None:
             docs_scanned = True
-            docs_findings = [f for f in raw if isinstance(f, dict)]
+            docs_findings = _dict_rows(ds_data, "findings")
             ds_errors = ds_data.get("errors")
             if isinstance(ds_errors, list) and ds_errors:
                 # A partially degraded scan is not a clean one (same door as
@@ -822,57 +1143,47 @@ def build_packet(
     ns_strict: list[dict] = []
     ns_dormant: list[dict] = []
     ns_below_floor: list[dict] = []
+    ns_codes: list[str] = []
     if skill_selection is not None:
         ns_data = _load_findings(skill_selection)  # same safe-load contract
         if ns_data is None:
             add_reason(NEVER_SELECTED_UNREADABLE)
         else:
-            raw_floor = ns_data.get("exposure_floor")
-            if isinstance(raw_floor, int) and not isinstance(raw_floor, bool) and raw_floor > 0:
-                ns_floor = raw_floor
-            else:
+            ns_floor = _nonneg_int(ns_data.get("exposure_floor")) or None
+            if ns_floor is None:
                 # Without a floor there is no criterion the strict rows were
                 # selected by, so they are not shown at all. The dormant
                 # reading does not depend on it and survives.
-                add_reason(NEVER_SELECTED_SCHEMA)
-
-            def _ns_rows(key: str) -> list[dict]:
-                raw = ns_data.get(key) if ns_data is not None else None
-                return [r for r in raw if isinstance(r, dict)] if isinstance(raw, list) else []
-
-            def _ns_exposure(row: dict) -> int | None:
-                value = row.get("judged_exposure")
-                if isinstance(value, int) and not isinstance(value, bool) and value >= 0:
-                    return value
-                return None
-
-            ns_dormant = _ns_rows("dormant")
-            ns_below_floor = _ns_rows("below_floor")
+                ns_codes.append(NEVER_SELECTED_SCHEMA)
+            ns_dormant = _dict_rows(ns_data, "dormant")
+            ns_below_floor = _dict_rows(ns_data, "below_floor")
             if ns_floor is not None:
-                for row in _ns_rows("strict"):
-                    exposure = _ns_exposure(row)
+                for row in _dict_rows(ns_data, "strict"):
+                    exposure = _nonneg_int(row.get("judged_exposure"))
                     if exposure is None or exposure < ns_floor:
-                        add_reason(NEVER_SELECTED_SCHEMA)
+                        ns_codes.append(NEVER_SELECTED_SCHEMA)
                         continue
                     ns_strict.append(row)
             ns_reasons = ns_data.get("reasons")
             if isinstance(ns_reasons, list):
                 for code in ns_reasons[:8]:
                     if isinstance(code, str) and code in KNOWN_NEVER_SELECTED_REASONS:
-                        add_reason(code)
+                        ns_codes.append(code)
                     elif code:
-                        add_reason(NEVER_SELECTED_SCHEMA)
+                        ns_codes.append(NEVER_SELECTED_SCHEMA)
             elif ns_reasons is not None:
                 # Same door as DOCSCAN_PARTIAL's non-list `errors`: a reasons
                 # field this cannot walk would otherwise open the section
                 # while contributing no codes, which reads as a clean run.
-                add_reason(NEVER_SELECTED_SCHEMA)
+                ns_codes.append(NEVER_SELECTED_SCHEMA)
+            # Collected first, then raised, because §10 renders them too: a
+            # code that reaches only the header is a code the human meets 200
+            # lines away from the list it disqualifies.
+            for code in dict.fromkeys(ns_codes):
+                add_reason(code)
 
     def _vl(section: str, key: str) -> object:
-        if value_layer_data is None:
-            return None
-        sub = value_layer_data.get(section)
-        return sub.get(key) if isinstance(sub, dict) else None
+        return _sub(value_layer_data, section, key)
 
     identity_due = _vl("identity", "due")
     constitution_due = _vl("constitution", "due")
@@ -1359,16 +1670,15 @@ def build_packet(
 
     def _vl_cell(section: str, key: str) -> str:
         value = _vl(section, key)
-        if value is None:
-            return "—"
-        if key == "reason":
-            # Per-section vocabulary: the rules layer's states and the
+        if key == "reason" and value is not None:
+            # The only thing this renderer adds over `_cell_or_dash`: the
+            # per-section reason vocabulary. The rules layer's states and the
             # cadence layers' states are disjoint, and checking each against
             # the other's set would let a drifted value pass as contractual.
             known = KNOWN_RULES_REASONS if section == "rules" else KNOWN_VALUE_LAYER_REASONS
             if value not in known:
                 return _unrecognized_verdict(_cell(value))
-        return _cell(value)
+        return _cell_or_dash(value)
 
     if identity_signal or constitution_due is True or rules_signal:
         lines.append("## 8. Value layer cadence (identity / constitution / rules)")
@@ -1450,43 +1760,12 @@ def build_packet(
                 "でないこと（ADR-0056）"
             )
             lines.append("")
+        # Rendered whenever §8 exists, not only on its own signal: the count
+        # and the mtime are the standing maintenance reading the layer got in
+        # exchange for losing its generator (ADR-0097 D2), and riding an
+        # already-open section costs the packet nothing.
         if rules_data is not None:
-            # Rendered whenever §8 exists, not only on its own signal: the
-            # count and the mtime are the standing maintenance reading the
-            # layer got in exchange for losing its generator (ADR-0097 D2),
-            # and riding an already-open section costs the packet nothing.
-            lines.append("### Rules layer（maintenance reading）")
-            lines.append("")
-            lines.append(
-                "ADR-0097 D2 で `rules-distill` / `rules-stocktake` は退役した。"
-                "rules 層に残る所有者はこの決定論的な読み値だけで、**ここでは何も"
-                "修正されていない** — 構造 issue の扱い（修正 / 容認 / 保留）は"
-                "土曜ゲートの人間 commit で行う。新しい rule は family promotion"
-                "（ADR-0097 D7）からのみ入る。"
-            )
-            lines.append("")
-            days_since = _vl("rules", "days_since_newest")
-            lines.append(
-                f"- files: {_vl_cell('rules', 'files')} 本 / "
-                f"newest mtime: {_vl_cell('rules', 'newest_mtime')}"
-                + (f"（{_cell(days_since)} 日前）" if days_since is not None else "")
-                + f" / state: {_vl_cell('rules', 'reason')}"
-            )
-            if rules_issues:
-                lines.append(
-                    f"- 構造 issue: {len(rules_issues)} 件"
-                    "（B 層の Practice/Rationale 形式を満たさない）"
-                )
-                lines.append("")
-                lines.append("| rule file | reason |")
-                lines.append("|---|---|")
-                for issue in sorted(rules_issues, key=lambda i: str(i.get("file", ""))):
-                    lines.append(
-                        f"| `{_cell(issue.get('file', '?'))}` | {_cell(issue.get('reason', '?'))} |"
-                    )
-            else:
-                lines.append("- 構造 issue: 0 件")
-            lines.append("")
+            lines.extend(_rules_subsection(rules_data, rules_issues, _vl, _vl_cell))
 
     # Section number 9 is reserved for the docs-consistency intake; on clean
     # weeks it is absent (signal-first). It also renders when the scan itself
@@ -1534,148 +1813,18 @@ def build_packet(
         lines.append("")
 
     # Section number 10 is reserved for the never-selected exit reading
-    # (ADR-0097 D5); a week with nothing in any population and no degraded
-    # reading is simply absent (signal-first).
-    def _ns(section: str, key: str) -> object:
-        if ns_data is None:
-            return None
-        sub = ns_data.get(section)
-        return sub.get(key) if isinstance(sub, dict) else None
-
-    def _ns_cell(section: str, key: str) -> str:
-        value = _ns(section, key)
-        return "—" if value is None else _cell(value)
-
-    ns_signal = ns_data is not None and bool(
-        ns_strict or ns_dormant or ns_below_floor or ns_data.get("reasons")
+    # (ADR-0097 D5); a week with nothing in any population, no producer
+    # reason and no builder reason is simply absent (signal-first).
+    lines.extend(
+        _never_selected_section(
+            ns_data,
+            strict=ns_strict,
+            dormant=ns_dormant,
+            below_floor=ns_below_floor,
+            floor=ns_floor,
+            codes=ns_codes,
+        )
     )
-    if ns_signal and ns_data is not None:
-        lines.append("## 10. Never-selected skills (archive candidates — detection only)")
-        lines.append("")
-        lines.append(
-            "選択ログ（`logs/skill-selection-*.jsonl`）全履歴の読み値"
-            "（ADR-0097 D5、`core/skill_selection.py`）。**archive はここでは"
-            "行われていない** — 候補ごとの判断（archive / 保留）と理由の記録は"
-            "土曜ゲートの人間が `adopt-staged --archive-names` で行う。"
-            "この節は列挙するだけで、順位も閾値判定も持たない。"
-        )
-        lines.append("")
-        lines.append(
-            f"読み取り範囲: {_ns_cell('history', 'files')} 日分のログ"
-            f"（{_ns_cell('history', 'first_day')} … {_ns_cell('history', 'last_day')}）、"
-            f"judged {_ns_cell('history', 'judged')} / "
-            f"records {_ns_cell('history', 'records')}、"
-            f"catalog {_ns_cell('catalog', 'size')} skills"
-        )
-        lines.append("")
-        # The caveat is printed BESIDE the candidates, not in a footnote: the
-        # behaviour-neutrality argument ("never selected ⇒ never injected ⇒
-        # removing it cannot change judged behaviour") holds for judged
-        # actions only, and the fail-open path injects the full corpus. Both
-        # numbers are printed so the reader can check the claim instead of
-        # taking it on faith (the Codex challenge in ADR-0097's Context).
-        lines.append(
-            "**behaviour-neutrality は judged な action についてのみ成り立つ** — "
-            "fail-open した action には全 corpus が注入される。判断材料:"
-        )
-        lines.append("")
-        # The instrument windows by `days` (today − N) or by explicit UTC
-        # calendar bounds (`since`/`until`, T-SKILLSEL-REPORT-WINDOW). Naming
-        # a bounded window as "直近 N 日" would misreport it by a day and hide
-        # a backfill entirely — which is the trap the explicit mode exists to
-        # avoid, so the packet must not re-introduce it in its own prose.
-        ns_since, ns_until = _ns("window", "since"), _ns("window", "until")
-        ns_span = (
-            f"{_cell(ns_since)} … {_cell(ns_until)}"
-            if ns_since
-            else f"直近 {_ns_cell('window', 'days')} 日"
-        )
-        lines.append(
-            f"- {ns_span}の fail-open: "
-            f"{_ns_cell('window', 'fail_open')} / "
-            f"{_ns_cell('window', 'records')} records"
-        )
-        full_tokens = _ns("corpus", "full_skill_tokens")
-        num_ctx = _ns("corpus", "num_ctx")
-        if isinstance(full_tokens, int) and isinstance(num_ctx, int) and full_tokens > 0:
-            # A mechanism statement tied to the two printed numbers, not a
-            # judgment about archiving: when the corpus exceeds the context
-            # window the fail-open path abstains rather than injects (ADR-0081
-            # amendment). The reader can see which side of it this week is on.
-            relation = (
-                f"NUM_CTX {num_ctx:,} を超える — fail-open は注入せず abstain する"
-                f"（ADR-0081 amendment）"
-                if full_tokens >= num_ctx
-                else f"NUM_CTX {num_ctx:,} に収まる — fail-open が起きれば"
-                "archive 候補も再注入される"
-            )
-            lines.append(f"- full corpus {full_tokens:,} tok は {relation}")
-        else:
-            lines.append(
-                "- full corpus のトークン数が読めない"
-                "（NEVER_SELECTED_FULL_TOKENS_UNKNOWN）— "
-                f"NUM_CTX との比較は不可。NUM_CTX は {_ns_cell('corpus', 'num_ctx')}"
-            )
-        lines.append("")
-        floor_text = _cell(ns_floor) if ns_floor is not None else "—"
-        lines.append(f"### Strict（全履歴で 0 回選択 かつ judged exposure ≥ {floor_text}）")
-        lines.append("")
-        if ns_floor is None:
-            lines.append(
-                f"（{NEVER_SELECTED_SCHEMA} — exposure floor が読めないため候補一覧を"
-                "表示しない。読み値の JSON を直接確認する）"
-            )
-        elif ns_strict:
-            lines.append(
-                f"下の {len(ns_strict)} 件は「一度も注入されていない」— 外しても "
-                "judged な生成は変わらない。理由の記録は必須（`remove-skill --reason`）。"
-            )
-            lines.append("")
-            lines.append("| skill | judged exposure (history) |")
-            lines.append("|---|---|")
-            for row in sorted(
-                ns_strict,
-                key=lambda r: (-int(r.get("judged_exposure", 0)), str(r.get("name", ""))),
-            ):
-                lines.append(
-                    f"| `{_cell(row.get('name', '?'))}` "
-                    f"| {_cell(row.get('judged_exposure', '?'))} |"
-                )
-        else:
-            lines.append("（該当なし）")
-        if ns_below_floor:
-            exposures = [
-                r.get("judged_exposure")
-                for r in ns_below_floor
-                if isinstance(r.get("judged_exposure"), int)
-            ]
-            highest = max(exposures) if exposures else 0
-            lines.append("")
-            lines.append(
-                f"床未満: 一度も選ばれていない skill が他に {len(ns_below_floor)} 件"
-                f"（最大 exposure {highest}）。まだ候補ではない — 提示された回数が"
-                "少なすぎて「選ばれていない」が何も意味しない（ADR-0097 D8）。"
-            )
-        lines.append("")
-        lines.append(f"### Dormant（{ns_span}は 0 回、以前は選択あり）")
-        lines.append("")
-        lines.append(
-            "**読み値のみ。archive 候補ではない** — 過去に選択された skill を"
-            "外すと judged な生成が変わる。"
-        )
-        lines.append("")
-        if ns_dormant:
-            lines.append("| skill | judged exposure (window) | last selected |")
-            lines.append("|---|---|---|")
-            for row in sorted(ns_dormant, key=lambda r: str(r.get("name", ""))):
-                last = row.get("last_selected") or "—"
-                lines.append(
-                    f"| `{_cell(row.get('name', '?'))}` "
-                    f"| {_cell(row.get('window_exposure', '?'))} | {_cell(last)} |"
-                )
-        else:
-            lines.append("（該当なし）")
-        lines.append("")
 
     lines.append("## Audit trail")
     lines.append("")

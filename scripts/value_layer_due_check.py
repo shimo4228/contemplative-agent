@@ -20,11 +20,12 @@ pipeline:
   (ADR-0090 / docs/runbooks/constitution-amendment.md), never automated.
 - ``staging_pending``: unreviewed ``*.meta.json`` sidecars in staging, so
   the caller can respect the one-unreviewed-batch invariant (ADR-0074).
-- ``rules`` (only with ``--rules-dir``): file count, newest mtime and the
-  deterministic structural check over ``rules/*.md``.  ADR-0097 D2 retired
-  ``rules-distill`` / ``rules-stocktake`` as LLM generators; this reading is
-  what keeps the rules layer owned.  It is a reading, never a gate — a
-  structural issue is rendered for the human, not counted as a chain fault.
+- ``rules`` (only with ``--rules-dir``): file count, newest mtime, counts of
+  what could not be checked (unreadable / empty), and the deterministic
+  structural check over ``rules/*.md``.  ADR-0097 D2 retired ``rules-distill``
+  / ``rules-stocktake`` as LLM generators; this reading is what keeps the
+  rules layer owned.  It is a reading, never a gate — a structural issue is
+  rendered for the human, not counted as a chain fault.
 
 Faults: a missing/unreadable audit log abstains with a reason code on
 stderr and a nonzero exit — an unknown state must never read as "due" and
@@ -135,10 +136,23 @@ def read_rules_layer(rules_dir: Path | None) -> dict[str, Any] | None:
 
     ``reason`` states the layer, not a verdict:
     ``OK`` / ``RULES_EMPTY`` / ``RULES_DIR_MISSING`` / ``RULES_UNREADABLE``.
-    Only ``RULES_UNREADABLE`` reaches the caller's ``reasons`` list, because
-    only that one is a fault: a store with no rules is a state the section
-    reports, and promoting it to a header reason code would fire the packet's
-    recurrence trigger every week on a working system.
+
+    ``RULES_UNREADABLE`` and ``RULES_DIR_MISSING`` reach the caller's
+    ``reasons`` list; ``RULES_EMPTY`` does not. The line between them is not
+    "is it a fault" but "should this path exist": a dir the caller pointed at
+    and that is not there is a wiring typo or a wrong ``MOLTBOOK_HOME``, and
+    that must not sit for months as one cell inside §8 — while a dir that
+    exists and holds no rules is a legitimate state of a young store. The
+    recurrence-noise objection to raising the first is answered where it
+    belongs, in the packet's ``DESIGNED_OUTCOME_CODES``, which exists to
+    separate "visible but expected" from "visible and needs work".
+
+    Two more counts, because a reading that quietly shrinks its own
+    denominator is the failure this whole section is here to prevent:
+    ``unreadable_files`` (present, would not decode) and ``empty_files``
+    (present, no body after frontmatter). Ten rule files truncated to zero
+    bytes are not the same event as a store with no rules, and without
+    ``empty_files`` both render as ``RULES_EMPTY``.
     """
     if rules_dir is None:
         return None
@@ -154,6 +168,7 @@ def read_rules_layer(rules_dir: Path | None) -> dict[str, Any] | None:
     newest: float | None = None
     files = 0
     unreadable = 0
+    empty = 0
     for path in sorted(rules_dir.glob("*.md")):
         if path.name.startswith("."):
             continue
@@ -169,7 +184,10 @@ def read_rules_layer(rules_dir: Path | None) -> dict[str, Any] | None:
         body = _strip_frontmatter(raw).strip()
         if not body:
             # Same drop rule as read_markdown_documents: an empty body is not
-            # a file the structural check has anything to say about.
+            # a file the structural check has anything to say about — but it
+            # IS a file, and a layer of ten truncated rules must not read
+            # identically to a layer with no rules at all.
+            empty += 1
             continue
         files += 1
         newest = mtime if newest is None else max(newest, mtime)
@@ -187,6 +205,7 @@ def read_rules_layer(rules_dir: Path | None) -> dict[str, Any] | None:
             else None
         ),
         "unreadable_files": unreadable,
+        "empty_files": empty,
         "issues": issues,
         "reason": reason,
         "path": str(rules_dir),
@@ -423,8 +442,9 @@ def build_reading(
             **rules,
             "days_since_newest": (as_of_date - newest.date()).days if newest else None,
         }
-        if rules_section.get("reason") == "RULES_UNREADABLE":
-            reasons.append("RULES_UNREADABLE")
+        rules_reason = rules_section.get("reason")
+        if rules_reason in ("RULES_UNREADABLE", "RULES_DIR_MISSING"):
+            reasons.append(str(rules_reason))
 
     malformed = identity_unparsable + amend_unparsable
     reading: dict[str, Any] = {

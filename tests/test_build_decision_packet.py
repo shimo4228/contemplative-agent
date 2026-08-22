@@ -2010,9 +2010,14 @@ def _never_selected_json(
     exposure_floor: object = 600,
     full_skill_tokens: int = 38867,
     fail_open: int = 0,
+    history_fail_open: int | None = None,
     reasons: list[str] | None = None,
     since: str | None = None,
     until: str | None = None,
+    catalog_available: bool = True,
+    catalog_size: int = 57,
+    unreadable_files: int = 0,
+    malformed_rows: int = 0,
 ) -> Path:
     path = tmp_path / "never-selected.json"
     path.write_text(
@@ -2026,8 +2031,11 @@ def _never_selected_json(
                     "files": 44,
                     "records": 3716,
                     "judged": 3690,
+                    "fail_open": (fail_open if history_fail_open is None else history_fail_open),
                     "first_day": "2026-07-10",
                     "last_day": "2026-08-22",
+                    "unreadable_files": unreadable_files,
+                    "malformed_rows": malformed_rows,
                 },
                 "window": {
                     "days": 14,
@@ -2037,8 +2045,11 @@ def _never_selected_json(
                     "judged": 606,
                     "fail_open": fail_open,
                 },
-                "corpus": {"full_skill_tokens": full_skill_tokens, "num_ctx": 32768},
-                "catalog": {"size": 57, "available": True},
+                "corpus": {
+                    "history_full_skill_tokens": full_skill_tokens,
+                    "num_ctx": 32768,
+                },
+                "catalog": {"size": catalog_size, "available": catalog_available},
                 "reasons": reasons or [],
             }
         ),
@@ -2070,9 +2081,11 @@ def test_strict_candidates_are_listed_with_the_neutrality_caveat(tmp_path: Path)
     section = text.split("## 10.")[1]
     assert "pre-processing-state-validation" in section
     assert "2531" in section
-    # The caveat lives beside the candidates, with both numbers printed.
-    assert "fail-open" in section and "0 / 620 records" in section
-    assert "38,867 tok" in section and "NUM_CTX 32,768 を超える" in section
+    # The caveat lives beside the candidates, with both numbers printed —
+    # and it is the WHOLE-HISTORY figure, because strict is a whole-history
+    # population (a window figure reads 0 for an agent that was down).
+    assert "全履歴の full-corpus 注入: 0 / 3716 records" in section
+    assert "38,867 tok（全履歴の最新値）" in section and "NUM_CTX 32,768 を超える" in section
 
 
 def test_dormant_is_rendered_as_a_reading_never_a_candidate(tmp_path: Path):
@@ -2189,7 +2202,7 @@ def test_corpus_within_num_ctx_says_fail_open_would_reinject(tmp_path: Path):
     section = _build(paths, skill_selection=ns).split("## 10.")[1]
     assert "NUM_CTX 32,768 に収まる" in section
     assert "再注入される" in section
-    assert "3 / 620 records" in section
+    assert "全履歴の full-corpus 注入: 3 / 3716 records" in section
 
 
 def test_unknown_corpus_size_abstains_from_the_comparison(tmp_path: Path):
@@ -2280,6 +2293,121 @@ def test_explicit_window_bounds_are_named_not_reported_as_last_n_days(tmp_path: 
         until="2026-08-22",
     )
     section = _build(paths, skill_selection=ns).split("## 10.")[1]
-    assert "2026-08-08 … 2026-08-22の fail-open" in section
+    assert "- 2026-08-08 … 2026-08-22: judged 606 / records 620" in section
     assert "直近" not in section
     assert "### Dormant（2026-08-08 … 2026-08-22は 0 回" in section
+
+
+def test_a_withheld_population_never_renders_as_none(tmp_path: Path):
+    """ "nothing to archive" and "this reading cannot tell you" are the two
+    states the exit's safety margin sits between. The terminal renderer got
+    this right; the packet — the surface a human archives from — did not."""
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(
+        tmp_path,
+        catalog_available=False,
+        catalog_size=0,
+        reasons=["NEVER_SELECTED_NO_CATALOG"],
+    )
+    section = _build(paths, skill_selection=ns).split("## 10.")[1]
+    assert "**reason codes**: NEVER_SELECTED_NO_CATALOG" in section
+    assert "候補一覧は保留（NEVER_SELECTED_NO_CATALOG）" in section
+    assert "一覧は保留（NEVER_SELECTED_NO_CATALOG）" in section
+    assert "（該当なし）" not in section
+
+
+def test_a_lost_log_day_withholds_the_strict_list_in_the_packet(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(
+        tmp_path,
+        unreadable_files=1,
+        malformed_rows=4,
+        reasons=["NEVER_SELECTED_LOG_PARTIAL", "NEVER_SELECTED_LOG_UNREADABLE"],
+    )
+    section = _build(paths, skill_selection=ns).split("## 10.")[1]
+    assert "読めなかった分: 1 日 / 4 行" in section
+    # Both codes are on the reason line; only the one that actually withholds
+    # names the withholding — a lost row is bounded loss, a lost day is not.
+    assert "NEVER_SELECTED_LOG_PARTIAL, NEVER_SELECTED_LOG_UNREADABLE" in section
+    assert "候補一覧は保留（NEVER_SELECTED_LOG_UNREADABLE）" in section
+
+
+def test_an_empty_window_withholds_dormant_not_strict(tmp_path: Path):
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(
+        tmp_path,
+        strict=[{"name": "quiet", "judged_exposure": 700}],
+        reasons=["NEVER_SELECTED_EMPTY_WINDOW"],
+    )
+    section = _build(paths, skill_selection=ns).split("## 10.")[1]
+    # The strict list survives — it is whole-history and the history is there.
+    assert "`quiet`" in section
+    assert "一覧は保留（NEVER_SELECTED_EMPTY_WINDOW）" in section
+
+
+def test_all_strict_rows_discarded_still_opens_the_section(tmp_path: Path):
+    """A header code with no section to explain it is a code the human
+    cannot act on. The builder's own reasons are signal too."""
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(tmp_path, strict=[{"name": "smuggled", "judged_exposure": 3}])
+    text = _build(paths, skill_selection=ns)
+    assert "NEVER_SELECTED_SCHEMA" in text.split("## 1.")[0]
+    assert "## 10." in text
+    assert "**reason codes**: NEVER_SELECTED_SCHEMA" in text.split("## 10.")[1]
+
+
+def test_window_judged_is_rendered_beside_the_window_records(tmp_path: Path):
+    """Without it the non-judged residual — the actions that injected the
+    whole corpus — is invisible: 700 records and 0 judged read the same as
+    700 records and 700 judged."""
+    paths = _write_inputs(tmp_path)
+    ns = _never_selected_json(tmp_path, fail_open=14, dormant=[{"name": "d", "window_exposure": 2}])
+    section = _build(paths, skill_selection=ns).split("## 10.")[1]
+    assert "judged 606 / records 620、うち full-corpus 注入 14" in section
+
+
+def test_rules_unreadable_count_qualifies_the_zero(tmp_path: Path):
+    """ "state: RULES_UNREADABLE" over "構造 issue: 0 件" told the reader a
+    clean layer and a five-file blind spot in the same breath."""
+    paths = _write_inputs(tmp_path)
+    vl = _value_layer_with_rules(
+        tmp_path,
+        {
+            "files": 12,
+            "newest_mtime": None,
+            "issues": [],
+            "unreadable_files": 5,
+            "empty_files": 2,
+            "reason": "RULES_UNREADABLE",
+        },
+    )
+    section = _build(paths, value_layer=vl).split("## 8.")[1]
+    assert "- 未検査: 5 本は読めなかった / 2 本は本文が空" in section
+    assert "構造 issue: 0 件（検査できた 12 本について。上の未検査分は含まない）" in section
+
+
+def test_rules_dir_missing_reaches_the_header_as_a_designed_outcome(tmp_path: Path):
+    """A wiring typo must not sit for months as one cell inside §8 — but a
+    store that legitimately has no rules must not fire the improvement
+    trigger every week either. Both, via DESIGNED_OUTCOME_CODES."""
+    paths = _write_inputs(tmp_path)
+    vl = _value_layer_with_rules(
+        tmp_path,
+        {"files": 0, "newest_mtime": None, "issues": [], "reason": "RULES_DIR_MISSING"},
+    )
+    data = json.loads(vl.read_text(encoding="utf-8"))
+    data["reasons"] = ["RULES_DIR_MISSING"]
+    vl.write_text(json.dumps(data), encoding="utf-8")
+    text = _build(paths, value_layer=vl)
+    assert bdp.VALUE_LAYER_RULES_DIR_MISSING in text.split("## 1.")[0]
+    assert bdp.VALUE_LAYER_RULES_DIR_MISSING in bdp.DESIGNED_OUTCOME_CODES
+
+
+def test_never_selected_withheld_sets_mirror_the_producer():
+    from contemplative_agent.core.skill_selection import (
+        NEVER_SELECTED_DORMANT_WITHHELD,
+        NEVER_SELECTED_STRICT_WITHHELD,
+    )
+
+    assert bdp.NEVER_SELECTED_STRICT_WITHHELD == NEVER_SELECTED_STRICT_WITHHELD
+    assert bdp.NEVER_SELECTED_DORMANT_WITHHELD == NEVER_SELECTED_DORMANT_WITHHELD

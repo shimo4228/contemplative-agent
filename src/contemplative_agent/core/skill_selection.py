@@ -26,10 +26,11 @@ import difflib
 import json
 import logging
 import re
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
-from typing import Any, Literal, TypeAlias
+from typing import Any, Literal, TypeAlias, TypeGuard
 
 import numpy as np
 
@@ -110,6 +111,13 @@ _TOKEN_SPLIT_RE = re.compile(r"[^a-z0-9]+")
 
 HallucinationMechanism: TypeAlias = Literal["wordform", "semantic", "value_layer", "unclassified"]
 
+# Non-judged verdicts that still injected the whole corpus, named apart from
+# the ``fail_open_*`` prefix family. ``shadow_observe_skill_selection``
+# returns ``None`` for these and ``None`` means "keep the full prompt";
+# ``empty_catalog`` is deliberately absent, because an empty catalog has
+# nothing to inject.
+_FULL_CORPUS_VERDICTS = frozenset({"no_template"})
+
 
 def _tokens(text: str, *, min_chars: int = 1) -> set[str]:
     """The one tokenizer behind every vocabulary the split compares:
@@ -122,7 +130,18 @@ def _is_prose(name: str) -> bool:
     return " " in name or "/" in name
 
 
-def _is_int(value: Any) -> bool:
+def _is_int(value: Any) -> TypeGuard[int]:
+    """``bool`` excluded on purpose: ``isinstance(True, int)`` is True, so a
+    JSON ``true`` would otherwise be read as the number 1.
+
+    A ``TypeGuard`` rather than a plain ``bool`` so the narrowing survives
+    into the caller. The readers used to take their records straight from
+    ``json.loads`` (``Any``, which type-checks against anything); once the
+    shared walk started handing back ``dict[str, Any]``, every
+    ``rec.get(...)`` became ``Any | None`` and five call sites of this
+    predicate stopped type-checking — the annotation, not the calls, was
+    what was wrong.
+    """
     return isinstance(value, int) and not isinstance(value, bool)
 
 
@@ -141,6 +160,12 @@ def _is_int(value: Any) -> bool:
 # restored more than once means the floor is too low and must be re-read from
 # the first-selection latency distribution.
 NEVER_SELECTED_EXPOSURE_FLOOR = 600
+
+# ADR-0097 D5's dormant cut: "zero selections in the trailing 14 days". A
+# property of the decision, not of whatever window a caller happened to ask
+# the surrounding report for — `report --days 7` would otherwise silently
+# halve it and call a week's silence dormancy.
+NEVER_SELECTED_DORMANT_WINDOW_DAYS = 14
 
 
 _skills_dir: Path | None = None
@@ -198,7 +223,12 @@ def load_skill_catalog(skills_dir: Path | None) -> tuple[SkillCatalogEntry, ...]
             continue
         try:
             text = path.read_text(encoding="utf-8")
-        except OSError:
+        # ValueError, which subsumes UnicodeDecodeError — that is NOT an
+        # OSError, so a skill file with one bad byte used to raise out of
+        # every caller of this loader. It now has one more (the ADR-0097
+        # exit reading, whose host catches broadly and would have dropped a
+        # whole packet section with no reason code).
+        except (OSError, ValueError):
             logger.warning("skill selection: unreadable skill file %s", path.name)
             continue
         name, description = skill_theme(text, fallback_name=path.stem)
@@ -789,6 +819,89 @@ class SkillSelectionReading:
     value_layer_missing: tuple[str, ...] = ()
 
 
+@dataclass(frozen=True)
+class _SelectionDayFile:
+    """One daily selection log as the two readings see it.
+
+    ``readable=False`` means the file exists and was skipped — a state a
+    reading must be able to *count*, not merely survive, which is why this
+    is a value rather than a ``continue``.
+    """
+
+    date_part: str
+    file_date: date
+    records: tuple[dict[str, Any], ...]
+    # Lines that were neither blank, valid-JSON-object rows: unparseable
+    # text and valid JSON that is not an object.
+    malformed_rows: int
+    readable: bool
+
+
+def _iter_selection_days(
+    log_dir: Path, keep: Callable[[date], bool] | None = None
+) -> Iterator[_SelectionDayFile]:
+    """Yield one :class:`_SelectionDayFile` per daily selection log.
+
+    The one place the log's *file* grammar lives — which files are logs,
+    how their day is spelled, and what makes a line a record — shared by
+    the windowed reading and the ADR-0097 exit reading. It was two copies
+    that had already drifted, and the drift ran toward a crash: a line
+    decoding to a JSON array reached ``rec.get`` in the windowed reader and
+    raised ``AttributeError`` out of an instrument whose whole contract is
+    degrade-never-abort. Non-object lines are now skipped by both readers,
+    like unparseable ones, and **counted** by both.
+
+    Decode faults are ``ValueError`` as well as ``OSError``: a log file
+    with one bad byte raises ``UnicodeDecodeError``, which is not an
+    ``OSError``, and the callers that broke on exactly that gap are named
+    in ``scripts/value_layer_due_check.py`` and
+    ``scripts/build_decision_packet.py``. Here it would have taken out a
+    packet section with no reason code at all.
+
+    ``keep`` is the caller's window predicate, applied to the filename date
+    **before the file is opened** so a seven-day reading does not pay to
+    decode a year of history; each caller still owns its predicate and its
+    tallies. ``None`` reads every day — what the whole-history reading needs.
+
+    Day is taken from the filename, not from each record's ``ts``: the
+    writer derives both from the same UTC clock, and the filename is the
+    field the window is cut on, so a record with a damaged timestamp still
+    lands on the right day.
+    """
+    if not log_dir.is_dir():
+        return
+    for path in sorted(log_dir.glob("skill-selection-*.jsonl")):
+        date_part = path.stem.removeprefix("skill-selection-")
+        try:
+            file_date = datetime.strptime(date_part, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if keep is not None and not keep(file_date):
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except (OSError, ValueError):
+            logger.warning("skill selection reading: unreadable %s", path.name)
+            yield _SelectionDayFile(date_part, file_date, (), 0, readable=False)
+            continue
+        records: list[dict[str, Any]] = []
+        malformed = 0
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                malformed += 1
+                continue
+            if isinstance(rec, dict):
+                records.append(rec)
+            else:
+                malformed += 1
+        yield _SelectionDayFile(date_part, file_date, tuple(records), malformed, readable=True)
+
+
 def resolve_selection_window(
     days: int | None, since: date | None, until: date | None
 ) -> tuple[date, date | None, int]:
@@ -971,38 +1084,18 @@ def read_skill_selection_log(
     days_seen: list[SkillSelectionDay] = []
     regimes: dict[int, _RegimeAccumulator] = {}
     catalog_count_missing = 0
-    if log_dir.is_dir():
-        for path in sorted(log_dir.glob("skill-selection-*.jsonl")):
-            date_part = path.stem.removeprefix("skill-selection-")
-            try:
-                file_date = datetime.strptime(date_part, "%Y-%m-%d").date()
-            except ValueError:
-                continue
-            if file_date < cutoff or (upper is not None and file_date > upper):
-                continue
-            try:
-                lines = path.read_text(encoding="utf-8").splitlines()
-            except OSError:
-                logger.warning("skill selection reading: unreadable %s", path.name)
-                continue
-            # The day is taken from the filename rather than each record's
-            # ``ts``: the writer derives both from the same UTC clock, and
-            # the filename is the field the window is already cut on, so a
-            # record with a damaged timestamp still lands on the right day.
+    for day_file in _iter_selection_days(
+        log_dir, lambda d: d >= cutoff and (upper is None or d <= upper)
+    ):
+        if day_file.readable:
+            date_part = day_file.date_part
             day_records = 0
             day_judged = 0
             day_enforced = 0
             day_judged_empty = 0
             day_hallucinations = 0
             day_selected: set[str] = set()
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rec = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
+            for rec in day_file.records:
                 records += 1
                 day_records += 1
                 verdict = str(rec.get("verdict", "unknown"))
@@ -1485,11 +1578,16 @@ class NeverSelectedSkill:
     judged_exposure: int
     # Same, restricted to the trailing window — the number that makes a
     # dormant row readable ("offered 606 times this fortnight, chosen 0").
+    # Read only for dormant rows; carried on all three populations so one row
+    # shape crosses the process boundary into the packet's JSON.
     window_exposure: int
     # Filename day of the last judged record that selected this name, or ""
-    # when it never was. Empty for every strict row by definition; for a
-    # dormant row it is the last-circulation date CREW library weeding treats
-    # as a filter the librarian must still review.
+    # when it never was. **`""` is not data**: it is `""` by construction for
+    # every strict and every below-floor row (that is what those populations
+    # mean), so only a dormant row's value carries information — there it is
+    # the last-circulation date CREW library weeding treats as a filter the
+    # librarian must still review. The field stays on all three for the same
+    # uniform-shape reason as `window_exposure`.
     last_selected: str
 
 
@@ -1523,7 +1621,7 @@ class NeverSelectedReading:
     The neutrality caveat travels in the same object as the populations,
     because behaviour-neutrality holds for *judged* actions only: the
     fail-open path injects the full corpus. ``window_fail_open`` and
-    ``full_skill_tokens`` against ``num_ctx`` are what let the reader check
+    ``history_full_skill_tokens`` against ``num_ctx`` are what let a reader check
     that instead of taking it on faith (the Codex challenge recorded in
     ADR-0097's Context).
     """
@@ -1533,12 +1631,30 @@ class NeverSelectedReading:
     below_floor: tuple[NeverSelectedSkill, ...]
     exposure_floor: int
     # History span actually read, so "zero selections in the whole history"
-    # can be weighed against how much history there was.
+    # can be weighed against how much history there was. ``history_files``
+    # counts only the days this reading could open — the ones it could not
+    # are ``unreadable_files`` below, and the difference is the whole point:
+    # a reading that silently narrowed its own evidence is how a skill the
+    # selector chose last month becomes an archive candidate.
     history_files: int
     history_records: int
     history_judged: int
+    # Same population as ``window_fail_open`` over the whole history, kept
+    # beside it because the two skill populations have two scopes and this
+    # one belongs to ``strict``: a candidate never *judged*-selected may
+    # still have been injected by every full-corpus action in the log's
+    # life, and that count is not recoverable by subtraction from a
+    # windowed one.
+    history_fail_open: int
     history_first_day: str
     history_last_day: str
+    # Evidence this reading could not see. A whole day that would not open
+    # (``unreadable_files``) withholds the strict list outright; individual
+    # lines that would not decode, or decoded to something other than an
+    # object (``malformed_rows``), are bounded loss and are reported beside
+    # the populations instead. Both raise ``NEVER_SELECTED_LOG_PARTIAL``.
+    unreadable_files: int
+    malformed_rows: int
     # Trailing window — the dormant cut and the neutrality caveat. Cut by
     # ``resolve_selection_window``, the same seam ``read_skill_selection_log``
     # uses, so the two readings of one log agree about where the window is;
@@ -1549,17 +1665,42 @@ class NeverSelectedReading:
     window_until: str | None
     window_records: int
     window_judged: int
-    # Window records whose verdict was a ``fail_open_*``. Not
-    # ``records - judged``: ``empty_catalog`` and ``no_template`` also skip
-    # the judgment but are not the re-injection path this caveat is about,
-    # and they stay visible as their own verdicts in the windowed reading.
+    # Window records that injected the FULL corpus instead of a selection:
+    # every ``fail_open_*`` **and** ``no_template``. The producer settles
+    # what belongs here — ``shadow_observe_skill_selection`` returns ``None``
+    # for both, and ``None`` means "keep the full prompt"
+    # (``adapters/moltbook/llm_functions``). ``empty_catalog`` is the one
+    # non-judged verdict left out, because there was no corpus to inject.
+    #
+    # This is the same population ``SkillSelectionDay.fell_back`` describes,
+    # minus ``empty_catalog``; an earlier version of this field excluded
+    # ``no_template`` too and so would have printed "fail-open: 0 of 700"
+    # for a week in which a missing selection template sent the whole corpus
+    # into all 700 actions — the exact claim this caveat exists to let a
+    # reader check. Still not ``records - judged``, so the residual stays
+    # visible rather than being absorbed silently.
     window_fail_open: int
-    # Latest ``full_skill_tokens`` observed in the history (baked in at
-    # record time by the writer, so it is the corpus as the selector saw it)
-    # and the context window it is compared against. 0 when no record carried
-    # a usable value — see ``NEVER_SELECTED_FULL_TOKENS_UNKNOWN``.
-    full_skill_tokens: int
+    # Latest ``full_skill_tokens`` in the WHOLE history (baked in at record
+    # time by the writer, so it is the corpus as the selector saw it), and
+    # the context window it is compared against. 0 when no record carried a
+    # usable value — see ``NEVER_SELECTED_FULL_TOKENS_UNKNOWN``.
+    #
+    # Whole-history on purpose, and named so: it is evidence for the
+    # ``strict`` population, which is itself whole-history, and it is
+    # rendered only beside that list. ``since``/``until`` move the dormant
+    # cut and the window figures; they do not narrow the strict population,
+    # so clamping this to the window would pair a whole-history list with
+    # window-scoped evidence — the mismatch this rename exists to end.
+    # ``dormant`` makes no neutrality claim and gets no corpus figure.
+    history_full_skill_tokens: int
     num_ctx: int
+    # Size of the catalog the populations were computed against — the
+    # denominator a reader needs for "N of M skills". ``catalog_available``
+    # is ``bool(catalog_size)`` and is carried anyway: it is the field the
+    # renderers branch on, named as the sibling ``SkillSelectionReading``
+    # names it, so the two readings of one log read alike. The third
+    # encoding, ``NEVER_SELECTED_NO_CATALOG``, is the no-silent-fallback
+    # contract and is what a consumer that cannot see this object gets.
     catalog_size: int
     catalog_available: bool
     # ADR-0075: anything not computable abstains with a code rather than
@@ -1578,8 +1719,36 @@ class NeverSelectedReading:
 NEVER_SELECTED_REASONS = (
     "NEVER_SELECTED_NO_CATALOG",
     "NEVER_SELECTED_NO_HISTORY",
+    # The reading is degraded: something it should have read, it did not.
+    # Raised for a lost day and for a lost row alike, so one code answers
+    # "is this week's exit reading complete?".
+    "NEVER_SELECTED_LOG_PARTIAL",
+    # ...and the sharper one, raised only for a lost DAY. The two are kept
+    # apart because the withholding decision turns on exactly this
+    # difference: a dropped row is bounded evidence loss (one action out of
+    # thousands), a dropped day is not — the single record that ever
+    # selected a name may be the whole of it. Folding them would let two
+    # corrupt lines in a 3,700-record log withhold the list every week,
+    # which is how a safety guard becomes the reason the guard is removed.
+    "NEVER_SELECTED_LOG_UNREADABLE",
+    "NEVER_SELECTED_EMPTY_WINDOW",
     "NEVER_SELECTED_BELOW_FLOOR",
     "NEVER_SELECTED_FULL_TOKENS_UNKNOWN",
+)
+
+# Reasons under which a population is not a reading but the absence of one.
+# A renderer must say "withheld" for these, never "none": the difference
+# between "nothing to archive" and "this reading cannot tell you" is the
+# entire safety margin of the exit.
+NEVER_SELECTED_STRICT_WITHHELD = frozenset(
+    {
+        "NEVER_SELECTED_NO_CATALOG",
+        "NEVER_SELECTED_NO_HISTORY",
+        "NEVER_SELECTED_LOG_UNREADABLE",
+    }
+)
+NEVER_SELECTED_DORMANT_WITHHELD = frozenset(
+    {"NEVER_SELECTED_NO_CATALOG", "NEVER_SELECTED_EMPTY_WINDOW"}
 )
 
 
@@ -1637,79 +1806,83 @@ def read_never_selected(
     history_files = 0
     history_records = 0
     history_judged = 0
+    history_fail_open = 0
+    unreadable_files = 0
+    malformed_rows = 0
     window_records = 0
     window_judged = 0
     window_fail_open = 0
     full_skill_tokens = 0
     days_read: list[str] = []
 
-    if log_dir.is_dir():
-        for path in sorted(log_dir.glob("skill-selection-*.jsonl")):
-            date_part = path.stem.removeprefix("skill-selection-")
-            try:
-                file_date = datetime.strptime(date_part, "%Y-%m-%d").date()
-            except ValueError:
-                continue
-            try:
-                lines = path.read_text(encoding="utf-8").splitlines()
-            except OSError:
-                logger.warning("never-selected reading: unreadable %s", path.name)
-                continue
-            history_files += 1
-            days_read.append(date_part)
-            in_window = file_date >= cutoff and (upper is None or file_date <= upper)
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rec = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(rec, dict):
-                    continue
-                history_records += 1
-                if in_window:
-                    window_records += 1
-                verdict = str(rec.get("verdict", "unknown"))
-                if verdict != "judged":
-                    if in_window and verdict.startswith("fail_open"):
+    for day_file in _iter_selection_days(log_dir):
+        date_part = day_file.date_part
+        if not day_file.readable:
+            # Counted, not merely survived. A day this reading could not open
+            # is a day whose selections it cannot see, and the strict list is
+            # a list of skills a human is about to remove — so the evidence
+            # loss is named here and withholds that list below.
+            unreadable_files += 1
+            continue
+        history_files += 1
+        malformed_rows += day_file.malformed_rows
+        days_read.append(date_part)
+        in_window = day_file.file_date >= cutoff and (upper is None or day_file.file_date <= upper)
+        for rec in day_file.records:
+            history_records += 1
+            if in_window:
+                window_records += 1
+            verdict = str(rec.get("verdict", "unknown"))
+            if verdict != "judged":
+                if verdict in _FULL_CORPUS_VERDICTS or verdict.startswith("fail_open"):
+                    # Two scopes, because the two skill populations have two
+                    # scopes: the whole-history count is the one that belongs
+                    # beside the strict list, and it is NOT recoverable by
+                    # subtraction from the window's.
+                    history_fail_open += 1
+                    if in_window:
                         window_fail_open += 1
-                    continue
-                # Judged-only below, for the reason the windowed reader's cut
-                # records: every number here is a count over judged records,
-                # and a name offered to a selector that never answered was
-                # not refused.
-                history_judged += 1
-                if in_window:
-                    window_judged += 1
-                names = rec.get("catalog_names")
-                if isinstance(names, list):
-                    for name in names:
-                        if isinstance(name, str):
-                            exposure_history[name] = exposure_history.get(name, 0) + 1
-                            if in_window:
-                                exposure_window[name] = exposure_window.get(name, 0) + 1
-                selected = rec.get("selected")
-                if isinstance(selected, list):
-                    for name in selected:
-                        if not isinstance(name, str):
-                            continue
-                        selected_history[name] = selected_history.get(name, 0) + 1
+                continue
+            # Judged-only below, for the reason the windowed reader's cut
+            # records: every number here is a count over judged records,
+            # and a name offered to a selector that never answered was
+            # not refused.
+            history_judged += 1
+            if in_window:
+                window_judged += 1
+            names = rec.get("catalog_names")
+            if isinstance(names, list):
+                for name in names:
+                    if isinstance(name, str):
+                        exposure_history[name] = exposure_history.get(name, 0) + 1
                         if in_window:
-                            selected_window[name] = selected_window.get(name, 0) + 1
-                        # Filename day, like the window cut: the writer
-                        # derives both from the same UTC clock, so a record
-                        # with a damaged ``ts`` still lands on the right day.
-                        if date_part > last_selected.get(name, ""):
-                            last_selected[name] = date_part
-                full = rec.get("full_skill_tokens")
-                if isinstance(full, int) and full > 0:
-                    # Last writer wins: files are walked in date order, so
-                    # this ends as the corpus the most recent judged action
-                    # saw. Recomputing it from today's catalog would answer a
-                    # different question than the caveat asks.
-                    full_skill_tokens = full
+                            exposure_window[name] = exposure_window.get(name, 0) + 1
+            selected = rec.get("selected")
+            if isinstance(selected, list):
+                for name in selected:
+                    if not isinstance(name, str):
+                        continue
+                    selected_history[name] = selected_history.get(name, 0) + 1
+                    if in_window:
+                        selected_window[name] = selected_window.get(name, 0) + 1
+                    # Filename day, like the window cut: the writer
+                    # derives both from the same UTC clock, so a record
+                    # with a damaged ``ts`` still lands on the right day.
+                    if date_part > last_selected.get(name, ""):
+                        last_selected[name] = date_part
+            full = rec.get("full_skill_tokens")
+            # ``_is_int``, not ``isinstance(full, int)``: ``True`` is an
+            # int in Python, so a record carrying ``"full_skill_tokens":
+            # true`` would read as a 1-token corpus and print "fits
+            # within NUM_CTX" — the exact claim the abstain code exists
+            # to withhold. The sibling reader takes the same field
+            # through the same helper.
+            if _is_int(full) and full > 0:
+                # Last writer wins: files are walked in date order, so
+                # this ends as the corpus the most recent judged action
+                # saw. Recomputing it from today's catalog would answer a
+                # different question than the caveat asks.
+                full_skill_tokens = full
 
     catalog_names = [e.name for e in load_skill_catalog(skills_dir)]
     flagged: set[str] = set()
@@ -1748,6 +1921,16 @@ def read_never_selected(
         flagged.add("NEVER_SELECTED_NO_CATALOG")
     if not history_judged:
         flagged.add("NEVER_SELECTED_NO_HISTORY")
+    if unreadable_files or malformed_rows:
+        flagged.add("NEVER_SELECTED_LOG_PARTIAL")
+    if unreadable_files:
+        flagged.add("NEVER_SELECTED_LOG_UNREADABLE")
+    if not window_records:
+        # The window is empty while the history is not: every window-scoped
+        # figure below reads 0, including the fail-open count a reader would
+        # otherwise take as "no fail-open ever happened". An agent that was
+        # down for the requested fortnight produces exactly this.
+        flagged.add("NEVER_SELECTED_EMPTY_WINDOW")
     if below_floor and not strict:
         flagged.add("NEVER_SELECTED_BELOW_FLOOR")
     if not full_skill_tokens:
@@ -1756,37 +1939,57 @@ def read_never_selected(
         # abstain for exceeding the context window.
         flagged.add("NEVER_SELECTED_FULL_TOKENS_UNKNOWN")
 
+    # Declared order, not emit order: the weekly packet renders this list and
+    # a stable order is what makes week-over-week diffs readable. Filtering
+    # through the vocabulary also means an undeclared code cannot leave this
+    # function.
+    reasons = tuple(c for c in NEVER_SELECTED_REASONS if c in flagged)
+    if NEVER_SELECTED_STRICT_WITHHELD & flagged:
+        # A day that would not open is unbounded evidence loss: the one
+        # record that ever selected this name may be in it. Withholding the
+        # list is the only honest answer, and it is the same move
+        # ``NEVER_SELECTED_NO_CATALOG`` already makes — the renderers say
+        # "withheld", never "none" (``NEVER_SELECTED_STRICT_WITHHELD``).
+        strict = []
+    if NEVER_SELECTED_DORMANT_WITHHELD & flagged:
+        dormant = []
+
     # Exposure descending: the most-offered, least-chosen skill is the one the
     # human has the most evidence about. A reading order, not a rank — nothing
     # downstream may treat position as priority (ADR-0071 invariant 1).
+    # Each population is ordered by the exposure its own renderers print, so
+    # the column a reader scans is monotonic; the packet preserves the order
+    # it receives rather than re-sorting, so the two surfaces agree.
     def _by_exposure(entries: list[NeverSelectedSkill]) -> tuple[NeverSelectedSkill, ...]:
         return tuple(sorted(entries, key=lambda e: (-e.judged_exposure, e.name)))
 
+    def _by_window_exposure(entries: list[NeverSelectedSkill]) -> tuple[NeverSelectedSkill, ...]:
+        return tuple(sorted(entries, key=lambda e: (-e.window_exposure, e.name)))
+
     return NeverSelectedReading(
         strict=_by_exposure(strict),
-        dormant=_by_exposure(dormant),
+        dormant=_by_window_exposure(dormant),
         below_floor=_by_exposure(below_floor),
         exposure_floor=exposure_floor,
         history_files=history_files,
         history_records=history_records,
         history_judged=history_judged,
+        history_fail_open=history_fail_open,
         history_first_day=min(days_read) if days_read else "",
         history_last_day=max(days_read) if days_read else "",
+        unreadable_files=unreadable_files,
+        malformed_rows=malformed_rows,
         window_days=window_days,
         window_since=since.isoformat() if since is not None else None,
         window_until=upper.isoformat() if upper is not None else None,
         window_records=window_records,
         window_judged=window_judged,
         window_fail_open=window_fail_open,
-        full_skill_tokens=full_skill_tokens,
+        history_full_skill_tokens=full_skill_tokens,
         num_ctx=NUM_CTX,
         catalog_size=len(catalog_names),
         catalog_available=bool(catalog_names),
-        # Declared order, not emit order: the weekly packet renders this
-        # list and a stable order is what makes week-over-week diffs
-        # readable. Filtering through the vocabulary also means an
-        # undeclared code cannot leave this function.
-        reasons=tuple(c for c in NEVER_SELECTED_REASONS if c in flagged),
+        reasons=reasons,
     )
 
 
@@ -1819,8 +2022,11 @@ def never_selected_reading_json(reading: NeverSelectedReading) -> dict[str, Any]
             "files": reading.history_files,
             "records": reading.history_records,
             "judged": reading.history_judged,
+            "fail_open": reading.history_fail_open,
             "first_day": reading.history_first_day,
             "last_day": reading.history_last_day,
+            "unreadable_files": reading.unreadable_files,
+            "malformed_rows": reading.malformed_rows,
         },
         "window": {
             "days": reading.window_days,
@@ -1831,7 +2037,9 @@ def never_selected_reading_json(reading: NeverSelectedReading) -> dict[str, Any]
             "fail_open": reading.window_fail_open,
         },
         "corpus": {
-            "full_skill_tokens": reading.full_skill_tokens,
+            # Named for its scope: the latest the WHOLE history carries, and
+            # the packet renders it beside the whole-history strict list only.
+            "history_full_skill_tokens": reading.history_full_skill_tokens,
             "num_ctx": reading.num_ctx,
         },
         "catalog": {
@@ -1840,6 +2048,15 @@ def never_selected_reading_json(reading: NeverSelectedReading) -> dict[str, Any]
         },
         "reasons": list(reading.reasons),
     }
+
+
+def _withholding(reading: NeverSelectedReading, codes: frozenset[str]) -> tuple[str, ...]:
+    """The reasons, if any, under which a population must read as withheld
+    rather than empty. Shared by both renderers of this reading so the
+    packet — the surface a human archives from — cannot keep the weaker
+    phrasing (the failure this helper exists to prevent was exactly that
+    asymmetry)."""
+    return tuple(c for c in reading.reasons if c in codes)
 
 
 def format_never_selected_report(reading: NeverSelectedReading) -> str:
@@ -1857,28 +2074,44 @@ def format_never_selected_report(reading: NeverSelectedReading) -> str:
         f"({reading.history_first_day or '—'} … {reading.history_last_day or '—'}), "
         f"{reading.history_judged} judged of {reading.history_records} records",
         f"Catalog: {reading.catalog_size} skills"
-        + ("" if reading.catalog_available else " (UNREADABLE — populations withheld)"),
+        + (
+            ""
+            if reading.catalog_available
+            else " (unreadable OR empty — `load_skill_catalog` returns () for both; "
+            "populations withheld either way)"
+        ),
         f"Exposure floor: {reading.exposure_floor} judged exposures",
     ]
+    if reading.unreadable_files or reading.malformed_rows:
+        lines.append(
+            f"Evidence lost: {reading.unreadable_files} unreadable day(s), "
+            f"{reading.malformed_rows} unusable row(s)"
+        )
     if reading.reasons:
         lines.append(f"Reasons: {', '.join(reading.reasons)}")
-    lines.append("")
-    lines.append(
-        "Behaviour-neutrality holds for JUDGED actions only — the fail-open "
-        "path injects the full corpus:"
-    )
     span = (
         f"{reading.window_since} … {reading.window_until}"
         if reading.window_since
         else f"the last {reading.window_days} days"
     )
+    lines.append("")
     lines.append(
-        f"- fail-open in {span}: {reading.window_fail_open} of {reading.window_records} records"
+        "Behaviour-neutrality holds for JUDGED actions only — the fail-open "
+        "path injects the full corpus:"
     )
-    if reading.full_skill_tokens:
-        relation = "exceeds" if reading.full_skill_tokens >= reading.num_ctx else "fits within"
+    # Whole-history, beside the whole-history population. A window figure
+    # here would answer a question nobody asked of a strict candidate, and
+    # would read as 0 for an agent that was down for the window.
+    lines.append(
+        f"- fail-open across the whole history: {reading.history_fail_open} "
+        f"of {reading.history_records} records"
+    )
+    if reading.history_full_skill_tokens:
+        relation = (
+            "exceeds" if reading.history_full_skill_tokens >= reading.num_ctx else "fits within"
+        )
         lines.append(
-            f"- full corpus {reading.full_skill_tokens:,} tok {relation} "
+            f"- full corpus {reading.history_full_skill_tokens:,} tok {relation} "
             f"NUM_CTX {reading.num_ctx:,}"
         )
     else:
@@ -1887,8 +2120,8 @@ def format_never_selected_report(reading: NeverSelectedReading) -> str:
             f"NUM_CTX is {reading.num_ctx:,}"
         )
     lines.append(
-        "  One number, the latest the log carries: the corpus as the most "
-        "recent judged action saw it. Its distribution — median corpus size "
+        "  One number, the latest the WHOLE history carries: the corpus as "
+        "the most recent judged action saw it. Its distribution — median size "
         "per catalog size, and where the regime boundaries fall — is the "
         "`By catalog size` table of the windowed reading above; this line "
         "adds only the comparison against NUM_CTX, which that table does "
@@ -1899,7 +2132,10 @@ def format_never_selected_report(reading: NeverSelectedReading) -> str:
         f"Strict (0 selections in the whole history, >= {reading.exposure_floor} "
         "judged exposures) — archive candidates for the human gate:"
     )
-    if reading.strict:
+    withheld = _withholding(reading, NEVER_SELECTED_STRICT_WITHHELD)
+    if withheld:
+        lines.append(f"- WITHHELD ({', '.join(withheld)}) — this reading cannot answer")
+    elif reading.strict:
         for entry in reading.strict:
             lines.append(f"- {entry.name}: offered in {entry.judged_exposure} judged records")
     else:
@@ -1917,11 +2153,18 @@ def format_never_selected_report(reading: NeverSelectedReading) -> str:
         f"Dormant (0 selections in {span} but selected before) — "
         "reading only, NOT archive candidates:"
     )
-    if reading.dormant:
+    lines.append(
+        f"  fail-open in {span}: {reading.window_fail_open} of {reading.window_records} records"
+    )
+    dormant_withheld = _withholding(reading, NEVER_SELECTED_DORMANT_WITHHELD)
+    if dormant_withheld:
+        lines.append(f"- WITHHELD ({', '.join(dormant_withheld)}) — this reading cannot answer")
+    elif reading.dormant:
         for entry in reading.dormant:
             lines.append(
                 f"- {entry.name}: offered in {entry.window_exposure} judged records "
-                f"this window, last selected {entry.last_selected or '—'}"
+                f"this window, last selected {entry.last_selected or '—'} "
+                "(whole history — may post-date the window)"
             )
     else:
         lines.append("- (none)")

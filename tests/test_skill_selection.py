@@ -1944,9 +1944,18 @@ class TestNeverSelectedReading:
         assert reading.window_fail_open == 900
         assert "NEVER_SELECTED_NO_HISTORY" in reading.reasons
 
-    def test_fail_open_count_excludes_empty_catalog_and_no_template(self, tmp_path):
-        """`records - judged` would fold in two verdicts that are not the
-        re-injection path this caveat is about."""
+    def test_full_corpus_count_includes_no_template_excludes_empty_catalog(self, tmp_path):
+        """The count is "records that injected the WHOLE corpus", and the
+        producer decides which verdicts those are: ``shadow_observe`` returns
+        None — "keep the full prompt" — for ``fail_open_*`` AND for
+        ``no_template``. ``empty_catalog`` is the asymmetry: it also skips the
+        judgment, but there was no corpus to inject.
+
+        Excluding ``no_template`` is not conservative, it is wrong in the
+        dangerous direction: a week that lost the selection template would
+        print "fail-open: 0 of 700" next to an archive candidate that all 700
+        of those actions injected.
+        """
         skills_dir = self._store(tmp_path, ["a"])
         log_dir = tmp_path / "logs"
         self._write(
@@ -1954,17 +1963,41 @@ class TestNeverSelectedReading:
             "2026-08-20",
             [
                 {"verdict": "fail_open_parse", "selected": [], "catalog_names": ["a"]},
-                {"verdict": "empty_catalog", "selected": [], "catalog_names": []},
+                {"verdict": "fail_open_llm", "selected": [], "catalog_names": ["a"]},
                 {"verdict": "no_template", "selected": [], "catalog_names": ["a"]},
+                {"verdict": "empty_catalog", "selected": [], "catalog_names": []},
                 self._judged(["a"], ["a"]),
             ],
         )
         reading = ss.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
-        assert reading.window_records == 4
+        assert reading.window_records == 5
         assert reading.window_judged == 1
-        assert reading.window_fail_open == 1
+        # 2 fail_open_* + 1 no_template; empty_catalog is the one left out.
+        assert reading.window_fail_open == 3
+        assert reading.history_fail_open == 3
+        # Still not `records - judged` (that would be 4): the residual stays
+        # visible instead of being absorbed.
+        assert reading.window_records - reading.window_judged == 4
+
+    def test_a_lost_template_week_is_not_reported_as_zero_fail_open(self, tmp_path):
+        """The scenario the verdict set exists for, end to end."""
+        skills_dir = self._store(tmp_path, ["a", "quiet"])
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-08-10", [self._judged(["a"], ["a", "quiet"])] * 600)
+        self._write(
+            log_dir,
+            "2026-08-20",
+            [{"verdict": "no_template", "selected": [], "catalog_names": ["a", "quiet"]}] * 700,
+        )
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert [e.name for e in reading.strict] == ["quiet"]
+        assert reading.history_fail_open == 700
+        text = ss.format_never_selected_report(reading)
+        assert "fail-open across the whole history: 700 of 1300 records" in text
 
     def test_unreadable_catalog_withholds_every_population(self, tmp_path):
         """No ruler: "never selected" cannot be said of names that could not
@@ -1990,7 +2023,7 @@ class TestNeverSelectedReading:
         reading = ss.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
-        assert reading.full_skill_tokens == 38867
+        assert reading.history_full_skill_tokens == 38867
         assert reading.num_ctx == 32768
         assert "NEVER_SELECTED_FULL_TOKENS_UNKNOWN" not in reading.reasons
 
@@ -2005,17 +2038,20 @@ class TestNeverSelectedReading:
         reading = ss.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
-        assert reading.full_skill_tokens == 0
+        assert reading.history_full_skill_tokens == 0
         assert "NEVER_SELECTED_FULL_TOKENS_UNKNOWN" in reading.reasons
 
-    def test_broken_lines_and_odd_files_degrade_never_abort(self, tmp_path):
+    def test_dropped_rows_degrade_visibly_not_just_without_aborting(self, tmp_path):
+        """Not aborting is half the requirement. The other half is that the
+        reader can see the reading narrowed its own evidence — a dropped row
+        is a judged action this list did not get to look at."""
         skills_dir = self._store(tmp_path, ["a", "quiet"])
         log_dir = tmp_path / "logs"
         self._write(log_dir, "2026-08-20", [self._judged(["a"], ["a", "quiet"])] * 600)
         with (log_dir / "skill-selection-2026-08-20.jsonl").open("a", encoding="utf-8") as fh:
             fh.write("{broken\n")
             fh.write("[1, 2]\n")  # valid JSON, not an object
-            fh.write("\n")
+            fh.write("\n")  # blank lines are not a drop
         (log_dir / "skill-selection-not-a-date.jsonl").write_text("{}\n", encoding="utf-8")
 
         reading = ss.read_never_selected(
@@ -2023,7 +2059,90 @@ class TestNeverSelectedReading:
         )
         assert reading.history_records == 600
         assert reading.history_files == 1
+        assert reading.malformed_rows == 2
+        assert reading.unreadable_files == 0
+        assert "NEVER_SELECTED_LOG_PARTIAL" in reading.reasons
+        # Bounded loss: two rows out of six hundred do not withhold the list.
+        assert "NEVER_SELECTED_LOG_UNREADABLE" not in reading.reasons
         assert [e.name for e in reading.strict] == ["quiet"]
+        assert "Evidence lost: 0 unreadable day(s), 2 unusable row(s)" in (
+            ss.format_never_selected_report(reading)
+        )
+
+    def test_a_lost_day_withholds_the_strict_list(self, tmp_path):
+        """Unbounded loss. The one record that ever selected a name may be in
+        the file that would not open, so the honest answer is not a shorter
+        list — it is no list."""
+        skills_dir = self._store(tmp_path, ["kept", "quiet"])
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-08-10", [self._judged(["kept"], ["kept", "quiet"])] * 600)
+        # The day that ever selected `quiet`, made unopenable.
+        self._write(log_dir, "2026-08-20", [self._judged(["quiet"], ["kept", "quiet"])])
+        (log_dir / "skill-selection-2026-08-20.jsonl").chmod(0o000)
+        try:
+            reading = ss.read_never_selected(
+                log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+            )
+        finally:
+            (log_dir / "skill-selection-2026-08-20.jsonl").chmod(0o644)
+        assert reading.unreadable_files == 1
+        assert "NEVER_SELECTED_LOG_UNREADABLE" in reading.reasons
+        assert "NEVER_SELECTED_LOG_PARTIAL" in reading.reasons
+        assert reading.strict == ()
+        text = ss.format_never_selected_report(reading)
+        assert "WITHHELD (NEVER_SELECTED_LOG_UNREADABLE)" in text
+        assert "- (none)" not in text.split("Strict (")[1].split("Dormant")[0]
+
+    def test_an_undecodable_byte_does_not_escape_the_reading(self, tmp_path):
+        """UnicodeDecodeError is a ValueError, not an OSError. Uncaught it
+        propagates into the CLI's broad handler and the section vanishes with
+        no reason code — indistinguishable from a build without it."""
+        skills_dir = self._store(tmp_path, ["kept", "quiet"])
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-08-10", [self._judged(["kept"], ["kept", "quiet"])] * 600)
+        (log_dir / "skill-selection-2026-08-20.jsonl").write_bytes(b"\xff\xfe not utf-8\n")
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.unreadable_files == 1
+        assert "NEVER_SELECTED_LOG_UNREADABLE" in reading.reasons
+        assert reading.strict == ()
+
+    def test_an_undecodable_skill_file_does_not_escape_the_reading(self, tmp_path):
+        skills_dir = self._store(tmp_path, ["kept"])
+        (skills_dir / "broken.md").write_bytes(b"---\nname: \xff\n---\nbody\n")
+        log_dir = tmp_path / "logs"
+        self._write(log_dir, "2026-08-10", [self._judged(["kept"], ["kept"])])
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.catalog_size == 1
+
+    def test_an_empty_window_is_named_and_withholds_dormant(self, tmp_path):
+        """An agent that was down for the requested fortnight: every
+        window-scoped figure reads 0, including a fail-open count a reader
+        would otherwise take as "no full-corpus injection ever happened"."""
+        skills_dir = self._store(tmp_path, ["kept", "quiet"])
+        log_dir = tmp_path / "logs"
+        self._write(
+            log_dir,
+            "2026-07-01",
+            [self._judged(["kept"], ["kept", "quiet"])] * 601
+            + [{"verdict": "fail_open_llm", "selected": [], "catalog_names": ["kept", "quiet"]}]
+            * 40,
+        )
+        reading = ss.read_never_selected(
+            log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
+        )
+        assert reading.window_records == 0
+        assert "NEVER_SELECTED_EMPTY_WINDOW" in reading.reasons
+        assert reading.dormant == ()
+        # The history figure is what the strict list is judged against, and
+        # it is not recoverable by subtraction from the window's.
+        assert reading.history_fail_open == 40
+        text = ss.format_never_selected_report(reading)
+        assert "fail-open across the whole history: 40 of 641 records" in text
+        assert "WITHHELD (NEVER_SELECTED_EMPTY_WINDOW)" in text
 
     def test_missing_log_dir_reads_as_no_history(self, tmp_path):
         skills_dir = self._store(tmp_path, ["a"])
