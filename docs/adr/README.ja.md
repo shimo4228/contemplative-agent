@@ -90,19 +90,20 @@
 | [0082](0082-retire-observed-epistemic-key.ja.md) | `observed` エピステミックキーの退役 — 警告ではなく死んだフィールドを消す | accepted — partially-supersedes 0050 | 2026-07-25 |
 | [0083](0083-episode-logs-enter-the-weekly-prompt-as-hashes-only.ja.md) | エピソードログは週次プロンプトへハッシュとしてのみ入る | accepted | 2026-07-25 |
 | [0084](0084-post-distill-durability-gate.ja.md) | 蒸留後の durability ゲート — エピソードではなく、生成されたパターンを judge する | accepted | 2026-07-26 |
-| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.ja.md) | 無人 weekly fix チェーンと土曜単一ゲート | accepted | 2026-07-29 |
+| [0085](0085-unattended-weekly-fix-chain-single-saturday-gate.ja.md) | 無人 weekly fix チェーンと土曜単一ゲート | partially-superseded-by ADR-0098 | 2026-07-29 |
 | [0086](0086-submolt-scope-instrument-before-autonomy.ja.md) | Submolt スコープ — 答えを渡す前に問いを計器化する | accepted | 2026-08-01 |
 | [0087](0087-optional-token-counting-capability-for-the-context-budget-guard.ja.md) | コンテキスト予算ガードに任意の `count_tokens` capability を足す | accepted — 0066 を拡張 | 2026-08-01 |
 | [0088](0088-shipped-conformance-kit-for-the-llm-backend-contract.ja.md) | `LLMBackend` 契約の適合キットを出荷物に入れる | accepted | 2026-08-02 |
 | [0089](0089-llm-behavioral-eval-layer-on-deepeval.ja.md) | DeepEval を土台にした LLM 行動 eval 層 | accepted | 2026-08-06 |
 | [0090](0090-ipd-two-arm-instrument-for-constitution-amendments.ja.md) | 憲法改正の採択前に IPD 2 アームベンチを回す | accepted | 2026-08-09 |
-| [0091](0091-value-layer-cadence-in-the-weekly-chain.ja.md) | weekly チェーンにおける value 層の更新周期 | accepted | 2026-08-10 |
+| [0091](0091-value-layer-cadence-in-the-weekly-chain.ja.md) | weekly チェーンにおける value 層の更新周期 | partially-superseded-by ADR-0098 | 2026-08-10 |
 | [0092](0092-shadow-constitution-instrument.ja.md) | Shadow 憲法計器 — パターンのみ合成・観測専用 | accepted | 2026-08-11 |
-| [0093](0093-repo-plane-deterministic-intakes.ja.md) | repo 面の決定論 intake — docs 整合性と台帳条件 watch | partially-superseded-by 0095 | 2026-08-14 |
+| [0093](0093-repo-plane-deterministic-intakes.ja.md) | repo 面の決定論 intake — docs 整合性と台帳条件 watch | partially-superseded-by 0095, ADR-0098 | 2026-08-14 |
 | [0094](0094-agent-first-task-ledger.ja.md) | エージェント優先のタスク台帳 — store / journal / projection | superseded-by 0095 | 2026-08-15 |
 | [0095](0095-retire-task-ledger-machinery.ja.md) | タスク台帳機構の退役 — store と claims を残し、パースするものを全部落とす | accepted — supersedes 0094; partially-supersedes 0093 | 2026-08-16 |
 | [0096](0096-insight-promotion-worth-abstain.ja.md) | insight 時の promotion-worth abstain — 生成された skill を judge し、surprise は材料として列挙する | partially-superseded-by ADR-0097 | 2026-08-17 |
 | [0097](0097-consolidator-dissolution-and-skill-store-exit.ja.md) | 統合器の解体と skill store の出口 — 引き算、出口、語彙の順に | accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096 | 2026-08-22 |
+| [0098](0098-weekly-single-session-and-triage-delegation.ja.md) | weekly チェーンの単一セッション化と修理の task-triage 委譲 | accepted — partially-supersedes ADR-0085, ADR-0091, ADR-0093 | 2026-08-24 |
 
 ## ADR の種別
 

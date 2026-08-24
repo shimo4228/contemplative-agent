@@ -2,7 +2,7 @@
 
 ## Status
 
-partially-superseded-by ADR-0095（stage 6c 台帳条件 watch は 2026-08-16 に退役。stage 6b docs 整合性 scan は有効のまま）
+partially-superseded-by ADR-0095（stage 6c 台帳条件 watch は 2026-08-16 に退役。stage 6b docs 整合性 scan は有効のまま）; further partially-superseded-by ADR-0098（packet §9/§10 への配送は 2026-08-24 に packet builder ごと退役 — 土曜ゲートは docs 整合性 scan の JSON を直接読む。stage 6b の scan 自体と detection/repair の分離は効力を保つ）
 （stage 6b）と `scripts/ledger_condition_scan.py`（stage 6c）を追加し、
 `build_decision_packet.py` に packet §9/§10 と metrics フィールド
 `docs_findings` / `ledger_watch_fired` を、タスク台帳に `watch:` 注釈規約を追加する。

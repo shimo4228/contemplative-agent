@@ -2,10 +2,7 @@
 
 ## Status
 
-accepted — adds one stage to `scripts/weekly-pipeline.sh`, one read-only
-instrument script, and one packet section; changes no runtime behavior
-under `core/` / `adapters/`. Adoption authority is unchanged
-([ADR-0012](0012-human-approval-gate.md) Saturday gate).
+partially-superseded-by ADR-0098 (the §8 packet-reading delivery form retired 2026-08-24 — the due-reading now comes from the gate reading the value-layer JSON directly instead of a packet section; the cadence logic itself is unchanged). The `scripts/weekly-pipeline.sh` stage and the read-only instrument script that produce that JSON remain in effect; runtime behavior under `core/` / `adapters/` is still unaffected, and adoption authority is unchanged ([ADR-0012](0012-human-approval-gate.md) Saturday gate).
 
 ## Date
 

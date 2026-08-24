@@ -1,6 +1,6 @@
 # Findings Methodology Principles
 
-The following are methodological principles applied by the `weekly-report-diagnosis` skill
+The following are methodological principles applied by the `/weekly-report` skill's diagnosis phase
 when generating code-level findings (F1 structural / F2 identity-level / F3 observations).
 Principles 3 (quote-based depth) and 5 (deterministic input for cross-entry claims) also
 apply to the upstream `weekly-analysis` weekly report — Principle 5 was written from a

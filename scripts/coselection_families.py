@@ -262,7 +262,7 @@ def load_window(log_dir: Path, start: date, end: date) -> WindowData:
         try:
             text = path.read_text(encoding="utf-8")
         # UnicodeDecodeError is a ValueError, not an OSError — the gap that
-        # took build_decision_packet.py down once (2026-07-29 review).
+        # took the (since retired) packet builder down once (2026-07-29 review).
         except (OSError, UnicodeDecodeError):
             faults["unreadable_files"] += 1
             continue

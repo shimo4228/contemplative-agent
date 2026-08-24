@@ -6,7 +6,7 @@ Write in English. Be critical and specific — cite exact quotes from the data. 
 
 The accompanying `principles.md` (provided in context) is preserved for shared methodology. For this report, the only principle that applies to your output is **Principle 3 — Quote-based depth over rate-based summary**: quotes lead; rates derive from them.
 
-The other principles (post-generation filter, hardcoded blocks, repeated recommendation guard) and the Appendix of rejected mechanisms apply to **code-level diagnosis**, which is produced separately by the `weekly-report-diagnosis` skill from this report's E section. Do not propose structural changes, identity-level questions, or pure observations in this report — those belong in the diagnosis step.
+The other principles (post-generation filter, hardcoded blocks, repeated recommendation guard) and the Appendix of rejected mechanisms apply to **code-level diagnosis**, which the same `/weekly-report` session produces AFTER this report as a separate phase (ADR-0098; procedure in the skill's references/diagnosis.md). Do not propose structural changes, identity-level questions, or pure observations in this report — those belong in the diagnosis phase.
 
 **E is the analytical center of this report.** C and D derive from E, not the other way around.
 
@@ -95,16 +95,16 @@ For **every** example, use this template:
 **Signal**: {what this single comment tells us about current generation behavior — 1-2 sentences}
 ```
 
-Do NOT include "suggest a better response" lines. Structural improvement, identity-level open questions, and pure observations are produced separately by the `weekly-report-diagnosis` skill, which reads this report's E section together with the codebase, ADRs, and current identity/constitution/skills/rules. Keep this report focused on the observation; the diagnosis belongs elsewhere.
+Do NOT include "suggest a better response" lines. Structural improvement, identity-level open questions, and pure observations are produced in the diagnosis phase that follows this report (same session, ADR-0098), which reads this report's E section together with the codebase, ADRs, and current identity/constitution/skills/rules. Keep this report focused on the observation; the diagnosis belongs to that later phase.
 
-The "Typical" bucket is required. A 70% middle band that is invisible in good/problematic extremes leaves C and D without ground, and leaves the diagnosis step without examples to reference.
+The "Typical" bucket is required. A 70% middle band that is invisible in good/problematic extremes leaves C and D without ground, and leaves the diagnosis phase without examples to reference.
 
 ---
 
 # Input Data
 
 The following data will be provided:
-1. **Methodological Principles** (`principles.md`) — Principle 3 (quote-based depth) applies to this report. Other principles apply to the downstream diagnosis step.
+1. **Methodological Principles** (`principles.md`) — Principle 3 (quote-based depth) applies to this report. Other principles apply to the diagnosis phase that follows.
 2. **Daily comment reports** for the analysis period
 3. **Agent state diffs** (identity, constitution, skills, rules, knowledge count) — if available. Each value-layer section carries an **Approval provenance** block: the deterministic join of that section's directory to the in-window ADR-0012 approval rows in `logs/audit.jsonl` (dense fields only — no lineage lists, no free text, no target paths); read it for B's approval-provenance note
 4. **Log Anomaly Sweep** — deterministic ranking of log anomalies by novelty (🆕 = new since last sweep) then frequency delta; read it for B's operational-drift note
@@ -114,4 +114,4 @@ The following data will be provided:
 
 # Downstream
 
-After this report is generated, run the `weekly-report-diagnosis` skill to produce code-level findings (`weekly-{end-date}-findings.md`) grounded in this report's E section plus the current codebase and ADRs.
+After this report is written, the SAME session proceeds to the diagnosis phase (ADR-0098; the `/weekly-report` skill's references/diagnosis.md) to produce code-level findings (`weekly-{end-date}-findings.md`) grounded in this report's E section plus the current codebase and ADRs.

@@ -27,7 +27,7 @@ LOG_DIR="$MOLTBOOK_HOME/logs"
 STATUS="$MOLTBOOK_HOME/reports/PIPELINE-STATUS.md"
 
 MIN_REPORT_BYTES=1024
-MIN_PACKET_BYTES=1024
+MIN_FINDINGS_BYTES=512
 
 HOUR=$(date +%H)
 WEEKDAY=$(date +%u)   # Mon=1 .. Sun=7 (Sat=6)
@@ -103,7 +103,9 @@ else
     skip "insight" "not scheduled"
 fi
 
-# --- weekly report + packet: both terminal artifacts of com.moltbook.weekly-pipeline ---
+# --- weekly report + findings: both terminal artifacts of com.moltbook.weekly-pipeline ---
+# (ADR-0098: the decision packet is retired; the findings file is the chain's
+# last LLM artifact and the Saturday gate reads it directly.)
 if scheduled weekly-pipeline; then
     # report: Sat 09:00, deadline 12:00; artifact = weekly-<Fri>.md
     report_sat=$(anchor_sat 12)
@@ -119,21 +121,21 @@ if scheduled weekly-pipeline; then
         fail "weekly-report" "weekly-${report_end}.md not found (expected by Sat 12:00)"
     fi
 
-    # decision packet: chain end, deadline Sat 13:00
-    packet_sat=$(anchor_sat 13)
-    packet_end=$(date -j -f %Y-%m-%d -v-1d "$packet_sat" +%Y-%m-%d 2>/dev/null)
-    packet_file="$REPORT_DIR/weekly-${packet_end}-packet.md"
-    packet_size=$(size_of "$packet_file")
-    if (( packet_size >= MIN_PACKET_BYTES )); then
-        ok "weekly-packet" "weekly-${packet_end}-packet.md (${packet_size} bytes)"
-    elif [[ -f "$packet_file" ]]; then
-        fail "weekly-packet" "weekly-${packet_end}-packet.md is ${packet_size} bytes (expected >= ${MIN_PACKET_BYTES})"
+    # findings: chain end, deadline Sat 13:00
+    findings_sat=$(anchor_sat 13)
+    findings_end=$(date -j -f %Y-%m-%d -v-1d "$findings_sat" +%Y-%m-%d 2>/dev/null)
+    findings_file="$REPORT_DIR/weekly-${findings_end}-findings.md"
+    findings_size=$(size_of "$findings_file")
+    if (( findings_size >= MIN_FINDINGS_BYTES )); then
+        ok "weekly-findings" "weekly-${findings_end}-findings.md (${findings_size} bytes)"
+    elif [[ -f "$findings_file" ]]; then
+        fail "weekly-findings" "weekly-${findings_end}-findings.md is ${findings_size} bytes (expected >= ${MIN_FINDINGS_BYTES})"
     else
-        fail "weekly-packet" "weekly-${packet_end}-packet.md not found — the unattended chain died before its fail-forward target (expected by Sat 13:00)"
+        fail "weekly-findings" "weekly-${findings_end}-findings.md not found — the weekly session died before its diagnosis output (expected by Sat 13:00)"
     fi
 else
     skip "weekly-report" "not scheduled (weekly-pipeline plist absent)"
-    skip "weekly-packet" "not scheduled (weekly-pipeline plist absent)"
+    skip "weekly-findings" "not scheduled (weekly-pipeline plist absent)"
 fi
 
 # --- backup: Mon 10:00, deadline 11:00 ---

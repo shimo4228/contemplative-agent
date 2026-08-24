@@ -1,74 +1,27 @@
 #!/bin/bash
-# Weekly analysis report generator for Moltbook agent.
-# Collects daily reports + agent state diffs, passes to claude -p.
+# Weekly MATERIALS collector for the Contemplative Agent weekly chain.
+#
+# Collects daily reports + agent state diffs + the deterministic intakes and
+# writes ONE materials file for the single unattended `/weekly-report` session
+# that weekly-pipeline.sh starts (2026-08-24 redesign: this script used to
+# start two `claude -p` sessions itself — report synthesis and its Japanese
+# translation. Both moved into the /weekly-report skill; this script now starts
+# NO claude session and needs no permission flags. The session-scope rationale
+# that lived here moved to weekly-pipeline.sh, the one file the scope gate
+# reads. The 2026-08-16 model/style boundary note for longitudinal reads of
+# reports lives in docs/CODEMAPS/architecture.md).
 #
 # Usage:
-#   ./scripts/weekly-analysis.sh                          # past 7 days ending yesterday
-#   ./scripts/weekly-analysis.sh --end-date 2026-03-30    # past 7 days ending 2026-03-30
-#   ./scripts/weekly-analysis.sh --end-date 2026-03-30 --days 10  # custom range
+#   ./scripts/weekly-analysis.sh [--end-date YYYY-MM-DD] [--days N] [--out FILE]
+#   Default: past 7 days ending yesterday; FILE defaults to
+#   $MOLTBOOK_HOME/reports/analysis/weekly-<end>-materials.md
+#
+# State discipline (unchanged in spirit): the anomaly sweep / API drift /
+# approval-join baselines are emitted ASIDE to deterministic .pending paths and
+# are NOT promoted here — a materials file is not a report. weekly-pipeline.sh
+# promotes them only after the /weekly-report session produced a structurally
+# complete report, so a week whose report never lands spends no baseline.
 set -euo pipefail
-
-# --- Unattended session scope (T-WEEKLY-ANALYSIS-SESSION-SCOPE, 2026-08-16) ---
-# This script starts two `claude -p` sessions — the report and its Japanese
-# translation — and until 2026-08-16 neither carried a single permission flag.
-# They are the two the T-CHAIN-PERM-SWEEP conversion missed: that sweep bounded
-# the five sessions in weekly-pipeline.sh and its gate reads that ONE file, so
-# stage 1 handing this script the work put these outside the invariant while
-# the gate's own docstring claimed "a sixth session added later cannot ship
-# without one". Both run unattended, from weekly-pipeline.sh stage 1 and from
-# this script's own launchd plist.
-#
-# Both get `--tools ""` — the CLI's documented spelling for "disable all
-# tools", measured 2026-08-16 to resolve to zero built-in tools. Both sessions
-# receive everything they read on stdin and write nothing; the shell does the
-# reading and the redirection.
-#
-# ADR-0040 already lists what this session does not have access to (source,
-# ADRs, the full text of the value layers, CODEMAPS) — but it is describing
-# what the PROMPT contains, and the session could reach all four through the
-# ambient allow list the whole time. `--tools ""` is the first thing that makes
-# that list true of the session's capability, so it is a real tightening rather
-# than a formality, and a later reader should not relax it as decorative.
-#
-# The other three flags close what `--tools` cannot. Without
-# `--setting-sources project` each session loads the operator's user layer —
-# 106 allow rules and `additionalDirectories`, which had silently made three
-# unrelated projects working directories of every unattended session;
-# `--strict-mcp-config` with no `--mcp-config` removes the configured MCP
-# servers, which `--tools` does not reach; `--permission-mode manual` refuses
-# rather than auto-approving whatever is left.
-#
-# **The report session's model and output style change here, and that is a
-# decision rather than a side effect** (owner's call, 2026-08-16). `model` and
-# `outputStyle` are USER settings, so dropping that layer moves them. Measured
-# with the operator's real settings file, tools empty in both runs:
-#
-#   --setting-sources user,project,local  model=claude-fable-5     style=Explanatory
-#   --setting-sources project             model=claude-opus-5[1m]  style=default
-#
-# The translation session is unaffected on the model half — it pins
-# `--model sonnet`. The report session is not, and it is the chain's primary
-# artifact: stage 2 diagnosis reads it, and `weekly-analysis.sh` feeds up to
-# three previous reports back into the next week's prompt (ADR-0040). So
-# **reports ending 2026-08-16 or later are a different instrument from the ones
-# before**: bigger context window, no Explanatory style, different model.
-# Week-over-week prose comparison and any longitudinal read of the E section
-# must treat that date as a boundary rather than as a signal. Recorded here,
-# in docs/CODEMAPS/architecture.md, and left unpinned deliberately — pinning
-# `--model` would have preserved a personal interactive preference that reached
-# the unattended chain by the same accident as the 106 allow rules.
-#
-# One more thing that layer could carry: this settings file today has no
-# `apiKeyHelper` and no `env` block, which is WHY "keeps auth" holds. Add
-# either later and both sessions lose authentication silently — under launchd
-# that is `claude -p failed` and no weekly report.
-#
-# No `--disallowedTools`. A deny list over an empty tool set denies nothing
-# that exists, and the entries worth sharing (`READONLY_DENY`'s per-path Read
-# scopes) live in weekly-pipeline.sh — this script runs standalone too, so
-# reaching them would mean either a second copy to drift or a sourced fragment,
-# both of which buy nothing here. The user `hooks` that `--setting-sources`
-# drops need no compensation for the same reason: there is no Read tool to gate.
 
 # --- Config ---
 MOLTBOOK_HOME="${MOLTBOOK_HOME:-$HOME/.config/moltbook}"
@@ -86,39 +39,13 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # (security review MEDIUM).
 cd "$PROJECT_ROOT"
 
-# `with_timeout <secs> <cmd...>`, the same shape weekly-pipeline.sh uses. It
-# replaced a `run_claude_translate()` wrapper whose body held `claude -p "$@"`
-# twice: the flags lived at the CALL site, so neither line inside the function
-# carried a scope, and a gate reading invocations line by line could see no
-# spec to check. A helper that forwards the whole command puts the invocation —
-# and its scope — on one line (T-WEEKLY-ANALYSIS-SESSION-SCOPE). Defined up
-# here rather than beside the translation because the report session needs it
-# too.
-with_timeout() {  # with_timeout <seconds> <cmd...>
-    local secs="$1"; shift
-    if command -v timeout >/dev/null 2>&1; then
-        timeout "$secs" "$@"
-    else
-        "$@"   # degradation when coreutils is absent from launchd's PATH
-    fi
-}
-
-# The chain's largest session ran uncapped until 2026-08-16, so a hung CLI
-# stalled the whole unattended chain until the watchdog noticed a missing
-# packet. Sized from the three real runs in the pipeline audit log — the WHOLE
-# stage, collection and translation included, took 18m43s / 16m09s / 19m19s —
-# so 45 min is ~2.3x the widest observed for the stage and more than that for
-# the session alone. A hang detector, not a budget: if it ever fires on real
-# work the number is wrong, not the report.
-REPORT_TIMEOUT_SECONDS=2700
-TRANSLATE_TIMEOUT_SECONDS=900
-PROMPT_TEMPLATE="$PROJECT_ROOT/config/prompts/weekly-analysis.md"
 PRINCIPLES_FILE="$PROJECT_ROOT/config/prompts/principles.md"
 REPORT_DIR="$MOLTBOOK_HOME/reports/analysis"
 COMMENT_REPORT_DIR="$MOLTBOOK_HOME/reports/comment-reports"
 
 DAYS=7
 END_DATE=""
+OUT_FILE=""
 PREV_REPORT_COUNT="${WEEKLY_PREV_COUNT:-3}"
 
 # --- Parse args ---
@@ -126,9 +53,11 @@ while [[ $# -gt 0 ]]; do
     case "$1" in
         --end-date) END_DATE="$2"; shift 2 ;;
         --days)     DAYS="$2"; shift 2 ;;
+        --out)      OUT_FILE="$2"; shift 2 ;;
         -h|--help)
-            echo "Usage: $0 [--end-date YYYY-MM-DD] [--days N]"
-            echo "  Default: past 7 days ending yesterday"
+            echo "Usage: $0 [--end-date YYYY-MM-DD] [--days N] [--out FILE]"
+            echo "  Default: past 7 days ending yesterday; FILE defaults to"
+            echo "  \$MOLTBOOK_HOME/reports/analysis/weekly-<end>-materials.md"
             exit 0
             ;;
         *) echo "Unknown option: $1" >&2; exit 1 ;;
@@ -152,17 +81,7 @@ START_DATE=$(date -j -f %Y-%m-%d -v-"$((DAYS - 1))"d "$END_DATE" +%Y-%m-%d)
 
 echo "Analysis period: $START_DATE to $END_DATE ($DAYS days)"
 
-# --- Preflight: the whole script exists to feed `claude -p` ---
-# launchd does not inherit the login shell's PATH, and Claude Code's native
-# installer moved the binary to ~/.local/bin. Discovering that at the generate
-# step (line ~250) burns the full collection pass first and — before the
-# temp-file write below — left a 0-byte report behind. Fail here instead.
-if ! command -v claude >/dev/null 2>&1; then
-    echo "ERROR: 'claude' not found on PATH ($PATH)." >&2
-    echo "       Under launchd, add its directory to the plist's EnvironmentVariables PATH" >&2
-    echo "       (config/launchd/com.moltbook.weekly-analysis.plist), then reinstall the schedule." >&2
-    exit 1
-fi
+[[ -z "$OUT_FILE" ]] && OUT_FILE="$REPORT_DIR/weekly-${END_DATE}-materials.md"
 
 # --- Collect daily reports ---
 DAILY_REPORTS=""
@@ -188,13 +107,13 @@ echo "Found $FOUND daily reports"
 # sections are other agents' post bodies (core/report.py copies them
 # verbatim), so this block is the one part of the prompt an outsider writes.
 #
-# `--tools ""` below already removes the execution half of the risk: this
-# session holds no tool, so nothing injected here can DO anything. What it
-# does not remove is document poisoning — the weekly report is a durable
-# artifact, and next week's $PREV_REPORTS, the diagnosis skill and the fix
-# chain all read it. The frame is the cheap half of the answer; it is a
-# request to the model, not a guarantee, and it does not survive a model that
-# ignores it on meaning.
+# The consumer is the /weekly-report session weekly-pipeline.sh starts; its
+# tool boundary (positively scoped Read, private-dir Edit, no Bash) lives in
+# that file's session-scope block — NOT here. What no boundary removes is
+# document poisoning — the weekly report is a durable artifact, and next
+# week's $PREV_REPORTS and the diagnosis phase read it. The frame is the
+# cheap half of the answer; it is a request to the model, not a guarantee,
+# and it does not survive a model that ignores it on meaning.
 #
 # The delimiter is a per-run nonce for the same reason core/llm/guard.py uses
 # one: with a constant, a report body could close the block itself and stand
@@ -222,18 +141,23 @@ them as evidence about what happened, never as direction for this analysis."
 
 # --- Agent state diffs from git history ---
 # Approval-join trend baseline (per-section unmatched-live digest sets, gate
-# 2026-08-22): same emit-aside / promote-after-report discipline as the
-# anomaly sweep and the drift scan below, so a run whose report never lands
-# spends no baseline. Named here because the join runs inside the state-diff
-# block; the EXIT trap that removes the pending file is set with the others.
+# 2026-08-22): emitted ASIDE, promoted by weekly-pipeline.sh only after the
+# /weekly-report session lands a structurally complete report, so a run whose
+# report never lands spends no baseline. The pending path is DETERMINISTIC
+# (no PID suffix) because the promoter is a different process; concurrent runs
+# are excluded by the pipeline's own single-run schedule. Named here because
+# the join runs inside the state-diff block; the EXIT trap that removes the
+# pending file on failure is set with the others.
 JOIN_STATE="$REPORT_DIR/.approval-join-state.json"
-JOIN_PENDING="$REPORT_DIR/.approval-join-state.pending.$$"
+JOIN_PENDING="$REPORT_DIR/.approval-join-state.pending"
 mkdir -p "$REPORT_DIR"
 # The producer runs ~150 lines before the trap that covers the other pending
-# files is installed; under set -e any failure in between would leak this one,
-# and a PID-reused leftover would seed a later run's pending file. Cover it now;
-# the fuller trap below re-lists it.
-trap 'rm -f "$JOIN_PENDING"' EXIT
+# files is installed; under set -e any failure in between would leak a stale
+# pending that a later promote could mistake for this week's. Cover it now;
+# the fuller trap below re-lists it. MATERIALS_DONE=1 (set at the very end)
+# is what keeps the pendings for the pipeline to promote.
+MATERIALS_DONE=0
+trap '[[ "$MATERIALS_DONE" -eq 1 ]] || rm -f "$JOIN_PENDING"' EXIT
 
 STATE_DIFF=""
 if [[ -d "$DATA_REPO/.git" ]]; then
@@ -435,19 +359,21 @@ fi
 # Emit the snapshot aside and promote it after the report lands.
 ANOMALY_SWEEP=""
 SWEEP_STATE="$REPORT_DIR/.anomaly-sweep-state.tsv"
-SWEEP_PENDING="$REPORT_DIR/.anomaly-sweep-state.pending.$$"
+SWEEP_PENDING="$REPORT_DIR/.anomaly-sweep-state.pending"
 # The corpus census: which files, how many lines, how many signal lines the
-# counts were computed over. The sweep derives both paths as <state>.corpus.tsv
-# (log_anomaly_sweep.corpus_state_path), so these two must mirror the two above.
-SWEEP_CORPUS="$SWEEP_STATE.corpus.tsv"
+# counts were computed over. The sweep derives the path as <state>.corpus.tsv
+# (log_anomaly_sweep.corpus_state_path), so this must mirror SWEEP_PENDING;
+# the canonical <SWEEP_STATE>.corpus.tsv is promoted by weekly-pipeline.sh.
 SWEEP_PENDING_CORPUS="$SWEEP_PENDING.corpus.tsv"
 # Named here (not in the API drift block below) because the trap on the next
 # line must cover it; keep them together if either block moves.
-DRIFT_PENDING="$REPORT_DIR/.api-drift-state.pending.$$"
-OUTPUT_TMP=""   # set at the generate step; named here so the trap can cover it
+DRIFT_PENDING="$REPORT_DIR/.api-drift-state.pending"
+OUTPUT_TMP=""   # set at the materials write; named here so the trap can cover it
 # JOIN_PENDING is named above the state-diff block (its producer runs there)
 # with its own early trap; this trap replaces that one and covers all four.
-trap 'rm -f "$SWEEP_PENDING" "$SWEEP_PENDING_CORPUS" "$DRIFT_PENDING" "$JOIN_PENDING" ${OUTPUT_TMP:+"$OUTPUT_TMP"}' EXIT
+# On success (MATERIALS_DONE=1) the pendings survive — weekly-pipeline.sh
+# promotes them after the report lands, and its own preamble removes leftovers.
+trap '[[ "$MATERIALS_DONE" -eq 1 ]] || rm -f "$SWEEP_PENDING" "$SWEEP_PENDING_CORPUS" "$DRIFT_PENDING" "$JOIN_PENDING"; rm -f ${OUTPUT_TMP:+"$OUTPUT_TMP"}' EXIT
 if [[ -d "$MOLTBOOK_HOME/logs" ]]; then
     mkdir -p "$REPORT_DIR"
     ANOMALY_SWEEP=$(python3 "$PROJECT_ROOT/scripts/log_anomaly_sweep.py" \
@@ -490,7 +416,6 @@ fi
 # (sunset fields, dedup leaks, tombstone build-up, missing embeddings). Reads
 # distilled state only — never episode logs. Observability only — a FAIL exit
 # must not break the weekly report.
-INVARIANTS=""
 INVARIANTS=$(python3 "$PROJECT_ROOT/scripts/state_invariant_check.py" \
     --home "$MOLTBOOK_HOME" 2>/dev/null || true)
 if [[ -n "$INVARIANTS" ]]; then
@@ -575,9 +500,10 @@ PY
 fi
 [[ -z "$SKILL_SELECTION" ]] && SKILL_SELECTION="## Skill-selection reading (ADR-0076 instrument, ADR-0081 enforcement)"$'\n\n'"No skill-selection reading available."
 
-# --- Build prompt ---
-SYSTEM_PROMPT=$(cat "$PROMPT_TEMPLATE")
-
+# --- Build the materials document ---
+# Verbatim the USER prompt the report session used to receive on stdin; the
+# /weekly-report skill reads this file plus config/prompts/weekly-analysis.md
+# (the former system prompt) and synthesizes the A-E report from the two.
 USER_PROMPT="Analyze the following Moltbook agent activity for $START_DATE to $END_DATE ($DAYS days).
 
 $PRINCIPLES
@@ -600,175 +526,21 @@ $PREV_REPORTS
 
 $DAILY_REPORTS_FRAMED"
 
-# --- Output path ---
-mkdir -p "$REPORT_DIR"
-OUTPUT="$REPORT_DIR/weekly-${END_DATE}.md"
+# --- Write the materials file ---
+# Write to a temp file and promote on success. A direct `> "$OUT_FILE"`
+# truncates the target before the writes run, so a run killed mid-flight would
+# leave a partial materials file that reads as complete to the /weekly-report
+# session. Same tmp -> promote shape the report itself used here.
+mkdir -p "$(dirname "$OUT_FILE")"
+OUTPUT_TMP="${OUT_FILE}.tmp.$$"
+printf '%s\n' "$USER_PROMPT" > "$OUTPUT_TMP"
+mv "$OUTPUT_TMP" "$OUT_FILE"
 
-# `report_missing_parts <file>` — the report's machine contract, as a csv of the
-# parts that are absent (empty output = complete). Size is not that contract:
-# 2026-08-21 promoted a 37,409-byte report whose first line began mid-sentence
-# ("ior statement implied…") with A, B and C gone, because `claude -p
-# --output-format text` prints only its last assistant turn and the response
-# spanned more than one. It passed `-s`, was translated, was cited by the
-# diagnosis for figures that were not in it, and would have returned as next
-# week's $PREV_REPORTS trend baseline. Whatever truncates the stream, a report
-# missing A-C must read as unavailable rather than as clean (ADR-0077).
-#
-# The two artifacts downstream of this one already have such a predicate —
-# `findings_complete()` and the insight review's `RECOMMEND:` grep, both in
-# weekly-pipeline.sh — and this is the input to both.
-#
-# The anchors are the five section headings this repo's own prompt file defines
-# (config/prompts/weekly-analysis.md, "## A." … "## E."), matched on the letter
-# prefix only: the trailing wording of a heading is the model's to vary, the
-# letter is the format's. They are structure, not content-surface phrases.
-#
-# Nothing else is required — in particular not a level-1 title. The prompt's
-# "# " lines are its own internal headings, never an instruction to emit a
-# document title, and weekly-2026-07-11.md is a complete A-E report that opens
-# with a preamble and no title at all. Requiring one would discard that shape
-# while adding no detection power: the truncation this guard exists for takes
-# the title and A-C together.
-#
-# Plain string accumulation, not an array: /bin/bash on macOS is 3.2, where
-# `${#arr[@]}` on an empty array trips `set -u`.
-report_missing_parts() {  # report_missing_parts <file>
-    local file="$1" letter missing=""
-    for letter in A B C D E; do
-        grep -q "^## $letter\." "$file" || missing="${missing:+$missing,}$letter"
-    done
-    printf '%s' "$missing"
-}
+echo "Materials written: $OUT_FILE"
+echo "Size: $(wc -c < "$OUT_FILE") bytes"
+echo "Pending state (promoted by weekly-pipeline.sh after the report lands):"
+for p in "$SWEEP_PENDING" "$SWEEP_PENDING_CORPUS" "$DRIFT_PENDING" "$JOIN_PENDING"; do
+    [[ -e "$p" ]] && echo "  $p"
+done
 
-# --- Run claude ---
-# Write to a temp file and promote on success. A direct `> "$OUTPUT"` truncates
-# the target before the command runs, so any failure (or a run killed mid-flight)
-# leaves a 0-byte weekly-<date>.md that reads as a report: the diagnosis skill
-# has no E section to work from, and next week's glob feeds it back as an empty
-# "previous report". 2026-07-25: that is exactly what happened.
-echo "Running claude -p (this may take a few minutes)..."
-OUTPUT_TMP="${OUTPUT}.tmp.$$"
-
-# `--tools ""` — see the session-scope block near the top of this file. This
-# session is handed everything it reads inline on stdin and writes nothing: the
-# shell interpolates the state diff, the sweeps and the previous reports into
-# $USER_PROMPT, and the redirection below is what creates the file.
-if ! echo "$USER_PROMPT" | with_timeout "$REPORT_TIMEOUT_SECONDS" claude -p \
-    --system-prompt "$SYSTEM_PROMPT" \
-    --output-format text \
-    --permission-mode manual \
-    --tools "" \
-    --strict-mcp-config \
-    --setting-sources project \
-    > "$OUTPUT_TMP"; then
-    echo "ERROR: claude -p failed; leaving any previous $OUTPUT untouched" >&2
-    exit 1
-fi
-
-if [[ ! -s "$OUTPUT_TMP" ]]; then
-    echo "ERROR: claude -p exited 0 but produced no output; reason=REPORT_EMPTY; $OUTPUT left untouched" >&2
-    exit 1
-fi
-
-# Structural completeness, checked before the promote — see report_missing_parts
-# above for what the 0-byte guard cannot see. Same failure handling either way:
-# non-zero exit, previous $OUTPUT untouched, and a reason code in the message so
-# weekly-pipeline.sh's stage accounting can name it in report.log.
-MISSING_PARTS="$(report_missing_parts "$OUTPUT_TMP")"
-if [[ -n "$MISSING_PARTS" ]]; then
-    echo "ERROR: claude -p exited 0 but the report is structurally incomplete;" \
-        "reason=REPORT_INCOMPLETE missing=$MISSING_PARTS" \
-        "bytes=$(wc -c < "$OUTPUT_TMP" | tr -d ' '); $OUTPUT left untouched" >&2
-    exit 1
-fi
-
-mv "$OUTPUT_TMP" "$OUTPUT"
-
-echo "Report generated: $OUTPUT"
-echo "Size: $(wc -c < "$OUTPUT") bytes"
-
-# --- Commit the sweep's novelty baseline (only now that a report exists) ---
-# Deliberately ahead of the Japanese translation: the translation is
-# best-effort and is not a condition for having observed this week's novelty.
-# -e, not -s: a clean sweep legitimately emits an empty snapshot, and that is a
-# real baseline — rejecting it would keep last week's counts, so a signature that
-# stopped and came back would read as recurring with a delta against stale
-# numbers. The file exists only if the sweep ran to completion (write_state is
-# its last step), which is the condition being tested.
-if [[ -e "$SWEEP_PENDING" ]]; then
-    if mv "$SWEEP_PENDING" "$SWEEP_STATE"; then
-        echo "Anomaly sweep state committed: $SWEEP_STATE"
-        # In lockstep with the snapshot, never on its own: the census is the
-        # snapshot's measurement basis, so a stale census beside fresh counts
-        # would make next week's provenance line assert a corpus comparison
-        # that never happened — the exact mis-reading it exists to prevent.
-        # The sweep writes the census before the snapshot, so reaching here
-        # with no census means the pair was broken, not merely incomplete.
-        if [[ -e "$SWEEP_PENDING_CORPUS" ]] && mv "$SWEEP_PENDING_CORPUS" "$SWEEP_CORPUS"; then
-            echo "Anomaly sweep corpus census committed: $SWEEP_CORPUS"
-        else
-            rm -f "$SWEEP_CORPUS"
-            echo "WARNING: sweep corpus census missing or unpromotable; next run reports no previous census rather than a stale one" >&2
-        fi
-    else
-        echo "WARNING: sweep state promote failed; next run compares against a wider window" >&2
-    fi
-fi
-
-# Same promote-after-report discipline for the API drift baseline: spending it
-# before a report exists would mean this week's drift was observed by nobody.
-if [[ -e "$DRIFT_PENDING" ]]; then
-    if mv "$DRIFT_PENDING" "$DRIFT_STATE"; then
-        echo "API drift state committed: $DRIFT_STATE"
-    else
-        echo "WARNING: drift state promote failed; next run re-reports this week's drift" >&2
-    fi
-fi
-
-# Approval-join trend baseline: promoted only once a report exists, so the
-# "steady since" line next week rests on a reading somebody could have read.
-if [[ -e "$JOIN_PENDING" ]]; then
-    if mv "$JOIN_PENDING" "$JOIN_STATE"; then
-        echo "Approval join trend state committed: $JOIN_STATE"
-    else
-        echo "WARNING: approval join state promote failed; next run reports no prior reading" >&2
-    fi
-fi
-
-# --- Japanese version (best-effort; must never break the canonical English report) ---
-# English weekly-<date>.md stays canonical (it is what next weeks' prompts re-read);
-# the .ja.md is a translation for the operator. Sonnet is deliberate: translation
-# does not need the session's larger model. Failure is logged, never fatal.
-# timeout guards the unattended launchd job against a hung CLI call; when the
-# coreutils binary is absent from launchd's PATH the call degrades to no cap.
-TRANSLATE_PROMPT="$PROJECT_ROOT/config/prompts/weekly-analysis-ja.md"
-OUTPUT_JA="$REPORT_DIR/weekly-${END_DATE}.ja.md"
-if [[ -f "$TRANSLATE_PROMPT" ]]; then
-    TRANSLATE_SYSTEM_PROMPT=$(cat "$TRANSLATE_PROMPT")
-    echo "Translating report to Japanese (model: sonnet)..."
-    # `--tools ""` — a translation is a pure text transform: English report on
-    # stdin, Japanese on stdout, nothing read and nothing written.
-    if with_timeout "$TRANSLATE_TIMEOUT_SECONDS" claude -p \
-        --model sonnet \
-        --system-prompt "$TRANSLATE_SYSTEM_PROMPT" \
-        --output-format text \
-        --permission-mode manual \
-        --tools "" \
-        --strict-mcp-config \
-        --setting-sources project \
-        < "$OUTPUT" > "$OUTPUT_JA" && [[ -s "$OUTPUT_JA" ]]; then
-        en_bytes=$(wc -c < "$OUTPUT")
-        ja_bytes=$(wc -c < "$OUTPUT_JA")
-        # CLI exit 0 + non-empty file can still hide a mid-document cutoff;
-        # a Japanese translation far smaller than the English source is the signal
-        if (( ja_bytes * 10 < en_bytes * 3 )); then
-            echo "WARNING: Japanese report is <30% of English size (${ja_bytes}/${en_bytes} bytes) — possible truncation" >&2
-        fi
-        echo "Japanese report generated: $OUTPUT_JA (${ja_bytes} bytes)"
-    else
-        rm -f "$OUTPUT_JA"
-        echo "WARNING: Japanese translation failed — English report unaffected" >&2
-    fi
-else
-    echo "WARNING: translation prompt not found at $TRANSLATE_PROMPT; skipping Japanese version" >&2
-fi
+MATERIALS_DONE=1

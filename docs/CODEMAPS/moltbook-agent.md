@@ -206,9 +206,10 @@ contemplative-agent install-schedule [--interval H] [--session M]
                                      [--watchdog] [--uninstall]
                                      # --weekly-backup: private off-site mirror of MOLTBOOK_HOME
                                      # incl. logs/ (scripts/backup-runtime.sh; excludes credentials.json)
-                                     # --weekly-pipeline: unattended chain (ADR-0085; report → diagnosis
-                                     # → fix → insight review → decision packet). Runs weekly-analysis.sh
-                                     # as its own Stage 1 — mutually exclusive with --weekly-analysis.
+                                     # --weekly-pipeline: unattended chain (ADR-0085/0098; materials →
+                                     # one /weekly-report session (report + diagnosis + candidate
+                                     # filing) → instrument scans). Runs weekly-analysis.sh as its
+                                     # materials collector — mutually exclusive with --weekly-analysis.
                                      # --watchdog: pure-bash artifact-deadline checks (scripts/
                                      # pipeline_watchdog.sh) → reports/PIPELINE-STATUS.md + notifications
 
@@ -234,7 +235,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 
 **Experimental**: meditation_interpret
 
-**Script-read (NOT lazy-loaded via `core/prompts.py`)**: `weekly-analysis.md`, `weekly-analysis-ja.md`, `principles.md` live in `config/prompts/` but are embedded by `scripts/weekly-analysis.sh` (the `claude -p` weekly pipeline; `-ja` drives the best-effort Japanese translation pass via `--model sonnet`), not by the agent's prompt loader (ADR-0040). The same script embeds four deterministic intakes rendered by `scripts/`: `log_anomaly_sweep.py`, `state_invariant_check.py`, `cross_day_duplicate_scan.py`, `api_drift_scan.py`; a fifth (`dead_code_scan.py`, T-DEADCODE-INTAKE) and a sixth (`value_layer_due_check.py`, the ADR-0091 value-layer cadence reading — which since ADR-0097 also owns the rules-layer maintenance reading behind `--rules-dir`, the LLM generators having been retired) run in `weekly-pipeline.sh` itself and feed the decision packet directly. Separate from all of these are two **operator-run** read-only instruments that no schedule invokes — `scripts/coselection_families.py` (co-selection sibling / sub-case pairs and family any-of rates, ADR-0097 D5/D7) and `scripts/retrieval_recall_measure.py` (offline lexical / cosine / RRF-union recall@k against reviewer-named covering skills, ADR-0097 D6); the author runs them and reads the numbers (see [architecture.md § weekly-analysis](architecture.md#weekly-analysis--scriptsweekly-analysissh-adr-0040)).
+**Script-read (NOT lazy-loaded via `core/prompts.py`)**: `principles.md` and `weekly-analysis.md` live in `config/prompts/` and feed the materials file `scripts/weekly-analysis.sh` builds for the `/weekly-report` session; `weekly-analysis-ja.md` is that session's Japanese-rendering contract (ADR-0040 / ADR-0098) — none are read by the agent's prompt loader. The collector embeds four deterministic intakes rendered by `scripts/`: `log_anomaly_sweep.py`, `state_invariant_check.py`, `cross_day_duplicate_scan.py`, `api_drift_scan.py`; a fifth (`dead_code_scan.py`, T-DEADCODE-INTAKE) and a sixth (`value_layer_due_check.py`, the ADR-0091 value-layer cadence reading — which since ADR-0097 also owns the rules-layer maintenance reading behind `--rules-dir`) run in `weekly-pipeline.sh` itself and write per-week JSONs the Saturday gate reads directly (the decision-packet builder retired with ADR-0098). Separate from all of these are two **operator-run** read-only instruments that no schedule invokes — `scripts/coselection_families.py` (co-selection sibling / sub-case pairs and family any-of rates, ADR-0097 D5/D7) and `scripts/retrieval_recall_measure.py` (offline lexical / cosine / RRF-union recall@k against reviewer-named covering skills, ADR-0097 D6); the author runs them and reads the numbers (see [architecture.md § weekly-analysis](architecture.md#weekly-analysis--scriptsweekly-analysissh-adr-0040)).
 
 ## LLM Function Surface
 

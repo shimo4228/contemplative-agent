@@ -476,7 +476,7 @@ def _load_audit(path: Path) -> tuple[list[dict], int]:
     try:
         text = path.read_text(encoding="utf-8")
     # UnicodeDecodeError is a ValueError, not an OSError — the same gap that
-    # took build_decision_packet.py down once (2026-07-29 review). A single
+    # took the (since retired) packet builder down once (2026-07-29 review). A single
     # invalid byte must abstain, not traceback.
     except (OSError, UnicodeDecodeError) as exc:
         raise CheckError("AUDIT_UNREADABLE", str(exc)) from exc

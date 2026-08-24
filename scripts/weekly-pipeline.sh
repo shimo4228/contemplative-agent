@@ -1,258 +1,129 @@
 #!/bin/bash
-# Unattended weekly chain (ADR-0085): report → diagnosis → fix → insight
-# review → value-layer due check → dead-code scan → improvement check →
-# decision packet. Human involvement is compressed into the single Saturday
-# gate (/weekly-gate); nothing here commits, pushes, or adopts.
+# Unattended weekly chain (ADR-0085; single-session redesign 2026-08-24):
+# materials → ONE claude session (/weekly-report: A-E synthesis + ja + diagnosis
+# + candidate task filing) → deterministic instruments (value-layer due check,
+# dead-code scan, docs-consistency scan, never-selected reading) → spawn
+# recording. Human involvement stays compressed into the Saturday gate
+# (/weekly-gate, which now reads the findings and instrument JSONs directly —
+# the decision-packet builder is retired); repairs are NOT made here: the
+# session files candidates into .notes/tasks/ and the task-triage loop
+# (Sat 14:07 tick) judges and dispatches them. Nothing here commits, pushes,
+# or adopts.
 #
-# Fail-forward: every stage failure becomes a reason code in the audit log
-# and the run continues to the packet, which is always attempted. The one
-# exception is Stage 1 (report): with no report there is no input for
-# anything downstream, so the run aborts (the watchdog catches the missing
-# packet). Iteration bounds and the wall-clock deadline are hard stops.
+# Fail-forward: every stage failure becomes a reason code in the audit log and
+# the run continues. The one hard requirement is the report: with no complete
+# A-E report there is no observation to gate on, so the run aborts (the
+# watchdog catches the missing report).
 #
 # Usage:
 #   ./scripts/weekly-pipeline.sh                       # full chain, yesterday-ending week
 #   ./scripts/weekly-pipeline.sh --end-date 2026-07-24 # explicit week
 #   ./scripts/weekly-pipeline.sh --skip-report --end-date 2026-07-24
-#                                                      # dry-run stages 2+ on an existing report
-#   MOLTBOOK_PIPELINE_STAGES=report,diagnosis,insight,packet ./scripts/weekly-pipeline.sh
-#                                                      # shadow mode: no fix stage
+#                                                      # instruments only, existing report
+#   MOLTBOOK_PIPELINE_STAGES=report ./scripts/weekly-pipeline.sh
 set -uo pipefail
 
 # --- Config ---
 MOLTBOOK_HOME="${MOLTBOOK_HOME:-$HOME/.config/moltbook}"
-# Stage 2 interpolates this into permission rules, so its shape is load-bearing
-# in two ways the rest of the script does not care about (same reason END_DATE
-# gets a shape check below):
-#
-#   absolute — the rules are built by prefixing `/` to reach the `//absolute`
-#     form. A RELATIVE value renders them single-slash = project-root-anchored,
-#     where the allow rule grants nothing (loud: the stage fails) but the deny
-#     rules protect nothing (silent). A trailing slash is harmless to anchoring
-#     (`//home//reports` still reads as absolute) and is trimmed only so the
-#     rendered rules stay legible.
+# The weekly session interpolates this into permission rules, so its shape is
+# load-bearing (same reason END_DATE gets a shape check below):
+#   absolute — rules are built by prefixing `/` to reach the `//absolute` form;
+#     a relative value renders them project-root-anchored, where the allow rule
+#     grants nothing (loud) but the deny rules protect nothing (silent).
 #   no permission-spec metacharacters — `,` splits one rule into two malformed
-#     ones, `()[]*?` reshape the glob, and `\` is consumed as a glob escape
-#     (measured: a deny rule over a path containing `\` matched nothing while
-#     the allow rule still matched — the exact "looks correct, protects
-#     nothing" failure this guard exists to prevent). All are legal in a path.
-#     Stated as an ALLOWLIST, for the same reason the test module rejects
-#     blocklists of tool names: a blocklist silently admits whichever
-#     metacharacter the matcher grows next.
+#     ones, `()[]*?` reshape the glob, `\` is consumed as a glob escape
+#     (measured 2026-08: a deny over a path containing `\` matched nothing
+#     while the allow still matched). Stated as an ALLOWLIST.
 MOLTBOOK_HOME="${MOLTBOOK_HOME%/}"
 if [[ "$MOLTBOOK_HOME" != /* ]]; then
     echo "ERROR: MOLTBOOK_HOME must be an absolute path (got: $MOLTBOOK_HOME)" >&2
     exit 1
 fi
 if ! [[ "$MOLTBOOK_HOME" =~ ^[A-Za-z0-9._/@+-]+$ ]]; then
-    echo "ERROR: MOLTBOOK_HOME may only contain [A-Za-z0-9._/@+-] — stage 2 builds" >&2
-    echo "       tool-permission rules from it, and any other character can" >&2
-    echo "       silently reshape a rule into one that protects nothing" >&2
-    echo "       (got: $MOLTBOOK_HOME)" >&2
+    echo "ERROR: MOLTBOOK_HOME may only contain [A-Za-z0-9._/@+-] — the weekly" >&2
+    echo "       session builds tool-permission rules from it, and any other" >&2
+    echo "       character can silently reshape a rule into one that protects" >&2
+    echo "       nothing (got: $MOLTBOOK_HOME)" >&2
     exit 1
 fi
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
-# Same reason as weekly-analysis.sh: `--setting-sources project` resolves
-# "project" against the CWD, so every session's isolation below depends on
-# where this script was started. The plist pins WorkingDirectory, a hand-run
-# backfill does not, and from $HOME "project" IS the operator's user settings
-# file — the flag silently becomes a no-op. Stage 4 still cd's into its
-# worktree; this only fixes the starting point (2026-08-16 security review).
+# `--setting-sources project` resolves "project" against the CWD, so the
+# session's isolation below depends on where this script was started. The
+# plist pins WorkingDirectory; a hand-run backfill does not, and from $HOME
+# "project" IS the operator's user settings file — the flag silently becomes
+# a no-op (2026-08-16 security review).
 cd "$PROJECT_ROOT" || { echo "ERROR: cannot cd to PROJECT_ROOT: $PROJECT_ROOT" >&2; exit 1; }
+# Same allowlist shape check as MOLTBOOK_HOME, same reason: the weekly
+# session's Edit rule over .notes/tasks/ is built from this path.
+if ! [[ "$PROJECT_ROOT" =~ ^[A-Za-z0-9._/@+-]+$ ]]; then
+    echo "ERROR: PROJECT_ROOT contains permission-spec metacharacters: $PROJECT_ROOT" >&2
+    exit 1
+fi
 SCRIPTS="$PROJECT_ROOT/scripts"
-PROMPTS="$PROJECT_ROOT/config/prompts"
 REPORT_DIR="$MOLTBOOK_HOME/reports/analysis"
 STAGED_DIR="$MOLTBOOK_HOME/.staged"
 AUDIT="$MOLTBOOK_HOME/logs/weekly-pipeline-audit.jsonl"
-METRICS="$MOLTBOOK_HOME/logs/pipeline-metrics.jsonl"
-WORKTREE_ROOT="$MOLTBOOK_HOME/pipeline/worktrees"
+# pipeline-metrics.jsonl is now written only by the Saturday gate
+# (weekly-gate Step 7 via pipeline_audit.py); the chain no longer appends to it.
+# Overridable for tests only: the fault column must be able to point the
+# filing seam at a sandbox store and a stub claims recorder without touching
+# the real ledger (.notes/claims.jsonl is append-only history).
+TASKS_DIR="${PIPELINE_TASKS_DIR:-$PROJECT_ROOT/.notes/tasks}"
+CLAIMS_PY="${PIPELINE_CLAIMS_PY:-$HOME/.claude/scripts/claims.py}"
+# Same shape check as MOLTBOOK_HOME / PROJECT_ROOT, same reason: TASKS_DIR is
+# interpolated into the session's Edit rule (2026-08-24 security review LOW).
+if [[ "$TASKS_DIR" != /* ]] || ! [[ "$TASKS_DIR" =~ ^[A-Za-z0-9._/@+-]+$ ]]; then
+    echo "ERROR: TASKS_DIR must be absolute and free of permission-spec metacharacters (got: $TASKS_DIR)" >&2
+    exit 1
+fi
 
-# --- Per-session permission denies (T-CHAIN-PERM-SWEEP, 2026-08-15) ---------
-# Six mechanics decide how a `claude -p` session is bounded. The first three
-# were verified for stage 2 (T-DIAG-WRITE-SCOPE); the rest were found while
-# converting the remaining four sites. All were checked against the real
-# binary, not read from docs:
+# --- Session permission scope (T-CHAIN-PERM-SWEEP, 2026-08-15; redesigned
+# --- to ONE unattended session 2026-08-24) -----------------------------------
+# The chain now starts exactly one `claude -p` session. The six mechanics that
+# decide how such a session is bounded were verified against the real binary
+# (T-CHAIN-PERM-SWEEP; full text in git history of this file at 4f53259):
+#   1. --allowedTools only ADDS; the ambient settings allow rules are consulted
+#      before the permission mode.
+#   2. Only DENY rules outrank both.
+#   3. File writes are gated by Edit(...) rules, which cover every file-editing
+#      tool including Write.
+#   4. The Bash tool statically refuses `>` redirection outside the session's
+#      working directories; what still writes are commands with FLAGS
+#      (tee, cp, git log --output, sed -i, curl -o).
+#   5. Denying `Bash` denies the NAME, not the capability — Monitor / Agent /
+#      Workflow / CronCreate reach a shell anyway. `--tools` (the allowlist
+#      over the built-in tool SET) removes them structurally;
+#      `--strict-mcp-config` with no --mcp-config does the same for MCP.
+#   6. A Bash deny list cannot be completed while the ambient allow list is
+#      loaded (`Bash(uv:*)` is a universal wrapper). `--setting-sources
+#      project` drops the user layer — 106 allow rules, hooks,
+#      additionalDirectories — and keeps auth.
 #
-# 1. --allowedTools only ADDS. It narrows neither the ambient permission mode
-#    nor the settings-file allow rules, and those rules are consulted BEFORE
-#    the mode. The operator's ~/.claude/settings.json carries 106 allow rules
-#    and zero denies, so every session inherits git/tee/cp/curl/claude/…
-#    regardless of what --allowedTools says.
-# 2. Only DENY rules outrank both. A narrow deny beats a broad ambient allow:
-#    with `Bash(uv:*)` allowed ambiently, `Bash(uv run python:*)` in the deny
-#    list still refuses `uv run python -c ...` while `uv run pytest` passes.
-# 3. File writes are gated by Edit(...) rules only, and those rules cover
-#    every file-editing tool including Write — the CLI prints this itself
-#    when handed a Write(...) pattern. The stage 4 grant that used to carry
-#    `Write(./**)` alongside `Edit(./**)` was therefore inert, and dropping
-#    it changes nothing but the warning in the fix log.
-# 4. The Bash tool statically parses `>` redirection targets and refuses any
-#    outside the session's working directories, independent of the permission
-#    rules. So a narrow prefix allow is NOT an arbitrary-write primitive via
-#    redirection. What still is: commands that write via FLAGS, which the
-#    parser cannot see — `git log --output=`, `tee`, `cp`, `sed -i`,
-#    `curl -o`. Those are what the deny lists below name.
-# 5. Denying `Bash` denies the NAME, not the capability. Several other tools
-#    reach a shell, and a session that has lost Bash still holds them:
-#    `Monitor` runs its `command` field in the same shell (verified — it
-#    created a file with Bash denied), `Agent`/`Workflow` dispatch subagents
-#    whose own definitions carry Bash, `CronCreate`/`RemoteTrigger` schedule
-#    runs, and every configured MCP server is live (Gmail send, Drive write,
-#    HF upload, browser automation). Enumerating those in a deny list is a
-#    losing game — a new tool name reopens the hole silently.
-#    `--tools` is the allowlist that closes it structurally: it bounds the
-#    available built-in tool SET, so the indirect executors are simply not
-#    there. `--strict-mcp-config` with no `--mcp-config` does the same for
-#    MCP. The deny lists are kept underneath as defence in depth and because
-#    they express what `--tools` cannot: per-path Read scoping and Bash
-#    command prefixes.
-# 6. A Bash deny list cannot be completed at all while the ambient allow list
-#    is loaded, because `Bash(uv:*)` is a universal wrapper: with `tee` in the
-#    deny list, `echo x | uv run --no-project -- tee <any absolute path>` was
-#    PERMITTED and wrote the file. `uv` cannot be denied — this stage's Verify
-#    runs `uv run pytest`. Prefixes are brittle the same way (`uv run python`
-#    denied, `uv run python3` and `uv run --no-project python` permitted).
-#    `--setting-sources project` is the fix, and unlike an isolated
-#    CLAUDE_CONFIG_DIR it needs no credential provisioning: it keeps auth and
-#    simply does not load the user layer — 106 allow rules, the `hooks` block,
-#    and `additionalDirectories`, which had silently made three unrelated
-#    projects (g-kentei-ios, zenn-content, Ableton preferences) working
-#    directories of every unattended session. `local` goes with it, which
-#    matters: `.claude/settings.local.json` grants `Bash(python3 -)`.
-#    In a fresh worktree the CLI also reports the workspace as untrusted and
-#    ignores even the project allow list, so stage 4 ends up bounded by its
-#    own `--allowedTools` alone. Cost: the user `hooks` stop firing, including
-#    `block-episode-logs-grep.sh` — replaced below by explicit Read denies on
-#    stage 2, the one session holding --add-dir over those logs.
+# The weekly session reads the materials file (which embeds other agents'
+# post bodies inside a nonce frame — untrusted), synthesizes the report,
+# diagnoses it, and files candidate tasks. It holds NO Bash: everything it
+# writes goes through Edit/Write under the exact-path rules below, and the
+# claims.jsonl spawn recording is done deterministically by this script from
+# the .notes/tasks/ file diff (the session cannot append to the claims log).
 #
-# READONLY_DENY is for the three sessions whose whole job is to read and emit
-# text (fix review, insight review, improvement proposal). They are handed
-# their input inline or on stdin, reference no network source, and never
-# write — so Bash goes wholesale, exactly as in stage 2. credentials.json and
-# the raw episode logs are denied to the Read tool by name because --add-dir
-# bounds the workspace, not Read: without this, any session can read the
-# 2026-08 prompt-injection channel (CLAUDE.md security policy) whether or not
-# it was granted the directory.
-# Tool SETS (mechanic 5). Every session below also passes --strict-mcp-config
-# with no --mcp-config, which drops all MCP servers.
-#
-# A name the CLI does not recognise is discarded in SILENCE — measured
-# 2026-08-15: `--tools "Read,Glob,Grep,Edit,Skill,Bogus"` started on a zero
-# exit and the session enumerated only the five real ones. Case counts as much
-# as spelling (`read` is dropped like `Bogus`). So a renamed built-in shrinks a
-# session with no error path: without Write, stage 2 cannot author its findings
-# (DIAGNOSIS_FAIL); without Edit, stage 4 exports an empty patch. C-SCOPE-8 in
-# tests/test_weekly_pipeline_session_scope_shell.py is the alarm — it asks the
-# real CLI which of these names it honours and fails on any that vanished.
-#
-# One value fails OPEN and belongs in the same breath: `--tools "default"` is
-# not "the tools I named", it is the WHOLE built-in set. Measured 2026-08-15
-# against this file's own spelling (--setting-sources project, --permission-mode
-# manual): 21 tools, among them Bash, Task, Workflow, CronCreate, ScheduleWakeup,
-# SendMessage, EnterWorktree, WebFetch and WebSearch — i.e. exactly the indirect
-# executors mechanic 5 removes. (`--tools ""` is the other end and resolves to
-# nothing.) It fails open ONLY as a spec's sole value: `--tools "Read,default"`
-# resolves to `['Read']`, so `default` in company is discarded like any unknown
-# name. Never reach for it to "fix" a session that seems short of a tool; name
-# the tool. C-SCOPE-8 asserts the gain direction per set, so this is caught.
-READONLY_TOOLS="Read,Glob,Grep"
-FIX_TOOLS="Read,Glob,Grep,Edit,Write,Bash"
-# Stage 2 is driven by a slash command, so it keeps Skill. Write is in the SET
-# because the findings files it authors do not exist yet and Edit only modifies
-# an existing file — but Write is not separately *granted*: its permission
-# comes from the two exact-file Edit rules, which by mechanic 3 cover every
-# file-editing tool. Leaving Write out would have left the stage unable to
-# produce fresh findings while every focused test still passed, because the
-# shell test's stub writes the files itself (cross-model review 2026-08-15).
-DIAG_TOOLS="Read,Glob,Grep,Edit,Write,Skill"
+# A name the CLI does not recognise in --tools is discarded in SILENCE
+# (measured 2026-08-15), so a renamed built-in shrinks the session with no
+# error path. C-SCOPE-8 in tests/test_weekly_pipeline_session_scope_shell.py
+# asks the real CLI which names it honours. `--tools "default"` as a sole
+# value fails OPEN to the whole built-in set — never reach for it.
+WEEKLY_TOOLS="Read,Glob,Grep,Edit,Write,Skill"
 
-READONLY_DENY="Bash,WebFetch,WebSearch,NotebookEdit,Edit,Write"
-READONLY_DENY="$READONLY_DENY,Read(/$MOLTBOOK_HOME/credentials.json)"
-READONLY_DENY="$READONLY_DENY,Read(/$MOLTBOOK_HOME/logs/**)"
-
-# FIX_DENY is for the one session that must write (stage 4, inside a throwaway
-# worktree). Read what it is NOT first: this stage is NOT contained by
-# permission rules and cannot be. Bash cannot go wholesale — Verify runs
-# inside the session — and `uv run pytest` collects `tests/test_*.py` that
-# this same session just authored from untrusted finding text, so the session
-# holds arbitrary in-process code execution by construction: sockets,
-# `os.rename` outside the worktree, `subprocess`. A command-prefix denylist
-# cannot bound a session that executes code it wrote. Containment here rests
-# on the throwaway worktree (nothing merges from it), the exported patch, and
-# the Saturday human gate — not on this list. Durable containment needs
-# process-level sandboxing (code review 2026-08-15 HIGH; the same overclaim
-# the old stage-2 C1 comment made and this file has now made twice).
-#
-# What the list IS: hygiene, removing ambient grants the stage has no use for
-# so the easy paths are shut, in three groups:
-#   flag-writers that defeat mechanic 4 (git --output, tee, cp, mv, ln, touch,
-#     mkdir, sed -i, patch, zip/unzip, xxd -r, plutil);
-#   egress, which matters because the finding text this session is handed is
-#     untrusted (curl, wget, gh, rclone, open/code/zed, WebFetch, WebSearch);
-#   privilege and control-plane reach (security = macOS keychain, launchctl =
-#     the schedule that runs this chain, pkill = the watchdog, claude = an
-#     unbounded child session, and the ~/.claude script/hook runners).
-# `uv run python:*` is denied specifically: ambient `Bash(uv:*)` re-grants the
-# generic `uv run` this stage's allow list deliberately withheld, and
-# `uv run python -c ...` is arbitrary code execution. `git` goes entirely —
-# `git log --output=<path> --format=tformat:<content>` forges audit.jsonl,
-# which ADR-0091 made the control input for the identity-due read.
-FIX_DENY="WebFetch,WebSearch,NotebookEdit"
-FIX_DENY="$FIX_DENY,Bash(git:*),Bash(gh:*),Bash(tee:*),Bash(cp:*),Bash(mv:*)"
-FIX_DENY="$FIX_DENY,Bash(ln:*),Bash(touch:*),Bash(mkdir:*),Bash(sed:*),Bash(awk:*)"
-FIX_DENY="$FIX_DENY,Bash(patch:*),Bash(zip:*),Bash(unzip:*),Bash(xxd:*),Bash(plutil:*)"
-FIX_DENY="$FIX_DENY,Bash(curl:*),Bash(wget:*),Bash(rclone:*),Bash(open:*),Bash(code:*),Bash(zed:*)"
-FIX_DENY="$FIX_DENY,Bash(security:*),Bash(launchctl:*),Bash(pkill:*),Bash(claude:*)"
-FIX_DENY="$FIX_DENY,Bash(uv run python:*),Bash(uv run sh:*),Bash(uv run bash:*)"
-FIX_DENY="$FIX_DENY,Bash(uv pip:*),Bash(uvx:*),Bash(.venv/bin/*:*)"
-# Package managers are egress plus install-time code execution; `find -exec`
-# is both an executor and a flag-writer; `pre-commit` runs hooks from a
-# repo-local config this very session can write (code review 2026-08-15).
-FIX_DENY="$FIX_DENY,Bash(pip:*),Bash(pip3:*),Bash(npm:*),Bash(pnpm:*),Bash(brew:*)"
-FIX_DENY="$FIX_DENY,Bash(find:*),Bash(pre-commit:*),Bash(swift:*),Bash(xcrun:*),Bash(xcodebuild:*)"
-FIX_DENY="$FIX_DENY,Bash(bash ~/.claude/hooks/:*),Bash(bash ~/.claude/scripts/:*)"
-FIX_DENY="$FIX_DENY,Bash(bash ~/.claude/tests/:*),Bash(python3 ~/.claude/skills/:*)"
-FIX_DENY="$FIX_DENY,Bash(python3 scripts/hooks/:*)"
-FIX_DENY="$FIX_DENY,Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/logs/**)"
-# Named subtrees, NOT `Edit(/$MOLTBOOK_HOME/**)`: $WORKTREE_ROOT lives at
-# $MOLTBOOK_HOME/pipeline/worktrees, so the blanket form denied the fix
-# session its own working tree — deny outranks `Edit(./**)`, so every fix
-# attempt would have failed while the permission tests still passed
-# (cross-model review 2026-08-15). These are the value layer and the control
-# inputs; `pipeline/` is deliberately absent.
-FIX_DENY="$FIX_DENY,Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**)"
-FIX_DENY="$FIX_DENY,Edit(/$MOLTBOOK_HOME/skills/**),Edit(/$MOLTBOOK_HOME/rules/**)"
-FIX_DENY="$FIX_DENY,Edit(/$MOLTBOOK_HOME/constitution/**),Edit(/$MOLTBOOK_HOME/identity.md)"
-FIX_DENY="$FIX_DENY,Edit(/$MOLTBOOK_HOME/knowledge.json),Edit(/$MOLTBOOK_HOME/credentials.json)"
-FIX_DENY="$FIX_DENY,Edit(/$MOLTBOOK_HOME/reports/**),Edit(/$MOLTBOOK_HOME/views/**)"
-# With mechanic 6 in force the ambient list is no longer loaded, so the deny
-# entries above are hygiene rather than the boundary: the boundary is
-# `--tools` plus each invocation's own `--allowedTools`. They are kept because
-# they cost nothing and they still bind if a future change re-admits the user
-# layer. What is NOT closed: stage 4 runs `uv run pytest`, which imports test
-# files that session just wrote, so it holds arbitrary in-process code
-# execution regardless of any list. Containment there is the throwaway
-# worktree, the exported patch, and the Saturday human gate.
-
-# Iteration bounds (ADR-0085; all overridable for tests)
-MAX_FIX_ATTEMPTS="${PIPELINE_MAX_FIX_ATTEMPTS:-2}"
-MAX_FIX_TARGETS="${PIPELINE_MAX_FIX_TARGETS:-5}"
-# CONCERNS-driven re-entry fix sessions per finding (T-PIPELINE-REVIEWLOOP);
-# reviews run at most MAX_REVIEW_ROUNDS+1 times. Orthogonal to
-# MAX_FIX_ATTEMPTS, which bounds Verify retries within one round.
-MAX_REVIEW_ROUNDS="${PIPELINE_MAX_REVIEW_ROUNDS:-1}"
-DIAGNOSIS_TIMEOUT="${PIPELINE_DIAGNOSIS_TIMEOUT:-1800}"
-FIX_TIMEOUT="${PIPELINE_FIX_TIMEOUT:-1200}"
-VERIFY_TIMEOUT="${PIPELINE_VERIFY_TIMEOUT:-900}"
-REVIEW_TIMEOUT="${PIPELINE_REVIEW_TIMEOUT:-600}"
-INSIGHT_TIMEOUT="${PIPELINE_INSIGHT_TIMEOUT:-900}"
-IMPROVE_TIMEOUT="${PIPELINE_IMPROVE_TIMEOUT:-900}"
+# Timeouts. The weekly session does the work of the former report (45min cap)
+# + translation (15min) + diagnosis (30min) sessions in one; 90 min total is
+# a hang detector, not a budget (the three-session chain measured 18-20 min
+# end to end on real runs).
+WEEKLY_TIMEOUT="${PIPELINE_WEEKLY_TIMEOUT:-5400}"
 DEADCODE_TIMEOUT="${PIPELINE_DEADCODE_TIMEOUT:-300}"
 DOCSCAN_TIMEOUT="${PIPELINE_DOCSCAN_TIMEOUT:-180}"
 IDENTITY_TIMEOUT="${PIPELINE_IDENTITY_TIMEOUT:-900}"
 CHAIN_DEADLINE_SECONDS="${PIPELINE_DEADLINE_SECONDS:-10800}"   # 09:00 → 12:00
 
-STAGES="${MOLTBOOK_PIPELINE_STAGES:-report,diagnosis,fix,insight,valuelayer,deadcode,docsscan,improve,packet}"
+STAGES="${MOLTBOOK_PIPELINE_STAGES:-report,valuelayer,deadcode,docsscan}"
 
 END_DATE=""
 DAYS=7
@@ -268,9 +139,13 @@ while [[ $# -gt 0 ]]; do
         *) echo "Unknown option: $1" >&2; exit 1 ;;
     esac
 done
-[[ -z "$END_DATE" ]] && END_DATE=$(date -v-1d +%Y-%m-%d)
-# END_DATE flows into artifact paths and the value-layer --as-of; validate
-# the shape once here for every consumer (2026-08-10 security review L5).
+# Captured once and reused by the identity live-run guard below: a run started
+# just before midnight would otherwise default END_DATE off one "yesterday" and
+# compare against another.
+YESTERDAY=$(date -v-1d +%Y-%m-%d)
+[[ -z "$END_DATE" ]] && END_DATE="$YESTERDAY"
+# END_DATE flows into artifact paths, permission rules and the value-layer
+# --as-of; validate the shape once for every consumer.
 if ! [[ "$END_DATE" =~ ^[0-9]{4}-[0-9]{2}-[0-9]{2}$ ]]; then
     echo "ERROR: --end-date must be YYYY-MM-DD (got: $END_DATE)" >&2
     exit 1
@@ -278,27 +153,32 @@ fi
 
 RUN_ID="weekly-${END_DATE}-$(date +%H%M%S)"
 RUN_LOG_DIR="$MOLTBOOK_HOME/logs/weekly-pipeline/$RUN_ID"
-PATCH_DIR="$REPORT_DIR/patches/weekly-$END_DATE/code"
-PROMPT_PATCH_DIR="$REPORT_DIR/patches/weekly-$END_DATE/prompt"
+MATERIALS="$RUN_LOG_DIR/materials.md"
+# The session writes into reports/.private/ (excluded from the public
+# sync-research-data rsync) and the chain promotes to the canonical paths only
+# after the structural gate below — the tmp -> check -> promote order the old
+# report generator had, restored at the pipeline seam (2026-08-24 security
+# review MEDIUM: a truncated or injected report must never sit on a path the
+# public sync or next week's PREV_REPORTS glob can pick up).
+PRIVATE_DIR="$MOLTBOOK_HOME/reports/.private"
+# Per-run task staging: the session files candidates HERE, never into the
+# live store — the store supports concurrent sessions, so live-store writes
+# plus a directory diff would misattribute concurrent filings and let a
+# steered session clobber owner-written tasks (codex review 2026-08-24 P1).
+# The chain validates and moves staged candidates after the report gate.
+PRIVATE_TASKS="$PRIVATE_DIR/tasks-$END_DATE"
 REPORT_PATH="$REPORT_DIR/weekly-${END_DATE}.md"
+REPORT_JA="$REPORT_DIR/weekly-${END_DATE}.ja.md"
 FINDINGS_MD="$REPORT_DIR/weekly-${END_DATE}-findings.md"
-FINDINGS_JSON="$RUN_LOG_DIR/findings.json"
-INSIGHT_REVIEW="$REPORT_DIR/weekly-${END_DATE}-insight-review.md"
-IMPROVEMENT="$REPORT_DIR/weekly-${END_DATE}-improvement.md"
-PACKET="$REPORT_DIR/weekly-${END_DATE}-packet.md"
+FINDINGS_JA="$REPORT_DIR/weekly-${END_DATE}-findings.ja.md"
 
 START_EPOCH=$(date +%s)
 REASONS=""          # accumulated reason codes (comma separated)
-IMPROVEMENT_ARG=()  # set only when the improvement stage produced a file
 
-mkdir -p "$RUN_LOG_DIR" "$PATCH_DIR" "$PROMPT_PATCH_DIR"
-# Session transcripts and patches can carry sensitive content the sessions
-# saw; keep them owner-only (2026-07-29 security review H2).
-chmod 700 "$RUN_LOG_DIR" "$PATCH_DIR" "$PROMPT_PATCH_DIR" 2>/dev/null || true
-# The patch dirs are keyed by END_DATE, not RUN_ID: a same-week rerun would
-# otherwise present leftovers from a previous attempt as this run's output
-# (2026-07-29 codex review P2). This run owns the week's dirs — clear them.
-rm -f "$PATCH_DIR"/*.patch "$PROMPT_PATCH_DIR"/*.patch 2>/dev/null || true
+mkdir -p "$RUN_LOG_DIR" "$TASKS_DIR"
+# Session transcripts can carry content the session saw; keep them owner-only
+# (2026-07-29 security review H2).
+chmod 700 "$RUN_LOG_DIR" 2>/dev/null || true
 
 # --- Helpers ---
 audit() {  # audit <event> [k=v ...]
@@ -328,23 +208,24 @@ with_timeout() {  # with_timeout <seconds> <cmd...>
     if command -v timeout >/dev/null 2>&1; then
         timeout "$secs" "$@"
     else
-        "$@"   # same degradation as weekly-analysis.sh's translate guard
+        "$@"   # degradation when coreutils is absent from launchd's PATH
     fi
 }
 
-fence_for() {  # fence_for <file> — a backtick fence longer than any run in <file>
-    # Diffs of this very repo contain ``` runs (prompt files, fenced strings in
-    # tests); a hardcoded three-backtick fence would close early and let the
-    # remainder of the embedded content render as prompt text (2026-08-01
-    # security review H1).
-    local longest
-    longest=$(grep -o '`\{1,\}' "$1" 2>/dev/null \
-        | awk '{ if (length($0) > m) m = length($0) } END { print m + 0 }')
-    (( longest < 2 )) && longest=2
-    printf '%.0s`' $(seq 1 $((longest + 1)))
+# The report's machine contract (moved here from weekly-analysis.sh when that
+# script became materials-only): a csv of the absent A-E section headings,
+# empty = complete. Size is not the contract — 2026-08-21 promoted a
+# 37,409-byte report whose A-C were gone. Letter prefix only: heading wording
+# is the model's to vary, the letter is the format's.
+report_missing_parts() {  # report_missing_parts <file>
+    local file="$1" letter missing=""
+    for letter in A B C D E; do
+        grep -q "^## $letter\." "$file" || missing="${missing:+$missing,}$letter"
+    done
+    printf '%s' "$missing"
 }
 
-# --- Preflight (same rationale as weekly-analysis.sh: fail before burning work) ---
+# --- Preflight (fail before burning work) ---
 for bin in claude git uv python3; do
     if ! command -v "$bin" >/dev/null 2>&1; then
         echo "ERROR: '$bin' not found on PATH ($PATH)" >&2
@@ -353,652 +234,254 @@ for bin in claude git uv python3; do
     fi
 done
 
-# Clean up worktree corpses from a crashed previous run before adding new ones.
-git -C "$PROJECT_ROOT" worktree prune >/dev/null 2>&1
-if [[ -d "$WORKTREE_ROOT" ]]; then
-    rm -rf "$WORKTREE_ROOT"
-    git -C "$PROJECT_ROOT" worktree prune >/dev/null 2>&1
-fi
-mkdir -p "$WORKTREE_ROOT"
-
 audit chain_start end_date="$END_DATE" stages="$STAGES"
 echo "[$RUN_ID] chain start (stages: $STAGES)"
 
-# --- Stage 1: report ---
-# **Two more unattended sessions live in there.** weekly-analysis.sh starts its
-# own `claude -p` for the report and another for the ja translation, so the
-# permission mechanics above do not describe the whole chain and the five specs
-# below are not all of it. Those two carried no flags at all until 2026-08-16
-# precisely because this block reads as the complete account
-# (T-WEEKLY-ANALYSIS-SESSION-SCOPE); they are bounded in that file, and
-# C-SCOPE-0 now fails if a script this chain execs is not gated.
+# --- Stage 1: materials + the ONE weekly session ---
+REPORT_RAN=0
 if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
-    echo "[$RUN_ID] stage 1: weekly-analysis"
-    if bash "$SCRIPTS/weekly-analysis.sh" --end-date "$END_DATE" --days "$DAYS" \
-            > "$RUN_LOG_DIR/report.log" 2>&1; then
-        audit stage_result stage=report result=ok
-    else
-        audit stage_result stage=report result=fail reason=REPORT_FAIL
-        echo "ERROR: weekly-analysis failed — no input for downstream stages, aborting" >&2
-        echo "       (see $RUN_LOG_DIR/report.log; the watchdog reports the missing packet)" >&2
+    REPORT_RAN=1
+    echo "[$RUN_ID] stage 1a: materials (weekly-analysis.sh)"
+    # Leftover pendings from an earlier aborted run must not survive into this
+    # one: with deterministic pending names a stale snapshot could otherwise
+    # be promoted as this week's baseline if today's producer fails and emits
+    # none (2026-08-24 security review MEDIUM — this rm is the "preamble
+    # removes leftovers" weekly-analysis.sh's state discipline relies on).
+    rm -f "$REPORT_DIR"/.anomaly-sweep-state.pending* \
+          "$REPORT_DIR"/.api-drift-state.pending* \
+          "$REPORT_DIR"/.approval-join-state.pending*
+    mkdir -p "$PRIVATE_DIR" "$PRIVATE_TASKS"
+    chmod 700 "$PRIVATE_DIR" 2>/dev/null || true
+    rm -f "$PRIVATE_DIR"/weekly-"$END_DATE"*.md "$PRIVATE_TASKS"/*.md
+    if ! bash "$SCRIPTS/weekly-analysis.sh" --end-date "$END_DATE" --days "$DAYS" \
+            --out "$MATERIALS" > "$RUN_LOG_DIR/materials.log" 2>&1; then
+        audit stage_result stage=materials result=fail reason=MATERIALS_FAIL
+        echo "ERROR: materials collection failed — no input for the weekly session, aborting" >&2
+        echo "       (see $RUN_LOG_DIR/materials.log; the watchdog reports the missing report)" >&2
         exit 1
+    fi
+    audit stage_result stage=materials result=ok
+
+    if deadline_exceeded; then
+        add_reason CHAIN_DEADLINE
+        audit stage_result stage=report result=skipped reason=CHAIN_DEADLINE
+    else
+        echo "[$RUN_ID] stage 1b: weekly session (/weekly-report)"
+        # --add-dir is scoped to reports/ + logs/ (materials lives under
+        # logs/weekly-pipeline/), NOT $MOLTBOOK_HOME. Do NOT read --add-dir as
+        # a read boundary: it bounds the workspace, not the Read tool
+        # (measured 2026-08-15) — hence the explicit Read denies. This is the
+        # one session holding --add-dir over $MOLTBOOK_HOME/logs, and
+        # `--setting-sources project` drops the user hooks including the
+        # episode-log guard, so the CLAUDE.md ban on the raw episode logs
+        # (the daily per-date JSONL and its .bak — the 2026-08
+        # prompt-injection channel — plus agent-launchd.log) is enforced here
+        # by date-prefixed Read denies, scoped by the year prefix because the
+        # session legitimately reads materials.md and the instrument logs
+        # beside them. Read denies cover Grep too (verified 2026-08-15).
+        #
+        # Write grants (mechanic 3: Edit rules cover Write): everything the
+        # session authors lands in reports/.private/ — the four report/
+        # findings files plus a per-run task staging dir for Phase 4
+        # candidate filing. The session NEVER touches the live task store:
+        # the store supports concurrent sessions (a triage session or the
+        # owner may write it during this 90-min run), so a live-store grant
+        # plus a directory diff both misattributes concurrent filings and
+        # lets a steered session clobber owner-written tasks with no history
+        # to restore from (codex review 2026-08-24 P1). The chain validates
+        # and moves the staged candidates below, deterministically, and the
+        # session holds no Bash — the claims.jsonl spawn append is the
+        # chain's too.
+        #
+        # Read is POSITIVELY scoped (2026-08-24 security review HIGH): this
+        # session reads nonce-framed untrusted post bodies, and its outputs
+        # are published by sync-research-data — a bare Read grant would let an
+        # injected instruction quote any local file (~/.ssh, ~/.aws, tokens)
+        # into a report the next sync pushes to the public data repo. The
+        # allow list names the repo checkout, the analysis dir and the logs
+        # workspace; everything else falls to --permission-mode manual's
+        # refusal. The episode-log denies still outrank the logs allow, and
+        # they are PREFIX-shaped (`20*.jsonl*` — covering .bak,
+        # .pre-cleanup.bak and any future backup convention, the same rule
+        # ~/.claude/hooks/_episode-log-common.sh moved to after the suffix
+        # form was bypassed; 2026-08-24 security review HIGH).
+        if with_timeout "$WEEKLY_TIMEOUT" claude -p "/weekly-report $MATERIALS" \
+            --add-dir "$MOLTBOOK_HOME/reports" \
+            --add-dir "$MOLTBOOK_HOME/logs" \
+            --permission-mode manual \
+            --tools "$WEEKLY_TOOLS" \
+            --strict-mcp-config \
+            --setting-sources project \
+            --allowedTools "Glob,Grep,Read(/$PROJECT_ROOT/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE.ja.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.ja.md),Edit(/$PRIVATE_TASKS/**)" \
+            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/logs/20*.jsonl*),Read(/$MOLTBOOK_HOME/logs/agent-launchd.log*),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$MOLTBOOK_HOME/skills/**),Edit(/$MOLTBOOK_HOME/rules/**),Edit(/$MOLTBOOK_HOME/constitution/**),Edit(/$MOLTBOOK_HOME/identity.md),Edit(/$MOLTBOOK_HOME/knowledge.json)" \
+            --output-format text \
+            > "$RUN_LOG_DIR/weekly-session.log" 2>&1; then
+            audit stage_result stage=report result=ok
+        else
+            audit stage_result stage=report result=fail reason=REPORT_SESSION_FAIL
+        fi
     fi
 else
     audit stage_result stage=report result=skipped
 fi
 
+# Promote the session's outputs from reports/.private/ to the canonical
+# paths — the structural gate runs BEFORE anything reaches a name the public
+# sync or next week's PREV_REPORTS glob can see. A failed week leaves its
+# partial artifacts quarantined in .private/ for inspection, and the previous
+# canonical report untouched.
+if [[ "$REPORT_RAN" -eq 1 ]]; then
+    PRIVATE_REPORT="$PRIVATE_DIR/weekly-${END_DATE}.md"
+    if [[ ! -s "$PRIVATE_REPORT" ]]; then
+        audit stage_result stage=report result=fail reason=REPORT_MISSING
+        echo "ERROR: session produced no report ($PRIVATE_REPORT) — aborting" >&2
+        exit 1
+    fi
+    MISSING_PARTS="$(report_missing_parts "$PRIVATE_REPORT")"
+    if [[ -n "$MISSING_PARTS" ]]; then
+        audit stage_result stage=report result=fail reason=REPORT_INCOMPLETE "missing=$MISSING_PARTS"
+        echo "ERROR: report structurally incomplete (missing: $MISSING_PARTS) —" >&2
+        echo "       quarantined in $PRIVATE_DIR; canonical report untouched. Aborting" >&2
+        exit 1
+    fi
+    mv "$PRIVATE_REPORT" "$REPORT_PATH"
+    if [[ -s "$PRIVATE_DIR/weekly-${END_DATE}.ja.md" ]]; then
+        mv "$PRIVATE_DIR/weekly-${END_DATE}.ja.md" "$REPORT_JA"
+    else
+        add_reason REPORT_JA_MISSING
+    fi
+
+    # Findings are advisory (the repairs travel through the task ledger), so
+    # an incomplete diagnosis is a reason code, not an abort — but an
+    # incomplete findings file stays quarantined rather than promoted.
+    PRIVATE_FINDINGS="$PRIVATE_DIR/weekly-${END_DATE}-findings.md"
+    if [[ ! -s "$PRIVATE_FINDINGS" ]] || ! grep -q '^## Diagnosis Metadata' "$PRIVATE_FINDINGS"; then
+        add_reason DIAGNOSIS_UNAVAILABLE
+        audit stage_result stage=diagnosis result=fail reason=DIAGNOSIS_UNAVAILABLE
+        # A same-week rerun must not leave an EARLIER attempt's findings
+        # standing beside the fresh report — the gate and watchdog would read
+        # them as this run's diagnosis (codex review 2026-08-24 P2).
+        for stale in "$FINDINGS_MD" "$FINDINGS_JA"; do
+            [[ -e "$stale" ]] && mv "$stale" "$PRIVATE_DIR/$(basename "$stale").superseded-$RUN_ID"
+        done
+    else
+        mv "$PRIVATE_FINDINGS" "$FINDINGS_MD"
+        if [[ -s "$PRIVATE_DIR/weekly-${END_DATE}-findings.ja.md" ]]; then
+            mv "$PRIVATE_DIR/weekly-${END_DATE}-findings.ja.md" "$FINDINGS_JA"
+        else
+            add_reason FINDINGS_JA_MISSING
+        fi
+        audit stage_result stage=diagnosis result=ok
+    fi
+fi
+# The canonical report is the chain's hard requirement whether or not the
+# session ran (a --skip-report / partial STAGES rerun keeps -s semantics).
 if [[ ! -s "$REPORT_PATH" ]]; then
     audit stage_result stage=report result=fail reason=REPORT_MISSING
     echo "ERROR: report $REPORT_PATH missing or empty — aborting" >&2
     exit 1
 fi
 
-# --- Stage 2: diagnosis (separate session; the skill writes findings itself) ---
-# Completeness = the file terminates in the skill's mandatory closing section.
-# A bare -s check would adopt a partial file from a timeout-killed previous
-# attempt as a finished diagnosis (2026-07-29 review).
-findings_complete() {
-    [[ -s "$FINDINGS_MD" ]] && grep -q '^## Diagnosis Metadata' "$FINDINGS_MD"
-}
-
-if stage_enabled diagnosis && ! findings_complete; then
-    if [[ -s "$FINDINGS_MD" ]]; then
-        mv "$FINDINGS_MD" "$FINDINGS_MD.incomplete.$$" 2>/dev/null || true
-        audit stage_result stage=diagnosis result=note reason=FINDINGS_INCOMPLETE_REPLACED
-        echo "[$RUN_ID] stage 2: previous findings incomplete — set aside, regenerating"
-    fi
-    if deadline_exceeded; then
-        add_reason CHAIN_DEADLINE
-        audit stage_result stage=diagnosis result=skipped reason=CHAIN_DEADLINE
-    else
-        echo "[$RUN_ID] stage 2: diagnosis"
-        # --add-dir is scoped to reports/ + logs/, NOT $MOLTBOOK_HOME (2026-07-29
-        # security review C2). Keep that scoping, but do NOT read it as a read
-        # boundary: --add-dir bounds the workspace, not the Read tool, and the
-        # ambient bare `Read` allow is consulted before the mode — measured
-        # 2026-08-15, this session read an absolute path outside both added
-        # dirs. credentials.json therefore needs an explicit deny, not a
-        # narrow --add-dir. It matters because the one file this session may
-        # author, reports/analysis/weekly-*-findings.md, is rsynced to the
-        # PUBLIC data repo by sync-research-data.sh (which excludes
-        # credentials.json itself, but not reports/analysis/) — read-then-author
-        # is a laundering path from the key to a published artifact.
-        #
-        # What this session must not reach: ADR-0091 made logs/audit.jsonl the
-        # control input for stage 5b's identity-due read, so a write there
-        # forges the trigger for a later unattended LLM run (2026-08-10 review
-        # M1). Three mechanics, all verified against the real binary
-        # 2026-08-15, decide how that is spelled:
-        #
-        # 1. --allowedTools only ever ADDS. It never narrows the ambient
-        #    permission mode, and it never narrows the settings-file allow
-        #    rules, which are consulted BEFORE the mode. So neither the mode
-        #    nor a short allow list can bound this session on its own: with
-        #    `--permission-mode manual` and no Bash grant at all, the operator's
-        #    ~/.claude/settings.json `Bash(tee:*)` still executed
-        #    `echo … | tee <path>`.
-        # 2. Only DENY rules outrank both the allow rules and the mode. They
-        #    are the sole control here that does not depend on ambient config.
-        # 3. File writes are gated by Edit(...) rules; a Write(...) pattern
-        #    parses but matches nothing (the CLI says so itself).
-        #
-        # Hence: writes are pinned to exactly the two files the skill authors,
-        # and Bash is denied WHOLESALE rather than allow-listed. An allow list
-        # could not have held — the read-only-looking `Bash(git log:*)` grant
-        # this stage used to carry is itself an arbitrary-write primitive
-        # (`git log --output=<any path> --format=tformat:<any content>`), and
-        # ambient rules re-grant `git`, `tee`, `cp`, `ln`, `curl` regardless.
-        # The skill needs no Bash: its reading is Read/Glob/Grep, including the
-        # one episode-log grep in its F1 checklist. Redirection and `&&`
-        # chaining do not defeat a Bash prefix rule (also verified), but that
-        # only matters for sessions that still hold one.
-        #
-        # WebFetch/WebSearch are denied for the same reason and by the same
-        # mechanism: they are ambiently allowed, the skill references no network
-        # source, and this is the one session holding --add-dir over the raw
-        # episode logs — so egress here is an exfiltration path for untrusted
-        # content the session was given to read. (The old C1 comment asserted no
-        # egress surface; that half was false too.)
-        #
-        # The three new Read denies replace machine enforcement this stage used
-        # to inherit: `--setting-sources project` stops the user `hooks` block
-        # from loading, and with it the harness hook that refuses reads of the
-        # raw episode logs. This is the one session holding --add-dir over
-        # $MOLTBOOK_HOME/logs, so the CLAUDE.md ban on those files (the daily
-        # per-date JSONL and its .bak — the 2026-08 prompt-injection channel —
-        # plus agent-launchd.log) needs a rule here instead. Scoped by the
-        # year prefix rather than the whole directory, because the skill
-        # legitimately reads audit.jsonl and the instrument logs alongside
-        # them and no non-episode file there starts with a year. Read denies
-        # cover the Grep tool too (verified, 2026-08-15 security review).
-        #
-        # The Edit deny rules below are redundancy for the Edit face only —
-        # they do NOT gate Bash. The other four claude -p sites were converted
-        # in T-CHAIN-PERM-SWEEP (2026-08-15), which also found two mechanics
-        # this stage's original three did not cover (both recorded in full at
-        # the top of this file). The second of them corrects a claim that used
-        # to live here: denying `Bash` denies the NAME, not the capability —
-        # `Monitor` runs its `command` field in the same shell and was
-        # verified writing a file with `Bash` in the deny list, and
-        # `Agent`/`Workflow`/`CronCreate` plus every MCP server were likewise
-        # still live. So this stage now carries `--tools "$DIAG_TOOLS"` and
-        # `--strict-mcp-config` as well; the tool-set allowlist, not the deny
-        # list, is what actually removes the indirect executors. It keeps its
-        # own allow/deny spelling because it is the only session whose Edit
-        # grant names two exact files.
-        with_timeout "$DIAGNOSIS_TIMEOUT" claude -p "/weekly-report-diagnosis $REPORT_PATH" \
-            --add-dir "$MOLTBOOK_HOME/reports" \
-            --add-dir "$MOLTBOOK_HOME/logs" \
-            --permission-mode manual \
-            --tools "$DIAG_TOOLS" \
-            --strict-mcp-config \
-            --setting-sources project \
-            --allowedTools "Read,Glob,Grep,Edit(/$REPORT_DIR/weekly-$END_DATE-findings.md),Edit(/$REPORT_DIR/weekly-$END_DATE-findings.ja.md)" \
-            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/logs/20*.jsonl),Read(/$MOLTBOOK_HOME/logs/20*.jsonl.bak),Read(/$MOLTBOOK_HOME/logs/agent-launchd.log),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$REPORT_DIR/patches/**),Edit(/$REPORT_DIR/weekly-$END_DATE-packet.md),Edit(/$REPORT_DIR/weekly-$END_DATE-insight-review.md),Edit(/$REPORT_DIR/weekly-$END_DATE.md)" \
-            --output-format text \
-            > "$RUN_LOG_DIR/diagnosis.log" 2>&1
-        diag_rc=$?
-        if [[ $diag_rc -eq 0 && -s "$FINDINGS_MD" ]]; then
-            audit stage_result stage=diagnosis result=ok
-        else
-            add_reason DIAGNOSIS_FAIL
-            audit stage_result stage=diagnosis result=fail reason=DIAGNOSIS_FAIL "rc=$diag_rc"
-            echo "WARNING: diagnosis failed (rc=$diag_rc) — continuing to packet" >&2
+# --- Promote the intake baselines (only now that a complete report exists) ---
+# weekly-analysis.sh emits these aside (deterministic .pending paths, no PID);
+# spending a baseline on a week whose report never landed would mean that
+# week's novelty/drift was observed by nobody. -e, not -s: a clean sweep
+# legitimately emits an empty snapshot, and that is a real baseline. Guarded
+# on REPORT_RAN so a --skip-report rerun never promotes a leftover pending
+# from an earlier aborted run.
+SWEEP_STATE="$REPORT_DIR/.anomaly-sweep-state.tsv"
+SWEEP_PENDING="$REPORT_DIR/.anomaly-sweep-state.pending"
+SWEEP_CORPUS="$SWEEP_STATE.corpus.tsv"
+SWEEP_PENDING_CORPUS="$SWEEP_PENDING.corpus.tsv"
+DRIFT_STATE="$REPORT_DIR/.api-drift-state.tsv"
+DRIFT_PENDING="$REPORT_DIR/.api-drift-state.pending"
+JOIN_STATE="$REPORT_DIR/.approval-join-state.json"
+JOIN_PENDING="$REPORT_DIR/.approval-join-state.pending"
+if [[ "$REPORT_RAN" -eq 1 ]]; then
+if [[ -e "$SWEEP_PENDING" ]]; then
+    if mv "$SWEEP_PENDING" "$SWEEP_STATE"; then
+        echo "[$RUN_ID] anomaly sweep state committed"
+        # The census travels in lockstep with the snapshot — it is the
+        # snapshot's measurement basis; a stale census beside fresh counts
+        # would assert a corpus comparison that never happened.
+        if ! { [[ -e "$SWEEP_PENDING_CORPUS" ]] && mv "$SWEEP_PENDING_CORPUS" "$SWEEP_CORPUS"; }; then
+            rm -f "$SWEEP_CORPUS"
+            echo "WARNING: sweep corpus census missing; next run reports no previous census" >&2
         fi
+    else
+        echo "WARNING: sweep state promote failed; next run compares against a wider window" >&2
     fi
-elif findings_complete; then
-    echo "[$RUN_ID] stage 2: findings already exist, reusing $FINDINGS_MD"
-    audit stage_result stage=diagnosis result=reused
-else
-    audit stage_result stage=diagnosis result=skipped
+fi
+if [[ -e "$DRIFT_PENDING" ]]; then
+    mv "$DRIFT_PENDING" "$DRIFT_STATE" \
+        || echo "WARNING: drift state promote failed; next run re-reports this week's drift" >&2
+fi
+if [[ -e "$JOIN_PENDING" ]]; then
+    mv "$JOIN_PENDING" "$JOIN_STATE" \
+        || echo "WARNING: approval join state promote failed; next run reports no prior reading" >&2
 fi
 
-# --- Stage 3: parse findings (deterministic) ---
-if [[ -s "$FINDINGS_MD" ]]; then
-    if python3 "$SCRIPTS/parse_findings.py" "$FINDINGS_MD" > "$FINDINGS_JSON" 2>"$RUN_LOG_DIR/parse.log"; then
-        audit stage_result stage=parse result=ok
+# --- Candidate intake (deterministic; the session cannot touch the store) ---
+# The session filed candidates into $PRIVATE_TASKS. Each staged file is
+# validated, moved into the live store, and recorded in claims.jsonl. A file
+# that fails validation stays quarantined in staging (visible to the Saturday
+# reader), never silently dropped and never half-adopted. Producer citations
+# are read from the file body (backtick `path:line`); a file with none is
+# still recorded (origin gate does not require --producer). Failures here
+# must not kill the chain — the moved task files are the ground truth and the
+# triage session reads the store, not the claims log.
+SPAWNED=0
+for staged in "$PRIVATE_TASKS"/*.md; do
+    [[ -e "$staged" ]] || continue
+    newfile="$(basename "$staged")"
+    task_id="${newfile%.md}"
+    if ! [[ "$task_id" =~ ^T-[A-Z0-9][A-Z0-9-]*$ ]]; then
+        echo "WARNING: staged task with non-conforming name left in staging: $newfile" >&2
+        add_reason SPAWN_RECORD_SKIPPED
+        continue
+    fi
+    if [[ -e "$TASKS_DIR/$newfile" ]]; then
+        # Never overwrite a task that already exists in the store — it may be
+        # the owner's or a concurrent session's.
+        echo "WARNING: staged task collides with an existing store entry, left in staging: $newfile" >&2
+        add_reason SPAWN_RECORD_SKIPPED
+        continue
+    fi
+    # ADR-0098 D2: filings are candidates — no readiness claim. A `state:`
+    # line other than candidate is normalized and named; a file with NO
+    # parseable state line stays in staging (claims.py ready would never
+    # surface it, so moving it would make the finding vanish silently —
+    # codex review 2026-08-24 P2).
+    if ! grep -q '^state:' "$staged"; then
+        echo "WARNING: staged task has no state: line, left in staging: $newfile" >&2
+        add_reason SPAWN_RECORD_SKIPPED
+        continue
+    fi
+    if ! grep -q '^state: candidate' "$staged"; then
+        sed -i '' 's/^state: .*/state: candidate/' "$staged"
+        add_reason SPAWN_STATE_NORMALIZED
+        echo "WARNING: $newfile filed with a non-candidate state — normalized" >&2
+    fi
+    mv "$staged" "$TASKS_DIR/$newfile"
+    # First backtick path:line citation in the body, if any.
+    # shellcheck disable=SC2016  # the single-quoted backticks are a grep pattern, not an expansion
+    producer=$(grep -oE '`[^` :]+:[0-9]+(-[0-9]+)?`' "$TASKS_DIR/$newfile" 2>/dev/null \
+        | head -1 | tr -d '`')
+    producer_args=()
+    [[ -n "$producer" ]] && producer_args=(--producer "$producer")
+    if (cd "$PROJECT_ROOT" && python3 "$CLAIMS_PY" spawn "$task_id" \
+            --origin gate --note "weekly $END_DATE diagnosis" \
+            ${producer_args[@]+"${producer_args[@]}"}) \
+            >> "$RUN_LOG_DIR/spawn.log" 2>&1; then
+        SPAWNED=$((SPAWNED + 1))
     else
-        add_reason PARSE_FAIL
-        audit stage_result stage=parse result=fail reason=PARSE_FAIL
-        rm -f "$FINDINGS_JSON"
+        add_reason SPAWN_RECORD_FAIL
+        echo "WARNING: claims.py spawn failed for $task_id (see spawn.log)" >&2
     fi
-else
-    audit stage_result stage=parse result=skipped
-fi
-
-# --- Stage 4: fix (one worktree + fresh claude context per F1) ---
-run_verify() {  # run_verify <worktree> <logfile>
-    local wt="$1" log="$2"
-    # Each step is individually bounded: an unbounded Verify (network-stalled
-    # uv sync, hung test) would blow straight through the chain deadline,
-    # which is only checked between attempts (2026-07-29 review, HIGH).
-    (
-        cd "$wt" || exit 1
-        # uv.lock is gitignored, so the worktree checkout lacks it; the copy
-        # happens at worktree add. Fall back to an unpinned sync if absent.
-        if [[ -f uv.lock ]]; then
-            with_timeout "$VERIFY_TIMEOUT" uv sync --frozen -q >> "$log" 2>&1 || { echo "VERIFY: uv sync failed" >> "$log"; exit 1; }
-        else
-            with_timeout "$VERIFY_TIMEOUT" uv sync -q >> "$log" 2>&1 || { echo "VERIFY: uv sync failed" >> "$log"; exit 1; }
-        fi
-        with_timeout "$VERIFY_TIMEOUT" uv run -q ruff check src/ tests/ scripts/ >> "$log" 2>&1 || { echo "VERIFY: ruff failed" >> "$log"; exit 1; }
-        with_timeout "$VERIFY_TIMEOUT" uv run -q lint-imports >> "$log" 2>&1 || { echo "VERIFY: lint-imports failed" >> "$log"; exit 1; }
-        # `-m "not live_cli"` drops every test that spawns the real claude
-        # binary — the three drift alarms C-SCOPE-7, C-SCOPE-8 and D-SCOPE-8.
-        # Excluded by CLASS, not by name, so a fourth cannot be added without
-        # inheriting the exclusion. Two reasons, both about THIS loop rather
-        # than the tests: under `-x` a CLI hiccup unrelated to the fix —
-        # mid-auto-update, a slow cold start, an init-schema change — would
-        # abort Verify and be reported as "VERIFY: pytest failed", i.e.
-        # attributed to the fix under test; and FIX_DENY denies `Bash(claude:*)`
-        # on the grounds that it is an unbounded child session, which a `claude`
-        # spawned from inside `uv run pytest` would quietly walk around. The
-        # alarms are for the operator's full Verify, not for the fix loop.
-        with_timeout "$VERIFY_TIMEOUT" uv run -q pytest tests/ -q -x -m "not live_cli" >> "$log" 2>&1 || { echo "VERIFY: pytest failed" >> "$log"; exit 1; }
-    )
-}
-
-fix_one() {  # fix_one <fid> <scope> <bodyfile>
-    local fid="$1" scope="$2" bodyfile="$3"
-    local wt="$WORKTREE_ROOT/${fid//./-}"
-    local safe_fid="${fid//\//_}"
-    local fixlog="$RUN_LOG_DIR/fix-$safe_fid"
-    local verdict="—"
-
-    if ! git -C "$PROJECT_ROOT" worktree add --detach "$wt" HEAD >/dev/null 2>&1; then
-        audit fix_result fix_id="$fid" scope="$scope" result=failed attempts=0 reason=WORKTREE_FAIL
-        add_reason WORKTREE_FAIL
-        return
-    fi
-    # uv.lock is gitignored (absent from the checkout); carry the pin over so
-    # Verify runs against the same resolution as production (2026-07-29 trial:
-    # every attempt-1 Verify died on the missing lockfile).
-    [[ -f "$PROJECT_ROOT/uv.lock" ]] && cp "$PROJECT_ROOT/uv.lock" "$wt/uv.lock"
-
-    local prompt_file="$RUN_LOG_DIR/fix-$safe_fid-prompt.md"
-    # base_prompt holds what STARTED the current round (finding, plus the
-    # reviewer concerns on a re-entry). Verify-failure retries rebuild
-    # prompt_file from it so the concerns survive a failed attempt
-    # (2026-08-01 codex review P2).
-    local base_prompt="$RUN_LOG_DIR/fix-$safe_fid-base-prompt.md"
-    # The finding text descends from external SNS content via the weekly
-    # report's E section — wrap it as untrusted data before it becomes the
-    # prompt of a tool-using session (ADR-0007; 2026-07-29 security review H1).
-    {
-        echo "<untrusted_finding>"
-        cat "$bodyfile"
-        echo "</untrusted_finding>"
-    } > "$prompt_file"
-    cp "$prompt_file" "$base_prompt"
-
-    # --- fix / Verify / review rounds (T-PIPELINE-REVIEWLOOP, ADR-0085) ---
-    # round 0 is the original fix; round N>=1 is a re-entry answering review
-    # N's CONCERNS. Verify retries (MAX_FIX_ATTEMPTS) are re-granted per round
-    # — a shared pool would let one flaky Verify starve the concern feedback.
-    # Monotonicity: a round that cannot produce a verified diff rolls back to
-    # the previous round's verified one instead of destroying it.
-    local round=0 passed=0 rolled_back=0 total_attempts=0
-    local diff_prev="" diff_cur="" names_prev="" names_cur=""
-    while :; do
-        local attempt=1 fail_code=""
-        passed=0
-        while (( attempt <= MAX_FIX_ATTEMPTS )); do
-            if deadline_exceeded; then
-                add_reason CHAIN_DEADLINE
-                fail_code=CHAIN_DEADLINE
-                if (( round == 0 )); then
-                    audit fix_result fix_id="$fid" scope="$scope" result=failed \
-                        attempts="$total_attempts" reason=CHAIN_DEADLINE
-                    git -C "$PROJECT_ROOT" worktree remove --force "$wt" >/dev/null 2>&1
-                    return
-                fi
-                break
-            fi
-            total_attempts=$((total_attempts + 1))
-            echo "[$RUN_ID]   $fid round $round attempt $attempt ($scope)"
-            # Edit is path-scoped to the worktree (cwd): a bare grant would
-            # let an injected finding write outside the worktree — invisible to
-            # Verify, the reviewer, and the exported patch (2026-07-29 security
-            # review C3). Bash is limited to the two Verify tools; no generic
-            # `uv run:*` (it reaches `uv run python -c ...`).
-            #
-            # The allow list alone never expressed that: it only adds, and the
-            # ambient allow rules re-granted everything it withheld — including
-            # the generic `uv run` and `git`, whose `--output=` flag is a
-            # write-anywhere primitive that the redirection parser cannot see
-            # (T-CHAIN-PERM-SWEEP; see $FIX_DENY at the top for the four
-            # mechanics). `git diff` / `git status` are withdrawn with it: the
-            # harness already computes the diff this session would have asked
-            # for, and Read/Grep cover the rest.
-            (
-                cd "$wt" || exit 1
-                with_timeout "$FIX_TIMEOUT" claude -p "$(cat "$prompt_file")" \
-                    --system-prompt "$(cat "$PROMPTS/fix-implementation.md")" \
-                    --permission-mode manual \
-                    --tools "$FIX_TOOLS" \
-                    --strict-mcp-config \
-                    --setting-sources project \
-                    --allowedTools "Read,Glob,Grep,Edit(./**),Bash(uv run pytest:*),Bash(uv run ruff:*),Bash(ls:*),Bash(grep:*)" \
-                    --disallowedTools "$FIX_DENY" \
-                    --output-format text
-            ) > "$fixlog-attempt$total_attempts.log" 2>&1
-            local rc=$?
-            if [[ $rc -ne 0 ]]; then
-                # 124 is coreutils timeout's exit code
-                fail_code=FIX_SESSION_FAIL; [[ $rc -eq 124 ]] && fail_code=FIX_TIMEOUT
-                add_reason "$fail_code"
-                audit fix_attempt fix_id="$fid" attempt="$total_attempts" \
-                    result=session_fail reason="$fail_code"
-                break
-            fi
-            if [[ "$scope" == "prompt" ]]; then
-                # A prompt-scope finding may still have produced code edits (mixed
-                # references). A pure-prompt diff needs no Verify — the human reads
-                # it full text — but untested code changes must never be marked
-                # ready (2026-07-29 codex review P2).
-                local touches_code
-                touches_code=$(cd "$wt" && git add -A >/dev/null 2>&1; git diff --cached --name-only \
-                    | grep -E '^(src|scripts|tests)/' || true)
-                if [[ -z "$touches_code" ]]; then
-                    passed=1
-                    break
-                fi
-            fi
-            if run_verify "$wt" "$fixlog-verify$total_attempts.log"; then
-                audit fix_attempt fix_id="$fid" attempt="$total_attempts" result=verify_pass
-                passed=1
-                break
-            fi
-            audit fix_attempt fix_id="$fid" attempt="$total_attempts" result=verify_fail
-            # Never retry on identical input: feed the failure back (bounded).
-            # Rebuilt from base_prompt, not from scratch — on a re-entry round
-            # the reviewer concerns must survive the retry (codex P2).
-            {
-                cat "$base_prompt"
-                echo ""
-                echo "## Verify failure output (previous attempt — fix the cause, do not weaken checks)"
-                echo '```'
-                tail -n 120 "$fixlog-verify$total_attempts.log"
-                echo '```'
-            } > "$prompt_file"
-            attempt=$((attempt + 1))
-        done
-
-        if (( passed == 0 )); then
-            if (( round > 0 )) && [[ -s "$diff_prev" ]]; then
-                # Roll back: the previous round's diff already passed Verify;
-                # a failed re-entry must not cost the gate a working patch.
-                add_reason REVIEW_ROUND_ABANDONED
-                audit review_round_abandoned fix_id="$fid" round="$round" \
-                    reason=REVIEW_ROUND_ABANDONED detail="${fail_code:-VERIFY_FAIL_MAX_ATTEMPTS}"
-                echo "[$RUN_ID]   $fid round $round abandoned — keeping round $((round - 1)) diff"
-                rolled_back=1
-                passed=1
-                break
-            fi
-            if [[ -z "$fail_code" ]]; then
-                add_reason VERIFY_FAIL_MAX_ATTEMPTS
-                audit fix_result fix_id="$fid" scope="$scope" result=failed \
-                    attempts="$total_attempts" reason=VERIFY_FAIL_MAX_ATTEMPTS
-            else
-                audit fix_result fix_id="$fid" scope="$scope" result=failed \
-                    attempts="$total_attempts" reason="$fail_code"
-            fi
-            git -C "$PROJECT_ROOT" worktree remove --force "$wt" >/dev/null 2>&1
-            git -C "$PROJECT_ROOT" worktree prune >/dev/null 2>&1
-            return
-        fi
-
-        # Snapshot this round's verified diff AND its touched-path list. The
-        # export at the bottom and the scope check read the snapshots, never
-        # live worktree state — after a rollback the worktree holds the
-        # abandoned round. The path list comes from git (--name-only), not
-        # from parsing the diff text: binary changes and pure renames emit no
-        # `--- a/`/`+++ b/` header lines, which would blind a text-parsed
-        # scope check (2026-08-01 security review C1).
-        diff_cur="$fixlog-diff-round$round.patch"
-        names_cur="$fixlog-names-round$round.txt"
-        (cd "$wt" && git add -A && git diff --cached) > "$diff_cur" 2>>"$fixlog-export.log"
-        (cd "$wt" && git diff --cached --name-only) > "$names_cur" 2>>"$fixlog-export.log"
-
-        [[ "$scope" != "code" ]] && break
-        if deadline_exceeded; then
-            if (( round > 0 )); then
-                # The re-entry diff passed Verify but its re-review never ran:
-                # exporting it would pair a CONCERNS verdict (and review body)
-                # with a diff the reviewer never saw. Roll back to keep the
-                # packet's verdict↔diff coherent (2026-08-01 codex review P2).
-                rolled_back=1
-                add_reason REVIEW_ROUND_ABANDONED
-                audit review_round_abandoned fix_id="$fid" round="$round" \
-                    reason=REVIEW_ROUND_ABANDONED detail=CHAIN_DEADLINE
-            fi
-            break
-        fi
-
-        if (( round > 0 )) && cmp -s "$diff_prev" "$diff_cur"; then
-            # Never retry on identical input: re-reviewing an unchanged diff
-            # can only repeat the same verdict. The implementer's rebuttal
-            # stays in its attempt log; the standing CONCERNS stays on record.
-            # round is on the review axis (the review that was NOT run),
-            # matching review_result's numbering (2026-08-01 code review).
-            audit review_skipped fix_id="$fid" round="$((round + 1))" detail=DIFF_UNCHANGED
-            echo "[$RUN_ID]   $fid round $round: diff unchanged — review not repeated"
-            break
-        fi
-
-        local review_n=$((round + 1))
-        local review_input="$RUN_LOG_DIR/fix-$safe_fid-review$review_n-input.md"
-        # One naming rule, spelled once per round it names — `review_log` for
-        # every use of THIS round's log (including the audit `log` field) and
-        # `prev_review_log` for the one read of the previous round's. Loose
-        # expansions would keep an intra-function copy of the cross-language
-        # divergence these variables exist to end, in two shapes: change the
-        # redirect target and the audit records a path nobody wrote (the packet
-        # builds without the review body again), or miss the prev-round site
-        # and round 2 is reviewed with no memory of round 1's concerns —
-        # silently, because `cat` failing writes to stderr and there is no
-        # `set -e` (T-PACKET-LOG-PATH-FROM-SHELL).
-        local review_log="$fixlog-review$review_n.log"
-        local prev_review_log="$fixlog-review$round.log"  # only read when round > 0
-        # The finding descends from external SNS content — the reviewer gets
-        # it wrapped exactly like the implementer does, and the diff fence is
-        # sized to outrun any backtick run inside the diff (2026-08-01
-        # security review H1).
-        local diff_fence
-        diff_fence=$(fence_for "$diff_cur")
-        {
-            echo "<untrusted_finding>"
-            cat "$bodyfile"
-            echo "</untrusted_finding>"
-            if (( round > 0 )); then
-                echo ""
-                echo "## Previous review (round $round) — check whether the new diff addresses it"
-                cat "$prev_review_log"
-                echo ""
-                echo "## Implementer's response to that review (its session summary — may rebut points instead of changing code)"
-                tail -n 60 "$fixlog-attempt$total_attempts.log"
-            fi
-            echo ""
-            echo "## Diff under review"
-            echo "${diff_fence}diff"
-            cat "$diff_cur"
-            echo "$diff_fence"
-        } > "$review_input"
-        # Read-only session: the diff and the implementer's summary are already
-        # on stdin, so it needs no Bash and no network. --allowedTools alone did
-        # not express that — it only ADDS, so the ambient allow list (106 rules,
-        # zero denies as of 2026-08-15) kept Bash/WebFetch/WebSearch live and the
-        # absent --permission-mode left the ambient mode in charge. Only deny
-        # rules outrank both, hence $READONLY_DENY (T-CHAIN-PERM-SWEEP).
-        with_timeout "$REVIEW_TIMEOUT" claude -p \
-            --system-prompt "$(cat "$PROMPTS/fix-review.md")" \
-            --permission-mode manual \
-            --tools "$READONLY_TOOLS" \
-            --strict-mcp-config \
-            --setting-sources project \
-            --allowedTools "$READONLY_TOOLS" \
-            --disallowedTools "$READONLY_DENY" \
-            --output-format text \
-            < "$review_input" \
-            > "$review_log" 2>&1
-        verdict=$(grep -m1 '^VERDICT:' "$review_log" | sed 's/^VERDICT: *//')
-        [[ -z "$verdict" ]] && verdict="REVIEW_FAIL"
-        # `log` carries the path just written, the same way the patch export
-        # below carries `patch`, so the builder opens it instead of rebuilding
-        # the name under a second, divergent rule.
-        audit review_result fix_id="$fid" round="$review_n" verdict="$verdict" \
-            log="$review_log"
-        # APPROVE ends the loop; REVIEW_FAIL is terminal too — no body to feed.
-        [[ "$verdict" != "CONCERNS" ]] && break
-        (( round >= MAX_REVIEW_ROUNDS )) && break
-
-        # Re-entry: the review body becomes bounded feedback. It chains from
-        # the finding text, so it is wrapped as untrusted data (same H1
-        # rationale as the finding itself).
-        {
-            echo "<untrusted_finding>"
-            cat "$bodyfile"
-            echo "</untrusted_finding>"
-            echo ""
-            echo "## Reviewer concerns (round $review_n) — address each point, or rebut it in your summary; never weaken checks to satisfy the reviewer"
-            echo "<untrusted_review>"
-            # A reviewer output containing the literal closing tag would let
-            # everything after it masquerade as trusted prompt text in the
-            # tool-using fix session — neutralize the tag pair (2026-08-01
-            # security review H1).
-            sed 's@</\{0,1\}untrusted_review>@[stripped-tag]@g' "$review_log"
-            echo "</untrusted_review>"
-        } > "$prompt_file"
-        cp "$prompt_file" "$base_prompt"   # new round, new retry baseline
-        diff_prev="$diff_cur"
-        names_prev="$names_cur"
-        round=$((round + 1))
-    done
-
-    # --- export the chosen diff (this round's, or the rollback target) ---
-    local chosen_diff="$diff_cur" chosen_names="$names_cur"
-    if (( rolled_back )); then
-        chosen_diff="$diff_prev"
-        chosen_names="$names_prev"
-    fi
-    local out_dir="$PATCH_DIR"
-    [[ "$scope" == "prompt" ]] && out_dir="$PROMPT_PATCH_DIR"
-    # Post-hoc scope check on the ACTUAL exported diff — the declared scope
-    # was computed from the finding text before the session ran. A code-scope
-    # patch that also touches a behavior-shaping path would otherwise reach
-    # the gate as a summary row, bypassing the full-text rule (2026-07-29
-    # security review C4). Deterministic, code-owned. Reads the git-computed
-    # touched-path snapshot of the chosen round, never worktree state (after
-    # a rollback they differ) and never the diff text (binary changes and
-    # pure renames have no ---/+++ headers — 2026-08-01 security review C1).
-    if [[ "$scope" == "code" ]]; then
-        local out_of_scope
-        out_of_scope=$(grep -Ev '^(src|scripts|tests)/' "$chosen_names" 2>/dev/null || true)
-        if [[ -n "$out_of_scope" ]]; then
-            out_dir="$PROMPT_PATCH_DIR"
-            add_reason SCOPE_ESCALATED
-            audit scope_escalation fix_id="$fid" \
-                files="$(printf '%s' "$out_of_scope" | tr '\n' ' ')"
-            echo "[$RUN_ID]   $fid escalated to full-text gate (touched: $out_of_scope)"
-        fi
-    fi
-    local patch="$out_dir/$safe_fid.patch"
-    if cp "$chosen_diff" "$patch" 2>>"$fixlog-export.log" && [[ -s "$patch" ]]; then
-        audit fix_result fix_id="$fid" scope="$scope" result=patch_ready \
-            attempts="$total_attempts" patch="$patch"
-    else
-        rm -f "$patch"
-        add_reason EMPTY_DIFF
-        audit fix_result fix_id="$fid" scope="$scope" result=failed \
-            attempts="$total_attempts" reason=EMPTY_DIFF
-    fi
-
-    git -C "$PROJECT_ROOT" worktree remove --force "$wt" >/dev/null 2>&1
-    git -C "$PROJECT_ROOT" worktree prune >/dev/null 2>&1
-}
-
-if stage_enabled fix && [[ -s "$FINDINGS_JSON" ]]; then
-    F1_COUNT=$(python3 -c "import json,sys; print(len(json.load(open(sys.argv[1]))['f1']))" "$FINDINGS_JSON")
-    if [[ "$F1_COUNT" -eq 0 ]]; then
-        add_reason NO_F1_FINDINGS
-        audit stage_result stage=fix result=skipped reason=NO_F1_FINDINGS
-    else
-        echo "[$RUN_ID] stage 4: fix ($F1_COUNT F1 findings, cap $MAX_FIX_TARGETS)"
-        # Stale-finding gate baseline: a finding whose referenced paths
-        # received commits AFTER the findings file was written is treated as
-        # already resolved (deterministic — git history, not the fix agent's
-        # self-declared claim). First fired by the pipeline's own improvement
-        # loop on the 2026-07-29 trial, where EMPTY_DIFF conflated "already
-        # implemented on main" with "session produced no work".
-        FINDINGS_EPOCH=$(stat -f %m "$FINDINGS_MD" 2>/dev/null || echo "")
-        FINDINGS_ISO=""
-        [[ -n "$FINDINGS_EPOCH" ]] && FINDINGS_ISO=$(date -r "$FINDINGS_EPOCH" '+%Y-%m-%dT%H:%M:%S' 2>/dev/null || echo "")
-        targeted=0
-        while IFS=$'\t' read -r fid scope pathlist; do
-            if [[ -n "$FINDINGS_ISO" && -n "$pathlist" ]]; then
-                # noglob: path tokens come from LLM-authored text; a stray
-                # `*` would glob-expand against the repo before reaching git
-                # (2026-07-29 security review H3). Splitting is intentional.
-                set -f
-                # pathlist is intentionally word-split into separate git
-                # pathspec arguments (directive must stay on its own line —
-                # an em-dash after it silently voids it, SC1125).
-                # shellcheck disable=SC2086
-                stale_hit=$(git -C "$PROJECT_ROOT" log --oneline -1 \
-                        --since="$FINDINGS_ISO" -- $pathlist 2>/dev/null)
-                set +f
-                if [[ -n "$stale_hit" ]]; then
-                    add_reason FINDING_STALE
-                    audit fix_result fix_id="$fid" scope="$scope" result=skipped \
-                        attempts=0 reason=FINDING_STALE
-                    echo "[$RUN_ID]   $fid skipped (referenced paths changed after diagnosis)"
-                    continue
-                fi
-            fi
-            if (( targeted >= MAX_FIX_TARGETS )); then
-                add_reason BUDGET_EXHAUSTED
-                # skipped, not failed: an over-cap finding was never attempted
-                # and must not read as an error in the gate's fix table.
-                audit fix_result fix_id="$fid" scope="$scope" result=skipped \
-                    attempts=0 reason=BUDGET_EXHAUSTED
-                continue
-            fi
-            bodyfile="$RUN_LOG_DIR/body-${fid//[.\/]/-}.md"
-            python3 -c "
-import json, sys
-data = json.load(open(sys.argv[1]))
-for f in data['f1']:
-    if f['id'] == sys.argv[2]:
-        print(f['body'])
-        break
-" "$FINDINGS_JSON" "$fid" > "$bodyfile"
-            # </dev/null: the claude/uv calls inside fix_one would otherwise
-            # drain the process substitution feeding this while-read loop,
-            # silently dropping every finding after the first (observed on
-            # the 2026-07-29 trial: targeted=1 of 2).
-            fix_one "$fid" "$scope" "$bodyfile" < /dev/null
-            targeted=$((targeted + 1))
-        done < <(python3 -c "
-import json, sys
-for f in json.load(open(sys.argv[1]))['f1']:
-    print(f['id'], f['scope'], ' '.join(f['paths']), sep='\t')
-" "$FINDINGS_JSON")
-        audit stage_result stage=fix result=ok targeted="$targeted"
-    fi
-else
-    audit stage_result stage=fix result=skipped
-fi
-
-# --- Stage 5: insight staging review (read-only; never writes to staging) ---
-if stage_enabled insight; then
-    staged_files=("$STAGED_DIR"/*.md)
-    if [[ ! -e "${staged_files[0]}" ]]; then
-        printf 'No staged insight items this week (staging empty at run time).\n' > "$INSIGHT_REVIEW"
-        audit stage_result stage=insight_review result=ok items=0
-    elif deadline_exceeded; then
-        add_reason CHAIN_DEADLINE
-        audit stage_result stage=insight_review result=skipped reason=CHAIN_DEADLINE
-    else
-        echo "[$RUN_ID] stage 5: insight review (${#staged_files[@]} staged items)"
-        {
-            echo "Staged insight candidates for review ($END_DATE week):"
-            echo ""
-            for f in "${staged_files[@]}"; do
-                echo "=== $(basename "$f") ==="
-                cat "$f"
-                meta="${f%.md}.meta.json"
-                [[ -f "$meta" ]] && { echo "--- meta ---"; cat "$meta"; }
-                echo ""
-            done
-        } > "$RUN_LOG_DIR/insight-input.md"
-        INSIGHT_TMP="$INSIGHT_REVIEW.tmp.$$"
-        # Staged items are already inlined in the prompt; --add-dir grants
-        # only the adopted-skill store (dedup judgment), not the home root
-        # with credentials.json (2026-07-29 security review C2).
-        if with_timeout "$INSIGHT_TIMEOUT" claude -p "$(cat "$RUN_LOG_DIR/insight-input.md")" \
-                --system-prompt "$(cat "$PROMPTS/insight-recommendation.md")" \
-                --add-dir "$MOLTBOOK_HOME/skills" \
-                --permission-mode manual \
-                --tools "$READONLY_TOOLS" \
-                --strict-mcp-config \
-                --setting-sources project \
-                --allowedTools "$READONLY_TOOLS" \
-                --disallowedTools "$READONLY_DENY" \
-                --output-format text \
-                > "$INSIGHT_TMP" 2>"$RUN_LOG_DIR/insight.err" \
-                && grep -q "RECOMMEND:" "$INSIGHT_TMP"; then
-            mv "$INSIGHT_TMP" "$INSIGHT_REVIEW"
-            audit stage_result stage=insight_review result=ok items="${#staged_files[@]}"
-        else
-            rm -f "$INSIGHT_TMP"
-            add_reason INSIGHT_REVIEW_FAIL
-            audit stage_result stage=insight_review result=fail reason=INSIGHT_REVIEW_FAIL
-        fi
-    fi
-else
-    audit stage_result stage=insight_review result=skipped
-fi
+done
+audit stage_result stage=spawn result=ok spawned="$SPAWNED"
+echo "[$RUN_ID] filed candidates recorded: $SPAWNED"
+fi  # REPORT_RAN
 
 # --- Stage 5b: value-layer cadence (read-only due check + monthly identity staging) ---
 # The due check is a deterministic reading over the ADR-0012 approval audit
@@ -1008,21 +491,14 @@ fi
 #       must never fire a real LLM run off a stale-dated reading and reset
 #       the genuine cadence clock (code review 2026-08-10 HIGH),
 #   (3) the weekly insight job has COMPLETED today (.last_insight marker is
-#       fresh). The insight job starts 08:00 but writes to staging only
-#       after 1-2h of generation, INSIDE this chain's window — without this
-#       guard, staging identity into the momentarily-empty dir would make
-#       the ADR-0074 pending guard discard the whole arriving insight batch
-#       (adr review 2026-08-10 CRITICAL). Marker-fresh ⟹ insight's staging
-#       write already happened ("ledger first, marker last"), so
-#   (4) staging is empty — is then race-free against the scheduled producer.
-# Every deferral is a packet-visible reason code; the Saturday gate can run
-# the distill manually right after adopt-staged empties staging. Adoption
-# always stays at the gate. The constitution reading is informational only:
-# an amendment is a deliberate, benched event (ADR-0090 /
-# docs/runbooks/constitution-amendment.md) and must never be fired from an
-# unattended chain.
+#       fresh) — without this, staging identity into the momentarily-empty
+#       dir would make the ADR-0074 pending guard discard the whole arriving
+#       insight batch (adr review 2026-08-10 CRITICAL),
+#   (4) staging is empty — race-free against the scheduled producer.
+# Every deferral is an audit-visible reason code; the Saturday gate reads the
+# JSON directly (value-layer-$END_DATE.json). Adoption always stays at the
+# gate. The constitution reading is informational only (ADR-0090).
 VALUE_LAYER_JSON="$MOLTBOOK_HOME/pipeline/value-layer/value-layer-$END_DATE.json"
-VALUE_LAYER_ARG=()
 INSIGHT_MARKER="$MOLTBOOK_HOME/skills/.last_insight"
 INSIGHT_MARKER_MAX_AGE="${PIPELINE_INSIGHT_MARKER_MAX_AGE:-21600}"  # 6h: insight 08:00 → deadline 12:00
 if stage_enabled valuelayer; then
@@ -1033,10 +509,9 @@ if stage_enabled valuelayer; then
         echo "[$RUN_ID] stage 5b: value-layer due check"
         mkdir -p "$(dirname "$VALUE_LAYER_JSON")"
         chmod 700 "$(dirname "$VALUE_LAYER_JSON")" 2>/dev/null || true
-        # --rules-dir adds the ADR-0097 rules-layer maintenance reading. The
-        # shell only reads identity/constitution/staging_pending out of the
-        # JSON below, so this is additive: the rules section reaches the human
-        # through the packet, not through this parse.
+        # --rules-dir adds the ADR-0097 rules-layer maintenance reading; the
+        # shell only parses identity/constitution/staging_pending out of the
+        # JSON, the rules section reaches the human through the gate's read.
         if python3 "$SCRIPTS/value_layer_due_check.py" \
                 --audit "$MOLTBOOK_HOME/logs/audit.jsonl" \
                 --knowledge "$MOLTBOOK_HOME/knowledge.json" \
@@ -1053,12 +528,13 @@ print(str(data['identity']['due']).lower(),
 " "$VALUE_LAYER_JSON" 2>/dev/null || echo "")
             if [[ -n "$vl_reading" ]]; then
                 read -r vl_identity_due vl_constitution_due vl_staging_pending <<< "$vl_reading"
-                VALUE_LAYER_ARG=(--value-layer "$VALUE_LAYER_JSON")
                 audit stage_result stage=valuelayer result=ok \
                     identity_due="$vl_identity_due" \
                     constitution_due="$vl_constitution_due" \
                     staging_pending="$vl_staging_pending"
-                insight_fresh=$(python3 -c "
+                if [[ "$vl_identity_due" == "true" ]]; then
+                    # Read only on the monthly path that branches on it.
+                    insight_fresh=$(python3 -c "
 import sys
 from datetime import datetime, timezone
 try:
@@ -1071,8 +547,7 @@ try:
 except Exception:
     print('false')
 " "$INSIGHT_MARKER" "$INSIGHT_MARKER_MAX_AGE" 2>/dev/null || echo false)
-                if [[ "$vl_identity_due" == "true" ]]; then
-                    if [[ "$END_DATE" != "$(date -v-1d +%Y-%m-%d)" ]]; then
+                    if [[ "$END_DATE" != "$YESTERDAY" ]]; then
                         add_reason IDENTITY_BACKFILL_SKIP
                         audit stage_result stage=identity result=skipped \
                             reason=IDENTITY_BACKFILL_SKIP
@@ -1091,18 +566,14 @@ except Exception:
                             > "$RUN_LOG_DIR/identity.log" 2>&1
                         # The CLI exits 0 on a staging refusal and on an LLM
                         # failure alike — the staged files are the ground
-                        # truth, and BOTH halves must exist: adopt-staged
-                        # discovers candidates through the .meta.json sidecar,
-                        # so a timeout kill between the two writes (or a
-                        # pre-existing orphan .md) must read as fail, not as
-                        # an adoptable candidate (codex review 2026-08-10 P2).
+                        # truth, and BOTH halves must exist (adopt-staged
+                        # discovers candidates through the .meta.json sidecar;
+                        # codex review 2026-08-10 P2).
                         if [[ -f "$STAGED_DIR/identity.md" \
                                 && -f "$STAGED_DIR/identity.md.meta.json" ]]; then
                             audit stage_result stage=identity result=ok
                         # A concurrent producer winning the CLI's flock is an
-                        # ADR-0074 designed outcome, not an LLM fault — keep
-                        # the two apart or the P4 detector counts a working
-                        # guard as a recurring failure (code review M).
+                        # ADR-0074 designed outcome, not an LLM fault.
                         elif grep -q "refusing this batch (ADR-0074)" \
                                 "$RUN_LOG_DIR/identity.log" 2>/dev/null; then
                             add_reason IDENTITY_STAGING_RACE
@@ -1130,27 +601,14 @@ else
     audit stage_result stage=valuelayer result=skipped
 fi
 
-# --- Stage 6: dead-code scan (5th deterministic intake; detection ONLY) ---
-# T-DEADCODE-INTAKE: unlike the four report-side intakes (weekly-analysis.sh),
-# this one feeds the packet DIRECTLY, deliberately bypassing the diagnosis→fix
-# LLM stages — a dead-code candidate must never become an F1 finding that the
-# unattended fix stage turns into a deletion patch (deletion is structurally
-# a Saturday-gate human commit; false positives are unavoidable: CLI entry
-# points, config/prompts/*.md dynamic loads, Protocol indirection).
-# Read-only over the repo checkout; vulture policy lives in pyproject
-# [tool.vulture], exemptions in .vulture_whitelist.py. Observability only —
-# a scan fault becomes a reason code, never a missing packet, and never a
-# silent zero (dead_code_scan.py abstains nonzero on unparseable output; a
-# PARTIAL parse is not a fault but is surfaced as DEADCODE_PARTIAL_PARSE).
-# Runs BEFORE the improvement check so a recurring scan failure can feed the
-# P4 recurrence detector (2026-08-07 codex review P2).
-# Written OUTSIDE $MOLTBOOK_HOME/logs: next week's diagnosis session gets
-# --add-dir over logs/, and the detection/deletion separation should be an
-# access boundary, not just "not wired in" (2026-08-07 code review M3). The
-# stable per-week path doubles as the code-owned artifact the Saturday gate
-# cross-checks the packet's §5 against (security review H1).
+# --- Stage 6: dead-code scan (deterministic; detection ONLY) ---
+# Feeds the Saturday gate DIRECTLY (dead-code-$END_DATE.json) — a dead-code
+# candidate must never become a finding an unattended session turns into a
+# deletion patch; deletion is structurally a Saturday-gate human commit.
+# Read-only over the repo checkout; vulture policy in pyproject [tool.vulture],
+# exemptions in .vulture_whitelist.py. Observability only — a scan fault is a
+# reason code, never a silent zero (dead_code_scan.py abstains nonzero).
 DEADCODE_JSON="$MOLTBOOK_HOME/pipeline/dead-code/dead-code-$END_DATE.json"
-DEADCODE_ARG=()
 if stage_enabled deadcode; then
     if deadline_exceeded; then
         add_reason CHAIN_DEADLINE
@@ -1159,8 +617,7 @@ if stage_enabled deadcode; then
         echo "[$RUN_ID] stage 6: dead-code scan"
         mkdir -p "$(dirname "$DEADCODE_JSON")"
         # --no-sync: the chain must never resolve/install packages from the
-        # network unattended (security review M1) — a missing vulture then
-        # fails loud as DEADCODE_SCAN_FAIL instead of auto-installing.
+        # network unattended (security review M1).
         if (cd "$PROJECT_ROOT" && with_timeout "$DEADCODE_TIMEOUT" \
                 uv run --no-sync -q python scripts/dead_code_scan.py) \
                 > "$DEADCODE_JSON" 2>"$RUN_LOG_DIR/deadcode.err"; then
@@ -1171,7 +628,6 @@ print(len(data['candidates']), data.get('unparsed_lines', 0), data.get('stderr_l
 " "$DEADCODE_JSON" 2>/dev/null || echo "")
             if [[ -n "$dc_counts" ]]; then
                 read -r dc_count dc_unparsed dc_stderr <<< "$dc_counts"
-                DEADCODE_ARG=(--dead-code "$DEADCODE_JSON")
                 [[ "$dc_unparsed" != "0" ]] && add_reason DEADCODE_PARTIAL_PARSE
                 [[ "$dc_stderr" != "0" ]] && add_reason DEADCODE_PARTIAL_SCAN
                 audit stage_result stage=deadcode result=ok \
@@ -1191,15 +647,11 @@ else
     audit stage_result stage=deadcode result=skipped
 fi
 
-# --- Stage 6b: docs-consistency scan (6th deterministic intake; ADR-0093) ---
-# Same detection/repair separation as the dead-code intake: the scan feeds
-# the packet directly, bypassing the diagnosis→fix LLM stages — a doc edit is
-# structurally a Saturday-gate human commit. Reads only the repo checkout's
-# own self-authored docs (no untrusted text). stdlib-only → python3, no uv.
-# Observability only — a scan fault becomes DOCSCAN_FAIL, never a missing
-# packet, and never a silent "docs all clean" (the scan abstains nonzero).
+# --- Stage 6b: docs-consistency scan (deterministic; ADR-0093) ---
+# Same detection/repair separation: the scan output goes straight to the gate
+# (docs-consistency-$END_DATE.json); a doc edit is a Saturday human commit.
+# Reads only the repo's own self-authored docs. stdlib-only → python3, no uv.
 DOCSCAN_JSON="$MOLTBOOK_HOME/pipeline/docs-consistency/docs-consistency-$END_DATE.json"
-DOCSCAN_ARG=()
 if stage_enabled docsscan; then
     if deadline_exceeded; then
         add_reason CHAIN_DEADLINE
@@ -1217,7 +669,6 @@ print(data['count'], len(data.get('errors', [])))
 " "$DOCSCAN_JSON" 2>/dev/null || echo "")
             if [[ -n "$ds_counts" ]]; then
                 read -r ds_count ds_errors <<< "$ds_counts"
-                DOCSCAN_ARG=(--docs-scan "$DOCSCAN_JSON")
                 audit stage_result stage=docsscan result=ok \
                     findings="$ds_count" errors="$ds_errors"
             else
@@ -1235,90 +686,24 @@ else
     audit stage_result stage=docsscan result=skipped
 fi
 
-# --- Stage 7: improvement check (P4-shaped, fires on 2-week recurrence) ---
-# The orchestrator knows extra codes the builder will add for missing files.
-# Gated on stage_enabled: a deliberately disabled stage is not a failure and
-# must not feed the recurrence detector (2026-07-29 review).
-if stage_enabled diagnosis && [[ ! -s "$FINDINGS_JSON" ]]; then
-    add_reason DIAGNOSIS_UNAVAILABLE
-fi
-if stage_enabled insight && [[ ! -s "$INSIGHT_REVIEW" ]]; then
-    add_reason INSIGHT_REVIEW_UNAVAILABLE
-fi
-if stage_enabled improve && [[ -n "$REASONS" ]] && ! deadline_exceeded; then
-    fired=$(python3 "$SCRIPTS/build_decision_packet.py" check-improvement \
-        --metrics "$METRICS" --current-codes "$REASONS" --end-date "$END_DATE" 2>/dev/null)
-    if [[ "$fired" == *'"fired": true'* ]]; then
-        echo "[$RUN_ID] stage 7: improvement proposal (recurrence: $fired)"
-        {
-            echo "Recurring reason codes: $fired"
-            echo ""
-            echo "## Audit excerpts (this run and history)"
-            echo '```'
-            grep -h "\"run_id\": \"$RUN_ID\"" "$AUDIT" 2>/dev/null | tail -n 60
-            tail -n 60 "$METRICS" 2>/dev/null
-            echo '```'
-            echo ""
-            echo "## Current pipeline definition files are readable in this repo checkout."
-        } > "$RUN_LOG_DIR/improve-input.md"
-        IMPROVE_TMP="$IMPROVEMENT.tmp.$$"
-        if (cd "$PROJECT_ROOT" && with_timeout "$IMPROVE_TIMEOUT" claude -p \
-                "$(cat "$RUN_LOG_DIR/improve-input.md")" \
-                --system-prompt "$(cat "$PROMPTS/pipeline-improvement.md")" \
-                --permission-mode manual \
-                --tools "$READONLY_TOOLS" \
-                --strict-mcp-config \
-                --setting-sources project \
-                --allowedTools "$READONLY_TOOLS" \
-                --disallowedTools "$READONLY_DENY" \
-                --output-format text) > "$IMPROVE_TMP" 2>"$RUN_LOG_DIR/improve.err" \
-                && [[ -s "$IMPROVE_TMP" ]]; then
-            mv "$IMPROVE_TMP" "$IMPROVEMENT"
-            IMPROVEMENT_ARG=(--improvement "$IMPROVEMENT")
-            audit stage_result stage=improve result=ok
-        else
-            rm -f "$IMPROVE_TMP"
-            add_reason IMPROVE_FAIL
-            audit stage_result stage=improve result=fail reason=IMPROVE_FAIL
-        fi
-    else
-        audit stage_result stage=improve result=skipped reason=NO_RECURRENCE
-    fi
-else
-    audit stage_result stage=improve result=skipped
-fi
-
 # --- Stage 7b: never-selected reading (ADR-0097 D5) ---
-# The store's exit reading: which skills the selector has never picked, split
-# into strict (whole-history 0 selections AND >= the exposure floor — the
-# archive candidates), dormant (0 in the trailing window, selected before —
-# a reading only) and below_floor (not yet offered enough times to judge).
+# The store's exit reading: strict (whole-history 0 selections AND >= the
+# exposure floor — the archive candidates), dormant (0 in the trailing window,
+# selected before) and below_floor. Runs under the venv (needs the
+# selection-log grammar and the catalog loader).
 #
-# Unlike the six deterministic intakes this one runs under the venv: it needs
-# the selection-log grammar and the catalog loader, which `scripts/` cannot
-# import under the bare `python3` the chain uses elsewhere.
-#
-# The flag is passed UNCONDITIONALLY, which breaks the idiom the other intakes
-# follow. Those set `ARG=(--flag "$JSON")` only inside their success branch,
-# and copying that here would make a producer crash yield no flag, therefore
-# no NEVER_SELECTED_UNREADABLE, therefore no section and no header code — a
-# packet that reads "nothing to retire" (unit B silent-failure review,
-# 2026-08-22). The builder's `_load_findings` treats a missing or unparseable
-# file as unreadable and names it, so an absent file is the failure signal.
-#
-# Not behind `stage_enabled`: stage 8 is unconditional ("always attempted — the
-# fail-forward target"), so gating its input on a stage name would let a
-# `MOLTBOOK_PIPELINE_STAGES` selection silently produce a packet whose §10 says
-# nothing to retire. `packet` was in the default STAGES list with no consumer;
-# it stays that way rather than acquiring a meaning here.
+# Not behind `stage_enabled`: the Saturday gate's missing-artifact check
+# treats an absent file as NEVER_SELECTED_UNREADABLE, so gating this on a
+# stage name would let a MOLTBOOK_PIPELINE_STAGES selection silently produce
+# a week that reads "nothing to retire" (unit B silent-failure review,
+# 2026-08-22).
 NEVER_SELECTED_JSON="$MOLTBOOK_HOME/pipeline/never-selected/never-selected-$END_DATE.json"
 NEVER_SELECTED_TIMEOUT="${PIPELINE_NEVER_SELECTED_TIMEOUT:-300}"
 echo "[$RUN_ID] stage 7b: never-selected reading"
 mkdir -p "$(dirname "$NEVER_SELECTED_JSON")"
 chmod 700 "$(dirname "$NEVER_SELECTED_JSON")" 2>/dev/null || true
 rm -f "$NEVER_SELECTED_JSON"
-# --no-sync for the same reason as the dead-code scan: the chain must never
-# resolve packages from the network unattended.
+# --no-sync for the same reason as the dead-code scan.
 if (cd "$PROJECT_ROOT" && with_timeout "$NEVER_SELECTED_TIMEOUT" \
         uv run --no-sync -q python -c '
 import json, sys
@@ -1331,7 +716,7 @@ from contemplative_agent.core.skill_selection import (
 )
 
 # since/until rather than days=: the dormant cut must be anchored to the
-# run END_DATE, not to the wall clock, so a backfill run reads the window it
+# run END_DATE, not the wall clock, so a backfill run reads the window it
 # claims to. Both ends inclusive, so since = END_DATE - (N - 1).
 home = Path(sys.argv[1])
 until = date.fromisoformat(sys.argv[2])
@@ -1361,33 +746,14 @@ else
     rm -f "$NEVER_SELECTED_JSON"
 fi
 
-# --- Stage 8: decision packet (always attempted — the fail-forward target) ---
-echo "[$RUN_ID] stage 8: decision packet"
-FINDINGS_ARG=()
-[[ -s "$FINDINGS_JSON" ]] && FINDINGS_ARG=(--findings "$FINDINGS_JSON")
-INSIGHT_ARG=()
-[[ -s "$INSIGHT_REVIEW" ]] && INSIGHT_ARG=(--insight-review "$INSIGHT_REVIEW")
-if python3 "$SCRIPTS/build_decision_packet.py" build \
-        --end-date "$END_DATE" \
-        --run-id "$RUN_ID" \
-        --audit "$AUDIT" \
-        --metrics "$METRICS" \
-        ${FINDINGS_ARG[@]+"${FINDINGS_ARG[@]}"} \
-        --patches-dir "$PATCH_DIR" \
-        --prompt-patches-dir "$PROMPT_PATCH_DIR" \
-        ${INSIGHT_ARG[@]+"${INSIGHT_ARG[@]}"} \
-        ${IMPROVEMENT_ARG[@]+"${IMPROVEMENT_ARG[@]}"} \
-        ${DEADCODE_ARG[@]+"${DEADCODE_ARG[@]}"} \
-        ${VALUE_LAYER_ARG[@]+"${VALUE_LAYER_ARG[@]}"} \
-        ${DOCSCAN_ARG[@]+"${DOCSCAN_ARG[@]}"} \
-        --skill-selection "$NEVER_SELECTED_JSON" \
-        --run-log-dir "$RUN_LOG_DIR" \
-        --out "$PACKET" > "$RUN_LOG_DIR/packet.log" 2>&1; then
-    audit chain_end result=ok packet="$PACKET" reasons="${REASONS:-none}"
-    echo "[$RUN_ID] packet: $PACKET"
-    echo "[$RUN_ID] done (reasons: ${REASONS:-none})"
-else
-    audit chain_end result=fail reason=PACKET_FAIL
-    echo "ERROR: packet build failed (see $RUN_LOG_DIR/packet.log)" >&2
-    exit 1
-fi
+# --- Chain end (no packet: the Saturday gate reads the artifacts directly) ---
+audit chain_end result=ok report="$REPORT_PATH" findings="$FINDINGS_MD" \
+    reasons="${REASONS:-none}"
+echo "[$RUN_ID] artifacts:"
+echo "  report:    $REPORT_PATH"
+echo "  findings:  $FINDINGS_MD"
+echo "  valuelayer: $VALUE_LAYER_JSON"
+echo "  deadcode:  $DEADCODE_JSON"
+echo "  docsscan:  $DOCSCAN_JSON"
+echo "  neversel:  $NEVER_SELECTED_JSON"
+echo "[$RUN_ID] done (reasons: ${REASONS:-none})"

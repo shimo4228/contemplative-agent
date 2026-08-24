@@ -854,9 +854,9 @@ def _iter_selection_days(
     Decode faults are ``ValueError`` as well as ``OSError``: a log file
     with one bad byte raises ``UnicodeDecodeError``, which is not an
     ``OSError``, and the callers that broke on exactly that gap are named
-    in ``scripts/value_layer_due_check.py`` and
+    in ``scripts/value_layer_due_check.py`` and the retired
     ``scripts/build_decision_packet.py``. Here it would have taken out a
-    packet section with no reason code at all.
+    whole reading with no reason code at all.
 
     ``keep`` is the caller's window predicate, applied to the filename date
     **before the file is opened** so a seven-day reading does not pay to
@@ -1994,12 +1994,11 @@ def read_never_selected(
 
 
 def never_selected_reading_json(reading: NeverSelectedReading) -> dict[str, Any]:
-    """Serialize the reading for the weekly packet (`build_decision_packet.py`).
+    """Serialize the reading to the per-week JSON the Saturday gate reads (ADR-0098).
 
-    Rows, not counts. The packet builder computes every number it prints from
-    these rows and re-applies the floor itself — a count asserted in a field
-    is a count nobody checked, and the strict list is the one list a human
-    acts on.
+    Rows, not counts. The gate computes every number it reads from these rows
+    and re-applies the floor itself — a count asserted in a field is a count
+    nobody checked, and the strict list is the one list a human acts on.
     """
 
     def _rows(entries: tuple[NeverSelectedSkill, ...]) -> list[dict[str, Any]]:

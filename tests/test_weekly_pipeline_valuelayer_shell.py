@@ -9,14 +9,14 @@ arriving insight batch), and staging-empty.  These tests drive the real
 script with stubbed `claude` / `uv` binaries, per scenario:
 
 - V-1  due + marker fresh + staging empty → distill staged (md + sidecar),
-       audited ok, packet carries the inventory line and the §8 section
-- V-2  due + staging busy → deferred with IDENTITY_STAGING_BUSY, manual
-       gate path named in packet, distill never invoked
+       audited ok, per-week JSON persisted for the gate's direct read
+- V-2  due + staging busy → deferred with IDENTITY_STAGING_BUSY, distill
+       never invoked
 - V-3  approval audit log missing → due check abstains, VALUE_LAYER_CHECK_FAIL,
-       no identity run, packet still builds (fail-forward)
-- V-4  nothing due → no identity attempt, quiet packet
+       no identity run, no half-written JSON (fail-forward via reason codes)
+- V-4  nothing due → no identity attempt, quiet run
 - V-5  distill runs but stages nothing (LLM failure) → IDENTITY_STAGE_FAIL
-       from the on-disk ground truth, packet visible
+       from the on-disk ground truth
 - V-6  insight marker stale/missing → IDENTITY_INSIGHT_PENDING, distill
        never invoked (the reverse-race guard, adr review 2026-08-10)
 - V-7  --end-date backfill → IDENTITY_BACKFILL_SKIP, distill never invoked
@@ -95,7 +95,7 @@ def _make_env(
     stub_marker: str | None = None,
     insight_marker: str = "fresh",
     end_date: str = LIVE_END_DATE,
-) -> tuple[dict, str]:
+) -> dict:
     home = tmp_path / "moltbook"
     analysis = home / "reports" / "analysis"
     analysis.mkdir(parents=True)
@@ -137,8 +137,8 @@ def _make_env(
     env["MOLTBOOK_HOME"] = str(home)
     env["STUB_STATE"] = str(state)
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
-    env["MOLTBOOK_PIPELINE_STAGES"] = "valuelayer,packet"
-    return env, end_date
+    env["MOLTBOOK_PIPELINE_STAGES"] = "valuelayer"
+    return env
 
 
 def _run(env: dict, end_date: str) -> subprocess.CompletedProcess:
@@ -164,9 +164,16 @@ def _stage_events(env: dict, stage: str) -> list[dict]:
     ]
 
 
-def _packet_text(env: dict, end_date: str) -> str:
-    packet = Path(env["MOLTBOOK_HOME"]) / "reports" / "analysis" / f"weekly-{end_date}-packet.md"
-    return packet.read_text(encoding="utf-8")
+def _chain_reasons(env: dict) -> str:
+    """The chain_end audit event's accumulated reason codes (the packet is
+    retired; reason codes and the per-week JSONs are the gate's read now)."""
+    ends = [e for e in _audit_events(env) if e.get("event") == "chain_end"]
+    assert ends, "chain_end event missing"
+    return ends[-1].get("reasons", "")
+
+
+def _vl_json_path(env: dict, end_date: str) -> Path:
+    return Path(env["MOLTBOOK_HOME"]) / "pipeline" / "value-layer" / f"value-layer-{end_date}.json"
 
 
 def _identity_line(days_ago: int) -> str:
@@ -181,8 +188,8 @@ def _identity_line(days_ago: int) -> str:
 
 
 def test_v1_identity_due_and_staging_empty_stages_candidate(tmp_path: Path):
-    env, end_date = _make_env(tmp_path, approval_audit_lines=[_identity_line(40)])
-    proc = _run(env, end_date)
+    env = _make_env(tmp_path, approval_audit_lines=[_identity_line(40)])
+    proc = _run(env, LIVE_END_DATE)
     assert proc.returncode == 0, proc.stderr
 
     assert [e["result"] for e in _stage_events(env, "valuelayer")] == ["ok"]
@@ -191,19 +198,14 @@ def test_v1_identity_due_and_staging_empty_stages_candidate(tmp_path: Path):
     assert (staged_dir / "identity.md").is_file()
     assert (staged_dir / "identity.md.meta.json").is_file()
 
-    packet = _packet_text(env, end_date)
-    assert "identity candidate: 1" in packet
-    assert "## 8. Value layer cadence" in packet
-    # The instrument reading is persisted for the longitudinal read.
-    vl_json = (
-        Path(env["MOLTBOOK_HOME"]) / "pipeline" / "value-layer" / f"value-layer-{end_date}.json"
-    )
+    # The instrument reading is persisted for the gate's direct read.
+    vl_json = _vl_json_path(env, LIVE_END_DATE)
     assert json.loads(vl_json.read_text(encoding="utf-8"))["identity"]["due"] is True
 
 
 def test_v2_identity_due_but_staging_busy_defers(tmp_path: Path):
-    env, end_date = _make_env(tmp_path, approval_audit_lines=[_identity_line(40)], staged_metas=1)
-    proc = _run(env, end_date)
+    env = _make_env(tmp_path, approval_audit_lines=[_identity_line(40)], staged_metas=1)
+    proc = _run(env, LIVE_END_DATE)
     assert proc.returncode == 0, proc.stderr
 
     events = _stage_events(env, "identity")
@@ -212,45 +214,48 @@ def test_v2_identity_due_but_staging_busy_defers(tmp_path: Path):
     ]
     # The distill must never have been attempted against a busy staging dir.
     assert not (Path(env["STUB_STATE"]) / "identity_calls").exists()
-    packet = _packet_text(env, end_date)
-    assert "IDENTITY_STAGING_BUSY" in packet
-    assert "distill-identity" in packet.split("## 8.")[1]
+    assert "IDENTITY_STAGING_BUSY" in _chain_reasons(env)
 
 
-def test_v3_missing_approval_audit_abstains_and_packet_survives(tmp_path: Path):
-    env, end_date = _make_env(tmp_path, approval_audit_lines=None)
-    proc = _run(env, end_date)
+def test_v3_missing_approval_audit_abstains_and_the_chain_survives(tmp_path: Path):
+    env = _make_env(tmp_path, approval_audit_lines=None)
+    proc = _run(env, LIVE_END_DATE)
     assert proc.returncode == 0, proc.stderr
 
     events = _stage_events(env, "valuelayer")
     assert [(e["result"], e.get("reason")) for e in events] == [("fail", "VALUE_LAYER_CHECK_FAIL")]
     assert _stage_events(env, "identity") == []
     assert not (Path(env["STUB_STATE"]) / "identity_calls").exists()
-    packet = _packet_text(env, end_date)
-    assert "VALUE_LAYER_CHECK_FAIL" in packet
-    assert "Value layer cadence" not in packet
+    assert "VALUE_LAYER_CHECK_FAIL" in _chain_reasons(env)
+    # The abstain removes the JSON so the gate's missing-artifact check names
+    # it, rather than leaving a half-written reading that parses as clean.
+    assert not _vl_json_path(env, LIVE_END_DATE).exists()
 
 
 def test_v4_nothing_due_is_quiet(tmp_path: Path):
-    env, end_date = _make_env(tmp_path, approval_audit_lines=[_identity_line(3)])
-    proc = _run(env, end_date)
+    env = _make_env(tmp_path, approval_audit_lines=[_identity_line(3)])
+    proc = _run(env, LIVE_END_DATE)
     assert proc.returncode == 0, proc.stderr
 
     assert [e["result"] for e in _stage_events(env, "valuelayer")] == ["ok"]
     assert _stage_events(env, "identity") == []
-    assert "Value layer cadence" not in _packet_text(env, end_date)
+    assert "IDENTITY" not in _chain_reasons(env)
+    assert (
+        json.loads(_vl_json_path(env, LIVE_END_DATE).read_text(encoding="utf-8"))["identity"]["due"]
+        is False
+    )
 
 
 def test_v5_distill_stages_nothing_reads_as_fail(tmp_path: Path):
-    env, end_date = _make_env(
+    env = _make_env(
         tmp_path, approval_audit_lines=[_identity_line(40)], stub_marker="identity_fail"
     )
-    proc = _run(env, end_date)
+    proc = _run(env, LIVE_END_DATE)
     assert proc.returncode == 0, proc.stderr
 
     events = _stage_events(env, "identity")
     assert [(e["result"], e.get("reason")) for e in events] == [("fail", "IDENTITY_STAGE_FAIL")]
-    assert "IDENTITY_STAGE_FAIL" in _packet_text(env, end_date)
+    assert "IDENTITY_STAGE_FAIL" in _chain_reasons(env)
 
 
 @pytest.mark.parametrize("marker_state", ["stale", "missing"])
@@ -259,10 +264,10 @@ def test_v6_insight_marker_not_fresh_defers(tmp_path: Path, marker_state: str):
     job has COMPLETED (marker fresh) — otherwise staging identity into the
     momentarily-empty dir would make ADR-0074 discard the arriving insight
     batch (adr review 2026-08-10 CRITICAL)."""
-    env, end_date = _make_env(
+    env = _make_env(
         tmp_path, approval_audit_lines=[_identity_line(40)], insight_marker=marker_state
     )
-    proc = _run(env, end_date)
+    proc = _run(env, LIVE_END_DATE)
     assert proc.returncode == 0, proc.stderr
 
     events = _stage_events(env, "identity")
@@ -270,17 +275,15 @@ def test_v6_insight_marker_not_fresh_defers(tmp_path: Path, marker_state: str):
         ("skipped", "IDENTITY_INSIGHT_PENDING")
     ]
     assert not (Path(env["STUB_STATE"]) / "identity_calls").exists()
-    assert "IDENTITY_INSIGHT_PENDING" in _packet_text(env, end_date)
+    assert "IDENTITY_INSIGHT_PENDING" in _chain_reasons(env)
 
 
 def test_v7_backfill_never_fires_a_run(tmp_path: Path):
     """A --end-date backfill must not fire a real LLM run off a stale-dated
     reading and reset the genuine cadence clock (code review 2026-08-10)."""
     backfill = (datetime.now().astimezone() - timedelta(days=10)).strftime("%Y-%m-%d")
-    env, end_date = _make_env(
-        tmp_path, approval_audit_lines=[_identity_line(60)], end_date=backfill
-    )
-    proc = _run(env, end_date)
+    env = _make_env(tmp_path, approval_audit_lines=[_identity_line(60)], end_date=backfill)
+    proc = _run(env, backfill)
     assert proc.returncode == 0, proc.stderr
 
     events = _stage_events(env, "identity")
@@ -293,28 +296,28 @@ def test_v7_backfill_never_fires_a_run(tmp_path: Path):
 def test_v8_missing_sidecar_reads_as_fail(tmp_path: Path):
     """adopt-staged pairs on the .meta.json sidecar — an .md alone is an
     orphan, not a candidate (codex review 2026-08-10 P2)."""
-    env, end_date = _make_env(
+    env = _make_env(
         tmp_path, approval_audit_lines=[_identity_line(40)], stub_marker="identity_partial"
     )
-    proc = _run(env, end_date)
+    proc = _run(env, LIVE_END_DATE)
     assert proc.returncode == 0, proc.stderr
 
     events = _stage_events(env, "identity")
     assert [(e["result"], e.get("reason")) for e in events] == [("fail", "IDENTITY_STAGE_FAIL")]
-    assert "identity candidate: 1" not in _packet_text(env, end_date)
+    assert "IDENTITY_STAGE_FAIL" in _chain_reasons(env)
 
 
 def test_v9_cli_refusal_is_a_designed_outcome_not_a_fault(tmp_path: Path):
     """Losing the flock to a concurrent producer is ADR-0074 working as
     designed — it must not read as an LLM failure in the P4 detector."""
-    env, end_date = _make_env(
+    env = _make_env(
         tmp_path, approval_audit_lines=[_identity_line(40)], stub_marker="identity_refuse"
     )
-    proc = _run(env, end_date)
+    proc = _run(env, LIVE_END_DATE)
     assert proc.returncode == 0, proc.stderr
 
     events = _stage_events(env, "identity")
     assert [(e["result"], e.get("reason")) for e in events] == [
         ("skipped", "IDENTITY_STAGING_RACE")
     ]
-    assert "IDENTITY_STAGE_FAIL" not in _packet_text(env, end_date)
+    assert "IDENTITY_STAGE_FAIL" not in _chain_reasons(env)

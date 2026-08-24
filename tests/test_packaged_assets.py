@@ -27,19 +27,16 @@ def _repo_root() -> Path:
 
 REPO_ROOT = _repo_root()
 
-# Prompt documents consumed by scripts rather than the PromptTemplates
-# registry. A stem listed here must name its consumer:
-# - principles / weekly-analysis / weekly-analysis-ja → scripts/weekly-analysis.sh
-# - fix-implementation / fix-review / insight-recommendation /
-#   pipeline-improvement → scripts/weekly-pipeline.sh (ADR-0085)
+# Prompt documents consumed by scripts / skills rather than the
+# PromptTemplates registry. A stem listed here must name its consumer:
+# - principles / weekly-analysis → scripts/weekly-analysis.sh (materials) and
+#   the /weekly-report skill (A-E synthesis)
+# - weekly-analysis-ja → the /weekly-report skill (ja rendering; ADR-0098 —
+#   the fix/review/improve prompts retired with their stages)
 SCRIPT_READ_PROMPTS = {
     "principles",
     "weekly-analysis",
     "weekly-analysis-ja",
-    "fix-implementation",
-    "fix-review",
-    "insight-recommendation",
-    "pipeline-improvement",
 }
 
 
@@ -88,12 +85,14 @@ class TestPackagedPrompts:
         below — and since 2026-08-08 that guard is what the eval's allowlist
         leans on to be safe, so the set became load-bearing without gaining a
         check (python review, 2026-08-08)."""
-        scripts = "\n".join(
-            p.read_text(encoding="utf-8") for p in sorted((REPO_ROOT / "scripts").glob("*.sh"))
+        consumers = sorted((REPO_ROOT / "scripts").glob("*.sh")) + sorted(
+            (REPO_ROOT / ".claude" / "skills" / "weekly-report").rglob("*.md")
         )
-        unreferenced = sorted(s for s in SCRIPT_READ_PROMPTS if f"{s}.md" not in scripts)
+        consumer_text = "\n".join(p.read_text(encoding="utf-8") for p in consumers)
+        unreferenced = sorted(s for s in SCRIPT_READ_PROMPTS if f"{s}.md" not in consumer_text)
         assert not unreferenced, (
-            f"stems claim a script consumer but no scripts/*.sh names them: {unreferenced}. "
+            "stems claim a consumer but no scripts/*.sh and no /weekly-report skill file "
+            f"names them: {unreferenced}. "
             "Either wire a PromptTemplates field or delete the file — do not park "
             "generation-path templates here; the eval digest excludes this set."
         )

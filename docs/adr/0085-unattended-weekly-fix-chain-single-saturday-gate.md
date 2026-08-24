@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0098 (the diagnosis / fix / packet stage structure retired 2026-08-24 — repair moved to the task-triage loop and `build_decision_packet.py` was retired; the Saturday single-gate model and the launch schedule remain in effect)
 
 ## Date
 

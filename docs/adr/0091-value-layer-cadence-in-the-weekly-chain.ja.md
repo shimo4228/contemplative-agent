@@ -2,9 +2,7 @@
 
 ## Status
 
-accepted — `scripts/weekly-pipeline.sh` へのステージ 1 段、read-only 計器スクリプト
-1 本、packet セクション 1 節の追加。`core/` / `adapters/` の runtime 挙動は変更しない。
-採用権限は不変（[ADR-0012](0012-human-approval-gate.ja.md) の土曜ゲート）。
+partially-superseded-by ADR-0098（§8 packet 読み値の配送形は 2026-08-24 に退役 — due 読みは packet の節でなく gate が value-layer JSON を直接読む形に変わった。cadence の論理自体は不変）。その JSON を産む `scripts/weekly-pipeline.sh` へのステージ追加と read-only 計器スクリプトは効力を保つ。`core/` / `adapters/` の runtime 挙動への不関与も変わらず、採用権限も不変（[ADR-0012](0012-human-approval-gate.ja.md) の土曜ゲート）。
 
 ## Date
 

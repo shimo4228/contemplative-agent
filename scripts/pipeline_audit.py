@@ -3,7 +3,7 @@
 
 The bash orchestrator shells out here instead of hand-printing JSON: shell
 quoting cannot be trusted to produce valid JSON for arbitrary reason strings,
-and a corrupt audit line would silently break the packet builder that replays
+and a corrupt audit line would silently break the consumers that replay
 this log. A write failure exits non-zero so the orchestrator can surface it —
 never a silent fallback.
 """

@@ -1,10 +1,13 @@
-"""Fault column for the diagnosis stage's permission boundary (T-DIAG-WRITE-SCOPE).
+"""Fault column for the weekly session's permission boundary.
 
-Stage 2 runs an LLM session whose input chain reaches back to external SNS
-content, and ADR-0091 made `logs/audit.jsonl` a *control input* for stage 5b
-(the identity-due read). A diagnosis session able to write there can forge the
-trigger for a later unattended LLM run. The 2026-08-10 security review filed
-this as M1.
+Lineage: T-DIAG-WRITE-SCOPE guarded the old stage-2 diagnosis session; the
+2026-08-24 single-session redesign (ADR-0098) folded report synthesis,
+translation, diagnosis and candidate filing into ONE session, and this module
+now guards that session. The threat is unchanged: the session's input chain
+reaches back to external SNS content, and ADR-0091 made `logs/audit.jsonl` a
+*control input* for the identity-due read — a session able to write there can
+forge the trigger for a later unattended LLM run (2026-08-10 security review
+M1).
 
 Three mechanics of the permission layer make the naive spelling of that fix
 inert. All were verified against the real binary on 2026-08-15:
@@ -23,10 +26,11 @@ argv, and evaluate the granted permissions *semantically* — globs are matched
 against concrete paths rather than string-compared, because a rule can look
 scoped and still admit the audit log:
 
-- D-SCOPE-1  the write grant admits both findings files the skill emits
+- D-SCOPE-1  the write grant admits exactly the session's own outputs: the
+             report pair, the findings pair, and the sandboxed task store
 - D-SCOPE-2  it admits nothing else — audit logs, staged value-layer items,
-             the human's decision packet, fix patches, other weeks' findings,
-             the report body, repo source
+             the live value layer, other weeks' findings and reports, repo
+             source
 - D-SCOPE-3  no unscoped file-write grant, and no inert `Write(...)` rule
 - D-SCOPE-4  the session pins a non-permissive permission mode
 - D-SCOPE-5  deny rules cover the control inputs regardless of the mode
@@ -74,10 +78,12 @@ SCRIPT = REPO_ROOT / "scripts" / "weekly-pipeline.sh"
 END_DATE = "2026-07-24"
 OTHER_DATE = "2026-07-17"
 
-# Tool names the diagnosis session is expected to hold with no argument scope.
+# Tool names the weekly session is expected to hold with no argument scope.
 # An allowlist rather than a blocklist: a blocklist silently admits the next
 # file-editing tool the substrate ships (MultiEdit, NotebookEdit, …).
-EXPECTED_BARE_TOOLS = {"Read", "Glob", "Grep"}
+# Read is no longer bare — it is positively scoped (2026-08-24 security
+# review HIGH), so the only unscoped grants left are the two search tools.
+EXPECTED_BARE_TOOLS = {"Glob", "Grep"}
 
 FINDINGS_MD = """# Weekly findings
 
@@ -96,13 +102,22 @@ FINDINGS_MD = """# Weekly findings
 
 # Records argv NUL-delimited (a future --system-prompt would carry newlines and
 # splitlines() would silently fabricate argv entries), then plays the skill's
-# side of the contract so the stage reads as ok.
+# side of the contract — the report pair and the findings pair — so the stage
+# reads as ok.
 CLAUDE_STUB = """#!/bin/bash
 printf '%s\\0' "$@" > "$STUB_STATE/diagnosis_args"
+cp "$STUB_STATE/report_body.md" "$STUB_REPORT"
+cp "$STUB_STATE/report_body.md" "${STUB_REPORT%.md}.ja.md"
 cp "$STUB_STATE/findings_body.md" "$STUB_FINDINGS"
 cp "$STUB_STATE/findings_body.md" "${STUB_FINDINGS%.md}.ja.md"
 exit 0
 """
+
+REPORT_MD = (
+    "## A. Quantitative Summary\n\n## B. Agent State Snapshot\n\n"
+    "## C. Engagement Patterns\n\n## D. Change Points\n\n"
+    "## E. Qualitative Highlights\n"
+)
 
 
 def _write_exec(path: Path, body: str) -> None:
@@ -116,18 +131,24 @@ def _make_env(tmp_path: Path) -> dict:
     analysis.mkdir(parents=True)
     (home / "logs").mkdir(parents=True)
     (home / ".staged").mkdir(parents=True)
-
-    # Report present, findings absent — the stage must actually invoke claude
-    # rather than take the `findings already exist, reusing` branch.
-    (analysis / f"weekly-{END_DATE}.md").write_text("# report\n\nbody\n", encoding="utf-8")
+    (home / "reports" / "comment-reports").mkdir(parents=True)
+    # One daily report so the materials collection succeeds and the chain
+    # reaches the session invocation under test.
+    (home / "reports" / "comment-reports" / f"comment-report-{END_DATE}.md").write_text(
+        "# Comment report\n\n## Entry 1\n\nOutput: hello.\n", encoding="utf-8"
+    )
 
     state = tmp_path / "stub-state"
     state.mkdir()
     (state / "findings_body.md").write_text(FINDINGS_MD, encoding="utf-8")
+    (state / "report_body.md").write_text(REPORT_MD, encoding="utf-8")
 
     bin_dir = tmp_path / "bin"
     bin_dir.mkdir()
     _write_exec(bin_dir / "claude", CLAUDE_STUB)
+
+    tasks_dir = tmp_path / "tasks"
+    tasks_dir.mkdir()
 
     # Drop the developer's pipeline overrides so the run is reproducible.
     env = {
@@ -136,17 +157,24 @@ def _make_env(tmp_path: Path) -> dict:
         if not k.startswith("PIPELINE_") and not k.startswith("MOLTBOOK_")
     }
     env["MOLTBOOK_HOME"] = str(home)
+    env["HOME"] = str(tmp_path / "fakehome")
+    (tmp_path / "fakehome").mkdir(exist_ok=True)
     env["STUB_STATE"] = str(state)
-    env["STUB_FINDINGS"] = str(analysis / f"weekly-{END_DATE}-findings.md")
+    private = home / "reports" / ".private"
+    private.mkdir(parents=True, exist_ok=True)
+    env["STUB_REPORT"] = str(private / f"weekly-{END_DATE}.md")
+    env["STUB_FINDINGS"] = str(private / f"weekly-{END_DATE}-findings.md")
     env["PATH"] = f"{bin_dir}:{env['PATH']}"
-    env["MOLTBOOK_PIPELINE_STAGES"] = "diagnosis,packet"
+    env["MOLTBOOK_PIPELINE_STAGES"] = "report"
+    env["PIPELINE_TASKS_DIR"] = str(tasks_dir)
+    env["PIPELINE_CLAIMS_PY"] = os.devnull  # never reached: no task files spawn
     return env
 
 
 def _diagnosis_argv(tmp_path: Path) -> tuple[list[str], dict]:
     env = _make_env(tmp_path)
     proc = subprocess.run(
-        ["bash", str(SCRIPT), "--skip-report", "--end-date", END_DATE],
+        ["bash", str(SCRIPT), "--end-date", END_DATE],
         env=env,
         capture_output=True,
         text=True,
@@ -213,16 +241,16 @@ def _protected_paths(env: dict) -> list[str]:
     survives an ambient grant.
     """
     home = env["MOLTBOOK_HOME"]
-    analysis = f"{home}/reports/analysis"
     return [
         f"{home}/logs/audit.jsonl",
         f"{home}/logs/weekly-pipeline-audit.jsonl",
         f"{home}/.staged/identity.md",
         f"{home}/.staged/identity.md.meta.json",
-        f"{analysis}/weekly-{END_DATE}-packet.md",
-        f"{analysis}/weekly-{END_DATE}-insight-review.md",
-        f"{analysis}/weekly-{END_DATE}.md",
-        f"{analysis}/patches/weekly-{END_DATE}/code/f1-1.patch",
+        f"{home}/identity.md",
+        f"{home}/knowledge.json",
+        f"{home}/skills/some-skill.md",
+        f"{home}/rules/some-rule.md",
+        f"{home}/constitution/axioms.md",
     ]
 
 
@@ -275,21 +303,36 @@ def _writable(argv: list[str], path: str) -> bool:
     return any(_matches(p, path) for p in _rules(allow, "Edit"))
 
 
-def test_d_scope_1_findings_outputs_stay_writable(diagnosis_argv):
-    """The two files the diagnosis skill emits must remain in scope.
+def test_d_scope_1_session_outputs_stay_writable(diagnosis_argv):
+    """The session's own outputs must remain in scope: the report pair, the
+    findings pair, and the sandboxed task store for candidate filing.
 
-    Over-tightening here is the expensive failure: the stage would abstain
-    with DIAGNOSIS_FAIL and the week's F sections would be missing until the
-    Saturday gate noticed.
+    Over-tightening here is the expensive failure: the session would fail to
+    author its artifacts and the week would be missing until the Saturday
+    gate noticed.
     """
     argv, env = diagnosis_argv
-    analysis = f"{env['MOLTBOOK_HOME']}/reports/analysis"
+    private = f"{env['MOLTBOOK_HOME']}/reports/.private"
 
-    for name in (f"weekly-{END_DATE}-findings.md", f"weekly-{END_DATE}-findings.ja.md"):
-        assert _writable(argv, f"{analysis}/{name}"), (
-            f"{name} is the stage's own output and must stay writable; "
+    for name in (
+        f"weekly-{END_DATE}.md",
+        f"weekly-{END_DATE}.ja.md",
+        f"weekly-{END_DATE}-findings.md",
+        f"weekly-{END_DATE}-findings.ja.md",
+    ):
+        assert _writable(argv, f"{private}/{name}"), (
+            f"{name} is the session's own staged output and must stay writable; "
             f"allow={_flag_value(argv, '--allowedTools')}"
         )
+    assert _writable(argv, f"{private}/tasks-{END_DATE}/T-NEW-CANDIDATE.md"), (
+        "the per-run task STAGING must stay writable for Phase 4 candidate filing"
+    )
+    # The live store is deliberately NOT writable: concurrent sessions own it
+    # and the chain moves validated candidates in deterministically
+    # (codex review 2026-08-24 P1).
+    assert not _writable(argv, f"{env['PIPELINE_TASKS_DIR']}/T-NEW-CANDIDATE.md"), (
+        "the session must not hold a live task-store write grant"
+    )
 
 
 def test_d_scope_2_control_inputs_and_gate_artifacts_are_out_of_scope(diagnosis_argv):
@@ -304,7 +347,12 @@ def test_d_scope_2_control_inputs_and_gate_artifacts_are_out_of_scope(diagnosis_
     argv, env = diagnosis_argv
     home = env["MOLTBOOK_HOME"]
     forbidden = _protected_paths(env) + [
+        # The canonical (public-sync) paths: the session writes only into
+        # .private/ and the chain promotes after the structural gate.
+        f"{home}/reports/analysis/weekly-{END_DATE}.md",
+        f"{home}/reports/analysis/weekly-{END_DATE}-findings.md",
         f"{home}/reports/analysis/weekly-{OTHER_DATE}-findings.md",
+        f"{home}/reports/analysis/weekly-{OTHER_DATE}.md",
         f"{home}/reports/comment-reports/comment-report-{END_DATE}.md",
         f"{REPO_ROOT}/src/contemplative_agent/core/llm.py",
         f"{REPO_ROOT}/scripts/weekly-pipeline.sh",
@@ -448,8 +496,8 @@ def test_d_scope_10_invocation_is_the_diagnosis_skill(diagnosis_argv):
     """
     argv, _ = diagnosis_argv
     prompt = _flag_value(argv, "-p")
-    assert prompt.startswith("/weekly-report-diagnosis"), (
-        f"recorded argv is not the diagnosis session: {prompt!r}"
+    assert prompt.startswith("/weekly-report "), (
+        f"recorded argv is not the weekly session: {prompt!r}"
     )
 
 
@@ -472,7 +520,7 @@ def test_d_scope_11_unsafe_home_is_rejected_before_any_work(tmp_path: Path, home
     env = _make_env(tmp_path)
     env["MOLTBOOK_HOME"] = home
     proc = subprocess.run(
-        ["bash", str(SCRIPT), "--skip-report", "--end-date", END_DATE],
+        ["bash", str(SCRIPT), "--end-date", END_DATE],
         env=env,
         capture_output=True,
         text=True,

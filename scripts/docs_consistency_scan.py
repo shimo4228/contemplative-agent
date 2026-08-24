@@ -3,10 +3,10 @@
 
 Scans the repo checkout's own documentation corpus (docs/ + CLAUDE.md +
 READMEs — all self-authored, so nothing here is untrusted text) and emits a
-JSON findings list on stdout for the Saturday decision packet. Detection and
-repair are separated by construction: the scan is read-only, its output goes
-straight to build_decision_packet.py — bypassing the diagnosis→fix LLM stages
-— and any doc edit stays a human commit at the Saturday gate (/weekly-gate).
+JSON findings list on stdout for the Saturday gate. Detection and repair are
+separated by construction: the scan is read-only, its per-week JSON is read
+directly by /weekly-gate — bypassing the unattended LLM session — and any doc
+edit stays a human commit at the gate.
 
 Why this exists: the two observed instances of this defect class (ADR-0081's
 refuted-but-unmarked safety argument; a ledger citation of a rules clause

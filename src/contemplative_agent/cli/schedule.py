@@ -282,12 +282,15 @@ def _do_install_backup_schedule(weekday: int, hour: int) -> None:
 def _do_install_weekly_pipeline_schedule(weekday: int, hour: int) -> None:
     """Install launchd plist for the unattended weekly chain (ADR-0085).
 
-    Runs ``scripts/weekly-pipeline.sh``: report → diagnosis → fix → insight
-    review → value-layer due check (ADR-0091) → dead-code scan → improvement
-    check → decision packet. Replaces ``--weekly-analysis`` (the chain runs
-    weekly-analysis.sh as its own Stage 1); the two flags are mutually
-    exclusive. Nothing in the chain commits or adopts — the Saturday
-    ``/weekly-gate`` session remains the single human gate.
+    Runs ``scripts/weekly-pipeline.sh`` (ADR-0098 single-session form):
+    materials → one ``/weekly-report`` session (A-E synthesis + diagnosis +
+    candidate filing into the task ledger) → value-layer due check
+    (ADR-0091) → dead-code scan → docs-consistency scan → never-selected
+    reading. Replaces ``--weekly-analysis`` (the chain runs
+    weekly-analysis.sh as its materials collector); the two flags are
+    mutually exclusive. Nothing in the chain commits, adopts, or repairs —
+    the Saturday ``/weekly-gate`` session and the task-triage loop hold the
+    human gates.
 
     ADR-0085 shadow rollout: exporting ``MOLTBOOK_PIPELINE_STAGES`` in the
     installing shell bakes it into the plist (same mechanism as ADR-0081's
@@ -620,9 +623,9 @@ def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
         "--weekly-pipeline",
         action="store_true",
         help=(
-            "Install the unattended weekly chain (ADR-0085: report → diagnosis → "
-            "fix → insight review → value-layer due check → dead-code scan → "
-            "improvement check → decision packet). Replaces --weekly-analysis."
+            "Install the unattended weekly chain (ADR-0098: materials → one "
+            "/weekly-report session (report + diagnosis + candidate filing) → "
+            "instrument scans). Replaces --weekly-analysis."
         ),
     )
     parser.add_argument(

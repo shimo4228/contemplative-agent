@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0098（diagnosis / fix / packet の段構成は 2026-08-24 に退役 — 修理は task-triage loop へ移り、`build_decision_packet.py` は退役した。土曜単一ゲートの型と起動スケジュールは効力を保つ）
 
 ## Date
 

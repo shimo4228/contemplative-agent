@@ -52,13 +52,14 @@ private persona or conversation memory:
 | Authority | the human promotion edges below | Workers propose, diagnose, implement, and review; a human promotes durable changes |
 
 Cycle #5 is the clearest example. The unattended Saturday chain (`scripts/weekly-pipeline.sh`,
-ADR-0085) runs the report session (observation-only A–E), then a **separate headless session**
-governed by the `weekly-report-diagnosis` skill produces F1/F2/F3 findings, then per-finding
-implementer and reviewer sessions turn code-scope F1s into Verify-passed patches — none of which
-lands anywhere. The human decides everything in one Saturday `/weekly-gate` session over the
-decision packet. Report author, diagnostician, implementer, reviewer, and promoter are five
-distinct responsibilities even though no long-lived named agent is created for them, and only the
-last one is human.
+ADR-0085 / ADR-0098) runs **one** headless session (`/weekly-report`): observation-only A–E
+synthesis, then diagnosis producing F1/F2/F3 findings, then candidate filing into the task
+ledger — no repairs, no patches. Repairs travel through the task-triage loop (premise
+verification → owner digest → worktree dispatch → human merge), and the value-layer decisions
+happen in the Saturday `/weekly-gate` session over the findings and the per-week instrument
+JSONs. Diagnostician, triage judge, implementer, and promoter remain distinct responsibilities;
+the independence that used to live on session boundaries now lives on the ledger boundary
+(findings are advisory; triage re-verifies premises before anything is built).
 
 This model deliberately keeps execution identity lightweight. A session's useful result compounds
 only after it lands in the appropriate shared artifact; the session itself is not an additional
@@ -94,7 +95,7 @@ not reducible to any benchmark suite (ADR-0080's benchmark non-reducibility clau
 | 2 | **Wiki refresh** | weekly Mon 09:00 — `com.shimo.wiki-refresh` | wiki maintenance / re-synthesis | — | Obsidian Vault `wiki/` | Vault |
 | 3 | **Product operation** | every 6h, 00/06/12/18 JST — `com.moltbook.agent` | live sessions → episode logs / comment-reports | — | `logs/`, `reports/comment-reports/` | CA runtime (`MOLTBOOK_HOME`) |
 | 4 | **Product metabolism (AKC)** | distill daily; insight weekly (staged) — `com.moltbook.distill` / `.insight`; identity monthly (staged by cycle 5's chain, ADR-0091); constitution amendment on due-reading, human-initiated (ADR-0090/0091; shadow readings as third gate material, ADR-0092) | Extract (distill) / Curate (insight) | `adopt-staged` (approval gate, ADR-0012) | `knowledge.json`, identity / skills / rules / constitution | CA + data repo |
-| 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-pipeline` (+ `com.moltbook.watchdog`, ADR-0085) | unattended chain: report → diagnosis → fix (worktree + Verify) → insight review → value-layer due check (+ monthly identity staging, ADR-0091) → dead-code scan → docs-consistency scan (ADR-0093) → decision packet | `/weekly-gate` Saturday session: apply + single commit, prompt diffs full-text, `adopt-staged` | `reports/analysis/weekly-*.md`, `-findings.md`, `-packet.md`, `PIPELINE-STATUS.md` | CA |
+| 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-pipeline` (+ `com.moltbook.watchdog`, ADR-0085 / ADR-0098) | unattended chain: materials → one `/weekly-report` session (A–E + diagnosis + candidate filing) → value-layer due check (+ monthly identity staging, ADR-0091) → dead-code scan → docs-consistency scan (ADR-0093) → never-selected reading | `/weekly-gate` Saturday session (`adopt-staged`, dead code, retirement) + task-triage loop for the filed candidates | `reports/analysis/weekly-*.md`, `-findings.md`, per-week instrument JSONs, `PIPELINE-STATUS.md` | CA |
 | 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | pre-commit diff approval | code, tests, ADR, CODEMAPS | CA |
 | 7 | **Crystallization → papers** | on demand | essays → position-paper drafting → independent parallel review → citation gate | deposit (human) | position papers (DOI-registered) — index in [hub](https://github.com/shimo4228/shimo4228#papers) | AKC / AAP repos |
 | 8 | **Diffusion (publishing)** | on demand | collect-context → article-writing → editor / reviewer / fact-check → ja-to-en → substack | publish (human) | Zenn (ja) / Dev.to (en) / Substack essays | `zenn-content/` |
@@ -152,10 +153,10 @@ these promotions:
 - **#5** weekly F1/F2/F3 findings → ADR / task ledger (`.notes/tasks/`) / code change
 - **#6** implemented diff → commit (after the Verify gate)
 
-For Cycle #5, edges #4–#6 are exercised in a single Saturday `/weekly-gate` session over the
-decision packet (ADR-0085): the unattended chain prepares Verify-passed patches, full-text
-prompt diffs, and per-item insight recommendations, but every promotion — apply, commit,
-`adopt-staged` — stays human.
+For Cycle #5, edge #4 is exercised in the Saturday `/weekly-gate` session over the findings
+and instrument JSONs (ADR-0098 retired the decision packet), while edges #5–#6 travel through
+the task-triage loop: the diagnosis files candidates, the owner adopts them at the triage
+digest, and implemented diffs merge on the human's word. Every promotion stays human.
 
 - **#7** drafted paper → Zenodo / SSRN deposit
 - **#8** reviewed article → Zenn / Dev.to / Substack publish
@@ -199,9 +200,9 @@ Cycle #7 deposits into that index; Cycle #9 keeps the pointers in sync.
 
 The two intake paths close their loops with different degrees of procedural specificity:
 
-- **Cycle #5 (weekly reflection → dev) has a fixed chain**: unattended A–E report →
-  separate-session diagnosis via `weekly-report-diagnosis` → per-finding fix + review sessions →
-  decision packet (ADR-0085) → human promotion via `/weekly-gate`, with a visible trail in ADRs
+- **Cycle #5 (weekly reflection → dev) has a fixed chain**: materials collection → one
+  unattended `/weekly-report` session (A–E + diagnosis + candidate filing) → task-triage loop
+  for repairs, `/weekly-gate` for value-layer promotion (ADR-0085 / ADR-0098), with a visible trail in ADRs
   (e.g. ADR-0040 created the diagnosis skill; several later ADRs cite a specific weekly report as
   their trigger — grep `docs/adr/` for `weekly` to regenerate the current list rather than
   freezing it here).
@@ -221,12 +222,11 @@ The fixed part is the evidence and promotion contract, not the tool used to surf
 Each master-table row corresponds to a live asset. To re-verify after changes:
 
 - Schedules: `ls ~/Library/LaunchAgents/com.*` and `config/launchd/*.plist`
-- Cycle #5 driver: `scripts/weekly-pipeline.sh` (wraps `scripts/weekly-analysis.sh`),
-  `scripts/parse_findings.py`, `scripts/build_decision_packet.py`, `scripts/pipeline_watchdog.sh`,
+- Cycle #5 driver: `scripts/weekly-pipeline.sh` (wraps `scripts/weekly-analysis.sh` as its
+  materials collector), `scripts/pipeline_watchdog.sh`,
   `scripts/docs_consistency_scan.py` (ADR-0093),
-  `config/prompts/weekly-analysis.md` / `fix-implementation.md` / `fix-review.md` /
-  `insight-recommendation.md` / `pipeline-improvement.md`,
-  `.claude/skills/weekly-report-diagnosis/SKILL.md`, `.claude/skills/weekly-gate/SKILL.md`;
+  `config/prompts/weekly-analysis.md` / `weekly-analysis-ja.md` / `principles.md`,
+  `.claude/skills/weekly-report/SKILL.md`, `.claude/skills/weekly-gate/SKILL.md`;
   outputs in `~/.config/moltbook/reports/analysis/` (+ `PIPELINE-STATUS.md`,
   `logs/pipeline-metrics.jsonl`)
 - Program-worker role and review contracts: `~/.claude/rules/common/agents.md`,

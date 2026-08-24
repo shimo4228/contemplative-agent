@@ -2,11 +2,10 @@
 """Weekly dead-code intake — the fifth deterministic intake (T-DEADCODE-INTAKE).
 
 Runs vulture over the repo and emits a JSON candidate list on stdout for the
-Saturday decision packet. Detection and deletion are separated by
-construction: this scan is read-only, its output goes straight to
-build_decision_packet.py — deliberately bypassing the diagnosis→fix LLM
-stages, so an unattended session can never author a deletion — and deletion
-happens only as a human commit at the Saturday gate (/weekly-gate).
+Saturday gate. Detection and deletion are separated by construction: this
+scan is read-only, its per-week JSON is read directly by /weekly-gate —
+deliberately bypassing the unattended LLM session, so it can never author a
+deletion — and deletion happens only as a human commit at the gate.
 
 Scan-wide, report-narrow: vulture's scan paths (pyproject [tool.vulture])
 include tests/ and evals/ so that code used only by tests resolves as used,

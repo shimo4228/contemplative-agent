@@ -2,7 +2,7 @@
 
 ## Status
 
-partially-superseded-by ADR-0095 (stage 6c ledger condition watch retired 2026-08-16; stage 6b docs-consistency scan remains in effect)
+partially-superseded-by ADR-0095 (stage 6c ledger condition watch retired 2026-08-16; stage 6b docs-consistency scan remains in effect); further partially-superseded-by ADR-0098 (the packet sections §9/§10 delivery into `build_decision_packet.py` retired 2026-08-24 along with the packet builder — the Saturday gate now reads the docs-consistency scan's JSON directly; the stage 6b scan and the detection/repair separation remain in effect)
 `scripts/ledger_condition_scan.py` (stage 6c) to the unattended weekly chain
 (ADR-0085), packet sections §9/§10 and metrics fields
 `docs_findings` / `ledger_watch_fired` to `build_decision_packet.py`, and the

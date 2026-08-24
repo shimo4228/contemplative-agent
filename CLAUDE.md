@@ -45,7 +45,7 @@ contemplative-agent init [--template stoic]          # MOLTBOOK_HOME を初期�
 contemplative-agent distill [--dry-run] [--days 3]   # 記憶蒸留
 contemplative-agent distill-identity                 # アイデンティティ蒸留（承認ゲート付き。月次は weekly chain が自動 staging — ADR-0091）
 contemplative-agent insight [--stage] [--full]       # 行動スキル抽出
-contemplative-agent amend-constitution               # 憲法改正（自動化しない熟慮イベント。due 読み値は weekly packet §8 — ADR-0090/0091）
+contemplative-agent amend-constitution               # 憲法改正（自動化しない熟慮イベント。due 読み値は value-layer-{end}.json を weekly-gate が直接読む — ADR-0090/0091/0098）
 contemplative-agent shadow-constitution              # shadow 憲法計器（ADR-0092。read-only — 現行憲法を注入せずパターンのみから合成し、乖離 cosine を logs/constitution-shadow.jsonl に記録。次回改正ゲートの材料）
 contemplative-agent adopt-staged [--archive-names FILE]  # staging → 本配置。--archive-names は store の skill を退役（ADR-0097 D5、削除でなく skills/.archive/ への移動）
 contemplative-agent remove-skill <name> --reason TEXT [--delete]  # 単体の退役（既定は archive。--delete だけが非可逆）
@@ -107,7 +107,7 @@ git tracked = clone 先にも付いてくる repo 同梱の運用版 skill。CA 
 | `when-code-when-llm` | [when-code-when-llm](https://github.com/shimo4228/when-code-when-llm)（同一内容、harness 正本） | タスク単位の code vs LLM 判断軸 |
 | `code-and-llm-collaboration` | [code-and-llm-collaboration](https://github.com/shimo4228/code-and-llm-collaboration)（汎用化 fork） | パイプライン単位の code/LLM 4 層化パターン |
 | `llm-agent-security-principles` | [llm-agent-security-principles](https://github.com/shimo4228/llm-agent-security-principles)（汎用化 fork） | Security by Absence 等 3 原則 + 防御パターン |
-| `weekly-report-diagnosis` | なし（CA 固有） | 週次レポートの自己診断手順 |
+| `weekly-report` | なし（CA 固有） | 週次無人セッション（A-E 合成 + 診断 + candidate 起票、ADR-0098。旧 weekly-report-diagnosis を吸収） |
 | `replayable-audit-logs` | なし（CA 固有） | ADR-0075 observability-by-default の設計ノウハウ（監査ログスキーマ・リプレイハーネス・ground truth 規律・修理ループ） |
 | `read-only-instruments` | なし（CA 固有） | 計器（ADR-0071 系 read-only 分布・読み値）の設計ノウハウ — 計器→介入の順序、signal-first の建立/撤去判断、3 点較正スケール、読み違えの罠 |
 | `shadow-mode-validation` | なし（CA 固有） | shadow-mode 検証（ADR-0076 系）の設計ノウハウ — 候補判断機構を観測専用で並走させ would-be 判断を記録し、enforcement をデータで決める。観測対象を抑止しない隔離（circuit_shield）、幻覚の一級データ化、kill switch 内蔵、exit 基準の予約 |

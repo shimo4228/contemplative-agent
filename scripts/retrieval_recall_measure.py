@@ -1033,7 +1033,7 @@ def build_reading(
             "candidates_also_present_in_store": label_stats.candidates_also_in_store,
             # Diagnostic only, and a token heuristic — eyeball it before
             # quoting it. This is NOT ADR-0097 slice 3's existence check,
-            # which belongs to build_decision_packet.py over live review text.
+            # which belonged to the retired packet builder over live review text.
             "unresolved_reviewer_names": list(label_stats.unresolved_names),
             "unresolved_name_rule": (
                 f">= {ABSENT_NAME_MIN_SEGMENTS} hyphen-separated segments or written in backticks, "
