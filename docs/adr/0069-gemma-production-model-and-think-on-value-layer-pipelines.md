@@ -109,6 +109,43 @@ The per-merge / per-clean stocktake traces are collected through an optional
 `_find_duplicate_groups` — a backward-compatible side channel that keeps those
 functions' string/list return types (and their direct unit tests) unchanged.
 
+## Review-when *(added 2026-08-24)*
+
+This ADR predates the Review-when convention (ADR-0044); this section is a dated
+amendment, not a change to the decision. The decision is a dated hypothesis about
+the mid-2026 local-model landscape (knowledge-staleness: model economics go stale
+on a scale of weeks), so it carries both expiry triggers and the re-evaluation
+procedure — the trigger without the procedure is how deferred upgrades die
+(the Gemma 12B case: its precondition's owner was retired before it ever fired).
+
+**Triggers** (any one):
+
+- A local model appears with a credible quality claim at or above `gemma4:e4b`
+  within the 16 GB unattended envelope (weights + 32K KV under the ADR-0067
+  memory ceiling), available through Ollama.
+- The hardware constraint changes (RAM upgrade or machine swap).
+- Post-swap regressions attributed to the model recur at rate
+  (e.g. `verification-audit.jsonl` solver regression, wrapper-verbalization
+  becoming frequent).
+
+**Procedure** (how ADR-0068/0069 was actually decided; reuse it, do not redesign):
+
+1. Do not trust secondary reviews — the 2026-05 scout verdict on Gemma E4B was
+   overturned by direct A/B. Run the candidate against the incumbent on the
+   production prompts (comment generation + one value-layer command), same
+   harness, in a worktree or off-window session
+   (`feedback_no_heavy_experiments_during_sessions`).
+2. Build the comparison set at event time as a disposable golden set: reuse the
+   `docs/evidence/adr-0068/` pattern (same inputs to both models, cross-model
+   blind judge). No standing eval harness — ADR-0072 retired one for lack of
+   readers; the set lives with the evidence of the decision it served.
+3. Compare against the **current** model's outputs as baseline, not historical
+   ones (ADR-0057/0058 made model identity the dominant factor in distill
+   output; mixing eras confounds the judge).
+4. Scope guard: this procedure is for same-or-better-quality swaps. Speed-driven
+   downgrades remain rejected (2026-06-23 owner decision; the guard and its own
+   expiry condition live in memory `project_local_model_swap_2026_05`).
+
 ## Alternatives Considered
 
 ### Turn think on everywhere, including the autonomous paths

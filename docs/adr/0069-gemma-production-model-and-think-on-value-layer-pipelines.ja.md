@@ -97,6 +97,38 @@ per-merge / per-clean の stocktake trace は、`merge_group` / `clean_skill_tri
 `_find_duplicate_groups` 上のオプショナルな `trace_sink` パラメータ経由で収集される — これらの関数の
 文字列/リストの戻り値型（およびそれらの直接の unit test）を不変に保つ、後方互換なサイドチャネルである。
 
+## Review-when *(2026-08-24 追記)*
+
+本 ADR は Review-when 規約（ADR-0044）以前のもので、この節は日付つき追補であり
+決定の変更ではない。この決定は 2026 年中盤のローカルモデル相場観に立つ日付つき仮説
+（knowledge-staleness: モデルの経済性は週スケールで陳腐化する）なので、失効トリガーと
+**再評価の手順**の両方を持たせる — 手順のないトリガーは deferred の死に方そのもの
+（Gemma 12B 案は発火条件の主体が先に退役して死んだ）。
+
+**トリガー**（いずれか 1 つ）:
+
+- 16 GB 無人運用の枠（ADR-0067 のメモリ上限内で重み + 32K KV）に収まり、
+  `gemma4:e4b` 以上の品質主張を持つローカルモデルが Ollama で利用可能になった
+- ハードウェア制約が変わった（RAM 増設・マシン交換）
+- モデル起因の退行が繰り返し観測される（例: `verification-audit.jsonl` の
+  solver 退行、wrapper 逐語化の頻発）
+
+**手順**（ADR-0068/0069 を実際に決めた手順の再利用。再設計しない）:
+
+1. 二次情報を信用しない — 2026-05 の scout による Gemma E4B 評は直接 A/B が覆した。
+   候補を現行モデルと本番プロンプト（コメント生成 + 値層コマンド 1 本）で、
+   同一ハーネス・worktree またはセッション窓外で直接対決させる
+   （`feedback_no_heavy_experiments_during_sessions`）。
+2. 比較セットはイベント時に使い捨ての golden set として組む: `docs/evidence/adr-0068/`
+   のパターン（同一入力を両モデルへ、cross-model blind judge）を再利用する。常設の
+   eval ハーネスは作らない — ADR-0072 が読み手不在で退役させた。セットは判断の
+   evidence と同居させる。
+3. ベースラインは**現行**モデルの出力（過去世代と混ぜない — ADR-0057/0058 以降、
+   蒸留出力はモデル要因が支配的で、時代を混ぜると judge が交絡する）。
+4. スコープガード: この手順は同等以上品質の swap 用。速度目的の downgrade は
+   却下のまま（2026-06-23 著者判断。ガードとその失効条件は memory
+   `project_local_model_swap_2026_05` にある）。
+
 ## Alternatives Considered
 
 ### 自律的経路も含めてどこでも think を on にする
