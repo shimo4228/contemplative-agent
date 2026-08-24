@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-24 (ADR-0098 — weekly chain single-session redesign: 7 claude -p → 1 /weekly-report session, fix/review/improve/insight-recommendation stages and the decision-packet builder retired, repairs delegated to the task-triage loop via candidate filing, weekly-analysis.sh reduced to a materials collector with promote-after-report moved into the pipeline) | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window incl. the weekly intake, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 80 (72 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-25 (docsscan gains mechanism_freshness reading — src/ commits since architecture.md's last commit, threshold-free covenant proxy) | Updated: 2026-08-24 (ADR-0098 — weekly chain single-session redesign: 7 claude -p → 1 /weekly-report session, fix/review/improve/insight-recommendation stages and the decision-packet builder retired, repairs delegated to the task-triage loop via candidate filing, weekly-analysis.sh reduced to a materials collector with promote-after-report moved into the pipeline) | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window incl. the weekly intake, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 80 (72 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -821,7 +821,11 @@ Stage 5b valuelayer: value_layer_due_check.py (read-only cadence reading over th
 Stage 6 deadcode:   dead_code_scan.py → pipeline/dead-code/dead-code-<end>.json
                     (detection only; deletion is a gate human commit)
 Stage 6b docsscan:  docs_consistency_scan.py → pipeline/docs-consistency/…-<end>.json
-                    (self-authored docs corpus only; stateless nag-until-fixed)
+                    (self-authored docs corpus only; stateless nag-until-fixed;
+                    readings incl. mechanism_freshness = src/ + scripts/ commits
+                    since architecture.md's last commit — threshold-free proxy
+                    for the CLAUDE.md same-PR Data Flow covenant; read at the
+                    Saturday gate, wired in weekly-gate Step 5b)
 Stage 7b skillsel:  never-selected reading (venv: core.skill_selection) →
                     pipeline/never-selected/never-selected-<end>.json — strict
                     (whole-history 0 selections AND ≥600 judged exposures, the Slote

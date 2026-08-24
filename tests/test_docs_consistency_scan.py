@@ -12,13 +12,18 @@ Checks:
 - broken_link   — a relative Markdown link whose target does not exist
 - notes_ref     — an ADR referencing `.notes/` (gitignored; broken in clones)
 - codemaps_freshness — readings only (age of FRESHNESS headers), never findings
+- mechanism_freshness — reading only (src/ commits since architecture.md's last
+                  commit), never a finding, no threshold
 
 Fault column (chaos-TDD, ADR-0077 — desired guard behavior asserted first;
-the seams are the injectable git-timestamp / commits-behind callables):
+the seams are the injectable git-timestamp / commits-behind / git-run
+callables):
 
 - F-DOC-1  git lookup fails (no git, not a repo) → errors carry GIT_FAIL,
            the link/notes checks still run, exit stays 0 (partial scan is
-           surfaced, not swallowed)
+           surfaced, not swallowed). Three shapes for mechanism_freshness:
+           the call fails, git exits 0 with an unparseable count, and git
+           exits 0 with no commit for the file — none may read as a 0 count
 - F-DOC-2  a doc file is unreadable → errors carry FILE_UNREADABLE, the scan
            continues over the remaining files
 - F-DOC-3  repo root unusable → abstain (nonzero exit, DOCSCAN_FAIL reason on
@@ -216,6 +221,119 @@ class TestFreshness:
         assert [e["reason"] for e in errors] == ["GIT_FAIL"]
 
 
+class TestMechanismFreshness:
+    """Reading only (no threshold): commits touching src/ since architecture.md
+    was last committed — the deterministic proxy for the CLAUDE.md freshness
+    covenant (mechanism changes update the Data Flow in the same PR)."""
+
+    def _repo(self, tmp_path: Path) -> Path:
+        cm = tmp_path / "docs" / "CODEMAPS"
+        cm.mkdir(parents=True)
+        (cm / "architecture.md").write_text("# arch\n", encoding="utf-8")
+        (tmp_path / "src").mkdir()
+        return tmp_path
+
+    @staticmethod
+    def _run(log: str | None, count: str | None, calls: list | None = None):
+        """Stub of the module's `_git`: one canned answer per subcommand."""
+
+        def run(root: Path, *args: str) -> str | None:
+            if calls is not None:
+                calls.append(args)
+            return log if args[0] == "log" else count
+
+        return run
+
+    def test_reading_counts_src_commits_since_architecture(self, tmp_path: Path):
+        root = self._repo(tmp_path)
+        calls: list[tuple[str, ...]] = []
+
+        reading, errors = dcs.mechanism_freshness(
+            root, self._run("aaaaaaaaaa", "5", calls)
+        )
+        assert errors == []
+        # the count is anchored on architecture.md's own last commit and scoped
+        # to the src/ pathspec — both are the reading's meaning, so pin them
+        assert calls == [
+            ("log", "-1", "--format=%H", "--", "docs/CODEMAPS/architecture.md"),
+            ("rev-list", "--count", "aaaaaaaaaa..HEAD", "--", "src/"),
+        ]
+        assert reading == {
+            "file": "docs/CODEMAPS/architecture.md",
+            "last_commit": "aaaaaaa",
+            "mechanism_commits_since": 5,
+            "pathspecs": ["src/"],
+        }
+
+    def test_both_mechanism_trees_are_counted_when_present(self, tmp_path: Path):
+        root = self._repo(tmp_path)
+        (root / "scripts").mkdir()
+        calls: list[tuple[str, ...]] = []
+        reading, errors = dcs.mechanism_freshness(
+            root, self._run("aaaaaaaaaa", "5", calls)
+        )
+        assert errors == []
+        assert calls[1] == (
+            "rev-list", "--count", "aaaaaaaaaa..HEAD", "--", "src/", "scripts/"
+        )
+        assert reading is not None and reading["pathspecs"] == ["src/", "scripts/"]
+
+    def test_missing_mechanism_trees_are_git_fail_not_zero(self, tmp_path: Path):
+        # rev-list over a matching-nothing pathspec exits 0 printing 0 — a
+        # layout move must surface, never read as "covenant clean"
+        cm = tmp_path / "docs" / "CODEMAPS"
+        cm.mkdir(parents=True)
+        (cm / "architecture.md").write_text("# arch\n", encoding="utf-8")
+        reading, errors = dcs.mechanism_freshness(tmp_path, self._run("x", "0"))
+        assert reading is None
+        assert [e["reason"] for e in errors] == ["GIT_FAIL"]
+        assert "_MECHANISM_PATHSPECS" in errors[0]["detail"]
+
+    def test_f_doc_1_revlist_fail_after_log_success_is_git_fail(self, tmp_path: Path):
+        # the likeliest real shape: log succeeds, the second call times out
+        root = self._repo(tmp_path)
+        reading, errors = dcs.mechanism_freshness(root, self._run("aaaaaaaaaa", None))
+        assert reading is None
+        assert [e["reason"] for e in errors] == ["GIT_FAIL"]
+        assert "rev-list failed" in errors[0]["detail"]
+
+    def test_non_sha_log_output_is_git_fail(self, tmp_path: Path):
+        root = self._repo(tmp_path)
+        reading, errors = dcs.mechanism_freshness(root, self._run("not a sha", "5"))
+        assert reading is None
+        assert [e["reason"] for e in errors] == ["GIT_FAIL"]
+
+    def test_missing_architecture_md_reads_none_no_error(self, tmp_path: Path):
+        (tmp_path / "docs").mkdir()
+        reading, errors = dcs.mechanism_freshness(tmp_path, self._run("x", "x"))
+        assert reading is None
+        assert errors == []
+
+    def test_f_doc_1_git_fail_surfaces_not_swallowed(self, tmp_path: Path):
+        root = self._repo(tmp_path)
+        reading, errors = dcs.mechanism_freshness(root, self._run(None, None))
+        assert reading is None
+        assert [e["reason"] for e in errors] == ["GIT_FAIL"]
+
+    def test_f_doc_1_unparseable_count_is_git_fail(self, tmp_path: Path):
+        # second shape of F-DOC-1: git exits 0 but the count is not a number —
+        # a broken read must not land as src_commits_since 0 ("covenant clean")
+        root = self._repo(tmp_path)
+        reading, errors = dcs.mechanism_freshness(
+            root, self._run("aaaaaaaaaa", "not-a-number")
+        )
+        assert reading is None
+        assert [e["reason"] for e in errors] == ["GIT_FAIL"]
+
+    def test_f_doc_1_uncommitted_architecture_md_is_git_fail(self, tmp_path: Path):
+        # `git log -1 -- <untracked path>` exits 0 with empty stdout; without a
+        # base commit there is nothing to count from, so it must not read as 0
+        root = self._repo(tmp_path)
+        reading, errors = dcs.mechanism_freshness(root, self._run("", None))
+        assert reading is None
+        assert [e["reason"] for e in errors] == ["GIT_FAIL"]
+
+
 class TestScanIntegration:
     def _git(self, root: Path, *args: str) -> None:
         subprocess.run(
@@ -239,11 +357,17 @@ class TestScanIntegration:
         adr.mkdir(parents=True)
         (adr / "0001-a.md").write_text("v1 [bad](nope.md)", encoding="utf-8")
         (adr / "0001-a.ja.md").write_text("v1", encoding="utf-8")
+        cm = tmp_path / "docs" / "CODEMAPS"
+        cm.mkdir()
+        (cm / "architecture.md").write_text("# arch\n", encoding="utf-8")
+        (tmp_path / "src").mkdir()
+        (tmp_path / "src" / "x.py").write_text("x = 1\n", encoding="utf-8")
         self._date = "2026-08-01T00:00:00 +0000"
         self._git(tmp_path, "init", "-q")
         self._git(tmp_path, "add", "-A")
         self._git(tmp_path, "commit", "-qm", "both")
         (adr / "0001-a.md").write_text("v2 [bad](nope.md)", encoding="utf-8")
+        (tmp_path / "src" / "x.py").write_text("x = 2\n", encoding="utf-8")
         self._date = "2026-08-02T00:00:00 +0000"
         self._git(tmp_path, "add", "-A")
         self._git(tmp_path, "commit", "-qm", "en only")
@@ -253,6 +377,21 @@ class TestScanIntegration:
         assert checks == ["broken_link", "enja_drift"]
         assert result["count"] == 2
         assert result["errors"] == []
+        # the wiring is the change: the mechanism reading must reach scan()'s
+        # contract, counting the src/ commit that postdates architecture.md
+        mech = result["readings"]["mechanism"]
+        assert mech is not None and mech["mechanism_commits_since"] == 1
+
+    def test_scan_propagates_mechanism_git_fail(self, tmp_path: Path):
+        cm = tmp_path / "docs" / "CODEMAPS"
+        cm.mkdir(parents=True)
+        (cm / "architecture.md").write_text("# arch\n", encoding="utf-8")
+        (tmp_path / "src").mkdir()
+        result = dcs.scan(
+            tmp_path, ts=lambda p: 100, behind=lambda s: 0, run=lambda r, *a: None
+        )
+        assert result["readings"]["mechanism"] is None
+        assert "GIT_FAIL" in [e["reason"] for e in result["errors"]]
 
     def test_f_doc_3_unusable_root_abstains(self, tmp_path: Path, capsys):
         rc = dcs.main(["--repo", str(tmp_path / "missing")])
