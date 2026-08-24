@@ -98,3 +98,4 @@ integrations/skills/
 # プロンプト無しで実行できてしまう (codex review 2026-08-17)。手元限定の permissions と
 # 上書きは従来どおり非追跡の .claude/settings.local.json が持つ
 !.claude/settings.json
+.opencode/
