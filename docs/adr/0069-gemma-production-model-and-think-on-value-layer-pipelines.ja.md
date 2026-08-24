@@ -61,7 +61,10 @@ snapshot が再現可能にするために存在する種類の、振る舞い�
    `distill` はモデル swap のみで、すでに default の `think=False` を渡している。モデル以外の
    振る舞い変更はない。
 
-3. **6 つの値層パイプラインを think-ON で動かす。** `insight`、`rules-distill`（両ステージ）、
+3. **6 つの値層パイプラインを think-ON で動かす。** *（2026-08-24 注記: ADR-0097 が
+   `rules-distill` / `rules-stocktake` と skill-stocktake の grouping / merge / clean を
+   退役させた — この一覧のうち現存するのは `insight`、`amend-constitution`、
+   `distill-identity` と、残った `skill-stocktake` レポートである。）* `insight`、`rules-distill`（両ステージ）、
    `amend-constitution`、`distill-identity`、`skill-stocktake`（grouping + merge + clean）、
    `rules-stocktake`（grouping）は、新しい内部関数
    `core/llm.generate_full(...) -> Optional[GenerationOutput]`（`generate_for_api` の内部版。
@@ -99,35 +102,55 @@ per-merge / per-clean の stocktake trace は、`merge_group` / `clean_skill_tri
 
 ## Review-when *(2026-08-24 追記)*
 
-本 ADR は Review-when 規約（ADR-0044）以前のもので、この節は日付つき追補であり
-決定の変更ではない。この決定は 2026 年中盤のローカルモデル相場観に立つ日付つき仮説
-（knowledge-staleness: モデルの経済性は週スケールで陳腐化する）なので、失効トリガーと
-**再評価の手順**の両方を持たせる — 手順のないトリガーは deferred の死に方そのもの
-（Gemma 12B 案は発火条件の主体が先に退役して死んだ）。
+本 ADR は harness 側の Review-when 規約以前のもの（本 repo 自身の `0044` は無関係な
+topic-keywords の ADR）で、この節は日付つき追補であり決定の変更ではない。この決定は
+2026 年中盤のローカルモデル相場観に立つ日付つき仮説（knowledge-staleness: モデルの
+経済性は週スケールで陳腐化する）なので、失効トリガーと**再評価の手順**の両方を持たせる。
+他の判断の状態に寄生させたトリガーは、その判断が supersede された時に静かに死ぬ —
+Gemma 12B upgrade 案は「MLX を安定運用してから」を待ち、ADR-0070 が MLX 自体を
+退役させて発火源が消えた。手順を本 ADR 自身の主題に係留して書くのはその失敗型の回避。
 
-**トリガー**（いずれか 1 つ）:
+**トリガー**（いずれか 1 つ。どれも intake には配線されていない — 著者が気づいた時、
+典型的には土曜ゲートで発火する）:
 
-- 16 GB 無人運用の枠（ADR-0067 のメモリ上限内で重み + 32K KV）に収まり、
-  `gemma4:e4b` 以上の品質主張を持つローカルモデルが Ollama で利用可能になった
-- ハードウェア制約が変わった（RAM 増設・マシン交換）
-- モデル起因の退行が繰り返し観測される（例: `verification-audit.jsonl` の
-  solver 退行、wrapper 逐語化の頻発）
+- 16 GB 無人運用の枠（[ADR-0067](./0067-keep-ollama-for-unattended-production.ja.md)
+  のメモリ上限内で重み + 32K KV）に収まり、`gemma4:e4b` 以上の品質主張を持つ
+  ローカルモデルが Ollama で利用可能になった。主張は下の A/B を**起動**するだけで
+  何も決めない（手順 1 は依然その主張を信用しない）
+- ハードウェア制約が変わった（RAM 増設・マシン交換）。これは ADR-0067 自体も
+  開き直す — 「Ollama で利用可能」は 0067 の結論であり、0067 は RAM の大きい
+  ホストを自らの反証条件に挙げている。まず 0067 を再訪すること。上の Ollama
+  フィルタは本 ADR の前提ではない
+- swap 後のベースラインに対して、モデル起因の退行が繰り返し観測される:
+  `logs/verification-audit.jsonl` の solver 失敗が 2026-06-28 以降の率を明確に
+  上回る、または wrapper 逐語化が A/B で観測した 1/4 post の床を 1 週間の
+  セッション群で上回る。prompt 側の修正は計測対象を変えるので、修正が入ったら
+  カウントを取り直す
 
 **手順**（ADR-0068/0069 を実際に決めた手順の再利用。再設計しない）:
 
 1. 二次情報を信用しない — 2026-05 の scout による Gemma E4B 評は直接 A/B が覆した。
    候補を現行モデルと本番プロンプト（コメント生成 + 値層コマンド 1 本）で、
    同一ハーネス・worktree またはセッション窓外で直接対決させる
-   （`feedback_no_heavy_experiments_during_sessions`）。
-2. 比較セットはイベント時に使い捨ての golden set として組む: `docs/evidence/adr-0068/`
-   のパターン（同一入力を両モデルへ、cross-model blind judge）を再利用する。常設の
-   eval ハーネスは作らない — ADR-0072 が読み手不在で退役させた。セットは判断の
-   evidence と同居させる。
-3. ベースラインは**現行**モデルの出力（過去世代と混ぜない — ADR-0057/0058 以降、
-   蒸留出力はモデル要因が支配的で、時代を混ぜると judge が交絡する）。
-4. スコープガード: この手順は同等以上品質の swap 用。速度目的の downgrade は
-   却下のまま（2026-06-23 著者判断。ガードとその失効条件は memory
-   `project_local_model_swap_2026_05` にある）。
+   （`feedback_no_heavy_experiments_during_sessions`）。16 GB に常駐できるのは
+   1 モデルだけ: ADR-0068 の A/B script がやったとおり、候補をロードする前に
+   現行を `ollama stop` する。
+2. **判断材料**の比較セットはイベント時に使い捨ての golden set として組む:
+   `docs/evidence/adr-0068/` のパターン — 同一入力を全アームへ、cross-model blind
+   judge、item ごとのラベル回転、judge 自身の cross-item「総合」ランキングは破棄 —
+   を再利用する。セットは判断の evidence と同居させる。これは次ステップの常設
+   回帰ゲートの代替ではない。
+3. swap の完了は常設 eval 層（[ADR-0089](./0089-llm-behavioral-eval-layer-on-deepeval.ja.md)）の
+   re-baseline を含む: 承認済み baseline は `target_model` を pin しており、
+   `_DEFAULT_OLLAMA_MODEL` の変更で機械的に STALE になる — ただし staleness は
+   advisory のみで、飛ばした swap を止めるものは無い。`evals/run_eval.py` を回して
+   新 baseline を承認するまで swap は完了しない。
+4. ベースラインは**現行**モデルの出力（過去世代と混ぜない — ADR-0058 のとおり、
+   値層の足場が薄くなって以降、蒸留出力はモデル感度が上がっており、0058 自身が
+   「A/B は変更後の出力を新ベースラインに」と指示している）。
+5. スコープガード: この手順は同等以上品質の swap 用。速度目的の品質 downgrade は
+   却下のまま（2026-06-23 著者判断）。同世代以降で品質向上を主張できる swap は
+   最初からこのガードの対象外 — 本 ADR の gemma swap 自体がその先例。
 
 ## Alternatives Considered
 

@@ -66,7 +66,10 @@ behavior-shaping run a snapshot exists to make reproducible.
    scheduled `distill` are model-swap-only; they already pass the default
    `think=False`. No behavior change beyond the model.
 
-3. **Run the six value-layer pipelines think-ON.** `insight`, `rules-distill`
+3. **Run the six value-layer pipelines think-ON.** *(Note 2026-08-24: ADR-0097
+   retired `rules-distill`, `rules-stocktake`, and skill-stocktake's
+   grouping/merge/clean — of this list, `insight`, `amend-constitution`,
+   `distill-identity`, and the surviving `skill-stocktake` report remain.)* `insight`, `rules-distill`
    (both stages), `amend-constitution`, `distill-identity`, `skill-stocktake`
    (grouping + merge + clean), and `rules-stocktake` (grouping) call a new
    internal `core/llm.generate_full(...) -> Optional[GenerationOutput]` (the
@@ -111,22 +114,34 @@ functions' string/list return types (and their direct unit tests) unchanged.
 
 ## Review-when *(added 2026-08-24)*
 
-This ADR predates the Review-when convention (ADR-0044); this section is a dated
-amendment, not a change to the decision. The decision is a dated hypothesis about
-the mid-2026 local-model landscape (knowledge-staleness: model economics go stale
-on a scale of weeks), so it carries both expiry triggers and the re-evaluation
-procedure — the trigger without the procedure is how deferred upgrades die
-(the Gemma 12B case: its precondition's owner was retired before it ever fired).
+This ADR predates the harness-side Review-when convention (this repo's own
+`0044` is an unrelated topic-keywords ADR); this section is a dated amendment,
+not a change to the decision. The decision is a dated hypothesis about the
+mid-2026 local-model landscape (knowledge-staleness: model economics go stale on
+a scale of weeks), so it carries both expiry triggers and the re-evaluation
+procedure. A trigger parked on another decision's state dies silently when that
+decision is superseded — the Gemma 12B upgrade waited on "once MLX runs
+stably" and ADR-0070 retired MLX itself, so the trigger's source vanished
+before it ever fired. Writing the procedure here, anchored to this ADR's own
+subject, avoids that failure mode.
 
-**Triggers** (any one):
+**Triggers** (any one; none of these is wired to an intake — they fire when the
+author notices, typically at the Saturday gate):
 
 - A local model appears with a credible quality claim at or above `gemma4:e4b`
-  within the 16 GB unattended envelope (weights + 32K KV under the ADR-0067
-  memory ceiling), available through Ollama.
-- The hardware constraint changes (RAM upgrade or machine swap).
-- Post-swap regressions attributed to the model recur at rate
-  (e.g. `verification-audit.jsonl` solver regression, wrapper-verbalization
-  becoming frequent).
+  within the 16 GB unattended envelope (weights + 32K KV under the
+  [ADR-0067](./0067-keep-ollama-for-unattended-production.md) memory ceiling),
+  available through Ollama. The claim only *starts* the A/B below; it decides
+  nothing (procedure step 1 still distrusts it).
+- The hardware constraint changes (RAM upgrade or machine swap). This also
+  reopens ADR-0067 itself — "available through Ollama" is 0067's conclusion,
+  and 0067 names a larger-RAM host as its own falsifier — so revisit 0067
+  first; the Ollama filter above is not a premise of this ADR.
+- Regressions attributed to the model recur after a swap, measured against the
+  post-swap baseline: solver failures in `logs/verification-audit.jsonl`
+  clearly above the post-2026-06-28 rate, or wrapper-verbalization above the
+  A/B's observed 1-in-4-posts floor across a week of sessions. A prompt-level
+  fix changes the measurand — re-anchor the count after one lands.
 
 **Procedure** (how ADR-0068/0069 was actually decided; reuse it, do not redesign):
 
@@ -134,17 +149,29 @@ procedure — the trigger without the procedure is how deferred upgrades die
    overturned by direct A/B. Run the candidate against the incumbent on the
    production prompts (comment generation + one value-layer command), same
    harness, in a worktree or off-window session
-   (`feedback_no_heavy_experiments_during_sessions`).
-2. Build the comparison set at event time as a disposable golden set: reuse the
-   `docs/evidence/adr-0068/` pattern (same inputs to both models, cross-model
-   blind judge). No standing eval harness — ADR-0072 retired one for lack of
-   readers; the set lives with the evidence of the decision it served.
-3. Compare against the **current** model's outputs as baseline, not historical
-   ones (ADR-0057/0058 made model identity the dominant factor in distill
-   output; mixing eras confounds the judge).
-4. Scope guard: this procedure is for same-or-better-quality swaps. Speed-driven
-   downgrades remain rejected (2026-06-23 owner decision; the guard and its own
-   expiry condition live in memory `project_local_model_swap_2026_05`).
+   (`feedback_no_heavy_experiments_during_sessions`). On 16 GB only one model
+   fits resident: `ollama stop` the incumbent before loading the candidate, as
+   the ADR-0068 A/B script did.
+2. Build the decision's comparison set at event time as a disposable golden
+   set: reuse the `docs/evidence/adr-0068/` pattern — same inputs to all arms,
+   a cross-model blind judge with per-item label rotation, and discard the
+   judge's own cross-item "overall" ranking. The set lives with the evidence of
+   the decision it served. This is the *decision material*; it does not replace
+   the standing regression gate in the next step.
+3. A completed swap must re-baseline the standing eval layer
+   ([ADR-0089](./0089-llm-behavioral-eval-layer-on-deepeval.md)): its approved baselines
+   pin `target_model`, so changing `_DEFAULT_OLLAMA_MODEL` makes them
+   machine-detectably STALE — but staleness is advisory-only, nothing blocks a
+   swap that skips this. The swap is not complete until
+   `evals/run_eval.py` has run and a new baseline is approved.
+4. Compare against the **current** model's outputs as baseline, not historical
+   ones (per ADR-0058, distill output became more model-sensitive after the
+   value-layer scaffold thinned, and its own guidance is to re-baseline the
+   A/B against post-change output, not across the change).
+5. Scope guard: this procedure is for same-or-better-quality swaps.
+   Speed-driven quality downgrades remain rejected (2026-06-23 owner decision);
+   a same-or-newer-generation swap with a defensible quality claim was never in
+   that guard's scope — this ADR's own gemma swap is the precedent.
 
 ## Alternatives Considered
 
