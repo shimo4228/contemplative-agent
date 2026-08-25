@@ -93,7 +93,8 @@ EOF
 - dead code: JSON の candidates 件数
 - docs consistency: JSON の findings 件数
 - never-selected: JSON の strict / dormant / below_floor 件数
-- **診断起票の candidate**: 今週 `.notes/tasks/` に増えた `state: candidate` の件数 —
+- **診断起票の candidate**: 今週 `rfcs/`（台帳の正本）と `.notes/tasks/`（pipeline の移送先、
+  dual-read 中）に増えた `state: candidate` の件数 —
   **本セッションでは採否しない**（task-triage digest の担当。ここでは存在の報告のみ）
 
 findings.md（F1/F2/F3）は判断材料として読む — F2 の問いはユーザーに提示してよいが、

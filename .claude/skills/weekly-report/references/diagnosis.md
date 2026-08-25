@@ -11,7 +11,8 @@ Context 膨張を避けるため以下の順で読み、途中で十分なら止
 - 生成した weekly report の全文（特に E）— ただし F の根拠は materials の原資料へ立ち返る
 - `config/prompts/principles.md`
 - `docs/CODEMAPS/INDEX.md`、`docs/adr/README.md`
-- タスク台帳 `.notes/tasks/T-*.md`（1 タスク 1 ファイル。frontmatter `state:` を Glob + Read で
+- タスク台帳 `rfcs/NNNN-*.md`（正本）と `.notes/tasks/T-*.md`（pipeline の移送先、dual-read 中）
+  — 1 エントリ 1 ファイル。frontmatter `state:` を Glob + Read で
   確認する — この無人セッションに Bash は無いので `claims.py` は使えない）。2 つの理由で必須:
   (1) `blocked` / `candidate` 行が今週のシグナルを既に予約・却下していないか（重複起票 /
   再提起の防止 — `.notes/archive/tasks/` の終端記録が「operator-facing データからは判定
@@ -64,7 +65,7 @@ Context 膨張を避けるため以下の順で読み、途中で十分なら止
       に対し 3384 tokens の上限で 12% しか使われていない）
 - [ ] 関連 ADR で同じ提案が withdrawn / rejected されていないか（ADR-0022 / 0034 retrieval、
       ADR-0028 forgetting 等）
-- [ ] `.notes/tasks/`（pending）と `.notes/archive/tasks/`（終端）に同じ介入が無いか。
+- [ ] `rfcs/` / `.notes/tasks/`（pending）と `.notes/archive/tasks/`（終端）に同じ介入が無いか。
       既にある介入は起票せず、findings に台帳行への参照 1 行を残す
 - [ ] retrieval / shared state を触る提案なら、呼び出し元を grep して間接経路か直接経路か
       確認したか（例: `views._rank` は distill 系のみから呼ばれる）

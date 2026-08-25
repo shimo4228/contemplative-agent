@@ -150,7 +150,7 @@ these promotions:
 - **#1** research candidate (including a `wiki-harvest` ledger candidate) → `docs/adr/`,
   `graph.jsonld`, `glossary.md`, or code
 - **#4** staged insight → identity / skills / rules / constitution (`adopt-staged`, ADR-0012)
-- **#5** weekly F1/F2/F3 findings → ADR / task ledger (`.notes/tasks/`) / code change
+- **#5** weekly F1/F2/F3 findings → ADR / task ledger (`rfcs/`) / code change
 - **#6** implemented diff → commit (after the Verify gate)
 
 For Cycle #5, edge #4 is exercised in the Saturday `/weekly-gate` session over the findings

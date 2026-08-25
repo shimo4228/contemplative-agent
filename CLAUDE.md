@@ -94,9 +94,10 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 ## ドキュメント配置
 
 - `docs/` — 外部可視の durable reference（adr / CODEMAPS / evidence / runbooks / security / glossary / CONFIGURATION）
+- `rfcs/` — 公開タスク台帳（提案・作業・未決。[残課題](#残課題)節が正本）
 - `.notes/` — 内部 WIP（gitignored）。session checkpoint、cold-start handoff、実験 scratch、ツール出力。成果が出たら `docs/evidence/adr-XXXX/` に昇格
 
-ADR 本文から `.notes/` を参照してはならない（gitignored のため clone 先に存在しない）。Evidence が必要な ADR は `docs/evidence/adr-XXXX/` に配置して相対リンク。
+ADR / rfcs 本文から `.notes/` を参照してはならない（gitignored のため clone 先に存在しない）。Evidence が必要な ADR は `docs/evidence/adr-XXXX/` に配置して相対リンク。
 
 ## プロジェクト固有 skills（`.claude/skills/`）
 
@@ -122,20 +123,25 @@ GET 60 req/min、POST 30 req/min（分離クォータ）。3 層防御（`has_re
 
 ## 残課題
 
-pending タスクの正本は **`.notes/tasks/T-XXX.md`（1 タスク 1 ファイル、gitignored）**。
-frontmatter の `state:` が状態、本文は自由記述。`.notes/TASKS.md` はもう無い
-（3 層機構は [ADR-0095](docs/adr/0095-retire-task-ledger-machinery.md) で 2026-08-16 に退役 —
+pending タスクの正本は **公開 `rfcs/NNNN-slug.md`（1 エントリ 1 ファイル、ID は `RFC-NNNN`）**。
+frontmatter の `state:` が状態、本文は自由記述（推奨様式は Rust RFC テンプレ準拠）。index は
+[rfcs/README.md](rfcs/README.md)。**起票は公開可能な書き方でする** — 機微は本文に書かずリンク先へ
+逃がす（判断は [claude-harness ADR-0049](https://github.com/shimo4228/claude-harness/blob/main/docs/adr/0049-unify-task-ledger-into-public-rfcs.md)、
+2026-08-25 に `.notes/tasks/` から移送）。終端エントリは archive せずその場に残す — 却下理由ごと
+残るのが公開判断記録の価値。`.notes/TASKS.md` はもう無い（3 層機構は
+[ADR-0095](docs/adr/0095-retire-task-ledger-machinery.md) で 2026-08-16 に退役 —
 表の描画/読み戻し・状態機械・aging・weekly の第 7 intake を全部落とし、store と claims だけ残した）。
 
 **全件を読まない。** `python3 ~/.claude/scripts/claims.py ready` が着手可能なタスクを 1 行ずつ出す
 （claim 中の印付き。`--state blocked` 等で他の状態も引ける）。1 件の全文はそのファイルを読む。
 
-着手前に `python3 ~/.claude/scripts/claims.py claim T-XXX --label "…"`、手放すとき
+着手前に `python3 ~/.claude/scripts/claims.py claim RFC-NNNN --label "…"`、手放すとき
 `release --outcome done|abandoned|handoff`、起票したら `spawn --origin … [--parent …]`
-（`.notes/claims.jsonl`、並行セッション用）。**レビュー指摘は diff の外なら HIGH 以上だけ起票し、
+（`.notes/claims.jsonl`、並行セッション用 — lease は運用状態なので非公開のまま）。
+**レビュー指摘は diff の外なら HIGH 以上だけ起票し、
 それ未満は commit message に 1 行残して捨てる**（起票が最安の経路だと台帳は減らない — ADR-0095）。
 規約は rule `~/.claude/rules/common/task-tracking.md`、棚卸しは `/task-stocktake`。
-詳細は台帳ファイルのリンク先（handoff / `.notes/archive/` / ADR）に置き、ここに状態・件数を複製しない。
+詳細はエントリのリンク先（`docs/evidence/` / ADR）に置き、ここに状態・件数を複製しない。
 
 ## 関連リポジトリ
 

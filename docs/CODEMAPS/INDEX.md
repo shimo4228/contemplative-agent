@@ -147,6 +147,7 @@ Measured by: `find src -name '*.py' | wc -l` · `find src -name '*.py' -exec cat
 - **README.md** — User-facing overview, quickstart
 - **CHANGELOG.md** — Release history
 - **[docs/adr/](../adr/README.md)** — Architecture Decision Records. 「なぜそうしたか」
+- **[rfcs/](../../rfcs/README.md)** — 公開タスク台帳（提案・作業・未決）。「これから何をするか / なぜやらないか」
 - **[docs/evidence/](../evidence/README.md)** — ADR を裏付ける測定・監査・実験
 - **[docs/runbooks/](../runbooks/README.md)** — 運用 know-how
 

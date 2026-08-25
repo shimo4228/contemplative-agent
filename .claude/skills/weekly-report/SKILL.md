@@ -66,7 +66,8 @@ references/diagnosis.md の F1 self-check を**全項目**通った F1 だけを
 （live の台帳 `.notes/tasks/` には書けない — 並行セッションと衝突しないよう、検証と移送は
 pipeline が行う）。
 
-**重複チェックは Phase 4 の冒頭で 1 回**: `.notes/tasks/` と `.notes/archive/tasks/` を
+**重複チェックは Phase 4 の冒頭で 1 回**: `rfcs/`（台帳の正本）、`.notes/tasks/`
+（pipeline の移送先、dual-read 中）、`.notes/archive/tasks/` を
 Glob して既存タスク名の一覧を作り、その一覧を全 candidate に使い回す。本文は Read しない
 （候補ごとに全件 Read すると 1 セッションで数百 Read になる）:
 
