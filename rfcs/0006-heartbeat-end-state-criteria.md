@@ -41,3 +41,15 @@ dead-band（08-16 の T-P3 照合から状態・条件文とも不変）。未�
 
 旧 ID: T-ENDSTATE-TERM（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+
+## Status
+
+blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 2026-08-16 の T-P3 縦断は定常の逆（corpus 4.0 倍、pairwise 0.55 → 0.58）を
+示し、代謝は加速側にあるので止め時の判定に入れない（2026-08-25）。直近の照合 2026-08-24 は
+dead-band。
+
+## Next action
+
+- 再開条件: 計器が代謝の定常状態を示すこと（イベントでなく状態で書いてある）
+- 照合先: `T-P3`（`done 2026-08-16`）の縦断読み
+- 成立時: ready（ADR-0080 の Ending design 層で予約された「いつ止めるか」を別 ADR で確定する）

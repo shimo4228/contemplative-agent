@@ -87,3 +87,18 @@ T-GAP1 Phase 1 で、**介入境界を跨いだ計器の読み直しを 1 回実
 
 旧 ID: T-INSTRUMENT-EVENT-READ（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+
+## Status
+
+blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 消費者がまだ名前を持たず、2026-08-16 の部分照合も判定基準を当てる機会に
+ならなかった（2026-08-25）。直近の照合 2026-08-24 も未成立（埋め込みモデル差し替え・backfill
+の commit / 実行記録なし）。
+
+## Next action
+
+- 再開条件: 埋め込みモデルの差し替え、または `restore-embed-knowledge.py` による backfill が
+  次に行われること（producer のある実イベント）
+- 照合先: 実行の直前・直後に `distill --dry-run` の `dry-run instrument:` 行を 1 本ずつ
+  取れたか
+- 成立時: ready（そのとき「何が読めなかったか」という名前の付いた消費者ができる。無かった →
+  dropped）

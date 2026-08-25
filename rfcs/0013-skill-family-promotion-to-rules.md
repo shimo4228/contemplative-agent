@@ -61,3 +61,16 @@ selected_count の p50 が下がる（6 → 5 前後）。**これは挙動が�
 
 旧 ID: T-SKILL-PROMOTE（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+
+## Status
+
+candidate（≈ draft） — 親 `T-CONSOLIDATOR-REDESIGN` の結論が 2026-08-22 に出て再開条件は成立し、手は
+ADR-0097 Decision 7 の形 A′ に確定した。本文が使う `rules-distill` は退役したのでその手順は
+失効（2026-08-25）。採否はオーナー判断で `candidate` 止まり。
+
+## Next action
+
+- 採否判断待ち（形 A′ の実行可否。着手条件の「成立時」自体が `candidate` と書かれている）
+- 判断材料: 昇格基準（family の any-of 選択率 ≥ 0.75 が互いに素な ≥ 500 judged の窓 2 つ以上）は
+  「制約」family で既に成立（4 窓 0.78 / 0.74 / 0.72 / 0.81。`scripts/coselection_families.py`
+  で再取得可）。入口 `promote-family` はスライス 2 で実装、archive とは同じ週に動かさない

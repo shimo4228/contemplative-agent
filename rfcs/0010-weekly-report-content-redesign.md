@@ -23,3 +23,15 @@ origin: idea
 
 旧 ID: T-REPORT-CONTENT（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+
+## Status
+
+candidate（≈ draft） — 週次レポート A–E の中身の再設計は著者指示 2026-08-24 で起票され、採否・
+スコープはオーナー判断待ち（2026-08-25）。ADR-0098 は配管だけを変え、節定義
+`config/prompts/weekly-analysis.md` は無変更のまま引き継いだ。
+
+## Next action
+
+- 採否判断待ち（本文が「採否・スコープはオーナー判断（candidate 止まり）」と明記）
+- 判断材料: 節定義の正本 `config/prompts/weekly-analysis.md` と、直近 3 週の F1 が 11 中 8 件
+  配管起因という観測（`.notes/pipeline-substrate-survey-2026-08-22.md`）

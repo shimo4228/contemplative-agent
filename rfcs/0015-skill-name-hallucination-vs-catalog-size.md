@@ -41,3 +41,16 @@ state_since: 2026-08-22
 
 旧 ID: T-SKILLSEL-HALLUC-CATALOG（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+
+## Status
+
+blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 第 3 読み（2026-08-22）で幻覚率 4.83% → 19.25%、増分の 91% が語形変化と
+判明。次の読み窓 2026-09-05 まで selector を変更しない（2026-08-25）。直近の照合 2026-08-24 も
+未成立。
+
+## Next action
+
+- 再開条件: 次の読み窓 2026-09-05 に到達
+- 照合先: 日付、および `logs/skill-selection-*.jsonl` の `rejected_names`
+- 成立時: ready（読む対象: catalog 57 での率、トークン仮説の再現可否、
+  `structural-constraint-mapping-scm` の変異が定常か。それまで selector を変更しない）

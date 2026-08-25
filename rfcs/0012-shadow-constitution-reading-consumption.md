@@ -30,3 +30,15 @@ state_since: 2026-08-16
 未成立 → `blocked` 維持。改正ゲート目安 2026-11。dead-band。
 
 旧 ID: T-SHADOWCONST（.notes/tasks から 2026-08-25 移送）。
+
+## Status
+
+blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 計器側の予約読み値（run 1+2 / IPD 合成 / 床アンカー）は 2026-08-11 に取得
+完了し、残るは次回憲法改正ゲートでの消費のみ（2026-08-25）。直近の照合 2026-08-24 も
+dead-band。
+
+## Next action
+
+- 再開条件: 次回の憲法改正ゲートが開く（ADR-0091 の 84 日間隔、目安 2026-11）
+- 照合先: weekly packet §8 の `constitution_due`
+- 成立時: ready（diff / IPD ベンチと並ぶ第 3 の材料としての消費のみ）

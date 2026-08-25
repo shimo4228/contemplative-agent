@@ -35,3 +35,16 @@ dead-band（08-17 の再測から状態・条件文とも不変）。未再読�
 
 旧 ID: T-DISTILL-FRAGMENT（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+
+## Status
+
+blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 断片パターン率は ADR-0084 後置ゲートで低下し（2026-08-17 再測: 途中切れ
+1.25% / 括弧不均衡 0.75%）、3% 台への回帰待ち（2026-08-25）。直近の照合 2026-08-24 は
+dead-band（状態・条件文とも不変で未再読）。
+
+## Next action
+
+- 再開条件: 断片パターン率が 3% 台へ回帰
+- 照合先: `knowledge.json` の縦断再測定（手順は `.notes/distill-fragment-recount-20260817.py`
+  と同一 — 末尾の閉じ引用符・アスタリスク・括弧を剥がしてから終止符を判定）
+- 成立時: ready（構造的完結性の検査は code で判定可能 — `when-code-when-llm`）

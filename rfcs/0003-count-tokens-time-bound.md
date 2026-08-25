@@ -33,3 +33,16 @@ state_since: 2026-08-16
 未成立 → `blocked` 維持。sibling grep（`src/`、`count_tokens|TokenCountingBackend`）: cloud `65b0526` / mlx `2f6c7fd` とも 0 ヒット（08-19 から両 repo とも commit なし）。
 
 旧 ID: T-COUNTTOKENS-BOUND（.notes/tasks から 2026-08-25 移送）。
+
+## Status
+
+blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 時間上限の欠落は ADR-0087 の Negative に記録済みだが、`count_tokens` を
+実装した backend が 1 つも無く現行本番構成では経路が不活性（2026-08-25）。直近の照合
+2026-08-24 も未成立（sibling repo cloud / mlx とも 0 ヒット）。
+
+## Next action
+
+- 再開条件: `TokenCountingBackend` を実装する backend が初めて現れること
+- 照合先: sibling repo（cloud / mlx）の `count_tokens` 実装を grep
+- 成立時: ready（最小修理の形は本文に記録済み — `ThreadPoolExecutor` future +
+  `future.result(timeout=)`、本体 15-25 行）

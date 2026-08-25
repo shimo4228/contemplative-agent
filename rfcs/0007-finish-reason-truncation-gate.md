@@ -32,3 +32,18 @@ state_since: 2026-08-16
 未成立 → `blocked` 維持。`src/contemplative_agent/testing/` は 08-22 以降 commit なし（`_MAX_IMPLEMENTED_LEVEL` = static のまま）。本番 plist の backend 注入なし。
 
 旧 ID: T-FINISHREASON-GATE（.notes/tasks から 2026-08-25 移送）。
+
+## Status
+
+blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 現行の全 backend が `finish_reason` を報告するので実害は無く、
+ADR-0088 の runtime 検査段も未着手（2026-08-25）。直近の照合 2026-08-24 も未成立
+（`_MAX_IMPLEMENTED_LEVEL` = static のまま、本番 plist の backend 注入なし）。
+
+## Next action
+
+- 再開条件: 注入 backend を本番系で使う判断が出ること、**または** ADR-0088 の runtime
+  検査段に着手すること（いずれか）
+- 照合先: 本番スケジュールの backend 設定、および `testing/backend_contract.py` の
+  `_MAX_IMPLEMENTED_LEVEL`（現在 `static` 固定）
+- 成立時: ready（runtime 段に着手するなら選択肢 (d) が自動的に載る。単独なら (d) は (c) より
+  高いという 2026-08-08 の訂正が効く）

@@ -35,3 +35,16 @@ handoff T3（`.notes/handoff-2026-07-03-adr-0072-phase3.md`）
 
 旧 ID: T-C1（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+
+## Status
+
+blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 公理除去 A/B は `evals/` の distill 面（Face B）が未実装のため走らない
+（2026-08-25）。直近の照合 2026-08-24 も未成立（`evals/datasets/` は `comment_golden.jsonl`
+のみ）。
+
+## Next action
+
+- 再開条件: `evals/` の distill 面（Face B）が実装されること
+- 照合先: `evals/` 配下に distill 面の足場が在るか（ADR-0089 が再建したのは comment 面のみ）
+- 成立時: ready（公理あり/なしの A/B。`get_distill_system_prompt()` が単一レバーで insight
+  にも自動波及）

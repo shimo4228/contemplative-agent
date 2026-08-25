@@ -33,3 +33,16 @@ Apple Foundation Models をローカル生成 backend として挿すか — 202
 
 旧 ID: T-APPLE-FM-BACKEND（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
+
+## Status
+
+blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 2026-08-01 に 4 軸を実測して棄却済み、再開条件待ち
+（2026-08-25）。直近の照合 2026-08-24 も未成立（`sw_vers` = 26.6.1 で OS 27 GA 未到達）。
+
+## Next action
+
+- 再開条件: (i) enforcement が安定して射程が 72% 帯に乗る **かつ** (ii) 品質差が縮む
+  世代が出る（OS 27 GA 後の再測定）— 同時成立
+- 照合先: (i) `logs/skill-selection-*.jsonl` の enforced 比率、(ii) OS バージョンと
+  再測定結果
+- 成立時: ready（窓 8,192 は射程しか動かさないので単独では条件にならない）
