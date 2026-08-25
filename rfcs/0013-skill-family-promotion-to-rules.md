@@ -10,7 +10,7 @@ state_since: 2026-08-22
 ## 着手条件
 
 再開条件: `T-CONSOLIDATOR-REDESIGN` の結論が出ること（resolved）
-照合先:   `.notes/tasks/T-CONSOLIDATOR-REDESIGN.md` の `state:`
+照合先:   `.notes/archive/tasks/T-CONSOLIDATOR-REDESIGN.md（ローカル記録、2026-08-25 archive）` の `state:`
 成立時:   draft（REDESIGN の結論次第で「skill → rule 昇格」という手自体の採否を再判断。CADENCE と同じ形）
 
 **2026-08-16 の棚卸しで発見**: 条件は前日に成立している。監査で過広 description が締まらなかった
