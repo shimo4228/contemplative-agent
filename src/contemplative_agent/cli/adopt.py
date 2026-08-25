@@ -563,10 +563,14 @@ def _mark_sidecar_held(meta_file: Path, meta: dict[str, Any]) -> bool:
     preserved verbatim — ``seq`` in particular, which drives adoption order.
 
     ``meta`` is the snapshot ``_load_staged_item`` validated, deliberately
-    NOT a fresh read: re-reading let a sidecar rewritten in between receive
-    the marker while ``_log_hold`` described the item loaded before it, so
-    the file said held and the audit row named a different target (codex
-    review 2026-08-15).
+    NOT a fresh read. **The marker and the audit row must describe the same
+    snapshot**, and only the caller can guarantee that: ``_hold_staged_item``
+    passes ``item.meta`` here and ``item.target`` / ``item.text`` to
+    ``approval._log_decision`` a few lines later. Re-reading the sidecar
+    would let one rewritten in between take the marker while the row still
+    named the item loaded before it — the file says held, the row names a
+    different target (codex review 2026-08-15). Pinned by
+    ``test_the_marker_lands_on_the_snapshot_that_was_audited``.
     """
     from ..core._io import now_iso, write_restricted
 
