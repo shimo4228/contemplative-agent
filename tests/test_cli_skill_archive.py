@@ -26,8 +26,9 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from contemplative_agent.cli import adopt as adopt_mod
-from contemplative_agent.cli.adopt import _handle_adopt_staged, _handle_remove_skill
+from contemplative_agent.cli import skill_archive as archive_mod
+from contemplative_agent.cli.adopt import _handle_adopt_staged
+from contemplative_agent.cli.remove_skill import _handle_remove_skill
 from contemplative_agent.cli.staging import StageItem, _stage_results
 from contemplative_agent.core.skill_selection import load_skill_catalog
 
@@ -1202,13 +1203,13 @@ class TestArchivePlanAgreesWithTheRun:
         """
         _make_skill(tmp_path, "stale.md", "# Stale\n")
         calls = []
-        real = adopt_mod._inside_archive
+        real = archive_mod._inside_archive
 
         def counting(path, data_root):
             calls.append(path)
             return real(path, data_root)
 
-        with patch.object(adopt_mod, "_inside_archive", counting):
+        with patch.object(archive_mod, "_inside_archive", counting):
             TestRemoveSkillArchives()._run(tmp_path, TestRemoveSkillArchives._args("stale"))
         assert len(calls) == 1, f"asked {len(calls)} times: {calls}"
 
@@ -1221,21 +1222,21 @@ class TestArchivePlanAgreesWithTheRun:
         convenience would reopen exactly the drift this split closed, and
         would do it without failing any behavioural test.
         """
-        params = set(inspect.signature(adopt_mod._apply_archive_plan).parameters)
+        params = set(inspect.signature(archive_mod._apply_archive_plan).parameters)
         assert params == {"plan"}, f"apply takes {sorted(params)}"
 
     def test_the_collision_guard_never_changes_directory(self, tmp_path):
         """`_same_archive_slot` is the machine form of the dry run's promise."""
         intended = tmp_path / "skills" / ".archive" / "stale.md"
-        assert adopt_mod._same_archive_slot(intended, intended)
-        assert adopt_mod._same_archive_slot(intended, intended.with_name("stale-2.md"))
-        assert adopt_mod._same_archive_slot(intended, intended.with_name("stale-98.md"))
+        assert archive_mod._same_archive_slot(intended, intended)
+        assert archive_mod._same_archive_slot(intended, intended.with_name("stale-2.md"))
+        assert archive_mod._same_archive_slot(intended, intended.with_name("stale-98.md"))
         # A different directory, a different extension, or an unrelated stem
         # are all outside what the guard is allowed to do.
-        assert not adopt_mod._same_archive_slot(intended, tmp_path / "skills" / "stale.md")
-        assert not adopt_mod._same_archive_slot(intended, intended.with_name("stale.txt"))
-        assert not adopt_mod._same_archive_slot(intended, intended.with_name("other.md"))
-        assert not adopt_mod._same_archive_slot(intended, intended.with_name("stale-x.md"))
+        assert not archive_mod._same_archive_slot(intended, tmp_path / "skills" / "stale.md")
+        assert not archive_mod._same_archive_slot(intended, intended.with_name("stale.txt"))
+        assert not archive_mod._same_archive_slot(intended, intended.with_name("other.md"))
+        assert not archive_mod._same_archive_slot(intended, intended.with_name("stale-x.md"))
 
     def test_a_second_content_at_the_same_name_lands_on_the_promised_slot(self, tmp_path):
         """End to end: the suffix moves, the directory does not."""

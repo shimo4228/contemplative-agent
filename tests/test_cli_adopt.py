@@ -16,7 +16,6 @@ import pytest
 from contemplative_agent.cli.adopt import (
     _AdoptPlan,
     _handle_adopt_staged,
-    _handle_remove_skill,
     _hold_one,
     _Outcome,
     _print_system_budget_for_staged,
@@ -25,6 +24,7 @@ from contemplative_agent.cli.adopt import (
     _report_adopt_outcomes,
     _resolve_adopt_plan,
 )
+from contemplative_agent.cli.remove_skill import _handle_remove_skill
 from contemplative_agent.cli.staging import StageItem, _stage_results
 
 

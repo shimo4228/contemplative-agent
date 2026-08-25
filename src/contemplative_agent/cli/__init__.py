@@ -15,7 +15,15 @@ from pathlib import Path
 from typing import assert_never
 
 from ..adapters.moltbook.agent import AutonomyLevel
-from . import adopt, agent_cmds, memory_cmds, schedule, session_cmds, stocktake_cmd
+from . import (
+    adopt,
+    agent_cmds,
+    memory_cmds,
+    remove_skill,
+    schedule,
+    session_cmds,
+    stocktake_cmd,
+)
 from .registry import CommandSpec, Tier, build_subparsers, index_by_name
 from .runtime import (
     _configure_llm_and_domain,
@@ -36,6 +44,7 @@ COMMANDS: tuple[CommandSpec, ...] = (
     *schedule.COMMANDS,
     *stocktake_cmd.COMMANDS,
     *adopt.COMMANDS,
+    *remove_skill.COMMANDS,
 )
 
 _COMMANDS_BY_NAME = index_by_name(COMMANDS)

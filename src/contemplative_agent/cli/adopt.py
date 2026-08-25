@@ -1,4 +1,4 @@
-"""adopt-staged / remove-skill: promote, archive, or drop value-layer items.
+"""adopt-staged: promote staged value-layer items through the approval gate.
 
 Extracted verbatim from the single-file cli.py (ADR-0079 Phase 2).
 
@@ -20,24 +20,12 @@ bounded to MOLTBOOK_HOME and no further.
   ``_load_staged_item`` rather than silently read as an ordinary write:
   ignoring the key would turn an approved deletion into an approved
   duplicate.
-* The store's exit (ADR-0097 D5) reaches this command as
-  ``--archive-names FILE`` and nowhere else. **Nothing a staged file
-  carries can name a skill to archive**: ``_resolve_adopt_plan`` reads the
-  archive set from that argument alone, and no sidecar key is consulted for
-  it — not the reviewer's prose, not a ``supersedes`` field, not a
-  producer's suggestion. An adversary who owns ``.staged/`` therefore still
-  cannot remove anything from the store; the worst they reach is the write
-  they already had. The one place a staged item influences an archive is the
-  *lineage stamp*: an operator-typed pairing may point an archived file's
-  ``superseded_by:`` at a staged item's name. That rewrites the archived
-  file's frontmatter — adding a minimal block when it had none, announced at
-  the time — and reaches no path; a standalone archive is byte-identical.
-* The archive is a **move**, so both ends are containment-checked with the
-  same ``_target_inside_data_root`` predicate the write path uses, and a
-  symlinked source is refused outright rather than relocated. It writes the
-  destination before unlinking the source: an interruption leaves a
-  duplicate (recoverable) rather than a hole, which is the whole point of an
-  exit that "never deletes".
+* **The store's exit is a different module.** ``--archive-names`` is the
+  only way an archive enters this command, and no sidecar key is
+  consulted for it — not a reviewer's prose, not a ``supersedes`` field.
+  The exit's own threat model, its containment argument and its refusal
+  codes live in :mod:`.skill_archive`; the shared path predicates live in
+  :mod:`.store_paths`.
 
 Deliberately no additional gate on ``target``: it is a subset of what writing
 ``.staged/`` already grants. The primitives that did exceed the store —
@@ -51,7 +39,6 @@ from __future__ import annotations
 import argparse
 import json as json_mod
 import logging
-import re
 import sys
 from collections import Counter
 from collections.abc import Iterable, Sequence
@@ -68,7 +55,23 @@ from ..core.domain import (
 from . import approval
 from .approval import AuditSource
 from .registry import CommandSpec, Tier
+from .skill_archive import (
+    _ARCHIVE_REFUSED_JUST_ADOPTED,
+    _ARCHIVE_SUCCESSOR_NOT_ADOPTED,
+    _archive_skill_file,
+    _record_archive,
+)
 from .staging import read_sidecar
+from .store_paths import (
+    _archive_dir,
+    _resolved_or_self,
+    _skills_dir,
+    _target_inside_data_root,
+    _writes_into_the_store,
+)
+
+logger = logging.getLogger(__name__)
+
 
 logger = logging.getLogger(__name__)
 
@@ -97,38 +100,6 @@ class _StagedItem:
     source_ids: Sequence[str] | None
     epistemic_counts: dict[str, int] | None
     meta: dict[str, Any]
-
-
-def _target_inside_data_root(target: Path, data_root: Path) -> bool:
-    """Containment for a staged target, on BOTH readings of the path.
-
-    The operations disagree about which reading they mean, so the check has
-    to satisfy each. ``_print_system_budget_for_staged`` READS the target and
-    a read follows every link, so the referent must be inside. The write
-    (``write_restricted`` -> ``os.replace``) and the drop (``unlink``) act on
-    the LITERAL path — they swap or remove the link itself, never its
-    referent — so the literal location must be inside too. The parent IS
-    resolved on the literal side, because ``os.replace`` follows parent
-    symlinks; the same idiom ``_replaces_canonical_target`` settled on for
-    the mirror-image bug found the same day.
-
-    Checking only the referent let a symlink sitting OUTSIDE the store and
-    pointing back in pass as "inside", after which the adoption landed
-    outside (security review 2026-08-15, reproduced). Checking only the
-    literal path would let a link inside the store expose an outside file to
-    the reader.
-
-    One predicate shared by the loader and the budget instrument, because
-    the instrument's whole job is to project what the loop will do: an item
-    the loop refuses must not appear in the reading the operator approves
-    against (codex review 2026-08-15).
-    """
-    try:
-        return target.resolve().is_relative_to(data_root) and (
-            target.parent.resolve() / target.name
-        ).is_relative_to(data_root)
-    except OSError:
-        return False
 
 
 def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:
@@ -257,390 +228,6 @@ def _replaces_canonical_target(command: str, target: Path, data_root: Path) -> b
     if command == "amend-constitution":
         return resolved.suffix == ".md" and resolved.parent == root / "constitution"
     return False
-
-
-# --- The store's exit (ADR-0097 Decision 5) ---------------------------------
-
-# Reason codes for a refused or half-finished archive. Every one of them also
-# produces a nonzero exit at the caller (ADR-0075: a store that did not shrink
-# must never read as a clean run), and every one names the skill it kept.
-_ARCHIVE_REFUSED_MISSING = "ARCHIVE_REFUSED_MISSING"
-_ARCHIVE_REFUSED_SYMLINK = "ARCHIVE_REFUSED_SYMLINK"
-_ARCHIVE_REFUSED_OUTSIDE = "ARCHIVE_REFUSED_OUTSIDE"
-_ARCHIVE_REFUSED_UNREADABLE = "ARCHIVE_REFUSED_UNREADABLE"
-_ARCHIVE_REFUSED_JUST_ADOPTED = "ARCHIVE_REFUSED_JUST_ADOPTED"
-# The destination resolves to the source, so the "move" would rewrite the one
-# copy and then unlink it. Security review 2026-08-22 reproduced two spellings:
-# `remove-skill .archive/old` (the name argument accepts a nested path, and
-# `.archive/` is inside the skills dir), and an `.archive` symlinked back into
-# the store. Both ended with the file gone, exit 0, and an audit row saying
-# `approved` for a path that no longer existed.
-_ARCHIVE_REFUSED_NOT_A_MOVE = "ARCHIVE_REFUSED_NOT_A_MOVE"
-# A file already inside `.archive/` has no second exit. `--archive-names`
-# cannot reach one (its store listing is a non-recursive glob); the
-# `remove-skill` name argument can, so that handler says so by name.
-_ARCHIVE_REFUSED_ALREADY_ARCHIVED = "ARCHIVE_REFUSED_ALREADY_ARCHIVED"
-_ARCHIVE_SUCCESSOR_NOT_ADOPTED = "ARCHIVE_SUCCESSOR_NOT_ADOPTED"
-_ARCHIVE_WRITE_FAILED = "ARCHIVE_WRITE_FAILED"
-_ARCHIVE_SOURCE_LEFT_BEHIND = "ARCHIVE_SOURCE_LEFT_BEHIND"
-# The move succeeded and its audit row did not reach disk. The only failure
-# here where the store DID shrink, so it cannot be retried blindly and is not
-# rolled back — putting the file back would delete from `.archive/`.
-_ARCHIVE_UNRECORDED = "ARCHIVE_UNRECORDED"
-# A paired archive whose destination the collision guard would rename. The
-# survivor's ``supersedes:`` is fixed before the guard runs, so it would name
-# ``.archive/old.md`` while the retirement landed at ``.archive/old-2.md`` —
-# pointing a reader at an unrelated earlier retirement.
-_ARCHIVE_REFUSED_LINEAGE_AMBIGUOUS = "ARCHIVE_REFUSED_LINEAGE_AMBIGUOUS"
-# The archive directory cannot hold a file: it is a regular file, or a link
-# out of the store. Knowable before the move, so the dry run checks it too.
-_ARCHIVE_REFUSED_BAD_DESTINATION = "ARCHIVE_REFUSED_BAD_DESTINATION"
-# ``approval._collision_free_path`` exhausted its 98 suffixes. It raises
-# rather than returning, and `.archive/` is never pruned by design, so the
-# collision space only grows — caught here so one name cannot kill the loop.
-_ARCHIVE_REFUSED_NO_FREE_NAME = "ARCHIVE_REFUSED_NO_FREE_NAME"
-
-
-@dataclass(frozen=True)
-class _ArchiveResult:
-    """Where an archived skill landed, or why it did not move.
-
-    ``text`` is the exact string written to ``destination`` — the caller
-    hashes it into ``audit.jsonl``, so a lineage stamp added on the way must
-    be in it (same rule as the adopt path: the row describes the bytes on
-    disk, not the bytes we started from).
-
-    ``stray_copy`` is set on the one failure that still put bytes on disk:
-    the copy landed but the source could not be unlinked. Seven of the eight
-    refusals move nothing and so deserve no audit row; this one does, or the
-    durable trail stays silent about a file appearing in the archive
-    (security review 2026-08-22 LOW).
-    """
-
-    destination: Path | None = None
-    text: str = ""
-    reason: str | None = None
-    detail: str = ""
-    stray_copy: Path | None = None
-
-
-# Both halves of an ADR-0097 supersede pair go through
-# ``core.text_utils.set_frontmatter_field`` with ``synthesize=True``: legacy
-# skills predate the emitted block, and a lineage pointer stapled above a bare
-# ``# Title`` would not be found by any frontmatter reader. The value is a
-# *filename*, not the frontmatter ``name:`` slug — a slug is only unique per
-# date (``slug_from_stem`` exists precisely because two files can share one),
-# whereas restoring an archived skill is a plain ``mv`` and a ``mv`` needs a
-# filename. Both halves are validated against real files before they are
-# stamped, so the scalar is never free text.
-
-
-def _resolved_or_self(path: Path) -> Path:
-    """``path.resolve()``, falling back to *path* when the filesystem says no.
-
-    Used only to compare two spellings of the same file. A resolve that
-    raises must not take the comparison down with it; an unresolvable path
-    simply compares as itself, which is the pre-existing behaviour.
-    """
-    try:
-        return path.resolve()
-    except OSError:
-        return path
-
-
-def _skills_dir(data_root: Path) -> Path:
-    """The skill store, derived at call time.
-
-    Not ``config.SKILLS_DIR``: that constant is frozen at import and every
-    handler here honors a per-call / test-patched ``MOLTBOOK_HOME``. One
-    function rather than five inline ``… / "skills"`` spellings, so a reader
-    checking the containment argument does not first have to prove that the
-    resolved and unresolved forms denote the same directory (code review
-    2026-08-22). Callers pass an already-resolved *data_root*.
-    """
-    return data_root / config.SKILLS_DIRNAME
-
-
-def _archive_dir(data_root: Path) -> Path:
-    """The store's exit, one level inside the store."""
-    return _skills_dir(data_root) / config.SKILLS_ARCHIVE_DIRNAME
-
-
-def _inside_archive(path: Path, data_root: Path) -> bool:
-    """Is *path* already inside the store's exit? Resolved on both sides.
-
-    Two questions in ``remove-skill`` are this same predicate, and both were
-    written out inline: the archive arm's "a file that already left has no
-    second exit" refusal, and the audit row's purge-vs-remove discriminator.
-    One function, so the two cannot answer differently — and so a reader
-    checking either argument reads one implementation.
-
-    Resolved on both sides because the interesting inputs are spellings, not
-    files: ``remove-skill .archive/old`` names a nested path that the store
-    containment check admits, and an ``.archive`` symlinked back into the
-    store makes every live skill resolve inside it.
-    """
-    return _resolved_or_self(path).is_relative_to(_resolved_or_self(_archive_dir(data_root)))
-
-
-def _same_archive_slot(intended: Path, final: Path) -> bool:
-    """True when *final* is *intended* or *intended* with a collision suffix.
-
-    ``remove-skill`` shows the INTENDED destination in its dry run and its
-    prompt, before the content is read, while the guard that fixes the final
-    path (``approval._collision_free_path``) runs after. What makes that
-    preview honest is a property of the guard: it may append ``-N``, and it
-    may never change directory or extension. That property was asserted in a
-    comment; this is the same claim as a check, so a change to the guard's
-    shape fails loudly here instead of silently making the preview a lie.
-    """
-    if final.parent != intended.parent or final.suffix != intended.suffix:
-        return False
-    if final.stem == intended.stem:
-        return True
-    return re.fullmatch(rf"{re.escape(intended.stem)}-\d+", final.stem) is not None
-
-
-def _writes_into_the_store(target: Path, data_root: Path) -> bool:
-    """True when a staged item's target is a file directly in ``skills/``.
-
-    The gate on a supersede successor: ADR-0097 D5 scopes both frontmatter
-    halves to skills, and ``superseded_by: <name>`` only means anything if a
-    ``mv`` back into ``skills/`` restores the pair. Applied twice on purpose —
-    once in the plan for a fail-fast message with nothing touched, once at the
-    write on the snapshot the write actually uses.
-
-    The sidecar's ``target`` is attacker-chosen, so the loop's own containment
-    test runs before the parent is compared; this is never a second, weaker
-    reader of that field (module docstring).
-    """
-    return _target_inside_data_root(target, data_root) and _resolved_or_self(
-        target.parent
-    ) == _resolved_or_self(_skills_dir(data_root))
-
-
-def _archive_destination_refusal(destination: Path, data_root: Path) -> str | None:
-    """Why the archive cannot hold *destination*, or None. Knowable pre-move.
-
-    Split out so the ``remove-skill`` dry run answers the same question the
-    real invocation will (Codex P2 #2): the preview used to promise an archive
-    that then failed with ``ARCHIVE_WRITE_FAILED`` because ``skills/.archive``
-    was a regular file, or with ``ARCHIVE_REFUSED_OUTSIDE`` because it was a
-    link out of the store. Only checks that need no file content, so it is
-    safe to run before anything is read.
-    """
-    if not _target_inside_data_root(destination, data_root):
-        return _ARCHIVE_REFUSED_OUTSIDE
-    parent = destination.parent
-    if parent.exists() and not parent.is_dir():
-        return _ARCHIVE_REFUSED_BAD_DESTINATION
-    return None
-
-
-_ARCHIVE_KIND_ARCHIVE = "archive"  # a live store skill leaving for `.archive/`
-_ARCHIVE_KIND_PURGE = "purge"  # the source already sits inside `.archive/`
-
-
-@dataclass(frozen=True)
-class _ArchivePlan:
-    """One retirement, decided as far as it can be without reading the file.
-
-    **Why this exists.** ``remove-skill`` shows a dry run and a prompt, then
-    moves; those three used to reach their own verdicts from their own
-    copies of the same checks, kept in step by hand. A plan is built once
-    and :func:`_apply_archive_plan` takes *only* a plan — so the preview,
-    the prompt and the move cannot read different inputs. That is the whole
-    property; the rest is bookkeeping.
-
-    ``source`` is the LITERAL path, never a resolved one. ``is_symlink()``
-    on a resolved path is always False, so planning from the referent would
-    make the symlink refusal a silent no-op, and ``unlink`` acts on the
-    literal path anyway.
-
-    ``destination_refusal`` is a **field, not a refusal**, and the asymmetry
-    is deliberate: a bad archive slot forbids an archive, but ``--delete``
-    never touches the slot and must still work when it is broken. Returning
-    it as a plain refusal would newly fail that case.
-
-    **Refusals learned here write no audit row**; refusals learned in apply
-    do. Not an inconsistency — a plan is checked before the operator is
-    asked anything, so there is no decision to record, while apply runs
-    after a recorded decision. This is the load-bearing reason the split is
-    safe (pinned by ``test_a_failed_archive_exits_nonzero_with_no_audit_row``).
-    """
-
-    source: Path
-    data_root: Path
-    superseded_by: str | None
-    kind: str
-    intended: Path
-    destination_refusal: str | None
-
-
-def _plan_archive(
-    source: Path, *, data_root: Path, superseded_by: str | None
-) -> _ArchivePlan | _ArchiveResult:
-    """Everything about a retirement knowable without reading the file.
-
-    Returns a refusal only for facts about the **source** — those forbid
-    every retirement, ``--delete`` included. Facts about the destination
-    ride on the plan (see :class:`_ArchivePlan`).
-
-    A symlinked source is refused rather than relocated: moving the link
-    would leave its referent in the store while the audit row claimed the
-    skill had left, and resolving it instead would archive a file the
-    operator did not name.
-
-    Reads nothing, so it is safe to run before the dry run — which is the
-    point. It is also why the preview never emits
-    :data:`_ARCHIVE_REFUSED_UNREADABLE`.
-    """
-    if source.is_symlink():
-        return _ArchiveResult(reason=_ARCHIVE_REFUSED_SYMLINK)
-    if not source.is_file():
-        return _ArchiveResult(reason=_ARCHIVE_REFUSED_MISSING)
-    if not _target_inside_data_root(source, data_root):
-        return _ArchiveResult(reason=_ARCHIVE_REFUSED_OUTSIDE)
-    intended = _archive_dir(data_root) / source.name
-    return _ArchivePlan(
-        source=source,
-        data_root=data_root,
-        superseded_by=superseded_by,
-        kind=(_ARCHIVE_KIND_PURGE if _inside_archive(source, data_root) else _ARCHIVE_KIND_ARCHIVE),
-        intended=intended,
-        destination_refusal=_archive_destination_refusal(intended, data_root),
-    )
-
-
-def _archive_skill_file(
-    source: Path, *, data_root: Path, superseded_by: str | None
-) -> _ArchiveResult:
-    """Plan, then apply. The batch caller's entry to the exit primitive."""
-    plan = _plan_archive(source, data_root=data_root, superseded_by=superseded_by)
-    if isinstance(plan, _ArchiveResult):
-        return plan
-    return _apply_archive_plan(plan)
-
-
-def _apply_archive_plan(plan: _ArchivePlan) -> _ArchiveResult:
-    """Move the planned skill into ``skills/.archive/``. The only mutation.
-
-    Takes a plan and nothing else — that signature *is* the guarantee that
-    the preview and the move agree, so do not add a ``source`` or
-    ``data_root`` parameter back (pinned by
-    ``test_a_plan_is_never_applied_with_a_different_source``).
-
-    A move, not a delete, so **both ends are containment-checked** with
-    ``_target_inside_data_root`` — the predicate the write path uses, which
-    tests the resolved referent and the literal-path-with-resolved-parent
-    because a read follows links and a rename does not. The source end was
-    checked in the plan; the destination end is checked here, because it is
-    only known once the collision guard has run.
-
-    Writes the destination *before* unlinking the source. An interruption
-    between the two leaves the same text in two places, which a human can
-    reconcile; the other order leaves a hole, which is the one outcome an
-    exit that "never deletes" must not produce. A failed unlink is reported
-    as :data:`_ARCHIVE_SOURCE_LEFT_BEHIND` rather than swallowed — the store
-    did not shrink, so the run must not read as success.
-
-    Collisions inside the archive go through the same H5 guard as every other
-    write (``approval._collision_free_path``): re-archiving identical content
-    reuses the file, different content gets ``-2``. Overwriting would destroy
-    an earlier retirement, i.e. exactly the deletion this directory exists to
-    prevent. When that reuse makes the destination BE the source, the move is
-    refused (``_ARCHIVE_REFUSED_NOT_A_MOVE``) — rewriting and then unlinking
-    one path is the deletion, not a degenerate archive.
-
-    The directory is created lazily here, on the first archive.
-    """
-    from ..core._io import write_restricted
-    from ..core.text_utils import set_frontmatter_field, split_frontmatter
-
-    source = plan.source
-    data_root = plan.data_root
-    superseded_by = plan.superseded_by
-    try:
-        text = source.read_text(encoding="utf-8")
-    except (OSError, ValueError) as err:
-        return _ArchiveResult(reason=_ARCHIVE_REFUSED_UNREADABLE, detail=str(err))
-
-    if superseded_by:
-        stamped = set_frontmatter_field(text, "superseded_by", superseded_by, synthesize=True)
-        if not split_frontmatter(text)[0]:
-            # The one case where archiving is not byte-preserving. Said out
-            # loud: a standalone archive copies the file verbatim, and an
-            # operator should not discover a rewrite by diffing the archive.
-            print(
-                f"  Adding a frontmatter block to {source.name} (it had none) "
-                f"to carry superseded_by: {superseded_by}"
-            )
-        text = stamped
-    # From the plan, not recomputed: the dry run and the prompt already
-    # showed this destination, and deriving it a second time here is exactly
-    # how the two would drift apart.
-    intended = plan.intended
-    if plan.destination_refusal:
-        return _ArchiveResult(reason=plan.destination_refusal, detail=str(intended))
-    try:
-        destination = approval._collision_free_path(intended, text)
-    except RuntimeError as err:
-        # Escapes every frame otherwise, killing the loop before
-        # ``_report_adopt_outcomes`` — no summary, remaining archives skipped,
-        # applied ones unreported (code review 2026-08-22 LOW).
-        return _ArchiveResult(reason=_ARCHIVE_REFUSED_NO_FREE_NAME, detail=str(err))
-    if not _target_inside_data_root(destination, data_root):
-        return _ArchiveResult(reason=_ARCHIVE_REFUSED_OUTSIDE)
-    if not _same_archive_slot(intended, destination):
-        # ``remove-skill`` already promised ``intended`` in its dry run and
-        # its prompt, on the standing claim that the guard only ever appends
-        # a counter. Checked rather than trusted: if that ever stops holding
-        # the preview becomes a lie, and this is the one frame that can still
-        # tell. Refused as OUTSIDE because a destination in an unexpected
-        # directory is exactly the containment failure that name describes.
-        return _ArchiveResult(
-            reason=_ARCHIVE_REFUSED_OUTSIDE,
-            detail=f"{destination} is not {intended} with a collision suffix",
-        )
-    if superseded_by and destination.name != source.name:
-        # The survivor's ``supersedes:`` was fixed before this rename could be
-        # known — it has to be inside the bytes the audit row hashes — so it
-        # names ``source.name`` while the retirement would land beside an
-        # unrelated earlier one. Refuse rather than write a pointer to the
-        # wrong file; the operator moves the older retirement aside and
-        # re-runs (silent-failure review 2026-08-22 MEDIUM 7).
-        return _ArchiveResult(
-            reason=_ARCHIVE_REFUSED_LINEAGE_AMBIGUOUS,
-            detail=(
-                f"{intended.name} is taken by different content, so the retirement "
-                f"would land at {destination.name} while the survivor says "
-                f"'supersedes: {source.name}'"
-            ),
-        )
-    # The one check the containment predicate cannot make: both ends inside
-    # the data root is satisfied when they are the SAME file, and then the
-    # write-then-unlink below destroys the only copy. The H5 guard causes
-    # this rather than catching it — "identical content reuses the path"
-    # degenerates when the destination is the source. Resolved on both sides
-    # so an `.archive` symlinked back into the store is caught too.
-    if _resolved_or_self(destination) == _resolved_or_self(source):
-        return _ArchiveResult(reason=_ARCHIVE_REFUSED_NOT_A_MOVE, detail=str(destination))
-
-    try:
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        write_restricted(destination, text)
-    except (OSError, ValueError) as err:
-        return _ArchiveResult(text=text, reason=_ARCHIVE_WRITE_FAILED, detail=str(err))
-    try:
-        source.unlink()
-    except OSError as err:
-        return _ArchiveResult(
-            text=text,
-            reason=_ARCHIVE_SOURCE_LEFT_BEHIND,
-            detail=f"{err}; the copy at {destination} is intact",
-            stray_copy=destination,
-        )
-    return _ArchiveResult(destination=destination, text=text)
 
 
 def _adopt_write_item(
@@ -1642,86 +1229,6 @@ def _archive_named_skills(plan: _AdoptPlan, results: dict[str, _ItemResult]) -> 
     return outcomes
 
 
-def _record_archive(
-    result: _ArchiveResult, *, command: str, source_path: Path, source: AuditSource, reason: str
-) -> bool:
-    """Write the audit row for one finished archive attempt; True when it moved.
-
-    Both call sites — the adopt gate and ``remove-skill`` — did these same
-    four steps, and the two copies had already produced two sentences for one
-    stray-copy event (code review 2026-08-22).
-
-    **What tells an archive from a delete is ``source``, not ``path``.** The
-    earlier claim (a path under ``.archive/`` means archived) was false and
-    had a live consumer: ``remove-skill --delete`` on a file already in the
-    archive writes an ``.archive/`` path while meaning the opposite, and the
-    two rows were otherwise identical in command, decision, path, hash and
-    run_id (silent-failure review 2026-08-22 HIGH). The categorical field is
-    ``AuditSource`` — ``direct-archive*`` / ``stage-archived-names`` for a
-    move, ``direct-remove*`` for a delete, ``direct-purge*`` for a purge from
-    the archive — which grows the vocabulary without growing the row shape
-    that ``_log_decision`` owns. The destination is still what gets logged
-    for a move, because it names the file a ``mv`` would restore.
-
-    **Every outcome writes a row**, including a refusal: the reason codes are
-    the point of ADR-0075, and a refused archive that logs nothing is
-    indistinguishable from a command that never ran. Only a move writes
-    ``approved``; a refusal writes not-approved carrying its code, and a
-    stray copy is named as the path so the leftover bytes are findable.
-
-    Returns True only when the skill actually left the store **and** the row
-    reached disk. A move whose audit write failed is a failure: the store
-    lost a skill, and the whole point of a retirement is the reason attached
-    to it (Codex P2 #1, the same argument ``_hold_staged_item`` makes).
-    """
-    name = source_path.name
-    if result.destination is None:
-        detail = f": {result.detail}" if result.detail else ""
-        print(f"  Could not archive {name}: {result.reason}{detail}", file=sys.stderr)
-        stray = f"; copy written, {name} not removed" if result.stray_copy else ""
-        # The refused path still gets a row. Answering "y" and then hitting a
-        # refusal used to write nothing at all, leaving the log unable to
-        # distinguish it from a command nobody ran, while merely DECLINING
-        # wrote a `rejected` row (silent-failure review 2026-08-22 MEDIUM 8).
-        approval._log_decision(
-            "rejected",
-            command,
-            result.stray_copy if result.stray_copy is not None else source_path,
-            result.text,
-            source=source,
-            snapshot_path=None,
-            reason=f"{reason} [{result.reason}{stray}]",
-            source_ids=None,
-            epistemic_counts=None,
-        )
-        return False
-    logged = approval._log_decision(
-        "approved",
-        command,
-        result.destination,
-        result.text,
-        source=source,
-        snapshot_path=None,
-        reason=reason,
-        source_ids=None,
-        epistemic_counts=None,
-    )
-    print(f"  Archived {name} → {result.destination}")
-    if not logged:
-        # The move happened and the record did not. Not rolled back — putting
-        # the file back would re-introduce a delete from `.archive/`, the very
-        # act this exit exists to avoid — so it is surfaced as a failure with
-        # both paths named, the way the paired-archive survivor is.
-        print(
-            f"  {_ARCHIVE_UNRECORDED}: {name} left the store for "
-            f"{result.destination} but the audit row did not reach disk. "
-            "The retirement is not on the record; re-record it by hand.",
-            file=sys.stderr,
-        )
-        return False
-    return True
-
-
 def _report_adopt_outcomes(tally: Counter[_Outcome], plan: _AdoptPlan) -> None:
     """Print the summary and set the exit code.
 
@@ -1873,256 +1380,6 @@ def _handle_adopt_staged(args: argparse.Namespace, _parser: argparse.ArgumentPar
     _report_adopt_outcomes(tally, plan)
 
 
-def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
-    """Retire a skill from ``skills_dir`` with an audit trail.
-
-    The single manual-CRUD entry point for the skills directory. Writes an
-    ``audit.jsonl`` record (command="remove-skill") capturing the reason,
-    decision, and content hash so the retirement is reviewable alongside the
-    automated approval-gate history (ADR-0012).
-
-    **Archiving is the default** (ADR-0097 Decision 5): the file moves to
-    ``skills/.archive/`` and restoring it is a plain ``mv``. ``--delete``
-    unlinks instead, and is the only irreversible path left — kept because a
-    genuinely wrong file (a mis-staged artifact, a duplicate written by a
-    bug) should not accumulate in the archive, but explicit because the six
-    deletions this command performed in five months are unrecoverable and
-    that was never an intended property.
-
-    ``--reason`` stays mandatory for both. It is not paperwork: CREW library
-    weeding found 98% of candidates retained until a written reason was
-    required, which is the ADR's stated defence against just-in-case
-    retention, and it is also the only field that survives to explain the
-    retirement once the file is out of the store.
-
-    The audit row distinguishes the three outcomes by ``source``:
-    ``direct-archive*`` for a move, ``direct-remove*`` for deleting a live
-    skill, ``direct-purge*`` for deleting one already in the archive. **Not by
-    ``path``** — the archive row and the purge row both carry an ``.archive/``
-    path and mean opposite things, which is why the earlier claim was wrong
-    (silent-failure review 2026-08-22). ``AuditSource`` grows; the row shape
-    ``_log_decision`` owns does not. ``path`` still names the file the row is
-    about, which for a move is the one a ``mv`` restores.
-
-    With ``--yes`` the interactive prompt is skipped (non-TTY workflows).
-    With ``--dry-run`` the target is resolved and printed but nothing is
-    written, moved, or removed — including the archive directory, which is
-    created lazily at the first real archive.
-    """
-    reason = (args.reason or "").strip()
-    if not reason:
-        print(
-            "Error: --reason is required and must be non-empty.",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-
-    # Derived from MOLTBOOK_DATA_DIR at call time (never the import-time
-    # ``config.SKILLS_DIR``) so this handler honors a per-call / test-patched
-    # home — the removal must act on the same store the rest of the
-    # invocation uses.
-    data_root = config.MOLTBOOK_DATA_DIR.resolve()
-    skills_dir = _skills_dir(data_root).resolve()
-    name = args.name
-    if not name.endswith(".md"):
-        name = f"{name}.md"
-    # Two spellings, both needed and easy to confuse: ``literal`` is the path
-    # the operator named, which is what a rename acts on and the only one
-    # that can still be a symlink; ``target`` is its referent, which is what
-    # the containment check and the read act on.
-    literal = skills_dir / name
-    target = literal.resolve()
-
-    # NOT a copy of ``_target_inside_data_root``, and not replaceable by it.
-    # This gate is scoped to ``skills/`` while the predicate is scoped to the
-    # whole data root, so `remove-skill ../other` — whose referent still lives
-    # under the home — passes the predicate and must be stopped here. It also
-    # carries a different verdict: **exit 2**, an operator typo with nothing
-    # touched, rather than a reason-coded exit 1. Pinned on both sides by
-    # ``test_escape_attempt_rejected`` and
-    # ``test_a_dangling_symlink_out_of_the_store_reads_as_an_escape``.
-    try:
-        inside = target.is_relative_to(skills_dir)
-    except (OSError, ValueError):
-        inside = False
-    if not inside:
-        print(
-            f"Error: target escapes skills dir: {target}",
-            file=sys.stderr,
-        )
-        sys.exit(2)
-
-    # Above the plan on purpose, and not redundant with the plan's MISSING
-    # arm: this one names the resolved target the operator can go look for,
-    # and `--delete` reaches it too. Reads as duplication; is not.
-    if not target.is_file():
-        print(f"Error: skill not found: {target}", file=sys.stderr)
-        sys.exit(1)
-
-    delete = getattr(args, "delete", False)
-
-    # One plan for the whole invocation. The dry run, the prompt and the move
-    # all read it, which is what makes the preview unable to promise something
-    # the run refuses (Codex P2 #2) without anyone keeping two lists of checks
-    # in step.
-    #
-    # ``literal``, never ``target``: ``is_symlink()`` on a resolved path is
-    # always False, so planning from the referent would turn the symlink
-    # refusal below into a silent no-op.
-    plan = _plan_archive(literal, data_root=data_root, superseded_by=None)
-    if isinstance(plan, _ArchiveResult):
-        # In practice only SYMLINK — MISSING and OUTSIDE were answered above,
-        # in this handler's own idiom. Handled by code rather than by name so
-        # a new source-side refusal cannot fall through unreported.
-        #
-        # The symlink refusal applies to BOTH branches, above the dry run and
-        # above the prompt. This is the silent-failure review's CRITICAL: it
-        # used to live under `if not delete:` and its message offered
-        # `--delete` as the way to "drop the link" — but `target` is the
-        # RESOLVED leaf, so `--delete` unlinked the referent. Reproduced:
-        # `remove-skill link --delete --yes` printed "Removed real.md",
-        # destroyed the live skill with no archive and no recovery, left
-        # `link.md` dangling, and wrote an audit row naming a file the
-        # operator never typed.
-        #
-        # Refused rather than made to unlink the link itself, which was the
-        # other option: the row's ``content`` is the referent's bytes, so a row
-        # for a removed *link* would hash text that still exists — a second lie
-        # in place of the first. A symlink is not a skill; `rm` removes one,
-        # and this command stays the entry point for skills only.
-        detail = (
-            f"{name} is a symlink, not a skill. Name its referent "
-            f"({target.name}) to retire that, or remove the link with `rm`."
-            if plan.reason == _ARCHIVE_REFUSED_SYMLINK
-            else f"{target}{': ' + plan.detail if plan.detail else ''}"
-        )
-        print(f"Error: {plan.reason}: {detail}", file=sys.stderr)
-        sys.exit(1)
-
-    # The INTENDED destination, shown in the dry run and the prompt. Archiving
-    # over a name already in `.archive/` with different content appends a
-    # counter (``approval._collision_free_path``, which announces itself), so
-    # the final path can differ by that suffix — never by directory, and never
-    # by overwriting anything, which is why this is safe to promise up front.
-    # ``_same_archive_slot`` checks that claim at the move.
-    destination = plan.intended
-    # ``purging`` and the already-archived refusal are the same question, and
-    # the plan answered it once. They used to be two copies of one expression,
-    # forty lines apart.
-    purging = plan.kind == _ARCHIVE_KIND_PURGE
-    if not delete:
-        # A file that already left the store has no second exit. `name` is
-        # free-form and `.archive/old` resolves inside the skills dir, so the
-        # containment check above admits it; archiving it again computed a
-        # destination equal to the source and unlinked the last copy
-        # (security review 2026-08-22 MEDIUM). `--delete` stays the
-        # deliberate, audited way to purge from the archive.
-        if purging:
-            print(
-                f"Error: {_ARCHIVE_REFUSED_ALREADY_ARCHIVED}: {target} is already in the "
-                "archive; there is no second exit. Restore it with `mv` first, or "
-                "use --delete to remove it permanently.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        # A field rather than a refusal, precisely so this stays under
-        # `if not delete`: `--delete` never touches the archive slot and must
-        # keep working when the slot is unusable.
-        if plan.destination_refusal:
-            print(
-                f"Error: {plan.destination_refusal}: cannot archive "
-                f"{target.name} to {destination}.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-
-    if getattr(args, "dry_run", False):
-        if delete:
-            print(f"[dry-run] would remove: {target}")
-        else:
-            print(f"[dry-run] would archive: {target} → {destination}")
-        print(f"[dry-run] reason: {reason}")
-        return
-
-    try:
-        text = target.read_text(encoding="utf-8")
-    except OSError as err:
-        print(f"Error: cannot read {target}: {err}", file=sys.stderr)
-        sys.exit(1)
-
-    yes = getattr(args, "yes", False)
-    # Three outcomes, three categorical sources — a live skill deleted, a
-    # live skill moved to the archive, and a file already in the archive
-    # purged. They used to share `direct-remove*`, so an archive row and a
-    # purge row differed only in operator free text (silent-failure review
-    # 2026-08-22 HIGH). The purge arm is reachable only through `--delete`,
-    # because the archive arm refuses an already-archived source above.
-    # ``purging`` comes from the plan; this line used to recompute it.
-    if not delete:
-        source: AuditSource = "direct-archive-auto" if yes else "direct-archive"
-    elif purging:
-        source = "direct-purge-auto" if yes else "direct-purge"
-    else:
-        source = "direct-remove-auto" if yes else "direct-remove"
-
-    def _record(path: Path, approved: bool) -> None:
-        """One row shape for every verdict this handler reaches.
-
-        ``command`` / ``content`` / ``source`` / ``reason`` are fixed for the
-        whole invocation, so writing them out per branch only invited the four
-        rows to drift apart (code review 2026-08-22). What varies is the
-        verdict and the path. ``source`` carries which of the three
-        retirements this is; ``path`` names the file the row is about and is
-        NOT the discriminator (see ``_record_archive``).
-        """
-        approval._log_approval(
-            command="remove-skill",
-            path=path,
-            approved=approved,
-            content=text,
-            source=source,
-            reason=reason,
-        )
-
-    if delete:
-        if not (yes or approval._approve_delete(target)):
-            _record(target, False)
-            print("Kept.")
-            return
-        # Unlink BEFORE logging, matching every other destructive branch in
-        # this module (the reject arm's 2026-08-01 H1 ordering, and the new
-        # archive path ten lines down): a row claiming a deletion that did not
-        # reach disk is worse than a deletion with a missing row. This was the
-        # one branch still logging first — pre-existing, aligned while here.
-        try:
-            target.unlink()
-        except OSError as err:
-            print(f"Error: could not remove {target}: {err}", file=sys.stderr)
-            sys.exit(1)
-        _record(target, True)
-        print(f"Removed {target.name}")
-        return
-
-    if not (yes or approval._approve(f"Archive {target} → {destination}?")):
-        _record(target, False)
-        print("Kept.")
-        return
-
-    # The plan the dry run and the prompt were built from, applied unchanged.
-    # Not ``_archive_skill_file(target, ...)``: that would re-plan from the
-    # resolved path and hand the move a second chance to disagree with what
-    # the operator was shown.
-    result = _apply_archive_plan(plan)
-    if not _record_archive(
-        result,
-        command="remove-skill",
-        source_path=target,
-        source=source,
-        reason=reason,
-    ):
-        sys.exit(1)
-
-
 def _add_adopt_staged_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument(
         "-y",
@@ -2175,37 +1432,6 @@ def _add_adopt_staged_arguments(parser: argparse.ArgumentParser) -> None:
     )
 
 
-def _add_remove_skill_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument(
-        "name",
-        help="Skill filename stem (with or without .md suffix)",
-    )
-    parser.add_argument(
-        "--reason",
-        required=True,
-        help="Justification recorded in audit.jsonl (required, non-empty)",
-    )
-    parser.add_argument(
-        "--delete",
-        action="store_true",
-        help="Delete the file instead of archiving it. Irreversible: the "
-        "default moves the skill to skills/.archive/, where a plain mv "
-        "restores it (ADR-0097 D5).",
-    )
-    parser.add_argument(
-        "-y",
-        "--yes",
-        action="store_true",
-        help="Skip the interactive prompt "
-        "(for non-TTY / coding-agent workflows where stdin is not interactive)",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Resolve and print the target without moving, deleting, or writing audit",
-    )
-
-
 COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec(
         name="adopt-staged",
@@ -2213,13 +1439,5 @@ COMMANDS: tuple[CommandSpec, ...] = (
         handler=_handle_adopt_staged,
         tier=Tier.NO_LLM,
         add_arguments=_add_adopt_staged_arguments,
-    ),
-    CommandSpec(
-        name="remove-skill",
-        help="Retire a skill from skills_dir with an audit trail "
-        "(archives to skills/.archive/; --delete to unlink)",
-        handler=_handle_remove_skill,
-        tier=Tier.NO_LLM,
-        add_arguments=_add_remove_skill_arguments,
     ),
 )
