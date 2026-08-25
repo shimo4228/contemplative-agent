@@ -1,5 +1,5 @@
 ---
-state: candidate
+state: draft
 state_since: 2026-08-22
 ---
 
@@ -9,9 +9,9 @@ state_since: 2026-08-22
 
 ## 着手条件
 
-再開条件: `T-CONSOLIDATOR-REDESIGN` の結論が出ること（decided）
+再開条件: `T-CONSOLIDATOR-REDESIGN` の結論が出ること（resolved）
 照合先:   `.notes/tasks/T-CONSOLIDATOR-REDESIGN.md` の `state:`
-成立時:   candidate（REDESIGN の結論次第で「skill → rule 昇格」という手自体の採否を再判断。CADENCE と同じ形）
+成立時:   draft（REDESIGN の結論次第で「skill → rule 昇格」という手自体の採否を再判断。CADENCE と同じ形）
 
 **2026-08-16 の棚卸しで発見**: 条件は前日に成立している。監査で過広 description が締まらなかった
 （0 mismatch）のに寡占が残っているので、「過広なだけの skill の誤ルール化」を防ぐ順序規約は
@@ -27,19 +27,19 @@ skillsel 初回読み §2/§6（`.notes/skillsel-reading-2026-07-24.md`）、[AD
 
 ## 2026-08-19 triage 照合（無人 cycle）
 
-未成立 → `blocked` 維持。照合先 `T-CONSOLIDATOR-REDESIGN` の `state:` = `ready`（未着手）。
+未成立 → `blocked` 維持。照合先 `T-CONSOLIDATOR-REDESIGN` の `state:` = `accepted`（未着手）。
 
 ## 2026-08-22 triage 照合（無人 cycle）
 
-未成立 → `blocked` 維持。照合先 `T-CONSOLIDATOR-REDESIGN` の `state:` = `ready`（オーナー専用セッションが 2026-08-22 に claim、結論未記録）。
+未成立 → `blocked` 維持。照合先 `T-CONSOLIDATOR-REDESIGN` の `state:` = `accepted`（オーナー専用セッションが 2026-08-22 に claim、結論未記録）。
 
 ## 2026-08-22 再定義（ADR-0097 Decision 7 の形 A′）
 
-**candidate** — 親の結論が出た。昇格の基準「family の any-of 選択率 ≥ 0.75 が互いに素な ≥ 500 judged の窓 2 つ以上」は「制約」family で既に成立（07-25 以降 4 窓で 0.78 / 0.74 / 0.72 / 0.81）。形は A′: gemma が family の共通の姿勢を `stocktake_merge_rules.md`（共有する核の合成）で Practice / Rationale に描画 → 人間ゲート → `rules/` へ。**member の 6 skill は store に残す**（各冊は固有の手順を持つ。co-selection は add-on 関係。「代表をそのまま移す」は 5 冊の手順を落とすので撤回）。選ばれなくなった member は never-selected の出口で退役。入口 `promote-family`（family 名 → 合成 → staging）はスライス 2 で実装。実行後の観測: ≥ 100 judged で member の選択が減り selected_count p50 が下がること。rules 層は小さく保つ（Instruction Stacking Collapse）。`rules-distill` はもう無い。
+**draft** — 親の結論が出た。昇格の基準「family の any-of 選択率 ≥ 0.75 が互いに素な ≥ 500 judged の窓 2 つ以上」は「制約」family で既に成立（07-25 以降 4 窓で 0.78 / 0.74 / 0.72 / 0.81）。形は A′: gemma が family の共通の姿勢を `stocktake_merge_rules.md`（共有する核の合成）で Practice / Rationale に描画 → 人間ゲート → `rules/` へ。**member の 6 skill は store に残す**（各冊は固有の手順を持つ。co-selection は add-on 関係。「代表をそのまま移す」は 5 冊の手順を落とすので撤回）。選ばれなくなった member は never-selected の出口で退役。入口 `promote-family`（family 名 → 合成 → staging）はスライス 2 で実装。実行後の観測: ≥ 100 judged で member の選択が減り selected_count p50 が下がること。rules 層は小さく保つ（Instruction Stacking Collapse）。`rules-distill` はもう無い。
 
 ## 2026-08-22 ADR-0097 で手が決まった（本文の手順は失効）
 
-再開条件（REDESIGN が decided）は成立。**本文が使う `rules-distill` は退役したので、そこに書いた
+再開条件（REDESIGN が resolved）は成立。**本文が使う `rules-distill` は退役したので、そこに書いた
 手順はもう実行できない。** 手は ADR-0097 Decision 7 の **形 A′** に確定した:
 
 - 昇格するのは family の**共通の姿勢だけ**。gemma が既存 `stocktake_merge_rules.md`（共有する核を
@@ -64,13 +64,13 @@ selected_count の p50 が下がる（6 → 5 前後）。**これは挙動が�
 
 ## Status
 
-candidate（≈ draft） — 親 `T-CONSOLIDATOR-REDESIGN` の結論が 2026-08-22 に出て再開条件は成立し、手は
+draft — 親 `T-CONSOLIDATOR-REDESIGN` の結論が 2026-08-22 に出て再開条件は成立し、手は
 ADR-0097 Decision 7 の形 A′ に確定した。本文が使う `rules-distill` は退役したのでその手順は
-失効（2026-08-25）。採否はオーナー判断で `candidate` 止まり。
+失効（2026-08-25）。採否はオーナー判断で `draft` 止まり。
 
 ## Next action
 
-- 採否判断待ち（形 A′ の実行可否。着手条件の「成立時」自体が `candidate` と書かれている）
+- 採否判断待ち（形 A′ の実行可否。着手条件の「成立時」自体が `draft` と書かれている）
 - 判断材料: 昇格基準（family の any-of 選択率 ≥ 0.75 が互いに素な ≥ 500 judged の窓 2 つ以上）は
   「制約」family で既に成立（4 窓 0.78 / 0.74 / 0.72 / 0.81。`scripts/coselection_families.py`
   で再取得可）。入口 `promote-family` はスライス 2 で実装、archive とは同じ週に動かさない

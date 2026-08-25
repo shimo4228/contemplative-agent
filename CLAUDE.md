@@ -108,7 +108,7 @@ git tracked = clone 先にも付いてくる repo 同梱の運用版 skill。CA 
 | `when-code-when-llm` | [when-code-when-llm](https://github.com/shimo4228/when-code-when-llm)（同一内容、harness 正本） | タスク単位の code vs LLM 判断軸 |
 | `code-and-llm-collaboration` | [code-and-llm-collaboration](https://github.com/shimo4228/code-and-llm-collaboration)（汎用化 fork） | パイプライン単位の code/LLM 4 層化パターン |
 | `llm-agent-security-principles` | [llm-agent-security-principles](https://github.com/shimo4228/llm-agent-security-principles)（汎用化 fork） | Security by Absence 等 3 原則 + 防御パターン |
-| `weekly-report` | なし（CA 固有） | 週次無人セッション（A-E 合成 + 診断 + candidate 起票、ADR-0098。旧 weekly-report-diagnosis を吸収） |
+| `weekly-report` | なし（CA 固有） | 週次無人セッション（A-E 合成 + 診断 + draft 起票、ADR-0098。旧 weekly-report-diagnosis を吸収） |
 | `replayable-audit-logs` | なし（CA 固有） | ADR-0075 observability-by-default の設計ノウハウ（監査ログスキーマ・リプレイハーネス・ground truth 規律・修理ループ） |
 | `read-only-instruments` | なし（CA 固有） | 計器（ADR-0071 系 read-only 分布・読み値）の設計ノウハウ — 計器→介入の順序、signal-first の建立/撤去判断、3 点較正スケール、読み違えの罠 |
 | `shadow-mode-validation` | なし（CA 固有） | shadow-mode 検証（ADR-0076 系）の設計ノウハウ — 候補判断機構を観測専用で並走させ would-be 判断を記録し、enforcement をデータで決める。観測対象を抑止しない隔離（circuit_shield）、幻覚の一級データ化、kill switch 内蔵、exit 基準の予約 |

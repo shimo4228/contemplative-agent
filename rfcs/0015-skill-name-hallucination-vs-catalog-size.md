@@ -11,7 +11,7 @@ state_since: 2026-08-22
 
 再開条件: 次の読み窓 2026-08-22 に到達
 照合先:   日付、および `logs/skill-selection-*.jsonl` の `rejected_names`
-成立時:   ready（読む対象は catalog サイズと語形変化率の相関 + 値層混入の推移。それまで selector を変更しない）
+成立時:   accepted（読む対象は catalog サイズと語形変化率の相関 + 値層混入の推移。それまで selector を変更しない）
 
 ## 詳細
 
@@ -23,7 +23,7 @@ state_since: 2026-08-22
 
 ## 2026-08-22 triage 照合（無人 cycle）
 
-成立 → `ready`。日付 2026-08-22 = 読み窓到達。T-SKILLSEL と同一 packet で dispatch（catalog サイズ × 語形変化率の相関、値層混入の推移）。
+成立 → `accepted`。日付 2026-08-22 = 読み窓到達。T-SKILLSEL と同一 packet で dispatch（catalog サイズ × 語形変化率の相関、値層混入の推移）。
 
 ## 2026-08-22 triage — 第 3 読み完了（T-SKILLSEL と同一 packet S1）
 
@@ -33,7 +33,7 @@ state_since: 2026-08-22
 
 再開条件: 次の読み窓 2026-09-05 に到達
 照合先:   日付、および `logs/skill-selection-*.jsonl` の `rejected_names`
-成立時:   ready（読む対象: catalog 57 での率、トークン仮説の再現可否、`structural-constraint-mapping-scm` の変異が定常か。それまで selector を変更しない）
+成立時:   accepted（読む対象: catalog 57 での率、トークン仮説の再現可否、`structural-constraint-mapping-scm` の変異が定常か。それまで selector を変更しない）
 
 ## 2026-08-24 triage 照合（手動 cycle）
 
@@ -44,7 +44,7 @@ state_since: 2026-08-22
 
 ## Status
 
-blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 第 3 読み（2026-08-22）で幻覚率 4.83% → 19.25%、増分の 91% が語形変化と
+blocked — 第 3 読み（2026-08-22）で幻覚率 4.83% → 19.25%、増分の 91% が語形変化と
 判明。次の読み窓 2026-09-05 まで selector を変更しない（2026-08-25）。直近の照合 2026-08-24 も
 未成立。
 
@@ -52,5 +52,5 @@ blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無
 
 - 再開条件: 次の読み窓 2026-09-05 に到達
 - 照合先: 日付、および `logs/skill-selection-*.jsonl` の `rejected_names`
-- 成立時: ready（読む対象: catalog 57 での率、トークン仮説の再現可否、
+- 成立時: accepted（読む対象: catalog 57 での率、トークン仮説の再現可否、
   `structural-constraint-mapping-scm` の変異が定常か。それまで selector を変更しない）

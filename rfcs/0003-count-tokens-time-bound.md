@@ -11,7 +11,7 @@ state_since: 2026-08-16
 
 再開条件: `TokenCountingBackend` を実装する backend が初めて現れること
 照合先:   sibling repo（cloud / mlx）の `count_tokens` 実装を grep（2026-08-08 時点で cloud `59286aa` / mlx `7cbe9cd` とも 0 ヒット。main のテスト用 fake 4 個のみ）
-成立時:   ready（最小修理の形は本文に記録済み — `ThreadPoolExecutor` future + `future.result(timeout=)`、本体 15-25 行）
+成立時:   accepted（最小修理の形は本文に記録済み — `ThreadPoolExecutor` future + `future.result(timeout=)`、本体 15-25 行）
 
 仮想の脅威に対して先回りで機構を足さない。現行本番構成（Ollama 既定、`_backend is None`）では
 この経路は完全に不活性。
@@ -36,7 +36,7 @@ state_since: 2026-08-16
 
 ## Status
 
-blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 時間上限の欠落は ADR-0087 の Negative に記録済みだが、`count_tokens` を
+blocked — 時間上限の欠落は ADR-0087 の Negative に記録済みだが、`count_tokens` を
 実装した backend が 1 つも無く現行本番構成では経路が不活性（2026-08-25）。直近の照合
 2026-08-24 も未成立（sibling repo cloud / mlx とも 0 ヒット）。
 
@@ -44,5 +44,5 @@ blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無
 
 - 再開条件: `TokenCountingBackend` を実装する backend が初めて現れること
 - 照合先: sibling repo（cloud / mlx）の `count_tokens` 実装を grep
-- 成立時: ready（最小修理の形は本文に記録済み — `ThreadPoolExecutor` future +
+- 成立時: accepted（最小修理の形は本文に記録済み — `ThreadPoolExecutor` future +
   `future.result(timeout=)`、本体 15-25 行）

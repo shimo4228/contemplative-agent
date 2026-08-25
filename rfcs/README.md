@@ -7,10 +7,10 @@
 判断は
 [claude-harness ADR-0049](https://github.com/shimo4228/claude-harness/blob/main/docs/adr/0049-unify-task-ledger-into-public-rfcs.md)。
 
-状態は各ファイルの frontmatter `state:` が**唯一の正本**（`candidate` / `ready` /
-`in_progress` / `blocked` / `done` / `decided` / `dropped` / `retired`。この index には
-複製しない — 二重記録は drift する）。終端エントリも削除・退避せずここに残る —
-却下理由ごと残るのが公開判断記録の価値。状態別の列挙は
+状態は各ファイルの frontmatter `state:` が**唯一の正本**（`draft` / `accepted` /
+`in_progress` / `blocked` / `done` / `resolved` / `rejected` / `withdrawn` /
+`obsoleted`。この index には複製しない — 二重記録は drift する）。終端エントリも
+削除・退避せずここに残る — 却下理由ごと残るのが公開判断記録の価値。状態別の列挙は
 `python3 ~/.claude/scripts/claims.py ready [--state <state>]`。
 
 この台帳は 2026-08-25 に非公開の `.notes/tasks/` から移送した（RFC-0001〜0015）。

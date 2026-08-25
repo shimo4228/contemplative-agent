@@ -13,7 +13,7 @@ skill 選択計器の定期読み — 次の読み窓 2026-09-05 まで selector
 
 再開条件: 次の読み窓 2026-08-22 に到達
 照合先:   日付、および `logs/skill-selection-*.jsonl` の蓄積
-成立時:   ready（読む対象は本文の (a)(b)(c)。それまで selector を変更しない）
+成立時:   accepted（読む対象は本文の (a)(b)(c)。それまで selector を変更しない）
 
 ## 詳細
 
@@ -25,7 +25,7 @@ skill 選択計器の定期読み — 次の読み窓 2026-09-05 まで selector
 
 ## 2026-08-22 triage 照合（無人 cycle）
 
-成立 → `ready`。日付 2026-08-22 = 読み窓到達。`logs/skill-selection-2026-08-21.jsonl` 等が継続蓄積（ファイル単位 76 行）。第 3 読み（窓 08-09〜08-22）を measurement として T-SKILLSEL-HALLUC-CATALOG と 1 packet で dispatch。selector 変更は packet で禁止。
+成立 → `accepted`。日付 2026-08-22 = 読み窓到達。`logs/skill-selection-2026-08-21.jsonl` 等が継続蓄積（ファイル単位 76 行）。第 3 読み（窓 08-09〜08-22）を measurement として T-SKILLSEL-HALLUC-CATALOG と 1 packet で dispatch。selector 変更は packet で禁止。
 
 ## 2026-08-22 triage — 第 3 読み完了（S1 measurement、Opus agent、read-only）
 
@@ -39,7 +39,7 @@ skill 選択計器の定期読み — 次の読み窓 2026-09-05 まで selector
 
 再開条件: 次の読み窓 2026-09-05 に到達（窓 08-23〜09-05、catalog 57 起点）
 照合先:   日付、および `logs/skill-selection-*.jsonl` の蓄積
-成立時:   ready（読む対象は読みメモ §7 の (a)(b)(c)。それまで selector を変更しない）
+成立時:   accepted（読む対象は読みメモ §7 の (a)(b)(c)。それまで selector を変更しない）
 
 ## 2026-08-24 triage 照合（手動 cycle）
 
@@ -50,11 +50,11 @@ skill 選択計器の定期読み — 次の読み窓 2026-09-05 まで selector
 
 ## Status
 
-blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 第 3 読み（窓 08-09〜08-22、judged 1,143）は 2026-08-22 に完了し、次の読み窓
+blocked — 第 3 読み（窓 08-09〜08-22、judged 1,143）は 2026-08-22 に完了し、次の読み窓
 2026-09-05 まで selector を変更しない（2026-08-25）。直近の照合 2026-08-24 も未成立。
 
 ## Next action
 
 - 再開条件: 次の読み窓 2026-09-05 に到達（窓 08-23〜09-05、catalog 57 起点）
 - 照合先: 日付、および `logs/skill-selection-*.jsonl` の蓄積
-- 成立時: ready（読む対象は読みメモ §7 の (a)(b)(c)。それまで selector を変更しない）
+- 成立時: accepted（読む対象は読みメモ §7 の (a)(b)(c)。それまで selector を変更しない）

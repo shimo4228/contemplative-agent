@@ -14,10 +14,10 @@ Context 膨張を避けるため以下の順で読み、途中で十分なら止
 - タスク台帳 `rfcs/NNNN-*.md`（正本）と `.notes/tasks/T-*.md`（pipeline の移送先、dual-read 中）
   — 1 エントリ 1 ファイル。frontmatter `state:` を Glob + Read で
   確認する — この無人セッションに Bash は無いので `claims.py` は使えない）。2 つの理由で必須:
-  (1) `blocked` / `candidate` 行が今週のシグナルを既に予約・却下していないか（重複起票 /
+  (1) `blocked` / `draft` 行が今週のシグナルを既に予約・却下していないか（重複起票 /
   再提起の防止 — `.notes/archive/tasks/` の終端記録が「operator-facing データからは判定
   できない」を閉じることも多い）、(2) 観察系タスクがこの診断の入力になっていないか。
-  開状態は `candidate` / `ready` / `in_progress` / `blocked` の 4 つ（ADR-0095 Amendment）
+  開状態は `draft` / `accepted` / `in_progress` / `blocked` の 4 つ（ADR-0095 Amendment）
 
 ### Step 2. F1 候補が出たら（構造提案）
 

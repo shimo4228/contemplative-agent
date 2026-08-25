@@ -11,7 +11,7 @@ state_since: 2026-08-16
 
 再開条件: PR ollama#12030 がマージされ、かつ稼働版に載ること
 照合先:   `gh pr view ollama/ollama#12030` と `curl -X POST localhost:11434/api/tokenize`（404 を返す間は着手不能）
-成立時:   ready（ただし**マージされても自動採用しない** — 生成ごとに HTTP 往復が 1 回増えるので、無人スケジュール上のレイテンシを実測してから判断する。endpoint の存在は採用理由にならない）
+成立時:   accepted（ただし**マージされても自動採用しない** — 生成ごとに HTTP 往復が 1 回増えるので、無人スケジュール上のレイテンシを実測してから判断する。endpoint の存在は採用理由にならない）
 
 照合は手動。旧記述の「週次自動照合: `watch: …`」は ADR-0095 の台帳機構退役で消費者が消えており、
 放置すると「自動で見張られている」と誤読される。**手動照合 2026-08-16: 404 を返す = 未成立**。
@@ -36,7 +36,7 @@ state_since: 2026-08-16
 
 ## Status
 
-blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 上流 PR ollama#12030 が未マージで `/api/tokenize` は 404、着手不能
+blocked — 上流 PR ollama#12030 が未マージで `/api/tokenize` は 404、着手不能
 （2026-08-25）。直近の照合 2026-08-24 も未成立（PR は OPEN / mergedAt null、`POST
 /api/tokenize` → HTTP 404）。
 
@@ -45,5 +45,5 @@ blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無
 - 再開条件: PR ollama#12030 がマージされ、かつ稼働版に載ること
 - 照合先: `gh pr view ollama/ollama#12030` と `curl -X POST localhost:11434/api/tokenize`
   （404 を返す間は着手不能）。照合は手動
-- 成立時: ready（ただし**マージされても自動採用しない** — 生成ごとに HTTP 往復が 1 回増える
+- 成立時: accepted（ただし**マージされても自動採用しない** — 生成ごとに HTTP 往復が 1 回増える
   ので、無人スケジュール上のレイテンシを実測してから判断する）

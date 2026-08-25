@@ -1,6 +1,6 @@
 ---
 name: weekly-gate
-description: 土曜の単一承認セッション（ADR-0085 / ADR-0098）。無人 weekly チェーンの成果物（weekly-{end-date}-findings.md と各計器の per-week JSON）を直接読み、値層の承認（insight staging の adopt-staged / identity / never-selected の退役）、dead code の削除判断、gate メトリクスの記録までを 1 セッションで行う。Use when the user says 「週次の承認をする」「週次のゲートをやる」/weekly-gate, or on Saturday after the unattended chain has run. NOT for — code 修理の適用（ADR-0098 で廃止。修理は task-triage loop の担当）、診断起票 candidate の採否（→ triage digest）。
+description: 土曜の単一承認セッション（ADR-0085 / ADR-0098）。無人 weekly チェーンの成果物（weekly-{end-date}-findings.md と各計器の per-week JSON）を直接読み、値層の承認（insight staging の adopt-staged / identity / never-selected の退役）、dead code の削除判断、gate メトリクスの記録までを 1 セッションで行う。Use when the user says 「週次の承認をする」「週次のゲートをやる」/weekly-gate, or on Saturday after the unattended chain has run. NOT for — code 修理の適用（ADR-0098 で廃止。修理は task-triage loop の担当）、診断起票 draft の採否（→ triage digest）。
 origin: shimo4228
 user-invocable: true
 ---
@@ -93,8 +93,8 @@ EOF
 - dead code: JSON の candidates 件数
 - docs consistency: JSON の findings 件数
 - never-selected: JSON の strict / dormant / below_floor 件数
-- **診断起票の candidate**: 今週 `rfcs/`（台帳の正本）と `.notes/tasks/`（pipeline の移送先、
-  dual-read 中）に増えた `state: candidate` の件数 —
+- **診断起票の draft**: 今週 `rfcs/`（台帳の正本）と `.notes/tasks/`（pipeline の移送先、
+  dual-read 中）に増えた `state: draft` の件数 —
   **本セッションでは採否しない**（task-triage digest の担当。ここでは存在の報告のみ）
 
 findings.md（F1/F2/F3）は判断材料として読む — F2 の問いはユーザーに提示してよいが、
@@ -261,8 +261,8 @@ python3 scripts/pipeline_audit.py \
 
 ## Out of scope（このセッションでやらないこと）
 
-- **code 修理の適用・再実装** — ADR-0098 で廃止。診断の F1 は candidate として台帳に
+- **code 修理の適用・再実装** — ADR-0098 で廃止。診断の F1 は draft として台帳に
   起票済みで、採否は task-triage digest、実装は triage の dispatch が担う
-- **診断起票 candidate の採否** — 存在の報告まで（Step 1）。決めるのは triage digest
+- **診断起票 draft の採否** — 存在の報告まで（Step 1）。決めるのは triage digest
 - **過去週の一括処理** — 1 セッション 1 週
 - **staging への書き込み**（adopt-staged 以外の経路での操作）

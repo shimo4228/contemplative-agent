@@ -11,7 +11,7 @@ state_since: 2026-08-16
 
 再開条件: 注入 backend を本番系で使う判断が出ること、**または** ADR-0088 の runtime 検査段に着手すること（いずれか）
 照合先:   本番スケジュールの backend 設定、および `testing/backend_contract.py` の `_MAX_IMPLEMENTED_LEVEL`（現在 `static` 固定）
-成立時:   ready（runtime 段に着手するなら選択肢 (d) が自動的に載る。単独なら (d) は (c) より高いという 2026-08-08 の訂正が効く）
+成立時:   accepted（runtime 段に着手するなら選択肢 (d) が自動的に載る。単独なら (d) は (c) より高いという 2026-08-08 の訂正が効く）
 
 現行の全 backend は `finish_reason` を報告するので実害は今のところ無い。
 
@@ -35,7 +35,7 @@ state_since: 2026-08-16
 
 ## Status
 
-blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 現行の全 backend が `finish_reason` を報告するので実害は無く、
+blocked — 現行の全 backend が `finish_reason` を報告するので実害は無く、
 ADR-0088 の runtime 検査段も未着手（2026-08-25）。直近の照合 2026-08-24 も未成立
 （`_MAX_IMPLEMENTED_LEVEL` = static のまま、本番 plist の backend 注入なし）。
 
@@ -45,5 +45,5 @@ ADR-0088 の runtime 検査段も未着手（2026-08-25）。直近の照合 202
   検査段に着手すること（いずれか）
 - 照合先: 本番スケジュールの backend 設定、および `testing/backend_contract.py` の
   `_MAX_IMPLEMENTED_LEVEL`（現在 `static` 固定）
-- 成立時: ready（runtime 段に着手するなら選択肢 (d) が自動的に載る。単独なら (d) は (c) より
+- 成立時: accepted（runtime 段に着手するなら選択肢 (d) が自動的に載る。単独なら (d) は (c) より
   高いという 2026-08-08 の訂正が効く）

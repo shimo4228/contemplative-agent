@@ -11,7 +11,7 @@ state_since: 2026-08-16
 
 再開条件: `evals/` の distill 面（Face B）が実装されること
 照合先:   `evals/` 配下に distill 面の足場が在るか（ADR-0089 が再建したのは comment 面のみ）
-成立時:   ready（公理あり/なしの A/B。`get_distill_system_prompt()` が単一レバーで insight にも自動波及）
+成立時:   accepted（公理あり/なしの A/B。`get_distill_system_prompt()` が単一レバーで insight にも自動波及）
 
 旧条件「§B1 窓明けと同時期」は **2026-06-17 に成立済み**（`T-B1` 参照）だが実 blocker では
 なかった — この実験は公理の有無を distill 出力で比較するので、comment 面だけの足場では走らない。
@@ -38,7 +38,7 @@ handoff T3（`.notes/handoff-2026-07-03-adr-0072-phase3.md`）
 
 ## Status
 
-blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 公理除去 A/B は `evals/` の distill 面（Face B）が未実装のため走らない
+blocked — 公理除去 A/B は `evals/` の distill 面（Face B）が未実装のため走らない
 （2026-08-25）。直近の照合 2026-08-24 も未成立（`evals/datasets/` は `comment_golden.jsonl`
 のみ）。
 
@@ -46,5 +46,5 @@ blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無
 
 - 再開条件: `evals/` の distill 面（Face B）が実装されること
 - 照合先: `evals/` 配下に distill 面の足場が在るか（ADR-0089 が再建したのは comment 面のみ）
-- 成立時: ready（公理あり/なしの A/B。`get_distill_system_prompt()` が単一レバーで insight
+- 成立時: accepted（公理あり/なしの A/B。`get_distill_system_prompt()` が単一レバーで insight
   にも自動波及）

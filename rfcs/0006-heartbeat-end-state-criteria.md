@@ -13,7 +13,7 @@ heartbeat 終了条件の具体化（ADR-0080 の Ending design 層で予約 —
 照合先:   `T-P3`（`done 2026-08-16`）の縦断読み
           — `.notes/memory-pipeline-phase3-reading-2026-08-16.md`。
           `T-INSIGHT-OBS` は 2026-07-25 に終端化済み
-成立時:   ready（ADR-0080 の Ending design 層で予約された「いつ止めるか」を別 ADR で確定する）
+成立時:   accepted（ADR-0080 の Ending design 層で予約された「いつ止めるか」を別 ADR で確定する）
 
 **2026-08-16 の照合: 未成立。`blocked` を維持する。** T-P3 の縦断は定常の逆を示した —
 corpus 1,463 → 5,832（4.0 倍）、pairwise 0.55 → 0.58 で**まだ動いている最中**、
@@ -44,7 +44,7 @@ dead-band（08-16 の T-P3 照合から状態・条件文とも不変）。未�
 
 ## Status
 
-blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 2026-08-16 の T-P3 縦断は定常の逆（corpus 4.0 倍、pairwise 0.55 → 0.58）を
+blocked — 2026-08-16 の T-P3 縦断は定常の逆（corpus 4.0 倍、pairwise 0.55 → 0.58）を
 示し、代謝は加速側にあるので止め時の判定に入れない（2026-08-25）。直近の照合 2026-08-24 は
 dead-band。
 
@@ -52,4 +52,4 @@ dead-band。
 
 - 再開条件: 計器が代謝の定常状態を示すこと（イベントでなく状態で書いてある）
 - 照合先: `T-P3`（`done 2026-08-16`）の縦断読み
-- 成立時: ready（ADR-0080 の Ending design 層で予約された「いつ止めるか」を別 ADR で確定する）
+- 成立時: accepted（ADR-0080 の Ending design 層で予約された「いつ止めるか」を別 ADR で確定する）

@@ -11,7 +11,7 @@ state_since: 2026-08-16
 
 再開条件: ローカル生成モデルの世代交代（モデル交代 ADR を書くとき同時に評価）
 照合先:   `config/` の生成モデル設定と、その交代を記録する ADR
-成立時:   ready（評価軸はコスト（prefill 速度 × ストア規模）と精度の両方。備考なき限り単独で再提起しない）
+成立時:   accepted（評価軸はコスト（prefill 速度 × ストア規模）と精度の両方。備考なき限り単独で再提起しない）
 
 ## 詳細
 
@@ -33,7 +33,7 @@ memory `project_rag_retrieval_demotion.md`、[ADR-0019](../docs/adr/0019-discret
 
 ## Status
 
-blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無い） — 現世代では ADR-0019 の分業（仕組み = embedding、価値判断 + 生成 = LLM）が
+blocked — 現世代では ADR-0019 の分業（仕組み = embedding、価値判断 + 生成 = LLM）が
 正しく、逆転させると壊れるので動かさない（2026-08-25）。直近の照合 2026-08-24 も未成立
 （`docs/adr` / `config/` に生成モデル交代の commit なし）。
 
@@ -41,5 +41,5 @@ blocked（≈ issue-tracker 標準の blocked。RFC 標準に state 語彙は無
 
 - 再開条件: ローカル生成モデルの世代交代（モデル交代 ADR を書くとき同時に評価）
 - 照合先: `config/` の生成モデル設定と、その交代を記録する ADR
-- 成立時: ready（評価軸はコスト（prefill 速度 × ストア規模）と精度の両方。備考なき限り単独で
+- 成立時: accepted（評価軸はコスト（prefill 速度 × ストア規模）と精度の両方。備考なき限り単独で
   再提起しない）
