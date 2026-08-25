@@ -7,6 +7,11 @@
 判断は
 [claude-harness ADR-0049](https://github.com/shimo4228/claude-harness/blob/main/docs/adr/0049-unify-task-ledger-into-public-rfcs.md)。
 
+起票の足切り: *Do not create an RFC for work that can be safely completed in the
+current session without preserving intent or state.*（GTD の 2 分ルールの台帳版 —
+現セッションで安全に完了でき、intent / state を将来へ運ぶ必要が無い作業は起票しない。
+却下理由を残すための起票はこの限りでない）。
+
 状態は各ファイルの frontmatter `state:` が**唯一の正本**（`draft` / `accepted` /
 `in_progress` / `blocked` / `done` / `resolved` / `rejected` / `withdrawn` /
 `obsoleted`。この index には複製しない — 二重記録は drift する）。終端エントリも
