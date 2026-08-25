@@ -995,3 +995,196 @@ class TestRemoveSkillArchives:
         (skills / ".archive" / "stale.md").rename(skills / "stale.md")
         assert (skills / "stale.md").read_text() == "# Stale\ncontent\n"
         assert [e.name for e in load_skill_catalog(skills)] == ["stale"]
+
+
+class TestArchivePlanAgreesWithTheRun:
+    """Characterization: `--dry-run` must reach the same verdict as the real run.
+
+    The preview and the move answer the same question from two different
+    code paths, and today they agree only because two sets of checks were
+    kept in step by hand — a symlink refusal hoisted above the dry run, a
+    destination pre-check called twice, an already-in-archive test written
+    out twice in one function. This class pins the agreement itself so the
+    refactor that turns it into one shared object cannot quietly narrow it.
+
+    Written against the pre-refactor implementation on purpose: a test
+    authored after the change would describe the new code rather than the
+    behaviour being preserved.
+    """
+
+    @staticmethod
+    def _build(root: Path, state: str) -> Path:
+        """Materialize one store state under a fresh *root*. Returns the root."""
+        skills = root / "skills"
+        skills.mkdir(parents=True, exist_ok=True)
+        if state == "missing":
+            return root
+        if state == "escapes_store":
+            (root / "outside.md").write_text("# Outside\n", encoding="utf-8")
+            return root
+        if state == "source_is_a_symlink":
+            (root / "real.md").write_text("# Real\n", encoding="utf-8")
+            (skills / "stale.md").symlink_to(root / "real.md")
+            return root
+        if state == "source_already_archived":
+            archive = skills / ".archive"
+            archive.mkdir(parents=True, exist_ok=True)
+            (archive / "stale.md").write_text("# Stale\n", encoding="utf-8")
+            return root
+
+        (skills / "stale.md").write_text("# Stale\n", encoding="utf-8")
+        if state == "archive_is_a_regular_file":
+            (skills / ".archive").write_text("not a directory", encoding="utf-8")
+        elif state == "archive_symlinks_to_store":
+            (skills / ".archive").symlink_to(skills, target_is_directory=True)
+        elif state == "name_taken_same_content":
+            archive = skills / ".archive"
+            archive.mkdir(parents=True, exist_ok=True)
+            (archive / "stale.md").write_text("# Stale\n", encoding="utf-8")
+        elif state == "name_taken_diff_content":
+            archive = skills / ".archive"
+            archive.mkdir(parents=True, exist_ok=True)
+            (archive / "stale.md").write_text("# A different retirement\n", encoding="utf-8")
+        return root
+
+    @staticmethod
+    def _name_for(state: str) -> str:
+        if state == "escapes_store":
+            return "../outside"
+        if state == "source_already_archived":
+            return ".archive/stale"
+        return "stale"
+
+    def _observe(self, root: Path, state: str, *, dry_run: bool, capsys) -> dict:
+        """Run one invocation and normalize what an operator would observe."""
+        args = TestRemoveSkillArchives._args(self._name_for(state), dry_run=dry_run)
+        code = 0
+        try:
+            TestRemoveSkillArchives()._run(root, args)
+        except SystemExit as exc:
+            code = exc.code
+        captured = capsys.readouterr()
+        blob = captured.out + captured.err
+        found = re.findall(r"ARCHIVE_REFUSED_[A-Z_]+|ARCHIVE_[A-Z_]+", blob)
+        promised = re.search(r"would archive: .* → (\S+)", captured.out)
+        rows = _audit(root)
+
+        def _rel(path: Path | None) -> Path | None:
+            # The two invocations live under different roots by construction
+            # (a fresh store each), so only the path RELATIVE to its own root
+            # is comparable.
+            return path.relative_to(root) if path is not None else None
+
+        landed = rows[-1]["path"] if rows and rows[-1].get("decision") == "approved" else None
+        return {
+            "exit": code,
+            "reason": found[0] if found else None,
+            "promised": _rel(Path(promised.group(1)) if promised else None),
+            "landed": _rel(Path(landed) if landed else None),
+            "rows": len(rows),
+        }
+
+    _STATES = [
+        "clean",
+        "archive_is_a_regular_file",
+        "archive_symlinks_to_store",
+        "source_is_a_symlink",
+        "source_already_archived",
+        "name_taken_same_content",
+        "name_taken_diff_content",
+        "missing",
+        "escapes_store",
+    ]
+
+    @pytest.mark.parametrize("state", _STATES)
+    def test_the_dry_run_and_the_real_run_reach_the_same_verdict(self, state, tmp_path, capsys):
+        dry = self._observe(self._build(tmp_path / "a", state), state, dry_run=True, capsys=capsys)
+        real = self._observe(
+            self._build(tmp_path / "b", state), state, dry_run=False, capsys=capsys
+        )
+        assert dry["exit"] == real["exit"], f"{state}: exit codes disagree"
+        assert dry["reason"] == real["reason"], f"{state}: reason codes disagree"
+        if dry["promised"] is not None:
+            assert real["landed"] is not None, f"{state}: promised an archive that did not happen"
+            assert dry["promised"].parent == real["landed"].parent, (
+                f"{state}: the collision guard may append a suffix, never change directory"
+            )
+
+    def test_a_dry_run_never_writes_an_audit_row(self, tmp_path, capsys):
+        """The preview is not a decision, so it must leave no record."""
+        for state in self._STATES:
+            observed = self._observe(
+                self._build(tmp_path / state, state), state, dry_run=True, capsys=capsys
+            )
+            assert observed["rows"] == 0, f"{state}: dry run wrote {observed['rows']} audit row(s)"
+
+    def test_an_archive_symlinked_back_into_the_store_is_refused_by_name_not_by_content(
+        self, tmp_path, capsys
+    ):
+        """Why the dry run has no blind spot here, written down.
+
+        ``ARCHIVE_REFUSED_NOT_A_MOVE`` is the refusal for a destination that
+        resolves to its own source, and it is decided late — after the file
+        is read, because the collision guard reuses a path only for
+        identical bytes. That looks like a case the preview cannot predict,
+        since the preview deliberately reads nothing.
+
+        It never gets there. ``.archive`` pointing back at ``skills/`` makes
+        every live skill resolve to a path inside the archive, so the
+        already-archived refusal fires first — from the resolved *name*
+        alone, with no content — and both runs exit 1 with
+        ``ARCHIVE_REFUSED_ALREADY_ARCHIVED``.
+
+        Pinned separately from the parametrized agreement above because the
+        agreement is the cheap half: what matters is that the refusal is
+        reachable without a read. A change that makes NOT_A_MOVE the
+        observed outcome would open the blind spot this test says is closed.
+        """
+        state = "archive_symlinks_to_store"
+        dry = self._observe(self._build(tmp_path / "a", state), state, dry_run=True, capsys=capsys)
+        real = self._observe(
+            self._build(tmp_path / "b", state), state, dry_run=False, capsys=capsys
+        )
+        assert dry["exit"] == real["exit"] == 1
+        assert dry["reason"] == real["reason"] == "ARCHIVE_REFUSED_ALREADY_ARCHIVED"
+
+    def test_a_dangling_symlink_out_of_the_store_reads_as_an_escape(self, tmp_path, capsys):
+        """Pins an ordering that looks redundant and is not.
+
+        A link to a deleted file resolves to the referent's path, and that
+        path is outside ``skills/`` — so the store-containment gate fires
+        first and this exits **2** with "target escapes skills dir", never
+        reaching the symlink refusal or the not-found arm. Neither of the
+        two reason-coded refusals describes it.
+
+        Recorded because it is the concrete case that makes the handler's
+        own containment gate non-redundant with the primitive's: the
+        primitive is scoped to the whole data root, where this referent
+        still lives, so folding the two together would turn an exit 2 into
+        an exit 1 with a reason code that does not apply.
+        """
+        skills = tmp_path / "skills"
+        skills.mkdir(parents=True)
+        (skills / "stale.md").symlink_to(tmp_path / "gone.md")
+        with pytest.raises(SystemExit) as exc:
+            TestRemoveSkillArchives()._run(tmp_path, TestRemoveSkillArchives._args("stale"))
+        assert exc.value.code == 2
+        assert "escapes skills dir" in capsys.readouterr().err
+        assert not _audit(tmp_path)
+
+    def test_delete_ignores_an_unusable_archive_slot(self, tmp_path):
+        """`--delete` never touches `.archive/`, so its state cannot block one.
+
+        Untested before this class. A plan/apply split that returned the
+        destination refusal as a plain refusal — rather than a field the
+        delete arm is free to ignore — would break this silently.
+        """
+        skills = tmp_path / "skills"
+        skill = _make_skill(tmp_path, "stale.md", "# Stale\n")
+        (skills / ".archive").write_text("not a directory", encoding="utf-8")
+        TestRemoveSkillArchives()._run(
+            tmp_path, TestRemoveSkillArchives._args("stale", delete=True)
+        )
+        assert not skill.exists()
+        rows = _audit(tmp_path)
+        assert len(rows) == 1 and rows[0]["decision"] == "approved"
