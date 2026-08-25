@@ -18,6 +18,7 @@ before this landed.
 """
 
 import argparse
+import inspect
 import json
 import re
 from pathlib import Path
@@ -1189,6 +1190,39 @@ class TestArchivePlanAgreesWithTheRun:
         assert not skill.exists()
         rows = _audit(tmp_path)
         assert len(rows) == 1 and rows[0]["decision"] == "approved"
+
+    def test_the_purge_discriminator_is_computed_once(self, tmp_path):
+        """The direct regression guard for the duplication the plan removed.
+
+        ``remove-skill`` asked "is this already in the archive?" twice per
+        invocation — once for the no-second-exit refusal, once to pick the
+        audit row's source — as two copies of one expression forty lines
+        apart. The plan answers it once. Counting the calls is the only
+        assertion that fails if a later edit derives it a second time.
+        """
+        _make_skill(tmp_path, "stale.md", "# Stale\n")
+        calls = []
+        real = adopt_mod._inside_archive
+
+        def counting(path, data_root):
+            calls.append(path)
+            return real(path, data_root)
+
+        with patch.object(adopt_mod, "_inside_archive", counting):
+            TestRemoveSkillArchives()._run(tmp_path, TestRemoveSkillArchives._args("stale"))
+        assert len(calls) == 1, f"asked {len(calls)} times: {calls}"
+
+    def test_a_plan_is_never_applied_with_a_different_source(self):
+        """The signature IS the guarantee, so pin the signature.
+
+        ``_apply_archive_plan`` taking only a plan is what makes it
+        impossible for the move to act on inputs the dry run and the prompt
+        never saw. A ``source=`` or ``data_root=`` parameter added back for
+        convenience would reopen exactly the drift this split closed, and
+        would do it without failing any behavioural test.
+        """
+        params = set(inspect.signature(adopt_mod._apply_archive_plan).parameters)
+        assert params == {"plan"}, f"apply takes {sorted(params)}"
 
     def test_the_collision_guard_never_changes_directory(self, tmp_path):
         """`_same_archive_slot` is the machine form of the dry run's promise."""
