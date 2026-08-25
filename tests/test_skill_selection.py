@@ -13,7 +13,11 @@ from unittest.mock import patch
 
 import pytest
 
-from contemplative_agent.core import skill_selection as ss
+from contemplative_agent.core import (
+    never_selected_metrics as ns,
+    selection_metrics as sm,
+    skill_selection as ss,
+)
 from contemplative_agent.core.llm import _estimate_tokens
 from contemplative_agent.core.skill_selection import (
     SkillCatalogEntry,
@@ -503,7 +507,7 @@ class TestSkillSelectionReading:
         # Broken line must be skipped, not fatal.
         (log_dir / f"skill-selection-{today}.jsonl").open("a").write("{broken\n")
 
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
         assert reading.records == 3
         assert dict(reading.verdicts) == {"judged": 2, "fail_open_llm": 1}
         assert reading.per_skill[0] == ("skill-a", 2)
@@ -515,7 +519,7 @@ class TestSkillSelectionReading:
     def test_old_files_outside_window_are_ignored(self, tmp_path):
         log_dir = tmp_path / "logs"
         self._write_log(log_dir, "2020-01-01", [self._judged(["skill-a"])])
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert reading.records == 0
 
     def test_format_report_is_human_readable(self, tmp_path):
@@ -524,8 +528,8 @@ class TestSkillSelectionReading:
         log_dir = tmp_path / "logs"
         today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
         self._write_log(log_dir, today, [self._judged(["skill-a"])])
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
-        text = ss.format_skill_selection_report(reading)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        text = sm.format_skill_selection_report(reading)
         assert "skill-a" in text
         assert "judged" in text
 
@@ -545,7 +549,7 @@ class TestHallucinationRate:
             {"ts": "t", "verdict": "fail_open_llm", "selected": [], "rejected_names": []},
         ]
         TestSkillSelectionReading()._write_log(log_dir, today, recs)
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert reading.hallucination_records == 1
 
     def test_report_renders_hallucination_line(self, tmp_path):
@@ -558,16 +562,16 @@ class TestHallucinationRate:
             TestSkillSelectionReading._judged(["skill-a"]),
         ]
         TestSkillSelectionReading()._write_log(log_dir, today, recs)
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
-        text = ss.format_skill_selection_report(reading)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        text = sm.format_skill_selection_report(reading)
         assert "Hallucination" in text
         assert "1/2" in text
 
     def test_zero_judged_renders_without_division_error(self, tmp_path):
         log_dir = tmp_path / "logs"
         log_dir.mkdir()
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
-        text = ss.format_skill_selection_report(reading)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        text = sm.format_skill_selection_report(reading)
         assert "records" in text
 
 
@@ -608,7 +612,7 @@ class TestRejectedNameTally:
                 self._rejected(["skill-alphas", "totally-different-xyz"]),
             ],
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
 
         tally = reading.rejected_name_tally
         assert [t.name for t in tally] == ["skill-alphas", "totally-different-xyz"]
@@ -638,7 +642,7 @@ class TestRejectedNameTally:
                 },
             ],
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert [t.name for t in reading.rejected_name_tally] == ["ghost-name"]
 
     def test_nearest_is_absent_when_no_catalog_is_available(self, tmp_path):
@@ -646,7 +650,7 @@ class TestRejectedNameTally:
         TestSkillSelectionReading()._write_log(
             log_dir, self._today(), [self._rejected(["ghost-name"])]
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         entry = reading.rejected_name_tally[0]
         assert entry.nearest == ""
         assert entry.similarity == 0.0
@@ -663,19 +667,19 @@ class TestRejectedNameTally:
             log_dir, self._today(), [self._rejected(["ghost-name"])]
         )
 
-        no_catalog = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
-        text = ss.format_skill_selection_report(no_catalog, include_rejected_names=True)
+        no_catalog = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        text = sm.format_skill_selection_report(no_catalog, include_rejected_names=True)
         assert "no catalog to compare against" in text
         assert "no catalog name resembles it" not in text
 
-        with_catalog = ss.read_skill_selection_log(
+        with_catalog = sm.read_skill_selection_log(
             log_dir, days=7, skills_dir=self._catalog_dir(tmp_path)
         )
         assert with_catalog.catalog_available is True
         # Same similarity of 0.0 is available here via a name that shares
         # no characters with the catalog; the point is only that the two
         # readings must not render the same sentence.
-        assert "no catalog to compare against" not in ss.format_skill_selection_report(
+        assert "no catalog to compare against" not in sm.format_skill_selection_report(
             with_catalog, include_rejected_names=True
         )
 
@@ -691,7 +695,7 @@ class TestRejectedNameTally:
             self._today(),
             [self._rejected(["gho\x1b[31mst\x00\tna\nme‮evil​"])],
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         name = reading.rejected_name_tally[0].name
         for bad in ("\x1b", "\x00", "\t", "\n", "‮", "​"):
             assert bad not in name, f"{bad!r} survived the read-seam scrub"
@@ -709,9 +713,9 @@ class TestRejectedNameTally:
             self._today(),
             [self._rejected(["harmless\n- forged-skill: 9999 emissions — nearest `x`"])],
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         # Asserted in the mode that actually prints the name.
-        text = ss.format_skill_selection_report(reading, include_rejected_names=True)
+        text = sm.format_skill_selection_report(reading, include_rejected_names=True)
         body = text.split("Rejected names (emitted, matched no catalog entry):")[1]
         rows = [ln for ln in body.splitlines() if ln.startswith("- ")]
         assert len(rows) == len(reading.rejected_name_tally) == 1
@@ -728,7 +732,7 @@ class TestRejectedNameTally:
         TestSkillSelectionReading()._write_log(
             log_dir, self._today(), [self._rejected(["skill-alphas"])]
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
         entry = reading.rejected_name_tally[0]
 
         catalog = [e.name for e in ss.load_skill_catalog(skills_dir)]
@@ -743,11 +747,11 @@ class TestRejectedNameTally:
         TestSkillSelectionReading()._write_log(
             log_dir, self._today(), [self._rejected(["一二三四"])]
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
         entry = reading.rejected_name_tally[0]
         assert entry.similarity == 0.0
         assert entry.nearest == ""
-        assert "similarity 0.00" not in ss.format_skill_selection_report(reading)
+        assert "similarity 0.00" not in sm.format_skill_selection_report(reading)
 
     def test_render_is_bounded_and_says_what_it_left_out(self, tmp_path):
         """Prose bleed emits many unique names, and this renderer feeds the
@@ -755,17 +759,17 @@ class TestRejectedNameTally:
         as 'that was all of it', so the remainder is summarised, and the
         reading itself keeps every row."""
         log_dir = tmp_path / "logs"
-        n = ss._REJECTED_NAME_RENDER_LIMIT + 7
+        n = sm._REJECTED_NAME_RENDER_LIMIT + 7
         TestSkillSelectionReading()._write_log(
             log_dir, self._today(), [self._rejected([f"ghost-{i:04d}" for i in range(n)])]
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert len(reading.rejected_name_tally) == n
 
-        text = ss.format_skill_selection_report(reading)
+        text = sm.format_skill_selection_report(reading)
         body = text.split("Rejected names (emitted, matched no catalog entry):")[1]
         rows = [ln for ln in body.splitlines() if ln.startswith("- ")]
-        assert len(rows) == ss._REJECTED_NAME_RENDER_LIMIT + 1
+        assert len(rows) == sm._REJECTED_NAME_RENDER_LIMIT + 1
         assert "and 7 more distinct names (7 emissions), not shown" in text
 
     def test_malformed_entries_are_skipped_not_fatal(self, tmp_path):
@@ -782,7 +786,7 @@ class TestRejectedNameTally:
                 ),
             ],
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert [t.name for t in reading.rejected_name_tally] == ["good-name"]
         # A record whose rejected_names is unusable still counted as a
         # hallucination record if it was truthy — the two are different
@@ -795,8 +799,8 @@ class TestRejectedNameTally:
         TestSkillSelectionReading()._write_log(
             log_dir, self._today(), [self._rejected(["skill-alphas"])]
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
-        text = ss.format_skill_selection_report(reading, include_rejected_names=True)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        text = sm.format_skill_selection_report(reading, include_rejected_names=True)
         assert "skill-alphas" in text
         assert "skill-alpha" in text
 
@@ -811,8 +815,8 @@ class TestRejectedNameTally:
         TestSkillSelectionReading()._write_log(
             log_dir, self._today(), [self._rejected(["ATTACKER-TEXT-alphas"])]
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
-        text = ss.format_skill_selection_report(reading)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        text = sm.format_skill_selection_report(reading)
 
         assert "ATTACKER-TEXT" not in text
         # The shape survives: nearest catalog name, distance, emissions.
@@ -825,9 +829,9 @@ class TestRejectedNameTally:
         TestSkillSelectionReading()._write_log(
             log_dir, self._today(), [TestSkillSelectionReading._judged(["skill-a"])]
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert reading.rejected_name_tally == ()
-        assert "Rejected names" not in ss.format_skill_selection_report(reading)
+        assert "Rejected names" not in sm.format_skill_selection_report(reading)
 
 
 class TestWindowStraddlingRegimeChange:
@@ -886,13 +890,13 @@ class TestWindowStraddlingRegimeChange:
 
     def test_enforced_records_are_counted(self, tmp_path):
         log_dir, _, _ = self._two_days(tmp_path)
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert reading.records == 4
         assert reading.enforced_records == 2
 
     def test_per_day_separates_the_two_regimes(self, tmp_path):
         log_dir, day1, day2 = self._two_days(tmp_path)
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         by_date = {d.date: d for d in reading.per_day}
         assert by_date[day1].judged == 1
         assert by_date[day1].enforced == 0
@@ -921,7 +925,7 @@ class TestWindowStraddlingRegimeChange:
                 self._rec(verdict="no_template", enforced=False),
             ],
         )
-        (day,) = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None).per_day
+        (day,) = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None).per_day
         assert day.records == 4
         assert day.judged == 1
         assert day.fell_back == 3
@@ -929,13 +933,13 @@ class TestWindowStraddlingRegimeChange:
 
     def test_per_day_is_chronological(self, tmp_path):
         log_dir, day1, day2 = self._two_days(tmp_path)
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert [d.date for d in reading.per_day] == [day1, day2]
 
     def test_report_renders_the_day_table_and_enforced_line(self, tmp_path):
         log_dir, day1, day2 = self._two_days(tmp_path)
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
-        text = ss.format_skill_selection_report(reading)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        text = sm.format_skill_selection_report(reading)
         assert "Enforced: 2/3 judged" in text
         assert day1 in text
         assert day2 in text
@@ -955,10 +959,10 @@ class TestWindowStraddlingRegimeChange:
                 self._rec(selected=[], catalog=["skill-a"]),
             ],
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert reading.judged_empty_records == 1
         assert reading.per_day[0].judged_empty == 1
-        assert "Judged-empty: 1/2 judged" in ss.format_skill_selection_report(reading)
+        assert "Judged-empty: 1/2 judged" in sm.format_skill_selection_report(reading)
 
     def test_exposure_distinguishes_long_offered_from_newly_adopted(self, tmp_path):
         """The property the field exists for.
@@ -993,12 +997,12 @@ class TestWindowStraddlingRegimeChange:
             [self._rec(selected=["skill-a"], catalog=["skill-a", "skill-old", "skill-new"])],
         )
 
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
         exposure = dict(reading.never_selected_exposure)
         assert set(exposure) == {"skill-old", "skill-new"}
         assert exposure["skill-old"] == 7
         assert exposure["skill-new"] == 1
-        text = ss.format_skill_selection_report(reading)
+        text = sm.format_skill_selection_report(reading)
         assert "skill-old: offered in 7 of 7 judged records, chosen 0" in text
         assert "skill-new: offered in 1 of 7 judged records, chosen 0" in text
 
@@ -1022,10 +1026,10 @@ class TestWindowStraddlingRegimeChange:
             datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             [self._rec(verdict="fail_open_llm", enforced=False, catalog=["skill-x"])] * 100,
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
         assert reading.judged_records == 0
         assert dict(reading.never_selected_exposure) == {"skill-x": 0}
-        text = ss.format_skill_selection_report(reading)
+        text = sm.format_skill_selection_report(reading)
         assert "no judged records in window" in text
         assert "of 100 records" not in text
 
@@ -1044,9 +1048,9 @@ class TestWindowStraddlingRegimeChange:
             datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             [self._rec(selected=["skill-a"], catalog=["skill-a"])],
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
         assert dict(reading.never_selected_exposure) == {"skill-z": 0}
-        text = ss.format_skill_selection_report(reading)
+        text = sm.format_skill_selection_report(reading)
         assert "never in catalog for any of 1 judged records" in text
         assert "renamed since" in text
 
@@ -1064,7 +1068,7 @@ class TestWindowStraddlingRegimeChange:
             datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             [TestSkillSelectionReading._judged(["skill-a"])],
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
         assert dict(reading.never_selected_exposure) == {"skill-z": 0}
 
     def test_malformed_catalog_names_are_skipped_not_fatal(self, tmp_path):
@@ -1084,7 +1088,7 @@ class TestWindowStraddlingRegimeChange:
             datetime.now(timezone.utc).strftime("%Y-%m-%d"),
             [good, bad_scalar, bad_nested],
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
         # The good record and the string inside the nested one both count;
         # neither malformed shape raises.
         assert dict(reading.never_selected_exposure) == {"skill-z": 2}
@@ -1094,7 +1098,7 @@ class TestWindowStraddlingRegimeChange:
         invariant tying them together is worth pinning rather than trusting
         to construction."""
         log_dir, _, _ = self._two_days(tmp_path)
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert sum(d.records for d in reading.per_day) == reading.records
         assert sum(d.judged for d in reading.per_day) == reading.judged_records
         assert sum(d.enforced for d in reading.per_day) == reading.enforced_records
@@ -1106,10 +1110,10 @@ class TestWindowStraddlingRegimeChange:
     def test_empty_log_renders_without_error(self, tmp_path):
         log_dir = tmp_path / "logs"
         log_dir.mkdir()
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert reading.per_day == ()
         assert reading.enforced_records == 0
-        assert "records" in ss.format_skill_selection_report(reading)
+        assert "records" in sm.format_skill_selection_report(reading)
 
 
 class TestEnforcement:
@@ -1368,7 +1372,7 @@ class TestSkillSelectionWindowAndMechanisms:
         log_dir = tmp_path / "logs"
         for day in ("2026-08-08", "2026-08-09", "2026-08-22", "2026-08-23"):
             self._write(log_dir, day, [self._rec(extra_day=day)])
-        reading = ss.read_skill_selection_log(
+        reading = sm.read_skill_selection_log(
             log_dir,
             since=date(2026, 8, 9),
             until=date(2026, 8, 22),
@@ -1379,7 +1383,7 @@ class TestSkillSelectionWindowAndMechanisms:
         assert reading.days == 14
         assert reading.window_since == "2026-08-09"
         assert reading.window_until == "2026-08-22"
-        text = ss.format_skill_selection_report(reading)
+        text = sm.format_skill_selection_report(reading)
         assert "2026-08-09" in text and "2026-08-22" in text
         assert "last 14 days" not in text
 
@@ -1387,26 +1391,26 @@ class TestSkillSelectionWindowAndMechanisms:
         log_dir = tmp_path / "logs"
         today = TestRejectedNameTally()._today()
         self._write(log_dir, today, [self._rec()])
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert reading.records == 1
         assert reading.days == 7
         assert reading.window_since is None and reading.window_until is None
-        assert "last 7 days" in ss.format_skill_selection_report(reading)
+        assert "last 7 days" in sm.format_skill_selection_report(reading)
 
     def test_window_arguments_are_exclusive_and_ordered(self, tmp_path):
         from datetime import date
 
         log_dir = tmp_path / "logs"
         with pytest.raises(ValueError, match="days"):
-            ss.read_skill_selection_log(log_dir, days=7, since=date(2026, 8, 9), skills_dir=None)
+            sm.read_skill_selection_log(log_dir, days=7, since=date(2026, 8, 9), skills_dir=None)
         with pytest.raises(ValueError, match="since"):
-            ss.read_skill_selection_log(log_dir, until=date(2026, 8, 9), skills_dir=None)
+            sm.read_skill_selection_log(log_dir, until=date(2026, 8, 9), skills_dir=None)
         with pytest.raises(ValueError, match="since"):
-            ss.read_skill_selection_log(
+            sm.read_skill_selection_log(
                 log_dir, since=date(2026, 8, 10), until=date(2026, 8, 9), skills_dir=None
             )
         with pytest.raises(ValueError, match="days"):
-            ss.read_skill_selection_log(log_dir, skills_dir=None)
+            sm.read_skill_selection_log(log_dir, skills_dir=None)
 
     def test_since_alone_runs_through_today(self, tmp_path):
         from datetime import date, datetime, timezone
@@ -1415,20 +1419,20 @@ class TestSkillSelectionWindowAndMechanisms:
         today = datetime.now(timezone.utc).date()
         self._write(log_dir, today.isoformat(), [self._rec()])
         self._write(log_dir, "2026-01-01", [self._rec()])
-        reading = ss.read_skill_selection_log(log_dir, since=date(2026, 1, 2), skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, since=date(2026, 1, 2), skills_dir=None)
         assert reading.records == 1
         assert reading.window_until == today.isoformat()
 
     def test_empty_window_abstains_cleanly(self, tmp_path):
         from datetime import date
 
-        reading = ss.read_skill_selection_log(
+        reading = sm.read_skill_selection_log(
             tmp_path / "logs", since=date(2026, 8, 9), until=date(2026, 8, 22), skills_dir=None
         )
         assert reading.records == 0
         assert reading.catalog_regimes == ()
         assert reading.mechanism_tally == ()
-        text = ss.format_skill_selection_report(reading)
+        text = sm.format_skill_selection_report(reading)
         assert "0 records" in text
 
     # --- catalog_count conditioning ---------------------------------------
@@ -1448,7 +1452,7 @@ class TestSkillSelectionWindowAndMechanisms:
                 {"ts": "t", "verdict": "fail_open_llm", "selected": [], "catalog_count": 45},
             ],
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         regimes = {r.catalog_count: r for r in reading.catalog_regimes}
         assert [r.catalog_count for r in reading.catalog_regimes] == [45, 48]
         assert (regimes[45].judged, regimes[45].hallucination_records) == (3, 1)
@@ -1456,7 +1460,7 @@ class TestSkillSelectionWindowAndMechanisms:
         assert (regimes[48].judged, regimes[48].hallucination_records) == (2, 1)
         assert regimes[48].full_skill_tokens_median == pytest.approx(60.0)
         assert reading.catalog_count_missing == 0
-        text = ss.format_skill_selection_report(reading)
+        text = sm.format_skill_selection_report(reading)
         assert "33.3%" in text and "50.0%" in text
         assert "200" in text and "60" in text
 
@@ -1470,11 +1474,11 @@ class TestSkillSelectionWindowAndMechanisms:
             today,
             [no_count, self._rec(catalog_count="45"), self._rec(catalog_count=45)],
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert [r.catalog_count for r in reading.catalog_regimes] == [45]
         assert reading.catalog_regimes[0].judged == 1
         assert reading.catalog_count_missing == 2
-        text = ss.format_skill_selection_report(reading)
+        text = sm.format_skill_selection_report(reading)
         assert "catalog_count_missing" in text and "2" in text
 
     def test_full_skill_tokens_missing_is_counted_not_imputed(self, tmp_path):
@@ -1491,19 +1495,19 @@ class TestSkillSelectionWindowAndMechanisms:
                 self._rec(catalog_count=45, tokens="x"),
             ],
         )
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         regime = reading.catalog_regimes[0]
         assert regime.judged == 3
         assert regime.full_skill_tokens_median == pytest.approx(300.0)
         assert regime.tokens_missing == 2
         all_missing = tmp_path / "logs2"
         self._write(all_missing, today, [dict(no_tok)])
-        regime = ss.read_skill_selection_log(all_missing, days=7, skills_dir=None).catalog_regimes[
+        regime = sm.read_skill_selection_log(all_missing, days=7, skills_dir=None).catalog_regimes[
             0
         ]
         assert regime.full_skill_tokens_median is None
-        text = ss.format_skill_selection_report(
-            ss.read_skill_selection_log(all_missing, days=7, skills_dir=None)
+        text = sm.format_skill_selection_report(
+            sm.read_skill_selection_log(all_missing, days=7, skills_dir=None)
         )
         assert "full_skill_tokens_missing" in text
 
@@ -1524,7 +1528,7 @@ class TestSkillSelectionWindowAndMechanisms:
                 self._rec(rejected=["suspending interpretation upon premise doubt"]),
             ],
         )
-        reading = ss.read_skill_selection_log(
+        reading = sm.read_skill_selection_log(
             log_dir,
             days=7,
             skills_dir=self._catalog_dir(tmp_path),
@@ -1532,14 +1536,14 @@ class TestSkillSelectionWindowAndMechanisms:
         )
         by_name = {t.name: t for t in reading.rejected_name_tally}
         assert by_name["identify-structural-tensions"].mechanism == "wordform"
-        assert by_name["identify-structural-tensions"].similarity >= ss.WORDFORM_SIMILARITY_FLOOR
+        assert by_name["identify-structural-tensions"].similarity >= sm.WORDFORM_SIMILARITY_FLOOR
         assert by_name["translate-dependency-failures"].mechanism == "semantic"
         assert by_name["interpretative-audit"].mechanism == "value_layer"
         assert by_name["suspending interpretation upon premise doubt"].mechanism == "value_layer"
         assert reading.value_layer_reason is None
         tally = {m.mechanism: (m.emissions, m.distinct) for m in reading.mechanism_tally}
         assert tally == {"wordform": (2, 1), "semantic": (1, 1), "value_layer": (2, 2)}
-        text = ss.format_skill_selection_report(reading)
+        text = sm.format_skill_selection_report(reading)
         assert "wordform" in text and "semantic" in text and "value_layer" in text
         assert "40.0%" in text  # wordform 2 of 5 emissions
 
@@ -1552,7 +1556,7 @@ class TestSkillSelectionWindowAndMechanisms:
         constitution, identity = self._value_layer(tmp_path)
         (constitution / "more.md").write_text("use metaphors wisely\n", encoding="utf-8")
         self._write(log_dir, today, [self._rec(rejected=["metaphors-of-failures"])])
-        reading = ss.read_skill_selection_log(
+        reading = sm.read_skill_selection_log(
             log_dir,
             days=7,
             skills_dir=self._catalog_dir(tmp_path),
@@ -1569,7 +1573,7 @@ class TestSkillSelectionWindowAndMechanisms:
             [self._rec(rejected=["identify-structural-tensions", "interpretative-audit"])],
         )
         skills_dir = self._catalog_dir(tmp_path)
-        not_configured = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        not_configured = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
         assert not_configured.value_layer_reason == "value_layer_not_configured"
         by_name = {t.name: t for t in not_configured.rejected_name_tally}
         # Rule 3 needs no value layer: still decidable.
@@ -1579,29 +1583,29 @@ class TestSkillSelectionWindowAndMechanisms:
         assert by_name["interpretative-audit"].mechanism_reason == "value_layer_unavailable"
         tally = {m.mechanism: m.emissions for m in not_configured.mechanism_tally}
         assert tally == {"wordform": 1, "unclassified": 1}
-        text = ss.format_skill_selection_report(not_configured)
+        text = sm.format_skill_selection_report(not_configured)
         assert "value_layer_not_configured" in text
 
-        unreadable = ss.read_skill_selection_log(
+        unreadable = sm.read_skill_selection_log(
             log_dir,
             days=7,
             skills_dir=skills_dir,
             value_layer_paths=(tmp_path / "nope", tmp_path / "nope.md"),
         )
         assert unreadable.value_layer_reason == "value_layer_unreadable"
-        assert "value_layer_unreadable" in ss.format_skill_selection_report(unreadable)
+        assert "value_layer_unreadable" in sm.format_skill_selection_report(unreadable)
 
     def test_no_catalog_leaves_every_name_unclassified(self, tmp_path):
         log_dir = tmp_path / "logs"
         today = TestRejectedNameTally()._today()
         self._write(log_dir, today, [self._rec(rejected=["identify-structural-tensions"])])
-        reading = ss.read_skill_selection_log(
+        reading = sm.read_skill_selection_log(
             log_dir, days=7, skills_dir=None, value_layer_paths=self._value_layer(tmp_path)
         )
         entry = reading.rejected_name_tally[0]
         assert entry.mechanism == "unclassified"
         assert entry.mechanism_reason == "catalog_unavailable"
-        assert "catalog_unavailable" in ss.format_skill_selection_report(reading)
+        assert "catalog_unavailable" in sm.format_skill_selection_report(reading)
 
     def test_prose_names_are_value_layer_even_when_value_layer_is_absent(self, tmp_path):
         """Rule 1 (whitespace / slash = prose, not a slug) needs neither
@@ -1609,7 +1613,7 @@ class TestSkillSelectionWindowAndMechanisms:
         log_dir = tmp_path / "logs"
         today = TestRejectedNameTally()._today()
         self._write(log_dir, today, [self._rec(rejected=["a prose clause here"])])
-        reading = ss.read_skill_selection_log(log_dir, days=7, skills_dir=None)
+        reading = sm.read_skill_selection_log(log_dir, days=7, skills_dir=None)
         assert reading.rejected_name_tally[0].mechanism == "value_layer"
 
     # --- trust boundary ---------------------------------------------------
@@ -1621,18 +1625,18 @@ class TestSkillSelectionWindowAndMechanisms:
         today = TestRejectedNameTally()._today()
         names = ["identify-structural-tensions", "zqxv-audit", "zqxv prose leak"]
         self._write(log_dir, today, [self._rec(rejected=names)])
-        reading = ss.read_skill_selection_log(
+        reading = sm.read_skill_selection_log(
             log_dir,
             days=7,
             skills_dir=self._catalog_dir(tmp_path),
             value_layer_paths=self._value_layer(tmp_path),
         )
-        default = ss.format_skill_selection_report(reading)
+        default = sm.format_skill_selection_report(reading)
         for name in names:
             assert name not in default
         assert "zqxv" not in default
         assert "Hallucination by mechanism" in default
-        human = ss.format_skill_selection_report(reading, include_rejected_names=True)
+        human = sm.format_skill_selection_report(reading, include_rejected_names=True)
         for name in names:
             assert name in human
 
@@ -1648,7 +1652,7 @@ class TestSkillSelectionMechanismFaults(TestSkillSelectionWindowAndMechanisms):
         self._write(log_dir, today, [self._rec(rejected=["interpretative-audit"])])
         identity = tmp_path / "identity.md"
         identity.write_bytes(b"\xff\xfe not utf-8 \x80\x81")
-        reading = ss.read_skill_selection_log(
+        reading = sm.read_skill_selection_log(
             log_dir,
             days=7,
             skills_dir=self._catalog_dir(tmp_path),
@@ -1656,7 +1660,7 @@ class TestSkillSelectionMechanismFaults(TestSkillSelectionWindowAndMechanisms):
         )
         assert reading.value_layer_reason == "value_layer_unreadable"
         assert reading.rejected_name_tally[0].mechanism == "unclassified"
-        assert "value_layer_unreadable" in ss.format_skill_selection_report(reading)
+        assert "value_layer_unreadable" in sm.format_skill_selection_report(reading)
 
     def test_partly_read_value_layer_names_what_was_missing(self, tmp_path):
         """A constitution that reads plus an identity file that does not is
@@ -1667,7 +1671,7 @@ class TestSkillSelectionMechanismFaults(TestSkillSelectionWindowAndMechanisms):
         self._write(log_dir, today, [self._rec(rejected=["interpretative-audit"])])
         constitution, identity = self._value_layer(tmp_path)
         identity.unlink()
-        reading = ss.read_skill_selection_log(
+        reading = sm.read_skill_selection_log(
             log_dir,
             days=7,
             skills_dir=self._catalog_dir(tmp_path),
@@ -1675,7 +1679,7 @@ class TestSkillSelectionMechanismFaults(TestSkillSelectionWindowAndMechanisms):
         )
         assert reading.value_layer_files == 1
         assert reading.value_layer_missing == ("identity.md",)
-        text = ss.format_skill_selection_report(reading)
+        text = sm.format_skill_selection_report(reading)
         assert "identity.md" in text
         # Still classified — the part that was read is a real ruler — but the
         # gap is named rather than hidden behind a file count.
@@ -1685,10 +1689,10 @@ class TestSkillSelectionMechanismFaults(TestSkillSelectionWindowAndMechanisms):
         log_dir = tmp_path / "logs"
         today = TestRejectedNameTally()._today()
         self._write(log_dir, today, [self._rec(rejected=["ghost-name"])])
-        reading = ss.read_skill_selection_log(
+        reading = sm.read_skill_selection_log(
             log_dir, days=7, skills_dir=None, value_layer_paths=self._value_layer(tmp_path)
         )
-        section = ss.format_skill_selection_report(reading).split("Hallucination by mechanism")[1]
+        section = sm.format_skill_selection_report(reading).split("Hallucination by mechanism")[1]
         assert "catalog_unavailable" in section
 
     def test_short_foreign_tokens_are_not_claimed_to_be_checked(self, tmp_path):
@@ -1701,7 +1705,7 @@ class TestSkillSelectionMechanismFaults(TestSkillSelectionWindowAndMechanisms):
         constitution, identity = self._value_layer(tmp_path)
         (constitution / "short.md").write_text("ego and its metaphors\n", encoding="utf-8")
         self._write(log_dir, today, [self._rec(rejected=["ego-tensions"])])
-        reading = ss.read_skill_selection_log(
+        reading = sm.read_skill_selection_log(
             log_dir,
             days=7,
             skills_dir=self._catalog_dir(tmp_path),
@@ -1716,7 +1720,7 @@ class TestSkillSelectionMechanismFaults(TestSkillSelectionWindowAndMechanisms):
         today = TestRejectedNameTally()._today()
         self._write(log_dir, today, [self._rec(rejected=["ghost-name"])])
         with caplog.at_level(logging.WARNING):
-            reading = ss.read_skill_selection_log(
+            reading = sm.read_skill_selection_log(
                 log_dir,
                 days=7,
                 skills_dir=None,
@@ -1750,14 +1754,14 @@ class TestSkillSelectionReviewFixes(TestSkillSelectionWindowAndMechanisms):
             ],
         )
         skills_dir = self._catalog_dir(tmp_path)
-        without = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        without = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
         by_name = {t.name: t for t in without.rejected_name_tally}
         assert by_name["identifing-structural-tensions"].mechanism == "wordform"
         # Far from every catalog name: value_layer vs semantic genuinely
         # needs the value layer, so this one still abstains.
         assert by_name["wholly-unrelated-invention"].mechanism == "unclassified"
         assert by_name["wholly-unrelated-invention"].mechanism_reason == "value_layer_unavailable"
-        with_layer = ss.read_skill_selection_log(
+        with_layer = sm.read_skill_selection_log(
             log_dir,
             days=7,
             skills_dir=skills_dir,
@@ -1775,7 +1779,7 @@ class TestSkillSelectionReviewFixes(TestSkillSelectionWindowAndMechanisms):
         self._write(log_dir, today, [self._rec(rejected=["interpretative-audit"])])
         constitution, identity = self._value_layer(tmp_path)
         (constitution / "empty.md").write_text("---\nname: x\n---\n", encoding="utf-8")
-        reading = ss.read_skill_selection_log(
+        reading = sm.read_skill_selection_log(
             log_dir,
             days=7,
             skills_dir=self._catalog_dir(tmp_path),
@@ -1783,7 +1787,7 @@ class TestSkillSelectionReviewFixes(TestSkillSelectionWindowAndMechanisms):
         )
         assert reading.value_layer_files == 2
         assert reading.value_layer_missing == (constitution.name,)
-        assert constitution.name in ss.format_skill_selection_report(reading)
+        assert constitution.name in sm.format_skill_selection_report(reading)
 
 
 class TestNeverSelectedReading:
@@ -1841,7 +1845,7 @@ class TestNeverSelectedReading:
         # In-window days: only `kept` is ever chosen.
         self._write(log_dir, "2026-08-20", [self._judged(["kept"], catalog)] * 700)
 
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert [e.name for e in reading.strict] == ["never-one"]
@@ -1862,7 +1866,7 @@ class TestNeverSelectedReading:
             [self._judged(["kept"], ["kept", "fresh"])] * 599,
         )
 
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert reading.strict == ()
@@ -1880,7 +1884,7 @@ class TestNeverSelectedReading:
             "2026-08-20",
             [self._judged(["kept"], ["kept", "quiet"])] * 600,
         )
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert [e.name for e in reading.strict] == ["quiet"]
@@ -1895,7 +1899,7 @@ class TestNeverSelectedReading:
         self._write(log_dir, "2026-03-02", [self._judged(["old-favourite"], ["old-favourite"])])
         self._write(log_dir, "2026-08-20", [self._judged([], ["old-favourite"])] * 900)
 
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert reading.strict == ()
@@ -1914,7 +1918,7 @@ class TestNeverSelectedReading:
         # In-window records exist but never carry the name in the catalog.
         self._write(log_dir, "2026-08-20", [self._judged([], ["something-else"])] * 50)
 
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert reading.dormant == ()
@@ -1936,7 +1940,7 @@ class TestNeverSelectedReading:
             ]
             * 900,
         )
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert reading.strict == ()
@@ -1969,7 +1973,7 @@ class TestNeverSelectedReading:
                 self._judged(["a"], ["a"]),
             ],
         )
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert reading.window_records == 5
@@ -1991,12 +1995,12 @@ class TestNeverSelectedReading:
             "2026-08-20",
             [{"verdict": "no_template", "selected": [], "catalog_names": ["a", "quiet"]}] * 700,
         )
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert [e.name for e in reading.strict] == ["quiet"]
         assert reading.history_fail_open == 700
-        text = ss.format_never_selected_report(reading)
+        text = ns.format_never_selected_report(reading)
         assert "fail-open across the whole history: 700 of 1300 records" in text
 
     def test_unreadable_catalog_withholds_every_population(self, tmp_path):
@@ -2004,7 +2008,7 @@ class TestNeverSelectedReading:
         be enumerated, and must not read as "nothing to archive"."""
         log_dir = tmp_path / "logs"
         self._write(log_dir, "2026-08-20", [self._judged([], ["ghost"])] * 900)
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=None
         )
         assert reading.strict == ()
@@ -2020,7 +2024,7 @@ class TestNeverSelectedReading:
         log_dir = tmp_path / "logs"
         self._write(log_dir, "2026-07-01", [self._judged(["a"], ["a"], full=10_000)])
         self._write(log_dir, "2026-08-20", [self._judged(["a"], ["a"], full=38_867)])
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert reading.history_full_skill_tokens == 38867
@@ -2035,7 +2039,7 @@ class TestNeverSelectedReading:
             "2026-08-20",
             [{"verdict": "judged", "selected": ["a"], "catalog_names": ["a"]}],
         )
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert reading.history_full_skill_tokens == 0
@@ -2054,7 +2058,7 @@ class TestNeverSelectedReading:
             fh.write("\n")  # blank lines are not a drop
         (log_dir / "skill-selection-not-a-date.jsonl").write_text("{}\n", encoding="utf-8")
 
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert reading.history_records == 600
@@ -2066,7 +2070,7 @@ class TestNeverSelectedReading:
         assert "NEVER_SELECTED_LOG_UNREADABLE" not in reading.reasons
         assert [e.name for e in reading.strict] == ["quiet"]
         assert "Evidence lost: 0 unreadable day(s), 2 unusable row(s)" in (
-            ss.format_never_selected_report(reading)
+            ns.format_never_selected_report(reading)
         )
 
     def test_a_lost_day_withholds_the_strict_list(self, tmp_path):
@@ -2080,7 +2084,7 @@ class TestNeverSelectedReading:
         self._write(log_dir, "2026-08-20", [self._judged(["quiet"], ["kept", "quiet"])])
         (log_dir / "skill-selection-2026-08-20.jsonl").chmod(0o000)
         try:
-            reading = ss.read_never_selected(
+            reading = ns.read_never_selected(
                 log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
             )
         finally:
@@ -2089,7 +2093,7 @@ class TestNeverSelectedReading:
         assert "NEVER_SELECTED_LOG_UNREADABLE" in reading.reasons
         assert "NEVER_SELECTED_LOG_PARTIAL" in reading.reasons
         assert reading.strict == ()
-        text = ss.format_never_selected_report(reading)
+        text = ns.format_never_selected_report(reading)
         assert "WITHHELD (NEVER_SELECTED_LOG_UNREADABLE)" in text
         assert "- (none)" not in text.split("Strict (")[1].split("Dormant")[0]
 
@@ -2101,7 +2105,7 @@ class TestNeverSelectedReading:
         log_dir = tmp_path / "logs"
         self._write(log_dir, "2026-08-10", [self._judged(["kept"], ["kept", "quiet"])] * 600)
         (log_dir / "skill-selection-2026-08-20.jsonl").write_bytes(b"\xff\xfe not utf-8\n")
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert reading.unreadable_files == 1
@@ -2113,7 +2117,7 @@ class TestNeverSelectedReading:
         (skills_dir / "broken.md").write_bytes(b"---\nname: \xff\n---\nbody\n")
         log_dir = tmp_path / "logs"
         self._write(log_dir, "2026-08-10", [self._judged(["kept"], ["kept"])])
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert reading.catalog_size == 1
@@ -2131,7 +2135,7 @@ class TestNeverSelectedReading:
             + [{"verdict": "fail_open_llm", "selected": [], "catalog_names": ["kept", "quiet"]}]
             * 40,
         )
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert reading.window_records == 0
@@ -2140,13 +2144,13 @@ class TestNeverSelectedReading:
         # The history figure is what the strict list is judged against, and
         # it is not recoverable by subtraction from the window's.
         assert reading.history_fail_open == 40
-        text = ss.format_never_selected_report(reading)
+        text = ns.format_never_selected_report(reading)
         assert "fail-open across the whole history: 40 of 641 records" in text
         assert "WITHHELD (NEVER_SELECTED_EMPTY_WINDOW)" in text
 
     def test_missing_log_dir_reads_as_no_history(self, tmp_path):
         skills_dir = self._store(tmp_path, ["a"])
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             tmp_path / "absent", since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert reading.history_files == 0
@@ -2159,14 +2163,14 @@ class TestNeverSelectedReading:
         skills_dir = self._store(tmp_path, ["kept", "quiet"])
         log_dir = tmp_path / "logs"
         self._write(log_dir, "2026-08-20", [self._judged(["kept"], ["kept", "quiet"])] * 600)
-        payload = ss.never_selected_reading_json(
-            ss.read_never_selected(
+        payload = ns.never_selected_reading_json(
+            ns.read_never_selected(
                 log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
             )
         )
         # Round-trips through JSON (the packet reads it off disk).
         payload = json.loads(json.dumps(payload))
-        assert payload["exposure_floor"] == ss.NEVER_SELECTED_EXPOSURE_FLOOR
+        assert payload["exposure_floor"] == ns.NEVER_SELECTED_EXPOSURE_FLOOR
         assert [r["name"] for r in payload["strict"]] == ["quiet"]
         assert payload["strict"][0]["judged_exposure"] == 600
         assert payload["window"]["fail_open"] == 0
@@ -2180,8 +2184,8 @@ class TestNeverSelectedReading:
         catalog = ["kept", "quiet", "dormant-one"]
         self._write(log_dir, "2026-07-01", [self._judged(["dormant-one"], catalog)])
         self._write(log_dir, "2026-08-20", [self._judged(["kept"], catalog)] * 600)
-        text = ss.format_never_selected_report(
-            ss.read_never_selected(
+        text = ns.format_never_selected_report(
+            ns.read_never_selected(
                 log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
             )
         )
@@ -2208,11 +2212,11 @@ class TestNeverSelectedReading:
                 return_value="SESSION-METRICS",
             ),
             patch(
-                "contemplative_agent.core.skill_selection.format_skill_selection_report",
+                "contemplative_agent.core.selection_metrics.format_skill_selection_report",
                 return_value="WINDOW-READING",
             ),
             patch(
-                "contemplative_agent.core.skill_selection.format_never_selected_report",
+                "contemplative_agent.core.never_selected_metrics.format_never_selected_report",
                 return_value="EXIT-READING",
             ) as mock_exit,
             patch("sys.argv", ["contemplative-agent", "report", "--skill-selection"]),
@@ -2230,8 +2234,8 @@ class TestNeverSelectedReading:
         log_dir = tmp_path / "logs"
         today = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
         self._write(log_dir, today, [self._judged(["a"], ["a", "b"])])
-        text = ss.format_skill_selection_report(
-            ss.read_skill_selection_log(log_dir, days=14, skills_dir=skills_dir)
+        text = sm.format_skill_selection_report(
+            sm.read_skill_selection_log(log_dir, days=14, skills_dir=skills_dir)
         )
         assert "not archive candidates" in text
         assert "stocktake candidates" not in text
@@ -2247,10 +2251,10 @@ class TestNeverSelectedReading:
         for day in ("2026-08-07", "2026-08-08", "2026-08-22", "2026-08-23"):
             self._write(log_dir, day, [self._judged(["a"], ["a"])])
 
-        windowed = ss.read_skill_selection_log(
+        windowed = sm.read_skill_selection_log(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
-        exit_reading = ss.read_never_selected(
+        exit_reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         # The bound day is in, the day before and the day after are out.
@@ -2268,8 +2272,8 @@ class TestNeverSelectedReading:
         log_dir = tmp_path / "logs"
         today = dt.datetime.now(dt.timezone.utc).strftime("%Y-%m-%d")
         self._write(log_dir, today, [self._judged(["a"], ["a"])])
-        windowed = ss.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
-        exit_reading = ss.read_never_selected(log_dir, days=7, skills_dir=skills_dir)
+        windowed = sm.read_skill_selection_log(log_dir, days=7, skills_dir=skills_dir)
+        exit_reading = ns.read_never_selected(log_dir, days=7, skills_dir=skills_dir)
         assert exit_reading.window_days == windowed.days == 7
         assert exit_reading.window_since is None and exit_reading.window_until is None
         assert exit_reading.window_records == windowed.records == 1
@@ -2285,7 +2289,7 @@ class TestNeverSelectedReading:
     )
     def test_bad_window_combinations_raise_from_the_shared_resolver(self, tmp_path, kwargs):
         with pytest.raises(ValueError):
-            ss.read_never_selected(tmp_path / "logs", skills_dir=None, **kwargs)
+            ns.read_never_selected(tmp_path / "logs", skills_dir=None, **kwargs)
 
     def test_dormant_cut_respects_the_upper_bound(self, tmp_path):
         """A selection AFTER `until` must not un-dormant a skill: the window
@@ -2295,7 +2299,7 @@ class TestNeverSelectedReading:
         self._write(log_dir, "2026-07-01", [self._judged(["revived"], ["revived"])])
         self._write(log_dir, "2026-08-20", [self._judged([], ["revived"])] * 3)
         self._write(log_dir, "2026-08-25", [self._judged(["revived"], ["revived"])])
-        reading = ss.read_never_selected(
+        reading = ns.read_never_selected(
             log_dir, since=self.SINCE, until=self.UNTIL, skills_dir=skills_dir
         )
         assert [e.name for e in reading.dormant] == ["revived"]

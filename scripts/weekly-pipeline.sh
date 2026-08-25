@@ -743,7 +743,7 @@ if (cd "$PROJECT_ROOT" && with_timeout "$NEVER_SELECTED_TIMEOUT" \
 import json, sys
 from datetime import date, timedelta
 from pathlib import Path
-from contemplative_agent.core.skill_selection import (
+from contemplative_agent.core.never_selected_metrics import (
     NEVER_SELECTED_DORMANT_WINDOW_DAYS,
     never_selected_reading_json,
     read_never_selected,

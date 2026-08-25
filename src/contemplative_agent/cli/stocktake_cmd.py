@@ -99,7 +99,7 @@ def _load_selection_reading():
     simply not exist), so any failure degrades to None — the stocktake runs
     exactly as before, just without the usage section. Never fatal.
     """
-    from ..core.skill_selection import read_skill_selection_log
+    from ..core.selection_metrics import read_skill_selection_log
 
     try:
         reading = read_skill_selection_log(

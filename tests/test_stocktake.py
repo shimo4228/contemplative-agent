@@ -317,7 +317,7 @@ class TestTruncationPolicyH1:
 def _make_reading(**overrides):
     from dataclasses import replace
 
-    from contemplative_agent.core.skill_selection import SkillSelectionReading
+    from contemplative_agent.core.selection_metrics import SkillSelectionReading
 
     base = SkillSelectionReading(
         days=14,

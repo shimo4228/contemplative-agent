@@ -468,7 +468,7 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from contemplative_agent.core.skill_selection import (
+from contemplative_agent.core.selection_metrics import (
     format_skill_selection_report,
     read_skill_selection_log,
 )

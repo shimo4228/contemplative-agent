@@ -112,8 +112,8 @@ class TestReportPatternsSmoke:
 class TestReportSkillSelectionSmoke:
     """report --skill-selection: argv → shadow-selection reading wiring (ADR-0076)."""
 
-    @patch("contemplative_agent.core.skill_selection.format_skill_selection_report")
-    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.selection_metrics.format_skill_selection_report")
+    @patch("contemplative_agent.core.selection_metrics.read_skill_selection_log")
     @patch("contemplative_agent.core.metrics.format_report")
     @patch("contemplative_agent.core.metrics.compute_metrics")
     def test_report_skill_selection_flag_appends_reading(
@@ -135,7 +135,7 @@ class TestReportSkillSelectionSmoke:
         assert "SKILL-SELECTION-READING" in out
         mock_read.assert_called_once()
 
-    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.selection_metrics.read_skill_selection_log")
     @patch("contemplative_agent.core.metrics.format_report")
     @patch("contemplative_agent.core.metrics.compute_metrics")
     def test_report_without_flag_skips_selection_reading(
@@ -153,7 +153,7 @@ class TestReportSkillSelectionSmoke:
         assert "SESSION-METRICS" in capsys.readouterr().out
         mock_read.assert_not_called()
 
-    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.selection_metrics.read_skill_selection_log")
     @patch("contemplative_agent.core.metrics.format_report")
     @patch("contemplative_agent.core.metrics.compute_metrics")
     def test_reading_failure_degrades_to_warning(
@@ -188,8 +188,8 @@ class TestReportSkillSelectionWindow:
         with patch("sys.argv", ["contemplative-agent", "report", *argv]):
             main()
 
-    @patch("contemplative_agent.core.skill_selection.format_skill_selection_report")
-    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.selection_metrics.format_skill_selection_report")
+    @patch("contemplative_agent.core.selection_metrics.read_skill_selection_log")
     @patch("contemplative_agent.core.metrics.format_report")
     @patch("contemplative_agent.core.metrics.compute_metrics")
     def test_since_until_reach_the_reader_as_dates(
@@ -213,8 +213,8 @@ class TestReportSkillSelectionWindow:
         assert mock_metrics.call_args.kwargs["days"] == 7
         assert "SKILL-SELECTION-READING" in capsys.readouterr().out
 
-    @patch("contemplative_agent.core.skill_selection.format_skill_selection_report")
-    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.selection_metrics.format_skill_selection_report")
+    @patch("contemplative_agent.core.selection_metrics.read_skill_selection_log")
     @patch("contemplative_agent.core.metrics.format_report")
     @patch("contemplative_agent.core.metrics.compute_metrics")
     def test_days_path_is_unchanged(self, mock_metrics, mock_fmt, mock_read, mock_sel_report):
@@ -235,7 +235,7 @@ class TestReportSkillSelectionWindow:
             ["--skill-selection", "--since", "not-a-date"],
         ],
     )
-    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.selection_metrics.read_skill_selection_log")
     @patch("contemplative_agent.core.metrics.format_report")
     @patch("contemplative_agent.core.metrics.compute_metrics")
     def test_invalid_window_combinations_are_usage_errors(
@@ -609,8 +609,8 @@ class TestReportSkillSelectionValueLayerPaths:
     (code review, 2026-08-22): otherwise an A/B constitution reads against
     the default path's text, or abstains entirely."""
 
-    @patch("contemplative_agent.core.skill_selection.format_skill_selection_report")
-    @patch("contemplative_agent.core.skill_selection.read_skill_selection_log")
+    @patch("contemplative_agent.core.selection_metrics.format_skill_selection_report")
+    @patch("contemplative_agent.core.selection_metrics.read_skill_selection_log")
     @patch("contemplative_agent.core.metrics.format_report")
     @patch("contemplative_agent.core.metrics.compute_metrics")
     def test_constitution_dir_override_reaches_the_reading(

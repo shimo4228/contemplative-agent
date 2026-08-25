@@ -43,7 +43,7 @@ from .llm import generate_full
 from .text_utils import read_markdown_documents
 
 if TYPE_CHECKING:
-    from .skill_selection import SkillSelectionReading
+    from .selection_metrics import SkillSelectionReading
 
 logger = logging.getLogger(__name__)
 
@@ -260,7 +260,7 @@ def format_stocktake_report(result: StocktakeResult, label: str) -> str:
             # import above exists to keep this module free of a runtime
             # dependency on the instrument, and the phrasing is needed on
             # exactly one branch.
-            from .skill_selection import format_never_selected_exposure
+            from .selection_metrics import format_never_selected_exposure
 
             lines.append("  Never selected in window:")
             for name, exposure in usage.never_selected_exposure:

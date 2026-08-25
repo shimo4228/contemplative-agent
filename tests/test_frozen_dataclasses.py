@@ -23,7 +23,7 @@ ALLOWED_MUTABLE = {
     # Same shape as _Tally: a private per-catalog_count accumulator internal
     # to read_skill_selection_log, frozen into CatalogRegime before it
     # leaves the function; never escapes mutable.
-    "src/contemplative_agent/core/skill_selection.py::_RegimeAccumulator",
+    "src/contemplative_agent/core/selection_metrics.py::_RegimeAccumulator",
 }
 
 

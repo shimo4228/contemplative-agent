@@ -143,7 +143,7 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     if since is not None or until is not None:
         if not args.skill_selection:
             _parser.error("--since/--until apply to --skill-selection only")
-        from ..core.skill_selection import resolve_selection_window
+        from ..core.selection_window import resolve_selection_window
 
         try:
             resolve_selection_window(args.days, since, until)
@@ -177,7 +177,7 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     # instrument degrades to a WARNING and never breaks the report.
     if getattr(args, "skill_selection", False):
         try:
-            from ..core.skill_selection import (
+            from ..core.selection_metrics import (
                 format_skill_selection_report,
                 read_skill_selection_log,
             )
@@ -216,7 +216,7 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     # side effect of where the statements happen to sit.
     if getattr(args, "skill_selection", False):
         try:
-            from ..core.skill_selection import (
+            from ..core.never_selected_metrics import (
                 NEVER_SELECTED_DORMANT_WINDOW_DAYS,
                 format_never_selected_report,
                 read_never_selected,
