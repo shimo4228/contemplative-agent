@@ -1,26 +1,14 @@
 # RFCs
 
-この repo の提案と作業項目の公開台帳（1 エントリ 1 ファイル、`NNNN-slug.md`、ID は
-`RFC-NNNN`）。フル RFC の提案から小さな作業項目まで**同居する** — 別置き場を作らない。
-様式・状態語彙・規約の正本は skill
-[`task-stocktake`](https://github.com/shimo4228/claude-harness/blob/main/skills/task-stocktake/SKILL.md)、
-判断は
-[claude-harness ADR-0049](https://github.com/shimo4228/claude-harness/blob/main/docs/adr/0049-unify-task-ledger-into-public-rfcs.md)。
+この repo の提案と作業項目の公開台帳 — 1 エントリ 1 ファイル `NNNN-slug.md`、ID は
+`RFC-NNNN`。フル RFC の提案から小さな作業項目まで同居する。**state は各ファイルの
+frontmatter が唯一の正本**。
 
-起票の足切り: *Do not create an RFC for work that can be safely completed in the
-current session without preserving intent or state.*（GTD の 2 分ルールの台帳版 —
-現セッションで安全に完了でき、intent / state を将来へ運ぶ必要が無い作業は起票しない。
-却下理由を残すための起票はこの限りでない）。
-
-状態は各ファイルの frontmatter `state:` が**唯一の正本**（`draft` / `accepted` /
-`in_progress` / `blocked` / `done` / `resolved` / `rejected` / `withdrawn` /
-`obsoleted`。この index には複製しない — 二重記録は drift する）。終端エントリも
-削除・退避せずここに残る — 却下理由ごと残るのが公開判断記録の価値。状態別の列挙は
-`python3 ~/.claude/scripts/claims.py ready [--state <state>]`。
-
-この台帳は 2026-08-25 に非公開の `.notes/tasks/` から移送した（RFC-0001〜0015）。
-旧 ID `T-XXX` は各エントリ末尾の「移送記録」に残してある — commit message や過去 ADR
-からの参照はそこで辿れる。終端していた 3 件は移送せず `.notes/archive/tasks/` へ退避した。
+起票の手順と規約（足切り・採番・様式・公開規約）の正本は
+[skill: rfc-writer](https://github.com/shimo4228/claude-harness/blob/main/skills/rfc-writer/SKILL.md)、状態語彙は
+[skill: task-stocktake](https://github.com/shimo4228/claude-harness/blob/main/skills/task-stocktake/SKILL.md)、判断は
+[claude-harness ADR-0049](https://github.com/shimo4228/claude-harness/blob/main/docs/adr/0049-unify-task-ledger-into-public-rfcs.md)。規約本文をこの README には書かない
+（複製は drift する）。
 
 | # | Title |
 |---|---|
