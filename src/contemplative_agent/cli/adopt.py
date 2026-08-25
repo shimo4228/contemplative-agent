@@ -51,6 +51,7 @@ from __future__ import annotations
 import argparse
 import json as json_mod
 import logging
+import re
 import sys
 from collections import Counter
 from collections.abc import Iterable, Sequence
@@ -365,6 +366,41 @@ def _archive_dir(data_root: Path) -> Path:
     return _skills_dir(data_root) / config.SKILLS_ARCHIVE_DIRNAME
 
 
+def _inside_archive(path: Path, data_root: Path) -> bool:
+    """Is *path* already inside the store's exit? Resolved on both sides.
+
+    Two questions in ``remove-skill`` are this same predicate, and both were
+    written out inline: the archive arm's "a file that already left has no
+    second exit" refusal, and the audit row's purge-vs-remove discriminator.
+    One function, so the two cannot answer differently — and so a reader
+    checking either argument reads one implementation.
+
+    Resolved on both sides because the interesting inputs are spellings, not
+    files: ``remove-skill .archive/old`` names a nested path that the store
+    containment check admits, and an ``.archive`` symlinked back into the
+    store makes every live skill resolve inside it.
+    """
+    return _resolved_or_self(path).is_relative_to(_resolved_or_self(_archive_dir(data_root)))
+
+
+def _same_archive_slot(intended: Path, final: Path) -> bool:
+    """True when *final* is *intended* or *intended* with a collision suffix.
+
+    ``remove-skill`` shows the INTENDED destination in its dry run and its
+    prompt, before the content is read, while the guard that fixes the final
+    path (``approval._collision_free_path``) runs after. What makes that
+    preview honest is a property of the guard: it may append ``-N``, and it
+    may never change directory or extension. That property was asserted in a
+    comment; this is the same claim as a check, so a change to the guard's
+    shape fails loudly here instead of silently making the preview a lie.
+    """
+    if final.parent != intended.parent or final.suffix != intended.suffix:
+        return False
+    if final.stem == intended.stem:
+        return True
+    return re.fullmatch(rf"{re.escape(intended.stem)}-\d+", final.stem) is not None
+
+
 def _writes_into_the_store(target: Path, data_root: Path) -> bool:
     """True when a staged item's target is a file directly in ``skills/``.
 
@@ -468,6 +504,17 @@ def _archive_skill_file(
         return _ArchiveResult(reason=_ARCHIVE_REFUSED_NO_FREE_NAME, detail=str(err))
     if not _target_inside_data_root(destination, data_root):
         return _ArchiveResult(reason=_ARCHIVE_REFUSED_OUTSIDE)
+    if not _same_archive_slot(intended, destination):
+        # ``remove-skill`` already promised ``intended`` in its dry run and
+        # its prompt, on the standing claim that the guard only ever appends
+        # a counter. Checked rather than trusted: if that ever stops holding
+        # the preview becomes a lie, and this is the one frame that can still
+        # tell. Refused as OUTSIDE because a destination in an unexpected
+        # directory is exactly the containment failure that name describes.
+        return _ArchiveResult(
+            reason=_ARCHIVE_REFUSED_OUTSIDE,
+            detail=f"{destination} is not {intended} with a collision suffix",
+        )
     if superseded_by and destination.name != source.name:
         # The survivor's ``supersedes:`` was fixed before this rename could be
         # known — it has to be inside the bytes the audit row hashes — so it
@@ -1845,7 +1892,7 @@ def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentPar
         # destination equal to the source and unlinked the last copy
         # (security review 2026-08-22 MEDIUM). `--delete` stays the
         # deliberate, audited way to purge from the archive.
-        if _resolved_or_self(target).is_relative_to(_resolved_or_self(_archive_dir(data_root))):
+        if _inside_archive(target, data_root):
             print(
                 f"Error: {_ARCHIVE_REFUSED_ALREADY_ARCHIVED}: {target} is already in the "
                 "archive; there is no second exit. Restore it with `mv` first, or "
@@ -1892,7 +1939,7 @@ def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentPar
     # purge row differed only in operator free text (silent-failure review
     # 2026-08-22 HIGH). The purge arm is reachable only through `--delete`,
     # because the archive arm refuses an already-archived source above.
-    purging = _resolved_or_self(target).is_relative_to(_resolved_or_self(_archive_dir(data_root)))
+    purging = _inside_archive(target, data_root)
     if not delete:
         source: AuditSource = "direct-archive-auto" if yes else "direct-archive"
     elif purging:
