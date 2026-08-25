@@ -324,14 +324,14 @@ def test_d_scope_1_session_outputs_stay_writable(diagnosis_argv):
             f"{name} is the session's own staged output and must stay writable; "
             f"allow={_flag_value(argv, '--allowedTools')}"
         )
-    assert _writable(argv, f"{private}/tasks-{END_DATE}/T-NEW-CANDIDATE.md"), (
-        "the per-run task STAGING must stay writable for Phase 4 candidate filing"
+    assert _writable(argv, f"{private}/tasks-{END_DATE}/T-NEW-DRAFT.md"), (
+        "the per-run task STAGING must stay writable for Phase 4 draft filing"
     )
-    # The live store is deliberately NOT writable: concurrent sessions own it
-    # and the chain moves validated candidates in deterministically
-    # (codex review 2026-08-24 P1).
-    assert not _writable(argv, f"{env['PIPELINE_TASKS_DIR']}/T-NEW-CANDIDATE.md"), (
-        "the session must not hold a live task-store write grant"
+    # The live rfcs/ store is deliberately NOT writable: concurrent sessions
+    # own it and the chain numbers and moves validated drafts in
+    # deterministically (codex review 2026-08-24 P1).
+    assert not _writable(argv, f"{env['PIPELINE_TASKS_DIR']}/0016-new-draft.md"), (
+        "the session must not hold a live rfcs/ store write grant"
     )
 
 

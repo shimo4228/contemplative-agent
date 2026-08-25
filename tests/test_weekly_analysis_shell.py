@@ -573,11 +573,16 @@ class TestPipelinePromoteGate:
 
 
 class TestSpawnRecording:
+    """The filing seam writes the PUBLIC rfcs/ ledger (ADR-0049 / harness
+    RFC-0001): the session stages `T-<SLUG>.md`, the chain assigns the number
+    and the `NNNN-slug.md` name, and nothing here commits — the Saturday gate
+    is what puts a filing in front of the public."""
+
     def test_new_task_files_are_recorded_with_their_producer(self, tmp_path):
         home = _make_home(tmp_path)
         private = home / "reports" / ".private"
         task_body = (
-            "---\nid: T-WEEKLY-PROBE\nstate: candidate\norigin: gate\n---\n\n"
+            "---\nid: T-WEEKLY-PROBE\nstate: draft\norigin: gate\n---\n\n"
             "## タスク\n\nsomething at `src/contemplative_agent/core/distill.py:42`\n"
         )
         task = _write_body(tmp_path, "task-body.md", task_body)
@@ -588,16 +593,48 @@ class TestSpawnRecording:
         result = _run_pipeline(env)
 
         assert result.returncode == 0, result.stderr
-        # Validated and MOVED from staging into the live store.
-        assert (Path(env["PIPELINE_TASKS_DIR"]) / "T-WEEKLY-PROBE.md").is_file()
+        # Validated, RENAMED into the rfcs/ convention, MOVED out of staging.
+        assert (Path(env["PIPELINE_TASKS_DIR"]) / "0001-weekly-probe.md").is_file()
         assert not (private / f"tasks-{END_DATE}" / "T-WEEKLY-PROBE.md").exists()
         calls = (tmp_path / "claims-calls.txt").read_text(encoding="utf-8")
-        assert "spawn T-WEEKLY-PROBE --origin gate" in calls
+        assert "spawn RFC-0001 --origin gate" in calls
+        # The diagnosis-side name survives, in the slug and in the note.
+        assert "T-WEEKLY-PROBE" in calls
         assert "--producer src/contemplative_agent/core/distill.py:42" in calls
         audit = (home / "logs" / "weekly-pipeline-audit.jsonl").read_text(encoding="utf-8")
         # pipeline_audit.py stores every --field value as a string, so this is
         # the one encoding the producer can emit.
         assert '"spawned": "1"' in audit
+
+    def test_numbering_continues_from_the_stores_high_water_mark(self, tmp_path):
+        """Numbers are max+1 over the existing `NNNN-*.md`, zero-padded to 4,
+        assigned sequentially within one run. Gaps are never reused and
+        non-numbered files (the index README) are not entries."""
+        home = _make_home(tmp_path)
+        private = home / "reports" / ".private"
+        store = tmp_path / "tasks"
+        store.mkdir(exist_ok=True)
+        (store / "0003-early.md").write_text("---\nstate: done\n---\n\nx\n", encoding="utf-8")
+        (store / "0009-later.md").write_text("---\nstate: draft\n---\n\nx\n", encoding="utf-8")
+        (store / "README.md").write_text("# RFCs\n", encoding="utf-8")
+        task = _write_body(
+            tmp_path, "task-body.md", "---\nstate: draft\n---\n\n## タスク\n\nbody\n"
+        )
+        body = _session_body(
+            tmp_path,
+            home,
+            f'cp "{task}" "{private}/tasks-{END_DATE}/T-ALPHA.md"\n',
+            f'cp "{task}" "{private}/tasks-{END_DATE}/T-BETA-TWO.md"\n',
+        )
+        env = _pipeline_env(home, tmp_path, body)
+        result = _run_pipeline(env)
+
+        assert result.returncode == 0, result.stderr
+        assert (store / "0010-alpha.md").is_file()
+        assert (store / "0011-beta-two.md").is_file()
+        calls = (tmp_path / "claims-calls.txt").read_text(encoding="utf-8")
+        assert "spawn RFC-0010 --origin gate" in calls
+        assert "spawn RFC-0011 --origin gate" in calls
 
     def test_claims_failure_never_kills_the_chain(self, tmp_path):
         home = _make_home(tmp_path)
@@ -605,7 +642,7 @@ class TestSpawnRecording:
         task = _write_body(
             tmp_path,
             "task-body.md",
-            "---\nid: T-WEEKLY-PROBE\nstate: candidate\n---\n\n## タスク\n\nbody\n",
+            "---\nid: T-WEEKLY-PROBE\nstate: draft\n---\n\n## タスク\n\nbody\n",
         )
         body = _session_body(
             tmp_path, home, f'cp "{task}" "{private}/tasks-{END_DATE}/T-WEEKLY-PROBE.md"\n'
@@ -617,9 +654,9 @@ class TestSpawnRecording:
         assert result.returncode == 0, result.stderr
         audit = (home / "logs" / "weekly-pipeline-audit.jsonl").read_text(encoding="utf-8")
         assert "SPAWN_RECORD_FAIL" in audit
-        # The task file was still moved into the store — the triage session
-        # reads the store, not the claims log.
-        assert (Path(env["PIPELINE_TASKS_DIR"]) / "T-WEEKLY-PROBE.md").is_file()
+        # The file was still moved into the store — the triage session reads
+        # the store, not the claims log.
+        assert (Path(env["PIPELINE_TASKS_DIR"]) / "0001-weekly-probe.md").is_file()
 
     def test_a_nonconforming_task_filename_is_skipped_loudly(self, tmp_path):
         home = _make_home(tmp_path)
@@ -637,33 +674,35 @@ class TestSpawnRecording:
         # Quarantined in staging, not adopted and not silently dropped.
         assert (home / "reports" / ".private" / f"tasks-{END_DATE}" / "T-bad name.md").exists()
 
-    def test_staged_task_colliding_with_the_store_is_not_adopted(self, tmp_path):
+    def test_a_staged_filing_never_overwrites_an_existing_store_entry(self, tmp_path):
         """The session cannot write the live store at all (its filing dir is
-        the per-run staging under reports/.private/), and a staged name that
-        collides with an existing store entry — the owner's or a concurrent
-        session's — stays in staging rather than overwriting it
-        (codex review 2026-08-24 P1)."""
+        the per-run staging under reports/.private/), and the chain assigns a
+        FRESH number, so a filing whose slug repeats an existing entry's lands
+        beside it instead of over it — the owner's or a concurrent session's
+        entry is never touched (codex review 2026-08-24 P1)."""
         home = _make_home(tmp_path)
         private = home / "reports" / ".private"
         staged = _write_body(
             tmp_path,
             "task-body.md",
-            "---\nid: T-EXISTING\nstate: candidate\n---\n\n## タスク\n\nsession-written\n",
+            "---\nid: T-EXISTING\nstate: draft\n---\n\n## タスク\n\nsession-written\n",
         )
         body = _session_body(
             tmp_path, home, f'cp "{staged}" "{private}/tasks-{END_DATE}/T-EXISTING.md"\n'
         )
         env = _pipeline_env(home, tmp_path, body)
-        original = "---\nid: T-EXISTING\nstate: blocked\n---\n\n## タスク\n\nowner-written\n"
-        (Path(env["PIPELINE_TASKS_DIR"]) / "T-EXISTING.md").write_text(original, encoding="utf-8")
+        store = Path(env["PIPELINE_TASKS_DIR"])
+        original = "---\nstate: blocked\n---\n\n## タスク\n\nowner-written\n"
+        (store / "0007-existing.md").write_text(original, encoding="utf-8")
         result = _run_pipeline(env)
 
         assert result.returncode == 0, result.stderr
-        kept = (Path(env["PIPELINE_TASKS_DIR"]) / "T-EXISTING.md").read_text(encoding="utf-8")
+        kept = (store / "0007-existing.md").read_text(encoding="utf-8")
         assert kept == original, "existing store entry was overwritten"
-        audit = (home / "logs" / "weekly-pipeline-audit.jsonl").read_text(encoding="utf-8")
-        assert "SPAWN_RECORD_SKIPPED" in audit
-        assert not (tmp_path / "claims-calls.txt").exists()
+        filed = (store / "0008-existing.md").read_text(encoding="utf-8")
+        assert "session-written" in filed
+        calls = (tmp_path / "claims-calls.txt").read_text(encoding="utf-8")
+        assert "spawn RFC-0008 --origin gate" in calls
 
     def test_staged_task_without_a_state_line_stays_in_staging(self, tmp_path):
         """A file claims.py ready could never surface must not be moved into
@@ -679,15 +718,16 @@ class TestSpawnRecording:
         result = _run_pipeline(env)
 
         assert result.returncode == 0, result.stderr
-        assert not (Path(env["PIPELINE_TASKS_DIR"]) / "T-NOSTATE.md").exists()
+        assert not (Path(env["PIPELINE_TASKS_DIR"]) / "0001-nostate.md").exists()
         assert (private / f"tasks-{END_DATE}" / "T-NOSTATE.md").is_file()
         audit = (home / "logs" / "weekly-pipeline-audit.jsonl").read_text(encoding="utf-8")
         assert "SPAWN_RECORD_SKIPPED" in audit
         assert not (tmp_path / "claims-calls.txt").exists()
 
-    def test_non_candidate_filing_is_normalized(self, tmp_path):
-        """ADR-0098 D2: filings carry no readiness claim. A new task written
-        with `state: ready` is normalized to candidate and the run says so."""
+    def test_non_draft_filing_is_normalized(self, tmp_path):
+        """ADR-0098 D2: filings carry no readiness claim. In the rfcs/
+        vocabulary that state is `draft`, so a filing written with
+        `state: ready` is normalized and the run says so."""
         home = _make_home(tmp_path)
         private = home / "reports" / ".private"
         task = _write_body(
@@ -702,9 +742,9 @@ class TestSpawnRecording:
         result = _run_pipeline(env)
 
         assert result.returncode == 0, result.stderr
-        filed = (Path(env["PIPELINE_TASKS_DIR"]) / "T-SNEAKY.md").read_text(encoding="utf-8")
-        assert "state: candidate" in filed and "state: ready" not in filed
+        filed = (Path(env["PIPELINE_TASKS_DIR"]) / "0001-sneaky.md").read_text(encoding="utf-8")
+        assert "state: draft" in filed and "state: ready" not in filed
         audit = (home / "logs" / "weekly-pipeline-audit.jsonl").read_text(encoding="utf-8")
         assert "SPAWN_STATE_NORMALIZED" in audit
         calls = (tmp_path / "claims-calls.txt").read_text(encoding="utf-8")
-        assert "spawn T-SNEAKY --origin gate" in calls
+        assert "spawn RFC-0001 --origin gate" in calls

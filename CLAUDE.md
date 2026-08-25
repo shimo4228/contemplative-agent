@@ -128,7 +128,10 @@ frontmatter の `state:` が状態、本文は自由記述（推奨様式は Rus
 [rfcs/README.md](rfcs/README.md)。**起票は公開可能な書き方でする** — 機微は本文に書かずリンク先へ
 逃がす（判断は [claude-harness ADR-0049](https://github.com/shimo4228/claude-harness/blob/main/docs/adr/0049-unify-task-ledger-into-public-rfcs.md)、
 2026-08-25 に `.notes/tasks/` から移送）。終端エントリは archive せずその場に残す — 却下理由ごと
-残るのが公開判断記録の価値。`.notes/TASKS.md` はもう無い（3 層機構は
+残るのが公開判断記録の価値。無人 weekly チェーン（`scripts/weekly-pipeline.sh`）もここへ
+`state: draft` で起票するが、**書くのは working tree まで** — 公開へ出す commit は土曜の
+`/weekly-gate` が機微点検してから行う（2026-08-25 著者判断、harness RFC-0001）。
+`.notes/TASKS.md` はもう無い（3 層機構は
 [ADR-0095](docs/adr/0095-retire-task-ledger-machinery.md) で 2026-08-16 に退役 —
 表の描画/読み戻し・状態機械・aging・weekly の第 7 intake を全部落とし、store と claims だけ残した）。
 

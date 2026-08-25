@@ -1,6 +1,6 @@
 ---
 name: weekly-gate
-description: 土曜の単一承認セッション（ADR-0085 / ADR-0098）。無人 weekly チェーンの成果物（weekly-{end-date}-findings.md と各計器の per-week JSON）を直接読み、値層の承認（insight staging の adopt-staged / identity / never-selected の退役）、dead code の削除判断、gate メトリクスの記録までを 1 セッションで行う。Use when the user says 「週次の承認をする」「週次のゲートをやる」/weekly-gate, or on Saturday after the unattended chain has run. NOT for — code 修理の適用（ADR-0098 で廃止。修理は task-triage loop の担当）、診断起票 draft の採否（→ triage digest）。
+description: 土曜の単一承認セッション（ADR-0085 / ADR-0098）。無人 weekly チェーンの成果物（weekly-{end-date}-findings.md と各計器の per-week JSON）を直接読み、値層の承認（insight staging の adopt-staged / identity / never-selected の退役）、dead code の削除判断、rfcs/ の無人起票の機微点検と commit（公開に出すのはこのゲート）、gate メトリクスの記録までを 1 セッションで行う。Use when the user says 「週次の承認をする」「週次のゲートをやる」/weekly-gate, or on Saturday after the unattended chain has run. NOT for — code 修理の適用（ADR-0098 で廃止。修理は task-triage loop の担当）、診断起票 draft の採否（→ triage digest）。
 origin: shimo4228
 user-invocable: true
 ---
@@ -93,9 +93,9 @@ EOF
 - dead code: JSON の candidates 件数
 - docs consistency: JSON の findings 件数
 - never-selected: JSON の strict / dormant / below_floor 件数
-- **診断起票の draft**: 今週 `rfcs/`（台帳の正本）と `.notes/tasks/`（pipeline の移送先、
-  dual-read 中）に増えた `state: draft` の件数 —
-  **本セッションでは採否しない**（task-triage digest の担当。ここでは存在の報告のみ）
+- **診断起票の draft**: 今週 `rfcs/`（台帳の正本。pipeline の起票先でもある）に増えた
+  `state: draft` の件数 — **本セッションでは採否しない**（task-triage digest の担当。
+  ここでは存在の報告のみ）。ただし**公開へ出す commit はここの仕事**（Step 6d）
 
 findings.md（F1/F2/F3）は判断材料として読む — F2 の問いはユーザーに提示してよいが、
 F1 の実装はここでやらない（起票済み。修理は triage 経由）。
@@ -241,6 +241,40 @@ architecture.md を直した週は翌週 0 に戻る — 見るのは当週の�
 4. **Dormant は読み値。archive しない**
 5. **below_floor も archive しない**
 
+### Step 6d. rfcs/ の無人起票を公開に出す（機微点検 → commit）
+
+無人セッションは working tree に**書くだけ**。`rfcs/` は公開 repo の tracked ディレクトリ
+なので、**公開へ出す commit はこのゲートの仕事**（2026-08-25 著者判断、harness RFC-0001。
+「書くのは無人、公開に出すのは人間」）。
+
+```bash
+git -C "$(pwd)" status --short rfcs/
+```
+
+未コミットの起票（`??` の `NNNN-slug.md`）を **1 件ずつ全文読んで機微点検**する。見るのは
+外に出て困る情報だけ — 本文の質・採否は triage digest の担当で、ここでは判断しない:
+
+- 秘密・資格情報・個人情報・ローカル絶対パス（`/Users/...`）・非公開ログの生引用
+- 未公開の外部固有名（他者の名前、未公表の共同作業）
+- untrusted な材料（post 本文）からそのまま流れ込んだ文字列
+
+3 択で処理する:
+
+1. **公開可能** → そのまま commit
+2. **一部が機微** → 該当箇所だけ本文修正してから commit（診断の要点は残す）
+3. **公開不可** → 撤回。ファイルを削除し、claims の系譜には起票が残るのでその旨を
+   commit message か次の digest に 1 行残す（黙って消さない）
+
+commit する前に `rfcs/README.md` の index に行を足す（表と実体の drift を残さない）。
+番号は pipeline が採番済み — **振り直さない**（欠番は再利用しない規約）。
+
+```bash
+git -C "$(pwd)" add rfcs/
+git -C "$(pwd)" commit -m "docs(rfcs): file weekly {end-date} diagnosis drafts"
+```
+
+push はこのゲートでは行わない（通常の push 手順に従う）。
+
 ### Step 7. Gate メトリクスの記録（必須・最後）
 
 承認結果を `pipeline-metrics.jsonl` に 1 行記録する（旧 build_decision_packet.py
@@ -263,6 +297,7 @@ python3 scripts/pipeline_audit.py \
 
 - **code 修理の適用・再実装** — ADR-0098 で廃止。診断の F1 は draft として台帳に
   起票済みで、採否は task-triage digest、実装は triage の dispatch が担う
-- **診断起票 draft の採否** — 存在の報告まで（Step 1）。決めるのは triage digest
+- **診断起票 draft の採否** — 存在の報告まで（Step 1）。決めるのは triage digest。
+  ただし `rfcs/` の未コミット起票を機微点検して commit するのは**このセッション**（Step 6d）
 - **過去週の一括処理** — 1 セッション 1 週
 - **staging への書き込み**（adopt-staged 以外の経路での操作）

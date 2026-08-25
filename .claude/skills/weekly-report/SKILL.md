@@ -63,12 +63,14 @@ quote の原文）へ立ち返って行い、レポート本文の要約を根�
 
 references/diagnosis.md の F1 self-check を**全項目**通った F1 だけを、1 件 1 ファイルで
 **staging** `$MOLTBOOK_HOME/reports/.private/tasks-{end-date}/T-<SLUG>.md` に Write する
-（live の台帳 `.notes/tasks/` には書けない — 並行セッションと衝突しないよう、検証と移送は
-pipeline が行う）。
+（live の台帳 `rfcs/` には書けない — 並行セッションと衝突しないよう、検証・採番・移送は
+pipeline が行う）。**採番はしない**: `T-<SLUG>` のまま書けば pipeline が
+`rfcs/NNNN-<slug>.md`（ID は `RFC-NNNN`）へ改名して移す。SLUG は移送後もファイル名に残る
+唯一の手がかりなので、診断の中身が分かる名前にする。
 
-**重複チェックは Phase 4 の冒頭で 1 回**: `rfcs/`（台帳の正本）、`.notes/tasks/`
-（pipeline の移送先、dual-read 中）、`.notes/archive/tasks/` を
-Glob して既存タスク名の一覧を作り、その一覧を全 draft に使い回す。本文は Read しない
+**重複チェックは Phase 4 の冒頭で 1 回**: `rfcs/`（台帳の正本）と
+`.notes/archive/tasks/`（旧 store の終端エントリ）を
+Glob して既存エントリ名の一覧を作り、その一覧を全 draft に使い回す。本文は Read しない
 （候補ごとに全件 Read すると 1 セッションで数百 Read になる）:
 
 ```yaml
@@ -86,9 +88,12 @@ origin: gate
 
 - 修正は実装しない。パッチも diff も書かない（must-not）
 - チェーン・計器自身への F1 も同じ扱い（起票どまり）。自己供給ループの弁はここ
-- claims.jsonl への spawn 記録と台帳への移送はこのセッションの仕事ではない — pipeline が
-  staging の検証後に決定論で行う（Bash はこのセッションに無い）。`state:` 行の無いファイルと
-  既存タスク名との衝突は staging に残される（黙って消えない）
+- claims.jsonl への spawn 記録と台帳への採番・移送はこのセッションの仕事ではない —
+  pipeline が staging の検証後に決定論で行う（Bash はこのセッションに無い）。`state:` 行の
+  無いファイルと名前が規約に合わないファイルは staging に残される（黙って消えない）
+- `rfcs/` は公開 repo の tracked ディレクトリだが、無人チェーンは**書くだけ**で commit
+  しない。公開へ出す commit は土曜の weekly-gate が機微点検してから行う
+  （2026-08-25 著者判断、harness RFC-0001）
 - 起票 0 件は正常な出力。無理に起こさない
 
 ## Related

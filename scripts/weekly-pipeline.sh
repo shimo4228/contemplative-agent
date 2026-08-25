@@ -1,14 +1,16 @@
 #!/bin/bash
 # Unattended weekly chain (ADR-0085; single-session redesign 2026-08-24):
 # materials → ONE claude session (/weekly-report: A-E synthesis + ja + diagnosis
-# + candidate task filing) → deterministic instruments (value-layer due check,
+# + draft RFC filing) → deterministic instruments (value-layer due check,
 # dead-code scan, docs-consistency scan, never-selected reading) → spawn
 # recording. Human involvement stays compressed into the Saturday gate
 # (/weekly-gate, which now reads the findings and instrument JSONs directly —
 # the decision-packet builder is retired); repairs are NOT made here: the
-# session files candidates into .notes/tasks/ and the task-triage loop
+# session files drafts into rfcs/ (the public ledger) and the task-triage loop
 # (Sat 14:07 tick) judges and dispatches them. Nothing here commits, pushes,
-# or adopts.
+# or adopts — the unattended run only writes the working tree, and the Saturday
+# gate is what puts a filing into a public commit (2026-08-25 author decision,
+# harness RFC-0001).
 #
 # Fail-forward: every stage failure becomes a reason code in the audit log and
 # the run continues. The one hard requirement is the report: with no complete
@@ -54,7 +56,7 @@ PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 # a no-op (2026-08-16 security review).
 cd "$PROJECT_ROOT" || { echo "ERROR: cannot cd to PROJECT_ROOT: $PROJECT_ROOT" >&2; exit 1; }
 # Same allowlist shape check as MOLTBOOK_HOME, same reason: the weekly
-# session's Edit rule over .notes/tasks/ is built from this path.
+# session's Edit rule over the staging dir is built from this path.
 if ! [[ "$PROJECT_ROOT" =~ ^[A-Za-z0-9._/@+-]+$ ]]; then
     echo "ERROR: PROJECT_ROOT contains permission-spec metacharacters: $PROJECT_ROOT" >&2
     exit 1
@@ -68,7 +70,11 @@ AUDIT="$MOLTBOOK_HOME/logs/weekly-pipeline-audit.jsonl"
 # Overridable for tests only: the fault column must be able to point the
 # filing seam at a sandbox store and a stub claims recorder without touching
 # the real ledger (.notes/claims.jsonl is append-only history).
-TASKS_DIR="${PIPELINE_TASKS_DIR:-$PROJECT_ROOT/.notes/tasks}"
+# rfcs/ is a TRACKED directory of the public repo (ADR-0049 / harness RFC-0001):
+# the unattended run only WRITES here — the commit that puts a filing in front
+# of the public is the Saturday weekly-gate's, after a human sensitivity pass
+# (2026-08-25 author decision).
+TASKS_DIR="${PIPELINE_TASKS_DIR:-$PROJECT_ROOT/rfcs}"
 CLAIMS_PY="${PIPELINE_CLAIMS_PY:-$HOME/.claude/scripts/claims.py}"
 # Same shape check as MOLTBOOK_HOME / PROJECT_ROOT, same reason: TASKS_DIR is
 # interpolated into the session's Edit rule (2026-08-24 security review LOW).
@@ -101,10 +107,10 @@ fi
 #
 # The weekly session reads the materials file (which embeds other agents'
 # post bodies inside a nonce frame — untrusted), synthesizes the report,
-# diagnoses it, and files candidate tasks. It holds NO Bash: everything it
+# diagnoses it, and files draft RFCs. It holds NO Bash: everything it
 # writes goes through Edit/Write under the exact-path rules below, and the
 # claims.jsonl spawn recording is done deterministically by this script from
-# the .notes/tasks/ file diff (the session cannot append to the claims log).
+# the staged filings (the session cannot append to the claims log).
 #
 # A name the CLI does not recognise in --tools is discarded in SILENCE
 # (measured 2026-08-15), so a renamed built-in shrinks the session with no
@@ -161,11 +167,11 @@ MATERIALS="$RUN_LOG_DIR/materials.md"
 # review MEDIUM: a truncated or injected report must never sit on a path the
 # public sync or next week's PREV_REPORTS glob can pick up).
 PRIVATE_DIR="$MOLTBOOK_HOME/reports/.private"
-# Per-run task staging: the session files candidates HERE, never into the
+# Per-run task staging: the session files drafts HERE, never into the
 # live store — the store supports concurrent sessions, so live-store writes
 # plus a directory diff would misattribute concurrent filings and let a
 # steered session clobber owner-written tasks (codex review 2026-08-24 P1).
-# The chain validates and moves staged candidates after the report gate.
+# The chain validates, numbers and moves staged drafts after the report gate.
 PRIVATE_TASKS="$PRIVATE_DIR/tasks-$END_DATE"
 REPORT_PATH="$REPORT_DIR/weekly-${END_DATE}.md"
 REPORT_JA="$REPORT_DIR/weekly-${END_DATE}.ja.md"
@@ -283,13 +289,13 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
         # Write grants (mechanic 3: Edit rules cover Write): everything the
         # session authors lands in reports/.private/ — the four report/
         # findings files plus a per-run task staging dir for Phase 4
-        # candidate filing. The session NEVER touches the live task store:
+        # draft filing. The session NEVER touches the live rfcs/ store:
         # the store supports concurrent sessions (a triage session or the
         # owner may write it during this 90-min run), so a live-store grant
         # plus a directory diff both misattributes concurrent filings and
         # lets a steered session clobber owner-written tasks with no history
         # to restore from (codex review 2026-08-24 P1). The chain validates
-        # and moves the staged candidates below, deterministically, and the
+        # and moves the staged drafts below, deterministically, and the
         # session holds no Bash — the claims.jsonl spawn append is the
         # chain's too.
         #
@@ -421,46 +427,74 @@ if [[ -e "$JOIN_PENDING" ]]; then
         || echo "WARNING: approval join state promote failed; next run reports no prior reading" >&2
 fi
 
-# --- Candidate intake (deterministic; the session cannot touch the store) ---
-# The session filed candidates into $PRIVATE_TASKS. Each staged file is
-# validated, moved into the live store, and recorded in claims.jsonl. A file
-# that fails validation stays quarantined in staging (visible to the Saturday
-# reader), never silently dropped and never half-adopted. Producer citations
-# are read from the file body (backtick `path:line`); a file with none is
-# still recorded (origin gate does not require --producer). Failures here
-# must not kill the chain — the moved task files are the ground truth and the
-# triage session reads the store, not the claims log.
+# --- Draft intake (deterministic; the session cannot touch the store) ---
+# The session filed drafts into $PRIVATE_TASKS under its own `T-<SLUG>.md`
+# diagnosis names. Each staged file is validated, RENAMED into the rfcs/
+# convention (`NNNN-slug.md`, ID `RFC-NNNN` — ADR-0049), moved into the live
+# store, and recorded in claims.jsonl. A file that fails validation stays
+# quarantined in staging (visible to the Saturday reader), never silently
+# dropped and never half-adopted. Producer citations are read from the file
+# body (backtick `path:line`); a file with none is still recorded (origin gate
+# does not require --producer). Failures here must not kill the chain — the
+# moved files are the ground truth and the triage session reads the store, not
+# the claims log.
+#
+# The BODY is never rewritten here beyond the `state:` line: the machine
+# contract (`claims.py ready` shows the first non-heading body line as the
+# summary) is the /weekly-report format's job — a filing that fails it is
+# fixed by the Saturday gate, not by an unattended edit.
 SPAWNED=0
+
+# Next number for rfcs/: max existing NNNN + 1, zero-padded to 4. Gaps are
+# never reused, so this is a max scan and not a count.
+next_rfc_number() {
+    local max=0 f base n
+    for f in "$TASKS_DIR"/[0-9][0-9][0-9][0-9]-*.md; do
+        [[ -e "$f" ]] || continue
+        base="$(basename "$f")"
+        n=$((10#${base:0:4}))   # 10# so 0009 is nine, not a bad octal
+        if (( n > max )); then max=$n; fi
+    done
+    printf '%04d' $((max + 1))
+}
+
 for staged in "$PRIVATE_TASKS"/*.md; do
     [[ -e "$staged" ]] || continue
-    newfile="$(basename "$staged")"
-    task_id="${newfile%.md}"
-    if ! [[ "$task_id" =~ ^T-[A-Z0-9][A-Z0-9-]*$ ]]; then
-        echo "WARNING: staged task with non-conforming name left in staging: $newfile" >&2
+    staged_name="$(basename "$staged" .md)"
+    if ! [[ "$staged_name" =~ ^T-[A-Z0-9][A-Z0-9-]*$ ]]; then
+        echo "WARNING: staged filing with non-conforming name left in staging: $staged_name.md" >&2
         add_reason SPAWN_RECORD_SKIPPED
         continue
     fi
+    # rfcs/ naming: the number is assigned HERE (the session cannot see the
+    # store's high-water mark) and the diagnosis-side name survives as the
+    # slug, so `T-OLLAMA-TOKENIZE` files as `0016-ollama-tokenize.md` /
+    # RFC-0016. `${x,,}` is bash 4; macOS ships 3.2, hence tr.
+    rfc_number="$(next_rfc_number)"
+    task_id="RFC-$rfc_number"
+    newfile="$rfc_number-$(printf '%s' "${staged_name#T-}" | tr '[:upper:]' '[:lower:]').md"
     if [[ -e "$TASKS_DIR/$newfile" ]]; then
-        # Never overwrite a task that already exists in the store — it may be
-        # the owner's or a concurrent session's.
-        echo "WARNING: staged task collides with an existing store entry, left in staging: $newfile" >&2
+        # Unreachable while the number is a max+1 scan, kept as the guard that
+        # a filing never overwrites an entry already in the store — the
+        # owner's or a concurrent session's.
+        echo "WARNING: staged filing collides with an existing store entry, left in staging: $newfile" >&2
         add_reason SPAWN_RECORD_SKIPPED
         continue
     fi
-    # ADR-0098 D2: filings are candidates — no readiness claim. A `state:`
-    # line other than candidate is normalized and named; a file with NO
-    # parseable state line stays in staging (claims.py ready would never
-    # surface it, so moving it would make the finding vanish silently —
-    # codex review 2026-08-24 P2).
+    # ADR-0098 D2: filings are candidates — no readiness claim. In the rfcs/
+    # vocabulary that state is `draft`. Any other `state:` line is normalized
+    # and named; a file with NO parseable state line stays in staging
+    # (claims.py would never surface it, so moving it would make the finding
+    # vanish silently — codex review 2026-08-24 P2).
     if ! grep -q '^state:' "$staged"; then
-        echo "WARNING: staged task has no state: line, left in staging: $newfile" >&2
+        echo "WARNING: staged filing has no state: line, left in staging: $staged_name.md" >&2
         add_reason SPAWN_RECORD_SKIPPED
         continue
     fi
-    if ! grep -q '^state: candidate' "$staged"; then
-        sed -i '' 's/^state: .*/state: candidate/' "$staged"
+    if ! grep -q '^state: draft' "$staged"; then
+        sed -i '' 's/^state: .*/state: draft/' "$staged"
         add_reason SPAWN_STATE_NORMALIZED
-        echo "WARNING: $newfile filed with a non-candidate state — normalized" >&2
+        echo "WARNING: $newfile filed with a non-draft state — normalized" >&2
     fi
     mv "$staged" "$TASKS_DIR/$newfile"
     # First backtick path:line citation in the body, if any.
@@ -470,7 +504,7 @@ for staged in "$PRIVATE_TASKS"/*.md; do
     producer_args=()
     [[ -n "$producer" ]] && producer_args=(--producer "$producer")
     if (cd "$PROJECT_ROOT" && python3 "$CLAIMS_PY" spawn "$task_id" \
-            --origin gate --note "weekly $END_DATE diagnosis" \
+            --origin gate --note "weekly $END_DATE diagnosis ($staged_name)" \
             ${producer_args[@]+"${producer_args[@]}"}) \
             >> "$RUN_LOG_DIR/spawn.log" 2>&1; then
         SPAWNED=$((SPAWNED + 1))
@@ -480,7 +514,7 @@ for staged in "$PRIVATE_TASKS"/*.md; do
     fi
 done
 audit stage_result stage=spawn result=ok spawned="$SPAWNED"
-echo "[$RUN_ID] filed candidates recorded: $SPAWNED"
+echo "[$RUN_ID] filed drafts recorded: $SPAWNED (uncommitted in rfcs/ — the Saturday gate commits)"
 fi  # REPORT_RAN
 
 # --- Stage 5b: value-layer cadence (read-only due check + monthly identity staging) ---
