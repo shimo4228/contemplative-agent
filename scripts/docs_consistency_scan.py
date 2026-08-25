@@ -417,9 +417,7 @@ def mechanism_freshness(
         return None, []
 
     def _fail(arm: str) -> tuple[None, list[dict]]:
-        return None, [
-            {"check": "mechanism_freshness", "reason": "GIT_FAIL", "detail": arm}
-        ]
+        return None, [{"check": "mechanism_freshness", "reason": "GIT_FAIL", "detail": arm}]
 
     pathspecs = [p for p in _MECHANISM_PATHSPECS if (root / p).is_dir()]
     if not pathspecs:

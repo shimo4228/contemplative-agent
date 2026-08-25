@@ -248,9 +248,7 @@ class TestMechanismFreshness:
         root = self._repo(tmp_path)
         calls: list[tuple[str, ...]] = []
 
-        reading, errors = dcs.mechanism_freshness(
-            root, self._run("aaaaaaaaaa", "5", calls)
-        )
+        reading, errors = dcs.mechanism_freshness(root, self._run("aaaaaaaaaa", "5", calls))
         assert errors == []
         # the count is anchored on architecture.md's own last commit and scoped
         # to the src/ pathspec — both are the reading's meaning, so pin them
@@ -269,13 +267,9 @@ class TestMechanismFreshness:
         root = self._repo(tmp_path)
         (root / "scripts").mkdir()
         calls: list[tuple[str, ...]] = []
-        reading, errors = dcs.mechanism_freshness(
-            root, self._run("aaaaaaaaaa", "5", calls)
-        )
+        reading, errors = dcs.mechanism_freshness(root, self._run("aaaaaaaaaa", "5", calls))
         assert errors == []
-        assert calls[1] == (
-            "rev-list", "--count", "aaaaaaaaaa..HEAD", "--", "src/", "scripts/"
-        )
+        assert calls[1] == ("rev-list", "--count", "aaaaaaaaaa..HEAD", "--", "src/", "scripts/")
         assert reading is not None and reading["pathspecs"] == ["src/", "scripts/"]
 
     def test_missing_mechanism_trees_are_git_fail_not_zero(self, tmp_path: Path):
@@ -319,9 +313,7 @@ class TestMechanismFreshness:
         # second shape of F-DOC-1: git exits 0 but the count is not a number —
         # a broken read must not land as src_commits_since 0 ("covenant clean")
         root = self._repo(tmp_path)
-        reading, errors = dcs.mechanism_freshness(
-            root, self._run("aaaaaaaaaa", "not-a-number")
-        )
+        reading, errors = dcs.mechanism_freshness(root, self._run("aaaaaaaaaa", "not-a-number"))
         assert reading is None
         assert [e["reason"] for e in errors] == ["GIT_FAIL"]
 
@@ -387,9 +379,7 @@ class TestScanIntegration:
         cm.mkdir(parents=True)
         (cm / "architecture.md").write_text("# arch\n", encoding="utf-8")
         (tmp_path / "src").mkdir()
-        result = dcs.scan(
-            tmp_path, ts=lambda p: 100, behind=lambda s: 0, run=lambda r, *a: None
-        )
+        result = dcs.scan(tmp_path, ts=lambda p: 100, behind=lambda s: 0, run=lambda r, *a: None)
         assert result["readings"]["mechanism"] is None
         assert "GIT_FAIL" in [e["reason"] for e in result["errors"]]
 
