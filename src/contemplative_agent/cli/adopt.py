@@ -73,9 +73,6 @@ from .store_paths import (
 logger = logging.getLogger(__name__)
 
 
-logger = logging.getLogger(__name__)
-
-
 # ADR-0074: one JSON record per staged insight candidate. Feeds the novelty
 # gate's known-theme inventory so a theme counts as "considered" once it
 # reached human review, whether or not it was adopted.

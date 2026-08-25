@@ -51,26 +51,14 @@ from .store_paths import (
 logger = logging.getLogger(__name__)
 
 
-# --- The store's exit (ADR-0097 Decision 5) ---------------------------------
-
 # Reason codes for a refused or half-finished archive. Every one of them also
 # produces a nonzero exit at the caller (ADR-0075: a store that did not shrink
 # must never read as a clean run), and every one names the skill it kept.
 _ARCHIVE_REFUSED_MISSING = "ARCHIVE_REFUSED_MISSING"
-
-
 _ARCHIVE_REFUSED_SYMLINK = "ARCHIVE_REFUSED_SYMLINK"
-
-
 _ARCHIVE_REFUSED_OUTSIDE = "ARCHIVE_REFUSED_OUTSIDE"
-
-
 _ARCHIVE_REFUSED_UNREADABLE = "ARCHIVE_REFUSED_UNREADABLE"
-
-
 _ARCHIVE_REFUSED_JUST_ADOPTED = "ARCHIVE_REFUSED_JUST_ADOPTED"
-
-
 # The destination resolves to the source, so the "move" would rewrite the one
 # copy and then unlink it. Security review 2026-08-22 reproduced two spellings:
 # `remove-skill .archive/old` (the name argument accepts a nested path, and
@@ -78,41 +66,25 @@ _ARCHIVE_REFUSED_JUST_ADOPTED = "ARCHIVE_REFUSED_JUST_ADOPTED"
 # the store. Both ended with the file gone, exit 0, and an audit row saying
 # `approved` for a path that no longer existed.
 _ARCHIVE_REFUSED_NOT_A_MOVE = "ARCHIVE_REFUSED_NOT_A_MOVE"
-
-
 # A file already inside `.archive/` has no second exit. `--archive-names`
 # cannot reach one (its store listing is a non-recursive glob); the
 # `remove-skill` name argument can, so that handler says so by name.
 _ARCHIVE_REFUSED_ALREADY_ARCHIVED = "ARCHIVE_REFUSED_ALREADY_ARCHIVED"
-
-
 _ARCHIVE_SUCCESSOR_NOT_ADOPTED = "ARCHIVE_SUCCESSOR_NOT_ADOPTED"
-
-
 _ARCHIVE_WRITE_FAILED = "ARCHIVE_WRITE_FAILED"
-
-
 _ARCHIVE_SOURCE_LEFT_BEHIND = "ARCHIVE_SOURCE_LEFT_BEHIND"
-
-
 # The move succeeded and its audit row did not reach disk. The only failure
 # here where the store DID shrink, so it cannot be retried blindly and is not
 # rolled back — putting the file back would delete from `.archive/`.
 _ARCHIVE_UNRECORDED = "ARCHIVE_UNRECORDED"
-
-
 # A paired archive whose destination the collision guard would rename. The
 # survivor's ``supersedes:`` is fixed before the guard runs, so it would name
 # ``.archive/old.md`` while the retirement landed at ``.archive/old-2.md`` —
 # pointing a reader at an unrelated earlier retirement.
 _ARCHIVE_REFUSED_LINEAGE_AMBIGUOUS = "ARCHIVE_REFUSED_LINEAGE_AMBIGUOUS"
-
-
 # The archive directory cannot hold a file: it is a regular file, or a link
 # out of the store. Knowable before the move, so the dry run checks it too.
 _ARCHIVE_REFUSED_BAD_DESTINATION = "ARCHIVE_REFUSED_BAD_DESTINATION"
-
-
 # ``approval._collision_free_path`` exhausted its 98 suffixes. It raises
 # rather than returning, and `.archive/` is never pruned by design, so the
 # collision space only grows — caught here so one name cannot kill the loop.
@@ -303,11 +275,50 @@ def _apply_archive_plan(plan: _ArchivePlan) -> _ArchiveResult:
     source = plan.source
     data_root = plan.data_root
     superseded_by = plan.superseded_by
+
+    # The source-side gates again, immediately before the read that follows
+    # links and the unlink that does not. **A plan is a decision, not a
+    # promise about the filesystem** — it is built before the dry run, and
+    # ``remove-skill`` then blocks on an approval prompt, so between planning
+    # and here the store can change. Swap the named file for a symlink out of
+    # the store in that window and, without this, apply reads through the
+    # link and copies foreign content into `.archive/` with an `approved`
+    # row (reproduced 2026-08-25; found independently by code review and
+    # security review, which is why it is closed rather than documented).
+    #
+    # The destination end was never trusted this way — it is re-checked below
+    # after the collision guard — so this only makes the two ends symmetric.
+    # The batch caller re-plans per item and never had the window; the fix
+    # costs it one redundant stat.
+    #
+    # **What this restores, and what it does not.** It puts the window back to
+    # what the pre-split code had: microseconds between this check and the
+    # read below, rather than the whole prompt. It does NOT eliminate the
+    # class — only an ``O_NOFOLLOW`` open reading from the fd would, the way
+    # ``core/_io.write_restricted`` does on the write side
+    # (T-WRITE-TMP-NOFOLLOW). That residue predates the split and is left as
+    # found; closing it is a change to the read primitive, not to this seam.
+    if source.is_symlink():
+        return _ArchiveResult(reason=_ARCHIVE_REFUSED_SYMLINK)
+    if not source.is_file():
+        return _ArchiveResult(reason=_ARCHIVE_REFUSED_MISSING)
+    if not _target_inside_data_root(source, data_root):
+        return _ArchiveResult(reason=_ARCHIVE_REFUSED_OUTSIDE)
+
     try:
         text = source.read_text(encoding="utf-8")
     except (OSError, ValueError) as err:
         return _ArchiveResult(reason=_ARCHIVE_REFUSED_UNREADABLE, detail=str(err))
 
+    # Both halves of an ADR-0097 supersede pair go through
+    # ``core.text_utils.set_frontmatter_field`` with ``synthesize=True``: legacy
+    # skills predate the emitted block, and a lineage pointer stapled above a bare
+    # ``# Title`` would not be found by any frontmatter reader. The value is a
+    # *filename*, not the frontmatter ``name:`` slug — a slug is only unique per
+    # date (``slug_from_stem`` exists precisely because two files can share one),
+    # whereas restoring an archived skill is a plain ``mv`` and a ``mv`` needs a
+    # filename. Both halves are validated against real files before they are
+    # stamped, so the scalar is never free text.
     if superseded_by:
         stamped = set_frontmatter_field(text, "superseded_by", superseded_by, synthesize=True)
         if not split_frontmatter(text)[0]:

@@ -1213,6 +1213,49 @@ class TestArchivePlanAgreesWithTheRun:
             TestRemoveSkillArchives()._run(tmp_path, TestRemoveSkillArchives._args("stale"))
         assert len(calls) == 1, f"asked {len(calls)} times: {calls}"
 
+    def test_apply_rechecks_the_source_it_was_planned_from(self, tmp_path):
+        """A plan is a decision, not a promise about the filesystem.
+
+        ``remove-skill`` plans before the dry run and then blocks on an
+        approval prompt, so the store can change between the two. Swapping
+        the named file for a symlink out of the store in that window used to
+        make apply read through the link, copy foreign content into
+        ``.archive/`` and write an ``approved`` row.
+
+        Found independently by code review and security review after the
+        plan/apply split landed; the destination end was already re-checked
+        after the collision guard, so this only makes the two ends symmetric.
+        """
+        skills = tmp_path / "skills"
+        skills.mkdir(parents=True)
+        source = skills / "stale.md"
+        source.write_text("# Stale\n", encoding="utf-8")
+        outside = tmp_path.parent / "secret.md"
+        outside.write_text("SECRET OUT OF STORE\n", encoding="utf-8")
+
+        plan = archive_mod._plan_archive(source, data_root=tmp_path, superseded_by=None)
+        assert not isinstance(plan, archive_mod._ArchiveResult)
+
+        source.unlink()
+        source.symlink_to(outside)  # the window
+
+        result = archive_mod._apply_archive_plan(plan)
+        assert result.reason == "ARCHIVE_REFUSED_SYMLINK"
+        assert result.destination is None
+        assert not (skills / ".archive").exists()
+        assert outside.read_text() == "SECRET OUT OF STORE\n"
+
+    def test_apply_rechecks_a_source_that_left_the_store(self, tmp_path):
+        """The other two source gates, same window."""
+        skills = tmp_path / "skills"
+        skills.mkdir(parents=True)
+        source = skills / "stale.md"
+        source.write_text("# Stale\n", encoding="utf-8")
+        plan = archive_mod._plan_archive(source, data_root=tmp_path, superseded_by=None)
+        assert not isinstance(plan, archive_mod._ArchiveResult)
+        source.unlink()
+        assert archive_mod._apply_archive_plan(plan).reason == "ARCHIVE_REFUSED_MISSING"
+
     def test_a_plan_is_never_applied_with_a_different_source(self):
         """The signature IS the guarantee, so pin the signature.
 

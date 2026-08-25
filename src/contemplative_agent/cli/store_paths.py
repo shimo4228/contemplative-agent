@@ -55,17 +55,6 @@ def _target_inside_data_root(target: Path, data_root: Path) -> bool:
         return False
 
 
-# Both halves of an ADR-0097 supersede pair go through
-# ``core.text_utils.set_frontmatter_field`` with ``synthesize=True``: legacy
-# skills predate the emitted block, and a lineage pointer stapled above a bare
-# ``# Title`` would not be found by any frontmatter reader. The value is a
-# *filename*, not the frontmatter ``name:`` slug — a slug is only unique per
-# date (``slug_from_stem`` exists precisely because two files can share one),
-# whereas restoring an archived skill is a plain ``mv`` and a ``mv`` needs a
-# filename. Both halves are validated against real files before they are
-# stamped, so the scalar is never free text.
-
-
 def _resolved_or_self(path: Path) -> Path:
     """``path.resolve()``, falling back to *path* when the filesystem says no.
 
