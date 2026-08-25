@@ -17,7 +17,10 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
     runtime.py (146L)         -- shared helpers, _repo_root()
     approval.py (231L)        -- approval-gate loop + audit.jsonl writer (ADR-0012)
     staging.py (181L)         -- insight --stage / pending-review staging dir
-    adopt.py (~1830L)         -- adopt-staged / remove-skill commands + the ADR-0097 D5 archive exit (skills/.archive/, --archive-names, supersedes:/superseded_by:)
+    adopt.py (1443L)          -- adopt-staged: plan / dispatch / report over the staging dir (--archive-names enters the exit here)
+    skill_archive.py (466L)   -- the ADR-0097 D5 exit, split plan/apply: _plan_archive decides without reading, _apply_archive_plan is the only mutation (skills/.archive/, supersedes:/superseded_by:)
+    remove_skill.py (330L)    -- remove-skill: flags, the two gates narrower than the primitive's, dry run, prompt, and the three audit sources (archive / remove / purge)
+    store_paths.py (132L)      -- containment predicates shared by the staged write and the archive move; one implementation each, which is what the containment argument rests on
     stocktake_cmd.py (197L)   -- skill-stocktake (quality report + usage reading + description audit; ADR-0097 retired rules-stocktake and the merge/clean/stage phases)
     memory_cmds.py (587L)     -- distill / insight / amend-constitution / shadow-constitution / distill-identity commands (rules-distill retired by ADR-0097)
     session_cmds.py (572L)    -- init / report / generate-report / meditate / sync-data / dialogue / dialogue-peer
@@ -43,7 +46,10 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
  |    episode_render.py (181L)    -- episode→prompt-text projection, extracted from distill.py (ADR-0079)
  |    insight.py (744L)           -- global clustering → behavior skill extraction (ADR-0050); novelty gate extracted per ADR-0079; ADR-0096 in-band abstain (the separate worth judge retired by ADR-0097)
  |    insight_novelty.py (434L)   -- ADR-0074 LLM novelty gate, extracted from insight.py (ADR-0079); re-exports text_utils.skill_theme
- |    skill_selection.py (1058L)   -- ADR-0076 shadow pass-1 skill-selection instrument + ADR-0081 two-pass injection enforcement
+ |    skill_selection.py (534L)    -- pass-1 skill selection, write side: ADR-0076 log + ADR-0081 two-pass injection enforcement
+ |    selection_window.py (170L)   -- shared day/window base for the two selection-log instruments
+ |    selection_metrics.py (919L)  -- ADR-0071 instrument: per-window reading of the selection log
+ |    never_selected_metrics.py (669L) -- ADR-0097 D5 instrument: never-selected exposure, strict + dormant
  |    constitution.py (151L)      -- constitutional amendment; ADR-0033 framing + ADR-0050 lineage
  |    constitution_shadow.py (278L) -- ADR-0092 read-only shadow instrument: patterns-only synthesis (no live constitution injected), divergence cosine/sha256 -> logs/constitution-shadow.jsonl
  |    stocktake.py (335L)         -- skill quality report + ADR-0081 usage reading + description audit (ADR-0097 reduced it: no grouping / merge / clean); run_rules_quality_check for the rules layer's maintenance reading

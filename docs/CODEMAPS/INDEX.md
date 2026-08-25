@@ -122,16 +122,16 @@ As of **2026-08-17** (live recount) — values are measured, never carried forwa
 
 | Metric | Value |
 |--------|-------|
-| Total `.py` files | 81 (72 non-`__init__` + 9 `__init__`) |
+| Total `.py` files | 85 (76 non-`__init__` + 9 `__init__`) |
 | LOC | ~28458 |
 | Test files | 99 (3827 tests collected) |
 | Eval layer modules | 8 (`evals/` excl. `__init__.py`; outside `src/` and outside the wheel — measures LLM output quality, ADR-0089) |
-| Core modules | 34 (platform-independent; 30 top-level modules + 4 in the `llm/` package) |
+| Core modules | 37 (platform-independent; 33 top-level modules + 4 in the `llm/` package) |
 | Moltbook adapter modules | 17 |
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |
 | Testing kit modules | 3 (`testing/` excl. `__init__.py`; ships in the wheel but is not production code — ADR-0088) |
-| CLI package modules | 11 (`cli/` excl. `__init__.py`, split from single `cli.py` per ADR-0079; `registry.py` + `agent_cmds.py` added when subcommand declaration moved out of `main`) |
+| CLI package modules | 14 (`cli/` excl. `__init__.py`, split from single `cli.py` per ADR-0079; `registry.py` + `agent_cmds.py` added when subcommand declaration moved out of `main`) |
 | CLI commands | see [moltbook-agent.md](moltbook-agent.md) CLI table or `contemplative-agent --help` |
 | Prompt templates / view seeds | canonical inventory in [CONFIGURATION.md](../CONFIGURATION.md#pipeline-prompts--view-seeds), guarded by `tests/test_packaged_assets.py` |
 | Config templates | 11 (config/templates/) |
