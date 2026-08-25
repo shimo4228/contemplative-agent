@@ -24,6 +24,12 @@
   "language": "eng",
   "related_identifiers": [
     {
+      "identifier": "https://github.com/shimo4228/contemplative-agent",
+      "relation": "isSupplementTo",
+      "resource_type": "software",
+      "scheme": "url"
+    },
+    {
       "identifier": "10.5281/zenodo.19200726",
       "relation": "references",
       "resource_type": "software",
