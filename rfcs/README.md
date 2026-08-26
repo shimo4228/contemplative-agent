@@ -28,3 +28,4 @@ frontmatter が唯一の正本**。
 | [0014](0014-skill-selection-instrument-reading.md) | skill 選択計器の定期読み |
 | [0015](0015-skill-name-hallucination-vs-catalog-size.md) | skill 名の幻覚率と catalog サイズの相関 |
 | [0016](0016-restore-surprise-instrument.md) | surprise 計器の復元（ADR-0097 D1 の部分 supersede 候補） |
+| [0017](0017-insight-extraction-redesign.md) | insight 抽出の再設計 — 頻度キー抽出に飽和と新規性の器官を与える |
