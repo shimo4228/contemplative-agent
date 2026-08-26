@@ -1,6 +1,6 @@
 ---
-state: draft
-state_since: 2026-08-22
+state: withdrawn
+state_since: 2026-08-26
 ---
 
 ## タスク
@@ -62,15 +62,29 @@ selected_count の p50 が下がる（6 → 5 前後）。**これは挙動が�
 旧 ID: T-SKILL-PROMOTE（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
 
+## 2026-08-26 triage 照合（無人 cycle）
+
+`draft` 維持。再開条件（親 `T-CONSOLIDATOR-REDESIGN` = `decided` 2026-08-22）は成立済みで、手は ADR-0097 Decision 7 の形 A′ に確定している。残るのは採否のみ = オーナー判断。本 cycle で Slack digest に 1 件として送付。
+
 ## Status
 
-draft — 親 `T-CONSOLIDATOR-REDESIGN` の結論が 2026-08-22 に出て再開条件は成立し、手は
-ADR-0097 Decision 7 の形 A′ に確定した。本文が使う `rules-distill` は退役したのでその手順は
-失効（2026-08-25）。採否はオーナー判断で `draft` 止まり。
+withdrawn 2026-08-26 — オーナー決定（triage セッション、ADR-0080 追補と同日）。
+提案の欠陥ではなく、上流の再設計が先という判断:
+
+1. co-selection family は頻度キーの抽出が変奏を量産した**症状**であり、ADR-0080
+   追補（代謝の質）はその producer（摂取装置に新規性の器官が無いこと）を直接
+   名指しした。認可された経路は摂取側の修理であって下流の層再配置ではない
+2. 昇格の前提「共通の姿勢がある」は「selector が識別できていない」と観測上
+   区別がつかない。摂取の再設計がその判別実験そのもの — 先に昇格すると永久に
+   切り分け不能になる
+3. ADR-0097 自身の「rules 層は小さく保つ」と、ADR-0080 の審査基準
+   （修理か、能力動機の拡大か）に照らして通らない
+
+**再提起条件**: 摂取装置が新規性の器官を得た後（RFC-0016 の復元または後継の
+新規性判定の出荷後）、≥ 500 judged の互いに素な窓 2 つ以上で co-selection
+family の any-of ≥ 0.75 が**なお**残存したら、「共通の姿勢」説が判別実験を
+生き残った証拠として再提案してよい。
 
 ## Next action
 
-- 採否判断待ち（形 A′ の実行可否。着手条件の「成立時」自体が `draft` と書かれている）
-- 判断材料: 昇格基準（family の any-of 選択率 ≥ 0.75 が互いに素な ≥ 500 judged の窓 2 つ以上）は
-  「制約」family で既に成立（4 窓 0.78 / 0.74 / 0.72 / 0.81。`scripts/coselection_families.py`
-  で再取得可）。入口 `promote-family` はスライス 2 で実装、archive とは同じ週に動かさない
+- なし（終端）。再提起条件は Status 節を参照
