@@ -1,8 +1,8 @@
 <!--
 FRESHNESS
-  generated: 2026-08-16
-  source-commit: b74382a
-  method: hand-authored from graph.jsonld (concept layer) + launchd plists + weekly/daily driver scripts + harness role contracts + sibling-repo DOIs; north-star section points to ADR-0080 (canonical)
+  generated: 2026-08-26
+  source-commit: 117b04b
+  method: hand-authored from graph.jsonld (concept layer) + launchd plists + weekly/daily driver scripts + harness role contracts + sibling-repo DOIs; north-star section is a pointer only (canonical: ADR-0080; operative summary: CLAUDE.md § 北極星, moved 2026-08-26)
   refresh: re-verify the master table rows and operating model against live assets (see "Sources & verification" at the bottom) after any change to schedules, pipelines, orchestration contracts, or the research-program repo set
 -->
 
@@ -67,23 +67,11 @@ source of truth.
 
 ---
 
-## North star — what "done" means per layer
+## North star (pointer)
 
-The program's desired end state is defined **per layer, as completion conditions — not as a
-capability target** (canonical: [ADR-0080](adr/0080-north-star-layered-end-state.md); this section
-only points there):
-
-- **Mechanism layer (code)** — done = it stops moving; changes become repair-only
-- **Value layer** (identity / constitution / skills / rules) — no destination; done = legible
-  evolution continues, every change traceable and explicable offline
-- **Research layer** — done = the founding questions answered and crystallized into papers,
-  diffused into the machine-reference sphere (derivation = success)
-- **Security layer** — done = absence preserved (succeeds by not changing)
-- **Ending design** — a designed termination of the heartbeat; the final deliverable is the
-  longitudinal record (dataset + papers), not the agent instance
-
-Benchmarks may be derived from this definition as per-layer gates, but the definition itself is
-not reducible to any benchmark suite (ADR-0080's benchmark non-reducibility clause).
+Canonical: [ADR-0080](adr/0080-north-star-layered-end-state.md) (amended 2026-08-26 —
+autonomous metabolism and metabolic quality). Operative summary: `CLAUDE.md` § 北極星
+(loaded every session; synced in the same PR as any ADR-0080 amendment).
 
 ---
 

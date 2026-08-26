@@ -66,6 +66,19 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 
 全 CLI 一覧は [docs/CODEMAPS/moltbook-agent.md](docs/CODEMAPS/moltbook-agent.md) を参照。migration 系（`embed-backfill` / `migrate-patterns` / `migrate-categories`）は ADR-0035 で sunset 済み — v1.x ストアから移行する場合のみ v2.0.x release tag から実行。
 
+## 北極星（north star）
+
+望ましい最終状態は**層別の完成条件**で定義する（能力目標にしない。正本は [ADR-0080](docs/adr/0080-north-star-layered-end-state.md) + 2026-08-26 追補 — ここは操作面の要約。ADR を追補したら本節を同 PR で同期する）:
+
+- **機構層（コード）** = 止まるのが完成。変更は修理のみ。**未完成の判定（2026-08-26 追補、必要条件）**: Moltbook とのフィードバックループ（episode → patterns → skills → 選択 → 生成 → Moltbook へ戻る）が、オーナーと Claude Code の日常的関与なく自己調節して回らない間は未完成。人間の承認ゲートは権限として残り、**負荷**がゼロに近づく（ゲートの溶解ではない。十分性の判断は人間）
+- **価値層**（identity / constitution / skills / rules） = 到達点なし。legible な進化が続くこと自体が望ましい状態（observation-over-steering により目標状態の定義は禁止）
+- **代謝の質（2026-08-26 追補、機構層の摂取装置への要件）** = 頻度単独では価値を判定できない。抽出・採用は複数軸（例: 新規性・重要度・環境の反応 — 列挙は開いたまま）で見分けられること。単一スカラーへの還元は禁止。軸の判定者の選定は下流の設計に残す（重要度は ADR-0056 の ablation 証拠が立ったまま）
+- **研究層** = 建立時の問いが結晶（論文化）・拡散され、派生されることが成功
+- **セキュリティ層** = absence 維持（変わらないことが成功）
+- **終わり方の設計** = heartbeat の終了条件を持つ（具体化は [RFC-0006](rfcs/0006-heartbeat-end-state-criteria.md)）。最終成果物は縦断記録（データセット + 論文）であってエージェントインスタンスではない
+
+ベンチマークは層別ゲートとして派生してよいが、この定義自体はベンチマークスイートに還元できない（Goodhart ガード）。新機能・機構提案の審査に使う: 機構層は「修理か、能力動機の拡大か」、価値層介入は「進化を legible に保つか、どこかへ誘導するか」。
+
 ## 開発原則
 
 - **Immutability**: DTO とドメインオブジェクトは `frozen=True`（例外なし）。詳細は [architecture.md#Immutability](docs/CODEMAPS/architecture.md#immutability)

@@ -117,6 +117,14 @@ LLM コールを残し、バッチごとのコストを受容する案。却下:
 - AKC は影響を受けない: ADR-0053 の amendment が AKC P1-5 promotion question を won't-do として閉じ、
   AKC は position paper を含め importance 機構を扱わないことを確立した。
 
+## 注記 (2026-08-26) — ADR-0080 追補が重要度を north-star の軸として名指した
+
+ADR-0080 の 2026-08-26 追補（代謝の質の条項）は、代謝の摂取側が価値を見分ける
+べき軸の例として重要度を挙げた。この名指しは重要度計器の復活では**ない**: 本 ADR
+の事前登録 ablation 証拠（822 pattern で Kendall tau 0.843、insight batch の
+top-3/top-5 順序が同一）は立ったままであり、将来の重要度計器はその証拠を明示的に
+supersede しなければならない。
+
 ## Related
 
 - [ADR-0053](./0053-importance-encoding-time-significance.ja.md) — 観測時の手応えとしての importance;

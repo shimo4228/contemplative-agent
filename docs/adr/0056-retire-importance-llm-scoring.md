@@ -124,6 +124,15 @@ the next save. A migration command would be code to write, run, and then retire.
 - AKC is unaffected: ADR-0053's amendment closed the AKC P1-5 promotion question as won't-do and
   established that AKC — the position paper included — does not cover the importance mechanism.
 
+## Note (2026-08-26) — ADR-0080 amendment names importance as a north-star axis
+
+The ADR-0080 amendment of 2026-08-26 (metabolic-quality clause) lists
+importance as an example axis along which the metabolism's intake must be
+able to distinguish value. That naming does **not** reinstate an importance
+instrument: this ADR's pre-registered ablation evidence (Kendall tau 0.843
+over 822 patterns; identical top-3/top-5 insight batch order) stands, and
+any future importance instrument must supersede that evidence explicitly.
+
 ## Related
 
 - [ADR-0053](./0053-importance-encoding-time-significance.md) — Importance as Encoding-Time
