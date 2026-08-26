@@ -27,3 +27,4 @@ frontmatter が唯一の正本**。
 | [0013](0013-skill-family-promotion-to-rules.md) | skill family の共通姿勢を rule へ昇格する |
 | [0014](0014-skill-selection-instrument-reading.md) | skill 選択計器の定期読み |
 | [0015](0015-skill-name-hallucination-vs-catalog-size.md) | skill 名の幻覚率と catalog サイズの相関 |
+| [0016](0016-restore-surprise-instrument.md) | surprise 計器の復元（ADR-0097 D1 の部分 supersede 候補） |
