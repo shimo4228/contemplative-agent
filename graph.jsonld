@@ -1185,9 +1185,12 @@
       ],
       "name": "ADR-0040: Separate Code-Level Findings from Weekly Self-Reflection Report",
       "identifier": "ADR-0040",
-      "status": "accepted",
+      "status": "partially-superseded-by ADR-0099",
       "datePublished": "2026-05-19",
-      "description": "Removes the F section (structural recommendations / identity-level questions / pure observations) from the weekly-analysis prompt and produces it separately via the `weekly-report-diagnosis` skill, which reads the weekly report's E section together with the codebase, ADRs, and current identity/constitution/skills/rules. The weekly LLM lacked the context to verify F1 proposals against actual code state, producing systematic failures (three documented examples in weekly-2026-05-17: num_predict cap unused, cut-off boundary marker already implemented, MMR misapplied to a path not used at reply time)."
+      "description": "Removes the F section (structural recommendations / identity-level questions / pure observations) from the weekly-analysis prompt and produces it separately via the `weekly-report-diagnosis` skill, which reads the weekly report's E section together with the codebase, ADRs, and current identity/constitution/skills/rules. The weekly LLM lacked the context to verify F1 proposals against actual code state, producing systematic failures (three documented examples in weekly-2026-05-17: num_predict cap unused, cut-off boundary marker already implemented, MMR misapplied to a path not used at reply time).",
+      "partiallySupersededBy": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0099-weekly-report-instrument-redesign.md"
+      ]
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0041-engagement-gradient-asymmetry-in-self-post-prompt.md",
@@ -2604,6 +2607,21 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0085-unattended-weekly-fix-chain-single-saturday-gate.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0091-value-layer-cadence-in-the-weekly-chain.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0093-repo-plane-deterministic-intakes.md"
+      ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0099-weekly-report-instrument-redesign.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0099: Weekly Report Content Redesign: From A–E Quote Audit to a Six-Section Instrument Document",
+      "identifier": "ADR-0099",
+      "status": "accepted — partially-supersedes ADR-0040",
+      "datePublished": "2026-08-26",
+      "description": "Replaces the saturated A-E quote-audit weekly report (same findings re-confirmed across 6-8 consecutive reports) with a six-section instrument document (Inventory / Ledger / Deviations / Exceptions / Sample / Discarded): deviation-driven against gate-declared baselines, recurrence compressed to one-line O-NNN ledger references (append-only observation-ledger.jsonl, session stages a delta, pipeline validates and appends), evaluative/predictive vocabulary prohibited, evidence limited to verbatim quote / diff / self-distribution comparison with replay pointers, and the writer's selection function made legible (Discarded appendix + deterministic seeded random sample as control channel). The operator no longer reads the document directly: the Saturday weekly-gate session explains each pending decision item-by-item in plain Japanese with a bounded recommendation (full queue shown, per-axis evidence separated, no composite score, per-item gate_item logging); Japanese report translations retired. Diagnosis survives with input moved from section E to Deviations + Exceptions. Design adopted from the independent convergence of two fresh-context agents; re-anchors the report as the reading instrument for the ADR-0080 amendment (autonomous metabolism, metabolic quality).",
+      "partiallySupersedes": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0040-separate-code-level-findings.md"
       ]
     },
     {

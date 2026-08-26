@@ -30,13 +30,12 @@ REPO_ROOT = _repo_root()
 # Prompt documents consumed by scripts / skills rather than the
 # PromptTemplates registry. A stem listed here must name its consumer:
 # - principles / weekly-analysis → scripts/weekly-analysis.sh (materials) and
-#   the /weekly-report skill (A-E synthesis)
-# - weekly-analysis-ja → the /weekly-report skill (ja rendering; ADR-0098 —
-#   the fix/review/improve prompts retired with their stages)
+#   the /weekly-report skill (instrument-document synthesis; ADR-0098 —
+#   the fix/review/improve prompts retired with their stages,
+#   weekly-analysis-ja retired with the ja rendering — RFC-0010/ADR-0099)
 SCRIPT_READ_PROMPTS = {
     "principles",
     "weekly-analysis",
-    "weekly-analysis-ja",
 }
 
 

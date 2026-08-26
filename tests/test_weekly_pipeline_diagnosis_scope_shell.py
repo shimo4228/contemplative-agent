@@ -102,21 +102,17 @@ FINDINGS_MD = """# Weekly findings
 
 # Records argv NUL-delimited (a future --system-prompt would carry newlines and
 # splitlines() would silently fabricate argv entries), then plays the skill's
-# side of the contract — the report pair and the findings pair — so the stage
-# reads as ok.
+# side of the contract — the report and the findings (translations retired
+# with RFC-0010) — so the stage reads as ok.
 CLAUDE_STUB = """#!/bin/bash
 printf '%s\\0' "$@" > "$STUB_STATE/diagnosis_args"
 cp "$STUB_STATE/report_body.md" "$STUB_REPORT"
-cp "$STUB_STATE/report_body.md" "${STUB_REPORT%.md}.ja.md"
 cp "$STUB_STATE/findings_body.md" "$STUB_FINDINGS"
-cp "$STUB_STATE/findings_body.md" "${STUB_FINDINGS%.md}.ja.md"
 exit 0
 """
 
 REPORT_MD = (
-    "## A. Quantitative Summary\n\n## B. Agent State Snapshot\n\n"
-    "## C. Engagement Patterns\n\n## D. Change Points\n\n"
-    "## E. Qualitative Highlights\n"
+    "## Inventory\n\n## Ledger\n\n## Deviations\n\n## Exceptions\n\n## Sample\n\n## Discarded\n"
 )
 
 
@@ -304,8 +300,9 @@ def _writable(argv: list[str], path: str) -> bool:
 
 
 def test_d_scope_1_session_outputs_stay_writable(diagnosis_argv):
-    """The session's own outputs must remain in scope: the report pair, the
-    findings pair, and the sandboxed task store for candidate filing.
+    """The session's own outputs must remain in scope: the report, the
+    findings, the staged observation-ledger delta (RFC-0010), and the
+    sandboxed task store for candidate filing.
 
     Over-tightening here is the expensive failure: the session would fail to
     author its artifacts and the week would be missing until the Saturday
@@ -316,9 +313,8 @@ def test_d_scope_1_session_outputs_stay_writable(diagnosis_argv):
 
     for name in (
         f"weekly-{END_DATE}.md",
-        f"weekly-{END_DATE}.ja.md",
         f"weekly-{END_DATE}-findings.md",
-        f"weekly-{END_DATE}-findings.ja.md",
+        f"ledger-delta-{END_DATE}.jsonl",
     ):
         assert _writable(argv, f"{private}/{name}"), (
             f"{name} is the session's own staged output and must stay writable; "
@@ -353,6 +349,9 @@ def test_d_scope_2_control_inputs_and_gate_artifacts_are_out_of_scope(diagnosis_
         f"{home}/reports/analysis/weekly-{END_DATE}-findings.md",
         f"{home}/reports/analysis/weekly-{OTHER_DATE}-findings.md",
         f"{home}/reports/analysis/weekly-{OTHER_DATE}.md",
+        # The canonical observation ledger (RFC-0010): the session stages a
+        # delta; only the chain's validated append may touch ledger history.
+        f"{home}/reports/analysis/observation-ledger.jsonl",
         f"{home}/reports/comment-reports/comment-report-{END_DATE}.md",
         f"{REPO_ROOT}/src/contemplative_agent/core/llm.py",
         f"{REPO_ROOT}/scripts/weekly-pipeline.sh",

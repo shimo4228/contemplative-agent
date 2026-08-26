@@ -60,6 +60,14 @@ repairing itself.
    ledger-candidate filing in one straight-through session. The prior
    `weekly-report-diagnosis` skill is absorbed and retired.
 
+   > **注記 (2026-08-26, ADR-0099)**: the session's *content* changed under
+   > [ADR-0099](0099-weekly-report-instrument-redesign.md) (RFC-0010): the
+   > A–E synthesis became the six-section instrument document, the Japanese
+   > translation step was retired, and the diagnosis input moved from
+   > section E to the document's Deviations + Exceptions. The single-session
+   > structure, containment, filing-to-triage path, and everything else in
+   > this ADR stand unchanged.
+
 2. **Remove the unattended LLM fix / review / improve / insight-recommendation
    stages.** Diagnosis stops short of repair: findings are filed as
    candidates under the task ledger store (`tasks/T-*.md`) (producer `file:line` required; no

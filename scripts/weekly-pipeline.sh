@@ -174,9 +174,13 @@ PRIVATE_DIR="$MOLTBOOK_HOME/reports/.private"
 # The chain validates, numbers and moves staged drafts after the report gate.
 PRIVATE_TASKS="$PRIVATE_DIR/tasks-$END_DATE"
 REPORT_PATH="$REPORT_DIR/weekly-${END_DATE}.md"
-REPORT_JA="$REPORT_DIR/weekly-${END_DATE}.ja.md"
 FINDINGS_MD="$REPORT_DIR/weekly-${END_DATE}-findings.md"
-FINDINGS_JA="$REPORT_DIR/weekly-${END_DATE}-findings.ja.md"
+# Japanese translations retired with the RFC-0010 instrument redesign
+# (2026-08-26): the operator no longer reads this document directly — the
+# Saturday gate session explains each pending decision in Japanese instead.
+# Historical .ja.md files stay in place untouched.
+LEDGER_FILE="$REPORT_DIR/observation-ledger.jsonl"
+LEDGER_DELTA_STAGED="$PRIVATE_DIR/ledger-delta-${END_DATE}.jsonl"
 
 START_EPOCH=$(date +%s)
 REASONS=""          # accumulated reason codes (comma separated)
@@ -219,14 +223,17 @@ with_timeout() {  # with_timeout <seconds> <cmd...>
 }
 
 # The report's machine contract (moved here from weekly-analysis.sh when that
-# script became materials-only): a csv of the absent A-E section headings,
+# script became materials-only): a csv of the absent section headings,
 # empty = complete. Size is not the contract — 2026-08-21 promoted a
-# 37,409-byte report whose A-C were gone. Letter prefix only: heading wording
-# is the model's to vary, the letter is the format's.
+# 37,409-byte report whose head was gone. Since the RFC-0010 instrument
+# redesign (2026-08-26) the contract is the six instrument headings; content
+# under each is conditional (one honest line is complete), the headings are
+# not. Exact heading words, not letters: the format version is part of the
+# calibration stamp longitudinal readers partition by.
 report_missing_parts() {  # report_missing_parts <file>
-    local file="$1" letter missing=""
-    for letter in A B C D E; do
-        grep -q "^## $letter\." "$file" || missing="${missing:+$missing,}$letter"
+    local file="$1" heading missing=""
+    for heading in Inventory Ledger Deviations Exceptions Sample Discarded; do
+        grep -q "^## $heading" "$file" || missing="${missing:+$missing,}$heading"
     done
     printf '%s' "$missing"
 }
@@ -258,7 +265,8 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
           "$REPORT_DIR"/.approval-join-state.pending*
     mkdir -p "$PRIVATE_DIR" "$PRIVATE_TASKS"
     chmod 700 "$PRIVATE_DIR" 2>/dev/null || true
-    rm -f "$PRIVATE_DIR"/weekly-"$END_DATE"*.md "$PRIVATE_TASKS"/*.md
+    rm -f "$PRIVATE_DIR"/weekly-"$END_DATE"*.md "$PRIVATE_TASKS"/*.md \
+          "$PRIVATE_DIR"/ledger-delta-"$END_DATE".jsonl
     if ! bash "$SCRIPTS/weekly-analysis.sh" --end-date "$END_DATE" --days "$DAYS" \
             --out "$MATERIALS" > "$RUN_LOG_DIR/materials.log" 2>&1; then
         audit stage_result stage=materials result=fail reason=MATERIALS_FAIL
@@ -287,9 +295,13 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
         # beside them. Read denies cover Grep too (verified 2026-08-15).
         #
         # Write grants (mechanic 3: Edit rules cover Write): everything the
-        # session authors lands in reports/.private/ — the four report/
-        # findings files plus a per-run task staging dir for Phase 4
-        # draft filing. The session NEVER touches the live rfcs/ store:
+        # session authors lands in reports/.private/ — the report and
+        # findings files, the staged observation-ledger delta (RFC-0010:
+        # the session proposes rows; this chain validates and appends to the
+        # canonical ledger after the structural gate, so a steered session
+        # cannot rewrite ledger history), plus a per-run task staging dir
+        # for Phase 4 draft filing. The session NEVER touches the live
+        # rfcs/ store:
         # the store supports concurrent sessions (a triage session or the
         # owner may write it during this 90-min run), so a live-store grant
         # plus a directory diff both misattributes concurrent filings and
@@ -318,7 +330,7 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
             --tools "$WEEKLY_TOOLS" \
             --strict-mcp-config \
             --setting-sources project \
-            --allowedTools "Glob,Grep,Read(/$PROJECT_ROOT/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE.ja.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.ja.md),Edit(/$PRIVATE_TASKS/**)" \
+            --allowedTools "Glob,Grep,Read(/$PROJECT_ROOT/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$LEDGER_DELTA_STAGED),Edit(/$PRIVATE_TASKS/**)" \
             --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/logs/20*.jsonl*),Read(/$MOLTBOOK_HOME/logs/agent-launchd.log*),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$MOLTBOOK_HOME/skills/**),Edit(/$MOLTBOOK_HOME/rules/**),Edit(/$MOLTBOOK_HOME/constitution/**),Edit(/$MOLTBOOK_HOME/identity.md),Edit(/$MOLTBOOK_HOME/knowledge.json)" \
             --output-format text \
             > "$RUN_LOG_DIR/weekly-session.log" 2>&1; then
@@ -350,11 +362,54 @@ if [[ "$REPORT_RAN" -eq 1 ]]; then
         echo "       quarantined in $PRIVATE_DIR; canonical report untouched. Aborting" >&2
         exit 1
     fi
+    # Observation-ledger delta (RFC-0010): validate + append BEFORE the report
+    # promote. The report cites the O-ids its delta introduces, and _next_id()
+    # derives ids from ledger rows alone — promoting a report whose delta was
+    # then rejected would let next week mint the same O-id for a different
+    # observation (silent longitudinal corruption, code review 2026-08-26
+    # MEDIUM-HIGH). Fail-closed per delta: any invalid row rejects the whole
+    # file, the report is quarantined beside it, and the previous canonical
+    # report stays untouched. An absent/empty delta is normal (a quiet week
+    # stages no rows) — the structural gate above already passed, so the
+    # ordering still guarantees "a week whose report never lands writes no
+    # ledger history".
+    if [[ -s "$LEDGER_DELTA_STAGED" ]]; then
+        if python3 "$SCRIPTS/observation_ledger.py" append \
+                --ledger "$LEDGER_FILE" --delta "$LEDGER_DELTA_STAGED" \
+                >> "$RUN_LOG_DIR/ledger-append.log" 2>&1; then
+            audit stage_result stage=ledger result=ok
+            rm -f "$LEDGER_DELTA_STAGED"
+        else
+            audit stage_result stage=ledger result=fail reason=LEDGER_DELTA_INVALID
+            echo "ERROR: observation-ledger delta rejected (see $RUN_LOG_DIR/ledger-append.log) —" >&2
+            echo "       report + delta quarantined in $PRIVATE_DIR; canonical report untouched. Aborting" >&2
+            exit 1
+        fi
+    fi
     mv "$PRIVATE_REPORT" "$REPORT_PATH"
-    if [[ -s "$PRIVATE_DIR/weekly-${END_DATE}.ja.md" ]]; then
-        mv "$PRIVATE_DIR/weekly-${END_DATE}.ja.md" "$REPORT_JA"
+
+    # Sample verbatim check (RFC-0010 control channel, code review 2026-08-26
+    # MEDIUM): the Sample section exists to be the one part of the document
+    # the writer cannot curate, and a trimmed / reordered / annotated copy is
+    # exactly the failure it exists to detect. Every sample line the collector
+    # emitted (entry headers + excerpt lines) must appear verbatim in the
+    # promoted report. A reason code, not an abort — the document is still a
+    # valid observation record; the broken control channel is what the gate
+    # needs to know. A sampler-failed week emits no such lines and passes.
+    SAMPLE_MISSING=""
+    while IFS= read -r line; do
+        if ! grep -qxF -- "$line" "$REPORT_PATH"; then
+            SAMPLE_MISSING="$line"
+            break
+        fi
+    done < <(grep -E '^### Sample [0-9]+/|^\*\*(Context \(counterparty, untrusted\)|Output \(agent\)):\*\*' "$MATERIALS" 2>/dev/null || true)
+    if [[ -n "$SAMPLE_MISSING" ]]; then
+        add_reason SAMPLE_NOT_VERBATIM
+        audit stage_result stage=sample_verbatim result=fail reason=SAMPLE_NOT_VERBATIM
+        echo "WARNING: report's Sample section is not a verbatim copy (first missing line logged)" >&2
+        printf 'missing sample line: %s\n' "$SAMPLE_MISSING" >> "$RUN_LOG_DIR/sample-verbatim.log"
     else
-        add_reason REPORT_JA_MISSING
+        audit stage_result stage=sample_verbatim result=ok
     fi
 
     # Findings are advisory (the repairs travel through the task ledger), so
@@ -367,16 +422,11 @@ if [[ "$REPORT_RAN" -eq 1 ]]; then
         # A same-week rerun must not leave an EARLIER attempt's findings
         # standing beside the fresh report — the gate and watchdog would read
         # them as this run's diagnosis (codex review 2026-08-24 P2).
-        for stale in "$FINDINGS_MD" "$FINDINGS_JA"; do
-            [[ -e "$stale" ]] && mv "$stale" "$PRIVATE_DIR/$(basename "$stale").superseded-$RUN_ID"
-        done
+        if [[ -e "$FINDINGS_MD" ]]; then
+            mv "$FINDINGS_MD" "$PRIVATE_DIR/$(basename "$FINDINGS_MD").superseded-$RUN_ID"
+        fi
     else
         mv "$PRIVATE_FINDINGS" "$FINDINGS_MD"
-        if [[ -s "$PRIVATE_DIR/weekly-${END_DATE}-findings.ja.md" ]]; then
-            mv "$PRIVATE_DIR/weekly-${END_DATE}-findings.ja.md" "$FINDINGS_JA"
-        else
-            add_reason FINDINGS_JA_MISSING
-        fi
         audit stage_result stage=diagnosis result=ok
     fi
 fi

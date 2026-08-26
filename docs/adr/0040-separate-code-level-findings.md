@@ -2,7 +2,10 @@
 
 ## Status
 
-accepted
+partially-superseded-by [ADR-0099](0099-weekly-report-instrument-redesign.md) — the A–E
+section format and the section-E analytical center are replaced by the six-section
+instrument document; the observation/diagnosis separation and the context-gap analysis
+stand (see the dated note in Decision)
 
 ## Date
 
@@ -42,6 +45,14 @@ The `principles.md` guard rails (Principle 1: no post-generation filter; Princip
 The same context-gap problem applies to F2 (writing meaningful identity-level questions requires the current full text of identity/constitution/skills/rules plus prior ADRs) and F3 (judging whether a pattern is "self-sustaining" or "reproducible" requires understanding the generation pipeline structure).
 
 ## Decision
+
+> **注記 (2026-08-26, ADR-0099)**: The A–E section format below is retired by
+> [ADR-0099](0099-weekly-report-instrument-redesign.md) (RFC-0010) — the report is now a
+> six-section instrument document (Inventory / Ledger / Deviations / Exceptions / Sample /
+> Discarded). What still stands from this ADR: the observation/diagnosis separation itself
+> (the report stays proposal-free; code-level findings are produced by the downstream
+> diagnosis phase with codebase access), and the context-gap analysis that motivated it.
+> The diagnosis input moves from section E to the Deviations + Exceptions sections.
 
 The weekly report focuses exclusively on observation (sections A–E):
 

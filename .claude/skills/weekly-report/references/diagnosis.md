@@ -8,7 +8,8 @@ Context 膨張を避けるため以下の順で読み、途中で十分なら止
 
 ### Step 1. Always（必須）
 
-- 生成した weekly report の全文（特に E）— ただし F の根拠は materials の原資料へ立ち返る
+- 生成した weekly 観察文書の全文（診断の入力は **Deviations と Exceptions の 2 節** —
+  RFC-0010 の再設計で旧 E 節を置換）— ただし F の根拠は materials の原資料へ立ち返る
 - `config/prompts/principles.md`
 - `docs/CODEMAPS/INDEX.md`、`docs/adr/README.md`
 - タスク台帳 `rfcs/NNNN-*.md`（正本。このセッションの起票先でもある）
@@ -44,9 +45,14 @@ Context 膨張を避けるため以下の順で読み、途中で十分なら止
 
 | 種類 | 内容 | 必須要素 |
 |---|---|---|
-| F1 | コード / スキーマ / パイプライン diff として表現できる介入 | `Source quote (E #N)`, `Code reference` (file:line), `Structural change`, `Why structural not symptomatic` |
+| F1 | コード / スキーマ / パイプライン diff として表現できる介入 | `Source (O-NNN / Exceptions entry)`, `Code reference` (file:line), `Structural change`, `Why structural not symptomatic` |
 | F2 | Identity / Constitution / Rules / Skills 層の編集に関する question form | `?` で終わる問い, `What current state addresses (or does not)`（現テキスト引用） |
 | F3 | 介入提案なし、来週 watch 用 | `Observation`, `What to watch next week` |
+
+Source は観察文書の Deviations（`O-NNN`）か Exceptions のエントリを指す。文書は禁則により
+処方を書けない（計器は喋らない）ので、観察→修理候補への翻訳はこの診断だけが行う。
+**Ledger の「O-NNN 継続」1 行を新しい F1 の根拠にしない** — 継続は既知であり、既知の観察への
+診断は初出週に済んでいるはず（無ければ台帳の当該エントリの初出レポートに立ち返る）。
 
 ### Principle violations の再カテゴライズ
 
@@ -79,9 +85,8 @@ Context 膨張を避けるため以下の順で読み、途中で十分なら止
 
 出力先: `$MOLTBOOK_HOME/reports/.private/weekly-{end-date}-findings.md`（staging —
 完全性検査後に pipeline が `reports/analysis/` へ promote）。
-weekly レポート本体は touch しない。日本語版 `weekly-{end-date}-findings.ja.md` を必ず併出
-（冒頭に `> 日本語版（自動翻訳）。英語正本: …` の 1 行。quote・`path:line`・識別子は英語の
-まま、地の文だけ普通の日本語で。構造は 1:1）。
+weekly 観察文書本体は touch しない。日本語版は出さない（RFC-0010、2026-08-26 —
+オーナーは findings を直接読まず、土曜ゲートの Claude が日本語で説明する）。
 
 `### F1.N. {title}` の見出し形式と `**Code reference**:` ブロック（バッククォートの
 `path:LINE`）は維持する。旧 parse_findings.py は退役したが、Code reference は Phase 4 の
@@ -99,7 +104,7 @@ weekly レポート本体は touch しない。日本語版 `weekly-{end-date}-f
 
 ### F1.1. {short title}
 
-**Source quote (E #{n})**: {1 line}
+**Source (O-NNN / Exceptions)**: {1 line}
 **Code reference**: `path/to/file.py:LINE`
 **Structural change**: {what would change}
 **Why this is structural, not symptomatic**: {1-2 sentences}
@@ -110,7 +115,7 @@ weekly レポート本体は touch しない。日本語版 `weekly-{end-date}-f
 
 ### F2.1. {label}
 
-**Source quote (E #{n})**: {reference}
+**Source (O-NNN / Exceptions)**: {reference}
 **Open question**: {…?}
 **What current state addresses (or does not)**: {current text quote}
 **Related ADR**: {if applicable}
@@ -119,7 +124,7 @@ weekly レポート本体は touch しない。日本語版 `weekly-{end-date}-f
 
 ### F3.1. {label}
 
-**Source quote (E #{n})**: {reference}
+**Source (O-NNN / Exceptions)**: {reference}
 **Observation**: {descriptive}
 **What to watch next week**: {confirm / refute condition}
 

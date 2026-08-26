@@ -45,7 +45,7 @@ Records of key design decisions for this project.
 | [0037](0037-memory-subsystem-yogacara-convergence.md) | Memory Subsystem Converges to Yogācāra Frame; Paper-Borrowed Mechanisms Retired | accepted | 2026-05-05 |
 | [0038](0038-moment-of-recognition-distill.md) | Re-introduce Moments of Recognition into the Distill Observation Target `[AKC: Extract]` | accepted | 2026-05-13 |
 | [0039](0039-novelty-score-lagrangian-self-post-gate.md) | Continuous Novelty Score with Rate-Deficit Lagrangian for Self-Post Gate | accepted | 2026-05-19 |
-| [0040](0040-separate-code-level-findings.md) | Separate Code-Level Findings from Weekly Self-Reflection Report | accepted | 2026-05-19 |
+| [0040](0040-separate-code-level-findings.md) | Separate Code-Level Findings from Weekly Self-Reflection Report | partially-superseded-by ADR-0099 | 2026-05-19 |
 | [0041](0041-engagement-gradient-asymmetry-in-self-post-prompt.md) | Repair the Engagement Gradient Asymmetry in the Self-Post Prompt | accepted | 2026-05-19 |
 | [0042](0042-explicit-truncation-contract-for-untrusted-wrapper.md) | Explicit Truncation Contract for `wrap_untrusted_content` | accepted | 2026-05-20 |
 | [0043](0043-per-post-seeding-for-self-post-generation.md) | Per-Post Seeding for Self-Post Generation | accepted | 2026-05-21 |
@@ -104,6 +104,7 @@ Records of key design decisions for this project.
 | [0096](0096-insight-promotion-worth-abstain.md) | Promotion-Worth Abstain at Insight Time — Judge the Produced Skill, List the Surprise | partially-superseded-by ADR-0097 | 2026-08-17 |
 | [0097](0097-consolidator-dissolution-and-skill-store-exit.md) | Consolidator Dissolution and a Skill-Store Exit — Subtraction, then Exit, then Vocabulary | accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096 | 2026-08-22 |
 | [0098](0098-weekly-single-session-and-triage-delegation.md) | Weekly Chain Single-Session Redesign and Repair Delegation to the Task-Triage Loop | accepted — partially-supersedes ADR-0085, ADR-0091, ADR-0093 | 2026-08-24 |
+| [0099](0099-weekly-report-instrument-redesign.md) | Weekly Report Content Redesign: From A–E Quote Audit to a Six-Section Instrument Document | accepted — partially-supersedes ADR-0040 | 2026-08-26 |
 
 ## ADR Types
 

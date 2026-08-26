@@ -26,7 +26,12 @@ REPORT_DIR="$MOLTBOOK_HOME/reports/analysis"
 LOG_DIR="$MOLTBOOK_HOME/logs"
 STATUS="$MOLTBOOK_HOME/reports/PIPELINE-STATUS.md"
 
-MIN_REPORT_BYTES=1024
+# 300, not the old 1024: the RFC-0010 instrument document declares "a quiet
+# week is deliberately short" — a minimal valid document (title + inventory
+# line + six one-line sections) sits well under 1 KB, and the structural
+# heading gate in weekly-pipeline.sh, not size, is the completeness contract.
+# This floor only catches the 0-byte / died-mid-write shape.
+MIN_REPORT_BYTES=300
 MIN_FINDINGS_BYTES=512
 
 HOUR=$(date +%H)

@@ -2,9 +2,10 @@
 
 The following are methodological principles applied by the `/weekly-report` skill's diagnosis phase
 when generating code-level findings (F1 structural / F2 identity-level / F3 observations).
-Principles 3 (quote-based depth) and 5 (deterministic input for cross-entry claims) also
-apply to the upstream `weekly-analysis` weekly report — Principle 5 was written from a
-failure that occurred there, and that report receives this file at generation time.
+This file is diagnosis-phase-only since the RFC-0010 instrument redesign (2026-08-26): the
+upstream weekly observation document absorbed Principle 3 into its own evidence rules (verbatim
+quote / diff / self-distribution comparison; raw counts alone are never evidence) and Principle 5
+into its Cross-Day-Duplicate-Scan input contract, so neither is separately applied there anymore.
 Violations should self-correct before publication.
 
 ## Principle 1 — No post-generation filter as recommendation

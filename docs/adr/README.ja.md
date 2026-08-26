@@ -45,7 +45,7 @@
 | [0037](0037-memory-subsystem-yogacara-convergence.ja.md) | メモリ subsystem は唯識フレームに収束した — 論文借用機構の退役 | accepted | 2026-05-05 |
 | [0038](0038-moment-of-recognition-distill.ja.md) | Distill の観察対象に moments of recognition を再導入する `[AKC: Extract]` | accepted | 2026-05-13 |
 | [0039](0039-novelty-score-lagrangian-self-post-gate.ja.md) | self-post gate を連続値 novelty スコア + rate-deficit Lagrangian に置換 | accepted | 2026-05-19 |
-| [0040](0040-separate-code-level-findings.ja.md) | 週次自己内省レポートからのコード診断 findings の分離 | accepted | 2026-05-19 |
+| [0040](0040-separate-code-level-findings.ja.md) | 週次自己内省レポートからのコード診断 findings の分離 | partially-superseded-by ADR-0099 | 2026-05-19 |
 | [0041](0041-engagement-gradient-asymmetry-in-self-post-prompt.ja.md) | self-post prompt の engagement gradient 非対称を修復する | accepted | 2026-05-19 |
 | [0042](0042-explicit-truncation-contract-for-untrusted-wrapper.ja.md) | `wrap_untrusted_content` の truncation を明示的契約に変える | accepted | 2026-05-20 |
 | [0043](0043-per-post-seeding-for-self-post-generation.ja.md) | self-post 生成への peer post 直接シーディング | accepted | 2026-05-21 |
@@ -104,6 +104,7 @@
 | [0096](0096-insight-promotion-worth-abstain.ja.md) | insight 時の promotion-worth abstain — 生成された skill を judge し、surprise は材料として列挙する | partially-superseded-by ADR-0097 | 2026-08-17 |
 | [0097](0097-consolidator-dissolution-and-skill-store-exit.ja.md) | 統合器の解体と skill store の出口 — 引き算、出口、語彙の順に | accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096 | 2026-08-22 |
 | [0098](0098-weekly-single-session-and-triage-delegation.ja.md) | weekly チェーンの単一セッション化と修理の task-triage 委譲 | accepted — partially-supersedes ADR-0085, ADR-0091, ADR-0093 | 2026-08-24 |
+| [0099](0099-weekly-report-instrument-redesign.ja.md) | 週次レポート内容の再設計 — A–E quote 監査から 6 節の計器型文書へ | accepted — partially-supersedes ADR-0040 | 2026-08-26 |
 
 ## ADR の種別
 

@@ -55,6 +55,12 @@ diff の 11 件中 8 件は配管が自分自身を修理しているだけだ�
    で直列に行う。旧 `weekly-report-diagnosis` skill はこれに吸収して退役
    する。
 
+   > **注記 (2026-08-26, ADR-0099)**: セッションの*内容*は
+   > [ADR-0099](0099-weekly-report-instrument-redesign.ja.md)（RFC-0010）で変わった:
+   > A–E 合成は 6 節の計器型文書になり、日本語版の生成段は退役し、診断の入力は
+   > E 節から文書の Deviations + Exceptions に移った。単一セッション構造・封じ込め・
+   > 起票→triage の経路など本 ADR の他の決定はすべて不変。
+
 2. **fix / review / improve / insight-recommendation の無人 LLM 段を廃止
    する。** 診断は修理の手前で止め、タスク台帳 store（`tasks/T-*.md`） に candidate として
    起票する（producer `file:line` 必須、着手可能性は主張しない）。修理は

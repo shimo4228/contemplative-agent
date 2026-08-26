@@ -52,8 +52,10 @@ private persona or conversation memory:
 | Authority | the human promotion edges below | Workers propose, diagnose, implement, and review; a human promotes durable changes |
 
 Cycle #5 is the clearest example. The unattended Saturday chain (`scripts/weekly-pipeline.sh`,
-ADR-0085 / ADR-0098) runs **one** headless session (`/weekly-report`): observation-only A–E
-synthesis, then diagnosis producing F1/F2/F3 findings, then draft filing into the task
+ADR-0085 / ADR-0098) runs **one** headless session (`/weekly-report`): the observation-only
+instrument document (six sections, deviation-driven, RFC-0010 — the operator reads decisions
+through the gate's per-item explanations rather than the document itself), then diagnosis
+producing F1/F2/F3 findings from its Deviations + Exceptions, then draft filing into the task
 ledger — no repairs, no patches. Repairs travel through the task-triage loop (premise
 verification → owner digest → worktree dispatch → human merge), and the value-layer decisions
 happen in the Saturday `/weekly-gate` session over the findings and the per-week instrument
@@ -83,7 +85,7 @@ autonomous metabolism and metabolic quality). Operative summary: `CLAUDE.md` § 
 | 2 | **Wiki refresh** | weekly Mon 09:00 — `com.shimo.wiki-refresh` | wiki maintenance / re-synthesis | — | Obsidian Vault `wiki/` | Vault |
 | 3 | **Product operation** | every 6h, 00/06/12/18 JST — `com.moltbook.agent` | live sessions → episode logs / comment-reports | — | `logs/`, `reports/comment-reports/` | CA runtime (`MOLTBOOK_HOME`) |
 | 4 | **Product metabolism (AKC)** | distill daily; insight weekly (staged) — `com.moltbook.distill` / `.insight`; identity monthly (staged by cycle 5's chain, ADR-0091); constitution amendment on due-reading, human-initiated (ADR-0090/0091; shadow readings as third gate material, ADR-0092) | Extract (distill) / Curate (insight) | `adopt-staged` (approval gate, ADR-0012) | `knowledge.json`, identity / skills / rules / constitution | CA + data repo |
-| 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-pipeline` (+ `com.moltbook.watchdog`, ADR-0085 / ADR-0098) | unattended chain: materials → one `/weekly-report` session (A–E + diagnosis + draft filing) → value-layer due check (+ monthly identity staging, ADR-0091) → dead-code scan → docs-consistency scan (ADR-0093) → never-selected reading | `/weekly-gate` Saturday session (`adopt-staged`, dead code, retirement) + task-triage loop for the filed candidates | `reports/analysis/weekly-*.md`, `-findings.md`, per-week instrument JSONs, `PIPELINE-STATUS.md` | CA |
+| 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-pipeline` (+ `com.moltbook.watchdog`, ADR-0085 / ADR-0098) | unattended chain: materials → one `/weekly-report` session (instrument document + diagnosis + draft filing, RFC-0010) → value-layer due check (+ monthly identity staging, ADR-0091) → dead-code scan → docs-consistency scan (ADR-0093) → never-selected reading | `/weekly-gate` Saturday session (`adopt-staged`, dead code, retirement) + task-triage loop for the filed candidates | `reports/analysis/weekly-*.md`, `-findings.md`, per-week instrument JSONs, `PIPELINE-STATUS.md` | CA |
 | 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | pre-commit diff approval | code, tests, ADR, CODEMAPS | CA |
 | 7 | **Crystallization → papers** | on demand | essays → position-paper drafting → independent parallel review → citation gate | deposit (human) | position papers (DOI-registered) — index in [hub](https://github.com/shimo4228/shimo4228#papers) | AKC / AAP repos |
 | 8 | **Diffusion (publishing)** | on demand | collect-context → article-writing → editor / reviewer / fact-check → ja-to-en → substack | publish (human) | Zenn (ja) / Dev.to (en) / Substack essays | `zenn-content/` |
@@ -189,7 +191,7 @@ Cycle #7 deposits into that index; Cycle #9 keeps the pointers in sync.
 The two intake paths close their loops with different degrees of procedural specificity:
 
 - **Cycle #5 (weekly reflection → dev) has a fixed chain**: materials collection → one
-  unattended `/weekly-report` session (A–E + diagnosis + draft filing) → task-triage loop
+  unattended `/weekly-report` session (instrument document + diagnosis + draft filing) → task-triage loop
   for repairs, `/weekly-gate` for value-layer promotion (ADR-0085 / ADR-0098), with a visible trail in ADRs
   (e.g. ADR-0040 created the diagnosis skill; several later ADRs cite a specific weekly report as
   their trigger — grep `docs/adr/` for `weekly` to regenerate the current list rather than

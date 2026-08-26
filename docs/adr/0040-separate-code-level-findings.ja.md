@@ -2,7 +2,9 @@
 
 ## Status
 
-accepted
+partially-superseded-by [ADR-0099](0099-weekly-report-instrument-redesign.ja.md) —
+A–E 節形式と E 中心の分析設計は 6 節の計器型文書に置換。観察と診断の分離、および
+context-gap 分析は存続（Decision の日付つき注記を参照）
 
 ## Date
 
@@ -42,6 +44,13 @@ access **できない** input:
 同じ context-gap は F2 (意味ある identity-level 質問は identity/constitution/skills/rules の現在の全文 + 過去 ADR が必要) と F3 (「self-sustaining pattern」「reproducible generation pattern」の判定には generation pipeline 構造の知識が必要) にも適用される。
 
 ## Decision
+
+> **注記 (2026-08-26, ADR-0099)**: 以下の A–E 節形式は
+> [ADR-0099](0099-weekly-report-instrument-redesign.ja.md)（RFC-0010）で退役 — レポートは
+> 6 節の計器型文書（Inventory / Ledger / Deviations / Exceptions / Sample / Discarded）に
+> なった。本 ADR から生き残るもの: 観察と診断の分離それ自体（レポートは処方を持たず、
+> コード診断は codebase を読める下流の診断 phase が行う）と、その動機となった
+> context-gap 分析。診断の入力は E 節から Deviations + Exceptions に移った。
 
 Weekly レポートは observation (A–E) に専念する:
 
