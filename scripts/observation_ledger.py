@@ -182,6 +182,78 @@ def cmd_render(args: argparse.Namespace) -> int:
     return 0
 
 
+def _validate_delta_common_fields(row: dict, i: int, errors: list[str]) -> None:
+    """Field-shape checks that apply to every delta row, regardless of type.
+
+    Split out of :func:`_validate_delta` (behaviour-preserving). Appends to
+    ``errors`` in place.
+    """
+    src = row.get("source_report", "")
+    if not isinstance(src, str) or not src.startswith("weekly-"):
+        errors.append(f"row {i}: source_report missing or malformed")
+    for field in (
+        "title",
+        "summary",
+        "expiry",
+        "reason",
+        "metric",
+        "expected",
+        "rationale",
+        "source_report",
+    ):
+        value = row.get(field)
+        if isinstance(value, str) and printable(value) != value:
+            errors.append(
+                f"row {i}: {field} contains control characters (newlines included) — "
+                "the render lands outside the untrusted frame, so these rows are refused"
+            )
+
+
+def _validate_observation_row(
+    row: dict, i: int, known_ids: set[str], seen_new: set[str], errors: list[str]
+) -> None:
+    """Validate an ``observation`` delta row.
+
+    Split out of :func:`_validate_delta` (behaviour-preserving). Adds the row's
+    id to ``seen_new`` in place once accepted, so a later row in the same
+    delta cannot reuse it.
+    """
+    oid = row.get("id", "")
+    if not isinstance(oid, str) or not _ID_RE.match(oid):
+        errors.append(f"row {i}: bad observation id {oid!r}")
+    elif oid in known_ids or oid in seen_new:
+        errors.append(f"row {i}: id {oid} already exists (archived ids are never reused)")
+    else:
+        seen_new.add(oid)
+    if not row.get("expiry"):
+        errors.append(f"row {i}: observation {row.get('id')} has no expiry condition")
+    if not _DATE_RE.match(str(row.get("first_seen", ""))):
+        errors.append(f"row {i}: bad first_seen")
+    if not row.get("title") or not row.get("summary"):
+        errors.append(f"row {i}: observation needs title and summary")
+
+
+def _validate_archive_row(row: dict, i: int, open_obs: dict[str, dict], errors: list[str]) -> None:
+    """Validate an ``archive`` delta row.
+
+    Split out of :func:`_validate_delta` (behaviour-preserving).
+    """
+    oid = row.get("id", "")
+    if oid not in open_obs:
+        errors.append(f"row {i}: archive targets {oid!r} which is not an open observation")
+    if not row.get("reason"):
+        errors.append(f"row {i}: archive needs a reason citing the fired expiry")
+
+
+def _validate_baseline_proposal_row(row: dict, i: int, errors: list[str]) -> None:
+    """Validate a ``baseline_proposal`` delta row.
+
+    Split out of :func:`_validate_delta` (behaviour-preserving).
+    """
+    if not row.get("metric") or not row.get("expected"):
+        errors.append(f"row {i}: baseline_proposal needs metric and expected")
+
+
 def _validate_delta(delta_rows: list[dict], ledger_rows: list[dict]) -> list[str]:
     errors: list[str] = []
     open_obs, archived, _, _ = _current_state(ledger_rows)
@@ -192,48 +264,13 @@ def _validate_delta(delta_rows: list[dict], ledger_rows: list[dict]) -> list[str
         if rtype not in _SESSION_TYPES:
             errors.append(f"row {i}: type {rtype!r} not stageable by the session")
             continue
-        src = row.get("source_report", "")
-        if not isinstance(src, str) or not src.startswith("weekly-"):
-            errors.append(f"row {i}: source_report missing or malformed")
-        for field in (
-            "title",
-            "summary",
-            "expiry",
-            "reason",
-            "metric",
-            "expected",
-            "rationale",
-            "source_report",
-        ):
-            value = row.get(field)
-            if isinstance(value, str) and printable(value) != value:
-                errors.append(
-                    f"row {i}: {field} contains control characters (newlines included) — "
-                    "the render lands outside the untrusted frame, so these rows are refused"
-                )
+        _validate_delta_common_fields(row, i, errors)
         if rtype == "observation":
-            oid = row.get("id", "")
-            if not isinstance(oid, str) or not _ID_RE.match(oid):
-                errors.append(f"row {i}: bad observation id {oid!r}")
-            elif oid in known_ids or oid in seen_new:
-                errors.append(f"row {i}: id {oid} already exists (archived ids are never reused)")
-            else:
-                seen_new.add(oid)
-            if not row.get("expiry"):
-                errors.append(f"row {i}: observation {row.get('id')} has no expiry condition")
-            if not _DATE_RE.match(str(row.get("first_seen", ""))):
-                errors.append(f"row {i}: bad first_seen")
-            if not row.get("title") or not row.get("summary"):
-                errors.append(f"row {i}: observation needs title and summary")
+            _validate_observation_row(row, i, known_ids, seen_new, errors)
         elif rtype == "archive":
-            oid = row.get("id", "")
-            if oid not in open_obs:
-                errors.append(f"row {i}: archive targets {oid!r} which is not an open observation")
-            if not row.get("reason"):
-                errors.append(f"row {i}: archive needs a reason citing the fired expiry")
+            _validate_archive_row(row, i, open_obs, errors)
         elif rtype == "baseline_proposal":
-            if not row.get("metric") or not row.get("expected"):
-                errors.append(f"row {i}: baseline_proposal needs metric and expected")
+            _validate_baseline_proposal_row(row, i, errors)
     return errors
 
 

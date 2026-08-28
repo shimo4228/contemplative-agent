@@ -547,17 +547,8 @@ def _match_exact(token: str) -> _Lexeme | None:
     return None
 
 
-def _match_fuzzy(token: str) -> _Lexeme | None:
-    """Recover a homophone-misspelled number word or operation verb.
-
-    Edit distance exactly 1 after collapse, with per-kind length floors.
-    All candidates must agree on one result (value or operator); two
-    different plausible readings poison the whole parse (raises _Abstain)
-    rather than letting either reading win — the corpus shows a silently
-    dropped number word produces a confident wrong answer.
-    """
-    if token in _FUZZY_STOPWORDS:
-        return None
+def _fuzzy_number_matches(token: str) -> set[tuple[str, int | str]]:
+    """Number readings of ``token`` at edit distance 1, over both tiers."""
     results: set[tuple[str, int | str]] = set()
     if len(token) >= _FUZZY_MIN_TOKEN:
         for word, value in _CANONICAL_NUMBERS.items():
@@ -572,35 +563,57 @@ def _match_fuzzy(token: str) -> _Lexeme | None:
         for collapsed_word, value in _NUMBER_WORDS.items():
             if _within_one_edit(token, collapsed_word):
                 results.add(("num", value))
-    if len(token) >= _FUZZY_MIN_OP:
-        # Ops also compare against their collapsed form: a doubled AND
-        # misspelled verb ("accellarates" -> "acelarates") is two edits from
-        # the canonical spelling but one from the collapsed one. Numbers get
-        # the same treatment only above _FUZZY_MIN_NUM_COLLAPSED — they
-        # become operands, where a false positive is a wrong submitted
-        # answer, not just a wrong verb reading.
-        for word, op in _OP_WORDS.items():
-            if len(word) < _FUZZY_MIN_OP:
-                continue
-            if _within_one_edit(token, word) or _within_one_edit(token, _collapse_repeats(word)):
-                results.add(("op", op))
-        # Round 8: multiplicative markers were exact-match only, so a
-        # transposed "duoubbles" (collapsed: "duobles") dropped silently
-        # and a product read as an implicit add. Markers additionally
-        # accept one adjacent transposition (_within_one_swap): the misread
-        # cost is bounded to the operator, and the surviving grammar
-        # position rules (gap / adjacency) still gate where it applies.
-        for word in _MUL_MARKER_WORDS:
-            if len(word) < _FUZZY_MIN_OP:
-                continue
-            collapsed_word = _collapse_repeats(word)
-            if (
-                _within_one_edit(token, word)
-                or _within_one_edit(token, collapsed_word)
-                or _within_one_swap(token, word)
-                or _within_one_swap(token, collapsed_word)
-            ):
-                results.add(("mark", "mark"))
+    return results
+
+
+def _fuzzy_op_matches(token: str) -> set[tuple[str, int | str]]:
+    """Operation-verb and multiplicative-marker readings of ``token``."""
+    results: set[tuple[str, int | str]] = set()
+    if len(token) < _FUZZY_MIN_OP:
+        return results
+    # Ops also compare against their collapsed form: a doubled AND
+    # misspelled verb ("accellarates" -> "acelarates") is two edits from
+    # the canonical spelling but one from the collapsed one. Numbers get
+    # the same treatment only above _FUZZY_MIN_NUM_COLLAPSED — they
+    # become operands, where a false positive is a wrong submitted
+    # answer, not just a wrong verb reading.
+    for word, op in _OP_WORDS.items():
+        if len(word) < _FUZZY_MIN_OP:
+            continue
+        if _within_one_edit(token, word) or _within_one_edit(token, _collapse_repeats(word)):
+            results.add(("op", op))
+    # Round 8: multiplicative markers were exact-match only, so a
+    # transposed "duoubbles" (collapsed: "duobles") dropped silently
+    # and a product read as an implicit add. Markers additionally
+    # accept one adjacent transposition (_within_one_swap): the misread
+    # cost is bounded to the operator, and the surviving grammar
+    # position rules (gap / adjacency) still gate where it applies.
+    for word in _MUL_MARKER_WORDS:
+        if len(word) < _FUZZY_MIN_OP:
+            continue
+        collapsed_word = _collapse_repeats(word)
+        if (
+            _within_one_edit(token, word)
+            or _within_one_edit(token, collapsed_word)
+            or _within_one_swap(token, word)
+            or _within_one_swap(token, collapsed_word)
+        ):
+            results.add(("mark", "mark"))
+    return results
+
+
+def _match_fuzzy(token: str) -> _Lexeme | None:
+    """Recover a homophone-misspelled number word or operation verb.
+
+    Edit distance exactly 1 after collapse, with per-kind length floors.
+    All candidates must agree on one result (value or operator); two
+    different plausible readings poison the whole parse (raises _Abstain)
+    rather than letting either reading win — the corpus shows a silently
+    dropped number word produces a confident wrong answer.
+    """
+    if token in _FUZZY_STOPWORDS:
+        return None
+    results = _fuzzy_number_matches(token) | _fuzzy_op_matches(token)
     if not results:
         # Round 8: a 4-5 letter token one edit from a COLLAPSED number word
         # sits below _FUZZY_MIN_NUM_COLLAPSED and used to drop silently

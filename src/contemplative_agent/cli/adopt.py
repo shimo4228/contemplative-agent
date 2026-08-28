@@ -768,26 +768,19 @@ class _AdoptPlan:
         return {name: tuple(sorted(names)) for name, names in out.items()}
 
 
-def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
-    """Reconcile the flags into a plan, or report why there is nothing to do.
+def _reconcile_selection_flags(
+    args: argparse.Namespace,
+) -> tuple[bool, set[str] | None, set[str], bool]:
+    """Read and cross-validate ``--yes`` / ``--adopt-names`` / ``--hold-names``.
 
-    Returns ``None`` when the run ends successfully without touching anything
-    (no staging directory, no staged files) — the message is already printed.
-    Exits 2 on a request that cannot be honoured: mutually exclusive flags, a
-    name in two of the three selection files, a name matching no staged item,
-    an ``--archive-names`` entry matching no store skill, or a supersede
-    pairing whose successor this run is not adopting. Every one of those
-    happens before the caller's loop, so staging **and the store** are
-    untouched when they fire.
-
-    ``--archive-names`` alone is a complete request: the never-selected exit
-    (ADR-0097 D5) runs on weeks with nothing staged, so an empty staging dir
-    is a no-op for the loop rather than an early return.
+    Split out of :func:`_resolve_adopt_plan` (behaviour-preserving): this is
+    the self-contained slice that only touches ``args`` and the two names
+    files, before ``--archive-names`` or the staging directory enter the
+    picture. Returns ``(yes, adopt_names, hold_names, reject_rest)``.
     """
     yes = getattr(args, "yes", False)
     adopt_names_file = getattr(args, "adopt_names", None)
     hold_names_file = getattr(args, "hold_names", None)
-    archive_names_file = getattr(args, "archive_names", None)
     reject_rest = getattr(args, "reject_rest", False)
 
     if yes and (adopt_names_file or hold_names_file):
@@ -811,18 +804,79 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
         if adopt_names is None:
             adopt_names = set()
 
-    archive_specs: dict[str, str | None] = {}
-    if archive_names_file:
-        archive_specs = _read_archive_names_file(Path(archive_names_file), "--archive-names")
-    archive_targets = set(archive_specs)
-    # Resolved once, above the first use: the store dir is compared against
-    # resolved paths in three places below, and `:1032`'s glob only reads
-    # `p.name`, so hoisting is behaviour-identical.
-    data_root = config.MOLTBOOK_DATA_DIR.resolve()
+    return yes, adopt_names, hold_names, reject_rest
 
-    # Any name in two of the three selection files is a contradiction, not a
-    # precedence question: adopting a staged X into the store while archiving
-    # the store's X out of it cannot both be what the operator meant.
+
+def _resolve_archive_specs(
+    archive_specs: dict[str, str | None], data_root: Path
+) -> dict[str, str | None]:
+    """Settle the ``--archive-names`` request against the live store.
+
+    Split out of :func:`_resolve_adopt_plan` (behaviour-preserving). Takes the
+    raw mapping (the caller collision-checks it first, on the pre-drop name
+    set) and returns the sidecar-ready mapping with already-archived entries
+    dropped; aborts (exit 2) on a symlinked or genuinely-unknown name.
+    """
+    archive_specs = dict(archive_specs)
+    archive_targets = set(archive_specs)
+    if not archive_targets:
+        return archive_specs
+
+    # Store names, not staged names — a different namespace with the same
+    # contract: one typo must leave every skill where it is. Derived from
+    # MOLTBOOK_DATA_DIR at call time for the same reason
+    # ``_handle_remove_skill`` does.
+    skills_dir = _skills_dir(data_root)
+    live = list(skills_dir.glob("*.md")) if skills_dir.is_dir() else []
+    store_names = {p.name for p in live}
+    # A symlinked candidate passes every name check and is then refused by
+    # the primitive — after the successor was adopted with `supersedes:`
+    # stamped on it, leaving the store holding both and the run at exit 1.
+    # Symlink-ness is knowable now, so the "one typo leaves every skill
+    # where it is" contract covers it (code review 2026-08-22 MEDIUM).
+    symlinked = sorted(archive_targets & {p.name for p in live if p.is_symlink()})
+    if symlinked:
+        _abort_request(
+            "--archive-names names symlink(s), not skills; name the referent instead",
+            symlinked,
+        )
+    # Already retired by an earlier run: a no-op, not a typo. Re-running a
+    # packet after a partial archive used to abort exit 2 with "unknown
+    # skill name(s)", which misdiagnosed the state, pointed at the wrong
+    # repair, and — because the abort is pre-loop — also stopped the
+    # staged items in the same invocation from being adopted (silent-
+    # failure review 2026-08-22 MEDIUM). Dropped from the request here,
+    # before the successor checks, so a re-run retries only what is left.
+    archive_dir = _archive_dir(data_root)
+    archived_names = {p.name for p in archive_dir.glob("*.md")} if archive_dir.is_dir() else set()
+    already = sorted((archive_targets - store_names) & archived_names)
+    if already:
+        print(
+            "Already in the archive, nothing to do for: " + ", ".join(already),
+            file=sys.stderr,
+        )
+        for name in already:
+            del archive_specs[name]
+        archive_targets = set(archive_specs)
+    unknown_skills = sorted(archive_targets - store_names)
+    if unknown_skills:
+        _abort_request(
+            "unknown skill name(s) for --archive-names (not in the store, and not "
+            "already in .archive/)",
+            unknown_skills,
+        )
+    return archive_specs
+
+
+def _check_name_collisions(
+    adopt_names: set[str] | None, hold_names: set[str], archive_targets: set[str]
+) -> None:
+    """Abort if any name appears in two of the three selection files.
+
+    Split out of :func:`_resolve_adopt_plan` (behaviour-preserving). Not a
+    precedence question: adopting a staged X into the store while archiving
+    the store's X out of it cannot both be what the operator meant.
+    """
     for left_flag, left, right_flag, right in (
         ("--adopt-names", adopt_names or set(), "--hold-names", hold_names),
         ("--adopt-names", adopt_names or set(), "--archive-names", archive_targets),
@@ -832,60 +886,19 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
         if both:
             _abort_request(f"named in both {left_flag} and {right_flag}", both)
 
-    if archive_targets:
-        # Store names, not staged names — a different namespace with the same
-        # contract: one typo must leave every skill where it is. Derived from
-        # MOLTBOOK_DATA_DIR at call time for the same reason
-        # ``_handle_remove_skill`` does.
-        skills_dir = _skills_dir(data_root)
-        live = list(skills_dir.glob("*.md")) if skills_dir.is_dir() else []
-        store_names = {p.name for p in live}
-        # A symlinked candidate passes every name check and is then refused by
-        # the primitive — after the successor was adopted with `supersedes:`
-        # stamped on it, leaving the store holding both and the run at exit 1.
-        # Symlink-ness is knowable now, so the "one typo leaves every skill
-        # where it is" contract covers it (code review 2026-08-22 MEDIUM).
-        symlinked = sorted(archive_targets & {p.name for p in live if p.is_symlink()})
-        if symlinked:
-            _abort_request(
-                "--archive-names names symlink(s), not skills; name the referent instead",
-                symlinked,
-            )
-        # Already retired by an earlier run: a no-op, not a typo. Re-running a
-        # packet after a partial archive used to abort exit 2 with "unknown
-        # skill name(s)", which misdiagnosed the state, pointed at the wrong
-        # repair, and — because the abort is pre-loop — also stopped the
-        # staged items in the same invocation from being adopted (silent-
-        # failure review 2026-08-22 MEDIUM). Dropped from the request here,
-        # before the successor checks, so a re-run retries only what is left.
-        archive_dir = _archive_dir(data_root)
-        archived_names = (
-            {p.name for p in archive_dir.glob("*.md")} if archive_dir.is_dir() else set()
-        )
-        already = sorted((archive_targets - store_names) & archived_names)
-        if already:
-            print(
-                "Already in the archive, nothing to do for: " + ", ".join(already),
-                file=sys.stderr,
-            )
-            for name in already:
-                del archive_specs[name]
-            archive_targets = set(archive_specs)
-        unknown_skills = sorted(archive_targets - store_names)
-        if unknown_skills:
-            _abort_request(
-                "unknown skill name(s) for --archive-names (not in the store, and not "
-                "already in .archive/)",
-                unknown_skills,
-            )
 
-    audit_source: AuditSource = "stage-adopted-auto" if yes else "stage-adopted"
-    if adopt_names is not None:
-        # Per-item selection, but transcribed — no prompt shown in this
-        # process. A distinct source keeps the audit trail honest about
-        # provenance (2026-08-01 security review C1).
-        audit_source = "stage-adopted-names"
+def _load_and_verify_staged(
+    adopt_names: set[str] | None,
+    hold_names: set[str],
+    archive_specs: dict[str, str | None],
+) -> tuple[list[Path], set[str]] | None:
+    """Load ``.staged/*.meta.json`` and verify every requested name exists.
 
+    Split out of :func:`_resolve_adopt_plan` (behaviour-preserving). Returns
+    ``None`` when the run ends successfully without touching anything (the
+    message is already printed); otherwise ``(meta_files, staged_names)``.
+    Aborts (exit 2) on a name matching no staged item.
+    """
     # Every name the operator asked about, whatever the verdict — the
     # existence check below must not pass a typo just because it landed in
     # the hold file rather than the adopt file.
@@ -917,13 +930,27 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
         if unknown:
             _abort_request("unknown staged item name(s)", unknown)
 
-    # A supersede pairing is a promise that the replacement lands in the same
-    # run: the archived text stops being injected and something has to take
-    # its place. Checked here, before anything moves, so the operator fixes
-    # the packet transcription rather than discovering at exit 1 that half
-    # the batch applied. (The run-time half of the promise —
-    # ``_ARCHIVE_SUCCESSOR_NOT_ADOPTED`` — covers the successor that was
-    # named, selected, and then declined at the prompt.)
+    return meta_files, staged_names
+
+
+def _validate_supersede_pairings(
+    archive_specs: dict[str, str | None],
+    adopt_names: set[str] | None,
+    staged_names: set[str],
+    meta_files: list[Path],
+    data_root: Path,
+) -> None:
+    """Abort unless every supersede successor lands in this same run.
+
+    Split out of :func:`_resolve_adopt_plan` (behaviour-preserving). A
+    supersede pairing is a promise that the replacement lands in the same
+    run: the archived text stops being injected and something has to take
+    its place. Checked here, before anything moves, so the operator fixes
+    the packet transcription rather than discovering at exit 1 that half
+    the batch applied. (The run-time half of the promise —
+    ``_ARCHIVE_SUCCESSOR_NOT_ADOPTED`` — covers the successor that was
+    named, selected, and then declined at the prompt.)
+    """
     successors = {name for name in archive_specs.values() if name is not None}
     unstaged = sorted(successors - staged_names)
     if unstaged:
@@ -936,35 +963,85 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
                 unselected,
             )
 
-    if successors:
-        # A supersede successor must be a SKILL. ADR-0097 D5 scopes the two
-        # frontmatter halves to skills, and `superseded_by: <name>` only means
-        # anything if a `mv` back into `skills/` restores the pair. Without
-        # this, `old.md superseded-by identity.md` was accepted for a
-        # `distill-identity` item and the supersede stamp synthesized a
-        # whole frontmatter block on top of `identity.md` — a file that has
-        # none by design, is injected verbatim into every session's system
-        # prompt, and is documented three functions down as passing through
-        # the adopt path byte-identical (code review 2026-08-22 CRITICAL).
-        #
-        # The sidecar's `target` is attacker-chosen, so it gets the loop's own
-        # containment test before its parent is compared — never a second,
-        # weaker reader of that field (module docstring).
-        not_skills = []
-        for meta_file in meta_files:
-            name = _staged_name(meta_file)
-            if name not in successors:
-                continue
-            meta = read_sidecar(meta_file)
-            target_str = (meta or {}).get("target")
-            if not target_str or not _writes_into_the_store(Path(target_str), data_root):
-                not_skills.append(name)
-        if not_skills:
-            _abort_request(
-                "--archive-names names supersede successor(s) that do not write into "
-                "the skill store",
-                sorted(not_skills),
-            )
+    if not successors:
+        return
+
+    # A supersede successor must be a SKILL. ADR-0097 D5 scopes the two
+    # frontmatter halves to skills, and `superseded_by: <name>` only means
+    # anything if a `mv` back into `skills/` restores the pair. Without
+    # this, `old.md superseded-by identity.md` was accepted for a
+    # `distill-identity` item and the supersede stamp synthesized a
+    # whole frontmatter block on top of `identity.md` — a file that has
+    # none by design, is injected verbatim into every session's system
+    # prompt, and is documented three functions down as passing through
+    # the adopt path byte-identical (code review 2026-08-22 CRITICAL).
+    #
+    # The sidecar's `target` is attacker-chosen, so it gets the loop's own
+    # containment test before its parent is compared — never a second,
+    # weaker reader of that field (module docstring).
+    not_skills = []
+    for meta_file in meta_files:
+        name = _staged_name(meta_file)
+        if name not in successors:
+            continue
+        meta = read_sidecar(meta_file)
+        target_str = (meta or {}).get("target")
+        if not target_str or not _writes_into_the_store(Path(target_str), data_root):
+            not_skills.append(name)
+    if not_skills:
+        _abort_request(
+            "--archive-names names supersede successor(s) that do not write into the skill store",
+            sorted(not_skills),
+        )
+
+
+def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
+    """Reconcile the flags into a plan, or report why there is nothing to do.
+
+    Returns ``None`` when the run ends successfully without touching anything
+    (no staging directory, no staged files) — the message is already printed.
+    Exits 2 on a request that cannot be honoured: mutually exclusive flags, a
+    name in two of the three selection files, a name matching no staged item,
+    an ``--archive-names`` entry matching no store skill, or a supersede
+    pairing whose successor this run is not adopting. Every one of those
+    happens before the caller's loop, so staging **and the store** are
+    untouched when they fire.
+
+    ``--archive-names`` alone is a complete request: the never-selected exit
+    (ADR-0097 D5) runs on weeks with nothing staged, so an empty staging dir
+    is a no-op for the loop rather than an early return.
+    """
+    yes, adopt_names, hold_names, reject_rest = _reconcile_selection_flags(args)
+
+    archive_names_file = getattr(args, "archive_names", None)
+    # Resolved once, above the first use: the store dir is compared against
+    # resolved paths in three places below, and `:1032`'s glob only reads
+    # `p.name`, so hoisting is behaviour-identical.
+    data_root = config.MOLTBOOK_DATA_DIR.resolve()
+    raw_archive_specs: dict[str, str | None] = {}
+    if archive_names_file:
+        raw_archive_specs = _read_archive_names_file(Path(archive_names_file), "--archive-names")
+    # Collision-check the raw name set, before the already-archived drop: a
+    # name in both --adopt-names and --archive-names must abort even when an
+    # earlier partial run has already moved it to .archive/ — otherwise the
+    # drop empties the archive side and the contradiction sails through
+    # (code review 2026-08-28 MEDIUM).
+    _check_name_collisions(adopt_names, hold_names, set(raw_archive_specs))
+    archive_specs = _resolve_archive_specs(raw_archive_specs, data_root)
+
+    audit_source: AuditSource = "stage-adopted-auto" if yes else "stage-adopted"
+    if adopt_names is not None:
+        # Per-item selection, but transcribed — no prompt shown in this
+        # process. A distinct source keeps the audit trail honest about
+        # provenance (2026-08-01 security review C1).
+        audit_source = "stage-adopted-names"
+
+    loaded = _load_and_verify_staged(adopt_names, hold_names, archive_specs)
+    if loaded is None:
+        return None
+    meta_files, staged_names = loaded
+
+    _validate_supersede_pairings(archive_specs, adopt_names, staged_names, meta_files, data_root)
 
     return _AdoptPlan(
         meta_files=meta_files,

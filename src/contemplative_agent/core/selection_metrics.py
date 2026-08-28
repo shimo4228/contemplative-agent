@@ -17,7 +17,7 @@ import logging
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
-from typing import Literal, TypeAlias
+from typing import Any, Literal, TypeAlias
 
 import numpy as np
 
@@ -31,7 +31,7 @@ from .selection_window import (
     _tokens,
     resolve_selection_window,
 )
-from .skill_selection import _NAME_MAX_CHARS, load_skill_catalog
+from .skill_selection import _NAME_MAX_CHARS, SkillCatalogEntry, load_skill_catalog
 from .text_utils import read_markdown_documents
 
 logger = logging.getLogger(__name__)
@@ -397,29 +397,95 @@ def classify_hallucination(
     return "semantic", "", note
 
 
-def read_skill_selection_log(
-    log_dir: Path,
-    *,
-    days: int | None = None,
-    since: date | None = None,
-    until: date | None = None,
-    skills_dir: Path | None,
-    value_layer_paths: tuple[Path, ...] = (),
-) -> SkillSelectionReading:
-    """Aggregate ``skill-selection-*.jsonl`` files within the window.
+@dataclass(frozen=True)
+class _WindowTally:
+    """What one pass over the window knows before the catalog is resolved.
 
-    The window is either ``days`` (files dated on or after ``today - days``,
-    unchanged since the instrument shipped) or an explicit, inclusive UTC
-    calendar range ``since`` .. ``until`` (``until`` defaults to today); the
-    two are exclusive. Files are selected by the date embedded in the
-    filename (same daily rotation as LLM telemetry); broken lines are
-    skipped, never fatal. ``never_selected`` is computed against the
-    *current* catalog, so a skill adopted yesterday with no selections yet
-    will appear — read it alongside ``records`` before drawing conclusions.
-    ``value_layer_paths`` (constitution dir, identity file) are read, never
-    written, and only feed the mechanism split of rejected names.
+    Module-private and never crossing the process boundary: it is the raw
+    material :class:`SkillSelectionReading` is computed from, carried in one
+    value so the walk and the classification can be read apart.
     """
-    cutoff, upper, window_days = resolve_selection_window(days, since, until)
+
+    verdict_counts: dict[str, int]
+    skill_counts: dict[str, int]
+    selected_counts: list[int]
+    reductions: list[int]
+    exposure_counts: dict[str, int]
+    rejected_counts: dict[str, int]
+    days_seen: list[SkillSelectionDay]
+    regimes: dict[int, _RegimeAccumulator]
+    records: int
+    judged_records: int
+    hallucination_records: int
+    enforced_records: int
+    judged_empty_records: int
+    catalog_count_missing: int
+
+
+def _pct(values: list[int], q: float) -> float:
+    """Percentile over a possibly empty sample; empty reads 0.0."""
+    if not values:
+        return 0.0
+    return float(np.percentile(np.asarray(values, dtype=float), q))
+
+
+def _tally_exposure(rec: dict[str, Any], exposure_counts: dict[str, int]) -> None:
+    """Count one judged record's ``catalog_names`` as exposure."""
+    names = rec.get("catalog_names")
+    if isinstance(names, list):
+        for name in names:
+            if isinstance(name, str):
+                exposure_counts[name] = exposure_counts.get(name, 0) + 1
+
+
+def _tally_rejected_names(rec: dict[str, Any], rejected_counts: dict[str, int]) -> None:
+    """Count one judged record's usable ``rejected_names``.
+
+    Counted separately from the record tally at the call site: a record
+    whose ``rejected_names`` is truthy but unusable (wrong type, non-string
+    entries) still *is* a hallucination record. Folding the two would let a
+    malformed field quietly lower the rate.
+    """
+    rejected = rec.get("rejected_names")
+    if not isinstance(rejected, list):
+        return
+    for name in rejected:
+        if not isinstance(name, str):
+            continue
+        clean = scrub_control(name, _NAME_MAX_CHARS)
+        if not clean:
+            continue
+        rejected_counts[clean] = rejected_counts.get(clean, 0) + 1
+
+
+def _tally_regime(
+    rec: dict[str, Any],
+    *,
+    date_part: str,
+    regimes: dict[int, _RegimeAccumulator],
+) -> bool:
+    """Fold one judged record into its ``catalog_count`` bucket.
+
+    Returns whether the record carried an integer count — a ``False`` is the
+    ``catalog_count_missing`` residual the table reports rather than folds.
+    """
+    count = rec.get("catalog_count")
+    if not _is_int(count):
+        return False
+    regime = regimes.setdefault(count, _RegimeAccumulator(date_part, date_part))
+    regime.judged += 1
+    regime.hallucination_records += 1 if rec.get("rejected_names") else 0
+    full = rec.get("full_skill_tokens")
+    if _is_int(full):
+        regime.tokens.append(full)
+    else:
+        regime.tokens_missing += 1
+    regime.last_date = date_part
+    return True
+
+
+def _scan_selection_window(log_dir: Path, cutoff: date, upper: date | None) -> _WindowTally:
+    """One pass over the window's ``skill-selection-*.jsonl`` files."""
     verdict_counts: dict[str, int] = {}
     skill_counts: dict[str, int] = {}
     selected_counts: list[int] = []
@@ -445,116 +511,109 @@ def read_skill_selection_log(
     for day_file in _iter_selection_days(
         log_dir, lambda d: d >= cutoff and (upper is None or d <= upper)
     ):
-        if day_file.readable:
-            date_part = day_file.date_part
-            day_records = 0
-            day_judged = 0
-            day_enforced = 0
-            day_judged_empty = 0
-            day_hallucinations = 0
-            day_selected: set[str] = set()
-            for rec in day_file.records:
-                records += 1
-                day_records += 1
-                verdict = str(rec.get("verdict", "unknown"))
-                verdict_counts[verdict] = verdict_counts.get(verdict, 0) + 1
-                if verdict != "judged":
-                    continue
-                # Everything below is judged-only, deliberately. Every rate
-                # this instrument reports is a rate over judged records, so a
-                # numerator counted on the other side of this line would be
-                # measured against a population it is not drawn from — which
-                # is exactly how "in catalog for 100 of 105 records" came to
-                # describe a skill that had never once been judged.
-                judged_records += 1
-                day_judged += 1
-                if rec.get("enforced"):
-                    enforced_records += 1
-                    day_enforced += 1
-                names = rec.get("catalog_names")
-                if isinstance(names, list):
-                    for name in names:
-                        if isinstance(name, str):
-                            exposure_counts[name] = exposure_counts.get(name, 0) + 1
-                selected = rec.get("selected") or []
-                for name in selected:
-                    skill_counts[name] = skill_counts.get(name, 0) + 1
-                    day_selected.add(name)
-                selected_counts.append(len(selected))
-                if not selected:
-                    judged_empty_records += 1
-                    day_judged_empty += 1
-                rejected = rec.get("rejected_names")
-                if rejected:
-                    hallucination_records += 1
-                    day_hallucinations += 1
-                # Counted separately from the record tally above: a record
-                # whose ``rejected_names`` is truthy but unusable (wrong
-                # type, non-string entries) still *is* a hallucination
-                # record. Folding the two would let a malformed field
-                # quietly lower the rate.
-                if isinstance(rejected, list):
-                    for name in rejected:
-                        if not isinstance(name, str):
-                            continue
-                        clean = scrub_control(name, _NAME_MAX_CHARS)
-                        if not clean:
-                            continue
-                        rejected_counts[clean] = rejected_counts.get(clean, 0) + 1
-                full = rec.get("full_skill_tokens")
-                would_be = rec.get("would_be_skill_tokens")
-                if _is_int(full) and _is_int(would_be):
-                    reductions.append(full - would_be)
-                count = rec.get("catalog_count")
-                if _is_int(count):
-                    regime = regimes.setdefault(count, _RegimeAccumulator(date_part, date_part))
-                    regime.judged += 1
-                    regime.hallucination_records += 1 if rejected else 0
-                    if _is_int(full):
-                        regime.tokens.append(full)
-                    else:
-                        regime.tokens_missing += 1
-                    regime.last_date = date_part
-                else:
-                    catalog_count_missing += 1
-            if day_records:
-                days_seen.append(
-                    SkillSelectionDay(
-                        date=date_part,
-                        records=day_records,
-                        judged=day_judged,
-                        enforced=day_enforced,
-                        judged_empty=day_judged_empty,
-                        hallucination_records=day_hallucinations,
-                        distinct_selected=len(day_selected),
-                    )
+        if not day_file.readable:
+            continue
+        date_part = day_file.date_part
+        day_records = 0
+        day_judged = 0
+        day_enforced = 0
+        day_judged_empty = 0
+        day_hallucinations = 0
+        day_selected: set[str] = set()
+        for rec in day_file.records:
+            records += 1
+            day_records += 1
+            verdict = str(rec.get("verdict", "unknown"))
+            verdict_counts[verdict] = verdict_counts.get(verdict, 0) + 1
+            if verdict != "judged":
+                continue
+            # Everything below is judged-only, deliberately. Every rate
+            # this instrument reports is a rate over judged records, so a
+            # numerator counted on the other side of this line would be
+            # measured against a population it is not drawn from — which
+            # is exactly how "in catalog for 100 of 105 records" came to
+            # describe a skill that had never once been judged.
+            judged_records += 1
+            day_judged += 1
+            if rec.get("enforced"):
+                enforced_records += 1
+                day_enforced += 1
+            _tally_exposure(rec, exposure_counts)
+            selected = rec.get("selected") or []
+            for name in selected:
+                skill_counts[name] = skill_counts.get(name, 0) + 1
+                day_selected.add(name)
+            selected_counts.append(len(selected))
+            if not selected:
+                judged_empty_records += 1
+                day_judged_empty += 1
+            if rec.get("rejected_names"):
+                hallucination_records += 1
+                day_hallucinations += 1
+            _tally_rejected_names(rec, rejected_counts)
+            full = rec.get("full_skill_tokens")
+            would_be = rec.get("would_be_skill_tokens")
+            if _is_int(full) and _is_int(would_be):
+                reductions.append(full - would_be)
+            if not _tally_regime(rec, date_part=date_part, regimes=regimes):
+                catalog_count_missing += 1
+        if day_records:
+            days_seen.append(
+                SkillSelectionDay(
+                    date=date_part,
+                    records=day_records,
+                    judged=day_judged,
+                    enforced=day_enforced,
+                    judged_empty=day_judged_empty,
+                    hallucination_records=day_hallucinations,
+                    distinct_selected=len(day_selected),
                 )
+            )
+    return _WindowTally(
+        verdict_counts=verdict_counts,
+        skill_counts=skill_counts,
+        selected_counts=selected_counts,
+        reductions=reductions,
+        exposure_counts=exposure_counts,
+        rejected_counts=rejected_counts,
+        days_seen=days_seen,
+        regimes=regimes,
+        records=records,
+        judged_records=judged_records,
+        hallucination_records=hallucination_records,
+        enforced_records=enforced_records,
+        judged_empty_records=judged_empty_records,
+        catalog_count_missing=catalog_count_missing,
+    )
 
-    catalog = load_skill_catalog(skills_dir)
-    catalog_names = [e.name for e in catalog]
-    never_selected = tuple(name for name in catalog_names if name not in skill_counts)
-    never_selected_exposure = tuple((name, exposure_counts.get(name, 0)) for name in never_selected)
-    # Catalog vocabulary = what the pass-1 prompt actually shows (name +
-    # description), plus every name the window's records carried, so a
-    # name renamed away mid-window is still catalog-derived rather than
-    # foreign. Names only for the ruler below — it stays the current
-    # catalog so the tally's nearest and the split's similarity agree.
-    catalog_vocabulary: frozenset[str] | None = None
-    if catalog_names:
-        vocabulary: set[str] = set()
-        for entry in catalog:
-            vocabulary |= _tokens(f"{entry.name} {entry.description}")
-        for name in exposure_counts:
-            vocabulary |= _tokens(name)
-        catalog_vocabulary = frozenset(vocabulary)
-    value_layer_vocabulary, value_layer_files, value_layer_missing = (
-        _read_value_layer_vocabulary(value_layer_paths) if value_layer_paths else (None, 0, ())
-    )
-    value_layer_reason = (
-        None
-        if value_layer_vocabulary is not None
-        else ("value_layer_unreadable" if value_layer_paths else "value_layer_not_configured")
-    )
+
+def _catalog_vocabulary(
+    catalog: tuple[SkillCatalogEntry, ...], exposure_counts: dict[str, int]
+) -> frozenset[str] | None:
+    """What the pass-1 prompt actually shows (name + description), plus every
+    name the window's records carried, so a name renamed away mid-window is
+    still catalog-derived rather than foreign. Names only for the ruler in
+    :func:`_rejected_name_tallies` — that stays the current catalog so the
+    tally's nearest and the split's similarity agree. ``None`` when there was
+    no catalog to read."""
+    if not catalog:
+        return None
+    vocabulary: set[str] = set()
+    for entry in catalog:
+        vocabulary |= _tokens(f"{entry.name} {entry.description}")
+    for name in exposure_counts:
+        vocabulary |= _tokens(name)
+    return frozenset(vocabulary)
+
+
+def _rejected_name_tallies(
+    rejected_counts: dict[str, int],
+    catalog_names: list[str],
+    *,
+    catalog_vocabulary: frozenset[str] | None,
+    value_layer_vocabulary: frozenset[str] | None,
+) -> tuple[RejectedNameTally, ...]:
+    """One row per distinct rejected name, emissions descending."""
 
     def _nearest(name: str) -> tuple[str, float]:
         """Closest catalog name by surface similarity, with its ratio.
@@ -605,24 +664,28 @@ def read_skill_selection_log(
             mechanism_note=note,
         )
 
-    rejected_name_tally = tuple(
+    return tuple(
         _tally(name, count)
         for name, count in sorted(rejected_counts.items(), key=lambda kv: (-kv[1], kv[0]))
     )
+
+
+def _mechanism_tallies(
+    rejected_name_tally: tuple[RejectedNameTally, ...],
+) -> tuple[MechanismTally, ...]:
+    """Emissions and distinct names per mechanism, emissions descending."""
     mechanism_rows: dict[HallucinationMechanism, list[int]] = {}
     for entry in rejected_name_tally:
         mechanism_rows.setdefault(entry.mechanism, []).append(entry.count)
-    mechanism_tally = tuple(
+    return tuple(
         MechanismTally(mechanism=m, emissions=sum(counts), distinct=len(counts))
         for m, counts in sorted(mechanism_rows.items(), key=lambda kv: (-sum(kv[1]), kv[0]))
     )
 
-    def _pct(values: list[int], q: float) -> float:
-        if not values:
-            return 0.0
-        return float(np.percentile(np.asarray(values, dtype=float), q))
 
-    catalog_regimes = tuple(
+def _catalog_regime_rows(regimes: dict[int, _RegimeAccumulator]) -> tuple[CatalogRegime, ...]:
+    """Freeze the per-``catalog_count`` accumulators, ascending by size."""
+    return tuple(
         CatalogRegime(
             catalog_count=count,
             judged=acc.judged,
@@ -635,33 +698,254 @@ def read_skill_selection_log(
         for count, acc in sorted(regimes.items())
     )
 
+
+def read_skill_selection_log(
+    log_dir: Path,
+    *,
+    days: int | None = None,
+    since: date | None = None,
+    until: date | None = None,
+    skills_dir: Path | None,
+    value_layer_paths: tuple[Path, ...] = (),
+) -> SkillSelectionReading:
+    """Aggregate ``skill-selection-*.jsonl`` files within the window.
+
+    The window is either ``days`` (files dated on or after ``today - days``,
+    unchanged since the instrument shipped) or an explicit, inclusive UTC
+    calendar range ``since`` .. ``until`` (``until`` defaults to today); the
+    two are exclusive. Files are selected by the date embedded in the
+    filename (same daily rotation as LLM telemetry); broken lines are
+    skipped, never fatal. ``never_selected`` is computed against the
+    *current* catalog, so a skill adopted yesterday with no selections yet
+    will appear — read it alongside ``records`` before drawing conclusions.
+    ``value_layer_paths`` (constitution dir, identity file) are read, never
+    written, and only feed the mechanism split of rejected names.
+    """
+    cutoff, upper, window_days = resolve_selection_window(days, since, until)
+    tally = _scan_selection_window(log_dir, cutoff, upper)
+
+    catalog = load_skill_catalog(skills_dir)
+    catalog_names = [e.name for e in catalog]
+    never_selected = tuple(name for name in catalog_names if name not in tally.skill_counts)
+    never_selected_exposure = tuple(
+        (name, tally.exposure_counts.get(name, 0)) for name in never_selected
+    )
+    catalog_vocabulary = _catalog_vocabulary(catalog, tally.exposure_counts)
+    value_layer_vocabulary, value_layer_files, value_layer_missing = (
+        _read_value_layer_vocabulary(value_layer_paths) if value_layer_paths else (None, 0, ())
+    )
+    value_layer_reason = (
+        None
+        if value_layer_vocabulary is not None
+        else ("value_layer_unreadable" if value_layer_paths else "value_layer_not_configured")
+    )
+    rejected_name_tally = _rejected_name_tallies(
+        tally.rejected_counts,
+        catalog_names,
+        catalog_vocabulary=catalog_vocabulary,
+        value_layer_vocabulary=value_layer_vocabulary,
+    )
+
     return SkillSelectionReading(
         days=window_days,
-        records=records,
-        verdicts=tuple(sorted(verdict_counts.items())),
-        per_skill=tuple(sorted(skill_counts.items(), key=lambda kv: (-kv[1], kv[0]))),
+        records=tally.records,
+        verdicts=tuple(sorted(tally.verdict_counts.items())),
+        per_skill=tuple(sorted(tally.skill_counts.items(), key=lambda kv: (-kv[1], kv[0]))),
         never_selected=never_selected,
-        hallucination_records=hallucination_records,
-        selected_count_p50=_pct(selected_counts, 50),
-        selected_count_p90=_pct(selected_counts, 90),
-        token_reduction_p50=_pct(reductions, 50),
-        token_reduction_p90=_pct(reductions, 90),
-        judged_records=judged_records,
-        enforced_records=enforced_records,
-        judged_empty_records=judged_empty_records,
-        per_day=tuple(sorted(days_seen, key=lambda d: d.date)),
+        hallucination_records=tally.hallucination_records,
+        selected_count_p50=_pct(tally.selected_counts, 50),
+        selected_count_p90=_pct(tally.selected_counts, 90),
+        token_reduction_p50=_pct(tally.reductions, 50),
+        token_reduction_p90=_pct(tally.reductions, 90),
+        judged_records=tally.judged_records,
+        enforced_records=tally.enforced_records,
+        judged_empty_records=tally.judged_empty_records,
+        per_day=tuple(sorted(tally.days_seen, key=lambda d: d.date)),
         never_selected_exposure=never_selected_exposure,
         rejected_name_tally=rejected_name_tally,
         catalog_available=bool(catalog_names),
         window_since=cutoff.isoformat() if upper is not None else None,
         window_until=upper.isoformat() if upper is not None else None,
-        catalog_regimes=catalog_regimes,
-        catalog_count_missing=catalog_count_missing,
-        mechanism_tally=mechanism_tally,
+        catalog_regimes=_catalog_regime_rows(tally.regimes),
+        catalog_count_missing=tally.catalog_count_missing,
+        mechanism_tally=_mechanism_tallies(rejected_name_tally),
         value_layer_reason=value_layer_reason,
         value_layer_files=value_layer_files,
         value_layer_missing=value_layer_missing,
     )
+
+
+def _render_per_day(reading: SkillSelectionReading) -> list[str]:
+    """The per-day table, empty when the window held no readable day."""
+    if not reading.per_day:
+        return []
+    lines = [
+        "",
+        "Per day (a window-wide average hides the day a regime changed):",
+        f"{'date':<12}{'records':>9}{'judged':>8}{'fell-back':>11}"
+        f"{'enforced':>10}{'jd-empty':>10}{'halluc':>8}{'distinct':>10}",
+    ]
+    for day in reading.per_day:
+        lines.append(
+            f"{day.date:<12}{day.records:>9}{day.judged:>8}{day.fell_back:>11}"
+            f"{day.enforced:>10}{day.judged_empty:>10}"
+            f"{day.hallucination_records:>8}{day.distinct_selected:>10}"
+        )
+    lines.append(
+        "  records = judged + fell-back; all other columns count judged "
+        "records only. Which fallback verdicts fired is in `Verdicts` above."
+    )
+    return lines
+
+
+def _render_catalog_regimes(reading: SkillSelectionReading) -> list[str]:
+    """The by-catalog-size table, plus the residual it does not fold in."""
+    if not (reading.catalog_regimes or reading.catalog_count_missing):
+        return []
+    lines = [
+        "",
+        "By catalog size (the rate tracks the regime, not the window):",
+        f"{'catalog':>8}{'judged':>8}{'halluc':>8}{'rate':>9}{'tok p50':>10}  days",
+    ]
+    for regime in reading.catalog_regimes:
+        rate = regime.hallucination_records / regime.judged if regime.judged else 0.0
+        if regime.full_skill_tokens_median is None:
+            tokens_text = "—"
+        else:
+            tokens_text = f"{regime.full_skill_tokens_median:,.0f}"
+        span = (
+            regime.first_date
+            if regime.first_date == regime.last_date
+            else f"{regime.first_date}..{regime.last_date}"
+        )
+        missing = (
+            f" (full_skill_tokens_missing={regime.tokens_missing})" if regime.tokens_missing else ""
+        )
+        lines.append(
+            f"{regime.catalog_count:>8}{regime.judged:>8}{regime.hallucination_records:>8}"
+            f"{rate:>9.1%}{tokens_text:>10}  {span}{missing}"
+        )
+    if reading.catalog_count_missing:
+        lines.append(
+            f"  catalog_count_missing={reading.catalog_count_missing} judged records carried "
+            "no integer catalog_count and are excluded from this table"
+        )
+    lines.append(
+        "  halluc = judged records with ≥1 rejected name; tok p50 = median "
+        "full_skill_tokens the record baked in (corpus size as offered)."
+    )
+    return lines
+
+
+def _render_mechanism_tally(reading: SkillSelectionReading) -> list[str]:
+    """The mechanism split, with the abstain notes that bound how it reads."""
+    if not reading.mechanism_tally:
+        return []
+    lines = ["", "Hallucination by mechanism (emissions over distinct rejected names):"]
+    total_emissions = sum(m.emissions for m in reading.mechanism_tally)
+    for tally in reading.mechanism_tally:
+        share = tally.emissions / total_emissions if total_emissions else 0.0
+        lines.append(
+            f"- {tally.mechanism}: {tally.emissions} emissions ({share:.1%}), "
+            f"{tally.distinct} distinct"
+        )
+    if not reading.catalog_available:
+        lines.append(
+            "  no catalog to measure against: every non-prose name is "
+            "`unclassified` (catalog_unavailable), not classified."
+        )
+    if reading.value_layer_reason is not None:
+        lines.append(
+            f"  value-layer rule abstained: {reading.value_layer_reason} — names with "
+            "tokens outside the catalog vocabulary are `unclassified`, not `semantic`."
+        )
+    else:
+        missing = (
+            f"; read nothing from {', '.join(reading.value_layer_missing)}"
+            if reading.value_layer_missing
+            else ""
+        )
+        lines.append(
+            f"  value layer read from {reading.value_layer_files} file(s) "
+            f"(constitution / identity, read-only){missing}."
+        )
+    lines.append(
+        "  Both rulers are the catalog and value layer as they stand *now*, not "
+        "as each record saw them: a window spanning a rename, a rewritten "
+        "description or a constitution amendment classifies older emissions "
+        "against today's text. The audit records carry `catalog_names` (folded "
+        "in above) but no description or value-layer snapshot, so this reading "
+        "is not replayable across such a change — read a regime boundary in the "
+        "table above as a boundary here too (cross-model review, 2026-08-22)."
+    )
+    return lines
+
+
+def _render_rejected_names(
+    reading: SkillSelectionReading, *, include_rejected_names: bool
+) -> list[str]:
+    """The rejected-name rows. ``include_rejected_names`` is the trust
+    decision documented on :func:`format_skill_selection_report`."""
+    if not reading.rejected_name_tally:
+        return []
+    lines = ["", "Rejected names (emitted, matched no catalog entry):"]
+    if not include_rejected_names:
+        lines.append(
+            "  (names withheld — this renderer's default. They are model "
+            "output shaped by untrusted input; `report --skill-selection` "
+            "shows them. Shape below is catalog names and distances only.)"
+        )
+    shown = reading.rejected_name_tally[:_REJECTED_NAME_RENDER_LIMIT]
+    for entry in shown:
+        if entry.nearest:
+            nearest_text = (
+                f"nearest catalog name `{entry.nearest}` (similarity {entry.similarity:.2f})"
+            )
+        elif reading.catalog_available:
+            # Measured against a real catalog and nothing came close:
+            # the value-layer-bleed signature. Rendering this as
+            # `nearest \`x\` (similarity 0.00)` read as a match claim.
+            nearest_text = "no catalog name resembles it"
+        else:
+            # No ruler. Must not be reported as the line above — a
+            # broken skills_dir would then read as bleed.
+            nearest_text = "no catalog to compare against"
+        # The name is the only untrusted half of the row; dropping it
+        # still leaves the distance and which real skill it is near,
+        # which is what "did wordform slips concentrate on three
+        # skills, or is text bleeding in?" actually needs.
+        head = f"{entry.name}: " if include_rejected_names else ""
+        mechanism_text = entry.mechanism
+        if entry.mechanism_reason:
+            mechanism_text += f" ({entry.mechanism_reason})"
+        # The note quotes tokens of the name: same trust boundary as
+        # the name itself.
+        if include_rejected_names and entry.mechanism_note:
+            mechanism_text += f"; {entry.mechanism_note}"
+        lines.append(f"- {head}{entry.count} emissions — {nearest_text} — {mechanism_text}")
+    hidden = reading.rejected_name_tally[_REJECTED_NAME_RENDER_LIMIT:]
+    if hidden:
+        # Bounding the *rendering*, not the reading: the dataclass
+        # still carries every row. Prose bleed — the degenerate mode
+        # this tally exists to detect — is exactly the mode that emits
+        # thousands of unique names, so an uncapped section would
+        # explode the one artifact it is meant to inform. Silently
+        # truncating would read as "that was all of it".
+        lines.append(
+            f"- … and {len(hidden)} more distinct names "
+            f"({sum(e.count for e in hidden)} emissions), not shown"
+        )
+    lines.append(
+        "  Counts are emissions, not records — one record can emit the same "
+        "name twice, so these do not sum to the Hallucination line above. "
+        "Similarity is surface (orthographic), not semantic: near 1.00 is a "
+        "wordform slip on a name that IS in the catalog, mid-range is a "
+        "different word, low means the text came from somewhere other than "
+        "the catalog. The trailing bucket is the fixed four-rule split "
+        f"(wordform floor {WORDFORM_SIMILARITY_FLOOR:.2f}); `unclassified` rows "
+        "name the input the rule was missing."
+    )
+    return lines
 
 
 def format_skill_selection_report(
@@ -736,159 +1020,15 @@ def format_skill_selection_report(
         f"≈{reading.token_reduction_p50:,.0f} tok / p90 "
         f"≈{reading.token_reduction_p90:,.0f} tok (audit C2 scale)"
     )
-    if reading.per_day:
-        lines.append("")
-        lines.append("Per day (a window-wide average hides the day a regime changed):")
-        lines.append(
-            f"{'date':<12}{'records':>9}{'judged':>8}{'fell-back':>11}"
-            f"{'enforced':>10}{'jd-empty':>10}{'halluc':>8}{'distinct':>10}"
-        )
-        for day in reading.per_day:
-            lines.append(
-                f"{day.date:<12}{day.records:>9}{day.judged:>8}{day.fell_back:>11}"
-                f"{day.enforced:>10}{day.judged_empty:>10}"
-                f"{day.hallucination_records:>8}{day.distinct_selected:>10}"
-            )
-        lines.append(
-            "  records = judged + fell-back; all other columns count judged "
-            "records only. Which fallback verdicts fired is in `Verdicts` above."
-        )
-    if reading.catalog_regimes or reading.catalog_count_missing:
-        lines.append("")
-        lines.append("By catalog size (the rate tracks the regime, not the window):")
-        lines.append(f"{'catalog':>8}{'judged':>8}{'halluc':>8}{'rate':>9}{'tok p50':>10}  days")
-        for regime in reading.catalog_regimes:
-            rate = regime.hallucination_records / regime.judged if regime.judged else 0.0
-            if regime.full_skill_tokens_median is None:
-                tokens_text = "—"
-            else:
-                tokens_text = f"{regime.full_skill_tokens_median:,.0f}"
-            span = (
-                regime.first_date
-                if regime.first_date == regime.last_date
-                else f"{regime.first_date}..{regime.last_date}"
-            )
-            missing = (
-                f" (full_skill_tokens_missing={regime.tokens_missing})"
-                if regime.tokens_missing
-                else ""
-            )
-            lines.append(
-                f"{regime.catalog_count:>8}{regime.judged:>8}{regime.hallucination_records:>8}"
-                f"{rate:>9.1%}{tokens_text:>10}  {span}{missing}"
-            )
-        if reading.catalog_count_missing:
-            lines.append(
-                f"  catalog_count_missing={reading.catalog_count_missing} judged records carried "
-                "no integer catalog_count and are excluded from this table"
-            )
-        lines.append(
-            "  halluc = judged records with ≥1 rejected name; tok p50 = median "
-            "full_skill_tokens the record baked in (corpus size as offered)."
-        )
+    lines.extend(_render_per_day(reading))
+    lines.extend(_render_catalog_regimes(reading))
     if reading.per_skill:
         lines.append("")
         lines.append("Selection frequency:")
         for name, count in reading.per_skill:
             lines.append(f"- {name}: {count}")
-    if reading.mechanism_tally:
-        lines.append("")
-        lines.append("Hallucination by mechanism (emissions over distinct rejected names):")
-        total_emissions = sum(m.emissions for m in reading.mechanism_tally)
-        for tally in reading.mechanism_tally:
-            share = tally.emissions / total_emissions if total_emissions else 0.0
-            lines.append(
-                f"- {tally.mechanism}: {tally.emissions} emissions ({share:.1%}), "
-                f"{tally.distinct} distinct"
-            )
-        if not reading.catalog_available:
-            lines.append(
-                "  no catalog to measure against: every non-prose name is "
-                "`unclassified` (catalog_unavailable), not classified."
-            )
-        if reading.value_layer_reason is not None:
-            lines.append(
-                f"  value-layer rule abstained: {reading.value_layer_reason} — names with "
-                "tokens outside the catalog vocabulary are `unclassified`, not `semantic`."
-            )
-        else:
-            missing = (
-                f"; read nothing from {', '.join(reading.value_layer_missing)}"
-                if reading.value_layer_missing
-                else ""
-            )
-            lines.append(
-                f"  value layer read from {reading.value_layer_files} file(s) "
-                f"(constitution / identity, read-only){missing}."
-            )
-        lines.append(
-            "  Both rulers are the catalog and value layer as they stand *now*, not "
-            "as each record saw them: a window spanning a rename, a rewritten "
-            "description or a constitution amendment classifies older emissions "
-            "against today's text. The audit records carry `catalog_names` (folded "
-            "in above) but no description or value-layer snapshot, so this reading "
-            "is not replayable across such a change — read a regime boundary in the "
-            "table above as a boundary here too (cross-model review, 2026-08-22)."
-        )
-    if reading.rejected_name_tally:
-        lines.append("")
-        lines.append("Rejected names (emitted, matched no catalog entry):")
-        if not include_rejected_names:
-            lines.append(
-                "  (names withheld — this renderer's default. They are model "
-                "output shaped by untrusted input; `report --skill-selection` "
-                "shows them. Shape below is catalog names and distances only.)"
-            )
-        shown = reading.rejected_name_tally[:_REJECTED_NAME_RENDER_LIMIT]
-        for entry in shown:
-            if entry.nearest:
-                nearest_text = (
-                    f"nearest catalog name `{entry.nearest}` (similarity {entry.similarity:.2f})"
-                )
-            elif reading.catalog_available:
-                # Measured against a real catalog and nothing came close:
-                # the value-layer-bleed signature. Rendering this as
-                # `nearest \`x\` (similarity 0.00)` read as a match claim.
-                nearest_text = "no catalog name resembles it"
-            else:
-                # No ruler. Must not be reported as the line above — a
-                # broken skills_dir would then read as bleed.
-                nearest_text = "no catalog to compare against"
-            # The name is the only untrusted half of the row; dropping it
-            # still leaves the distance and which real skill it is near,
-            # which is what "did wordform slips concentrate on three
-            # skills, or is text bleeding in?" actually needs.
-            head = f"{entry.name}: " if include_rejected_names else ""
-            mechanism_text = entry.mechanism
-            if entry.mechanism_reason:
-                mechanism_text += f" ({entry.mechanism_reason})"
-            # The note quotes tokens of the name: same trust boundary as
-            # the name itself.
-            if include_rejected_names and entry.mechanism_note:
-                mechanism_text += f"; {entry.mechanism_note}"
-            lines.append(f"- {head}{entry.count} emissions — {nearest_text} — {mechanism_text}")
-        hidden = reading.rejected_name_tally[_REJECTED_NAME_RENDER_LIMIT:]
-        if hidden:
-            # Bounding the *rendering*, not the reading: the dataclass
-            # still carries every row. Prose bleed — the degenerate mode
-            # this tally exists to detect — is exactly the mode that emits
-            # thousands of unique names, so an uncapped section would
-            # explode the one artifact it is meant to inform. Silently
-            # truncating would read as "that was all of it".
-            lines.append(
-                f"- … and {len(hidden)} more distinct names "
-                f"({sum(e.count for e in hidden)} emissions), not shown"
-            )
-        lines.append(
-            "  Counts are emissions, not records — one record can emit the same "
-            "name twice, so these do not sum to the Hallucination line above. "
-            "Similarity is surface (orthographic), not semantic: near 1.00 is a "
-            "wordform slip on a name that IS in the catalog, mid-range is a "
-            "different word, low means the text came from somewhere other than "
-            "the catalog. The trailing bucket is the fixed four-rule split "
-            f"(wordform floor {WORDFORM_SIMILARITY_FLOOR:.2f}); `unclassified` rows "
-            "name the input the rule was missing."
-        )
+    lines.extend(_render_mechanism_tally(reading))
+    lines.extend(_render_rejected_names(reading, include_rejected_names=include_rejected_names))
     if reading.never_selected_exposure:
         lines.append("")
         # Deliberately not "candidates": this list is window-scoped, so most

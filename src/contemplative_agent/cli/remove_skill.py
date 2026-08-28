@@ -17,7 +17,9 @@ from __future__ import annotations
 import argparse
 import logging
 import sys
+from collections.abc import Callable
 from pathlib import Path
+from typing import NoReturn
 
 from ..adapters.moltbook import config
 from . import approval
@@ -28,6 +30,7 @@ from .skill_archive import (
     _ARCHIVE_REFUSED_ALREADY_ARCHIVED,
     _ARCHIVE_REFUSED_SYMLINK,
     _apply_archive_plan,
+    _ArchivePlan,
     _ArchiveResult,
     _plan_archive,
     _record_archive,
@@ -87,6 +90,113 @@ def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentPar
     # invocation uses.
     data_root = config.MOLTBOOK_DATA_DIR.resolve()
     skills_dir = _skills_dir(data_root).resolve()
+    literal, target = _resolve_remove_skill_target(args, skills_dir)
+
+    delete = getattr(args, "delete", False)
+
+    # One plan for the whole invocation. The dry run, the prompt and the move
+    # all read it, which is what makes the preview unable to promise something
+    # the run refuses (Codex P2 #2) without anyone keeping two lists of checks
+    # in step.
+    #
+    # ``literal``, never ``target``: ``is_symlink()`` on a resolved path is
+    # always False, so planning from the referent would turn the symlink
+    # refusal below into a silent no-op.
+    plan = _plan_archive(literal, data_root=data_root, superseded_by=None)
+    if isinstance(plan, _ArchiveResult):
+        # In practice only SYMLINK — MISSING and OUTSIDE were answered above,
+        # in this handler's own idiom. Handled by code rather than by name so
+        # a new source-side refusal cannot fall through unreported.
+        #
+        # The symlink refusal applies to BOTH branches, above the dry run and
+        # above the prompt. This is the silent-failure review's CRITICAL: it
+        # used to live under `if not delete:` and its message offered
+        # `--delete` as the way to "drop the link" — but `target` is the
+        # RESOLVED leaf, so `--delete` unlinked the referent. Reproduced:
+        # `remove-skill link --delete --yes` printed "Removed real.md",
+        # destroyed the live skill with no archive and no recovery, left
+        # `link.md` dangling, and wrote an audit row naming a file the
+        # operator never typed.
+        #
+        # Refused rather than made to unlink the link itself, which was the
+        # other option: the row's ``content`` is the referent's bytes, so a row
+        # for a removed *link* would hash text that still exists — a second lie
+        # in place of the first. A symlink is not a skill; `rm` removes one,
+        # and this command stays the entry point for skills only.
+        _abort_on_archive_plan_refusal(plan, literal.name, target)
+
+    # The INTENDED destination, shown in the dry run and the prompt. Archiving
+    # over a name already in `.archive/` with different content appends a
+    # counter (``approval._collision_free_path``, which announces itself), so
+    # the final path can differ by that suffix — never by directory, and never
+    # by overwriting anything, which is why this is safe to promise up front.
+    # ``_same_archive_slot`` checks that claim at the move.
+    destination = plan.intended
+    # ``purging`` and the already-archived refusal are the same question, and
+    # the plan answered it once. They used to be two copies of one expression,
+    # forty lines apart.
+    purging = plan.kind == _ARCHIVE_KIND_PURGE
+    if not delete:
+        _abort_on_archive_destination_refusal(plan, purging, target, destination)
+
+    if getattr(args, "dry_run", False):
+        if delete:
+            print(f"[dry-run] would remove: {target}")
+        else:
+            print(f"[dry-run] would archive: {target} → {destination}")
+        print(f"[dry-run] reason: {reason}")
+        return
+
+    try:
+        text = target.read_text(encoding="utf-8")
+    except OSError as err:
+        print(f"Error: cannot read {target}: {err}", file=sys.stderr)
+        sys.exit(1)
+
+    yes = getattr(args, "yes", False)
+    # Three outcomes, three categorical sources — a live skill deleted, a
+    # live skill moved to the archive, and a file already in the archive
+    # purged. They used to share `direct-remove*`, so an archive row and a
+    # purge row differed only in operator free text (silent-failure review
+    # 2026-08-22 HIGH). The purge arm is reachable only through `--delete`,
+    # because the archive arm refuses an already-archived source above.
+    # ``purging`` comes from the plan; this line used to recompute it.
+    source = _remove_skill_audit_source(delete, purging, yes)
+
+    def _record(path: Path, approved: bool) -> None:
+        """One row shape for every verdict this handler reaches.
+
+        ``command`` / ``content`` / ``source`` / ``reason`` are fixed for the
+        whole invocation, so writing them out per branch only invited the four
+        rows to drift apart (code review 2026-08-22). What varies is the
+        verdict and the path. ``source`` carries which of the three
+        retirements this is; ``path`` names the file the row is about and is
+        NOT the discriminator (see ``_record_archive``).
+        """
+        approval._log_approval(
+            command="remove-skill",
+            path=path,
+            approved=approved,
+            content=text,
+            source=source,
+            reason=reason,
+        )
+
+    if delete:
+        _perform_skill_delete(target, yes, _record)
+        return
+
+    _perform_skill_archive(plan, target, destination, yes, source, reason, _record)
+
+
+def _resolve_remove_skill_target(args: argparse.Namespace, skills_dir: Path) -> tuple[Path, Path]:
+    """Normalize the operator's name and validate it names a real, in-store file.
+
+    Split out of :func:`_handle_remove_skill` (behaviour-preserving). Returns
+    ``(literal, target)`` — see the two-spellings note this carried in the
+    handler: ``literal`` is the path the operator named (still possibly a
+    symlink), ``target`` is its resolved referent.
+    """
     name = args.name
     if not name.endswith(".md"):
         name = f"{name}.md"
@@ -123,152 +233,110 @@ def _handle_remove_skill(args: argparse.Namespace, _parser: argparse.ArgumentPar
         print(f"Error: skill not found: {target}", file=sys.stderr)
         sys.exit(1)
 
-    delete = getattr(args, "delete", False)
+    return literal, target
 
-    # One plan for the whole invocation. The dry run, the prompt and the move
-    # all read it, which is what makes the preview unable to promise something
-    # the run refuses (Codex P2 #2) without anyone keeping two lists of checks
-    # in step.
-    #
-    # ``literal``, never ``target``: ``is_symlink()`` on a resolved path is
-    # always False, so planning from the referent would turn the symlink
-    # refusal below into a silent no-op.
-    plan = _plan_archive(literal, data_root=data_root, superseded_by=None)
-    if isinstance(plan, _ArchiveResult):
-        # In practice only SYMLINK — MISSING and OUTSIDE were answered above,
-        # in this handler's own idiom. Handled by code rather than by name so
-        # a new source-side refusal cannot fall through unreported.
-        #
-        # The symlink refusal applies to BOTH branches, above the dry run and
-        # above the prompt. This is the silent-failure review's CRITICAL: it
-        # used to live under `if not delete:` and its message offered
-        # `--delete` as the way to "drop the link" — but `target` is the
-        # RESOLVED leaf, so `--delete` unlinked the referent. Reproduced:
-        # `remove-skill link --delete --yes` printed "Removed real.md",
-        # destroyed the live skill with no archive and no recovery, left
-        # `link.md` dangling, and wrote an audit row naming a file the
-        # operator never typed.
-        #
-        # Refused rather than made to unlink the link itself, which was the
-        # other option: the row's ``content`` is the referent's bytes, so a row
-        # for a removed *link* would hash text that still exists — a second lie
-        # in place of the first. A symlink is not a skill; `rm` removes one,
-        # and this command stays the entry point for skills only.
-        detail = (
-            f"{name} is a symlink, not a skill. Name its referent "
-            f"({target.name}) to retire that, or remove the link with `rm`."
-            if plan.reason == _ARCHIVE_REFUSED_SYMLINK
-            else f"{target}{': ' + plan.detail if plan.detail else ''}"
+
+def _abort_on_archive_plan_refusal(plan: _ArchiveResult, name: str, target: Path) -> NoReturn:
+    """Print and exit 1 for a ``_plan_archive`` refusal (in practice: symlink).
+
+    Split out of :func:`_handle_remove_skill` (behaviour-preserving).
+    Annotated ``NoReturn`` (not just an unconditional ``sys.exit``) so pyright
+    narrows the caller's ``plan: _ArchivePlan | _ArchiveResult`` to
+    ``_ArchivePlan`` for the rest of ``_handle_remove_skill`` after the
+    ``isinstance`` guard calls this and falls through.
+    """
+    detail = (
+        f"{name} is a symlink, not a skill. Name its referent "
+        f"({target.name}) to retire that, or remove the link with `rm`."
+        if plan.reason == _ARCHIVE_REFUSED_SYMLINK
+        else f"{target}{': ' + plan.detail if plan.detail else ''}"
+    )
+    print(f"Error: {plan.reason}: {detail}", file=sys.stderr)
+    sys.exit(1)
+
+
+def _abort_on_archive_destination_refusal(
+    plan: _ArchivePlan, purging: bool, target: Path, destination: Path
+) -> None:
+    """Print and exit 1 when non-``--delete`` mode cannot land in the archive.
+
+    Split out of :func:`_handle_remove_skill` (behaviour-preserving).
+    """
+    # A file that already left the store has no second exit. `name` is
+    # free-form and `.archive/old` resolves inside the skills dir, so the
+    # containment check above admits it; archiving it again computed a
+    # destination equal to the source and unlinked the last copy
+    # (security review 2026-08-22 MEDIUM). `--delete` stays the
+    # deliberate, audited way to purge from the archive.
+    if purging:
+        print(
+            f"Error: {_ARCHIVE_REFUSED_ALREADY_ARCHIVED}: {target} is already in the "
+            "archive; there is no second exit. Restore it with `mv` first, or "
+            "use --delete to remove it permanently.",
+            file=sys.stderr,
         )
-        print(f"Error: {plan.reason}: {detail}", file=sys.stderr)
+        sys.exit(1)
+    # A field rather than a refusal, precisely so this stays under
+    # `if not delete`: `--delete` never touches the archive slot and must
+    # keep working when the slot is unusable.
+    if plan.destination_refusal:
+        print(
+            f"Error: {plan.destination_refusal}: cannot archive {target.name} to {destination}.",
+            file=sys.stderr,
+        )
         sys.exit(1)
 
-    # The INTENDED destination, shown in the dry run and the prompt. Archiving
-    # over a name already in `.archive/` with different content appends a
-    # counter (``approval._collision_free_path``, which announces itself), so
-    # the final path can differ by that suffix — never by directory, and never
-    # by overwriting anything, which is why this is safe to promise up front.
-    # ``_same_archive_slot`` checks that claim at the move.
-    destination = plan.intended
-    # ``purging`` and the already-archived refusal are the same question, and
-    # the plan answered it once. They used to be two copies of one expression,
-    # forty lines apart.
-    purging = plan.kind == _ARCHIVE_KIND_PURGE
+
+def _remove_skill_audit_source(delete: bool, purging: bool, yes: bool) -> AuditSource:
+    """Pick the audit ``source`` for one of the three retirement outcomes.
+
+    Split out of :func:`_handle_remove_skill` (behaviour-preserving).
+    """
     if not delete:
-        # A file that already left the store has no second exit. `name` is
-        # free-form and `.archive/old` resolves inside the skills dir, so the
-        # containment check above admits it; archiving it again computed a
-        # destination equal to the source and unlinked the last copy
-        # (security review 2026-08-22 MEDIUM). `--delete` stays the
-        # deliberate, audited way to purge from the archive.
-        if purging:
-            print(
-                f"Error: {_ARCHIVE_REFUSED_ALREADY_ARCHIVED}: {target} is already in the "
-                "archive; there is no second exit. Restore it with `mv` first, or "
-                "use --delete to remove it permanently.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
-        # A field rather than a refusal, precisely so this stays under
-        # `if not delete`: `--delete` never touches the archive slot and must
-        # keep working when the slot is unusable.
-        if plan.destination_refusal:
-            print(
-                f"Error: {plan.destination_refusal}: cannot archive "
-                f"{target.name} to {destination}.",
-                file=sys.stderr,
-            )
-            sys.exit(1)
+        return "direct-archive-auto" if yes else "direct-archive"
+    if purging:
+        return "direct-purge-auto" if yes else "direct-purge"
+    return "direct-remove-auto" if yes else "direct-remove"
 
-    if getattr(args, "dry_run", False):
-        if delete:
-            print(f"[dry-run] would remove: {target}")
-        else:
-            print(f"[dry-run] would archive: {target} → {destination}")
-        print(f"[dry-run] reason: {reason}")
+
+def _perform_skill_delete(target: Path, yes: bool, record: Callable[[Path, bool], None]) -> None:
+    """Prompt (unless ``yes``), unlink, and record — the ``--delete`` branch.
+
+    Split out of :func:`_handle_remove_skill` (behaviour-preserving).
+    """
+    if not (yes or approval._approve_delete(target)):
+        record(target, False)
+        print("Kept.")
         return
-
+    # Unlink BEFORE logging, matching every other destructive branch in
+    # this module (the reject arm's 2026-08-01 H1 ordering, and the new
+    # archive path ten lines down): a row claiming a deletion that did not
+    # reach disk is worse than a deletion with a missing row. This was the
+    # one branch still logging first — pre-existing, aligned while here.
     try:
-        text = target.read_text(encoding="utf-8")
+        target.unlink()
     except OSError as err:
-        print(f"Error: cannot read {target}: {err}", file=sys.stderr)
+        print(f"Error: could not remove {target}: {err}", file=sys.stderr)
         sys.exit(1)
+    record(target, True)
+    print(f"Removed {target.name}")
 
-    yes = getattr(args, "yes", False)
-    # Three outcomes, three categorical sources — a live skill deleted, a
-    # live skill moved to the archive, and a file already in the archive
-    # purged. They used to share `direct-remove*`, so an archive row and a
-    # purge row differed only in operator free text (silent-failure review
-    # 2026-08-22 HIGH). The purge arm is reachable only through `--delete`,
-    # because the archive arm refuses an already-archived source above.
-    # ``purging`` comes from the plan; this line used to recompute it.
-    if not delete:
-        source: AuditSource = "direct-archive-auto" if yes else "direct-archive"
-    elif purging:
-        source = "direct-purge-auto" if yes else "direct-purge"
-    else:
-        source = "direct-remove-auto" if yes else "direct-remove"
 
-    def _record(path: Path, approved: bool) -> None:
-        """One row shape for every verdict this handler reaches.
+def _perform_skill_archive(
+    plan: _ArchivePlan,
+    target: Path,
+    destination: Path,
+    yes: bool,
+    source: AuditSource,
+    reason: str,
+    record: Callable[[Path, bool], None],
+) -> None:
+    """Prompt (unless ``yes``), apply the archive plan, and record.
 
-        ``command`` / ``content`` / ``source`` / ``reason`` are fixed for the
-        whole invocation, so writing them out per branch only invited the four
-        rows to drift apart (code review 2026-08-22). What varies is the
-        verdict and the path. ``source`` carries which of the three
-        retirements this is; ``path`` names the file the row is about and is
-        NOT the discriminator (see ``_record_archive``).
-        """
-        approval._log_approval(
-            command="remove-skill",
-            path=path,
-            approved=approved,
-            content=text,
-            source=source,
-            reason=reason,
-        )
-
-    if delete:
-        if not (yes or approval._approve_delete(target)):
-            _record(target, False)
-            print("Kept.")
-            return
-        # Unlink BEFORE logging, matching every other destructive branch in
-        # this module (the reject arm's 2026-08-01 H1 ordering, and the new
-        # archive path ten lines down): a row claiming a deletion that did not
-        # reach disk is worse than a deletion with a missing row. This was the
-        # one branch still logging first — pre-existing, aligned while here.
-        try:
-            target.unlink()
-        except OSError as err:
-            print(f"Error: could not remove {target}: {err}", file=sys.stderr)
-            sys.exit(1)
-        _record(target, True)
-        print(f"Removed {target.name}")
-        return
-
+    Split out of :func:`_handle_remove_skill` (behaviour-preserving).
+    """
     if not (yes or approval._approve(f"Archive {target} → {destination}?")):
-        _record(target, False)
+        record(target, False)
         print("Kept.")
         return
 

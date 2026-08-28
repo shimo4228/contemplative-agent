@@ -37,8 +37,9 @@ from __future__ import annotations
 import json
 import logging
 import os
+from collections.abc import Iterator
 from dataclasses import dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any
 
@@ -455,6 +456,169 @@ def _pct(values: list[float], q: float) -> float:
     return float(np.percentile(np.asarray(values, dtype=float), q))
 
 
+def _bump(table: dict[str, dict[str, int]], name: str, key: str) -> None:
+    table.setdefault(name, {})
+    table[name][key] = table[name].get(key, 0) + 1
+
+
+def _is_judged(rec: dict[str, Any]) -> bool:
+    """Did this record carry an actual score, not just an attempt?
+
+    ``reason == "scored"`` alone is not enough: a record can claim to be
+    scored and carry a non-numeric ``score``, and treating that as a
+    judgment would let it outrank a genuine one.
+    """
+    if str(rec.get("reason", "unknown")) != "scored":
+        return False
+    score = rec.get("score")
+    return isinstance(score, (int, float)) and not isinstance(score, bool)
+
+
+def _iter_scope_records(log_dir: Path, cutoff: date) -> Iterator[dict[str, Any]]:
+    """Yield every usable record of every scope log dated on or after ``cutoff``.
+
+    Files are selected by the date in the filename (same daily rotation as
+    the other audit logs); unreadable files and broken lines are skipped,
+    never fatal.
+    """
+    if not log_dir.is_dir():
+        return
+    for path in sorted(log_dir.glob(f"{_LOG_PREFIX}*.jsonl")):
+        date_part = path.stem.removeprefix(_LOG_PREFIX)
+        try:
+            file_date = datetime.strptime(date_part, "%Y-%m-%d").date()
+        except ValueError:
+            continue
+        if file_date < cutoff:
+            continue
+        try:
+            lines = path.read_text(encoding="utf-8").splitlines()
+        except OSError:
+            logger.warning("submolt scope reading: unreadable %s", path.name)
+            continue
+        for line in lines:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                rec = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(rec, dict):
+                continue
+            yield rec
+
+
+def _absorb_scan_end(
+    rec: dict[str, Any],
+    *,
+    scan_verdicts: dict[str, int],
+    sampled_scans: dict[str, int],
+    skips: dict[str, dict[str, int]],
+) -> None:
+    """Fold one ``scan_end`` record: the sweep's verdict, which submolts it
+    read, and the per-reason skips of the ones it did not."""
+    verdict = str(rec.get("verdict", "unknown"))
+    scan_verdicts[verdict] = scan_verdicts.get(verdict, 0) + 1
+    for name in rec.get("scanned") or ():
+        if isinstance(name, str) and name:
+            sampled_scans[name] = sampled_scans.get(name, 0) + 1
+    for entry in rec.get("skipped") or ():
+        if not isinstance(entry, dict):
+            continue
+        name = entry.get("submolt")
+        if isinstance(name, str) and name:
+            _bump(skips, name, str(entry.get("reason", "unknown")))
+
+
+def _select_score_record(
+    rec: dict[str, Any],
+    *,
+    subscribed_label: dict[str, bool],
+    chosen: dict[str, dict[str, dict[str, Any]]],
+    undedupable: dict[str, list[dict[str, Any]]],
+    duplicates: dict[str, int],
+) -> bool:
+    """Pick which record represents its post. Returns whether the record had
+    no usable ``post_id`` — the caller's ``records_without_post_id`` tally.
+
+    Selection only. Counting happens after the whole window is read, because
+    which record wins for a post is not knowable from the record alone: a
+    judged one supersedes an earlier unjudged one, and that cannot be
+    expressed by a streaming accumulator without un-counting what it already
+    added.
+    """
+    name = rec.get("submolt")
+    if not isinstance(name, str) or not name:
+        return False
+    # The label is an observation about the submolt, not about the post, so
+    # it is taken from every record including the ones dedup drops —
+    # otherwise the fallback label would depend on which post happened to be
+    # sampled first.
+    subscribed_label[name] = bool(rec.get("subscribed"))
+    post_id = rec.get("post_id")
+    # A post_id sitting exactly at the writer's cap may have been truncated
+    # (`_POST_ID_MAX_CHARS`, applied at write time), and two ids sharing that
+    # prefix would collapse into one — an undercount with no symptom. The
+    # reader cannot tell a truncated id from one that is naturally cap-length,
+    # so it treats both as un-dedupable rather than risk merging distinct
+    # posts. Measured 2026-08-08: every id is 36 chars against a cap of 64, so
+    # this branch is currently unreachable — kept because the ids come from
+    # the platform and the failure it guards is a silently wrong number in an
+    # instrument whose only product is numbers.
+    if not isinstance(post_id, str) or not post_id or len(post_id) >= _POST_ID_MAX_CHARS:
+        # Cannot prove it is a re-sample, so keep it. Never silently: a
+        # writer-side schema change that dropped or shortened post_id would
+        # otherwise quietly restore the inflation this dedup removes, and the
+        # reading would look richer for it.
+        undedupable.setdefault(name, []).append(rec)
+        return True
+    bucket = chosen.setdefault(name, {})
+    previous = bucket.get(post_id)
+    if previous is None:
+        bucket[post_id] = rec
+        return False
+    duplicates[name] = duplicates.get(name, 0) + 1
+    # A re-score after a failed one is the FIRST judgment of that sample, not
+    # a second one — keeping the failure would let a single outage sweep zero
+    # out every post it touched for the rest of the 30-day window (fault
+    # F-SCOPE-5, and the sweep is weekly). Among judged records first still
+    # wins, so appending a sweep never rewrites an existing row.
+    if _is_judged(rec) and not _is_judged(previous):
+        bucket[post_id] = rec
+    return False
+
+
+def _count_selected(
+    chosen: dict[str, dict[str, dict[str, Any]]],
+    undedupable: dict[str, list[dict[str, Any]]],
+    threshold: float,
+) -> tuple[dict[str, int], dict[str, dict[str, int]], dict[str, list[float]], dict[str, int]]:
+    """Counting pass over the selected records, returning
+    ``(records, reasons, scores, above)``.
+
+    Runs over the selected records so every tally describes distinct posts,
+    and so the judged-supersedes-unjudged rule lands in all of them at once
+    rather than in whichever one the loop happened to reach first.
+    """
+    records: dict[str, int] = {}
+    reasons: dict[str, dict[str, int]] = {}
+    scores: dict[str, list[float]] = {}
+    above: dict[str, int] = {}
+    for name in set(chosen) | set(undedupable):
+        picked = list(chosen.get(name, {}).values()) + undedupable.get(name, [])
+        records[name] = len(picked)
+        for rec in picked:
+            _bump(reasons, name, str(rec.get("reason", "unknown")))
+            if not _is_judged(rec):
+                continue
+            score = float(rec["score"])
+            scores.setdefault(name, []).append(score)
+            if score >= threshold:
+                above[name] = above.get(name, 0) + 1
+    return records, reasons, scores, above
+
+
 def read_submolt_scope_log(
     log_dir: Path,
     *,
@@ -495,10 +659,6 @@ def read_submolt_scope_log(
     subscribed_label: dict[str, bool] = {}
     sampled_scans: dict[str, int] = {}
     skips: dict[str, dict[str, int]] = {}
-    records: dict[str, int] = {}
-    reasons: dict[str, dict[str, int]] = {}
-    scores: dict[str, list[float]] = {}
-    above: dict[str, int] = {}
     # submolt -> post_id -> the one record that represents that post.
     chosen: dict[str, dict[str, dict[str, Any]]] = {}
     # Records whose post_id cannot serve as an identity key; all kept.
@@ -506,130 +666,28 @@ def read_submolt_scope_log(
     duplicates: dict[str, int] = {}
     missing_post_id = 0
 
-    def _bump(table: dict[str, dict[str, int]], name: str, key: str) -> None:
-        table.setdefault(name, {})
-        table[name][key] = table[name].get(key, 0) + 1
+    for rec in _iter_scope_records(log_dir, cutoff):
+        event = rec.get("event")
+        if event == "scan_end":
+            _absorb_scan_end(
+                rec,
+                scan_verdicts=scan_verdicts,
+                sampled_scans=sampled_scans,
+                skips=skips,
+            )
+            continue
+        if event != "score":
+            continue
+        if _select_score_record(
+            rec,
+            subscribed_label=subscribed_label,
+            chosen=chosen,
+            undedupable=undedupable,
+            duplicates=duplicates,
+        ):
+            missing_post_id += 1
 
-    def _is_judged(rec: dict[str, Any]) -> bool:
-        """Did this record carry an actual score, not just an attempt?
-
-        ``reason == "scored"`` alone is not enough: a record can claim to be
-        scored and carry a non-numeric ``score``, and treating that as a
-        judgment would let it outrank a genuine one.
-        """
-        if str(rec.get("reason", "unknown")) != "scored":
-            return False
-        score = rec.get("score")
-        return isinstance(score, (int, float)) and not isinstance(score, bool)
-
-    if log_dir.is_dir():
-        for path in sorted(log_dir.glob(f"{_LOG_PREFIX}*.jsonl")):
-            date_part = path.stem.removeprefix(_LOG_PREFIX)
-            try:
-                file_date = datetime.strptime(date_part, "%Y-%m-%d").date()
-            except ValueError:
-                continue
-            if file_date < cutoff:
-                continue
-            try:
-                lines = path.read_text(encoding="utf-8").splitlines()
-            except OSError:
-                logger.warning("submolt scope reading: unreadable %s", path.name)
-                continue
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rec = json.loads(line)
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(rec, dict):
-                    continue
-                event = rec.get("event")
-                if event == "scan_end":
-                    verdict = str(rec.get("verdict", "unknown"))
-                    scan_verdicts[verdict] = scan_verdicts.get(verdict, 0) + 1
-                    for name in rec.get("scanned") or ():
-                        if isinstance(name, str) and name:
-                            sampled_scans[name] = sampled_scans.get(name, 0) + 1
-                    for entry in rec.get("skipped") or ():
-                        if not isinstance(entry, dict):
-                            continue
-                        name = entry.get("submolt")
-                        if isinstance(name, str) and name:
-                            _bump(skips, name, str(entry.get("reason", "unknown")))
-                    continue
-                if event != "score":
-                    continue
-                name = rec.get("submolt")
-                if not isinstance(name, str) or not name:
-                    continue
-                # The label is an observation about the submolt, not about
-                # the post, so it is taken from every record including the
-                # ones dedup drops — otherwise the fallback label would
-                # depend on which post happened to be sampled first.
-                subscribed_label[name] = bool(rec.get("subscribed"))
-                # Selection only. Counting happens after the whole window is
-                # read, because which record wins for a post is not knowable
-                # from the record alone: a judged one supersedes an earlier
-                # unjudged one, and that cannot be expressed by a streaming
-                # accumulator without un-counting what it already added.
-                post_id = rec.get("post_id")
-                # A post_id sitting exactly at the writer's cap may have been
-                # truncated (`_POST_ID_MAX_CHARS`, applied at write time), and
-                # two ids sharing that prefix would collapse into one — an
-                # undercount with no symptom. The reader cannot tell a
-                # truncated id from one that is naturally cap-length, so it
-                # treats both as un-dedupable rather than risk merging
-                # distinct posts. Measured 2026-08-08: every id is 36 chars
-                # against a cap of 64, so this branch is currently unreachable
-                # — kept because the ids come from the platform and the
-                # failure it guards is a silently wrong number in an
-                # instrument whose only product is numbers.
-                if (
-                    not isinstance(post_id, str)
-                    or not post_id
-                    or len(post_id) >= _POST_ID_MAX_CHARS
-                ):
-                    # Cannot prove it is a re-sample, so keep it. Never
-                    # silently: a writer-side schema change that dropped or
-                    # shortened post_id would otherwise quietly restore the
-                    # inflation this dedup removes, and the reading would
-                    # look richer for it.
-                    missing_post_id += 1
-                    undedupable.setdefault(name, []).append(rec)
-                    continue
-                bucket = chosen.setdefault(name, {})
-                previous = bucket.get(post_id)
-                if previous is None:
-                    bucket[post_id] = rec
-                    continue
-                duplicates[name] = duplicates.get(name, 0) + 1
-                # A re-score after a failed one is the FIRST judgment of that
-                # sample, not a second one — keeping the failure would let a
-                # single outage sweep zero out every post it touched for the
-                # rest of the 30-day window (fault F-SCOPE-5, and the sweep
-                # is weekly). Among judged records first still wins, so
-                # appending a sweep never rewrites an existing row.
-                if _is_judged(rec) and not _is_judged(previous):
-                    bucket[post_id] = rec
-
-    # Counting pass. Runs over the selected records so every tally below
-    # describes distinct posts, and so the judged-supersedes-unjudged rule
-    # above lands in all of them at once rather than in whichever one the
-    # loop happened to reach first.
-    for name in set(chosen) | set(undedupable):
-        picked = list(chosen.get(name, {}).values()) + undedupable.get(name, [])
-        records[name] = len(picked)
-        for rec in picked:
-            _bump(reasons, name, str(rec.get("reason", "unknown")))
-            if not _is_judged(rec):
-                continue
-            score = float(rec["score"])
-            scores.setdefault(name, []).append(score)
-            if score >= threshold:
-                above[name] = above.get(name, 0) + 1
+    records, reasons, scores, above = _count_selected(chosen, undedupable, threshold)
 
     if missing_post_id:
         logger.warning(

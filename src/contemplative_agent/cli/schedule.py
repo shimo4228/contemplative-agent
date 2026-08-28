@@ -421,92 +421,145 @@ def _remove_stale_schedule_jobs(
         print("  (stale submolt-scan schedule removed: flag not set on this run)")
 
 
+def _validate_weekday_hour_flag(
+    parser: argparse.ArgumentParser,
+    day: int,
+    hour: int,
+    day_flag: str,
+    hour_flag: str,
+) -> None:
+    """Validate one weekday/hour flag pair shared by the weekly-* schedules.
+
+    Split out of :func:`_validate_install_schedule_args` (behaviour-
+    preserving): the day-0..6 / hour-0..23 range check and error text are
+    identical across the five weekly schedules, only the flag names differ.
+    """
+    if day < 0 or day > 6:
+        parser.error(f"{day_flag} must be 0 (Sun) to 6 (Sat)")
+    if hour < 0 or hour > 23:
+        parser.error(f"{hour_flag} must be between 0 and 23")
+
+
+def _validate_install_schedule_args(
+    args: argparse.Namespace, parser: argparse.ArgumentParser
+) -> None:
+    """Validate every --install-schedule flag before any job is installed.
+
+    Split out of :func:`_handle_install_schedule` (behaviour-preserving).
+    Validate ALL arguments before installing ANY schedule (bug-audit
+    2026-07-06 M9): a late parser.error() previously fired after the
+    session + distill launchd jobs were already loaded, so the user saw
+    only a usage error while two schedules were in fact live.
+    """
+    if args.interval < 1 or args.interval > 24 or 24 % args.interval != 0:
+        parser.error("--interval must evenly divide 24 (1, 2, 3, 4, 6, 8, 12, 24)")
+    if args.session < 1 or args.session > 1440:
+        parser.error("--session must be between 1 and 1440 minutes")
+    if args.distill_hour < 0 or args.distill_hour > 23:
+        parser.error("--distill-hour must be between 0 and 23")
+    if args.weekly_analysis:
+        _validate_weekday_hour_flag(
+            parser,
+            args.weekly_analysis_day,
+            args.weekly_analysis_hour,
+            "--weekly-analysis-day",
+            "--weekly-analysis-hour",
+        )
+    if args.weekly_insight:
+        _validate_weekday_hour_flag(
+            parser,
+            args.weekly_insight_day,
+            args.weekly_insight_hour,
+            "--weekly-insight-day",
+            "--weekly-insight-hour",
+        )
+    if args.weekly_backup:
+        _validate_weekday_hour_flag(
+            parser,
+            args.weekly_backup_day,
+            args.weekly_backup_hour,
+            "--weekly-backup-day",
+            "--weekly-backup-hour",
+        )
+    if args.weekly_submolt_scan:
+        _validate_weekday_hour_flag(
+            parser,
+            args.weekly_submolt_scan_day,
+            args.weekly_submolt_scan_hour,
+            "--weekly-submolt-scan-day",
+            "--weekly-submolt-scan-hour",
+        )
+    if args.weekly_pipeline:
+        # The chain runs weekly-analysis.sh as its own Stage 1; installing
+        # both would fire the report twice (and race the .anomaly-sweep
+        # state promote).
+        if args.weekly_analysis:
+            parser.error("--weekly-pipeline replaces --weekly-analysis (mutually exclusive)")
+        _validate_weekday_hour_flag(
+            parser,
+            args.weekly_pipeline_day,
+            args.weekly_pipeline_hour,
+            "--weekly-pipeline-day",
+            "--weekly-pipeline-hour",
+        )
+
+
+def _dispatch_install_schedule_jobs(args: argparse.Namespace) -> None:
+    """Reconcile stale jobs and install the requested schedule set.
+
+    Split out of :func:`_handle_install_schedule` (behaviour-preserving).
+    Called only after :func:`_validate_install_schedule_args` has passed.
+    """
+    # Reconcile before installing (round-2 R2-M1): drop optional jobs
+    # from a previous install whose flag is off this run, so the command
+    # describes the complete desired schedule set.
+    _remove_stale_schedule_jobs(
+        distill=not args.no_distill,
+        weekly_analysis=args.weekly_analysis,
+        weekly_insight=args.weekly_insight,
+        weekly_backup=args.weekly_backup,
+        weekly_pipeline=args.weekly_pipeline,
+        watchdog=args.watchdog,
+        submolt_scan=args.weekly_submolt_scan,
+    )
+    _do_install_schedule(interval=args.interval, session=args.session)
+    if not args.no_distill:
+        _do_install_distill_schedule(distill_hour=args.distill_hour)
+    if args.weekly_analysis:
+        _do_install_weekly_analysis_schedule(
+            weekday=args.weekly_analysis_day,
+            hour=args.weekly_analysis_hour,
+        )
+    if args.weekly_insight:
+        _do_install_insight_schedule(
+            weekday=args.weekly_insight_day,
+            hour=args.weekly_insight_hour,
+        )
+    if args.weekly_backup:
+        _do_install_backup_schedule(
+            weekday=args.weekly_backup_day,
+            hour=args.weekly_backup_hour,
+        )
+    if args.weekly_pipeline:
+        _do_install_weekly_pipeline_schedule(
+            weekday=args.weekly_pipeline_day,
+            hour=args.weekly_pipeline_hour,
+        )
+    if args.weekly_submolt_scan:
+        _do_install_submolt_scan_schedule(
+            weekday=args.weekly_submolt_scan_day,
+            hour=args.weekly_submolt_scan_hour,
+        )
+    if args.watchdog:
+        _do_install_watchdog_schedule()
+
+
 def _handle_install_schedule(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     if args.uninstall:
         _do_uninstall_schedule()
     else:
-        # Validate ALL arguments before installing ANY schedule (bug-audit
-        # 2026-07-06 M9): a late parser.error() previously fired after the
-        # session + distill launchd jobs were already loaded, so the user saw
-        # only a usage error while two schedules were in fact live.
-        if args.interval < 1 or args.interval > 24 or 24 % args.interval != 0:
-            parser.error("--interval must evenly divide 24 (1, 2, 3, 4, 6, 8, 12, 24)")
-        if args.session < 1 or args.session > 1440:
-            parser.error("--session must be between 1 and 1440 minutes")
-        if args.distill_hour < 0 or args.distill_hour > 23:
-            parser.error("--distill-hour must be between 0 and 23")
-        if args.weekly_analysis:
-            if args.weekly_analysis_day < 0 or args.weekly_analysis_day > 6:
-                parser.error("--weekly-analysis-day must be 0 (Sun) to 6 (Sat)")
-            if args.weekly_analysis_hour < 0 or args.weekly_analysis_hour > 23:
-                parser.error("--weekly-analysis-hour must be between 0 and 23")
-        if args.weekly_insight:
-            if args.weekly_insight_day < 0 or args.weekly_insight_day > 6:
-                parser.error("--weekly-insight-day must be 0 (Sun) to 6 (Sat)")
-            if args.weekly_insight_hour < 0 or args.weekly_insight_hour > 23:
-                parser.error("--weekly-insight-hour must be between 0 and 23")
-        if args.weekly_backup:
-            if args.weekly_backup_day < 0 or args.weekly_backup_day > 6:
-                parser.error("--weekly-backup-day must be 0 (Sun) to 6 (Sat)")
-            if args.weekly_backup_hour < 0 or args.weekly_backup_hour > 23:
-                parser.error("--weekly-backup-hour must be between 0 and 23")
-        if args.weekly_submolt_scan:
-            if args.weekly_submolt_scan_day < 0 or args.weekly_submolt_scan_day > 6:
-                parser.error("--weekly-submolt-scan-day must be 0 (Sun) to 6 (Sat)")
-            if args.weekly_submolt_scan_hour < 0 or args.weekly_submolt_scan_hour > 23:
-                parser.error("--weekly-submolt-scan-hour must be between 0 and 23")
-        if args.weekly_pipeline:
-            # The chain runs weekly-analysis.sh as its own Stage 1; installing
-            # both would fire the report twice (and race the .anomaly-sweep
-            # state promote).
-            if args.weekly_analysis:
-                parser.error("--weekly-pipeline replaces --weekly-analysis (mutually exclusive)")
-            if args.weekly_pipeline_day < 0 or args.weekly_pipeline_day > 6:
-                parser.error("--weekly-pipeline-day must be 0 (Sun) to 6 (Sat)")
-            if args.weekly_pipeline_hour < 0 or args.weekly_pipeline_hour > 23:
-                parser.error("--weekly-pipeline-hour must be between 0 and 23")
-        # Reconcile before installing (round-2 R2-M1): drop optional jobs
-        # from a previous install whose flag is off this run, so the command
-        # describes the complete desired schedule set.
-        _remove_stale_schedule_jobs(
-            distill=not args.no_distill,
-            weekly_analysis=args.weekly_analysis,
-            weekly_insight=args.weekly_insight,
-            weekly_backup=args.weekly_backup,
-            weekly_pipeline=args.weekly_pipeline,
-            watchdog=args.watchdog,
-            submolt_scan=args.weekly_submolt_scan,
-        )
-        _do_install_schedule(interval=args.interval, session=args.session)
-        if not args.no_distill:
-            _do_install_distill_schedule(distill_hour=args.distill_hour)
-        if args.weekly_analysis:
-            _do_install_weekly_analysis_schedule(
-                weekday=args.weekly_analysis_day,
-                hour=args.weekly_analysis_hour,
-            )
-        if args.weekly_insight:
-            _do_install_insight_schedule(
-                weekday=args.weekly_insight_day,
-                hour=args.weekly_insight_hour,
-            )
-        if args.weekly_backup:
-            _do_install_backup_schedule(
-                weekday=args.weekly_backup_day,
-                hour=args.weekly_backup_hour,
-            )
-        if args.weekly_pipeline:
-            _do_install_weekly_pipeline_schedule(
-                weekday=args.weekly_pipeline_day,
-                hour=args.weekly_pipeline_hour,
-            )
-        if args.weekly_submolt_scan:
-            _do_install_submolt_scan_schedule(
-                weekday=args.weekly_submolt_scan_day,
-                hour=args.weekly_submolt_scan_hour,
-            )
-        if args.watchdog:
-            _do_install_watchdog_schedule()
+        _validate_install_schedule_args(args, parser)
+        _dispatch_install_schedule_jobs(args)
 
 
 def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:

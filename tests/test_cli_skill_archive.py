@@ -130,6 +130,29 @@ class TestArchiveNamesSafetyContracts:
         assert (staged / "both.md").exists()
         assert not (tmp_path / "skills" / ".archive").exists()
 
+    def test_collision_aborts_even_when_name_already_archived(self, tmp_path):
+        """The contradiction guard must see the raw request, not the settled one.
+
+        A name in both --adopt-names and --archive-names that an earlier
+        partial run already moved to .archive/ used to slip past the guard:
+        the already-archived drop emptied the archive side before the
+        collision check ran, and the staged item was adopted (code review
+        2026-08-28 MEDIUM).
+        """
+        archive_dir = tmp_path / "skills" / ".archive"
+        archive_dir.mkdir(parents=True)
+        (archive_dir / "both.md").write_text("# Retired\n", encoding="utf-8")
+        staged = _stage(tmp_path, [StageItem("both.md", "# New", tmp_path / "skills" / "both.md")])
+        args = _adopt_args(
+            adopt_names=_names_file(tmp_path, "adopt.txt", ["both.md"]),
+            archive_names=_names_file(tmp_path, "archive.txt", ["both.md"]),
+        )
+        with pytest.raises(SystemExit) as exc:
+            _run_adopt(tmp_path, staged, args)
+        assert exc.value.code == 2
+        assert (staged / "both.md").exists(), "staging must be untouched"
+        assert not (tmp_path / "skills" / "both.md").exists()
+
     def test_a_name_in_hold_and_archive_aborts_too(self, tmp_path):
         """All three pairs are checked, not just the historical adopt/hold one."""
         _make_skill(tmp_path, "both.md", "# Both\n")

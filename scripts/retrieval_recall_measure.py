@@ -574,6 +574,97 @@ class LabelStats:
     candidates_also_in_store: int
 
 
+def _extract_reject_labels(
+    body: str,
+    candidate: str,
+    siblings: set[str],
+    store_names: dict[str, str],
+    unresolved: dict[str, None],
+) -> list[str]:
+    """Pull the store-skill names a reject section's body cites as coverage.
+
+    Split out of :func:`build_pairs` (behaviour-preserving) — the per-token
+    scan that used to run inline in the per-section loop. Mutates
+    ``unresolved`` in place: the caller's running set of tokens that look
+    like a name but resolve to no store skill and no in-batch sibling,
+    across every section in the run.
+    """
+    backticked = {token for span in _BACKTICK_RE.findall(body) for token in _KEBAB_RE.findall(span)}
+    labels: list[str] = []
+    for token in _KEBAB_RE.findall(body):
+        if token == candidate:
+            continue
+        canonical = store_names.get(token) or store_names.get(_TRAILING_ISO_DATE_RE.sub("", token))
+        if canonical is not None:
+            if canonical not in labels:
+                labels.append(canonical)
+            continue
+        if token in siblings:
+            # A sibling in this review's own batch, not a coverage claim
+            # (ADR-0097's `reject: sibling-of` verdict).
+            continue
+        if token.count("-") + 1 >= ABSENT_NAME_MIN_SEGMENTS or token in backticked:
+            unresolved[token] = None
+    return labels
+
+
+@dataclass(frozen=True)
+class _PairQuery:
+    """One reject section's built query, or the signal to exclude it.
+
+    Split out of :func:`build_pairs` (behaviour-preserving) as the return
+    shape for :func:`_build_pair_query` — five positional booleans at the
+    call site would have been easy to transpose.
+    """
+
+    query: str | None
+    query_kind: str | None
+    late_row: bool
+    excluded: bool
+    name_only_included: bool
+    truncated: bool
+
+
+def _build_pair_query(
+    section: ReviewSection,
+    ledger: dict[str, list[tuple[str, str]]],
+    review_days: dict[str, date | None],
+    *,
+    name_only_queries: str,
+    max_chars: int,
+    staging_lag_days: int,
+) -> _PairQuery:
+    """Build the query text/kind for one kept candidate, or mark it excluded.
+
+    Split out of :func:`build_pairs` (behaviour-preserving). ``excluded``
+    means ``name_only_queries == "exclude"`` and no description was found —
+    the caller counts it and drops the section without building a pair.
+    """
+    # Narrowed by build_pairs' reject/None guard before the call; restated
+    # here because the narrowing does not cross the function boundary.
+    assert section.candidate is not None
+    description, late_row = _candidate_description(
+        ledger,
+        section.candidate,
+        review_days.get(section.review),
+        staging_lag_days=staging_lag_days,
+    )
+    if description is None:
+        if name_only_queries == "exclude":
+            return _PairQuery(None, None, late_row, True, False, False)
+        query = section.candidate
+        query_kind = "name-only"
+        name_only_included = True
+    else:
+        query = f"{section.candidate}\n{description}"
+        query_kind = "name+description"
+        name_only_included = False
+    truncated = len(query) > max_chars
+    if truncated:
+        query = query[:max_chars]
+    return _PairQuery(query, query_kind, late_row, False, name_only_included, truncated)
+
+
 def build_pairs(
     sections: Sequence[ReviewSection],
     *,
@@ -614,26 +705,7 @@ def build_pairs(
         rejections += 1
         siblings = batch_candidates.get(section.review, set())
         body = section.body.lower()
-        backticked = {
-            token for span in _BACKTICK_RE.findall(body) for token in _KEBAB_RE.findall(span)
-        }
-        labels: list[str] = []
-        for token in _KEBAB_RE.findall(body):
-            if token == section.candidate:
-                continue
-            canonical = store_names.get(token) or store_names.get(
-                _TRAILING_ISO_DATE_RE.sub("", token)
-            )
-            if canonical is not None:
-                if canonical not in labels:
-                    labels.append(canonical)
-                continue
-            if token in siblings:
-                # A sibling in this review's own batch, not a coverage claim
-                # (ADR-0097's `reject: sibling-of` verdict).
-                continue
-            if token.count("-") + 1 >= ABSENT_NAME_MIN_SEGMENTS or token in backticked:
-                unresolved[token] = None
+        labels = _extract_reject_labels(body, section.candidate, siblings, store_names, unresolved)
         if not labels:
             naming_nothing += 1
             continue
@@ -641,27 +713,26 @@ def build_pairs(
         # rejection that named a covering skill DID name one, whether or not
         # this measurement can build a query for it.
         naming_a_store_skill += 1
-        description, late_row = _candidate_description(
+        built = _build_pair_query(
+            section,
             ledger,
-            section.candidate,
-            review_days.get(section.review),
+            review_days,
+            name_only_queries=name_only_queries,
+            max_chars=max_chars,
             staging_lag_days=staging_lag_days,
         )
-        if late_row:
+        if built.late_row:
             ledger_row_after_review += 1
-        if description is None:
-            if name_only_queries == "exclude":
-                name_only_excluded += 1
-                continue
+        if built.excluded:
+            name_only_excluded += 1
+            continue
+        # Every non-excluded _PairQuery carries a real query; the None fields
+        # exist only for the excluded early return above.
+        assert built.query is not None and built.query_kind is not None
+        if built.name_only_included:
             name_only_included += 1
-            query = section.candidate
-            query_kind = "name-only"
-        else:
-            query = f"{section.candidate}\n{description}"
-            query_kind = "name+description"
-        if len(query) > max_chars:
+        if built.truncated:
             queries_truncated += 1
-            query = query[:max_chars]
         if section.candidate in store_names:
             candidates_also_in_store += 1
         # Counted on the KEPT pair, not on the rejection: this field qualifies
@@ -674,8 +745,8 @@ def build_pairs(
             LabelledPair(
                 review=section.review,
                 candidate=section.candidate,
-                query=query,
-                query_kind=query_kind,
+                query=built.query,
+                query_kind=built.query_kind,
                 labels=tuple(labels),
             )
         )
@@ -873,38 +944,23 @@ def _arm_block(
 # -------------------------------------------------------------------- reading
 
 
-def build_reading(
-    *,
+def _compute_arm_readings(
     pairs: Sequence[LabelledPair],
     docs: Sequence[StoreSkill],
-    label_stats: LabelStats,
-    reviews: Sequence[str],
     arms: Sequence[str],
     ks: Sequence[int],
     rrf_k: int,
-    min_pairs: int,
-    name_only_queries: str,
-    staging_lag_days: int,
-    read_faults: dict[str, int],
-    partial_reasons: Sequence[str],
+    reasons: list[str],
 ) -> dict[str, Any]:
-    """Assemble the reading from already-loaded inputs (pure; unit-testable)."""
-    # Scalar validation lives here, not in main: build_reading is the pure,
-    # independently-callable entry point the tests use directly, and rrf_k < 1
-    # divides by zero inside rrf_rankings.
-    if rrf_k < 1:
-        raise ScanError("BAD_RRF_K", str(rrf_k))
-    if min_pairs < 1:
-        raise ScanError("BAD_MIN_PAIRS", str(min_pairs))
-    if not pairs:
-        raise ScanError(
-            "NO_LABELLED_PAIRS",
-            f"{label_stats.rejections} rejections read, "
-            f"{label_stats.naming_nothing} named no store skill, "
-            f"{label_stats.name_only_excluded} had no ledger text",
-        )
+    """Run the requested arms and assemble their reading blocks.
 
-    reasons = list(partial_reasons)
+    Split out of :func:`build_reading` (behaviour-preserving). Appends to
+    ``reasons`` in place (cosine's own failure reason code, and
+    ``DEGENERATE_QUERY_RANKING`` when any arm reports a no-spread query) so
+    the caller keeps one reasons list throughout. Raises
+    ``ScanError("NO_ARM_AVAILABLE", ...)`` when every requested arm came back
+    unavailable.
+    """
     arm_readings: dict[str, Any] = {}
     lexical: list[tuple[str, ...] | None] | None = None
     cosine_ranks: list[tuple[str, ...] | None] | None = None
@@ -956,18 +1012,64 @@ def build_reading(
                 f"reciprocal-rank fusion of lexical and cosine (rrf_k={rrf_k})",
             )
 
-    if not any(arm.get("available") for arm in arm_readings.values()):
-        # Carry each arm's own reason into the detail: a cosine-only run that
-        # fails otherwise discards the root cause the mixed-arm path prints,
-        # and "cosine" alone does not say whether to install a package, start
-        # Ollama, or distrust the model.
-        why = "; ".join(
-            f"{name}={block.get('reason', 'unavailable')}"
-            for name, block in sorted(arm_readings.items())
-        )
-        raise ScanError("NO_ARM_AVAILABLE", why or ", ".join(sorted(arms)))
+    _raise_unless_any_arm_available(arm_readings, arms)
     if any(arm.get("queries_with_no_score_spread") for arm in arm_readings.values()):
         reasons.append("DEGENERATE_QUERY_RANKING")
+
+    return arm_readings
+
+
+def _raise_unless_any_arm_available(arm_readings: dict[str, Any], arms: Sequence[str]) -> None:
+    """Raise ``NO_ARM_AVAILABLE`` unless at least one arm reading is usable.
+
+    Split out of :func:`_compute_arm_readings` (behaviour-preserving).
+    """
+    if any(arm.get("available") for arm in arm_readings.values()):
+        return
+    # Carry each arm's own reason into the detail: a cosine-only run that
+    # fails otherwise discards the root cause the mixed-arm path prints,
+    # and "cosine" alone does not say whether to install a package, start
+    # Ollama, or distrust the model.
+    why = "; ".join(
+        f"{name}={block.get('reason', 'unavailable')}"
+        for name, block in sorted(arm_readings.items())
+    )
+    raise ScanError("NO_ARM_AVAILABLE", why or ", ".join(sorted(arms)))
+
+
+def build_reading(
+    *,
+    pairs: Sequence[LabelledPair],
+    docs: Sequence[StoreSkill],
+    label_stats: LabelStats,
+    reviews: Sequence[str],
+    arms: Sequence[str],
+    ks: Sequence[int],
+    rrf_k: int,
+    min_pairs: int,
+    name_only_queries: str,
+    staging_lag_days: int,
+    read_faults: dict[str, int],
+    partial_reasons: Sequence[str],
+) -> dict[str, Any]:
+    """Assemble the reading from already-loaded inputs (pure; unit-testable)."""
+    # Scalar validation lives here, not in main: build_reading is the pure,
+    # independently-callable entry point the tests use directly, and rrf_k < 1
+    # divides by zero inside rrf_rankings.
+    if rrf_k < 1:
+        raise ScanError("BAD_RRF_K", str(rrf_k))
+    if min_pairs < 1:
+        raise ScanError("BAD_MIN_PAIRS", str(min_pairs))
+    if not pairs:
+        raise ScanError(
+            "NO_LABELLED_PAIRS",
+            f"{label_stats.rejections} rejections read, "
+            f"{label_stats.naming_nothing} named no store skill, "
+            f"{label_stats.name_only_excluded} had no ledger text",
+        )
+
+    reasons = list(partial_reasons)
+    arm_readings = _compute_arm_readings(pairs, docs, arms, ks, rrf_k, reasons)
 
     # With labels drawn from the store and a ranking that covers all of it,
     # any k at or above the corpus size scores 1.0 by construction. Never

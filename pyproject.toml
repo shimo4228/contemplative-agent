@@ -189,10 +189,12 @@ select = ["E4", "E7", "E9", "F", "B", "I", "T20", "UP", "C901"]
 # Budget rule: drain, do not raise — any change to this number needs a dated
 # reason in .claude/verify.md (harness ADR-0056).
 # Distribution as-of 2026-08-28 (src/tests/scripts/evals, 4,580 functions):
-# p50=1 / p90=3 / p95=5 / p99=10 / max=35. The 13 functions above 15 are
-# exempted in per-file-ignores below; the exemption list is the drain ledger.
-# 10 was rejected as the threshold: it would put 24 files on the exemption
-# list, blinding the modules that see the most editing.
+# p50=1 / p90=3 / p95=5 / p99=10 / max=35. The 13 functions above 15 were
+# exempted at introduction as a drain ledger in per-file-ignores; all 13 were
+# pruned the same day (2026-08-28), so the ledger is empty. Nothing may be
+# added back — a new function over the budget is a design question, not a
+# config entry. 10 was rejected as the threshold: it would have put 24 files
+# on the exemption list, blinding the modules that see the most editing.
 max-complexity = 15
 
 [tool.ruff.lint.isort]
@@ -218,21 +220,3 @@ known-first-party = ["contemplative_agent", "tests", "evals"]
 "scripts/**" = ["T20"]
 "evals/**" = ["T20"]    # probe/CLI 系 (benchmark_distill と同じ扱い) — print が UI
 "docs/evidence/**" = ["T20"]  # 昇格した一回限りの計測スクリプト — 進捗と読み値の print が UI
-
-# --- C901 exemptions = the drain ledger --------------------------------------
-# The pre-existing violations as of 2026-08-28, when the complexity budget was
-# introduced. These are not permanent waivers: when a function is pruned below
-# the budget, delete its line here. Nothing new may be added — a new function
-# over the budget is a design question, not a config entry. Ruff unions these
-# with the T20 globs above, so a file listed in both keeps both ignores.
-"src/contemplative_agent/core/never_selected_metrics.py" = ["C901"]        # 35
-"src/contemplative_agent/core/selection_metrics.py" = ["C901"]             # 31, 26
-"src/contemplative_agent/adapters/moltbook/submolt_scope.py" = ["C901"]    # 30
-"src/contemplative_agent/cli/adopt.py" = ["C901"]                          # 28
-"src/contemplative_agent/cli/schedule.py" = ["C901"]                       # 28
-"src/contemplative_agent/cli/remove_skill.py" = ["C901"]                   # 21
-"src/contemplative_agent/adapters/moltbook/verification_parse.py" = ["C901"]  # 20
-"scripts/coselection_families.py" = ["C901"]                               # 19
-"scripts/retrieval_recall_measure.py" = ["C901"]                           # 18, 18
-"scripts/observation_ledger.py" = ["C901"]                                 # 17
-"evals/run_eval.py" = ["C901"]                                             # 17

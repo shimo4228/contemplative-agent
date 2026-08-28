@@ -36,7 +36,7 @@ import shutil
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import NoReturn
+from typing import TYPE_CHECKING, NoReturn
 
 # Make the evals package importable under direct-script invocation
 # (`python evals/run_eval.py`), mirroring tests/benchmark_distill.py.
@@ -58,6 +58,12 @@ from evals.judging import (
     run_claude_judge,
 )
 from evals.snapshot_assets import SnapshotError, aggregate_sha256, hash_tree
+
+if TYPE_CHECKING:
+    # Deferred at runtime like the rest of the ``contemplative_agent``-importing
+    # modules (see the deterministic-core import note above main()) — only
+    # ever needed for the annotation on ``_process_case_samples``.
+    from evals.generation import SampleOutcome
 
 SCHEMA_VERSION = 1
 
@@ -406,6 +412,99 @@ def _write_run(run: dict, run_path: Path) -> None:
     run_path.write_text(json.dumps(run, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def _filter_cases(cases: list[GoldenCase], cases_arg: str) -> list[GoldenCase]:
+    """Apply ``--cases`` (a comma-separated id allowlist) to the loaded set.
+
+    Split out of :func:`main` (behaviour-preserving). Calls
+    ``_die_unmeasurable`` — which does not return — when the flag parses to
+    no ids, or names ids that do not exist in the dataset.
+    """
+    wanted = {c.strip() for c in cases_arg.split(",") if c.strip()}
+    if not wanted:
+        _die_unmeasurable("--cases given but no case ids parsed from it")
+    unknown = wanted - {c.id for c in cases}
+    if unknown:
+        _die_unmeasurable(f"unknown case ids: {sorted(unknown)}")
+    return [c for c in cases if c.id in wanted]
+
+
+def _process_case_samples(
+    case: GoldenCase,
+    samples: list[SampleOutcome],
+    *,
+    template: str,
+    constitution: str,
+    args: argparse.Namespace,
+    judge_scratch: Path,
+    run_dir: Path,
+    run: dict,
+    run_path: Path,
+) -> tuple[list[dict], list[Verdict]]:
+    """Judge every generated sample for one case, printing progress.
+
+    Split out of :func:`main` (behaviour-preserving). On a judge failure,
+    writes the partial run (so it stays inspectable) and calls
+    ``_die_unmeasurable``, which does not return.
+    """
+    sample_records: list[dict] = []
+    ok_verdicts: list[Verdict] = []
+    for i, sample in enumerate(samples):
+        if sample.status != "ok" or sample.text is None:
+            sample_records.append({"status": sample.status})
+            print(f"[eval]   sample {i + 1}: generation FAILED", flush=True)
+            continue
+        try:
+            result = _judge_sample(
+                case,
+                sample.text,
+                template=template,
+                constitution=constitution,
+                judge_model=args.judge_model,
+                judge_timeout=args.judge_timeout,
+                scratch=judge_scratch,
+                audit_path=run_dir / "judge-audit.jsonl",
+            )
+        except JudgeError as exc:
+            _write_run(run, run_path)  # keep the partial run inspectable
+            _die_unmeasurable(
+                f"judge failed on {case.id} sample {i + 1}: {exc} (partial run kept at {run_path})"
+            )
+        ok_verdicts.append(result.verdict)
+        sample_records.append(
+            {
+                "status": "ok",
+                "comment": sample.text,
+                "comment_sha256": hashlib.sha256(sample.text.encode()).hexdigest(),
+                "verdict": result.verdict.value,
+                "checks": [
+                    {"question": c.question, "answer": c.answer, "evidence": c.evidence}
+                    for c in result.checks
+                ],
+            }
+        )
+        print(f"[eval]   sample {i + 1}: {result.verdict.value}", flush=True)
+    return sample_records, ok_verdicts
+
+
+def _report_baseline_comparison(baseline_path: Path, run: dict) -> int:
+    """Print the baseline diff and return the eval's exit code for it.
+
+    Split out of :func:`main` (behaviour-preserving).
+    """
+    report = compare_runs(load_run(baseline_path), run)
+    for t in report.regressions:
+        print(f"[eval] REGRESSION {t.case_id}: {t.before} -> {t.after}")
+    for t in report.improvements:
+        print(f"[eval] improvement {t.case_id}: {t.before} -> {t.after}")
+    if report.added or report.removed:
+        print(f"[eval] cases added={list(report.added)} removed={list(report.removed)}")
+    print(
+        f"[eval] compare: {len(report.regressions)} regressions, "
+        f"{len(report.improvements)} improvements, {len(report.unchanged)} unchanged"
+    )
+    return 1 if report.regressions else 0
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--dataset", type=Path, default=DEFAULT_DATASET)
@@ -452,13 +551,7 @@ def main() -> int:
 
     cases = load_dataset(dataset_path)
     if args.cases:
-        wanted = {c.strip() for c in args.cases.split(",") if c.strip()}
-        if not wanted:
-            _die_unmeasurable("--cases given but no case ids parsed from it")
-        unknown = wanted - {c.id for c in cases}
-        if unknown:
-            _die_unmeasurable(f"unknown case ids: {sorted(unknown)}")
-        cases = [c for c in cases if c.id in wanted]
+        cases = _filter_cases(cases, args.cases)
 
     _configure_pinned_assets(FIXTURE_DIR, run_dir / "skill-selection")
     _preflight(FIXTURE_DIR, "claude")
@@ -501,44 +594,17 @@ def main() -> int:
     for case in cases:
         print(f"[eval] case {case.id} ({case.axiom}/{case.kind}): generating…", flush=True)
         samples = generate_samples(case.post, args.samples)
-        sample_records: list[dict] = []
-        ok_verdicts: list[Verdict] = []
-        for i, sample in enumerate(samples):
-            if sample.status != "ok" or sample.text is None:
-                sample_records.append({"status": sample.status})
-                print(f"[eval]   sample {i + 1}: generation FAILED", flush=True)
-                continue
-            try:
-                result = _judge_sample(
-                    case,
-                    sample.text,
-                    template=template,
-                    constitution=constitution,
-                    judge_model=args.judge_model,
-                    judge_timeout=args.judge_timeout,
-                    scratch=judge_scratch,
-                    audit_path=run_dir / "judge-audit.jsonl",
-                )
-            except JudgeError as exc:
-                _write_run(run, run_path)  # keep the partial run inspectable
-                _die_unmeasurable(
-                    f"judge failed on {case.id} sample {i + 1}: {exc} "
-                    f"(partial run kept at {run_path})"
-                )
-            ok_verdicts.append(result.verdict)
-            sample_records.append(
-                {
-                    "status": "ok",
-                    "comment": sample.text,
-                    "comment_sha256": hashlib.sha256(sample.text.encode()).hexdigest(),
-                    "verdict": result.verdict.value,
-                    "checks": [
-                        {"question": c.question, "answer": c.answer, "evidence": c.evidence}
-                        for c in result.checks
-                    ],
-                }
-            )
-            print(f"[eval]   sample {i + 1}: {result.verdict.value}", flush=True)
+        sample_records, ok_verdicts = _process_case_samples(
+            case,
+            samples,
+            template=template,
+            constitution=constitution,
+            args=args,
+            judge_scratch=judge_scratch,
+            run_dir=run_dir,
+            run=run,
+            run_path=run_path,
+        )
         verdict = aggregate_case(ok_verdicts, requested=args.samples)
         print(f"[eval] case {case.id}: {verdict}", flush=True)
         case_records.append(
@@ -599,18 +665,7 @@ def main() -> int:
         )
 
     if baseline_path is not None:
-        report = compare_runs(load_run(baseline_path), run)
-        for t in report.regressions:
-            print(f"[eval] REGRESSION {t.case_id}: {t.before} -> {t.after}")
-        for t in report.improvements:
-            print(f"[eval] improvement {t.case_id}: {t.before} -> {t.after}")
-        if report.added or report.removed:
-            print(f"[eval] cases added={list(report.added)} removed={list(report.removed)}")
-        print(
-            f"[eval] compare: {len(report.regressions)} regressions, "
-            f"{len(report.improvements)} improvements, {len(report.unchanged)} unchanged"
-        )
-        return 1 if report.regressions else 0
+        return _report_baseline_comparison(baseline_path, run)
 
     return 0
 

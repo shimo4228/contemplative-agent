@@ -216,6 +216,123 @@ def parse_family(spec: str) -> tuple[str, tuple[str, ...]]:
     return name, tuple(members)
 
 
+def _process_log_line(
+    line: str,
+    path_name: str,
+    faults: dict[str, int],
+    signature_ids: dict[tuple[str, ...], int],
+    signature_counts: list[int],
+    judged_records: list[JudgedRecord],
+) -> tuple[bool, bool, bool]:
+    """Parse and account for one JSONL line from a selection log.
+
+    Split out of :func:`load_window` (behaviour-preserving) — the per-line
+    accounting that used to run inline in the nested file/line loop. Mutates
+    ``faults`` / ``signature_ids`` / ``signature_counts`` / ``judged_records``
+    in place (all mutable containers owned by the caller for the whole
+    window) and returns ``(is_record, is_judged, is_enforced)`` so the caller
+    can fold those into its own running totals.
+    """
+    try:
+        record = json.loads(line)
+    except json.JSONDecodeError:
+        faults["malformed_lines"] += 1
+        return False, False, False
+    if not isinstance(record, dict):
+        faults["non_dict_records"] += 1
+        return False, False, False
+    if str(record.get("verdict", "")) != "judged":
+        return True, False, False
+    enforced = bool(record.get("enforced"))
+    raw_catalog = record.get("catalog_names")
+    if not isinstance(raw_catalog, list):
+        faults["judged_without_catalog"] += 1
+        return True, True, enforced
+    catalog = {name for name in raw_catalog if isinstance(name, str) and name}
+    if not catalog:
+        faults["judged_without_catalog"] += 1
+        return True, True, enforced
+    if len(catalog) > _MAX_CATALOG_NAMES:
+        raise ScanError(
+            "CATALOG_TOO_LARGE",
+            f"{path_name}: {len(catalog)} names exceeds the {_MAX_CATALOG_NAMES} bound",
+        )
+    # ``selected`` gets the same type check ``catalog_names`` gets, and
+    # gets it BEFORE the catalog signature is recorded so an excluded
+    # record cannot still inflate the exposure denominators. A non-list
+    # (``5``, ``true``) used to reach ``for name in ...`` as an uncaught
+    # TypeError — a nonzero exit with no reason code, and exit 1 where
+    # every other fault exits 2. A bare string was worse: it iterated
+    # per character, so ``"a-one"`` booked five phantom out-of-catalog
+    # faults and left a silently empty selection that lowered every
+    # family rate.
+    raw_selected = record.get("selected")
+    if not isinstance(raw_selected, list):
+        faults["judged_without_usable_selection"] += 1
+        return True, True, enforced
+    signature = tuple(sorted(catalog))
+    signature_id = signature_ids.get(signature)
+    if signature_id is None:
+        signature_id = len(signature_counts)
+        signature_ids[signature] = signature_id
+        signature_counts.append(0)
+    signature_counts[signature_id] += 1
+
+    selected: set[str] = set()
+    for name in raw_selected:
+        if not isinstance(name, str) or not name:
+            faults["dropped_selected_entries"] += 1
+            continue
+        if name not in catalog:
+            # The writer validates picks against the catalog, so this
+            # is log corruption rather than selector behaviour; a name
+            # with no exposure would otherwise produce a conditional
+            # with an empty denominator.
+            faults["selected_outside_catalog"] += 1
+            continue
+        selected.add(name)
+    judged_records.append(JudgedRecord(signature_id, frozenset(selected)))
+    return True, True, enforced
+
+
+def _process_log_file(
+    path: Path,
+    faults: dict[str, int],
+    signature_ids: dict[tuple[str, ...], int],
+    signature_counts: list[int],
+    judged_records: list[JudgedRecord],
+) -> tuple[int, int, int]:
+    """Read one dated log file and account every line in it.
+
+    Split out of :func:`load_window` (behaviour-preserving). Returns this
+    file's ``(records, judged, enforced)`` deltas for the caller to fold into
+    the window totals.
+    """
+    try:
+        text = path.read_text(encoding="utf-8")
+    # UnicodeDecodeError is a ValueError, not an OSError — the gap that
+    # took the (since retired) packet builder down once (2026-07-29 review).
+    except (OSError, UnicodeDecodeError):
+        faults["unreadable_files"] += 1
+        return 0, 0, 0
+
+    records = judged = enforced = 0
+    for raw_line in text.splitlines():
+        line = raw_line.strip()
+        if not line:
+            continue
+        is_record, is_judged, is_enforced = _process_log_line(
+            line, path.name, faults, signature_ids, signature_counts, judged_records
+        )
+        if is_record:
+            records += 1
+        if is_judged:
+            judged += 1
+            if is_enforced:
+                enforced += 1
+    return records, judged, enforced
+
+
 def load_window(log_dir: Path, start: date, end: date) -> WindowData:
     """Read every ``skill-selection-YYYY-MM-DD.jsonl`` dated within the window.
 
@@ -259,79 +376,12 @@ def load_window(log_dir: Path, start: date, end: date) -> WindowData:
         if file_date < start or file_date > end:
             continue
         days_with_a_log_file += 1
-        try:
-            text = path.read_text(encoding="utf-8")
-        # UnicodeDecodeError is a ValueError, not an OSError — the gap that
-        # took the (since retired) packet builder down once (2026-07-29 review).
-        except (OSError, UnicodeDecodeError):
-            faults["unreadable_files"] += 1
-            continue
-        for raw_line in text.splitlines():
-            line = raw_line.strip()
-            if not line:
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                faults["malformed_lines"] += 1
-                continue
-            if not isinstance(record, dict):
-                faults["non_dict_records"] += 1
-                continue
-            records += 1
-            if str(record.get("verdict", "")) != "judged":
-                continue
-            judged += 1
-            if record.get("enforced"):
-                enforced += 1
-            raw_catalog = record.get("catalog_names")
-            if not isinstance(raw_catalog, list):
-                faults["judged_without_catalog"] += 1
-                continue
-            catalog = {name for name in raw_catalog if isinstance(name, str) and name}
-            if not catalog:
-                faults["judged_without_catalog"] += 1
-                continue
-            if len(catalog) > _MAX_CATALOG_NAMES:
-                raise ScanError(
-                    "CATALOG_TOO_LARGE",
-                    f"{path.name}: {len(catalog)} names exceeds the {_MAX_CATALOG_NAMES} bound",
-                )
-            # ``selected`` gets the same type check ``catalog_names`` gets, and
-            # gets it BEFORE the catalog signature is recorded so an excluded
-            # record cannot still inflate the exposure denominators. A non-list
-            # (``5``, ``true``) used to reach ``for name in ...`` as an uncaught
-            # TypeError — a nonzero exit with no reason code, and exit 1 where
-            # every other fault exits 2. A bare string was worse: it iterated
-            # per character, so ``"a-one"`` booked five phantom out-of-catalog
-            # faults and left a silently empty selection that lowered every
-            # family rate.
-            raw_selected = record.get("selected")
-            if not isinstance(raw_selected, list):
-                faults["judged_without_usable_selection"] += 1
-                continue
-            signature = tuple(sorted(catalog))
-            signature_id = signature_ids.get(signature)
-            if signature_id is None:
-                signature_id = len(signature_counts)
-                signature_ids[signature] = signature_id
-                signature_counts.append(0)
-            signature_counts[signature_id] += 1
-
-            selected: set[str] = set()
-            for name in raw_selected:
-                if not isinstance(name, str) or not name:
-                    faults["dropped_selected_entries"] += 1
-                    continue
-                if name not in catalog:
-                    # The writer validates picks against the catalog, so this
-                    # is log corruption rather than selector behaviour; a name
-                    # with no exposure would otherwise produce a conditional
-                    # with an empty denominator.
-                    faults["selected_outside_catalog"] += 1
-                    continue
-                selected.add(name)
-            judged_records.append(JudgedRecord(signature_id, frozenset(selected)))
+        file_records, file_judged, file_enforced = _process_log_file(
+            path, faults, signature_ids, signature_counts, judged_records
+        )
+        records += file_records
+        judged += file_judged
+        enforced += file_enforced
 
     ordered = sorted(signature_ids.items(), key=lambda item: item[1])
     return WindowData(
