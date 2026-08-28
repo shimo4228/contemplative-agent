@@ -14,7 +14,7 @@
 | category | tool | mode | 判定 |
 |---|---|---|---|
 | format | ruff format | staged + full | block |
-| lint | ruff check（rule set は pyproject で明示 select） | staged + full | block |
+| lint | ruff check（rule set は pyproject で明示 select、C901 予算含む） | staged + full | block |
 | type check | pyright | full | block |
 | architecture | import-linter（ADR-0001 / ADR-0015 の依存方向） | full | block |
 | security (SAST) | bandit `-ll -ii` | staged + full | block |
@@ -29,6 +29,37 @@
 2026-07 時点で後発の代替なし。0.16 系で既定ルールが 59 → 413 に拡大したが、この repo は
 `select` を明示 pin しているため影響は限定的（版を上げる時は `ruff check --diff` で差分確認）。
 再調査: 12 ヶ月経過 / ruff に代わる標準の出現。
+
+**lint — 予算系（C901）**（選定日 2026-08-28）
+ruff の C901（mccabe）を `select` に足しただけで、既存の lint ゲートがそのまま発火する
+（`verify.sh` は無変更 = hash 再承認なし。staged / full の両モードで pyproject が参照される）。
+閾値は `[tool.ruff.lint.mccabe] max-complexity = 15`。
+実測分布 as-of **2026-08-28**（対象は verify ゲートと同じ src / tests / scripts / evals、
+関数 4,580 件）: p50=1 / p90=3 / p95=5 / **p99=10** / **max=35**。violation は
+`>10` で 36 件 / `>15` で 13 件。計測コマンド:
+
+```bash
+uv run ruff check --isolated --no-cache --output-format json --select C901 \
+  --config "lint.mccabe.max-complexity=0" -- src tests scripts evals
+```
+
+免除は `pyproject.toml` の `per-file-ignores` が正本（導入時の既存 13 件 = drain 台帳。
+刈ったら行を消す、新規追加は不可）。ここには複製しない。
+
+捨てた選択肢:
+
+- **閾値 10** — p99 と同値まで締めると免除が 24 ファイルに膨らみ、`moltbook/client.py` /
+  `feed_manager.py` / `core/insight.py` / `core/report.py` など編集が集中するモジュールが
+  丸ごと盲点になる。11–15 帯（23 関数）はこのコーパスでは「密だが正常」な尾部
+- **PLR09x** — PLR0913（引数数）は既定閾値で 80 件あり drain コストが釣り合わない。
+  PLR0912 / PLR0915 は hotspot が C901 とほぼ重複するので、指標は C901 に一本化する
+- **ファイル LOC 予算** — Ruff に該当 rule が無く（astral-sh/ruff#970）、9 repo 実測でも
+  violation の過半が test だった。別ツールを足すのはハーネス ADR-0056 の
+  「増えるのは config の行だけ」に反する
+
+再調査: 12 ヶ月経過 / **免除リストが空になった時**（分布を再実測して閾値引き下げを検討）/
+ruff が cognitive complexity（astral-sh/ruff#2418）を実装した時（指標を引き直す）/
+**閾値引き上げによる回避を観測した 1 回目**（ハーネス ADR-0056 の Review-when — 規約側の再訪）。
 
 **type check — pyright**
 Rust 製の後発が実際に来ている（Meta の pyrefly が 2026-05 に v1.0、pandas で pyright 比
