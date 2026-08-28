@@ -47,8 +47,9 @@ uv run ruff check --isolated --no-cache --output-format json --select C901 \
 刈ったら行を消す、新規追加は不可）。ここには複製しない。
 **2026-08-28: 導入同日に 13 件すべてを挙動保存リファクタで drain 完了、免除リストは空**
 （最大 hotspot は 35 → 10。docs/evidence/ 配下の 2 件（16 / 20）は凍結された逐語記録なので
-刈らない — full ゲートの対象外で、再 stage しない限り発火もしない）。閾値引き下げの再検討は
-再調査トリガー（分布の再実測）に従う。
+刈らない — full ゲートの対象外だが staged モードは stage された .py を全部見るため、
+`docs/evidence/**` の per-file-ignores に C901 を恒久免除として明示した。drain 台帳とは別物）。
+閾値引き下げの再検討は再調査トリガー（分布の再実測）に従う。
 
 捨てた選択肢:
 

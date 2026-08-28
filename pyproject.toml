@@ -219,4 +219,8 @@ known-first-party = ["contemplative_agent", "tests", "evals"]
 "tests/**" = ["T20"]
 "scripts/**" = ["T20"]
 "evals/**" = ["T20"]    # probe/CLI 系 (benchmark_distill と同じ扱い) — print が UI
-"docs/evidence/**" = ["T20"]  # 昇格した一回限りの計測スクリプト — 進捗と読み値の print が UI
+# 昇格した一回限りの計測スクリプト — 進捗と読み値の print が UI。C901 も恒久免除:
+# 凍結された逐語記録 (differential replay の baseline 含む) で、刈ると証拠価値が壊れる。
+# drain 台帳ではない — 2026-08-28 時点で replay_parser.py の 16 と
+# verification_parse_baseline.py の 20 が該当 (staged モードだけが見る面)
+"docs/evidence/**" = ["T20", "C901"]
