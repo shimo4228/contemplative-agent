@@ -68,6 +68,19 @@ SkillResolve-Bench（arXiv 2606.10388）の same-capability ambiguity（RFC-0013
 社内先例: ADR-0084（判定は成果物の後に置く）、ADR-0096（self-judge の refute 3 連）、
 ADR-0056（重要度 ablation）。
 
+## 2026-08-29 triage 判定（著者回答: 選択肢 (b) — RFC-0016 を先に）
+
+`draft` 維持。設計セッションは [RFC-0016](0016-restore-surprise-instrument.md) の復元が
+マージされ、surprise の読み値が現物として取れてから持つ。Unresolved questions のうち
+「RFC-0016 との統合順序」はこれで決着（RFC-0016 が先、その読み値を設計材料にする）。
+残り 3 点（飽和シグナルの判定者 / cluster 床 3 の扱い / 環境の反応の入れ方）は設計セッションで潰す。
+
+## 着手条件
+
+再開条件: RFC-0016 の復元が main にマージされ、surprise の読み値が 1 回取れること
+照合先:   `core/insight_surprise.py` の存在と、staging sidecar の `surprise` field の実値
+成立時:   設計セッション（grill-me 形式）→ Unresolved questions 残り 3 点を潰して accepted
+
 ## Status
 
 draft — 2026-08-26 のオーナー指示（「knowledge からスキル抽出する機構を治すのが先決」）で

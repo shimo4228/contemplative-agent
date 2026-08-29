@@ -38,6 +38,10 @@ state_since: 2026-08-16
 
 未成立 → `blocked` 維持。`gh pr view 12030 --repo ollama/ollama`: OPEN / mergedAt null。`POST /api/tokenize` → HTTP 404。
 
+## 2026-08-29 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。`gh pr view 12030 --repo ollama/ollama`: OPEN / mergedAt null。`POST /api/tokenize` → HTTP 404。
+
 ## Status
 
 blocked — 上流 PR ollama#12030 が未マージで `/api/tokenize` は 404、着手不能

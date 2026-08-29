@@ -1,6 +1,6 @@
 ---
 id: T-SELF-POST-SEED-VOICE-LABEL
-state: draft
+state: done 2026-08-29
 state_since: 2026-08-29
 origin: gate
 ---
@@ -46,3 +46,22 @@ T-UNTRUSTED-ESCAPE の C で返信経路に入れたもの）。ラベルは unt
   なので別の匿名参照に置き換わるだけ
 - **セキュリティの主張はしない**: nonce は呼び出しごとに引かれ、相手の投稿はそれが存在する前に
   書かれている（`guard.py:178-182`）ので、公開時点で使い切られている。帰属と生成文の質の話
+
+## 2026-08-29 triage 判定（著者回答: 採用して dispatch）
+
+`draft` → `accepted`。選択肢 (a)（ラベルを足す）を採用。出力側の識別子除去 (b) は不採用
+（substring filter になり別の匿名参照に置き換わる）。ラベル源は seed dict、サニタイザは
+`core/episode_render.py:24 safe_peer_name` を再利用し、ラベルは untrusted frame の**外**に置く。
+`wrap_untrusted_content` と nonce には触れない。マージ後 1 週の自己投稿で識別子の出現が
+消えたかを次サイクルで読む。
+
+## 2026-08-29 dispatch（S2）
+
+`accepted` → `in_progress`。worktree `task/seed-voice-label`（branch `task/seed-voice-label`）で build セッション `ca/s2-seed-voice-label` を起動。
+判断役 triage-ca が検収、merge はオーナーの言葉で ff-only。packet は判断役の scratchpad。
+
+## 2026-08-29 done（merge 9af2d32）
+
+voice ラベルを `seed_voice_label` の 1 箇所で組み立て、untrusted frame の外に配置。`wrap_untrusted_content` と nonce は無改変。frame 内バイトと ADR-0042 completeness marker は byte-identical。
+
+検収は判断役（triage-ca）が独立に実施 — `git diff --stat`、worktree での `verify.sh` 再実行、commit body の chain 遵守と逸脱の名指しを確認。merge 後の main でも `verify.sh` exit 0。

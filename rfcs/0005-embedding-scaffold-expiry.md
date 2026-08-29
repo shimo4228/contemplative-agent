@@ -35,6 +35,10 @@ memory `project_rag_retrieval_demotion.md`、[ADR-0019](../docs/adr/0019-discret
 
 未成立 → `blocked` 維持。08-24 以降の `docs/adr` commit は ADR-0069 の Review-when 追補のみ（モデル交代のトリガーを書いた文書であって交代そのものではない）。`config/` の生成モデル設定に変更なし。
 
+## 2026-08-29 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。08-26 以降の `docs/adr` / `config/` commit は `2b59a60`（RFC-0010 weekly 計器再設計）と `37cbea2`（ADR-0080 追補）のみで、生成モデル交代 ADR なし。
+
 ## Status
 
 blocked — 現世代では ADR-0019 の分業（仕組み = embedding、価値判断 + 生成 = LLM）が

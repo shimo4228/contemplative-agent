@@ -38,6 +38,10 @@ Apple Foundation Models をローカル生成 backend として挿すか — 202
 
 未成立 → `blocked` 維持。`sw_vers` = 26.6.1（OS 27 GA 未到達）。enforcement 射程側も変化なし。
 
+## 2026-08-29 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。`sw_vers` = 26.6.1 / build 25G76（OS 27 GA 未到達）。(i)(ii) 同時成立が条件なので enforced 比率は未集計。
+
 ## Status
 
 blocked — 2026-08-01 に 4 軸を実測して棄却済み、再開条件待ち

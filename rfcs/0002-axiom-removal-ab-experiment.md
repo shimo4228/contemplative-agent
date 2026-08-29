@@ -40,6 +40,10 @@ handoff T3（`.notes/handoff-2026-07-03-adr-0072-phase3.md`）
 
 未成立 → `blocked` 維持。`evals/datasets/` は `comment_golden.jsonl` のみ — distill 面の足場は無い。
 
+## 2026-08-29 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。`evals/datasets/` は `comment_golden.jsonl` のみ、`evals/baselines/` も comment_golden 系 3 本のみ — distill 面（Face B）の足場は無い。
+
 ## Status
 
 blocked — 公理除去 A/B は `evals/` の distill 面（Face B）が未実装のため走らない

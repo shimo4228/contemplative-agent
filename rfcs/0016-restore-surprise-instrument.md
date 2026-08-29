@@ -1,5 +1,6 @@
 ---
-state: draft 2026-08-26
+state: done 2026-08-29
+state_since: 2026-08-29
 review-when: ADR-0080 追補の代謝の質条項が supersede される、または surprise 読み値を消費しない別の新規性機構が本採用される（消費者が再び消えたら本提案も終端化する）
 ---
 
@@ -46,6 +47,27 @@ surprise 計器を撤去した（commit `47616da`、導入は `e5dec38`）。た
 - 読み値の消費位置（抽出時 / staging / ゲート表示）
 - sidecar `surprise` field の復元は ADR-0097 D3 の「採用は書き込みだけ」原則と両立する形
   （表示専用に留めるか）を要設計
+
+## 2026-08-29 triage 判定（著者回答: 採用して dispatch）
+
+`draft` → `accepted`。選択肢 (a) を採用 — 計器のみ復元し、消費位置は実装時の設計問題として
+build セッションに委ねる。`gemma worth gate`（`insight._worth_gate` / `config/prompts/insight_worth.md` /
+`insight-worth.jsonl` writer）は refuted のまま復元しない。sidecar の `surprise` field は
+表示専用に留め、単一スカラーとしての自動判定へは昇格させない（ADR-0080 追補の規約）。
+ADR-0097 D1 への部分 supersede 注記（日付つき）を同 PR で残す。
+
+RFC-0017 との順序も同日に確定（RFC-0017 の 2026-08-29 判定を参照）: 本 RFC が先。
+
+## 2026-08-29 dispatch（S3）
+
+`accepted` → `in_progress`。worktree `task/restore-surprise`（branch `task/restore-surprise`）で build セッション `ca/s3-restore-surprise` を起動。
+判断役 triage-ca が検収、merge はオーナーの言葉で ff-only。packet は判断役の scratchpad。
+
+## 2026-08-29 done（merge 4838be2）
+
+計器のみ復元（worth gate は refuted のまま不復元）。読み値は gate・閾値・並び替え・採否のどこにも入らない（表示専用をテストで固定）。ADR-0097 D1 に日付つき部分 supersede 注記。復元中に当時のコードの欠陥 2 件を修正 — sidecar の 400 桁整数が `OverflowError` で adopt-staged を落とす件（HIGH）と、`insight --full` で参照窓が全 mask のとき退化した読み値を出していた件（読み値を出さない挙動へ変更）。
+
+検収は判断役（triage-ca）が独立に実施 — `git diff --stat`、worktree での `verify.sh` 再実行、commit body の chain 遵守と逸脱の名指しを確認。merge 後の main でも `verify.sh` exit 0。
 
 ## Status
 

@@ -1,6 +1,6 @@
 ---
 id: T-WEEKLY-SESSION-VALUE-LAYER-READ
-state: draft
+state: done 2026-08-29
 state_since: 2026-08-29
 origin: gate
 ---
@@ -41,3 +41,21 @@ Step 3）はその 4 パスの**現在全文**を F2 の必須入力に指定し
 - 検証の観点（設計段で決める）: `tests/test_weekly_*_shell.py` は許可 glob を具体パスに対して
   評価する形になっている（T-DIAG-WRITE-SCOPE の検証記述）。値層 4 パスの Read が通り、
   同じパスへの Edit が落ちることを 1 組で固定できる
+
+## 2026-08-29 triage 判定（著者回答: 採用して dispatch）
+
+`draft` → `accepted`。loop 自身を壊す欠陥として採用。修理範囲は `scripts/weekly-pipeline.sh:333`
+の `--allowedTools` に値層 4 パスの `Read` を足すのみ。`:334` の `Edit` deny 列は不変で、
+セッションは値層に対して read-only のまま。検証は `tests/test_weekly_*_shell.py` に
+「値層 4 パスの Read が通り、同じパスへの Edit が落ちる」を 1 組で固定する。
+
+## 2026-08-29 dispatch（S1）
+
+`accepted` → `in_progress`。worktree `task/weekly-valuelayer-read`（branch `task/weekly-valuelayer-read`）で build セッション `ca/s1-valuelayer-read` を起動。
+判断役 triage-ca が検収、merge はオーナーの言葉で ff-only。packet は判断役の scratchpad。
+
+## 2026-08-29 done（merge 3a759d4）
+
+値層 4 パスの Read 許可を追加。Edit deny 列は無改変で、Read deny が 1 本増えた（`skills/.archive/**` — 退役 skill の系譜が sync の除外を迂回して再公開されるのを塞ぐ）。診断契約 Step 3 のパス誤り（`config/identity/*.md` 等、repo に実在しない相対パス）も同時訂正。
+
+検収は判断役（triage-ca）が独立に実施 — `git diff --stat`、worktree での `verify.sh` 再実行、commit body の chain 遵守と逸脱の名指しを確認。merge 後の main でも `verify.sh` exit 0。

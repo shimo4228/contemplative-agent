@@ -38,6 +38,10 @@ state_since: 2026-08-16
 
 未成立 → `blocked` 維持。sibling grep（`src/`、`count_tokens|TokenCountingBackend`）: cloud `65b0526` / mlx `2f6c7fd` とも 0 ヒット（08-24 から両 repo とも commit なし）。
 
+## 2026-08-29 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。sibling grep（`src/`、`count_tokens|TokenCountingBackend`）: cloud `65b0526`（2026-08-17）/ mlx `2f6c7fd`（2026-08-16）とも 0 ヒット（08-26 から両 repo とも commit なし）。
+
 ## Status
 
 blocked — 時間上限の欠落は ADR-0087 の Negative に記録済みだが、`count_tokens` を

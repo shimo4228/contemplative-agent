@@ -92,6 +92,10 @@ T-GAP1 Phase 1 で、**介入境界を跨いだ計器の読み直しを 1 回実
 
 未成立 → `blocked` 維持。08-24 以降、埋め込みモデル差し替え・`restore-embed-knowledge.py` 実行の commit / 記録なし。
 
+## 2026-08-29 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。08-26 以降、埋め込みモデル差し替え・`restore-embed-knowledge.py` 実行の commit / 記録なし。
+
 ## Status
 
 blocked — 消費者がまだ名前を持たず、2026-08-16 の部分照合も判定基準を当てる機会に
