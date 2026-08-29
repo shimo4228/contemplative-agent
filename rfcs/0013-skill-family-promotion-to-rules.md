@@ -52,7 +52,8 @@ skillsel 初回読み §2/§6（`.notes/skillsel-reading-2026-07-24.md`）、[AD
 
 **判定基準は既に満たしている**（D8 の表）: 「制約」family の any-of ≥ 0.75 が互いに素な ≥ 500 judged
 の窓 2 つ以上 — 07-25 以降の 4 窓で 0.78 / 0.74 / 0.72 / 0.81（deconstruct family も 0.83 / 0.85 /
-0.80 / 0.72）。数値は `scripts/coselection_families.py`（2026-08-22 出荷、read-only）で再取得できる。
+0.80 / 0.72）。数値は `scripts/coselection_families.py`（2026-08-22 出荷、read-only）で再取得できる
+（同スクリプトは 2026-08-29 に退役 — commit `a06c6be`。再測定するならその commit から復元する）。
 ADR の Context の下位ケース対 11 組は支持数の床を宣言していない探索値で、計器は 16 組と読む（同 ADR 注記）。
 
 **実行後に読むもの（≥ 100 judged ≈ 1–2 日）**: 昇格した rule の member 名が `selected` から消え、

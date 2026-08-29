@@ -175,12 +175,15 @@ wrapped in local punctuation when embedded in a translated sentence.
   instrument (ADR-0076) applied to the constitution rather than to a
   decision. Bilingual first-use allowed: 「shadow constitution（影の憲法）」.
 - **chaos-TDD** / **fault column** — ADR-0077. A test-first discipline,
-  not an infrastructure practice: a feature touching an LLM call or
-  external I/O ships a set of deterministic fault-injection tests (its
-  *fault column*) in the same PR, and those tests assert the desired
-  guarded behavior before the guard exists. Faults are injected only at
-  seams that already exist, so no production chaos hook is added.
-  Bilingual first-use allowed: 「chaos-TDD（障害注入 TDD）」.
+  not an infrastructure practice: a *fault column* is a set of
+  deterministic fault-injection tests that assert the desired guarded
+  behavior before the guard exists, shipped in the same PR as the guard.
+  Faults are injected only at seams that already exist, so no production
+  chaos hook is added. From 2026-07-13 to 2026-08-29 shipping a fault
+  column was a by-default obligation on every feature touching an LLM
+  call or external I/O; ADR-0100 retired that obligation on 2026-08-29
+  and the practice is opt-in TDD judgment since. Bilingual first-use
+  allowed: 「chaos-TDD（障害注入 TDD）」.
 - **permanent facade** — ADR-0079. When a module becomes a package, the
   compatibility layer is either kept forever because the old import
   path is public API, or omitted entirely with its tests migrated in

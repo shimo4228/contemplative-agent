@@ -338,7 +338,13 @@ def _unload_and_remove_plist(plist_path: Path, label: str) -> bool:
 
 
 def _do_uninstall_schedule() -> None:
-    """Uninstall all launchd plists (session + optional jobs)."""
+    """Uninstall every launchd plist this installer manages (session + optional jobs).
+
+    Out of scope, and left untouched: ``com.moltbook.ollama-restart`` (installed
+    and updated manually) and any surviving legacy ``com.moltbook.weekly-analysis``
+    job — its standalone installer was removed on 2026-08-29, so it is no longer
+    among the managed plists and must be removed by hand.
+    """
     removed = False
 
     for plist_path, label in [

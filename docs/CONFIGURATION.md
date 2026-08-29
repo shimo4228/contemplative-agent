@@ -392,10 +392,12 @@ contemplative-agent install-schedule --uninstall                        # Remove
 `--weekly-pipeline` is the only weekly installer — the standalone
 `--weekly-analysis` install path was removed on 2026-08-29. The chain
 (`scripts/weekly-pipeline.sh`) runs `weekly-analysis.sh` as its own Stage 1,
-then diagnosis → fix (worktree + Verify) → insight review → decision packet.
-Nothing in the chain commits or adopts — promotion happens in the Saturday
-`/weekly-gate` session. Stage selection for a shadow rollout:
-`MOLTBOOK_PIPELINE_STAGES=report,diagnosis,insight,packet` (no `fix`). The
+then a single unattended `/weekly-report` session that writes the report,
+diagnoses findings, and files candidate tasks into `rfcs/` — the fix / review /
+improve stages and the decision-packet builder were retired by ADR-0098, and
+repairs are delegated to the task-triage loop. Nothing in the chain commits or
+adopts — promotion happens in the Saturday `/weekly-gate` session, which reads
+the findings file and the per-week instrument JSONs directly. The
 watchdog writes `reports/PIPELINE-STATUS.md` and posts a Notification Center
 alert when the failure set changes.
 
@@ -413,7 +415,7 @@ episode logs this backup exists to protect. See
 
 Valid intervals: 1, 2, 3, 4, 6, 8, 12, 24 hours.
 
-`install-schedule` manages the agent, distill, weekly-analysis, insight, backup, weekly-pipeline, and watchdog plists — declaratively: re-running it removes any optional job whose flag is not passed, so always pass the full desired set. One plist under `config/launchd/` is outside its scope: `com.moltbook.ollama-restart.plist` is installed and updated manually via `launchctl`, and `--uninstall` does not touch it. It restarts the local `ollama serve` nightly at 23:55 — starting `ollama serve` directly (no GUI app) with `AbandonProcessGroup` so the daemon survives its parent exiting. Between the `pkill` and the restart it calls `scripts/rotate-log.sh <path> 7`, which moves `ollama-serve.log` aside and gzips it, keeping seven compressed generations: that is the one moment in the day when the writer is dead, so the job that owns the log also rotates it. Rotation failures are chained with `;` so they can never stop the daemon from starting, and are prefixed `ERROR:` so the weekly anomaly sweep sees them. `RunAtLoad` is set, so `launchctl load` restarts Ollama on the spot — reload it outside a scheduled session window. The repo copy is the reference template: when the live plist changes, mirror it here in the same change.
+`install-schedule` manages the agent, distill, insight, backup, weekly-pipeline, and watchdog plists — declaratively: re-running it removes any optional job whose flag is not passed, so always pass the full desired set. One plist under `config/launchd/` is outside its scope: `com.moltbook.ollama-restart.plist` is installed and updated manually via `launchctl`, and `--uninstall` does not touch it. A legacy `com.moltbook.weekly-analysis` job is likewise outside its scope — the standalone installer was removed on 2026-08-29, so if that plist still exists on a machine it is no longer managed and must be removed by hand (`launchctl unload` + `rm`). It restarts the local `ollama serve` nightly at 23:55 — starting `ollama serve` directly (no GUI app) with `AbandonProcessGroup` so the daemon survives its parent exiting. Between the `pkill` and the restart it calls `scripts/rotate-log.sh <path> 7`, which moves `ollama-serve.log` aside and gzips it, keeping seven compressed generations: that is the one moment in the day when the writer is dead, so the job that owns the log also rotates it. Rotation failures are chained with `;` so they can never stop the daemon from starting, and are prefixed `ERROR:` so the weekly anomaly sweep sees them. `RunAtLoad` is set, so `launchctl load` restarts Ollama on the spot — reload it outside a scheduled session window. The repo copy is the reference template: when the live plist changes, mirror it here in the same change.
 
 ---
 
