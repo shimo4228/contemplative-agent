@@ -39,6 +39,7 @@ from __future__ import annotations
 import argparse
 import json as json_mod
 import logging
+import math
 import sys
 from collections import Counter
 from collections.abc import Iterable, Sequence
@@ -1115,6 +1116,59 @@ def _reject_unselected(meta_file: Path, plan: _AdoptPlan) -> _Outcome:
     return _Outcome.REJECTED
 
 
+def _print_surprise(surprise: object) -> None:
+    """Show the ADR-0096 reading above the artifact at the human gate.
+
+    Restored 2026-08-29 (RFC-0016). Read-only material for this decision, not
+    a recommendation. ``ref cos p50`` / ``ref cos spread`` describe THIS
+    candidate's own neighbourhood in the reference window — they are not the
+    batch's discriminability budget, which is the spread of ``s_mean`` across
+    the batch and is logged by ``insight_surprise.log_surprise`` at extraction
+    time (the two are different distributions; the module says so explicitly).
+    This function prints and returns; no caller reads its result, and no
+    adoption outcome, ordering or count is a function of the value it shows.
+
+    Every field is coerced rather than formatted straight from the sidecar. The
+    sidecar is the one input this command treats as adversary-writable between
+    stage and adopt, and a value that raises in a ``%.4f`` slot would raise out
+    of the batch loop, leaving the remaining items staged and — via the
+    ADR-0074 pending guard — blocking every future ``--stage`` run. An
+    ``isinstance`` check alone does not buy that: ``json`` decodes an
+    arbitrary-precision integer literal (``1`` followed by 400 zeros) to an
+    ``int`` that passes the check and then makes ``float()`` raise
+    ``OverflowError`` — not a ``ValueError``, so nothing upstream catches it —
+    and it decodes bare ``NaN`` / ``Infinity`` to floats that pass everything
+    and print as ``rank nan/inf``. Both are refused here (security review,
+    2026-08-29).
+    """
+    if not isinstance(surprise, dict):
+        return
+
+    def _num(key: str) -> float | None:
+        value = surprise.get(key)
+        if not isinstance(value, (int, float)) or isinstance(value, bool):
+            return None
+        try:
+            num = float(value)
+        except (OverflowError, ValueError):
+            return None
+        return num if math.isfinite(num) else None
+
+    fields = {
+        key: _num(key)
+        for key in ("rank", "of", "s_mean", "s_nn", "ref_k", "ref_cos_p50", "ref_cos_spread")
+    }
+    if any(v is None for v in fields.values()):
+        print("  surprise: sidecar reading unusable (non-numeric field) — ignored")
+        return
+    print(
+        f"  surprise: rank {fields['rank']:.0f}/{fields['of']:.0f} pre-gate clusters, "
+        f"s_mean={fields['s_mean']:.4f} s_nn={fields['s_nn']:.4f} "
+        f"(ref k={fields['ref_k']:.0f} cos p50={fields['ref_cos_p50']:.3f} "
+        f"spread={fields['ref_cos_spread']:.3f})"
+    )
+
+
 def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _ItemResult:
     """Decide and apply one staged item's fate.
 
@@ -1170,6 +1224,7 @@ def _dispatch_staged_item(meta_file: Path, plan: _AdoptPlan) -> _ItemResult:
 
     print(f"\n{'=' * 60}")
     print(f"[{item.command}] {item.content_file.name} -> {item.target}")
+    _print_surprise(item.meta.get("surprise"))
     print(item.text)
 
     supersedes = plan.supersedes.get(name, ())

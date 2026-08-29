@@ -1776,3 +1776,203 @@ class TestRetiredSidecarKeysAreRefused:
         assert "retired sources" in capsys.readouterr().err
         assert orig.exists(), "a refused item must not delete anything"
         assert not (target.parent / "low-q-2.md").exists()
+
+
+class TestSurpriseIsDisplayOnly:
+    """The restored ADR-0096 reading is shown and nothing else (RFC-0016).
+
+    ADR-0080's 2026-08-26 amendment asked for several axes of metabolic
+    quality and forbade collapsing them into one scalar; ADR-0097 Decision 3
+    narrowed the staging sidecar so that adoption is a write and nothing else.
+    Both hold only while ``surprise`` stays out of every decision, so the
+    invariant is pinned here rather than left to the docstrings:
+
+    **Feeding wildly different readings through the same batch must not move
+    which items are adopted, in what order, or how many.** The tests run one
+    identical batch twice — once with extreme, deliberately anti-correlated
+    readings and once with none — and require the two runs to agree on every
+    observable except the surprise lines themselves.
+    """
+
+    _ITEMS = (("a.md", "# A"), ("b.md", "# B"), ("c.md", "# C"))
+
+    @staticmethod
+    def _extreme(i: int) -> dict[str, float | int]:
+        """A reading whose every field fights the staging order.
+
+        Rank counts down while ``seq`` counts up, ``s_mean`` swings across
+        three orders of magnitude, and ``s_nn`` goes negative — anything that
+        sorted, thresholded or truncated on these would visibly reorder or
+        shorten the batch.
+        """
+        return {
+            "s_mean": [1e-9, 0.5, 1e9][i],
+            "s_nn": [-1.0, 0.0, 1.0][i],
+            "rank": 3 - i,
+            "of": 3,
+            "ref_k": 1000,
+            "ref_cos_p50": [0.999, 0.5, 0.001][i],
+            "ref_cos_spread": [0.0, 0.1, 2.0][i],
+        }
+
+    def _stage(self, tmp_path: Path, *, with_surprise: bool) -> Path:
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        items = [
+            StageItem(
+                name,
+                text,
+                tmp_path / "skills" / name,
+                surprise=self._extreme(i) if with_surprise else {},
+            )
+            for i, (name, text) in enumerate(self._ITEMS)
+        ]
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+        ):
+            assert _stage_results(items, command="insight")
+        return staged_dir
+
+    def _adopt_all(self, tmp_path: Path, staged_dir: Path) -> None:
+        audit = tmp_path / "logs" / "audit.jsonl"
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+        ):
+            _handle_adopt_staged(argparse.Namespace(yes=True), MagicMock())
+
+    @staticmethod
+    def _without_surprise_lines(out: str) -> str:
+        return "\n".join(
+            line for line in out.splitlines() if not line.strip().startswith("surprise:")
+        )
+
+    def test_sidecars_differ_only_by_the_surprise_key(self, tmp_path):
+        with_s = self._stage(tmp_path / "with", with_surprise=True)
+        without = self._stage(tmp_path / "without", with_surprise=False)
+
+        def _metas(staged_dir: Path) -> dict[str, dict]:
+            out = {}
+            for f in sorted(staged_dir.glob("*.meta.json")):
+                meta = json.loads(f.read_text())
+                # The two runs live under different tmpdirs; compare the
+                # target by name so only the sidecar's own fields are in play.
+                meta["target"] = Path(meta["target"]).name
+                out[f.name] = meta
+            return out
+
+        left, right = _metas(with_s), _metas(without)
+        assert sorted(left) == sorted(right)
+        for name, meta in left.items():
+            assert "surprise" in meta
+            # seq — the one sidecar field adoption order IS a function of —
+            # must be untouched by the reading.
+            assert {k: v for k, v in meta.items() if k != "surprise"} == right[name]
+
+    def test_extreme_readings_change_neither_outcome_nor_order_nor_count(self, tmp_path, capsys):
+        with_root, without_root = tmp_path / "with", tmp_path / "without"
+        self._adopt_all(with_root, self._stage(with_root, with_surprise=True))
+        loud = capsys.readouterr().out
+        self._adopt_all(without_root, self._stage(without_root, with_surprise=False))
+        quiet = capsys.readouterr().out
+
+        # Same three targets, same bodies, nothing left staged, on both runs.
+        for root in (with_root, without_root):
+            assert sorted(p.name for p in (root / "skills").iterdir()) == ["a.md", "b.md", "c.md"]
+            assert not list((root / ".staged").glob("*.meta.json"))
+
+        # Same transcript once the reading itself is removed: the adoption
+        # order, the per-item outcomes and the summary counts are all in here.
+        assert self._without_surprise_lines(loud).replace(str(with_root), "") == (
+            self._without_surprise_lines(quiet).replace(str(without_root), "")
+        )
+        # ...and the reading really was printed, so the comparison above is
+        # not passing because the feature is inert.
+        assert loud.count("  surprise: rank ") == 3
+        assert "surprise:" not in quiet
+
+    # Fault column for the one adversary-writable input this instrument reads
+    # (chaos-TDD, CLAUDE.md 開発原則). Each row is a sidecar value that passes
+    # a naive isinstance check and then breaks formatting; the required guard
+    # behaviour is the same for all of them — say the reading is unusable and
+    # adopt the item anyway, never raise out of the batch loop.
+    @pytest.mark.parametrize(
+        "bad_value,label",
+        [
+            (int("1" + "0" * 400), "F-SURPRISE-OVERFLOW"),  # float() → OverflowError
+            (float("nan"), "F-SURPRISE-NAN"),  # json decodes bare NaN
+            (float("inf"), "F-SURPRISE-INF"),  # json decodes bare Infinity
+            ("not-a-number", "F-SURPRISE-STR"),
+            (True, "F-SURPRISE-BOOL"),  # bool is an int subclass
+            (None, "F-SURPRISE-NULL"),
+        ],
+    )
+    def test_hostile_reading_never_wedges_the_batch(self, tmp_path, capsys, bad_value, label):
+        """A bad reading must not cost the operator the whole staging dir.
+
+        Raising here aborts `adopt-staged` mid-batch, leaving the remaining
+        items staged — and the ADR-0074 pending guard then refuses every
+        future `--stage` run until someone clears `.staged/` by hand. That is
+        the incident class `staging.read_sidecar` already records; the
+        OverflowError row is the one that got past the first restored guard
+        (security review, 2026-08-29).
+        """
+        staged_dir, target = self._stage_bare(tmp_path)
+        meta_file = staged_dir / "a.md.meta.json"
+        meta = json.loads(meta_file.read_text())
+        meta["surprise"] = {
+            "s_mean": 0.5,
+            "s_nn": 0.5,
+            "rank": 1,
+            "of": 1,
+            "ref_k": 10,
+            "ref_cos_p50": 0.5,
+            "ref_cos_spread": 0.1,
+        }
+        meta["surprise"]["s_mean"] = bad_value
+        # allow_nan keeps NaN/Infinity as bare literals, exactly what stdlib
+        # json emits and accepts — the shape an attacker would actually write.
+        meta_file.write_text(json.dumps(meta, allow_nan=True), encoding="utf-8")
+
+        self._adopt_all(tmp_path, staged_dir)
+        out = capsys.readouterr().out
+        assert "surprise: sidecar reading unusable" in out, label
+        assert "nan" not in out.lower() and "inf" not in out.lower(), label
+        assert target.exists(), label
+        assert not list(staged_dir.glob("*.meta.json")), label
+
+    def _stage_bare(self, tmp_path: Path) -> tuple[Path, Path]:
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        target = tmp_path / "skills" / "a.md"
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+        ):
+            assert _stage_results([StageItem("a.md", "# A", target)], command="insight")
+        return staged_dir, target
+
+    def test_unusable_reading_is_reported_and_the_item_still_adopts(self, tmp_path, capsys):
+        staged_dir = tmp_path / ".staged"
+        audit = tmp_path / "logs" / "audit.jsonl"
+        target = tmp_path / "skills" / "a.md"
+        with (
+            patch("contemplative_agent.adapters.moltbook.config.STAGED_DIR", staged_dir),
+            patch("contemplative_agent.adapters.moltbook.config.MOLTBOOK_DATA_DIR", tmp_path),
+            patch("contemplative_agent.cli.approval.AUDIT_LOG_PATH", audit),
+        ):
+            assert _stage_results([StageItem("a.md", "# A", target)], command="insight")
+        # An adversary-writable sidecar: a string where a float is formatted.
+        meta_file = staged_dir / "a.md.meta.json"
+        meta = json.loads(meta_file.read_text())
+        meta["surprise"] = {"s_mean": "not-a-number", "rank": 1, "of": 1}
+        meta_file.write_text(json.dumps(meta), encoding="utf-8")
+
+        self._adopt_all(tmp_path, staged_dir)
+        out = capsys.readouterr().out
+        assert "surprise: sidecar reading unusable" in out
+        assert target.exists()  # the batch is not wedged by a bad reading

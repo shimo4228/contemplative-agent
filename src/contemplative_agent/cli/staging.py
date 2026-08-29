@@ -44,6 +44,21 @@ class StageItem:
     exit landed as `adopt-staged --archive-names FILE` and deliberately took
     no field here: a staged file still cannot name anything to remove from
     the store, and adding one would undo the narrowing above.
+
+    `surprise` is the ADR-0096 read-only reading for an insight candidate,
+    restored 2026-08-29 by RFC-0016. It rides the same sidecar because that
+    sidecar is already where the reviewer meets the item, in both surviving
+    read paths: `adopt-staged` prints it above the artifact at the human gate
+    (`cli/adopt.py::_dispatch_staged_item`), and the Saturday `/weekly-gate`
+    session reads every `.meta.json` in `.staged/` directly (skill step 4).
+    The `weekly-pipeline.sh` stage that used to `cat` sidecars into an
+    insight-review prompt was retired by ADR-0098 and is deliberately NOT
+    named here — it no longer exists.
+
+    It stays compatible with ADR-0097 Decision 3 ("adoption is a write and
+    nothing else") because it is display-only: nothing branches on it, and no
+    adoption outcome, ordering or count is a function of it
+    (`tests/test_cli_adopt.py::TestSurpriseIsDisplayOnly`).
     """
 
     filename: str
@@ -51,6 +66,7 @@ class StageItem:
     target_path: Path
     source_ids: list[str] = field(default_factory=list)
     epistemic_counts: dict[str, int] = field(default_factory=dict)
+    surprise: dict[str, float | int] = field(default_factory=dict)
 
 
 def _pending_staged_count() -> int:
@@ -256,6 +272,10 @@ def _stage_results_locked(items: list[StageItem], command: str) -> bool:
             meta["source_ids"] = list(item.source_ids)
         if item.epistemic_counts:
             meta["epistemic_counts"] = dict(item.epistemic_counts)
+        # ADR-0096 / RFC-0016: the surprise reading travels with the candidate
+        # to the human gate. Read-only — no consumer branches on it.
+        if item.surprise:
+            meta["surprise"] = dict(item.surprise)
         # Derive the sidecar from the collision-resolved name so the
         # .md ↔ .meta.json pairing adopt-staged relies on stays intact.
         meta_file = config.STAGED_DIR / f"{staged_file.name}.meta.json"

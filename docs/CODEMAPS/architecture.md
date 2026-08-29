@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-29 (RFC-0019 — the weekly session's positively scoped Read gains the four live value-layer paths, the F2 diagnosis input contract; write scope unchanged) | Updated: 2026-08-26 (RFC-0010 — weekly report content redesign: A–E quote-audit sections replaced by the six-section instrument document (Inventory / Ledger / Deviations / Exceptions / Sample / Discarded); observation-ledger.jsonl (append-only, session stages a delta, pipeline validates+appends) and deterministic random sample added as intakes; structural gate anchors now the six headings; Japanese translations retired; diagnosis input is Deviations+Exceptions) | Updated: 2026-08-25 (module inventory: skill_selection.py split into the selector + selection_window/selection_metrics/never_selected_metrics; cli/adopt.py split into adopt + skill_archive/remove_skill/store_paths — layer separation only, no mechanism change) | Updated: 2026-08-25 (docsscan gains mechanism_freshness reading — src/ commits since architecture.md's last commit, threshold-free covenant proxy) | Updated: 2026-08-24 (ADR-0098 — weekly chain single-session redesign: 7 claude -p → 1 /weekly-report session, fix/review/improve/insight-recommendation stages and the decision-packet builder retired, repairs delegated to the task-triage loop via candidate filing, weekly-analysis.sh reduced to a materials collector with promote-after-report moved into the pipeline) | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window incl. the weekly intake, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 84 (76 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-29 (RFC-0016 — ADR-0096 surprise reading restored as an instrument only; the ADR-0097 worth judge stays retired; the sidecar field is display-only at the adopt gate) | Updated: 2026-08-29 (RFC-0019 — the weekly session's positively scoped Read gains the four live value-layer paths, the F2 diagnosis input contract; write scope unchanged) | Updated: 2026-08-26 (RFC-0010 — weekly report content redesign: A–E quote-audit sections replaced by the six-section instrument document (Inventory / Ledger / Deviations / Exceptions / Sample / Discarded); observation-ledger.jsonl (append-only, session stages a delta, pipeline validates+appends) and deterministic random sample added as intakes; structural gate anchors now the six headings; Japanese translations retired; diagnosis input is Deviations+Exceptions) | Updated: 2026-08-25 (module inventory: skill_selection.py split into the selector + selection_window/selection_metrics/never_selected_metrics; cli/adopt.py split into adopt + skill_archive/remove_skill/store_paths — layer separation only, no mechanism change) | Updated: 2026-08-25 (docsscan gains mechanism_freshness reading — src/ commits since architecture.md's last commit, threshold-free covenant proxy) | Updated: 2026-08-24 (ADR-0098 — weekly chain single-session redesign: 7 claude -p → 1 /weekly-report session, fix/review/improve/insight-recommendation stages and the decision-packet builder retired, repairs delegated to the task-triage loop via candidate filing, weekly-analysis.sh reduced to a materials collector with promote-after-report moved into the pipeline) | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window incl. the weekly intake, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 85 (77 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -21,7 +21,7 @@ Python CLI agent: core/adapter separation + 3-layer memory + embedding views (AD
       _io  config  domain  prompts  llm(+LLMBackend)  embeddings
       episode_embeddings  episode_log  knowledge_store  memory  memory_repos
       views  snapshot  scheduler  distill  pattern_dedup  episode_render
-      insight  insight_novelty  skill_selection  constitution
+      insight  insight_novelty  insight_surprise  skill_selection  constitution
       selection_window  selection_metrics  never_selected_metrics
       constitution_shadow
       stocktake  report  metrics  view_metrics  clustering  text_utils
@@ -584,16 +584,40 @@ FAIL-OPEN EXTRACTION CAP  [ADR-0074 amendment 2026-07-18]
   windows); deferral recorded in insight-novelty.jsonl
   (reason=review_budget_deferred, topics + sizes + pattern_ids)
 
+SURPRISE READING  [ADR-0096; read-only, LLM-free, core/insight_surprise.py;
+                   removed by ADR-0097 D1, restored 2026-08-29 by RFC-0016 —
+                   ADR-0080's 2026-08-26 amendment names the consumer whose
+                   absence was the removal's only reason]
+  per surviving cluster: centroid vs the SURPRISE_REF_K (1000) most recently
+  distilled live patterns, own members masked out (unmasked, max cos pins to
+  1.0 and every candidate reads alike)
+  a candidate whose own window covers the WHOLE reference window gets NO
+  reading (not an unmasked one) — which is every candidate under
+  `insight --full`, where the reference window IS the run's own window;
+  giving --full a reference of its own is reserved to RFC-0017
+  s_mean = 1 - mean cos (ranked on this — steadier and less k-sensitive than
+  s_nn per the 2026-08-17 calibration); s_nn = 1 - max cos
+  ref_k = the POST-mask sample size, not the window size
+  NO threshold, NO z-normalization (raw spread 0.108 at p50 0.806 becomes
+  ~5 sd when z-scored — manufactured discrimination); each reading carries
+  ref_cos_p50 / ref_cos_spread as its ambiguity note
+  batches are NOT reordered, capped or filtered by it — enumeration only
+  (read-only-instruments invariant 1); rides the staging *.meta.json sidecar
+  (already inlined into weekly stage 5) + one batch log block. DISPLAY ONLY at
+  the adopt gate: no adoption outcome, order or count is a function of it
+  (tests/test_cli_adopt.py::TestSurpriseIsDisplayOnly), which is what keeps
+  ADR-0097 D3 ("adoption is a write and nothing else") intact
+
 Per novel cluster → generate_full(INSIGHT_EXTRACTION_PROMPT, topic="cluster-N")  [think-ON, ADR-0069]
   system = axioms-only (no skill corpus injected — audit H6 fix, a2bebfe;
   the novelty gate reads themes, generation never does)
   → in-band abstain: output "NOTHING-PROMOTABLE" → nothing_promotable  [ADR-0096 D1;
-     the separate post-extraction WORTH JUDGE and the SURPRISE READING were
-     retired by ADR-0097 after the judge's own pre-registered refutation fired
-     (46/46 promote on the first production run) — extraction is the only LLM
-     call per cluster]
+     the separate post-extraction WORTH JUDGE stays retired by ADR-0097 — its
+     own pre-registered refutation fired (46/46 promote on the first production
+     run) — so extraction is still the only LLM call per cluster. RFC-0016
+     restored the LLM-free surprise reading above it, not the judge]
   → validate_identity_content()
-  → SkillResult(text, filename, target_path, pattern_ids, epistemic_counts, thinking)  [ADR-0050; per-skill thinking → reasoning.md, ADR-0069]
+  → SkillResult(text, filename, target_path, pattern_ids, epistemic_counts, thinking, surprise)  [ADR-0050; per-skill thinking → reasoning.md, ADR-0069; surprise ADR-0096 / RFC-0016]
 
 Abstain tally  [ADR-0096, ADR-0075 shape]
   faults: llm_none / no_title / forbidden_content / path_unresolved

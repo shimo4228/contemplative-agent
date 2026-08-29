@@ -4,6 +4,10 @@
 
 accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096
 
+Decision 1 is itself partially superseded as of 2026-08-29 by RFC-0016: the
+surprise instrument is restored, the promotion-worth judge stays retired. See
+the note under Decision 1.
+
 ## Date
 
 2026-08-22
@@ -168,6 +172,33 @@ before verdict vocabulary touches the store.
    `ABSTAIN_NOTHING_PROMOTABLE` reason code tallied apart from faults, the
    always-emitted yield line, and the fault/verdict split that decides
    whether `.last_insight` advances.
+
+   > **Note added 2026-08-29 (RFC-0016) — Decision 1 is partially superseded:
+   > the surprise instrument is restored; the worth judge is not.** This
+   > decision bundled two removals with two different justifications. The
+   > worth judge was removed because it was *refuted*: three production
+   > readings promoted every candidate (40/40, 18/18, 46/46), firing
+   > ADR-0096's own pre-registered refutation condition. That still holds, and
+   > `insight._worth_gate`, `config/prompts/insight_worth.md` and the
+   > `insight-worth.jsonl` writer stay gone. The surprise instrument was
+   > removed for a different reason — no named consumer of the reading —
+   > which ADR-0096 had itself pre-registered as a removal condition, and
+   > which was never a finding against the reading's validity. ADR-0080's
+   > 2026-08-26 amendment (metabolic quality: value cannot be judged on
+   > frequency alone, must be distinguishable on several axes, and must not
+   > be reduced to a single scalar) names that consumer: insight extraction's
+   > only filter is the >=3-pattern frequency cluster, and surprise is the
+   > implemented novelty axis. So `core/insight_surprise.py`, the sidecar
+   > `surprise` field and `adopt-staged`'s print are back as of 2026-08-29.
+   >
+   > Two constraints ride along with the restoration. Decision 3 of this ADR
+   > ("adoption is a write and nothing else") is preserved because the
+   > restored sidecar field is **display-only**: no adoption outcome, order
+   > or count is a function of it, pinned by
+   > `tests/test_cli_adopt.py::TestSurpriseIsDisplayOnly`. And per ADR-0080's
+   > amendment the reading is not promoted to a single-scalar automatic
+   > judgment — where it is consumed as one axis among several is left to
+   > RFC-0017's design session.
 
 2. **Retire `rules-distill` and `rules-stocktake`** as LLM generators: CLI
    handlers, `core/rules_distill.py`, prompts `rules_distill.md` /

@@ -4,6 +4,10 @@
 
 accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096
 
+Decision 1 自体も 2026-08-29 に RFC-0016 で部分的に supersede された:
+surprise 計器は復元し、promotion-worth 判定は退役のまま。Decision 1 直下の
+追記を参照。
+
 ## Date
 
 2026-08-22
@@ -143,6 +147,28 @@ tokens）は既に NUM_CTX 32,768 を超えているので fail-open は注入�
    ADR-0096 の Decision 1 と 4–6 は残す: `NOTHING-PROMOTABLE` の抽出時 abstain、
    fault と別に数える `ABSTAIN_NOTHING_PROMOTABLE` 理由コード、常に出す yield 行、
    `.last_insight` を進めるかを決める fault / verdict の分割。
+
+   > **2026-08-29 追記（RFC-0016）— Decision 1 は部分的に supersede された:
+   > surprise 計器は復元し、worth 判定は復元しない。** この決定は根拠の異なる
+   > 2 つの撤去を束ねていた。worth 判定の撤去理由は**反証**である — 本番 3 回の
+   > 読みが全件 promote（40/40、18/18、46/46）で、ADR-0096 自身が事前登録した
+   > 反証条件が発火した。これは今も成立しており、`insight._worth_gate`、
+   > `config/prompts/insight_worth.md`、`insight-worth.jsonl` の writer は
+   > 撤去したままにする。surprise 計器の撤去理由はこれとは別で、「読み値の
+   > 名指しの消費者がいない」— これも ADR-0096 が撤去条件として事前登録して
+   > いたもので、読み値の妥当性への指摘ではなかった。ADR-0080 の 2026-08-26
+   > 追補（代謝の質: 頻度単独では価値を判定できない、複数軸で見分けられること、
+   > 単一スカラーへの還元は禁止）がその消費者を名指しする — insight 抽出の
+   > フィルタは >=3 pattern の頻度クラスタだけで、surprise はその新規性軸の
+   > 既実装だった。よって `core/insight_surprise.py`、sidecar の `surprise`
+   > field、`adopt-staged` の表示を 2026-08-29 に復元した。
+   >
+   > 復元には 2 つの制約が付く。本 ADR の Decision 3（「採用は書き込みだけ」）は
+   > 保たれる — 復元した sidecar field は**表示専用**で、採用の可否・順序・件数の
+   > どれもその値の関数ではない（`tests/test_cli_adopt.py::TestSurpriseIsDisplayOnly`
+   > が固定）。また ADR-0080 追補により、読み値を単一スカラーの自動判定へは
+   > 昇格させない — 複数軸の一つとしてどこで消費するかの設計は RFC-0017 の
+   > 設計セッションに残す。
 
 2. **`rules-distill` と `rules-stocktake` を LLM 生成器として退役する**: CLI
    handler、`core/rules_distill.py`、prompt `rules_distill.md` /

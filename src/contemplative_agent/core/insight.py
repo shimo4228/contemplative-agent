@@ -23,15 +23,16 @@ import logging
 import os
 from collections import Counter
 from collections.abc import Sequence
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Literal
 
-from . import insight_novelty, llm
+from . import insight_novelty, insight_surprise, llm
 from ._io import read_run_marker, strip_to_printable, write_run_marker
 from .artifact_extraction import canonicalize_frontmatter_name, resolve_artifact_path
 from .clustering import cluster_patterns
 from .insight_novelty import _Batch
+from .insight_surprise import SurpriseReading
 from .knowledge_store import (
     effective_importance,
     epistemic_counts_for,
@@ -124,6 +125,11 @@ class SkillResult:
     # ADR-0069: the reasoning trace for this skill (insight runs think-ON).
     # Per-skill (one LLM call per cluster), None when think was off / no trace.
     thinking: str | None = None
+    # ADR-0096, restored 2026-08-29 (RFC-0016): the read-only surprise reading
+    # for this candidate's cluster — material for the reviewer, never a filter.
+    # None when the cluster had no usable embedding (a missing reading is
+    # honest; an invented one is not).
+    surprise: SurpriseReading | None = None
 
 
 @dataclass(frozen=True)
@@ -585,6 +591,18 @@ def extract_insight(
         len(batches),
     )
 
+    # ADR-0096 (b), restored by RFC-0016: read each surviving cluster's
+    # distance from the recent distillation window BEFORE extraction, so the
+    # listing covers every candidate the reviewer could have seen. Code only,
+    # no LLM call, and nothing here reorders or drops a batch: `batches` is
+    # untouched.
+    surprise_readings = _read_surprise(
+        batches,
+        patterns_by_id,
+        raw_patterns if full else knowledge_store.get_live_patterns(),
+    )
+    insight_surprise.log_surprise(surprise_readings)
+
     skill_results: list[SkillResult] = []
     abstained: Counter[InsightAbstainReason] = Counter()
 
@@ -601,7 +619,10 @@ def extract_insight(
         if isinstance(result, str):
             abstained[result] += 1
         else:
-            skill_results.append(result)
+            # The reading is attached here rather than threaded through
+            # extraction: it is a read-only instrument, and the function that
+            # generates and validates a skill has no business holding it.
+            skill_results.append(replace(result, surprise=surprise_readings.get(topic)))
 
     result = InsightResult(
         skills=tuple(skill_results),
@@ -639,6 +660,51 @@ def extract_insight(
     # same channel as the novelty gate's all-covered result and the caller
     # advances the marker.
     return result
+
+
+def _read_surprise(
+    batches: Sequence[_Batch],
+    patterns_by_id: dict[str, dict],
+    reference_patterns: list[dict],
+) -> dict[str, SurpriseReading]:
+    """Surprise readings for the surviving clusters (ADR-0096, read-only).
+
+    The cluster members are looked up in this run's window (``patterns_by_id``,
+    already built by the caller), but the reference window is drawn from the
+    whole live store: "far from what was distilled lately" is only meaningful
+    against the store's recent history, and an incremental run's own window is
+    mostly the candidates themselves.
+
+    Degrades to an empty mapping on any problem — an instrument must never
+    crash its host command (``read-only-instruments`` invariant 3).
+    """
+    try:
+        members = {
+            topic: [
+                patterns_by_id[pid]["embedding"]
+                for pid in pids
+                if pid in patterns_by_id and patterns_by_id[pid].get("embedding")
+            ]
+            for topic, _patterns, pids in batches
+        }
+        # Mask THIS RUN's whole window, not just the cluster's kept members.
+        # ``cluster_patterns`` demotes everything past ``max_size`` into
+        # singletons, and those rows stay live: they are cosine >= 0.70
+        # neighbours of the very centroid being measured and, being the newest
+        # rows, they land in the reference window — which would make the
+        # largest clusters read as the least surprising for a reason that has
+        # nothing to do with surprise. It also restores the calibration's own
+        # definition, where the reference was strictly what was distilled
+        # BEFORE the run.
+        window_ids = set(patterns_by_id)
+        return insight_surprise.compute_surprise(
+            members,
+            reference_patterns,
+            exclude={topic: window_ids for topic, _patterns, _pids in batches},
+        )
+    except Exception as exc:  # instrumentation must never break insight
+        logger.warning("insight surprise reading failed: %s", exc)
+        return {}
 
 
 def _select_patterns(

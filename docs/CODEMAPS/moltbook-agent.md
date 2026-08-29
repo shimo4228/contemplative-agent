@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-22 (ADR-0097: rules-distill / rules-stocktake retired, insight_surprise.py and rules_distill.py removed, skill-stocktake reduced) | Files scanned: 80 non-__init__ modules (72 src/ + 8 evals/) | Token estimate: ~6159 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-08-29 (RFC-0016 — insight_surprise.py restored to the module graph) | Updated: 2026-08-22 (ADR-0097: rules-distill / rules-stocktake retired, insight_surprise.py and rules_distill.py removed, skill-stocktake reduced) | Files scanned: 80 non-__init__ modules (72 src/ + 8 evals/) | Token estimate: ~6159 -->
 # Moltbook Agent Codemap
 
 Bird's-eye view of the entire codebase. For deep dives, see
@@ -44,8 +44,9 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
  |    distill.py (931L)           -- per-episode grounded distill orchestration (ADR-0060) + identity distill (single-stage, ADR-0050) + durability postgate (ADR-0084); rendering/dedup extracted per ADR-0079
  |    pattern_dedup.py (177L)     -- embedding-cosine add/update/skip dedup decisions, extracted from distill.py (ADR-0079)
  |    episode_render.py (181L)    -- episode→prompt-text projection, extracted from distill.py (ADR-0079)
- |    insight.py (744L)           -- global clustering → behavior skill extraction (ADR-0050); novelty gate extracted per ADR-0079; ADR-0096 in-band abstain (the separate worth judge retired by ADR-0097)
+ |    insight.py (808L)           -- global clustering → behavior skill extraction (ADR-0050); novelty gate extracted per ADR-0079; ADR-0096 in-band abstain (the separate worth judge retired by ADR-0097)
  |    insight_novelty.py (434L)   -- ADR-0074 LLM novelty gate, extracted from insight.py (ADR-0079); re-exports text_utils.skill_theme
+ |    insight_surprise.py (301L)  -- ADR-0096 read-only surprise reading over the recent distillation window; enumerated for the human gate, never applied (restored by RFC-0016)
  |    skill_selection.py (534L)    -- pass-1 skill selection, write side: ADR-0076 log + ADR-0081 two-pass injection enforcement
  |    selection_window.py (170L)   -- shared day/window base for the two selection-log instruments
  |    selection_metrics.py (919L)  -- ADR-0071 instrument: per-window reading of the selection log

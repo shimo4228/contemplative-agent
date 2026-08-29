@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import logging
 from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
 
-from contemplative_agent.core import insight, insight_novelty
+from contemplative_agent.core import insight, insight_novelty, insight_surprise
 from contemplative_agent.core.artifact_extraction import (
     canonicalize_frontmatter_name,
     resolve_artifact_path,
@@ -348,6 +349,108 @@ class TestExtractInsight:
         assert "# Ask Before Reacting" in result.skills[0].text
         today = date.today().strftime("%Y%m%d")
         assert result.skills[0].filename == f"ask-before-reacting-{today}.md"
+
+    @staticmethod
+    def _incremental_store(tmp_path: Path) -> tuple[KnowledgeStore, Path]:
+        """A store with history behind the marker and a fresh cluster ahead of it.
+
+        This is the shape the weekly run has, and the only one in which a
+        surprise reading is defined: the reference window is drawn from the
+        whole live store while the run's own window is masked out, so there
+        is something left to measure distance against.
+        """
+        skills_dir = tmp_path / "skills"
+        skills_dir.mkdir()
+        ks = KnowledgeStore(path=tmp_path / "k.json")
+        for i in range(6):  # history, off the candidates' axis
+            ks.add_learned_pattern(
+                f"old-{i}",
+                embedding=_unit_vec(8, 2),
+                distilled=f"2026-01-{i + 1:02d}T00:00:00+00:00",
+            )
+        ks.save()
+        insight.write_last_insight(skills_dir)  # marker sits between the two groups
+        for i in range(3):
+            ks.add_learned_pattern(
+                f"new-{i}",
+                embedding=_unit_vec(8, 1),
+                distilled="2099-01-01T00:00:00+00:00",
+            )
+        ks.save()
+        return ks, skills_dir
+
+    @patch(
+        "contemplative_agent.core.llm.generate_full",
+        return_value=GenerationOutput(text=GOOD_SKILL_RESPONSE),
+    )
+    def test_surprise_reading_rides_along_on_the_result(self, _mock_generate, tmp_path) -> None:
+        """RFC-0016 wiring: the restored ADR-0096 instrument reaches SkillResult.
+
+        Asserted here rather than only in test_insight_surprise.py because the
+        module can be perfectly correct while nothing calls it — which is the
+        state ADR-0097 Decision 1 left the tree in.
+        """
+        ks, skills_dir = self._incremental_store(tmp_path)
+        result = extract_insight(knowledge_store=ks, skills_dir=skills_dir)
+        assert isinstance(result, InsightResult)
+        reading = result.skills[0].surprise
+        assert isinstance(reading, insight_surprise.SurpriseReading)
+        assert reading.of == 1 and reading.rank == 1
+        # Measured against the history only — the run's own three rows are masked.
+        assert reading.ref_k == 6
+        assert set(reading.as_dict()) == {
+            "s_mean",
+            "s_nn",
+            "rank",
+            "of",
+            "ref_k",
+            "ref_cos_p50",
+            "ref_cos_spread",
+        }
+
+    @patch(
+        "contemplative_agent.core.llm.generate_full",
+        return_value=GenerationOutput(text=GOOD_SKILL_RESPONSE),
+    )
+    def test_full_recluster_yields_no_reading_rather_than_a_degenerate_one(
+        self, _mock_generate, knowledge_store, caplog
+    ) -> None:
+        """``--full`` has no reference window left after masking, so it abstains.
+
+        In full mode the reference window IS the run's own window, so masking
+        the run empties it. Until 2026-08-29 the code fell back to the
+        unmasked cosines and printed confident ranks that separated nothing
+        (two well-separated clusters, 7e-5 apart). Absence is the honest
+        answer; giving ``--full`` a reference of its own is reserved to
+        RFC-0017 along with the consumption position.
+        """
+        with caplog.at_level(logging.WARNING):
+            result = extract_insight(knowledge_store=knowledge_store, full=True)
+        assert isinstance(result, InsightResult)
+        assert result.skills and all(s.surprise is None for s in result.skills)
+        assert "owns the whole reference window" in caplog.text
+
+    @patch(
+        "contemplative_agent.core.llm.generate_full",
+        return_value=GenerationOutput(text=GOOD_SKILL_RESPONSE),
+    )
+    def test_a_broken_instrument_does_not_break_extraction(self, _mock_generate, tmp_path) -> None:
+        """read-only-instruments invariant 3: it must never crash its host.
+
+        The reading is the only thing that may go missing — the candidate,
+        its text and its filename must come out identical to a healthy run.
+        """
+        ks, skills_dir = self._incremental_store(tmp_path)
+        healthy = extract_insight(knowledge_store=ks, skills_dir=skills_dir)
+        assert isinstance(healthy, InsightResult)
+        with patch.object(insight_surprise, "compute_surprise", side_effect=RuntimeError("boom")):
+            broken = extract_insight(knowledge_store=ks, skills_dir=skills_dir)
+        assert isinstance(broken, InsightResult)
+        assert broken.skills[0].surprise is None
+        assert healthy.skills[0].surprise is not None
+        assert [(s.text, s.filename, s.pattern_ids) for s in broken.skills] == [
+            (s.text, s.filename, s.pattern_ids) for s in healthy.skills
+        ]
 
     @patch("contemplative_agent.core.llm.generate_full")
     def test_gated_patterns_excluded(self, mock_generate, tmp_path) -> None:
