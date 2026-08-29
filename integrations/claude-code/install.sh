@@ -20,4 +20,4 @@ done
 
 echo ""
 echo "$count skills installed to $TARGET_DIR/"
-echo "Available commands: /insight-ca, /skill-stocktake-ca, /rules-distill-ca, /amend-constitution-ca, /distill-identity-ca"
+echo "Available commands: /insight-ca, /skill-stocktake-ca, /amend-constitution-ca, /distill-identity-ca"
