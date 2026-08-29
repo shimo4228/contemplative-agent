@@ -316,9 +316,27 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
         # are published by sync-research-data — a bare Read grant would let an
         # injected instruction quote any local file (~/.ssh, ~/.aws, tokens)
         # into a report the next sync pushes to the public data repo. The
-        # allow list names the repo checkout, the analysis dir and the logs
-        # workspace; everything else falls to --permission-mode manual's
-        # refusal. The episode-log denies still outrank the logs allow, and
+        # allow list names the repo checkout, the analysis dir, the logs
+        # workspace and the four live value-layer paths; everything else falls
+        # to --permission-mode manual's refusal.
+        #
+        # The value-layer reads (identity.md, constitution/, skills/, rules/)
+        # are the F2 input contract (RFC-0019): references/diagnosis.md Step 3
+        # requires their current full text and the F2 output contract quotes it
+        # back, so without them that finding class was not thin but
+        # structurally impossible — the 2026-08-29 run was refused and produced
+        # zero. READ only: the Edit denies below are unchanged, so the session
+        # stays read-only over the layer it diagnoses. The layer is the agent's
+        # own distilled text and is already published verbatim by
+        # sync-research-data, so the grant discloses nothing new -- with ONE
+        # carve-out: `skills/.archive/**` is what that sync deliberately
+        # excludes (retired skill bodies and their `superseded_by:` lineage),
+        # so it gets a Read deny below, pairing the permission table with
+        # sync-research-data.sh's --exclude='.archive/'. Without it a report
+        # quoting a retired skill re-publishes by another route (2026-08-29
+        # security review LOW).
+        #
+        # The episode-log denies still outrank the logs allow, and
         # they are PREFIX-shaped (`20*.jsonl*` — covering .bak,
         # .pre-cleanup.bak and any future backup convention, the same rule
         # ~/.claude/hooks/_episode-log-common.sh moved to after the suffix
@@ -330,8 +348,8 @@ if stage_enabled report && [[ $SKIP_REPORT -eq 0 ]]; then
             --tools "$WEEKLY_TOOLS" \
             --strict-mcp-config \
             --setting-sources project \
-            --allowedTools "Glob,Grep,Read(/$PROJECT_ROOT/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$LEDGER_DELTA_STAGED),Edit(/$PRIVATE_TASKS/**)" \
-            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/logs/20*.jsonl*),Read(/$MOLTBOOK_HOME/logs/agent-launchd.log*),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$MOLTBOOK_HOME/skills/**),Edit(/$MOLTBOOK_HOME/rules/**),Edit(/$MOLTBOOK_HOME/constitution/**),Edit(/$MOLTBOOK_HOME/identity.md),Edit(/$MOLTBOOK_HOME/knowledge.json)" \
+            --allowedTools "Glob,Grep,Read(/$PROJECT_ROOT/**),Read(/$REPORT_DIR/**),Read(/$PRIVATE_DIR/**),Read(/$MOLTBOOK_HOME/logs/**),Read(/$MOLTBOOK_HOME/identity.md),Read(/$MOLTBOOK_HOME/constitution/**),Read(/$MOLTBOOK_HOME/skills/**),Read(/$MOLTBOOK_HOME/rules/**),Edit(/$PRIVATE_DIR/weekly-$END_DATE.md),Edit(/$PRIVATE_DIR/weekly-$END_DATE-findings.md),Edit(/$LEDGER_DELTA_STAGED),Edit(/$PRIVATE_TASKS/**)" \
+            --disallowedTools "Bash,WebFetch,WebSearch,NotebookEdit,Read(/$MOLTBOOK_HOME/credentials.json),Read(/$MOLTBOOK_HOME/skills/.archive/**),Read(/$MOLTBOOK_HOME/logs/20*.jsonl*),Read(/$MOLTBOOK_HOME/logs/agent-launchd.log*),Edit(/$MOLTBOOK_HOME/logs/**),Edit(/$MOLTBOOK_HOME/.staged/**),Edit(/$MOLTBOOK_HOME/skills/**),Edit(/$MOLTBOOK_HOME/rules/**),Edit(/$MOLTBOOK_HOME/constitution/**),Edit(/$MOLTBOOK_HOME/identity.md),Edit(/$MOLTBOOK_HOME/knowledge.json)" \
             --output-format text \
             > "$RUN_LOG_DIR/weekly-session.log" 2>&1; then
             audit stage_result stage=report result=ok

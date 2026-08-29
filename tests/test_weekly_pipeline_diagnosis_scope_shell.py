@@ -36,6 +36,8 @@ scoped and still admit the audit log:
 - D-SCOPE-5  deny rules cover the control inputs regardless of the mode
 - D-SCOPE-6  Bash is denied wholesale, not allow-listed
 - D-SCOPE-7  every path rule uses the `//absolute` form
+- D-SCOPE-12 the live value layer is readable (the F2 input contract)
+             and still unwritable; skills/.archive stays unreadable
 - D-SCOPE-8  the flags and the mode value still exist in the real CLI
 
 Scope of what these can prove: they assert the *invocation's own contract*.
@@ -229,6 +231,24 @@ def _bare_tools(spec: str) -> set[str]:
     return {e.strip() for e in spec.split(",") if "(" not in e.strip() and e.strip()}
 
 
+def _value_layer_paths(env: dict) -> list[str]:
+    """The live value layer (RFC-0019) — one probe per allow rule it needs.
+
+    Read-only by construction: D-SCOPE-12 asserts the session can read each of
+    these AND cannot write any of them, so the read grant and the Edit deny are
+    pinned against the *same* strings. Splitting the two lists is how the pair
+    would drift — a later widening of the read scope past a deny rule would
+    then fail nothing.
+    """
+    home = env["MOLTBOOK_HOME"]
+    return [
+        f"{home}/identity.md",
+        f"{home}/constitution/axioms.md",
+        f"{home}/skills/some-skill.md",
+        f"{home}/rules/some-rule.md",
+    ]
+
+
 def _protected_paths(env: dict) -> list[str]:
     """Artifacts every deny rule exists for — the shared probe list.
 
@@ -242,11 +262,8 @@ def _protected_paths(env: dict) -> list[str]:
         f"{home}/logs/weekly-pipeline-audit.jsonl",
         f"{home}/.staged/identity.md",
         f"{home}/.staged/identity.md.meta.json",
-        f"{home}/identity.md",
         f"{home}/knowledge.json",
-        f"{home}/skills/some-skill.md",
-        f"{home}/rules/some-rule.md",
-        f"{home}/constitution/axioms.md",
+        *_value_layer_paths(env),
     ]
 
 
@@ -297,6 +314,24 @@ def _writable(argv: list[str], path: str) -> bool:
     if _rules(allow, "Bash") and "Bash" not in _bare_tools(deny):
         return True  # allow-listed Bash cannot be bounded — see D-SCOPE-6
     return any(_matches(p, path) for p in _rules(allow, "Edit"))
+
+
+def _readable(argv: list[str], path: str) -> bool:
+    """Would the granted permission set let the session read `path`?
+
+    Same shape as `_writable`, one tool over. Read is positively scoped here
+    (2026-08-24 security review HIGH), so an *absent* rule is a refusal rather
+    than the usual ambient allow — which is why over-tightening is a real
+    failure mode for reads and needs its own assertion (D-SCOPE-12).
+    """
+    allow = _flag_value(argv, "--allowedTools")
+    deny = _flag_value(argv, "--disallowedTools")
+
+    if "Read" in _bare_tools(deny) or any(_matches(p, path) for p in _rules(deny, "Read")):
+        return False  # deny outranks allow and the mode
+    if "Read" in _bare_tools(allow):
+        return True  # an unscoped grant reaches everywhere
+    return any(_matches(p, path) for p in _rules(allow, "Read"))
 
 
 def test_d_scope_1_session_outputs_stay_writable(diagnosis_argv):
@@ -421,6 +456,60 @@ def test_d_scope_5b_the_api_key_is_denied_to_the_reader(diagnosis_argv):
     )
 
 
+def test_d_scope_12_value_layer_is_readable_but_never_writable(diagnosis_argv):
+    """The live value layer must be in READ scope and out of WRITE scope (RFC-0019).
+
+    The diagnosis contract (`references/diagnosis.md` Step 3) makes the current
+    full text of identity / constitution / skills / rules a required input for
+    an F2 finding, and F2's output contract quotes it back. Under
+    `--permission-mode manual` with Read positively scoped, a path the allow
+    list does not name is refused — so omitting these four made F2 structurally
+    impossible rather than merely thin, and the 2026-08-29 run produced zero.
+
+    The two halves are asserted together, over one probe list, because the
+    repair is only correct if it moves exactly one boundary: reading widens,
+    writing does not. `_writable` here is the same model D-SCOPE-2 uses, so a
+    read grant that accidentally arrived as an Edit rule fails on this line.
+
+    These four paths sit outside BOTH `--add-dir` roots and outside the CWD,
+    which no pre-existing Read allow in this invocation does — so "a scoped
+    allow rule alone admits a read outside the workspace" was a new assumption
+    and the stub cannot test it. Established end-to-end against the real binary
+    on 2026-08-29 with this invocation's exact flag set, two arms over a
+    scratch home: WITH the four grants both files were read verbatim; WITHOUT
+    them (every other flag identical) both were refused, and the refusal named
+    the workspace. So the 2026-08-29 production refusal was the missing allow
+    rule, not the `--add-dir` bound, and `--add-dir` stays off the home root
+    (D-SCOPE-9).
+
+    `skills/.archive/**` is the carve-out. `sync-research-data.sh` excludes it
+    from the public mirror on purpose (retired skill bodies and the
+    `superseded_by:` lineage of the retirement), and a report quoting one
+    would re-publish it by another route — so it is denied, and asserted here
+    so the permission table and that exclude list move together (2026-08-29
+    security review LOW).
+    """
+    argv, env = diagnosis_argv
+
+    for path in _value_layer_paths(env):
+        assert _readable(argv, path), (
+            f"{path} is a required F2 input and must be readable; "
+            f"allow={_flag_value(argv, '--allowedTools')}"
+        )
+        assert not _writable(argv, path), (
+            f"{path} must stay read-only to the session; "
+            f"deny={_flag_value(argv, '--disallowedTools')}"
+        )
+
+    archived = f"{env['MOLTBOOK_HOME']}/skills/.archive/retired-skill.md"
+    assert not _readable(argv, archived), (
+        "skills/.archive is excluded from the public mirror by "
+        "sync-research-data.sh; the session must not be able to quote it into "
+        f"a report that sync publishes; deny={_flag_value(argv, '--disallowedTools')}"
+    )
+    assert not _writable(argv, archived)
+
+
 def test_d_scope_6_bash_is_denied_wholesale(diagnosis_argv):
     """An allow list cannot bound Bash here, so there must not be one.
 
@@ -464,10 +553,11 @@ def test_d_scope_7_path_rules_use_the_absolute_form(diagnosis_argv):
     """
     argv, _ = diagnosis_argv
     for flag in ("--allowedTools", "--disallowedTools"):
-        for pattern in _rules(_flag_value(argv, flag), "Edit"):
-            assert pattern.startswith("//"), (
-                f"{flag} rule is not in the //absolute form: Edit({pattern})"
-            )
+        for tool in ("Edit", "Read"):
+            for pattern in _rules(_flag_value(argv, flag), tool):
+                assert pattern.startswith("//"), (
+                    f"{flag} rule is not in the //absolute form: {tool}({pattern})"
+                )
 
 
 def test_d_scope_9_workspace_stays_off_the_home_root(diagnosis_argv):

@@ -31,7 +31,9 @@ Context 膨張を避けるため以下の順で読み、途中で十分なら止
 
 ### Step 3. F2 候補が出たら（identity-level question）
 
-- `config/identity/*.md` / `constitution/*.md` / `skills/*.md` / `rules/*.md` の現在全文
+- `$MOLTBOOK_HOME/identity.md` / `$MOLTBOOK_HOME/constitution/` /
+  `$MOLTBOOK_HOME/skills/` / `$MOLTBOOK_HOME/rules/` の現在全文（live な値層。repo 側の
+  相対パスではない — セッションの CWD は `$PROJECT_ROOT` で、そこにこの 4 つは無い）
 - 関連 ADR（特に Worldview 系: ADR-0002, 0007, 0017 等）
 
 **判断基準**: `What current state addresses (or does not)` が load-bearing。各層を読まずに
