@@ -106,6 +106,7 @@ Records of key design decisions for this project.
 | [0098](0098-weekly-single-session-and-triage-delegation.md) | Weekly Chain Single-Session Redesign and Repair Delegation to the Task-Triage Loop | accepted — partially-supersedes ADR-0085, ADR-0091, ADR-0093 | 2026-08-24 |
 | [0099](0099-weekly-report-instrument-redesign.md) | Weekly Report Content Redesign: From A–E Quote Audit to a Six-Section Instrument Document | accepted — partially-supersedes ADR-0040 | 2026-08-26 |
 | [0100](0100-retire-chaos-tdd-by-default-mandate.md) | Retire the Chaos-TDD By-Default Mandate — Fault Columns Return to Opt-In Judgment | accepted — partially-supersedes ADR-0077 | 2026-08-29 |
+| [0101](0101-instrument-dissolution-mandate.md) | Instrument Dissolution Mandate — New Instruments Must Name Their Consumption | accepted | 2026-08-29 |
 
 ## ADR Types
 

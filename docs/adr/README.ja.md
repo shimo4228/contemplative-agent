@@ -106,6 +106,7 @@
 | [0098](0098-weekly-single-session-and-triage-delegation.ja.md) | weekly チェーンの単一セッション化と修理の task-triage 委譲 | accepted — partially-supersedes ADR-0085, ADR-0091, ADR-0093 | 2026-08-24 |
 | [0099](0099-weekly-report-instrument-redesign.ja.md) | 週次レポート内容の再設計 — A–E quote 監査から 6 節の計器型文書へ | accepted — partially-supersedes ADR-0040 | 2026-08-26 |
 | [0100](0100-retire-chaos-tdd-by-default-mandate.ja.md) | chaos-TDD by-default 義務の退役 — fault column は opt-in の判断に戻す | accepted — partially-supersedes ADR-0077 | 2026-08-29 |
+| [0101](0101-instrument-dissolution-mandate.ja.md) | 計器の溶解義務 — 新しい計器は消費計画を named にする | accepted | 2026-08-29 |
 
 ## ADR の種別
 

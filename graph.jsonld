@@ -2644,6 +2644,23 @@
       "partiallySupersedes": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0077-chaos-tdd-fault-injection.md"
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0101: Instrument Dissolution Mandate — New Instruments Must Name Their Consumption",
+      "identifier": "ADR-0101",
+      "status": "accepted",
+      "datePublished": "2026-08-29",
+      "description": "Balances the project's construction-only mandates by requiring every new instrument — any read-only reading, distribution, calibration scale, or audit surface built to be read rather than to act — to state a consumption plan in its ADR (or RFC): (a) who reads it and when, as a named consumer plus a cadence or triggering event; (b) how many reads decide what, naming the decision the readings feed and the read count that closes it; (c) the retire-on-completion condition. An instrument whose plan cannot be stated is not accepted at the gate, because inability to answer is itself the signal that no consumer exists. The plan lives in the ADR's Review-when section, one location per instrument, next to the decision that created it. Motivated by a measured asymmetry: measure-before-intervene (ADR-0071) and observability-by-default (ADR-0075) make construction mandatory while dissolution stays optional — only 4 of 99 ADRs carry a Review-when section, and instruments have shipped with no scheduled reader (coselection families, retrieval recall). As of 2026-08-29 the weekly machinery alone is ~17,769 lines (scripts 6,286 / src 3,178 / tests 8,305), and of the 2026-05-01 → 2026-08-29 window's +64,541 net Python growth, instrument slices dominate — ADR-0097's read-only readings added roughly +6.4k lines across three commits, more than the retirement they justified removed. Rollout is tranche T4 of the shrink program: a retroactive stocktake over existing instruments, beginning with the weekly machinery, at a future Saturday gate, verdicts recorded as dated annotations in the owning ADRs. The mandate obliges a statement, not machinery — no new code, scheduler, lint gate, or register. Rejected: a declared reduction moratorium (a time-boxed freeze buys a one-time reduction and leaves the asymmetry intact — the owner chose the standing rule), a same-mechanism third-amendment redesign rule (narrower than the defect being fixed), numeric caps on instrument lines (an evidence-free numeric gate cannot see an instrument with no reader), and the status quo. Review-when: two consecutive stocktakes with zero retirement candidates and zero plan-less new instruments folds this mandate into ADR-0071's prose and retires this ADR.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0071-read-only-pattern-composition-instruments.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0080-north-star-layered-end-state.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",
