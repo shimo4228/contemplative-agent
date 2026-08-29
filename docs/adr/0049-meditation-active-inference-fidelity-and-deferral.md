@@ -145,6 +145,11 @@ better-fitting direction for that goal, distinct from the active-inference path.
 - The current flat-POMDP adapter is left in place (corrected, inspired-by). Whether to
   eventually remove it, promote Road A to a standalone artifact, or pursue Road C are
   separate decisions.
+
+  > **Note (2026-08-29, ADR-0101 T4 first stocktake)**: the open question above was put
+  > to the owner and settled as **keep** — the adapter stays as-is, as experimental
+  > research-layer apparatus. Removal, Road A promotion, and Road C remain available
+  > options should the premises change; none is scheduled.
 - The Sandved-Smith Eqs. 1/2 were recovered from rendered images; exact subscripts must
   be verified against the PDF before any future implementation.
 
