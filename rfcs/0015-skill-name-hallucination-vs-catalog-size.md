@@ -42,6 +42,10 @@ state_since: 2026-08-22
 旧 ID: T-SKILLSEL-HALLUC-CATALOG（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
 
+## 2026-08-26 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。日付 2026-08-26 < 読み窓 2026-09-05。
+
 ## Status
 
 blocked — 第 3 読み（2026-08-22）で幻覚率 4.83% → 19.25%、増分の 91% が語形変化と

@@ -79,6 +79,10 @@ distill 03:30。sweep が伸びたら衝突する。
 旧 ID: T-SCOPE-READ（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
 
+## 2026-08-26 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。日付 2026-08-26 < 読取期日 2026-09-03。
+
 ## Status
 
 blocked — 初回の読み（2026-08-08）でスコープは変更せず、順序の安定性を見るための

@@ -48,6 +48,10 @@ skill 選択計器の定期読み — 次の読み窓 2026-09-05 まで selector
 旧 ID: T-SKILLSEL（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
 
+## 2026-08-26 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。日付 2026-08-26 < 読み窓 2026-09-05。
+
 ## Status
 
 blocked — 第 3 読み（窓 08-09〜08-22、judged 1,143）は 2026-08-22 に完了し、次の読み窓

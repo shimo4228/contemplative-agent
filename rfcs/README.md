@@ -29,3 +29,5 @@ frontmatter が唯一の正本**。
 | [0015](0015-skill-name-hallucination-vs-catalog-size.md) | skill 名の幻覚率と catalog サイズの相関 |
 | [0016](0016-restore-surprise-instrument.md) | surprise 計器の復元（ADR-0097 D1 の部分 supersede 候補） |
 | [0017](0017-insight-extraction-redesign.md) | insight 抽出の再設計 — 頻度キー抽出に飽和と新規性の器官を与える |
+| [0018](0018-self-post-seed-voice-label.md) | 自己投稿 seed ブロックに公開してよい voice ラベルを付ける |
+| [0019](0019-weekly-session-value-layer-read.md) | 週次無人セッションの Read 許可に値層 4 パスを足す |

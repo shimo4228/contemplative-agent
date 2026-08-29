@@ -36,6 +36,10 @@ handoff T3（`.notes/handoff-2026-07-03-adr-0072-phase3.md`）
 旧 ID: T-C1（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
 
+## 2026-08-26 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。`evals/datasets/` は `comment_golden.jsonl` のみ — distill 面の足場は無い。
+
 ## Status
 
 blocked — 公理除去 A/B は `evals/` の distill 面（Face B）が未実装のため走らない

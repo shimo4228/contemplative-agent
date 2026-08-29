@@ -31,6 +31,10 @@ memory `project_rag_retrieval_demotion.md`、[ADR-0019](../docs/adr/0019-discret
 
 旧 ID: T-EMBED-EXPIRY（.notes/tasks から 2026-08-25 移送）。
 
+## 2026-08-26 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。08-24 以降の `docs/adr` commit は ADR-0069 の Review-when 追補のみ（モデル交代のトリガーを書いた文書であって交代そのものではない）。`config/` の生成モデル設定に変更なし。
+
 ## Status
 
 blocked — 現世代では ADR-0019 の分業（仕組み = embedding、価値判断 + 生成 = LLM）が

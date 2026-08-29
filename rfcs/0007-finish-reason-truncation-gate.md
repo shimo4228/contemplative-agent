@@ -33,6 +33,10 @@ state_since: 2026-08-16
 
 旧 ID: T-FINISHREASON-GATE（.notes/tasks から 2026-08-25 移送）。
 
+## 2026-08-26 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。`src/contemplative_agent/testing/` は 08-24 以降 commit なし（`_MAX_IMPLEMENTED_LEVEL` は registry 由来で `static` のまま）。本番 plist 9 本を grep して backend 注入なし。
+
 ## Status
 
 blocked — 現行の全 backend が `finish_reason` を報告するので実害は無く、

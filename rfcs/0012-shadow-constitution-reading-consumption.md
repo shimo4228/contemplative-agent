@@ -31,6 +31,10 @@ state_since: 2026-08-16
 
 旧 ID: T-SHADOWCONST（.notes/tasks から 2026-08-25 移送）。
 
+## 2026-08-26 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。改正ゲート目安 2026-11。dead-band。
+
 ## Status
 
 blocked — 計器側の予約読み値（run 1+2 / IPD 合成 / 床アンカー）は 2026-08-11 に取得

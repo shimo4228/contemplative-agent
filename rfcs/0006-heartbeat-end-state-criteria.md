@@ -42,6 +42,10 @@ dead-band（08-16 の T-P3 照合から状態・条件文とも不変）。未�
 旧 ID: T-ENDSTATE-TERM（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
 
+## 2026-08-26 triage 照合（無人 cycle）
+
+dead-band（08-16 の T-P3 照合から状態・条件文とも不変）。未再読。
+
 ## Status
 
 blocked — 2026-08-16 の T-P3 縦断は定常の逆（corpus 4.0 倍、pairwise 0.55 → 0.58）を

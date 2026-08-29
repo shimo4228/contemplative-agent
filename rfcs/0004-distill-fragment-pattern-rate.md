@@ -36,6 +36,10 @@ dead-band（08-17 の再測から状態・条件文とも不変）。未再読�
 旧 ID: T-DISTILL-FRAGMENT（.notes/tasks から 2026-08-25 移送）。
 本文中の `.notes/…` はローカルの作業ノート（gitignored、clone 先には存在しない）を指す。
 
+## 2026-08-26 triage 照合（無人 cycle）
+
+dead-band（08-17 の再測から状態・条件文とも不変）。未再読。
+
 ## Status
 
 blocked — 断片パターン率は ADR-0084 後置ゲートで低下し（2026-08-17 再測: 途中切れ
