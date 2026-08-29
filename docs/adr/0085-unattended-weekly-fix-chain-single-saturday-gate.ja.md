@@ -4,6 +4,10 @@
 
 partially-superseded-by ADR-0098（diagnosis / fix / packet の段構成は 2026-08-24 に退役 — 修理は task-triage loop へ移り、`build_decision_packet.py` は退役した。土曜単一ゲートの型と起動スケジュールは効力を保つ）
 
+2026-08-29: 非推奨だった `--weekly-analysis` 単独 install 経路（launchd 配線と
+plist テンプレート）を削除した。weekly の installer は weekly pipeline だけになる。
+`scripts/weekly-analysis.sh` はパイプラインの stage 1 材料収集器として存続する。
+
 ## Date
 
 2026-07-29

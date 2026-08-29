@@ -58,7 +58,7 @@ contemplative-agent skill-stocktake                    # Report skill quality + 
 ### Scheduling
 
 ```bash
-contemplative-agent install-schedule [--weekly-analysis] [--weekly-insight] [--weekly-backup]
+contemplative-agent install-schedule [--weekly-pipeline] [--weekly-insight] [--weekly-backup]
 contemplative-agent install-schedule --uninstall
 ```
 
@@ -384,12 +384,13 @@ contemplative-agent install-schedule --distill-hour 5                   # Distil
 contemplative-agent install-schedule --no-distill                       # Sessions only, no distillation
 contemplative-agent install-schedule --weekly-insight                   # + weekly staged insight (Sat 08:00, ADR-0074; 1h before the weekly chain)
 contemplative-agent install-schedule --weekly-backup                    # + weekly runtime backup to a PRIVATE mirror repo (Mon 10:00)
-contemplative-agent install-schedule --weekly-pipeline                  # + unattended weekly chain (Sat 09:00, ADR-0085; replaces --weekly-analysis)
+contemplative-agent install-schedule --weekly-pipeline                  # + unattended weekly chain (Sat 09:00, ADR-0085)
 contemplative-agent install-schedule --watchdog                         # + pipeline watchdog (pure bash; daily 04:30 + Sat 12:30/13:30 + Mon 11:00)
 contemplative-agent install-schedule --uninstall                        # Remove schedule
 ```
 
-`--weekly-pipeline` and `--weekly-analysis` are mutually exclusive: the chain
+`--weekly-pipeline` is the only weekly installer — the standalone
+`--weekly-analysis` install path was removed on 2026-08-29. The chain
 (`scripts/weekly-pipeline.sh`) runs `weekly-analysis.sh` as its own Stage 1,
 then diagnosis → fix (worktree + Verify) → insight review → decision packet.
 Nothing in the chain commits or adopts — promotion happens in the Saturday

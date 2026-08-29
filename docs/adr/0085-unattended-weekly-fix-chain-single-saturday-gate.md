@@ -4,6 +4,11 @@
 
 partially-superseded-by ADR-0098 (the diagnosis / fix / packet stage structure retired 2026-08-24 — repair moved to the task-triage loop and `build_decision_packet.py` was retired; the Saturday single-gate model and the launch schedule remain in effect)
 
+2026-08-29: the deprecated standalone `--weekly-analysis` install path
+(launchd wiring and plist template) was removed; the weekly pipeline is the
+only installer. `scripts/weekly-analysis.sh` survives as the pipeline's
+stage-1 materials collector.
+
 ## Date
 
 2026-07-29

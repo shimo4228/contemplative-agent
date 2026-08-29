@@ -27,9 +27,6 @@ LAUNCHD_LABEL = "com.moltbook.agent"
 LAUNCHD_DISTILL_LABEL = "com.moltbook.distill"
 
 
-LAUNCHD_WEEKLY_ANALYSIS_LABEL = "com.moltbook.weekly-analysis"
-
-
 LAUNCHD_INSIGHT_LABEL = "com.moltbook.insight"
 
 
@@ -52,9 +49,6 @@ LAUNCHD_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_LABEL}.plist"
 
 
 LAUNCHD_DISTILL_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_DISTILL_LABEL}.plist"
-
-
-LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_WEEKLY_ANALYSIS_LABEL}.plist"
 
 
 LAUNCHD_INSIGHT_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_INSIGHT_LABEL}.plist"
@@ -192,23 +186,6 @@ def _do_install_distill_schedule(distill_hour: int) -> None:
     print(f"Schedule: daily at {distill_hour:02d}:30 (distill --days 1)")
 
 
-def _do_install_weekly_analysis_schedule(weekday: int, hour: int) -> None:
-    """Install launchd plist for weekly analysis report (macOS only)."""
-    _install_plist(
-        template_name="com.moltbook.weekly-analysis.plist",
-        plist_path=LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH,
-        log_name="weekly-analysis-launchd.log",
-        substitutions={
-            "{{WEEKDAY}}": str(weekday),
-            "{{HOUR}}": str(hour),
-        },
-    )
-
-    day_names = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"]
-    print(f"Installed: {LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH}")
-    print(f"Schedule: {day_names[weekday]} at {hour:02d}:00 (weekly analysis)")
-
-
 def _do_install_insight_schedule(weekday: int, hour: int) -> None:
     """Install launchd plist for weekly staged insight (ADR-0074, macOS only).
 
@@ -286,9 +263,9 @@ def _do_install_weekly_pipeline_schedule(weekday: int, hour: int) -> None:
     materials → one ``/weekly-report`` session (A-E synthesis + diagnosis +
     candidate filing into the task ledger) → value-layer due check
     (ADR-0091) → dead-code scan → docs-consistency scan → never-selected
-    reading. Replaces ``--weekly-analysis`` (the chain runs
-    weekly-analysis.sh as its materials collector); the two flags are
-    mutually exclusive. Nothing in the chain commits, adopts, or repairs —
+    reading. It replaced the standalone ``--weekly-analysis`` install path,
+    removed 2026-08-29; the chain runs weekly-analysis.sh as its own
+    materials collector. Nothing in the chain commits, adopts, or repairs —
     the Saturday ``/weekly-gate`` session and the task-triage loop hold the
     human gates.
 
@@ -367,7 +344,6 @@ def _do_uninstall_schedule() -> None:
     for plist_path, label in [
         (LAUNCHD_PLIST_PATH, "session"),
         (LAUNCHD_DISTILL_PLIST_PATH, "distill"),
-        (LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH, "weekly-analysis"),
         (LAUNCHD_INSIGHT_PLIST_PATH, "insight"),
         (LAUNCHD_BACKUP_PLIST_PATH, "backup"),
         (LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH, "weekly-pipeline"),
@@ -383,7 +359,6 @@ def _do_uninstall_schedule() -> None:
 def _remove_stale_schedule_jobs(
     *,
     distill: bool,
-    weekly_analysis: bool,
     weekly_insight: bool,
     weekly_backup: bool,
     weekly_pipeline: bool = False,
@@ -395,16 +370,12 @@ def _remove_stale_schedule_jobs(
     ``install-schedule`` is declarative over the full schedule set (round-2
     R2-M1): re-running with ``--no-distill`` previously left an earlier
     com.moltbook.distill job loaded on its stale schedule indefinitely, with
-    no warning — same for a dropped ``--weekly-analysis`` / ``--weekly-insight``
-    / ``--weekly-backup``. The always-on session job needs no reconcile
+    no warning — same for a dropped ``--weekly-insight`` /
+    ``--weekly-backup``. The always-on session job needs no reconcile
     (reinstall overwrites it in place).
     """
     if not distill and _unload_and_remove_plist(LAUNCHD_DISTILL_PLIST_PATH, "distill"):
         print("  (stale distill schedule removed: --no-distill on this run)")
-    if not weekly_analysis and _unload_and_remove_plist(
-        LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH, "weekly-analysis"
-    ):
-        print("  (stale weekly-analysis schedule removed: flag not set on this run)")
     if not weekly_insight and _unload_and_remove_plist(LAUNCHD_INSIGHT_PLIST_PATH, "insight"):
         print("  (stale insight schedule removed: flag not set on this run)")
     if not weekly_backup and _unload_and_remove_plist(LAUNCHD_BACKUP_PLIST_PATH, "backup"):
@@ -457,14 +428,6 @@ def _validate_install_schedule_args(
         parser.error("--session must be between 1 and 1440 minutes")
     if args.distill_hour < 0 or args.distill_hour > 23:
         parser.error("--distill-hour must be between 0 and 23")
-    if args.weekly_analysis:
-        _validate_weekday_hour_flag(
-            parser,
-            args.weekly_analysis_day,
-            args.weekly_analysis_hour,
-            "--weekly-analysis-day",
-            "--weekly-analysis-hour",
-        )
     if args.weekly_insight:
         _validate_weekday_hour_flag(
             parser,
@@ -490,11 +453,6 @@ def _validate_install_schedule_args(
             "--weekly-submolt-scan-hour",
         )
     if args.weekly_pipeline:
-        # The chain runs weekly-analysis.sh as its own Stage 1; installing
-        # both would fire the report twice (and race the .anomaly-sweep
-        # state promote).
-        if args.weekly_analysis:
-            parser.error("--weekly-pipeline replaces --weekly-analysis (mutually exclusive)")
         _validate_weekday_hour_flag(
             parser,
             args.weekly_pipeline_day,
@@ -515,7 +473,6 @@ def _dispatch_install_schedule_jobs(args: argparse.Namespace) -> None:
     # describes the complete desired schedule set.
     _remove_stale_schedule_jobs(
         distill=not args.no_distill,
-        weekly_analysis=args.weekly_analysis,
         weekly_insight=args.weekly_insight,
         weekly_backup=args.weekly_backup,
         weekly_pipeline=args.weekly_pipeline,
@@ -525,11 +482,6 @@ def _dispatch_install_schedule_jobs(args: argparse.Namespace) -> None:
     _do_install_schedule(interval=args.interval, session=args.session)
     if not args.no_distill:
         _do_install_distill_schedule(distill_hour=args.distill_hour)
-    if args.weekly_analysis:
-        _do_install_weekly_analysis_schedule(
-            weekday=args.weekly_analysis_day,
-            hour=args.weekly_analysis_hour,
-        )
     if args.weekly_insight:
         _do_install_insight_schedule(
             weekday=args.weekly_insight_day,
@@ -592,23 +544,6 @@ def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
         help="Hour to run daily distillation (0-23, default: 3)",
     )
     parser.add_argument(
-        "--weekly-analysis",
-        action="store_true",
-        help="Also install weekly analysis report schedule",
-    )
-    parser.add_argument(
-        "--weekly-analysis-day",
-        type=int,
-        default=1,
-        help="Day of week for weekly analysis (0=Sun..6=Sat, default: 1=Mon)",
-    )
-    parser.add_argument(
-        "--weekly-analysis-hour",
-        type=int,
-        default=9,
-        help="Hour to run weekly analysis (0-23, default: 9)",
-    )
-    parser.add_argument(
         "--weekly-insight",
         action="store_true",
         help="Also install weekly staged insight schedule (ADR-0074)",
@@ -628,8 +563,8 @@ def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=8,
         help=(
-            "Hour to run weekly insight (0-23, default: 8 — one hour before "
-            "weekly analysis, outside agent-session hours)"
+            "Hour to run weekly insight (0-23, default: 8 — outside "
+            "agent-session hours, one hour before the weekly chain)"
         ),
     )
     parser.add_argument(
@@ -678,7 +613,7 @@ def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
         help=(
             "Install the unattended weekly chain (ADR-0098: materials → one "
             "/weekly-report session (report + diagnosis + candidate filing) → "
-            "instrument scans). Replaces --weekly-analysis."
+            "instrument scans)."
         ),
     )
     parser.add_argument(

@@ -55,7 +55,7 @@ contemplative-agent submolt-scan [--sample-size N]   # ADR-0086 スコープ計�
 contemplative-agent report --days 30 --submolt-scope # ↑の読み値（購読 vs 未購読の当たり率を並べる）
 contemplative-agent meditate --days 14 --cycles 100  # 瞑想シミュレーション
 contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N  # 2 agent 間のローカル対話（別 MOLTBOOK_HOME 必須、production は拒否）
-contemplative-agent install-schedule [--weekly-pipeline] [--watchdog] [--weekly-insight] [--weekly-backup] [--uninstall]  # --weekly-pipeline は旧 --weekly-analysis を置換（ADR-0085、排他）
+contemplative-agent install-schedule [--weekly-pipeline] [--watchdog] [--weekly-insight] [--weekly-backup] [--uninstall]  # --weekly-pipeline が weekly の唯一の installer（旧 --weekly-analysis 単独経路は 2026-08-29 に削除、ADR-0085）
 contemplative-agent sync-data
 contemplative-agent solve "ttwweennttyy pplluuss ffiivvee"
 

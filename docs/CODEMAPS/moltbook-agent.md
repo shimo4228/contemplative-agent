@@ -24,7 +24,7 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
     stocktake_cmd.py (197L)   -- skill-stocktake (quality report + usage reading + description audit; ADR-0097 retired rules-stocktake and the merge/clean/stage phases)
     memory_cmds.py (563L)     -- distill / insight / amend-constitution / shadow-constitution / distill-identity commands (rules-distill retired by ADR-0097)
     session_cmds.py (572L)    -- init / report / generate-report / meditate / sync-data / dialogue / dialogue-peer
-    schedule.py (656L)        -- install-schedule / launchd plist generation (ADR-0085: --weekly-pipeline + --watchdog)
+    schedule.py (649L)        -- install-schedule / launchd plist generation (ADR-0085: --weekly-pipeline + --watchdog)
  -> core/
  |    _io.py (317L)                -- file I/O (write_restricted, truncate, archive_before_write)
  |    run_context.py (34L)         -- ADR-0078: mints process-wide run_id; set/clear session_id, read by _io.py writer
@@ -199,8 +199,6 @@ contemplative-agent dialogue HOME_A HOME_B --seed "..." [--turns N]
 contemplative-agent sync-data        # rsync→embedding-free knowledge.json export→git push to data repo; then best-effort hf upload of patterns.jsonl
 contemplative-agent install-schedule [--interval H] [--session M]
                                      [--distill-hour H] [--no-distill]
-                                     [--weekly-analysis] [--weekly-analysis-day D]
-                                     [--weekly-analysis-hour H]
                                      [--weekly-insight] [--weekly-insight-day D]
                                      [--weekly-insight-hour H]
                                      [--weekly-backup] [--weekly-backup-day D]
@@ -215,7 +213,8 @@ contemplative-agent install-schedule [--interval H] [--session M]
                                      # --weekly-pipeline: unattended chain (ADR-0085/0098; materials →
                                      # one /weekly-report session (report + diagnosis + candidate
                                      # filing) → instrument scans). Runs weekly-analysis.sh as its
-                                     # materials collector — mutually exclusive with --weekly-analysis.
+                                     # materials collector. The standalone --weekly-analysis
+                                     # install path was removed 2026-08-29.
                                      # --watchdog: pure-bash artifact-deadline checks (scripts/
                                      # pipeline_watchdog.sh) → reports/PIPELINE-STATUS.md + notifications
 

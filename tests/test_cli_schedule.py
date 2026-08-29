@@ -20,7 +20,6 @@ from contemplative_agent.cli.schedule import (
     _do_install_distill_schedule,
     _do_install_schedule,
     _do_install_submolt_scan_schedule,
-    _do_install_weekly_analysis_schedule,
     _do_uninstall_schedule,
     _remove_stale_schedule_jobs,
 )
@@ -316,48 +315,6 @@ class TestInstallBackupSchedule:
             assert placeholder not in content
 
 
-class TestInstallWeeklyAnalysisSchedule:
-    @patch("contemplative_agent.cli.schedule.subprocess.run")
-    def test_install_creates_weekly_analysis_plist(self, mock_run, plist_sandbox):
-        mock_run.return_value = MagicMock(returncode=0, stderr="")
-
-        _do_install_weekly_analysis_schedule(weekday=6, hour=9)
-
-        content = plist_sandbox["LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH"].read_text()
-        assert "weekly-analysis.sh" in content
-        assert "<integer>6</integer>" in content
-        assert "<integer>9</integer>" in content
-        for placeholder in (
-            "{{PROJECT_ROOT}}",
-            "{{USER_LOCAL_BIN}}",
-            "{{WEEKDAY}}",
-            "{{HOUR}}",
-            "{{LOG_PATH}}",
-        ):
-            assert placeholder not in content
-
-    @patch("contemplative_agent.cli.schedule.subprocess.run")
-    def test_weekly_analysis_path_reaches_claude(self, mock_run, plist_sandbox):
-        """Regression pin for the 2026-07-25 incident: the template hardcoded
-        ``/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin``. When Claude Code's
-        native installer moved the binary to ~/.local/bin, the scheduled job
-        died with ``claude: command not found`` and left a 0-byte weekly report
-        that read as a successful run. The script's whole purpose is to shell
-        out to ``claude``, so its PATH must cover that directory."""
-        import re
-        from pathlib import Path
-
-        mock_run.return_value = MagicMock(returncode=0, stderr="")
-
-        _do_install_weekly_analysis_schedule(weekday=6, hour=9)
-
-        content = plist_sandbox["LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH"].read_text()
-        match = re.search(r"<key>PATH</key>\s*<string>([^<]*)</string>", content)
-        assert match, "weekly-analysis plist declares no PATH"
-        path_entries = match.group(1).split(":")
-        assert str(Path.home() / ".local" / "bin") in path_entries
-
-
 class TestUninstallScheduleBoth:
     @patch("contemplative_agent.cli.schedule.subprocess.run")
     def test_uninstall_removes_both_plists(self, mock_run, plist_sandbox):
@@ -391,38 +348,6 @@ class TestInstallScheduleCommand:
                 main()
 
 
-class TestInstallScheduleValidationOrderM9:
-    """Bug-audit 2026-07-06 M9: an invalid --weekly-analysis-* argument must
-    be rejected BEFORE any launchd schedule is installed."""
-
-    def test_invalid_weekly_day_installs_nothing(self):
-        from contemplative_agent.cli.schedule import _handle_install_schedule
-
-        args = argparse.Namespace(
-            uninstall=False,
-            interval=6,
-            session=30,
-            distill_hour=3,
-            no_distill=False,
-            weekly_analysis=True,
-            weekly_analysis_day=9,  # invalid (>6)
-            weekly_analysis_hour=8,
-        )
-        parser = argparse.ArgumentParser()
-        with (
-            patch("contemplative_agent.cli.schedule._do_install_schedule") as mock_session,
-            patch("contemplative_agent.cli.schedule._do_install_distill_schedule") as mock_distill,
-            patch(
-                "contemplative_agent.cli.schedule._do_install_weekly_analysis_schedule"
-            ) as mock_weekly,
-        ):
-            with pytest.raises(SystemExit):
-                _handle_install_schedule(args, parser)
-        mock_session.assert_not_called()
-        mock_distill.assert_not_called()
-        mock_weekly.assert_not_called()
-
-
 class TestRemoveStaleScheduleJobs:
     """Round-2 R2-M1: install-schedule is declarative over the full schedule
     set — optional jobs from a previous install whose flag is off this run
@@ -432,7 +357,6 @@ class TestRemoveStaleScheduleJobs:
     def _all_on(**overrides):
         flags = {
             "distill": True,
-            "weekly_analysis": True,
             "weekly_insight": True,
             "weekly_backup": True,
         }
@@ -447,14 +371,6 @@ class TestRemoveStaleScheduleJobs:
         _remove_stale_schedule_jobs(**self._all_on(distill=False))
         assert not distill.exists()
         mock_run.assert_called_once()  # one unload, for the distill plist
-
-    @patch("contemplative_agent.cli.schedule.subprocess.run")
-    def test_removes_weekly_when_flag_dropped(self, mock_run, plist_sandbox):
-        mock_run.return_value = MagicMock(returncode=0, stderr="")
-        weekly = plist_sandbox["LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH"]
-        weekly.write_text("dummy")
-        _remove_stale_schedule_jobs(**self._all_on(weekly_analysis=False))
-        assert not weekly.exists()
 
     @patch("contemplative_agent.cli.schedule.subprocess.run")
     def test_removes_insight_when_flag_dropped(self, mock_run, plist_sandbox):
@@ -476,7 +392,6 @@ class TestRemoveStaleScheduleJobs:
     def test_keeps_jobs_whose_flag_is_on(self, mock_run, plist_sandbox):
         for attr in (
             "LAUNCHD_DISTILL_PLIST_PATH",
-            "LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH",
             "LAUNCHD_INSIGHT_PLIST_PATH",
             "LAUNCHD_BACKUP_PLIST_PATH",
         ):
@@ -484,7 +399,6 @@ class TestRemoveStaleScheduleJobs:
         _remove_stale_schedule_jobs(**self._all_on())
         for attr in (
             "LAUNCHD_DISTILL_PLIST_PATH",
-            "LAUNCHD_WEEKLY_ANALYSIS_PLIST_PATH",
             "LAUNCHD_INSIGHT_PLIST_PATH",
             "LAUNCHD_BACKUP_PLIST_PATH",
         ):
@@ -531,8 +445,9 @@ class TestInstallScheduleCarriesNoEnforceFlag:
 
 
 class TestWeeklyPipelineSchedule:
-    """ADR-0085: the unattended weekly chain replaces --weekly-analysis and
-    ships with a dependency-free watchdog job on fixed check times."""
+    """ADR-0085: the unattended weekly chain replaced the standalone
+    --weekly-analysis install path (removed 2026-08-29) and ships with a
+    dependency-free watchdog job on fixed check times."""
 
     @patch("contemplative_agent.cli.schedule.subprocess.run")
     def test_install_weekly_pipeline_creates_plist(self, mock_run, plist_sandbox):
@@ -620,38 +535,6 @@ class TestWeeklyPipelineSchedule:
         assert "claude" in content, "fixture no longer reproduces the worktree path shape"
         assert not {"claude", "uv"} & _invoked_commands(_launchd_argv(content))
 
-    def test_weekly_pipeline_excludes_weekly_analysis(self):
-        from contemplative_agent.cli.schedule import _handle_install_schedule
-
-        args = argparse.Namespace(
-            uninstall=False,
-            interval=6,
-            session=30,
-            distill_hour=3,
-            no_distill=False,
-            weekly_analysis=True,
-            weekly_analysis_day=6,
-            weekly_analysis_hour=9,
-            weekly_insight=False,
-            weekly_backup=False,
-            weekly_submolt_scan=False,
-            weekly_pipeline=True,
-            weekly_pipeline_day=6,
-            weekly_pipeline_hour=9,
-            watchdog=False,
-        )
-        parser = argparse.ArgumentParser()
-        with (
-            patch("contemplative_agent.cli.schedule._do_install_schedule") as mock_session,
-            patch(
-                "contemplative_agent.cli.schedule._do_install_weekly_pipeline_schedule"
-            ) as mock_pipeline,
-        ):
-            with pytest.raises(SystemExit):
-                _handle_install_schedule(args, parser)
-        mock_session.assert_not_called()
-        mock_pipeline.assert_not_called()
-
     @patch("contemplative_agent.cli.schedule.subprocess.run")
     def test_stale_pipeline_and_watchdog_removed(self, mock_run, plist_sandbox):
         mock_run.return_value = MagicMock(returncode=0, stderr="")
@@ -661,7 +544,6 @@ class TestWeeklyPipelineSchedule:
         watchdog.write_text("dummy")
         _remove_stale_schedule_jobs(
             distill=True,
-            weekly_analysis=True,
             weekly_insight=True,
             weekly_backup=True,
             weekly_pipeline=False,
@@ -684,7 +566,6 @@ class TestWeeklyPipelineValidationOrder:
             session=30,
             distill_hour=3,
             no_distill=False,
-            weekly_analysis=False,
             weekly_insight=False,
             weekly_backup=False,
             weekly_submolt_scan=False,
@@ -750,7 +631,6 @@ class TestInstallSubmoltScanSchedule:
         scan.write_text("dummy")
         _remove_stale_schedule_jobs(
             distill=True,
-            weekly_analysis=True,
             weekly_insight=True,
             weekly_backup=True,
             weekly_pipeline=True,
@@ -766,7 +646,6 @@ class TestInstallSubmoltScanSchedule:
         scan.write_text("dummy")
         _remove_stale_schedule_jobs(
             distill=True,
-            weekly_analysis=True,
             weekly_insight=True,
             weekly_backup=True,
             weekly_pipeline=True,
