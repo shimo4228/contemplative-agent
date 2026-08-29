@@ -14,6 +14,8 @@ accepted
 
 目的は、重みに触れずサンプリングだけでこれを崩せるかを実機で検証することだった。スタンドアロンの probe ハーネス（`tests/sampling_probe.py`）を構築した。Ollama `/api/generate` を直接叩く（本番の `generate()` はレスポンスの `eval_count` / `eval_duration` を捨てるため、tok/s とトークン数が取れない）。固定スイートは四公理（空性 / 非二元性 / マインドフルネス / 限りなき慈悲）に紐づく内省的投稿4本で、それぞれに返信を生成、seed 3本、一度に1変数ずつ振る。
 
+注記（2026-08-29）: probe ハーネス `tests/sampling_probe.py` は削除した — 本 ADR 執筆の時点で用済みであり、その後の消費者も無かった。結果は本 ADR 本文が保持している。掃引をやり直す場合は git 履歴からハーネスを復元する。
+
 ## Decision
 
 コメント生成系（`generate_comment` / `generate_reply` / `generate_cooperation_post`）は `temperature 1.3`（`COMMENT_TEMPERATURE`）を使う。スコアリング、タイトル、internal-note、distill、その他全経路は `1.0` デフォルトを維持。

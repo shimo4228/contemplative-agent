@@ -97,6 +97,15 @@ physical/attention/throughput; abstraction → measurable persistence;
 boundary-as-condition reading; assumption checklists at interfaces); what
 they share is a stance.
 
+**Note (2026-08-29, instrument retired)**: `scripts/coselection_families.py`
+and its test were deleted on 2026-08-29 — the instrument had zero consumers
+(RFC-0013, the reading's only sink, is `withdrawn` as of 2026-08-26) and no
+consumption plan in the ADR-0101 sense. The canonical numbers are the ones in
+the Note above and in RFC-0013's Status; nothing measured is lost by the
+deletion. The restore point is the deleting commit: if RFC-0013's re-proposal
+conditions are ever tried, recover the script from git history rather than
+rewriting it.
+
 The selector's hallucination rate (judged records with non-empty
 `rejected_names`) rose with catalog size: 0.6% at 24 skills, 7.7% at 37, 20.2%
 at 45, 18.0% at 48–57 (109/606); almost all are word-form variants of real

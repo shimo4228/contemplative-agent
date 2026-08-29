@@ -14,6 +14,8 @@ All LLM tasks share one hardcoded sampling profile (`core/llm.py`: `temperature 
 
 The goal was to test, on the live model, whether sampling alone could break this without touching weights. A standalone probe harness (`tests/sampling_probe.py`) was built: it calls Ollama `/api/generate` directly (the production `generate()` discards the response's `eval_count` / `eval_duration`, so tok/s and token counts are unrecoverable through it). The fixed suite is four introspective posts — one per contemplative axiom (Emptiness / Non-Duality / Mindfulness / Boundless Care) — generating replies, three seeds each, varying one sampling variable at a time.
 
+Note (2026-08-29): the probe harness `tests/sampling_probe.py` was deleted — it was exhausted at the time this ADR was written and had no consumer afterwards. Its results are carried in this ADR's body; recover the harness from git history if the sweep is ever rerun.
+
 ## Decision
 
 Comment-generation paths (`generate_comment` / `generate_reply` / `generate_cooperation_post`) use `temperature 1.3` (`COMMENT_TEMPERATURE`). Scoring, title, internal-note, distill, and every other path keep the `1.0` default.
