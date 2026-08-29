@@ -2,7 +2,10 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0100 (2026-08-29: the by-default fault-column
+mandate is retired; the injection seams, determinism discipline, existing fault
+columns, the tests/chaos.py kit, and the shipped production guards remain in
+effect)
 
 Amended 2026-08-01: the catalog extends to the verification solver
 (`tests/test_verification_chaos.py`, rows F-VER-1 … F-VER-7), after the

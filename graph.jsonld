@@ -2213,13 +2213,14 @@
       ],
       "name": "ADR-0077: Chaos-TDD Fault Injection — Seeded Fault Schedules as Test-First Specification (Pilot: distill)",
       "identifier": "ADR-0077",
-      "status": "accepted",
+      "status": "partially-superseded-by ADR-0100",
       "datePublished": "2026-07-13",
       "description": "Establishes deterministic chaos-TDD fault injection for the distill pipeline: faults are injected only at the two existing seams (a test-side ChaosBackend implementing the LLMBackend Protocol with explicit or seed-derived fault schedules, and the requests HTTP layer via the responses library), never via a production hook. Five previously-untested fault classes are pinned — F1 mid-generation read-timeout, F2 direct /api/embed HTTP faults, F3 syntactically-valid JSON violating the {\"patterns\": [str]} structured-output shape, F4 HTTP 429 from the Ollama endpoint itself (fail-fast pinned: no retry, no Retry-After sleep — the circuit breaker is the recovery mechanism for a local daemon), F5 flapping success/failure sequences. The TDD contract: a chaos test states the desired guarded behavior first, and the minimal guard lands in the same PR. Production deltas shipped: distill abstain reason codes (llm_none / empty_render / shape_violation; valid-JSON-wrong-shape abstains instead of silently bullet-scanning, while the bullet fallback is retained for non-JSON bodies; per-reason summary tally; reason=embed_failed token) and a sparse error_kind telemetry field (timeout / connection / http_<status> / bad_json / bad_url / request_error / backend_exception) so llm-calls JSONL distinguishes fault kinds offline. Determinism discipline: hypothesis under a derandomized ci profile with pinned @example regressions, no real sleeps (latency = injected ReadTimeout), storage relocated to the pytest sandbox. Rejected altitudes: chaostoolkit/toxiproxy (infra-level), production random chaos (episode logs are irreplaceable research material). Know-how captured as project skill chaos-tdd-fault-injection.",
       "isBasedOn": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0060-per-episode-grounded-distill.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md"
-      ]
+      ],
+      "partiallySupersededBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0100-retire-chaos-tdd-by-default-mandate.md"
     },
     {
       "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0078-otel-connection-via-vocabulary-and-offline-export.md",
@@ -2624,6 +2625,23 @@
       "partiallySupersedes": [
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0040-separate-code-level-findings.md"
       ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0100-retire-chaos-tdd-by-default-mandate.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0100: Retire the Chaos-TDD By-Default Mandate — Fault Columns Return to Opt-In Judgment",
+      "identifier": "ADR-0100",
+      "status": "accepted — partially-supersedes ADR-0077",
+      "datePublished": "2026-08-29",
+      "description": "Retires ADR-0077's by-default obligation that every feature touching an LLM call, external I/O, or untrusted parsing ship a deterministic fault column in the same PR; whether a fault test is worth writing returns to ordinary TDD judgment at implementation time. Measured over 2026-05-01 → 2026-08-29 (487 commits): tracked .py grew 29,079 → 93,530 lines (net +64,541) with monthly net accelerating to +35,545 in August, tests took 57% of that growth (+36,572, leaving 51,438 test lines against 29,435 of src), and direct review-fix commits accounted for only 4.1% of additions — the volume driver is feature and instrument slices each paying the two by-default mandates (ADR-0075 audit logs, ADR-0077 fault columns), read-only instruments and one-shot measurement scripts included, against the north star (ADR-0080: the mechanism layer is finished when it stops moving). The mandate's value is front-loaded and already banked: the operational fault catalog that motivated it (num_ctx silent truncation, done_reason=length mid-cuts, dedup's silent no-fire, Moltbook 429s, CAPTCHA-gate drift) is pinned by the existing columns, which keep running. Everything the mandate produced stays — existing fault columns are regression armor deleted only with the code they test, tests/chaos.py stays while it has importers (11 test modules as of this date), and ADR-0077's injection seams, determinism discipline, and shipped production guards (distill abstain reason codes, error_kind telemetry) survive unchanged. The project skill chaos-tdd-fault-injection is retired from the repo (the generalized public fork is unaffected). Rejected: narrowing the mandate to resident production paths (keeps a per-feature tax and adds a scope dispute to every PR — the treatment ADR-0075 got instead, because replayable audit logs are the backbone of the longitudinal research record), keeping it as-is, and deleting the instrument-directed existing fault tests (deleting green regression tests to save lines can silently un-pin a real fault). Review-when: a fault class recurring twice after this date revisits the mandate for that pipeline only; zero importers of tests/chaos.py deletes the kit.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0080-north-star-layered-end-state.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0095-retire-task-ledger-machinery.md"
+      ],
+      "partiallySupersedes": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0077-chaos-tdd-fault-injection.md"
     },
     {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",

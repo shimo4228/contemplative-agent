@@ -2,7 +2,9 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0100（2026-08-29: by-default の fault column 義務を退役。
+注入 seam・決定論規律・既存 fault column・tests/chaos.py キット・出荷済み production
+ガードは存続）
 
 2026-08-01 追記: カタログを verification solver へ拡張した
 （`tests/test_verification_chaos.py`、F-VER-1〜F-VER-7）。insight novelty gate
