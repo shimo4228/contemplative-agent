@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from ...core._io import strip_to_printable
 from ...core.config import MAX_COMMENT_LENGTH, MAX_POST_LENGTH, MAX_POST_TITLE_LENGTH
 from ...core.domain import get_domain_config, resolve_prompt
+from ...core.episode_render import safe_peer_name
 from ...core.llm import (
     GenerationOutput,
     build_system_prompt_with_skills,
@@ -260,13 +261,90 @@ def generate_comment(post_text: str, *, think: bool = False) -> GenerationOutput
 SEED_MAX_INPUT = 5000
 
 
-def format_feed_seeds(seeds: list[dict]) -> str:
+# RFC-0018. Voice labels for the seed blocks. Since the delimiter nonce
+# became per-call (ADR-0007 Amendment 2026-08-16) it was the only handle on
+# "which of the N voices" — and ``cooperation_post.md`` asks the model to
+# bring a second voice in *by name*, so it published the handle it had:
+# ``untrusted_content_<hex>`` appeared as a source name in 13 of 31 self-posts
+# over 2026-08-22..28 (once miscopied at 14 hex digits). These two are the
+# fixed labels for the cases where no display name applies.
+#
+# The name sits in a bracketed slot, the shape ``episode_render`` already uses
+# for the same residue (``[action name]``). That is presentation, not a
+# boundary: a name may contain ``]``, and nothing may post-process it —
+# safe_peer_name's docstring shows that any transform placed after the
+# injection-token strip can reassemble the tokens the strip removed. What the
+# brackets buy is that the label reads to the model as a labelled datum rather
+# than as a line of our own prose.
+SELF_VOICE_LABEL = "Voice: [you — one of your own earlier posts]"
+UNKNOWN_VOICE_LABEL = "Voice: [an unnamed community member]"
+
+
+def _seed_author_name(seed: dict) -> str:
+    """Display name off a feed post, with the API's format fallbacks.
+
+    Same chain as ``post_pipeline._seed_candidates`` and ``feed_manager``,
+    which read the same feed dicts; ``reply_handler.extract_agent_fields``
+    covers the notification shape and is not reusable here.
+
+    ``author`` is type-checked rather than assumed to be a mapping: those
+    two sites raise ``AttributeError`` on an ``author`` that is a bare
+    string, and a label is the wrong place to convert a platform schema
+    change into a lost self-post — an unknown shape falls through to the
+    neutral label.
+    """
+    author = seed.get("author")
+    name = author.get("name") if isinstance(author, dict) else None
+    return name or seed.get("agent_name") or seed.get("agentName") or ""
+
+
+def seed_voice_label(seed: dict, own_agent_name: str = "") -> str:
+    """The one place a seed's voice label is assembled (both call sites of
+    ``format_feed_seeds`` go through it).
+
+    The name is externally authored exactly like the post body, so it gets
+    the sanitizer that already exists for that job —
+    ``episode_render.safe_peer_name`` (single line guaranteed, length-capped,
+    injection-token strip after every transform). Nothing new is written
+    here.
+
+    The self branch is a backstop, not the common path: ``_seed_candidates``
+    already drops self-authored seeds whenever the own name is known, which
+    is also the only case this can detect. It exists so a seed that slips
+    past that filter does not read as a peer the agent can answer.
+    ``"unknown"`` is ``is_self``'s sentinel, not a name, and falls through to
+    the neutral label.
+
+    The self match runs on both the raw and the sanitized name. Raw alone
+    mirrors ``SessionContext.is_self``, but here the peer branch normalizes
+    afterwards — so a peer named ``"<own name>\u200b"`` passes the raw
+    compare (and ``is_self`` upstream) and then renders *as* the agent's own
+    name, which is precisely the confusion this label exists to remove. The
+    normalized compare is guarded on a non-empty own name so two unnamed
+    seeds cannot collide into the self label (code review 2026-08-29).
+    """
+    raw = _seed_author_name(seed)
+    name = safe_peer_name(raw)
+    own_name = safe_peer_name(own_agent_name)
+    if own_agent_name and (raw == own_agent_name or (own_name and name == own_name)):
+        return SELF_VOICE_LABEL
+    if not name or name == "unknown":
+        return UNKNOWN_VOICE_LABEL
+    return f"Voice: [{name}]"
+
+
+def format_feed_seeds(seeds: list[dict], *, own_agent_name: str = "") -> str:
     """Format peer posts as direct seeds for ``cooperation_post.md`` (ADR-0043).
 
     Each post is wrapped in its own ``<untrusted_content>`` block so the LLM
     sees voice boundaries explicitly. The pre-ADR-0043 path wrapped a single
     LLM-generated summary, which implicitly merged voices and was the
     structural cause of the May 2026 echo chamber.
+
+    Each block is preceded by a voice label (RFC-0018). The label is *our*
+    sentence about the block, not part of the peer's text, so it sits outside
+    the frame: the framed bytes and the completeness marker that describes
+    them are unchanged, and ``wrap_untrusted_content`` is untouched.
     """
     if not seeds:
         return ""
@@ -275,13 +353,15 @@ def format_feed_seeds(seeds: list[dict]) -> str:
         title = seed.get("title", "") or ""
         content = seed.get("content", "") or ""
         body = f"{title}\n{content}" if title else content
-        blocks.append(wrap_untrusted_content(body, max_input=SEED_MAX_INPUT))
+        label = seed_voice_label(seed, own_agent_name)
+        blocks.append(f"{label}\n{wrap_untrusted_content(body, max_input=SEED_MAX_INPUT)}")
     return "\n\n".join(blocks)
 
 
 def generate_cooperation_post(
     feed_seeds: list[dict],
     *,
+    own_agent_name: str = "",
     think: bool = False,
 ) -> GenerationOutput:
     """Generate a post that responds to specific peer voices in the feed.
@@ -295,7 +375,7 @@ def generate_cooperation_post(
     generation — identity (approval-gated) is the continuity carrier.
     """
     global _last_cooperation_selection
-    seeds_text = format_feed_seeds(feed_seeds)
+    seeds_text = format_feed_seeds(feed_seeds, own_agent_name=own_agent_name)
     # ADR-0076 shadow observation / ADR-0081 enforcement (see
     # generate_comment). post_title, which runs in the same pipeline pass
     # over the same seeds, is deliberately not observed — a second selection

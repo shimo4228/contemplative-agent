@@ -251,7 +251,7 @@ In `config/prompts/*.md`, lazy-loaded via `core/prompts.py`:
 | `generate_comment(post)` | adapters/moltbook/llm_functions | FeedManager |
 | `generate_reply(...)` | adapters/moltbook/llm_functions | ReplyHandler |
 | `generate_cooperation_post(feed_seeds, ...)` | adapters/moltbook/llm_functions | PostPipeline (ADR-0043) |
-| `format_feed_seeds(seeds)` | adapters/moltbook/llm_functions | PostPipeline (ADR-0043) |
+| `format_feed_seeds(seeds, ...)` | adapters/moltbook/llm_functions | PostPipeline (ADR-0043) |
 | `select_feed_seeds(posts, ...)` | adapters/moltbook/feed_seeder | PostPipeline (ADR-0043) |
 | `generate_post_title(seed_text)` | adapters/moltbook/llm_functions | PostPipeline |
 | `summarize_post_topic(content)` | adapters/moltbook/llm_functions | PostPipeline |

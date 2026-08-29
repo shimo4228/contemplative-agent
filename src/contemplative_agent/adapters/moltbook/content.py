@@ -65,10 +65,15 @@ class ContentManager:
         self,
         feed_seeds: list[dict],
         *,
+        own_agent_name: str = "",
         think: bool = False,
     ) -> GenerationOutput:
-        """Generate a (deduped) self-post; see :meth:`create_comment`."""
-        out = generate_cooperation_post(feed_seeds, think=think)
+        """Generate a (deduped) self-post; see :meth:`create_comment`.
+
+        ``own_agent_name`` only reaches the seed voice labels (RFC-0018);
+        this manager holds no session state of its own.
+        """
+        out = generate_cooperation_post(feed_seeds, own_agent_name=own_agent_name, think=think)
         if out.text is None:
             return out
         if self.is_duplicate(out.text):

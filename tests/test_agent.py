@@ -1589,6 +1589,61 @@ class TestRunPostCycle:
         "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
         return_value=0.8,
     )
+    def test_seed_voice_labels_reach_both_generation_calls(
+        self, mock_score, mock_title, mock_summarize
+    ):
+        """RFC-0018 wiring: body and title are generated from the same seeds,
+        so both must see the peer's name. The own name is threaded so the
+        self label is available on the path where a self-authored seed can
+        still slip through the upstream filter."""
+        content = MagicMock()
+        agent, client, scheduler = _make_agent(
+            content=content, novelty_gate=_RecordingNoveltyGate()
+        )
+        content.create_cooperation_post.return_value = GenerationOutput(
+            text="We paused to revisit how gates intersect with memory."
+        )
+        agent._ctx.own_agent_name = "contemplative-agent"
+
+        feed_resp = MagicMock()
+        feed_resp.json.return_value = {
+            "posts": [
+                {
+                    "title": "theirs",
+                    "content": "another voice",
+                    "id": "other-1",
+                    "submolt_name": "philosophy",
+                    "author": {"name": "Aurelia"},
+                },
+            ]
+        }
+        post_resp = MagicMock()
+        post_resp.json.return_value = {"success": True, "post": {"id": "new-post-123"}}
+        client.get.return_value = feed_resp
+        client.post.return_value = post_resp
+
+        agent._post_pipeline.run_cycle(client, scheduler)
+
+        assert (
+            content.create_cooperation_post.call_args.kwargs["own_agent_name"]
+            == "contemplative-agent"
+        )
+        title_seed = mock_title.call_args.args[0]
+        assert "Voice: [Aurelia]" in title_seed
+        assert title_seed.index("Voice: [Aurelia]") < title_seed.index("<untrusted_content_")
+
+    @patch(
+        "contemplative_agent.adapters.moltbook.post_pipeline.summarize_post_topic",
+        return_value="topic summary",
+    )
+    @patch(
+        "contemplative_agent.adapters.moltbook.post_pipeline.generate_post_title",
+        return_value="Notes on shared gates",
+    )
+    @patch(
+        "contemplative_agent.adapters.moltbook.post_pipeline._score_post_relevance",
+        return_value=0.8,
+    )
     def test_own_post_seeds_kept_when_agent_id_unknown(
         self, mock_score, mock_title, mock_summarize
     ):

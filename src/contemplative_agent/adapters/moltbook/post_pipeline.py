@@ -148,7 +148,9 @@ class PostPipeline:
 
         note = self._compose_note(feed_seeds)
 
-        generated = self._get_content().create_cooperation_post(feed_seeds)
+        generated = self._get_content().create_cooperation_post(
+            feed_seeds, own_agent_name=self._ctx.own_agent_name
+        )
         content = generated.text
         if content is None:
             return
@@ -294,7 +296,7 @@ class PostPipeline:
         generated content, so the title still reflects what the agent was
         responding to rather than re-summarising its own output.
         """
-        title_seed = format_feed_seeds(feed_seeds)
+        title_seed = format_feed_seeds(feed_seeds, own_agent_name=self._ctx.own_agent_name)
         first_seed_title = feed_seeds[0].get("title", "") or ""
         return generate_post_title(title_seed) or f"Contemplative Note — {first_seed_title[:40]}"
 
