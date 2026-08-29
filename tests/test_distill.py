@@ -15,7 +15,6 @@ from contemplative_agent.core.distill import (
     _parse_patterns,
     distill,
     distill_identity,
-    enrich,
     render_episode,
     summarize_record,
 )
@@ -396,12 +395,6 @@ class TestDistill:
             distill(days=1, episode_log=log, knowledge_store=ks)
 
         assert "yielded no output" not in caplog.text
-
-
-class TestEnrichNoOp:
-    def test_enrich_returns_zero(self):
-        ks = KnowledgeStore()
-        assert enrich(ks) == 0
 
 
 class TestDistillJSONFallbackADR0021:

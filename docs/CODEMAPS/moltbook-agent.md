@@ -22,7 +22,7 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
     remove_skill.py (330L)    -- remove-skill: flags, the two gates narrower than the primitive's, dry run, prompt, and the three audit sources (archive / remove / purge)
     store_paths.py (132L)      -- containment predicates shared by the staged write and the archive move; one implementation each, which is what the containment argument rests on
     stocktake_cmd.py (197L)   -- skill-stocktake (quality report + usage reading + description audit; ADR-0097 retired rules-stocktake and the merge/clean/stage phases)
-    memory_cmds.py (587L)     -- distill / insight / amend-constitution / shadow-constitution / distill-identity commands (rules-distill retired by ADR-0097)
+    memory_cmds.py (563L)     -- distill / insight / amend-constitution / shadow-constitution / distill-identity commands (rules-distill retired by ADR-0097)
     session_cmds.py (572L)    -- init / report / generate-report / meditate / sync-data / dialogue / dialogue-peer
     schedule.py (656L)        -- install-schedule / launchd plist generation (ADR-0085: --weekly-pipeline + --watchdog)
  -> core/
@@ -41,7 +41,7 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
  |    views.py (344L)             -- ViewRegistry (seed_from + ${VAR}, lazy centroid cache, pure cosine rank — ADR-0051)
  |    snapshot.py (240L)          -- write_snapshot + collect_thresholds (pivot snapshots, ADR-0020)
  |    scheduler.py (213L)         -- rate limit scheduling, persistence
- |    distill.py (931L)           -- per-episode grounded distill orchestration (ADR-0060) + identity distill (single-stage, ADR-0050) + durability postgate (ADR-0084); rendering/dedup extracted per ADR-0079
+ |    distill.py (917L)           -- per-episode grounded distill orchestration (ADR-0060) + identity distill (single-stage, ADR-0050) + durability postgate (ADR-0084); rendering/dedup extracted per ADR-0079
  |    pattern_dedup.py (177L)     -- embedding-cosine add/update/skip dedup decisions, extracted from distill.py (ADR-0079)
  |    episode_render.py (181L)    -- episode→prompt-text projection, extracted from distill.py (ADR-0079)
  |    insight.py (808L)           -- global clustering → behavior skill extraction (ADR-0050); novelty gate extracted per ADR-0079; ADR-0096 in-band abstain (the separate worth judge retired by ADR-0097)
@@ -180,7 +180,6 @@ contemplative-agent adopt-staged [-y] [--adopt-names FILE [--reject-rest]] [--ar
 contemplative-agent remove-skill <name> --reason TEXT [--delete]   -- archives into skills/.archive/ by default since ADR-0097 D5 (retirement is a move, never an unlink); --delete restores the old unlink. --reason stays mandatory: a written reason is what stops just-in-case retention (CREW)
 contemplative-agent amend-constitution
 contemplative-agent shadow-constitution   -- ADR-0092 read-only instrument: patterns-only synthesis (current constitution NOT in the prompt), divergence cosine + sha256 baked into logs/constitution-shadow.jsonl; no approval gate (writes only the record)
-contemplative-agent enrich [--dry-run]    -- no-op since ADR-0019
 
 # Audit (read-only since ADR-0097: quality report + usage reading + advisory description audit)
 contemplative-agent skill-stocktake

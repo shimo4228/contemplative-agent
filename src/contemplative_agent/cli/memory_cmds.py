@@ -1,4 +1,4 @@
-"""Memory-pipeline subcommands: distill / enrich / insight / amend-constitution.
+"""Memory-pipeline subcommands: distill / insight / amend-constitution.
 
 (``rules-distill`` was retired by ADR-0097.)
 
@@ -209,17 +209,6 @@ def _write_reasoning(
         )
     except OSError as exc:
         logger.warning("Failed to write reasoning.md under %s: %s", snapshot_path, exc)
-
-
-def _handle_enrich(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
-    from ..core.distill import enrich
-    from ..core.memory import KnowledgeStore
-
-    knowledge_store = KnowledgeStore(path=config.KNOWLEDGE_PATH)
-    knowledge_store.load()
-
-    sub_count = enrich(knowledge_store, dry_run=args.dry_run)
-    print(f"Subcategorized: {sub_count}")
 
 
 def _handle_single_result(
@@ -533,10 +522,6 @@ def _add_insight_arguments(parser: argparse.ArgumentParser) -> None:
     _add_stage_argument(parser)
 
 
-def _add_enrich_arguments(parser: argparse.ArgumentParser) -> None:
-    parser.add_argument("--dry-run", action="store_true", help="Show results without writing")
-
-
 COMMANDS: tuple[CommandSpec, ...] = (
     CommandSpec(
         name="distill",
@@ -574,15 +559,5 @@ COMMANDS: tuple[CommandSpec, ...] = (
         handler=_handle_insight,
         tier=Tier.LLM_FULL,
         add_arguments=_add_insight_arguments,
-    ),
-    CommandSpec(
-        name="enrich",
-        help=(
-            "(deprecated, no-op since ADR-0019) formerly enriched patterns "
-            "with subcategories; subcategorisation is now query-time via views"
-        ),
-        handler=_handle_enrich,
-        tier=Tier.LLM_FULL,
-        add_arguments=_add_enrich_arguments,
     ),
 )

@@ -207,20 +207,6 @@ def distill(
     return "\n\n".join(result.results)
 
 
-def enrich(
-    knowledge_store: KnowledgeStore,
-    dry_run: bool = False,
-) -> int:
-    """No-op since ADR-0019: subcategorisation is now query-time via views.
-
-    Kept as a stable entry point so the ``enrich`` CLI subcommand is
-    callable; it now reports zero work.
-    """
-    _ = (knowledge_store, dry_run)
-    logger.info("enrich is a no-op since ADR-0019.")
-    return 0
-
-
 @dataclass(frozen=True)
 class IdentityResult:
     """Result of a successful identity distillation.
