@@ -28,6 +28,10 @@ accepted
 6. **すべての計器を observability only に保つ。** 分布と組成はオペレーターのためのものであり、gate・ランキング・retrieval・promotion には一切供給しない — AKC ADR-0015 Decision 2（介入なき可視化）と同型で、本リポジトリの [ADR-0050](./0050-epistemic-taxonomy-and-approval-lineage.ja.md) / [ADR-0051](./0051-retire-trust-weighting.ja.md) によるメトリクス書き戻し却下とも整合する。計器出力は固定の両義性注記（空/薄い supply = パターン不在 or seed の古さ、計器自身には判別不能）を必ず含む — 「系統的に偏った計器は無計器より悪い」という AKC ADR-0016 の教訓による。計器はまた、raise せずに degrade する — 壊れた・次元違いの embedding 行は WARNING つきで skip し、ホストコマンドを決して中断させない（python-reviewer CRITICAL、2026-07-03）— そして自身のメモリも抑制する（pairwise 統計は `PAIRWISE_STATS_MAX_N=3000` 超で決定論的 stride サンプルに切替）。
 7. **同じ変更で虚偽ドキュメントを訂正する。** `distill.py` のコメント、`insight.py` のモジュール docstring、`architecture.md` の Data Flow 節、`core-modules.md` のスキーマ例。
 
+> **注記（2026-08-29、ADR-0101）**: 溶解義務 — 新しい計器はすべて消費計画を記載する —
+> を本 ADR の釣り合いルールとして追加した。ADR-0101 は、そのルールの最終的な行き先として
+> 本 ADR を名指している。
+
 ## Alternatives Considered
 
 ### 7 view すべてを計器の軸として測る

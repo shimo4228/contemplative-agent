@@ -104,6 +104,10 @@ rather than from intuition.
    section of `architecture.md`, and the schema example in
    `core-modules.md`.
 
+> **Note (2026-08-29, ADR-0101)**: the dissolution mandate — every new
+> instrument states a consumption plan — was added as this ADR's balancing
+> rule; ADR-0101 names this ADR as the rule's eventual home.
+
 ## Alternatives Considered
 
 ### Measure all 7 views as instrument axes

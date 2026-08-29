@@ -2,9 +2,18 @@
 
 ## Status
 
-partially-superseded-by ADR-0100（2026-08-29: by-default の fault column 義務を退役。
-注入 seam・決定論規律・既存 fault column・tests/chaos.py キット・出荷済み production
-ガードは存続）
+partially-superseded-by ADR-0100（2026-08-29: 退役するのは by-default の fault column
+義務 — 全機能に fault column を書く義務 — だけである。存続するものの正本リストは以下:
+Decision 1 の注入 seam（`LLMBackend` Protocol と `requests` 層。production 側 chaos フックは
+足さない）、Decision 2 の決定論規律（seed 固定または明示の schedule、derandomize した
+hypothesis、実 sleep なし、`@example` による pin）、Decision 3 の「定常状態は実装内部でなく
+観測可能な telemetry チャネルで assert する」、Decision 4 の TDD 契約 — 条件付きで存続し、
+誰かが fault テストを書くと opt-in したときにはテストファーストと最小ガードの同 PR 出荷が
+引き続きその作業を支配する、Decision 5 が出荷した production ガード（distill の abstain
+理由コード、`error_kind` telemetry）、Decision 6 の「Ollama からの 429 に fail-fast」— これは
+テスト規約ではなく production の方針である、既存の fault column すべて — 回帰の armor として
+維持し、テスト対象のコードを消すときにだけ一緒に消える、そして importer が居る限りの
+`tests/chaos.py` キット）
 
 2026-08-01 追記: カタログを verification solver へ拡張した
 （`tests/test_verification_chaos.py`、F-VER-1〜F-VER-7）。insight novelty gate
@@ -110,6 +119,9 @@ Phase 0 の外部調査（2026-07-13）は **Compose** verdict を返した: `hy
 - テレメトリが 429 / timeout / 接続失敗 / 不正ボディ / backend 例外をオフラインで判別できる。以前はすべてが無差別の `outcome="error"` に潰れていた。
 - 未テストだった 5 つの fault クラスが 32 本の決定論的 chaos テスト（`tests/test_llm_chaos.py`、`tests/test_distill_chaos.py`、`tests/test_embeddings.py` の `TestEmbedTextsHTTPFaults`。本数は `pytest --collect-only` で実測、2026-07-13）と、`@example` で pin した hypothesis fuzz で固定された。flapping-circuit の系列と 429 への fail-fast 方針は、暗黙知ではなく実行可能な仕様になった。
 - fault カタログ（`tests/chaos.py` の語彙）は将来のパイプラインに再利用可能な注入キットを与える。ノウハウは project skill `chaos-tdd-fault-injection` として捕捉した。
+
+  > **注記（2026-08-29、ADR-0100）**: project skill は退役した。ノウハウは本 ADR の本文と
+  > 汎用化した公開 fork に残る。
 
 ### Negative
 

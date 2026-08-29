@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted (amended 2026-08-29)
 
 Amended 2026-08-29: the by-default obligation is narrowed to resident
 production paths — run / distill / insight / publish / verification. Read-only

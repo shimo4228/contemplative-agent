@@ -80,7 +80,7 @@ Records of key design decisions for this project.
 | [0072](0072-echo-chamber-interventions.md) | Echo-Chamber Interventions — Register Instruction, Corpus-Grown Seed, Extraction-Failure Guard | accepted | 2026-07-03 |
 | [0073](0073-prune-orphaned-view-seeds.md) | Prune the Five Orphaned View Seeds | accepted | 2026-07-03 |
 | [0074](0074-weekly-staged-insight.md) | Weekly Staged Insight — Theme Detection, Pending Guard, Marker-on-Stage, LLM Novelty Gate, Exact Fast Clustering | accepted | 2026-07-09 |
-| [0075](0075-observability-by-default.md) | Observability by Default — Replayable Audit Logs Ship With the Feature | accepted | 2026-07-09 |
+| [0075](0075-observability-by-default.md) | Observability by Default — Replayable Audit Logs Ship With the Feature | accepted (amended 2026-08-29) | 2026-07-09 |
 | [0076](0076-skill-selection-shadow-instrument.md) | Skill-Selection Shadow Instrument — Pass-1 LLM Applicability Observed, Not Enforced | accepted | 2026-07-10 |
 | [0077](0077-chaos-tdd-fault-injection.md) | Chaos-TDD Fault Injection — Seeded Fault Schedules as Test-First Specification (Pilot: distill) | partially-superseded-by ADR-0100 | 2026-07-13 |
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.md) | OTel Connection via Vocabulary Mapping and Offline Export — Not Runtime Adoption | accepted | 2026-07-16 |
@@ -142,6 +142,9 @@ What was the problem
 
 ## Decision
 What was decided
+
+## Review-when
+Expiry conditions — what observation or event makes this decision stale (required since ADR-0044). An ADR that introduces a read-only instrument states its consumption plan here under a `### Consumption plan` sub-heading (ADR-0101), so a stocktake can grep plans apart from expiry triggers.
 
 ## Alternatives Considered
 Rejected options and why

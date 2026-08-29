@@ -1895,10 +1895,11 @@ class TestSurpriseIsDisplayOnly:
         assert "surprise:" not in quiet
 
     # Fault column for the one adversary-writable input this instrument reads
-    # (chaos-TDD, CLAUDE.md 開発原則). Each row is a sidecar value that passes
-    # a naive isinstance check and then breaks formatting; the required guard
-    # behaviour is the same for all of them — say the reading is unusable and
-    # adopt the item anyway, never raise out of the batch loop.
+    # (chaos-TDD, ADR-0077; the by-default mandate was retired by ADR-0100 and
+    # this column is kept as regression armor). Each row is a sidecar value
+    # that passes a naive isinstance check and then breaks formatting; the
+    # required guard behaviour is the same for all of them — say the reading
+    # is unusable and adopt the item anyway, never raise out of the batch loop.
     @pytest.mark.parametrize(
         "bad_value,label",
         [

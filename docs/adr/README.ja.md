@@ -80,7 +80,7 @@
 | [0072](0072-echo-chamber-interventions.ja.md) | echo chamber への介入 — レジスタ指示・corpus 育ちの seed・抽出失敗ガード | accepted | 2026-07-03 |
 | [0073](0073-prune-orphaned-view-seeds.ja.md) | 孤児化した 5 つの view seed を削除する | accepted | 2026-07-03 |
 | [0074](0074-weekly-staged-insight.ja.md) | 週次 staged insight — テーマ検出への役割再定義、pending ガード、staging 時マーカー更新、LLM novelty ゲート、厳密高速クラスタリング | accepted | 2026-07-09 |
-| [0075](0075-observability-by-default.ja.md) | Observability by Default — リプレイ可能な監査ログは機能と同じ PR で出荷する | accepted | 2026-07-09 |
+| [0075](0075-observability-by-default.ja.md) | Observability by Default — リプレイ可能な監査ログは機能と同じ PR で出荷する | accepted (amended 2026-08-29) | 2026-07-09 |
 | [0076](0076-skill-selection-shadow-instrument.ja.md) | Skill 選択シャドウ計器 — pass-1 LLM 適用判断を観測し、強制しない | accepted | 2026-07-10 |
 | [0077](0077-chaos-tdd-fault-injection.ja.md) | Chaos-TDD Fault Injection — seed 固定 fault schedule をテストファーストの仕様にする（パイロット: distill） | partially-superseded-by ADR-0100 | 2026-07-13 |
 | [0078](0078-otel-connection-via-vocabulary-and-offline-export.ja.md) | 語彙 mapping とオフライン export による OTel 接続 — runtime 導入はしない | accepted | 2026-07-16 |
@@ -106,7 +106,7 @@
 | [0098](0098-weekly-single-session-and-triage-delegation.ja.md) | weekly チェーンの単一セッション化と修理の task-triage 委譲 | accepted — partially-supersedes ADR-0085, ADR-0091, ADR-0093 | 2026-08-24 |
 | [0099](0099-weekly-report-instrument-redesign.ja.md) | 週次レポート内容の再設計 — A–E quote 監査から 6 節の計器型文書へ | accepted — partially-supersedes ADR-0040 | 2026-08-26 |
 | [0100](0100-retire-chaos-tdd-by-default-mandate.ja.md) | chaos-TDD by-default 義務の退役 — fault column は opt-in の判断に戻す | accepted — partially-supersedes ADR-0077 | 2026-08-29 |
-| [0101](0101-instrument-dissolution-mandate.ja.md) | 計器の溶解義務 — 新しい計器は消費計画を named にする | accepted | 2026-08-29 |
+| [0101](0101-instrument-dissolution-mandate.ja.md) | 計器の溶解義務 — 新しい計器は消費計画を明記する | accepted | 2026-08-29 |
 
 ## ADR の種別
 
@@ -142,6 +142,9 @@ YYYY-MM-DD
 
 ## Decision
 何を決めたか
+
+## Review-when
+失効条件 — どの観測・イベントでこの判断が古びるか（ADR-0044 以降は必須）。read-only 計器を導入する ADR は、その消費計画をこの節の中の `### Consumption plan` 小見出しに置く（ADR-0101）。棚卸しが失効条件と消費計画を grep で区別できるようにするため。
 
 ## Alternatives Considered
 却下した案とその理由

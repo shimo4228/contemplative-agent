@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+accepted (amended 2026-08-29)
 
 2026-08-29 追補: by-default の義務は**常駐する production 経路**
 （run / distill / insight / publish / verification）に限定する。read-only 計器と

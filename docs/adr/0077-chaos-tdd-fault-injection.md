@@ -2,10 +2,21 @@
 
 ## Status
 
-partially-superseded-by ADR-0100 (2026-08-29: the by-default fault-column
-mandate is retired; the injection seams, determinism discipline, existing fault
-columns, the tests/chaos.py kit, and the shipped production guards remain in
-effect)
+partially-superseded-by ADR-0100 (2026-08-29: only the by-default fault-column
+mandate — the obligation to write a fault column for every feature — is
+retired. This is the canonical list of what remains in effect: the injection
+seams of Decision 1 (`LLMBackend` Protocol + the `requests` layer, no
+production chaos hook); the determinism discipline of Decision 2 (seeded or
+explicit schedules, derandomized hypothesis, no real sleeps, `@example`
+pinning); Decision 3, steady state asserted on the observable telemetry
+channel rather than implementation internals; Decision 4's TDD contract,
+surviving conditionally — whenever someone opts in to writing a fault test,
+test-first plus the minimal guard in the same PR still governs that work;
+Decision 5's shipped production guards (distill abstain reason codes,
+`error_kind` telemetry); Decision 6's fail-fast policy on a 429 from Ollama,
+which is a production policy and not a test convention; every existing fault
+column, kept as regression armor and deleted only with the code it tests; and
+the `tests/chaos.py` kit for as long as it has importers)
 
 Amended 2026-08-01: the catalog extends to the verification solver
 (`tests/test_verification_chaos.py`, rows F-VER-1 … F-VER-7), after the
@@ -210,6 +221,9 @@ same fault coverage reproducibly, without touching the running system.
 - The fault catalog (`tests/chaos.py` vocabulary) gives future pipelines
   a reusable injection kit. The know-how is captured as the project skill
   `chaos-tdd-fault-injection`.
+
+  > **Note (2026-08-29, ADR-0100)**: the project skill was retired; the
+  > know-how remains in this ADR's body and the generalized public fork.
 
 ### Negative
 
