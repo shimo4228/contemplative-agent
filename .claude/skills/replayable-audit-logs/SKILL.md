@@ -20,6 +20,11 @@ an ordinary side effect → the round-6/7 parser repairs (ADR-0062) replayed 792
 real challenges offline with a zero-wrong hard gate. Ad-hoc logging added at
 investigation time can never provide that.
 
+Scope (ADR-0075 amendment, 2026-08-29): the obligation binds **resident
+production paths** — run / distill / insight / publish / verification.
+Read-only instruments and one-shot measurement scripts are exempt and freeze
+their results under `docs/evidence/` instead.
+
 ## Record schema checklist
 
 Design the record so the run can be **replayed offline**, not merely read:

@@ -4,6 +4,13 @@
 
 accepted
 
+Amended 2026-08-29: the by-default obligation is narrowed to resident
+production paths — run / distill / insight / publish / verification. Read-only
+instruments and one-shot measurement scripts are exempt; frozen results under
+docs/evidence/ replace replayable logs for them. Existing logs and their
+consumers are unaffected; only the scope of the obligation changes. Decided in
+the same owner conversation as ADR-0100 / ADR-0101.
+
 ## Date
 
 2026-07-09

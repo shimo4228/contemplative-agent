@@ -4,6 +4,12 @@
 
 accepted
 
+2026-08-29 追補: by-default の義務は**常駐する production 経路**
+（run / distill / insight / publish / verification）に限定する。read-only 計器と
+一発測定スクリプトは対象外で、docs/evidence/ への結果凍結がリプレイ可能ログの
+代替になる。既存のログとその消費者は影響を受けない — 変わるのは義務の適用範囲だけ。
+ADR-0100 / ADR-0101 と同じ著者会話での決定。
+
 ## Date
 
 2026-07-09
