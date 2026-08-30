@@ -204,6 +204,42 @@ def _sample_posts(client: MoltbookClient, name: str, sample_size: int) -> list[d
     return [p for p in posts[:sample_size] if isinstance(p, dict)]
 
 
+def _abort_verdict(
+    client: MoltbookClient,
+    *,
+    baseline_429: int,
+    scored: int,
+    unread: int,
+) -> str | None:
+    """Why the sweep must stop before the next submolt, or ``None`` to continue.
+
+    Checked in the same order as the guards it replaces: a repeating rate limit
+    first (a policy signal about read volume, not a transient error), then the
+    read budget, then the per-scan scoring ceiling.
+    """
+    terminal_429 = client.recent_429_count - baseline_429
+    if terminal_429 >= _MAX_TERMINAL_429:
+        logger.warning(
+            "Submolt scope scan aborting: %d terminal 429s during the sweep. "
+            "This is a policy signal about read volume, not a transient error.",
+            terminal_429,
+        )
+        return "aborted_rate_limit"
+    if not client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve):
+        logger.info("Submolt scope scan aborting: read budget low")
+        return "aborted_read_budget"
+    if scored >= _MAX_SCORED_PER_SCAN:
+        logger.warning(
+            "Submolt scope scan aborting: %d posts scored, at the %d-call ceiling. "
+            "%d candidate submolts left unread this sweep.",
+            scored,
+            _MAX_SCORED_PER_SCAN,
+            unread,
+        )
+        return "aborted_scored_cap"
+    return None
+
+
 def scan_submolt_scope(
     client: MoltbookClient,
     domain: DomainConfig,
@@ -280,27 +316,14 @@ def scan_submolt_scope(
             reason = "private" if info.is_private else "nsfw"
             skipped.append((info.name, reason))
             continue
-        if client.recent_429_count - baseline_429 >= _MAX_TERMINAL_429:
-            verdict = "aborted_rate_limit"
-            logger.warning(
-                "Submolt scope scan aborting: %d terminal 429s during the sweep. "
-                "This is a policy signal about read volume, not a transient error.",
-                client.recent_429_count - baseline_429,
-            )
-            break
-        if not client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve):
-            verdict = "aborted_read_budget"
-            logger.info("Submolt scope scan aborting: read budget low")
-            break
-        if scored >= _MAX_SCORED_PER_SCAN:
-            verdict = "aborted_scored_cap"
-            logger.warning(
-                "Submolt scope scan aborting: %d posts scored, at the %d-call ceiling. "
-                "%d candidate submolts left unread this sweep.",
-                scored,
-                _MAX_SCORED_PER_SCAN,
-                len(candidates) - len(scanned) - len(skipped),
-            )
+        abort = _abort_verdict(
+            client,
+            baseline_429=baseline_429,
+            scored=scored,
+            unread=len(candidates) - len(scanned) - len(skipped),
+        )
+        if abort is not None:
+            verdict = abort
             break
 
         try:

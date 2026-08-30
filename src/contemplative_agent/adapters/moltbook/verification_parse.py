@@ -755,10 +755,18 @@ def _poison_broken_tens_compound(events: list[_Event], atoms: list[str]) -> None
     that shape, not evidence about what the residue meant.
     """
     claimed = _event_atoms(events)
+    _poison_arm_a(events, atoms, claimed)
+    _poison_arm_b(events, atoms, claimed)
 
+
+def _poison_arm_a(events: list[_Event], atoms: list[str], claimed: set[int]) -> None:
+    """Arm A — the unit half is garbled: a tens word, then a short residue
+    that is nearly a number ("twenty" + "tre").
+
+    The only arm that verifies what it saw: a tens word IS present, and the
+    residue is judged in the slot right beside it.
+    """
     for event in events:
-        # Arm A — the unit half is garbled: a tens word, then a short residue
-        # that is nearly a number ("twenty" + "tre").
         if not isinstance(event, _NumEvent) or not event.is_tens:
             continue
         slot = event.atom_end + 1
@@ -770,16 +778,22 @@ def _poison_broken_tens_compound(events: list[_Event], atoms: list[str]) -> None
         if _near_a_number_word(token):
             raise _Abstain
 
-    # Arm B — shape only. "trween" collapses to "trwen", two edits from every
-    # number word and every collapsed form, so no widening of the fuzzy tiers
-    # reaches it and nothing here can confirm it was a tens word at all. What
-    # the guard actually matches is the leftover silhouette: a split unit half
-    # ("t" + "hree" = 3) opening the challenge with a long unmatched residue
-    # in front of it.
-    # All four conjuncts are load-bearing against the corpus: without the
-    # first-operand restriction three correct answers die on trailing verbs
-    # ("applies", "strikes", "exert"); without the single-digit bound, 53;
-    # and admitting two-letter fragments costs nine more.
+
+def _poison_arm_b(events: list[_Event], atoms: list[str], claimed: set[int]) -> None:
+    """Arm B — shape only.
+
+    ``trween`` collapses to ``trwen``, two edits from every number word and
+    every collapsed form, so no widening of the fuzzy tiers reaches it and
+    nothing here can confirm it was a tens word at all. What the guard
+    actually matches is the leftover silhouette: a split unit half
+    ("t" + "hree" = 3) opening the challenge with a long unmatched residue
+    in front of it.
+
+    All four conjuncts are load-bearing against the corpus: without the
+    first-operand restriction three correct answers die on trailing verbs
+    ("applies", "strikes", "exert"); without the single-digit bound, 53;
+    and admitting two-letter fragments costs nine more.
+    """
     nums = [e for e in events if isinstance(e, _NumEvent)]
     if not nums:
         return

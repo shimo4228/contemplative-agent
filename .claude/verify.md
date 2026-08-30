@@ -33,7 +33,7 @@
 **lint — 予算系（C901）**（選定日 2026-08-28）
 ruff の C901（mccabe）を `select` に足しただけで、既存の lint ゲートがそのまま発火する
 （`verify.sh` は無変更 = hash 再承認なし。staged / full の両モードで pyproject が参照される）。
-閾値は `[tool.ruff.lint.mccabe] max-complexity = 11`（2026-08-31 に 15 から引き下げ中。下の
+閾値は `[tool.ruff.lint.mccabe] max-complexity = 10`（2026-08-31 に 15 から引き下げ完了。下の
 「閾値の推移」を見る）。
 実測分布 as-of **2026-08-28**（対象は verify ゲートと同じ src / tests / scripts / evals、
 関数 4,580 件）: p50=1 / p90=3 / p95=5 / **p99=10** / **max=35**。violation は
@@ -86,6 +86,28 @@ p50=1 / p90=3 / p95=5 / **p99=9** / **max=13**。violation は `>10` で 19 件 
 再実測分布 as-of **2026-08-31**（2 段目後、関数 4,611 件）:
 p50=1 / p90=3 / p95=5 / **p99=9** / **max=11**。violation は `>10` で 13 件 / `>11` で 0 件。
 
+**2026-08-31: 11 → 10（到達）**。刈った 13 関数（すべて 11、1 だけ削れば足りた）:
+
+| 関数 | 手段 |
+|---|---|
+| `adapters/moltbook/client.py::_parse_rate_headers` | reset ヘッダの解釈を `_parse_reset_header` へ |
+| `adapters/moltbook/client.py::_record_api_outcome` | dict body の構造フィールド抽出を `_describe_body` へ |
+| `adapters/moltbook/client.py::post_comment` | 曖昧エンベロープの判定を `_comment_envelope`（`None` = 成功とみなす）へ |
+| `adapters/moltbook/feed_manager.py::run_cycle` | 2 ソースの収集を `_gather_feed_posts` + `_extend_unseen` へ |
+| `adapters/moltbook/submolt_scope.py::scan_submolt_scope` | 3 つの中断ガードを `_abort_verdict` へ（順序保存） |
+| `adapters/moltbook/verification.py::_load_rejected_answers` | 行解析を `_collect_rejections` へ |
+| `adapters/moltbook/verification_parse.py::_poison_broken_tens_compound` | Arm A / Arm B を `_poison_arm_a` / `_poison_arm_b` へ（docstring が元から 2 アーム構造を宣言していた） |
+| `adapters/meditation/pomdp.py::classify_outcome` | 応答収集を `_collect_responses` へ |
+| `cli/adopt.py::_print_system_budget_for_staged` | 本文収集 2 ループを `_budget_texts` へ（封じ込め判定はそのまま） |
+| `cli/session_cmds.py::_handle_report` | `--skill-selection` の 2 読み値を `_print_selection_readings` へ（2 つの try は**統合しない** — 分離は構造で担保する意図的な設計） |
+| `core/never_selected_metrics.py::format_never_selected_report` | strict / dormant の対称な列挙を `_population_lines` へ（WITHHELD が空リストに優先する順序を保存） |
+| `core/report.py::_parse_log` | session メタのマージを `_merge_session_meta` へ |
+| `evals/dataset.py::load_dataset` | 行の検証を `_validate_record` へ（重複 id だけは行間状態なので呼び出し側に残置） |
+
+到達時点の分布 as-of **2026-08-31**（関数 4,626 件）:
+p50=1 / p90=3 / p95=5 / **p99=9** / **max=10**。violation 0 件、免除 0 件。
+上位帯は 10 が 26 件 / 9 が 27 件 / 8 が 43 件 — 予算は p99 に一致する位置にある。
+
 **免除は足さない。** 刈り切れない関数が出たら閾値をその段で止め、理由をここに日付つきで記録する
 （2026-08-31 著者判断）。「10 は却下」（下の捨てた選択肢）は *導入時の* 閾値としての却下であり、
 刈って到達する道は対象外 — 到達時点で免除は 0 件のままなので、却下理由（24 ファイルが盲点）は
@@ -104,8 +126,10 @@ p50=1 / p90=3 / p95=5 / **p99=9** / **max=11**。violation は `>10` で 13 件 
   violation の過半が test だった。別ツールを足すのはハーネス ADR-0056 の
   「増えるのは config の行だけ」に反する
 
-再調査: 12 ヶ月経過 / **閾値が 10 に到達した時**（そこで打ち止めるか更に下げるかを再実測して判断。
-2026-08-28 の「免除リストが空になった時」は 2026-08-31 に消費済み）/
+再調査: 12 ヶ月経過 / **10 で 1 度でも「刈れないので上げる」提案が出た時**（規約側の再訪。
+上げる前にこの節へ日付つきで理由を書く）/ **9 以下への引き下げを検討するなら 10 帯 26 件が
+「密だが正常」かを先に実測してから**（2026-08-28 の「免除リストが空になった時」と
+「閾値が 10 に到達した時」は 2026-08-31 に消費済み）/
 ruff が cognitive complexity（astral-sh/ruff#2418）を実装した時（指標を引き直す）/
 **閾値引き上げによる回避を観測した 1 回目**（ハーネス ADR-0056 の Review-when — 規約側の再訪）。
 

@@ -332,6 +332,69 @@ def _staged_sort_key(meta_file: Path) -> tuple[int, str]:
     return (seq if isinstance(seq, int) else sys.maxsize, meta_file.name)
 
 
+def _budget_texts(
+    meta_files: Sequence[Path], data_root: Path, archived_paths: Sequence[Path]
+) -> tuple[list[str], list[str]]:
+    """The bodies entering the prompt and the bodies leaving it.
+
+    Split out of :func:`_print_system_budget_for_staged` for the C901 budget
+    (2026-08-31). Every containment and refusal test the two loops carry is
+    unchanged: the projection must not count an item the adopt loop will
+    refuse, so a sidecar naming a path outside ``data_root`` is skipped, a
+    symlinked archive candidate is skipped, and an existing target is
+    subtracted only when adoption really replaces it.
+    """
+    new_texts: list[str] = []
+    replaced_texts: list[str] = []
+    for meta_file in meta_files:
+        try:
+            meta = read_sidecar(meta_file)
+            if meta is None or not meta.get("target"):
+                continue
+            target = Path(meta["target"])
+            # The loop's own containment test, so the projection cannot
+            # count an item the loop will refuse (codex 2026-08-15).
+            if not _target_inside_data_root(target, data_root):
+                continue
+            content_file = meta_file.parent / meta_file.name[: -len(".meta.json")]
+            text = content_file.read_text(encoding="utf-8")
+            new_texts.append(text)
+            # Subtract the existing target only when adoption really
+            # replaces it: a canonical replacement (identity /
+            # constitution) or an idempotent identical write. A same-name,
+            # different-content target gets a `-N.md` suffix from
+            # approval._collision_free_path and the original survives —
+            # subtracting it would under-project (codex 2026-07-10 P2).
+            # This asks the same question as the write path above, so the
+            # two cannot disagree about whether the old text survives.
+            if target.exists():
+                existing = target.read_text(encoding="utf-8")
+                if (
+                    _replaces_canonical_target(meta.get("command") or "", target, data_root)
+                    or existing.strip() == text.strip()
+                ):
+                    replaced_texts.append(existing)
+        except (OSError, ValueError):
+            continue
+    for archived in archived_paths:
+        try:
+            # Same rule as the staged half above: an item the loop will
+            # refuse must not appear in the reading the operator approves
+            # against. A symlinked store skill passes containment but
+            # `_archive_skill_file` refuses it, and reading it here would
+            # subtract the REFERENT's body for a move that never happens
+            # (code review 2026-08-22). The other two archive refusals
+            # (just-adopted, successor-declined) are not knowable until
+            # the loop has run, so they stay out of scope for a
+            # before-the-loop projection.
+            if archived.is_symlink() or not _target_inside_data_root(archived, data_root):
+                continue
+            replaced_texts.append(archived.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+    return new_texts, replaced_texts
+
+
 def _print_system_budget_for_staged(
     meta_files: Sequence[Path], data_root: Path, *, archived_paths: Sequence[Path] = ()
 ) -> None:
@@ -361,54 +424,7 @@ def _print_system_budget_for_staged(
     try:
         from ..core.llm import system_prompt_budget_reading
 
-        new_texts: list[str] = []
-        replaced_texts: list[str] = []
-        for meta_file in meta_files:
-            try:
-                meta = read_sidecar(meta_file)
-                if meta is None or not meta.get("target"):
-                    continue
-                target = Path(meta["target"])
-                # The loop's own containment test, so the projection cannot
-                # count an item the loop will refuse (codex 2026-08-15).
-                if not _target_inside_data_root(target, data_root):
-                    continue
-                content_file = meta_file.parent / meta_file.name[: -len(".meta.json")]
-                text = content_file.read_text(encoding="utf-8")
-                new_texts.append(text)
-                # Subtract the existing target only when adoption really
-                # replaces it: a canonical replacement (identity /
-                # constitution) or an idempotent identical write. A same-name,
-                # different-content target gets a `-N.md` suffix from
-                # approval._collision_free_path and the original survives —
-                # subtracting it would under-project (codex 2026-07-10 P2).
-                # This asks the same question as the write path above, so the
-                # two cannot disagree about whether the old text survives.
-                if target.exists():
-                    existing = target.read_text(encoding="utf-8")
-                    if (
-                        _replaces_canonical_target(meta.get("command") or "", target, data_root)
-                        or existing.strip() == text.strip()
-                    ):
-                        replaced_texts.append(existing)
-            except (OSError, ValueError):
-                continue
-        for archived in archived_paths:
-            try:
-                # Same rule as the staged half above: an item the loop will
-                # refuse must not appear in the reading the operator approves
-                # against. A symlinked store skill passes containment but
-                # `_archive_skill_file` refuses it, and reading it here would
-                # subtract the REFERENT's body for a move that never happens
-                # (code review 2026-08-22). The other two archive refusals
-                # (just-adopted, successor-declined) are not knowable until
-                # the loop has run, so they stay out of scope for a
-                # before-the-loop projection.
-                if archived.is_symlink() or not _target_inside_data_root(archived, data_root):
-                    continue
-                replaced_texts.append(archived.read_text(encoding="utf-8"))
-            except (OSError, ValueError):
-                continue
+        new_texts, replaced_texts = _budget_texts(meta_files, data_root, archived_paths)
         # adopt-staged is a Tier-1 (no-LLM-setup) command, so mirror the
         # session-time prompt composition (agent.py startup: identity +
         # axioms + skills + rules) via per-reading overrides — the reading

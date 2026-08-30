@@ -86,6 +86,38 @@ def classify_action(record: dict[str, Any]) -> str:
     return "idle"
 
 
+def _collect_responses(
+    subsequent: list[dict[str, Any]],
+    cutoff: float,
+    known_agents: set | None,
+) -> tuple[list[dict[str, Any]], bool]:
+    """Received interactions inside the window, and whether one is from a new agent.
+
+    Stops at the first record past ``cutoff`` — the list is in timestamp order,
+    so a later one cannot be in the window either. An unparsable timestamp is
+    skipped rather than ending the scan.
+    """
+    responses: list[dict[str, Any]] = []
+    new_agent = False
+    for sub in subsequent:
+        try:
+            sub_ts = datetime.fromisoformat(sub.get("ts", ""))
+        except (ValueError, TypeError):
+            continue
+        if sub_ts.timestamp() > cutoff:
+            break
+        sub_data = sub.get("data", {})
+        # Count received interactions as responses
+        if sub.get("type", "") != "interaction" or sub_data.get("direction") != "received":
+            continue
+        responses.append(sub)
+        if known_agents is not None:
+            agent_id = sub_data.get("agent_id", "")
+            if agent_id and agent_id not in known_agents:
+                new_agent = True
+    return responses, new_agent
+
+
 def classify_outcome(
     record: dict[str, Any],
     subsequent: list[dict[str, Any]],
@@ -104,28 +136,7 @@ def classify_outcome(
         return "no_response"
 
     cutoff = ts.timestamp() + config.response_window_seconds
-    responses = []
-    new_agent = False
-
-    for sub in subsequent:
-        sub_ts_str = sub.get("ts", "")
-        try:
-            sub_ts = datetime.fromisoformat(sub_ts_str)
-        except (ValueError, TypeError):
-            continue
-        if sub_ts.timestamp() > cutoff:
-            break
-
-        sub_type = sub.get("type", "")
-        sub_data = sub.get("data", {})
-
-        # Count received interactions as responses
-        if sub_type == "interaction" and sub_data.get("direction") == "received":
-            responses.append(sub)
-            if known_agents is not None:
-                agent_id = sub_data.get("agent_id", "")
-                if agent_id and agent_id not in known_agents:
-                    new_agent = True
+    responses, new_agent = _collect_responses(subsequent, cutoff, known_agents)
 
     if new_agent:
         return "new_connection"

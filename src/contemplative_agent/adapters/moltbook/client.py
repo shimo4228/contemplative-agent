@@ -148,6 +148,76 @@ def _content_status(body: dict[str, Any]) -> dict[str, Any]:
     return status
 
 
+def _describe_body(
+    record: dict[str, Any],
+    body: dict,
+    *,
+    status_code: int,
+    endpoint: str,
+) -> None:
+    """Add the structural fields a dict body contributes to an audit record.
+
+    Shape only — key names, the success flag, the content status, the soft-fail
+    flag and the drift set. The one free-text field is ``error``, and it goes
+    through ``strip_to_printable`` with a 200-char cap before it lands.
+    """
+    record["keys"] = sorted(body.keys())
+    if "success" in body:
+        record["success"] = bool(body["success"])
+    status = _content_status(body)
+    if status:
+        record["content_status"] = status
+    if status_code < 400 and body.get("success") is False:
+        record["soft_fail"] = True
+    if status_code >= 400 or body.get("success") is False:
+        err = strip_to_printable(body.get("error", ""), 200)
+        if err:
+            record["error"] = err
+    # Drift check only on success: a 4xx/5xx body is the error
+    # envelope ({error, message, ...}), which legitimately lacks the
+    # success-shape keys — checking it there is a false positive.
+    expected = _EXPECTED_KEYS.get(endpoint)
+    if status_code < 400 and expected is not None:
+        missing = expected - set(body.keys())
+        if missing:
+            record["drift_missing"] = sorted(missing)
+            logger.warning(
+                "API drift: %s missing expected key(s) %s (got %s)",
+                endpoint,
+                sorted(missing),
+                sorted(body.keys()),
+            )
+
+
+def _comment_envelope(resp: requests.Response, post_id: str) -> dict[str, Any] | None:
+    """The comment response body as an object, or ``None`` when it is ambiguous.
+
+    ``None`` means "assume success": the comment may well have been created,
+    and a false negative would retry and post a duplicate externally — worse
+    than a stale dedup entry. Both ambiguous shapes (non-JSON, non-object) are
+    warned about and take the same disposition, as they did inline.
+    """
+    try:
+        data = resp.json()
+    except ValueError:
+        logger.warning(
+            "Comment response for %s is not JSON (HTTP %d); assuming "
+            "success to avoid a duplicate-posting retry",
+            post_id[:12],
+            resp.status_code,
+        )
+        return None
+    if not isinstance(data, dict):
+        logger.warning(
+            "Comment response for %s is not an object (%s); assuming "
+            "success to avoid a duplicate-posting retry",
+            post_id[:12],
+            type(data).__name__,
+        )
+        return None
+    return data
+
+
 class MoltbookClientError(Exception):
     """Raised for Moltbook API errors."""
 
@@ -287,17 +357,27 @@ class MoltbookClient:
                     bucket,
                 )
 
+        self._parse_reset_header(response, is_read)
+
+    def _parse_reset_header(self, response: requests.Response, is_read: bool) -> None:
+        """Store the bucket's reset epoch, if the header carries a usable one.
+
+        A missing or malformed reset is left alone rather than zeroed: an
+        unknown reset means "no proactive wait time known", and a 0.0 would
+        read as "already reset" and disarm the wait.
+        """
         reset = response.headers.get("X-RateLimit-Reset")
-        if reset is not None:
-            try:
-                value = max(0.0, float(reset))
-            except (ValueError, TypeError):
-                logger.debug("Malformed X-RateLimit-Reset header: %r", reset)
-            else:
-                if is_read:
-                    self._read_reset = value
-                else:
-                    self._write_reset = value
+        if reset is None:
+            return
+        try:
+            value = max(0.0, float(reset))
+        except (ValueError, TypeError):
+            logger.debug("Malformed X-RateLimit-Reset header: %r", reset)
+            return
+        if is_read:
+            self._read_reset = value
+        else:
+            self._write_reset = value
 
     @property
     def rate_limit_remaining(self) -> int | None:
@@ -473,32 +553,7 @@ class MoltbookClient:
             if rate is not None:
                 record["rate_remaining"] = rate
             if isinstance(body, dict):
-                record["keys"] = sorted(body.keys())
-                if "success" in body:
-                    record["success"] = bool(body["success"])
-                status = _content_status(body)
-                if status:
-                    record["content_status"] = status
-                if status_code < 400 and body.get("success") is False:
-                    record["soft_fail"] = True
-                if status_code >= 400 or body.get("success") is False:
-                    err = strip_to_printable(body.get("error", ""), 200)
-                    if err:
-                        record["error"] = err
-                # Drift check only on success: a 4xx/5xx body is the error
-                # envelope ({error, message, ...}), which legitimately lacks the
-                # success-shape keys — checking it there is a false positive.
-                expected = _EXPECTED_KEYS.get(endpoint)
-                if status_code < 400 and expected is not None:
-                    missing = expected - set(body.keys())
-                    if missing:
-                        record["drift_missing"] = sorted(missing)
-                        logger.warning(
-                            "API drift: %s missing expected key(s) %s (got %s)",
-                            endpoint,
-                            sorted(missing),
-                            sorted(body.keys()),
-                        )
+                _describe_body(record, body, status_code=status_code, endpoint=endpoint)
             self._append_api_audit(record)
         except Exception as exc:  # never let instrumentation break a request
             logger.warning("API audit record failed: %s", exc)
@@ -709,23 +764,8 @@ class MoltbookClient:
                 raise MoltbookClientError(f"Invalid parent_id for comment: {parent_id[:50]}")
             body["parent_id"] = parent_id
         resp = self.post(f"/posts/{post_id}/comments", json=body)
-        try:
-            data = resp.json()
-        except ValueError:
-            logger.warning(
-                "Comment response for %s is not JSON (HTTP %d); assuming "
-                "success to avoid a duplicate-posting retry",
-                post_id[:12],
-                resp.status_code,
-            )
-            return {}
-        if not isinstance(data, dict):
-            logger.warning(
-                "Comment response for %s is not an object (%s); assuming "
-                "success to avoid a duplicate-posting retry",
-                post_id[:12],
-                type(data).__name__,
-            )
+        data = _comment_envelope(resp, post_id)
+        if data is None:
             return {}
         if "success" in data and not data["success"]:
             # Unlike the multi-line HTTP body at the status>=400 path, the

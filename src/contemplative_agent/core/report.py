@@ -42,6 +42,22 @@ _CONFIG_META_KEYS = (
 )
 
 
+def _merge_session_meta(meta: dict[str, Any], data: dict[str, Any]) -> None:
+    """Fold one session-start record into the day's metadata.
+
+    Keep first-seen values, fill in missing keys from later sessions.
+    Bug-audit 2026-07-06 M7: when a later session start carries a DIFFERENT
+    value for a rendered config key (mid-day domain/model/axioms change), flag
+    it so the report does not silently attribute the whole day's activity to
+    the first session's configuration.
+    """
+    for k, v in data.items():
+        if k not in meta:
+            meta[k] = v
+        elif k in _CONFIG_META_KEYS and meta[k] != v:
+            meta["_config_changed"] = True
+
+
 def _parse_log(
     jsonl_path: Path,
 ) -> tuple[
@@ -68,17 +84,7 @@ def _parse_log(
             continue
 
         if entry.get("type") == "session" and entry.get("data", {}).get("event") == "start":
-            # Merge: keep first-seen values, fill in missing keys from later
-            # sessions. Bug-audit 2026-07-06 M7: when a later session start
-            # carries a DIFFERENT value for a rendered config key (mid-day
-            # domain/model/axioms change), flag it so the report does not
-            # silently attribute the whole day's activity to the first
-            # session's configuration.
-            for k, v in entry.get("data", {}).items():
-                if k not in meta:
-                    meta[k] = v
-                elif k in _CONFIG_META_KEYS and meta[k] != v:
-                    meta["_config_changed"] = True
+            _merge_session_meta(meta, entry.get("data", {}))
             continue
 
         data = entry.get("data", {})

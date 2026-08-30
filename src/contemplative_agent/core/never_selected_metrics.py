@@ -14,6 +14,7 @@ about where the window is.
 from __future__ import annotations
 
 import logging
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -696,6 +697,24 @@ def _withholding(reading: NeverSelectedReading, codes: frozenset[str]) -> tuple[
     return tuple(c for c in reading.reasons if c in codes)
 
 
+def _population_lines(
+    withheld: Sequence[str],
+    entries: Sequence[Any],
+    render: Callable[[Any], str],
+) -> list[str]:
+    """One population's list: WITHHELD, the rendered entries, or "(none)".
+
+    Withholding wins over emptiness. An empty list under a withheld population
+    would read as "there are none", which is the opposite of "this reading
+    cannot answer" — the distinction the withholding vocabulary exists for.
+    """
+    if withheld:
+        return [f"- WITHHELD ({', '.join(withheld)}) — this reading cannot answer"]
+    if entries:
+        return [render(entry) for entry in entries]
+    return ["- (none)"]
+
+
 def format_never_selected_report(reading: NeverSelectedReading) -> str:
     """Render the exit reading for a terminal (`report --skill-selection`).
 
@@ -769,14 +788,13 @@ def format_never_selected_report(reading: NeverSelectedReading) -> str:
         f"Strict (0 selections in the whole history, >= {reading.exposure_floor} "
         "judged exposures) — archive candidates for the human gate:"
     )
-    withheld = _withholding(reading, NEVER_SELECTED_STRICT_WITHHELD)
-    if withheld:
-        lines.append(f"- WITHHELD ({', '.join(withheld)}) — this reading cannot answer")
-    elif reading.strict:
-        for entry in reading.strict:
-            lines.append(f"- {entry.name}: offered in {entry.judged_exposure} judged records")
-    else:
-        lines.append("- (none)")
+    lines.extend(
+        _population_lines(
+            _withholding(reading, NEVER_SELECTED_STRICT_WITHHELD),
+            reading.strict,
+            lambda entry: f"- {entry.name}: offered in {entry.judged_exposure} judged records",
+        )
+    )
     if reading.below_floor:
         highest = max(e.judged_exposure for e in reading.below_floor)
         lines.append("")
@@ -793,16 +811,15 @@ def format_never_selected_report(reading: NeverSelectedReading) -> str:
     lines.append(
         f"  fail-open in {span}: {reading.window_fail_open} of {reading.window_records} records"
     )
-    dormant_withheld = _withholding(reading, NEVER_SELECTED_DORMANT_WITHHELD)
-    if dormant_withheld:
-        lines.append(f"- WITHHELD ({', '.join(dormant_withheld)}) — this reading cannot answer")
-    elif reading.dormant:
-        for entry in reading.dormant:
-            lines.append(
+    lines.extend(
+        _population_lines(
+            _withholding(reading, NEVER_SELECTED_DORMANT_WITHHELD),
+            reading.dormant,
+            lambda entry: (
                 f"- {entry.name}: offered in {entry.window_exposure} judged records "
                 f"this window, last selected {entry.last_selected or '—'} "
                 "(whole history — may post-date the window)"
-            )
-    else:
-        lines.append("- (none)")
+            ),
+        )
+    )
     return "\n".join(lines)

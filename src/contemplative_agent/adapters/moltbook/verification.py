@@ -189,6 +189,30 @@ _ABSTAIN_REASON_FALLBACK_DISABLED = "reason_fallback_disabled"
 _ABSTAIN_REASON_LLM_NONE = "llm_none"
 
 
+def _collect_rejections(complete: bytes, rejected: dict[str, set[str]]) -> None:
+    """Fold server-rejection rows from a run of complete lines into ``rejected``.
+
+    A row counts only when it is an object, records ``verify_success: false``
+    with the incorrect-answer marker in its error, and carries both a challenge
+    digest and a non-empty answer. Anything else is skipped — this reader fails
+    open by construction, never blocking a solve on a log it cannot parse.
+    """
+    for raw_line in complete.split(b"\n"):
+        try:
+            record = json.loads(raw_line.decode("utf-8", "replace"))
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(record, dict) or record.get("verify_success") is not False:
+            continue
+        error = record.get("error")
+        if not isinstance(error, str) or _REJECTED_ERROR_MARKER not in error.lower():
+            continue
+        sha = record.get("challenge_sha256")
+        answer = record.get("answer")
+        if isinstance(sha, str) and isinstance(answer, str) and answer:
+            rejected.setdefault(sha, set()).add(answer)
+
+
 def _load_rejected_answers(challenge_sha256: str, path: Path | None = None) -> frozenset[str]:
     """Answers the server has already rejected for this exact challenge.
 
@@ -220,20 +244,7 @@ def _load_rejected_answers(challenge_sha256: str, path: Path | None = None) -> f
         # may leave a trailing partial line, which the next call re-reads.
         complete, newline, _ = chunk.rpartition(b"\n")
         if newline:
-            for raw_line in complete.split(b"\n"):
-                try:
-                    record = json.loads(raw_line.decode("utf-8", "replace"))
-                except json.JSONDecodeError:
-                    continue
-                if not isinstance(record, dict) or record.get("verify_success") is not False:
-                    continue
-                error = record.get("error")
-                if not isinstance(error, str) or _REJECTED_ERROR_MARKER not in error.lower():
-                    continue
-                sha = record.get("challenge_sha256")
-                answer = record.get("answer")
-                if isinstance(sha, str) and isinstance(answer, str) and answer:
-                    rejected.setdefault(sha, set()).add(answer)
+            _collect_rejections(complete, rejected)
             offset += len(complete) + len(newline)
         _rejected_answers_cache[str(target)] = (offset, rejected)
     return frozenset(rejected.get(challenge_sha256, ()))

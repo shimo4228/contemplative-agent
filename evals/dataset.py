@@ -32,6 +32,26 @@ class GoldenCase:
     post: str
 
 
+def _validate_record(record: object, *, where: str) -> None:
+    """Raise :class:`DatasetError` unless the record is a well-formed case.
+
+    Checked in the same order as before: shape, required string keys, then the
+    two closed vocabularies, then a non-empty post. Duplicate ids stay with the
+    caller — that is the one check needing state across lines.
+    """
+    if not isinstance(record, dict):
+        raise DatasetError(f"{where}: not a JSON object")
+    for key in _REQUIRED_KEYS:
+        if key not in record or not isinstance(record[key], str):
+            raise DatasetError(f"{where}: missing or non-string '{key}'")
+    if record["axiom"] not in AXIOMS:
+        raise DatasetError(f"{where}: unknown axiom {record['axiom']!r}")
+    if record["kind"] not in KINDS:
+        raise DatasetError(f"{where}: unknown kind {record['kind']!r}")
+    if not record["post"].strip():
+        raise DatasetError(f"{where}: empty post")
+
+
 def load_dataset(path: Path) -> list[GoldenCase]:
     """Load and validate a golden JSONL dataset, preserving file order."""
     cases: list[GoldenCase] = []
@@ -43,17 +63,7 @@ def load_dataset(path: Path) -> list[GoldenCase]:
             record = json.loads(line)
         except json.JSONDecodeError as exc:
             raise DatasetError(f"{path.name} line {lineno}: invalid JSON ({exc})") from exc
-        if not isinstance(record, dict):
-            raise DatasetError(f"{path.name} line {lineno}: not a JSON object")
-        for key in _REQUIRED_KEYS:
-            if key not in record or not isinstance(record[key], str):
-                raise DatasetError(f"{path.name} line {lineno}: missing or non-string '{key}'")
-        if record["axiom"] not in AXIOMS:
-            raise DatasetError(f"{path.name} line {lineno}: unknown axiom {record['axiom']!r}")
-        if record["kind"] not in KINDS:
-            raise DatasetError(f"{path.name} line {lineno}: unknown kind {record['kind']!r}")
-        if not record["post"].strip():
-            raise DatasetError(f"{path.name} line {lineno}: empty post")
+        _validate_record(record, where=f"{path.name} line {lineno}")
         if record["id"] in seen:
             raise DatasetError(f"{path.name} line {lineno}: duplicate id {record['id']!r}")
         seen.add(record["id"])

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import random
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Iterable
 from datetime import datetime, timezone
 
 from ...core._io import log_safe_identifier
@@ -36,6 +36,15 @@ logger = logging.getLogger(__name__)
 
 # Cache TTL for feed: posts don't change quickly
 _FEED_CACHE_TTL = 600.0
+
+
+def _extend_unseen(posts: list[dict], seen_ids: set[str], incoming: Iterable[dict]) -> None:
+    """Append the posts carrying an id not seen yet, in arrival order."""
+    for post in incoming:
+        pid = post.get("id", "")
+        if pid and pid not in seen_ids:
+            seen_ids.add(pid)
+            posts.append(post)
 
 
 class FeedManager:
@@ -131,25 +140,7 @@ class FeedManager:
             logger.info("Circuit breaker open, skipping feed cycle")
             return
 
-        seen_ids: set[str] = set()
-        all_posts: list[dict] = []
-
-        # Source 1: Following feed
-        if client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve):
-            for post in client.get_following_feed(limit=25):
-                pid = post.get("id", "")
-                if pid and pid not in seen_ids:
-                    seen_ids.add(pid)
-                    all_posts.append(post)
-
-        # Source 2: Submolt feeds (cached)
-        for post in self.get_feed(client):
-            pid = post.get("id", "")
-            if pid and pid not in seen_ids:
-                seen_ids.add(pid)
-                all_posts.append(post)
-
-        for post in all_posts:
+        for post in self._gather_feed_posts(client):
             if time.time() >= end_time or self._ctx.is_rate_limited:
                 break
             if not client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve):
@@ -167,6 +158,23 @@ class FeedManager:
                 logger.info("Circuit breaker open, pausing feed engagement")
                 break
             self.engage_with_post(post, client, scheduler)
+
+    def _gather_feed_posts(self, client: MoltbookClient) -> list[dict]:
+        """Both sources, deduplicated by post id, following feed first.
+
+        The following feed is skipped entirely when the read budget is low —
+        it costs a GET, while the submolt feed is served from cache.
+        """
+        seen_ids: set[str] = set()
+        all_posts: list[dict] = []
+
+        # Source 1: Following feed
+        if client.has_read_budget(ADAPTIVE_BACKOFF.read_budget_reserve):
+            _extend_unseen(all_posts, seen_ids, client.get_following_feed(limit=25))
+
+        # Source 2: Submolt feeds (cached)
+        _extend_unseen(all_posts, seen_ids, self.get_feed(client))
+        return all_posts
 
     # ------------------------------------------------------------------
     # Post engagement

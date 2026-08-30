@@ -129,6 +129,94 @@ def _handle_init(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> 
     _do_init(template_name=args.template)
 
 
+def _print_selection_readings(
+    args: argparse.Namespace,
+    log_dir: Path,
+    since: date | None,
+    until: date | None,
+    days: int,
+) -> None:
+    """The two --skill-selection readings, each isolated from the other.
+
+    The guard moved to the caller; the two ``try`` blocks did NOT merge.
+    They answer different questions over different scopes, and sharing a
+    handler once made one instrument's failure silently delete the other's
+    output — isolation between read-only instruments should be structural,
+    not a side effect of where the statements happen to sit.
+    """
+    try:
+        from ..core.selection_metrics import (
+            format_skill_selection_report,
+            read_skill_selection_log,
+        )
+
+        reading = read_skill_selection_log(
+            log_dir,
+            days=None if since is not None else days,
+            since=since,
+            until=until,
+            skills_dir=config.SKILLS_DIR if config.SKILLS_DIR.is_dir() else None,
+            # Read-only: only the mechanism split of rejected names
+            # consults them (is a foreign token constitution / identity
+            # vocabulary?). Absent or unreadable → the split abstains
+            # with a reason code rather than guessing.
+            value_layer_paths=(
+                # Same resolution as every other constitution reader
+                # (`cli/runtime.py`, `cli/memory_cmds.py`): a reading
+                # that ignored --constitution-dir would measure bleed
+                # against text the agent is not running on.
+                args.constitution_dir or config.CONSTITUTION_DIR,
+                config.IDENTITY_PATH,
+            ),
+        )
+        print()
+        # Terminal output for a human, who is the reader the rejected
+        # names exist for. The weekly intake takes the default and
+        # gets the same reading without them — see the renderer.
+        print(format_skill_selection_report(reading, include_rejected_names=True))
+    except Exception as exc:
+        logger.warning("Skill-selection reading failed (report unaffected): %s", exc)
+
+    # The ADR-0097 D5 exit reading, in its OWN try: it answers a different
+    # question over a different scope, and sharing a handler with the block
+    # above made one instrument's failure silently delete the other's output.
+    # Isolation between read-only instruments should be structural, not a
+    # side effect of where the statements happen to sit.
+    try:
+        from ..core.never_selected_metrics import (
+            NEVER_SELECTED_DORMANT_WINDOW_DAYS,
+            format_never_selected_report,
+            read_never_selected,
+        )
+
+        # The windowed reading above cannot answer "is this skill an
+        # archive candidate": most of its never-selected list is dormant
+        # (selected before the window opened), and archiving one of those
+        # WOULD change judged behaviour. The whole-history reading is what
+        # separates the two (ADR-0097 D5). The weekly packet will render
+        # the same numbers once the chain passes them; today this is the
+        # only surface that shows them.
+        print()
+        print(
+            format_never_selected_report(
+                read_never_selected(
+                    log_dir,
+                    # --since/--until move both readings, resolved by the
+                    # same function, so they never name different spans.
+                    # Absent them the dormant cut is the ADR's fortnight,
+                    # NOT the report's --days: this reading is about the
+                    # skill store, and its window is a property of D5.
+                    days=None if since is not None else NEVER_SELECTED_DORMANT_WINDOW_DAYS,
+                    since=since,
+                    until=until,
+                    skills_dir=(config.SKILLS_DIR if config.SKILLS_DIR.is_dir() else None),
+                )
+            )
+        )
+    except Exception as exc:
+        logger.warning("Never-selected reading failed (report unaffected): %s", exc)
+
+
 def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> None:
     from ..core.memory import EpisodeLog
     from ..core.metrics import compute_metrics, format_report
@@ -176,78 +264,7 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     # Aggregates logs/skill-selection-*.jsonl; observability only — a broken
     # instrument degrades to a WARNING and never breaks the report.
     if getattr(args, "skill_selection", False):
-        try:
-            from ..core.selection_metrics import (
-                format_skill_selection_report,
-                read_skill_selection_log,
-            )
-
-            reading = read_skill_selection_log(
-                log_dir,
-                days=None if since is not None else days,
-                since=since,
-                until=until,
-                skills_dir=config.SKILLS_DIR if config.SKILLS_DIR.is_dir() else None,
-                # Read-only: only the mechanism split of rejected names
-                # consults them (is a foreign token constitution / identity
-                # vocabulary?). Absent or unreadable → the split abstains
-                # with a reason code rather than guessing.
-                value_layer_paths=(
-                    # Same resolution as every other constitution reader
-                    # (`cli/runtime.py`, `cli/memory_cmds.py`): a reading
-                    # that ignored --constitution-dir would measure bleed
-                    # against text the agent is not running on.
-                    args.constitution_dir or config.CONSTITUTION_DIR,
-                    config.IDENTITY_PATH,
-                ),
-            )
-            print()
-            # Terminal output for a human, who is the reader the rejected
-            # names exist for. The weekly intake takes the default and
-            # gets the same reading without them — see the renderer.
-            print(format_skill_selection_report(reading, include_rejected_names=True))
-        except Exception as exc:
-            logger.warning("Skill-selection reading failed (report unaffected): %s", exc)
-
-    # The ADR-0097 D5 exit reading, in its OWN try: it answers a different
-    # question over a different scope, and sharing a handler with the block
-    # above made one instrument's failure silently delete the other's output.
-    # Isolation between read-only instruments should be structural, not a
-    # side effect of where the statements happen to sit.
-    if getattr(args, "skill_selection", False):
-        try:
-            from ..core.never_selected_metrics import (
-                NEVER_SELECTED_DORMANT_WINDOW_DAYS,
-                format_never_selected_report,
-                read_never_selected,
-            )
-
-            # The windowed reading above cannot answer "is this skill an
-            # archive candidate": most of its never-selected list is dormant
-            # (selected before the window opened), and archiving one of those
-            # WOULD change judged behaviour. The whole-history reading is what
-            # separates the two (ADR-0097 D5). The weekly packet will render
-            # the same numbers once the chain passes them; today this is the
-            # only surface that shows them.
-            print()
-            print(
-                format_never_selected_report(
-                    read_never_selected(
-                        log_dir,
-                        # --since/--until move both readings, resolved by the
-                        # same function, so they never name different spans.
-                        # Absent them the dormant cut is the ADR's fortnight,
-                        # NOT the report's --days: this reading is about the
-                        # skill store, and its window is a property of D5.
-                        days=None if since is not None else NEVER_SELECTED_DORMANT_WINDOW_DAYS,
-                        since=since,
-                        until=until,
-                        skills_dir=(config.SKILLS_DIR if config.SKILLS_DIR.is_dir() else None),
-                    )
-                )
-            )
-        except Exception as exc:
-            logger.warning("Never-selected reading failed (report unaffected): %s", exc)
+        _print_selection_readings(args, log_dir, since, until, days)
 
     # --submolt-scope: read-only scope reading (ADR-0086). Aggregates
     # logs/submolt-scope-*.jsonl written by `submolt-scan`; observability
