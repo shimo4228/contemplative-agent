@@ -1,5 +1,5 @@
 ---
-state: in_progress
+state: done 2026-08-29
 state_since: 2026-08-26
 origin: idea
 review-when: 台帳圧縮しても同一観察の段落再演が 2 週続く / 診断出力が観察台帳と恒常的に重複する / 逸脱記録が 4 週連続で空かつ縦断記録として痩せすぎ / ゲートの eli5 推奨への同意率が ~100% で推移し続ける
@@ -46,6 +46,36 @@ grill-me 形式の設計セッションで確定。設計判断の全記録は A
 構造ゲート差し替え・ja promote 撤去・台帳 delta の検証付き append /
 `.claude/skills/weekly-report/`・`weekly-gate/` 更新 / 台帳 bootstrap（既知の飽和観察 7 件 +
 ベースライン 6 本を初出日付きで登記）。
+
+## 2026-08-29 done（実運用 1 回 + ゲート初回）
+
+`in_progress` → `done`。done 条件の両方が揃った:
+
+- **新形式の週次実運用が 1 回完走**（2026-08-28）。`weekly-2026-08-28.md` が 6 節構成
+  （Inventory / Ledger / Deviations / Exceptions / Sample / Discarded）で生成され、
+  `observation-ledger.jsonl` が append され、ja 訳ファイルは退役どおり生成されていない。
+- **ゲートの eli5 ブリーフィングが per-item 記録付きで初回実施**（2026-08-29 の weekly-gate）。
+  `pipeline-metrics.jsonl` に `run_id=gate-2026-08-28` の `gate_item` が **48 行**
+  （insight 43 / retire 3 / docs 2）。
+
+診断側も新形式で機能した: Deviations 起点の F1 が 2 件出て、両方 draft 起票され
+（[RFC-0018](0018-self-post-seed-voice-label.md) / [RFC-0019](0019-weekly-session-value-layer-read.md)）、
+triage で dispatch されて 2026-08-29 に merge 済み。成功基準 ④「F1 が逸脱・例外起点になる」の
+初回サンプルはこれ。
+
+## 縦断で見る 4 週読み（frontmatter の review-when と対）
+
+`done` はこの再設計の**出荷**を指す。成功基準①②③の 4 週読みは残っており、初回の読み値を
+ここに置く（次の観測は weekly-gate 側で継続する。行を開けておく必要は無い — review-when が
+発火条件を持つ）:
+
+- **推奨と裁定の一致率 = 45/45（100%、判定を伴う項目のみ。`recommendation=none` の 3 件を除く）。**
+  review-when は「~100% で推移し続ける」を発火条件にしているので、1 週では発火しない。
+  ただし**この計器の存在理由は eli5 ブリーフィングが実効フィルタ化していないかの検証**なので、
+  初回が満点だったことは記録しておく価値がある（説明係と裁定者が同一セッションにいる構造上、
+  一致率が高く出る方向のバイアスが元からある）。
+- ①同一観察の段落再演の消失 / ②静かな週の文書が実際に痩せる は、比較対象になる週が
+  まだ 1 週しか無いので未測。
 
 ## Status
 
