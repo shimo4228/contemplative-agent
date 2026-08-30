@@ -33,7 +33,7 @@
 **lint — 予算系（C901）**（選定日 2026-08-28）
 ruff の C901（mccabe）を `select` に足しただけで、既存の lint ゲートがそのまま発火する
 （`verify.sh` は無変更 = hash 再承認なし。staged / full の両モードで pyproject が参照される）。
-閾値は `[tool.ruff.lint.mccabe] max-complexity = 13`（2026-08-31 に 15 から引き下げ。下の
+閾値は `[tool.ruff.lint.mccabe] max-complexity = 11`（2026-08-31 に 15 から引き下げ中。下の
 「閾値の推移」を見る）。
 実測分布 as-of **2026-08-28**（対象は verify ゲートと同じ src / tests / scripts / evals、
 関数 4,580 件）: p50=1 / p90=3 / p95=5 / **p99=10** / **max=35**。violation は
@@ -70,6 +70,21 @@ uv run ruff check --isolated --no-cache --output-format json --select C901 \
 再実測分布 as-of **2026-08-31**（同じ対象、関数 4,599 件）:
 p50=1 / p90=3 / p95=5 / **p99=9** / **max=13**。violation は `>10` で 19 件 / `>11` で 6 件 /
 `>12` で 2 件 / `>13` で 0 件。
+
+**2026-08-31: 13 → 11**（2 段目。12 は増分 2 件しかないので段として飛ばした）。刈った 6 関数
+（すべて 10 以下まで落とした — 3 段目の目標を先取り）:
+
+| 関数 | 13/12 → | 手段 |
+|---|---|---|
+| `core/insight.py::extract_insight` | 9 | 前段の窓読み・クラスタリングを `_gather_batches`（error `str` センチネルをそのまま返す）、末尾のログを `_log_extraction_summary` へ |
+| `scripts/value_layer_approval_join.py::build_reading` | 4 | 走査を `_select_rows`（frozen `_Selection` を返す）+ `_collect_approved_hash`、cap を `_cap_rows` へ |
+| `scripts/retrieval_recall_measure.py::cosine_rankings` | 5 | 行列の退化判定 5 本を `_degenerate_arrays` へ（全部 `EMBEDDING_DEGENERATE` 1 コードに畳まれていたので分岐だけが移動） |
+| `scripts/retrieval_recall_measure.py::build_pairs` | 10 | review ごとの候補集約を `_batch_candidates` へ |
+| `core/selection_metrics.py::_scan_selection_window` | 4 | 日単位の走査を `_scan_selection_day` +（frozen）`_DayScan` へ。窓全体のコレクションは in-place のまま、日が「足す」スカラーだけ戻す。`_tally_selected` / `_record_reduction` も分離 |
+| `core/insight_novelty.py::_load_known_themes` | 3 | 2 ソースを `_skill_file_themes` / `_staged_ledger_themes`（Iterator）へ。空名の扱いは元の非対称のまま（skill 側は通す、ledger 側は落とす） |
+
+再実測分布 as-of **2026-08-31**（2 段目後、関数 4,611 件）:
+p50=1 / p90=3 / p95=5 / **p99=9** / **max=11**。violation は `>10` で 13 件 / `>11` で 0 件。
 
 **免除は足さない。** 刈り切れない関数が出たら閾値をその段で止め、理由をここに日付つきで記録する
 （2026-08-31 著者判断）。「10 は却下」（下の捨てた選択肢）は *導入時の* 閾値としての却下であり、

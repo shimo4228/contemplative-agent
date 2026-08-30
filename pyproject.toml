@@ -191,15 +191,15 @@ select = ["E4", "E7", "E9", "F", "B", "I", "T20", "UP", "C901"]
 # per-file-ignores is empty and stays empty: a function over the budget is a
 # design question, not a config entry. When one cannot be drained the answer
 # is to stop lowering the threshold, not to exempt the function.
-# Distribution as-of 2026-08-31 (src/tests/scripts/evals, 4,599 functions):
-# p50=1 / p90=3 / p95=5 / p99=9 / max=13. Introduced at 15 on 2026-08-28
-# (then p99=10 / max=35, 13 functions drained the same day); walked down to 13
-# on 2026-08-31, first of three planned steps toward 10.
+# Distribution as-of 2026-08-31 (src/tests/scripts/evals): p50=1 / p90=3 /
+# p95=5 / p99=9 / max=11. Introduced at 15 on 2026-08-28 (then p99=10 / max=35,
+# 13 functions drained the same day); walked down to 13 and then 11 on
+# 2026-08-31, two of three planned steps toward 10.
 # "10 was rejected" in the 2026-08-28 note meant rejected as an INTRODUCTION
 # threshold, where it would have put 24 files on the exemption list and
 # blinded the most-edited modules. Reached by draining instead, it exempts
 # nothing — which is the road being taken.
-max-complexity = 13
+max-complexity = 11
 
 [tool.ruff.lint.isort]
 # Keep explicit `X as X` re-export blocks (core/llm/__init__.py) compact

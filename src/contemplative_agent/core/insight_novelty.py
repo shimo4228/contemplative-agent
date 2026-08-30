@@ -11,8 +11,9 @@ from __future__ import annotations
 
 import json
 import logging
-from collections.abc import Sequence
+from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
+from itertools import chain
 from pathlib import Path
 
 from . import llm
@@ -166,6 +167,53 @@ def _pack_novelty_chunks(
     return chunks, unbudgetable
 
 
+def _skill_file_themes(skills_dir: Path | None) -> Iterator[tuple[str, str]]:
+    """Themes of the adopted skill files, in filename order.
+
+    Yields whatever ``skill_theme`` reports, empty name included — the caller
+    dedupes and this source has never filtered on emptiness.
+    """
+    if skills_dir is None or not skills_dir.is_dir():
+        return
+    for path in sorted(skills_dir.glob("*.md")):
+        if path.name.startswith("."):
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError:
+            logger.warning("novelty gate: unreadable skill file %s", path.name)
+            continue
+        yield skill_theme(text, fallback_name=path.stem)
+
+
+def _staged_ledger_themes(staged_ledger_path: Path | None) -> Iterator[tuple[str, str]]:
+    """Themes of previously staged candidates, in ledger order.
+
+    Unnamed records are dropped here rather than by the caller, which is where
+    that filter has always lived: an unreadable ledger, an unparsable line and
+    a nameless record are all "no theme", not a fault.
+    """
+    if staged_ledger_path is None or not staged_ledger_path.exists():
+        return
+    try:
+        lines = staged_ledger_path.read_text(encoding="utf-8").splitlines()
+    except OSError:
+        logger.warning("novelty gate: unreadable staged ledger")
+        lines = []
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            record = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        name = str(record.get("name") or "").strip()
+        if not name:
+            continue
+        yield name, str(record.get("description") or "").strip()
+
+
 def _load_known_themes(
     skills_dir: Path | None,
     staged_ledger_path: Path | None,
@@ -175,45 +223,18 @@ def _load_known_themes(
     Sources: adopted skill files (``skills_dir/*.md``) and the staged
     ledger (one JSON record per previously staged candidate — ADR-0074:
     a candidate counts as "considered" once it reached review, whether
-    or not it was adopted). Deduplicated by name, first occurrence wins.
+    or not it was adopted). Deduplicated by name, first occurrence wins,
+    and the skill files are read first so an adopted skill's description
+    beats a staged candidate's.
     """
     themes: list[tuple[str, str]] = []
     seen: set[str] = set()
-
-    if skills_dir is not None and skills_dir.is_dir():
-        for path in sorted(skills_dir.glob("*.md")):
-            if path.name.startswith("."):
-                continue
-            try:
-                text = path.read_text(encoding="utf-8")
-            except OSError:
-                logger.warning("novelty gate: unreadable skill file %s", path.name)
-                continue
-            name, description = skill_theme(text, fallback_name=path.stem)
-            if name not in seen:
-                seen.add(name)
-                themes.append((name, description))
-
-    if staged_ledger_path is not None and staged_ledger_path.exists():
-        try:
-            lines = staged_ledger_path.read_text(encoding="utf-8").splitlines()
-        except OSError:
-            logger.warning("novelty gate: unreadable staged ledger")
-            lines = []
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                continue
-            name = str(record.get("name") or "").strip()
-            if not name or name in seen:
-                continue
-            seen.add(name)
-            themes.append((name, str(record.get("description") or "").strip()))
-
+    sources = chain(_skill_file_themes(skills_dir), _staged_ledger_themes(staged_ledger_path))
+    for name, description in sources:
+        if name in seen:
+            continue
+        seen.add(name)
+        themes.append((name, description))
     return themes
 
 

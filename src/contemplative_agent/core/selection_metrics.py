@@ -28,6 +28,7 @@ from .selection_window import (
     _is_int,
     _is_prose,
     _iter_selection_days,
+    _SelectionDayFile,
     _tokens,
     resolve_selection_window,
 )
@@ -484,6 +485,109 @@ def _tally_regime(
     return True
 
 
+def _tally_selected(selected: list, skill_counts: dict[str, int], day_selected: set[str]) -> None:
+    """Count one record's selected names into the window and the day."""
+    for name in selected:
+        skill_counts[name] = skill_counts.get(name, 0) + 1
+        day_selected.add(name)
+
+
+def _record_reduction(rec: dict) -> int | None:
+    """The record's token reduction, or ``None`` when either side is unusable."""
+    full = rec.get("full_skill_tokens")
+    would_be = rec.get("would_be_skill_tokens")
+    if _is_int(full) and _is_int(would_be):
+        return full - would_be
+    return None
+
+
+@dataclass(frozen=True)
+class _DayScan:
+    """One day's contribution to the window tally, plus its per-day summary.
+
+    The window-level collections (verdicts, skill counts, exposure, rejected
+    names, regimes, reductions) are mutated in place by :func:`_scan_selection_day`
+    because they are shared across days; only the scalars a day *adds* travel
+    back here.
+    """
+
+    records: int
+    judged: int
+    enforced: int
+    judged_empty: int
+    hallucination_records: int
+    catalog_count_missing: int
+    summary: SkillSelectionDay
+
+
+def _scan_selection_day(
+    day_file: _SelectionDayFile,
+    *,
+    verdict_counts: dict[str, int],
+    skill_counts: dict[str, int],
+    selected_counts: list[int],
+    reductions: list[int],
+    exposure_counts: dict[str, int],
+    rejected_counts: dict[str, int],
+    regimes: dict[int, _RegimeAccumulator],
+) -> _DayScan:
+    """Fold one day's records into the window collections and count the day."""
+    date_part = day_file.date_part
+    day_records = 0
+    day_judged = 0
+    day_enforced = 0
+    day_judged_empty = 0
+    day_hallucinations = 0
+    day_catalog_missing = 0
+    day_selected: set[str] = set()
+    for rec in day_file.records:
+        day_records += 1
+        verdict = str(rec.get("verdict", "unknown"))
+        verdict_counts[verdict] = verdict_counts.get(verdict, 0) + 1
+        if verdict != "judged":
+            continue
+        # Everything below is judged-only, deliberately. Every rate
+        # this instrument reports is a rate over judged records, so a
+        # numerator counted on the other side of this line would be
+        # measured against a population it is not drawn from — which
+        # is exactly how "in catalog for 100 of 105 records" came to
+        # describe a skill that had never once been judged.
+        day_judged += 1
+        if rec.get("enforced"):
+            day_enforced += 1
+        _tally_exposure(rec, exposure_counts)
+        selected = rec.get("selected") or []
+        _tally_selected(selected, skill_counts, day_selected)
+        selected_counts.append(len(selected))
+        if not selected:
+            day_judged_empty += 1
+        if rec.get("rejected_names"):
+            day_hallucinations += 1
+        _tally_rejected_names(rec, rejected_counts)
+        reduction = _record_reduction(rec)
+        if reduction is not None:
+            reductions.append(reduction)
+        if not _tally_regime(rec, date_part=date_part, regimes=regimes):
+            day_catalog_missing += 1
+    return _DayScan(
+        records=day_records,
+        judged=day_judged,
+        enforced=day_enforced,
+        judged_empty=day_judged_empty,
+        hallucination_records=day_hallucinations,
+        catalog_count_missing=day_catalog_missing,
+        summary=SkillSelectionDay(
+            date=date_part,
+            records=day_records,
+            judged=day_judged,
+            enforced=day_enforced,
+            judged_empty=day_judged_empty,
+            hallucination_records=day_hallucinations,
+            distinct_selected=len(day_selected),
+        ),
+    )
+
+
 def _scan_selection_window(log_dir: Path, cutoff: date, upper: date | None) -> _WindowTally:
     """One pass over the window's ``skill-selection-*.jsonl`` files."""
     verdict_counts: dict[str, int] = {}
@@ -513,62 +617,24 @@ def _scan_selection_window(log_dir: Path, cutoff: date, upper: date | None) -> _
     ):
         if not day_file.readable:
             continue
-        date_part = day_file.date_part
-        day_records = 0
-        day_judged = 0
-        day_enforced = 0
-        day_judged_empty = 0
-        day_hallucinations = 0
-        day_selected: set[str] = set()
-        for rec in day_file.records:
-            records += 1
-            day_records += 1
-            verdict = str(rec.get("verdict", "unknown"))
-            verdict_counts[verdict] = verdict_counts.get(verdict, 0) + 1
-            if verdict != "judged":
-                continue
-            # Everything below is judged-only, deliberately. Every rate
-            # this instrument reports is a rate over judged records, so a
-            # numerator counted on the other side of this line would be
-            # measured against a population it is not drawn from — which
-            # is exactly how "in catalog for 100 of 105 records" came to
-            # describe a skill that had never once been judged.
-            judged_records += 1
-            day_judged += 1
-            if rec.get("enforced"):
-                enforced_records += 1
-                day_enforced += 1
-            _tally_exposure(rec, exposure_counts)
-            selected = rec.get("selected") or []
-            for name in selected:
-                skill_counts[name] = skill_counts.get(name, 0) + 1
-                day_selected.add(name)
-            selected_counts.append(len(selected))
-            if not selected:
-                judged_empty_records += 1
-                day_judged_empty += 1
-            if rec.get("rejected_names"):
-                hallucination_records += 1
-                day_hallucinations += 1
-            _tally_rejected_names(rec, rejected_counts)
-            full = rec.get("full_skill_tokens")
-            would_be = rec.get("would_be_skill_tokens")
-            if _is_int(full) and _is_int(would_be):
-                reductions.append(full - would_be)
-            if not _tally_regime(rec, date_part=date_part, regimes=regimes):
-                catalog_count_missing += 1
-        if day_records:
-            days_seen.append(
-                SkillSelectionDay(
-                    date=date_part,
-                    records=day_records,
-                    judged=day_judged,
-                    enforced=day_enforced,
-                    judged_empty=day_judged_empty,
-                    hallucination_records=day_hallucinations,
-                    distinct_selected=len(day_selected),
-                )
-            )
+        day = _scan_selection_day(
+            day_file,
+            verdict_counts=verdict_counts,
+            skill_counts=skill_counts,
+            selected_counts=selected_counts,
+            reductions=reductions,
+            exposure_counts=exposure_counts,
+            rejected_counts=rejected_counts,
+            regimes=regimes,
+        )
+        records += day.records
+        judged_records += day.judged
+        enforced_records += day.enforced
+        judged_empty_records += day.judged_empty
+        hallucination_records += day.hallucination_records
+        catalog_count_missing += day.catalog_count_missing
+        if day.records:
+            days_seen.append(day.summary)
     return _WindowTally(
         verdict_counts=verdict_counts,
         skill_counts=skill_counts,

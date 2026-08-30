@@ -478,6 +478,73 @@ def _apply_failopen_extraction_cap(
     return kept
 
 
+def _gather_batches(
+    knowledge_store: KnowledgeStore,
+    skills_dir: Path | None,
+    full: bool,
+    instrument_views: ViewLookup | None,
+) -> tuple[list[dict], list[_Batch]] | str:
+    """Load the window and cluster it, or return the caller's error string.
+
+    Every ``str`` here is a refusal the caller must pass through unchanged: it
+    is the channel that tells ``cli`` NOT to advance the ``.last_insight``
+    marker, so a refusal must never be flattened into an empty result.
+    """
+    knowledge_store.load()
+
+    raw_patterns = _select_patterns(knowledge_store, skills_dir, full)
+    if raw_patterns is None:
+        return (
+            "No previous insight run marker (.last_insight) found. Refusing to "
+            "recluster the entire live corpus implicitly (ADR-0074). Run with "
+            "--full to process all patterns deliberately, or create the marker "
+            "to scope the incremental window."
+        )
+
+    if len(raw_patterns) < MIN_PATTERNS_REQUIRED:
+        return (
+            f"Insufficient patterns ({len(raw_patterns)}/{MIN_PATTERNS_REQUIRED}). "
+            f"Run more sessions and distill first."
+        )
+
+    batches = _build_cluster_batches(raw_patterns, view_registry=instrument_views)
+
+    if not batches:
+        return (
+            f"No clusters met the size floor ({MIN_PATTERNS_REQUIRED}). "
+            f"Accumulate more diverse patterns or lower CLUSTER_THRESHOLD."
+        )
+    return raw_patterns, batches
+
+
+def _log_extraction_summary(
+    result: InsightResult,
+    batch_count: int,
+    abstained: Counter[InsightAbstainReason],
+) -> int:
+    """Emit the fault and yield lines; return the fault count."""
+    faults = result.fault_count
+    if faults:
+        logger.warning(
+            "Insight extraction summary: %d/%d cluster(s) abstained on a fault (%s); "
+            "their clusters yield no candidate this run",
+            faults,
+            batch_count,
+            " ".join(f"{reason}={abstained[reason]}" for reason in sorted(FAULT_ABSTAIN_REASONS)),
+        )
+    # Always emitted, faults or not: this is the yield reading. Before
+    # ADR-0096 a cluster that produced no candidate was only ever a failure,
+    # so there was no line in which a judged decline could appear — which is
+    # why a 0% decline rate stayed invisible while being the whole defect.
+    logger.info(
+        "Insight extraction yield: %d/%d cluster(s) yielded skills (nothing_promotable=%d)",
+        len(result.skills),
+        batch_count,
+        abstained[ABSTAIN_NOTHING_PROMOTABLE],
+    )
+    return faults
+
+
 def extract_insight(
     knowledge_store: KnowledgeStore | None = None,
     skills_dir: Path | None = None,
@@ -516,30 +583,10 @@ def extract_insight(
     if knowledge_store is None:
         return "No knowledge store provided."
 
-    knowledge_store.load()
-
-    raw_patterns = _select_patterns(knowledge_store, skills_dir, full)
-    if raw_patterns is None:
-        return (
-            "No previous insight run marker (.last_insight) found. Refusing to "
-            "recluster the entire live corpus implicitly (ADR-0074). Run with "
-            "--full to process all patterns deliberately, or create the marker "
-            "to scope the incremental window."
-        )
-
-    if len(raw_patterns) < MIN_PATTERNS_REQUIRED:
-        return (
-            f"Insufficient patterns ({len(raw_patterns)}/{MIN_PATTERNS_REQUIRED}). "
-            f"Run more sessions and distill first."
-        )
-
-    batches = _build_cluster_batches(raw_patterns, view_registry=instrument_views)
-
-    if not batches:
-        return (
-            f"No clusters met the size floor ({MIN_PATTERNS_REQUIRED}). "
-            f"Accumulate more diverse patterns or lower CLUSTER_THRESHOLD."
-        )
+    gathered = _gather_batches(knowledge_store, skills_dir, full, instrument_views)
+    if isinstance(gathered, str):
+        return gathered
+    raw_patterns, batches = gathered
 
     # ADR-0074 novelty gate: drop clusters whose theme already reached the
     # human gate (adopted skills + staged ledger). Runs BEFORE extraction so
@@ -629,25 +676,7 @@ def extract_insight(
         skipped_known=skipped_known,
         abstained=abstained,
     )
-    faults = result.fault_count
-    if faults:
-        logger.warning(
-            "Insight extraction summary: %d/%d cluster(s) abstained on a fault (%s); "
-            "their clusters yield no candidate this run",
-            faults,
-            len(batches),
-            " ".join(f"{reason}={abstained[reason]}" for reason in sorted(FAULT_ABSTAIN_REASONS)),
-        )
-    # Always emitted, faults or not: this is the yield reading. Before
-    # ADR-0096 a cluster that produced no candidate was only ever a failure,
-    # so there was no line in which a judged decline could appear — which is
-    # why a 0% decline rate stayed invisible while being the whole defect.
-    logger.info(
-        "Insight extraction yield: %d/%d cluster(s) yielded skills (nothing_promotable=%d)",
-        len(skill_results),
-        len(batches),
-        abstained[ABSTAIN_NOTHING_PROMOTABLE],
-    )
+    faults = _log_extraction_summary(result, len(batches), abstained)
 
     if not skill_results and faults:
         # Something broke. Keep the historical error string so the caller does

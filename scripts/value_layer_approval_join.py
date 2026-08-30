@@ -598,22 +598,66 @@ def _reconcile(
     )
 
 
-def build_reading(
+@dataclass(frozen=True)
+class _Selection:
+    """What one pass over the audit records yields for a section's window."""
+
+    selected: list[tuple[datetime, Row, bool]]
+    counts: dict[str, int]
+    unparsable: int
+    unmatched: int
+    archived: int
+    purged: int
+    approved_by_hash: dict[str, tuple[datetime, str]]
+    window_approved: list[tuple[datetime, str, str]]
+
+
+def _collect_approved_hash(
+    record: dict[str, Any],
+    *,
+    decision: Any,
+    parsed: datetime,
+    raw_ts: Any,
+    in_window: bool,
+    retired: bool,
+    approved_by_hash: dict[str, tuple[datetime, str]],
+    window_approved: list[tuple[datetime, str, str]],
+) -> None:
+    """Record an approved row's content hash, newest wins.
+
+    Called BEFORE the window filter on purpose: bytes approved before the
+    start commit are still approved bytes, and the live file carrying them
+    must not read as unapproved. A retirement is excluded from
+    ``window_approved`` — the orphan side — only; it stays in
+    ``approved_by_hash`` so a restore from ``.archive/`` still traces to an
+    approval.
+    """
+    digest = record.get("content_hash")
+    if decision != "approved" or not isinstance(digest, str) or not digest.strip():
+        return
+    digest = digest.strip().lower()
+    previous = approved_by_hash.get(digest)
+    if previous is None or parsed > previous[0]:
+        approved_by_hash[digest] = (parsed, str(raw_ts))
+    if in_window and not retired:
+        window_approved.append((parsed, str(raw_ts), digest))
+
+
+def _select_rows(
     records: list[dict[str, Any]],
     *,
     section: str,
-    changed: bool,
     start: datetime,
     end: datetime,
-    unparsable: int = 0,
-    top: int = _DEFAULT_TOP,
-    live: LiveScan | None = None,
-) -> Reading:
-    """Select the section's in-window rows and tally decisions.
+    unparsable: int,
+) -> _Selection:
+    """One pass: place each record, tally its decision, collect approved hashes.
 
-    Pure: takes already-loaded records — and already-hashed live files — so
-    the join is reproducible offline from the same inputs (ADR-0075). All
-    file I/O lives in `load_records` / `scan_live`.
+    Two orderings inside are load-bearing and must not be "tidied": approved
+    hashes are collected BEFORE the window filter (bytes approved before the
+    start commit are still approved bytes), and a retirement is excluded from
+    the orphan side only — it stays in ``approved_by_hash`` so a restore from
+    ``.archive/`` still traces to an approval.
     """
     selected: list[tuple[datetime, Row, bool]] = []
     counts = {"approved": 0, "staged": 0, "rejected": 0, "other": 0}
@@ -646,21 +690,16 @@ def build_reading(
         if not mine:
             continue
         decision = record.get("decision")
-        digest = record.get("content_hash")
-        if decision == "approved" and isinstance(digest, str) and digest.strip():
-            # Collected before the window filter: bytes approved before the
-            # start commit are still approved bytes, and the live file
-            # carrying them must not read as unapproved.
-            digest = digest.strip().lower()
-            previous = approved_by_hash.get(digest)
-            if previous is None or parsed > previous[0]:
-                approved_by_hash[digest] = (parsed, str(raw_ts))
-            # A retirement is excluded from the orphan side only: its bytes
-            # are meant to have left ``skills/*.md``. It stays in
-            # ``approved_by_hash`` so a restore from ``.archive/`` still
-            # traces to an approval.
-            if in_window and not retired:
-                window_approved.append((parsed, str(raw_ts), digest))
+        _collect_approved_hash(
+            record,
+            decision=decision,
+            parsed=parsed,
+            raw_ts=raw_ts,
+            in_window=in_window,
+            retired=retired,
+            approved_by_hash=approved_by_hash,
+            window_approved=window_approved,
+        )
         if not in_window:
             continue
         if retired and decision == "approved":
@@ -681,34 +720,75 @@ def build_reading(
                 retired,
             )
         )
+    return _Selection(
+        selected=selected,
+        counts=counts,
+        unparsable=unparsable,
+        unmatched=unmatched,
+        archived=archived,
+        purged=purged,
+        approved_by_hash=approved_by_hash,
+        window_approved=window_approved,
+    )
+
+
+def _cap_rows(
+    selected: list[tuple[datetime, Row, bool]], top: int
+) -> list[tuple[datetime, Row, bool]]:
+    """The rows to render, reserving the approved ones first.
+
+    The cap must never spend itself on rows that do not answer the question. A
+    busy skills week is ~110 rows dominated by same-second `staged` batches, so
+    a plain head-of-list slice hid all 8 approved rows behind 25 staged ones —
+    while the prompt asks the report to cite an approving row's ts and
+    content_hash. Approved rows are reserved first, the remaining slots go to
+    the earliest others, and the shown set is re-sorted chronologically so the
+    table still reads as a timeline.
+    """
+    if top <= 0 or len(selected) <= top:
+        return selected
+    approved_rows = [item for item in selected if item[1].decision == "approved" and not item[2]]
+    # Retirements are reserved after the other approvals: the diff above
+    # this table no longer shows them (`weekly-analysis.sh` filters
+    # `.archive/` out of the skills diff), and the header line states
+    # their count, so a cap spent on them buys the reader nothing the
+    # section has not already said.
+    retired_rows = [item for item in selected if item[1].decision == "approved" and item[2]]
+    others = [item for item in selected if item[1].decision != "approved"]
+    shown = approved_rows[:top]
+    shown.extend(retired_rows[: top - len(shown)])
+    shown.extend(others[: top - len(shown)])
+    shown.sort(key=lambda item: (item[0], item[1]))
+    return shown
+
+
+def build_reading(
+    records: list[dict[str, Any]],
+    *,
+    section: str,
+    changed: bool,
+    start: datetime,
+    end: datetime,
+    unparsable: int = 0,
+    top: int = _DEFAULT_TOP,
+    live: LiveScan | None = None,
+) -> Reading:
+    """Select the section's in-window rows and tally decisions.
+
+    Pure: takes already-loaded records — and already-hashed live files — so
+    the join is reproducible offline from the same inputs (ADR-0075). All
+    file I/O lives in `load_records` / `scan_live`.
+
+    The record pass and the cap live in ``_select_rows`` / ``_cap_rows`` for
+    the C901 budget (2026-08-31); the invariants they carry are stated there.
+    """
+    picked = _select_rows(records, section=section, start=start, end=end, unparsable=unparsable)
+    selected = picked.selected
+    counts = picked.counts
     # Sort on the parsed timestamp, with the rendered tuple as tie-breaker so
     # same-second rows keep a stable order across runs.
     selected.sort(key=lambda item: (item[0], item[1]))
-    if top <= 0 or len(selected) <= top:
-        shown = selected
-    else:
-        # The cap must never spend itself on rows that do not answer the
-        # question. A busy skills week is ~110 rows dominated by same-second
-        # `staged` batches, so a plain head-of-list slice hid all 8 approved
-        # rows behind 25 staged ones — while the prompt asks the report to
-        # cite an approving row's ts and content_hash. Approved rows are
-        # reserved first, the remaining slots go to the earliest others, and
-        # the shown set is re-sorted chronologically so the table still reads
-        # as a timeline.
-        approved_rows = [
-            item for item in selected if item[1].decision == "approved" and not item[2]
-        ]
-        # Retirements are reserved after the other approvals: the diff above
-        # this table no longer shows them (`weekly-analysis.sh` filters
-        # `.archive/` out of the skills diff), and the header line states
-        # their count, so a cap spent on them buys the reader nothing the
-        # section has not already said.
-        retired_rows = [item for item in selected if item[1].decision == "approved" and item[2]]
-        others = [item for item in selected if item[1].decision != "approved"]
-        shown = approved_rows[:top]
-        shown.extend(retired_rows[: top - len(shown)])
-        shown.extend(others[: top - len(shown)])
-        shown.sort(key=lambda item: (item[0], item[1]))
+    shown = _cap_rows(selected, top)
     return Reading(
         section=section,
         changed=changed,
@@ -717,16 +797,18 @@ def build_reading(
         staged=counts["staged"],
         rejected=counts["rejected"],
         other=counts["other"],
-        unparsable=unparsable,
-        unmatched=unmatched,
+        unparsable=picked.unparsable,
+        unmatched=picked.unmatched,
         truncated=len(selected) - len(shown),
         window_start=_clean(start.isoformat()),
         window_end=_clean(end.isoformat()),
         reconciliation=(
-            None if live is None else _reconcile(live, approved_by_hash, window_approved)
+            None
+            if live is None
+            else _reconcile(live, picked.approved_by_hash, picked.window_approved)
         ),
-        archived=archived,
-        purged=purged,
+        archived=picked.archived,
+        purged=picked.purged,
     )
 
 

@@ -665,6 +665,19 @@ def _build_pair_query(
     return _PairQuery(query, query_kind, late_row, False, name_only_included, truncated)
 
 
+def _batch_candidates(sections: Sequence[ReviewSection]) -> dict[str, set[str]]:
+    """Candidate names grouped by the review they came from.
+
+    Grouped per review, never pooled: a reviewer's invented name in week 7
+    must not find a real candidate from week 1 (see :func:`build_pairs`).
+    """
+    grouped: dict[str, set[str]] = {}
+    for section in sections:
+        if section.candidate:
+            grouped.setdefault(section.review, set()).add(section.candidate)
+    return grouped
+
+
 def build_pairs(
     sections: Sequence[ReviewSection],
     *,
@@ -683,10 +696,7 @@ def build_pairs(
     silently removing it from ``unresolved_reviewer_names``, the one field
     that exists to surface invented names.
     """
-    batch_candidates: dict[str, set[str]] = {}
-    for section in sections:
-        if section.candidate:
-            batch_candidates.setdefault(section.review, set()).add(section.candidate)
+    batch_candidates = _batch_candidates(sections)
     pairs: list[LabelledPair] = []
     rejections = 0
     naming_a_store_skill = 0
@@ -795,6 +805,30 @@ def lexical_rankings(
     return rankings
 
 
+def _degenerate_arrays(doc_array: Any, query_array: Any) -> bool:
+    """Whether the embedding matrices are unusable as a similarity space.
+
+    Split out of :func:`cosine_rankings` for the C901 budget (2026-08-31);
+    the checks and their order are unchanged, and every one of them collapses
+    to the single ``EMBEDDING_DEGENERATE`` code the caller already returned.
+    ``numpy`` is imported here for the same reason the caller defers it — the
+    weekly scripts run under a bare ``python3`` — and by the time this is
+    reached the caller's import has already succeeded.
+    """
+    import numpy as np
+
+    if doc_array.ndim != 2 or query_array.ndim != 2:
+        return True
+    if doc_array.shape[1] == 0 or doc_array.shape[1] != query_array.shape[1]:
+        return True
+    for array in (doc_array, query_array):
+        if not np.isfinite(array).all():
+            return True
+        if not array.any(axis=1).all():
+            return True
+    return False
+
+
 def cosine_rankings(
     pairs: Sequence[LabelledPair], docs: Sequence[StoreSkill]
 ) -> tuple[list[tuple[str, ...] | None] | None, str | None, str]:
@@ -850,15 +884,8 @@ def cosine_rankings(
     except (TypeError, ValueError):
         # Ragged rows: numpy refuses, and so does this reading.
         return None, "EMBEDDING_DEGENERATE", model
-    if doc_array.ndim != 2 or query_array.ndim != 2:
+    if _degenerate_arrays(doc_array, query_array):
         return None, "EMBEDDING_DEGENERATE", model
-    if doc_array.shape[1] == 0 or doc_array.shape[1] != query_array.shape[1]:
-        return None, "EMBEDDING_DEGENERATE", model
-    for array in (doc_array, query_array):
-        if not np.isfinite(array).all():
-            return None, "EMBEDDING_DEGENERATE", model
-        if not array.any(axis=1).all():
-            return None, "EMBEDDING_DEGENERATE", model
 
     # Dimensions are equal by the check above, so core's shape-mismatch
     # WARNING branch is unreachable from here.
