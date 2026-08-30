@@ -237,45 +237,15 @@ def _archive_skill_file(
     return _apply_archive_plan(plan)
 
 
-def _apply_archive_plan(plan: _ArchivePlan) -> _ArchiveResult:
-    """Move the planned skill into ``skills/.archive/``. The only mutation.
+def _recheck_source(plan: _ArchivePlan) -> str | None:
+    """Re-run the source-side gates immediately before the read and the unlink.
 
-    Takes a plan and nothing else — that signature *is* the guarantee that
-    the preview and the move agree, so do not add a ``source`` or
-    ``data_root`` parameter back (pinned by
-    ``test_a_plan_is_never_applied_with_a_different_source``).
-
-    A move, not a delete, so **both ends are containment-checked** with
-    ``_target_inside_data_root`` — the predicate the write path uses, which
-    tests the resolved referent and the literal-path-with-resolved-parent
-    because a read follows links and a rename does not. The source end was
-    checked in the plan; the destination end is checked here, because it is
-    only known once the collision guard has run.
-
-    Writes the destination *before* unlinking the source. An interruption
-    between the two leaves the same text in two places, which a human can
-    reconcile; the other order leaves a hole, which is the one outcome an
-    exit that "never deletes" must not produce. A failed unlink is reported
-    as :data:`_ARCHIVE_SOURCE_LEFT_BEHIND` rather than swallowed — the store
-    did not shrink, so the run must not read as success.
-
-    Collisions inside the archive go through the same H5 guard as every other
-    write (``approval._collision_free_path``): re-archiving identical content
-    reuses the file, different content gets ``-2``. Overwriting would destroy
-    an earlier retirement, i.e. exactly the deletion this directory exists to
-    prevent. When that reuse makes the destination BE the source, the move is
-    refused (``_ARCHIVE_REFUSED_NOT_A_MOVE``) — rewriting and then unlinking
-    one path is the deletion, not a degenerate archive.
-
-    The directory is created lazily here, on the first archive.
+    Returns a refusal reason, or ``None`` when the source is still what the
+    plan says it is. Takes the plan and nothing else, for the same reason
+    :func:`_apply_archive_plan` does.
     """
-    from ..core._io import write_restricted
-    from ..core.text_utils import set_frontmatter_field, split_frontmatter
-
     source = plan.source
     data_root = plan.data_root
-    superseded_by = plan.superseded_by
-
     # The source-side gates again, immediately before the read that follows
     # links and the unlink that does not. **A plan is a decision, not a
     # promise about the filesystem** — it is built before the dry run, and
@@ -299,37 +269,26 @@ def _apply_archive_plan(plan: _ArchivePlan) -> _ArchiveResult:
     # (T-WRITE-TMP-NOFOLLOW). That residue predates the split and is left as
     # found; closing it is a change to the read primitive, not to this seam.
     if source.is_symlink():
-        return _ArchiveResult(reason=_ARCHIVE_REFUSED_SYMLINK)
+        return _ARCHIVE_REFUSED_SYMLINK
     if not source.is_file():
-        return _ArchiveResult(reason=_ARCHIVE_REFUSED_MISSING)
+        return _ARCHIVE_REFUSED_MISSING
     if not _target_inside_data_root(source, data_root):
-        return _ArchiveResult(reason=_ARCHIVE_REFUSED_OUTSIDE)
+        return _ARCHIVE_REFUSED_OUTSIDE
+    return None
 
-    try:
-        text = source.read_text(encoding="utf-8")
-    except (OSError, ValueError) as err:
-        return _ArchiveResult(reason=_ARCHIVE_REFUSED_UNREADABLE, detail=str(err))
 
-    # Both halves of an ADR-0097 supersede pair go through
-    # ``core.text_utils.set_frontmatter_field`` with ``synthesize=True``: legacy
-    # skills predate the emitted block, and a lineage pointer stapled above a bare
-    # ``# Title`` would not be found by any frontmatter reader. The value is a
-    # *filename*, not the frontmatter ``name:`` slug — a slug is only unique per
-    # date (``slug_from_stem`` exists precisely because two files can share one),
-    # whereas restoring an archived skill is a plain ``mv`` and a ``mv`` needs a
-    # filename. Both halves are validated against real files before they are
-    # stamped, so the scalar is never free text.
-    if superseded_by:
-        stamped = set_frontmatter_field(text, "superseded_by", superseded_by, synthesize=True)
-        if not split_frontmatter(text)[0]:
-            # The one case where archiving is not byte-preserving. Said out
-            # loud: a standalone archive copies the file verbatim, and an
-            # operator should not discover a rewrite by diffing the archive.
-            print(
-                f"  Adding a frontmatter block to {source.name} (it had none) "
-                f"to carry superseded_by: {superseded_by}"
-            )
-        text = stamped
+def _resolve_destination(plan: _ArchivePlan, text: str) -> Path | _ArchiveResult:
+    """Turn the planned destination into the path to write, or a refusal.
+
+    Every destination-side gate lives here: the plan's own refusal, the H5
+    collision guard, containment, the slot check that keeps the preview
+    honest, lineage ambiguity, and the degenerate destination-is-source case.
+    Split out of :func:`_apply_archive_plan` for the C901 budget (2026-08-31);
+    the order of the gates is unchanged and load-bearing.
+    """
+    source = plan.source
+    data_root = plan.data_root
+    superseded_by = plan.superseded_by
     # From the plan, not recomputed: the dry run and the prompt already
     # showed this destination, and deriving it a second time here is exactly
     # how the two would drift apart.
@@ -379,6 +338,80 @@ def _apply_archive_plan(plan: _ArchivePlan) -> _ArchiveResult:
     # so an `.archive` symlinked back into the store is caught too.
     if _resolved_or_self(destination) == _resolved_or_self(source):
         return _ArchiveResult(reason=_ARCHIVE_REFUSED_NOT_A_MOVE, detail=str(destination))
+    return destination
+
+
+def _apply_archive_plan(plan: _ArchivePlan) -> _ArchiveResult:
+    """Move the planned skill into ``skills/.archive/``. The only mutation.
+
+    Takes a plan and nothing else — that signature *is* the guarantee that
+    the preview and the move agree, so do not add a ``source`` or
+    ``data_root`` parameter back (pinned by
+    ``test_a_plan_is_never_applied_with_a_different_source``).
+
+    A move, not a delete, so **both ends are containment-checked** with
+    ``_target_inside_data_root`` — the predicate the write path uses, which
+    tests the resolved referent and the literal-path-with-resolved-parent
+    because a read follows links and a rename does not. The source end was
+    checked in the plan; the destination end is checked here, because it is
+    only known once the collision guard has run.
+
+    Writes the destination *before* unlinking the source. An interruption
+    between the two leaves the same text in two places, which a human can
+    reconcile; the other order leaves a hole, which is the one outcome an
+    exit that "never deletes" must not produce. A failed unlink is reported
+    as :data:`_ARCHIVE_SOURCE_LEFT_BEHIND` rather than swallowed — the store
+    did not shrink, so the run must not read as success.
+
+    Collisions inside the archive go through the same H5 guard as every other
+    write (``approval._collision_free_path``): re-archiving identical content
+    reuses the file, different content gets ``-2``. Overwriting would destroy
+    an earlier retirement, i.e. exactly the deletion this directory exists to
+    prevent. When that reuse makes the destination BE the source, the move is
+    refused (``_ARCHIVE_REFUSED_NOT_A_MOVE``) — rewriting and then unlinking
+    one path is the deletion, not a degenerate archive.
+
+    The directory is created lazily here, on the first archive.
+    """
+    from ..core._io import write_restricted
+    from ..core.text_utils import set_frontmatter_field, split_frontmatter
+
+    source = plan.source
+    superseded_by = plan.superseded_by
+
+    refusal = _recheck_source(plan)
+    if refusal is not None:
+        return _ArchiveResult(reason=refusal)
+
+    try:
+        text = source.read_text(encoding="utf-8")
+    except (OSError, ValueError) as err:
+        return _ArchiveResult(reason=_ARCHIVE_REFUSED_UNREADABLE, detail=str(err))
+
+    # Both halves of an ADR-0097 supersede pair go through
+    # ``core.text_utils.set_frontmatter_field`` with ``synthesize=True``: legacy
+    # skills predate the emitted block, and a lineage pointer stapled above a bare
+    # ``# Title`` would not be found by any frontmatter reader. The value is a
+    # *filename*, not the frontmatter ``name:`` slug — a slug is only unique per
+    # date (``slug_from_stem`` exists precisely because two files can share one),
+    # whereas restoring an archived skill is a plain ``mv`` and a ``mv`` needs a
+    # filename. Both halves are validated against real files before they are
+    # stamped, so the scalar is never free text.
+    if superseded_by:
+        stamped = set_frontmatter_field(text, "superseded_by", superseded_by, synthesize=True)
+        if not split_frontmatter(text)[0]:
+            # The one case where archiving is not byte-preserving. Said out
+            # loud: a standalone archive copies the file verbatim, and an
+            # operator should not discover a rewrite by diffing the archive.
+            print(
+                f"  Adding a frontmatter block to {source.name} (it had none) "
+                f"to carry superseded_by: {superseded_by}"
+            )
+        text = stamped
+    resolved = _resolve_destination(plan, text)
+    if isinstance(resolved, _ArchiveResult):
+        return resolved
+    destination = resolved
 
     try:
         destination.parent.mkdir(parents=True, exist_ok=True)

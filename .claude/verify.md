@@ -33,7 +33,8 @@
 **lint — 予算系（C901）**（選定日 2026-08-28）
 ruff の C901（mccabe）を `select` に足しただけで、既存の lint ゲートがそのまま発火する
 （`verify.sh` は無変更 = hash 再承認なし。staged / full の両モードで pyproject が参照される）。
-閾値は `[tool.ruff.lint.mccabe] max-complexity = 15`。
+閾値は `[tool.ruff.lint.mccabe] max-complexity = 13`（2026-08-31 に 15 から引き下げ。下の
+「閾値の推移」を見る）。
 実測分布 as-of **2026-08-28**（対象は verify ゲートと同じ src / tests / scripts / evals、
 関数 4,580 件）: p50=1 / p90=3 / p95=5 / **p99=10** / **max=35**。violation は
 `>10` で 36 件 / `>15` で 13 件。計測コマンド:
@@ -49,20 +50,47 @@ uv run ruff check --isolated --no-cache --output-format json --select C901 \
 （最大 hotspot は 35 → 10。docs/evidence/ 配下の 2 件（16 / 20）は凍結された逐語記録なので
 刈らない — full ゲートの対象外だが staged モードは stage された .py を全部見るため、
 `docs/evidence/**` の per-file-ignores に C901 を恒久免除として明示した。drain 台帳とは別物）。
-閾値引き下げの再検討は再調査トリガー（分布の再実測）に従う。
+
+### 閾値の推移
+
+**2026-08-31: 15 → 13**（3 段計画の 1 段目。到達点は 10、途中の段は 11）。
+根拠は上の再調査トリガー「免除リストが空になった時」の発火。刈った 5 関数:
+
+| 関数 | 15 → | 手段 |
+|---|---|---|
+| `adapters/moltbook/verification_parse.py::_classify_positions` | 9 | 位置づけ 2 パスを `_place_gap_ops` / `_place_marks` へ（`_gap_index` 共有）。abstain 条件と collapse/曖昧性判定は親に残置 |
+| `adapters/moltbook/verification_parse.py::_scan` | 8 | マージ窓を `_merge_candidates`、6 way の kind ディスパッチを `_event_from` へ |
+| `cli/skill_archive.py::_apply_archive_plan` | 8 | source 側 TOCTOU 3 ゲートを `_recheck_source(plan)`、destination 側 6 ゲートを `_resolve_destination(plan, text)` へ。両ヘルパとも plan だけを受け取る（loose path を渡さない不変条件を維持） |
+| `scripts/value_layer_due_check.py::build_reading` | 10 | 層ごとに `_identity_section` / `_constitution_section` / `_rules_section`（+ `_count_patterns_since`）。`patterns_loader` の遅延読みは `amend_last is not None` の内側に残置 |
+| `scripts/cross_day_duplicate_scan.py::collect` | 7 | 行単位の fault 分類を `_published_from_line`（成功はレコード、失敗は理由コード、非該当は None）へ |
+
+挙動保存の証拠: `differential_replay.py` が凍結 baseline と 4,963 challenge で **mismatch 0**
+（abstain 915 件含む）、`.claude/verify.sh` full 全 PASS。
+
+再実測分布 as-of **2026-08-31**（同じ対象、関数 4,599 件）:
+p50=1 / p90=3 / p95=5 / **p99=9** / **max=13**。violation は `>10` で 19 件 / `>11` で 6 件 /
+`>12` で 2 件 / `>13` で 0 件。
+
+**免除は足さない。** 刈り切れない関数が出たら閾値をその段で止め、理由をここに日付つきで記録する
+（2026-08-31 著者判断）。「10 は却下」（下の捨てた選択肢）は *導入時の* 閾値としての却下であり、
+刈って到達する道は対象外 — 到達時点で免除は 0 件のままなので、却下理由（24 ファイルが盲点）は
+発生しない。
 
 捨てた選択肢:
 
-- **閾値 10** — p99 と同値まで締めると免除が 24 ファイルに膨らみ、`moltbook/client.py` /
-  `feed_manager.py` / `core/insight.py` / `core/report.py` など編集が集中するモジュールが
-  丸ごと盲点になる。11–15 帯（23 関数）はこのコーパスでは「密だが正常」な尾部
+- **閾値 10（導入時の一発設定として）** — p99 と同値まで締めると免除が 24 ファイルに膨らみ、
+  `moltbook/client.py` / `feed_manager.py` / `core/insight.py` / `core/report.py` など編集が
+  集中するモジュールが丸ごと盲点になる。11–15 帯（23 関数）はこのコーパスでは「密だが正常」な尾部。
+  **2026-08-31 追記**: 却下されたのはこの設定の仕方であって 10 という数字ではない。段階的に
+  刈って到達する道（上の「閾値の推移」）は免除を 1 件も作らないので、この理由は当たらない
 - **PLR09x** — PLR0913（引数数）は既定閾値で 80 件あり drain コストが釣り合わない。
   PLR0912 / PLR0915 は hotspot が C901 とほぼ重複するので、指標は C901 に一本化する
 - **ファイル LOC 予算** — Ruff に該当 rule が無く（astral-sh/ruff#970）、9 repo 実測でも
   violation の過半が test だった。別ツールを足すのはハーネス ADR-0056 の
   「増えるのは config の行だけ」に反する
 
-再調査: 12 ヶ月経過 / **免除リストが空になった時**（分布を再実測して閾値引き下げを検討）/
+再調査: 12 ヶ月経過 / **閾値が 10 に到達した時**（そこで打ち止めるか更に下げるかを再実測して判断。
+2026-08-28 の「免除リストが空になった時」は 2026-08-31 に消費済み）/
 ruff が cognitive complexity（astral-sh/ruff#2418）を実装した時（指標を引き直す）/
 **閾値引き上げによる回避を観測した 1 回目**（ハーネス ADR-0056 の Review-when — 規約側の再訪）。
 

@@ -639,6 +639,43 @@ def _match_fuzzy(token: str) -> _Lexeme | None:
     return _Lexeme(kind, matched)
 
 
+def _merge_candidates(atoms: list[str], start: int, total: int) -> list[str]:
+    """Candidate tokens at ``start``, one per merge length, shortest first.
+
+    Collapsed concatenations of whole consecutive atoms, never crossing an
+    operator symbol, capped by fragment count and by collapsed length (raw
+    length is meaningless under letter doubling).
+    """
+    run_tokens: list[str] = []
+    merged_raw = ""
+    run_end = start
+    while (
+        run_end < total and atoms[run_end] not in _SYMBOL_OPS and len(run_tokens) < _MAX_MERGE_ATOMS
+    ):
+        merged_raw += atoms[run_end]
+        token = _collapse_repeats(merged_raw)
+        if len(token) > _MAX_TOKEN_LEN:
+            break
+        run_tokens.append(token)
+        run_end += 1
+    return run_tokens
+
+
+def _event_from(result: _Lexeme, start: int, last: int) -> _Event:
+    """The event a lexicon match stands for, at atom span ``start..last``."""
+    if result.kind == "num" and isinstance(result.value, int):
+        return _NumEvent(result.value, result.value in _TENS_VALUES, start, last)
+    if result.kind == "op" and isinstance(result.value, str):
+        return _OpEvent(result.value, start, False, result.word)
+    if result.kind == "and":
+        return _AndEvent(start)
+    if result.kind == "mark":
+        return _MulMarkerEvent(start)
+    if result.kind == "point":
+        return _PointEvent(start)
+    return _CueEvent(start, result.word or "")
+
+
 def _scan(atoms: list[str]) -> list[_Event]:
     """Tokenise into ordered number / operation / connective / cue events.
 
@@ -651,52 +688,20 @@ def _scan(atoms: list[str]) -> list[_Event]:
     i = 0
     total = len(atoms)
     while i < total:
-        atom = atoms[i]
-        symbol_op = _SYMBOL_OPS.get(atom)
+        symbol_op = _SYMBOL_OPS.get(atoms[i])
         if symbol_op is not None:
             events.append(_OpEvent(symbol_op, i, True))
             i += 1
             continue
 
-        # Candidate tokens per merge length: collapsed concatenations of
-        # whole consecutive atoms, never crossing an operator symbol, capped
-        # by fragment count and by collapsed length (raw length is
-        # meaningless under letter doubling).
-        run_tokens: list[str] = []
-        merged_raw = ""
-        run_end = i
-        while (
-            run_end < total
-            and atoms[run_end] not in _SYMBOL_OPS
-            and len(run_tokens) < _MAX_MERGE_ATOMS
-        ):
-            merged_raw += atoms[run_end]
-            token = _collapse_repeats(merged_raw)
-            if len(token) > _MAX_TOKEN_LEN:
-                break
-            run_tokens.append(token)
-            run_end += 1
-
+        run_tokens = _merge_candidates(atoms, i, total)
         matched = False
         for matcher in (_match_exact, _match_fuzzy):
             for length in range(len(run_tokens), 0, -1):
-                token = run_tokens[length - 1]
-                result = matcher(token)
+                result = matcher(run_tokens[length - 1])
                 if result is None:
                     continue
-                last = i + length - 1
-                if result.kind == "num" and isinstance(result.value, int):
-                    events.append(_NumEvent(result.value, result.value in _TENS_VALUES, i, last))
-                elif result.kind == "op" and isinstance(result.value, str):
-                    events.append(_OpEvent(result.value, i, False, result.word))
-                elif result.kind == "and":
-                    events.append(_AndEvent(i))
-                elif result.kind == "mark":
-                    events.append(_MulMarkerEvent(i))
-                elif result.kind == "point":
-                    events.append(_PointEvent(i))
-                else:
-                    events.append(_CueEvent(i, result.word or ""))
+                events.append(_event_from(result, i, i + length - 1))
                 i += length
                 matched = True
                 break
@@ -1122,25 +1127,30 @@ class _Positions(NamedTuple):
     ands: list[_AndEvent]
 
 
-def _classify_positions(operands: list[_Operand], events: list[_Event]) -> _Positions | None:
-    """Fold the event stream into per-gap and tail buckets, or abstain.
+def _gap_index(operands: list[_Operand], atom_index: int) -> int | None:
+    """Which operand gap an atom index falls into, or ``None`` if it falls in none.
 
-    Deliberately NOT part of the rule tables below. This is a fold, not a
-    decision cascade: the four abstains here are guard clauses of the
-    classification itself, and they cannot be written as predicates over a
-    context because the context is precisely what this loop is building.
-    Rules decide what the arrangement MEANS; this decides what the
-    arrangement IS.
+    ``None`` means the index sits inside an operand's own atom range. What that
+    means is the caller's business, and the two callers disagree: for an
+    operation it is impossible by construction and abstains, for a marker it is
+    a position the grammar simply does not read.
     """
-    ops = [e for e in events if isinstance(e, _OpEvent)]
-    ands = [e for e in events if isinstance(e, _AndEvent)]
-    cues = [e for e in events if isinstance(e, _CueEvent)]
-    marks = [e for e in events if isinstance(e, _MulMarkerEvent)]
-    last = operands[-1]
+    for gap, (left, right) in enumerate(zip(operands, operands[1:], strict=False)):
+        if left.atom_end < atom_index < right.atom_start:
+            return gap
+    return None
 
-    # Position classification (atom indices). Head/tail symbols are noise;
-    # a head word-operation is question framing ("how many more ...") and
-    # poisons the read.
+
+def _place_gap_ops(
+    operands: list[_Operand], ops: list[_OpEvent]
+) -> tuple[list[list[str]], list[_OpEvent]] | None:
+    """Bucket operation events by position into per-gap lists and a tail list.
+
+    Head/tail symbols are noise; a head word-operation is question framing
+    ("how many more ...") and poisons the read. ``None`` is the abstain, for
+    that head word-op and for an op inside an operand's own atom range.
+    """
+    last = operands[-1]
     gap_ops: list[list[str]] = [[] for _ in range(len(operands) - 1)]
     tail_word_ops: list[_OpEvent] = []
     for op in ops:
@@ -1152,24 +1162,33 @@ def _classify_positions(operands: list[_Operand], events: list[_Event]) -> _Posi
             if not op.is_symbol:
                 tail_word_ops.append(op)
             continue
-        for gap, (left, right) in enumerate(zip(operands, operands[1:], strict=False)):
-            if left.atom_end < op.atom_index < right.atom_start:
-                gap_ops[gap].append(op.op)
-                break
-        else:
+        gap = _gap_index(operands, op.atom_index)
+        if gap is None:
             # Inside an operand's own atom range — impossible by construction.
             return None
+        gap_ops[gap].append(op.op)
+    return gap_ops, tail_word_ops
 
-    # Multiplicative markers by position: a marker between two operands
-    # makes that gap a product ("the force is doubled by two"), beating a
-    # generic change-verb in the same gap ("increases ... by a factor
-    # seven"); any other op word alongside a marker is a real conflict and
-    # abstains through the len(f) > 1 check. A marker BEFORE the first
-    # operand poisons the read like a head op word does (zero corpus
-    # occurrences — an unmodeled phrasing, so abstain rather than let the
-    # additive path silently override a multiplicative cue). Markers after
-    # the last operand feed the tail rules below; a non-adjacent trailing
-    # marker is scene noise ("...physicx factors").
+
+def _place_marks(
+    operands: list[_Operand], marks: list[_MulMarkerEvent], gap_ops: list[list[str]]
+) -> list[_MulMarkerEvent] | None:
+    """Fold multiplicative markers into ``gap_ops`` in place; return the tail ones.
+
+    A marker between two operands makes that gap a product ("the force is
+    doubled by two"), beating a generic change-verb in the same gap
+    ("increases ... by a factor seven"); any other op word alongside a marker
+    is a real conflict and abstains through the caller's ``len(f) > 1`` check.
+    A marker BEFORE the first operand poisons the read like a head op word does
+    (zero corpus occurrences — an unmodeled phrasing, so abstain rather than
+    let the additive path silently override a multiplicative cue): that is the
+    ``None``. Markers after the last operand feed the tail rules; a
+    non-adjacent trailing marker is scene noise ("...physicx factors").
+
+    Runs AFTER ``_place_gap_ops`` and reads what it wrote — the override is
+    defined against the ops already placed, so the order is load-bearing.
+    """
+    last = operands[-1]
     tail_marks: list[_MulMarkerEvent] = []
     for mark in marks:
         if mark.atom_index < operands[0].atom_start:
@@ -1177,13 +1196,45 @@ def _classify_positions(operands: list[_Operand], events: list[_Event]) -> _Posi
         if mark.atom_index > last.atom_end:
             tail_marks.append(mark)
             continue
-        for gap, (left, right) in enumerate(zip(operands, operands[1:], strict=False)):
-            if left.atom_end < mark.atom_index < right.atom_start:
-                if not gap_ops[gap] or set(gap_ops[gap]) == {_ADD_CHANGE}:
-                    gap_ops[gap] = [_MUL]
-                else:
-                    gap_ops[gap].append(_MUL)
-                break
+        gap = _gap_index(operands, mark.atom_index)
+        if gap is None:
+            continue
+        if not gap_ops[gap] or set(gap_ops[gap]) == {_ADD_CHANGE}:
+            gap_ops[gap] = [_MUL]
+        else:
+            gap_ops[gap].append(_MUL)
+    return tail_marks
+
+
+def _classify_positions(operands: list[_Operand], events: list[_Event]) -> _Positions | None:
+    """Fold the event stream into per-gap and tail buckets, or abstain.
+
+    Deliberately NOT part of the rule tables below. This is a fold, not a
+    decision cascade: the four abstains here are guard clauses of the
+    classification itself, and they cannot be written as predicates over a
+    context because the context is precisely what this loop is building.
+    Rules decide what the arrangement MEANS; this decides what the
+    arrangement IS.
+
+    The two positional passes were lifted into ``_place_gap_ops`` and
+    ``_place_marks`` for the C901 budget (2026-08-31), unchanged and in the
+    same order. Nothing about the tail signals is derived twice — that split
+    is the one ADR-0062's 10th amendment forbids, and it is not this one.
+    """
+    ops = [e for e in events if isinstance(e, _OpEvent)]
+    ands = [e for e in events if isinstance(e, _AndEvent)]
+    cues = [e for e in events if isinstance(e, _CueEvent)]
+    marks = [e for e in events if isinstance(e, _MulMarkerEvent)]
+    last = operands[-1]
+
+    placed = _place_gap_ops(operands, ops)
+    if placed is None:
+        return None
+    gap_ops, tail_word_ops = placed
+
+    tail_marks = _place_marks(operands, marks, gap_ops)
+    if tail_marks is None:
+        return None
 
     # A change-verb alongside a plain add in the same gap ("...collide and+
     # increases by seven") is agreement, not conflict: both mean add, and

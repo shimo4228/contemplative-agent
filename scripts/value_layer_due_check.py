@@ -318,6 +318,123 @@ def _cadence(
     }
 
 
+def _identity_section(
+    audit_records: list[dict], *, as_of_date: date, interval_days: int
+) -> tuple[dict[str, Any], int]:
+    """The identity layer's cadence dict, and how many rows were unparsable."""
+    identity_last, unparsable = _latest(
+        audit_records,
+        commands=IDENTITY_COMMANDS,
+        decisions=None,
+        sources=_GENERATION_SOURCES,
+    )
+    # Matching records existed but none carried a parseable timestamp: the
+    # history is unknown, not absent. Unknown must never read as "due" and
+    # fire an unattended LLM run (codex review 2026-08-10 P2) — so this
+    # abstains from the due claim instead of falling into the bootstrap
+    # branch below.
+    history_unknown = identity_last is None and unparsable > 0
+    # An audit log with zero readable records is truncation or corruption,
+    # not a fresh install — a fresh MOLTBOOK_HOME has no audit.jsonl at all
+    # and abstains upstream as AUDIT_MISSING. So the genuine bootstrap
+    # (due=true with no prior run) requires at least one OTHER readable
+    # record as evidence the log is alive (security review 2026-08-10 L1).
+    empty_audit = not audit_records
+    if history_unknown:
+        no_prior_reason = "UNPARSABLE_HISTORY"
+    elif empty_audit:
+        no_prior_reason = "NO_AUDIT_RECORDS"
+    else:
+        no_prior_reason = "NO_PRIOR_RUN"
+    identity = _cadence(
+        identity_last,
+        as_of=as_of_date,
+        interval_days=interval_days,
+        # Bootstrap exception to "unknown never reads as due": generation is
+        # cheap and adoption stays human-gated, so a store that never ran
+        # (but whose audit log is demonstrably alive) is immediately due.
+        no_prior_reason=no_prior_reason,
+        no_prior_due=not (history_unknown or empty_audit),
+    )
+    identity["last_run_ts"] = identity.pop("last_ts")
+    return identity, unparsable
+
+
+def _count_patterns_since(loaded: list[dict], adopted_at: datetime) -> int:
+    """How many patterns were distilled after the last adopted amendment."""
+    since = 0
+    for pattern in loaded:
+        distilled = parse_ts(pattern.get("distilled")) if isinstance(pattern, dict) else None
+        if distilled is not None and distilled > adopted_at:
+            since += 1
+    return since
+
+
+def _constitution_section(
+    audit_records: list[dict],
+    *,
+    as_of_date: date,
+    interval_days: int,
+    patterns: list[dict] | None,
+    patterns_loader: Callable[[], list[dict] | None] | None,
+) -> tuple[dict[str, Any], int, str | None]:
+    """The constitution layer's cadence dict, unparsable count, and any reason code.
+
+    The knowledge.json read stays inside the ``amend_last is not None`` branch:
+    the file is >100 MB in production and a weekly reading must not pay for a
+    field it will not render (see :func:`build_reading`).
+    """
+    amend_last, unparsable = _latest(
+        audit_records, commands=frozenset({_AMEND_COMMAND}), decisions=frozenset({"approved"})
+    )
+    history_unknown = amend_last is None and unparsable > 0
+    constitution = _cadence(
+        amend_last,
+        as_of=as_of_date,
+        interval_days=interval_days,
+        # No baseline → no cadence claim; a first amendment is a deliberate
+        # human decision the instrument must not nudge. Same due=False for
+        # unknown history, but named differently so the reader can tell
+        # "never adopted" from "records exist but are unreadable".
+        no_prior_reason="UNPARSABLE_HISTORY" if history_unknown else "NO_PRIOR_ADOPTION",
+        no_prior_due=False,
+    )
+    constitution["last_adopted_ts"] = constitution.pop("last_ts")
+
+    patterns_since: int | None = None
+    reason: str | None = None
+    if amend_last is not None:
+        loaded = patterns_loader() if patterns_loader is not None else patterns
+        if loaded is not None:
+            patterns_since = _count_patterns_since(loaded, amend_last[1])
+        else:
+            reason = "KNOWLEDGE_UNAVAILABLE"
+    constitution["patterns_since"] = patterns_since
+    return constitution, unparsable, reason
+
+
+def _rules_section(rules: dict[str, Any], *, as_of_date: date) -> tuple[dict[str, Any], str | None]:
+    """The rules maintenance reading, and any fault code it raises.
+
+    Rules layer (ADR-0097 D2). A maintenance reading, not a cadence: the layer
+    has no generator any more, so there is no interval to be due against —
+    what an owner needs is how many files there are, how long they have stood,
+    and whether they still parse as B-layer rules.
+
+    Copied, not mutated in place: ``build_reading`` is the pure entry point and
+    must not write back into an argument the caller still holds.
+    """
+    newest = parse_ts(rules.get("newest_mtime"))
+    section = {
+        **rules,
+        "days_since_newest": (as_of_date - newest.date()).days if newest else None,
+    }
+    reason = section.get("reason")
+    if reason in ("RULES_UNREADABLE", "RULES_DIR_MISSING"):
+        return section, str(reason)
+    return section, None
+
+
 def build_reading(
     *,
     audit_records: list[dict],
@@ -338,6 +455,11 @@ def build_reading(
     deserializing it costs ~1.5 GB peak RSS on a 16 GB box that also hosts
     Ollama (security review 2026-08-10 M3) — a weekly reading must not pay
     that for a field only rendered on amendment-due weeks.
+
+    The three layer sections live in ``_identity_section`` /
+    ``_constitution_section`` / ``_rules_section`` for the C901 budget
+    (2026-08-31). They communicate with this frame only through the values
+    they return, exactly as they did when they were inline.
     """
     try:
         as_of_date = date.fromisoformat(as_of)
@@ -350,74 +472,18 @@ def build_reading(
 
     reasons: list[str] = []
 
-    identity_last, identity_unparsable = _latest(
+    identity, identity_unparsable = _identity_section(
+        audit_records, as_of_date=as_of_date, interval_days=identity_interval_days
+    )
+    constitution, amend_unparsable, patterns_reason = _constitution_section(
         audit_records,
-        commands=IDENTITY_COMMANDS,
-        decisions=None,
-        sources=_GENERATION_SOURCES,
-    )
-    # Matching records existed but none carried a parseable timestamp: the
-    # history is unknown, not absent. Unknown must never read as "due" and
-    # fire an unattended LLM run (codex review 2026-08-10 P2) — so this
-    # abstains from the due claim instead of falling into the bootstrap
-    # branch below.
-    identity_history_unknown = identity_last is None and identity_unparsable > 0
-    # An audit log with zero readable records is truncation or corruption,
-    # not a fresh install — a fresh MOLTBOOK_HOME has no audit.jsonl at all
-    # and abstains upstream as AUDIT_MISSING. So the genuine bootstrap
-    # (due=true with no prior run) requires at least one OTHER readable
-    # record as evidence the log is alive (security review 2026-08-10 L1).
-    empty_audit = not audit_records
-    if identity_history_unknown:
-        identity_no_prior_reason = "UNPARSABLE_HISTORY"
-    elif empty_audit:
-        identity_no_prior_reason = "NO_AUDIT_RECORDS"
-    else:
-        identity_no_prior_reason = "NO_PRIOR_RUN"
-    identity = _cadence(
-        identity_last,
-        as_of=as_of_date,
-        interval_days=identity_interval_days,
-        # Bootstrap exception to "unknown never reads as due": generation is
-        # cheap and adoption stays human-gated, so a store that never ran
-        # (but whose audit log is demonstrably alive) is immediately due.
-        no_prior_reason=identity_no_prior_reason,
-        no_prior_due=not (identity_history_unknown or empty_audit),
-    )
-    identity["last_run_ts"] = identity.pop("last_ts")
-
-    amend_last, amend_unparsable = _latest(
-        audit_records, commands=frozenset({_AMEND_COMMAND}), decisions=frozenset({"approved"})
-    )
-    amend_history_unknown = amend_last is None and amend_unparsable > 0
-    constitution = _cadence(
-        amend_last,
-        as_of=as_of_date,
+        as_of_date=as_of_date,
         interval_days=amendment_interval_days,
-        # No baseline → no cadence claim; a first amendment is a deliberate
-        # human decision the instrument must not nudge. Same due=False for
-        # unknown history, but named differently so the reader can tell
-        # "never adopted" from "records exist but are unreadable".
-        no_prior_reason="UNPARSABLE_HISTORY" if amend_history_unknown else "NO_PRIOR_ADOPTION",
-        no_prior_due=False,
+        patterns=patterns,
+        patterns_loader=patterns_loader,
     )
-    constitution["last_adopted_ts"] = constitution.pop("last_ts")
-
-    patterns_since: int | None = None
-    if amend_last is not None:
-        loaded = patterns_loader() if patterns_loader is not None else patterns
-        if loaded is not None:
-            adopted_at = amend_last[1]
-            patterns_since = 0
-            for pattern in loaded:
-                distilled = (
-                    parse_ts(pattern.get("distilled")) if isinstance(pattern, dict) else None
-                )
-                if distilled is not None and distilled > adopted_at:
-                    patterns_since += 1
-        else:
-            reasons.append("KNOWLEDGE_UNAVAILABLE")
-    constitution["patterns_since"] = patterns_since
+    if patterns_reason:
+        reasons.append(patterns_reason)
 
     # Anomalous cadence states must be loud, not just embedded in the layer
     # dicts — the packet builder propagates this list into its header reason
@@ -429,22 +495,11 @@ def build_reading(
             if code not in reasons:
                 reasons.append(code)
 
-    # Rules layer (ADR-0097 D2). A maintenance reading, not a cadence: the
-    # layer has no generator any more, so there is no interval to be due
-    # against — what an owner needs is how many files there are, how long they
-    # have stood, and whether they still parse as B-layer rules.
     rules_section: dict[str, Any] | None = None
     if rules is not None:
-        # Copied, not mutated in place: build_reading is the pure entry point
-        # and must not write back into an argument the caller still holds.
-        newest = parse_ts(rules.get("newest_mtime"))
-        rules_section = {
-            **rules,
-            "days_since_newest": (as_of_date - newest.date()).days if newest else None,
-        }
-        rules_reason = rules_section.get("reason")
-        if rules_reason in ("RULES_UNREADABLE", "RULES_DIR_MISSING"):
-            reasons.append(str(rules_reason))
+        rules_section, rules_reason = _rules_section(rules, as_of_date=as_of_date)
+        if rules_reason:
+            reasons.append(rules_reason)
 
     malformed = identity_unparsable + amend_unparsable
     reading: dict[str, Any] = {

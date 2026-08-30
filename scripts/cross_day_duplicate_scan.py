@@ -119,6 +119,58 @@ def _day_files(log_dir: Path) -> list[Path]:
     return [p for p in entries if _DAY_FILE_RE.match(p.name) and not p.is_symlink() and p.is_file()]
 
 
+def _published_from_line(raw_line: bytes, date: str) -> Published | str | None:
+    """One log line as a digest record, a fault reason code, or ``None``.
+
+    ``None`` is "not a published body" — an insight record, a non-publishing
+    action — which is not a fault and is not counted. A ``str`` is the reason
+    code the caller tallies. Nothing but the digest ever leaves this frame:
+    the output boundary (ADR-0083) is that no body text is returned, and a
+    fault is named, never quoted.
+    """
+    try:
+        # Strict, not errors="replace": lossy decoding maps distinct
+        # invalid byte sequences onto the same U+FFFD string, which
+        # would let two different bodies collide into an invented
+        # duplicate. A scan whose purpose is to refuse unsupported
+        # identity claims must not manufacture one.
+        line = raw_line.decode("utf-8")
+    except UnicodeDecodeError:
+        return "bad_encoding"
+    try:
+        record = json.loads(line)
+    except json.JSONDecodeError:
+        return "bad_json"
+    if not isinstance(record, dict):
+        return "bad_shape"
+    if record.get("type") != "activity":
+        return None  # insight / post-type records are not published bodies
+    data = record.get("data")
+    if not isinstance(data, dict):
+        return "bad_shape"
+    action = data.get("action")
+    if action not in PUBLISHED_ACTIONS:
+        return None
+    content = data.get("content")
+    if not isinstance(content, str):
+        return "bad_shape"
+    if not content.strip():
+        return "empty_content"
+    try:
+        encoded = content.encode("utf-8")
+    except UnicodeEncodeError:
+        # A lone UTF-16 surrogate survives json.loads (the file bytes
+        # are plain ASCII escape syntax) and only fails here. Left
+        # uncaught it would abort the whole scan on one poisoned
+        # record — and since episode logs are never deleted, the scan
+        # would stay dead every week after, invisibly: the shell
+        # discards stderr and falls back to "not available". Skip and
+        # count, like every other fault.
+        return "bad_unicode"
+    digest = hashlib.sha256(encoded).hexdigest()[:DIGEST_LEN]
+    return Published(date=date, action=action, digest=digest)
+
+
 def collect(log_dir: Path) -> tuple[list[Published], dict[str, int]]:
     """Read every day file into digests, counting faults by reason.
 
@@ -127,6 +179,10 @@ def collect(log_dir: Path) -> tuple[list[Published], dict[str, int]]:
     final line is an ordinary occurrence, not corruption; it is skipped and
     counted rather than raised, and the count is rendered so the skip is never
     silent.
+
+    The per-line classification lives in ``_published_from_line`` for the C901
+    budget (2026-08-31); the reason codes and the order they are tested in are
+    unchanged.
     """
     bodies: list[Published] = []
     skipped: Counter[str] = Counter()
@@ -142,54 +198,13 @@ def collect(log_dir: Path) -> tuple[list[Published], dict[str, int]]:
         for raw_line in raw.splitlines():
             if not raw_line.strip():
                 continue
-            try:
-                # Strict, not errors="replace": lossy decoding maps distinct
-                # invalid byte sequences onto the same U+FFFD string, which
-                # would let two different bodies collide into an invented
-                # duplicate. A scan whose purpose is to refuse unsupported
-                # identity claims must not manufacture one.
-                line = raw_line.decode("utf-8")
-            except UnicodeDecodeError:
-                skipped["bad_encoding"] += 1
+            outcome = _published_from_line(raw_line, date)
+            if outcome is None:
                 continue
-            try:
-                record = json.loads(line)
-            except json.JSONDecodeError:
-                skipped["bad_json"] += 1
+            if isinstance(outcome, str):
+                skipped[outcome] += 1
                 continue
-            if not isinstance(record, dict):
-                skipped["bad_shape"] += 1
-                continue
-            if record.get("type") != "activity":
-                continue  # insight / post-type records are not published bodies
-            data = record.get("data")
-            if not isinstance(data, dict):
-                skipped["bad_shape"] += 1
-                continue
-            action = data.get("action")
-            if action not in PUBLISHED_ACTIONS:
-                continue
-            content = data.get("content")
-            if not isinstance(content, str):
-                skipped["bad_shape"] += 1
-                continue
-            if not content.strip():
-                skipped["empty_content"] += 1
-                continue
-            try:
-                encoded = content.encode("utf-8")
-            except UnicodeEncodeError:
-                # A lone UTF-16 surrogate survives json.loads (the file bytes
-                # are plain ASCII escape syntax) and only fails here. Left
-                # uncaught it would abort the whole scan on one poisoned
-                # record — and since episode logs are never deleted, the scan
-                # would stay dead every week after, invisibly: the shell
-                # discards stderr and falls back to "not available". Skip and
-                # count, like every other fault.
-                skipped["bad_unicode"] += 1
-                continue
-            digest = hashlib.sha256(encoded).hexdigest()[:DIGEST_LEN]
-            bodies.append(Published(date=date, action=action, digest=digest))
+            bodies.append(outcome)
 
     return bodies, dict(skipped)
 
