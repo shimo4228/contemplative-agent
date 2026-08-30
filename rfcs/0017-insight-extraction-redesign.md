@@ -68,6 +68,27 @@ SkillResolve-Bench（arXiv 2606.10388）の same-capability ambiguity（RFC-0013
 社内先例: ADR-0084（判定は成果物の後に置く）、ADR-0096（self-judge の refute 3 連）、
 ADR-0056（重要度 ablation）。
 
+WikiSkill（arXiv 2608.27454、2026-08-27 投稿。2026-08-30 読み）— 本 RFC に最も近い外部先例。
+raw トレース / 蓄積知識 / 実行可能 skill の 3 層を分ける構成で、CA の episode log →
+knowledge store → skills に対応する。3 点が直接効く:
+
+- **抽出器に蓄積層を読ませることが論文中で最大の ablation**（平均 48.7 → 63.7、+15.0 点。
+  最大は 49.9 → 76.6）。蓄積層を持たない構成は、あるベンチマークでは no-skill baseline 50.5 を
+  下回った（44.4 / 49.9）。本 RFC の Motivation「store の状態が入力に無い」に外部の実測が付く。
+  ただし論文の提案器は蓄積知識を**材料**として読む（index + 過去提案の採否記録 + 必要なページを
+  自分で開く）のに対し、現行 novelty gate は既存 skill の name + description を**通す/落とすの
+  二値ゲート**として見るだけで、役割が違う
+- **中間層の書き込み動詞が create だけではない**。既存 pattern ページへの patch 更新
+  （append / replace / insert_after）が既定で、実測は 1 run あたり作成 4.4–9.8 に対し編集 7.0–18.4。
+  生産量を活動量から切り離すのは件数の抑制ではなく既存ページへの帰属である、という設計。
+  CA 側の対応物（dedup の `update` = 旧行の soft-invalidate + 新行 append）とは別の操作
+- **却下の記録を読むのは次回の提案器**（reviewer ではない）。ADR-0097 D6 が予約した却下語彙の
+  宛先の再検討材料になる
+
+移植できない部分: 検証スプリットのスコアによる自動 gating と rollback（CA に正解が無い）、
+skill retrieval の設計（論文は全注入で交絡を外している）、蓄積層の剪定（論文も持たず Limitations で
+自認 — ADR-0097 が解体した場所と同じ）。
+
 ## 2026-08-29 triage 判定（著者回答: 選択肢 (b) — RFC-0016 を先に）
 
 `draft` 維持。設計セッションは [RFC-0016](0016-restore-surprise-instrument.md) の復元が
@@ -75,11 +96,48 @@ ADR-0056（重要度 ablation）。
 「RFC-0016 との統合順序」はこれで決着（RFC-0016 が先、その読み値を設計材料にする）。
 残り 3 点（飽和シグナルの判定者 / cluster 床 3 の扱い / 環境の反応の入れ方）は設計セッションで潰す。
 
+## 2026-08-30 追記（WikiSkill の読みと、設計セッション前の baseline 計測）
+
+外部先例 WikiSkill（arXiv 2608.27454）を読み、Prior art に追加した。それを受けて 2 点を決める。
+
+**設計セッションの前に skills-on/off の baseline を 1 回読む。** 独立 RFC を立てず本 RFC に畳む
+（著者判断）。
+
+理由: WikiSkill の gating は `R_best` を**空 skill set の検証スコアで初期化**する — 「skill 無しに
+勝てるか」が gate の定義そのもので、CA はこの読み値を一度も取っていない。同論文の ablation では、
+蓄積層を持たない構成の skill が no-skill baseline を下回るベンチマークがあった（44.4 / 49.9 対 50.5）。
+本 RFC の前提（「抽出器を治す」）が「抽出物がまだ元を取っていない」に変わりうるので、設計の前に読む。
+
+立て方: `evals/` の **comment 面（Face A）でそのまま立つ** — `evals/run_eval.py`（ADR-0089）+
+`evals/datasets/comment_golden.jsonl` + `evals/baselines/`。pinned fixture
+`evals/fixtures/agent_home/skills/`（45 件）を空にしたアームを足すだけで、distill 面（Face B）は
+要らない。[RFC-0002](0002-axiom-removal-ab-experiment.md) が withdrawn になった理由（Face B が
+誰の予定にも無い）は本計測には当たらない。
+
+消費計画（ADR-0101）:
+
+- **読み手** — 本 RFC の設計セッション
+- **何回の読みで何を決めるか** — 1 回。決めるのは本 RFC の前提（抽出器の修理か、抽出物の値打ちか）。
+  サンプル数と判定基準は実行前に登録し、「判定不能」を「効いていない」と混同しない
+  （`run_eval.py` の exit 2 の思想と揃える）
+- **満了時の撤去条件** — 読み終えたらアームを撤去する。定期計器にしない
+
+**設計のブラッシュアップと実装は新しい Fable のリリース待ち**（著者判断）。その世代で設計を
+詰めて実装する。計測は read-only で Ollama + claude judge しか使わないため、**この待ちの外側で
+先に走らせてよい**。
+
 ## 着手条件
 
-再開条件: RFC-0016 の復元が main にマージされ、surprise の読み値が 1 回取れること
-照合先:   `core/insight_surprise.py` の存在と、staging sidecar の `surprise` field の実値
+**2026-08-30 更新。** 旧条件（RFC-0016 の復元が main にマージされ surprise の読み値が取れること）は
+2026-08-29 に成立済み（RFC-0016 は `done`、`core/insight_surprise.py` は display-only で在る）。
+
+再開条件: (1) skills-on/off の baseline を 1 回読み終えていること、かつ
+          (2) 新しい Fable がリリースされていること
+照合先:   (1) `evals/baselines/` に skills-off アームの run JSON が在るか
+          (2) 現行世代より新しい Fable の有無（外部イベント。期日の見込みは持たない）
 成立時:   設計セッション（grill-me 形式）→ Unresolved questions 残り 3 点を潰して accepted
+
+(1) は (2) を待たない — read-only なので先に走らせてよい。
 
 ## Status
 
@@ -88,6 +146,7 @@ draft — 2026-08-26 のオーナー指示（「knowledge からスキル抽出�
 
 ## Next action
 
-- 再開条件: 設計スコープの確定（上の Unresolved questions への回答。オーナーと設計セッション）
-- 照合先:   本ファイルの state
-- 成立時:   accepted → 教師データでの offline 較正から着手（read-only なので失敗が無料）
+- 再開条件: skills-on/off の baseline を 1 回読む（新 Fable を待たない）
+- 照合先:   `evals/baselines/` に skills-off アームの run JSON が在るか
+- 成立時:   読み値を持って、新 Fable のリリース後に設計セッション →
+            Unresolved questions 残り 3 点を潰して accepted → 教師データでの offline 較正から着手
