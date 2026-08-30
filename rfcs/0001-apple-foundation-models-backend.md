@@ -1,5 +1,5 @@
 ---
-state: blocked
+state: withdrawn 2026-08-30
 state_since: 2026-08-16
 ---
 
@@ -41,6 +41,18 @@ Apple Foundation Models をローカル生成 backend として挿すか — 202
 ## 2026-08-29 triage 照合（無人 cycle）
 
 未成立 → `blocked` 維持。`sw_vers` = 26.6.1 / build 25G76（OS 27 GA 未到達）。(i)(ii) 同時成立が条件なので enforced 比率は未集計。
+
+## 2026-08-30 withdrawn（著者判断）
+
+「やらないでいい」— `blocked` を解いて終端化する。2026-08-01 の 4 軸実測（射程 6.7% / 品質は
+gemma4:e4b が 27/30 件で 1 位 / reasoning 不在 / メモリ利得は既取得）で棄却した判断を、
+再開条件の待機ごと畳む。以後 OS 27 GA が来ても自動では復活しない。
+
+再び挿す気になったら、この行を復活させるのではなく**実測からやり直す** — 本文の 4 軸と
+ハーネス（`.notes/apple-fm-quality-ab.py` + `apple-fm-ab-20260801/`）はそのために残す。
+判断軸と測り方の罠 7 件は skill [`apple-silicon-local-llm-serving`](../.claude/skills/apple-silicon-local-llm-serving/SKILL.md)
+が正本として持ち続けるので、この行が消えても知見は失われない。この検討が生んだ
+`count_tokens` seam（ADR-0087）も残る。
 
 ## Status
 

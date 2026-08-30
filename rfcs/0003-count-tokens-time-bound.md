@@ -1,5 +1,5 @@
 ---
-state: blocked
+state: withdrawn 2026-08-30
 state_since: 2026-08-16
 ---
 
@@ -41,6 +41,24 @@ state_since: 2026-08-16
 ## 2026-08-29 triage 照合（無人 cycle）
 
 未成立 → `blocked` 維持。sibling grep（`src/`、`count_tokens|TokenCountingBackend`）: cloud `65b0526`（2026-08-17）/ mlx `2f6c7fd`（2026-08-16）とも 0 ヒット（08-26 から両 repo とも commit なし）。
+
+## 2026-08-30 withdrawn（著者判断）
+
+「やらないでいい」— `blocked` を解いて終端化する。**リスクを受容した記録として読むこと。**
+
+受容する内容: `_measure_input_tokens` は注入 backend の `count_tokens()` を壁時計の上限なしで
+同期実行するので、病的なトークナイザを書いた backend はそのプロセスの全生成を
+`backend.generate()` 到達前に無期限停止させうる。現行本番構成（Ollama 既定、`_backend is None`）
+ではこの経路が完全に不活性で、`count_tokens` を実装した backend は 1 つも存在しない
+（2026-08-29 時点で sibling cloud / mlx とも 0 ヒット）。
+
+**durable な記録は [ADR-0087](../docs/adr/0087-optional-token-counting-capability-for-the-context-budget-guard.md)
+の Negative 第 2 項が持つ**（"nothing in this change bounds that"）— 台帳行が消えてもそこは消えない。
+`TokenCountingBackend` を実装する backend を初めて書くときは、その ADR の Negative を読んだ上で
+上限を設計する。最小修理の形（`ThreadPoolExecutor` future + `future.result(timeout=)`、本体 15-25 行、
+`TOKEN_COUNT_FALLBACK_REASONS` に `counter_timeout` を 1 行追加、吊ったスレッドは回収できないので
+タイムアウト後に capability をそのプロセスで一度きり無効化するところまで含めて初めて「上限」になる）は
+本文に記録済みなので、そのときも再調査は要らない。
 
 ## Status
 
