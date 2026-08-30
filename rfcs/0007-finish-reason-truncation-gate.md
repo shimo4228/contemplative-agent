@@ -1,5 +1,5 @@
 ---
-state: blocked
+state: withdrawn 2026-08-30
 state_since: 2026-08-16
 ---
 
@@ -40,6 +40,26 @@ state_since: 2026-08-16
 ## 2026-08-29 triage 照合（無人 cycle）
 
 未成立 → `blocked` 維持。`src/contemplative_agent/testing/` は 08-26 以降 commit なし（`_MAX_IMPLEMENTED_LEVEL` は registry 由来のまま）。本番 plist 9 本を grep して backend 注入なし。
+
+## 2026-08-30 withdrawn（著者判断 — RFC-0003 と同型）
+
+`blocked` を解いて終端化する。**リスクを受容した記録として読むこと。**
+
+受容する内容: `_drop_for_output_truncation`（`core/llm/__init__.py:659`）は
+`finish_reason != "length"` で即 `False` を返すので、`BackendResult.finish_reason=None` を
+返す backend では `drop_truncated=True` でも切れた本文が公開経路に出る。現行の全 backend は
+報告する（Ollama `done_reason` / mlx は転送 / cloud は `BackendResult` 構築）ので実害は無く、
+ADR-0088 の runtime 検査段も未着手のまま（`_MAX_IMPLEMENTED_LEVEL` は `static` 固定）。
+
+**畳む判断の根拠は本文が既に持っている**: 2026-08-08 の訂正が「(d) が安いのは runtime 検査段を
+建てる場合のみで、単独なら (c) より高い」と結論し、見積もり（キット側 200-400 行 + main の
+テスト 150-250 行、catalogued 23 本のうち 4 本のために runtime 段の共通配線を全額負担）まで
+出している。つまりこの行は、自分で費用対効果を否定したまま再開条件の待機だけを続けていた。
+
+同日 withdrawn の [RFC-0003](0003-count-tokens-time-bound.md) と同型（不活性な経路の潜在欠陥 +
+存在しない backend 待ち）。**分析はこのファイルに残る** — rfcs の終端エントリはその場に残す規約
+（ADR-0049）なので、選択肢 (a)〜(d) の値付け・08-08 の訂正・見積もりは公開記録として保全される。
+注入 backend を本番系に入れる判断が出たときは、まずこのファイルを読むこと。
 
 ## Status
 

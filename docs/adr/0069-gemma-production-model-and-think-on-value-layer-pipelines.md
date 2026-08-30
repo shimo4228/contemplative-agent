@@ -172,6 +172,23 @@ author notices, typically at the Saturday gate):
    Speed-driven quality downgrades remain rejected (2026-06-23 owner decision);
    a same-or-newer-generation swap with a defensible quality claim was never in
    that guard's scope — this ADR's own gemma swap is the precedent.
+6. **Re-evaluate the embedding scaffold in the same pass** *(added 2026-08-30;
+   absorbed from RFC-0005, withdrawn the same day as a 便乗 ledger row — a row
+   saying "next time you swap the model, also do this" never reaches the person
+   doing the swap, so it lives here instead).* The mechanism layer's embedding
+   dependency (view retrieval, candidate narrowing — ADR-0019) is compensation
+   for what the generation model of the day could not afford to read. The design
+   rule is: **relevance judgments belong to the strongest judge you can pay for.**
+   ADR-0019's division of labour (mechanism = embedding, value judgment +
+   generation = LLM) is correct at gemma4:e4b's prefill cost (6.3–7.1 ms/tok
+   measured) and inverting it breaks things — but the swap that triggers this
+   procedure is exactly the event that can move that line. So: with the
+   candidate model's measured prefill cost and the current store size, ask which
+   embedding-side step could now be done by having the model read instead.
+   Precedent: stocktake grouping went from embedding union-find to a single LLM
+   call once the corpus fit ("if the LLM can read it, reading wins"). Judge on
+   both axes — cost (prefill × store size) and accuracy. A negative answer is a
+   valid outcome and needs no further action.
 
 ## Alternatives Considered
 

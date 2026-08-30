@@ -1,5 +1,5 @@
 ---
-state: blocked
+state: withdrawn 2026-08-30
 state_since: 2026-08-16
 ---
 
@@ -43,6 +43,19 @@ handoff T3（`.notes/handoff-2026-07-03-adr-0072-phase3.md`）
 ## 2026-08-29 triage 照合（無人 cycle）
 
 未成立 → `blocked` 維持。`evals/datasets/` は `comment_golden.jsonl` のみ、`evals/baselines/` も comment_golden 系 3 本のみ — distill 面（Face B）の足場は無い。
+
+## 2026-08-30 withdrawn（著者判断 — 発火源が誰の予定にもない）
+
+`blocked` を解いて終端化する。
+
+再開条件は「`evals/` の distill 面（Face B）が実装されること」だが、**ADR-0089 自身が
+distill 面を明示的に scope 外と宣言している**（`docs/adr/0089-llm-behavioral-eval-layer-on-deepeval.ja.md:37`
+「その distill 面は引き続き scope 外である」、`:679`「distill face は予約済み」）。予約は
+予定ではない。この行は、誰も着手を計画していない仕事の完了を待ち続けていた。
+
+本文自身も「任意実験」と位置づけている。公理の有無を distill 出力で比較したくなったら、
+`get_distill_system_prompt()` が単一レバーであること（insight にも自動波及する）は本文に
+残るので、Face B が実際に建った時点で起票し直す方が安い。
 
 ## Status
 

@@ -1,5 +1,5 @@
 ---
-state: blocked
+state: withdrawn 2026-08-30
 state_since: 2026-08-16
 ---
 
@@ -38,6 +38,22 @@ memory `project_rag_retrieval_demotion.md`、[ADR-0019](../docs/adr/0019-discret
 ## 2026-08-29 triage 照合（無人 cycle）
 
 未成立 → `blocked` 維持。08-26 以降の `docs/adr` / `config/` commit は `2b59a60`（RFC-0010 weekly 計器再設計）と `37cbea2`（ADR-0080 追補）のみで、生成モデル交代 ADR なし。
+
+## 2026-08-30 withdrawn（著者判断 — 便乗型を ADR-0069 へ移設）
+
+`blocked` を解いて終端化する。**内容は失われず、発火する場所へ移した。**
+
+この行は task-stocktake が「台帳に置かない型」と名指しする**便乗型**だった —
+再開条件が「次にモデル交代するとき同時に評価」で、台帳はモデル交代をする人に届かない
+（store 運用は全件を読まず、`claims.py ready` は blocked を出さない）。CA の実測でも便乗 4 件中
+2 件で対象ファイルが起票後に計 12 回変更され全部空振りしている。
+
+**移設先**: [ADR-0069](../docs/adr/0069-gemma-production-model-and-think-on-value-layer-pipelines.md)
+の Review-when 手順に **step 6「同じ機会に embedding 足場を再評価する」** を追加した
+（2026-08-30、en / ja 両面）。あの手順はモデル交代の実行手順そのものなので、交代する人は
+必ず読む。設計則「関連性の判断はその時点で払える最強の判定者に」、ADR-0019 の分業を現世代では
+逆転させないこと、判定はコスト（prefill 速度 × ストア規模）と精度の両軸、先例（stocktake の
+grouping が embedding union-find → LLM 単一コール）は全部そちらへ写した。
 
 ## Status
 

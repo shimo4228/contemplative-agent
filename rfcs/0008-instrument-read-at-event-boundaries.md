@@ -1,5 +1,5 @@
 ---
-state: blocked
+state: withdrawn 2026-08-30
 state_since: 2026-08-16
 origin: instrument
 parent: T-CAND7
@@ -95,6 +95,26 @@ T-GAP1 Phase 1 で、**介入境界を跨いだ計器の読み直しを 1 回実
 ## 2026-08-29 triage 照合（無人 cycle）
 
 未成立 → `blocked` 維持。08-26 以降、埋め込みモデル差し替え・`restore-embed-knowledge.py` 実行の commit / 記録なし。
+
+## 2026-08-30 withdrawn（著者判断 — 便乗型 + 発火源の再喪失リスク）
+
+`blocked` を解いて終端化する。
+
+この行は**一度発火源を失って書き直した経歴**を持つ（旧条件「T-GAP1 の A/B が終わること」は
+T-GAP1 が A/B を実行せず withdrawn になり永久に成立しなくなった）。書き直した新条件
+「埋め込みモデルの差し替え、または `restore-embed-knowledge.py` による backfill が次に行われる」も、
+**同日 withdrawn の [RFC-0005](0005-embedding-scaffold-expiry.md) と同じイベント待ちの便乗型**で、
+台帳はそのイベントを起こす人に届かない。
+
+**本文の判定基準が自分で出口を用意している**: 「境界の前後で、既存の `--dry-run` 経路では
+読めなかったものがあったか。無かった → `withdrawn`」。2026-08-16 の部分照合は判定基準を当てる
+機会にならなかった（読み直せたのはテキスト分類で、再現破れ 4 原因は全部 embedding 由来の計器に
+効くもの）ので、読みは取得されないまま畳む。
+
+**この行が残した教訓は本文に保全される**（rfcs 終端エントリはその場に残る、ADR-0049）:
+**再開条件は状態か、producer のある実イベントで書く** — イベントは中止されうる。同日の
+`T-ENDSTATE-TERM`（現 [RFC-0006](0006-heartbeat-end-state-criteria.md)）は状態で書かれていたため
+無傷だった、という対比がここに記録されている。RFC-0006 を残す判断はこの対比に立っている。
 
 ## Status
 

@@ -1,6 +1,6 @@
 ---
-state: blocked
-state_since: 2026-08-16
+state: draft
+state_since: 2026-08-30
 ---
 
 ## タスク
@@ -41,6 +41,25 @@ state_since: 2026-08-16
 ## 2026-08-29 triage 照合（無人 cycle）
 
 未成立 → `blocked` 維持。`gh pr view 12030 --repo ollama/ollama`: OPEN / mergedAt null。`POST /api/tokenize` → HTTP 404。
+
+## 2026-08-30 triage 判定（著者回答: draft へ）
+
+`blocked` → `draft`。**採否がまだ残っているため、語彙上 `blocked` に置けない。**
+
+task-stocktake の入場条件は「条件成立だけで `accepted` に移せるか」で、移せないなら
+採否が残っている＝`draft`。この行の成立時は自分でこう書いていた —
+「accepted（ただし**マージされても自動採用しない** — 生成ごとに HTTP 往復が 1 回増えるので、
+無人スケジュール上のレイテンシを実測してから判断する。endpoint の存在は採用理由にならない）」。
+つまり上流 PR がマージされても、そこから採否判断が始まる。`blocked` の 3 行を書けているように
+見えて、成立時が `accepted` を指していなかった。
+
+**上流の監視は続けてよい**（`gh pr view 12030 --repo ollama/ollama` と
+`POST /api/tokenize`。2026-08-29 時点で OPEN / mergedAt null、HTTP 404）が、それは
+着手条件ではなく採否判断の材料が揃う時期の目安。判断すべき問いは
+「毎生成の HTTP 往復 1 回を、無人スケジュールのレイテンシ予算で払う価値があるか」。
+
+同じ token counting 系の [RFC-0003](0003-count-tokens-time-bound.md) は 2026-08-30 に
+withdrawn（不活性経路のリスク受容）。こちらは Ollama 既定経路そのものに効くので別物として残す。
 
 ## Status
 
