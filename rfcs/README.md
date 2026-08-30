@@ -31,3 +31,4 @@ frontmatter が唯一の正本**。
 | [0017](0017-insight-extraction-redesign.md) | insight 抽出の再設計 — 頻度キー抽出に飽和と新規性の器官を与える |
 | [0018](0018-self-post-seed-voice-label.md) | 自己投稿 seed ブロックに公開してよい voice ラベルを付ける |
 | [0019](0019-weekly-session-value-layer-read.md) | 週次無人セッションの Read 許可に値層 4 パスを足す |
+| [0020](0020-eval-baseline-staleness-standing.md) | eval baseline の STALE 警告が常設化している |
