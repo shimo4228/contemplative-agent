@@ -20,7 +20,7 @@ from __future__ import annotations
 import logging
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any, Protocol
+from typing import Protocol
 
 from ...core.text_utils import log_preview
 from .client import MoltbookClientError
@@ -40,7 +40,7 @@ class VerificationHandler(Protocol):
 
     def __call__(
         self,
-        verification: dict[str, Any],
+        verification: object,
         *,
         action: VerificationAction | None = None,
         target_id: str | None = None,
@@ -65,7 +65,7 @@ def client_error_guard(action: str, *, on_rate_limited: Callable[[], None]) -> I
 
 
 def passes_verification(
-    verification: dict[str, Any] | None,
+    verification: object,
     handle_verification: VerificationHandler,
     *,
     description: str,
@@ -87,7 +87,12 @@ def passes_verification(
     target digest to say so (weekly F1.2 2026-08-08). The WARNING below stays
     as the human-readable trace; it is no longer the only one.
 
-    A trusted-bypass response carries no ``verification`` key and passes.
+    A trusted-bypass response carries no ``verification`` key and passes
+    (an explicit JSON ``null`` passes the same way — the bypass is the
+    identity check ``is None``, never truthiness).
+    The value is server-controlled JSON and is passed through unnarrowed —
+    the handler owns the shape check (a non-dict is its audited reject,
+    2026-08-31), so a malformed challenge still leaves the countable trace.
     """
     if verification is None:
         return True
@@ -97,8 +102,14 @@ def passes_verification(
     return False
 
 
-def verification_of(created: object) -> dict[str, Any] | None:
-    """The ``verification`` object of a create response, if it has one."""
+def verification_of(created: object) -> object:
+    """The ``verification`` value of a create response, if it has one.
+
+    Deliberately ``object``, not ``dict | None``: the value is server-
+    controlled JSON and this function does not narrow it — asserting ``dict``
+    here would be a narrowing lie (review 2026-08-31). The handler behind
+    ``passes_verification`` owns the shape check.
+    """
     return created.get("verification") if isinstance(created, dict) else None
 
 

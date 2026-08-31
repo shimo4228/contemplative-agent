@@ -804,7 +804,11 @@ class MoltbookClient:
         # unconfirmed, so fold a root-level "verification" into the returned dict
         # too — the caller's ``created.get("verification")`` gate then fires
         # whether the API nests it under "comment" or at the response root.
-        if "verification" not in comment and isinstance(data.get("verification"), dict):
+        # No isinstance filter: a non-dict value must reach the handler's
+        # audited reject, not vanish into the trusted-bypass path (the old
+        # dict filter silently recorded a pending/invisible comment as
+        # verified — review 2026-08-31, same family as the handler fix).
+        if "verification" not in comment and data.get("verification") is not None:
             comment = {**comment, "verification": data["verification"]}
         return comment
 

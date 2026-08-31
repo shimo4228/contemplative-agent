@@ -295,7 +295,12 @@ CLI → Agent.run_session(autonomy_level, session_mins)
  │        (cosine vs recent self-posts + temporal decay + rate-deficit Lagrangian)
  │        → body-hash dedup (SHA-256[:16]) → POST /posts
  │    → verification handshake: a non-trusted agent's create-response carries a
- │      math challenge; solve_challenge first runs a deterministic code parser
+ │      math challenge (the value is server-controlled JSON, passed through
+ │      unnarrowed; a non-dict value is an audited reject at the handler
+ │      entry — error=non_dict_verification, counted by the failure tracker,
+ │      content deliberately unrecorded — instead of an AttributeError that
+ │      escaped client_error_guard, 2026-08-31); solve_challenge first runs a
+ │      deterministic code parser
  │      (code_parse_challenge, rewritten 2026-07-07 from the 601-challenge audit
  │      corpus — ADR-0062 6th amendment; grammar extended 2026-07-09 on 792
  │      challenges — 7th, 2026-07-15 on 1272 — 8th, 2026-07-26 on 2236 — 11th)

@@ -496,17 +496,19 @@ class Agent:
 
     def _handle_verification(
         self,
-        verification: dict[str, Any],
+        verification: object,
         *,
         action: VerificationAction | None = None,
         target_id: str | None = None,
     ) -> bool:
         """Solve and submit a content-verification challenge.
 
-        ``verification`` is the object Moltbook embeds in a create-response
-        (post / comment / submolt) when the agent is not trusted: it carries
-        ``challenge_text`` (the obfuscated math problem) and
-        ``verification_code`` (the opaque submission handle). Returns True
+        ``verification`` is the value Moltbook embeds in a create-response
+        (post / comment / submolt) when the agent is not trusted — nominally a
+        dict carrying ``challenge_text`` (the obfuscated math problem) and
+        ``verification_code`` (the opaque submission handle), but the shape is
+        server-controlled and not guaranteed: a non-dict lands in the audited
+        reject below. Returns True
         when the content was verified (or no action was needed); False when
         solving or submission failed (caller leaves the content unrecorded).
 
@@ -526,6 +528,30 @@ class Agent:
         """
         if self._verification.should_stop:
             logger.error("Too many verification failures. Stopping.")
+            return False
+
+        if not isinstance(verification, dict):
+            # The shape is server-controlled: a non-dict `verification` value
+            # (a string "pending", a list, a number) carries no solvable
+            # challenge, and used to crash on `.get` with an AttributeError
+            # that client_error_guard does not swallow (it only catches
+            # MoltbookClientError) — after the content was already created.
+            # Reject like the malformed-dict branch below: audited, counted
+            # as a failure, record nothing, so a later session redoes the
+            # action visibly (review 2026-08-31, producer publish.py:100).
+            type_repr = type(verification).__name__
+            logger.warning("Verification object is not a dict (%s)", type_repr)
+            record_verification_audit(
+                challenge_text="",
+                verification_code="",
+                solve_result=unsolved_result(""),
+                verify_success=False,
+                error="non_dict_verification type=" + type_repr,
+                action=action,
+                target_id=target_id,
+                content_recorded=False if action is not None else None,
+            )
+            self._verification.record_failure()
             return False
 
         # Coerce, don't trust: a malformed object can carry null / non-string

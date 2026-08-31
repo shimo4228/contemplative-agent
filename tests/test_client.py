@@ -914,6 +914,18 @@ class TestPostCommentVerificationSurfacing:
             created = client.post_comment("p1", "hi")
         assert created["verification"]["verification_code"] == "moltbook_verify_x"
 
+    def test_root_level_non_dict_verification_is_folded_not_dropped(self):
+        # Review 2026-08-31: the old `isinstance(..., dict)` filter silently
+        # dropped a root-level non-dict verification ("pending"), so
+        # verification_of returned None and the comment took the trusted
+        # bypass — recorded as verified while pending/invisible. It must
+        # survive the fold and reach the handler's audited reject instead.
+        client = MoltbookClient(api_key="k")
+        resp = _resp({"success": True, "comment": {"id": "c1"}, "verification": "pending"})
+        with patch.object(client._session, "request", return_value=resp):
+            created = client.post_comment("p1", "hi")
+        assert created["verification"] == "pending"
+
     def test_no_verification_when_trusted(self):
         client = MoltbookClient(api_key="k")
         resp = _resp({"success": True, "comment": {"id": "c1"}})

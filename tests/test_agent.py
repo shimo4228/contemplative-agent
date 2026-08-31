@@ -3831,6 +3831,63 @@ class TestHandleVerificationMalformedObject:
         assert kwargs["challenge_text"] == ""
         assert "malformed_verification_object" in kwargs["error"]
 
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    def test_non_dict_verification_rejects_with_audit(self, mock_audit):
+        # Review 2026-08-31 (producer publish.py:100): the verification value
+        # is server-controlled JSON — a non-dict ("pending", a list, a number)
+        # used to crash on .get with an AttributeError that client_error_guard
+        # does not swallow, after the content was already created. It must be
+        # an audited reject instead: record nothing, so a later session can
+        # redo the action visibly.
+        tracker = VerificationTracker(max_failures=1)
+        agent, _, _ = _make_agent(verification=tracker)
+
+        result = agent._handle_verification("pending", action="post", target_id="abc123")
+
+        assert result is False
+        assert tracker.should_stop is True
+        mock_audit.assert_called_once()
+        kwargs = mock_audit.call_args.kwargs
+        assert kwargs["verify_success"] is False
+        assert "non_dict_verification" in kwargs["error"]
+        assert "str" in kwargs["error"]
+        assert kwargs["solve_result"].answer is None
+        assert kwargs["action"] == "post"
+        assert kwargs["content_recorded"] is False
+        # Schema parity with the malformed-dict branch: both empty-string
+        # fields, so the audit row shape is indistinguishable downstream.
+        assert kwargs["challenge_text"] == ""
+        assert kwargs["verification_code"] == ""
+
+    @patch("contemplative_agent.adapters.moltbook.agent.record_verification_audit")
+    def test_non_dict_verification_without_action_leaves_recorded_none(self, mock_audit):
+        tracker = VerificationTracker(max_failures=1)
+        agent, _, _ = _make_agent(verification=tracker)
+
+        assert agent._handle_verification([1, 2]) is False
+        assert mock_audit.call_args.kwargs["content_recorded"] is None
+
+    def test_falsy_non_dict_is_not_a_trusted_bypass(self):
+        # publish.passes_verification bypasses only on `verification is None`
+        # (identity, not truthiness): "" / 0 / False / [] must reach the
+        # handler's audited reject. A future `if not verification` would
+        # silently re-open the trusted bypass for every falsy non-dict and no
+        # other test would fail — this pins the identity check.
+        from contemplative_agent.adapters.moltbook.publish import passes_verification
+
+        seen = []
+
+        def handler(verification, *, action=None, target_id=None):
+            seen.append(verification)
+            return False
+
+        for falsy in ("", 0, False, []):
+            assert (
+                passes_verification(falsy, handler, description="d", action="post", target_id="t")
+                is False
+            )
+        assert seen == ["", 0, False, []]
+
 
 class TestVerificationAuditActionThreading:
     """Weekly F1.2 2026-08-08: each create-time handshake states its own kind.
