@@ -630,7 +630,7 @@ class _ApprovedIndex:
         record: dict[str, Any],
         *,
         parsed: datetime,
-        raw_ts: Any,
+        raw_ts: object,
         within_window: bool,
         retired: bool,
     ) -> None:

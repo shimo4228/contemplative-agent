@@ -11,9 +11,11 @@ import argparse
 import logging
 from collections.abc import Sequence
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, cast
 
 if TYPE_CHECKING:
+    from ..core.constitution import AmendmentResult
+    from ..core.distill import IdentityResult
     from ..core.insight import SkillResult
     from ..core.views import ViewRegistry
 
@@ -212,7 +214,7 @@ def _write_reasoning(
 
 
 def _handle_single_result(
-    result: Any,
+    result: str | IdentityResult | AmendmentResult,
     *,
     command: str,
     reasoning_label: str,

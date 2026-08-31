@@ -104,7 +104,9 @@ if [[ "$MODE" == "staged" ]]; then
   if [[ -n "$py" ]]; then
     check format   "${UV[@]}" ruff format --check .
     check lint     "${UV[@]}" ruff check --no-cache .
-    check_empty security "${UV[@]}" bandit -q -r . -ll -ii "${BANDIT_FMT[@]}"
+    # docs/evidence は凍結された逐語記録 (データ) — ruff は pyproject の extend-exclude が
+    # 外し、bandit はここで外す (full モードは -r src evals なので元から対象外)
+    check_empty security "${UV[@]}" bandit -q -r . -x ./docs/evidence -ll -ii "${BANDIT_FMT[@]}"
   fi
 
   if [[ -n "$sh" ]]; then

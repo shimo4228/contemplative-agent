@@ -27,9 +27,11 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from pathlib import Path
-from typing import Any
+from typing import TypeVar
 
 from _md import md_safe
+
+T = TypeVar("T")
 
 # Fields retired by ADRs — a pattern is meant to shed these on its next save.
 # Their presence means dead metadata is still round-tripping (drift), not
@@ -203,7 +205,7 @@ def check_agents(agents: dict) -> list[InvariantResult]:
     return [InvariantResult("agents_followed", _OK, f"{len(followed)} followed agents, all unique")]
 
 
-def _load_typed(path: Path, expected: type, default: Any) -> Any:
+def _load_typed(path: Path, expected: type[T], default: T) -> T:
     """Read a JSON file, returning the loaded value only if it has *expected*
     type; silently fall back to ``default`` on IO / parse / type error.
     """

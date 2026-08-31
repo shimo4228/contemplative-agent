@@ -133,6 +133,52 @@ p50=1 / p90=3 / p95=5 / **p99=9** / **max=10**。violation 0 件、免除 0 件�
 ruff が cognitive complexity（astral-sh/ruff#2418）を実装した時（指標を引き直す）/
 **閾値引き上げによる回避を観測した 1 回目**（ハーネス ADR-0056 の Review-when — 規約側の再訪）。
 
+**lint — 境界型強制（ANN 系）**（選定日 2026-08-31）
+verify-bootstrap skill の LLM-first 4 軸（harness 棚卸し 2026-08-31）との照合で、軸 4
+「境界の明示型強制」だけが gap だった（pyright は明示 mode なし = standard で、注釈の
+存在は強制しない）。`ANN001-003`（引数）+ `ANN201`（戻り値）+ `ANN401`（裸の `Any` 禁止）を
+select に追加。ANN202/204-206 は非選択（明示 pin の方針 — family でなく個別に議論して足す）。
+
+実測 as-of **2026-08-31**: production 側（src / scripts / evals）は ANN001-003/201 が
+**違反 0**（コードは既に完備 — ゲートは現状凍結）。ANN401 は 24 件 / 9 ファイルで、
+導入同日に**免除ゼロ・inline noqa ゼロ・挙動保存**で drain 完了:
+
+- `object` 置換 13 件（untrusted JSON 境界は narrowing 済みで下流無影響。`_is_int` は
+  TypeGuard、`log_published` の `*args`、scripts の `raw_ts` / `**extra` 含む）
+- `np.ndarray` 2 件（`retrieval_recall_measure._degenerate_arrays` — TYPE_CHECKING import で
+  遅延 import 方針を維持）
+- TypeVar 化 2 件（`state_invariant_check._load_typed`）
+- union 記載 1 件（`memory_cmds._handle_single_result` → `str | IdentityResult | AmendmentResult`）
+- TYPE_CHECKING import + facade 宣言への追随 2 件（`memory_repos` の 2 `record` → `Interaction` /
+  `PostRecord`。Generic 化は unbound T への属性アクセスと `asdict` stub が Protocol bound を
+  要求し機構過剰なので不採用）
+- **難所 4 件 — `client.py` の requests への `**kwargs` パススルーは明示 named params 化**
+  （実測で流れるのは `json` と `params` のみ。`timeout` / `allow_redirects=False`（Bearer
+  リーク防止）は `_request` 内へ直書きし、呼び出し側から上書き不能に凍結 — 境界強化の副産物）。
+  Unpack[TypedDict] は typing_extensions 新依存（requests+numpy のみ方針に抵触）で棄却
+- **難所 3 件 — `publish.py` verification 系は annotation-only**（`dict[str, Any] | None` 化、
+  runtime 1 バイト不変。handler は既に `dict` 宣言で `.get` を呼ぶ = dict 前提だった）
+
+tests/** は恒久免除（5,810 件 — テスト関数は消費される境界ではない。drain 台帳ではない）。
+JSONValue alias は**作らない**: 用途 3 面のみで `object` + narrowing が足り、`dict[str, Any]` が
+支配的慣用、core の公開面を増やす対価が立たない（将来 API 境界の型付けを本格化するなら
+`core/json_types.py` に再帰 alias が適合位置、という判断だけ残す）。
+
+再調査トリガー: 12 ヶ月経過 / ANN401 で「刈れないので noqa」提案が出た 1 回目（規約側の再訪 —
+noqa の前にこの節へ日付つきで理由を書く）/ pyright を strict 化する時（ANN001-003/201 が冗長化
+するか再評価）。
+
+**docs/evidence の根本除外（2026-08-31、per-file-ignores の積み増しを終了）**
+`[tool.ruff]` の `extend-exclude = ["docs/evidence"]` + `force-exclude = true` でディレクトリごと
+検査対象集合から外した（凍結された逐語記録 = データであってコードではない — markdown ゲートの
+「検査対象から外したもの」と同じ判定基準）。旧 `"docs/evidence/**" = ["T20", "C901"]` 免除行は
+削除 — rule を足すたびに evidence の免除行が増える構造（T20 → C901 → ANN で 3 回目）を閉じた。
+これで lint に加えて **format も** 両モードで外れる（per-file-ignores は format に元から効いて
+いなかった）。staged モードの bandit も `-x ./docs/evidence` で同基準に揃えた（verify.sh 変更 —
+内容 hash の再承認が必要）。実証: 違反入り .py（format 崩し + shell=True + 未注釈）を evidence 配下に
+stage して `verify.sh --staged` が PASS、明示パス指定の `ruff check` も excluded。
+トレードオフ（許容）: F 系も evidence では見なくなる — 凍結記録は編集されない前提。
+
 **type check — pyright**
 Rust 製の後発が実際に来ている（Meta の pyrefly が 2026-05 に v1.0、pandas で pyright 比
 約 75 倍高速）が、conformance（型仕様準拠度）が ~58% で pyright を置換する段階にない。
@@ -278,6 +324,22 @@ textlint + preset-ja-technical-writing を一度導入し、同日中に**過剰
 再検討の条件: 上記の構造的な文字化けが実際に混入し始めたとき。あるいは preset ではなく
 `textlint-rule-prh` で **自分の規約**（固有名詞の表記、glossary の訳語）を強制する形なら、
 既存の Voice 規約と競合しないので別途検討してよい。
+
+## 棚卸し履歴
+
+**2026-08-31 audit（verify-bootstrap --audit）— 全 category 据え置き、乗り換えなし。**
+stack 不変（py 231 / sh 18 / md 456、新生態系なし）。verify.sh / verify.md は git 追跡済み。
+イベントトリガーの照合結果:
+
+| トリガー | 読み値 as-of 2026-08 | 判定 |
+|---|---|---|
+| ty 1.0 到達 | beta のまま（0.0.x、最終リリース 2026-08-26） | 未発火 |
+| pyrefly conformance 90% 超え | 一次ソース（pyrefly 公式 blog）は **87.8%**（2026-03 計測、pyright 97.8%）。二次 blog に「97% 超え」の主張があるが一次で未確認 | **境界上**。発火しても手順は「高速セカンドチェック併用」であり主軸交代ではない — pyright 据え置き。次回 audit で一次の再計測値を見る |
+| `uv audit` stable 化 | 依然 preview / unstable（`--preview-features audit` ゲート） | 未発火 — pip-audit 据え置き |
+| ruff cognitive complexity（#2418） | OPEN のまま（最終更新 2026-01） | 未発火 — C901 据え置き |
+| ruff S の bandit カバレッジ到達 | parity issue #20129 が open。flake8-bandit 上流が停滞し B324 / B613 / B614 / B615 / B703 等が未移植 | 未発火 — bandit 据え置き |
+
+時間トリガー（12 ヶ月経過: ruff / shellcheck）は選定 1 ヶ月時点で未達。
 
 ## CI
 

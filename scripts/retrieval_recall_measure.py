@@ -103,7 +103,10 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date, timedelta
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    import numpy as np  # annotation-only: runtime defers the import (bare python3)
 
 from _audit import parse_records
 from _scan import ScanError
@@ -805,7 +808,7 @@ def lexical_rankings(
     return rankings
 
 
-def _degenerate_arrays(doc_array: Any, query_array: Any) -> bool:
+def _degenerate_arrays(doc_array: np.ndarray, query_array: np.ndarray) -> bool:
     """Whether the embedding matrices are unusable as a similarity space.
 
     Split out of :func:`cosine_rankings` for the C901 budget (2026-08-31);
@@ -956,7 +959,7 @@ def _arm_block(
     rankings: Sequence[tuple[str, ...] | None],
     ks: Sequence[int],
     metric: str,
-    **extra: Any,
+    **extra: object,
 ) -> dict[str, Any]:
     degenerate = sum(1 for ranking in rankings if ranking is None)
     return {

@@ -6,6 +6,7 @@ import logging
 import math
 import re
 import time
+from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 from urllib.parse import urlparse
@@ -85,7 +86,7 @@ def _normalize_endpoint(method: str, path: str) -> str:
     return f"{method.upper()} /" + "/".join(out)
 
 
-def _try_json(response: requests.Response) -> Any:
+def _try_json(response: requests.Response) -> object:
     """Parse a response body as JSON, or None if it is not JSON."""
     try:
         return response.json()
@@ -93,7 +94,7 @@ def _try_json(response: requests.Response) -> Any:
         return None
 
 
-def envelope_ok(body: Any) -> bool:
+def envelope_ok(body: object) -> bool:
     """Body-level success predicate for a 2xx response (review 2026-06-27).
 
     HTTP 2xx alone does not prove a write succeeded: Moltbook can return a
@@ -109,7 +110,7 @@ def envelope_ok(body: Any) -> bool:
     return not (isinstance(body, dict) and body.get("success") is False)
 
 
-def envelope_ok_strict(body: Any) -> bool:
+def envelope_ok_strict(body: object) -> bool:
     """Strict body-level success predicate for idempotent writes (bug-audit
     2026-07-06 M3).
 
@@ -257,7 +258,7 @@ _MAX_LISTED_SUBMOLTS = 100
 _SUBMOLT_DESCRIPTION_MAX_CHARS = 200
 
 
-def _coerce_count(value: Any) -> int:
+def _coerce_count(value: object) -> int:
     """Non-negative int from an untrusted scalar; anything else reads 0.
 
     ``math.isfinite`` is load-bearing, not belt-and-braces: Python's JSON
@@ -433,18 +434,25 @@ class MoltbookClient:
         method: str,
         path: str,
         retries: int = 0,
-        **kwargs: Any,
+        *,
+        json: dict[str, Any] | None = None,
+        params: Mapping[str, str | int] | None = None,
     ) -> requests.Response:
         """Make an HTTP request with retry on 429."""
         url = f"{self._base_url}{path}"
         self._validate_url(url)
 
-        kwargs.setdefault("timeout", (CONNECT_TIMEOUT, READ_TIMEOUT))
-        # Disable redirects to prevent Bearer token leakage via redirect
-        kwargs.setdefault("allow_redirects", False)
-
         try:
-            response = self._session.request(method, url, **kwargs)
+            # allow_redirects=False prevents Bearer token leakage via redirect,
+            # and is deliberately not a parameter — no call site may loosen it.
+            response = self._session.request(
+                method,
+                url,
+                json=json,
+                params=params,
+                timeout=(CONNECT_TIMEOUT, READ_TIMEOUT),
+                allow_redirects=False,
+            )
         except requests.RequestException as exc:
             # Transport failures (timeout / connection reset / DNS) raise
             # before _record_api_outcome — without this record an API outage
@@ -507,7 +515,7 @@ class MoltbookClient:
                     }
                 )
                 time.sleep(retry_after)
-                return self._request(method, path, retries=retries + 1, **kwargs)
+                return self._request(method, path, retries=retries + 1, json=json, params=params)
             else:
                 # Soft 429 with retries exhausted — terminal (M5).
                 self._recent_429_count += 1
@@ -534,7 +542,7 @@ class MoltbookClient:
         method: str,
         path: str,
         status_code: int,
-        body: Any,
+        body: object,
     ) -> None:
         """Append a structural record of one API call (best-effort).
 
@@ -569,14 +577,14 @@ class MoltbookClient:
         except Exception as exc:  # never let instrumentation break a request
             logger.warning("API audit record failed: %s", exc)
 
-    def get(self, path: str, **kwargs: Any) -> requests.Response:
-        return self._request("GET", path, **kwargs)
+    def get(self, path: str, *, params: Mapping[str, str | int] | None = None) -> requests.Response:
+        return self._request("GET", path, params=params)
 
-    def post(self, path: str, **kwargs: Any) -> requests.Response:
-        return self._request("POST", path, **kwargs)
+    def post(self, path: str, *, json: dict[str, Any] | None = None) -> requests.Response:
+        return self._request("POST", path, json=json)
 
-    def delete(self, path: str, **kwargs: Any) -> requests.Response:
-        return self._request("DELETE", path, **kwargs)
+    def delete(self, path: str) -> requests.Response:
+        return self._request("DELETE", path)
 
     def list_submolts(self) -> tuple[SubmoltInfo, ...]:
         """List every submolt the platform exposes (ADR-0086).

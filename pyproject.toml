@@ -165,6 +165,14 @@ forbidden_modules = [
 [tool.ruff]
 target-version = "py310"
 line-length = 100
+# docs/evidence is frozen verbatim records — data, not owned code (same standard
+# as the markdown gate's exclusion list in .claude/verify.md). Excluding it here
+# covers lint AND format, in both verify.sh modes, and ends the per-rule
+# exemption creep (T20 -> C901 -> ... one per-file-ignores line per new rule).
+# force-exclude extends this to explicitly-passed paths (the PostToolUse
+# autofix hook invokes ruff on the edited file directly).
+extend-exclude = ["docs/evidence"]
+force-exclude = true
 
 [tool.ruff.lint]
 # Pin the rule set explicitly rather than inheriting ruff's defaults. The
@@ -183,7 +191,17 @@ line-length = 100
 # native at runtime). C901 (mccabe) is the complexity budget — a per-function
 # ceiling so that "one more branch" has to be argued for rather than merged by
 # default; its threshold and exemption ledger are configured below.
-select = ["E4", "E7", "E9", "F", "B", "I", "T20", "UP", "C901"]
+# ANN001-003/201 require explicit types at function boundaries and ANN401 bans
+# bare `Any` there (LLM-first axis 4, 2026-08-31): a typed boundary is a
+# machine-checkable spec — the frozen edge for regeneration and cross-session
+# edits. Production code had zero missing annotations at adoption, and the 24
+# bare-Any sites were drained the same day with no exemption and no inline
+# noqa. ANN202/204-206 (private/dunder return types) stay unselected — the
+# explicit-pin policy adds rules when argued for, not by family.
+select = [
+    "E4", "E7", "E9", "F", "B", "I", "T20", "UP", "C901",
+    "ANN001", "ANN002", "ANN003", "ANN201", "ANN401",
+]
 
 [tool.ruff.lint.mccabe]
 # Budget rule: drain, do not raise — any change to this number needs a dated
@@ -222,11 +240,11 @@ known-first-party = ["contemplative_agent", "tests", "evals"]
 "src/contemplative_agent/adapters/moltbook/agent.py" = ["T20"]  # ADR-0012 approval-gate TTY display
 "src/contemplative_agent/adapters/dialogue/peer.py" = ["T20"]   # stderr turn progress
 "src/contemplative_agent/testing/__main__.py" = ["T20"]         # ADR-0088 conformance CLI
-"tests/**" = ["T20"]
+# tests/ and the ANN family: test functions are not consumed boundaries (nothing
+# regenerates against their signatures), and the corpus carries 5,810 missing
+# annotations — cost with no LLM-first payoff. Permanent, not a drain ledger.
+"tests/**" = ["T20", "ANN001", "ANN002", "ANN003", "ANN201", "ANN401"]
 "scripts/**" = ["T20"]
 "evals/**" = ["T20"]    # probe/CLI 系 (benchmark_distill と同じ扱い) — print が UI
-# 昇格した一回限りの計測スクリプト — 進捗と読み値の print が UI。C901 も恒久免除:
-# 凍結された逐語記録 (differential replay の baseline 含む) で、刈ると証拠価値が壊れる。
-# drain 台帳ではない — 2026-08-28 時点で replay_parser.py の 16 と
-# verification_parse_baseline.py の 20 が該当 (staged モードだけが見る面)
-"docs/evidence/**" = ["T20", "C901"]
+# docs/evidence/** の免除行は 2026-08-31 に撤去 — [tool.ruff] の extend-exclude が
+# ディレクトリごと検査対象から外した (凍結記録はデータであってコードではない)

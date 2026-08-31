@@ -46,7 +46,7 @@ def _is_prose(name: str) -> bool:
     return " " in name or "/" in name
 
 
-def _is_int(value: Any) -> TypeGuard[int]:
+def _is_int(value: object) -> TypeGuard[int]:
     """``bool`` excluded on purpose: ``isinstance(True, int)`` is True, so a
     JSON ``true`` would otherwise be read as the number 1.
 

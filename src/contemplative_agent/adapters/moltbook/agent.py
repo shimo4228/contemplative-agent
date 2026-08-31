@@ -496,7 +496,7 @@ class Agent:
 
     def _handle_verification(
         self,
-        verification: dict,
+        verification: dict[str, Any],
         *,
         action: VerificationAction | None = None,
         target_id: str | None = None,

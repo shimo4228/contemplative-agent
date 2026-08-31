@@ -40,7 +40,7 @@ class VerificationHandler(Protocol):
 
     def __call__(
         self,
-        verification: dict,
+        verification: dict[str, Any],
         *,
         action: VerificationAction | None = None,
         target_id: str | None = None,
@@ -65,7 +65,7 @@ def client_error_guard(action: str, *, on_rate_limited: Callable[[], None]) -> I
 
 
 def passes_verification(
-    verification: Any,
+    verification: dict[str, Any] | None,
     handle_verification: VerificationHandler,
     *,
     description: str,
@@ -97,12 +97,12 @@ def passes_verification(
     return False
 
 
-def verification_of(created: Any) -> Any:
+def verification_of(created: object) -> dict[str, Any] | None:
     """The ``verification`` object of a create response, if it has one."""
     return created.get("verification") if isinstance(created, dict) else None
 
 
-def log_published(summary_fmt: str, *args: Any, body: str) -> None:
+def log_published(summary_fmt: str, *args: object, body: str) -> None:
     """Log a published body as a bounded single-line preview, never in full.
 
     Full bodies in ``*.log`` become anomaly-sweep noise and cross the

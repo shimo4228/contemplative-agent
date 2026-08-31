@@ -22,12 +22,20 @@ from dataclasses import asdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import (
+    TYPE_CHECKING,
     Any,
     Literal,
 )
 
 from ._io import parse_aware_utc, truncate, write_text_atomic
 from .episode_log import EpisodeLog
+
+if TYPE_CHECKING:
+    # Type-only: memory imports this module at runtime, so the reverse import
+    # lives behind TYPE_CHECKING. The injected classes (``interaction_cls`` /
+    # ``post_record_cls``) are always these two; the facade's own declarations
+    # (memory.record_interaction / record_post) are the source of the types.
+    from .memory import Interaction, PostRecord
 
 logger = logging.getLogger(__name__)
 
@@ -126,7 +134,7 @@ class InteractionIndex:
         direction: Literal["sent", "received"],
         content: str,
         interaction_type: Literal["comment", "reply", "post"],
-    ) -> Any:
+    ) -> Interaction:
         interaction = self._interaction_cls(
             timestamp=timestamp,
             agent_id=agent_id,
@@ -279,7 +287,7 @@ class PostHistory:
         topic_summary: str,
         content_hash: str,
         verified: bool = True,
-    ) -> Any:
+    ) -> PostRecord:
         record = self._post_record_cls(
             timestamp=timestamp,
             post_id=post_id,

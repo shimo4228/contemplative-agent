@@ -41,7 +41,7 @@ def _score_post_relevance(post: dict) -> float:
     return score_relevance(post.get("content", "") or "")
 
 
-def parse_created_post_response(resp_json: Any) -> tuple[str, dict[str, Any]]:
+def parse_created_post_response(resp_json: object) -> tuple[str, dict[str, Any]]:
     """Gate a create-post response down to a recordable ``(post_id, post)``.
 
     Review 2026-06-27 (H1): HTTP 2xx is not proof of a usable, visible post.
