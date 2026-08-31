@@ -180,7 +180,7 @@ C を選んだ場合の次の一手（= A の実行）だけを行った。**再
 baseline ファイルは無改変で、以下は読みの記録に留まる。
 
 実行: `uv run --group eval python evals/run_eval.py --baseline evals/baselines/comment_golden-2026-08-16.json`
-（2026-08-31 22:34–23:08 JST、12 ケース × 3 サンプル、生成 `gemma4:e4b` / 判定 `claude-sonnet-5`、
+（2026-08-31 22:32–23:08 JST、12 ケース × 3 サンプル、生成 `gemma4:e4b` / 判定 `claude-sonnet-5`、
 `samples_per_case=3`、`injection_regime: two_pass_selected`）。
 
 ### まず観測したこと: `--baseline` は delta を出さない
