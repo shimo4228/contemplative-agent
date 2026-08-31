@@ -520,17 +520,37 @@ class _DayScan:
     summary: SkillSelectionDay
 
 
-def _scan_selection_day(
-    day_file: _SelectionDayFile,
-    *,
-    verdict_counts: dict[str, int],
-    skill_counts: dict[str, int],
-    selected_counts: list[int],
-    reductions: list[int],
-    exposure_counts: dict[str, int],
-    rejected_counts: dict[str, int],
-    regimes: dict[int, _RegimeAccumulator],
-) -> _DayScan:
+@dataclass
+class _WindowCollections:
+    """Mutable window-wide collections while the window is read; folded into
+    ``_WindowTally`` once it has been. Same ROLE as :class:`_RegimeAccumulator`
+    (a scratch accumulator, not a DTO, which is why neither is frozen) — not the
+    same shape: that one is per-``catalog_count``, this one is window-wide.
+
+    They live in one object rather than seven parameters because they are one
+    thing: the state every day adds to. Passing them individually made
+    :func:`_scan_selection_day` an eight-argument function whose signature said
+    nothing a reader could use.
+    """
+
+    verdict_counts: dict[str, int] = field(default_factory=dict)
+    skill_counts: dict[str, int] = field(default_factory=dict)
+    selected_counts: list[int] = field(default_factory=list)
+    reductions: list[int] = field(default_factory=list)
+    # Exposure is counted for every catalogued name, not just the ones that
+    # end up never-selected: which names those are is only known after the
+    # whole window has been read, and the current catalog is resolved later
+    # still.
+    exposure_counts: dict[str, int] = field(default_factory=dict)
+    # Names the selector emitted that matched nothing. Scrubbed at read time
+    # as well as at the write seam: the writer sanitises what *it* appends,
+    # but this reader parses a file on disk, and the global rule treats the
+    # agent's own store as untrusted regardless of who wrote it.
+    rejected_counts: dict[str, int] = field(default_factory=dict)
+    regimes: dict[int, _RegimeAccumulator] = field(default_factory=dict)
+
+
+def _scan_selection_day(day_file: _SelectionDayFile, acc: _WindowCollections) -> _DayScan:
     """Fold one day's records into the window collections and count the day."""
     date_part = day_file.date_part
     day_records = 0
@@ -543,7 +563,7 @@ def _scan_selection_day(
     for rec in day_file.records:
         day_records += 1
         verdict = str(rec.get("verdict", "unknown"))
-        verdict_counts[verdict] = verdict_counts.get(verdict, 0) + 1
+        acc.verdict_counts[verdict] = acc.verdict_counts.get(verdict, 0) + 1
         if verdict != "judged":
             continue
         # Everything below is judged-only, deliberately. Every rate
@@ -555,19 +575,19 @@ def _scan_selection_day(
         day_judged += 1
         if rec.get("enforced"):
             day_enforced += 1
-        _tally_exposure(rec, exposure_counts)
+        _tally_exposure(rec, acc.exposure_counts)
         selected = rec.get("selected") or []
-        _tally_selected(selected, skill_counts, day_selected)
-        selected_counts.append(len(selected))
+        _tally_selected(selected, acc.skill_counts, day_selected)
+        acc.selected_counts.append(len(selected))
         if not selected:
             day_judged_empty += 1
         if rec.get("rejected_names"):
             day_hallucinations += 1
-        _tally_rejected_names(rec, rejected_counts)
+        _tally_rejected_names(rec, acc.rejected_counts)
         reduction = _record_reduction(rec)
         if reduction is not None:
-            reductions.append(reduction)
-        if not _tally_regime(rec, date_part=date_part, regimes=regimes):
+            acc.reductions.append(reduction)
+        if not _tally_regime(rec, date_part=date_part, regimes=acc.regimes):
             day_catalog_missing += 1
     return _DayScan(
         records=day_records,
@@ -590,43 +610,20 @@ def _scan_selection_day(
 
 def _scan_selection_window(log_dir: Path, cutoff: date, upper: date | None) -> _WindowTally:
     """One pass over the window's ``skill-selection-*.jsonl`` files."""
-    verdict_counts: dict[str, int] = {}
-    skill_counts: dict[str, int] = {}
-    selected_counts: list[int] = []
-    reductions: list[int] = []
+    acc = _WindowCollections()
     records = 0
     judged_records = 0
     hallucination_records = 0
     enforced_records = 0
     judged_empty_records = 0
-    # Exposure is counted for every catalogued name, not just the ones that
-    # end up never-selected: which names those are is only known after the
-    # whole window has been read, and the current catalog is resolved later
-    # still.
-    exposure_counts: dict[str, int] = {}
-    # Names the selector emitted that matched nothing. Scrubbed here as
-    # well as at the write seam: the writer sanitises what *it* appends,
-    # but this reader parses a file on disk, and the global rule treats the
-    # agent's own store as untrusted regardless of who wrote it.
-    rejected_counts: dict[str, int] = {}
     days_seen: list[SkillSelectionDay] = []
-    regimes: dict[int, _RegimeAccumulator] = {}
     catalog_count_missing = 0
     for day_file in _iter_selection_days(
         log_dir, lambda d: d >= cutoff and (upper is None or d <= upper)
     ):
         if not day_file.readable:
             continue
-        day = _scan_selection_day(
-            day_file,
-            verdict_counts=verdict_counts,
-            skill_counts=skill_counts,
-            selected_counts=selected_counts,
-            reductions=reductions,
-            exposure_counts=exposure_counts,
-            rejected_counts=rejected_counts,
-            regimes=regimes,
-        )
+        day = _scan_selection_day(day_file, acc)
         records += day.records
         judged_records += day.judged
         enforced_records += day.enforced
@@ -636,14 +633,14 @@ def _scan_selection_window(log_dir: Path, cutoff: date, upper: date | None) -> _
         if day.records:
             days_seen.append(day.summary)
     return _WindowTally(
-        verdict_counts=verdict_counts,
-        skill_counts=skill_counts,
-        selected_counts=selected_counts,
-        reductions=reductions,
-        exposure_counts=exposure_counts,
-        rejected_counts=rejected_counts,
+        verdict_counts=acc.verdict_counts,
+        skill_counts=acc.skill_counts,
+        selected_counts=acc.selected_counts,
+        reductions=acc.reductions,
+        exposure_counts=acc.exposure_counts,
+        rejected_counts=acc.rejected_counts,
         days_seen=days_seen,
-        regimes=regimes,
+        regimes=acc.regimes,
         records=records,
         judged_records=judged_records,
         hallucination_records=hallucination_records,

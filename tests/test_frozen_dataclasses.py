@@ -24,6 +24,12 @@ ALLOWED_MUTABLE = {
     # to read_skill_selection_log, frozen into CatalogRegime before it
     # leaves the function; never escapes mutable.
     "src/contemplative_agent/core/selection_metrics.py::_RegimeAccumulator",
+    # Same shape again: the window-wide collections _scan_selection_day folds
+    # each day into, internal to read_skill_selection_log and handed to the
+    # frozen _WindowTally before they leave. They live in one object rather
+    # than seven parameters — carrying them individually is what made the
+    # scanner an eight-argument function (2026-08-31).
+    "src/contemplative_agent/core/selection_metrics.py::_WindowCollections",
 }
 
 

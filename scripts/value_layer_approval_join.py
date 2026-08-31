@@ -116,7 +116,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path, PurePosixPath
 from typing import Any
@@ -612,35 +612,52 @@ class _Selection:
     window_approved: list[tuple[datetime, str, str]]
 
 
-def _collect_approved_hash(
-    record: dict[str, Any],
-    *,
-    decision: Any,
-    parsed: datetime,
-    raw_ts: Any,
-    in_window: bool,
-    retired: bool,
-    approved_by_hash: dict[str, tuple[datetime, str]],
-    window_approved: list[tuple[datetime, str, str]],
-) -> None:
-    """Record an approved row's content hash, newest wins.
+@dataclass
+class _ApprovedIndex:
+    """Approved content hashes, newest wins, plus the in-window subset.
 
-    Called BEFORE the window filter on purpose: bytes approved before the
-    start commit are still approved bytes, and the live file carrying them
-    must not read as unapproved. A retirement is excluded from
-    ``window_approved`` — the orphan side — only; it stays in
-    ``approved_by_hash`` so a restore from ``.archive/`` still traces to an
-    approval.
+    Mutable on purpose — a scratch accumulator built while the records are
+    read, not a DTO. The two collections live together because the two
+    invariants below are about their *relationship*, and separating them into
+    loose parameters is how those invariants get quietly broken.
     """
-    digest = record.get("content_hash")
-    if decision != "approved" or not isinstance(digest, str) or not digest.strip():
-        return
-    digest = digest.strip().lower()
-    previous = approved_by_hash.get(digest)
-    if previous is None or parsed > previous[0]:
-        approved_by_hash[digest] = (parsed, str(raw_ts))
-    if in_window and not retired:
-        window_approved.append((parsed, str(raw_ts), digest))
+
+    by_hash: dict[str, tuple[datetime, str]] = field(default_factory=dict)
+    in_window: list[tuple[datetime, str, str]] = field(default_factory=list)
+
+    def add(
+        self,
+        record: dict[str, Any],
+        *,
+        parsed: datetime,
+        raw_ts: Any,
+        within_window: bool,
+        retired: bool,
+    ) -> None:
+        """Record an approved row's content hash.
+
+        Called BEFORE the window filter on purpose: bytes approved before the
+        start commit are still approved bytes, and the live file carrying them
+        must not read as unapproved. A retirement is excluded from
+        :attr:`in_window` — the orphan side — only; it stays in
+        :attr:`by_hash` so a restore from ``.archive/`` still traces to an
+        approval.
+
+        ``within_window`` is deliberately not spelled ``in_window``: that is the
+        name of the field it gates, and the collision is the one place a future
+        edit could write to the wrong thing (code review 2026-08-31).
+        """
+        digest = record.get("content_hash")
+        if record.get("decision") != "approved" or not isinstance(digest, str):
+            return
+        if not digest.strip():
+            return
+        digest = digest.strip().lower()
+        previous = self.by_hash.get(digest)
+        if previous is None or parsed > previous[0]:
+            self.by_hash[digest] = (parsed, str(raw_ts))
+        if within_window and not retired:
+            self.in_window.append((parsed, str(raw_ts), digest))
 
 
 def _select_rows(
@@ -664,9 +681,7 @@ def _select_rows(
     unmatched = 0
     archived = 0
     purged = 0
-    # Every approved hash in the log, newest wins; and the in-window subset.
-    approved_by_hash: dict[str, tuple[datetime, str]] = {}
-    window_approved: list[tuple[datetime, str, str]] = []
+    approved = _ApprovedIndex()
     for record in records:
         mine = _matches_section(record, section)
         retired = mine and _is_retired(record)
@@ -690,16 +705,7 @@ def _select_rows(
         if not mine:
             continue
         decision = record.get("decision")
-        _collect_approved_hash(
-            record,
-            decision=decision,
-            parsed=parsed,
-            raw_ts=raw_ts,
-            in_window=in_window,
-            retired=retired,
-            approved_by_hash=approved_by_hash,
-            window_approved=window_approved,
-        )
+        approved.add(record, parsed=parsed, raw_ts=raw_ts, within_window=in_window, retired=retired)
         if not in_window:
             continue
         if retired and decision == "approved":
@@ -727,8 +733,8 @@ def _select_rows(
         unmatched=unmatched,
         archived=archived,
         purged=purged,
-        approved_by_hash=approved_by_hash,
-        window_approved=window_approved,
+        approved_by_hash=approved.by_hash,
+        window_approved=approved.in_window,
     )
 
 

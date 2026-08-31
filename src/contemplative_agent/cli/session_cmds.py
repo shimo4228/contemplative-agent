@@ -129,14 +129,14 @@ def _handle_init(args: argparse.Namespace, _parser: argparse.ArgumentParser) -> 
     _do_init(template_name=args.template)
 
 
-def _print_selection_readings(
-    args: argparse.Namespace,
-    log_dir: Path,
-    since: date | None,
-    until: date | None,
-    days: int,
-) -> None:
+def _print_selection_readings(args: argparse.Namespace, log_dir: Path, days: int) -> None:
     """The two --skill-selection readings, each isolated from the other.
+
+    ``since`` / ``until`` are read off ``args`` rather than passed: they are
+    already validated by the caller and derived from nothing else, so a
+    parameter for each only widened the signature. ``days`` IS a parameter
+    because the caller owns its default rule (``_DEFAULT_REPORT_DAYS`` when
+    ``--days`` is absent) and recomputing it here would be a second copy.
 
     The guard moved to the caller; the two ``try`` blocks did NOT merge.
     They answer different questions over different scopes, and sharing a
@@ -144,6 +144,7 @@ def _print_selection_readings(
     output — isolation between read-only instruments should be structural,
     not a side effect of where the statements happen to sit.
     """
+    since, until = args.since, args.until
     try:
         from ..core.selection_metrics import (
             format_skill_selection_report,
@@ -264,7 +265,7 @@ def _handle_report(args: argparse.Namespace, _parser: argparse.ArgumentParser) -
     # Aggregates logs/skill-selection-*.jsonl; observability only — a broken
     # instrument degrades to a WARNING and never breaks the report.
     if getattr(args, "skill_selection", False):
-        _print_selection_readings(args, log_dir, since, until, days)
+        _print_selection_readings(args, log_dir, days)
 
     # --submolt-scope: read-only scope reading (ADR-0086). Aggregates
     # logs/submolt-scope-*.jsonl written by `submolt-scan`; observability
