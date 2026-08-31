@@ -73,6 +73,7 @@ os.environ.setdefault("OLLAMA_TRUSTED_HOSTS", "127.0.0.1")
 @pytest.fixture(autouse=True)
 def _reset_llm_circuit_breaker():
     from contemplative_agent.core.llm import _circuit
+
     _circuit.reset()
     yield
     _circuit.reset()

@@ -65,19 +65,21 @@ class Block:
     name: str
     body: str
     last_updated_at: Optional[str]
-    source: str                          # 上記 enum を参照
+    source: str  # 上記 enum を参照
     extra: Mapping[str, str] = MappingProxyType({})
+
 
 @dataclass(frozen=True)
 class IdentityDocument:
     blocks: Tuple[Block, ...]
-    is_legacy: bool                      # 平文ファイルから parse したら True
+    is_legacy: bool  # 平文ファイルから parse したら True
+
 
 def parse(text: str) -> IdentityDocument: ...
 def render(doc: IdentityDocument) -> str: ...
-def update_block(doc: IdentityDocument, name: str, *,
-                 body: str, source: str,
-                 now: Optional[str] = None) -> IdentityDocument: ...
+def update_block(
+    doc: IdentityDocument, name: str, *, body: str, source: str, now: Optional[str] = None
+) -> IdentityDocument: ...
 def load_for_prompt(path: Path) -> str:
     """連結されたブロック body を system prompt に貼り付けるために返す。
     Legacy ファイルはファイル全体をそのまま返す。frontmatter は決して

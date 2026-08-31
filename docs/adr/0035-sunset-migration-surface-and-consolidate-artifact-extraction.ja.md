@@ -97,12 +97,13 @@ ADR-0024/0025 は identity block parsing を導入し、ADR-0030 でまとめて
 ```python
 @dataclass(frozen=True)
 class ArtifactSpec:
-    name: str                                      # "insight" | "rules" | "skill-reflect"
+    name: str  # "insight" | "rules" | "skill-reflect"
     target_dir: Path
-    filename_template: str                         # 例: "{slug}.md"
-    validator: Callable[[str], bool]               # 例: validate_identity_content
-    no_change_marker: Optional[str] = None         # 例: _NO_CHANGE
-    no_rules_marker: Optional[str] = None          # 例: _NO_RULES_MARKER
+    filename_template: str  # 例: "{slug}.md"
+    validator: Callable[[str], bool]  # 例: validate_identity_content
+    no_change_marker: Optional[str] = None  # 例: _NO_CHANGE
+    no_rules_marker: Optional[str] = None  # 例: _NO_RULES_MARKER
+
 
 def extract_artifacts(spec: ArtifactSpec, items: Iterable[X]) -> ArtifactBatch: ...
 ```

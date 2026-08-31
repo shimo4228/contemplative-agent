@@ -97,12 +97,13 @@ Add `src/contemplative_agent/core/artifact_extraction.py` exposing:
 ```python
 @dataclass(frozen=True)
 class ArtifactSpec:
-    name: str                                      # "insight" | "rules" | "skill-reflect"
+    name: str  # "insight" | "rules" | "skill-reflect"
     target_dir: Path
-    filename_template: str                         # e.g. "{slug}.md"
-    validator: Callable[[str], bool]               # e.g. validate_identity_content
-    no_change_marker: Optional[str] = None         # e.g. _NO_CHANGE
-    no_rules_marker: Optional[str] = None          # e.g. _NO_RULES_MARKER
+    filename_template: str  # e.g. "{slug}.md"
+    validator: Callable[[str], bool]  # e.g. validate_identity_content
+    no_change_marker: Optional[str] = None  # e.g. _NO_CHANGE
+    no_rules_marker: Optional[str] = None  # e.g. _NO_RULES_MARKER
+
 
 def extract_artifacts(spec: ArtifactSpec, items: Iterable[X]) -> ArtifactBatch: ...
 ```

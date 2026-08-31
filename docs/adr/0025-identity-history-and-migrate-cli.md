@@ -44,8 +44,8 @@ class IdentityResult:
     text: str
     target_path: Path
     # ADR-0025 history threading — defaults keep existing callers working
-    old_body: str = ""          # persona_core body *before* distill
-    new_body: str = ""          # refined persona body *after* distill
+    old_body: str = ""  # persona_core body *before* distill
+    new_body: str = ""  # refined persona body *after* distill
     block_name: str = "persona_core"
     source: str = "distill-identity"
 ```

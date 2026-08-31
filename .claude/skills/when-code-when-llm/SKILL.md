@@ -97,8 +97,10 @@ Shape is structural. An LLM check ("does this config look valid?") would be both
 ### Routing by file extension or HTTP status code
 
 ```python
-if path.suffix == ".py": run_python_handler()
-if 500 <= response.status < 600: retry()
+if path.suffix == ".py":
+    run_python_handler()
+if 500 <= response.status < 600:
+    retry()
 ```
 
 Byte-level, deterministic, trivially testable. Do not call an LLM for this.

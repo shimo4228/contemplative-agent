@@ -62,7 +62,9 @@ PostRecord(timestamp, post_id, title, topic)
 AmendmentResult(text, target_path, marker_dir, pattern_ids, epistemic_counts)  # constitution.py
 IdentityResult(text, target_path, pattern_ids, epistemic_counts)  # distill.py
 SkillResult(text, filename, target_path, pattern_ids, epistemic_counts, thinking)  # insight.py
-InsightResult(skills, skipped_known, abstained)  # skipped_known: ADR-0074 novelty gate; abstained: per-reason tally, fault_count derived
+InsightResult(
+    skills, skipped_known, abstained
+)  # skipped_known: ADR-0074 novelty gate; abstained: per-reason tally, fault_count derived
 ```
 
 ADR-0050: `pattern_ids` = content-hash ids of input patterns; `epistemic_counts` = `{generated, unknown}` tally derived from `provenance.source_type` (never persisted; ADR-0082 retired the third `observed` key); `source_ids` (RuleResult) = skill filenames of the batch.

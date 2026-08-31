@@ -65,19 +65,21 @@ class Block:
     name: str
     body: str
     last_updated_at: Optional[str]
-    source: str                          # see enum above
+    source: str  # see enum above
     extra: Mapping[str, str] = MappingProxyType({})
+
 
 @dataclass(frozen=True)
 class IdentityDocument:
     blocks: Tuple[Block, ...]
-    is_legacy: bool                      # True if parsed from plain-text file
+    is_legacy: bool  # True if parsed from plain-text file
+
 
 def parse(text: str) -> IdentityDocument: ...
 def render(doc: IdentityDocument) -> str: ...
-def update_block(doc: IdentityDocument, name: str, *,
-                 body: str, source: str,
-                 now: Optional[str] = None) -> IdentityDocument: ...
+def update_block(
+    doc: IdentityDocument, name: str, *, body: str, source: str, now: Optional[str] = None
+) -> IdentityDocument: ...
 def load_for_prompt(path: Path) -> str:
     """Return concatenated block bodies for splicing into system prompt.
     Legacy files return the whole file unchanged. Frontmatter is never

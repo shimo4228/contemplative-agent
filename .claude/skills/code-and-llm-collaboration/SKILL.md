@@ -77,7 +77,8 @@ def extract_with_guard(raw_text: str) -> Skill | None:
 def distill(log_path: Path, days: int) -> list[Pattern]:
     cutoff = datetime.now() - timedelta(days=days)
     candidates = [
-        event for event in load_events(log_path)
+        event
+        for event in load_events(log_path)
         if event.timestamp >= cutoff
         and event.kind in DISTILL_KINDS
         and len(event.body) >= MIN_BODY_LEN
