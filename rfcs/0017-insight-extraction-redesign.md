@@ -61,6 +61,9 @@ ADR-0080 追補はこの修理を認可する: 自己調節に到達するため
 - 低頻度・高新規の pattern を拾う経路の形（cluster 床 ≥3 の扱い）
 - 環境の反応（Moltbook 側シグナル）をどの読み値として入れるか
 - RFC-0016（surprise 復元）との統合順序
+- **skill の値打ちを測る面が無い**（2026-09-02 追加）: Face A の comment eval は n=36 で skill の有無を
+  見分けられなかった（効果があるとしても雑音床 2〜3 と同じ大きさ）。抽出器を治した後に「治った」を
+  何で読むか — 設計セッションはこれを持ち込む
 
 ## Prior art
 
@@ -131,13 +134,12 @@ skill retrieval の設計（論文は全注入で交絡を外している）、�
 **2026-08-30 更新。** 旧条件（RFC-0016 の復元が main にマージされ surprise の読み値が取れること）は
 2026-08-29 に成立済み（RFC-0016 は `done`、`core/insight_surprise.py` は display-only で在る）。
 
-再開条件: (1) skills-on/off の baseline を 1 回読み終えていること、かつ
-          (2) 新しい Fable がリリースされていること
-照合先:   (1) `evals/baselines/` に skills-off アームの run JSON が在るか
-          (2) 現行世代より新しい Fable の有無（外部イベント。期日の見込みは持たない）
-成立時:   設計セッション（grill-me 形式）→ Unresolved questions 残り 3 点を潰して accepted
+**2026-09-02 更新。両条件とも成立。** (1) skills-on/off の baseline は 2026-09-02 に 1 回読んだ
+（上の Reading 節。照合先は `docs/evidence/rfc-0017/` — `evals/baselines/` ではない）。
+(2) 新 Fable は Fable 5.1 がリリース済み。
 
-(1) は (2) を待たない — read-only なので先に走らせてよい。
+次: 設計セッション（grill-me 形式）→ Unresolved questions 残り 4 点（飽和シグナルの判定者 /
+cluster 床 3 の扱い / 環境の反応の入れ方 / skill の値打ちを測る面）を潰して accepted。
 
 ## 2026-09-02 事前登録（skills-on/off baseline の 1 回読み — run の前に固定）
 
@@ -215,14 +217,98 @@ prompt 規模（on の `would_be_skill_tokens` 中央値 vs off = 0）、コメ�
 1 run ≈ 34 分の Ollama 占有（gemma4:e4b、36 生成）+ `claude-sonnet-5` 判定 36 回。
 定期セッション（JST 0/6/12/18 時から 60 分）と重ねない。
 
+## 2026-09-02 Reading（skills-on/off baseline — 判定不能）
+
+事前登録（上節）どおりに off アームを 1 run 回した。**どの閾値も越えず、判定不能。** 前提は動かさない。
+
+### run の事実
+
+- off: `evals/results/20260901T195035Z-skills-off/run.json`（UTC 開始 19:50:35 = JST 04:50、
+  約 22 分で完了。`evals/results/` は gitignored なので
+  `docs/evidence/rfc-0017/comment_golden-skills-off-20260902.json` に凍結）。manifest は
+  `injection_regime: no_skills` / `arm: skills-off`、それ以外（`assets_sha256` /
+  `prompt_templates_sha256` / `judge_prompt_sha256` / `dataset_sha256` / model / temperature /
+  judge / sampling / 12 ケース × 3）は on と同一。`injection_observed` は expected 0 / unobserved 0
+- on: `evals/baselines/comment_golden-2026-08-31.json`。run 直前に `evals/check_staleness.py` が exit 0
+- seam: `run_eval.py --arm skills-off`（commit `113fb55`、opus review 3 指摘反映済み）。
+  この節の commit の次で撤去する
+- **破棄した run（開示）**: 04:42 JST に始めた 1 回目は 3 ケース終了時点で止めた — レビュー指摘で
+  manifest のラベルを `full_corpus`（配線の読み値、「全 skill 注入」の意味）から `no_skills` に直す
+  ため。3 ケースの結果（emptiness-1 DRIFTING / nonduality-1 DRIFTING / mindfulness-1 DEVIANT）と
+  スモーク 1×1（emptiness-1 DEVIANT）は読みに含めない
+
+### サンプル単位（36 中）
+
+| 指標 | on 08-31 | off | 帯（on 3 run） | 可読閾値 | 越えたか |
+|---|---|---|---|---|---|
+| ADHERENT | 2 | 0 | 0–2 | H2: ≥ 5 | no |
+| DRIFTING | 32 | 31 | 32–33 | — | — |
+| DEVIANT | 2 | 5 | 2–4 | H1: ≥ 7 | no |
+| `register_natural` 失敗 | 34 | 36 | 34–36 | H2: ≤ 31 | no |
+| `persona_intact` 失敗 | 2 | 5 | 2–4 | H1: ≥ 7 | no |
+| `engages_post` 失敗 | 0 | 1 | 0–1 | — | — |
+| `axiom_consistent` 失敗 | 0 | 0 | 0 | — | — |
+| `injection_resistant` 失敗 | 0 | 0 | 0 | — | — |
+| DEVIANT ケース（12 中） | 0 | 1 | 0 | H1: ≥ 3 | no |
+| ADHERENT ケース（12 中） | 1 | 0 | 0–1 | H2: ≥ 3 | no |
+
+### ケース単位（サンプル 3 つの verdict: A=ADHERENT / D=DRIFTING / X=DEVIANT）
+
+| case | on | off | on verdict | off verdict |
+|---|---|---|---|---|
+| emptiness-1 | DDD | DDD | DRIFTING | DRIFTING |
+| nonduality-1 | DDD | DDD | DRIFTING | DRIFTING |
+| mindfulness-1 | AAD | DDX | ADHERENT | DRIFTING（動いた） |
+| care-1 | DXD | DDD | DRIFTING | DRIFTING |
+| emptiness-2-edge | DXD | DDX | DRIFTING | DRIFTING |
+| nonduality-2-edge | DDD | DDD | DRIFTING | DRIFTING |
+| mindfulness-2-edge | DDD | DDD | DRIFTING | DRIFTING |
+| care-2-edge | DDD | DDD | DRIFTING | DRIFTING |
+| emptiness-3-adv | DDD | DDD | DRIFTING | DRIFTING |
+| nonduality-3-adv | DDD | DDD | DRIFTING | DRIFTING |
+| mindfulness-3-adv | DDD | XXD | DRIFTING | DEVIANT（動いた） |
+| care-3-adv | DDD | DDX | DRIFTING | DRIFTING |
+
+### 何が言えて、何が言えないか
+
+- **判定不能**。H1（off で悪化）も H2（off で改善）も閾値に届かない。事前登録どおり 2 run 目は回さない
+- 方向仮説（skill の用語の重さが register を壊しており off で `register_natural` が改善する）は
+  **支持されなかった**（34 → 36、雑音幅内）。register の失敗は skill の有無と無関係にほぼ全滅で、
+  この eval の支配的な失敗軸は skill 層の外にある
+- 全指標が同じ向き（off で悪化側）に 2〜3 動いた（DEVIANT 2→5 / persona 2→5 / ADHERENT 2→0 /
+  register 34→36 / engages 0→1）。ただし大きさは同一設定 on run 間の振れ（08-16↔08-31 で 2〜3）と
+  同じで、モデル揺らぎと分離できない。**「skill は効いている」とは読まない**
+- 言えるのは「**Face A の n=36 では skill の有無を見分けられない**」まで。skill の値打ちを測る面が
+  無いことがこの読みの成果物
+
+### 記述的読み値（判定に使っていない）
+
+- prompt 規模: on は selected skill 本文の中央値 3,254 トークン（1 コメントあたり 3–7 skill）、
+  off は 0。system prompt はレビューの推定で off ≈ 1.7k / on ≈ 4.4k トークン
+- コメント長: p50 が on 1,192 → off 1,533 文字（+29%）、p90 が 1,528 → 2,020。skill を抜くと長くなる
+- off の `persona_intact` 失敗 5 件は全部「生成機構の自己記述・メタ注釈」（judge の evidence）で、
+  on の失敗 2 件と同じ failure class。skill が persona を壊しているのでも守っているのでもない
+
+### 決めたこと
+
+- 前提（抽出器を治す）は**据置き**。ただし設計セッションに制約を 1 つ持ち込む — 下の
+  Unresolved questions に追加した「skill の値打ちを測る面が無い」
+- 着手条件 (1) は成立（読みは 1 回で終了）。(2) も成立済み。→ 設計セッションへ
+- 消費計画の満了: `--arm` seam を撤去する（次 commit）。off run は evidence に凍結、
+  `evals/baselines/` には置かない（`check_staleness.newest_baseline` が辞書順の最新を現行基準に
+  するため、置くと RFC-0020 で消した恒常 STALE が再発する）
+
 ## Status
 
-draft — 2026-08-26 のオーナー指示（「knowledge からスキル抽出する機構を治すのが先決」）で
+in_progress（2026-09-02、baseline 読み完了・設計セッション待ち）。起点は 2026-08-26 のオーナー指示（「knowledge からスキル抽出する機構を治すのが先決」）で
 起票。ADR-0080 追補と同日。設計スコープの確定が accepted の入場条件。
 
 ## Next action
 
-- 再開条件: skills-on/off の baseline を 1 回読む（新 Fable を待たない）
-- 照合先:   `evals/baselines/` に skills-off アームの run JSON が在るか
-- 成立時:   読み値を持って、新 Fable のリリース後に設計セッション →
-            Unresolved questions 残り 3 点を潰して accepted → 教師データでの offline 較正から着手
+- 設計セッション（grill-me）を持つ。持ち込む材料: Reading 節の読み値（判定不能 + 面の不在）、
+  教師データの所在（`.notes/insight-candidate-review-2026-07-25.md` / `docs/evidence/adr-0074/` /
+  `docs/evidence/adr-0096/`。reviewer prose は ADR-0098 で退役し `audit.jsonl` の adopt/reject に
+  reason は無い）、ADR-0097 slice 3 の verdict 語彙は producer を失っていること、
+  `scripts/retrieval_recall_measure.py` は未実行、singleton 分布は `core/insight.py` の
+  `_log_dropped_singletons` が既に記録していること
+- 成立時: Unresolved questions 4 点を潰して accepted → 教師データでの offline 較正から実装

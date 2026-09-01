@@ -23,6 +23,7 @@ ADR の決定を裏付ける測定・監査・実験の成果物。
 | `adr-0056/` | §B1 relevance-retune effect measurement (the first gate condition) | ADR-0056 |
 | `adr-0074/` | Incremental-window simulations + novelty calibration; the 2026-07-18 staged-candidate adoption review | ADR-0074 |
 | `adr-0084/` | Offline A/B replay script for the post-distill durability gate | ADR-0084 |
+| `rfc-0017/` | skills-on/off baseline の 1 回読み（Face A comment eval、off アームの run.json 凍結。RFC 単位のサブフォルダは初例 — 読みが決定でなく設計セッションの前提を決めるため ADR が無い） | RFC-0017 |
 
 ## 昇格ワークフロー
 
