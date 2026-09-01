@@ -32,3 +32,4 @@ frontmatter が唯一の正本**。
 | [0018](0018-self-post-seed-voice-label.md) | 自己投稿 seed ブロックに公開してよい voice ラベルを付ける |
 | [0019](0019-weekly-session-value-layer-read.md) | 週次無人セッションの Read 許可に値層 4 パスを足す |
 | [0020](0020-eval-baseline-staleness-standing.md) | eval baseline の STALE 警告が常設化している |
+| [0021](0021-skill-stocktake-family-saturation.md) | skill-stocktake の再設計 — family 飽和の統合と weekly 定期化、天井は selector 幻覚率 |
