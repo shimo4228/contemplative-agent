@@ -1,6 +1,6 @@
 ---
-state: draft
-state_since: 2026-08-26
+state: in_progress
+state_since: 2026-09-02
 review-when: ADR-0080 追補（代謝の質）が supersede される、または週次候補量が設計変更なしで恒常的に 1 桁へ落ちる（premise の自然消滅）
 ---
 
@@ -138,6 +138,82 @@ skill retrieval の設計（論文は全注入で交絡を外している）、�
 成立時:   設計セッション（grill-me 形式）→ Unresolved questions 残り 3 点を潰して accepted
 
 (1) は (2) を待たない — read-only なので先に走らせてよい。
+
+## 2026-09-02 事前登録（skills-on/off baseline の 1 回読み — run の前に固定）
+
+着手条件 (2)（新 Fable）は Fable 5.1 で成立。(1) の計測をこの節の宣言どおりに 1 回行う。
+RFC-0020 の積み残し（受け入れ幅を run の前に宣言しないと事後に都合よく読める）をここで実施する —
+**この節は run より前の commit に置く**。
+
+### アーム
+
+- **on** = 承認済み baseline `evals/baselines/comment_golden-2026-08-31.json`（two_pass_selected、
+  12 ケース × 3 サンプル = 36）。再実行しない。根拠は run 直前の `evals/check_staleness.py` が
+  exit 0（fixture / prompt / sampling / dataset が 08-31 と同一）であること。exit 0 でなければ on も回す
+- **off** = `run_eval.py --arm skills-off` 1 run、同じ 12 ケース × 3 サンプル。skill を system prompt に
+  一切注入しない（`<learned_skills>` ブロック無し、pass-1 selector も走らない）。fixture の
+  `skills/` はディスク上に残すので `assets_sha256` は on と同一、manifest の `injection_regime` だけ
+  `full_corpus`（selector 未配線の値）になり、`--baseline` 比較は exit 2 のまま（fail-closed 維持。
+  比較は RFC-0020 と同じく手で行う）
+- `--arm` は一時的な seam。読みを記録したら撤去する（消費計画どおり。git 履歴から revert で復元可）
+
+### on アームの参照帯
+
+two_pass_selected の同一設定 3 run（08-08 / 08-16 / 08-31）。厳密な雑音床は 08-16↔08-31 の対
+（nonce 以外同一、動いたのは 2〜3 サンプル / 1 ケース）。08-06 は全 45 skill 注入の旧 regime
+（DEVIANT 9 / persona 失敗 9）で別物なので帯に入れない。
+
+| 指標（36 サンプル中） | 08-08 | 08-16 | 08-31 | 帯 | run 間の最大振れ |
+|---|---|---|---|---|---|
+| ADHERENT | 0 | 0 | 2 | 0–2 | 2 |
+| DEVIANT | 4 | 3 | 2 | 2–4 | 2 |
+| DRIFTING | 32 | 33 | 32 | 32–33 | 1 |
+| `register_natural` 失敗 | 35 | 36 | 34 | 34–36 | 2 |
+| `persona_intact` 失敗 | 4 | 3 | 2 | 2–4 | 2 |
+| `engages_post` 失敗 | 0 | 1 | 0 | 0–1 | 1 |
+| `axiom_consistent` 失敗 | 0 | 0 | 0 | 0 | 0 |
+| ケース verdict が DRIFTING 以外（12 中） | 0 | 0 | 1 | 0–1 | 1 |
+
+on アームの注入実態（08-31 の selection audit、名前のみ集計）: 1 コメントあたり 3–7 skill
+（4 が 13 件、5 が 13 件、6 が 6 件、3 が 3 件、7 が 1 件）。最頻は
+`suspend-interpretation-upon-premise-doubt`（36 中 30）。
+
+### 可読の閾値（帯の端 + 最大振れ + 1）
+
+これを越えなければ**判定不能**であって「効いていない」ではない（`run_eval.py` の exit 2 の思想と同じ）。
+
+- **H1「skill は効いている」**（off で悪化）: DEVIANT ≥ 7、または `persona_intact` 失敗 ≥ 7、
+  または DEVIANT ケース ≥ 3
+- **H2「skill は効いていない / 害」**（off で改善）: ADHERENT ≥ 5、または `register_natural` 失敗 ≤ 31、
+  または ADHERENT ケース ≥ 3
+- **方向仮説**（事前に 1 つだけ）: skill 本文は用語が重い（skill-stocktake の jargon 所見）ので、
+  off で `register_natural` の失敗が減る。他の指標に方向仮説は置かない
+- **判定不能**（どちらも越えない）: 「Face A の n=36 では skill の効果を見分けられない」と記録し、
+  本 RFC の前提（抽出器を治す）は動かさない。設計セッションに「skill の値打ちを測る面が無い」を
+  持ち込む（Unresolved question として追加）
+- **混合**（H1 と H2 が同時に立つ）: 両方記録、前提は動かさない
+
+### 読みが決めること
+
+- H1 可読 → 前提どおり。設計セッションは「抽出器の修理」から入る
+- H2 可読 → 前提が「抽出物がまだ元を取っていない」に変わる。設計セッションは「skill とは何のためか」
+  から入り、抽出器の修理はその後
+- 判定不能 / 混合 → 前提は据置き。ただし「skill の値打ちが測れていない」を設計の制約として明記
+
+### 確認 run（条件付き）
+
+H1 か H2 が可読なら、off アームを同条件でもう 1 run して方向を確認する
+（measurement-discipline 原則 1: 1 回は分布の 1 標本）。2 run 目が閾値を割ったら判定不能に落とす。
+判定不能なら 2 run 目は行わない。上限は 2 run。
+
+### 記述的読み値（判定には使わない）
+
+prompt 規模（on の `would_be_skill_tokens` 中央値 vs off = 0）、コメント長 p50、on の selected 分布。
+
+### コスト
+
+1 run ≈ 34 分の Ollama 占有（gemma4:e4b、36 生成）+ `claude-sonnet-5` 判定 36 回。
+定期セッション（JST 0/6/12/18 時から 60 分）と重ねない。
 
 ## Status
 
