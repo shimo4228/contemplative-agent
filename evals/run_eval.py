@@ -81,6 +81,18 @@ SCHEMA_VERSION = 1
 # — a test is the right seam for that link, an import is not.
 INJECTION_REGIME = "two_pass_selected"
 
+# RFC-0017 one-shot arm (2026-09-02, removed once the RFC records its reading).
+# The skills-off arm wires neither the skill corpus nor the selector. Its
+# manifest label is "no_skills", NOT the wiring's own reading: with the selector
+# unwired, configured_injection_regime() reports "full_corpus", which in this
+# codebase means "every skill injected" — the opposite system. Recording that
+# string would make the frozen run lie on its face (opus review 2026-09-02).
+# _assert_regime_enacted checks that "no_skills" is enacted (selector unwired
+# AND no <learned_skills> block in the built prompt). fixture/skills stays on
+# disk, so assets_sha256 matches the on arm and only injection_regime differs,
+# which keeps --baseline at exit 2 across arms by design (hand-diffed reading).
+ARM_REGIMES = {"skills-on": INJECTION_REGIME, "skills-off": "no_skills"}
+
 EVALS_DIR = Path(__file__).resolve().parent
 FIXTURE_DIR = EVALS_DIR / "fixtures" / "agent_home"
 JUDGE_PROMPT_PATH = EVALS_DIR / "fixtures" / "judge" / "comment_judge_prompt.md"
@@ -178,7 +190,48 @@ def _die_unmeasurable(msg: str) -> NoReturn:
     raise SystemExit(2)
 
 
-def _preflight(fixture: Path, judge_bin: str) -> None:
+def _assert_regime_enacted(regime: str) -> None:
+    """Exit 2 unless the wiring enacts ``regime`` — the manifest must not lie.
+
+    Two parts for two_pass_selected, because the configuration reading alone
+    is nearly tautological (it inspects the module global
+    _configure_pinned_assets just set): the precondition check is what gives
+    it teeth — an empty catalog or an unloadable selection template sends
+    every call back to full-corpus injection while the configuration still
+    reports two_pass_selected. That was the 2026-08-06 defect one layer down.
+    """
+    from contemplative_agent.core.skill_selection import (
+        configured_injection_regime,
+        selection_preconditions_unmet,
+    )
+
+    configured = configured_injection_regime()
+    if regime == "no_skills":
+        from contemplative_agent.core.llm.prompting import _build_system_prompt
+
+        # "full_corpus" is what an unwired selector reports; the corpus itself
+        # must also be unwired, which only the built prompt can show.
+        if configured != "full_corpus":
+            _die_unmeasurable(f"skills-off arm: selector still wired (configured {configured!r})")
+        if "<learned_skills>" in _build_system_prompt():
+            _die_unmeasurable("skills-off arm: built system prompt still carries a skill block")
+        return
+    if configured != regime:
+        _die_unmeasurable(
+            f"injection regime mismatch: pinned {regime!r} but the "
+            f"configured wiring permits {configured!r}"
+        )
+    if regime == "two_pass_selected":
+        unmet = selection_preconditions_unmet()
+        if unmet is not None:
+            _die_unmeasurable(
+                f"pinned regime {regime!r} is unreachable: {unmet} — "
+                f"every sample would fall back to full-corpus injection while "
+                f"the manifest claimed otherwise"
+            )
+
+
+def _preflight(fixture: Path, judge_bin: str, regime: str = INJECTION_REGIME) -> None:
     """Fail fast (exit 2) on anything that would make the run meaningless.
 
     Must run AFTER _configure_pinned_assets: the identity sentinel below
@@ -232,25 +285,11 @@ def _preflight(fixture: Path, judge_bin: str) -> None:
     # injection while the configuration still reports two_pass_selected, so
     # the manifest would claim a regime the run never enacted. That is the
     # 2026-08-06 defect one layer down.
-    from contemplative_agent.core.skill_selection import (
-        configured_injection_regime,
-        selection_preconditions_unmet,
-    )
-
-    configured = configured_injection_regime()
-    if configured != INJECTION_REGIME:
-        _die_unmeasurable(
-            f"injection regime mismatch: pinned {INJECTION_REGIME!r} but the "
-            f"configured wiring permits {configured!r}"
-        )
-    if INJECTION_REGIME == "two_pass_selected":
-        unmet = selection_preconditions_unmet()
-        if unmet is not None:
-            _die_unmeasurable(
-                f"pinned regime {INJECTION_REGIME!r} is unreachable: {unmet} — "
-                f"every sample would fall back to full-corpus injection while "
-                f"the manifest claimed otherwise"
-            )
+    _assert_regime_enacted(regime)
+    if regime != "two_pass_selected":
+        # No selector, no fail-open fallback: the headroom warning below
+        # describes a degradation the off arm cannot take.
+        return
 
     # Fail-open headroom. When the pass-1 selector fails per call
     # (fail_open_llm / fail_open_parse — inherently not preflightable),
@@ -287,7 +326,9 @@ def _preflight(fixture: Path, judge_bin: str) -> None:
         )
 
 
-def _configure_pinned_assets(fixture: Path, selection_audit_dir: Path) -> None:
+def _configure_pinned_assets(
+    fixture: Path, selection_audit_dir: Path, *, skills: bool = True
+) -> None:
     """Mirror the production wiring (cli/runtime.py + moltbook agent.py),
     but source every evolving asset from the pinned fixture.
 
@@ -315,7 +356,10 @@ def _configure_pinned_assets(fixture: Path, selection_audit_dir: Path) -> None:
     clauses = load_constitution(fixture / "constitution")
     if clauses:
         configure(axiom_prompt=clauses)
-    if (fixture / "skills").is_dir():
+    # ``skills=False`` is the RFC-0017 skills-off arm: neither the corpus nor
+    # the selector is wired, so the built prompt carries no <learned_skills>
+    # block and configured_injection_regime() reports full_corpus.
+    if skills and (fixture / "skills").is_dir():
         configure(skills_dir=fixture / "skills")
     if (fixture / "rules").is_dir():
         configure(rules_dir=fixture / "rules")
@@ -329,6 +373,8 @@ def _configure_pinned_assets(fixture: Path, selection_audit_dir: Path) -> None:
     # here. The flag retired on 2026-08-08, so configuring the selector against
     # the fixture is now the whole of it — and the pin can no longer disagree
     # with an inherited environment, which is what made the flag worth setting.
+    if not skills:
+        return
     selection_audit_dir.mkdir(parents=True, exist_ok=True)
     # Guarded like its sibling above: with skills/ absent the catalog is
     # empty, every call falls back to full-corpus injection, and only
@@ -515,7 +561,15 @@ def main() -> int:
         "--judge-timeout", type=int, default=300, help="seconds per judge attempt (default 300)"
     )
     parser.add_argument("--baseline", type=Path, default=None, help="approved baseline to diff")
+    parser.add_argument(
+        "--arm",
+        choices=sorted(ARM_REGIMES),
+        default="skills-on",
+        help="skills-off injects no skills at all (RFC-0017 one-shot reading; default skills-on)",
+    )
     args = parser.parse_args()
+    regime = ARM_REGIMES[args.arm]
+    skills_on = args.arm == "skills-on"
 
     if args.samples < 1:
         parser.error("--samples must be >= 1")
@@ -526,7 +580,9 @@ def main() -> int:
     baseline_path = args.baseline.resolve() if args.baseline is not None else None
 
     run_id = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    run_dir = RESULTS_DIR / run_id
+    # The off arm is named in the directory so a results/ listing cannot be
+    # misread as another on-arm run; the manifest carries the same fact.
+    run_dir = RESULTS_DIR / (run_id if skills_on else f"{run_id}-{args.arm}")
     run_dir.mkdir(parents=True, exist_ok=True)
     scratch_home = run_dir / "moltbook-home"
     scratch_home.mkdir(exist_ok=True)
@@ -553,8 +609,8 @@ def main() -> int:
     if args.cases:
         cases = _filter_cases(cases, args.cases)
 
-    _configure_pinned_assets(FIXTURE_DIR, run_dir / "skill-selection")
-    _preflight(FIXTURE_DIR, "claude")
+    _configure_pinned_assets(FIXTURE_DIR, run_dir / "skill-selection", skills=skills_on)
+    _preflight(FIXTURE_DIR, "claude", regime)
 
     from contemplative_agent.adapters.moltbook.llm_functions import COMMENT_TEMPERATURE
     from contemplative_agent.core.llm import served_model
@@ -578,7 +634,8 @@ def main() -> int:
         "assets_sha256": aggregate_sha256(hash_tree(FIXTURE_DIR)),
         "judge_prompt_sha256": hashlib.sha256(JUDGE_PROMPT_PATH.read_bytes()).hexdigest(),
         "prompt_templates_sha256": prompt_templates_sha256(),
-        "injection_regime": INJECTION_REGIME,
+        "injection_regime": regime,
+        "arm": args.arm,
         "sampling": sampling_state(),
         "dataset_sha256": dataset_sha256(dataset_path),
         "samples_per_case": args.samples,
@@ -638,8 +695,12 @@ def main() -> int:
     # writes nothing. Counting only `fell_back` would let such a run claim
     # the pinned regime with no warning at all, which is exactly the silent
     # fallback CLAUDE.md's observability rule prohibits.
-    expected_observations = sum(len(c["samples"]) for c in case_records)
+    # The off arm never runs the selector, so it expects no observations;
+    # counting its 36 absent records as "unobserved" would raise a fallback
+    # warning about a regime the arm never claimed.
+    expected_observations = sum(len(c["samples"]) for c in case_records) if skills_on else 0
     unobserved = expected_observations - observed.get("records", 0)
+    observed["arm"] = args.arm  # disambiguates "unavailable" from a broken on-arm audit dir
     observed["expected"] = expected_observations
     observed["unobserved"] = unobserved
     if observed.get("fell_back") or unobserved:

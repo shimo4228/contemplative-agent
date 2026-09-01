@@ -196,3 +196,94 @@ class TestGenerationTakesTheTwoPassPath:
         assert other and other not in publish_system, (
             f"unselected skill {catalog[1].name!r} reached the publish system prompt"
         )
+
+
+class TestSkillsOffArm:
+    """RFC-0017 の一時アーム: skill を一切注入しない run を、on と同じ fixture から立てる。
+
+    読み終えたら撤去する（RFC-0017 消費計画）。on の pin (``INJECTION_REGIME``) は
+    不変で、off は manifest に ``no_skills`` を書く — 配線の読み値 ``full_corpus``
+    は「全 skill 注入」の意味なので記録しない。fixture の ``skills/`` はディスクに
+    残るので assets_sha256 は on と同一、regime だけが違い ``--baseline`` 比較は
+    exit 2 のまま（fail-closed 維持）。
+    """
+
+    def test_arm_table_maps_off_to_full_corpus_and_on_to_the_pin(self):
+        from evals.run_eval import ARM_REGIMES
+
+        assert ARM_REGIMES["skills-on"] == INJECTION_REGIME
+        assert ARM_REGIMES["skills-off"] == "no_skills"
+        assert ARM_REGIMES["skills-off"] != skill_selection.REGIME_FULL_CORPUS
+        assert set(ARM_REGIMES) == {"skills-on", "skills-off"}
+
+    def test_off_arm_leaves_the_selector_unwired(self, clean_config):
+        _configure_pinned_assets(FIXTURE_DIR, clean_config, skills=False)
+        assert skill_selection.configured_injection_regime() == skill_selection.REGIME_FULL_CORPUS
+        assert not clean_config.exists(), "off arm must not create a selection audit dir"
+
+    def test_off_arm_system_prompt_carries_no_skills_but_keeps_identity(self, clean_config):
+        from contemplative_agent.core.llm import get_identity_system_prompt, prompting
+
+        _configure_pinned_assets(FIXTURE_DIR, clean_config, skills=False)
+        prompt = prompting._build_system_prompt()
+        assert "<learned_skills>" not in prompt
+        sentinel = next(
+            line.strip()
+            for line in (FIXTURE_DIR / "identity.md").read_text(encoding="utf-8").splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        )
+        assert sentinel in get_identity_system_prompt()
+
+    def test_on_arm_is_the_default_and_unchanged(self, clean_config):
+        _configure_pinned_assets(FIXTURE_DIR, clean_config)
+        assert skill_selection.configured_injection_regime() == INJECTION_REGIME
+        assert skill_selection.selection_preconditions_unmet() is None
+
+    def test_regime_sentinel_accepts_only_the_enacted_regime(self, clean_config):
+        from evals.run_eval import _assert_regime_enacted
+
+        _configure_pinned_assets(FIXTURE_DIR, clean_config, skills=False)
+        _assert_regime_enacted("no_skills")
+        with pytest.raises(SystemExit) as exc:
+            _assert_regime_enacted(INJECTION_REGIME)
+        assert exc.value.code == 2
+
+    def test_regime_sentinel_rejects_off_regime_when_selector_is_wired(self, clean_config):
+        from evals.run_eval import _assert_regime_enacted
+
+        _configure_pinned_assets(FIXTURE_DIR, clean_config)
+        _assert_regime_enacted(INJECTION_REGIME)
+        with pytest.raises(SystemExit) as exc:
+            _assert_regime_enacted("no_skills")
+        assert exc.value.code == 2
+
+    def test_off_arm_generation_makes_one_call_with_no_skill_body(self, clean_config):
+        """End-to-end through the production function the eval calls — the
+        seam the unit test above cannot see (``generate_comment`` never calls
+        ``_build_system_prompt`` directly; ``system=None`` reaches it inside
+        ``core.llm``). One backend call proves no pass-1 selector ran; no
+        catalog body in the system prompt proves no corpus was wired."""
+        from contemplative_agent.adapters.moltbook.llm_functions import generate_comment
+        from tests.test_llm_backend import FakeBackend
+
+        _configure_pinned_assets(FIXTURE_DIR, clean_config, skills=False)
+        backend = FakeBackend(responses=["A grounded reply."])
+        configure(backend=backend)
+        generate_comment("What persists when a belief dissolves?")
+
+        assert len(backend.calls) == 1, "a second call means the pass-1 selector ran"
+        system = backend.calls[-1]["system"] or ""
+        assert "<learned_skills>" not in system
+        assert "<learned_rules>" in system, (
+            "rules must still reach the prompt (single-variable contrast)"
+        )
+        # Bodies are read from the fixture files directly: on this arm the
+        # selector is unwired, so selected_skills_block() has no catalog to
+        # render from and would return "" for every name (a vacuous check).
+        skill_files = sorted((FIXTURE_DIR / "skills").glob("*.md"))
+        assert len(skill_files) > 1
+        for path in skill_files:
+            text = path.read_text(encoding="utf-8")
+            body = text.split("---", 2)[2] if text.startswith("---") else text
+            line = next(ln.strip() for ln in body.splitlines() if len(ln.strip()) >= 20)
+            assert line not in system, f"skill {path.name!r} reached the off-arm prompt"
