@@ -140,18 +140,18 @@ D.2 p.22、E p.24〜）。
 
 | # | 逸脱 | 由来 | 効く先 | 振り分け |
 |---|---|---|---|---|
-| U1 | Maintainer が iteration 要約（論文 `logs.md`）を書かず、次回の Maintainer も Proposer も過去 iteration の要約を読まない。CA の `wiki-ops.jsonl` に材料はあるが描画されない | 設計（wiki_render の「LLM の投影は二重化」判断は logs / skill-impact を同一視している） | M-c（wiki の複利）、D8 の肥大読み | |
-| U2 | index 行が LLM 記述の PROBLEM + ROOT CAUSE + FIX でなく本文 1 行目（code 描画） | 設計 | Proposer の open 判断の質（P-b） | |
-| U3 | Proposer が生 episode を開けない | 設計 + security（untrusted 本文を Proposer の prompt へ） | P-b、論文形との差 | |
-| U4 | paper アームの Maintainer が ≤ 8 件 / 15,000 字 cap でなく全 rich episode | 読み違い（RFC-0022 Motivation ①） | 費用（$92 → ≈ $8）、① の「論文どおり」の意味 | RFC-0022 で是正確定 |
-| U5 | Proposer の過去提案と採否（`wiki-proposer.jsonl` / `wiki/proposals/`）が evolution log に戻らない。replay では全週の Proposer が「初回」として走る | 設計（S3 の would-be は S6 で staging に載る前提）| P-a / P-b の読み（同一提案の反復が数えられない）、live S5 | |
-| U6 | constrained Proposer の turn 数（open 3 + 2）が論文の 10〜20 と桁違い | 容量 | ② ③ の差の解釈 | |
-| U7 | paper アームの Proposer が「全 wiki + 全 skill を 1 コール」で、論文の「ReAct で必要なものだけ開く」形ではない。**RFC-0022 の是正案「open 上限 20」は現行の preload 経路では効かない**（`allow_open` が paper で常に False） | 読み違い（Motivation ②）+ 設計 | ① の形の定義、fix packet | |
-| U8 | patch 提案が 1 op（論文は複数 edit の束） | 設計（anchor 一意性の検証を 1 op に閉じる） | P-a の比率の読み | |
-| U9 | `PURPOSE.md`（skill → 発生源 pattern の逆引き）が skill 側に無い | 設計（S6 範囲） | 縦断記録の legibility | |
-| U10 | 「Maintainer / Proposer は Claude 級」の根拠が論文に無い（D3 :335、D7 ②） | 読み違い（4 件目） | D7 ② の文面、① の「忠実」の主張範囲 | RFC-0017 の本文訂正 |
-| U11 | Maintainer : Proposer の比が 1:1 でなく 7:1（④ の周期分離の帰結だが ④ の文面に無い） | 設計 | 52 日 replay の Proposer n=7 の読み | ④ に追記 |
-| U12 | D7 表外の逸脱（注入 two-pass、200k ⑥ は表内、`REPLAY_DEVIATIONS` 5 件）が一つの表に無い | 記録の置き場 | 読み手が逸脱を数える手間 | D7 に集約 |
+| U1 | Maintainer が iteration 要約（論文 `logs.md`）を書かず、次回の Maintainer も Proposer も過去 iteration の要約を読まない。CA の `wiki-ops.jsonl` に材料はあるが描画されない | 設計（wiki_render の「LLM の投影は二重化」判断は logs / skill-impact を同一視している） | M-c（wiki の複利）、D8 の肥大読み | D7 ⑧ に記録 |
+| U2 | index 行が LLM 記述の PROBLEM + ROOT CAUSE + FIX でなく本文 1 行目（code 描画） | 設計 | Proposer の open 判断の質（P-b） | D7 ⑩ に記録 |
+| U3 | Proposer が生 episode を開けない | 設計 + security（untrusted 本文を Proposer の prompt へ） | P-b、論文形との差 | D7 ⑦ に記録 |
+| U4 | paper アームの Maintainer が ≤ 8 件 / 15,000 字 cap でなく全 rich episode | 読み違い（RFC-0022 Motivation ①） | 費用（$92 → ≈ $8）、① の「論文どおり」の意味 | **形の変更（日次全件 batch）で解消** — ≤ 8 件 cap は入れない。層化を駆動する検証スコアが無い以上サンプルの意味が無く、CA は日を読み切る（D4）。D7 ⑤ に記録 |
+| U5 | Proposer の過去提案と採否（`wiki-proposer.jsonl` / `wiki/proposals/`）が evolution log に戻らない。replay では全週の Proposer が「初回」として走る | 設計（S3 の would-be は S6 で staging に載る前提）| P-a / P-b の読み（同一提案の反復が数えられない）、live S5 |  **是正の対象外 / 前提の変更で解消**（⓪）— 燃料が「再発 + 人間ゲート」に変わり、replay は gate でなく診断計器になったので「7 週の Proposer が全部初回」は合否に効かない。Proposer 自身の履歴を入力に戻すかは S6 の論点 |
+| U6 | constrained Proposer の turn 数（open 3 + 2）が論文の 10〜20 と桁違い | 容量 | ② ③ の差の解釈 | D7 ③ に記録（turn 数の桁差を ③ の本文に明記） |
+| U7 | paper アームの Proposer が「全 wiki + 全 skill を 1 コール」で、論文の「ReAct で必要なものだけ開く」形ではない。**RFC-0022 の是正案「open 上限 20」は現行の preload 経路では効かない**（`allow_open` が paper で常に False） | 読み違い（Motivation ②）+ 設計 | ① の形の定義、fix packet | **形の変更で解消** — paper 経路（preload）ごと削除。Proposer は open ループ 1 形のみ |
+| U8 | patch 提案が 1 op（論文は複数 edit の束） | 設計（anchor 一意性の検証を 1 op に閉じる） | P-a の比率の読み | D7 ⑨ に記録 |
+| U9 | `PURPOSE.md`（skill → 発生源 pattern の逆引き）が skill 側に無い | 設計（S6 範囲） | 縦断記録の legibility | D7 に載せない（S6 の設計項目。skill 側の `PURPOSE.md` 相当は staging の形の問題） |
+| U10 | 「Maintainer / Proposer は Claude 級」の根拠が論文に無い（D3 :335、D7 ②） | 読み違い（4 件目） | D7 ② の文面、① の「忠実」の主張範囲 | **是正済み** — D3 の論文記述と D7 ② を「論文が指定しない軸で著者が選んだ」に書き直し |
+| U11 | Maintainer : Proposer の比が 1:1 でなく 7:1（④ の周期分離の帰結だが ④ の文面に無い） | 設計 | 52 日 replay の Proposer n=7 の読み | **是正済み** — D7 ④ を「Maintainer 毎日 / Proposer 手動。論文は 1 iteration の中で 1 : 1」に書き直し |
+| U12 | D7 表外の逸脱（注入 two-pass、200k ⑥ は表内、`REPLAY_DEVIATIONS` 5 件）が一つの表に無い | 記録の置き場 | 読み手が逸脱を数える手間 | **是正済み** — D7 を一つの表に集約（⓪〜⑩）。`REPLAY_DEVIATIONS` の各行に D7 番号を注記 |
 
 ### RFC-0022 Motivation の 3 引用の照合
 
@@ -174,11 +174,24 @@ D.2 p.22、E p.24〜）。
 ## Status
 
 draft（2026-09-02）。著者指示「論文との整合性チェックを fresh context の別セッションでやる。是正は新しい RFC に」。
-同日、fresh context の Fable セッションが PDF 全頁を読んで Reading 節を凍結（未記録の逸脱 12 件、うち読み違い 1 件を追加検出 = U10）。振り分け待ち。
+同日、fresh context の Fable セッションが PDF 全頁を読んで Reading 節を凍結（未記録の逸脱 12 件、うち読み違い 1 件を追加検出 = U10）。
+
+**結論（2026-09-02、著者の振り分け + packet A）: 忠実再現は燃料の不在で不成立。形は保つ。**
+論文の loop は検証スコア（正解との一致率）が層化・トレース選択・採用判定の 3 箇所を駆動しており、
+CA にはそのスコアもその入力も無い。したがって「論文どおりの容量」というアームは、何に忠実なのかを
+言えない。是正の方向は「論文の数値に寄せる」ではなく「**形（3 層・4 動詞・atomic 提案・wiki を
+巻き戻さない）だけを採り、燃料を再発と人間ゲートで置き換える**」に変わった。
+
+帰結（RFC-0017 側で実装済み — packet A）:
+
+- Maintainer は **1 形 + 日次全件 batch**（サンプリングの問題が消え、distill とカバー率が揃う）
+- constrained 形 / paper 形 / `capacity` / 200k アーム / 週 seed は**削除**
+- replay は **2 アーム（gemma / opus、同一窓）の診断計器**。gate ではない（合否は live の audit log）
+- 未記録の逸脱 12 件は上表のとおり是正 3 件 / 形の変更で解消 3 件 / D7 に記録 5 件 / S6 送り 1 件
 
 ## Next action
 
-- Reading 節は 2026-09-02 に凍結済み（上）。**次は著者の振り分け**: U1〜U12 の各行を「是正」か「D7 に追記」に振る
-  （U4 は是正確定、U10 / U11 / U12 は RFC-0017 の本文訂正）。U7 は paper アームの Proposer の形（ReAct 化 / preload 維持）の決定を要する
-- 照合先:   未記録の逸脱表の「振り分け」列が全行埋まっていること
-- 成立時:   fix packet を build-tier へ dispatch（Review は `/code-review ultra`）→ RFC-0017 D7 / D9 / Prior art の訂正 → replay 本 run → 本 RFC を `resolved`
+- Reading 節と振り分けは 2026-09-02 に凍結済み（上）。実装は packet A（branch `task/rfc-0022-a`）で
+  RFC-0017 の D3 / D4 / D7 / D9 / D10 の訂正ごと入っている
+- 照合先: 未記録の逸脱表の「振り分け」列が全行埋まっていること（埋まった）
+- 成立時: packet A が main に merge され、smoke → launchd 配線が済んだら本 RFC を `resolved`

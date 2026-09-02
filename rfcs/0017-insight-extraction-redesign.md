@@ -84,9 +84,14 @@ knowledge store → skills に対応する。3 点が直接効く:
   自分で開く）のに対し、現行 novelty gate は既存 skill の name + description を**通す/落とすの
   二値ゲート**として見るだけで、役割が違う
 - **中間層の書き込み動詞が create だけではない**。既存 pattern ページへの patch 更新
-  （append / replace / insert_after）が既定で、実測は 1 run あたり作成 4.4–9.8 に対し編集 7.0–18.4。
-  生産量を活動量から切り離すのは件数の抑制ではなく既存ページへの帰属である、という設計。
-  CA 側の対応物（dedup の `update` = 旧行の soft-invalidate + 新行 append）とは別の操作
+  （append / replace / insert_after）が既定。Table 4（p.13）の「作成 4.4–9.8 / 編集 7.0–18.4」は
+  **wiki pattern** の 1 run あたりの数で、しかも列ごとに範囲の取り方が違う（作成はベンチマーク別、
+  編集はモデル別。モデル別の作成は 6.3–8.9、ベンチマーク別の編集は 11.3–15.9）。**skill の方は
+  1 run で採用 create 1.4 / edit 0.9（モデル平均、p.13）= 2〜3 本**（提案は create 2.3–4.8 /
+  edit 3.2–5.7 なので採用率 ≈ 1/3〜1/5）。2026-08-30 の読み「skill の作成 4.4–9.8」は誤りで、
+  RFC-0022 の PDF 全読で訂正した。生産量を活動量から切り離すのは件数の抑制ではなく既存ページへの
+  帰属である、という設計。CA 側の対応物（dedup の `update` = 旧行の soft-invalidate + 新行 append）
+  とは別の操作
 - **却下の記録を読むのは次回の提案器**（reviewer ではない）。ADR-0097 D6 が予約した却下語彙の
   宛先の再検討材料になる
 
@@ -325,45 +330,75 @@ WikiSkill（arXiv 2608.27454）の**形**をそのまま採り、提案器の動
   同族が流入し続けて効果が読めない）。ADR-0097「merge / clean を再提案しない」の失効条件
   「insight 生産側の変質」は本 RFC で発火する
 
-### D3. 機構 = WikiSkill の形を 4B / 16GB に適応した並列実験機構
+### D3. 機構 = WikiSkill の**形**を採り、**エンジン**は採らない（2026-09-02 RFC-0022 で改訂）
 
-論文（一次ソース 2026-09-02 確認）の形: raw/（不変トレース）→ wiki/（Maintainer がトレースの
-サンプル + 既存 wiki から pattern ページを create / patch。logs.md = 進化ログ、skill-impact.md =
-提案の採否と効果）→ skills/（Proposer が wiki 索引 + skill-impact + 過去の採否を読み、read_file で
-ページを開き、**1 iteration に atomic 提案 1 つ** = 新 skill の create か既存 1 skill への patch）→
-gating（検証スコア > R_best、却下は破棄、**wiki は巻き戻さない**）。1 run ≈ 8 iteration、終了時の
-skill は平均 1.5 採用 + 0.8 編集 ≈ 2〜3 本。Maintainer / Proposer は Claude 級、executor は
-Qwen3.5-4B〜Gemma-4-31B。
+論文（PDF 全 28 頁、RFC-0022 の Reading 節で照合）の形: raw/（不変トレース）→ wiki/（Maintainer が
+トレースのサンプル + wiki 全体から pattern ページを create / patch。`logs.md` = Maintainer 自身の
+iteration 要約、`skill-impact.md` = 提案の採否と効果を harness が追記）→ skills/（Proposer が
+wiki 索引 + skill-impact + 生トレースを ReAct で開き、**1 iteration に atomic 提案 1 つ**）→
+gating（検証スコア > R_best、却下は破棄、**wiki は巻き戻さない**）。1 run = 8 iteration
+（Table 5 p.20）、終了時の skill は採用 create 1.4 / edit 0.9 ≈ 2〜3 本（Table 4 p.13、モデル平均）。
+
+論文記述の訂正（2026-08-30 の読みの誤り。RFC-0022 Motivation ①②③ + U10）:
+
+- Maintainer の入力は「その日の全件」ではなく **≤ 8 trace / iteration、失敗 ≤ 5 + 成功 ≤ 3 の層化、
+  1 件 15,000 字 cap**（Appendix C p.21）。1 コール・tool 無しは合っている（D.2 p.22）
+- Proposer は 1 コールではなく **ReAct 10〜20 turn**（D.2 p.22）で、`read_file` で pattern ページも
+  **生トレースも**開ける（Algorithm 1 line 10 p.19、"You MUST read at least 4 execution traces" E.3 p.28）
+- Table 4 の作成 / 編集の数は skill でなく **wiki pattern**（上の Prior art 参照）
+- **Maintainer / Proposer を動かすモデルは論文のどこにも書かれていない**（全文照合）。旧記述
+  「Maintainer / Proposer は Claude 級、executor は Qwen3.5-4B〜Gemma-4-31B」の後半だけが論文の記述
+  （§4.1 p.7 の inference model）で、前半に根拠は無い
+
+**エンジンを採らない理由（本 RFC の中心的な決定、2026-09-02 著者判断）**: 論文の loop は
+**検証スコア（正解との一致率）が 3 箇所を駆動する** — サンプルの層化（成功 / 失敗）、Proposer が
+掘るトレースの選択、採用判定（R > R_best）。CA に正解は無く、その代替も無い。したがって
+「忠実再現」は燃料の不在で成立しない。**形（3 層・4 動詞・atomic 提案・wiki を巻き戻さない）は採り、
+燃料は 2 つで置き換える**:
+
+1. **再発** — 同じことが別の日にも出て、Maintainer が create でなく patch を選ぶこと
+2. **人間ゲート** — 土曜ゲートの採否（D6）
+
+この置き換えの帰結が D4 の形（日次・全件 batch）である。
 
 CA の層構成（M1′。**既存本番は崩さない**）:
 
 ```text
 episode log（raw、untrusted）
   ├─→ distill（現状どおり）→ knowledge.json → identity distill / dedup / HF dataset  … 継続、記録に穴を開けない
-  └─→ Maintainer（毎日）→ wiki/patterns/ + logs + skill-impact → Proposer（週 1）→ .staged/ → 土曜ゲート → skills/
+  └─→ Maintainer（毎日）→ wiki/patterns/ + skill-impact → Proposer（手動）→ .staged/ → 土曜ゲート → skills/
 ```
 
 episode log に読者が 2 つ並ぶ: 粒度細かい縦断記録（knowledge.json、2026-03-26 から 7,637 行が
 途切れず続く）と、複利する小さな知識（wiki）。identity は pattern から、skill は wiki から。
 
-### D4. Maintainer の仕様
+### D4. Maintainer の仕様（2026-09-02 RFC-0022 で改訂 — 1 形 + 日次全件 batch）
 
-- 周期: **毎日 1 コール**、distill の後（同じ launchd slot の後段）
-- 入力: (a) その日の episode を**全文**で（`episode_render` と同じ描画・同じ `wrap_untrusted_content`。
-  圧縮しない）予算で詰める — 推定トークンで NUM_CTX 32768 から wiki 索引 + 開くページ ≤ 3 +
-  prompt + 出力予約（合計 ≈ 8k）を引いた残りに入るだけ。実測 1 episode ≈ 1.7k（p90 3〜4k）なので
-  ≈ 6〜12 件 / 日（1 日 ≈ 50 件の 12〜25%）。(b) wiki の索引（ページ id + タイトル + 1 行）。
-  (c) read_file で開いたページ本文
-- サンプル順: **環境の反応で層化**（返信・upvote が付いた episode と付かなかった episode を両方入れる。
-  論文の「成功と失敗の両方」に相当）+ 日内で決定論 seed（週 ID）。読んだ episode id と seed は全部記録
+- 周期: **毎日**、distill の後段（launchd 04:15、distill は 03:30）
+- 形は **1 つだけ**。索引 + `open` の constrained 形は消えた（誤読「論文どおり = 200k が要る」から
+  建っていた足場。CA の episode サイズなら wiki 全体 + 十数件が 32k に入る）
+- 入力: 1 コールにつき (a) **wiki 全体**（索引 + 全ページ本文）+ (b) その日の rich episode を**全文**で
+  （`episode_render` と同じ描画・同じ `wrap_untrusted_content`。圧縮しない）予算に入るだけ
+- **日を読み切る**: 予算に入らなかった分は次の batch に回り、その日の rich episode が尽きるまで
+  コールを繰り返す。batch の間に wiki を読み直すので、前の batch が作ったページを次の batch が見る
+  （= 再発を patch として記録できる。D3 の燃料 1）。実測 rich 50〜54 件 / 日、1 コール ≈ 15 件、
+  gemma 222 秒 / コール → 1 日 3〜5 コール ≈ 11〜19 分
+- サンプル順: **時系列**。shuffle も seed も無い（週 seed は全件を読む形では意味を失った）。
+  層化は不能（⑤、2026-09-02 の訂正）
 - 出力: op ∈ {create, append, replace, insert_after} × 対象ページ id × 本文 × 引用 episode id。
-  code が id と schema を検証し、不正は abstain 理由コードで記録（fail-closed: 不正 op は適用しない）
+  code が id と schema を検証し、不正は理由コードで記録（fail-closed: 不正 op は適用しない）
+- fail-closed: wiki だけで窓が埋まって 1 件も入らない日は `fail_closed_budget`（残り id を記録して
+  日を止める。D8 の第 1 段終了条件がこの形で出る）。batch のモデル障害はその batch の outcome で
+  日を止める（retry 無し — 次の batch は前の batch が書いたはずのページを前提にできない）。
+  `max_batches`（既定 8）超過は `fail_closed_batches`
+- **再開**: 同じ日の再実行は audit の batch 行（`dry_run` でなく outcome ∈ {written, abstained}）が
+  記録した episode id を既読として飛ばす。日の途中で落ちても続きから読める
 - wiki は巻き戻さない。ページは pattern id でなく **episode id を引用**する（raw 層への参照）
-- コール数（1 日 1）は knob として残す。増やすと直列 patch の平坦化リスク（ADR-0060）が積む
 
 ### D5. Proposer の仕様
 
-- 周期: **週 1**、月曜 08:00 の insight job を置き換える（shadow 期間は並走 — D10）
+- 周期: **手動**（2026-09-02 改訂）。wiki が育つまで定期化しない — 空の wiki に対する提案は
+  読み値にならない。定期化の判断は Maintainer が数週回った後（D10）
 - 入力: wiki 索引 + skill 索引（57 件全部の name + description ≈ 3k トークン。**retrieval フィルタは
   置かない** — 索引の並びに使うだけなら可）+ 進化ログ（`insight-staged.jsonl` + `audit.jsonl` +
   `.archive/` の supersedes から code が描画）+ skill-impact（selection audit の skill 別選択数を
@@ -383,17 +418,28 @@ episode log に読者が 2 つ並ぶ: 粒度細かい縦断記録（knowledge.js
   `superseded_by` 付きで退避して置換（ADR-0097 D5 の機構を再利用、adopt-superseding の語彙）
 - 週 1 件なので土曜ゲートの負荷は 40〜50 件 → 1 件
 
-### D7. 論文からの逸脱（すべて記録する。experiment の独立変数）
+### D7. 論文からの逸脱（すべて記録する。experiment の独立変数。2026-09-02 RFC-0022 で集約）
+
+一つの表に集める（旧版は ①〜④ だけが表で、注入・200k・`REPLAY_DEVIATIONS` は本文と code に散っていた
+= U12）。番号は本 RFC 内の参照用で、`scripts/wiki_replay.py` の `REPLAY_DEVIATIONS` は各行にこの番号を
+括弧で注記する。
 
 | # | 逸脱 | 由来 |
 |---|---|---|
-| ① | 判定者が検証スコアでなく人間 | CA に正解が無い（構造） |
-| ② | Maintainer / Proposer が Claude 級でなく gemma4:e4b（8B、Q4_K_M） | 著者の選択「このクラスでできたら面白い」 |
-| ③ | Maintainer が wiki 全体を 1 コールで持たず、索引 + read_file | 32k / 16GB |
-| ④ | Maintainer 毎日 / Proposer 週 1 の周期分離 | 人間ゲートが週次 |
+| ⓪ | **燃料の不在**（最上位）: 論文の loop を駆動する検証スコア（正解との一致率）とその入力が CA に無い。代替は再発と人間ゲート（D3） | 構造 |
+| ① | 判定者が検証スコアでなく人間（土曜ゲート）。却下は破棄、wiki は巻き戻さない | ⓪ の帰結 |
+| ② | モデルは gemma4:e4b（Ollama、本番）。**論文は Maintainer / Proposer のモデルを明示しない**ので「論文より低い級」ではなく「論文が指定しない軸で著者が選んだ」。gemma4:e4b は Table 2 の inference model の範囲（Qwen-3.5-4B 〜 Gemini-3.5-Flash）の下端に当たる | 著者の選択「このクラスでできたら面白い」 |
+| ③ | Proposer の open 予算 3（論文は ReAct 10〜20 turn） | 32k / 16GB |
+| ④ | Maintainer 毎日 / Proposer 手動。論文は 1 iteration の中で 1 : 1 | 人間ゲートが週次、wiki の成長待ち |
+| ⑤ | Maintainer のサンプル層化なし（論文は失敗 ≤ 5 / 成功 ≤ 3）。episode に反応信号が無く、反応は翌日以降の別 record に出る | ⓪ + schema |
+| ⑥ | 注入は ADR-0081 の two-pass 選択（論文は全 skill 注入で retrieval を交絡から外している。論文自身も Limitations で retrieval 未評価を自認） | CA の本番設計 |
+| ⑦ | Proposer が生 episode を開けない（論文は "MUST read at least 4 execution traces"）。Maintainer は同じ untrusted 本文を読んでいるので新しい面ではないが、schema に episode ts の enum を足す設計判断が要る | 設計（S6 以降の論点） |
+| ⑧ | `logs.md` 相当が無い — Maintainer は iteration 要約を書かず、次回の Maintainer も Proposer も過去の要約を読まない（材料は `wiki-ops.jsonl` にあるが描画されない） | 設計 |
+| ⑨ | patch 提案が 1 op（論文は 1 skill への複数 edit を 1 提案に束ねる） | 設計（anchor 一意性の検証を 1 op に閉じる） |
+| ⑩ | index の行が LLM 記述の "PROBLEM + ROOT CAUSE + FIX"（E.2 p.27）でなく本文 1 行目の code 描画 | 設計 |
 
-episode の圧縮表示は**しない**（Q15 で却下。distill と同じ全文）。注入は ADR-0081 の two-pass 選択の
-まま（論文は全 skill 注入で retrieval 未評価、本 RFC の対象外）。
+episode の圧縮表示は**しない**（Q15 で却下。distill と同じ全文）。旧 ③（Maintainer が索引 +
+read_file）と旧 ⑥（replay の 200k アーム）は**形ごと消えた**ので表から落とした（RFC-0022）。
 
 ### D8. 終了条件（事前登録）
 
@@ -401,47 +447,49 @@ episode の圧縮表示は**しない**（Q15 で却下。distill と同じ全�
   なった時点で distill を止める」。読者は現在 identity distill / dedup / dataset。identity distill の
   wiki 移行は本 RFC の範囲外（別提案）
 - **wiki の肥大は一級の読み値**: 索引トークン数・ページ数・ページ長 p90 を毎日記録。
-  「索引 + k=3 ページ + episode 8 件が 32k に入らなくなった日」が第 1 段の終了。論文が持たない
+  「wiki 全体 + episode 1 件が 32k に入らなくなった日」が第 1 段の終了（`fail_closed_budget` として
+  日付つきで出る）。論文が持たない
   pruning がいつ必要になるかの 16GB での知見であり、失敗ではない。pruning は RFC-0021 の範囲
 - `NUM_CTX` の 48k / 64k 化は knob（16GB の KV 実測と 32k 超での gemma の品質が未知）
 
-### D9. offline replay（live の前に必ず行う）
+### D9. live-first（2026-09-02 RFC-0022 で改訂 — replay は gate ではない）
 
-7 週分（2026-07-09 〜 2026-08-29、staged 438 / adopted 53 の期間）の episode を日次 iteration で流す。
+**順序は smoke → live → 読み。** replay を合否ゲートに置いていた旧版は「忠実再現アーム（①）を
+参照点にする」前提で建っていたが、⓪（燃料の不在）でその参照点は成立しない。52 日を 3 アームで
+回して読める合否は、live の audit log が 2 週で出す合否と同じもので、費用と Ollama 占有だけが違う。
 
-| アーム | Maintainer / Proposer | 容量 | 役割 |
-|---|---|---|---|
-| ① | `claude-opus-5` | 論文どおり（wiki 全体 + トレース全文、200k context） | **忠実再現**（参照点） |
-| ② | `claude-opus-5` | gemma の制約（索引 + read_file、32k） | 容量の効果 |
-| ③ | gemma4:e4b | 同上 | 本番候補 |
+- **smoke**: gemma で 1〜2 日、tmp home。`fail_closed_*` が出ないこと・op が store を通ることの確認
+- **live**: launchd 配線（`install-schedule --wiki-maintain`、04:15）。Maintainer は派生層なので
+  ゲート不要（D10）
+- **replay**（`scripts/wiki_replay.py`）: **診断計器**。2 アーム `gemma` / `opus`、**同じ形・同じ
+  `llm.NUM_CTX`** なので差はモデルだけ。「同じ日を大きいモデルが読むとどう違うか」を live の読み値の
+  傍らに置く参照点であって、live に出す許可ではない。回すかどうかは live の読み値が説明を要したときに
+  決める。Claude アームは `claude -p --model claude-opus-5 --tools "" --setting-sources ""
+  --strict-mcp-config` + env allowlist（ADR-0089 の judge と同じ隔離）、**tool を一切与えない**、
+  **live に出さない**、出力は untrusted として保存（b64 + sha256）。Fable は使わない（著者）
 
-①−③ の差が「モデル」と「容量」に分かれる。Claude アームは `claude -p --model claude-opus-5
---tools "" --setting-sources "" --strict-mcp-config` + env allowlist（ADR-0089 の judge と同じ隔離）。
-**tool を一切与えない**（read_file は code の enum ループ）、**live に出さない**、出力は untrusted として
-保存（b64 + sha256、`insight-novelty.jsonl` と同型）。M-c / P-b で人間や Claude Code が通読するときは
-comment-reports と同じ「外部データとして読む」規約。モデル固定の理由: ① と ② を同じモデルにしないと
-差が読めない。Fable は使わない（著者）。概算 300〜500 コール、入力 10〜15M トークン ≈ $80（cache で半減）。
-M0 アーム（Proposer に cluster 索引を渡す旧形）は比較用に残してよいが必須ではない。
-
-**合否線（事前登録）**: Maintainer 約 49 コール、Proposer 7 提案。
+**合否線（事前登録。読む対象は live の `logs/wiki-maintainer.jsonl` / `wiki-proposer.jsonl`、
+読む場は土曜ゲート）**:
 
 - M-a: op / 対象 id / 引用 id の code 検証通過率 ≥ 0.9（下回るとループ自体が回らない）
-- M-b: patch の比率 ≥ 1 割（論文は編集 0.8 対 作成 1.5。create しか出さない = 複利していない = 不合格）
-- M-c: 最終 wiki（10〜30 ページ想定）を人間が通読、ADR-0060 の基準（具体的観察が残る / 語彙の
-  単一栽培でない）。数値でなく通読
-- P-a: 7 提案中、既存 skill への patch ≥ 1（0 なら旧抽出器と同じ）
+- M-b: patch の比率 ≥ 1 割（create しか出さない = 複利していない = 不合格）
+- M-c: wiki を人間が通読、ADR-0060 の基準（具体的観察が残る / 語彙の単一栽培でない）。数値でなく通読
+- P-a: Proposer の提案のうち、既存 skill への patch ≥ 1（0 なら旧抽出器と同じ）
 - P-b: 対象 skill の取り違え無し（人間が読む）
-- 参考読み（合否外）: 過去の採用 53 / 2026-07-25 の 5 件との重なり、アーム間の差
-- n=7 は「できるか」（存在）を答え、率は答えない。率は live の shadow（D10）で読む
-- 不合格時の fallback（事前登録）: ② が合格で ③ が不合格なら「モデル不足」、② も不合格なら
-  「容量不足」。後者は `NUM_CTX` knob の実測へ、前者は本 RFC を `blocked`（gemma 世代交代待ち）にする
+- 参考読み（合否外）: 過去の採用 53 / 2026-07-25 の 5 件との重なり、replay を回したならアーム間の差
+- 不合格時の fallback（事前登録）: M-a が低いまま + replay の `opus` アームが同じ日で高いなら
+  「モデル不足」（本 RFC を `blocked`、gemma 世代交代待ち）。両アームとも低いなら形の問題で、
+  prompt と schema の修理に戻る
 
-Ollama を数時間占有するので定期セッション（JST 0/6/12/18 時から 60 分）の外で回す。
+gemma の smoke（2026-09-02、2 日 n=5 op）で M-a 0.20（SOURCES_EMPTY ×3 / PAGE_NOT_FOUND ×1）。
+n=5 は読み値ではないが、live で M-a < 0.9 なら「引用の幻覚」が第 1 の限界になる見込み。
+replay を回すときは Ollama を数時間占有するので定期セッション（JST 0/6/12/18 時から 60 分）の外で。
 
 ### D10. live への出し方
 
-- replay 合格後、**Maintainer は即 live**（派生層。本番の生成経路は読まない。ゲート不要）
-- **Proposer は shadow**: 週 1 の提案を staging に置かず weekly findings に「would-be 提案」として
+- smoke 合格後、**Maintainer は即 live**（派生層。本番の生成経路は読まない。ゲート不要）。
+  配線は `install-schedule --wiki-maintain`（04:15、distill の後段）
+- **Proposer は手動 → shadow**: wiki が数週育つまで手で回す。定期化したら、提案を staging に置かず weekly findings に「would-be 提案」として
   書く（shadow-mode-validation の型: 抑止しない・幻覚も一級データ・kill switch は audit_dir 未設定）。
   既存の insight（cluster → novelty gate → 抽出）は並走で土曜ゲートへ候補を流し続ける
 - shadow の exit: 土曜ゲートで人間が would-be 提案を **N=8 件**判定し「採用したか」を記録してから
@@ -456,10 +504,10 @@ Ollama を数時間占有するので定期セッション（JST 0/6/12/18 時�
 | スライス | 内容 |
 |---|---|
 | S1 | 操作語彙（create / append / replace / insert_after）+ wiki store（`MOLTBOOK_HOME/wiki/`）+ 進化ログ / skill-impact の決定論描画 |
-| S2 | Maintainer ループ + 監査 JSONL（replay 可能: 入力 episode id、索引、開いたページ、生出力 b64） |
+| S2 | Maintainer ループ + 監査 JSONL（replay 可能: 入力 episode id、索引、wiki 全体、生出力 b64。RFC-0022 で 1 形 + 日次 batch に改訂） |
 | S3 | Proposer ループ + abstain 経路 + would-be 出力 |
-| S4 | replay ハーネス（3 アーム、`claude -p` 隔離呼び出し、evidence 凍結先 `docs/evidence/rfc-0017/`） |
-| S5 | shadow live（launchd への配線、weekly findings への出力、exit 計数） |
+| S4 | replay ハーネス（RFC-0022 で 2 アーム = gemma / opus、同一窓。`claude -p` 隔離呼び出し、evidence 凍結先 `docs/evidence/rfc-0017/`） |
+| S5 | live（launchd 配線は RFC-0022 の packet A で先出し。残りは weekly findings への would-be 出力と exit 計数） |
 | S6 | 切替（staging の patch 形、退役、ADR、CODEMAPS Data Flow、graph.jsonld、glossary、CLAUDE.md の記憶層記述） |
 
 - 実行者: build-tier セッションへ dispatch（task-triage の経路）。**Review は `/code-review ultra`
@@ -472,10 +520,10 @@ Ollama を数時間占有するので定期セッション（JST 0/6/12/18 時�
 
 | 計器 | 読み手 / いつ | 何回で何を決めるか | 撤去条件 |
 |---|---|---|---|
-| wiki 肥大（索引トークン / ページ数 / p90） | 土曜ゲート、毎週 | 毎週読み、D8 の終了条件に達したら第 1 段を閉じる | 第 1 段の終了、または RFC-0021 の pruning が入った時 |
-| skill-impact ページ | Proposer（毎週）+ 土曜ゲート | Proposer の入力なので撤去しない | Proposer が退役したら |
+| wiki 肥大（索引トークン / ページ数 / p90 / 日あたり batch 数） | 土曜ゲート、毎週 | 毎週読み、D8 の終了条件（`fail_closed_budget`）に達したら第 1 段を閉じる | 第 1 段の終了、または RFC-0021 の pruning が入った時 |
+| skill-impact ページ | Proposer（手動、のち毎週）+ 土曜ゲート | Proposer の入力なので撤去しない | Proposer が退役したら |
 | shadow の would-be 提案 | 土曜ゲート、毎週 | N=8 件で切替を判断 | 切替時 |
-| replay evidence（3 アーム） | 本 RFC の設計・切替判断 | 1 回 | 凍結後は読み値として残置（撤去なし） |
+| replay evidence（2 アーム、診断） | live の読み値が説明を要したとき | 1 回 | 凍結後は読み値として残置（撤去なし） |
 
 ### D13. 環境の反応の入れ方（Unresolved question 3 の決着）
 
@@ -530,6 +578,9 @@ Maintainer / Proposer / wiki page（pattern page）/ atomic proposal。いずれ
 
 ### 2026-09-02 実装からの追記（S4 replay ハーネスの smoke — 判断役が記録。本 run は未実行）
 
+**以下は RFC-0022 前の 3 アーム版の記録**（費用見積・200k・paper アームは形ごと退役した。D9 / D7 が
+現行）。読み値として残す。
+
 - **本 run の見積を訂正**: smoke 実測（Opus 5 の usage）からの外挿で **約 $110〜115 / 実時間約 4.5 h**
   （gemma-constrained 99 コール ≈ 2.7 h の Ollama 占有 / opus-constrained ≈ 41 分・約 $20 /
   opus-paper 59 コール ≈ 1 h・約 $92）。D9 の概算 $80 を上回る理由は paper アームの Maintainer が毎日
@@ -555,6 +606,11 @@ skill でなく **wiki pattern** の数（Table 4。skill は採用 ≈ 2〜3 �
 **replay 本 run は RFC-0022（fresh context の整合性チェック + paper アームの是正）の後に回す。** 費用見積も
 $110〜115 → ≈ $30 に下がる見込み（paper アームが 8 件 / 日になるため）。D7 / D9 の本文訂正も RFC-0022 で行う。
 
+**決着（2026-09-02、RFC-0022 の Reading 後）**: 是正でなく**形の変更**になった。読み違い ①②③ に
+4 件目（モデル級は論文に記載なし = U10）が加わり、そもそも忠実再現が燃料の不在で成立しないと
+確定したため、paper アームと constrained 形と 200k を**全部落とした**。上の $30 も無効
+（replay は診断計器で、回すかは任意）。現行は D3 / D4 / D7 / D9。
+
 ### Unresolved questions の決着表
 
 | 問い | 決着 |
@@ -567,15 +623,16 @@ $110〜115 → ≈ $30 に下がる見込み（paper アームが 8 件 / 日に
 
 ## Status
 
-in_progress（2026-09-02、S1〜S4 が main に merge 済み de0acef — S1 b522822 / S2 7ea1ed9 / S3 5b5ddd4 / S4 14fe9d0 + ultrareview nit 3 件の修正 5578e85。次は replay 本 run の GO → 読み → S5）。起点は 2026-08-26 のオーナー指示（「knowledge からスキル抽出する機構を治すのが先決」）で
+in_progress（2026-09-02、RFC-0022 の Reading を受けて D3 / D4 / D7 / D9 / D10 を「形を採りエンジンは
+採らない」に改訂。S1〜S4 が main に merge 済み de0acef — S1 b522822 / S2 7ea1ed9 / S3 5b5ddd4 / S4 14fe9d0 + ultrareview nit 3 件の修正 5578e85。次は replay 本 run の GO → 読み → S5）。起点は 2026-08-26 のオーナー指示（「knowledge からスキル抽出する機構を治すのが先決」）で
 起票。ADR-0080 追補と同日。設計スコープの確定が accepted の入場条件。
 
 ## Next action
 
-- **まず [RFC-0022](0022-wikiskill-fidelity-check.md)**（論文との整合性チェック + paper アームの是正）。その後に
-  **replay 本 run**（D9、52 日 × 3 アーム、見積は是正後 ≈ $30、Ollama 占有 2.7 h は定期セッション窓の外）—
-  オーナーの GO 待ち。`scripts/wiki_replay.py --home <mktemp> --from 2026-07-09 --to 2026-08-29 --arm gemma-constrained
-  --arm opus-constrained --arm opus-paper`
-- 読み: summary.json を D9 の合否線に当て、`docs/evidence/rfc-0017/` に凍結。判定不能 / 合格 / 不合格 と fallback（②③ の差）を記録
-- 合格なら S5（shadow live: launchd 配線・would-be を weekly findings へ・exit 計数）を dispatch → N=8 件の人間判定 → S6
-- RFC-0021 は S5 の shadow 開始後に再開（順序 D2）
+- **packet A（本改訂の実装）→ smoke（gemma、1〜2 日、tmp home）→ launchd 配線
+  （`install-schedule --wiki-maintain`）→ wiki が育つのを待つ → Proposer を手で回す → 定期化の判断**
+- 読み: live の `logs/wiki-maintainer.jsonl` を土曜ゲートで D9 の合否線に当て、`docs/evidence/rfc-0017/`
+  に凍結。M-a / M-b は毎週、M-c / P-a / P-b は提案が出てから
+- replay（`scripts/wiki_replay.py --home <mktemp> --from … --to … --arm gemma --arm opus`）は
+  live の読み値が説明を要したときの診断計器。回すかは著者の判断（Ollama 占有 + Claude 課金）
+- RFC-0021 は Proposer の定期化後に再開（順序 D2）
