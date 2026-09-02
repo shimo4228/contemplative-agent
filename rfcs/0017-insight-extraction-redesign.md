@@ -691,7 +691,11 @@ in_progress（2026-09-02、RFC-0022 の Reading を受けて D3 / D4 / D7 / D9 /
 
 ## Next action
 
-- packet A / A+1 は main（`c367962`）、smoke は 2026-09-02 に読了（上の節）。**次は著者の 2 判断**: (1) A+2（title 正規化 +
+- **2026-09-03 追記: D4 の形は再検討中（著者と判断役の議論、未決）。** smoke で「wiki 全体を毎回載せる」形が約 10 日で窓を
+  使い切ること、15 件 batch で gemma が一般論に流れることが読めた。検討中の方向: 見分 = 動的に書き換わる wiki は保つ（View に固定
+  しない）、読者は全部を読まない（索引 + BM25 / ベクトル hybrid の候補 + 有限 view）、ページは構造化、merge を日次の動詞に、
+  読む単位は per-episode か小 batch。**launchd 配線はこの決着まで保留。** 経緯は次セッションの引き継ぎ（`.notes/`、非公開）
+- packet A / A+1 は main（`c367962`）、smoke は 2026-09-02 に読了（上の節）。次は著者の 2 判断（形の決着後）: (1) A+2（title 正規化 +
   schema `minLength`、M-a から `PAGE_FULL` を除外）を live の前に入れるか (2) `install-schedule --wiki-maintain` の GO。
   その後 → 成長 −2.8k / 日への手（`NUM_CTX` 48k 実測 / ページ上限 1,500 字 / 選ぶ段）を**10 日以内**に決める → wiki が育ったら
   Proposer を手で回す → 定期化の判断
