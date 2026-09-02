@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>Label</key>
+	<string>com.moltbook.wiki-maintain</string>
+
+	<key>ProgramArguments</key>
+	<array>
+		<string>/usr/bin/caffeinate</string>
+		<string>-s</string>
+		<string>{{VENV_BIN}}/contemplative-agent</string>
+		<string>wiki-maintain</string>
+	</array>
+
+	<key>WorkingDirectory</key>
+	<string>{{PROJECT_ROOT}}</string>
+
+	<key>EnvironmentVariables</key>
+	<dict>
+		<key>PATH</key>
+		<string>{{VENV_BIN}}:/usr/local/bin:/usr/bin:/bin</string>
+	</dict>
+
+	<key>StartCalendarInterval</key>
+	<dict>
+		<key>Hour</key>
+		<integer>{{WIKI_MAINTAIN_HOUR}}</integer>
+		<!-- :15 — after distill's :30 slot the hour before, and clear of the
+		     agent plist's HH:00. The offset is best-effort; the blocking run
+		     lock is what actually serialises the two on one Ollama. -->
+		<key>Minute</key>
+		<integer>15</integer>
+	</dict>
+
+	<key>StandardOutPath</key>
+	<string>{{LOG_PATH}}</string>
+	<key>StandardErrorPath</key>
+	<string>{{LOG_PATH}}</string>
+</dict>
+</plist>
