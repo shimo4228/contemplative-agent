@@ -346,3 +346,92 @@ def test_render_index_skips_an_unreadable_page_and_counts_it(store: wiki.WikiSto
     assert "p-0001" in out
     assert "p-0002" not in out
     assert "1" in out
+
+
+# ------------------------------------------------------- the page-length cap
+
+
+@pytest.fixture()
+def small_store(tmp_path: Path) -> wiki.WikiStore:
+    """A 200-char cap: the same rule the 3,000-char default states, in miniature."""
+    return wiki.WikiStore(wiki_dir=tmp_path / "wiki", data_root=tmp_path, page_max_chars=200)
+
+
+def test_an_append_that_would_pass_the_cap_is_refused_as_page_full(
+    small_store: wiki.WikiStore,
+) -> None:
+    small_store.apply(wiki.Create(title="T", body="x" * 150, sources=("e1",)))
+
+    result = small_store.apply(wiki.Append(page_id="p-0001", text="y" * 100, sources=("e2",)))
+
+    assert (result.applied, result.reason) == (False, "PAGE_FULL")
+    page = small_store.read_page("p-0001")
+    assert page is not None
+    assert page.body.rstrip("\n") == "x" * 150
+    assert _ops_log(small_store)[-1]["reason"] == "PAGE_FULL"
+
+
+def test_a_shrinking_replace_is_allowed_even_on_an_over_cap_page(
+    small_store: wiki.WikiStore,
+) -> None:
+    """The rewrite path must never be closed — otherwise a full page is frozen."""
+    over = wiki.WikiStore(
+        wiki_dir=small_store.wiki_dir, data_root=small_store.data_root, page_max_chars=10_000
+    )
+    over.apply(wiki.Create(title="T", body="HEAD\n" + "x" * 400, sources=("e1",)))
+
+    result = small_store.apply(
+        wiki.Replace(page_id="p-0001", old="x" * 400, new="short", sources=("e2",))
+    )
+
+    assert result.applied is True
+    page = small_store.read_page("p-0001")
+    assert page is not None
+    assert page.body.rstrip("\n") == "HEAD\nshort"
+
+
+def test_a_growing_replace_past_the_cap_is_refused(small_store: wiki.WikiStore) -> None:
+    small_store.apply(wiki.Create(title="T", body="HEAD\n" + "x" * 150, sources=("e1",)))
+
+    result = small_store.apply(
+        wiki.Replace(page_id="p-0001", old="x" * 150, new="y" * 300, sources=("e2",))
+    )
+
+    assert (result.applied, result.reason) == (False, "PAGE_FULL")
+
+
+def test_an_insert_after_past_the_cap_is_refused(small_store: wiki.WikiStore) -> None:
+    small_store.apply(wiki.Create(title="T", body="ANCHOR\n" + "x" * 150, sources=("e1",)))
+
+    result = small_store.apply(
+        wiki.InsertAfter(page_id="p-0001", anchor="ANCHOR", text="y" * 100, sources=("e2",))
+    )
+
+    assert (result.applied, result.reason) == (False, "PAGE_FULL")
+
+
+def test_a_create_past_the_cap_is_refused(small_store: wiki.WikiStore) -> None:
+    result = small_store.apply(wiki.Create(title="T", body="x" * 500, sources=("e1",)))
+
+    assert (result.applied, result.reason) == (False, "PAGE_FULL")
+    assert not (small_store.wiki_dir / "patterns").exists()
+
+
+def test_the_index_carries_each_page_length_and_marks_the_full_ones(
+    small_store: wiki.WikiStore,
+) -> None:
+    """The refusal reason only reaches the audit log — the index is the prompt's signal."""
+    small_store.apply(wiki.Create(title="Roomy", body="x" * 50, sources=("e1",)))
+    small_store.apply(wiki.Create(title="Full", body="y" * 199, sources=("e2",)))
+
+    out = wiki.render_index(small_store.wiki_dir, page_max_chars=200)
+    lines = [line for line in out.splitlines() if line.startswith("p-")]
+    roomy = small_store.read_page("p-0001")
+    full = small_store.read_page("p-0002")
+    assert roomy is not None and full is not None
+
+    assert f"{len(roomy.body)}/200" in lines[0]
+    assert "FULL" not in lines[0]
+    assert f"{len(full.body)}/200" in lines[1]
+    assert lines[1].rstrip().endswith("FULL")
+    assert len(full.body) >= 200  # and it really is at the cap

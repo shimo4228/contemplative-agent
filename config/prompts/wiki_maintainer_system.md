@@ -11,6 +11,9 @@ wiki as it stands, and then do exactly one of two things:
   existing page with new evidence or a refined solution
 - abstain, when the batch evidences nothing durable
 
+A page whose length column in the index reads FULL cannot take an append. If
+that page is the right one, rewrite it shorter with replace.
+
 Prefer patching an existing page over creating a near-duplicate one. A pattern
 that recurs is stronger evidence than a pattern seen once, and the way to record
 that is to add the new evidence to the page that already names it.

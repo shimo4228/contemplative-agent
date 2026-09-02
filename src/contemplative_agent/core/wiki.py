@@ -61,13 +61,22 @@ WIKI_OPS_LOG_NAME = "wiki-ops.jsonl"
 # because the allocator zero-pads to at least four and ids only grow.
 _PAGE_ID_RE = re.compile(r"^p-\d{4,}$")
 
-# Bounds on what reaches a rendered line. The body is not bounded — it is the
-# page, and the page is the canonical copy — but the title goes into the
-# index the Proposer reads as a single line, so it gets the same treatment as
-# every other externally-authored identifier in this codebase.
+# Bounds on what reaches a rendered line. The title goes into the index the
+# Proposer reads as a single line, so it gets the same treatment as every
+# other externally-authored identifier in this codebase.
 _TITLE_MAX_CHARS = 120
 _INDEX_SNIPPET_MAX_CHARS = 160
 _SOURCE_MAX_CHARS = 64
+
+# How long one page may get. The Maintainer holds EVERY page body in EVERY
+# batch prompt (RFC-0017 D4), so page length times page count is what eats the
+# 32k window — and length is the half a rule can hold still. 3,000 characters
+# is wider than WikiSkill's "10-30 lines" prose instruction (Appendix E.2,
+# roughly 1,600 chars) and narrower than the 1,200-token page the budget used
+# to reserve (roughly 4,800 chars): room to record a recurrence without a page
+# that grows until it crowds out the day it is supposed to be read against.
+# A knob, not a law — the reading that moves it is `page_chars_p90` (D8).
+PAGE_MAX_CHARS = 3000
 
 
 OpName: TypeAlias = Literal["create", "append", "replace", "insert_after"]
@@ -81,6 +90,7 @@ RefusalReason: TypeAlias = Literal[
     "TITLE_EMPTY",
     "TEXT_EMPTY",
     "PAGE_UNREADABLE",
+    "PAGE_FULL",
 ]
 
 
@@ -265,10 +275,16 @@ class WikiStore:
     live under ``wiki_dir`` (the containment root), the op log lives with
     every other audit log under ``data_root/logs``. ``core`` takes both as
     arguments and never reads ``adapters.moltbook.config`` (ADR-0001).
+
+    ``page_max_chars`` is the length rule (see :data:`PAGE_MAX_CHARS`),
+    enforced here at save time rather than asked for in the prompt: a rule the
+    model is merely told about is a rule that holds until the day it does not,
+    and this one is what keeps the wiki inside the window it is read in.
     """
 
     wiki_dir: Path
     data_root: Path
+    page_max_chars: int = PAGE_MAX_CHARS
 
     # ---------------------------------------------------------------- read
 
@@ -358,6 +374,12 @@ class WikiStore:
         if refusal is not None:
             return WikiOpResult(False, name, op.page_id, refusal)
         assert body is not None
+        if len(body) > self.page_max_chars and len(body) >= len(page.body):
+            # Over the cap AND not shrinking. An edit that makes an over-long
+            # page shorter is always allowed, however long the result still
+            # is: refusing it would freeze exactly the page that most needs
+            # rewriting, and `replace` is the only verb that can shrink one.
+            return WikiOpResult(False, name, op.page_id, "PAGE_FULL")
 
         merged = page.sources + tuple(s for s in sources if s not in page.sources)
         self._write(
@@ -380,6 +402,8 @@ class WikiStore:
             return WikiOpResult(False, "create", None, "TITLE_EMPTY")
         if not op.body.strip():
             return WikiOpResult(False, "create", None, "TEXT_EMPTY")
+        if len(op.body) > self.page_max_chars:
+            return WikiOpResult(False, "create", None, "PAGE_FULL")
         page_id = self._next_page_id()
         path = self.patterns_dir / f"{page_id}.md"
         stamp = now_iso()
@@ -498,14 +522,22 @@ def _insert_after_line(body: str, anchor: str, text: str) -> str:
     return body  # unreachable: the caller checked the anchor first
 
 
-def render_index(wiki_dir: Path) -> str:
+def render_index(wiki_dir: Path, *, page_max_chars: int = PAGE_MAX_CHARS) -> str:
     """The page index the Maintainer and Proposer are given (RFC-0017 D4/D5).
 
-    ``id | title | first body line`` in id order — the three things a caller
+    ``id | title | first body line | chars/cap`` in id order — what a caller
     needs to decide which page to open, and nothing that would let it decide
     without opening one. Pages this module cannot parse are left out and the
     heading counts what it listed, so an unreadable page reads as absent
     rather than as a blank row.
+
+    The length column exists because ``PAGE_FULL`` reaches only the audit log:
+    a model whose append was refused never sees the refusal, so the index is
+    where it can see how much room a page has BEFORE it spends a turn on one.
+    ``FULL`` marks a page at or past the cap; the numbers are what say how
+    much room the ones below it have, because the store caps the *result* of
+    an edit — a page one character under the cap is not marked and still
+    cannot take an append of two.
 
     Never empty: a store with no pages returns the heading, because an empty
     string in a prompt is indistinguishable from a template that failed to
@@ -528,6 +560,10 @@ def render_index(wiki_dir: Path) -> str:
                 "",
             )
             snippet = scrub_control(first_line, _INDEX_SNIPPET_MAX_CHARS)
-            rows.append(f"{page.page_id} | {page.title} | {snippet}")
+            length = len(page.body)
+            mark = " FULL" if length >= page_max_chars else ""
+            rows.append(
+                f"{page.page_id} | {page.title} | {snippet} | {length}/{page_max_chars}{mark}"
+            )
     header = f"# Wiki index ({len(rows)} pages)"
     return "\n".join([header, ""] + rows) + "\n"
