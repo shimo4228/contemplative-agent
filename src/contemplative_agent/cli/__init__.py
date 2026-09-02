@@ -23,6 +23,7 @@ from . import (
     schedule,
     session_cmds,
     stocktake_cmd,
+    wiki_cmds,
 )
 from .registry import CommandSpec, Tier, build_subparsers, index_by_name
 from .runtime import (
@@ -45,6 +46,7 @@ COMMANDS: tuple[CommandSpec, ...] = (
     *stocktake_cmd.COMMANDS,
     *adopt.COMMANDS,
     *remove_skill.COMMANDS,
+    *wiki_cmds.COMMANDS,
 )
 
 _COMMANDS_BY_NAME = index_by_name(COMMANDS)

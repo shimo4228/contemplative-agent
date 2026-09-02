@@ -11,6 +11,13 @@ readings — the resolved referent and the literal path with a resolved parent
 — because a read follows links and a rename does not. Either check alone
 leaks in one direction; the docstring records which review found which
 direction.
+
+That one predicate now LIVES IN :mod:`..core._io` and is re-exported here.
+It moved when the RFC-0017 wiki store — which is in ``core/`` and so cannot
+import ``cli/`` (ADR-0001) — needed the same containment argument. Importing
+it here rather than restating it keeps the module docstring's whole claim
+true: there is still exactly one implementation, and every caller of
+``store_paths`` reaches it unchanged.
 """
 
 from __future__ import annotations
@@ -19,40 +26,9 @@ import logging
 from pathlib import Path
 
 from ..adapters.moltbook import config
+from ..core._io import _target_inside_data_root
 
 logger = logging.getLogger(__name__)
-
-
-def _target_inside_data_root(target: Path, data_root: Path) -> bool:
-    """Containment for a staged target, on BOTH readings of the path.
-
-    The operations disagree about which reading they mean, so the check has
-    to satisfy each. ``_print_system_budget_for_staged`` READS the target and
-    a read follows every link, so the referent must be inside. The write
-    (``write_restricted`` -> ``os.replace``) and the drop (``unlink``) act on
-    the LITERAL path — they swap or remove the link itself, never its
-    referent — so the literal location must be inside too. The parent IS
-    resolved on the literal side, because ``os.replace`` follows parent
-    symlinks; the same idiom ``_replaces_canonical_target`` settled on for
-    the mirror-image bug found the same day.
-
-    Checking only the referent let a symlink sitting OUTSIDE the store and
-    pointing back in pass as "inside", after which the adoption landed
-    outside (security review 2026-08-15, reproduced). Checking only the
-    literal path would let a link inside the store expose an outside file to
-    the reader.
-
-    One predicate shared by the loader and the budget instrument, because
-    the instrument's whole job is to project what the loop will do: an item
-    the loop refuses must not appear in the reading the operator approves
-    against (codex review 2026-08-15).
-    """
-    try:
-        return target.resolve().is_relative_to(data_root) and (
-            target.parent.resolve() / target.name
-        ).is_relative_to(data_root)
-    except OSError:
-        return False
 
 
 def _resolved_or_self(path: Path) -> Path:

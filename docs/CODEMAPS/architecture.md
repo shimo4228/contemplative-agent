@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-29 (RFC-0016 — ADR-0096 surprise reading restored as an instrument only; the ADR-0097 worth judge stays retired; the sidecar field is display-only at the adopt gate) | Updated: 2026-08-29 (RFC-0019 — the weekly session's positively scoped Read gains the four live value-layer paths, the F2 diagnosis input contract; write scope unchanged) | Updated: 2026-08-26 (RFC-0010 — weekly report content redesign: A–E quote-audit sections replaced by the six-section instrument document (Inventory / Ledger / Deviations / Exceptions / Sample / Discarded); observation-ledger.jsonl (append-only, session stages a delta, pipeline validates+appends) and deterministic random sample added as intakes; structural gate anchors now the six headings; Japanese translations retired; diagnosis input is Deviations+Exceptions) | Updated: 2026-08-25 (module inventory: skill_selection.py split into the selector + selection_window/selection_metrics/never_selected_metrics; cli/adopt.py split into adopt + skill_archive/remove_skill/store_paths — layer separation only, no mechanism change) | Updated: 2026-08-25 (docsscan gains mechanism_freshness reading — src/ commits since architecture.md's last commit, threshold-free covenant proxy) | Updated: 2026-08-24 (ADR-0098 — weekly chain single-session redesign: 7 claude -p → 1 /weekly-report session, fix/review/improve/insight-recommendation stages and the decision-packet builder retired, repairs delegated to the task-triage loop via candidate filing, weekly-analysis.sh reduced to a materials collector with promote-after-report moved into the pipeline) | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window incl. the weekly intake, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 85 (77 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-09-02 (RFC-0017 S4 — offline replay harness: three arms (gemma-constrained / opus-constrained / opus-paper), the `capacity` option on both loops, ClaudeCliBackend under testing/ as the only cloud-egress seam, `until=` windows on the two derived Proposer inputs, summary.json with the D9 material) | Updated: 2026-09-02 (RFC-0017 S3 — Proposer loop: four whole inputs with no retrieval filter, fail_closed_budget instead of trimming, one atomic validated proposal rendered to wiki/proposals/, logs/wiki-proposer.jsonl, wiki-propose CLI; loop mechanics shared via core/wiki_loop.py) | Updated: 2026-09-02 (RFC-0017 S2 — Maintainer loop: budgeted deterministic episode sample, per-turn JSON Schema with the page-id enum, source intersection, fail-closed reason codes, logs/wiki-maintainer.jsonl, wiki-maintain CLI) | Updated: 2026-09-02 (RFC-0017 S1 — wiki store + four-verb op vocabulary + logs/wiki-ops.jsonl audit; render_index / render_evolution_log / render_skill_impact as deterministic projections; no consumer yet; _target_inside_data_root moved into core/_io.py and re-exported from cli/store_paths.py) | Updated: 2026-08-29 (RFC-0016 — ADR-0096 surprise reading restored as an instrument only; the ADR-0097 worth judge stays retired; the sidecar field is display-only at the adopt gate) | Updated: 2026-08-29 (RFC-0019 — the weekly session's positively scoped Read gains the four live value-layer paths, the F2 diagnosis input contract; write scope unchanged) | Updated: 2026-08-26 (RFC-0010 — weekly report content redesign: A–E quote-audit sections replaced by the six-section instrument document (Inventory / Ledger / Deviations / Exceptions / Sample / Discarded); observation-ledger.jsonl (append-only, session stages a delta, pipeline validates+appends) and deterministic random sample added as intakes; structural gate anchors now the six headings; Japanese translations retired; diagnosis input is Deviations+Exceptions) | Updated: 2026-08-25 (module inventory: skill_selection.py split into the selector + selection_window/selection_metrics/never_selected_metrics; cli/adopt.py split into adopt + skill_archive/remove_skill/store_paths — layer separation only, no mechanism change) | Updated: 2026-08-25 (docsscan gains mechanism_freshness reading — src/ commits since architecture.md's last commit, threshold-free covenant proxy) | Updated: 2026-08-24 (ADR-0098 — weekly chain single-session redesign: 7 claude -p → 1 /weekly-report session, fix/review/improve/insight-recommendation stages and the decision-packet builder retired, repairs delegated to the task-triage loop via candidate filing, weekly-analysis.sh reduced to a materials collector with promote-after-report moved into the pipeline) | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window incl. the weekly intake, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 92 (84 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -678,6 +678,257 @@ the weekly packet, whose producer re-derives the check under the system
 interpreter and is pinned against this one by test — and
 `stocktake_merge_rules.md` stays as the prompt for family-to-rule promotion
 (ADR-0097 D7).
+
+### Wiki store  [`core/wiki.py`, `core/wiki_render.py`, RFC-0017 S1]
+
+The store's writer is the Maintainer (S2), its reader the Proposer (S3); both
+are below. The run / distill / insight loop is untouched — the Maintainer is a
+second reader of the episode log beside distill, never a stage inside it
+(RFC-0017 D3) — and **nothing in this subsection reaches `skills/`**. The
+Proposer's output is a would-be proposal under `wiki/proposals/`; putting one
+in front of a human at staging is S6.
+
+```text
+op (frozen dataclass: Create | Append | Replace | InsertAfter)
+→ WikiStore.apply
+    sources non-empty?                          no → SOURCES_EMPTY
+    Create: title/body non-empty?               no → TITLE_EMPTY / TEXT_EMPTY
+            id := max(existing p-NNNN) + 1      [code allocates; the model never names an id]
+    else:   id matches ^p-\d{4,}$ and file exists?   no → PAGE_NOT_FOUND
+            _target_inside_data_root(page, wiki/patterns)?  no → PATH_ESCAPED
+            page parses as one of ours?         no → PAGE_UNREADABLE
+            anchor occurrences (Replace.old / InsertAfter.anchor):
+              0 → ANCHOR_NOT_FOUND   >1 → ANCHOR_AMBIGUOUS   1 → apply
+              InsertAfter additionally: anchor spanning a newline →
+                ANCHOR_NOT_FOUND  [it splices after the LINE holding the
+                anchor, so a multi-line anchor is substring-unique and on no
+                line; applying it would be a no-op logged as applied]
+→ write_restricted(wiki/patterns/p-NNNN.md)     [mkstemp + os.replace; frontmatter
+                                                 id/title/created/updated/revisions/sources]
+→ append_jsonl_restricted(logs/wiki-ops.jsonl)  [ts, op, page_id, sources, text_sha256,
+                                                 applied, reason — every op, applied or
+                                                 refused; NEVER the body: the page is the
+                                                 canonical copy]
+→ WikiOpResult(applied, op, page_id, reason)    [a refusal is a RESULT, not an exception —
+                                                 ADR-0075; only an OSError from the write
+                                                 itself propagates]
+```
+
+Derived pages, drawn by code rather than by the Maintainer (a projection an
+LLM composes is a second copy that can disagree with the first):
+
+```text
+render_index(wiki_dir)
+  wiki/patterns/p-*.md → "id | title | first body line", id order, unparseable pages
+  omitted and the heading counts what it listed
+
+render_evolution_log(data_root)                 [the paper's logs.md]
+  logs/insight-staged.jsonl (ts/name/filename)
+  + logs/audit.jsonl (latest decision per basename)
+  + skills/.archive/*.md frontmatter superseded_by
+  → "date | candidate | final decision | superseded by", oldest first
+
+render_skill_impact(data_root, since=…)         [the paper's skill-impact.md]
+  logs/skill-selection-*.jsonl via selection_window._iter_selection_days
+  → "skill | selections | last selected | offered", judged records only.
+    CA has no verification score, so selection is the only evidence of use
+    (RFC-0017 D5). prompt_b64 / output_b64 are never read.
+```
+
+Both renderers count malformed lines and continue (the
+`observed_injection_outcomes` posture) and print the count; both return a
+heading on empty input, because an empty string in a prompt is
+indistinguishable from a template that failed to render.
+
+### wiki-maintain (Maintainer)  [`core/wiki_maintainer.py`, `cli/wiki_cmds.py`, RFC-0017 D4]
+
+One UTC day per run. The paper's Maintainer is a tool-using agent holding the
+whole wiki; gemma4:e4b has 32k and no tools, so the loop is inverted — **code
+owns the loop, the model only names what code enumerated** (D7 ②③).
+
+```text
+logs/<date>.jsonl → EpisodeLog.read_file
+→ select_episodes(seed=ISO week id)          [D4: deterministic sample]
+    _is_rich_episode filter                  → skip_reasons.not_rich
+    shuffle by seed, then greedy token pack  → skip_reasons.over_budget
+    (data faults counted apart, never as over_budget: skip_reasons.no_ts /
+     .empty_render — the paper arm fails closed on over_budget alone, and
+     D8's growth reading must not move because a record was malformed)
+    budget = NUM_CTX - output_reserve - (max_opens x page p90) - system - shell - index
+    each kept episode rendered by episode_render.render_episode  [same reading as
+    distill: full text, peer fields wrapped, no compression — D7 "no compression"]
+→ bounded turn loop (step_cap = max_opens + 2), per turn:
+    schema := {action: enum(open?|write|abstain), page_ids: enum(<ids on disk>), ops: [...]}
+    generate_full(format=schema, system=wiki_maintainer_system.md, think=True,
+                  drop_truncated=False, caller="wiki.maintainer")
+    parse → open   : page bodies join the next turn's prompt (<= max_opens);
+                     an id outside the enum is refused (UNKNOWN_PAGE_ID), one retry
+            write  : ops → WikiStore.apply, sources INTERSECTED with the episode ids
+                     actually rendered (an invented citation is dropped; an op left
+                     with none is refused SOURCES_EMPTY by the store)
+            abstain: normal termination with a reason
+    LLM fault → fail_closed_llm | fail_closed_parse | fail_closed_truncated
+                (no op applied; never a silent no-op — ADR-0075)
+→ logs/wiki-maintainer.jsonl
+    turn row: prompt / output as base64 + sha256, 128 KiB cap + truncated flag
+              (same replay format as insight-novelty.jsonl)
+    run row : date / seed / episode_ids_read / episode_ids_skipped / skip_reasons /
+              budget breakdown / index_sha256 / opened_page_ids / ops_applied /
+              ops_refused / outcome / wiki_size  [wiki_size = D8's growth reading:
+              pages, index tokens, page-length p90 — the first slice ends the day
+              index + 3 pages + a day of episodes stop fitting in 32k]
+```
+
+`--dry-run` calls the model and records the would-be ops without touching a
+page. No approval gate: the wiki is a derived layer and the human gate sits at
+the Proposer's staging (D6/D10). Tier `LLM_RUNTIME_ONLY`, like
+`skill-stocktake` — the Maintainer supplies its own system prompt and must not
+inherit the skills / rules / axioms corpus, which is the layer this experiment
+observes rather than an input to it.
+
+Measured 2026-09-02 over five live days: 212-235 records/day of which 66-72 are
+rich, rich-episode render mean 1,636 tokens (p90 2,339, max 3,375). A live
+dry-run against 2026-09-01 read 15 episodes into a 25,319-token budget in one
+call. D4's "1 day is about 50 episodes" understates the record count; its
+per-episode token estimate holds.
+
+### wiki-propose (Proposer)  [`core/wiki_proposer.py`, RFC-0017 D5/D10]
+
+One ISO week per run, one atomic proposal out. Same machine as the Maintainer
+(shared mechanics in `core/wiki_loop.py`: fail-closed classification, the
+per-turn constrained generation, the base64 turn audit row); different inputs
+and a different question.
+
+```text
+four inputs, all whole — D5 puts NO retrieval filter here, since a filter
+would silently become the judge:
+    wiki.render_index(wiki_dir)
+    load_skill_catalog(skills_dir)          -> "name — description" per skill
+    wiki_render.render_evolution_log(root)  -> every candidate, and how it ended
+    wiki_render.render_skill_impact(root, since=today - impact_days)
+→ budget: window - output_reserve - system - shell - sum(inputs)
+    headroom <= 0 → fail_closed_budget, NO call made
+    (trimming an input would drop the rejection history — the one input that
+     stops a re-proposal — so the day it stops fitting is a dated log line,
+     which is what D8's growth reading is for)
+→ bounded turn loop (step_cap = max_opens + 2), per turn:
+    schema := {action: enum(open_page?|open_skill?|propose|abstain),
+               page_ids: enum(<ids the INDEX lists>),
+               skill_names: enum(<catalog names>), proposal: {...}}
+    open_page  : page body joins the next prompt
+    open_skill : the skill's WHOLE file, frontmatter included (a patch anchor
+                 may sit in the description)
+    max_opens (3) is ONE budget across pages and skills
+    propose    : validated in order — shape, citations, identity, anchor:
+                   cited_pages ∩ pages this run opened; empty → CITATIONS_EMPTY
+                   create: name not in catalog     → else NAME_COLLISION
+                   patch : target in catalog AND resolvable to a file
+                                                   → else TARGET_NOT_FOUND
+                           anchor occurs exactly once in the target's text
+                                → ANCHOR_NOT_FOUND / ANCHOR_AMBIGUOUS
+                           (verified only — the skill is NEVER written)
+    abstain    : normal termination with a reason
+    the loop stops at the FIRST valid proposal (D5: atomic, one per iteration)
+→ wiki/proposals/<ISO week>-<seq>.md   [D6's staging shape, rendered early:
+    create → the skill file as it would land
+    patch  → the target's post-edit full text PLUS a unified diff]
+→ logs/wiki-proposer.jsonl
+    turn row: prompt / output base64 + sha256 (same format as the Maintainer)
+    run row : iteration / index_sha256 / catalog_size / impact_window_days /
+              budget breakdown / opened_page_ids / opened_skill_names /
+              proposal (kind, name/target, cited pages, body sha256 + the file
+              path — never the prose) / refusals / outcome
+```
+
+`--dry-run` calls the model and records the would-be proposal without writing
+the file. Outcomes: `proposed` | `abstained` | `fail_closed_budget` |
+`fail_closed_llm` | `fail_closed_parse` | `fail_closed_truncated`. Tier
+`LLM_RUNTIME_ONLY`, like the Maintainer.
+
+### wiki replay harness  [`scripts/wiki_replay.py`, `testing/claude_cli.py`, RFC-0017 S4/D9]
+
+A one-shot **instrument**, not a production path: it replays the two loops
+above over past episodes so D9's pass lines can be read before anything goes
+live. Consumption plan is RFC-0017 D12 — read once, for the design and
+switch-over decision, then frozen as evidence rather than retired. Nothing
+here is reachable from the composition root, and nothing is scheduled.
+
+```text
+per arm (repeat --arm): copy the production store into <home>/<arm>/
+    logs/<replayed day>.jsonl, insight-staged.jsonl, audit.jsonl,
+    skill-selection-*.jsonl, skills/ (incl. .archive/)   [copied, never linked;
+    --home has no default and is REFUSED if it overlaps the production store]
+→ core.llm.configure(backend=…, telemetry_dir=<home>/<arm>/logs)
+    gemma-constrained  : no backend      = the built-in Ollama path, 32k
+    opus-constrained   : ClaudeCliBackend(claude-opus-5), 32k
+    opus-paper         : ClaudeCliBackend(claude-opus-5), 200k, capacity=paper
+→ for each day in [--from, --to] (truncatable with --days):
+    run_maintainer(capacity=…, context_window=…)
+    on --proposer-weekday (default monday): run_proposer(same)
+    the S2/S3 audit JSONL accumulates in the arm's own logs/ — every prompt
+    and raw answer, base64 + sha256, so a parser fix replays offline for free
+→ <home>/<arm>/summary.json
+    maintainer: llm_calls (counted from the audit rows, not from a counter
+                here) / outcomes / ops_applied + ops_refused /
+                verification_pass_rate = applied/ops  [M-a]; the
+                denominator counts the four write verbs only — an open aimed
+                at a nonexistent id or an unoffered action is a hallucination
+                reading, kept in refusal_reasons but out of M-a /
+                op_classes / patch_ratio = edits/(edits+creates)  [M-b]
+                (both ratios None — never 0.0 — when no op was emitted:
+                 no evidence and a failing score are different readings)
+    proposer  : outcomes / kinds [P-a] / targets [P-b, read by a person]
+    wiki_daily: per day pages / index_tokens / page_chars_p90  [D8]
+    usage     : claude -p calls / tokens / cost_usd (Claude arms only)
+    deviations: the five named departures from the paper and from live
+```
+
+`capacity` (`constrained` | `paper`) is a `MaintainerConfig` /
+`ProposerConfig` option, default `constrained` = the shipped loop unchanged.
+Under `paper` every page body (and, for the Proposer, every skill body) is in
+the FIRST prompt, no `open` turn is offered, and a day whose inputs exceed the
+window is `fail_closed_budget` — never a quietly smaller sample, since arm ①
+exists to answer what the model does with the whole picture.
+
+`ClaudeCliBackend` is the only cloud-egress seam RFC-0017 adds. It lives under
+`contemplative_agent/testing/` because the ADR-0088 import-linter contract
+already forbids `core` / `adapters` / `cli` from importing anything there, so
+"unreachable from production" is machine-checked rather than conventional.
+Isolation is `evals/judging.py`'s verbatim (ADR-0089): `--setting-sources ""`,
+`--tools ""`, `--strict-mcp-config`, scratch cwd, env allowlist, prompt on
+stdin, no API-key variable. `claude -p` has no constrained decoding, so the
+per-turn JSON Schema travels as a prompt instruction and a violation costs the
+turn as `fail_closed_parse`; `num_predict` and `think` have no CLI counterpart
+and are ignored; `stop_reason: max_tokens` is mapped to the `length` spelling
+the truncation gate keys on.
+
+Windowing: `render_evolution_log(until=)` and `render_skill_impact(until=)`
+bound the two derived inputs to the replayed day (default `None` = the whole
+history, so live is unchanged). Only the *staging* date is windowed — a row's
+final decision and successor still come from the whole ledger, because
+reconstructing every past day's approval state would mean replaying the human
+gate.
+
+`_skill_paths` maps a catalog name to its file by re-walking `skills/*.md`
+under the same rules, because `load_skill_catalog` (the naming authority) does
+not return paths and `skill_theme` prefers the frontmatter `name` over the
+stem. A name the two disagree about has no entry and the open is refused
+`UNKNOWN_SKILL_NAME` — the drift fails closed rather than opening a different
+skill's file.
+
+Measured 2026-09-02 on the live store: wiki index 8 tokens (0 pages), skill
+index 3,450 (57 skills), evolution log 10,370 (481 candidates), skill impact
+1,357 (63 skills, 28-day window) — 15,185 total against a 32,768 window,
+leaving roughly 6,800 tokens of headroom after the output reserve and three
+opened items (skill body p90 906 tokens). `evolution_weeks` exists as a knob
+and defaults to the whole history.
+
+Containment note: `_target_inside_data_root` moved from `cli/store_paths.py`
+down into `core/_io.py` so `core/wiki.py` can use it without importing `cli`
+(ADR-0001). `store_paths` re-exports it — still one implementation, which is
+what its containment argument rests on. Wiki pages are a persistent memory an
+LLM wrote from untrusted episodes; per `rules/common/security.md` every reader
+treats a page body as untrusted data (RFC-0017 D14).
 
 ### amend-constitution  [`core/constitution.py`]
 

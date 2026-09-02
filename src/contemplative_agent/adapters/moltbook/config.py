@@ -55,6 +55,11 @@ REPORTS_DIR = MOLTBOOK_DATA_DIR / "reports" / "comment-reports"
 STAGED_DIR = MOLTBOOK_DATA_DIR / ".staged"
 VIEWS_DIR = MOLTBOOK_DATA_DIR / "views"
 PROMPTS_DIR = MOLTBOOK_DATA_DIR / "prompts"
+# RFC-0017: the Maintainer's pattern-page store. Declared here, with every
+# other store path, but `core/wiki.py` takes `wiki_dir` and `data_root` as
+# arguments and never reads this module (ADR-0001) — the constant is frozen
+# at import and every handler honours a per-call MOLTBOOK_HOME.
+WIKI_DIR = MOLTBOOK_DATA_DIR / "wiki"
 EPISODE_EMBEDDINGS_PATH = MOLTBOOK_DATA_DIR / "embeddings.sqlite"
 SNAPSHOTS_DIR = MOLTBOOK_DATA_DIR / "snapshots"
 

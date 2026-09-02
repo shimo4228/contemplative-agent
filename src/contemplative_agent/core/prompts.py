@@ -50,6 +50,10 @@ class _LazyPrompts:
         "LEARNED_SKILLS_FRAMING_PROMPT": "learned_skills_framing",
         "LEARNED_RULES_FRAMING_PROMPT": "learned_rules_framing",
         "SKILL_SELECTION_PROMPT": "skill_selection",
+        "WIKI_MAINTAINER_PROMPT": "wiki_maintainer",
+        "WIKI_MAINTAINER_SYSTEM_PROMPT": "wiki_maintainer_system",
+        "WIKI_PROPOSER_PROMPT": "wiki_proposer",
+        "WIKI_PROPOSER_SYSTEM_PROMPT": "wiki_proposer_system",
     }
 
     def __getattr__(self, name: str) -> str:

@@ -30,6 +30,10 @@ ALLOWED_MUTABLE = {
     # than seven parameters — carrying them individually is what made the
     # scanner an eight-argument function (2026-08-31).
     "src/contemplative_agent/core/selection_metrics.py::_WindowCollections",
+    # The RFC-0017 S4 replay's per-arm usage tally. Mutable because it is a
+    # running total across a whole arm; the backend that owns it IS frozen,
+    # so nothing can swap the tally out mid-run.
+    "src/contemplative_agent/testing/claude_cli.py::ClaudeUsage",
 }
 
 
