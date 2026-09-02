@@ -499,6 +499,23 @@ Moltbook の反応（返信・upvote の有無）は **Maintainer のサンプ�
 Maintainer / Proposer / wiki page（pattern page）/ atomic proposal。いずれも WikiSkill の語をそのまま
 使い、CA 独自の言い換えをしない（機構の出自を名前で残す）。
 
+### 2026-09-02 実装からの訂正（S2 の Phase 0 再照合 — 判断役が記録）
+
+- **D13 は現行 schema では実装不能。** episode record は行動時点で書かれ、その episode への返信・upvote の
+  フィールドを持たない（書き込み 6 箇所: `adapters/moltbook/reply_handler.py` / `feed_manager.py` /
+  `post_pipeline.py` / `agent.py`）。反応は別 record（`interaction` direction=received、`activity` action=reply）
+  として**翌日以降**のファイルに現れ、post_id で join はできるが当日のサンプル層化には使えない。
+  S2 は発明せず「rich フィルタ + ISO 週 seed の決定論 shuffle」だけで層化した。**D13 は保留**:
+  反応を episode に持たせるには書き込み側の変更（後追い更新か post_id 別の反応 record）が要り、
+  それは本 RFC の範囲外。Unresolved question 3（環境の反応）は「読み値としての入れ方は未決、
+  重み付けにはしない」に戻す
+- **D4 の数字の訂正**（本番 5 日分の実測）: record 212〜235 / 日、うち rich（comment / reply / post）66〜72。
+  rich 1 件の render は平均 1,636 トークン / 中央値 1,572 / p90 2,339 / 最大 3,375。「1 日 ≈ 50 件」は
+  過小だが、1 コールで読める割合（実測 15 件 / rich 68 ≈ 22%）は D4 の帯 12〜25% に収まる
+- **1 コールの所要は 222 秒**（gemma4:e4b、prompt ≈ 25k トークン、tmp home の smoke、would-be create 1 件）。
+  distill の後段に直列で置く前提（D4）は S5 で定期スロットの余裕と突き合わせる
+- 逸脱表（D7）に追加 ⑤: 反応による層化なし（schema 由来）
+
 ### Unresolved questions の決着表
 
 | 問い | 決着 |
