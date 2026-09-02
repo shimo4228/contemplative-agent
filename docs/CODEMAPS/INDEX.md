@@ -122,11 +122,11 @@ As of **2026-09-02** (live recount) — values are measured, never carried forwa
 
 | Metric | Value |
 |--------|-------|
-| Total `.py` files | 90 (81 non-`__init__` + 9 `__init__`) |
-| LOC | ~32007 |
-| Test files | 101 (3796 tests collected) |
+| Total `.py` files | 92 (83 non-`__init__` + 9 `__init__`) |
+| LOC | ~33012 |
+| Test files | 102 (3825 tests collected) |
 | Eval layer modules | 8 (`evals/` excl. `__init__.py`; outside `src/` and outside the wheel — measures LLM output quality, ADR-0089) |
-| Core modules | 41 (platform-independent; 37 top-level modules + 4 in the `llm/` package) |
+| Core modules | 43 (platform-independent; 39 top-level modules + 4 in the `llm/` package) |
 | Moltbook adapter modules | 17 |
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |

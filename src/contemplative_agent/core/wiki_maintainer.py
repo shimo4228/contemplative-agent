@@ -26,7 +26,6 @@ Nothing here is a gate. The wiki is a derived layer with no human approval
 
 from __future__ import annotations
 
-import json
 import logging
 import random
 from dataclasses import dataclass
@@ -35,7 +34,7 @@ from pathlib import Path
 from typing import Any, Literal, TypeAlias
 
 from . import llm
-from ._io import append_jsonl_restricted, b64_audit_fields, now_iso, scrub_control
+from ._io import now_iso, scrub_control
 from .episode_log import EpisodeLog
 from .episode_render import _is_rich_episode, render_episode
 from .wiki import (
@@ -47,21 +46,20 @@ from .wiki import (
     WikiStore,
     render_index,
 )
+from .wiki_loop import (
+    OUTPUT_RESERVE,
+    FailClosed,
+    TurnFault,
+    append_audit,
+    append_turn_audit,
+    call_turn,
+    parse_turn,
+)
 
 logger = logging.getLogger(__name__)
 
 
 MAINTAINER_LOG_NAME = "wiki-maintainer.jsonl"
-
-# Same cap and encoding as ``insight-novelty.jsonl`` (``_MAX_NOVELTY_AUDIT_BYTES``):
-# one replay format across the audit writers, so a harness that can read one
-# can read all of them.
-_MAX_AUDIT_BYTES = 131072
-
-# Room for the model's answer. A write turn carries whole page bodies, so this
-# is the same order as the insight extraction call (``num_predict=3000``)
-# rather than the few hundred tokens a classification answer needs.
-_OUTPUT_RESERVE = 3000
 
 # What one opened page is assumed to cost when the wiki is empty and there is
 # nothing to measure. Deliberately generous: under-reserving here would let the
@@ -71,14 +69,7 @@ _ASSUMED_PAGE_TOKENS = 1200
 _SOURCE_MAX_CHARS = 64
 _REASON_MAX_CHARS = 200
 
-Outcome: TypeAlias = Literal[
-    "written",
-    "abstained",
-    "no_episodes",
-    "fail_closed_llm",
-    "fail_closed_parse",
-    "fail_closed_truncated",
-]
+Outcome: TypeAlias = Literal["written", "abstained", "no_episodes"] | FailClosed
 
 _OP_CLASSES = ("create", "append", "replace", "insert_after")
 
@@ -94,7 +85,7 @@ class MaintainerConfig:
 
     max_opens: int = 3
     step_cap: int | None = None
-    output_reserve: int = _OUTPUT_RESERVE
+    output_reserve: int = OUTPUT_RESERVE
     context_window: int | None = None
 
     @property
@@ -281,53 +272,6 @@ def _turn_schema(*, page_ids: tuple[str, ...], allow_open: bool) -> dict[str, An
     }
 
 
-def _looks_cut_off(text: str) -> bool:
-    """Did this unparseable answer stop mid-object rather than start wrong?
-
-    Under ``format=`` the answer is a JSON object, so a complete one ends with
-    ``}``; an answer that opens one and never closes it hit the output budget.
-
-    A shape check, not a signal: ``done_reason == "length"`` is the real
-    evidence and the ``generate_full`` seam does not surface it (see the
-    out-of-diff findings). This distinguishes the two common cases correctly
-    and, when it is wrong, is wrong between two fail-closed codes — the run
-    aborts either way, only the label differs.
-    """
-    stripped = text.strip()
-    return stripped.startswith("{") and not stripped.endswith("}")
-
-
-class _TurnFault(Exception):
-    """A turn the code refuses. Carries the outcome the run ends with."""
-
-    def __init__(self, outcome: Outcome) -> None:
-        super().__init__(outcome)
-        self.outcome: Outcome = outcome
-
-
-def _parse_turn(raw: str) -> dict[str, Any]:
-    """Parse one turn, or raise the fail-closed outcome it earns.
-
-    The call runs with ``drop_truncated=False`` precisely so this distinction
-    survives: ``True`` collapses a cut answer into the same ``None`` a dead
-    backend returns, and a run that hit its output budget needs a different
-    reason code from one whose backend died — the first is a budget to raise,
-    the second is a service to restart.
-    """
-    text = raw.strip()
-    if text.startswith("```"):
-        text = "\n".join(line for line in text.splitlines() if not line.startswith("```")).strip()
-    try:
-        parsed: object = json.loads(text)
-    except json.JSONDecodeError as exc:
-        raise _TurnFault(
-            "fail_closed_truncated" if _looks_cut_off(text) else "fail_closed_parse"
-        ) from exc
-    if not isinstance(parsed, dict) or not isinstance(parsed.get("action"), str):
-        raise _TurnFault("fail_closed_parse")
-    return parsed
-
-
 # -------------------------------------------------------------- op mapping
 
 
@@ -391,16 +335,8 @@ def _to_op(raw: object, allowed_sources: frozenset[str]) -> WikiOp | None:
 # ------------------------------------------------------------------- audit
 
 
-def _b64(name: str, text: str | None) -> dict[str, Any]:
-    return b64_audit_fields(name, text, max_bytes=_MAX_AUDIT_BYTES)
-
-
-def _append_audit(data_root: Path, record: dict[str, Any]) -> None:
-    """Best-effort audit append. A lost row must not change what ran."""
-    try:
-        append_jsonl_restricted(data_root / "logs" / MAINTAINER_LOG_NAME, record)
-    except OSError:
-        logger.warning("wiki maintainer: failed to append an audit row (kind=%s)", record["kind"])
+def _log_path(data_root: Path) -> Path:
+    return data_root / "logs" / MAINTAINER_LOG_NAME
 
 
 # -------------------------------------------------------------- the loop
@@ -469,27 +405,6 @@ def _render_prompt(
         episodes=sample.rendered,
         opens_left=opens_left,
     )
-
-
-def _call(prompt: str, system: str, schema: dict[str, Any], reserve: int) -> str:
-    """One generation, or the fail-closed outcome it earns.
-
-    ``drop_truncated=False`` on purpose — see :func:`_parse_turn`. The
-    truncated text is never *used*; it is only classified, and then the run
-    ends without applying anything.
-    """
-    out = llm.generate_full(
-        prompt,
-        system=system,
-        num_predict=reserve,
-        format=schema,
-        caller="wiki.maintainer",
-        think=True,
-        drop_truncated=False,
-    )
-    if out is None or out.text is None:
-        raise _TurnFault("fail_closed_llm")
-    return out.text
 
 
 def _handle_open(
@@ -664,13 +579,13 @@ def _drive(
         )
         raw: str | None = None
         try:
-            raw = _call(prompt, system, schema, cfg.output_reserve)
-            turn = _parse_turn(raw)
-        except _TurnFault as fault:
-            _append_turn_audit(data_root, step=step, prompt=prompt, raw=raw, action=None)
+            raw = call_turn(prompt, system, schema, cfg.output_reserve, "wiki.maintainer")
+            turn = parse_turn(raw)
+        except TurnFault as fault:
+            append_turn_audit(_log_path(data_root), step=step, prompt=prompt, raw=raw, action=None)
             return fault.outcome, None
         action = str(turn.get("action"))
-        _append_turn_audit(data_root, step=step, prompt=prompt, raw=raw, action=action)
+        append_turn_audit(_log_path(data_root), step=step, prompt=prompt, raw=raw, action=action)
 
         if action == "abstain":
             return "abstained", scrub_control(str(turn.get("reason", "")), _REASON_MAX_CHARS)
@@ -695,20 +610,6 @@ def _page_ids(store: WikiStore) -> tuple[str, ...]:
     if not patterns.is_dir():
         return ()
     return tuple(sorted(p.stem for p in patterns.glob("p-*.md")))
-
-
-def _append_turn_audit(
-    data_root: Path, *, step: int, prompt: str, raw: str | None, action: str | None
-) -> None:
-    record: dict[str, Any] = {
-        "kind": "turn",
-        "ts": now_iso(timespec="seconds"),
-        "step": step,
-        "action": action,
-    }
-    record.update(_b64("prompt", prompt))
-    record.update(_b64("output", raw))
-    _append_audit(data_root, record)
 
 
 def _finish(
@@ -742,8 +643,8 @@ def _finish(
         wiki_size=size,
         dry_run=dry_run,
     )
-    _append_audit(
-        data_root,
+    append_audit(
+        _log_path(data_root),
         {
             "kind": "run",
             "ts": now_iso(timespec="seconds"),

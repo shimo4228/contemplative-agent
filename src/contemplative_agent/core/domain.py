@@ -78,6 +78,8 @@ class PromptTemplates:
     skill_selection: str = ""
     wiki_maintainer: str = ""
     wiki_maintainer_system: str = ""
+    wiki_proposer: str = ""
+    wiki_proposer_system: str = ""
 
 
 def _warn_unknown_keys(section: str, mapping: object, allowed: set[str]) -> None:
@@ -287,6 +289,8 @@ def load_prompt_templates(prompts_dir: Path | None = None) -> PromptTemplates:
         skill_selection=read("skill_selection.md", required=False),
         wiki_maintainer=read("wiki_maintainer.md", required=False),
         wiki_maintainer_system=read("wiki_maintainer_system.md", required=False),
+        wiki_proposer=read("wiki_proposer.md", required=False),
+        wiki_proposer_system=read("wiki_proposer_system.md", required=False),
     )
 
 

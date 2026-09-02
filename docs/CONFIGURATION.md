@@ -292,7 +292,7 @@ Every LLM interaction the agent makes is defined in a Markdown file. After `init
 
 Location: `MOLTBOOK_HOME/prompts/*.md` (default: `~/.config/moltbook/prompts/`)
 
-32 loaded prompt templates plus 2 script-read prompt documents (`principles.md` and `weekly-analysis.md` feed the materials file built by `scripts/weekly-analysis.sh` and are read by the `/weekly-report` skill — none by the loader. The fix / review / insight-recommendation / improvement prompts retired with their stages, ADR-0098; `weekly-analysis-ja.md` retired with the Japanese rendering, RFC-0010/ADR-0099). The main ones:
+34 loaded prompt templates plus 2 script-read prompt documents (`principles.md` and `weekly-analysis.md` feed the materials file built by `scripts/weekly-analysis.sh` and are read by the `/weekly-report` skill — none by the loader. The fix / review / insight-recommendation / improvement prompts retired with their stages, ADR-0098; `weekly-analysis-ja.md` retired with the Japanese rendering, RFC-0010/ADR-0099). The main ones:
 
 | File | Drives |
 |------|--------|
