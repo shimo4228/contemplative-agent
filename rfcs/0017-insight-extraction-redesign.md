@@ -661,6 +661,28 @@ $110〜115 → ≈ $30 に下がる見込み（paper アームが 8 件 / 日に
 | RFC-0016 との統合順序 | 2026-08-29 に決着済み。surprise 計器は切替時に退役（D10） |
 | skill の値打ちを測る面 | 無い、と明記。replay の天井アームとの相対差だけを読む（D1/D9） |
 
+### 2026-09-02 smoke の読み（gemma、2026-08-25〜27 の 3 日、Maintainer のみ — 判断役が記録）
+
+読み値は `docs/evidence/rfc-0017/smoke-gemma-3days-20260902.json`（`summary.json` の凍結。数字と逸脱注記のみ、untrusted 本文なし）。
+replay home は scratchpad、本番 home には書いていない。Proposer は月曜を含まないので走っていない。
+
+| 読み値 | 値 | 読み |
+|---|---|---|
+| LLM コール / episode | 14 コール、rich 183 / 210 件（71 / 71 / 41） | 1 日 5 batch × 15 件 ≈ 予測どおり。1 日 18〜20 分（初日は cold start で 31 分） |
+| M-a（write op の code 検証通過率） | **0.80**（12 / 15） | 拒否 3 件は `create:TITLE_EMPTY` ×2 と `append:PAGE_FULL` ×1。**引用の幻覚（SOURCES_EMPTY / PAGE_NOT_FOUND）は 0**（S4 smoke の 0.20 の主因が全文 preload で消えた）。PAGE_FULL は規律の拒否で幻覚でないので、幻覚だけなら 12 / 14 = 0.86 |
+| M-b（patch 比率） | **0.25**（append 3 / create 9） | ≥ 0.1 は通過。日内の再発（batch 3 が batch 1 のページに append）と日跨ぎ（day 2 が p-0001 / p-0002 に append）の両方が出た。ただし create 優勢 |
+| wiki の成長 | 9 ページ / 3 日、`page_chars_p90` 2,689 字、索引 737 トークン。**episode 予算 27.4k → 23.8k → 21.8k（−2.8k / 日）** | **D8 の第 1 段終了は約 10 日後**（予算が 0 に向かう傾き）。見積の「30 日前後」より 3 倍速い。create 1 件 ≈ 2,300 字で生まれるので 3,000 字の上限は「append 1 回で満杯」の水準であり、成長の主因はページ**数** |
+| 障害 | day 3 batch 3 が Ollama read timeout（1,200 秒）で `fail_closed_llm`、27 件 `unreached` | 再開機構の対象（catch-up が拾う）。1 コール 4〜5 分 → 20 分超への跳ねは Ollama 側の状態（未調査） |
+| M-c（通読の代わりに索引 9 行 + 2 ページの冒頭） | 全ページが "A critical failure mode in advanced computational systems is the assumption that…" の型 | **平坦化が 1 日目から出ている**（ADR-0060 の register 問題そのもの）。具体的観察でなく一般論の maxim。distill が ADR-0072 で入れた register 指示（I + 動詞、具体的観察）が Maintainer prompt には無い |
+| 索引の title 汚染 | p-0002〜p-0009 の title が `p-0002 \| Language Structure …` の形（id 付き） | gemma が索引行の `id \| title` 書式を title に**模倣**した（次の id まで当てている）。store は title を無検証で受ける。保存時に先頭の `p-NNNN \|` を剥がす正規化（生成時でなく保存時、llm-pipeline-layering）が A+2 |
+
+**判断（判断役の提案、決定は著者）**:
+
+- loop は回る。幻覚は消え、再発は patch として出る。**live に出す条件は満たしている**（`install-schedule --wiki-maintain`）
+- ただし 2 つは live の前に直す価値がある（A+2、小）: (1) title の正規化 + `title` を schema で `minLength: 1` に（TITLE_EMPTY ×2 も同根の模倣）(2) M-a の分母から `PAGE_FULL` を外す（規律の拒否と幻覚を混ぜない）
+- **成長 −2.8k / 日は最重要の読み値**。10 日で窓が尽きるなら B5（選ぶ段）は「育ってから」でなく次の packet。候補は (a) `NUM_CTX` 48k の実測 (b) ページ上限を 1,500 字に下げて create を痩せさせる (c) 索引 + 名指し本文の形（旧 `open` の再導入か code 側選択）。(b) は M-c の平坦化にも効く可能性がある（短く書かせると一般論が入らない）
+- M-c の平坦化は prompt の問題（値層でなく apparatus）で、distill の register 指示を Maintainer にも入れる案は B1 と別に立てる
+
 ## Status
 
 in_progress（2026-09-02、RFC-0022 の Reading を受けて D3 / D4 / D7 / D9 / D10 を「形を採りエンジンは
@@ -669,8 +691,10 @@ in_progress（2026-09-02、RFC-0022 の Reading を受けて D3 / D4 / D7 / D9 /
 
 ## Next action
 
-- **packet A（本改訂の実装）→ smoke（gemma、1〜2 日、tmp home）→ launchd 配線
-  （`install-schedule --wiki-maintain`）→ wiki が育つのを待つ → Proposer を手で回す → 定期化の判断**
+- packet A / A+1 は main（`c367962`）、smoke は 2026-09-02 に読了（上の節）。**次は著者の 2 判断**: (1) A+2（title 正規化 +
+  schema `minLength`、M-a から `PAGE_FULL` を除外）を live の前に入れるか (2) `install-schedule --wiki-maintain` の GO。
+  その後 → 成長 −2.8k / 日への手（`NUM_CTX` 48k 実測 / ページ上限 1,500 字 / 選ぶ段）を**10 日以内**に決める → wiki が育ったら
+  Proposer を手で回す → 定期化の判断
 - 読み: live の `logs/wiki-maintainer.jsonl` を土曜ゲートで D9 の合否線に当て、`docs/evidence/rfc-0017/`
   に凍結。M-a / M-b は毎週、M-c / P-a / P-b は提案が出てから
 - replay（`scripts/wiki_replay.py --home <mktemp> --from … --to … --arm gemma --arm opus`）は

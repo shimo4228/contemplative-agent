@@ -1,0 +1,92 @@
+{
+  "arm": "gemma",
+  "model": "gemma4:e4b",
+  "context_window": 32768,
+  "from": "2026-08-25",
+  "to": "2026-08-27",
+  "days": 3,
+  "inputs_copied": {
+    "episode_days": 3,
+    "missing_days": 0,
+    "ledgers": 2,
+    "selection_logs": 55
+  },
+  "elapsed_seconds": 4094.4,
+  "usage": null,
+  "maintainer": {
+    "runs": 3,
+    "llm_calls": 14,
+    "outcomes": {
+      "fail_closed_llm": 1,
+      "written": 2
+    },
+    "ops_total": 15,
+    "ops_applied": 12,
+    "ops_refused": 3,
+    "verification_pass_rate": 0.8,
+    "op_classes": {
+      "append": 3,
+      "create": 9
+    },
+    "patch_ratio": 0.25,
+    "refusal_reasons": {
+      "append:PAGE_FULL": 1,
+      "create:TITLE_EMPTY": 2
+    }
+  },
+  "proposer": {
+    "runs": 0,
+    "llm_calls": 0,
+    "outcomes": {},
+    "kinds": {},
+    "targets": []
+  },
+  "wiki_daily": [
+    {
+      "date": "2026-08-25",
+      "outcome": "written",
+      "batches": 5,
+      "episodes_read": 71,
+      "pages": 2,
+      "index_tokens": 163,
+      "page_chars_p90": 2300,
+      "episode_budget": 27371
+    },
+    {
+      "date": "2026-08-26",
+      "outcome": "written",
+      "batches": 5,
+      "episodes_read": 71,
+      "pages": 6,
+      "index_tokens": 490,
+      "page_chars_p90": 2689,
+      "episode_budget": 23830
+    },
+    {
+      "date": "2026-08-27",
+      "outcome": "fail_closed_llm",
+      "batches": 4,
+      "episodes_read": 41,
+      "pages": 9,
+      "index_tokens": 737,
+      "page_chars_p90": 2689,
+      "episode_budget": 21815
+    }
+  ],
+  "wiki_final": {
+    "pages": 9,
+    "index_tokens": 737,
+    "page_chars_p90": 2689
+  },
+  "deviations": [
+    "skill store is the store as of the replay date's run, not as it stood on the replayed day (harness-specific: the store's own history is not reconstructed)",
+    "the evolution log's `final decision` and `superseded by` columns come from the whole ledger; only the staging date is windowed by `until` (harness-specific)",
+    "the Claude arm has no constrained decoding — the per-turn JSON Schema is an instruction in the prompt, so a schema violation costs the turn as fail_closed_parse instead of being impossible (harness-specific)",
+    "the Claude arm has no output-token cap (`num_predict` has no CLI counterpart), so it cannot produce fail_closed_truncated (harness-specific)",
+    "the wiki index sits above the full page bodies in every Maintainer prompt; there is one shape, and the index is its table of contents rather than a retrieval step (D7 (3))",
+    "no fuel: the paper's loop is driven by a verification score against ground truth, and CA has neither the score nor its inputs — recurrence across days and the human gate stand in for it (D7 (0))",
+    "the Maintainer reads the whole day in batches, not the paper's stratified sample of at most 8 traces (D7 (5))",
+    "the Proposer cannot open a raw episode; the paper's Proposer must read at least four traces (D7 (7))",
+    "Maintainer daily, Proposer run by hand — not the paper's 1:1 pairing inside one iteration (D7 (4))"
+  ]
+}
