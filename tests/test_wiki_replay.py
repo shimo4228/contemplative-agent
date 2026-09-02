@@ -263,6 +263,36 @@ def _write_turn(day: date, op: str = "create") -> str:
     return json.dumps({"action": "write", "ops": [ops]})
 
 
+def test_open_and_unoffered_refusals_stay_out_of_the_m_a_denominator(tmp_path):
+    """M-a counts ops the model emitted; a bad page id is a hallucination reading."""
+    tally = wiki_replay.ArmTally()
+    tally.add_maintainer(
+        wiki_maintainer.MaintainerRun(
+            date=MONDAY.isoformat(),
+            seed="s",
+            outcome="written",
+            reason=None,
+            episode_ids_read=(),
+            episode_ids_skipped=(),
+            opened_page_ids=(),
+            ops_applied=("create p-0001",),
+            ops_refused=(
+                ("open", "UNKNOWN_PAGE_ID"),
+                ("open", "MAX_OPENS_REACHED"),
+                ("write", "UNOFFERED_ACTION"),
+                ("append", "ANCHOR_NOT_FOUND"),
+            ),
+            budget={"episodes": 1},
+            wiki_size=wiki_maintainer.WikiSize(pages=1, index_tokens=1, page_chars_p90=1),
+            dry_run=False,
+        )
+    )
+
+    assert (tally.ops_applied, tally.ops_refused) == (1, 1)
+    assert tally.refusal_reasons["open:UNKNOWN_PAGE_ID"] == 1
+    assert tally.refusal_reasons["write:UNOFFERED_ACTION"] == 1
+
+
 def test_summary_ratios_are_computed_over_ops_not_runs(tmp_path):
     tally = wiki_replay.ArmTally(
         op_classes={"create": 1, "append": 3},

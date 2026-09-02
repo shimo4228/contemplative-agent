@@ -453,7 +453,7 @@ def _patched_body(
         if refusal is not None:
             return None, refusal
         return body.replace(op.old, op.new, 1), None
-    refusal = _anchor_refusal(body, op.anchor)
+    refusal = _anchor_refusal(body, op.anchor, single_line=True)
     if refusal is not None:
         return None, refusal
     if not op.text.strip():
@@ -461,13 +461,20 @@ def _patched_body(
     return _insert_after_line(body, op.anchor, op.text), None
 
 
-def _anchor_refusal(body: str, anchor: str) -> RefusalReason | None:
+def _anchor_refusal(body: str, anchor: str, *, single_line: bool = False) -> RefusalReason | None:
     """``None`` when *anchor* occurs exactly once in *body*.
 
     An empty anchor counts as absent rather than as matching everywhere: it
     is the shape a model emits when it has nothing to point at.
+
+    ``single_line`` is the insert_after caller: that verb splices after the
+    *line* holding the anchor, so an anchor spanning a newline is unique as a
+    substring and present on no line. Refused here, because the alternative is
+    a no-op the store would report as applied.
     """
     if not anchor:
+        return "ANCHOR_NOT_FOUND"
+    if single_line and "\n" in anchor:
         return "ANCHOR_NOT_FOUND"
     hits = body.count(anchor)
     if hits == 0:

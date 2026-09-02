@@ -366,7 +366,7 @@ def _field(raw: dict[str, Any], name: str, limit: int | None = None) -> str:
     return scrub_control(text, limit) if limit is not None else text
 
 
-def anchor_refusal(body: str, anchor: str) -> RefusalReason | None:
+def anchor_refusal(body: str, anchor: str, *, single_line: bool = False) -> RefusalReason | None:
     """``None`` when *anchor* occurs exactly once — the S1 rule, on a skill.
 
     Deliberately the same rule and the same two codes as
@@ -374,8 +374,14 @@ def anchor_refusal(body: str, anchor: str) -> RefusalReason | None:
     patch whose anchor is missing was quoted from nowhere, and one that matches
     twice does not say which place it meant. Checked here only — S3 verifies,
     it never rewrites the skill.
+
+    ``single_line`` mirrors :func:`.wiki._anchor_refusal`: insert_after splices
+    after a line, so a multi-line anchor points at no line and would render a
+    would-be patch whose diff is empty.
     """
     if not anchor:
+        return "ANCHOR_NOT_FOUND"
+    if single_line and "\n" in anchor:
         return "ANCHOR_NOT_FOUND"
     hits = body.count(anchor)
     if hits == 0:
@@ -474,7 +480,7 @@ def _validate_patch(
     anchor = ""
     if op != "append":
         anchor = _field(raw, "anchor") or _field(raw, "old")
-        refusal = anchor_refusal(current, anchor)
+        refusal = anchor_refusal(current, anchor, single_line=op == "insert_after")
         if refusal is not None:
             return None, refusal
 

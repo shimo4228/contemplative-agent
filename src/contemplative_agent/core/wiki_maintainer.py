@@ -171,11 +171,14 @@ def select_episodes(
 ) -> EpisodeSample:
     """The day's sample: rich episodes, shuffled by *seed*, packed to budget.
 
-    Two skip reasons, kept apart because they mean opposite things.
+    Four skip reasons, kept apart because they mean different things.
     ``not_rich`` is the ADR-0060 filter — interaction pairs and sparse actions
     carry no engagement content and distill drops them too. ``over_budget`` is
     this run's own limit, and a rising count of it is the D8 signal that the
-    window no longer holds a day.
+    window no longer holds a day; it is also the only reason the paper arm
+    fails closed on, so ``no_ts`` and ``empty_render`` (malformed or
+    unrenderable records — data quality, not capacity) are counted apart
+    rather than inflating that reading.
 
     An episode larger than the whole budget is skipped, never truncated: a
     half-episode is evidence of nothing, and the packet's whole premise is
@@ -183,7 +186,7 @@ def select_episodes(
     """
     rich: list[dict[str, Any]] = []
     skipped: list[str] = []
-    reasons = {"not_rich": 0, "over_budget": 0}
+    reasons = {"not_rich": 0, "no_ts": 0, "empty_render": 0, "over_budget": 0}
     for record in records:
         record_id = str(record.get("ts", ""))
         if not _is_rich_episode(record):
@@ -203,10 +206,16 @@ def select_episodes(
         record_id = str(record.get("ts", ""))
         block = render_episode(str(record.get("type", "")), record.get("data") or {})
         cost = llm._estimate_tokens(block + "\n\n")
-        if not record_id or not block or used + cost > budget_tokens:
+        if not record_id:
+            reasons["no_ts"] += 1
+            continue
+        if not block:
+            reasons["empty_render"] += 1
+            skipped.append(record_id)
+            continue
+        if used + cost > budget_tokens:
             reasons["over_budget"] += 1
-            if record_id:
-                skipped.append(record_id)
+            skipped.append(record_id)
             continue
         read_ids.append(record_id)
         blocks.append(f"### Episode {record_id}\n{block}")

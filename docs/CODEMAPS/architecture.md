@@ -699,6 +699,10 @@ op (frozen dataclass: Create | Append | Replace | InsertAfter)
             page parses as one of ours?         no → PAGE_UNREADABLE
             anchor occurrences (Replace.old / InsertAfter.anchor):
               0 → ANCHOR_NOT_FOUND   >1 → ANCHOR_AMBIGUOUS   1 → apply
+              InsertAfter additionally: anchor spanning a newline →
+                ANCHOR_NOT_FOUND  [it splices after the LINE holding the
+                anchor, so a multi-line anchor is substring-unique and on no
+                line; applying it would be a no-op logged as applied]
 → write_restricted(wiki/patterns/p-NNNN.md)     [mkstemp + os.replace; frontmatter
                                                  id/title/created/updated/revisions/sources]
 → append_jsonl_restricted(logs/wiki-ops.jsonl)  [ts, op, page_id, sources, text_sha256,
@@ -747,6 +751,9 @@ logs/<date>.jsonl → EpisodeLog.read_file
 → select_episodes(seed=ISO week id)          [D4: deterministic sample]
     _is_rich_episode filter                  → skip_reasons.not_rich
     shuffle by seed, then greedy token pack  → skip_reasons.over_budget
+    (data faults counted apart, never as over_budget: skip_reasons.no_ts /
+     .empty_render — the paper arm fails closed on over_budget alone, and
+     D8's growth reading must not move because a record was malformed)
     budget = NUM_CTX - output_reserve - (max_opens x page p90) - system - shell - index
     each kept episode rendered by episode_render.render_episode  [same reading as
     distill: full text, peer fields wrapped, no compression — D7 "no compression"]
@@ -863,7 +870,10 @@ per arm (repeat --arm): copy the production store into <home>/<arm>/
 → <home>/<arm>/summary.json
     maintainer: llm_calls (counted from the audit rows, not from a counter
                 here) / outcomes / ops_applied + ops_refused /
-                verification_pass_rate = applied/ops  [M-a] /
+                verification_pass_rate = applied/ops  [M-a]; the
+                denominator counts the four write verbs only — an open aimed
+                at a nonexistent id or an unoffered action is a hallucination
+                reading, kept in refusal_reasons but out of M-a /
                 op_classes / patch_ratio = edits/(edits+creates)  [M-b]
                 (both ratios None — never 0.0 — when no op was emitted:
                  no evidence and a failing score are different readings)

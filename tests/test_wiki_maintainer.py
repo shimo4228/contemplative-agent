@@ -186,6 +186,18 @@ def test_an_episode_larger_than_the_whole_budget_is_skipped_not_truncated(
     assert sample.skip_reasons["over_budget"] == 1
 
 
+def test_a_record_without_a_ts_is_not_counted_as_over_budget(tmp_path: Path) -> None:
+    """The paper arm fails closed on over_budget, so data faults must not land there."""
+    broken = _episode("2026-08-31T01:00:00+00:00")
+    del broken["ts"]
+    records = [broken, _episode("2026-08-31T02:00:00+00:00")]
+    sample = wiki_maintainer.select_episodes(records, seed="s", budget_tokens=100_000)
+
+    assert sample.read_ids == ("2026-08-31T02:00:00+00:00",)
+    assert sample.skip_reasons["no_ts"] == 1
+    assert sample.skip_reasons["over_budget"] == 0
+
+
 def test_the_rendered_sample_wraps_the_untrusted_peer_text(tmp_path: Path) -> None:
     records = [_episode("2026-08-31T01:00:00+00:00")]
     sample = wiki_maintainer.select_episodes(records, seed="s", budget_tokens=100_000)

@@ -244,6 +244,9 @@ def configure_arm(arm: Arm, arm_root: Path, *, backend_override: object = None) 
     return backend
 
 
+_WRITE_VERBS = frozenset({"create", "append", "replace", "insert_after"})
+
+
 @dataclass
 class ArmTally:
     """Everything ``summary.json`` reports, accumulated as the arm runs."""
@@ -264,8 +267,13 @@ class ArmTally:
             self.ops_applied += 1
             _bump(self.op_classes, entry.split(" ", 1)[0])
         for op_name, reason in run.ops_refused:
-            self.ops_refused += 1
+            # Every refusal keeps its own breakdown line, but only the write
+            # verbs count toward M-a: an open the model aimed at a page id
+            # that does not exist, or an action the turn never offered, is a
+            # hallucination reading — not an op the store declined to apply.
             _bump(self.refusal_reasons, f"{op_name}:{reason}")
+            if op_name in _WRITE_VERBS:
+                self.ops_refused += 1
         self.wiki_daily.append(
             {
                 "date": run.date,

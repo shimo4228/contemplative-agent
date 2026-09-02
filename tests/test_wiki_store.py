@@ -148,6 +148,31 @@ def test_insert_after_refuses_on_zero_and_on_many_matches(store: wiki.WikiStore)
     assert (absent.applied, absent.reason) == (False, "ANCHOR_NOT_FOUND")
 
 
+def test_insert_after_refuses_a_multi_line_anchor(store: wiki.WikiStore) -> None:
+    """Unique as a substring, present on no line — refusing beats a silent no-op."""
+    store.apply(wiki.Create(title="A", body="head\nanchor\ntail", sources=("e1",)))
+    result = store.apply(
+        wiki.InsertAfter(page_id="p-0001", anchor="head\nanchor", text="x", sources=("e2",))
+    )
+
+    assert (result.applied, result.reason) == (False, "ANCHOR_NOT_FOUND")
+    page = store.read_page("p-0001")
+    assert page is not None
+    assert page.body.strip().splitlines() == ["head", "anchor", "tail"]
+    assert page.revisions == 1
+
+
+def test_replace_still_accepts_a_multi_line_anchor(store: wiki.WikiStore) -> None:
+    """str.replace spans newlines correctly, so replace keeps the capability."""
+    store.apply(wiki.Create(title="A", body="head\nanchor\ntail", sources=("e1",)))
+    result = store.apply(
+        wiki.Replace(page_id="p-0001", old="head\nanchor", new="HEAD", sources=("e2",))
+    )
+
+    assert result.applied
+    assert store.read_page("p-0001").body.strip().splitlines() == ["HEAD", "tail"]  # type: ignore[union-attr]
+
+
 # ---------------------------------------------------------------- refusals
 
 

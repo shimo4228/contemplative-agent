@@ -401,6 +401,27 @@ def test_a_patch_whose_anchor_is_missing_is_refused(home: Path, anchor: str, rea
     assert _proposals(home) == []
 
 
+def test_an_insert_after_patch_with_a_multi_line_anchor_is_refused(home: Path) -> None:
+    """apply_patch splices after a line, so a multi-line anchor would render an empty diff."""
+    run, _ = _run(
+        home,
+        [
+            _turn("open_page", page_ids=["p-0001"]),
+            _propose(
+                kind="patch",
+                target="reply-fast",
+                op="insert_after",
+                anchor="ANCHOR-LINE\ntail",
+                text="x",
+                cited_pages=["p-0001"],
+            ),
+            _turn("abstain", reason="ok"),
+        ],
+    )
+    assert ("propose", "ANCHOR_NOT_FOUND") in run.refusals
+    assert _proposals(home) == []
+
+
 def test_a_patch_with_a_unique_anchor_is_accepted(home: Path) -> None:
     run, _ = _run(
         home,
