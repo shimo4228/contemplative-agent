@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-09-02 (RFC-0017 S1: core/wiki.py + core/wiki_render.py added; _target_inside_data_root moved cli/store_paths.py -> core/_io.py and re-exported) | Updated: 2026-08-29 (RFC-0016 — insight_surprise.py restored to the module graph) | Updated: 2026-08-22 (ADR-0097: rules-distill / rules-stocktake retired, insight_surprise.py and rules_distill.py removed, skill-stocktake reduced) | Files scanned: 80 non-__init__ modules (72 src/ + 8 evals/) | Token estimate: ~6159 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-09-02 (RFC-0017 S2: core/wiki_maintainer.py + cli/wiki_cmds.py added, wiki-maintain CLI, config/prompts/wiki_maintainer{,_system}.md registered) | Updated: 2026-09-02 (RFC-0017 S1: core/wiki.py + core/wiki_render.py added; _target_inside_data_root moved cli/store_paths.py -> core/_io.py and re-exported) | Updated: 2026-08-29 (RFC-0016 — insight_surprise.py restored to the module graph) | Updated: 2026-08-22 (ADR-0097: rules-distill / rules-stocktake retired, insight_surprise.py and rules_distill.py removed, skill-stocktake reduced) | Files scanned: 80 non-__init__ modules (72 src/ + 8 evals/) | Token estimate: ~6159 -->
 # Moltbook Agent Codemap
 
 Bird's-eye view of the entire codebase. For deep dives, see
@@ -62,6 +62,7 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
  |    artifact_extraction.py (125L)-- shared extract_title → slugify → path-escape guard chain [ADR-0035 PR3a]
  |    clustering.py (137L)       -- average-linkage cosine agglomerative clustering (numpy-only)
  |    wiki.py (505L)             -- RFC-0017 S1 wiki store: code-allocated page ids, the four-verb op vocabulary (create / append / replace / insert_after) with refusal reason codes, atomic writes inside wiki/, logs/wiki-ops.jsonl audit, render_index. No consumer yet (S2 Maintainer)
+ |    wiki_maintainer.py (771L)  -- RFC-0017 S2 Maintainer: budget-packed rich-episode sample (deterministic, ISO-week seed), code-owned bounded turn loop over a per-turn JSON Schema whose page-id enum is the index, source intersection against the episodes actually read, fail-closed reason codes, logs/wiki-maintainer.jsonl (run row + b64 turn rows)
  |    wiki_render.py (244L)      -- RFC-0017 S1 deterministic projections: render_evolution_log (insight-staged + audit + .archive superseded_by) and render_skill_impact (selection log, names and counts only). No consumer yet (S3 Proposer)
  |
  -> adapters/moltbook/
@@ -182,6 +183,9 @@ contemplative-agent adopt-staged [-y] [--adopt-names FILE [--reject-rest]] [--ar
 contemplative-agent remove-skill <name> --reason TEXT [--delete]   -- archives into skills/.archive/ by default since ADR-0097 D5 (retirement is a move, never an unlink); --delete restores the old unlink. --reason stays mandatory: a written reason is what stops just-in-case retention (CREW)
 contemplative-agent amend-constitution
 contemplative-agent shadow-constitution   -- ADR-0092 read-only instrument: patterns-only synthesis (current constitution NOT in the prompt), divergence cosine + sha256 baked into logs/constitution-shadow.jsonl; no approval gate (writes only the record)
+
+# Wiki (RFC-0017 S2; derived layer, no approval gate — the human gate is at the Proposer's staging, D6/D10)
+contemplative-agent wiki-maintain [--date YYYY-MM-DD] [--dry-run] [--max-opens N]   -- one UTC day (default yesterday): samples that day's rich episodes to a token budget, runs the bounded open/write/abstain loop, applies ops through WikiStore. --dry-run calls the model and audits would-be ops without touching a page. Every LLM fault is a named fail_closed_* outcome, never a silent no-op
 
 # Audit (read-only since ADR-0097: quality report + usage reading + advisory description audit)
 contemplative-agent skill-stocktake
