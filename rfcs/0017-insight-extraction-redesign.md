@@ -545,6 +545,16 @@ Maintainer / Proposer / wiki page（pattern page）/ atomic proposal。いずれ
   `length` に写す）、`format` は prompt 末尾の schema 指示（違反は `fail_closed_parse`）。replay 期間中の skill store の
   変遷は再現しない（現在の店を全週に使う）— summary.json の `deviations` に記録
 
+### 2026-09-02 追記（論文の読み違い 3 件 — replay は RFC-0022 の後）
+
+著者の指摘で、論文の読み違いが 3 つ確定した（詳細と是正は [RFC-0022](0022-wikiskill-fidelity-check.md)）:
+① Maintainer の入力は「全件」でなく **≤ 8 件 / iteration、失敗 ≤ 5 + 成功 ≤ 3 の層化、1 件 15,000 字 cap**（Appendix C）。
+D9 の opus-paper アームと S4 の paper 実装は全件を読んでいて論文と違う。② Proposer は 1 コールでなく **ReAct 10〜20 turn**
+で生トレースも開ける（Appendix D.2、Algorithm 1 line 10）。③ Prior art の「1 run あたり作成 4.4–9.8 / 編集 7.0–18.4」は
+skill でなく **wiki pattern** の数（Table 4。skill は採用 ≈ 2〜3 本）。原因は HTML 版に Appendix が無いこと。
+**replay 本 run は RFC-0022（fresh context の整合性チェック + paper アームの是正）の後に回す。** 費用見積も
+$110〜115 → ≈ $30 に下がる見込み（paper アームが 8 件 / 日になるため）。D7 / D9 の本文訂正も RFC-0022 で行う。
+
 ### Unresolved questions の決着表
 
 | 問い | 決着 |
@@ -562,7 +572,8 @@ in_progress（2026-09-02、S1〜S4 が main に merge 済み de0acef — S1 b522
 
 ## Next action
 
-- **replay 本 run**（D9、52 日 × 3 アーム、見積 $110〜115 / 4.5 h、Ollama 占有 2.7 h は定期セッション窓の外）—
+- **まず [RFC-0022](0022-wikiskill-fidelity-check.md)**（論文との整合性チェック + paper アームの是正）。その後に
+  **replay 本 run**（D9、52 日 × 3 アーム、見積は是正後 ≈ $30、Ollama 占有 2.7 h は定期セッション窓の外）—
   オーナーの GO 待ち。`scripts/wiki_replay.py --home <mktemp> --from 2026-07-09 --to 2026-08-29 --arm gemma-constrained
   --arm opus-constrained --arm opus-paper`
 - 読み: summary.json を D9 の合否線に当て、`docs/evidence/rfc-0017/` に凍結。判定不能 / 合格 / 不合格 と fallback（②③ の差）を記録
