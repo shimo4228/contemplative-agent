@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-02
+state: in_progress 2026-09-02
 state_since: 2026-09-02
 review-when: ADR-0080 追補（代謝の質）が supersede される、または replay（D9）で gemma と Claude 級の両アームが不合格（容量不足 — 16GB では形が成立しない）、または 2026-09-02 の設計節の前提（WikiSkill の形 = 複利する wiki + atomic 提案）が外部の反証で崩れる
 ---
@@ -557,13 +557,14 @@ Maintainer / Proposer / wiki page（pattern page）/ atomic proposal。いずれ
 
 ## Status
 
-accepted（2026-09-02、設計セッション完了。機構は WikiSkill の形を 4B / 16GB に適応した並列実験機構 — D3。次は S1 の dispatch）。起点は 2026-08-26 のオーナー指示（「knowledge からスキル抽出する機構を治すのが先決」）で
+in_progress（2026-09-02、S1〜S4 が main に merge 済み de0acef — S1 b522822 / S2 7ea1ed9 / S3 5b5ddd4 / S4 14fe9d0 + ultrareview nit 3 件の修正 5578e85。次は replay 本 run の GO → 読み → S5）。起点は 2026-08-26 のオーナー指示（「knowledge からスキル抽出する機構を治すのが先決」）で
 起票。ADR-0080 追補と同日。設計スコープの確定が accepted の入場条件。
 
 ## Next action
 
-- S1（操作語彙 + wiki store + 進化ログ / skill-impact の描画）を build-tier へ dispatch（D11）。
-  S1 → S2 → S3 → S4（replay 3 アーム）→ replay の読み（D9 の合否線）→ S5（shadow）→ 切替 S6
-- 各スライスの Review は著者が `/code-review ultra` を起動
-- replay は Ollama を数時間占有するので定期セッション（JST 0/6/12/18 時から 60 分）の外で回す
-- RFC-0021 は本 RFC の Proposer が shadow に入ってから再開（順序 D2）
+- **replay 本 run**（D9、52 日 × 3 アーム、見積 $110〜115 / 4.5 h、Ollama 占有 2.7 h は定期セッション窓の外）—
+  オーナーの GO 待ち。`scripts/wiki_replay.py --home <mktemp> --from 2026-07-09 --to 2026-08-29 --arm gemma-constrained
+  --arm opus-constrained --arm opus-paper`
+- 読み: summary.json を D9 の合否線に当て、`docs/evidence/rfc-0017/` に凍結。判定不能 / 合格 / 不合格 と fallback（②③ の差）を記録
+- 合格なら S5（shadow live: launchd 配線・would-be を weekly findings へ・exit 計数）を dispatch → N=8 件の人間判定 → S6
+- RFC-0021 は S5 の shadow 開始後に再開（順序 D2）
