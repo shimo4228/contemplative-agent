@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-29 (RFC-0016 — ADR-0096 surprise reading restored as an instrument only; the ADR-0097 worth judge stays retired; the sidecar field is display-only at the adopt gate) | Updated: 2026-08-29 (RFC-0019 — the weekly session's positively scoped Read gains the four live value-layer paths, the F2 diagnosis input contract; write scope unchanged) | Updated: 2026-08-26 (RFC-0010 — weekly report content redesign: A–E quote-audit sections replaced by the six-section instrument document (Inventory / Ledger / Deviations / Exceptions / Sample / Discarded); observation-ledger.jsonl (append-only, session stages a delta, pipeline validates+appends) and deterministic random sample added as intakes; structural gate anchors now the six headings; Japanese translations retired; diagnosis input is Deviations+Exceptions) | Updated: 2026-08-25 (module inventory: skill_selection.py split into the selector + selection_window/selection_metrics/never_selected_metrics; cli/adopt.py split into adopt + skill_archive/remove_skill/store_paths — layer separation only, no mechanism change) | Updated: 2026-08-25 (docsscan gains mechanism_freshness reading — src/ commits since architecture.md's last commit, threshold-free covenant proxy) | Updated: 2026-08-24 (ADR-0098 — weekly chain single-session redesign: 7 claude -p → 1 /weekly-report session, fix/review/improve/insight-recommendation stages and the decision-packet builder retired, repairs delegated to the task-triage loop via candidate filing, weekly-analysis.sh reduced to a materials collector with promote-after-report moved into the pipeline) | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window incl. the weekly intake, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 85 (77 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-09-02 (RFC-0017 S1 — wiki store + four-verb op vocabulary + logs/wiki-ops.jsonl audit; render_index / render_evolution_log / render_skill_impact as deterministic projections; no consumer yet; _target_inside_data_root moved into core/_io.py and re-exported from cli/store_paths.py) | Updated: 2026-08-29 (RFC-0016 — ADR-0096 surprise reading restored as an instrument only; the ADR-0097 worth judge stays retired; the sidecar field is display-only at the adopt gate) | Updated: 2026-08-29 (RFC-0019 — the weekly session's positively scoped Read gains the four live value-layer paths, the F2 diagnosis input contract; write scope unchanged) | Updated: 2026-08-26 (RFC-0010 — weekly report content redesign: A–E quote-audit sections replaced by the six-section instrument document (Inventory / Ledger / Deviations / Exceptions / Sample / Discarded); observation-ledger.jsonl (append-only, session stages a delta, pipeline validates+appends) and deterministic random sample added as intakes; structural gate anchors now the six headings; Japanese translations retired; diagnosis input is Deviations+Exceptions) | Updated: 2026-08-25 (module inventory: skill_selection.py split into the selector + selection_window/selection_metrics/never_selected_metrics; cli/adopt.py split into adopt + skill_archive/remove_skill/store_paths — layer separation only, no mechanism change) | Updated: 2026-08-25 (docsscan gains mechanism_freshness reading — src/ commits since architecture.md's last commit, threshold-free covenant proxy) | Updated: 2026-08-24 (ADR-0098 — weekly chain single-session redesign: 7 claude -p → 1 /weekly-report session, fix/review/improve/insight-recommendation stages and the decision-packet builder retired, repairs delegated to the task-triage loop via candidate filing, weekly-analysis.sh reduced to a materials collector with promote-after-report moved into the pipeline) | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window incl. the weekly intake, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 85 (77 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -678,6 +678,68 @@ the weekly packet, whose producer re-derives the check under the system
 interpreter and is pinned against this one by test — and
 `stocktake_merge_rules.md` stays as the prompt for family-to-rule promotion
 (ADR-0097 D7).
+
+### Wiki store  [`core/wiki.py`, `core/wiki_render.py`, RFC-0017 S1]
+
+**No consumer yet.** S1 ships the store and the two derived pages; the
+Maintainer (S2) that writes into it and the Proposer (S3) that reads them do
+not exist. Nothing in the run / distill / insight loop touches this, and no
+CLI subcommand reaches it.
+
+```text
+op (frozen dataclass: Create | Append | Replace | InsertAfter)
+→ WikiStore.apply
+    sources non-empty?                          no → SOURCES_EMPTY
+    Create: title/body non-empty?               no → TITLE_EMPTY / TEXT_EMPTY
+            id := max(existing p-NNNN) + 1      [code allocates; the model never names an id]
+    else:   id matches ^p-\d{4,}$ and file exists?   no → PAGE_NOT_FOUND
+            _target_inside_data_root(page, wiki/patterns)?  no → PATH_ESCAPED
+            page parses as one of ours?         no → PAGE_UNREADABLE
+            anchor occurrences (Replace.old / InsertAfter.anchor):
+              0 → ANCHOR_NOT_FOUND   >1 → ANCHOR_AMBIGUOUS   1 → apply
+→ write_restricted(wiki/patterns/p-NNNN.md)     [mkstemp + os.replace; frontmatter
+                                                 id/title/created/updated/revisions/sources]
+→ append_jsonl_restricted(logs/wiki-ops.jsonl)  [ts, op, page_id, sources, text_sha256,
+                                                 applied, reason — every op, applied or
+                                                 refused; NEVER the body: the page is the
+                                                 canonical copy]
+→ WikiOpResult(applied, op, page_id, reason)    [a refusal is a RESULT, not an exception —
+                                                 ADR-0075; only an OSError from the write
+                                                 itself propagates]
+```
+
+Derived pages, drawn by code rather than by the Maintainer (a projection an
+LLM composes is a second copy that can disagree with the first):
+
+```text
+render_index(wiki_dir)
+  wiki/patterns/p-*.md → "id | title | first body line", id order, unparseable pages
+  omitted and the heading counts what it listed
+
+render_evolution_log(data_root)                 [the paper's logs.md]
+  logs/insight-staged.jsonl (ts/name/filename)
+  + logs/audit.jsonl (latest decision per basename)
+  + skills/.archive/*.md frontmatter superseded_by
+  → "date | candidate | final decision | superseded by", oldest first
+
+render_skill_impact(data_root, since=…)         [the paper's skill-impact.md]
+  logs/skill-selection-*.jsonl via selection_window._iter_selection_days
+  → "skill | selections | last selected | offered", judged records only.
+    CA has no verification score, so selection is the only evidence of use
+    (RFC-0017 D5). prompt_b64 / output_b64 are never read.
+```
+
+Both renderers count malformed lines and continue (the
+`observed_injection_outcomes` posture) and print the count; both return a
+heading on empty input, because an empty string in a prompt is
+indistinguishable from a template that failed to render.
+
+Containment note: `_target_inside_data_root` moved from `cli/store_paths.py`
+down into `core/_io.py` so `core/wiki.py` can use it without importing `cli`
+(ADR-0001). `store_paths` re-exports it — still one implementation, which is
+what its containment argument rests on. Wiki pages are a persistent memory an
+LLM wrote from untrusted episodes; per `rules/common/security.md` every reader
+treats a page body as untrusted data (RFC-0017 D14).
 
 ### amend-constitution  [`core/constitution.py`]
 

@@ -2,6 +2,12 @@
 
 Provides restricted-permission file writes, JSONL append, UTC timestamp,
 and text truncation helpers used across core / adapters.
+
+Also holds ``_target_inside_data_root``, the store-containment predicate.
+It lives here rather than in ``cli/store_paths.py`` (its only home until
+RFC-0017) because ``core/wiki.py`` needs the same check and ``core`` cannot
+import ``cli`` (ADR-0001). ``store_paths`` re-exports it, so there is still
+exactly one implementation — which is what its containment argument rests on.
 """
 
 from __future__ import annotations
@@ -77,6 +83,38 @@ def strip_code_fence(text: str) -> str:
         lines = [line for line in text.splitlines() if not line.strip().startswith("```")]
         text = "\n".join(lines).strip()
     return text
+
+
+def _target_inside_data_root(target: Path, data_root: Path) -> bool:
+    """Containment for a staged target, on BOTH readings of the path.
+
+    The operations disagree about which reading they mean, so the check has
+    to satisfy each. ``_print_system_budget_for_staged`` READS the target and
+    a read follows every link, so the referent must be inside. The write
+    (``write_restricted`` -> ``os.replace``) and the drop (``unlink``) act on
+    the LITERAL path — they swap or remove the link itself, never its
+    referent — so the literal location must be inside too. The parent IS
+    resolved on the literal side, because ``os.replace`` follows parent
+    symlinks; the same idiom ``_replaces_canonical_target`` settled on for
+    the mirror-image bug found the same day.
+
+    Checking only the referent let a symlink sitting OUTSIDE the store and
+    pointing back in pass as "inside", after which the adoption landed
+    outside (security review 2026-08-15, reproduced). Checking only the
+    literal path would let a link inside the store expose an outside file to
+    the reader.
+
+    One predicate shared by the loader and the budget instrument, because
+    the instrument's whole job is to project what the loop will do: an item
+    the loop refuses must not appear in the reading the operator approves
+    against (codex review 2026-08-15).
+    """
+    try:
+        return target.resolve().is_relative_to(data_root) and (
+            target.parent.resolve() / target.name
+        ).is_relative_to(data_root)
+    except OSError:
+        return False
 
 
 def write_restricted(path: Path, content: str) -> None:

@@ -118,15 +118,15 @@ Package versions, external services, optional add-ons.
 
 ## Statistics
 
-As of **2026-08-29** (live recount) — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
+As of **2026-09-02** (live recount) — values are measured, never carried forward from a previous version; recompute with the commands below at every refresh. Aggregate counts live here and nowhere else in CODEMAPS.
 
 | Metric | Value |
 |--------|-------|
-| Total `.py` files | 86 (77 non-`__init__` + 9 `__init__`) |
-| LOC | ~29861 |
-| Test files | 98 (3714 tests collected) |
+| Total `.py` files | 88 (79 non-`__init__` + 9 `__init__`) |
+| LOC | ~31049 |
+| Test files | 100 (3764 tests collected) |
 | Eval layer modules | 8 (`evals/` excl. `__init__.py`; outside `src/` and outside the wheel — measures LLM output quality, ADR-0089) |
-| Core modules | 38 (platform-independent; 34 top-level modules + 4 in the `llm/` package) |
+| Core modules | 40 (platform-independent; 36 top-level modules + 4 in the `llm/` package) |
 | Moltbook adapter modules | 17 |
 | Meditation adapter modules | 4 |
 | Dialogue adapter modules | 1 (peer.py) |

@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-08-29 (RFC-0016 — insight_surprise.py restored to the module graph) | Updated: 2026-08-22 (ADR-0097: rules-distill / rules-stocktake retired, insight_surprise.py and rules_distill.py removed, skill-stocktake reduced) | Files scanned: 80 non-__init__ modules (72 src/ + 8 evals/) | Token estimate: ~6159 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-09-02 (RFC-0017 S1: core/wiki.py + core/wiki_render.py added; _target_inside_data_root moved cli/store_paths.py -> core/_io.py and re-exported) | Updated: 2026-08-29 (RFC-0016 — insight_surprise.py restored to the module graph) | Updated: 2026-08-22 (ADR-0097: rules-distill / rules-stocktake retired, insight_surprise.py and rules_distill.py removed, skill-stocktake reduced) | Files scanned: 80 non-__init__ modules (72 src/ + 8 evals/) | Token estimate: ~6159 -->
 # Moltbook Agent Codemap
 
 Bird's-eye view of the entire codebase. For deep dives, see
@@ -26,7 +26,7 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
     session_cmds.py (572L)    -- init / report / generate-report / meditate / sync-data / dialogue / dialogue-peer
     schedule.py (649L)        -- install-schedule / launchd plist generation (ADR-0085: --weekly-pipeline + --watchdog)
  -> core/
- |    _io.py (317L)                -- file I/O (write_restricted, truncate, archive_before_write)
+ |    _io.py (435L)                -- file I/O (write_restricted, truncate, archive_before_write) + _target_inside_data_root (moved down from cli/store_paths.py for core/wiki.py; store_paths re-exports it)
  |    run_context.py (34L)         -- ADR-0078: mints process-wide run_id; set/clear session_id, read by _io.py writer
  |    config.py (46L)             -- security constants (FORBIDDEN_*, VALID_*, MAX_*)
  |    domain.py (406L)            -- DomainConfig + PromptTemplates + constitution loader
@@ -61,6 +61,8 @@ cli/ (package, ADR-0079)  -- composition root, only layer importing both core/ a
  |    thresholds.py (83L)         -- centralized thresholds with ADR + calibration annotations [ADR-0035 PR2]
  |    artifact_extraction.py (125L)-- shared extract_title → slugify → path-escape guard chain [ADR-0035 PR3a]
  |    clustering.py (137L)       -- average-linkage cosine agglomerative clustering (numpy-only)
+ |    wiki.py (505L)             -- RFC-0017 S1 wiki store: code-allocated page ids, the four-verb op vocabulary (create / append / replace / insert_after) with refusal reason codes, atomic writes inside wiki/, logs/wiki-ops.jsonl audit, render_index. No consumer yet (S2 Maintainer)
+ |    wiki_render.py (244L)      -- RFC-0017 S1 deterministic projections: render_evolution_log (insight-staged + audit + .archive superseded_by) and render_skill_impact (selection log, names and counts only). No consumer yet (S3 Proposer)
  |
  -> adapters/moltbook/
  |    config.py (113L)             -- URLs, paths, timeouts, rate limits
