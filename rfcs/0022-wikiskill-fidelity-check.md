@@ -1,5 +1,5 @@
 ---
-state: draft 2026-09-02
+state: in_progress 2026-09-02
 state_since: 2026-09-02
 review-when: RFC-0017 の replay（D9）を回し終えて読みが凍結された（本 RFC の是正が反映済みか、逸脱として記録済みかのどちらかになる）、または RFC-0017 が withdrawn / rejected
 ---
