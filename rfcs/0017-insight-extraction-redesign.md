@@ -516,6 +516,18 @@ Maintainer / Proposer / wiki page（pattern page）/ atomic proposal。いずれ
   distill の後段に直列で置く前提（D4）は S5 で定期スロットの余裕と突き合わせる
 - 逸脱表（D7）に追加 ⑤: 反応による層化なし（schema 由来）
 
+### 2026-09-02 実装からの追記（S3 — 判断役が記録）
+
+- **肥大軸がもう 1 本ある**: Proposer の 4 入力のうち進化ログが 481 行 / 10,370 トークン（合計 15,185 の 68%）で、
+  候補が staging に載るたびに単調増加し、削る経路が無い。D8 の wiki 肥大と同じ性質で、入らなくなった日は
+  `fail_closed_budget` が日付つきで出る。検知後の手（窓を切る / 終端した古い候補を畳む）は未決 —
+  **RFC-0021 の pruning と同じ問い**として同 RFC に送る。進化ログの窓（`evolution_weeks`）は knob として在るが
+  既定は全履歴（却下履歴が再提案を止める唯一の入力なので黙って落とさない）
+- 実測: skill 索引 3,450 / skill-impact 1,357 / wiki 索引 8（0 ページ時）〜191（2 ページ）トークン。
+  skill 本文 p90 906。1 コール 189 秒（Proposer、3 turn）
+- tmp home の smoke で Maintainer 3 日 → create / append / create、Proposer → 既存 skill への patch（append）。
+  D9 の M-b / P-a に効く**存在**の確認（n=3 / n=1、率ではない）
+
 ### Unresolved questions の決着表
 
 | 問い | 決着 |
