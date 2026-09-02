@@ -1,6 +1,6 @@
 ---
 name: llm-pipeline-layering
-description: Design know-how for splitting a small local LLM's work across calls — by KIND of work (extract, then format/validate) and by ORDER (a call that judges an artifact must run after that artifact exists). Use when one generate() call is asked to do two things at once (decide-then-produce, extract-then-format), when a prompt's abstain path is a degenerate case of its output format and never fires, when choosing whether constrained decoding (`format=`/enum) helps or starves a task, when a reasoning model's chain-of-thought is being suppressed by an answer-only constraint, or when deciding where a quality gate belongs. NOT for choosing code vs LLM for a task in the first place (that is when-code-when-llm), NOT for the 4-layer code/LLM pipeline split (code-and-llm-collaboration), and NOT for fault injection at those seams (ADR-0077).
+description: Design know-how for splitting a small local LLM's work across calls — by KIND of work (extract, then format/validate) and by ORDER (a call that judges an artifact must run after that artifact exists). Use when one generate() call is asked to do two things at once (decide-then-produce, extract-then-format), when a prompt's abstain path is a degenerate case of its output format and never fires, when choosing whether constrained decoding (`format=`/enum) helps or starves a task, when a reasoning model's chain-of-thought is being suppressed by an answer-only constraint, or when deciding where a quality gate belongs, or when a ≤9B / 32k model must read or update a store that grows (wiki, catalog) and you are tempted to hand it a `read_file` tool or to sample the day's input because it does not fit. NOT for choosing code vs LLM for a task in the first place (that is when-code-when-llm), NOT for the 4-layer code/LLM pipeline split (code-and-llm-collaboration), and NOT for fault injection at those seams (ADR-0077).
 compatibility: Written for the Contemplative Agent repo (measurements are from its Ollama pipeline); the patterns themselves are portable to any small-model pipeline.
 origin: auto-extracted
 ---
@@ -185,3 +185,46 @@ Corollary: still split structural vs semantic (when-code-when-llm) — LLM does 
 *compute*. But don't push the whole task to a regex parser: this obfuscation
 (alternating case + scattered symbols + broken words, two noise styles) defeats
 regex, and a real challenge even carried unseen trailing junk the LLM ignored.
+
+## Small window over a growing store: index, enum, batch (2026-09-02)
+
+A 32k local model (gemma4:e4b, 16GB) had to read and patch a store that grows
+without bound (wiki pattern pages) plus a day of untrusted episodes (50–54 rich
+records ≈ 80–110k tokens), with no tools and no ground-truth signal — a shape
+ported from WikiSkill (arXiv 2608.27454), which assumes a large model holding
+the whole wiki and a ReAct agent with `read_file`. Three rules made it fit; all
+live in code, none in the prompt (RFC-0017 D3, RFC-0022):
+
+1. **Index is the cheap projection; bodies are loaded only when named.** Expose the
+   store as one index line per page (`id | title | first line`, ≈ 20 tokens). A reader
+   that only *chooses* (Proposer) pays 20 tokens per page and is insensitive to page
+   count; it opens a body with an `open_page` action. A reader that must *write*
+   patches (Maintainer) needs bodies for anchors (`replace` / `insert_after` need an
+   exact substring), so it holds all bodies while they fit and fails closed
+   (`fail_closed_budget`) on the day they do not — that day is the growth reading,
+   not a bug. Next lever is a per-page length cap enforced at save time (a refused
+   append forces a `replace` rewrite); the lever after that is a selecting step.
+2. **Code owns the loop; the model only names what code enumerated.** Rebuild the
+   turn's JSON Schema from disk state every turn and pass it as `format=`:
+   `page_ids: {enum: [<ids on disk>]}`, `target: {enum: [<skills in store>]}`, and
+   drop `open_*` from the action enum once the open budget is spent. A non-existent
+   id is unwritable at generation time, so "read a file that does not exist" needs
+   no error path. What enum cannot bind (anchor text, cited episode ids, bodies) is
+   validated at save time and refused with a reason code. This is ReAct without
+   tools — the enum-first order above, applied to an agent loop. (A backend without
+   constrained decoding — `claude -p` — gets the schema as a prompt instruction and
+   violations count as `fail_closed_parse`; record that as a deviation.)
+3. **Batch, do not sample.** When a day does not fit one call, do not add a
+   selection step (a relevance judge pushed onto the weakest judge). Render
+   everything once (`prepare_day`: filter, render, cost, skip reasons counted once),
+   `pack_batch` greedily in order until the budget is spent, call, apply, re-read
+   the store, repeat until the day is consumed. The store between batches carries
+   within-day recurrence (batch 2 sees what batch 1 wrote). Add a runaway guard
+   (`max_batches`), resume from audit rows on re-run, and let one oversize item step
+   over instead of blocking the day. The window's narrowness becomes "number of
+   calls", and nothing is lost.
+
+Measured (2026-09-02): rich 50–54 episodes/day (distill log), ≈ 15 per 32k batch and
+222 s per gemma call (S2 smoke) → **estimated** 3–5 calls/day; Proposer inputs
+≈ 15k tokens (evolution log 10k) → **estimated** ~10 opens at 1–1.2k each. The live
+numbers replace these after the first weeks (`logs/wiki-maintainer.jsonl`).
