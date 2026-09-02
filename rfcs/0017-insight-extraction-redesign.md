@@ -528,6 +528,23 @@ Maintainer / Proposer / wiki page（pattern page）/ atomic proposal。いずれ
 - tmp home の smoke で Maintainer 3 日 → create / append / create、Proposer → 既存 skill への patch（append）。
   D9 の M-b / P-a に効く**存在**の確認（n=3 / n=1、率ではない）
 
+### 2026-09-02 実装からの追記（S4 replay ハーネスの smoke — 判断役が記録。本 run は未実行）
+
+- **本 run の見積を訂正**: smoke 実測（Opus 5 の usage）からの外挿で **約 $110〜115 / 実時間約 4.5 h**
+  （gemma-constrained 99 コール ≈ 2.7 h の Ollama 占有 / opus-constrained ≈ 41 分・約 $20 /
+  opus-paper 59 コール ≈ 1 h・約 $92）。D9 の概算 $80 を上回る理由は paper アームの Maintainer が毎日
+  「その日の全 episode（≈ 170k トークン）」を新規 cache write するため。cache が効けば下振れる
+- **paper アームの容量は 200k に固定**（`claude-opus-5` の実際の窓は 1M。5 倍の窓で回すと「論文どおりの容量」という
+  アームの意味が変わるため。逸脱 ⑥ として D7 へ）。paper Maintainer の 1 日入力は推定 81k〜139k で 200k に収まる
+  （開始時点の `fail_closed_budget` 想定 0 日、wiki が育つと出うる = D8 の読み値）
+- **gemma の smoke（2 日、n=5 op）で M-a 通過率 0.20**（SOURCES_EMPTY ×3、PAGE_NOT_FOUND ×1 — 読んでいない
+  episode や索引に無いページを引用した）。Opus 2 アームは 1.00。n=5 は読み値でないが、本 run で M-a < 0.9 なら
+  「引用の幻覚」が gemma の第 1 の限界になる見込み。事前登録の fallback（② 合格・③ 不合格 = モデル不足）が
+  そのまま当たる形
+- Claude アームで写せない引数: `num_predict` 相当が無く `fail_closed_truncated` を出せない（`stop_reason: max_tokens` は
+  `length` に写す）、`format` は prompt 末尾の schema 指示（違反は `fail_closed_parse`）。replay 期間中の skill store の
+  変遷は再現しない（現在の店を全週に使う）— summary.json の `deviations` に記録
+
 ### Unresolved questions の決着表
 
 | 問い | 決着 |
