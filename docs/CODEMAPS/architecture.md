@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-09-02 (RFC-0017 S3 — Proposer loop: four whole inputs with no retrieval filter, fail_closed_budget instead of trimming, one atomic validated proposal rendered to wiki/proposals/, logs/wiki-proposer.jsonl, wiki-propose CLI; loop mechanics shared via core/wiki_loop.py) | Updated: 2026-09-02 (RFC-0017 S2 — Maintainer loop: budgeted deterministic episode sample, per-turn JSON Schema with the page-id enum, source intersection, fail-closed reason codes, logs/wiki-maintainer.jsonl, wiki-maintain CLI) | Updated: 2026-09-02 (RFC-0017 S1 — wiki store + four-verb op vocabulary + logs/wiki-ops.jsonl audit; render_index / render_evolution_log / render_skill_impact as deterministic projections; no consumer yet; _target_inside_data_root moved into core/_io.py and re-exported from cli/store_paths.py) | Updated: 2026-08-29 (RFC-0016 — ADR-0096 surprise reading restored as an instrument only; the ADR-0097 worth judge stays retired; the sidecar field is display-only at the adopt gate) | Updated: 2026-08-29 (RFC-0019 — the weekly session's positively scoped Read gains the four live value-layer paths, the F2 diagnosis input contract; write scope unchanged) | Updated: 2026-08-26 (RFC-0010 — weekly report content redesign: A–E quote-audit sections replaced by the six-section instrument document (Inventory / Ledger / Deviations / Exceptions / Sample / Discarded); observation-ledger.jsonl (append-only, session stages a delta, pipeline validates+appends) and deterministic random sample added as intakes; structural gate anchors now the six headings; Japanese translations retired; diagnosis input is Deviations+Exceptions) | Updated: 2026-08-25 (module inventory: skill_selection.py split into the selector + selection_window/selection_metrics/never_selected_metrics; cli/adopt.py split into adopt + skill_archive/remove_skill/store_paths — layer separation only, no mechanism change) | Updated: 2026-08-25 (docsscan gains mechanism_freshness reading — src/ commits since architecture.md's last commit, threshold-free covenant proxy) | Updated: 2026-08-24 (ADR-0098 — weekly chain single-session redesign: 7 claude -p → 1 /weekly-report session, fix/review/improve/insight-recommendation stages and the decision-packet builder retired, repairs delegated to the task-triage loop via candidate filing, weekly-analysis.sh reduced to a materials collector with promote-after-report moved into the pipeline) | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window incl. the weekly intake, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 85 (77 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-09-02 (RFC-0017 S4 — offline replay harness: three arms (gemma-constrained / opus-constrained / opus-paper), the `capacity` option on both loops, ClaudeCliBackend under testing/ as the only cloud-egress seam, `until=` windows on the two derived Proposer inputs, summary.json with the D9 material) | Updated: 2026-09-02 (RFC-0017 S3 — Proposer loop: four whole inputs with no retrieval filter, fail_closed_budget instead of trimming, one atomic validated proposal rendered to wiki/proposals/, logs/wiki-proposer.jsonl, wiki-propose CLI; loop mechanics shared via core/wiki_loop.py) | Updated: 2026-09-02 (RFC-0017 S2 — Maintainer loop: budgeted deterministic episode sample, per-turn JSON Schema with the page-id enum, source intersection, fail-closed reason codes, logs/wiki-maintainer.jsonl, wiki-maintain CLI) | Updated: 2026-09-02 (RFC-0017 S1 — wiki store + four-verb op vocabulary + logs/wiki-ops.jsonl audit; render_index / render_evolution_log / render_skill_impact as deterministic projections; no consumer yet; _target_inside_data_root moved into core/_io.py and re-exported from cli/store_paths.py) | Updated: 2026-08-29 (RFC-0016 — ADR-0096 surprise reading restored as an instrument only; the ADR-0097 worth judge stays retired; the sidecar field is display-only at the adopt gate) | Updated: 2026-08-29 (RFC-0019 — the weekly session's positively scoped Read gains the four live value-layer paths, the F2 diagnosis input contract; write scope unchanged) | Updated: 2026-08-26 (RFC-0010 — weekly report content redesign: A–E quote-audit sections replaced by the six-section instrument document (Inventory / Ledger / Deviations / Exceptions / Sample / Discarded); observation-ledger.jsonl (append-only, session stages a delta, pipeline validates+appends) and deterministic random sample added as intakes; structural gate anchors now the six headings; Japanese translations retired; diagnosis input is Deviations+Exceptions) | Updated: 2026-08-25 (module inventory: skill_selection.py split into the selector + selection_window/selection_metrics/never_selected_metrics; cli/adopt.py split into adopt + skill_archive/remove_skill/store_paths — layer separation only, no mechanism change) | Updated: 2026-08-25 (docsscan gains mechanism_freshness reading — src/ commits since architecture.md's last commit, threshold-free covenant proxy) | Updated: 2026-08-24 (ADR-0098 — weekly chain single-session redesign: 7 claude -p → 1 /weekly-report session, fix/review/improve/insight-recommendation stages and the decision-packet builder retired, repairs delegated to the task-triage loop via candidate filing, weekly-analysis.sh reduced to a materials collector with promote-after-report moved into the pipeline) | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window incl. the weekly intake, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 92 (84 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -837,6 +837,67 @@ would silently become the judge:
 the file. Outcomes: `proposed` | `abstained` | `fail_closed_budget` |
 `fail_closed_llm` | `fail_closed_parse` | `fail_closed_truncated`. Tier
 `LLM_RUNTIME_ONLY`, like the Maintainer.
+
+### wiki replay harness  [`scripts/wiki_replay.py`, `testing/claude_cli.py`, RFC-0017 S4/D9]
+
+A one-shot **instrument**, not a production path: it replays the two loops
+above over past episodes so D9's pass lines can be read before anything goes
+live. Consumption plan is RFC-0017 D12 — read once, for the design and
+switch-over decision, then frozen as evidence rather than retired. Nothing
+here is reachable from the composition root, and nothing is scheduled.
+
+```text
+per arm (repeat --arm): copy the production store into <home>/<arm>/
+    logs/<replayed day>.jsonl, insight-staged.jsonl, audit.jsonl,
+    skill-selection-*.jsonl, skills/ (incl. .archive/)   [copied, never linked;
+    --home has no default and is REFUSED if it overlaps the production store]
+→ core.llm.configure(backend=…, telemetry_dir=<home>/<arm>/logs)
+    gemma-constrained  : no backend      = the built-in Ollama path, 32k
+    opus-constrained   : ClaudeCliBackend(claude-opus-5), 32k
+    opus-paper         : ClaudeCliBackend(claude-opus-5), 200k, capacity=paper
+→ for each day in [--from, --to] (truncatable with --days):
+    run_maintainer(capacity=…, context_window=…)
+    on --proposer-weekday (default monday): run_proposer(same)
+    the S2/S3 audit JSONL accumulates in the arm's own logs/ — every prompt
+    and raw answer, base64 + sha256, so a parser fix replays offline for free
+→ <home>/<arm>/summary.json
+    maintainer: llm_calls (counted from the audit rows, not from a counter
+                here) / outcomes / ops_applied + ops_refused /
+                verification_pass_rate = applied/ops  [M-a] /
+                op_classes / patch_ratio = edits/(edits+creates)  [M-b]
+                (both ratios None — never 0.0 — when no op was emitted:
+                 no evidence and a failing score are different readings)
+    proposer  : outcomes / kinds [P-a] / targets [P-b, read by a person]
+    wiki_daily: per day pages / index_tokens / page_chars_p90  [D8]
+    usage     : claude -p calls / tokens / cost_usd (Claude arms only)
+    deviations: the five named departures from the paper and from live
+```
+
+`capacity` (`constrained` | `paper`) is a `MaintainerConfig` /
+`ProposerConfig` option, default `constrained` = the shipped loop unchanged.
+Under `paper` every page body (and, for the Proposer, every skill body) is in
+the FIRST prompt, no `open` turn is offered, and a day whose inputs exceed the
+window is `fail_closed_budget` — never a quietly smaller sample, since arm ①
+exists to answer what the model does with the whole picture.
+
+`ClaudeCliBackend` is the only cloud-egress seam RFC-0017 adds. It lives under
+`contemplative_agent/testing/` because the ADR-0088 import-linter contract
+already forbids `core` / `adapters` / `cli` from importing anything there, so
+"unreachable from production" is machine-checked rather than conventional.
+Isolation is `evals/judging.py`'s verbatim (ADR-0089): `--setting-sources ""`,
+`--tools ""`, `--strict-mcp-config`, scratch cwd, env allowlist, prompt on
+stdin, no API-key variable. `claude -p` has no constrained decoding, so the
+per-turn JSON Schema travels as a prompt instruction and a violation costs the
+turn as `fail_closed_parse`; `num_predict` and `think` have no CLI counterpart
+and are ignored; `stop_reason: max_tokens` is mapped to the `length` spelling
+the truncation gate keys on.
+
+Windowing: `render_evolution_log(until=)` and `render_skill_impact(until=)`
+bound the two derived inputs to the replayed day (default `None` = the whole
+history, so live is unchanged). Only the *staging* date is windowed — a row's
+final decision and successor still come from the whole ledger, because
+reconstructing every past day's approval state would mean replaying the human
+gate.
 
 `_skill_paths` maps a catalog name to its file by re-walking `skills/*.md`
 under the same rules, because `load_skill_catalog` (the naming authority) does

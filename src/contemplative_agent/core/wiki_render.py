@@ -144,7 +144,7 @@ def _superseded_by(data_root: Path) -> dict[str, str]:
     return out
 
 
-def render_evolution_log(data_root: Path) -> str:
+def render_evolution_log(data_root: Path, *, until: date | None = None) -> str:
     """The candidate history the Proposer reads before proposing (RFC-0017 D5).
 
     One row per staged candidate, oldest first, so "this theme has been
@@ -153,6 +153,20 @@ def render_evolution_log(data_root: Path) -> str:
     ``filename``) are counted as skipped rather than rendered blank — a row
     with no identity teaches the reader nothing and costs it a line of
     budget.
+
+    ``until`` (inclusive) hides candidates staged after that date. Default
+    ``None`` = everything, which is what a live run wants; the offline
+    replay (RFC-0017 S4) passes the day being replayed so a 2026-07-13
+    iteration cannot read a decision made in August. Rows dropped this way
+    are NOT counted as skipped: they are outside the window, not unusable,
+    and conflating the two would make the heading report a corrupt ledger.
+
+    Only the staging date is windowed. A candidate's ``final decision`` and
+    its ``superseded by`` successor still come from the whole ledger, so a
+    replayed row can show an outcome that had not happened yet on the day.
+    That is a named deviation rather than an oversight: reconstructing the
+    approval state of every past day would mean replaying the human gate,
+    which is the one thing the replay cannot do.
     """
     staged_rows, skipped = _read_jsonl_objects(data_root / "logs" / "insight-staged.jsonl")
     audit_rows, audit_skipped = _read_jsonl_objects(data_root / "logs" / "audit.jsonl")
@@ -162,11 +176,14 @@ def render_evolution_log(data_root: Path) -> str:
     superseded = _superseded_by(data_root)
 
     entries: list[tuple[str, str]] = []
+    cutoff = until.isoformat() if until is not None else None
     for row in staged_rows:
         ts = row.get("ts")
         filename = row.get("filename")
         if not isinstance(ts, str) or not isinstance(filename, str) or not ts or not filename:
             skipped += 1
+            continue
+        if cutoff is not None and ts[:10] > cutoff:
             continue
         name = _clean(row.get("name", Path(filename).stem))
         decision = decisions.get(Path(filename).name, ("", _ABSENT))[1]
@@ -192,6 +209,21 @@ def _string_names(value: object) -> list[str]:
     if not isinstance(value, list):
         return []
     return [entry for entry in value if isinstance(entry, str)]
+
+
+def _window_predicate(since: date | None, until: date | None) -> Callable[[date], bool] | None:
+    """The day filter for a two-sided window, or ``None`` when it is open.
+
+    ``None`` rather than a tautological ``lambda`` so the unbounded case stays
+    the same object identity ``_iter_selection_days`` already special-cases.
+    """
+    if since is None and until is None:
+        return None
+
+    def keep(file_date: date) -> bool:
+        return (since is None or file_date >= since) and (until is None or file_date <= until)
+
+    return keep
 
 
 @dataclass(frozen=True)
@@ -238,7 +270,7 @@ def _tally_selection_window(log_dir: Path, keep: Callable[[date], bool] | None) 
     return _ImpactTally(selections, last_selected, offered, records, skipped)
 
 
-def render_skill_impact(data_root: Path, *, since: date | None) -> str:
+def render_skill_impact(data_root: Path, *, since: date | None, until: date | None = None) -> str:
     """Per-skill selection evidence — the paper's ``skill-impact.md`` (D5).
 
     Three columns, and deliberately not one score. ``selections`` is how
@@ -248,8 +280,10 @@ def render_skill_impact(data_root: Path, *, since: date | None) -> str:
     records carried it in the catalog at all, which is the denominator
     without which a zero cannot be told from an absence.
 
-    ``since`` (inclusive, UTC calendar) narrows the window; ``None`` reads
-    the whole history. The file grammar — which files are logs, how their
+    ``since`` and ``until`` (both inclusive, UTC calendar) bound the window;
+    ``None`` on either end leaves it open. ``until`` exists for the offline
+    replay (RFC-0017 S4), where a July iteration must not see August's
+    selections; a live run leaves it unset and reads up to today. The file grammar — which files are logs, how their
     day is spelled, what makes a line a record, and how a malformed one is
     counted — is reused from :func:`.selection_window._iter_selection_days`
     rather than restated. The per-skill tally is this module's own: the
@@ -259,7 +293,7 @@ def render_skill_impact(data_root: Path, *, since: date | None) -> str:
     together for no gain.
     """
     log_dir = data_root / "logs"
-    keep = None if since is None else (lambda file_date: file_date >= since)
+    keep = _window_predicate(since, until)
 
     tally = _tally_selection_window(log_dir, keep)
     selections, last_selected, offered = tally.selections, tally.last_selected, tally.offered

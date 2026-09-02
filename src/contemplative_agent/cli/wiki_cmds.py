@@ -125,18 +125,23 @@ def _handle_wiki_propose(args: argparse.Namespace, _parser: argparse.ArgumentPar
     from ..adapters.moltbook import config
     from ..core.wiki_proposer import ProposerConfig, run_proposer
 
-    overrides: dict[str, int] = {}
-    if getattr(args, "max_opens", None) is not None:
-        overrides["max_opens"] = args.max_opens
-    if getattr(args, "impact_days", None) is not None:
-        overrides["impact_days"] = args.impact_days
+    # Named rather than ``**overrides``: the config gained a non-int field
+    # (``capacity``, RFC-0017 S4), so a ``dict[str, int]`` splat no longer
+    # type-checks — and would have been a silent widening if it had.
+    defaults = ProposerConfig()
+    max_opens = getattr(args, "max_opens", None)
+    impact_days = getattr(args, "impact_days", None)
+    cfg = ProposerConfig(
+        max_opens=defaults.max_opens if max_opens is None else max_opens,
+        impact_days=defaults.impact_days if impact_days is None else impact_days,
+    )
 
     run = run_proposer(
         data_root=config.MOLTBOOK_DATA_DIR,
         wiki_dir=config.WIKI_DIR,
         skills_dir=config.SKILLS_DIR,
         today=datetime.now(timezone.utc).date(),
-        config=ProposerConfig(**overrides),
+        config=cfg,
         dry_run=bool(getattr(args, "dry_run", False)),
     )
 

@@ -291,3 +291,54 @@ def test_skill_impact_ignores_non_string_names(data_root: Path) -> None:
     out = wiki_render.render_skill_impact(data_root, since=None)
     assert "alpha" in out
     assert "nested" not in out
+
+
+# ------------------------------------------------------- the replay's window
+
+
+def test_evolution_log_until_hides_later_candidates_without_calling_them_bad(
+    data_root: Path,
+) -> None:
+    """RFC-0017 S4: a replayed July iteration must not read August's history."""
+    _write_jsonl(
+        data_root / "logs" / "insight-staged.jsonl",
+        [
+            {"ts": "2026-07-10T00:00+00:00", "name": "early", "filename": "early.md"},
+            {"ts": "2026-08-20T00:00+00:00", "name": "later", "filename": "later.md"},
+        ],
+    )
+    out = wiki_render.render_evolution_log(data_root, until=date(2026, 7, 31))
+    assert "early" in out
+    assert "later" not in out
+    # Outside the window is not "unusable": the heading must not report a fault.
+    assert "1 candidates, 0 unusable" in out
+
+
+def test_evolution_log_until_defaults_to_the_whole_history(data_root: Path) -> None:
+    _write_jsonl(
+        data_root / "logs" / "insight-staged.jsonl",
+        [{"ts": "2026-08-20T00:00+00:00", "name": "later", "filename": "later.md"}],
+    )
+    assert "later" in wiki_render.render_evolution_log(data_root)
+
+
+def test_skill_impact_honours_until(data_root: Path) -> None:
+    logs = data_root / "logs"
+    _write_jsonl(logs / "skill-selection-2026-07-01.jsonl", [_selection_record(["old"], ["old"])])
+    _write_jsonl(logs / "skill-selection-2026-08-01.jsonl", [_selection_record(["new"], ["new"])])
+
+    out = wiki_render.render_skill_impact(data_root, since=None, until=date(2026, 7, 31))
+    assert "old" in out
+    assert not any(line.startswith("new") for line in out.splitlines())
+
+
+def test_skill_impact_window_can_be_bounded_on_both_ends(data_root: Path) -> None:
+    logs = data_root / "logs"
+    for day, name in (("2026-07-01", "before"), ("2026-07-15", "inside"), ("2026-08-01", "after")):
+        _write_jsonl(logs / f"skill-selection-{day}.jsonl", [_selection_record([name], [name])])
+
+    out = wiki_render.render_skill_impact(
+        data_root, since=date(2026, 7, 10), until=date(2026, 7, 20)
+    )
+    assert "inside" in out
+    assert "before" not in out and "after" not in out

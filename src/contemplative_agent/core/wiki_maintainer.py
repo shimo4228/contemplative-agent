@@ -69,7 +69,11 @@ _ASSUMED_PAGE_TOKENS = 1200
 _SOURCE_MAX_CHARS = 64
 _REASON_MAX_CHARS = 200
 
-Outcome: TypeAlias = Literal["written", "abstained", "no_episodes"] | FailClosed
+Outcome: TypeAlias = (
+    Literal["written", "abstained", "no_episodes", "fail_closed_budget"] | FailClosed
+)
+
+Capacity: TypeAlias = Literal["constrained", "paper"]
 
 _OP_CLASSES = ("create", "append", "replace", "insert_after")
 
@@ -81,12 +85,24 @@ class MaintainerConfig:
     ``step_cap`` defaults to ``max_opens + 2``: enough turns to open the
     budget and still write, and no more. It exists so a model that answers
     ``open`` forever terminates, not because some number of turns is right.
+
+    ``capacity`` is the RFC-0017 D9 replay knob and nothing else. The default
+    ``"constrained"`` is the shipped loop, unchanged in every respect —
+    index plus ``max_opens`` reads, packed to whatever the window leaves.
+    ``"paper"`` reproduces WikiSkill's own capacity for the replay's arm ①:
+    every page body and every rich episode of the day in ONE call, no
+    ``open`` turn offered, and a day whose inputs do not fit recorded as
+    ``fail_closed_budget`` rather than sampled down. Sampling down is exactly
+    what would make arm ① unreadable — the arm exists to answer what the
+    model does with the whole picture, so a partial picture is a non-answer,
+    not a smaller one.
     """
 
     max_opens: int = 3
     step_cap: int | None = None
     output_reserve: int = OUTPUT_RESERVE
     context_window: int | None = None
+    capacity: Capacity = "constrained"
 
     @property
     def effective_step_cap(self) -> int:
@@ -361,7 +377,13 @@ class _LoopState:
 
 
 def _budget(
-    config: MaintainerConfig, *, index: str, size: WikiSize, system: str, shell: str
+    config: MaintainerConfig,
+    *,
+    index: str,
+    size: WikiSize,
+    system: str,
+    shell: str,
+    page_tokens_total: int | None = None,
 ) -> dict[str, int]:
     """The token budget for the episode sample, itemised for the audit.
 
@@ -372,10 +394,15 @@ def _budget(
     filled it.
     """
     window = config.context_window or llm.NUM_CTX
-    page_tokens = (
-        llm._estimate_tokens("x" * size.page_chars_p90) if size.pages else _ASSUMED_PAGE_TOKENS
-    )
-    reserved_pages = config.max_opens * page_tokens
+    if page_tokens_total is not None:
+        # Paper capacity: the whole wiki is already in the prompt, so this is
+        # a measurement, not a reservation against reads that may not happen.
+        reserved_pages = page_tokens_total
+    else:
+        page_tokens = (
+            llm._estimate_tokens("x" * size.page_chars_p90) if size.pages else _ASSUMED_PAGE_TOKENS
+        )
+        reserved_pages = config.max_opens * page_tokens
     fixed = llm._estimate_tokens(system) + llm._estimate_tokens(shell) + size.index_tokens
     episodes = window - config.output_reserve - reserved_pages - fixed
     return {
@@ -386,6 +413,26 @@ def _budget(
         "fixed": fixed,
         "episodes": max(0, episodes),
     }
+
+
+def _preload_all_pages(store: WikiStore, state: _LoopState) -> int:
+    """Put every page body in the prompt up front (paper capacity, D9 arm ①).
+
+    Written into the same ``opened`` accumulators the ``open`` turn fills, so
+    the prompt, the audit row and the run record all describe the paper arm
+    with the fields they already have — a parallel "preloaded" channel would
+    be a second thing every reader has to know about.
+    """
+    total = 0
+    for page_id in _page_ids(store):
+        page = store.read_page(page_id)
+        if page is None:
+            continue
+        body = f"### {page.page_id} — {page.title}\n{page.body}"
+        state.opened.append(page_id)
+        state.opened_bodies.append(body)
+        total += llm._estimate_tokens(body + "\n\n")
+    return total
 
 
 def _render_prompt(
@@ -492,22 +539,41 @@ def run_maintainer(
     from .prompts import WIKI_MAINTAINER_PROMPT, WIKI_MAINTAINER_SYSTEM_PROMPT
 
     cfg = config or MaintainerConfig()
+    paper = cfg.capacity == "paper"
     store = WikiStore(wiki_dir=wiki_dir, data_root=data_root)
     index = render_index(wiki_dir)
     size = read_wiki_size(wiki_dir, index)
     seed = week_seed(day)
+    state = _LoopState(opened=[], opened_bodies=[], applied=[], refused=[])
+    page_tokens_total = _preload_all_pages(store, state) if paper else None
     budget = _budget(
         cfg,
         index=index,
         size=size,
         system=WIKI_MAINTAINER_SYSTEM_PROMPT,
         shell=WIKI_MAINTAINER_PROMPT,
+        page_tokens_total=page_tokens_total,
     )
 
     records = EpisodeLog.read_file(data_root / "logs" / f"{day.isoformat()}.jsonl")
     sample = select_episodes(records, seed=seed, budget_tokens=budget["episodes"])
 
-    state = _LoopState(opened=[], opened_bodies=[], applied=[], refused=[])
+    if paper and sample.skip_reasons["over_budget"]:
+        # The day did not fit. Recorded, not sampled down — see MaintainerConfig.
+        return _finish(
+            data_root,
+            day=day,
+            seed=seed,
+            outcome="fail_closed_budget",
+            reason=None,
+            sample=sample,
+            state=state,
+            budget=budget,
+            size=size,
+            index=index,
+            dry_run=dry_run,
+        )
+
     if not sample.read_ids:
         return _finish(
             data_root,
@@ -567,7 +633,7 @@ def _drive(
     retried = False
     for step in range(cfg.effective_step_cap):
         page_ids = _page_ids(store)
-        allow_open = len(state.opened) < cfg.max_opens
+        allow_open = cfg.capacity == "constrained" and len(state.opened) < cfg.max_opens
         schema = _turn_schema(page_ids=page_ids, allow_open=allow_open)
         prompt = _render_prompt(
             template,
@@ -575,7 +641,7 @@ def _drive(
             state=state,
             sample=sample,
             day=day,
-            opens_left=max(0, cfg.max_opens - len(state.opened)),
+            opens_left=0 if not allow_open else max(0, cfg.max_opens - len(state.opened)),
         )
         raw: str | None = None
         try:

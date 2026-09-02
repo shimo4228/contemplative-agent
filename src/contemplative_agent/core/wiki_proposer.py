@@ -74,6 +74,8 @@ _PATCH_OPS = ("append", "replace", "insert_after")
 
 Outcome: TypeAlias = Literal["proposed", "abstained", "fail_closed_budget"] | FailClosed
 
+Capacity: TypeAlias = Literal["constrained", "paper"]
+
 RefusalReason: TypeAlias = Literal[
     "UNKNOWN_PAGE_ID",
     "UNKNOWN_SKILL_NAME",
@@ -105,6 +107,14 @@ class ProposerConfig:
     window because the rejection history is precisely what stops a re-proposal,
     and the day it no longer fits should surface as ``fail_closed_budget``, not
     as a Proposer that quietly forgot the last two months.
+
+    ``capacity`` is the RFC-0017 D9 replay knob, default ``"constrained"`` =
+    the shipped loop unchanged. ``"paper"`` hands over every wiki page body
+    and every skill body up front and offers no ``open_*`` turn, which is
+    WikiSkill's own capacity for the replay's arm (1). The budget check that
+    already guards the four rendered inputs then guards the bodies too, so a
+    picture that does not fit is ``fail_closed_budget`` rather than a
+    silently smaller one.
     """
 
     max_opens: int = 3
@@ -113,6 +123,7 @@ class ProposerConfig:
     context_window: int | None = None
     impact_days: int = 28
     evolution_weeks: int | None = None
+    capacity: Capacity = "constrained"
 
     @property
     def effective_step_cap(self) -> int:
@@ -239,23 +250,41 @@ def build_inputs(
     return ProposerInputs(
         wiki_index=render_index(wiki_dir),
         skill_index="\n".join(f"{e.name} — {e.description}" for e in catalog) or "(no skills)",
+        # ``until=today`` is a no-op live (today IS today) and is what keeps an
+        # offline replay honest: a July iteration must not read August's staging
+        # decisions or selections (RFC-0017 S4).
         evolution=_window_evolution(
-            render_evolution_log(data_root), _evolution_since(config, today)
+            render_evolution_log(data_root, until=today), _evolution_since(config, today)
         ),
-        impact=render_skill_impact(data_root, since=today - timedelta(days=config.impact_days)),
+        impact=render_skill_impact(
+            data_root, since=today - timedelta(days=config.impact_days), until=today
+        ),
         catalog_names=tuple(e.name for e in catalog),
         skill_paths=_skill_paths(skills_dir),
     )
 
 
-def _budget(config: ProposerConfig, *, inputs: ProposerInputs, system: str, shell: str) -> dict:
-    """Window minus everything the loop must hold, itemised for the audit."""
+def _budget(
+    config: ProposerConfig,
+    *,
+    inputs: ProposerInputs,
+    system: str,
+    shell: str,
+    preloaded: int = 0,
+) -> dict:
+    """Window minus everything the loop must hold, itemised for the audit.
+
+    ``preloaded`` is the paper arm's page and skill bodies. Counted here
+    rather than left out because they sit in the very first prompt, so a
+    headroom computed without them would report room the call does not have.
+    """
     window = config.context_window or llm.NUM_CTX
     parts = {
         "wiki_index": llm._estimate_tokens(inputs.wiki_index),
         "skill_index": llm._estimate_tokens(inputs.skill_index),
         "evolution": llm._estimate_tokens(inputs.evolution),
         "impact": llm._estimate_tokens(inputs.impact),
+        "preloaded": preloaded,
     }
     fixed = llm._estimate_tokens(system) + llm._estimate_tokens(shell)
     total_inputs = sum(parts.values())
@@ -640,6 +669,38 @@ def _open_budget_spent(state: _LoopState, cfg: ProposerConfig) -> bool:
     return len(state.opened_pages) + len(state.opened_skills) >= cfg.max_opens
 
 
+def _preload_everything(state: _LoopState, *, wiki_dir: Path, inputs: ProposerInputs) -> int:
+    """Every page body and every skill body, up front (paper capacity, D9).
+
+    Filled into the same ``opened_*`` accumulators an ``open_*`` turn would
+    fill, so validation is untouched: a proposal must still cite pages this
+    run "opened", and under paper capacity it opened all of them. Returns the
+    estimated token cost so the budget can refuse a picture that does not fit.
+    """
+    from .wiki import WikiStore
+
+    store = WikiStore(wiki_dir=wiki_dir, data_root=wiki_dir)
+    total = 0
+    for page_id in _page_ids(inputs.wiki_index):
+        page = store.read_page(page_id)
+        if page is None:
+            continue
+        body = f"### wiki page {page.page_id} — {page.title}\n{page.body}"
+        state.opened_pages.append(page_id)
+        state.opened_bodies.append(body)
+        total += llm._estimate_tokens(body + "\n\n")
+    for name in inputs.catalog_names:
+        path = inputs.skill_paths.get(name)
+        text = _read_skill(path) if path is not None else None
+        if text is None:
+            continue
+        body = f"### skill {name}\n{text}"
+        state.opened_skills.append(name)
+        state.opened_bodies.append(body)
+        total += llm._estimate_tokens(body + "\n\n")
+    return total
+
+
 def run_proposer(
     *,
     data_root: Path,
@@ -661,10 +722,19 @@ def run_proposer(
     inputs = build_inputs(
         data_root=data_root, wiki_dir=wiki_dir, skills_dir=skills_dir, today=today, config=cfg
     )
-    budget = _budget(
-        cfg, inputs=inputs, system=WIKI_PROPOSER_SYSTEM_PROMPT, shell=WIKI_PROPOSER_PROMPT
-    )
     state = _LoopState(opened_pages=[], opened_skills=[], opened_bodies=[], refusals=[])
+    preloaded = (
+        _preload_everything(state, wiki_dir=wiki_dir, inputs=inputs)
+        if cfg.capacity == "paper"
+        else 0
+    )
+    budget = _budget(
+        cfg,
+        inputs=inputs,
+        system=WIKI_PROPOSER_SYSTEM_PROMPT,
+        shell=WIKI_PROPOSER_PROMPT,
+        preloaded=preloaded,
+    )
 
     if budget["headroom"] <= 0:
         return _finish(
@@ -721,7 +791,7 @@ def _drive(
     retried = False
 
     for step in range(cfg.effective_step_cap):
-        allow_open = not _open_budget_spent(state, cfg)
+        allow_open = cfg.capacity == "constrained" and not _open_budget_spent(state, cfg)
         schema = _turn_schema(
             page_ids=page_ids, skill_names=inputs.catalog_names, allow_open=allow_open
         )
@@ -790,7 +860,10 @@ def _try_open(
 def _render_prompt(
     template: str, *, inputs: ProposerInputs, state: _LoopState, cfg: ProposerConfig
 ) -> str:
-    opens_left = max(0, cfg.max_opens - len(state.opened_pages) - len(state.opened_skills))
+    if cfg.capacity == "paper":
+        opens_left = 0
+    else:
+        opens_left = max(0, cfg.max_opens - len(state.opened_pages) - len(state.opened_skills))
     return template.format(
         wiki_index=inputs.wiki_index,
         skill_index=inputs.skill_index,
