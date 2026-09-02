@@ -1,4 +1,4 @@
-<!-- Generated: 2026-08-01 | Updated: 2026-09-02 (RFC-0022 — the Maintainer becomes one shape: the whole wiki plus a batch of episodes per call, the day read whole in chronological batches with resume from the audit's batch rows, `open` / `max_opens` / `capacity` / the ISO-week seed removed from both loops, the replay reduced to two same-window arms (gemma / opus) and demoted from gate to diagnostic instrument, `install-schedule --wiki-maintain` at 04:15) | Updated: 2026-09-02 (RFC-0017 S4 — offline replay harness: three arms (gemma-constrained / opus-constrained / opus-paper), the `capacity` option on both loops, ClaudeCliBackend under testing/ as the only cloud-egress seam, `until=` windows on the two derived Proposer inputs, summary.json with the D9 material) | Updated: 2026-09-02 (RFC-0017 S3 — Proposer loop: four whole inputs with no retrieval filter, fail_closed_budget instead of trimming, one atomic validated proposal rendered to wiki/proposals/, logs/wiki-proposer.jsonl, wiki-propose CLI; loop mechanics shared via core/wiki_loop.py) | Updated: 2026-09-02 (RFC-0017 S2 — Maintainer loop: budgeted deterministic episode sample, per-turn JSON Schema with the page-id enum, source intersection, fail-closed reason codes, logs/wiki-maintainer.jsonl, wiki-maintain CLI) | Updated: 2026-09-02 (RFC-0017 S1 — wiki store + four-verb op vocabulary + logs/wiki-ops.jsonl audit; render_index / render_evolution_log / render_skill_impact as deterministic projections; no consumer yet; _target_inside_data_root moved into core/_io.py and re-exported from cli/store_paths.py) | Updated: 2026-08-29 (RFC-0016 — ADR-0096 surprise reading restored as an instrument only; the ADR-0097 worth judge stays retired; the sidecar field is display-only at the adopt gate) | Updated: 2026-08-29 (RFC-0019 — the weekly session's positively scoped Read gains the four live value-layer paths, the F2 diagnosis input contract; write scope unchanged) | Updated: 2026-08-26 (RFC-0010 — weekly report content redesign: A–E quote-audit sections replaced by the six-section instrument document (Inventory / Ledger / Deviations / Exceptions / Sample / Discarded); observation-ledger.jsonl (append-only, session stages a delta, pipeline validates+appends) and deterministic random sample added as intakes; structural gate anchors now the six headings; Japanese translations retired; diagnosis input is Deviations+Exceptions) | Updated: 2026-08-25 (module inventory: skill_selection.py split into the selector + selection_window/selection_metrics/never_selected_metrics; cli/adopt.py split into adopt + skill_archive/remove_skill/store_paths — layer separation only, no mechanism change) | Updated: 2026-08-25 (docsscan gains mechanism_freshness reading — src/ commits since architecture.md's last commit, threshold-free covenant proxy) | Updated: 2026-08-24 (ADR-0098 — weekly chain single-session redesign: 7 claude -p → 1 /weekly-report session, fix/review/improve/insight-recommendation stages and the decision-packet builder retired, repairs delegated to the task-triage loop via candidate filing, weekly-analysis.sh reduced to a materials collector with promote-after-report moved into the pipeline) | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window incl. the weekly intake, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 92 (84 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
+<!-- Generated: 2026-08-01 | Updated: 2026-09-02 (RFC-0017 D4 — page-length cap enforced at save time (PAGE_FULL, 3,000 chars, shrinking replace always allowed) with the length column + FULL mark in render_index; already_done for a day already read to the end; run_days catch-up driver and `wiki-maintain --catch-up-days` (plist default 2) with skipped_after_budget after a budget failure) | Updated: 2026-09-02 (RFC-0022 — the Maintainer becomes one shape: the whole wiki plus a batch of episodes per call, the day read whole in chronological batches with resume from the audit's batch rows, `open` / `max_opens` / `capacity` / the ISO-week seed removed from both loops, the replay reduced to two same-window arms (gemma / opus) and demoted from gate to diagnostic instrument, `install-schedule --wiki-maintain` at 04:15) | Updated: 2026-09-02 (RFC-0017 S4 — offline replay harness: three arms (gemma-constrained / opus-constrained / opus-paper), the `capacity` option on both loops, ClaudeCliBackend under testing/ as the only cloud-egress seam, `until=` windows on the two derived Proposer inputs, summary.json with the D9 material) | Updated: 2026-09-02 (RFC-0017 S3 — Proposer loop: four whole inputs with no retrieval filter, fail_closed_budget instead of trimming, one atomic validated proposal rendered to wiki/proposals/, logs/wiki-proposer.jsonl, wiki-propose CLI; loop mechanics shared via core/wiki_loop.py) | Updated: 2026-09-02 (RFC-0017 S2 — Maintainer loop: budgeted deterministic episode sample, per-turn JSON Schema with the page-id enum, source intersection, fail-closed reason codes, logs/wiki-maintainer.jsonl, wiki-maintain CLI) | Updated: 2026-09-02 (RFC-0017 S1 — wiki store + four-verb op vocabulary + logs/wiki-ops.jsonl audit; render_index / render_evolution_log / render_skill_impact as deterministic projections; no consumer yet; _target_inside_data_root moved into core/_io.py and re-exported from cli/store_paths.py) | Updated: 2026-08-29 (RFC-0016 — ADR-0096 surprise reading restored as an instrument only; the ADR-0097 worth judge stays retired; the sidecar field is display-only at the adopt gate) | Updated: 2026-08-29 (RFC-0019 — the weekly session's positively scoped Read gains the four live value-layer paths, the F2 diagnosis input contract; write scope unchanged) | Updated: 2026-08-26 (RFC-0010 — weekly report content redesign: A–E quote-audit sections replaced by the six-section instrument document (Inventory / Ledger / Deviations / Exceptions / Sample / Discarded); observation-ledger.jsonl (append-only, session stages a delta, pipeline validates+appends) and deterministic random sample added as intakes; structural gate anchors now the six headings; Japanese translations retired; diagnosis input is Deviations+Exceptions) | Updated: 2026-08-25 (module inventory: skill_selection.py split into the selector + selection_window/selection_metrics/never_selected_metrics; cli/adopt.py split into adopt + skill_archive/remove_skill/store_paths — layer separation only, no mechanism change) | Updated: 2026-08-25 (docsscan gains mechanism_freshness reading — src/ commits since architecture.md's last commit, threshold-free covenant proxy) | Updated: 2026-08-24 (ADR-0098 — weekly chain single-session redesign: 7 claude -p → 1 /weekly-report session, fix/review/improve/insight-recommendation stages and the decision-packet builder retired, repairs delegated to the task-triage loop via candidate filing, weekly-analysis.sh reduced to a materials collector with promote-after-report moved into the pipeline) | Updated: 2026-08-22 (ADR-0097 — worth judge + surprise instrument removed from insight, rules-distill / rules-stocktake retired, skill-stocktake reduced to quality report + usage reading + description audit, --stage producers now three; skill-selection reading: --since/--until window incl. the weekly intake, catalog_count regime table with token median, rejected-name mechanism split with abstain reason codes, T-SKILLSEL-REPORT-WINDOW) | Updated: 2026-08-17 (ADR-0096 promotion-worth abstain + read-only surprise reading in the insight Data Flow; core/insight_surprise.py added) | Files scanned: 92 (84 src/ + 8 evals/, non-`__init__.py` count) | Token estimate: ~15600 -->
 # Architecture
 
 ## Project Type
@@ -693,6 +693,7 @@ op (frozen dataclass: Create | Append | Replace | InsertAfter)
 → WikiStore.apply
     sources non-empty?                          no → SOURCES_EMPTY
     Create: title/body non-empty?               no → TITLE_EMPTY / TEXT_EMPTY
+            len(body) <= page_max_chars?        no → PAGE_FULL
             id := max(existing p-NNNN) + 1      [code allocates; the model never names an id]
     else:   id matches ^p-\d{4,}$ and file exists?   no → PAGE_NOT_FOUND
             _target_inside_data_root(page, wiki/patterns)?  no → PATH_ESCAPED
@@ -703,6 +704,13 @@ op (frozen dataclass: Create | Append | Replace | InsertAfter)
                 ANCHOR_NOT_FOUND  [it splices after the LINE holding the
                 anchor, so a multi-line anchor is substring-unique and on no
                 line; applying it would be a no-op logged as applied]
+            patched body over page_max_chars AND not shorter than before?
+              yes → PAGE_FULL  [RFC-0017 D4: the Maintainer holds EVERY page
+              body in EVERY batch prompt, so page length is half of what eats
+              the window — and the half a rule can hold still (3,000 chars,
+              wiki.PAGE_MAX_CHARS, a knob read against page_chars_p90). A
+              SHRINKING replace is always allowed, however long the result:
+              refusing it would freeze the page that most needs rewriting]
 → write_restricted(wiki/patterns/p-NNNN.md)     [mkstemp + os.replace; frontmatter
                                                  id/title/created/updated/revisions/sources]
 → append_jsonl_restricted(logs/wiki-ops.jsonl)  [ts, op, page_id, sources, text_sha256,
@@ -718,9 +726,11 @@ Derived pages, drawn by code rather than by the Maintainer (a projection an
 LLM composes is a second copy that can disagree with the first):
 
 ```text
-render_index(wiki_dir)
-  wiki/patterns/p-*.md → "id | title | first body line", id order, unparseable pages
-  omitted and the heading counts what it listed
+render_index(wiki_dir, page_max_chars=…)
+  wiki/patterns/p-*.md → "id | title | first body line | chars/cap", id order,
+  unparseable pages omitted and the heading counts what it listed. A page at or
+  past the cap is marked FULL — PAGE_FULL reaches only the audit log, so the
+  length column is the prompt's ONLY signal that a page is closed to appends
 
 render_evolution_log(data_root)                 [the paper's logs.md]
   logs/insight-staged.jsonl (ts/name/filename)
@@ -761,16 +771,22 @@ logs/<date>.jsonl → EpisodeLog.read_file
      would multiply by the number of calls)
 → resume: already_read_ids(data_root, day) drops the episodes an earlier REAL
     run of this day already consumed (batch rows with dry_run false and
-    outcome written|abstained) — a re-run continues a day, never re-reads it
+    outcome written|abstained) — a re-run continues a day, never re-reads it.
+    Nothing left and the day HAD rich episodes → already_done, no LLM call
+    (distinct from no_episodes: a day with nothing to read)
 → while episodes remain (at most max_batches = 8, else fail_closed_batches):
     re-read the wiki   [render_index + every page body — a page an earlier
                         batch created is in the next batch's prompt]
     budget = window - output_reserve - all page bodies - system - shell - index
     budget["episodes"] <= 0 → fail_closed_budget: the wiki alone fills the
-      window, the day stops, the rest is over_budget  [D8's end condition]
+      window, the day stops, the rest is over_budget  [D8's end condition —
+      with the page-length cap in force this takes many pages, not one
+      runaway page, so D8's remaining growth axis is page COUNT]
     pack_batch: take from the front while the budget holds; an episode that
       does not fit a whole batch on its own is STEPPED OVER (counted
-      over_budget, never truncated) so one long record cannot end a day
+      over_budget, never truncated) so one long record cannot end a day.
+      A day whose EVERY episode is oversized called no model at all and is
+      fail_closed_budget too — the window failed to hold the day
     ONE call (both jobs hold the blocking run lock, so distill and the
       Maintainer never share the one local Ollama):
              schema := {action: enum(write|abstain),
@@ -809,7 +825,23 @@ system prompt and must not inherit the skills / rules / axioms corpus, which is
 the layer this experiment observes rather than an input to it.
 
 Scheduled by `install-schedule --wiki-maintain` (default 04:15, the stage after
-distill's 03:30 — `config/launchd/com.moltbook.wiki-maintain.plist`).
+distill's 03:30 — `config/launchd/com.moltbook.wiki-maintain.plist`). Both jobs
+take the blocking run lock, which is what actually keeps them off the one local
+Ollama; the clock offset is best-effort.
+
+`run_days(days=…)` is the catch-up driver behind `--catch-up-days N` (plist
+default 2). The job only ever asks for "yesterday", so a day it could not
+finish — Ollama down, the machine asleep, a faulted batch — would never be
+revisited: the resume machinery existed with nothing to drive it. Days run
+oldest first and independently (one day's fault does not stop the next); a
+finished day costs no LLM call (`already_done`). Two things stop the walk, each
+named in the rows rather than left as a shorter list: `fail_closed_budget` on
+any day (the wiki filling the window is a property of the wiki, not of the day,
+so the rest become `skipped_after_budget` instead of being paid for in Ollama
+hours) and the 90-minute time budget (`CATCH_UP_SECONDS`; the caller holds the
+run lock across the walk and the agent's own session takes it NON-blocking, so
+an unbounded catch-up would silently cancel the 06:00 session — the rest become
+`skipped_after_deadline` and tomorrow's catch-up picks them up).
 
 Measured 2026-09-02 over five live days: 212-235 records/day of which 66-72 are
 rich, rich-episode render mean 1,636 tokens (p90 2,339, max 3,375), about 15 per

@@ -192,13 +192,16 @@ def _do_install_distill_schedule(distill_hour: int) -> None:
     print(f"Schedule: daily at {distill_hour:02d}:30 (distill --days 1)")
 
 
-def _do_install_wiki_maintain_schedule(wiki_maintain_hour: int) -> None:
+def _do_install_wiki_maintain_schedule(wiki_maintain_hour: int, catch_up_days: int) -> None:
     """Install launchd plist for the daily Maintainer pass (RFC-0017 D4).
 
     The stage after distill: distill fires at ``--distill-hour``:30 and the
     Maintainer at ``--wiki-maintain-hour``:15 (default 04:15). The offset is
     best-effort — what actually keeps the two off the one local Ollama is the
-    blocking run lock both take. Not approval-gated — the wiki is a derived
+    blocking run lock both take. ``catch_up_days`` re-reads that many days
+    before yesterday (resumed from the audit's batch rows, so a finished day
+    costs no call), which is what stops a failed night from being lost —
+    the job otherwise only ever asks for yesterday. Not approval-gated — the wiki is a derived
     layer whose only consumer is the Proposer, and the human gate sits at the
     Proposer's staging (D6/D10).
     """
@@ -206,11 +209,20 @@ def _do_install_wiki_maintain_schedule(wiki_maintain_hour: int) -> None:
         template_name="com.moltbook.wiki-maintain.plist",
         plist_path=LAUNCHD_WIKI_MAINTAIN_PLIST_PATH,
         log_name="wiki-maintain-launchd.log",
-        substitutions={"{{WIKI_MAINTAIN_HOUR}}": str(wiki_maintain_hour)},
+        substitutions={
+            "{{WIKI_MAINTAIN_HOUR}}": str(wiki_maintain_hour),
+            # int, escaped anyway: the escape is what makes "this value is
+            # interpolated into XML" true of every substitution, not of the
+            # ones whose type happens to make it unnecessary today.
+            "{{WIKI_MAINTAIN_CATCH_UP}}": xml_escape(str(catch_up_days)),
+        },
     )
 
     print(f"Installed: {LAUNCHD_WIKI_MAINTAIN_PLIST_PATH}")
-    print(f"Schedule: daily at {wiki_maintain_hour:02d}:15 (wiki-maintain)")
+    print(
+        f"Schedule: daily at {wiki_maintain_hour:02d}:15 "
+        f"(wiki-maintain --catch-up-days {catch_up_days})"
+    )
 
 
 def _do_install_insight_schedule(weekday: int, hour: int) -> None:
@@ -469,6 +481,8 @@ def _validate_install_schedule_args(
         parser.error("--distill-hour must be between 0 and 23")
     if args.wiki_maintain_hour < 0 or args.wiki_maintain_hour > 23:
         parser.error("--wiki-maintain-hour must be between 0 and 23")
+    if args.wiki_maintain_catch_up_days < 0 or args.wiki_maintain_catch_up_days > 7:
+        parser.error("--wiki-maintain-catch-up-days must be between 0 and 7")
     if args.weekly_insight:
         _validate_weekday_hour_flag(
             parser,
@@ -545,7 +559,10 @@ def _dispatch_install_schedule_jobs(args: argparse.Namespace) -> None:
             hour=args.weekly_submolt_scan_hour,
         )
     if args.wiki_maintain:
-        _do_install_wiki_maintain_schedule(wiki_maintain_hour=args.wiki_maintain_hour)
+        _do_install_wiki_maintain_schedule(
+            wiki_maintain_hour=args.wiki_maintain_hour,
+            catch_up_days=args.wiki_maintain_catch_up_days,
+        )
     if args.watchdog:
         _do_install_watchdog_schedule()
 
@@ -599,6 +616,16 @@ def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
         help=(
             "Hour to run the Maintainer (0-23, default: 4 — the :15 slot after "
             "distill's 03:30, so the two never share the local Ollama)"
+        ),
+    )
+    parser.add_argument(
+        "--wiki-maintain-catch-up-days",
+        type=int,
+        default=2,
+        help=(
+            "Days before yesterday the Maintainer also re-reads (0-7, default: 2 — "
+            "a finished day costs no LLM call, so this only pays for days a "
+            "previous run could not finish)"
         ),
     )
     parser.add_argument(

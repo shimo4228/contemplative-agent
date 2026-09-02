@@ -50,14 +50,14 @@ contemplative-agent shadow-constitution              # shadow 憲法計器（ADR
 contemplative-agent adopt-staged [--archive-names FILE]  # staging → 本配置。--archive-names は store の skill を退役（ADR-0097 D5、削除でなく skills/.archive/ への移動）
 contemplative-agent remove-skill <name> --reason TEXT [--delete]  # 単体の退役（既定は archive。--delete だけが非可逆）
 contemplative-agent skill-stocktake                  # 品質レポート + 選択ログの usage 読み値 + description 監査（advisory）。grouping / merge / clean と rules-distill / rules-stocktake は ADR-0097 で退役
-contemplative-agent wiki-maintain [--date YYYY-MM-DD] [--dry-run]  # RFC-0017 Maintainer。1 UTC 日の rich episode を時系列の batch で読み切り wiki/patterns/ を create / patch（承認ゲート無し、派生層）。同じ日の再実行は audit の batch 行から再開
+contemplative-agent wiki-maintain [--date YYYY-MM-DD] [--dry-run] [--catch-up-days N]  # RFC-0017 Maintainer。1 UTC 日の rich episode を時系列の batch で読み切り wiki/patterns/ を create / patch（承認ゲート無し、派生層）。同じ日の再実行は audit の batch 行から再開（読み切った日は already_done で 0 コール）。--catch-up-days は落ちた日を古い順に拾う（plist 既定 2）
 contemplative-agent wiki-propose [--dry-run] [--max-opens N]  # RFC-0017 Proposer。wiki 索引 + skill 索引 + 進化ログ + skill-impact から atomic 提案 1 つ（skills/ には書かない — 人間ゲートは staging）。定期化しない（手で回す）
 contemplative-agent generate-report [--all]          # アクティビティレポート
 contemplative-agent submolt-scan [--sample-size N]   # ADR-0086 スコープ計器（read-only。購読中・未購読の全 submolt をサンプルして採点）
 contemplative-agent report --days 30 --submolt-scope # ↑の読み値（購読 vs 未購読の当たり率を並べる）
 contemplative-agent meditate --days 14 --cycles 100  # 瞑想シミュレーション
 contemplative-agent dialogue HOME_A HOME_B --seed "..." --turns N  # 2 agent 間のローカル対話（別 MOLTBOOK_HOME 必須、production は拒否）
-contemplative-agent install-schedule [--wiki-maintain [--wiki-maintain-hour H]] [--weekly-pipeline] [--watchdog] [--weekly-insight] [--weekly-backup] [--uninstall]  # --weekly-pipeline が weekly の唯一の installer（旧 --weekly-analysis 単独経路は 2026-08-29 に削除、ADR-0085）
+contemplative-agent install-schedule [--wiki-maintain [--wiki-maintain-hour H] [--wiki-maintain-catch-up-days N]] [--weekly-pipeline] [--watchdog] [--weekly-insight] [--weekly-backup] [--uninstall]  # --weekly-pipeline が weekly の唯一の installer（旧 --weekly-analysis 単独経路は 2026-08-29 に削除、ADR-0085）
 contemplative-agent sync-data
 contemplative-agent solve "ttwweennttyy pplluuss ffiivvee"
 

@@ -411,12 +411,25 @@ episode log に読者が 2 つ並ぶ: 粒度細かい縦断記録（knowledge.js
   層化は不能（⑤、2026-09-02 の訂正）
 - 出力: op ∈ {create, append, replace, insert_after} × 対象ページ id × 本文 × 引用 episode id。
   code が id と schema を検証し、不正は理由コードで記録（fail-closed: 不正 op は適用しない）
+- **ページ長の上限（2026-09-02 追加、A+1）**: 1 ページ **3,000 字**（`wiki.PAGE_MAX_CHARS`、knob）を
+  **保存時に code が強制**する。超える append / insert_after / 伸びる replace / create は `PAGE_FULL` で
+  拒否し `wiki-ops.jsonl` に記録。**縮む replace は上限超のページでも常に通す**（書き直しの経路を塞がない）。
+  prompt での指示でなく保存時の規律なのは、3 則の (a)（D3）— 論文の "10-30 lines"（Appendix E.2）の機械版で、
+  窓が保つ日数を伸ばす。拒否理由は audit にしか出ないので、**索引に長さ列**
+  （`p-0001 | title | 1 行目 | 2,950/3,000`、上限に達したページは `FULL`）を足し、Maintainer と Proposer が
+  同じ索引で「満杯」を見られるようにする
 - fail-closed: wiki だけで窓が埋まって 1 件も入らない日は `fail_closed_budget`（残り id を記録して
   日を止める。D8 の第 1 段終了条件がこの形で出る）。batch のモデル障害はその batch の outcome で
   日を止める（retry 無し — 次の batch は前の batch が書いたはずのページを前提にできない）。
   `max_batches`（既定 8）超過は `fail_closed_batches`
 - **再開**: 同じ日の再実行は audit の batch 行（`dry_run` でなく outcome ∈ {written, abstained}）が
-  記録した episode id を既読として飛ばす。日の途中で落ちても続きから読める
+  記録した episode id を既読として飛ばす。日の途中で落ちても続きから読める。読み切った日の再実行は
+  LLM を呼ばず `already_done`
+- **catch-up（2026-09-02 追加、A+1）**: launchd は「昨日」しか読まないので、落ちた日を拾う駆動者が要る。
+  `wiki-maintain --catch-up-days N`（plist の既定 **2**）が `昨日 − N` から昨日までを**古い日から順に**
+  回す。読み切った日は `already_done` で 0 コールなので、払うのは落ちた日のぶんだけ。各日は独立
+  （1 日が fail-closed でも次へ進む）が、`fail_closed_budget` は wiki 側の構造的な状態なので、
+  出たら残りの日は `skipped_after_budget` として run 行だけ書いて止める
 - wiki は巻き戻さない。ページは pattern id でなく **episode id を引用**する（raw 層への参照）
 
 ### D5. Proposer の仕様
@@ -471,6 +484,9 @@ read_file）と旧 ⑥（replay の 200k アーム）は**形ごと消えた**�
   なった時点で distill を止める」。読者は現在 identity distill / dedup / dataset。identity distill の
   wiki 移行は本 RFC の範囲外（別提案）
 - **wiki の肥大は一級の読み値**: 索引トークン数・ページ数・ページ長 p90 を毎日記録。
+  ページ長は D4 の上限（3,000 字）で規律として止めたので、**残る成長軸はページ数 × 索引トークン**に絞られる
+  （p90 は上限の効き具合を見る読み値として残す — 上限に張り付き続けるなら `replace` での書き直しが
+  起きていない証拠）。
   「wiki 全体 + episode 1 件が 32k に入らなくなった日」が第 1 段の終了（`fail_closed_budget` として
   日付つきで出る）。論文が持たない
   pruning がいつ必要になるかの 16GB での知見であり、失敗ではない。pruning は RFC-0021 の範囲

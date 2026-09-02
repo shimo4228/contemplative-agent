@@ -310,7 +310,7 @@ class TestInstallWikiMaintainSchedule:
             patch("contemplative_agent.cli.schedule.LAUNCHD_WIKI_MAINTAIN_PLIST_PATH", plist_path),
             patch("contemplative_agent.cli.schedule.LAUNCHD_PLIST_DIR", tmp_path),
         ):
-            _do_install_wiki_maintain_schedule(wiki_maintain_hour=4)
+            _do_install_wiki_maintain_schedule(wiki_maintain_hour=4, catch_up_days=2)
 
         assert plist_path.exists()
         content = plist_path.read_text()
@@ -320,10 +320,15 @@ class TestInstallWikiMaintainSchedule:
         assert "<integer>4</integer>" in content
         # :15 — after distill's :30 the hour before, clear of the agent's HH:00.
         assert "<integer>15</integer>" in content
+        # catch-up is what makes a failed night recoverable: the job otherwise
+        # only ever asks for yesterday (RFC-0017 D4).
+        assert "--catch-up-days" in content
+        assert "<string>2</string>" in content
         for placeholder in (
             "{{VENV_BIN}}",
             "{{PROJECT_ROOT}}",
             "{{WIKI_MAINTAIN_HOUR}}",
+            "{{WIKI_MAINTAIN_CATCH_UP}}",
             "{{LOG_PATH}}",
         ):
             assert placeholder not in content
@@ -337,9 +342,11 @@ class TestInstallWikiMaintainSchedule:
             patch("contemplative_agent.cli.schedule.LAUNCHD_WIKI_MAINTAIN_PLIST_PATH", plist_path),
             patch("contemplative_agent.cli.schedule.LAUNCHD_PLIST_DIR", tmp_path),
         ):
-            _do_install_wiki_maintain_schedule(wiki_maintain_hour=7)
+            _do_install_wiki_maintain_schedule(wiki_maintain_hour=7, catch_up_days=0)
 
-        assert "<integer>7</integer>" in plist_path.read_text()
+        content = plist_path.read_text()
+        assert "<integer>7</integer>" in content
+        assert "<string>0</string>" in content  # catch-up is a knob, 0 included
 
 
 class TestInstallBackupSchedule:
@@ -620,6 +627,7 @@ class TestWeeklyPipelineValidationOrder:
             watchdog=False,
             wiki_maintain=False,
             wiki_maintain_hour=4,
+            wiki_maintain_catch_up_days=2,
         )
         parser = argparse.ArgumentParser()
         with (

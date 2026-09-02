@@ -494,7 +494,7 @@ class TestWikiMaintainCLI:
         return wiki_cmds, config
 
     def _namespace(self, **kw: object) -> argparse.Namespace:
-        base = {"wiki_date": None, "dry_run": False}
+        base = {"wiki_date": None, "dry_run": False, "catch_up_days": 0}
         base.update(kw)
         return argparse.Namespace(**base)
 
@@ -512,6 +512,21 @@ class TestWikiMaintainCLI:
         resolved = wiki_cmds._resolve_day(None, parser)
         expected = (datetime.now(timezone.utc) - timedelta(days=1)).date()
         assert resolved == expected
+
+    def test_catch_up_days_resolve_oldest_first(self) -> None:
+        wiki_cmds, _ = self._cli()
+        parser = argparse.ArgumentParser()
+        days = wiki_cmds._resolve_days(self._namespace(wiki_date=None, catch_up_days=2), parser)
+        yesterday = (datetime.now(timezone.utc) - timedelta(days=1)).date()
+        assert days == [yesterday - timedelta(days=2), yesterday - timedelta(days=1), yesterday]
+
+    def test_a_date_with_catch_up_is_a_usage_error(self) -> None:
+        wiki_cmds, _ = self._cli()
+        parser = argparse.ArgumentParser()
+        with pytest.raises(SystemExit):
+            wiki_cmds._resolve_days(
+                self._namespace(wiki_date="2026-08-31", catch_up_days=2), parser
+            )
 
     def test_an_explicit_day_is_parsed(self) -> None:
         wiki_cmds, _ = self._cli()
@@ -676,7 +691,10 @@ def test_a_day_the_wiki_alone_fills_fails_closed_and_names_what_it_did_not_read(
 ) -> None:
     ts = "2026-08-31T01:00:00+00:00"
     _write_day(tmp_path, DAY, [_episode(ts)])
-    store = wiki.WikiStore(wiki_dir=tmp_path / "wiki", data_root=tmp_path)
+    # A page this long can only be built by a store without the length rule —
+    # which is the point of the rule: with it, filling the window takes many
+    # pages (D8's remaining growth axis), not one runaway page.
+    store = wiki.WikiStore(wiki_dir=tmp_path / "wiki", data_root=tmp_path, page_max_chars=100_000)
     store.apply(wiki.Create(title="Huge", body="y" * 20_000, sources=("e0",)))
 
     run, backend = _run(tmp_path, [], config=wiki_maintainer.MaintainerConfig(context_window=6000))
@@ -725,7 +743,7 @@ def test_a_re_run_of_the_same_day_does_not_read_the_same_episodes_again(
     assert len(backend.calls) == 1
 
     third, backend = _run(tmp_path, [], config=_small_window())
-    assert third.outcome == "no_episodes"
+    assert third.outcome == "already_done"
     assert backend.calls == []
 
 
@@ -796,3 +814,118 @@ def test_a_lost_batch_audit_row_is_not_swallowed(tmp_path: Path) -> None:
             tmp_path,
             [_turn("write", ops=[{"op": "create", "title": "T", "body": "B", "sources": [ts]}])],
         )
+
+
+# --------------------------------------------------------------- catch-up
+
+
+def test_a_day_already_read_to_the_end_is_already_done_without_a_call(
+    tmp_path: Path,
+) -> None:
+    ts = "2026-08-31T01:00:00+00:00"
+    _write_day(tmp_path, DAY, [_episode(ts)])
+    first, _ = _run(tmp_path, [_turn("abstain", reason="thin")])
+    assert first.outcome == "abstained"
+
+    second, backend = _run(tmp_path, [])
+
+    assert second.outcome == "already_done"
+    assert backend.calls == []
+    rows = [r for r in _audit(tmp_path) if r["kind"] == "run"]
+    assert rows[-1]["outcome"] == "already_done"
+    assert not [r for r in _audit(tmp_path) if r["kind"] == "batch" and r["batch"] > 0]
+
+
+def test_catch_up_runs_oldest_first_and_keeps_going_past_a_faulted_day(
+    tmp_path: Path,
+) -> None:
+    days = [date(2026, 8, 29), date(2026, 8, 30), DAY]
+    for day in days:
+        _write_day(tmp_path, day, [_episode(f"{day.isoformat()}T01:00:00+00:00")])
+
+    backend = FakeBackend(
+        responses=[
+            _turn("abstain", reason="first"),
+            "not json at all",  # day two faults
+            _turn("abstain", reason="third"),
+        ]
+    )
+    configure(backend=backend)
+    try:
+        runs = wiki_maintainer.run_days(data_root=tmp_path, wiki_dir=tmp_path / "wiki", days=days)
+    finally:
+        reset_llm_config()
+
+    assert [r.date for r in runs] == [d.isoformat() for d in days]
+    assert [r.outcome for r in runs] == ["abstained", "fail_closed_parse", "abstained"]
+    assert len(backend.calls) == 3
+
+
+def test_catch_up_stops_after_a_budget_failure_and_names_the_rest(tmp_path: Path) -> None:
+    """A window the wiki alone fills is structural: the later days would all fail the same way."""
+    days = [date(2026, 8, 30), DAY]
+    for day in days:
+        _write_day(tmp_path, day, [_episode(f"{day.isoformat()}T01:00:00+00:00")])
+    store = wiki.WikiStore(wiki_dir=tmp_path / "wiki", data_root=tmp_path, page_max_chars=100_000)
+    store.apply(wiki.Create(title="Huge", body="y" * 20_000, sources=("e0",)))
+
+    backend = FakeBackend(responses=[])
+    configure(backend=backend)
+    try:
+        runs = wiki_maintainer.run_days(
+            data_root=tmp_path,
+            wiki_dir=tmp_path / "wiki",
+            days=days,
+            config=wiki_maintainer.MaintainerConfig(context_window=6000),
+        )
+    finally:
+        reset_llm_config()
+
+    assert [r.outcome for r in runs] == ["fail_closed_budget", "skipped_after_budget"]
+    assert backend.calls == []
+    rows = [r for r in _audit(tmp_path) if r["kind"] == "run"]
+    assert rows[-1]["outcome"] == "skipped_after_budget"
+
+
+def test_catch_up_stops_at_its_time_budget(tmp_path: Path) -> None:
+    """The caller holds the run lock across the walk, so it must not run all night."""
+    days = [date(2026, 8, 29), date(2026, 8, 30), DAY]
+    for day in days:
+        _write_day(tmp_path, day, [_episode(f"{day.isoformat()}T01:00:00+00:00")])
+
+    ticks = iter([0.0, 0.0, 100.0, 200.0])  # start, day one, then past the budget
+    backend = FakeBackend(responses=[_turn("abstain", reason="first")])
+    configure(backend=backend)
+    try:
+        runs = wiki_maintainer.run_days(
+            data_root=tmp_path,
+            wiki_dir=tmp_path / "wiki",
+            days=days,
+            seconds=60,
+            clock=lambda: next(ticks),
+        )
+    finally:
+        reset_llm_config()
+
+    assert [r.outcome for r in runs] == [
+        "abstained",
+        "skipped_after_deadline",
+        "skipped_after_deadline",
+    ]
+    assert len(backend.calls) == 1
+    assert runs[1].reason == "the catch-up ran out of its time budget"
+
+
+def test_a_day_whose_every_episode_is_oversized_is_a_window_failure(tmp_path: Path) -> None:
+    """Not `no_episodes`: the day HAD episodes, the window could not hold one."""
+    _write_day(
+        tmp_path,
+        DAY,
+        [_episode(f"2026-08-31T0{n}:00:00+00:00", content="x" * 4000) for n in range(2)],
+    )
+
+    run, backend = _run(tmp_path, [], config=wiki_maintainer.MaintainerConfig(context_window=5000))
+
+    assert run.outcome == "fail_closed_budget"
+    assert backend.calls == []
+    assert run.skip_reasons["over_budget"] == 2

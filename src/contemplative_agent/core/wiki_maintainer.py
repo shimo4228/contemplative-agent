@@ -35,6 +35,8 @@ from __future__ import annotations
 
 import json
 import logging
+import time
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
@@ -71,6 +73,15 @@ MAINTAINER_LOG_NAME = "wiki-maintainer.jsonl"
 _SOURCE_MAX_CHARS = 64
 _REASON_MAX_CHARS = 200
 
+# How long a catch-up may keep the run lock. The scheduled Maintainer holds
+# that lock BLOCKING while the agent's own sessions take it non-blocking and
+# give up immediately (cli/agent_cmds.py), so a catch-up that ran long would
+# silently cost the 06:00 JST session — the activity this whole project
+# observes. 90 minutes from a 04:15 start lands before it. Days are not split:
+# the deadline decides whether the NEXT day starts, so the ceiling is this
+# budget plus one day, which is the ceiling the single-day job already had.
+CATCH_UP_SECONDS = 90 * 60
+
 BatchOutcome: TypeAlias = Literal["written", "abstained"] | FailClosed
 
 Outcome: TypeAlias = (
@@ -78,8 +89,11 @@ Outcome: TypeAlias = (
         "written",
         "abstained",
         "no_episodes",
+        "already_done",
         "fail_closed_budget",
         "fail_closed_batches",
+        "skipped_after_budget",
+        "skipped_after_deadline",
     ]
     | FailClosed
 )
@@ -410,15 +424,33 @@ def _log_path(data_root: Path) -> Path:
     return data_root / "logs" / MAINTAINER_LOG_NAME
 
 
+def _resumable_ids(line: str, target: str) -> tuple[str, ...]:
+    """The episode ids one audit line proves were consumed, or ``()``.
+
+    A batch counts only if it both ran for real (``dry_run`` false) and
+    reached the model (``written`` / ``abstained``): a dry run changed no
+    page, and a faulted batch's episodes were never actually reasoned about.
+    """
+    try:
+        row = json.loads(line)
+    except json.JSONDecodeError:
+        return ()
+    if not isinstance(row, dict) or row.get("kind") != "batch":
+        return ()
+    if row.get("date") != target or row.get("dry_run"):
+        return ()
+    if row.get("outcome") not in ("written", "abstained"):
+        return ()
+    return tuple(v for v in row.get("episode_ids_read") or [] if isinstance(v, str))
+
+
 def already_read_ids(data_root: Path, day: date) -> frozenset[str]:
     """Episode ids a previous real run of *day* already consumed.
 
     Read from the batch rows rather than kept in a separate state file: the
     audit log is the artefact that already has to be right, and a second
-    record of the same fact is a second thing that can disagree. Only rows
-    that both ran for real (``dry_run`` false) and reached the model
-    (``written`` / ``abstained``) count — a dry run changed no page, and a
-    faulted batch's episodes were never actually reasoned about.
+    record of the same fact is a second thing that can disagree. Which rows
+    count is :func:`_resumable_ids`.
     """
     path = _log_path(data_root)
     if not path.is_file():
@@ -426,24 +458,19 @@ def already_read_ids(data_root: Path, day: date) -> frozenset[str]:
     target = day.isoformat()
     seen: set[str] = set()
     try:
-        lines = path.read_text(encoding="utf-8").splitlines()
+        with path.open(encoding="utf-8") as handle:
+            for line in handle:
+                # Streamed, and the two cheap substring tests come first: the
+                # same file carries the ``turn`` rows, each up to 128 KiB of
+                # base64 prompt and output, and the resume path runs once per
+                # catch-up day. Reading the whole file into one string would
+                # make a nightly job grow with the log rather than with the day.
+                if '"batch"' not in line or target not in line:
+                    continue
+                seen.update(_resumable_ids(line, target))
     except OSError:
         logger.warning("wiki maintainer: could not read the audit log to resume a day")
         return frozenset()
-    for line in lines:
-        try:
-            row = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if not isinstance(row, dict) or row.get("kind") != "batch":
-            continue
-        if row.get("date") != target or row.get("dry_run"):
-            continue
-        if row.get("outcome") not in ("written", "abstained"):
-            continue
-        for value in row.get("episode_ids_read") or []:
-            if isinstance(value, str):
-                seen.add(value)
     return frozenset(seen)
 
 
@@ -565,6 +592,17 @@ def _op_label(op: WikiOp) -> str:
     return "insert_after"
 
 
+def _render_index(wiki_dir: Path, store: WikiStore) -> str:
+    """The index, rendered with the store's OWN length cap.
+
+    Passed rather than defaulted: the ``FULL`` mark the model reads and the
+    ``PAGE_FULL`` the store enforces have to be the same number, and two
+    defaults that merely happen to agree today are a drift waiting for
+    whichever one someone tunes first.
+    """
+    return render_index(wiki_dir, page_max_chars=store.page_max_chars)
+
+
 def run_maintainer(
     *,
     data_root: Path,
@@ -598,7 +636,7 @@ def run_maintainer(
         already = already_read_ids(data_root, day)
     remaining = tuple(e for e in prepared.episodes if e.episode_id not in already)
 
-    index = render_index(wiki_dir)
+    index = _render_index(wiki_dir, store)
     size = read_wiki_size(wiki_dir, index)
     budget = _budget(
         cfg,
@@ -609,12 +647,16 @@ def run_maintainer(
     )
 
     if not remaining:
-        reason = "every episode of this day was already read" if prepared.episodes else None
+        # Two different days, two different names: a day with nothing to read
+        # (no_episodes) and a day this loop already finished (already_done).
+        # Catch-up walks days it has mostly done already, so collapsing them
+        # would make its log unreadable — and "no episodes" would be false.
+        done = bool(prepared.episodes)
         return _finish(
             data_root,
             day=day,
-            outcome="no_episodes",
-            reason=reason,
+            outcome="already_done" if done else "no_episodes",
+            reason="every episode of this day was already read" if done else None,
             read_ids=(),
             skipped_ids=tuple(skipped_ids),
             skip_reasons=skip_reasons,
@@ -638,7 +680,7 @@ def run_maintainer(
             break
 
         state = _BatchState(page_bodies=[], applied=[], refused=[])
-        index = render_index(wiki_dir)
+        index = _render_index(wiki_dir, store)
         size = read_wiki_size(wiki_dir, index)
         page_tokens_total = _load_all_pages(store, state)
         budget = _budget(
@@ -691,7 +733,7 @@ def run_maintainer(
                 sample=sample,
                 state=state,
                 budget=budget,
-                size=read_wiki_size(wiki_dir, render_index(wiki_dir)),
+                size=read_wiki_size(wiki_dir, _render_index(wiki_dir, store)),
                 dry_run=dry_run,
             )
         )
@@ -709,10 +751,8 @@ def run_maintainer(
             break
         read_ids.extend(sample.read_ids)
 
-    if outcome in ("written", "abstained"):
-        # The day's roll-up, not the last batch's answer: a day that wrote in
-        # the morning and abstained at night wrote.
-        outcome = "written" if any(b.outcome == "written" for b in batches) else "abstained"
+    outcome = _day_outcome(outcome, batches=batches, skip_reasons=skip_reasons)
+    reason = None if outcome == "fail_closed_budget" else reason
 
     return _finish(
         data_root,
@@ -724,10 +764,110 @@ def run_maintainer(
         skip_reasons=skip_reasons,
         batches=tuple(batches),
         budget=budget,
-        size=read_wiki_size(wiki_dir, render_index(wiki_dir)),
+        size=read_wiki_size(wiki_dir, _render_index(wiki_dir, store)),
         index=index,
         dry_run=dry_run,
     )
+
+
+def run_days(
+    *,
+    data_root: Path,
+    wiki_dir: Path,
+    days: list[date],
+    config: MaintainerConfig | None = None,
+    dry_run: bool = False,
+    seconds: float = CATCH_UP_SECONDS,
+    clock: Callable[[], float] = time.monotonic,
+) -> list[MaintainerRun]:
+    """Run *days* oldest first — the catch-up the daily job never performs.
+
+    The scheduled job only ever asks for yesterday, so a day the loop could
+    not finish (Ollama down, a machine asleep, a faulted batch) is never
+    revisited: the resume machinery exists but nothing drives it. This is the
+    driver.
+
+    Each day is independent — a fault on one does not stop the next, because
+    the days share nothing but the wiki they write into. Two things stop the
+    walk, and both are named in the row rather than left as a shorter list:
+
+    - ``fail_closed_budget`` on any day: the wiki alone filling the window is
+      a property of the wiki, not of the day, so every later day would fail
+      identically. The rest become ``skipped_after_budget`` rather than being
+      paid for in Ollama hours.
+    - ``seconds`` elapsed: the caller holds the run lock across the whole
+      walk, so an unbounded catch-up starves the agent's own scheduled
+      session (see :data:`CATCH_UP_SECONDS`). The rest become
+      ``skipped_after_deadline``, and tomorrow's catch-up picks them up —
+      that is what a catch-up is for.
+
+    ``clock`` is injectable so the deadline is testable without waiting.
+    """
+    runs: list[MaintainerRun] = []
+    started = clock()
+    stop: Outcome | None = None
+    for day in days:
+        if stop is None and clock() - started >= seconds:
+            stop = "skipped_after_deadline"
+        if stop is not None:
+            runs.append(
+                _finish_skipped(
+                    data_root, wiki_dir=wiki_dir, day=day, outcome=stop, dry_run=dry_run
+                )
+            )
+            continue
+        run = run_maintainer(
+            data_root=data_root, wiki_dir=wiki_dir, day=day, config=config, dry_run=dry_run
+        )
+        runs.append(run)
+        if run.outcome == "fail_closed_budget":
+            stop = "skipped_after_budget"
+    return runs
+
+
+_SKIP_REASONS = {
+    "skipped_after_budget": "an earlier day in this catch-up did not fit the window",
+    "skipped_after_deadline": "the catch-up ran out of its time budget",
+}
+
+
+def _finish_skipped(
+    data_root: Path, *, wiki_dir: Path, day: date, outcome: Outcome, dry_run: bool
+) -> MaintainerRun:
+    """A day catch-up did not attempt, written down like every other day."""
+    index = _render_index(wiki_dir, WikiStore(wiki_dir=wiki_dir, data_root=data_root))
+    return _finish(
+        data_root,
+        day=day,
+        outcome=outcome,
+        reason=_SKIP_REASONS.get(str(outcome)),
+        read_ids=(),
+        skipped_ids=(),
+        skip_reasons={},
+        batches=(),
+        budget={},
+        size=read_wiki_size(wiki_dir, index),
+        index=index,
+        dry_run=dry_run,
+    )
+
+
+def _day_outcome(
+    outcome: Outcome, *, batches: list[BatchRecord], skip_reasons: dict[str, int]
+) -> Outcome:
+    """The day's answer, which is not simply its last batch's.
+
+    A day that wrote in the morning and abstained at night wrote. And a day
+    whose every episode was individually too large for a batch never called
+    the model at all, so the loop's initial ``no_episodes`` was still
+    standing — that is the window failing to hold the day (D8's reading), not
+    a day with nothing in it.
+    """
+    if outcome in ("written", "abstained"):
+        return "written" if any(b.outcome == "written" for b in batches) else "abstained"
+    if not batches and skip_reasons.get("over_budget"):
+        return "fail_closed_budget"
+    return outcome
 
 
 def _run_batch(

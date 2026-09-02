@@ -11,6 +11,10 @@
 		<string>-s</string>
 		<string>{{VENV_BIN}}/contemplative-agent</string>
 		<string>wiki-maintain</string>
+		<!-- Catch-up: the job only ever asks for "yesterday", so a day that
+		     failed (Ollama down, machine asleep) would never be revisited. -->
+		<string>--catch-up-days</string>
+		<string>{{WIKI_MAINTAIN_CATCH_UP}}</string>
 	</array>
 
 	<key>WorkingDirectory</key>

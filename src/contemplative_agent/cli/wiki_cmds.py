@@ -16,8 +16,12 @@ from __future__ import annotations
 
 import argparse
 from datetime import date, datetime, timedelta, timezone
+from typing import TYPE_CHECKING
 
 from .registry import CommandSpec, Tier
+
+if TYPE_CHECKING:  # the core import stays lazy at runtime (see the module docstring)
+    from ..core.wiki_maintainer import MaintainerRun
 
 
 def _add_wiki_maintain_arguments(parser: argparse.ArgumentParser) -> None:
@@ -32,6 +36,16 @@ def _add_wiki_maintain_arguments(parser: argparse.ArgumentParser) -> None:
         "--dry-run",
         action="store_true",
         help="Call the model and audit the would-be ops without changing any page",
+    )
+    parser.add_argument(
+        "--catch-up-days",
+        type=int,
+        default=0,
+        metavar="N",
+        help=(
+            "Also read the N days before yesterday, oldest first (default 0). "
+            "A day an earlier run could not finish is resumed, not re-read"
+        ),
     )
 
 
@@ -52,36 +66,38 @@ def _resolve_day(raw: str | None, parser: argparse.ArgumentParser) -> date:
         raise  # unreachable: parser.error exits
 
 
-def _handle_wiki_maintain(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
-    from ..adapters.moltbook import config
-    from ..core._io import acquire_run_lock
-    from ..core.wiki_maintainer import MaintainerConfig, run_maintainer
+def _resolve_days(args: argparse.Namespace, parser: argparse.ArgumentParser) -> list[date]:
+    """The days to read, oldest first.
 
-    day = _resolve_day(getattr(args, "wiki_date", None), parser)
+    ``--catch-up-days`` names an explicit day, so combining it with ``--date``
+    would ask for two different answers to the same question; refused rather
+    than silently preferring one.
+    """
+    catch_up = int(getattr(args, "catch_up_days", 0) or 0)
+    raw = getattr(args, "wiki_date", None)
+    if raw is not None and catch_up:
+        parser.error("--date and --catch-up-days are mutually exclusive")
+    if catch_up < 0:
+        parser.error("--catch-up-days must be 0 or more")
+    last = _resolve_day(raw, parser)
+    return [last - timedelta(days=offset) for offset in range(catch_up, -1, -1)]
 
-    # Blocking lock, like distill (audit M5): this is a scheduled job on the
-    # same single local Ollama, and its 04:15 slot is only clear of distill's
-    # 03:30 while distill finishes inside 45 minutes — which nothing enforces.
-    # Waiting costs a later start; overlapping costs both jobs on a 16GB box.
-    with acquire_run_lock(config.RUN_LOCK_PATH, blocking=True):
-        run = run_maintainer(
-            data_root=config.MOLTBOOK_DATA_DIR,
-            wiki_dir=config.WIKI_DIR,
-            day=day,
-            config=MaintainerConfig(),
-            dry_run=bool(getattr(args, "dry_run", False)),
-        )
 
+def _print_run(run: MaintainerRun, *, detailed: bool) -> None:
+    """One line per day, plus the full block when a single day was asked for."""
     mode = " (dry-run)" if run.dry_run else ""
-    print(f"wiki-maintain {run.date}{mode}: {run.outcome}")
+    batches = len(run.batches)
+    print(f"wiki-maintain {run.date}{mode}: {run.outcome} ({batches} batches)")
+    if not detailed:
+        return
     if run.reason:
         print(f"  reason: {run.reason}")
     print(
         f"  episodes: {len(run.episode_ids_read)} read, "
         f"{len(run.episode_ids_skipped)} skipped "
-        f"(budget {run.budget['episodes']} tokens)"
+        f"(budget {run.budget.get('episodes', 0)} tokens)"
     )
-    print(f"  batches: {len(run.batches)}")
+    print(f"  batches: {batches}")
     for applied in run.ops_applied:
         print(f"  applied: {applied}")
     for op, reason in run.ops_refused:
@@ -91,6 +107,31 @@ def _handle_wiki_maintain(args: argparse.Namespace, parser: argparse.ArgumentPar
         f"index {run.wiki_size.index_tokens} tokens, "
         f"page chars p90 {run.wiki_size.page_chars_p90}"
     )
+
+
+def _handle_wiki_maintain(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
+    from ..adapters.moltbook import config
+    from ..core._io import acquire_run_lock
+    from ..core.wiki_maintainer import MaintainerConfig, run_days
+
+    days = _resolve_days(args, parser)
+
+    # Blocking lock, like distill (audit M5): this is a scheduled job on the
+    # same single local Ollama, and its 04:15 slot is only clear of distill's
+    # 03:30 while distill finishes inside 45 minutes — which nothing enforces.
+    # Waiting costs a later start; overlapping costs both jobs on a 16GB box.
+    # Held across the whole catch-up: the days are one job, not N jobs.
+    with acquire_run_lock(config.RUN_LOCK_PATH, blocking=True):
+        runs = run_days(
+            data_root=config.MOLTBOOK_DATA_DIR,
+            wiki_dir=config.WIKI_DIR,
+            days=days,
+            config=MaintainerConfig(),
+            dry_run=bool(getattr(args, "dry_run", False)),
+        )
+
+    for run in runs:
+        _print_run(run, detailed=len(runs) == 1)
 
 
 def _add_wiki_propose_arguments(parser: argparse.ArgumentParser) -> None:
