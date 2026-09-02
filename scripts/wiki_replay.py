@@ -1,20 +1,22 @@
 #!/usr/bin/env python3
 """Offline replay of the wiki loops over past episodes (RFC-0017 S4, D9).
 
-Three arms answer one question each, and the difference between them splits
-"the model" from "the capacity":
+Two arms, same shape and same window, so the only difference between them is
+the model:
 
-===================  ==================  =========================  ==========
-arm                  model               capacity                   D9
-===================  ==================  =========================  ==========
-``opus-paper``       ``claude-opus-5``   whole wiki + whole day     (1)
-``opus-constrained`` ``claude-opus-5``   index + read_file, 32k     (2)
-``gemma-constrained``gemma4:e4b          index + read_file, 32k     (3)
-===================  ==================  =========================  ==========
+=================  =================  =============================
+arm                model              window
+=================  =================  =============================
+``gemma``          gemma4:e4b         ``llm.NUM_CTX`` (the shipped loop)
+``opus``           ``claude-opus-5``  ``llm.NUM_CTX``
+=================  =================  =============================
 
-A one-shot instrument, not a production path (the ADR-0075 2026-08-29
-amendment). Replayability comes free anyway: the S2/S3 loops write their own
-audit JSONL — every prompt and every raw answer, base64 + sha256 — into the
+A **diagnostic instrument, not a gate** (RFC-0022): the live audit log is what
+D9's pass lines are read from, and this harness answers "what does a bigger
+model do with the same day" — a reference point for reading the live numbers,
+not a permission to go live. A one-shot instrument, not a production path (the
+ADR-0075 2026-08-29 amendment). Replayability comes free anyway: the S2/S3
+loops write their own audit JSONL — every prompt and every raw answer, base64 + sha256 — into the
 replay home, so a later parser fix can be re-run against exactly what each
 model said without spending a single call again.
 
@@ -23,17 +25,16 @@ under ``--home`` (which has no default and is refused if it is inside the
 production store), and the episode logs, skill store and ledgers are *copied*
 into it. The wiki, the proposals and the audit rows all accumulate there.
 
-``summary.json`` carries the material for D9's pass lines — call counts,
-verification pass rate, the op-class breakdown, what the Proposer proposed and
-at what, daily wiki size, wall clock and (Claude arms) token usage and cost.
-It does NOT judge: M-a / M-b / P-a are read by a person against the numbers,
-and M-c / P-b are read by a person against the wiki itself.
+``summary.json`` carries the same material D9's pass lines are read from —
+call counts, verification pass rate, the op-class breakdown, what the Proposer
+proposed and at what, daily wiki size and batch counts, wall clock and (Claude
+arm) token usage and cost. It does NOT judge, and it decides nothing: the
+pass lines belong to the live audit log, read at the Saturday gate.
 
 Usage::
 
     python scripts/wiki_replay.py --home /tmp/replay \\
-        --from 2026-07-09 --to 2026-08-29 \\
-        --arm gemma-constrained --arm opus-constrained --arm opus-paper
+        --from 2026-07-09 --to 2026-08-29 --arm gemma --arm opus
 
 Add ``--days N`` to truncate the range (smoke runs). The gemma arm occupies
 Ollama for hours, so keep the full run outside the JST 0/6/12/18 session
@@ -58,7 +59,6 @@ from contemplative_agent.core import llm  # noqa: E402
 from contemplative_agent.core.wiki import render_index  # noqa: E402
 from contemplative_agent.core.wiki_maintainer import (  # noqa: E402
     MAINTAINER_LOG_NAME,
-    Capacity,
     MaintainerConfig,
     MaintainerRun,
     read_wiki_size,
@@ -70,13 +70,10 @@ from contemplative_agent.core.wiki_proposer import (  # noqa: E402
     ProposerRun,
     run_proposer,
 )
-from contemplative_agent.testing.claude_cli import (  # noqa: E402
-    PAPER_CONTEXT_WINDOW,
-    ClaudeCliBackend,
-)
+from contemplative_agent.testing.claude_cli import ClaudeCliBackend  # noqa: E402
 
 CLAUDE_MODEL = "claude-opus-5"
-CONSTRAINED_WINDOW = llm.NUM_CTX
+REPLAY_WINDOW = llm.NUM_CTX
 
 WEEKDAYS = ("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday")
 
@@ -87,62 +84,66 @@ _COPIED_LEDGERS = ("insight-staged.jsonl", "audit.jsonl")
 _COPIED_LOG_GLOBS = ("skill-selection-*.jsonl",)
 
 # Deviations from the paper and from live that the reading has to carry with
-# it (D7 + the two this harness adds). Written into every summary.json rather
-# than left in a commit message, because the summary is what a later reader
-# will have (measurement-discipline: a number without its window is not a
-# reading).
+# it. Written into every summary.json rather than left in a commit message,
+# because the summary is what a later reader will have
+# (measurement-discipline: a number without its window is not a reading).
+# The parenthesis names the RFC-0017 D7 row each one belongs to, or marks it
+# as this harness's own.
 REPLAY_DEVIATIONS = (
     "skill store is the store as of the replay date's run, not as it stood "
-    "on the replayed day (the store's own history is not reconstructed)",
+    "on the replayed day (harness-specific: the store's own history is not "
+    "reconstructed)",
     "the evolution log's `final decision` and `superseded by` columns come "
-    "from the whole ledger; only the staging date is windowed by `until`",
-    "the Claude arms have no constrained decoding — the per-turn JSON Schema "
+    "from the whole ledger; only the staging date is windowed by `until` "
+    "(harness-specific)",
+    "the Claude arm has no constrained decoding — the per-turn JSON Schema "
     "is an instruction in the prompt, so a schema violation costs the turn as "
-    "fail_closed_parse instead of being impossible",
-    "the Claude arms have no output-token cap (`num_predict` has no CLI "
-    "counterpart), so they cannot produce fail_closed_truncated",
-    "paper capacity still shows the wiki index above the full page bodies; "
-    "the index is a table of contents there, not a retrieval step",
+    "fail_closed_parse instead of being impossible (harness-specific)",
+    "the Claude arm has no output-token cap (`num_predict` has no CLI "
+    "counterpart), so it cannot produce fail_closed_truncated "
+    "(harness-specific)",
+    "the wiki index sits above the full page bodies in every Maintainer "
+    "prompt; there is one shape, and the index is its table of contents "
+    "rather than a retrieval step (D7 (3))",
+    "no fuel: the paper's loop is driven by a verification score against "
+    "ground truth, and CA has neither the score nor its inputs — recurrence "
+    "across days and the human gate stand in for it (D7 (0))",
+    "the Maintainer reads the whole day in batches, not the paper's "
+    "stratified sample of at most 8 traces (D7 (5))",
+    "the Proposer cannot open a raw episode; the paper's Proposer must read "
+    "at least four traces (D7 (7))",
+    "Maintainer daily, Proposer run by hand — not the paper's 1:1 pairing "
+    "inside one iteration (D7 (4))",
 )
 
 
 @dataclass(frozen=True)
 class Arm:
-    """One arm's model and capacity. Everything else is the shared loop."""
+    """One arm's model. Everything else is the shared loop, unchanged."""
 
     name: str
     model: str
-    capacity: Capacity
     context_window: int
     uses_claude: bool
 
     def maintainer_config(self) -> MaintainerConfig:
-        return MaintainerConfig(capacity=self.capacity, context_window=self.context_window)
+        return MaintainerConfig(context_window=self.context_window)
 
     def proposer_config(self) -> ProposerConfig:
-        return ProposerConfig(capacity=self.capacity, context_window=self.context_window)
+        return ProposerConfig(context_window=self.context_window)
 
 
 ARMS: dict[str, Arm] = {
-    "gemma-constrained": Arm(
-        name="gemma-constrained",
+    "gemma": Arm(
+        name="gemma",
         model="",  # whatever OLLAMA_MODEL serves; recorded from llm.served_model()
-        capacity="constrained",
-        context_window=CONSTRAINED_WINDOW,
+        context_window=REPLAY_WINDOW,
         uses_claude=False,
     ),
-    "opus-constrained": Arm(
-        name="opus-constrained",
+    "opus": Arm(
+        name="opus",
         model=CLAUDE_MODEL,
-        capacity="constrained",
-        context_window=CONSTRAINED_WINDOW,
-        uses_claude=True,
-    ),
-    "opus-paper": Arm(
-        name="opus-paper",
-        model=CLAUDE_MODEL,
-        capacity="paper",
-        context_window=PAPER_CONTEXT_WINDOW,
+        context_window=REPLAY_WINDOW,
         uses_claude=True,
     ),
 }
@@ -278,6 +279,7 @@ class ArmTally:
             {
                 "date": run.date,
                 "outcome": run.outcome,
+                "batches": len(run.batches),
                 "episodes_read": len(run.episode_ids_read),
                 "pages": run.wiki_size.pages,
                 "index_tokens": run.wiki_size.index_tokens,
@@ -404,7 +406,6 @@ def build_summary(
     return {
         "arm": arm.name,
         "model": served_model,
-        "capacity": arm.capacity,
         "context_window": arm.context_window,
         "from": days[0].isoformat() if days else None,
         "to": days[-1].isoformat() if days else None,
@@ -467,7 +468,7 @@ def build_parser() -> argparse.ArgumentParser:
         action="append",
         dest="arms",
         choices=sorted(ARMS),
-        help="Repeatable. Default: all three.",
+        help="Repeatable. Default: both.",
     )
     parser.add_argument("--days", type=int, default=None, help="Truncate the range (smoke runs)")
     parser.add_argument(

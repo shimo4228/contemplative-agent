@@ -54,16 +54,9 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from ..core.llm import BackendResult
+from ..core.llm import NUM_CTX, BackendResult
 
 logger = logging.getLogger(__name__)
-
-# The paper's capacity (RFC-0017 D9 arm ①). Deliberately NOT the window the
-# CLI reports for the model: on 2026-09-02 ``claude -p`` reported a 1,000,000
-# token window for claude-opus-5, and running the "faithful reproduction" arm
-# at five times the paper's context would change what the arm measures. The
-# constrained arms pass ``context_window=32768`` to match gemma instead.
-PAPER_CONTEXT_WINDOW = 200_000
 
 # Minimal environment the claude CLI needs to run and authenticate. An
 # allowlist, not a denylist, for the reason ``evals/judging.py`` gives: the
@@ -184,7 +177,11 @@ class ClaudeCliBackend:
 
     model: str
     scratch_dir: Path
-    context_window: int = PAPER_CONTEXT_WINDOW
+    # Deliberately NOT the window the CLI reports for the model: on 2026-09-02
+    # ``claude -p`` reported 1,000,000 tokens for claude-opus-5, and a replay
+    # arm run at thirty times gemma's window would measure the window rather
+    # than the model. Both arms hold the same shape, so both hold ``NUM_CTX``.
+    context_window: int = NUM_CTX
     claude_bin: str = "claude"
     timeout: int = 900
     audit_path: Path | None = None

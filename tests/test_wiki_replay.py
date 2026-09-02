@@ -1,4 +1,4 @@
-"""RFC-0017 S4: the offline replay driver and the paper capacity it exercises.
+"""RFC-0017 S4: the offline replay driver (RFC-0022: two arms, one shape).
 
 The driver is a calendar and a copier around loops that are already tested
 (S2/S3), so what is fixed here is the part only the driver decides: which day
@@ -7,9 +7,9 @@ a July iteration cannot read August's ledgers, and that ``summary.json``'s
 two derived ratios (M-a's verification pass rate, M-b's patch ratio) are
 computed from the ops rather than from the runs.
 
-The paper capacity is tested through the loops it changes: the whole wiki
-arrives in the first prompt, no ``open`` turn is offered, and a day that does
-not fit is ``fail_closed_budget`` rather than a quietly smaller sample.
+Both arms hold the same shape and the same window, so the only difference
+between them is the model — the assertions below pin that, since an arm that
+quietly differed in two ways would answer neither question.
 """
 
 from __future__ import annotations
@@ -118,7 +118,7 @@ def test_the_proposer_runs_only_on_its_weekday(tmp_path):
     backend = FakeBackend(responses=['{"action": "abstain", "reason": "nothing"}'] * 12)
 
     summary = wiki_replay.run_arm(
-        wiki_replay.ARMS["opus-constrained"],
+        wiki_replay.ARMS["opus"],
         source=source,
         home=tmp_path / "replay",
         days=days,
@@ -135,7 +135,7 @@ def test_a_different_proposer_weekday_moves_the_iteration(tmp_path):
     days = [MONDAY, TUESDAY]
     source = _source_store(tmp_path, days)
     summary = wiki_replay.run_arm(
-        wiki_replay.ARMS["opus-constrained"],
+        wiki_replay.ARMS["opus"],
         source=source,
         home=tmp_path / "replay",
         days=days,
@@ -155,7 +155,7 @@ def test_the_source_store_is_never_written_to(tmp_path):
     source = _source_store(tmp_path, days)
     before = {p.relative_to(source): p.read_bytes() for p in source.rglob("*") if p.is_file()}
     wiki_replay.run_arm(
-        wiki_replay.ARMS["opus-constrained"],
+        wiki_replay.ARMS["opus"],
         source=source,
         home=tmp_path / "replay",
         days=days,
@@ -166,7 +166,7 @@ def test_the_source_store_is_never_written_to(tmp_path):
     after = {p.relative_to(source): p.read_bytes() for p in source.rglob("*") if p.is_file()}
     assert after == before
     assert not (source / "wiki").exists()
-    assert (tmp_path / "replay" / "opus-constrained" / "wiki" / "patterns").is_dir()
+    assert (tmp_path / "replay" / "opus" / "wiki" / "patterns").is_dir()
 
 
 def test_home_inside_the_production_store_is_refused(tmp_path):
@@ -226,7 +226,7 @@ def test_the_proposer_cannot_read_a_ledger_row_from_after_the_replayed_day(tmp_p
     backend = FakeBackend(responses=['{"action": "abstain"}'] * 6)
 
     wiki_replay.run_arm(
-        wiki_replay.ARMS["opus-constrained"],
+        wiki_replay.ARMS["opus"],
         source=source,
         home=tmp_path / "replay",
         days=[MONDAY],
@@ -263,33 +263,32 @@ def _write_turn(day: date, op: str = "create") -> str:
     return json.dumps({"action": "write", "ops": [ops]})
 
 
-def test_open_and_unoffered_refusals_stay_out_of_the_m_a_denominator(tmp_path):
-    """M-a counts ops the model emitted; a bad page id is a hallucination reading."""
+def test_non_op_refusals_stay_out_of_the_m_a_denominator(tmp_path):
+    """M-a counts ops the model emitted; an unoffered action is a hallucination reading."""
     tally = wiki_replay.ArmTally()
     tally.add_maintainer(
         wiki_maintainer.MaintainerRun(
             date=MONDAY.isoformat(),
-            seed="s",
             outcome="written",
             reason=None,
             episode_ids_read=(),
             episode_ids_skipped=(),
-            opened_page_ids=(),
+            skip_reasons={},
             ops_applied=("create p-0001",),
             ops_refused=(
-                ("open", "UNKNOWN_PAGE_ID"),
-                ("open", "MAX_OPENS_REACHED"),
+                ("open", "UNOFFERED_ACTION"),
                 ("write", "UNOFFERED_ACTION"),
                 ("append", "ANCHOR_NOT_FOUND"),
             ),
             budget={"episodes": 1},
             wiki_size=wiki_maintainer.WikiSize(pages=1, index_tokens=1, page_chars_p90=1),
+            batches=(),
             dry_run=False,
         )
     )
 
     assert (tally.ops_applied, tally.ops_refused) == (1, 1)
-    assert tally.refusal_reasons["open:UNKNOWN_PAGE_ID"] == 1
+    assert tally.refusal_reasons["open:UNOFFERED_ACTION"] == 1
     assert tally.refusal_reasons["write:UNOFFERED_ACTION"] == 1
 
 
@@ -300,7 +299,7 @@ def test_summary_ratios_are_computed_over_ops_not_runs(tmp_path):
         ops_refused=1,
     )
     summary = wiki_replay.build_summary(
-        wiki_replay.ARMS["gemma-constrained"],
+        wiki_replay.ARMS["gemma"],
         served_model="gemma4:e4b",
         days=[MONDAY],
         copied={},
@@ -316,7 +315,7 @@ def test_summary_ratios_are_computed_over_ops_not_runs(tmp_path):
 def test_summary_ratios_are_none_when_nothing_was_emitted(tmp_path):
     """No evidence and a failing score are different readings."""
     summary = wiki_replay.build_summary(
-        wiki_replay.ARMS["gemma-constrained"],
+        wiki_replay.ARMS["gemma"],
         served_model="gemma4:e4b",
         days=[MONDAY],
         copied={},
@@ -332,7 +331,7 @@ def test_summary_ratios_are_none_when_nothing_was_emitted(tmp_path):
 def test_creates_only_reads_as_a_patch_ratio_of_zero(tmp_path):
     """M-b's failing case must be 0.0, not absent."""
     summary = wiki_replay.build_summary(
-        wiki_replay.ARMS["gemma-constrained"],
+        wiki_replay.ARMS["gemma"],
         served_model="g",
         days=[MONDAY],
         copied={},
@@ -347,7 +346,7 @@ def test_creates_only_reads_as_a_patch_ratio_of_zero(tmp_path):
 def test_summary_is_written_and_carries_the_deviations(tmp_path):
     source = _source_store(tmp_path, [MONDAY])
     summary = wiki_replay.run_arm(
-        wiki_replay.ARMS["opus-constrained"],
+        wiki_replay.ARMS["opus"],
         source=source,
         home=tmp_path / "replay",
         days=[MONDAY],
@@ -356,7 +355,7 @@ def test_summary_is_written_and_carries_the_deviations(tmp_path):
         backend_override=FakeBackend(responses=[_write_turn(MONDAY), '{"action": "abstain"}'] * 4),
     )
     written = json.loads(
-        (tmp_path / "replay" / "opus-constrained" / "summary.json").read_text(encoding="utf-8")
+        (tmp_path / "replay" / "opus" / "summary.json").read_text(encoding="utf-8")
     )
     assert written == summary
     assert summary["deviations"] == list(wiki_replay.REPLAY_DEVIATIONS)
@@ -382,14 +381,17 @@ def test_llm_calls_are_counted_from_the_audit_rows(tmp_path):
     assert wiki_replay.count_turns(tmp_path / "absent.jsonl") == 0
 
 
-def test_the_claude_arms_carry_their_usage_into_the_summary(tmp_path):
-    """Cost is a first-class reading, not something recovered from stdout."""
-    assert wiki_replay.ARMS["opus-paper"].context_window == 200_000
-    assert wiki_replay.ARMS["opus-constrained"].context_window == 32768
-    assert wiki_replay.ARMS["gemma-constrained"].uses_claude is False
+def test_both_arms_hold_the_same_window(tmp_path):
+    """One shape, one window: the arms differ in the model and nothing else."""
+    from contemplative_agent.core import llm
+
+    assert wiki_replay.ARMS["opus"].context_window == llm.NUM_CTX
+    assert wiki_replay.ARMS["gemma"].context_window == llm.NUM_CTX
+    assert wiki_replay.ARMS["gemma"].uses_claude is False
+    assert wiki_replay.ARMS["opus"].uses_claude is True
 
 
-# ------------------------------------------------------------ paper capacity
+# --------------------------------------------------------------- one shape
 
 
 def _wiki_with_pages(root: Path, count: int) -> None:
@@ -404,31 +406,7 @@ def _wiki_with_pages(root: Path, count: int) -> None:
         )
 
 
-def test_paper_capacity_puts_every_page_body_in_the_first_prompt(tmp_path):
-    (tmp_path / "logs").mkdir()
-    _wiki_with_pages(tmp_path, 3)
-    (tmp_path / "logs" / f"{MONDAY}.jsonl").write_text(
-        json.dumps(_episode(f"{MONDAY}T01:00:00+00:00")) + "\n", encoding="utf-8"
-    )
-    backend = FakeBackend(context_window=200_000, responses=['{"action": "abstain"}'])
-    configure(backend=backend)
-
-    run = wiki_maintainer.run_maintainer(
-        data_root=tmp_path,
-        wiki_dir=tmp_path / "wiki",
-        day=MONDAY,
-        config=wiki_maintainer.MaintainerConfig(capacity="paper", context_window=200_000),
-    )
-    assert run.outcome == "abstained"
-    first = backend.calls[0]
-    for index in range(3):
-        assert f"### p-000{index + 1} — Pattern {index}" in first["prompt"]
-    # No `open` turn is offered: the schema's action enum has only two members.
-    assert first["format"]["properties"]["action"]["enum"] == ["write", "abstain"]
-    assert "open {opens_left}" not in first["prompt"]
-
-
-def test_constrained_capacity_is_unchanged_by_the_new_option(tmp_path):
+def test_every_page_body_is_in_the_first_prompt(tmp_path):
     (tmp_path / "logs").mkdir()
     _wiki_with_pages(tmp_path, 3)
     (tmp_path / "logs" / f"{MONDAY}.jsonl").write_text(
@@ -437,16 +415,21 @@ def test_constrained_capacity_is_unchanged_by_the_new_option(tmp_path):
     backend = FakeBackend(responses=['{"action": "abstain"}'])
     configure(backend=backend)
 
-    wiki_maintainer.run_maintainer(data_root=tmp_path, wiki_dir=tmp_path / "wiki", day=MONDAY)
+    run = wiki_maintainer.run_maintainer(
+        data_root=tmp_path,
+        wiki_dir=tmp_path / "wiki",
+        day=MONDAY,
+        config=wiki_maintainer.MaintainerConfig(),
+    )
+    assert run.outcome == "abstained"
     first = backend.calls[0]
-    assert first["format"]["properties"]["action"]["enum"] == ["open", "write", "abstain"]
-    # The index does carry a snippet of each page; what constrained capacity
-    # must NOT do is hand over the opened-page section before any open turn.
-    assert "(none yet)" in first["prompt"]
-    assert "### p-0001 — Pattern 0" not in first["prompt"]
+    for index in range(3):
+        assert f"### p-000{index + 1} — Pattern {index}" in first["prompt"]
+    # Two actions, and no `open`: there is one shape and it holds the wiki.
+    assert first["format"]["properties"]["action"]["enum"] == ["write", "abstain"]
 
 
-def test_paper_capacity_records_a_day_that_does_not_fit(tmp_path):
+def test_a_day_that_does_not_fit_is_recorded_not_trimmed(tmp_path):
     """A day the window cannot hold is named, never sampled down."""
     (tmp_path / "logs").mkdir()
     (tmp_path / "logs" / f"{MONDAY}.jsonl").write_text(
@@ -460,14 +443,14 @@ def test_paper_capacity_records_a_day_that_does_not_fit(tmp_path):
         data_root=tmp_path,
         wiki_dir=tmp_path / "wiki",
         day=MONDAY,
-        # A window too small for the day: paper capacity must refuse, not trim.
-        config=wiki_maintainer.MaintainerConfig(capacity="paper", context_window=3200),
+        # A window too small for even one episode: refuse, never trim.
+        config=wiki_maintainer.MaintainerConfig(context_window=3200),
     )
     assert run.outcome == "fail_closed_budget"
     assert backend.calls == []
 
 
-def test_paper_capacity_gives_the_proposer_every_page_and_every_skill(tmp_path):
+def test_the_proposer_is_offered_its_open_turns(tmp_path):
     (tmp_path / "logs").mkdir()
     skills = tmp_path / "skills"
     skills.mkdir()
@@ -476,7 +459,7 @@ def test_paper_capacity_gives_the_proposer_every_page_and_every_skill(tmp_path):
         encoding="utf-8",
     )
     _wiki_with_pages(tmp_path, 2)
-    backend = FakeBackend(context_window=200_000, responses=['{"action": "abstain"}'])
+    backend = FakeBackend(responses=['{"action": "abstain"}'])
     configure(backend=backend)
 
     run = wiki_proposer.run_proposer(
@@ -484,16 +467,25 @@ def test_paper_capacity_gives_the_proposer_every_page_and_every_skill(tmp_path):
         wiki_dir=tmp_path / "wiki",
         skills_dir=skills,
         today=MONDAY,
-        config=wiki_proposer.ProposerConfig(capacity="paper", context_window=200_000),
+        config=wiki_proposer.ProposerConfig(),
     )
     assert run.outcome == "abstained"
     prompt = backend.calls[0]["prompt"]
-    assert "UNIQUE-BODY-0" in prompt and "UNIQUE-BODY-1" in prompt
-    assert "UNIQUE-SKILL-BODY" in prompt
-    assert backend.calls[0]["format"]["properties"]["action"]["enum"] == ["propose", "abstain"]
+    # The Proposer keeps its open loop: bodies arrive only once opened. (The
+    # wiki index does carry each page's first line — that is the index, not
+    # the body section.)
+    assert "(none yet)" in prompt
+    assert "### wiki page p-0001" not in prompt
+    assert "UNIQUE-SKILL-BODY" not in prompt
+    assert backend.calls[0]["format"]["properties"]["action"]["enum"] == [
+        "open_page",
+        "open_skill",
+        "propose",
+        "abstain",
+    ]
 
 
-def test_paper_capacity_proposer_refuses_a_picture_that_does_not_fit(tmp_path):
+def test_the_proposer_refuses_a_picture_that_does_not_fit(tmp_path):
     (tmp_path / "logs").mkdir()
     skills = tmp_path / "skills"
     skills.mkdir()
@@ -509,7 +501,7 @@ def test_paper_capacity_proposer_refuses_a_picture_that_does_not_fit(tmp_path):
         wiki_dir=tmp_path / "wiki",
         skills_dir=skills,
         today=MONDAY,
-        config=wiki_proposer.ProposerConfig(capacity="paper", context_window=4096),
+        config=wiki_proposer.ProposerConfig(context_window=4096),
     )
     assert run.outcome == "fail_closed_budget"
     assert backend.calls == []

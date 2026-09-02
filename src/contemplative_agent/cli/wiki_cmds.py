@@ -33,22 +33,15 @@ def _add_wiki_maintain_arguments(parser: argparse.ArgumentParser) -> None:
         action="store_true",
         help="Call the model and audit the would-be ops without changing any page",
     )
-    parser.add_argument(
-        "--max-opens",
-        type=int,
-        default=None,
-        metavar="N",
-        help="How many wiki pages one run may open before it must write or abstain (default 3)",
-    )
 
 
 def _resolve_day(raw: str | None, parser: argparse.ArgumentParser) -> date:
     """The target UTC day.
 
     Yesterday by default, not today: the Maintainer runs after distill in the
-    same slot, and a partial day would be sampled twice — once incomplete now,
-    never again — because the seed is weekly and the run is idempotent by
-    date, not by content.
+    same slot, and a partial day would leave the rest of it unread — a re-run
+    resumes from the batch rows in the audit log (the episodes an earlier run
+    already consumed), so it would never come back for the missing hours.
     """
     if raw is None:
         return (datetime.now(timezone.utc) - timedelta(days=1)).date()
@@ -61,19 +54,23 @@ def _resolve_day(raw: str | None, parser: argparse.ArgumentParser) -> date:
 
 def _handle_wiki_maintain(args: argparse.Namespace, parser: argparse.ArgumentParser) -> None:
     from ..adapters.moltbook import config
+    from ..core._io import acquire_run_lock
     from ..core.wiki_maintainer import MaintainerConfig, run_maintainer
 
     day = _resolve_day(getattr(args, "wiki_date", None), parser)
-    max_opens = getattr(args, "max_opens", None)
-    cfg = MaintainerConfig() if max_opens is None else MaintainerConfig(max_opens=max_opens)
 
-    run = run_maintainer(
-        data_root=config.MOLTBOOK_DATA_DIR,
-        wiki_dir=config.WIKI_DIR,
-        day=day,
-        config=cfg,
-        dry_run=bool(getattr(args, "dry_run", False)),
-    )
+    # Blocking lock, like distill (audit M5): this is a scheduled job on the
+    # same single local Ollama, and its 04:15 slot is only clear of distill's
+    # 03:30 while distill finishes inside 45 minutes — which nothing enforces.
+    # Waiting costs a later start; overlapping costs both jobs on a 16GB box.
+    with acquire_run_lock(config.RUN_LOCK_PATH, blocking=True):
+        run = run_maintainer(
+            data_root=config.MOLTBOOK_DATA_DIR,
+            wiki_dir=config.WIKI_DIR,
+            day=day,
+            config=MaintainerConfig(),
+            dry_run=bool(getattr(args, "dry_run", False)),
+        )
 
     mode = " (dry-run)" if run.dry_run else ""
     print(f"wiki-maintain {run.date}{mode}: {run.outcome}")
@@ -84,8 +81,7 @@ def _handle_wiki_maintain(args: argparse.Namespace, parser: argparse.ArgumentPar
         f"{len(run.episode_ids_skipped)} skipped "
         f"(budget {run.budget['episodes']} tokens)"
     )
-    if run.opened_page_ids:
-        print(f"  opened: {', '.join(run.opened_page_ids)}")
+    print(f"  batches: {len(run.batches)}")
     for applied in run.ops_applied:
         print(f"  applied: {applied}")
     for op, reason in run.ops_refused:
@@ -125,9 +121,8 @@ def _handle_wiki_propose(args: argparse.Namespace, _parser: argparse.ArgumentPar
     from ..adapters.moltbook import config
     from ..core.wiki_proposer import ProposerConfig, run_proposer
 
-    # Named rather than ``**overrides``: the config gained a non-int field
-    # (``capacity``, RFC-0017 S4), so a ``dict[str, int]`` splat no longer
-    # type-checks — and would have been a silent widening if it had.
+    # Named rather than ``**overrides``: an unrecognised key in a splat is a
+    # silent widening, and only these two are the caller's to set.
     defaults = ProposerConfig()
     max_opens = getattr(args, "max_opens", None)
     impact_days = getattr(args, "impact_days", None)

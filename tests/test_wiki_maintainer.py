@@ -1,10 +1,10 @@
 """RFC-0017 S2: the Maintainer loop.
 
 The loop is code-owned and bounded; the model only names things the code
-already enumerated. These tests fix the four properties that makes true:
-the sample is deterministic and budgeted, ``open`` cannot reach an id the
-index did not offer, ``sources`` cannot reach a page unless the episode was
-actually read, and every LLM fault is a distinct fail-closed reason code
+already enumerated. These tests fix the properties that makes true: the day is
+read whole, in order, one batch of episodes per call, an op cannot reach a page
+id the wiki does not hold, ``sources`` cannot reach a page unless the episode
+was actually read, and every LLM fault is a distinct fail-closed reason code
 rather than a silent no-op.
 """
 
@@ -131,20 +131,10 @@ def _clean_llm():
 # ------------------------------------------------------------ sampling
 
 
-def test_the_sample_is_deterministic_for_the_same_day(tmp_path: Path) -> None:
-    records = [_episode(f"2026-08-31T0{i}:00:00+00:00") for i in range(8)]
-    first = wiki_maintainer.select_episodes(records, seed="2026-W35", budget_tokens=100_000)
-    second = wiki_maintainer.select_episodes(records, seed="2026-W35", budget_tokens=100_000)
-    assert first.read_ids == second.read_ids
-    assert first.read_ids  # and it actually read something
-
-
-def test_a_different_seed_gives_a_different_order(tmp_path: Path) -> None:
-    records = [_episode(f"2026-08-31T0{i}:00:00+00:00") for i in range(8)]
-    a = wiki_maintainer.select_episodes(records, seed="2026-W35", budget_tokens=100_000)
-    b = wiki_maintainer.select_episodes(records, seed="2026-W99", budget_tokens=100_000)
-    assert set(a.read_ids) == set(b.read_ids)
-    assert a.read_ids != b.read_ids
+def _sample(records: list[dict], budget: int) -> wiki_maintainer.EpisodeSample:
+    prepared = wiki_maintainer.prepare_day(records)
+    sample, _, _ = wiki_maintainer.pack_batch(prepared.episodes, budget)
+    return sample
 
 
 def test_only_rich_episodes_are_read_and_the_rest_are_skipped_with_a_reason(
@@ -159,48 +149,59 @@ def test_only_rich_episodes_are_read_and_the_rest_are_skipped_with_a_reason(
             "data": {"action": "upvote", "post_id": "x"},
         },
     ]
-    sample = wiki_maintainer.select_episodes(records, seed="s", budget_tokens=100_000)
-    assert sample.read_ids == ("2026-08-31T01:00:00+00:00",)
-    assert set(sample.skipped_ids) == {
+    prepared = wiki_maintainer.prepare_day(records)
+    assert tuple(e.episode_id for e in prepared.episodes) == ("2026-08-31T01:00:00+00:00",)
+    assert set(prepared.skipped_ids) == {
         "2026-08-31T02:00:00+00:00",
         "2026-08-31T03:00:00+00:00",
     }
-    assert sample.skip_reasons["not_rich"] == 2
+    assert prepared.skip_reasons["not_rich"] == 2
 
 
-def test_the_budget_reduces_how_many_episodes_are_read(tmp_path: Path) -> None:
+def test_the_budget_decides_how_many_episodes_one_batch_holds(tmp_path: Path) -> None:
+    """What does not fit is the NEXT batch, not a skip (RFC-0022: the day is read whole)."""
     records = [_episode(f"2026-08-31T0{i}:00:00+00:00", content="x" * 4000) for i in range(8)]
-    big = wiki_maintainer.select_episodes(records, seed="s", budget_tokens=100_000)
-    small = wiki_maintainer.select_episodes(records, seed="s", budget_tokens=3_000)
+    prepared = wiki_maintainer.prepare_day(records)
+    big, big_rest, _ = wiki_maintainer.pack_batch(prepared.episodes, 100_000)
+    small, small_rest, _ = wiki_maintainer.pack_batch(prepared.episodes, 3_000)
+
     assert len(small.read_ids) < len(big.read_ids)
-    assert small.skip_reasons["over_budget"] >= 1
     assert small.tokens <= 3_000
+    assert big_rest == ()
+    assert len(small.read_ids) + len(small_rest) == len(prepared.episodes)
+    # chronological, not shuffled: the batches replay the day in order
+    assert big.read_ids == tuple(e.episode_id for e in prepared.episodes)
 
 
-def test_an_episode_larger_than_the_whole_budget_is_skipped_not_truncated(
+def test_an_episode_larger_than_the_whole_budget_is_stepped_over_not_truncated(
     tmp_path: Path,
 ) -> None:
-    records = [_episode("2026-08-31T01:00:00+00:00", content="x" * 200_000)]
-    sample = wiki_maintainer.select_episodes(records, seed="s", budget_tokens=1_000)
-    assert sample.read_ids == ()
-    assert sample.skip_reasons["over_budget"] == 1
+    """One fat record must not truncate, and must not block the rest of the day."""
+    huge = "2026-08-31T01:00:00+00:00"
+    small = "2026-08-31T02:00:00+00:00"
+    records = [_episode(huge, content="x" * 200_000), _episode(small)]
+    prepared = wiki_maintainer.prepare_day(records)
+    sample, rest, oversized = wiki_maintainer.pack_batch(prepared.episodes, 1_000)
+    assert oversized == (huge,)
+    assert sample.read_ids == (small,)  # the day continues past the fat record
+    assert rest == ()
 
 
 def test_a_record_without_a_ts_is_not_counted_as_over_budget(tmp_path: Path) -> None:
-    """The paper arm fails closed on over_budget, so data faults must not land there."""
+    """over_budget is D8's reading of what the window stopped holding — data faults are not that."""
     broken = _episode("2026-08-31T01:00:00+00:00")
     del broken["ts"]
     records = [broken, _episode("2026-08-31T02:00:00+00:00")]
-    sample = wiki_maintainer.select_episodes(records, seed="s", budget_tokens=100_000)
+    prepared = wiki_maintainer.prepare_day(records)
 
-    assert sample.read_ids == ("2026-08-31T02:00:00+00:00",)
-    assert sample.skip_reasons["no_ts"] == 1
-    assert sample.skip_reasons["over_budget"] == 0
+    assert tuple(e.episode_id for e in prepared.episodes) == ("2026-08-31T02:00:00+00:00",)
+    assert prepared.skip_reasons["no_ts"] == 1
+    assert prepared.skip_reasons["over_budget"] == 0
 
 
 def test_the_rendered_sample_wraps_the_untrusted_peer_text(tmp_path: Path) -> None:
     records = [_episode("2026-08-31T01:00:00+00:00")]
-    sample = wiki_maintainer.select_episodes(records, seed="s", budget_tokens=100_000)
+    sample = _sample(records, 100_000)
     # episode_render wraps `original_post`; the Maintainer must not undo that.
     assert "a peer post" in sample.rendered
     assert "Post I engaged with" in sample.rendered
@@ -238,7 +239,7 @@ def test_a_single_write_turn_creates_a_page(tmp_path: Path) -> None:
     assert len(backend.calls) == 1
 
 
-def test_an_open_turn_feeds_the_page_body_into_the_next_turn(tmp_path: Path) -> None:
+def test_every_page_body_is_in_the_first_prompt(tmp_path: Path) -> None:
     ts = "2026-08-31T01:00:00+00:00"
     _write_day(tmp_path, DAY, [_episode(ts)])
     store = wiki.WikiStore(wiki_dir=tmp_path / "wiki", data_root=tmp_path)
@@ -247,7 +248,6 @@ def test_an_open_turn_feeds_the_page_body_into_the_next_turn(tmp_path: Path) -> 
     run, backend = _run(
         tmp_path,
         [
-            _turn("open", page_ids=["p-0001"]),
             _turn(
                 "write",
                 ops=[
@@ -258,79 +258,22 @@ def test_an_open_turn_feeds_the_page_body_into_the_next_turn(tmp_path: Path) -> 
     )
 
     assert run.outcome == "written"
-    assert run.opened_page_ids == ("p-0001",)
-    assert "MARKER-BODY" not in backend.calls[0]["prompt"]
-    assert "MARKER-BODY" in backend.calls[1]["prompt"]
+    assert len(backend.calls) == 1
+    assert "MARKER-BODY" in backend.calls[0]["prompt"]
 
 
-def test_after_max_opens_the_schema_no_longer_offers_open(tmp_path: Path) -> None:
-    ts = "2026-08-31T01:00:00+00:00"
-    _write_day(tmp_path, DAY, [_episode(ts)])
-    store = wiki.WikiStore(wiki_dir=tmp_path / "wiki", data_root=tmp_path)
-    store.apply(wiki.Create(title="A", body="a", sources=("e0",)))
-    store.apply(wiki.Create(title="B", body="b", sources=("e0",)))
-
-    run, backend = _run(
-        tmp_path,
-        [
-            _turn("open", page_ids=["p-0001"]),
-            _turn("open", page_ids=["p-0002"]),
-            _turn("abstain", reason="nothing durable"),
-        ],
-        config=wiki_maintainer.MaintainerConfig(max_opens=2),
-    )
-
-    assert run.outcome == "abstained"
-    assert run.opened_page_ids == ("p-0001", "p-0002")
-    actions = [c["format"]["properties"]["action"]["enum"] for c in backend.calls]
-    assert "open" in actions[0]
-    assert "open" not in actions[2]
-
-
-def test_the_open_enum_only_ever_offers_ids_that_exist(tmp_path: Path) -> None:
+def test_the_page_id_enum_only_ever_offers_ids_that_exist(tmp_path: Path) -> None:
     _write_day(tmp_path, DAY, [_episode("2026-08-31T01:00:00+00:00")])
     store = wiki.WikiStore(wiki_dir=tmp_path / "wiki", data_root=tmp_path)
     store.apply(wiki.Create(title="A", body="a", sources=("e0",)))
 
-    _run(tmp_path, [_turn("abstain", reason="x")])
-    # rebuilt to inspect the schema the first call carried
     run, backend = _run(tmp_path, [_turn("abstain", reason="x")])
     schema = backend.calls[0]["format"]
-    assert schema["properties"]["page_ids"]["items"]["enum"] == ["p-0001"]
+    assert schema["properties"]["action"]["enum"] == ["write", "abstain"]
+    assert "page_ids" not in schema["properties"]
+    ops = schema["properties"]["ops"]["items"]["properties"]
+    assert ops["page_id"]["enum"] == ["p-0001"]
     assert run.outcome == "abstained"
-
-
-def test_an_unknown_page_id_is_refused_and_retried_once(tmp_path: Path) -> None:
-    ts = "2026-08-31T01:00:00+00:00"
-    _write_day(tmp_path, DAY, [_episode(ts)])
-    store = wiki.WikiStore(wiki_dir=tmp_path / "wiki", data_root=tmp_path)
-    store.apply(wiki.Create(title="A", body="a", sources=("e0",)))
-
-    run, backend = _run(
-        tmp_path,
-        [
-            _turn("open", page_ids=["p-9999"]),
-            _turn("open", page_ids=["p-0001"]),
-            _turn("abstain", reason="done"),
-        ],
-    )
-
-    assert run.outcome == "abstained"
-    assert run.opened_page_ids == ("p-0001",)
-    assert ("open", "UNKNOWN_PAGE_ID") in run.ops_refused
-    assert len(backend.calls) == 3
-
-
-def test_two_invalid_turns_in_a_row_fail_closed(tmp_path: Path) -> None:
-    _write_day(tmp_path, DAY, [_episode("2026-08-31T01:00:00+00:00")])
-    store = wiki.WikiStore(wiki_dir=tmp_path / "wiki", data_root=tmp_path)
-    store.apply(wiki.Create(title="A", body="a", sources=("e0",)))
-
-    run, _ = _run(
-        tmp_path,
-        [_turn("open", page_ids=["p-9999"]), _turn("open", page_ids=["p-8888"])],
-    )
-    assert run.outcome == "fail_closed_parse"
 
 
 def test_an_invented_source_is_dropped_before_the_op_reaches_the_store(
@@ -477,7 +420,7 @@ def test_the_audit_carries_a_run_row_and_one_turn_row_per_call(tmp_path: Path) -
 
     run_row = runs[0]
     assert run_row["date"] == str(DAY)
-    assert run_row["seed"]
+    assert run_row["batches"] == 1
     assert run_row["episode_ids_read"] == [ts]
     assert run_row["outcome"] == "written"
     assert run_row["ops_applied"] == ["create p-0001"]
@@ -551,7 +494,7 @@ class TestWikiMaintainCLI:
         return wiki_cmds, config
 
     def _namespace(self, **kw: object) -> argparse.Namespace:
-        base = {"wiki_date": None, "dry_run": False, "max_opens": None}
+        base = {"wiki_date": None, "dry_run": False}
         base.update(kw)
         return argparse.Namespace(**base)
 
@@ -589,6 +532,9 @@ class TestWikiMaintainCLI:
         _write_day(tmp_path, DAY, [_episode(ts)])
         monkeypatch.setattr(config, "MOLTBOOK_DATA_DIR", tmp_path)
         monkeypatch.setattr(config, "WIKI_DIR", tmp_path / "wiki")
+        # never the production lock: the handler takes it BLOCKING, so a test
+        # that used the real path would queue behind a live agent session
+        monkeypatch.setattr(config, "RUN_LOCK_PATH", tmp_path / ".run.lock")
 
         backend = FakeBackend(
             responses=[
@@ -604,7 +550,7 @@ class TestWikiMaintainCLI:
         configure(backend=backend)
         try:
             wiki_cmds._handle_wiki_maintain(
-                self._namespace(wiki_date="2026-08-31", max_opens=1),
+                self._namespace(wiki_date="2026-08-31"),
                 argparse.ArgumentParser(),
             )
         finally:
@@ -625,6 +571,9 @@ class TestWikiMaintainCLI:
         _write_day(tmp_path, DAY, [_episode(ts)])
         monkeypatch.setattr(config, "MOLTBOOK_DATA_DIR", tmp_path)
         monkeypatch.setattr(config, "WIKI_DIR", tmp_path / "wiki")
+        # never the production lock: the handler takes it BLOCKING, so a test
+        # that used the real path would queue behind a live agent session
+        monkeypatch.setattr(config, "RUN_LOCK_PATH", tmp_path / ".run.lock")
 
         configure(
             backend=FakeBackend(
@@ -655,14 +604,13 @@ class TestWikiMaintainCLI:
         _write_day(tmp_path, DAY, [_episode("2026-08-31T01:00:00+00:00")])
         monkeypatch.setattr(config, "MOLTBOOK_DATA_DIR", tmp_path)
         monkeypatch.setattr(config, "WIKI_DIR", tmp_path / "wiki")
+        # never the production lock: the handler takes it BLOCKING, so a test
+        # that used the real path would queue behind a live agent session
+        monkeypatch.setattr(config, "RUN_LOCK_PATH", tmp_path / ".run.lock")
 
         store = wiki.WikiStore(wiki_dir=tmp_path / "wiki", data_root=tmp_path)
         store.apply(wiki.Create(title="A", body="a", sources=("e0",)))
-        configure(
-            backend=FakeBackend(
-                responses=[_turn("open", page_ids=["p-0001"]), _turn("abstain", reason="thin day")]
-            )
-        )
+        configure(backend=FakeBackend(responses=[_turn("abstain", reason="thin day")]))
         try:
             wiki_cmds._handle_wiki_maintain(
                 self._namespace(wiki_date="2026-08-31"), argparse.ArgumentParser()
@@ -673,4 +621,178 @@ class TestWikiMaintainCLI:
         out = capsys.readouterr().out
         assert "abstained" in out
         assert "reason: thin day" in out
-        assert "opened: p-0001" in out
+        assert "batches: 1" in out
+
+
+# ------------------------------------------------------------- batching
+
+
+def _big_episode(ts: str) -> dict:
+    """One rich episode large enough that two of them need two batches."""
+    return _episode(ts, content="x" * 4000)
+
+
+def _small_window() -> wiki_maintainer.MaintainerConfig:
+    """A window that holds the wiki, the shell and exactly one big episode."""
+    return wiki_maintainer.MaintainerConfig(context_window=6000)
+
+
+def test_a_day_that_does_not_fit_one_call_is_split_into_batches(tmp_path: Path) -> None:
+    first_ts = "2026-08-31T01:00:00+00:00"
+    second_ts = "2026-08-31T02:00:00+00:00"
+    _write_day(tmp_path, DAY, [_big_episode(first_ts), _big_episode(second_ts)])
+
+    run, backend = _run(
+        tmp_path,
+        [
+            _turn(
+                "write",
+                ops=[
+                    {
+                        "op": "create",
+                        "title": "Peers answer fast",
+                        "body": "MARKER-FROM-BATCH-ONE",
+                        "sources": [first_ts],
+                    }
+                ],
+            ),
+            _turn("abstain", reason="already recorded"),
+        ],
+        config=_small_window(),
+    )
+
+    assert run.outcome == "written"  # the day rolls up: one batch wrote
+    assert len(run.batches) == 2
+    assert run.batches[0].episode_ids_read == (first_ts,)
+    assert run.batches[1].episode_ids_read == (second_ts,)
+    assert run.episode_ids_read == (first_ts, second_ts)
+    # the second batch reads the wiki again, so it sees what the first wrote
+    assert "MARKER-FROM-BATCH-ONE" not in backend.calls[0]["prompt"]
+    assert "MARKER-FROM-BATCH-ONE" in backend.calls[1]["prompt"]
+
+
+def test_a_day_the_wiki_alone_fills_fails_closed_and_names_what_it_did_not_read(
+    tmp_path: Path,
+) -> None:
+    ts = "2026-08-31T01:00:00+00:00"
+    _write_day(tmp_path, DAY, [_episode(ts)])
+    store = wiki.WikiStore(wiki_dir=tmp_path / "wiki", data_root=tmp_path)
+    store.apply(wiki.Create(title="Huge", body="y" * 20_000, sources=("e0",)))
+
+    run, backend = _run(tmp_path, [], config=wiki_maintainer.MaintainerConfig(context_window=6000))
+
+    assert run.outcome == "fail_closed_budget"
+    assert backend.calls == []
+    assert run.episode_ids_skipped == (ts,)
+    assert run.skip_reasons["over_budget"] == 1
+
+
+def test_more_batches_than_the_cap_fails_closed_as_batches(tmp_path: Path) -> None:
+    first_ts = "2026-08-31T01:00:00+00:00"
+    second_ts = "2026-08-31T02:00:00+00:00"
+    _write_day(tmp_path, DAY, [_big_episode(first_ts), _big_episode(second_ts)])
+
+    run, backend = _run(
+        tmp_path,
+        [_turn("abstain", reason="thin")],
+        config=wiki_maintainer.MaintainerConfig(context_window=6000, max_batches=1),
+    )
+
+    assert run.outcome == "fail_closed_batches"
+    assert len(backend.calls) == 1
+    assert run.episode_ids_read == (first_ts,)
+    assert run.episode_ids_skipped == (second_ts,)
+
+
+def test_a_re_run_of_the_same_day_does_not_read_the_same_episodes_again(
+    tmp_path: Path,
+) -> None:
+    first_ts = "2026-08-31T01:00:00+00:00"
+    second_ts = "2026-08-31T02:00:00+00:00"
+    _write_day(tmp_path, DAY, [_big_episode(first_ts), _big_episode(second_ts)])
+
+    # A dry run reads nothing for real: its batch rows must not count as read.
+    _run(tmp_path, [_turn("abstain", reason="dry")] * 2, config=_small_window(), dry_run=True)
+    first, _ = _run(
+        tmp_path,
+        [_turn("abstain", reason="a")],
+        config=wiki_maintainer.MaintainerConfig(context_window=6000, max_batches=1),
+    )
+    assert first.episode_ids_read == (first_ts,)
+
+    second, backend = _run(tmp_path, [_turn("abstain", reason="b")], config=_small_window())
+    assert second.episode_ids_read == (second_ts,)
+    assert len(backend.calls) == 1
+
+    third, backend = _run(tmp_path, [], config=_small_window())
+    assert third.outcome == "no_episodes"
+    assert backend.calls == []
+
+
+def test_a_batch_fault_stops_the_day_and_keeps_what_earlier_batches_wrote(
+    tmp_path: Path,
+) -> None:
+    first_ts = "2026-08-31T01:00:00+00:00"
+    second_ts = "2026-08-31T02:00:00+00:00"
+    _write_day(tmp_path, DAY, [_big_episode(first_ts), _big_episode(second_ts)])
+
+    run, backend = _run(
+        tmp_path,
+        [
+            _turn(
+                "write",
+                ops=[{"op": "create", "title": "T", "body": "B", "sources": [first_ts]}],
+            ),
+            "this is not json",
+        ],
+        config=_small_window(),
+    )
+
+    assert run.outcome == "fail_closed_parse"
+    assert len(backend.calls) == 2
+    # the faulted batch's episode is NOT read: the next run gets it back
+    assert run.episode_ids_read == (first_ts,)
+    assert second_ts in run.episode_ids_skipped
+    assert run.ops_applied == ("create p-0001",)
+    assert (tmp_path / "wiki" / "patterns" / "p-0001.md").is_file()
+    assert run.batches[0].outcome == "written"
+    assert run.batches[1].outcome == "fail_closed_parse"
+
+
+def test_one_fat_episode_does_not_block_the_rest_of_the_day(tmp_path: Path) -> None:
+    """The old sampler stepped over an oversized episode; batching must too.
+
+    ``render_episode`` caps every excerpt (ADR-0060), so this needs a small
+    window to reach — but the branch is what keeps one long record from
+    ending a day AND inflating D8's over_budget reading.
+    """
+    huge = "2026-08-31T01:00:00+00:00"
+    small = "2026-08-31T02:00:00+00:00"
+    _write_day(tmp_path, DAY, [_episode(huge, content="x" * 4000), _episode(small)])
+
+    run, backend = _run(
+        tmp_path,
+        [_turn("abstain", reason="thin")],
+        config=wiki_maintainer.MaintainerConfig(context_window=5000),
+    )
+
+    assert run.outcome == "abstained"
+    assert run.episode_ids_read == (small,)
+    assert run.episode_ids_skipped == (huge,)
+    assert run.skip_reasons["over_budget"] == 1
+    assert len(backend.calls) == 1
+
+
+def test_a_lost_batch_audit_row_is_not_swallowed(tmp_path: Path) -> None:
+    """The batch row IS the resume state, so its loss must not read as a clean run."""
+    ts = "2026-08-31T01:00:00+00:00"
+    _write_day(tmp_path, DAY, [_episode(ts)])
+    (tmp_path / "logs").mkdir(parents=True, exist_ok=True)
+    # A directory where the audit file belongs: every append raises OSError.
+    (tmp_path / "logs" / "wiki-maintainer.jsonl").mkdir()
+
+    with pytest.raises(OSError):
+        _run(
+            tmp_path,
+            [_turn("write", ops=[{"op": "create", "title": "T", "body": "B", "sources": [ts]}])],
+        )

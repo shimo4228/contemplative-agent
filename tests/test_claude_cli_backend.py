@@ -21,7 +21,7 @@ from pathlib import Path
 
 import pytest
 
-from contemplative_agent.core.llm import BackendResult, LLMBackend
+from contemplative_agent.core.llm import NUM_CTX, BackendResult, LLMBackend
 from contemplative_agent.testing.claude_cli import (
     CLAUDE_ENV_ALLOWLIST,
     ClaudeCliBackend,
@@ -113,7 +113,8 @@ def test_satisfies_the_backend_protocol(tmp_path):
     backend = _backend(tmp_path, _echo_script(_envelope()))
     assert isinstance(backend, LLMBackend)
     assert backend.model == MODEL
-    assert backend.context_window == 200_000
+    # RFC-0022: one shape, one window — the replay arms both hold NUM_CTX.
+    assert backend.context_window == NUM_CTX
 
 
 def test_returns_the_result_text_and_maps_stop_reason(tmp_path):

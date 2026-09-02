@@ -2,9 +2,9 @@
 
 {index}
 
-## Pages you have opened
+## Wiki pages
 
-{opened}
+{pages}
 
 ## Episode sample ({episode_count} episodes from {date})
 
@@ -12,11 +12,8 @@
 
 ## Your turn
 
-You may still open {opens_left} more page(s).
-
 Answer with one JSON object:
 
-- `{{"action": "open", "page_ids": ["p-0001"]}}` — read those pages before deciding.
 - `{{"action": "write", "ops": [...]}}` — apply edits. Each op is one of:
   - `{{"op": "create", "title": "...", "body": "...", "sources": [...]}}`
   - `{{"op": "append", "page_id": "p-0001", "text": "...", "sources": [...]}}`
