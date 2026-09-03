@@ -95,10 +95,43 @@ draft（2026-09-04）。計測 2 本を同日に実走中。読み値は下に�
   （`docs/evidence/rfc-0023/retrieval-recall-v1-*.json`）。**ADR-0097 の 0.9 線には届かない。**
   ただし reviewer の名指し 93 件が未解決で、うち 54 件は store の filename stem（`-YYYYMMDD` 付き）
   だった — script が frontmatter name しか引かない読み落とし。v2（filename 解決 + bm25 アーム）で再読
+- **v2（同日、filename stem 解決 + `bm25` / `union_bm25` アーム、123 pairs）**
+  `docs/evidence/rfc-0023/retrieval-recall-v2-rrf{60,10,5}-20260904.json`:
+
+  | arm | @1 | @3 | @5 | @10 |
+  |---|---|---|---|---|
+  | lexical（trigram Jaccard） | 0.12 | 0.21 | 0.30 | 0.46 |
+  | bm25 | 0.23 | 0.40 | 0.47 | 0.64 |
+  | cosine（nomic） | **0.30** | **0.50** | **0.61** | **0.77** |
+  | union_bm25（rrf 5） | 0.31 | 0.52 | 0.61 | 0.76 |
+
+  BM25 は lexical の約 2 倍だが cosine 単独に届かず、融合はどの rrf_k でも cosine を上回らない。
+  **ADR-0097 の recall@5 ≥ 0.9 には全アームが遠い（最良 0.61）。** reviewer が名指す skill は top-10 に
+  77% しか入らない
+- **dry-run（同日、live 7,134 行 → 912 クラスタ + 2,796 singleton、57 skill）**
+  `docs/evidence/rfc-0023/novelty-retrieval-dry-run-20260904.json`:
+  - **類似度に閾値は置けない。** singleton の top-1 分布から p50 / p75 / p90 を閾値に取ると、クラスタの
+    85〜100% が「covered」になる（cosine_full: クラスタ p50 0.765 vs singleton p50 0.678 で重なる）。
+    LLM gate の実測 covered 率は 0.186（16 records、83/446）。ADR-0074 の反証（code 閾値で捨てない）は
+    そのまま立つ
+  - **generic skill が hub になる。** top-1 が少数の skill に集中する — cosine_full は
+    `dissecting-asserted-agency-into-mechanisms` 89 / `pinpointing-systemic-boundary-conditions` 88 /
+    `shifting-focus-from-state-to-process-mechanics` 79（3 本で 912 の 28%）、bm25_full は
+    `map-abstract-theory-to-structural-constraints` 1 本で 225（25%）。一般論の skill は何にでも近く、
+    検索を gate にすると「一番曖昧な skill に吸われて covered」になる。これは RFC-0024（register）と
+    RFC-0021（hub の退役）の材料でもある
+  - 希少レーンの母集団: rrf top-1 < singleton p25 で 638 / 2,796。ただし rrf スコアは 2 アームの
+    `1/(10+rank)` 和で離散階段（クラスタと singleton の p50 が同値 0.1603）なので、線は cosine_full で
+    引き直す
+
+**読み（2026-09-04）: 検索は gate にならないが、候補生成にはなる。** 判定は LLM に残し、既知テーマ 442 本の
+代わりに cosine（+ bm25 の補助）top-k（k ≈ 10〜15、recall@10 0.77 を見て）だけを見せる。これで prompt は
+40k → 数 k に縮み fail-open の経路が消える。gate の精度は LLM 側のままで、上がる保証は無い（reviewer の
+skill が top-k に無い 23% は LLM も見えない）。閾値で捨てる設計・融合で精度を取る設計は本読みで却下。
 
 ## Next action
 
-- v2 の読み（filename 解決 + bm25 / union_bm25、rrf 5 / 10 / 60）と dry-run の分布を本節に追記し、
-  `accepted` にするか（recall@10 ≥ 0.8 かつ dry-run で既知の族が top-1 で互いを引く）、`blocked` にするか
-  （検索が reviewer を再現しない → 判定を LLM に残したまま top-k を広げる設計に変える）を決める
-- accepted 後は build-tier へ dispatch（skill: task-triage）
+- 著者判断: 上の「候補生成のみ」の縮小設計で `accepted` にするか、recall 0.77 では足りないとして
+  `blocked`（照合先: reviewer の名指しが top-k に入る率を上げる手 — skill の description 改善は RFC-0024 /
+  hub の退役は RFC-0021 の後に再読）にするか
+- accepted 後は build-tier へ dispatch（skill: task-triage）。k は dry-run の分布から packet で決める

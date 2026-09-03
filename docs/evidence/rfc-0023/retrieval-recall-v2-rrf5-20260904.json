@@ -1,0 +1,328 @@
+{
+  "labelled_pairs": 123,
+  "decision_input": true,
+  "min_pairs_for_decision": 30,
+  "staging_lag_days": 1,
+  "reviews": [
+    "weekly-2026-07-24-insight-review.md",
+    "weekly-2026-07-31-insight-review.md",
+    "weekly-2026-08-07-insight-review.md",
+    "weekly-2026-08-14-insight-review.md",
+    "weekly-2026-08-21-insight-review.md"
+  ],
+  "corpus_skills": 57,
+  "corpus_doc_chars": {
+    "min": 1286,
+    "median": 1775,
+    "max": 4000
+  },
+  "corpus_truncation": {
+    "limit": 4000,
+    "docs_truncated": 4,
+    "queries_truncated": 0,
+    "longest_original": 6913,
+    "applies_to": "every arm (truncated once at load, before any ranking)"
+  },
+  "read_faults": {
+    "unreadable_skill_files": 0,
+    "store_files_sharing_a_name": 0,
+    "unreadable_reviews": 0,
+    "undated_reviews": 0,
+    "duplicate_review_basenames": 0,
+    "review_sections_without_a_candidate_name": 3,
+    "ledger_unparsable_lines": 0,
+    "ledger_rows_without_a_name": 0,
+    "ledger_rows_with_an_unusable_ts": 0
+  },
+  "ground_truth": {
+    "rejections": 162,
+    "rejections_naming_a_store_skill": 143,
+    "rejections_naming_no_store_skill": 19,
+    "labelled_pairs_kept": 123,
+    "naming_tally_complete": true,
+    "multi_label_pairs": 43,
+    "name_only_queries": {
+      "policy": "exclude",
+      "excluded": 20,
+      "included": 0
+    },
+    "ledger_row_after_review": 0,
+    "candidates_also_present_in_store": 0,
+    "unresolved_reviewer_names": [
+      "2026-08-09",
+      "2026-08-12",
+      "abstract-principle-to-enforced-mechanism",
+      "ambiguity-to-continue",
+      "bias-of-continuity",
+      "bound-every-abstraction",
+      "breadth-to-volume",
+      "chain-of-custody-vs-synthesis",
+      "challenge-the-definition",
+      "claim-versus-support",
+      "constraint-shift-analysis-pivot-point-identification-20260709",
+      "converge-the-symptoms",
+      "deconstruct-foundational-claims-against-operative-components",
+      "description-vs-consequence",
+      "eleven-way-duplicated",
+      "enumerate-every-input",
+      "ethics-as-immutable-constraint",
+      "fluency-mistaken-for-rigor",
+      "functional-coherence-over-truth",
+      "identifying-structural-tensions-via-system-metaphor",
+      "identity-by-accumulated-history",
+      "if-x-then-y",
+      "initial-check-then-unverified-execution",
+      "internal-vs-external",
+      "invariants-across-transitions",
+      "loggable-vs-constraint",
+      "mandatory-vs-optional",
+      "mechanizing-abstract-concepts",
+      "noticeability-over-action",
+      "probes-to-rejections",
+      "prompt-injection-shaped",
+      "receipts-are-not-truth",
+      "record-versus-reality",
+      "state-versus-process",
+      "state-vs-process",
+      "stress-test-by-hypothesized-misuse",
+      "technical-language-as-proxy-for-experience",
+      "trade-off-mapping",
+      "value-in-unresolved-tension"
+    ],
+    "unresolved_name_rule": ">= 3 hyphen-separated segments or written in backticks, and matching neither the store nor a candidate in the same batch"
+  },
+  "k": [
+    1,
+    3,
+    5,
+    10
+  ],
+  "arms": {
+    "lexical": {
+      "available": true,
+      "metric": "character-trigram Jaccard over the whole skill file",
+      "queries_with_no_score_spread": 0,
+      "recall": {
+        "1": {
+          "hits": 15,
+          "pairs": 123,
+          "rate": 0.122,
+          "ci95": [
+            0.0753,
+            0.1915
+          ]
+        },
+        "3": {
+          "hits": 26,
+          "pairs": 123,
+          "rate": 0.2114,
+          "ci95": [
+            0.1485,
+            0.2917
+          ]
+        },
+        "5": {
+          "hits": 37,
+          "pairs": 123,
+          "rate": 0.3008,
+          "ci95": [
+            0.2268,
+            0.3869
+          ]
+        },
+        "10": {
+          "hits": 56,
+          "pairs": 123,
+          "rate": 0.4553,
+          "ci95": [
+            0.37,
+            0.5433
+          ]
+        }
+      }
+    },
+    "bm25": {
+      "available": true,
+      "metric": "Okapi BM25 (k1=1.2, b=0.75) over whitespace tokens of the skill file",
+      "queries_with_no_score_spread": 0,
+      "recall": {
+        "1": {
+          "hits": 28,
+          "pairs": 123,
+          "rate": 0.2276,
+          "ci95": [
+            0.1625,
+            0.3093
+          ]
+        },
+        "3": {
+          "hits": 49,
+          "pairs": 123,
+          "rate": 0.3984,
+          "ci95": [
+            0.3162,
+            0.4867
+          ]
+        },
+        "5": {
+          "hits": 58,
+          "pairs": 123,
+          "rate": 0.4715,
+          "ci95": [
+            0.3855,
+            0.5593
+          ]
+        },
+        "10": {
+          "hits": 79,
+          "pairs": 123,
+          "rate": 0.6423,
+          "ci95": [
+            0.5544,
+            0.7215
+          ]
+        }
+      }
+    },
+    "cosine": {
+      "available": true,
+      "metric": "embedding cosine (core/embeddings.py)",
+      "queries_with_no_score_spread": 0,
+      "recall": {
+        "1": {
+          "hits": 37,
+          "pairs": 123,
+          "rate": 0.3008,
+          "ci95": [
+            0.2268,
+            0.3869
+          ]
+        },
+        "3": {
+          "hits": 61,
+          "pairs": 123,
+          "rate": 0.4959,
+          "ci95": [
+            0.409,
+            0.5831
+          ]
+        },
+        "5": {
+          "hits": 75,
+          "pairs": 123,
+          "rate": 0.6098,
+          "ci95": [
+            0.5215,
+            0.6914
+          ]
+        },
+        "10": {
+          "hits": 95,
+          "pairs": 123,
+          "rate": 0.7724,
+          "ci95": [
+            0.6907,
+            0.8375
+          ]
+        }
+      },
+      "embedding_model": "nomic-embed-text"
+    },
+    "union": {
+      "available": true,
+      "metric": "reciprocal-rank fusion of lexical and cosine (rrf_k=5)",
+      "queries_with_no_score_spread": 0,
+      "recall": {
+        "1": {
+          "hits": 29,
+          "pairs": 123,
+          "rate": 0.2358,
+          "ci95": [
+            0.1695,
+            0.3181
+          ]
+        },
+        "3": {
+          "hits": 55,
+          "pairs": 123,
+          "rate": 0.4472,
+          "ci95": [
+            0.3622,
+            0.5353
+          ]
+        },
+        "5": {
+          "hits": 67,
+          "pairs": 123,
+          "rate": 0.5447,
+          "ci95": [
+            0.4567,
+            0.63
+          ]
+        },
+        "10": {
+          "hits": 92,
+          "pairs": 123,
+          "rate": 0.748,
+          "ci95": [
+            0.6645,
+            0.8164
+          ]
+        }
+      }
+    },
+    "union_bm25": {
+      "available": true,
+      "metric": "reciprocal-rank fusion of bm25 and cosine (rrf_k=5)",
+      "queries_with_no_score_spread": 0,
+      "recall": {
+        "1": {
+          "hits": 38,
+          "pairs": 123,
+          "rate": 0.3089,
+          "ci95": [
+            0.2341,
+            0.3953
+          ]
+        },
+        "3": {
+          "hits": 64,
+          "pairs": 123,
+          "rate": 0.5203,
+          "ci95": [
+            0.4328,
+            0.6067
+          ]
+        },
+        "5": {
+          "hits": 75,
+          "pairs": 123,
+          "rate": 0.6098,
+          "ci95": [
+            0.5215,
+            0.6914
+          ]
+        },
+        "10": {
+          "hits": 94,
+          "pairs": 123,
+          "rate": 0.7642,
+          "ci95": [
+            0.6819,
+            0.8305
+          ]
+        }
+      }
+    }
+  },
+  "caveats": [
+    "The store is read as it is now, not as it was at review time: a skill adopted after a review sits in the corpus and one removed since is missing, so a label naming a removed skill contributes no pair at all.",
+    "Recall counts a hit when ANY reviewer-named skill is in the top k; multi_label_pairs says how many pairs that softens.",
+    "Labels are an unfiltered scan for store names in the reject body, so a negated mention ('this is NOT covered by foo-bar') yields foo-bar as a POSITIVE label. Nothing here detects negation; spot-check the reject prose before treating a low recall as a retrieval failure."
+  ],
+  "reasons": [
+    "REVIEW_SECTION_WITHOUT_CANDIDATE_NAME",
+    "CORPUS_TRUNCATED",
+    "UNRESOLVED_REVIEWER_NAMES"
+  ]
+}

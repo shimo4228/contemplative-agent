@@ -20,7 +20,11 @@ built on this retrieval would mislead rather than help.
 names an existing store skill in its body becomes one labelled pair. Candidate
 query text comes from the staged ledger ``logs/insight-staged.jsonl``
 (``{ts, name, description, filename}`` per ADR-0074 Decision 7), matched by
-name to the row nearest before the review's date.
+name to the row nearest before the review's date. A cited name is resolved
+against three spellings of every store skill — its frontmatter ``name:``, its
+filename stem, and that stem minus a trailing adoption-date suffix — because
+the reviewer sees the store as filenames (``--add-dir``) and the two spellings
+routinely differ (see :func:`store_name_index`).
 
 **This script was written without running it.** The two corpora it reads —
 ``$MOLTBOOK_HOME/logs/**`` and the weekly review reports, which quote
@@ -43,6 +47,12 @@ the author's to take. Read the labelled-pair count first when they do.
   seam, using that module's own ``cosine``. The import is deferred into the
   arm, so ``--arm lexical`` runs with no model, no numpy and no
   ``contemplative_agent`` on the path.
+- ``bm25`` — Okapi BM25 (``k1=1.2``, ``b=0.75``) over whitespace tokens of the
+  same ``_normalize``d text. Stdlib only, like the lexical arm, but it does
+  what trigram Jaccard cannot: IDF downweights a term every skill file
+  carries, and the length normalizer replaces Jaccard's raw length bias with
+  a tuned one. Read it beside ``lexical`` — the two cheap arms disagreeing is
+  the interesting reading, not either one alone.
 - ``union`` — reciprocal-rank fusion of the two rankings (``1/(rrf_k+rank)``,
   ``rrf_k`` default 60). Fusion rather than a set union of the two top-k
   lists: a set union at k has a budget of up to 2k documents, so its recall@k
@@ -54,6 +64,10 @@ the author's to take. Read the labelled-pair count first when they do.
   top-rank emphasis — the opposite of what a recall@1 reading wants. Sweep
   ``--rrf-k`` (try 5 and 10) beside the default before reading the union arm
   as the better one; ``corpus_skills`` is printed so the ratio is visible.
+- ``union_bm25`` — the same fusion with ``bm25`` in the lexical slot
+  (``rrf_k`` from the same ``--rrf-k``, so the caveat above applies
+  unchanged). ``union`` keeps its original meaning — lexical + cosine — so
+  the two fusions are comparable at a fixed ``rrf_k``.
 
 **One corpus, all arms.** Documents are truncated once at load
 (``MAX_TEXT_CHARS``), before any arm sees them, and the truncation is counted
@@ -96,6 +110,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import re
 import statistics
 import sys
@@ -119,7 +134,13 @@ DEFAULT_MIN_PAIRS = 30
 # batch it reviews is staged on the pipeline morning — so the review is named
 # one day before its own ledger rows. See `_candidate_description`.
 DEFAULT_STAGING_LAG_DAYS = 1
-ARMS = ("lexical", "cosine", "union")
+# Okapi BM25's standard constants (Robertson & Zaragoza's own defaults, and
+# what Lucene ships): k1 bounds the term-frequency saturation, b the length
+# normalization. Not swept — they are the arm's definition here, not a knob,
+# and a tuned pair read against a decision bar would be a fitted number.
+BM25_K1 = 1.2
+BM25_B = 0.75
+ARMS = ("lexical", "cosine", "bm25", "union", "union_bm25")
 
 # One bound for every arm, applied once at load. Skill bodies run a few
 # thousand characters and the embedding model has its own window; a silent
@@ -154,6 +175,9 @@ _PRINTABLE_RE = re.compile(r"[^\x20-\x7E]")
 # citation by filename must resolve to the skill rather than be filed as a
 # hallucination-shaped unresolved name.
 _TRAILING_ISO_DATE_RE = re.compile(r"-\d{4}-\d{2}-\d{2}$")
+# The live store writes the suffix compact (`-20260725`); the dashed form is
+# kept beside it because both spellings exist across the store's history.
+_TRAILING_COMPACT_DATE_RE = re.compile(r"-\d{8}$")
 
 
 @dataclass(frozen=True)
@@ -207,6 +231,127 @@ def jaccard(left: frozenset[str], right: frozenset[str]) -> float:
         return 0.0
     union = len(left | right)
     return len(left & right) / union if union else 0.0
+
+
+def bm25_tokens(text: str) -> list[str]:
+    """Whitespace tokens of the normalized text — the BM25 arm's only tokenizer.
+
+    Deliberately the same ``_normalize`` the trigram arm uses, so the two
+    cheap arms differ in their *scoring*, not in what they read.
+    """
+    return _normalize(text).split()
+
+
+@dataclass(frozen=True)
+class Bm25Index:
+    """A prepared BM25 corpus: term frequencies, lengths and IDF per document.
+
+    Built once per corpus and reused across queries (``bm25_scores`` rebuilds
+    it per call for the one-shot case; the arm and the novelty dry-run both
+    build it once). ``names`` is the ranking key, matching every other arm.
+    """
+
+    names: tuple[str, ...]
+    term_freqs: tuple[dict[str, int], ...]
+    lengths: tuple[int, ...]
+    average_length: float
+    idf: dict[str, float]
+    k1: float
+    b: float
+
+
+def build_bm25_index(
+    names: Sequence[str], texts: Sequence[str], *, k1: float = BM25_K1, b: float = BM25_B
+) -> Bm25Index:
+    """Index ``texts`` (parallel to ``names``) for BM25 scoring.
+
+    The IDF is the non-negative Lucene form,
+    ``ln(1 + (N - df + 0.5) / (df + 0.5))``, not the classic Robertson one:
+    the classic form goes NEGATIVE for a term carried by more than half the
+    corpus, and against a ~57-document store of same-genre skill files that
+    is not an edge case — a document would be *penalised* for containing a
+    common query word, which reorders the ranking rather than flattening it.
+    The non-negative form keeps "a term in every document contributes almost
+    nothing" without ever pushing a match below a non-match.
+    """
+    term_freqs: list[dict[str, int]] = []
+    lengths: list[int] = []
+    document_freq: dict[str, int] = {}
+    for text in texts:
+        counts: dict[str, int] = {}
+        tokens = bm25_tokens(text)
+        for token in tokens:
+            counts[token] = counts.get(token, 0) + 1
+        term_freqs.append(counts)
+        lengths.append(len(tokens))
+        for token in counts:
+            document_freq[token] = document_freq.get(token, 0) + 1
+    total = len(texts)
+    idf = {
+        token: math.log(1.0 + (total - freq + 0.5) / (freq + 0.5))
+        for token, freq in document_freq.items()
+    }
+    # An all-empty corpus would divide by zero in the length normalizer; 1.0
+    # leaves every tf term at 0 anyway (no document has any token).
+    average_length = (sum(lengths) / total) if total and sum(lengths) else 1.0
+    return Bm25Index(
+        names=tuple(names),
+        term_freqs=tuple(term_freqs),
+        lengths=tuple(lengths),
+        average_length=average_length,
+        idf=idf,
+        k1=k1,
+        b=b,
+    )
+
+
+def bm25_scores_from_index(index: Bm25Index, query: str) -> dict[str, float]:
+    """Okapi BM25 score per document name for one query against a built index.
+
+    A query term absent from the corpus contributes nothing (no IDF entry),
+    and a query sharing no term with anything scores every document 0.0 —
+    which ``_no_spread`` then reads as "no ranking for this query" rather
+    than as an alphabetical guess, exactly as the trigram arm does.
+    """
+    query_terms = bm25_tokens(query)
+    scores: dict[str, float] = {}
+    for position, name in enumerate(index.names):
+        counts = index.term_freqs[position]
+        norm = index.k1 * (
+            1.0 - index.b + index.b * (index.lengths[position] / index.average_length)
+        )
+        total = 0.0
+        for term in query_terms:
+            frequency = counts.get(term)
+            if not frequency:
+                continue
+            weight = index.idf.get(term, 0.0)
+            total += weight * (frequency * (index.k1 + 1.0)) / (frequency + norm)
+        # Repeated names collapse the same way every other arm's score dict
+        # does (see load_store's duplicate_names counter).
+        scores[name] = total
+    return scores
+
+
+def bm25_scores(
+    docs: Sequence[str],
+    query: str,
+    *,
+    names: Sequence[str] | None = None,
+    k1: float = BM25_K1,
+    b: float = BM25_B,
+) -> dict[str, float]:
+    """One-shot BM25 over ``docs`` for ``query``, keyed by ``names``.
+
+    ``names`` defaults to the documents' positions as strings. Convenience
+    over :func:`build_bm25_index` + :func:`bm25_scores_from_index` for a
+    single query; scoring many queries against one corpus should build the
+    index once.
+    """
+    keys = tuple(names) if names is not None else tuple(str(i) for i in range(len(docs)))
+    if len(keys) != len(docs):
+        raise ValueError(f"names ({len(keys)}) and docs ({len(docs)}) differ in length")
+    return bm25_scores_from_index(build_bm25_index(keys, docs, k1=k1, b=b), query)
 
 
 def _rank(scores: dict[str, float]) -> tuple[str, ...]:
@@ -336,6 +481,52 @@ def load_store(
     # than made an abstain.
     duplicate_names = len(docs) - len({doc.name for doc in docs})
     return tuple(docs), unreadable, duplicate_names
+
+
+def store_name_index(docs: Sequence[StoreSkill]) -> dict[str, str]:
+    """Every spelling a reviewer may cite a store skill by -> its canonical name.
+
+    Three tiers, and all three are needed: the *selector* and the staged
+    ledger speak the frontmatter ``name:``, but the *reviewer* is handed the
+    store as a directory listing (``weekly-pipeline.sh`` grants ``--add-dir``)
+    and cites what it can see — the filename. On the live store those two
+    spellings routinely differ (``analogy-mapping-for-structural-clarity-20260801.md``
+    declares ``name: analogy-mapping-relationships``), so a name-only index
+    silently discarded the citation and filed it under
+    ``unresolved_reviewer_names`` instead: measured 2026-09-04, 54 of 93
+    unresolved tokens were store filename stems, and 162 rejections yielded
+    only 55 pairs.
+
+    Precedence is frontmatter name > filename stem > stem minus a trailing
+    adoption-date suffix, and a lower tier never overwrites a higher one: an
+    alias that collides with some *other* skill's real name would silently
+    relabel that skill's pairs. An alias two files claim is dropped for the
+    same reason — an ambiguous citation must stay unresolved rather than be
+    attributed to whichever file sorted first.
+
+    One skill cited by two of its spellings still yields one label
+    (``_extract_reject_labels`` dedupes on the canonical name), so the
+    ``store_files_sharing_a_name`` discipline is unchanged.
+    """
+    index = {doc.name.lower(): doc.name for doc in docs}
+    aliases: dict[str, str] = {}
+    for doc in docs:
+        stem = doc.filename[:-3] if doc.filename.endswith(".md") else doc.filename
+        forms = (
+            stem,
+            _TRAILING_COMPACT_DATE_RE.sub("", stem),
+            _TRAILING_ISO_DATE_RE.sub("", stem),
+        )
+        for form in forms:
+            key = form.strip().lower()
+            if not key or key in index:
+                continue
+            if key in aliases and aliases[key] != doc.name:
+                aliases[key] = ""  # ambiguous: two skills answer to it
+                continue
+            aliases[key] = doc.name
+    index.update({key: name for key, name in aliases.items() if name})
+    return index
 
 
 @dataclass(frozen=True)
@@ -597,7 +788,11 @@ def _extract_reject_labels(
     for token in _KEBAB_RE.findall(body):
         if token == candidate:
             continue
-        canonical = store_names.get(token) or store_names.get(_TRAILING_ISO_DATE_RE.sub("", token))
+        canonical = (
+            store_names.get(token)
+            or store_names.get(_TRAILING_ISO_DATE_RE.sub("", token))
+            or store_names.get(_TRAILING_COMPACT_DATE_RE.sub("", token))
+        )
         if canonical is not None:
             if canonical not in labels:
                 labels.append(canonical)
@@ -808,6 +1003,24 @@ def lexical_rankings(
     return rankings
 
 
+def bm25_rankings(
+    pairs: Sequence[LabelledPair], docs: Sequence[StoreSkill]
+) -> list[tuple[str, ...] | None]:
+    """Okapi BM25 rankings; None for a query that matches no corpus term.
+
+    Same abstain discipline as :func:`lexical_rankings` and for the same
+    reason: a query scoring every document identically says something about
+    that query, not about the corpus, so the pair leaves the denominator
+    rather than abstaining the whole arm.
+    """
+    index = build_bm25_index([doc.name for doc in docs], [doc.text for doc in docs])
+    rankings: list[tuple[str, ...] | None] = []
+    for pair in pairs:
+        scores = bm25_scores_from_index(index, pair.query)
+        rankings.append(None if _no_spread(scores) else _rank(scores))
+    return rankings
+
+
 def _degenerate_arrays(doc_array: np.ndarray, query_array: np.ndarray) -> bool:
     """Whether the embedding matrices are unusable as a similarity space.
 
@@ -974,6 +1187,102 @@ def _arm_block(
 # -------------------------------------------------------------------- reading
 
 
+@dataclass(frozen=True)
+class _BaseRankings:
+    """The three primary arms' rankings plus cosine's fault columns.
+
+    Split out of :func:`_compute_arm_readings` for the C901 budget when the
+    bm25 arm doubled its branch count (2026-09-04). ``None`` for an arm means
+    "not requested, or unusable" — the fusion arms read it as incomplete.
+    """
+
+    lexical: list[tuple[str, ...] | None] | None
+    bm25: list[tuple[str, ...] | None] | None
+    cosine: list[tuple[str, ...] | None] | None
+    cosine_code: str
+    cosine_detail: str | None
+    embedding_model: str
+
+
+def _compute_base_rankings(
+    pairs: Sequence[LabelledPair],
+    docs: Sequence[StoreSkill],
+    arms: Sequence[str],
+    reasons: list[str],
+) -> _BaseRankings:
+    """Run only the arms some requested reading needs, and name cosine's fault.
+
+    A fusion arm pulls its two inputs in even when neither was requested on
+    its own, which is why membership is tested per *input* rather than per
+    requested arm.
+    """
+    lexical = lexical_rankings(pairs, docs) if {"lexical", "union"} & set(arms) else None
+    bm25 = bm25_rankings(pairs, docs) if {"bm25", "union_bm25"} & set(arms) else None
+    cosine_ranks: list[tuple[str, ...] | None] | None = None
+    cosine_code = "EMBEDDING_UNAVAILABLE"
+    cosine_detail: str | None = None
+    embedding_model = "unknown"
+    if {"cosine", "union", "union_bm25"} & set(arms):
+        cosine_ranks, cosine_reason, embedding_model = cosine_rankings(pairs, docs)
+        if cosine_reason is not None:
+            cosine_code, _, cosine_detail = cosine_reason.partition(": ")
+            reasons.append(cosine_code)
+    return _BaseRankings(lexical, bm25, cosine_ranks, cosine_code, cosine_detail, embedding_model)
+
+
+def _fusion_arm_block(
+    label: str,
+    left: Sequence[tuple[str, ...] | None] | None,
+    right: Sequence[tuple[str, ...] | None] | None,
+    pairs: Sequence[LabelledPair],
+    ks: Sequence[int],
+    rrf_k: int,
+) -> dict[str, Any]:
+    """One RRF fusion's reading block, or ``UNION_ARM_INCOMPLETE``.
+
+    Both fusions go through here so they cannot drift apart: ``union`` keeps
+    its ADR-0097 meaning (lexical + cosine) and ``union_bm25`` swaps only the
+    lexical slot, at the same ``rrf_k``.
+    """
+    if left is None or right is None:
+        return {"available": False, "reason": "UNION_ARM_INCOMPLETE"}
+    return _arm_block(
+        pairs,
+        rrf_rankings(left, right, rrf_k),
+        ks,
+        f"reciprocal-rank fusion of {label} (rrf_k={rrf_k})",
+    )
+
+
+def _cosine_arm_block(
+    base: _BaseRankings, pairs: Sequence[LabelledPair], ks: Sequence[int]
+) -> dict[str, Any]:
+    """The cosine arm's reading block, or its named fault.
+
+    The model identity is recorded on BOTH paths: the run asked some model
+    and the reader must know which, whether or not it answered.
+    """
+    if base.cosine is None:
+        return {
+            "available": False,
+            "reason": base.cosine_code,
+            # The detail separates "the package is not installed" from
+            # "a native extension is broken" — different repairs.
+            "detail": base.cosine_detail or None,
+            "embedding_model": base.embedding_model,
+        }
+    return _arm_block(
+        pairs,
+        base.cosine,
+        ks,
+        "embedding cosine (core/embeddings.py)",
+        # The model that actually served this run, not the pinned default:
+        # OLLAMA_EMBEDDING_MODEL overrides it, and a same-dimension swap
+        # passes every shape check above.
+        embedding_model=base.embedding_model,
+    )
+
+
 def _compute_arm_readings(
     pairs: Sequence[LabelledPair],
     docs: Sequence[StoreSkill],
@@ -991,56 +1300,29 @@ def _compute_arm_readings(
     ``ScanError("NO_ARM_AVAILABLE", ...)`` when every requested arm came back
     unavailable.
     """
+    base = _compute_base_rankings(pairs, docs, arms, reasons)
     arm_readings: dict[str, Any] = {}
-    lexical: list[tuple[str, ...] | None] | None = None
-    cosine_ranks: list[tuple[str, ...] | None] | None = None
-    cosine_code = "EMBEDDING_UNAVAILABLE"
-    cosine_detail: str | None = None
-    embedding_model = "unknown"
-
-    if "lexical" in arms or "union" in arms:
-        lexical = lexical_rankings(pairs, docs)
-    if "cosine" in arms or "union" in arms:
-        cosine_ranks, cosine_reason, embedding_model = cosine_rankings(pairs, docs)
-        if cosine_reason is not None:
-            cosine_code, _, cosine_detail = cosine_reason.partition(": ")
-            reasons.append(cosine_code)
-
-    if "lexical" in arms and lexical is not None:
+    if "lexical" in arms and base.lexical is not None:
         arm_readings["lexical"] = _arm_block(
-            pairs, lexical, ks, "character-trigram Jaccard over the whole skill file"
+            pairs, base.lexical, ks, "character-trigram Jaccard over the whole skill file"
+        )
+    if "bm25" in arms and base.bm25 is not None:
+        arm_readings["bm25"] = _arm_block(
+            pairs,
+            base.bm25,
+            ks,
+            f"Okapi BM25 (k1={BM25_K1}, b={BM25_B}) over whitespace tokens of the skill file",
         )
     if "cosine" in arms:
-        if cosine_ranks is None:
-            arm_readings["cosine"] = {
-                "available": False,
-                "reason": cosine_code,
-                # The detail separates "the package is not installed" from
-                # "a native extension is broken" — different repairs.
-                "detail": cosine_detail or None,
-                "embedding_model": embedding_model,
-            }
-        else:
-            arm_readings["cosine"] = _arm_block(
-                pairs,
-                cosine_ranks,
-                ks,
-                "embedding cosine (core/embeddings.py)",
-                # The model that actually served this run, not the pinned
-                # default: OLLAMA_EMBEDDING_MODEL overrides it, and a
-                # same-dimension swap passes every shape check above.
-                embedding_model=embedding_model,
-            )
+        arm_readings["cosine"] = _cosine_arm_block(base, pairs, ks)
     if "union" in arms:
-        if lexical is None or cosine_ranks is None:
-            arm_readings["union"] = {"available": False, "reason": "UNION_ARM_INCOMPLETE"}
-        else:
-            arm_readings["union"] = _arm_block(
-                pairs,
-                rrf_rankings(lexical, cosine_ranks, rrf_k),
-                ks,
-                f"reciprocal-rank fusion of lexical and cosine (rrf_k={rrf_k})",
-            )
+        arm_readings["union"] = _fusion_arm_block(
+            "lexical and cosine", base.lexical, base.cosine, pairs, ks, rrf_k
+        )
+    if "union_bm25" in arms:
+        arm_readings["union_bm25"] = _fusion_arm_block(
+            "bm25 and cosine", base.bm25, base.cosine, pairs, ks, rrf_k
+        )
 
     _raise_unless_any_arm_available(arm_readings, arms)
     if any(arm.get("queries_with_no_score_spread") for arm in arm_readings.values()):
@@ -1287,7 +1569,7 @@ def main(argv: list[str] | None = None) -> int:
 
         pairs, label_stats = build_pairs(
             reviews.sections,
-            store_names={doc.name.lower(): doc.name for doc in docs},
+            store_names=store_name_index(docs),
             ledger=ledger,
             review_days=reviews.review_days,
             name_only_queries=args.name_only_queries,

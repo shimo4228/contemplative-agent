@@ -147,7 +147,7 @@ def _pairs(review: Path, skills: Path, ledger: Path, *, policy: str = "exclude")
     sections, _ = rrm.parse_review(review.name, review.read_text(encoding="utf-8"))
     return docs, rrm.build_pairs(
         sections,
-        store_names={doc.name.lower(): doc.name for doc in docs},
+        store_names=rrm.store_name_index(docs),
         ledger=rows,
         review_days={review.name: rrm._review_date(review.name)},
         name_only_queries=policy,
@@ -377,7 +377,7 @@ class TestGroundTruth:
             review_days[path.name] = rrm._review_date(path.name)
         _, stats = rrm.build_pairs(
             sections,
-            store_names={doc.name.lower(): doc.name for doc in docs},
+            store_names=rrm.store_name_index(docs),
             ledger=rows,
             review_days=review_days,
             name_only_queries="exclude",
@@ -1005,6 +1005,212 @@ class TestLexicalSpreadGuard:
         rankings = rrm.lexical_rankings(pairs, docs)
         assert stats.kept_pairs == 1
         assert all(r is not None for r in rankings)
+
+
+class TestBm25Arm:
+    """The stdlib arm added 2026-09-04, beside the trigram one."""
+
+    def test_the_doc_sharing_rare_terms_ranks_first(self):
+        """The property BM25 has and trigram Jaccard does not: a match on a
+        term few documents carry outweighs a match on a common one."""
+        docs = [
+            "the agent should pause and reflect before answering",
+            "the agent should map structural constraints before proposing",
+            "the agent should pause and reflect before answering carefully",
+        ]
+        scores = rrm.bm25_scores(docs, "map structural constraints", names=["a", "b", "c"])
+        assert rrm._rank(scores)[0] == "b"
+        assert scores["b"] > scores["a"]
+
+    def test_idf_downweights_a_term_every_document_carries(self):
+        """A term with df == N contributes almost nothing, and — the reason the
+        non-negative IDF form is used — never a NEGATIVE contribution that
+        would push a matching document below a non-matching one."""
+        docs = ["agent alpha", "agent beta", "agent gamma"]
+        everywhere = rrm.bm25_scores(docs, "agent", names=["a", "b", "c"])
+        rare = rrm.bm25_scores(docs, "beta", names=["a", "b", "c"])
+        assert min(everywhere.values()) >= 0.0
+        # Same single-term query shape; only the term's document frequency
+        # differs, and the rare one carries far more weight.
+        assert rare["b"] > max(everywhere.values()) * 3
+        # No spread from the ubiquitous term: the arm must not rank on it.
+        assert rrm._no_spread(everywhere)
+
+    def test_a_query_matching_nothing_is_not_scored_alphabetically(self, corpus):
+        skills, ledger, review = corpus
+        docs, (pairs, _stats) = _pairs(review, skills, ledger)
+        empty = rrm.LabelledPair(
+            review=review.name,
+            candidate="zzz",
+            query="一二三",  # normalizes to nothing
+            query_kind="name-only",
+            labels=("internal-process-audit",),
+        )
+        rankings = rrm.bm25_rankings([*pairs, empty], docs)
+        assert rankings[-1] is None
+        assert all(r is not None for r in rankings[:-1])
+
+    def test_bm25_and_union_bm25_read_from_the_corpus_fixture(self, corpus, monkeypatch):
+        """``union_bm25`` fuses bm25 with cosine at the same ``--rrf-k``, and
+        ``union`` keeps its lexical+cosine meaning beside it."""
+        import contemplative_agent.core.embeddings as embeddings
+
+        skills, ledger, review = corpus
+        docs, (pairs, stats) = _pairs(review, skills, ledger)
+        axes = {doc.name: index for index, doc in enumerate(docs)}
+
+        def _fake(texts: list[str]):
+            vectors = []
+            for text in texts:
+                vector = [0.0] * len(docs)
+                for name, index in axes.items():
+                    if name in text:
+                        vector[index] = 1.0
+                if not any(vector):
+                    for pair in pairs:
+                        if text.startswith(pair.candidate):
+                            vector[axes[pair.labels[0]]] = 1.0
+                vectors.append(vector)
+            return vectors
+
+        monkeypatch.setattr(embeddings, "embed_texts", _fake)
+        reading = rrm.build_reading(
+            pairs=pairs,
+            docs=docs,
+            label_stats=stats,
+            reviews=[review.name],
+            arms=("bm25", "cosine", "union", "union_bm25"),
+            ks=(1, 3),
+            rrf_k=10,
+            min_pairs=2,
+            name_only_queries="exclude",
+            staging_lag_days=rrm.DEFAULT_STAGING_LAG_DAYS,
+            read_faults={},
+            partial_reasons=(),
+        )
+        assert reading["arms"]["bm25"]["recall"]["1"]["rate"] == pytest.approx(1.0)
+        assert reading["arms"]["union_bm25"]["available"] is True
+        assert reading["arms"]["union_bm25"]["recall"]["1"]["rate"] == pytest.approx(1.0)
+        assert "rrf_k=10" in reading["arms"]["union_bm25"]["metric"]
+        assert "bm25 and cosine" in reading["arms"]["union_bm25"]["metric"]
+        assert "lexical and cosine" in reading["arms"]["union"]["metric"]
+
+    def test_union_bm25_is_incomplete_without_a_backend(self, corpus):
+        skills, ledger, review = corpus
+        docs, (pairs, stats) = _pairs(review, skills, ledger)
+        reading = rrm.build_reading(
+            pairs=pairs,
+            docs=docs,
+            label_stats=stats,
+            reviews=[review.name],
+            arms=("bm25", "union_bm25"),
+            ks=(1,),
+            rrf_k=10,
+            min_pairs=2,
+            name_only_queries="exclude",
+            staging_lag_days=rrm.DEFAULT_STAGING_LAG_DAYS,
+            read_faults={},
+            partial_reasons=(),
+        )
+        assert reading["arms"]["bm25"]["available"] is True
+        assert reading["arms"]["union_bm25"]["reason"] == "UNION_ARM_INCOMPLETE"
+
+
+class TestStoreNameAliases:
+    """The reviewer sees filenames; the ledger and selector speak frontmatter
+    names. Measured 2026-09-04, 54 of 93 unresolved reviewer tokens were store
+    filename stems, and every one of their rejections lost its pair."""
+
+    def test_a_reject_citing_a_filename_stem_becomes_a_pair(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (skills / "analogy-mapping-for-structural-clarity-20260801.md").write_text(
+            "---\nname: analogy-mapping-relationships\n"
+            "description: map one domain onto another\n---\n\nbody\n",
+            encoding="utf-8",
+        )
+        (skills / "some-other-skill-20260802.md").write_text(
+            "---\nname: some-other-skill\n---\n\nbody\n", encoding="utf-8"
+        )
+        ledger = _write_ledger(
+            tmp_path,
+            [
+                {
+                    "ts": "2026-08-16T08:00:00+00:00",
+                    "name": "limiting-factor-search",
+                    "description": "map one domain onto another",
+                    "filename": "b.md",
+                }
+            ],
+        )
+        for citation in (
+            "analogy-mapping-for-structural-clarity-20260801",
+            "analogy-mapping-for-structural-clarity",
+        ):
+            review = _write_review(
+                tmp_path,
+                f"## 1. limiting-factor-search \u2014 RECOMMEND: reject\nCovered by `{citation}`.\n",
+            )
+            _docs, (pairs, stats) = _pairs(review, skills, ledger)
+            assert pairs[0].labels == ("analogy-mapping-relationships",), citation
+            assert stats.unresolved_names == ()
+
+    def test_two_spellings_of_one_skill_yield_one_label(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (skills / "analogy-mapping-for-structural-clarity-20260801.md").write_text(
+            "---\nname: analogy-mapping-relationships\n---\n\nbody\n", encoding="utf-8"
+        )
+        ledger = _write_ledger(
+            tmp_path,
+            [
+                {
+                    "ts": "2026-08-16T08:00:00+00:00",
+                    "name": "limiting-factor-search",
+                    "description": "map one domain onto another",
+                    "filename": "b.md",
+                }
+            ],
+        )
+        review = _write_review(
+            tmp_path,
+            "## 1. limiting-factor-search \u2014 RECOMMEND: reject\n"
+            "Covered by `analogy-mapping-relationships`, i.e. "
+            "`analogy-mapping-for-structural-clarity-20260801`.\n",
+        )
+        _docs, (pairs, stats) = _pairs(review, skills, ledger)
+        assert pairs[0].labels == ("analogy-mapping-relationships",)
+        assert stats.multi_label == 0
+
+    def test_a_stem_alias_never_shadows_another_skills_real_name(self, tmp_path):
+        """A lower tier must not overwrite a higher one: the alias would
+        silently relabel the skill that really answers to that name."""
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (skills / "internal-process-audit.md").write_text(
+            "---\nname: something-else-entirely\n---\n\nbody\n", encoding="utf-8"
+        )
+        (skills / "other.md").write_text(
+            "---\nname: internal-process-audit\n---\n\nbody\n", encoding="utf-8"
+        )
+        docs, _unreadable, _dupes = rrm.load_store(skills)
+        index = rrm.store_name_index(docs)
+        assert index["internal-process-audit"] == "internal-process-audit"
+        assert index["something-else-entirely"] == "something-else-entirely"
+        assert index["other"] == "internal-process-audit"
+
+    def test_an_alias_two_files_claim_stays_unresolved(self, tmp_path):
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        (skills / "shared-stem-20260801.md").write_text(
+            "---\nname: first-skill\n---\n\nbody\n", encoding="utf-8"
+        )
+        (skills / "shared-stem-20260802.md").write_text(
+            "---\nname: second-skill\n---\n\nbody\n", encoding="utf-8"
+        )
+        index = rrm.store_name_index(rrm.load_store(skills)[0])
+        assert "shared-stem" not in index
+        assert index["shared-stem-20260801"] == "first-skill"
 
 
 class TestRrfSensitivity:
