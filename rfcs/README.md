@@ -34,3 +34,6 @@ frontmatter が唯一の正本**。
 | [0020](0020-eval-baseline-staleness-standing.md) | eval baseline の STALE 警告が常設化している |
 | [0021](0021-skill-stocktake-family-saturation.md) | skill-stocktake の再設計 — family 飽和の統合と weekly 定期化、天井は selector 幻覚率 |
 | [0022](0022-wikiskill-fidelity-check.md) | WikiSkill 論文との整合性チェック（fresh context）+ replay paper アームの是正（≤ 8 件・15k 字 cap・Proposer turn 上限） |
+| [0023](0023-novelty-gate-retrieval-and-rare-lane.md) | insight の novelty gate を候補検索（BM25 + nomic）に置き換え、希少レーンを持つ |
+| [0024](0024-skill-extraction-free-body-split-calls.md) | skill 抽出の型を解く — 本文自由記述、frontmatter は別コール、長さは保存時拒否 |
+| [0025](0025-retire-wiki-mechanism.md) | wiki 機構の退役（RFC-0017 D4〜D10 / RFC-0022 の閉鎖。gemma で平坦化、opus では機能） |

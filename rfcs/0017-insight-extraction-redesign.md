@@ -1,6 +1,6 @@
 ---
-state: in_progress 2026-09-02
-state_since: 2026-09-02
+state: obsoleted 2026-09-04
+state_since: 2026-09-04
 review-when: ADR-0080 追補（代謝の質）が supersede される、または replay（D9）で gemma と Claude 級の両アームが不合格（容量不足 — 16GB では形が成立しない）、または 2026-09-02 の設計節の前提（WikiSkill の形 = 複利する wiki + atomic 提案）が外部の反証で崩れる
 ---
 
@@ -684,6 +684,12 @@ replay home は scratchpad、本番 home には書いていない。Proposer は
 - M-c の平坦化は prompt の問題（値層でなく apparatus）で、distill の register 指示を Maintainer にも入れる案は B1 と別に立てる
 
 ## Status
+
+**obsoleted（2026-09-04）。** WikiSkill 形（D4〜D10）は gemma smoke の平坦化 + Proposer dry-run + opus アームの対照で
+閉じた — 平坦化は形でなくモデルで、本番は gemma 固定（ADR-0069）のため成立しない。退役は
+[RFC-0025](0025-retire-wiki-mechanism.md)。本 RFC の動機（insight 抽出の再設計、代謝の質）は
+[RFC-0023](0023-novelty-gate-retrieval-and-rare-lane.md)（候補検索 gate + 希少レーン）と
+[RFC-0024](0024-skill-extraction-free-body-split-calls.md)（抽出の型）が引き継ぐ。以下は 2026-09-02 時点の記録。
 
 in_progress（2026-09-02、RFC-0022 の Reading を受けて D3 / D4 / D7 / D9 / D10 を「形を採りエンジンは
 採らない」に改訂。S1〜S4 が main に merge 済み de0acef — S1 b522822 / S2 7ea1ed9 / S3 5b5ddd4 / S4 14fe9d0 + ultrareview nit 3 件の修正 5578e85。次は replay 本 run の GO → 読み → S5）。起点は 2026-08-26 のオーナー指示（「knowledge からスキル抽出する機構を治すのが先決」）で

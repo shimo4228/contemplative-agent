@@ -73,6 +73,12 @@ draft（2026-09-02）。RFC-0017 の設計セッションで「抽出段と店�
 
 ## Next action
 
-- 再開条件: RFC-0017 の Proposer が shadow に入り（D10）、wiki の肥大読み値が 4 週分溜まること
+- **2026-09-04 追記**: review-when の「RFC-0017 が withdrawn / rejected」は obsoleted で発火した（並列実験機構は
+  [RFC-0025](0025-retire-wiki-mechanism.md) で退役）。前提を差し替える: 再開条件は
+  [RFC-0023](0023-novelty-gate-retrieval-and-rare-lane.md)（候補検索 gate）の決着。family の判定者候補に
+  **供給列**を足す — RFC-0023 の同じ検索で「各 skill に今も行が届いているか、最後はいつか」を code で数える。
+  需要（選択ログ）も供給も無い skill が退役候補、供給が有るのに需要が無い skill は description が選択を
+  引けていない（description 監査の対象をそこに絞る）。D8 の「wiki の pruning」は消える
+- 再開条件（旧）: RFC-0017 の Proposer が shadow に入り（D10）、wiki の肥大読み値が 4 週分溜まること
 - 照合先:   weekly findings の would-be 提案 4 週分 + `logs/skill-selection-*.jsonl` の幻覚率
 - 成立時:   設計セッション（family の判定者と畳む単位を決める）→ accepted

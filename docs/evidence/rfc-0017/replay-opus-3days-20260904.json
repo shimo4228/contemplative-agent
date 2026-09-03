@@ -1,0 +1,109 @@
+{
+  "arm": "opus",
+  "model": "claude-opus-5",
+  "context_window": 32768,
+  "from": "2026-08-25",
+  "to": "2026-08-27",
+  "days": 3,
+  "inputs_copied": {
+    "episode_days": 3,
+    "missing_days": 0,
+    "ledgers": 2,
+    "selection_logs": 56
+  },
+  "elapsed_seconds": 1485.9,
+  "usage": {
+    "calls": 20,
+    "input_tokens": 40,
+    "output_tokens": 119656,
+    "cache_read_tokens": 60211,
+    "cache_creation_tokens": 538525,
+    "cost_usd": 8.406955,
+    "failures": 0
+  },
+  "maintainer": {
+    "runs": 3,
+    "llm_calls": 17,
+    "outcomes": {
+      "written": 3
+    },
+    "ops_total": 28,
+    "ops_applied": 19,
+    "ops_refused": 9,
+    "verification_pass_rate": 0.6786,
+    "op_classes": {
+      "append": 4,
+      "create": 9,
+      "insert_after": 1,
+      "replace": 5
+    },
+    "patch_ratio": 0.5263,
+    "refusal_reasons": {
+      "append:PAGE_FULL": 1,
+      "create:PAGE_FULL": 3,
+      "replace:ANCHOR_NOT_FOUND": 1,
+      "replace:PAGE_FULL": 4
+    }
+  },
+  "proposer": {
+    "runs": 1,
+    "llm_calls": 3,
+    "outcomes": {
+      "proposed": 1
+    },
+    "kinds": {
+      "patch": 1
+    },
+    "targets": [
+      "articulate-epistemic-boundaries"
+    ]
+  },
+  "wiki_daily": [
+    {
+      "date": "2026-08-25",
+      "outcome": "written",
+      "batches": 5,
+      "episodes_read": 71,
+      "pages": 5,
+      "index_tokens": 182,
+      "page_chars_p90": 3401,
+      "episode_budget": 25121
+    },
+    {
+      "date": "2026-08-26",
+      "outcome": "written",
+      "batches": 6,
+      "episodes_read": 71,
+      "pages": 7,
+      "index_tokens": 246,
+      "page_chars_p90": 3531,
+      "episode_budget": 21596
+    },
+    {
+      "date": "2026-08-27",
+      "outcome": "written",
+      "batches": 6,
+      "episodes_read": 68,
+      "pages": 9,
+      "index_tokens": 323,
+      "page_chars_p90": 3522,
+      "episode_budget": 20764
+    }
+  ],
+  "wiki_final": {
+    "pages": 9,
+    "index_tokens": 323,
+    "page_chars_p90": 3522
+  },
+  "deviations": [
+    "skill store is the store as of the replay date's run, not as it stood on the replayed day (harness-specific: the store's own history is not reconstructed)",
+    "the evolution log's `final decision` and `superseded by` columns come from the whole ledger; only the staging date is windowed by `until` (harness-specific)",
+    "the Claude arm has no constrained decoding — the per-turn JSON Schema is an instruction in the prompt, so a schema violation costs the turn as fail_closed_parse instead of being impossible (harness-specific)",
+    "the Claude arm has no output-token cap (`num_predict` has no CLI counterpart), so it cannot produce fail_closed_truncated (harness-specific)",
+    "the wiki index sits above the full page bodies in every Maintainer prompt; there is one shape, and the index is its table of contents rather than a retrieval step (D7 (3))",
+    "no fuel: the paper's loop is driven by a verification score against ground truth, and CA has neither the score nor its inputs — recurrence across days and the human gate stand in for it (D7 (0))",
+    "the Maintainer reads the whole day in batches, not the paper's stratified sample of at most 8 traces (D7 (5))",
+    "the Proposer cannot open a raw episode; the paper's Proposer must read at least four traces (D7 (7))",
+    "Maintainer daily, Proposer run by hand — not the paper's 1:1 pairing inside one iteration (D7 (4))"
+  ]
+}

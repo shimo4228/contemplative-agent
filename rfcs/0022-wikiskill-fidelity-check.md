@@ -1,6 +1,6 @@
 ---
-state: in_progress 2026-09-02
-state_since: 2026-09-02
+state: obsoleted 2026-09-04
+state_since: 2026-09-04
 review-when: RFC-0017 の replay（D9）を回し終えて読みが凍結された（本 RFC の是正が反映済みか、逸脱として記録済みかのどちらかになる）、または RFC-0017 が withdrawn / rejected
 ---
 
@@ -172,6 +172,11 @@ D.2 p.22、E p.24〜）。
 - 費用の再見積（RFC-0022 :71）は Maintainer 側だけの話で、Proposer を ReAct 20 turn にすると 7 提案 × 20 turn = 140 コール分が paper アームに乗る
 
 ## Status
+
+**obsoleted（2026-09-04）。** Reading 節と packet A / A+1（main `c367962`）は完了したが、launchd 配線は行わない —
+WikiSkill 形は gemma で平坦化し（smoke + Proposer dry-run）、opus アームでは機能した（本 RFC の replay 是正が
+そのまま使われた）ことから「形は正しいが本番モデルでは成立しない」と読み、機構ごと退役する
+（[RFC-0025](0025-retire-wiki-mechanism.md)、著者判断 2026-09-04）。以下は 2026-09-02 時点の記録。
 
 draft（2026-09-02）。著者指示「論文との整合性チェックを fresh context の別セッションでやる。是正は新しい RFC に」。
 同日、fresh context の Fable セッションが PDF 全頁を読んで Reading 節を凍結（未記録の逸脱 12 件、うち読み違い 1 件を追加検出 = U10）。
