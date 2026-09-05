@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-04
+state: in_progress 2026-09-05
 state_since: 2026-09-04
 review-when: 本番の生成モデルが ADR-0069（gemma4:e4b）を supersede して大型化する — opus アームの読み（形は正しい）を prior に wiki を再開できる。または episode 本文を cloud へ出す判断が別途下る（sibling `-cloud` と同じ研究用途扱い）
 ---
@@ -87,6 +87,19 @@ RFC-0017 / RFC-0022 / ADR-0069 / ADR-0070（MLX の sibling 切り出しと同�
 ## Future possibilities
 
 - 本番モデルが大型化したら、opus アームの 9 ページを prior に wiki を再開する（review-when）
+
+## 2026-09-05 dispatch（S8）
+
+`accepted` → `in_progress`。[RFC-0023](0023-novelty-gate-retrieval-and-rare-lane.md) が同日
+`accepted` になり、Next action の「RFC-0023 の決着後」という順序条件が成立したため dispatch。
+worktree `task/retire-wiki`（main `29358cd` 起点）で build セッション `ca/s8-retire-wiki` を起動。
+
+packet の要点: 退役対象の正本は本 RFC の Guide-level explanation（packet は要約であって正本ではない）。
+Phase 0 で**未配線であることを再照合**させ、1 つでも配線されていたら止めて報告させる。
+`docs/evidence/rfc-0017/` の gemma / opus の読みは**削除対象外**（本番モデルが変わる日の再開材料）。
+`testing/backend_contract.py` と `LLMBackend` Protocol は残す（ADR-0088 の正本、sibling が使う）。
+`claude_cli.py` の削除で cloud 到達路が消えることを検査で固定させる（security by absence の回復）。
+退役の ADR 1 本を同 PR で書かせ、`adr-reviewer` に通す。
 
 ## Status
 
