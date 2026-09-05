@@ -1,5 +1,5 @@
 ---
-state: blocked
+state: done 2026-09-05
 state_since: 2026-08-22
 ---
 
@@ -55,6 +55,25 @@ skill 選択計器の定期読み — 次の読み窓 2026-09-05 まで selector
 ## 2026-08-29 triage 照合（無人 cycle）
 
 未成立 → `blocked` 維持。日付 2026-08-29 < 読み窓 2026-09-05。
+
+## 2026-09-02 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。日付 2026-09-02 < 読み窓 2026-09-05（残り 3 日）。
+
+## 2026-09-05 triage 照合（無人 cycle）
+
+**成立 → `blocked` → `accepted`。** 読み窓 2026-09-05 に到達（今日）。`logs/skill-selection-*.jsonl` は 58 ファイル・全 11,664 行、うち窓 08-23〜09-05 に **1,030 行**が蓄積（第 3 読みの judged 1,143 と同程度）。読む対象は読みメモ §7 の (a)(b)(c)。
+
+## 2026-09-05 dispatch（S5）
+
+`accepted` → `in_progress`。worktree `task/skillsel-read-4` で measurement セッション `ca/s5-skillsel-read-4` を起動（RFC-0015 と同一パケット）。
+packet は read-only 指定 — 書いてよいのは読みメモ 1 本と分析スクリプトのみで、selector / 購読集合 / production コードには触れない。判定はしない（判断役とオーナーがする）。
+
+## 2026-09-05 done（merge 716226a）
+
+第 4 読み（窓 08-23〜09-05、judged 1,030、catalog 57 固定の単一レジーム窓）を取得。読みは `docs/evidence/rfc-0014/skillsel-read-4-20260905.md`、手順は `scripts/skillsel_reading.py` に凍結（過去 3 読みは使い捨ての scratchpad だったので、次窓は再実行で足りる — ADR-0075）。上位 3 平均シェアは 58.43% → 53.11%、頭の高さ 68.6 → 68.4% で不変だが**主が入れ替わった**（改名も description 変更も無い窓で）。0 選択かつ全露出の skill は 6 → 10 件。
+
+検収は判断役（triage-ca）が独立に実施 — worktree で `verify.sh` 再実行、commit body の chain 遵守と逸脱の名指しを確認。merge 後の main でも exit 0。読みは取得済みで、**判定（selector の変更・購読集合の見直し）は行っていない** — それは別の判断。
 
 ## Status
 

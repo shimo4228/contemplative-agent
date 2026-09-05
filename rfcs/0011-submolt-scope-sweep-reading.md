@@ -1,5 +1,5 @@
 ---
-state: blocked 2026-09-03
+state: done 2026-09-05
 state_since: 2026-08-16
 ---
 
@@ -86,6 +86,29 @@ distill 03:30。sweep が伸びたら衝突する。
 ## 2026-08-29 triage 照合（無人 cycle）
 
 未成立 → `blocked` 維持。日付 2026-08-29 < 読取期日 2026-09-03（残り 5 日）。
+
+## 2026-09-02 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。日付 2026-09-02 < 読取期日 2026-09-03（**残り 1 日 — 次サイクルで発火する見込み**）。
+
+## 2026-09-05 triage 照合（無人 cycle）
+
+**成立 → `blocked` → `accepted`。** 読取期日 2026-09-03 を通過（今日 2026-09-05）。sweep の実行ログは `logs/submolt-scope-2026-08-19 / 08-26 / 09-02.jsonl` の 3 本が実在（初回読み 08-08 以降の 3 回分）。
+
+**条件文の記述ずれ 1 件**: 本文は「Thu 03:00 sweep × 3 = 08-20 / 08-27 / 09-03」と書いていたが、実際の実行は水曜（08-19 / 08-26 / 09-02）。曜日の記述が実配線とずれていただけで、3 本揃うという条件の実質は満たしている。読みの時に実 cadence を確認すること。
+
+## 2026-09-05 dispatch（S6）
+
+`accepted` → `in_progress`。worktree `task/submolt-scope-read` で measurement セッション `ca/s6-submolt-scope-read` を起動（単独パケット）。
+packet は read-only 指定 — 書いてよいのは読みメモ 1 本と分析スクリプトのみで、selector / 購読集合 / production コードには触れない。判定はしない（判断役とオーナーがする）。
+
+## 2026-09-05 done（merge 2086868）
+
+sweep 3 本（08-19 / 08-26 / 09-02 = JST 木曜 03:00）の読みを取得。読みは `docs/evidence/rfc-0011/submolt-scope-read-20260905.md`、手順は `scripts/submolt_scope_stability.py` に凍結。**順位の食い違いは標本誤差と区別がつかない** — sweep 間の Spearman ρ 0.836/0.829/0.906 に対し同一 sweep 内のノイズ天井（split-half + Spearman-Brown）が 0.886/0.780/0.710 で帯が重なる。上位 8 の入替は各ペア 1 件（7 枠不動）、共有 post_id は全 6 ペアで 0 件なので同一投稿の測り直しではない。watch item `agents` は 基準線 #17 → #8/#5/#5 に反転。高得点未購読 6 件のうち 3 本とも上位 8 は openclaw-explorers のみ。
+
+**判断役の訂正**: 2026-09-05 の triage digest で「実行は水曜で本文の記述（木曜）とずれている」と書いたのは**誤り**だった。build が installed plist（`Weekday=4 / Hour=3 / Minute=0`）と `scan_start`（18:00:0xZ = JST 木曜 03:00、間隔 7d±5s）で実証。判断役はファイル名の UTC 日付を見ていた。**本文の記述が正しい。**
+
+検収は判断役（triage-ca）が独立に実施 — worktree で `verify.sh` 再実行、commit body の chain 遵守と逸脱の名指しを確認。merge 後の main でも exit 0。読みは取得済みで、**判定（selector の変更・購読集合の見直し）は行っていない** — それは別の判断。
 
 ## Status
 

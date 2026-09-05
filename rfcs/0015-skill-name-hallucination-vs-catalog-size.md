@@ -1,5 +1,5 @@
 ---
-state: blocked
+state: done 2026-09-05
 state_since: 2026-08-22
 ---
 
@@ -49,6 +49,25 @@ state_since: 2026-08-22
 ## 2026-08-29 triage 照合（無人 cycle）
 
 未成立 → `blocked` 維持。日付 2026-08-29 < 読み窓 2026-09-05。
+
+## 2026-09-02 triage 照合（無人 cycle）
+
+未成立 → `blocked` 維持。日付 2026-09-02 < 読み窓 2026-09-05（残り 3 日）。
+
+## 2026-09-05 triage 照合（無人 cycle）
+
+**成立 → `blocked` → `accepted`。** 読み窓 2026-09-05 に到達（今日）。同じ窓に 1,030 行（[RFC-0014](0014-skill-selection-instrument-reading.md) と同一のログ源・同一窓なので 読みは 1 パケットにまとめる）。読む対象: catalog 57 での率、トークン仮説の再現可否、`structural-constraint-mapping-scm` の変異が定常か。
+
+## 2026-09-05 dispatch（S5）
+
+`accepted` → `in_progress`。worktree `task/skillsel-read-4` で measurement セッション `ca/s5-skillsel-read-4` を起動（RFC-0014 と同一パケット（ログ源・窓が同一））。
+packet は read-only 指定 — 書いてよいのは読みメモ 1 本と分析スクリプトのみで、selector / 購読集合 / production コードには触れない。判定はしない（判断役とオーナーがする）。
+
+## 2026-09-05 done（merge 716226a）
+
+第 4 読み（RFC-0014 と同一パケット・同一ログ源）。幻覚率 **19.17% → 25.44%** [22.9..28.2]、catalog 57 レジーム全体で 24.95%。**機構の向きが変わった** — 前窓は増分の 91% が語形変化だったが、今窓は語形変化が延べ横ばい（218→223）で増分の 83% が意味的取り違え（語形変化 79.4% / 意味的取り違え 18.5% / 値層混入 2.1%）。伝播 0（未知名 52/52 が全履歴の catalog_names に一度も無い）。トークン仮説は 50→57 の対で分離できず（n=23 側の CI 幅 36pt に 率差 9.8pt が丸ごと入る）— 第 3 読み §7 の「分離は再現しない見込み」が当たった。
+
+検収は判断役（triage-ca）が独立に実施 — worktree で `verify.sh` 再実行、commit body の chain 遵守と逸脱の名指しを確認。merge 後の main でも exit 0。読みは取得済みで、**判定（selector の変更・購読集合の見直し）は行っていない** — それは別の判断。
 
 ## Status
 

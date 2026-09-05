@@ -1,5 +1,5 @@
 ---
-state: in_progress
+state: resolved
 state_since: 2026-08-31
 review-when: comment_golden の baseline が再承認された（この RFC の前提が消える）、または PromptTemplates 登録が 1 プロンプト 1 eval に分割された（scope 問題が構造的に解消する）
 ---
@@ -174,14 +174,45 @@ Unresolved questions の 1 本目（受け入れ幅を先に宣言しないと�
 2. 再承認の前に受け入れ幅を先に宣言する（例: ケース単位の verdict が N 件以上悪化したら承認しない）
 3. B（hash scope の縮小）へ回す — ただし C の理由（eval は 1 本、対応表は早すぎる抽象化）は今も有効
 
+## Resolution (2026-08-31)
+
+著者が上の読みを見て承認した。`evals/results/20260831T133224Z/run.json` を
+`evals/baselines/comment_golden-2026-08-31.json` として追加（既存の 08-06 / 08-08 / 08-16 は
+そのまま残す — `check_staleness.py` はファイル名順の最新だけを現行基準として見る）。
+`uv run python evals/check_staleness.py` が無出力・exit 0 になり、2 週間立ちっぱなしだった
+4 行の警告は消えた。
+
+選択肢としては **A（scope はそのままで再実行・再承認）** を採った。B（hash scope の縮小）は
+採らない — eval が `comment_golden` 1 本しかない現在、「どのテンプレートがどの eval の入力か」の
+対応表は早すぎる抽象化で、表が古びたときの故障方向（本物の staleness を見逃す）が今の
+誤検知よりも悪い。この判断は eval が 2 本目を持った時点で見直す（本 RFC の `review-when` の
+後半がその条件）。
+
+構造的な問題は解決していない: 登録テンプレートが 1 本変わるたびに、それが
+`comment_golden` の入力かどうかに関わらず同じ警告が立つ。今回で言えば
+`insight_extraction.md`（コメント生成経路に乗っていない）の編集がそれに当たる。
+次に同じ状態が来たときは、放置せず取り直す（今回 2 週間かかった原因は機構でなく運用）。
+
+### 積み残し（次回のために）
+
+Unresolved questions の 1 本目（受け入れ幅の事前宣言）は今回も未実施のまま承認した。
+今回は悪化 0 件で、どんな妥当な条件を後から書いても結論が変わらないため実害はないが、
+悪化が混じった回では同じ読み方ができない。常設するなら置き場所は `evals/README.md` か
+ADR-0089 で、徹底するなら `evals/compare.py` に条件を実装して満たさないとき exit 1 にする。
+
 ## Status
 
-`draft`（2026-08-31）。C901 予算引き下げ作業（`5be5ef6`）中に `verify.sh` を 3 回回した際、
-毎回同じ警告が出ることから発見。作業自体とは無関係で、`config/prompts/` には触れていない。
+`resolved`（2026-08-31）。発見は C901 予算引き下げ作業（`5be5ef6`）中に `verify.sh` を
+3 回回した際、毎回同じ警告が出たことから。作業自体とは無関係で、`config/prompts/` には
+触れていない。著者が選択肢 A（scope はそのままで再実行・再承認）を採り、上の Resolution 節の
+とおり決着した。
+
+判断役による照合（2026-09-02 triage）: `evals/baselines/comment_golden-2026-08-31.json` が
+実在し、`uv run python evals/check_staleness.py` は無出力 exit 0。2 週間立っていた 4 行の
+警告は消えている。
 
 ## Next action
 
-著者が A / B / C を選ぶ。C を選ぶなら、それは「A を実行する」と同じ次の一手
-（`uv run --group eval python evals/run_eval.py --baseline evals/baselines/comment_golden-2026-08-16.json`
-を回し、数値を読んでから再承認するか判断する）。実行はローカル Ollama を長時間占有するので、
-スケジュールセッション（JST 0/6/12/18 時）を避けた窓で。
+なし（この行としては終端）。積み残し 2 点は `review-when` と上の「積み残し」節が持つ —
+(1) 受け入れ幅の事前宣言は今回も未実施、(2) hash scope の構造問題（登録テンプレート 1 本の
+変更で無関係な警告が立つ）は eval が 2 本目を持つまで据え置き。
