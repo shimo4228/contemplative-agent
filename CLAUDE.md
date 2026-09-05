@@ -2,18 +2,13 @@
 
 自律 AI エージェントフレームワーク。構造的に権限を最小化（security by absence）。初期アダプタは Moltbook (AI エージェント SNS)。Contemplative AI 四公理はオプションプリセット。
 
-アーキテクチャ詳細（モジュール・依存グラフ・データフロー・3層メモリ・統計）は [docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md) を参照（正本）。設計判断は [docs/adr/](docs/adr/README.md) に記録。**プロジェクトを前に進める駆動サイクル**（intake / 週次内省 / AKC 代謝 / 開発チェーン / 結晶化 / 拡散 の 9 サイクルの全体像と heartbeat・人間ゲート）は [docs/CYCLES.md](docs/CYCLES.md) を参照。
+**コード構造の文書は保存しない**（[ADR-0102](docs/adr/0102-retire-codemaps.md)）。「どのファイルに何が住むか・誰が誰を呼ぶか」は Claude Code の LSP tool（pyright: `workspaceSymbol` / `findReferences` / `incomingCalls`）と `grimp` / import-linter でコードから毎回導出する。設計理由は [docs/adr/](docs/adr/README.md)（src の 70 ファイルが ADR 番号を直接引く）、パイプラインの段構成は各 script の冒頭コメント（例: `scripts/weekly-pipeline.sh`）が正本。**プロジェクトを前に進める駆動サイクル**（intake / 週次内省 / AKC 代謝 / 開発チェーン / 結晶化 / 拡散 の 9 サイクルの全体像と heartbeat・人間ゲート）は [docs/CYCLES.md](docs/CYCLES.md) を参照。
 
-[`graph.jsonld`](graph.jsonld) と CODEMAPS は同じ project を **異なる abstraction 層** で扱う:
+[`graph.jsonld`](graph.jsonld) は concept-level の知識グラフ: 「X とは何か、X と Y はどう関係するか」を JSON-LD triples で encode（4 公理 / 3 メモリ層 / approval-gate chain / AKC 6-phase pipeline mapping / ADR ノード）。コードのノードは持たない — file-level は導出層であって保存層ではない。新規 ADR / Concept / Axiom 追加時は graph を更新する。役割境界の正本定義は `~/.claude/skills/jsonld-knowledge-graph/SKILL.md`。
 
-- **CODEMAPS = file-level**: 「どのファイル / モジュールに X が住んでいるか」を prose で記述。人間 + agent が code を navigate する時に読む
-- **graph.jsonld = concept-level**: 「X とは何か、X と Y はどう関係するか」を JSON-LD triples で encode。Contemplative Agent では 4 公理 / 3 メモリ層 / approval-gate chain / AKC 6-phase pipeline mapping を schema レベルで encode
+**鮮度規約（mechanism 層）**: パイプラインのゲート・式・閾値・段構成を変える変更は、所有 ADR（新設か追補）と該当 script の冒頭コメントを**同じ PR で更新**する。散文の機構記述を別文書に複製しない — 古い機構記述は無記述より有害（読んだ agent が誤った機構を掴む）。
 
-両者は重複せず相補的。同じ entity を別角度から見る（例: `Episode Log` は CODEMAPS では `core/episode_log.py` に住むモジュール、graph.jsonld では `MemoryLayer level=1` の concept node で `gatedBy` edges を持つ）。新規 ADR / Concept / Axiom 追加時は **両面で更新** する。役割境界の正本定義は `~/.claude/skills/jsonld-knowledge-graph/SKILL.md` の "CODEMAPS との関係" セクション参照。
-
-**鮮度規約（mechanism 層）**: パイプラインのゲート・式・閾値・段構成を変える変更（例: ランキング式、liveness 判定、distill のステップ、承認系譜のフィールド）は、[docs/CODEMAPS/architecture.md](docs/CODEMAPS/architecture.md) の Data Flow セクションを**同じ PR で更新**する。古い機構記述は無記述より有害（読んだ agent が誤った機構を掴む）。全面 refresh は `/update-codemaps`。
-
-Project の正式名は **Contemplative Agent** （`shimo4228/contemplative-agent`）。`Moltbook` は SNS adapter のみを指す名称として graph 内・CODEMAPS 内・README 内すべてで徹底する。
+Project の正式名は **Contemplative Agent** （`shimo4228/contemplative-agent`）。`Moltbook` は SNS adapter のみを指す名称として graph 内・README 内すべてで徹底する。
 
 ## 開発環境
 
@@ -66,7 +61,7 @@ contemplative-agent --constitution-dir path/to/constitution/ run --session 30
 contemplative-agent --domain-config path/to/domain.json run --session 30
 ```
 
-全 CLI 一覧は [docs/CODEMAPS/moltbook-agent.md](docs/CODEMAPS/moltbook-agent.md) を参照。migration 系（`embed-backfill` / `migrate-patterns` / `migrate-categories`）は ADR-0035 で sunset 済み — v1.x ストアから移行する場合のみ v2.0.x release tag から実行。
+全 CLI 一覧は `contemplative-agent --help`（dispatch は `src/contemplative_agent/cli/__init__.py`）。migration 系（`embed-backfill` / `migrate-patterns` / `migrate-categories`）は ADR-0035 で sunset 済み — v1.x ストアから移行する場合のみ v2.0.x release tag から実行。
 
 ## 北極星（north star）
 
@@ -83,8 +78,8 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 
 ## 開発原則
 
-- **Immutability**: DTO とドメインオブジェクトは `frozen=True`（例外なし）。詳細は [architecture.md#Immutability](docs/CODEMAPS/architecture.md#immutability)
-- **Import 方向**: `core/` ← `adapters/` ← `cli.py` の一方向依存。`cli.py` のみ両方を import。根拠は [ADR-0001](docs/adr/0001-core-adapter-separation.md)、運用規約は [architecture.md#Import-Rule](docs/CODEMAPS/architecture.md#import-rule)。機械強制は import-linter（`pyproject.toml` の layers contract、`uv run lint-imports` / pytest 双方で発火）
+- **Immutability**: DTO とドメインオブジェクトは `frozen=True`（例外なし）。違反は pyright と `frozen=True` の実行時例外が拾う
+- **Import 方向**: `core/` ← `adapters/` ← `cli.py` の一方向依存。`cli.py` のみ両方を import。根拠は [ADR-0001](docs/adr/0001-core-adapter-separation.md)。機械強制は import-linter（`pyproject.toml` の layers contract、`uv run lint-imports` / pytest 双方で発火）
 - **プロンプト外出し**: LLM が読む指示テキストはコードにハードコードせず `config/prompts/*.md` に置く（`config/prompts/` は固定 apparatus、値層 skills/rules/identity/constitution が観察対象）。入力サニタイズ変換（`_INJECTION_TOKENS` 等、LLM が読む前に作用するもの）はコードに残す。根拠は [ADR-0003](docs/adr/0003-config-directory-design.md) / [ADR-0054](docs/adr/0054-externalize-llm-instruction-text-to-prompts.md)
 - **Observability by default**: 外部 I/O・LLM 呼び出し・非決定的判定を含む機能は、リプレイ可能な監査ログ（append-only JSONL、untrusted 原文は base64 + sha256、abstain/失敗に理由コード、silent fallback 禁止）を**機能と同じ PR で**出荷する。**適用範囲はループに常駐する production 経路**（run / distill / insight / publish / verification 等）**に限る**（2026-08-29 追補）: read-only 計器・一発測定スクリプトは対象外で、結果を docs/evidence へ凍結することで代替する。Verify で問う: 「誤動作したときどのログが理由に答えるか。オフラインでリプレイできるか」。設計ノウハウは skill `replayable-audit-logs`（イベントログ）/ `read-only-instruments`（計器 = 保存データ全体への read-only 読み値）、根拠は [ADR-0075](docs/adr/0075-observability-by-default.md) / [ADR-0071](docs/adr/0071-read-only-pattern-composition-instruments.md)
 - **計器の溶解義務**: 新しい計器（read-only 読み値・監査面を含む）の ADR/RFC は消費計画 — (a) 誰が・いつ読むか (b) 何回の読みで何を決めるか (c) 満了時の撤去条件 — を必須記載する。書けない計器はゲートで不採択。既存計器へは遡及棚卸し（T4）を土曜ゲートで行う。根拠は [ADR-0101](docs/adr/0101-instrument-dissolution-mandate.md)
@@ -102,13 +97,13 @@ contemplative-agent --domain-config path/to/domain.json run --session 30
 
 ## ドキュメント言語方針
 
-- CLAUDE.md は日本語。docs/CODEMAPS/ は英語（agent 消費者向け、2026-05 以降の実態に合わせ 2026-06-05 に方針を訂正）
+- CLAUDE.md は日本語
 - docs/adr/ は英語（*.ja.md が日本語版）
 - README は 2 言語: `README.md`（英語=正本）、`README.ja.md`。zh-CN / zh-TW / pt-BR / es mirrors は **2026-05-15 に退役**（traffic data 上 unique human viewer が統計的にゼロ + LLM crawler が en source から多言語 answer 可能なため）。訳語規約と固有名詞の keep-original ポリシーは [docs/glossary.md](docs/glossary.md)。README 本文に新しい project-coined term を入れる時は glossary も同 PR で更新する。退役 mirror は git history に保存（audience 実証データが変われば復元可能）
 
 ## ドキュメント配置
 
-- `docs/` — 外部可視の durable reference（adr / CODEMAPS / evidence / runbooks / security / glossary / CONFIGURATION）
+- `docs/` — 外部可視の durable reference（adr / evidence / runbooks / security / glossary / CONFIGURATION）
 - `rfcs/` — 公開タスク台帳（提案・作業・未決。[残課題](#残課題)節が正本）
 - `.notes/` — 内部 WIP（gitignored）。session checkpoint、cold-start handoff、実験 scratch、ツール出力。成果が出たら `docs/evidence/adr-XXXX/` に昇格
 
@@ -133,7 +128,7 @@ git tracked = clone 先にも付いてくる repo 同梱の運用版 skill。CA 
 
 ## API レート制限
 
-GET 60 req/min、POST 30 req/min（分離クォータ）。3 層防御（`has_read_budget()` / `has_write_budget()` バジェット + プロアクティブ待機 + リアクティブバックオフ）。API 仕様の最新は `WebFetch https://www.moltbook.com/skill.md` で参照。実装は [docs/CODEMAPS/moltbook-agent.md](docs/CODEMAPS/moltbook-agent.md)。
+GET 60 req/min、POST 30 req/min（分離クォータ）。3 層防御（`has_read_budget()` / `has_write_budget()` バジェット + プロアクティブ待機 + リアクティブバックオフ）。API 仕様の最新は `WebFetch https://www.moltbook.com/skill.md` で参照。実装は `adapters/moltbook/client.py`（`has_read_budget` / `has_write_budget`）。
 
 ## 残課題
 

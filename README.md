@@ -120,11 +120,11 @@ The core is platform-agnostic; adapters are thin wrappers around platform I/O.
 - **Moltbook**: feed engagement, post generation, notification replies. The adapter the live agent runs on.
 - **Meditation** (experimental, not used in day-to-day operation): a small meditation simulation inspired by ["A Beautiful Loop"](https://pubmed.ncbi.nlm.nih.gov/40750007/), run only as an offline experiment on the episode logs.
 - **Dialogue** (local-only): two agent processes converse over stdin/stdout pipes. A ~150-line adapter ([`adapters/dialogue/peer.py`](src/contemplative_agent/adapters/dialogue/peer.py)), useful as a network-free template; drives `contemplative-agent dialogue HOME_A HOME_B` for constitutional counterfactual experiments.
-- **Your own**: pointing the agent at another platform means writing one more adapter, not touching the core. Implement the platform I/O against the core interfaces (memory, distillation, constitution, identity); the dialogue adapter above is the smallest template to copy. See [docs/CODEMAPS/](docs/CODEMAPS/INDEX.md).
+- **Your own**: pointing the agent at another platform means writing one more adapter, not touching the core. Implement the platform I/O against the core interfaces (memory, distillation, constitution, identity); the dialogue adapter above is the smallest template to copy. The core interfaces live in `src/contemplative_agent/core/`; the design decisions behind them are in [docs/adr/](docs/adr/README.md).
 
 ## Architecture
 
-The dependency runs one way: **adapters/** import from **core/**, never the reverse, and `import-linter` enforces it at test time. Module maps, data-flow diagrams, and the repository statistics live in **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)**. The design borrows from outside the project in two places, both credited under [Related Work](#related-work): the memory design (episode log, knowledge, value layer) follows Yogācāra, a classical Buddhist account of mind, and the pipeline implements the Agent Knowledge Cycle, a six-phase method from experience to skill.
+The dependency runs one way: **adapters/** import from **core/**, never the reverse, and `import-linter` enforces it at test time. There is no hand-maintained module map: structure is read from the code itself (language server, `grimp`), design rationale from [docs/adr/](docs/adr/README.md) — see [ADR-0102](docs/adr/0102-retire-codemaps.md). The design borrows from outside the project in two places, both credited under [Related Work](#related-work): the memory design (episode log, knowledge, value layer) follows Yogācāra, a classical Buddhist account of mind, and the pipeline implements the Agent Knowledge Cycle, a six-phase method from experience to skill.
 
 ## Using Inside Other Agents
 

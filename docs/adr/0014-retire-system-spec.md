@@ -40,6 +40,8 @@ The original motivation was to provide a single, comprehensive document for exte
 
 ## Decision
 
+> **Note (2026-09-05, [ADR-0102](./0102-retire-codemaps.md))**: the CODEMAPS destination named below was itself retired. File-level structure is now derived from code (LSP / `grimp`); the three-role table (README / CODEMAPS / ADR) reads README / code+LSP / ADR. The §6 Prior Art content this ADR moved into `architecture.md` did not survive to the codemap's last revision (`ced10e2`); the surviving prior-art record is README's Related Work section and `docs/BIBLIOGRAPHY.md`.
+
 Delete `docs/spec/system-spec.md` and the `docs/spec/` directory.
 
 Move the unique content (§6 Prior Art) to `docs/CODEMAPS/architecture.md` as a new "Prior Art" section, adjacent to the Memory Architecture section it contextualizes.

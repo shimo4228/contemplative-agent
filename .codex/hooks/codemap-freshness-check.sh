@@ -1,1 +1,0 @@
-../../.claude/hooks/codemap-freshness-check.sh

@@ -113,8 +113,10 @@ load approaching zero — without advancing self-regulation at all.
    instruments that already exist, beginning with the weekly machinery. The
    subject set is **re-derived at each run** by the same consumer/intent sweep
    used on 2026-08-29: `git ls-files scripts/`, plus the CLI command table,
-   plus the instruments named in `docs/CODEMAPS/architecture.md`'s Data Flow
-   section, cross-referenced against the launchd plists / pipeline scripts /
+   plus the instruments named in the header comments of the pipeline scripts
+   and the `Review-when` sections of instrument ADRs (until 2026-09-05 this
+   read `docs/CODEMAPS/architecture.md`'s Data Flow section; the codemaps were
+   retired by [ADR-0102](./0102-retire-codemaps.md)), cross-referenced against the launchd plists / pipeline scripts /
    runbooks for consumers and against owning-ADR `Review-when` sections and RFC
    states for live intent. **No standing register is kept**, because the set is
    re-derivable by that procedure and a register would be one more artifact to

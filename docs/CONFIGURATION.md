@@ -428,7 +428,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 ```
 
-Test organization and fixtures live under `tests/`; see [docs/CODEMAPS/INDEX.md](CODEMAPS/INDEX.md) for the module map used by tests.
+Test organization and fixtures live under `tests/`.
 
 ---
 

@@ -11,7 +11,7 @@ Context 膨張を避けるため以下の順で読み、途中で十分なら止
 - 生成した weekly 観察文書の全文（診断の入力は **Deviations と Exceptions の 2 節** —
   RFC-0010 の再設計で旧 E 節を置換）— ただし F の根拠は materials の原資料へ立ち返る
 - `config/prompts/principles.md`
-- `docs/CODEMAPS/INDEX.md`、`docs/adr/README.md`
+- `docs/adr/README.md`（構造の問いはコードを Glob / Grep で直接読む — codemap は ADR-0102 で退役）
 - タスク台帳 `rfcs/NNNN-*.md`（正本。このセッションの起票先でもある）
   — 1 エントリ 1 ファイル。frontmatter `state:` を Glob + Read で
   確認する — この無人セッションに Bash は無いので `claims.py` は使えない）。2 つの理由で必須:
@@ -22,7 +22,7 @@ Context 膨張を避けるため以下の順で読み、途中で十分なら止
 
 ### Step 2. F1 候補が出たら（構造提案）
 
-- 該当 CODEMAP entry → 該当ソース（`src/contemplative_agent/core|adapters`）→
+- 該当ソース（`src/contemplative_agent/core|adapters`。ADR 番号は src が直接引く）→
   該当 prompt（`config/prompts/*.md`）→ 関連 ADR（accepted 優先、withdrawn / superseded は
   履歴として）→ パラメータ定義（`core/thresholds.py`, `core/config.py`)
 

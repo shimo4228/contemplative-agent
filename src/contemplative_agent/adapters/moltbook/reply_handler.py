@@ -152,7 +152,7 @@ class ReplyHandler:
             # above already does. The other three loops carry the same line;
             # position within the column is not load-bearing (all four are
             # side-effect-free and all break). T-REPLY-PACING; the incident
-            # numbers live in tests/test_reply_chaos.py and architecture.md.
+            # numbers live in tests/test_reply_chaos.py.
             if circuit_reading().is_open:
                 logger.info("Circuit breaker open, pausing reply processing")
                 break

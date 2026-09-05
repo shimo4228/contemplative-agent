@@ -11,7 +11,7 @@ accepted
 ## 背景
 
 `distill-identity` ([`core/distill.py: distill_identity()`](../../src/contemplative_agent/core/distill.py))
-は Layer-3 のペルソナ ([`identity.md`](../CODEMAPS/architecture.md)) を 1 回の LLM 呼び出しで生成する。
+は Layer-3 のペルソナ (`identity.md`) を 1 回の LLM 呼び出しで生成する。
 ルーティングは `self_reflection` view への埋め込みコサイン (ADR-0019) で行う。本 ADR 以前は、一致した
 self-reflection パターンに**加えて** 2 つの入力をモデルに渡していた。
 

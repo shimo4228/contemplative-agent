@@ -32,6 +32,9 @@ STATUS="$MOLTBOOK_HOME/reports/PIPELINE-STATUS.md"
 # heading gate in weekly-pipeline.sh, not size, is the completeness contract.
 # This floor only catches the 0-byte / died-mid-write shape.
 MIN_REPORT_BYTES=300
+# 512: the findings header plus one F-section. Below the retired decision
+# packet's 1024 because a findings file with no F1 is legitimately short;
+# like the report floor this only catches the died-mid-write shape.
 MIN_FINDINGS_BYTES=512
 
 HOUR=$(date +%H)

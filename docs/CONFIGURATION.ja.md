@@ -259,7 +259,7 @@ uv run pytest tests/ -v
 uv run pytest tests/ --cov=contemplative_agent --cov-report=term-missing
 ```
 
-テスト構成と fixtures は `tests/` 配下。テストで使われるモジュール構造は [docs/CODEMAPS/INDEX.md](CODEMAPS/INDEX.md) を参照。
+テスト構成と fixtures は `tests/` 配下。
 
 ---
 

@@ -9,7 +9,7 @@
 # NO claude session and needs no permission flags. The session-scope rationale
 # that lived here moved to weekly-pipeline.sh, the one file the scope gate
 # reads. The 2026-08-16 model/style boundary note for longitudinal reads of
-# reports lives in docs/CODEMAPS/architecture.md).
+# reports lives in ADR-0099's Consequences).
 #
 # Usage:
 #   ./scripts/weekly-analysis.sh [--end-date YYYY-MM-DD] [--days N] [--out FILE]

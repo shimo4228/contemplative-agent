@@ -548,7 +548,7 @@ replay を回すときは Ollama を数時間占有するので定期セッシ�
 | S3 | Proposer ループ + abstain 経路 + would-be 出力 |
 | S4 | replay ハーネス（RFC-0022 で 2 アーム = gemma / opus、同一窓。`claude -p` 隔離呼び出し、evidence 凍結先 `docs/evidence/rfc-0017/`） |
 | S5 | live（launchd 配線は RFC-0022 の packet A で先出し。残りは weekly findings への would-be 出力と exit 計数） |
-| S6 | 切替（staging の patch 形、退役、ADR、CODEMAPS Data Flow、graph.jsonld、glossary、CLAUDE.md の記憶層記述） |
+| S6 | 切替（staging の patch 形、退役、ADR、graph.jsonld、glossary、CLAUDE.md の記憶層記述） |
 
 - 実行者: build-tier セッションへ dispatch（task-triage の経路）。**Review は `/code-review ultra`
   を著者が各スライスの commit 境界で起動**（cloud review、著者起動・課金。代替の opus subagent

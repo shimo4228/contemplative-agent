@@ -40,6 +40,8 @@ accepted
 
 ## 決定
 
+> **注記（2026-09-05、[ADR-0102](./0102-retire-codemaps.ja.md)）**: 下で移動先とした CODEMAPS 自体が退役した。file-level 構造はコードから導出する（LSP / `grimp`）。三役の表（README / CODEMAPS / ADR）は README / code+LSP / ADR と読む。本 ADR が `architecture.md` に移した §6 Prior Art の内容は codemap の最終版（`ced10e2`）には残っておらず、先行研究の記録として残るのは README の Related Work と `docs/BIBLIOGRAPHY.md`。
+
 `docs/spec/system-spec.md` および `docs/spec/` ディレクトリを削除する。
 
 固有コンテンツ（§6 Prior Art）は `docs/CODEMAPS/architecture.md` の新セクションに移動。メモリアーキテクチャセクションの隣に配置。

@@ -46,6 +46,8 @@ cloud clone から見える資産には weekly chain が実際に必要とする
 
 ## Decision
 
+> **注記（2026-09-05、[ADR-0102](./0102-retire-codemaps.ja.md)）**: stage 6b scan の読み値が縮んだ — `codemaps_freshness` と `mechanism_freshness` は codemap と共に削除し、`readings` は `freshness`（`docs/CYCLES.md` の block 形 FRESHNESS header）だけを持つ。findings（enja_drift / broken_link / notes_ref）と検出・修理の分離は無変更。
+
 `weekly-pipeline.sh` に決定論 intake を 2 本、dead-code stage の契約
 （`$MOLTBOOK_HOME/pipeline/` 下の JSON artifact、`uv run --no-sync` 規律 =
 無人でのネットワークパッケージ解決なし、理由コード付き縮退、packet 節 +

@@ -2,7 +2,7 @@
 
 Self-contained AI-facing reference for Contemplative Agent — a local-only autonomous AI agent running on Ollama (any model via `OLLAMA_MODEL`; production default Gemma 4 E4B + nomic-embed-text) on a single Apple Silicon Mac. Covers FAQ, term definitions, and prior research citations.
 
-> **Audience**: AI search engines (ChatGPT, Perplexity, Gemini) indexing this project, and AI agents / researchers navigating the codebase. For navigation to other docs (CODEMAPS, ADRs, related repos), see [llms.txt](llms.txt). For human-facing narrative overview, see [README.md](README.md).
+> **Audience**: AI search engines (ChatGPT, Perplexity, Gemini) indexing this project, and AI agents / researchers navigating the codebase. For navigation to other docs (ADRs, related repos), see [llms.txt](llms.txt). For human-facing narrative overview, see [README.md](README.md).
 
 ---
 
@@ -80,7 +80,7 @@ Only adapter-specific traffic. The Moltbook adapter sends HTTPS requests to `mol
 **AKC** is defined as a 6-phase self-improvement loop: Research, Extract, Curate, Promote, Measure, Maintain. Describes how the agent acquires raw experience, distills it into knowledge, and refines its behavioral artifacts. Originated in the [agent-knowledge-cycle](https://github.com/shimo4228/agent-knowledge-cycle) repository as a Claude Code harness, then re-implemented for autonomous agents in this project. AKC now also carries a companion position paper — *Harness Alignment and Harness Drift: Why Intent, Unlike Correctness, Resists Automation* ([DOI 10.5281/zenodo.20578272](https://doi.org/10.5281/zenodo.20578272)) — defining harness alignment and its failure mode against the software-evolution and alignment literatures; this project is recorded there as AKC's operational re-implementation.
 
 - **Code**: Mapped across `feed_manager.py` (Research), `distill.py` (Extract), `insight.py` / `constitution.py` (Curate), `distill.py` distill-identity (Promote)
-- **Codemap**: [architecture.md](docs/CODEMAPS/architecture.md) AKC Mapping
+- **Graph**: [graph.jsonld](graph.jsonld) Phase → module mapping
 
 ## What is Agent Attribution Practice (AAP)?
 

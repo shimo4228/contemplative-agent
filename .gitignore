@@ -84,18 +84,4 @@ integrations/skills/
 # 機械ゲートの入口と選定記録は CI / 他クローンからも要るので track する
 !.claude/verify.sh
 !.claude/verify.md
-# hook 実体も同じ理由で track する — 追跡済みの .codex/hooks/ symlink がここを指すので、
-# 非追跡のままだと clone と worktree で必ず dangling し、shell 段が落ちる
-# (T-VERIFY-WORKTREE-DANGLING-SH)。追跡は「追跡物が参照する 1 本」に限る — 残りの
-# ローカル hook は従来どおり手元限定
-!.claude/hooks/
-.claude/hooks/*
-!.claude/hooks/codemap-freshness-check.sh
-# Claude Code 側の配線も track する (T-CODEMAP-HOOK-WIDEN)。非追跡だった間、この hook は
-# worktree と clone で 1 度も起動していなかった — 2026-08-17 の drift probe は自分の commit で
-# それを実演している。**追跡版が持つのは hooks ブロックだけ** — permissions.allow を
-# 追跡すると clone した側で auto-approve が効き、`uv run pytest` が repo 内の conftest.py を
-# プロンプト無しで実行できてしまう (codex review 2026-08-17)。手元限定の permissions と
-# 上書きは従来どおり非追跡の .claude/settings.local.json が持つ
-!.claude/settings.json
 .opencode/

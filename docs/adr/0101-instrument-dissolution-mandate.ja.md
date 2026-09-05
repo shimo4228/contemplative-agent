@@ -93,7 +93,9 @@ endpoint 法 — 2 つの端点の総行数の差であって、commit ごとの
 4. **Rollout — 縮小プログラムのトランシェ T4。** 既存の計器に対する遡及棚卸しを、週次機構
    から始める。対象集合は **実行のたびに再導出する** — 2026-08-29 に用いたのと同じ
    消費者 / 意図の掃引による: `git ls-files scripts/`、CLI コマンド表、
-   `docs/CODEMAPS/architecture.md` の Data Flow 節が名指しする計器を集め、消費者は launchd
+   パイプライン script の冒頭コメントと計器 ADR の `Review-when` が名指しする計器を集め
+   （2026-09-05 までは `docs/CODEMAPS/architecture.md` の Data Flow 節を読んでいた。codemap は
+   [ADR-0102](./0102-retire-codemaps.ja.md) で退役）、消費者は launchd
    plist / パイプラインスクリプト / runbook と、生きた意図は所有 ADR の `Review-when` と
    RFC の state と突き合わせる。**常設の登録簿は持たない** — この手順で再導出できるうえ、
    登録簿は保守対象がもう 1 つ増えるだけだからである。初回: 2026-08-29 に発注済み

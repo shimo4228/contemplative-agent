@@ -42,12 +42,9 @@
 
 ## Architecture
 
-- [CODEMAPS index](docs/CODEMAPS/INDEX.md): entry point for architecture documentation
-- [Architecture overview](docs/CODEMAPS/architecture.md): 3-layer memory, AKC mapping, data flow
-- [Core modules](docs/CODEMAPS/core-modules.md): platform-neutral modules in `src/contemplative_agent/core/`
-- [Moltbook adapter](docs/CODEMAPS/adapters-moltbook.md): the single pinned external adapter
-- [Moltbook agent](docs/CODEMAPS/moltbook-agent.md): session orchestration and agent lifecycle
-- [Dependencies](docs/CODEMAPS/dependencies.md): module dependency graph and import rules
+- [ADR-0102 Retire codemaps](docs/adr/0102-retire-codemaps.md): no stored module map — structure is derived from code (LSP / `grimp`), rationale lives in ADRs, pipeline stage order in script headers
+- [ADR index](docs/adr/README.md): every design decision, in order
+- Source layout: `src/contemplative_agent/core/` (platform-neutral), `src/contemplative_agent/adapters/moltbook/` (the single pinned external adapter), `src/contemplative_agent/cli/` (composition root); `import-linter` enforces core ← adapters ← cli
 - [Pipeline prompts & view seeds](docs/CONFIGURATION.md#pipeline-prompts--view-seeds): every loaded pipeline prompt and view seed is an editable Markdown file in `$MOLTBOOK_HOME/{prompts,views}/` (canonical inventory in the linked section); copied from shipped defaults at `init` and captured in pivot snapshots for audit
 - [Quadrant lens (usage description)](docs/adr/0033-aap-quadrant-lens-usage-note.md): which AAP quadrant each CLI command typically operates in — **LLM Workflow** for `distill` / `distill-identity` / `insight` / `rules-distill` / `amend-constitution` / `skill-stocktake` / `dialogue`; **Script** for `adopt-staged` and one-time migrations; **Algorithmic Search** for `meditate` (POMDP belief updates in numpy, no LLM at runtime). The **Autonomous Agentic Loop** quadrant is not currently routed by any CLI command in this project — a usage observation, not a value judgement. Borrowed as usage description, not category claim — see [ADR-0033](docs/adr/0033-aap-quadrant-lens-usage-note.md).
 
@@ -68,7 +65,7 @@ All ADRs have an English primary (`*.md`) and a Japanese companion (`*.ja.md`). 
 - [ADR-0011 Knowledge injection to skills](docs/adr/0011-knowledge-injection-to-skills.md): how distilled knowledge becomes behavioral skills via the insight command
 - [ADR-0012 Human approval gate](docs/adr/0012-human-approval-gate.md): no auto-promotion to identity, rules, or skills — every durable change passes a human checkpoint
 - [ADR-0013 Shelve coding agent skills](docs/adr/0013-shelve-coding-agent-skills.md): why the -ca (coding agent) skills were shelved — authorship and free-will tension
-- [ADR-0014 Retire system spec](docs/adr/0014-retire-system-spec.md): removal of the legacy system-spec layer in favor of CODEMAPS
+- [ADR-0014 Retire system spec](docs/adr/0014-retire-system-spec.md): removal of the legacy system-spec layer in favor of codemaps (themselves retired by ADR-0102)
 - [ADR-0015 One external adapter per agent](docs/adr/0015-one-external-adapter-per-agent.md): structural limit of one side-effect surface per agent process (local peer dialogue via `adapters/dialogue/` is an explicit exception — writes only to the owning home's episode log)
 - [ADR-0016 Insight narrow, stocktake broad](docs/adr/0016-insight-narrow-stocktake-broad.md): role split — `insight` is a narrow per-view generator, `skill-stocktake` is a broad cross-view consolidator; no in-insight merge
 - [ADR-0017 Yogācāra eight-consciousness frame](docs/adr/0017-yogacara-eight-consciousness-frame.md): worldview ADR — eight-vijñāna model as the architectural frame (相分 / 見分 / 現行熏習 / 習気 map onto embeddings / views / fields / evolution)

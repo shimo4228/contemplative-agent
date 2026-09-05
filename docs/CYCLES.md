@@ -9,7 +9,7 @@ FRESHNESS
 # Driving Cycles — Contemplative Agent Research Program
 
 This document maps **how the project is driven forward**, not what the code looks like.
-For file-level architecture see [CODEMAPS/INDEX.md](CODEMAPS/INDEX.md); for the concept-level
+File-level structure is derived from code on demand (LSP / `grimp`, [ADR-0102](adr/0102-retire-codemaps.md)); for the concept-level
 relationship graph see [../graph.jsonld](../graph.jsonld); for design decisions see [adr/](adr/README.md).
 
 The program is **not a single repository**. It is a spiral of **nine interlocking cycles** that
@@ -46,7 +46,7 @@ private persona or conversation memory:
 | Persistent concern | Canonical home | Operating consequence |
 |---|---|---|
 | Role identity | `CLAUDE.md`, rules, skills, and agent definitions | A different session or engine can perform the same role without redefining it |
-| Compounding memory | reports, ADRs, CODEMAPS, task ledgers, and audit records | Later workers inherit durable artifacts rather than another worker's private recollection |
+| Compounding memory | reports, ADRs, task ledgers, and audit records | Later workers inherit durable artifacts rather than another worker's private recollection |
 | Coordination | explicit input/output artifacts between cycles | The handoff survives the session that produced it |
 | Review independence | author/reviewer separation in the development, writing, and paper chains | Review runs in a separate context; high-stakes paths add cross-model review where specified |
 | Authority | the human promotion edges below | Workers propose, diagnose, implement, and review; a human promotes durable changes |
@@ -86,7 +86,7 @@ autonomous metabolism and metabolic quality). Operative summary: `CLAUDE.md` § 
 | 3 | **Product operation** | every 6h, 00/06/12/18 JST — `com.moltbook.agent` | live sessions → episode logs / comment-reports | — | `logs/`, `reports/comment-reports/` | CA runtime (`MOLTBOOK_HOME`) |
 | 4 | **Product metabolism (AKC)** | distill daily; insight weekly (staged) — `com.moltbook.distill` / `.insight`; identity monthly (staged by cycle 5's chain, ADR-0091); constitution amendment on due-reading, human-initiated (ADR-0090/0091; shadow readings as third gate material, ADR-0092) | Extract (distill) / Curate (insight) | `adopt-staged` (approval gate, ADR-0012) | `knowledge.json`, identity / skills / rules / constitution | CA + data repo |
 | 5 | **Weekly reflection → dev** | weekly Sat 09:00 — `com.moltbook.weekly-pipeline` (+ `com.moltbook.watchdog`, ADR-0085 / ADR-0098) | unattended chain: materials → one `/weekly-report` session (instrument document + diagnosis + draft filing, RFC-0010) → value-layer due check (+ monthly identity staging, ADR-0091) → dead-code scan → docs-consistency scan (ADR-0093) → never-selected reading | `/weekly-gate` Saturday session (`adopt-staged`, dead code, retirement) + task-triage loop for the filed candidates | `reports/analysis/weekly-*.md`, `-findings.md`, per-week instrument JSONs, `PIPELINE-STATUS.md` | CA |
-| 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | pre-commit diff approval | code, tests, ADR, CODEMAPS | CA |
+| 6 | **Development chain** | per change, on demand | planner → TDD → parallel reviewers (incl. codex-review) → doc-sync → verify | pre-commit diff approval | code, tests, ADR | CA |
 | 7 | **Crystallization → papers** | on demand | essays → position-paper drafting → independent parallel review → citation gate | deposit (human) | position papers (DOI-registered) — index in [hub](https://github.com/shimo4228/shimo4228#papers) | AKC / AAP repos |
 | 8 | **Diffusion (publishing)** | on demand | collect-context → article-writing → editor / reviewer / fact-check → ja-to-en → substack | publish (human) | Zenn (ja) / Dev.to (en) / Substack essays | `zenn-content/` |
 | 9 | **Machine-reference-sphere optimization** | periodic / on demand | citation-sync / release-doi / hf-sync / `com.moltbook.sync-data` | deposit / DOI minting approval | DOI, SWHID, HF mirrors, graph citation edges | all repos |
@@ -164,7 +164,7 @@ The cycles cohere because they read and write a common, layered context:
 - **`graph.jsonld`** (concept layer) — the Research Program Hub federates the research lines and
   encodes the AKC Phase 1–6 → Contemplative Agent mapping, the 4 axioms, the 3 memory layers, the
   ADR catalog, Concepts, and ExternalReference citation edges.
-- **CODEMAPS** (file layer) + **`docs/adr/`** (decision layer) + **CLAUDE.md / rules** (routing layer).
+- **code + LSP** (file layer, derived — nothing stored) + **`docs/adr/`** (decision layer) + **CLAUDE.md / rules** (routing layer).
 
 Any working session — in whatever pane it runs — picks up its domain's context from these files.
 The session's private context is disposable and never authoritative: a conclusion that must survive

@@ -27,6 +27,6 @@
 ## 書くべきでないもの
 
 - 決定そのもの → `docs/adr/`
-- アーキテクチャ俯瞰 → `docs/CODEMAPS/`
+- アーキテクチャ俯瞰 → `docs/adr/README.md`（構造は LSP / `grimp` でコードから、ADR-0102）
 - 測定・実験 → `docs/evidence/`
 - 途中経過メモ → `.notes/` (gitignored)

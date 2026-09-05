@@ -1,7 +1,8 @@
 """Referential integrity between graph.jsonld and repo artifacts.
 
-graph.jsonld is the concept-level companion of CODEMAPS (CLAUDE.md: new
-ADRs / Concepts / Axioms update both faces). Entity nodes that mirror repo
+graph.jsonld is the concept-level graph of the project (CLAUDE.md: new
+ADRs / Concepts / Axioms add a node; file-level structure is derived from
+code, not stored — ADR-0102). Entity nodes that mirror repo
 artifacts must stay in one-to-one correspondence with those artifacts; a
 node whose artifact is gone is the graph-side form of the orphan problem
 ADR-0073 diagnosed. Numeric or textual claims *inside* node descriptions

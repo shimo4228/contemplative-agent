@@ -114,7 +114,7 @@ class TestPackagedPrompts:
 class TestDocClaims:
     def test_configuration_canonical_counts_match_reality(self):
         """docs/CONFIGURATION.md#pipeline-prompts--view-seeds is the single
-        place that states prompt counts (README / llms.txt / CODEMAPS point
+        place that states prompt counts (README / llms.txt point
         here instead of repeating numbers); this pins that one claim."""
         text = (REPO_ROOT / "docs" / "CONFIGURATION.md").read_text(encoding="utf-8")
         match = re.search(

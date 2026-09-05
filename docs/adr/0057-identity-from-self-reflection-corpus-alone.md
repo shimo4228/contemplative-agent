@@ -11,7 +11,7 @@ accepted
 ## Context
 
 `distill-identity` ([`core/distill.py: distill_identity()`](../../src/contemplative_agent/core/distill.py))
-produces the Layer-3 persona ([`identity.md`](../CODEMAPS/architecture.md)) in a single LLM call.
+produces the Layer-3 persona (`identity.md`) in a single LLM call.
 It routes to the `self_reflection` view by embedding cosine (ADR-0019) and, before this ADR, fed the
 model two inputs **beyond** the matched self-reflection patterns:
 

@@ -23,12 +23,10 @@ Checks (findings):
                  clone; the CLAUDE.md docs-placement rule forbids it)
 
 Readings (never findings — ages carry no threshold; the gate reads them):
-- codemaps_freshness — generated-date age and commits-behind of each
-                 FRESHNESS header under docs/CODEMAPS/ + docs/CYCLES.md
-- mechanism_freshness — commits touching src/ or scripts/ since
-                 architecture.md's last commit (proxy for the CLAUDE.md
-                 same-PR Data Flow covenant; whether they were
-                 mechanism-layer is the reader's judgment)
+- freshness    — generated-date age and commits-behind of each block-form
+                 FRESHNESS header (today only docs/CYCLES.md carries one;
+                 file-level codemaps were retired by ADR-0102 — structure is
+                 derived from code via LSP / grimp, not stored)
 
 Faults degrade, they never lie: a git failure or unreadable file lands in
 ``errors`` with a reason code while the remaining checks still run; only an
@@ -61,11 +59,6 @@ _GIT_TIMEOUT = 30
 _LINK_RE = re.compile(r"!?\[[^\]]*\]\(([^)]+)\)")
 _CODE_SPAN_RE = re.compile(r"`[^`]*`")
 _FRESHNESS_RE = re.compile(r"<!--\s*\nFRESHNESS\n(?P<body>.*?)-->", re.DOTALL)
-# codemap-writer's one-line stamp: `<!-- Generated: DATE | Updated: DATE (note) … -->`
-_ONELINE_FRESHNESS_RE = re.compile(
-    r"<!--\s*Generated:\s*(?P<generated>\d{4}-\d{2}-\d{2})"
-    r"(?:.*?Updated:\s*(?P<updated>\d{4}-\d{2}-\d{2}))?"
-)
 _SKIP_PREFIXES = ("http://", "https://", "mailto:", "#")
 
 # Root-level docs scanned in addition to docs/**; AGENTS.md is a symlink to
@@ -295,21 +288,11 @@ def check_notes_refs(root: Path, rel_files: Iterable[Path]) -> tuple[list[dict],
 
 
 def parse_freshness(text: str) -> dict | None:
-    """Extract the effective date / source-commit from a freshness header.
-
-    Two stamp dialects exist: the block-form FRESHNESS comment (CYCLES.md)
-    and codemap-writer's one-line `Generated: … | Updated: …` comment, where
-    Updated (when present) is the effective date and no commit is recorded.
-    """
+    """Extract the effective date / source-commit from a block-form FRESHNESS
+    header (the CYCLES.md dialect). Returns None when the file carries none."""
     match = _FRESHNESS_RE.search(text)
     if match is None:
-        oneline = _ONELINE_FRESHNESS_RE.search(text)
-        if oneline is None:
-            return None
-        return {
-            "generated": oneline.group("updated") or oneline.group("generated"),
-            "source_commit": None,
-        }
+        return None
     fields: dict[str, str] = {}
     for line in match.group("body").splitlines():
         key, _, value = line.strip().partition(":")
@@ -321,28 +304,33 @@ def parse_freshness(text: str) -> dict | None:
     }
 
 
-def codemaps_freshness(
+def freshness_readings(
     root: Path, behind: Callable[[str], int | None], today: date
 ) -> tuple[list[dict], list[dict]]:
     """Age readings for FRESHNESS-stamped docs. Readings only, no threshold."""
     readings: list[dict] = []
     errors: list[dict] = []
-    targets = (
-        sorted((root / "docs" / "CODEMAPS").glob("*.md"))
-        if (root / "docs" / "CODEMAPS").is_dir()
-        else []
-    )
-    cycles = root / "docs" / "CYCLES.md"
-    if cycles.is_file():
-        targets.append(cycles)
+    # The only stamped file. Its absence must surface, not read as "nothing
+    # stale": a layout move would otherwise leave the sole reading permanently
+    # empty (the deleted mechanism reading guarded the same shape).
+    targets = [root / "docs" / "CYCLES.md"]
     for path in targets:
+        if not path.is_file():
+            errors.append(
+                {
+                    "check": "freshness",
+                    "reason": "FILE_MISSING",
+                    "detail": f"{path.relative_to(root)}: sole FRESHNESS target absent",
+                }
+            )
+            continue
         rel = path.relative_to(root)
         try:
             text = path.read_text(encoding="utf-8", errors="replace")
         except OSError as exc:
             errors.append(
                 {
-                    "check": "codemaps_freshness",
+                    "check": "freshness",
                     "reason": "FILE_UNREADABLE",
                     "detail": f"{rel}: {exc}",
                 }
@@ -365,7 +353,7 @@ def codemaps_freshness(
             if commits_behind is None:
                 errors.append(
                     {
-                        "check": "codemaps_freshness",
+                        "check": "freshness",
                         "reason": "GIT_FAIL",
                         "detail": f"rev-list failed for {rel} ({sha})",
                     }
@@ -382,86 +370,17 @@ def codemaps_freshness(
     return readings, errors
 
 
-# What the Data Flow section documents stage-by-stage lives in BOTH trees:
-# src/ (core pipeline) and scripts/ (weekly stages). Measured over three
-# historical windows, src/ alone misses ~40% of covenant-relevant commits
-# (2026-08-25 code review) — this very reading's own commit touched only
-# scripts/ + tests/.
-_MECHANISM_PATHSPECS = ("src/", "scripts/")
-
-
-def mechanism_freshness(
-    root: Path, run: Callable[..., str | None]
-) -> tuple[dict | None, list[dict]]:
-    """Reading only: commits touching the mechanism trees since architecture.md
-    was last committed.
-
-    The deterministic proxy for the CLAUDE.md freshness covenant (mechanism
-    changes update architecture.md's Data Flow in the same PR). Whether any of
-    those commits *were* mechanism-layer is a semantic judgment — that stays
-    with the weekly session and the gate; no threshold here.
-
-    Known false-negative direction: the anchor is architecture.md's last
-    commit of ANY kind, so an unrelated edit to the file (a link fix at the
-    gate) resets the count and can erase a still-undocumented mechanism
-    change. The reading is a weekly nudge, not an audit trail — the week the
-    violation happens it IS visible, and that is the read-and-judge moment.
-
-    A repo without docs/CODEMAPS/architecture.md has no covenant to proxy:
-    reading None with no error (the scan runs on clones and test repos).
-    Every degraded arm past that point surfaces GIT_FAIL with the arm named —
-    none may read as a confident 0 ("covenant clean").
-    """
-    rel = Path("docs") / "CODEMAPS" / "architecture.md"
-    if not (root / rel).is_file():
-        return None, []
-
-    def _fail(arm: str) -> tuple[None, list[dict]]:
-        return None, [{"check": "mechanism_freshness", "reason": "GIT_FAIL", "detail": arm}]
-
-    pathspecs = [p for p in _MECHANISM_PATHSPECS if (root / p).is_dir()]
-    if not pathspecs:
-        # rev-list over a matching-nothing pathspec exits 0 printing 0 — a
-        # layout move would otherwise read as permanently clean.
-        return _fail(
-            f"no mechanism tree ({', '.join(_MECHANISM_PATHSPECS)}) exists — "
-            "a layout move must update _MECHANISM_PATHSPECS"
-        )
-    sha = run(root, "log", "-1", "--format=%H", "--", str(rel))
-    if not sha:
-        # `git log -1 -- <untracked>` exits 0 with empty stdout: no base
-        # commit, nothing to count from.
-        return _fail(f"{rel} has no commit (untracked?)")
-    if not re.fullmatch(r"[0-9a-f]{7,40}", sha):
-        return _fail(f"log emitted a non-SHA for {rel}")
-    raw = run(root, "rev-list", "--count", f"{sha}..HEAD", "--", *pathspecs)
-    if raw is None:
-        return _fail(f"rev-list failed for {sha[:7]}..HEAD")
-    try:
-        count = int(raw)
-    except ValueError:
-        return _fail(f"rev-list emitted a non-count for {sha[:7]}..HEAD")
-    return {
-        "file": str(rel),
-        "last_commit": sha[:7],
-        "mechanism_commits_since": count,
-        "pathspecs": pathspecs,
-    }, []
-
-
 def scan(
     root: Path,
     ts: Callable[[Path], int | None] | None = None,
     behind: Callable[[str], int | None] | None = None,
     today: date | None = None,
-    run: Callable[..., str | None] | None = None,
 ) -> dict:
     if not root.is_dir() or not (root / "docs").is_dir():
         raise ScanError("REPO_UNREADABLE", str(root))
     ts = ts or git_last_commit_ts(root)
     behind = behind or git_commits_behind(root)
     today = today or date.today()
-    run = run or _git
 
     md_files = find_md_files(root)
     adr_files = [f for f in md_files if f.parts[:2] == ("docs", "adr")]
@@ -475,15 +394,13 @@ def scan(
     ):
         findings.extend(part_findings)
         errors.extend(part_errors)
-    codemaps, part_errors = codemaps_freshness(root, behind, today)
-    errors.extend(part_errors)
-    mechanism, part_errors = mechanism_freshness(root, run)
+    freshness, part_errors = freshness_readings(root, behind, today)
     errors.extend(part_errors)
 
     return {
         "findings": findings,
         "count": len(findings),
-        "readings": {"codemaps": codemaps, "mechanism": mechanism},
+        "readings": {"freshness": freshness},
         "errors": errors,
         "scanned_files": len(md_files),
     }

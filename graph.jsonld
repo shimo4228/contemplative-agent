@@ -2661,6 +2661,24 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0102-retire-codemaps.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0102: Retire docs/CODEMAPS — Structure Is Derived From Code, Not Stored",
+      "identifier": "ADR-0102",
+      "status": "accepted",
+      "datePublished": "2026-09-05",
+      "description": "Deletes the six hand-maintained file-level codemaps (205 KB, architecture.md alone ~30k tokens) together with the freshness hook, the statistics test and the two docs-consistency readings that kept them fresh. Measured basis: 159 codemap commits against 197 src commits since 2026-06-01, no observed reader (the author never reads them and LLM sessions reach for the language server, grep and the ADR cited in a docstring), 70 source files citing ADR numbers directly, and Claude Code's pyright-backed LSP tool answering workspaceSymbol / findReferences / incomingCalls live in this repo. File-level structure becomes a derived layer — queried per question from code via LSP and grimp, never stored — while graph.jsonld stays concept-level with zero code nodes. The two non-derivable contents move to where they are read: pipeline stage order in the header of the script that runs it, incident rationale for a guard in the docstring beside it or in the owning ADR (a bounded audit moved only what existed nowhere else). CLAUDE.md's same-PR freshness covenant now names the owning ADR and the script header instead of a Data Flow section. An independent build-or-not review rejected the shrink-to-Data-Flow variant as the same accretion trap resized (the dated brackets were a changelog inlined into the body) and recommended a per-repo opt-out at the harness level; the author chose full removal of the producing machinery (update-codemaps skill, codemap-writer agent, context-sync Phase 0) so it cannot regenerate. Re-encoding as a graph — the question that opened the work — was rejected because a graph of derivable structure is the same mirror in a different syntax.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0014-retire-system-spec.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0093-repo-plane-deterministic-intakes.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0095-retire-task-ledger-machinery.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",

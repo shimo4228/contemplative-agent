@@ -278,8 +278,7 @@ class FeedManager:
         """Run the skip-gate chain; True when the post may be engaged.
 
         Gate order is load-bearing (cheap static checks before memory
-        lookups) — keep it in sync with the Data Flow section of
-        docs/CODEMAPS/architecture.md when it changes.
+        lookups); this method is the only place the order is written down.
         """
         return self._passes_content_gates(
             post, post_text, post_id, author_id, author_name

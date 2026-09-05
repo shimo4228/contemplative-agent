@@ -217,12 +217,9 @@ sibling 消費の出荷 kit（ADR-0088）。迷ったら削除より whitelist /
 （自己文書のみ・検出と修理の分離は ADR-0093 のまま。修理はこのセッションの人間同席
 commit で、無人には流れない）。
 
-`readings.mechanism` も 1 行で読む（2026-08-25 追加）: `mechanism_commits_since` は
-architecture.md の最終 commit 以降に src/ + scripts/ を触った commit 数。閾値なし —
-その中に機構層の変更（ゲート・式・閾値・段構成）があったのに Data Flow が未更新なら
-鮮度規約（CLAUDE.md）違反なので同 commit で追記する。0 と `null`（GIT_FAIL、errors に
-理由）は別物。なお anchor は architecture.md への任意の commit で動くので、gate で
-architecture.md を直した週は翌週 0 に戻る — 見るのは当週の値。
+`readings.freshness` は docs/CYCLES.md の FRESHNESS header の齢（読み値のみ、閾値なし）。機構層の変更が
+ADR / script header に未反映かは、当週の src/ + scripts/ commit を gate が目で確認する（codemap と
+その鮮度計器は ADR-0102 で退役 — 段構成の正本は所有 ADR と script 冒頭コメント）。
 
 ### Step 6b. Value layer cadence（value-layer JSON があれば）
 

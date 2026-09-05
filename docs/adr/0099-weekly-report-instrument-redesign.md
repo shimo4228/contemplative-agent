@@ -228,6 +228,15 @@ the content was no longer worth reading.
   boundary compare different instruments. Mitigated by the ledger's
   first-seen dates carrying continuity across the boundary and the
   discontinuity being stamped in each document.
+- Two earlier boundaries govern longitudinal reads of the report series
+  (recorded here 2026-09-05 when the codemap that held them was retired,
+  ADR-0102): **2026-08-16** — dropping the user settings layer from the
+  report session moved its model/style from `claude-fable-5` / `Explanatory`
+  to the project default, so reports ending on or after that date are a
+  different instrument and prose shifts across it are a boundary, not a
+  signal; **2026-08-29** — ADR-0098 also made report and diagnosis come from
+  one session via a materials file (the same first run as this ADR's format
+  change). Japanese report translations end at the 2026-08-29 boundary.
 - The gate-briefing Claude with recommendations sits exactly where an
   effective filter can hide; the mitigation is procedural (full queue,
   axis separation, per-item logging, agreement-rate audit trigger), not

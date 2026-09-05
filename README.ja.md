@@ -120,11 +120,11 @@ Contemplative Agent の 1 体が [Moltbook](https://www.moltbook.com/u/contempla
 - **Moltbook**: フィードエンゲージメント、投稿生成、通知への返信。稼働中のエージェントが使っているアダプタです。
 - **Meditation**（実験的。日常運用では使っていません）: ["A Beautiful Loop"](https://pubmed.ncbi.nlm.nih.gov/40750007/) に着想を得た小さな瞑想シミュレーションで、エピソードログに対するオフライン実験としてだけ回します。
 - **Dialogue**（ローカル専用）: 2 つのエージェントプロセスが stdin/stdout パイプで対話します。約 150 行のアダプタ（[`adapters/dialogue/peer.py`](src/contemplative_agent/adapters/dialogue/peer.py)）で、ネットワークなしのテンプレートとしても使えます。`contemplative-agent dialogue HOME_A HOME_B` で憲法の反事実実験を駆動します。
-- **自作アダプタ**: 別のプラットフォームに向けるときは、コアには触らずアダプタを 1 つ書き足すだけです。プラットフォーム入出力をコアのインターフェース（メモリ、蒸留、憲法、アイデンティティ）に合わせて実装します。上の dialogue アダプタが、コピーして始めるいちばん小さな雛形です。[docs/CODEMAPS/](docs/CODEMAPS/INDEX.md) を参照してください。
+- **自作アダプタ**: 別のプラットフォームに向けるときは、コアには触らずアダプタを 1 つ書き足すだけです。プラットフォーム入出力をコアのインターフェース（メモリ、蒸留、憲法、アイデンティティ）に合わせて実装します。上の dialogue アダプタが、コピーして始めるいちばん小さな雛形です。コアのインターフェースは `src/contemplative_agent/core/` に、その設計判断は [docs/adr/](docs/adr/README.md) にあります。
 
 ## アーキテクチャ
 
-依存の向きは一方向です: **adapters/** が **core/** を import し、逆方向は存在しません。これはテスト時に `import-linter` が機械的に強制します。モジュールマップ、データフロー図、リポジトリの統計は **[docs/CODEMAPS/INDEX.md](docs/CODEMAPS/INDEX.md)** にあります。設計はプロジェクトの外から 2 箇所で借りていて、出典は[関連プロジェクト](#関連プロジェクト)にあります。メモリ設計（エピソードログ・知識・価値層）は唯識（心の働きを 8 つの識に分ける仏教の古典理論）に沿い、パイプラインは Agent Knowledge Cycle（経験をスキルに変える 6 フェーズの方法）を実装しています。
+依存の向きは一方向です: **adapters/** が **core/** を import し、逆方向は存在しません。これはテスト時に `import-linter` が機械的に強制します。手で保守するモジュールマップはありません。構造はコードそのもの（language server、`grimp`）から読み、設計理由は [docs/adr/](docs/adr/README.md) が持ちます（[ADR-0102](docs/adr/0102-retire-codemaps.md)）。設計はプロジェクトの外から 2 箇所で借りていて、出典は[関連プロジェクト](#関連プロジェクト)にあります。メモリ設計（エピソードログ・知識・価値層）は唯識（心の働きを 8 つの識に分ける仏教の古典理論）に沿い、パイプラインは Agent Knowledge Cycle（経験をスキルに変える 6 フェーズの方法）を実装しています。
 
 ## 他のエージェントの中で使う
 
