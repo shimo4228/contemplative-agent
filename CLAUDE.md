@@ -6,7 +6,7 @@
 
 [`graph.jsonld`](graph.jsonld) は concept-level の知識グラフ: 「X とは何か、X と Y はどう関係するか」を JSON-LD triples で encode（4 公理 / 3 メモリ層 / approval-gate chain / AKC 6-phase pipeline mapping / ADR ノード）。コードのノードは持たない — file-level は導出層であって保存層ではない。新規 ADR / Concept / Axiom 追加時は graph を更新する。役割境界の正本定義は `~/.claude/skills/jsonld-knowledge-graph/SKILL.md`。
 
-**鮮度規約（mechanism 層）**: パイプラインのゲート・式・閾値・段構成を変える変更は、所有 ADR（新設か追補）と該当 script の冒頭コメントを**同じ PR で更新**する。散文の機構記述を別文書に複製しない — 古い機構記述は無記述より有害（読んだ agent が誤った機構を掴む）。
+**鮮度規約（mechanism 層）**: パイプラインのゲート・式・閾値・段構成を変える変更は、所有 ADR（新設か追補）と該当 script の冒頭コメントを**同じ PR で更新**する。該当する設計地図 [docs/diagrams/](docs/diagrams/README.md) の JSON（Archify 図の正本）も同じ PR で更新し HTML を再生成する。散文の機構記述を別文書に複製しない — 古い機構記述は無記述より有害（読んだ agent が誤った機構を掴む）。
 
 Project の正式名は **Contemplative Agent** （`shimo4228/contemplative-agent`）。`Moltbook` は SNS adapter のみを指す名称として graph 内・README 内すべてで徹底する。
 

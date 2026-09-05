@@ -1,0 +1,364 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "04 実行時プロンプト組立",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "layers",
+        "label": "値層の重なり順",
+        "focus": [
+          "identity",
+          "constitution",
+          "skills",
+          "rules",
+          "base",
+          "assembler"
+        ],
+        "note": "identity.md（無ければ system.md）+ --- + 公理 → learned_skills（選択分）→ learned_rules（全量）。"
+      },
+      {
+        "id": "selection",
+        "label": "two-pass skill 選択",
+        "focus": [
+          "skills",
+          "selector",
+          "assembler",
+          "logs"
+        ],
+        "note": "pass1 が identity system prompt で catalog から選び、judged なら選択分のみ注入。fail-open は全量。"
+      },
+      {
+        "id": "boundary",
+        "label": "信頼境界は code 側",
+        "focus": [
+          "feed",
+          "guard_in",
+          "generate",
+          "guard_out",
+          "moltbook"
+        ],
+        "note": "外部本文は nonce frame で包み、出力は sanitize。値層は生成文に影響するだけで、書込み・公開を許可する経路は無い。"
+      }
+    ]
+  },
+  "layout": {
+    "mode": "grid",
+    "origin": [
+      40,
+      60
+    ],
+    "cols": 5,
+    "cellW": 170,
+    "cellH": 66,
+    "gapX": 56,
+    "gapY": 110
+  },
+  "components": [
+    {
+      "id": "identity",
+      "type": "database",
+      "label": "identity.md",
+      "sublabel": "無ければ system.md",
+      "tag": "L3 · validate 必須",
+      "row": 0,
+      "col": 0,
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "constitution",
+      "type": "database",
+      "label": "constitution/*.md",
+      "sublabel": "4 公理 clauses",
+      "tag": "configure_llm(axiom_prompt)",
+      "row": 0,
+      "col": 1,
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "rules",
+      "type": "database",
+      "label": "rules/*.md",
+      "sublabel": "Practice / Rationale",
+      "tag": "全量注入",
+      "row": 0,
+      "col": 2,
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "skills",
+      "type": "database",
+      "label": "skills/*.md",
+      "sublabel": "name — description catalog",
+      "tag": "選択注入",
+      "row": 0,
+      "col": 3,
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "base",
+      "type": "backend",
+      "label": "identity system",
+      "sublabel": "identity + --- + 公理",
+      "tag": "get_identity_system_prompt",
+      "row": 1,
+      "col": 0,
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "assembler",
+      "type": "backend",
+      "label": "system prompt 組立",
+      "sublabel": "learned_skills + rules",
+      "tag": "build_system_prompt_with_skills",
+      "row": 1,
+      "col": 2,
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "selector",
+      "type": "backend",
+      "label": "pass 1: skill 選択",
+      "sublabel": "judged / fail_open",
+      "tag": "ADR-0081",
+      "row": 1,
+      "col": 3,
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "logs",
+      "type": "database",
+      "label": "監査 JSONL",
+      "sublabel": "selection · injection · llm-calls",
+      "tag": "b64 + sha256",
+      "row": 1,
+      "col": 4,
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "feed",
+      "type": "external",
+      "label": "Moltbook feed",
+      "sublabel": "投稿 · コメント（untrusted）",
+      "row": 2,
+      "col": 0,
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "guard_in",
+      "type": "security",
+      "label": "wrap_untrusted",
+      "sublabel": "nonce frame · token 除去",
+      "tag": "ADR-0007",
+      "row": 2,
+      "col": 1,
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "generate",
+      "type": "backend",
+      "label": "生成 gemma4:e4b",
+      "sublabel": "comment / reply / post",
+      "tag": "Ollama localhost",
+      "row": 2,
+      "col": 2,
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "guard_out",
+      "type": "security",
+      "label": "_sanitize_output",
+      "sublabel": "thinking 除去 · secret scrub",
+      "row": 2,
+      "col": 3,
+      "size": [
+        170,
+        66
+      ]
+    },
+    {
+      "id": "moltbook",
+      "type": "external",
+      "label": "Moltbook API",
+      "sublabel": "POST → verification",
+      "tag": "1 外部 adapter",
+      "row": 2,
+      "col": 4,
+      "size": [
+        170,
+        66
+      ]
+    }
+  ],
+  "boundaries": [
+    {
+      "kind": "region",
+      "label": "MOLTBOOK_HOME 値層（観察対象 · 脅威面ではない）",
+      "wraps": [
+        "identity",
+        "constitution",
+        "rules",
+        "skills"
+      ]
+    },
+    {
+      "kind": "security-group",
+      "label": "code 側ガード core/llm/guard.py",
+      "wraps": [
+        "guard_in",
+        "generate",
+        "guard_out"
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "id": "identity-base",
+      "from": "identity",
+      "to": "base",
+      "label": "置換",
+      "variant": "emphasis",
+      "labelDy": 24
+    },
+    {
+      "id": "constitution-base",
+      "from": "constitution",
+      "to": "base",
+      "label": "--- + 公理",
+      "variant": "emphasis"
+    },
+    {
+      "id": "rules-assembler",
+      "from": "rules",
+      "to": "assembler",
+      "label": "learned_rules",
+      "variant": "default",
+      "labelDy": 24
+    },
+    {
+      "id": "skills-selector",
+      "from": "skills",
+      "to": "selector",
+      "label": "catalog",
+      "variant": "default",
+      "labelDy": 24
+    },
+    {
+      "id": "base-assembler",
+      "from": "base",
+      "to": "assembler",
+      "label": "基底",
+      "variant": "emphasis"
+    },
+    {
+      "id": "selector-assembler",
+      "from": "selector",
+      "to": "assembler",
+      "label": "selected",
+      "variant": "default"
+    },
+    {
+      "id": "selector-logs",
+      "from": "selector",
+      "to": "logs",
+      "label": "verdict",
+      "variant": "dashed"
+    },
+    {
+      "id": "assembler-generate",
+      "from": "assembler",
+      "to": "generate",
+      "label": "system prompt",
+      "variant": "emphasis",
+      "labelDy": 24
+    },
+    {
+      "id": "feed-guard",
+      "from": "feed",
+      "to": "guard_in",
+      "label": "本文",
+      "variant": "security"
+    },
+    {
+      "id": "guard-generate",
+      "from": "guard_in",
+      "to": "generate",
+      "label": "framed",
+      "variant": "security"
+    },
+    {
+      "id": "generate-guardout",
+      "from": "generate",
+      "to": "guard_out",
+      "label": "raw",
+      "variant": "security"
+    },
+    {
+      "id": "guardout-moltbook",
+      "from": "guard_out",
+      "to": "moltbook",
+      "label": "publish",
+      "variant": "emphasis"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "正本",
+      "items": [
+        "core/llm/prompting.py（_identity_axioms_base → build_system_prompt_with_skills）",
+        "core/skill_selection.py · core/llm/guard.py。配線は cli/runtime.py"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "境界の置き場",
+      "items": [
+        "値層は生成文に影響するだけ。LLM 判断が書込み・公開を許可する経路は無い",
+        "外部本文は per-call nonce frame。1 エージェント 1 外部 adapter（ADR-0015）"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "無いもの",
+      "items": [
+        "実行時に knowledge.json は読まない。MMR / RAG も無い",
+        "budget 計器は読み値で切詰めはしない"
+      ]
+    }
+  ]
+}

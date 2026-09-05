@@ -1,0 +1,259 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "01 distill: episode → patterns",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "read-path",
+        "label": "読み込みと絞り込み",
+        "focus": [
+          "read",
+          "filter",
+          "extract"
+        ],
+        "note": "1 日分の episode を読み、insight 型を捨て、rich（comment / reply / post）だけを LLM に渡す。"
+      },
+      {
+        "id": "save-gates",
+        "label": "保存時検証（生成時ではなく）",
+        "focus": [
+          "extract",
+          "validate",
+          "postgate",
+          "dedup"
+        ],
+        "note": "ADR-0008 の格言: 制御は生成時でなく保存時。code の形式検査 → LLM の durability 判定 → 埋め込み dedup の順。"
+      },
+      {
+        "id": "abstain-path",
+        "label": "棄権と監査",
+        "focus": [
+          "extract",
+          "validate",
+          "abstain"
+        ],
+        "note": "silent fallback 禁止（ADR-0075）。fault と verdict を理由コードで分ける。"
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "episode",
+      "label": "記憶 store（logs/YYYY-MM-DD.jsonl → knowledge.json）"
+    },
+    {
+      "id": "llm",
+      "label": "LLM 呼び出し（gemma4:e4b · think OFF）"
+    },
+    {
+      "id": "gate",
+      "label": "保存時ゲート（code）"
+    },
+    {
+      "id": "abstain",
+      "label": "棄権 · 監査（llm-calls-{date}.jsonl）",
+      "variant": "exception"
+    }
+  ],
+  "phases": [
+    {
+      "id": "read_phase",
+      "label": "読む",
+      "fromCol": 0,
+      "toCol": 1
+    },
+    {
+      "id": "extract_phase",
+      "label": "抽出 → 検証",
+      "fromCol": 2,
+      "toCol": 4,
+      "variant": "emphasis"
+    },
+    {
+      "id": "persist_phase",
+      "label": "保存",
+      "fromCol": 5,
+      "toCol": 5,
+      "variant": "security"
+    }
+  ],
+  "mainPath": [
+    "read",
+    "filter",
+    "extract",
+    "validate",
+    "postgate",
+    "dedup",
+    "knowledge"
+  ],
+  "nodes": [
+    {
+      "id": "read",
+      "lane": "episode",
+      "col": 0,
+      "type": "database",
+      "label": "read_range(days)",
+      "sublabel": "--days 1 · run lock 取得",
+      "tag": "launchd HH:30",
+      "width": 140
+    },
+    {
+      "id": "filter",
+      "lane": "episode",
+      "col": 1,
+      "type": "backend",
+      "label": "rich フィルタ",
+      "sublabel": "comment / reply / post のみ",
+      "tag": "ADR-0052 / 0060",
+      "width": 150
+    },
+    {
+      "id": "extract",
+      "lane": "llm",
+      "col": 2,
+      "type": "backend",
+      "label": "distill.episode",
+      "sublabel": "1 episode 1 call · num_predict 3000",
+      "tag": "distill_episode.md",
+      "width": 190
+    },
+    {
+      "id": "validate",
+      "lane": "gate",
+      "col": 3,
+      "type": "security",
+      "label": "形式検査",
+      "sublabel": "len ≥ 30 · 空白 ≥ 3 · 失敗句除外",
+      "tag": "_is_valid_pattern",
+      "width": 180
+    },
+    {
+      "id": "postgate",
+      "lane": "llm",
+      "col": 4,
+      "type": "backend",
+      "label": "distill.postgate",
+      "sublabel": "{keep:[int]} · fail-open",
+      "tag": "ADR-0084",
+      "width": 160
+    },
+    {
+      "id": "dedup",
+      "lane": "gate",
+      "col": 5,
+      "type": "security",
+      "label": "embed + dedup",
+      "sublabel": "nomic 768 · 0.90 skip · 0.80 update",
+      "tag": "ADR-0019 / 0021",
+      "width": 190
+    },
+    {
+      "id": "abstain",
+      "lane": "abstain",
+      "col": 2,
+      "type": "messagebus",
+      "label": "abstain 理由コード",
+      "sublabel": "llm_none · empty_render · shape_violation · nothing_durable",
+      "tag": "ADR-0075",
+      "width": 300
+    },
+    {
+      "id": "knowledge",
+      "lane": "episode",
+      "col": 5,
+      "type": "database",
+      "label": "knowledge.json",
+      "sublabel": "add / soft-invalidate + append / skip",
+      "tag": "provenance · valid_from",
+      "width": 200
+    }
+  ],
+  "edges": [
+    {
+      "id": "read-filter",
+      "from": "read",
+      "to": "filter",
+      "label": "type == insight を除外",
+      "variant": "default"
+    },
+    {
+      "id": "filter-extract",
+      "from": "filter",
+      "to": "extract",
+      "label": "rich episode を描画",
+      "variant": "emphasis"
+    },
+    {
+      "id": "extract-validate",
+      "from": "extract",
+      "to": "validate",
+      "label": "{patterns:[str]}",
+      "variant": "emphasis"
+    },
+    {
+      "id": "validate-postgate",
+      "from": "validate",
+      "to": "postgate",
+      "label": "形式通過",
+      "variant": "emphasis"
+    },
+    {
+      "id": "postgate-dedup",
+      "from": "postgate",
+      "to": "dedup",
+      "label": "keep",
+      "variant": "emphasis"
+    },
+    {
+      "id": "dedup-knowledge",
+      "from": "dedup",
+      "to": "knowledge",
+      "label": "< 0.80 add · ≥ 0.80 update · ≥ 0.90 skip",
+      "variant": "security"
+    },
+    {
+      "id": "extract-abstain",
+      "from": "extract",
+      "to": "abstain",
+      "label": "llm_none / empty_render",
+      "variant": "dashed",
+      "role": "error"
+    },
+    {
+      "id": "validate-abstain",
+      "from": "validate",
+      "to": "abstain",
+      "label": "shape_violation / nothing_durable",
+      "variant": "dashed",
+      "role": "error"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "正本と閾値",
+      "items": [
+        "core/distill.py · core/thresholds.py（0.90 skip · 0.80 update · floor 0.05）",
+        "prompts: distill_episode.md（第 3 段落 = register、ADR-0072）· distill_postgate.md"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "ゲート無し・観測あり",
+      "items": [
+        "承認ゲートを通らない唯一の書込み。--dry-run は view_metrics のみ（ADR-0071）",
+        "snapshots/distill_<ts>/ に views · prompts · thresholds を凍結（ADR-0020）"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "下流の読み手",
+      "items": [
+        "self_reflection 0.66 → identity、constitutional 0.55 → amend / shadow（図 03）",
+        "insight は cluster 0.70（図 02）。patterns.jsonl は embedding 抜きの公開投影"
+      ]
+    }
+  ]
+}

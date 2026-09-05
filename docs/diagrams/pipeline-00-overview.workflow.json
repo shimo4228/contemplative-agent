@@ -1,0 +1,242 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "00 値層パイプライン全体図",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "memory-path",
+        "label": "記憶の 3 層",
+        "focus": [
+          "run",
+          "episodes",
+          "distill",
+          "knowledge"
+        ],
+        "note": "episode (L1) → distill → patterns (L2)。ここまでは人間ゲート無し。"
+      },
+      {
+        "id": "value-candidates",
+        "label": "値層候補と承認",
+        "focus": [
+          "knowledge",
+          "candidates",
+          "gate"
+        ],
+        "note": "同じ pattern 池から view 別に取り出し、skill / identity / 憲法の候補を .staged/ に置く。書けるのは adopt-staged だけ。"
+      },
+      {
+        "id": "closed-loop",
+        "label": "閉ループ",
+        "focus": [
+          "gate",
+          "valueprompt",
+          "run"
+        ],
+        "note": "採用された値層が次セッションの system prompt へ戻る。北極星: この輪が人手なしで回ること。"
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "memory",
+      "label": "記憶 L1 → L2（人間ゲート無し・日次）"
+    },
+    {
+      "id": "candidates",
+      "label": "値層候補（offline コマンド・view 別 retrieval）"
+    },
+    {
+      "id": "gate",
+      "label": "人間承認ゲート（土曜 weekly-gate）",
+      "variant": "exception"
+    },
+    {
+      "id": "ops",
+      "label": "運用 run（6h ごと・gemma4:e4b）"
+    }
+  ],
+  "phases": [
+    {
+      "id": "operate",
+      "label": "運用",
+      "fromCol": 0,
+      "toCol": 0
+    },
+    {
+      "id": "memory_phase",
+      "label": "記憶と蒸留",
+      "fromCol": 1,
+      "toCol": 3,
+      "variant": "emphasis"
+    },
+    {
+      "id": "value_phase",
+      "label": "候補 → 承認 → 注入",
+      "fromCol": 4,
+      "toCol": 5,
+      "variant": "security"
+    }
+  ],
+  "mainPath": [
+    "run",
+    "episodes",
+    "distill",
+    "knowledge",
+    "candidates",
+    "gate",
+    "valueprompt"
+  ],
+  "nodes": [
+    {
+      "id": "run",
+      "lane": "ops",
+      "col": 0,
+      "type": "frontend",
+      "label": "run セッション",
+      "sublabel": "comment · reply · post",
+      "tag": "launchd 0/6/12/18 JST",
+      "width": 130
+    },
+    {
+      "id": "episodes",
+      "lane": "memory",
+      "col": 1,
+      "type": "database",
+      "label": "episode log (L1)",
+      "sublabel": "logs/YYYY-MM-DD.jsonl",
+      "tag": "append-only",
+      "width": 150
+    },
+    {
+      "id": "distill",
+      "lane": "memory",
+      "col": 2,
+      "type": "backend",
+      "label": "distill",
+      "sublabel": "日次 · 保存時検証",
+      "tag": "ADR-0060/0084",
+      "width": 150
+    },
+    {
+      "id": "knowledge",
+      "lane": "memory",
+      "col": 3,
+      "type": "database",
+      "label": "knowledge.json (L2)",
+      "sublabel": "patterns · nomic 768",
+      "tag": "ADR-0021",
+      "width": 170
+    },
+    {
+      "id": "candidates",
+      "lane": "candidates",
+      "col": 4,
+      "type": "backend",
+      "label": "値層候補コマンド 3 本",
+      "sublabel": "insight / identity / 憲法",
+      "tag": "詳細図 02 / 03",
+      "width": 210
+    },
+    {
+      "id": "gate",
+      "lane": "gate",
+      "col": 5,
+      "type": "security",
+      "label": ".staged/ → adopt-staged",
+      "sublabel": "未審査 1 batch · audit",
+      "tag": "ADR-0012 / 0074",
+      "width": 170
+    },
+    {
+      "id": "valueprompt",
+      "lane": "ops",
+      "col": 5,
+      "type": "database",
+      "label": "値層 store → system prompt",
+      "sublabel": "skills · identity · 憲法 · rules",
+      "tag": "詳細図 04",
+      "width": 200
+    }
+  ],
+  "edges": [
+    {
+      "id": "run-episodes",
+      "from": "run",
+      "to": "episodes",
+      "label": "rich episode 追記",
+      "variant": "emphasis"
+    },
+    {
+      "id": "episodes-distill",
+      "from": "episodes",
+      "to": "distill",
+      "label": "read_range(days)",
+      "variant": "emphasis"
+    },
+    {
+      "id": "distill-knowledge",
+      "from": "distill",
+      "to": "knowledge",
+      "label": "dedup 0.90 / 0.80",
+      "variant": "emphasis"
+    },
+    {
+      "id": "knowledge-candidates",
+      "from": "knowledge",
+      "to": "candidates",
+      "label": "view centroid ≥ 0.66 / 0.55 · cluster 0.70",
+      "variant": "emphasis"
+    },
+    {
+      "id": "candidates-gate",
+      "from": "candidates",
+      "to": "gate",
+      "label": "候補 .md + .meta.json",
+      "variant": "security"
+    },
+    {
+      "id": "gate-valueprompt",
+      "from": "gate",
+      "to": "valueprompt",
+      "label": "approve → write_restricted",
+      "variant": "security"
+    },
+    {
+      "id": "valueprompt-run",
+      "from": "valueprompt",
+      "to": "run",
+      "label": "次セッションの system prompt",
+      "variant": "emphasis",
+      "role": "return",
+      "route": "bottom-channel"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "3 層メモリ (ADR-0004)",
+      "items": [
+        "L1 episode → L2 patterns（distill、唯一の非ゲート書込み）→ L3 identity",
+        "patterns は実行時に読まれない。retrieval は offline 値層コマンドだけ"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "人間ゲートは 1 箇所",
+      "items": [
+        "adopt-staged だけが値層に書く（ADR-0012）。退役は .archive/ へ移動",
+        "未審査 1 batch 不変（ADR-0074）。shadow は書かない計器（ADR-0092）"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "北極星 (ADR-0080)",
+      "items": [
+        "機構層の完成 = この閉ループが人手なしで回る（ゲート負荷 → 0）",
+        "詳細図 01 distill / 02 insight+選択 / 03 identity·憲法 / 04 prompt / 05 週次"
+      ]
+    }
+  ]
+}

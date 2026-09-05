@@ -1,0 +1,268 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "03 identity · 憲法 · shadow",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "identity-path",
+        "label": "identity（27d）",
+        "focus": [
+          "knowledge",
+          "views",
+          "idistill",
+          "ivalidate",
+          "staged",
+          "adopt"
+        ],
+        "note": "self_reflection view だけを材料に、前の identity を seed せず（ADR-0057）公理なし system で合成（ADR-0058）。月次 staging は weekly Stage 5b。"
+      },
+      {
+        "id": "constitution-path",
+        "label": "憲法改正（83d · 人間起動）",
+        "focus": [
+          "views",
+          "amend",
+          "staged",
+          "adopt"
+        ],
+        "note": "現行憲法 + constitutional patterns ≥ 3 から改正案。due は informational で自動化しない（ADR-0090）。"
+      },
+      {
+        "id": "shadow-path",
+        "label": "shadow 計器（read-only）",
+        "focus": [
+          "views",
+          "synth",
+          "cosine",
+          "adopt"
+        ],
+        "note": "現行憲法を見せずに patterns だけから合成し、cosine 乖離を記録。次回改正ゲートの第 3 材料（ADR-0092）。"
+      }
+    ],
+    "viewBox": [
+      1230,
+      660
+    ]
+  },
+  "lanes": [
+    {
+      "id": "shadow",
+      "label": "retrieval（view centroid）· shadow-constitution（read-only 計器）"
+    },
+    {
+      "id": "identity",
+      "label": "distill-identity"
+    },
+    {
+      "id": "constitution",
+      "label": "amend-constitution"
+    },
+    {
+      "id": "gate",
+      "label": "承認（ADR-0012）",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "knowledge",
+    "views",
+    "idistill",
+    "ivalidate",
+    "staged",
+    "adopt"
+  ],
+  "nodes": [
+    {
+      "id": "knowledge",
+      "lane": "shadow",
+      "col": 0,
+      "type": "database",
+      "label": "knowledge.json",
+      "sublabel": "live patterns",
+      "width": 120
+    },
+    {
+      "id": "views",
+      "lane": "shadow",
+      "col": 1,
+      "type": "backend",
+      "label": "view centroid",
+      "sublabel": "config/views/*.md",
+      "tag": "ADR-0071 / 0072",
+      "width": 130
+    },
+    {
+      "id": "idistill",
+      "lane": "identity",
+      "col": 2,
+      "type": "backend",
+      "label": "distill.identity",
+      "sublabel": "think ON · 前 identity 不注入",
+      "tag": "ADR-0057 / 0058",
+      "width": 150
+    },
+    {
+      "id": "ivalidate",
+      "lane": "identity",
+      "col": 3,
+      "type": "security",
+      "label": "identity 検証",
+      "sublabel": "forbidden pattern",
+      "tag": "失敗は本文を返さない",
+      "width": 130
+    },
+    {
+      "id": "amend",
+      "lane": "constitution",
+      "col": 3,
+      "type": "backend",
+      "label": "constitution.amend",
+      "sublabel": "現行先頭 *.md + patterns ≥ 3",
+      "tag": "constitution_amend.md",
+      "width": 170
+    },
+    {
+      "id": "synth",
+      "lane": "shadow",
+      "col": 4,
+      "type": "backend",
+      "label": "shadow 合成",
+      "sublabel": "patterns のみ · 現行不注入",
+      "tag": "constitution_synthesize.md",
+      "width": 150
+    },
+    {
+      "id": "cosine",
+      "lane": "shadow",
+      "col": 5,
+      "type": "database",
+      "label": "cosine 乖離",
+      "sublabel": "vs 全 constitution/*.md",
+      "tag": "constitution-shadow.jsonl",
+      "width": 150
+    },
+    {
+      "id": "staged",
+      "lane": "gate",
+      "col": 4,
+      "type": "database",
+      "label": ".staged/",
+      "sublabel": "--stage · 1 batch",
+      "tag": "ADR-0074",
+      "width": 120
+    },
+    {
+      "id": "adopt",
+      "lane": "gate",
+      "col": 5,
+      "type": "security",
+      "label": "adopt-staged",
+      "sublabel": "→ identity.md / constitution/",
+      "tag": "土曜 weekly-gate · audit.jsonl",
+      "width": 170
+    }
+  ],
+  "edges": [
+    {
+      "id": "knowledge-views",
+      "from": "knowledge",
+      "to": "views",
+      "label": "raw / live",
+      "variant": "emphasis"
+    },
+    {
+      "id": "views-idistill",
+      "from": "views",
+      "to": "idistill",
+      "label": "self_reflection ≥ 0.66",
+      "variant": "emphasis"
+    },
+    {
+      "id": "views-amend",
+      "from": "views",
+      "to": "amend",
+      "label": "constitutional ≥ 0.55",
+      "variant": "default",
+      "role": "branch"
+    },
+    {
+      "id": "views-synth",
+      "from": "views",
+      "to": "synth",
+      "label": "同 view",
+      "variant": "dashed",
+      "role": "async"
+    },
+    {
+      "id": "idistill-ivalidate",
+      "from": "idistill",
+      "to": "ivalidate",
+      "label": "IdentityResult",
+      "variant": "emphasis"
+    },
+    {
+      "id": "ivalidate-staged",
+      "from": "ivalidate",
+      "to": "staged",
+      "label": "identity.md 候補",
+      "variant": "emphasis"
+    },
+    {
+      "id": "amend-staged",
+      "from": "amend",
+      "to": "staged",
+      "label": "改正案",
+      "variant": "default"
+    },
+    {
+      "id": "synth-cosine",
+      "from": "synth",
+      "to": "cosine",
+      "label": "embed 2 本",
+      "variant": "dashed"
+    },
+    {
+      "id": "cosine-adopt",
+      "from": "cosine",
+      "to": "adopt",
+      "label": "ゲート材料",
+      "variant": "dashed",
+      "role": "async"
+    },
+    {
+      "id": "staged-adopt",
+      "from": "staged",
+      "to": "adopt",
+      "label": "approve / hold",
+      "variant": "security"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "正本",
+      "items": [
+        "core/distill.py distill_identity · core/constitution.py · constitution_shadow.py",
+        "views: self_reflection 0.66 · constitutional 0.55。system は公理・identity なし"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "ゲートと cadence",
+      "items": [
+        "対話承認（非 TTY は reject）か --stage。identity / 憲法だけ target を置換",
+        "identity due 27d は weekly Stage 5b が --stage（図 05）。憲法 83d は informational"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "shadow の読み方",
+      "items": [
+        "baseline は constitution/ 全 *.md 連結。cosine 失敗は None、0.0 にしない",
+        "meditate / dialogue はループ外の side 実験"
+      ]
+    }
+  ]
+}

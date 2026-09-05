@@ -1,0 +1,235 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "05 週次チェーンと人間ゲート",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "unattended",
+        "label": "無人チェーン",
+        "focus": [
+          "materials",
+          "report",
+          "drafts",
+          "valuelayer",
+          "deadcode",
+          "neversel"
+        ],
+        "note": "materials → 1 headless /weekly-report → 決定論計器。commit / push / adopt はしない（working tree まで）。"
+      },
+      {
+        "id": "gate",
+        "label": "土曜 /weekly-gate",
+        "focus": [
+          "valuelayer",
+          "deadcode",
+          "neversel",
+          "drafts",
+          "gate"
+        ],
+        "note": "findings と計器 JSON を直読し、adopt-staged · 退役 · dead code 削除 · rfcs 起票の機微点検と commit を 1 セッションで行う。"
+      },
+      {
+        "id": "repair",
+        "label": "修理は triage loop",
+        "focus": [
+          "drafts",
+          "triage"
+        ],
+        "note": "診断は起票まで。premise 再検証 → dispatch → 人間 merge（ADR-0098）。"
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "triage",
+      "label": "task-triage loop（judge = Fable · build = Opus · merge = 人間）"
+    },
+    {
+      "id": "chain",
+      "label": "scripts/weekly-pipeline.sh（launchd 土曜 · 既定 09:00 JST）"
+    },
+    {
+      "id": "instruments",
+      "label": "決定論計器（fail-forward · weekly-pipeline-audit.jsonl）"
+    },
+    {
+      "id": "gate",
+      "label": "/weekly-gate（土曜 · 人間 1 セッション）",
+      "variant": "exception"
+    }
+  ],
+  "mainPath": [
+    "materials",
+    "report",
+    "drafts",
+    "gate"
+  ],
+  "nodes": [
+    {
+      "id": "materials",
+      "lane": "chain",
+      "col": 0,
+      "type": "backend",
+      "label": "materials",
+      "sublabel": "weekly-analysis.sh",
+      "tag": "episode 直読なし ADR-0083",
+      "width": 150
+    },
+    {
+      "id": "report",
+      "lane": "chain",
+      "col": 1,
+      "type": "backend",
+      "label": "/weekly-report",
+      "sublabel": "1 headless session",
+      "tag": "RFC-0010 · ADR-0098",
+      "width": 150
+    },
+    {
+      "id": "drafts",
+      "lane": "chain",
+      "col": 2,
+      "type": "database",
+      "label": "working tree",
+      "sublabel": "findings.md · rfcs/ draft",
+      "tag": "未 commit",
+      "width": 150
+    },
+    {
+      "id": "valuelayer",
+      "lane": "instruments",
+      "col": 3,
+      "type": "backend",
+      "label": "value-layer due",
+      "sublabel": "27d / 83d · staging",
+      "tag": "ADR-0091",
+      "width": 150
+    },
+    {
+      "id": "deadcode",
+      "lane": "instruments",
+      "col": 4,
+      "type": "backend",
+      "label": "deadcode · docsscan",
+      "sublabel": "vulture · ADR-0093",
+      "width": 150
+    },
+    {
+      "id": "neversel",
+      "lane": "instruments",
+      "col": 5,
+      "type": "backend",
+      "label": "never-selected",
+      "sublabel": "never-selected-*.json",
+      "tag": "stage_enabled 外",
+      "width": 150
+    },
+    {
+      "id": "gate",
+      "lane": "gate",
+      "col": 5,
+      "type": "security",
+      "label": "weekly-gate",
+      "sublabel": "adopt · 退役 · commit",
+      "tag": "pipeline-metrics.jsonl",
+      "width": 150
+    },
+    {
+      "id": "triage",
+      "lane": "triage",
+      "col": 5,
+      "type": "backend",
+      "label": "task-triage",
+      "sublabel": "検証 → dispatch → merge",
+      "tag": "Sat 14:07 tick",
+      "width": 150
+    }
+  ],
+  "edges": [
+    {
+      "id": "materials-report",
+      "from": "materials",
+      "to": "report",
+      "label": "materials .md",
+      "variant": "emphasis"
+    },
+    {
+      "id": "report-drafts",
+      "from": "report",
+      "to": "drafts",
+      "label": "6 節 + F1/F2/F3",
+      "variant": "emphasis"
+    },
+    {
+      "id": "drafts-valuelayer",
+      "from": "drafts",
+      "to": "valuelayer",
+      "label": "Stage 5b",
+      "variant": "default"
+    },
+    {
+      "id": "valuelayer-deadcode",
+      "from": "valuelayer",
+      "to": "deadcode",
+      "label": "次段",
+      "variant": "default"
+    },
+    {
+      "id": "deadcode-neversel",
+      "from": "deadcode",
+      "to": "neversel",
+      "label": "7b",
+      "variant": "default"
+    },
+    {
+      "id": "drafts-gate",
+      "from": "drafts",
+      "to": "gate",
+      "label": "機微点検 → commit",
+      "variant": "security"
+    },
+    {
+      "id": "neversel-gate",
+      "from": "neversel",
+      "to": "gate",
+      "label": "JSON 直読",
+      "variant": "security"
+    },
+    {
+      "id": "drafts-triage",
+      "from": "drafts",
+      "to": "triage",
+      "label": "F1 draft",
+      "variant": "dashed",
+      "role": "async"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "正本",
+      "items": [
+        "scripts/weekly-pipeline.sh（report,valuelayer,deadcode,docsscan + 7b）· value_layer_due_check.py",
+        ".claude/skills/weekly-report · weekly-gate。launchd は config/launchd/*.plist"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "不変",
+      "items": [
+        "無人チェーンは commit / push / adopt をしない。公開 commit は土曜ゲートだけ",
+        "修理はチェーン内でしない（ADR-0098）。診断は draft まで、merge は人間"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "ゲートが読むもの",
+      "items": [
+        "findings.md · .staged/*.meta.json · value-layer-{end}.json（due · staging_pending）",
+        "never-selected-{end}.json（600 · 14d、listing のみ）。metrics は gate だけが書く"
+      ]
+    }
+  ]
+}

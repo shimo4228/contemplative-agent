@@ -225,3 +225,4 @@ Each master-table row corresponds to a live asset. To re-verify after changes:
   `~/.claude/skills/wiki-harvest/`, `~/.claude/skills/wiki-query/`
 - Papers / DOIs (canonical index): [hub `## Papers`](https://github.com/shimo4228/shimo4228#papers); per-repo `CITATION.cff` + `.zenodo.json`
 - Concept layer: [`../graph.jsonld`](../graph.jsonld)
+- Cycle #3/#4 mechanism map (episode → patterns → skills / identity / constitution → prompt): [`diagrams/`](diagrams/README.md) — Archify JSON is canonical, HTML is the rendered output

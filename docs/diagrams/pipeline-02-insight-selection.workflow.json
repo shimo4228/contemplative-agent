@@ -1,0 +1,314 @@
+{
+  "schema_version": 2,
+  "diagram_type": "workflow",
+  "meta": {
+    "title": "02 insight と skill 選択",
+    "quality_profile": "showcase",
+    "views": [
+      {
+        "id": "insight-path",
+        "label": "insight（週次）",
+        "focus": [
+          "refuse",
+          "cluster",
+          "novelty",
+          "extract",
+          "staged"
+        ],
+        "note": "novelty gate は抽出の前。1 cluster 1 call、棄権は NOTHING-PROMOTABLE。skills/ には書かない。"
+      },
+      {
+        "id": "gate-path",
+        "label": "承認と退役",
+        "focus": [
+          "staged",
+          "adopt",
+          "skills",
+          "neversel"
+        ],
+        "note": "adopt-staged が書く。退役は archive（削除しない、ADR-0097 D5）。never-selected は listing 基準で、判断は土曜ゲート。"
+      },
+      {
+        "id": "selection-loop",
+        "label": "実行時 two-pass 選択",
+        "focus": [
+          "skills",
+          "catalog",
+          "pass1",
+          "inject",
+          "log"
+        ],
+        "note": "pass1 が catalog から名前を選び、judged なら選択のみ注入、fail-open なら全量注入（ADR-0081）。"
+      }
+    ]
+  },
+  "lanes": [
+    {
+      "id": "insight",
+      "label": "insight（週次 · knowledge.json → 候補）"
+    },
+    {
+      "id": "staging",
+      "label": "staging → 人間承認",
+      "variant": "exception"
+    },
+    {
+      "id": "store",
+      "label": "skills/ store（観察対象）"
+    },
+    {
+      "id": "runtime",
+      "label": "実行時 skill 選択（run · ADR-0076 → 0081）"
+    }
+  ],
+  "mainPath": [
+    "refuse",
+    "cluster",
+    "novelty",
+    "extract",
+    "staged",
+    "adopt",
+    "skills"
+  ],
+  "nodes": [
+    {
+      "id": "refuse",
+      "lane": "insight",
+      "col": 0,
+      "type": "security",
+      "label": "pending 検査",
+      "sublabel": "未審査なら拒否",
+      "tag": "ADR-0074",
+      "width": 120
+    },
+    {
+      "id": "cluster",
+      "lane": "insight",
+      "col": 1,
+      "type": "backend",
+      "label": "cluster",
+      "sublabel": "0.70 · batch ≤ 10",
+      "tag": "core/clustering.py",
+      "width": 120
+    },
+    {
+      "id": "novelty",
+      "lane": "insight",
+      "col": 2,
+      "type": "backend",
+      "label": "novelty gate",
+      "sublabel": "LLM coverage judge",
+      "tag": "insight-novelty.jsonl",
+      "width": 120
+    },
+    {
+      "id": "extract",
+      "lane": "insight",
+      "col": 3,
+      "type": "backend",
+      "label": "skill_extract",
+      "sublabel": "1 cluster 1 call",
+      "tag": "insight_extraction.md",
+      "width": 120
+    },
+    {
+      "id": "staged",
+      "lane": "staging",
+      "col": 4,
+      "type": "database",
+      "label": ".staged/",
+      "sublabel": ".md + .meta.json",
+      "tag": "insight-staged.jsonl",
+      "width": 120
+    },
+    {
+      "id": "adopt",
+      "lane": "staging",
+      "col": 5,
+      "type": "security",
+      "label": "adopt-staged",
+      "sublabel": "approve / hold / reject",
+      "tag": "ADR-0012 · audit.jsonl",
+      "width": 130
+    },
+    {
+      "id": "skills",
+      "lane": "store",
+      "col": 5,
+      "type": "database",
+      "label": "skills/*.md",
+      "sublabel": "退役は .archive/",
+      "tag": "ADR-0097 D5",
+      "width": 120
+    },
+    {
+      "id": "catalog",
+      "lane": "runtime",
+      "col": 0,
+      "type": "backend",
+      "label": "catalog 読込",
+      "sublabel": "name 80 · desc 300",
+      "tag": "scrub_control",
+      "width": 120
+    },
+    {
+      "id": "pass1",
+      "lane": "runtime",
+      "col": 1,
+      "type": "backend",
+      "label": "pass 1: 選択",
+      "sublabel": "400 tok · shield",
+      "tag": "circuit_shield",
+      "width": 120
+    },
+    {
+      "id": "inject",
+      "lane": "runtime",
+      "col": 2,
+      "type": "backend",
+      "label": "pass 2: 注入",
+      "sublabel": "選択分のみ",
+      "tag": "fail-open は全量",
+      "width": 120
+    },
+    {
+      "id": "log",
+      "lane": "runtime",
+      "col": 3,
+      "type": "database",
+      "label": "selection log",
+      "sublabel": "*.jsonl · b64",
+      "tag": "ADR-0076",
+      "width": 120
+    },
+    {
+      "id": "neversel",
+      "lane": "runtime",
+      "col": 4,
+      "type": "backend",
+      "label": "never-selected",
+      "sublabel": "≥ 600 · 14d",
+      "tag": "listing のみ",
+      "width": 120
+    }
+  ],
+  "edges": [
+    {
+      "id": "refuse-cluster",
+      "from": "refuse",
+      "to": "cluster",
+      "label": "live patterns",
+      "variant": "emphasis"
+    },
+    {
+      "id": "cluster-novelty",
+      "from": "cluster",
+      "to": "novelty",
+      "label": "sample",
+      "variant": "emphasis"
+    },
+    {
+      "id": "novelty-extract",
+      "from": "novelty",
+      "to": "extract",
+      "label": "novel のみ",
+      "variant": "emphasis"
+    },
+    {
+      "id": "extract-staged",
+      "from": "extract",
+      "to": "staged",
+      "label": "候補 .md",
+      "variant": "emphasis"
+    },
+    {
+      "id": "staged-adopt",
+      "from": "staged",
+      "to": "adopt",
+      "label": "土曜ゲート",
+      "variant": "security"
+    },
+    {
+      "id": "adopt-skills",
+      "from": "adopt",
+      "to": "skills",
+      "label": "write",
+      "variant": "security",
+      "fromSide": "bottom",
+      "toSide": "top"
+    },
+    {
+      "id": "skills-catalog",
+      "from": "skills",
+      "to": "catalog",
+      "label": "毎生成前に列挙",
+      "variant": "emphasis",
+      "role": "return",
+      "route": "bottom-channel"
+    },
+    {
+      "id": "catalog-pass1",
+      "from": "catalog",
+      "to": "pass1",
+      "label": "catalog 行",
+      "variant": "default"
+    },
+    {
+      "id": "pass1-inject",
+      "from": "pass1",
+      "to": "inject",
+      "label": "selected",
+      "variant": "default"
+    },
+    {
+      "id": "inject-log",
+      "from": "inject",
+      "to": "log",
+      "label": "記録",
+      "variant": "dashed",
+      "role": "async"
+    },
+    {
+      "id": "log-neversel",
+      "from": "log",
+      "to": "neversel",
+      "label": "週次読み",
+      "variant": "dashed",
+      "role": "async"
+    },
+    {
+      "id": "neversel-adopt",
+      "from": "neversel",
+      "to": "adopt",
+      "label": "退役候補",
+      "variant": "dashed",
+      "role": "branch"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "cyan",
+      "title": "正本",
+      "items": [
+        "core/insight.py（MIN 3 · 0.70 · batch 10）· insight_novelty.py · cli/adopt.py · skill_archive.py",
+        "core/skill_selection.py（400 tok · circuit_shield）· never_selected_metrics.py（600 · 14d）"
+      ]
+    },
+    {
+      "dot": "rose",
+      "title": "退役した機構",
+      "items": [
+        "rules-distill / merge / clean / 事後 worth judge は ADR-0097 で解体。代替は co-selection",
+        "wiki（RFC-0017）は RFC-0025 で退役中。skill-impact は wiki 層にだけ残る"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "未実装の決定",
+      "items": [
+        "RFC-0023（accepted）: novelty gate を BM25 + nomic 候補検索へ。現行は LLM judge",
+        "RFC-0024（draft）: 本文自由記述 · 保存時長さ拒否。現行に長さ拒否・選択上限は無い"
+      ]
+    }
+  ]
+}
