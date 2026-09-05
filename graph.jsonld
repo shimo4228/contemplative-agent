@@ -2661,6 +2661,23 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0102-retire-the-wiki-mechanism.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0102: Retire the Wiki Mechanism — the Form Works, the Production Model Does Not",
+      "identifier": "ADR-0102",
+      "status": "accepted",
+      "datePublished": "2026-09-05",
+      "description": "Retires the RFC-0017 WikiSkill mechanism whole: the pattern-page store, the Maintainer and Proposer loops, their four prompts and PromptTemplates fields, the wiki-maintain / wiki-propose CLI commands, the install-schedule --wiki-maintain flags and plist, the offline replay harness, and testing/claude_cli.py — about 7,300 lines with six test modules. Never wired: the production store ~/.config/moltbook/wiki/ never existed and no plist was ever installed. Closed on three readings (2026-09-03 to 09-04): a 3-day gemma smoke produced 9 pages that were all general (M-a 0.80, patch ratio 0.25, -2.8k tokens of window per day), a gemma Proposer dry-run produced one patch whose only common ground with its target was an abstract phrase and whose anchor was absent from the body, and a same-window opus arm (claude-opus-5, $8.4) produced 9 specific, behaviour-changing pages and a justified five-item patch (17 calls, patch ratio 0.53). The reading: the flattening is the model, not the form, and production generation stays gemma4:e4b (ADR-0069, 16GB unattended). What was missing was distance from the existing skills (RFC-0023) and the register of extraction (RFC-0024), not a step that abstracts upward. testing/claude_cli.py was the only module shipped in this package that reached a cloud model, so its removal restores security by absence as a property of the tree rather than of an import contract; tests/test_cloud_egress_absence.py pins both absences by scanning source text rather than imports, and exempts the one surviving claude -p — the operator's scheduled /weekly-report session under ADR-0085 / ADR-0098. Kept: the two evidence readings in docs/evidence/rfc-0017/, the ADR-0088 conformance kit and LLMBackend Protocol, and _target_inside_data_root in core/_io.py. Rejected: running the wiki on opus (episode bodies leave the machine; kept as a Review-when trigger), reshaping it so gemma can hold it (a body-less form becomes the skill provenance column), keeping the code unwired (an unread mechanism is a negative difference — ADR-0097's precedent), and deleting the evidence. Review-when: production generation stops being gemma4:e4b, or a separate decision sends episode bodies to a cloud model.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0069-gemma-production-model-and-think-on-value-layer-pipelines.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0088-shipped-conformance-kit-for-the-llm-backend-contract.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0097-consolidator-dissolution-and-skill-store-exit.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",

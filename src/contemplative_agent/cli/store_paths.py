@@ -12,11 +12,10 @@ readings — the resolved referent and the literal path with a resolved parent
 leaks in one direction; the docstring records which review found which
 direction.
 
-That one predicate now LIVES IN :mod:`..core._io` and is re-exported here.
-It moved when the RFC-0017 wiki store — which is in ``core/`` and so cannot
-import ``cli/`` (ADR-0001) — needed the same containment argument. Importing
-it here rather than restating it keeps the module docstring's whole claim
-true: there is still exactly one implementation, and every caller of
+That one predicate LIVES IN :mod:`..core._io` and is re-exported here, so a
+``core`` caller can reach it without importing ``cli`` (ADR-0001). Importing
+it rather than restating it keeps the module docstring's whole claim true:
+there is still exactly one implementation, and every caller of
 ``store_paths`` reaches it unchanged.
 """
 

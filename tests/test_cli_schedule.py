@@ -20,7 +20,6 @@ from contemplative_agent.cli.schedule import (
     _do_install_distill_schedule,
     _do_install_schedule,
     _do_install_submolt_scan_schedule,
-    _do_install_wiki_maintain_schedule,
     _do_uninstall_schedule,
     _remove_stale_schedule_jobs,
 )
@@ -296,57 +295,6 @@ class TestInstallDistillSchedule:
         assert mock_run.call_count == 2
         assert "unload" in mock_run.call_args_list[0][0][0]
         assert "load" in mock_run.call_args_list[1][0][0]
-
-
-class TestInstallWikiMaintainSchedule:
-    """RFC-0017 D4: the daily Maintainer pass, the stage after distill."""
-
-    @patch("contemplative_agent.cli.schedule.subprocess.run")
-    def test_install_creates_wiki_maintain_plist(self, mock_run, tmp_path):
-        mock_run.return_value = MagicMock(returncode=0, stderr="")
-        plist_path = tmp_path / "com.moltbook.wiki-maintain.plist"
-
-        with (
-            patch("contemplative_agent.cli.schedule.LAUNCHD_WIKI_MAINTAIN_PLIST_PATH", plist_path),
-            patch("contemplative_agent.cli.schedule.LAUNCHD_PLIST_DIR", tmp_path),
-        ):
-            _do_install_wiki_maintain_schedule(wiki_maintain_hour=4, catch_up_days=2)
-
-        assert plist_path.exists()
-        content = plist_path.read_text()
-        assert "wiki-maintain" in content
-        assert "/contemplative-agent" in content
-        assert "{{VENV_BIN}}/contemplative-agent" not in content
-        assert "<integer>4</integer>" in content
-        # :15 — after distill's :30 the hour before, clear of the agent's HH:00.
-        assert "<integer>15</integer>" in content
-        # catch-up is what makes a failed night recoverable: the job otherwise
-        # only ever asks for yesterday (RFC-0017 D4).
-        assert "--catch-up-days" in content
-        assert "<string>2</string>" in content
-        for placeholder in (
-            "{{VENV_BIN}}",
-            "{{PROJECT_ROOT}}",
-            "{{WIKI_MAINTAIN_HOUR}}",
-            "{{WIKI_MAINTAIN_CATCH_UP}}",
-            "{{LOG_PATH}}",
-        ):
-            assert placeholder not in content
-
-    @patch("contemplative_agent.cli.schedule.subprocess.run")
-    def test_install_wiki_maintain_custom_hour(self, mock_run, tmp_path):
-        mock_run.return_value = MagicMock(returncode=0, stderr="")
-        plist_path = tmp_path / "com.moltbook.wiki-maintain.plist"
-
-        with (
-            patch("contemplative_agent.cli.schedule.LAUNCHD_WIKI_MAINTAIN_PLIST_PATH", plist_path),
-            patch("contemplative_agent.cli.schedule.LAUNCHD_PLIST_DIR", tmp_path),
-        ):
-            _do_install_wiki_maintain_schedule(wiki_maintain_hour=7, catch_up_days=0)
-
-        content = plist_path.read_text()
-        assert "<integer>7</integer>" in content
-        assert "<string>0</string>" in content  # catch-up is a knob, 0 included
 
 
 class TestInstallBackupSchedule:
@@ -625,9 +573,6 @@ class TestWeeklyPipelineValidationOrder:
             weekly_pipeline_day=9,  # invalid (>6)
             weekly_pipeline_hour=9,
             watchdog=False,
-            wiki_maintain=False,
-            wiki_maintain_hour=4,
-            wiki_maintain_catch_up_days=2,
         )
         parser = argparse.ArgumentParser()
         with (

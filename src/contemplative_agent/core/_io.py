@@ -4,10 +4,11 @@ Provides restricted-permission file writes, JSONL append, UTC timestamp,
 and text truncation helpers used across core / adapters.
 
 Also holds ``_target_inside_data_root``, the store-containment predicate.
-It lives here rather than in ``cli/store_paths.py`` (its only home until
-RFC-0017) because ``core/wiki.py`` needs the same check and ``core`` cannot
-import ``cli`` (ADR-0001). ``store_paths`` re-exports it, so there is still
-exactly one implementation — which is what its containment argument rests on.
+It lives in ``core`` rather than in ``cli/store_paths.py`` so that a caller on
+either side of the ADR-0001 boundary can reach it — ``core`` may not import
+``cli``, and a second copy is the one thing its containment argument cannot
+survive. ``store_paths`` re-exports it, so there is still exactly one
+implementation and every existing caller reaches it unchanged.
 """
 
 from __future__ import annotations
