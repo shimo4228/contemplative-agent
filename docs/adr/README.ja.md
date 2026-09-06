@@ -108,6 +108,7 @@
 | [0100](0100-retire-chaos-tdd-by-default-mandate.ja.md) | chaos-TDD by-default 義務の退役 — fault column は opt-in の判断に戻す | accepted — partially-supersedes ADR-0077 | 2026-08-29 |
 | [0101](0101-instrument-dissolution-mandate.ja.md) | 計器の溶解義務 — 新しい計器は消費計画を明記する | accepted | 2026-08-29 |
 | [0102](0102-retire-codemaps.ja.md) | docs/CODEMAPS の退役 — 構造は保存せずコードから導出する | accepted | 2026-09-05 |
+| [0103](0103-retire-the-wiki-mechanism.ja.md) | wiki 機構の退役 — 形は正しく、本番モデルが成立させない | accepted | 2026-09-05 |
 
 ## ADR の種別
 

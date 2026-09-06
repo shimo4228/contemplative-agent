@@ -38,9 +38,6 @@ LAUNCHD_WEEKLY_PIPELINE_LABEL = "com.moltbook.weekly-pipeline"
 
 LAUNCHD_WATCHDOG_LABEL = "com.moltbook.watchdog"
 
-# RFC-0017 D4 / D10: the daily Maintainer pass, the stage after distill.
-LAUNCHD_WIKI_MAINTAIN_LABEL = "com.moltbook.wiki-maintain"
-
 # ADR-0086: weekly read-only submolt-scope sweep.
 LAUNCHD_SUBMOLT_SCAN_LABEL = "com.moltbook.submolt-scan"
 
@@ -65,9 +62,6 @@ LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_WEEKLY_PIPEL
 
 LAUNCHD_WATCHDOG_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_WATCHDOG_LABEL}.plist"
 LAUNCHD_SUBMOLT_SCAN_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_SUBMOLT_SCAN_LABEL}.plist"
-
-
-LAUNCHD_WIKI_MAINTAIN_PLIST_PATH = LAUNCHD_PLIST_DIR / f"{LAUNCHD_WIKI_MAINTAIN_LABEL}.plist"
 
 
 def _build_calendar_intervals(interval_hours: int) -> str:
@@ -190,39 +184,6 @@ def _do_install_distill_schedule(distill_hour: int) -> None:
     print(f"Installed: {LAUNCHD_DISTILL_PLIST_PATH}")
     # :30 — the template offsets distill from the agent's HH:00 (audit M5).
     print(f"Schedule: daily at {distill_hour:02d}:30 (distill --days 1)")
-
-
-def _do_install_wiki_maintain_schedule(wiki_maintain_hour: int, catch_up_days: int) -> None:
-    """Install launchd plist for the daily Maintainer pass (RFC-0017 D4).
-
-    The stage after distill: distill fires at ``--distill-hour``:30 and the
-    Maintainer at ``--wiki-maintain-hour``:15 (default 04:15). The offset is
-    best-effort — what actually keeps the two off the one local Ollama is the
-    blocking run lock both take. ``catch_up_days`` re-reads that many days
-    before yesterday (resumed from the audit's batch rows, so a finished day
-    costs no call), which is what stops a failed night from being lost —
-    the job otherwise only ever asks for yesterday. Not approval-gated — the wiki is a derived
-    layer whose only consumer is the Proposer, and the human gate sits at the
-    Proposer's staging (D6/D10).
-    """
-    _install_plist(
-        template_name="com.moltbook.wiki-maintain.plist",
-        plist_path=LAUNCHD_WIKI_MAINTAIN_PLIST_PATH,
-        log_name="wiki-maintain-launchd.log",
-        substitutions={
-            "{{WIKI_MAINTAIN_HOUR}}": str(wiki_maintain_hour),
-            # int, escaped anyway: the escape is what makes "this value is
-            # interpolated into XML" true of every substitution, not of the
-            # ones whose type happens to make it unnecessary today.
-            "{{WIKI_MAINTAIN_CATCH_UP}}": xml_escape(str(catch_up_days)),
-        },
-    )
-
-    print(f"Installed: {LAUNCHD_WIKI_MAINTAIN_PLIST_PATH}")
-    print(
-        f"Schedule: daily at {wiki_maintain_hour:02d}:15 "
-        f"(wiki-maintain --catch-up-days {catch_up_days})"
-    )
 
 
 def _do_install_insight_schedule(weekday: int, hour: int) -> None:
@@ -380,9 +341,12 @@ def _do_uninstall_schedule() -> None:
     """Uninstall every launchd plist this installer manages (session + optional jobs).
 
     Out of scope, and left untouched: ``com.moltbook.ollama-restart`` (installed
-    and updated manually) and any surviving legacy ``com.moltbook.weekly-analysis``
-    job — its standalone installer was removed on 2026-08-29, so it is no longer
-    among the managed plists and must be removed by hand.
+    and updated manually) and two legacy jobs whose installers were removed, so
+    they are no longer among the managed plists and must be removed by hand —
+    ``com.moltbook.weekly-analysis`` (standalone installer removed 2026-08-29)
+    and ``com.moltbook.wiki-maintain`` (the whole mechanism retired 2026-09-05,
+    ADR-0103; never installed on the author's machine and never in a release,
+    so this is a note for a checkout that ran ``--wiki-maintain`` from main).
     """
     removed = False
 
@@ -394,7 +358,6 @@ def _do_uninstall_schedule() -> None:
         (LAUNCHD_WEEKLY_PIPELINE_PLIST_PATH, "weekly-pipeline"),
         (LAUNCHD_WATCHDOG_PLIST_PATH, "watchdog"),
         (LAUNCHD_SUBMOLT_SCAN_PLIST_PATH, "submolt-scan"),
-        (LAUNCHD_WIKI_MAINTAIN_PLIST_PATH, "wiki-maintain"),
     ]:
         removed = _unload_and_remove_plist(plist_path, label) or removed
 
@@ -410,7 +373,6 @@ def _remove_stale_schedule_jobs(
     weekly_pipeline: bool = False,
     watchdog: bool = False,
     submolt_scan: bool = False,
-    wiki_maintain: bool = False,
 ) -> None:
     """Remove previously-installed optional jobs whose flag is off this run.
 
@@ -437,10 +399,6 @@ def _remove_stale_schedule_jobs(
         LAUNCHD_SUBMOLT_SCAN_PLIST_PATH, "submolt-scan"
     ):
         print("  (stale submolt-scan schedule removed: flag not set on this run)")
-    if not wiki_maintain and _unload_and_remove_plist(
-        LAUNCHD_WIKI_MAINTAIN_PLIST_PATH, "wiki-maintain"
-    ):
-        print("  (stale wiki-maintain schedule removed: flag not set on this run)")
 
 
 def _validate_weekday_hour_flag(
@@ -479,10 +437,6 @@ def _validate_install_schedule_args(
         parser.error("--session must be between 1 and 1440 minutes")
     if args.distill_hour < 0 or args.distill_hour > 23:
         parser.error("--distill-hour must be between 0 and 23")
-    if args.wiki_maintain_hour < 0 or args.wiki_maintain_hour > 23:
-        parser.error("--wiki-maintain-hour must be between 0 and 23")
-    if args.wiki_maintain_catch_up_days < 0 or args.wiki_maintain_catch_up_days > 7:
-        parser.error("--wiki-maintain-catch-up-days must be between 0 and 7")
     if args.weekly_insight:
         _validate_weekday_hour_flag(
             parser,
@@ -533,7 +487,6 @@ def _dispatch_install_schedule_jobs(args: argparse.Namespace) -> None:
         weekly_pipeline=args.weekly_pipeline,
         watchdog=args.watchdog,
         submolt_scan=args.weekly_submolt_scan,
-        wiki_maintain=args.wiki_maintain,
     )
     _do_install_schedule(interval=args.interval, session=args.session)
     if not args.no_distill:
@@ -557,11 +510,6 @@ def _dispatch_install_schedule_jobs(args: argparse.Namespace) -> None:
         _do_install_submolt_scan_schedule(
             weekday=args.weekly_submolt_scan_day,
             hour=args.weekly_submolt_scan_hour,
-        )
-    if args.wiki_maintain:
-        _do_install_wiki_maintain_schedule(
-            wiki_maintain_hour=args.wiki_maintain_hour,
-            catch_up_days=args.wiki_maintain_catch_up_days,
         )
     if args.watchdog:
         _do_install_watchdog_schedule()
@@ -603,30 +551,6 @@ def _add_install_schedule_arguments(parser: argparse.ArgumentParser) -> None:
         type=int,
         default=3,
         help="Hour to run daily distillation (0-23, default: 3)",
-    )
-    parser.add_argument(
-        "--wiki-maintain",
-        action="store_true",
-        help="Also install the daily wiki Maintainer pass (RFC-0017 D4, after distill)",
-    )
-    parser.add_argument(
-        "--wiki-maintain-hour",
-        type=int,
-        default=4,
-        help=(
-            "Hour to run the Maintainer (0-23, default: 4 — the :15 slot after "
-            "distill's 03:30, so the two never share the local Ollama)"
-        ),
-    )
-    parser.add_argument(
-        "--wiki-maintain-catch-up-days",
-        type=int,
-        default=2,
-        help=(
-            "Days before yesterday the Maintainer also re-reads (0-7, default: 2 — "
-            "a finished day costs no LLM call, so this only pays for days a "
-            "previous run could not finish)"
-        ),
     )
     parser.add_argument(
         "--weekly-insight",
