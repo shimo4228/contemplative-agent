@@ -240,3 +240,7 @@ production model grows. The readings outlive the code.
   `rfcs/0024-skill-extraction-free-body-split-calls.md`,
   `rfcs/0021-skill-stocktake-family-saturation.md` — the successor work this
   retirement clears room for
+
+## Retrospective
+
+- Retrospective (2026-09-06): [docs/evidence/adr-0103/retrospective-wiki-rise-and-retirement.ja.md](../evidence/adr-0103/retrospective-wiki-rise-and-retirement.ja.md) — the four reversals of reading from design to retirement (author / next-session LLM audience, Japanese only). This ADR body is unchanged.
