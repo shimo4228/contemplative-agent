@@ -131,7 +131,7 @@ def _take_snapshot(
     """
     if runtime._is_dry_run(args):
         return None
-    from ..core.llm import served_model
+    from ..core.llm import served_model, serving_environment
     from ..core.snapshot import SnapshotCommand, write_snapshot
 
     return write_snapshot(
@@ -146,6 +146,7 @@ def _take_snapshot(
         view_registry=view_registry,
         generation_model=served_model(),
         think=think,
+        serving_env=serving_environment(),
     )
 
 

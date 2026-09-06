@@ -243,3 +243,21 @@ ADR-0068 が episode 経路についてそれを却下したのと同じ理由�
   ライブセッションと衝突しないよう、swap は launchd セッション窓（0/6/12/18 JST）の外で行う。
 - 兄弟の `contemplative-agent-cloud` バックエンドは `BackendResult.thinking` を populate して、cloud
   バックエンド下の値層経路で trace キャプチャを得ることができる。
+
+## 追補 2026-09-06 — 重みの digest と Ollama 版を監査面に記録する
+
+決定 5 は snapshot manifest と session start episode に生成モデルの**名前**を記録した。
+`gemma4:e4b` や `nomic-embed-text` は Ollama の mutable tag で、pull し直せば背後の重みが
+黙って入れ替わり、`docs/evidence/` に凍結した値はそれを出した重みとの紐付けを失う。契機は Nix
+導入の検討（却下: Python 側は `uv.lock` が既に固定。Nix はバイナリは固定するがモデル重みと Metal
+の数値挙動には届かず、16 GB の Mac 1 台には再現先の別マシンも無い）。
+
+新計器ではなく修理（ADR-0101 の消費計画は不要）。`core.llm.serving_environment()` がプロセス
+内 1 回だけ Ollama に問い（`GET /api/version`、`GET /api/tags`）、`ollama_version` /
+`generation_model_digest` / `embedding_model_digest`（sha256 先頭 12 hex、`prompt_sha256` と同じ
+流儀）/ `serving_environment_reason`（`ok` / `ollama_unreachable` / `ollama_malformed_response` / `backend_injected` /
+`model_not_listed:<tag>`。silent fallback でなく理由コード、ADR-0075）を返す。記録先は 2 箇所のみ
+— `cli/runtime.py::_llm_session_meta()` 経由の session start episode と
+`write_snapshot(serving_env=...)` 経由の pivot snapshot manifest。`llm-calls` の各行には載せず、
+`session_id` / `run_id` の join で到達する。snapshot の他の項目と同じ best-effort で、raise も
+gate もしない。テスト: `tests/test_serving_environment.py`、`tests/test_snapshot.py`。

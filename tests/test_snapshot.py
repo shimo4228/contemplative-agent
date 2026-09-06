@@ -228,6 +228,31 @@ class TestWriteSnapshot:
         manifest = json.loads((path / "manifest.json").read_text())
         assert manifest["generation_model"] == "gemma4:e4b"
         assert manifest["think"] is True
+        # No serving_env passed → no digest keys, not null-valued ones.
+        assert "generation_model_digest" not in manifest
+
+    def test_manifest_records_serving_environment(self, layout, view_registry):
+        """ADR-0069 addendum 2026-09-06: weight digests + Ollama build pin
+        which weights the run used — the model name is a mutable tag."""
+        env = {
+            "ollama_version": "0.30.11",
+            "generation_model_digest": "a1a1a1a1a1a1",
+            "embedding_model_digest": "b2b2b2b2b2b2",
+            "serving_environment_reason": "ok",
+        }
+        path = write_snapshot(
+            command="insight",
+            views_dir=layout["views"],
+            constitution_dir=layout["constitution"],
+            snapshots_dir=layout["snapshots"],
+            view_registry=view_registry,
+            generation_model="gemma4:e4b",
+            serving_env=env,
+        )
+        assert path is not None
+        manifest = json.loads((path / "manifest.json").read_text())
+        for key, value in env.items():
+            assert manifest[key] == value
 
     def test_manifest_generation_fields_default_when_omitted(self, layout, view_registry):
         """Backward compat: callers that omit the new args get null/False."""

@@ -280,3 +280,27 @@ only the generation model + think *metadata* go in the manifest.
 - The sibling `contemplative-agent-cloud` backend can populate
   `BackendResult.thinking` to gain trace capture on the value-layer paths under
   the cloud backend.
+
+## Addendum 2026-09-06 — weight digests and Ollama build in the audit surface
+
+Decision 5 recorded the generation **model name** in the snapshot manifest and
+the session-start episode. A name such as `gemma4:e4b` or `nomic-embed-text` is
+a mutable Ollama tag: a re-pull swaps the weights behind it silently, and every
+frozen value under `docs/evidence/` then loses its link to the weights that
+produced it. Prompted by a Nix evaluation (rejected: `uv.lock` already pins the
+Python side; Nix pins binaries but never model weights or Metal numerics, and a
+single 16 GB Mac has no second machine to reproduce onto).
+
+Repair, not a new instrument (ADR-0101 consumption plan not required):
+`core.llm.serving_environment()` asks Ollama once per process (`GET
+/api/version`, `GET /api/tags`) and returns `ollama_version`,
+`generation_model_digest`, `embedding_model_digest` (sha256, first 12 hex, same
+convention as `prompt_sha256`) and `serving_environment_reason` (`ok` /
+`ollama_unreachable` / `ollama_malformed_response` / `backend_injected` /
+`model_not_listed:<tag>`; reason
+codes over silent fallback, ADR-0075). Recorded in two places only — the
+session-start episode via `cli/runtime.py::_llm_session_meta()` and the pivot
+snapshot manifest via `write_snapshot(serving_env=...)` — not on every
+`llm-calls` row, which reaches it through the `session_id` / `run_id` join.
+Best-effort like the rest of the snapshot: never raises, never gates. Tests:
+`tests/test_serving_environment.py`, `tests/test_snapshot.py`.

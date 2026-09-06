@@ -15,11 +15,12 @@ import logging
 import shutil
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal
+from typing import Any, Literal
 
 import numpy as np
 
 from .embeddings import EMBEDDING_DIM, _get_embedding_model
+from .llm import SERVING_ENV_KEYS
 from .run_context import RUN_ID, current_session_id
 from .views import ViewRegistry
 
@@ -93,6 +94,7 @@ def write_snapshot(
     view_registry: ViewRegistry | None = None,
     generation_model: str | None = None,
     think: bool = False,
+    serving_env: dict[str, Any] | None = None,
 ) -> Path | None:
     """Write a pivot snapshot for the given command.
 
@@ -110,7 +112,10 @@ def write_snapshot(
     ``generation_model`` / ``think`` (ADR-0069) record the run's generation
     config in the manifest beside ``embedding_model``. Supplied by the caller
     (``_take_snapshot`` passes ``served_model()`` and the command's think state)
-    so this writer stays decoupled from the LLM module.
+    so this writer stays decoupled from the LLM module. ``serving_env`` is the
+    dict from ``core.llm.serving_environment()`` (weight digests + Ollama
+    version, ADR-0069 addendum 2026-09-06), passed by the caller for the same
+    reason; ``None`` omits those keys.
 
     ``run_id`` (and ``session_id`` while a session is active) are stamped here,
     matching the keys every audit record carries, so a snapshot joins directly
@@ -162,6 +167,10 @@ def write_snapshot(
             # that produced the run, not just the embedding lens.
             "generation_model": generation_model,
             "think": think,
+            # Model names are mutable tags; the digests pin the weights. Only
+            # the known keys, so a caller dict can never shadow the fields
+            # above and the manifest schema stays statically knowable.
+            **{k: serving_env[k] for k in SERVING_ENV_KEYS if serving_env and k in serving_env},
             "embedding_model": _get_embedding_model(),
             "embedding_dim": EMBEDDING_DIM,
             "thresholds": collect_thresholds(),

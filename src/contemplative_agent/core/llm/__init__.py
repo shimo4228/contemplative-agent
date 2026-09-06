@@ -109,6 +109,8 @@ _ollama_base_url: str = _DEFAULT_OLLAMA_URL
 _ollama_model: str = _DEFAULT_OLLAMA_MODEL
 _backend: LLMBackend | None = None
 _telemetry_dir: Path | None = None
+# Per-process cache for serving_environment(); None until first call.
+_serving_env: dict[str, Any] | None = None
 
 
 def configure(
@@ -145,7 +147,9 @@ def configure(
             telemetry. Records carry call metadata only, never the prompt
             body (see ``_emit_telemetry``).
     """
-    global _ollama_base_url, _ollama_model, _backend, _telemetry_dir
+    global _ollama_base_url, _ollama_model, _backend, _telemetry_dir, _serving_env
+    # Any of these can change which daemon / which model is serving.
+    _serving_env = None
     _prompting.configure_prompting(
         identity_path=identity_path,
         default_system_prompt=default_system_prompt,
@@ -165,12 +169,13 @@ def configure(
 
 def reset_llm_config() -> None:
     """Reset module-level LLM config and circuit breaker to defaults. Useful for testing."""
-    global _ollama_base_url, _ollama_model, _backend, _telemetry_dir
+    global _ollama_base_url, _ollama_model, _backend, _telemetry_dir, _serving_env
     _prompting.reset_prompting()
     _ollama_base_url = _DEFAULT_OLLAMA_URL
     _ollama_model = _DEFAULT_OLLAMA_MODEL
     _backend = None
     _telemetry_dir = None
+    _serving_env = None
     _circuit.reset()
 
 
@@ -192,6 +197,118 @@ def served_model() -> str:
     record the same served model regardless of backend.
     """
     return _backend.model if _backend is not None else _get_model()
+
+
+# Digest prefix length. Same convention as ``prompt_sha256`` in the telemetry
+# record: 12 hex distinguishes any two weights that were ever pulled here.
+_DIGEST_PREFIX = 12
+# Connect-biased: a hung-but-connected daemon must not hold session start for
+# long on a purely observational read.
+_SERVING_ENV_TIMEOUT = (2, 5)
+SERVING_ENV_KEYS = (
+    "ollama_version",
+    "generation_model_digest",
+    "embedding_model_digest",
+    "serving_environment_reason",
+)
+
+
+def _normalize_tag(name: str) -> str:
+    """``/api/tags`` lists every model with an explicit tag (``:latest`` when
+    the pull omitted one) while config may name the bare model."""
+    return name if ":" in name else f"{name}:latest"
+
+
+def _ollama_metadata(path: str) -> object:
+    """One GET against the trusted Ollama URL. Raises on transport failure or
+    non-JSON body; the caller turns that into a reason code."""
+    base = _get_ollama_url()
+    return requests.get(f"{base}{path}", timeout=_SERVING_ENV_TIMEOUT, allow_redirects=False).json()
+
+
+def _fetch_ollama_metadata() -> tuple[object, object, str | None]:
+    """``(version_body, tags_body, reason)``. Both bodies are ``None`` with a
+    reason when either call fails: a version read cannot be attributed to
+    "this run" once the listing next to it was not obtained."""
+    try:
+        return _ollama_metadata("/api/version"), _ollama_metadata("/api/tags"), None
+    except requests.RequestException as exc:
+        logger.info("serving_environment: Ollama unreachable: %s", exc)
+        return None, None, "ollama_unreachable"
+    except ValueError as exc:  # non-JSON body
+        logger.info("serving_environment: Ollama returned non-JSON: %s", exc)
+        return None, None, "ollama_malformed_response"
+
+
+def _digests_from_tags(tags: object) -> dict[str, str] | None:
+    """``{tag: digest_prefix}`` from a ``/api/tags`` body, ``None`` when the
+    body is not a listing we can trust (so an absent model is not reported
+    as "not listed")."""
+    models = tags.get("models") if isinstance(tags, dict) else None
+    if not isinstance(models, list):
+        return None
+    return {
+        m["name"]: m["digest"][:_DIGEST_PREFIX]
+        for m in models
+        if isinstance(m, dict)
+        and isinstance(m.get("name"), str)
+        and isinstance(m.get("digest"), str)
+    }
+
+
+def serving_environment() -> dict[str, Any]:
+    """Which weights and which Ollama build are serving this process.
+
+    Model *names* (``served_model()``, ``_get_embedding_model()``) are mutable
+    tags: a re-pull silently swaps the weights behind ``gemma4:e4b``. The
+    digest is the only identity that survives, so the session-start episode
+    and the pivot-snapshot manifest (ADR-0069 addendum 2026-09-06) carry it.
+
+    Asks Ollama once per process (``GET /api/version`` + ``GET /api/tags``)
+    and caches. Observability only: never raises, never blocks generation.
+    Every key in ``SERVING_ENV_KEYS`` is always present — a value that could
+    not be resolved is ``None`` and ``serving_environment_reason`` says why
+    (``ok`` / ``ollama_unreachable`` / ``ollama_malformed_response`` /
+    ``backend_injected`` / ``model_not_listed:<tag>``, ``;``-joined when
+    several apply; reason codes over silent fallback, ADR-0075). Not recorded
+    on every llm-calls row: the session_id / run_id join reaches it from there.
+    """
+    global _serving_env
+    if _serving_env is not None:
+        return dict(_serving_env)
+
+    from ..embeddings import _get_embedding_model  # module-level import would be circular
+
+    env: dict[str, Any] = dict.fromkeys(SERVING_ENV_KEYS)
+    reasons: list[str] = []
+    version, tags, fetch_reason = _fetch_ollama_metadata()
+    if fetch_reason is not None:
+        reasons.append(fetch_reason)
+
+    if isinstance(version, dict) and isinstance(version.get("version"), str):
+        env["ollama_version"] = version["version"]
+    elif version is not None:
+        reasons.append("ollama_malformed_response")
+
+    listed = _digests_from_tags(tags)
+    if tags is not None and listed is None and "ollama_malformed_response" not in reasons:
+        reasons.append("ollama_malformed_response")
+    if listed is not None:
+        if _backend is not None:
+            reasons.append("backend_injected")
+        else:
+            gen = _normalize_tag(_get_model())
+            env["generation_model_digest"] = listed.get(gen)
+            if env["generation_model_digest"] is None:
+                reasons.append(f"model_not_listed:{gen}")
+        emb = _normalize_tag(_get_embedding_model())
+        env["embedding_model_digest"] = listed.get(emb)
+        if env["embedding_model_digest"] is None:
+            reasons.append(f"model_not_listed:{emb}")
+
+    env["serving_environment_reason"] = ";".join(reasons) if reasons else "ok"
+    _serving_env = env
+    return dict(env)
 
 
 def _emit_telemetry(record: dict[str, Any]) -> None:

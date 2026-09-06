@@ -9,7 +9,7 @@ import argparse
 import logging
 import sys
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     pass
@@ -131,7 +131,7 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
     return domain_config
 
 
-def _llm_session_meta() -> dict[str, str]:
+def _llm_session_meta() -> dict[str, Any]:
     """Return backend/model metadata for the session start episode.
 
     Per-call telemetry records the exact served model on every request via the
@@ -139,7 +139,7 @@ def _llm_session_meta() -> dict[str, str]:
     canonical resolver (``served_model()``) so it never drifts to a stale
     literal — both record whatever model is actually serving generation.
     """
-    from ..core.llm import served_model
+    from ..core.llm import served_model, serving_environment
 
     model = served_model()
     return {
@@ -148,6 +148,10 @@ def _llm_session_meta() -> dict[str, str]:
         # Legacy field retained so older report consumers that know this key
         # keep working.
         "ollama_model": model,
+        # Weight digests + Ollama build (ADR-0069 addendum 2026-09-06): the
+        # name above is a mutable tag; only the digest pins which weights
+        # this session's output came from.
+        **serving_environment(),
     }
 
 
