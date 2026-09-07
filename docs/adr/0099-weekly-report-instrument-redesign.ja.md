@@ -63,6 +63,7 @@ Fable エージェント 2 体を並走させた — 1 体には代謝ループ�
    - **Sample** — 週の comment-report エントリから週末日を seed に一様抽出した決定論
      無作為標本（`scripts/weekly_random_sample.py`）を verbatim 転記 — 書き手自身の
      選択関数への対照チャネル
+     （2026-09-07、RFC-0026: 転記は pipeline の差し込みに変更、書き手は見出しのみ）
    - **Discarded** — 書き手が検討して落とした候補観察を理由コード付き 1 行ずつ —
      書き手のレンズを legible にする
 

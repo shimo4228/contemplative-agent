@@ -63,7 +63,7 @@ Zero exceptions is written as one line: `Exceptions: 0.`
 
 ## Sample
 
-Under this document's own `## Sample` heading, copy the materials' **Random Sample** section verbatim — its `## Random Sample (deterministic control channel)` heading, frame markers, entry headers and excerpt lines are all part of the copied content and sit *below* the `## Sample` heading (the pipeline checks both: the `## Sample` heading and the line-for-line verbatim copy). The sample was drawn deterministically by the collection script (seeded by the week's end date); you do not choose, trim, reorder, or annotate it. It is the control channel against this document's own selection function: a reader who suspects the Deviations section's lens can compare it against uncurated data.
+Emit the `## Sample` heading and nothing under it. The pipeline splices the materials' **Random Sample** section into that slot before the report is promoted (`scripts/weekly_sample_splice.py`), so you neither copy, choose, trim, reorder nor annotate it — a sampler-failed week is written the same way, with the heading alone. The sample was drawn deterministically by the collection script (seeded by the week's end date). It is the control channel against this document's own selection function: it is the one uncurated window in the document, showing a reader what an arbitrary handful of the week's exchanges looks like.
 
 ## Discarded
 
