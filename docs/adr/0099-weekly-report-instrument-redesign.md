@@ -82,6 +82,8 @@ multi-axis evidence this design consumes at the gate.
      comment-report entries, seeded by the end date, drawn by
      `scripts/weekly_random_sample.py` and copied verbatim — the control
      channel against the writer's own selection function.
+     (2026-09-07, RFC-0026: the copy is a pipeline splice, not a
+     transcription — the writer emits the heading only.)
    - **Discarded** — candidate observations the writer considered and
      dropped, one reason-coded line each, making the writer's lens legible.
 

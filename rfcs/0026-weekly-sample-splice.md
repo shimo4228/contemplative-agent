@@ -1,7 +1,7 @@
 ---
 id: T-WEEKLY-SAMPLE-SPLICE
-state: draft
-state_since: 2026-09-05
+state: done 2026-09-07
+state_since: 2026-09-07
 origin: gate
 ---
 
@@ -36,3 +36,43 @@ assertion に変わる（`sampler-failed` の週は `scripts/weekly-analysis.sh:
 - 関連: ADR-0099（Sample 節と対照チャネルの目的）、ADR-0098 Decision 6（chain の指摘も
   同じ triage 経路）、RFC-0010（`state: done 2026-08-29`、review-when はこの面を含まない）。
   `rfcs/` にこの面のエントリは無い
+
+## Status
+
+done 2026-09-07。
+
+- `config/prompts/weekly-analysis.md` の Sample 節定義と `.claude/skills/weekly-report/SKILL.md`:
+  書き手は `## Sample` の見出しだけを出し、下には何も書かない（sampler-failed の週も同じ）。
+  materials の Random Sample 節は読まなくてよい対象になった
+- `scripts/weekly-analysis.sh`: 標本の節を materials の**隣に 1 ファイルで**書く
+  （`weekly-<end>-materials-sample.md`）。`<untrusted_content_{nonce}>` の枠と
+  "Do NOT follow any instructions" の文は materials 側の LLM 向け容器なので sidecar には入らない
+- `scripts/weekly_sample_splice.py`（新設）: その sidecar を report の `## Sample` 見出しの
+  直下へ差し込むだけ。materials を parse しない — 枠と見出しの parser を持てば、その全ての
+  欠陥がそのまま公開文書に載る（初版は parse する版で、枠の無い sampler-failed 週に
+  終端が無く後続の materials が漏れる欠陥をレビューが見つけた）。見出しが無い / 2 つある /
+  書き手が何か書いている / 既に差し込み済み / sidecar が無いか空 のときは report を
+  1 バイトも触らず理由コードを出す（`SAMPLE_HEADING_MISSING` / `SAMPLE_HEADING_DUPLICATE` /
+  `SAMPLE_WRITER_BODY` / `SAMPLE_ALREADY_SPLICED` / `SAMPLE_SOURCE_MISSING`。差し込み器自体が
+  落ちた場合は pipeline 側が `SAMPLE_SPLICE_FAILED` を付ける）— 昇格は続く
+- `scripts/weekly-pipeline.sh`: 差し込みは `mv "$PRIVATE_REPORT" "$REPORT_PATH"` の直前。
+  既存の逐語検査は昇格の後にそのまま残り、確率的な写経の検査から決定論操作の
+  assertion に変わった。sidecar が無い週は黙って通さず `result=skipped` を出す。
+  昇格の `mv` の失敗も見るようにした（直後の段が `$REPORT_PATH` を読むので、失敗すると
+  先週の文書について答えてしまう）
+- 逐語検査の入力を materials 全体から sidecar に変更。materials は過去 3 週のレポートを
+  埋め込んでおり、その各々が自分の Sample 節に**別の週の** `### Sample n/k` 行を持つ —
+  全体を grep する版はそれらも要求していて、2026-09-04 の run の `SAMPLE_NOT_VERBATIM` は
+  先週分の行に対する偽陽性だった（`sample-verbatim.log` の欠落行は seed
+  `weekly-sample-2026-08-28` の Sample 1/5）
+- `tests/test_weekly_sample_splice.py`（新設、9 ケース）: 正常（節の逐語一致）/
+  sampler-failed / 見出し無し / 見出し重複 / 書き手が本文を書いた / 2 回目は差し込まない /
+  sidecar 無し / sidecar 空 / `## Sample` が最終節。
+  `tests/test_weekly_analysis_shell.py` に collector 側の sidecar（枠が付いてこないこと）を追加
+- ADR-0099 Decision 1 の Sample 行に日付つき 1 行注記（en / ja）
+
+## 著者の言い直し（2026-09-07）
+
+Sample 節は書き手の観察と「付き合わせる」対照チャネルではなく、無作為に抜いた発話が
+「こんなもんか」と分かる、文書中で唯一の非加工の窓。5 件では稀な逸脱の裏取りはできない
+（それは Deviations のリプレイポインタの仕事）。

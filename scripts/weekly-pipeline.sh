@@ -1,9 +1,11 @@
 #!/bin/bash
 # Unattended weekly chain (ADR-0085; single-session redesign 2026-08-24):
 # materials → ONE claude session (/weekly-report: A-E synthesis + ja + diagnosis
-# + draft RFC filing) → deterministic instruments (value-layer due check,
-# dead-code scan, docs-consistency scan, never-selected reading) → spawn
-# recording. Human involvement stays compressed into the Saturday gate
+# + draft RFC filing) → Sample splice (RFC-0026: the collector's random sample
+# is copied into the report's `## Sample` heading here, before promotion) →
+# promote → deterministic instruments (value-layer due check, dead-code scan,
+# docs-consistency scan, never-selected reading) → spawn recording. Human
+# involvement stays compressed into the Saturday gate
 # (/weekly-gate, which now reads the findings and instrument JSONs directly —
 # the decision-packet builder is retired); repairs are NOT made here: the
 # session files drafts into rfcs/ (the public ledger) and the task-triage loop
@@ -160,6 +162,9 @@ fi
 RUN_ID="weekly-${END_DATE}-$(date +%H%M%S)"
 RUN_LOG_DIR="$MOLTBOOK_HOME/logs/weekly-pipeline/$RUN_ID"
 MATERIALS="$RUN_LOG_DIR/materials.md"
+# weekly-analysis.sh writes the Random Sample section beside the materials
+# (RFC-0026); the splice below copies it into the report's `## Sample` slot.
+SAMPLE_SOURCE="${MATERIALS%.md}-sample.md"
 # The session writes into reports/.private/ (excluded from the public
 # sync-research-data rsync) and the chain promotes to the canonical paths only
 # after the structural gate below — the tmp -> check -> promote order the old
@@ -404,23 +409,59 @@ if [[ "$REPORT_RAN" -eq 1 ]]; then
             exit 1
         fi
     fi
-    mv "$PRIVATE_REPORT" "$REPORT_PATH"
+    # Sample splice (RFC-0026): the writer emits the `## Sample` heading and
+    # nothing under it, and the collector's section is copied into that slot
+    # here — before promotion, so a report reaching reports/analysis/ carries a
+    # control channel the writer never retyped. A reason code, not an abort:
+    # a heading that is missing / duplicated, or one the writer wrote under, is
+    # left exactly as the writer left it (what happened stays legible in the
+    # document) and the gate is told which shape it was.
+    if SPLICE_REASON="$(python3 "$SCRIPTS/weekly_sample_splice.py" \
+            --sample "$SAMPLE_SOURCE" --report "$PRIVATE_REPORT" \
+            2>> "$RUN_LOG_DIR/sample-splice.log")"; then
+        audit stage_result stage=sample_splice result=ok
+    else
+        # SAMPLE_SPLICE_FAILED is this script's code for "the splice died
+        # instead of refusing"; the refusal codes are the splice's own.
+        [[ "$SPLICE_REASON" =~ ^[A-Z_]+$ ]] || SPLICE_REASON=SAMPLE_SPLICE_FAILED
+        add_reason "$SPLICE_REASON"
+        audit stage_result stage=sample_splice result=fail reason="$SPLICE_REASON"
+        echo "WARNING: Sample section not spliced (reason=$SPLICE_REASON)" >&2
+    fi
+
+    # The stage below reads $REPORT_PATH, so a failed promote would have it
+    # check LAST week's promoted report and answer for the wrong document.
+    if ! mv "$PRIVATE_REPORT" "$REPORT_PATH"; then
+        audit stage_result stage=promote result=fail reason=PROMOTE_FAILED
+        echo "ERROR: could not promote $PRIVATE_REPORT to $REPORT_PATH — aborting" >&2
+        exit 1
+    fi
 
     # Sample verbatim check (RFC-0010 control channel, code review 2026-08-26
-    # MEDIUM): the Sample section exists to be the one part of the document
-    # the writer cannot curate, and a trimmed / reordered / annotated copy is
-    # exactly the failure it exists to detect. Every sample line the collector
-    # emitted (entry headers + excerpt lines) must appear verbatim in the
-    # promoted report. A reason code, not an abort — the document is still a
-    # valid observation record; the broken control channel is what the gate
-    # needs to know. A sampler-failed week emits no such lines and passes.
+    # MEDIUM): the invariant the splice above is supposed to establish, checked
+    # on the promoted bytes. Every sample line the collector emitted (entry
+    # headers + excerpt lines) must appear verbatim in the report. A reason
+    # code, not an abort — the document is still a valid observation record;
+    # the broken control channel is what the gate needs to know. A
+    # sampler-failed week emits no such lines and passes.
+    #
+    # The lines come from the collector's sidecar, not the materials: the
+    # materials embed the previous weeks' reports, whose own Sample sections
+    # carry `### Sample n/k` lines from OTHER weeks — grepping the whole file
+    # demanded those too and produced a false SAMPLE_NOT_VERBATIM on
+    # 2026-09-04. With no sidecar there is nothing to assert against, and a
+    # silent pass would read as "sample intact"; say skipped instead.
+    if [[ ! -s "$SAMPLE_SOURCE" ]]; then
+        audit stage_result stage=sample_verbatim result=skipped reason=SAMPLE_SOURCE_MISSING
+        SAMPLE_SOURCE=/dev/null
+    fi
     SAMPLE_MISSING=""
     while IFS= read -r line; do
         if ! grep -qxF -- "$line" "$REPORT_PATH"; then
             SAMPLE_MISSING="$line"
             break
         fi
-    done < <(grep -E '^### Sample [0-9]+/|^\*\*(Context \(counterparty, untrusted\)|Output \(agent\)):\*\*' "$MATERIALS" 2>/dev/null || true)
+    done < <(grep -E '^### Sample [0-9]+/|^\*\*(Context \(counterparty, untrusted\)|Output \(agent\)):\*\*' "$SAMPLE_SOURCE" 2>/dev/null || true)
     if [[ -n "$SAMPLE_MISSING" ]]; then
         add_reason SAMPLE_NOT_VERBATIM
         audit stage_result stage=sample_verbatim result=fail reason=SAMPLE_NOT_VERBATIM
