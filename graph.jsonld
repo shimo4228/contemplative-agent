@@ -2169,7 +2169,8 @@
       ],
       "name": "ADR-0074: Weekly Staged Insight — Theme Detection, Pending Guard, Marker-on-Stage, LLM Novelty Gate, Exact Fast Clustering",
       "identifier": "ADR-0074",
-      "status": "accepted",
+      "status": "partially-superseded-by ADR-0104",
+      "partiallySupersededBy": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0104-novelty-gate-retrieval-topk.md",
       "datePublished": "2026-07-09",
       "description": "Redefines insight's role from proportional knowledge-to-skill conversion to detecting when a new stable theme has accumulated, sized for the post-ADR-0060 inflow (~100 patterns/day). Five mechanisms: (1) exact fast average-linkage clustering via the Lance-Williams update (identical partitions to the retired naive merge, N=1798 in under a second); (2) a marker guard — a missing .last_insight marker refuses instead of silently reclustering the whole pool; (3) a pending guard — staging holds at most one unreviewed batch, so scheduled runs can never wipe candidates awaiting human review; (4) the run marker advances when candidates reach review (staging or the interactive loop), not at adoption; (5) an LLM novelty gate (one grouping call, fail-open) that skips clusters whose theme an adopted skill or previously staged candidate (logs/insight-staged.jsonl) already covers — calibration showed embedding similarity cannot separate same-theme from distinct-theme clusters on the echo-homogeneous corpus, the same lesson as ADR-0036 and ADR-0046. Weekly cadence via install-schedule --weekly-insight (default Mon 08:00); the singleton-rescue question is closed as no-rescue because measured theme recurrence (32/32 across adjacent windows) re-surfaces real themes."
     },
@@ -2693,6 +2694,24 @@
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0069-gemma-production-model-and-think-on-value-layer-pipelines.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0088-shipped-conformance-kit-for-the-llm-backend-contract.md",
         "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0097-consolidator-dissolution-and-skill-store-exit.md"
+      ]
+    },
+    {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0104-novelty-gate-retrieval-topk.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0104: The Novelty Gate Judges Against Retrieved Candidates, Not the Whole Inventory",
+      "identifier": "ADR-0104",
+      "status": "accepted — partially-supersedes ADR-0074",
+      "datePublished": "2026-09-07",
+      "description": "Changes what the insight novelty gate puts in its prompt's {known} slot: each judge chunk now carries the union of its own clusters' cosine (nomic) top-10 inventory lines instead of the full known inventory (485 lines on 2026-09-04, 515 on 2026-09-07). Everything else in ADR-0074's gate is unchanged — the gemma judge, the {\"covered\": [ids]} contract, the \"when in doubt call it NEW\" calibration, per-chunk id validation, per-chunk fail-open, and the human approval gate — so retrieval is candidate generation and the verdict stays with the LLM. Basis: RFC-0023's 2026-09-04 readings show retrieval cannot BE the gate (best recall@5 0.61 across lexical / bm25 / cosine / RRF; no similarity threshold separates the populations; one generic skill takes 25% of bm25 top-1 slots), re-confirming ADR-0074's finding that embedding separation for \"same theme?\" does not exist; and the 2026-09-05 differential replay (90 calls, 63 clusters reconstructed byte-identically from the audit log) shows the 485-vs-top-k judgment difference (symmetric difference 19.3 / 19.8 / 21.5 for k = 5 / 10 / 15) sits below the same-prompt rep-to-rep noise floor (22.0), while the prompt drops from a 30,516-token median to 4,364-7,141 (-77% to -86%) and the one full-arm fail_open_llm does not recur in 60 top-k calls. k = 10 is the low end of the RFC's 10-15 band; the ranking is cosine descending with name-ascending ties over the rendered inventory line (name: description), emitted in inventory order, and the packer charges each block only for the known lines it adds. Recall for the shipped configuration (515 lines vs 57 skill files in the measurement) is unmeasured and named as such. Embedding failure — unavailable, wrong row count, non-finite or zero-norm row — falls back to the full inventory with reason=retrieval_unavailable in the log and the audit, never silently. The audit record gains known_selection (mode / k / reason / embedding_model) and inventory_count, and known_themes_count now means the lines shown to THAT chunk, so a reading can separate \"the judge never saw it\" from \"the judge saw it and called it new\" — the failure mode this decision introduces. RFC-0023's rare lane remains open.",
+      "partiallySupersedes": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0074-weekly-staged-insight.md",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0074-weekly-staged-insight.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md"
       ]
     },
     {

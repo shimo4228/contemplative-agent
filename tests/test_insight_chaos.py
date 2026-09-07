@@ -12,6 +12,7 @@ Fault catalog rows exercised here:
 - F-NOV-2 malformed judge output (SHAPE_VIOLATION) → fail_open_parse per chunk
 - F-NOV-3 truncated judge output (TRUNCATED + drop_truncated) → fail_open_llm
 - F-NOV-4 known-inventory budget overflow → fail_open_budget, no LLM call
+- F-NOV-6 embedding host down (candidate retrieval) → full inventory + reason code
 - F-NOV-5 fail-open flood → extraction cap defers beyond the configured N
 - F-ABSTAIN-* the in-band promotion abstain (bottom of file) — a decline is a
   verdict, a dead backend is a fault, and extraction is the only call per
@@ -59,14 +60,15 @@ def _batches(n: int, size: int = 3):
 
 def _window_for_one_block(batches) -> int:
     """Context window that fits exactly one cluster block per judge call."""
-    known_lines = insight_novelty._render_known_lines(KNOWN)
+    known_cost = _estimate_tokens(insight_novelty._render_known_lines(KNOWN) + "\n")
     max_block = max(
         _estimate_tokens(insight_novelty._cluster_block(topic, patterns) + "\n\n")
         for topic, patterns, _ in batches
     )
     return (
         insight_novelty._NOVELTY_OUTPUT_RESERVE
-        + insight_novelty._novelty_fixed_tokens(known_lines)
+        + insight_novelty._novelty_fixed_tokens("")
+        + known_cost
         + max_block
     )
 
@@ -129,6 +131,24 @@ class TestBudgetOverflowFailOpen:
         assert backend.calls == []  # no judge call was possible
         assert len(result.novel) == 2
         assert _verdicts(audit) == ["fail_open_budget"]
+
+
+class TestRetrievalUnavailable:
+    def test_embedding_host_down_still_judges(self, tmp_path) -> None:
+        """F-NOV-6 (ADR-0104): candidate retrieval needs the embedding host,
+        which conftest points at a closed port. The gate degrades to the full
+        inventory with a reason code and keeps judging while that inventory
+        still fits the window — as here. Past that size the same fallback
+        fails every cluster open unjudged instead
+        (tests/test_insight.py::TestNoveltyFullInventoryFallbackAtScale)."""
+        audit = tmp_path / "insight-novelty.jsonl"
+        result = _run_gate([OK, OK], _batches(2), audit_path=audit)
+        records = [json.loads(line) for line in audit.read_text().splitlines()]
+        assert [r["verdict"] for r in records] == ["judged", "judged"]
+        assert {r["known_selection"]["mode"] for r in records} == {"full"}
+        assert {r["known_selection"]["reason"] for r in records} == {"retrieval_unavailable"}
+        assert {r["known_themes_count"] for r in records} == {len(KNOWN)}
+        assert result.fail_open_topics == frozenset()
 
 
 class TestFailOpenFloodCap:

@@ -5089,15 +5089,15 @@
         <text data-detail="fine" x="308.4" y="142" class="t-backend" font-size="7" text-anchor="middle">core/clustering.py</text>
         </g>
 
-        <g id="node-novelty" data-node-id="novelty" data-node-label="novelty gate" tabindex="0" role="button" aria-label="Focus novelty gate, LLM coverage judge, insight（週次 · knowledge.json → 候補）" aria-pressed="false" data-node-kind="backend" data-node-sublabel="LLM coverage judge" data-node-tag="insight-novelty.jsonl" data-node-context="insight（週次 · knowledge.json → 候補）">
-          <title>novelty gate · LLM coverage judge · insight（週次 · knowledge.json → 候補） · insight-novelty.jsonl</title>
+        <g id="node-novelty" data-node-id="novelty" data-node-label="novelty gate" tabindex="0" role="button" aria-label="Focus novelty gate, LLM judge · top-10, insight（週次 · knowledge.json → 候補）" aria-pressed="false" data-node-kind="backend" data-node-sublabel="LLM judge · top-10" data-node-tag="insight-novelty.jsonl" data-node-context="insight（週次 · knowledge.json → 候補）">
+          <title>novelty gate · LLM judge · top-10 · insight（週次 · knowledge.json → 候補） · insight-novelty.jsonl</title>
           <rect x="424.79999999999995" y="86" width="120" height="68" rx="6" class="c-mask"/>
           <rect x="424.79999999999995" y="86" width="120" height="68" rx="6" class="c-backend" stroke-width="1.5"/>
           <g aria-hidden="true" data-semantic-sigil="backend" class="semantic-sigil s-backend" transform="translate(430.79999999999995 92) scale(0.6875)">
             <path d="M6 3 3 8l3 5M10 3l3 5-3 5"/>
           </g>
           <text data-node-label="" data-detail-anchor="" x="484.79999999999995" y="107" class="t-primary" font-size="11" font-weight="600" text-anchor="middle">novelty gate</text>
-          <text data-detail="context" x="484.79999999999995" y="124" class="t-muted" font-size="8" text-anchor="middle">LLM coverage judge</text>
+          <text data-detail="context" x="484.79999999999995" y="124" class="t-muted" font-size="8" text-anchor="middle">LLM judge · top-10</text>
         <text data-detail="fine" x="484.79999999999995" y="142" class="t-backend" font-size="7" text-anchor="middle">insight-novelty.jsonl</text>
         </g>
 
@@ -5471,7 +5471,7 @@
           <h3>正本</h3>
         </div>
         <ul>
-          <li>&bull; core/insight.py（MIN 3 · 0.70 · batch 10）· insight_novelty.py · cli/adopt.py · skill_archive.py</li>
+          <li>&bull; core/insight.py（MIN 3 · 0.70 · batch 10）· insight_novelty.py（{known} = cosine top-10 の和集合、ADR-0104）· cli/adopt.py · skill_archive.py</li>
           <li>&bull; core/skill_selection.py（400 tok · circuit_shield）· never_selected_metrics.py（600 · 14d）</li>
         </ul>
       </div>
@@ -5493,7 +5493,7 @@
           <h3>未実装の決定</h3>
         </div>
         <ul>
-          <li>&bull; RFC-0023（accepted）: novelty gate を BM25 + nomic 候補検索へ。現行は LLM judge</li>
+          <li>&bull; RFC-0023 の残り: 希少レーン（singleton 保留台帳 + 週次再クラスタ）。top-k 化は ADR-0104 で実装済み</li>
           <li>&bull; RFC-0024（draft）: 本文自由記述 · 保存時長さ拒否。現行に長さ拒否・選択上限は無い</li>
         </ul>
       </div>

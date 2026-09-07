@@ -97,7 +97,7 @@
       "col": 2,
       "type": "backend",
       "label": "novelty gate",
-      "sublabel": "LLM coverage judge",
+      "sublabel": "LLM judge · top-10",
       "tag": "insight-novelty.jsonl",
       "width": 120
     },
@@ -290,7 +290,7 @@
       "dot": "cyan",
       "title": "正本",
       "items": [
-        "core/insight.py（MIN 3 · 0.70 · batch 10）· insight_novelty.py · cli/adopt.py · skill_archive.py",
+        "core/insight.py（MIN 3 · 0.70 · batch 10）· insight_novelty.py（{known} = cosine top-10 の和集合、ADR-0104）· cli/adopt.py · skill_archive.py",
         "core/skill_selection.py（400 tok · circuit_shield）· never_selected_metrics.py（600 · 14d）"
       ]
     },
@@ -306,7 +306,7 @@
       "dot": "amber",
       "title": "未実装の決定",
       "items": [
-        "RFC-0023（accepted）: novelty gate を BM25 + nomic 候補検索へ。現行は LLM judge",
+        "RFC-0023 の残り: 希少レーン（singleton 保留台帳 + 週次再クラスタ）。top-k 化は ADR-0104 で実装済み",
         "RFC-0024（draft）: 本文自由記述 · 保存時長さ拒否。現行に長さ拒否・選択上限は無い"
       ]
     }

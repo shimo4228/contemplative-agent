@@ -848,6 +848,14 @@ class TestMarkerGuardADR0074:
 
 
 class TestFilterNovelBatches:
+    @pytest.fixture(autouse=True)
+    def _retrieval_available(self):
+        """Retrieval succeeds with a one-entry inventory (top-k = that entry),
+        so these tests exercise the production selection path rather than the
+        retrieval_unavailable fallback."""
+        with _patch_embed():
+            yield
+
     BATCHES = [
         ("cluster-1", ["p1", "p2", "p3"], ("id1", "id2", "id3")),
         ("cluster-2", ["q1", "q2", "q3"], ("id4", "id5", "id6")),
@@ -912,6 +920,14 @@ class TestNoveltyChunking:
     weekly run assembled 40,074 input tokens against the 32,768 window and
     fail-opened all 117 clusters."""
 
+    @pytest.fixture(autouse=True)
+    def _retrieval_available(self):
+        """Retrieval succeeds with a one-entry inventory (top-k = that entry),
+        so these tests exercise the production selection path rather than the
+        retrieval_unavailable fallback."""
+        with _patch_embed():
+            yield
+
     KNOWN = [("skill-a", "handles consensus friction")]
 
     @staticmethod
@@ -936,13 +952,13 @@ class TestNoveltyChunking:
         )
         from contemplative_agent.core.llm import _estimate_tokens
 
-        known_lines = _render_known_lines(known)
+        known_cost = sum(_estimate_tokens(_render_known_lines([entry]) + "\n") for entry in known)
         block_costs = sorted(
             _estimate_tokens(_cluster_block(topic, patterns) + "\n\n")
             for topic, patterns, _ in batches
         )
         budget = sum(block_costs[-n_blocks:]) if n_blocks else 0
-        return _NOVELTY_OUTPUT_RESERVE + _novelty_fixed_tokens(known_lines) + budget
+        return _NOVELTY_OUTPUT_RESERVE + _novelty_fixed_tokens("") + known_cost + budget
 
     @patch("contemplative_agent.core.llm.generate_full")
     def test_single_call_when_budget_fits(self, mock_generate) -> None:
@@ -1043,6 +1059,9 @@ class TestNoveltyChunking:
         # batch fields stay None instead of a misleading count (codex P2).
         assert records[0]["batch_index"] is None
         assert records[0]["batch_count"] is None
+        # No prompt was built, so the judge saw no inventory line at all.
+        assert records[0]["known_themes_count"] == 0
+        assert records[0]["inventory_count"] == len(self.KNOWN)
 
     def test_ctx_window_follows_smaller_injected_backend(self) -> None:
         """Packing must budget against the SAME window the generate preflight
@@ -1093,7 +1112,7 @@ class TestNoveltyChunking:
                 ("id1", "id2", "id3"),
             )
         ]
-        known_lines = _render_known_lines(self.KNOWN)
+        known_cost = _estimate_tokens(_render_known_lines(self.KNOWN) + "\n")
         full_cost = _estimate_tokens(_cluster_block("cluster-1", batches[0][1]) + "\n\n")
         truncated_cost = _estimate_tokens(
             _cluster_block(
@@ -1105,7 +1124,7 @@ class TestNoveltyChunking:
             + "\n\n"
         )
         assert truncated_cost < full_cost
-        window = _NOVELTY_OUTPUT_RESERVE + _novelty_fixed_tokens(known_lines) + truncated_cost
+        window = _NOVELTY_OUTPUT_RESERVE + _novelty_fixed_tokens("") + known_cost + truncated_cost
         mock_generate.return_value = GenerationOutput(text='{"covered": []}')
         with patch.object(insight_novelty, "_NOVELTY_CTX_WINDOW", window):
             result = insight_novelty._filter_novel_batches(batches, self.KNOWN)
@@ -1117,6 +1136,301 @@ class TestNoveltyChunking:
         assert "x" * (insight_novelty._NOVELTY_TRUNCATED_SAMPLE_CHARS + 1) not in prompt
         assert "y" * 10 not in prompt
         assert result.fail_open_topics == frozenset()
+
+
+# ---------------------------------------------------------------------------
+# ADR-0104: the novelty gate's {known} slot is cosine top-k, not the inventory
+# ---------------------------------------------------------------------------
+
+# Unit vectors on a plane, keyed by the leading token of the embedded text.
+# Cosine ordering is then just angular distance, so a test states the ranking
+# it wants instead of hand-tuning float vectors.
+_EMBED_ANGLES = {
+    "skill-a": 0.0,
+    "skill-b": 10.0,
+    "skill-c": 90.0,
+    "skill-d": 100.0,
+    "skill-e": 180.0,
+    "cluster-1": 5.0,
+    "cluster-2": 95.0,
+}
+
+
+def _angle_embed(texts):
+    """embed_texts stub: place each text on the plane by its leading token."""
+    import math
+
+    import numpy as np
+
+    rows = []
+    for text in texts:
+        head = text.split(":", 1)[0].strip()
+        radians = math.radians(_EMBED_ANGLES.get(head, 45.0))
+        rows.append([math.cos(radians), math.sin(radians)])
+    return np.asarray(rows, dtype=np.float64)
+
+
+def _ones_embed(texts):
+    """embed_texts stub with no ranking information (all texts identical).
+
+    Enough for tests whose inventory has one entry — retrieval succeeds, the
+    top-k is that entry, and the packing is the pre-retrieval packing.
+    """
+    import numpy as np
+
+    return np.ones((len(texts), 2), dtype=np.float64)
+
+
+def _patch_embed(side_effect=_ones_embed):
+    return patch("contemplative_agent.core.embeddings.embed_texts", side_effect=side_effect)
+
+
+class TestNoveltyTopKSelection:
+    """RFC-0023 / ADR-0104: each chunk shows the cosine top-k of the
+    inventory that its own clusters retrieved, not the whole inventory."""
+
+    KNOWN = [
+        ("skill-a", "alpha"),
+        ("skill-b", "beta"),
+        ("skill-c", "gamma"),
+        ("skill-d", "delta"),
+        ("skill-e", "epsilon"),
+    ]
+    BATCHES = [
+        ("cluster-1", ["p1", "p2", "p3"], ("id1", "id2", "id3")),
+        ("cluster-2", ["q1", "q2", "q3"], ("id4", "id5", "id6")),
+    ]
+
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_prompt_carries_union_of_top_k_in_inventory_order(self, mock_generate) -> None:
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(text='{"covered": []}')
+        with _patch_embed(_angle_embed):
+            _filter_novel_batches(self.BATCHES, self.KNOWN, k=2)
+        assert mock_generate.call_count == 1
+        prompt = mock_generate.call_args.args[0]
+        # cluster-1 (5 deg) retrieves a, b; cluster-2 (95 deg) retrieves c, d.
+        positions = [prompt.index(f"- skill-{letter}:") for letter in "abcd"]
+        assert positions == sorted(positions)
+        assert "- skill-e" not in prompt
+
+    @pytest.mark.parametrize(
+        "degenerate",
+        [
+            pytest.param(lambda texts: None, id="embed_unavailable"),
+            pytest.param(
+                lambda texts: __import__("numpy").ones((len(texts) - 1, 2)),
+                id="row_count_mismatch",
+            ),
+            pytest.param(
+                lambda texts: __import__("numpy").zeros((len(texts), 2)),
+                id="zero_norm_row",
+            ),
+        ],
+    )
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_degenerate_embedding_falls_back_to_full_inventory(
+        self, mock_generate, degenerate, tmp_path, caplog
+    ) -> None:
+        import json as _json
+
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(text='{"covered": []}')
+        audit = tmp_path / "insight-novelty.jsonl"
+        with caplog.at_level(logging.WARNING), _patch_embed(degenerate):
+            _filter_novel_batches(self.BATCHES, self.KNOWN, audit_path=audit, k=2)
+        prompt = mock_generate.call_args.args[0]
+        for letter in "abcde":
+            assert f"- skill-{letter}:" in prompt
+        assert "reason=retrieval_unavailable" in caplog.text
+        record = _json.loads(audit.read_text().splitlines()[0])
+        assert record["known_selection"]["mode"] == "full"
+        assert record["known_selection"]["reason"] == "retrieval_unavailable"
+        assert record["known_selection"]["k"] is None
+        assert record["known_themes_count"] == 5
+
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_audit_records_selection_and_inventory_size(self, mock_generate, tmp_path) -> None:
+        import json as _json
+
+        from contemplative_agent.core.embeddings import _get_embedding_model
+        from contemplative_agent.core.insight_novelty import _filter_novel_batches
+
+        mock_generate.return_value = GenerationOutput(text='{"covered": []}')
+        audit = tmp_path / "insight-novelty.jsonl"
+        with _patch_embed(_angle_embed):
+            _filter_novel_batches(self.BATCHES, self.KNOWN, audit_path=audit, k=2)
+        record = _json.loads(audit.read_text().splitlines()[0])
+        assert record["known_selection"] == {
+            "mode": "topk",
+            "k": 2,
+            "reason": None,
+            "embedding_model": _get_embedding_model(),
+        }
+        assert record["inventory_count"] == 5
+        # The chunk saw the union of the two clusters' top-2, not the store.
+        assert record["known_themes_count"] == 4
+
+
+class TestNoveltyPackerKnownAccounting:
+    """The greedy packer charges a block for the known lines it ADDS — a line
+    a chunk already carries is free for the next cluster in it."""
+
+    KNOWN = [("skill-a", "alpha"), ("skill-b", "beta")]
+    BATCHES = [
+        ("cluster-1", ["p1", "p2", "p3"], ("id1", "id2", "id3")),
+        ("cluster-2", ["q1", "q2", "q3"], ("id4", "id5", "id6")),
+    ]
+
+    @staticmethod
+    def _window(known, batches, known_names) -> int:
+        """Window fitting every block plus exactly ``known_names`` lines."""
+        from contemplative_agent.core.insight_novelty import (
+            _NOVELTY_OUTPUT_RESERVE,
+            _cluster_block,
+            _novelty_fixed_tokens,
+            _render_known_lines,
+        )
+        from contemplative_agent.core.llm import _estimate_tokens
+
+        by_name = dict(known)
+        blocks = sum(
+            _estimate_tokens(_cluster_block(topic, patterns) + "\n\n")
+            for topic, patterns, _ in batches
+        )
+        lines = sum(
+            _estimate_tokens(_render_known_lines([(name, by_name[name])]) + "\n")
+            for name in known_names
+        )
+        return _NOVELTY_OUTPUT_RESERVE + _novelty_fixed_tokens("") + blocks + lines
+
+    def test_shared_known_line_is_charged_once(self) -> None:
+        ranks = {"cluster-1": ["skill-a", "skill-b"], "cluster-2": ["skill-a", "skill-b"]}
+        window = self._window(self.KNOWN, self.BATCHES, ["skill-a"])
+        with patch.object(insight_novelty, "_NOVELTY_CTX_WINDOW", window):
+            chunks, unbudgetable = insight_novelty._pack_novelty_chunks(
+                self.BATCHES, self.KNOWN, ranks, k=1
+            )
+        assert unbudgetable == []
+        assert len(chunks) == 1
+        assert [topic for topic, _, _ in chunks[0][0]] == ["cluster-1", "cluster-2"]
+        assert chunks[0][2] == [("skill-a", "alpha")]
+
+    def test_distinct_known_lines_split_the_chunk(self) -> None:
+        """Same blocks, same window — only the second cluster's top-1 differs,
+        so the split is attributable to the incremental known cost."""
+        ranks = {"cluster-1": ["skill-a", "skill-b"], "cluster-2": ["skill-b", "skill-a"]}
+        window = self._window(self.KNOWN, self.BATCHES, ["skill-a"])
+        with patch.object(insight_novelty, "_NOVELTY_CTX_WINDOW", window):
+            chunks, unbudgetable = insight_novelty._pack_novelty_chunks(
+                self.BATCHES, self.KNOWN, ranks, k=1
+            )
+        assert unbudgetable == []
+        assert [[topic for topic, _, _ in batches] for batches, _, _ in chunks] == [
+            ["cluster-1"],
+            ["cluster-2"],
+        ]
+        assert [known for _, _, known in chunks] == [
+            [("skill-a", "alpha")],
+            [("skill-b", "beta")],
+        ]
+
+
+class TestNoveltyChunkClusterCap:
+    """Shortening {known} freed budget for far more blocks per call than the
+    2026-09-05 replay ever judged (~6.4 clusters/chunk), and a fail-open costs
+    a whole chunk — so the packer caps clusters per chunk (ADR-0104)."""
+
+    KNOWN = [("skill-a", "alpha")]
+
+    @staticmethod
+    def _batches(n: int):
+        return [
+            (f"cluster-{i}", [f"pattern {i}-{j}" for j in range(3)], (f"id{i}",))
+            for i in range(1, n + 1)
+        ]
+
+    def test_cluster_count_splits_a_chunk_that_fits_the_budget(self) -> None:
+        batches = self._batches(insight_novelty._NOVELTY_MAX_CLUSTERS_PER_CHUNK + 3)
+        ranks = {topic: ["skill-a"] for topic, _, _ in batches}
+        # No window patch: the real 32k window fits all of these blocks.
+        chunks, unbudgetable = insight_novelty._pack_novelty_chunks(batches, self.KNOWN, ranks, k=1)
+        assert unbudgetable == []
+        sizes = [len(chunk_batches) for chunk_batches, _, _ in chunks]
+        assert sizes == [insight_novelty._NOVELTY_MAX_CLUSTERS_PER_CHUNK, 3]
+
+    def test_missing_topic_in_ranks_asks_for_the_whole_inventory(self) -> None:
+        """A cluster the ranking does not cover must not receive the first k
+        names in inventory order dressed up as its top-k."""
+        known = [("skill-a", "alpha"), ("skill-b", "beta")]
+        batches = self._batches(1)
+        chunks, _ = insight_novelty._pack_novelty_chunks(batches, known, {}, k=1)
+        assert chunks[0][2] == known
+
+
+class TestNoveltyFullInventoryFallbackAtScale:
+    """The retrieval_unavailable fallback is the pre-retrieval shape, and that
+    shape stops fitting as the store grows: at that point the gate judges
+    nothing and everything fails open UNJUDGED (never silently covered).
+    Pinned because the docstrings and ADR-0104 claim exactly this and no more
+    (code review 2026-09-07)."""
+
+    @staticmethod
+    def _inventory(n: int):
+        return [(f"skill-{i:03d}", "a description of roughly the usual length") for i in range(n)]
+
+    @staticmethod
+    def _batches(n: int):
+        return [
+            (
+                f"cluster-{i}",
+                [f"pattern {i}-{j} some behavioral text" for j in range(3)],
+                (f"id{i}",),
+            )
+            for i in range(1, n + 1)
+        ]
+
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_inventory_larger_than_the_window_fails_every_cluster_open(
+        self, mock_generate, tmp_path
+    ) -> None:
+        import json as _json
+
+        known = self._inventory(2000)
+        batches = self._batches(4)
+        audit = tmp_path / "insight-novelty.jsonl"
+        with _patch_embed(lambda texts: None):
+            result = insight_novelty._filter_novel_batches(batches, known, audit_path=audit, k=10)
+        mock_generate.assert_not_called()
+        assert len(result.novel) == 4
+        assert result.fail_open_topics == frozenset(b[0] for b in batches)
+        record = _json.loads(audit.read_text().splitlines()[0])
+        assert record["verdict"] == "fail_open_budget"
+        assert record["known_selection"]["mode"] == "full"
+        assert record["inventory_count"] == 2000
+
+    @patch("contemplative_agent.core.llm.generate_full")
+    def test_the_same_inventory_is_judged_when_retrieval_works(
+        self, mock_generate, tmp_path
+    ) -> None:
+        """The pair: retrieval is what makes an inventory this size judgeable."""
+        import json as _json
+
+        import numpy as np
+
+        known = self._inventory(2000)
+        batches = self._batches(4)
+        audit = tmp_path / "insight-novelty.jsonl"
+        mock_generate.return_value = GenerationOutput(text='{"covered": []}')
+        with _patch_embed(lambda texts: np.ones((len(texts), 2), dtype=np.float64)):
+            result = insight_novelty._filter_novel_batches(batches, known, audit_path=audit, k=10)
+        assert result.fail_open_topics == frozenset()
+        records = [_json.loads(line) for line in audit.read_text().splitlines()]
+        assert [r["verdict"] for r in records] == ["judged"]
+        assert records[0]["known_selection"]["mode"] == "topk"
+        assert records[0]["known_themes_count"] == 10
 
 
 class TestFailopenExtractionCap:
@@ -1393,6 +1707,14 @@ class TestNoveltyGateAudit:
     """ADR-0075: the covered→drop judgment must be replayable offline —
     insight-novelty.jsonl stores the exact judge prompt and raw output as
     base64 + sha256."""
+
+    @pytest.fixture(autouse=True)
+    def _retrieval_available(self):
+        """Retrieval succeeds with a one-entry inventory (top-k = that entry),
+        so these tests exercise the production selection path rather than the
+        retrieval_unavailable fallback."""
+        with _patch_embed():
+            yield
 
     BATCHES = [
         ("cluster-1", ["p1", "p2", "p3"], ("id1", "id2", "id3")),

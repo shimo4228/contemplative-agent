@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0104
 
 ## Date
 
@@ -162,6 +162,14 @@ centroid 水準（0.795–0.902 vs 中央値 0.830）でもメンバー平均水
   [docs/evidence/adr-0074/](../evidence/adr-0074/window-simulation-20260709.md)。
 
 ## Amendment (2026-07-18): トークン上限付き分割判定 + fail-open 抽出上限
+
+> 2026-09-07: [ADR-0104](./0104-novelty-gate-retrieval-topk.ja.md) がこの Amendment の
+> `{known}` 条項を部分的に置き換えた。各チャンクが載せるのは、そのチャンクのクラスタが
+> 引いた cosine top-k の在庫行（k = 10）であって在庫全部ではなく、固定コストもチャンク
+> ごとに計上する。埋め込みが使えないときの fallback として在庫全部は残る。この Amendment の
+> 他の内容 — chunk 単位の fail-open、chunk 単位の id 検証、サンプル切り詰めの再試行、
+> fail-open 抽出上限 — と 2026-07-09 の本文は有効。D6 の「同一テーマ判定に embedding の
+> 分離は存在しない」も含めて有効で、ADR-0104 はこれを再確認し判定を LLM に残している。
 
 ### Context
 

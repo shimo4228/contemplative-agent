@@ -2,6 +2,8 @@ The agent already has skills for the themes listed below. New clusters of learne
 
 ## Existing themes
 
+These are the existing themes a candidate search found nearest to the clusters below, not the agent's whole inventory. Judge only against what is listed here.
+
 {known}
 
 ## Candidate clusters

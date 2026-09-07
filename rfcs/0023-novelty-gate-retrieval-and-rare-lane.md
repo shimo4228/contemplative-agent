@@ -174,6 +174,33 @@ draft（2026-09-04）。計測 2 本を同日に実走中。読み値は下に�
 40k → 数 k に縮み fail-open の経路が消える。gate の精度は LLM 側のままで、上がる保証は無い（reviewer の
 skill が top-k に無い 23% は LLM も見えない）。閾値で捨てる設計・融合で精度を取る設計は本読みで却下。
 
+### 2026-09-07: S9 — `{known}` を top-k に差し替え（実装、[ADR-0104](../docs/adr/0104-novelty-gate-retrieval-topk.md)）
+
+`core/insight_novelty.py` の判定チャンクは、在庫全部の代わりに**そのチャンクのクラスタが引いた
+cosine（nomic）top-k の和集合**を `{known}` に載せる（在庫の元順序、同点は name 昇順、doc は
+描画行 `name: description`）。k = 10（`_NOVELTY_TOPK`。リプレイで k = 5 / 10 / 15 に差が出ず、
+recall@10 0.77 を見て RFC の 10〜15 の下端）。判定者（gemma）・出力契約・「迷ったら NEW」・
+id 検証・chunk 単位 fail-open・人間ゲートは不変で、プロンプトの変更は「ここに並ぶのは候補検索の
+近傍で全在庫ではない」の 1 文追加のみ（判定基準の段落は 1 バイトも触っていない）。
+
+- packer はブロックごとに**そのブロックが新たに持ち込む** known 行だけを課金する（同じ行を
+  2 クラスタが引いても 1 回）。加えて 1 チャンク 10 クラスタで打ち切る — 空いた予算に任せると
+  1 コール ~39 クラスタになり、リプレイが測った ~6.4 件/チャンクの外に出るうえ 1 回の
+  fail-open が失う判定が 6 倍になる（code review 指摘）
+- 埋め込みが使えない / 行数不一致 / 非有限・ゼロノルム行のときは在庫全部で従来どおり判定し、
+  `reason=retrieval_unavailable` を WARNING と監査に残す（silent fallback 禁止、再試行なし）。
+  **在庫 515 行では「従来どおり」は窓に入らない** — その run は 1 件も判定せず全クラスタが
+  `fail_open_budget` で unjudged になる（検索導入前と同じ状態。人間ゲートの負荷が増えるだけで
+  テーマは落ちない）。ADR-0104 D5 と `TestNoveltyFullInventoryFallbackAtScale` が pin する
+- 監査 `logs/insight-novelty.jsonl` に `known_selection`（mode / k / reason / embedding_model）と
+  `inventory_count` を追加。`known_themes_count` は**そのチャンクが見た行数**に意味が変わる
+  （`fail_open_budget` は prompt を作らないので 0）
+- 実走の読み（2026-09-07、本番 store に read-only、staging 非書き込み）: 在庫 515、
+  6 クラスタのチャンク 1 本で `mode=topk` / `k=10` / `known_themes_count=49` /
+  `prompt_truncated=false`、`retrieval_unavailable` なし
+- プロンプトが変わったので ADR-0089 の eval baseline は STALE（advisory）。再実行は人間の判断
+- 残り: **希少レーン**（singleton 保留台帳 + 週次再クラスタ）は未着手。本 RFC は open のまま
+
 ## Next action
 
 - 著者判断: 上の「候補生成のみ」の縮小設計で `accepted` にするか、recall 0.77 では足りないとして
