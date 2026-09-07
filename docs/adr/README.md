@@ -102,7 +102,7 @@ Records of key design decisions for this project.
 | [0094](0094-agent-first-task-ledger.md) | Agent-First Task Ledger — Store / Journal / Projection | superseded-by 0095 | 2026-08-15 |
 | [0095](0095-retire-task-ledger-machinery.md) | Retire the Task-Ledger Machinery — Keep the Store and the Claims, Drop Everything That Parsed | accepted — supersedes 0094; partially-supersedes 0093 | 2026-08-16 |
 | [0096](0096-insight-promotion-worth-abstain.md) | Promotion-Worth Abstain at Insight Time — Judge the Produced Skill, List the Surprise | partially-superseded-by ADR-0097 | 2026-08-17 |
-| [0097](0097-consolidator-dissolution-and-skill-store-exit.md) | Consolidator Dissolution and a Skill-Store Exit — Subtraction, then Exit, then Vocabulary | accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096 | 2026-08-22 |
+| [0097](0097-consolidator-dissolution-and-skill-store-exit.md) | Consolidator Dissolution and a Skill-Store Exit — Subtraction, then Exit, then Vocabulary | accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096 — partially-superseded-by ADR-0105 | 2026-08-22 |
 | [0098](0098-weekly-single-session-and-triage-delegation.md) | Weekly Chain Single-Session Redesign and Repair Delegation to the Task-Triage Loop | accepted — partially-supersedes ADR-0085, ADR-0091, ADR-0093 | 2026-08-24 |
 | [0099](0099-weekly-report-instrument-redesign.md) | Weekly Report Content Redesign: From A–E Quote Audit to a Six-Section Instrument Document | accepted — partially-supersedes ADR-0040 | 2026-08-26 |
 | [0100](0100-retire-chaos-tdd-by-default-mandate.md) | Retire the Chaos-TDD By-Default Mandate — Fault Columns Return to Opt-In Judgment | accepted — partially-supersedes ADR-0077 | 2026-08-29 |
@@ -110,6 +110,7 @@ Records of key design decisions for this project.
 | [0102](0102-retire-codemaps.md) | Retire docs/CODEMAPS — Structure Is Derived From Code, Not Stored | accepted | 2026-09-05 |
 | [0103](0103-retire-the-wiki-mechanism.md) | Retire the Wiki Mechanism — the Form Works, the Production Model Does Not | accepted | 2026-09-05 |
 | [0104](0104-novelty-gate-retrieval-topk.md) | The Novelty Gate Judges Against Retrieved Candidates, Not the Whole Inventory | accepted — partially-supersedes ADR-0074 | 2026-09-07 |
+| [0105](0105-skill-store-exit-confusion-pairs.md) | The Skill Store's Exit Gains a Second Signal — the Reader's Confusion Pairs | accepted — partially-supersedes ADR-0097 | 2026-09-07 |
 
 ## ADR Types
 

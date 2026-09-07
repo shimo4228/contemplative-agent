@@ -31,6 +31,8 @@ $MOLTBOOK_HOME/pipeline/value-layer/value-layer-{end-date}.json
 $MOLTBOOK_HOME/pipeline/dead-code/dead-code-{end-date}.json
 $MOLTBOOK_HOME/pipeline/docs-consistency/docs-consistency-{end-date}.json
 $MOLTBOOK_HOME/pipeline/never-selected/never-selected-{end-date}.json
+$MOLTBOOK_HOME/pipeline/confusion-pairs/confusion-pairs-{end-date}.json
+$MOLTBOOK_HOME/reports/analysis/weekly-{end-date}-archive-candidates.txt
 ```
 
 #### (b) 承認対象 run の完走確認（audit log が正）
@@ -93,6 +95,7 @@ EOF
 - dead code: JSON の candidates 件数
 - docs consistency: JSON の findings 件数
 - never-selected: JSON の strict / dormant / below_floor 件数
+- 混同対（ADR-0105）: confusion-pairs JSON の pairs 件数と、候補ファイルの行数
 - **診断起票の draft**: 今週 `rfcs/`（台帳の正本。pipeline の起票先でもある）に増えた
   `state: draft` の件数 — **本セッションでは採否しない**（task-triage digest の担当。
   ここでは存在の報告のみ）。ただし**公開へ出す commit はここの仕事**（Step 6d）
@@ -253,6 +256,29 @@ ADR / script header に未反映かは、当週の src/ + scripts/ commit を ga
    書面の理由を義務づけるまで図書館の除籍は 98% が「念のため」保持された）
 4. **Dormant は読み値。archive しない**
 5. **below_floor も archive しない**
+
+**候補ファイル（ADR-0105）**: pipeline は `weekly-{end-date}-archive-candidates.txt` に
+never-selected strict ∪ 混同対の少ない側を **store のファイル名で 1 行 1 件**書く
+（`confusion-pairs-{end-date}.json` の `pairs` / `reasons` が根拠。読むのは JSON の方）。
+退役するときはそのファイルをそのまま渡す — `contemplative-agent adopt-staged
+--adopt-names FILE --archive-names weekly-{end-date}-archive-candidates.txt`（採用が無い週は
+`--archive-names` 単独で完結する）。**空のファイルは渡さない**（`--archive-names` は空の選択を
+writer bug と見て exit 2 する）。行を削ってから渡してよい — このファイルは提案であって決定ではない。
+JSON の `reasons` に `CONFUSION_*` の withheld コードがあればその週は archive しない。
+
+**天井の読み（ADR-0105 消費計画、archive した週だけ）**: このセッションで実際に archive を
+実行した週は、翌週以降でなく**その場で**幻覚率を 1 回取り、`docs/evidence/rfc-0014/` に
+1 行追記する（カタログ件数を必ず併記）。archive しなかった週は due ではない — カタログが
+動かない読みでは天井仮説を判定できないため。
+
+```bash
+python3 scripts/skillsel_reading.py --start {14 日前} --end {end-date}   # 幻覚率の節を読む
+```
+
+**2 回**取ったら判定する: 2 回とも帯 10〜25% の内なら継続、2 回とも外なら退役でなく
+family 代表化へ（ADR-0105 `## Review-when`）。帯は導出値ではなく、同じ計器が測る**日次**の
+振れが 18.67〜35.06% あるので、2 回が決着しないこともある — そのときの結論は
+「帯では答えられない」であって 3 回目ではない。
 
 ### Step 6d. rfcs/ の無人起票を公開に出す（機微点検 → commit）
 

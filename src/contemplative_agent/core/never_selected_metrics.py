@@ -20,6 +20,7 @@ from datetime import date
 from pathlib import Path
 from typing import Any
 
+from ._io import scrub_control
 from .llm import (
     NUM_CTX,
 )
@@ -29,7 +30,7 @@ from .selection_window import (
     _iter_selection_days,
     resolve_selection_window,
 )
-from .skill_selection import load_skill_catalog
+from .skill_selection import _NAME_MAX_CHARS, load_skill_catalog
 
 logger = logging.getLogger(__name__)
 
@@ -275,6 +276,15 @@ class _SelectionHistoryTally:
     exposure_window: dict[str, int]
     selected_history: dict[str, int]
     selected_window: dict[str, int]
+    # Rejected-name emissions in the WINDOW only, per distinct name. Tallied
+    # in this pass rather than in a second walk because the ADR-0105
+    # confusion reading and this one are two readings of the same log and
+    # the repo pays for one decode of it (~3.7k records over ~44 files at
+    # the 2026-08 volume). Window-only on purpose: the confusion claim is
+    # about how the reader behaves NOW, and a whole-history tally would
+    # charge a skill for variants emitted against a catalog it no longer
+    # shares. Untouched by this module's own populations.
+    rejected_window: dict[str, int]
     last_selected: dict[str, str]
     days_read: list[str]
     history_files: int
@@ -342,6 +352,41 @@ def _tally_selected(
             last_selected[name] = date_part
 
 
+def _tally_rejected(
+    rec: dict[str, Any],
+    *,
+    in_window: bool,
+    rejected_window: dict[str, int],
+) -> None:
+    """Count one judged record's ``rejected_names`` by name, window only.
+
+    The ``in_window`` guard lives here rather than at the call site so the
+    walk keeps one statement per tally (the shape ruff's complexity gate
+    measures, and the shape that makes the walk readable).
+
+    Emissions, not records: a record naming two variants of one skill
+    charges both, which is the count ``RejectedNameTally.count`` and
+    ``scripts/skillsel_reading.py`` already publish.
+    """
+    names = rec.get("rejected_names")
+    if not in_window or not isinstance(names, list):
+        return
+    for name in names:
+        if not isinstance(name, str):
+            continue
+        # Same normalisation as the sibling reading's rejected-name tally
+        # (``selection_metrics._tally_rejected_names``), not a courtesy: the
+        # log is persisted untrusted data, and without the cap an unbounded
+        # name reaches ``nearest_catalog_name``'s O(n*m) matcher once per
+        # catalog entry. Two tallies that scrubbed differently would also make
+        # the "one walk, one answer" claim false for exactly the rows where
+        # it matters.
+        scrubbed = scrub_control(name, _NAME_MAX_CHARS)
+        if not scrubbed:
+            continue
+        rejected_window[scrubbed] = rejected_window.get(scrubbed, 0) + 1
+
+
 def _scan_selection_history(
     log_dir: Path, cutoff: date, upper: date | None
 ) -> _SelectionHistoryTally:
@@ -359,6 +404,7 @@ def _scan_selection_history(
     exposure_window: dict[str, int] = {}
     selected_history: dict[str, int] = {}
     selected_window: dict[str, int] = {}
+    rejected_window: dict[str, int] = {}
     last_selected: dict[str, str] = {}
     history_files = 0
     history_records = 0
@@ -421,6 +467,7 @@ def _scan_selection_history(
                 selected_window=selected_window,
                 last_selected=last_selected,
             )
+            _tally_rejected(rec, in_window=in_window, rejected_window=rejected_window)
             full = rec.get("full_skill_tokens")
             # ``_is_int``, not ``isinstance(full, int)``: ``True`` is an
             # int in Python, so a record carrying ``"full_skill_tokens":
@@ -440,6 +487,7 @@ def _scan_selection_history(
         exposure_window=exposure_window,
         selected_history=selected_history,
         selected_window=selected_window,
+        rejected_window=rejected_window,
         last_selected=last_selected,
         days_read=days_read,
         history_files=history_files,

@@ -16,7 +16,7 @@
           "deadcode",
           "neversel"
         ],
-        "note": "materials → 1 headless /weekly-report → 決定論計器。commit / push / adopt はしない（working tree まで）。"
+        "note": "materials → 1 headless /weekly-report → 決定論計器（7b never-selected · 7c 混同対）。commit / push / adopt はしない（working tree まで）。"
       },
       {
         "id": "gate",
@@ -28,7 +28,7 @@
           "drafts",
           "gate"
         ],
-        "note": "findings と計器 JSON を直読し、adopt-staged · 退役 · dead code 削除 · rfcs 起票の機微点検と commit を 1 セッションで行う。"
+        "note": "findings と計器 JSON を直読し、adopt-staged（候補ファイル → --archive-names）· 退役 · dead code 削除 · rfcs 起票の機微点検と commit を 1 セッションで行う。"
       },
       {
         "id": "repair",
@@ -121,9 +121,9 @@
       "lane": "instruments",
       "col": 5,
       "type": "backend",
-      "label": "never-selected",
-      "sublabel": "never-selected-*.json",
-      "tag": "stage_enabled 外",
+      "label": "store 退出の読み",
+      "sublabel": "never-selected · 混同対",
+      "tag": "7b/7c · ADR-0105",
       "width": 150
     },
     {
