@@ -331,8 +331,13 @@ python3 scripts/pipeline_audit.py \
   --run-id "gate-{end-date}" --event gate_record \
   --field insight_adopted=N --field insight_rejected=N --field insight_held=N \
   --field deadcode_deleted=N --field deadcode_whitelisted=N --field deadcode_held=N \
-  --field skills_archived=N
+  --field skills_archived=N --field skills_archive_candidates=N --field skills_total=N
 ```
+
+`skills_archive_candidates` は機械が出した候補数（`weekly-{end-date}-archive-candidates.txt` の
+行数、0 なら 0）、`skills_total` はゲート終了時の `skills/*.md` の本数。`insight_adopted` と
+`skills_archived` を並べると店の入口と出口の差が週ごとに出る — 出口が入口に追いつかない間は
+店は自律的に代謝しない（RFC-0021 の 2 窓読みの材料。2026-09-08 著者指示）。
 
 `*_held` は**保留が 0 件でも必ず渡す**（省略すると「保留 0 件の週」と「保留を数えなかった
 セッション」が区別できなくなる）。
