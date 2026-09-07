@@ -1,5 +1,5 @@
 ---
-state: in_progress 2026-09-05
+state: done 2026-09-07
 state_since: 2026-09-04
 review-when: 本番の生成モデルが ADR-0069（gemma4:e4b）を supersede して大型化する — opus アームの読み（形は正しい）を prior に wiki を再開できる。または episode 本文を cloud へ出す判断が別途下る（sibling `-cloud` と同じ研究用途扱い）
 ---
@@ -103,7 +103,9 @@ Phase 0 で**未配線であることを再照合**させ、1 つでも配線さ
 
 ## Status
 
-accepted（2026-09-04、著者判断「wiki は閉じる、gemma のまま」）。実装は未着手。
+done（2026-09-07）。S8 の build が main に merge 済み（`764958b`、退役の記録は ADR-0103、振り返りは `850995b`）。
+
+2026-09-04 accepted（著者判断「wiki は閉じる、gemma のまま」）→ 2026-09-05 dispatch → 2026-09-07 台帳を閉じた。
 
 ## Next action
 
