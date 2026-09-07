@@ -1,5 +1,5 @@
 ---
-state: draft 2026-09-02
+state: accepted 2026-09-07
 state_since: 2026-09-02
 review-when: RFC-0017 が withdrawn / rejected になる（前提の並列実験機構が無くなる）、または selector の幻覚率が catalog サイズと無相関だと再読で分かる（天井の物差しが消える）
 ---
@@ -71,7 +71,7 @@ ADR-0074（embedding 閾値の反証）、`docs/evidence/adr-0074/insight-candid
 draft（2026-09-02）。RFC-0017 の設計セッションで「抽出段と店内は分ける、順序は抽出段が先」と
 決まり切り出した。
 
-## Next action
+## Next action（2026-09-07 以前）
 
 - **2026-09-04 追記**: review-when の「RFC-0017 が withdrawn / rejected」は obsoleted で発火した（並列実験機構は
   [RFC-0025](0025-retire-wiki-mechanism.md) で退役）。前提を差し替える: 再開条件は
@@ -88,3 +88,55 @@ draft（2026-09-02）。RFC-0017 の設計セッションで「抽出段と店�
 RFC-0023 は切り替え（S9、`{known}` を cosine top-k に）を dispatch 済みで再開条件は成立。RFC-0024 の外部照合
 （同日）で「読み手としての 4B 級は skill 数 10〜20 件超で選択が急落する（arXiv:2602.16653）、店の大きさが
 抽出の型より先に効く」と読めたため、**RFC-0024 より先に本 RFC を設計セッションにかける**（著者判断）。
+
+## 2026-09-07 決定（著者回答: 案 A — 決定論ゲート、archive のみ、gemma 判定は入れない）
+
+`draft` → `accepted`。設計セッション（同日）で外部研究を照合し（as-of 2026-09-07、一次ソース fetch）、
+Unresolved 3 点を決めた。
+
+**判定者は code。** 退役研究は決定論ゲートが主流（Library Drift arXiv:2605.19576 / ASSAY arXiv:2606.15390 /
+SLIM arXiv:2605.10923 / SkillOps arXiv:2605.13716 — いずれも LLM の verdict はログに残すだけで引き金にしない）。
+LLM judge に退役を委ねた場合の破綻は The Blind Curator（arXiv:2607.07436、2026-08）が実証: false-pass
+偏りが 0.45 を超えると退役が完全停止し集約指標に出ない。gemma を判定者にする案 B は入れない（入れるなら
+先に欠陥注入で偏りを測る）。人間ゲートは承認権限として残す（pipeline が `--archive-names` のファイルを書き、
+土曜ゲートは承認するだけ）。
+
+**信号は「需要が無い AND 混同がある」。** CA にはタスク成否の ground truth が無いので寄与ベース（Library Drift
+の (成功−失敗)/試行、ASSAY の masking）は移植できない。使えるのは SkillOps 型の AND（低 utility かつ重複あり —
+唯一無二の能力を消さないため）:
+
+- 候補 (i) never-selected strict（既存、ADR-0097 D5、床 600 judged exposures）
+- 候補 (ii) **読み手の混同対**: selector の rejected name が語形変化 / 意味的取り違えで写像された先
+  （`scripts/skillsel_reading.py::classify` の規則、RFC-0015 第 4 読み）を集計し、ある skill について
+  「混同で名指された回数 ≥ 正しく選ばれた回数」かつ露出が床以上なら、混同の相手と対にする。対の中で
+  選択数が少ない方が候補。2026-09-04 の読みでは `suspend-interpretation-upon-premise-doubt` 34 対 35、
+  `identify-systemic-boundary-stressors` 23 対 30 がこの形
+- 供給途絶（RFC-0023 の cosine 検索で最後に行が届いた週）は**読み値のみ**、引き金にしない。時間閾値で
+  退役する skill library の論文は無い
+- 証拠の床は必須: Library Drift A4 は証拠不足で退役すると店が 2 件に崩壊し無 skill を下回った
+
+**単位は archive のみ、merge しない。** Retain or Consolidate（arXiv:2607.17545）: 生の本文が予算に収まる
+緩い予算では全統合演算が負（CA の pass 1 は 57 行が窓に収まる）。逐次統合は崩壊する（arXiv:2605.12978:
+AWM 0.64 → 0.20）。SkillCommit（arXiv:2608.15165）: 意味的類似で merge した ACE は 3 改善 24 劣化。
+archive 型の先例は SLIM の inactive set。CA は `skills/.archive/` + `superseded_by` を流用。
+
+**天井は数値キャップでなく読み手の読み値。** Skill Shadowing（arXiv:2605.24050）: 損失の 68% は誤選択・
+非選択で文脈量の寄与はノイズ並み、小型は abandonment に倒れる。Library Drift の上限 50 に導出根拠は無い。
+効果の読みは幻覚率が宣言帯 10〜25% に戻るか（RFC-0015 の計器、600 judged records の窓で 2 回）。
+戻らなければ次は退役でなく**選択時の family 代表化**（Right Family, Wrong Skill arXiv:2606.10388: family
+から代表 1 件だけ通して HSR@3 0.35 → 0.007）— 本 RFC の Future possibilities に置く。
+
+副次の読み: ContinualSkillBench（arXiv:2608.03874）は skill 維持ありと素の ICL が 0.602 対 0.605 で差なし。
+店の集約効果はゼロに近い可能性があり、退役の目的は性能でなく**読み手が区別できる店を保つ**こと（幻覚率）。
+
+### 実装（build へ）
+
+- weekly の stage 7b の隣に **confusion-pair reading**（code、read-only）: `skillsel_reading.py::classify` の
+  規則を `core/` に移し（script は計測用に残す）、窓内の rejected name を写像先ごとに集計、上の条件で
+  候補対を出す。出力は per-week JSON + findings の節（never-selected と同じ形）
+- pipeline が候補（never-selected strict ∪ 混同対の少ない方）を `weekly-<end>-archive-candidates.txt` に
+  書く。**store は触らない** — 土曜ゲートが `adopt-staged --archive-names` に渡す
+- 消費計画（ADR-0101）: 読み手 = 土曜ゲート、毎週。幻覚率が帯に戻るかを 2 窓読んで天井仮説の当否を決める。
+  満了 = 2 窓とも帯内 → 混同対の読みは維持、候補生成は continue。2 窓とも帯外 → family 代表化へ
+- ADR 1 本（ADR-0097 D3 の部分 supersede: stocktake の退出経路に混同対を足す）
+
