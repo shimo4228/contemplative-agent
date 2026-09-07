@@ -82,3 +82,10 @@ draft（2026-09-02）。RFC-0017 の設計セッションで「抽出段と店�
 - 再開条件（旧）: RFC-0017 の Proposer が shadow に入り（D10）、wiki の肥大読み値が 4 週分溜まること
 - 照合先:   weekly findings の would-be 提案 4 週分 + `logs/skill-selection-*.jsonl` の幻覚率
 - 成立時:   設計セッション（family の判定者と畳む単位を決める）→ accepted
+
+## 2026-09-07 順序の再決定
+
+RFC-0023 は切り替え（S9、`{known}` を cosine top-k に）を dispatch 済みで再開条件は成立。RFC-0024 の外部照合
+（同日）で「読み手としての 4B 級は skill 数 10〜20 件超で選択が急落する（arXiv:2602.16653）、店の大きさが
+抽出の型より先に効く」と読めたため、**RFC-0024 より先に本 RFC を設計セッションにかける**（著者判断）。
+
