@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-07
+state: in_progress 2026-09-07
 state_since: 2026-09-02
 review-when: RFC-0017 が withdrawn / rejected になる（前提の並列実験機構が無くなる）、または selector の幻覚率が catalog サイズと無相関だと再読で分かる（天井の物差しが消える）
 ---
