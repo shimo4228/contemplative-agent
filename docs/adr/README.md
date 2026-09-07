@@ -79,7 +79,7 @@ Records of key design decisions for this project.
 | [0071](0071-read-only-pattern-composition-instruments.md) | Read-Only Pattern-Composition Instruments (View Supply / Diversity / Grounding) | accepted | 2026-07-03 |
 | [0072](0072-echo-chamber-interventions.md) | Echo-Chamber Interventions — Register Instruction, Corpus-Grown Seed, Extraction-Failure Guard | accepted | 2026-07-03 |
 | [0073](0073-prune-orphaned-view-seeds.md) | Prune the Five Orphaned View Seeds | accepted | 2026-07-03 |
-| [0074](0074-weekly-staged-insight.md) | Weekly Staged Insight — Theme Detection, Pending Guard, Marker-on-Stage, LLM Novelty Gate, Exact Fast Clustering | accepted | 2026-07-09 |
+| [0074](0074-weekly-staged-insight.md) | Weekly Staged Insight — Theme Detection, Pending Guard, Marker-on-Stage, LLM Novelty Gate, Exact Fast Clustering | partially-superseded-by ADR-0104 | 2026-07-09 |
 | [0075](0075-observability-by-default.md) | Observability by Default — Replayable Audit Logs Ship With the Feature | accepted (amended 2026-08-29) | 2026-07-09 |
 | [0076](0076-skill-selection-shadow-instrument.md) | Skill-Selection Shadow Instrument — Pass-1 LLM Applicability Observed, Not Enforced | accepted | 2026-07-10 |
 | [0077](0077-chaos-tdd-fault-injection.md) | Chaos-TDD Fault Injection — Seeded Fault Schedules as Test-First Specification (Pilot: distill) | partially-superseded-by ADR-0100 | 2026-07-13 |
@@ -109,6 +109,7 @@ Records of key design decisions for this project.
 | [0101](0101-instrument-dissolution-mandate.md) | Instrument Dissolution Mandate — New Instruments Must Name Their Consumption | accepted | 2026-08-29 |
 | [0102](0102-retire-codemaps.md) | Retire docs/CODEMAPS — Structure Is Derived From Code, Not Stored | accepted | 2026-09-05 |
 | [0103](0103-retire-the-wiki-mechanism.md) | Retire the Wiki Mechanism — the Form Works, the Production Model Does Not | accepted | 2026-09-05 |
+| [0104](0104-novelty-gate-retrieval-topk.md) | The Novelty Gate Judges Against Retrieved Candidates, Not the Whole Inventory | accepted — partially-supersedes ADR-0074 | 2026-09-07 |
 
 ## ADR Types
 

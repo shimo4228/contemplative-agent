@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted
+partially-superseded-by ADR-0104
 
 ## Date
 
@@ -177,6 +177,16 @@ accumulated**.
   [docs/evidence/adr-0074/](../evidence/adr-0074/window-simulation-20260709.md).
 
 ## Amendment (2026-07-18): token-bounded chunked judging + fail-open extraction cap
+
+> 2026-09-07: [ADR-0104](./0104-novelty-gate-retrieval-topk.md) supersedes this
+> Amendment's `{known}` clause in part. A chunk now carries the cosine top-k
+> inventory lines its own clusters retrieved (k = 10), not the full inventory,
+> and the fixed cost is budgeted per chunk accordingly; the full inventory
+> remains the fallback when embedding is unavailable. Everything else in this
+> Amendment — per-chunk fail-open, per-chunk id validation, truncated-sample
+> retry, the fail-open extraction cap — and the whole 2026-07-09 body still
+> stand, including D6's finding that embedding separation for "same theme?"
+> does not exist (ADR-0104 re-confirms it and keeps the verdict with the LLM).
 
 ### Context
 
