@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-05
+state: in_progress 2026-09-07
 state_since: 2026-09-04
 review-when: 候補検索の recall@10 が reviewer の名指しに対して 0.8 を下回る読みが 2 回続く（検索が reviewer の判断を再現しない — 判定を LLM に戻す）、または RFC-0015 の selector 幻覚率が catalog サイズと無相関だと分かる（重複を減らす動機の半分が消える）
 ---
@@ -203,7 +203,9 @@ id 検証・chunk 単位 fail-open・人間ゲートは不変で、プロンプ�
 
 ## Next action
 
-- 著者判断: 上の「候補生成のみ」の縮小設計で `accepted` にするか、recall 0.77 では足りないとして
-  `blocked`（照合先: reviewer の名指しが top-k に入る率を上げる手 — skill の description 改善は RFC-0024 /
-  hub の退役は RFC-0021 の後に再読）にするか
-- accepted 後は build-tier へ dispatch（skill: task-triage）。k は dry-run の分布から packet で決める
+- S9（`{known}` の top-k 差し替え）は main に merge 済み（`4711d23`、ADR-0104）。残るのは**希少レーン**
+  （singleton の保留台帳 + 週次再クラスタ）のみ
+- 希少レーンは **RFC-0021 の 2 窓読み（幻覚率が帯 10〜25% に戻るか）の後に着手**する（2026-09-07 著者判断。
+  理由: 希少レーンは店への供給を増やす機構で、店が読み手の限界を超えている間に入れると退役の効果と
+  分離して読めない）。照合先: RFC-0021 の消費計画の記録（土曜ゲート）
+- eval baseline（`comment_golden-2026-08-31.json`）が S9 の prompt 追記で STALE — 再実行と再承認は土曜ゲート
