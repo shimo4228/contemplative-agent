@@ -52,6 +52,8 @@ markers = [
 
 [tool.pyright]
 include = ["src", "tests", "evals"]
+venvPath = "."
+venv = ".venv"
 # Argparse handler signatures take (args, parser) uniformly via dispatcher;
 # many handlers do not use parser, so unused-variable and unreachable reports
 # are disabled here (the `_` prefix marks intent at the call sites).
