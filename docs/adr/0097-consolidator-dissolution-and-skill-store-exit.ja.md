@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096
+accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096 — partially-superseded-by ADR-0105
 
 Decision 1 自体も 2026-08-29 に RFC-0016 で部分的に supersede された:
 surprise 計器は復元し、promotion-worth 判定は退役のまま。Decision 1 直下の
@@ -198,6 +198,14 @@ tokens）は既に NUM_CTX 32,768 を超えているので fail-open は注入�
    まま残さず消す。Decision 5 の出口は sidecar の field でなく operator が打つ明示の
    引数として来る。
 
+   > **2026-09-07 追記 — Decision 3 は
+   > [ADR-0105](./0105-skill-store-exit-confusion-pairs.ja.md) が部分 supersede する。**
+   > 本決定は grouping / merge / clean 統合器を外し、同時に「この 2 件は同じものが
+   > 2 回入っている」と言える唯一の機構を落とした。再提案ガードの失効条件
+   > 「insight 生産側の変質」は 2026-09-02 の RFC-0017 で発火した。ADR-0105 は
+   > store の退出に重複の信号を戻す — ただし selector 自身の rejected 名を決定論的に
+   > 読む形であって LLM の verdict ではないので、LLM 統合器を退役させた部分は立ったままである。
+
 4. **novelty gate は code を変えず目的を言い直す**: ledger
    （`logs/insight-staged.jsonl`）の書き手と安い fail-open の pre-filter であって、
    coverage の判定者ではない。失効条件を名指しする: 決定に依らない known-theme
@@ -216,6 +224,15 @@ tokens）は既に NUM_CTX 32,768 を超えているので fail-open は注入�
    限るからである。archive された skill と置き換えた skill は frontmatter に
    `supersedes:` / `superseded_by:` を記録する。read-only の co-selection family
    script を `scripts/` に加える。
+
+   > **2026-09-07 追記（[ADR-0105](./0105-skill-store-exit-confusion-pairs.ja.md)）—
+   > この決定は変わらず、数値が共有される。** stage 7b は 2026-08-22 に入り、
+   > 週次の読みは 2 回出た。`.archive/` は 0 件、store は 57 件のままである。
+   > ADR-0105 はその隣に混同対の読み（weekly stage 7c）を足し、2 つの母集団の
+   > 和集合を候補ファイルとして書く（土曜ゲートが `--archive-names` に渡す）。
+   > 上の 600 の床と 14 日の dormant cut は、その読みが**再導出せず import する** —
+   > したがって本決定の Review-when 腕（strict never-selected で archive した skill が
+   > 2 回以上復元される）が両方を動かす。
 
 6. **語彙を予約する（スライス 3）**: reviewer prompt の verdict 文法を `adopt` /
    `adopt-superseding <skill>` / `reject: covered-by <skill>` /

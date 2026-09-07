@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import difflib
 import logging
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import date
 from pathlib import Path
@@ -669,6 +670,42 @@ def _catalog_vocabulary(
     return frozenset(vocabulary)
 
 
+def nearest_catalog_name(name: str, catalog_names: Sequence[str]) -> tuple[str, float]:
+    """Closest catalog name to ``name`` by surface similarity, with its ratio.
+
+    The one ruler behind every reading that speaks of a "nearest catalog
+    entry" — this module's rejected-name tally and the ADR-0105 confusion
+    pairs — so the similarity a row prints is the score that picked its
+    winner in both.
+
+    No cutoff: a name with no close match is exactly the interesting case
+    (value-layer bleed), so its distance is worth reporting.
+
+    Scored in one explicit pass rather than ``get_close_matches`` plus a
+    second ``ratio()``. ``SequenceMatcher.ratio()`` is **not symmetric**, and
+    the two calls take their operands in opposite orders — so on roughly 1%
+    of realistic kebab-case names the printed similarity would not be the
+    score that picked the winner, and a reader comparing rows would see an
+    inconsistency with no way to explain it. That lands precisely on the
+    wordform-versus-substitution boundary the tally exists to discriminate.
+
+    Ties break toward the alphabetically first name; a name that matches
+    nothing at all reports no nearest rather than the alphabetical accident
+    ``get_close_matches`` would hand back.
+    """
+    if not catalog_names:
+        return "", 0.0
+    matcher = difflib.SequenceMatcher(autojunk=False)
+    matcher.set_seq2(name)
+    best_name, best_ratio = "", 0.0
+    for candidate in sorted(catalog_names):
+        matcher.set_seq1(candidate)
+        ratio = matcher.ratio()
+        if ratio > best_ratio:
+            best_name, best_ratio = candidate, ratio
+    return best_name, best_ratio
+
+
 def _rejected_name_tallies(
     rejected_counts: dict[str, int],
     catalog_names: list[str],
@@ -678,39 +715,8 @@ def _rejected_name_tallies(
 ) -> tuple[RejectedNameTally, ...]:
     """One row per distinct rejected name, emissions descending."""
 
-    def _nearest(name: str) -> tuple[str, float]:
-        """Closest catalog name by surface similarity, with its ratio.
-
-        No cutoff: a name with no close match is exactly the interesting
-        case (value-layer bleed), so its distance is worth reporting.
-
-        Scored in one explicit pass rather than ``get_close_matches`` plus
-        a second ``ratio()``. ``SequenceMatcher.ratio()`` is **not
-        symmetric**, and the two calls take their operands in opposite
-        orders — so on roughly 1% of realistic kebab-case names the
-        printed similarity would not be the score that picked the winner,
-        and a reader comparing rows would see an inconsistency with no
-        way to explain it. That lands precisely on the wordform-versus-
-        substitution boundary this tally exists to discriminate.
-
-        Ties break toward the alphabetically first name; a name that
-        matches nothing at all reports no nearest rather than the
-        alphabetical accident ``get_close_matches`` would hand back.
-        """
-        if not catalog_names:
-            return "", 0.0
-        matcher = difflib.SequenceMatcher(autojunk=False)
-        matcher.set_seq2(name)
-        best_name, best_ratio = "", 0.0
-        for candidate in sorted(catalog_names):
-            matcher.set_seq1(candidate)
-            ratio = matcher.ratio()
-            if ratio > best_ratio:
-                best_name, best_ratio = candidate, ratio
-        return best_name, best_ratio
-
     def _tally(name: str, count: int) -> RejectedNameTally:
-        nearest, similarity = _nearest(name)
+        nearest, similarity = nearest_catalog_name(name, catalog_names)
         mechanism, reason, note = classify_hallucination(
             name,
             similarity,

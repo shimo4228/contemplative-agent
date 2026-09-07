@@ -2,7 +2,7 @@
 
 ## Status
 
-accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096
+accepted — partially-supersedes ADR-0016, ADR-0046, ADR-0048, ADR-0096 — partially-superseded-by ADR-0105
 
 Decision 1 is itself partially superseded as of 2026-08-29 by RFC-0016: the
 surprise instrument is restored, the promotion-worth judge stays retired. See
@@ -233,6 +233,16 @@ before verdict vocabulary touches the store.
    gone rather than left producerless, and the Decision 5 exit arrives as an
    explicit operator argument instead.
 
+   > **Note added 2026-09-07 — Decision 3 is partially superseded by
+   > [ADR-0105](./0105-skill-store-exit-confusion-pairs.md).** This decision
+   > removed the grouping / merge / clean consolidators and with them the only
+   > mechanism that could say two store entries are the same entry twice. Its
+   > re-proposal guard's expiry ("the insight production side changes") fired
+   > on 2026-09-02 with RFC-0017. ADR-0105 gives the store's exit a
+   > duplication signal again — but as a deterministic reading of the
+   > selector's own rejected names, never an LLM verdict, so the part of this
+   > decision that retired the LLM consolidators stands.
+
 4. **The novelty gate is unchanged in code and restated in purpose**: it is
    the ledger keeper (`logs/insight-staged.jsonl`) and a cheap fail-open
    pre-filter, not the coverage judge. Its expiry is named: the
@@ -255,6 +265,16 @@ before verdict vocabulary touches the store.
    for judged actions only; archived and superseding skills record
    `supersedes:` / `superseded_by:` in frontmatter; a read-only
    co-selection family script joins `scripts/`.
+
+   > **Note added 2026-09-07 ([ADR-0105](./0105-skill-store-exit-confusion-pairs.md)) —
+   > this decision is unchanged and its numbers are now shared.** Stage 7b
+   > landed 2026-08-22 and has produced two weekly readings; `.archive/` is
+   > still at 0 and the store at 57. ADR-0105 adds a confusion-pair reading
+   > beside it (weekly stage 7c) and writes the union of the two populations
+   > as a candidate file the Saturday gate hands to `--archive-names`. The
+   > 600 floor and the 14-day dormant cut above are **imported** by that
+   > reading rather than re-derived, so this decision's own Review-when arm
+   > (a strict never-selected archive restored more than once) moves both.
 
 6. **Reserve the vocabulary (slice 3)**: the reviewer prompt's verdict
    grammar becomes `adopt` / `adopt-superseding <skill>` /

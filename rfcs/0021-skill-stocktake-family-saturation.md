@@ -140,3 +140,17 @@ archive 型の先例は SLIM の inactive set。CA は `skills/.archive/` + `sup
   満了 = 2 窓とも帯内 → 混同対の読みは維持、候補生成は continue。2 窓とも帯外 → family 代表化へ
 - ADR 1 本（ADR-0097 D3 の部分 supersede: stocktake の退出経路に混同対を足す）
 
+## 2026-09-07 build
+
+決定を実装した（branch `task/confusion-pair-reading`）。所有 ADR は
+[ADR-0105](../docs/adr/0105-skill-store-exit-confusion-pairs.md)（ADR-0097 D3 の部分 supersede）。
+`core/skill_confusion.py`（規則は `core/selection_metrics.py` の
+`classify_hallucination` / `nearest_catalog_name` を import、床と窓は
+`core/never_selected_metrics.py` から共有）、weekly stage 7c
+（`scripts/confusion_pair_reading.py`）、候補ファイル
+`weekly-<end>-archive-candidates.txt`。本番ログへの read-only dry run は
+[docs/evidence/adr-0105/dry-run-20260907.md](../docs/evidence/adr-0105/dry-run-20260907.md)
+に凍結（14 日窓の混同対は 1 件で、never-selected strict に既にいる名前 — 第 2 の信号が
+この週に足した名前は 0 件。上の「34 対 35 / 23 対 30」は 7 日窓の読みで、後者は 24 対 30 と出た）。
+天井の 2 窓読みは未消化 — 消費計画と読み手の配線は ADR-0105 の `## Review-when` と
+`.claude/skills/weekly-gate/SKILL.md` Step 6c。

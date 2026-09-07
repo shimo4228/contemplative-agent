@@ -4,8 +4,9 @@
 # + draft RFC filing) → Sample splice (RFC-0026: the collector's random sample
 # is copied into the report's `## Sample` heading here, before promotion) →
 # promote → deterministic instruments (value-layer due check, dead-code scan,
-# docs-consistency scan, never-selected reading) → spawn recording. Human
-# involvement stays compressed into the Saturday gate
+# docs-consistency scan, never-selected reading, confusion-pair reading +
+# archive candidates) → spawn recording. Human involvement stays compressed
+# into the Saturday gate
 # (/weekly-gate, which now reads the findings and instrument JSONs directly —
 # the decision-packet builder is retired); repairs are NOT made here: the
 # session files drafts into rfcs/ (the public ledger) and the task-triage loop
@@ -889,6 +890,46 @@ else
     rm -f "$NEVER_SELECTED_JSON"
 fi
 
+# --- Stage 7c: confusion-pair reading + the week's archive candidates (ADR-0105) ---
+# The second exit signal beside 7b's: a store entry the selector names its way
+# INTO at least as often as it chooses it, paired with the entry its variants
+# resemble second-best. Takes the never-selected half from 7b's JSON (so the
+# two halves of the candidate file cannot disagree, and a lost 7b is NAMED
+# rather than read as "nothing to list"), walks the selection log itself for
+# the confusion half, writes the union as store filenames, and touches the
+# store not at all — `adopt-staged --archive-names` is the Saturday gate's.
+#
+# Not behind `stage_enabled`, for 7b's reason: a STAGES selection that silently
+# skipped it would produce a week reading "no candidates" instead of "not read".
+CONFUSION_JSON="$MOLTBOOK_HOME/pipeline/confusion-pairs/confusion-pairs-$END_DATE.json"
+ARCHIVE_CANDIDATES="$REPORT_DIR/weekly-${END_DATE}-archive-candidates.txt"
+CONFUSION_TIMEOUT="${PIPELINE_CONFUSION_TIMEOUT:-300}"
+echo "[$RUN_ID] stage 7c: confusion-pair reading"
+mkdir -p "$(dirname "$CONFUSION_JSON")"
+chmod 700 "$(dirname "$CONFUSION_JSON")" 2>/dev/null || true
+rm -f "$CONFUSION_JSON" "$ARCHIVE_CANDIDATES"
+# --no-sync for the same reason as the dead-code scan. The findings file is
+# passed only when the diagnosis was promoted this run; the reading's own
+# artifacts are the JSON and the candidate file, so a quarantined diagnosis
+# costs the section, not the reading.
+CONFUSION_ARGS=(--home "$MOLTBOOK_HOME" --end-date "$END_DATE"
+    --never-selected "$NEVER_SELECTED_JSON"
+    --json "$CONFUSION_JSON" --candidates "$ARCHIVE_CANDIDATES")
+if [[ -s "$FINDINGS_MD" ]]; then
+    CONFUSION_ARGS+=(--findings "$FINDINGS_MD")
+fi
+if cf_out=$(cd "$PROJECT_ROOT" && with_timeout "$CONFUSION_TIMEOUT" \
+        uv run --no-sync -q python scripts/confusion_pair_reading.py \
+        "${CONFUSION_ARGS[@]}" 2>"$RUN_LOG_DIR/confusion.err"); then
+    audit stage_result stage=confusion result=ok summary="$cf_out"
+else
+    add_reason CONFUSION_READING_FAILED
+    audit stage_result stage=confusion result=fail reason=CONFUSION_READING_FAILED
+    # Both artifacts go or neither: a JSON without its candidate file (or the
+    # reverse) reads at the gate as a complete reading with an empty half.
+    rm -f "$CONFUSION_JSON" "$ARCHIVE_CANDIDATES"
+fi
+
 # --- Chain end (no packet: the Saturday gate reads the artifacts directly) ---
 audit chain_end result=ok report="$REPORT_PATH" findings="$FINDINGS_MD" \
     reasons="${REASONS:-none}"
@@ -898,5 +939,7 @@ echo "  findings:  $FINDINGS_MD"
 echo "  valuelayer: $VALUE_LAYER_JSON"
 echo "  deadcode:  $DEADCODE_JSON"
 echo "  docsscan:  $DOCSCAN_JSON"
+echo "  confusion: $CONFUSION_JSON"
+echo "  candidates: $ARCHIVE_CANDIDATES"
 echo "  neversel:  $NEVER_SELECTED_JSON"
 echo "[$RUN_ID] done (reasons: ${REASONS:-none})"

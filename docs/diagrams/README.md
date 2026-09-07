@@ -1,7 +1,7 @@
 <!--
 FRESHNESS
-  generated: 2026-09-05
-  source-commit: 5a5534d
+  generated: 2026-09-07
+  source-commit: ed8f510
   method: hand-authored Archify JSON from code (src/contemplative_agent, scripts/weekly-pipeline.sh, config/launchd) at the source commit; nodes are commands / stores / gates / instruments / ADR numbers, never file-level structure (ADR-0102)
   refresh: any PR that changes a pipeline gate, threshold, formula, or stage order (CLAUDE.md 鮮度規約) updates the matching *.json here and re-runs deliver; re-verify all six against code whenever a new ADR supersedes one named in a node or card
 -->
@@ -21,7 +21,7 @@ Contemplative Agent の値層パイプライン（episode → patterns → skill
 | [02 insight と skill 選択](pipeline-02-insight-selection.html) | workflow | cluster 0.70 → novelty gate → skill_extract → .staged/ → adopt-staged → skills/、および実行時 two-pass 選択（ADR-0081）→ selection log → never-selected |
 | [03 identity · 憲法 · shadow](pipeline-03-identity-constitution.html) | workflow | view centroid（self_reflection 0.66 / constitutional 0.55）→ distill-identity / amend-constitution / shadow-constitution（read-only 計器）→ .staged/ → adopt |
 | [04 実行時プロンプト組立](pipeline-04-runtime-prompt.html) | architecture | identity.md + 公理 → learned_skills（選択分）+ learned_rules（全量）→ 生成。code 側ガード（wrap_untrusted_content / _sanitize_output）と値層の境界 |
-| [05 週次チェーンと人間ゲート](pipeline-05-weekly-gates.html) | workflow | materials → 1 headless /weekly-report → 決定論計器 → 土曜 /weekly-gate（adopt · 退役 · commit）、修理は task-triage loop |
+| [05 週次チェーンと人間ゲート](pipeline-05-weekly-gates.html) | workflow | materials → 1 headless /weekly-report → 決定論計器（7b never-selected · 7c 混同対 + archive 候補ファイル、ADR-0105）→ 土曜 /weekly-gate（adopt · 退役 · commit）、修理は task-triage loop |
 
 ## 規約
 
