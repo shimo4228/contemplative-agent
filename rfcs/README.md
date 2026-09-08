@@ -38,3 +38,5 @@ frontmatter が唯一の正本**。
 | [0024](0024-skill-extraction-free-body-split-calls.md) | skill 抽出の型を解く — 本文自由記述、frontmatter は別コール、長さは保存時拒否 |
 | [0025](0025-retire-wiki-mechanism.md) | wiki 機構の退役（RFC-0017 D4〜D10 / RFC-0022 の閉鎖。gemma で平坦化、opus では機能） |
 | [0026](0026-weekly-sample-splice.md) | 週次観察文書の `## Sample` 節を LLM の写経でなく pipeline の決定論的な差し込みにする |
+| [0027](0027-experience-driven-skill-revision.md) | 経験に基づくスキル更新 — 再確認・修正・新規を区別する |
+| [0028](0028-skill-outcome-recording.md) | skill の outcome 記録 — 環境の反応（返信 / upvote / スレッド継続）を comment id と selection log に結ぶ |
