@@ -50,6 +50,8 @@ class _LazyPrompts:
         "LEARNED_SKILLS_FRAMING_PROMPT": "learned_skills_framing",
         "LEARNED_RULES_FRAMING_PROMPT": "learned_rules_framing",
         "SKILL_SELECTION_PROMPT": "skill_selection",
+        "INSIGHT_REVISION_REASON_PROMPT": "insight_revision_reason",
+        "INSIGHT_REVISION_GENERATION_PROMPT": "insight_revision_generation",
     }
 
     def __getattr__(self, name: str) -> str:

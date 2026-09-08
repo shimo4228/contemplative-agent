@@ -76,6 +76,8 @@ class PromptTemplates:
     learned_skills_framing: str = ""
     learned_rules_framing: str = ""
     skill_selection: str = ""
+    insight_revision_reason: str = ""
+    insight_revision_generation: str = ""
 
 
 def _warn_unknown_keys(section: str, mapping: object, allowed: set[str]) -> None:
@@ -283,6 +285,8 @@ def load_prompt_templates(prompts_dir: Path | None = None) -> PromptTemplates:
         learned_skills_framing=read("learned_skills_framing.md", required=False),
         learned_rules_framing=read("learned_rules_framing.md", required=False),
         skill_selection=read("skill_selection.md", required=False),
+        insight_revision_reason=read("insight_revision_reason.md", required=False),
+        insight_revision_generation=read("insight_revision_generation.md", required=False),
     )
 
 

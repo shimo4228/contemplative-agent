@@ -1,0 +1,72 @@
+{
+  "schema_version": 1,
+  "cases": [
+    {
+      "case_id": "reconfirm-check-before-action",
+      "patterns": [
+        {
+          "id": "obs-reconfirm-01",
+          "text": "The existing check-before-action behavior still held when the same kind of request returned."
+        },
+        {
+          "id": "obs-reconfirm-02",
+          "text": "No changed condition or procedure was observed in the repeated case."
+        }
+      ],
+      "existing_skills": [
+        {
+          "name": "check-before-action",
+          "text": "Check the request and its constraints before acting."
+        }
+      ]
+    },
+    {
+      "case_id": "insufficient-descriptive-observation",
+      "patterns": [
+        {
+          "id": "obs-thin-01",
+          "text": "The exchange felt different, but the observation does not identify a repeatable condition or action."
+        }
+      ],
+      "existing_skills": []
+    },
+    {
+      "case_id": "revise-narrow-trigger",
+      "patterns": [
+        {
+          "id": "obs-revise-01",
+          "text": "The broad trigger in the existing check-before-action guidance produced the wrong behavior in a constrained context."
+        },
+        {
+          "id": "obs-revise-02",
+          "text": "A narrower condition separated the constrained context from the ordinary case and restored the intended judgment."
+        }
+      ],
+      "existing_skills": [
+        {
+          "name": "check-before-action",
+          "text": "Check the request and its constraints before acting in every case."
+        }
+      ]
+    },
+    {
+      "case_id": "new-preserve-uncertainty",
+      "patterns": [
+        {
+          "id": "obs-new-01",
+          "text": "When evidence remained unresolved, preserving the uncertainty prevented a false reusable conclusion."
+        },
+        {
+          "id": "obs-new-02",
+          "text": "The existing catalog had no guidance for keeping an unresolved observation separate from a confirmed rule."
+        }
+      ],
+      "existing_skills": [
+        {
+          "name": "check-before-action",
+          "text": "Check the request and its constraints before acting."
+        }
+      ]
+    }
+  ]
+}
