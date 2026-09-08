@@ -416,8 +416,8 @@ def _validate_output_path(path: Path, input_path: Path) -> Path:
         raise ValueError("--out must not be inside MOLTBOOK_HOME")
     if output == input_resolved:
         raise ValueError("--out must differ from --cases")
-    if output.exists() and output.is_dir():
-        raise ValueError("--out must be a file path")
+    if output.exists():
+        raise ValueError("--out must be a new file path")
     return output
 
 
