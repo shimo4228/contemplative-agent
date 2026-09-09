@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import json
 import logging
+import uuid
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,6 +53,7 @@ from .llm import (
     get_identity_system_prompt,
     validate_identity_content,
 )
+from .selection_window import PUBLISH_RECORD_KIND, SELECTION_RECORD_KIND
 from .text_utils import skill_theme, strip_frontmatter
 
 logger = logging.getLogger(__name__)
@@ -282,6 +284,80 @@ def _append_selection_audit(record: dict[str, Any]) -> None:
     append_jsonl_restricted(_audit_dir / f"skill-selection-{date_str}.jsonl", record)
 
 
+# ``publish_status`` reason codes. A publish that produced no usable comment
+# id says WHY rather than going missing — the reading counts each of these
+# separately, so "the selector was never published" and "the platform
+# answered without an id" cannot collapse into one silence (ADR-0075).
+PUBLISH_PUBLISHED = "published"
+
+
+PUBLISH_ID_UNKNOWN = "published_id_unknown"
+
+
+PUBLISH_UNVERIFIED = "unverified"
+
+
+PUBLISH_FAILED = "publish_failed"
+
+
+# The approval gate said no. Distinct from PUBLISH_FAILED on purpose: a
+# declined action is an operator decision, not a fault, and an approval-gated
+# run would otherwise leave the same silence as an internal failure.
+PUBLISH_DECLINED = "declined"
+
+
+@dataclass(frozen=True)
+class SelectionObservation:
+    """One recorded selection: what was injected, and the id that names it.
+
+    ``selection_id`` is minted *before* the record is written, which is what
+    makes the publish link possible without rewriting anything: the comment
+    id does not exist until after the generation is published, and an
+    append-only log cannot go back and add it to the selection record
+    (RFC-0028 Unresolved 1). The publish side appends its own record
+    carrying this id instead.
+
+    ``selected`` keeps the meaning ``shadow_observe_skill_selection`` has
+    always had: names to inject, or ``None`` for full injection.
+    """
+
+    selected: tuple[str, ...] | None
+    selection_id: str | None
+
+
+def record_publish_outcome(
+    selection_id: str | None,
+    *,
+    comment_id: str | None,
+    publish_status: str,
+) -> None:
+    """Append the ``publish`` record that links a selection to its comment.
+
+    ``comment_id`` is ``None`` whenever the publish produced no usable id —
+    the reason is in ``publish_status``. A missing ``selection_id`` (the
+    selector was disabled, or the generation never ran under one) writes
+    nothing: a publish record with no selection to join to is a row the
+    reading would have to discard anyway.
+
+    Never raises: this runs inside the publish path, and an instrument must
+    not be able to fail an action it only observes.
+    """
+    if _audit_dir is None or not selection_id:
+        return
+    try:
+        _append_selection_audit(
+            {
+                "kind": PUBLISH_RECORD_KIND,
+                "ts": now_iso("seconds"),
+                "selection_id": selection_id,
+                "comment_id": comment_id or None,
+                "publish_status": publish_status,
+            }
+        )
+    except OSError as exc:
+        logger.warning("skill selection: publish outcome not recorded (%s)", exc)
+
+
 # The states of "what reaches <learned_skills>". Named because the
 # distinction that matters downstream is *what was injected*, not whether
 # the selector ran: shadow observation records a selection and still injects
@@ -393,6 +469,19 @@ def observed_injection_outcomes(audit_dir: Path) -> dict[str, Any]:
                     out["verdicts"].get("UNPARSEABLE_RECORD", 0) + 1
                 )
                 continue
+            if not isinstance(record, dict):
+                out["verdicts"]["UNPARSEABLE_RECORD"] = (
+                    out["verdicts"].get("UNPARSEABLE_RECORD", 0) + 1
+                )
+                continue
+            # This reader globs the log itself instead of going through
+            # ``selection_window``, so the record-family filter is repeated
+            # here: a publish record (RFC-0028) has no verdict and would
+            # otherwise inflate ``records`` and ``fell_back`` and grow a
+            # MISSING_VERDICT bucket. Records written before RFC-0028 carry no
+            # ``kind`` and are selections.
+            if record.get("kind", SELECTION_RECORD_KIND) != SELECTION_RECORD_KIND:
+                continue
             out["records"] += 1
             verdict = str(record.get("verdict", "MISSING_VERDICT"))
             out["verdicts"][verdict] = out["verdicts"].get(verdict, 0) + 1
@@ -446,6 +535,19 @@ def selected_skills_block(selected: tuple[str, ...]) -> str:
 def shadow_observe_skill_selection(
     situation: str, *, generation_caller: str
 ) -> tuple[str, ...] | None:
+    """Selection entry point for callers that do not publish.
+
+    Thin wrapper over :func:`observe_skill_selection_recorded` keeping the
+    pre-RFC-0028 return: the selection alone. Callers that go on to publish
+    use the recorded form instead, because they need the id that links the
+    selection record to the comment it became.
+    """
+    return observe_skill_selection_recorded(situation, generation_caller=generation_caller).selected
+
+
+def observe_skill_selection_recorded(
+    situation: str, *, generation_caller: str
+) -> SelectionObservation:
     """Selection entry point: select, record, and (ADR-0081) enforce.
 
     Returns the selected skill names (possibly an empty tuple = inject
@@ -459,16 +561,31 @@ def shadow_observe_skill_selection(
     (degrade-never-abort): a broken instrument must never block the publish
     action it observes. Every audit record carries ``enforced`` (whether
     this observation fed back into injection).
+
+    Returns a :class:`SelectionObservation`: the selection plus the
+    ``selection_id`` under which it was recorded (``None`` when nothing was
+    recorded — kill switch or internal failure), which the publish path
+    hands back to :func:`record_publish_outcome`.
     """
     if _audit_dir is None:
-        return None
+        return SelectionObservation(selected=None, selection_id=None)
+    selection_id = uuid.uuid4().hex
     try:
         catalog = load_skill_catalog(_skills_dir)
         base: dict[str, Any] = {
+            "kind": SELECTION_RECORD_KIND,
+            "selection_id": selection_id,
             "ts": now_iso("seconds"),
             "generation_caller": generation_caller,
             "catalog_count": len(catalog),
             "catalog_names": sorted(e.name for e in catalog),
+            # Placeholders, always null here: the comment this generation
+            # becomes does not exist yet. The values live in the matching
+            # ``publish`` record (RFC-0028) — this pair is here so a reader
+            # of one record can see that the fields exist and where they get
+            # filled, rather than discovering the second family by accident.
+            "comment_id": None,
+            "publish_status": None,
         }
         if not catalog:
             _append_selection_audit(
@@ -485,7 +602,7 @@ def shadow_observe_skill_selection(
                     **_b64_fields("output", None),
                 }
             )
-            return None
+            return SelectionObservation(selected=None, selection_id=selection_id)
         if not _load_selection_template():
             _append_selection_audit(
                 {
@@ -501,7 +618,7 @@ def shadow_observe_skill_selection(
                     **_b64_fields("output", None),
                 }
             )
-            return None
+            return SelectionObservation(selected=None, selection_id=selection_id)
         result = select_applicable_skills(situation, catalog)
         # ADR-0081: only a judged verdict feeds back into injection; every
         # fail-open path stays full injection. The rollout flag that used to
@@ -525,10 +642,15 @@ def shadow_observe_skill_selection(
                 **_b64_fields("output", result.raw_output),
             }
         )
-        return result.selected if enforced else None
+        return SelectionObservation(
+            selected=result.selected if enforced else None, selection_id=selection_id
+        )
     except Exception as exc:
         logger.warning(
             "skill selection shadow observation failed (generation unaffected): %s",
             exc,
         )
-        return None
+        # No id either: the failure may have preceded the record, and a
+        # publish record pointing at a selection that was never logged is
+        # worse than no link at all.
+        return SelectionObservation(selected=None, selection_id=None)

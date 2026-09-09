@@ -6,6 +6,13 @@ These constants are platform-independent and shared across all adapters.
 import re
 
 VALID_ID_PATTERN = re.compile(r"^[A-Za-z0-9_-]+$")
+
+# Ids become log keys and file-free join keys, and VALID_ID_PATTERN bounds the
+# alphabet but not the length — a legal 1 MB id would be written verbatim into
+# the audit logs (code review 2026-09-09). Platform ids observed in
+# logs/api-audit.jsonl are well under this.
+MAX_ID_CHARS = 128
+
 VALID_SUBMOLT_PATTERN = re.compile(r"^[a-z][a-z0-9-]{0,49}$")
 
 FORBIDDEN_SUBSTRING_PATTERNS: tuple[str, ...] = (

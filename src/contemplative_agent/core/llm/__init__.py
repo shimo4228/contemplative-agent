@@ -19,7 +19,7 @@ import logging
 import math
 import os
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -1081,6 +1081,7 @@ def generate_for_api(
     chars_per_token: float = 3.0,
     caller: str = "unknown",
     think: bool = False,
+    selection_id: str | None = None,
 ) -> GenerationOutput:
     """Generate text for an API publish path (post/comment/reply/title).
 
@@ -1106,6 +1107,11 @@ def generate_for_api(
         think: Request the reasoning trace (default False = production). When
             True the trace is captured on the returned ``GenerationOutput``
             so the publish path can persist it to the episode log.
+        selection_id: The skill-selection record this generation runs under
+            (RFC-0028), stamped onto the returned output so the publish site
+            can link the comment it becomes back to the selection. Stamped
+            here rather than by the caller so the field is set wherever the
+            DTO is built, on the failure return as well as the success one.
 
     Returns a :class:`GenerationOutput`: ``.text`` is the sanitized published
     output (None on failure / truncation-drop — callers already None-check the
@@ -1129,4 +1135,6 @@ def generate_for_api(
             think=think,
         )
     )
-    return out if out is not None else GenerationOutput(text=None)
+    if out is None:
+        return GenerationOutput(text=None, selection_id=selection_id)
+    return replace(out, selection_id=selection_id)

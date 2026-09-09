@@ -16,6 +16,7 @@ if TYPE_CHECKING:
 
 from ..adapters.moltbook import config
 from ..adapters.moltbook.submolt_scope import configure_submolt_scope
+from ..core.comment_outcomes import configure_comment_outcomes
 from ..core.domain import (
     DomainConfig,
     load_constitution,
@@ -119,6 +120,11 @@ def _configure_llm_and_domain(args: argparse.Namespace) -> DomainConfig | None:
         # configure_llm above, so it cannot be unset while a corpus is
         # still configured for injection.
         configure_skill_selection(skills_dir=config.SKILLS_DIR, audit_dir=config.EPISODE_LOG_DIR)
+    # RFC-0028: the comment-outcome recorder. Writes only
+    # logs/comment-outcomes.jsonl, from the comment tree the reply cycle
+    # already fetched; leaving audit_dir unset disables it, same kill switch
+    # as the selector above.
+    configure_comment_outcomes(audit_dir=config.EPISODE_LOG_DIR)
     # ADR-0086: the submolt-scope instrument. Read-only — it samples feeds and
     # scores them, and is wired to no gate. Leaving audit_dir unset disables it
     # outright, which is the kill switch.

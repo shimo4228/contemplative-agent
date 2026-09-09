@@ -32,6 +32,7 @@ $MOLTBOOK_HOME/pipeline/dead-code/dead-code-{end-date}.json
 $MOLTBOOK_HOME/pipeline/docs-consistency/docs-consistency-{end-date}.json
 $MOLTBOOK_HOME/pipeline/never-selected/never-selected-{end-date}.json
 $MOLTBOOK_HOME/pipeline/confusion-pairs/confusion-pairs-{end-date}.json
+$MOLTBOOK_HOME/pipeline/comment-outcomes/comment-outcomes-{end-date}.json
 $MOLTBOOK_HOME/reports/analysis/weekly-{end-date}-archive-candidates.txt
 ```
 
@@ -279,6 +280,27 @@ python3 scripts/skillsel_reading.py --start {14 日前} --end {end-date}   # 幻
 family 代表化へ（ADR-0105 `## Review-when`）。帯は導出値ではなく、同じ計器が測る**日次**の
 振れが 18.67〜35.06% あるので、2 回が決着しないこともある — そのときの結論は
 「帯では答えられない」であって 3 回目ではない。
+
+### Step 6e. Comment outcomes（JSON があれば）
+
+`comment-outcomes-{end-date}.json` を直接読む（ADR-0106 の消費計画）。**読むだけ。**
+この計器から skill の採用・退役・選択へ流れる経路は無く、ここで作ってもいけない
+（ADR-0106 D6 — 流すなら別の ADR）。
+
+1. **注記を先に読む** — `observation_note`（分布であって寄与推定ではない。どの skill が
+   注入されたかは selector の判断で、状況と交絡する）と `coverage_note`（観測しているのは
+   自分の投稿の下のスレッドだけ）。この 2 行を飛ばして行を比べると、交絡した分布を寄与として
+   読む
+2. **母数の健全性** — `observed_publishes` / `unobserved_publishes` / `publish_failures` /
+   `unjoined_publishes` / `excluded_immature_publishes` / `unreadable_days`。
+   分母は `observed_publishes`（観測できた公開だけ）。`unobserved_publishes` がこれを
+   大きく上回る週の行は被覆の偏りを見ているので比べない。`observed_publishes` が小さい週も
+   比べない（件数から偶然に出る幅の方が広い）
+3. **行を読む** — skill ごとの `injected_comments` / `reply_rate` / `mean_thread_depth`
+4. **2 窓で判定する（消費計画）** — 各 ≥ 500 judged records の 2 窓が揃ったら決める:
+   (i) 返信率が skill 間で分かれるか (ii) store 全体の返信率の帯を宣言できるか。
+   **分かれなければ計器を撤去する** — weekly stage 7d を削除し、`rfcs/0028-...` を
+   `resolved` にし、ログは歴史として残す（ADR-0106 `## Review-when`）
 
 ### Step 6d. rfcs/ の無人起票を公開に出す（機微点検 → commit）
 

@@ -5,7 +5,7 @@
 # is copied into the report's `## Sample` heading here, before promotion) →
 # promote → deterministic instruments (value-layer due check, dead-code scan,
 # docs-consistency scan, never-selected reading, confusion-pair reading +
-# archive candidates) → spawn recording. Human involvement stays compressed
+# archive candidates, comment-outcome reading) → spawn recording. Human involvement stays compressed
 # into the Saturday gate
 # (/weekly-gate, which now reads the findings and instrument JSONs directly —
 # the decision-packet builder is retired); repairs are NOT made here: the
@@ -930,6 +930,58 @@ else
     rm -f "$CONFUSION_JSON" "$ARCHIVE_CANDIDATES"
 fi
 
+# --- Stage 7d: comment-outcome reading (RFC-0028 / ADR-0106) ---
+# What the platform returned about the comments each skill was injected into:
+# per skill, how many comments carried it, how many drew a reply, and the mean
+# observed thread depth. Read-only and unjoined to any gate — the JSON is the
+# whole artifact, and its `observation_note` says in the file that the rows are
+# a distribution, not a contribution estimate.
+#
+# Not behind `stage_enabled`, for 7b's reason: a silently skipped instrument
+# would read at the gate as "no reactions" instead of "not read".
+#
+# min-age 2 days: replies land hours to days after a comment, so the tail of
+# the window would otherwise be counted as silence (RFC-0028 Drawbacks).
+COMMENT_OUTCOMES_JSON="$MOLTBOOK_HOME/pipeline/comment-outcomes/comment-outcomes-$END_DATE.json"
+COMMENT_OUTCOMES_TIMEOUT="${PIPELINE_COMMENT_OUTCOMES_TIMEOUT:-300}"
+echo "[$RUN_ID] stage 7d: comment-outcome reading"
+mkdir -p "$(dirname "$COMMENT_OUTCOMES_JSON")"
+chmod 700 "$(dirname "$COMMENT_OUTCOMES_JSON")" 2>/dev/null || true
+rm -f "$COMMENT_OUTCOMES_JSON"
+# --no-sync for the same reason as the dead-code scan.
+if (cd "$PROJECT_ROOT" && with_timeout "$COMMENT_OUTCOMES_TIMEOUT" \
+        uv run --no-sync -q python -c '
+import json, sys
+from datetime import date, timedelta
+from pathlib import Path
+from contemplative_agent.core.comment_outcomes import read_comment_outcomes
+
+# Anchored to END_DATE, not the wall clock, so a backfill reads the week it
+# names (same rule as stage 7b).
+home = Path(sys.argv[1])
+until = date.fromisoformat(sys.argv[2])
+print(json.dumps(read_comment_outcomes(
+    home / "logs", since=until - timedelta(days=6), until=until, min_age_days=2
+), ensure_ascii=False))
+' "$MOLTBOOK_HOME" "$END_DATE") \
+        > "$COMMENT_OUTCOMES_JSON" 2>"$RUN_LOG_DIR/commentoutcomes.err"; then
+    co_joined=$(python3 -c "
+import json, sys
+print(json.load(open(sys.argv[1]))['joined_publishes'])
+" "$COMMENT_OUTCOMES_JSON" 2>/dev/null || echo "")
+    if [[ -n "$co_joined" ]]; then
+        audit stage_result stage=commentoutcomes result=ok joined="$co_joined"
+    else
+        add_reason COMMENT_OUTCOMES_SCAN_FAIL
+        audit stage_result stage=commentoutcomes result=fail reason=COMMENT_OUTCOMES_SCAN_FAIL
+        rm -f "$COMMENT_OUTCOMES_JSON"
+    fi
+else
+    add_reason COMMENT_OUTCOMES_SCAN_FAIL
+    audit stage_result stage=commentoutcomes result=fail reason=COMMENT_OUTCOMES_SCAN_FAIL
+    rm -f "$COMMENT_OUTCOMES_JSON"
+fi
+
 # --- Chain end (no packet: the Saturday gate reads the artifacts directly) ---
 audit chain_end result=ok report="$REPORT_PATH" findings="$FINDINGS_MD" \
     reasons="${REASONS:-none}"
@@ -942,4 +994,5 @@ echo "  docsscan:  $DOCSCAN_JSON"
 echo "  confusion: $CONFUSION_JSON"
 echo "  candidates: $ARCHIVE_CANDIDATES"
 echo "  neversel:  $NEVER_SELECTED_JSON"
+echo "  outcomes:  $COMMENT_OUTCOMES_JSON"
 echo "[$RUN_ID] done (reasons: ${REASONS:-none})"

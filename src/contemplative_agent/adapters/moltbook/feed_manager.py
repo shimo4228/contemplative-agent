@@ -13,6 +13,14 @@ from ...core.config import VALID_ID_PATTERN
 from ...core.domain import DomainConfig
 from ...core.llm import circuit_reading
 from ...core.scheduler import Scheduler
+from ...core.skill_selection import (
+    PUBLISH_DECLINED,
+    PUBLISH_FAILED,
+    PUBLISH_ID_UNKNOWN,
+    PUBLISH_PUBLISHED,
+    PUBLISH_UNVERIFIED,
+    record_publish_outcome,
+)
 from .client import MoltbookClient, MoltbookClientError
 from .config import (
     ADAPTIVE_BACKOFF,
@@ -26,6 +34,7 @@ from .llm_functions import generate_internal_note, score_relevance
 from .publish import (
     VerificationHandler,
     client_error_guard,
+    created_comment_id as _created_comment_id,
     log_published,
     passes_verification,
     verification_of,
@@ -252,6 +261,9 @@ class FeedManager:
             return False
 
         if not self._confirm_action(f"Comment on post {post_id} (relevance: {score:.2f})", comment):
+            record_publish_outcome(
+                generated.selection_id, comment_id=None, publish_status=PUBLISH_DECLINED
+            )
             return False
 
         scheduler.wait_for_comment()
@@ -265,6 +277,7 @@ class FeedManager:
             generated.thinking,
             client,
             scheduler,
+            selection_id=generated.selection_id,
         )
 
     def _passes_engagement_gates(
@@ -471,20 +484,33 @@ class FeedManager:
         thinking: str | None,
         client: MoltbookClient,
         scheduler: Scheduler,
+        *,
+        selection_id: str | None = None,
     ) -> bool:
         """Post the comment, record it in memory/episodes, and pace.
 
         ``thinking`` is the reasoning trace (None unless the comment was
         generated with ``think=True``); recorded alongside ``internal_note``
         on the episode for later inspection (comment report), never published.
+
+        ``selection_id`` names the selection record this comment's generation
+        ran under (RFC-0028). Every exit below records an outcome for it —
+        published with an id, published with no usable id, unverified, or
+        failed — so the reading can tell those four apart instead of reading
+        the last three as one silence.
         """
         ctx = self._ctx
         posted = False
+        publish_status = PUBLISH_FAILED
+        published_comment_id: str | None = None
+        recorded = False
         with client_error_guard(f"comment on {post_id[:12]}", on_rate_limited=ctx.set_rate_limited):
             # post_comment verifies the response envelope (audit H2): a
             # body-level failure raises and never reaches the records below.
             created = client.post_comment(post_id, comment)
             scheduler.record_comment()
+            published_comment_id = _created_comment_id(created)
+            publish_status = PUBLISH_PUBLISHED if published_comment_id else PUBLISH_ID_UNKNOWN
             if not passes_verification(
                 verification_of(created),
                 self._handle_verification,
@@ -492,7 +518,23 @@ class FeedManager:
                 action="comment",
                 target_id=post_id,
             ):
+                record_publish_outcome(
+                    selection_id,
+                    comment_id=published_comment_id,
+                    publish_status=PUBLISH_UNVERIFIED,
+                )
+                recorded = True
                 return False
+            # Recorded here, not after the pacing sleep below: the comment is
+            # live on the platform from this point, and a session killed
+            # during that sleep would otherwise lose the selection→comment
+            # link for a comment that exists (code review 2026-09-09).
+            record_publish_outcome(
+                selection_id,
+                comment_id=published_comment_id,
+                publish_status=publish_status,
+            )
+            recorded = True
             # Record the dedup hash only now that the comment is actually posted
             # AND visible (verified) — a gate-rejected, failed, or unverified
             # comment must not poison a legitimate same-session retry.
@@ -550,6 +592,13 @@ class FeedManager:
             logger.info("Pacing: waiting %.0fs before next engagement", extra_wait)
             time.sleep(extra_wait)
             posted = True
+        if not recorded:
+            # Reached only when the guard swallowed a client error: the
+            # default PUBLISH_FAILED is what says the generation never
+            # reached the platform.
+            record_publish_outcome(
+                selection_id, comment_id=published_comment_id, publish_status=publish_status
+            )
         return posted
 
     def _fetch_full_if_truncated(self, post: dict, post_text: str, client: MoltbookClient) -> str:

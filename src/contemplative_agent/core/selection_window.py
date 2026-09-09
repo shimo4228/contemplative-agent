@@ -79,8 +79,26 @@ class _SelectionDayFile:
     readable: bool
 
 
+# The selection log holds more than selections since RFC-0028: a ``publish``
+# record links a selection to the comment it became. Records written before
+# that RFC carry no ``kind`` at all, so absence *is* "selection" — which is
+# what keeps the longitudinal readings (verdict mix, per-day record counts)
+# one series across the change instead of gaining an "unknown" bucket on the
+# day the publish records started.
+SELECTION_RECORD_KIND = "selection"
+
+
+# The publish record (RFC-0028): which comment a selection's generation became.
+# Named here beside its sibling because this module is where the log's record
+# grammar lives; the writer is ``skill_selection.record_publish_outcome``.
+PUBLISH_RECORD_KIND = "publish"
+
+
 def _iter_selection_days(
-    log_dir: Path, keep: Callable[[date], bool] | None = None
+    log_dir: Path,
+    keep: Callable[[date], bool] | None = None,
+    *,
+    kind: str | None = SELECTION_RECORD_KIND,
 ) -> Iterator[_SelectionDayFile]:
     """Yield one :class:`_SelectionDayFile` per daily selection log.
 
@@ -109,6 +127,13 @@ def _iter_selection_days(
     writer derives both from the same UTC clock, and the filename is the
     field the window is cut on, so a record with a damaged timestamp still
     lands on the right day.
+
+    ``kind`` filters the records by their ``kind`` field, defaulting to the
+    selection records the two instruments read; ``kind=None`` yields every
+    record (what the RFC-0028 join needs, since it reads both families).
+    A record with no ``kind`` is a selection record — see
+    :data:`SELECTION_RECORD_KIND`. Filtered-out rows are not malformed and
+    are not counted as such.
     """
     if not log_dir.is_dir():
         return
@@ -126,22 +151,30 @@ def _iter_selection_days(
             logger.warning("skill selection reading: unreadable %s", path.name)
             yield _SelectionDayFile(date_part, file_date, (), 0, readable=False)
             continue
-        records: list[dict[str, Any]] = []
-        malformed = 0
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-            try:
-                rec = json.loads(line)
-            except json.JSONDecodeError:
-                malformed += 1
-                continue
-            if isinstance(rec, dict):
-                records.append(rec)
-            else:
-                malformed += 1
-        yield _SelectionDayFile(date_part, file_date, tuple(records), malformed, readable=True)
+        records, malformed = _parse_day_lines(lines, kind)
+        yield _SelectionDayFile(date_part, file_date, records, malformed, readable=True)
+
+
+def _parse_day_lines(lines: list[str], kind: str | None) -> tuple[tuple[dict[str, Any], ...], int]:
+    """(records of the wanted kind, malformed-row count) for one day's lines."""
+    records: list[dict[str, Any]] = []
+    malformed = 0
+    for raw in lines:
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except json.JSONDecodeError:
+            malformed += 1
+            continue
+        if not isinstance(rec, dict):
+            malformed += 1
+            continue
+        if kind is not None and rec.get("kind", SELECTION_RECORD_KIND) != kind:
+            continue
+        records.append(rec)
+    return tuple(records), malformed
 
 
 def resolve_selection_window(

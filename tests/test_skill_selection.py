@@ -20,6 +20,7 @@ from contemplative_agent.core import (
 )
 from contemplative_agent.core.llm import _estimate_tokens
 from contemplative_agent.core.skill_selection import (
+    SelectionObservation,
     SkillCatalogEntry,
     load_skill_catalog,
     select_applicable_skills,
@@ -411,7 +412,7 @@ class TestAdapterShadowHooks:
         return GenerationOutput(text=text)
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.shadow_observe_skill_selection")
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.observe_skill_selection_recorded")
     def test_generate_comment_observes(self, mock_shadow, mock_api):
         from contemplative_agent.adapters.moltbook.llm_functions import (
             generate_comment,
@@ -424,7 +425,7 @@ class TestAdapterShadowHooks:
         assert "a post body" in mock_shadow.call_args[0][0]
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.shadow_observe_skill_selection")
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.observe_skill_selection_recorded")
     def test_generate_reply_observes(self, mock_shadow, mock_api):
         from contemplative_agent.adapters.moltbook.llm_functions import (
             generate_reply,
@@ -439,7 +440,7 @@ class TestAdapterShadowHooks:
         assert "their comment" in situation
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.shadow_observe_skill_selection")
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.observe_skill_selection_recorded")
     def test_generate_cooperation_post_observes(self, mock_shadow, mock_api):
         from contemplative_agent.adapters.moltbook.llm_functions import (
             generate_cooperation_post,
@@ -452,7 +453,7 @@ class TestAdapterShadowHooks:
         assert "seed content" in mock_shadow.call_args[0][0]
 
     @patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api")
-    @patch("contemplative_agent.adapters.moltbook.llm_functions.shadow_observe_skill_selection")
+    @patch("contemplative_agent.adapters.moltbook.llm_functions.observe_skill_selection_recorded")
     def test_generate_post_title_does_not_observe(self, mock_shadow, mock_api):
         # Deliberately excluded: same pipeline run and seeds as
         # cooperation_post — a second selection adds cost, not information.
@@ -1242,7 +1243,7 @@ class TestEnforcementWiring:
         return (
             patch("contemplative_agent.adapters.moltbook.llm_functions.generate_for_api"),
             patch(
-                "contemplative_agent.adapters.moltbook.llm_functions.shadow_observe_skill_selection"
+                "contemplative_agent.adapters.moltbook.llm_functions.observe_skill_selection_recorded"
             ),
             patch(
                 "contemplative_agent.adapters.moltbook.llm_functions.selected_skills_block",
@@ -1260,7 +1261,9 @@ class TestEnforcementWiring:
         p_api, p_shadow, p_block, p_build = self._patches()
         with p_api as mock_api, p_shadow as mock_shadow, p_block as mock_block, p_build:
             mock_api.return_value = self._output()
-            mock_shadow.return_value = ("skill-a",)
+            mock_shadow.return_value = SelectionObservation(
+                selected=("skill-a",), selection_id="sel"
+            )
             generate_comment("a post")
             assert mock_api.call_args.kwargs["system"] == "SYS_SEL"
             assert mock_block.call_args.args[0] == ("skill-a",)
@@ -1271,7 +1274,7 @@ class TestEnforcementWiring:
         p_api, p_shadow, p_block, p_build = self._patches()
         with p_api as mock_api, p_shadow as mock_shadow, p_block, p_build:
             mock_api.return_value = self._output()
-            mock_shadow.return_value = None
+            mock_shadow.return_value = SelectionObservation(selected=None, selection_id="sel")
             generate_comment("a post")
             assert mock_api.call_args.kwargs.get("system") is None
 
@@ -1281,7 +1284,9 @@ class TestEnforcementWiring:
         p_api, p_shadow, p_block, p_build = self._patches()
         with p_api as mock_api, p_shadow as mock_shadow, p_block, p_build:
             mock_api.return_value = self._output()
-            mock_shadow.return_value = ("skill-b",)
+            mock_shadow.return_value = SelectionObservation(
+                selected=("skill-b",), selection_id="sel"
+            )
             generate_reply("post", "comment")
             assert mock_api.call_args.kwargs["system"] == "SYS_SEL"
 
@@ -1294,7 +1299,9 @@ class TestEnforcementWiring:
         p_api, p_shadow, p_block, p_build = self._patches()
         with p_api as mock_api, p_shadow as mock_shadow, p_block, p_build:
             mock_api.return_value = self._output(text="a title")
-            mock_shadow.return_value = ("skill-a",)
+            mock_shadow.return_value = SelectionObservation(
+                selected=("skill-a",), selection_id="sel"
+            )
             generate_cooperation_post([{"title": "t", "content": "seed"}])
             generate_post_title("seed")
             # post_title runs no second selection but generates under the
@@ -1311,7 +1318,7 @@ class TestEnforcementWiring:
         p_api, p_shadow, p_block, p_build = self._patches()
         with p_api as mock_api, p_shadow as mock_shadow, p_block, p_build:
             mock_api.return_value = self._output(text="a title")
-            mock_shadow.return_value = None
+            mock_shadow.return_value = SelectionObservation(selected=None, selection_id="sel")
             generate_cooperation_post([{"title": "t", "content": "seed"}])
             generate_post_title("seed")
             assert mock_api.call_args.kwargs.get("system") is None

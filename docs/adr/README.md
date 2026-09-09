@@ -111,6 +111,7 @@ Records of key design decisions for this project.
 | [0103](0103-retire-the-wiki-mechanism.md) | Retire the Wiki Mechanism — the Form Works, the Production Model Does Not | accepted | 2026-09-05 |
 | [0104](0104-novelty-gate-retrieval-topk.md) | The Novelty Gate Judges Against Retrieved Candidates, Not the Whole Inventory | accepted — partially-supersedes ADR-0074 | 2026-09-07 |
 | [0105](0105-skill-store-exit-confusion-pairs.md) | The Skill Store's Exit Gains a Second Signal — the Reader's Confusion Pairs | accepted — partially-supersedes ADR-0097 | 2026-09-07 |
+| [0106](0106-comment-outcome-recording.md) | Record What the Environment Answered — Comment Outcomes, Linked to the Selection | accepted | 2026-09-09 |
 
 ## ADR Types
 

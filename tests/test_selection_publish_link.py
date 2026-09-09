@@ -1,0 +1,244 @@
+"""RFC-0028: linking a selection record to the comment it became.
+
+The link is a **second** record, not an edit of the first: the selection log
+is append-only (ADR-0075), so a comment id that only exists after the publish
+call cannot be written back into the record that preceded it. Every selection
+record therefore carries a ``selection_id`` and null placeholders, and a
+``kind: publish`` record carries the id plus the outcome reason code.
+
+The other half of these tests is backward compatibility: the two instruments
+and the reading script over ``skill-selection-*.jsonl`` must not see the new
+family at all, so the longitudinal series stays one series.
+"""
+
+from __future__ import annotations
+
+import importlib.util
+import json
+from datetime import date
+from pathlib import Path
+from unittest.mock import patch
+
+import pytest
+
+from contemplative_agent.core import skill_selection as ss
+from contemplative_agent.core.never_selected_metrics import read_never_selected
+from contemplative_agent.core.selection_metrics import read_skill_selection_log
+
+PROMPT_TEMPLATE = "{skill_catalog}\n---\n{situation}"
+
+
+def _write_skill(d: Path, filename: str, name: str, desc: str) -> None:
+    (d / filename).write_text(
+        f"---\nname: {name}\ndescription: {desc}\n---\n\nbody of {name}\n", encoding="utf-8"
+    )
+
+
+@pytest.fixture()
+def configured(tmp_path, monkeypatch):
+    skills_dir = tmp_path / "skills"
+    skills_dir.mkdir()
+    _write_skill(skills_dir, "a.md", "skill-a", "does a")
+    audit_dir = tmp_path / "logs"
+    ss.configure_skill_selection(skills_dir=skills_dir, audit_dir=audit_dir)
+    monkeypatch.setattr(ss, "_load_selection_template", lambda: PROMPT_TEMPLATE)
+    yield audit_dir
+    ss.configure_skill_selection(skills_dir=None, audit_dir=None)
+
+
+def _records(audit_dir: Path) -> list[dict]:
+    return [
+        json.loads(line)
+        for f in sorted(audit_dir.glob("skill-selection-*.jsonl"))
+        for line in f.read_text(encoding="utf-8").splitlines()
+        if line.strip()
+    ]
+
+
+class TestSelectionRecordCarriesTheLinkFields:
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_judged_record_has_selection_id_and_null_publish_fields(self, gen, configured):
+        gen.return_value = "skill-a"
+        obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.comment")
+        (rec,) = _records(configured)
+        assert rec["kind"] == "selection"
+        assert rec["selection_id"] == obs.selection_id
+        assert rec["comment_id"] is None
+        assert rec["publish_status"] is None
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_fail_open_record_also_carries_a_selection_id(self, gen, configured):
+        gen.return_value = None
+        obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.reply")
+        (rec,) = _records(configured)
+        assert rec["verdict"] == "fail_open_llm"
+        assert rec["selection_id"] == obs.selection_id
+        assert obs.selected is None
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_legacy_entry_point_still_returns_only_the_selection(self, gen, configured):
+        gen.return_value = "skill-a"
+        assert ss.shadow_observe_skill_selection("sit", generation_caller="x") == ("skill-a",)
+
+
+class TestPublishRecord:
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_publish_appends_a_second_record(self, gen, configured):
+        gen.return_value = "skill-a"
+        obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.comment")
+        ss.record_publish_outcome(
+            obs.selection_id, comment_id="c1", publish_status=ss.PUBLISH_PUBLISHED
+        )
+        selection, publish = _records(configured)
+        assert selection["kind"] == "selection"
+        assert publish["kind"] == "publish"
+        assert publish["selection_id"] == obs.selection_id
+        assert publish["comment_id"] == "c1"
+        assert publish["publish_status"] == ss.PUBLISH_PUBLISHED
+        assert publish["ts"]
+
+    @patch("contemplative_agent.core.skill_selection.generate")
+    def test_failed_publish_records_null_comment_id_and_a_reason(self, gen, configured):
+        gen.return_value = "skill-a"
+        obs = ss.observe_skill_selection_recorded("sit", generation_caller="moltbook.comment")
+        ss.record_publish_outcome(
+            obs.selection_id, comment_id=None, publish_status=ss.PUBLISH_FAILED
+        )
+        publish = _records(configured)[-1]
+        assert publish["comment_id"] is None
+        assert publish["publish_status"] == ss.PUBLISH_FAILED
+
+    def test_no_selection_id_writes_nothing(self, configured):
+        ss.record_publish_outcome(None, comment_id="c1", publish_status=ss.PUBLISH_PUBLISHED)
+        assert _records(configured) == []
+
+    def test_kill_switch_writes_nothing(self, tmp_path):
+        ss.configure_skill_selection(skills_dir=None, audit_dir=None)
+        ss.record_publish_outcome("sel", comment_id="c1", publish_status=ss.PUBLISH_PUBLISHED)
+        assert list(tmp_path.glob("*.jsonl")) == []
+
+
+class TestExistingReadersAreUnaffected:
+    """The publish family and any missing key must not move a single number
+    the two instruments and the reading script report."""
+
+    def _log(self, logs: Path, day: str, records: list[dict]) -> None:
+        logs.mkdir(parents=True, exist_ok=True)
+        with (logs / f"skill-selection-{day}.jsonl").open("a", encoding="utf-8") as f:
+            for rec in records:
+                f.write(json.dumps(rec) + "\n")
+
+    def _selection(self, **over) -> dict:
+        rec = {
+            "kind": "selection",
+            "selection_id": "s1",
+            "ts": "2026-09-01T00:00:00+00:00",
+            "generation_caller": "moltbook.comment",
+            "verdict": "judged",
+            "enforced": True,
+            "selected": ["skill-a"],
+            "selected_count": 1,
+            "rejected_names": [],
+            "catalog_count": 1,
+            "catalog_names": ["skill-a"],
+            "full_skill_tokens": 100,
+            "would_be_skill_tokens": 40,
+            "comment_id": None,
+            "publish_status": None,
+        }
+        rec.update(over)
+        return rec
+
+    def _publish(self) -> dict:
+        return {
+            "kind": "publish",
+            "selection_id": "s1",
+            "ts": "2026-09-01T00:01:00+00:00",
+            "comment_id": "c1",
+            "publish_status": "published",
+        }
+
+    def test_window_reading_counts_only_selection_records(self, tmp_path):
+        logs = tmp_path / "logs"
+        self._log(logs, "2026-09-01", [self._selection(), self._publish(), self._publish()])
+        reading = read_skill_selection_log(
+            logs, since=date(2026, 9, 1), until=date(2026, 9, 1), skills_dir=None
+        )
+        assert reading.records == 1
+        assert reading.judged_records == 1
+        assert {v for v, _ in reading.verdicts} == {"judged"}
+
+    def test_legacy_records_without_the_new_keys_still_read(self, tmp_path):
+        logs = tmp_path / "logs"
+        legacy = self._selection()
+        for key in ("kind", "selection_id", "comment_id", "publish_status"):
+            legacy.pop(key)
+        self._log(logs, "2026-09-01", [legacy, self._publish()])
+        reading = read_skill_selection_log(
+            logs, since=date(2026, 9, 1), until=date(2026, 9, 1), skills_dir=None
+        )
+        assert reading.records == 1
+        assert reading.judged_records == 1
+
+    def test_never_selected_reading_ignores_publish_records(self, tmp_path):
+        logs = tmp_path / "logs"
+        skills = tmp_path / "skills"
+        skills.mkdir()
+        _write_skill(skills, "a.md", "skill-a", "does a")
+        self._log(logs, "2026-09-01", [self._selection(), self._publish()])
+        reading = read_never_selected(
+            logs, since=date(2026, 9, 1), until=date(2026, 9, 1), skills_dir=skills
+        )
+        assert reading.history_records == 1
+
+    def test_reading_script_loader_ignores_publish_records(self, tmp_path):
+        logs = tmp_path / "logs"
+        self._log(logs, "2026-09-01", [self._selection(), self._publish()])
+        spec = importlib.util.spec_from_file_location(
+            "skillsel_reading", Path("scripts/skillsel_reading.py")
+        )
+        assert spec and spec.loader
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        records, unparsable = module.load(logs)
+        assert unparsable == 0
+        assert len(records) == 1
+        assert records[0]["verdict"] == "judged"
+
+
+class TestRunLevelReaderIgnoresPublishRecords:
+    """`observed_injection_outcomes` globs the log itself rather than going
+    through the shared walk, so the `kind` filter has to be repeated there —
+    security review 2026-09-09, the one reader that was missed."""
+
+    def test_publish_records_do_not_inflate_the_run_counts(self, tmp_path):
+        logs = tmp_path / "logs"
+        logs.mkdir()
+        with (logs / "skill-selection-2026-09-01.jsonl").open("w", encoding="utf-8") as f:
+            f.write(
+                json.dumps(
+                    {
+                        "kind": "selection",
+                        "selection_id": "s1",
+                        "verdict": "judged",
+                        "enforced": True,
+                    }
+                )
+                + "\n"
+            )
+            f.write(
+                json.dumps(
+                    {
+                        "kind": "publish",
+                        "selection_id": "s1",
+                        "comment_id": "c1",
+                        "publish_status": "published",
+                    }
+                )
+                + "\n"
+            )
+        out = ss.observed_injection_outcomes(logs)
+        assert out["records"] == 1
+        assert out["enforced"] == 1
+        assert out["fell_back"] == 0
+        assert out["verdicts"] == {"judged": 1}

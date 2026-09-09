@@ -128,3 +128,26 @@ Phase 0 で `skill.md` と照合する。
 `draft` → `accepted`。S10 として build へ dispatch（worktree `task/skill-outcome`、Opus session）。
 Phase 0 は `/home` の反応フィールドを `skill.md` で照合し、Unresolved の (1)(2) は build が決めて
 commit body に報告する。帰属（Future possibilities）は含めない。
+
+## 2026-09-09 build（branch `task/skill-outcome`、ADR-0106）
+
+Phase 0 で Reference-level の前提が 1 つ反証された: `/home` の `activity_on_your_posts` は
+comment id も upvote もスレッド構造も返さない（`post_id` / `post_title` / `submolt_name` /
+`new_notification_count` / `latest_at` / `latest_commenters` / `preview` /
+`suggested_actions` のみ — `skill.md` 2026-09-09 取得）。列は `GET /posts/{id}/comments` の
+返す木にあり、返信サイクルが自分の投稿に対して既に呼んでいるので、記録器はその木に相乗りする
+（追加 GET なし、`_HOME_ALLOWED_KEYS` は 2 つのまま）。代償は被覆 — 他エージェントの投稿に
+付けたコメントへの反応は観測しない。JSON の `coverage_note` に明記。
+
+Unresolved の決着（全文は ADR-0106）:
+
+1. **comment id を入れる時点** → 書き戻さず 2 本目の record。選択 record は `selection_id` と
+   null placeholder を持ち、公開側が `kind: "publish"` を追記する。id は module state でなく
+   `GenerationOutput` に載る（`generate_for_api` の中で押されるので失敗返り値にも載る）。
+2. **スレッド深さ** → `/home` では取れないがコメント木では取れるので、深さと upvote の両方を
+   持つ。追加 GET は無い。
+3. **「相手が新しい内容を持ち込んだか」の判定者** → 本 RFC の外のまま（記録層は返信本文の
+   base64 + sha256 + 長さだけ）。
+
+帰属（randomized masking）と、反応を選択・抽出・退役へ流す経路は入れていない
+（ADR-0106 D6）。読みは per-week JSON を出すだけ（weekly stage 7d）。

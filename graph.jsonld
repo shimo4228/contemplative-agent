@@ -2734,6 +2734,24 @@
       ]
     },
     {
+      "@id": "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0106-comment-outcome-recording.md",
+      "@type": [
+        "ADR",
+        "TechArticle"
+      ],
+      "name": "ADR-0106: Record What the Environment Answered — Comment Outcomes, Linked to the Selection",
+      "identifier": "ADR-0106",
+      "status": "accepted",
+      "datePublished": "2026-09-09",
+      "description": "Records the environment's response to published comments and links it to the skills injected into their generation, without judging it. Context: the skill store has no success criterion, so ADR-0105 had to build its exit from structural signals; the contribution-based signals of Library Drift arXiv:2605.19576 and ASSAY arXiv:2606.15390 need a task verdict this agent lacks (RFC-0021, 2026-09-07). But the platform does answer — replies, thread continuation, upvotes — and the agent never wrote that down next to the selection. Phase 0 refuted RFC-0028's assumed source: /home's activity_on_your_posts carries no comment ids, upvotes or thread structure (skill.md, fetched 2026-09-09); GET /posts/{id}/comments does, and the reply cycle already calls it for our own posts, so the recorder rides that fetch and adds no request and no /home allowlist key. The link is a second record, not an edit: each selection record carries a minted selection_id and null comment_id/publish_status placeholders, and the publish path appends a kind=publish record with the comment id and one of four reason codes (published / published_id_unknown / unverified / publish_failed); the id travels on GenerationOutput, stamped inside generate_for_api so the failure return carries it too. core/comment_outcomes.py appends reply events (id, depth, by_self, body as base64 + sha256 + length) and comment-state changes (upvotes, reply count, max depth) to logs/comment-outcomes.jsonl, append-only and deduped by reaction id, with no LLM judge anywhere (The Blind Curator arXiv:2607.07436's 0.45 false-pass cliff; the local gemma judge splits its vote on 52% of repeated identical inputs). Weekly stage 7d emits a per-skill distribution (injected comments, reply rate, mean thread depth) carrying a fixed observation_note that it is a distribution and not a contribution estimate, and a coverage_note that only our own posts' threads are observed. Nothing flows onward: attribution by randomized masking stays in RFC-0028 Future possibilities, which is also where the Goodhart pressure would enter. Consumption plan (ADR-0101): the Saturday gate reads it weekly; two windows of >= 500 judged records decide whether reactions separate skills at all, and if they do not the instrument is removed and RFC-0028 closes resolved.",
+      "isBasedOn": [
+        "https://github.com/shimo4228/contemplative-agent/blob/main/rfcs/0028-skill-outcome-recording.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0075-observability-by-default.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0101-instrument-dissolution-mandate.md",
+        "https://github.com/shimo4228/contemplative-agent/blob/main/docs/adr/0105-skill-store-exit-confusion-pairs.md"
+      ]
+    },
+    {
       "@id": "https://shimo4228.github.io/shimo4228/vocab#ca/concept/pattern-composition-instruments",
       "@type": [
         "Concept",

@@ -4,13 +4,23 @@ from __future__ import annotations
 
 import logging
 import time
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
+from typing import Any
 
 from ...core._io import log_safe_identifier
+from ...core.comment_outcomes import ObservedComment, record_comment_outcomes
 from ...core.config import VALID_ID_PATTERN
 from ...core.llm import circuit_reading
 from ...core.scheduler import Scheduler
+from ...core.skill_selection import (
+    PUBLISH_DECLINED,
+    PUBLISH_FAILED,
+    PUBLISH_ID_UNKNOWN,
+    PUBLISH_PUBLISHED,
+    PUBLISH_UNVERIFIED,
+    record_publish_outcome,
+)
 from .client import MoltbookClient
 from .config import ADAPTIVE_BACKOFF
 from .dedup import is_promotional
@@ -18,6 +28,7 @@ from .llm_functions import generate_internal_note, generate_reply
 from .publish import (
     VerificationHandler,
     client_error_guard,
+    created_comment_id as _created_comment_id,
     log_published,
     passes_verification,
     verification_of,
@@ -59,6 +70,46 @@ def extract_agent_fields(data: dict) -> dict:
             or (data.get("sender") or {}).get("name", "unknown")
         ),
     }
+
+
+def build_observed_comments(
+    comments: Sequence[Any], is_self: Callable[[str, str], bool]
+) -> tuple[ObservedComment, ...]:
+    """Normalize a fetched comment tree into the recorder's DTO (RFC-0028).
+
+    The platform's field-name fallbacks and the "is this us" decision are
+    adapter knowledge; the record schema is core's. Doing the translation
+    here is what lets ``core.comment_outcomes`` record outcomes without
+    importing an adapter, and keeps ``extract_agent_fields`` the one place
+    that knows how a comment names its author.
+
+    ``GET /posts/{id}/comments`` returns a tree: root comments in
+    ``comments``, each carrying its own ``replies`` (Phase 0, ``skill.md``
+    2026-09-09). Nodes that are not objects, and ``replies`` values that are
+    not lists, are dropped rather than raising — this is untrusted external
+    data on an observation path.
+    """
+    out: list[ObservedComment] = []
+    for raw in comments:
+        if not isinstance(raw, dict):
+            continue
+        fields = extract_agent_fields(raw)
+        upvotes = raw.get("upvotes")
+        nested = raw.get("replies")
+        out.append(
+            ObservedComment(
+                comment_id=str(fields["id"] or ""),
+                is_own=is_self(fields["agent_id"], fields["agent_name"]),
+                upvotes=upvotes
+                if isinstance(upvotes, int) and not isinstance(upvotes, bool)
+                else None,
+                body=str(fields["content"] or ""),
+                replies=(
+                    build_observed_comments(nested, is_self) if isinstance(nested, list) else ()
+                ),
+            )
+        )
+    return tuple(out)
 
 
 def extract_notification_fields(notif: dict) -> dict:
@@ -318,8 +369,16 @@ class ReplyHandler:
         reply = generated.text
         if reply is None:
             return
+        # RFC-0028: the selection this reply was generated under. Recorded at
+        # every exit below, so "never published" is a reason code rather than
+        # an absent row.
+        selection_id = generated.selection_id
+        publish_status = PUBLISH_FAILED
+        published_comment_id: str | None = None
+        recorded = False
 
         if not self._confirm_action(f"Reply to {replier_name} on post {post_id}", reply):
+            record_publish_outcome(selection_id, comment_id=None, publish_status=PUBLISH_DECLINED)
             return
 
         # Record the incoming comment first (chronological order)
@@ -342,6 +401,8 @@ class ReplyHandler:
             # so it posts a top-level comment (parent_id=None).
             created = client.post_comment(post_id, reply, parent_id=comment_id or None)
             scheduler.record_comment()
+            published_comment_id = _created_comment_id(created)
+            publish_status = PUBLISH_PUBLISHED if published_comment_id else PUBLISH_ID_UNKNOWN
             # The inbound "received" interaction above stays recorded even when
             # the handshake fails — it happened regardless of our visibility.
             if not passes_verification(
@@ -351,7 +412,21 @@ class ReplyHandler:
                 action="reply",
                 target_id=post_id,
             ):
+                record_publish_outcome(
+                    selection_id,
+                    comment_id=published_comment_id,
+                    publish_status=PUBLISH_UNVERIFIED,
+                )
+                recorded = True
                 return
+            # Recorded as soon as the reply is live and verified — see
+            # feed_manager: the records that follow can be interrupted.
+            record_publish_outcome(
+                selection_id,
+                comment_id=published_comment_id,
+                publish_status=publish_status,
+            )
+            recorded = True
             ctx.commented_posts.add(reply_key)
             # Persist cross-session so a later session does not re-reply to the
             # same target (mirrors feed_manager.engage_with_post's
@@ -412,6 +487,12 @@ class ReplyHandler:
                 and self._confirm_side_effect(f"Upvote comment {comment_id}")
             ):
                 client.upvote_comment(comment_id)
+        if not recorded:
+            # Reached only when the guard swallowed a client error: the default
+            # PUBLISH_FAILED says the reply never reached the platform.
+            record_publish_outcome(
+                selection_id, comment_id=published_comment_id, publish_status=publish_status
+            )
 
     def _handle_post_comments(
         self,
@@ -423,6 +504,23 @@ class ReplyHandler:
         """Fetch comments on a post and reply to unhandled ones."""
         comments = client.get_post_comments(post_id)
         logger.debug("Post %s has %d comment(s)", post_id[:12], len(comments))
+
+        # RFC-0028: record what the platform returned about our own comments
+        # in this tree — replies, their depth, upvotes. The tree is already
+        # fetched for the reply loop below, so this costs no request and adds
+        # no field to the /home allowlist. Read-only in effect: nothing it
+        # writes is read back by the agent.
+        scan = record_comment_outcomes(
+            post_id, build_observed_comments(comments, self._ctx.is_self)
+        )
+        if scan.reasons:
+            logger.info(
+                "comment outcomes on %s: %d written, %d duplicate, reasons=%s",
+                post_id[:12],
+                scan.written,
+                scan.duplicates,
+                ",".join(scan.reasons),
+            )
 
         for comment in comments:
             if time.time() >= end_time or self._ctx.is_rate_limited:

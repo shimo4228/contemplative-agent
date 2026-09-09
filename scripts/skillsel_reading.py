@@ -45,6 +45,10 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from _stats import wilson_ci  # noqa: E402  (sibling import, see _stats docstring)
 
 LOG_PREFIX = "skill-selection-"
+
+# Mirrors core.selection_window.SELECTION_RECORD_KIND; this script is stdlib-only
+# by design (it runs against a log directory without the package installed).
+SELECTION_RECORD_KIND = "selection"
 DATE_RE = re.compile(r"^skill-selection-(\d{4}-\d{2}-\d{2})\.jsonl$")
 
 # Payload keys dropped at parse time: untrusted-origin text lives here in b64
@@ -98,6 +102,14 @@ def load(logs_dir: pathlib.Path) -> tuple[list[dict], int]:
                 continue
             if not isinstance(rec, dict):
                 unparsable += 1
+                continue
+            # RFC-0028 added a second record family to this log (`publish`:
+            # which comment a selection became). It is not a selection and not
+            # a broken line — skipping it silently is what keeps this reading's
+            # longitudinal series comparable with the windows read before the
+            # family existed. Records written before RFC-0028 carry no `kind`,
+            # so absence means "selection".
+            if rec.get("kind", SELECTION_RECORD_KIND) != SELECTION_RECORD_KIND:
                 continue
             rec = {k: v for k, v in rec.items() if k not in DROP_KEYS}
             rec["_day"] = day

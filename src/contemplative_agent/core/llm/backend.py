@@ -119,6 +119,11 @@ class GenerationOutput:
 
     text: str | None
     thinking: str | None = None
+    # RFC-0028: the id of the selection record this generation ran under
+    # (None when the selector is off or fell open). It travels with the text
+    # so the publish site can name the selection its comment came from
+    # without reaching back into module state.
+    selection_id: str | None = None
 
 
 @runtime_checkable

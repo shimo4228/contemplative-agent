@@ -29,8 +29,8 @@ from ...core.prompts import (
     TOPIC_SUMMARY_PROMPT,
 )
 from ...core.skill_selection import (
+    observe_skill_selection_recorded,
     selected_skills_block,
-    shadow_observe_skill_selection,
 )
 
 logger = logging.getLogger(__name__)
@@ -236,8 +236,10 @@ def generate_comment(post_text: str, *, think: bool = False) -> GenerationOutput
     # under the rollout flag returns skill names → generate under a
     # selection-filtered system prompt; None (shadow, fail-open, kill
     # switch) keeps the full prompt.
-    selection = shadow_observe_skill_selection(wrapped_post, generation_caller="moltbook.comment")
-    system = _selection_system(selection)
+    observation = observe_skill_selection_recorded(
+        wrapped_post, generation_caller="moltbook.comment"
+    )
+    system = _selection_system(observation.selected)
     prompt = COMMENT_PROMPT.format(post_content=wrapped_post)
     # chars_per_token=1.5 (audit M2): CJK output runs 1.5-2 chars/tok; the
     # /3 default under-budgets num_predict and cuts Japanese mid-sentence.
@@ -249,6 +251,9 @@ def generate_comment(post_text: str, *, think: bool = False) -> GenerationOutput
         chars_per_token=1.5,
         caller="moltbook.comment",
         think=think,
+        # RFC-0028: the selection id rides out with the text so the publish
+        # site can append the record linking this generation to its comment.
+        selection_id=observation.selection_id,
     )
 
 
@@ -381,9 +386,9 @@ def generate_cooperation_post(
     # over the same seeds, is deliberately not observed — a second selection
     # adds cost, not information; it reuses this pass's selection instead
     # (ADR-0081 Decision 2, via _last_cooperation_selection).
-    selection = shadow_observe_skill_selection(
+    selection = observe_skill_selection_recorded(
         seeds_text, generation_caller="moltbook.cooperation_post"
-    )
+    ).selected
     _last_cooperation_selection = selection
     system = _selection_system(selection)
     prompt = _resolve_domain_prompt(COOPERATION_POST_PROMPT).format(
@@ -533,8 +538,8 @@ def generate_reply(
     # (enforcement went live 2026-07-24; the observation window should not be
     # perturbed by this fix) and drops the separator when it is not.
     situation = f"{wrapped_post}\n\n{wrapped_comment}" if wrapped_post else wrapped_comment
-    selection = shadow_observe_skill_selection(situation, generation_caller="moltbook.reply")
-    system = _selection_system(selection)
+    observation = observe_skill_selection_recorded(situation, generation_caller="moltbook.reply")
+    system = _selection_system(observation.selected)
     prompt = _render_reply_prompt(wrapped_post, wrapped_comment)
     # chars_per_token=1.5 (audit M2): same CJK output budget as the comment
     # path — see generate_comment.
@@ -546,6 +551,7 @@ def generate_reply(
         chars_per_token=1.5,
         caller="moltbook.reply",
         think=think,
+        selection_id=observation.selection_id,  # RFC-0028, see generate_comment
     )
 
 
