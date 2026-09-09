@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-09
+state: done 2026-09-09
 state_since: 2026-09-09
 review-when: Moltbook が自分のコメントへの反応（返信 / upvote）を返さなくなる（outcome の源が消える）、または生成モデルが変わって skill の効果分布を取り直す必要が出る、または RFC-0021 の 2 窓読みで店の大きさが幻覚率を説明しないと分かる（帰属より先に読み手の問題が残る）
 ---
@@ -151,3 +151,10 @@ Unresolved の決着（全文は ADR-0106）:
 
 帰属（randomized masking）と、反応を選択・抽出・退役へ流す経路は入れていない
 （ADR-0106 D6）。読みは per-week JSON を出すだけ（weekly stage 7d）。
+
+## 2026-09-09 merge（判断役の検収 → 著者の merge 語）
+
+`accepted` → `done`。`99ea8bb`（本体）+ `d3c65fb`（設計地図の bounce 修正）を main へ ff merge。
+判断役の再検収: worktree と main の両方で `verify.sh` exit 0（main は lock 外の `httpx2==2.10.0` の
+新 CVE で一度 exit 1 — diff 由来でなく venv drift、`uv sync --group eval` で解消）。
+残るのは消費計画（ADR-0106: 土曜ゲートで 2 窓 ≥ 500 judged records、分かれなければ計器撤去 → resolved）。
