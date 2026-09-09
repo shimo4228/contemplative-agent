@@ -1,6 +1,6 @@
 ---
-state: draft 2026-09-08
-state_since: 2026-09-08
+state: accepted 2026-09-09
+state_since: 2026-09-09
 review-when: Moltbook が自分のコメントへの反応（返信 / upvote）を返さなくなる（outcome の源が消える）、または生成モデルが変わって skill の効果分布を取り直す必要が出る、または RFC-0021 の 2 窓読みで店の大きさが幻覚率を説明しないと分かる（帰属より先に読み手の問題が残る）
 ---
 
@@ -122,3 +122,9 @@ draft（2026-09-08）。著者の問題提起「成功と失敗の基準が無�
 `draft` 維持。採否は著者判断（digest に提示）。前提の軽い照合: `/home` の消費は `your_account` と
 `activity_on_your_posts` のみ（`tests/test_home_field_allowlist.py`）で、反応フィールドは後者に載る想定 —
 Phase 0 で `skill.md` と照合する。
+
+## 2026-09-09 決定（著者回答: accepted → dispatch）
+
+`draft` → `accepted`。S10 として build へ dispatch（worktree `task/skill-outcome`、Opus session）。
+Phase 0 は `/home` の反応フィールドを `skill.md` で照合し、Unresolved の (1)(2) は build が決めて
+commit body に報告する。帰属（Future possibilities）は含めない。
