@@ -16,7 +16,7 @@
           "deadcode",
           "neversel"
         ],
-        "note": "materials → 1 headless /weekly-report → 決定論計器（7b never-selected · 7c 混同対）。commit / push / adopt はしない（working tree まで）。"
+        "note": "materials → 1 headless /weekly-report → 決定論計器（7b never-selected · 7c 混同対 · 7d comment outcome）。commit / push / adopt はしない（working tree まで）。"
       },
       {
         "id": "gate",
@@ -121,9 +121,9 @@
       "lane": "instruments",
       "col": 5,
       "type": "backend",
-      "label": "store 退出の読み",
-      "sublabel": "never-selected · 混同対",
-      "tag": "7b/7c · ADR-0105",
+      "label": "週次の読み",
+      "sublabel": "退出 · 環境の反応",
+      "tag": "7b–7d · ADR-0105/0106",
       "width": 150
     },
     {
@@ -180,7 +180,7 @@
       "id": "deadcode-neversel",
       "from": "deadcode",
       "to": "neversel",
-      "label": "7b",
+      "label": "7b–7d",
       "variant": "default"
     },
     {
@@ -211,7 +211,7 @@
       "dot": "cyan",
       "title": "正本",
       "items": [
-        "scripts/weekly-pipeline.sh（report,valuelayer,deadcode,docsscan + 7b）· value_layer_due_check.py",
+        "scripts/weekly-pipeline.sh（report,valuelayer,deadcode,docsscan + 7b/7c/7d）· value_layer_due_check.py",
         ".claude/skills/weekly-report · weekly-gate。launchd は config/launchd/*.plist"
       ]
     },
@@ -228,7 +228,7 @@
       "title": "ゲートが読むもの",
       "items": [
         "findings.md · .staged/*.meta.json · value-layer-{end}.json（due · staging_pending）",
-        "never-selected-{end}.json（600 · 14d、listing のみ）。metrics は gate だけが書く"
+        "never-selected（600 · 14d）· 混同対 · comment-outcomes（分布のみ）"
       ]
     }
   ]
