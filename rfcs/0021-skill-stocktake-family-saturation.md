@@ -154,3 +154,7 @@ archive 型の先例は SLIM の inactive set。CA は `skills/.archive/` + `sup
 この週に足した名前は 0 件。上の「34 対 35 / 23 対 30」は 7 日窓の読みで、後者は 24 対 30 と出た）。
 天井の 2 窓読みは未消化 — 消費計画と読み手の配線は ADR-0105 の `## Review-when` と
 `.claude/skills/weekly-gate/SKILL.md` Step 6c。
+
+## 2026-09-09 triage 照合（無人 cycle）
+
+`in_progress` 維持。照合先（土曜ゲートの 2 窓読み）は未発火 — stage 7c は 2026-09-07 merge で、最初の窓は 2026-09-11 の weekly 走行後。

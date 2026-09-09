@@ -116,3 +116,9 @@ draft（2026-09-08）。著者の問題提起「成功と失敗の基準が無�
 
 - 著者判断で `accepted` → build へ dispatch（Phase 0: `/home` 応答の反応フィールドを
   `skill.md` で照合、selection record と comment id の結び方を決める）
+
+## 2026-09-09 triage 照合（無人 cycle）
+
+`draft` 維持。採否は著者判断（digest に提示）。前提の軽い照合: `/home` の消費は `your_account` と
+`activity_on_your_posts` のみ（`tests/test_home_field_allowlist.py`）で、反応フィールドは後者に載る想定 —
+Phase 0 で `skill.md` と照合する。
