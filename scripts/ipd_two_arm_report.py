@@ -26,6 +26,11 @@ import sys
 
 NOISE_FLOOR = 0.13
 EPS = 1e-9  # float artifacts: 0.270-0.400 = -0.13000000000000003 must not clear the floor
+# The threshold every comparison actually tests against. One name, because a
+# reading whose five sites disagree about the floor by one EPS is a reading
+# whose verdict depends on which branch asked. NOISE_FLOOR alone stays the
+# number the prose quotes to the human.
+_FLOOR = NOISE_FLOOR + EPS
 # Calibration contract (null pair 2026-08-06): these exact cells at this n.
 # Data with any other α set or n has no measured noise floor — hard-fail.
 ALPHAS = ("alpha_0.0", "alpha_0.5", "alpha_1.0")
@@ -119,7 +124,7 @@ def cell_table_lines(ca: dict, cb: dict) -> list:
     return lines
 
 
-def effect_table_lines(ca: dict, cb: dict, deltas: dict) -> list:
+def effect_table_lines(ea: dict, eb: dict, deltas: dict) -> list:
     lines = [
         "## Effect (custom − baseline) per arm — the primary reading",
         "",
@@ -127,23 +132,22 @@ def effect_table_lines(ca: dict, cb: dict, deltas: dict) -> list:
         "|---|---|---|---|---|",
     ]
     for a in ALPHAS:
-        ea, eb = effect(ca, a), effect(cb, a)
         # strict >: the floor IS the max swing the null pair produced, so a
         # move of exactly 0.13 is noise-compatible by construction
-        above = "**yes**" if abs(deltas[a]) > NOISE_FLOOR + EPS else "no"
-        lines.append(f"| {a} | {ea:+.3f} | {eb:+.3f} | {deltas[a]:+.3f} | {above} |")
+        above = "**yes**" if abs(deltas[a]) > _FLOOR else "no"
+        lines.append(f"| {a} | {ea[a]:+.3f} | {eb[a]:+.3f} | {deltas[a]:+.3f} | {above} |")
     lines.append("")
     return lines
 
 
-def signal_lines(ca: dict, cb: dict, deltas: dict) -> list:
+def signal_lines(ea: dict, eb: dict, deltas: dict) -> list:
     lines = ["## Signal checks", ""]
     findings = []
 
     # 1. sign flip: arm A's positive effect turns negative beyond the floor.
     #    Sub-floor negatives are noise (baseline sits at 0-4%); an arm A
     #    already at/below zero is not a flip.
-    flipped = [a for a in ALPHAS if effect(ca, a) > 0 and effect(cb, a) < -(NOISE_FLOOR + EPS)]
+    flipped = [a for a in ALPHAS if ea[a] > 0 and eb[a] < -_FLOOR]
     if flipped:
         findings.append(
             f"SIGN FLIP in arm B (custom < baseline beyond the floor) at: "
@@ -154,10 +158,10 @@ def signal_lines(ca: dict, cb: dict, deltas: dict) -> list:
     # 2. α-gradient loss: effect should grow with opponent cooperativeness.
     #    Only an inversion larger than the floor counts — exact-float dips
     #    inside the noise band are not structure collapse.
-    ga = [effect(ca, a) for a in ALPHAS]
-    gb = [effect(cb, a) for a in ALPHAS]
-    mono_a = all(ga[i + 1] >= ga[i] - (NOISE_FLOOR + EPS) for i in (0, 1))
-    mono_b = all(gb[i + 1] >= gb[i] - (NOISE_FLOOR + EPS) for i in (0, 1))
+    ga = [ea[a] for a in ALPHAS]
+    gb = [eb[a] for a in ALPHAS]
+    mono_a = all(ga[i + 1] >= ga[i] - _FLOOR for i in (0, 1))
+    mono_b = all(gb[i + 1] >= gb[i] - _FLOOR for i in (0, 1))
     if mono_a and not mono_b:
         findings.append(
             "α-GRADIENT LOSS: arm A effect is monotone in α (within the floor) "
@@ -166,7 +170,7 @@ def signal_lines(ca: dict, cb: dict, deltas: dict) -> list:
         )
 
     # 3. multiple cells moving the same direction beyond the floor
-    big = {a: d for a, d in deltas.items() if abs(d) > NOISE_FLOOR + EPS}
+    big = {a: d for a, d in deltas.items() if abs(d) > _FLOOR}
     same_dir = len(big) >= 2 and len({d > 0 for d in big.values()}) == 1
     if same_dir:
         direction = "up" if next(iter(big.values())) > 0 else "down"
@@ -204,12 +208,17 @@ def signal_lines(ca: dict, cb: dict, deltas: dict) -> list:
 def build_report(path_a: str, path_b: str) -> str:
     arm_a, arm_b = load_arm(path_a), load_arm(path_b)
     ca, cb = arm_a["cells"], arm_b["cells"]
-    deltas = {a: effect(cb, a) - effect(ca, a) for a in ALPHAS}
+    # Computed once and passed down: the table and the three signal checks all
+    # read the same per-α effects, and recomputing them per consumer is how one
+    # section ends up describing a cell the next one no longer agrees with.
+    ea = {a: effect(ca, a) for a in ALPHAS}
+    eb = {a: effect(cb, a) for a in ALPHAS}
+    deltas = {a: eb[a] - ea[a] for a in ALPHAS}
     lines = (
         header_lines(path_a, path_b, arm_a, arm_b)
         + cell_table_lines(ca, cb)
-        + effect_table_lines(ca, cb, deltas)
-        + signal_lines(ca, cb, deltas)
+        + effect_table_lines(ea, eb, deltas)
+        + signal_lines(ea, eb, deltas)
     )
     return "\n".join(lines)
 
