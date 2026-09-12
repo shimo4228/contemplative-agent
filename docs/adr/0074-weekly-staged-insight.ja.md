@@ -218,6 +218,20 @@ fail-open ポリシーに従い、117 クラスタ全部が抽出へ流れた �
    backend がより小さい窓を広告すればそれに合わせる）ため、packer が
    サイズした チャンクが preflight に拒否されることはない。
 
+   *2026-09-12（RFC-0034）:* 両方の書き手が `kind` を持つ — チャンクごとの
+   judge レコードは `novelty_judge`、上記 deferral レコードは
+   `review_budget_deferral`。共通キーが `ts` だけだったため読み手が事象
+   ファミリを区別できず、RFC-0023 のリプレイは deferral 行を verdict
+   `None` の judge 行として数え、その行に無い `known_themes_count` は
+   「1 run 1 inventory 規模」の停止条件を誤発火させ得た。`kind` 不在の行は
+   「judge とみなす」でなく構造で読む — deferral の書き手は fail-open cap の
+   導入以来この同じファイルへ kind 無しの行を書いてきたので、
+   `reason=review_budget_deferred` を持たないことが legacy 行を judge と
+   判定する根拠になる。既存の
+   読み値は原理的にも事実としても無影響 — 本番ログに deferral 行は 1 件も
+   無い（2026-09-12 時点で 27 レコード: `judged` 26 / `fail_open_llm` 1）ので
+   再集計はしていない。
+
 ### 明示的スコープ外
 
 本 amendment は embedding gate 却下を**覆さない**: いかなる類似度閾値も抑制に

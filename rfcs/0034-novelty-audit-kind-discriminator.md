@@ -57,3 +57,40 @@ draft — 2026-09-12 の simplify 走査（core insight 群の altitude レビ�
 ## 2026-09-12 決定（著者回答）
 
 `draft` → `accepted`。S12 として dispatch（RFC-0029 と同梱、worktree `task/s12-audit-records`）。先に docs/evidence/rfc-0023 の歪み確認、次に実装。
+
+## 2026-09-12 build（S12、branch `task/s12-audit-records`）
+
+**Next action の確認結果: 歪みなし、再集計不要。** 本番 `logs/insight-novelty.jsonl` は
+2026-09-12 時点で 27 行あり、内訳は judge 行のみ（`judged` 26 / `fail_open_llm` 1）で
+deferral 行は 0 件。`docs/evidence/rfc-0023/novelty-replay-ab-20260905.json` の run meta も
+`records_total == records_judged == 10` / `verdicts_logged == ["judged"]` で、混入の痕跡が無い
+（混入していれば `known_themes_count` の欠けた行が「2 つの inventory 規模」として
+`_records_for_run` を停止させていたはずで、run が完走している事実とも整合する）。
+既存 evidence ファイルは書き換えていない。
+
+入れたもの:
+
+- `core/insight_novelty.py` が log の record grammar を持つ（`selection_window` と同じ役割分担）:
+  `NOVELTY_JUDGE_RECORD_KIND = "novelty_judge"` /
+  `NOVELTY_DEFERRAL_RECORD_KIND = "review_budget_deferral"` /
+  `is_novelty_judge_record`（`kind` 不在は judge ファミリ）
+- judge 行と deferral 行の両方が `kind` を出す
+- Reference-level explanation の 4 点目（emitter を寄せられるか）は **寄せた**:
+  `append_novelty_audit_record(audit_path, record, *, what)` を `insight_novelty` に置き、
+  `insight._append_deferral_audit` はそこを通す。best-effort の except は 1 箇所になった。
+  base64 / byte cap は judge 行に固有（deferral 行に長文フィールドが無い）なので共有しない
+- `scripts/novelty_replay_ab.py::_records_for_run` が judge ファミリだけを返す。落とした行は
+  件数と kind を stderr に出す（silent drop にしない）
+
+回帰: `tests/test_novelty_audit_kind.py`（6 本）。
+
+Review（`/code-review` medium、2026-09-12）で直したもの:
+
+- `kind` 不在を無条件に judge ファミリと解釈していたのが誤り。deferral の書き手は
+  fail-open cap の導入以来この同じファイルへ kind 無しの行を書いてきたので、過去ログ
+  （バックアップ・別 `MOLTBOOK_HOME`・archive）に deferral 行があれば、リプレイの regime
+  guard が `sorted({485, None})` で `TypeError` を投げて停止条件ごと壊れる。`reason` の
+  有無で構造的に判定するようにした（本番ログに 0 件なのは latent であって fixed ではない）
+- `client_error_guard` の `on_failure` を try/except で包んだ（RFC-0029 側の seam。
+  guard の契約は「失敗した write はこの層で致命でない」なので、ぶら下げた recorder が
+  それを覆せない形にする）

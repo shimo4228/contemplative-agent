@@ -44,6 +44,7 @@ import re
 import statistics
 import sys
 import time
+from collections import Counter
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -199,21 +200,41 @@ def _chunk_from_record(record: dict[str, Any]) -> tuple[str, str, Chunk]:
 
 
 def _records_for_run(audit_path: Path, run_prefix: str) -> list[dict[str, Any]]:
-    """Audit records whose timestamp starts with ``run_prefix``, one regime only.
+    """Judge records whose timestamp starts with ``run_prefix``, one regime only.
 
     The inventory grew 60 -> 485 across runs, so a prefix spanning two sizes
     would confound "shorter inventory" with "different inventory" — that is a
     stop, not a warning.
+
+    Filtered to the judge family (RFC-0034): the review-budget deferral writer
+    shares this file and shares only ``ts`` with a judge record, so its rows
+    used to enter ``verdicts_logged`` as the string ``"None"`` and — having no
+    ``known_themes_count`` — to trip the regime guard below as a second
+    inventory size. Dropped rows are counted and named on stderr rather than
+    disappearing.
     """
+    from contemplative_agent.core.insight_novelty import is_novelty_judge_record
+
     records: list[dict[str, Any]] = []
+    other_kinds: Counter[str] = Counter()
     with audit_path.open(encoding="utf-8") as handle:
         for line in handle:
             line = line.strip()
             if not line:
                 continue
             record = json.loads(line)
-            if str(record.get("ts", "")).startswith(run_prefix):
-                records.append(record)
+            if not str(record.get("ts", "")).startswith(run_prefix):
+                continue
+            if not is_novelty_judge_record(record):
+                other_kinds[str(record.get("kind"))] += 1
+                continue
+            records.append(record)
+    if other_kinds:
+        print(
+            f"skipped {sum(other_kinds.values())} non-judge record(s) in this run: "
+            f"{dict(sorted(other_kinds.items()))}",
+            file=sys.stderr,
+        )
     if not records:
         raise SystemExit(f"no audit records with ts prefix {run_prefix!r}")
     known_counts = {r.get("known_themes_count") for r in records}

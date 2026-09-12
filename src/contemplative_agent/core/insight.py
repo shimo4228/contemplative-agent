@@ -408,24 +408,33 @@ def _append_deferral_audit(
     cap: int,
     deferred: Sequence[_Batch],
 ) -> None:
-    """Best-effort record of review-budget deferrals — never a silent drop."""
+    """Best-effort record of review-budget deferrals — never a silent drop.
+
+    Written into the novelty judge's own log, so it carries the ``kind`` that
+    tells a reader which of the two event families it is: the two records share
+    only ``ts``, and the replay used to read this one as a judge verdict
+    (RFC-0034). The writer is the judge module's, so the byte-cap and
+    best-effort policy has one home.
+    """
     if audit_path is None:
         return
     try:
-        from ._io import append_jsonl_restricted, now_iso
+        from ._io import now_iso
 
         record = {
+            "kind": insight_novelty.NOVELTY_DEFERRAL_RECORD_KIND,
             "ts": now_iso("seconds"),
-            "reason": "review_budget_deferred",
+            "reason": insight_novelty._DEFERRAL_REASON,
             "cap": cap,
             "deferred": [
                 {"topic": topic, "size": len(patterns), "pattern_ids": list(pids)}
                 for topic, patterns, pids in deferred
             ],
         }
-        append_jsonl_restricted(audit_path, record)
     except Exception as exc:  # instrumentation must never break insight
         logger.warning("insight deferral audit record failed: %s", exc)
+        return
+    insight_novelty.append_novelty_audit_record(audit_path, record, what="deferral")
 
 
 def _apply_failopen_extraction_cap(

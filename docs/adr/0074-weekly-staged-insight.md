@@ -242,6 +242,20 @@ ledger is decision-agnostic.
    smaller window lowers it), so a packed chunk is never refused by the
    preflight it was sized for.
 
+   *2026-09-12 (RFC-0034):* both writers now carry a `kind` —
+   `novelty_judge` for the per-chunk judge record, `review_budget_deferral`
+   for the deferral record above. They shared only `ts`, so a reader could not
+   tell the families apart: the RFC-0023 replay counted each deferral row as a
+   judge verdict of `None`, and the row's absent `known_themes_count` would
+   have tripped its "one inventory regime per run" stop. A kind-less row is
+   read structurally rather than assumed to be a judge record — the deferral
+   writer has been appending kind-less rows to this same file since the
+   fail-open cap shipped, so only the absence of `reason=review_budget_deferred`
+   makes a legacy row a judge record. The existing readings are unaffected in
+   fact as well as in principle —
+   the production log holds no deferral row (27 records on 2026-09-12: 26
+   `judged`, 1 `fail_open_llm`), so nothing was recomputed.
+
 ### Explicitly out of scope
 
 This amendment does **not** reverse the embedding-gate rejection: no

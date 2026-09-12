@@ -409,6 +409,64 @@ def _parse_covered_ids(raw: str, known_topics: set[str]) -> set[str] | None:
     return {c for c in covered if isinstance(c, str) and c in known_topics}
 
 
+# The record grammar of insight-novelty.jsonl (RFC-0034). Two writers share
+# the file — the judge record here and the review-budget deferral record in
+# :mod:`.insight` — and used to share only ``ts``, so a reader could not tell
+# one event family from the other; the replay counted every deferral row as a
+# judge verdict of ``None`` and read its absent ``known_themes_count`` as a
+# second inventory regime. Named here because this module owns the log's
+# grammar, the way ``selection_window`` owns the selection log's.
+#
+# Absence means the judge family: every record written before this change is
+# one, so the longitudinal readings stay one series instead of gaining an
+# "unknown" bucket on the day the kinds started (the same rule
+# ``SELECTION_RECORD_KIND`` follows).
+NOVELTY_JUDGE_RECORD_KIND = "novelty_judge"
+
+
+NOVELTY_DEFERRAL_RECORD_KIND = "review_budget_deferral"
+
+
+# The deferral record's own ``reason`` value, and the only field that
+# distinguishes a kind-less deferral row from a kind-less judge row. The
+# writer is ``insight._append_deferral_audit``; named here because the
+# reader below has to know it.
+_DEFERRAL_REASON = "review_budget_deferred"
+
+
+def is_novelty_judge_record(record: dict) -> bool:
+    """Whether a record from this log is a judge record.
+
+    A missing ``kind`` alone does not make one: the deferral writer has been
+    appending kind-less rows to this same file since the fail-open extraction
+    cap shipped, so "written before the kinds" is not the same as "a judge
+    record" for this log (code review 2026-09-12 — today's production log
+    happens to hold no deferral row, which makes that latent, not absent).
+    A legacy row is therefore read structurally, by the field only the
+    deferral writer has ever written.
+    """
+    kind = record.get("kind")
+    if kind is not None:
+        return kind == NOVELTY_JUDGE_RECORD_KIND
+    return record.get("reason") != _DEFERRAL_REASON
+
+
+def append_novelty_audit_record(audit_path: Path | None, record: dict, *, what: str) -> None:
+    """Append one record to insight-novelty.jsonl, best-effort.
+
+    Both writers come through here so "an instrument may never break insight"
+    is one decision rather than two copies that drift apart (RFC-0034).
+    """
+    if audit_path is None:
+        return
+    try:
+        from ._io import append_jsonl_restricted
+
+        append_jsonl_restricted(audit_path, record)
+    except Exception as exc:  # instrumentation must never break insight
+        logger.warning("insight %s audit record failed: %s", what, exc)
+
+
 # Bound on the base64-stored judge prompt/output in insight-novelty.jsonl
 # (weekly cadence — worst case ~256 KiB/run; same truncation-flag pattern as
 # verification-audit's _MAX_AUDIT_CHALLENGE_BYTES).
@@ -449,13 +507,14 @@ def _append_novelty_audit(
     if audit_path is None:
         return
     try:
-        from ._io import append_jsonl_restricted, b64_audit_fields, now_iso
+        from ._io import b64_audit_fields, now_iso
 
         def _b64_fields(name: str, text: str | None) -> dict:
             """Bind the shared replay encoder to this log's byte cap."""
             return b64_audit_fields(name, text, max_bytes=_MAX_NOVELTY_AUDIT_BYTES)
 
         record: dict = {
+            "kind": NOVELTY_JUDGE_RECORD_KIND,
             "ts": now_iso("seconds"),
             "verdict": verdict,
             "known_themes_count": known_themes_count,
@@ -468,9 +527,10 @@ def _append_novelty_audit(
             **_b64_fields("prompt", prompt),
             **_b64_fields("output", raw_output),
         }
-        append_jsonl_restricted(audit_path, record)
     except Exception as exc:  # instrumentation must never break insight
         logger.warning("insight novelty audit record failed: %s", exc)
+        return
+    append_novelty_audit_record(audit_path, record, what="novelty")
 
 
 def _filter_novel_batches(
