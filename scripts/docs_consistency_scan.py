@@ -307,67 +307,67 @@ def parse_freshness(text: str) -> dict | None:
 def freshness_readings(
     root: Path, behind: Callable[[str], int | None], today: date
 ) -> tuple[list[dict], list[dict]]:
-    """Age readings for FRESHNESS-stamped docs. Readings only, no threshold."""
-    readings: list[dict] = []
+    """Age reading for the FRESHNESS-stamped doc. A reading only, no threshold.
+
+    Straight-line over the single stamped file rather than a loop over a
+    one-element list (ADR-0102 removed the others): a loop whose body can only
+    run once reads as a sweep, and the `continue`s that shaped it hid that the
+    "nothing stale" answer and the "the file is gone" answer are the same
+    empty list unless the absence is reported — which is why it is.
+    """
     errors: list[dict] = []
-    # The only stamped file. Its absence must surface, not read as "nothing
-    # stale": a layout move would otherwise leave the sole reading permanently
-    # empty (the deleted mechanism reading guarded the same shape).
-    targets = [root / "docs" / "CYCLES.md"]
-    for path in targets:
-        if not path.is_file():
-            errors.append(
-                {
-                    "check": "freshness",
-                    "reason": "FILE_MISSING",
-                    "detail": f"{path.relative_to(root)}: sole FRESHNESS target absent",
-                }
-            )
-            continue
+    path = root / "docs" / "CYCLES.md"
+    # Its absence must surface, not read as "nothing stale": a layout move
+    # would otherwise leave the sole reading permanently empty (the deleted
+    # mechanism reading guarded the same shape).
+    if not path.is_file():
         rel = path.relative_to(root)
+        return [], [
+            {
+                "check": "freshness",
+                "reason": "FILE_MISSING",
+                "detail": f"{rel}: sole FRESHNESS target absent",
+            }
+        ]
+    rel = path.relative_to(root)
+    try:
+        text = path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        return [], [{"check": "freshness", "reason": "FILE_UNREADABLE", "detail": f"{rel}: {exc}"}]
+
+    parsed = parse_freshness(text)
+    if parsed is None:
+        return [], errors
+
+    days_old: int | None = None
+    generated = parsed["generated"]
+    if generated:
         try:
-            text = path.read_text(encoding="utf-8", errors="replace")
-        except OSError as exc:
+            days_old = (today - datetime.strptime(generated, "%Y-%m-%d").date()).days
+        except ValueError:
+            days_old = None
+
+    commits_behind: int | None = None
+    sha = parsed["source_commit"]
+    if sha:
+        commits_behind = behind(sha)
+        if commits_behind is None:
             errors.append(
                 {
                     "check": "freshness",
-                    "reason": "FILE_UNREADABLE",
-                    "detail": f"{rel}: {exc}",
+                    "reason": "GIT_FAIL",
+                    "detail": f"rev-list failed for {rel} ({sha})",
                 }
             )
-            continue
-        parsed = parse_freshness(text)
-        if parsed is None:
-            continue
-        days_old: int | None = None
-        generated = parsed["generated"]
-        if generated:
-            try:
-                days_old = (today - datetime.strptime(generated, "%Y-%m-%d").date()).days
-            except ValueError:
-                days_old = None
-        commits_behind: int | None = None
-        sha = parsed["source_commit"]
-        if sha:
-            commits_behind = behind(sha)
-            if commits_behind is None:
-                errors.append(
-                    {
-                        "check": "freshness",
-                        "reason": "GIT_FAIL",
-                        "detail": f"rev-list failed for {rel} ({sha})",
-                    }
-                )
-        readings.append(
-            {
-                "file": str(rel),
-                "generated": generated,
-                "source_commit": sha,
-                "commits_behind": commits_behind,
-                "days_old": days_old,
-            }
-        )
-    return readings, errors
+
+    reading = {
+        "file": str(rel),
+        "generated": generated,
+        "source_commit": sha,
+        "commits_behind": commits_behind,
+        "days_old": days_old,
+    }
+    return [reading], errors
 
 
 def scan(
