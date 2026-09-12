@@ -448,7 +448,6 @@ def read_confusion_pairs(
     until: date | None = None,
     skills_dir: Path | None,
     value_layer_paths: tuple[Path, ...] = (),
-    exposure_floor: int = CONFUSION_EXPOSURE_FLOOR,
 ) -> ConfusionReading:
     """Read the confusion pairs over ``skill-selection-*.jsonl`` (ADR-0105).
 
@@ -485,7 +484,7 @@ def read_confusion_pairs(
         charge,
         selected_window=tally.selected_window,
         exposure_history=tally.exposure_history,
-        exposure_floor=exposure_floor,
+        exposure_floor=CONFUSION_EXPOSURE_FLOOR,
         skill_files=skill_files,
     )
 
@@ -518,7 +517,7 @@ def read_confusion_pairs(
     )
     return ConfusionReading(
         pairs=tuple(pairs),
-        exposure_floor=exposure_floor,
+        exposure_floor=CONFUSION_EXPOSURE_FLOOR,
         mechanism_emissions=tuple(sorted(charge.mechanism_emissions.items())),
         charged_emissions=sum(confused_as.values()),
         window_days=window.days,

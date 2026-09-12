@@ -330,7 +330,6 @@ def read_never_selected(
     since: date | None = None,
     until: date | None = None,
     skills_dir: Path | None,
-    exposure_floor: int = NEVER_SELECTED_EXPOSURE_FLOOR,
 ) -> NeverSelectedReading:
     """Walk the whole selection history for the ADR-0097 D5 exit reading.
 
@@ -367,7 +366,9 @@ def read_never_selected(
 
     tally = _scan_selection_history(log_dir, window)
     catalog_names = [e.name for e in load_skill_catalog(skills_dir)]
-    strict, dormant, below_floor = _split_populations(catalog_names, tally, exposure_floor)
+    strict, dormant, below_floor = _split_populations(
+        catalog_names, tally, NEVER_SELECTED_EXPOSURE_FLOOR
+    )
     reasons = _never_selected_reasons(
         tally,
         catalog_available=bool(catalog_names),
@@ -401,7 +402,7 @@ def read_never_selected(
         strict=_by_exposure(strict),
         dormant=_by_window_exposure(dormant),
         below_floor=_by_exposure(below_floor),
-        exposure_floor=exposure_floor,
+        exposure_floor=NEVER_SELECTED_EXPOSURE_FLOOR,
         history_files=tally.history_files,
         history_records=tally.history_records,
         history_judged=tally.history_judged,
