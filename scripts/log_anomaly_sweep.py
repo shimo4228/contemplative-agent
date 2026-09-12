@@ -52,7 +52,7 @@ from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from pathlib import Path
 
-from _md import md_safe
+from _md import md_safe, printable
 
 # A line is an anomaly candidate if (a) its log level is WARNING/ERROR/CRITICAL,
 # or (b) it matches a level-agnostic critical pattern (these are real problems
@@ -336,7 +336,7 @@ def corpus_state_path(state: Path) -> Path:
 def write_corpus(path: Path, corpus: Corpus) -> None:
     """Persist the census as ``lines_read<TAB>signal_lines<TAB>name`` TSV."""
     path.parent.mkdir(parents=True, exist_ok=True)
-    body = "".join(f"{c.lines_read}\t{c.signal_lines}\t{_tsv_safe(c.name)}\n" for c in corpus.files)
+    body = "".join(f"{c.lines_read}\t{c.signal_lines}\t{printable(c.name)}\n" for c in corpus.files)
     path.write_text(body, encoding="utf-8")
 
 
@@ -359,11 +359,6 @@ def read_corpus(path: Path) -> Corpus | None:
         except ValueError:
             continue
     return Corpus(tuple(rows))
-
-
-def _tsv_safe(name: str) -> str:
-    """Keep a file name on one TSV field (tabs/newlines are legal in POSIX names)."""
-    return name.replace("\t", " ").replace("\n", " ").replace("\r", " ")
 
 
 def iter_allowed_log_lines(log_dir: Path, census: list[FileCensus] | None = None) -> Iterator[str]:

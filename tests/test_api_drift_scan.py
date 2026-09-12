@@ -215,7 +215,7 @@ class TestState:
         # Intake sanitization is what makes this hold: unsanitized newlines
         # would shear the TSV line and the key would re-flag every scan.
         hostile = "ok\nbroken"
-        vocab = {"GET /home": {ads._sanitize(hostile)}}
+        vocab = {"GET /home": {ads._printable_name(hostile)}}
         state = tmp_path / "state.tsv"
         ads.write_state(state, vocab)
         assert ads.read_state(state) == vocab

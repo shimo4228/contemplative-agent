@@ -237,6 +237,10 @@ def scan(bodies: list[Published], skipped: dict[str, int], *, start: str, end: s
     comparisons and are inclusive at both ends.
     """
     window = [b for b in bodies if start <= b.date <= end]
+    # Grouped once per scope: the window grouping feeds both the cross-day and
+    # the intra-day reading, and it is rebuilt from a list that grows for the
+    # store's whole lifetime.
+    window_groups = _group(window)
 
     cross_lifetime = [
         _make_group(digest, members)
@@ -245,12 +249,12 @@ def scan(bodies: list[Published], skipped: dict[str, int], *, start: str, end: s
     ]
     cross_window = [
         _make_group(digest, members)
-        for digest, members in _group(window).items()
+        for digest, members in window_groups.items()
         if len({m.date for m in members}) > 1
     ]
 
     intra_window: list[DuplicateGroup] = []
-    for digest, members in _group(window).items():
+    for digest, members in window_groups.items():
         per_date = Counter(m.date for m in members)
         repeated = {d for d, n in per_date.items() if n > 1}
         if repeated:

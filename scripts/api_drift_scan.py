@@ -59,7 +59,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
-from _md import md_safe
+from _md import md_safe, printable
 
 _KEY_MAXLEN = 48
 _ENDPOINT_MAXLEN = 60
@@ -95,14 +95,15 @@ class VerifyHealth:
     trailing_streak: int
 
 
-def _sanitize(name: str) -> str:
+def _printable_name(name: str) -> str:
     """Squash non-printable characters in a platform-controlled name.
 
     ``·`` keeps the anomaly visible (a key that needed squashing IS drift
     signal) while making the name safe for the one-line-per-pair state file
-    and the Markdown table cell.
+    and the Markdown table cell. The character class itself is ``_md``'s —
+    a second spelling of it is a second thing to keep in sync.
     """
-    return "".join(ch if ch.isprintable() else "·" for ch in name)
+    return printable(name, "·")
 
 
 def load_records(
@@ -156,8 +157,8 @@ def build_vocabulary(records: Iterable[dict[str, Any]]) -> dict[str, set[str]]:
             continue
         if record.get("soft_fail"):
             continue
-        vocab.setdefault(_sanitize(endpoint), set()).update(
-            _sanitize(k) for k in keys if isinstance(k, str)
+        vocab.setdefault(_printable_name(endpoint), set()).update(
+            _printable_name(k) for k in keys if isinstance(k, str)
         )
     return vocab
 
