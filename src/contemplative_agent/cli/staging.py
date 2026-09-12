@@ -86,6 +86,18 @@ def _pending_staged_count() -> int:
     return len(list(config.STAGED_DIR.glob("*.meta.json")))
 
 
+def ensure_trailing_newline(text: str) -> str:
+    """The staged and adopted bytes' one normalization: exactly one final newline.
+
+    Both writes go through this. The staged audit row's ``content_hash`` is
+    taken over the normalized text and adopt re-hashes the file it writes, so
+    a second spelling of the rule is how a staged↔adopted pair silently stops
+    matching (round-2 R2-L2, where an unconditional ``+ "\n"`` made every
+    pair differ).
+    """
+    return text if text.endswith("\n") else text + "\n"
+
+
 def read_sidecar(meta_file: Path) -> dict[str, Any] | None:
     """The one read of a staged sidecar; None when it is not a usable object.
 
@@ -261,7 +273,7 @@ def _stage_results_locked(items: list[StageItem], command: str) -> bool:
         # entry's content_hash matches both the on-disk bytes and the
         # adopt-time hash of the re-read file (round-2 R2-L2: the
         # unconditional ``+ "\n"`` made every staged↔adopted pair differ).
-        text = item.text if item.text.endswith("\n") else item.text + "\n"
+        text = ensure_trailing_newline(item.text)
         staged_file.write_text(text, encoding="utf-8")
         meta: dict[str, object] = {
             "target": str(item.target_path),

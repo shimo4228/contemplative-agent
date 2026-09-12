@@ -34,7 +34,7 @@ class TestWriteReasoning:
         """The file is still not written — but the absence now has a reason.
         Without one it is byte-identical to a run that made no think-ON call,
         and the operator sees only the directory (ADR-0068 amendment)."""
-        with caplog.at_level(logging.WARNING, logger="contemplative_agent.cli.memory_cmds"):
+        with caplog.at_level(logging.WARNING, logger="contemplative_agent.cli.runtime"):
             _write_reasoning(tmp_path, [("a", None), ("b", "")])
         assert not (tmp_path / "reasoning.md").exists()
         assert "reason=all_traces_empty" in caplog.text
@@ -43,7 +43,7 @@ class TestWriteReasoning:
         """A think-ON command that legitimately made no think-ON call (e.g.
         skill-stocktake with nothing to merge). INFO, not WARNING: nothing
         broke, and the two absences must not read alike."""
-        with caplog.at_level(logging.INFO, logger="contemplative_agent.cli.memory_cmds"):
+        with caplog.at_level(logging.INFO, logger="contemplative_agent.cli.runtime"):
             _write_reasoning(tmp_path, [])
         assert not (tmp_path / "reasoning.md").exists()
         assert "reason=no_think_calls" in caplog.text

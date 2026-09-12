@@ -62,7 +62,7 @@ from .skill_archive import (
     _archive_skill_file,
     _record_archive,
 )
-from .staging import read_sidecar
+from .staging import ensure_trailing_newline, read_sidecar
 from .store_paths import (
     _archive_dir,
     _constitution_dir,
@@ -315,7 +315,7 @@ def _adopt_write_item(
         print("Skipped.")
         return None
     target.parent.mkdir(parents=True, exist_ok=True)
-    to_write = text if text.endswith("\n") else text + "\n"
+    to_write = ensure_trailing_newline(text)
     write_restricted(target, to_write)
     return target
 
