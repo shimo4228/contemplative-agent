@@ -169,24 +169,48 @@ def _seen(path: Path) -> set[str]:
     keys: set[str] = set()
     if path.exists():
         try:
-            for line in path.read_text(encoding="utf-8").splitlines():
-                line = line.strip()
-                if not line:
-                    continue
-                try:
-                    rec = json.loads(line)
-                except ValueError:
-                    continue
-                if isinstance(rec, dict) and isinstance(rec.get("dedupe_key"), str):
-                    keys.add(rec["dedupe_key"])
+            lines = path.read_text(encoding="utf-8").splitlines()
         except (OSError, ValueError):
             # Named, not swallowed: a log we cannot read means the dedupe set
             # is empty and the next scan will re-append reactions it already
             # holds. The reading tolerates that (it counts distinct ids), but
             # the operator should see why the file grew.
             logger.warning("comment outcomes: %s unreadable, dedupe set is empty", path.name)
+            lines = []
+        records, _ = _outcome_records(lines)
+        for rec in records:
+            if isinstance(rec.get("dedupe_key"), str):
+                keys.add(rec["dedupe_key"])
     _seen_keys = keys
     return keys
+
+
+def _outcome_records(lines: list[str], kind: str | None = None) -> tuple[list[dict[str, Any]], int]:
+    """One line grammar for the outcome log, shared by the write and read sides.
+
+    Returns ``(dict rows of the wanted kind, malformed-row count)`` — the count
+    rides along because the reading publishes it while the dedupe side has no
+    use for it. A non-dict row is skipped and NOT counted: only an undecodable
+    line is malformed, which is the shape :func:`_outcome_state_by_comment` has
+    always published.
+    """
+    records: list[dict[str, Any]] = []
+    malformed = 0
+    for raw in lines:
+        line = raw.strip()
+        if not line:
+            continue
+        try:
+            rec = json.loads(line)
+        except ValueError:
+            malformed += 1
+            continue
+        if not isinstance(rec, dict):
+            continue
+        if kind is not None and rec.get("kind") != kind:
+            continue
+        records.append(rec)
+    return records, malformed
 
 
 def _valid_id(value: str) -> bool:
@@ -374,17 +398,8 @@ def _outcome_state_by_comment(log_dir: Path) -> tuple[dict[str, dict[str, Any]],
     except (OSError, ValueError):
         logger.warning("comment outcomes reading: %s unreadable", path.name)
         return states, malformed
-    for line in lines:
-        line = line.strip()
-        if not line:
-            continue
-        try:
-            rec = json.loads(line)
-        except ValueError:
-            malformed += 1
-            continue
-        if not isinstance(rec, dict) or rec.get("kind") != KIND_COMMENT_STATE:
-            continue
+    records, malformed = _outcome_records(lines, KIND_COMMENT_STATE)
+    for rec in records:
         comment_id = rec.get("comment_id")
         if isinstance(comment_id, str) and comment_id:
             # Later record wins: the state rows are a change log, so the last
