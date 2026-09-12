@@ -1,5 +1,5 @@
 ---
-state: draft 2026-09-12
+state: accepted 2026-09-12
 review-when: テスト側が exclude 引数で fixture 名を渡す形に移れば、この定数は消えて本 RFC も終わる
 ---
 
@@ -46,3 +46,7 @@ fixture 名を渡す口（`exclude_ids` 流用か `exclude_names` 新設か）�
 ## 2026-09-12 triage 照合（無人 cycle）
 
 `draft` 維持（同日の simplify 走査で起票、premise は起票時点の main で検証済み）。採否は著者判断（digest に提示）。
+
+## 2026-09-12 決定（著者回答）
+
+`draft` → `accepted`。S11 として dispatch（RFC-0030 と同梱、worktree `task/s11-small-fixes`）。fixture 名はテスト側の除外引数へ、`"unknown"` は共有センチネル。

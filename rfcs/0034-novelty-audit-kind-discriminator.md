@@ -1,5 +1,5 @@
 ---
-state: draft 2026-09-12
+state: accepted 2026-09-12
 review-when: insight-novelty.jsonl の書き手が 1 つに戻ったら（deferral 行を別ファイルへ出す等）、判別子は不要になる
 ---
 
@@ -53,3 +53,7 @@ draft — 2026-09-12 の simplify 走査（core insight 群の altitude レビ�
 ## 2026-09-12 triage 照合（無人 cycle）
 
 `draft` 維持（同日の simplify 走査で起票、premise は起票時点の main で検証済み）。採否は著者判断（digest に提示）。
+
+## 2026-09-12 決定（著者回答）
+
+`draft` → `accepted`。S12 として dispatch（RFC-0029 と同梱、worktree `task/s12-audit-records`）。先に docs/evidence/rfc-0023 の歪み確認、次に実装。

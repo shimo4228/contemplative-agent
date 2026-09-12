@@ -1,5 +1,5 @@
 ---
-state: draft 2026-09-12
+state: blocked 2026-09-12
 review-when: knowledge.json が embedding sidecar 化（RFC-0031）されれば、このロードは安価になり本 RFC は自動的に無効
 ---
 
@@ -62,3 +62,11 @@ draft — 2026-09-12 の simplify 走査で同定。ゲートの恒真化を liv
 ## 2026-09-12 triage 照合（無人 cycle）
 
 `draft` 維持（同日の simplify 走査で起票、premise は起票時点の main で検証済み）。採否は著者判断（digest に提示）。
+
+## 2026-09-12 決定（著者回答）
+
+`draft` → `blocked`。
+
+再開条件: RFC-0031（embedding sidecar）が終端に達すること
+照合先:   `rfcs/0031-knowledge-embedding-sidecar.md` の `state:`
+成立時:   `done` なら本 RFC は `obsoleted`（ロードが安価になり問題が消える）、`withdrawn` / `rejected` なら `accepted`（案 2 streaming 計数を単独で実装）

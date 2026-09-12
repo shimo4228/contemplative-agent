@@ -1,5 +1,5 @@
 ---
-state: draft 2026-09-12
+state: accepted 2026-09-12
 review-when: knowledge.json が 50MB を下回る（パターン退役や store 分割で）か、distill の実行時間に占める I/O の割合が 1 割を切ったら、この提案の前提は消える
 ---
 
@@ -70,3 +70,7 @@ draft — 2026-09-12 のコードベース全体 simplify 走査で計測。未�
 ## 2026-09-12 triage 照合（無人 cycle）
 
 `draft` 維持（同日の simplify 走査で起票、premise は起票時点の main で検証済み）。採否は著者判断（digest に提示）。
+
+## 2026-09-12 決定（著者回答）
+
+`draft` → `accepted`。WIP 上限（3）のため次枠で dispatch。形式（SQLite / npy）と移行方式は build の Phase 0 で比較し、保存層 2 ファイルの整合性は所有 ADR で決める。

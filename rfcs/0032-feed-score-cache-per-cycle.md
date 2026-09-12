@@ -1,5 +1,5 @@
 ---
-state: draft 2026-09-12
+state: accepted 2026-09-12
 review-when: フィードキャッシュ TTL（600s）とサイクル間隔（60s）の比が 2 を下回ったら重複はほぼ消え、この提案は無効になる
 ---
 
@@ -60,3 +60,7 @@ draft — 2026-09-12 の simplify 走査（adapters/moltbook 効率レビュー�
 ## 2026-09-12 triage 照合（無人 cycle）
 
 `draft` 維持（同日の simplify 走査で起票、premise は起票時点の main で検証済み）。採否は著者判断（digest に提示）。
+
+## 2026-09-12 決定（著者回答）
+
+`draft` → `accepted`。著者判断: 同一投稿の再採点はバグであり、再判定の系列を読む計器・消費者は無いので観察対象として残さない → メモ化する。S13 として dispatch（worktree `task/s13-feed-memo`）。

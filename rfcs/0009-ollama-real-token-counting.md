@@ -1,5 +1,5 @@
 ---
-state: draft
+state: withdrawn 2026-09-12
 state_since: 2026-08-30
 ---
 
@@ -90,3 +90,7 @@ blocked — 上流 PR ollama#12030 が未マージで `/api/tokenize` は 404、
   （404 を返す間は着手不能）。照合は手動
 - 成立時: accepted（ただし**マージされても自動採用しない** — 生成ごとに HTTP 往復が 1 回増える
   ので、無人スケジュール上のレイテンシを実測してから判断する）
+
+## 2026-09-12 決定（著者回答）
+
+`draft` → `withdrawn`。「上流 merge 後にもう一度採否を決める」型は `blocked` に入れられず、draft で監視し続ける価値が薄い。上流 ollama#12030 が merge され稼働版に載ったら再起票する（ADR-0087 の seam は残る）。

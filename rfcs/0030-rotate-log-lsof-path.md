@@ -1,6 +1,6 @@
 ---
 id: T-ROTATE-LOG-LSOF-PATH
-state: draft
+state: accepted 2026-09-12
 state_since: 2026-09-12
 origin: gate
 ---
@@ -47,3 +47,7 @@ PATH 制限付き plist 下で再利用したことで開いた隙間で、台�
 ## 2026-09-12 triage 照合（無人 cycle）
 
 `draft` 維持。premise を main HEAD（`347b913`）で再照合し成立（`publish.py::client_error_guard` は message 全文を logger.error へ渡すのみ / `com.moltbook.backup.plist` の PATH に `/usr/sbin` 無し、`/usr/sbin/lsof` 実在）。採否は著者判断（digest に提示）。
+
+## 2026-09-12 決定（著者回答）
+
+`draft` → `accepted`。S11 として dispatch（RFC-0035 と同梱、worktree `task/s11-small-fixes`）。

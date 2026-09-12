@@ -1,6 +1,6 @@
 ---
 id: T-PUBLISH-FAILURE-REASON-CODE
-state: draft
+state: accepted 2026-09-12
 state_since: 2026-09-12
 origin: gate
 ---
@@ -45,3 +45,7 @@ error から導く reason code（parent 参照の却下 / rate limit / transport
 ## 2026-09-12 triage 照合（無人 cycle）
 
 `draft` 維持。premise を main HEAD（`347b913`）で再照合し成立（`publish.py::client_error_guard` は message 全文を logger.error へ渡すのみ / `com.moltbook.backup.plist` の PATH に `/usr/sbin` 無し、`/usr/sbin/lsof` 実在）。採否は著者判断（digest に提示）。
+
+## 2026-09-12 決定（著者回答）
+
+`draft` → `accepted`。S12 として dispatch（RFC-0034 と同梱、worktree `task/s12-audit-records`）。HTTP status + client 由来 reason code のみ、message 本文は入れない。
