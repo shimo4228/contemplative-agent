@@ -246,9 +246,8 @@ def bm25_tokens(text: str) -> list[str]:
 class Bm25Index:
     """A prepared BM25 corpus: term frequencies, lengths and IDF per document.
 
-    Built once per corpus and reused across queries (``bm25_scores`` rebuilds
-    it per call for the one-shot case; the arm and the novelty dry-run both
-    build it once). ``names`` is the ranking key, matching every other arm.
+    Built once per corpus and reused across queries — the arm and the novelty
+    dry-run both do. ``names`` is the ranking key, matching every other arm.
     """
 
     names: tuple[str, ...]
@@ -331,27 +330,6 @@ def bm25_scores_from_index(index: Bm25Index, query: str) -> dict[str, float]:
         # does (see load_store's duplicate_names counter).
         scores[name] = total
     return scores
-
-
-def bm25_scores(
-    docs: Sequence[str],
-    query: str,
-    *,
-    names: Sequence[str] | None = None,
-    k1: float = BM25_K1,
-    b: float = BM25_B,
-) -> dict[str, float]:
-    """One-shot BM25 over ``docs`` for ``query``, keyed by ``names``.
-
-    ``names`` defaults to the documents' positions as strings. Convenience
-    over :func:`build_bm25_index` + :func:`bm25_scores_from_index` for a
-    single query; scoring many queries against one corpus should build the
-    index once.
-    """
-    keys = tuple(names) if names is not None else tuple(str(i) for i in range(len(docs)))
-    if len(keys) != len(docs):
-        raise ValueError(f"names ({len(keys)}) and docs ({len(docs)}) differ in length")
-    return bm25_scores_from_index(build_bm25_index(keys, docs, k1=k1, b=b), query)
 
 
 def _rank(scores: dict[str, float]) -> tuple[str, ...]:
@@ -1216,13 +1194,14 @@ def _compute_base_rankings(
     its own, which is why membership is tested per *input* rather than per
     requested arm.
     """
-    lexical = lexical_rankings(pairs, docs) if {"lexical", "union"} & set(arms) else None
-    bm25 = bm25_rankings(pairs, docs) if {"bm25", "union_bm25"} & set(arms) else None
+    wanted = set(arms)
+    lexical = lexical_rankings(pairs, docs) if {"lexical", "union"} & wanted else None
+    bm25 = bm25_rankings(pairs, docs) if {"bm25", "union_bm25"} & wanted else None
     cosine_ranks: list[tuple[str, ...] | None] | None = None
     cosine_code = "EMBEDDING_UNAVAILABLE"
     cosine_detail: str | None = None
     embedding_model = "unknown"
-    if {"cosine", "union", "union_bm25"} & set(arms):
+    if {"cosine", "union", "union_bm25"} & wanted:
         cosine_ranks, cosine_reason, embedding_model = cosine_rankings(pairs, docs)
         if cosine_reason is not None:
             cosine_code, _, cosine_detail = cosine_reason.partition(": ")

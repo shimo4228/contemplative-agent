@@ -685,11 +685,6 @@ def _select_rows(
     for record in records:
         mine = _matches_section(record, section)
         retired = mine and _is_retired(record)
-        # A row this join cannot place must not read as silence: an unplaced
-        # in-window row is counted and rendered, so a path shape the predicate
-        # has not anticipated degrades to a visible "cannot tell" instead of
-        # quietly emptying the tally that drives the alarm.
-        placed = mine or any(_matches_section(record, other) for other in _SECTIONS)
         # Pre-2026-04 records use ``timestamp``; value_layer_due_check.py
         # recognizes both, so this must too or the two readings disagree.
         raw_ts = record.get("ts") or record.get("timestamp")
@@ -699,8 +694,15 @@ def _select_rows(
                 unparsable += 1
             continue
         in_window = start < parsed <= end
-        if in_window and not placed:
-            unmatched += 1
+        if in_window and not mine:
+            # A row this join cannot place must not read as silence: an
+            # unplaced in-window row is counted and rendered, so a path shape
+            # the predicate has not anticipated degrades to a visible "cannot
+            # tell" instead of quietly emptying the tally that drives the
+            # alarm. Asked only here — the whole-log majority is out of window,
+            # and the scan used to pay it for every one of them.
+            if not any(_matches_section(record, other) for other in _SECTIONS):
+                unmatched += 1
             continue
         if not mine:
             continue

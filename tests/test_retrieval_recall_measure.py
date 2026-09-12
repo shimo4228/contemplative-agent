@@ -1018,7 +1018,8 @@ class TestBm25Arm:
             "the agent should map structural constraints before proposing",
             "the agent should pause and reflect before answering carefully",
         ]
-        scores = rrm.bm25_scores(docs, "map structural constraints", names=["a", "b", "c"])
+        index = rrm.build_bm25_index(("a", "b", "c"), docs)
+        scores = rrm.bm25_scores_from_index(index, "map structural constraints")
         assert rrm._rank(scores)[0] == "b"
         assert scores["b"] > scores["a"]
 
@@ -1027,8 +1028,9 @@ class TestBm25Arm:
         non-negative IDF form is used — never a NEGATIVE contribution that
         would push a matching document below a non-matching one."""
         docs = ["agent alpha", "agent beta", "agent gamma"]
-        everywhere = rrm.bm25_scores(docs, "agent", names=["a", "b", "c"])
-        rare = rrm.bm25_scores(docs, "beta", names=["a", "b", "c"])
+        index = rrm.build_bm25_index(("a", "b", "c"), docs)
+        everywhere = rrm.bm25_scores_from_index(index, "agent")
+        rare = rrm.bm25_scores_from_index(index, "beta")
         assert min(everywhere.values()) >= 0.0
         # Same single-term query shape; only the term's document frequency
         # differs, and the rare one carries far more weight.

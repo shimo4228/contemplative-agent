@@ -293,7 +293,7 @@ def load_run(
     _assert_round_trip(chunks, prompts, known)
     meta = {
         "run_prefix": run_prefix,
-        "run_ids": sorted({str(r.get("run_id")) for r in records if r.get("run_id")}),
+        "run_ids": sorted(run_ids),
         "timestamps": sorted(str(r["ts"]) for r in records),
         "known_themes_count": count,
         "records_total": len(records),
@@ -562,6 +562,7 @@ def analyze(path: Path) -> dict[str, Any]:
     votes = {uid: sum(uid in covered[la] for la in full_labels) for uid in uids}
     unanimous_covered = [uid for uid in uids if votes[uid] == len(full_labels)]
     unanimous_novel = [uid for uid in uids if votes[uid] == 0]
+    unstable = total - len(unanimous_covered) - len(unanimous_novel)
     base = consensus(full_labels)
 
     readings: dict[str, Any] = {
@@ -578,12 +579,8 @@ def analyze(path: Path) -> dict[str, Any]:
                 str(v): sum(1 for uid in uids if votes[uid] == v)
                 for v in range(len(full_labels) + 1)
             },
-            "unstable_clusters": total - len(unanimous_covered) - len(unanimous_novel),
-            "unstable_rate": (
-                round((total - len(unanimous_covered) - len(unanimous_novel)) / total, 4)
-                if total
-                else 0.0
-            ),
+            "unstable_clusters": unstable,
+            "unstable_rate": round(unstable / total, 4) if total else 0.0,
             "unanimous_covered": len(unanimous_covered),
             "unanimous_novel": len(unanimous_novel),
             "consensus_covered": len(base),
@@ -597,12 +594,13 @@ def analyze(path: Path) -> dict[str, Any]:
         "arms": {},
     }
 
+    uid_set = set(uids)
     for family, labels in families.items():
         if family == "full":
             continue
         readings["cross_arm_single_rep"][f"full_vs_{family}"] = _spread(
             [
-                len(covered[a] & set(uids) ^ (covered[b] & set(uids)))
+                len(covered[a] & uid_set ^ (covered[b] & uid_set))
                 for a in full_labels
                 for b in labels
             ]
