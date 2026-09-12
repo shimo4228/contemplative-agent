@@ -240,7 +240,7 @@ def _records_for_run(audit_path: Path, run_prefix: str) -> list[dict[str, Any]]:
         )
     if not records:
         raise SystemExit(f"no audit records with ts prefix {run_prefix!r}")
-    known_counts = {r.get("known_themes_count") for r in records}
+    known_counts = {int(r.get("known_themes_count", -1)) for r in records}
     if len(known_counts) != 1:
         raise SystemExit(
             f"run {run_prefix!r} straddles inventory sizes {sorted(known_counts)} — "
@@ -461,7 +461,7 @@ def judge_chunk(chunk: Chunk, known_lines: str) -> tuple[set[str] | None, str, d
 
     blocks = "\n\n".join(c.block for c in chunk.clusters)
     prompt = INSIGHT_NOVELTY_PROMPT.format(known=known_lines, clusters=blocks)
-    stats = {
+    stats: dict[str, Any] = {
         "prompt_chars": len(prompt),
         "prompt_tokens_est": llm._estimate_tokens(prompt)
         + llm._estimate_tokens(INSIGHT_NOVELTY_SYSTEM_PROMPT),
