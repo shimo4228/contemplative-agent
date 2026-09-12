@@ -4,17 +4,17 @@ from unittest.mock import patch
 
 from contemplative_agent.adapters.moltbook.content import (
     ContentManager,
-    _content_hash,
 )
 from contemplative_agent.core.llm import GenerationOutput
+from contemplative_agent.core.memory import content_hash
 
 
 class TestContentHash:
     def test_deterministic(self):
-        assert _content_hash("hello") == _content_hash("hello")
+        assert content_hash("hello") == content_hash("hello")
 
     def test_different_inputs(self):
-        assert _content_hash("hello") != _content_hash("world")
+        assert content_hash("hello") != content_hash("world")
 
 
 class TestContentManager:

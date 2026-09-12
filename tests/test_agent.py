@@ -1718,11 +1718,10 @@ class TestRunPostCycle:
         """ADR-0018 amendment: body-hash gate catches verbatim re-publication
         that title/topic Jaccard misses (May 3 2026 self-post #2 = Apr 30 #2,
         identical body but different title)."""
-        from contemplative_agent.adapters.moltbook.content import _content_hash
-        from contemplative_agent.core.memory import PostRecord
+        from contemplative_agent.core.memory import PostRecord, content_hash
 
         duplicate_body = "A body that was posted verbatim earlier in the week."
-        prior_hash = _content_hash(duplicate_body)
+        prior_hash = content_hash(duplicate_body)
 
         content = MagicMock()
         # NoveltyGate admits — the only gate that can block here is the

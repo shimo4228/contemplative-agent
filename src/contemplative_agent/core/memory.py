@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
@@ -54,6 +55,19 @@ class Interaction:
     direction: Literal["sent", "received"]
     content_summary: str
     interaction_type: Literal["comment", "reply", "post"]
+
+
+def content_hash(text: str) -> str:
+    """The body-dedup key: first 16 chars of the SHA-256 of the text.
+
+    One key, two lifetimes: the in-session cache that stops the same body
+    being published twice in one run, and ``PostRecord.content_hash``, which
+    is what a later session compares against. They have to agree byte for
+    byte, so the function lives with the field rather than in the adapter
+    that happened to compute it first (the publish path was importing it
+    across a private name).
+    """
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
 @dataclass(frozen=True)

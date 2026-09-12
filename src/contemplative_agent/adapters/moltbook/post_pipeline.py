@@ -14,9 +14,10 @@ from ...core._io import strip_to_printable
 from ...core.config import VALID_SUBMOLT_PATTERN, is_valid_id
 from ...core.domain import DomainConfig
 from ...core.llm import circuit_reading
+from ...core.memory import content_hash as body_hash
 from ...core.scheduler import Scheduler
 from .client import MoltbookClient, envelope_ok
-from .content import ContentManager, _content_hash
+from .content import ContentManager
 from .dedup import is_test_content
 from .feed_seeder import _combined_length, select_feed_seeds
 from .llm_functions import (
@@ -191,7 +192,7 @@ class PostPipeline:
         # actually published, not pre-fix pending posts nobody saw — deduping
         # against invisible content kept the agent unable to post anything new.
         recent_posts = self._ctx.memory.get_recent_posts(limit=50, verified_only=True)
-        content_hash = _content_hash(content)
+        content_hash = body_hash(content)
         if not self._passes_deterministic_gates(
             title, content, draft_summary, recent_posts, content_hash
         ):

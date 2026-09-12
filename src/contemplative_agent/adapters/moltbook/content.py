@@ -2,18 +2,13 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 
 from ...core.llm import GenerationOutput
+from ...core.memory import content_hash
 from .llm_functions import generate_comment, generate_cooperation_post
 
 logger = logging.getLogger(__name__)
-
-
-def _content_hash(text: str) -> str:
-    """SHA-256 hash of content for deduplication."""
-    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
 
 class ContentManager:
@@ -38,11 +33,11 @@ class ContentManager:
         fails to publish does not poison the in-session cache and silently drop a
         legitimate same-session retry of the same text.
         """
-        return _content_hash(content) in self._posted_hashes
+        return content_hash(content) in self._posted_hashes
 
     def mark_posted(self, content: str) -> None:
         """Record content as posted, so a later identical text is deduped."""
-        self._posted_hashes.add(_content_hash(content))
+        self._posted_hashes.add(content_hash(content))
 
     def create_comment(self, post_text: str, *, think: bool = False) -> GenerationOutput:
         """Generate a (deduped) comment, surfacing the reasoning trace.
