@@ -113,3 +113,43 @@ class TestReadRange:
 
     def test_none_log_dir_returns_empty(self):
         assert EpisodeLog(None).read_range(days=3) == []
+
+    def test_repeated_reads_parse_each_file_once(self, tmp_path, monkeypatch):
+        """The feed gate calls read_range once per candidate post; the days it
+        re-reads are append-only, so the parse is memoized per (mtime, size)."""
+        self._write_day(tmp_path, 0, [{"type": "post", "data": {"d": "a"}}])
+        self._write_day(tmp_path, 1, [{"type": "post", "data": {"d": "b"}}])
+        log = EpisodeLog(tmp_path)
+        parsed: list[str] = []
+        real = EpisodeLog.read_file
+
+        def counting(path):
+            parsed.append(path.name)
+            return real(path)
+
+        monkeypatch.setattr(EpisodeLog, "read_file", staticmethod(counting))
+        first = log.read_range(days=2)
+        second = log.read_range(days=2)
+        assert [r["data"]["d"] for r in first] == [r["data"]["d"] for r in second]
+        assert len(parsed) == 2
+
+    def test_appending_to_a_day_invalidates_the_memo(self, tmp_path):
+        """Today's file grows during a session — a stale read must not be
+        reachable."""
+        self._write_day(tmp_path, 0, [{"type": "post", "data": {"d": "a"}}])
+        log = EpisodeLog(tmp_path)
+        assert [r["data"]["d"] for r in log.read_range(days=1)] == ["a"]
+        self._write_day(
+            tmp_path,
+            0,
+            [{"type": "post", "data": {"d": "a"}}, {"type": "post", "data": {"d": "b"}}],
+        )
+        assert [r["data"]["d"] for r in log.read_range(days=1)] == ["a", "b"]
+
+    def test_returned_list_is_not_the_memo(self, tmp_path):
+        """A caller that mutates the list it got back cannot corrupt later reads."""
+        self._write_day(tmp_path, 0, [{"type": "post", "data": {"d": "a"}}])
+        log = EpisodeLog(tmp_path)
+        got = log.read_range(days=1)
+        got.clear()
+        assert len(log.read_range(days=1)) == 1
