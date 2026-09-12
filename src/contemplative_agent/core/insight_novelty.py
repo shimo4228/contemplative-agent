@@ -18,7 +18,7 @@ from pathlib import Path
 
 from . import llm
 from ._io import strip_code_fence
-from .text_utils import skill_theme
+from .text_utils import iter_markdown_documents, skill_theme
 
 logger = logging.getLogger(__name__)
 
@@ -110,10 +110,7 @@ class NoveltyFilterResult:
 
 
 def _render_known_lines(known_themes: Sequence[tuple[str, str]]) -> str:
-    return "\n".join(
-        f"- {name}: {description}" if description else f"- {name}"
-        for name, description in known_themes
-    )
+    return "\n".join(_known_line(name, description) for name, description in known_themes)
 
 
 def _cluster_block(
@@ -158,6 +155,16 @@ def _known_doc(name: str, description: str) -> str:
     is shown, so the ranking scores exactly what the prompt would carry.
     """
     return f"{name}: {description}" if description else name
+
+
+def _known_line(name: str, description: str) -> str:
+    """One inventory line as the judge sees it: the retrieval doc, bulleted.
+
+    Single formatter for the three readings of an inventory line (the rendered
+    block, the retrieval document, the per-line token price) — a format change
+    here cannot desynchronize what is ranked from what is shown.
+    """
+    return f"- {_known_doc(name, description)}"
 
 
 def _embed_in_batches(texts: Sequence[str]) -> list | None:
@@ -252,8 +259,7 @@ def _pack_novelty_chunks(
     by_name = dict(known_themes)
     all_names = [name for name, _ in known_themes]
     line_cost = {
-        name: llm._estimate_tokens(_render_known_lines([(name, by_name[name])]) + "\n")
-        for name in all_names
+        name: llm._estimate_tokens(_known_line(name, by_name[name]) + "\n") for name in all_names
     }
 
     def _wanted(topic: str) -> list[str]:
@@ -320,16 +326,9 @@ def _skill_file_themes(skills_dir: Path | None) -> Iterator[tuple[str, str]]:
     Yields whatever ``skill_theme`` reports, empty name included — the caller
     dedupes and this source has never filtered on emptiness.
     """
-    if skills_dir is None or not skills_dir.is_dir():
-        return
-    for path in sorted(skills_dir.glob("*.md")):
-        if path.name.startswith("."):
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            logger.warning("novelty gate: unreadable skill file %s", path.name)
-            continue
+    for path, text in iter_markdown_documents(
+        skills_dir, label="novelty gate: unreadable skill file"
+    ):
         yield skill_theme(text, fallback_name=path.stem)
 
 

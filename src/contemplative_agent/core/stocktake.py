@@ -34,7 +34,7 @@ from __future__ import annotations
 
 import logging
 import re
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -212,14 +212,12 @@ def run_skill_stocktake(
         for issue in (_check_skill_quality(filename, body) for filename, _raw, body in docs)
         if issue is not None
     )
-    result = StocktakeResult(
+    return StocktakeResult(
         quality_issues=quality_issues,
         total_files=len(docs),
         items=tuple(docs),
+        selection_usage=selection_reading,
     )
-    if selection_reading is None:
-        return result
-    return replace(result, selection_usage=selection_reading)
 
 
 def format_stocktake_report(result: StocktakeResult, label: str) -> str:

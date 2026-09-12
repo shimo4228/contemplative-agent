@@ -34,6 +34,7 @@ from __future__ import annotations
 import json
 import logging
 import uuid
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -54,7 +55,7 @@ from .llm import (
     validate_identity_content,
 )
 from .selection_window import PUBLISH_RECORD_KIND, SELECTION_RECORD_KIND
-from .text_utils import skill_theme, strip_frontmatter
+from .text_utils import iter_markdown_documents, skill_theme, strip_frontmatter
 
 logger = logging.getLogger(__name__)
 
@@ -138,31 +139,30 @@ class SkillCatalogEntry:
     body_tokens: int
 
 
+# One log label and one identity expression for every reader of the skill
+# directory: the catalog (pass 1) and the body loader (pass 2) must key the
+# same file the same way, or a judged selection injects an empty block.
+_UNREADABLE_SKILL_LOG = "skill selection: unreadable skill file"
+
+
+def _catalog_key(name: str) -> str:
+    """Lowercased catalog identity for a skill file's ``skill_theme`` name."""
+    return strip_to_printable(name, _NAME_MAX_CHARS).lower()
+
+
 def load_skill_catalog(skills_dir: Path | None) -> tuple[SkillCatalogEntry, ...]:
     """Read ``skills_dir/*.md`` into catalog entries.
 
-    Same traversal contract as insight's ``_load_known_themes``: sorted
-    glob, dotfiles skipped, unreadable files logged and skipped.
-    ``body_tokens`` is the audit-C2 estimate of the full file text — the
-    cost the skill contributes to the system prompt today, kept per entry
-    so audit records can bake in the would-be reduction at record time.
+    Traversal (sorted glob, dotfiles skipped, unreadable files logged and
+    skipped) is ``text_utils.iter_markdown_documents``, shared with the
+    novelty gate's inventory and the pass-2 body loader so the three cannot
+    drift on the same directory. ``body_tokens`` is the audit-C2 estimate of
+    the full file text — the cost the skill contributes to the system prompt
+    today, kept per entry so audit records can bake in the would-be reduction
+    at record time.
     """
-    if skills_dir is None or not skills_dir.is_dir():
-        return ()
     entries: list[SkillCatalogEntry] = []
-    for path in sorted(skills_dir.glob("*.md")):
-        if path.name.startswith("."):
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        # ValueError, which subsumes UnicodeDecodeError — that is NOT an
-        # OSError, so a skill file with one bad byte used to raise out of
-        # every caller of this loader. It now has one more (the ADR-0097
-        # exit reading, whose host catches broadly and would have dropped a
-        # whole packet section with no reason code).
-        except (OSError, ValueError):
-            logger.warning("skill selection: unreadable skill file %s", path.name)
-            continue
+    for path, text in iter_markdown_documents(skills_dir, label=_UNREADABLE_SKILL_LOG):
         name, description = skill_theme(text, fallback_name=path.stem)
         # Skill files are untrusted (LLM-distilled); the name reaches the
         # audit log and the terminal report, the description reaches the
@@ -449,7 +449,8 @@ def observed_injection_outcomes(audit_dir: Path) -> dict[str, Any]:
     reason rather than an exception — this is an instrument, and a broken
     instrument must not break its subject.
     """
-    out: dict[str, Any] = {"records": 0, "enforced": 0, "fell_back": 0, "verdicts": {}}
+    verdicts: Counter[str] = Counter()
+    out: dict[str, Any] = {"records": 0, "enforced": 0, "fell_back": 0, "verdicts": verdicts}
     if not audit_dir.is_dir():
         out["unavailable"] = f"no selection audit directory at {audit_dir}"
         return out
@@ -465,14 +466,11 @@ def observed_injection_outcomes(audit_dir: Path) -> dict[str, Any]:
             try:
                 record = json.loads(line)
             except ValueError:
-                out["verdicts"]["UNPARSEABLE_RECORD"] = (
-                    out["verdicts"].get("UNPARSEABLE_RECORD", 0) + 1
-                )
-                continue
+                record = None
+            # Bad JSON and valid-JSON-but-not-a-record count the same: the
+            # line carries no verdict either way.
             if not isinstance(record, dict):
-                out["verdicts"]["UNPARSEABLE_RECORD"] = (
-                    out["verdicts"].get("UNPARSEABLE_RECORD", 0) + 1
-                )
+                verdicts["UNPARSEABLE_RECORD"] += 1
                 continue
             # This reader globs the log itself instead of going through
             # ``selection_window``, so the record-family filter is repeated
@@ -483,42 +481,36 @@ def observed_injection_outcomes(audit_dir: Path) -> dict[str, Any]:
             if record.get("kind", SELECTION_RECORD_KIND) != SELECTION_RECORD_KIND:
                 continue
             out["records"] += 1
-            verdict = str(record.get("verdict", "MISSING_VERDICT"))
-            out["verdicts"][verdict] = out["verdicts"].get(verdict, 0) + 1
+            verdicts[str(record.get("verdict", "MISSING_VERDICT"))] += 1
             if record.get("enforced"):
                 out["enforced"] += 1
             else:
                 out["fell_back"] += 1
+    out["verdicts"] = dict(verdicts)
     return out
 
 
 def selected_skills_block(selected: tuple[str, ...]) -> str:
     """Concatenated bodies of the selected skills, for pass-2 injection.
 
-    Same traversal, identity-matching (``skill_theme``), and body guards
-    (frontmatter strip + forbidden-pattern validation) as the full-corpus
-    loader in ``llm.prompting._load_md_files`` — the selector's catalog and
-    this filter must agree on skill identity, so both derive the name via
-    ``skill_theme``. A selected name with no matching file (adopt/stocktake
-    raced the selection) is logged and skipped, never fatal. Empty
-    selection returns "" (ADR-0081: a judged-empty selection injects no
-    skill bodies).
+    Shares the traversal (``text_utils.iter_markdown_documents``) and the
+    identity derivation (``skill_theme`` + the same name scrub) with
+    :func:`load_skill_catalog` — the selector's catalog and this filter must
+    agree on skill identity, so the key is derived by one expression, below.
+    Body guards (frontmatter strip + forbidden-pattern validation) mirror the
+    full-corpus loader in ``llm.prompting._load_md_files``. A selected name
+    with no matching file (adopt/stocktake raced the selection) is logged and
+    skipped, never fatal. Empty selection returns "" (ADR-0081: a judged-empty
+    selection injects no skill bodies).
     """
-    if not selected or _skills_dir is None or not _skills_dir.is_dir():
+    if not selected:
         return ""
     wanted = {name.lower() for name in selected}
     found: set[str] = set()
     bodies: list[str] = []
-    for path in sorted(_skills_dir.glob("*.md")):
-        if path.name.startswith("."):
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except OSError:
-            logger.warning("skill selection: unreadable skill file %s", path.name)
-            continue
+    for path, text in iter_markdown_documents(_skills_dir, label=_UNREADABLE_SKILL_LOG):
         name, _ = skill_theme(text, fallback_name=path.stem)
-        key = strip_to_printable(name, _NAME_MAX_CHARS).lower()
+        key = _catalog_key(name)
         if key not in wanted:
             continue
         found.add(key)
@@ -587,38 +579,34 @@ def observe_skill_selection_recorded(
             "comment_id": None,
             "publish_status": None,
         }
+
+        def _abstain(verdict: str, full_skill_tokens: int) -> SelectionObservation:
+            """Record a pre-judgment abstain: nothing selected, nothing enforced.
+
+            The two abstains differ only in the verdict and in whether a
+            catalog existed to price, so the record's zero-valued shape is
+            written once.
+            """
+            _append_selection_audit(
+                {
+                    **base,
+                    "verdict": verdict,
+                    "enforced": False,
+                    "selected": [],
+                    "selected_count": 0,
+                    "rejected_names": [],
+                    "full_skill_tokens": full_skill_tokens,
+                    "would_be_skill_tokens": 0,
+                    **_b64_fields("prompt", None),
+                    **_b64_fields("output", None),
+                }
+            )
+            return SelectionObservation(selected=None, selection_id=selection_id)
+
         if not catalog:
-            _append_selection_audit(
-                {
-                    **base,
-                    "verdict": "empty_catalog",
-                    "enforced": False,
-                    "selected": [],
-                    "selected_count": 0,
-                    "rejected_names": [],
-                    "full_skill_tokens": 0,
-                    "would_be_skill_tokens": 0,
-                    **_b64_fields("prompt", None),
-                    **_b64_fields("output", None),
-                }
-            )
-            return SelectionObservation(selected=None, selection_id=selection_id)
+            return _abstain("empty_catalog", 0)
         if not _load_selection_template():
-            _append_selection_audit(
-                {
-                    **base,
-                    "verdict": "no_template",
-                    "enforced": False,
-                    "selected": [],
-                    "selected_count": 0,
-                    "rejected_names": [],
-                    "full_skill_tokens": sum(e.body_tokens for e in catalog),
-                    "would_be_skill_tokens": 0,
-                    **_b64_fields("prompt", None),
-                    **_b64_fields("output", None),
-                }
-            )
-            return SelectionObservation(selected=None, selection_id=selection_id)
+            return _abstain("no_template", sum(e.body_tokens for e in catalog))
         result = select_applicable_skills(situation, catalog)
         # ADR-0081: only a judged verdict feeds back into injection; every
         # fail-open path stays full injection. The rollout flag that used to

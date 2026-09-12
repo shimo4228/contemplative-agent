@@ -15,6 +15,7 @@ from __future__ import annotations
 import logging
 import re
 import unicodedata
+from collections.abc import Iterator
 from datetime import datetime
 from pathlib import Path
 
@@ -214,27 +215,30 @@ def skill_theme(text: str, fallback_name: str = "skill") -> tuple[str, str]:
     return (name or fallback_name, description or title or "")
 
 
-def read_markdown_documents(
-    directory: Path, *, since: str | None = None
-) -> list[tuple[str, str, str]]:
-    """Return sorted ``(filename, raw text, frontmatter-stripped body)``.
+def iter_markdown_documents(
+    directory: Path | None, *, label: str = "Could not read file", since: str | None = None
+) -> Iterator[tuple[Path, str]]:
+    """Yield ``(path, raw text)`` for the ``*.md`` files of *directory*.
 
-    The one reader behind the stocktake
-    pass, so the file rules live in exactly one place: ``*.md`` only,
-    dotfiles skipped, unreadable files logged and skipped, files whose body
-    is empty after stripping dropped. When *since* is an ISO timestamp, only
-    files modified after it are included (an unparseable *since* logs a
-    warning and reads all). The raw text keeps its frontmatter.
+    The one owner of the traversal rules every skill/rule reader shares:
+    sorted glob, ``*.md`` only, dotfiles skipped, unreadable files logged
+    (under *label*) and skipped. The read catches ``ValueError`` as well as
+    ``OSError`` — ``UnicodeDecodeError`` is NOT an ``OSError``, so a file with
+    one bad byte used to raise out of every caller that only caught the
+    latter. When *since* is an ISO timestamp, only files modified after it are
+    yielded (an unparseable *since* logs a warning and reads all).
+
+    Callers keep whatever is theirs (body filter, identity scrub, catalog
+    shape); nothing here decides what a document means.
     """
-    if not directory.is_dir():
-        return []
+    if directory is None or not directory.is_dir():
+        return
     cutoff: float | None = None
     if since:
         try:
             cutoff = datetime.fromisoformat(since).timestamp()
         except ValueError:
             logger.warning("Invalid since timestamp %r, reading all files", since)
-    docs: list[tuple[str, str, str]] = []
     for p in sorted(directory.glob("*.md")):
         if p.name.startswith("."):
             continue
@@ -242,9 +246,23 @@ def read_markdown_documents(
             continue
         try:
             raw = p.read_text(encoding="utf-8")
-        except OSError:
-            logger.warning("Could not read file %s", p)
+        except (OSError, ValueError):
+            logger.warning("%s %s", label, p.name)
             continue
+        yield p, raw
+
+
+def read_markdown_documents(
+    directory: Path, *, since: str | None = None
+) -> list[tuple[str, str, str]]:
+    """Return sorted ``(filename, raw text, frontmatter-stripped body)``.
+
+    The stocktake reader: :func:`iter_markdown_documents` plus this pass's own
+    rule that files whose body is empty after stripping are dropped. The raw
+    text keeps its frontmatter.
+    """
+    docs: list[tuple[str, str, str]] = []
+    for p, raw in iter_markdown_documents(directory, since=since):
         body = strip_frontmatter(raw).strip()
         if body:
             docs.append((p.name, raw, body))

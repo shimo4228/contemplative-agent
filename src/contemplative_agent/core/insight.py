@@ -301,7 +301,7 @@ def _log_dropped_singletons(
             "  dropped singleton score=%.3f%s: %s",
             effective_importance(p),
             view_note,
-            (p.get("pattern", "") or "")[:80],
+            strip_to_printable(p.get("pattern", "") or "", 80),
         )
 
 
@@ -361,11 +361,6 @@ def _build_cluster_batches(
             )
         )
     return batches
-
-
-def _read_last_insight(skills_dir: Path | None) -> str | None:
-    """Read the timestamp of the last insight run."""
-    return read_run_marker(skills_dir, ".last_insight")
 
 
 def write_last_insight(skills_dir: Path) -> None:
@@ -517,12 +512,9 @@ def _gather_batches(
     return raw_patterns, batches
 
 
-def _log_extraction_summary(
-    result: InsightResult,
-    batch_count: int,
-    abstained: Counter[InsightAbstainReason],
-) -> int:
-    """Emit the fault and yield lines; return the fault count."""
+def _log_extraction_summary(result: InsightResult, batch_count: int) -> None:
+    """Emit the fault and yield lines."""
+    abstained = result.abstained
     faults = result.fault_count
     if faults:
         logger.warning(
@@ -542,7 +534,6 @@ def _log_extraction_summary(
         batch_count,
         abstained[ABSTAIN_NOTHING_PROMOTABLE],
     )
-    return faults
 
 
 def extract_insight(
@@ -676,9 +667,9 @@ def extract_insight(
         skipped_known=skipped_known,
         abstained=abstained,
     )
-    faults = _log_extraction_summary(result, len(batches), abstained)
+    _log_extraction_summary(result, len(batches))
 
-    if not skill_results and faults:
+    if not skill_results and result.fault_count:
         # Something broke. Keep the historical error string so the caller does
         # NOT advance the run marker — a backend outage must not consume the
         # incremental window.
@@ -762,7 +753,7 @@ def _select_patterns(
                 FULL_RECLUSTER_WARN_N,
             )
         return patterns
-    last_run = _read_last_insight(skills_dir)
+    last_run = read_run_marker(skills_dir, ".last_insight")
     if last_run:
         raw_patterns = knowledge_store.get_live_patterns_since(last_run)
         logger.info("Incremental mode: %d new patterns since %s", len(raw_patterns), last_run)
