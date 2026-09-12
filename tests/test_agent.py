@@ -2583,6 +2583,29 @@ class TestCheckOwnPostComments:
         assert "Replied to Alice on my-post-1" in agent._ctx.actions_taken
         assert agent._memory.interaction_count() - before_count == 2  # received + sent
 
+    @patch(
+        "contemplative_agent.adapters.moltbook.reply_handler.generate_reply",
+        return_value=GenerationOutput(text="Thanks!"),
+    )
+    def test_one_cycle_fetches_each_post_tree_once(self, mock_reply, tmp_path):
+        """A content-less notification and the own-post fallback name the same
+        post, so the tree used to be fetched twice per cycle — the second pass
+        replies to nothing and records every row as a duplicate (simplify
+        follow-up P6)."""
+        agent, client, scheduler = _make_agent(tmp_path)
+        agent._ctx.own_post_ids.add("my-post-1")
+        client.get_notifications.return_value = [
+            {"type": "post_comment", "post_id": "my-post-1", "id": "n1", "content": ""}
+        ]
+        client.get_post_comments.return_value = [
+            {"id": "c1", "content": "Great post!", "agent_id": "a1", "agent_name": "Alice"}
+        ]
+
+        agent._reply_handler.run_cycle(client, scheduler, time.time() + 3600)
+
+        assert client.get_post_comments.call_count == 1
+        client.post_comment.assert_called_once_with("my-post-1", "Thanks!", parent_id="c1")
+
     def test_skips_when_no_own_posts(self, tmp_path):
         agent, client, scheduler = _make_agent(tmp_path)
         assert len(agent._ctx.own_post_ids) == 0

@@ -153,6 +153,14 @@ class ReplyHandler:
         self._confirm_action = confirm_action
         self._confirm_side_effect = confirm_side_effect
         self._handle_verification = handle_verification
+        # Posts whose comment tree has already been fetched in the current
+        # cycle. The notification path and the own-post fallback overlap by
+        # construction — a comment on our own post produces a content-less
+        # notification AND sits under an id in ``own_post_ids`` — so the same
+        # tree was fetched twice, replied to once (the second pass is deduped
+        # per comment) and recorded twice as duplicates. Cleared at each cycle
+        # entry point, never across cycles.
+        self._scanned_posts: set[str] = set()
 
     def _pause_reason(
         self, client: MoltbookClient, scheduler: Scheduler, end_time: float
@@ -191,6 +199,7 @@ class ReplyHandler:
         if not scheduler.can_comment():
             return
 
+        self._scanned_posts.clear()
         notifications = client.get_notifications()
         logger.debug("Fetched %d notification(s) from API", len(notifications))
 
@@ -492,7 +501,17 @@ class ReplyHandler:
         post_id: str,
         end_time: float,
     ) -> None:
-        """Fetch comments on a post and reply to unhandled ones."""
+        """Fetch comments on a post and reply to unhandled ones.
+
+        A post already scanned in this cycle is skipped rather than refetched:
+        the second pass can only see what the first did (plus our own replies,
+        which it skips), so the refetch bought a duplicate GET and a second
+        pass of ``record_comment_outcomes`` whose rows all land as duplicates.
+        """
+        if post_id in self._scanned_posts:
+            logger.debug("Post %s already scanned this cycle; not refetching", post_id[:12])
+            return
+        self._scanned_posts.add(post_id)
         comments = client.get_post_comments(post_id)
         logger.debug("Post %s has %d comment(s)", post_id[:12], len(comments))
 
@@ -556,6 +575,7 @@ class ReplyHandler:
         This avoids individual notification + comment fetches by using
         the pre-fetched home dashboard data.
         """
+        self._scanned_posts.clear()
         activity = home_data.get("activity_on_your_posts", [])
         if not activity:
             logger.debug("No activity on own posts from /home data")
