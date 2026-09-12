@@ -223,6 +223,46 @@ wrapped in local punctuation when embedded in a translated sentence.
   measures the bench's own noise floor before any between-arm
   difference is trusted. Bilingual first-use allowed:
   「IPD two-arm bench（IPD 二腕ベンチ）」.
+- **instrument dissolution mandate** — ADR-0101. Every new read-only
+  instrument must state a **consumption plan** in its owning ADR's
+  `## Review-when` section: who reads it and when, how many reads close
+  what decision, and the condition on which it is retired. An
+  instrument whose plan cannot be stated is not accepted at the human
+  gate. Bilingual first-use allowed: 「instrument dissolution mandate
+  （計器の溶解義務）」; the sub-term **consumption plan** renders as
+  「consumption plan（消費計画）」.
+- **instrument census** — ADR-0107. The writer → reader inventory over
+  every self-written log in `$MOLTBOOK_HOME/logs/`
+  (`scripts/instrument_census.py`): each file must name the reader that
+  consumes it, so a log with zero automated readers is visible as such
+  rather than accumulating unread. Paired with the weekly report's
+  **Phase 0 read-through** — a pass over raw-ish data with no question
+  attached, added because every other weekly reading answers a question
+  someone decided in advance. Bilingual first-use allowed:
+  「instrument census（計器センサス）」.
+- **confusion pairs** — ADR-0105. The skill store's second exit signal:
+  a name the pass-1 selector asked for that is not in the catalog
+  (`rejected_names`), paired with its nearest real catalog entry. When
+  the store's only consumer keeps misnaming its way into an entry it
+  rarely chooses, the entries are not distinguishable to that consumer.
+  The pairing judge is code, not the local model; retirement stays at
+  the human gate. Bilingual first-use allowed: 「confusion pairs
+  （混同対）」.
+- **comment outcomes** — ADR-0106. What the environment answered,
+  recorded next to the skills that were injected into the generation:
+  replies, thread continuation and upvotes read from the comment tree
+  the reply cycle had already fetched, appended to
+  `logs/comment-outcomes.jsonl` and joined by comment id. Records
+  ADR-0080's *environmental response* axis and is deliberately not read
+  into any ranking or reduced to a scalar. Bilingual first-use allowed:
+  「comment outcomes（コメントの帰結）」.
+- **embedding sidecar** — ADR-0108. The SQLite blob store
+  (`pattern-embeddings.sqlite`) that holds pattern embeddings keyed
+  by pattern id, so `knowledge.json` — the value layer's observable
+  surface — stays text rather than being 97% vectors by weight. Follows
+  the precedent set by `core/episode_embeddings.py` for episode and
+  post vectors. Bilingual first-use allowed: 「embedding sidecar
+  （埋め込みサイドカー）」.
 
 ### AAP four-quadrant lens (Keep original)
 

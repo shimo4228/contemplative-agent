@@ -8,18 +8,18 @@ Self-contained AI-facing reference for Contemplative Agent — a local-only auto
 
 ## Project Facts
 
-- **Version**: 2.11.0
+- **Version**: 2.12.0
 - **DOI**: [10.5281/zenodo.22028295](https://doi.org/10.5281/zenodo.22028295) (v2.11.0 version DOI; concept DOI 10.5281/zenodo.19212118 always resolves to the latest version)
 - **License**: MIT
 - **Repository**: [github.com/shimo4228/contemplative-agent](https://github.com/shimo4228/contemplative-agent)
-- **Tests**: 3609 (pytest, across 98 test files)
+- **Tests**: 3983 (pytest, across 113 test files)
 - **Python**: 3.10+
 - **Build system**: hatch, uv
 - **Generation LLM**: any Ollama model, selected via the `OLLAMA_MODEL` environment variable; production default Gemma 4 E4B / `gemma4:e4b` (Q4_K_M quantization, ~9.6 GB on disk)
 - **Embedding model**: nomic-embed-text (~274 MB, 768-dim) via Ollama
 - **Hardware**: Apple Silicon Mac (M1+), 16 GB RAM, ~12 GB free disk
 - **Runtime dependencies**: requests>=2.33.0, numpy>=1.24.0
-- **ADRs**: 96 total (ADR-0001 through ADR-0096); per-ADR status lives only in the index. Full index with per-ADR statuses and supersession trail: [docs/adr/README.md](docs/adr/README.md)
+- **ADRs**: 108 total (ADR-0001 through ADR-0108); per-ADR status lives only in the index. Full index with per-ADR statuses and supersession trail: [docs/adr/README.md](docs/adr/README.md)
 - **External lenses borrowed**: AAP four-quadrant routing lens (Script / Algorithmic Search / LLM Workflow / Autonomous Agentic Loop) — usage description only, not a category claim (ADR-0033)
 - **Ethical framework presets**: 11 (contemplative, utilitarian, stoic, care-ethicist, deontologist, pragmatist, narrativist, contractarian, cynic, existentialist, tabula-rasa)
 - **Runtime data directory**: `$MOLTBOOK_HOME` (default `~/.config/moltbook/`)
@@ -205,10 +205,10 @@ The **Importance Score** field is **retired as of v2.6.0** (ADR-0056). It was a 
 
 ## What is Knowledge / KnowledgeStore?
 
-The **KnowledgeStore** is defined as Layer 2 memory: a JSON array of distilled behavioral patterns (`MOLTBOOK_HOME/knowledge.json`). Each pattern carries: text, `distilled` timestamp, embedding, `gated` flag, `provenance.source_type` (recorded, never weighted — ADR-0051), and bitemporal validity (`valid_from` / `valid_until`). The `importance` field is no longer written (retired by ADR-0056); legacy rows shed it on next save. Retrieval is a cosine query against named views (ADR-0019); ranking is pure cosine and liveness is `valid_until is None` only (ADR-0051). The legacy discrete `category` field was retired by ADR-0026 and access-strength fields by ADR-0028. Direct prompt injection deprecated (ADR-0011) — behavioral influence flows through skills only.
+The **KnowledgeStore** is defined as Layer 2 memory: a JSON array of distilled behavioral patterns (`MOLTBOOK_HOME/knowledge.json`). Each pattern carries: text, `distilled` timestamp, `gated` flag, `provenance.source_type` (recorded, never weighted — ADR-0051), and bitemporal validity (`valid_from` / `valid_until`). The `importance` field is no longer written (retired by ADR-0056); legacy rows shed it on next save. Retrieval is a cosine query against named views (ADR-0019); ranking is pure cosine and liveness is `valid_until is None` only (ADR-0051). The legacy discrete `category` field was retired by ADR-0026 and access-strength fields by ADR-0028. Direct prompt injection deprecated (ADR-0011) — behavioral influence flows through skills only. Since ADR-0108 the 768-dim embeddings live in a SQLite sidecar (`pattern-embeddings.sqlite`) keyed by pattern id, not in `knowledge.json` itself.
 
-- **Code**: `core/knowledge_store.py`
-- **ADR**: ADR-0004 (3-layer memory), ADR-0011 (injection deprecated), ADR-0019/0026 (embedding + views), ADR-0051 (pure cosine, bitemporal-only liveness)
+- **Code**: `core/knowledge_store.py`, `core/pattern_embeddings.py`, `scripts/migrate-knowledge-sidecar.py`
+- **ADR**: ADR-0004 (3-layer memory), ADR-0011 (injection deprecated), ADR-0019/0026 (embedding + views), ADR-0051 (pure cosine, bitemporal-only liveness), ADR-0108 (embedding sidecar)
 
 ## What is the Meditation adapter?
 
@@ -295,7 +295,7 @@ ADR-0071 adds `core/view_metrics.py`, a read-only instrument module, before any 
 
 ## How does the project develop itself, and what does the human still decide? (ADR-0085 / ADR-0098)
 
-`scripts/weekly-pipeline.sh` (launchd `com.moltbook.weekly-pipeline`, Saturday 09:00, installed by `install-schedule --weekly-pipeline`) runs an **unattended weekly chain**, collapsed by ADR-0098 to a single LLM session: `scripts/weekly-analysis.sh` collects a materials file (deterministic intakes, no LLM), then ONE `claude -p "/weekly-report"` session synthesizes the A-E report, renders the Japanese version, diagnoses F1/F2/F3 findings, and files candidate tasks into the task ledger — no repairs, no patches. Repairs travel through the task-triage loop (premise verification, owner digest, worktree dispatch, human merge); value-layer decisions happen at the Saturday `/weekly-gate` session, which reads the findings and the per-week instrument JSONs directly (the decision-packet builder is retired). The commitment that makes it safe to leave running is negative: **the machine never commits, pushes, adopts, or repairs.** This is the ADR-0012 approval-gate principle applied to the project's own development loop rather than to the agent's value layer.
+`scripts/weekly-pipeline.sh` (launchd `com.moltbook.weekly-pipeline`, Saturday 09:00, installed by `install-schedule --weekly-pipeline`) runs an **unattended weekly chain**, collapsed by ADR-0098 to a single LLM session: `scripts/weekly-analysis.sh` collects a materials file (deterministic intakes, no LLM), then ONE `claude -p "/weekly-report"` session synthesizes the six-section instrument document (ADR-0099 replaced the saturated A–E quote audit), renders the Japanese version, diagnoses F1/F2/F3 findings, and files draft entries into the public `rfcs/` ledger — no repairs, no patches. Repairs travel through the task-triage loop (premise verification, owner digest, worktree dispatch, human merge); value-layer decisions happen at the Saturday `/weekly-gate` session, which reads the findings and the per-week instrument JSONs directly (the decision-packet builder is retired). The commitment that makes it safe to leave running is negative: **the machine never commits, pushes, adopts, or repairs.** This is the ADR-0012 approval-gate principle applied to the project's own development loop rather than to the agent's value layer.
 
 - **Code**: `scripts/weekly-pipeline.sh`, `scripts/weekly-analysis.sh`, `.claude/skills/weekly-report/`, `.claude/skills/weekly-gate/`, `cli/schedule.py` (`--weekly-pipeline`, `--watchdog`, `--weekly-backup`)
 - **ADR**: ADR-0098 (single-session redesign, triage delegation), ADR-0085 (the original chain, partially superseded), ADR-0040 (weekly analysis), ADR-0012 (approval gate)
@@ -345,12 +345,30 @@ Since v2.11.0: a second reading that does not depend on the model reading its ow
 
 ## What happened to the task ledger between ADR-0094 and ADR-0095?
 
-ADR-0094 (2026-08-14) built a three-layer task ledger: a store (one Markdown file per task, frontmatter `state:`), an append-only journal, and a rendered projection table, with a weekly-chain stage that watched ledger conditions. Two days later ADR-0095 retired everything that parsed: the projection renderer, the scan, the migration, `TASKS.md`, weekly stage 6c, and the `ledger_watch_fired` metric. The machinery had reached about 5,000 lines in two days and was filing its own bugs into the ledger it rendered. What remains is the store (`.notes/tasks/T-XXX.md`) and a global `claims.py` for parallel sessions (claim / release / spawn with a 24-hour lease). ADR-0094 is kept, superseded, as the record of why. The same ADR writes down the filing rule that came out of the episode: review findings outside a commit's diff are filed only at HIGH severity and above, and only after the producer-to-sink path has been quoted with `file:line`; everything else goes into the commit message and is dropped. Bloated ledgers are solved by archiving, not by mechanism.
+ADR-0094 (2026-08-14) built a three-layer task ledger: a store (one Markdown file per task, frontmatter `state:`), an append-only journal, and a rendered projection table, with a weekly-chain stage that watched ledger conditions. Two days later ADR-0095 retired everything that parsed: the projection renderer, the scan, the migration, `TASKS.md`, weekly stage 6c, and the `ledger_watch_fired` metric. The machinery had reached about 5,000 lines in two days and was filing its own bugs into the ledger it rendered. What remains is the store — one Markdown file per entry, moved in v2.12.0 from the private `.notes/tasks/` to the public `rfcs/NNNN-slug.md` ledger so proposals and open work are readable by anyone — and a global `claims.py` for parallel sessions (claim / release / spawn with a 24-hour lease). ADR-0094 is kept, superseded, as the record of why. The same ADR writes down the filing rule that came out of the episode: review findings outside a commit's diff are filed only at HIGH severity and above, and only after the producer-to-sink path has been quoted with `file:line`; everything else goes into the commit message and is dropped. Bloated ledgers are solved by archiving, not by mechanism.
 
-- **Code**: `~/.claude/scripts/claims.py` (harness-side), `.notes/tasks/` (gitignored store)
+- **Code**: `~/.claude/scripts/claims.py` (harness-side), `rfcs/` (the public store)
 - **ADR**: ADR-0095 (retire), ADR-0094 (superseded), ADR-0093 (the repo-plane intake whose ledger-watch half was removed)
 - **Evidence**: [docs/evidence/adr-0094/](docs/evidence/adr-0094/)
 
 ---
 
-*Last updated: 2026-08-09*
+## Where do a pattern's embeddings live, and why are they not in `knowledge.json`? (ADR-0108)
+
+`knowledge.json` is the value layer's observable surface — pattern text, provenance, bitemporal validity — and it had become, by weight, an embedding file. Measured read-only against the live store on 2026-09-12 (8,467 rows, every one carrying a 768-dim vector): 180 MiB on disk, of which the same rows serialized *without* `embedding` are 3.17%; `KnowledgeStore.load()` took 11.36 s and peaked at 1,640 MB RSS, and 8.06 s of that load was the forbidden-substring taint scan running a compiled alternation over digit soup that can never match. ADR-0108 moves the vectors to a SQLite blob sidecar (`pattern-embeddings.sqlite`) keyed by the ADR-0050 pattern id, leaving `knowledge.json` as text. The vectors were never irreplaceable: they are model-locked to `nomic-embed-text`, derivable from the pattern text beside them, and both export boundaries (`scripts/export-patterns-jsonl.py`, reached from `backup-runtime.sh` and `sync-research-data.sh`) already stripped them — the project had been paying to store, parse and scan data it refuses to publish. The precedent is in-repo: `core/episode_embeddings.py` already keeps episode/post vectors in `embeddings.sqlite` so the JSONL audit trail stays a text file. Existing stores migrate once with `scripts/migrate-knowledge-sidecar.py`.
+
+- **Code**: `core/knowledge_store.py`, `core/pattern_embeddings.py`, `scripts/migrate-knowledge-sidecar.py`
+- **ADR**: ADR-0108 (embedding sidecar), ADR-0050 (pattern id), ADR-0004 (3-layer memory)
+
+---
+
+## Does the agent record how the environment answered what it wrote? (ADR-0106)
+
+Yes, as of v2.12.0 — and it does nothing else with it. The skill store had no success or failure criterion, so nothing about it could be tuned: ADR-0105 had to build the store's exit from *structural* signals (never selected, confused with a neighbour) because the outcome signals the retirement literature uses — Library Drift's (success − failure)/attempts ([arXiv:2605.19576](https://arxiv.org/abs/2605.19576)), ASSAY's masked causal attribution ([arXiv:2606.15390](https://arxiv.org/abs/2606.15390)) — need a task-level verdict this agent does not have. But the platform does answer: other agents reply, threads continue, comments carry upvotes. The agent had simply never written that answer down next to the skills that were injected into the generation. The recorder is called from `reply_handler._handle_post_comments` with the comment tree the reply cycle had already fetched — no new endpoint, no extra GET, and `/home`'s two-key allowlist (ADR-0007 / T-HOME-STANDING-INSTRUCTIONS) is untouched — and appends one row per comment to `logs/comment-outcomes.jsonl`, joined to the selection record by comment id. This records the north star's "environmental response" axis of metabolic quality (ADR-0080's 2026-08-26 amendment) and deliberately stops there: nothing reads it into a ranking, and the single-scalar reduction the amendment forbids is not performed.
+
+- **Code**: `adapters/moltbook/reply_handler.py`, `adapters/moltbook/publish.py` (`publish_outcome`), `core/skill_selection.py`
+- **ADR**: ADR-0106 (comment outcomes), ADR-0105 (structural exit signals), ADR-0080 (north star, metabolic quality)
+
+---
+
+*Last updated: 2026-09-12*

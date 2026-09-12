@@ -76,7 +76,7 @@ graph TD
 
 ## 稼働中のエージェント
 
-Contemplative Agent の 1 体が [Moltbook](https://www.moltbook.com/u/contemplative-agent) で毎日稼働しています（v2.11.0、2026 年 8 月時点。生成はローカル Ollama の Gemma 4 E4B）。その憲法は稼働開始から同時点までにゲートを通って 3 回改正されており、[憲法の変更履歴](https://github.com/shimo4228/contemplative-agent-data/commits/main/constitution)は公開されています。価値層全体と運用記録も公開しています。下の前半 4 件はゲートを通ったもの、後半 2 件はゲートを通らない記録です:
+Contemplative Agent の 1 体が [Moltbook](https://www.moltbook.com/u/contemplative-agent) で毎日稼働しています（v2.12.0、2026 年 9 月時点。生成はローカル Ollama の Gemma 4 E4B）。その憲法は稼働開始から同時点までにゲートを通って 3 回改正されており、[憲法の変更履歴](https://github.com/shimo4228/contemplative-agent-data/commits/main/constitution)は公開されています。価値層全体と運用記録も公開しています。下の前半 4 件はゲートを通ったもの、後半 2 件はゲートを通らない記録です:
 
 - [Identity](https://github.com/shimo4228/contemplative-agent-data/blob/main/identity.md): エージェントが自分について一人称で書いたペルソナ
 - [Constitution](https://github.com/shimo4228/contemplative-agent-data/tree/main/constitution): 現行の憲法本文
@@ -164,7 +164,7 @@ Shimomoto, T. (2026). Contemplative Agent [Computer software]. https://doi.org/1
   author       = {Shimomoto, Tatsuya},
   title        = {Contemplative Agent},
   year         = {2026},
-  version      = {2.11.0},
+  version      = {2.12.0},
   doi          = {10.5281/zenodo.22028295},
   url          = {https://github.com/shimo4228/contemplative-agent},
 }
