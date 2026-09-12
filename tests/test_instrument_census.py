@@ -20,8 +20,14 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-# scripts/ is not a package; import the module by path.
+# scripts/ is not a package; import the modules by path. Three layers
+# (ADR-0110): `reg` holds the registry and the read, `series` the aggregation
+# and the statistics, `ic` the rendering and the entry point. The boundary
+# tests below stay on `ic`, because the entry point is what the weekly chain
+# runs and what must not open an episode log.
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scripts"))
+import _census_registry as reg  # type: ignore[import-not-found]  # noqa: E402
+import _census_series as series  # type: ignore[import-not-found]  # noqa: E402
 import instrument_census as ic  # type: ignore[import-not-found]  # noqa: E402
 
 START = date(2026, 9, 5)
@@ -127,13 +133,13 @@ class TestStatus:
     def test_registered_file_with_rows_is_ok(self, home):
         _write(home / "logs" / "llm-calls-2026-09-08.jsonl", [_llm("a", "d1", "s1")])
         r = _by_name(ic.census(home / "logs", START, END), "llm-calls-*.jsonl")
-        assert r.status == ic.OK
+        assert r.status == reg.OK
         assert r.rows == 1 and r.sessions == 1 and r.files == 1
 
     def test_live_entry_with_no_rows_in_window_is_no_rows(self, home):
         _write(home / "logs" / "verification-audit.jsonl", [{"ts": OUT, "solve_success": True}])
         r = _by_name(ic.census(home / "logs", START, END), "verification-audit.jsonl")
-        assert r.status == ic.NO_ROWS
+        assert r.status == reg.NO_ROWS
         assert r.rows_out_of_window == 1
 
     def test_missing_heartbeat_event_is_named(self, home):
@@ -142,18 +148,18 @@ class TestStatus:
             [{"ts": IN, "event": "injection_tokens_removed", "total_removed": 1}],
         )
         r = _by_name(ic.census(home / "logs", START, END), "injection-detect-*.jsonl")
-        assert r.status == ic.MISSING_EVENT
+        assert r.status == reg.MISSING_EVENT
 
     def test_retired_writer_with_file_on_disk_is_orphan(self, home):
         (home / "logs" / "insight-worth.jsonl").write_text("", encoding="utf-8")
         readings = ic.census(home / "logs", START, END)
-        assert _by_name(readings, "insight-worth.jsonl").status == ic.ORPHAN
-        assert _by_name(readings, "noise-*.jsonl").status == ic.ABSENT
+        assert _by_name(readings, "insight-worth.jsonl").status == reg.ORPHAN
+        assert _by_name(readings, "noise-*.jsonl").status == reg.ABSENT
 
     def test_unregistered_file_is_unknown(self, home):
         _write(home / "logs" / "brand-new-thing.jsonl", [{"ts": IN}])
         r = _by_name(ic.census(home / "logs", START, END), "brand-new-thing.jsonl")
-        assert r.status == ic.UNKNOWN and r.entry is None
+        assert r.status == reg.UNKNOWN and r.entry is None
 
     def test_registry_globs_cover_the_known_writers(self):
         known = [
@@ -172,11 +178,11 @@ class TestStatus:
             "comment-outcomes.jsonl",
         ]
         for name in known:
-            assert any(e.matches(name) and e.status == ic.LIVE for e in ic.REGISTRY), name
+            assert any(e.matches(name) and e.status == reg.LIVE for e in reg.REGISTRY), name
 
     def test_registry_category_and_error_are_data(self):
         """No callable in a registry row — the row is data a human edits."""
-        for e in ic.REGISTRY:
+        for e in reg.REGISTRY:
             assert e.category is None or isinstance(e.category, str)
             assert e.saturation is None or isinstance(e.saturation, str)
             for field, op, value in e.error:
@@ -212,7 +218,7 @@ class TestRedundancy:
         assert r.redundant_keys == 0
 
     def test_caller_sequence_keeps_order_as_runs(self):
-        seq = ic._compress_sequence(["a", "a", "b", "a"])
+        seq = series.compress_sequence(["a", "a", "b", "a"])
         assert seq == "a ×2, b ×1, a ×1"
 
 
@@ -330,7 +336,7 @@ class TestLedger:
             home / "logs" / "llm-calls-2026-09-08.jsonl",
             [_llm("mod.brand_new_caller", "z1", "s000000", ts=_at(5, 7))],
         )
-        matrix, _ = ic.session_matrix(ic.census(home / "logs", START, END))
+        matrix, _ = series.session_matrix(ic.census(home / "logs", START, END))
         assert any("brand_new_caller" in c for c in matrix.columns)
 
     def test_session_with_no_rows_in_one_log_gets_a_zero_row(self, home):
@@ -339,7 +345,7 @@ class TestLedger:
             home / "logs" / "api-audit.jsonl",
             [_api(CAT_A, "api-only-session", _at(6, 3))],
         )
-        matrix, _ = ic.session_matrix(ic.census(home / "logs", START, END))
+        matrix, _ = series.session_matrix(ic.census(home / "logs", START, END))
         assert "api-only-session" in matrix.index
         llm_cols = [
             c for c in matrix.columns if c.startswith("llm-calls:") and not c.endswith("gap s")
@@ -399,7 +405,7 @@ class TestOutliers:
             home / "logs" / "api-audit.jsonl",
             [_api("GET /retired", "old-session", PAST)],
         )
-        matrix, absent = ic.session_matrix(ic.census(home / "logs", START, END))
+        matrix, absent = series.session_matrix(ic.census(home / "logs", START, END))
         col = next(c for c in matrix.columns if "GET /retired" in c)
         assert (matrix[col] == 0).all()
         assert any("GET /retired" in c for c in absent)
@@ -511,8 +517,8 @@ class TestTraceAndStrips:
     def test_hunting_window_orders_across_midnight(self):
         """Lines carry HH:MM:SS, so the merge must sort on the real timestamps."""
         base = datetime(2026, 9, 8, 23, 59, 0, tzinfo=timezone.utc)
-        late = ic.collapse_runs_dated([(base, "x")])
-        early = ic.collapse_runs_dated([(base + timedelta(minutes=2), "y")])
+        late = series.collapse_runs_dated([(base, "x")])
+        early = series.collapse_runs_dated([(base + timedelta(minutes=2), "y")])
         merged = [line for _, line in sorted(late + early, key=lambda i: i[0])]
         assert merged[0].startswith("23:59") and merged[1].startswith("00:01")
 
@@ -529,6 +535,55 @@ class TestTraceAndStrips:
         cells = lambda ln: len(re.split(r"(?<!\\)\|", ln))  # noqa: E731 — escaped pipes are data
         assert "GET /a\\|b" in header  # the value survives, escaped
         assert cells(header) == cells(separator)
+
+    def test_two_categories_that_squeeze_alike_keep_distinct_headers(self, home):
+        """A duplicate ledger header made `table[label]` a frame and killed the run."""
+        _healthy_week(home, n_sessions=5)
+        _append(
+            home / "logs" / "llm-calls-2026-09-08.jsonl",
+            [_llm("core.memory.distill", f"m{k}", "s000000", ts=_at(5, 20 + k)) for k in range(4)]
+            + [
+                _llm("core.identity.distill", f"i{k}", "s000000", ts=_at(5, 30 + k))
+                for k in range(4)
+            ],
+        )
+        md = ic.run(home, START, END)
+        assert "unavailable (reason=" not in md
+        header = next(
+            ln for ln in _section(md, "Session ledger").splitlines() if ln.startswith("| session")
+        )
+        cells = [c.strip() for c in header.strip("|").split("|")]
+        assert len(cells) == len(set(cells)), cells
+
+    def test_ledger_shows_only_category_columns(self, home):
+        """Milliseconds and budget minima must not outrank counts on magnitude."""
+        _healthy_week(home, n_sessions=5)
+        ledger = _section(ic.run(home, START, END), "Session ledger")
+        header = next(ln for ln in ledger.splitlines() if ln.startswith("| session"))
+        assert "Σ" not in header and "min" not in header
+        assert CAT_A in header
+
+    def test_log_scaled_outlier_rows_say_so(self, home):
+        """value / median / MAD print raw, so a log-scored row must be labelled."""
+        sids = _healthy_week(home, n_sessions=28)
+        rows = [
+            _api(CAT_A, sid, _at(5 + i % 7, 30 + k)) for i, sid in enumerate(sids) for k in range(4)
+        ]
+        # one session's calls are seconds apart instead of minutes
+        rows += [_api(CAT_A, sids[5], _at(5 + 5 % 7, 45, k)) for k in range(4)]
+        _append(home / "logs" / "api-audit.jsonl", rows)
+        out = _section(ic.run(home, START, END), "Within-week outliers")
+        for line in [ln for ln in out.splitlines() if "gap s" in ln]:
+            assert "(log z)" in line, line
+
+    def test_alphabet_overflow_is_stated_in_the_legend(self, home):
+        rows = [
+            _api(f"GET /e{k}", "s1", _at(5, k // 2, k % 2 * 30))
+            for k in range(70)  # more categories than the letter pool holds
+        ]
+        _write(home / "logs" / "api-audit.jsonl", rows)
+        trace = _section(ic.run(home, START, END), "Session trace")
+        assert "further categories share this letter" in trace
 
 
 class TestIdRepeats:
@@ -547,14 +602,14 @@ class TestCollapse:
     def test_collapse_runs_same_category_within_two_seconds(self):
         base = datetime(2026, 9, 8, 15, 59, 0, tzinfo=timezone.utc)
         burst = [(base + timedelta(seconds=s), "X") for s in range(0, 12)]
-        lines = ic.collapse_runs(burst)
+        lines = series.collapse_runs(burst)
         assert len(lines) == 1 and "X ×12 in 11s" in lines[0]
         # a gap over two seconds is not one run
         spread = [(base + timedelta(seconds=s * 5), "X") for s in range(3)]
-        assert len(ic.collapse_runs(spread)) == 3
+        assert len(series.collapse_runs(spread)) == 3
         # mixed categories are not collapsed together
         mixed = [(base + timedelta(seconds=s), "X" if s % 2 else "Y") for s in range(6)]
-        assert len(ic.collapse_runs(mixed)) == 6
+        assert len(series.collapse_runs(mixed)) == 6
 
     def test_aggregation_matches_hand_count(self, home):
         """Five hand-counted rows: matrix cell, per-minute max, minimum gap."""
@@ -566,7 +621,7 @@ class TestCollapse:
             _api(CAT_B, "s1", "2026-09-08T10:07:00+00:00"),
         ]
         _write(home / "logs" / "api-audit.jsonl", rows)
-        matrix, _ = ic.session_matrix(ic.census(home / "logs", START, END))
+        matrix, _ = series.session_matrix(ic.census(home / "logs", START, END))
         assert matrix.loc["s1", f"api-audit:{CAT_A}"] == 4
         assert matrix.loc["s1", f"api-audit:{CAT_A} /1m"] == 3
         assert matrix.loc["s1", f"api-audit:{CAT_A} gap s"] == 1.0

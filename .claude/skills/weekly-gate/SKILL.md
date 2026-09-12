@@ -308,7 +308,7 @@ family 代表化へ（ADR-0105 `## Review-when`）。帯は導出値ではなく
 （ADR-0107 の消費計画。分布・redundancy・ledger・trace・帯・id 反復・週内外れ値・
 hunting windows の 8 節は weekly-report の Phase 0 が読み済みで、ここでは読み直さない）。status が OK 以外の行を 1 読みで片付ける:
 
-- `UNKNOWN` — 誰かが登録なしに書き始めたログ。`scripts/instrument_census.py` の `REGISTRY`
+- `UNKNOWN` — 誰かが登録なしに書き始めたログ。`scripts/_census_registry.py` の `REGISTRY`
   に行を足す（glob / owner ADR / 毎週答えさせる enum 欄）か、書く側を止める
 - `NO_ROWS` — 登録は live なのに窓内 0 行。writer が退役したなら `status=WRITER_RETIRED` に
   反転、季節性（月次 shadow 等）なら放置してよい — 判断を commit message に 1 行

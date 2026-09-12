@@ -57,7 +57,7 @@ Design the record so the run can be **replayed offline**, not merely read:
 - [ ] **A named reader ships with the writer.** A log nobody reads is
       write-only storage; the observability rule mandates writing and nothing
       mandates reading. Name the consumer in the same PR (a weekly intake, a
-      CLI reading, or a row in `scripts/instrument_census.py:REGISTRY` whose
+      CLI reading, or a row in `scripts/_census_registry.py:REGISTRY` whose
       enum fields are the weekly question). Inventory 2026-09-12: of 15
       self-written logs, 6 had zero readers, 3 only manual scripts, 2 were
       orphans of retired writers — the RFC-0032 evidence sat in one of the 6

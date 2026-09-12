@@ -233,7 +233,7 @@ wrapped in local punctuation when embedded in a translated sentence.
   「consumption plan（消費計画）」.
 - **instrument census** — ADR-0107. The writer → reader inventory over
   every self-written log in `$MOLTBOOK_HOME/logs/`
-  (`scripts/instrument_census.py`): each file must name the reader that
+  (`scripts/instrument_census.py`, registry in `scripts/_census_registry.py`): each file must name the reader that
   consumes it, so a log with zero automated readers is visible as such
   rather than accumulating unread. Paired with the weekly report's
   **Phase 0 read-through** — a pass over raw-ish data with no question

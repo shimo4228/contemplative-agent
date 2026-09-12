@@ -26,7 +26,7 @@ accepted — partially-supersedes ADR-0107 (退役させたもの: D2 の投影�
 |---|---|
 | ADR-0107 の census 出力（同じ週） | **130 KB / 443 行**（ADR の「約 200 行」は誤り） |
 | うち投影サンプル | 126 KB — **97%**。問いを持たない行に払っていた |
-| 本 ADR の投影（同じ窓） | **24,999 B / 356 行**。2 回走らせて byte-identical |
+| 本 ADR の投影（同じ窓） | **24,463 B / 311 行**。2 回走らせて byte-identical |
 | 新投影での RFC-0036 | `api-audit:GET /feed gap s` が 0 秒（中央値 148、z −19.6）で 5 件中 3 位。Hunting window に `15:59:09 api-audit:GET /home ×13 in 11s` と `15:59:10 api-audit:GET /feed ×12 in 10s` |
 | 新投影での RFC-0032 | 見えない。回避せずそのまま下に明記する |
 | JSONL の保持 | `rotate-log.sh` が回すのは `*.log` だけ。llm-calls は 06-09 から、api-audit は 06-25 から全部残るので、過去 4 週の語彙は 1 パス増やすだけで取れる |
@@ -81,7 +81,8 @@ backend 前提）。読み方の定石は文献として在るが、この形の
 
 1. **投影サンプルを削除し、6 節で置き換える。** census 表・Distributions・Redundancy（種類としては
    不変）の後に、**セッション台帳**（1 セッション 1 行、列は log:category ごとの回数に加え 1 分最大 /
-   最小間隔 / エラー数 / 予算最小 / zlib 比、末尾に `median` 行）、**セッション trace**（全ログの
+   最小間隔 / エラー数 / 予算最小 / zlib 比、末尾に `median` 行。**描く**のは category ごとの
+   件数軸だけ — 単位が揃うのはそこだけで、ミリ秒の合計は大きさだけで枠を占めてしまう）、**セッション trace**（全ログの
    イベントを ts 順に、category 1 つ 1 文字で run-length 化。`A B A B` と `A A B B` が区別される）、
    **セッション帯**（最初の 60 分を 60 文字。目盛はその週の最大値で固定し帯どうしを比較できる）、
    **id 欄の反復**（`*_id` / `*_sha256` を名前から自動発見し、同一セッション内の同一値を数える）、
@@ -250,10 +251,22 @@ median / MAD 以上を出すものが無い。
   上の Review-when が名指ししている。
 - 帯は block 文字でなく ASCII ランプを使う。block の方が読みやすいが 1 文字 3 バイトで、
   28 セッション × 2 帯 × 60 分で 7 KB — 読み全体の 1/4 を字形に払うことになる。
-- `scripts/instrument_census.py` は置き換える 615 行に対し **1,063 行**で、plan の予算 ≤ 500 行を
-  超えた。誤っていたのは見積もりでスコープではない: 6 節分の renderer、ruff format が 1 引数 1 行に
-  展開する REGISTRY、Decision 5 の較正は、この repo の書式で 500 行に入らない。**ファイルは分割
-  しない** — 行数を満たすための分割は数字を買って locality を失う。
+- **読み手は 1 ファイルでなく 3 モジュール。** 単一ファイルは予算 500 行に対し 1,063 行に達した。
+  予算は引き算を誤った算術だった: サンプル退役で 250 行浮く前提だったが、実際に消せたのは
+  `strip_body` 37 + `_render_sample` 20 + 累算器 `_Acc` 44 ≈ 101 行で、同時に REGISTRY が育った
+  （`note=` 1 行が 3 つの宣言軸になった）。ADR-0107 が立てたものだけを持つファイル — header・
+  `Entry`・`REGISTRY`・読み込み・census 表・Distributions・Redundancy・`main`、および ruff format が
+  def 間に強制する空行 — の実測が既に **約 535 行**で、この計器のどの版も 1 ファイル 500 行には
+  収まらない。分割は行数でなく責務で切った:
+  `_census_registry.py`（**333**）が登録表の schema・status 語彙・読み込み（2 つの境界を含む）、
+  `_census_series.py`（**315**）が集計と統計（ファイルに触れない）、`instrument_census.py`（**431**）が
+  9 節の描画と、週次チェーンが呼ぶエントリポイント。import は下向きだけなので読む向きは 1 つ。
+  **合計 1,079 行 — 分割そのものは 1,063 → 1,048 で、その後 code review の修理 5 件が +31**。
+  3 つの header 分は圧縮で払った: module docstring が本 ADR の
+  再掲をやめ（−29）、`REGISTRY` を `# fmt: off` の下で 1 行 1 レコード × 2 行に手で折り
+  （82 → 33。ゲートはこの表を行単位で編集するのに formatter の 1 引数 1 行が 15 行を 82 行にしていた）、
+  単一利用の helper 3 つを inline した（−11）。読み手に見えるものは 1 つも削っていない — 出力は
+  分割前と byte-identical。
 - 週次 materials の生成に `pandas` が要るようになった。dev group を sync していない機械では、
   shell が元から持つ stub 行（`No instrument census available`）が出るだけで、チェーンは壊れない。
 - 語彙のために各ログを 1 週でなく約 5 週読むようになった。現在の corpus（api-audit 13.9 MB）で

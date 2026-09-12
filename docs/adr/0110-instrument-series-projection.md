@@ -30,7 +30,7 @@ Measured on the same window (2026-09-05 – 09-11, 28 sessions, raw logs only;
 |---|---|
 | ADR-0107 census output, that window | **130 KB / 443 lines** (the ADR's "~200 lines" was wrong) |
 | of which the projection sample | 126 KB — **97%**, spent on rows that carry no question |
-| this ADR's projection, same window | **24,999 B / 356 lines**, byte-identical across runs |
+| this ADR's projection, same window | **24,463 B / 311 lines**, byte-identical across runs |
 | RFC-0036 under the new projection | `api-audit:GET /feed gap s` = 0 s against a median of 148 (z −19.6), rank 3 of 5; the hunting window prints `15:59:09 api-audit:GET /home ×13 in 11s` and `15:59:10 api-audit:GET /feed ×12 in 10s` |
 | RFC-0032 under the new projection | invisible, and this is stated below rather than worked around |
 | JSONL retention | `rotate-log.sh` rotates `*.log` only; llm-calls from 06-09 and api-audit from 06-25 are intact, so a four-week vocabulary window costs one extra pass |
@@ -99,7 +99,9 @@ the shape the skill-selection intake in the same script already uses.
    census table, the distributions and the redundancy reading (all unchanged in
    kind): a **session ledger** (one row per session, one column per
    log:category plus per-minute maxima, minimum gaps, error counts, saturation
-   minima and a zlib ratio, with a `median` row last); a **session trace**
+   minima and a zlib ratio, with a `median` row last; only the per-category
+   count axes are *drawn*, because only they share a unit — a duration sum in
+   milliseconds would otherwise hold a slot on magnitude alone); a **session trace**
    (every log's events in ts order, one letter per category, run-length
    encoded, so `A B A B` stays distinct from `A A B B`); **session strips**
    (the first sixty minutes as sixty characters, scaled by the week's maximum
@@ -343,12 +345,30 @@ fixed.
 - The per-minute strips use an ASCII ramp rather than block-drawing characters.
   The blocks are more legible and cost three bytes each: 28 sessions × 2 bands
   × 60 minutes of them is 7 KB, a quarter of the whole reading spent on glyphs.
-- `scripts/instrument_census.py` is **1,063 lines** against the 615 it
-  replaces, and against the ≤ 500 the plan budgeted. The estimate was wrong,
-  not the scope: six sections with their renderers, a registry that ruff
-  formats one argument per line, and the calibrations of Decision 5 do not fit
-  in 500 lines of this repo's format. The file is not split, because splitting
-  to satisfy a line count would buy the number and cost the locality.
+- **The reader is three modules, not one.** The single file reached 1,063
+  lines against a budget of 500, and the budget was arithmetic on a wrong
+  subtraction: it assumed the retired sample would free 250 lines, where what
+  could actually be deleted was `strip_body` 37 + `_render_sample` 20 + the
+  `_Acc` accumulator 44 ≈ 101, while the registry grew at the same time (a
+  `note=` string became three declared axes). Measured, a file holding only
+  what ADR-0107 established — header, `Entry`, `REGISTRY`, the loader, the
+  census table, Distributions, Redundancy, `main`, and the blank lines ruff
+  format requires between definitions — is already **≈ 535 lines**, so one file
+  under 500 was unreachable for any version of this instrument. The split is by
+  responsibility, not by line count:
+  `_census_registry.py` (**333**) owns the row schema, the status vocabulary
+  and the read, including both boundaries; `_census_series.py` (**315**) owns
+  the aggregation and the statistics and touches no file; `instrument_census.py`
+  (**431**) owns the nine renderers and stays the entry point the weekly chain
+  calls. Each imports only downward, so there is one direction to read in.
+  **1,079 lines in total: the split itself came in at 1,048 against 1,063
+  before it, and five code-review fixes then added 31** — a reduction pass
+  paid for the three headers: the module docstring stopped restating this ADR
+  (−29), `REGISTRY` is hand-wrapped at two lines per row under `# fmt: off`
+  (82 → 33 — the gate edits that table row-wise and the formatter's
+  one-argument-per-line form made fifteen rows eighty-two lines), and three
+  single-use helpers were inlined (−11). Nothing the reader sees was removed:
+  the output is byte-identical to the single-file version.
 - `pandas` is now required to produce the weekly materials. A machine with the
   dev group unsynced gets the stub line the shell already had
   (`No instrument census available`), not a broken chain.
