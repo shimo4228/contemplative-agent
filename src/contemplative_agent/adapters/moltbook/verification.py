@@ -32,7 +32,7 @@ import logging
 import math
 import re
 from dataclasses import dataclass
-from decimal import Decimal, DivisionByZero, InvalidOperation
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import TYPE_CHECKING, Any, Literal
 
@@ -48,7 +48,7 @@ from .config import (
     MAX_CHALLENGE_INPUT,
     MAX_VERIFICATION_FAILURES,
 )
-from .verification_parse import code_parse_challenge
+from .verification_parse import _MUL, code_parse_challenge, compute_decimal_chain
 
 if TYPE_CHECKING:
     from .client import MoltbookClient
@@ -567,34 +567,16 @@ def _compute_expression_answer(expr: str) -> str | None:
 
 
 def _compute_decimal_pair(lhs: Decimal, op: str, rhs: Decimal) -> str | None:
-    try:
-        if op == "+":
-            result = lhs + rhs
-        elif op == "-":
-            result = lhs - rhs
-        elif op == "*" or op.lower() == "x":
-            result = lhs * rhs
-        elif op == "/":
-            result = lhs / rhs
-        else:
-            return None
-    except (DivisionByZero, InvalidOperation):
-        return None
-    # Mirrors code_parse_challenge's existing non-negative domain assumption
-    # (verification_parse._compute): the physical-count CAPTCHA domain never
-    # has a negative answer, so a negative result is far likelier a misparse
-    # (e.g. reversed operands) than a genuine one -- reject rather than let a
-    # self-consistent-but-negative EXPR/FINAL pair pass the guard.
-    if not result.is_finite() or result < 0:
-        return None
-    return _format_decimal(result)
+    """Evaluate one EXPR pair under the parser's arithmetic domain.
 
-
-def _format_decimal(value: Decimal) -> str | None:
-    if not value.is_finite():
-        return None
-    formatted = f"{value:.2f}"
-    return "0.00" if formatted == "-0.00" else formatted
+    The domain rule (non-negative, finite, no division by zero) belongs to
+    ``verification_parse.compute_decimal_chain``, which the code path uses for
+    the same CAPTCHA answers — two copies of it drifted on ``-0.00`` once
+    already. Only the operator alphabet is this frame's: the solver sees the
+    model's own ``x`` for multiplication, which the challenge grammar does not
+    carry.
+    """
+    return compute_decimal_chain([lhs, rhs], [_MUL if op.lower() == "x" else op])
 
 
 def _extract_answer(text: str) -> str | None:

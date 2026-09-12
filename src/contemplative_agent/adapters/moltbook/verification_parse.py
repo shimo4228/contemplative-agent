@@ -283,7 +283,7 @@ _ADDITIVE_CUES = {"total", "sum", "combined"}
 
 # Safe continuation material directly after the second operand of an implicit
 # add: the question itself may follow instead of a unit word.
-_QUESTION_WORDS = {"what", "whats", "how", "total", "sum", "combined"}
+_QUESTION_WORDS = {"what", "whats", "how"} | _ADDITIVE_CUES
 
 # Fuzzy matching floors: a number word may be recovered at edit distance 1
 # from its CANONICAL spelling only when the merged token is >= 4 letters
@@ -373,6 +373,9 @@ _POINT_WORD = "point"
 _ATOM_RE = re.compile(r"[a-z]+|[+*]")
 
 
+_REPEAT_RE = re.compile(r"(.)\1+")
+
+
 def _collapse_repeats(text: str) -> str:
     """Collapse every run of an identical character to one (``aa`` -> ``a``).
 
@@ -380,7 +383,7 @@ def _collapse_repeats(text: str) -> str:
     twenty). Number/operation lexicons are keyed on collapsed forms so both
     clean and letter-doubled spellings compare consistently.
     """
-    return re.sub(r"(.)\1+", r"\1", text)
+    return _REPEAT_RE.sub(r"\1", text)
 
 
 _CANONICAL_NUMBERS = {**_UNITS, **_TEENS, **_TENS}
@@ -547,6 +550,20 @@ def _match_exact(token: str) -> _Lexeme | None:
     return None
 
 
+# Canonical + collapsed spellings of the fuzzy-matchable lexicons, derived once
+# at import. They are constant, and _match_fuzzy probes up to a dozen merge
+# candidates per unmatched atom, so re-collapsing ~45 op words per token was the
+# parser's hottest work (measured: 1,214 collapses per solve before this).
+_FUZZY_OP_FORMS = tuple(
+    (word, _collapse_repeats(word), op)
+    for word, op in _OP_WORDS.items()
+    if len(word) >= _FUZZY_MIN_OP
+)
+_FUZZY_MARKER_FORMS = tuple(
+    (word, _collapse_repeats(word)) for word in _MUL_MARKER_WORDS if len(word) >= _FUZZY_MIN_OP
+)
+
+
 def _fuzzy_number_matches(token: str) -> set[tuple[str, int | str]]:
     """Number readings of ``token`` at edit distance 1, over both tiers."""
     results: set[tuple[str, int | str]] = set()
@@ -577,10 +594,8 @@ def _fuzzy_op_matches(token: str) -> set[tuple[str, int | str]]:
     # the same treatment only above _FUZZY_MIN_NUM_COLLAPSED — they
     # become operands, where a false positive is a wrong submitted
     # answer, not just a wrong verb reading.
-    for word, op in _OP_WORDS.items():
-        if len(word) < _FUZZY_MIN_OP:
-            continue
-        if _within_one_edit(token, word) or _within_one_edit(token, _collapse_repeats(word)):
+    for word, collapsed_word, op in _FUZZY_OP_FORMS:
+        if _within_one_edit(token, word) or _within_one_edit(token, collapsed_word):
             results.add(("op", op))
     # Round 8: multiplicative markers were exact-match only, so a
     # transposed "duoubbles" (collapsed: "duobles") dropped silently
@@ -588,10 +603,7 @@ def _fuzzy_op_matches(token: str) -> set[tuple[str, int | str]]:
     # accept one adjacent transposition (_within_one_swap): the misread
     # cost is bounded to the operator, and the surviving grammar
     # position rules (gap / adjacency) still gate where it applies.
-    for word in _MUL_MARKER_WORDS:
-        if len(word) < _FUZZY_MIN_OP:
-            continue
-        collapsed_word = _collapse_repeats(word)
+    for word, collapsed_word in _FUZZY_MARKER_FORMS:
         if (
             _within_one_edit(token, word)
             or _within_one_edit(token, collapsed_word)
@@ -1255,7 +1267,7 @@ def _classify_positions(operands: list[_Operand], events: list[_Event]) -> _Posi
     # the explicit "+" removes the change-verb's marker-override
     # eligibility. Collapse before the ambiguity check.
     filled = [
-        {_ADD if op == _ADD_CHANGE else op for op in g} if set(g) >= {_ADD, _ADD_CHANGE} else set(g)
+        {_normalize_op(op) for op in g} if set(g) >= {_ADD, _ADD_CHANGE} else set(g)
         for g in gap_ops
     ]
     if any(len(f) > 1 for f in filled):
@@ -1565,7 +1577,7 @@ def _implicit_context(
     return _ImplicitCtx(
         operands=operands,
         tail=tail,
-        and_between=any(first.atom_end < a.atom_index < second.atom_start for a in ands),
+        and_between=_and_inside_chain(operands, ands),
         cue_after=bool(tail.cues),
         sub_tail=sub_tail,
         other_tail=other_tail,
@@ -1743,17 +1755,20 @@ def _count_noun_after(atoms: list[str], atom_end: int) -> bool:
     return _collapse_repeats(atoms[atom_end + 1] + atoms[atom_end + 2]) == _COUNT_NOUN
 
 
-def _compute_chain(operands: list[_Operand], chain: list[str]) -> str | None:
-    """Left-fold the operand values, abstaining on any out-of-domain step.
+def compute_decimal_chain(values: list[Decimal], chain: list[str]) -> str | None:
+    """Left-fold *values* under *chain*, abstaining on any out-of-domain step.
 
-    The physical-count CAPTCHA domain is non-negative: a negative
-    intermediate or final value, a division by zero, or a non-finite result
-    signals a misparse, not a real answer.
+    One owner for the CAPTCHA arithmetic domain, shared with the solver's
+    EXPR/FINAL cross-check (``verification._compute_decimal_pair``): the
+    physical-count domain is non-negative, so a negative intermediate or
+    final value, a division by zero, or a non-finite result signals a
+    misparse, not a real answer. ``-0.00`` is normalised away — the sign of a
+    zero is a formatting artefact and the two readings of one answer must not
+    differ by it.
     """
-    result = Decimal(operands[0].value)
+    result = values[0]
     try:
-        for op, operand in zip(chain, operands[1:], strict=False):
-            right = Decimal(operand.value)
+        for op, right in zip(chain, values[1:], strict=False):
             if op == _ADD:
                 result += right
             elif op == _SUB:
@@ -1768,4 +1783,14 @@ def _compute_chain(operands: list[_Operand], chain: list[str]) -> str | None:
                 return None
     except (DivisionByZero, InvalidOperation):
         return None
-    return f"{result:.2f}"
+    formatted = f"{result:.2f}"
+    return "0.00" if formatted == "-0.00" else formatted
+
+
+def _compute_chain(operands: list[_Operand], chain: list[str]) -> str | None:
+    """Parsed-operand form of :func:`compute_decimal_chain`."""
+    try:
+        values = [Decimal(operand.value) for operand in operands]
+    except InvalidOperation:
+        return None
+    return compute_decimal_chain(values, chain)
