@@ -104,10 +104,12 @@ class NeverSelectedReading:
       above ``exposure_floor`` judged exposures. Only these are archive
       candidates: a skill never selected under two-pass injection was never
       injected, so removing it cannot change judged behaviour.
-    - ``dormant`` — zero selections in the trailing window but selected at
-      some point before. A reading only. Archiving one of these WOULD change
-      judged behaviour, which is exactly why it is a separate field and not a
-      longer version of the first list.
+    - ``dormant`` — offered at least once inside the trailing window, chosen
+      zero times there, and selected at some point before it. A name the
+      window never offered is not dormant: it was not refused, it was not on
+      the table. A reading only. Archiving one of these WOULD change judged
+      behaviour, which is exactly why it is a separate field and not a longer
+      version of the first list.
 
     ``below_floor`` is the third state and is not a population to act on:
     never selected, but not yet offered often enough for that to mean

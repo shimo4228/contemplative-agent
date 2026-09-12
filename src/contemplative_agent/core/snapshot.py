@@ -221,9 +221,11 @@ def _prune_snapshots(snapshots_dir: Path, keep: int) -> None:
     one of another. Sort by the ``{ts_compact}`` suffix instead: it is a
     fixed-width, underscore-free timestamp (lexicographic == chronological), and
     command names contain no underscores, so the single-underscore template
-    makes ``rsplit("_", 1)[-1]`` reliably isolate the timestamp. Best-effort:
-    pruning failures are logged, never raised (snapshots are observability,
-    ADR-0020 — pruning must not break a command).
+    makes ``rsplit("_", 1)[-1]`` reliably isolate the timestamp. Best-effort and
+    silent: an ``OSError`` from ``iterdir`` returns without logging and each
+    ``rmtree`` runs with ``ignore_errors=True``, so pruning never raises and
+    never reports — unbounded snapshot growth leaves no warning to grep for
+    (snapshots are observability, ADR-0020 — pruning must not break a command).
     """
     try:
         snaps = sorted(

@@ -387,8 +387,9 @@ def _load_known_themes(
 def _parse_covered_ids(raw: str, known_topics: set[str]) -> set[str] | None:
     """Parse the novelty judge's output into covered cluster ids.
 
-    Tolerates code fences and surrounding prose (same salvage as
-    stocktake's ``_parse_groups``). Hallucinated ids are dropped.
+    Tolerates code fences and surrounding prose (``strip_code_fence``,
+    then a retry on the outermost ``{``...``}`` slice). Hallucinated ids
+    are dropped.
     ``None`` signals an unusable response — the caller fails open.
     """
     text = strip_code_fence(raw)
@@ -467,9 +468,11 @@ def append_novelty_audit_record(audit_path: Path | None, record: dict, *, what: 
         logger.warning("insight %s audit record failed: %s", what, exc)
 
 
-# Bound on the base64-stored judge prompt/output in insight-novelty.jsonl
-# (weekly cadence — worst case ~256 KiB/run; same truncation-flag pattern as
-# verification-audit's _MAX_AUDIT_CHALLENGE_BYTES).
+# Bound on the base64-stored judge prompt/output in insight-novelty.jsonl,
+# applied per field: ~256 KiB is the worst case for ONE record, and the gate
+# writes one record per chunk, so a weekly run's worst case is ~2.5 MiB at the
+# measured 10-chunk packing. Same truncation-flag pattern as
+# verification-audit's _MAX_AUDIT_CHALLENGE_BYTES.
 _MAX_NOVELTY_AUDIT_BYTES = 131072
 
 

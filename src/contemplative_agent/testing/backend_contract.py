@@ -24,8 +24,10 @@ without the sibling writing a test file at all.
 
 Dependency rule: this package ships, so it may import only the standard
 library and ``contemplative_agent.core.llm``. pytest, hypothesis, and
-responses are dev-group-only and unavailable here; ``tests/chaos.py``
-already demonstrates that reusable test parts do not need them.
+responses are dev-group-only and unavailable here — which is exactly why
+``tests/chaos.py`` is the cautionary case, not the model: it imports
+``responses`` and ``hypothesis`` at module level and lives under ``tests/``,
+which ships in no wheel, so no sibling could ever import it.
 
 Authoring rule for new checks: **assert only against symbols
 ``contemplative_agent.core.llm`` publicly re-exports.** A check that

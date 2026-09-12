@@ -254,8 +254,11 @@ def strip_to_printable(value: object, max_len: int) -> str:
     Shared log / audit / prompt-injection guard: one place that drops
     non-printable bytes (which can smuggle ANSI escapes or markdown
     breakers into an LLM-facing or terminal-facing string) and bounds the
-    length. ``re.sub`` only deletes, so slicing before the substitution is
-    equivalent to slicing after.
+    length. ``re.sub`` only deletes, so slicing before the substitution still
+    respects ``max_len`` — but the two orders are not interchangeable: bytes
+    dropped after the slice were already charged against the budget, so the
+    result can be shorter than substituting first would give. Only the bound
+    is load-bearing here, and slicing first is the cheaper order.
 
     Deliberate cost, since callers use this for human-readable previews:
     ASCII-only means em dashes, curly quotes and any non-Latin script are
@@ -417,8 +420,11 @@ def write_text_atomic(path: Path, content: str) -> None:
     :func:`write_restricted`, which performs the ``.tmp`` sibling +
     ``os.replace`` dance itself; kept so existing call sites keep their
     intent-revealing name. On failure the temp file is removed and the
-    ``OSError`` re-raised; callers decide whether to log-and-swallow or
-    propagate (the raise-vs-warn policy stays at the call site).
+    exception re-raised unchanged — an ``OSError``, or the
+    ``UnicodeEncodeError`` that encoding the content raises (see the note in
+    :func:`write_restricted`), so ``except OSError`` alone does not cover this
+    call. Callers decide whether to log-and-swallow or propagate (the
+    raise-vs-warn policy stays at the call site).
     """
     write_restricted(path, content)
 

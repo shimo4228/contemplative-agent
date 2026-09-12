@@ -112,7 +112,7 @@ class DiversityStats:
     """Seed-independent homogeneity of a pattern set."""
 
     n: int  # patterns with an embedding
-    skipped: int  # patterns without an embedding
+    skipped: int  # excluded: no/malformed embedding, or off-dominant-dim vector
     pairwise_mean: float
     pairwise_p50: float
     pairwise_p90: float

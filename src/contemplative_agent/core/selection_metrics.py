@@ -55,8 +55,11 @@ _REJECTED_NAME_RENDER_LIMIT = 50
 #      does occur in the value layer (constitution / identity) → ``value_layer``
 #   3. surface similarity to the nearest catalog name ≥ the floor → ``wordform``
 #   4. otherwise → ``semantic`` (a different real word swapped in)
-# Rule 2 abstains (``unclassified`` / ``value_layer_unavailable``) when no
-# value-layer text was readable, and every rule but 1 abstains
+# Rule 2 abstains (``unclassified`` / ``value_layer_unavailable``) only when
+# no value-layer text was readable *and* the name sits below the wordform
+# floor; at or above the floor rule 3 answers first, since it needs no value
+# layer — so the weekly path, which configures none, still reads ``wordform``
+# there rather than abstaining. Every rule but 1 abstains
 # (``catalog_unavailable``) when there is no catalog to measure against.
 # The floor is the third reading's (2026-08-22 §4.2); it is a reporting
 # boundary, never a gate.
@@ -1038,9 +1041,10 @@ def format_skill_selection_report(
       is the only reader that needs the hallucinated strings themselves
       (comparing their spelling against real names is the whole point of
       the tally). It passes ``include_rejected_names=True``.
-    - ``scripts/weekly-analysis.sh`` pastes the same report into the
-      weekly prompt, which an unattended chain reads before writing code
-      patches (ADR-0085). It takes the default.
+    - ``scripts/weekly-analysis.sh`` writes the same report into the weekly
+      materials, which the single unattended ``/weekly-report`` session
+      reads (ADR-0085; ADR-0098 stops that chain at report + diagnosis —
+      repair belongs to the task-triage loop). It takes the default.
 
     A rejected name is, by definition, a string that matched nothing in
     the catalog: free text from a model whose prompt embeds untrusted post

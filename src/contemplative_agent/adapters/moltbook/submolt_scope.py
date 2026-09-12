@@ -101,11 +101,12 @@ DISABLE_ENV_VAR = "MOLTBOOK_SUBMOLT_SCOPE_DISABLE"
 # production `moltbook.score_relevance` gate calls.
 _LLM_CALLER = "moltbook.submolt_scope"
 
-# The instrument shares MOLTBOOK_HOME/logs/ with the episode log and the other
-# audit trails; isolation is by filename prefix and consumer-side field
-# matching, not by directory. `core.report.generate_all_reports` globs
-# `*.jsonl` there and skips these records because they carry no
-# `data.action` — checked, not assumed (security review 2026-08-01).
+# This log lives in MOLTBOOK_HOME/logs/ alongside the other self-written audit
+# trails. The episode log — the prompt-injection carrier — sits one level down
+# in logs/episodes/ (ADR-0107), so the two are separated by directory:
+# `core.report.generate_all_reports` is always invoked on EPISODES_DIR and
+# cannot reach these records at all. The filename prefix is the reader-side
+# selection rule (`_iter_scope_records` globs it), not the isolation mechanism.
 _LOG_PREFIX = "submolt-scope-"
 
 _audit_dir: Path | None = None

@@ -95,9 +95,11 @@ FAULT_ABSTAIN_REASONS: frozenset[InsightAbstainReason] = frozenset(
     }
 )
 
-# The single line the extraction call writes instead of a skill. Matched on the
-# first non-empty line so a model that decorates it (bold, fence, trailing
-# period) is still read as declining rather than as a titleless fault.
+# The single line the extraction call writes instead of a skill. Matched on any
+# line once markdown decoration (bold, fence, heading marker, trailing period)
+# is stripped, so a model that echoes the prompt's abstain heading above its
+# answer is still read as declining rather than as a titleless fault
+# (see _is_abstain_verdict).
 _ABSTAIN_TOKEN = "NOTHING-PROMOTABLE"
 
 # Above this live-pattern count, ``insight --full`` emits an advisory warning.

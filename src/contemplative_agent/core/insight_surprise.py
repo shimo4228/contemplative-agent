@@ -10,8 +10,10 @@ metabolic quality must be distinguishable on several axes rather than
 frequency alone, insight extraction's only filter is the >=3-pattern frequency
 cluster, and this is the implemented novelty axis. The same amendment forbids
 collapsing those axes into one scalar, so the reading stays what it always
-was — listed, never applied — and where it is consumed as one axis among
-several is RFC-0017's question, not this module's.
+was — listed, never applied. It is not an extraction axis either: RFC-0023
+rules that out on population grounds — surprise measures distance from the
+recently distilled rows, not distance from the skill store, which is what a
+novelty gate for extraction needs.
 
 **Surprise** is how far a candidate cluster sits from the patterns the agent
 distilled most recently: ``1 - cos`` against the last ``k`` rows, reported

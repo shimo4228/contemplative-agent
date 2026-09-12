@@ -94,10 +94,11 @@ def compute_novelty(
 ) -> float:
     """``1.0 - max_{p ∈ H} cos_sim(draft, p) · exp(-Δt_days(p) / τ)``.
 
-    Empty history → 1.0 (maximum novelty). Recency decay halves the
-    influence of two-week-old posts at the default τ=14, so an identical
-    repost from 30 days ago contributes ``exp(-30/14) ≈ 0.117`` rather
-    than the full 1.0 a fresh repost would.
+    Empty history → 1.0 (maximum novelty). τ is an e-folding time, not a
+    half-life: at the default τ=14 a two-week-old post keeps
+    ``exp(-14/14) ≈ 0.37`` of its similarity (half-life = τ·ln2 ≈ 9.7
+    days), so an identical repost from 30 days ago contributes
+    ``exp(-30/14) ≈ 0.117`` rather than the full 1.0 a fresh repost would.
     """
     return _novelty_from_sims(
         ((cosine(draft_vec, prior_vec), age_days) for prior_vec, age_days in history),
@@ -308,10 +309,13 @@ class NoveltyGate:
     ) -> GateDecision:
         """Degrade to the Jaccard gate when embedding is unavailable.
 
-        The fallback threshold (0.45) is deliberately looser than the
-        retired 0.25 because the failure mode here is "Ollama is recovering"
-        rather than steady-state operation — false negatives matter more
-        than false positives during recovery.
+        The threshold is 0.45, not ``is_duplicate_title``'s 0.25 default,
+        because this path feeds title ∪ topic_summary: the larger token
+        sets inflate Jaccard, so a fixed 0.25 false-positives on unrelated
+        posts sharing a few stems (calibration rationale: see
+        ``dedup.is_duplicate_title`` Args). The value is tied to that input
+        shape — if this path ever stops passing topic_summary, it must move
+        back down.
         """
         is_dup, sim, prior_title = is_duplicate_title(
             draft_title,

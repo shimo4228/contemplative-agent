@@ -1,13 +1,15 @@
 """Deterministic parser for Moltbook's obfuscated arithmetic CAPTCHA.
 
-Rewritten 2026-07-07 (ADR-0062, 5th amendment) from the 601-challenge audit
+Rewritten 2026-07-07 (ADR-0062, 6th amendment) from the 601-challenge audit
 corpus (docs/evidence/adr-0062-parser-rewrite/). The previous grammar grew by
 per-failure patching; this version derives its rules from the corpus-observed
 obfuscation layers instead:
 
 - letter doubling (``ttwweennttyy``) — collapsed before lexicon lookup;
-- word splitting (``tw en ty th ree``) — whole-atom merges, bounded by the
-  longest lexicon word, never by a fragment-count window;
+- word splitting (``tw en ty th ree``) — whole-atom merges, bounded
+  primarily by the longest lexicon word rather than by a fragment-count
+  window; a 12-atom cap (``_MAX_MERGE_ATOMS``) remains only as a scan-cost
+  bound on adversarial many-atom input;
 - leet substitution (``f0rce``) — ``0`` maps to ``o`` before scanning;
 - homophone misspelling (``fife``, ``twenny``, ``thrirty``) — bounded fuzzy
   matching (edit distance 1 after collapse, minimum lengths, unique result);
@@ -831,8 +833,10 @@ def _dedup_numbers(events: list[_Event]) -> list[_Event]:
 
     The obfuscator writes a number word twice (a split form followed by a
     clean repeat: ``tw ellv e twelve``, ``thirty two two``). Only *directly*
-    consecutive equal values collapse — any intervening operation, "and", or
-    cue event keeps both (``forty + seven ... seven`` stays a chain).
+    consecutive equal values collapse — an operation, "and", or cue event
+    BETWEEN the two equal values keeps both (``forty + seven + seven`` stays
+    a chain, while in ``forty + seven ... seven`` the two sevens are still
+    directly consecutive in the event stream and collapse, reading 47).
     """
     deduped: list[_Event] = []
     for event in events:
@@ -1148,7 +1152,13 @@ class _Positions(NamedTuple):
     """Where every event sits relative to the operands, once and for all."""
 
     filled: list[set[str]]
-    """Per-gap operation sets, change-verb collapsed, guaranteed unambiguous."""
+    """Per-gap operation sets, guaranteed unambiguous (one op per gap).
+
+    A change-verb is collapsed to plain add only in a gap that also holds an
+    explicit add; a lone ``_ADD_CHANGE`` survives here on purpose, because the
+    tail rules key on it (``_ExplicitCtx.mul_override`` tests
+    ``chain == [_ADD_CHANGE]``). Normalisation happens at compute time.
+    """
     tail: _TailSignals
     ands: list[_AndEvent]
 

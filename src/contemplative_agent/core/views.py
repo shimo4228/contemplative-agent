@@ -75,8 +75,7 @@ from .knowledge_store import is_live
 
 logger = logging.getLogger(__name__)
 
-# Cache embedded seeds per ViewRegistry instance to avoid re-embedding on
-# every query. Cleared when load_views() is called again.
+# Defaults for frontmatter keys absent from a view's *.md file.
 _DEFAULT_THRESHOLD = 0.0
 _DEFAULT_TOP_K: int | None = None
 
@@ -229,6 +228,9 @@ class ViewRegistry:
         self._views_dir = views_dir
         self._path_vars: Mapping[str, Path] = path_vars or {}
         self._views: dict[str, View] = {}
+        # Cache embedded seeds per ViewRegistry instance to avoid re-embedding on
+        # every query. Filled lazily by get_centroid(); cleared when load_views()
+        # is called again.
         self._centroids: dict[str, np.ndarray] = {}
         self._loaded = False
 

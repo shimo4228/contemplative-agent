@@ -162,7 +162,10 @@ def parse_clusters(section: str, chunk_index: int) -> list[Cluster]:
 
 
 def _chunk_from_record(record: dict[str, Any]) -> tuple[str, str, Chunk]:
-    """One logged judge record back into ``(known_section, Chunk)``.
+    """One logged judge record back into ``(known_section, logged_prompt, Chunk)``.
+
+    The logged prompt is carried out verbatim so ``_assert_round_trip`` can
+    compare the rebuilt prompt against it byte for byte.
 
     The parsed cluster ids are checked against the record's own ``clusters``
     field: that field is written independently of the prompt, so a mismatch

@@ -6,9 +6,10 @@ the structural check and the usage reading are code-owned readings, and the
 ADR-0081 description audit is advisory. Retirement and consolidation happen at
 the Saturday gate, not here: ``remove-skill --reason`` archives a skill into
 ``skills/.archive/`` and ``adopt-staged --archive-names FILE`` retires store
-skills at the adoption gate, while the packet's never-selected and co-selection
-readings say which skills are candidates. All of that is ADR-0097 slice 2 and
-lives elsewhere — this command reports, it does not retire.
+skills at the adoption gate, while the packet's never-selected (stage 7b,
+ADR-0097 D5) and confusion-pair (stage 7c, ADR-0105) readings say which skills
+are candidates. All of that is ADR-0097 slice 2 and lives elsewhere — this
+command reports, it does not retire.
 
 ``rules-stocktake`` was retired in the same decision. The deterministic rule
 check (``core.stocktake._check_rule_quality``) is no longer run here either;

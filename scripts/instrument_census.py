@@ -253,8 +253,10 @@ def strip_body(record: dict) -> dict:
     """Return a copy of ``record`` with body-shaped fields removed.
 
     Denylist by NAME (``_b64`` suffix, body-ish tokens) and by SHAPE (strings
-    longer than ``MAX_STR``). Nested dicts are stripped recursively; lists of
-    strings are dropped if any element is over the limit.
+    longer than ``MAX_STR``). Nested dicts are stripped recursively; a list
+    survives only if every element is a non-text scalar (bool / int / float /
+    None) — one string element drops the whole list regardless of its length,
+    because lists of strings are model-produced names (ADR-0083).
     """
     out: dict = {}
     for k, v in record.items():

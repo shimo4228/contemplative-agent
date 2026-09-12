@@ -510,7 +510,8 @@ def _validate_weekday_hour_flag(
 
     Split out of :func:`_validate_install_schedule_args` (behaviour-
     preserving): the day-0..6 / hour-0..23 range check and error text are
-    identical across the five weekly schedules, only the flag names differ.
+    identical across every weekly schedule in ``_WEEKLY_JOBS``, only the
+    flag names differ.
     """
     if day < 0 or day > 6:
         parser.error(f"{day_flag} must be 0 (Sun) to 6 (Sat)")

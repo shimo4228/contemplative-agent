@@ -12,17 +12,22 @@ printed, or returned — the reading is about ranks, not about what the posts sa
 Two guards against reading noise as signal:
 
   * `split_half_noise_ceiling` — within ONE sweep, the rank agreement between
-    the first and second half of each submolt's sample, stepped back up to full
-    sample length by Spearman-Brown. A between-sweep rho at or below this is
+    the odd- and even-indexed posts of each submolt's sample (odd/even, not
+    contiguous halves — see `split_half`), stepped back up to full sample
+    length by Spearman-Brown. A between-sweep rho at or below this is
     indistinguishable from n=20 sampling noise.
   * `post_overlap` — how many scored posts two sweeps share. Rank stability over
     the SAME posts would be trivial; over disjoint posts it is not.
 
-The two rules that decide WHICH records enter the distribution are production's,
-imported rather than re-derived: ``_is_judged`` (``reason == "scored"`` AND a
-numeric score — an outage week must read as unavailable, not as 0%) and the
-per-post dedup. A reading taken under a looser rule than the pipeline it is
-about describes a system nobody runs. Verified 2026-09-12: the rules leave every
+Two rules decide WHICH records enter the distribution. ``_is_judged``
+(``reason == "scored"`` AND a numeric score — an outage week must read as
+unavailable, not as 0%) is imported from production, so it cannot drift. The
+per-post dedup is restated here as plain first-wins, and it matches production
+only under a measured condition: ids are 36 chars against a 64-char cap, so
+production's un-dedupable branch for cap-length or missing ids
+(``_select_score_record``) is never taken and is not mirrored here. A reading
+taken under a looser rule than the pipeline it is about describes a system
+nobody runs. Verified 2026-09-12: the rules leave every
 sweep log on disk unchanged, so the RFC-0011 evidence stands as taken.
 
 Requires the installed package for that import, so it runs under the venv:

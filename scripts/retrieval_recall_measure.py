@@ -23,15 +23,26 @@ query text comes from the staged ledger ``logs/insight-staged.jsonl``
 name to the row nearest before the review's date. A cited name is resolved
 against three spellings of every store skill — its frontmatter ``name:``, its
 filename stem, and that stem minus a trailing adoption-date suffix — because
-the reviewer sees the store as filenames (``--add-dir``) and the two spellings
-routinely differ (see :func:`store_name_index`).
+the reviewer sees the store as filenames (it is granted
+``Read(/$MOLTBOOK_HOME/skills/**)``) and the two spellings routinely differ
+(see :func:`store_name_index`).
 
-**This script was written without running it.** The two corpora it reads —
-``$MOLTBOOK_HOME/logs/**`` and the weekly review reports, which quote
-external content — are outside what the authoring agent may read
-(prompt-injection boundary, CLAUDE.md). It is verified against synthetic
-fixtures in ``tests/test_retrieval_recall_measure.py``; the real reading is
-the author's to take. Read the labelled-pair count first when they do.
+**Live readings exist.** First run against the live corpora 2026-09-04: v1
+resolved citations by frontmatter ``name:`` only (54 labelled pairs), v2 added
+the filename-stem tiers and the ``bm25``/``union_bm25`` arms (123 pairs, a
+57-skill store). Both are frozen as
+``docs/evidence/rfc-0023/retrieval-recall-v{1,2}-rrf{5,10,60}-20260904.json``
+and read in ``rfcs/0023-novelty-gate-retrieval-and-rare-lane.md``; the best
+recall@5 was 0.61 (``cosine``), so ADR-0097's ``recall@5 >= 0.9`` bar is not
+met. Behaviour is verified against synthetic fixtures in
+``tests/test_retrieval_recall_measure.py``. Read the labelled-pair count
+before any rate — a rate over few pairs is not a reading.
+
+Of the two corpora it reads, the weekly review reports quote external content,
+so their text is untrusted when a run is inspected by hand. The ledger
+``$MOLTBOOK_HOME/logs/insight-staged.jsonl`` is self-written and readable:
+under ``logs/`` only ``episodes/**`` and ``agent-launchd.log*`` are outside
+what an agent may read (prompt-injection boundary, CLAUDE.md / ADR-0107).
 
 **Arms** (at least three, so the reading can distinguish them):
 
@@ -171,9 +182,10 @@ _FM_NAME_RE = re.compile(r"^name:\s*(.+?)\s*$", re.MULTILINE)
 _FM_DESCRIPTION_RE = re.compile(r'^description:\s*"?(.*?)"?\s*$', re.MULTILINE)
 _PRINTABLE_RE = re.compile(r"[^\x20-\x7E]")
 # Store filenames carry an adoption-date suffix, and the reviewer can see
-# them (`weekly-pipeline.sh` grants --add-dir over the skill store), so a
-# citation by filename must resolve to the skill rather than be filed as a
-# hallucination-shaped unresolved name.
+# them (`weekly-pipeline.sh` grants the reviewer session
+# `Read(/$MOLTBOOK_HOME/skills/**)`, so it reads the store as a directory
+# listing), so a citation by filename must resolve to the skill rather than be
+# filed as a hallucination-shaped unresolved name.
 _TRAILING_ISO_DATE_RE = re.compile(r"-\d{4}-\d{2}-\d{2}$")
 # The live store writes the suffix compact (`-20260725`); the dashed form is
 # kept beside it because both spellings exist across the store's history.
@@ -466,8 +478,9 @@ def store_name_index(docs: Sequence[StoreSkill]) -> dict[str, str]:
 
     Three tiers, and all three are needed: the *selector* and the staged
     ledger speak the frontmatter ``name:``, but the *reviewer* is handed the
-    store as a directory listing (``weekly-pipeline.sh`` grants ``--add-dir``)
-    and cites what it can see — the filename. On the live store those two
+    store as a directory listing (``weekly-pipeline.sh`` grants that session
+    ``Read(/$MOLTBOOK_HOME/skills/**)``; ``--add-dir`` covers only reports/ and
+    logs/) and cites what it can see — the filename. On the live store those two
     spellings routinely differ (``analogy-mapping-for-structural-clarity-20260801.md``
     declares ``name: analogy-mapping-relationships``), so a name-only index
     silently discarded the citation and filed it under
@@ -1505,7 +1518,7 @@ def main(argv: list[str] | None = None) -> int:
         action="append",
         choices=ARMS,
         default=None,
-        help="retrieval arm (repeatable; default: all three)",
+        help="retrieval arm (repeatable; default: all five; cosine/union need Ollama + package)",
     )
     parser.add_argument("--k", default=",".join(str(k) for k in DEFAULT_K))
     parser.add_argument("--rrf-k", type=int, default=DEFAULT_RRF_K)

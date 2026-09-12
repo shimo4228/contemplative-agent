@@ -165,8 +165,9 @@ class Agent:
     def _fetch_home_data(self, client: MoltbookClient) -> None:
         """Fetch /home dashboard and extract own agent ID.
 
-        Replaces the old _fetch_own_agent_id (which called /agents/me)
-        with a single /home call that also provides activity data.
+        One /home call supplies both the activity data and the own-account
+        identity; /agents/me is consulted only when /home leaves the id or
+        the name unset (_fetch_own_agent_id_fallback).
 
         The payload is projected onto _HOME_ALLOWED_KEYS before it is
         stored: everything else in the dashboard (the `check_in` role

@@ -297,7 +297,9 @@ class KnowledgeStore:
         tainted data that may have been injected via compromised
         external content during distillation.
 
-        Also handles legacy Markdown format for migration.
+        JSON only since v2.0 (ADR-0019): a non-JSON (legacy Markdown)
+        file is refused, not migrated — ``_load_failed`` is set so a later
+        ``save()`` cannot overwrite it.
         """
         self._learned_patterns = []
         self._load_failed = False

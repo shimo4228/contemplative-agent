@@ -440,9 +440,9 @@ class ReplyHandler:
             ctx.commented_posts.add(reply_key)
             # Persist cross-session so a later session does not re-reply to the
             # same target (mirrors feed_manager.engage_with_post's
-            # record_commented). Takes effect for replies made after this ships;
-            # the episode-scan fallback in _build_commented_cache stores post_ids,
-            # not reply keys, so it does not dedup against pre-change replies.
+            # record_commented). Dedup only covers reply keys actually recorded:
+            # the episode-scan fallback (memory_repos._build_cache, reached from
+            # _load_cache) collects ep["data"]["post_id"], never reply keys.
             ctx.memory.record_commented(reply_key)
             # The counterparty's display name is as attacker-controlled as the
             # body was, and both of its consumers below end at INFO in the

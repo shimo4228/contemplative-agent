@@ -52,6 +52,7 @@ def classify_action(record: dict[str, Any]) -> str:
         activity:comment → comment
         activity:reply → reply
         activity:post → post
+        post (top-level record type; primary path for own posts) → post
         insight → reflect
         interaction (received) → idle (passive receipt)
         interaction (sent) → comment (active engagement)

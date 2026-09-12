@@ -55,10 +55,10 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# Fallback copies of config/prompts/verification_solve_{extract,reason}_system.md
-# (the canonical prompts), used only when the prompt files are missing. Keep
-# both sides in sync when editing either (round 8 re-synced them after the
-# round-7 file edits drifted from these defaults).
+# Fallback copy of config/prompts/verification_solve_extract_system.md (the
+# canonical prompt), used only when that file is missing. Keep both sides in
+# sync when editing either. This is the solver's only prompt: the
+# free-reasoning path and its prompt were retired by ADR-0062's 9th amendment.
 _DEFAULT_EXTRACT_SYSTEM = """\
 You solve obfuscated arithmetic word problems.
 

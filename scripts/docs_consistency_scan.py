@@ -23,10 +23,13 @@ Checks (findings):
                  clone; the CLAUDE.md docs-placement rule forbids it)
 
 Readings (never findings — ages carry no threshold; the gate reads them):
-- freshness    — generated-date age and commits-behind of each block-form
-                 FRESHNESS header (today only docs/CYCLES.md carries one;
-                 file-level codemaps were retired by ADR-0102 — structure is
-                 derived from code via LSP / grimp, not stored)
+- freshness    — generated-date age and commits-behind of the block-form
+                 FRESHNESS header in docs/CYCLES.md, and only that file: the
+                 reading is scoped by path, not a sweep. docs/diagrams/README.md
+                 carries the same header dialect and is deliberately out of
+                 scope (its refresh rule is the 鮮度規約 human gate, not this
+                 scan). File-level codemaps were retired by ADR-0102 —
+                 structure is derived from code via LSP / grimp, not stored
 
 Faults degrade, they never lie: a git failure or unreadable file lands in
 ``errors`` with a reason code while the remaining checks still run; only an
@@ -307,13 +310,15 @@ def parse_freshness(text: str) -> dict | None:
 def freshness_readings(
     root: Path, behind: Callable[[str], int | None], today: date
 ) -> tuple[list[dict], list[dict]]:
-    """Age reading for the FRESHNESS-stamped doc. A reading only, no threshold.
+    """Age reading for docs/CYCLES.md. A reading only, no threshold.
 
-    Straight-line over the single stamped file rather than a loop over a
-    one-element list (ADR-0102 removed the others): a loop whose body can only
-    run once reads as a sweep, and the `continue`s that shaped it hid that the
-    "nothing stale" answer and the "the file is gone" answer are the same
-    empty list unless the absence is reported — which is why it is.
+    Scope is one file by choice, not because it is the only stamped doc —
+    docs/diagrams/README.md carries the same header dialect and is left to the
+    鮮度規約 human gate. Hence straight-line rather than a loop over a
+    one-element list: a loop whose body can only run once reads as a sweep, and
+    the `continue`s that shaped it hid that the "nothing stale" answer and the
+    "the file is gone" answer are the same empty list unless the absence is
+    reported — which is why it is.
     """
     errors: list[dict] = []
     path = root / "docs" / "CYCLES.md"

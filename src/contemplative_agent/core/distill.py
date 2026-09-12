@@ -93,9 +93,9 @@ FAULT_ABSTAIN_REASONS: frozenset[str] = frozenset(
     {ABSTAIN_LLM_NONE, ABSTAIN_EMPTY_RENDER, ABSTAIN_SHAPE_VIOLATION}
 )
 
-# Embedding-based dedup thresholds live in ``core/thresholds.py`` since
-# ADR-0035 PR2; re-exported under the historical names here so existing call
-# sites keep working without ad-hoc late imports.
+# Embedding-based dedup threshold registry lives in ``core/thresholds.py``
+# (ADR-0035 PR2) — the single source every consumer imports from directly.
+# ``DEDUP_IMPORTANCE_FLOOR`` is used inside this module only.
 from .thresholds import (  # noqa: E402 — module-level by design
     DEDUP_IMPORTANCE_FLOOR,
 )
@@ -200,9 +200,13 @@ def distill(
         postgate=_postgate_enabled() if postgate is None else postgate,
     )
 
-    # ``results`` is empty only when every episode's LLM call returned None
-    # (an episode that yields zero patterns still records its raw output) —
-    # surface that as a message rather than a silent blank line.
+    # ``results`` holds one raw LLM output per episode that produced a
+    # ``_BatchOutput``; it is empty whenever every episode returned an abstain
+    # reason instead — a fault (llm_none / empty_render / shape_violation) or
+    # the judged ``nothing_durable``, which records no raw output at all. The
+    # message below does not yet separate those two, so read it with the
+    # per-reason tally logged by ``_extract_patterns`` (ADR-0075): a clean
+    # all-abstain week and a backend outage both reach this branch.
     if not result.results:
         msg = f"Distillation extracted no patterns: all {len(rich)} episode calls failed."
         logger.warning(msg)
@@ -788,8 +792,9 @@ def _instrument_dry_run(
     )
     # Read-only composition instruments over the would-be-ADDED set —
     # post-dedup, so skipped duplicates are not counted (codex review
-    # 2026-07-03 P3). View supply needs the registry, diversity and
-    # grounding run regardless. Observability only — never a gate.
+    # 2026-07-03 P3). Two instruments only: view supply, which needs the
+    # registry, and diversity, which runs regardless. Observability only —
+    # never a gate.
     batch = []
     for idx in deduped.add_indices:
         # Bound once: two subscripts of the same optional element do not narrow,

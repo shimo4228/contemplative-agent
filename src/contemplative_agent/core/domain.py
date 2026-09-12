@@ -207,7 +207,10 @@ def _read_prompt_with_fallback(
                     override,
                 )
             else:
-                # Lazy import to avoid circular dependency: core.llm imports from core.config.
+                # Deferred import, not a cycle break: no module under core.llm imports
+                # core.domain. It keeps `import core.domain` free of the llm facade's
+                # transport stack (requests + backends), which only this override
+                # validation path needs.
                 from .llm import validate_identity_content
 
                 if content and not validate_identity_content(content):

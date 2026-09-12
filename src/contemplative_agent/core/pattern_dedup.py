@@ -169,7 +169,7 @@ def _dedup_action(
     best_new_sim: float,
     best_new_idx: int,
 ) -> str:
-    """Decide: ``skip`` / ``update`` existing / ``skip_new`` (boost in batch) / ``add``."""
+    """Decide: ``skip`` / ``update`` existing / ``skip_new`` (drop; batch twin kept) / ``add``."""
     if best_existing_sim >= SIM_DUPLICATE or best_new_sim >= SIM_DUPLICATE:
         return "skip"
     if (

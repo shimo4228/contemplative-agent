@@ -1,10 +1,11 @@
 """Local embedding interface via Ollama REST API.
 
 Thin wrapper over Ollama's /api/embed endpoint plus the cosine
-similarity primitive. Used by stocktake, distill (dedup), and the views
-mechanism (ADR-0019) to resolve semantic similarity that
-SequenceMatcher cannot detect (structural similarity hidden by
-vocabulary variation).
+similarity primitive. Used by distill (dedup) / pattern_dedup, the views
+mechanism (ADR-0019) + view_metrics, the self-post novelty gate, insight
+novelty, and the constitution shadow instrument to resolve semantic
+similarity that SequenceMatcher cannot detect (structural similarity
+hidden by vocabulary variation).
 """
 
 from __future__ import annotations
@@ -27,8 +28,8 @@ EMBEDDING_TIMEOUT_SECONDS = 60
 EMBEDDING_DIM = 768  # nomic-embed-text dimension
 
 # Calibration pin (ADR-0071 / ADR-0072). Every similarity threshold in this
-# codebase (view floors 0.66/0.55, dedup 0.90/0.80, novelty θ=0.35, cluster
-# 0.70/0.65) and the three-point calibration scale below were measured on
+# codebase (view floors 0.66/0.55, dedup 0.90/0.80, novelty θ=0.35, insight
+# cluster 0.70) and the three-point calibration scale below were measured on
 # THIS exact model. A same-dimension model swap passes every shape check
 # (cosine dim guard, view_metrics row drop) while silently invalidating all
 # of them — so the model identity itself is pinned here and compared at

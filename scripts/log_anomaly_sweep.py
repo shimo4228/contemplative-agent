@@ -531,7 +531,7 @@ def main(argv: list[str] | None = None) -> int:
     print(render_markdown(findings, args.top, corpus, prev_corpus))
     # The census is written *before* its state snapshot in both pairs: the
     # caller treats the snapshot's existence as "the sweep ran to completion"
-    # (weekly-analysis.sh promotes on `-e $SWEEP_PENDING`), so the snapshot
+    # (weekly-pipeline.sh promotes on `-e $SWEEP_PENDING`), so the snapshot
     # must stay the last file to appear.
     if not args.no_update:
         write_corpus(corpus_state_path(args.state), corpus)

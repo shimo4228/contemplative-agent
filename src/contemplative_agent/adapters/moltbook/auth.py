@@ -54,8 +54,10 @@ def load_credentials() -> str | None:
 def save_credentials(api_key: str, agent_id: str | None = None) -> None:
     """Save API key to credentials file with restricted permissions.
 
-    Uses atomic write (tmp + rename) with umask to prevent race window
-    where credentials could be world-readable.
+    Uses ``write_text_atomic`` (unique temp file in the target directory +
+    ``os.replace``, mode pinned to exactly 0600 with ``fchmod`` on the temp fd
+    rather than a process-wide umask), so credentials are never observable
+    world-readable nor partially written.
     """
     CREDENTIALS_PATH.parent.mkdir(parents=True, exist_ok=True)
 

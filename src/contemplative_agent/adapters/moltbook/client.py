@@ -47,10 +47,14 @@ API_AUDIT_PATH = MOLTBOOK_DATA_DIR / "logs" / "api-audit.jsonl"
 _UUID_RE = re.compile(r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$", re.I)
 # Agent-name segments that are real path components, not a {name} variable.
 _AGENT_ACTIONS = {"me", "profile", "register", "status"}
-# Top-level envelope keys the client DEPENDS ON per endpoint. A missing key here
-# means our parsing would silently break → log a drift WARNING. Endpoints that
-# legitimately omit `success` (notifications, submolt feed) key on their list
-# field instead. Extra/unknown keys are recorded but not warned (additive).
+# Top-level envelope keys the client DEPENDS ON, for the subset of endpoints
+# listed below. A missing key here means our parsing would silently break → log
+# a drift WARNING. Endpoints that legitimately omit `success` (notifications,
+# the submolt listing) key on their list field instead. Extra/unknown keys are
+# recorded but not warned (additive). This table is hand-maintained and partial:
+# an endpoint absent here is never drift-checked (`_describe_body` skips it), so
+# the feed reads (`GET /feed`, `GET /submolts/{name}/feed`) depending on `posts`
+# are NOT covered — add the endpoint here when you want its key guarded.
 _EXPECTED_KEYS: dict[str, frozenset[str]] = {
     "POST /posts": frozenset({"post"}),
     "GET /posts/{id}": frozenset({"post"}),
@@ -737,13 +741,19 @@ class MoltbookClient:
         params: Mapping[str, str | int] | None = None,
         failure: str,
     ) -> list[dict[str, Any]]:
-        """GET *path* and return ``body[key]``; ``[]`` with a WARNING on failure.
+        """GET *path* and return ``body[key]``; ``[]`` with a WARNING on a
+        request/parse failure.
 
         The read-side twin of ``_idempotent_write``: the "a failed read is an
         empty read" convention has one owner instead of a hand-copied
         ``except`` block per endpoint. *failure* is the WARNING's subject, so
-        each endpoint keeps its own log line. Endpoints whose empty list must
-        stay distinguishable from a broken call (``list_submolts``,
+        each endpoint keeps its own log line. Only ``MoltbookClientError`` (HTTP
+        error / transport) and ``ValueError`` (unparseable body) degrade to
+        ``[]``: a 2xx body that parses to something other than a JSON object
+        (bare list, string, number) makes ``.get`` raise ``AttributeError``,
+        which is NOT caught and reaches the caller — a server-shape bug class,
+        not the expected empty read. Endpoints whose empty list must stay
+        distinguishable from a broken call (``list_submolts``,
         ``get_submolt_feed``) deliberately do NOT use this — they raise.
         """
         try:

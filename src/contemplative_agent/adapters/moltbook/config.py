@@ -49,8 +49,9 @@ SKILLS_DIR = MOLTBOOK_DATA_DIR / SKILLS_DIRNAME
 # ADR-0097 D5: the skill store's exit. A retired skill MOVES here instead of
 # being unlinked, so "removed from the store" and "gone" stop being the same
 # act and restoring is a plain `mv` back. Only the leaf name lives here
-# beside ``SKILLS_DIRNAME`` because the two writers (`cli/adopt.py`'s `remove-skill` and
-# `adopt-staged --archive-names`) derive the store dir from
+# beside ``SKILLS_DIRNAME`` because the two writers (`cli/remove_skill.py`'s
+# `remove-skill` and `cli/adopt.py`'s `adopt-staged --archive-names`, both
+# archiving through `cli/skill_archive.py`) derive the store dir from
 # ``MOLTBOOK_DATA_DIR`` at call time rather than from ``SKILLS_DIR``, which
 # is frozen at import and would ignore a per-call / test-patched home.
 # A leading dot so it is invisible to every store reader: they all glob

@@ -277,14 +277,13 @@ def _run_approval_loop(
     """Iterate generated artifacts through the approval gate, write approved.
 
     Each item must expose ``filename``, ``text``, and ``target_path``
-    (``SkillResult`` / ``RuleResult`` from core/, and ``StageItem`` here
-    all match this shape — kept structural to avoid dragging core types
-    into the cli module signature).
+    (``SkillResult`` from core/ and ``StageItem`` here match this shape —
+    kept structural to avoid dragging core types into the cli module
+    signature).
 
-    Per-handler post-loop hooks (``write_last_insight`` /
-    ``_write_last_run``) and summary prints stay at the call site
-    because the wording differs ("written" vs "revised", per-handler
-    counters).
+    The per-handler post-loop hook (``write_last_insight``) and summary
+    prints stay at the call site because the wording differs ("written" vs
+    "revised", per-handler counters).
 
     Returns the count of approved+written items so the caller can
     decide whether to fire its post-loop hook.
@@ -312,9 +311,9 @@ def _run_approval_loop(
             approved,
             item.text,
             snapshot_path=snapshot_path,
-            # ADR-0050: SkillResult carries pattern_ids, RuleResult carries
-            # source_ids (skill filenames); StageItem-shaped items carry
-            # neither here (staging logs lineage itself).
+            # ADR-0050: SkillResult carries pattern_ids, StageItem carries
+            # source_ids; the getattr pair accepts either shape and an item
+            # with neither logs null lineage.
             source_ids=(getattr(item, "pattern_ids", None) or getattr(item, "source_ids", None)),
             epistemic_counts=getattr(item, "epistemic_counts", None),
         )

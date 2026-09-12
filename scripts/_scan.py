@@ -2,8 +2,10 @@
 
 Sibling-imported the same way as `_md.py` (the scripts/ dir is not a package;
 `python3 scripts/<name>.py` puts it on sys.path). The `reason= detail` message
-shape is part of the pipeline's observability contract — the weekly chain
-greps it out of each stage's `*.err` file — so it must not fork per intake.
+shape must not fork per intake: it is pinned by each instrument's stderr test
+and is what the Saturday gate reads out of the run-log `$RUN_LOG_DIR/<stage>.err`
+when a stage abstains. The chain itself branches only on exit status and the
+JSON stdout artifact — nothing machine-reads the `*.err` files.
 """
 
 from __future__ import annotations

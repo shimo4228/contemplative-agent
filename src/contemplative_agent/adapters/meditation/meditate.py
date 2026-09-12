@@ -79,7 +79,7 @@ def _expected_free_energy(
     """Compute expected free energy for a single action.
 
     G = ambiguity + risk
-      = E_q[H[P(o|s)]] - E_q[log P(o|C)]
+      = E_q[H[P(o|s)]] + KL(Q(o) || P(o|C))
 
     Simplified: uses transition model to predict next state,
     then evaluates observation likelihood against preferences.
@@ -187,7 +187,10 @@ def meditate(
        d. Evaluate expected free energy for each policy
        e. Prune policies below counterfactual_threshold
        f. Use pruned policy distribution to weight transition model
-    3. Stop when: convergence < epsilon OR MAX_CYCLES reached
+    3. Stop when: convergence delta < config.convergence_epsilon OR the cycle
+       budget is exhausted — the budget is ``config.meditation_cycles`` (the
+       single knob callers set, e.g. ``--cycles``), hard-clipped to MAX_CYCLES
+       with a warning when a caller asks for more
     4. Return trajectory and final beliefs
     """
     A, B, C, D = matrices.A, matrices.B, matrices.C, matrices.D

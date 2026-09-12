@@ -34,9 +34,14 @@ Live-text reconciliation (weekly 2026-08-22 F1.2): the tally above answers
 ``audit.jsonl`` records *approvals*, not *writes*, so a hand repair, a
 restore from backup or an out-of-band edit changes the live layer while
 leaving a clean tally. The audit row's ``content_hash`` is
-``sha256(bytes written)[:16]`` (``cli/approval.py:161``, invariant stated at
-``cli/adopt.py:323-326``), so the live file's provenance is decidable by
-hashing it. Three named states are rendered, of which the last two are
+``sha256(the text handed to the approval logger)[:16]``
+(``cli/approval.py:188``, in ``_log_decision``) — and on the adopt path that
+text is the body BEFORE its trailing newline, since ``adopt`` writes
+``ensure_trailing_newline(text)`` (``cli/adopt.py:320``; the invariant that
+the logged hash must describe the bytes on disk is pinned at
+``cli/adopt.py:284-290`` and ``:309-310``). The live file's provenance is
+therefore decidable by hashing it, but only against BOTH candidate digests —
+see ``_digests``. Three named states are rendered, of which the last two are
 today indistinguishable in the tally alone:
 
 - a live file's hash matches an approved row (the normal case);
@@ -44,13 +49,16 @@ today indistinguishable in the tally alone:
 - an in-window approved row has no live file carrying its hash — approved
   and written, but not what the runtime reads now.
 
-"Live" means the files the runtime actually loads: ``identity.md`` for
-identity (``core/llm/prompting.py:213``), ``*.md`` under the section
-directory for constitution / skills / rules (``core/domain.py:332``,
-``core/llm/prompting.py:178``, ``core/skill_selection.py:141``,
-``core/text_utils.py:190``). A sibling written beside the canonical name
-(``identity-2.md``) is therefore not a live file and shows up as the third
-state, which is exactly what it is.
+"Live" means the files the runtime actually loads (cited by symbol, not line,
+because line anchors drift): ``identity.md`` for identity
+(``core/llm/prompting.py::_identity_axioms_base``), ``*.md`` under the
+section directory for constitution / skills / rules
+(``core/domain.py::load_constitution``,
+``core/llm/prompting.py::_load_md_files``,
+``core/skill_selection.py::load_skill_catalog`` traversing
+``core/text_utils.py::iter_markdown_documents``). A sibling written beside
+the canonical name (``identity-2.md``) is therefore not a live file and shows
+up as the third state, which is exactly what it is.
 
 Calibration of the second state (review, 2026-08-22): "matches no approved
 row" is *not* a synonym for "bypassed the gate". ``contemplative-agent
@@ -183,8 +191,9 @@ class LiveFile:
     """One live value-layer file reduced to digests. No path, no content.
 
     Two digests, not one: ``_log_approval`` hashes the text it was handed
-    (``cli/approval.py:161``) while ``adopt`` writes that text plus a
-    trailing newline when it lacks one (``cli/adopt.py:335``). Hashing only
+    (``cli/approval.py:188``, inside ``_log_decision``) while ``adopt`` writes
+    that text plus a trailing newline when it lacks one
+    (``cli/adopt.py:320``, ``ensure_trailing_newline``). Hashing only
     the bytes on disk would therefore report every newline-terminated adopt
     as unapproved. ``digests[0]`` is the on-disk bytes and is the one shown.
     """

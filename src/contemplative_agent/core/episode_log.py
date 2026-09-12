@@ -22,7 +22,11 @@ _FILE_MEMO_MAX = 8
 class EpisodeLog:
     """Append-only episode log stored as daily JSONL files.
 
-    Each line: {"ts": "ISO8601", "type": "interaction|post|activity|insight", "data": {...}}
+    Each line: {"ts": "ISO8601", "type": "interaction|post|activity|session|dialogue",
+    "data": {...}}. Those five are the whole written vocabulary; readers that
+    branch on type must tolerate the historical type="insight" records still
+    sitting in old daily files (retired by ADR-0052 — nothing appends or loads
+    them, and episode_render treats one reaching it as a bug).
     """
 
     def __init__(self, log_dir: Path | None = None) -> None:

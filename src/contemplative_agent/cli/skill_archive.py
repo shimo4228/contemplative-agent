@@ -101,9 +101,10 @@ class _ArchiveResult:
     disk, not the bytes we started from).
 
     ``stray_copy`` is set on the one failure that still put bytes on disk:
-    the copy landed but the source could not be unlinked. Seven of the eight
-    refusals move nothing and so deserve no audit row; this one does, or the
-    durable trail stays silent about a file appearing in the archive
+    the copy landed but the source could not be unlinked. Every other refusal
+    moves nothing. :func:`_record_archive` writes a row for all of them, but
+    this is the one where the row must name the stray copy rather than the
+    source, or the durable trail cannot point at the leftover bytes
     (security review 2026-08-22 LOW).
     """
 
@@ -177,11 +178,14 @@ class _ArchivePlan:
     never touches the slot and must still work when it is broken. Returning
     it as a plain refusal would newly fail that case.
 
-    **Refusals learned here write no audit row**; refusals learned in apply
-    do. Not an inconsistency — a plan is checked before the operator is
-    asked anything, so there is no decision to record, while apply runs
-    after a recorded decision. This is the load-bearing reason the split is
-    safe (pinned by ``test_a_failed_archive_exits_nonzero_with_no_audit_row``).
+    Whether a refusal learned here writes an audit row is the **caller's**
+    property, not the split's: ``remove-skill`` aborts on a plan refusal
+    before the operator is prompted, so there is no decision to record and no
+    row (pinned by
+    ``test_a_failed_archive_exits_nonzero_with_no_audit_row``), while the
+    ``--archive-names`` batch has no prompt and routes every outcome —
+    refusals from here included — through :func:`_record_archive`, which
+    writes a ``rejected`` row.
     """
 
     source: Path

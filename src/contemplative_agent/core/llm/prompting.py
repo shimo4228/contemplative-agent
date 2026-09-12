@@ -119,7 +119,8 @@ def get_identity_system_prompt() -> str:
     """System prompt with identity + axioms but no learned skills/rules.
 
     Used by mechanical calls (relevance scoring, submolt selection, topic
-    summary) and the pre-action internal note: identity supplies the lens
+    summary, ADR-0081 pass-1 skill selection in ``core.skill_selection``) and
+    the pre-action internal note: identity supplies the lens
     and the axioms the values, while the learned corpus stays out — it
     distracts a small model from single-token tasks and feeds its own
     vocabulary back into episodes (audit H5).

@@ -225,9 +225,10 @@ class ConfusionReading:
 
     pairs: tuple[ConfusionPair, ...]
     exposure_floor: int
-    # Every distinct rejected name the window carried, by mechanism. The
-    # denominator for "how much of the confusion this reading charged to a
-    # skill", so a reader can see what the ``CONFUSION_MECHANISMS`` filter
+    # Every rejected-name emission the window carried, by mechanism
+    # (emissions, not distinct names — a name emitted 40 times counts 40).
+    # The denominator for "how much of the confusion this reading charged to
+    # a skill", so a reader can see what the ``CONFUSION_MECHANISMS`` filter
     # dropped instead of taking the pair list as the whole of it.
     mechanism_emissions: tuple[tuple[str, int], ...]
     # Emissions charged to a catalog entry (the numerator of the above).
@@ -401,8 +402,11 @@ def _build_pairs(
         # The candidate condition, verbatim from ADR-0105: the reader named
         # its way INTO this entry at least as often as it chose it, and the
         # entry has been offered often enough for that to mean anything.
-        # ``confused_as > 0`` is not redundant with ``>=``: without it every
-        # never-offered, never-confused entry would satisfy ``0 >= 0``.
+        # ``confused_as > 0`` is unreachable while the loop ranges over
+        # ``confused_as`` (every key was inserted with a positive count);
+        # kept so the condition stays correct if the loop is ever ranged over
+        # the whole catalog, where a never-confused entry would satisfy
+        # ``0 >= 0``.
         if confused.confused_as <= 0:
             continue
         if confused.confused_as < confused.selected_window:

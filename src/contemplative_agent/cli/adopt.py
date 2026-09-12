@@ -170,8 +170,10 @@ def _load_staged_item(meta_file: Path, data_root: Path) -> _StagedItem | None:
     )
 
 
-# Staging commands that own a canonical file and exist to replace it. Kept as
-# a named set so the operator warning below and the predicate cannot drift.
+# Staging commands that own a canonical file and exist to replace it. This set
+# backs the operator warning below only; ``_replaces_canonical_target`` dispatches
+# on its own string literals because each command carries a distinct target-location
+# rule, so a third replacement command must be added in both places to take effect.
 # ``value_layer_due_check.py`` enumerates a wider identity vocabulary
 # (``distill-identity-ca``, the shelved ADR-0013 coding-agent path); it has no
 # live staging producer, so it cannot reach here — reviving it means adding it
@@ -660,12 +662,12 @@ def _quarantine_invalid_sidecar(meta_file: Path) -> None:
 class _Outcome(Enum):
     """What happened to one staged item — the dispatch's whole return channel.
 
-    An enum rather than eight counter variables threaded through one loop:
-    the summary and the exit code are both functions of the tally, and with
-    the counters inline every new branch had to remember to increment the
-    right one. Three of these mean "the operator asked for something that did
-    not happen", which is exactly the exit-1 condition, so that verdict is
-    read off the values instead of restated as a boolean expression.
+    An enum rather than one counter variable per outcome threaded through one
+    loop: the summary and the exit code are both functions of the tally, and
+    with the counters inline every new branch had to remember to increment the
+    right one. The ``*_FAILED`` members mean "the operator asked for something
+    that did not happen", which is exactly the exit-1 condition, so that verdict
+    is read off the values instead of restated as a boolean expression.
     """
 
     # `auto()` and not strings: the summary labels live in
@@ -1042,8 +1044,9 @@ def _resolve_adopt_plan(args: argparse.Namespace) -> _AdoptPlan | None:
 
     archive_names_file = getattr(args, "archive_names", None)
     # Resolved once, above the first use: the store dir is compared against
-    # resolved paths in three places below, and `:1032`'s glob only reads
-    # `p.name`, so hoisting is behaviour-identical.
+    # resolved paths in three places below, and `_resolve_archive_specs`'s
+    # `skills_dir.glob("*.md")` only reads `p.name`, so hoisting is
+    # behaviour-identical.
     data_root = config.MOLTBOOK_DATA_DIR.resolve()
     raw_archive_specs: dict[str, str | None] = {}
     if archive_names_file:

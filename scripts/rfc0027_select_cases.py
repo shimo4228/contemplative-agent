@@ -3,10 +3,13 @@
 
 One-time selection helper for the RFC-0027 one-shot comparison. It reads the
 runtime knowledge store and a skills snapshot through explicit paths, never
-writes to ``MOLTBOOK_HOME``, never touches staging / adopt, and emits only two
-files under ``docs/evidence/rfc-0027/``: the case JSON consumed by
-``scripts/insight_revision_compare.py`` (``schema_version: 1``) and a selection
-sidecar recording how each case was picked plus its holdout scene.
+writes to ``MOLTBOOK_HOME``, never touches staging / adopt, and emits exactly two
+files, both confined by ``_validate_output_path`` to ``WRITABLE_ROOTS``
+(``docs/evidence/rfc-0027/`` or ``evals/fixtures/``): the case JSON consumed by
+``scripts/insight_revision_compare.py`` (``schema_version: 1``), written to
+``evals/fixtures/`` as the frozen production fixture, and a selection sidecar
+under ``docs/evidence/rfc-0027/`` recording how each case was picked plus its
+holdout scene.
 
 The four kinds (reconfirm / insufficient / revise / new) are **diagnostic
 labels for the selection rule**, not success labels and not ground truth about
@@ -18,13 +21,17 @@ The case schema forbids extra keys, so the holdout scene (a pattern from a
 different day that was NOT fed to either arm) lives in the sidecar, not in the
 case file.
 
-KNOWN DEFECT (found 2026-09-12, after the one pre-registered run): ``_case_row``
-prefixes the case id with the kind label, and the comparison harness passes
-``case_id`` into the current arm's extraction prompt (``{subcategory}``). That
-leaks the selection label into one arm and not the other. It is left in place so
-the frozen 2026-09-12 fixture stays reproducible from this file; any re-run must
-make the id opaque first and keep ``kind_label`` in the sidecar only. See
-``docs/evidence/rfc-0027/comparison-2026-09-12.md``.
+CLOSED DEFECT (2026-09-12): ``_case_row`` prefixes the case id with the kind
+label, and the first run's comparison harness fed ``case_id`` into the current
+arm's extraction prompt (``{subcategory}``), leaking the selection label into
+one arm only. The harness side is repaired — ``insight_revision_compare.py``
+fills that slot from ``DEFAULT_SUBCATEGORY`` or an explicit per-case
+``subcategory`` and rejects any case whose ``subcategory`` contains its
+``case_id``, so the id can no longer reach a prompt. The kind prefix stays here
+only so the frozen fixture remains byte-reproducible from this file, and
+``kind_label`` stays in the sidecar. Evidence: the leaked first run is
+``docs/evidence/rfc-0027/comparison-2026-09-12.md``, the post-repair re-run is
+``docs/evidence/rfc-0027/comparison-2026-09-12-rerun.md``.
 """
 
 from __future__ import annotations

@@ -158,7 +158,7 @@ class FeedManager:
         """Fetch from multiple sources and engage with posts.
 
         Sources (in priority order):
-        1. Following feed (always, 1 GET)
+        1. Following feed (1 GET, skipped when the read budget is low)
         2. Submolt feeds (cached)
 
         Content verification (math challenge) is handled at create time inside
@@ -255,11 +255,15 @@ class FeedManager:
             logger.info("Comment rate limit reached")
             return False
 
-        # post_text is already the full body here: the engage-bar fetch above
-        # runs whenever score clears min(upvote_only_threshold, threshold), and
-        # the comment path is only reached when score >= threshold (>= that
-        # bar). The earlier fetch is the single source of the full body, so the
-        # public comment and the recorded original_post use it.
+        # post_text carries whatever the engage-bar fetch above produced: that
+        # fetch runs whenever score clears min(upvote_only_threshold,
+        # threshold), and the comment path is only reached when score >=
+        # threshold (>= that bar), so no second GET belongs here. It is the
+        # full body when the fetch got one; a preview-length body means it fell
+        # back (read budget low, or nothing longer came back) and that judgment
+        # is not memoized — the same case _judge_post guards against freezing.
+        # That single earlier fetch is the only source, so the public comment
+        # and the recorded original_post use its result as-is.
         generated = self._get_content().create_comment(post_text)
         comment = generated.text
         if comment is None:

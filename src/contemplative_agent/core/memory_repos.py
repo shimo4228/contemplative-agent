@@ -391,7 +391,14 @@ class CommentLedger:
         return targets[-limit:]
 
     def has_commented_on(self, post_id: str) -> bool:
-        """Whether we commented on this post in the last 30 days."""
+        """Whether this post is in the persistent commented set (= ever commented).
+
+        The set is monotonic: `record_commented` only adds and `save` writes the
+        whole set, so entries never expire. The 30-day window exists only in
+        `_build_cache`, which seeds a cold rebuild when the cache file is missing
+        or unparseable, so a cold rebuild recovers only the last 30 days. Callers
+        gating engagement therefore never re-engage a post the live set still holds.
+        """
         return post_id in self._loaded_cache()
 
     def record_commented(self, post_id: str) -> None:
