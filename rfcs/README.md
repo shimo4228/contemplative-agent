@@ -42,3 +42,8 @@ frontmatter が唯一の正本**。
 | [0028](0028-skill-outcome-recording.md) | skill の outcome 記録 — 環境の反応（返信 / upvote / スレッド継続）を comment id と selection log に結ぶ |
 | [0029](0029-publish-failure-reason-code.md) | publish 失敗の理由コード — outcome 行に HTTP status と client 由来の reason code を足す（message 本文は入れない、ADR-0075 / 0083） |
 | [0030](0030-rotate-log-lsof-path.md) | rotate-log.sh の open-writer ガードが backup job の launchd PATH（/usr/sbin 無し）で無効化されている |
+| [0031](0031-knowledge-embedding-sidecar.md) | knowledge.json から 768 次元 embedding を別ストアへ出す（load 4.8s / save 2.7s / 189MB の根） |
+| [0032](0032-feed-score-cache-per-cycle.md) | 同じ投稿がフィード TTL 内に ~10 回 LLM 採点される — 判定の重複を残すか消すか |
+| [0033](0033-value-layer-due-check-load-gate.md) | value_layer_due_check の 180MB ロードゲートが恒真化し、毎週 ~1.5GB を払っている |
+| [0034](0034-novelty-audit-kind-discriminator.md) | insight-novelty.jsonl に kind 判別子が無く、リプレイが deferral 行を verdict "None" と数える |
+| [0035](0035-test-agent-names-in-follow-ranking.md) | fixture 名の除外リストが production の follow ランキングに埋まっている |
