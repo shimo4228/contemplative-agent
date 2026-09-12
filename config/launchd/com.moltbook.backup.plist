@@ -16,10 +16,15 @@
 	<key>WorkingDirectory</key>
 	<string>{{PROJECT_ROOT}}</string>
 
+	<!-- /usr/sbin is where macOS ships lsof, which the open-writer guard in
+	     rotate-log.sh needs before it rotates agent-launchd.log. Without it
+	     this job took the guard's warning branch on every weekly run
+	     (RFC-0030). The script now retries /usr/sbin/lsof on its own, so this
+	     entry is the belt to that suspenders — keep both. -->
 	<key>EnvironmentVariables</key>
 	<dict>
 		<key>PATH</key>
-		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+		<string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin</string>
 	</dict>
 
 	<key>StartCalendarInterval</key>

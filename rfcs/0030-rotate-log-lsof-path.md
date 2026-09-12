@@ -51,3 +51,18 @@ PATH 制限付き plist 下で再利用したことで開いた隙間で、台�
 ## 2026-09-12 決定（著者回答）
 
 `draft` → `accepted`。S11 として dispatch（RFC-0035 と同梱、worktree `task/s11-small-fixes`）。
+
+## 2026-09-12 build（S11、worktree `task/s11-small-fixes`）
+
+Premise 再照合は全て成立: `scripts/rotate-log.sh` の `command -v lsof` → 警告枝、
+`config/launchd/com.moltbook.backup.plist:22` の PATH に `/usr/sbin` 無し、`/usr/sbin/lsof` 実在、
+`scripts/backup-runtime.sh:55` が rotate-log.sh を `|| echo` で呼ぶ。
+
+両方の選択肢を採った（RFC 本文は「どちらも検査そのものは変えない」と並列に置いていた）。script 側の
+絶対パス retry が実際に効く方の修理で、plist は次の `install-schedule --weekly-backup` まで機械に
+届かないため。retry path はリテラル固定 — 無人 job なので env 由来の probe path は knob になる。
+
+他の plist（weekly-pipeline / insight / submolt-scan / distill）の PATH は変更しない。本 RFC の
+producer は backup のみで、他 job は rotate-log.sh を呼ばない。揃えるかは別判断として残す。
+
+`~/Library/LaunchAgents/` は触っていない。本配置は人間が `install-schedule --weekly-backup` で行う。

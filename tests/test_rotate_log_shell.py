@@ -1,4 +1,4 @@
-"""Guards for ``scripts/rotate-log.sh`` (called by the ollama-restart job).
+"""Guards for ``scripts/rotate-log.sh`` (the ollama-restart and backup jobs).
 
 T-LOGROT-OLLAMA: ``ollama-serve.log`` grew for 34 days because the job that
 owns it starts ``ollama serve`` with ``>>`` and nothing ever truncated or
@@ -220,3 +220,80 @@ def test_a_bad_keep_count_fails_loudly(tmp_path: Path, keep: str) -> None:
     assert result.returncode != 0
     assert result.stderr.strip()
     assert log.read_text(encoding="utf-8") == "data\n"
+
+
+# The open-writer guard is only as good as the PATH the job runs under.
+# `com.moltbook.backup` pins PATH without /usr/sbin, where macOS keeps lsof, so
+# `command -v lsof` missed and every weekly rotation took the warning branch
+# (RFC-0030). These two pin both halves: the absolute-path retry, and the
+# warning branch that still has to exist for a host with no lsof at all.
+_PATH_WITHOUT_USR_SBIN = "/usr/bin:/bin"
+_LSOF_ABSOLUTE = "/usr/sbin/lsof"
+
+
+def _run_with_path(*args: str, path: str, script: Path = SCRIPT):
+    return subprocess.run(
+        ["/bin/bash", str(script), *args],
+        capture_output=True,
+        text=True,
+        timeout=60,
+        env={"PATH": path},
+    )
+
+
+def test_a_stripped_path_still_finds_lsof_at_its_absolute_location(tmp_path: Path) -> None:
+    """The launchd PATH has no /usr/sbin; the guard must still fire."""
+    if not Path(_LSOF_ABSOLUTE).exists():  # pragma: no cover - ships with macOS
+        pytest.skip(f"{_LSOF_ABSOLUTE} is required to observe the open descriptor")
+
+    log = tmp_path / "agent-launchd.log"
+    log.write_text("being written\n", encoding="utf-8")
+
+    holder = subprocess.Popen(["bash", "-c", f'exec 3>>"{log}"; exec sleep 30'])
+    try:
+        deadline = time.monotonic() + 10
+        while time.monotonic() < deadline:
+            probe = subprocess.run([_LSOF_ABSOLUTE, "-t", "--", str(log)], capture_output=True)
+            if probe.returncode == 0:
+                break
+            time.sleep(0.2)
+        else:
+            pytest.fail("lsof never observed the open descriptor within 10s")
+
+        result = _run_with_path(str(log), "8", path=_PATH_WITHOUT_USR_SBIN)
+    finally:
+        holder.terminate()
+        holder.wait(timeout=10)
+
+    assert result.returncode != 0, result.stdout + result.stderr
+    assert "ERROR:" in result.stderr
+    assert "lsof not found" not in result.stderr, (
+        "the warning branch is the last resort, not the launchd-PATH default"
+    )
+    assert log.read_text(encoding="utf-8") == "being written\n"
+    assert not (tmp_path / "agent-launchd.log.1.gz").exists()
+
+
+def test_a_host_without_lsof_anywhere_still_rotates_with_a_warning(tmp_path: Path) -> None:
+    """The warning branch survives for a host that genuinely has no lsof.
+
+    Simulated by rewriting the absolute path the script retries — rather than
+    an env override, which would add a knob an unattended job could be steered
+    by. Asserting the literal first keeps this RED until the retry exists.
+    """
+    source = SCRIPT.read_text(encoding="utf-8")
+    assert _LSOF_ABSOLUTE in source, "rotate-log.sh must retry a known absolute lsof path"
+
+    script = tmp_path / "rotate-log.sh"
+    script.write_text(
+        source.replace(_LSOF_ABSOLUTE, str(tmp_path / "no-lsof-here")), encoding="utf-8"
+    )
+
+    log = tmp_path / "agent-launchd.log"
+    log.write_text("evidence\n", encoding="utf-8")
+
+    result = _run_with_path(str(log), "8", path=_PATH_WITHOUT_USR_SBIN, script=script)
+
+    assert result.returncode == 0, result.stderr
+    assert "lsof not found" in result.stderr
+    assert gzip.decompress((tmp_path / "agent-launchd.log.1.gz").read_bytes()) == b"evidence\n"

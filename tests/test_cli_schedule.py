@@ -314,6 +314,23 @@ class TestInstallBackupSchedule:
         for placeholder in ("{{PROJECT_ROOT}}", "{{WEEKDAY}}", "{{HOUR}}", "{{LOG_PATH}}"):
             assert placeholder not in content
 
+    @patch("contemplative_agent.cli.schedule.subprocess.run")
+    def test_backup_path_covers_usr_sbin_where_lsof_lives(self, mock_run, plist_sandbox):
+        """backup-runtime.sh calls rotate-log.sh, whose open-writer guard needs lsof.
+
+        macOS keeps lsof in /usr/sbin. Without it on PATH the guard took its
+        warning branch on every weekly run and rotated `agent-launchd.log`
+        without checking for a surviving writer (RFC-0030).
+        """
+        mock_run.return_value = MagicMock(returncode=0, stderr="")
+
+        _do_install_backup_schedule(weekday=1, hour=10)
+
+        content = plist_sandbox["LAUNCHD_BACKUP_PLIST_PATH"].read_text()
+        block = re.search(r"<key>PATH</key>\s*<string>([^<]*)</string>", content)
+        assert block, "the backup plist pins PATH explicitly"
+        assert "/usr/sbin" in block.group(1).split(":")
+
 
 class TestUninstallScheduleBoth:
     @patch("contemplative_agent.cli.schedule.subprocess.run")
