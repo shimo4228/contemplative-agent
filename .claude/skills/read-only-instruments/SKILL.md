@@ -99,6 +99,15 @@ changes** — embedding model swap, seed rewrite, normalization change.
 - **Don't measure orphans.** A distribution over a seed/axis nothing consumes
   measures staleness of the seed, not structure of the corpus (why ADR-0071
   scoped supply to the two consumed views).
+- **Instruments answer only questions someone already asked.** Every
+  deterministic intake encodes an imagined failure class; a repeated *valid*
+  call raised no warning, broke no invariant and deviated from no declared
+  baseline, so seven weekly intakes could not see RFC-0032 for six months.
+  A periodic review needs one step that reads body-stripped projections with
+  no question attached ("anything unexpected in repetition, absence, order,
+  value?") — the LLM's job, not a script's. Its output stays mechanism-side
+  observation: findings that would be fixed by editing the value layer are
+  not written (weekly-report Phase 0, ADR-0107).
 
 ## Placement
 

@@ -42,6 +42,28 @@ Design the record so the run can be **replayed offline**, not merely read:
       sanitized error (`strip_to_printable`, length-capped).
 - [ ] **Timestamps + stable keys** — `ts` (ISO, UTC) and a content hash
       (sha256) so records dedupe and join across retries.
+- [ ] **Content identity survives per-call randomness.** If the hashed text
+      carries a delimiter nonce, request id, timestamp or sampling seed, a
+      digest over the raw bytes never repeats and can never answer "was this
+      sent before". Record a second digest over the nonce-normalized text
+      beside the raw one (`prompt_norm_sha256` next to `prompt_sha256`;
+      `core/llm/guard.py:nonce_stable_digest`, owned by the code that owns the
+      nonce format so the two cannot drift), and pin with a test that two
+      wrapped calls over the same body share it. Found 2026-09-12: a census
+      over the RFC-0032 week (same post scored ~10×/session) read 0 repeats
+      because every `wrap_untrusted_content` call minted a fresh
+      `secrets.token_hex`; the log is metadata-only, so six months of rows
+      cannot be recomputed (ADR-0107).
+- [ ] **A named reader ships with the writer.** A log nobody reads is
+      write-only storage; the observability rule mandates writing and nothing
+      mandates reading. Name the consumer in the same PR (a weekly intake, a
+      CLI reading, or a row in `scripts/instrument_census.py:REGISTRY` whose
+      enum fields are the weekly question). Inventory 2026-09-12: of 15
+      self-written logs, 6 had zero readers, 3 only manual scripts, 2 were
+      orphans of retired writers — the RFC-0032 evidence sat in one of the 6
+      for six months. A writer→reader inventory (grep each filename stem in
+      src/ and scripts/, check which the weekly scripts invoke) is the first
+      step when a bug "the logs would have shown" surfaces (ADR-0107).
 
 Writer: append-only JSONL under `MOLTBOOK_HOME/logs/` via
 `append_jsonl_restricted` (restricted permissions, best-effort — the feature
