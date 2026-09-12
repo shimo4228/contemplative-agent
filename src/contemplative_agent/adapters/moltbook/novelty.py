@@ -21,7 +21,7 @@ from __future__ import annotations
 
 import logging
 import math
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
@@ -71,6 +71,21 @@ class GateDecision:
 # ---------------------------------------------------------------------------
 
 
+def _novelty_from_sims(sims: Iterable[tuple[float, float]], *, tau_days: float) -> float:
+    """The formula over already-computed ``(similarity, age_days)`` pairs.
+
+    Split out so the gate can compute each prior's cosine ONCE and feed the
+    same numbers to both consumers (the decayed max below and the raw nearest
+    for the log line), instead of walking the same vectors twice.
+    """
+    max_decayed = 0.0
+    for sim, age_days in sims:
+        decayed = sim * math.exp(-age_days / tau_days)
+        if decayed > max_decayed:
+            max_decayed = decayed
+    return 1.0 - max_decayed
+
+
 def compute_novelty(
     draft_vec: np.ndarray,
     history: Sequence[tuple[np.ndarray, float]],
@@ -84,15 +99,10 @@ def compute_novelty(
     repost from 30 days ago contributes ``exp(-30/14) ≈ 0.117`` rather
     than the full 1.0 a fresh repost would.
     """
-    if not history:
-        return 1.0
-    max_decayed = 0.0
-    for prior_vec, age_days in history:
-        sim = cosine(draft_vec, prior_vec)
-        decayed = sim * math.exp(-age_days / tau_days)
-        if decayed > max_decayed:
-            max_decayed = decayed
-    return 1.0 - max_decayed
+    return _novelty_from_sims(
+        ((cosine(draft_vec, prior_vec), age_days) for prior_vec, age_days in history),
+        tau_days=tau_days,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -212,8 +222,11 @@ class NoveltyGate:
             return self._fallback(draft_title, draft_topic_summary, recent_records)
 
         cached = self._cache.get_or_embed_many(list(recent_records))
-        history = _build_history(recent_records, cached)
-        history_missing = len(recent_records) - len(history)
+        # One cosine per prior, read twice: the decayed max is the novelty
+        # score, the raw max is the operator-facing "nearest" in the log.
+        priors = _compare_priors(draft_vec, recent_records, cached)
+        dated = [(p.similarity, p.age_days) for p in priors if p.age_days is not None]
+        history_missing = len(recent_records) - len(dated)
         if history_missing:
             logger.warning(
                 "NoveltyGate: %d/%d prior post(s) missing from comparison "
@@ -222,10 +235,10 @@ class NoveltyGate:
                 history_missing,
                 len(recent_records),
             )
-        novelty = compute_novelty(draft_vec, history, tau_days=self._tau_days)
+        novelty = _novelty_from_sims(dated, tau_days=self._tau_days)
         deficit = max(0.0, self._target_rate - self._memory.get_post_rate_7d())
         score = novelty + self._mu * deficit
-        nearest_title, nearest_sim = _find_nearest(draft_vec, recent_records, cached)
+        nearest_title, nearest_sim = _nearest_of(priors)
 
         admit = score >= self._theta
         reason = "admit" if admit else "reject:low_novelty"
@@ -331,43 +344,53 @@ class NoveltyGate:
 # ---------------------------------------------------------------------------
 
 
-def _build_history(
-    records: Sequence[PostRecord], cached: dict[str, np.ndarray]
-) -> list[tuple[np.ndarray, float]]:
-    """Pair each cached embedding with its age in days (UTC, current time)."""
+@dataclass(frozen=True)
+class _PriorComparison:
+    """One prior post's similarity to the draft, computed once.
+
+    ``age_days`` is ``None`` for a record whose timestamp does not parse: it
+    still counts as a neighbour for the log line (the similarity is real) but
+    cannot enter the decayed formula, which is exactly the split the two
+    former walks encoded separately.
+    """
+
+    title: str
+    similarity: float
+    age_days: float | None
+
+
+def _compare_priors(
+    draft_vec: np.ndarray,
+    records: Sequence[PostRecord],
+    cached: dict[str, np.ndarray],
+) -> list[_PriorComparison]:
+    """Cosine the draft against every prior that has an embedding — once."""
     now = datetime.now(timezone.utc)
-    out: list[tuple[np.ndarray, float]] = []
+    out: list[_PriorComparison] = []
     for record in records:
         vec = cached.get(record.post_id)
         if vec is None:
             continue
         try:
-            ts = parse_aware_utc(record.timestamp)
+            age: float | None = _age_days(parse_aware_utc(record.timestamp), now=now)
         except ValueError:
-            continue
-        out.append((vec, _age_days(ts, now=now)))
+            age = None
+        out.append(_PriorComparison(record.title, cosine(draft_vec, vec), age))
     return out
 
 
-def _find_nearest(
-    draft_vec: np.ndarray,
-    records: Sequence[PostRecord],
-    cached: dict[str, np.ndarray],
-) -> tuple[str | None, float]:
-    """Report the nearest (highest-similarity) prior post, for logging only.
+def _nearest_of(priors: Sequence[_PriorComparison]) -> tuple[str | None, float]:
+    """The nearest (highest-similarity) prior post, for logging only.
 
     Recency decay is *not* applied here — the log value is the raw similarity
     to the closest historical post, which is what an operator would want to
-    see to judge whether the gate is behaving reasonably.
+    see to judge whether the gate is behaving reasonably. A best similarity of
+    0.0 or below reports no neighbour at all, as it always has.
     """
     best_title: str | None = None
     best_sim = 0.0
-    for record in records:
-        vec = cached.get(record.post_id)
-        if vec is None:
-            continue
-        sim = cosine(draft_vec, vec)
-        if sim > best_sim:
-            best_sim = sim
-            best_title = record.title
+    for prior in priors:
+        if prior.similarity > best_sim:
+            best_sim = prior.similarity
+            best_title = prior.title
     return best_title, best_sim
