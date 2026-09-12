@@ -189,12 +189,6 @@ def _seen(path: Path) -> set[str]:
     return keys
 
 
-def _walk(node: ObservedComment, depth: int) -> Iterable[tuple[ObservedComment, int]]:
-    for child in node.replies:
-        yield child, depth
-        yield from _walk(child, depth + 1)
-
-
 def _valid_id(value: str) -> bool:
     """Ids reach this module off an untrusted response and become log keys
     (``comment_id``, ``reply_id``, ``dedupe_key``), so they are held to the
@@ -240,7 +234,7 @@ def record_comment_outcomes(
     try:
         seen = _seen(path)
         for root in comments:
-            for node, depth in _walk_own_roots(root):
+            for node in _walk_own_roots(root):
                 if not node.is_own:
                     continue
                 own += 1
@@ -250,7 +244,6 @@ def record_comment_outcomes(
                 written_here, dup_here = _record_own_comment(path, seen, post_id, node, ts, reasons)
                 written += written_here
                 duplicates += dup_here
-                del depth
     except OSError as exc:
         logger.warning("comment outcomes: write failed (%s)", exc)
         _note(reasons, REASON_WRITE_FAILED)
@@ -259,14 +252,17 @@ def record_comment_outcomes(
     )
 
 
-def _walk_own_roots(node: ObservedComment) -> Iterable[tuple[ObservedComment, int]]:
+def _walk_own_roots(node: ObservedComment) -> Iterable[ObservedComment]:
     """The node itself and every descendant, so a comment of ours nested
     under someone else's still gets its own subtree recorded.
 
-    Every own node found here becomes a subtree root; :func:`_reactions_to`
-    is what stops the roots from overlapping."""
-    yield node, 0
-    yield from _walk(node, 1)
+    Depth is not carried: the only depth that matters is the one
+    :func:`_reactions_to` computes per subtree root. Every own node found
+    here becomes such a root; that function is what stops the roots from
+    overlapping."""
+    yield node
+    for child in node.replies:
+        yield from _walk_own_roots(child)
 
 
 def _reactions_to(node: ObservedComment) -> Iterable[tuple[ObservedComment, int]]:
@@ -517,22 +513,21 @@ def read_comment_outcomes(
         for skill in skills:
             rows.setdefault(skill, []).append((has_reply, depth))
 
-    skills_json = [
-        {
-            "skill": name,
-            "injected_comments": len(observations),
-            "comments_with_reply": sum(1 for replied, _ in observations if replied),
-            "reply_rate": (
-                sum(1 for replied, _ in observations if replied) / len(observations)
-                if observations
-                else 0.0
-            ),
-            "mean_thread_depth": (
-                sum(depth for _, depth in observations) / len(observations) if observations else 0.0
-            ),
-        }
-        for name, observations in sorted(rows.items())
-    ]
+    # Rows only ever gain entries through setdefault().append(), so every
+    # observation list is non-empty by construction.
+    skills_json = []
+    for name, observations in sorted(rows.items()):
+        replied = sum(1 for has_reply, _ in observations if has_reply)
+        total = len(observations)
+        skills_json.append(
+            {
+                "skill": name,
+                "injected_comments": total,
+                "comments_with_reply": replied,
+                "reply_rate": replied / total,
+                "mean_thread_depth": sum(depth for _, depth in observations) / total,
+            }
+        )
     return {
         "since": since.isoformat(),
         "until": until.isoformat(),

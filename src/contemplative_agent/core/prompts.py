@@ -7,65 +7,49 @@ backward compatibility.
 
 from __future__ import annotations
 
+# The constant name IS the field name: ``<FIELD>_PROMPT`` uppercased. These two
+# predate that rule and keep their own spelling; everything else is derived, so
+# a new prompt is declared once (the PromptTemplates field) rather than three
+# times.
+_ATTR_ALIASES = {
+    "STOCKTAKE_DESC_PROMPT": "stocktake_description",
+    "STOCKTAKE_DESC_SYSTEM_PROMPT": "stocktake_description_system",
+}
 
-def _load_template(attr: str) -> str:
-    """Lazy-load a prompt template from config/prompts/."""
-    from .domain import get_prompt_templates
-
-    templates = get_prompt_templates()
-    return getattr(templates, attr)
+_cache: dict[str, str] = {}
 
 
-class _LazyPrompts:
-    """Module-level proxy that lazy-loads prompt templates on first access."""
+def _template_attr(name: str) -> str | None:
+    """The ``PromptTemplates`` field a module constant names, else ``None``.
 
-    _ATTR_MAP = {
-        "SYSTEM_PROMPT": "system",
-        "RELEVANCE_PROMPT": "relevance",
-        "INTERNAL_NOTE_PROMPT": "internal_note",
-        "COMMENT_PROMPT": "comment",
-        "COOPERATION_POST_PROMPT": "cooperation_post",
-        "REPLY_PROMPT": "reply",
-        "REPLY_POST_BLOCK_PROMPT": "reply_post_block",
-        "POST_TITLE_PROMPT": "post_title",
-        "TOPIC_SUMMARY_PROMPT": "topic_summary",
-        "SUBMOLT_SELECTION_PROMPT": "submolt_selection",
-        "IDENTITY_DISTILL_PROMPT": "identity_distill",
-        "INSIGHT_EXTRACTION_PROMPT": "insight_extraction",
-        "INSIGHT_NOVELTY_PROMPT": "insight_novelty",
-        "INSIGHT_NOVELTY_SYSTEM_PROMPT": "insight_novelty_system",
-        "MEDITATION_INTERPRET_PROMPT": "meditation_interpret",
-        "DISTILL_EPISODE_PROMPT": "distill_episode",
-        "DISTILL_POSTGATE_PROMPT": "distill_postgate",
-        "CONSTITUTION_AMEND_PROMPT": "constitution_amend",
-        "CONSTITUTION_SYNTHESIZE_PROMPT": "constitution_synthesize",
-        "STOCKTAKE_MERGE_RULES_PROMPT": "stocktake_merge_rules",
-        "STOCKTAKE_DESC_PROMPT": "stocktake_description",
-        "UNTRUSTED_WRAPPER_PROMPT": "untrusted_wrapper",
-        "UNTRUSTED_MARKER_COMPLETE_PROMPT": "untrusted_marker_complete",
-        "UNTRUSTED_MARKER_TRUNCATED_PROMPT": "untrusted_marker_truncated",
-        "STOCKTAKE_DESC_SYSTEM_PROMPT": "stocktake_description_system",
-        "DIALOGUE_PROMPT": "dialogue",
-        "VERIFICATION_SOLVE_EXTRACT_SYSTEM_PROMPT": "verification_solve_extract_system",
-        "LEARNED_SKILLS_FRAMING_PROMPT": "learned_skills_framing",
-        "LEARNED_RULES_FRAMING_PROMPT": "learned_rules_framing",
-        "SKILL_SELECTION_PROMPT": "skill_selection",
-        "INSIGHT_REVISION_REASON_PROMPT": "insight_revision_reason",
-        "INSIGHT_REVISION_GENERATION_PROMPT": "insight_revision_generation",
-    }
+    Derivation is checked against the dataclass so the exported set stays
+    closed: an unknown ``FOO_PROMPT`` raises AttributeError here rather than
+    reaching ``getattr`` on the templates.
+    """
+    from dataclasses import fields
 
-    def __getattr__(self, name: str) -> str:
-        if name in self._ATTR_MAP:
-            value = _load_template(self._ATTR_MAP[name])
-            # Cache on the instance to avoid repeated loading
-            object.__setattr__(self, name, value)
-            return value
+    from .domain import PromptTemplates
+
+    alias = _ATTR_ALIASES.get(name)
+    if alias is not None:
+        return alias
+    if not name.endswith("_PROMPT"):
+        return None
+    attr = name[: -len("_PROMPT")].lower()
+    return attr if attr in {f.name for f in fields(PromptTemplates)} else None
+
+
+def __getattr__(name: str) -> str:
+    """Lazy-load a prompt template from config/prompts/ on first access."""
+    cached = _cache.get(name)
+    if cached is not None:
+        return cached
+    attr = _template_attr(name)
+    if attr is None:
         raise AttributeError(f"module 'prompts' has no attribute {name!r}")
 
+    from .domain import get_prompt_templates
 
-_lazy = _LazyPrompts()
-
-
-# Expose all prompt constants as module-level attributes via __getattr__
-def __getattr__(name: str) -> str:
-    return getattr(_lazy, name)
+    value: str = getattr(get_prompt_templates(), attr)
+    _cache[name] = value
+    return value

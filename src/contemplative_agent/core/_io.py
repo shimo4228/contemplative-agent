@@ -246,18 +246,16 @@ def now_iso(timespec: str = "minutes") -> str:
 
 
 _PRINTABLE_RE = re.compile(r"[^\x20-\x7E]")
-_PRINTABLE_KEEP_NL_RE = re.compile(r"[^\x20-\x7E\n]")
 
 
-def strip_to_printable(value: object, max_len: int, *, keep_newline: bool = False) -> str:
+def strip_to_printable(value: object, max_len: int) -> str:
     """Strip to printable ASCII and cap at ``max_len``.
 
     Shared log / audit / prompt-injection guard: one place that drops
     non-printable bytes (which can smuggle ANSI escapes or markdown
     breakers into an LLM-facing or terminal-facing string) and bounds the
-    length. ``keep_newline=True`` preserves ``\\n`` for callers that want
-    multi-line context to survive. ``re.sub`` only deletes, so slicing
-    before the substitution is equivalent to slicing after.
+    length. ``re.sub`` only deletes, so slicing before the substitution is
+    equivalent to slicing after.
 
     Deliberate cost, since callers use this for human-readable previews:
     ASCII-only means em dashes, curly quotes and any non-Latin script are
@@ -269,8 +267,7 @@ def strip_to_printable(value: object, max_len: int, *, keep_newline: bool = Fals
     needs meaning preserved rather than bytes bounded, it wants
     ``text_utils.log_preview`` (collapses whitespace, keeps Unicode) instead.
     """
-    pattern = _PRINTABLE_KEEP_NL_RE if keep_newline else _PRINTABLE_RE
-    return pattern.sub("", str(value)[:max_len])
+    return _PRINTABLE_RE.sub("", str(value)[:max_len])
 
 
 # C0 (TAB and LF included), DEL, C1, and the Unicode format characters that

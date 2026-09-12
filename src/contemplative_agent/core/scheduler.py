@@ -103,24 +103,17 @@ class Scheduler:
             self._day_start = now
             self._save_state()
 
+    # The gate is the wait reaching zero. Stating it that way rather than
+    # recomputing the arithmetic keeps one owner for each rule (the interval
+    # for posts; the interval AND the daily cap for comments) — the two used
+    # to be spelled twice, so a change to the cap rule had two edit sites.
+    # Both twins re-read from disk to see other sessions' writes (audit M5).
+
     def can_post(self) -> bool:
-        # Re-read from disk to detect posts by other sessions
-        self._load_state()
-        now = time.time()
-        elapsed = now - self._last_post_time
-        return elapsed >= self._limits.post_interval_seconds
+        return self.seconds_until_post() <= 0
 
     def can_comment(self) -> bool:
-        # Re-read from disk to detect comments by other sessions (audit M5;
-        # symmetric with can_post). Load before the daily-reset check so the
-        # reset decision sees the latest persisted day_start/comments_today.
-        self._load_state()
-        self._reset_daily_if_needed()
-        now = time.time()
-        elapsed = now - self._last_comment_time
-        interval_ok = elapsed >= self._limits.comment_interval_seconds
-        daily_ok = self._comments_today < self._limits.comments_per_day
-        return interval_ok and daily_ok
+        return self.seconds_until_comment() <= 0
 
     def seconds_until_post(self) -> float:
         # Mirror can_post's cross-session re-read so the wait reflects the same

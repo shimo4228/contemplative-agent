@@ -19,6 +19,7 @@ from typing import Any, Literal
 
 import numpy as np
 
+from ._io import write_text_atomic
 from .embeddings import EMBEDDING_DIM, _get_embedding_model
 from .llm import SERVING_ENV_KEYS
 from .run_context import RUN_ID, current_session_id
@@ -190,14 +191,14 @@ def write_snapshot(
         if session_id is not None:
             manifest["session_id"] = session_id
         # manifest.json is written LAST and marks the snapshot complete: a dir
-        # without it is partial. Write to a temp name then rename so a reader
-        # never sees a half-written manifest.
-        manifest_tmp = snap_dir / "manifest.json.tmp"
-        manifest_tmp.write_text(
+        # without it is partial. write_text_atomic publishes through a rename,
+        # so a reader never sees a half-written manifest — and it owns the
+        # temp-file rules (O_EXCL, 0600, cleanup on failure) rather than this
+        # call site guessing a predictable ".tmp" name.
+        write_text_atomic(
+            snap_dir / "manifest.json",
             json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
-            encoding="utf-8",
         )
-        manifest_tmp.replace(snap_dir / "manifest.json")
 
         _prune_snapshots(snapshots_dir, MAX_SNAPSHOTS)
         return snap_dir

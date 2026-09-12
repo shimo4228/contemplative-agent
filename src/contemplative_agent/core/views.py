@@ -195,14 +195,14 @@ def _parse_seed_file(
     """Parse a seed file into a View. Frontmatter is optional."""
     raw = path.read_text(encoding="utf-8")
     match = _FRONTMATTER_RE.match(raw)
-    threshold = _DEFAULT_THRESHOLD
-    top_k: int | None = _DEFAULT_TOP_K
-    seed_from: str | None = None
     if match:
-        front, body = match.group(1), match.group(2)
-        threshold, top_k, seed_from = _parse_frontmatter(front, path.name)
+        body = match.group(2)
+        # _parse_frontmatter applies the same defaults for absent keys, so
+        # they are stated once rather than pre-assigned and overwritten.
+        threshold, top_k, seed_from = _parse_frontmatter(match.group(1), path.name)
     else:
         body = raw
+        threshold, top_k, seed_from = _DEFAULT_THRESHOLD, _DEFAULT_TOP_K, None
 
     seed_text = body.strip()
     if seed_from:

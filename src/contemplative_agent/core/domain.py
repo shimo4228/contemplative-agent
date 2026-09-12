@@ -9,11 +9,11 @@ from __future__ import annotations
 import json
 import logging
 import os
-from dataclasses import dataclass
+from dataclasses import MISSING, dataclass, fields
 from pathlib import Path
 
 from ._io import strip_to_printable
-from .config import FORBIDDEN_SUBSTRING_PATTERNS
+from .config import first_forbidden_substring
 
 logger = logging.getLogger(__name__)
 
@@ -121,10 +121,9 @@ def load_domain_config(path: Path | None = None) -> DomainConfig:
     raw = config_path.read_text(encoding="utf-8")
 
     # Validate against forbidden patterns
-    raw_lower = raw.lower()
-    for pattern in FORBIDDEN_SUBSTRING_PATTERNS:
-        if pattern.lower() in raw_lower:
-            raise ValueError(f"Domain config contains forbidden pattern: {pattern}")
+    found = first_forbidden_substring(raw)
+    if found is not None:
+        raise ValueError(f"Domain config contains forbidden pattern: {found}")
 
     data = json.loads(raw)
 
@@ -252,41 +251,14 @@ def load_prompt_templates(prompts_dir: Path | None = None) -> PromptTemplates:
     def read(name: str, *, required: bool = True) -> str:
         return _read_prompt_with_fallback(name, base_dir, home_dir, required=required)
 
+    # Derived from the dataclass rather than restated: the field name IS the
+    # file stem, and "required" IS "the field has no default". A new prompt is
+    # then declared once, and a typo cannot silently yield "" for it.
     return PromptTemplates(
-        system=read("system.md"),
-        relevance=read("relevance.md"),
-        comment=read("comment.md"),
-        cooperation_post=read("cooperation_post.md"),
-        reply=read("reply.md"),
-        reply_post_block=read("reply_post_block.md"),
-        post_title=read("post_title.md"),
-        topic_summary=read("topic_summary.md"),
-        submolt_selection=read("submolt_selection.md"),
-        internal_note=read("internal_note.md", required=False),
-        identity_distill=read("identity_distill.md", required=False),
-        insight_extraction=read("insight_extraction.md", required=False),
-        insight_novelty=read("insight_novelty.md", required=False),
-        insight_novelty_system=read("insight_novelty_system.md", required=False),
-        meditation_interpret=read("meditation_interpret.md", required=False),
-        distill_episode=read("distill_episode.md", required=False),
-        distill_postgate=read("distill_postgate.md", required=False),
-        constitution_amend=read("constitution_amend.md", required=False),
-        constitution_synthesize=read("constitution_synthesize.md", required=False),
-        stocktake_merge_rules=read("stocktake_merge_rules.md", required=False),
-        stocktake_description=read("stocktake_description.md", required=False),
-        untrusted_wrapper=read("untrusted_wrapper.md", required=False),
-        untrusted_marker_complete=read("untrusted_marker_complete.md", required=False),
-        untrusted_marker_truncated=read("untrusted_marker_truncated.md", required=False),
-        stocktake_description_system=read("stocktake_description_system.md", required=False),
-        dialogue=read("dialogue.md", required=False),
-        verification_solve_extract_system=read(
-            "verification_solve_extract_system.md", required=False
-        ),
-        learned_skills_framing=read("learned_skills_framing.md", required=False),
-        learned_rules_framing=read("learned_rules_framing.md", required=False),
-        skill_selection=read("skill_selection.md", required=False),
-        insight_revision_reason=read("insight_revision_reason.md", required=False),
-        insight_revision_generation=read("insight_revision_generation.md", required=False),
+        **{
+            f.name: read(f"{f.name}.md", required=f.default is MISSING)
+            for f in fields(PromptTemplates)
+        }
     )
 
 
@@ -322,11 +294,17 @@ def load_constitution(constitution_dir: Path | None = None) -> str:
     if not raw:
         return ""
 
-    raw_lower = raw.lower()
-    for pattern in FORBIDDEN_SUBSTRING_PATTERNS:
-        if pattern.lower() in raw_lower:
-            raise ValueError(f"Constitutional clauses contain forbidden pattern: {pattern}")
+    found = first_forbidden_substring(raw)
+    if found is not None:
+        raise ValueError(f"Constitutional clauses contain forbidden pattern: {found}")
     return raw
+
+
+class _DefaultDict(dict):
+    """Dict that returns the key wrapped in braces for missing keys."""
+
+    def __missing__(self, key: str) -> str:
+        return "{" + key + "}"
 
 
 def resolve_prompt(
@@ -342,13 +320,6 @@ def resolve_prompt(
     Uses str.format_map with a defaulting dict so that unresolved
     placeholders (like {post_content}) are left intact for later formatting.
     """
-
-    class _DefaultDict(dict):
-        """Dict that returns the key wrapped in braces for missing keys."""
-
-        def __missing__(self, key: str) -> str:
-            return "{" + key + "}"
-
     variables = _DefaultDict(
         domain_name=domain_config.name,
         repo_url=domain_config.repo_url,

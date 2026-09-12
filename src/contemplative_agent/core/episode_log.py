@@ -23,9 +23,7 @@ class EpisodeLog:
         self._log_dir = log_dir
 
     def _today_path(self) -> Path | None:
-        if self._log_dir is None:
-            return None
-        return self._log_dir / f"{datetime.now(timezone.utc).strftime('%Y-%m-%d')}.jsonl"
+        return self._path_for_date(datetime.now(timezone.utc).strftime("%Y-%m-%d"))
 
     def _path_for_date(self, date_str: str) -> Path | None:
         if self._log_dir is None:

@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import json
 import logging
 import re
 from datetime import datetime, timezone
@@ -10,6 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from ._io import write_restricted
+from .episode_log import EpisodeLog
 from .episode_render import safe_peer_name
 
 logger = logging.getLogger(__name__)
@@ -75,14 +75,10 @@ def _parse_log(
     replies: list[dict[str, Any]] = []
     posts: list[dict[str, Any]] = []
 
-    for line in jsonl_path.read_text(encoding="utf-8").splitlines():
-        if not line.strip():
-            continue
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-
+    # EpisodeLog owns this file family's line grammar (skip blanks, log and
+    # skip malformed, warn instead of raising on an unreadable file) — a
+    # second reader of the same format is how the two answers diverge.
+    for entry in EpisodeLog.read_file(jsonl_path):
         if entry.get("type") == "session" and entry.get("data", {}).get("event") == "start":
             _merge_session_meta(meta, entry.get("data", {}))
             continue
