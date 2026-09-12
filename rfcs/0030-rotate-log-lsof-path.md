@@ -1,6 +1,6 @@
 ---
 id: T-ROTATE-LOG-LSOF-PATH
-state: accepted 2026-09-12
+state: done 2026-09-12
 state_since: 2026-09-12
 origin: gate
 ---
@@ -66,3 +66,7 @@ Premise 再照合は全て成立: `scripts/rotate-log.sh` の `command -v lsof` 
 producer は backup のみで、他 job は rotate-log.sh を呼ばない。揃えるかは別判断として残す。
 
 `~/Library/LaunchAgents/` は触っていない。本配置は人間が `install-schedule --weekly-backup` で行う。
+
+## 2026-09-12 merge（判断役の検収 → 著者の merge 語）
+
+`accepted` → `done`。S11 `82e13ca`（rebase 後 main `64ee9fb` に含む）を ff merge。plist の本配置は人間が `install-schedule --weekly-backup` を再実行するまで未反映（script 側の `/usr/sbin/lsof` 再試行は即時有効）。diff 外 MEDIUM 1 件は commit body に残す。 判断役の再検収: worktree / main とも `verify.sh` exit 0。

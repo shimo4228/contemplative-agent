@@ -1,5 +1,5 @@
 ---
-state: accepted 2026-09-12
+state: done 2026-09-12
 review-when: テスト側が exclude 引数で fixture 名を渡す形に移れば、この定数は消えて本 RFC も終わる
 ---
 
@@ -66,3 +66,7 @@ API に足すのは、まさに今回取り除いている欠陥（テスト都�
 `"unknown"` は module-level `UNKNOWN_AGENT_NAME` に一本化し、`InteractionIndex.top` と
 `CommentLedger` の両方がそれを引く。挙動変更（`Bob` / `TestAgent` を名乗る実在 agent がランキングに
 残る）は `test_top_ranks_an_agent_whose_name_looks_like_a_fixture` で固定した。
+
+## 2026-09-12 merge（判断役の検収 → 著者の merge 語）
+
+`accepted` → `done`。S11 `e9305a4`（rebase 後 main `64ee9fb` に含む）を ff merge。diff 外 HIGH 1 件（`memory_repos.py:146` の agent_id="unknown" バケット、先行状態）/ LOW 1 件は規律どおり commit body に残し起票なし。 判断役の再検収: worktree / main とも `verify.sh` exit 0。
