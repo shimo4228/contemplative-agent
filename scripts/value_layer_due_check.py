@@ -38,7 +38,7 @@ instead of ``ts`` and ``distill-identity-ca`` as the command name; both are
 recognized.  ``--as-of`` is passed in (no wall-clock read) so a reading is
 reproducible offline from the same inputs.
 
-**stdlib only** (plus the sibling ``_audit`` module): the weekly chain runs
+**stdlib only** (plus the sibling ``_audit`` / ``_scan`` modules): the weekly chain runs
 this as ``python3 scripts/value_layer_due_check.py``, the system interpreter,
 which has no ``contemplative_agent`` on its path.  That is why the rule
 structural check below is re-derived here instead of imported — see
@@ -56,6 +56,7 @@ from pathlib import Path
 from typing import Any
 
 from _audit import IDENTITY_COMMANDS, parse_records, parse_ts
+from _scan import ScanError
 
 _AMEND_COMMAND = "amend-constitution"
 
@@ -210,14 +211,6 @@ def read_rules_layer(rules_dir: Path | None) -> dict[str, Any] | None:
         "reason": reason,
         "path": str(rules_dir),
     }
-
-
-class CheckError(Exception):
-    """An instrument-level fault: the reading is unavailable, not zero."""
-
-    def __init__(self, reason: str, detail: str = "") -> None:
-        super().__init__(f"{reason}: {detail}" if detail else reason)
-        self.reason = reason
 
 
 def _record_ts(record: dict) -> tuple[str, datetime] | None:
@@ -464,11 +457,11 @@ def build_reading(
     try:
         as_of_date = date.fromisoformat(as_of)
     except ValueError as exc:
-        raise CheckError("BAD_AS_OF", as_of) from exc
+        raise ScanError("BAD_AS_OF", as_of) from exc
     if identity_interval_days < 1 or amendment_interval_days < 1:
         # A zero/negative interval would make the layer permanently due —
         # an unattended LLM run every single week. Abstain instead.
-        raise CheckError("BAD_INTERVAL", f"{identity_interval_days}/{amendment_interval_days}")
+        raise ScanError("BAD_INTERVAL", f"{identity_interval_days}/{amendment_interval_days}")
 
     reasons: list[str] = []
 
@@ -527,14 +520,14 @@ def _load_audit(path: Path) -> tuple[list[dict], int]:
     (`_audit.parse_records`) because both readings land in the same packet.
     """
     if not path.is_file():
-        raise CheckError("AUDIT_MISSING", str(path))
+        raise ScanError("AUDIT_MISSING", str(path))
     try:
         text = path.read_text(encoding="utf-8")
     # UnicodeDecodeError is a ValueError, not an OSError — the same gap that
     # took the (since retired) packet builder down once (2026-07-29 review). A single
     # invalid byte must abstain, not traceback.
     except (OSError, UnicodeDecodeError) as exc:
-        raise CheckError("AUDIT_UNREADABLE", str(exc)) from exc
+        raise ScanError("AUDIT_UNREADABLE", str(exc)) from exc
     return parse_records(text)
 
 
@@ -592,8 +585,9 @@ def main(argv: list[str] | None = None) -> int:
             patterns_loader=lambda: _load_patterns(args.knowledge),
             rules=read_rules_layer(args.rules_dir),
         )
-    except CheckError as exc:
-        print(f"value_layer_due_check: {exc.reason}: {exc}", file=sys.stderr)
+    except ScanError as exc:
+        # `reason=` token per the scripts/_scan.py contract.
+        print(f"value_layer_due_check: reason={exc.reason} {exc.detail}", file=sys.stderr)
         return 2
 
     reading["malformed_audit_lines"] += malformed_lines

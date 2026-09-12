@@ -18,8 +18,10 @@ the same ``_scan_selection_history``). What reusing 7b's JSON buys is that the
 two halves of the candidate file cannot disagree about the never-selected
 population, and that a lost 7b is named rather than read as "nothing to list".
 
-Abstains with a reason code on stderr and exit 2 rather than guessing; the
-pipeline turns that into ``CONFUSION_READING_FAILED`` and continues.
+Abstains with a ``reason=CODE detail`` line on stderr (the ``scripts/_scan.py``
+shape) and exit 2 rather than guessing. The pipeline today reads only the exit
+status and collapses every code into ``CONFUSION_READING_FAILED``; the codes
+are in ``confusion.err`` for the gate's read.
 
 Reads ONLY ``skill-selection-*.jsonl`` under ``$MOLTBOOK_HOME/logs`` (through
 ``core.selection_window``'s file grammar, which filters on that prefix and
@@ -51,8 +53,14 @@ from contemplative_agent.core.skill_confusion import (
 )
 
 
-def _abstain(code: str) -> int:
-    print(code, file=sys.stderr)
+def _abstain(code: str, detail: str = "") -> int:
+    """Refuse the reading with the `reason=` token scripts/_scan.py specifies.
+
+    The exception type is not raised here — the faults are all argument
+    shapes, decided before any work starts — but the stderr shape is the
+    pipeline's observability contract and must not fork per intake.
+    """
+    print(f"confusion_pair_reading: reason={code} {detail}", file=sys.stderr)
     return 2
 
 
@@ -97,16 +105,16 @@ def main() -> int:
     # the wrong window rather than fail, and a reading that quietly covers
     # the wrong days is worse than one that refuses.
     if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", args.end_date):
-        return _abstain("CONFUSION_BAD_END_DATE")
+        return _abstain("CONFUSION_BAD_END_DATE", args.end_date)
     if args.days < 1:
-        return _abstain("CONFUSION_BAD_WINDOW")
+        return _abstain("CONFUSION_BAD_WINDOW", str(args.days))
     until = date.fromisoformat(args.end_date)
     since = until - timedelta(days=args.days - 1)
 
     home = Path(args.home)
     log_dir = home / "logs"
     if not log_dir.is_dir():
-        return _abstain("CONFUSION_NO_LOG_DIR")
+        return _abstain("CONFUSION_NO_LOG_DIR", str(log_dir))
     skills_dir = home / "skills"
 
     reading = read_confusion_pairs(
@@ -156,7 +164,10 @@ def main() -> int:
             # Not fatal: the JSON and the candidate file are the artifacts the
             # gate acts on, and a week whose diagnosis was quarantined still
             # has an exit reading.
-            print("CONFUSION_FINDINGS_MISSING", file=sys.stderr)
+            print(
+                f"confusion_pair_reading: reason=CONFUSION_FINDINGS_MISSING {findings}",
+                file=sys.stderr,
+            )
 
     print(f"pairs={len(reading.pairs)} candidates={len(files)} strict={len(strict)}")
     return 0

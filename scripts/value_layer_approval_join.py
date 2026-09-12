@@ -123,6 +123,7 @@ from typing import Any
 
 from _audit import IDENTITY_COMMANDS, parse_records, parse_ts
 from _md import md_safe, printable
+from _scan import ScanError
 
 # Which path shapes belong to which state-diff section. ``identity`` is a
 # single canonical file; the other three are directories.
@@ -158,12 +159,12 @@ _DEFAULT_TOP = 25
 _RECON_CAP = 5
 
 
-class JoinUnavailable(Exception):
-    """The reading cannot be produced. Carries a reason code, never zero."""
-
-    def __init__(self, reason: str) -> None:
-        super().__init__(reason)
-        self.reason = reason
+# The reading-unavailable fault is ``_scan.ScanError``, not a local class: the
+# `reason= detail` shape is the pipeline's observability contract and forking
+# it per intake is what that module exists to prevent. ``detail`` is carried
+# for the stderr/exception text only — ``format_unavailable`` renders the code
+# alone, because this instrument's standing rule is to render digests and
+# counts, never a live file's path (weekly-analysis.sh, 2026-08-22 F1.2).
 
 
 # ``order=True`` is load-bearing: Row is the tie-breaker in the (ts, row) sort
@@ -250,17 +251,17 @@ class Trend:
 
 
 def _load_state(path: Path) -> dict[str, Any]:
-    """Read the per-section trend state. Raises JoinUnavailable on failure."""
+    """Read the per-section trend state. Raises ScanError on failure."""
     if not path.is_file():
         return {}
     try:
         loaded = json.loads(path.read_text(encoding="utf-8"))
     except OSError:
-        raise JoinUnavailable("state-unreadable") from None
+        raise ScanError("state-unreadable", str(path)) from None
     except ValueError:
-        raise JoinUnavailable("state-unparsable") from None
+        raise ScanError("state-unparsable", str(path)) from None
     if not isinstance(loaded, dict):
-        raise JoinUnavailable("state-unparsable")
+        raise ScanError("state-unparsable", str(path))
     return loaded
 
 
@@ -283,7 +284,7 @@ def read_trend(state_path: Path | None, section: str, end: str, unmatched: set[s
         return Trend(reason="state-not-given")
     try:
         state = _load_state(state_path)
-    except JoinUnavailable as exc:
+    except ScanError as exc:
         return Trend(reason=exc.reason)
     entry = state.get(section)
     if isinstance(entry, dict) and entry.get("end") == end:
@@ -335,7 +336,7 @@ def emit_state(
 
     A pending file that exists but does not parse is NOT replaced: four
     processes share it, and rewriting it from one section's view would drop
-    the other three's entries silently. Raises ``JoinUnavailable`` so the
+    the other three's entries silently. Raises ``ScanError`` so the
     caller can say so.
     """
     pending: dict[str, Any] = {}
@@ -343,16 +344,16 @@ def emit_state(
         try:
             loaded = json.loads(emit_path.read_text(encoding="utf-8"))
         except OSError:
-            raise JoinUnavailable("pending-unreadable") from None
+            raise ScanError("pending-unreadable", str(emit_path)) from None
         except ValueError:
-            raise JoinUnavailable("pending-unparsable") from None
+            raise ScanError("pending-unparsable", str(emit_path)) from None
         if not isinstance(loaded, dict):
-            raise JoinUnavailable("pending-unparsable")
+            raise ScanError("pending-unparsable", str(emit_path))
         pending = loaded
     elif state_path is not None:
         try:
             pending = _load_state(state_path)
-        except JoinUnavailable:
+        except ScanError:
             # A baseline that cannot be read was already rendered as such by
             # read_trend; seeding from nothing here is the honest remainder.
             pending = {}
@@ -488,11 +489,11 @@ def load_records(audit_path: Path) -> tuple[list[dict[str, Any]], int]:
     byte should cost that record's legibility, not the whole section.
     """
     if not audit_path.is_file():
-        raise JoinUnavailable("audit-log-missing")
+        raise ScanError("audit-log-missing", str(audit_path))
     try:
         text = audit_path.read_text(encoding="utf-8", errors="replace")
     except OSError:
-        raise JoinUnavailable("audit-log-unreadable") from None
+        raise ScanError("audit-log-unreadable", str(audit_path)) from None
     return parse_records(text)
 
 
@@ -1035,9 +1036,9 @@ def main(argv: list[str] | None = None) -> int:
         start = parse_ts(args.start)
         end = parse_ts(args.end)
         if start is None or end is None:
-            raise JoinUnavailable("window-unparsable")
+            raise ScanError("window-unparsable", f"{args.start}..{args.end}")
         records, unparsable = load_records(args.audit)
-    except JoinUnavailable as exc:
+    except ScanError as exc:
         print(format_unavailable(exc.reason))
         return 0
 
@@ -1074,7 +1075,7 @@ def main(argv: list[str] | None = None) -> int:
                     trend,
                     state_path=args.state,
                 )
-            except JoinUnavailable as exc:
+            except ScanError as exc:
                 not_written = f"(trend state not written: reason={exc.reason})"
             except OSError as exc:
                 not_written = f"(trend state not written: reason={exc.__class__.__name__})"

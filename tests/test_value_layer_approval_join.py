@@ -444,7 +444,7 @@ class TestUnavailableIsNotTheAlarm:
     def test_load_records_raises_rather_than_returning_empty(self, tmp_path):
         try:
             vlaj.load_records(tmp_path / "absent.jsonl")
-        except vlaj.JoinUnavailable as exc:
+        except vlaj.ScanError as exc:
             assert exc.reason == "audit-log-missing"
         else:  # pragma: no cover - the point of the test
             raise AssertionError("a missing log must not read as zero records")
@@ -986,7 +986,7 @@ class TestTrendBaselineIsNotReset:
     def test_a_corrupt_pending_file_is_refused_not_replaced(self, tmp_path):
         emit = tmp_path / "pending.json"
         emit.write_text("{not json", encoding="utf-8")
-        with pytest.raises(vlaj.JoinUnavailable) as exc:
+        with pytest.raises(vlaj.ScanError) as exc:
             vlaj.emit_state(emit, "skills", END, set(), vlaj.Trend())
         assert exc.value.reason == "pending-unparsable"
         assert emit.read_text(encoding="utf-8") == "{not json"
