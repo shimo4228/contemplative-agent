@@ -170,14 +170,61 @@ CHECK_COUNT_TOKENS_SIGNATURE = "count_tokens.signature"
 # red test in main rather than a silent hole in the siblings.
 LLM_BACKEND_MEMBERS = ("model", "context_window", "generate")
 
-# The call `_generate_via_backend` actually issues (core/llm/__init__.py).
-# Four positional, two keyword-only. Binding THIS is the check; matching
-# parameter names is not, so a backend taking **kwargs stays conforming.
-_CANONICAL_ARGS: tuple[object, ...] = ("prompt", "system", 256, None)
-_CANONICAL_KWARGS: dict[str, object] = {"temperature": 1.0, "think": False}
+# The call `_generate_via_backend` actually issues (core/llm/__init__.py):
+# the positional half of `LLMBackend.generate` plus its keyword-only half at
+# the declared defaults. Binding THIS is the check; matching parameter names
+# is not, so a backend taking **kwargs stays conforming.
+#
+# Derived from the Protocol rather than hand-copied from it. A kit whose whole
+# purpose is drift detection must not hold the contract in literals that drift:
+# a hand-copy stays green while asserting a default the Protocol has retired.
+# Only the placeholder VALUES are literal — they are call arguments, not
+# contract, and a Protocol never declares them.
+_CANONICAL_PLACEHOLDERS: dict[str, object] = {
+    "prompt": "prompt",
+    "system": "system",
+    "num_predict": 256,
+    "format": None,
+}
 
-# Declared defaults for the keyword-only half of that call.
-_EXPECTED_DEFAULTS: dict[str, object] = {"temperature": 1.0, "think": False}
+
+def _derive_canonical_call() -> tuple[inspect.Signature, tuple[object, ...], dict[str, object]]:
+    """Split ``LLMBackend.generate`` into the caller's positional args and
+    the declared keyword-only defaults.
+
+    Raises at import if the Protocol grows a positional parameter with no
+    placeholder. Loud in main — where the Protocol is edited and the tests
+    run — beats a silent hole in three sibling repositories.
+    """
+    signature = inspect.signature(LLMBackend.generate)
+    # Drop `self`: what the kit renders and binds is the bound-method shape a
+    # backend instance exposes.
+    signature = signature.replace(
+        parameters=[p for name, p in signature.parameters.items() if name != "self"]
+    )
+    args: list[object] = []
+    defaults: dict[str, object] = {}
+    for name, parameter in signature.parameters.items():
+        if name == "self":
+            continue
+        if parameter.kind is inspect.Parameter.KEYWORD_ONLY:
+            defaults[name] = parameter.default
+            continue
+        if name not in _CANONICAL_PLACEHOLDERS:
+            raise RuntimeError(
+                f"LLMBackend.generate grew positional parameter {name!r} with no "
+                f"placeholder in _CANONICAL_PLACEHOLDERS; the conformance kit "
+                f"cannot issue the canonical call"
+            )
+        args.append(_CANONICAL_PLACEHOLDERS[name])
+    return signature, tuple(args), defaults
+
+
+_CANONICAL_SIGNATURE, _CANONICAL_ARGS, _EXPECTED_DEFAULTS = _derive_canonical_call()
+
+# The keyword half of the canonical call: the caller forwards every
+# keyword-only parameter explicitly, at its declared default.
+_CANONICAL_KWARGS: dict[str, object] = dict(_EXPECTED_DEFAULTS)
 
 
 # ---------------------------------------------------------------------------
@@ -229,11 +276,24 @@ class ConformanceReport:
     def executed_ids(self) -> frozenset[str]:
         """Ids that actually ran — neither skipped nor excluded.
 
-        Compare against :func:`expected_checks` to catch the quiet failure
+        Compare against :attr:`expected_ids` to catch the quiet failure
         mode where the kit grew a check but this environment lacks the
         precondition to run it.
         """
         return frozenset(r.check_id for r in self.results if r.status != SKIPPED)
+
+    @property
+    def expected_ids(self) -> frozenset[str]:
+        """Ids that should have run, for THIS run's level and capabilities.
+
+        Gated on what was *detected*, matching the gate :func:`check_backend`
+        actually applies. Passing the *declared* set to :func:`expected_checks`
+        instead reddens a conforming backend that presents a capability
+        without asserting it — the case the kit deliberately permits.
+        """
+        return expected_checks(
+            level=self.level_reached, capabilities=sorted(self.detected_capabilities)
+        )
 
     def __bool__(self) -> bool:
         # Lets a sibling write `assert check_backend(b)`. pytest's assertion
@@ -334,8 +394,7 @@ def _check_generate_binds(backend: object) -> CheckResult:
             CHECK_GENERATE_BINDS,
             FAILED,
             f"generate{signature} cannot bind the call the caller issues — "
-            f"generate(prompt, system, num_predict, format, *, "
-            f"temperature=..., think=...): {exc}",
+            f"generate{_CANONICAL_SIGNATURE}: {exc}",
         )
     return CheckResult(CHECK_GENERATE_BINDS, PASSED)
 
