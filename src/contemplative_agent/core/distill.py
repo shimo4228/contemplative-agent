@@ -790,14 +790,18 @@ def _instrument_dry_run(
     # post-dedup, so skipped duplicates are not counted (codex review
     # 2026-07-03 P3). View supply needs the registry, diversity and
     # grounding run regardless. Observability only — never a gate.
-    batch = [
-        {
-            "pattern": extracted.provenance[idx].text,
-            "embedding": None if embeddings[idx] is None else embeddings[idx].tolist(),
-            "provenance": {"source_type": extracted.provenance[idx].source_type},
-        }
-        for idx in deduped.add_indices
-    ]
+    batch = []
+    for idx in deduped.add_indices:
+        # Bound once: two subscripts of the same optional element do not narrow,
+        # and the second is what pyright reads as possibly-None.
+        emb = embeddings[idx]
+        batch.append(
+            {
+                "pattern": extracted.provenance[idx].text,
+                "embedding": None if emb is None else emb.tolist(),
+                "provenance": {"source_type": extracted.provenance[idx].source_type},
+            }
+        )
     for line in instrument_lines(batch, instrument_views):
         logger.info("dry-run instrument: %s", line)
 
