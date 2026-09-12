@@ -72,12 +72,15 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 # scripts/ is not a package; the sibling modules are imported the way every
 # other instrument here imports them (running this file puts scripts/ on the
 # path, and the test inserts it explicitly).
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+if TYPE_CHECKING:  # numpy stays a deferred runtime import; this is annotations only
+    import numpy as np
 
 from _scan import ScanError  # noqa: E402
 from retrieval_recall_measure import (  # noqa: E402
@@ -285,13 +288,20 @@ def _mean_vector(vectors: Sequence[Sequence[float]]) -> list[float] | None:
 # ------------------------------------------------------------------- arms
 
 
-def _embed_or_abstain(texts: Sequence[str], label: str) -> list[list[float]]:
-    """Embed ``texts``, abstaining with a reason code instead of printing zeros.
+def _embed_or_abstain(texts: Sequence[str], label: str) -> np.ndarray:
+    """Embed ``texts`` as one float64 matrix, abstaining with a reason code
+    instead of printing zeros.
 
     ``embed_texts`` fails soft to ``None``, and ``cosine`` fails soft to 0.0
     for a zero-norm or mis-shaped vector — together they would turn "the
     model is down" into "the store covers nothing", which is exactly the
     permissive direction for a gate that rejects candidates.
+
+    Returns the ``ndarray`` rather than unpacking it back into lists: every
+    query re-converted the whole corpus, so a 57-doc store scored against
+    3,708 queries paid ~420k ``np.asarray`` calls for rows that never change.
+    The values are the identical float64 the unpacked form carried, so the
+    reading is unchanged.
     """
     import numpy as np
 
@@ -305,7 +315,7 @@ def _embed_or_abstain(texts: Sequence[str], label: str) -> list[list[float]]:
         raise ScanError("EMBEDDING_DEGENERATE", f"{label}: shape={array.shape}")
     if not np.isfinite(array).all() or not array.any(axis=1).all():
         raise ScanError("EMBEDDING_DEGENERATE", f"{label}: non-finite or zero-norm rows")
-    return [[float(x) for x in row] for row in array]
+    return array
 
 
 @dataclass(frozen=True)
@@ -313,8 +323,9 @@ class Corpus:
     """The skill store prepared for every arm."""
 
     docs: tuple[StoreSkillDoc, ...]
-    theme_vectors: list[list[float]]
-    full_vectors: list[list[float]]
+    # One float64 row per doc, built once by ``_embed_or_abstain``.
+    theme_vectors: np.ndarray
+    full_vectors: np.ndarray
     theme_bm25: Bm25Index
     full_bm25: Bm25Index
     embedding_model: str
@@ -335,17 +346,16 @@ def build_corpus(docs: Sequence[StoreSkillDoc]) -> Corpus:
 
 
 def _cosine_scores(
-    query_vector: Sequence[float], doc_vectors: Sequence[Sequence[float]], names: Sequence[str]
+    query_vector: Sequence[float], doc_vectors: np.ndarray, names: Sequence[str]
 ) -> dict[str, float]:
+    """Per-doc cosine for one query. ``doc_vectors`` is the corpus matrix
+    ``_embed_or_abstain`` built once — its rows are already float64."""
     import numpy as np
 
     from contemplative_agent.core.embeddings import cosine
 
     vector = np.asarray(query_vector, dtype=np.float64)
-    return {
-        name: float(cosine(vector, np.asarray(doc, dtype=np.float64)))
-        for name, doc in zip(names, doc_vectors, strict=True)
-    }
+    return {name: float(cosine(vector, doc)) for name, doc in zip(names, doc_vectors, strict=True)}
 
 
 def _top_n(scores: dict[str, float]) -> list[dict[str, Any]]:
